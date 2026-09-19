@@ -571,6 +571,19 @@ pub struct AppConfig {
     /// chose, plus the images it declares; no cookies, no scripts).
     #[serde(default)]
     pub readable_web: bool,
+    /// The video file each in-world screen plays, keyed by the screen's
+    /// placed instance id (`wall_screen_5`), chosen with the screen's Open
+    /// button (2026-09-18). The data file's `video:` source is only the
+    /// default; on boot a remembered file wins. A BTreeMap so the saved
+    /// JSON is in a stable order.
+    #[serde(default)]
+    pub screen_media: std::collections::BTreeMap<String, std::path::PathBuf>,
+    /// Where ffmpeg is, for converting a chosen video into the one format
+    /// the player decodes (Settings > Media). Empty = find it automatically
+    /// (PATH, then the well-known install spots in data/media/ingest.json).
+    /// A file path or the folder holding the exe.
+    #[serde(default)]
+    pub ffmpeg_path: String,
     /// Cloud march resolution divisor (v0.1285): 1 = full, 2 = half,
     /// 4 = quarter. Was GuiState-only and reset to quarter every boot, so
     /// the operator's half-res play state and the rig's default differed by
@@ -1279,6 +1292,8 @@ impl AppConfig {
             planet_clouds: state.settings.planet_clouds,
             live_weather: state.settings.live_weather,
             readable_web: state.settings.readable_web,
+            screen_media: state.settings.screen_media.clone(),
+            ffmpeg_path: state.settings.ffmpeg_path.clone(),
             cloud_res_div: state.cloud_dev_res_div.clamp(1, 4),
             track_station: state.settings.track_station,
             planet_surface_detail: state.settings.planet_surface_detail,
@@ -1499,6 +1514,8 @@ impl AppConfig {
         state.settings.planet_clouds = self.planet_clouds;
         state.settings.live_weather = self.live_weather;
         state.settings.readable_web = self.readable_web;
+        state.settings.screen_media = self.screen_media.clone();
+        state.settings.ffmpeg_path = self.ffmpeg_path.clone();
         // The cloud resolution rides GuiState directly (the F10 page and the
         // renderer read cloud_dev_res_div); the config is its persistence.
         state.cloud_dev_res_div = self.cloud_res_div.clamp(1, 4);
@@ -1867,6 +1884,40 @@ mod play_mode_tests {
         assert!(!fresh.settings.readable_web);
         saved.apply_to_gui_state(&mut fresh);
         assert!(fresh.settings.readable_web, "apply_to_gui_state must carry the opt-in");
+    }
+
+    /// The per-screen video choice and the ffmpeg path survive a save and a
+    /// load, through JSON and through both GuiState legs; a config without
+    /// them (every config before 2026-09-18) reads as "no choices, auto".
+    #[test]
+    fn screen_media_and_ffmpeg_path_round_trip() {
+        let minimal = r#"{"server_url":"","user_name":"","public_key_hex":"","completed_onboarding":false}"#;
+        let old: AppConfig = serde_json::from_str(minimal).unwrap();
+        assert!(old.screen_media.is_empty());
+        assert!(old.ffmpeg_path.is_empty());
+        assert!(AppConfig::default().screen_media.is_empty());
+
+        let mut c = old.clone();
+        c.screen_media.insert("wall_screen_5".into(), std::path::PathBuf::from("C:/Users/me/Videos/holiday.mp4"));
+        c.screen_media.insert("desk_monitor_1".into(), std::path::PathBuf::from("/home/me/talk.mkv"));
+        c.ffmpeg_path = "C:/Apps/ffmpeg/bin".into();
+        let json = serde_json::to_string(&c).unwrap();
+        assert!(json.contains("\"screen_media\""), "{json}");
+        assert!(json.contains("wall_screen_5"), "{json}");
+        let back: AppConfig = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.screen_media, c.screen_media, "every screen's choice comes back");
+        assert_eq!(back.ffmpeg_path, "C:/Apps/ffmpeg/bin");
+
+        let mut state = crate::gui::GuiState::default();
+        state.settings.screen_media = c.screen_media.clone();
+        state.settings.ffmpeg_path = c.ffmpeg_path.clone();
+        let saved = AppConfig::from_gui_state(&state);
+        assert_eq!(saved.screen_media, c.screen_media, "from_gui_state carries the choices");
+        assert_eq!(saved.ffmpeg_path, c.ffmpeg_path);
+        let mut fresh = crate::gui::GuiState::default();
+        saved.apply_to_gui_state(&mut fresh);
+        assert_eq!(fresh.settings.screen_media, c.screen_media, "apply_to_gui_state carries them back");
+        assert_eq!(fresh.settings.ffmpeg_path, c.ffmpeg_path);
     }
 }
 

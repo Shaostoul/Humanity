@@ -39,4 +39,18 @@ ffmpeg -hide_banner -loglevel error -y \
   -c:v libvpx -b:v 50k -c:a libvorbis -t 0.2 \
   "$OUT/unsupported-vp8-vorbis.webm"
 
+# 3. The transcode-on-ingest fixture (2026-09-18): 2 s, 320x180, 30 fps of
+#    H.264 + AAC in an MP4, the format a phone or a screen recorder writes
+#    and the player refuses (docs/design/media-player.md, the codec policy).
+#    An orange 48 px square slides right and bobs on a sine so a frozen
+#    frame is detectable (two snapshots half a second apart must differ),
+#    over a 440 Hz tone so silence is detectable. About 23 KB. Needs libx264
+#    and the built-in aac encoder (every ffmpeg build has both).
+ffmpeg -hide_banner -loglevel error -y \
+  -f lavfi -i "color=c=0x203040:s=320x180:r=30:d=2[bg];color=c=orange:s=48x48:r=30:d=2[box];[bg][box]overlay=x='mod(t*120\,272)':y='abs(66*sin(t*3))':shortest=1" \
+  -f lavfi -i "sine=frequency=440:sample_rate=48000:duration=2" \
+  -ac 2 -c:v libx264 -preset veryfast -crf 26 -g 30 -pix_fmt yuv420p \
+  -c:a aac -b:a 64k -movflags +faststart -t 2 \
+  "$OUT/moving-box-h264-aac.mp4"
+
 ls -l "$OUT"

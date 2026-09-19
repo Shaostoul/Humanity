@@ -1,57 +1,79 @@
 //! The video provider (in-world screens ladder, rung 5, integration): a
-//! `video:<path>` screen plays a WebM clip through the purpose-built player
-//! in `src/media`, looping, with its sound placed in the world at the
-//! screen, and a click on the screen toggles pause. The operator's words:
-//! "movies on displays". Design: docs/design/in-world-screens.md, the
-//! "Video sources" section; the player itself: docs/design/media-player.md.
+//! `video:<path>` screen plays a clip through the purpose-built player in
+//! `src/media`, looping, with its sound placed in the world at the screen,
+//! and since 2026-09-18 the player can CHOOSE THE FILE from inside the app.
+//! The operator's words: "movies on displays", then "I want to play a video
+//! of my own on it". Design: docs/design/in-world-screens.md, the "Video
+//! sources" section; the player itself and the codec policy:
+//! docs/design/media-player.md; the conversion: `src/media/transcode.rs`.
 //!
 //! How the pieces meet:
 //!
 //! * The PLAYER (`media::VideoPlayer`) decodes on its own thread and keeps
 //!   the playback clock. This provider never decodes and never re-gates:
 //!   each framed tick it asks `poll()` for the frame that is due (the
-//!   player's own gate, which never hands out a frame ahead of its clock)
-//!   and writes that frame into the surface texture with `write_pixels`.
-//! * The SURFACE is resized to the clip's own frame size by `write_pixels`,
-//!   so every pixel of the clip is shown. When the clip's aspect does not
-//!   match the display's, the frame is centred at 1:1 in a canvas of the
-//!   display's aspect with black bars (letterboxed), never stretched, and
-//!   the GPU sampler does the up-scaling on the wall for free.
+//!   player's own gate, which never hands out a frame ahead of its clock).
+//! * The FRAME lives in the provider's own GPU texture (`FrameTexture`),
+//!   uploaded once per decoded frame and registered with the surface's egui
+//!   renderer. The surface is then drawn by EGUI: the frame as an image
+//!   fitted into the display's rectangle (the GPU scales it, black bars
+//!   where the aspects differ, never a stretch), the CONTROL STRIP over its
+//!   bottom edge (Open, Play/Pause, the file name, the time), the file
+//!   picker as a window, and the notices (converting, cannot play) as
+//!   text. One draw path for every state, so the controls are always
+//!   reachable: a clip that failed to open still has its Open button.
+//! * The strip shows while the screen is being looked at (the pointer
+//!   moved on it in the last `STRIP_HOLD`), while paused, while a
+//!   conversion runs, while the picker is open and while there is nothing
+//!   to show; it hides over a playing film, the way a player's controls do.
+//!   When it is hidden and no new frame arrived, the tick draws nothing
+//!   (`FrameDraw::Keep`): the texture keeps the picture and egui does not
+//!   run, so a playing film costs one upload per decoded frame and nothing
+//!   between them.
+//! * CHOOSING A FILE: Open shows the in-app file picker (the same widget the
+//!   chat attach button uses) filtered to video extensions, starting in the
+//!   Videos folder. The choice is remembered PER SCREEN in the config
+//!   (`screen_media`, keyed by the placed instance id), so the data file's
+//!   `video:` source is only the default and the remembered file wins on
+//!   the next boot. The dev IPC's `video_open` goes through the same
+//!   `open_path`.
+//! * INGEST: a chosen file the player accepts (WebM AV1 + Opus) opens at
+//!   once; any other file is converted once by the machine's ffmpeg into
+//!   the media cache and the converted copy plays (`transcode::begin_ingest`
+//!   decides; the strip shows the percentage while it runs; a cache hit
+//!   skips ffmpeg). No ffmpeg, no encoder, a bad file: an on-screen message
+//!   naming the fix, never a panic, never a silent black screen.
 //! * The SOUND is the clip's Opus track through kira, placed at the screen:
 //!   every frame the engine tells the provider where its screen and the
 //!   listener are (`world_update`), and the provider sets the stream's
 //!   volume from the distance and its stereo pan from the screen's bearing.
-//! * A CLICK on the screen (`on_button`) toggles pause. While paused the
-//!   surface shows a one-line "paused" page (the frame is bytes in a
-//!   texture, not egui, so there is no overlay to draw on it) and the last
-//!   frame is kept in memory so play resumes on it at once. The notice is
-//!   laid out at the DISPLAY's pixel size (the def's `px`), the frame at
-//!   the CLIP's: the surface texture is the clip's size while playing and
-//!   the def's while showing a notice.
+//! * A CLICK on the picture (`on_button`) toggles pause; a click on the
+//!   strip or in the picker is egui's (the button under it acts).
 //! * LOOPING: the clip restarts when the player reports its end, and only
 //!   while it is meant to be playing (a clip paused on its last frame stays
 //!   there); the sound loops on kira's side (a loop region on the stream),
 //!   see `advance`.
-//! * INPUT while playing: the picture is bytes, egui does not run, and the
-//!   look ray keeps reporting the pointer, so the core's queued input is
-//!   dropped every playing tick (`plan_frame`) rather than replayed in one
-//!   run on the click that pauses.
 //!
 //! The file is in two halves so the logic is testable on a machine with no
-//! GPU: `open_with`, `advance`, `plan_frame`, the pause toggle,
-//! `letterbox_layout`, `compose_letterbox`, `resolve_media_path`,
-//! `audio_placement`, `compose_mix`, `mix_moved` and `SoundLink::step` are
-//! pure or player-only and every test below drives them; `frame` and
-//! `world_update` are thin glue over them (the GPU calls and the kira
+//! GPU: `open_with`, `open_path`, `advance`, `plan_frame`, the pause
+//! toggle, `picture_layout`, `letterbox_layout`, `resolve_media_path`,
+//! `StripTimer`, `strip_wanted`, `draw_screen`, `audio_placement`,
+//! `compose_mix`, `mix_moved` and `SoundLink::step` are pure, egui-only or
+//! player-only and every test below drives them; `frame`, `upload_frame`
+//! and `world_update` are thin glue over them (the GPU calls and the kira
 //! calls respectively).
 
 use std::path::{Path, PathBuf};
+use std::time::{Duration, Instant};
 
 use glam::Vec3;
 
-use crate::gui::screen_surface::{notice, ScreenCore, ScreenProvider, ScreenSurface, ScreenWorld};
+use crate::gui::screen_surface::{LoadState, ScreenCore, ScreenProvider, ScreenSurface, ScreenWorld};
 use crate::gui::theme::Theme;
+use crate::gui::widgets::file_browser::{file_picker_modal, FilePickerResult, FilePickerState};
+use crate::gui::widgets::{self, ButtonVariant};
 use crate::gui::GuiState;
+use crate::media::transcode::{self, Ingest, TranscodeJob};
 use crate::media::{AudioAttach, VideoFrame, VideoPlayer};
 
 /// Beyond this distance from the listener a screen's sound is silent. The
@@ -69,6 +91,13 @@ pub const MIX_EPSILON: f64 = 0.004;
 /// glides instead of stepping, short enough that turning the head feels
 /// immediate.
 pub const MIX_TWEEN_MS: u64 = 60;
+/// How long the control strip stays up after the pointer last moved on the
+/// screen while a film plays. Three seconds is what desktop players use.
+pub const STRIP_HOLD: Duration = Duration::from_secs(3);
+/// The strip's background: the theme's primary background at this alpha,
+/// so the picture shows through a little and the strip reads as an overlay
+/// rather than a cut.
+pub const STRIP_ALPHA: u8 = 215;
 
 /// Where a `video:<path>` points: the game DATA dir first (`data/media/x.webm`,
 /// the distributed and moddable tree), then the data dir's parent (the dev
@@ -88,10 +117,10 @@ pub fn resolve_media_path(data_dir: &Path, rel: &str) -> Option<PathBuf> {
     None
 }
 
-/// Where a frame lands on the display: the canvas written to the surface
-/// (the smallest rectangle of the DISPLAY's aspect that contains the frame
-/// at 1:1) and the frame's offset inside it. When the two aspects already
-/// agree to the pixel the canvas IS the frame and nothing is copied.
+/// The canvas of the DISPLAY's aspect that contains a frame at 1:1, and the
+/// frame's offset inside it. Used by `picture_layout` for a frame LARGER
+/// than the display (the surface then takes this size so every pixel of
+/// the clip is kept and the wall's sampler scales it down).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Letterbox {
     pub canvas_w: u32,
@@ -103,7 +132,7 @@ pub struct Letterbox {
 }
 
 impl Letterbox {
-    /// True when the frame fills the canvas exactly (no bars, no copy).
+    /// True when the frame fills the canvas exactly (no bars).
     pub fn is_identity(&self, frame_w: u32, frame_h: u32) -> bool {
         self.x == 0 && self.y == 0 && self.canvas_w == frame_w && self.canvas_h == frame_h
     }
@@ -133,41 +162,56 @@ pub fn letterbox_layout(frame_w: u32, frame_h: u32, display_w: u32, display_h: u
     }
 }
 
-/// Paint `frame` into `canvas` at the layout's offset over opaque black
-/// bars. `canvas` is reused between frames (reallocated only when the
-/// canvas size changes). The BARS are painted on every call, not only on
-/// reallocation: two layouts can share a canvas size with different
-/// offsets (a 4 x 2 frame and a 2 x 4 frame on a square display both make a
-/// 4 x 4 canvas), and painting them once left the previous frame's pixels
-/// showing through the new bars. The compose test caught that. Bars are a
-/// small share of the canvas, so painting them each frame costs little.
-pub fn compose_letterbox(frame: &VideoFrame, lb: &Letterbox, canvas: &mut Vec<u8>) {
-    let (cw, ch) = (lb.canvas_w as usize, lb.canvas_h as usize);
-    let need = cw * ch * 4;
-    if canvas.len() != need {
-        canvas.clear();
-        canvas.resize(need, 0);
+/// Where the picture goes: the SURFACE size to draw at and the rectangle
+/// (x, y, w, h, in surface pixels) the frame is fitted into, centred, with
+/// the display's own background around it.
+///
+/// The rule: a frame smaller than the display in both dimensions is drawn
+/// on a surface of the DISPLAY's size, scaled UP by the GPU to fit (so the
+/// control strip and the notices are laid out at the display's resolution,
+/// crisp on the wall, whatever the clip's size; the demo is 320 x 180 and a
+/// strip drawn at that size would be a four-times-upscaled blur). A frame
+/// as large as the display or larger in either dimension gets the
+/// letterbox canvas at ITS resolution, so every pixel of a 1080p clip on a
+/// 720p wall def survives to the wall's own sampler (the "every pixel,
+/// never stretched" rule of the first rung). Either way the frame's aspect
+/// is kept exactly: `w / h == fw / fh` to a pixel.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Picture {
+    pub surface_w: u32,
+    pub surface_h: u32,
+    pub x: f32,
+    pub y: f32,
+    pub w: f32,
+    pub h: f32,
+}
+
+impl Picture {
+    /// The scale applied to the frame (1.0 = drawn at its own size).
+    pub fn scale(&self, frame_w: u32) -> f32 {
+        self.w / frame_w.max(1) as f32
     }
-    let fw = frame.width as usize;
-    let fh = frame.height as usize;
-    let (x0, y0) = (lb.x as usize, lb.y as usize);
-    let rows = fh.min(ch.saturating_sub(y0));
-    let cols = fw.min(cw.saturating_sub(x0));
-    // Opaque black: alpha 255 (the surface format has no use for
-    // transparency, and the snapshot PNGs read better opaque).
-    let paint_black = |px: &mut [u8]| px.copy_from_slice(&[0, 0, 0, 255]);
-    for row in 0..ch {
-        let line = &mut canvas[row * cw * 4..(row + 1) * cw * 4];
-        if row < y0 || row >= y0 + rows {
-            // A bar row above or below the frame: black across.
-            line.chunks_exact_mut(4).for_each(paint_black);
-            continue;
-        }
-        // A frame row: black to the left, the frame's pixels, black to the right.
-        line[..x0 * 4].chunks_exact_mut(4).for_each(paint_black);
-        let src_row = row - y0;
-        line[x0 * 4..(x0 + cols) * 4].copy_from_slice(&frame.rgba[src_row * fw * 4..src_row * fw * 4 + cols * 4]);
-        line[(x0 + cols) * 4..].chunks_exact_mut(4).for_each(paint_black);
+}
+
+pub fn picture_layout(frame_w: u32, frame_h: u32, display_w: u32, display_h: u32) -> Picture {
+    let (fw, fh) = (frame_w.max(1), frame_h.max(1));
+    let (dw, dh) = (display_w.max(1), display_h.max(1));
+    let (sw, sh) = if fw >= dw || fh >= dh {
+        let lb = letterbox_layout(fw, fh, dw, dh);
+        (lb.canvas_w, lb.canvas_h)
+    } else {
+        (dw, dh)
+    };
+    let scale = f64::min(sw as f64 / fw as f64, sh as f64 / fh as f64);
+    let w = fw as f64 * scale;
+    let h = fh as f64 * scale;
+    Picture {
+        surface_w: sw,
+        surface_h: sh,
+        x: ((sw as f64 - w) / 2.0) as f32,
+        y: ((sh as f64 - h) / 2.0) as f32,
+        w: w as f32,
+        h: h as f32,
     }
 }
 
@@ -262,61 +306,265 @@ impl SoundLink {
     }
 }
 
+/// When the pointer last MOVED on the screen: the strip's auto-hide clock.
+/// The look ray reports the same position every frame the player holds
+/// still, so only a change of position counts as a move; an `Instant` is
+/// passed in rather than read, so the rule is tested without sleeping.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct StripTimer {
+    last_uv: Option<(f32, f32)>,
+    last_move: Option<Instant>,
+}
+
+impl StripTimer {
+    /// Record the pointer's position this tick (`None` = not on the screen).
+    pub fn observe(&mut self, uv: Option<(f32, f32)>, now: Instant) {
+        if let Some(uv) = uv {
+            if self.last_uv != Some(uv) {
+                self.last_move = Some(now);
+            }
+        }
+        self.last_uv = uv;
+    }
+
+    /// The pointer moved on the screen within the last `STRIP_HOLD`.
+    pub fn recently_moved(&self, now: Instant) -> bool {
+        self.last_move.map_or(false, |t| now.saturating_duration_since(t) < STRIP_HOLD)
+    }
+}
+
+/// Whether the control strip is drawn this tick: always while paused,
+/// while there is no picture to hide it behind (opening, converting, an
+/// error), while the picker is open, and otherwise only while the pointer
+/// recently moved on the screen.
+pub fn strip_wanted(paused: bool, no_picture: bool, picker_open: bool, recently_moved: bool) -> bool {
+    paused || no_picture || picker_open || recently_moved
+}
+
 /// What a framed tick draws, decided by `plan_frame` with no GPU in hand so
 /// the decision is unit-tested; `frame` is the glue that carries it out.
 #[derive(Debug, Clone, PartialEq)]
 pub enum FrameDraw {
-    /// Run egui for a one-line notice (the error page, the paused page) at
-    /// `px`, the DISPLAY's pixel size (the def's `px`), never the clip's: a
-    /// notice laid out at the clip's 320 x 180 and upscaled four times onto
-    /// a 1.2 m wall is a blur. The surface is resized to `px` first (a no-op
-    /// when it is already there, so a paused clip does not reallocate every
-    /// frame); the next written frame resizes it to the clip again.
-    Notice { text: String, px: (u32, u32) },
-    /// Write the newest frame into the texture (letterboxed), which sizes
-    /// the texture to the clip.
-    Frame,
-    /// Nothing new this tick: the texture keeps what it has, which is
-    /// exactly what a display does between frames.
+    /// Run egui at `px` (the surface size `picture_layout` chose, or the
+    /// display's when there is no picture): the frame image if there is
+    /// one, the strip if `strip`, the picker if open, a notice otherwise.
+    /// `upload` says a new decoded frame must go to the GPU first.
+    Compose { px: (u32, u32), upload: bool, strip: bool },
+    /// Nothing changed this tick: the texture keeps what it has, which is
+    /// exactly what a display does between frames, and egui does not run.
     Keep,
+}
+
+/// Everything `draw_screen` needs, as owned values, so the egui closure
+/// borrows nothing of the provider (the surface it runs on is borrowed
+/// mutably for the run).
+#[derive(Debug, Clone, PartialEq)]
+pub struct ScreenView {
+    /// The frame texture as (egui id, width, height), once a frame exists.
+    pub tex: Option<(egui::TextureId, u32, u32)>,
+    /// The display's pixel size (the def's `px`): the strip lays out
+    /// against its width.
+    pub display_px: (u32, u32),
+    pub strip: bool,
+    pub paused: bool,
+    /// The file name shown on the strip.
+    pub name: String,
+    /// The strip's right-hand text: the time, or the conversion percentage.
+    pub right_text: String,
+    /// A message instead of a picture (cannot play, converting, opening).
+    pub notice: Option<String>,
+}
+
+/// What the player did on the strip or in the picker during a run.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct ScreenActions {
+    /// The Open button.
+    pub open: bool,
+    /// The Play / Pause button.
+    pub toggle: bool,
+    /// The picker confirmed this file.
+    pub picked: Option<PathBuf>,
+    /// The picker was cancelled.
+    pub cancelled: bool,
+    /// Where the strip's top edge landed, as a fraction of the surface
+    /// height (1.0 when no strip was drawn): `on_button` uses it to leave
+    /// clicks on the strip to egui.
+    pub strip_top_frac: f32,
+}
+
+/// The whole screen, in egui, GPU-free: the picture fitted into the
+/// surface over black bars (or the notice on the theme background), the
+/// control strip anchored to the bottom edge as a floating area over the
+/// picture, and the file picker window when it is open. Runs under the
+/// screen's own context through `ScreenCore::run_with`.
+pub fn draw_screen(
+    ctx: &egui::Context,
+    theme: &Theme,
+    view: &ScreenView,
+    picker: Option<&mut FilePickerState>,
+    actions: &mut ScreenActions,
+) {
+    actions.strip_top_frac = 1.0;
+    let screen = ctx.screen_rect();
+    // The picture (or the notice) fills the whole surface; the strip floats
+    // over it, so a film keeps its full height and the strip is an overlay,
+    // not a squeeze.
+    match (&view.notice, view.tex) {
+        (Some(text), _) => {
+            egui::CentralPanel::default()
+                .frame(egui::Frame::none().fill(theme.bg_primary()).inner_margin(theme.spacing_md))
+                .show(ctx, |ui| {
+                    ui.centered_and_justified(|ui| {
+                        ui.label(egui::RichText::new(text).color(theme.text_primary()));
+                    });
+                });
+        }
+        (None, Some((id, w, h))) => {
+            egui::CentralPanel::default().frame(egui::Frame::none().fill(egui::Color32::BLACK)).show(ctx, |ui| {
+                let (sw, sh) = (screen.width().max(1.0), screen.height().max(1.0));
+                let scale = f32::min(sw / w.max(1) as f32, sh / h.max(1) as f32);
+                let size = egui::vec2(w as f32 * scale, h as f32 * scale);
+                let min = screen.min + (egui::vec2(sw, sh) - size) * 0.5;
+                let rect = egui::Rect::from_min_size(min, size);
+                ui.painter().image(
+                    id,
+                    rect,
+                    egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)),
+                    egui::Color32::WHITE,
+                );
+            });
+        }
+        (None, None) => {
+            // Opened but no frame due yet: black, the way a display looks in
+            // the instant before the first frame.
+            egui::CentralPanel::default().frame(egui::Frame::none().fill(egui::Color32::BLACK)).show(ctx, |_| {});
+        }
+    }
+    if view.strip {
+        let bg = theme.bg_primary();
+        let fill = egui::Color32::from_rgba_unmultiplied(bg.r(), bg.g(), bg.b(), STRIP_ALPHA);
+        let area = egui::Area::new(egui::Id::new("video_strip"))
+            .anchor(egui::Align2::LEFT_BOTTOM, egui::Vec2::ZERO)
+            .order(egui::Order::Foreground)
+            .interactable(true)
+            .show(ctx, |ui| {
+                egui::Frame::none()
+                    .fill(fill)
+                    .inner_margin(egui::Margin::symmetric(theme.spacing_sm as i8, theme.spacing_xs as i8))
+                    .show(ui, |ui| {
+                        ui.set_width(screen.width() - 2.0 * theme.spacing_sm);
+                        ui.horizontal(|ui| {
+                            if widgets::compact_button(ui, theme, "Open", ButtonVariant::Secondary) {
+                                actions.open = true;
+                            }
+                            let label = if view.paused { "Play" } else { "Pause" };
+                            if widgets::compact_button(ui, theme, label, ButtonVariant::Primary) {
+                                actions.toggle = true;
+                            }
+                            ui.add_space(theme.spacing_xs);
+                            ui.label(
+                                egui::RichText::new(&view.name).size(theme.font_size_small).color(theme.text_primary()),
+                            );
+                            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                ui.label(
+                                    egui::RichText::new(&view.right_text)
+                                        .size(theme.font_size_small)
+                                        .color(theme.text_muted()),
+                                );
+                            });
+                        });
+                    });
+            });
+        let top = area.response.rect.top();
+        actions.strip_top_frac = (top / screen.height().max(1.0)).clamp(0.0, 1.0);
+    }
+    if let Some(p) = picker {
+        match file_picker_modal(ctx, theme, p, "Open a video") {
+            FilePickerResult::Open => {}
+            FilePickerResult::Cancelled => actions.cancelled = true,
+            FilePickerResult::Picked(path) => actions.picked = Some(path),
+        }
+    }
+}
+
+/// The decoded frame on the GPU: the provider's own texture, registered
+/// with the surface's egui renderer under `id` so `draw_screen` can draw
+/// it. Reallocated (and the id re-pointed) when the clip's size changes.
+struct FrameTexture {
+    texture: wgpu::Texture,
+    id: egui::TextureId,
+    w: u32,
+    h: u32,
 }
 
 /// The per-screen state of one `video:<path>` source.
 pub struct VideoProvider {
-    /// The path as written after `video:` in the data file.
+    /// The path as written after `video:` in the data file: the default.
     source: String,
-    /// The file the path resolved to, once `open_with` ran.
+    /// The file the player chose (the picker, the IPC, or the config's
+    /// remembered choice); `None` while the default plays.
+    chosen: Option<PathBuf>,
+    /// `chosen` must be written to the config on the next `frame` (the
+    /// only place with the GUI state in hand).
+    remember_pending: bool,
+    /// The config was consulted once for a remembered file.
+    adopted: bool,
+    /// The Settings > Media ffmpeg path, mirrored from the GUI state each
+    /// frame so `open_path` (which the IPC calls between frames) has it.
+    ffmpeg_setting: String,
+    /// The media cache, resolved on first use (tests point it at scratch).
+    cache_dir: Option<PathBuf>,
+    /// The file that actually plays: the source, or its converted copy.
     resolved: Option<PathBuf>,
-    /// The player, once opened. `None` before the first frame and after an
-    /// open error.
+    /// The player, once opened. `None` before the first frame, while a
+    /// conversion runs, and after an open error.
     player: Option<VideoPlayer>,
+    /// A conversion in flight; its result opens the player.
+    job: Option<TranscodeJob>,
+    /// Why a conversion was needed, for the notice ("uses the video codec
+    /// V_VP8, which this player does not decode").
+    convert_why: Option<String>,
     /// Set once an open has been tried, whatever the outcome, so a failed
     /// open is shown on the screen and not retried every frame.
     open_attempted: bool,
-    /// Why there is no picture: an open error (the path, the codec) or a
-    /// decode error from the player's thread. Drawn on the screen.
+    /// Why there is no picture: an open error (the path, the codec, the
+    /// missing ffmpeg) or a decode error from the player's thread.
     error: Option<String>,
     /// The state the PLAYER wants: true = playing. Kept even before the
     /// player exists, so a click on a screen whose clip is still opening is
     /// honoured when it opens.
     want_playing: bool,
-    /// The newest frame taken from the player, kept while paused so play
-    /// resumes on it at once.
+    /// The newest frame taken from the player, kept while paused.
     last: Option<VideoFrame>,
-    /// `last` has not been written to the surface yet (it is new, or the
-    /// paused page replaced it and play resumed).
-    last_dirty: bool,
+    /// `last` has not been uploaded to the frame texture yet.
+    frame_dirty: bool,
     /// How many times the clip has wrapped back to its start.
     loops: u64,
     /// The display's pixel size (the def's `px`), read from the surface on
-    /// the first frame before any resize. Frames are letterboxed to ITS
+    /// the first frame before any resize. Pictures are fitted to ITS
     /// aspect, which the def author matched to the physical display.
     display_px: Option<(u32, u32)>,
-    /// Scratch canvas for letterboxed frames, reused frame to frame.
-    canvas: Vec<u8>,
     /// The sound hookup's state: attached yet, and the last mix sent. The
     /// attach needs the audio manager, which arrives through `world_update`.
     sound: SoundLink,
+    /// The Open picker while it is up.
+    picker: Option<FilePickerState>,
+    strip: StripTimer,
+    /// Whether the last run drew the strip (a change forces a redraw so a
+    /// hidden strip is really gone from the texture).
+    strip_shown: bool,
+    /// The strip's top edge as a fraction of the surface height after the
+    /// last run (1.0 = no strip): clicks below it are egui's.
+    strip_top_frac: f32,
+    /// The frame on the GPU.
+    tex: Option<FrameTexture>,
+    /// What the last run's notice said, to redraw when it changes (the
+    /// percentage ticking up).
+    last_notice: Option<String>,
+    /// The last open was served from the media cache (no ffmpeg run).
+    cache_hit: bool,
+    /// How many conversions this provider started.
+    transcodes: u64,
 }
 
 impl VideoProvider {
@@ -326,42 +574,63 @@ impl VideoProvider {
     pub fn new(path: &str) -> Self {
         Self {
             source: path.to_string(),
+            chosen: None,
+            remember_pending: false,
+            adopted: false,
+            ffmpeg_setting: String::new(),
+            cache_dir: None,
             resolved: None,
             player: None,
+            job: None,
+            convert_why: None,
             open_attempted: false,
             error: None,
             want_playing: true,
             last: None,
-            last_dirty: false,
+            frame_dirty: false,
             loops: 0,
             display_px: None,
-            canvas: Vec::new(),
             sound: SoundLink::default(),
+            picker: None,
+            strip: StripTimer::default(),
+            strip_shown: false,
+            strip_top_frac: 1.0,
+            tex: None,
+            last_notice: None,
+            cache_hit: false,
+            transcodes: 0,
         }
     }
 
-    /// Open the player against `data_dir` if it has not been tried yet.
-    /// `display_px` is the surface's pixel size at this moment (the def's
-    /// `px`, since nothing has resized it yet). An open error becomes the
-    /// screen's error page, naming the path and the codec problem; it never
-    /// panics and is never retried, a bad path in home.ron must not take the
-    /// world down or burn a probe per frame.
-    pub fn open_with(&mut self, data_dir: &Path, display_px: (u32, u32)) {
-        if self.open_attempted {
-            return;
+    /// Use `dir` as the media cache (tests; the app uses `transcode::cache_dir`).
+    pub fn with_cache_dir(mut self, dir: PathBuf) -> Self {
+        self.cache_dir = Some(dir);
+        self
+    }
+
+    /// The Settings > Media ffmpeg path to use for conversions.
+    pub fn set_ffmpeg_setting(&mut self, setting: &str) {
+        if self.ffmpeg_setting != setting {
+            self.ffmpeg_setting = setting.to_string();
         }
-        self.open_attempted = true;
-        self.display_px = Some(display_px);
-        let Some(path) = resolve_media_path(data_dir, &self.source) else {
-            let root = data_dir.parent().map(|p| p.join(&self.source));
-            self.error = Some(format!(
-                "file not found: looked for {} and {}",
-                data_dir.join(&self.source).display(),
-                root.map(|p| p.display().to_string()).unwrap_or_else(|| "(no repo root)".into())
-            ));
-            log::warn!("[Screens] video {:?}: {}", self.source, self.error.as_deref().unwrap_or(""));
-            return;
-        };
+    }
+
+    fn cache_dir(&mut self) -> PathBuf {
+        self.cache_dir.get_or_insert_with(transcode::cache_dir).clone()
+    }
+
+    /// The name shown on the strip and in messages: the chosen file's name,
+    /// else the source string as written in the data file.
+    pub fn current_name(&self) -> String {
+        match &self.chosen {
+            Some(p) => p.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_else(|| p.display().to_string()),
+            None => self.source.clone(),
+        }
+    }
+
+    /// Open the player on a file the player accepts. A failure becomes the
+    /// screen's error; it never panics and is never retried per frame.
+    fn open_player(&mut self, path: PathBuf) {
         match VideoPlayer::open(&path) {
             Ok(mut p) => {
                 if self.want_playing {
@@ -369,7 +638,7 @@ impl VideoProvider {
                 }
                 log::info!(
                     "[Screens] video {:?} opened from {} ({}x{}, {:.2} s, audio: {})",
-                    self.source,
+                    self.current_name(),
                     path.display(),
                     p.info().width,
                     p.info().height,
@@ -380,10 +649,71 @@ impl VideoProvider {
             }
             Err(e) => {
                 self.error = Some(e.to_string());
-                log::warn!("[Screens] video {:?} at {}: {e}", self.source, path.display());
+                log::warn!("[Screens] video {:?} at {}: {e}", self.current_name(), path.display());
             }
         }
         self.resolved = Some(path);
+    }
+
+    /// Start getting `src` onto the screen: play it, serve the cached
+    /// conversion, start a conversion, or record why none of that works.
+    /// Every previous state (player, job, frame, error) is dropped first,
+    /// so a new choice replaces the old film cleanly (the old decoder is
+    /// joined and its sound stopped by the player's own Drop).
+    fn start_ingest(&mut self, src: PathBuf) {
+        self.player = None;
+        self.job = None;
+        self.convert_why = None;
+        self.error = None;
+        self.last = None;
+        self.frame_dirty = false;
+        self.loops = 0;
+        self.resolved = None;
+        self.cache_hit = false;
+        self.sound = SoundLink::default();
+        self.open_attempted = true;
+        let cache = self.cache_dir();
+        match transcode::begin_ingest(&src, &self.ffmpeg_setting, &cache) {
+            Ingest::Direct(p) => self.open_player(p),
+            Ingest::Cached(p) => {
+                self.cache_hit = true;
+                self.open_player(p);
+            }
+            Ingest::Transcoding { job, why } => {
+                self.transcodes += 1;
+                self.convert_why = Some(why);
+                self.resolved = Some(job.dst().to_path_buf());
+                self.job = Some(job);
+            }
+            Ingest::Failed(msg) => {
+                log::warn!("[Screens] video {:?}: {msg}", self.current_name());
+                self.error = Some(msg);
+            }
+        }
+    }
+
+    /// Open the data file's default source against `data_dir` if nothing
+    /// has been opened yet. `display_px` is the surface's pixel size at
+    /// this moment (the def's `px`, since nothing has resized it yet). A
+    /// missing file is the screen's error page, naming both places it was
+    /// looked for.
+    pub fn open_with(&mut self, data_dir: &Path, display_px: (u32, u32)) {
+        if self.open_attempted {
+            return;
+        }
+        self.display_px = Some(display_px);
+        let Some(path) = resolve_media_path(data_dir, &self.source) else {
+            self.open_attempted = true;
+            let root = data_dir.parent().map(|p| p.join(&self.source));
+            self.error = Some(format!(
+                "file not found: looked for {} and {}",
+                data_dir.join(&self.source).display(),
+                root.map(|p| p.display().to_string()).unwrap_or_else(|| "(no repo root)".into())
+            ));
+            log::warn!("[Screens] video {:?}: {}", self.source, self.error.as_deref().unwrap_or(""));
+            return;
+        };
+        self.start_ingest(path);
     }
 
     /// `open_with` against the game's resolved data dir (the production path).
@@ -393,10 +723,35 @@ impl VideoProvider {
         }
     }
 
-    /// Advance playback one tick: loop if the clip ended AND it is meant to
-    /// be playing, take the frame that is due (if any), surface a decode
-    /// error. Returns true when a NEW frame is now in `last`. GPU-free;
-    /// `plan_frame` calls this and `frame` then writes.
+    /// Open a file the PLAYER chose (the picker, the dev IPC): it becomes
+    /// this screen's film, remembered in the config on the next frame, and
+    /// goes through the same probe / cache / convert path as any source.
+    pub fn open_path(&mut self, path: &Path) {
+        self.chosen = Some(path.to_path_buf());
+        self.remember_pending = true;
+        self.picker = None;
+        self.start_ingest(path.to_path_buf());
+    }
+
+    /// Consult the config's remembered choice for this screen, once, before
+    /// the default source is opened: a remembered file wins on boot.
+    fn adopt_remembered(&mut self, screen_id: &str, gui_state: &GuiState) {
+        if self.adopted {
+            return;
+        }
+        self.adopted = true;
+        if let Some(p) = gui_state.settings.screen_media.get(screen_id) {
+            log::info!("[Screens] video screen {screen_id}: remembered file {}", p.display());
+            self.chosen = Some(p.clone());
+            self.start_ingest(p.clone());
+        }
+    }
+
+    /// Advance playback one tick: finish a conversion that ended, loop if
+    /// the clip ended AND it is meant to be playing, take the frame that is
+    /// due (if any), surface a decode error. Returns true when a NEW frame
+    /// is now in `last`. GPU-free; `plan_frame` calls this and `frame`
+    /// then uploads and draws.
     ///
     /// The wrap check runs BEFORE the poll, so a frame delivered by this
     /// call always belongs to the loop count read after it: with the order
@@ -408,9 +763,21 @@ impl VideoProvider {
     /// The wrap is gated on `want_playing`: a clip paused on its last frame
     /// stays on its last frame. Without the gate a pause that landed at the
     /// end rewound the clip on the very next tick, `status().position_s`
-    /// jumped to 0 and `loops` counted a wrap nobody saw (the paused page
-    /// said "Paused at 0.0 s" for a clip that had just finished).
+    /// jumped to 0 and `loops` counted a wrap nobody saw.
     pub fn advance(&mut self) -> bool {
+        if let Some(job) = self.job.as_ref() {
+            if let Some(result) = job.result() {
+                self.job = None;
+                match result {
+                    Ok(dst) => self.open_player(dst),
+                    Err(e) => {
+                        let msg = format!("{} could not be converted: {e}", self.current_name());
+                        log::warn!("[Screens] video: {msg}");
+                        self.error = Some(msg);
+                    }
+                }
+            }
+        }
         let Some(p) = self.player.as_mut() else { return false };
         if self.want_playing && p.at_end() {
             // The clock reached the declared end (and the player stopped it
@@ -429,17 +796,18 @@ impl VideoProvider {
         // or before the player's clock, or nothing. No second gate here.
         if let Some(f) = p.poll() {
             self.last = Some(f);
-            self.last_dirty = true;
+            self.frame_dirty = true;
             fresh = true;
         }
         if let Some(e) = p.take_error() {
-            log::warn!("[Screens] video {:?}: {e}", self.source);
+            log::warn!("[Screens] video {:?}: {e}", self.current_name());
             self.error = Some(e);
         }
         fresh
     }
 
-    /// Flip between playing and paused (a click on the screen).
+    /// Flip between playing and paused (a click on the picture, the
+    /// strip's Play / Pause button).
     pub fn toggle_pause(&mut self) {
         self.want_playing = !self.want_playing;
         if let Some(p) = self.player.as_mut() {
@@ -465,23 +833,45 @@ impl VideoProvider {
         self.loops
     }
 
-    /// The open or decode error, if there is one.
+    /// The open, conversion or decode error, if there is one.
     pub fn error(&self) -> Option<&str> {
         self.error.as_deref()
     }
 
-    /// The text of the error page: the source path as written, then the
-    /// problem (which names the codec for an unsupported file, or both
-    /// places a missing file was looked for).
-    pub fn error_text(&self) -> String {
-        format!(
-            "Video \"{}\" cannot play.\n{}",
-            self.source,
-            self.error.as_deref().unwrap_or("unknown error")
-        )
+    /// Whether the Open picker is up.
+    pub fn picker_open(&self) -> bool {
+        self.picker.is_some()
     }
 
-    /// The one line the paused page shows.
+    /// Show the Open picker: video files only, starting in the folder of
+    /// the current choice, else the Videos folder (the picker's own
+    /// default is the home folder), with the game's media folder as an
+    /// extra quick root.
+    pub fn show_picker(&mut self) {
+        let rules = transcode::ingest_rules();
+        let exts: Vec<&str> = rules.video_extensions.iter().map(|s| s.as_str()).collect();
+        let home = std::env::var("USERPROFILE").or_else(|_| std::env::var("HOME")).ok().map(PathBuf::from);
+        let start = self
+            .chosen
+            .as_ref()
+            .and_then(|p| p.parent().map(|d| d.to_path_buf()))
+            .filter(|d| d.is_dir())
+            .or_else(|| home.map(|h| h.join("Videos")).filter(|d| d.is_dir()));
+        let media_dir = crate::data_dir().join("media");
+        self.picker = Some(
+            FilePickerState::new(&exts, 0).starting_in(start).with_pick_verb("Open").with_extra_root("Game media", media_dir),
+        );
+    }
+
+    /// The text of the error page: the file, then the problem (which names
+    /// the codec for an unsupported file, both places a missing file was
+    /// looked for, or the missing ffmpeg and where to set its path).
+    pub fn error_text(&self) -> String {
+        format!("Video \"{}\" cannot play.\n{}", self.current_name(), self.error.as_deref().unwrap_or("unknown error"))
+    }
+
+    /// The one line the old paused page showed; still the fullest wording
+    /// of the paused state, used in status and tests.
     pub fn paused_text(&self) -> String {
         match &self.player {
             Some(p) => format!("Paused at {:.1} s of {:.1} s. Click to play.", p.position_s(), p.duration_s()),
@@ -489,54 +879,186 @@ impl VideoProvider {
         }
     }
 
-    /// Everything `frame` decides, with no GPU in hand: open the player on
-    /// the first call (the core's size at that moment is the def's `px`,
-    /// nothing has resized it yet), advance playback, and say what to draw.
-    /// The bookkeeping that needs the core happens here too: on the PLAYING
-    /// path the core's queued input is dropped every tick
-    /// (`ScreenCore::drop_pending_events`), because the picture is bytes,
-    /// egui does not run, and the look ray keeps reporting the pointer.
-    /// `write_pixels` drops as well, but only on the ticks a frame is
-    /// written, and a 30 fps clip under a faster render (or a starved
-    /// decoder) has ticks with nothing to write. The notice paths keep
-    /// their events: the run that draws the notice consumes them.
-    pub fn plan_frame(&mut self, core: &mut ScreenCore) -> FrameDraw {
-        self.ensure_open(core.size());
-        self.advance();
-        // Notices lay out at the display's size, not the clip's (the
-        // surface may be at the clip's size from the last written frame).
-        let px = self.display_px.unwrap_or_else(|| core.size());
+    /// The conversion's percentage, when one is running.
+    pub fn transcoding_pct(&self) -> Option<f32> {
+        self.job.as_ref().map(|j| j.percent())
+    }
+
+    /// What is drawn INSTEAD of a picture, if anything: the error, the
+    /// conversion (with its reason and percentage), the opening state.
+    pub fn notice_text(&self) -> Option<String> {
         if self.error.is_some() {
-            return FrameDraw::Notice { text: self.error_text(), px };
+            return Some(self.error_text());
         }
-        if !self.want_playing {
-            // The page replaces the picture in the texture; the last frame
-            // goes back the moment play resumes, before any new frame is due.
-            self.last_dirty = self.last.is_some();
-            return FrameDraw::Notice { text: self.paused_text(), px };
+        if let Some(pct) = self.transcoding_pct() {
+            let why = self.convert_why.as_deref().unwrap_or("is not WebM AV1 + Opus");
+            return Some(format!(
+                "{} {why}.\nConverting it once to WebM AV1 + Opus with ffmpeg: {pct:.0}%",
+                self.current_name()
+            ));
         }
-        core.drop_pending_events();
-        if self.last_dirty {
-            FrameDraw::Frame
-        } else {
-            FrameDraw::Keep
+        if self.player.is_none() {
+            return Some(format!("Opening {}", self.current_name()));
+        }
+        None
+    }
+
+    /// The strip's right-hand text: the position and length, or the
+    /// conversion percentage.
+    fn right_text(&self) -> String {
+        if let Some(pct) = self.transcoding_pct() {
+            return format!("converting {pct:.0}%");
+        }
+        match &self.player {
+            Some(p) => {
+                let prefix = if self.want_playing { "" } else { "Paused " };
+                format!("{prefix}{:.1} s / {:.1} s", p.position_s(), p.duration_s())
+            }
+            None => String::new(),
         }
     }
 
-    /// Write `last` into the surface, letterboxed to the display's aspect.
-    /// The aspect-matching case writes the frame's bytes straight through
-    /// (no copy); the other case composes into the scratch canvas first.
-    fn write_last(&mut self, surface: &mut ScreenSurface, device: &wgpu::Device, queue: &wgpu::Queue) {
-        let Some(f) = self.last.as_ref() else { return };
-        let (dw, dh) = self.display_px.unwrap_or((f.width, f.height));
-        let lb = letterbox_layout(f.width, f.height, dw, dh);
-        if lb.is_identity(f.width, f.height) {
-            surface.write_pixels(device, queue, &f.rgba, f.width, f.height);
-        } else {
-            compose_letterbox(f, &lb, &mut self.canvas);
-            surface.write_pixels(device, queue, &self.canvas, lb.canvas_w, lb.canvas_h);
+    /// The view `draw_screen` draws, from the current state.
+    pub fn view(&self) -> ScreenView {
+        let notice = self.notice_text();
+        let strip = self.strip_shown;
+        ScreenView {
+            tex: if notice.is_none() { self.tex.as_ref().map(|t| (t.id, t.w, t.h)) } else { None },
+            display_px: self.display_px.unwrap_or((1280, 720)),
+            strip,
+            paused: !self.want_playing,
+            name: self.current_name(),
+            right_text: self.right_text(),
+            notice,
         }
-        self.last_dirty = false;
+    }
+
+    /// The surface size to draw at: the picture's (`picture_layout`) when a
+    /// frame is on screen, else the display's.
+    fn surface_px(&self) -> (u32, u32) {
+        let display = self.display_px.unwrap_or((1280, 720));
+        match (&self.last, self.error.is_some()) {
+            (Some(f), false) => {
+                let pic = picture_layout(f.width, f.height, display.0, display.1);
+                (pic.surface_w, pic.surface_h)
+            }
+            _ => display,
+        }
+    }
+
+    /// Everything `frame` decides, with no GPU in hand: open the default
+    /// source on the first call (the core's size at that moment is the
+    /// def's `px`), advance playback, decide whether the strip shows, and
+    /// say whether anything needs drawing. On a tick with nothing to draw
+    /// the core's queued input is dropped (`ScreenCore::drop_pending_events`):
+    /// the look ray keeps reporting the pointer and only a run drains the
+    /// queue. On a tick that draws, the run consumes them.
+    pub fn plan_frame(&mut self, core: &mut ScreenCore, now: Instant) -> FrameDraw {
+        let first = self.display_px.is_none();
+        self.ensure_open(core.size());
+        if self.display_px.is_none() {
+            self.display_px = Some(core.size());
+        }
+        let fresh = self.advance();
+        self.strip.observe(core.pointer_uv(), now);
+        let no_picture = self.notice_text().is_some() || self.last.is_none();
+        let strip = strip_wanted(!self.want_playing, no_picture, self.picker.is_some(), self.strip.recently_moved(now));
+        let notice = self.notice_text();
+        let changed = fresh
+            || self.frame_dirty
+            || strip
+            || strip != self.strip_shown
+            || self.picker.is_some()
+            || notice != self.last_notice
+            || core.find_pending()
+            || first;
+        if !changed {
+            core.drop_pending_events();
+            return FrameDraw::Keep;
+        }
+        self.strip_shown = strip;
+        FrameDraw::Compose { px: self.surface_px(), upload: self.frame_dirty, strip }
+    }
+
+    /// Put `last` on the GPU: (re)allocate the frame texture at the clip's
+    /// size when it changed, register or re-point the egui id, write the
+    /// bytes. sRGB bytes into an sRGB texture, exactly as the surface.
+    fn upload_frame(&mut self, surface: &mut ScreenSurface, device: &wgpu::Device, queue: &wgpu::Queue) {
+        let Some(f) = self.last.as_ref() else { return };
+        if f.rgba.len() != (f.width as usize) * (f.height as usize) * 4 || f.width == 0 || f.height == 0 {
+            log::warn!("[Screens] video: frame of {} bytes for {}x{} dropped", f.rgba.len(), f.width, f.height);
+            self.frame_dirty = false;
+            return;
+        }
+        let needs_alloc = self.tex.as_ref().map_or(true, |t| t.w != f.width || t.h != f.height);
+        if needs_alloc {
+            let texture = device.create_texture(&wgpu::TextureDescriptor {
+                label: Some("Video Frame"),
+                size: wgpu::Extent3d { width: f.width, height: f.height, depth_or_array_layers: 1 },
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: wgpu::TextureDimension::D2,
+                format: crate::gui::screen_surface::SURFACE_FORMAT,
+                usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+                view_formats: &[],
+            });
+            let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+            let id = match self.tex.as_ref() {
+                Some(old) => {
+                    surface.update_native_texture(device, &view, old.id);
+                    old.id
+                }
+                None => surface.register_native_texture(device, &view),
+            };
+            self.tex = Some(FrameTexture { texture, id, w: f.width, h: f.height });
+        }
+        let tex = self.tex.as_ref().expect("allocated just above");
+        queue.write_texture(
+            wgpu::TexelCopyTextureInfo {
+                texture: &tex.texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            &f.rgba,
+            wgpu::TexelCopyBufferLayout { offset: 0, bytes_per_row: Some(4 * f.width), rows_per_image: Some(f.height) },
+            wgpu::Extent3d { width: f.width, height: f.height, depth_or_array_layers: 1 },
+        );
+        self.frame_dirty = false;
+    }
+
+    /// Carry out what the run reported: Open shows the picker, Play/Pause
+    /// toggles, a picked file opens, a cancel closes. `picker` is the
+    /// state the run drew with, handed back unless the run ended it.
+    fn apply_actions(&mut self, actions: ScreenActions, picker: Option<FilePickerState>) {
+        self.strip_top_frac = actions.strip_top_frac;
+        self.picker = picker;
+        if actions.cancelled {
+            self.picker = None;
+        }
+        if let Some(path) = actions.picked {
+            self.open_path(&path);
+        }
+        if actions.toggle {
+            self.toggle_pause();
+        }
+        if actions.open {
+            self.show_picker();
+        }
+    }
+
+    /// Write the chosen file into the config, keyed by this screen, through
+    /// the normal save path.
+    fn remember(&mut self, screen_id: &str, gui_state: &mut GuiState) {
+        if !self.remember_pending {
+            return;
+        }
+        self.remember_pending = false;
+        if let Some(p) = &self.chosen {
+            gui_state.settings.screen_media.insert(screen_id.to_string(), p.clone());
+            crate::config::AppConfig::from_gui_state(gui_state).save();
+            log::info!("[Screens] video screen {screen_id}: remembered {}", p.display());
+        }
     }
 }
 
@@ -549,23 +1071,34 @@ impl ScreenProvider for VideoProvider {
         theme: &mut Theme,
         gui_state: &mut GuiState,
     ) {
+        // The settings this provider needs from the GUI state, and the
+        // remembered choice, before anything is opened.
+        let setting = gui_state.settings.ffmpeg_path.clone();
+        self.set_ffmpeg_setting(&setting);
+        let screen_id = surface.core.id.clone();
+        self.adopt_remembered(&screen_id, gui_state);
         // The decision is GPU-free and tested (`plan_frame`); this is only
         // the GPU work it asks for.
-        match self.plan_frame(&mut surface.core) {
-            FrameDraw::Notice { text, px } => {
-                // Back to the display's size: a no-op when the surface is
-                // already there (a paused clip does not reallocate every
-                // frame); the next written frame resizes to the clip again,
-                // and `frame_surfaces` rebinds the scene material to the
-                // new texture either way.
-                surface.resize(device, px.0, px.1);
-                surface.run_and_render(device, queue, theme, gui_state, |core, _theme, state| {
-                    core.run_with(state, |ctx, _| notice(ctx, &text))
-                });
-            }
-            FrameDraw::Frame => self.write_last(surface, device, queue),
+        match self.plan_frame(&mut surface.core, Instant::now()) {
             FrameDraw::Keep => {}
+            FrameDraw::Compose { px, upload, strip: _ } => {
+                if upload {
+                    self.upload_frame(surface, device, queue);
+                }
+                // A no-op when the surface is already at `px`; a change
+                // makes `frame_surfaces` rebind the scene material.
+                surface.resize(device, px.0, px.1);
+                let view = self.view();
+                let mut picker = self.picker.take();
+                let mut actions = ScreenActions::default();
+                surface.run_and_render(device, queue, theme, gui_state, |core, theme, state| {
+                    core.run_with(state, |ctx, _| draw_screen(ctx, theme, &view, picker.as_mut(), &mut actions))
+                });
+                self.last_notice = view.notice;
+                self.apply_actions(actions, picker);
+            }
         }
+        self.remember(&screen_id, gui_state);
     }
 
     fn kind(&self) -> &'static str {
@@ -577,6 +1110,32 @@ impl ScreenProvider for VideoProvider {
             Some(p) => (p.is_playing(), p.position_s(), p.duration_s(), p.has_audio()),
             None => (false, 0.0, 0.0, false),
         };
+        // The media object carries no null: `merge_provider_status` only
+        // strips nulls at the top level, and a rig reads these fields as
+        // "present means known".
+        let mut media = serde_json::Map::new();
+        media.insert("source".into(), serde_json::json!(self.source));
+        if let Some(c) = &self.chosen {
+            media.insert("chosen".into(), serde_json::json!(c.display().to_string()));
+        }
+        if let Some(r) = &self.resolved {
+            media.insert("resolved".into(), serde_json::json!(r.display().to_string()));
+        }
+        // 100 once the file plays (or played directly), the live percentage
+        // while converting, absent while nothing is open.
+        let pct = match (&self.job, &self.player) {
+            (Some(j), _) => Some(j.percent()),
+            (None, Some(_)) => Some(100.0),
+            (None, None) => None,
+        };
+        if let Some(p) = pct {
+            media.insert("transcoding_pct".into(), serde_json::json!(p));
+        }
+        media.insert("cache_hit".into(), serde_json::json!(self.cache_hit));
+        media.insert("transcodes".into(), serde_json::json!(self.transcodes));
+        if let Some(e) = &self.error {
+            media.insert("error".into(), serde_json::json!(e));
+        }
         serde_json::json!({
             "path": self.source,
             "resolved": self.resolved.as_ref().map(|p| p.display().to_string()),
@@ -586,19 +1145,50 @@ impl ScreenProvider for VideoProvider {
             "duration_s": duration_s,
             "loops": self.loops,
             "audio": audio,
+            "strip": self.strip_shown,
+            "picker": self.picker.is_some(),
             "error": self.error,
+            "media": serde_json::Value::Object(media),
         })
     }
 
-    /// A press toggles pause; the release does nothing (a click is one
-    /// toggle, not two). Only THIS provider's screen sees its own clicks:
-    /// the surface routes a button event to the provider it holds, so a
-    /// click on a page screen or a web screen never reaches a clip.
-    fn on_button(&mut self, _uv: (f32, f32), pressed: bool) -> bool {
+    /// A press on the PICTURE toggles pause; the release does nothing (a
+    /// click is one toggle, not two). A press on the strip or while the
+    /// picker is open is egui's: the button under it acts, and the film's
+    /// state is left to that button. Only THIS provider's screen sees its
+    /// own clicks: the surface routes a button event to the provider it
+    /// holds, so a click on a page screen or a web screen never reaches a
+    /// clip.
+    fn on_button(&mut self, uv: (f32, f32), pressed: bool) -> bool {
+        if self.picker.is_some() {
+            return false;
+        }
+        if self.strip_shown && uv.1 >= self.strip_top_frac {
+            return false;
+        }
         if pressed {
             self.toggle_pause();
         }
         pressed
+    }
+
+    /// The dev IPC's `video_open`: the same path the picker takes.
+    fn open_media(&mut self, path: &Path) -> bool {
+        self.open_path(path);
+        true
+    }
+
+    fn load_state(&self) -> LoadState {
+        if let Some(e) = &self.error {
+            return LoadState::Error(e.clone());
+        }
+        if self.job.is_some() || (self.open_attempted && self.player.is_none()) {
+            return LoadState::Loading;
+        }
+        if self.player.is_some() {
+            return LoadState::Ready;
+        }
+        LoadState::Static
     }
 
     /// Attach the sound once the player and the audio manager both exist,
@@ -643,12 +1233,17 @@ impl ScreenProvider for VideoProvider {
 impl Drop for VideoProvider {
     /// The screen went away (machine removed, source changed): dropping the
     /// player stops and JOINS its decode thread and stops the kira sound
-    /// (`VideoPlayer::drop`), so no decoder keeps running for a wall that
-    /// no longer exists and no soundtrack keeps playing from nowhere.
+    /// (`VideoPlayer::drop`), and dropping a conversion in flight KILLS its
+    /// ffmpeg (`TranscodeJob::drop`), so no decoder or encoder keeps
+    /// running for a wall that no longer exists.
     fn drop(&mut self) {
         if let Some(p) = self.player.take() {
             drop(p);
-            log::info!("[Screens] video {:?} stopped", self.source);
+            log::info!("[Screens] video {:?} stopped", self.current_name());
+        }
+        if let Some(j) = self.job.take() {
+            drop(j);
+            log::info!("[Screens] video {:?}: conversion cancelled", self.current_name());
         }
     }
 }
@@ -669,13 +1264,22 @@ mod tests {
     /// A file the player refuses, reached through the rule's SECOND branch
     /// (the data dir's parent, the repo root).
     const UNSUPPORTED: &str = "tests/fixtures/media/unsupported-vp8-vorbis.webm";
+    /// The transcode fixture: H.264 + AAC in an MP4.
+    const MP4: &str = "tests/fixtures/media/moving-box-h264-aac.mp4";
 
     fn data_dir() -> PathBuf {
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("data")
     }
 
+    fn scratch(name: &str) -> PathBuf {
+        let d = std::env::temp_dir().join(format!("hum_video_{name}_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&d);
+        std::fs::create_dir_all(&d).unwrap();
+        d
+    }
+
     /// Every piece of text egui laid out in a run, joined; how a test reads
-    /// what a notice page SAYS rather than only that it drew something.
+    /// what a page SAYS rather than only that it drew something.
     fn shapes_text(shapes: &[egui::epaint::ClippedShape]) -> String {
         fn walk(s: &egui::Shape, out: &mut String) {
             match s {
@@ -692,6 +1296,30 @@ mod tests {
             walk(&c.shape, &mut out);
         }
         out
+    }
+
+    /// Run the provider's own screen draw headlessly (no GPU: the frame
+    /// texture is absent, so a playing clip draws its black panel) and
+    /// return the drawn text plus what the run reported.
+    fn run_draw(core: &mut ScreenCore, state: &mut GuiState, p: &mut VideoProvider) -> (String, ScreenActions) {
+        let theme = load_theme();
+        let view = p.view();
+        let mut picker = p.picker.take();
+        let mut actions = ScreenActions::default();
+        // The SAME number of runs the real frame path does
+        // (`ScreenCore::runs_this_frame`): twice on a fresh surface, once
+        // after. The strip is an egui Area, and an Area measures itself on
+        // run 1 and settles on run 2, so a single run draws no strip at all
+        // and the layout this returns would not be the one a player sees.
+        // The events are consumed by the first run, so a click still lands
+        // where it did before.
+        let mut text = String::new();
+        for _ in 0..core.runs_this_frame() {
+            let out = core.run_with(state, |ctx, _| draw_screen(ctx, &theme, &view, picker.as_mut(), &mut actions));
+            text = shapes_text(&out.shapes);
+        }
+        p.picker = picker;
+        (text, actions)
     }
 
     /// The registry serves `video:` with this provider and nothing else
@@ -725,8 +1353,9 @@ mod tests {
         let _ = std::fs::remove_dir_all(&root);
     }
 
-    /// The click hook as pure state: a press toggles, a release does not,
-    /// and once a player exists the toggle really pauses and resumes it.
+    /// The click hook as pure state: a press on the picture toggles, a
+    /// release does not, and once a player exists the toggle really pauses
+    /// and resumes it.
     #[test]
     fn a_press_toggles_pause_and_a_release_does_not() {
         let mut p = VideoProvider::new(DEMO);
@@ -755,12 +1384,34 @@ mod tests {
         assert!(!q.player.as_ref().unwrap().is_playing(), "the pre-open pause is honoured on open");
     }
 
-    /// Headless: a missing file draws an error page that NAMES the path, on
-    /// the same core the surface would run it on. Proven able to fail: with
-    /// the text replaced by a bare "error" the path assertion fires.
+    /// A press on the STRIP is egui's, not a pause toggle: with the strip
+    /// drawn over the bottom 8 percent, a press at v = 0.95 leaves the film
+    /// alone and a press at v = 0.5 toggles it. With the picker open no
+    /// press toggles anything. Proven able to fail: with the strip check
+    /// removed from `on_button` the first assertion fires.
     #[test]
-    fn error_page_names_a_missing_file() {
-        let mut theme = load_theme();
+    fn a_press_on_the_strip_or_in_the_picker_does_not_toggle() {
+        let mut p = VideoProvider::new(DEMO);
+        p.strip_shown = true;
+        p.strip_top_frac = 0.92;
+        assert!(!p.on_button((0.5, 0.95), true), "the strip's button acts, not the film");
+        assert!(!p.is_paused());
+        assert!(p.on_button((0.5, 0.5), true), "the picture still toggles");
+        assert!(p.is_paused());
+        p.picker = Some(FilePickerState::new(&["webm"], 0));
+        assert!(!p.on_button((0.5, 0.5), false));
+        assert!(!p.on_button((0.5, 0.5), true), "the picker owns every click while it is up");
+        assert!(p.is_paused(), "unchanged");
+    }
+
+    /// Headless: a missing file draws an error page that NAMES the path, on
+    /// the same core the surface would run it on, with the strip and its
+    /// Open button so the person can choose another file. Proven able to
+    /// fail: with the text replaced by a bare "error" the path assertion
+    /// fires.
+    #[test]
+    fn error_page_names_a_missing_file_and_offers_open() {
+        let theme = load_theme();
         let mut state = GuiState::default();
         let mut core = ScreenCore::new("s", "video:media/nothing.webm", 640, 360, &theme);
         assert_eq!(core.source, ScreenSource::Video("media/nothing.webm".into()));
@@ -768,37 +1419,52 @@ mod tests {
         let mut p = VideoProvider::new("media/nothing.webm");
         p.open_with(&data_dir(), core.size());
         assert!(p.player.is_none());
-        let err = p.error().expect("a missing file is an error");
+        let err = p.error().expect("a missing file is an error").to_string();
         assert!(err.contains("not found"), "{err}");
         assert!(err.contains("nothing.webm"), "the error names the file: {err}");
         assert!(!p.advance(), "nothing to advance without a player");
+        assert_eq!(p.load_state(), LoadState::Error(err.clone()));
 
-        let text = p.error_text();
-        let out = core.run_with(&mut state, |ctx, _| notice(ctx, &text));
-        let drawn = shapes_text(&out.shapes);
+        match p.plan_frame(&mut core, Instant::now()) {
+            FrameDraw::Compose { strip, .. } => assert!(strip, "no picture: the strip is up"),
+            other => panic!("an error draws, got {other:?}"),
+        }
+        let (drawn, actions) = run_draw(&mut core, &mut state, &mut p);
         assert!(drawn.contains("media/nothing.webm"), "the page must name the path, drew: {drawn:?}");
         assert!(drawn.contains("not found"), "and say why: {drawn:?}");
-        let _ = &mut theme;
+        assert!(drawn.contains("Open"), "and offer another file: {drawn:?}");
+        assert!(actions.strip_top_frac < 1.0, "the strip was drawn: {}", actions.strip_top_frac);
     }
 
     /// Headless: an unsupported codec (the VP8 fixture, found through the
-    /// repo-root branch of the path rule) draws an error page that names the
-    /// codec, so the operator knows what to transcode.
+    /// repo-root branch of the path rule) names the codec on the screen.
+    /// With ffmpeg on the machine the file is being CONVERTED and the
+    /// notice says so with the reason; without it the error names the
+    /// codec and the fix (`FFMPEG_HINT`). Both worlds are honest.
     #[test]
-    fn error_page_names_the_codec_of_an_unsupported_file() {
+    fn the_screen_names_the_codec_of_an_unsupported_file() {
         let mut state = GuiState::default();
         let theme = load_theme();
         let mut core = ScreenCore::new("s", "video:x", 640, 360, &theme);
-        let mut p = VideoProvider::new(UNSUPPORTED);
+        let cache = scratch("vp8");
+        let mut p = VideoProvider::new(UNSUPPORTED).with_cache_dir(cache.clone());
         p.open_with(&data_dir(), core.size());
-        assert!(p.player.is_none());
-        let resolved = p.status()["resolved"].as_str().map(str::to_string);
-        assert!(resolved.as_deref().map_or(false, |r| r.ends_with("unsupported-vp8-vorbis.webm")), "{resolved:?}");
-        let text = p.error_text();
-        let out = core.run_with(&mut state, |ctx, _| notice(ctx, &text));
-        let drawn = shapes_text(&out.shapes);
-        assert!(drawn.contains("V_VP8"), "the page names the codec: {drawn:?}");
-        assert!(drawn.contains("AV1"), "and the fix: {drawn:?}");
+        assert!(p.player.is_none(), "a VP8 file never opens as it is");
+        let _ = p.plan_frame(&mut core, Instant::now());
+        let (drawn, _) = run_draw(&mut core, &mut state, &mut p);
+        assert!(drawn.contains("V_VP8"), "the screen names the codec: {drawn:?}");
+        if p.job.is_some() {
+            assert!(drawn.contains("Converting"), "with ffmpeg it converts: {drawn:?}");
+            assert_eq!(p.load_state(), LoadState::Loading);
+            let resolved = p.status()["media"]["resolved"].as_str().map(str::to_string);
+            assert!(resolved.map_or(false, |r| r.starts_with(&cache.display().to_string())), "{:?}", p.status());
+        } else {
+            let err = p.error().expect("no conversion means an error");
+            assert!(err.contains(transcode::FFMPEG_HINT), "the fix is named: {err}");
+            assert!(drawn.contains("Settings > Media"), "{drawn:?}");
+        }
+        drop(p);
+        let _ = std::fs::remove_dir_all(&cache);
     }
 
     /// The GPU-free playback half over the shipped clip: frames come out at
@@ -812,6 +1478,7 @@ mod tests {
         assert!(p.error().is_none(), "{:?}", p.error());
         let dur = p.status()["duration_s"].as_f64().unwrap();
         assert!((dur - 2.008).abs() < 0.01, "duration {dur}");
+        assert_eq!(p.load_state(), LoadState::Ready);
 
         let start = Instant::now();
         let mut seen: Vec<(u64, f64)> = Vec::new();
@@ -847,6 +1514,8 @@ mod tests {
         let s = p.status();
         assert_eq!(s["loops"].as_u64().unwrap(), p.loops());
         assert!(s["playing"].as_bool().unwrap(), "still rolling after the wrap");
+        assert_eq!(s["media"]["transcoding_pct"].as_f64().unwrap(), 100.0, "a direct open reads 100");
+        assert!(!s["media"]["cache_hit"].as_bool().unwrap());
         assert!(p.error().is_none());
     }
 
@@ -885,44 +1554,81 @@ mod tests {
         assert!(lb.canvas_w >= 1 && lb.canvas_h >= 1);
     }
 
-    /// The composed canvas has the frame's bytes at the offset and opaque
-    /// black everywhere else, and a second compose reuses the canvas
-    /// without re-filling.
+    /// The picture rule: a small clip is drawn on a display-sized surface,
+    /// scaled up with its aspect exact and centred; a clip as large as the
+    /// display or larger keeps its own pixels (the letterbox canvas) at
+    /// scale 1. Proven able to fail: with the small-clip branch returning
+    /// the frame's size the first assertion reads (320, 180).
     #[test]
-    fn compose_letterbox_centres_the_frame_over_opaque_black_bars() {
-        // A 4 x 2 frame of distinct pixels on a square display: bars above and below.
-        let mut rgba = Vec::new();
-        for i in 0..8u8 {
-            rgba.extend_from_slice(&[10 + i, 20 + i, 30 + i, 255]);
+    fn picture_layout_scales_small_clips_to_the_display_and_keeps_large_ones_1_to_1() {
+        let pic = picture_layout(320, 180, 1280, 720);
+        assert_eq!((pic.surface_w, pic.surface_h), (1280, 720), "the demo draws on a display-sized surface");
+        assert_eq!((pic.x, pic.y, pic.w, pic.h), (0.0, 0.0, 1280.0, 720.0), "same aspect: fills it");
+        assert_eq!(pic.scale(320), 4.0);
+
+        // 4:3 480p on the 16:9 wall: scaled to the display's height, side bars.
+        let pic = picture_layout(640, 480, 1280, 720);
+        assert_eq!((pic.surface_w, pic.surface_h), (1280, 720));
+        assert_eq!(pic.h, 720.0);
+        assert_eq!(pic.w, 960.0, "aspect kept: 720 * 4/3");
+        assert_eq!(pic.x, 160.0, "centred");
+        assert_eq!(pic.y, 0.0);
+
+        // 1080p on the 720p wall def: every pixel kept, scale 1, no bars.
+        let pic = picture_layout(1920, 1080, 1280, 720);
+        assert_eq!((pic.surface_w, pic.surface_h), (1920, 1080));
+        assert_eq!(pic.scale(1920), 1.0);
+        assert_eq!((pic.x, pic.y), (0.0, 0.0));
+
+        // Portrait 1080 x 1920 on the wall: taller than the display, so the
+        // letterbox canvas at 1:1 with side bars.
+        let pic = picture_layout(1080, 1920, 1280, 720);
+        assert_eq!((pic.surface_w, pic.surface_h), (3413, 1920));
+        assert_eq!(pic.scale(1080), 1.0);
+        assert_eq!(pic.x, ((3413.0 - 1080.0) / 2.0_f64) as f32);
+
+        // Exactly the display's size: 1:1, fills.
+        let pic = picture_layout(1280, 720, 1280, 720);
+        assert_eq!((pic.surface_w, pic.surface_h, pic.scale(1280)), (1280, 720, 1.0));
+
+        // Degenerate sizes never divide by zero.
+        let pic = picture_layout(0, 0, 0, 0);
+        assert!(pic.surface_w >= 1 && pic.surface_h >= 1 && pic.w > 0.0);
+    }
+
+    /// The strip's clock: no move, no strip; a move shows it for
+    /// `STRIP_HOLD`; the same position repeated (the look ray every frame)
+    /// does not extend it; a pointer that left does not count as a move.
+    /// And the rule over it: paused, no picture and an open picker always
+    /// show the strip.
+    #[test]
+    fn the_strip_shows_on_pointer_movement_and_hides_after_the_hold() {
+        let t0 = Instant::now();
+        let mut timer = StripTimer::default();
+        assert!(!timer.recently_moved(t0), "nothing moved yet");
+        timer.observe(Some((0.3, 0.3)), t0);
+        assert!(timer.recently_moved(t0), "arriving on the screen is a move");
+        // Held still: reported every frame at the same place.
+        for i in 1..10 {
+            timer.observe(Some((0.3, 0.3)), t0 + Duration::from_millis(100 * i));
         }
-        let frame = VideoFrame { rgba, width: 4, height: 2, pts_s: 0.0 };
-        let lb = letterbox_layout(4, 2, 100, 100);
-        assert_eq!(lb, Letterbox { canvas_w: 4, canvas_h: 4, x: 0, y: 1 });
-        let mut canvas = Vec::new();
-        compose_letterbox(&frame, &lb, &mut canvas);
-        assert_eq!(canvas.len(), 4 * 4 * 4);
-        // One pixel of a 4-wide canvas (takes the canvas so the borrow ends
-        // with each call and the canvas can be composed into again below).
-        fn px(canvas: &[u8], x: usize, y: usize) -> &[u8] {
-            &canvas[(y * 4 + x) * 4..(y * 4 + x) * 4 + 4]
-        }
-        for x in 0..4 {
-            assert_eq!(px(&canvas, x, 0), &[0, 0, 0, 255], "top bar is opaque black");
-            assert_eq!(px(&canvas, x, 3), &[0, 0, 0, 255], "bottom bar is opaque black");
-            assert_eq!(px(&canvas, x, 1), &frame.rgba[x * 4..x * 4 + 4], "frame row 0 at canvas row 1");
-            assert_eq!(px(&canvas, x, 2), &frame.rgba[(4 + x) * 4..(4 + x) * 4 + 4], "frame row 1 at canvas row 2");
-        }
-        // Side bars: a 2 x 4 frame on the same square display.
-        let tall = VideoFrame { rgba: vec![200; 2 * 4 * 4], width: 2, height: 4, pts_s: 0.0 };
-        let lb = letterbox_layout(2, 4, 100, 100);
-        assert_eq!(lb, Letterbox { canvas_w: 4, canvas_h: 4, x: 1, y: 0 });
-        compose_letterbox(&tall, &lb, &mut canvas);
-        for y in 0..4 {
-            assert_eq!(px(&canvas, 0, y), &[0, 0, 0, 255]);
-            assert_eq!(px(&canvas, 3, y), &[0, 0, 0, 255]);
-            assert_eq!(px(&canvas, 1, y), &[200, 200, 200, 200]);
-            assert_eq!(px(&canvas, 2, y), &[200, 200, 200, 200]);
-        }
+        assert!(timer.recently_moved(t0 + Duration::from_secs(2)));
+        assert!(!timer.recently_moved(t0 + STRIP_HOLD), "the hold ran out without a new move");
+        assert!(!timer.recently_moved(t0 + Duration::from_secs(10)));
+        // A move restarts it.
+        timer.observe(Some((0.4, 0.3)), t0 + Duration::from_secs(10));
+        assert!(timer.recently_moved(t0 + Duration::from_secs(12)));
+        // Leaving is not a move; coming back to the same spot is.
+        timer.observe(None, t0 + Duration::from_secs(20));
+        assert!(!timer.recently_moved(t0 + Duration::from_secs(20)));
+        timer.observe(Some((0.4, 0.3)), t0 + Duration::from_secs(20));
+        assert!(timer.recently_moved(t0 + Duration::from_secs(20)));
+
+        assert!(!strip_wanted(false, false, false, false), "a playing film with no pointer: hidden");
+        assert!(strip_wanted(true, false, false, false), "paused: shown");
+        assert!(strip_wanted(false, true, false, false), "no picture: shown");
+        assert!(strip_wanted(false, false, true, false), "picker open: shown");
+        assert!(strip_wanted(false, false, false, true), "recent move: shown");
     }
 
     /// The placement law: centre pan straight ahead, swung toward the side
@@ -1061,44 +1767,100 @@ mod tests {
         assert!(!p.status()["audio"].as_bool().unwrap());
     }
 
-    /// A playing clip drops the core's queued input every tick, whether or
-    /// not a frame is written that tick; a paused clip keeps its events for
-    /// the run that draws the notice, which consumes them. The read-back is
-    /// the core's own count. Proven able to fail: with the drop removed from
-    /// `plan_frame` the count after the playing tick stays at 25.
+    /// Input routing per tick: a playing clip with the pointer MOVING on it
+    /// shows the strip and hands the queued input to the run that draws it
+    /// (so the strip's buttons work); a playing clip nobody is looking at,
+    /// with no new frame, draws nothing and drops the backlog (the look ray
+    /// reports every frame, and only a run drains the queue); a paused clip
+    /// always draws and keeps its events for the run. The unwatched case is
+    /// forced deterministically: the clip is PAUSED so no frame can become
+    /// due, then `want_playing` is set without touching the clock, which is
+    /// exactly "playing, nothing new this tick". Proven able to fail: with
+    /// the drop removed from `plan_frame`'s Keep path the middle count
+    /// stays at 25.
     #[test]
-    fn a_playing_clip_drops_the_queued_input_and_a_paused_one_hands_it_to_the_notice() {
+    fn a_looked_at_or_paused_clip_draws_and_keeps_input_while_an_unwatched_one_drops_it() {
         let theme = load_theme();
         let mut state = GuiState::default();
         let mut core = ScreenCore::new("s", "video:x", 1280, 720, &theme);
         let mut p = VideoProvider::new(DEMO);
         p.open_with(&data_dir(), core.size());
         assert!(p.error().is_none(), "{:?}", p.error());
+        let t0 = Instant::now();
 
         let sweep = |core: &mut ScreenCore| {
             for i in 0..25 {
                 core.pointer_moved((i as f32 / 25.0, 0.4));
             }
         };
+        // Looked at: the pointer moved, the strip is up, the events are
+        // for the run.
         sweep(&mut core);
         assert_eq!(core.pending_events(), 25);
-        let draw = p.plan_frame(&mut core);
-        assert!(matches!(draw, FrameDraw::Frame | FrameDraw::Keep), "playing: {draw:?}");
-        assert_eq!(core.pending_events(), 0, "a playing tick drops the backlog");
-        // A tick with nothing new to write still drops.
-        sweep(&mut core);
-        let _ = p.plan_frame(&mut core);
+        match p.plan_frame(&mut core, t0) {
+            FrameDraw::Compose { strip, px, .. } => {
+                assert!(strip, "a moving pointer shows the strip");
+                assert_eq!(px, (1280, 720), "the demo draws at the display's size");
+            }
+            other => panic!("looked at: {other:?}"),
+        }
+        assert_eq!(core.pending_events(), 25, "the run gets the events, plan_frame does not eat them");
+        let (drawn, _) = run_draw(&mut core, &mut state, &mut p);
         assert_eq!(core.pending_events(), 0);
+        assert!(drawn.contains("Pause") && drawn.contains("Open"), "the strip's buttons: {drawn:?}");
 
-        // Paused: the events survive to the notice run, which drains them.
+        // Unwatched: pause the clip (the clock stops, so no frame can
+        // become due), let a paused tick draw once so nothing is pending,
+        // then mark it playing WITHOUT the clock (no frame is due on the
+        // next tick) with the pointer gone and the hold long expired.
         p.on_button((0.5, 0.5), true);
+        assert!(p.is_paused());
+        let later = t0 + STRIP_HOLD + Duration::from_secs(1);
+        core.pointer_gone();
+        let _ = p.plan_frame(&mut core, later);
+        let _ = run_draw(&mut core, &mut state, &mut p);
+        assert!(!p.frame_dirty, "the paused draw uploaded what there was to upload");
+        // Stand in a decoded frame, so the film has a PICTURE. This half of
+        // the test is about a playing film NOBODY IS LOOKING AT, and that
+        // state only exists once there is something on screen: with nothing
+        // to show the strip stays up by design and the provider must draw.
+        // Two pixels are enough, and a frame smaller than the display keeps
+        // the surface at the display's own size (`picture_layout`), so the
+        // sizes asserted above do not move. `frame_dirty` stays false: this
+        // frame stands for one already uploaded.
+        p.last = Some(VideoFrame { rgba: vec![0u8; 2 * 2 * 4], width: 2, height: 2, pts_s: 0.0 });
+        p.want_playing = true; // playing, but the clock never moved: nothing is due
         sweep(&mut core);
-        let draw = p.plan_frame(&mut core);
-        assert!(matches!(draw, FrameDraw::Notice { .. }), "paused: {draw:?}");
-        assert_eq!(core.pending_events(), 25, "the notice run gets the events, plan_frame does not eat them");
-        let FrameDraw::Notice { text, .. } = draw else { unreachable!() };
-        core.run_with(&mut state, |ctx, _| notice(ctx, &text));
+        core.pointer_gone();
+        let far = later + Duration::from_secs(5);
+        // The strip was up and is not wanted now, so one last draw is owed:
+        // the screen has to be repainted WITHOUT it. A film whose strip has
+        // already come down is the quiet case, and it is the next tick.
+        match p.plan_frame(&mut core, far) {
+            FrameDraw::Compose { strip, .. } => assert!(!strip, "the strip comes down on this draw"),
+            other => panic!("taking the strip down is a draw, got {other:?}"),
+        }
+        let _ = run_draw(&mut core, &mut state, &mut p);
+        sweep(&mut core);
+        core.pointer_gone();
+        assert_eq!(
+            p.plan_frame(&mut core, far + Duration::from_secs(1)),
+            FrameDraw::Keep,
+            "unwatched, nothing new: no draw"
+        );
+        assert_eq!(core.pending_events(), 0, "an unwatched tick drops the backlog");
+
+        // Paused: always draws, keeps its events for the run.
+        p.want_playing = false;
+        sweep(&mut core);
+        match p.plan_frame(&mut core, far + Duration::from_secs(2)) {
+            FrameDraw::Compose { strip, .. } => assert!(strip, "paused: the strip is up"),
+            other => panic!("paused must draw, got {other:?}"),
+        }
+        assert_eq!(core.pending_events(), 25);
+        let (drawn, _) = run_draw(&mut core, &mut state, &mut p);
         assert_eq!(core.pending_events(), 0);
+        assert!(drawn.contains("Play"), "paused shows Play: {drawn:?}");
     }
 
     /// A clip paused on its last frame stays there: the loop counter does
@@ -1144,40 +1906,151 @@ mod tests {
         assert!(p.error().is_none());
     }
 
-    /// The paused and error notices are laid out at the DISPLAY's pixel
-    /// size (the def's `px`), not at the clip's size the surface was
-    /// resized to by the last written frame. The core here is put at the
-    /// clip's 320 x 180, as `write_pixels` leaves it, before each notice is
-    /// planned. Proven able to fail: with `px` taken from `core.size()` in
-    /// `plan_frame` both assertions read (320, 180).
+    /// Notices and the paused picture are laid out at the DISPLAY's pixel
+    /// size (the def's `px`), never at the clip's: the demo's 320 x 180
+    /// frame draws on a 1280 x 720 surface (scaled up by the GPU) and an
+    /// error page on the def's size. Proven able to fail: with
+    /// `surface_px` returning the frame's size the paused case reads
+    /// (320, 180).
     #[test]
-    fn notices_lay_out_at_the_display_size_not_the_clip_size() {
+    fn notices_and_the_paused_picture_lay_out_at_the_display_size() {
         let theme = load_theme();
         let mut core = ScreenCore::new("s", "video:x", 1280, 720, &theme);
         let mut p = VideoProvider::new(DEMO);
         p.open_with(&data_dir(), core.size());
-        // The last written frame left the surface at the clip's size.
+        // Let a frame arrive, then pause with it in hand.
+        let deadline = Instant::now() + Duration::from_secs(2);
+        while Instant::now() < deadline && p.last.is_none() {
+            p.advance();
+            std::thread::sleep(Duration::from_millis(3));
+        }
+        assert!(p.last.is_some(), "a frame must arrive within 2 s");
+        // The surface may sit at another size from a previous draw.
         core.set_size(320, 180);
         p.on_button((0.5, 0.5), true);
-        match p.plan_frame(&mut core) {
-            FrameDraw::Notice { px, text } => {
-                assert_eq!(px, (1280, 720), "the paused page is laid out at the def's px");
-                assert!(text.starts_with("Paused"), "{text}");
+        match p.plan_frame(&mut core, Instant::now()) {
+            FrameDraw::Compose { px, strip, .. } => {
+                assert_eq!(px, (1280, 720), "the paused picture is laid out at the def's px");
+                assert!(strip);
             }
-            other => panic!("paused must draw a notice, got {other:?}"),
+            other => panic!("paused must draw, got {other:?}"),
         }
         // The error page too, for a clip that failed to open.
         let mut core = ScreenCore::new("s", "video:x", 1024, 600, &theme);
         let mut e = VideoProvider::new("media/nothing.webm");
         e.open_with(&data_dir(), core.size());
         core.set_size(320, 180);
-        match e.plan_frame(&mut core) {
-            FrameDraw::Notice { px, text } => {
-                assert_eq!(px, (1024, 600));
-                assert!(text.contains("not found"), "{text}");
-            }
-            other => panic!("an open error must draw a notice, got {other:?}"),
+        match e.plan_frame(&mut core, Instant::now()) {
+            FrameDraw::Compose { px, .. } => assert_eq!(px, (1024, 600)),
+            other => panic!("an open error must draw, got {other:?}"),
         }
+        assert!(e.notice_text().unwrap().contains("not found"));
+    }
+
+    /// The whole ingest path through the provider, when ffmpeg exists: an
+    /// MP4 opened with `open_path` reports Loading with a rising percentage
+    /// and no player, then Ready with the player on the converted file in
+    /// the scratch cache, frames flow at the fixture's size, the status
+    /// says 100 and no cache hit; opening the SAME file again is a cache
+    /// hit (no second conversion; `transcodes` stays 1) and plays. Skipped
+    /// (printed) without ffmpeg.
+    #[test]
+    fn open_path_converts_an_mp4_once_then_plays_it_from_the_cache() {
+        if transcode::find_ffmpeg("").is_none() {
+            println!("skipped: no ffmpeg on this machine");
+            return;
+        }
+        let cache = scratch("mp4");
+        let mp4 = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(MP4);
+        let mut p = VideoProvider::new(DEMO).with_cache_dir(cache.clone());
+        p.display_px = Some((1280, 720));
+        p.open_path(&mp4);
+        assert!(p.job.is_some(), "an MP4 needs a conversion: {:?}", p.error());
+        assert_eq!(p.load_state(), LoadState::Loading);
+        assert_eq!(p.status()["media"]["transcodes"].as_u64(), Some(1));
+        assert_eq!(p.status()["media"]["chosen"].as_str(), Some(mp4.display().to_string().as_str()));
+        assert!(p.notice_text().unwrap().contains("Converting"), "{:?}", p.notice_text());
+        assert_eq!(p.current_name(), "moving-box-h264-aac.mp4");
+
+        let deadline = Instant::now() + Duration::from_secs(120);
+        while Instant::now() < deadline && p.player.is_none() && p.error.is_none() {
+            p.advance();
+            std::thread::sleep(Duration::from_millis(20));
+        }
+        assert!(p.error.is_none(), "{:?}", p.error);
+        assert!(p.player.is_some(), "the converted file must open within 120 s");
+        assert_eq!(p.load_state(), LoadState::Ready);
+        let s = p.status();
+        assert_eq!(s["media"]["transcoding_pct"].as_f64(), Some(100.0));
+        assert!(!s["media"]["cache_hit"].as_bool().unwrap());
+        let resolved = PathBuf::from(s["media"]["resolved"].as_str().unwrap());
+        assert!(resolved.starts_with(&cache) && resolved.is_file(), "{}", resolved.display());
+        // Frames flow from the converted clip at the fixture's size.
+        let deadline = Instant::now() + Duration::from_secs(3);
+        let mut frames = 0;
+        while Instant::now() < deadline && frames < 5 {
+            if p.advance() {
+                let f = p.last_frame().unwrap();
+                assert_eq!((f.width, f.height), (320, 180));
+                frames += 1;
+            }
+            std::thread::sleep(Duration::from_millis(3));
+        }
+        assert!(frames >= 5, "frames from the converted file: {frames}");
+
+        // The same file again: a cache hit, no second conversion.
+        p.open_path(&mp4);
+        assert!(p.job.is_none(), "a cached file spawns no job");
+        assert!(p.player.is_some(), "and opens at once");
+        let s = p.status();
+        assert!(s["media"]["cache_hit"].as_bool().unwrap(), "{s}");
+        assert_eq!(s["media"]["transcodes"].as_u64(), Some(1), "still one conversion");
+        assert_eq!(s["media"]["resolved"].as_str().map(PathBuf::from), Some(resolved));
+        drop(p);
+        let _ = std::fs::remove_dir_all(&cache);
+    }
+
+    /// A remembered choice in the config wins over the data file's source:
+    /// with `screen_media["s"]` set to the demo's absolute path, the first
+    /// frame's adoption opens THAT file and `chosen` names it; a screen with
+    /// nothing remembered keeps the default. The write-back side: a picked
+    /// file lands in the GUI state's map under the screen's id and is saved
+    /// through the normal config path (pointed at scratch here).
+    #[test]
+    fn a_remembered_file_wins_on_boot_and_a_pick_is_remembered() {
+        let demo_abs = data_dir().join(DEMO);
+        let mut state = GuiState::default();
+        state.settings.screen_media.insert("s".into(), demo_abs.clone());
+
+        let mut p = VideoProvider::new("media/nothing.webm");
+        p.display_px = Some((1280, 720));
+        p.adopt_remembered("s", &state);
+        assert_eq!(p.chosen.as_deref(), Some(demo_abs.as_path()));
+        assert!(p.player.is_some(), "the remembered file opened: {:?}", p.error());
+        assert!(p.open_attempted, "the default is never opened over it");
+        p.adopt_remembered("s", &state);
+        assert!(p.player.is_some(), "adoption is once");
+
+        let mut q = VideoProvider::new("media/nothing.webm");
+        q.adopt_remembered("other_screen", &state);
+        assert!(q.chosen.is_none() && !q.open_attempted, "nothing remembered: the default will open");
+
+        let mut r = VideoProvider::new(DEMO);
+        r.display_px = Some((1280, 720));
+        r.open_path(&demo_abs);
+        assert!(r.remember_pending);
+        let mut st = GuiState::default();
+        let scratch_dir = scratch("remember");
+        std::env::set_var("HUMANITY_DATA_DIR", scratch_dir.display().to_string());
+        r.remember("wall_x", &mut st);
+        std::env::remove_var("HUMANITY_DATA_DIR");
+        assert!(!r.remember_pending);
+        assert_eq!(st.settings.screen_media.get("wall_x"), Some(&demo_abs));
+        assert!(scratch_dir.join("config.json").is_file(), "saved through the normal config path");
+        let saved: crate::config::AppConfig =
+            serde_json::from_str(&std::fs::read_to_string(scratch_dir.join("config.json")).unwrap()).unwrap();
+        assert_eq!(saved.screen_media.get("wall_x"), Some(&demo_abs), "and the file on disk carries it");
+        let _ = std::fs::remove_dir_all(&scratch_dir);
     }
 
     /// `data/media/README.md` promises the shipped demo clip is a
@@ -1271,3 +2144,4 @@ mod tests {
         println!("provider sound: attached at volume {v:.6} pan {pan:.3}; after the move volume {v2:.6} pan {pan2:.3}");
     }
 }
+

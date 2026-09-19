@@ -43,6 +43,7 @@
 //! stepping it back.
 
 pub mod audio;
+pub mod transcode;
 pub mod video;
 
 #[cfg(test)]
