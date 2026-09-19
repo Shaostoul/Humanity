@@ -452,6 +452,12 @@ pub fn bake_albedo_rgba(
     // are about to be written by several threads at once and each one needs
     // to know exactly where its bytes go.
     let mut out = vec![0u8; row_bytes * h as usize];
+    // A degenerate grid has no rows to split, and `chunks_mut(0)` panics.
+    // The loop this replaced simply did nothing and returned an empty
+    // buffer, so this keeps that behaviour rather than inventing a crash.
+    if row_bytes == 0 || h == 0 {
+        return out;
+    }
 
     // BOOT COST (v0.1322). This bake is a quarter of the world-load phase:
     // measured 2026-09-19 on the boot rig, Earth's 4096x2048 grid took

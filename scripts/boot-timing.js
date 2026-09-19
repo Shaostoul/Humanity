@@ -24,10 +24,16 @@
 //
 //   --runs N        how many boots to average (default 3).
 //   --label NAME    a name for this arm, written into the JSON (e.g. "cold").
-//   --cold          delete the rig's shader/pipeline cache before EVERY run,
-//                   so every run measures a first-ever boot.
-//   --keep-cache    leave the cache alone (the default): run 1 warms it and
-//                   runs 2..N measure the warm path.
+//   --cold          delete the rig's on-disk caches before EVERY run.
+//                   NOTE what this does NOT cover: there is no persistent
+//                   pipeline cache, because wgpu 24 offers one only on
+//                   Vulkan and Windows runs DX12 (the run log says so:
+//                   "[Pipelines] adapter offers a persistent pipeline cache").
+//                   What remains outside our reach is the OS file cache and
+//                   the GPU driver's own shader cache, which is why the FIRST
+//                   boot of a session is reliably the slowest one and why
+//                   these runs are reported as a median with the spread.
+//   --keep-cache    leave the caches alone (the default).
 //   --out FILE      where to write the collected JSON (default: under the rig).
 //
 // Exit 0 = every run produced a boot_timing.json with zero panics.
@@ -131,9 +137,10 @@ function setupRig() {
   }
 }
 
-/// Everything the engine may have cached between boots, so `--cold` can prove
-/// it is measuring a first-ever boot. Keep this list in step with any new
-/// on-disk cache the boot path grows.
+/// The engine's own on-disk caches under the rig. Keep this list in step with
+/// any new one the boot path grows. It cannot reach the OS file cache or the
+/// GPU driver's shader cache, so `--cold` means "our caches are cold", not
+/// "nothing anywhere is warm".
 function clearCaches() {
   const cachePaths = [path.join(RIG, "cache"), path.join(RIG, "shader_cache")];
   for (const p of cachePaths) fs.rmSync(p, { recursive: true, force: true });
