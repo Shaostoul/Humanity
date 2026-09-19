@@ -1,9 +1,16 @@
 //! Em-dash ban enforcement (v0.364.0).
 //!
-//! Operator rule (2026-06-04, emphatic): NO em-dashes ("\u{2014}", U+2014) in
-//! any user-facing copy. "People see em dashes and immediately leave." They
-//! read as machine-written and cost trust. This applies to every UI string the
-//! app renders.
+//! Operator rule (2026-06-04, emphatic; REVISED 2026-09-18): em-dashes
+//! ("\u{2014}", U+2014) are rare in user-facing copy, not forbidden. "People
+//! see em dashes and immediately leave": they read as machine-written and cost
+//! trust, and AI writing is saturated with them. Default to a comma, a colon, a
+//! full stop or a rewrite, which is usually better prose anyway.
+//!
+//! WHY THIS IS NO LONGER A FLAT BAN: a flat ban corrupts QUOTED text. It bit on
+//! the US Constitution, which is full of them and must be reproduced exactly.
+//! Never rewrite punctuation inside a quotation, a statute, a licence or a
+//! person's own words to satisfy a style rule; that is falsifying the quote.
+//! Use the escape hatch below for those, and keep ordinary prose clear of them.
 //!
 //! This test is the rule's teeth for the native UI. It scans every string
 //! literal under `src/gui/` for U+2014 and FAILS the build on any occurrence.

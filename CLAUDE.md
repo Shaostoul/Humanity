@@ -295,6 +295,33 @@ Session START already reloads `CLAUDE.md`, `MEMORY.md`, `orchestrator_state.json
 
 **Universal widgets.** New widgets go in `src/gui/widgets/` (native) AND get a matching CSS class / shared JS component (web). Both must consume theme tokens, not literals, so the Settings page theme can restyle them.
 
+## Saying what we will not build, and why (operator, 2026-09-18)
+
+When the project declines to do something because of a LAW, a PATENT, or a
+PLATFORM HOLDER'S RULE, say so plainly: in the docs, and on the screen where the
+person runs into it. Name which of the three it is, because only the first is
+fixed. The operator's reason, verbatim: "That way people see it and go 'oh,
+okay' instead of asking me to add a feature we legally can't." A silent gap
+reads either as not caring or as an upsell, and an unexplained wall in a
+downloaded app is how you get a complaint from someone who thinks they were
+sold something they did not get.
+
+Two worked examples, and the pattern to copy:
+
+- `docs/reference/media-stance.md` is the public record for video: what the app
+  does, what it will not do, a PLATFORM TABLE so nobody meets an unnamed wall,
+  and a plain commitment to switch a feature off and say publicly that we did if
+  anyone objects.
+- `docs/user/rights/laws_that_limit_this_software.md` is the Library page for
+  the same ground, written so the operator can hand it to a lawyer or a
+  representative and argue the rule should change. It names the mechanism that
+  actually exists for changing it rather than just complaining.
+
+Corollary for writing style: em dashes are used sparingly rather than banned,
+and quoted text (a statute, a constitution, a licence, someone's own words) is
+reproduced EXACTLY, punctuation included. See the memory file
+`feedback_em_dashes_and_doc_clarity` and `tests/emdash_lint.rs`.
+
 ## AI Participation
 
 AI agents are first-class citizens of HumanityOS. See `docs/ai/onboarding.md` for the full onboarding guide and `data/ai/onboarding.json` for the structured onboarding flow. Key rules:

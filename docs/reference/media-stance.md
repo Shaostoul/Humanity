@@ -74,11 +74,28 @@ cannot load a system library, so the conversion and disc features are desktop
 features and will stay that way until there is a native mobile build. When
 there is one, a phone still has no disc drive.
 
-**Consoles.** We do not build for Xbox or PlayStation, and we do not promise
-to. If we ever did, a disc in the tray would still be unavailable to us: those
-machines play their own discs through their own certified player and expose no
-optical drive to a third-party app. That is the platform holder's rule, not
-ours and not a law.
+**Consoles, and why they are not a "no" so much as a "not yet".** The operator
+wants HumanityOS on Xbox, PlayStation and Nintendo eventually. Three things sit
+in the way, and none of them is copyright law:
+
+1. **Approval.** Each platform holder decides who may publish, and you apply as
+   a registered developer, usually as a business rather than a person.
+2. **Secrecy.** Console development kits and their documentation come under
+   non-disclosure terms. The console-specific part of the code could not be
+   published, which sits awkwardly with an open-source project and has to be
+   designed around rather than wished away.
+3. **Our size.** Every platform is another build to keep working, another
+   certification pass, another set of bugs. The team is tiny and the budget is
+   small, so adding a platform means something else does not get built.
+
+The mobile stores are cheaper and simpler than the consoles: Apple charges a
+yearly developer fee and Google a one-off registration fee, both modest. The
+barrier there is the work of a native mobile build, not the fee.
+
+And if we ever do ship on a console, a disc in the tray would still be
+unavailable to us. Those machines play their own discs through their own
+certified player and expose no optical drive to a third-party app. That is the
+platform holder's rule, not ours and not a law.
 
 **Nothing here is withheld from you as a punishment or an upsell.** Where a
 capability is missing it is missing because the hardware lacks it, the

@@ -677,6 +677,15 @@
             "reference",
             "safety"
           ]
+        },
+        {
+          "title": "The Laws That Limit This Software",
+          "file": "laws_that_limit_this_software.md",
+          "tags": [
+            "reference",
+            "real",
+            "governance"
+          ]
         }
       ],
       "section": "The Accord",

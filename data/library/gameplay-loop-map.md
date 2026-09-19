@@ -55,12 +55,19 @@ rows) apply and expire; the speed stat modifier is consumed live
 outside the hull is vacuum + weather cold (EnvironmentContext,
 lib.rs:6797-6841); a home power loss makes indoor air unbreathable.
 
-**Sharpest gaps (all verified):**
-- Health hits 0 and NOTHING happens. No death, no respawn, no penalty.
-- No health regeneration exists in any live path (rest/food do not heal).
-- Effects are speed-only: damage_per_tick / healing_per_tick / every other
-  stat in status_effects.csv are parsed and consumed by nothing, so
-  food_poisoning has zero consequence.
+**Sharpest gaps (all verified AT THE TIME; the first three are now WRONG):**
+- ~~Health hits 0 and NOTHING happens. No death, no respawn, no penalty.~~
+  **CLOSED in v0.745.** Death is real: `src/systems/food.rs:607-611` and
+  `:618-629` kill the player and publish a cause.
+- ~~No health regeneration exists in any live path (rest/food do not heal).~~
+  **CLOSED in v0.745.** `healing_per_tick` feeds `effect_heal`
+  (`src/systems/food.rs:592`).
+- ~~Effects are speed-only: damage_per_tick / healing_per_tick ... consumed by
+  nothing.~~ **CLOSED in v0.745.** Both are consumed at
+  `src/systems/food.rs:580-596`, normalized per-second by `tick_interval_s`.
+  Five live health drains now exist (starvation, dehydration, suffocation,
+  freezing, heat exhaustion). Genuinely still unread: `stackable`, `max_stacks`,
+  `damage_type`, `dispel_type` are dropped by the loader.
 - Vitals are visible only on the Inventory page; no in-world HUD warning.
 
 **Designed closure:** the death-and-recovery loop. Death inserts Dead,
@@ -87,9 +94,16 @@ you watch air, water, and crops degrade in order. This chain is the
 educational core and it works.
 
 **Sharpest gaps:**
-- Plant environment windows are decorative: pH/temp/humidity/seasons are
-  parsed, DISPLAYED, and ignored by the growth tick. Seasons exist
-  (TimeSystem) and do nothing to crops.
+- ~~Plant environment windows are decorative: pH/temp/humidity/seasons are
+  parsed, DISPLAYED, and ignored by the growth tick.~~ **PARTLY CLOSED in
+  v0.749.** Growth is not a timer: `effective_progress = progress *
+  health_factor * nutrient_factor * climate_factor`
+  (`src/systems/farming/mod.rs:1071`). Temperature window and season ARE
+  consumed (`:1046-1066`), gated to FIELD crops since indoor grows are
+  climate-controlled, and deliberately slow rather than lethal. Water stress
+  and RF stress both damage `crop.health`, and crops DIE to `STAGE_DEAD`
+  (`:995-1015`). **Still genuinely decorative: `ph_min`/`ph_max` and
+  `humidity_min`/`humidity_max` only.**
 - Weather is global and consequence-free (no rain-to-irrigation coupling,
   no visuals) and its tables are hardcoded while data/biomes.ron (16 rich
   biomes with precipitation/temp data) is completely orphaned.

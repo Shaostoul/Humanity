@@ -43,7 +43,18 @@ The active queue, strict-ranked. The top item is what is being worked on next.
 Tactical, per-iteration detail lives in `docs/PRIORITIES.md` and
 `data/coordination/orchestrator_state.json`; this is the strategic summary.
 
-1. `[building]` **Planet-scale rendering realism** -- the arc the project has been built
+1. `[building]` **In-world screens: the app's pages as touchscreens in the 3D world.**
+   SHIPPED (v0.1313.0): a wall screen placed in the home draws the real inventory or
+   tasks page (the same page, the same data, not a picture of it) and takes look-and-click,
+   scroll and typing; the console room (the home's fixed workstation) as a named zone that
+   joins the room vocabulary; a purpose-built WebM/AV1/Opus player core instead of embedding
+   VLC; and the readable web (HTML parsed and drawn by us, no JavaScript, no Chromium),
+   off by default, with `data/web/sites.json` recording per site whether embedding it has
+   been reviewed. NEXT: live streams and an in-game camera on a wall, a looping clip with
+   spatial audio and click-to-pause, the readable web on a wall with a rig that proves a
+   click on the wall navigates, then the screens move into the console room. Design in
+   `docs/design/in-world-screens.md`, `readable-web.md`, `media-player.md`.
+2. `[building]` **Planet-scale rendering realism** -- the arc the project has been built
    around since v0.85x, run as an autonomous per-iteration loop. SHIPPED: chunked-LOD
    Earth at true 1 m scale, live NASA weather + seven cloud families, Gerstner oceans, a
    real sun shadow map, SSAO, god rays, and triplanar ground textures; then the realism
@@ -56,22 +67,22 @@ Tactical, per-iteration detail lives in `docs/PRIORITIES.md` and
    sky the water can reflect), the per-size-category LOD ladder (billboard to alpha card
    to full model, for plants and animals), light clustering (1000+ sources), and
    audio-engine integration (the volume sliders are still placebos).
-2. `[next]` **Scene tooling: bookmark studio.** F6 teleport bookmarks with categories
+3. `[next]` **Scene tooling: bookmark studio.** F6 teleport bookmarks with categories
    shipped; next is maps-page teleport integration and a live POV-preview bookmark editor
    with time/weather scrubbing. The 3D visual + perf regression sweeps (2026-07-23,
    `just perf-sweep` + the visual-sweep workflow) now guard the rendering work.
-3. `[paused behind the graphics arc]` **Multiplayer co-presence + the character
+4. `[paused behind the graphics arc]` **Multiplayer co-presence + the character
    selector.** Client wiring shipped (v0.472): two players share the VPS world, stream
    position, and see each other as avatars; pending a two-player live test. Remaining:
    nameplates, the world-snapshot prefill, and the CHARACTER LAUNCHER (self-custodial
    LOCAL vs server-authoritative SERVER characters, open / closed / hybrid). Design in
    `docs/design/characters-and-servers.md`.
-4. `[paused behind the graphics arc]` **First Playable depth + mothership superstructure.**
+5. `[paused behind the graphics arc]` **First Playable depth + mothership superstructure.**
    First Playable: walk-up stations, a 3D vitals HUD, death and respawn, a guided first
    day. Superstructure (paused at v0.637, needs a taste/architecture call): the M1
    zone-editor architecture, the M3 civic mall/meeting-zone, and grid S3 multi-home tiers.
    See `docs/design/mothership-superstructure.md` and `docs/design/grid-hierarchy.md`.
-5. `[next]` **GitHub branch + tag protection on `main`** (deploy auto-pushes to the live
+6. `[next]` **GitHub branch + tag protection on `main`** (deploy auto-pushes to the live
    relay with no approval gate) and the backup-restore drill.
 
 ---
@@ -223,6 +234,11 @@ constitution rather than a promise.
 A 3D educational world where you learn real survival and production skills by doing.
 The game teaches the homestead; the homestead is real.
 
+- `[building]` In-world screens: native app pages, live feeds, video and the readable
+  web drawn on displays placed in the 3D world and driven by look-and-click; the
+  console room they populate; the websites database with an embed-legality field per
+  site (v0.1313.0 shipped the foundation, the console room, the player core and the
+  readable web; the wall providers are next).
 - `[done]` Engine: a wgpu PBR renderer, an ECS, and 40-plus game systems wired in.
 - `[done]` World: icosphere planets with level-of-detail, voxel asteroids, and a
   ship-at-origin starting world.
@@ -431,6 +447,11 @@ Newest first. This lists milestones, not every release (the project is at ~v0.93
 with ~900 tagged releases); for the granular per-release history see `docs/history/`,
 the release notes, and `git log`.
 
+- `v0.1313.0` In-world screens, rungs 1, 2 and 4: a second egui context rendered
+  into a texture that an unlit material samples, so a wall shows the real inventory
+  page and takes clicks; screens as machine defs with a scheme-prefixed source; the
+  console room and rooms that take their zone's name; plus the video decoder core
+  (WebM, AV1, Opus, pure Rust) and the readable-web core with `data/web/sites.json`.
 - `v0.924-v0.930` Dev tooling + perf: megashader hot-reload (edit `pbr_simple.wgsl`
   live, no rebuild), threaded terrain builds, parked-selection skip, async sky-sphere
   builds + linear amortized cache shrink (the multi-second departure hang is dead), the
