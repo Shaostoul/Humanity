@@ -591,3 +591,120 @@ fn bench_decode_fps() {
         );
     }
 }
+
+/// Wait for the first frame at or after `at_least`, so a test is not fooled by
+/// a stale frame the decoder had already queued for the OLD position.
+fn wait_for_frame_at(player: &mut VideoPlayer, at_least: f64, timeout: Duration) -> Option<VideoFrame> {
+    let deadline = Instant::now() + timeout;
+    while Instant::now() < deadline {
+        if let Some(f) = player.poll() {
+            if f.pts_s >= at_least {
+                return Some(f);
+            }
+        }
+        std::thread::sleep(Duration::from_millis(3));
+    }
+    None
+}
+
+/// The picture agrees with the time it claims: the bar's left edge is where
+/// the fixture's recipe puts it at that pts. This is the assertion that makes
+/// a seek test mean something, because a player that reported a new clock
+/// while still showing the old picture would pass a pts-only check.
+fn assert_picture_matches_pts(f: &VideoFrame, what: &str) {
+    let expected = (f.pts_s * BAR_SPEED_PX_PER_S).round() as i64;
+    let left = bar_left_edge(f).unwrap_or_else(|| panic!("{what}: no red bar in the frame")) as i64;
+    assert!(
+        (left - expected).abs() <= 3,
+        "{what}: at {} s the bar's left edge is {left}, but the recipe puts it at {expected}",
+        f.pts_s
+    );
+}
+
+#[test]
+fn a_seek_lands_where_it_was_asked_and_the_picture_agrees() {
+    let mut player = VideoPlayer::open_with_threads(fixture(BAR), 1).unwrap();
+    player.play();
+    wait_for_frame(&mut player, Duration::from_secs(3)).expect("playback starts");
+
+    player.seek_to(1.4);
+    assert!(player.is_playing(), "a seek keeps the play state");
+    assert!((player.position_s() - 1.4).abs() < 0.05, "clock at the target, got {}", player.position_s());
+
+    let f = wait_for_frame_at(&mut player, 1.35, Duration::from_secs(5)).expect("frames resume after a seek");
+    assert!(f.pts_s < 1.75, "landed near the target, not somewhere later: {}", f.pts_s);
+    assert_picture_matches_pts(&f, "after seeking to 1.4 s");
+    assert!(player.take_error().is_none());
+}
+
+#[test]
+fn seeking_while_paused_shows_the_frame_it_landed_on() {
+    // A paused clock never advances, so nothing would ever become "due": the
+    // player has to hand out the first frame of the new position anyway or the
+    // screen keeps the old picture and the seek looks broken.
+    let mut player = VideoPlayer::open_with_threads(fixture(BAR), 1).unwrap();
+    player.seek_to(1.2);
+    assert!(!player.is_playing(), "still paused");
+
+    let f = wait_for_frame_at(&mut player, 1.15, Duration::from_secs(5)).expect("a paused seek still shows a frame");
+    assert!(f.pts_s < 1.55, "landed near the target: {}", f.pts_s);
+    assert_picture_matches_pts(&f, "paused at 1.2 s");
+}
+
+#[test]
+fn a_short_preroll_repositions_the_demuxer_and_starts_at_the_keyframe() {
+    // The fixture carries keyframes at 0.0 s and 1.0 s. With the preroll cut to
+    // 0.3 s a seek to 1.1 rewinds to 0.8, which is PAST the last keyframe, so
+    // this is the path where the demuxer really moves and the pass then skips
+    // packets until the 1.0 s keyframe. With the default 12 s preroll the
+    // rewind would clamp to zero and this path would never run at all.
+    let mut player = VideoPlayer::open_with_threads(fixture(BAR), 1).unwrap();
+    player.set_seek_preroll_s(0.3);
+    player.play();
+    player.seek_to(1.1);
+    assert!((player.position_s() - 1.1).abs() < 0.05, "the clock moved to the target, got {}", player.position_s());
+
+    let f = wait_for_frame_at(&mut player, 1.05, Duration::from_secs(5)).expect("the fast seek produced a frame");
+    assert!(f.pts_s < 1.45, "landed near the target: {}", f.pts_s);
+    assert_picture_matches_pts(&f, "fast seek to 1.1 s");
+    assert!(player.take_error().is_none(), "the decoder was not handed a mid-GOP packet");
+    // The distinguishing assertion: this really repositioned. Without it the
+    // test would pass just as happily on a player that ignored the seek and
+    // re-read the clip from the top, because a two-second fixture reaches 1.1 s
+    // either way.
+    assert_eq!(player.seek_fallbacks(), 0, "the demuxer reposition worked; no pass fell back");
+}
+
+#[test]
+fn a_seek_with_no_keyframe_in_the_window_still_arrives() {
+    // Same short preroll, but a target with NO keyframe between the rewind
+    // point and the end of the clip: 1.5 rewinds to 1.2, and the last keyframe
+    // is at 1.0. The pass must notice, give up on the fast start and decode
+    // from the top rather than showing nothing or erroring.
+    let mut player = VideoPlayer::open_with_threads(fixture(BAR), 1).unwrap();
+    player.set_seek_preroll_s(0.3);
+    player.play();
+    player.seek_to(1.5);
+    assert!((player.position_s() - 1.5).abs() < 0.05, "the clock moved to the target, got {}", player.position_s());
+
+    let f = wait_for_frame_at(&mut player, 1.45, Duration::from_secs(5)).expect("the fallback still delivers");
+    assert!(f.pts_s < 1.85, "landed near the target: {}", f.pts_s);
+    assert_picture_matches_pts(&f, "fallback seek to 1.5 s");
+    assert!(player.take_error().is_none());
+    assert!(player.seek_fallbacks() >= 1, "this is the fallback path, and it must be the one that ran");
+}
+
+#[test]
+fn a_seek_outside_the_clip_is_clamped_to_it() {
+    let mut player = VideoPlayer::open_with_threads(fixture(BAR), 1).unwrap();
+    player.seek_to(-5.0);
+    assert_eq!(player.position_s(), 0.0, "before the start is the start");
+
+    player.seek_to(9999.0);
+    assert!(
+        (player.position_s() - BAR_DURATION_S).abs() < 0.01,
+        "past the end is the end, got {}",
+        player.position_s()
+    );
+    assert!(player.at_end(), "and the clip reads as finished there");
+}

@@ -78,6 +78,21 @@ pub const CODEC_OPUS: &str = "A_OPUS";
 /// small enough that a seek does not have a long stale backlog to throw away.
 pub const QUEUE_CAPACITY: usize = 4;
 
+/// How far BEFORE a seek target the decoder rewinds before it starts
+/// looking for a keyframe, in seconds.
+///
+/// AV1 can only begin decoding at a keyframe, and a seek lands wherever the
+/// person pointed, which is almost never one. So the demuxer is positioned
+/// this far back, packets are skipped until a keyframe appears, and the
+/// frames decoded on the way to the target are thrown away instead of drawn.
+/// Twelve seconds is chosen to cover a long-GOP source we did not encode.
+/// Our own conversions are far tighter than that: `ffprobe` on
+/// `data/media/demo_colour_bar.webm` shows keyframes about a second apart,
+/// because ffmpeg hands libsvtav1 its own default GOP length and we do not
+/// override it. So the usual seek scans a fraction of the window, and the
+/// full twelve seconds is only paid on somebody else's file.
+pub const SEEK_PREROLL_S: f64 = 12.0;
+
 /// How far kira's reported audio position may disagree with the wall-clock
 /// estimate before it is treated as stale rather than authoritative. kira
 /// applies seek / pause / resume commands asynchronously, so for a few
@@ -343,11 +358,18 @@ impl Clock {
         self.anchor = Instant::now();
     }
 
-    /// Back to zero: the only seek this rung supports.
-    fn reset(&mut self) {
-        self.base = 0.0;
+    /// Move to an absolute position. A seek is the ONE time the clock may go
+    /// backwards, so the monotonic guard is re-armed at the new position
+    /// rather than continuing to hold the old high-water mark.
+    fn seek(&mut self, pos: f64) {
+        self.base = pos;
         self.anchor = Instant::now();
-        self.reported.set(0.0);
+        self.reported.set(pos);
+    }
+
+    /// Back to the beginning.
+    fn reset(&mut self) {
+        self.seek(0.0);
     }
 }
 
@@ -376,10 +398,25 @@ struct Shared {
     wake: Condvar,
     /// Set by Drop. The decode thread exits at its next check.
     stop: AtomicBool,
-    /// Bumped by `seek_to_start()`. The decode thread compares it with the
-    /// generation it is decoding for and restarts from the top of the file
-    /// when they differ; frames from an old generation are never queued.
+    /// Bumped by `seek_to()`. The decode thread compares it with the
+    /// generation it is decoding for and restarts when they differ; frames
+    /// from an old generation are never queued.
     generation: AtomicU64,
+    /// Where the pass for the current generation must START, in nanoseconds.
+    /// Zero is the top of the file. Written BEFORE the generation is bumped,
+    /// so a decode thread that has just seen a new generation can never read
+    /// the previous one's target.
+    seek_target_ns: AtomicU64,
+    /// How far a seek rewinds before hunting for a keyframe, in nanoseconds.
+    /// `SEEK_PREROLL_S` by default; `set_seek_preroll_s` moves it.
+    seek_preroll_ns: AtomicU64,
+    /// How many passes gave up on their fast start and decoded from the top
+    /// (see `PassEnd::RetryFromStart`). Read through
+    /// `VideoPlayer::seek_fallbacks`: a file whose seeks always fall back is
+    /// one whose keyframes the preroll window keeps missing, and it is the
+    /// only outward difference between a seek that repositioned the demuxer
+    /// and one that quietly re-read the whole clip.
+    seek_fallbacks: AtomicU64,
     /// False once the decode thread has exited (cleared by a guard on its
     /// stack). Its own Arc so a test can hold it across `drop(player)` and
     /// prove that Drop joined the thread rather than leaking it.
@@ -399,8 +436,13 @@ impl Drop for AliveGuard {
 enum PassEnd {
     /// The whole file was decoded and delivered.
     Eof,
-    /// `seek_to_start()` asked for a fresh pass.
+    /// `seek_to()` asked for a fresh pass.
     Restart,
+    /// The fast start could not be made: either the file has no seek index
+    /// or no keyframe was found after rewinding. Decode from the top instead
+    /// and let the pts filter drop everything before the target. Slow, but it
+    /// always arrives, and it is the only path that does not need an index.
+    RetryFromStart,
     /// Drop asked the thread to leave.
     Stop,
 }
@@ -439,24 +481,57 @@ fn push_frame(shared: &Shared, generation: u64, frame: VideoFrame) -> Push {
     }
 }
 
-/// One pass over the file: open, decode every video packet, drain, mark EOF.
+/// One pass over the file from `start_s`: open, reposition, decode every
+/// video packet, drain, mark EOF.
+///
+/// `start_s` is where the CALLER wants the picture to resume. Decoding has to
+/// begin earlier than that, at a keyframe, so the pass rewinds by
+/// `SEEK_PREROLL_S`, skips packets until a keyframe turns up, and then
+/// decodes normally while refusing to QUEUE anything older than the target.
+/// The frames in between are real decoding work that is thrown away; that is
+/// what it costs to start an inter-frame codec in the middle.
 fn decode_pass(
     path: &Path,
     info: &MediaInfo,
     shared: &Shared,
     generation: u64,
     threads: i32,
+    start_s: f64,
 ) -> Result<PassEnd, MediaError> {
     let mut mkv = open_demuxer(path)?;
     let mut decoder = video::Av1Decoder::new(threads)?;
     let mut packet = MkvPacket::default();
     let scale = info.timestamp_scale_ns;
 
+    // Reposition for a seek. `MatroskaFile::seek` takes a timestamp in the
+    // file's own timescale units and uses its Cues, falling back to a linear
+    // scan; it lands on the first frame AFTER the time asked for, which is why
+    // the rewind and the keyframe scan below are both needed.
+    let mut need_keyframe = false;
+    if start_s > 0.0 {
+        let preroll_s = shared.seek_preroll_ns.load(Ordering::SeqCst) as f64 / 1.0e9;
+        let pre_s = (start_s - preroll_s).max(0.0);
+        let ts = (pre_s * 1.0e9 / scale as f64) as u64;
+        if ts > 0 {
+            if let Err(e) = mkv.seek(ts) {
+                log::warn!("media: seek to {pre_s:.1} s failed ({e}); decoding from the start");
+                return Ok(PassEnd::RetryFromStart);
+            }
+            need_keyframe = true;
+        }
+    }
+
     // The closure the decoder calls for each finished picture. It returns
     // false to make the decoder stop early and records why in `early`
     // (a Cell so the closure and the loop below can both touch it).
     let early: Cell<Option<PassEnd>> = Cell::new(None);
     let mut deliver = |frame: VideoFrame| -> bool {
+        // Decoded only to get the codec to the target; never drawn. A hair of
+        // tolerance so a frame sitting exactly on the target is not lost to
+        // floating point.
+        if frame.pts_s + 1.0e-6 < start_s {
+            return true;
+        }
         match push_frame(shared, generation, frame) {
             Push::Pushed => true,
             Push::Restart => {
@@ -483,10 +558,26 @@ fn decode_pass(
         if packet.track != info.video_track {
             continue;
         }
+        if need_keyframe {
+            // rav1d cannot be handed a mid-GOP packet: it has no reference
+            // frames to decode it against and returns an error that would end
+            // the whole pass. Wait for the keyframe.
+            if packet.is_keyframe != Some(true) {
+                continue;
+            }
+            need_keyframe = false;
+        }
         let pts_ns = packet.timestamp.saturating_mul(scale) as i64;
         if !decoder.decode_packet(&packet.data, pts_ns, &mut deliver)? {
             return Ok(early.take().unwrap_or(PassEnd::Stop));
         }
+    }
+    if need_keyframe {
+        // Scanned to the end of the file and never saw a keyframe flag, so
+        // this container does not carry them where we look. Decode from the
+        // top instead of showing nothing.
+        log::warn!("media: no keyframe found after seeking to {start_s:.1} s; decoding from the start");
+        return Ok(PassEnd::RetryFromStart);
     }
     // No more packets: pull the pictures the decoder is still holding
     // (frame threads keep a few in flight).
@@ -503,15 +594,33 @@ fn decode_pass(
     Ok(PassEnd::Eof)
 }
 
-/// The decode thread body: decode the file, then wait for a restart or a
-/// stop. After a restart it decodes the file again from the top.
+/// The decode thread body: decode the file from wherever the current
+/// generation starts, then wait for a restart or a stop.
 fn decode_thread(path: PathBuf, info: MediaInfo, shared: Arc<Shared>, threads: i32) {
     let _guard = AliveGuard(shared.alive.clone());
+    // Set when a pass could not make its fast start; the next attempt at the
+    // SAME generation decodes from the top. Cleared whenever the generation
+    // moves, so one awkward seek never slows down the next.
+    let mut from_start_generation: Option<u64> = None;
     loop {
+        // Generation first, then its target: a target written after this read
+        // belongs to a newer generation, and the pass will be told to restart
+        // anyway. Reading them the other way round could pair a new generation
+        // with an old target, which would seek to the wrong place.
         let generation = shared.generation.load(Ordering::SeqCst);
-        match decode_pass(&path, &info, &shared, generation, threads) {
+        let start_s = if from_start_generation == Some(generation) {
+            0.0
+        } else {
+            shared.seek_target_ns.load(Ordering::SeqCst) as f64 / 1.0e9
+        };
+        match decode_pass(&path, &info, &shared, generation, threads, start_s) {
             Ok(PassEnd::Stop) => return,
             Ok(PassEnd::Restart) => continue,
+            Ok(PassEnd::RetryFromStart) => {
+                shared.seek_fallbacks.fetch_add(1, Ordering::SeqCst);
+                from_start_generation = Some(generation);
+                continue;
+            }
             Ok(PassEnd::Eof) => {}
             Err(e) => {
                 let mut q = shared.queue.lock().unwrap_or_else(|e| e.into_inner());
@@ -569,6 +678,11 @@ pub struct VideoPlayer {
     /// pts of the last frame handed out this generation, so poll() can
     /// guarantee frames leave in order even across an audio re-base.
     last_delivered_pts: f64,
+    /// A seek just happened: hand out the first frame that arrives even if
+    /// the clock has not reached it. Without this, seeking while PAUSED
+    /// leaves the previous picture on screen, because a paused clock never
+    /// advances to meet the new frames.
+    show_next_frame: bool,
     last_error: Option<String>,
 }
 
@@ -595,6 +709,9 @@ impl VideoPlayer {
             wake: Condvar::new(),
             stop: AtomicBool::new(false),
             generation: AtomicU64::new(0),
+            seek_target_ns: AtomicU64::new(0),
+            seek_preroll_ns: AtomicU64::new((SEEK_PREROLL_S * 1.0e9) as u64),
+            seek_fallbacks: AtomicU64::new(0),
             alive: Arc::new(AtomicBool::new(true)),
         });
         let thread = {
@@ -612,6 +729,7 @@ impl VideoPlayer {
             thread: Some(thread),
             audio: None,
             last_delivered_pts: -1.0,
+            show_next_frame: false,
             last_error: None,
         })
     }
@@ -736,10 +854,22 @@ impl VideoPlayer {
         }
     }
 
-    /// Rewind to the first frame. Keeps the play / pause state. The decode
-    /// thread restarts from the top of the file; anything it had queued for
-    /// the old position is discarded.
-    pub fn seek_to_start(&mut self) {
+    /// Move playback to `seconds`, clamped into the clip. Keeps the play /
+    /// pause state, and shows the picture there even while paused.
+    ///
+    /// The decode thread is told where to start by writing the target and then
+    /// bumping the generation, in that order: anything it had queued for the
+    /// old position is discarded, and it can never pair the new generation
+    /// with the old target. Audio is handed the same position and kira does
+    /// its own seek, so the two arrive independently and the audio-led clock
+    /// pulls them together within a few frames.
+    pub fn seek_to(&mut self, seconds: f64) {
+        let target = if self.info.duration_s > 0.0 {
+            seconds.clamp(0.0, self.info.duration_s)
+        } else {
+            seconds.max(0.0)
+        };
+        self.shared.seek_target_ns.store((target * 1.0e9) as u64, Ordering::SeqCst);
         let generation = self.shared.generation.fetch_add(1, Ordering::SeqCst) + 1;
         {
             let mut q = self.shared.queue.lock().unwrap_or_else(|e| e.into_inner());
@@ -748,11 +878,36 @@ impl VideoPlayer {
             q.eof = false;
         }
         self.shared.wake.notify_all();
-        self.clock.reset();
+        self.clock.seek(target);
         self.last_delivered_pts = -1.0;
+        self.show_next_frame = true;
         if let Some(h) = &mut self.audio {
-            h.seek_to(0.0);
+            h.seek_to(target);
         }
+    }
+
+    /// Rewind to the first frame.
+    pub fn seek_to_start(&mut self) {
+        self.seek_to(0.0);
+    }
+
+    /// How far a seek rewinds before it starts looking for a keyframe.
+    /// Defaults to [`SEEK_PREROLL_S`].
+    ///
+    /// Raise it for a file encoded with a very long keyframe interval, where
+    /// the default window contains no keyframe and every seek falls back to
+    /// decoding from the top. The tests lower it, because the fixture is two
+    /// seconds long and the default window would swallow the whole clip and
+    /// never exercise the repositioning at all.
+    pub fn set_seek_preroll_s(&mut self, seconds: f64) {
+        let ns = (seconds.max(0.0) * 1.0e9) as u64;
+        self.shared.seek_preroll_ns.store(ns, Ordering::SeqCst);
+    }
+
+    /// How many seeks had to give up on repositioning and decode from the
+    /// top of the file instead. Zero is the healthy case.
+    pub fn seek_fallbacks(&self) -> u64 {
+        self.shared.seek_fallbacks.load(Ordering::SeqCst)
     }
 
     /// The newest decoded frame whose pts is at or before the clock, or None
@@ -765,7 +920,14 @@ impl VideoPlayer {
             if let Some(e) = q.error.take() {
                 self.last_error = Some(e);
             }
-            let frame = take_due_frame(&mut q.frames, clock);
+            let frame = match take_due_frame(&mut q.frames, clock) {
+                Some(f) => Some(f),
+                // Nothing due. Straight after a seek that means the decoder
+                // has arrived slightly AHEAD of the clock, and a paused clock
+                // will never catch up, so take the oldest frame it produced.
+                None if self.show_next_frame => q.frames.pop_front(),
+                None => None,
+            };
             (frame, q.eof && q.frames.is_empty())
         };
         if frame.is_some() {
@@ -781,6 +943,7 @@ impl VideoPlayer {
         let frame = frame.filter(|f| f.pts_s >= self.last_delivered_pts);
         if let Some(f) = &frame {
             self.last_delivered_pts = f.pts_s;
+            self.show_next_frame = false;
         }
         frame
     }

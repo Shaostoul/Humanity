@@ -99,6 +99,38 @@ pub const STRIP_HOLD: Duration = Duration::from_secs(3);
 /// rather than a cut.
 pub const STRIP_ALPHA: u8 = 215;
 
+/// Height of the seek bar's hit area, in points. Generous on purpose: this
+/// is aimed with a look ray from across a room, not with a mouse resting on
+/// a desk, so the thing you have to hit is the whole band and not the 4 px
+/// track drawn inside it.
+pub const SEEK_BAR_H: f32 = 18.0;
+/// Thickness of the drawn track inside that band.
+pub const SEEK_TRACK_H: f32 = 5.0;
+/// Radius of the knob that marks the position.
+pub const SEEK_KNOB_R: f32 = 6.0;
+
+/// Seconds as a clock: `h:mm:ss` once there is an hour, `m:ss` below that.
+/// A film is the case this exists for; `3241.5 s / 5400.0 s` is not a thing
+/// anyone can read while reaching for a seek bar.
+pub fn format_clock(seconds: f64) -> String {
+    let s = if seconds.is_finite() { seconds.max(0.0) } else { 0.0 };
+    let total = s.floor() as u64;
+    let (h, m, sec) = (total / 3600, (total % 3600) / 60, total % 60);
+    if h > 0 {
+        format!("{h}:{m:02}:{sec:02}")
+    } else {
+        format!("{m}:{sec:02}")
+    }
+}
+
+/// Where a click or a drag at `x` lands, as a fraction of the track.
+pub fn seek_fraction(x: f32, left: f32, width: f32) -> f32 {
+    if !(width > 0.0) {
+        return 0.0;
+    }
+    ((x - left) / width).clamp(0.0, 1.0)
+}
+
 /// Where a `video:<path>` points: the game DATA dir first (`data/media/x.webm`,
 /// the distributed and moddable tree), then the data dir's parent (the dev
 /// repo root, so a checkout can name `tests/fixtures/media/x.webm`); the same
@@ -371,6 +403,11 @@ pub struct ScreenView {
     pub name: String,
     /// The strip's right-hand text: the time, or the conversion percentage.
     pub right_text: String,
+    /// Playback position in seconds, for the seek bar.
+    pub position_s: f64,
+    /// Clip length in seconds. Zero means the container never declared one,
+    /// and then there is nothing to seek ALONG, so no bar is drawn.
+    pub duration_s: f64,
     /// A message instead of a picture (cannot play, converting, opening).
     pub notice: Option<String>,
 }
@@ -382,6 +419,11 @@ pub struct ScreenActions {
     pub open: bool,
     /// The Play / Pause button.
     pub toggle: bool,
+    /// A position on the seek bar, in seconds, from a click or the end of a
+    /// drag. Only the END of a drag: scrubbing sends one seek when the
+    /// pointer is released, not one per frame, because each seek throws away
+    /// the decoder's queue and restarts it.
+    pub seek_to: Option<f64>,
     /// The picker confirmed this file.
     pub picked: Option<PathBuf>,
     /// The picker was cancelled.
@@ -397,6 +439,87 @@ pub struct ScreenActions {
 /// control strip anchored to the bottom edge as a floating area over the
 /// picture, and the file picker window when it is open. Runs under the
 /// screen's own context through `ScreenCore::run_with`.
+/// Where the seek bar last laid itself out, so an interaction test can aim a
+/// click at the real thing rather than at a guessed fraction of the surface.
+/// The strip is an egui Area that measures itself as it draws, so its rows'
+/// positions are not knowable in advance.
+#[cfg(test)]
+thread_local! {
+    static LAST_SEEK_RECT: std::cell::RefCell<Option<egui::Rect>> = const { std::cell::RefCell::new(None) };
+}
+
+/// Test hook: the seek bar's rect from the last draw.
+#[cfg(test)]
+pub(crate) fn test_last_seek_rect() -> Option<egui::Rect> {
+    LAST_SEEK_RECT.with(|r| *r.borrow())
+}
+
+/// The seek bar: a track across the strip with the played part filled and a
+/// knob at the position. Click anywhere on the band to jump there; press and
+/// drag to scrub, which moves the knob live and commits the seek on release.
+///
+/// The scrub position lives in egui's temporary memory rather than in the
+/// provider, because `draw_screen` is handed an owned `ScreenView` and has no
+/// way back to the player; the provider learns about it through
+/// `ScreenActions::seek_to` at the end of the run, like every other control.
+fn seek_bar(ui: &mut egui::Ui, theme: &Theme, view: &ScreenView, actions: &mut ScreenActions) {
+    let width = ui.available_width();
+    let (rect, resp) =
+        ui.allocate_exact_size(egui::vec2(width, SEEK_BAR_H), egui::Sense::click_and_drag());
+    #[cfg(test)]
+    LAST_SEEK_RECT.with(|r| *r.borrow_mut() = Some(rect));
+    let id = ui.id().with("video_seek_scrub");
+    let mut scrub: Option<f32> = ui.memory(|m| m.data.get_temp(id));
+
+    let at = |p: egui::Pos2| seek_fraction(p.x, rect.left(), rect.width());
+    if resp.dragged() {
+        if let Some(p) = resp.interact_pointer_pos() {
+            let frac = at(p);
+            scrub = Some(frac);
+            ui.memory_mut(|m| m.data.insert_temp(id, frac));
+        }
+    }
+    if resp.drag_stopped() {
+        if let Some(frac) = scrub.take() {
+            actions.seek_to = Some(frac as f64 * view.duration_s);
+        }
+        ui.memory_mut(|m| m.data.remove::<f32>(id));
+    }
+    if resp.clicked() {
+        if let Some(p) = resp.interact_pointer_pos() {
+            actions.seek_to = Some(at(p) as f64 * view.duration_s);
+        }
+        scrub = None;
+        ui.memory_mut(|m| m.data.remove::<f32>(id));
+    }
+
+    // While scrubbing the bar shows the POINTER, not playback: the picture is
+    // still on the old frame and the knob is the only thing saying where you
+    // are about to land.
+    let played = match scrub {
+        Some(frac) => frac,
+        None if view.duration_s > 0.0 => (view.position_s / view.duration_s) as f32,
+        None => 0.0,
+    }
+    .clamp(0.0, 1.0);
+
+    let mid = rect.center().y;
+    let track = egui::Rect::from_min_max(
+        egui::pos2(rect.left(), mid - SEEK_TRACK_H * 0.5),
+        egui::pos2(rect.right(), mid + SEEK_TRACK_H * 0.5),
+    );
+    let radius = SEEK_TRACK_H * 0.5;
+    let painter = ui.painter();
+    painter.rect_filled(track, radius, theme.bg_card());
+    let filled_right = rect.left() + rect.width() * played;
+    if filled_right > track.left() {
+        let filled = egui::Rect::from_min_max(track.min, egui::pos2(filled_right, track.max.y));
+        painter.rect_filled(filled, radius, theme.accent());
+    }
+    let knob = if resp.hovered() || resp.dragged() { SEEK_KNOB_R + 1.5 } else { SEEK_KNOB_R };
+    painter.circle_filled(egui::pos2(filled_right, mid), knob, theme.text_primary());
+}
+
 pub fn draw_screen(
     ctx: &egui::Context,
     theme: &Theme,
@@ -473,6 +596,13 @@ pub fn draw_screen(
                                 );
                             });
                         });
+                        // The bar gets its own row, full width. A clip whose
+                        // container never declared a duration has nothing to
+                        // seek along, so it gets the buttons and no bar rather
+                        // than a bar that cannot mean anything.
+                        if view.duration_s > 0.0 {
+                            seek_bar(ui, theme, view, actions);
+                        }
                     });
             });
         let top = area.response.rect.top();
@@ -940,7 +1070,14 @@ impl VideoProvider {
         match &self.player {
             Some(p) => {
                 let prefix = if self.want_playing { "" } else { "Paused " };
-                format!("{prefix}{:.1} s / {:.1} s", p.position_s(), p.duration_s())
+                let dur = p.duration_s();
+                if dur > 0.0 {
+                    format!("{prefix}{} / {}", format_clock(p.position_s()), format_clock(dur))
+                } else {
+                    // No declared length: show where we are and say nothing
+                    // about an end we do not know.
+                    format!("{prefix}{}", format_clock(p.position_s()))
+                }
             }
             None => String::new(),
         }
@@ -957,6 +1094,8 @@ impl VideoProvider {
             paused: !self.want_playing,
             name: self.current_name(),
             right_text: self.right_text(),
+            position_s: self.player.as_ref().map_or(0.0, |p| p.position_s()),
+            duration_s: self.player.as_ref().map_or(0.0, |p| p.duration_s()),
             notice,
         }
     }
@@ -1069,6 +1208,11 @@ impl VideoProvider {
         }
         if actions.toggle {
             self.toggle_pause();
+        }
+        if let Some(t) = actions.seek_to {
+            if let Some(p) = self.player.as_mut() {
+                p.seek_to(t);
+            }
         }
         if actions.open {
             self.show_picker();
@@ -2272,5 +2416,91 @@ mod tests {
         assert!(p.player.as_mut().unwrap().take_error().is_none());
         println!("provider sound: attached at volume {v:.6} pan {pan:.3}; after the move volume {v2:.6} pan {pan2:.3}");
     }
+
+    /// The clock the strip prints. Raw seconds are unreadable next to a seek
+    /// bar on a film: `3241.5 s / 5400.0 s` tells you nothing you can act on.
+    #[test]
+    fn the_clock_reads_as_a_clock() {
+        assert_eq!(format_clock(0.0), "0:00");
+        assert_eq!(format_clock(9.4), "0:09", "seconds truncate, they do not round up");
+        assert_eq!(format_clock(65.0), "1:05");
+        assert_eq!(format_clock(599.9), "9:59");
+        assert_eq!(format_clock(3600.0), "1:00:00", "an hour brings the hour field in");
+        assert_eq!(format_clock(5400.0), "1:30:00");
+        assert_eq!(format_clock(-3.0), "0:00", "a negative position is not a negative clock");
+        assert_eq!(format_clock(f64::NAN), "0:00");
+    }
+
+    /// Where a click lands on the track, including outside its ends: a drag
+    /// that leaves the bar must clamp rather than seek past either end.
+    #[test]
+    fn a_click_maps_to_a_fraction_of_the_track_and_clamps() {
+        assert!((seek_fraction(100.0, 100.0, 400.0) - 0.0).abs() < 1e-6);
+        assert!((seek_fraction(300.0, 100.0, 400.0) - 0.5).abs() < 1e-6);
+        assert!((seek_fraction(500.0, 100.0, 400.0) - 1.0).abs() < 1e-6);
+        assert_eq!(seek_fraction(-50.0, 100.0, 400.0), 0.0, "left of the bar is the start");
+        assert_eq!(seek_fraction(9999.0, 100.0, 400.0), 1.0, "right of it is the end");
+        assert_eq!(seek_fraction(50.0, 100.0, 0.0), 0.0, "a zero-width bar cannot divide");
+    }
+
+    /// THE BAR IS REALLY THERE AND A CLICK ON IT REALLY MOVES THE FILM.
+    ///
+    /// The operator: "We don't seem to have a seek bar on the video player TV,
+    /// can we add that so I can seek through a movie?" This drives the whole
+    /// path he would: show the strip, find where the bar actually laid itself
+    /// out, click three quarters along it, and check both that the run asked
+    /// for that position and that the provider carried it out on the player's
+    /// own clock.
+    ///
+    /// The rect comes from `test_last_seek_rect` rather than a guessed
+    /// fraction of the surface, because the strip is an egui Area that
+    /// measures itself while drawing: a hard-coded click point would be a
+    /// check that passes until the strip's layout shifts by a few pixels.
+    #[test]
+    fn clicking_the_seek_bar_moves_the_film_to_that_point() {
+        let mut state = GuiState::default();
+        let theme = load_theme();
+        let mut core = ScreenCore::new("s", "video:x", 1280, 720, &theme);
+        let mut p = VideoProvider::new(DEMO);
+        p.open_with(&data_dir(), core.size());
+        assert!(p.error().is_none(), "{:?}", p.error());
+        let duration = p.player.as_ref().expect("a player").duration_s();
+        assert!(duration > 0.0, "the demo declares a length; without one there is nothing to seek along");
+
+        // A moving pointer raises the strip; the first draw lays it out.
+        for i in 0..4 {
+            core.pointer_moved((0.2 + i as f32 * 0.05, 0.4));
+        }
+        let t0 = Instant::now();
+        p.plan_frame(&mut core, t0);
+        let _ = run_draw(&mut core, &mut state, &mut p);
+        let rect = test_last_seek_rect().expect("the strip drew a seek bar");
+        assert!(rect.width() > 100.0, "the bar spans the strip rather than collapsing: {rect:?}");
+
+        // Three quarters along it, in the core's uv space.
+        let (w, h) = core.size();
+        let x = rect.left() + rect.width() * 0.75;
+        let uv = (x / w as f32, rect.center().y / h as f32);
+        core.button(uv, true);
+        core.button(uv, false);
+        p.plan_frame(&mut core, t0);
+        let (_, actions) = run_draw(&mut core, &mut state, &mut p);
+
+        let asked = actions.seek_to.expect("the click on the bar asked for a seek");
+        assert!(
+            (asked - duration * 0.75).abs() < duration * 0.06,
+            "clicked three quarters along a {duration} s clip, asked for {asked} s"
+        );
+
+        // And the wiring: the provider puts it on the real player's clock.
+        // Without this the bar could report a position nothing ever acted on.
+        p.apply_actions(actions, None);
+        let at = p.player.as_ref().expect("a player").position_s();
+        assert!(
+            (at - duration * 0.75).abs() < duration * 0.06,
+            "the film moved to {at} s of {duration} s"
+        );
+    }
+
 }
 
