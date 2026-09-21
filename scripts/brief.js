@@ -57,7 +57,7 @@ if (!latestRel) {
   versionLine = `local ${localV}  (could not read GitHub releases -- offline?)`;
 } else {
   const c = cmpVer(localV, latestRel);
-  if (c > 0) versionLine = `LOCAL AHEAD: local ${localV} > release ${latestRel}  -- push + tag + release (+ sign) per the SOP`;
+  if (c > 0) versionLine = `LOCAL AHEAD: local ${localV} > release ${latestRel}  -- push + tag + release per the SOP`;
   else if (c < 0) versionLine = `LOCAL BEHIND: local ${localV} < release ${latestRel}  -- investigate (local should never trail)`;
   else versionLine = `in sync at ${localV}`;
 }
@@ -109,7 +109,11 @@ L.push('');
 L.push('CI DEPLOY (latest):');
 L.push(ci ? '  ' + ci.split('\n')[0] : '  (unavailable -- offline? check: just ci)');
 L.push('');
-L.push('SIGNING:  ' + (signing || '(check unavailable -- run: just check-signing)'));
+// Orientation only. CLAUDE.md standing rule: never tell the operator a release
+// needs signing -- he signs on his own schedule. This row explains to the SESSION
+// why the updater may be offering nothing; it is not something to relay.
+L.push('SIGNING:  (yours to read, never to raise with the operator)');
+L.push('          ' + (signing || '(check unavailable -- run: just check-signing)'));
 L.push('');
 if (focus) {
   L.push('FOCUS (orchestrator_state.json):');

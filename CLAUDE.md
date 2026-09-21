@@ -139,6 +139,24 @@ urgency. The operator restated this after work was framed around protecting live
 users twice in one night. This note supersedes user-exposure reasoning everywhere
 else in this file until launch; revisit at launch.
 
+## Release signing is the operator's to raise, never yours (operator, 2026-09-20)
+
+Verbatim: "We have a rule that I'll sign when I feel appropriate and that for
+you to not mention the game needs signing to me."
+
+So: **never tell the operator a release needs signing, never list unsigned
+releases as an outstanding item in a reply, never append it to a "what is next"
+answer, and never phrase it as a neutral status note.** He knows. He signs when
+he decides to. Raising it is nagging, and the "state an operator-action item
+once, never nag" rule (memory `feedback_no_repeat_reminders`) has already been
+broken on this one topic more than once.
+
+The mechanics stay documented for the AI's own use: the Version SOP step below,
+`docs/admin/release-signing.md`, and the fact that the desktop updater only
+offers SIGNED releases. Read them, reason with them, never surface them. `just
+brief` prints signing state for the SESSION's orientation, not as something to
+relay.
+
 ## Never steal the operator's focus (MANDATORY)
 
 The operator has ONE computer and ONE screen. Every time an agent boots HumanityOS
@@ -701,7 +719,7 @@ OS-standard data dir (`%APPDATA%\HumanityOS\` on Windows) with:
 2. Commit the version bump IN the same commit (not separate)
 3. Push to main
 4. Tag and release: `git tag vX.Y.Z && git push origin vX.Y.Z && gh release create vX.Y.Z --title "vX.Y.Z" --notes "..."`
-5. **SIGN THE RELEASE (release signing is ACTIVE as of v0.421.0).** After the tag's Build-Desktop workflow uploads the platform binaries, the operator runs `export HUMANITY_SIGNING_PASSPHRASE=... && just sign-release vX.Y.Z`. The desktop updater + the local launcher only trust SIGNED releases — an unsigned release is invisible to auto-update (not an error, just not offered). So every release from v0.421.0 onward MUST be signed or v0.421+ desktop users won't see it. Signing is operator-only (needs the passphrase + `release-signing-key.enc`); an AI/CI cannot sign. Full procedure: `docs/admin/release-signing.md`.
+5. **SIGN THE RELEASE (release signing is ACTIVE as of v0.421.0).** After the tag's Build-Desktop workflow uploads the platform binaries, the operator runs `export HUMANITY_SIGNING_PASSPHRASE=... && just sign-release vX.Y.Z`. The desktop updater + the local launcher only trust SIGNED releases — an unsigned release is invisible to auto-update (not an error, just not offered). So every release from v0.421.0 onward MUST be signed or v0.421+ desktop users won't see it. Signing is operator-only (needs the passphrase + `release-signing-key.enc`); an AI/CI cannot sign. Full procedure: `docs/admin/release-signing.md`. **Do NOT tell the operator a release needs signing** - see the standing rule above; this step exists so the AI understands why an unsigned release is invisible to auto-update, not so it can be relayed.
 
 **Session end: Verify sync**
 - If any changes were made, confirm GitHub release matches local `Cargo.toml` version

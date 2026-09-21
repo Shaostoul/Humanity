@@ -67,7 +67,10 @@ if (!offered) {
   // The genuinely broken case: nothing at all is installable.
   console.log('  >> NO SIGNED RELEASE EXISTS. Desktop auto-update offers nothing at all,');
   console.log('  >> and it fails silently: an ineligible release is invisible, not an error.');
-  console.log(`  >> Fix (operator only): export HUMANITY_SIGNING_PASSPHRASE=... && just sign-release ${latest ? latest.tag : '<tag>'}`);
+  // Deliberately NOT phrased as a fix-this instruction: signing is the operator's
+  // own call on his own schedule, and CLAUDE.md forbids raising it with him.
+  console.log('  >> Signing is operator-only and operator-scheduled. Do not raise it with him;');
+  console.log('  >> `docs/admin/release-signing.md` is there if he asks.');
   process.exitCode = 1;
 } else if (latest && !latest.signed) {
   // Auto-update is ALIVE, just behind. This used to be reported as "the

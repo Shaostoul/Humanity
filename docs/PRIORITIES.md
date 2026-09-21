@@ -66,23 +66,39 @@ by default). 2000 km is much improved but not clean.
   turn in this arc came from deriving a footprint, and from changing two things
   per build.
 
-### 2. The night-side coast glow. CLAIMED, in progress
+### 2. The night-side coast glow. Four hypotheses built and REFUTED
 
-Do not start this one: another session is building the vantage it needs.
+The fixture now exists and holds it red: `orbit-terminator-3000km` (earth, lat
+15, lon 0, time 18, 3000 km) puts the day/night line across the disc, and every
+coastline and shallow shelf on the dark side is traced in glowing cyan. Run it
+with `node scripts/probe-sweep.js --only orbit-terminator-3000km`.
 
-Root cause is known and the fix is written. `water_shade` mixes in
-`water_sky_lut(refl, n_geo)` with no daylight term, and that LUT is ONE table
-rendered per frame for the CAMERA's position, so water on the night side mirrors
-the day side's sky. Coasts specifically, because that is where patches are fine
-enough for `presence` to reach the path. The fix is a
-`smoothstep(-0.18, 0.0, dot(n_geo, sun_l))` factor on the LUT mirror only, wide
-enough that a dusk sea keeps a bright twilight reflection.
+**The previously-written root cause is WRONG. Do not re-propose it.** The
+theory was that `water_shade` mixes `water_sky_lut(refl, n_geo)` with no
+daylight term, and that the LUT is one table rendered per frame for the
+CAMERA's position, so night-side water mirrors the day side's sky. That is a
+true description of the code and it is NOT what produces the glow. Four
+builds, each captured against the fixture:
 
-It was written and REVERTED unverified rather than shipped on faith, because no
-orbital-terminator vantage existed: `camera_request {body, lat, lon,
-altitude_km, look_offset_deg}` did not aim back at the planet at offsets 0 or
-180. Building that vantage is the work in flight; the shader change follows it.
+1. A `smoothstep(-0.18, 0.0, dot(n_geo, sun_l))` daylight factor on the LUT
+   mirror only - the written fix. Coasts still glowed.
+2. The sky-ambient term gated the same way. Still glowed.
+3. Ambient forced to ZERO outright. Night-side LAND went black, proving the
+   capture really is the night side and the gate really is reached - and the
+   coasts still glowed.
+4. Terrain water `proc_emissive` forced to zero, then `water_shade` forced
+   flat black. Still glowed.
 
+Since forcing the water shade itself to black does not remove it, the light is
+NOT coming from the water path at all. Remaining candidates, in the order worth
+testing: the terrain sun term's terminator window (a wide smoothstep that may
+stay open past the geometric terminator, which would light the shoreline band
+where the normal turns); the atmosphere pass in `30-atmosphere.wgsl` compositing
+in-scatter over a dark surface; or a non-sun light contributing where land meets
+water. Bisect by forcing each contributor to zero one at a time against the same
+fixture, the method that produced the four refutations above.
+
+Full capture record: `docs/BUGS.md` and the 2026-09-21 journal entry.
 ### 3. The far-rung gates, G0(d) and G1 to G7
 
 Unchanged, and still the plan for the deeper cloud work. The increment is merged
@@ -112,12 +128,13 @@ page by page before committing new baselines. Nobody owns it yet.
 Not AI work. Listed so a session knows to route around them rather than pick
 them up.
 
-1. **Sign releases v0.1313.0 through v0.1326.1.** None are signed, so the
-   desktop updater offers nothing and v0.421+ users are stranded on an older
-   build. `export HUMANITY_SIGNING_PASSPHRASE=... && just sign-release vX.Y.Z`
-   per release, after each tag's Build-Desktop run uploads its binaries. It
-   needs the passphrase, so an AI cannot do it.
-   `docs/admin/release-signing.md`.
+1. **Release signing happens on the operator's own schedule.** Recorded here
+   only so a session understands why the desktop updater may be offering
+   nothing: it trusts signed releases only, and an ineligible one is invisible
+   rather than an error. **Do not raise this with the operator** - standing
+   rule, CLAUDE.md "Release signing is the operator's to raise, never yours".
+   He signs when he decides to; `docs/admin/release-signing.md` is there if he
+   asks.
 2. **Clear the old agent worktrees** under `.claude/worktrees/`. Audited
    2026-08-04: none could be cheaply proven redundant, and
    `just clean-worktrees` force-deletes branches and has destroyed
