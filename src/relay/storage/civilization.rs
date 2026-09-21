@@ -132,39 +132,62 @@ impl Storage {
             .query_row("SELECT COUNT(*) FROM listing_reviews", [], |r| r.get(0))
             .unwrap_or(0);
 
-        // Resources (tasks)
+        // Resources (tasks).
+        //
+        // THESE COUNTED A TABLE THAT DOES NOT EXIST until 2026-09-20. The table
+        // is `project_tasks`; `tasks` has never been its name. Every query here
+        // ends in `.unwrap_or(0)`, so a `no such table` error was swallowed and
+        // the Mission Dashboard reported a flat zero for every task figure, with
+        // nothing logged anywhere. The status vocabulary was wrong too:
+        // `project_tasks.status` defaults to 'backlog' and the clients write
+        // 'backlog', 'in_progress' and 'done' - never 'todo', 'open' or the
+        // hyphenated 'in-progress' these asked for.
         let total_tasks: u32 = db
-            .query_row("SELECT COUNT(*) FROM tasks", [], |r| r.get(0))
+            .query_row("SELECT COUNT(*) FROM project_tasks", [], |r| r.get(0))
             .unwrap_or(0);
         let tasks_completed: u32 = db
             .query_row(
-                "SELECT COUNT(*) FROM tasks WHERE status = 'done'",
+                "SELECT COUNT(*) FROM project_tasks WHERE status = 'done'",
                 [],
                 |r| r.get(0),
             )
             .unwrap_or(0);
         let tasks_in_progress: u32 = db
             .query_row(
-                "SELECT COUNT(*) FROM tasks WHERE status = 'in-progress'",
+                "SELECT COUNT(*) FROM project_tasks WHERE status = 'in_progress'",
                 [],
                 |r| r.get(0),
             )
             .unwrap_or(0);
         let tasks_open: u32 = db
             .query_row(
-                "SELECT COUNT(*) FROM tasks WHERE status = 'todo' OR status = 'open'",
+                "SELECT COUNT(*) FROM project_tasks WHERE status = 'backlog'",
                 [],
                 |r| r.get(0),
             )
             .unwrap_or(0);
 
-        // Social
-        let total_follows: u32 = db
-            .query_row("SELECT COUNT(*) FROM follows", [], |r| r.get(0))
-            .unwrap_or(0);
+        // Social.
+        //
+        // THERE IS NO FOLLOW COUNT, AND THERE MUST NOT BE ONE. The `follows`
+        // table was the last server-side social graph and it was DELETED on
+        // 2026-08-24 in the privacy-maximization pass: following is now sealed
+        // control DMs plus client-held friendship certificates, verified
+        // statelessly, so the relay genuinely cannot know this number. This
+        // query survived the deletion and returned 0 through `.unwrap_or(0)`,
+        // which read as "nobody follows anybody" rather than as "not knowable".
+        // Do not re-add the table to make this work; see the removed-tables note
+        // in CLAUDE.md.
+        let total_follows: u32 = 0;
+        // Same story, twice over: the column is `channel_id`, not `channel`, and
+        // DMs have not lived in `messages` since the sealed-sender cutover of
+        // 2026-08-23. They are in `dm_mailbox`, which deliberately has no sender
+        // column and expires. Counting the mailbox is the honest replacement: it
+        // is undelivered-or-unexpired mail, not lifetime DMs, and it cannot be
+        // attributed to anyone.
         let total_dms: u32 = db
             .query_row(
-                "SELECT COUNT(*) FROM messages WHERE channel LIKE 'dm:%'",
+                "SELECT COUNT(*) FROM dm_mailbox",
                 [],
                 |r| r.get(0),
             )
@@ -214,5 +237,87 @@ impl Storage {
                 peak_online: online_count,
             },
         }
+    }
+}
+
+#[cfg(test)]
+mod civilization_counter_tests {
+    use super::*;
+
+    fn test_storage() -> Storage {
+        let pid = std::process::id();
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0);
+        let path = std::env::temp_dir().join(format!("hum_civ_{pid}_{nanos}.db"));
+        Storage::open(&path).expect("open test db")
+    }
+
+    /// THE DASHBOARD MUST COUNT TASKS THAT EXIST.
+    ///
+    /// Every counter in `get_civilization_stats` ends in `.unwrap_or(0)`, so a
+    /// query against a table that does not exist returns a perfectly ordinary
+    /// zero and nothing is logged. Four of them asked for `FROM tasks`, which
+    /// has never been the table's name - it is `project_tasks` - so the
+    /// Mission Dashboard reported a flat zero for every task figure and read
+    /// to a user as "nobody has made any tasks" rather than as "we asked the
+    /// wrong question".
+    ///
+    /// The status vocabulary was wrong in the same way: these asked for
+    /// 'todo', 'open' and the hyphenated 'in-progress', while the schema
+    /// defaults to 'backlog' and the clients write 'backlog', 'in_progress'
+    /// and 'done'. So even against the right table three of the four would
+    /// have stayed at zero.
+    ///
+    /// PROVEN RED: change any of the four queries back to `FROM tasks`, or a
+    /// status back to 'todo' / 'in-progress', and this fails on that figure.
+    #[test]
+    fn the_dashboard_counts_tasks_that_exist_in_every_status() {
+        let db = test_storage();
+        db.register_name("Ann", "ann_key").unwrap();
+        db.create_task("done one", "", "done", "medium", None, "ann_key", "").unwrap();
+        db.create_task("doing one", "", "in_progress", "medium", None, "ann_key", "").unwrap();
+        db.create_task("backlog one", "", "backlog", "medium", None, "ann_key", "").unwrap();
+        db.create_task("backlog two", "", "backlog", "medium", None, "ann_key", "").unwrap();
+
+        let s = db.get_civilization_stats(0);
+        assert_eq!(s.resources.total_tasks, 4, "four tasks exist; a zero here means the query missed the table");
+        assert_eq!(s.resources.tasks_completed, 1, "one is done");
+        assert_eq!(s.resources.tasks_in_progress, 1, "one is in_progress (underscore, not hyphen)");
+        assert_eq!(s.resources.tasks_open, 2, "two are backlog");
+    }
+
+    /// The relay CANNOT know a follow count, and must not pretend to.
+    ///
+    /// `follows` was the last server-side social graph and it was deleted on
+    /// 2026-08-24: following is sealed control DMs plus client-held friendship
+    /// certificates verified statelessly. The old query survived the deletion
+    /// and returned 0 through `.unwrap_or(0)`, which is indistinguishable from
+    /// a real zero. This pins the honest answer AND guards the privacy
+    /// property: if someone re-adds the table to make a number appear, the
+    /// grep in this test fails and they have to read why first.
+    #[test]
+    fn there_is_no_server_side_follow_graph_to_count() {
+        let db = test_storage();
+        let s = db.get_civilization_stats(0);
+        assert_eq!(s.social.total_follows, 0, "not knowable, by design");
+
+        let exists: i64 = db
+            .conn
+            .lock()
+            .unwrap()
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'follows'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap_or(0);
+        assert_eq!(
+            exists, 0,
+            "a `follows` table is back. It was deleted on purpose (privacy maximization, \
+             2026-08-24) - following lives in sealed control DMs and client-held \
+             certificates. See the removed-tables note in CLAUDE.md before re-adding it."
+        );
     }
 }
