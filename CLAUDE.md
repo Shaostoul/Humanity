@@ -120,7 +120,7 @@ sends a prompt and we resume from disk (this is why the commit-early / journal-
 current / nothing-uncommitted discipline matters MORE, not less: a hard cutoff can
 land any time, so keep the tree shippable). The ONLY remaining limiter is
 CORRECTNESS: parallelism is still gated by real file-conflict risk (this repo
-funnels through a 17.5k-line `lib.rs` + the shared shader tail `assets/shaders/pbr/90-fragment-main.wgsl` (the PBR shader is SEVEN numbered files under `assets/shaders/pbr/`, not one megashader; `pbr_simple.wgsl` has not existed for a long time), so >2-3
+funnels through a 16k-line `lib.rs` + the shared shader tail `assets/shaders/pbr/90-fragment-main.wgsl` (the PBR shader is ELEVEN numbered files under `assets/shaders/pbr/` (00-bindings-vertex, 05-overrides, 10-lighting-patterns, 20-surface-detail, 30-atmosphere, 40-clouds, 41-cloud-bodies, 45-cloud-temporal, 50-brdf, 80-fragment-shared, 90-fragment-main; the list that matters is `src/renderer/shader_loader.rs`), not one megashader; `pbr_simple.wgsl` has not existed for a long time), so >2-3
 agents editing the SAME shader branch / lib region create genuine 3-way-merge
 correctness hazards, not just merge chores) and by independent verification of
 every merge. So the shape is: fan out WIDE on disjoint file sets; when tasks must
@@ -382,7 +382,9 @@ just launch           # launch latest build (no compile)
 just build-relay      # headless server build (no GPU)
 just status           # git + CI + live API health
 just logs             # tail server logs
-just snapshots        # headless: render all 38 egui pages to tests/snapshots/*.png (no GPU)
+just snapshots        # render the egui pages to tests/snapshots/*.png. NEEDS A GPU:
+                      # without an adapter each page is SKIPPED with a printed note and
+                      # the run still exits 0, so a green line is not evidence of a render
 just snapshot <name>  # headless: render just one page, e.g. `just snapshot construction`
 ```
 
@@ -397,12 +399,12 @@ No workspace, no sub-crates. Web frontend (`web/`) is plain HTML/JS served by ng
 ```
 src/                        ← single crate, everything lives here
   ├ relay/                  ← axum server (was server/src/)
-  │   ├ relay.rs            ← WS message routing (~5800 LOC)
-  │   ├ api.rs              ← REST API handlers (~2500 LOC)
+  │   ├ relay.rs            ← WS message routing (~6,400 LOC)
+  │   ├ api.rs              ← REST API handlers (~3,800 LOC)
   │   ├ mod.rs              ← router setup, CSP middleware, axum config
   │   ├ core/               ← crypto, encoding, identity, signing
   │   ├ handlers/           ← broadcast, federation, game_state, msg_handlers
-  │   └ storage/            ← 30 domain modules (messages, channels, tasks, guilds, etc.)
+  │   └ storage/            ← 50 domain modules (messages, channels, tasks, guilds, etc.)
   ├ renderer/               ← wgpu PBR pipeline, camera, bloom, particles, hologram
   ├ gui/                    ← egui immediate-mode UI (theme, widgets, pages)
   ├ ecs/                    ← hecs ECS: 20 components, System trait, SystemRunner
@@ -413,12 +415,19 @@ src/                        ← single crate, everything lives here
   ├ audio/                  ← kira: spatial 3D audio, music, SFX
   ├ assets/                 ← AssetManager (CSV/TOML/RON/JSON/GLTF), FileWatcher
   ├ net/                    ← multiplayer networking (WebSocket client, ECS sync)
+  ├ mods/                   ← mod manifest, load order, data override resolution
+  ├ engine/                 ← THE FRAME. 25 files the main loop is made of: world_load,
+  │                           home_meshes, screens, ipc (the dev IPC), frame_*.rs, editor
+  ├ media/                  ← AV1 + Opus player, playback clock, seek, ffmpeg ingest, discs
+  ├ web_reader/             ← the readable-web fetcher behind `web:` wall screens
+  ├ station/                ← orbital station frame + spin
+  ├ input/, hot_reload/     ← input mapping; shader and data hot reload
   ├ main.rs                 ← entry point: --headless for server, default for desktop
   └ lib.rs                  ← engine init, main loop
 
 web/                        ← website frontend (HTML/JS/CSS, served by nginx)
-data/                       ← hot-reloadable game data (140 entries: CSV, TOML, RON, JSON)
-schemas/                    ← TOML schema definitions for data files (24 schemas)
+data/                       ← hot-reloadable game data (155 entries: CSV, TOML, RON, JSON)
+schemas/                    ← TOML schema definitions for data files (32 schemas)
 assets/                     ← shared media (icons, shaders, models, textures, audio)
 
 Binary modes:
@@ -435,12 +444,12 @@ Identity (federation objects): ML-DSA-65 (Dilithium3, FIPS 204), separate keypai
 
 ## Cryptography (canonical, audited 2026-05-03)
 
-> **Read this section any time you need to write or quote an algorithm name.** The full-PQ cutover is **SHIPPED in code** (v0.264.1) but **not yet live-activated** — see "Activation status" below. The single biggest doc-drift risk now is claiming it's live for users when the attended fresh-slate wipe (Inc6) hasn't run yet.
+> **Read this section any time you need to write or quote an algorithm name.** The full-PQ cutover is **SHIPPED AND LIVE**: Inc6, the attended fresh-slate wipe, ran and was verified on 2026-05-20 (`docs/history/pq-cutover-runbook-completed-2026-05.md`). Describe it as live, because it is. This paragraph said the opposite for four months, which is the exact failure this section exists to prevent, so if you are about to quote an algorithm from memory instead of reading the table below: don't.
 
 | Layer | Algorithm | Where | Status |
 |-------|-----------|-------|--------|
 | Chat identity | **Dilithium3 / ML-DSA-65** (FIPS 204) hex = `public_key` | `web/chat/crypto.js` `attachPqIdentity`, `src/net/identity.rs` `derive_pq_identity`, relay | **Shipped** (web v0.262.34, native v0.264.0, relay v0.262.33). Derived from the BIP39 seed; KAT-locked web↔native↔relay. |
-| Chat message signing | Dilithium3 `pq_signature` over `content\ntimestamp` | web `crypto.js` `pqSignChatMessage` (signs); relay verifies | **Web signs + relay verifies (soft, `require_pq` OFF).** Native has `identity::pq_sign_chat` but send-site wiring is a deferred follow — native chat is currently UNSIGNED (relay soft-allows). |
+| Chat message signing | Dilithium3 `pq_signature` over `content\ntimestamp` | web `crypto.js` `pqSignChatMessage` (signs); relay verifies | **Both clients sign; the relay REJECTS an absent signature.** Native signs at every send site (`src/gui/pages/chat.rs`) since v0.275.0, and the relay logs `PQ-REJECT ... missing pq_signature` for a non-bot sender (`src/relay/relay.rs`). The `require_pq` soft/gated branching was deleted in Inc5b. (This row claimed the opposite until 2026-09-20, while the v0.275.0 bullet thirty lines below said the truth.) |
 | DM E2EE | **Sealed-sender v2 (2026-08-23): Kyber768 / ML-KEM-768 → BLAKE3-KDF → AES-256-GCM**, single-seal `{v:2,ek_ct_b64,nonce_b64,ct_b64}` wire envelope; the signed inner payload `{v:2,from,to,ts,text,sig}` (Dilithium3 over `hum/dm/v2\nfrom\nto\nts\ntext`) carries the sender INSIDE the ciphertext. One DM = two `dm_put` deposits (recipient copy + self copy to the sender's own mailbox for their other devices). Replaced the v1 dual-seal `{v:1,r,s}`. | web `crypto.js` `pqBuildDmPuts/pqOpenDmEnvelope` + `pq.js` primitives, native `src/net/dm_pq.rs` (`build_signed_inner/seal_v2/open_v2/parse_verify_inner`) | **Shipped.** Recipient key deterministic from the seed; sender authenticity is now END-TO-END (client verifies the inner Dilithium sig; the relay no longer vouches for or even knows the sender). |
 | DM metadata (server side) | Sealed-sender mailbox: `dm_mailbox (id, to_key, content, received_day)` with NO sender column and day-granularity arrival only; mail EXPIRES after `dm_mailbox_ttl_days` (server setting, default 30) + user-initiated `dm_purge`; legacy `direct_messages` graph table DROPPED by migration (secure_delete zeroes pages). Long-term history lives client-side: native `src/net/dm_store.rs` (AES-GCM file under seed-derived key), web `chat-dm-store.js` (encrypted IndexedDB). | `src/relay/storage/dms.rs`, `msg_handlers.rs::handle_dm_put/fetch/purge` | **Shipped 2026-08-23.** A subpoena/breach of the relay DB yields sender-less ciphertext blobs, not a social graph. Residuals documented in `docs/reference/retention_and_deletion_semantics.md` (pre-cutover backups until rotation; live wiretap-class observation). |
 | Backups at rest | AES-256-GCM (in-process 6h snapshots, `.db.enc`, nonce-prefix) + openssl AES-256-CBC/PBKDF2 (VPS 30-min script, `.db.aes`); key = `data/backup.key` (machine-local, OUTSIDE the backups dir, created at relay boot) | `src/relay/storage/backup_crypto.rs`, `scripts/humanity-backup-db.sh`, `scripts/decrypt-backup.sh` | **Shipped 2026-08-23.** Crash recovery decrypts `.db.enc` transparently (both backup dirs scanned); a backups directory that travels without its key is ciphertext. KEEP A COPY OF THE KEY SAFE - no key, no restore. |
@@ -459,7 +468,7 @@ Identity (federation objects): ML-DSA-65 (Dilithium3, FIPS 204), separate keypai
 | Server-side KDF | Argon2id | `src/relay/core/kdf.rs` | Active |
 | ECDH P-256 DM | — | — | **DELETED** (web v0.263.4, native v0.264.0 — `dm_crypto.rs` removed) |
 
-**Activation status (READ THIS before quoting DM as live):** all the code is shipped and proven, but the **live relay DB still holds the old Ed25519-keyed accounts**. The new clients present the Dilithium key, so old accounts can't log in — this is the *expected* migration discontinuity, not a bug. Going live requires the attended fresh-slate wipe (`scripts/pq-wipe.sh`, re-seeds `#announcements` from `data/announcements_archive.json`) — that is **Inc6**, which the operator chose to run as the final attended step (security-review → deploy → wipe → live web↔native DM verify). Until Inc6: describe the cutover as "shipped + KAT-proven, awaiting the attended wipe to activate," NOT "live."
+**Activation status: LIVE since 2026-05-20.** Inc6, the attended fresh-slate wipe (`scripts/pq-wipe.sh`, which re-seeds `#announcements` from `data/announcements_archive.json`), ran and was verified. The runbook is `docs/history/pq-cutover-runbook-completed-2026-05.md`: "All increments including Inc6 (the attended fresh-slate wipe) are done and verified." Every increment below is history, not a plan.
 
 **Shipped this cutover (v0.262.33 → v0.264.1):**
 - Inc3 (relay, v0.262.33): `public_key` = Dilithium hex is THE identity; `registered_names.kyber_public`; zero-knowledge DM relay (the `Dm` struct is unchanged — the PQ envelope rides in opaque `content`); dual-stack ecdh/dilithium columns trimmed.
@@ -497,12 +506,12 @@ When you change any of these in code, update this table + status in the same com
 | `src/main.rs` | Entry point: `--headless` for relay, default for desktop |
 | `src/lib.rs` | Engine init, main loop |
 | `src/relay/` | Axum server (WebSocket relay + REST API + SQLite storage) |
-| `src/relay/relay.rs` | WS message routing, rate limiting, auth (~5800 LOC) |
-| `src/relay/api.rs` | REST API handlers (~2500 LOC) |
+| `src/relay/relay.rs` | WS message routing, rate limiting, auth (~6,400 LOC) |
+| `src/relay/api.rs` | REST API handlers (~3,800 LOC) |
 | `src/relay/mod.rs` | Router setup, CSP middleware, axum config |
 | `src/relay/core/` | Crypto primitives: encoding, identity, signing, hashing |
 | `src/relay/handlers/` | broadcast.rs, federation.rs, game_state.rs, msg_handlers.rs, utils.rs |
-| `src/relay/storage/` | 30 domain modules (messages, channels, tasks, guilds, reputation, trading, etc.) |
+| `src/relay/storage/` | 50 domain modules (messages, channels, tasks, guilds, reputation, trading, etc.) |
 | `src/renderer/` | wgpu PBR pipeline, camera, sky, stars, instanced rendering |
 | `src/renderer/particles.rs` | Particle system |
 | `src/renderer/bloom.rs` | Bloom post-processing |
@@ -517,12 +526,17 @@ When you change any of these in code, update this table + status in the same com
 | `src/audio/` | kira crate: spatial 3D audio, music, SFX, volume controls |
 | `src/net/` | Multiplayer networking: WebSocket client, protocol, ECS sync |
 | `src/mods/` | Mod manifest, load order, data override resolution |
+| `src/engine/` | **The frame.** 25 files: `world_load.rs`, `home_meshes.rs`, `screens.rs`, `ipc.rs` (the dev IPC), `frame_*.rs`, `launch_focus.rs`, `editor.rs`, `net_route.rs`. Most recent gameplay work lands here |
+| `src/media/` | Media player core: AV1 + Opus decode, playback clock, seek, ffmpeg ingest, video discs |
+| `src/web_reader/` | The readable-web fetcher behind `web:` wall screens |
+| `src/station/`, `src/input/`, `src/hot_reload/` | Orbital station frame; input mapping; shader + data hot reload |
+| top-level `src/*.rs` | ~20 more beyond the six below, incl. `machines.rs`, `save_load.rs`, `storage.rs`, `showroom.rs`, `cosmos.rs`, `auto_unlock.rs`, `boot_timing.rs`, `debug.rs` |
 | `src/persistence.rs` | World save/load (entities, terrain, player progress) |
 | `src/config.rs` | Configuration management |
 | `src/embedded_data.rs` | Compile-time embedded data |
 | `src/updater.rs` | Auto-update: version check, download, delegate to newer exe |
-| `web/chat/app.js` | Core chat logic (~1700 LOC) |
-| `web/chat/chat-*.js` | messages, dms, social, ui, voice, profile, p2p |
+| `web/chat/app.js` | Core chat logic (~2,300 LOC) |
+| `web/chat/chat-*.js` | messages, dms, social, groups-p2p, ui, the five voice files, live, profile, privacy, game-admin, onboarding, p2p |
 | `web/chat/crypto.js` | Ed25519/ECDH/AES + BIP39 + Solana wallet + backup helpers (chat-side identity) |
 | `web/shared/pq-identity.js` | Dilithium3 + Kyber768 client API (post-quantum identity for federation objects) |
 | `src/relay/core/pq_crypto.rs` | Server-side ML-DSA-65 + ML-KEM-768 implementations |
@@ -531,18 +545,17 @@ When you change any of these in code, update this table + status in the same com
 | `web/shared/events.js` | Lightweight event bus (`hos.on/off/emit/gather`) |
 | `web/shared/shell.js` | Nav injection IIFE -- loaded first on every page |
 | `web/shared/settings.js` | Settings panel + gear button |
-| `web/shared/glossary.js` | 442-term glossary overlay |
+| `web/shared/glossary.js` | 460-term glossary overlay |
 | `web/shared/i18n.js` | Localization (5 languages) |
 | `web/shared/accessibility.js` | High contrast, colorblind, reduced motion modes |
 | `web/pages/*.html` | Standalone feature pages -- tasks, maps, civilization, settings, etc. |
-| `web/pages/data.html` | Data management UI (saves, backups, sync tiers, USB import/export) |
-| `web/activities/` | Game/real-world activities -- gardening, download, etc. |
+
 | `assets/` | All shared media -- icons, shaders, models, textures, audio |
-| `schemas/` | TOML schema definitions for data files (24 schemas: items, recipes, biomes, etc.) |
-| `data/` | Hot-reloadable game data -- 140 entries (CSV, TOML, RON, JSON) |
+| `schemas/` | TOML schema definitions for data files (32 schemas: items, recipes, biomes, etc.) |
+| `data/` | Hot-reloadable game data -- 155 entries (CSV, TOML, RON, JSON) |
 | `data/chemistry/` | 483 entries: elements, alloys, compounds, gases, toxins |
-| `data/solar_system/` | 70+ celestial bodies, planet RON definitions |
-| `data/glossary.json` | 442 term definitions for glossary overlay |
+| `data/star_systems/sol.json` | The 70 celestial bodies. (`data/solar_system/` is only 3 planet RONs: earth, mars, sun) |
+| `data/glossary.json` | 460 term definitions for glossary overlay |
 | `data/i18n/` | Translation files (en, es, fr, ja, zh) |
 | `data/external/` | The external catalog: 40 software + 63 help services, one file for the Tools page on both clients (replaced data/tools/ + data/resources/ 2026-07-30) |
 | `docs/` | ALL documentation -- design, accord, history, website |
@@ -551,17 +564,34 @@ When you change any of these in code, update this table + status in the same com
 
 ## Script load order (web/chat/)
 
-`crypto.js` → `pq.js` → `chat-dm-store.js` → `events.js` → `app.js` → `chat-messages.js` → `chat-dms.js` → `chat-social.js` →
-`chat-ui.js` → `chat-voice.js` → `chat-profile.js` → `chat-privacy.js` → `qrcode.js` → `chat-p2p.js`
+READ THE ORDER OFF `web/chat/index.html`, never off this list: it is load-bearing
+for an IIFE shell and it has drifted before (this block named `chat-voice.js`,
+which was split into five files, and omitted nine that exist). As of 2026-09-20:
 
-## All REST routes
+`twemoji` → `/shared/icons.js` → `/shared/events.js` → `/shared/hold-confirm.js` →
+`/shared/shell.js` → `/shared/defaults.js` → `/shared/settings.js` → `bip39-english.js` →
+`crypto.js` → `pq.js` → `chat-dm-store.js` → `view/timestampPill.js` → `view/messageRow.js` →
+`app.js` → `chat-messages.js` → `chat-dms.js` → `chat-social.js` → `chat-groups-p2p.js` →
+`chat-ui.js` → `chat-voice-rooms.js` → `chat-voice-calls.js` → `chat-voice-webrtc.js` →
+`chat-voice-streaming.js` → `chat-live.js` → `chat-voice-modal.js` → `chat-profile.js` →
+`chat-privacy.js` → `chat-game-admin.js` → `chat-onboarding.js` → `qrcode.js` → `chat-p2p.js`
+
+## REST routes (a WORKING SUBSET, not all of them)
+
+`src/relay/mod.rs` registers about 96 routes. The list below is the older core
+and is useful for shape, but it is NOT complete: absent from it are the whole
+`/api/v2/*` surface (objects, credentials, proposals, groups, recovery, trust,
+zk, agents, solana), `/api/live` and the `/ws/live/*` pair, `/api/files*`,
+`/api/bugs*`, `/api/guilds*`, `/api/trade/*`, `/api/reputation/*`,
+`/api/account/export`, `/api/turn-credentials` and `/api/docs/accord*`. Before
+concluding an endpoint does not exist, grep `src/relay/mod.rs`.
 
 ```
 GET  /health
 WS   /ws                              ← main WebSocket
 
 GET  /api/messages                    query: channel, before_id, limit
-POST /api/send                        authenticated via Ed25519 sig
+POST /api/send                        authenticated via Dilithium3 sig
 GET  /api/search                      query: q, channel, from
 GET  /api/peers
 GET  /api/stats
@@ -580,7 +610,7 @@ GET/POST   /api/listings
 GET        /api/federation/servers
 GET/POST   /api/skills/search
 GET        /api/skills/{user_key}
-GET/PUT/DEL /api/vault/sync           authenticated via Ed25519 sig
+GET/PUT/DEL /api/vault/sync           authenticated via Dilithium3 sig
 GET        /api/server-info
 GET        /api/profile/{key}           signed profile lookup by public key
 GET/POST   /api/projects
@@ -597,25 +627,23 @@ GET        /api/sellers/{key}/rating
 
 ## Key patterns
 
-**Ed25519 chat identity** (set in web/chat/app.js `connect()`):
+**Chat identity is DILITHIUM3** (set in web/chat/app.js `connect()`; `myKey` is the Dilithium3 public-key hex):
 ```js
 myIdentity = { publicKeyHex, privateKey, publicKey, canSign }
 ```
-> Federation objects use a separate Dilithium3 keypair (see Cryptography section above).
+> Ed25519's only remaining roles are the BIP39 seed source and the Solana wallet. Federation objects and chat share the Dilithium3 identity; see the Cryptography section above.
 
 **Relay unicast**: `target: Option<String>` on message variant; broadcast loop `continue`s if target≠my_key
 
-**Authenticated API requests** (vault sync, key rotation):
+**Authenticated API requests** (vault sync, system profile, push, admin stats):
 ```js
-sign("vault_sync\n" + timestamp, privateKey)   // timestamp = Date.now()
-// Server validates: freshness ≤5 min + Ed25519 sig
+pqSignChatMessage("vault_sync\n" + timestamp)   // timestamp = Date.now()
+// Server: verify_dilithium_signature(&vk, "vault_sync", ...) + auth_nonce_fresh
 ```
 
-**Key rotation certificate** (dual-sign):
-```
-sig_by_old = sign(new_key + "\n" + timestamp, old_private_key)
-sig_by_new = sign(old_key + "\n" + timestamp, new_private_key)
-```
+> There is no key-rotation route. It and its dual-signed certificate were
+> deleted in Inc5b (v0.265.0); the `key_rotations` table survives inert. This
+> block documented both until 2026-09-20.
 
 **AES-256-GCM + PBKDF2-SHA256** (vault, notes, backup):
 `deriveKeyFromPassphrase(passphrase, salt)` → CryptoKey
@@ -704,14 +732,20 @@ just sync    # fetches, git reset --hard, rebuilds, rsyncs, restarts
 ## Storage schema (key tables)
 
 ```sql
-messages       (id, channel, sender_name, sender_key, content, timestamp, signature, edit_history, thread_parent_id, reply_count, metadata)
-channels       (id, name, description, created_by, created_at, topic, is_private)
+-- VERIFIED AGAINST src/relay/storage/mod.rs 2026-09-20. Columns added by the
+-- ALTER migration block are marked (alter); see the BUG-046 gotcha before you
+-- write an index over one.
+messages       (id, msg_type, from_key, from_name, content, timestamp, signature, raw_json,
+                channel_id (alter), reply_to_from (alter), reply_to_timestamp (alter), origin_server (alter))
+channels       (id, name, description, created_by, created_at,
+                read_only (alter), local_only (alter), position (alter), category_id (alter),
+                federated (alter), voice_enabled (alter))
 profiles       (name, bio, socials, avatar_url, banner_url, pronouns, location, website, streaming_url, streaming_live)
-tasks          (id, title, description, status, priority, assignee, created_by, created_at, updated_at, labels)
+project_tasks  (id, title, description, status, priority, assignee, created_by, created_at, updated_at, labels)   -- NOT `tasks`
 task_comments  (id, task_id, author_key, author_name, content, created_at)
 vault_blobs    (public_key, blob, updated_at)
-key_rotations  (old_key, new_key, sig_by_old, sig_by_new, rotated_at)
-uploads        (id, uploader_key, filename, url, size, mime_type, created_at)
+key_rotations  (old_key, new_key, sig_by_old, sig_by_new, rotated_at)   -- INERT: the route and handler were deleted in Inc5b; the table was left in place rather than churn positional SQL
+user_uploads   (id, uploader_key, filename, url, size, mime_type, created_at)   -- NOT `uploads`
 signed_profiles (public_key, name, bio, avatar_url, socials, timestamp, signature)
 projects       (id, name, description, owner_key, visibility, color, icon, created_at)
 listing_images (id, listing_id, url, position, created_at)

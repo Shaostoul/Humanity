@@ -121,7 +121,7 @@ if (lastDecision) {
   L.push('  ' + lastDecision.replace(/\s+/g, ' '));
   L.push('');
 }
-L.push('NEXT: docs/PRIORITIES.md (top of "Active focus") is the next action.');
+L.push('NEXT: docs/PRIORITIES.md (top of TIER 0) is the next action.');
 L.push('      `node scripts/agent-status.js` for per-scope status (now flags stale rows).');
 L.push('==========================================================');
 console.log(L.join('\n'));

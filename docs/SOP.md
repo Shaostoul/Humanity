@@ -57,13 +57,18 @@ node scripts/bump-version.js patch   # non-Rust changes (HTML/JS/CSS/docs)
 node scripts/bump-version.js minor   # Rust code changed (requires recompile)
 ```
 
-This updates all 6 locations automatically:
+This updates all 7 locations automatically:
 - `Cargo.toml` (root package version field)
 - `web/shared/sw.js` (CACHE_NAME bump)
 - `web/pages/settings-app.js` (version tag)
 - `web/pages/ops.html` (debug version)
 - `web/shared/shell.js` (version string)
 - `web/pages/download.html` (fallback version badge + subtitle)
+- `web/pages/index.html` (the landing page's `proof-versions` tile)
+
+> THE SEVENTH IS THE ONE THAT BITES. This list said six until 2026-09-20 and
+> the v0.1316.0 release commit missed `index.html` because of it. The list that
+> cannot be wrong is `scripts/bump-version.js` itself; stage all seven BY NAME.
 
 ## After Every Push
 

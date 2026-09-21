@@ -8,6 +8,16 @@ WGSL implementer owns: `assets/shaders/pbr/40-clouds.wgsl`, `assets/shaders/pbr/
 
 Companion: `docs/design/cloud-sun-shadow-cache.md` (increment 1, the pattern this mirrors).
 
+
+> **NOT THE ONLY ANSWER IN FLIGHT ANY MORE (2026-09-20).** v0.1326.0 addressed
+> the same orbital symptom - the deck reading as black-and-white static - by a
+> different route: cloud EDGES now widen with the sample footprint
+> (`cloud_edge_foot_ramp` in `40-clouds.wgsl`, plus the always-on skirt in
+> `41-cloud-bodies.wgsl`), because a 0.005-wide carve hinge and a 90 m rind are
+> both far below a 700 m footprint and every pixel on an edge was a coin flip.
+> That is a band limit at the edges; this document is a band limit on the
+> COLUMN. They are complementary, and the far rung is still knob 0 pending its
+> gates - but measure against the post-v0.1326 look, not the old one.
 ## What it is
 
 The speckles are the constructed bodies (`cloud_v2_body`, 41-cloud-bodies.wgsl:773) point-sampled at footprints larger than the clouds. `CLOUD_V2_FADE_LO/HI` = 3.9/4.0 (40-clouds.wgsl:150-151) keeps the built body at full weight for every footprint under 15 km, so from 873 km every sample of a 300 m to 8 km object field on 1.1 to 3.2 km cells (`cv2_cell_km`, 41-cloud-bodies.wgsl:40-43) is a coin flip: inside a lobe (opaque at 45/km) or clear, printed as one full-white texel. Measured on the 873 km captures (greyscale > 200, central 80 percent): High 31.0 percent white as coherent sheets, Ultra day-0 25.3 percent as sugar grain, Ultra eco0 9.1 percent as dots, eco1 5.2 percent (fewer coin flips, a field move, not a fix); grain 2.19 (High) against 2.79 to 2.98 (Ultra). The noise body is already band-limited (mip chain plus the compact-support hinge, 40-clouds.wgsl:2467-2486); the built body has no prefiltered representation at all. Increment 4 gives it one.

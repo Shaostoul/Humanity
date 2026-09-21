@@ -1,6 +1,14 @@
 # HumanityOS Features Directory
 
-Complete inventory of every feature, where it lives, and what it does. Updated v0.607.x.
+Complete inventory of every feature, where it lives, and what it does. Updated 2026-09-18 (v0.1319.x).
+
+> The header said "v0.607.x" until 2026-09-20, which made this file look far more
+> stale than it is - it does cover the in-world screens and `src/media`. Some
+> individual PATHS in it are dead, though: `assets/shaders/pbr_simple.wgsl` (the
+> shader is eleven numbered files under `assets/shaders/pbr/`), the Resources
+> page (retired 2026-07-30 into `data/external/`), `web/activities/`, and a
+> handful of deleted `src/gui/pages/` and `src/systems/` files. Check a path
+> exists before acting on it.
 
 ## How to Read This
 

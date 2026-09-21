@@ -1,5 +1,12 @@
 # HumanityOS: Feature Status
 
+> **STALE - READ FEATURES.md AND PRIORITIES.md FIRST (flagged 2026-09-20).** This
+> file stopped at v0.684.0 and HEAD is past v0.1326, about 640 releases. It has
+> ZERO coverage of the in-world screens ladder, the media player and seek, the
+> readable web, the 23-room player home, or the frame-cost and cloud arcs - so it
+> will tell you something is unbuilt that shipped months ago. `docs/FEATURES.md`
+> is current to 2026-09-18 and `docs/PRIORITIES.md` to v0.1326.1; trust those.
+
 > **Last updated:** 2026-07-04 | **Version:** v0.684.0 (vehicle-pipeline arc v0.677-0.684: kits deploy, factories world-spawn onto pad lanes, Summon self-drives; see FEATURES.md)  | previously: v0.637.0 - **PARTIAL RE-SYNC**, closed the
 > single biggest known gap: the Construction/Home-Building arc (v0.437-0.637, walls,
 > utilities, mothership superstructure) was entirely undocumented here and now has its

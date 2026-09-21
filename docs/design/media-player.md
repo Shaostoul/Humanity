@@ -432,7 +432,7 @@ the no-toolchain build is worth keeping simple.
   `transcode_args`, so a later edit cannot quietly change the quality or
   drop the audio. Implementation: `src/media/transcode.rs`.
   Still to come on that side: synchronised playback between players (needs
-  the relay clock), a seek bar, subtitles, and true 3D spatial audio once the
+  the relay clock), subtitles, and true 3D spatial audio once the
   engine has a kira spatial scene (today the stream's volume and pan are set
   per frame from distance and bearing).
 - **Loop-point audio alignment.** A looping stream wraps at the Opus sample
@@ -442,10 +442,18 @@ the no-toolchain build is worth keeping simple.
   instead (detecting `position()` falling and restarting the picture then)
   would remove the glitch; not done because it is below what the ear
   catches on a tone and the fixture is the only clip so far.
-- **Arbitrary seek.** Only seek-to-start. Real seeking needs the Matroska
-  Cues (matroska-demuxer's `seek()` uses them) plus a decoder flush to the
-  preceding keyframe and, on the audio side, seek by index instead of a
-  reopen-and-skip; the pieces exist, the wiring does not.
+- **Arbitrary seek: DONE, v0.1325.0.** `VideoPlayer::seek_to(seconds)`. The
+  decode thread is told where to start by writing the target and THEN bumping
+  the generation, in that order, so it can never pair a new generation with an
+  old target. A pass rewinds `SEEK_PREROLL_S` (12 s) before the target using
+  matroska-demuxer's `seek()`, skips packets until a keyframe (rav1d cannot be
+  handed a mid-GOP packet), and refuses to QUEUE anything older than the
+  target; the frames between are decoding work deliberately thrown away.
+  If the window holds no keyframe, or the file has no index, the pass reports
+  `RetryFromStart` and decodes from the top, which always arrives - count it
+  with `seek_fallbacks()`. Audio gets the same position and kira seeks itself.
+  Seeking while PAUSED shows the frame it landed on, which needs its own rule
+  because a paused clock never advances to make anything due.
 - **Subtitles and chapters.** The demuxer exposes them; nothing reads them.
 - **Streaming from the relay.** The player reads a local file through a
   `BufReader<File>`. Playing a WebM as it downloads means a reader that

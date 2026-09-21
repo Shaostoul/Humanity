@@ -41,6 +41,19 @@ A screen is three things bolted together:
    there is one `GuiState`, and both the full-screen page and the wall page
    read and write it.
 
+   **THE RULE THAT COMES WITH THAT (BUG-078, v0.1323.0): a page draw may not
+   write `active_page`.** Sharing one `GuiState` is the feature, and it is
+   also the trap - whatever a page writes while drawing on a wall, it writes
+   on behalf of the whole application. The bedroom's standing mirror is a
+   screen whose source is `profile`, and `profile::draw` used to set
+   `active_page = GuiPage::Real` as its way of aliasing itself onto the Real
+   page. So entering the world drew the mirror, the mirror navigated the app
+   onto the Profile page, and Play was unusable for two releases. Nothing
+   said a word: the page rendered correctly and the world loaded correctly.
+   The gate is `no_page_drawn_on_a_wall_screen_changes_the_app_page` in
+   `src/gui/screen_surface.rs`, which walks every screen the shipped home
+   declares. If a page needs to navigate, do it from the main UI's own frame.
+
 2. **A material**: PBR material type 24, whose albedo texture is the surface's
    texture bound BY VIEW (`Renderer::add_material_with_albedo_view`). The
    scene samples the page's pixels directly. There is no readback and no
@@ -756,8 +769,7 @@ ffmpeg run.
 
 Not done in this rung, on purpose: **synchronised playback between players**
 (two people in the same room seeing the same frame needs the relay clock
-and a shared play/pause/seek state; a later rung), a **seek bar** or any
-transport control beyond click-to-pause, **subtitles**, a **file picker** (the
+and a shared play/pause/seek state; a later rung), **subtitles**, a **file picker** (the
 source is the data file's string), inline **volume** per screen, and true 3D
 spatial audio (above).
 
