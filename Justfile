@@ -509,7 +509,7 @@ live-publish *ARGS:
 # the Windows LNK1318 PDB limit (see CLAUDE.md gotcha).
 # One bash line so the loop + the CARGO_MANIFEST_DIR env share a shell.
 lints:
-    export CARGO_MANIFEST_DIR="$(pwd)"; for t in emdash_lint theme_token_lint theme_editor_coverage icon_glyph_lint engine_wiring_lint page_registry_lint page_parity_lint settings_persistence_lint file_size_ratchet focus_optin_lint account_sql_lint rig_pin_lint; do rustc --test --edition 2021 -A warnings "tests/$t.rs" -o "/tmp/$t.test.exe" 2>/dev/null && "/tmp/$t.test.exe" >/dev/null 2>&1 && echo ">> lint ok: $t" || { echo "LINT FAILED: $t"; "/tmp/$t.test.exe"; exit 1; }; done
+    export CARGO_MANIFEST_DIR="$(pwd)"; for t in emdash_lint theme_token_lint theme_editor_coverage icon_glyph_lint engine_wiring_lint page_registry_lint page_parity_lint settings_persistence_lint file_size_ratchet focus_optin_lint account_sql_lint rig_pin_lint snapshot_recipe_lint; do rustc --test --edition 2021 -A warnings "tests/$t.rs" -o "/tmp/$t.test.exe" 2>/dev/null && "/tmp/$t.test.exe" >/dev/null 2>&1 && echo ">> lint ok: $t" || { echo "LINT FAILED: $t"; "/tmp/$t.test.exe"; exit 1; }; done
 
 # The RIG's own tests: the measuring instruments, checked the way the code they
 # measure is checked. Pure node, no GPU, under a second, so it runs inside
@@ -525,25 +525,26 @@ lints:
 rig-tests:
     node --test scripts/tests/machine-guard.test.js scripts/tests/perf-report.test.js
 
-# Render ALL 38 native UI pages to PNGs in tests/snapshots/ for review. Needs a GPU
-# (the dev machine has one); skips gracefully if none. Open the PNGs after. For just
-# ONE page, use `just snapshot <name>` instead (much faster).
+# Render all 62 native UI snapshots to PNGs in tests/snapshots/ for review.
+# NEEDS A GPU: without an adapter every page is SKIPPED with a printed note and the
+# run still exits 0, so a green line here is not evidence that anything rendered -
+# read the output. Open the PNGs after. For ONE page use `just snapshot <name>`.
 snapshots:
     cargo test --features native --lib snapshot_ -- --ignored --test-threads=1 --nocapture
     @echo "UI snapshots written to tests/snapshots/, open them to review."
 
 # Render ONE named page to tests/snapshots/<name>.png. Names are the test suffix in
-# src/gui/ui_snapshots.rs, e.g. `just snapshot construction` or `just snapshot homes`.
-# Full list: main_menu, humanity, chat, homes, tasks, market, profile, crafting,
-# library, governance, identity, wallet, quests, calendar, notes, audio_settings,
-# graphics_settings, controls_settings, laws_page, inventory, inventory_transfer,
-# garden_modal_soil, mining_modal, mining_map, garden_modal_tower, construction,
-# studio. The list is PARTIAL (38 snapshot tests exist; derive the full set from
-# src/gui/ui_snapshots.rs), other native pages have no snapshot test
-# yet, check docs/PAGES.md for the full page registry.
+# src/gui/ui_snapshots.rs. 62 exist; `just snapshot <a bad name>` prints all of them.
+# A page missing from that list has no snapshot test yet - docs/PAGES.md is the full
+# page registry.
+#
+# The name is checked BEFORE cargo runs, because cargo exits 0 when a test filter
+# matches nothing and this recipe used to follow that with an unconditional
+# `echo "Wrote ..."`. A typo reported success and rendered nothing.
 snapshot name:
+    @node scripts/snapshot-name.js {{name}}
     cargo test --features native --lib snapshot_{{name}} -- --ignored --nocapture
-    @echo "Wrote tests/snapshots/{{name}}.png"
+    @echo "Wrote tests/snapshots/{{name}}.png (a GPU-less run SKIPS and still exits 0 - check the lines above)"
 
 # Pre-push checklist: the recurring CI gotchas in one shot (untracked source
 # files that fail a fresh checkout, broken doc links) plus full verify.
