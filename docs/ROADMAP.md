@@ -43,47 +43,56 @@ The active queue, strict-ranked. The top item is what is being worked on next.
 Tactical, per-iteration detail lives in `docs/PRIORITIES.md` and
 `data/coordination/orchestrator_state.json`; this is the strategic summary.
 
-1. `[building]` **In-world screens: the app's pages as touchscreens in the 3D world.**
-   SHIPPED (v0.1313.0): a wall screen placed in the home draws the real inventory or
-   tasks page (the same page, the same data, not a picture of it) and takes look-and-click,
-   scroll and typing; the console room (the home's fixed workstation) as a named zone that
-   joins the room vocabulary; a purpose-built WebM/AV1/Opus player core instead of embedding
-   VLC; and the readable web (HTML parsed and drawn by us, no JavaScript, no Chromium),
-   off by default, with `data/web/sites.json` recording per site whether embedding it has
-   been reviewed. NEXT: live streams and an in-game camera on a wall, a looping clip with
-   spatial audio and click-to-pause, the readable web on a wall with a rig that proves a
-   click on the wall navigates, then the screens move into the console room. Design in
+1. `[building]` **Planet-scale rendering realism**, the arc the project has been built
+   around since v0.85x. SHIPPED: chunked-LOD Earth at true 1 m scale, live NASA weather
+   and seven cloud families, Gerstner oceans, a real sun shadow map, SSAO, god rays and
+   triplanar ground; then the realism pass (physical atmosphere, the ocean rework with
+   depth-baked shorelines, synthesized Moon/Mars/Pluto terrain, geomorph LOD crossfades,
+   a sky-view LUT); then the cloud arc, where the rosette and then the orbital "TV
+   static" were each root-caused and fixed (v0.1326.0): cloud edges now widen with the
+   sample footprint, so an edge seen from orbit stops being a per-pixel coin flip.
+   NEXT, in order: the residual speckle at 2000 km near the limb and on some coasts;
+   the night-side coast glow (water mirrors a sky table rendered for the camera's
+   position, so a night-side sea reflects the day side's sky, and the fix is written but
+   held back until a vantage exists to verify it on); then the far-rung gates, the deeper
+   cloud work that is merged but not yet switched on. After those, from the frame-cost
+   arc: a pipeline cache, a near-tree level-of-detail ladder, and light clustering.
+2. `[building]` **In-world screens: the app's pages as touchscreens in the 3D world.**
+   SHIPPED (v0.1313 to v0.1325): a wall screen draws the real inventory or tasks page
+   (the same page, the same data, not a picture of it) and takes look-and-click, scroll
+   and typing; the console room as a named zone with six live walls; an in-game camera
+   post; a purpose-built WebM/AV1/Opus player with spatial audio, click-to-pause and a
+   seek bar you can scrub; and the readable web (HTML parsed and drawn by us, no
+   JavaScript, no Chromium), off by default, with `data/web/sites.json` recording per
+   site whether embedding it has been reviewed. NEXT: a placement gate on that
+   embed-legality column, the screens' share of the interior frame (six live walls ran
+   at 9 fps), and playback synchronised between players. Design in
    `docs/design/in-world-screens.md`, `readable-web.md`, `media-player.md`.
-2. `[building]` **Planet-scale rendering realism** -- the arc the project has been built
-   around since v0.85x, run as an autonomous per-iteration loop. SHIPPED: chunked-LOD
-   Earth at true 1 m scale, live NASA weather + seven cloud families, Gerstner oceans, a
-   real sun shadow map, SSAO, god rays, and triplanar ground textures; then the realism
-   pass -- physical atmosphere (sun transmittance, aerial perspective, three-tier
-   exposure), the ocean rework (depth-baked shorelines plus a mipped wave texture that
-   killed the aliasing), synthesized Moon/Mars/Pluto terrain, geomorph LOD crossfades,
-   god-ray occlusion, planet-frame momentum with proximity frame-lock, and the perf fixes
-   (threaded terrain builds, parked-selection skip, async sky-sphere builds -- the
-   10-second departure hang is gone). NEXT in the queue: a sky-view LUT (one consistent
-   sky the water can reflect), the per-size-category LOD ladder (billboard to alpha card
-   to full model, for plants and animals), light clustering (1000+ sources), and
-   audio-engine integration (the volume sliders are still placebos).
-3. `[next]` **Scene tooling: bookmark studio.** F6 teleport bookmarks with categories
-   shipped; next is maps-page teleport integration and a live POV-preview bookmark editor
-   with time/weather scrubbing. The 3D visual + perf regression sweeps (2026-07-23,
-   `just perf-sweep` + the visual-sweep workflow) now guard the rendering work.
-4. `[paused behind the graphics arc]` **Multiplayer co-presence + the character
-   selector.** Client wiring shipped (v0.472): two players share the VPS world, stream
+3. `[next]` **Make the game legible and durable.** An honest assessment against the code
+   (`docs/design/playable-assessment-2026-09-19.md`) found eleven loops that close end to
+   end, and that what is missing is the layer between the simulation and the person:
+   nothing tells a player what exists, built structures are discarded when you leave, and
+   the fastest crop takes nearly five real hours. In order: persist what you built, put
+   the simulation on the HUD, settle crop pacing, a scripted first run, and make a built
+   thing actually do something. Then the construction tool, because the four code
+   blockers stopping a second storey are the same four stopping the editor.
+4. `[planned]` **Populate the ship, and seat a dozen players.** Simple AI inhabitants who
+   live their lives in a mothership sector (aggregate population, a derived roster, an
+   embodied set only for what you can see, so cost scales with what is visible rather
+   than with who lives there), and co-op that seats at least a dozen. Honest gap first:
+   nothing in the engine can path an agent around a wall yet, and there is no skeletal
+   animation, so a crowd today would be sliding markers. Design in
+   `docs/design/crowd-simulation.md` and `docs/design/game-modes.md`.
+5. `[planned]` **Multiplayer co-presence + the character selector**, paused behind the
+   graphics arc. Client wiring shipped (v0.472): two players share the VPS world, stream
    position, and see each other as avatars; pending a two-player live test. Remaining:
    nameplates, the world-snapshot prefill, and the CHARACTER LAUNCHER (self-custodial
    LOCAL vs server-authoritative SERVER characters, open / closed / hybrid). Design in
    `docs/design/characters-and-servers.md`.
-5. `[paused behind the graphics arc]` **First Playable depth + mothership superstructure.**
-   First Playable: walk-up stations, a 3D vitals HUD, death and respawn, a guided first
-   day. Superstructure (paused at v0.637, needs a taste/architecture call): the M1
-   zone-editor architecture, the M3 civic mall/meeting-zone, and grid S3 multi-home tiers.
-   See `docs/design/mothership-superstructure.md` and `docs/design/grid-hierarchy.md`.
-6. `[next]` **GitHub branch + tag protection on `main`** (deploy auto-pushes to the live
-   relay with no approval gate) and the backup-restore drill.
+6. `[next]` **Operator-held:** sign the published releases (the desktop updater only
+   offers signed builds, and v0.1313 onward are unsigned), **GitHub branch + tag
+   protection on `main`** (deploy auto-pushes to the live relay with no approval gate),
+   and the backup-restore drill.
 
 ---
 
@@ -138,9 +147,9 @@ server operator cannot read your private messages.
 - `[done]` End-to-end encrypted DMs: pure Kyber768 / ML-KEM-768 to BLAKE3-KDF to
   AES-256-GCM. The relay stores only ciphertext.
 - `[done]` Encrypted vault (PBKDF2 600k both clients) with three auto-unlock modes.
-- `[done]` BIP39 24-word recovery, so losing a device never locks
-- `[wip]` Social key recovery: the recovery page and relay storage exist, the client-side seed splitting does not, so it cannot be relied on yet
-  you out forever.
+- `[done]` BIP39 24-word recovery, so losing a device never locks you out forever.
+- `[building]` Social key recovery: the recovery page and the relay storage exist, the
+  client-side seed splitting does not, so it cannot be relied on yet.
 - `[done]` Proof-of-possession at connect: a signed challenge-response before the
   relay binds your identity (closes identity spoofing).
 - `[done]` Release signing: a hybrid Ed25519 + Dilithium3 signature on every release
@@ -237,8 +246,9 @@ The game teaches the homestead; the homestead is real.
 - `[building]` In-world screens: native app pages, live feeds, video and the readable
   web drawn on displays placed in the 3D world and driven by look-and-click; the
   console room they populate; the websites database with an embed-legality field per
-  site (v0.1313.0 shipped the foundation, the console room, the player core and the
-  readable web; the wall providers are next).
+  site. All six rungs are merged (v0.1313 to v0.1325), including the video player with
+  a seek bar. What remains: a placement gate on the embed-legality column, the frame
+  cost of six live walls, and playback synchronised between players.
 - `[done]` Engine: a wgpu PBR renderer, an ECS, and 40-plus game systems wired in.
 - `[done]` World: icosphere planets with level-of-detail, voxel asteroids, and a
   ship-at-origin starting world.
@@ -281,25 +291,15 @@ The game teaches the homestead; the homestead is real.
   analogue of a room, data-driven zone types, full gizmo interactivity (click / drag /
   duplicate). RAIL (M2/M2b): a multi-stop rail node graph mirroring the road graph,
   with animated rail cars so a line reads as living transit, not static topology. Grid
-  S2: per-utility usage meters + a home self-sufficiency fraction. Paused 2026-06-29
-  awaiting the operator's steer on M1's editor architecture, M3 (civic mall), and grid
-  S3 (multi-home substations), see "Right now" above. Design in
-  `docs/design/mothership-superstructure.md`. **Priority order confirmed 2026-06-30:
-  the player's own home first** (it has to actually work before anything mirrors from
-  it), **then mothership population. SHIPPED same day (M2c, v0.638.0):** residential
-  zones clone the working home design into every slot (swap in real variety once more
-  home designs exist, the clone source is already a swappable roster); every other
-  zone type (hangar, mech bay, industrial kept safely away from homes, power/reactor,
-  medical, armory with a firing range, arena, cargo, storage, agriculture, transit
-  hub, civic mall) gets a cheap, data-driven generic interior filler tinted by its
-  zone colour instead of an empty wireframe, from the new `data/blueprints/
-  zone_filler.ron`. `armory` and `arena` are new zone types. Known gap: this renders
-  via the same CPU-merged-vertex-buffer path every other homestead feature uses, not
-  true GPU instancing (that path exists in the renderer but is dead code), fine for
-  today's placeholder density, will need real instancing before this scales toward
-  the 10-billion-occupant stretch goal below. Not yet visually confirmed in the live
-  3D viewport (only the 2D egui snapshot harness ran), the operator should eyeball a
-  populated zone next launch.
+  S2: per-utility usage meters + a home self-sufficiency fraction. M2c (v0.638.0)
+  populated the zones: residential slots clone the working home design, and every other
+  zone type gets a data-driven interior filler instead of an empty wireframe. Paused
+  awaiting the operator's steer on M1's editor architecture, M3 (the civic mall) and
+  grid S3 (multi-home substations). **Priority order confirmed: the player's own home
+  first**, because it has to work before anything mirrors from it, then mothership
+  population. Known gap: it draws through the same merged-vertex path as every other
+  homestead feature, which is fine at placeholder density and will need real instancing
+  before it scales. Design in `docs/design/mothership-superstructure.md`.
 - `[next]` Multiplayer co-presence + the character / server model: two players in one
   world on the VPS; self-custodial local characters vs server-authoritative ones (open
   vs closed Battle.net); the Play launcher with character select, homes, and a default.
@@ -443,10 +443,28 @@ Every operator gets the same sovereignty tools, not just the original.
 
 ## Recently shipped
 
-Newest first. This lists milestones, not every release (the project is at ~v0.930
-with ~900 tagged releases); for the granular per-release history see `docs/history/`,
-the release notes, and `git log`.
+Newest first. This lists milestones, not every release (the project is past v0.1326
+with more than 1,300 tagged releases); for the granular per-release history see
+`docs/history/`, the release notes, and `git log`.
 
+- `v0.1326.0` The orbital cloud static is fixed: cloud edges now widen with the sample
+  footprint, so an edge seen from orbit stops being a per-pixel coin flip. Verified
+  clean at 873 km with the near ground and the 12 km approach unharmed.
+- `v0.1325.0` A seek bar on the in-world video screen: click to jump, drag to scrub,
+  works while paused, with a readable clock. Proven on a two-hour film on a wall.
+- `v0.1324.0` The furniture stops being a doll's house. A machine's model is now scaled
+  to the size its data declares, which also exposed four pieces whose declared size
+  described the thing they were named after rather than the model they are.
+- `v0.1323.0` Pressing Play threw the player onto the Profile page for two releases. The
+  bedroom mirror is a real profile screen, in-world screens draw real pages against the
+  same state as the main UI, and that page navigated the app back out of the world. A
+  page draw may no longer steer the app, and a gate now walks the shipped home to prove
+  it.
+- `v0.1322.0` **Downloaded builds contain their art.** The release workflow had never
+  copied the 3D models or textures, so every download ever published rendered the world
+  as untextured boxes; only a build run from a source checkout looked right. Also in the
+  same release: boot time 16.8 s to 9.1 s, the starting home rebuilt from one open hall
+  into 23 rooms, and two character stations that had never actually worked.
 - `v0.1313.0` In-world screens, rungs 1, 2 and 4: a second egui context rendered
   into a texture that an unlit material samples, so a wall shows the real inventory
   page and takes clicks; screens as machine defs with a scheme-prefixed source; the
