@@ -972,6 +972,12 @@ fn cloud_v2_body(p: vec3<f32>, wa: f32, tc: f32, lodb: f32) -> f32 {
     // source blend then degenerates to the envelope column (every early
     // return below leaves this at 0).
     g_v2_int_dens = 0.0;
+    // (v0.1326: an attempt to publish this sample's footprint ramp here for
+    // the skirt in the density tail was removed. The value does not survive
+    // to the tail - the orbital static came straight back with it in place,
+    // while the same build with the skirt unconditional was clean - and the
+    // likeliest reason is the per-ray body cache, which serves a density
+    // this path never recomputes. Left as a note rather than a guess.)
     if (wa <= 0.02) {
         return 0.0;
     }
@@ -1305,7 +1311,6 @@ fn cv2_density_tail(best: f32, up_m: f32, height_m: f32, disp_m: f32, ewm: f32, 
     // Wide-edge experiment (dev pad bit 6, see CLOUD_EDGE_WIDE_MUL in
     // 40-clouds.wgsl): the constructed body ramp widens to the radiative
     // smoothing scale. Outer boundary unchanged; the ramp extends inward.
-    let wide_edge = fract(camera.light7_color.w * 0.0078125) >= 0.5;
     let rind_wide = select(CLOUD_V2_RIND_WIDE_M, camera.light6_color.y,
         camera.light6_color.y > 0.0);
     // Asymmetric here too (v0.1271 round 2): the dense core keeps the fitted
@@ -1314,8 +1319,22 @@ fn cv2_density_tail(best: f32, up_m: f32, height_m: f32, disp_m: f32, ewm: f32, 
     // dense boundary. Widening the rind itself thinned the interior.
     let d_m = best - disp_m + erode_m;
     let core0 = clamp(-d_m / rind0, 0.0, 1.0);
+    // ALWAYS ON since v0.1326 (was dev experiment bit 6). A 90 m rind under a
+    // 700 m footprint is a sub-sample hard edge, and a screen full of those is
+    // the orbital static. The skirt is the band limit for the constructed
+    // body, and it only works paired with the carve hinge widening next door -
+    // either one alone leaves the static untouched (fixtures
+    // orbit-873-carve-only and orbit-873-skirt-only).
+    //
+    // Unlike the hinge, this is NOT footprint-ramped, because the ramp could
+    // not be got to this point (see the note in cloud_v2_body). It does not
+    // need to be: the near-field guard approach-12km-ultra-carve-x3 runs the
+    // skirt at full strength and is indistinguishable from the twin without
+    // it, which is what a 300 m fringe on a cloud a few kilometres wide should
+    // look like. If a close-up vantage ever disagrees, ramping this is the
+    // first thing to try and the note above says why it is not simple.
     let skirt = CLOUD_V2_SKIRT_DENS * clamp(1.0 - d_m / rind_wide, 0.0, 1.0);
-    let core = select(core0, max(core0, skirt), wide_edge);
+    let core = max(core0, skirt);
 
     // ── THE INTERIOR (v0.1231) ──
     //

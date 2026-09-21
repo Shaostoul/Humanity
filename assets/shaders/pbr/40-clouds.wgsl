@@ -734,7 +734,56 @@ fn cloud_lod(lodb: f32, site_c: f32) -> f32 {
 // what remains is only the genuine sub-footprint spread of the soft
 // hinge. Re-run the harness and paste again after ANY bake change.
 // Wide-edge experiment multiplier on the hinge width (dev pad bit 6).
-const CLOUD_EDGE_WIDE_MUL: f32 = 20.0;
+// ── FOOTPRINT-SCALED EDGE WIDENING (v0.1326) ──
+//
+// The operator, from orbit, at every cloud quality: "they become
+// black/white/gray static for medium, high, and ultra ... very immersion
+// breaking."
+//
+// A cloud edge in this renderer is two hard things: a carve hinge 0.005
+// noise units wide on the noise body, and a 90 m rind on the constructed
+// body. Under a 700 m footprint - what a pixel covers from 873 km - both sit
+// far below one sample, so a pixel that lands on an edge is a coin flip. From
+// orbit nearly every pixel lands on an edge. Correct on average, binary per
+// pixel, which is the definition of static.
+//
+// Widening both edges toward the footprint is the band limit. That was
+// already in the tree as dev experiment bit 6 and the A/B says the experiment
+// was right: with it on the static is gone. What it lacked was SCALE - it
+// applied its full width at every distance, which is why it stayed an
+// experiment. This ramp is the missing half.
+//
+// BOTH edges have to move together. Widening either one alone leaves the
+// static exactly where it was (fixtures orbit-873-carve-only and
+// orbit-873-skirt-only), because the orbital deck mixes both body models and
+// whichever one stays hard keeps flipping.
+//
+// The ramp reads the UNCLAMPED footprint `lodb` - log2 of the sample
+// footprint in km - and NOT a mip level. `cloud_lod` clamps at 0 and both
+// ends of the range land there: 12 km altitude gives a 25 m footprint and
+// 873 km gives 726 m, and both read as lod 0 after the clamp. The clamp
+// destroys exactly the distinction this needs. The first attempt at this
+// gated on the mip and did nothing at all.
+const CLOUD_EDGE_FOOT_LODB_LO: f32 = -2.55;
+const CLOUD_EDGE_FOOT_LODB_HI: f32 = -0.5;
+
+/// 0 below a ~170 m footprint, 1 above ~700 m. The near field is therefore
+/// bit-identical to the pre-v0.1326 look, which is the half that already
+/// read well.
+fn cloud_edge_foot_ramp(lodb: f32) -> f32 {
+    return smoothstep(CLOUD_EDGE_FOOT_LODB_LO, CLOUD_EDGE_FOOT_LODB_HI, lodb);
+}
+
+/// The ramp for THIS sample, published by `cloud_v2_body` for the skirt in
+/// 41-cloud-bodies.wgsl, which is several calls deep and has no `lodb` of its
+/// own. It must not compute one from `g_v2_disp_lod`: that was tried, and it
+/// silently evaluated to zero, so the skirt never widened and the static
+/// survived a carve hinge widened twenty-fold. The two halves are useless
+/// apart, so they must read ONE footprint.
+///
+// 20 was an experiment's upper bound. 3 is what the 873 km A/B needs: x3, x6
+// and x20 are indistinguishable there and x20 flattens the deck into a sheet.
+const CLOUD_EDGE_WIDE_MUL: f32 = 3.0;
 const CLOUD_CARVE_W0: f32 = 0.0050;
 const CLOUD_CARVE_W1: f32 = 0.0050;
 const CLOUD_CARVE_W2: f32 = 0.0050;
@@ -2680,7 +2729,13 @@ fn cloud_carve(
     // threshold keeps the mean coverage (P(body > thr)) to first order
     // while both the boundary and the saturation move by sw/2 - the
     // soft-remap shape production renderers use.
-    let sw = select(sw0, sw0 * edge_mul, wide_edge);
+    // Ramped by the footprint as the default; the dev bit keeps its old
+    // meaning of full width at every distance, for the A/B.
+    let sw = sw0 * select(
+        mix(1.0, edge_mul, cloud_edge_foot_ramp(lodb)),
+        edge_mul,
+        wide_edge,
+    );
     let thr_shift = 0.0;
     // The signed per-mip threshold offset (see CLOUD_CARVE_T0): coverage
     // is P(body > thr + T - sw), so T corrects the mip's distribution
