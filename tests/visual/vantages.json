@@ -11152,6 +11152,41 @@
       },
       "settle_s": 12,
       "hold_altitude": true
+    },
+    {
+      "id": "orbit-terminator-3000km",
+      "desc": "The DAY/NIGHT LINE from orbit, which no standing vantage had. The operator photographed every coastline and shallow shelf on the dark side traced in glowing cyan: water_shade mixes in water_sky_lut with no daylight term, and that LUT is ONE table rendered per frame for the CAMERA's position, so night-side water mirrors the day side's sky. Coasts specifically, because that is where patches are fine enough for `presence` to reach that path. This exists to prove the fix, and to fail if it regresses: the dark limb must stay dark.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 15,
+        "lon": 0,
+        "time": 18,
+        "altitude_km": 3000,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "1",
+        "cloud_profile": "1",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
+      },
+      "settle_s": 12,
+      "hold_altitude": true
     }
   ],
   "ladder": {

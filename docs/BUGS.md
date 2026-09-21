@@ -1274,3 +1274,68 @@ global state is written on behalf of both. Nothing static could see this:
 the page rendered correctly, the world loaded correctly, the only symptom was
 that the game would not start. What found it was driving the real build and
 reading one value back.
+
+## BUG-079: clouds from orbit rendered as black-and-white static at every quality (fixed v0.1326.0)
+
+**Symptom:** the operator, flying above the Earth: "the clouds look weird in
+that they're awfully dark and white in spots to the point of looking like old
+TV static ... Up close the clouds look better but, far away they look weirdly
+dark." He then produced the A/B that settled it: five screenshots from one
+camera at 752 km, cloud quality off / low / medium / high / ultra. Off is
+clean. Low is blurry with straight tile-boundary lines. Medium, high and ultra
+are per-pixel black/white/grey noise. **Ultra looked and performed the worst of
+the five**, at 10 fps.
+
+**Cause:** a cloud edge in this renderer is two hard things - a carve hinge
+0.005 noise units wide on the noise body (`cloud_carve` in `40-clouds.wgsl`)
+and a 90 m rind on the constructed body (`cv2_density_tail` in
+`41-cloud-bodies.wgsl`). One pixel at 873 km covers about 700 m, so both sit
+far below a single sample. A pixel landing on an edge is therefore a coin flip,
+and from orbit nearly every pixel lands on an edge. The mean is right and every
+individual pixel is binary, which is what static IS.
+
+That also explains the quality ladder being INVERTED: Ultra does not march more
+finely, it asks for finer clouds at the same sampling rate, and detail below
+the sampling limit can only alias - while costing more to produce.
+
+**Fix:** both edges widen with the sample footprint
+(`cloud_edge_foot_ramp`): 1x below a ~170 m footprint, 3x above ~700 m, so a
+sample standing for a mixture of cloud and gap returns the mixture. The
+constructed body's skirt is on by default. Both were already in the tree as dev
+experiment bit 6; the experiment was right about what to do and wrong about
+scale, applying full width at every distance, which is why it never became the
+default.
+
+**Three things the A/B ladder settled** (fixtures committed in
+`tests/visual/vantages.json`, all runnable with
+`node scripts/probe-sweep.js --only <id> --operator-config`):
+
+- `orbit-873-carve-x3` / `-x6` / `-x10`: three times is enough. The three are
+  indistinguishable and x20 flattens the deck into a sheet.
+- `orbit-873-carve-only` / `orbit-873-skirt-only`: **both edges must move
+  together.** Widening either alone leaves the static exactly where it was,
+  because the orbital deck mixes both body models and whichever one stays hard
+  keeps flipping.
+- The ramp must read the UNCLAMPED footprint (`lodb`), not a mip level.
+  `cloud_lod` clamps at 0 and BOTH ends of the range land there: 12 km altitude
+  gives a 25 m footprint and 873 km gives 726 m, and both read as lod 0 after
+  the clamp. The first attempt gated on the mip and did nothing at all.
+
+**Verified** at the operator's own settings, panics 0: 873 km ultra clean,
+2000 km much improved (speckle remains near the limb and on some coasts - still
+open), 12 km unharmed, forest ground unharmed.
+
+**Known and documented in the shader:** the skirt is NOT footprint-ramped.
+Publishing the ramp from `cloud_v2_body` did not survive to the density tail -
+the static came straight back with it in place, while the same build with the
+skirt unconditional was clean - and the per-ray body cache is the likeliest
+reason. It does not need the ramp today (the near-field guard is
+indistinguishable either way) but that is the first thing to try if a close-up
+vantage ever disagrees.
+
+**Lesson, and it cost hours:** when a change that should be arithmetically
+identical to a working experiment does nothing, stop reasoning and force the
+whole effect on with NO conditions to confirm the look first. That proved the
+model in one build. Then add one condition at a time, capturing between each,
+and the broken one names itself. Every wrong turn came from deriving a
+footprint instead of measuring one, and from changing two things per build.
