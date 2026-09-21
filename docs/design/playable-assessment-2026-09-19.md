@@ -623,14 +623,34 @@ worse than an absent one.
 
 ## 7. What only the operator can decide
 
-Four questions. Two others this report would have raised are now answered: the
+Two questions remain open (3 and 4). Question 1 was answered on 2026-09-20 and
+question 2 on 2026-09-19; two others this report would have raised were already
+answered: the
 home's footprint is the acre and it is correct, and NPCs come after the loops.
 
-1. **How fast should a crop grow in real time?** Shorten `growth_days` for game
-   purposes and keep the real numbers as displayed reference; raise the default
-   clock speed; or add offline growth so crops advance while the app is closed.
-   Real agricultural fidelity and an evening of play are in direct conflict and
-   only you can say which wins. This blocks Tier A item 3.
+1. **How fast should a crop grow in real time? ANSWERED 2026-09-20.** A growth
+   MULTIPLIER, separate from the world clock, with 1x / 10x / 100x offered and a
+   custom value allowed. Shipped default 10x. The operator, verbatim: "I would
+   like to have normal real growth speed but, with a custom option for
+   accelerating plant growth... it'd be nice for people to be like I want either
+   1x speed or 10x or even 100x. For development purpose we could default to 10x
+   growth speed (not clock speed) just so we can actually test plant life cycles
+   without waiting days/weeks/months."
+
+   Note what this deliberately does NOT do: it does not raise the clock, which
+   would have dragged the day/night cycle, the seasons and the weather along with
+   it, and it does not rewrite `growth_days`. `plants.csv` keeps its real
+   agricultural numbers, so 1x stays a truthful mode and the figures stay
+   teachable at every rung. Implemented in
+   `src/systems/farming/mod.rs` (`DEFAULT_CROP_GROWTH_SPEED`,
+   `clamp_growth_speed`), applied as one more factor beside health, nutrient and
+   climate, published from `lib.rs` as `crop_growth_speed`, and exposed in
+   Settings > Gameplay. Tier A item 3 is unblocked.
+
+   **Offline growth is a separate, still-open want**, not part of this answer.
+   The operator liked it and was unsure where it belongs: "I like the idea of
+   offline growth but, that may be most applicable to MMO. Could be single player
+   too." It needs its own decision and its own increment.
 2. **Do the 3D models ship with the release?** Adding `assets/models/` and
    `assets/textures/` puts 269 MB into every download. Alternatives are shipping a
    curated subset, or a first-run asset fetch. Until this is answered no art work

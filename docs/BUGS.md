@@ -1275,7 +1275,7 @@ the page rendered correctly, the world loaded correctly, the only symptom was
 that the game would not start. What found it was driving the real build and
 reading one value back.
 
-## BUG-079: clouds from orbit rendered as black-and-white static at every quality (fixed v0.1326.0)
+## BUG-079: clouds from orbit rendered as black-and-white static at every quality (PARTIALLY fixed v0.1326.0, REOPENED 2026-09-20)
 
 **Symptom:** the operator, flying above the Earth: "the clouds look weird in
 that they're awfully dark and white in spots to the point of looking like old
@@ -1339,3 +1339,32 @@ whole effect on with NO conditions to confirm the look first. That proved the
 model in one build. Then add one condition at a time, capturing between each,
 and the broken one names itself. Every wrong turn came from deriving a
 footprint instead of measuring one, and from changing two things per build.
+
+
+**REOPENED 2026-09-20, and the cause above is only half of it.** The edge
+widening did its job on the coverage channel: at 2000 km the marched alpha now
+comes back clean. The static did not go with it. Captured at the operator's own
+graphics settings, `approach-2000km-high` (High is the DEFAULT tier, so this is
+what every user sees) shows cloud masses with correct, coherent silhouettes
+whose interiors are per-pixel black-and-white noise.
+
+Bisected with the screen-path channel instrument in
+`assets/shaders/pbr/45-cloud-temporal.wgsl`, which renders one raw ingredient of
+the march as greyscale THROUGH the same resolve and composite as content:
+
+| channel | vantage | result |
+| --- | --- | --- |
+| 1, coverage alpha | `orbit-2000-high-mask` | clean, coherent, crisp edges |
+| 3, ambient luminance | `orbit-2000-high-amb` | clean, flat even grey |
+| 2, direct-sun luminance | `orbit-2000-high-sun` | GRAINY, the carrier |
+
+Also refuted, each built and captured: the sun-shadow CACHE
+(`orbit-2000-high-nolight`, `cloud_light 0`, indistinguishable from baseline)
+and the per-pixel march DITHER (`orbit-2000-high-nodither`, `cloud_dither 0`,
+indistinguishable). What remains inside channel 2, per its own doc: sun taps,
+powder, cavity-on-direct.
+
+Note for whoever picks this up: the quality-ladder inversion explained above is
+still true and still unfixed at Ultra, but it is a SEPARATE defect from the
+static on the default tier. Fixing Ultra's coverage collapse would not have
+touched what the operator reported.

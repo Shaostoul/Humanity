@@ -1148,6 +1148,14 @@ mod native_app {
                 "garden_nutrient",
                 std::sync::Mutex::new(std::collections::HashMap::<String, f32>::new()),
             );
+            // Global crop growth multiplier (operator, 2026-09-20: 1x / 10x / 100x,
+            // growth speed and NOT clock speed). A plain f32 behind a Mutex so the sim
+            // never imports a GUI type; mirrored from Settings each frame by the bridge
+            // below. See systems::farming::DEFAULT_CROP_GROWTH_SPEED for why 10x ships.
+            data_store.insert(
+                "crop_growth_speed",
+                std::sync::Mutex::new(crate::systems::farming::DEFAULT_CROP_GROWTH_SPEED),
+            );
             // Backpack <-> container transfers (organize-layer inventory): the GUI pushes
             // (item_id, qty, is_add) ops; InventorySystem applies them to the player's
             // backpack. Mirrored from GuiState.pending_inventory_transfers each frame.
@@ -6458,6 +6466,21 @@ mod native_app {
                         if let Ok(mut s) = slot.lock() {
                             if *s != state.gui_state.garden_nutrient {
                                 *s = state.gui_state.garden_nutrient.clone();
+                            }
+                        }
+                    }
+                    // Crop growth multiplier: Settings -> sim. Clamped here as well as
+                    // on config load, because the Settings slider and the dev IPC can
+                    // both write the field directly.
+                    if let Some(slot) =
+                        state.data_store.get::<std::sync::Mutex<f32>>("crop_growth_speed")
+                    {
+                        if let Ok(mut s) = slot.lock() {
+                            let want = crate::systems::farming::clamp_growth_speed(
+                                state.gui_state.settings.crop_growth_speed,
+                            );
+                            if (*s - want).abs() > f32::EPSILON {
+                                *s = want;
                             }
                         }
                     }

@@ -16,6 +16,45 @@ use crate::ecs::components::{CropInstance, DEFAULT_GROWTH_STAGES, STAGE_DEAD};
 use crate::ecs::systems::System;
 use crate::hot_reload::data_store::DataStore;
 
+/// The crop growth multiplier the game ships with.
+///
+/// The operator, 2026-09-20, asked how fast a crop should grow in real time:
+/// "I would like to have normal real growth speed but, with a custom option for
+/// accelerating plant growth... it'd be nice for people to be like I want either
+/// 1x speed or 10x or even 100x. For development purpose we could default to 10x
+/// growth speed (not clock speed) just so we can actually test plant life cycles
+/// without waiting days/weeks/months."
+///
+/// So this scales GROWTH PROGRESS only. The world clock, the day/night cycle,
+/// weather and every other system keep running at real time: speeding the clock
+/// instead would have dragged all of them along, which is not what was asked
+/// for. `plants.csv` keeps its real agricultural `growth_days`, so the numbers
+/// stay teachable and 1x remains a truthful mode rather than a handicap.
+pub const DEFAULT_CROP_GROWTH_SPEED: f32 = 10.0;
+
+/// The presets offered in Settings. 1x is real time, where the fastest crop in
+/// `plants.csv` still takes hours; the faster rungs exist because a garden
+/// nobody can watch change is a garden nobody learns from.
+pub const CROP_GROWTH_SPEED_PRESETS: [f32; 3] = [1.0, 10.0, 100.0];
+
+/// Lower bound: at zero, crops freeze forever and read as a BROKEN farm rather
+/// than a slow one. Upper bound: past 1000x a crop ripens inside a single tick,
+/// so the stage progression is never seen at all.
+pub const MIN_CROP_GROWTH_SPEED: f32 = 0.01;
+/// See [`MIN_CROP_GROWTH_SPEED`].
+pub const MAX_CROP_GROWTH_SPEED: f32 = 1000.0;
+
+/// Clamp a growth multiplier arriving from ANY source: the config file, the dev
+/// IPC, a Settings slider. A NaN returns the default instead of propagating
+/// into every crop's progress and stalling the whole garden at stage zero.
+pub fn clamp_growth_speed(v: f32) -> f32 {
+    if !v.is_finite() {
+        return DEFAULT_CROP_GROWTH_SPEED;
+    }
+    v.clamp(MIN_CROP_GROWTH_SPEED, MAX_CROP_GROWTH_SPEED)
+}
+
+
 /// Plant definition loaded from plants.csv -- cached in DataStore as "plant_registry".
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PlantDef {
@@ -437,6 +476,17 @@ impl System for FarmingSystem {
             .get::<std::sync::Mutex<crate::systems::weather::Weather>>("weather")
             .and_then(|m| m.lock().ok().map(|w| w.temperature))
             .unwrap_or(20.0);
+
+        // Global crop growth multiplier (operator, 2026-09-20). Published by
+        // lib.rs from Settings as a plain f32 so the sim never imports a GUI
+        // type, the same neutral-handle pattern as irrigation and nutrient.
+        // Absent (headless tests, early boot) = the shipped default, so a test
+        // that never publishes it still sees the behaviour players get.
+        let growth_speed = clamp_growth_speed(
+            data.get::<std::sync::Mutex<f32>>("crop_growth_speed")
+                .and_then(|m| m.lock().ok().map(|v| *v))
+                .unwrap_or(DEFAULT_CROP_GROWTH_SPEED),
+        );
 
         // Build default stages vec once for plants without custom stages
         let default_stages: Vec<&str> = DEFAULT_GROWTH_STAGES.iter().copied().collect();
@@ -1089,8 +1139,14 @@ impl System for FarmingSystem {
                         } else {
                             1.0
                         };
-                        let effective_progress =
-                            progress * health_factor * nutrient_factor * climate_factor;
+                        // growth_speed is the player/dev multiplier; it multiplies
+                        // PROGRESS, so 10x reaches harvest in a tenth of the real
+                        // growth_days while the world clock is untouched.
+                        let effective_progress = progress
+                            * health_factor
+                            * nutrient_factor
+                            * climate_factor
+                            * growth_speed;
 
                         let new_stage =
                             stage_from_progress(effective_progress, &plant_stages);
@@ -1664,6 +1720,74 @@ mod gardening_tests {
         assert!(dry.health < 80.0, "dry cistern -> the water-stressed crop loses health, got {}", dry.health);
     }
 
+    /// The global crop growth multiplier (operator, 2026-09-20) reaches the sim,
+    /// and it multiplies GROWTH rather than the clock: at the SAME elapsed game
+    /// time and the same real growth_days, a 10x garden is further along than a
+    /// 1x one. Written red first: without the multiplier applied, both gardens
+    /// land on the same stage and the assert fails.
+    #[test]
+    fn crop_growth_speed_multiplies_growth_not_the_clock() {
+        use crate::ecs::components::CropInstance;
+
+        // 5% of the way through tomato's real window. At 1x that is stage 0; at
+        // 10x it is half-grown. Deliberately a fraction where the two answers
+        // cannot be the same stage, so the test cannot pass by accident.
+        let elapsed_fraction = 0.05_f64;
+
+        let run = |speed: f32| -> usize {
+            let mut data = make_store();
+            data.insert("crop_growth_speed", std::sync::Mutex::new(speed));
+            let (growth_seconds, stages): (f64, Vec<&str>) = {
+                let reg = data.get::<PlantRegistry>("plant_registry").unwrap();
+                let def = reg.get("tomato").unwrap();
+                (def.growth_days as f64 * SECONDS_PER_DAY, def.stages())
+            };
+            {
+                let gt = data
+                    .get::<std::sync::Mutex<crate::systems::time::GameTime>>("game_time")
+                    .unwrap();
+                gt.lock().unwrap().elapsed_seconds = growth_seconds * elapsed_fraction;
+            }
+            let mut sys = FarmingSystem::new();
+            let mut world = hecs::World::new();
+            let e = world.spawn((CropInstance {
+                crop_def_id: "tomato".to_string(),
+                growth_stage: stages[0].to_string(),
+                planted_at: 0.0,
+                water_level: 1.0,
+                health: 100.0,
+                tower_id: None,
+                tower_slot: None,
+            },));
+            sys.tick(&mut world, 1.0, &data);
+            let c = world.get::<&CropInstance>(e).unwrap();
+            stage_index(&c.growth_stage, &stages).unwrap()
+        };
+
+        let slow = run(1.0);
+        let fast = run(10.0);
+        assert!(
+            fast > slow,
+            "10x must outgrow 1x at the same game time (1x stage {slow}, 10x stage {fast})",
+        );
+        assert_eq!(slow, 0, "at 1x, 5% of the window is still the first stage");
+    }
+
+    /// A multiplier arriving from a hand-edited config or the dev IPC is clamped
+    /// rather than trusted. Zero would freeze the whole garden forever and read as
+    /// broken; NaN would poison every crop's progress.
+    #[test]
+    fn growth_speed_is_clamped_from_any_source() {
+        assert_eq!(clamp_growth_speed(0.0), MIN_CROP_GROWTH_SPEED);
+        assert_eq!(clamp_growth_speed(-5.0), MIN_CROP_GROWTH_SPEED);
+        assert_eq!(clamp_growth_speed(1.0e9), MAX_CROP_GROWTH_SPEED);
+        assert_eq!(clamp_growth_speed(f32::NAN), DEFAULT_CROP_GROWTH_SPEED);
+        // The offered presets must all survive the clamp untouched, or a radio
+        // button in Settings would silently not be the value it claims.
+        for preset in CROP_GROWTH_SPEED_PRESETS {
+            assert_eq!(clamp_growth_speed(preset), preset, "preset {preset} clamped");
+        }
+    }
     /// RF -> FOOD coupling (v0.620): a POWERED WiFi router (RF emitter) harms a well-watered crop (RF
     /// stress outpaces recovery); with NO emitter the same crop holds/recovers. The operator's tradeoff.
     #[test]
@@ -1709,6 +1833,11 @@ mod gardening_tests {
         nut.insert("nutrition".to_string(), 1.0_f32); // rich feed -> 1.5x
         nut.insert("apothecary".to_string(), 0.0_f32); // starved   -> 0.5x
         data.insert("garden_nutrient", std::sync::Mutex::new(nut));
+        // Pin the GLOBAL growth multiplier to 1x: this test is about the nutrient
+        // factor, and at the shipped 10x default both feed rates race past ripe and
+        // land on the same stage, which would make the test pass or fail for a
+        // reason that has nothing to do with nutrients.
+        data.insert("crop_growth_speed", std::sync::Mutex::new(1.0_f32));
 
         // Advance game time to 60% of tomato's growth window so the two feed rates
         // land the crops on different stages.

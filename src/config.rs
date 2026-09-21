@@ -523,6 +523,8 @@ pub struct AppConfig {
     pub sun_shadows: bool,
     #[serde(default = "default_shadow_strength")]
     pub shadow_strength: f32,
+    #[serde(default = "default_crop_growth_speed")]
+    pub crop_growth_speed: f32,
     /// God-ray shaft intensity (v0.907 slider; 0 disables the pass).
     #[serde(default = "default_godray_intensity")]
     pub godray_intensity: f32,
@@ -883,6 +885,10 @@ fn default_godray_intensity() -> f32 { 0.55 }
 /// v0.1104, which left 40% of full sunlight - in the sun's own warm colour -
 /// inside every shadow, and no way to change it.
 fn default_shadow_strength() -> f32 { 1.0 }
+/// Crop growth multiplier. 10x by default so plant life cycles are testable;
+/// see `GuiState::settings.crop_growth_speed` for why the world clock is not
+/// the knob the operator asked for.
+fn default_crop_growth_speed() -> f32 { crate::systems::farming::DEFAULT_CROP_GROWTH_SPEED }
 // ── Vegetation LOD ceilings (v0.1109) ──────────────────────────────────────
 // The OUTER limit of each vegetation-LOD control, in ONE place, because the
 // same number has to be known by three files: the Settings number box (so it
@@ -1281,6 +1287,7 @@ impl AppConfig {
             veg_tree_card_m: state.settings.veg_tree_card_m,
             sun_shadows: state.settings.sun_shadows,
             shadow_strength: state.settings.shadow_strength,
+            crop_growth_speed: state.settings.crop_growth_speed,
             godray_intensity: state.settings.godray_intensity,
             aerial_strength: state.settings.aerial_strength,
             ssao_strength: state.settings.ssao_strength,
@@ -1503,6 +1510,11 @@ impl AppConfig {
         state.settings.veg_tree_card_m = self.veg_tree_card_m.clamp(100.0, TREE_CARD_MAX_M);
         state.settings.sun_shadows = self.sun_shadows;
         state.settings.shadow_strength = self.shadow_strength;
+        // Clamped on the way IN, not only in the UI: a hand-edited config with 0
+        // would freeze every crop forever and read as a broken farm, and a huge
+        // value would ripen the whole garden the instant the save loaded.
+        state.settings.crop_growth_speed =
+            crate::systems::farming::clamp_growth_speed(self.crop_growth_speed);
         state.settings.godray_intensity = self.godray_intensity.clamp(0.0, 1.5);
         state.settings.aerial_strength = self.aerial_strength.clamp(0.0, 2.0);
         state.settings.ssao_strength = self.ssao_strength.clamp(0.0, 1.5);

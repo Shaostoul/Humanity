@@ -3426,6 +3426,43 @@ pub(crate) fn draw_gameplay_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
         );
 
         ui.add_space(theme.spacing_lg);
+        // Crop growth speed (operator, 2026-09-20). A multiplier on crop growth
+        // ONLY: the world clock, day/night and weather all keep running at real
+        // time. plants.csv keeps its real agricultural growth_days, so 1x stays a
+        // truthful mode and the displayed numbers stay teachable at every rung.
+        ui.label(RichText::new("Crop growth speed").color(theme.text_secondary()).strong());
+        ui.add_space(theme.spacing_xs);
+        widgets::setting_hint(ui, theme, hint, "How fast plants grow, and nothing else: the clock, the seasons and the weather are untouched. 1x is real agricultural time, where even a fast crop takes hours. Applies immediately, including to plants already in the ground.");
+        ui.horizontal(|ui| {
+            for preset in crate::systems::farming::CROP_GROWTH_SPEED_PRESETS {
+                let selected =
+                    (state.settings.crop_growth_speed - preset).abs() < f32::EPSILON;
+                let label = format!("{}x", preset);
+                if ui.radio(selected, RichText::new(label).color(theme.text_primary())).clicked()
+                    && !selected
+                {
+                    state.settings.crop_growth_speed = preset;
+                    state.settings_dirty = true;
+                }
+            }
+        });
+        // The free slider under the presets: the operator asked for a "custom
+        // option", so the three rungs are shortcuts, not the whole choice.
+        let mut speed = state.settings.crop_growth_speed;
+        if widgets::labeled_slider(
+            ui,
+            theme,
+            "Custom",
+            &mut speed,
+            crate::systems::farming::MIN_CROP_GROWTH_SPEED
+                ..=crate::systems::farming::MAX_CROP_GROWTH_SPEED,
+        ) {
+            state.settings.crop_growth_speed =
+                crate::systems::farming::clamp_growth_speed(speed);
+            state.settings_dirty = true;
+        }
+
+        ui.add_space(theme.spacing_lg);
         // Household size (2026-07-01, moved here from Data in v0.791): which home design
         // data/machines/*.ron loads. Two real, fully-authored designs exist -- the default
         // family-scale home.ron and a one-person self-sufficient design (home_solo.ron,

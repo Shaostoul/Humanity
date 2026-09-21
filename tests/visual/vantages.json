@@ -11187,6 +11187,144 @@
       },
       "settle_s": 12,
       "hold_altitude": true
+    },
+    {
+      "id": "orbit-2000-high-mask",
+      "desc": "Discriminator for the 2000 km TV-static (2026-09-20). The High capture at this exact camera has CORRECT cloud silhouettes whose interiors are per-pixel black-and-white noise. map_diag 1 renders coverage alpha as opaque greyscale with no lighting: if this mask is CLEAN, coverage and extinction are fine and the static lives in the LIGHTING term; if the mask is speckled it is coverage.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "altitude_km": 2000,
+        "time": 12.02
+      },
+      "showcase": {
+        "cloud_quality": "high",
+        "clouds": "1",
+        "cloud_cover": "0.4",
+        "map_diag": "1"
+      },
+      "settle_s": 10,
+      "hold_altitude": true
+    },
+    {
+      "id": "orbit-2000-high-nolight",
+      "desc": "Discriminator for the same 2000 km TV-static: identical camera with the cloud sun-shadow cache OFF (cloud_light 0). Pairs with orbit-2000-high-mask. If the black speckle vanishes here, the binary light term is the carrier.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "altitude_km": 2000,
+        "time": 12.02
+      },
+      "showcase": {
+        "cloud_quality": "high",
+        "clouds": "1",
+        "cloud_cover": "0.4",
+        "cloud_light": "0"
+      },
+      "settle_s": 10,
+      "hold_altitude": true
+    },
+    {
+      "id": "orbit-2000-high-nodither",
+      "desc": "Discriminator 3 for the 2000 km TV-static (2026-09-20): the per-pixel march DITHER off (cloud_dither 0) at the camera whose baseline shows correct cloud silhouettes filled with black-and-white noise. The march jitters subpixel every frame expecting the resolve to average it; if the static vanishes with the dither off, the jitter is the carrier and the accumulation is not resolving it.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "altitude_km": 2000,
+        "time": 12.02
+      },
+      "showcase": {
+        "cloud_quality": "high",
+        "clouds": "1",
+        "cloud_cover": "0.4",
+        "cloud_dither": "0"
+      },
+      "settle_s": 10,
+      "hold_altitude": true
+    },
+    {
+      "id": "orbit-2000-high-notemporal",
+      "desc": "Discriminator 4: history SNAP (cloud_temporal 0), i.e. what one un-accumulated frame looks like. If the baseline already looks like this, the temporal accumulation is contributing nothing at this altitude and the static is unresolved march noise rather than a shading defect.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "altitude_km": 2000,
+        "time": 12.02
+      },
+      "showcase": {
+        "cloud_quality": "high",
+        "clouds": "1",
+        "cloud_cover": "0.4",
+        "cloud_temporal": "0"
+      },
+      "settle_s": 10,
+      "hold_altitude": true
+    },
+    {
+      "id": "orbit-2000-high-sun",
+      "desc": "Discriminator 5 for the 2000 km TV-static: map_diag 2, the accumulated DIRECT-SUN luminance. Channel 1 (coverage alpha) came back clean at this camera, so the grain is in the shading, and the 45-cloud-temporal.wgsl channel doc names this one as sun taps / powder / cavity-on-direct. Grain here convicts the direct term.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "altitude_km": 2000,
+        "time": 12.02
+      },
+      "showcase": {
+        "cloud_quality": "high",
+        "clouds": "1",
+        "cloud_cover": "0.4",
+        "map_diag": "2"
+      },
+      "settle_s": 10,
+      "hold_altitude": true
+    },
+    {
+      "id": "orbit-2000-high-amb",
+      "desc": "Discriminator 6 for the same static: map_diag 3, the accumulated AMBIENT luminance (channel doc: grain here = ambient shaping). Pairs with orbit-2000-high-sun; between them the lit half of the shading is fully bisected.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "altitude_km": 2000,
+        "time": 12.02
+      },
+      "showcase": {
+        "cloud_quality": "high",
+        "clouds": "1",
+        "cloud_cover": "0.4",
+        "map_diag": "3"
+      },
+      "settle_s": 10,
+      "hold_altitude": true
     }
   ],
   "ladder": {

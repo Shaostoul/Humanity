@@ -39,33 +39,64 @@ Strict rank. Take the top item that is not marked CLAIMED. Everything below
 TIER 0 is real work that has not been ranked against these four; do not promote
 anything into this list without the operator.
 
-### 1. Residual orbital speckle at 2000 km, near the limb and on some coasts
+### 1. The orbital TV-static: a LIGHTING defect, bisected to the direct-sun term
 
-The orbital cloud static is fixed at 873 km (v0.1326.0: cloud edges now widen
-with the sample footprint, `cloud_edge_foot_ramp`, the carve hinge ramping 1x to
-3x between a ~170 m and a ~700 m footprint with the constructed body's skirt on
-by default). 2000 km is much improved but not clean.
+Rewritten 2026-09-20 after measuring it. The previous entry called 2000 km
+"much improved but not clean" and pointed at the far-rung sampling story. Both
+halves were wrong for the symptom the operator actually reported, so read this
+before spending anything on the old framing.
 
-- **Fixture:** `approach-2000km-ultra`. Run it as
-  `node scripts/probe-sweep.js --only approach-2000km-ultra --operator-config`.
-  Without `--operator-config` the rig REWRITES `.probe-rig/config.json` with rig
-  defaults, and any hand-edited setting is silently gone before boot.
-- **The A/B ladder already exists** in `tests/visual/vantages.json`:
-  `orbit-873-wide-carve`, `orbit-873-carve-x3/-x6/-x10`, `orbit-873-carve-only`,
-  `orbit-873-skirt-only`, `approach-12km-ultra-carve-x3`, against the standing
-  `orbit-tier-873-ultra-r1` cell. Start from that evidence, not from zero.
-- **Known and documented in the shader:** the skirt is NOT footprint-ramped,
-  because publishing the ramp from `cloud_v2_body` does not survive to the
-  density tail (the static returned with it in place; the per-ray body cache is
-  the likeliest reason). Harmless today. It is the first thing to try if a
-  close-up vantage ever disagrees.
-- **Method that finally worked, reuse it:** force the change fully on with no
-  ramps and confirm the LOOK first, then add one ramp at a time and capture
-  between each. MEASURE the footprint (`lodb`, unclamped) rather than deriving
-  it; `cloud_lod` clamps at 0 and both ends of the range land there. Every wrong
-  turn in this arc came from deriving a footprint, and from changing two things
-  per build.
+**What the captures show** (all at the operator's own graphics settings, run as
+`node scripts/probe-sweep.js --only <id> --operator-config`):
 
+- `approach-2000km-ultra` is not improved at all. The masses disintegrate into
+  isolated grains.
+- `approach-2000km-high` is the important one, because High is the DEFAULT tier
+  and therefore what every user sees. Its cloud masses have CORRECT, coherent
+  silhouettes in the right geographic places, and their interiors are filled
+  with per-pixel black-and-white noise. That is precisely the operator's report:
+  "awfully dark and white in spots to the point of looking like old TV static."
+
+**The bisect, using the screen-path channel instrument in
+`assets/shaders/pbr/45-cloud-temporal.wgsl`** (`map_diag` N; the channels render
+one raw ingredient of the march as greyscale and, importantly, still go through
+the same resolve and composite as content, so they converge like content):
+
+| channel | vantage | result |
+| --- | --- | --- |
+| 1, coverage alpha | `orbit-2000-high-mask` | **clean**: coherent masses, crisp edges, no speckle |
+| 3, ambient luminance | `orbit-2000-high-amb` | **clean**: flat, even grey interiors |
+| 2, direct-sun luminance | `orbit-2000-high-sun` | **GRAINY**: the same masses, full of salt-and-pepper |
+
+So the density field, its thresholding, and the accumulation that carries alpha
+are all fine. The direct-sun term is the sole carrier.
+
+**Four hypotheses refuted, each built and captured. Do not re-propose them:**
+
+1. Coverage sampling (the far-rung story). Refuted by the clean channel-1 mask.
+2. The sun-shadow CACHE. `orbit-2000-high-nolight` (`cloud_light 0`) is
+   indistinguishable from the baseline.
+3. The per-pixel march DITHER. `orbit-2000-high-nodither` (`cloud_dither 0`) is
+   indistinguishable from the baseline.
+4. Ambient shaping. Refuted by the clean channel-3 capture.
+
+**Where to look next.** The channel-2 doc names what is inside it: sun taps,
+powder, cavity-on-direct. The cache is already excluded, so the per-sample sun
+taps and the powder/cavity shaping are what remain. The question worth asking
+first is why alpha converges over the accumulation while the direct-sun term
+does not, given both ride the same resolve: a low-sample stochastic estimate
+that the variance clip refuses to accumulate would produce exactly this.
+`orbit-2000-high-notemporal` (history snap, one un-accumulated frame) is built
+and not yet captured; it answers that question directly.
+
+**The far-rung sampling defect is REAL but is a different defect.** Ultra
+rendering 0.9 percent coverage against High's 31 is the item below, and fixing
+it would not have touched the default tier or the symptom reported here.
+
+**Method that keeps working, reuse it:** change ONE thing per build, capture
+between each, and check that the instrument could have failed before trusting a
+clean result. Channel 1 would have proved nothing if it rendered an analytic
+coverage instead of the marched one; it renders the marched one.
 ### 2. The night-side coast glow. Four hypotheses built and REFUTED
 
 The fixture now exists and holds it red: `orbit-terminator-3000km` (earth, lat
@@ -139,15 +170,16 @@ them up.
    2026-08-04: none could be cheaply proven redundant, and
    `just clean-worktrees` force-deletes branches and has destroyed
    review-approved work before. Operator-only by standing rule.
-3. **Four gameplay questions** from
+3. **Two gameplay questions** from
    `docs/design/playable-assessment-2026-09-19.md` section 7. **Crop growth speed
-   in real time shapes the most downstream work** (the fastest crop is 4.7 real
-   hours; real agricultural fidelity and an evening of play are in direct
-   conflict). Then: what the first ten minutes are, and whether a pipe reads as
-   its real material or its utility colour. A fifth, lower: does multiplayer
-   enforce anything, or is it co-operative trust until launch. NOTE that the
-   report's question 2 ("do the 3D models ship with the release") is ANSWERED:
-   they do, since v0.1322.0.
+   is ANSWERED (2026-09-20)**: a growth multiplier separate from the world clock,
+   1x / 10x / 100x plus a custom value, shipping at 10x, implemented and tested;
+   Tier A item 3 is unblocked. Offline growth stayed open as its own want. Still
+   open: what the first ten minutes are, and whether a pipe reads as its real
+   material or its utility colour. A third, lower: does multiplayer enforce
+   anything, or is it co-operative trust until launch. NOTE that the report's
+   question 2 ("do the 3D models ship with the release") is ANSWERED: they do,
+   since v0.1322.0.
 4. **The two demoted lethal Library guides**
    (`/library#making-water-safe-to-drink`, `/library#keeping-what-you-grew`)
    stay at `sourced` until a human has read them, per the rule the operator
@@ -163,13 +195,15 @@ them up.
 
 ---
 
-## Fenced arcs, not ranked against each other
+## Fenced arcs
 
-Each of these is scoped well enough to be picked up cold. None is ranked against
-the others or against TIER 0: that ordering is the operator's call, and asking
-for it is cheaper than guessing.
+**Arc A (in-world screens) is the one the operator picked, 2026-09-20**, when
+asked which should come up next after the cloud work. Take arc A work ahead of
+the rest of this section. The others remain unranked against each other and
+against TIER 0: that ordering is the operator's call, and asking for it is
+cheaper than guessing.
 
-### A. In-world screens, the remaining rungs
+### A. In-world screens, the remaining rungs. PICKED (operator, 2026-09-20)
 
 Six rungs merged (v0.1313 to v0.1314): the ScreenSurface, the screen as machine
 data, the live feed and in-game camera, the console room, the video player, and
