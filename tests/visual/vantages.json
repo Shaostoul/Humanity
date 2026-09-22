@@ -11804,6 +11804,52 @@
       "showcase": {"cloud_quality":"high","clouds":"1","cloud_cover":"0.55","cloud_type":"0.46","weather":"clear","cloud_clock":"120","cloud_ms":"1","cloud_ms_gain":"1.0"},
       "settle_s": 12,
       "hold_altitude": true
+    },
+    {
+      "id": "aurora-over-land",
+      "desc": "Separates a SURFACE-dependent aurora difference from a GEOMETRIC one. The operator reports a distinct difference between the aurora over land and over water, which survived the v0.1331.9 haze-trim fix. That fix was geometric: steep views were trimmed to 0.45 and grazing views were not, and from a single viewpoint geometry can masquerade as a surface difference because the land and the water are not at the same view angle. These two fixtures differ ONLY in longitude, so altitude, view angle, sun and clock are identical and what lies under the oval is the single free variable. If the aurora measures the same in both, the difference he sees is geometry and the surface reading is a coincidence of viewpoint. If it measures differently, there is a real surface-dependent term still to find. This one sits at longitude 100, over Siberian landmass.",
+      "expect": "NOT USABLE YET, and the reason is recorded so the next attempt does not repeat it. Both fixtures came out DAYLIT (frame mean luminance 98, about 66 percent of pixels above 60), and the aurora only draws over ground in darkness, so neither frame contains a measurable aurora. The first reading off them looked decisive and meant nothing: 73,877 aurora pixels over land against 20,808 over water was really counting Siberian vegetation, because green dominance identifies the aurora only where nothing else green is lit. scripts/aurora-comb.js now REFUSES a frame this bright rather than answering. A second confound was found and removed on the way: 130 degrees of longitude also changes WHICH SECTOR of the oval is in view, and the strand presence masks are functions of phi, so the oval carries different amounts of aurora at different longitudes by design. Flattening the ring to uniform removed that one. TO MAKE THIS FIXTURE WORK: find the global clock hour that puts EACH longitude at local midnight (time here is the global hour, not local solar time) and confirm darkness by frame mean luminance BEFORE reading any aurora number off it.",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 60,
+        "lon": 100,
+        "time": 0,
+        "altitude_km": 1200,
+        "look_offset_deg": 57
+      },
+      "showcase": {
+        "clouds": "1",
+        "weather": "clear",
+        "cloud_clock": "0"
+      },
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "aurora-over-water",
+      "desc": "Separates a SURFACE-dependent aurora difference from a GEOMETRIC one. The operator reports a distinct difference between the aurora over land and over water, which survived the v0.1331.9 haze-trim fix. That fix was geometric: steep views were trimmed to 0.45 and grazing views were not, and from a single viewpoint geometry can masquerade as a surface difference because the land and the water are not at the same view angle. These two fixtures differ ONLY in longitude, so altitude, view angle, sun and clock are identical and what lies under the oval is the single free variable. If the aurora measures the same in both, the difference he sees is geometry and the surface reading is a coincidence of viewpoint. If it measures differently, there is a real surface-dependent term still to find. This one sits at longitude -30, over the North Atlantic.",
+      "expect": "NOT USABLE YET, and the reason is recorded so the next attempt does not repeat it. Both fixtures came out DAYLIT (frame mean luminance 98, about 66 percent of pixels above 60), and the aurora only draws over ground in darkness, so neither frame contains a measurable aurora. The first reading off them looked decisive and meant nothing: 73,877 aurora pixels over land against 20,808 over water was really counting Siberian vegetation, because green dominance identifies the aurora only where nothing else green is lit. scripts/aurora-comb.js now REFUSES a frame this bright rather than answering. A second confound was found and removed on the way: 130 degrees of longitude also changes WHICH SECTOR of the oval is in view, and the strand presence masks are functions of phi, so the oval carries different amounts of aurora at different longitudes by design. Flattening the ring to uniform removed that one. TO MAKE THIS FIXTURE WORK: find the global clock hour that puts EACH longitude at local midnight (time here is the global hour, not local solar time) and confirm darkness by frame mean luminance BEFORE reading any aurora number off it.",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 60,
+        "lon": -30,
+        "time": 0,
+        "altitude_km": 1200,
+        "look_offset_deg": 57
+      },
+      "showcase": {
+        "clouds": "1",
+        "weather": "clear",
+        "cloud_clock": "0"
+      },
+      "settle_s": 12,
+      "hold_altitude": true
     }
   ],
   "ladder": {

@@ -225,20 +225,22 @@ const AURORA_PULSE: f32 = 0.55;
 /// it is a lobe of the oval. Real auroral rays are field-aligned filaments
 /// tens of km across. 1200 puts them at about 34 km, which reads as striation
 /// from a few hundred km away and still resolves at several thousand.
-const AURORA_RAY_LOBES: f32 = 1200.0;
+const AURORA_RAY_LOBES: f32 = 8000.0;
 /// Phase lean of a ray across the layer height. Rays follow the magnetic
 /// field, which is close to vertical at these latitudes, so this is a slight
 /// tilt and not a shear.
 const AURORA_RAY_LEAN: f32 = 8.0;
-/// The exact mean of pow(0.5 + 0.5 * sin(x), 3) over a full cycle, which is
-/// 5/16. The ray detail fades TO THIS rather than to zero, so losing the
-/// detail at range costs no brightness.
-const AURORA_RAY_MEAN: f32 = 0.3125;
-/// Distance from the camera, in shell units, over which ray detail fades to
-/// its mean. One shell unit is about 6562 km at Earth, so this is roughly
-/// 6600 km to 20,000 km.
-const AURORA_RAY_LOD_LO: f32 = 1.0;
-const AURORA_RAY_LOD_HI: f32 = 3.0;
+/// What the ray term averages to over a cycle, which is what the detail fades
+/// TO rather than fading to zero, so losing it at range costs no brightness.
+/// pow(0.5 + 0.5 sin, 2) averages 3/8, times the mean of ray_amp (0.725) is
+/// 0.272.
+const AURORA_RAY_MEAN: f32 = 0.272;
+/// Ray detail fades out below this many SCREEN PIXELS per stripe and is full
+/// above the second. Distance was the wrong variable: a stripe is drawable or
+/// not according to its width in pixels, which the field of view and the
+/// resolution decide as much as the range does.
+const AURORA_RAY_PX_LO: f32 = 2.0;
+const AURORA_RAY_PX_HI: f32 = 5.0;
 /// How far the DIFFUSE aurora spreads beyond the discrete arcs, as a multiple
 /// of the oval's own half-width. Photographs from orbit show narrow bright
 /// ribbons with much dimmer sheets fanning away from them, so the oval is
@@ -273,7 +275,7 @@ fn aurora_wave(phi: f32, t: f32, seed: f32) -> f32 {
         + sin(phi * 13.0 + t * 0.37 + seed * 4.1) * 0.15;
 }
 
-fn aurora_emission(ro: vec3<f32>, rd: vec3<f32>, t0: f32, t1: f32, rp: f32) -> vec3<f32> {
+fn aurora_emission(ro: vec3<f32>, rd: vec3<f32>, t0: f32, t1: f32, rp: f32, pix_ang: f32) -> vec3<f32> {
     var total = vec3<f32>(0.0);
     let seg = t1 - t0;
     if (seg <= 0.0) {
@@ -410,7 +412,23 @@ fn aurora_emission(ro: vec3<f32>, rd: vec3<f32>, t0: f32, t1: f32, rp: f32) -> v
             // pattern must stay COHERENT with height or it reads as noise
             // instead of structure. The small height term leans them rather
             // than scrambling them.
-            let ray_s = 0.5 + 0.5 * sin(phi * AURORA_RAY_LOBES
+            // ── RAYS ARE NOT A COMB (operator, 2026-09-22) ──
+            //
+            // He photographed the band covered in regular fine stripes. A pure
+            // sine at a fixed 1200 cycles around the oval lands those cycles a
+            // few pixels apart at his range, and a REGULAR few-pixel stripe
+            // pattern reads as corduroy, not as an aurora. It also loses half
+            // its brightness into the dark half of every cycle, which is part
+            // of the "weird darkness" in the same report.
+            //
+            // Real rays are irregularly spaced and individually bright or
+            // faint. Warping the phase makes the spacing wander, and
+            // modulating the amplitude means some rays carry the display and
+            // others barely show, which is what breaks the fabric read.
+            let ray_warp = aurora_wave(phi * 11.0, time * AURORA_DRIFT, 5.0) * 2.5;
+            let ray_amp = 0.45 + 0.55
+                * smoothstep(-0.6, 0.6, aurora_wave(phi * 23.0, time * AURORA_DRIFT * 1.7, 19.0));
+            let ray_s = 0.5 + 0.5 * sin(phi * AURORA_RAY_LOBES + ray_warp
                 - time * AURORA_FLICKER + hgt * AURORA_RAY_LEAN);
             // RAY DETAIL IS A SAMPLING QUESTION, NOT A FIELD QUESTION, and the
             // difference matters because BUG-080 was caused by confusing the
@@ -421,8 +439,24 @@ fn aurora_emission(ro: vec3<f32>, rd: vec3<f32>, t0: f32, t1: f32, rp: f32) -> v
             // camera because that is what sets the sampling rate. A weight on
             // the EFFECT may never read the camera; an antialiasing term has
             // nothing else it could read.
-            let ray_lod = 1.0 - smoothstep(AURORA_RAY_LOD_LO, AURORA_RAY_LOD_HI, t);
-            let rays = mix(AURORA_RAY_MEAN, pow(ray_s, 3.0), ray_lod);
+            // NYQUIST FADE. The old fade keyed on raw distance, which is only a
+            // proxy: what decides whether a stripe can be drawn is its width in
+            // PIXELS, and that depends on the field of view and the resolution
+            // as well as the range. Below a couple of pixels per cycle the comb
+            // is beating against the pixel grid rather than describing anything,
+            // so it fades to its own exact mean and costs no brightness.
+            //
+            // Stripe spacing at this sample is the circumference at its distance
+            // from the spin axis divided by the lobe count; dividing by t gives
+            // radians, and by pix_ang gives pixels.
+            let r_perp = max(length(pnt - pole * dot(pnt, pole)), 1.0e-4);
+            let stripe_px = (6.2831853 * r_perp / AURORA_RAY_LOBES)
+                / max(t * pix_ang, 1.0e-9);
+            let ray_lod = smoothstep(AURORA_RAY_PX_LO, AURORA_RAY_PX_HI, stripe_px);
+            // pow 2 rather than 3: the sharper power is what made each cycle
+            // mostly dark, and the amplitude modulation now supplies the
+            // contrast that the exponent used to.
+            let rays = mix(AURORA_RAY_MEAN, pow(ray_s, 2.0) * ray_amp, ray_lod);
             // Pulsating patches: two slow beating cells, so brightness moves
             // around the oval independently of the rays.
             let pulse = 0.65 + 0.35 * sin(phi * 4.0 + time * AURORA_PULSE)
@@ -461,6 +495,12 @@ fn atmosphere_scattering(world_position: vec3<f32>, front_facing: bool) -> vec4<
     // Camera + ray in shell units, planet center at the origin.
     let ro = (camera.view_pos.xyz - center) / shell_r;
     let rd = normalize(world_position - camera.view_pos.xyz);
+    // Angular size of one screen pixel, in radians, taken here and ONLY here.
+    // dpdx/dpdy are defined only under uniform control flow and this function
+    // discards and returns early a few lines below, so the derivative has to be
+    // read before any of that. rd is a unit vector, so the length of its screen
+    // derivative IS the per-pixel angle.
+    let pix_ang = max(max(length(dpdx(rd)), length(dpdy(rd))), 1.0e-9);
     let cam_inside = dot(ro, ro) < 1.0;
 
     // The transparent pipeline draws BOTH faces of the shell (cull_mode:
@@ -730,7 +770,7 @@ fn atmosphere_scattering(world_position: vec3<f32>, front_facing: bool) -> vec4<
     // terms, since emission adds light without hiding what is behind it, but
     // alpha does have to be large enough that the rgb = mapped / alpha divide
     // below does not clamp the glow away over thin polar air.
-    let aurora = aurora_emission(ro, rd, t0, t1, rp);
+    let aurora = aurora_emission(ro, rd, t0, t1, rp, pix_ang);
     let mapped_a = mapped + aurora;
     let aurora_lum = clamp(max(aurora.r, max(aurora.g, aurora.b)), 0.0, 1.0);
     var alpha_occ = alpha;
