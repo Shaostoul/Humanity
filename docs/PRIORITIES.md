@@ -61,12 +61,32 @@ all the way down, which is what rules the renderer out.
 
 **Fix designed: `docs/design/weather-spatial-extent.md`.** Give a weather system
 a position and radius, weight by distance from the sample's ground point rather
-than camera altitude, delete `wx_fade`. **Blocked on one new per-frame scalar
-with no free channel:** params2 is full and every light pad is claimed via
-`.xyz` swizzles that a naive grep misses. The uniform extension touches every
-shader declaring the camera uniform, so it is its own commit with a world-entry
-probe boot before the mask goes in. The doc carries the pad inventory and the
-flat-column bar that proves it fixed.
+than camera altitude, delete `wx_fade`.
+
+**NO LONGER BLOCKED.** The missing channel was the real obstacle, and the
+operator's answer to it ("can we modularize/layer the params thing so we don't
+max it out?") turned into a general mechanism rather than one more scalar:
+`docs/design/environment-fields.md`. Environment regions are an uncapped storage
+buffer of 48-byte records at group 0 binding 4, the same shape v0.782 gave scene
+lights, so every positioned environmental effect shares one channel and adding a
+kind costs a row in a data file.
+
+Remaining increments, in order:
+
+1. ~~The plumbing~~ (`src/renderer/env_regions.rs`, binding 4, all three
+   `create_bind_group` sites, the WGSL struct and influence functions,
+   `data/environment/region_kinds.ron`, 7 tests including one pinning the WGSL
+   struct against the Rust record). BUILT. The buffer is bound and uploadable
+   and NOTHING READS IT YET.
+2. Feed `disasters.rs` through it. That file already stores position, radius and
+   intensity per active disaster and nothing outside it reads them, so a
+   wildfire is invisible today. Cheapest end-to-end proof of the path.
+3. Move the weather condition onto regions and delete `wx_fade`. The
+   `stormfade-*` column going flat is the proof.
+
+**Trap for whoever wires the first consumer:** `env_influence_of_kind` loops
+over the buffer capacity, so evaluate it ONCE PER RAY at the ground point, never
+per march sample. The design doc says why.
 ### 2. The orbital TV-static: a LIGHTING defect, bisected to the direct-sun term
 
 Rewritten 2026-09-20 after measuring it. The previous entry called 2000 km

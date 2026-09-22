@@ -1,0 +1,114 @@
+// HumanityOS environment region kinds
+//
+// A REGION is a positioned, sized environmental effect: a storm over a stretch
+// of ocean, a fog bank in a valley, a wildfire, a flood, an outbreak. Each one
+// carries a planet-fixed direction, an angular radius, an intensity and a soft
+// edge, and every consumer (the cloud deck, farming, survival, the HUD) reads
+// the same record rather than re-deriving the geometry.
+//
+// WHY THIS IS DATA AND NOT A RUST ENUM: docs/design/infinite-of-x.md. The table
+// this replaces was a hardcoded match in src/engine/frame_shells.rs mapping
+// WeatherCondition::Storm to the literal pair (0.95, 0.95). Adding a kind, or
+// retuning one, should not need a recompile.
+//
+// THE RULE EVERY KIND OBEYS: the weight of a region at a point is a function of
+// THAT POINT, never of the camera. BUG-080 was a weather term faded by camera
+// altitude, which made the sky fill in as the player descended and cross-faded
+// the cloud layout between two unrelated patterns.
+//
+// Full design: docs/design/environment-fields.md
+// Code: src/renderer/env_regions.rs (CPU) + assets/shaders/pbr/00-bindings-vertex.wgsl (GPU)
+//
+// FIELDS
+//   id             stable string name, used in saves and by the HUD
+//   kind           the float written into EnvRegion.kind_shape.x. 0 is reserved
+//                  for an empty buffer slot, so real kinds start at 1.
+//   default_radius_km
+//                  typical size of one system of this kind. Real mid-latitude
+//                  weather systems run 500 to 1500 km across; a thunderstorm
+//                  cell is tens of km. These are radii, not diameters.
+//   softness       fraction of the radius over which the edge fades. No real
+//                  weather system has a hard rim, so none of these is 0.
+//   band           which altitude band the effect occupies, interpreted per
+//                  kind: 0 = the cloud slab, 1 = ground level, 2 = high
+//   cloud_floor    coverage floor this kind imposes on the cloud deck at full
+//                  intensity, 0..1
+//   cloud_placement
+//                  how strongly this kind pulls cloud PLACEMENT toward the
+//                  procedural field, 0..1. Needed because below coverage ~1 a
+//                  live-zeroed satellite field cannot be resurrected by the
+//                  coverage knob alone.
+
+(
+    kinds: [
+        (
+            id: "storm",
+            kind: 1,
+            default_radius_km: 600.0,
+            softness: 0.45,
+            band: 0,
+            cloud_floor: 0.95,
+            cloud_placement: 0.95,
+        ),
+        (
+            id: "rain",
+            kind: 2,
+            default_radius_km: 450.0,
+            softness: 0.5,
+            band: 0,
+            cloud_floor: 0.85,
+            cloud_placement: 0.85,
+        ),
+        (
+            id: "snow",
+            kind: 3,
+            default_radius_km: 500.0,
+            softness: 0.5,
+            band: 0,
+            cloud_floor: 0.85,
+            cloud_placement: 0.85,
+        ),
+        (
+            id: "cloudy",
+            kind: 4,
+            default_radius_km: 800.0,
+            softness: 0.6,
+            band: 0,
+            cloud_floor: 0.55,
+            cloud_placement: 0.5,
+        ),
+        // Fog sits on the ground rather than in the cloud slab, which is what
+        // band 1 means: it must not paint the deck seen from orbit.
+        (
+            id: "fog",
+            kind: 5,
+            default_radius_km: 60.0,
+            softness: 0.55,
+            band: 1,
+            cloud_floor: 0.45,
+            cloud_placement: 0.35,
+        ),
+        // Below here: kinds that exist so the mechanism is not weather-only.
+        // disasters.rs already stores position, radius and intensity per active
+        // disaster and nothing outside that file reads them, so wiring those
+        // straight through is the cheapest end-to-end proof of the path.
+        (
+            id: "wildfire",
+            kind: 6,
+            default_radius_km: 25.0,
+            softness: 0.4,
+            band: 1,
+            cloud_floor: 0.2,
+            cloud_placement: 0.6,
+        ),
+        (
+            id: "sandstorm",
+            kind: 7,
+            default_radius_km: 300.0,
+            softness: 0.5,
+            band: 1,
+            cloud_floor: 0.3,
+            cloud_placement: 0.7,
+        ),
+    ],
+)

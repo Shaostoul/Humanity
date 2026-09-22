@@ -105,6 +105,72 @@ struct GpuLight {
 // (the tile pixel width) is non-zero; zero = the classic full loop.
 @group(0) @binding(2) var<storage, read> tile_counts: array<u32>;
 @group(0) @binding(3) var<storage, read> tile_indices: array<u32>;
+
+// ENVIRONMENT REGIONS (v0.1329). Positioned, sized environmental effects -
+// storms, fog banks, fires - that every consumer reads the same way, instead of
+// each one scavenging a spare lane in a uniform. Same uncapped-storage shape
+// v0.782 gave scene lights at binding 1. See src/renderer/env_regions.rs for the
+// CPU twin, which MUST stay in lockstep with env_region_influence below, and
+// docs/design/environment-fields.md for why this exists.
+//
+// THE RULE: a region sits on the WORLD. Its weight at a point is a function of
+// that point and never of the camera. BUG-080 was a weather term faded by camera
+// altitude, which made the sky change as you descended.
+struct EnvRegion {
+    // xyz = unit direction from the body centre to the ground point, in the
+    //       body frame (planet-fixed). w = great-circle angular radius, radians.
+    dir_radius: vec4<f32>,
+    // x = kind (0 = empty slot), y = intensity 0..1, z = edge softness 0..1,
+    // w = altitude band, interpreted per kind.
+    kind_shape: vec4<f32>,
+    // Per-kind payload. Storm clouds use x = coverage floor, y = placement weight.
+    params: vec4<f32>,
+};
+@group(0) @binding(4) var<storage, read> env_regions: array<EnvRegion>;
+
+// Influence of ONE region at the ground point under sample_dir (expected unit).
+// The CPU twin is EnvRegion::influence; the contract both owe is pinned by
+// env_influence_matches_the_shader_contract in src/renderer/env_regions.rs:
+// full strength at the centre, zero outside the radius, smooth in between.
+fn env_region_influence(r: EnvRegion, sample_dir: vec3<f32>) -> f32 {
+    let kind = r.kind_shape.x;
+    let intensity = r.kind_shape.y;
+    let radius = r.dir_radius.w;
+    if (kind < 0.5 || intensity <= 0.0 || radius <= 0.0) {
+        return 0.0;
+    }
+    // clamp before acos: a dot of two unit vectors can land a hair outside
+    // [-1,1] in f32 and turn the whole term into NaN, which would then
+    // propagate silently into a coverage value.
+    let angle = acos(clamp(dot(r.dir_radius.xyz, sample_dir), -1.0, 1.0));
+    let soft = clamp(r.kind_shape.z, 0.0, 1.0);
+    let inner = radius * (1.0 - soft);
+    if (angle <= inner) {
+        return intensity;
+    }
+    if (angle >= radius) {
+        return 0.0;
+    }
+    // The two returns above already exclude inner == radius, so this divisor
+    // cannot be zero.
+    let t = (angle - inner) / (radius - inner);
+    return intensity * (1.0 - (t * t * (3.0 - 2.0 * t)));
+}
+
+// Total influence of one KIND at a point: summed (two storms are worse than
+// one, which is what weather does) then clamped so a pile-up cannot drive a
+// consumer past its own range. Mirrors env_regions::influence_of_kind.
+fn env_influence_of_kind(kind: f32, sample_dir: vec3<f32>) -> f32 {
+    var total = 0.0;
+    let n = arrayLength(&env_regions);
+    for (var i = 0u; i < n; i = i + 1u) {
+        let r = env_regions[i];
+        if (abs(r.kind_shape.x - kind) < 0.5) {
+            total = total + env_region_influence(r, sample_dir);
+        }
+    }
+    return clamp(total, 0.0, 1.0);
+}
 const TILE_COLS: u32 = 16u;
 const TILE_ROWS: u32 = 9u;
 const TILE_CAP: u32 = 64u;

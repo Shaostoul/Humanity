@@ -38,6 +38,9 @@ pub mod sky_ambient;
 pub mod key_lights;
 /// Screen-tile light binning (clustering L1).
 pub mod light_tiles;
+/// Positioned, sized environmental effects (storms, fog banks, fires) that
+/// every consumer reads the same way. See docs/design/environment-fields.md.
+pub mod env_regions;
 pub mod bloom;
 pub mod godrays;
 pub mod ssao;
@@ -325,6 +328,13 @@ pub struct Renderer {
     /// entries; grows by doubling (bind group recreated) when the count exceeds
     /// capacity. The shader loops over `light_count` of these.
     lights_buffer: wgpu::Buffer,
+    /// Environment regions (v0.1329): positioned, sized environmental effects
+    /// at binding 4, the same uncapped-storage shape v0.782 gave lights. Grows
+    /// by doubling; a grow recreates the camera bind group, so EVERY site that
+    /// builds one has to bind this or world entry fails validation (the
+    /// v0.1029 lesson). See renderer/env_regions.rs.
+    env_regions_buffer: wgpu::Buffer,
+    env_regions_capacity: usize,
     tile_counts_buffer: wgpu::Buffer,
     tile_indices_buffer: wgpu::Buffer,
     /// Tile pixel sizes for the shadow-uniform poke (0 = tiling off).
@@ -1287,6 +1297,25 @@ impl Renderer {
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
+        // Environment regions (v0.1329). Starts at 16 rows (768 bytes) because
+        // a planet has a handful of weather systems, not thousands; it doubles
+        // like the lights buffer if that ever stops being true. Never zero-sized:
+        // wgpu rejects a zero-length storage binding, and the shader walks
+        // arrayLength() over the whole thing with empty rows contributing nothing.
+        let env_regions_capacity = 16_usize;
+        // Initialised to EMPTY rows rather than left undefined. A plain
+        // create_buffer leaves contents undefined, not zeroed, so the first
+        // frame before any set_env_regions call would read whatever was in that
+        // memory as live regions. Nothing consumes the buffer yet, which is
+        // exactly why this is worth closing now: the bug would land with the
+        // first consumer and look like a cloud bug rather than an init bug.
+        let env_regions_zero =
+            env_regions::pack_all(&[], env_regions_capacity);
+        let env_regions_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Environment Regions Storage Buffer"),
+            contents: bytemuck::cast_slice(&env_regions_zero),
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+        });
         // Light-tile lists (clustering L1b): fixed-size, rewritten per frame
         // by update_light_tiles when tiling is enabled.
         let tile_counts_buffer = device.create_buffer(&wgpu::BufferDescriptor {
@@ -1321,6 +1350,10 @@ impl Renderer {
                 wgpu::BindGroupEntry {
                     binding: 3,
                     resource: tile_indices_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 4,
+                    resource: env_regions_buffer.as_entire_binding(),
                 },
             ],
         });
@@ -1733,6 +1766,10 @@ impl Renderer {
                     binding: 3,
                     resource: tile_indices_buffer.as_entire_binding(),
                 },
+                wgpu::BindGroupEntry {
+                    binding: 4,
+                    resource: env_regions_buffer.as_entire_binding(),
+                },
             ],
         });
 
@@ -1918,6 +1955,8 @@ impl Renderer {
             camera_buffer,
             camera_bind_group,
             lights_buffer,
+            env_regions_buffer,
+            env_regions_capacity,
             tile_counts_buffer,
             tile_indices_buffer,
             tile_px: (0.0, 0.0),
@@ -2513,6 +2552,10 @@ impl Renderer {
                         binding: 1,
                         resource: self.lights_buffer.as_entire_binding(),
                     },
+                    wgpu::BindGroupEntry {
+                        binding: 4,
+                        resource: self.env_regions_buffer.as_entire_binding(),
+                    },
                 ],
             });
         }
@@ -2548,6 +2591,65 @@ impl Renderer {
         // gets clobbered by the full camera-uniform write at offset 0; this is
         // the authoritative copy). (v0.571)
         self.cur_lights = lights.to_vec();
+    }
+
+    /// Upload the frame's environment regions (v0.1329).
+    ///
+    /// Deliberately has NO count uniform. The shader walks arrayLength() over
+    /// the whole buffer and an empty row contributes nothing, so the tail is
+    /// zero-filled instead. A count would have needed a free lane in the camera
+    /// uniform, and running out of those is the problem this whole mechanism
+    /// exists to stop (BUG-080, docs/design/environment-fields.md).
+    pub fn set_env_regions(&mut self, regions: &[env_regions::EnvRegion]) {
+        // Grow by doubling, like the lights buffer. A grow invalidates the
+        // camera bind group (bind groups are immutable), so it is rebuilt here
+        // with EVERY binding - missing one is the v0.1029 failure where world
+        // entry panics but a menu-only boot stays green.
+        if regions.len() > self.env_regions_capacity {
+            let mut cap = self.env_regions_capacity.max(1);
+            while cap < regions.len() {
+                cap *= 2;
+            }
+            self.env_regions_capacity = cap;
+            self.env_regions_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("Environment Regions Storage Buffer"),
+                size: (cap * env_regions::ENV_REGION_BYTES) as u64,
+                usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            });
+            self.camera_bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("Camera Bind Group"),
+                layout: &self.pipeline.camera_bind_group_layout,
+                entries: &[
+                    wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: self.camera_buffer.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 1,
+                        resource: self.lights_buffer.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 2,
+                        resource: self.tile_counts_buffer.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 3,
+                        resource: self.tile_indices_buffer.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 4,
+                        resource: self.env_regions_buffer.as_entire_binding(),
+                    },
+                ],
+            });
+        }
+        let packed = env_regions::pack_all(regions, self.env_regions_capacity);
+        self.queue.write_buffer(
+            &self.env_regions_buffer,
+            0,
+            bytemuck::cast_slice(&packed),
+        );
     }
 
     /// Inject the live local-light state (point/spot lights + sun + fill) into a base camera

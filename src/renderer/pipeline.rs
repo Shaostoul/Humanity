@@ -257,6 +257,30 @@ impl Pipeline {
                         },
                         count: None,
                     },
+                    // Binding 4: environment regions (v0.1329, the operator ask
+                    // "modularize/layer the params thing so we do not max it out").
+                    // Positioned, sized environmental effects -- storms, fog banks,
+                    // fires -- as an uncapped storage buffer of 48-byte records,
+                    // exactly the shape v0.782 gave scene lights at binding 1. The
+                    // alternative was another scalar squeezed into a leftover vector
+                    // lane, which buys one feature and makes the next one harder.
+                    // See renderer/env_regions.rs + docs/design/environment-fields.md.
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 4,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Storage { read_only: true },
+                            has_dynamic_offset: false,
+                            // ONE EnvRegion, not 4 bytes: bindings 2 and 3 above are
+                            // u32 arrays, but this is an array of 48-byte structs and
+                            // the smallest valid binding is one element. A 4 here is
+                            // rejected against the shader type at pipeline creation.
+                            min_binding_size: wgpu::BufferSize::new(
+                                super::env_regions::ENV_REGION_BYTES as u64,
+                            ),
+                        },
+                        count: None,
+                    },
                 ],
             });
 
