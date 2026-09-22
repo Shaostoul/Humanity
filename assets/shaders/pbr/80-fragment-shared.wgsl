@@ -363,7 +363,34 @@ fn frag_tail(in: VertexOutput, s: FragSetup) -> vec4<f32> {
     // Rust twin renderer::sky_ambient asserts that.
     //
     // AO multiplies ONLY this term. It is occlusion of the HEMISPHERE.
-    let ambient = albedo * max(sky_ambient(normal, frag_up), AMBIENT_FLOOR) * ao;
+    // ── THE NIGHT-SIDE COAST GLOW (operator reported twice; fixed here) ──
+    //
+    // AMBIENT_FLOOR is a SILHOUETTE floor, and the comment above says what for:
+    // ship interiors and deep space, "where there is no sky and the pads that
+    // carry it are zeroed". Applying it through a max() meant it ALSO lit the
+    // night side of a planet, where there IS a sky and that sky is correctly
+    // almost black. Land survived it because land albedo is dark; bright
+    // turquoise shallow-water albedo did not, so every coastline and shallow
+    // shelf on the dark half came out traced in cyan. The floor is even
+    // slightly BLUE-biased (0.005, 0.005, 0.006), which is where the colour of
+    // the trace came from.
+    //
+    // That max() is also why several earlier attempts failed: zeroing
+    // sky_ambient changed nothing, because the floor simply won instead.
+    //
+    // sky_ambient returns EXACTLY zero in its two no-sky cases and a real (if
+    // tiny) value under a night sky, so that sentinel separates them and the
+    // floor can be applied only where it was meant to apply.
+    // The discriminator is whether this fragment is UNDER A SKY at all, which
+    // is the same test sky_ambient uses for its own no-sky case: interiors and
+    // deep space have no local up, because the interior passes zero the pad that
+    // carries it. Keying off the returned VALUE does not work, since a night sky
+    // legitimately returns exactly zero and is then indistinguishable from having
+    // no sky at all (measured 2026-09-21: that version changed nothing).
+    let sky = sky_ambient(normal, frag_up);
+    let under_sky = dot(frag_up, frag_up) >= 0.5;
+    let indirect = select(max(sky, AMBIENT_FLOOR), sky, under_sky);
+    let ambient = albedo * indirect * ao;
 
     var color = ambient + lo;
 

@@ -134,48 +134,45 @@ it would not have touched the default tier or the symptom reported here.
 between each, and check that the instrument could have failed before trusting a
 clean result. Channel 1 would have proved nothing if it rendered an analytic
 coverage instead of the marched one; it renders the marched one.
-### 3. The night-side coast glow. SEVEN hypotheses dead, and a method lesson
+### 3. The night-side coast glow. One cause found and fixed, one still open
 
-The operator has now reported this twice, most recently 2026-09-21. Fixture:
-`orbit-terminator-3000km`. Measure it with the new
-`node scripts/night-side-mean.js <png>`, which prints the mean colour of the
-dark half plus the share of pixels reading as a lit trace. Two dark frames
-cannot be ranked by eye, and that is part of why this has survived so long.
+Reported twice by the operator. Fixture `orbit-terminator-3000km`; measure with
+`node scripts/night-side-mean.js <png>`, which exists because two dark frames
+cannot be ranked by eye and that is a large part of why this bug survived so
+long.
 
-**Established by measurement (2026-09-21):**
+**FIXED (v0.1331.2): the ambient floor lit the night side.** The shared tail
+had `ambient = albedo * max(sky_ambient(...), AMBIENT_FLOOR) * ao`. The floor is
+a silhouette floor for interiors and deep space, but the `max()` applied it on a
+planet at night too, where the sky is correctly almost black. Dark land survived
+it; bright turquoise shallow-water albedo did not, and the floor is itself
+blue-biased (0.005, 0.005, 0.006), which is where the cyan came from. It now
+applies only where there is no local up, the same test `sky_ambient` uses for
+its own no-sky case. Night-side mean 2.69/3.43/3.95 to 1.94/2.86/3.68, and
+night-side LAND now reads black.
 
-- The `AMBIENT_FLOOR` constant in `90-fragment-main.wgsl` IS a real
-  contributor. Zeroing it moved the night-side mean from 2.69/3.43/3.95 to
-  1.93/2.85/3.67. It is a constant, slightly BLUE-biased floor
-  (0.005, 0.005, 0.006) applied through a `max()`, so zeroing `sky_ambient`
-  alone never removed it, which is exactly why the earlier "ambient forced to
-  zero" arm showed land going black while bright shallow-water albedo kept
-  glowing. It is NOT the whole story: the lit-pixel share barely moved.
-- `sky_ambient` itself contributes about nothing at night: zeroing the entire
-  indirect term landed on the same numbers as zeroing just the floor.
-- The water SHELL is not involved at this range. Forcing the whole `fs_water`
-  output to black changed nothing, because at 3000 km the ocean is not drawn
-  by the water shell at all. That single fact retroactively explains why the
-  four earlier water-focused hypotheses all failed.
+That `max()` is also why several earlier attempts failed: zeroing `sky_ambient`
+changed nothing because the floor simply won instead.
 
-**THE METHOD LESSON, which matters more than any of the above.** A later arm
-zeroed `color = ambient + lo` in the shared tail and the DAY side stayed fully
-lit. That is impossible if the edited code were running, so at least one arm
-never reached the renderer, and every conclusion built on top of it is void.
-The arms above are the ones that demonstrably moved the numbers.
+**STILL OPEN: a residual trace on shallow shelves.** With the floor gone and
+land black, coastlines are still faintly outlined. Remaining candidates, in
+order: the direct term `lo` (a terminator window that stays slightly open past
+the geometric terminator would light the shoreline band where the normal turns),
+and `aerial_apply`, the aerial perspective added after the surface colour.
 
-So, before ANY further bisecting here: **run a positive control first.** Force
-the suspected entry to emit magenta and confirm the planet turns magenta. Only
-then start turning things off. Seven hypotheses have now died on this bug and
-at least one of them died for the trivial reason that it was never executed.
-See the memory note `feedback_checks_that_cannot_fail`.
+**METHOD, and this is the part worth reading.** A positive control settled a
+contradiction that had voided several arms: forcing `fs_terrain` albedo magenta
+right after its binding did NOTHING, because the textured path reassigns albedo
+from the texture further down. Setting it at the LAST write before
+`frag_tail` turned the planet magenta (day-side mean 142/142/140 neutral to
+132/109/138), which is what finally proved which entry draws the planet at
+orbital range. Two separate controls in this one bug could not fail, and each
+cost an arm. Before any further bisecting here: prove the edit reaches the
+pixels FIRST, and prove it at the last write, not the first.
 
-**Still open and worth trying, in order:** identify which fragment entry
-actually draws the planet at orbital range (a positive control answers this in
-one boot), then bisect within THAT entry; and independently, decide whether
-the blue-biased `AMBIENT_FLOOR` should be neutral and smaller, which is a
-defensible improvement on its own but touches interiors and deep space, so it
-needs a check that those keep their silhouette floor.
+Also fixed on the way (v0.1331.1): the shoreline surf ambient floor keyed off
+the sun's GLOBAL intensity rather than local elevation, so every coast kept a
+bluish-white floor at night.
 ### 4. The far-rung gates, G0(d) and G1 to G7
 
 Unchanged, and still the plan for the deeper cloud work. The increment is merged
