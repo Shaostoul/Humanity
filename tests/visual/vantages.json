@@ -11627,6 +11627,27 @@
       },
       "settle_s": 12,
       "hold_altitude": true
+    },
+    {
+      "id": "aurora-limb-8000",
+      "desc": "Aurora on the LIMB (v0.1331.1). Every reference photograph the operator supplied is a near-tangent view where the curtain stands off the edge of the Earth as a tall wall, which is the view that shows its HEIGHT. Looking straight down at the oval only ever shows its width, so a fixture set made only of nadir views cannot tell a tall curtain from a flat painted band.",
+      "expect": "A thin bright green ribbon standing off the dark limb with visible vertical rays, a dimmer red cap above it, and fainter diffuse sheets fanning equatorward. Height clearly greater than the ribbon width.",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 15,
+        "lon": 0,
+        "time": 0,
+        "altitude_km": 8000
+      },
+      "showcase": {
+        "clouds": "1",
+        "weather": "clear"
+      },
+      "settle_s": 12,
+      "hold_altitude": true
     }
   ],
   "ladder": {

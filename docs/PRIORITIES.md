@@ -134,39 +134,48 @@ it would not have touched the default tier or the symptom reported here.
 between each, and check that the instrument could have failed before trusting a
 clean result. Channel 1 would have proved nothing if it rendered an analytic
 coverage instead of the marched one; it renders the marched one.
-### 3. The night-side coast glow. Four hypotheses built and REFUTED
+### 3. The night-side coast glow. SEVEN hypotheses dead, and a method lesson
 
-The fixture now exists and holds it red: `orbit-terminator-3000km` (earth, lat
-15, lon 0, time 18, 3000 km) puts the day/night line across the disc, and every
-coastline and shallow shelf on the dark side is traced in glowing cyan. Run it
-with `node scripts/probe-sweep.js --only orbit-terminator-3000km`.
+The operator has now reported this twice, most recently 2026-09-21. Fixture:
+`orbit-terminator-3000km`. Measure it with the new
+`node scripts/night-side-mean.js <png>`, which prints the mean colour of the
+dark half plus the share of pixels reading as a lit trace. Two dark frames
+cannot be ranked by eye, and that is part of why this has survived so long.
 
-**The previously-written root cause is WRONG. Do not re-propose it.** The
-theory was that `water_shade` mixes `water_sky_lut(refl, n_geo)` with no
-daylight term, and that the LUT is one table rendered per frame for the
-CAMERA's position, so night-side water mirrors the day side's sky. That is a
-true description of the code and it is NOT what produces the glow. Four
-builds, each captured against the fixture:
+**Established by measurement (2026-09-21):**
 
-1. A `smoothstep(-0.18, 0.0, dot(n_geo, sun_l))` daylight factor on the LUT
-   mirror only - the written fix. Coasts still glowed.
-2. The sky-ambient term gated the same way. Still glowed.
-3. Ambient forced to ZERO outright. Night-side LAND went black, proving the
-   capture really is the night side and the gate really is reached - and the
-   coasts still glowed.
-4. Terrain water `proc_emissive` forced to zero, then `water_shade` forced
-   flat black. Still glowed.
+- The `AMBIENT_FLOOR` constant in `90-fragment-main.wgsl` IS a real
+  contributor. Zeroing it moved the night-side mean from 2.69/3.43/3.95 to
+  1.93/2.85/3.67. It is a constant, slightly BLUE-biased floor
+  (0.005, 0.005, 0.006) applied through a `max()`, so zeroing `sky_ambient`
+  alone never removed it, which is exactly why the earlier "ambient forced to
+  zero" arm showed land going black while bright shallow-water albedo kept
+  glowing. It is NOT the whole story: the lit-pixel share barely moved.
+- `sky_ambient` itself contributes about nothing at night: zeroing the entire
+  indirect term landed on the same numbers as zeroing just the floor.
+- The water SHELL is not involved at this range. Forcing the whole `fs_water`
+  output to black changed nothing, because at 3000 km the ocean is not drawn
+  by the water shell at all. That single fact retroactively explains why the
+  four earlier water-focused hypotheses all failed.
 
-Since forcing the water shade itself to black does not remove it, the light is
-NOT coming from the water path at all. Remaining candidates, in the order worth
-testing: the terrain sun term's terminator window (a wide smoothstep that may
-stay open past the geometric terminator, which would light the shoreline band
-where the normal turns); the atmosphere pass in `30-atmosphere.wgsl` compositing
-in-scatter over a dark surface; or a non-sun light contributing where land meets
-water. Bisect by forcing each contributor to zero one at a time against the same
-fixture, the method that produced the four refutations above.
+**THE METHOD LESSON, which matters more than any of the above.** A later arm
+zeroed `color = ambient + lo` in the shared tail and the DAY side stayed fully
+lit. That is impossible if the edited code were running, so at least one arm
+never reached the renderer, and every conclusion built on top of it is void.
+The arms above are the ones that demonstrably moved the numbers.
 
-Full capture record: `docs/BUGS.md` and the 2026-09-21 journal entry.
+So, before ANY further bisecting here: **run a positive control first.** Force
+the suspected entry to emit magenta and confirm the planet turns magenta. Only
+then start turning things off. Seven hypotheses have now died on this bug and
+at least one of them died for the trivial reason that it was never executed.
+See the memory note `feedback_checks_that_cannot_fail`.
+
+**Still open and worth trying, in order:** identify which fragment entry
+actually draws the planet at orbital range (a positive control answers this in
+one boot), then bisect within THAT entry; and independently, decide whether
+the blue-biased `AMBIENT_FLOOR` should be neutral and smaller, which is a
+defensible improvement on its own but touches interiors and deep space, so it
+needs a check that those keep their silhouette floor.
 ### 4. The far-rung gates, G0(d) and G1 to G7
 
 Unchanged, and still the plan for the deeper cloud work. The increment is merged

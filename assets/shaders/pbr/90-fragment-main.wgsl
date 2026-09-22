@@ -753,8 +753,28 @@ fn ocean_shell(in: VertexOutput) -> vec4<f32> {
     // The 0.015 floor is scaled by daylight too (BUG-057 #5): unscaled it
     // painted a faint glowing surf line along the waterline all night.
     let foam_sun_day = clamp(camera.sun_direction.w * 0.4, 0.0, 1.0);
+    // ── THE NIGHT-SIDE COAST GLOW (BUG, operator reported twice) ──
+    //
+    // The 0.015 ambient floor below is what keeps foam from going pure black at
+    // dusk. It used to be keyed ONLY to camera.sun_direction.w, which is the
+    // sun's GLOBAL intensity and says nothing about whether this particular
+    // stretch of water is in daylight. foam_day correctly went to zero at night,
+    // but that floor did not, so on the dark side every shoreline kept a small
+    // bluish-white value while the sea around it went black. Against a near-black
+    // night ocean that reads as a glowing cyan outline tracing every coast and
+    // shallow shelf, which is exactly what the surf band hugs.
+    //
+    // It survived four earlier hypotheses (the sky-LUT mirror, sky ambient,
+    // ambient forced to zero, water_shade forced black) because it is none of
+    // those: it is a MIX toward foam_col applied after them.
+    //
+    // Fix: give the floor the same local night the rest of the water gets, with
+    // a soft edge so a dusk coastline keeps its foam instead of switching off at
+    // the terminator.
+    let foam_twilight = smoothstep(-0.22, 0.02, dot(n_geo, normalize(camera.sun_direction.xyz)));
     let foam_col = vec3<f32>(0.75, 0.81, 0.86)
-        * (foam_day * camera.sun_direction.w * 0.42 + 0.015 * foam_sun_day);
+        * (foam_day * camera.sun_direction.w * 0.42
+            + 0.015 * foam_sun_day * foam_twilight);
     // Shoreline surf (v0.917, operator: "the water to land interface is
     // still behaving very weird"): an animated foam band hugs the beach in
     // the 0.2-2.2 m depth band - waves arriving, breaking, and receding.

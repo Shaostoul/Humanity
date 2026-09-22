@@ -201,6 +201,15 @@ fn atmo_mie_phase(c: f32) -> f32 {
 /// Samples along the atmosphere chord. Pure ALU, no texture fetches, and the
 /// whole loop is skipped for rays that cannot reach the layer at all.
 const AURORA_STEPS: i32 = 7;
+/// How far the DIFFUSE aurora spreads beyond the discrete arc, as a multiple
+/// of the arc's own width. Photographs from orbit show a narrow bright ribbon
+/// with much dimmer sheets fanning away from it, so the oval is really two
+/// populations rather than one smooth band.
+const AURORA_DIFFUSE_SPREAD: f32 = 5.0;
+/// Brightness of those sheets relative to the arc.
+const AURORA_DIFFUSE_LEVEL: f32 = 0.22;
+/// The red 630 nm cap is real but far dimmer than the green ribbon.
+const AURORA_RED_LEVEL: f32 = 0.55;
 /// Scales the integrated emission to screen radiance.
 const AURORA_STRENGTH: f32 = 24.0;
 /// 557.7 nm atomic oxygen: the green every photograph is dominated by.
@@ -276,9 +285,21 @@ fn aurora_emission(ro: vec3<f32>, rd: vec3<f32>, t0: f32, t1: f32, rp: f32) -> v
             let up = pnt / r;
             // Where in the ring, and how far up the emitting layer.
             let ang = acos(clamp(dot(up, pole), -1.0, 1.0));
-            let ring = smoothstep(inner - edge, inner + edge * 0.35, ang)
-                * (1.0 - smoothstep(outer - edge * 0.35, outer + edge, ang));
-            if (ring <= 0.0) {
+            // TWO populations, which is what the reference photographs show.
+            // A discrete ARC: narrow across latitude and very bright, with a
+            // hard equatorward edge, which is the ribbon you actually see.
+            let arc = smoothstep(inner - edge * 0.25, inner + edge * 0.15, ang)
+                * (1.0 - smoothstep(outer - edge * 0.15, outer + edge * 0.25, ang));
+            // And the DIFFUSE glow fanning away from it, several times wider
+            // and a fraction as bright. Without this the oval reads as a bare
+            // stripe; without the arc it reads as a smooth wash, which is what
+            // the first version did.
+            let half = (outer - inner) * 0.5 * AURORA_DIFFUSE_SPREAD;
+            let mid = (inner + outer) * 0.5;
+            let diffuse = (1.0 - smoothstep(0.0, half, abs(ang - mid)))
+                * AURORA_DIFFUSE_LEVEL;
+            let ring = max(arc, diffuse);
+            if (ring <= 0.001) {
                 continue;
             }
             // Only over ground that is in darkness. The soft edge keeps the
@@ -294,15 +315,24 @@ fn aurora_emission(ro: vec3<f32>, rd: vec3<f32>, t0: f32, t1: f32, rp: f32) -> v
             let tang = normalize(up - pole * dot(up, pole));
             let phi = atan2(dot(tang, ey), dot(tang, ex));
             let folds = 0.5 + 0.5 * sin(phi * 9.0 + time * 0.11);
-            let rays = 0.5 + 0.5 * sin(phi * 31.0 - time * 0.07 + hgt * 2.5);
-            // Keep a floor under the modulation. Multiplying two sines drives the
-            // product to zero far too often, which broke the arc into isolated
-            // blobs; a real aurora varies along its length but stays continuous.
-            let curtain = 0.45 + 0.55 * folds * (0.5 + 0.5 * rays);
-            // Brightest low down where the green line is, thinning upward.
-            let prof = (1.0 - hgt) * (1.0 - hgt * 0.45);
-            let col = mix(AURORA_GREEN, AURORA_RED, smoothstep(0.45, 1.0, hgt));
-            total = total + col * (ring * night * curtain * prof
+            // RAYS, sharpened. A curtain is made of near-vertical rays, so the
+            // modulation wants contrast rather than a gentle ripple, and the
+            // pattern must stay COHERENT with height or it reads as noise
+            // instead of structure. The small height term leans them rather
+            // than scrambling them.
+            let ray_s = 0.5 + 0.5 * sin(phi * 47.0 - time * 0.07 + hgt * 0.8);
+            let rays = pow(ray_s, 3.0);
+            let curtain = 0.30 + 0.70 * folds * (0.25 + 0.75 * rays);
+            // Height profiles, separately per emission line. The 557.7 nm green
+            // really does sit at the BOTTOM of the curtain and stop, while the
+            // 630 nm red caps it and reaches much higher. Giving them one shared
+            // profile is what made the first version a uniform slab.
+            let green_v = 1.0 - smoothstep(0.12, 0.60, hgt);
+            let red_v = smoothstep(0.28, 0.70, hgt)
+                * (1.0 - 0.6 * smoothstep(0.80, 1.0, hgt));
+            let col = AURORA_GREEN * green_v
+                + AURORA_RED * (red_v * AURORA_RED_LEVEL);
+            total = total + col * (ring * night * curtain
                 * reg.kind_shape.y * AURORA_STRENGTH * dt_a);
         }
     }
