@@ -76,6 +76,76 @@ marble is not whitened. See BUG-080 and `docs/design/environment-fields.md`.
 
 **Do not re-propose:** a weight that reads camera altitude, distance, or how
 much of the planet is on screen. That is the defect class, not a tuning knob.
+### 1b. THE CLOUD DECK ERASES THE AURORA. Root cause, measured 2026-09-22
+
+The operator asked three times why the aurora looked dark, and twice why it
+differed over land and water. Both are the same defect and it is not in the
+aurora at all.
+
+The aurora emits between 99 and 190 km. The cloud deck sits at about 12 km. So
+from above, the clouds are BEHIND the aurora and cannot occlude it. They do.
+
+Measured at `aurora-over-land` and `aurora-over-water` (lat 67, nadir, 600 km,
+local midnight, differing ONLY in longitude), as mean green-excess per pixel,
+which is threshold free:
+
+| arm | clouds ON | clouds OFF |
+| --- | --- | --- |
+| over Siberian land | 4.288 | **14.811** |
+| over the Greenland Sea | 2.198 | **14.826** |
+
+With the deck off the two are IDENTICAL to three digits, and about 3.4x
+brighter than the land arm with it on. So:
+
+- The land-versus-water difference is entirely the deck. Cloud cover is
+  regional, so a cloud-cover difference wears a coastline and reads as a
+  surface effect. The operator saw something real and named it by the nearest
+  visible landmark, which is exactly what a good bug report does.
+- The aurora is being dimmed 3.4x over land and 6.7x over water. That is the
+  "kind of dark" as well, not only the land/water split.
+
+Both confounds that could have faked this were removed before believing it.
+The strand presence masks are functions of phi, so longitude changes how much
+aurora the oval carries by design; the comparison was repeated with the ring
+FLATTENED to uniform and the gap survived (4.288 against 2.198). And the first
+version of the fixture aimed at the horizon, which filled the frame with lit
+limb and let a green-dominance metric count vegetation; it now aims at nadir
+and `scripts/aurora-comb.js` refuses any frame bright enough for that mistake.
+
+**The mechanism.** `atmo_over` in `frame_shells.rs` is ALWAYS false, so the
+fullscreen cloud composite always runs AFTER the transparent list that carries
+the atmosphere shell. That was deliberate and is right for AIR: the cloud march
+already applies this engine aerial perspective at the cloud first-hit distance,
+so letting the dome blend over the deck applied the same air twice and the
+second application was opaque ("the clouds just vanish", measured at 9,500 km:
+1.2 percent of the disc written with the old order against 99.9 with this one).
+
+It is wrong for EMISSION that lives above the deck. "Clouds last" is correct
+for scattered air in front of them and incorrect for light sources behind the
+camera-facing side of them, and the aurora is the first such source the engine
+has had. Nothing was wrong when that ordering was chosen.
+
+**The fix is an increment, not a patch, which is why it is fenced here rather
+than attempted.** The aurora has to be applied AFTER the cloud composite. Two
+ways, both needing the same new plumbing (the camera uniform and the
+`env_regions` storage buffer reaching a pass that has neither today):
+
+1. Add the emission inside `cloud_composite.wgsl`, which already runs last.
+   Fewest passes, but that file is self-contained and would end up holding a
+   SECOND copy of `aurora_emission`, which this repo has been bitten by before
+   (a duplicated shader body drifts and no test compares them).
+2. A dedicated fullscreen ADDITIVE pass after the composite. One more pass,
+   but the aurora stays in one place and the pass is a natural home for any
+   future above-deck emission (airglow, lightning, city light bloom).
+
+Option 2 is preferred for exactly the reason option 1 is tempting. Whichever
+is taken, gate it on the pair above: with clouds ON the two arms must come
+within a few percent of the 14.8 that clouds-OFF already reaches.
+
+**Do not flip `atmo_over`.** It would restore the erased-clouds regression that
+the comment at `frame_shells.rs` documents, and that one cost a dozen
+investigations because the cliff sat at the chunk-activation altitude.
+
 ### 2. THE CLOUDS ARE TOO DARK. The static is its symptom, not the defect
 
 **Rewritten 2026-09-22 after measuring the thing nobody had measured.** Seven

@@ -11808,17 +11808,17 @@
     {
       "id": "aurora-over-land",
       "desc": "Separates a SURFACE-dependent aurora difference from a GEOMETRIC one. The operator reports a distinct difference between the aurora over land and over water, which survived the v0.1331.9 haze-trim fix. That fix was geometric: steep views were trimmed to 0.45 and grazing views were not, and from a single viewpoint geometry can masquerade as a surface difference because the land and the water are not at the same view angle. These two fixtures differ ONLY in longitude, so altitude, view angle, sun and clock are identical and what lies under the oval is the single free variable. If the aurora measures the same in both, the difference he sees is geometry and the surface reading is a coincidence of viewpoint. If it measures differently, there is a real surface-dependent term still to find. This one sits at longitude 100, over Siberian landmass.",
-      "expect": "NOT USABLE YET, and the reason is recorded so the next attempt does not repeat it. Both fixtures came out DAYLIT (frame mean luminance 98, about 66 percent of pixels above 60), and the aurora only draws over ground in darkness, so neither frame contains a measurable aurora. The first reading off them looked decisive and meant nothing: 73,877 aurora pixels over land against 20,808 over water was really counting Siberian vegetation, because green dominance identifies the aurora only where nothing else green is lit. scripts/aurora-comb.js now REFUSES a frame this bright rather than answering. A second confound was found and removed on the way: 130 degrees of longitude also changes WHICH SECTOR of the oval is in view, and the strand presence masks are functions of phi, so the oval carries different amounts of aurora at different longitudes by design. Flattening the ring to uniform removed that one. TO MAKE THIS FIXTURE WORK: find the global clock hour that puts EACH longitude at local midnight (time here is the global hour, not local solar time) and confirm darkness by frame mean luminance BEFORE reading any aurora number off it.",
+      "expect": "REGRESSION GUARD for PRIORITIES item 1b, the cloud deck erasing the aurora. Measured 2026-09-22 as mean green-excess per pixel, which is threshold free: clouds ON gave 4.288 over land and 2.198 over water, clouds OFF gave 14.811 and 14.826. With the deck off the two arms are IDENTICAL to three digits, so the whole land-versus-water difference is cloud cover wearing a coastline, and the aurora is being dimmed 3.4x over land and 6.7x over water by a deck that sits at 12 km under emission at 99 to 190 km. Both confounds were removed before believing it: the comparison was repeated with the strand ring FLATTENED (the presence masks are functions of phi) and the gap survived, and the fixture aims at NADIR because an earlier horizon aim filled the frame with lit limb and let a green-dominance metric count vegetation. WHEN THE FIX LANDS: with clouds ON both arms must come within a few percent of the 14.8 that clouds OFF already reaches.",
       "regressions": [
         "panics=0"
       ],
       "camera": {
         "body": "earth",
-        "lat": 60,
+        "lat": 67,
         "lon": 100,
         "time": 0,
-        "altitude_km": 1200,
-        "look_offset_deg": 57
+        "altitude_km": 600,
+        "look_offset_deg": 0
       },
       "showcase": {
         "clouds": "1",
@@ -11831,20 +11831,66 @@
     {
       "id": "aurora-over-water",
       "desc": "Separates a SURFACE-dependent aurora difference from a GEOMETRIC one. The operator reports a distinct difference between the aurora over land and over water, which survived the v0.1331.9 haze-trim fix. That fix was geometric: steep views were trimmed to 0.45 and grazing views were not, and from a single viewpoint geometry can masquerade as a surface difference because the land and the water are not at the same view angle. These two fixtures differ ONLY in longitude, so altitude, view angle, sun and clock are identical and what lies under the oval is the single free variable. If the aurora measures the same in both, the difference he sees is geometry and the surface reading is a coincidence of viewpoint. If it measures differently, there is a real surface-dependent term still to find. This one sits at longitude -30, over the North Atlantic.",
-      "expect": "NOT USABLE YET, and the reason is recorded so the next attempt does not repeat it. Both fixtures came out DAYLIT (frame mean luminance 98, about 66 percent of pixels above 60), and the aurora only draws over ground in darkness, so neither frame contains a measurable aurora. The first reading off them looked decisive and meant nothing: 73,877 aurora pixels over land against 20,808 over water was really counting Siberian vegetation, because green dominance identifies the aurora only where nothing else green is lit. scripts/aurora-comb.js now REFUSES a frame this bright rather than answering. A second confound was found and removed on the way: 130 degrees of longitude also changes WHICH SECTOR of the oval is in view, and the strand presence masks are functions of phi, so the oval carries different amounts of aurora at different longitudes by design. Flattening the ring to uniform removed that one. TO MAKE THIS FIXTURE WORK: find the global clock hour that puts EACH longitude at local midnight (time here is the global hour, not local solar time) and confirm darkness by frame mean luminance BEFORE reading any aurora number off it.",
+      "expect": "REGRESSION GUARD for PRIORITIES item 1b, the cloud deck erasing the aurora. Measured 2026-09-22 as mean green-excess per pixel, which is threshold free: clouds ON gave 4.288 over land and 2.198 over water, clouds OFF gave 14.811 and 14.826. With the deck off the two arms are IDENTICAL to three digits, so the whole land-versus-water difference is cloud cover wearing a coastline, and the aurora is being dimmed 3.4x over land and 6.7x over water by a deck that sits at 12 km under emission at 99 to 190 km. Both confounds were removed before believing it: the comparison was repeated with the strand ring FLATTENED (the presence masks are functions of phi) and the gap survived, and the fixture aims at NADIR because an earlier horizon aim filled the frame with lit limb and let a green-dominance metric count vegetation. WHEN THE FIX LANDS: with clouds ON both arms must come within a few percent of the 14.8 that clouds OFF already reaches.",
       "regressions": [
         "panics=0"
       ],
       "camera": {
         "body": "earth",
-        "lat": 60,
+        "lat": 67,
         "lon": -30,
         "time": 0,
-        "altitude_km": 1200,
-        "look_offset_deg": 57
+        "altitude_km": 600,
+        "look_offset_deg": 0
       },
       "showcase": {
         "clouds": "1",
+        "weather": "clear",
+        "cloud_clock": "0"
+      },
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "aurora-land-noclouds",
+      "desc": "The CLOUDS-OFF arm of the land-versus-water aurora pair. With the oval flattened to uniform the aurora still measured about twice as strong over land as over water at identical geometry and local midnight, so something surface-correlated is modulating it. The aurora sits at 99 to 190 km and the cloud deck at about 12 km, so from directly overhead the clouds are BEHIND the aurora and must not occlude it. Cloud cover is strongly regional, so if the deck is being composited over the emission the land/water difference is really a cloud-cover difference wearing a coastline. Turning the deck off and re-measuring is what separates those two. This one is at longitude 100, over Siberian arctic land.",
+      "expect": "REGRESSION GUARD for PRIORITIES item 1b, the cloud deck erasing the aurora. Measured 2026-09-22 as mean green-excess per pixel, which is threshold free: clouds ON gave 4.288 over land and 2.198 over water, clouds OFF gave 14.811 and 14.826. With the deck off the two arms are IDENTICAL to three digits, so the whole land-versus-water difference is cloud cover wearing a coastline, and the aurora is being dimmed 3.4x over land and 6.7x over water by a deck that sits at 12 km under emission at 99 to 190 km. Both confounds were removed before believing it: the comparison was repeated with the strand ring FLATTENED (the presence masks are functions of phi) and the gap survived, and the fixture aims at NADIR because an earlier horizon aim filled the frame with lit limb and let a green-dominance metric count vegetation. WHEN THE FIX LANDS: with clouds ON both arms must come within a few percent of the 14.8 that clouds OFF already reaches.",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 67,
+        "lon": 100,
+        "time": 0,
+        "altitude_km": 600,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "clouds": "0",
+        "weather": "clear",
+        "cloud_clock": "0"
+      },
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "aurora-water-noclouds",
+      "desc": "The CLOUDS-OFF arm of the land-versus-water aurora pair. With the oval flattened to uniform the aurora still measured about twice as strong over land as over water at identical geometry and local midnight, so something surface-correlated is modulating it. The aurora sits at 99 to 190 km and the cloud deck at about 12 km, so from directly overhead the clouds are BEHIND the aurora and must not occlude it. Cloud cover is strongly regional, so if the deck is being composited over the emission the land/water difference is really a cloud-cover difference wearing a coastline. Turning the deck off and re-measuring is what separates those two. This one is at longitude -30, over the Greenland Sea.",
+      "expect": "REGRESSION GUARD for PRIORITIES item 1b, the cloud deck erasing the aurora. Measured 2026-09-22 as mean green-excess per pixel, which is threshold free: clouds ON gave 4.288 over land and 2.198 over water, clouds OFF gave 14.811 and 14.826. With the deck off the two arms are IDENTICAL to three digits, so the whole land-versus-water difference is cloud cover wearing a coastline, and the aurora is being dimmed 3.4x over land and 6.7x over water by a deck that sits at 12 km under emission at 99 to 190 km. Both confounds were removed before believing it: the comparison was repeated with the strand ring FLATTENED (the presence masks are functions of phi) and the gap survived, and the fixture aims at NADIR because an earlier horizon aim filled the frame with lit limb and let a green-dominance metric count vegetation. WHEN THE FIX LANDS: with clouds ON both arms must come within a few percent of the 14.8 that clouds OFF already reaches.",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 67,
+        "lon": -30,
+        "time": 0,
+        "altitude_km": 600,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "clouds": "0",
         "weather": "clear",
         "cloud_clock": "0"
       },
