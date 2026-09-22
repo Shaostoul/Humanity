@@ -157,17 +157,24 @@ It now applies only where there is no local up. Mean 2.69/3.43/3.95 to
 | procedural emissive | night unchanged; type 12 zeroes it by design |
 | water shell CONTRIBUTION | forced black, night unchanged: it is already black at night |
 | water sky-LUT mirror | gated on local daylight (v0.1331.3), night unchanged at this fixture |
+| atmosphere shell | disabled: night went UP 1.94 to 2.00, so it DARKENS the night side. Limb moved 168 to 163, so the edit reached |
 
 Note the water shell DRAWS on the night side (forcing it magenta moved the mean
 to 15.64/2.86/16.51 with green untouched) but contributes no light. Those are
 different claims and conflating them cost an arm.
 
-**What is left.** The residual 1.94/2.86/3.68 is bluish and carries no
-geography, which points at the ATMOSPHERE SHELL composited over the planet,
-the one draw not yet tested. An atmosphere legitimately glows a little at night
-from the lit limb, so the residual may simply be correct. The next step is one
-arm on `atmosphere_scattering`, and then a judgement call by the operator
-looking at it in motion rather than at a still.
+**What is left: nothing identifiable, and that is the finding.** Every draw in
+the frame has now been eliminated with a reach test, including the atmosphere,
+which turned out to DARKEN the night side rather than light it. The residual
+night-side mean is 1.94/2.86/3.68, about 1.5 percent of full scale, which is the
+noise floor of a dark frame rather than a glow with a source.
+
+So the honest position is that the AMBIENT_FLOOR fix removed the dominant cause
+and what remains may be nothing at all. Whether coastlines still READ as glowing
+is now a judgement for the operator in the running game, not something another
+still-frame arm can settle. If he says it still glows, the untested surfaces left
+are the cloud deck over the night side and the post passes (bloom, godrays),
+neither of which traces geography, so start by asking WHICH pixels he means.
 
 **METHOD, the expensive lesson.** Roughly nine hypotheses have died here and at
 least three died because the edit never reached the pixels: an early `return` is
