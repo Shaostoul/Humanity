@@ -1275,6 +1275,53 @@ the page rendered correctly, the world loaded correctly, the only symptom was
 that the game would not start. What found it was driving the real build and
 reading one value back.
 
+## BUG-080: the cloud deck changes coverage AND position as you change altitude (open, diagnosed 2026-09-21)
+
+**Symptom:** the operator, descending toward Earth: "As I descend the clouds
+become 100% thick. From high orbit they look okay but, as I get closer to the
+cloud layer it fills in slowly ... it is very immersion breaking for it to morph
+instead of remaining consistent in its positioning." Four screenshots at 2770,
+88.7, 71.4 and 47.9 km show steadily growing cover.
+
+**Reproduced on a fixture.** `stormfade-*` holds one column with a storm pinned
+and coverage deliberately unpinned, so only camera altitude varies. Mean
+luminance in the centre crop: 72.3 at 200 km, 63.3 at 120, 62.3 at 90, 61.5 at
+60, then **203.2 at 30 km** and 200.8 at 10 km. At 60 km the HUD reads Storm over
+an empty ocean; at 30 km the frame is an edge-to-edge cloud carpet matching his
+own 47.9 km shot. A 3.3x change from flying lower.
+
+**Cause:** `src/engine/frame_shells.rs` derives two numbers from the weather
+condition (Storm = 0.95 coverage floor, 0.95 placement bypass) and then fades
+BOTH by camera altitude: `wx_fade = (1 - (h_km - 30) / 90).clamp(0, 1)`. The
+bypass is `params2.w`, which the shader reads as the fraction of the live MODIS
+placement to abandon in favour of the procedural field. So descending does two
+things at once: coverage climbs toward the storm floor, and the cloud LAYOUT
+cross-fades between two unrelated spatial patterns. The second one is the
+"morphing" he reported.
+
+**Root cause:** `src/systems/weather.rs` carries ONE condition for the whole
+body, with no latitude, longitude or extent. A global fact applied to a visible
+hemisphere paints the hemisphere, so the only lever available was to turn it
+down as the visible area grows. The ramp was itself the fix for an earlier
+report by the same person (v0.1183: "from high orbit the operator watched a
+local Storm paint the ENTIRE planet 95% white"). It traded a planet-wide
+artifact for a descent artifact; both are the missing spatial dimension.
+
+**NOT the renderer.** The `covladder-*` fixtures pin coverage and type, which
+bypasses the weather path, and they stay flat from 20,000 km down to 20 km. The
+defect is in how weather reaches the deck, not in how the deck is drawn.
+
+**Not this bug:** the HUD temperature falling from 20C to -8C during the descent
+is `temperature_at_player` carrying a real altitude lapse, working as designed.
+The condition changing Clear to Storm was the global sim rolling over during the
+minutes of flight, not an altitude effect.
+
+**Fix designed, not built:** `docs/design/weather-spatial-extent.md`. Give a
+weather system a position and a radius, weight it by distance from the SAMPLE's
+ground point instead of camera altitude, and delete `wx_fade`. Blocked on one
+new per-frame scalar with no free channel to carry it; the doc records which
+pads are actually taken (swizzles hide most of them) and why the uniform
+extension needs its own commit with a world-entry boot.
 ## BUG-079: clouds from orbit rendered as black-and-white static at every quality (PARTIALLY fixed v0.1326.0, REOPENED 2026-09-20)
 
 **Symptom:** the operator, flying above the Earth: "the clouds look weird in

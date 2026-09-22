@@ -39,7 +39,35 @@ Strict rank. Take the top item that is not marked CLAIMED. Everything below
 TIER 0 is real work that has not been ranked against these four; do not promote
 anything into this list without the operator.
 
-### 1. The orbital TV-static: a LIGHTING defect, bisected to the direct-sun term
+### 1. The cloud deck changes coverage AND POSITION with altitude (BUG-080)
+
+The operator, 2026-09-21: "As I descend the clouds become 100% thick ... it is
+very immersion breaking for it to morph instead of remaining consistent in its
+positioning." This is his active complaint and it is fully diagnosed and
+reproduced; it is not the same defect as the static below.
+
+`frame_shells.rs` fades the weather condition's coverage floor AND its PLACEMENT
+bypass by camera altitude (`wx_fade`, nothing above 120 km, full below 30 km).
+The bypass chooses between two unrelated spatial layouts, so descending
+cross-fades the cloud positions. Root cause is that `weather.rs` holds ONE
+condition for the whole body with no position or extent, so the ramp is standing
+in for a spatial term that does not exist.
+
+Measured with `stormfade-*` (one column, storm pinned, only altitude varies):
+mean centre-crop luminance 72.3 / 63.3 / 62.3 / 61.5 at 200 / 120 / 90 / 60 km,
+then **203.2 at 30 km**. At 60 km the HUD says Storm over empty ocean; at 30 km
+the frame is a cloud carpet. `covladder-*` pins coverage and type and stays flat
+all the way down, which is what rules the renderer out.
+
+**Fix designed: `docs/design/weather-spatial-extent.md`.** Give a weather system
+a position and radius, weight by distance from the sample's ground point rather
+than camera altitude, delete `wx_fade`. **Blocked on one new per-frame scalar
+with no free channel:** params2 is full and every light pad is claimed via
+`.xyz` swizzles that a naive grep misses. The uniform extension touches every
+shader declaring the camera uniform, so it is its own commit with a world-entry
+probe boot before the mask goes in. The doc carries the pad inventory and the
+flat-column bar that proves it fixed.
+### 2. The orbital TV-static: a LIGHTING defect, bisected to the direct-sun term
 
 Rewritten 2026-09-20 after measuring it. The previous entry called 2000 km
 "much improved but not clean" and pointed at the far-rung sampling story. Both
@@ -97,7 +125,7 @@ it would not have touched the default tier or the symptom reported here.
 between each, and check that the instrument could have failed before trusting a
 clean result. Channel 1 would have proved nothing if it rendered an analytic
 coverage instead of the marched one; it renders the marched one.
-### 2. The night-side coast glow. Four hypotheses built and REFUTED
+### 3. The night-side coast glow. Four hypotheses built and REFUTED
 
 The fixture now exists and holds it red: `orbit-terminator-3000km` (earth, lat
 15, lon 0, time 18, 3000 km) puts the day/night line across the disc, and every
@@ -130,7 +158,7 @@ water. Bisect by forcing each contributor to zero one at a time against the same
 fixture, the method that produced the four refutations above.
 
 Full capture record: `docs/BUGS.md` and the 2026-09-21 journal entry.
-### 3. The far-rung gates, G0(d) and G1 to G7
+### 4. The far-rung gates, G0(d) and G1 to G7
 
 Unchanged, and still the plan for the deeper cloud work. The increment is merged
 behind knob 0; the gates are what turn it on. Design of record:
@@ -139,7 +167,7 @@ critique on eight real blockers). The measured target it exists to fix: at 873 k
 Ultra renders about 0.9 percent coverage against High's 31, because one sample
 per ray misses a 300 m layer vertically.
 
-### 4. Fifty-five stale page snapshots
+### 5. Fifty-five stale page snapshots
 
 All 55 checked-in PNGs under `tests/snapshots/` are stale relative to main,
 including pages the GUI extraction never touched. Proven by control, not
@@ -174,7 +202,7 @@ them up.
    `docs/design/playable-assessment-2026-09-19.md` section 7. **Crop growth speed
    is ANSWERED (2026-09-20)**: a growth multiplier separate from the world clock,
    1x / 10x / 100x plus a custom value, shipping at 10x, implemented and tested;
-   Tier A item 3 is unblocked. Offline growth stayed open as its own want. Still
+   Tier A item 3 is unblocked. Offline progression was answered on 2026-09-21 as well, and is broader than crops (a toggle on all three modes, applied to crafting too); it is designed in `docs/design/offline-progression.md` and not yet built. Still
    open: what the first ten minutes are, and whether a pipe reads as its real
    material or its utility colour. A third, lower: does multiplayer enforce
    anything, or is it co-operative trust until launch. NOTE that the report's
@@ -263,7 +291,10 @@ between the simulation and the person. Its tier ladder is the build order.
 
 - **Tier A (make the existing game legible and durable).** A0 (ship the art) is
   DONE in v0.1322.0. Remaining: persist `Structure` and `Construction` into
-  `WorldSave` (built structures are DISCARDED at exit today); put the simulation
+  `WorldSave` (built structures are DISCARDED at exit today); **offline progression**
+  (`docs/design/offline-progression.md`, designed 2026-09-21, operator-requested,
+  generalizes past farming to crafting and any time-advancing system, and is what
+  makes the new 1x crop speed a real choice rather than a punishment); put the simulation
   on the HUD; fix crop pacing (blocked on the operator question above); a
   scripted first-run sequence in the world; make a built thing do something by
   consuming `Structure.provides`.

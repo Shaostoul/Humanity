@@ -11325,6 +11325,224 @@
       },
       "settle_s": 10,
       "hold_altitude": true
+    },
+    {
+      "id": "covladder-00200",
+      "desc": "Coverage-vs-distance ladder at ONE fixed spot with cloud TYPE and COVERAGE pinned (the white-continent lesson: an unpinned type field varies by region and fakes scale-dependence). Cloud fraction in the screen-centre crop must stay ~constant down the ladder; any step is a rendering defect. LOW rung added 2026-09-21 for the operator's descent report: clouds \"become 100% thick\" as he descends and \"fill in slowly', which the ladder could not see because it stopped at 400 km.",
+      "camera": {
+        "body": "earth",
+        "lat": -15,
+        "lon": 165,
+        "time": 12,
+        "altitude_km": 200
+      },
+      "settle_s": 12,
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "hold_altitude": true,
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear"
+      }
+    },
+    {
+      "id": "covladder-00100",
+      "desc": "Coverage-vs-distance ladder at ONE fixed spot with cloud TYPE and COVERAGE pinned (the white-continent lesson: an unpinned type field varies by region and fakes scale-dependence). Cloud fraction in the screen-centre crop must stay ~constant down the ladder; any step is a rendering defect. LOW rung added 2026-09-21 for the operator's descent report: clouds \"become 100% thick\" as he descends and \"fill in slowly', which the ladder could not see because it stopped at 400 km.",
+      "camera": {
+        "body": "earth",
+        "lat": -15,
+        "lon": 165,
+        "time": 12,
+        "altitude_km": 100
+      },
+      "settle_s": 12,
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "hold_altitude": true,
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear"
+      }
+    },
+    {
+      "id": "covladder-00050",
+      "desc": "Coverage-vs-distance ladder at ONE fixed spot with cloud TYPE and COVERAGE pinned (the white-continent lesson: an unpinned type field varies by region and fakes scale-dependence). Cloud fraction in the screen-centre crop must stay ~constant down the ladder; any step is a rendering defect. LOW rung added 2026-09-21 for the operator's descent report: clouds \"become 100% thick\" as he descends and \"fill in slowly', which the ladder could not see because it stopped at 400 km.",
+      "camera": {
+        "body": "earth",
+        "lat": -15,
+        "lon": 165,
+        "time": 12,
+        "altitude_km": 50
+      },
+      "settle_s": 12,
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "hold_altitude": true,
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear"
+      }
+    },
+    {
+      "id": "covladder-00020",
+      "desc": "Coverage-vs-distance ladder at ONE fixed spot with cloud TYPE and COVERAGE pinned (the white-continent lesson: an unpinned type field varies by region and fakes scale-dependence). Cloud fraction in the screen-centre crop must stay ~constant down the ladder; any step is a rendering defect. LOW rung added 2026-09-21 for the operator's descent report: clouds \"become 100% thick\" as he descends and \"fill in slowly', which the ladder could not see because it stopped at 400 km.",
+      "camera": {
+        "body": "earth",
+        "lat": -15,
+        "lon": 165,
+        "time": 12,
+        "altitude_km": 20
+      },
+      "settle_s": 12,
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "hold_altitude": true,
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear"
+      }
+    },
+    {
+      "id": "stormfade-00200",
+      "desc": "Storm-descent fixture (operator report 2026-09-21): ONE fixed column, live weather ON, condition pinned to storm, coverage and type deliberately NOT pinned so the altitude ramp in frame_shells.rs applies. Walk the rungs and the cloud field must not change COVERAGE or, more importantly, POSITION. Predicted wx_fade at this rung is 0.00, so the storm floor and the placement cross-fade are applied at that strength.",
+      "camera": {
+        "body": "earth",
+        "lat": -15,
+        "lon": 165,
+        "time": 12,
+        "altitude_km": 200
+      },
+      "settle_s": 12,
+      "expect": "The same clouds in the same places at every rung, only nearer. A field that thickens toward the ground, or whose masses sit in different places between rungs, is the defect.",
+      "regressions": [
+        "panics=0"
+      ],
+      "hold_altitude": true,
+      "showcase": {
+        "clouds": "1",
+        "weather": "storm"
+      }
+    },
+    {
+      "id": "stormfade-00120",
+      "desc": "Storm-descent fixture (operator report 2026-09-21): ONE fixed column, live weather ON, condition pinned to storm, coverage and type deliberately NOT pinned so the altitude ramp in frame_shells.rs applies. Walk the rungs and the cloud field must not change COVERAGE or, more importantly, POSITION. Predicted wx_fade at this rung is 0.00, so the storm floor and the placement cross-fade are applied at that strength.",
+      "camera": {
+        "body": "earth",
+        "lat": -15,
+        "lon": 165,
+        "time": 12,
+        "altitude_km": 120
+      },
+      "settle_s": 12,
+      "expect": "The same clouds in the same places at every rung, only nearer. A field that thickens toward the ground, or whose masses sit in different places between rungs, is the defect.",
+      "regressions": [
+        "panics=0"
+      ],
+      "hold_altitude": true,
+      "showcase": {
+        "clouds": "1",
+        "weather": "storm"
+      }
+    },
+    {
+      "id": "stormfade-00090",
+      "desc": "Storm-descent fixture (operator report 2026-09-21): ONE fixed column, live weather ON, condition pinned to storm, coverage and type deliberately NOT pinned so the altitude ramp in frame_shells.rs applies. Walk the rungs and the cloud field must not change COVERAGE or, more importantly, POSITION. Predicted wx_fade at this rung is 0.33, so the storm floor and the placement cross-fade are applied at that strength.",
+      "camera": {
+        "body": "earth",
+        "lat": -15,
+        "lon": 165,
+        "time": 12,
+        "altitude_km": 90
+      },
+      "settle_s": 12,
+      "expect": "The same clouds in the same places at every rung, only nearer. A field that thickens toward the ground, or whose masses sit in different places between rungs, is the defect.",
+      "regressions": [
+        "panics=0"
+      ],
+      "hold_altitude": true,
+      "showcase": {
+        "clouds": "1",
+        "weather": "storm"
+      }
+    },
+    {
+      "id": "stormfade-00060",
+      "desc": "Storm-descent fixture (operator report 2026-09-21): ONE fixed column, live weather ON, condition pinned to storm, coverage and type deliberately NOT pinned so the altitude ramp in frame_shells.rs applies. Walk the rungs and the cloud field must not change COVERAGE or, more importantly, POSITION. Predicted wx_fade at this rung is 0.67, so the storm floor and the placement cross-fade are applied at that strength.",
+      "camera": {
+        "body": "earth",
+        "lat": -15,
+        "lon": 165,
+        "time": 12,
+        "altitude_km": 60
+      },
+      "settle_s": 12,
+      "expect": "The same clouds in the same places at every rung, only nearer. A field that thickens toward the ground, or whose masses sit in different places between rungs, is the defect.",
+      "regressions": [
+        "panics=0"
+      ],
+      "hold_altitude": true,
+      "showcase": {
+        "clouds": "1",
+        "weather": "storm"
+      }
+    },
+    {
+      "id": "stormfade-00030",
+      "desc": "Storm-descent fixture (operator report 2026-09-21): ONE fixed column, live weather ON, condition pinned to storm, coverage and type deliberately NOT pinned so the altitude ramp in frame_shells.rs applies. Walk the rungs and the cloud field must not change COVERAGE or, more importantly, POSITION. Predicted wx_fade at this rung is 1.00, so the storm floor and the placement cross-fade are applied at that strength.",
+      "camera": {
+        "body": "earth",
+        "lat": -15,
+        "lon": 165,
+        "time": 12,
+        "altitude_km": 30
+      },
+      "settle_s": 12,
+      "expect": "The same clouds in the same places at every rung, only nearer. A field that thickens toward the ground, or whose masses sit in different places between rungs, is the defect.",
+      "regressions": [
+        "panics=0"
+      ],
+      "hold_altitude": true,
+      "showcase": {
+        "clouds": "1",
+        "weather": "storm"
+      }
+    },
+    {
+      "id": "stormfade-00010",
+      "desc": "Storm-descent fixture (operator report 2026-09-21): ONE fixed column, live weather ON, condition pinned to storm, coverage and type deliberately NOT pinned so the altitude ramp in frame_shells.rs applies. Walk the rungs and the cloud field must not change COVERAGE or, more importantly, POSITION. Predicted wx_fade at this rung is 1.00, so the storm floor and the placement cross-fade are applied at that strength.",
+      "camera": {
+        "body": "earth",
+        "lat": -15,
+        "lon": 165,
+        "time": 12,
+        "altitude_km": 10
+      },
+      "settle_s": 12,
+      "expect": "The same clouds in the same places at every rung, only nearer. A field that thickens toward the ground, or whose masses sit in different places between rungs, is the defect.",
+      "regressions": [
+        "panics=0"
+      ],
+      "hold_altitude": true,
+      "showcase": {
+        "clouds": "1",
+        "weather": "storm"
+      }
     }
   ],
   "ladder": {

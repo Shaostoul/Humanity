@@ -647,10 +647,15 @@ home's footprint is the acre and it is correct, and NPCs come after the loops.
    climate, published from `lib.rs` as `crop_growth_speed`, and exposed in
    Settings > Gameplay. Tier A item 3 is unblocked.
 
-   **Offline growth is a separate, still-open want**, not part of this answer.
-   The operator liked it and was unsure where it belongs: "I like the idea of
-   offline growth but, that may be most applicable to MMO. Could be single player
-   too." It needs its own decision and its own increment.
+   **Offline progression was then ANSWERED too, 2026-09-21, and is broader than
+   crops.** A toggle on single player, multiplayer and MMO; elapsed real time since
+   last login; and deliberately NOT a farming feature: "We should set that feature to
+   be able to work for multiple things, like crafting. Certain craft jobs could take
+   forever." The fiction that justifies it is the operator's: "the player character is
+   continuing to live their life while the human is not playing. Kind of like a dual
+   lives of the same person being lived." It is also what makes 1x a real choice:
+   "I think this is where the 1x speed makes perfect sense for long form gameplay."
+   Designed in `docs/design/offline-progression.md`, not yet built.
 2. **Do the 3D models ship with the release?** Adding `assets/models/` and
    `assets/textures/` puts 269 MB into every download. Alternatives are shipping a
    curated subset, or a first-run asset fetch. Until this is answered no art work
