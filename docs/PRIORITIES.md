@@ -299,6 +299,61 @@ mathematics says the sensitivity peaks. That is a strong hint that the fix
 belongs in how `tau_sun` is sampled at grazing angles rather than in any
 downstream filter.
 
+### 2a-i. THE OPERATOR DECISION: frozen jitter costs 4.6x more grain at the dusk line
+
+This is his call, not the AI’s, because he ran the original experiment himself
+and chose the current setting. What is new is the price tag, which nobody had
+measured when he chose.
+
+Measured at `orbit-terminator-3000km`, band 5 (the dusk line), with the fizz
+taken by differencing two settled captures of the same camera in one boot
+(`orbit-terminator-3000km-b` exists for exactly that):
+
+| jitter | grain at the dusk line | fizz between settled frames |
+| --- | --- | --- |
+| **frozen** (shipped, v0.1253.2) | **40.38%** | **0.34%** |
+| animated per frame | **8.68%** | 2.09% |
+
+Animating the depth jitter cuts the grain 4.6x and raises the fizz 6x. Neither
+number existed in v0.1253.2: that decision was made on "temporal ON vs OFF
+changed only soft static vs sharp static", which was measured at a close camera
+and not at the terminator where the defect actually lives.
+
+**Why it works, and why it could not have worked before.** The accumulator
+averages history toward the current frame and is deep at rest (alpha 0.09 on
+88.8 percent of speckled pixels, measured with a diagnostic build). Averaging
+only removes noise that CHANGES between frames, and frozen jitters make a
+parked frame pixel-identical to the last, so a correctly functioning filter was
+averaging identical values and removing nothing. Animating the jitter gives it
+something to do, and at the terminator, where per-sample variance is enormous,
+that is worth 4.6x.
+
+**And it inverts the ranking of every other candidate.** The same two arms
+measured at noon and at the dusk line:
+
+| candidate | at noon | at the dusk line |
+| --- | --- | --- |
+| sun ladder on the unjittered grid | 1.80 to 1.54 (14% better) | 40.38 to 40.22 (**0.4%**) |
+| animated jitter | 1.80 to 1.64 (9% better) | 40.38 to **8.68** (78% better) |
+
+The candidate that looked BETTER at noon does essentially nothing where the
+defect lives, and the one that looked worse is the fix. Any grain candidate
+ranked at noon is ranked in the wrong regime.
+
+**The decision, stated so it can be answered in one line.** Is 2.09 percent
+frame-to-frame fizz an acceptable price for 4.6x less grain at the dusk line?
+If yes, the change is one line in `45-cloud-temporal.wgsl` (restore the fidx
+advance on the depth jitter hash) and the fizz should be re-judged by eye while
+parked, because 2.09 percent is small in absolute terms and film-grain crawl is
+perceptually loud. If no, the grain has to come out of the sun-term variance at
+grazing angles instead, and item 2b’s spatial filter becomes the lever (forcing
+it to full strength gave 1.80 to 0.89 at noon and has NOT been re-measured at
+the terminator).
+
+Not flipped unilaterally. He chose frozen deliberately after his own on/off
+experiment, and a look decision he made with his own eyes is not one to reverse
+from a metric behind his back.
+
 ### 2b. The grain itself, for when the brightness is fixed
 
 Kept because the measurements are real and were expensive, but do NOT work on
