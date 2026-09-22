@@ -170,3 +170,30 @@ and the one most able to make this mistake.
 
 If the live region count ever genuinely grows past a handful, the answer is a
 coarse spatial index or a per-frame cull to the visible cap, not a count uniform.
+
+## A second trap, found by wiring the first consumer (2026-09-21)
+
+Pick the ray's ground point as **where the ray meets the layer**, not as its
+closest approach to the body centre. For a NADIR ray those are not the same
+thing: the closest approach IS the centre, so `ro + rd * tca` is the zero vector
+and normalizing it yields garbage. Every nadir fixture then reads exactly zero
+influence.
+
+That failure is invisible from either side alone. The CPU instrument reported
+`influence_under_camera=1.000` while the render was unchanged, and it was the
+CONTRADICTION between the two that localised the bug to the boundary. That is
+what the 1 Hz `[EnvRegions]` line in `frame_shells.rs` is for, and why it stays:
+without it, "the region is not built" and "the region is built but the shader
+computes the wrong point to sample it at" look identical in a capture.
+
+In `cloud_march_core` the right value is `m0`, the slab entry distance, which is
+computed a few lines after the coverage read, so the resolve belongs after the
+slab interval rather than beside the material fetch.
+
+## Known gap, deliberate
+
+The sun-shadow cache bake and the profile bake in `45-cloud-temporal.wgsl` read
+`material.base_color.a` directly and do NOT yet apply the region floor. A storm
+therefore lights and self-shadows as though it carried the base coverage. It is
+a second-order error against a first-order fix, and wiring it wants its own
+measurement rather than being folded in unmeasured.

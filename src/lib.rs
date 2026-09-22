@@ -1929,6 +1929,7 @@ mod native_app {
                 cloud_ref_frame: None,
                 cloud_map_anchor: None,
                 cloud_map_reanchors: 0,
+                weather_anchor: None,
                 cloud_map_regime: 0,
                 cloud_prev_cam_local: None,
                 cloud_prev_spin: None,
@@ -10937,6 +10938,7 @@ mod native_app {
                                             cloud_event_tint: &state.cloud_event_tint,
                                             cloud_map_anchor: &mut state.cloud_map_anchor,
                                             cloud_map_reanchors: &mut state.cloud_map_reanchors,
+                                            weather_anchor: &mut state.weather_anchor,
                                             cloud_map_regime: &mut state.cloud_map_regime,
                                             cloud_prev_cam_local:
                                                 &mut state.cloud_prev_cam_local,

@@ -851,6 +851,12 @@ pub(crate) struct EngineState {
     /// RATE is the re-anchor thrash that makes the sky regenerate while
     /// flying; see the re-anchor test in lib.rs.
     pub(crate) cloud_map_reanchors: u32,
+    /// Where the current weather system SITS, as a planet-local unit direction,
+    /// plus the condition it was placed for (v0.1329). Re-anchored only when the
+    /// condition CHANGES, so a storm stays where it appeared instead of following
+    /// the player. Before this the weather had no position at all, which is the
+    /// root of BUG-080.
+    pub(crate) weather_anchor: Option<(glam::Vec3, crate::systems::weather::WeatherCondition)>,
     /// Which extent regime the frozen params came from (12c): 0 = unset,
     /// 1 = above the deck (nadir anchor, shell-disc extent), 2 = inside
     /// the slab (zenith, full sphere), 3 = under the deck (zenith,

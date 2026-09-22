@@ -1275,7 +1275,7 @@ the page rendered correctly, the world loaded correctly, the only symptom was
 that the game would not start. What found it was driving the real build and
 reading one value back.
 
-## BUG-080: the cloud deck changes coverage AND position as you change altitude (open, diagnosed 2026-09-21)
+## BUG-080: the cloud deck changes coverage AND position as you change altitude (FIXED v0.1330.0)
 
 **Symptom:** the operator, descending toward Earth: "As I descend the clouds
 become 100% thick. From high orbit they look okay but, as I get closer to the
@@ -1322,6 +1322,42 @@ ground point instead of camera altitude, and delete `wx_fade`. Blocked on one
 new per-frame scalar with no free channel to carry it; the doc records which
 pads are actually taken (swizzles hide most of them) and why the uniform
 extension needs its own commit with a world-entry boot.
+
+**FIXED v0.1330.0.** Weather stopped being a global scalar faded by camera
+altitude and became an environment REGION with a position and a radius
+(`docs/design/environment-fields.md`). `wx_fade` is deleted; nothing in the
+cloud path reads camera altitude any more. The shader resolves the region once
+per ray at the point where the ray ENTERS the cloud slab and uses it for both
+the coverage floor and the placement weight.
+
+Measured on `stormfade-*`, one column, storm pinned, only altitude varying:
+
+| altitude | before | after |
+| --- | --- | --- |
+| 200 km | 72.3 | 200.6 |
+| 120 km | 63.3 | 201.9 |
+| 90 km | 62.3 | 202.5 |
+| 60 km | 61.5 | 202.5 |
+| 30 km | 203.2 | 202.7 |
+| 10 km | 200.8 | 201.0 |
+
+A 1 percent spread across the whole descent, against a 3.3x cliff before. The
+orbital guard holds too: 12,000 km is unchanged at 22.1 and 2,000 km moves
+106.1 to 107.8, so a local storm does NOT whiten the marble and the v0.1183
+artifact the altitude ramp existed to prevent has not come back.
+
+**Two bugs were found on the way and are worth keeping:**
+
+1. The anchor is sticky by design, so the rig pinned the weather and THEN flew
+   to the vantage, leaving the storm at the spawn point. A dev teleport now
+   re-places the weather, because a teleport is not travel.
+2. The ray's ground point must be the slab ENTRY, not its closest approach to
+   the body centre. For a nadir ray the closest approach IS the centre, so the
+   normalize was of a zero vector. Every nadir fixture read exactly zero
+   influence while the CPU instrument reported 1.0, and it was that
+   CONTRADICTION that localised it. The 1 Hz `[EnvRegions]` line in
+   `frame_shells.rs` exists for exactly this and stays.
+
 ## BUG-079: clouds from orbit rendered as black-and-white static at every quality (PARTIALLY fixed v0.1326.0, REOPENED 2026-09-20)
 
 **Symptom:** the operator, flying above the Earth: "the clouds look weird in

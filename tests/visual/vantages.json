@@ -11543,6 +11543,48 @@
         "clouds": "1",
         "weather": "storm"
       }
+    },
+    {
+      "id": "stormfade-02000",
+      "desc": "Storm-descent fixture, ORBITAL rung (added 2026-09-21 with the v0.1329 fix). Guards the OTHER artifact: v0.1183 was the same operator watching a local storm paint the ENTIRE planet 95 percent white from orbit, which is what the altitude ramp existed to prevent. A positioned region must show the storm as a PATCH here, not a white marble, while the low rungs stay full. A fix that makes the low rungs consistent by whitening the planet has just traded the bug back.",
+      "expect": "A storm-sized bright patch on the disc, with clear sky elsewhere. Not a uniformly white planet, and not an empty one.",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": -15,
+        "lon": 165,
+        "time": 12,
+        "altitude_km": 2000
+      },
+      "showcase": {
+        "clouds": "1",
+        "weather": "storm"
+      },
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "stormfade-12000",
+      "desc": "Storm-descent fixture, ORBITAL rung (added 2026-09-21 with the v0.1329 fix). Guards the OTHER artifact: v0.1183 was the same operator watching a local storm paint the ENTIRE planet 95 percent white from orbit, which is what the altitude ramp existed to prevent. A positioned region must show the storm as a PATCH here, not a white marble, while the low rungs stay full. A fix that makes the low rungs consistent by whitening the planet has just traded the bug back.",
+      "expect": "A storm-sized bright patch on the disc, with clear sky elsewhere. Not a uniformly white planet, and not an empty one.",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": -15,
+        "lon": 165,
+        "time": 12,
+        "altitude_km": 12000
+      },
+      "showcase": {
+        "clouds": "1",
+        "weather": "storm"
+      },
+      "settle_s": 12,
+      "hold_altitude": true
     }
   ],
   "ladder": {

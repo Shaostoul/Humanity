@@ -198,6 +198,15 @@ impl RegionKinds {
         ron::from_str(src)
     }
 
+    /// Byte-oriented parse, in the shape `engine::registries` wants so the
+    /// table loads through the SAME disk-first, embedded-fallback path as every
+    /// other registry rather than inventing a second way to read data.
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, String> {
+        let src = std::str::from_utf8(bytes)
+            .map_err(|e| format!("region_kinds.ron is not utf-8: {e}"))?;
+        Self::from_ron(src).map_err(|e| format!("region_kinds.ron: {e}"))
+    }
+
     /// Look a kind up by its stable id.
     pub fn by_id(&self, id: &str) -> Option<&RegionKind> {
         self.kinds.iter().find(|k| k.id == id)

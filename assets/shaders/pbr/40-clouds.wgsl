@@ -262,6 +262,20 @@ var<private> g_cloud_rt: f32 = CLOUD_RT;
 // the analytic shell-sphere hit is only right for cloud AT the shell -
 // worst inside the slab, which is exactly where the operator still saw
 // ghosting after the analytic cut.
+// ENVIRONMENT REGIONS, resolved ONCE PER RAY (v0.1329).
+//
+// The region buffer lives at group 0 binding 4 (see 00-bindings-vertex.wgsl).
+// env_influence_of_kind loops over the buffer CAPACITY, so calling it inside
+// the march would multiply that loop by the step count. Instead cloud_env_resolve
+// runs once where the ray is set up and leaves its answer here.
+//
+// These replace wx_fade, the camera-altitude ramp that caused BUG-080: the deck
+// filled in as the player descended and cross-faded its LAYOUT between two
+// unrelated patterns. A region weight depends on where the ray meets the ground,
+// never on where the camera is.
+var<private> g_env_cover: f32 = 0.0;
+var<private> g_env_place: f32 = 0.0;
+
 var<private> g_march_first_t: f32 = 0.0;
 // March iterations actually used by the last cloud_march_core call (dev
 // instrument: the flower-nadir ring forensics render this; costs one MOV).
@@ -1656,7 +1670,15 @@ fn cloud_layer_flat(world_position: vec3<f32>, front_facing: bool) -> vec4<f32> 
 
     let t = camera.sun_color.w; // the cloud clock (see header comment)
     let seed = material.params.x;
-    let coverage = material.base_color.a;
+    let coverage_base = material.base_color.a;
+    // Environment regions (v0.1329): resolve this ray's storm influence ONCE,
+    // here. The fragment direction IS the ground point for this shell.
+    // Replaces wx_fade, the camera-altitude ramp behind BUG-080.
+    cloud_env_resolve(dir);
+    // A storm raises coverage where it IS. max, not add: the region carries an
+    // absolute floor, so two overlapping systems cannot drive the deck past 1.
+    // Shadows the base value so every downstream use picks it up unchanged.
+    let coverage = max(coverage_base, g_env_cover);
 
     // ── THE FAR RUNG'S LOW SHEET (perf increment 4) ── when the profile
     // knob is on and the global map has completed its first pass (flag bit
@@ -1800,7 +1822,15 @@ fn cloud_layer_march(world_position: vec3<f32>, front_facing: bool) -> vec4<f32>
 
     let t = camera.sun_color.w; // the cloud clock (see header comment)
     let seed = material.params.x;
-    let coverage = material.base_color.a;
+    let coverage_base = material.base_color.a;
+    // Environment regions (v0.1329): resolve this ray's storm influence ONCE,
+    // here. dirf is the fragment direction, which is the ground point.
+    // Replaces wx_fade, the camera-altitude ramp behind BUG-080.
+    cloud_env_resolve(dirf);
+    // A storm raises coverage where it IS. max, not add: the region carries an
+    // absolute floor, so two overlapping systems cannot drive the deck past 1.
+    // Shadows the base value so every downstream use picks it up unchanged.
+    let coverage = max(coverage_base, g_env_cover);
 
     // Slab interval along the ray: inside the TOP sphere, outside the BASE
     // sphere, in front of the camera. Only the FIRST such interval is
@@ -2062,6 +2092,15 @@ fn cloud_weather_adv(dir: vec3<f32>, t: f32, seed: f32, drift_ang: f32, wlod: f3
     var bypass = clamp(pin, 0.0, 1.0);
     if (pin >= 1.5) {
         bypass = 1.0;
+    } else {
+        // Environment regions (v0.1329): a storm pulls placement toward the
+        // procedural field WHERE IT IS, because below coverage ~1 a live-zeroed
+        // MODIS cell cannot be resurrected by the coverage knob alone. This used
+        // to be wx_bypass faded by camera ALTITUDE, which cross-faded the cloud
+        // layout between two unrelated patterns as the player descended - the
+        // morphing half of BUG-080. g_env_place is resolved once per ray from the
+        // ground point, so descending changes nothing.
+        bypass = max(bypass, g_env_place);
     }
     let live_w = w.g * (1.0 - bypass);
     return mix(proc, live, live_w);
@@ -2172,6 +2211,32 @@ var<private> g_v2_w: f32 = 0.0;
 // 2 + tc = coverage AND type pin, and +4.0 on top of any of those means
 // "the temporal octa map is active" (a flag the pin decodes below must
 // ignore).
+// Resolve this ray's environment influence at the ground point it is heading
+// for. Call ONCE per ray, before the march.
+//
+// Deliberately NOT filtered by kind number: a region carries its own cloud
+// weights in params.xy, so a kind that should not touch the deck simply ships
+// zeros in the data file and the shader needs no table of kind constants. The
+// one structural filter is the altitude BAND: band 0 is the cloud slab, so a
+// ground-level fog bank cannot paint the deck seen from orbit.
+fn cloud_env_resolve(ground_dir: vec3<f32>) {
+    var cover = 0.0;
+    var place = 0.0;
+    let n = arrayLength(&env_regions);
+    for (var i = 0u; i < n; i = i + 1u) {
+        let r = env_regions[i];
+        // band 0 = the cloud slab. kind 0 is an empty row and
+        // env_region_influence already returns 0 for it.
+        if (r.kind_shape.w < 0.5) {
+            let w = env_region_influence(r, ground_dir);
+            cover = cover + w * r.params.x;
+            place = place + w * r.params.y;
+        }
+    }
+    g_env_cover = clamp(cover, 0.0, 1.0);
+    g_env_place = clamp(place, 0.0, 1.0);
+}
+
 fn cloud_pin_base() -> f32 {
     var w = material.params2.w;
     if (w >= 3.5) {
@@ -4573,7 +4638,7 @@ fn cloud_march_core(
 
     let t = camera.sun_color.w;
     let seed = material.params.x;
-    let coverage = material.base_color.a;
+    let coverage_base = material.base_color.a;
 
     // Slab interval along the ray (identical geometry to the Medium march).
     let tca = -dot(ro, rd);
@@ -4588,6 +4653,21 @@ fn cloud_march_core(
     if (m1 <= 0.0) {
         return vec4<f32>(0.0);
     }
+    // Environment regions (v0.1329): resolve this ray's storm influence ONCE,
+    // here, at the point where the ray ENTERS the cloud slab.
+    //
+    // It must be the slab entry and not the ray's closest approach to the body
+    // centre: for a NADIR ray those are not the same thing at all, because the
+    // closest approach IS the centre, so ro + rd * tca is the zero vector and
+    // normalizing it yields garbage. Every nadir fixture read exactly zero
+    // influence that way while the CPU instrument reported 1.0, which is what
+    // the [EnvRegions] line exists to catch.
+    // Replaces wx_fade, the camera-altitude ramp behind BUG-080.
+    cloud_env_resolve(normalize(ro + rd * m0));
+    // A storm raises coverage where it IS. max, not add: the region carries an
+    // absolute floor, so two overlapping systems cannot drive the deck past 1.
+    // Shadows the base value so every downstream use picks it up unchanged.
+    let coverage = max(coverage_base, g_env_cover);
     // Per-pixel regime split (v0.1244): content beyond the caller's
     // ownership range belongs to the octa map. Abstain before stepping when
     // the slab ENTRY is already past it; otherwise clamp the far end so

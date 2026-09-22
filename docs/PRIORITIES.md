@@ -39,54 +39,39 @@ Strict rank. Take the top item that is not marked CLAIMED. Everything below
 TIER 0 is real work that has not been ranked against these four; do not promote
 anything into this list without the operator.
 
-### 1. The cloud deck changes coverage AND POSITION with altitude (BUG-080)
+### 1. FIXED in v0.1330.0. Weather is a place now, not a global (BUG-080)
 
-The operator, 2026-09-21: "As I descend the clouds become 100% thick ... it is
-very immersion breaking for it to morph instead of remaining consistent in its
-positioning." This is his active complaint and it is fully diagnosed and
-reproduced; it is not the same defect as the static below.
+Kept at the top for one more pass because the arc it opened is not finished.
 
-`frame_shells.rs` fades the weather condition's coverage floor AND its PLACEMENT
-bypass by camera altitude (`wx_fade`, nothing above 120 km, full below 30 km).
-The bypass chooses between two unrelated spatial layouts, so descending
-cross-fades the cloud positions. Root cause is that `weather.rs` holds ONE
-condition for the whole body with no position or extent, so the ramp is standing
-in for a spatial term that does not exist.
+The operator's "it morphs instead of remaining consistent in its positioning"
+is closed. `wx_fade` is deleted, nothing in the cloud path reads camera altitude,
+and the weather condition rides an environment region with a position and a
+radius. Measured on `stormfade-*`: the descent column is flat within 1 percent
+(200.6 / 201.9 / 202.5 / 202.5 / 202.7 / 201.0 at 200 / 120 / 90 / 60 / 30 /
+10 km) against a 3.3x cliff before, and 12,000 km is unchanged at 22.1 so the
+marble is not whitened. See BUG-080 and `docs/design/environment-fields.md`.
 
-Measured with `stormfade-*` (one column, storm pinned, only altitude varies):
-mean centre-crop luminance 72.3 / 63.3 / 62.3 / 61.5 at 200 / 120 / 90 / 60 km,
-then **203.2 at 30 km**. At 60 km the HUD says Storm over empty ocean; at 30 km
-the frame is a cloud carpet. `covladder-*` pins coverage and type and stays flat
-all the way down, which is what rules the renderer out.
+**What remains on this arc, in order:**
 
-**Fix designed: `docs/design/weather-spatial-extent.md`.** Give a weather system
-a position and radius, weight by distance from the sample's ground point rather
-than camera altitude, delete `wx_fade`.
+1. **Aurora** (operator asked for it directly, 2026-09-21: "It'd be great to get
+   the aurora working to add aesthetic appeal to the Earth in screenshots"). The
+   second consumer of the region buffer, genuinely latitude-shaped, and the
+   cheapest visually rewarding thing the mechanism now makes possible.
+2. **Disasters through the buffer.** `disasters.rs` already stores position,
+   radius and intensity and nothing outside that file reads them, so a wildfire
+   is invisible. Needs a consumer to be worth anything, which is why it now
+   ranks below aurora rather than above it.
+3. **The bake gap.** The sun-shadow cache and profile bakes in
+   `45-cloud-temporal.wgsl` read the base coverage and do not apply the region
+   floor, so a storm lights and self-shadows as though it were not there. A
+   second-order error against a first-order fix; wants its own measurement.
+4. **Layer 1**: temperature, pressure and wind as analytic fields with locked
+   CPU and GPU twins. This is what makes the rest of the inventory in the design
+   doc (humidity, fog, snow line, outbreaks, pollution, light pollution, ocean
+   currents) reachable.
 
-**NO LONGER BLOCKED.** The missing channel was the real obstacle, and the
-operator's answer to it ("can we modularize/layer the params thing so we don't
-max it out?") turned into a general mechanism rather than one more scalar:
-`docs/design/environment-fields.md`. Environment regions are an uncapped storage
-buffer of 48-byte records at group 0 binding 4, the same shape v0.782 gave scene
-lights, so every positioned environmental effect shares one channel and adding a
-kind costs a row in a data file.
-
-Remaining increments, in order:
-
-1. ~~The plumbing~~ (`src/renderer/env_regions.rs`, binding 4, all three
-   `create_bind_group` sites, the WGSL struct and influence functions,
-   `data/environment/region_kinds.ron`, 7 tests including one pinning the WGSL
-   struct against the Rust record). BUILT. The buffer is bound and uploadable
-   and NOTHING READS IT YET.
-2. Feed `disasters.rs` through it. That file already stores position, radius and
-   intensity per active disaster and nothing outside it reads them, so a
-   wildfire is invisible today. Cheapest end-to-end proof of the path.
-3. Move the weather condition onto regions and delete `wx_fade`. The
-   `stormfade-*` column going flat is the proof.
-
-**Trap for whoever wires the first consumer:** `env_influence_of_kind` loops
-over the buffer capacity, so evaluate it ONCE PER RAY at the ground point, never
-per march sample. The design doc says why.
+**Do not re-propose:** a weight that reads camera altitude, distance, or how
+much of the planet is on screen. That is the defect class, not a tuning knob.
 ### 2. The orbital TV-static: a LIGHTING defect, bisected to the direct-sun term
 
 Rewritten 2026-09-20 after measuring it. The previous entry called 2000 km

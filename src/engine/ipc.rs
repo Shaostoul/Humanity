@@ -686,6 +686,9 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
         state.gui_state.weather_manual = true;
         state.gui_state.weather_pick_condition = cond;
         state.gui_state.weather_pick_intensity = intensity;
+        // Pinning a condition places it HERE. Without this the pin would adopt
+        // whatever anchor the previous condition left behind.
+        state.weather_anchor = None;
         log::info!("Showcase: weather -> {w}");
     }
     // Optional "lights":"500": N camera-pinned test point lights (clustering
@@ -2522,6 +2525,11 @@ pub(crate) fn poll_camera_request(state: &mut EngineState) {
             );
             state.frame_lock_last_spin = spin;
             state.frame_lock_body = Some(body_id.clone());
+            // Dev teleport: re-place the weather system here. The anchor is sticky by
+            // design so a storm stays put as you fly through it (BUG-080), but a teleport
+            // is not flying, and leaving the storm at the old spawn point is how a storm
+            // fixture ends up measuring clear sky under a Storm HUD.
+            state.weather_anchor = None;
         }
         // Probe hold (increment 2): pin the parked POSITION (grace-period
         // tracked - see the field doc) so gravity or buoyancy cannot drag
@@ -2586,6 +2594,11 @@ pub(crate) fn poll_camera_request(state: &mut EngineState) {
             crate::dev_travel::frame_lock_capture(body_rel_earth, spin, vantage + cam_local);
         state.frame_lock_last_spin = spin;
         state.frame_lock_body = Some(body_id.clone());
+        // Dev teleport: re-place the weather system here. The anchor is sticky by
+        // design so a storm stays put as you fly through it (BUG-080), but a teleport
+        // is not flying, and leaving the storm at the old spawn point is how a storm
+        // fixture ends up measuring clear sky under a Storm HUD.
+        state.weather_anchor = None;
     }
     // Probe hold (increment 2): pin the parked pose - see the field doc
     // in engine::state. The frame-lock ride still carries the FRAME; this

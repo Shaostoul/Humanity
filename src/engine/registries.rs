@@ -76,6 +76,17 @@ pub(crate) fn load_data_registries(store: &mut DataStore, data_dir: &std::path::
         "plant_registry",
         crate::systems::farming::PlantRegistry::from_csv,
     );
+
+    // Environment region kinds (v0.1329). Same loader as every other registry:
+    // it is bytes in, parsed table out, so the RON gets disk-first modding and
+    // the embedded fallback for free. Absent = no regions, which is inert rather
+    // than broken. See docs/design/environment-fields.md.
+    load_csv_registry(
+        store,
+        data_dir.join("environment").join("region_kinds.ron"),
+        "region_kinds",
+        crate::renderer::env_regions::RegionKinds::from_bytes,
+    );
     load_csv_registry(
         store,
         data_dir.join("status_effects.csv"),

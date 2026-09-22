@@ -102,6 +102,12 @@ pub(crate) struct ShellState<'a> {
     pub cloud_map_anchor: &'a mut Option<(glam::Vec3, f32)>,
     /// How many times that anchor has moved this session.
     pub cloud_map_reanchors: &'a mut u32,
+    /// Where the current weather system SITS, as a planet-local unit direction,
+    /// plus the condition it was placed for. Re-anchored only when the condition
+    /// CHANGES, so weather stays where it appeared instead of following the
+    /// player around. Replaces nothing: before v0.1329 the weather had no
+    /// position at all, which is the root of BUG-080.
+    pub weather_anchor: &'a mut Option<(glam::Vec3, crate::systems::weather::WeatherCondition)>,
     /// Which slab regime (above / inside / below) the march ran in last
     /// frame, so the transition is hysteretic instead of flickering.
     pub cloud_map_regime: &'a mut u8,
@@ -324,22 +330,36 @@ if let Some(cov) = d.cloud_coverage.filter(|c| *c > 0.0 && clouds_on) {
     // coverage ~1 a live-zeroed field
     // cannot be resurrected by the
     // coverage knob alone.
-    let (wx_floor, wx_bypass) = state
+    // ── WEATHER AS A PLACE, NOT A GLOBAL (v0.1329, fixes BUG-080) ──
+    //
+    // The condition used to map to a pair of scalars here and then get faded by
+    // CAMERA ALTITUDE, which made the deck fill in as the player descended and
+    // cross-faded the cloud LAYOUT between two unrelated patterns. Both numbers
+    // now ride an environment REGION with a position and a radius, and the shader
+    // weights them by distance from the ground point each ray is heading for.
+    // Nothing here reads the camera any more.
+    //
+    // The WEIGHTS live in data/environment/region_kinds.ron, because a hardcoded
+    // table of tunable domain values is what infinite-of-x forbids. The mapping
+    // from the sim's enum to a kind id below is still code, and that is fine: it
+    // is a name for a variant, not a number anyone would want to tune.
+    let condition = state
         .data_store
         .get::<std::sync::Mutex<Weather>>("weather")
         .and_then(|m| m.lock().ok())
-        .map(|w| {
-            use crate::systems::weather::WeatherCondition as WC;
-            match w.condition {
-                WC::Storm => (0.95, 0.95),
-                WC::Rain => (0.85, 0.85),
-                WC::Snow => (0.85, 0.85),
-                WC::Cloudy => (0.55, 0.5),
-                WC::Fog => (0.45, 0.35),
-                _ => (0.0, 0.0),
-            }
-        })
-        .unwrap_or((0.0, 0.0));
+        .map(|w| (w.condition, w.intensity));
+    let kind_id = condition.map(|(c, _)| {
+        use crate::systems::weather::WeatherCondition as WC;
+        match c {
+            WC::Storm => "storm",
+            WC::Rain => "rain",
+            WC::Snow => "snow",
+            WC::Cloudy => "cloudy",
+            WC::Fog => "fog",
+            WC::Sandstorm => "sandstorm",
+            _ => "",
+        }
+    });
     // ...but the sim's weather is a POINT
     // sample at the player, so its floor
     // fades out with altitude: from high
@@ -349,23 +369,91 @@ if let Some(cov) = d.cloud_coverage.filter(|c| *c > 0.0 && clouds_on) {
     // authority below ~30 km (the sky
     // you are actually under), gone by
     // ~120 km, where the view spans
-    // weather systems the sim knows
-    // nothing about - the MODIS field
-    // owns the marble.
-    let h_km = (cam_r_ratio as f32 - 1.0).max(0.0)
-        * (d.radius / 1000.0) as f32;
-    let wx_fade =
-        (1.0 - (h_km - 30.0) / 90.0).clamp(0.0, 1.0);
-    let (wx_floor, wx_bypass) =
-        (wx_floor * wx_fade, wx_bypass * wx_fade);
+    // wx_fade DELETED (v0.1329), and h_km with it: that altitude was computed
+    // for nothing else. It was
+    // (1.0 - (h_km - 30.0) / 90.0).clamp(0.0, 1.0), a pure camera-altitude
+    // term applied to both the coverage floor and the placement blend. It
+    // existed because a global condition painted the whole planet from orbit
+    // (v0.1183); a positioned region cannot do that, so the ramp has nothing
+    // left to protect against. See docs/design/weather-spatial-extent.md.
     // Dev/showcase coverage pin wins over
     // the live weather + event boost (see
     // EngineState::cloud_cover_override).
-    let cov_eff = state.cloud_cover_override.unwrap_or(
-        (cov + state.cloud_event_boost)
-            .max(wx_floor)
-            .min(1.0),
-    );
+    // No weather floor here any more: the storm raises coverage in the SHADER,
+    // where the region is weighted by the ray's own ground point.
+    let cov_eff = state
+        .cloud_cover_override
+        .unwrap_or((cov + state.cloud_event_boost).min(1.0));
+
+    // ── UPLOAD THIS BODY'S ENVIRONMENT REGIONS (v0.1329) ──
+    //
+    // One weather system, anchored where it APPEARED rather than wherever the
+    // player happens to be now: the anchor is replaced only when the condition
+    // changes. That is what makes descending change nothing, which is the whole
+    // point of BUG-080.
+    //
+    // Uploaded for the cloud-bearing body in view. Two such bodies on screen at
+    // once would have the last one win, the same first-body-wins convention the
+    // sun cache and the profile feed already use.
+    {
+        use crate::renderer::env_regions::{EnvRegion, RegionKinds};
+        let mut regions: Vec<EnvRegion> = Vec::new();
+        if let (Some((cond, intensity)), Some(id)) = (condition, kind_id) {
+            if !id.is_empty() {
+                // Re-anchor ONLY on a condition change.
+                let stale = match state.weather_anchor.as_ref() {
+                    Some((_, placed_for)) => *placed_for != cond,
+                    None => true,
+                };
+                if stale {
+                    // The ground point under the camera, in the BODY'S own frame,
+                    // so the system stays over its geography as the planet spins.
+                    let to_cam = state.camera.effective_position() - position;
+                    let w = to_cam.normalize_or_zero();
+                    let local = rotation.inverse()
+                        * glam::Vec3::new(w.x as f32, w.y as f32, w.z as f32);
+                    *state.weather_anchor = Some((local.normalize_or_zero(), cond));
+                }
+                if let (Some(table), Some((dir, _))) = (
+                    state.data_store.get::<RegionKinds>("region_kinds"),
+                    *state.weather_anchor,
+                ) {
+                    if let Some(kind) = table.by_id(id) {
+                        regions.push(kind.region_at(
+                            [dir.x, dir.y, dir.z],
+                            (d.radius / 1000.0) as f32,
+                            intensity,
+                        ));
+                    }
+                }
+            }
+        }
+        // [EnvRegions] 1 Hz instrument. Permanent, not scaffolding: this is the
+        // only place that can say whether the CPU built a region at all, and the
+        // difference between "no region" and "a region the shader cannot see" is
+        // otherwise invisible in a capture. Same convention as [CloudRegime].
+        {
+            let now = state.start_time.elapsed().as_secs_f32();
+            if now.floor() as u32 % 2 == 0 && !regions.is_empty() {
+                let r = regions[0];
+                // The influence directly under the camera. This SHOULD read about
+                // the intensity: the anchor was placed at the camera's own ground
+                // point. A low number here means the anchor and the shader
+                // disagree about which frame they are in.
+                let to_cam = state.camera.effective_position() - position;
+                let wv = to_cam.normalize_or_zero();
+                let local = rotation.inverse()
+                    * glam::Vec3::new(wv.x as f32, wv.y as f32, wv.z as f32);
+                let here = r.influence([local.x, local.y, local.z]);
+                log::info!(
+                    "[EnvRegions] n={} kind={} dir=({:.3},{:.3},{:.3}) rad={:.4} intensity={:.2} cover={:.2} place={:.2} influence_under_camera={:.3}",
+                    regions.len(), r.kind, r.dir[0], r.dir[1], r.dir[2],
+                    r.angular_radius, r.intensity, r.params[0], r.params[1], here,
+                );
+            }
+        }
+        state.renderer.set_env_regions(&regions);
+    }
     // params2 FIRST so the full-uniform
     // write below carries the fresh slab
     // bounds (update_material_full writes
@@ -405,7 +493,10 @@ if let Some(cov) = d.cloud_coverage.filter(|c| *c > 0.0 && clouds_on) {
         (true, Some(tc)) => 2.0 + tc.clamp(0.0, 1.0),
         (true, None) => 1.0,
         _ if !state.gui_state.settings.live_weather => 1.0,
-        _ => wx_bypass,
+        // Live weather ON: pure MODIS placement at EVERY altitude. The storm's
+        // pull toward the procedural field is a REGION now (g_env_place), so it
+        // applies where the storm is instead of where the camera is.
+        _ => 0.0,
     };
     // Temporal accumulation, armed at
     // ALL altitudes (12c): the extent-
