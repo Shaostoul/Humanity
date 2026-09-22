@@ -76,7 +76,110 @@ marble is not whitened. See BUG-080 and `docs/design/environment-fields.md`.
 
 **Do not re-propose:** a weight that reads camera altitude, distance, or how
 much of the planet is on screen. That is the defect class, not a tuning knob.
-### 2. The orbital TV-static: a LIGHTING defect, bisected to the direct-sun term
+### 2. THE CLOUDS ARE TOO DARK. The static is its symptom, not the defect
+
+**Rewritten 2026-09-22 after measuring the thing nobody had measured.** Seven
+hypotheses had been refuted, all of them about NOISE. The framing was wrong.
+Read this before spending anything on the grain.
+
+At `approach-2000km-high` (lat 23, lon 13, NOON over the Sahara), measured off
+the captures by mean luminance, low-saturation pixels against warm pixels:
+
+| tier | cloud L | terrain L | cloud / terrain |
+| --- | --- | --- | --- |
+| **High, the DEFAULT tier** | 120.1 | 175.0 | **0.69** |
+| Low | 189.2 | 175.9 | **1.08** |
+
+Same camera, same sun, same clock. The terrain luminance is the control and it
+is unchanged (175.0 against 175.9), so the tiers differ in the CLOUDS alone.
+
+High renders a daylit cloud deck 31 percent DARKER than the desert under it.
+That is wrong on physics and needs no reference render to say so: cloud albedo
+is about 0.7 to 0.9, Sahara sand about 0.35, so cloud must come out BRIGHTER
+than desert. It does on Low (1.08) and does not on the tier every user gets.
+
+**This reframes the whole arc.** The operator described it in v0.1252 as
+"awfully dark and white in spots to the point of looking like old TV static",
+and the DARK half of his sentence was read as a description of noise rather
+than as a second symptom. A direct-sun term that mostly fails and occasionally
+succeeds produces exactly this: a dark deck with bright speckles. The bisect
+that found channel 2 (direct-sun luminance) GRAINY was right about the channel
+and probably wrong about the reading. Grainy is what a mostly-missing term
+looks like.
+
+It also explains what the noise work could not. Low is not merely cleaner, it
+is BRIGHTER, and no amount of filtering turns a dark deck into a lit one.
+Every upstream knob tried moved the grain by 9 to 14 percent because the grain
+is a second-order symptom of the missing energy.
+
+**The next question is therefore about brightness, not noise.** Why does the
+High/Ultra screen march lose about 37 percent of the cloud radiance Low
+produces at the same camera? Candidates, in order of how cheaply they can be
+told apart:
+
+1. The direct-sun term is being attenuated or dropped on the screen-march path
+   in a way the direct shell path (Low) does not do. The two arms are shaded
+   separately (`full` / arm A and the profile arm B in `cloud_march_core`), and
+   their blend is the obvious place for energy to go missing.
+2. `tau_sun` is systematically too LARGE, over-shadowing the deck. The cone
+   spread control is suggestive: widening the cone to 2.50 brightened nothing,
+   it DARKENED the frame further (mean L 128.8 to 119.9), so more occlusion
+   sampling means more darkening, and the deck is already over-occluded.
+3. Multiple scattering. A real deck is bright because photons bounce inside it
+   many times; a single-scattering march with Beer-Lambert extinction and no
+   multi-scatter compensation is DARK by construction. `g_ms_on` exists and is
+   bit-gated; check whether it is on at this range.
+
+Measure with the cloud-versus-terrain luminance ratio above, not with the
+speckle census. The target is a ratio above 1.0 at noon.
+
+### 2b. The grain itself, for when the brightness is fixed
+
+Kept because the measurements are real and were expensive, but do NOT work on
+this until item 2 is resolved, because the grain may substantially be its
+symptom.
+
+Two filters exist and both are inert on the pixels that are speckled, measured
+with a diagnostic build that made the resolve return `vec4(noise_w, alpha,
+sig * 4, 1)`:
+
+| quantity | measured | what the shader assumes |
+| --- | --- | --- |
+| `alpha` (temporal blend) | 0.091, deep on 88.8% | 0.12 at rest, correct |
+| `noise_w` (spatial filter) | 0.094, strongly engaged on 1.3% | near 1 on noise |
+| `sig` | **0.0185** | the absolute gate wants 0.25 |
+
+So the temporal filter is deep and correct, and averages frames that v0.1253.2
+froze to be pixel-identical, which removes nothing. The spatial filter that
+exists to cover that case is off: its absolute gate `smoothstep(0.10, 0.30,
+sig)` returns exactly 0.000 at a measured sig of 0.0185, thirteen times below
+threshold. Effective strength on a speckled pixel is `0.094 * 0.35 = 0.034`.
+
+Two arms were then built and measured, and the second is the useful one:
+
+| arm | speckle | mean L |
+| --- | --- | --- |
+| baseline | 1.80% | 128.8 |
+| relative gate widened to 0.06-0.28 | 1.75% | 128.8 |
+| **spatial filter FORCED to full (`cur_s = mu`)** | **0.89%** | 129.4 |
+
+Widening the gate did almost nothing and that refuted a stated prediction of
+~1.3%, so the gate is not the binding constraint. Forcing full strength halves
+the grain with NO brightness change and, checked by eye on a zoom, with cloud
+silhouettes and terrain detail intact. The binding constraint is therefore the
+strength cap `mix(0.35, 0.75, shallow)`: at deep alpha, which is exactly where
+the noise lives, the spatial filter is capped at 0.35 BECAUSE it defers to the
+temporal filter, and the temporal filter cannot work while the jitter is
+frozen. The two filters each stand down for the other.
+
+So the eventual fix is a pair, not a single knob: either un-freeze the jitter
+(restoring what the temporal filter needs, and re-running the operator own
+v0.1253 fizz experiment) or raise the deep-alpha spatial strength. Full
+strength is 0.89% against Low 0.63%, so it is most of the way. Do not ship a
+noise tweak first: it would mask item 2.
+
+### 2c. The original bisect, kept for its refuted list
+
 
 Rewritten 2026-09-20 after measuring it. The previous entry called 2000 km
 "much improved but not clean" and pointed at the far-rung sampling story. Both

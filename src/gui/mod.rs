@@ -3703,7 +3703,44 @@ impl Default for GuiState {
             cloud_dev_relief_fade: false,
             cloud_dev_deep_rung: false,
             cloud_dev_checker: false,
-            cloud_dev_ms: false,
+            // ── MULTIPLE SCATTERING, ON BY DEFAULT (v0.1331.8) ──
+            //
+            // Built v0.1288 behind this bit and left OFF with the note "stays
+            // off until the interior gate is met by physics": at a close
+            // camera the in-cloud mean reached 58 against a physical target
+            // of 135 or more, so it was judged insufficient FOR THE INTERIOR.
+            //
+            // Nobody then asked what it does from ORBIT, and the answer is
+            // that its absence was a physics violation on the DEFAULT tier.
+            // Measured at approach-2000km-high, noon over the Sahara, with
+            // the terrain in the same frame as the control:
+            //
+            //   off  cloud 120.1  terrain 174.9  ratio 0.69
+            //   on   cloud 187.4  terrain 175.3  ratio 1.07
+            //   Low tier, for reference             ratio 1.08
+            //
+            // Cloud albedo is 0.7 to 0.9 and Sahara sand about 0.35, so a
+            // daylit deck MUST read brighter than the desert under it. It did
+            // not. A single-scattering Beer-Lambert march is dark by
+            // construction, because what makes a real cloud bright is photons
+            // bouncing inside it many times, which is precisely this term.
+            //
+            // It also cut the orbital speckle 1.76 to 1.00 percent with NO
+            // change to any filter, which is what identified that grain as
+            // largely a SYMPTOM of the missing energy rather than a defect of
+            // its own (docs/PRIORITIES.md item 2).
+            //
+            // Cost, from armed GPU timestamps rather than the present-capped
+            // frame time: gpu.cloud_screen 5.78 ms off against 5.76 ms on. It
+            // is free because it is an analytic Eddington two-stream source,
+            // not extra marching.
+            //
+            // The interior gate it was parked for is still NOT met: the close
+            // camera moves 49.9 to 108.3 against that 135+ target. That is a
+            // real improvement and an unfinished one, and its own commit says
+            // why - the modelled deck is optically thinner than a real cumulus
+            // (tau 13 against 27), so the rest is field density work.
+            cloud_dev_ms: true,
             cloud_dev_field: false,
             cloud_dev_body_cache: true,
             cloud_dev_step_eco: 1.0,
@@ -3712,7 +3749,12 @@ impl Default for GuiState {
             cloud_dev_profile_knob: 0,
             // D3 dev bit: off until its gate passes (the A/B default).
             cloud_dev_top_bound: false,
-            cloud_dev_ms_gain: 0.0,
+            // Unit gain. Chosen because it lands the cloud-to-terrain ratio at
+            // 1.07 against Low tier own 1.08, i.e. it matches an independent
+            // path rather than being tuned to taste. Gain 2.0 was measured too
+            // (ratio 1.16) and is brighter than the reference, so it is not the
+            // physical value.
+            cloud_dev_ms_gain: 1.0,
             cloud_dev_int_sat: 0.0,
             cloud_dev_res_div: 4,
             cloud_dev_shape_off: false,

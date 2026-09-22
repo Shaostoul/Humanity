@@ -11744,6 +11744,66 @@
       "showcase": {"cloud_quality":"low","clouds":"1","cloud_cover":"0.4"},
       "settle_s": 12,
       "hold_altitude": true
+    },
+    {
+      "id": "orbit-2000-high-ms",
+      "desc": "The multiple-scattering arm of approach-2000km-high (v0.1331.8). Identical camera and tier, with cloud_ms on and a unit gain. It exists to answer the question that reframed the TV-static arc: High tier renders daylit cloud at 0.69 of the terrain luminance while Low renders 1.08, and multiple scattering is off by default (renderer/mod.rs ships cloud_ms false and cloud_ms_gain 0), which is exactly the term that makes a real cloud deck brighter than the ground under it.",
+      "expect": "Measured with scripts/cloud-brightness.js against approach-2000km-high: the cloud-to-terrain ratio rises toward or past 1.0 while the TERRAIN luminance is unchanged. Terrain is the control; if it moves, the arm changed something other than the cloud lighting and the comparison is void.",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12.02,
+        "altitude_km": 2000
+      },
+      "showcase": {"cloud_quality":"high","clouds":"1","cloud_cover":"0.4","cloud_ms":"1","cloud_ms_gain":"1.0"},
+      "settle_s": 8,
+      "hold_altitude": true
+    },
+    {
+      "id": "orbit-2000-high-ms2",
+      "desc": "Same as orbit-2000-high-ms with gain 2.0, to see whether the term is merely present-but-weak or genuinely absent. A gain sweep separates a missing contribution from an under-tuned one.",
+      "expect": "Measured with scripts/cloud-brightness.js against approach-2000km-high: the cloud-to-terrain ratio rises toward or past 1.0 while the TERRAIN luminance is unchanged. Terrain is the control; if it moves, the arm changed something other than the cloud lighting and the comparison is void.",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12.02,
+        "altitude_km": 2000
+      },
+      "showcase": {"cloud_quality":"high","clouds":"1","cloud_cover":"0.4","cloud_ms":"1","cloud_ms_gain":"2.0"},
+      "settle_s": 8,
+      "hold_altitude": true
+    },
+    {
+      "id": "closeup-ms-off",
+      "desc": "The near-range control for the multiple-scattering default question (v0.1331.8). cloud_ms was parked OFF by its own commit with the note that it stays off until the INTERIOR gate is met by physics, and that gate was judged at a close camera. From orbit it fixes a physics violation (cloud darker than desert), so the honest question is whether turning it on harms the near look it was parked for. Same camera as cumulus-closeup-high.",
+      "expect": "Cloud structure and contrast comparable to cumulus-closeup-high, not washed out. This is a LOOK check; the orbit ratio is measured elsewhere.",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {"body":"earth","lat":24,"lon":14,"altitude_km":2.6,"look_offset_deg":62,"time":10.5},
+      "showcase": {"cloud_quality":"high","clouds":"1","cloud_cover":"0.55","cloud_type":"0.46","weather":"clear","cloud_clock":"120"},
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "closeup-ms-on",
+      "desc": "The near-range control for the multiple-scattering default question (v0.1331.8). cloud_ms was parked OFF by its own commit with the note that it stays off until the INTERIOR gate is met by physics, and that gate was judged at a close camera. From orbit it fixes a physics violation (cloud darker than desert), so the honest question is whether turning it on harms the near look it was parked for. Same camera as cumulus-closeup-high.",
+      "expect": "Cloud structure and contrast comparable to cumulus-closeup-high, not washed out. This is a LOOK check; the orbit ratio is measured elsewhere.",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {"body":"earth","lat":24,"lon":14,"altitude_km":2.6,"look_offset_deg":62,"time":10.5},
+      "showcase": {"cloud_quality":"high","clouds":"1","cloud_cover":"0.55","cloud_type":"0.46","weather":"clear","cloud_clock":"120","cloud_ms":"1","cloud_ms_gain":"1.0"},
+      "settle_s": 12,
+      "hold_altitude": true
     }
   ],
   "ladder": {
