@@ -742,12 +742,32 @@ fn atmosphere_scattering(world_position: vec3<f32>, front_facing: bool) -> vec4<
     // the radiance back out of the alpha so exactly `mapped` lands on
     // screen. Both terms go to zero together for thin air, so the ratio
     // stays finite; the clamp guards the pathological alpha -> 0 corner.
-    let alpha_a = max(alpha_occ, aurora_lum);
-    let rgb = clamp(mapped_a / max(alpha_a, 1.0e-3), vec3<f32>(0.0), vec3<f32>(1.0));
-    // rgb keeps the ORIGINAL alpha (its colour + brightness); scaling only the
-    // returned alpha by haze_scale dims the additive in-scatter and clears the
-    // surface together, and is a no-op wherever haze_scale == 1.
-    return vec4<f32>(rgb, alpha_a * haze_scale);
+    // ── THE AURORA MUST NOT BE TRIMMED BY THE HAZE SCALE (operator, 2026-09-22) ──
+    //
+    // "the aurora seems kind of dark ... over the land it is almost
+    // imperceptibly dark. Are we properly applying emissiveness to the aurora?"
+    //
+    // No, we were not. haze_scale is the low-altitude AERIAL PERSPECTIVE trim:
+    // it exists so scattered haze does not wash out terrain, and it is keyed on
+    // edge_surf, which is about 1 for a ray looking STEEPLY DOWN at the ground
+    // and 0 for a grazing limb ray. The blend delivers rgb * alpha_out, and with
+    // the aurora folded into mapped before the divide that came out as
+    // (mapped + aurora) * haze_scale, so the aurora was cut to ATMO_NEAR_HAZE
+    // (0.45) wherever the view looked down at the surface and was full strength
+    // only near the limb. That reads as an aurora that works on the edge of the
+    // disc and vanishes under you.
+    //
+    // Aerial perspective is a statement about SCATTERED light between the eye
+    // and a surface. Emission is not scattered light and has no business being
+    // trimmed by it, so the two terms are now scaled separately: haze_scale
+    // applies to `mapped` alone, and the aurora is delivered whole.
+    //
+    // Reduces to the old expression exactly when aurora == 0.
+    let haze_occ = alpha_occ * haze_scale;
+    let alpha_a = max(haze_occ, aurora_lum);
+    let delivered = mapped * haze_scale + aurora;
+    let rgb = clamp(delivered / max(alpha_a, 1.0e-3), vec3<f32>(0.0), vec3<f32>(1.0));
+    return vec4<f32>(rgb, alpha_a);
 }
 
 
