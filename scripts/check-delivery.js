@@ -58,16 +58,24 @@ function cargoVersion() {
 
 // Newest mtime under the trees that change what the exe DOES.
 //
-// Shaders are NOT in this set, and the reason is worth knowing. They are
-// include_str! embedded at compile time, but shader_loader prefers a
-// assets/shaders/ directory found beside the exe or up its parent chain
-// (shader_loader.rs, locate step). The taskbar copy lives at the repo root
-// with assets/ right next to it, so it reads the working-tree shaders and a
-// shader edit reaches the operator on his next launch with no rebuild at all.
-// Listing them here would report a rebuild he does not need.
+// SHADERS SPLIT IN TWO, and getting this wrong shipped a stale binary once.
 //
-// The embedded copy still matters for the exe that ships to a user, who has
-// no assets/ directory. That is a release concern, not a delivery one.
+// assets/shaders/pbr/ is LIVE. Those parts are include_str! embedded, but
+// shader_loader prefers a assets/shaders/ directory found beside the exe or up
+// its parent chain, and the taskbar copy sits at the repo root with assets/
+// right next to it. So a PBR shader edit reaches the operator on his next
+// launch with no rebuild, and listing those here would demand a rebuild he
+// does not need.
+//
+// EVERY OTHER SHADER IS COMPILED IN. cloud_resolve.wgsl, cloud_composite.wgsl
+// and the rest are include_str! with NO disk path at all, so an edit to one of
+// them reaches nothing until the crate is rebuilt. On 2026-09-22 this check
+// called a binary current after a cloud_resolve edit and an archive went out
+// carrying an experimental gate that had already been reverted in source. It
+// was caught before it reached him, but only by hand.
+//
+// If a shader ever gains or loses its disk path, this split has to move with
+// it; the authority is the locate step in shader_loader.rs.
 //
 // Cargo.toml is deliberately NOT in this set even though a version bump
 // touches it. Every `just ship` bumps the patch, so including it would print
@@ -75,7 +83,9 @@ function cargoVersion() {
 // meaning anything within a day. The version is still checked, separately and
 // more precisely, by comparing the stamp against Cargo.toml below.
 function newestSource() {
-  const roots = ["src"];
+  const roots = ["src", "assets/shaders"];
+  // The one live exception, skipped during the walk below.
+  const LIVE = path.join(root, "assets", "shaders", "pbr");
   let newest = 0;
   let which = null;
   const walk = (p) => {
@@ -85,6 +95,7 @@ function newestSource() {
     } catch (e) {
       return;
     }
+    if (p === LIVE) return; // read from disk at runtime, needs no rebuild
     if (st.isDirectory()) {
       for (const e of fs.readdirSync(p)) walk(path.join(p, e));
       return;
