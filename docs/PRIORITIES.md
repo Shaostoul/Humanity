@@ -299,6 +299,53 @@ mathematics says the sensitivity peaks. That is a strong hint that the fix
 belongs in how `tau_sun` is sampled at grazing angles rather than in any
 downstream filter.
 
+### 2a-ii. THE FULL CANDIDATE TABLE at the terminator, and a flaw in the metric
+
+Every grain candidate, measured at `orbit-terminator-3000km` band 5 (the dusk
+line, where the defect is 73x its noon value), with fizz from differencing two
+settled captures in one boot:
+
+| arm | grain at band 5 | fizz |
+| --- | --- | --- |
+| shipped baseline | 40.38% | 0.34% |
+| sun ladder on the unjittered grid | 40.22% | - |
+| spatial strength 0.35 to 0.85, gate untouched | 40.22% | - |
+| spatial gate widened, strength untouched | 37.54% | 0.27% |
+| **animated depth jitter** | **8.68%** | 2.09% |
+| spatial filter forced to full (`cur_s = mu`) | 6.07% | 0.12% |
+
+**READ THE LAST ROW WITH CARE, because the metric flatters it.** Grain here is
+the mean absolute deviation from the four-neighbour mean, and forcing the
+spatial filter to full replaces every pixel WITH the neighbourhood mean. That
+is a 3x3 box blur, and a box blur minimises exactly this metric by
+construction. Some of that 6.07 is the measurement rewarding blur rather than a
+better picture, and how much is not known.
+
+The animated-jitter row does not have that problem: temporal averaging removes
+noise without blurring, so 8.68 is an honest number and is the best HONEST
+result on the table.
+
+**What the table proves regardless of that caveat.** Neither the gate nor the
+strength alone gets anywhere: 37.54 and 40.22 against a 40.38 baseline. Only
+the forced arm, which bypasses `noise_w` entirely AND uses strength 1.0, moves
+the number, so both are binding together and neither is a one-constant fix.
+This CORRECTS the v0.1331.14 note, which inferred from noon data that the
+strength cap was the binding constraint; at the terminator it is not.
+
+**Why the gate stays shut in the dark.** Its absolute arm is
+`smoothstep(0.10, 0.30, sig)` in raw march-buffer units, and `sig` measured
+0.0185 at NOON against that 0.25 threshold. The terminator is darker, so `sig`
+is smaller still: the gate closes hardest exactly where the relative grain is
+worst. Widening it to 0.02-0.10 was tried and bought only 40.38 to 37.54, so
+the threshold units are part of the story but not all of it.
+
+**Before the next attempt, fix the metric.** A grain number that a blur can
+win is not a grain number. Judge spatial arms on a measure a blur cannot game,
+for example the high-frequency energy retained in genuine cloud EDGES alongside
+the noise reduction, or an explicit sharpness term, and keep the by-eye check
+that the silhouettes and the terrain survive. Until that exists, prefer the
+temporal arm, whose number is not gameable in this way.
+
 ### 2a-i. THE OPERATOR DECISION: frozen jitter costs 4.6x more grain at the dusk line
 
 This is his call, not the AI’s, because he ran the original experiment himself
