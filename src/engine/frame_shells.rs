@@ -428,6 +428,30 @@ if let Some(cov) = d.cloud_coverage.filter(|c| *c > 0.0 && clouds_on) {
                 }
             }
         }
+        // ── THE AURORAL OVALS (v0.1331) ──
+        //
+        // Two rings, one about each pole, always present on a body with air.
+        // They are the SECOND consumer of the region buffer and a good test of
+        // whether it generalises: an aurora shares nothing with a storm except
+        // having a place and a size, and it needed no new channel.
+        //
+        // The direction is the spin axis. Bodies spin about +Y, so the pole is
+        // the one direction that reads the same in the body frame and the world
+        // frame, which is why the atmosphere shader can compare against it
+        // without undoing the spin first. Any NON-polar region would have to.
+        //
+        // Geometry (ring angles, emitting altitudes) lives in the kind table,
+        // because where the oval sits and how high it glows are exactly the
+        // numbers someone will want to tune while looking at the sky.
+        if let Some(table) = state.data_store.get::<RegionKinds>("region_kinds") {
+            if let Some(kind) = table.by_id("aurora") {
+                let body_km = (d.radius / 1000.0) as f32;
+                for axis in [1.0_f32, -1.0] {
+                    regions.push(kind.region_at([0.0, axis, 0.0], body_km, 1.0));
+                }
+            }
+        }
+
         // [EnvRegions] 1 Hz instrument. Permanent, not scaffolding: this is the
         // only place that can say whether the CPU built a region at all, and the
         // difference between "no region" and "a region the shader cannot see" is

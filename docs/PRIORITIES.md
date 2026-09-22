@@ -53,10 +53,14 @@ marble is not whitened. See BUG-080 and `docs/design/environment-fields.md`.
 
 **What remains on this arc, in order:**
 
-1. **Aurora** (operator asked for it directly, 2026-09-21: "It'd be great to get
-   the aurora working to add aesthetic appeal to the Earth in screenshots"). The
-   second consumer of the region buffer, genuinely latitude-shaped, and the
-   cheapest visually rewarding thing the mechanism now makes possible.
+1. ~~**Aurora**~~ BUILT in v0.1331.0. Two ovals, one per pole, drawn as emission
+   inside the air with the ray solved against the emitting layer so limb
+   brightening falls out of the geometry. It was the second consumer of the
+   region buffer and it needed no new channel, no new binding and no change to
+   the record, which is the claim the mechanism was making. Fixtures
+   `aurora-polar-1500` and `aurora-orbit-5000`. Follow-ups: an `override`
+   switch so a pipeline that cannot draw it does not compile the branch at all,
+   and the A/B cost measurement that switch makes possible.
 2. **Disasters through the buffer.** `disasters.rs` already stores position,
    radius and intensity and nothing outside that file reads them, so a wildfire
    is invisible. Needs a consumer to be worth anything, which is why it now

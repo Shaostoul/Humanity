@@ -180,10 +180,14 @@ pub struct RegionKind {
     pub softness: f32,
     /// 0 = the cloud slab, 1 = ground level, 2 = high.
     pub band: u32,
-    /// Coverage floor this kind imposes on the cloud deck at full intensity.
-    pub cloud_floor: f32,
-    /// How strongly this kind pulls cloud placement toward the procedural field.
-    pub cloud_placement: f32,
+    /// The per-kind payload, copied straight into `EnvRegion.params`.
+    ///
+    /// Its MEANING is the kind's business, which is the whole point of a
+    /// generic payload: a cloud kind spends it on a coverage floor and a
+    /// placement weight, an aurora spends it on the ring it draws and the
+    /// altitude band it occupies. Each kind documents its own layout in the
+    /// RON beside the numbers, where whoever is tuning them can see it.
+    pub params: [f32; 4],
 }
 
 /// The whole table.
@@ -239,7 +243,7 @@ impl RegionKind {
             intensity: intensity.clamp(0.0, 1.0),
             softness: self.softness,
             band: self.band as f32,
-            params: [self.cloud_floor, self.cloud_placement, 0.0, 0.0],
+            params: self.params,
         }
     }
 }
@@ -374,18 +378,19 @@ mod tests {
                 k.softness > 0.0,
                 "{} has a hard rim; no real weather system does", k.id
             );
-            assert!((0.0..=1.0).contains(&k.cloud_floor), "{} floor out of range", k.id);
-            assert!(
-                (0.0..=1.0).contains(&k.cloud_placement),
-                "{} placement out of range", k.id
-            );
+            // The payload is per-kind, so the only universal claim is that it
+            // carries no NaN: one would propagate into a coverage value or a
+            // ring angle and be very hard to trace back to a data file.
+            for (i, v) in k.params.iter().enumerate() {
+                assert!(v.is_finite(), "{} params[{i}] is not finite", k.id);
+            }
         }
 
         // The storm row is the one BUG-080 is about, and its numbers are the
         // ones the hardcoded match in frame_shells.rs used to carry.
         let storm = table.by_id("storm").expect("a storm kind must exist");
-        assert_eq!(storm.cloud_floor, 0.95);
-        assert_eq!(storm.cloud_placement, 0.95);
+        assert_eq!(storm.params[0], 0.95, "storm coverage floor");
+        assert_eq!(storm.params[1], 0.95, "storm placement weight");
         assert!(table.by_kind(storm.kind as f32).is_some(), "lookup both ways");
 
         // A 600 km storm on Earth is a patch, not a hemisphere. This is the

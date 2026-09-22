@@ -197,3 +197,60 @@ The sun-shadow cache bake and the profile bake in `45-cloud-temporal.wgsl` read
 therefore lights and self-shadows as though it carried the base coverage. It is
 a second-order error against a first-order fix, and wiring it wants its own
 measurement rather than being folded in unmeasured.
+
+## The second consumer, and what it proved (2026-09-21)
+
+The aurora was built next specifically because it shares nothing with a storm
+except having a place and a size. It needed no new uniform channel, no new
+binding and no change to the record: two regions of band 2, one per pole,
+carrying the oval geometry in the per-kind payload.
+
+That is the claim the mechanism was making, now tested once.
+
+Three things worth keeping from building it:
+
+**Integrate along the layer, not along whatever chord you already have.** The
+aurora is emission inside the air, so the atmosphere fragment already had a
+chord. Sampling that whole chord put most samples outside a thin emitting layer,
+and worst of all for GRAZING rays, which are exactly the ones that should be
+brightest. Solving the ray against the layer first and marching only that makes
+every sample count, and limb brightening then falls out of the geometry rather
+than needing a fudge.
+
+**A ring is not a cap.** An auroral oval sits 20 to 25 degrees from the pole, so
+it needs two angles. The disc falloff that `EnvRegion::influence` provides is the
+wrong shape for it, which is why the aurora reads its ring angles out of the
+payload and does its own test. That is the layer-3 idea working as intended: the
+geometry primitive is shared, the interpretation is not.
+
+**The polar case hides a frame bug.** The spin axis is the ONE direction that
+reads the same in the body frame and in world space, because bodies spin about
++Y. The aurora therefore compares a body-frame region direction against
+world-space sample directions and gets away with it. Any NON-polar region
+consumed from the atmosphere shader would have to undo the spin first, and would
+fail silently and subtly if it did not.
+
+Cost note, and a trap in the tooling. The loop runs per atmosphere fragment
+whether or not anything is emitting, because the band test is inside it. It is
+pure ALU with no texture fetches and the ray-versus-layer test rejects early,
+but its cost is genuinely UNMEASURED.
+
+An A/B was attempted and the numbers were not real. **The `*-costs.json` a
+plain `probe-sweep` run writes is not a reading.** Two runs of the same vantage,
+one with the aurora emitting and one with its layer collapsed to zero
+thickness, produced byte-identical numbers to full float precision, and so did
+two COMPLETELY DIFFERENT vantages: a 30 km storm view and a 1500 km polar view
+both reported `gpu.celestial_t` 25.276 and `frame_ms` 35.88. Those files carry
+defaults or a stale snapshot unless the perf capture is armed
+(`HUMANITY_FRAME_COSTS=1`, see the memory note on the cloud cost table).
+
+Reading them naively yields "the aurora costs 0.00 ms, it is free", which is
+a fabrication, and it is the same failure class as a gate whose evidence is
+its own setup. Any future perf claim from a sweep has to come from an armed
+capture, and is worth sanity-checking by confirming two different vantages
+disagree before trusting either.
+
+The honest follow-ups: an armed measurement, and an `override` switch so a
+pipeline that cannot draw an aurora does not compile the branch at all, which
+is what CLAUDE.md asks of any new heavyweight shader branch and which would
+also give the A/B a clean off arm.

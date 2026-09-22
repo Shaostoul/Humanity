@@ -11585,6 +11585,48 @@
       },
       "settle_s": 12,
       "hold_altitude": true
+    },
+    {
+      "id": "aurora-polar-1500",
+      "desc": "Aurora beauty vantage (v0.1331): close over the night-side northern oval. The operator asked for the aurora for screenshot appeal, so this is a LOOK fixture first and a regression guard second.",
+      "expect": "A green auroral arc following the polar oval over the dark side, brighter where the view grazes it (limb brightening comes free from integrating along the atmosphere chord), thinning to red at the top. It must NOT appear on the daylit side, and it must not ring the pole as a hard-edged painted band.",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 72,
+        "lon": 0,
+        "time": 0,
+        "altitude_km": 1500
+      },
+      "showcase": {
+        "clouds": "1",
+        "weather": "clear"
+      },
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "aurora-orbit-5000",
+      "desc": "Aurora from orbit (v0.1331): far enough that the whole oval reads as a ring on the dark limb. This is the shot the aurora exists for.",
+      "expect": "A green auroral arc following the polar oval over the dark side, brighter where the view grazes it (limb brightening comes free from integrating along the atmosphere chord), thinning to red at the top. It must NOT appear on the daylit side, and it must not ring the pole as a hard-edged painted band.",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 55,
+        "lon": 0,
+        "time": 0,
+        "altitude_km": 5000
+      },
+      "showcase": {
+        "clouds": "1",
+        "weather": "clear"
+      },
+      "settle_s": 12,
+      "hold_altitude": true
     }
   ],
   "ladder": {

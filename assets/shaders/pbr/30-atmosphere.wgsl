@@ -176,6 +176,139 @@ fn atmo_mie_phase(c: f32) -> f32 {
     return (1.0 - g * g) / (12.566371 * denom * sqrt(denom));
 }
 
+// ── THE AURORA (v0.1331) ──────────────────────────────────────────────────
+//
+// The second consumer of the environment region buffer, and a fair test of
+// whether that mechanism generalises: an aurora shares nothing with a storm
+// except having a place and a size, and it needed no new uniform channel.
+//
+// It is emission inside the air, so it belongs here rather than in a shell of
+// its own: the view ray already has its atmosphere chord, and integrating
+// along it gives limb brightening for free. That is why a real aurora looks
+// like a bright arc on the edge of the disc from orbit and a faint glow
+// straight down: the same emissivity, a longer path through it.
+//
+// A region of band 2 carries its geometry in the payload:
+//   params.x  inner edge of the oval, radians from the pole
+//   params.y  outer edge, radians (an oval is a RING, not a cap)
+//   params.z  bottom of the emitting layer, fraction of shell thickness
+//   params.w  top of it
+//
+// The direction is the spin axis, which is the one direction that reads the
+// same in the body frame and in world space (bodies spin about +Y). Any
+// NON-polar region compared here would have to undo the spin first.
+
+/// Samples along the atmosphere chord. Pure ALU, no texture fetches, and the
+/// whole loop is skipped for rays that cannot reach the layer at all.
+const AURORA_STEPS: i32 = 7;
+/// Scales the integrated emission to screen radiance.
+const AURORA_STRENGTH: f32 = 24.0;
+/// 557.7 nm atomic oxygen: the green every photograph is dominated by.
+const AURORA_GREEN: vec3<f32> = vec3<f32>(0.16, 1.0, 0.42);
+/// 630 nm oxygen, which sits ABOVE the green and is thinner and redder.
+const AURORA_RED: vec3<f32> = vec3<f32>(1.0, 0.24, 0.30);
+
+fn aurora_emission(ro: vec3<f32>, rd: vec3<f32>, t0: f32, t1: f32, rp: f32) -> vec3<f32> {
+    var total = vec3<f32>(0.0);
+    let seg = t1 - t0;
+    if (seg <= 0.0) {
+        return total;
+    }
+    let sun = normalize(camera.sun_direction.xyz);
+    let time = camera.sun_color.w;
+
+    let n = arrayLength(&env_regions);
+    for (var i = 0u; i < n; i = i + 1u) {
+        let reg = env_regions[i];
+        // Band 2 only. A storm is not an aurora, and a fog bank is certainly
+        // not: an empty row fails this too, because its band is 0.
+        if (abs(reg.kind_shape.w - 2.0) >= 0.5 || reg.kind_shape.y <= 0.0) {
+            continue;
+        }
+        let pole = reg.dir_radius.xyz;
+        let inner = reg.params.x;
+        let outer = reg.params.y;
+        let r_lo = rp + reg.params.z * (1.0 - rp);
+        let r_hi = rp + reg.params.w * (1.0 - rp);
+        if (outer <= inner || r_hi <= r_lo) {
+            continue;
+        }
+        // A stable tangent basis about the pole, so the curtain folds are
+        // anchored to the world and do not swim when the camera moves.
+        var ref_v = vec3<f32>(1.0, 0.0, 0.0);
+        if (abs(pole.y) < 0.9) {
+            ref_v = vec3<f32>(0.0, 1.0, 0.0);
+        }
+        let ex = normalize(cross(pole, ref_v));
+        let ey = cross(pole, ex);
+        let edge = (outer - inner) * max(reg.kind_shape.z, 0.05);
+        // Solve the ray against the layer instead of sampling the whole
+        // atmosphere chord and hoping. The emitting layer is a thin shell, so
+        // spreading a handful of samples over the full chord puts most of them
+        // outside it: grazing rays, which are exactly the ones that should be
+        // BRIGHTEST because they travel furthest through the layer, got the
+        // fewest samples and often none at all. Clipping to the layer first
+        // makes every sample count and makes limb brightening come out right.
+        let tca_a = -dot(ro, rd);
+        let perp_a = ro + rd * tca_a;
+        let d2_a = dot(perp_a, perp_a);
+        if (d2_a >= r_hi * r_hi) {
+            continue; // never reaches the layer
+        }
+        let th_hi = sqrt(r_hi * r_hi - d2_a);
+        var a_t = tca_a - th_hi;
+        var b_t = tca_a + th_hi;
+        if (d2_a < r_lo * r_lo) {
+            // The ray dips inside the layer's floor, so take the NEAR crossing
+            // only; the far one is behind the planet and occluded anyway.
+            b_t = tca_a - sqrt(r_lo * r_lo - d2_a);
+        }
+        a_t = max(a_t, t0);
+        b_t = min(b_t, t1);
+        if (b_t <= a_t) {
+            continue;
+        }
+        let dt_a = (b_t - a_t) / f32(AURORA_STEPS);
+        for (var k = 0; k < AURORA_STEPS; k = k + 1) {
+            let t = a_t + dt_a * (f32(k) + 0.5);
+            let pnt = ro + rd * t;
+            let r = length(pnt);
+            let up = pnt / r;
+            // Where in the ring, and how far up the emitting layer.
+            let ang = acos(clamp(dot(up, pole), -1.0, 1.0));
+            let ring = smoothstep(inner - edge, inner + edge * 0.35, ang)
+                * (1.0 - smoothstep(outer - edge * 0.35, outer + edge, ang));
+            if (ring <= 0.0) {
+                continue;
+            }
+            // Only over ground that is in darkness. The soft edge keeps the
+            // oval from ending in a hard line along the terminator.
+            let night = smoothstep(0.12, -0.10, dot(up, sun));
+            if (night <= 0.0) {
+                continue;
+            }
+            let hgt = clamp((r - r_lo) / (r_hi - r_lo), 0.0, 1.0);
+            // Curtains: broad folds around the oval, and finer rays within
+            // them that lean with height, which is what gives an aurora its
+            // vertical striation rather than looking like a painted band.
+            let tang = normalize(up - pole * dot(up, pole));
+            let phi = atan2(dot(tang, ey), dot(tang, ex));
+            let folds = 0.5 + 0.5 * sin(phi * 9.0 + time * 0.11);
+            let rays = 0.5 + 0.5 * sin(phi * 31.0 - time * 0.07 + hgt * 2.5);
+            // Keep a floor under the modulation. Multiplying two sines drives the
+            // product to zero far too often, which broke the arc into isolated
+            // blobs; a real aurora varies along its length but stays continuous.
+            let curtain = 0.45 + 0.55 * folds * (0.5 + 0.5 * rays);
+            // Brightest low down where the green line is, thinning upward.
+            let prof = (1.0 - hgt) * (1.0 - hgt * 0.45);
+            let col = mix(AURORA_GREEN, AURORA_RED, smoothstep(0.45, 1.0, hgt));
+            total = total + col * (ring * night * curtain * prof
+                * reg.kind_shape.y * AURORA_STRENGTH * dt_a);
+        }
+    }
+    return total;
+}
+
 fn atmosphere_scattering(world_position: vec3<f32>, front_facing: bool) -> vec4<f32> {
     // Shell center + radius recovered from the object transform: the shell
     // mesh is a UNIT icosphere placed via Vec3::splat(scale), so column 0's
@@ -452,6 +585,15 @@ fn atmosphere_scattering(world_position: vec3<f32>, front_facing: bool) -> vec4<
     // saturated alpha to 1.0 and painted flat sky over the continent; the
     // pure transmittance alpha (~0.5 at those angles) keeps the land
     // readable through physically blue haze, exactly like real limb photos.
+    // The aurora rides ON the in-scatter: adding it to `mapped` puts it
+    // straight on screen additively, because the blend resolves to
+    // mapped + dst * (1 - alpha). It must NOT raise the occlusion on its own
+    // terms, since emission adds light without hiding what is behind it, but
+    // alpha does have to be large enough that the rgb = mapped / alpha divide
+    // below does not clamp the glow away over thin polar air.
+    let aurora = aurora_emission(ro, rd, t0, t1, rp);
+    let mapped_a = mapped + aurora;
+    let aurora_lum = clamp(max(aurora.r, max(aurora.g, aurora.b)), 0.0, 1.0);
     var alpha_occ = alpha;
     if (!hits_surface) {
         alpha_occ = max(alpha, max(clamp(sky_lum * 4.5, 0.0, 1.0), day * 0.985));
@@ -461,11 +603,12 @@ fn atmosphere_scattering(world_position: vec3<f32>, front_facing: bool) -> vec4<
     // the radiance back out of the alpha so exactly `mapped` lands on
     // screen. Both terms go to zero together for thin air, so the ratio
     // stays finite; the clamp guards the pathological alpha -> 0 corner.
-    let rgb = clamp(mapped / max(alpha_occ, 1.0e-3), vec3<f32>(0.0), vec3<f32>(1.0));
+    let alpha_a = max(alpha_occ, aurora_lum);
+    let rgb = clamp(mapped_a / max(alpha_a, 1.0e-3), vec3<f32>(0.0), vec3<f32>(1.0));
     // rgb keeps the ORIGINAL alpha (its colour + brightness); scaling only the
     // returned alpha by haze_scale dims the additive in-scatter and clears the
     // surface together, and is a no-op wherever haze_scale == 1.
-    return vec4<f32>(rgb, alpha_occ * haze_scale);
+    return vec4<f32>(rgb, alpha_a * haze_scale);
 }
 
 

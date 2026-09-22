@@ -1,13 +1,13 @@
 // HumanityOS environment region kinds
 //
 // A REGION is a positioned, sized environmental effect: a storm over a stretch
-// of ocean, a fog bank in a valley, a wildfire, a flood, an outbreak. Each one
+// of ocean, a fog bank in a valley, a wildfire, an auroral oval. Each one
 // carries a planet-fixed direction, an angular radius, an intensity and a soft
-// edge, and every consumer (the cloud deck, farming, survival, the HUD) reads
-// the same record rather than re-deriving the geometry.
+// edge, and every consumer (the cloud deck, the atmosphere, farming, the HUD)
+// reads the same record rather than re-deriving the geometry.
 //
 // WHY THIS IS DATA AND NOT A RUST ENUM: docs/design/infinite-of-x.md. The table
-// this replaces was a hardcoded match in src/engine/frame_shells.rs mapping
+// this replaced was a hardcoded match in src/engine/frame_shells.rs mapping
 // WeatherCondition::Storm to the literal pair (0.95, 0.95). Adding a kind, or
 // retuning one, should not need a recompile.
 //
@@ -19,36 +19,38 @@
 // Full design: docs/design/environment-fields.md
 // Code: src/renderer/env_regions.rs (CPU) + assets/shaders/pbr/00-bindings-vertex.wgsl (GPU)
 //
-// FIELDS
+// SHARED FIELDS
 //   id             stable string name, used in saves and by the HUD
 //   kind           the float written into EnvRegion.kind_shape.x. 0 is reserved
 //                  for an empty buffer slot, so real kinds start at 1.
 //   default_radius_km
 //                  typical size of one system of this kind. Real mid-latitude
 //                  weather systems run 500 to 1500 km across; a thunderstorm
-//                  cell is tens of km. These are radii, not diameters.
+//                  cell is tens of km. These are RADII, not diameters, and they
+//                  are converted to a great-circle angle per body, so the same
+//                  table works on a moon.
 //   softness       fraction of the radius over which the edge fades. No real
 //                  weather system has a hard rim, so none of these is 0.
-//   band           which altitude band the effect occupies, interpreted per
-//                  kind: 0 = the cloud slab, 1 = ground level, 2 = high
-//   cloud_floor    coverage floor this kind imposes on the cloud deck at full
-//                  intensity, 0..1
-//   cloud_placement
-//                  how strongly this kind pulls cloud PLACEMENT toward the
-//                  procedural field, 0..1. Needed because below coverage ~1 a
-//                  live-zeroed satellite field cannot be resurrected by the
-//                  coverage knob alone.
+//   band           which altitude band the effect occupies. 0 = the cloud slab,
+//                  1 = ground level, 2 = high (above the weather).
+//   params         a PER-KIND payload of four floats. Its meaning belongs to the
+//                  kind; each group below documents its own layout.
 
 (
     kinds: [
+        // ── band 0: the cloud slab ────────────────────────────────────────
+        // params = (coverage floor, placement weight, unused, unused)
+        //   [0] the coverage floor this kind imposes at full intensity
+        //   [1] how hard it pulls cloud PLACEMENT toward the procedural field,
+        //       which is needed because below coverage ~1 a live-zeroed
+        //       satellite cell cannot be resurrected by the coverage knob alone
         (
             id: "storm",
             kind: 1,
             default_radius_km: 600.0,
             softness: 0.45,
             band: 0,
-            cloud_floor: 0.95,
-            cloud_placement: 0.95,
+            params: (0.95, 0.95, 0.0, 0.0),
         ),
         (
             id: "rain",
@@ -56,8 +58,7 @@
             default_radius_km: 450.0,
             softness: 0.5,
             band: 0,
-            cloud_floor: 0.85,
-            cloud_placement: 0.85,
+            params: (0.85, 0.85, 0.0, 0.0),
         ),
         (
             id: "snow",
@@ -65,8 +66,7 @@
             default_radius_km: 500.0,
             softness: 0.5,
             band: 0,
-            cloud_floor: 0.85,
-            cloud_placement: 0.85,
+            params: (0.85, 0.85, 0.0, 0.0),
         ),
         (
             id: "cloudy",
@@ -74,32 +74,27 @@
             default_radius_km: 800.0,
             softness: 0.6,
             band: 0,
-            cloud_floor: 0.55,
-            cloud_placement: 0.5,
+            params: (0.55, 0.5, 0.0, 0.0),
         ),
-        // Fog sits on the ground rather than in the cloud slab, which is what
-        // band 1 means: it must not paint the deck seen from orbit.
+
+        // ── band 1: ground level ──────────────────────────────────────────
+        // Same payload layout as band 0, but band 1 keeps these OUT of the deck
+        // seen from orbit: fog is not a cloud layer.
         (
             id: "fog",
             kind: 5,
             default_radius_km: 60.0,
             softness: 0.55,
             band: 1,
-            cloud_floor: 0.45,
-            cloud_placement: 0.35,
+            params: (0.45, 0.35, 0.0, 0.0),
         ),
-        // Below here: kinds that exist so the mechanism is not weather-only.
-        // disasters.rs already stores position, radius and intensity per active
-        // disaster and nothing outside that file reads them, so wiring those
-        // straight through is the cheapest end-to-end proof of the path.
         (
             id: "wildfire",
             kind: 6,
             default_radius_km: 25.0,
             softness: 0.4,
             band: 1,
-            cloud_floor: 0.2,
-            cloud_placement: 0.6,
+            params: (0.2, 0.6, 0.0, 0.0),
         ),
         (
             id: "sandstorm",
@@ -107,8 +102,34 @@
             default_radius_km: 300.0,
             softness: 0.5,
             band: 1,
-            cloud_floor: 0.3,
-            cloud_placement: 0.7,
+            params: (0.3, 0.7, 0.0, 0.0),
+        ),
+
+        // ── band 2: high, above the weather ───────────────────────────────
+        // params = (ring inner angle, ring outer angle, altitude lo, altitude hi)
+        //   [0] inner edge of the oval, RADIANS from the region's direction
+        //   [1] outer edge, radians. An aurora is a RING around the magnetic
+        //       pole, not a cap, which is why it needs two angles rather than
+        //       the single radius the weather kinds use.
+        //   [2] bottom of the emitting layer, as a fraction of the atmosphere
+        //       shell's thickness above the surface
+        //   [3] top of it, same units
+        //
+        // The real auroral oval sits around 65 to 70 degrees magnetic latitude,
+        // so 20 to 25 degrees from the pole: 0.35 to 0.44 rad. It emits between
+        // roughly 100 and 300 km, which is far above the 12 km cloud slab, hence
+        // band 2. It widens and brightens with solar activity, which is what the
+        // region's INTENSITY carries.
+        //
+        // default_radius_km here is the outer extent of the whole oval rather
+        // than a system size, and softness fades the outer rim.
+        (
+            id: "aurora",
+            kind: 8,
+            default_radius_km: 2800.0,
+            softness: 0.5,
+            band: 2,
+            params: (0.35, 0.44, 0.12, 0.55),
         ),
     ],
 )
