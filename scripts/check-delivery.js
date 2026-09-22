@@ -111,14 +111,26 @@ try {
 }
 
 const problems = [];
+const notes = [];
 if (stableM === null) {
   problems.push("NOT DELIVERED  HumanityOS.exe does not exist -- nothing is pinned to the taskbar");
 } else {
   if (!stamp) {
     problems.push("NO STAMP       HumanityOS.exe has no build stamp; its version is unknown");
   } else if (stamp.version !== ver) {
-    problems.push(
-      `NOT DELIVERED  taskbar exe is v${stamp.version}, the tree is v${ver}`
+    // A VERSION difference on its own is NOT a delivery failure, and calling it
+    // one would be the same cry-wolf mistake the rebuild check avoids. Every
+    // `just ship` bumps the patch, so a docs-only release leaves the taskbar exe
+    // one patch behind with byte-identical code in it. He is missing nothing.
+    //
+    // What he IS missing, if anything, is decided entirely by the mtime checks
+    // below: source newer than the build, or the build newer than the taskbar
+    // copy. Those answer "does the exe contain the current code". The version
+    // string only decides what the title bar reads, which is how he identifies
+    // a build, so it is worth SAYING and not worth failing on.
+    notes.push(
+      `title bar will read v${stamp.version}, the tree is v${ver} (code is current; ` +
+        `rebuild only if the number itself matters)`
     );
   }
   if (builtM !== null && builtM > stableM + 1000) {
@@ -133,7 +145,14 @@ if (builtM === null) {
 
 if (quiet) {
   if (!problems.length) {
-    console.log(`taskbar exe: v${ver}, current`);
+    // The brief has one line for this, so say the short version there: which
+    // build he is on, and that its code is current even if the number trails.
+    const v = stamp ? stamp.version : ver;
+    console.log(
+      notes.length
+        ? `v${v}, code current (tree is v${ver}; title bar trails by a docs-only bump)`
+        : `v${ver}, current`
+    );
   } else {
     console.log(`taskbar exe: ${problems[0].replace(/\s{2,}/, " -- ")}`);
     for (const p of problems.slice(1)) console.log(`             ${p.replace(/\s{2,}/, " -- ")}`);
@@ -142,7 +161,9 @@ if (quiet) {
 }
 
 if (!problems.length) {
-  console.log(`Delivery OK: HumanityOS.exe is v${ver} and newer than every source file.`);
+  const v = stamp ? stamp.version : ver;
+  console.log(`Delivery OK: HumanityOS.exe is v${v} and newer than every source file.`);
+  for (const n of notes) console.log("  note: " + n);
   process.exit(0);
 }
 

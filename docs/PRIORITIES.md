@@ -231,6 +231,55 @@ the step comb and the mip rings, and the nonlinear term stops inheriting it.
 Predicted result: channel 2 goes smooth, channel 1 and the ring metric are
 unchanged. Measure with `node scripts/speckle-census.js`, and positive-control
 the arm before believing a null.
+
+**THAT EXPERIMENT WAS THEN RUN, and it is a partial result with a side effect.**
+Built and captured the same evening rather than left as a plan, because the
+mechanism turned out to be one line: `var tm = t_cur + dt * jitter` places each
+view sample INSIDE its own step by a per-pixel fraction, so every sample
+position is displaced by up to a full step before the sun ladder starts from
+it. Starting the ladder from the step CENTRE instead (`t_cur + dt * 0.5`),
+leaving the eye ray jittered:
+
+| arm | mean L | speckle |
+| --- | --- | --- |
+| baseline | 128.8 | 1.80% |
+| sun ladder on the unjittered grid | **138.8** | **1.54%** |
+| Low tier, the clean reference | 148.1 | 0.63% |
+
+The direction is confirmed and the magnitude is disappointing: about a seventh
+of the distance to Low, and it costs 8 percent of scene brightness. The
+brightness is the tell. Moving the ladder origin half a step changes which
+column the shadow ray traverses, and the grid position is systematically LESS
+occluded than the jittered one, so clouds self-shadow less. That is a look
+regression on the surface the operator looks at most, so it was reverted rather
+than shipped. The shader is back at the committed state, verified clean.
+
+**What that leaves, and it is now a fair fight between two readings.**
+
+1. *Undersampling of the sun ladder itself.* The 1.80 to 1.54 move says the
+   per-pixel origin contributes, and the cone-width control says lateral
+   averaging helps, but neither gets close to Low. A refinement worth one
+   build: `cloud_sun_tau` takes ONE origin today. Give it two, keep the true
+   jittered sample for the near rungs (where the eye-visible rind must
+   self-shadow exactly, which is where the 8 percent went) and the grid
+   position for the far rungs (where the variance is). That predicts the
+   variance reduction without the brightness loss.
+
+2. *The resolve filter is not doing its job.* The v0.1252 note says the
+   variance-adaptive spatial filter cannot remove STRUCTURE but that white
+   noise "is exactly what a local mean annihilates". This noise IS white (PCG,
+   per pixel). So why does it survive? Nobody has measured the filter in
+   isolation. If it is gated off, weak, or its variance estimate is being
+   fooled by the genuine cloud-edge contrast in the same neighbourhood, that
+   would explain every failed hypothesis at once, because all of them assumed
+   the noise had to be removed at the SOURCE.
+
+Reading 2 is cheaper to test and explains more, so test it first.
+
+Note that Low is not a like-for-like control: it takes the DIRECT shell path,
+one smooth unjittered sample per screen pixel, which is a different algorithm
+rather than the same march with the jitter off. It is the right target to
+match and the wrong thing to call a bisect arm.
 ### 3. The night-side coast glow. One cause fixed; the whole surface path now eliminated
 
 Reported twice. Fixture `orbit-terminator-3000km`, measured with
