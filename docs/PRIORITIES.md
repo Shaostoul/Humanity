@@ -252,6 +252,53 @@ told apart:
 Measure with the cloud-versus-terrain luminance ratio above, not with the
 speckle census. The target is a ratio above 1.0 at noon.
 
+### 2a. THE GRAIN LIVES AT THE TERMINATOR, and every measurement of it was taken at noon
+
+Measured 2026-09-22 on `orbit-terminator-3000km`, in ten vertical bands across
+the terminator, as mean absolute deviation from the four-neighbour mean over
+the band mean:
+
+| band | mean L | speckle |
+| --- | --- | --- |
+| 0, full daylight | 169.5 | **0.55%** |
+| 1 | 167.8 | 4.04% |
+| 2 | 146.2 | 11.79% |
+| 3 | 86.0 | 15.54% |
+| 4 | 47.5 | 27.45% |
+| 5, the dusk line | 22.5 | **40.43%** |
+| 6, night | 12.9 | 4.13% |
+| 7, night | 18.1 | 4.66% |
+
+The grain is **73x worse at the terminator than in full daylight**, and it
+collapses again on the night side where nothing is directly lit. The operator
+said it in one line without any instrument: the clouds are "glistening ... most
+noticeable at the dusk line".
+
+**This invalidates the vantage every earlier speckle number was taken at.**
+Item 2b below, and all of the 2026-09-22 arms (temporal accumulation off, the
+sun-cone azimuth, the sun ladder on the grid, the gate recalibration, the
+forced spatial filter, and the multiple-scattering result), were measured at
+`approach-2000km-high`, which is NOON over the Sahara: band 0, where the defect
+is at its weakest. A baseline of 1.76 percent was being quoted for a defect
+that reaches 40.
+
+Nothing measured there is WRONG, and the multiple-scattering finding in
+particular stands on its own (it was a brightness result with a terrain
+control, not a grain result). But every RANKING of grain fixes done at noon is
+a ranking in the easiest regime, and a fix that halves the noise at band 0 may
+do nothing at band 5. Re-run the surviving candidates at the terminator before
+trusting their order.
+
+**Why the terminator, mechanically.** The channel bisect blamed the direct-sun
+term, and the direct-sun term is `exp(-tau_sun)`. At a grazing sun the optical
+path through the deck is at its longest and its most variable, so the
+exponential is at its most nonlinear there: the same per-pixel sample
+displacement that barely moves the result at noon swings it hard at dusk. The
+defect is not uniform and never was; it is concentrated exactly where the
+mathematics says the sensitivity peaks. That is a strong hint that the fix
+belongs in how `tau_sun` is sampled at grazing angles rather than in any
+downstream filter.
+
 ### 2b. The grain itself, for when the brightness is fixed
 
 Kept because the measurements are real and were expensive, but do NOT work on
