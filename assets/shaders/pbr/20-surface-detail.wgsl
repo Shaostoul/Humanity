@@ -1349,8 +1349,27 @@ fn water_shade(
     // cyan banding on the horizon and around the orbital glint. Fading to
     // the procedural ramp keeps a plausible mirror at every altitude.
     let w_lut_alt = clamp(camera.light1_cone_inner.w, 0.0, 1.0);
-    if (shadow_u.params2.y > 0.5 && w_lut_alt > 0.001) {
-        sky_term = mix(sky_term, water_sky_lut(refl, n_geo), w_lut_alt);
+    // ── LOCAL NIGHT GATE (the night-side coast glow) ──
+    //
+    // The comment above says the mirror "darkens at night on its own because
+    // the sky does". That is true of a sky sampled where the fragment IS, and
+    // this is not one: water_sky_lut is a single table rendered per frame for
+    // the CAMERA's position. Seen from orbit over the terminator it holds the
+    // LIT sky, so every night-side water fragment mirrored the day side and the
+    // sea kept a blue sheen after dark. Shallow shelves showed it most, which is
+    // why it read as coastlines traced in cyan on the dark half.
+    //
+    // Proven by a positive control rather than argument: forcing the water
+    // shell magenta moved the night-side mean from 1.94/2.86/3.68 to
+    // 15.64/2.86/16.51, with green unchanged, so the shell was demonstrably
+    // drawing there.
+    //
+    // The gate is wide on purpose: a dusk sea should keep a bright twilight
+    // reflection, so this only reaches zero once the sun is properly down.
+    let w_lut_day = smoothstep(-0.18, 0.02, dot(n_geo, normalize(camera.sun_direction.xyz)));
+    let w_lut = w_lut_alt * w_lut_day;
+    if (shadow_u.params2.y > 0.5 && w_lut > 0.001) {
+        sky_term = mix(sky_term, water_sky_lut(refl, n_geo), w_lut);
     }
     // ── THE MIRROR MUST SEE THE WEATHER TOO ──
     // Everything above answers "what is the sky radiance in the reflected
