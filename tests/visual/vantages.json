@@ -11896,6 +11896,158 @@
       },
       "settle_s": 12,
       "hold_altitude": true
+    },
+    {
+      "id": "shore-dawn-0500",
+      "desc": "The SHORE GLOW at sunrise, as a ladder in local solar time over one fixed coastline. The operator, three times now: \"while the ocean shores are dark while in the full night with the sun blocked, when the sun becomes visible the shores start glowing again.\" The v0.1331.2 and .3 fixes closed the NIGHT-side path (the ambient floor lighting a planet that has a sky, and the water sky-mirror running after dark); this is the LIT side, which neither touched. A single capture cannot tell an unrealistic glow from correct bright shallow water, but the ONSET can: real shallow water brightens smoothly with the sun, so a step at the terminator, or shores outrunning everything else in frame, is the defect. Bahamas bank at lat 24, lon -77, chosen because it is the largest bright shallow shelf on the planet. This rung is local hour 5.",
+      "expect": "Across the four hours the shore brightness should rise SMOOTHLY and stay below the cloud brightness in the same frame. Measure shore against deep ocean and against cloud; a shore that jumps between adjacent rungs, or that exceeds the clouds, is the defect.",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 24,
+        "lon": -77,
+        "time": 5,
+        "altitude_km": 400,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "clouds": "1",
+        "weather": "clear",
+        "cloud_clock": "0"
+      },
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "shore-dawn-0600",
+      "desc": "The SHORE GLOW at sunrise, as a ladder in local solar time over one fixed coastline. The operator, three times now: \"while the ocean shores are dark while in the full night with the sun blocked, when the sun becomes visible the shores start glowing again.\" The v0.1331.2 and .3 fixes closed the NIGHT-side path (the ambient floor lighting a planet that has a sky, and the water sky-mirror running after dark); this is the LIT side, which neither touched. A single capture cannot tell an unrealistic glow from correct bright shallow water, but the ONSET can: real shallow water brightens smoothly with the sun, so a step at the terminator, or shores outrunning everything else in frame, is the defect. Bahamas bank at lat 24, lon -77, chosen because it is the largest bright shallow shelf on the planet. This rung is local hour 6.",
+      "expect": "Across the four hours the shore brightness should rise SMOOTHLY and stay below the cloud brightness in the same frame. Measure shore against deep ocean and against cloud; a shore that jumps between adjacent rungs, or that exceeds the clouds, is the defect.",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 24,
+        "lon": -77,
+        "time": 6,
+        "altitude_km": 400,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "clouds": "1",
+        "weather": "clear",
+        "cloud_clock": "0"
+      },
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "shore-dawn-0700",
+      "desc": "The SHORE GLOW at sunrise, as a ladder in local solar time over one fixed coastline. The operator, three times now: \"while the ocean shores are dark while in the full night with the sun blocked, when the sun becomes visible the shores start glowing again.\" The v0.1331.2 and .3 fixes closed the NIGHT-side path (the ambient floor lighting a planet that has a sky, and the water sky-mirror running after dark); this is the LIT side, which neither touched. A single capture cannot tell an unrealistic glow from correct bright shallow water, but the ONSET can: real shallow water brightens smoothly with the sun, so a step at the terminator, or shores outrunning everything else in frame, is the defect. Bahamas bank at lat 24, lon -77, chosen because it is the largest bright shallow shelf on the planet. This rung is local hour 7.",
+      "expect": "Across the four hours the shore brightness should rise SMOOTHLY and stay below the cloud brightness in the same frame. Measure shore against deep ocean and against cloud; a shore that jumps between adjacent rungs, or that exceeds the clouds, is the defect.",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 24,
+        "lon": -77,
+        "time": 7,
+        "altitude_km": 400,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "clouds": "1",
+        "weather": "clear",
+        "cloud_clock": "0"
+      },
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "shore-dawn-0900",
+      "desc": "The SHORE GLOW at sunrise, as a ladder in local solar time over one fixed coastline. The operator, three times now: \"while the ocean shores are dark while in the full night with the sun blocked, when the sun becomes visible the shores start glowing again.\" The v0.1331.2 and .3 fixes closed the NIGHT-side path (the ambient floor lighting a planet that has a sky, and the water sky-mirror running after dark); this is the LIT side, which neither touched. A single capture cannot tell an unrealistic glow from correct bright shallow water, but the ONSET can: real shallow water brightens smoothly with the sun, so a step at the terminator, or shores outrunning everything else in frame, is the defect. Bahamas bank at lat 24, lon -77, chosen because it is the largest bright shallow shelf on the planet. This rung is local hour 9.",
+      "expect": "Across the four hours the shore brightness should rise SMOOTHLY and stay below the cloud brightness in the same frame. Measure shore against deep ocean and against cloud; a shore that jumps between adjacent rungs, or that exceeds the clouds, is the defect.",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 24,
+        "lon": -77,
+        "time": 9,
+        "altitude_km": 400,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "clouds": "1",
+        "weather": "clear",
+        "cloud_clock": "0"
+      },
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "shore-dawn-6p2",
+      "desc": "Finer rung of the shore sunrise ladder (see shore-dawn-0700). The coarse ladder jumped from a dark frame at 06:00 to a lit one at 07:00, which hides the terminator crossing itself, and the crossing is exactly where a step or a flash would live. Local hour 6.2.",
+      "expect": "Shore brightness should rise SMOOTHLY across these rungs. A jump between adjacent rungs is the defect the operator is describing.",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {"body":"earth","lat":24,"lon":-77,"time":6.2,"altitude_km":400,"look_offset_deg":0},
+      "showcase": {"clouds":"1","weather":"clear","cloud_clock":"0"},
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "shore-dawn-6p4",
+      "desc": "Finer rung of the shore sunrise ladder (see shore-dawn-0700). The coarse ladder jumped from a dark frame at 06:00 to a lit one at 07:00, which hides the terminator crossing itself, and the crossing is exactly where a step or a flash would live. Local hour 6.4.",
+      "expect": "Shore brightness should rise SMOOTHLY across these rungs. A jump between adjacent rungs is the defect the operator is describing.",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {"body":"earth","lat":24,"lon":-77,"time":6.4,"altitude_km":400,"look_offset_deg":0},
+      "showcase": {"clouds":"1","weather":"clear","cloud_clock":"0"},
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "shore-dawn-6p6",
+      "desc": "Finer rung of the shore sunrise ladder (see shore-dawn-0700). The coarse ladder jumped from a dark frame at 06:00 to a lit one at 07:00, which hides the terminator crossing itself, and the crossing is exactly where a step or a flash would live. Local hour 6.6.",
+      "expect": "Shore brightness should rise SMOOTHLY across these rungs. A jump between adjacent rungs is the defect the operator is describing.",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {"body":"earth","lat":24,"lon":-77,"time":6.6,"altitude_km":400,"look_offset_deg":0},
+      "showcase": {"clouds":"1","weather":"clear","cloud_clock":"0"},
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "shore-dawn-6p8",
+      "desc": "Finer rung of the shore sunrise ladder (see shore-dawn-0700). The coarse ladder jumped from a dark frame at 06:00 to a lit one at 07:00, which hides the terminator crossing itself, and the crossing is exactly where a step or a flash would live. Local hour 6.8.",
+      "expect": "Shore brightness should rise SMOOTHLY across these rungs. A jump between adjacent rungs is the defect the operator is describing.",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {"body":"earth","lat":24,"lon":-77,"time":6.8,"altitude_km":400,"look_offset_deg":0},
+      "showcase": {"clouds":"1","weather":"clear","cloud_clock":"0"},
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "orbit-terminator-3000km-noms",
+      "desc": "The multiple-scattering CONTROL for orbit-terminator-3000km. v0.1331.8 turned cloud_ms on by default, which brightens the deck everywhere including the clouds near and just past the terminator. The night-side mean at this vantage read 1.94/2.86/3.68 after the v0.1331.3 coast fix and 2.81/3.72/4.53 after v0.1331.8, so the obvious question is whether the multiple-scattering default partly re-lit the night side or whether something else moved. Identical to its parent except cloud_ms is forced OFF.",
+      "expect": "If the night-side mean returns to about 1.94/2.86/3.68 with cloud_ms off, the rise is the multiple-scattering default lighting night-side cloud, which is physically correct near the terminator and not a regression of the coast fix. If it stays high, something else changed and the coast path needs re-examining.",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {"body":"earth","lat":15,"lon":0,"time":18,"altitude_km":3000,"look_offset_deg":0},
+      "showcase": {"cloud_quality":"ultra","clouds":"1","cloud_cover":"0.5","cloud_type":"0.34","weather":"clear","cloud_clock":"120","cloud_light":"1","cloud_body_cache":"1","cloud_step_eco":"1","map_diag":"0","cloud_res":"1","cloud_profile":"1","cloud_top_bound":"0","cloud_uniform_step":"0","cloud_step_m":"0","cloud_ms":"0"},
+      "settle_s": 12,
+      "hold_altitude": true
     }
   ],
   "ladder": {

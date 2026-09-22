@@ -76,6 +76,55 @@ marble is not whitened. See BUG-080 and `docs/design/environment-fields.md`.
 
 **Do not re-propose:** a weight that reads camera altitude, distance, or how
 much of the planet is on screen. That is the defect class, not a tuning knob.
+### 1c. The shore glow: NOT reproducible at nadir, and v0.1331.8 did not regress it
+
+Two negative results, both worth more than they look, because each closes off a
+direction that would otherwise be re-walked.
+
+**The sunrise ladder is clean.** `shore-dawn-*` steps one fixed coastline (the
+Bahamas bank, the largest bright shallow shelf on the planet) through local
+solar hours 5.0, 6.0, 6.2, 6.4, 6.6, 6.8, 7.0 and 9.0 at nadir from 400 km.
+Measured on a tight central crop, which matters because a looser one counts the
+chat overlay as cloud and reported a bright "cloud" on a frame of mean
+luminance 1.4:
+
+| local hour | frame | shore | cloud | deep ocean |
+| --- | --- | --- | --- | --- |
+| 6.2 | 4.7 | - | 44.1 | - |
+| 6.4 | 14.4 | - | 47.3 | 11.3 |
+| 6.6 | 33.1 | 19.4 | 56.3 | 11.2 |
+| 6.8 | 57.1 | 21.6 | 92.2 | - |
+| 7.0 | 80.5 | 26.8 | 130.3 | - |
+| 9.0 | 128.9 | 48.6 | 206.7 | - |
+
+The onset is SMOOTH across the terminator crossing (the fine rungs exist
+precisely because the coarse ladder jumped 06:00 to 07:00 and hid it), the
+shore is always brighter than deep ocean and always far darker than cloud. No
+defect is visible at this geometry, so whatever the operator is seeing needs a
+GRAZING view, where water Fresnel reflectance approaches unity and the sky
+mirror dominates. Build the next fixture there, not at nadir.
+
+**And the night-side rise was not a regression.** `orbit-terminator-3000km`
+read 1.94/2.86/3.68 after the v0.1331.3 coast fix and 2.81/3.72/4.53 after
+v0.1331.8, which looks like the coast glow coming back. It is not. The control
+`orbit-terminator-3000km-noms`, identical but with `cloud_ms` forced off,
+returns **1.96/2.87/3.70**, matching the post-fix baseline to two decimals.
+
+So the entire rise is the multiple-scattering default lighting NIGHT-SIDE
+CLOUD, which is physically correct: cloud at altitude stays sunlit after the
+ground beneath it is dark, which is why sunset clouds glow. The coast fix is
+intact.
+
+That control is worth keeping for a general reason. v0.1331.8 changed cloud
+brightness globally, so EVERY night-side or terminator metric taken before it
+shifted, and any of them could be misread as a regression of something else.
+When a baseline moves after a global lighting change, reproduce the old
+configuration before believing the delta belongs to the thing you are looking
+at.
+
+Still unreproduced, and genuinely open: the shores glowing at a grazing view
+when the sun is visible, and the clouds glistening at the dusk line.
+
 ### 1b. THE CLOUD DECK ERASES THE AURORA. Root cause, measured 2026-09-22
 
 The operator asked three times why the aurora looked dark, and twice why it
