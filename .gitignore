@@ -1,6 +1,7 @@
 # ── Build artifacts ──
 /target/
 /HumanityOS.exe
+/HumanityOS.exe.build.json
 /v*_HumanityOS.exe
 /v*_HumanityOS.exe.sig.json
 /release-manifest.json

@@ -134,6 +134,63 @@ it would not have touched the default tier or the symptom reported here.
 between each, and check that the instrument could have failed before trusting a
 clean result. Channel 1 would have proved nothing if it rendered an analytic
 coverage instead of the marched one; it renders the marched one.
+
+**2026-09-22, the operator reported it again in different words, and three
+things were settled.** His report: "the entire planet seems to kind of be
+twinkling with white specks. They are tiny and they do not seem to rotate with
+the planet." That is this defect, not a new one. A zoom into
+`approach-2000km-high` shows it plainly: cloud masses with correct coherent
+silhouettes whose interiors are pure black-and-white salt and pepper.
+
+*A fifth hypothesis refuted.* `orbit-2000-high-notemporal` was built in the
+previous pass and never captured; the entry above named it as the experiment
+that would answer whether the accumulator is refusing to converge the sun term.
+Captured now, with `scripts/speckle-census.js` (new, written for this):
+
+| arm | speckle | spikes |
+| --- | --- | --- |
+| `approach-2000km-high` (baseline) | 1.76% | 0.44% |
+| `orbit-2000-high-notemporal` (accumulation off) | 1.88% | 0.45% |
+| `orbit-2000-low-tier` (Low, unjittered) | **0.63%** | 0.43% |
+
+Turning the accumulation off changes almost nothing, so the accumulator is not
+the carrier. Low tier at the SAME camera is 2.8x cleaner, so the per-pixel
+jitter is.
+
+*Why it "does not rotate with the planet", which is the useful clue.* All three
+jitters were FROZEN in v0.1253.2 (see the long note in
+`45-cloud-temporal.wgsl`) after the operator own on/off experiment, because a
+frame-advancing jitter made a parked frame fizz. Frozen means keyed on
+`in.pos.xy`, which is the SCREEN pixel. So the grain is nailed to the screen
+while the world slides underneath it. Parked, it is stable and looks like fine
+texture; in motion, it reads exactly as he describes, specks that stay put while
+the planet turns. The freeze did not reduce the noise, it changed which
+reference frame the noise lives in.
+
+*A stale comment that will mislead the next reader.* `cloud_layer_volumetric`
+in `40-clouds.wgsl` still says of the temporal composite: "This is where the
+boiling static dies: the map is an exponential average of many jittered
+marches." That map was RETIRED in v0.1250. `frame_shells.rs` pins
+`near_mix = 1.0` whenever temporal is armed and the octa pass never dispatches,
+so nothing averages the march any more. Confirmed live: `[CloudRegime]` reports
+`temporal=true mix=1.00` at every altitude captured, 0.8 km to 35,870 km.
+
+**The next experiment, and why it is the right one.** The bisect says alpha is
+clean and the direct-sun term is grainy, and both ride the same jittered sample
+positions. That asymmetry is the whole answer: alpha is an integral of density,
+which converges fast, while the sun term is `exp(-tau_sun)`, strongly
+nonlinear, so the same sample displacement that barely moves alpha swings the
+sun term hard. Nothing downstream can fix that, which is why four accumulator-
+and filter-shaped hypotheses have now all failed.
+
+So DECOUPLE the two. Keep the jittered eye-ray sampling for alpha, where it
+earns its keep dissolving the step comb and the mip rings, and evaluate the SUN
+optical depth on the unjittered step grid (or on a jitter of much smaller
+amplitude). Untried, cheap to build, and it predicts a specific result: the
+channel-2 capture goes smooth while channel 1 is unchanged and the ring cure
+still works. Gate it red first the usual way, and keep the ring metric from
+v0.1270 in the loop, because the last person to turn a dither off brought the
+radial artifact back at full strength without noticing.
 ### 3. The night-side coast glow. One cause fixed; the whole surface path now eliminated
 
 Reported twice. Fixture `orbit-terminator-3000km`, measured with

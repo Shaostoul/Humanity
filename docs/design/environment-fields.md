@@ -190,6 +190,57 @@ In `cloud_march_core` the right value is `m0`, the slab entry distance, which is
 computed a few lines after the coverage read, so the resolve belongs after the
 slab interval rather than beside the material fetch.
 
+## The aurora was drawn in the wrong half of the sky (2026-09-22)
+
+The operator, on the first shipped version: "it still kinda looks like it is
+laying on its side instead of vertical as seen by the orangey/red color being
+against the surface, maybe we got a rotation axis wrong?"
+
+No axis was wrong. The ALTITUDE was, and the two look identical from a
+distance, which is why this is worth writing down.
+
+Band 2 carries its emitting layer as a fraction of the atmosphere shell
+thickness, and the aurora shipped with 0.08 to 0.78. Nobody converted that to
+kilometres. Doing it:
+
+- Earth ships `atmosphere_scale` 0.015, so `shell_packing` gives
+  `rp = 1 / 1.03 = 0.9709` in shell units.
+- One shell unit is therefore `6371 / 0.9709 = 6562 km`.
+- The ENTIRE shell is `(1 - 0.9709) * 6562 = 191 km` thick.
+- So 0.08 to 0.78 is **15 km to 149 km**.
+
+A real auroral curtain runs from a sharp lower border near 100 km to 300 km and
+beyond for the red. The shipped one started in the stratosphere, below most of
+the aurora and below a low orbit, so from 155 km the operator was flying ABOVE
+the whole layer and looking down on a sheet. A sheet seen from above is exactly
+what "laying on its side" describes.
+
+Now 0.52 to 0.995, which is 99 km to 190 km.
+
+**The general lesson, which is not about auroras.** A payload expressed as a
+fraction of something is unreadable on its own. Both numbers looked like
+sensible fractions, the render looked like an aurora, and the error only
+surfaced when somebody standing at 155 km noticed the sky was in the wrong
+place. Any band-2 or band-1 kind that means a real altitude should carry its
+conversion in the comment beside it, as the aurora row now does.
+
+### The cap, and why it is not fixed here
+
+The top cannot go past 191 km today. The aurora integrates along the atmosphere
+chord, and that chord ends at the shell; the shell mesh is drawn at
+`1 + atmosphere_scale * 2` planet radii, so there is no fragment above it to
+draw emission on. The real red cap at 300 to 400 km is therefore unreachable
+without enlarging the shell.
+
+Enlarging it is CHEAP IN PHYSICS and expensive in blast radius. `shell_packing`
+derives both `rp` and `h_rel` from the same scale, so the scattering model is
+invariant to shell size to about one part in a billion: at 191 km with an 8.5 km
+scale height the density is already `exp(-22)`, so the added chord is vacuum.
+But `atmosphere_scale` is read in several places, the sun-transmittance tests
+pin 0.015 by hand, and the atmosphere is the most heavily tuned thing in the
+renderer. That is its own increment with its own measurement, not a passenger
+on an aurora change.
+
 ## Known gap, deliberate
 
 The sun-shadow cache bake and the profile bake in `45-cloud-temporal.wgsl` read

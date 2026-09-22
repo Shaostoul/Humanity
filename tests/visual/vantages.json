@@ -11602,7 +11602,8 @@
       },
       "showcase": {
         "clouds": "1",
-        "weather": "clear"
+        "weather": "clear",
+        "cloud_clock": "0"
       },
       "settle_s": 12,
       "hold_altitude": true
@@ -11623,7 +11624,8 @@
       },
       "showcase": {
         "clouds": "1",
-        "weather": "clear"
+        "weather": "clear",
+        "cloud_clock": "0"
       },
       "settle_s": 12,
       "hold_altitude": true
@@ -11644,8 +11646,102 @@
       },
       "showcase": {
         "clouds": "1",
-        "weather": "clear"
+        "weather": "clear",
+        "cloud_clock": "0"
       },
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "aurora-limb-600",
+      "desc": "Aurora from LOW ORBIT, on the limb (v0.1331.5). The operator reported the aurora \"laying on its side instead of vertical\" from 155 km, and he was right for a reason no existing fixture could show: the emitting layer ran 15 km to 149 km, so he was flying ABOVE all of it and looking down at a sheet. Every other aurora fixture sits at 1500 km or higher, where a layer on the ground and a layer at 100 km are a pixel apart. This one is close enough that the BASE ALTITUDE of the curtain is a visible quantity.",
+      "expect": "A curtain STANDING OFF the dark limb: a clear gap of empty air between the planet edge and the bottom of the green, then green, then red above it. If the green touches the limb the layer floor has slipped back down.",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 45,
+        "lon": 0,
+        "time": 0,
+        "altitude_km": 600,
+        "look_offset_deg": 68
+      },
+      "showcase": {
+        "clouds": "1",
+        "weather": "clear",
+        "cloud_clock": "0"
+      },
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "aurora-limb-1200",
+      "desc": "Aurora at 1200 km on the limb (v0.1331.5), the motion pair baseline. Same camera as its -t45 twin with the clock pinned 45 s later, which is how the aurora animation is proved: the rig FREEZES the clock for determinism, so a single capture can never show whether anything moves, and two captures that differ only in pinned time can.",
+      "expect": "Green oval with visible vertical rays and web structure standing off the dark limb. Compared against aurora-limb-1200-t45 the fine rays and the pulsing patches must have MOVED while the overall oval position has barely changed.",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 42,
+        "lon": 0,
+        "time": 0,
+        "altitude_km": 1200,
+        "look_offset_deg": 57
+      },
+      "showcase": {
+        "clouds": "1",
+        "weather": "clear",
+        "cloud_clock": "0"
+      },
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "aurora-limb-1200-t45",
+      "desc": "The motion twin of aurora-limb-1200, clock pinned 45 s later and nothing else changed. Paired difference is the evidence for the animation; on its own this fixture proves nothing.",
+      "expect": "Green oval with visible vertical rays and web structure standing off the dark limb. Compared against aurora-limb-1200-t45 the fine rays and the pulsing patches must have MOVED while the overall oval position has barely changed.",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 42,
+        "lon": 0,
+        "time": 0,
+        "altitude_km": 1200,
+        "look_offset_deg": 57
+      },
+      "showcase": {
+        "clouds": "1",
+        "weather": "clear",
+        "cloud_clock": "45"
+      },
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "aurora-oval-300",
+      "desc": "Aurora seen ALMOST FACE ON from just below it (v0.1331.5): 300 km up at 62 N, looking at the horizon, so the oval at about 67 N stands roughly 600 km away rather than 2500. This is the only fixture where a 91 km tall curtain subtends a large enough angle to read as a WALL rather than a ribbon, which is the distinction the operator asked about. It is also the view where the fine ray structure survives: a grazing limb ray crosses many rays of the curtain and averages them away, exactly as a real edge-on curtain reads as a smooth bright band.",
+      "expect": "A curtain with obvious HEIGHT: green base, vertical ray striation up its face, red above. Height comparable to or greater than the visible width of a strand.",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {"body":"earth","lat":62,"lon":0,"time":0,"altitude_km":300,"look_offset_deg":75},
+      "showcase": {"clouds":"1","weather":"clear","cloud_clock":"0"},
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "orbit-2000-low-tier",
+      "desc": "The 2000 km cloud view at LOW tier (v0.1331.5). Low takes the direct shell path, one smooth unjittered sample per screen pixel, and the v0.1253 record says it is the only clean tier. This is the control for the TV static: if Low is clean at the same camera where High is full of salt-and-pepper, the per-pixel jitter is the carrier and no further hypothesis about the density field, the sun cache or the accumulator needs testing.",
+      "expect": "Cloud masses with smooth interiors. Measured with scripts/speckle-census.js against approach-2000km-high, the spike rate must be several times lower.",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {"body":"earth","lat":23,"lon":13,"time":12,"altitude_km":2000,"look_offset_deg":0},
+      "showcase": {"cloud_quality":"low","clouds":"1","cloud_cover":"0.4"},
       "settle_s": 12,
       "hold_altitude": true
     }

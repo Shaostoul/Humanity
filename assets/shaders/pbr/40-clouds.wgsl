@@ -3650,11 +3650,23 @@ fn cloud_layer_volumetric(world_position: vec3<f32>, front_facing: bool) -> vec4
     let limb_w = smoothstep(1.0, 1.35, length(ro_w));
     let limb = mix(1.0, mix(0.55, 1.0, smoothstep(0.0, 0.35, mu)), limb_w);
 
-    // TEMPORAL COMPOSITE (phase 4, pin flag +4 in params2.w): the octa
-    // pass has already marched and accumulated this direction - sample
-    // the map instead of marching again. This is where the boiling
+    // TEMPORAL COMPOSITE (phase 4, pin flag +4 in params2.w): this
+    // fragment gets out of the way and the fullscreen composite draws.
+    //
+    // THIS COMMENT USED TO SAY the octa map had already marched and
+    // accumulated this direction, and that "this is where the boiling
     // static dies: the map is an exponential average of many jittered
-    // marches, i.e. the supersampling the single-frame march never had.
+    // marches". That stopped being true in v0.1250, when the map was
+    // RETIRED: frame_shells.rs pins near_mix = 1.0 whenever temporal is
+    // armed, the octa pass never dispatches, and its texture stays
+    // empty. The composite's NEAR arm - the per-pixel screen march - is
+    // the only content source at every altitude.
+    //
+    // It matters that nobody reads the old claim again. There is no
+    // averaging of the march any more, which is why the salt-and-pepper
+    // in the direct-sun term has nothing downstream to remove it, and
+    // why four accumulator-shaped hypotheses about it have all failed.
+    // See docs/PRIORITIES.md, the orbital TV-static entry.
     if (material.params2.w >= 3.5) {
         // Wave D slice 1b: while the temporal map is armed, the FULLSCREEN
         // depth-aware composite pass (cloud_composite.wgsl) is the ONLY

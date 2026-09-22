@@ -201,21 +201,77 @@ fn atmo_mie_phase(c: f32) -> f32 {
 /// Samples along the atmosphere chord. Pure ALU, no texture fetches, and the
 /// whole loop is skipped for rays that cannot reach the layer at all.
 const AURORA_STEPS: i32 = 7;
-/// How far the DIFFUSE aurora spreads beyond the discrete arc, as a multiple
-/// of the arc's own width. Photographs from orbit show a narrow bright ribbon
-/// with much dimmer sheets fanning away from it, so the oval is really two
-/// populations rather than one smooth band.
+/// How many arcs the oval is made of. One reads as a drawn circle; several
+/// that meander, cross and break is what a photograph actually shows.
+const AURORA_STRANDS: i32 = 3;
+/// How far a strand wanders in latitude, as a multiple of the oval half-width.
+const AURORA_MEANDER: f32 = 3.0;
+/// Speed of the slow structural drift of the oval itself, per second of clock.
+/// Deliberately small: a feature crossing the real oval at about 1 km/s takes
+/// hours to travel round it, so the shape must barely move over a minute.
+const AURORA_DRIFT: f32 = 0.02;
+/// Speed of the broad curtain folds.
+const AURORA_FOLD_SPEED: f32 = 0.25;
+/// Speed of the fine ray shimmer. An order of magnitude faster than the drift,
+/// because that is the split in the real thing: the arc creeps, the rays
+/// flicker, and the flicker is the motion the eye reads as alive.
+const AURORA_FLICKER: f32 = 1.6;
+/// Speed of pulsating patches (real pulsating aurora cycles over 1 to 20 s).
+const AURORA_PULSE: f32 = 0.55;
+/// How many vertical rays fit around the whole oval.
+///
+/// Was 47, and that is the number that kept the curtain looking painted. 47
+/// rays around a 40,000 km circle is one ray every 850 km, which is not a ray,
+/// it is a lobe of the oval. Real auroral rays are field-aligned filaments
+/// tens of km across. 1200 puts them at about 34 km, which reads as striation
+/// from a few hundred km away and still resolves at several thousand.
+const AURORA_RAY_LOBES: f32 = 1200.0;
+/// Phase lean of a ray across the layer height. Rays follow the magnetic
+/// field, which is close to vertical at these latitudes, so this is a slight
+/// tilt and not a shear.
+const AURORA_RAY_LEAN: f32 = 8.0;
+/// The exact mean of pow(0.5 + 0.5 * sin(x), 3) over a full cycle, which is
+/// 5/16. The ray detail fades TO THIS rather than to zero, so losing the
+/// detail at range costs no brightness.
+const AURORA_RAY_MEAN: f32 = 0.3125;
+/// Distance from the camera, in shell units, over which ray detail fades to
+/// its mean. One shell unit is about 6562 km at Earth, so this is roughly
+/// 6600 km to 20,000 km.
+const AURORA_RAY_LOD_LO: f32 = 1.0;
+const AURORA_RAY_LOD_HI: f32 = 3.0;
+/// How far the DIFFUSE aurora spreads beyond the discrete arcs, as a multiple
+/// of the oval's own half-width. Photographs from orbit show narrow bright
+/// ribbons with much dimmer sheets fanning away from them, so the oval is
+/// really two populations rather than one smooth band.
 const AURORA_DIFFUSE_SPREAD: f32 = 5.0;
 /// Brightness of those sheets relative to the arc.
 const AURORA_DIFFUSE_LEVEL: f32 = 0.22;
 /// The red 630 nm cap is real but far dimmer than the green ribbon.
-const AURORA_RED_LEVEL: f32 = 0.55;
+///
+/// Was 0.55, which with the old height profile gave red SEVENTY PERCENT of
+/// the curtain and made it the dominant colour. Every reference photograph is
+/// green-dominated: 557.7 nm is the brightest auroral line by a wide margin,
+/// and the red cap only takes over in strong events and at heights where the
+/// green has already stopped.
+const AURORA_RED_LEVEL: f32 = 0.30;
 /// Scales the integrated emission to screen radiance.
 const AURORA_STRENGTH: f32 = 24.0;
 /// 557.7 nm atomic oxygen: the green every photograph is dominated by.
 const AURORA_GREEN: vec3<f32> = vec3<f32>(0.16, 1.0, 0.42);
 /// 630 nm oxygen, which sits ABOVE the green and is thinner and redder.
-const AURORA_RED: vec3<f32> = vec3<f32>(1.0, 0.24, 0.30);
+const AURORA_RED: vec3<f32> = vec3<f32>(1.0, 0.26, 0.20);
+
+/// Three incommensurate harmonics around the oval, in roughly -1..1.
+///
+/// Used for BOTH a strand path and its presence mask, with a different `seed`
+/// per strand so no two follow the same course. Incommensurate on purpose: at
+/// 3, 7 and 13 lobes the sum never repeats over a circuit, so the oval does not
+/// read as a sine wave bent into a ring, which is what a single harmonic gives.
+fn aurora_wave(phi: f32, t: f32, seed: f32) -> f32 {
+    return sin(phi * 3.0 + t + seed) * 0.55
+        + sin(phi * 7.0 - t * 0.61 + seed * 2.3) * 0.30
+        + sin(phi * 13.0 + t * 0.37 + seed * 4.1) * 0.15;
+}
 
 fn aurora_emission(ro: vec3<f32>, rd: vec3<f32>, t0: f32, t1: f32, rp: f32) -> vec3<f32> {
     var total = vec3<f32>(0.0);
@@ -283,20 +339,49 @@ fn aurora_emission(ro: vec3<f32>, rd: vec3<f32>, t0: f32, t1: f32, rp: f32) -> v
             let pnt = ro + rd * t;
             let r = length(pnt);
             let up = pnt / r;
-            // Where in the ring, and how far up the emitting layer.
+            // Where in the ring, how far around it, and how far up the layer.
             let ang = acos(clamp(dot(up, pole), -1.0, 1.0));
-            // TWO populations, which is what the reference photographs show.
-            // A discrete ARC: narrow across latitude and very bright, with a
-            // hard equatorward edge, which is the ribbon you actually see.
-            let arc = smoothstep(inner - edge * 0.25, inner + edge * 0.15, ang)
-                * (1.0 - smoothstep(outer - edge * 0.15, outer + edge * 0.25, ang));
-            // And the DIFFUSE glow fanning away from it, several times wider
-            // and a fraction as bright. Without this the oval reads as a bare
-            // stripe; without the arc it reads as a smooth wash, which is what
-            // the first version did.
-            let half = (outer - inner) * 0.5 * AURORA_DIFFUSE_SPREAD;
+            let tang = normalize(up - pole * dot(up, pole));
+            let phi = atan2(dot(tang, ey), dot(tang, ex));
+            let hgt = clamp((r - r_lo) / (r_hi - r_lo), 0.0, 1.0);
+
+            // ── THE OVAL IS NOT A CIRCLE (operator, 2026-09-22) ──
+            //
+            // "Can we add more shape to the aurora so it is not just a ring
+            // but, like kinda spider webbing out?"
+            //
+            // That is what the reference photographs show. A real oval is
+            // several arcs that meander in latitude, run parallel for a
+            // stretch, cross, break into segments and fade out. Drawing one
+            // smooth band is what made the first version read as a painted
+            // ring rather than a structure.
+            //
+            // Each strand wanders on its own path and exists only along part
+            // of the oval. Where two cross they merge; where a presence mask
+            // closes, the web has a hole. Nothing here is noise: the same
+            // harmonics at the same phi always give the same shape, so the
+            // web is a STRUCTURE that drifts rather than a flicker.
             let mid = (inner + outer) * 0.5;
-            let diffuse = (1.0 - smoothstep(0.0, half, abs(ang - mid)))
+            let halfw = max((outer - inner) * 0.5, 1.0e-5);
+            var arc = 0.0;
+            for (var sI = 0; sI < AURORA_STRANDS; sI = sI + 1) {
+                let sd = f32(sI);
+                let center = mid
+                    + aurora_wave(phi, time * AURORA_DRIFT, sd * 1.7)
+                        * halfw * AURORA_MEANDER;
+                let pres = smoothstep(-0.30, 0.40,
+                    aurora_wave(phi * 0.55, time * AURORA_DRIFT * 0.6, sd * 3.9 + 11.0));
+                let w = halfw * (0.55 + 0.35 * sd);
+                let soft = max(w - edge, w * 0.25);
+                arc = max(arc,
+                    (1.0 - smoothstep(soft, w, abs(ang - center))) * pres);
+            }
+            // And the DIFFUSE glow fanning away from the strands, several
+            // times wider and a fraction as bright. Without this the oval
+            // reads as a bare stripe; without the strands it reads as a
+            // smooth wash, which is what the first version did.
+            let half_d = halfw * AURORA_DIFFUSE_SPREAD;
+            let diffuse = (1.0 - smoothstep(0.0, half_d, abs(ang - mid)))
                 * AURORA_DIFFUSE_LEVEL;
             let ring = max(arc, diffuse);
             if (ring <= 0.001) {
@@ -308,28 +393,52 @@ fn aurora_emission(ro: vec3<f32>, rd: vec3<f32>, t0: f32, t1: f32, rp: f32) -> v
             if (night <= 0.0) {
                 continue;
             }
-            let hgt = clamp((r - r_lo) / (r_hi - r_lo), 0.0, 1.0);
-            // Curtains: broad folds around the oval, and finer rays within
-            // them that lean with height, which is what gives an aurora its
-            // vertical striation rather than looking like a painted band.
-            let tang = normalize(up - pole * dot(up, pole));
-            let phi = atan2(dot(tang, ey), dot(tang, ex));
-            let folds = 0.5 + 0.5 * sin(phi * 9.0 + time * 0.11);
+            // ── WHAT MOVES, AND HOW FAST (operator, 2026-09-22) ──
+            //
+            // "It also seems rather static, are not auroras supposed to shift
+            // around a bit or is the time that happens over not so short?"
+            //
+            // Both halves of that are right, and the first version only had
+            // the slow half. The OVAL drifts over hours. The FINE STRUCTURE
+            // does not: rays shimmer and pulsating patches brighten and fade
+            // over 1 to 20 seconds, and that is the motion the eye reads as
+            // alive. So the drift stays slow and honest, and the flicker and
+            // the pulse run an order of magnitude faster.
+            let folds = 0.5 + 0.5 * sin(phi * 9.0 + time * AURORA_FOLD_SPEED);
             // RAYS, sharpened. A curtain is made of near-vertical rays, so the
             // modulation wants contrast rather than a gentle ripple, and the
             // pattern must stay COHERENT with height or it reads as noise
             // instead of structure. The small height term leans them rather
             // than scrambling them.
-            let ray_s = 0.5 + 0.5 * sin(phi * 47.0 - time * 0.07 + hgt * 0.8);
-            let rays = pow(ray_s, 3.0);
-            let curtain = 0.30 + 0.70 * folds * (0.25 + 0.75 * rays);
+            let ray_s = 0.5 + 0.5 * sin(phi * AURORA_RAY_LOBES
+                - time * AURORA_FLICKER + hgt * AURORA_RAY_LEAN);
+            // RAY DETAIL IS A SAMPLING QUESTION, NOT A FIELD QUESTION, and the
+            // difference matters because BUG-080 was caused by confusing the
+            // two. This does not change WHERE the aurora is or HOW BRIGHT it
+            // is; it fades a high-frequency detail to its own exact mean once
+            // the detail is too small to resolve, which is a mip fade and is
+            // energy preserving by construction. `t` is distance from the
+            // camera because that is what sets the sampling rate. A weight on
+            // the EFFECT may never read the camera; an antialiasing term has
+            // nothing else it could read.
+            let ray_lod = 1.0 - smoothstep(AURORA_RAY_LOD_LO, AURORA_RAY_LOD_HI, t);
+            let rays = mix(AURORA_RAY_MEAN, pow(ray_s, 3.0), ray_lod);
+            // Pulsating patches: two slow beating cells, so brightness moves
+            // around the oval independently of the rays.
+            let pulse = 0.65 + 0.35 * sin(phi * 4.0 + time * AURORA_PULSE)
+                * sin(phi * 2.3 - time * AURORA_PULSE * 0.7 + 1.7);
+            let curtain = (0.30 + 0.70 * folds * (0.25 + 0.75 * rays)) * pulse;
             // Height profiles, separately per emission line. The 557.7 nm green
             // really does sit at the BOTTOM of the curtain and stop, while the
             // 630 nm red caps it and reaches much higher. Giving them one shared
             // profile is what made the first version a uniform slab.
-            let green_v = 1.0 - smoothstep(0.12, 0.60, hgt);
-            let red_v = smoothstep(0.28, 0.70, hgt)
-                * (1.0 - 0.6 * smoothstep(0.80, 1.0, hgt));
+            // Green fills the lower two thirds and stops; red caps the top
+            // third only. The previous split had them overlapping across most
+            // of the layer, so the curtain was red with a green hem instead of
+            // green with a red cap.
+            let green_v = 1.0 - smoothstep(0.05, 0.62, hgt);
+            let red_v = smoothstep(0.55, 0.95, hgt)
+                * (1.0 - 0.5 * smoothstep(0.90, 1.0, hgt));
             let col = AURORA_GREEN * green_v
                 + AURORA_RED * (red_v * AURORA_RED_LEVEL);
             total = total + col * (ring * night * curtain

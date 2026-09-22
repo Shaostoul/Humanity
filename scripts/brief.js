@@ -105,6 +105,12 @@ const L = [];
 L.push('===================  HumanityOS brief  ===================');
 L.push('');
 L.push('VERSION:  ' + versionLine);
+// The VERSION row above compares the repo to GitHub, which is not what the
+// operator experiences. He experiences the exe on his taskbar, and those two
+// can disagree for days: in September 2026 this brief printed 'in sync at
+// v0.1331' for five straight releases while he was launching v0.1326 and
+// reporting bugs that were already fixed. So print the binary too.
+L.push('DELIVERY: ' + (sh('node "' + path.join(root, 'scripts', 'check-delivery.js') + '" --quiet') || '(check unavailable)'));
 L.push('');
 L.push('CI DEPLOY (latest):');
 L.push(ci ? '  ' + ci.split('\n')[0] : '  (unavailable -- offline? check: just ci)');

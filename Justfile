@@ -44,6 +44,7 @@ ship msg="chore: update":
     @just _stage-generated
     @just _commit "{{msg}}"
     @just sync
+    -@node scripts/check-delivery.js --warn
 
 # Internal: stage the files `ship` itself generates (version stamps, theme CSS,
 # the bundled app/web tree). These are ship's own output, so they belong in the
@@ -688,6 +689,31 @@ build-game:
     @just bump
     cargo build --features native --release
     @node scripts/archive-build.js
+    @node scripts/check-delivery.js
+
+# Put the current work in the OPERATOR HANDS: compile, archive, and refresh the
+# stable HumanityOS.exe that his taskbar shortcut points at.
+#
+# Run this after any Rust change he should be able to test. It is build-game
+# without the version bump, which is what you want when the version is already
+# stamped and tagged and you just need the binary to catch up -- bumping again
+# there strands local ahead of GitHub (see the Version SOP).
+#
+# Five releases shipped without this step in September 2026. The code was
+# right, the tags were right, and the operator spent two days testing a build
+# from before all of it.
+#
+# Build + archive + refresh the taskbar exe (build-game without the bump)
+deliver:
+    cargo build --features native --release
+    @node scripts/archive-build.js
+    @node scripts/check-delivery.js
+
+# The one question `just brief`, CI and the release tag all fail to ask.
+#
+# Is the exe the operator launches actually the work we just did?
+check-delivery:
+    @node scripts/check-delivery.js
 
 # Build and launch the game. HUMANITY_TAKE_FOCUS is the operator's explicit
 # focus opt-in (v0.1081): script-launched instances now open in the background

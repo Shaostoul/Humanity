@@ -74,10 +74,34 @@ function killRunning() {
   execSync("ping -n 2 127.0.0.1 > nul", { stdio: "ignore" });
 }
 
+// Record WHAT the taskbar exe actually is.
+//
+// The delivery failure this guards against is silent by construction: the repo,
+// GitHub, the tag and `just brief` can all agree at v0.1331 while the
+// HumanityOS.exe on the operator taskbar is still v0.1326, because nothing on
+// the git side ever looks at the binary. Five releases shipped that way before
+// the operator noticed he had been testing none of them.
+//
+// Written only from refreshStable, and only after the copy succeeded, so the
+// stamp can never claim a delivery that did not happen.
+function writeStamp(ver) {
+  let head = null;
+  try {
+    head = execSync("git rev-parse --short HEAD", { cwd: BINDIR, encoding: "utf8" }).trim();
+  } catch (e) {
+    /* not a checkout, or no git on PATH */
+  }
+  const stamp = { version: ver, archived_at: new Date().toISOString(), git_head: head };
+  try {
+    fs.writeFileSync(STABLE_EXE + ".build.json", JSON.stringify(stamp, null, 2) + "\n");
+  } catch (e) {
+    console.warn(`  Could not write build stamp: ${e.message}`);
+  }
+}
 // Refresh the stable, unversioned HumanityOS.exe (+ its signature sidecar) so
 // the operator's pinned taskbar shortcut always points at the latest build.
 // Best-effort: a lock (exe still running) is warned, not fatal.
-function refreshStable(dest) {
+function refreshStable(dest, ver) {
   try {
     // killRunning() above already stopped a running stable copy, so the fast
     // path normally works. Fallback for a still-locked target: a running exe on
@@ -110,7 +134,8 @@ function refreshStable(dest) {
         /* none */
       }
     }
-    console.log(`  Stable: HumanityOS.exe refreshed (pin this to your taskbar)`);
+    writeStamp(ver);
+    console.log(`  Stable: HumanityOS.exe refreshed to v${ver} (pin this to your taskbar)`);
   } catch (e) {
     console.warn(
       `  Could not refresh HumanityOS.exe (is it still running?): ${e.message}`
@@ -198,7 +223,7 @@ function archive() {
   console.log(`Archived: ${dest} (${mb} MB)`);
 
   signArchive(dest);
-  refreshStable(dest);
+  refreshStable(dest, ver);
   purgeOld();
   return dest;
 }
@@ -216,7 +241,22 @@ function launch(exePath) {
 }
 
 // CLI
+//
+// Unknown flags are REJECTED rather than ignored. The no-flag branch archives,
+// and archiving kills any running HumanityOS so it can overwrite the exe, so a
+// typo like `--help` used to shut the game down and silently re-archive.
 const args = process.argv.slice(2);
+const KNOWN = new Set(["--launch", "--launch-only"]);
+const unknown = args.filter((a) => !KNOWN.has(a));
+if (unknown.length) {
+  console.error(`archive-build: unknown argument(s): ${unknown.join(" ")}`);
+  console.error("");
+  console.error("usage: node scripts/archive-build.js [--launch | --launch-only]");
+  console.error("  (no flag)      archive target/release -> v<version>_HumanityOS.exe, refresh HumanityOS.exe");
+  console.error("  --launch       archive, then launch the build just archived");
+  console.error("  --launch-only  launch the newest archive, building and archiving nothing");
+  process.exit(2);
+}
 if (args.includes("--launch-only")) {
   launch();
 } else if (args.includes("--launch")) {
