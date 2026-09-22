@@ -248,6 +248,79 @@ impl RegionKind {
     }
 }
 
+/// Allocate the environment-region storage buffer, zero filled.
+///
+/// ZERO FILLED MATTERS, which is why this is a function and not two calls to
+/// `create_buffer`. A plain `create_buffer` leaves contents UNDEFINED, not
+/// zeroed, so the first frame before any upload would read whatever happened to
+/// be in that memory as live regions. Kind 0 is reserved for an empty row and
+/// every consumer skips it, so a zeroed buffer is inert and undefined memory is
+/// not. A bug of that shape would surface at the first consumer and look like a
+/// cloud bug rather than an init bug.
+pub fn storage_buffer(device: &wgpu::Device, capacity: usize) -> wgpu::Buffer {
+    use wgpu::util::DeviceExt;
+    let zero = pack_all(&[], capacity);
+    device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        label: Some("Environment Regions Storage Buffer"),
+        contents: bytemuck::cast_slice(&zero),
+        usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+    })
+}
+
+/// Push the two auroral ovals, one about each pole.
+///
+/// Always present on a body with air. They were the SECOND consumer of the
+/// region buffer and a good test of whether it generalises: an aurora shares
+/// nothing with a storm except having a place and a size, and it needed no new
+/// uniform channel and no change to the record.
+///
+/// The direction is the spin axis. Bodies spin about +Y, so the pole is the one
+/// direction that reads the same in the body frame and the world frame, which is
+/// why the atmosphere shader can compare against it without undoing the spin
+/// first. Any NON-polar region consumed there would have to, and would fail
+/// quietly if it did not.
+///
+/// Geometry (ring angles, emitting altitudes) lives in the kind table, because
+/// where the oval sits and how high it glows are exactly the numbers someone
+/// will want to tune while looking at the sky. Read the altitude note there
+/// before changing the last two payload floats: they are fractions of the
+/// atmosphere shell, and the first version put the curtain at 15 to 149 km.
+pub fn push_auroral_ovals(regions: &mut Vec<EnvRegion>, kinds: Option<&RegionKinds>, body_km: f32) {
+    let Some(kind) = kinds.and_then(|t| t.by_id("aurora")) else {
+        return;
+    };
+    for axis in [1.0_f32, -1.0] {
+        regions.push(kind.region_at([0.0, axis, 0.0], body_km, 1.0));
+    }
+}
+
+/// The `[EnvRegions]` 1 Hz instrument. Permanent, not scaffolding.
+///
+/// This is the only place that can say whether the CPU built a region AT ALL,
+/// and the difference between "no region" and "a region the shader cannot see"
+/// is otherwise invisible in a capture. It earned its keep immediately: it
+/// reported `influence_under_camera=1.000` while the render was unchanged, and
+/// that CONTRADICTION is what localised the nadir-degeneracy bug to the
+/// CPU/GPU boundary rather than to either side. Same convention as
+/// `[CloudRegime]`.
+///
+/// `cam_dir` is the ground point under the camera in the BODY frame, which
+/// should read about the intensity: the anchor was placed at that same point.
+/// A low number means the anchor and the shader disagree about which frame
+/// they are in.
+pub fn log_regions(regions: &[EnvRegion], cam_dir: [f32; 3], elapsed_s: f32) {
+    if regions.is_empty() || elapsed_s.floor() as u32 % 2 != 0 {
+        return;
+    }
+    let r = regions[0];
+    log::info!(
+        "[EnvRegions] n={} kind={} dir=({:.3},{:.3},{:.3}) rad={:.4} intensity={:.2} cover={:.2} place={:.2} influence_under_camera={:.3}",
+        regions.len(), r.kind, r.dir[0], r.dir[1], r.dir[2],
+        r.angular_radius, r.intensity, r.params[0], r.params[1],
+        r.influence(cam_dir),
+    );
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

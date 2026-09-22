@@ -2799,3 +2799,44 @@ mod permutation_tests {
         }
     }
 }
+
+/// Build a bind group for `camera_bind_group_layout`.
+///
+/// EVERY binding the layout declares is listed here, exactly once, and this is
+/// the only place in the renderer that lists them. There used to be FOUR
+/// hand-written copies, so adding binding 4 for the environment regions meant
+/// finding and editing all four.
+///
+/// That is not a hypothetical cost. The v0.1029 incident was this exact shape
+/// one layout earlier: a texture binding was added, two of three creation sites
+/// were updated, and the missed one was built lazily when a textured material
+/// loaded - so menu-only boots stayed green for TEN releases while every world
+/// entry died on a wgpu validation error. A single constructor makes the class
+/// of bug impossible rather than merely documented.
+///
+/// `camera` is a parameter because the shadow pass binds the light camera here.
+/// The other four are always the same buffers; the shadow pass never reads the
+/// lights storage buffer, but the layout requires something bound, so it shares
+/// the main one.
+pub fn camera_bind_group(
+    device: &wgpu::Device,
+    layout: &wgpu::BindGroupLayout,
+    label: &str,
+    camera: &wgpu::Buffer,
+    lights: &wgpu::Buffer,
+    tile_counts: &wgpu::Buffer,
+    tile_indices: &wgpu::Buffer,
+    env_regions: &wgpu::Buffer,
+) -> wgpu::BindGroup {
+    device.create_bind_group(&wgpu::BindGroupDescriptor {
+        label: Some(label),
+        layout,
+        entries: &[
+            wgpu::BindGroupEntry { binding: 0, resource: camera.as_entire_binding() },
+            wgpu::BindGroupEntry { binding: 1, resource: lights.as_entire_binding() },
+            wgpu::BindGroupEntry { binding: 2, resource: tile_counts.as_entire_binding() },
+            wgpu::BindGroupEntry { binding: 3, resource: tile_indices.as_entire_binding() },
+            wgpu::BindGroupEntry { binding: 4, resource: env_regions.as_entire_binding() },
+        ],
+    })
+}

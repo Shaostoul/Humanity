@@ -428,54 +428,22 @@ if let Some(cov) = d.cloud_coverage.filter(|c| *c > 0.0 && clouds_on) {
                 }
             }
         }
-        // ── THE AURORAL OVALS (v0.1331) ──
-        //
-        // Two rings, one about each pole, always present on a body with air.
-        // They are the SECOND consumer of the region buffer and a good test of
-        // whether it generalises: an aurora shares nothing with a storm except
-        // having a place and a size, and it needed no new channel.
-        //
-        // The direction is the spin axis. Bodies spin about +Y, so the pole is
-        // the one direction that reads the same in the body frame and the world
-        // frame, which is why the atmosphere shader can compare against it
-        // without undoing the spin first. Any NON-polar region would have to.
-        //
-        // Geometry (ring angles, emitting altitudes) lives in the kind table,
-        // because where the oval sits and how high it glows are exactly the
-        // numbers someone will want to tune while looking at the sky.
-        if let Some(table) = state.data_store.get::<RegionKinds>("region_kinds") {
-            if let Some(kind) = table.by_id("aurora") {
-                let body_km = (d.radius / 1000.0) as f32;
-                for axis in [1.0_f32, -1.0] {
-                    regions.push(kind.region_at([0.0, axis, 0.0], body_km, 1.0));
-                }
-            }
-        }
+        // The auroral ovals. See renderer::env_regions::push_auroral_ovals.
+        crate::renderer::env_regions::push_auroral_ovals(
+            &mut regions,
+            state.data_store.get::<RegionKinds>("region_kinds"),
+            (d.radius / 1000.0) as f32,
+        );
 
-        // [EnvRegions] 1 Hz instrument. Permanent, not scaffolding: this is the
-        // only place that can say whether the CPU built a region at all, and the
-        // difference between "no region" and "a region the shader cannot see" is
-        // otherwise invisible in a capture. Same convention as [CloudRegime].
-        {
-            let now = state.start_time.elapsed().as_secs_f32();
-            if now.floor() as u32 % 2 == 0 && !regions.is_empty() {
-                let r = regions[0];
-                // The influence directly under the camera. This SHOULD read about
-                // the intensity: the anchor was placed at the camera's own ground
-                // point. A low number here means the anchor and the shader
-                // disagree about which frame they are in.
-                let to_cam = state.camera.effective_position() - position;
-                let wv = to_cam.normalize_or_zero();
-                let local = rotation.inverse()
-                    * glam::Vec3::new(wv.x as f32, wv.y as f32, wv.z as f32);
-                let here = r.influence([local.x, local.y, local.z]);
-                log::info!(
-                    "[EnvRegions] n={} kind={} dir=({:.3},{:.3},{:.3}) rad={:.4} intensity={:.2} cover={:.2} place={:.2} influence_under_camera={:.3}",
-                    regions.len(), r.kind, r.dir[0], r.dir[1], r.dir[2],
-                    r.angular_radius, r.intensity, r.params[0], r.params[1], here,
-                );
-            }
-        }
+        // See renderer::env_regions::log_regions for why this is permanent.
+        let wv = (state.camera.effective_position() - position).normalize_or_zero();
+        let cam_local = rotation.inverse()
+            * glam::Vec3::new(wv.x as f32, wv.y as f32, wv.z as f32);
+        crate::renderer::env_regions::log_regions(
+            &regions,
+            [cam_local.x, cam_local.y, cam_local.z],
+            state.start_time.elapsed().as_secs_f32(),
+        );
         state.renderer.set_env_regions(&regions);
     }
     // params2 FIRST so the full-uniform

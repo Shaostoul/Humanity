@@ -191,6 +191,46 @@ channel-2 capture goes smooth while channel 1 is unchanged and the ring cure
 still works. Gate it red first the usual way, and keep the ring metric from
 v0.1270 in the loop, because the last person to turn a dither off brought the
 radial artifact back at full strength without noticing.
+
+**A SIXTH hypothesis refuted the same day, and it narrows the target usefully.**
+The first guess at "decouple" was the wrong one, and it is written down so
+nobody spends a second afternoon on it.
+
+`cloud_sun_tau` spirals its cone taps by a PER-PIXEL azimuth
+(`ang = 2.3999632 * i + g_lod_jitter * 6.2831853`, 40-clouds.wgsl). That looks
+exactly like the carrier: a per-pixel rotation of a small tap set, inside the
+one term the bisect blames, and `g_lod_jitter` really is per-pixel on this path
+(45-cloud-temporal.wgsl sets it from `pcg2d_hash(in.pos.xy)` whenever the ring
+cure is on, which is the default). Dropping the jitter term entirely:
+
+| arm | mean L | speckle |
+| --- | --- | --- |
+| baseline | 128.8 | 1.80% |
+| per-pixel cone azimuth removed | 128.8 | 1.76% |
+| POSITIVE CONTROL, cone spread 0.12 to 2.50 | 119.9 | **1.39%** |
+
+The azimuth does nothing. The positive control is the important row: it is the
+same constant block on the same code path, it moved the frame hard, and without
+it the 1.80-to-1.76 null would have been indistinguishable from an edit that
+never reached the GPU (the rig junctions `assets/`, so it did, but that is a
+fact to demonstrate rather than assume).
+
+**What the control actually tells us, and it points at the fix.** Widening the
+sun cone LOWERED the speckle by a fifth. More lateral averaging of the sun
+optical depth means less grain, so the carrier is UNDERSAMPLING of tau_sun, not
+the pattern of the samples. Cone width itself is not the lever (2.50 is a
+nonsense cone and it costs 7% of the scene brightness), but it localises the
+defect to how tau_sun is sampled rather than to how the taps are arranged.
+
+So the next experiment is more specific than the entry above says. The eye-ray
+depth jitter offsets each sample along the view ray, and the sun ladder starts
+FROM that offset sample, so a per-pixel depth offset becomes a per-pixel
+tau_sun. Snap the sun ladder origin to the UNJITTERED step-grid position while
+leaving the eye-ray sampling jittered, so alpha keeps the dither that dissolves
+the step comb and the mip rings, and the nonlinear term stops inheriting it.
+Predicted result: channel 2 goes smooth, channel 1 and the ring metric are
+unchanged. Measure with `node scripts/speckle-census.js`, and positive-control
+the arm before believing a null.
 ### 3. The night-side coast glow. One cause fixed; the whole surface path now eliminated
 
 Reported twice. Fixture `orbit-terminator-3000km`, measured with

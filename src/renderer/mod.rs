@@ -1303,19 +1303,7 @@ impl Renderer {
         // wgpu rejects a zero-length storage binding, and the shader walks
         // arrayLength() over the whole thing with empty rows contributing nothing.
         let env_regions_capacity = 16_usize;
-        // Initialised to EMPTY rows rather than left undefined. A plain
-        // create_buffer leaves contents undefined, not zeroed, so the first
-        // frame before any set_env_regions call would read whatever was in that
-        // memory as live regions. Nothing consumes the buffer yet, which is
-        // exactly why this is worth closing now: the bug would land with the
-        // first consumer and look like a cloud bug rather than an init bug.
-        let env_regions_zero =
-            env_regions::pack_all(&[], env_regions_capacity);
-        let env_regions_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Environment Regions Storage Buffer"),
-            contents: bytemuck::cast_slice(&env_regions_zero),
-            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
-        });
+        let env_regions_buffer = env_regions::storage_buffer(&device, env_regions_capacity);
         // Light-tile lists (clustering L1b): fixed-size, rewritten per frame
         // by update_light_tiles when tiling is enabled.
         let tile_counts_buffer = device.create_buffer(&wgpu::BufferDescriptor {
@@ -1331,32 +1319,16 @@ impl Renderer {
             mapped_at_creation: false,
         });
 
-        let camera_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("Camera Bind Group"),
-            layout: &pipeline.camera_bind_group_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: camera_buffer.as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: lights_buffer.as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 2,
-                    resource: tile_counts_buffer.as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 3,
-                    resource: tile_indices_buffer.as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 4,
-                    resource: env_regions_buffer.as_entire_binding(),
-                },
-            ],
-        });
+        let camera_bind_group = pipeline::camera_bind_group(
+            &device,
+            &pipeline.camera_bind_group_layout,
+            "Camera Bind Group",
+            &camera_buffer,
+            &lights_buffer,
+            &tile_counts_buffer,
+            &tile_indices_buffer,
+            &env_regions_buffer,
+        );
 
         // Dynamic object uniform buffer — holds up to MAX_OBJECTS entries (module const).
         // Each entry is aligned to 256 bytes (wgpu minimum uniform buffer offset alignment).
@@ -1743,35 +1715,16 @@ impl Renderer {
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
-        let light_camera_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("Light Camera BG"),
-            layout: &pipeline.camera_bind_group_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: light_camera_buffer.as_entire_binding(),
-                },
-                // The camera layout also carries the v0.782 lights storage
-                // buffer; the shadow pass never reads it, but the layout
-                // requires SOMETHING bound - share the main buffer.
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: lights_buffer.as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 2,
-                    resource: tile_counts_buffer.as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 3,
-                    resource: tile_indices_buffer.as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 4,
-                    resource: env_regions_buffer.as_entire_binding(),
-                },
-            ],
-        });
+        let light_camera_bind_group = pipeline::camera_bind_group(
+            &device,
+            &pipeline.camera_bind_group_layout,
+            "Light Camera BG",
+            &light_camera_buffer,
+            &lights_buffer,
+            &tile_counts_buffer,
+            &tile_indices_buffer,
+            &env_regions_buffer,
+        );
 
         // 1x1 dummy depth for the shadow pass's own group 3 (see field doc).
         let dummy_depth_tex = device.create_texture(&wgpu::TextureDescriptor {
@@ -2532,32 +2485,16 @@ impl Renderer {
                 usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
                 mapped_at_creation: false,
             });
-            self.camera_bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
-                label: Some("Camera Bind Group"),
-                layout: &self.pipeline.camera_bind_group_layout,
-                entries: &[
-                    wgpu::BindGroupEntry {
-                        binding: 0,
-                        resource: self.camera_buffer.as_entire_binding(),
-                    },
-                    wgpu::BindGroupEntry {
-                        binding: 2,
-                        resource: self.tile_counts_buffer.as_entire_binding(),
-                    },
-                    wgpu::BindGroupEntry {
-                        binding: 3,
-                        resource: self.tile_indices_buffer.as_entire_binding(),
-                    },
-                    wgpu::BindGroupEntry {
-                        binding: 1,
-                        resource: self.lights_buffer.as_entire_binding(),
-                    },
-                    wgpu::BindGroupEntry {
-                        binding: 4,
-                        resource: self.env_regions_buffer.as_entire_binding(),
-                    },
-                ],
-            });
+            self.camera_bind_group = pipeline::camera_bind_group(
+                &self.device,
+                &self.pipeline.camera_bind_group_layout,
+                "Camera Bind Group",
+                &self.camera_buffer,
+                &self.lights_buffer,
+                &self.tile_counts_buffer,
+                &self.tile_indices_buffer,
+                &self.env_regions_buffer,
+            );
         }
         // Pack ALL lights: [pos.xyz, intensity][color.rgb, range][spot dir.xyz,
         // cos_outer][cos_inner, 0, 0, 0] — matches the WGSL GpuLight struct.
@@ -2611,38 +2548,17 @@ impl Renderer {
                 cap *= 2;
             }
             self.env_regions_capacity = cap;
-            self.env_regions_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
-                label: Some("Environment Regions Storage Buffer"),
-                size: (cap * env_regions::ENV_REGION_BYTES) as u64,
-                usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
-                mapped_at_creation: false,
-            });
-            self.camera_bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
-                label: Some("Camera Bind Group"),
-                layout: &self.pipeline.camera_bind_group_layout,
-                entries: &[
-                    wgpu::BindGroupEntry {
-                        binding: 0,
-                        resource: self.camera_buffer.as_entire_binding(),
-                    },
-                    wgpu::BindGroupEntry {
-                        binding: 1,
-                        resource: self.lights_buffer.as_entire_binding(),
-                    },
-                    wgpu::BindGroupEntry {
-                        binding: 2,
-                        resource: self.tile_counts_buffer.as_entire_binding(),
-                    },
-                    wgpu::BindGroupEntry {
-                        binding: 3,
-                        resource: self.tile_indices_buffer.as_entire_binding(),
-                    },
-                    wgpu::BindGroupEntry {
-                        binding: 4,
-                        resource: self.env_regions_buffer.as_entire_binding(),
-                    },
-                ],
-            });
+            self.env_regions_buffer = env_regions::storage_buffer(&self.device, cap);
+            self.camera_bind_group = pipeline::camera_bind_group(
+                &self.device,
+                &self.pipeline.camera_bind_group_layout,
+                "Camera Bind Group",
+                &self.camera_buffer,
+                &self.lights_buffer,
+                &self.tile_counts_buffer,
+                &self.tile_indices_buffer,
+                &self.env_regions_buffer,
+            );
         }
         let packed = env_regions::pack_all(regions, self.env_regions_capacity);
         self.queue.write_buffer(

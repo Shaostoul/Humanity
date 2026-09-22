@@ -540,6 +540,12 @@
    "decision": "Left the file_size_ratchet failure (frame_shells.rs 1330 > 1300, renderer/mod.rs 2875 > 2800) to its own commit rather than folding it into the aurora release.",
    "why": "It is PRE-EXISTING at HEAD, from the v0.1329-v0.1331 env-region work, and neither file is modified in this tree. `just verify` is red for everyone until it is fixed, so it is not optional, but mixing a refactor of a hot shared file into an operator-facing release makes both harder to review and delays his update.",
    "outcome": "Planned extraction, which the lint itself asks for: one camera_bind_group constructor beside the layout it matches in pipeline.rs (there are FOUR identical construction sites today, which is precisely the v0.1029 missed-a-site failure class), and the env-region growth and frame-region build moved into renderer/env_regions.rs."
+  },
+  {
+   "date": "2026-09-22",
+   "decision": "Refuted a SIXTH TV-static hypothesis (the per-pixel sun cone azimuth) and narrowed the target to undersampling of tau_sun. Removing the g_lod_jitter term from the sun cone spiral moved speckle 1.80 to 1.76 percent, i.e. nothing.",
+   "why": "It looked like the obvious carrier: a per-pixel rotation of a small tap set, inside the one term the channel bisect blames. It is worth writing down as refuted so nobody spends an afternoon on it. The POSITIVE CONTROL is the part that matters: the same constant block on the same code path (cone spread 0.12 to 2.50) moved mean luminance 128.8 to 119.9 and speckle to 1.39, so the null is a real null and not an edit that failed to reach the GPU.",
+   "outcome": "The control also points at the fix: widening the cone LOWERED the grain, so the carrier is how tau_sun is SAMPLED, not how the taps are arranged. The eye-ray depth jitter offsets each sample and the sun ladder starts from that offset, so a per-pixel depth offset becomes a per-pixel tau_sun. Next experiment, fenced in PRIORITIES: snap the sun ladder origin to the unjittered step grid while leaving the eye ray jittered. Shader restored to the committed state; nothing of the experiment shipped."
   }
  ],
  "active_scopes_to_avoid": [
