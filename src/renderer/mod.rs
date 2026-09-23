@@ -41,6 +41,8 @@ pub mod light_tiles;
 /// Positioned, sized environmental effects (storms, fog banks, fires) that
 /// every consumer reads the same way. See docs/design/environment-fields.md.
 pub mod env_regions;
+/// Light that lives ABOVE the cloud deck, drawn after the cloud composite.
+pub mod emission_pass;
 pub mod bloom;
 pub mod godrays;
 pub mod ssao;

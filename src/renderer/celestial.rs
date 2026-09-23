@@ -1733,6 +1733,14 @@ impl Renderer {
                     let mesh = match self.meshes.get(obj.mesh) { Some(m) => m, None => continue };
                     let material = match self.materials.get(obj.material) { Some(m) => m, None => continue };
                     let class = pipeline::shader_class(material.material_type);
+                    // The emission twin is not drawn here: it has to land AFTER
+                    // the cloud composite below. See renderer::emission_pass.
+                    if pipeline::shader_class(material.material_type)
+                        == pipeline::ShaderClass::Shell
+                        && material.emissive > 0.5
+                    {
+                        continue;
+                    }
                     let overlay = water_dw && self.water_caster_mats.contains(&obj.material);
                     if bound_pipe != Some((class, overlay)) {
                         bound_pipe = Some((class, overlay));
@@ -1794,6 +1802,10 @@ impl Renderer {
         {
             self.run_cloud_composite(&mut encoder, view, camera);
         }
+
+        // Light that lives ABOVE the cloud deck, drawn last of all so the deck
+        // cannot paint over it. See renderer::emission_pass for why.
+        self.run_emission_pass(&mut encoder, view, objects.len(), transparent);
 
         self.queue.submit(std::iter::once(encoder.finish()));
     }

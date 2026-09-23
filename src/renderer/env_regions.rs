@@ -267,6 +267,49 @@ pub fn storage_buffer(device: &wgpu::Device, capacity: usize) -> wgpu::Buffer {
     })
 }
 
+/// Push the WEATHER SYSTEM region, anchored where the condition APPEARED.
+///
+/// The anchor is replaced only when the condition changes, and that is the
+/// whole point: a system that re-anchors every frame follows the player, which
+/// is BUG-080. Descending then changes nothing, because the region sits on the
+/// world rather than in front of the camera.
+///
+/// The anchor is stored in the BODY frame, so the system stays over its own
+/// geography as the planet spins.
+///
+/// Returns true when it re-anchored, which is only of interest to a caller
+/// that wants to log it.
+#[allow(clippy::too_many_arguments)]
+pub fn push_weather_region(
+    regions: &mut Vec<EnvRegion>,
+    kinds: Option<&RegionKinds>,
+    anchor: &mut Option<(glam::Vec3, crate::systems::weather::WeatherCondition)>,
+    condition: Option<(crate::systems::weather::WeatherCondition, f32)>,
+    kind_id: Option<&str>,
+    cam_dir_body: glam::Vec3,
+    body_km: f32,
+) -> bool {
+    let (Some((cond, intensity)), Some(id)) = (condition, kind_id) else {
+        return false;
+    };
+    if id.is_empty() {
+        return false;
+    }
+    let stale = match anchor.as_ref() {
+        Some((_, placed_for)) => *placed_for != cond,
+        None => true,
+    };
+    if stale {
+        *anchor = Some((cam_dir_body.normalize_or_zero(), cond));
+    }
+    if let (Some(table), Some((dir, _))) = (kinds, *anchor) {
+        if let Some(kind) = table.by_id(id) {
+            regions.push(kind.region_at([dir.x, dir.y, dir.z], body_km, intensity));
+        }
+    }
+    stale
+}
+
 /// Push the two auroral ovals, one about each pole.
 ///
 /// Always present on a body with air. They were the SECOND consumer of the

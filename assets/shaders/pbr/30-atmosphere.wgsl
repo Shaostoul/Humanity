@@ -371,9 +371,15 @@ fn aurora_emission(ro: vec3<f32>, rd: vec3<f32>, t0: f32, t1: f32, rp: f32, pix_
                 let center = mid
                     + aurora_wave(phi, time * AURORA_DRIFT, sd * 1.7)
                         * halfw * AURORA_MEANDER;
-                let pres = smoothstep(-0.30, 0.40,
+                // Gentler than -0.30/0.40: a presence mask that shuts quickly
+                // ends a strand in a visible cap, which is the seam again in a
+                // different place.
+                let pres = smoothstep(-0.75, 0.55,
                     aurora_wave(phi * 0.55, time * AURORA_DRIFT * 0.6, sd * 3.9 + 11.0));
-                let w = halfw * (0.55 + 0.35 * sd);
+                // Widths within a third of each other. They used to run 0.55 to
+                // 1.25 of the half-width, better than two to one, so a narrow
+                // strand meeting a wide one looked like two different features.
+                let w = halfw * (0.72 + 0.14 * sd);
                 let soft = max(w - edge, w * 0.25);
                 arc = max(arc,
                     (1.0 - smoothstep(soft, w, abs(ang - center))) * pres);
@@ -385,7 +391,18 @@ fn aurora_emission(ro: vec3<f32>, rd: vec3<f32>, t0: f32, t1: f32, rp: f32, pix_
             let half_d = halfw * AURORA_DIFFUSE_SPREAD;
             let diffuse = (1.0 - smoothstep(0.0, half_d, abs(ang - mid)))
                 * AURORA_DIFFUSE_LEVEL;
-            let ring = max(arc, diffuse);
+            // ── NO max() HERE (operator, 2026-09-23) ──
+            //
+            // "there is a weird seam where two aurora lines seem to meet. One
+            // is much wider than the other."
+            //
+            // Those two are the narrow ARC and the wide DIFFUSE sheet, and
+            // max() joins them with a crease: wherever one overtakes the other
+            // the slope changes discontinuously, and a discontinuity in slope
+            // reads as a drawn line even though neither term has an edge there.
+            // A screen combine is smooth everywhere and keeps both at full
+            // strength where they do not overlap.
+            let ring = arc + diffuse * (1.0 - arc);
             if (ring <= 0.001) {
                 continue;
             }
@@ -489,6 +506,27 @@ fn atmosphere_scattering(world_position: vec3<f32>, front_facing: bool) -> vec4<
     // extra to plumb through the material uniforms.
     let center = obj_model()[3].xyz;
     let shell_r = length(obj_model()[0].xyz);
+    // ── THE SHELL IS DRAWN TWICE (operator, 2026-09-23) ──
+    //
+    // "The aurora is still darker over land masses." Measured: it is not the
+    // land, it is the CLOUD DECK. The deck sits at 12 km and the aurora emits
+    // between 99 and 190 km, so from above the clouds are BEHIND it, but the
+    // fullscreen cloud composite runs after this pass and paints over the
+    // emission. Cloud cover is regional, so the dimming wears a coastline.
+    // With the deck off, land and water measured 14.811 and 14.826, identical;
+    // with it on, 4.288 and 2.198.
+    //
+    // The composite cannot simply move: it must run after the dome, because the
+    // cloud march already applies aerial perspective at the cloud first-hit
+    // distance and letting the dome blend over the deck applied that same air
+    // twice and opaquely (the erased-clouds regression, 1.2 percent of the disc
+    // written with the old order against 99.9 with this one).
+    //
+    // So the shell splits. The AIR draws before the composite exactly as it
+    // always did, and a second draw of the same shell carries the EMISSION
+    // afterwards. params.w is the material emissive lane, unused here, and the
+    // CPU can read it off Material::emissive to route the two draws.
+    let aurora_only = material.params.w > 0.5;
     let rp = clamp(material.params.x, 0.01, 0.9999); // planet radius (shell units)
     let h = max(material.params.y, 1.0e-6);          // scale height (shell units)
 
@@ -770,9 +808,25 @@ fn atmosphere_scattering(world_position: vec3<f32>, front_facing: bool) -> vec4<
     // terms, since emission adds light without hiding what is behind it, but
     // alpha does have to be large enough that the rgb = mapped / alpha divide
     // below does not clamp the glow away over thin polar air.
-    let aurora = aurora_emission(ro, rd, t0, t1, rp, pix_ang);
+    // The EMISSION draw: aurora alone, after the clouds. Everything the air
+    // draw computed above is discarded here, which costs a little and keeps one
+    // copy of the scattering code instead of two.
+    if (aurora_only) {
+        let au = aurora_emission(ro, rd, t0, t1, rp, pix_ang);
+        let al = clamp(max(au.r, max(au.g, au.b)), 0.0, 1.0);
+        if (al <= 0.0005) {
+            discard; // no aurora on this ray: leave the clouds untouched
+        }
+        return vec4<f32>(
+            clamp(au / max(al, 1.0e-3), vec3<f32>(0.0), vec3<f32>(1.0)),
+            al,
+        );
+    }
+    // The AIR draw carries no emission at all now, so it does not pay for the
+    // region walk either.
+    let aurora = vec3<f32>(0.0);
     let mapped_a = mapped + aurora;
-    let aurora_lum = clamp(max(aurora.r, max(aurora.g, aurora.b)), 0.0, 1.0);
+    let aurora_lum = 0.0;
     var alpha_occ = alpha;
     if (!hits_surface) {
         alpha_occ = max(alpha, max(clamp(sky_lum * 4.5, 0.0, 1.0), day * 0.985));

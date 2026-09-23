@@ -398,36 +398,18 @@ if let Some(cov) = d.cloud_coverage.filter(|c| *c > 0.0 && clouds_on) {
     {
         use crate::renderer::env_regions::{EnvRegion, RegionKinds};
         let mut regions: Vec<EnvRegion> = Vec::new();
-        if let (Some((cond, intensity)), Some(id)) = (condition, kind_id) {
-            if !id.is_empty() {
-                // Re-anchor ONLY on a condition change.
-                let stale = match state.weather_anchor.as_ref() {
-                    Some((_, placed_for)) => *placed_for != cond,
-                    None => true,
-                };
-                if stale {
-                    // The ground point under the camera, in the BODY'S own frame,
-                    // so the system stays over its geography as the planet spins.
-                    let to_cam = state.camera.effective_position() - position;
-                    let w = to_cam.normalize_or_zero();
-                    let local = rotation.inverse()
-                        * glam::Vec3::new(w.x as f32, w.y as f32, w.z as f32);
-                    *state.weather_anchor = Some((local.normalize_or_zero(), cond));
-                }
-                if let (Some(table), Some((dir, _))) = (
-                    state.data_store.get::<RegionKinds>("region_kinds"),
-                    *state.weather_anchor,
-                ) {
-                    if let Some(kind) = table.by_id(id) {
-                        regions.push(kind.region_at(
-                            [dir.x, dir.y, dir.z],
-                            (d.radius / 1000.0) as f32,
-                            intensity,
-                        ));
-                    }
-                }
-            }
-        }
+        // One weather system, anchored where it APPEARED. See
+        // renderer::env_regions::push_weather_region.
+        let wv = (state.camera.effective_position() - position).normalize_or_zero();
+        crate::renderer::env_regions::push_weather_region(
+            &mut regions,
+            state.data_store.get::<RegionKinds>("region_kinds"),
+            state.weather_anchor,
+            condition,
+            kind_id,
+            rotation.inverse() * glam::Vec3::new(wv.x as f32, wv.y as f32, wv.z as f32),
+            (d.radius / 1000.0) as f32,
+        );
         // The auroral ovals. See renderer::env_regions::push_auroral_ovals.
         crate::renderer::env_regions::push_auroral_ovals(
             &mut regions,
@@ -1282,6 +1264,13 @@ if let Some(f) =
     // cloud-only investigations.
     f.atmo_over = false;
 }
+// Light that lives ABOVE the deck, drawn after the cloud composite so the deck
+// cannot paint over it. See renderer::emission_pass.
+let aurora_twin = crate::renderer::emission_pass::aurora_twin(
+    state.renderer, state.planet_atmo_materials, atmo_shell_obj.as_ref(),
+    &b.id, state.gui_state.settings.planet_atmo_scatter,
+    d.atmosphere_color.unwrap_or([0.0; 4]), d,
+);
 match (cloud_shell_obj, atmo_shell_obj) {
     (Some(c), Some(a)) if inside_atmo => {
         celestial_transparent.push(a);
@@ -1295,4 +1284,5 @@ match (cloud_shell_obj, atmo_shell_obj) {
     (None, Some(a)) => celestial_transparent.push(a),
     (None, None) => {}
 }
+celestial_transparent.extend(aurora_twin);
 }

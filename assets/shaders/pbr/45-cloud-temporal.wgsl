@@ -231,8 +231,37 @@ fn fs_cloud_screen(in: CloudScreenVsOut) -> CloudMarchOut {
     // frame off. Test bit 0 only, or turning the shape frame off would
     // silently take the dither with it.
     let dither_on = fract(camera.light7_color.w * 0.5) <= 0.25;
+    // ── UN-FROZEN AGAIN (operator, 2026-09-23): "the clouds are glistening
+    // shifting from dark gray to bright white. Almost makes the clouds look
+    // like they are boiling." ──
+    //
+    // v0.1253.2 froze this hash because a parked frame fizzed, and that was
+    // the right reading of the wrong case. Frozen means keyed on in.pos.xy,
+    // the SCREEN pixel, so the noise pattern is nailed to the monitor. Park
+    // and it is stable, which is what was measured. FLY and the world slides
+    // through a stationary noise field, so every world point is handed a
+    // different sample every frame with nothing correlating them. That is the
+    // boiling, and it is worst exactly when he is moving, which is most of the
+    // time.
+    //
+    // Freezing also disabled the one thing that could have removed it. The
+    // resolve accumulator is DEEP at rest (alpha 0.091 on 88.8 percent of
+    // speckled pixels, from a diagnostic build) but averaging only removes
+    // noise that CHANGES between frames; identical frames average to the same
+    // noisy image. A correctly working filter was fed a no-op for nine months.
+    //
+    // Measured at the dusk line, where the grain is 73x its noon value:
+    //   frozen    40.38 percent grain, 0.34 percent parked fizz
+    //   animated   8.68 percent grain, 2.09 percent parked fizz
+    //
+    // 4.6x less grain for fizz that only exists while parked, against boiling
+    // that only exists while moving. If the parked fizz ever reads worse than
+    // the boiling did, this is the line to revert, and the numbers above are
+    // what to re-measure.
+    let jf = u32(max(camera.light7.w, 0.0));
     let jitter = select(0.5,
-        pcg2d_hash(vec2<u32>(in.pos.xy) + vec2<u32>(0xA511u, 0x93D1u)),
+        pcg2d_hash(vec2<u32>(in.pos.xy) + vec2<u32>(0xA511u, 0x93D1u)
+            + vec2<u32>(jf * 2654435761u, jf * 40503u)),
         dither_on);
     // FROZEN lod dither: same ring-dissolving job (lodb is monotone in
     // screen radius on a down look; a spatial dither breaks the mip
