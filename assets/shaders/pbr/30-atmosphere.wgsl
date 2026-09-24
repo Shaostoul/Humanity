@@ -203,9 +203,29 @@ fn atmo_mie_phase(c: f32) -> f32 {
 const AURORA_STEPS: i32 = 7;
 /// How many arcs the oval is made of. One reads as a drawn circle; several
 /// that meander, cross and break is what a photograph actually shows.
-const AURORA_STRANDS: i32 = 3;
+const AURORA_STRANDS: i32 = 4;
+// Half-thickness of one curtain, in radians of arc (about 2 km). A real
+// discrete arc is a SHEET roughly 1 to 10 km thick standing on edge and
+// 100 km or more tall; the strands used to be 100 to 150 km wide and only
+// 90 km tall, a band lying on its side rather than a wall standing up.
+// Nothing here draws it thinner than a pixel or a march step: see
+// aurora_sheet below, which widens it to the footprint and dims it by the
+// same factor, so its integrated light is conserved at every range.
+const AURORA_SHEET_HALF: f32 = 3.0e-4;
+// Emission density of a curtain relative to the diffuse glow. A discrete
+// arc is far brighter per unit volume than diffuse aurora (tens of
+// kilorayleighs against about one), and with the sheet now a few km thick
+// rather than 150 km, its FACE only reads at all if it carries that.
+const AURORA_SHEET_GAIN: f32 = 20.0;
 /// How far a strand wanders in latitude, as a multiple of the oval half-width.
-const AURORA_MEANDER: f32 = 3.0;
+// 1.6, down from 3.0 when the strands became thin sheets. At 3.0 every strand
+// wandered across the whole oval about the same centre line, so four thin
+// lines braided like rope. Spread apart (AURORA_STRAND_SPACING) and meandering
+// less, they run as separate parallel arcs that still cross now and then,
+// which keeps the web the operator asked for on 2026-09-22.
+const AURORA_MEANDER: f32 = 1.6;
+// Spacing between neighbouring arcs, in half-widths of the oval.
+const AURORA_STRAND_SPACING: f32 = 1.1;
 /// Speed of the slow structural drift of the oval itself, per second of clock.
 /// Deliberately small: a feature crossing the real oval at about 1 km/s takes
 /// hours to travel round it, so the shape must barely move over a minute.
@@ -247,7 +267,11 @@ const AURORA_RAY_PX_HI: f32 = 5.0;
 /// really two populations rather than one smooth band.
 const AURORA_DIFFUSE_SPREAD: f32 = 5.0;
 /// Brightness of those sheets relative to the arc.
-const AURORA_DIFFUSE_LEVEL: f32 = 0.22;
+// Lowered from 0.22 with the move to thin sheets. The diffuse glow is real
+// (a broad faint emission equatorward of the discrete arcs) but at the old
+// level it was a wide bright band of its own, which is half of what read as
+// "a rubber band on its fat side".
+const AURORA_DIFFUSE_LEVEL: f32 = 0.06;
 /// The red 630 nm cap is real but far dimmer than the green ribbon.
 ///
 /// Was 0.55, which with the old height profile gave red SEVENTY PERCENT of
@@ -273,6 +297,74 @@ fn aurora_wave(phi: f32, t: f32, seed: f32) -> f32 {
     return sin(phi * 3.0 + t + seed) * 0.55
         + sin(phi * 7.0 - t * 0.61 + seed * 2.3) * 0.30
         + sin(phi * 13.0 + t * 0.37 + seed * 4.1) * 0.15;
+}
+
+// d/dphi of aurora_wave, analytically. A strand's centre line meanders with
+// phi, so how fast a ray crosses the sheet depends on the slope of that
+// meander as well as on the ray's own direction.
+fn aurora_wave_d(phi: f32, t: f32, seed: f32) -> f32 {
+    return cos(phi * 3.0 + t + seed) * 1.65
+        + cos(phi * 7.0 - t * 0.61 + seed * 2.3) * 2.10
+        + cos(phi * 13.0 + t * 0.37 + seed * 4.1) * 1.95;
+}
+
+// ── BOX-FILTERED SMOOTHSTEP (operator, 2026-09-24) ──
+//
+// "The close up one has a lot of banding to the coloring ... Or is that more
+// of a layers stacking on top of layers?" It was exactly that. The march
+// takes AURORA_STEPS point samples through the layer, and the green-to-red
+// height ramp was evaluated at each sample's single height, so an oblique
+// ray saw the ramp as a few flat colour slabs with hard steps between them.
+//
+// A step does not stand for a point; it stands for the whole segment it
+// covers. So each step takes the ramp's AVERAGE over the height span of its
+// own segment, which is a smooth function of the ray and has no steps in it.
+// Exact rather than approximate, because smoothstep integrates in closed
+// form: the integral of 3u^2 - 2u^3 is u^3 - u^4 / 2.
+fn aurora_ss_int(u: f32) -> f32 {
+    let x = clamp(u, 0.0, 1.0);
+    return x * x * x - 0.5 * x * x * x * x + max(u - 1.0, 0.0);
+}
+fn aurora_ss_avg(e0: f32, e1: f32, a: f32, b: f32) -> f32 {
+    let w = e1 - e0;
+    if (abs(b - a) < 1.0e-5) {
+        return smoothstep(e0, e1, 0.5 * (a + b));
+    }
+    return w * (aurora_ss_int((b - e0) / w) - aurora_ss_int((a - e0) / w)) / (b - a);
+}
+
+// ── ONE CURTAIN, AS A SHEET (operator, 2026-09-24) ──
+//
+// "Ours seem more like a rubberband on its fat side instead of thin side."
+// Real curtains are thin sheets standing on edge, and that is what gives
+// them their look: a ray that runs along the sheet (looking down its length,
+// or straight down through it) collects light over the whole height and
+// reads as a bright line or fold, while a ray crossing it face-on collects a
+// few kilometres and reads faint. The strands used to be 100-150 km wide,
+// so every ray collected plenty and the curtain structure could never show.
+//
+// A 4 km sheet is far thinner than a pixel from most of orbit, and thinner
+// than a march step on an oblique ray, and point-sampling it would alias
+// into exactly the shimmer the operator has been reporting. So the sheet
+// is WIDENED to whichever is larger of its own half-thickness, half the
+// distance the ray moves across it in one step, and one pixel, and DIMMED
+// by the same factor. The bell's integral is proportional to its width, so
+// the light it delivers is the same at every range; only how finely it is
+// drawn changes.
+//
+// `g` is the signed angular distance from the sheet, `rate` how fast the
+// ray changes it per unit of march distance, `pix` one pixel in radians.
+fn aurora_sheet(g: f32, rate: f32, dt: f32, pix: f32) -> f32 {
+    // The FULL step crossing, not half of it. Neighbouring samples along the
+    // ray sit rate * dt apart in g, and a bell of half-width e sums to exactly
+    // one across samples spaced e apart (smoothstep is symmetric: S(u) +
+    // S(1 - u) = 1). So with e = rate * dt the samples tile the sheet with no
+    // gaps and no overlap, and the delivered light is AURORA_SHEET_HALF / rate,
+    // which is the true line integral of the sheet. With half the step, as
+    // first written, the samples left gaps and every curtain drew as several
+    // thin parallel copies of itself, one per march step.
+    let e = max(AURORA_SHEET_HALF, max(rate * dt, pix));
+    return (AURORA_SHEET_HALF / e) * (1.0 - smoothstep(0.0, e, abs(g)));
 }
 
 fn aurora_emission(ro: vec3<f32>, rd: vec3<f32>, t0: f32, t1: f32, rp: f32, pix_ang: f32) -> vec3<f32> {
@@ -308,7 +400,6 @@ fn aurora_emission(ro: vec3<f32>, rd: vec3<f32>, t0: f32, t1: f32, rp: f32, pix_
         }
         let ex = normalize(cross(pole, ref_v));
         let ey = cross(pole, ex);
-        let edge = (outer - inner) * max(reg.kind_shape.z, 0.05);
         // Solve the ray against the layer instead of sampling the whole
         // atmosphere chord and hoping. The emitting layer is a thin shell, so
         // spreading a handful of samples over the full chord puts most of them
@@ -342,10 +433,37 @@ fn aurora_emission(ro: vec3<f32>, rd: vec3<f32>, t0: f32, t1: f32, rp: f32, pix_
             let r = length(pnt);
             let up = pnt / r;
             // Where in the ring, how far around it, and how far up the layer.
-            let ang = acos(clamp(dot(up, pole), -1.0, 1.0));
-            let tang = normalize(up - pole * dot(up, pole));
+            let cos_a = clamp(dot(up, pole), -1.0, 1.0);
+            let ang = acos(cos_a);
+            let mid = (inner + outer) * 0.5;
+            let halfw = max((outer - inner) * 0.5, 1.0e-5);
+            let half_d = halfw * AURORA_DIFFUSE_SPREAD;
+            // Cheap rejections BEFORE the strand loop. Nothing reaches past
+            // the diffuse half-width (the strands meander within it), and
+            // nothing is drawn over daylit ground, so both used to pay for
+            // every strand before being thrown away.
+            if (abs(ang - mid) >= half_d) {
+                continue;
+            }
+            // Only over ground that is in darkness. The soft edge keeps the
+            // oval from ending in a hard line along the terminator.
+            let night = smoothstep(0.12, -0.10, dot(up, sun));
+            if (night <= 0.0) {
+                continue;
+            }
+            let tang = normalize(up - pole * cos_a);
             let phi = atan2(dot(tang, ey), dot(tang, ex));
             let hgt = clamp((r - r_lo) / (r_hi - r_lo), 0.0, 1.0);
+            // The height span this step's segment covers, for the box filter.
+            let h_a = clamp((length(pnt - rd * (0.5 * dt_a)) - r_lo) / (r_hi - r_lo), 0.0, 1.0);
+            let h_b = clamp((length(pnt + rd * (0.5 * dt_a)) - r_lo) / (r_hi - r_lo), 0.0, 1.0);
+            // How fast the ray moves in ang (away from the pole) and in phi
+            // (around it), per unit of march distance: the tangents at this
+            // point, and the radius of the circle phi is measured on.
+            let sin_a = max(sqrt(max(1.0 - cos_a * cos_a, 0.0)), 1.0e-4);
+            let dang_dt = dot(rd, (up * cos_a - pole) / sin_a) / r;
+            let dphi_dt = dot(rd, cross(pole, up) / sin_a) / (r * sin_a);
+            let pix_foot = pix_ang * t / r;
 
             // ── THE OVAL IS NOT A CIRCLE (operator, 2026-09-22) ──
             //
@@ -363,32 +481,36 @@ fn aurora_emission(ro: vec3<f32>, rd: vec3<f32>, t0: f32, t1: f32, rp: f32, pix_
             // closes, the web has a hole. Nothing here is noise: the same
             // harmonics at the same phi always give the same shape, so the
             // web is a STRUCTURE that drifts rather than a flicker.
-            let mid = (inner + outer) * 0.5;
-            let halfw = max((outer - inner) * 0.5, 1.0e-5);
             var arc = 0.0;
             for (var sI = 0; sI < AURORA_STRANDS; sI = sI + 1) {
                 let sd = f32(sI);
                 let center = mid
+                    + (sd - 0.5 * f32(AURORA_STRANDS - 1)) * AURORA_STRAND_SPACING * halfw
                     + aurora_wave(phi, time * AURORA_DRIFT, sd * 1.7)
                         * halfw * AURORA_MEANDER;
+                let center_d = aurora_wave_d(phi, time * AURORA_DRIFT, sd * 1.7)
+                    * halfw * AURORA_MEANDER;
                 // Gentler than -0.30/0.40: a presence mask that shuts quickly
                 // ends a strand in a visible cap, which is the seam again in a
                 // different place.
                 let pres = smoothstep(-0.75, 0.55,
                     aurora_wave(phi * 0.55, time * AURORA_DRIFT * 0.6, sd * 3.9 + 11.0));
-                // Widths within a third of each other. They used to run 0.55 to
-                // 1.25 of the half-width, better than two to one, so a narrow
-                // strand meeting a wide one looked like two different features.
-                let w = halfw * (0.72 + 0.14 * sd);
-                let soft = max(w - edge, w * 0.25);
-                arc = max(arc,
-                    (1.0 - smoothstep(soft, w, abs(ang - center))) * pres);
+                // The rate the ray crosses THIS sheet: its own motion away
+                // from the pole, less the sheet's motion as it meanders.
+                let rate = abs(dang_dt - center_d * dphi_dt);
+                // Not every arc is equal: a display has a dominant arc and fainter
+                // companions. A golden-ratio walk gives an irregular order with no
+                // table to maintain as AURORA_STRANDS changes.
+                let bright = 0.45 + 0.55 * fract(sd * 0.618034 + 0.3);
+                let v = aurora_sheet(ang - center, rate, dt_a, pix_foot) * pres * bright;
+                // Screen combine, for the same reason as arc and diffuse below:
+                // max() creases where two strands cross.
+                arc = arc + v * (1.0 - arc);
             }
             // And the DIFFUSE glow fanning away from the strands, several
             // times wider and a fraction as bright. Without this the oval
             // reads as a bare stripe; without the strands it reads as a
             // smooth wash, which is what the first version did.
-            let half_d = halfw * AURORA_DIFFUSE_SPREAD;
             let diffuse = (1.0 - smoothstep(0.0, half_d, abs(ang - mid)))
                 * AURORA_DIFFUSE_LEVEL;
             // ── NO max() HERE (operator, 2026-09-23) ──
@@ -402,14 +524,12 @@ fn aurora_emission(ro: vec3<f32>, rd: vec3<f32>, t0: f32, t1: f32, rp: f32, pix_
             // reads as a drawn line even though neither term has an edge there.
             // A screen combine is smooth everywhere and keeps both at full
             // strength where they do not overlap.
-            let ring = arc + diffuse * (1.0 - arc);
+            // A SUM now rather than the screen combine. Both terms are light
+            // emitted by the same air, so they add; the screen combine was
+            // only needed while both lived in 0..1, and with the sheet gain
+            // above the arc no longer does. A sum has no crease either.
+            let ring = arc * AURORA_SHEET_GAIN + diffuse;
             if (ring <= 0.001) {
-                continue;
-            }
-            // Only over ground that is in darkness. The soft edge keeps the
-            // oval from ending in a hard line along the terminator.
-            let night = smoothstep(0.12, -0.10, dot(up, sun));
-            if (night <= 0.0) {
                 continue;
             }
             // ── WHAT MOVES, AND HOW FAST (operator, 2026-09-22) ──
@@ -469,7 +589,12 @@ fn aurora_emission(ro: vec3<f32>, rd: vec3<f32>, t0: f32, t1: f32, rp: f32, pix_
             let r_perp = max(length(pnt - pole * dot(pnt, pole)), 1.0e-4);
             let stripe_px = (6.2831853 * r_perp / AURORA_RAY_LOBES)
                 / max(t * pix_ang, 1.0e-9);
-            let ray_lod = smoothstep(AURORA_RAY_PX_LO, AURORA_RAY_PX_HI, stripe_px);
+            // And along the RAY: on an oblique or limb view one march step can
+            // cross many stripes, and a point sample of a comb that fine is a
+            // coin flip. Fade to the mean once a step spans half a cycle.
+            let cyc_step = abs(dphi_dt) * dt_a * AURORA_RAY_LOBES / 6.2831853;
+            let ray_lod = smoothstep(AURORA_RAY_PX_LO, AURORA_RAY_PX_HI, stripe_px)
+                * (1.0 - smoothstep(0.25, 0.5, cyc_step));
             // pow 2 rather than 3: the sharper power is what made each cycle
             // mostly dark, and the amplitude modulation now supplies the
             // contrast that the exponent used to.
@@ -487,9 +612,11 @@ fn aurora_emission(ro: vec3<f32>, rd: vec3<f32>, t0: f32, t1: f32, rp: f32, pix_
             // third only. The previous split had them overlapping across most
             // of the layer, so the curtain was red with a green hem instead of
             // green with a red cap.
-            let green_v = 1.0 - smoothstep(0.05, 0.62, hgt);
-            let red_v = smoothstep(0.55, 0.95, hgt)
-                * (1.0 - 0.5 * smoothstep(0.90, 1.0, hgt));
+            // Averaged over the step's height span, not sampled at its middle:
+            // see aurora_ss_avg. This is what removes the colour banding.
+            let green_v = 1.0 - aurora_ss_avg(0.05, 0.62, h_a, h_b);
+            let red_v = aurora_ss_avg(0.55, 0.95, h_a, h_b)
+                * (1.0 - 0.5 * aurora_ss_avg(0.90, 1.0, h_a, h_b));
             let col = AURORA_GREEN * green_v
                 + AURORA_RED * (red_v * AURORA_RED_LEVEL);
             total = total + col * (ring * night * curtain
@@ -499,7 +626,34 @@ fn aurora_emission(ro: vec3<f32>, rd: vec3<f32>, t0: f32, t1: f32, rp: f32, pix_
     return total;
 }
 
-fn atmosphere_scattering(world_position: vec3<f32>, front_facing: bool) -> vec4<f32> {
+// ── DITHER BEFORE AN 8-BIT WRITE (operator, 2026-09-24) ──
+//
+// The scene renders straight into the 8-bit sRGB surface format with no
+// dither anywhere in the path. A slow, dark gradient therefore quantises
+// into flat rings one display level apart, and the eye reads each ring as a
+// hard edge: the aurora's diffuse glow spans only three or four levels, so
+// it drew as nested ellipses with crisp outlines (proven by rendering it
+// alone at full strength, where the rings multiply into a contour map).
+//
+// Triangular-distribution noise of plus or minus one step, the standard
+// choice: it removes the banding without leaving the noise level visibly
+// tied to the signal. One value for all three channels so it adds no colour
+// speckle. The step is one 8-bit sRGB code converted to LINEAR at this
+// value, because the blend happens in linear and the encode is what
+// quantises. The encode 1.055 * v^(1/2.4) has slope 0.4396 * v^-0.5833, so
+// one code (1/255) is v^0.5833 / 112.1 in linear, floored at the linear toe.
+//
+// The real fix is an HDR scene target with one tonemap and one dither at
+// the end; this covers the surface the operator reported until then.
+fn srgb_dither(v: vec3<f32>, pix: vec2<f32>) -> vec3<f32> {
+    let p = vec2<u32>(max(pix, vec2<f32>(0.0)));
+    let n = pcg2d_hash(p + vec2<u32>(0x2C1Bu, 0x7F4Du))
+        + pcg2d_hash(p + vec2<u32>(0x91E3u, 0x0A57u)) - 1.0;
+    let step = pow(max(v, vec3<f32>(0.0031308)), vec3<f32>(0.5833)) / 112.1;
+    return max(v + n * step, vec3<f32>(0.0));
+}
+
+fn atmosphere_scattering(world_position: vec3<f32>, front_facing: bool, pix: vec2<f32>) -> vec4<f32> {
     // Shell center + radius recovered from the object transform: the shell
     // mesh is a UNIT icosphere placed via Vec3::splat(scale), so column 0's
     // length IS the shell radius and column 3 is the planet center. Nothing
@@ -583,6 +737,39 @@ fn atmosphere_scattering(world_position: vec3<f32>, front_facing: bool) -> vec4<
     }
     if (t1 <= t0) {
         return vec4<f32>(0.0);
+    }
+
+    // ── THE EMISSION DRAW RETURNS HERE, BEFORE ANY AIR WORK (2026-09-24) ──
+    //
+    // It needs only the ray and its clipped segment, which exist from this
+    // line. It used to sit after the whole scattering integral, the sky-view
+    // LUT, the tonemap and the haze, and throw all of that away.
+    //
+    // Measured when it moved, and worth recording because the obvious guess was
+    // wrong: it saved NOTHING measurable (celestial_t 25.64 to 25.63 ms looking
+    // straight down, where the shell fills the screen; the image unchanged to
+    // 0.025 percent of pixels). The discarded scattering was never the cost of
+    // that pass, so do not look here for it. It stays here because computing
+    // work only to discard it is wrong in principle, not because it was slow.
+    if (aurora_only) {
+        let au_raw = aurora_emission(ro, rd, t0, t1, rp, pix_ang);
+        // A SHOULDER, NOT A CLIP (operator, 2026-09-24: "the harsh edges
+        // for the different shades of green/orange look weird"). This draw
+        // lands on an already tonemapped image, and the old path clamped at
+        // 1.0 per channel: a bright fold clipped its green while red and
+        // blue kept rising, so the hue jumped at the clip boundary and drew
+        // an edge. 1 - exp(-x) is linear for faint light (a dim aurora is
+        // unchanged) and rolls a bright core off smoothly toward white-green,
+        // which is also how an over-bright real curtain photographs.
+        let au = srgb_dither(vec3<f32>(1.0) - exp(-au_raw), pix);
+        let al = clamp(max(au.r, max(au.g, au.b)), 0.0, 1.0);
+        if (al <= 0.0005) {
+            discard; // no aurora on this ray: leave the clouds untouched
+        }
+        return vec4<f32>(
+            clamp(au / max(al, 1.0e-3), vec3<f32>(0.0), vec3<f32>(1.0)),
+            al,
+        );
     }
 
     // Scattering coefficients per shell radius. The vertical optical depth
@@ -808,20 +995,6 @@ fn atmosphere_scattering(world_position: vec3<f32>, front_facing: bool) -> vec4<
     // terms, since emission adds light without hiding what is behind it, but
     // alpha does have to be large enough that the rgb = mapped / alpha divide
     // below does not clamp the glow away over thin polar air.
-    // The EMISSION draw: aurora alone, after the clouds. Everything the air
-    // draw computed above is discarded here, which costs a little and keeps one
-    // copy of the scattering code instead of two.
-    if (aurora_only) {
-        let au = aurora_emission(ro, rd, t0, t1, rp, pix_ang);
-        let al = clamp(max(au.r, max(au.g, au.b)), 0.0, 1.0);
-        if (al <= 0.0005) {
-            discard; // no aurora on this ray: leave the clouds untouched
-        }
-        return vec4<f32>(
-            clamp(au / max(al, 1.0e-3), vec3<f32>(0.0), vec3<f32>(1.0)),
-            al,
-        );
-    }
     // The AIR draw carries no emission at all now, so it does not pay for the
     // region walk either.
     let aurora = vec3<f32>(0.0);

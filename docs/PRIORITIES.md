@@ -76,7 +76,15 @@ marble is not whitened. See BUG-080 and `docs/design/environment-fields.md`.
 
 **Do not re-propose:** a weight that reads camera altitude, distance, or how
 much of the planet is on screen. That is the defect class, not a tuning knob.
-### 1c. The shore glow: NOT reproducible at nadir, and v0.1331.8 did not regress it
+### 1c. The shore glow: RESOLVED 2026-09-24 as BUG-081 (v0.1331.20)
+
+**Read BUGS.md BUG-081 first.** Everything below this line is the history of
+measuring the wrong thing: every fixture here had a SUNLIT shore somewhere in
+frame, and the defect only exists where the sun is fully down. The fixture
+that reproduces it is `coast-night-2000` (local midnight over the Bahamas bank,
+clouds off), with `coast-noon-2000` as its day-side control.
+
+#### History: NOT reproducible at nadir, and v0.1331.8 did not regress it
 
 Two negative results, both worth more than they look, because each closes off a
 direction that would otherwise be re-walked.
@@ -708,7 +716,29 @@ Note that Low is not a like-for-like control: it takes the DIRECT shell path,
 one smooth unjittered sample per screen pixel, which is a different algorithm
 rather than the same march with the jitter off. It is the right target to
 match and the wrong thing to call a bisect arm.
-### 3. The night-side coast glow. One cause fixed; the whole surface path now eliminated
+### 3. The night-side coast glow: FIXED as BUG-081 (v0.1331.20)
+
+**The cause was on the surface path after all:** `underwater_apply` adds a
+navy water-column in-scatter scaled by `camera.sun_direction.w`, a single
+number for the whole frame that the celestial pass stamps at a hardcoded 2.5.
+So the night half read as full daylight. It is now gated by the fragment's
+own sun elevation. Night-side blue-dominant pixels 5.589% to 0.011%; noon
+unchanged (0.014% of pixels moved). Full record in BUGS.md BUG-081.
+
+**Why the analysis below concluded "nothing identifiable", and the lesson.**
+It eliminated aerial perspective but never tested `underwater_apply`, which is
+the NEXT line of the same shared tail. And it read the residual night-side
+mean of 1.94 / 2.86 / 3.68 (R / G / B) as "the noise floor of a dark frame".
+That residual is blue-biased, blue nearly twice red, and **noise has no hue.**
+A coloured residual is a signal with a source. When a remainder is dismissed as
+noise, check first whether its channels are equal.
+
+The second reason it hid: a night-side MEAN over a frame with the terminator
+in it dilutes a 5 percent-of-pixels glow into a fraction of a level. Scoring
+the COUNT of pixels carrying the signature (blue-dominant and above black),
+inside a disc fitted from the terrain itself, is what made it measurable.
+
+#### History: one cause fixed, the whole surface path believed eliminated
 
 Reported twice. Fixture `orbit-terminator-3000km`, measured with
 `node scripts/night-side-mean.js <png>`. Baseline night-side mean was
@@ -757,6 +787,31 @@ overwritten by the textured path further down; and an arm that produces no
 change is indistinguishable from an arm that never ran. Tint rather than
 early-return, tint at the LAST write, and make every arm carry a value that MUST
 move if it executed. See `feedback_prove_the_edit_reaches_pixels` in memory.
+### 3b. 8-bit banding everywhere: the scene has no HDR target and no dither
+
+Found 2026-09-24 while fixing the aurora. The scene renders straight into the
+8-bit sRGB surface format (`renderer/mod.rs`, `surface_format` picked by
+`is_srgb()`, and `create_scene_texture` uses it too), each pass tonemaps in
+its own shader, and **nothing dithers before the 8-bit write.** A slow dark
+gradient therefore quantises into flat rings one display level apart, and the
+eye reads each ring as a hard edge. The aurora's faint diffuse glow spanned
+three or four levels and drew as nested ellipses with crisp outlines; rendered
+alone at full strength the rings multiplied into a contour map.
+
+v0.1331.21 dithers the AURORA's own output (`srgb_dither` in
+`30-atmosphere.wgsl`, triangular noise of one 8-bit step converted to linear
+at the pixel's value). Every other dark gradient is still exposed: the night
+sky, the atmosphere's limb and twilight falloff, dusk terrain, fog. Expect
+more "harsh edges between shades" reports from those until this lands.
+
+**The real fix** is the one every modern renderer uses: render the scene into
+an `Rgba16Float` target, keep radiance linear and unclamped through every
+pass, and do ONE tonemap and ONE dither in a final pass to the surface. It
+touches every pass that currently writes `surface_format` (the scene texture,
+bloom, godrays, SSAO, the cloud composite, the celestial passes) and every
+shader that tonemaps inline, so it is an arc, not an increment. Until then,
+`srgb_dither` is the stopgap to reach for on any surface that gets reported.
+
 ### 4. The far-rung gates, G0(d) and G1 to G7
 
 Unchanged, and still the plan for the deeper cloud work. The increment is merged
@@ -859,6 +914,16 @@ world and drives the wall through the dev IPC. `just verify-screens` is the
 named gate; static verification cannot see a dark or mirrored screen.
 
 ### B. The frame cost arc, remaining rungs
+
+**Open, measured 2026-09-24: `gpu.celestial_t` is 25.6 ms looking straight
+down from 600 km over the auroral oval** (`aurora-over-water`, about 20 fps on
+the rig), against 11.3 ms at an oblique 300 km view. Two suspects are already
+ruled OUT by measurement, so start elsewhere: the aurora itself (the thin-sheet
+rework left the pass at 25.80 -> 25.64 ms, cost-neutral), and the emission
+twin computing and discarding the atmosphere integral (moving its return ahead
+of the integral changed 25.64 -> 25.63 ms). What differs straight down is that
+the shell fills the whole screen, so look at what else in the celestial
+transparent pass scales with shell coverage.
 
 Design of record `docs/design/frame-cost-arc.md`. P1, P2 and P3 shipped: there is
 no `fs_main`, six class entries share `frag_prologue` and `frag_tail`, thirteen

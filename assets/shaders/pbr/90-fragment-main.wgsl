@@ -2161,7 +2161,7 @@ fn fs_shell(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loc
     // Type 14 short-circuits the whole PBR surface path: an atmosphere is a
     // participating MEDIUM and takes no colour from a BRDF.
     if (HAS_ATMOSPHERE_BRANCH && material_type >= 13.5 && material_type < 14.5) {
-        return atmosphere_scattering(in.world_position, front_facing);
+        return atmosphere_scattering(in.world_position, front_facing, in.clip_position.xy);
     }
     if (material_type >= 12.5 && material_type < 13.5) {
         // Type 13: Atmosphere shell (v0.763) -- fresnel limb tint on a slightly
