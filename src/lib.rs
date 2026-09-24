@@ -3865,10 +3865,53 @@ mod native_app {
                         // of the camera so motion reads against black space.
                         let want_dust =
                             !state.camera.surface_mode && state.controller.fly_mode;
+                        // ── ONLY WHILE YOU FLY (operator, 2026-09-24) ──
+                        //
+                        // "The weird glittering effect I'm seeing even when I'm not
+                        // looking at the planet. Kind of like stars blinking but,
+                        // they end up phasing out entirely and some times are very
+                        // wide compared to the other stars ... they also seem to
+                        // drift around a bit before they fade out."
+                        //
+                        // That was this field. It ran whenever he was in fly mode
+                        // in space, moving or not, and each mote lives 1.5-3.5 s and
+                        // fades out. Parked, that is motes popping in and fading at
+                        // random: twinkling, by definition. Close ones look wide,
+                        // parallax makes them drift. The field exists as a MOTION
+                        // reference, so it now answers to motion: nothing new spawns
+                        // while no movement key is held (the motes already alive
+                        // finish their fade), and nothing above about a kilometre a
+                        // second, where the camera crosses the 30 m field in a frame
+                        // or two and a mote can only be a one-frame flash. At his FTL
+                        // gear that is every frame.
+                        //
+                        // The COMMANDED speed, not a measured one, and deliberately:
+                        // below the co-rotate ceiling the camera is frame-locked to
+                        // the spinning planet, so a parked camera moves at hundreds
+                        // of m/s in absolute space (about 500 at 787 km). Measured
+                        // speed would have kept the dust on while he sat still. What
+                        // he perceives is his own thrust, which is this: the held
+                        // keys times the same speed both flight paths apply.
+                        let fly_intent = state.controller.fly_wish_dir(&state.camera);
+                        let cam_speed = if fly_intent.length_squared() > 0.0 {
+                            state.controller.speed * state.controller.fly_speed_mult.max(1.0)
+                        } else {
+                            0.0
+                        };
+                        const DUST_FAST_LO: f32 = 200.0; // m/s: above, a mote is a flash
+                        const DUST_FAST_HI: f32 = 1000.0;
+                        let fast = ((cam_speed - DUST_FAST_LO) / (DUST_FAST_HI - DUST_FAST_LO))
+                            .clamp(0.0, 1.0);
+                        let dust_rate = if cam_speed > 0.0 {
+                            1.0 - fast * fast * (3.0 - 2.0 * fast)
+                        } else {
+                            0.0
+                        };
                         let dust_pos = state.camera.position + state.camera.forward() * 12.0;
                         match state.particle_system.emitter_by_type_mut("space_dust") {
                             Some(e) => {
                                 e.active = want_dust;
+                                e.rate_scale = dust_rate;
                                 if want_dust {
                                     e.position = dust_pos;
                                 }
