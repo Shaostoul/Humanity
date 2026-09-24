@@ -401,6 +401,63 @@ Not flipped unilaterally. He chose frozen deliberately after his own on/off
 experiment, and a look decision he made with his own eyes is not one to reverse
 from a metric behind his back.
 
+### 2b-0. What the still-frame crumb actually is (2026-09-23, RESOLVED)
+
+Read this before touching item 2b. It changes what 2b is allowed to conclude.
+
+The operator has reported the planet "twinkling with white specks" and clouds
+"glistening ... almost like they are boiling". A capture at a grazing view over
+the Bahamas bank at dawn shows the cloud masses as a fine granular crumb, which
+is the thing being described. Four arms were captured at that one camera,
+differing only in the knob named, and scored as mean absolute deviation from the
+3x3 mean over bright desaturated pixels:
+
+| arm | high-frequency energy |
+| --- | --- |
+| `cloudres-full` (march at full screen resolution) | **9.22%** |
+| `cloudres-half` (divisor 2, the operator own setting) | 4.89% |
+| `cloudres-nodither` (divisor 2, march dither OFF) | 5.17% |
+| `cloudres-unsettled` (divisor 2, captured before convergence) | 4.85% |
+
+Every half-res arm lands inside a 4.85 to 5.17 band. Three hypotheses die at
+once:
+
+- **Not the dither.** Turning the march jitter off RAISED the number. At a
+  parked camera the temporal filter has already removed the jitter entirely,
+  and what the dither-off arm adds back is its own mip-ring arcs.
+- **Not convergence.** One second of settle scores the same as fourteen.
+- **Not the upsample.** The composite already reconstructs with a 9-tap
+  Catmull-Rom under a neighbourhood clamp, and full resolution is WORSE, not
+  better, so the half-res buffer is not aliasing away detail it should keep.
+
+What is left is that the crumb in a STILL frame is the cloud density field own
+high-frequency structure. The march is resolving the field it was given. Full
+resolution doubles the number because each pixel resolves more of that field,
+which means **raising `cloud_res` to cure speckle makes it worse and charges GPU
+time for the privilege.** That is worth knowing on its own, because it is the
+first thing anyone would reach for.
+
+Consequences for the work:
+
+1. Item 2b is a denoising item and the still-frame crumb is not a denoising
+   problem. Any further spatial-filter tuning against a still can only trade
+   real field detail for smoothness, which is exactly the trap item 2a-ii
+   already flagged when it found a box blur winning the grain metric.
+2. The operator complaint is about something CHANGING, so the remaining live
+   question is temporal and specifically under MOTION, where the temporal
+   filter cannot converge. The v0.1331.18 fix (un-freezing the depth jitter so
+   the filter has something to average) took terminator grain from 40.4% to
+   8.17% and is the right shape of fix; parked fizz costs 2.09% against 0.34%
+   frozen, and that is the line to revert if parked fizz reads worse to him
+   than the boiling did.
+3. If the still crumb is judged to LOOK wrong once it stops moving, that is a
+   fidelity question about the field texture, for the fidelity-expert, not a
+   filter question. Real cloud at this range is not a uniform crumb.
+
+The four fixtures are kept in `tests/visual/vantages.json` and each one carries
+the table in its own `desc`, so the conclusion cannot drift away from the
+measurement.
+
 ### 2b. The grain itself, for when the brightness is fixed
 
 Kept because the measurements are real and were expensive, but do NOT work on

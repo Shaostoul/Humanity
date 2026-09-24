@@ -12060,6 +12060,54 @@
       "showcase": {"cloud_quality":"ultra","clouds":"1","cloud_cover":"0.5","cloud_type":"0.34","weather":"clear","cloud_clock":"120","cloud_light":"1","cloud_body_cache":"1","cloud_step_eco":"1","map_diag":"0","cloud_res":"1","cloud_profile":"1","cloud_top_bound":"0","cloud_uniform_step":"0","cloud_step_m":"0"},
       "settle_s": 12,
       "hold_altitude": true
+    },
+    {
+      "id": "shore-limb-0630",
+      "desc": "The SHORE GLOW, at a grazing VIEW. The operator reports that ocean shores go dark in full night and start glowing again once the sun clears the horizon. Water reflectance depends on the VIEW angle rather than the sun angle, so this fixture aims 55 degrees off nadir where the sky mirror is strongest, over the Bahamas bank from 3000 km at dawn. NOT REPRODUCED here, nor at the two other geometries measured 2026-09-23: a nadir sunrise ladder, and nadir at a grazing sun (dawn shore 33.7 against cloud 136.3 and deep ocean 16.5; noon shore 66.4 against cloud 197.8). At a grazing view the shore-to-cloud ratio is 0.25 at dawn against 0.34 at noon, so the shore is relatively DARKER when the sun is low, which is the opposite of the report. The bright blue pixels that do appear cover 0.089 percent of the frame in compact patches, which is sun glint and is physical. Three clean geometries means the next step is the operator actual camera state, not a fourth guess.",
+      "expect": "Shore brightness must stay BELOW cloud in the same frame. At a grazing view a bright specular sheen on water is PHYSICAL and correct; the defect would be shore exceeding cloud, or a discontinuity as the view angle crosses some threshold.",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {"body":"earth","lat":24,"lon":-77,"time":6.5,"altitude_km":3000,"look_offset_deg":55},
+      "showcase": {"clouds":"1","weather":"clear","cloud_clock":"120"},
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "cloudres-full",
+      "desc": "CLOUD CRUMB A/B, the full-resolution arm. The cloud march renders into a reduced-resolution buffer that a 9-tap Catmull-Rom then reconstructs, so this pair separates march sampling from buffer aliasing by changing ONLY cloud_res. This arm: divisor 1. Measured 2026-09-23 over this camera as mean absolute deviation from the 3x3 mean, across bright desaturated pixels: full res 9.22 percent, half res 4.89, half res with the march dither off 5.17, half res captured unconverged 4.85. CONCLUSION: every half-res arm sits inside a 4.85 to 5.17 band, so neither the dither nor temporal convergence is the source, and the 9-tap Catmull-Rom upsample is not either. The crumb in a STILL frame is the density field own high-frequency structure. Full res is WORSE, because the march resolves more of that field per pixel, so raising the cloud resolution to cure speckle makes it worse and costs GPU for the privilege. Whatever remains of the operator twinkling complaint is therefore temporal and under MOTION, or else a fidelity question about the field texture. It is not a denoising problem. Do not tune the spatial filter against this number.",
+      "expect": "Compare the two arms, never either alone. The number that matters is high-frequency energy over the cloud mass, not frame brightness.",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {"body":"earth","lat":24,"lon":-77,"time":6.5,"altitude_km":3000,"look_offset_deg":55},
+      "showcase": {"clouds":"1","weather":"clear","cloud_clock":"120","cloud_res":"1"},
+      "settle_s": 14,
+      "hold_altitude": true
+    },
+    {
+      "id": "cloudres-half",
+      "desc": "CLOUD CRUMB A/B, the half-resolution arm, which is the operator own setting. Read it against cloudres-full and cloudres-nodither, never on its own. This arm: divisor 2. Measured 2026-09-23 over this camera as mean absolute deviation from the 3x3 mean, across bright desaturated pixels: full res 9.22 percent, half res 4.89, half res with the march dither off 5.17, half res captured unconverged 4.85. CONCLUSION: every half-res arm sits inside a 4.85 to 5.17 band, so neither the dither nor temporal convergence is the source, and the 9-tap Catmull-Rom upsample is not either. The crumb in a STILL frame is the density field own high-frequency structure. Full res is WORSE, because the march resolves more of that field per pixel, so raising the cloud resolution to cure speckle makes it worse and costs GPU for the privilege. Whatever remains of the operator twinkling complaint is therefore temporal and under MOTION, or else a fidelity question about the field texture. It is not a denoising problem. Do not tune the spatial filter against this number.",
+      "expect": "Compare the two arms, never either alone. The number that matters is high-frequency energy over the cloud mass, not frame brightness.",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {"body":"earth","lat":24,"lon":-77,"time":6.5,"altitude_km":3000,"look_offset_deg":55},
+      "showcase": {"clouds":"1","weather":"clear","cloud_clock":"120","cloud_res":"2"},
+      "settle_s": 14,
+      "hold_altitude": true
+    },
+    {
+      "id": "cloudres-nodither",
+      "desc": "CLOUD CRUMB A/B, the dither-off reference. The march dither trades banding for grain, so this arm was meant to carry the field structure WITHOUT march noise and serve as the floor. It came back HIGHER than the dithered arm, and that is the measurement that settled the question. Mip-ring arcs are expected in this arm and are the reason the dither exists. Measured 2026-09-23 over this camera as mean absolute deviation from the 3x3 mean, across bright desaturated pixels: full res 9.22 percent, half res 4.89, half res with the march dither off 5.17, half res captured unconverged 4.85. CONCLUSION: every half-res arm sits inside a 4.85 to 5.17 band, so neither the dither nor temporal convergence is the source, and the 9-tap Catmull-Rom upsample is not either. The crumb in a STILL frame is the density field own high-frequency structure. Full res is WORSE, because the march resolves more of that field per pixel, so raising the cloud resolution to cure speckle makes it worse and costs GPU for the privilege. Whatever remains of the operator twinkling complaint is therefore temporal and under MOTION, or else a fidelity question about the field texture. It is not a denoising problem. Do not tune the spatial filter against this number.",
+      "expect": "Read only as the floor for the cloudres pair. Ring arcs are expected in this arm.",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {"body":"earth","lat":24,"lon":-77,"time":6.5,"altitude_km":3000,"look_offset_deg":55},
+      "showcase": {"clouds":"1","weather":"clear","cloud_clock":"120","cloud_res":"2","cloud_dither":"0"},
+      "settle_s": 14,
+      "hold_altitude": true
     }
   ],
   "ladder": {
