@@ -1451,3 +1451,71 @@ Note for whoever picks this up: the quality-ladder inversion explained above is
 still true and still unfixed at Ultra, but it is a SEPARATE defect from the
 static on the default tier. Fixing Ultra's coverage collapse would not have
 touched what the operator reported.
+
+## BUG-081: coastlines glowed cyan on the night side of the planet (FIXED v0.1331.20)
+
+**Symptom:** from orbit, with the sun nowhere in frame, every shallow shelf on
+the dark half of the Earth was traced in pale cyan: the Bahamas bank, the
+Yucatan shelf, the Gulf coast. Deep ocean and land were correctly black. The
+operator reported it across several releases, and the report that finally made
+it reproducible was "I'm still able to see it even when on the dark side of the
+Earth without the sun visible."
+
+**Why it survived four earlier fixes.** Each was a real defect of the same
+shape, a light term with no local sun gate, and each was fixed correctly:
+
+| earlier fix | what it gated | why it did not end the glow |
+| --- | --- | --- |
+| water sky mirror (`w_lut_day`, 20-surface-detail) | the camera-centric sky LUT reflected by water | the water shell is transparent over the shelf |
+| BUG-057 #3 (`underwater_apply`) | the water-column in-scatter, by `sun_direction.w` | that value is a GLOBAL, and the celestial pass stamps it at 2.5 |
+| ambient floor (`under_sky`, 80-fragment-shared) | the silhouette floor on planets | the floor was not what lit it |
+| fill gate (v0.1186) | the fixed cool fill light on type 12 | nor was the fill |
+
+The second row is the one. It looked fixed, and the comment beside it said
+"no sun, no glow", but the number it multiplied by is one value for the whole
+frame. The celestial pass that draws planet terrain writes it as a hardcoded
+2.5 (the TERRAIN TERMINATOR GATE note in `80-fragment-shared.wgsl` records
+this), so the night half of the planet read as full daylight.
+
+**Cause:** `underwater_apply` adds a navy in-scatter
+`(0.008, 0.030, 0.055) * sun_day` to every seabed fragment below sea level,
+weighted by the water column's opacity. With `sun_day` stuck at 1.0 it lit the
+seabed at midnight. It traced coastlines because the opaque ocean shell hides
+the seabed over deep water and fades out over the shallow shelf, which is
+exactly where the seabed shows through.
+
+**How it was found**, since four rounds of reasoning had not: a fixture that
+reproduces it (`coast-night-2000`, local midnight over the Bahamas bank,
+clouds off) and elimination, scoring blue-dominant pixels inside the planet
+disc (5.066 percent baseline). Unchanged by the ocean shell painted black in
+both branches, `sky_ambient` zeroed, the ambient floor removed, the fill light
+zeroed, the water emissive zeroed, and terrain albedo plus emissive zeroed
+together. Gone (0.004 percent, disc mean 2.717 to 0.190) with the in-scatter
+alone zeroed, which matched painting the entire terrain entry black.
+
+Two traps worth keeping. First, a magenta positive control could not have
+failed: magenta saturates red and blue, so a `blue > red` classifier can never
+count a cyan overlay drawn on top of it. Painting BLACK is the non-saturating
+version and is the one that proved ownership. Second, the first whole-frame
+metric was dominated by the Milky Way at the frame edge; restricting to a disc
+fitted from the terrain itself is what made every later number mean something.
+
+**Fix:** the in-scatter is gated by the fragment's own sun elevation, taken
+from the sea sphere the function already reads, through the same
+`TERRAIN_TERMINATOR_LO/HI` band that lights the seabed beneath it, so the
+column and the seabed go dark together. No call site changed.
+
+**Verified** before and after at identical settings (66 of 66 match):
+
+| vantage | before | after | pixels changed |
+| --- | --- | --- | --- |
+| `coast-night-2000`, midnight | L 3.84, 5.589% blue | L 0.88, 0.011% | 13% |
+| `coast-noon-2000`, same camera at noon | L 73.73 | L 73.73 | 0.014% |
+| `shore-limb-0630`, terminator in frame | L 13.61 | L 13.58 | 0.6%, all night-side |
+
+A change map of the dawn frame shows the changed pixels confined to the dark
+side, with no seam along the terminator.
+
+**Do not re-flag:** a black night side with no cyan is correct. The Earth has
+no light of its own on a moonless night apart from city lights and airglow,
+neither of which the renderer draws yet.

@@ -350,7 +350,40 @@ fn underwater_apply(color_in: vec3<f32>, world_pos: vec3<f32>, on_surface: bool)
     // through-water half of a coastal frame was bit-identical at noon and
     // midnight - the beach glowed all night. In-scatter IS sunlight that
     // scattered; no sun, no glow. sun_direction.w = 2.5 * day since v0.1083.
-    let sun_day = clamp(camera.sun_direction.w * 0.4, 0.0, 1.0);
+    //
+    // ── AND THE DAY HAS TO BE THIS FRAGMENT'S DAY (2026-09-24) ──
+    //
+    // That global was the whole night-side coast glow, reported by the
+    // operator across several releases and surviving every fix aimed at it.
+    // camera.sun_direction.w is ONE number for the whole frame, and the
+    // celestial pass that draws planet terrain stamps it at a hardcoded 2.5
+    // (see the TERRAIN TERMINATOR GATE note in 80-fragment-shared). So from
+    // orbit sun_day was 1.0 on the night half too, and every seabed fragment
+    // below sea level took the full navy in-scatter. It traced coastlines
+    // because the opaque ocean shell hides it over deep water and fades out
+    // over the shallow shelf, which is exactly where the seabed shows.
+    //
+    // Found by elimination at local midnight over the Bahamas bank, scoring
+    // blue-dominant pixels inside the planet disc (5.066 percent baseline).
+    // Unchanged by: the ocean shell painted black (both branches), sky_ambient
+    // zeroed, the ambient floor removed, the fill light zeroed, the water
+    // emissive zeroed, terrain albedo and emissive zeroed together. Gone
+    // (0.004 percent, disc mean 2.717 to 0.190) with this term alone zeroed,
+    // identical to painting the whole terrain entry black. Nothing else on
+    // the night side was lighting it.
+    //
+    // The sea sphere this function already reads gives the fragment its own
+    // up, so the gate is local without touching a call site. It uses the
+    // TERRAIN TERMINATOR band on purpose: the seabed under this column is lit
+    // through that same band, so the two go dark together and cannot leave a
+    // glowing column over an unlit seabed at the terminator.
+    let up_here = normalize(world_pos - sea_c);
+    let local_day = smoothstep(
+        TERRAIN_TERMINATOR_LO,
+        TERRAIN_TERMINATOR_HI,
+        dot(up_here, normalize(camera.sun_direction.xyz)),
+    );
+    let sun_day = clamp(camera.sun_direction.w * 0.4, 0.0, 1.0) * local_day;
     let inscatter = vec3<f32>(0.008, 0.030, 0.055) * sun_day;
     return color_in * t + inscatter * (vec3<f32>(1.0) - t);
 }

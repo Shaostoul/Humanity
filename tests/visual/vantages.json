@@ -12108,6 +12108,42 @@
       "showcase": {"clouds":"1","weather":"clear","cloud_clock":"120","cloud_res":"2","cloud_dither":"0"},
       "settle_s": 14,
       "hold_altitude": true
+    },
+    {
+      "id": "coast-night-2000",
+      "desc": "THE NIGHT-SIDE COAST GLOW, the reproduction that three earlier geometries missed. The operator reports coastlines glowing on the dark half with the sun nowhere in frame, which rules out every reflection and specular explanation and means a light-INDEPENDENT term is reaching bright shallow-water albedo. Earlier fixtures all carried a sunlit shore somewhere in frame and so measured the wrong thing entirely. Local midnight over the Bahamas bank, the largest bright shallow shelf available, aimed at nadir so the terminator stays out of frame. Altitude 2000 km.",
+      "expect": "On the night side the shallow shelf must not be brighter than deep ocean by more than a hair. The failure signature is a population of pixels at moderate luminance tracing the coast while deep ocean sits near zero.",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {"body":"earth","lat":24,"lon":-77,"time":0.0,"altitude_km":2000,"look_offset_deg":0},
+      "showcase": {"clouds":"0","weather":"clear"},
+      "settle_s": 10,
+      "hold_altitude": true
+    },
+    {
+      "id": "coast-night-10000",
+      "desc": "THE NIGHT-SIDE COAST GLOW, the reproduction that three earlier geometries missed. The operator reports coastlines glowing on the dark half with the sun nowhere in frame, which rules out every reflection and specular explanation and means a light-INDEPENDENT term is reaching bright shallow-water albedo. Earlier fixtures all carried a sunlit shore somewhere in frame and so measured the wrong thing entirely. Local midnight over the Bahamas bank, the largest bright shallow shelf available, aimed at nadir so the terminator stays out of frame. Altitude 10000 km.",
+      "expect": "On the night side the shallow shelf must not be brighter than deep ocean by more than a hair. The failure signature is a population of pixels at moderate luminance tracing the coast while deep ocean sits near zero.",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {"body":"earth","lat":24,"lon":-77,"time":0.0,"altitude_km":10000,"look_offset_deg":0},
+      "showcase": {"clouds":"0","weather":"clear"},
+      "settle_s": 10,
+      "hold_altitude": true
+    },
+    {
+      "id": "coast-noon-2000",
+      "desc": "The DAY-SIDE CONTROL for coast-night-2000: the same camera over the Bahamas bank at local noon. The night-side coast glow fix gates the water-column in-scatter by the fragment own sun elevation, which must leave a fully daylit sea untouched; this fixture is where that is checked. A change here means the gate is reaching daylight it should not.",
+      "expect": "Identical to the pre-fix render of this camera. The shallow shelf is bright and turquoise in daylight and must stay so.",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {"body":"earth","lat":24,"lon":-77,"time":12.0,"altitude_km":2000,"look_offset_deg":0},
+      "showcase": {"clouds":"0","weather":"clear"},
+      "settle_s": 10,
+      "hold_altitude": true
     }
   ],
   "ladder": {
