@@ -643,10 +643,63 @@ pub fn cloud_regime(tc: f32) -> CloudRegime {
     }
 }
 
+/// Mirrors the WGSL synoptic-organisation constants (see `cloud_synoptic_warp`
+/// in 40-clouds.wgsl for the reasoning). Pinned by the const-sync test.
+pub const CLOUD_STORMS_PER_HEMI: i32 = 5;
+pub const CLOUD_STORM_LAT_LO: f32 = 0.611;
+pub const CLOUD_STORM_LAT_HI: f32 = 1.134;
+pub const CLOUD_STORM_R_LO: f32 = 0.126;
+pub const CLOUD_STORM_R_HI: f32 = 0.235;
+pub const CLOUD_STORM_TWIST_LO: f32 = 2.0;
+pub const CLOUD_STORM_TWIST_HI: f32 = 4.0;
+pub const CLOUD_JET_LAT: f32 = 0.70;
+pub const CLOUD_JET_WIDTH: f32 = 0.25;
+pub const CLOUD_JET_SHEAR: f32 = 0.35;
+
+/// Mirrors `cloud_synoptic_warp`: storm twists plus jet shear, rotations only,
+/// so the field's statistics over the sphere are unchanged.
+pub fn cloud_synoptic_warp(dir: [f32; 3], drift_ang: f32, seed: f32) -> [f32; 3] {
+    let mut v = dir;
+    for k in 0..2 * CLOUD_STORMS_PER_HEMI {
+        let fk = k as f32;
+        let hemi = if k < CLOUD_STORMS_PER_HEMI { 1.0 } else { -1.0 };
+        let lat = hemi * mix(CLOUD_STORM_LAT_LO, CLOUD_STORM_LAT_HI, hash13([fk, seed, 1.7]));
+        let lon = std::f32::consts::TAU * hash13([fk, seed, 2.9]) - drift_ang;
+        let cl = lat.cos();
+        let c = [cl * lon.cos(), lat.sin(), -cl * lon.sin()];
+        let rr = mix(CLOUD_STORM_R_LO, CLOUD_STORM_R_HI, hash13([fk, seed, 4.3]));
+        let cd = v[0] * c[0] + v[1] * c[1] + v[2] * c[2];
+        if cd <= (3.5 * rr).cos() {
+            continue;
+        }
+        let r = cd.clamp(-1.0, 1.0).acos();
+        let theta = mix(CLOUD_STORM_TWIST_LO, CLOUD_STORM_TWIST_HI, hash13([fk, seed, 6.1]));
+        let ang = hemi * theta * ((-(r * r) / (rr * rr)).exp() - (-12.25f32).exp()).max(0.0);
+        let (sn, cs) = ang.sin_cos();
+        let cross = [
+            c[1] * v[2] - c[2] * v[1],
+            c[2] * v[0] - c[0] * v[2],
+            c[0] * v[1] - c[1] * v[0],
+        ];
+        let cv = c[0] * v[0] + c[1] * v[1] + c[2] * v[2];
+        v = [
+            v[0] * cs + cross[0] * sn + c[0] * cv * (1.0 - cs),
+            v[1] * cs + cross[1] * sn + c[1] * cv * (1.0 - cs),
+            v[2] * cs + cross[2] * sn + c[2] * cv * (1.0 - cs),
+        ];
+    }
+    let lat_v = v[1].clamp(-1.0, 1.0).asin();
+    let dj = (lat_v.abs() - CLOUD_JET_LAT) / CLOUD_JET_WIDTH;
+    cloud_rot_y(v, CLOUD_JET_SHEAR * (-dj * dj).exp())
+}
+
 /// Mirrors `cloud_type_coord`: two low-frequency octaves -> the [0,1] type
 /// coordinate that selects the cloud family at a planet-fixed direction.
 pub fn cloud_type_coord(dir: [f32; 3], t: f32, seed: f32) -> f32 {
-    let d = cloud_rot_y(dir, t * CLOUD_DRIFT_ZONAL);
+    let d = cloud_rot_y(
+        cloud_synoptic_warp(dir, t * CLOUD_DRIFT_ZONAL, seed),
+        t * CLOUD_DRIFT_ZONAL,
+    );
     let a = cloud_noise(d, CLOUD_TYPE_FREQ, seed + 211.0);
     let b = cloud_noise(d, CLOUD_TYPE_FREQ2, seed + 331.0);
     (0.62 * a + 0.38 * b).clamp(0.0, 1.0)
@@ -938,6 +991,15 @@ mod tests {
             ("CLOUD_FIELD_HI", CLOUD_FIELD_HI),
             ("CLOUD_EDGE", CLOUD_EDGE),
             ("CLOUD_WEATHER_EDGE", CLOUD_WEATHER_EDGE),
+            ("CLOUD_STORM_LAT_LO", CLOUD_STORM_LAT_LO),
+            ("CLOUD_STORM_LAT_HI", CLOUD_STORM_LAT_HI),
+            ("CLOUD_STORM_R_LO", CLOUD_STORM_R_LO),
+            ("CLOUD_STORM_R_HI", CLOUD_STORM_R_HI),
+            ("CLOUD_STORM_TWIST_LO", CLOUD_STORM_TWIST_LO),
+            ("CLOUD_STORM_TWIST_HI", CLOUD_STORM_TWIST_HI),
+            ("CLOUD_JET_LAT", CLOUD_JET_LAT),
+            ("CLOUD_JET_WIDTH", CLOUD_JET_WIDTH),
+            ("CLOUD_JET_SHEAR", CLOUD_JET_SHEAR),
             ("CLOUD_DRIFT_ZONAL", CLOUD_DRIFT_ZONAL),
             ("CLOUD_DRIFT_CROSS", CLOUD_DRIFT_CROSS),
             ("CLOUD_SHADOW_STEP", CLOUD_SHADOW_STEP),
@@ -1213,6 +1275,47 @@ mod tests {
         assert!(nimbo.h_hi < 0.55, "nimbostratus band too tall: {}", nimbo.h_hi);
         // Determinism.
         assert_eq!(cloud_regime(0.5), cloud_regime(0.5));
+    }
+
+    /// The synoptic warp may only REARRANGE cloud. It is built from rotations
+    /// whose angle depends only on distance from the rotation axis, which
+    /// preserve area, and everything downstream (coverage calibration, the
+    /// placement census) relies on that. So: directions stay unit length, and
+    /// the sphere-average of a field is the same read through the warp as
+    /// without it. A warp that bunched or thinned directions would pass every
+    /// look check and shift the planet's cloud amount without anyone noticing.
+    #[test]
+    fn synoptic_warp_is_a_measure_preserving_rotation() {
+        let n = 40_000usize;
+        let golden = std::f32::consts::PI * (3.0 - 5.0f32.sqrt());
+        for (seed, drift) in [(0.0f32, 0.0f32), (17.3, 0.4), (123.0, -1.1)] {
+            let (mut plain, mut warped, mut moved) = (0.0f64, 0.0f64, 0usize);
+            for i in 0..n {
+                let y = 1.0 - 2.0 * (i as f32 + 0.5) / n as f32;
+                let r = (1.0 - y * y).max(0.0).sqrt();
+                let a = golden * i as f32;
+                let d = [r * a.cos(), y, r * a.sin()];
+                let w = cloud_synoptic_warp(d, drift, seed);
+                let len = (w[0] * w[0] + w[1] * w[1] + w[2] * w[2]).sqrt();
+                assert!((len - 1.0).abs() < 1.0e-4, "warp broke unit length: {len}");
+                if (w[0] - d[0]).abs() + (w[1] - d[1]).abs() + (w[2] - d[2]).abs() > 1.0e-3 {
+                    moved += 1;
+                }
+                plain += cloud_noise(d, 5.0, seed) as f64;
+                warped += cloud_noise(w, 5.0, seed) as f64;
+            }
+            let (pm, wm) = (plain / n as f64, warped / n as f64);
+            assert!(
+                (pm - wm).abs() < 0.004,
+                "seed {seed}: sphere mean {pm:.4} plain vs {wm:.4} warped - the warp is not \
+                 area-preserving"
+            );
+            // And it must actually DO something, or the test above is vacuous.
+            assert!(
+                moved as f32 / n as f32 > 0.25,
+                "seed {seed}: only {moved} of {n} directions moved - the warp is inert"
+            );
+        }
     }
 
     #[test]

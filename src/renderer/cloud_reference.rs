@@ -38,7 +38,7 @@
 //! `clouds::wgsl_cloud_constants_stay_in_sync`.
 
 use super::clouds::{
-    cloud_alpha_from_field, cloud_hg, cloud_noise, cloud_weather_window, cloud_regime, cloud_rot_x, cloud_rot_y,
+    cloud_alpha_from_field, cloud_hg, cloud_noise, cloud_synoptic_warp, cloud_weather_window, cloud_regime, cloud_rot_x, cloud_rot_y,
     cloud_scatter_energy, CloudRegime, CLOUD_AMB_BASE, CLOUD_AMB_BOUNCE, CLOUD_AMB_TOP,
     CLOUD_BAND_STRETCH, CLOUD_DRIFT_CROSS, CLOUD_FIELD_HI, CLOUD_FIELD_LO, CLOUD_NIGHT_FLOOR,
     CLOUD_POWDER_STRENGTH,
@@ -184,6 +184,7 @@ impl<'a> RefVolume<'a> {
 /// The drift-octave lockstep test that guards weather_pinned guards this
 /// body identically (weather_pinned delegates here).
 pub fn weather_pinned_field(dir: [f32; 3], t: f32, seed: f32, drift_ang: f32) -> f32 {
+    let dir = cloud_synoptic_warp(dir, drift_ang, seed);
     let da0 = cloud_rot_y(dir, drift_ang);
     let da = v3_norm([da0[0], da0[1] * CLOUD_BAND_STRETCH, da0[2]]);
     let db = cloud_rot_x(dir, t * CLOUD_DRIFT_CROSS);
@@ -623,6 +624,7 @@ mod tests {
             "0.12 * cloud_noise(da, 31.0, seed + 233.0)",
             "0.08 * cloud_noise(db, 67.0, seed + 409.0)",
             "(macro_f + meso_f) / 1.04",
+            "let dw = cloud_synoptic_warp(dir, drift_ang, seed);",
         ] {
             assert!(
                 src.contains(needle),

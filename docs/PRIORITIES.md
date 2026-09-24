@@ -203,7 +203,7 @@ within a few percent of the 14.8 that clouds-OFF already reaches.
 the comment at `frame_shells.rs` documents, and that one cost a dozen
 investigations because the cliff sat at the chunk-activation altitude.
 
-### 2-0. Continent sheets and "grey closer" (operator, 2026-09-24). Sheets increment 1 SHIPPED v0.1333.0
+### 2-0. Continent sheets and "grey closer" (operator, 2026-09-24). Sheets increments 1 and 2 SHIPPED (v0.1333.0, v0.1334.0)
 
 The operator: clouds are "huge sheets that sometimes cover entire continents,
 like Asia. Do we need to increase the base resolution of the base layer?" and
@@ -229,7 +229,18 @@ window fails it.
 
 **Sheets, what is left, in order** (the review's plan; section (b) of its
 report is summarised here because it is the build order):
-1. **Synoptic organisation.** A `cloud_synoptic_warp(dir, t, seed)` at the top of
+1. **Synoptic organisation. SHIPPED v0.1334.0** as `cloud_synoptic_warp`: 5 storms
+   per hemisphere at 35-65 degrees, twist 2-4 rad, radius 800-1,500 km, tapered to
+   exactly zero at 3.5 R, plus a jet-shear bump at +-40 degrees; applied to the
+   procedural placement and the type coordinate, mirrored in Rust, guarded by
+   `synoptic_warp_is_a_measure_preserving_rotation` (unit length, sphere mean
+   unchanged, and over a quarter of directions actually moved). Result: the
+   isotropic blobs became curved frontal bands and arcs. NOT yet tight comma
+   heads: the 1,300 km macro octave is the size of the storm radius, so it bends
+   rather than winds. More twist and a smaller radius is a two-constant change;
+   ask the operator before winding it tighter. Cost +0.3 to +0.55 ms of
+   cloud_screen (6-10%). Original plan text follows.
+   A `cloud_synoptic_warp(dir, t, seed)` at the top of
    `cloud_weather_adv` and `cloud_type_coord`: latitude-dependent jet shear plus
    4 to 6 cyclonic twists per hemisphere at 35 to 65 degrees (rotate `dir` about
    the storm centre by theta * exp(-(r/R)^2), R 800-1,500 km, theta 2-4 rad,

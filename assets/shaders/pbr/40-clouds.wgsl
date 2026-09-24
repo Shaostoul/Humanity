@@ -2051,13 +2051,88 @@ fn cloud_weather(dir: vec3<f32>, t: f32, seed: f32) -> f32 {
     return cloud_weather_adv(dir, t, seed, t * CLOUD_DRIFT_ZONAL, 0.0);
 }
 
+// ── SYNOPTIC ORGANISATION (operator, 2026-09-24: continent sheets) ──
+//
+// Isotropic noise can never make what reads as Earth from orbit: comma-shaped
+// mid-latitude cyclones with spiral heads, and cloud streaked and tilted along
+// the jet. This warps the SAMPLING DIRECTION of the procedural field before any
+// octave reads it, so every octave is wound the same way at the same place.
+//
+// Two rotations, and only rotations, because a rotation about an axis whose
+// angle depends only on distance from that axis is AREA-PRESERVING: the
+// field's statistics over the sphere, and so the coverage calibration and the
+// placement census, are unchanged by construction. It rearranges cloud, it
+// never adds or removes any.
+//
+// 1. Storms. CLOUD_STORMS_PER_HEMI per hemisphere at 35 to 65 degrees (the
+//    storm tracks), each twisting the field about its own centre by
+//    theta * exp(-(r / R)^2): counter-clockwise from above in the north,
+//    clockwise in the south, as real cyclones turn. The inner field turns more
+//    than the outer, which is what winds a blob into a spiral with a trailing
+//    arm. Tapered to exactly zero at 3.5 R; a plain cutoff there left a
+//    displacement of a few km, enough to print a seam circle at the carve's
+//    5 to 45 km detail. Centres drift with the pattern (the same drift angle
+//    the caller applies), so a storm carries its cloud.
+// 2. The jet. A rotation about the spin axis shaped as a bump at +-40 degrees
+//    latitude, so cloud on the jet's two flanks is displaced by different
+//    amounts and streaks and tilts zonally. A bump, not sin(2 lat): the
+//    latter's shear is zero exactly at mid-latitudes, where the jet is.
+//
+// All storm parameters come from the seed, so the layout is stable per planet.
+const CLOUD_STORMS_PER_HEMI: i32 = 5;
+const CLOUD_STORM_LAT_LO: f32 = 0.611; // 35 degrees
+const CLOUD_STORM_LAT_HI: f32 = 1.134; // 65 degrees
+const CLOUD_STORM_R_LO: f32 = 0.126; // 800 km of arc
+const CLOUD_STORM_R_HI: f32 = 0.235; // 1,500 km of arc
+const CLOUD_STORM_TWIST_LO: f32 = 2.0; // radians at the centre
+const CLOUD_STORM_TWIST_HI: f32 = 4.0;
+const CLOUD_JET_LAT: f32 = 0.70; // 40 degrees
+const CLOUD_JET_WIDTH: f32 = 0.25; // radians of latitude, 1/e half-width
+const CLOUD_JET_SHEAR: f32 = 0.35; // radians of zonal displacement at the core
+
+fn cloud_synoptic_warp(dir: vec3<f32>, drift_ang: f32, seed: f32) -> vec3<f32> {
+    var v = dir;
+    for (var k = 0; k < 2 * CLOUD_STORMS_PER_HEMI; k = k + 1) {
+        let fk = f32(k);
+        let north = k < CLOUD_STORMS_PER_HEMI;
+        let hemi = select(-1.0, 1.0, north);
+        let lat = hemi * mix(CLOUD_STORM_LAT_LO, CLOUD_STORM_LAT_HI,
+            hash13(vec3<f32>(fk, seed, 1.7)));
+        // East is -z in this frame (the weather-map convention above), and the
+        // pattern the caller rotates by drift_ang moves by -drift_ang in lon.
+        let lon = 6.2831853 * hash13(vec3<f32>(fk, seed, 2.9)) - drift_ang;
+        let cl = cos(lat);
+        let c = vec3<f32>(cl * cos(lon), sin(lat), -cl * sin(lon));
+        let rr = mix(CLOUD_STORM_R_LO, CLOUD_STORM_R_HI, hash13(vec3<f32>(fk, seed, 4.3)));
+        let cd = dot(v, c);
+        if (cd <= cos(3.5 * rr)) {
+            continue;
+        }
+        let r = acos(clamp(cd, -1.0, 1.0));
+        let theta = mix(CLOUD_STORM_TWIST_LO, CLOUD_STORM_TWIST_HI,
+            hash13(vec3<f32>(fk, seed, 6.1)));
+        // exp(-12.25) is the profile's value at 3.5 R: subtracting it makes the
+        // twist reach exactly zero at the cutoff.
+        let ang = hemi * theta * max(exp(-(r * r) / (rr * rr)) - exp(-12.25), 0.0);
+        let sn = sin(ang);
+        let cs = cos(ang);
+        v = v * cs + cross(c, v) * sn + c * (dot(c, v) * (1.0 - cs));
+    }
+    let lat_v = asin(clamp(v.y, -1.0, 1.0));
+    let dj = (abs(lat_v) - CLOUD_JET_LAT) / CLOUD_JET_WIDTH;
+    return cloud_rot_y(v, CLOUD_JET_SHEAR * exp(-dj * dj));
+}
+
 // The weather field as (procedural, live, live weight). Placement callers on
 // the High path want the two parts windowed DIFFERENTLY (cloud_weather_alpha);
 // everything else wants them mixed first (cloud_weather_adv).
 fn cloud_weather_parts(dir: vec3<f32>, t: f32, seed: f32, drift_ang: f32, wlod: f32) -> vec3<f32> {
-    let da0 = cloud_rot_y(dir, drift_ang);
+    // The procedural octaves read the storm-wound direction; the live MODIS
+    // lookup below keeps `dir`, because real cloud is already where it is.
+    let dw = cloud_synoptic_warp(dir, drift_ang, seed);
+    let da0 = cloud_rot_y(dw, drift_ang);
     let da = normalize(vec3<f32>(da0.x, da0.y * CLOUD_BAND_STRETCH, da0.z));
-    let db = cloud_rot_x(dir, t * CLOUD_DRIFT_CROSS);
+    let db = cloud_rot_x(dw, t * CLOUD_DRIFT_CROSS);
     // Five octaves from synoptic (~2500 km systems) down to broken fields
     // (~100 km): the old 3-octave field stopped at globe scale, so coverage
     // read as single continuous splotches spanning hemispheres (operator
@@ -2305,7 +2380,10 @@ fn cloud_type_coord(dir: vec3<f32>, t: f32, seed: f32) -> f32 {
     if (pin >= 1.5) {
         return clamp(pin - 2.0, 0.0, 1.0);
     }
-    let d = cloud_rot_y(dir, t * CLOUD_DRIFT_ZONAL);
+    // Wound by the same storms as the placement, so a spiral arm keeps one
+    // family along its length instead of cutting across the type field.
+    let d = cloud_rot_y(cloud_synoptic_warp(dir, t * CLOUD_DRIFT_ZONAL, seed),
+        t * CLOUD_DRIFT_ZONAL);
     let a = cloud_noise(d, CLOUD_TYPE_FREQ, seed + 211.0);
     let b = cloud_noise(d, CLOUD_TYPE_FREQ2, seed + 331.0);
     return clamp(0.62 * a + 0.38 * b, 0.0, 1.0);
