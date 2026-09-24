@@ -346,7 +346,7 @@ pub(crate) fn sun_cloud_alpha(state: &EngineState) -> f32 {
             seed,
             0.0,
         );
-        crate::renderer::clouds::cloud_alpha_from_field(field, cov)
+        crate::renderer::clouds::cloud_weather_window(field, cov)
     } else {
         0.0
     };

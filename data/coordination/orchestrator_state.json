@@ -644,6 +644,21 @@
    "date": "2026-09-24",
    "decision": "Aurora rework (v0.1331.21): 4 km sheets instead of 100-150 km strands, energy-conserving widening to the full step crossing or one pixel, height ramps box-filtered per step, a 1 - exp(-x) shoulder instead of a hard clip, sRGB-aware triangular dither on the emission output, arcs spread across the oval with half the meander, diffuse 0.22 -> 0.06, sheet gain 20.",
    "why": "Operator: \"rubberband on its fat side\", \"banding ... layers stacking on top of layers\", \"harsh edges between shades\". Three separate banding causes, each proven: 7 point samples of the height ramp (fixed by exact closed-form averaging), a per-channel clip at 1.0 that shifted hue at the boundary (fixed by the shoulder), and 8-bit quantisation of a 3-4 level glow (proven by rendering the diffuse alone at full strength, where the ellipses became a contour map, and by zeroing it). The sheet widening must use the FULL step crossing: at half, samples left gaps and each curtain drew as parallel copies; at the full step smoothstep's symmetry makes them tile exactly and the delivered light equals the true line integral. Cost-neutral (celestial_t 25.80 -> 25.64 ms), because rejection of off-oval and daylit pixels moved ahead of the strand loop. The 8-bit problem is renderer-wide; recorded as PRIORITIES 3b (HDR scene target + one dither is the real fix)."
+  },
+  {
+   "date": "2026-09-24",
+   "decision": "v0.1332.0: the twinkling specks in space were the space-dust motion cue (lib.rs, data/particles.ron space_dust), not stars. It now spawns only while a movement key is held, and fades out between 200 and 1000 m/s commanded speed.",
+   "why": "It ran whenever fly mode was on in space, moving or not, with 1.5-3.5 s lifetimes, so parked it was motes popping in and fading at random: twinkling by definition, wide when close, drifting by parallax. The gate uses COMMANDED speed (held keys x speed x fly_speed_mult, the product both flight paths apply), not measured speed: below the co-rotate ceiling the camera is frame-locked to the spinning planet, so a parked camera moves ~500 m/s in absolute space at 787 km, and a measured-speed gate (the first version, reverted before build) would have left the dust on while parked. Not rig-verifiable (the rig cannot hold a key); uses the same rate_scale lever rain relies on."
+  },
+  {
+   "date": "2026-09-24",
+   "decision": "Cloud sheets increment 1 (v0.1333.0): the High path places procedural cloud through cloud_weather_window (width 1.0, no dense sharpening) via cloud_weather_alpha, which windows the procedural and live parts separately. Kept the uniformising stretch so the coverage knob stays linear.",
+   "why": "Operator: continent-sized sheets. The 0.30 window with dense sharpening sent a third of a uniform field past its top: 40% of the sphere saturated, median run 1,260 km, max ~6,000 km, and at weather alpha 1 the carve opens only ~2% holes. First plan (drop the stretch, offset the sum) was rejected before building because the constants doc says the stretch exists to keep the coverage knob linear; widening the window instead gives the same de-saturation (12.5% sat, median 834 km, max 3,760 km, mean 0.52 -> 0.475) with the knob intact. Live weather excluded because a wider window would map its calibrated full-cloud 1.0 to 0.94. Rust mirror, 7 reference-renderer sites and the god-ray dimming switched in step; census test asserts the new window passes AND the old fails. Answer to the operator: raising base resolution is the wrong lever (tried twice, complaint returned)."
+  },
+  {
+   "date": "2026-09-24",
+   "decision": "Grey clouds: measured, not fixed. Thick sunlit decks read 199-234 from orbit (fine); cloud median rises as altitude falls on both ladders. What reads grey is partial cloud at mass edges plus the crumb texture, filling the screen close in.",
+   "why": "A fidelity-expert review named three darkening causes with replica-predicted sizes; measured in the rig, the step-economy floor is 1.02x at 400 km and 1.10x at 2000 km (predicted 2-3.5x) and the cumulonimbus tint 0.95-0.97x (predicted 0.56x). Both real, both small; queued in PRIORITIES 2-0. Lesson: a replica-based magnitude from a read-only review is a hypothesis, measure before building on it."
   }
  ],
  "active_scopes_to_avoid": [

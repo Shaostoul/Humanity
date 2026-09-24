@@ -38,7 +38,7 @@
 //! `clouds::wgsl_cloud_constants_stay_in_sync`.
 
 use super::clouds::{
-    cloud_alpha_from_field, cloud_hg, cloud_noise, cloud_regime, cloud_rot_x, cloud_rot_y,
+    cloud_alpha_from_field, cloud_hg, cloud_noise, cloud_weather_window, cloud_regime, cloud_rot_x, cloud_rot_y,
     cloud_scatter_energy, CloudRegime, CLOUD_AMB_BASE, CLOUD_AMB_BOUNCE, CLOUD_AMB_TOP,
     CLOUD_BAND_STRETCH, CLOUD_DRIFT_CROSS, CLOUD_FIELD_HI, CLOUD_FIELD_LO, CLOUD_NIGHT_FLOOR,
     CLOUD_POWDER_STRENGTH,
@@ -443,7 +443,7 @@ impl<'a> CloudRefCtx<'a> {
         let wind_ang = self.t * self.wind_omega(reg.wind_lo);
         let wa_at = move |me: &Self, p: [f32; 3]| -> f32 {
             clampf(
-                cloud_alpha_from_field(me.weather_pinned(v3_norm(p), wind_ang), me.coverage)
+                cloud_weather_window(me.weather_pinned(v3_norm(p), wind_ang), me.coverage)
                     + reg.cover_bias,
                 0.0,
                 1.0,
@@ -631,6 +631,62 @@ mod tests {
         }
     }
 
+    /// Continent-sized cloud sheets (operator, 2026-09-24: "huge sheets that
+    /// sometimes cover entire continents, like Asia"). Placement must be a
+    /// REGIONAL FRACTION the carve can break up, not a mask that welds whole
+    /// regions solid: at weather alpha 1 the carve opens only ~2% holes.
+    ///
+    /// Census over a Fibonacci sphere of the pinned procedural field at Earth's
+    /// coverage (0.42), type bias excluded (stratus is overcast by nature and
+    /// is judged separately). The shipped window must keep the saturated share
+    /// under 15% and the fractional share over half.
+    ///
+    /// The OLD window (cloud_alpha_from_field, 0.30 wide with dense-edge
+    /// sharpening) is scored by the same census and must FAIL it. Measured
+    /// when this was written: old about 38% saturated and 16% fractional, new
+    /// 0% and about 74%. A gate that cannot fail proves nothing, so if someone
+    /// loosens the thresholds until the old window passes, this breaks.
+    #[test]
+    fn procedural_placement_is_a_fraction_not_a_sheet() {
+        let census = |window: &dyn Fn(f32, f32) -> f32, seed: f32| {
+            let n = 20_000usize;
+            let golden = std::f32::consts::PI * (3.0 - 5.0f32.sqrt());
+            let (mut sat, mut frac) = (0usize, 0usize);
+            for i in 0..n {
+                let y = 1.0 - 2.0 * (i as f32 + 0.5) / n as f32;
+                let r = (1.0 - y * y).max(0.0).sqrt();
+                let a = golden * i as f32;
+                let d = [r * a.cos(), y, r * a.sin()];
+                let wa = window(weather_pinned_field(d, 0.0, seed, 0.0), 0.42);
+                if wa >= 0.95 {
+                    sat += 1;
+                } else if wa > 0.02 {
+                    frac += 1;
+                }
+            }
+            (sat as f32 / n as f32, frac as f32 / n as f32)
+        };
+        let passes = |(sat, frac): (f32, f32)| sat < 0.15 && frac > 0.50;
+        for seed in [0.0f32, 17.3, 123.0] {
+            let new = census(&cloud_weather_window, seed);
+            let old = census(&cloud_alpha_from_field, seed);
+            assert!(
+                passes(new),
+                "seed {seed}: shipped placement saturates {:.1}% and is fractional on only \
+                 {:.1}% - continent sheets are back",
+                new.0 * 100.0,
+                new.1 * 100.0
+            );
+            assert!(
+                !passes(old),
+                "seed {seed}: the OLD window ({:.1}% saturated, {:.1}% fractional) now passes \
+                 this gate, so the gate no longer tells the two apart",
+                old.0 * 100.0,
+                old.1 * 100.0
+            );
+        }
+    }
+
     #[test]
     fn trilinear_sampler_reproduces_texel_centres() {
         // A 4^3 volume with distinct voxel values: sampling at each texel
@@ -799,7 +855,7 @@ mod debug_probe {
             let d = v3_norm([0.02 * a.cos(), 1.0, 0.02 * a.sin()]);
             let w = ctx.weather_pinned(d, wind_ang);
             let wa = clampf(
-                cloud_alpha_from_field(w, ctx.coverage) + reg.cover_bias,
+                cloud_weather_window(w, ctx.coverage) + reg.cover_bias,
                 0.0,
                 1.0,
             );
@@ -813,7 +869,7 @@ mod debug_probe {
             let r = ctx.rb + (ctx.rt - ctx.rb) * h;
             let p = [dir[0] * r, dir[1] * r, dir[2] * r];
             let wa = clampf(
-                cloud_alpha_from_field(ctx.weather_pinned(v3_norm(p), wind_ang), ctx.coverage)
+                cloud_weather_window(ctx.weather_pinned(v3_norm(p), wind_ang), ctx.coverage)
                     + reg.cover_bias,
                 0.0,
                 1.0,
@@ -1294,7 +1350,7 @@ impl<'a> CloudRefCtx<'a> {
         let wind_ang = self.t * self.wind_omega(reg.wind_lo);
         let wa_at = |me: &Self, p: [f32; 3]| -> f32 {
             clampf(
-                cloud_alpha_from_field(me.weather_pinned(v3_norm(p), wind_ang), me.coverage)
+                cloud_weather_window(me.weather_pinned(v3_norm(p), wind_ang), me.coverage)
                     + reg.cover_bias,
                 0.0,
                 1.0,
@@ -1564,7 +1620,7 @@ mod tau_probe {
         let wind_ang = ctx.t * ctx.wind_omega(reg.wind_lo);
         let wa_at = |me: &CloudRefCtx, p: [f32; 3]| -> f32 {
             clampf(
-                cloud_alpha_from_field(me.weather_pinned(v3_norm(p), wind_ang), me.coverage)
+                cloud_weather_window(me.weather_pinned(v3_norm(p), wind_ang), me.coverage)
                     + reg.cover_bias, 0.0, 1.0)
         };
         let ro = [0.0, 1.0 + 0.3 / r_km, 0.0];
@@ -1692,7 +1748,7 @@ mod field_map {
                 let r = ctx.rb + (ctx.rt - ctx.rb) * 0.22;
                 let p = [dir[0] * r, dir[1] * r, dir[2] * r];
                 let wa = clampf(
-                    cloud_alpha_from_field(ctx.weather_pinned(v3_norm(p), wind_ang), ctx.coverage)
+                    cloud_weather_window(ctx.weather_pinned(v3_norm(p), wind_ang), ctx.coverage)
                         + reg.cover_bias, 0.0, 1.0);
                 let d = ctx.density_hi(p, wa, &reg, 1.0, 1.0, 1.0);
                 img[iy * w + ix] = (clampf(d[0] * 2.0, 0.0, 1.0) * 255.0) as u8;
@@ -1770,7 +1826,7 @@ mod overhead_profile {
             let r = 1.0 + alt_km / 6371.0;
             let p = [up[0]*r, up[1]*r, up[2]*r];
             let wa = clampf(
-                cloud_alpha_from_field(ctx.weather_pinned(v3_norm(p), wind_ang), ctx.coverage)
+                cloud_weather_window(ctx.weather_pinned(v3_norm(p), wind_ang), ctx.coverage)
                     + reg.cover_bias, 0.0, 1.0);
             let cs = ctx.carve(p, wa, &reg, 1.0);
             let d = ctx.density_hi(p, wa, &reg, 1.0, 1.0, 1.0);

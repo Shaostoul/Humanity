@@ -203,6 +203,74 @@ within a few percent of the 14.8 that clouds-OFF already reaches.
 the comment at `frame_shells.rs` documents, and that one cost a dozen
 investigations because the cliff sat at the chunk-activation altitude.
 
+### 2-0. Continent sheets and "grey closer" (operator, 2026-09-24). Sheets increment 1 SHIPPED v0.1333.0
+
+The operator: clouds are "huge sheets that sometimes cover entire continents,
+like Asia. Do we need to increase the base resolution of the base layer?" and
+"when I'm far from the planet the clouds look more white but, as I get closer
+they become noticeably gray." A fidelity review (read-only agent, 2026-09-24)
+diagnosed both; every claim below that matters was then MEASURED, and several
+of its magnitudes did not survive, so read the measured column, not the review.
+
+**Base resolution is the wrong lever.** It was raised twice (3 to 5 octaves on
+2026-07-17; the Medium base in v0.999) and the complaint returned both times.
+Higher frequency makes more, smaller saturated blobs.
+
+**Sheets, increment 1 (SHIPPED v0.1333.0).** The High path's placement now goes
+through `cloud_weather_window` (CLOUD_WEATHER_EDGE 1.0) instead of the 0.30
+window with dense-edge sharpening, for the procedural part only (live weather
+keeps its calibrated window via `cloud_weather_alpha`). Measured on the sphere
+with the shader's own noise: saturated share 40% to 12.5%, median saturated run
+1,260 km to 834 km, longest ~6,000 km to 3,760 km, mean coverage 0.52 to 0.475,
+and the coverage knob still linear. In the rig the same masses now break into
+irregular clusters with gaps instead of smooth-edged solid blobs. Guarded by
+`procedural_placement_is_a_fraction_not_a_sheet`, which also asserts the OLD
+window fails it.
+
+**Sheets, what is left, in order** (the review's plan; section (b) of its
+report is summarised here because it is the build order):
+1. **Synoptic organisation.** A `cloud_synoptic_warp(dir, t, seed)` at the top of
+   `cloud_weather_adv` and `cloud_type_coord`: latitude-dependent jet shear plus
+   4 to 6 cyclonic twists per hemisphere at 35 to 65 degrees (rotate `dir` about
+   the storm centre by theta * exp(-(r/R)^2), R 800-1,500 km, theta 2-4 rad,
+   counter-clockwise north, clockwise south, drifting east), 0 to 2 tropical
+   cyclones, and a ridged term for frontal bands. A twist about an axis is
+   area-preserving, so coverage calibration is untouched. This is what makes
+   comma clouds and fronts instead of isotropic blobs, and it is the next
+   visible step.
+2. **Bake the weather field** into the existing `weather_map` texture at low
+   cadence, so richer structure costs nothing at march time.
+3. **Climatology and type mix.** The type coordinate clusters around 0.5, the
+   cumulonimbus centre, so about 38% of the planet is drawn as cumulonimbus
+   against about 1% deep convection on Earth; stratocumulus, the commonest real
+   type, is about 0.3%. Equalise the coordinate and retune the centres, or
+   better, derive type from the storm structure. The Rust `cloud_regime` mirror
+   and its tests change in step.
+4. **Cellular texture** (Worley 15-40 km cells for flat decks). Measure the deck's
+   column optical depth first: texture only shows below roughly 30.
+
+**Grey: what was measured.** Thick sunlit decks are NOT dark: forced overcast
+from orbit reads 199 to 234, in range of the review's own 215 to 225 target.
+Cloud median RISES as altitude falls on both ladders tried (broken coverage: 58,
+147, 182, 189, 202 at 20,000 to 300 km). What reads grey is partial cloud over
+dark ocean at mass edges plus the crumb texture inside the masses, filling the
+screen close in. The review's three darkening causes, as measured:
+
+| cause | review predicted | measured |
+| --- | --- | --- |
+| step-economy floor lights the first sample deep inside the top | 2 to 3.5x at 400 km | 1.02x at 400 km, 1.10x at 2,000 km |
+| `reg.tint` darkens cumulonimbus tops | Cb 0.56x of Cu | 0.97x at 400 km, 0.95x at 2,000 km |
+| powder term on the sunlit skin | 35% darker | not measured (no dev toggle) |
+
+Queued, small: light each step at its median scattering point (the review's
+fix for the economy, about 10% at 2,000 km); gate `reg.tint` off when multiple
+scattering is on, mirroring the existing v0.909 switch. Measure the powder term
+before raising it with the operator: the review's replica overstated the other
+two by 3x or more.
+
+Fixtures: `cloudgrey-*` (the broken-coverage ladder), `decklum-*-eco0/1` and
+`decklum-*-cb`, each carrying its measured result in its own `desc`.
+
 ### 2. THE CLOUDS ARE TOO DARK. The static is its symptom, not the defect
 
 **Rewritten 2026-09-22 after measuring the thing nobody had measured.** Seven

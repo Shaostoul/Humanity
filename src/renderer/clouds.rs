@@ -203,6 +203,10 @@ pub const CLOUD_FIELD_HI: f32 = 0.65;
 /// 0.18 -> 0.30 with the detail octaves (2026-07-11) so the high-frequency
 /// octaves erode borders into filigree instead of hard blob outlines.
 pub const CLOUD_EDGE: f32 = 0.30;
+/// Mirrors `CLOUD_WEATHER_EDGE`: the procedural placement window, as wide as
+/// the field so placement stays a regional fraction instead of welding
+/// continent-sized regions solid. Full reasoning at the WGSL constant.
+pub const CLOUD_WEATHER_EDGE: f32 = 1.0;
 /// Mirrors `CLOUD_BAND_STRETCH`: zonal anisotropy -- the sampling
 /// direction's y is scaled up by this before the noise lookup, so features
 /// stretch east-west like real storm bands. 1.0 = isotropic blobs.
@@ -423,6 +427,14 @@ pub fn cloud_alpha_from_field(field: f32, coverage: f32) -> f32 {
     let base = smoothstep(thr, thr + CLOUD_EDGE, field);
     let dense = smoothstep(thr, thr + CLOUD_EDGE * 0.35, field);
     base + (dense - base) * (base * base)
+}
+
+/// Mirrors `cloud_weather_window`: the procedural placement window (no
+/// dense-edge sharpening). Use this, not `cloud_alpha_from_field`, anywhere
+/// that must match the High path's placement of the pinned procedural field.
+pub fn cloud_weather_window(field: f32, coverage: f32) -> f32 {
+    let thr = mix(1.0, -CLOUD_WEATHER_EDGE, coverage.clamp(0.0, 1.0));
+    smoothstep(thr, thr + CLOUD_WEATHER_EDGE, field)
 }
 
 /// Mirrors `cloud_altitude_envelope` (increment 2): density shaping across
@@ -925,6 +937,7 @@ mod tests {
             ("CLOUD_FIELD_LO", CLOUD_FIELD_LO),
             ("CLOUD_FIELD_HI", CLOUD_FIELD_HI),
             ("CLOUD_EDGE", CLOUD_EDGE),
+            ("CLOUD_WEATHER_EDGE", CLOUD_WEATHER_EDGE),
             ("CLOUD_DRIFT_ZONAL", CLOUD_DRIFT_ZONAL),
             ("CLOUD_DRIFT_CROSS", CLOUD_DRIFT_CROSS),
             ("CLOUD_SHADOW_STEP", CLOUD_SHADOW_STEP),

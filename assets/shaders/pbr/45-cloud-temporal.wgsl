@@ -501,8 +501,8 @@ fn fs_cloud_light_bake(in: CloudScreenVsOut) -> @location(0) vec4<f32> {
     // every near view sample uses.
     let wlod = max(log2(max(cell_h / g_cloud_upkm / 27.8, 1.0)), 0.0);
     let weather_a = clamp(
-        cloud_alpha_from_field(
-            cloud_weather_adv(dirp, t, seed, wind_ang, wlod), coverage)
+        cloud_weather_alpha(
+            dirp, t, seed, wind_ang, wlod, coverage)
             + reg.cover_bias, 0.0, 1.0);
     // The component bisect (dev pad bits 13-15) applies to the bake exactly
     // as it does to the march, so an A/B with one term off stays an A/B.
@@ -726,8 +726,8 @@ fn fs_cloud_profile_bake(in: CloudScreenVsOut) -> @location(0) vec4<f32> {
             let lat_p = lat_c + ((f32(b) + 0.5) / f32(CLOUD_FR_REF_K) - 0.5) * 2.0 * dl;
             let dir_p = vec3<f32>(cos(lat_p) * cos(lon_p), sin(lat_p), -cos(lat_p) * sin(lon_p));
             wa_pts[n] = clamp(
-                cloud_alpha_from_field(
-                    cloud_weather_adv(dir_p, t, seed, wind_ang, wlod), coverage)
+                cloud_weather_alpha(
+                    dir_p, t, seed, wind_ang, wlod, coverage)
                     + reg.cover_bias, 0.0, 1.0);
         }
         let n_pts = CLOUD_FR_REF_K * CLOUD_FR_REF_K;
@@ -764,8 +764,8 @@ fn fs_cloud_profile_bake(in: CloudScreenVsOut) -> @location(0) vec4<f32> {
         // much of the pre-erosion carve survived erosion at this height,
         // unioned (max) over the heights; the mean density is the plain mean.
         let wa_c = clamp(
-            cloud_alpha_from_field(
-                cloud_weather_adv(dir_c, t, seed, wind_ang, wlod), coverage)
+            cloud_weather_alpha(
+                dir_c, t, seed, wind_ang, wlod, coverage)
                 + reg.cover_bias, 0.0, 1.0);
         let lodb_cell = log2(max(cell_km_lat, 1.0e-4));
         g_v2_allowed = false;
@@ -900,8 +900,8 @@ fn fs_cloud_profile_bake(in: CloudScreenVsOut) -> @location(0) vec4<f32> {
                     let lat_i = (cj + 0.5) * cell_rad_cv2;
                     let dir_i = vec3<f32>(cos(lat_i) * cos(lon_i), sin(lat_i), -cos(lat_i) * sin(lon_i));
                     let wa_i = clamp(
-                        cloud_alpha_from_field(
-                            cloud_weather_adv(dir_i, t, seed, wind_ang, wlod), coverage)
+                        cloud_weather_alpha(
+                            dir_i, t, seed, wind_ang, wlod, coverage)
                             + reg.cover_bias, 0.0, 1.0);
                     // The body's own clear-sky gate on the weather alpha.
                     if (wa_i <= 0.02) {

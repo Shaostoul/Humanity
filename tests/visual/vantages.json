@@ -12144,6 +12144,162 @@
       "showcase": {"clouds":"0","weather":"clear"},
       "settle_s": 10,
       "hold_altitude": true
+    },
+    {
+      "id": "cloudgrey-20000",
+      "desc": "GREY-CLOUDS LADDER. The operator: clouds look white from far away and turn noticeably grey closer in, while cloud tops seen from orbit in sunlight should be close to white. The existing descent ladder (forced 95 percent overcast) shows the opposite trend, so this ladder uses the DEFAULT broken coverage he actually sees: one fixed column off Japan at local noon, nadir, only altitude varying. Score with scratchpad-style cloud luminance (bright desaturated pixels): the question is whether the cloud median falls as altitude falls. This rung: 20000 km. MEASURED 2026-09-24: cloud median RISES as altitude falls (58, 147, 182, 189, 202 at 20000, 6000, 2000, 800, 300 km), and the forced-overcast descent ladder agrees, so the report is not a distance-dependent darkening of cloud tops. What reads grey up close is partial cloud over dark ocean at mass edges and the crumb texture inside them, filling the screen. After the placement fix (v0.1333.0) the same ladder reads 58, 142, 171, 181, 210: more partial pixels at mid range, and the masses break into irregular clusters instead of smooth-edged sheets.",
+      "expect": "Cloud median luminance should not fall as altitude falls; thick sunlit cloud tops read near white at every range.",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {"body":"earth","lat":35,"lon":140,"time":12.0,"altitude_km":20000,"look_offset_deg":0},
+      "showcase": {"clouds":"1","weather":"clear"},
+      "settle_s": 10,
+      "hold_altitude": true
+    },
+    {
+      "id": "cloudgrey-6000",
+      "desc": "GREY-CLOUDS LADDER. The operator: clouds look white from far away and turn noticeably grey closer in, while cloud tops seen from orbit in sunlight should be close to white. The existing descent ladder (forced 95 percent overcast) shows the opposite trend, so this ladder uses the DEFAULT broken coverage he actually sees: one fixed column off Japan at local noon, nadir, only altitude varying. Score with scratchpad-style cloud luminance (bright desaturated pixels): the question is whether the cloud median falls as altitude falls. This rung: 6000 km. MEASURED 2026-09-24: cloud median RISES as altitude falls (58, 147, 182, 189, 202 at 20000, 6000, 2000, 800, 300 km), and the forced-overcast descent ladder agrees, so the report is not a distance-dependent darkening of cloud tops. What reads grey up close is partial cloud over dark ocean at mass edges and the crumb texture inside them, filling the screen. After the placement fix (v0.1333.0) the same ladder reads 58, 142, 171, 181, 210: more partial pixels at mid range, and the masses break into irregular clusters instead of smooth-edged sheets.",
+      "expect": "Cloud median luminance should not fall as altitude falls; thick sunlit cloud tops read near white at every range.",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {"body":"earth","lat":35,"lon":140,"time":12.0,"altitude_km":6000,"look_offset_deg":0},
+      "showcase": {"clouds":"1","weather":"clear"},
+      "settle_s": 10,
+      "hold_altitude": true
+    },
+    {
+      "id": "cloudgrey-2000",
+      "desc": "GREY-CLOUDS LADDER. The operator: clouds look white from far away and turn noticeably grey closer in, while cloud tops seen from orbit in sunlight should be close to white. The existing descent ladder (forced 95 percent overcast) shows the opposite trend, so this ladder uses the DEFAULT broken coverage he actually sees: one fixed column off Japan at local noon, nadir, only altitude varying. Score with scratchpad-style cloud luminance (bright desaturated pixels): the question is whether the cloud median falls as altitude falls. This rung: 2000 km. MEASURED 2026-09-24: cloud median RISES as altitude falls (58, 147, 182, 189, 202 at 20000, 6000, 2000, 800, 300 km), and the forced-overcast descent ladder agrees, so the report is not a distance-dependent darkening of cloud tops. What reads grey up close is partial cloud over dark ocean at mass edges and the crumb texture inside them, filling the screen. After the placement fix (v0.1333.0) the same ladder reads 58, 142, 171, 181, 210: more partial pixels at mid range, and the masses break into irregular clusters instead of smooth-edged sheets.",
+      "expect": "Cloud median luminance should not fall as altitude falls; thick sunlit cloud tops read near white at every range.",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {"body":"earth","lat":35,"lon":140,"time":12.0,"altitude_km":2000,"look_offset_deg":0},
+      "showcase": {"clouds":"1","weather":"clear"},
+      "settle_s": 10,
+      "hold_altitude": true
+    },
+    {
+      "id": "cloudgrey-800",
+      "desc": "GREY-CLOUDS LADDER. The operator: clouds look white from far away and turn noticeably grey closer in, while cloud tops seen from orbit in sunlight should be close to white. The existing descent ladder (forced 95 percent overcast) shows the opposite trend, so this ladder uses the DEFAULT broken coverage he actually sees: one fixed column off Japan at local noon, nadir, only altitude varying. Score with scratchpad-style cloud luminance (bright desaturated pixels): the question is whether the cloud median falls as altitude falls. This rung: 800 km. MEASURED 2026-09-24: cloud median RISES as altitude falls (58, 147, 182, 189, 202 at 20000, 6000, 2000, 800, 300 km), and the forced-overcast descent ladder agrees, so the report is not a distance-dependent darkening of cloud tops. What reads grey up close is partial cloud over dark ocean at mass edges and the crumb texture inside them, filling the screen. After the placement fix (v0.1333.0) the same ladder reads 58, 142, 171, 181, 210: more partial pixels at mid range, and the masses break into irregular clusters instead of smooth-edged sheets.",
+      "expect": "Cloud median luminance should not fall as altitude falls; thick sunlit cloud tops read near white at every range.",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {"body":"earth","lat":35,"lon":140,"time":12.0,"altitude_km":800,"look_offset_deg":0},
+      "showcase": {"clouds":"1","weather":"clear"},
+      "settle_s": 10,
+      "hold_altitude": true
+    },
+    {
+      "id": "cloudgrey-300",
+      "desc": "GREY-CLOUDS LADDER. The operator: clouds look white from far away and turn noticeably grey closer in, while cloud tops seen from orbit in sunlight should be close to white. The existing descent ladder (forced 95 percent overcast) shows the opposite trend, so this ladder uses the DEFAULT broken coverage he actually sees: one fixed column off Japan at local noon, nadir, only altitude varying. Score with scratchpad-style cloud luminance (bright desaturated pixels): the question is whether the cloud median falls as altitude falls. This rung: 300 km. MEASURED 2026-09-24: cloud median RISES as altitude falls (58, 147, 182, 189, 202 at 20000, 6000, 2000, 800, 300 km), and the forced-overcast descent ladder agrees, so the report is not a distance-dependent darkening of cloud tops. What reads grey up close is partial cloud over dark ocean at mass edges and the crumb texture inside them, filling the screen. After the placement fix (v0.1333.0) the same ladder reads 58, 142, 171, 181, 210: more partial pixels at mid range, and the masses break into irregular clusters instead of smooth-edged sheets.",
+      "expect": "Cloud median luminance should not fall as altitude falls; thick sunlit cloud tops read near white at every range.",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {"body":"earth","lat":35,"lon":140,"time":12.0,"altitude_km":300,"look_offset_deg":0},
+      "showcase": {"clouds":"1","weather":"clear"},
+      "settle_s": 10,
+      "hold_altitude": true
+    },
+    {
+      "id": "decklum-40-eco1",
+      "desc": "DECK-TOP BRIGHTNESS vs the step economy. The fidelity review (2026-09-24) found that the march lights the first in-cloud sample a full footprint-floor deeper than the cloud top (foot_floor, 40-clouds.wgsl), about 2.9 m per km of range and capped at 928 m, so from orbit a sunlit deck is shaded from hundreds of metres inside it: grey. Pairs differ ONLY in cloud_step_eco. Prediction if that is the cause: the deck brightens with eco off at 400 and 2000 km, and barely moves at 40 km where the floor is about 115 m. This arm: 40 km, cloud_step_eco 1. MEASURED 2026-09-24, deck-top mean with the step economy ON / OFF: 234 / 234 at 40 km, 227 / 233 at 400 km, 208 / 229 at 2000 km. The direction is confirmed (with it off the deck is flat within 2 percent across altitude) but the size is far below the review's replica prediction of 2 to 3.5 times at 400 km: real, small, and not what the operator sees. The fix (light each step at its median scattering point) is queued in PRIORITIES, not urgent.",
+      "expect": "Sunlit deck-top mean within 10 percent across altitude, and cloud_step_eco must not change it.",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {"body":"earth","lat":35,"lon":140,"time":12.0,"altitude_km":40,"look_offset_deg":0},
+      "showcase": {"clouds":"1","weather":"clear","cloud_cover":"0.95","cloud_type":"0.34","cloud_step_eco":"1"},
+      "settle_s": 10,
+      "hold_altitude": true
+    },
+    {
+      "id": "decklum-40-eco0",
+      "desc": "DECK-TOP BRIGHTNESS vs the step economy. The fidelity review (2026-09-24) found that the march lights the first in-cloud sample a full footprint-floor deeper than the cloud top (foot_floor, 40-clouds.wgsl), about 2.9 m per km of range and capped at 928 m, so from orbit a sunlit deck is shaded from hundreds of metres inside it: grey. Pairs differ ONLY in cloud_step_eco. Prediction if that is the cause: the deck brightens with eco off at 400 and 2000 km, and barely moves at 40 km where the floor is about 115 m. This arm: 40 km, cloud_step_eco 0. MEASURED 2026-09-24, deck-top mean with the step economy ON / OFF: 234 / 234 at 40 km, 227 / 233 at 400 km, 208 / 229 at 2000 km. The direction is confirmed (with it off the deck is flat within 2 percent across altitude) but the size is far below the review's replica prediction of 2 to 3.5 times at 400 km: real, small, and not what the operator sees. The fix (light each step at its median scattering point) is queued in PRIORITIES, not urgent.",
+      "expect": "Sunlit deck-top mean within 10 percent across altitude, and cloud_step_eco must not change it.",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {"body":"earth","lat":35,"lon":140,"time":12.0,"altitude_km":40,"look_offset_deg":0},
+      "showcase": {"clouds":"1","weather":"clear","cloud_cover":"0.95","cloud_type":"0.34","cloud_step_eco":"0"},
+      "settle_s": 10,
+      "hold_altitude": true
+    },
+    {
+      "id": "decklum-400-eco1",
+      "desc": "DECK-TOP BRIGHTNESS vs the step economy. The fidelity review (2026-09-24) found that the march lights the first in-cloud sample a full footprint-floor deeper than the cloud top (foot_floor, 40-clouds.wgsl), about 2.9 m per km of range and capped at 928 m, so from orbit a sunlit deck is shaded from hundreds of metres inside it: grey. Pairs differ ONLY in cloud_step_eco. Prediction if that is the cause: the deck brightens with eco off at 400 and 2000 km, and barely moves at 40 km where the floor is about 115 m. This arm: 400 km, cloud_step_eco 1. MEASURED 2026-09-24, deck-top mean with the step economy ON / OFF: 234 / 234 at 40 km, 227 / 233 at 400 km, 208 / 229 at 2000 km. The direction is confirmed (with it off the deck is flat within 2 percent across altitude) but the size is far below the review's replica prediction of 2 to 3.5 times at 400 km: real, small, and not what the operator sees. The fix (light each step at its median scattering point) is queued in PRIORITIES, not urgent.",
+      "expect": "Sunlit deck-top mean within 10 percent across altitude, and cloud_step_eco must not change it.",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {"body":"earth","lat":35,"lon":140,"time":12.0,"altitude_km":400,"look_offset_deg":0},
+      "showcase": {"clouds":"1","weather":"clear","cloud_cover":"0.95","cloud_type":"0.34","cloud_step_eco":"1"},
+      "settle_s": 10,
+      "hold_altitude": true
+    },
+    {
+      "id": "decklum-400-eco0",
+      "desc": "DECK-TOP BRIGHTNESS vs the step economy. The fidelity review (2026-09-24) found that the march lights the first in-cloud sample a full footprint-floor deeper than the cloud top (foot_floor, 40-clouds.wgsl), about 2.9 m per km of range and capped at 928 m, so from orbit a sunlit deck is shaded from hundreds of metres inside it: grey. Pairs differ ONLY in cloud_step_eco. Prediction if that is the cause: the deck brightens with eco off at 400 and 2000 km, and barely moves at 40 km where the floor is about 115 m. This arm: 400 km, cloud_step_eco 0. MEASURED 2026-09-24, deck-top mean with the step economy ON / OFF: 234 / 234 at 40 km, 227 / 233 at 400 km, 208 / 229 at 2000 km. The direction is confirmed (with it off the deck is flat within 2 percent across altitude) but the size is far below the review's replica prediction of 2 to 3.5 times at 400 km: real, small, and not what the operator sees. The fix (light each step at its median scattering point) is queued in PRIORITIES, not urgent.",
+      "expect": "Sunlit deck-top mean within 10 percent across altitude, and cloud_step_eco must not change it.",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {"body":"earth","lat":35,"lon":140,"time":12.0,"altitude_km":400,"look_offset_deg":0},
+      "showcase": {"clouds":"1","weather":"clear","cloud_cover":"0.95","cloud_type":"0.34","cloud_step_eco":"0"},
+      "settle_s": 10,
+      "hold_altitude": true
+    },
+    {
+      "id": "decklum-2000-eco1",
+      "desc": "DECK-TOP BRIGHTNESS vs the step economy. The fidelity review (2026-09-24) found that the march lights the first in-cloud sample a full footprint-floor deeper than the cloud top (foot_floor, 40-clouds.wgsl), about 2.9 m per km of range and capped at 928 m, so from orbit a sunlit deck is shaded from hundreds of metres inside it: grey. Pairs differ ONLY in cloud_step_eco. Prediction if that is the cause: the deck brightens with eco off at 400 and 2000 km, and barely moves at 40 km where the floor is about 115 m. This arm: 2000 km, cloud_step_eco 1. MEASURED 2026-09-24, deck-top mean with the step economy ON / OFF: 234 / 234 at 40 km, 227 / 233 at 400 km, 208 / 229 at 2000 km. The direction is confirmed (with it off the deck is flat within 2 percent across altitude) but the size is far below the review's replica prediction of 2 to 3.5 times at 400 km: real, small, and not what the operator sees. The fix (light each step at its median scattering point) is queued in PRIORITIES, not urgent.",
+      "expect": "Sunlit deck-top mean within 10 percent across altitude, and cloud_step_eco must not change it.",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {"body":"earth","lat":35,"lon":140,"time":12.0,"altitude_km":2000,"look_offset_deg":0},
+      "showcase": {"clouds":"1","weather":"clear","cloud_cover":"0.95","cloud_type":"0.34","cloud_step_eco":"1"},
+      "settle_s": 10,
+      "hold_altitude": true
+    },
+    {
+      "id": "decklum-2000-eco0",
+      "desc": "DECK-TOP BRIGHTNESS vs the step economy. The fidelity review (2026-09-24) found that the march lights the first in-cloud sample a full footprint-floor deeper than the cloud top (foot_floor, 40-clouds.wgsl), about 2.9 m per km of range and capped at 928 m, so from orbit a sunlit deck is shaded from hundreds of metres inside it: grey. Pairs differ ONLY in cloud_step_eco. Prediction if that is the cause: the deck brightens with eco off at 400 and 2000 km, and barely moves at 40 km where the floor is about 115 m. This arm: 2000 km, cloud_step_eco 0. MEASURED 2026-09-24, deck-top mean with the step economy ON / OFF: 234 / 234 at 40 km, 227 / 233 at 400 km, 208 / 229 at 2000 km. The direction is confirmed (with it off the deck is flat within 2 percent across altitude) but the size is far below the review's replica prediction of 2 to 3.5 times at 400 km: real, small, and not what the operator sees. The fix (light each step at its median scattering point) is queued in PRIORITIES, not urgent.",
+      "expect": "Sunlit deck-top mean within 10 percent across altitude, and cloud_step_eco must not change it.",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {"body":"earth","lat":35,"lon":140,"time":12.0,"altitude_km":2000,"look_offset_deg":0},
+      "showcase": {"clouds":"1","weather":"clear","cloud_cover":"0.95","cloud_type":"0.34","cloud_step_eco":"0"},
+      "settle_s": 10,
+      "hold_altitude": true
+    },
+    {
+      "id": "decklum-400-cb",
+      "desc": "CLOUD TYPE vs deck-top brightness. The fidelity review found radiance = radiance * reg.tint (40-clouds.wgsl) applies the from-below darkness of rain clouds (cumulonimbus 0.55, nimbostratus 0.42) to their SUNLIT TOPS, and that cumulonimbus is the commonest type on the planet (about 38 percent by area, from the type-coordinate distribution). From above, the thickest clouds are the brightest. Pair with decklum-400-eco1 / decklum-2000-eco1 (cloud_type 0.34, cumulus); this arm pins 0.5, the cumulonimbus centre. Altitude 400 km. MEASURED 2026-09-24: cumulonimbus top / cumulus top 0.97 at 400 km, 0.95 at 2000 km, against the review's predicted 0.56. The tint on sunlit tops is real but small.",
+      "expect": "A cumulonimbus top from above is at least as bright as a cumulus top.",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {"body":"earth","lat":35,"lon":140,"time":12.0,"altitude_km":400,"look_offset_deg":0},
+      "showcase": {"clouds":"1","weather":"clear","cloud_cover":"0.95","cloud_type":"0.5","cloud_step_eco":"1"},
+      "settle_s": 10,
+      "hold_altitude": true
+    },
+    {
+      "id": "decklum-2000-cb",
+      "desc": "CLOUD TYPE vs deck-top brightness. The fidelity review found radiance = radiance * reg.tint (40-clouds.wgsl) applies the from-below darkness of rain clouds (cumulonimbus 0.55, nimbostratus 0.42) to their SUNLIT TOPS, and that cumulonimbus is the commonest type on the planet (about 38 percent by area, from the type-coordinate distribution). From above, the thickest clouds are the brightest. Pair with decklum-400-eco1 / decklum-2000-eco1 (cloud_type 0.34, cumulus); this arm pins 0.5, the cumulonimbus centre. Altitude 2000 km. MEASURED 2026-09-24: cumulonimbus top / cumulus top 0.97 at 400 km, 0.95 at 2000 km, against the review's predicted 0.56. The tint on sunlit tops is real but small.",
+      "expect": "A cumulonimbus top from above is at least as bright as a cumulus top.",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {"body":"earth","lat":35,"lon":140,"time":12.0,"altitude_km":2000,"look_offset_deg":0},
+      "showcase": {"clouds":"1","weather":"clear","cloud_cover":"0.95","cloud_type":"0.5","cloud_step_eco":"1"},
+      "settle_s": 10,
+      "hold_altitude": true
     }
   ],
   "ladder": {

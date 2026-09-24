@@ -75,6 +75,29 @@ const CLOUD_FIELD_HI: f32 = 0.65;
 // the high-frequency octaves erode the borders into filigree instead of
 // stamping hard blob outlines.
 const CLOUD_EDGE: f32 = 0.30;
+// ── THE COVERAGE WINDOW FOR PROCEDURAL PLACEMENT (operator, 2026-09-24) ──
+//
+// "They're still really huge sheets that sometimes cover entire continents,
+// like Asia. Do we need to increase the base resolution of the base layer?"
+//
+// No: resolution was raised twice before (3 to 5 octaves on 2026-07-17, and
+// the Medium base in v0.999) and the complaint came back both times. The
+// sheets came from the WIDTH of this window relative to the field it reads.
+// The procedural field is stretched to roughly uniform 0..1 on purpose (so
+// the coverage knob tracks sky fraction), and CLOUD_EDGE's 0.30 window, with
+// its dense-edge sharpening on top, sent a third of a uniform field past its
+// top. Measured on the sphere with the shader's own noise: weather alpha >=
+// 0.95 on 40 percent of the planet, saturated runs with a median of 1,260 km
+// and a maximum near 6,000 km, and at alpha 1 the carve cannot open holes.
+//
+// A window as wide as the field keeps placement a REGIONAL FRACTION that the
+// carve then breaks into cloud at every scale, while the mean still tracks
+// coverage linearly (0 is clear, 1 is overcast). Same measurement: 12.5
+// percent saturated (nearly all of it stratus and nimbostratus, which are
+// overcast by nature), median 834 km, maximum 3,760 km, mean 0.475 against
+// 0.520. Applied to the procedural part only; the live map keeps CLOUD_EDGE
+// because it is already a calibrated fraction mask. See cloud_weather_alpha.
+const CLOUD_WEATHER_EDGE: f32 = 1.0;
 // Zonal anisotropy of the cloud field: the sampling direction's y (the spin
 // axis) is scaled UP by this factor before the noise lookup, so the noise
 // varies faster with latitude than longitude and features stretch east-west
@@ -1370,6 +1393,16 @@ fn cloud_alpha_from_field(field: f32, coverage: f32) -> f32 {
     return mix(base, dense, base * base);
 }
 
+// The procedural placement window (see CLOUD_WEATHER_EDGE): a plain smoothstep
+// as wide as the field, positioned by coverage so the mean tracks it. No
+// dense-edge sharpening: that exists for VISIBLE edges on the Low and Medium
+// paths, and on the High path edges come from the carve, so at the placement
+// level it only welded large regions solid.
+fn cloud_weather_window(field: f32, coverage: f32) -> f32 {
+    let thr = mix(1.0, -CLOUD_WEATHER_EDGE, clamp(coverage, 0.0, 1.0));
+    return smoothstep(thr, thr + CLOUD_WEATHER_EDGE, field);
+}
+
 // Altitude envelope (increment 2): shapes density across the slab. r is in
 // DRAWN-SHELL units (drawn shell = 1.0, so the slab spans BASE/SHELL ..
 // TOP/SHELL). Smooth rise from the base, a full-density plateau through the
@@ -2018,7 +2051,10 @@ fn cloud_weather(dir: vec3<f32>, t: f32, seed: f32) -> f32 {
     return cloud_weather_adv(dir, t, seed, t * CLOUD_DRIFT_ZONAL, 0.0);
 }
 
-fn cloud_weather_adv(dir: vec3<f32>, t: f32, seed: f32, drift_ang: f32, wlod: f32) -> f32 {
+// The weather field as (procedural, live, live weight). Placement callers on
+// the High path want the two parts windowed DIFFERENTLY (cloud_weather_alpha);
+// everything else wants them mixed first (cloud_weather_adv).
+fn cloud_weather_parts(dir: vec3<f32>, t: f32, seed: f32, drift_ang: f32, wlod: f32) -> vec3<f32> {
     let da0 = cloud_rot_y(dir, drift_ang);
     let da = normalize(vec3<f32>(da0.x, da0.y * CLOUD_BAND_STRETCH, da0.z));
     let db = cloud_rot_x(dir, t * CLOUD_DRIFT_CROSS);
@@ -2103,7 +2139,22 @@ fn cloud_weather_adv(dir: vec3<f32>, t: f32, seed: f32, drift_ang: f32, wlod: f3
         bypass = max(bypass, g_env_place);
     }
     let live_w = w.g * (1.0 - bypass);
-    return mix(proc, live, live_w);
+    return vec3<f32>(proc, live, live_w);
+}
+
+fn cloud_weather_adv(dir: vec3<f32>, t: f32, seed: f32, drift_ang: f32, wlod: f32) -> f32 {
+    let w = cloud_weather_parts(dir, t, seed, drift_ang, wlod);
+    return mix(w.x, w.y, w.z);
+}
+
+// Placement alpha for the High path: the procedural part through the wide
+// window, the live part through the calibrated CLOUD_EDGE window it was tuned
+// against, THEN mixed. With live weather off (the default) this is exactly
+// cloud_weather_window of the procedural field; with a full live map it is
+// bit-for-bit what it was before.
+fn cloud_weather_alpha(dir: vec3<f32>, t: f32, seed: f32, drift_ang: f32, wlod: f32, coverage: f32) -> f32 {
+    let w = cloud_weather_parts(dir, t, seed, drift_ang, wlod);
+    return mix(cloud_weather_window(w.x, coverage), cloud_alpha_from_field(w.y, coverage), w.z);
 }
 
 // ── Cloud-TYPE regimes (v0.828: the four real-Earth cloud families) ──
@@ -4931,16 +4982,14 @@ fn cloud_march_core(
     // paying for the march.
     let probe = max(
         max(
-            clamp(cloud_alpha_from_field(
-                cloud_weather_adv(normalize(ro + rd * m0), t, seed, wind_ang, 0.0),
-                coverage) + reg.cover_bias, 0.0, 1.0),
-            clamp(cloud_alpha_from_field(
-                cloud_weather_adv(mid_dir, t, seed, wind_ang, 0.0), coverage)
+            clamp(cloud_weather_alpha(
+                normalize(ro + rd * m0), t, seed, wind_ang, 0.0, coverage) + reg.cover_bias, 0.0, 1.0),
+            clamp(cloud_weather_alpha(
+                mid_dir, t, seed, wind_ang, 0.0, coverage)
                 + reg.cover_bias, 0.0, 1.0),
         ),
-        clamp(cloud_alpha_from_field(
-            cloud_weather_adv(normalize(ro + rd * m1), t, seed, wind_ang, 0.0),
-            coverage) + reg.cover_bias, 0.0, 1.0),
+        clamp(cloud_weather_alpha(
+            normalize(ro + rd * m1), t, seed, wind_ang, 0.0, coverage) + reg.cover_bias, 0.0, 1.0),
     );
     if (probe <= 0.002) {
         return vec4<f32>(0.0);
@@ -5106,8 +5155,8 @@ fn cloud_march_core(
         g_v2_disp_lod = select(lodb0, CLOUD_V2_SHAPE_LOD_WORLD, world_shape_lod);
         let wlod0 = max(log2(max(foot0 / g_cloud_upkm / 27.8, 1.0)), 0.0);
         let wa0 = clamp(
-            cloud_alpha_from_field(
-                cloud_weather_adv(dirp0, t, seed, wind_ang, wlod0), coverage)
+            cloud_weather_alpha(
+                dirp0, t, seed, wind_ang, wlod0, coverage)
                 + reg.cover_bias, 0.0, 1.0);
         dens_prev = cloud_density_hi(p0, t, seed, wa0, reg, 1.0, 1.0, 1.0, lodb0).x;
         sdf_prev = g_v2_sdf_m;
@@ -5532,8 +5581,8 @@ fn cloud_march_core(
         var s_top = 1.0;
         if (full) {
             weather_a = clamp(
-                cloud_alpha_from_field(
-                    cloud_weather_adv(dirp, t, seed, wind_ang, wlod), coverage)
+                cloud_weather_alpha(
+                    dirp, t, seed, wind_ang, wlod, coverage)
                     + reg.cover_bias, 0.0, 1.0);
             dc = cloud_density_hi(
                 p, t, seed, weather_a, reg, detail_amt, puff_amt, cell_amt, lodb);
