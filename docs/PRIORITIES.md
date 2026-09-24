@@ -417,7 +417,7 @@ differing only in the knob named, and scored as mean absolute deviation from the
 | `cloudres-full` (march at full screen resolution) | **9.22%** |
 | `cloudres-half` (divisor 2, the operator own setting) | 4.89% |
 | `cloudres-nodither` (divisor 2, march dither OFF) | 5.17% |
-| `cloudres-unsettled` (divisor 2, captured before convergence) | 4.85% |
+| divisor 2, captured before convergence (one-off arm, not kept) | 4.85% |
 
 Every half-res arm lands inside a 4.85 to 5.17 band. Three hypotheses die at
 once:
