@@ -94,8 +94,7 @@ pub fn draw_underwater_tint(ctx: &egui::Context, state: &super::GuiState) {
 
 pub fn draw_toasts(ctx: &egui::Context, theme: &Theme, state: &mut super::GuiState) {
     use super::ToastKind;
-    const LIFE: f64 = 2.6; // seconds fully visible + fade
-    const FADE: f64 = 0.5; // fade-out window at the end
+    const FADE: f64 = 0.5; // fade-out window at the end of each toast's life
 
     let now = ctx.input(|i| i.time);
     // Adopt engine-queued toasts (v0.890): stamp them with the egui clock here,
@@ -103,7 +102,10 @@ pub fn draw_toasts(ctx: &egui::Context, theme: &Theme, state: &mut super::GuiSta
     for (text, kind) in state.pending_toasts.drain(..).collect::<Vec<_>>() {
         state.toast(text, kind, now);
     }
-    state.toasts.retain(|t| now - t.created < LIFE);
+    for text in state.pending_notices.drain(..).collect::<Vec<_>>() {
+        state.notice(text, now);
+    }
+    state.toasts.retain(|t| now - t.created < t.life);
     if state.toasts.is_empty() {
         return;
     }
@@ -112,8 +114,8 @@ pub fn draw_toasts(ctx: &egui::Context, theme: &Theme, state: &mut super::GuiSta
     // Newest toast sits lowest; older ones stack upward.
     for (i, t) in state.toasts.iter().enumerate() {
         let age = now - t.created;
-        let alpha = if age > LIFE - FADE {
-            (((LIFE - age) / FADE) as f32).clamp(0.0, 1.0)
+        let alpha = if age > t.life - FADE {
+            (((t.life - age) / FADE) as f32).clamp(0.0, 1.0)
         } else {
             1.0
         };

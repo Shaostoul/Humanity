@@ -1451,7 +1451,14 @@ Mod manifest format, directory scanning, load order, path override resolution.
 
 ### World Persistence
 Save and load game world state (entities, terrain, player progress).
-- Native: `src/persistence.rs`
+- Native: `src/persistence.rs`, `src/save_load.rs` (the offline home: inventory,
+  skills, wallet, quests, vehicles, crops, builds and scaffolds, craft batches in
+  flight, the world clock)
+- **Offline progression (2026-09-25):** crops, scaffolds under construction and
+  craft batches catch up by the real time away when the game loads, with a
+  notice. Settings >
+  Gameplay > "Keep growing while away". `save_load::catch_up_world`;
+  `docs/design/offline-progression.md`.
 
 ### Data-Driven Tools (v0.90.7)
 tools.rs loads tool catalog from external JSON instead of hardcoded data.

@@ -1430,6 +1430,10 @@ pub struct GuiState {
     /// the F6 bookmark save in the raw input path). Drained by draw_toasts,
     /// which stamps them with the real egui time.
     pub pending_toasts: Vec<(String, ToastKind)>,
+    /// Same queue for NOTICES: longer-lived Info toasts carrying something
+    /// the player needs to read rather than a confirmation (the offline
+    /// progression "while you were away" line). See `GuiState::notice`.
+    pub pending_notices: Vec<String>,
 
     // ── Wallet state ──
     pub wallet_balance: f64,
@@ -3184,7 +3188,7 @@ impl GuiState {
         self.nav_back_stack.clear();
     }
 
-    /// Push a confirmation toast (v0.861). `now` is the current egui time
+    /// Push a confirmation toast (v0.861, lives `TOAST_LIFE`). `now` is the current egui time
     /// (`ui.ctx().input(|i| i.time)`). Use this after any save/apply so the action
     /// is never silent -- e.g. `state.toast("Theme saved", ToastKind::Success, now)`.
     pub fn toast(&mut self, text: impl Into<String>, kind: ToastKind, now: f64) {
@@ -3192,7 +3196,16 @@ impl GuiState {
         if self.toasts.len() > 6 {
             self.toasts.remove(0);
         }
-        self.toasts.push(Toast { text: text.into(), created: now, kind });
+        self.toasts.push(Toast { text: text.into(), created: now, kind, life: TOAST_LIFE });
+    }
+
+    /// A toast the player has to READ, not just notice: an Info toast that
+    /// stays up for `NOTICE_LIFE` seconds instead of the 2.6 s confirmation.
+    pub fn notice(&mut self, text: impl Into<String>, now: f64) {
+        if self.toasts.len() > 6 {
+            self.toasts.remove(0);
+        }
+        self.toasts.push(Toast { text: text.into(), created: now, kind: ToastKind::Info, life: NOTICE_LIFE });
     }
 
     /// True while an in-world MODAL PANEL is open (the interactive chat panel,
@@ -3543,6 +3556,7 @@ impl Default for GuiState {
             pending_bookmark_delete: None,
             pending_bookmark_recat: None,
             pending_toasts: Vec::new(),
+            pending_notices: Vec::new(),
             surface_altitude_m: None,
             surface_gravity_now: None,
             surface_speed_mult: 1.0,
@@ -4389,6 +4403,11 @@ pub struct SettingsState {
     /// presets. The default is 10x because a 1x default makes plant life
     /// cycles untestable without waiting days.
     pub crop_growth_speed: f32,
+    /// Offline progression (operator, 2026-09-21; docs/design/offline-
+    /// progression.md): while the game is closed your character keeps living,
+    /// so crops grow by the time you were away. Read once when a save is
+    /// loaded (save_load::resume_home), not every frame.
+    pub offline_progression: bool,
     /// Aerial perspective strength (v0.916): how strongly distant land and
     /// sea fade toward sky color. 0 = off, 1 = earthlike.
     pub aerial_strength: f32,
@@ -4589,6 +4608,7 @@ impl Default for SettingsState {
             sun_shadows: true,
             shadow_strength: 1.0,
             crop_growth_speed: crate::systems::farming::DEFAULT_CROP_GROWTH_SPEED,
+            offline_progression: true,
             aerial_strength: 1.0,
             godray_intensity: 0.55,
             ssao_strength: 0.55,

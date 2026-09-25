@@ -970,7 +970,7 @@ them up.
    `docs/design/playable-assessment-2026-09-19.md` section 7. **Crop growth speed
    is ANSWERED (2026-09-20)**: a growth multiplier separate from the world clock,
    1x / 10x / 100x plus a custom value, shipping at 10x, implemented and tested;
-   Tier A item 3 is unblocked. Offline progression was answered on 2026-09-21 as well, and is broader than crops (a toggle on all three modes, applied to crafting too); it is designed in `docs/design/offline-progression.md` and not yet built. Still
+   Tier A item 3 is unblocked. Offline progression was answered on 2026-09-21 as well, and is broader than crops (a toggle on all three modes, applied to crafting too); its first rung (crops, builds and craft batches, single player) was BUILT on 2026-09-25, see `docs/design/offline-progression.md`. Still
    open: what the first ten minutes are, and whether a pipe reads as its real
    material or its utility colour. A third, lower: does multiplayer enforce
    anything, or is it co-operative trust until launch. NOTE that the report's
@@ -1014,14 +1014,18 @@ Remaining, in the order they were fenced:
 
 - A placement gate on `embed.status` (nothing affiliate until the legality
   column says so; `data/web/sites.json` is the record).
-- **The screens' share of the interior frame.** The console room with all six
-  walls live ran at 9 fps on rig defaults.
+- ~~The screens' share of the interior frame (the console room at 9 fps)~~
+  STALE, corrected 2026-09-25: that figure predates the P2/P3 megashader split.
+  Measured after P3 (`docs/design/frame-cost-arc.md`, the phase-B table):
+  `console-face-6` 29.8 fps at the 30 fps vsync cap, `gpu.scene` 14.16 ms,
+  `gpu.transparent` 2.45; `console-face-3` (camera wall in view) 11.81 / 2.64.
+  A web screen costs 0.064 ms GPU. What remains is the room's own scene cost,
+  which belongs to arc B, not to the screens.
 - Player-synchronised playback (needs the relay clock), and subtitles. Seek
   shipped in v0.1325.0 and is off this list.
-- **Open defect, small:** a `watch:` screen with no connected server builds an
-  address with no host and retries forever showing a URL parse error
-  (`src/engine/screens/live.rs`, `gui_state.server_url` empty). It should say in
-  one sentence that there is no server to watch.
+- ~~Open defect: a `watch:` screen with no server retries a hostless URL~~
+  FIXED 2026-09-18 in a494c7fc (`live_status` names where to set a server
+  and does not connect at all); this line was stale until 2026-09-25.
 - Deferred on purpose: VR controller rays; per-context `thread_local` page state
   (a screen and the main UI showing the same page share it); the `rooms.ron`
   entries for entry, pantry, hall and utility (named, not yet functional).
@@ -1072,11 +1076,13 @@ close end to end through the UI with no console and 24 of 42 systems tick, so
 between the simulation and the person. Its tier ladder is the build order.
 
 - **Tier A (make the existing game legible and durable).** A0 (ship the art) is
-  DONE in v0.1322.0. Remaining: persist `Structure` and `Construction` into
-  `WorldSave` (built structures are DISCARDED at exit today); **offline progression**
-  (`docs/design/offline-progression.md`, designed 2026-09-21, operator-requested,
-  generalizes past farming to crafting and any time-advancing system, and is what
-  makes the new 1x crop speed a real choice rather than a punishment); put the simulation
+  DONE in v0.1322.0. **Builds persisted and offline progression rung 1 DONE
+  2026-09-25**: `Structure` and `Construction` round-trip through `WorldSave`,
+  the world clock is saved (every restart used to rewind the garden), and crops
+  plus scaffolds plus craft batches (now saved too; a restart used to destroy
+  whatever was mid-smelt) catch up by the time away behind a Settings toggle.
+  Offline remaining: drone and manufacturing timers, livestock, then the server
+  clock for multiplayer. Put the simulation
   on the HUD; fix crop pacing (blocked on the operator question above); a
   scripted first-run sequence in the world; make a built thing do something by
   consuming `Structure.provides`.

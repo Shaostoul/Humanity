@@ -22,6 +22,9 @@ pub struct WorldSave {
     pub inventory: Vec<(String, u32)>,
     pub skills: HashMap<String, (u32, u32)>,
     pub constructions: Vec<ConstructionSave>,
+    /// Craft batches in flight (2026-09-25); see CraftSave.
+    #[serde(default)]
+    pub crafts: Vec<crate::systems::crafting::CraftSave>,
     pub weather_state: String,
     /// What this home IS (the "who owns the truth" axis): "offline" (you own the
     /// local save), "server" (a relay owns it), or "real" (physical sensors own
@@ -116,6 +119,7 @@ impl WorldSave {
             inventory: Vec::new(),
             skills: HashMap::new(),
             constructions: Vec::new(),
+            crafts: Vec::new(),
             weather_state: "clear".to_string(),
             kind: "offline".to_string(),
             design: design.into(),
@@ -131,13 +135,33 @@ impl WorldSave {
     }
 }
 
-/// A saved construction/building in the world.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+/// A saved construction/building in the world: one ECS entity carrying either
+/// a finished `Structure` or an in-progress `Construction` (2026-09-25; the
+/// field existed from the start but nothing wrote it, so every build was
+/// discarded at exit). Carries what the blueprint registry would otherwise
+/// supply, because the save is applied where no registry is in reach.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ConstructionSave {
     pub blueprint_id: String,
     pub position: [f32; 3],
     pub rotation: [f32; 4],
+    /// The box the renderer draws is the Transform scale (blueprint size).
+    #[serde(default = "unit_scale")]
+    pub scale: [f32; 3],
     pub health: f32,
+    #[serde(default)]
+    pub max_health: f32,
+    /// What the finished structure provides (Structure.provides).
+    #[serde(default)]
+    pub provides: Option<String>,
+    /// Some((progress, build_time)) in seconds while still under
+    /// construction; None once it is a finished Structure.
+    #[serde(default)]
+    pub building: Option<(f32, f32)>,
+}
+
+fn unit_scale() -> [f32; 3] {
+    [1.0, 1.0, 1.0]
 }
 
 /// Get the platform-appropriate saves directory.
@@ -287,9 +311,14 @@ mod tests {
                     blueprint_id: "wooden_wall".to_string(),
                     position: [20.0, 0.0, 15.0],
                     rotation: [0.0, 0.0, 0.0, 1.0],
+                    scale: [2.0, 3.0, 0.2],
                     health: 100.0,
+                    max_health: 100.0,
+                    provides: None,
+                    building: None,
                 },
             ],
+            crafts: Vec::new(),
             weather_state: "clear".to_string(),
             kind: "offline".to_string(),
             design: "fibonacci".to_string(),

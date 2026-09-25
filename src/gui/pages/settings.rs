@@ -3461,6 +3461,21 @@ pub(crate) fn draw_gameplay_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
                 crate::systems::farming::clamp_growth_speed(speed);
             state.settings_dirty = true;
         }
+        // Offline progression (operator, 2026-09-21). The companion to 1x: at
+        // real agricultural time the wait happens while you are away.
+        ui.add_space(theme.spacing_sm);
+        if widgets::toggle(ui, theme, "Keep growing while away", &mut state.settings.offline_progression) {
+            state.settings_dirty = true;
+        }
+        widgets::setting_hint(
+            ui,
+            theme,
+            hint,
+            "Your character keeps living while the game is closed, so crops grow by \
+             the time you were away, at the speed above. Nothing is lost while you \
+             are gone: the garden stays watered and hunger does not drain. Applies \
+             the next time your home loads.",
+        );
 
         ui.add_space(theme.spacing_lg);
         // Household size (2026-07-01, moved here from Data in v0.791): which home design

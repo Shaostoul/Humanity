@@ -1,6 +1,8 @@
 # Offline progression
 
-**Status:** designed 2026-09-21, not yet built.
+**Status:** designed 2026-09-21. **BUILT 2026-09-25 for crops, builds under
+construction and craft batches** (single player, device clock). See "What is
+built" below.
 **Operator decision, 2026-09-21.** Verbatim:
 
 > "Offline growth should be a toggle for both single player, multiplayer, and
@@ -92,6 +94,47 @@ where the consequence is self-inflicted:
   cheating yourself, it is cheating everyone else. The relay already holds
   authoritative game time (`game_time_sync`), so this is a matter of reading the
   clock that already exists rather than building one.
+
+## What is built (2026-09-25)
+
+- **The clock is saved and restored.** Before this, `GameTime` started at zero
+  on every launch while restored crops kept `planted_at` values read from the
+  previous session's clock, so a garden rewound on restart (a code comment
+  claimed the clock was saved; nothing wrote it). `save_active_home` now stores
+  it, and `save_load::resume_home` restores it through a TimeSystem request
+  channel (`time_restore_elapsed_request`). The clock never resumes behind the
+  newest planting, which heals saves written before the fix.
+- **The clock is NOT jumped forward by the time away.** Every system that
+  reads the clock would then advance offline by accident, which is exactly
+  what "What must NOT advance offline" forbids. Instead each system opts in
+  inside `save_load::catch_up_world`:
+  - **Crops:** living crops' `planted_at` moves back by the time away, so the
+    growth-speed setting applies to those hours like any others. Water and
+    health are per-tick and are not advanced (offline upkeep).
+  - **Builds under construction:** progress advances, capped at the build
+    time, so the ConstructionSystem's own next tick completes the build with
+    its quest event and skill XP. Materials were consumed at the start, so
+    nothing is spent offline.
+  - **Craft batches:** time remaining counts down by the time away (floored at
+    zero, so the batch delivers on the next tick through the normal path).
+    Inputs were spent when the batch started.
+- **Craft batches are saved at all**, which they were not: a batch's inputs
+  are consumed when it starts, and a restart dropped the batch, so every
+  restart destroyed whatever was mid-smelt. The CraftingSystem publishes its
+  list (`active_crafts_export`) for the save and takes restored batches
+  (`restore_active_crafts`). A machine batch is keyed by the machine's
+  instance id rather than its entity, which also fixed a machine starting a
+  second batch beside its first whenever world entry respawned it.
+- **Builds are saved at all**, which they were not: `WorldSave.constructions`
+  existed from the start with nothing writing it, so every structure the
+  player built was discarded at exit after its materials had been spent.
+- **Toggle:** Settings > Gameplay > "Keep growing while away", on by default,
+  persisted in `config.json` as `offline_progression`.
+- **Never silent:** a "While you were away (8 h 12 min), 12 plants kept
+  growing." notice on load.
+- **Not yet:** livestock, and the server clock for multiplayer and MMO saves
+  (none exist yet). Drones and manufacturing timers are countdowns inside
+  their systems and are not yet saved either.
 
 ## Open questions
 

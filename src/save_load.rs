@@ -13,9 +13,9 @@
 //! playing round-trips the save instead of overwriting it with an empty inventory.
 //!
 //! Deferred (need new WorldSave fields or extra care -- see docs/design/
-//! homes-as-profiles.md): health, position, game_time (TimeSystem owns its own
-//! clock), vitals, crops, quests. So on reload you wake rested at home with your
-//! inventory + skills intact.
+//! homes-as-profiles.md): health, position, vitals. So on reload you wake rested
+//! at home. Crops, quests, vehicles, wallet and the world clock round-trip; the
+//! clock and the offline catch-up are `resume_home` below.
 
 use crate::ecs::components::Controllable;
 use crate::persistence::{self, WorldSave};
@@ -121,13 +121,48 @@ pub fn extract_world_save(world: &hecs::World) -> WorldSave {
         break;
     }
     // Crops (v0.863): the whole garden round-trips. planted_at is game-time
-    // seconds and game_time is saved above, so growth resumes exactly where
-    // it left off.
+    // seconds, so it only means anything next to the clock it was read from:
+    // save_active_home stores that clock in save.game_time, and resume_home
+    // puts it back on load. (Until 2026-09-25 this comment claimed the clock
+    // was saved when nothing wrote it, and every restart rewound the garden.)
     save.crops = world
         .query::<&crate::ecs::components::CropInstance>()
         .iter()
         .map(|(_e, c)| c.clone())
         .collect();
+    // Builds (2026-09-25): finished structures AND scaffolds still going up.
+    // Until now nothing wrote this field, so everything the player built was
+    // gone after a restart even though its materials had been consumed.
+    use crate::systems::construction::{Construction, Structure};
+    let pose = |t: &crate::ecs::components::Transform| {
+        (t.position.to_array(), t.rotation.to_array(), t.scale.to_array())
+    };
+    for (_e, (s, t)) in world.query::<(&Structure, &crate::ecs::components::Transform)>().iter() {
+        let (position, rotation, scale) = pose(t);
+        save.constructions.push(crate::persistence::ConstructionSave {
+            blueprint_id: s.blueprint_id.clone(),
+            position,
+            rotation,
+            scale,
+            health: s.health,
+            max_health: s.max_health,
+            provides: s.provides.clone(),
+            building: None,
+        });
+    }
+    for (_e, (c, t)) in world.query::<(&Construction, &crate::ecs::components::Transform)>().iter() {
+        let (position, rotation, scale) = pose(t);
+        save.constructions.push(crate::persistence::ConstructionSave {
+            blueprint_id: c.blueprint_id.clone(),
+            position,
+            rotation,
+            scale,
+            health: 0.0,
+            max_health: 0.0,
+            provides: None,
+            building: Some((c.progress, c.build_time)),
+        });
+    }
     save
 }
 
@@ -247,14 +282,70 @@ pub fn apply_save_to_world(world: &mut hecs::World, save: &WorldSave) {
     for c in &save.crops {
         world.spawn((c.clone(),));
     }
+    // Builds (2026-09-25): authoritative like crops and vehicles. The
+    // ConstructionSystem finishes a restored scaffold on its own tick,
+    // with the usual completion events, once progress reaches build_time.
+    use crate::systems::construction::{Construction, Structure};
+    let existing: Vec<hecs::Entity> = world
+        .query_mut::<hecs::Or<&Structure, &Construction>>()
+        .into_iter()
+        .map(|(e, _)| e)
+        .collect();
+    for e in existing {
+        let _ = world.despawn(e);
+    }
+    for b in &save.constructions {
+        let transform = crate::ecs::components::Transform {
+            position: glam::Vec3::from_array(b.position),
+            rotation: glam::Quat::from_array(b.rotation),
+            scale: glam::Vec3::from_array(b.scale),
+        };
+        match b.building {
+            Some((progress, build_time)) => {
+                world.spawn((
+                    transform,
+                    Construction {
+                        blueprint_id: b.blueprint_id.clone(),
+                        progress,
+                        build_time,
+                        builder_key: None,
+                    },
+                ));
+            }
+            None => {
+                world.spawn((
+                    transform,
+                    Structure {
+                        blueprint_id: b.blueprint_id.clone(),
+                        health: b.health,
+                        max_health: b.max_health,
+                        provides: b.provides.clone(),
+                    },
+                ));
+            }
+        }
+    }
 }
 
 /// Extract + write the active offline home to disk. Logs on failure. `placed` is the
 /// organize-layer container pool (GuiState-owned, not in the ECS world), persisted
 /// alongside the world-derived save so container contents + transfers survive a restart.
-pub fn save_active_home(world: &hecs::World, placed: &[crate::gui::PlacedItem]) {
+pub fn save_active_home(
+    world: &hecs::World,
+    placed: &[crate::gui::PlacedItem],
+    data: &crate::hot_reload::data_store::DataStore,
+) {
     let mut save = extract_world_save(world);
     save.placed_items = placed.to_vec();
+    // The world clock, from the TimeSystem's DataStore export. Crop
+    // planted_at values are only meaningful against it.
+    save.game_time = crate::systems::time::elapsed_now(data);
+    // Craft batches in flight, from the CraftingSystem's export (the list
+    // lives inside the system). Their inputs are already spent.
+    save.crafts = data
+        .get::<std::sync::Mutex<Vec<crate::systems::crafting::CraftSave>>>("active_crafts_export")
+        .and_then(|m| m.lock().ok().map(|v| v.clone()))
+        .unwrap_or_default();
     let path = active_home_path();
     if let Err(e) = persistence::save_world(&path, &save) {
         log::error!("save_active_home failed: {e}");
@@ -273,6 +364,7 @@ pub fn save_active_home(world: &hecs::World, placed: &[crate::gui::PlacedItem]) 
 pub fn maybe_periodic_save(
     world: &hecs::World,
     placed: &[crate::gui::PlacedItem],
+    data: &crate::hot_reload::data_store::DataStore,
     interval_secs: u64,
 ) {
     let now = now_secs();
@@ -285,8 +377,187 @@ pub fn maybe_periodic_save(
     }
     if now.saturating_sub(last) >= interval_secs {
         LAST_SAVE_SECS.store(now, Ordering::Relaxed);
-        save_active_home(world, placed);
+        save_active_home(world, placed, data);
     }
+}
+
+/// What `resume_home` did, for the log and the "while you were away" notice.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Resumed {
+    /// The game clock the world resumes at, in game seconds.
+    pub clock: f64,
+    /// Game seconds of offline catch-up applied (0 when the toggle is off).
+    pub away_secs: f64,
+    /// Living crops that were aged by `away_secs`.
+    pub crops_aged: usize,
+    /// Builds still under construction that were advanced by `away_secs`.
+    pub builds_advanced: usize,
+    /// Craft batches in flight that were advanced by `away_secs`.
+    pub crafts_advanced: usize,
+}
+
+/// Offline progression (operator, 2026-09-21; docs/design/offline-progression.md).
+/// Pure part of `resume_home`, so it can be tested without a DataStore.
+///
+/// The CLOCK always resumes where the save left it. It is never jumped forward
+/// by the time away, because every system that reads the clock would then
+/// advance offline by accident, and the design doc requires the opposite: a
+/// system advances offline only by deliberately opting in here. The clock is
+/// also never behind the newest crop (a crop cannot have been planted in the
+/// future), which heals a save written before the clock was stored.
+///
+/// Opted in today (crops, and builds under construction):
+/// - CROPS: when `offline_progression` is on, every living crop's planted_at
+///   moves back by the time away, so its age grows by exactly that much and
+///   the growth-speed setting applies to it like any other hour. Water and
+///   health are integrated per tick and are NOT advanced: the character keeps
+///   the garden watered while you are away (the doc's "offline upkeep"), so
+///   nothing can die of thirst while nobody could have prevented it.
+///
+/// - BUILDS: scaffolds still going up advance by the time away (see below).
+/// - CRAFTS: batches in flight count down by the time away and deliver on
+///   the CraftingSystem's next tick (see `restored_crafts`).
+///
+/// Deliberately not advanced: vitals (not persisted; you wake rested), and
+/// anything that consumes or destroys.
+///
+/// Clock source: the device clock, because only offline single-player homes
+/// are saved today. Multiplayer and MMO must use the SERVER clock instead
+/// (the design doc's cheating section) when their saves exist.
+///
+/// A game second is a real second at time scale 1 (SECONDS_PER_DAY is
+/// defined that way), so real seconds away convert one to one. The time
+/// scale is a dev scrubber and is not saved, so it does not stretch the
+/// time away. No cap: a returning player finding a finished garden is the
+/// point (the doc's open question, unbounded until something misbehaves).
+pub fn catch_up_world(
+    world: &mut hecs::World,
+    save: &WorldSave,
+    offline_progression: bool,
+    now: u64,
+) -> Resumed {
+    let newest_planting = world
+        .query_mut::<&crate::ecs::components::CropInstance>()
+        .into_iter()
+        .map(|(_e, c)| c.planted_at)
+        .fold(0.0_f64, f64::max);
+    let clock = save.game_time.max(newest_planting).max(0.0);
+    // timestamp 0 = never stamped by a save, so there is no "away" to measure.
+    // A clock set backwards gives zero, never negative growth.
+    let away_secs = if offline_progression && save.timestamp > 0 {
+        now.saturating_sub(save.timestamp) as f64
+    } else {
+        0.0
+    };
+    let mut crops_aged = 0;
+    let mut builds_advanced = 0;
+    if away_secs > 0.0 {
+        for (_e, crop) in world.query_mut::<&mut crate::ecs::components::CropInstance>() {
+            if crop.growth_stage == crate::ecs::components::STAGE_DEAD {
+                continue;
+            }
+            crop.planted_at -= away_secs;
+            crops_aged += 1;
+        }
+        // BUILDS: a scaffold's materials were consumed when it started, so
+        // finishing it offline consumes nothing (the doc's "reserve inputs up
+        // front" rule). Progress is a countdown in seconds; it is capped at
+        // build_time so the ConstructionSystem's next tick does the
+        // completion itself, quest event, skill XP and all.
+        for (_e, c) in world.query_mut::<&mut crate::systems::construction::Construction>() {
+            c.progress = (c.progress as f64 + away_secs).min(c.build_time as f64) as f32;
+            builds_advanced += 1;
+        }
+    }
+    let crafts_advanced = if away_secs > 0.0 { save.crafts.len() } else { 0 };
+    Resumed { clock, away_secs, crops_aged, builds_advanced, crafts_advanced }
+}
+
+/// The craft batches a save resumes with, each counted down by the time away
+/// (floored at zero, which completes it on the next tick through the normal
+/// delivery path, vehicle pad and machine vessel included). Their inputs were
+/// spent when they started, so finishing them offline spends nothing; this is
+/// the design doc's "reserve inputs up front" rule, already true of crafting.
+pub fn restored_crafts(save: &WorldSave, away_secs: f64) -> Vec<crate::systems::crafting::CraftSave> {
+    save.crafts
+        .iter()
+        .map(|c| {
+            let mut c = c.clone();
+            c.time_remaining = (c.time_remaining as f64 - away_secs).max(0.0) as f32;
+            c
+        })
+        .collect()
+}
+
+/// The one-line "while you were away" notice, or None when nothing grew. The
+/// catch-up must never be silent: a garden that jumped forward with no word
+/// reads as a bug, not as the character having lived the hours.
+pub fn away_notice(r: &Resumed) -> Option<String> {
+    if r.away_secs < 60.0 || (r.crops_aged == 0 && r.builds_advanced == 0 && r.crafts_advanced == 0) {
+        return None;
+    }
+    let mins = (r.away_secs / 60.0) as u64;
+    let span = if mins >= 48 * 60 {
+        format!("{} days", mins / (24 * 60))
+    } else if mins >= 60 {
+        format!("{} h {} min", mins / 60, mins % 60)
+    } else {
+        format!("{mins} min")
+    };
+    let count = |n: usize, one: &str, many: &str| {
+        if n == 1 { format!("1 {one}") } else { format!("{n} {many}") }
+    };
+    let mut parts = Vec::new();
+    if r.crops_aged > 0 {
+        parts.push(format!("{} kept growing", count(r.crops_aged, "plant", "plants")));
+    }
+    if r.builds_advanced > 0 {
+        parts.push(format!("{} kept going up", count(r.builds_advanced, "build", "builds")));
+    }
+    if r.crafts_advanced > 0 {
+        parts.push(format!("{} kept working", count(r.crafts_advanced, "craft", "crafts")));
+    }
+    let list = match parts.len() {
+        1 => parts[0].clone(),
+        2 => format!("{} and {}", parts[0], parts[1]),
+        _ => format!("{}, {} and {}", parts[0], parts[1], parts[2]),
+    };
+    Some(format!("While you were away ({span}), {list}."))
+}
+
+/// Put the world clock back where `save` left it and apply the offline
+/// catch-up. Call right after `apply_save_to_world` with the same save, at
+/// startup and on character select, and after the config is loaded (the
+/// toggle lives there). Idempotent per save: both inputs come from disk, so
+/// re-applying the same save lands in the same place.
+pub fn resume_home(
+    world: &mut hecs::World,
+    data: &crate::hot_reload::data_store::DataStore,
+    save: &WorldSave,
+    offline_progression: bool,
+) -> Resumed {
+    let r = catch_up_world(world, save, offline_progression, now_secs());
+    crate::systems::time::request_restore_elapsed(data, r.clock);
+    // Craft batches go through the CraftingSystem's restore channel, which
+    // it consumes after its rewind drop, so a character select replaces the
+    // live batches with the saved ones instead of losing both.
+    if let Some(slot) = data
+        .get::<std::sync::Mutex<Option<Vec<crate::systems::crafting::CraftSave>>>>("restore_active_crafts")
+    {
+        if let Ok(mut s) = slot.lock() {
+            *s = Some(restored_crafts(save, r.away_secs));
+        }
+    }
+    log::info!(
+        "Resumed home clock at game second {:.0}; offline catch-up {} ({:.0} s away, {} crops aged, {} builds and {} crafts advanced)",
+        r.clock,
+        if offline_progression { "on" } else { "off" },
+        r.away_secs,
+        r.crops_aged,
+        r.builds_advanced,
+        r.crafts_advanced
+    );
+    r
 }
 
 #[cfg(test)]
@@ -634,5 +905,197 @@ mod tests {
             "weather_state":"clear"}"#;
         let old: WorldSave = serde_json::from_str(old_json).expect("old save loads");
         assert!(old.placed_items.is_empty(), "old save defaults to an empty pool");
+    }
+
+    fn crop(planted_at: f64, stage: &str) -> crate::ecs::components::CropInstance {
+        crate::ecs::components::CropInstance {
+            crop_def_id: "tomato".to_string(),
+            growth_stage: stage.to_string(),
+            planted_at,
+            water_level: 0.8,
+            health: 90.0,
+            tower_id: None,
+            tower_slot: None,
+        }
+    }
+
+    /// Offline catch-up ages living crops by exactly the time away, leaves the
+    /// dead alone, never touches water or health, and does nothing when off.
+    #[test]
+    fn offline_catch_up_ages_living_crops_only_when_on() {
+        let mut save = WorldSave::new_offline("t", "fibonacci");
+        save.game_time = 6000.0;
+        save.timestamp = 1_000;
+        save.crops = vec![crop(5000.0, "seedling"), crop(4000.0, crate::ecs::components::STAGE_DEAD)];
+        let now = 1_000 + 3_600;
+
+        let mut world = hecs::World::new();
+        apply_save_to_world(&mut world, &save);
+        let r = catch_up_world(&mut world, &save, true, now);
+        assert_eq!(r, Resumed { clock: 6000.0, away_secs: 3600.0, crops_aged: 1, builds_advanced: 0, crafts_advanced: 0 });
+        let mut got: Vec<(f64, f32, f32)> = world
+            .query_mut::<&crate::ecs::components::CropInstance>()
+            .into_iter()
+            .map(|(_e, c)| (c.planted_at, c.water_level, c.health))
+            .collect();
+        got.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
+        assert_eq!(got, vec![(1400.0, 0.8, 90.0), (4000.0, 0.8, 90.0)], "living aged, dead untouched, upkeep untouched");
+
+        let mut world = hecs::World::new();
+        apply_save_to_world(&mut world, &save);
+        let r = catch_up_world(&mut world, &save, false, now);
+        assert_eq!(r, Resumed { clock: 6000.0, away_secs: 0.0, crops_aged: 0, builds_advanced: 0, crafts_advanced: 0 });
+    }
+
+    /// A crop cannot have been planted in the future, so the clock never
+    /// resumes behind the newest planting (a save from before the clock was
+    /// stored carries game_time 0 next to crops planted at game second 5000).
+    #[test]
+    fn clock_never_resumes_behind_the_newest_crop() {
+        let mut save = WorldSave::new_offline("t", "fibonacci");
+        save.crops = vec![crop(5000.0, "seedling"), crop(1200.0, "seedling")];
+        let mut world = hecs::World::new();
+        apply_save_to_world(&mut world, &save);
+        assert_eq!(catch_up_world(&mut world, &save, false, 0).clock, 5000.0);
+    }
+
+    /// No stamp means no measurable absence; a clock set backwards means zero
+    /// growth, never negative.
+    #[test]
+    fn unstamped_saves_and_backwards_clocks_grant_nothing() {
+        let mut save = WorldSave::new_offline("t", "fibonacci");
+        save.crops = vec![crop(100.0, "seedling")];
+        let mut world = hecs::World::new();
+        apply_save_to_world(&mut world, &save);
+        assert_eq!(catch_up_world(&mut world, &save, true, 9_999).away_secs, 0.0, "timestamp 0");
+
+        save.timestamp = 5_000;
+        let mut world = hecs::World::new();
+        apply_save_to_world(&mut world, &save);
+        assert_eq!(catch_up_world(&mut world, &save, true, 4_000).away_secs, 0.0, "clock went backwards");
+    }
+
+    /// Builds survive a restart (2026-09-25: nothing wrote save.constructions,
+    /// so every structure was discarded at exit after its materials were spent).
+    /// A finished Structure and a half-built scaffold both round-trip with pose
+    /// and state, and re-applying replaces rather than duplicates.
+    #[test]
+    fn builds_survive_the_save_round_trip() {
+        use crate::systems::construction::{Construction, Structure};
+        let tf = |x: f32| crate::ecs::components::Transform {
+            position: glam::Vec3::new(x, 0.0, 3.0),
+            rotation: glam::Quat::from_rotation_y(0.5),
+            scale: glam::Vec3::new(2.0, 3.0, 0.2),
+        };
+        let mut world = hecs::World::new();
+        world.spawn((
+            tf(1.0),
+            Structure {
+                blueprint_id: "wooden_wall".to_string(),
+                health: 80.0,
+                max_health: 100.0,
+                provides: Some("shelter".to_string()),
+            },
+        ));
+        world.spawn((
+            tf(5.0),
+            Construction {
+                blueprint_id: "wooden_door".to_string(),
+                progress: 4.0,
+                build_time: 10.0,
+                builder_key: None,
+            },
+        ));
+        let save = extract_world_save(&world);
+        assert_eq!(save.constructions.len(), 2);
+
+        let mut fresh = hecs::World::new();
+        apply_save_to_world(&mut fresh, &save);
+        apply_save_to_world(&mut fresh, &save); // re-apply must not duplicate
+        let structures: Vec<(String, f32, f32, Option<String>, glam::Vec3)> = fresh
+            .query::<(&Structure, &crate::ecs::components::Transform)>()
+            .iter()
+            .map(|(_e, (s, t))| (s.blueprint_id.clone(), s.health, s.max_health, s.provides.clone(), t.scale))
+            .collect();
+        assert_eq!(
+            structures,
+            vec![("wooden_wall".to_string(), 80.0, 100.0, Some("shelter".to_string()), glam::Vec3::new(2.0, 3.0, 0.2))]
+        );
+        let scaffolds: Vec<(String, f32, f32, f32)> = fresh
+            .query::<(&Construction, &crate::ecs::components::Transform)>()
+            .iter()
+            .map(|(_e, (c, t))| (c.blueprint_id.clone(), c.progress, c.build_time, t.position.x))
+            .collect();
+        assert_eq!(scaffolds, vec![("wooden_door".to_string(), 4.0, 10.0, 5.0)]);
+        // And through JSON, the way it reaches disk.
+        let json = serde_json::to_string(&save).unwrap();
+        let back: WorldSave = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.constructions, save.constructions);
+    }
+
+    /// A scaffold's materials were spent when it started, so time away may
+    /// finish it; progress is capped at build_time so the ConstructionSystem's
+    /// own tick does the completion (quest event, XP) rather than this pass.
+    #[test]
+    fn offline_catch_up_finishes_scaffolds_without_skipping_completion() {
+        use crate::systems::construction::Construction;
+        let mut save = WorldSave::new_offline("t", "fibonacci");
+        save.timestamp = 1_000;
+        save.constructions = vec![crate::persistence::ConstructionSave {
+            blueprint_id: "wooden_door".to_string(),
+            position: [0.0; 3],
+            rotation: [0.0, 0.0, 0.0, 1.0],
+            scale: [1.0; 3],
+            health: 0.0,
+            max_health: 0.0,
+            provides: None,
+            building: Some((4.0, 10.0)),
+        }];
+        let mut world = hecs::World::new();
+        apply_save_to_world(&mut world, &save);
+        let r = catch_up_world(&mut world, &save, true, 1_000 + 3_600);
+        assert_eq!(r.builds_advanced, 1);
+        let (_e, c) = world.query_mut::<&Construction>().into_iter().next().unwrap();
+        assert_eq!(c.progress, 10.0, "capped at build_time, still a Construction for the tick to complete");
+
+        let mut world = hecs::World::new();
+        apply_save_to_world(&mut world, &save);
+        assert_eq!(catch_up_world(&mut world, &save, false, 1_000 + 3_600).builds_advanced, 0);
+        let (_e, c) = world.query_mut::<&Construction>().into_iter().next().unwrap();
+        assert_eq!(c.progress, 4.0, "toggle off leaves the scaffold where it was");
+    }
+
+    /// Craft batches resume counted down by the time away, floored at zero
+    /// (which completes them on the next tick through the normal delivery).
+    #[test]
+    fn restored_crafts_count_down_by_the_time_away() {
+        let mut save = WorldSave::new_offline("t", "fibonacci");
+        let batch = |t: f32| crate::systems::crafting::CraftSave {
+            recipe_id: "smelt_iron".to_string(),
+            time_remaining: t,
+            auto: true,
+            machine_id: Some("smelter_1".to_string()),
+            pad: None,
+        };
+        save.crafts = vec![batch(7.0), batch(9_000.0)];
+        let r: Vec<f32> = restored_crafts(&save, 3_600.0).iter().map(|c| c.time_remaining).collect();
+        assert_eq!(r, vec![0.0, 5_400.0]);
+        let r: Vec<f32> = restored_crafts(&save, 0.0).iter().map(|c| c.time_remaining).collect();
+        assert_eq!(r, vec![7.0, 9_000.0], "no time away, no change");
+    }
+
+    #[test]
+    fn away_notice_says_how_long_and_how_many() {
+        let r = |away_secs, crops_aged| Resumed { clock: 0.0, away_secs, crops_aged, builds_advanced: 0, crafts_advanced: 0 };
+        assert_eq!(away_notice(&r(30.0, 5)), None, "under a minute is not worth a word");
+        assert_eq!(away_notice(&r(7200.0, 0)), None, "nothing grew");
+        assert_eq!(away_notice(&r(600.0, 1)).unwrap(), "While you were away (10 min), 1 plant kept growing.");
+        assert_eq!(away_notice(&r(29_520.0, 12)).unwrap(), "While you were away (8 h 12 min), 12 plants kept growing.");
+        assert_eq!(away_notice(&r(3.0 * 86_400.0, 2)).unwrap(), "While you were away (3 days), 2 plants kept growing.");
+        let both = Resumed { clock: 0.0, away_secs: 600.0, crops_aged: 3, builds_advanced: 1, crafts_advanced: 0 };
+        assert_eq!(
+            away_notice(&both).unwrap(),
+            "While you were away (10 min), 3 plants kept growing and 1 build kept going up."
+        );
     }
 }

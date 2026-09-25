@@ -327,6 +327,28 @@ mod crafting_bridge_tests {
     }
 }
 
+/// A craft batch in flight, in its save form (2026-09-25). Lives here, not in
+/// `persistence` (which is native-only), because this system also compiles
+/// into the relay. Its inputs were consumed when it
+/// STARTED, so dropping it at exit destroyed those materials; it is saved and
+/// restored instead. The crafter is stored by what survives a restart: the
+/// machine's instance id for an automatic machine batch, nothing for a
+/// manual craft (the crafter is the player).
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct CraftSave {
+    pub recipe_id: String,
+    /// Game seconds until it completes.
+    pub time_remaining: f32,
+    /// An AutoRefine machine batch (outputs land in the home inventory).
+    pub auto: bool,
+    /// `MachineInstanceId` of the machine running it, for auto batches.
+    #[serde(default)]
+    pub machine_id: Option<String>,
+    /// Factory pad pose (position, rotation xyzw) for vehicle outputs.
+    #[serde(default)]
+    pub pad: Option<([f32; 3], [f32; 4])>,
+}
+
 /// A craft in progress, tracked per-entity.
 #[derive(Debug, Clone)]
 pub struct ActiveCraft {
@@ -348,6 +370,24 @@ pub struct ActiveCraft {
     /// despawned mid-batch, and the vehicle must still appear at its pad. None
     /// when the crafter had no Transform (pre-v0.679 menu-only machines).
     pub pad: Option<(glam::Vec3, glam::Quat)>,
+    /// The machine's `MachineInstanceId`, for auto batches (2026-09-25). The
+    /// ENTITY goes stale whenever the home's machines are respawned (world
+    /// load does that, and so does a restart), so "is this machine busy" and
+    /// the save both match on the id, which survives.
+    pub machine_id: Option<String>,
+}
+
+impl ActiveCraft {
+    /// The save form (see CraftSave).
+    pub fn to_save(&self) -> CraftSave {
+        CraftSave {
+            recipe_id: self.recipe_id.clone(),
+            time_remaining: self.time_remaining,
+            auto: self.auto,
+            machine_id: self.machine_id.clone(),
+            pad: self.pad.map(|(p, r)| (p.to_array(), r.to_array())),
+        }
+    }
 }
 
 /// How far in front of the crafter (machine or player) a finished vehicle rolls
@@ -570,6 +610,14 @@ impl System for CraftingSystem {
             );
             self.active_crafts.clear();
         }
+        // Batches restored from a save (2026-09-25, save_load::resume_home).
+        // AFTER the rewind drop above, so on a character select the saved
+        // batches replace the live ones rather than being dropped with them.
+        // The crafter entity is resolved further down, once the player is
+        // known; until then it is a placeholder nothing compares against.
+        let restored: Option<Vec<CraftSave>> = data
+            .get::<std::sync::Mutex<Option<Vec<CraftSave>>>>("restore_active_crafts")
+            .and_then(|m| m.lock().ok().and_then(|mut r| r.take()));
 
         // ── GUI / dev command channels (written by the main loop from GuiState). ──
         // Drain the command flags first — these read `data`, never `world`, so they
@@ -635,6 +683,36 @@ impl System for CraftingSystem {
             break; // only the first controllable player
         }
 
+        if let Some(saved) = restored {
+            // A manual craft's crafter is the player; an auto batch resolves
+            // to its machine by id when that machine exists yet (the home's
+            // machines spawn on world entry, after this first tick), else the
+            // player stands in: completion keys auto outputs on the `auto`
+            // flag and busy-checks on machine_id, so the stand-in is inert.
+            let machines: std::collections::HashMap<String, hecs::Entity> = world
+                .query::<&crate::ecs::components::MachineInstanceId>()
+                .iter()
+                .map(|(e, id)| (id.0.clone(), e))
+                .collect();
+            if let Some(p) = player {
+                for c in saved {
+                    let crafter = c
+                        .machine_id
+                        .as_ref()
+                        .and_then(|id| machines.get(id).copied())
+                        .unwrap_or(p);
+                    self.active_crafts.push(ActiveCraft {
+                        recipe_id: c.recipe_id,
+                        time_remaining: c.time_remaining,
+                        crafter,
+                        auto: c.auto,
+                        pad: c.pad.map(|(pos, rot)| (glam::Vec3::from_array(pos), glam::Quat::from_array(rot))),
+                        machine_id: c.machine_id,
+                    });
+                }
+            }
+        }
+
         // Craft request from the GUI: queue it for the player entity (the
         // pending-request loop below processes it this same tick).
         if let (Some(recipe_id), Some(entity)) = (requested, player) {
@@ -687,11 +765,18 @@ impl System for CraftingSystem {
                     .unwrap_or(0)
             };
             let mut auto_starts: Vec<(hecs::Entity, String)> = Vec::new();
-            for (machine, auto) in world
-                .query::<&crate::ecs::components::AutoRefine>()
+            for (machine, (auto, inst)) in world
+                .query::<(
+                    &crate::ecs::components::AutoRefine,
+                    Option<&crate::ecs::components::MachineInstanceId>,
+                )>()
                 .iter()
             {
-                if let Some(craft) = self.active_crafts.iter().find(|c| c.crafter == machine) {
+                let inst_id = inst.map(|i| i.0.as_str());
+                if let Some(craft) = self.active_crafts.iter().find(|c| {
+                    c.crafter == machine
+                        || (inst_id.is_some() && c.machine_id.as_deref() == inst_id)
+                }) {
                     // Mid-batch: report real progress.
                     if let Some(r) = recipes.recipes.get(&craft.recipe_id) {
                         let pct = if r.craft_time > 0.0 {
@@ -821,12 +906,17 @@ impl System for CraftingSystem {
                     }
                 }
                 statuses.push(format!("{} — starting", recipe.name));
+                let machine_id = world
+                    .get::<&crate::ecs::components::MachineInstanceId>(machine)
+                    .ok()
+                    .map(|i| i.0.clone());
                 self.active_crafts.push(ActiveCraft {
                     recipe_id,
                     time_remaining: recipe.craft_time.max(0.01),
                     crafter: machine,
                     auto: true,
                     pad,
+                    machine_id,
                 });
             }
         }
@@ -948,6 +1038,7 @@ impl System for CraftingSystem {
                         crafter: request.crafter,
                         auto: false,
                         pad,
+                        machine_id: None,
                     });
                     log::debug!(
                         "Started crafting {} ({:.1}s)",
@@ -1005,6 +1096,17 @@ impl System for CraftingSystem {
                         log::debug!("Craft complete: {}", recipe.id);
                     }
                 }
+            }
+        }
+
+        // Publish the in-flight batches for the save (2026-09-25). The list
+        // lives inside this system, which nothing outside the SystemRunner can
+        // reach, so the save reads this copy instead.
+        if let Some(slot) =
+            data.get::<std::sync::Mutex<Vec<CraftSave>>>("active_crafts_export")
+        {
+            if let Ok(mut out) = slot.lock() {
+                *out = self.active_crafts.iter().map(ActiveCraft::to_save).collect();
             }
         }
     }
@@ -1553,6 +1655,67 @@ mod auto_refine_tests {
             1,
             "the in-flight batch must complete into the home inventory, not vanish"
         );
+    }
+
+    /// Craft batches survive a restart (2026-09-25). A batch's inputs are spent
+    /// when it starts, so dropping it at exit destroyed them. The save carries
+    /// it by machine instance id, and after the restart the RESPAWNED machine
+    /// (a new entity) must read as busy with it, not start a second batch
+    /// beside it. Stock for two batches, so a double start would show.
+    #[test]
+    fn in_flight_batch_survives_a_restart_without_doubling_up() {
+        use crate::ecs::components::MachineInstanceId;
+        let mut data = real_data();
+        data.insert("active_crafts_export", std::sync::Mutex::new(Vec::<CraftSave>::new()));
+        data.insert("restore_active_crafts", std::sync::Mutex::new(Option::<Vec<CraftSave>>::None));
+        let smelter = || (AutoRefine { recipe_id: "smelt_iron".to_string() }, MachineInstanceId("smelter_1".to_string()));
+
+        // Session 1: the batch starts and is 3 s in when the game closes.
+        let mut world = hecs::World::new();
+        let mut inv = Inventory::new(16);
+        inv.add_item("iron_ore_0", 4, 20);
+        inv.add_item("coal_0", 2, 99);
+        world.spawn((inv, Controllable));
+        world.spawn(smelter());
+        let mut sys = CraftingSystem::new();
+        sys.tick(&mut world, 3.0, &data);
+        let saved = data
+            .get::<std::sync::Mutex<Vec<CraftSave>>>("active_crafts_export")
+            .unwrap()
+            .lock()
+            .unwrap()
+            .clone();
+        assert_eq!(saved.len(), 1, "the batch is published for the save");
+        assert_eq!(saved[0].machine_id.as_deref(), Some("smelter_1"));
+        assert!(saved[0].auto && (saved[0].time_remaining - 7.0).abs() < 1e-4);
+
+        // Session 2: the saved inventory (one batch already spent), a new
+        // system, the batch restored before the home's machines exist.
+        let mut world = hecs::World::new();
+        let mut inv = Inventory::new(16);
+        inv.add_item("iron_ore_0", 2, 20);
+        inv.add_item("coal_0", 1, 99);
+        let player = world.spawn((inv, Controllable));
+        let mut sys = CraftingSystem::new();
+        *data
+            .get::<std::sync::Mutex<Option<Vec<CraftSave>>>>("restore_active_crafts")
+            .unwrap()
+            .lock()
+            .unwrap() = Some(saved);
+        sys.tick(&mut world, 0.0, &data);
+        world.spawn(smelter()); // world entry spawns the machine: a NEW entity
+        sys.tick(&mut world, 1.0, &data);
+        assert_eq!(
+            world.get::<&Inventory>(player).unwrap().count_item("iron_ore_0"),
+            2,
+            "the respawned machine is busy with the restored batch, not starting another"
+        );
+        for _ in 0..20 {
+            sys.tick(&mut world, 1.0, &data);
+        }
+        let inv = world.get::<&Inventory>(player).unwrap();
+        assert_eq!(inv.count_item("iron_ingot_0"), 2, "the restored batch delivered, then the next one ran");
+        assert_eq!(inv.count_item("iron_ore_0"), 0);
     }
 
     /// Review fix (2026-07-01): a FULL home inventory must stop batches from

@@ -57,6 +57,56 @@ impl Default for GameTime {
     }
 }
 
+impl GameTime {
+    /// Recompute hour, day and season from `elapsed_seconds`. Every writer of
+    /// the clock goes through this, so the derived fields can never disagree
+    /// with the total.
+    pub fn recompute_derived(&mut self) {
+        let day_seconds = self.elapsed_seconds % SECONDS_PER_DAY;
+        self.hour = (day_seconds / SECONDS_PER_DAY * 24.0) as f32;
+        self.day_count = (self.elapsed_seconds / SECONDS_PER_DAY) as u32;
+        self.season = Season::from_day(self.day_count);
+    }
+
+    /// Put the clock at an absolute game time (clamped to >= 0).
+    pub fn set_elapsed(&mut self, secs: f64) {
+        self.elapsed_seconds = secs.max(0.0);
+        self.recompute_derived();
+    }
+}
+
+/// Put the world clock back where a save left it (offline progression,
+/// 2026-09-25). Before this, the clock started at zero on every launch while
+/// the restored crops kept their `planted_at` from the previous session's
+/// clock, so a garden REWOUND on restart: a crop planted at game second 5,000
+/// sat frozen until the new session's clock caught up to 5,000 again.
+///
+/// Two writes, both needed. The request channel reaches the TimeSystem's own
+/// accumulator, which is authoritative and re-exports over the DataStore copy
+/// every tick (a direct write alone would be erased). The direct write makes
+/// anything that reads the clock BEFORE the first tick (the HUD, an early
+/// save) see the restored value rather than zero.
+pub fn request_restore_elapsed(data: &DataStore, secs: f64) {
+    if let Some(req) = data.get::<std::sync::Mutex<Option<f64>>>("time_restore_elapsed_request") {
+        if let Ok(mut r) = req.lock() {
+            *r = Some(secs);
+        }
+    }
+    if let Some(slot) = data.get::<std::sync::Mutex<GameTime>>("game_time") {
+        if let Ok(mut g) = slot.lock() {
+            g.set_elapsed(secs);
+        }
+    }
+}
+
+/// The current game clock in seconds, from the DataStore copy the TimeSystem
+/// exports every tick. 0 when the slot is absent (unit tests).
+pub fn elapsed_now(data: &DataStore) -> f64 {
+    data.get::<std::sync::Mutex<GameTime>>("game_time")
+        .and_then(|m| m.lock().ok().map(|g| g.elapsed_seconds))
+        .unwrap_or(0.0)
+}
+
 /// Seconds per in-game day (real-time at time_scale=1.0).
 /// 20 real minutes = 1 game day. Public so sibling systems pacing
 /// per-game-day mechanics (economy passive income, v0.747) share it.
@@ -178,18 +228,21 @@ impl System for TimeSystem {
                 }
             }
         }
+        // Absolute clock restore from a save (see request_restore_elapsed).
+        // Same channel shape as the two above, f64 because it carries the
+        // whole clock, not an hour.
+        if let Some(req) = data.get::<std::sync::Mutex<Option<f64>>>("time_restore_elapsed_request") {
+            if let Ok(mut r) = req.lock() {
+                if let Some(secs) = r.take() {
+                    self.game_time.set_elapsed(secs);
+                }
+            }
+        }
         let scaled_dt = dt as f64 * self.game_time.time_scale as f64;
         self.game_time.elapsed_seconds += scaled_dt;
 
-        // Calculate current hour from total elapsed seconds
-        let day_seconds = self.game_time.elapsed_seconds % SECONDS_PER_DAY;
-        self.game_time.hour = (day_seconds / SECONDS_PER_DAY * 24.0) as f32;
-
-        // Calculate day count
-        self.game_time.day_count = (self.game_time.elapsed_seconds / SECONDS_PER_DAY) as u32;
-
-        // Determine season
-        self.game_time.season = Season::from_day(self.game_time.day_count);
+        // Hour, day count and season from the total.
+        self.game_time.recompute_derived();
 
         self.initialized = true;
 
@@ -287,6 +340,35 @@ mod game_time_export_tests {
         let mut sys = TimeSystem::new();
         sys.tick(&mut world, 1.0, &data);
         assert!(sys.game_time().elapsed_seconds > 0.0);
+    }
+
+    #[test]
+    fn restore_request_puts_the_clock_back_where_the_save_left_it() {
+        // The restart bug: the clock started at zero every launch. A restore
+        // must land in the SYSTEM's accumulator (which re-exports every tick),
+        // and be visible in the DataStore copy before the first tick too.
+        let mut data = DataStore::new();
+        data.insert("game_time", std::sync::Mutex::new(GameTime::default()));
+        data.insert(
+            "time_restore_elapsed_request",
+            std::sync::Mutex::new(Option::<f64>::None),
+        );
+        let saved = 3.0 * SECONDS_PER_DAY + 600.0; // day 3, noon
+        request_restore_elapsed(&data, saved);
+        assert!((elapsed_now(&data) - saved).abs() < 1e-9, "visible before the first tick");
+
+        let mut world = hecs::World::new();
+        let mut sys = TimeSystem::new();
+        sys.tick(&mut world, 1.0, &data);
+        let gt = sys.game_time().clone();
+        assert!((gt.elapsed_seconds - (saved + 1.0)).abs() < 1e-9, "resumed from the save, then advanced");
+        assert_eq!(gt.day_count, 3);
+        assert!((gt.hour - 12.0).abs() < 0.05, "derived hour follows the restored total, got {}", gt.hour);
+        assert!((elapsed_now(&data) - gt.elapsed_seconds).abs() < 1e-9, "exported copy agrees");
+
+        // Consumed once: the next tick just advances.
+        sys.tick(&mut world, 1.0, &data);
+        assert!((sys.game_time().elapsed_seconds - (saved + 2.0)).abs() < 1e-9);
     }
 }
 

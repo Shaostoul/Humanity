@@ -525,6 +525,10 @@ pub struct AppConfig {
     pub shadow_strength: f32,
     #[serde(default = "default_crop_growth_speed")]
     pub crop_growth_speed: f32,
+    /// Offline progression (2026-09-25): crops keep growing while the game is
+    /// closed. On by default; see save_load::catch_up_world.
+    #[serde(default = "default_true")]
+    pub offline_progression: bool,
     /// God-ray shaft intensity (v0.907 slider; 0 disables the pass).
     #[serde(default = "default_godray_intensity")]
     pub godray_intensity: f32,
@@ -1288,6 +1292,7 @@ impl AppConfig {
             sun_shadows: state.settings.sun_shadows,
             shadow_strength: state.settings.shadow_strength,
             crop_growth_speed: state.settings.crop_growth_speed,
+            offline_progression: state.settings.offline_progression,
             godray_intensity: state.settings.godray_intensity,
             aerial_strength: state.settings.aerial_strength,
             ssao_strength: state.settings.ssao_strength,
@@ -1515,6 +1520,7 @@ impl AppConfig {
         // value would ripen the whole garden the instant the save loaded.
         state.settings.crop_growth_speed =
             crate::systems::farming::clamp_growth_speed(self.crop_growth_speed);
+        state.settings.offline_progression = self.offline_progression;
         state.settings.godray_intensity = self.godray_intensity.clamp(0.0, 1.5);
         state.settings.aerial_strength = self.aerial_strength.clamp(0.0, 2.0);
         state.settings.ssao_strength = self.ssao_strength.clamp(0.0, 1.5);

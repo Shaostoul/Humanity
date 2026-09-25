@@ -1773,6 +1773,61 @@ mod gardening_tests {
         assert_eq!(slow, 0, "at 1x, 5% of the window is still the first stage");
     }
 
+    /// Offline progression end to end (2026-09-25): a garden saved, then loaded
+    /// after time away, must be further along when the toggle is on and exactly
+    /// where it was when it is off. Goes through the real catch-up and the real
+    /// FarmingSystem tick, so it proves the shifted planted_at actually turns
+    /// into growth, not just that a number moved. Native-gated because
+    /// save_load is (the relay build has no offline home).
+    #[cfg(feature = "native")]
+    #[test]
+    fn time_away_grows_the_garden_only_with_offline_progression_on() {
+        use crate::ecs::components::CropInstance;
+
+        let run = |offline_on: bool| -> usize {
+            let mut data = make_store();
+            data.insert("crop_growth_speed", std::sync::Mutex::new(1.0_f32));
+            let (growth_seconds, stages): (f64, Vec<&str>) = {
+                let reg = data.get::<PlantRegistry>("plant_registry").unwrap();
+                let def = reg.get("tomato").unwrap();
+                (def.growth_days as f64 * SECONDS_PER_DAY, def.stages())
+            };
+            // Saved one minute after planting, at game second 1000.
+            let mut save = crate::persistence::WorldSave::new_offline("t", "fibonacci");
+            save.game_time = 1060.0;
+            save.timestamp = 1_000_000;
+            save.crops = vec![CropInstance {
+                crop_def_id: "tomato".to_string(),
+                growth_stage: stages[0].to_string(),
+                planted_at: 1000.0,
+                water_level: 1.0,
+                health: 100.0,
+                tower_id: None,
+                tower_slot: None,
+            }];
+            let mut world = hecs::World::new();
+            crate::save_load::apply_save_to_world(&mut world, &save);
+            // Away for 60% of the tomato's whole real growth window.
+            let now = save.timestamp + (growth_seconds * 0.6) as u64;
+            let r = crate::save_load::catch_up_world(&mut world, &save, offline_on, now);
+            assert!((r.clock - 1060.0).abs() < 1e-9, "the clock resumes where it was saved");
+            data.get::<std::sync::Mutex<crate::systems::time::GameTime>>("game_time")
+                .unwrap()
+                .lock()
+                .unwrap()
+                .set_elapsed(r.clock);
+            let mut sys = FarmingSystem::new();
+            sys.tick(&mut world, 1.0, &data);
+            let (_e, c) = world.query_mut::<&CropInstance>().into_iter().next().unwrap();
+            stage_index(&c.growth_stage, &stages).unwrap()
+        };
+
+        let off = run(false);
+        let on = run(true);
+        assert_eq!(off, 0, "toggle off: one minute of growth is still the first stage");
+        assert!(on > off, "toggle on: 60% of the window away must grow the crop (on {on}, off {off})");
+    }
+
     /// A multiplier arriving from a hand-edited config or the dev IPC is clamped
     /// rather than trusted. Zero would freeze the whole garden forever and read as
     /// broken; NaN would poison every crop's progress.

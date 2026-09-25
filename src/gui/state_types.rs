@@ -1703,7 +1703,20 @@ pub struct Toast {
     /// egui time (seconds) when it was created; stamped on push.
     pub created: f64,
     pub kind: ToastKind,
+    /// Seconds on screen, fade included. Short for an action confirmation
+    /// ("Saved"), long for a notice the player has to read (2026-09-25: the
+    /// "while you were away" line was queued during boot and its 2.6 s ran
+    /// out before the menu had even settled).
+    pub life: f64,
 }
+
+/// How long a confirmation toast stays up, fade included.
+#[cfg(feature = "native")]
+pub const TOAST_LIFE: f64 = 2.6;
+/// How long a notice stays up: long enough to read a sentence after the app
+/// has finished coming up around it.
+#[cfg(feature = "native")]
+pub const NOTICE_LIFE: f64 = 12.0;
 
 #[cfg(feature = "native")]
 #[derive(Clone, Copy, PartialEq, Eq)]
