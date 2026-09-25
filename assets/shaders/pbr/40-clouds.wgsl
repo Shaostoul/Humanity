@@ -632,6 +632,53 @@ const CLOUD_PUFF_FADE_FAR_KM: f32 = 289.0;
 // erosion) because erosion can only nibble a blob's edges, never divide
 // it. (Its distance fade was deleted in v0.1179, so it applies at every
 // range; this comment used to say otherwise.)
+// ── ONE ROTATION PER TAP (operator, 2026-09-25: "a lot of straight
+// repeating shapes in the clouds ... in certain areas the effect is strong") ──
+//
+// Every tiled volume below used to be sampled in the same world grid, so
+// all of them shared one orientation, aligned with the planet's own axes.
+// Wherever a grid axis lies in the ground plane (along the planet-frame
+// equator, and the great circles where x or z is zero), stepping along that
+// axis re-reads the same tile: the same arrangement of cells recurs every
+// tile length in straight rows. Measured at the equator on a stratus deck
+// from 55 km (fixture deck-55-equator), a high-passed autocorrelation
+// peaked at 104 px straight north-south, 23x the noise floor, with
+// harmonics at 212 and 316 px: the 8 km cell tile. At latitude 20 the
+// strongest peak was 9x, at an oblique lag.
+//
+// A fixed rotation per tap, each about its own oblique axis by an angle
+// unrelated to the others, takes every lattice off the planet's axes and
+// off each other's, so no step along the ground re-reads a tile and no two
+// taps realign (FRAY/SHAPE is exactly 8/3, which used to realign every
+// 2,141 km). A rotation changes no statistic of any tap, only which
+// direction its grid runs. Cost: one 3x3 multiply per tap, no memory.
+// Mirrored in cloud_reference.rs; generated from one axis-angle table so the
+// two cannot disagree.
+const CLOUD_ROT_SHAPE: mat3x3<f32> = mat3x3<f32>(
+    vec3<f32>(0.6638551, 0.4794821, -0.5739280),
+    vec3<f32>(-0.2472760, 0.8649919, 0.4366275),
+    vec3<f32>(0.7057981, -0.1479388, 0.6927937));
+const CLOUD_ROT_CELL: mat3x3<f32> = mat3x3<f32>(
+    vec3<f32>(0.5056037, 0.5710358, -0.6467481),
+    vec3<f32>(-0.8591799, 0.2649761, -0.4377186),
+    vec3<f32>(-0.0785802, 0.7769851, 0.6245953));
+const CLOUD_ROT_DETAIL: mat3x3<f32> = mat3x3<f32>(
+    vec3<f32>(-0.0605021, 0.2384278, 0.9692738),
+    vec3<f32>(-0.9741065, -0.2260298, -0.0052036),
+    vec3<f32>(0.2178441, -0.9444907, 0.2459294));
+const CLOUD_ROT_PUFF: mat3x3<f32> = mat3x3<f32>(
+    vec3<f32>(0.8113137, -0.3934444, -0.4324022),
+    vec3<f32>(0.4544655, 0.8897185, 0.0431527),
+    vec3<f32>(0.3677381, -0.2315223, 0.9006476));
+const CLOUD_ROT_FRAY: mat3x3<f32> = mat3x3<f32>(
+    vec3<f32>(0.5863189, 0.8017473, -0.1158939),
+    vec3<f32>(-0.1187036, -0.0564891, -0.9913216),
+    vec3<f32>(-0.8013362, 0.5949876, 0.0620497));
+const CLOUD_ROT_WARP: mat3x3<f32> = mat3x3<f32>(
+    vec3<f32>(0.0649337, -0.2717589, -0.9601722),
+    vec3<f32>(0.5263967, -0.8081100, 0.2643193),
+    vec3<f32>(-0.8477559, -0.5225947, 0.0905794));
+
 const CLOUD_CELL_TILE_KM: f32 = 8.0;
 // ── 0.05, down from 0.15: THE BALL PIT (operator, 2026-09-25) ──
 //
@@ -2624,7 +2671,7 @@ fn cloud_carve(
     var ps_s = ps;
     if (hv_warp) {
         let cw = textureSampleLevel(
-            cloud_shape_tex, cloud_tile_sampler, ps * g_cell_freq,
+            cloud_shape_tex, cloud_tile_sampler, (CLOUD_ROT_CELL * ps) * g_cell_freq,
             cloud_lod(lodb, CLOUD_LODC_CELL)).rgb;
         let hv_fade = 1.0 - smoothstep(-1.0, 1.0, lodb);
         // Amplitude from light5_color.x when set (showcase cloud_hv_km, F10
@@ -2647,19 +2694,19 @@ fn cloud_carve(
     var ps_b = ps_s;
     if (field_on) {
         let w_org = textureSampleLevel(cloud_detail_tex, cloud_tile_sampler,
-            ps / (24.0 * g_cloud_upkm), cloud_lod(lodb, -3.42)).rgb;
+            (CLOUD_ROT_WARP * ps) / (24.0 * g_cloud_upkm), cloud_lod(lodb, -3.42)).rgb;
         ps_b = ps_b + (w_org - vec3<f32>(0.5)) * 2.0 * (0.8 * g_cloud_upkm);
         if (g_sun_profile < 0.5) {
             let w_wall = textureSampleLevel(cloud_detail_tex, cloud_tile_sampler,
-                ps / (3.0 * g_cloud_upkm), cloud_lod(lodb, -6.42)).rgb;
+                (CLOUD_ROT_WARP * ps) / (3.0 * g_cloud_upkm), cloud_lod(lodb, -6.42)).rgb;
             let w_fine = textureSampleLevel(cloud_detail_tex, cloud_tile_sampler,
-                ps / (0.6 * g_cloud_upkm), cloud_lod(lodb, -8.74)).rgb;
+                (CLOUD_ROT_WARP * ps) / (0.6 * g_cloud_upkm), cloud_lod(lodb, -8.74)).rgb;
             ps_b = ps_b + (w_wall - vec3<f32>(0.5)) * 2.0 * (0.12 * g_cloud_upkm)
                 + (w_fine - vec3<f32>(0.5)) * 2.0 * (0.03 * g_cloud_upkm);
         }
     }
     let s = textureSampleLevel(
-        cloud_shape_tex, cloud_tile_sampler, ps_b * g_shape_freq,
+        cloud_shape_tex, cloud_tile_sampler, (CLOUD_ROT_SHAPE * ps_b) * g_shape_freq,
         cloud_lod(lodb, CLOUD_LODC_SHAPE));
     let lofi = s.g * 0.625 + s.b * 0.25 + s.a * 0.125;
     // SINGLE construction (increment 10b): the bake's R channel IS the
@@ -2889,7 +2936,7 @@ fn cloud_carve(
     if (cell_amt > 0.01) {
         // The cell split follows the warped walls (increment B 2.1).
         let c = textureSampleLevel(
-            cloud_shape_tex, cloud_tile_sampler, select(ps, ps_b, field_on) * g_cell_freq,
+            cloud_shape_tex, cloud_tile_sampler, (CLOUD_ROT_CELL * select(ps, ps_b, field_on)) * g_cell_freq,
             cloud_lod(lodb, CLOUD_LODC_CELL));
         // CENTERED at the bake's g-channel mean (increment 11): the split
         // is always on now (its distance fade is deleted), so it must
@@ -3118,7 +3165,7 @@ fn cloud_density_hi(
     // it streaks. Erode HARDER where the body is thin (the 1-base weight):
     // frayed filaments at the edges, solid cores -- erode-edges-keep-cores.
     let fr = textureSampleLevel(
-        cloud_detail_tex, cloud_tile_sampler, cs.ps * g_fray_freq,
+        cloud_detail_tex, cloud_tile_sampler, (CLOUD_ROT_FRAY * cs.ps) * g_fray_freq,
         cloud_lod(lodb, CLOUD_LODC_FRAY));
     let frfbm = fr.r * 0.625 + fr.g * 0.25 + fr.b * 0.125;
     // Bit 16 of the dev pad: fray erosion off (component bisect, v0.1279).
@@ -3150,7 +3197,7 @@ fn cloud_density_hi(
     // distance so orbit stays smooth -- the standard Nubis distance trick.
     if (detail_amt > 0.01 && !built_only) {
         let d = textureSampleLevel(
-            cloud_detail_tex, cloud_tile_sampler, pu0 * g_detail_freq,
+            cloud_detail_tex, cloud_tile_sampler, (CLOUD_ROT_DETAIL * pu0) * g_detail_freq,
             cloud_lod(lodb, CLOUD_LODC_DETAIL));
         let dfbm = d.r * 0.625 + d.g * 0.25 + d.b * 0.125;
         // Crown-weighted (v0.1014): erosion bites up to ~1.5x deeper near
@@ -3179,7 +3226,7 @@ fn cloud_density_hi(
         // Unstretched domain (v0.1012.x fix; pu0 hoisted above since the
         // fine band now shares it).
         let pu = textureSampleLevel(
-            cloud_detail_tex, cloud_tile_sampler, pu0 * g_puff_freq,
+            cloud_detail_tex, cloud_tile_sampler, (CLOUD_ROT_PUFF * pu0) * g_puff_freq,
             cloud_lod(lodb, CLOUD_LODC_PUFF));
         let pufbm = pu.r * 0.625 + pu.g * 0.25 + pu.b * 0.125;
         let phased = mix(pufbm, 1.0 - pufbm, clamp(cs.h * 3.0, 0.0, 1.0));

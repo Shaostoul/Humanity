@@ -51,6 +51,24 @@ const CLOUD_COV_HI: f32 = 0.347;
 const CLOUD_TOP_RISE: f32 = 0.45;
 const CLOUD_BASE_DROP: f32 = 0.35;
 const CLOUD_CELL_SPLIT: f32 = 0.05; // the ball-pit fix, 2026-09-25: see the WGSL constant
+// One fixed rotation per tap, mirroring CLOUD_ROT_* in 40-clouds.wgsl (row-major
+// here, column-major there; generated from one table). Pinned by
+// tap_rotations_match_the_shader.
+const CLOUD_ROT_SHAPE: [[f32; 3]; 3] = [[0.6638551, -0.2472760, 0.7057981], [0.4794821, 0.8649919, -0.1479388], [-0.5739280, 0.4366275, 0.6927937]];
+const CLOUD_ROT_CELL: [[f32; 3]; 3] = [[0.5056037, -0.8591799, -0.0785802], [0.5710358, 0.2649761, 0.7769851], [-0.6467481, -0.4377186, 0.6245953]];
+const CLOUD_ROT_DETAIL: [[f32; 3]; 3] = [[-0.0605021, -0.9741065, 0.2178441], [0.2384278, -0.2260298, -0.9444907], [0.9692738, -0.0052036, 0.2459294]];
+const CLOUD_ROT_PUFF: [[f32; 3]; 3] = [[0.8113137, 0.4544655, 0.3677381], [-0.3934444, 0.8897185, -0.2315223], [-0.4324022, 0.0431527, 0.9006476]];
+const CLOUD_ROT_FRAY: [[f32; 3]; 3] = [[0.5863189, -0.1187036, -0.8013362], [0.8017473, -0.0564891, 0.5949876], [-0.1158939, -0.9913216, 0.0620497]];
+fn scale3(p: [f32; 3], k: f32) -> [f32; 3] {
+    [p[0] * k, p[1] * k, p[2] * k]
+}
+fn tap_rot(m: &[[f32; 3]; 3], p: [f32; 3]) -> [f32; 3] {
+    [
+        m[0][0] * p[0] + m[0][1] * p[1] + m[0][2] * p[2],
+        m[1][0] * p[0] + m[1][1] * p[1] + m[1][2] * p[2],
+        m[2][0] * p[0] + m[2][1] * p[1] + m[2][2] * p[2],
+    ]
+}
 const CLOUD_FRAY_ERODE: f32 = 0.5;
 const CLOUD_FIL_LO: f32 = 0.30;
 const CLOUD_FIL_HI: f32 = 0.74;
@@ -265,7 +283,7 @@ impl<'a> CloudRefCtx<'a> {
         let shape_freq = 1.0 / (CLOUD_SHAPE_TILE_KM * self.upkm);
         let s = self
             .shape
-            .sample([ps[0] * shape_freq, ps[1] * shape_freq, ps[2] * shape_freq]);
+            .sample(scale3(tap_rot(&CLOUD_ROT_SHAPE, ps), shape_freq));
         let lofi = s[1] * 0.625 + s[2] * 0.25 + s[3] * 0.125;
         let body = s[0]; // single construction (10b): bake owns Perlin-Worley
         let tower = smoothstep(0.62, 0.92, lofi);
@@ -284,7 +302,7 @@ impl<'a> CloudRefCtx<'a> {
             let cell_freq = 1.0 / (CLOUD_CELL_TILE_KM * self.upkm);
             let c = self
                 .shape
-                .sample([ps[0] * cell_freq, ps[1] * cell_freq, ps[2] * cell_freq]);
+                .sample(scale3(tap_rot(&CLOUD_ROT_CELL, ps), cell_freq));
             thr += CLOUD_CELL_SPLIT * cell_amt * reg.fine * (0.481 - c[1]); // centered (increment 11)
         }
         let carve = clampf((body - thr) / (0.79 - thr).max(1.0e-3), 0.0, 1.0) * env; // CLOUD_BODY_TOP
@@ -311,7 +329,7 @@ impl<'a> CloudRefCtx<'a> {
         let fray_freq = 1.0 / (CLOUD_FRAY_TILE_KM * self.upkm);
         let fr = self
             .detail
-            .sample([cs.ps[0] * fray_freq, cs.ps[1] * fray_freq, cs.ps[2] * fray_freq]);
+            .sample(scale3(tap_rot(&CLOUD_ROT_FRAY, cs.ps), fray_freq));
         let frfbm = fr[0] * 0.625 + fr[1] * 0.25 + fr[2] * 0.125;
         let erode_c = frfbm * reg.fray * CLOUD_FRAY_ERODE * (0.35 + 0.65 * (1.0 - base));
         base = clampf(remap(base, erode_c, 1.0, 0.0, 1.0), 0.0, 1.0);
@@ -327,11 +345,7 @@ impl<'a> CloudRefCtx<'a> {
         );
         if detail_amt > 0.01 {
             let detail_freq = 1.0 / (CLOUD_DETAIL_TILE_KM * self.upkm);
-            let d = self.detail.sample([
-                pu0[0] * detail_freq,
-                pu0[1] * detail_freq,
-                pu0[2] * detail_freq,
-            ]);
+            let d = self.detail.sample(scale3(tap_rot(&CLOUD_ROT_DETAIL, pu0), detail_freq));
             let dfbm = d[0] * 0.625 + d[1] * 0.25 + d[2] * 0.125;
             let dmod = mixf(dfbm, 1.0 - dfbm, clampf(cs.h * 3.0, 0.0, 1.0))
                 * CLOUD_DETAIL_ERODE
@@ -346,7 +360,7 @@ impl<'a> CloudRefCtx<'a> {
             let puff_freq = 1.0 / (CLOUD_PUFF_TILE_KM * self.upkm);
             let pu = self
                 .detail
-                .sample([pu0[0] * puff_freq, pu0[1] * puff_freq, pu0[2] * puff_freq]);
+                .sample(scale3(tap_rot(&CLOUD_ROT_PUFF, pu0), puff_freq));
             let pufbm = pu[0] * 0.625 + pu[1] * 0.25 + pu[2] * 0.125;
             let phased = mixf(pufbm, 1.0 - pufbm, clampf(cs.h * 3.0, 0.0, 1.0));
             let pmod = phased * CLOUD_PUFF_ERODE * reg.fine * puff_amt * (0.30 + 0.70 * (1.0 - base));
@@ -686,6 +700,46 @@ mod tests {
                 old.0 * 100.0,
                 old.1 * 100.0
             );
+        }
+    }
+
+    /// The per-tap rotations (the repeating-shapes fix, 2026-09-25) must be
+    /// the SAME in the shader and here, or the reference stops marching the
+    /// shipped field. WGSL stores columns, Rust stores rows; compare R[i][j]
+    /// against column j, entry i. Also checks each is a proper rotation.
+    #[test]
+    fn tap_rotations_match_the_shader() {
+        let src = crate::renderer::shader_loader::assembled_pbr_source();
+        for (name, m) in [
+            ("SHAPE", CLOUD_ROT_SHAPE),
+            ("CELL", CLOUD_ROT_CELL),
+            ("DETAIL", CLOUD_ROT_DETAIL),
+            ("PUFF", CLOUD_ROT_PUFF),
+            ("FRAY", CLOUD_ROT_FRAY),
+        ] {
+            let key = format!("const CLOUD_ROT_{name}: mat3x3<f32> = mat3x3<f32>(");
+            let at = src.find(&key).unwrap_or_else(|| panic!("{key} missing from the shader"));
+            let body = &src[at + key.len()..];
+            let end = body.find(");").expect("matrix literal not closed");
+            let nums: Vec<f32> = body[..end]
+                .split(|c: char| !(c.is_ascii_digit() || c == '.' || c == '-'))
+                .filter(|t| t.parse::<f32>().is_ok() && t.contains('.'))
+                .map(|t| t.parse().unwrap())
+                .collect();
+            assert_eq!(nums.len(), 9, "{name}: expected 9 entries, found {nums:?}");
+            for j in 0..3 {
+                for i in 0..3 {
+                    let w = nums[j * 3 + i];
+                    assert!((w - m[i][j]).abs() < 1.0e-6, "{name}[{i}][{j}]: WGSL {w} vs Rust {}", m[i][j]);
+                }
+            }
+            for a in 0..3 {
+                for b in 0..3 {
+                    let d: f32 = (0..3).map(|q| m[q][a] * m[q][b]).sum();
+                    let want = if a == b { 1.0 } else { 0.0 };
+                    assert!((d - want).abs() < 1.0e-5, "{name} is not orthonormal");
+                }
+            }
         }
     }
 

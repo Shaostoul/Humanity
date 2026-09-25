@@ -3749,12 +3749,22 @@ impl Default for GuiState {
             cloud_dev_profile_knob: 0,
             // D3 dev bit: off until its gate passes (the A/B default).
             cloud_dev_top_bound: false,
-            // Unit gain. Chosen because it lands the cloud-to-terrain ratio at
-            // 1.07 against Low tier own 1.08, i.e. it matches an independent
-            // path rather than being tuned to taste. Gain 2.0 was measured too
-            // (ratio 1.16) and is brighter than the reference, so it is not the
-            // physical value.
-            cloud_dev_ms_gain: 1.0,
+            // 1.8 (was 1.0), operator 2026-09-25: clouds "still kind of gray
+            // while in high orbit". The unit gain was chosen because it matched
+            // the Low tier's cloud-to-terrain ratio (1.07 against 1.08), but the
+            // Low tier is only another path, not a physical reference, so
+            // matching it proved consistency and nothing about brightness. The
+            // physical reference is reflectance: a thick sunlit cloud about 0.8,
+            // desert sand 0.35-0.4, so thick cloud should be roughly twice the
+            // sand in linear light, which in this tonemap is about 215-225
+            // against sand near 180 (the 2026-09-25 fidelity review's estimate).
+            // Measured on approach-2000-ms* (Sahara, 2000 km, noon, High), thick
+            // cloud p50 / p90 against sand 181: gain 1.0 199 / 219, 1.6 213 /
+            // 226, 1.8 223 / 232, 2.2 221 / 232 (the ms arms leave the cloud
+            // clock free, so sweeps differ slightly). 1.8 sits in the target;
+            // at 2.2 the surface texture starts to wash out, and at 55 km
+            // (deck-55-oblique-ms18) 1.8 keeps the cauliflower texture intact.
+            cloud_dev_ms_gain: 1.8,
             cloud_dev_int_sat: 0.0,
             cloud_dev_res_div: 4,
             cloud_dev_shape_off: false,

@@ -12399,13 +12399,73 @@
     },
     {
       "id": "deck-55-equator",
-      "desc": "REPEATING SHAPES (operator, 2026-09-25: \"a lot of straight repeating shapes in the clouds... in certain areas the effect is strong\"). The noise-body volumes tile in world space with one shared grid orientation, and the fidelity review predicted the repeat is strongest where a grid axis lies in the ground plane: along the planet-frame equator. A near-overcast stratus deck there fills the frame with texture, so a high-passed autocorrelation (scratchpad hpac.js pattern) shows any tile period as a peak well above the noise floor.",
+      "desc": "REPEATING SHAPES (operator, 2026-09-25: \"a lot of straight repeating shapes in the clouds... in certain areas the effect is strong\"). The noise-body volumes tile in world space with one shared grid orientation, and the fidelity review predicted the repeat is strongest where a grid axis lies in the ground plane: along the planet-frame equator. A near-overcast stratus deck there fills the frame with texture, so a high-passed autocorrelation (scratchpad hpac.js pattern) shows any tile period as a peak well above the noise floor. MEASURED 2026-09-25, high-passed autocorrelation (sigma 4). Before the per-tap rotations: peaks at (0,104), (0,212), (0,316) px, all on the vertical axis (straight north-south rows), the strongest 23x the noise floor; 104 px is about 8 km here, the cell tile. At latitude 20 (deck-55-st) the strongest was 9x, oblique. After (v0.1336.0): the strongest near-repeat is at (-260, 28), about 20 km, still 21.7x, but the peaks no longer lie on one line, so no straight rows form, and a contrast-stretched high-pass shows no striping. Rotation lengthens the shortest repeat (a plane through a 3D lattice nearly contains some lattice direction at moderate length) rather than removing periodicity; stochastic tiling is the step after this if a repeat is ever seen again.",
       "expect": "No autocorrelation peak at a tile period: nothing recurs at a fixed spacing.",
       "regressions": [
         "panics=0"
       ],
       "camera": {"body":"earth","lat":0,"lon":150,"time":12.0,"altitude_km":55,"look_offset_deg":0},
       "showcase": {"clouds":"1","weather":"clear","cloud_cover":"0.8","cloud_type":"0.67","cloud_clock":"120","cloud_no_cell":"0","cloud_no_puff":"0"},
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "approach-2000-ms10",
+      "desc": "GREY FROM ORBIT, calibration arms (operator, 2026-09-25: clouds \"still kind of gray while in high orbit\"). Same camera as approach-2000km-high (Sahara, 2000 km, noon, 40 percent cloud, High tier), so thick cloud and sand share a frame. Physical target: thick cloud reflectance about 0.8 against desert 0.35-0.4, about 2x in linear light, which in this tonemap puts thick cloud near 215-225 against sand near 175. The multiple-scattering gain (cloud_ms_gain, default 1.0) was calibrated to match the Low tier, not physical albedo; these arms differ ONLY in that gain. This arm: gain 1.",
+      "expect": "Thick cloud tops clearly brighter than the sand in the same frame.",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {"body":"earth","lat":23,"lon":13,"altitude_km":2000,"time":12.02},
+      "showcase": {"cloud_quality":"high","clouds":"1","cloud_cover":"0.4","cloud_ms":"1","cloud_ms_gain":"1"},
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "approach-2000-ms16",
+      "desc": "GREY FROM ORBIT, calibration arms (operator, 2026-09-25: clouds \"still kind of gray while in high orbit\"). Same camera as approach-2000km-high (Sahara, 2000 km, noon, 40 percent cloud, High tier), so thick cloud and sand share a frame. Physical target: thick cloud reflectance about 0.8 against desert 0.35-0.4, about 2x in linear light, which in this tonemap puts thick cloud near 215-225 against sand near 175. The multiple-scattering gain (cloud_ms_gain, default 1.0) was calibrated to match the Low tier, not physical albedo; these arms differ ONLY in that gain. This arm: gain 1.6.",
+      "expect": "Thick cloud tops clearly brighter than the sand in the same frame.",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {"body":"earth","lat":23,"lon":13,"altitude_km":2000,"time":12.02},
+      "showcase": {"cloud_quality":"high","clouds":"1","cloud_cover":"0.4","cloud_ms":"1","cloud_ms_gain":"1.6"},
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "approach-2000-ms22",
+      "desc": "GREY FROM ORBIT, calibration arms (operator, 2026-09-25: clouds \"still kind of gray while in high orbit\"). Same camera as approach-2000km-high (Sahara, 2000 km, noon, 40 percent cloud, High tier), so thick cloud and sand share a frame. Physical target: thick cloud reflectance about 0.8 against desert 0.35-0.4, about 2x in linear light, which in this tonemap puts thick cloud near 215-225 against sand near 175. The multiple-scattering gain (cloud_ms_gain, default 1.0) was calibrated to match the Low tier, not physical albedo; these arms differ ONLY in that gain. This arm: gain 2.2.",
+      "expect": "Thick cloud tops clearly brighter than the sand in the same frame.",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {"body":"earth","lat":23,"lon":13,"altitude_km":2000,"time":12.02},
+      "showcase": {"cloud_quality":"high","clouds":"1","cloud_cover":"0.4","cloud_ms":"1","cloud_ms_gain":"2.2"},
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "approach-2000-ms18",
+      "desc": "GREY FROM ORBIT, the chosen gain (1.8, between the measured 1.6 and 2.2 arms) checked where it could hurt: the 55 km oblique deck, where too much multiple scattering would flatten the surface texture restored by the ball-pit fix. This arm: the Sahara frame at gain 1.8.",
+      "expect": "Thick cloud near 215-225 against sand near 180.",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {"body":"earth","lat":23,"lon":13,"altitude_km":2000,"time":12.02},
+      "showcase": {"cloud_quality":"high","clouds":"1","cloud_cover":"0.4","cloud_ms":"1","cloud_ms_gain":"1.8"},
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "deck-55-oblique-ms18",
+      "desc": "GREY FROM ORBIT, the chosen gain (1.8, between the measured 1.6 and 2.2 arms) checked where it could hurt: the 55 km oblique deck, where too much multiple scattering would flatten the surface texture restored by the ball-pit fix. This arm: the 55 km oblique deck at gain 1.8.",
+      "expect": "Merged deck, surface texture still visible, no ball pit.",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {"body":"earth","lat":20,"lon":150,"time":12.0,"altitude_km":55,"look_offset_deg":55},
+      "showcase": {"clouds":"1","weather":"clear","cloud_cover":"0.6","cloud_type":"0.34","cloud_clock":"120","cloud_no_cell":"0","cloud_no_puff":"0","cloud_ms":"1","cloud_ms_gain":"1.8"},
       "settle_s": 12,
       "hold_altitude": true
     }

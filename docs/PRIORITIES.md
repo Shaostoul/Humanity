@@ -274,6 +274,27 @@ at a noon down-look (removed for Ultra already); crevice darkening
 `CLOUD_PUFF_AO`; the per-family `reg.tint` applied from above; built bodies
 as the High default (environment-program increment 16, never done).
 
+**Repeating shapes (operator, 2026-09-25). FIXED in v0.1336.0** with a fixed
+rotation per tiled noise tap, mirrored and pinned in Rust. Confirmed first at
+the planet-frame equator (fixture `deck-55-equator`): straight north-south
+rows every 8 km (the cell tile), 23x the autocorrelation floor. After: no
+straight rows; a 20 km oblique near-repeat remains (rotation lengthens the
+repeat, it cannot remove periodicity). If a repeat is ever seen again, the
+next rung is stochastic (hex) tiling on that tap.
+
+**Grey from orbit (2026-09-25). Multiple-scattering gain 1.0 -> 1.8 in
+v0.1336.0**, calibrated to physical reflectance against the Sahara in the same
+frame (thick cloud p50 199 -> 223 against sand 181). The earlier unit gain was
+matched to the Low tier, which is not a physical reference.
+
+**Found in passing, not yet worked:** the ocean sun glint seen from 55 km is
+crossed by parallel diagonal stripes about 2 km apart, a straight repeating
+pattern in the WATER that may be part of what the operator reported. Cause
+NOT yet checked; one candidate is that the ocean chop trains are axis-aligned
+by design (CLAUDE.md, the water arc), another is sub-pixel wave detail
+aliasing into a moire in the glint. Also rectangular blocks in the
+open-ocean colour at the same range. Fixture `deck-55-nadir` shows both.
+
 **Grey: what was measured.** Thick sunlit decks are NOT dark: forced overcast
 from orbit reads 199 to 234, in range of the review's own 215 to 225 target.
 Cloud median RISES as altitude falls on both ladders tried (broken coverage: 58,

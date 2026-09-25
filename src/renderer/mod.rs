@@ -2001,7 +2001,7 @@ impl Renderer {
             cloud_pix_ang_march: std::cell::Cell::new(0.0),
             weather_map_gen: std::cell::Cell::new(0),
             white_view,
-            cloud_ms_gain: 1.0,
+            cloud_ms_gain: 1.8, // overwritten each frame from gui_state; kept equal to its default (gui/mod.rs, 2026-09-25)
             cloud_int_sat: 0.0,
             cloud_discard_diag: false,
             ssao_strength: 0.55,
