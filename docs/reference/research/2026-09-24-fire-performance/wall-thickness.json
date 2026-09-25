@@ -1,0 +1,501 @@
+{
+ "summary_answer": "Research date 2026-09-24. Everything below comes from public maker and stockist pages plus my own arithmetic. None of it is engineering advice.\n\nOUTER DIAMETER. Contact staffs are built on 7/8 in (22 mm), 3/4 in (19 mm) or 5/8 in (16 mm) tube. 3/4 in and 5/8 in are the common US sizes, and Dark Monk calls 3/4 in the US standard for contact staffs. Outside the US, the makers I found mostly use 20 to 22 mm: Threeworlds and Spinsterz sell 22 mm, and Threeworlds' Isis Pro is 20 mm. Dragon staffs are mostly 7/8 in (22 mm) and sometimes 1 in (25 mm). Double staffs are usually 1/2 in (13 mm); Sacred Flow Art's is 15 mm. Spin staffs are 3/4 or 7/8 in. How the diameter feels, according to makers: a thinner tube rolls across the body more slowly, which gives more control, and suits pressure and wrist moves. A fatter tube is easier to grab, rolls faster and flexes less. Dark Monk says 3/4 in is thick enough not to be springy or bend easily. My guess, not from any source, is that 3/4 in leads in the US because it is standard imperial stock, and 19 mm is its metric twin.\n\nWALL THICKNESS. Most staff makers do not publish their wall thickness. The ones that do:\n- Dark Monk sells 7075-T6 tube from 13 to 25 mm with a 1.4 mm wall, and says its 1.1 mm walls are not recommended for contact staffs.\n- Ninja Pyrate sells 3/4 in x 0.056 in 7075-T6. Buy Fire Fans sells 19.1 x 1.4 mm.\n- Threeworlds' Isis Pro uses 20 mm x 1.6 mm 6063.\n- Carbon fibre tubes run 1.5 to 2 mm walls.\n- Master Flow Arts' rule for hardware-store aluminium is at least 1.6 mm (0.06 in) of wall, or the tube bends very easily.\nHardware-store tube is usually 6063, the grade used for fences and handrails. Its minimum yield strength is about 97 MPa in the T5 temper, against 240 MPa for 6061-T6. That is why the soft tube needs a thicker wall.\n\nSIZES YOU CAN BUY.\n- US 6061-T6 (Speedy Metals): 5/8 in in .058/.065 walls; 3/4 in in .035/.049/.065/.083; 7/8 in in .049/.065; 1 in in .035 to .083. Online Metals also lists 3/4 in in .049/.058/.065.\n- UK metric (KIMetals): 19x1.2, 19x1.6, 20x1.5, 20x2, 22.2x1.6, 25x1.5, 25x2 and 25.4x1.2/1.6/2 mm, in 6082, 6063 or 6060.\n- Titanium grade 2 (Tiger Titanium): 3/4 in x .035 and .049, seamless and annealed, at $1.85 and $1.75 per inch. That is about $105 to $111 for 5 ft.\n- Titanium grade 9 (Ti-Shop, UK): 3/4 in in .032 to .085 walls. A 48 in length of .032 costs €242.95.\n- CP grade 1 titanium tube: Tiger Titanium's grade 1 page listed only one item, at 1.375 in OD. Nothing in staff sizes.\n- Stainless 304, annealed (Speedy Metals): 3/4 in x .049 costs $25.91 for 60 in. 3/4 in x .065 costs $30 for 60 in and weighs 2.40 lb.\n- Aluminium prices: 6061-T6 3/4 in x .065 costs $11.51 for 72 in, but .049 costs $28.51, so the thinner wall is not the cheaper one. Dark Monk's 7075 is $63 for 72 in. Ninja Pyrate's is $30 for 64 in.\n\nWEIGHT AND STIFFNESS, from my arithmetic. I checked this against Speedy Metals' listed weights and it matches. For a bare 5 ft tube:\n- 6061 aluminium, 3/4 in: .035 wall about 209 g, .049 about 286 g, .058 about 335 g, .065 about 371 g.\n- Titanium grade 9, 3/4 in x .035: about 346 g. It is about as stiff as 3/4 x .058 aluminium.\n- Stainless 304, 3/4 in: .049 wall about 838 g, .065 about 1087 g. That is about 2.5 to 3 times as stiff as 3/4 x .058 aluminium.\nThe outer diameter matters much more for stiffness than the wall. Going from 3/4 to 7/8 in at the same wall makes the tube about 64% stiffer. Going from a .049 to a .065 wall makes it about 24% stiffer. All aluminium alloys have nearly the same stiffness and weight, so 7075 is not stiffer than 6061. It is only harder to bend or dent permanently. Moving from a .035 to a .065 wall adds about 160 g to the middle of the staff. Master Flow Arts puts a typical end weight at 100 to 300 g, so that is roughly one end weight's worth, and Dark Monk notes that it changes how the staff feels to spin.\n\nINSIDE DIAMETER. Inside diameter is the outer diameter minus two walls, and it decides what fits inside.\n- End plugs: Dark Monk says 3/4 in tube takes a 5/8 in wooden dowel and 5/8 in tube takes a 1/2 in dowel. Hardware 3/4 x 1/16 in tube has an exactly 5/8 in inside, so a dowel will be a tight fit or will not go in.\n- LED inserts: standard Flowtoys LED capsules are 21 mm across. They cannot fit inside any 3/4 or 7/8 in metal staff, because those insides are about 16 to 19.7 mm. LED staffs use 1 in (7/8 in inside) polycarbonate tube instead.\n- Telescoping: a 7/8 x .058 in sleeve slides over 3/4 in tube with about 0.009 in of clearance.\n\nI did not find any published measurement of how dent resistance relates to wall thickness. My rough estimate is marked low confidence in the findings.",
+ "findings": [
+  {
+   "claim": "Contact staffs are built on three main outer diameters, 7/8 in (22 mm), 3/4 in (19 mm) and 5/8 in (16 mm). 3/4 in and 5/8 in are the more common sizes in the US. One US maker calls 3/4 in the US standard.",
+   "confidence": "high",
+   "sources": [
+    {
+     "url": "https://bonoboflow.com/how-to-choose-the-right-staff-diameter/",
+     "quote": "The three most common diameters are 7/8\" (22mm), 3/4\" (19mm), and 5/8\" (16mm)",
+     "source_date": "2024-02-20"
+    },
+    {
+     "url": "https://bonoboflow.com/how-to-choose-the-right-staff-diameter/",
+     "quote": "3/4″ and 5/8″ are more common in the USA",
+     "source_date": "2024-02-20"
+    },
+    {
+     "url": "https://dark-monk.com/Article/Comparing-Aluminum-CarbonFiber-Contact-Staff",
+     "quote": "¾\" diameter has become the standard for contact staves in the US",
+     "source_date": "undated (accessed 2026-09-24)"
+    }
+   ],
+   "caveats": "Dark Monk's article says 'over the last 4 years' but carries no date, so that period cannot be pinned down. I did not find a source that explains why 3/4 in dominates. That it is standard imperial stock, with 19 mm as its metric twin, is my inference."
+  },
+  {
+   "claim": "Outside the US, the makers I found mostly use 20 to 22 mm tube. Threeworlds (Australia) sells a 22 mm Matrix contact staff and a 20 mm Isis Pro. The Spinsterz Fusion is 7/8 in (22 mm). Renegade Juggling's aluminium staff is 20 mm. The Flowbonacci dragon staff (Spain) is 22 mm.",
+   "confidence": "medium",
+   "sources": [
+    {
+     "url": "https://www.threeworlds.com.au/products/matrix-contact-fire-staff",
+     "quote": "22mm Anodised Aluminium",
+     "source_date": "accessed 2026-09-24"
+    },
+    {
+     "url": "https://www.threeworlds.com.au/products/isis-pro-fire-staff",
+     "quote": "Black Anodised 6063 Aluminium Tube Diameter = 20mm Wall Thickness = 1.6mm",
+     "source_date": "accessed 2026-09-24"
+    },
+    {
+     "url": "https://thespinsterz.com/products/fusion-fire-contact-staff",
+     "quote": "7/8 inch (22mm)",
+     "source_date": "accessed 2026-09-24"
+    },
+    {
+     "url": "https://renegadejuggling.com/products/aluminum-fire-staff-eight-inch-wicks",
+     "quote": "tubing diameter of 20mm ( 3/4 inch approximately)",
+     "source_date": "accessed 2026-09-24"
+    }
+   ],
+   "caveats": "This is a small sample of makers, not a survey. I have only a search snippet for Pyroterra's 22 mm LED staff and could not open the page, so I left it out."
+  },
+  {
+   "claim": "Dragon staffs are mostly 7/8 in (22 mm). 1 in (25 mm) is becoming less common, and a few people use 3/4 in. Double staffs are most often 1/2 in (13 mm), and spin staffs 7/8 or 3/4 in. Examples: Sacred Flow Art's dragon staff is 7/8 in 6082 aluminium and weighs 1.2 to 1.5 kg; its fire double staffs are 15 mm OD 6082 at 375 g each.",
+   "confidence": "high",
+   "sources": [
+    {
+     "url": "https://bonoboflow.com/how-to-choose-the-right-staff-diameter/",
+     "quote": "Dragon staffs are most commonly built using 7/8\" (22mm) tubing",
+     "source_date": "2024-02-20"
+    },
+    {
+     "url": "https://bonoboflow.com/how-to-choose-the-right-staff-diameter/",
+     "quote": "The most common double staff diameter is 1/2\" (13mm)",
+     "source_date": "2024-02-20"
+    },
+    {
+     "url": "https://sacredflowart.com/product/fire-dragon-staff/",
+     "quote": "6082 Aluminum Alloy",
+     "source_date": "accessed 2026-09-24"
+    },
+    {
+     "url": "https://www.homeofpoi.com/us/help/faq/3/159",
+     "quote": "thicker, stronger, and heavier 'Contact' style pipe",
+     "source_date": "undated (accessed 2026-09-24)"
+    }
+   ],
+   "caveats": "Sacred Flow Art's dragon staff diameter (7/8 in) and double staff diameter (15 mm) come from their product pages. Neither page gives a wall thickness."
+  },
+  {
+   "claim": "Makers say diameter changes the feel as follows. A smaller tube rolls across the body more slowly, which gives more control, and suits traps and wrist moves. A larger tube is easier to grab, adds a little weight, and starts and stops rolling quickly. 3/4 in is presented as the middle ground.",
+   "confidence": "high",
+   "sources": [
+    {
+     "url": "https://bonoboflow.com/how-to-choose-the-right-staff-diameter/",
+     "quote": "Smaller diameter staff rotates faster but rolls more slowly",
+     "source_date": "2024-02-20"
+    },
+    {
+     "url": "https://bonoboflow.com/how-to-choose-the-right-staff-diameter/",
+     "quote": "it's also thicker and easier to grab onto",
+     "source_date": "2024-02-20"
+    },
+    {
+     "url": "https://www.masterflowarts.com/contact-staff/choosing-a-contact-staff",
+     "quote": "the staff will start and stop rolling very quickly",
+     "source_date": "undated (accessed 2026-09-24)"
+    },
+    {
+     "url": "https://dark-monk.com/Equipment/Fire-Contact-Staff",
+     "quote": "isn't so thin that the staff is springy or easily bends",
+     "source_date": "accessed 2026-09-24"
+    }
+   ],
+   "caveats": "This is practitioner consensus, not measurement. Nothing I found gives a hand-size to diameter chart. The advice is qualitative: thinner for control and technical contact work, thicker for grip."
+  },
+  {
+   "claim": "Here is what flow-arts suppliers publish for wall thickness. Dark Monk's 7075-T6 staff tube is 1.4 mm wall at 13 to 25 mm OD, and it says its 1.1 mm walls are not for contact staffs. Ninja Pyrate sells 3/4 in x 0.056 in (1.42 mm) 7075-T6. Buy Fire Fans sells 19.1 mm x 1.4 mm. Threeworlds' Isis Pro uses 20 mm x 1.6 mm 6063. Most big makers publish no wall thickness at all, including Sacred Flow Art, Spinsterz, the Threeworlds Matrix and Renegade.",
+   "confidence": "high",
+   "sources": [
+    {
+     "url": "https://dark-monk.com/Equipment/Aluminum-Tubing",
+     "quote": "We do not recommend the 1.1mm wall thicknesses for contact staves.",
+     "source_date": "accessed 2026-09-24"
+    },
+    {
+     "url": "https://ninjapyrate.com/7075-t6-aluminum-tubing/",
+     "quote": "black anodized 7075 T6 Aluminum tubes",
+     "source_date": "accessed 2026-09-24"
+    },
+    {
+     "url": "https://buyfirefans.com/product/7075-t6-aluminum-fire-staff-tubing/",
+     "quote": "twice as strong as 6061-T6 aluminum",
+     "source_date": "accessed 2026-09-24"
+    },
+    {
+     "url": "https://www.threeworlds.com.au/products/isis-pro-fire-staff",
+     "quote": "Wall Thickness = 1.6mm",
+     "source_date": "accessed 2026-09-24"
+    }
+   ],
+   "caveats": "The 1.4 mm figure is how much wall 7075-T6 needs. Softer alloys need more. For Ninja Pyrate and Buy Fire Fans, the dimensions come from the fetched page's spec table and the quote is their marketing line."
+  },
+  {
+   "claim": "The maker rule for hardware-store aluminium is a wall of at least 1.6 mm (0.06 in). Cheap hardware or conduit tube makes a working practice staff but bends more easily when dropped.",
+   "confidence": "medium",
+   "sources": [
+    {
+     "url": "https://www.masterflowarts.com/contact-staff/choosing-a-contact-staff",
+     "quote": "at least 1.6mm (0.06\") wall thickness or it will bend very easily",
+     "source_date": "undated (accessed 2026-09-24)"
+    },
+    {
+     "url": "https://flowartsinstitute.com/beau-staff/",
+     "quote": "perfectly functional, albeit more likely to bend when dropped",
+     "source_date": "undated (accessed 2026-09-24)"
+    }
+   ],
+   "caveats": "The 1.6 mm threshold comes from one teacher's rule of thumb. It is not tested. It agrees with Threeworlds building on 1.6 mm 6063."
+  },
+  {
+   "claim": "Hardware and architectural tube is usually 6063, which is much softer than 6061-T6 or 7075-T6. Its minimum yield strength is about 97 MPa in the T5 temper and 160 MPa in T6, against at least 240 MPa for 6061-T6. A typical hardware size is 3/4 in x 1/16 in x 72 in, sold for fencing and handrails.",
+   "confidence": "medium",
+   "sources": [
+    {
+     "url": "https://orangealuminum.com/rt630750063/",
+     "quote": "6063-T5",
+     "source_date": "accessed 2026-09-24"
+    },
+    {
+     "url": "https://en.wikipedia.org/wiki/6063_aluminium_alloy",
+     "quote": "yield strength of at least 97 MPa (14,000 psi)",
+     "source_date": "accessed 2026-09-24"
+    },
+    {
+     "url": "https://en.wikipedia.org/wiki/6061_aluminium_alloy",
+     "quote": "at least 240 MPa (35 ksi)",
+     "source_date": "accessed 2026-09-24"
+    },
+    {
+     "url": "https://www.metalsupermarkets.com/grade-guide-aluminum-6061-vs-6063/",
+     "quote": "high strength is not a major factor",
+     "source_date": "2022-07-25"
+    }
+   ],
+   "caveats": "The National Hardware 3/4 x 1/16 x 72 in tube sold through True Value does not state its alloy on the listings I saw, so a given hardware tube may not be 6063. The strength numbers are from Wikipedia, a secondary source, because the ASM/MatWeb and ASTM pages would not load."
+  },
+  {
+   "claim": "US stock sizes in 6061-T6 round tube at Speedy Metals: 5/8 in OD in .058/.065/.125 walls; 3/4 in in .035/.049/.065/.083/.125; 7/8 in in .049/.065/.120; 1 in in .035/.049/.058/.065/.083/.125/.250. Online Metals lists 3/4 in in .049, .058 and .065 drawn tube, with inside diameters of 0.652, 0.634 and 0.620 in.",
+   "confidence": "high",
+   "sources": [
+    {
+     "url": "https://www.speedymetals.com/c-8371-round-tube.aspx",
+     "quote": "3/4\" OD x 0.620\" ID x .065\" Wall 6061 Aluminum Round Tube",
+     "source_date": "accessed 2026-09-24"
+    },
+    {
+     "url": "https://www.onlinemetals.com/en/buy/aluminum/0-75-od-x-0-058-wall-x-0-634-id-aluminum-round-tube-6061-t6-drawn/pid/4784",
+     "quote": "3/4\" OD x 0.058\" Wall x 0.634\" ID Alum Round Tube 6061-T6-Drawn",
+     "source_date": "accessed 2026-09-24 (title via search; page blocked)"
+    }
+   ],
+   "caveats": "Speedy Metals did not list 3/4 x .058 or 7/8 x .058, although Online Metals shows 3/4 x .058. The quote for the Speedy size list is the product title from the linked 3/4 in x .065 page. What is in stock changes."
+  },
+  {
+   "claim": "Metric stock at a UK stockist (KIMetals), sold cut to length: 19x1.2, 19x1.6, 19x3.2, 20x1.5, 20x2, 22.2x1.6, 25x1.5, 25x2, and 25.4x1.2/1.6/2 mm. The alloy is 6082-T6, 6063-T6 or 6060-T66, depending on size and stock.",
+   "confidence": "high",
+   "sources": [
+    {
+     "url": "https://kimetals.co.uk/materials/aluminium/aluminium-round-tubes/kim144773",
+     "quote": "EN AW-6082 T6, EN AW-6063 T6 or EN AW-6060 T66",
+     "source_date": "accessed 2026-09-24"
+    }
+   ],
+   "caveats": "The alloy depends on stock, so a buyer cannot be sure of getting 6082. The 19x1.2 price (£3.77 ex VAT) is shown per 'length', but the length it covers is unclear. Plain 22 mm and 1.0 mm walls were not in this stockist's list."
+  },
+  {
+   "claim": "Titanium in staff sizes. Tiger Titanium stocks CP grade 2 tube at 0.750 in x 0.035 and 0.049 in, seamless, annealed, ASTM B338, at $1.85 and $1.75 per inch. That works out to about $111 and $105 for 60 in. Ti-Shop (UK) stocks grade 9 (Ti-3Al-2.5V) at 3/4 in with 0.032, 0.035, 0.052, 0.065 and 0.085 in walls. Its 3/4 x 0.032 in tube costs €242.95 for 48 in. Tiger Titanium's CP grade 1 page listed only one tube, at 1.375 in OD.",
+   "confidence": "high",
+   "sources": [
+    {
+     "url": "https://www.tigertitanium.com/storek/Tube/CP-Grade-2",
+     "quote": "Seam=Seamless Condition=ANNEALED Cert=ASTM B338",
+     "source_date": "accessed 2026-09-24"
+    },
+    {
+     "url": "https://ti-shop.com/products/titanium-grade9-19-05mm-0-75-od-x-0-8128mm-0-032-wall",
+     "quote": "UNS R56320; ASTM B338 Grade 9",
+     "source_date": "accessed 2026-09-24"
+    },
+    {
+     "url": "https://www.tigertitanium.com/storek/Tube/CP-Grade-1",
+     "quote": "Found 1 Items",
+     "source_date": "accessed 2026-09-24"
+    }
+   ],
+   "caveats": "That grade 1 is scarce in staff sizes rests on one stockist on one day. Grade 1 is the softest commercially pure grade. On price, titanium is roughly 4 to 10 times the cost of 6061 in these listings, even before shipping."
+  },
+  {
+   "claim": "Stainless 304 is easy to buy in staff sizes and cheap, but heavy. At Speedy Metals, annealed 304 at 3/4 in x .049 costs $25.91 for 60 in (0.0309 lb per inch, about 1.85 lb). At 3/4 in x .065 it costs $30.00 for 60 in and weighs 2.40 lb. The 304 datasheet gives a density of 0.285 lb/in³, a stiffness (elastic modulus) of 29 million psi and a representative yield of 30 ksi.",
+   "confidence": "high",
+   "sources": [
+    {
+     "url": "https://www.speedymetals.com/pc-4477-8276-34-od-x-0065-wall-tube-304-stainless-steel-annealed.aspx",
+     "quote": "3/4\" OD x 0.620\" ID x .065\" Wall 304 Stainless Steel Tube (Tubing), Annealed",
+     "source_date": "accessed 2026-09-24"
+    },
+    {
+     "url": "https://www.speedymetals.com/pc-4476-8276-34-od-x-0049-wall-tube-304-stainless-steel-annealed.aspx",
+     "quote": "3/4\" OD x 0.652\" ID x .049\" 304 Stainless Steel Round Tube",
+     "source_date": "accessed 2026-09-24"
+    },
+    {
+     "url": "https://www.rolledalloys.com/wp-content/uploads/304-304L_stainless-steel-data-sheet-rolled-alloys.pdf",
+     "quote": "Density: 0.285 lb/in3",
+     "source_date": "2012-07 (bulletin 1029USe 07/12)"
+    }
+   ],
+   "caveats": "Annealed 304 starts to yield at a lower stress than 6061-T6, about 30 ksi against 35 to 40 ksi. It hardens as it is worked and is very ductile, so it tends to dent or bend rather than crack. Heat and fume questions for stainless are outside this wall-thickness brief."
+  },
+  {
+   "claim": "Aluminium prices on 2026-09-24:\n- Speedy Metals 6061-T6, 3/4 in x .065: $11.51 for 72 in.\n- Speedy Metals 6061-T6, 3/4 in x .049: $28.51 for 72 in. The thinner wall costs more, because that size is less common stock.\n- Dark Monk 7075-T6: $63 per 72 in length.\n- Ninja Pyrate 7075-T6, 3/4 in: $30 for 64 in.\n- Fire Mecca hard-anodised 6061-T6: $6.67 per foot.",
+   "confidence": "high",
+   "sources": [
+    {
+     "url": "https://www.speedymetals.com/pc-4565-8371-34-od-x-0065-wall-tube-6061-t6-aluminum.aspx",
+     "quote": "3/4\" OD x 0.620\" ID x .065\" Wall 6061-T6 Aluminum Tube",
+     "source_date": "accessed 2026-09-24"
+    },
+    {
+     "url": "https://www.speedymetals.com/ps-4564-193-34-od-x-0049-wall-tube-6061-t6-aluminum.aspx",
+     "quote": "3/4\" OD x 0.652\" ID x .049\" Wall 6061 Aluminum Round Tube",
+     "source_date": "accessed 2026-09-24"
+    },
+    {
+     "url": "https://dark-monk.com/Equipment/Aluminum-Tubing",
+     "quote": "All tubes are 72\" in length.",
+     "source_date": "accessed 2026-09-24"
+    },
+    {
+     "url": "https://firemecca.com/products/aluminum-staff-tubing",
+     "quote": "These two will nicely telescope",
+     "source_date": "accessed 2026-09-24"
+    }
+   ],
+   "caveats": "Prices are before shipping, and long tubes can cost a lot to ship. Fire Mecca does not publish its wall thicknesses."
+  },
+  {
+   "claim": "All aluminium alloys weigh about the same for the same tube size, at about 2.7 g/cm³. Titanium grade 9 is 4.51 g/cm³, about 1.7 times aluminium. Stainless 304 is about 7.9 g/cm³, about 2.9 times aluminium. So the same 3/4 in tube is roughly 1.7 times heavier in titanium and 2.9 times heavier in stainless.",
+   "confidence": "high",
+   "sources": [
+    {
+     "url": "https://dark-monk.com/Equipment/Aluminum-Tubing",
+     "quote": "7075-T6 aluminum will weigh the same as 6061-T6 aluminum",
+     "source_date": "accessed 2026-09-24"
+    },
+    {
+     "url": "https://www.alleima.com/en/technical-center/material-datasheets/tube-and-pipe-seamless/sandvik-ti-grade-9/",
+     "quote": "0.162 lbs/in³, 4.51 g/cm³",
+     "source_date": "accessed 2026-09-24"
+    },
+    {
+     "url": "https://en.wikipedia.org/wiki/6061_aluminium_alloy",
+     "quote": "2.70 g/cm3",
+     "source_date": "accessed 2026-09-24"
+    }
+   ],
+   "caveats": "7075 is about 2.81 g/cm³, around 4% heavier than 6061. That is not something you would feel in a staff."
+  },
+  {
+   "claim": "My calculation of bare 5 ft (1.524 m) tube weights. Inside diameters are in brackets. Checked against Speedy Metals' listed weights: 6061 3/4x.065 at 60 in lists 0.822 lb (calc 0.82), and 304 3/4x.065 lists 2.40 lb (calc 2.40).\n- 6061, 3/4 in: x.035 209 g (ID 0.680 in); x.049 286 g (0.652); x.058 335 g (0.634); x.065 371 g (0.620); x.083 462 g (0.584).\n- 6061, 5/8 in x.058: 274 g (0.509).\n- 6061, 7/8 in: x.049 338 g (0.777); x.058 395 g (0.759).\n- 6061, 1 in x.049: 389 g (0.902).\n- 7075, 19.1x1.4 mm: 333 g (16.3 mm). 22x1.4 mm: 388 g (19.2 mm).\n- Titanium grade 2, 3/4 in: x.035 349 g; x.049 479 g.\n- Titanium grade 9, 3/4 in x.032: 318 g.\n- Stainless 304, 3/4 in: x.035 611 g; x.049 838 g; x.065 1087 g.",
+   "confidence": "high",
+   "sources": [
+    {
+     "url": "https://www.speedymetals.com/pc-4565-8371-34-od-x-0065-wall-tube-6061-t6-aluminum.aspx",
+     "quote": "3/4\" OD x 0.620\" ID x .065\" Wall 6061-T6 Aluminum Tube",
+     "source_date": "accessed 2026-09-24"
+    },
+    {
+     "url": "https://www.speedymetals.com/pc-4477-8276-34-od-x-0065-wall-tube-304-stainless-steel-annealed.aspx",
+     "quote": "3/4\" OD x 0.620\" ID x .065\" Wall 304 Stainless Steel Tube (Tubing), Annealed",
+     "source_date": "accessed 2026-09-24"
+    }
+   ],
+   "caveats": "This is my own arithmetic from nominal sizes and datasheet densities, not a published table. The quotes are the product titles of the pages whose listed weights I checked against. Real tubes vary within tolerance. These are bare-tube weights: a finished staff with grip, wicks and hardware is typically 650 to 850 g for a contact staff and 1.2 to 1.5 kg for a dragon staff (Threeworlds, Spinsterz and Sacred Flow Art listings)."
+  },
+  {
+   "claim": "The outer diameter sets stiffness much more than the wall does. Makers say it qualitatively, and the arithmetic agrees. Against 6061 3/4 x .058 as 1.00: 3/4 x .035 is 0.66, 3/4 x .049 is 0.88, 3/4 x .065 is 1.09, 7/8 x .058 is 1.64, and 1 x .049 is 2.18. Titanium grade 9 3/4 x .035 is about 0.96, similar at a similar weight. Stainless 3/4 x .049 is about 2.45. All aluminium alloys are about equally stiff, so 7075 does not flex less than 6061 of the same size. It only resists permanent bending better.",
+   "confidence": "high",
+   "sources": [
+    {
+     "url": "https://dark-monk.com/Equipment/Aluminum-Tubing",
+     "quote": "Larger outer diameter tube is less flexible than narrower outer diameter tube.",
+     "source_date": "accessed 2026-09-24"
+    },
+    {
+     "url": "https://dark-monk.com/Equipment/Aluminum-Tubing",
+     "quote": "increasing the wall thickness can also decrease flexibility slightly",
+     "source_date": "accessed 2026-09-24"
+    },
+    {
+     "url": "https://www.alleima.com/en/technical-center/material-datasheets/tube-and-pipe-seamless/sandvik-ti-grade-9/",
+     "quote": "14.5 x 10⁶ psi, 100 GPa",
+     "source_date": "accessed 2026-09-24"
+    }
+   ],
+   "caveats": "The stiffness ratios are my calculation. I used a modulus of 69 GPa for aluminium, which is about 10.0 million psi, from Wikipedia and Dark Monk's statement that alloys are similar. I used 100 to 103 GPa for titanium grade 9 (Alleima) and 29 million psi for 304 (Rolled Alloys). Some flex or 'bounce' is liked by some spinners, so stiffer is not automatically better."
+  },
+  {
+   "claim": "The wall shifts weight between the middle of the staff and its ends. Going from a .035 to a .065 wall on a 5 ft 3/4 in tube adds about 160 g along the middle. Master Flow Arts puts a typical end weight at 100 to 300 g, so that is about one end weight. It makes the staff feel less end-heavy and changes how it spins.",
+   "confidence": "medium",
+   "sources": [
+    {
+     "url": "https://dark-monk.com/Article/Comparing-Aluminum-CarbonFiber-Contact-Staff",
+     "quote": "The thicker the wall, the greater the overall weight",
+     "source_date": "undated (accessed 2026-09-24)"
+    },
+    {
+     "url": "https://www.masterflowarts.com/contact-staff/choosing-a-contact-staff",
+     "quote": "Somewhere between 100g and 300g (4-10oz).",
+     "source_date": "undated (accessed 2026-09-24)"
+    }
+   ],
+   "caveats": "The 160 g figure is my arithmetic. How much you feel it is subjective."
+  },
+  {
+   "claim": "DENT RESISTANCE, my rough engineering estimate (not a published measurement). How hard a round tube is to crush or dent scales roughly with the alloy's yield strength times wall thickness squared, divided by the diameter. Against 6061-T6 3/4 x .058 as 1.0:\n- hardware 6063-T5 3/4 x 1/16: about 0.5, despite a similar wall\n- 7075-T6 19.1 x 1.4 mm: about 1.8\n- 7075-T6 at 1.1 mm: about 1.1\n- annealed titanium grade 9 3/4 x .035: about 0.7\n- annealed 304 stainless 3/4 x .049: about 0.6\nSo a soft alloy needs a thicker wall. That fits the makers' advice: at least 1.6 mm for hardware aluminium, and 1.4 mm being enough for 7075.",
+   "confidence": "low",
+   "sources": [
+    {
+     "url": "https://en.wikipedia.org/wiki/6063_aluminium_alloy",
+     "quote": "yield strength of at least 97 MPa (14,000 psi)",
+     "source_date": "accessed 2026-09-24"
+    },
+    {
+     "url": "https://www.alleima.com/en/technical-center/material-datasheets/tube-and-pipe-seamless/sandvik-ti-grade-9/",
+     "quote": "70 ksi, 483 MPa",
+     "source_date": "accessed 2026-09-24"
+    },
+    {
+     "url": "https://www.rolledalloys.com/wp-content/uploads/304-304L_stainless-steel-data-sheet-rolled-alloys.pdf",
+     "quote": "0.2% Yield Strength, ksi 30",
+     "source_date": "2012-07"
+    }
+   ],
+   "caveats": "This is my simplified estimate and ignores several real effects. Stainless and titanium harden a lot as they deform and are very ductile, so they dent without cracking. Real drops are impacts, not slow crushes. The 7075 yield figure uses Dark Monk's 'twice as strong as 6061-T6' claim, not a datasheet. Do not present these numbers as measured."
+  },
+  {
+   "claim": "The inside diameter decides what end plugs and weights fit. Dark Monk says 3/4 in tube takes a 5/8 in wooden dowel and 5/8 in tube takes a 1/2 in dowel. Hardware 3/4 x 1/16 in tube has an inside of exactly 5/8 in (0.625), so a 5/8 in dowel is a tight fit or will not go in. Thinner walls give a bigger inside diameter: 3/4 x .035 is 0.680 in and 3/4 x .065 is 0.620 in. Makers weight staffs with tube plugs, wicks and LEDs.",
+   "confidence": "high",
+   "sources": [
+    {
+     "url": "https://dark-monk.com/Equipment/Aluminum-Tubing",
+     "quote": "the ID of the 3/4\" aluminum fits 5/8\" wooden dowels",
+     "source_date": "accessed 2026-09-24"
+    },
+    {
+     "url": "https://orangealuminum.com/rt630750063/",
+     "quote": "Inside Diameter 5/8\"",
+     "source_date": "accessed 2026-09-24"
+    },
+    {
+     "url": "https://bonoboflow.com/what-is-a-contact-staff/",
+     "quote": "tube plugs (wood/metal), kevlar wicking, LEDs, or other attachments",
+     "source_date": "2023-07-01"
+    }
+   ],
+   "caveats": "Dowel diameters vary by wood, humidity and supplier. Measure the tube's inside and the plug before buying in bulk."
+  },
+  {
+   "claim": "Standard LED capsules do not fit inside metal 3/4 in or 7/8 in staffs. Flowtoys' Capsule 2.C is 21 mm across and 88 mm long, and Flowtoys' own staff tube is 1 in OD x 7/8 in ID polycarbonate. The inside of a 3/4 in metal tube is about 15.7 to 17.3 mm, and 7/8 in is about 18.9 to 19.7 mm. Commercial LED staffs use plastic tube instead; the Firetoys Echo Trace, for example, is 22 mm with 2 mm walls and weighs 290 to 320 g.",
+   "confidence": "medium",
+   "sources": [
+    {
+     "url": "https://flowtoys.com/products/capsule-light-2c",
+     "quote": "21mm",
+     "source_date": "accessed 2026-09-24"
+    },
+    {
+     "url": "https://flowtoys.com/products/tubes",
+     "quote": "Made of polycarbonate - the most durable clear plastic available",
+     "source_date": "accessed 2026-09-24"
+    },
+    {
+     "url": "https://www.firetoys.eu/products/echo-trace-3-part-led-staff-usb-multifunction",
+     "quote": "super tough semi-clear plastic with 2mm thick walls",
+     "source_date": "accessed 2026-09-24"
+    }
+   ],
+   "caveats": "By arithmetic, a 1 in x .049 metal tube (22.9 mm inside) could take a 21 mm capsule, but I have not seen anyone confirm this. Other LED end-inserts made for 3/4 in staffs may exist; I did not survey them."
+  },
+  {
+   "claim": "Telescoping and sleeves depend on the exact wall. Fire Mecca says its 3/4 in and 7/8 in tubes telescope. The arithmetic works only with the right wall:\n- 7/8 x .058 (0.759 in inside) slides over 3/4 in with about 0.009 in of clearance.\n- 7/8 x .049 (0.777 in) is loose.\n- 7/8 x .065 (0.745 in) will not fit.\nDark Monk's collapsible ends fit a 22 mm centre section.",
+   "confidence": "medium",
+   "sources": [
+    {
+     "url": "https://firemecca.com/products/aluminum-staff-tubing",
+     "quote": "These two will nicely telescope",
+     "source_date": "accessed 2026-09-24"
+    },
+    {
+     "url": "https://dark-monk.com/Equipment/Fusion-Collapsible-Ends",
+     "quote": "22mm diameter Fusion collapsible staff center",
+     "source_date": "accessed 2026-09-24"
+    }
+   ],
+   "caveats": "The clearances are my arithmetic from nominal sizes. Fire Mecca does not state its wall thicknesses."
+  },
+  {
+   "claim": "Carbon fibre is the lighter, stiffer alternative, but it needs metal protection near the flame. Dark Monk sells 16/19/22 mm carbon fibre tube with 2 mm walls, plus an optional aluminium sleeve against heat. Flowbonacci's dragon staff is 22 mm OD x 19 mm ID carbon fibre with a 1.5 mm wall. Dark Monk says carbon fibre can feel bouncier than aluminium and that its resin cannot take high temperatures.",
+   "confidence": "high",
+   "sources": [
+    {
+     "url": "https://dark-monk.com/Equipment/Carbon-Fiber-Tube",
+     "quote": "help protect the tubing from both direct heat damage",
+     "source_date": "accessed 2026-09-24"
+    },
+    {
+     "url": "https://flowtoys.com/flowbonacci-dragon-staff",
+     "quote": "1.5mm wall thickness",
+     "source_date": "accessed 2026-09-24"
+    },
+    {
+     "url": "https://dark-monk.com/Article/Comparing-Aluminum-CarbonFiber-Contact-Staff",
+     "quote": "more responsive / 'bouncier' than aluminum",
+     "source_date": "undated (accessed 2026-09-24)"
+    }
+   ],
+   "caveats": "Included for completeness. The member question is about metals."
+  },
+  {
+   "claim": "LENGTH, in case it is useful, since the member request also asked about length. Makers measure from the ground:\n- to between the shoulder and the nose (Master Flow Arts)\n- to between the chin and eye level, or your height minus 15 cm (Threeworlds)\n- to chin height, called the gold standard for dragon staffs (Bonobo Flow)\nA longer dragon staff turns more slowly. Double staffs are 26 to 36 in, with 32 in most common. A staff should never be long enough to hit or burn your face when spun inward.",
+   "confidence": "high",
+   "sources": [
+    {
+     "url": "https://www.masterflowarts.com/contact-staff/choosing-a-contact-staff",
+     "quote": "from the ground to between the shoulder or nose",
+     "source_date": "undated (accessed 2026-09-24)"
+    },
+    {
+     "url": "https://www.threeworlds.com.au/products/matrix-contact-fire-staff",
+     "quote": "take your height and minus 15cm to get your staff length",
+     "source_date": "accessed 2026-09-24"
+    },
+    {
+     "url": "https://bonoboflow.com/how-to-choose-the-perfect-staff-length/",
+     "quote": "Chin height is the gold standard for dragon staff",
+     "source_date": "2024-02-20"
+    },
+    {
+     "url": "https://bonoboflow.com/how-to-choose-the-perfect-staff-length/",
+     "quote": "They should not hit or burn your face when spinning inward.",
+     "source_date": "2024-02-20"
+    }
+   ],
+   "caveats": "Length probably belongs to a separate research question. This is a starting point only."
+  }
+ ],
+ "disagreements_or_myths": [
+  "MYTH: '7075 is as strong as steel or titanium, so it's stiffer.' Sacred Flow Art says 7075 has 'the same tensile strength as steel', and Dark Monk calls it equivalent to many titanium alloys, or 15% below titanium. Those are claims about STRENGTH, meaning resistance to permanent bending or denting. STIFFNESS (how much the tube flexes) is about the same for every aluminium alloy, roughly 69 to 72 GPa. So a 7075 tube flexes as much as a 6061 tube of the same size. It is just harder to bend permanently.",
+  "MYTH: 'A thicker wall makes the staff much stiffer.' A thicker wall adds stiffness only slightly: going from .049 to .065 on 3/4 in adds about 24%. Changing the outer diameter matters far more: 3/4 to 7/8 in at the same wall adds about 64%. Dark Monk says the same thing qualitatively.",
+  "MYTH: 'A thinner wall is cheaper.' Not at stockists. On 2026-09-24, Speedy Metals charged $28.51 for 72 in of 6061-T6 3/4 x .049 and $11.51 for 3/4 x .065. Price follows how common the size is, not how much metal it contains.",
+  "NOT A REAL CONFLICT: Master Flow Arts says 'at least 1.6 mm' of wall, while Dark Monk sells 1.4 mm tube for contact staffs. The 1.6 mm rule is for soft hardware-store aluminium (usually 6063). The 1.4 mm tube is 7075-T6, which is roughly twice as strong or more. Dark Monk itself advises against 1.1 mm even in 7075.",
+  "CONTRADICTORY LISTING: Threeworlds' Isis Pro page markets 'aerospace-grade 7075 aluminium', but its own Tube Measurements section says 'Black Anodised 6063 Aluminium Tube, 20mm, 1.6mm wall'. Trust the specification section over the marketing copy, or ask the maker.",
+  "MISLEADING TAG: Sacred Flow Art's 'Monkey Fist' staff is sold at a /titanium-contact-fire-staff URL and tagged 'titanium fire staff', but its description says it is 7075 aluminium. Search results for 'titanium staff' can mislead members.",
+  "'CP1 titanium is cheaper': I could not confirm this for staff-size tube. Tiger Titanium's CP grade 1 page listed only one tube, at 1.375 in OD. CP grade 2 at 3/4 in cost about $105 to $111 per 60 in, roughly 4 to 10 times the cost of 6061. Grade 1 is also the softest commercially pure titanium, so it would need a thicker wall to resist denting.",
+  "'Stainless is a good option': stainless is easy to buy and cheap. At Speedy Metals, 3/4 x .049 annealed 304 cost $25.91 for 60 in. But the bare 5 ft tube weighs about 0.84 kg (1.85 lb), against 0.29 to 0.37 kg for aluminium, before wicks and grip. A finished contact staff from the makers above is typically 0.65 to 0.85 kg in total, so stainless roughly doubles it. It is also about 2.5 times as stiff. Annealed 304 starts to yield at a lower stress than 6061-T6, although it hardens as it deforms and is very ductile.",
+  "'Dark Monk says 3/4 in became the US standard over the last 4 years.' Their article has no date, so the timeframe cannot be pinned down.",
+  "Most staff makers publish diameter and total weight but NOT wall thickness: Sacred Flow Art, Spinsterz, the Threeworlds Matrix, Renegade and Home of Poi. Makers disagree mainly by not telling you, so a member comparing staffs often cannot compare walls."
+ ]
+}

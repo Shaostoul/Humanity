@@ -1,0 +1,634 @@
+[
+ {
+  "name": "Aluminium 3003-H14",
+  "field": "thermal_conductivity_w_mk",
+  "was": "193",
+  "should_be": "159 (H14). 193 is the O-temper value. ASM gives 3003 at 25 C as O 193, H12 163, H14 159, H18 155 W/m-K.",
+  "why": "This row uses the annealed value for a cold-worked temper, which makes 3003-H14 look about 21% more conductive than it is. The 1100 row notes its O-temper basis, but this row does not. I could not reach MatWeb or ASM (connection refused or 403), so this value is from the ASM Handbook Vol. 2 3003 entry and was not re-fetched.",
+  "source_url": "https://asm.matweb.com/search/SpecificMaterial.asp?bassnum=MA3003H14"
+ },
+ {
+  "name": "Aluminium 3003-H14",
+  "field": "elongation_pct",
+  "was": "16",
+  "should_be": "8 (1.6 mm / 1/16 in sheet specimen). 16% is the 12.7 mm (1/2 in) round-specimen value.",
+  "why": "Every other row uses the 1/16 in specimen value: 1100-H14 9, 5052-H32 12, 6061-T6 12, T4 22, O 25. That thickness is the one that matches a 0.035-0.065 in tube wall. Mixing specimen bases makes 3003 look twice as ductile as it is compared with the other rows.",
+  "source_url": "https://asm.matweb.com/search/SpecificMaterial.asp?bassnum=MA3003H14"
+ },
+ {
+  "name": "Aluminium 6082-T6",
+  "field": "yield_mpa / uts_mpa",
+  "was": "290 / 340, attributed in the notes to 'Aalco typical values for T6/T651'",
+  "should_be": "250 / 290 (BS EN 755-2 minimum for tube with walls up to 5 mm), or keep a typical pair only if it has a named source",
+  "why": "The Aalco 6082 datasheet and the Aalco-supplied AZoM 6082 page list only minimum values. For T6 tube up to 5 mm wall they give 250 proof, 290 tensile, 6% A50 and 8% A. For 6-12.5 mm plate they give 255/300 min. Neither page contains 290 proof or 340 tensile. The attribution is wrong, and those figures come from no source I could find. MakeItFrom's blended T6 figures are 270/330, which shows 290/340 sits at the top of the range.",
+  "source_url": "https://www.azom.com/article.aspx?ArticleID=2813"
+ },
+ {
+  "name": "Aluminium 6082-T6",
+  "field": "elongation_pct",
+  "was": "6 (paired with 'typical' 290/340 strengths)",
+  "should_be": "6, stated as the EN 755-2 A50 minimum for tube walls up to 5 mm (A = 8% min), and paired with the minimum strengths 250/290",
+  "why": "This row mixes minimum and typical values without saying so: the strengths are called typical, while the 6% elongation is the specification minimum. It is the only row that does this, so 6082 would compare badly on ductility against rows that use typical elongation.",
+  "source_url": "https://www.aalco.co.uk/datasheets/Aluminium-Alloy_6082-T6~T651_148.ashx"
+ },
+ {
+  "name": "Aluminium 6063-T5",
+  "field": "thermal_conductivity_w_mk",
+  "was": "(missing; heat_limit text says 'Kaiser gives no T5 thermal conductivity')",
+  "should_be": "209",
+  "why": "ASM lists 6063 at 25 C as O 218, T1 193, T5 209, and T6/T83 201 W/m-K. MakeItFrom 6063-T5 shows 210 W/m-K (rounded), which agrees. The field can be filled in, and the sentence in heat_limit should be dropped.",
+  "source_url": "https://www.makeitfrom.com/material-properties/6063-T5-Aluminum"
+ },
+ {
+  "name": "Aluminium 6063-T832 (drawn tube temper)",
+  "field": "thermal_conductivity_w_mk / notes",
+  "was": "(missing; 'assume about 200 W/m-K like 6063-T6 (unverified)'); typical 270/290 MPa and 12% elongation with no source named",
+  "should_be": "201 (ASM lists T6 and T83 together at 201 W/m-K). Name a source for the typical 270/290/12, or mark it unverified. MakeItFrom gives 270 yield, 300 UTS and 8.2% elongation.",
+  "why": "The conductivity has an ASM value, so it does not need to be assumed. The typical strength and elongation are the only row values with no source. The 12% elongation especially could not be confirmed: MakeItFrom's blended figure is 8.2%, which is close to the 8% drawn-tube minimum.",
+  "source_url": "https://www.makeitfrom.com/material-properties/6063-T832-Aluminum"
+ },
+ {
+  "name": "Aluminium 6061-T6 / 6061-T4 / 6061-O",
+  "field": "modulus_gpa",
+  "was": "68.3",
+  "should_be": "68.9 (10.0 x 10^6 psi, Kaiser/Aluminum Association typical, the average of tension and compression)",
+  "why": "68.3 GPa is the MMPDS tension-only modulus (9.9 x 10^3 ksi; MMPDS compression is 10.1). The notes say the typical values come from Kaiser, which lists 10.0 x 10^6 psi. Because this table is used to compute bending stiffness, 68.3 makes 6061 about 1% less stiff than 6063 and 1100 (69 GPa). That gap is not real; the two alloys have the same modulus.",
+  "source_url": "https://asm.matweb.com/search/SpecificMaterial.asp?bassnum=MA6061T6"
+ },
+ {
+  "name": "Aluminium 6061-T6 (drawn tube)",
+  "field": "price_note (Fire Mecca)",
+  "was": "Fire Mecca hard-anodized 6061-T6 staff tubing, $6.67 per ft (about $40 for 6 ft)",
+  "should_be": "$6.67 per ft cut to length, with a maximum continuous length of 5 ft. The 5 ft length is $29.99 on sale ($32.80 regular). Both the 3/4 in and 7/8 in OD were listed as 'sold out or unavailable' on 2026-09-24. Wall thickness is not stated.",
+  "why": "Fire Mecca's page says 'maximum continuous length 5 feet', so a 6 ft staff tube cannot be bought there and '$40 for 6 ft' is not a real price. The alloy claim is confirmed: 'All Aluminum is hard-anodized drawn 6061-T6', and the two ODs telescope.",
+  "source_url": "https://firemecca.com/products/aluminum-staff-tubing"
+ },
+ {
+  "name": "Aluminium 6061-T6 (drawn tube)",
+  "field": "price_note (Online Metals / Speedy Metals)",
+  "was": "'Online Metals refused automated access, so its price was not captured'; Speedy Metals 3/4 x 0.065 x 72 in = $11.51",
+  "should_be": "Online Metals 3/4 in OD x 0.065 in wall 6061-T6 drawn tube (pid 4355): $31.83 for 72 in, captured 2026-09-24 in this project's earlier research, claim 13 in staff-post/claims.md. Re-check the Speedy Metals $11.51 and give its URL.",
+  "why": "The same day's research notes already hold an Online Metals price for exactly this size, so 'not captured' contradicts the project's own record. The page returned 403 to me now. The Speedy figure has no URL and is about one-third of Online Metals ($31.83/72 in) and Fire Mecca ($29.99/5 ft) for comparable tube. It may be the price for a shorter cut or a different alloy; confirm before publishing.",
+  "source_url": "https://www.onlinemetals.com/en/buy/aluminum/0-75-od-x-0-065-wall-x-0-62-id-aluminum-round-tube-6061-t6-drawn/pid/4355"
+ },
+ {
+  "name": "Aluminium 7075-T6",
+  "field": "tube_availability",
+  "was": "'Online Metals lists 7075-T6 drawn tube, but it was not fetched.' Dark Monk 19 x 1.4 mm, also 16, 22 and 25 mm.",
+  "should_be": "The project's research notes from 2026-09-24 (claim 18) record that Online Metals' 7075 round-tube category showed no results. Dark Monk describes its tube as 'custom forged 7075-T6' built by a foundry for them, not drawn. Its 1.4 mm (0.055 in) wall sizes are 25, 22, 19, 16 and 13 mm, plus 10 x 1.7 mm and 18/15/12 x 1.1 mm. All 1.4 mm sizes except 22 mm say 'temporarily out of stock'; 22 mm was due 'around Sept 16th'.",
+  "why": "The Online Metals claim contradicts the project's own same-day finding. The Dark Monk entry leaves out sizes and the process the seller states. Dark Monk's '$40.00 each, 72 in' price is confirmed.",
+  "source_url": "https://dark-monk.com/Equipment/Aluminum-Tubing"
+ },
+ {
+  "name": "Aluminium 7075-T6",
+  "field": "heat_limit_c / heated_hazards",
+  "was": "No melting temperature given for the alloy. The 1100 row's 'aluminium melts about 660 C' is the only melting figure, and the 7075 note says zinc boils 'far above the alloy's melting range'.",
+  "should_be": "Add 7075 solidus about 477 C (liquidus about 635 C). For comparison: 6061 solidus about 582 C, Aalco gives 555 C for 6082, and MakeItFrom gives about 610 C for 7005.",
+  "why": "660 C is the melting point of pure aluminium. 7075 starts to melt locally about 180 C lower, which is within reach of bare metal directly under a burning wick. The zinc-fume conclusion does not change, but the guide should not suggest that every alloy holds up to 660 C.",
+  "source_url": "https://asm.matweb.com/search/SpecificMaterial.asp?bassnum=MA7075T6"
+ },
+ {
+  "name": "Aluminium 6061-T6 (drawn tube)",
+  "field": "heat_limit_c",
+  "was": "'loss starts ... about 190 C (375 F) after 1/2 h' (read by eye from MMPDS Fig. 3.6.2.2.1(d))",
+  "should_be": "Mark as unverified or re-read the figure. The T6 temper itself is made by ageing about 8 h at 177 C (350 F) or 18 h at 160 C (320 F).",
+  "why": "This is a plausibility flag, not a confirmed error. I could not get the MMPDS figure. Half an hour at 190 C adds only a small increment on top of the 8 h at 177 C ageing that creates T6, so a measurable loss of room-temperature yield at that point is doubtful. The 1/2-hour onset may belong to a hotter curve. If the reading is wrong, it errs toward caution; the 'about two-thirds left after 1/2 h at 260 C' reading is in the same situation.",
+  "source_url": ""
+ },
+ {
+  "name": "Aluminium 6061-T6 (drawn tube)",
+  "field": "heated_hazards",
+  "was": "'No meaningful fume from the bare or anodized tube at a few hundred C.'",
+  "should_be": "Add: unless the finish is a PTFE-impregnated hard coat, where the PTFE seal can give off fluoropolymer fume above about 260 C. Plain or dyed hard anodize, which is what Fire Mecca states, is fine.",
+  "why": "The anodizing oxide itself is inert, but some 'hard coat' finishes are PTFE-sealed. Tube metal next to a burning wick can pass 260 C, so a buyer of an unlabelled hard-coated tube should be told the one case where the finish matters.",
+  "source_url": "https://firemecca.com/products/aluminum-staff-tubing"
+ },
+ {
+  "name": "ALL ROWS (table-wide)",
+  "field": "yield_mpa / uts_mpa / elongation_pct basis",
+  "was": "Aluminium rows use TYPICAL values (7075-T73 434/503/13, 7050-T76 489/552/11, 7068 683/710/9, 2024 324/469/19 as a T4 stand-in). Titanium rows use ASTM/AMS MINIMUM values (CP2 275/345/20, Gr9 CWSR 725/860/10, and so on). The field name does not say which is which.",
+  "should_be": "Pick one basis for the strength calculations. With drawn-tube minimums (Kaiser KA-TPH-MP1-1.09, converted from ksi): 7075-T73 386/455/10; 7050-T76 476/552/5; 7068-T6 579/607/5; 2024-T3 290/441/12 (0.025-0.049 in wall) or 14 (0.050-0.250 in). Alternatively keep typical values in a separate column and label them. For titanium, typical values are about CP2 345 and Gr9 CWSR ~830 MPa yield (TIMET, and Alleima's measured average).",
+  "why": "Comparing aluminium typicals against titanium minimums inflates aluminium's first-yield moment by 3-18% relative to titanium, and 7068's by 18% (683 vs 579). Aluminium elongation is overstated even more: 11% typical against a 5% minimum for 7050/7068 drawn tube. Kaiser's MPa column is misprinted in the 7075 drawn rows (66 ksi appears as '530 MPa'), so anyone re-checking should convert from ksi. The row's 455/386 is correct.",
+  "source_url": "https://online.kaiseraluminum.com/depot/PublicProductInformation/Document/1009/Kaiser_Aluminum_Hard_Alloy_Drawn_Seamless_Tube_Capabilities.pdf"
+ },
+ {
+  "name": "Aluminium 7068-T6 / T6511",
+  "field": "thermal_conductivity_w_mk",
+  "was": "190",
+  "should_be": "About 120 W/m-K for T6/T6511 (my estimate from Kaiser's own electrical conductivity), or leave it blank with a note. Do not publish 190.",
+  "why": "Kaiser's own sheets give 7068-T6/T6511 at 31% IACS (37.5-38% for T76). In the same Kaiser family, W/m-K per %IACS is 3.9 ±0.1: 7075-T6 33%→130, 7075-T73 40%→155, 7050-T76 39.5%→154, 2024-T4 30%→120. So 31% IACS works out to ~121 W/m-K. The '110 BTU/ft-hr-F = 190 W/m-K' line on the 7068 rod & bar sheet is the exact pair Kaiser prints for 2024-O temper (50% IACS), which points to a copy error. Kaiser's newer 7068 brochure lists conductivity at 31% IACS and gives no thermal-conductivity figure. The Wikipedia figure of 190 is repeating the same sheet.",
+  "source_url": "https://online.kaiseraluminum.com/depot/PublicProductInformation/Document/1027/Kaiser_Aluminum_7068_Rod_and_Bar.pdf"
+ },
+ {
+  "name": "Aluminium 7068-T6 / T6511",
+  "field": "modulus_gpa (and notes)",
+  "was": "72 (notes: 'Modulus is NOT given ... 72 GPa is an assumed 7xxx-typical value')",
+  "should_be": "73.1 GPa longitudinal (E = 10.6 x 10^3 ksi; LT 10.5, ST 10.1; compression 10.7 = 73.8 GPa)",
+  "why": "Kaiser's Alloy 7068 brochure reproduces MMPDS-04 Table 3.7.6.0(b), which gives the modulus for 7068-T6511 extrusions (AMS 4331). The number is published, so there is no need to assume one.",
+  "source_url": "https://online.kaiseraluminum.com/depot/PublicProductInformation/Document/1033/Kaiser_Aluminum_Alloy_7068_Brochure.pdf"
+ },
+ {
+  "name": "Aluminium 7068-T6 / T6511",
+  "field": "heat_limit_c",
+  "was": "'Peak-aged 7xxx, expected to over-age like 7075-T6 (inference).'",
+  "should_be": "Use measured data in place of the inference. From Kaiser's elevated-temperature charts (tested at temperature; 1.75 in T6511 extrusion, 93.5 ksi / 645 MPa yield at room temperature; values read from the charts, approximate): after 100 h, yield was about 90 ksi (620 MPa) at 100 C, 79 ksi (545 MPa) at 125 C, 60 ksi (414 MPa) at 150 C and 35 ksi (241 MPa) at 175 C. At 175 C it was already down to about 54 ksi (372 MPa) after 10 h.",
+  "why": "The manufacturer's data exists. It shows a 36% yield loss after 100 h at 150 C and a 63% loss at 175 C, well below anything the row implies. That matters for tube ends near a wick.",
+  "source_url": "https://online.kaiseraluminum.com/depot/PublicProductInformation/Document/1033/Kaiser_Aluminum_Alloy_7068_Brochure.pdf"
+ },
+ {
+  "name": "Aluminium 7068-T6 / T6511",
+  "field": "yield_mpa / uts_mpa / elongation_pct",
+  "was": "683 / 710 / 9 (typical, extruded rod and bar, T6/T6511)",
+  "should_be": "For drawn tube: 579 / 607 / 5 (Kaiser drawn T6 minimums). If extrusion values are kept, label them 'typical extrusion'. MMPDS-04 A-basis for T6511 extrusion, longitudinal, is 655 yield / 683 UTS / 5% (95/99 ksi).",
+  "why": "The row is meant for tube calculations, but it carries the strongest extrusion typicals. The drawn-tube minimum yield is 15% lower and the minimum elongation is roughly half. Kaiser's rod sheet also shows T6/T651 typical at only 648/698.",
+  "source_url": "https://online.kaiseraluminum.com/depot/PublicProductInformation/Document/1009/Kaiser_Aluminum_Hard_Alloy_Drawn_Seamless_Tube_Capabilities.pdf"
+ },
+ {
+  "name": "Aluminium 7068-T6 / T6511",
+  "field": "heat_limit_c (T76 remark)",
+  "was": "'Kaiser also offers the over-aged T76/T76511, typical 614 MPa UTS and 572 MPa yield.'",
+  "should_be": "Add that T76/T76511 is an extruded rod/bar temper. Kaiser's drawn seamless tube list offers 7068 only in O and T6.",
+  "why": "As written, readers may assume an over-aged 7068 tube can be bought, but it is not on Kaiser's drawn-tube temper list.",
+  "source_url": "https://online.kaiseraluminum.com/depot/PublicProductInformation/Document/1009/Kaiser_Aluminum_Hard_Alloy_Drawn_Seamless_Tube_Capabilities.pdf"
+ },
+ {
+  "name": "Aluminium 7050-T76 (T74 similar)",
+  "field": "tube_availability",
+  "was": "'Drawn seamless press minimums of about 2,000 lb apply (for 2.125-6.25 in OD).'",
+  "should_be": "'Press minimums vary from 500 - 3,000 lbs' (Kaiser). Kaiser's drawn seamless range is 0.125-3.00 in OD, 0.018-0.250 in wall and 0.5-20 ft length, so 3/4 in OD falls inside it as a mill order. Drawn 7050/7068 minimum properties are listed only for 0.025-0.250 in wall.",
+  "why": "Neither '2,000 lb' nor '2.125-6.25 in OD' appears in Kaiser's drawn-tube capability sheet. The OD claim wrongly suggests staff-size drawn 7050 cannot be made, when the real barrier is the 500-3,000 lb minimum order. The same correction applies to the 7068 and 7075-T73 availability notes.",
+  "source_url": "https://online.kaiseraluminum.com/depot/PublicProductInformation/Document/1009/Kaiser_Aluminum_Hard_Alloy_Drawn_Seamless_Tube_Capabilities.pdf"
+ },
+ {
+  "name": "Aluminium 7050-T76 (T74 similar)",
+  "field": "elongation_pct / uts_mpa",
+  "was": "11 / 552 (typical; notes do not say which product form)",
+  "should_be": "Label as Kaiser tube & pipe typical, which covers EXTRUDED tube only (the sheet lists AMS 4340/4341/4342 extrusion specs and no cold-finished spec). Drawn T76 minimums are 552 UTS / 476 yield / 5% elongation.",
+  "why": "The typical UTS equals the drawn minimum UTS (both 80 ksi), which reads as a contradiction unless the product forms are stated. The elongation difference (11 vs 5) is large for a bend/dent discussion.",
+  "source_url": "https://online.kaiseraluminum.com/depot/PublicProductInformation/Document/1041/Kaiser_Aluminum_7050_Tube_and_Pipe.pdf"
+ },
+ {
+  "name": "Aluminium 2024-T3 (drawn tube)",
+  "field": "yield_mpa / uts_mpa / elongation_pct",
+  "was": "324 / 469 / 19 (Kaiser T4/T351 typical used as a stand-in for T3)",
+  "should_be": "290 / 441 / 12 for 0.025-0.049 in wall (14 for 0.050-0.250 in): the drawn T3 minimum, same basis as the titanium rows. If a typical value is wanted, use a published T3 typical (ASM/MatWeb 2024-T3 is about 345/483/18 from memory; the ASM site refused connection this session, so confirm before use).",
+  "why": "A T4 typical is neither a T3 typical nor a T3 minimum. The drawn-tube minimum is published for exactly this product (ASTM B210 via Kaiser), so there is no reason to substitute another temper.",
+  "source_url": "https://online.kaiseraluminum.com/depot/PublicProductInformation/Document/1039/Kaiser_Aluminum_2024_Tube_and_Pipe.pdf"
+ },
+ {
+  "name": "Aluminium 7075-T73",
+  "field": "heat_limit_c",
+  "was": "'...so it should be more stable than T6 up to roughly that range (inference).'",
+  "should_be": "'More stable than T6, but only well below its ageing temperature. T73's second ageing step is about 24-30 h at ~163 C (or 8-10 h at ~177 C), and every further hour near 150-180 C keeps over-ageing it. For comparison, Kaiser measured another 7xxx alloy (7068-T6511) losing 36% of its yield after 100 h at 150 C.'",
+  "why": "Being aged at 160-180 C does not make an alloy stable at 160-180 C. Time at the ageing temperature is exactly what drives over-ageing. As written, the row tells readers the tube end can sit near 170 C indefinitely. The 413 C anneal and the Kaiser typical values (503/434/13, 71.0 GPa, 2.80, 155 W/m-K) all check out.",
+  "source_url": "https://online.kaiseraluminum.com/depot/PublicProductInformation/Document/1042/Kaiser_Aluminum_7075_Tube_and_Pipe.pdf"
+ },
+ {
+  "name": "Titanium CP Grade 1 (annealed)",
+  "field": "price_note",
+  "was": "'Neither is cheaper per inch than Grade 9 at 3/4 in (Tiger, $1.85/in).'",
+  "should_be": "'TMS's CP1 0.500 x 0.039 in surplus at about $1.42/in IS cheaper per inch than Tiger's Grade 9 3/4 in ($1.85/in for 0.035 CWSR), but it is a smaller-diameter, uncertified piece. Tiger's CP1 (1.375 in) at $2.31/in is dearer. Tiger also lists 0.750 in Grade 9 in unlabelled condition at $1.60/in (0.020, 0.027, 0.030 in walls) and $1.68/in (0.040 in).'",
+  "why": "$1.42 is less than $1.85, so the sentence is arithmetically false. The conclusion the post needs (no cheap CP1 in staff size) still holds, but only because of diameter and availability, not price per inch. Tiger's 3/4 in Grade 9 listing checked 2026-09-24 confirms the $1.85/$1.94/$2.20/$2.31/$2.58 prices in the other rows and also shows the $1.60 items.",
+  "source_url": "https://www.tigertitanium.com/storek/Tube/3Al-25V?diameter=0.750"
+ },
+ {
+  "name": "Titanium Grade 5 (Ti-6Al-4V), annealed tube",
+  "field": "modulus_gpa",
+  "was": "120",
+  "should_be": "114 (range about 104-114 GPa). If Fine Tubes' 120 is kept, flag it as the high outlier.",
+  "why": "Fine Tubes does print 120 GPa, but Kyocera SGS gives 114 GPa and Wikipedia gives 104-113 GPa for Ti-6Al-4V. The table's own Grade 23 row, which is the same alloy with lower interstitials, uses 113.8. A 120 GPa value overstates Grade 5 stiffness by about 5-15% relative to the other rows.",
+  "source_url": "https://kyocera-sgstool.co.uk/titanium-resources/titanium-information-everything-you-need-to-know/ti-6al-4v-grade-5-titanium-alloy-data-sheet/"
+ },
+ {
+  "name": "Titanium Grade 23 (Ti-6Al-4V ELI)",
+  "field": "yield_mpa / elongation_pct",
+  "was": "790 / 15 (with UTS 860)",
+  "should_be": "Use a real minimum set. ASTM F136 (implant bar): 795 yield / 860 UTS / 10% elongation. ASTM B348/B265 Grade 23: 759 / 828 / 10%. Otherwise label 790/860/15 as AZoM typical. These spec values are from my knowledge of the standards and were not re-fetched this session.",
+  "why": "860 is the F136 minimum UTS, but 790 is not the F136 minimum yield (795), and 15% is a typical elongation, not any spec minimum (10%). The row therefore mixes minimum and typical values without saying so, which is exactly what the Grade 5 row avoids by quoting Fine Tubes' minimums.",
+  "source_url": ""
+ },
+ {
+  "name": "Titanium Grade 9 (Ti-3Al-2.5V), cold-worked stress-relieved (CWSR)",
+  "field": "thermal_conductivity_w_mk",
+  "was": "8.2",
+  "should_be": "7.6 (Alleima's Grade 9 safety sheet gives 7.5-7.7 W/m-K at 20 C; Fine Tubes 7.6)",
+  "why": "Cold work does not change thermal conductivity meaningfully, yet the table gives 7.6 for annealed and 8.2 for CWSR. Alleima's own Nov 2023 Grade 9 safety information sheet gives 7.5-7.7 at 20 C, so the 8.2 'room temperature' attribution to Alleima is doubtful. It may be a value at a higher temperature.",
+  "source_url": "https://www.finetubes.co.uk/products/materials/titanium-tubes/alloy-ti3al25v-uns-r56320-wnr-37194"
+ },
+ {
+  "name": "Titanium Grade 9 (Ti-3Al-2.5V), cold-worked stress-relieved (CWSR)",
+  "field": "notes (burst figure)",
+  "was": "'Alleima measured 0.750 x 0.039 in CWSR tube bursting at 19,200 psi on average.'",
+  "should_be": "Re-check the tube size in the Alleima source. If kept, say it includes texture strengthening and must not be plugged into Barlow's formula.",
+  "why": "Barlow's formula (P = 2*S*t/D) gives about 13,000 psi at the 125 ksi minimum UTS and about 14,000-15,000 psi at an actual ~140 ksi. A 19,200 psi burst implies a hoop stress of about 185 ksi (175 ksi on mean diameter), about 1.3-1.5 times the UTS. That is possible only with strong CSR texture strengthening, so it is more likely a different size (for example, a smaller hydraulic tube) or a misread.",
+  "source_url": ""
+ },
+ {
+  "name": "Titanium CP Grade 2 (annealed)",
+  "field": "heat_limit_c",
+  "was": "'124 MPa at 315 C, 103 MPa at 425 C and 76 MPa at 540 C, which is only 35-45% of its room-temperature yield.'",
+  "should_be": "'...124 MPa at 315 C (36-45% of room-temperature yield), 103 MPa at 425 C (30-37%) and 76 MPa at 540 C (22-28%), against 275 MPa minimum and 345 MPa typical.'",
+  "why": "The 35-45% range is true only for the 315 C figure. At 425 C and 540 C the fraction left is lower, so the sentence understates the loss at the hotter points.",
+  "source_url": ""
+ },
+ {
+  "name": "Titanium CP Grade 4 (annealed)",
+  "field": "heat_limit_c",
+  "was": "'That is the biggest proportional loss of the CP grades...'",
+  "should_be": "Drop 'biggest', or support it with one source covering all grades. On the table's own numbers, Grade 4 keeps about 31% (170/550 near 300 C, Carpenter chart), Grade 3 about 31% (138/450 typical at 315 C, Zapp), Grade 2 about 36% and Grade 1 about 47%.",
+  "why": "The comparison mixes a Carpenter chart reading with Zapp's table at different temperatures. Even so, Grade 4 only ties Grade 3 and is not clearly the worst.",
+  "source_url": ""
+ },
+ {
+  "name": "Titanium CP Grade 1 (annealed)",
+  "field": "heated_hazards (TiO2 exposure note)",
+  "was": "'...TiO2 fume/dust, which NIOSH says to keep to the lowest feasible concentration.'",
+  "should_be": "Add the current NIOSH numbers: CIB 63 (2011) recommends 2.4 mg/m3 for fine TiO2 and 0.3 mg/m3 for ultrafine TiO2 (TWA up to 10 h/day), and treats ultrafine TiO2 (which is what welding fume is) as a potential occupational carcinogen. These figures are from my knowledge of NIOSH CIB 63 and were not re-fetched this session.",
+  "why": "'Lowest feasible concentration' is the older Pocket Guide 'Ca' wording. The 2011 bulletin gives numeric limits that readers can act on. The advice itself (minimise welding and grinding fume) is unchanged.",
+  "source_url": "https://www.cdc.gov/niosh/docs/2011-160/"
+ },
+ {
+  "name": "Ti-15V-3Cr-3Sn-3Al (Ti-15-3), annealed",
+  "field": "modulus_gpa",
+  "was": "70",
+  "should_be": "82 (11.9 Msi) for the solution-treated (annealed) condition",
+  "why": "TIMET's own TIMETAL 15-3 datasheet, Table 2, gives the tensile modulus as 82 GPa solution treated (annealed), 107 GPa after ageing at 538 C and 111 GPa after ageing at 482 C. 70 GPa understates stiffness by about 15%, which matters here because the table is used for stiffness calculations. (The PDF's text layer is column-scrambled; the three values appear in the same order as the three conditions.)",
+  "source_url": "https://www.timet.com/documents/datasheets/metastable-beta-alloys/timetal-15-3-3-3.pdf"
+ },
+ {
+  "name": "Ti-15V-3Cr-3Sn-3Al (Ti-15-3), annealed",
+  "field": "notes",
+  "was": "Aged at 482 C: 1210/1300 MPa and 107 GPa.",
+  "should_be": "The 107 GPa figure is for ageing at 538 C (1000 F). Ageing at 482 C (900 F) gives 111 GPa. TIMET's SPECIFIED MINIMUM for strip aged 16 h at 482 C is 1241 MPa UTS, 1172 MPa 0.2% YS and 5% elongation, so label 1210/1300 as typical if it is kept.",
+  "why": "The note puts the modulus from one ageing temperature next to strength values from another, and it does not say whether the strength values are typical or minimum.",
+  "source_url": "https://www.timet.com/documents/datasheets/metastable-beta-alloys/timetal-15-3-3-3.pdf"
+ },
+ {
+  "name": "Ti-15V-3Cr-3Sn-3Al (Ti-15-3), annealed",
+  "field": "heat_limit_c",
+  "was": "TIMET: used for fabricated structures 'up to 300°C'. Ageing at 482-538 C ...",
+  "should_be": "TIMET datasheet: 'usually acceptable for use at temperatures up to 550°F (288°C)'. TIMET's ageing range is 900-1150 F (480-620 C) for 4-16 h, so any heating above about 480 C can age it, making it stronger and less ductile.",
+  "why": "The primary TIMET datasheet gives 288 C, not 300 C, and gives a wider ageing window than 482-538 C.",
+  "source_url": "https://www.timet.com/documents/datasheets/metastable-beta-alloys/timetal-15-3-3-3.pdf"
+ },
+ {
+  "name": "Ti-15V-3Cr-3Sn-3Al (Ti-15-3), annealed",
+  "field": "price_note / tube_availability",
+  "was": "No price found. / Not found as tube ... strip alloy used for aircraft ducting.",
+  "should_be": "Add from TIMET: sold as strip 0.016-0.094 in (0.4-2.4 mm) thick. 'At thinner gauges, TIMETAL 15-3 is less expensive than TIMETAL 6-4' (this is about strip, not tube). No tube form is listed.",
+  "why": "This is the only price-direction statement the manufacturer makes, and it confirms that strip, not tube, is the product form.",
+  "source_url": "https://www.timet.com/documents/datasheets/metastable-beta-alloys/timetal-15-3-3-3.pdf"
+ },
+ {
+  "name": "Titanium Grade 12 (Ti-0.3Mo-0.8Ni)",
+  "field": "modulus_gpa (and notes)",
+  "was": "105; notes say 'modulus 105-120 GPa' from TIMET",
+  "should_be": "103 GPa (15 Msi) tensile modulus, per TIMET's Grade 12 datasheet. The 105-120 GPa range is the figure from TIMET's 50A (Grade 2) datasheet, not Grade 12.",
+  "why": "The modulus was taken from the wrong datasheet. The Grade 12 sheet gives 103 GPa (and 42.7 GPa in torsion). Density of 4.51 g/cc and the minimums of 483/345/18 are confirmed by the same sheet.",
+  "source_url": "https://www.timet.com/documents/datasheets/cp-grades/timetal-grade-12.pdf"
+ },
+ {
+  "name": "Titanium Grade 12 (Ti-0.3Mo-0.8Ni)",
+  "field": "heat_limit_c",
+  "was": "TIMET says it has 'improved strength and temperature capability over CP'. No numbers found.",
+  "should_be": "TIMET Grade 12 datasheet: 'Grade 12 is approved by ASME Boiler Code for use up to 600°F' (316 C), with 'higher strength than Grade 2 or Grade 7 at room and elevated temperatures'.",
+  "why": "A numeric limit does exist, in the manufacturer datasheet.",
+  "source_url": "https://www.timet.com/documents/datasheets/cp-grades/timetal-grade-12.pdf"
+ },
+ {
+  "name": "Titanium Grade 7 (Ti-0.15Pd), annealed",
+  "field": "heat_limit_c",
+  "was": "About the same as CP Grade 2 (weak while hot; see Grade 2). Not separately sourced.",
+  "should_be": "Keep 'same as Grade 2', but add the Grade 2 numbers from TIMET 50A: 'typically used in continuous service up to 800°F (425°C) and in intermittent service up to 1000°F (540°C)'.",
+  "why": "This gives the reader a sourced number instead of a pointer to another row. The mechanical minimums (275/345/20) and density 4.51 are confirmed correct.",
+  "source_url": "https://www.timet.com/documents/datasheets/cp-grades/timetal-50a.pdf"
+ },
+ {
+  "name": "Titanium Grade 7 (Ti-0.15Pd), annealed",
+  "field": "tube_availability",
+  "was": "Not found at any retail stockist ... ASTM B338 heat-exchanger grade.",
+  "should_be": "Not retail, but a standard mill product in this size. TIMET's industrial handbook tabulates welded Grade 7 tubing (with Grade 2 and 16) at 3/4 in OD in walls from 0.020 to 0.083 in. Expect mill or distributor quote only.",
+  "why": "The claim implies the grade may not exist as 3/4 in thin-wall tube, when it is a standard heat-exchanger size. It is only the retail channel that is missing.",
+  "source_url": "https://www.timet.com (TIMET 'Titanium design and fabrication handbook for industrial applications', Tables 5 and 5a)"
+ },
+ {
+  "name": "Stainless 304, cold-worked (1/4 hard) or as-welded/cold-reduced tube",
+  "field": "density_g_cc",
+  "was": "7.8",
+  "should_be": "7.9, the same value as the annealed 304 row",
+  "why": "Cold work does not materially change density. 7.8 is MakeItFrom's 2-significant-figure rounding, and MakeItFrom also shows 7.8 for ANNEALED 304. Using 7.8 here and 7.89 in the annealed row makes the cold-worked tube compute about 1% lighter for no physical reason. Speedy Metals' own listed weights for 3/4 x .035 and x .065 304 back-calculate to about 7.92 g/cc.",
+  "source_url": "https://www.makeitfrom.com/material-properties/Quarter-Hard-304-Stainless-Steel"
+ },
+ {
+  "name": "Stainless 304, cold-worked (1/4 hard) or as-welded/cold-reduced tube",
+  "field": "yield_mpa / uts_mpa",
+  "was": "580 / 960 (MakeItFrom typical)",
+  "should_be": "For a like-for-like comparison with the annealed rows, which use spec minimums: 517 / 862 MPa (75 / 125 ksi), the ASTM A666 1/4-hard minimum. Otherwise keep 580/960 but put 'typical' in the value column itself.",
+  "why": "The 580/960/12% values are confirmed as MakeItFrom typical. But the annealed 304/316 rows use minimums (207/517), so the table sets a typical value against a minimum, which overstates the gain from cold work. Also, the note's 'AK Steel 201 at 1/4 hard is 75 ksi / 125 ksi' figures are the A666 temper MINIMUM requirements, not typicals. MakeItFrom's TYPICAL 1/4-hard 201 is 590 / 960 MPa and 28%, so the note compares a minimum against a typical. (The A666 values are from memory of the spec, but they match the row's own AK figures.)",
+  "source_url": "https://www.makeitfrom.com/material-properties/Quarter-Hard-201-Stainless-Steel"
+ },
+ {
+  "name": "Stainless 304, cold-worked (1/4 hard) or as-welded/cold-reduced tube",
+  "field": "heat_limit_c",
+  "was": "The extra strength ... is lost only on annealing (about 1040 C), so staff heat should not remove it.",
+  "should_be": "Cold-work strength is lost progressively once recovery and recrystallization start, which for cold-worked austenitic stainless is well below the 1040 C solution anneal (commonly several hundred C with time, depending on the amount of reduction). Full loss happens at annealing. Keep the existing 'partial recovery NOT verified' hedge, and drop 'lost only on annealing'.",
+  "why": "'Only on annealing' is stated as fact, and the row's own hedge contradicts it. Recrystallization temperature is not the solution-anneal temperature. This is general metallurgy and was not sourced this pass, so word it as a caution rather than a number.",
+  "source_url": ""
+ },
+ {
+  "name": "Stainless 316/316L, annealed tube",
+  "field": "elongation_pct",
+  "was": "40",
+  "should_be": "35 (tube spec minimum, as used in the 304 tube row); or keep 40 and label it the A240 plate/sheet minimum",
+  "why": "Sandmeyer gives 316 as '40% min. (ASTM)', which is the A240 plate/sheet figure. The tube specifications this table is about (A213/A269 seamless or welded, A554 annealed) use 35%, and the 304 row already uses the tube value of 35. Sandmeyer's 7.90 g/cc, 200 GPa, 14.6 W/m-K, 44/85 ksi typical, 30/75 ksi min and 1038 C anneal are all confirmed.",
+  "source_url": "https://www.sandmeyersteel.com/316-316L.html"
+ },
+ {
+  "name": "Stainless 321 (titanium-stabilised)",
+  "field": "yield_mpa / uts_mpa / elongation_pct",
+  "was": "252 / 643 / 40 (Rolled Alloys averages; elongation 'assumed from the 304 family')",
+  "should_be": "On the same basis as the 304/316 rows, use the ASTM A213/A269 TP321 tube minimums: 207 / 517 MPa (30 / 75 ksi), 35%. Or keep 252/643 labelled TYPICAL. Elongation: 35 (minimum) or a sourced typical (MakeItFrom gives 34-50%). Do not use 40 'from the 304 family', because the 304 row uses 35.",
+  "why": "The TP321 and TP304 tube minimums are identical, so putting 321 typical values against 304 minimums makes 321 look about 20% stronger on a basis mismatch alone. The elongation assumption also contradicts the 304 row. MakeItFrom's ranges (220-350 yield, 590-690 UTS) confirm that 252/643 is a typical value, not a minimum.",
+  "source_url": "https://www.makeitfrom.com/material-properties/AISI-321-S32100-Stainless-Steel"
+ },
+ {
+  "name": "Stainless 321 (titanium-stabilised)",
+  "field": "heat_limit_c",
+  "was": "... typical yield 205 MPa at 427 C and 189 MPa at 538 C. The best-documented hot strength of the common stainless grades here.",
+  "should_be": "Keep the 871 C oxidation figure (MakeItFrom also gives 870 C / 1600 F as the maximum mechanical temperature). Drop the comparative 'best hot strength', or source 304's and 321's hot yield from the SAME table. On this row's own numbers, 321 loses only 19% of its yield by 427 C while 304 loses 46%, a gap much larger than stabilised-versus-unstabilised grades usually show.",
+  "why": "The 321 and 304 hot-yield figures come from two different Rolled Alloys pages. Both returned 404 on 2026-09-24 and could not be re-checked. The comparison is not reliable as it stands.",
+  "source_url": "https://www.makeitfrom.com/material-properties/AISI-321-S32100-Stainless-Steel"
+ },
+ {
+  "name": "Stainless 201 (Cr-Ni-Mn), annealed",
+  "field": "yield_mpa / uts_mpa / elongation_pct",
+  "was": "379 / 758 / 52 (AK Steel typical)",
+  "should_be": "Either label these TYPICAL in the value columns, or, to match the minimum-based 304/316/430 rows, use the ASTM A240 minimums: 201-2 is 310 / 655 MPa (45 / 95 ksi), 40%; 201-1 is 260 / 515 MPa, 40%. Note that MakeItFrom's typical annealed 201 is only 300 / 650 MPa and 45%, well below the AK typicals used here.",
+  "why": "This row sets a typical value against the minimums used for 304 (207/517), which makes 201 look nearly twice as strong as 304. The two typical sources also disagree (AK 379/758 against MakeItFrom 300/650). The A240 minimums are from memory of the spec, but MakeItFrom's 300/650 matches 201-2.",
+  "source_url": "https://www.makeitfrom.com/material-properties/Annealed-201-Stainless-Steel"
+ },
+ {
+  "name": "Stainless 201 (Cr-Ni-Mn), annealed",
+  "field": "heated_hazards",
+  "was": "Same class as 304. No specific fume data for the solid metal at staff temperatures.",
+  "should_be": "Add: 201 contains 5.5-7.5% manganese (304 contains 2% max), so welding and grinding fume from 201 carries much more manganese than fume from 304. Manganese is a recognized welding-fume hazard. The solid tube at staff temperatures is still not a documented fume source.",
+  "why": "'Same class as 304' hides the one composition difference that affects fume. The manganese range is confirmed.",
+  "source_url": "https://www.makeitfrom.com/material-properties/Annealed-201-Stainless-Steel"
+ },
+ {
+  "name": "Stainless 409 (ferritic, Ti-stabilised)",
+  "field": "yield_mpa / uts_mpa / elongation_pct / modulus_gpa",
+  "was": "241 / 414 / 31 (low end of AK typical range) / 208",
+  "should_be": "Use the A554 MT409 tube minimums already quoted in the row's note, 207 / 379 MPa, so the row matches the minimum-based rows. Otherwise label it typical: MakeItFrom typical is 200 / 420 MPa and 24%. Modulus: about 200 GPa (MakeItFrom gives 190 GPa, 28 Msi). The 208 GPa (30.2 Msi) figure is unconfirmed and high for a ferritic grade.",
+  "why": "'Low end of the typical range' is neither a typical value nor a spec minimum, so it cannot be compared with the other rows. The MakeItFrom typical values actually sit at or below the 'low end' used here. Density 7.75 is also slightly high against MakeItFrom's 7.7 (minor).",
+  "source_url": "https://www.makeitfrom.com/material-properties/AISI-409-S40900-Stainless-Steel"
+ },
+ {
+  "name": "Stainless 430 (ferritic)",
+  "field": "yield_mpa / uts_mpa",
+  "was": "205 / 450 (ASTM A240 sheet minimums)",
+  "should_be": "241 / 414 MPa, the A554 MT430 welded-TUBE minimums already quoted in the row's note. Otherwise label the values 'A240 sheet'. For reference, MakeItFrom typical is 260 / 500 MPa and 24%.",
+  "why": "This is a tube table, and the other stainless rows use tube-spec values (A554/A213). Taking sheet minimums here understates yield by 15% and overstates UTS by 9% compared with the spec that governs the tube.",
+  "source_url": "https://www.makeitfrom.com/material-properties/AISI-430-S43000-Stainless-Steel"
+ },
+ {
+  "name": "Stainless 17-4PH, condition H900",
+  "field": "heated_hazards",
+  "was": "No specific data for the solid metal. Welding and grinding are the fume steps (it contains Cr and Ni).",
+  "should_be": "... (it contains Cr, Ni and about 3-5% copper). Copper oxide fume from welding or cutting is a metal-fume-fever agent.",
+  "why": "The row lists the alloying elements that matter for fume but leaves out copper, the element that gives 17-4 its name as a precipitation-hardening grade. Otherwise confirmed: the AMS 5643 H900 minimums (1172/1310/10), 196 GPa, 18.3 W/m-K (10.6 BTU), Sandmeyer's 'should not be used at temperatures above 572°F (300°C)', and 175 ksi typical yield.",
+  "source_url": "https://www.sandmeyersteel.com/17-4PH.html"
+ },
+ {
+  "name": "Stainless 410 (martensitic), annealed or hardened",
+  "field": "density_g_cc",
+  "was": "7.64 (from 0.276 lb/in3)",
+  "should_be": "7.8 (7.75 to 7.8 is the usual range)",
+  "why": "0.276 lb/in3 is an outlier. AZoM gives 7800 kg/m3 for annealed 410, and the row's own note admits other references give 7.7 to 7.8. A 2% low density makes every tube-weight figure for 410 read light.",
+  "source_url": "https://www.azom.com/article.aspx?ArticleID=970"
+ },
+ {
+  "name": "Stainless 410 (martensitic), annealed or hardened",
+  "field": "yield_mpa / uts_mpa / elongation_pct (and name)",
+  "was": "221 / 414 / 20, labelled 'low ends of Rolled Alloys typical annealed ranges'; the name says 'annealed or hardened'",
+  "should_be": "Label them as a MINIMUM basis. For tube, ASTM A268 TP410 minimums are 415 MPa UTS, 205 MPa yield and 20% (from memory of the A268 table, not re-fetched this pass). AZoM's annealed minimums (plate basis) are 480 / 275 / 16. Rename the row to 'annealed', and put the hardened data in its own row, because hardened strength is 3 to 4 times higher at the same stiffness.",
+  "why": "414 MPa is the A268 minimum UTS, so the numbers read as spec minimums, not typical low ends. A row covering two conditions with one set of numbers invites a calculator to use annealed strength for a hardened staff, or the reverse.",
+  "source_url": "https://www.azom.com/article.aspx?ArticleID=970"
+ },
+ {
+  "name": "Stainless 410 (martensitic), annealed or hardened",
+  "field": "heated_hazards (weld preheat)",
+  "was": "177-204 C preheat",
+  "should_be": "AZoM gives 150 to 260 C preheat followed by a post-weld anneal. Quote a range and name the source.",
+  "why": "The published preheat windows differ from source to source. The narrow 177-204 C figure is one supplier's value presented as the only one.",
+  "source_url": "https://www.azom.com/article.aspx?ArticleID=970"
+ },
+ {
+  "name": "Carbon steel 1020/1026 DOM tube (ASTM A513 Type 5, drawn over mandrel)",
+  "field": "thermal_conductivity_w_mk",
+  "was": "missing (note says 'about 50, unverified')",
+  "should_be": "about 51.9 W/m-K (the commonly cited MatWeb figure for AISI 1020; could not be fetched this pass because MatWeb blocks automated access). Fill the field so the calculator does not get a null.",
+  "why": "Every other steel row has this field. Everything else in this row checks out: Totten's A513 table gives mandrel-drawn 1020 at 60 ksi (414) yield, 70 ksi (483) UTS and 5%; 1026 at 70/80; stress-relieved 1020 at 55/65 and 10%. The Speedy prices are confirmed at $72.73 for 60 in of DOM and $43.00 for the 304 tube.",
+  "source_url": "https://www.tottentubes.com/astm-a513-specification-information"
+ },
+ {
+  "name": "4130 chromoly, normalized tube (Condition N)",
+  "field": "yield_mpa",
+  "was": "435 (MatWeb TYPICAL for normalized BAR)",
+  "should_be": "483 (AMS 6371 cold-drawn TUBE minimum, 70 ksi). The commonly cited MIL-T-6736 / AMS 6360 Cond N minimum is 75 ksi (517 MPa), not re-fetched this pass.",
+  "why": "The typical bar yield is BELOW the tube spec's guaranteed minimum, so the row mixes a bar-typical basis with a tube product. Aircraft Spruce states its tube is seamless, drawn over mandrel and condition N, so the tube spec is the right basis. This row is also inconsistent with the other steel rows, which use tube minimums.",
+  "source_url": "https://www.aircraftmaterials.com/data/alstst/4130.html"
+ },
+ {
+  "name": "4130 chromoly, normalized tube (Condition N)",
+  "field": "elongation_pct",
+  "was": "25.5 (typical normalized bar)",
+  "should_be": "12 (AMS 6371 tube minimum), or keep 25.5 but label it 'typical, bar'",
+  "why": "This mixes a typical bar value into a tube row without saying so. Aircraft Spruce's own page quotes 'Tensile Strength: 90,000 PSI' for this tube.",
+  "source_url": "https://www.aircraftmaterials.com/data/alstst/4130.html"
+ },
+ {
+  "name": "4130 chromoly, normalized tube (Condition N)",
+  "field": "price_note / tube_availability",
+  "was": "'about $37.50 for 5 ft plus cutting and shipping'; walls listed as .028-.065",
+  "should_be": "Prices are confirmed per foot: .028 $9.95, .035 $7.50, .049 $5.35, .058 $6.50, .065 $5.35. But Aircraft Spruce says 'No charge is made for cutting stock sizes of tubing to mailable length', so drop 'plus cutting'. 3/4 in also comes in .095, .120, .156 and .188 walls. Their FAQ says all their 4130 tube is condition N and is seamless and drawn over mandrel.",
+  "why": "Remove the cutting charge the source says does not exist. The listed weight of 0.267 lb/ft for 3/4 x .035 back-calculates to 7.83 g/cc, which confirms the 7.85 density.",
+  "source_url": "https://www.aircraftspruce.com/catalog/mepages/4130tubing_un1.php"
+ },
+ {
+  "name": "Magnesium AZ31B (extruded, F temper; sheet H24 for comparison)",
+  "field": "yield_mpa",
+  "was": "200 (AZoM typical for extruded SOLID bar/shape)",
+  "should_be": "165 typical for extruded hollow shapes and tubing (BTI Metals). For a minimum basis, ASTM B107 AZ31B-F hollow profiles/tubes: 110 to 140 MPa (16 to 20 ksi) yield minimum depending on wall. The column alignment in the sample PDF is ambiguous, so confirm which applies to a 0.035 in wall.",
+  "why": "The row describes a tube, but the value is for solid extrusions and overstates tube yield by about 20%, or by up to 80% against the spec minimum.",
+  "source_url": "https://btimetals.com/aerospace_metal/magnesium-az31b-tubes/"
+ },
+ {
+  "name": "Magnesium AZ31B (extruded, F temper; sheet H24 for comparison)",
+  "field": "uts_mpa / elongation_pct",
+  "was": "260 / 15",
+  "should_be": "241 / 16 typical for tube (BTI). B107-13 tube minimum: 220 MPa (32.0 ksi) UTS and 4 to 8% elongation.",
+  "why": "These are solid-bar typicals applied to tube.",
+  "source_url": "https://www.normsplash.com/Samples/ASTM/151682944/ASTM-B107-B107M-13-en.pdf"
+ },
+ {
+  "name": "Magnesium AZ31B (extruded, F temper; sheet H24 for comparison)",
+  "field": "notes (missing compressive yield)",
+  "was": "no compressive value",
+  "should_be": "Add: compressive yield is 83 MPa (12 ksi) typical for AZ31B tube (BTI), about half the tensile yield.",
+  "why": "Wrought magnesium yields much earlier in compression than in tension. A bending calculation that uses tensile yield for both faces of the tube overstates the load before permanent bending by roughly 2 times.",
+  "source_url": "https://btimetals.com/aerospace_metal/magnesium-az31b-tubes/"
+ },
+ {
+  "name": "Magnesium AZ31B (extruded, F temper; sheet H24 for comparison)",
+  "field": "tube_availability",
+  "was": "'No US retail 3/4 in tube found'",
+  "should_be": "US aerospace distributors (for example BTI Metals) list AZ31B tube to ASTM B107 / AMS 4350, quote-only. It is not a retail item.",
+  "why": "A US source exists. It simply is not a retail listing.",
+  "source_url": "https://btimetals.com/aerospace_metal/magnesium-az31b-tubes/"
+ },
+ {
+  "name": "Magnesium AZ31B (extruded, F temper; sheet H24 for comparison)",
+  "field": "heat_limit_c (ignition temperature)",
+  "was": "may ignite near its melting point (about 650 C)",
+  "should_be": "Ignition at about 630 C (Wikipedia's figure for magnesium). AZ31B melts somewhat below pure magnesium's 650 C, so say 'about 600-630 C' rather than 650.",
+  "why": "650 C is pure magnesium's melting point. The alloy softens and can ignite lower than that.",
+  "source_url": "https://en.wikipedia.org/wiki/Magnesium_alloy"
+ },
+ {
+  "name": "Copper C12200, hard-drawn tube (H80)",
+  "field": "yield_mpa / uts_mpa / elongation_pct",
+  "was": "310 / 350 / 7.8 (MakeItFrom H80 typical)",
+  "should_be": "Keep these only for certified H80 tube. For the plumbing Type K/L/M and ACR tube this row says people will actually buy (drawn, H58, or annealed), use copper.org's C12200 light-drawn H55 tube typicals of 221 MPa yield, 276 MPa UTS and 25%. Annealed ACR coil yields at about 69 MPa. The ASTM B88 drawn minimums are commonly cited as 205 yield and 250 UTS (not re-fetched). For reference, copper.org's H80 typical UTS is 379 MPa (55 ksi), not 350.",
+  "why": "The strength values are for a temper that the availability text does not describe. Plumbing 'hard' tube is not H80, so the table overstates its yield by about 40%.",
+  "source_url": "https://alloys.copper.org/alloy/C12200"
+ },
+ {
+  "name": "Copper C12200, hard-drawn tube (H80)",
+  "field": "heat_limit_c",
+  "was": "softens when heated (no temperatures given)",
+  "should_be": "Add copper.org's annealing range of 750-1200 F (399-649 C). The drawn temper is lost in that range.",
+  "why": "This can now be sourced, and the range falls within the temperatures at the wick end.",
+  "source_url": "https://alloys.copper.org/alloy/C12200"
+ },
+ {
+  "name": "Brass C26000 cartridge brass (70/30), half hard",
+  "field": "yield_mpa / uts_mpa / elongation_pct (and name)",
+  "was": "220 / 370 / 20, which are H02 ROD minimums; the name says 'half hard'",
+  "should_be": "For TUBE, copper.org lists only hard-drawn H80 (538 MPa UTS typical, 8%) and annealed tempers: OS025 is 359 UTS, 138 yield, 55%; OS050 is 324 UTS, 103 yield, 65%. Retail tube is sold without a stated temper (Speedy lists only 'Alloy 260/272/330, ASTM B135'). Use about 103-138 MPa yield as a conservative floor unless the temper is certified, and drop 'half hard' from the name.",
+  "why": "These are rod values applied to a tube row, and half hard is not one of the listed tube tempers. If the tube is annealed, its yield is about half the tabled 220.",
+  "source_url": "https://alloys.copper.org/alloy/C26000"
+ },
+ {
+  "name": "Brass C26000 cartridge brass (70/30), half hard",
+  "field": "heated_hazards / tube_availability",
+  "was": "'C26000 lead is capped at 0.07%'; Speedy tube alloy 'not stated'",
+  "should_be": "Speedy's brass tube is sold as 'Alloy 260/272/330' to ASTM B135. C33000 contains 0.25-0.7% LEAD (copper.org), so a generic retail brass tube may be leaded. The 0.07% cap applies only to certified C26000 or C27200.",
+  "why": "The low-lead claim is true only for C26000, but the retail product the row points to may be C33000.",
+  "source_url": "https://www.speedymetals.com/information/material54.html"
+ },
+ {
+  "name": "Brass C26000 cartridge brass (70/30), half hard",
+  "field": "price_note",
+  "was": "Not captured.",
+  "should_be": "Speedy Metals, checked 2026-09-24: 3/4 in OD x .032 wall, 60 in = $24.61 (1.332 lb); 3/4 x .065, 60 in = $48.00 (2.40 lb).",
+  "why": "The price was retrievable. The listed weight back-calculates to 0.3076 lb/in3 (8.51 g/cc), consistent with the 8.53 density.",
+  "source_url": "https://www.speedymetals.com/pc-2853-8200-34-od-x-204864-od-wall-tube-brass.aspx"
+ },
+ {
+  "name": "Brass C36000 free-cutting (leaded) brass",
+  "field": "heated_hazards (lead content)",
+  "was": "2.5-3.7% LEAD",
+  "should_be": "2.5-3.0% lead (copper.org C36000 composition: Cu 60.0-63.0, Pb 2.5-3.0, Fe 0.35 max, Zn remainder)",
+  "why": "The 3.7% upper limit is out of date. The hazard advice itself is unchanged.",
+  "source_url": "https://alloys.copper.org/alloy/C36000"
+ },
+ {
+  "name": "Brass C36000 free-cutting (leaded) brass",
+  "field": "thermal_conductivity_w_mk",
+  "was": "120",
+  "should_be": "116 (67 Btu/ft-hr-F)",
+  "why": "Copper.org value. Density 8.5 is confirmed (0.307 lb/in3), which settles the note's 'MakeItFrom 8.2' question.",
+  "source_url": "https://alloys.copper.org/alloy/C36000"
+ },
+ {
+  "name": "Brass C36000 free-cutting (leaded) brass",
+  "field": "modulus_gpa",
+  "was": "100",
+  "should_be": "97 (14,000 ksi)",
+  "why": "Copper.org value. A small difference.",
+  "source_url": "https://alloys.copper.org/alloy/C36000"
+ },
+ {
+  "name": "Brass C36000 free-cutting (leaded) brass",
+  "field": "elongation_pct",
+  "was": "20 (placeholder, unsourced)",
+  "should_be": "Copper.org H02 rod, 1 in section, TYPICAL: 400 MPa UTS, 310 MPa yield, 25%. If you keep the minimum-basis strengths (140/330), mark elongation as a minimum and take it from ASTM B16, which could not be retrieved this pass.",
+  "why": "Replace the placeholder with a sourced value, and keep the basis (typical or minimum) the same as the strength fields.",
+  "source_url": "https://alloys.copper.org/alloy/C36000"
+ },
+ {
+  "name": "Bronze C51000 phosphor bronze (with C95400 aluminium bronze noted)",
+  "field": "thermal_conductivity_w_mk",
+  "was": "77",
+  "should_be": "69 (40 Btu/ft-hr-F)",
+  "why": "Copper.org value, about 11% lower than the table's.",
+  "source_url": "https://alloys.copper.org/alloy/C51000"
+ },
+ {
+  "name": "Bronze C51000 phosphor bronze (with C95400 aluminium bronze noted)",
+  "field": "density_g_cc",
+  "was": "8.8",
+  "should_be": "8.86 (0.320 lb/in3)",
+  "why": "Copper.org value. A small difference.",
+  "source_url": "https://alloys.copper.org/alloy/C51000"
+ },
+ {
+  "name": "Bronze C51000 phosphor bronze (with C95400 aluminium bronze noted)",
+  "field": "heat_limit_c / elongation_pct",
+  "was": "annealing temperatures 'not captured'; elongation field missing",
+  "should_be": "Annealing is 900-1250 F (482-677 C), per copper.org. Annealed (OS050) typical: 324 MPa UTS, 131 MPa yield, 64% elongation. Fill the elongation field to match the annealed yield.",
+  "why": "The temperatures can now be sourced, and the calculator needs the missing field.",
+  "source_url": "https://alloys.copper.org/alloy/C51000"
+ },
+ {
+  "name": "Bronze C51000 phosphor bronze (with C95400 aluminium bronze noted)",
+  "field": "notes (C95400 density)",
+  "was": "8.2 from MakeItFrom; 'about 7.45, unverified'",
+  "should_be": "7.45 (0.269 lb/in3), confirmed by copper.org. Modulus 107 GPa (15,500 ksi); thermal conductivity 58.7 W/m-K.",
+  "why": "This resolves the open question in the note.",
+  "source_url": "https://alloys.copper.org/alloy/C95400"
+ },
+ {
+  "name": "Beryllium copper C17200",
+  "field": "modulus_gpa",
+  "was": "120",
+  "should_be": "128 (18,500 ksi)",
+  "why": "Copper.org value. The table understates stiffness by about 6%. Density 8.25 is confirmed (specific gravity 8.26), so the note's 'MakeItFrom 8.8' is wrong.",
+  "source_url": "https://alloys.copper.org/alloy/C17200"
+ },
+ {
+  "name": "Beryllium copper C17200",
+  "field": "notes (beryllium content)",
+  "was": "'Wikipedia gives 0.5-3% beryllium'",
+  "should_be": "C17200 specifically: 1.80-2.00% Be (copper.org). The 0.5-3% figure covers the whole beryllium-copper family.",
+  "why": "The row names a specific alloy, so give that alloy's composition.",
+  "source_url": "https://alloys.copper.org/alloy/C17200"
+ },
+ {
+  "name": "Beryllium copper C17200",
+  "field": "heat_limit_c",
+  "was": "'The age-hardened strength would be at risk at the wick end'",
+  "should_be": "Copper.org's precipitation treatment is 600 F (316 C) for 3 h, with solution treatment at 1425-1475 F. The tabled (solution-annealed) values would CHANGE at wick-end temperatures because the metal age-hardens, getting stronger and less ductile. Already-hardened parts over-age and soften above that.",
+  "why": "The low-end values in the table are for annealed metal, which ages at about 316 C. Saying only 'at risk' gets the direction of the change wrong for the condition that is tabled.",
+  "source_url": "https://alloys.copper.org/alloy/C17200"
+ },
+ {
+  "name": "Carbon fibre tube (roll-wrapped CFRP, epoxy matrix), comparison only",
+  "field": "yield_mpa",
+  "was": "0",
+  "should_be": "null / not applicable, plus a separate failure-strength field (uts_mpa is missing entirely)",
+  "why": "A numeric 0 will make any strength or safety-factor calculation that reads yield_mpa return zero or divide by zero. It needs to be non-numeric, not just explained in a note. The density, modulus and thermal conductivity in this row are admitted estimates and still need a manufacturer datasheet.",
+  "source_url": ""
+ }
+]

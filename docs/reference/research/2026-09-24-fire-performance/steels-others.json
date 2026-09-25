@@ -1,0 +1,780 @@
+{
+ "alloys": [
+  {
+   "name": "Stainless 304/304L, annealed tube (ASTM A269/A213 seamless or welded, or A554 welded-and-annealed)",
+   "family": "Austenitic stainless steel",
+   "also_called": "18-8, UNS S30400/S30403, 1.4301/1.4307",
+   "density_g_cc": 7.89,
+   "modulus_gpa": 200,
+   "yield_mpa": 207,
+   "uts_mpa": 517,
+   "elongation_pct": 35,
+   "thermal_conductivity_w_mk": 16.3,
+   "melting_c": "1399-1421 (2550-2590 F)",
+   "heat_limit_c": "No temper to lose: it is already annealed, and annealing needs about 1040 C. It keeps useful strength when hot: typical yield 159 MPa at 204 C and 131 MPa at 427 C, against 241 MPa at room temperature (Rolled Alloys typical data). Scaling is not a concern at staff-end temperatures.",
+   "heated_hazards": "No source found showing fume from the solid metal at a few hundred C. OSHA's chromium (including hexavalent chromium) warning is about WELDING stainless, which melts it. Grinding and welding are the fume and dust steps; ventilate for those. Uncoated, so there is no coating to burn off. Expect heat-tint colours near the wick (not sourced here, cosmetic).",
+   "corrosion": "Excellent in fresh water, sweat and outdoors; the reference grade for general corrosion. 316 is better against chlorides and salt.",
+   "tube_availability": "Very common. On 2026-09-24 Speedy Metals listed 3/4 in OD 304 annealed tube in .035, .049, .065 and .120 in walls (5/8, 7/8 and 1 in OD too). Online Metals lists 3/4 x .035 304 welded. A554 decorative welded tube also comes as-welded or cold-reduced, and the spec lists tensile requirements only for annealed tube.",
+   "price_note": "Speedy Metals, checked 2026-09-24: 3/4 in OD x .035 in 304 annealed, 60 in = $43.00 (1.35 lb, 612 g); 3/4 x .065 wall, 60 in = $30.00 (2.40 lb, 1089 g). Shipping is extra, and UPS takes up to 90 in.",
+   "staff_verdict": "PROS: needs no coating (so nothing to burn off); holds strength at the hot end; conducts about 10x less heat than aluminium toward the hands; about 2.9x stiffer than the same-size aluminium tube; very ductile (35-40%+ elongation), so it tends to take a bend rather than crack; cheap and easy to buy. CONS: about 2.9x heavier than the same-size 6061 tube (612 g vs about 209 g for 60 in of 3/4 x .035), which pushes a finished fire staff past the 500-750 g that makers target; annealed yield (207 MPa min, about 240 typical) is no higher than 6061-T6 (about 270), so a hard knock still bends it permanently; walls thin enough to save weight dent easily; it work-hardens when drilled or cut, and threads can gall; low conductivity keeps heat concentrated at the wick end. Best fit: heavy practice or 'strength' staffs and short fire props; poor fit for a light contact staff.",
+   "notes": "The 207 MPa yield and 517 MPa UTS are spec MINIMUMS (A554 supplementary Table S2.1 for annealed tube, matching A240). Rolled Alloys' typical room-temperature values are 35 ksi (241 MPa) yield and 90 ksi (620 MPa) UTS. 304L minimums are 172/483 MPa. A554 straightness tolerance is 0.030 in per 3 ft, wall tolerance is plus or minus 10%, and the ID weld bead may be supplied 'not removed', which matters if plugs or weights must slide inside. Density calculated from 0.285 lb/in3.",
+   "sources": [
+    {
+     "url": "https://www.rolledalloys.com/wp-content/uploads/304-304L_stainless-steel-data-sheet-rolled-alloys.pdf",
+     "quote": "Density: 0.285 lb/in3 Melting Range: 2550-2590°F"
+    },
+    {
+     "url": "https://www.rolledalloys.com/wp-content/uploads/304-304L_stainless-steel-data-sheet-rolled-alloys.pdf",
+     "quote": "0.2 % Yield Strength, ksi 100 70 50 35 23 19 15.5 13"
+    },
+    {
+     "url": "http://www.dsstainlesssteel.com/wp-content/uploads/2019/01/ASTM-A554-PDF.pdf",
+     "quote": "All other austenitic steels 75 517 30 207 35"
+    },
+    {
+     "url": "http://www.dsstainlesssteel.com/wp-content/uploads/2019/01/ASTM-A554-PDF.pdf",
+     "quote": "The straightness tolerance shall be 0.030 in. (0.76 mm) maximum"
+    },
+    {
+     "url": "https://www.speedymetals.com/pc-4475-8276-34-od-x-0035-wall-tube-304-stainless-steel-annealed.aspx",
+     "quote": "60\" 1.35 lbs $43.00"
+    },
+    {
+     "url": "https://www.speedymetals.com/p-4477-34-od-x-0065-wall-tube-304-stainless-steel-annealed.aspx",
+     "quote": "60\" 2.40 lbs $30.00"
+    },
+    {
+     "url": "https://www.osha.gov/ship-building-repair/welding",
+     "quote": "Chromium is released in significant concentrations when welding stainless steels"
+    }
+   ]
+  },
+  {
+   "name": "Stainless 304, cold-worked (1/4 hard) or as-welded/cold-reduced tube",
+   "family": "Austenitic stainless steel, strain-hardened",
+   "also_called": "304 1/4H, hard-drawn 304",
+   "density_g_cc": 7.8,
+   "modulus_gpa": 200,
+   "yield_mpa": 580,
+   "uts_mpa": 960,
+   "elongation_pct": 12,
+   "thermal_conductivity_w_mk": 16,
+   "melting_c": "about 1400-1450",
+   "heat_limit_c": "The extra strength comes from cold work, not heat treatment. It is lost only on annealing (about 1040 C), so staff-end heat should not remove it. Partial recovery at intermediate temperatures has NOT been verified.",
+   "heated_hazards": "Same as annealed 304: no documented fume from the solid metal at staff temperatures. Welding and grinding are the fume steps.",
+   "corrosion": "Same as 304. Heavy cold work can make it slightly magnetic.",
+   "tube_availability": "UNCERTAIN. 1/4 hard is mainly a sheet and strip temper (ASTM A666). Round tube is normally sold annealed (A269/A213) or as-welded (A554). A554 allows a 'cold reduced' condition, but for its properties the 'manufacturer shall be consulted'. No 3/4 in thin-wall 1/4-hard 304 round tube was found at a retail stockist (web search budget ran out before this was settled).",
+   "price_note": "Not found.",
+   "staff_verdict": "Would give roughly 2.5x the yield strength of annealed 304 at the same weight, so it resists permanent bends much better. Hard to find in staff sizes. If a seller claims 'hard' or '1/4 hard' tube, ask for the mill cert.",
+   "notes": "The 580/960 MPa figures are MakeItFrom typical database values for 1/4-hard 304. For comparison, AK Steel's 201 at 1/4 hard is 75 ksi (517 MPa) yield and 125 ksi (862 MPa) UTS. As-welded A554 tube is probably somewhat stronger than annealed because forming cold-works the strip, but no spec value exists (A554 lists tensile limits only for annealed tube). Treat it as unknown unless certified.",
+   "sources": [
+    {
+     "url": "https://www.makeitfrom.com/material-properties/Quarter-Hard-304-Stainless-Steel",
+     "quote": "Tensile Strength: Yield (Proof) 580 MPa"
+    },
+    {
+     "url": "http://www.dsstainlesssteel.com/wp-content/uploads/2019/01/ASTM-A554-PDF.pdf",
+     "quote": "When cold-reduced tempers are ordered, the manufacturer shall be consulted."
+    },
+    {
+     "url": "http://www.dsstainlesssteel.com/wp-content/uploads/2019/01/ASTM-A554-PDF.pdf",
+     "quote": "As welded, Welded and annealed, Cold reduced, Cold reduced and annealed."
+    }
+   ]
+  },
+  {
+   "name": "Stainless 316/316L, annealed tube",
+   "family": "Austenitic stainless steel (Mo-bearing)",
+   "also_called": "Marine grade, UNS S31600/S31603, 1.4401/1.4404",
+   "density_g_cc": 7.9,
+   "modulus_gpa": 200,
+   "yield_mpa": 207,
+   "uts_mpa": 517,
+   "elongation_pct": 40,
+   "thermal_conductivity_w_mk": 14.6,
+   "melting_c": "1390-1440",
+   "heat_limit_c": "Like 304, and Sandmeyer notes the Mo gives 'higher creep, stress-to-rupture and tensile strength at elevated temperatures'. It is annealed at 1038 C minimum, so staff heat cannot soften it.",
+   "heated_hazards": "Same as 304: welding and grinding are the chromium-fume steps. Nothing documented for the solid metal at staff temperatures.",
+   "corrosion": "Better than 304 against chlorides (sweat, salt air, pool or beach use). Sandmeyer: excellent in marine atmospheres.",
+   "tube_availability": "Common. Online Metals lists 316 welded and seamless round tube in .035 in wall (for example 1 in OD) and 3/4 in OD x .065 316/316L seamless (ASTM A269). Speedy Metals showed 3/4 x .035 316 only in short lengths (16 and 19 in) per search results.",
+   "price_note": "No 3/4 in price captured (Online Metals blocked fetching on 2026-09-24). Usually costs more than 304 (not verified this pass).",
+   "staff_verdict": "Same weight, stiffness and thermal behaviour as 304. Worth the premium only for people who play near salt water or sweat heavily, or who want the most corrosion-proof hardware. Otherwise 304 does the job.",
+   "notes": "Yield and UTS are ASTM minimums for 316 (316L: 172/483). Sandmeyer's typical values (0.375 in plate): 44 ksi (303 MPa) yield, 85 ksi (586 MPa) UTS, 56% elongation.",
+   "sources": [
+    {
+     "url": "https://www.sandmeyersteel.com/wp-content/uploads/316-316l-317l-spec-sheet.pdf",
+     "quote": "0.2% Offset Yield Strength, ksi 44 30 min. 25 min."
+    },
+    {
+     "url": "https://www.sandmeyersteel.com/wp-content/uploads/316-316l-317l-spec-sheet.pdf",
+     "quote": "Thermal Conductivity 212°F (100°C) 10.1 BTU/hr/ft2/ft/°F 14.6 W/m-°K"
+    },
+    {
+     "url": "https://www.sandmeyersteel.com/wp-content/uploads/316-316l-317l-spec-sheet.pdf",
+     "quote": "excellent resistance to corrosion in marine environments under atmospheric conditions"
+    },
+    {
+     "url": "https://www.onlinemetals.com/en/buy/stainless-steel/0-75-od-x-0-065-wall-x-0-62-id-stainless-steel-round-tube-316-316l-seamless-domestic-60-pack-of-4/pid/26034",
+     "quote": "Stainless Round Tube 316/316L Seamless – ASTM-A269"
+    }
+   ]
+  },
+  {
+   "name": "Stainless 321 (titanium-stabilised)",
+   "family": "Austenitic stainless steel",
+   "also_called": "UNS S32100, 1.4541, AMS 5557/5570 (aerospace tube)",
+   "density_g_cc": 7.92,
+   "modulus_gpa": 193,
+   "yield_mpa": 252,
+   "uts_mpa": 643,
+   "elongation_pct": 40,
+   "thermal_conductivity_w_mk": 15.2,
+   "melting_c": "1399-1427 (2550-2600 F)",
+   "heat_limit_c": "Built for heat. Rolled Alloys: oxidation resistant to 871 C (1600 F), typical yield 205 MPa at 427 C and 189 MPa at 538 C. The best-documented hot strength of the common stainless grades here.",
+   "heated_hazards": "Same as 304: no documented fume from the solid metal below melting; welding is the fume step.",
+   "corrosion": "About the same as 304, and immune to weld-zone intergranular attack.",
+   "tube_availability": "Sold as tube (A269/A213, aircraft exhaust tube to AMS specs), but in 3/4 in thin wall mostly through aerospace or specialty suppliers. No retail listing or price was captured this pass.",
+   "price_note": "Not found. Expect more than 304 (unverified).",
+   "staff_verdict": "Gains nothing over 304 at staff temperatures of a few hundred C. The hot-strength advantage only matters far above what a staff end is likely to see. Same weight penalty as 304.",
+   "notes": "The yield, UTS and elongation figures are Rolled Alloys AVERAGE values at 68 F (36.5 ksi yield, 93.3 ksi UTS); elongation not listed, so 40 assumed from the 304 family. Modulus is 28.0e6 psi at 200 F.",
+   "sources": [
+    {
+     "url": "https://www.rolledalloys.com/wp-content/uploads/321_Data-sheet-rolled-alloys.pdf",
+     "quote": "Oxidation resistant to 1600°F"
+    },
+    {
+     "url": "https://www.rolledalloys.com/wp-content/uploads/321_Data-sheet-rolled-alloys.pdf",
+     "quote": "0.2% Yield Strength, ksi 36.5 36.6 29.7 27.4 24.5 22.8 18.6"
+    },
+    {
+     "url": "https://www.rolledalloys.com/wp-content/uploads/321_Data-sheet-rolled-alloys.pdf",
+     "quote": "Density: 0.286 lb/in³ Melting Range: 2550 - 2600°F"
+    }
+   ]
+  },
+  {
+   "name": "Stainless 201 (Cr-Ni-Mn), annealed",
+   "family": "Austenitic stainless steel (low-nickel)",
+   "also_called": "UNS S20100, 'J4'-type low-nickel grades (loosely)",
+   "density_g_cc": 7.81,
+   "modulus_gpa": 197,
+   "yield_mpa": 379,
+   "uts_mpa": 758,
+   "elongation_pct": 52,
+   "thermal_conductivity_w_mk": 16.2,
+   "melting_c": "1399-1454",
+   "heat_limit_c": "AK Steel: resists destructive scaling to about 843 C. It cannot be hardened by heat treatment, so staff heat does not change it.",
+   "heated_hazards": "Same class as 304. No specific fume data for the solid metal at staff temperatures.",
+   "corrosion": "AK Steel: similar to 301, which in practice means somewhat below 304. More prone to tea-staining and rust spots outdoors (the last point is not sourced here).",
+   "tube_availability": "UNCERTAIN. 201 is not in ASTM A554's grade table, but it is widely used for low-cost imported decorative and furniture tube. No verified 3/4 in retail listing.",
+   "price_note": "Not found. Generally cheaper than 304 because it has less nickel (not verified this pass).",
+   "staff_verdict": "Stronger than annealed 304 (typical yield 379 vs about 241 MPa) at the same weight, so it bends less easily. Weaker corrosion resistance, and it is often sold unlabelled, so a buyer may not know what they have. A reasonable budget stainless if its identity can be confirmed.",
+   "notes": "The numbers are AK Steel TYPICAL annealed values. AK 1/4-hard values are 75 ksi (517 MPa) yield and 125 ksi (862 MPa) UTS. It work-hardens like 301.",
+   "sources": [
+    {
+     "url": "https://www.spacematdb.com/spacemat/manudatasheets/201_Data_Sheet.pdf",
+     "quote": "110 (758) 55 (379) 52 B87 120 (163)"
+    },
+    {
+     "url": "https://www.spacematdb.com/spacemat/manudatasheets/201_Data_Sheet.pdf",
+     "quote": "The general level of corrosion resistance of Type 201 is similar to Type 301."
+    },
+    {
+     "url": "https://www.spacematdb.com/spacemat/manudatasheets/201_Data_Sheet.pdf",
+     "quote": "resists destructive scaling up to about 1550°F (843°C)"
+    },
+    {
+     "url": "http://www.dsstainlesssteel.com/wp-content/uploads/2019/01/ASTM-A554-PDF.pdf",
+     "quote": "MT-301 0.15 2.00 0.045 0.030 1.00 6.0–8.0 16.0–18.0"
+    }
+   ]
+  },
+  {
+   "name": "Stainless 409 (ferritic, Ti-stabilised)",
+   "family": "Ferritic stainless steel",
+   "also_called": "UNS S40910/S40920/S40930, 'exhaust stainless'",
+   "density_g_cc": 7.75,
+   "modulus_gpa": 208,
+   "yield_mpa": 241,
+   "uts_mpa": 414,
+   "elongation_pct": 31,
+   "thermal_conductivity_w_mk": 25.8,
+   "melting_c": "not captured (about 1480-1530 per general references, unverified)",
+   "heat_limit_c": "AK Steel: destructive scaling begins at about 789 C (1450 F). Azom: scaling resistance to 675 C continuous and 815 C intermittent. It cannot be hardened, so staff heat does not change it.",
+   "heated_hazards": "No specific data. The same general rule applies: welding and grinding make the fume.",
+   "corrosion": "The weakest stainless listed here. AK Steel says rust can appear at surface inclusions and advises against it where appearance matters.",
+   "tube_availability": "Made as automotive exhaust tube (high-frequency welded), usually in larger ODs. No 3/4 in thin-wall retail listing found.",
+   "price_note": "Not found.",
+   "staff_verdict": "No advantage for a staff: rust spots, same weight as 304. Conductivity is about 60% higher than 304 but still about 7x below aluminium. Skip it.",
+   "notes": "The yield and UTS figures are the low end of AK Steel typical annealed ranges (35-41 ksi yield, 60-68 ksi UTS, 31-39% elongation). A554 minimums for MT 409 are 30 ksi (207 MPa) yield and 55 ksi (379 MPa) UTS. Modulus is 30.2e6 psi.",
+   "sources": [
+    {
+     "url": "http://terminator-cobra.com/409Stainless_Data_Sheet.pdf",
+     "quote": "0.2% Yield Strength, ksi 25 min 35-41"
+    },
+    {
+     "url": "http://terminator-cobra.com/409Stainless_Data_Sheet.pdf",
+     "quote": "Occasionally, rusting may occur at these inclusion sites"
+    },
+    {
+     "url": "http://terminator-cobra.com/409Stainless_Data_Sheet.pdf",
+     "quote": "destructive scaling in air is approximately 1450°F (789°C)"
+    },
+    {
+     "url": "https://www.azom.com/article.aspx?ArticleID=969",
+     "quote": "25.8 W/m.K"
+    }
+   ]
+  },
+  {
+   "name": "Stainless 430 (ferritic)",
+   "family": "Ferritic stainless steel",
+   "also_called": "UNS S43000, 1.4016",
+   "density_g_cc": 7.74,
+   "modulus_gpa": 200,
+   "yield_mpa": 205,
+   "uts_mpa": 450,
+   "elongation_pct": 22,
+   "thermal_conductivity_w_mk": 26.1,
+   "melting_c": "not captured this pass",
+   "heat_limit_c": "Cannot be hardened by heat treatment, so staff heat does not change its strength. The 400-540 C ('475 C') embrittlement of ferritic grades after long exposure is general metallurgy knowledge and was NOT verified this pass.",
+   "heated_hazards": "No specific data. Welding and grinding are the fume steps.",
+   "corrosion": "Better than 409 and below 304. Magnetic.",
+   "tube_availability": "A554 covers MT-430 welded tube (appliance and decorative trim). No 3/4 in retail listing captured.",
+   "price_note": "Not found.",
+   "staff_verdict": "Same weight as 304 with less corrosion resistance and no strength gain. It is magnetic, which lets a builder tell it apart from 304 with a magnet. Not recommended over 304.",
+   "notes": "Yield, UTS and elongation are ASTM A240 MINIMUMS (65 ksi UTS, 30 ksi yield, 22%). A554 minimums for MT 430 tube are 60 ksi (414 MPa) UTS and 35 ksi (241 MPa) yield.",
+   "sources": [
+    {
+     "url": "https://www.combmet.com/wp-content/uploads/2024/01/430-Stainless-Steel-Alloy-Data-Sheet-2024-01-11.pdf",
+     "quote": "Annealed (Min) 65 ksi ( 450 MPa) 30 ksi ( 205 MPa) 22%"
+    },
+    {
+     "url": "https://www.combmet.com/wp-content/uploads/2024/01/430-Stainless-Steel-Alloy-Data-Sheet-2024-01-11.pdf",
+     "quote": "Thermal Conductivity 15.1 Btu-in./ft.2hr.-°F 26.1 W/m-K"
+    },
+    {
+     "url": "http://www.dsstainlesssteel.com/wp-content/uploads/2019/01/ASTM-A554-PDF.pdf",
+     "quote": "MT 429 and MT 430 60 414 35 241 20"
+    }
+   ]
+  },
+  {
+   "name": "Stainless 17-4PH, condition H900",
+   "family": "Precipitation-hardening (martensitic) stainless steel",
+   "also_called": "Type 630, UNS S17400, AMS 5643, ASTM A564",
+   "density_g_cc": 7.81,
+   "modulus_gpa": 196,
+   "yield_mpa": 1172,
+   "uts_mpa": 1310,
+   "elongation_pct": 10,
+   "thermal_conductivity_w_mk": 18.3,
+   "melting_c": "1404-1440",
+   "heat_limit_c": "Aged at 482 C (900 F); heating near or above that over-ages and softens it. The sources disagree on a service limit: Sandmeyer says do not use above 300 C (572 F), while SSA says strength holds up to 316-427 C (600-800 F). A fire-staff end could plausibly reach that range, so treat the H900 strength as uncertain at the wick end.",
+   "heated_hazards": "No specific data for the solid metal. Welding and grinding are the fume steps (it contains Cr and Ni).",
+   "corrosion": "SSA: nearly as good as 304 and better than 410.",
+   "tube_availability": "Exists as seamless and welded tube (ASTM A564 and aerospace grades). Aircraft Materials lists tube in Cond H1150/H1150D. Thin-wall 3/4 in is specialty, quote-only.",
+   "price_note": "Not found. Specialty aerospace pricing; far more than 304 (unverified).",
+   "staff_verdict": "Enormous strength (about 5-6x annealed 304 yield) at the same weight, so it will not take a bend from normal drops. But it is hard to source as thin tube, costly, hard to cut or drill, less tough than H1150, and its temper is questionable at the hot end. Not a practical staff tube.",
+   "notes": "Yield, UTS and elongation are AMS 5643 MINIMUMS (190/170 ksi, 10%). Sandmeyer's typical H900 yield is about 175 ksi (1207 MPa). Condition A (solution-annealed) 'should not be used' in service. Density is for H900 (0.282 lb/in3).",
+   "sources": [
+    {
+     "url": "https://www.ssa-corp.com/documents/Data%20Sheet%2017-4-Stainless-Steel-AMS-5643-UNSS17400.pdf",
+     "quote": "H900 190 ksi 170 ksi 10% 40% (35% >3\") 388-444 HB"
+    },
+    {
+     "url": "https://www.ssa-corp.com/documents/Data%20Sheet%2017-4-Stainless-Steel-AMS-5643-UNSS17400.pdf",
+     "quote": "maintained in service temperatures up to the 600° F to 800° F range"
+    },
+    {
+     "url": "https://www.sandmeyersteel.com/alloy-17-4ph/",
+     "quote": "It should not be used at temperatures above 572°F (300°C)"
+    },
+    {
+     "url": "https://www.sandmeyersteel.com/alloy-17-4ph/",
+     "quote": "18.3 W/m-°K"
+    },
+    {
+     "url": "https://www.aircraftmaterials.com/data/alstst/17-4tube.html",
+     "quote": "ASTM A 564 T 630 Cond H1150D"
+    }
+   ]
+  },
+  {
+   "name": "Stainless 17-4PH, condition H1150",
+   "family": "Precipitation-hardening (martensitic) stainless steel",
+   "also_called": "Type 630 H1150, UNS S17400",
+   "density_g_cc": 7.83,
+   "modulus_gpa": 196,
+   "yield_mpa": 724,
+   "uts_mpa": 931,
+   "elongation_pct": 16,
+   "thermal_conductivity_w_mk": 18.3,
+   "melting_c": "1404-1440",
+   "heat_limit_c": "Aged at 621 C (1150 F), so it tolerates more heat than H900 before its temper changes. The 300 C service caution from Sandmeyer still applies (see H900).",
+   "heated_hazards": "As for H900.",
+   "corrosion": "Nearly as good as 304.",
+   "tube_availability": "Aircraft Materials lists 17-4 tube in Cond H1150. Specialty and quote-only; no 3/4 in thin-wall retail stock found.",
+   "price_note": "Not found.",
+   "staff_verdict": "The tougher, more heat-tolerant version of 17-4, and still about 3x the yield of annealed 304. Same weight as 304. Availability and cost make it impractical for most builders.",
+   "notes": "AMS 5643 MINIMUMS: 135 ksi UTS, 105 ksi yield, 16% elongation. SSA says it machines about 50% better in H1150 than in the annealed condition. Density 0.283 lb/in3.",
+   "sources": [
+    {
+     "url": "https://www.ssa-corp.com/documents/Data%20Sheet%2017-4-Stainless-Steel-AMS-5643-UNSS17400.pdf",
+     "quote": "H1150 135 ksi 105 ksi 16% 50% 277-352 HB"
+    },
+    {
+     "url": "https://www.ssa-corp.com/documents/Data%20Sheet%2017-4-Stainless-Steel-AMS-5643-UNSS17400.pdf",
+     "quote": "Cond H1150 0.283 #/in3"
+    },
+    {
+     "url": "https://www.aircraftmaterials.com/data/alstst/17-4tube.html",
+     "quote": "17-4PH Cond H 1150"
+    }
+   ]
+  },
+  {
+   "name": "Stainless 410 (martensitic), annealed or hardened",
+   "family": "Martensitic stainless steel",
+   "also_called": "UNS S41000, 1.4006, A268 TP410 (tube)",
+   "density_g_cc": 7.64,
+   "modulus_gpa": 200,
+   "yield_mpa": 221,
+   "uts_mpa": 414,
+   "elongation_pct": 20,
+   "thermal_conductivity_w_mk": 24.9,
+   "melting_c": "about 1495 (2723 F)",
+   "heat_limit_c": "Rolled Alloys: oxidation resistant to 649 C (1200 F) continuously and 816 C intermittently. Hardened 410 loses hardness if heated above its tempering temperature, and tempering at 399-566 C (750-1050 F) reduces toughness.",
+   "heated_hazards": "No specific data for the solid metal. Air-hardening: welding needs a 177-204 C preheat and an immediate anneal, or it cracks.",
+   "corrosion": "Below 304 and 17-4; best when hardened and polished.",
+   "tube_availability": "ASTM A268 TP410 seamless tube exists (for example 19.05 x 1.65 mm, which is 3/4 in x .065) from industrial heat-exchanger suppliers, mostly overseas and quote-only. Not a retail item.",
+   "price_note": "Not found.",
+   "staff_verdict": "Poor choice: same weight as 304, rusts more easily, and welding or brazing end fittings is tricky. Its one advantage, hardenability, is hard to use on thin tube and is undone by flame heat.",
+   "notes": "Yield, UTS and elongation are the LOW ENDS of Rolled Alloys' typical annealed ranges (32-42 ksi yield, 60-75 ksi UTS, 20-40%). Hardened (oil-quenched from 1800 F) and tempered at 1050 F: 124.1 ksi (856 MPa) UTS, 110.3 ksi (760 MPa) yield. Density from 0.276 lb/in3; other references give about 7.7-7.8.",
+   "sources": [
+    {
+     "url": "https://www.rolledalloys.com/wp-content/uploads/410_stainless-steel-data-sheet-rolled-alloys.pdf",
+     "quote": "0.2% Yield Strength, ksi 32- 42"
+    },
+    {
+     "url": "https://www.rolledalloys.com/wp-content/uploads/410_stainless-steel-data-sheet-rolled-alloys.pdf",
+     "quote": "Oxidation resistant through 1500°F intermittently, 1200°F continuously."
+    },
+    {
+     "url": "https://www.rolledalloys.com/wp-content/uploads/410_stainless-steel-data-sheet-rolled-alloys.pdf",
+     "quote": "must be given a high preheat, at least 350-400°F before welding"
+    },
+    {
+     "url": "https://www.arksteeltube.com/a-sa268-stainless-steel-tube/ss-410-seamless-tubing-astm-a268.html",
+     "quote": "ASTM A268 TP410 Seamless Tube | 19.05x1.65mm | BA Finish"
+    }
+   ]
+  },
+  {
+   "name": "Stainless 420 (martensitic, hardened and tempered)",
+   "family": "Martensitic stainless steel (higher carbon, 'cutlery' grade)",
+   "also_called": "UNS S42000",
+   "density_g_cc": 7.8,
+   "modulus_gpa": 200,
+   "yield_mpa": 1360,
+   "uts_mpa": 1600,
+   "elongation_pct": 12,
+   "thermal_conductivity_w_mk": 24.9,
+   "melting_c": "not captured",
+   "heat_limit_c": "Tempered at 150-370 C for high hardness, so the hardness is lost if the part runs hotter than its tempering temperature. Tempering between 425 and 600 C is to be avoided. Azom gives scaling resistance to about 650 C.",
+   "heated_hazards": "No specific data. Very brittle if hardened without tempering.",
+   "corrosion": "Best when hardened and polished; poor when annealed.",
+   "tube_availability": "No thin-wall round tube found; this is a bar and cutlery grade (the web search budget ran out before this could be confirmed further).",
+   "price_note": "Not applicable.",
+   "staff_verdict": "Not a staff-tube material. Mentioned only because '420 stainless' appears on knives and cheap tools. Hardened 420 is brittle rather than bendy, and fire heat would draw its temper.",
+   "notes": "Strength values are Azom's figures for hardened and tempered at 204 C (1600 MPa UTS, 1360 MPa yield, 12%). Annealed: 655 MPa UTS, 345 MPa yield, 25%.",
+   "sources": [
+    {
+     "url": "https://www.azom.com/article.aspx?ArticleID=972",
+     "quote": "Grade 420 should not be tempered between 425 and 600°C"
+    },
+    {
+     "url": "https://www.azom.com/article.aspx?ArticleID=972",
+     "quote": "24.9 W/m·K"
+    }
+   ]
+  },
+  {
+   "name": "Carbon steel 1020/1026 DOM tube (ASTM A513 Type 5, drawn over mandrel)",
+   "family": "Low-carbon steel, cold-drawn welded tube",
+   "also_called": "DOM, mild steel mechanical tube",
+   "density_g_cc": 7.85,
+   "modulus_gpa": 205,
+   "yield_mpa": 414,
+   "uts_mpa": 483,
+   "elongation_pct": 5,
+   "melting_c": "about 1500 (not captured this pass)",
+   "heat_limit_c": "The strength comes from cold drawing. A513 also defines a lower 'stress-relieved' condition, 55 ksi (379 MPa) minimum yield for 1020, which shows that moderate heat trims the drawn strength. The exact temperatures were not captured.",
+   "heated_hazards": "The bare steel is fine. The real fume risk is the COATING it needs against rust: zinc plating or galvanising gives zinc oxide fume and metal fume fever, and paint or powder coat pyrolyses near a wick. Mill oil smokes off. Old cadmium-plated hardware gives toxic cadmium fume.",
+   "corrosion": "Rusts; needs a coating, oiling or bluing. Sweat and fuel residue speed it up.",
+   "tube_availability": "Very common. Speedy Metals lists 3/4 in OD DOM in walls from .035 to .188 in (checked 2026-09-24).",
+   "price_note": "Speedy Metals, checked 2026-09-24: 3/4 x .035 DOM (1020/1026), 60 in = $72.73 (1.338 lb, 607 g). That was MORE than the same-size 304 stainless there ($43.00).",
+   "staff_verdict": "About twice the minimum yield of annealed 304 at the same weight and stiffness, so it bends less. It rusts, though, and every rust fix (plating, paint, powder coat) becomes a fume or flaking problem at the fire end. At this retailer it also cost more than stainless. Stainless is the better steel for fire; DOM suits an LED or practice staff only if it is coated.",
+   "notes": "The yield, UTS and elongation figures are A513 mandrel-drawn MINIMUMS for 1020 via Totten Tubes (60/70 ksi, 5%). 1026: 70 ksi (483 MPa) yield, 80 ksi (552 MPa) UTS. Stress-relieved 1020: 55/65 ksi, 10%. Density is back-calculated from Speedy's listed weight (1.338 lb per 60 in of 3/4 x .035 gives 0.284 lb/in3). The modulus is MatWeb's 'typical for steel' figure. Thermal conductivity was not sourced (plain carbon steel is about 50 W/m-K per general references, unverified).",
+   "sources": [
+    {
+     "url": "https://www.speedymetals.com/pc-3425-8242-34-od-x-035-wall-dom-steel-tube.aspx",
+     "quote": "Grade 1020/1026 DOM per ASTM A513 type 5"
+    },
+    {
+     "url": "https://www.speedymetals.com/pc-3425-8242-34-od-x-035-wall-dom-steel-tube.aspx",
+     "quote": "60\": $72.73 (1.3380 lbs)"
+    },
+    {
+     "url": "https://www.tottentubes.com/astm-a513-specification-information",
+     "quote": "Mandrel-Drawn 1020: 60 (414) yield, 70 (483) ultimate, 5 elongation"
+    },
+    {
+     "url": "https://www.osha.gov/ship-building-repair/welding",
+     "quote": "Zinc exposure is the usual cause of metal fume fever."
+    }
+   ]
+  },
+  {
+   "name": "4130 chromoly, normalized tube (Condition N)",
+   "family": "Low-alloy Cr-Mo steel",
+   "also_called": "Chromoly, chrome-moly, AISI 4130, MIL-T-6736 Cond N, AMS 6360",
+   "density_g_cc": 7.85,
+   "modulus_gpa": 205,
+   "yield_mpa": 435,
+   "uts_mpa": 670,
+   "elongation_pct": 25.5,
+   "thermal_conductivity_w_mk": 42.7,
+   "melting_c": "not captured (about 1430-1460 per general references, unverified)",
+   "heat_limit_c": "Normalized at 870 C, so staff-end heat does not remove a temper the way it does in Q&T steel. Strength falls gradually with temperature (no hot-strength table captured). MatWeb gives thermal conductivity as 42.7 W/m-K at 100 C and 40.7 at 300 C.",
+   "heated_hazards": "Same as DOM: the bare metal is fine, and the coatings needed to stop rust are the fume risk (zinc, cadmium, paint or powder).",
+   "corrosion": "Rusts like carbon steel; needs paint, powder coat, oil or plating.",
+   "tube_availability": "Common in aircraft and motorsport sizes. Aircraft Spruce lists 3/4 in OD seamless in .028, .035, .049, .058 and .065 walls, condition N, 1-24 ft lengths. Shapiro Supply lists 3/4 x .035 seamless in 8 ft lengths.",
+   "price_note": "Aircraft Spruce, checked 2026-09-24: 3/4 x .035 = $7.50/ft (about $37.50 for 5 ft plus cutting and shipping); .049 = $5.35/ft; .028 = $9.95/ft; .065 = $5.35/ft.",
+   "staff_verdict": "The strongest easy-to-buy steel tube: about 2x the yield of annealed 304 at the same weight and stiffness, and cheap. But it rusts, conducts about 2.6x more heat than stainless (still about 4x less than aluminium), and needs a coating that will burn at the wick end. Good for a heavy LED or practice staff if coated; for fire, stainless avoids the coating problem.",
+   "notes": "Strength values are MatWeb/ASM TYPICAL data for normalized 4130 BAR. Tube spec minimum: MIL-T-6736 Cond N 95 ksi (655 MPa) UTS, per a Bearhawk forum post (yield minimum not captured). Aircraft Materials lists cold-drawn AMS 6371 tube at 95 ksi UTS and 70 ksi yield minimum.",
+   "sources": [
+    {
+     "url": "https://quickparts.com/wp-content/uploads/2024/05/Steel-4130.pdf?title=",
+     "quote": "Tensile Strength, Yield 435 MPa 63100 psi"
+    },
+    {
+     "url": "https://quickparts.com/wp-content/uploads/2024/05/Steel-4130.pdf?title=",
+     "quote": "42.7 W/m-K @Temperature 100 °C"
+    },
+    {
+     "url": "https://www.aircraftspruce.com/catalog/mepages/4130tubing_un1.php",
+     "quote": "condition N, normalized"
+    },
+    {
+     "url": "https://www.aircraftspruce.com/catalog/mepages/4130tubing_un1.php",
+     "quote": ".035 0.680\" 0.267 lbs 03-04300 $7.50"
+    },
+    {
+     "url": "https://bearhawkforums.com/forum/tools-technics-and-best-practices/7708-current-4130-tubing-specifications",
+     "quote": "95, 000 psi minimum tensile strength (up to and including .187 wall thickness)"
+    }
+   ]
+  },
+  {
+   "name": "4130 chromoly, quenched and tempered (heat-treated)",
+   "family": "Low-alloy Cr-Mo steel, hardened",
+   "also_called": "4130 Q&T, AMS 6346 (bar)",
+   "density_g_cc": 7.85,
+   "modulus_gpa": 205,
+   "yield_mpa": 689,
+   "uts_mpa": 862,
+   "elongation_pct": 17,
+   "thermal_conductivity_w_mk": 42.7,
+   "melting_c": "not captured",
+   "heat_limit_c": "Any Q&T steel softens back toward normalized strength if heated above its tempering temperature. The tempering temperature for this AMS 6346 example was not captured. General metallurgy (unverified here) puts typical tempers at about 400-650 C, which the metal under a wick might approach.",
+   "heated_hazards": "As for normalized 4130 (the coatings are the issue).",
+   "corrosion": "Rusts; needs a coating.",
+   "tube_availability": "Rarely sold heat-treated in thin-wall tube. Aircraft Materials' heat-treated data is for BAR (AMS 6346). Heat-treating a 5 ft thin tube yourself risks warping it. Not verified further (search budget ran out).",
+   "price_note": "Not found.",
+   "staff_verdict": "On paper, about 3x the yield of annealed 304. In practice it is hard to get as tube, may warp if heat-treated at home, and the fire end may lose its temper. Not recommended for fire; marginal for LED.",
+   "notes": "The numbers are Aircraft Materials' AMS 6346 hardened-and-tempered bar values (125 ksi UTS, 100 ksi yield, 17%). The modulus is unchanged by heat treatment.",
+   "sources": [
+    {
+     "url": "https://www.aircraftmaterials.com/data/alstst/4130.html",
+     "quote": "Tensile Strength ksi 125 ... Yield Strength ksi 100 ... 17"
+    },
+    {
+     "url": "https://www.aircraftmaterials.com/data/alstst/4130.html",
+     "quote": "Cold Drawn condition: 95 ksi tensile, 70 ksi yield, 12% elongation"
+    }
+   ]
+  },
+  {
+   "name": "Magnesium AZ31B (extruded, F temper; sheet H24 for comparison)",
+   "family": "Wrought magnesium alloy (Mg-3Al-1Zn)",
+   "also_called": "UNS M11311, ASTM B107 (extrusions including tube)",
+   "density_g_cc": 1.77,
+   "modulus_gpa": 44.8,
+   "yield_mpa": 200,
+   "uts_mpa": 260,
+   "elongation_pct": 15,
+   "thermal_conductivity_w_mk": 96,
+   "melting_c": "about 600-650 (SDS: about 650; MakeItFrom solidus about 600)",
+   "heat_limit_c": "MakeItFrom gives a maximum mechanical service temperature of 150 C, so it weakens badly at wick-end temperatures. The SDS says it may IGNITE when heated to near its melting point (about 650 C). A flame playing directly on a thin wall is a real ignition risk.",
+   "heated_hazards": "FLAMMABLE. The SDS says pieces thicker than 3 mm are hard to ignite; a 0.9 mm staff wall is thinner than that. Burning magnesium must NOT get water (use a Class D extinguisher), and it gives off magnesium oxide fume. Cutting, drilling and sanding chips and dust ignite easily.",
+   "corrosion": "Poor. Corrodes readily, especially with salt or sweat and in contact with other metals (general knowledge, not verified this pass).",
+   "tube_availability": "ASTM B107 covers extruded Mg tube, but suppliers found were industrial or overseas (A.R.T Metal, Chinese mills). UK stockist Dynamic Metals lists bar, sheet and plate, not tube. No US retail 3/4 in tube found.",
+   "price_note": "Not found.",
+   "staff_verdict": "The lightest metal here (60 in of 3/4 x .035 would be about 137 g, against about 209 g for 6061 and about 612 g for stainless). Stiffness per gram is the same as aluminium or steel. But it is flammable, loses strength by 150 C, corrodes easily and is hard to buy. Do NOT use it for fire staffs. Even for LED staffs, aluminium is the saner light choice.",
+   "notes": "Strength values are Azom's TYPICAL extruded figures. Minimums from Smiths HP: sheet O temper 105-125 MPa yield and 220 MPa UTS; H24 temper 200/270 MPa at 5%. MakeItFrom lists AZ31B-F at 150 MPa yield and 250 MPa UTS.",
+   "sources": [
+    {
+     "url": "https://www.azom.com/article.aspx?ArticleID=6707",
+     "quote": "1.77 g/cm3"
+    },
+    {
+     "url": "https://www.azom.com/article.aspx?ArticleID=6707",
+     "quote": "96 W/mK"
+    },
+    {
+     "url": "https://www.smithshp.com/assets/pdf/magnesium/az31b-magnesium-english.pdf",
+     "quote": "AZ31B-H24 0.5 - 6.3mm 0.2% Proof Stress 200 MPa"
+    },
+    {
+     "url": "https://www.eaglealloys.com/wp-content/uploads/2020/10/Magnesium-AZ31B-Alloy-Safety-Data-Sheet.pdf",
+     "quote": "Pieces >3 mm thick are difficult to ignite but possible when heated"
+    },
+    {
+     "url": "https://www.eaglealloys.com/wp-content/uploads/2020/10/Magnesium-AZ31B-Alloy-Safety-Data-Sheet.pdf",
+     "quote": "Unsuitable Extinguishing Media: Do not use water."
+    },
+    {
+     "url": "https://www.makeitfrom.com/material-properties/AZ31B-F-Magnesium",
+     "quote": "Maximum Temperature (Mechanical) 150 °C"
+    }
+   ]
+  },
+  {
+   "name": "Copper C12200, hard-drawn tube (H80)",
+   "family": "Copper (phosphorus-deoxidised)",
+   "also_called": "DHP copper, plumbing / ACR tube",
+   "density_g_cc": 8.94,
+   "modulus_gpa": 120,
+   "yield_mpa": 310,
+   "uts_mpa": 350,
+   "elongation_pct": 7.8,
+   "thermal_conductivity_w_mk": 340,
+   "melting_c": "about 1083 (MakeItFrom lists solidus 1030)",
+   "heat_limit_c": "MakeItFrom gives a maximum mechanical service temperature of 200 C. Hard-drawn copper softens (anneals) when heated, so the fire end would turn soft.",
+   "heated_hazards": "No notable fume from pure copper at staff temperatures (not sourced here). Brazing or soldering the ends brings in flux and filler fumes.",
+   "corrosion": "Good, but tarnishes and turns green outdoors.",
+   "tube_availability": "Very common, but in plumbing sizes: nominal size is 1/8 in less than the true OD (1/2 in nominal = 5/8 in OD; 3/4 in nominal = 7/8 in OD). ACR (refrigeration) tube is sized by true OD, so 3/4 in OD exists. Types K and L come hard or soft; Type M is hard only.",
+   "price_note": "Not captured.",
+   "staff_verdict": "Bad for staffs: the heaviest here (about 691 g for 60 in of 3/4 x .035 equivalent), conducts about 20x more heat than stainless and twice as much as aluminium (the heat runs toward the hands), and softens with heat. Soft copper bends at the first drop.",
+   "notes": "The 310 MPa yield is the MakeItFrom typical value for hard-drawn tube; annealed copper yields at about 69 MPa. MakeItFrom lists density as 9.0 (rounded); pure copper is about 8.94.",
+   "sources": [
+    {
+     "url": "https://www.makeitfrom.com/material-properties/Hard-Drawn-H80-C12200-Copper",
+     "quote": "Maximum Temperature (Mechanical) 200 °C"
+    },
+    {
+     "url": "https://www.makeitfrom.com/material-properties/Hard-Drawn-H80-C12200-Copper",
+     "quote": "Thermal Conductivity 340 W/m-K"
+    },
+    {
+     "url": "https://en.wikipedia.org/wiki/Copper_tubing",
+     "quote": "nominal diameter, which is 1⁄8th inch less than the outside diameter"
+    },
+    {
+     "url": "https://en.wikipedia.org/wiki/Copper_tubing",
+     "quote": "sized directly by its outside diameter (OD)"
+    }
+   ]
+  },
+  {
+   "name": "Brass C26000 cartridge brass (70/30), half hard",
+   "family": "Copper-zinc alloy",
+   "also_called": "Cartridge brass, 70/30 brass, CW505L",
+   "density_g_cc": 8.53,
+   "modulus_gpa": 110,
+   "yield_mpa": 220,
+   "uts_mpa": 370,
+   "elongation_pct": 20,
+   "thermal_conductivity_w_mk": 121,
+   "melting_c": "916-954",
+   "heat_limit_c": "Annealing range 427-760 C (800-1400 F). Cold-worked (hard or half-hard) brass held in that range at the wick end softens toward its annealed strength.",
+   "heated_hazards": "About 30% zinc: overheating toward melting, or brazing, gives zinc oxide fume (metal fume fever). Not expected at a few hundred C (inference). C26000 lead is capped at 0.07%.",
+   "corrosion": "Good; tarnishes. Can dezincify in some waters.",
+   "tube_availability": "Brass round tube is easy to find. Speedy Metals lists 3/4 in OD in .032 and .065 walls (alloy not stated on the category page).",
+   "price_note": "Not captured.",
+   "staff_verdict": "Heavy (about 659 g for 60 in of 3/4 x .035), weaker than 304 in yield once heated, and conducts heat about 7x more than stainless. Fine for decorative END WEIGHTS or ferrules on an LED or practice staff; a poor fire-staff tube.",
+   "notes": "Strength values are ASTM B927 MINIMUMS for H02 rod 1/2-1 in (Wieland Concast): 54 ksi UTS, 32 ksi yield, 20%. Tube tempers per ASTM B135 were not captured. H04 (hard) rod 1/2-1 in: 65 ksi UTS, 45 ksi yield.",
+   "sources": [
+    {
+     "url": "https://www.concast.com/files/C26000.pdf",
+     "quote": "Density 0.308 lb/in3 at 68˚F 8.53 gm/cm3 at 20˚C"
+    },
+    {
+     "url": "https://www.concast.com/files/C26000.pdf",
+     "quote": "Thermal conductivity 70 Btu/sq ft/ft hr/˚F at 68˚F 121.2 W/m"
+    },
+    {
+     "url": "https://www.concast.com/files/C26000.pdf",
+     "quote": "Annealing 800 1400"
+    },
+    {
+     "url": "https://www.speedymetals.com/c-8200-round-tube.aspx",
+     "quote": "3/4\" OD: 0.686\" ID × .032\" Wall"
+    }
+   ]
+  },
+  {
+   "name": "Brass C36000 free-cutting (leaded) brass",
+   "family": "Copper-zinc-lead alloy",
+   "also_called": "Free-machining brass, CW603N, '360 brass'",
+   "density_g_cc": 8.49,
+   "modulus_gpa": 100,
+   "yield_mpa": 140,
+   "uts_mpa": 330,
+   "elongation_pct": 20,
+   "thermal_conductivity_w_mk": 120,
+   "melting_c": "890-900 (MakeItFrom)",
+   "heat_limit_c": "Not a tube alloy. Heat behaviour as for other brasses.",
+   "heated_hazards": "Contains 2.5-3.7% LEAD. Machining chips and handling residue carry lead (wash hands, do not sand it dry indoors). Melting or brazing releases lead and zinc fume. The zinc fume point is sourced (OSHA); the lead-handling advice is general safety practice, not captured from an agency this pass.",
+   "corrosion": "Good; tarnishes.",
+   "tube_availability": "Mainly rod, bar and hex (and hollow bar), not thin-wall tube. Relevant only for machined end plugs or weights.",
+   "price_note": "Not captured.",
+   "staff_verdict": "Reasonable for machined END PLUGS or counterweights on LED or practice staffs, with hand-washing. Choose a lead-free brass or stainless if children handle the props.",
+   "notes": "MakeItFrom lists density as 8.2 g/cm3, but 8.49 is the usual handbook value for C36000 (not re-verified this pass, so treat as approximate). Strength values are the LOW END of MakeItFrom ranges (140-260 MPa yield, 330-530 MPa UTS). The 20% elongation is a placeholder, not sourced.",
+   "sources": [
+    {
+     "url": "https://www.makeitfrom.com/material-properties/UNS-C36000-CW603N-Free-Cutting-Brass",
+     "quote": "Lead (Pb) 2.5 to 3.7"
+    },
+    {
+     "url": "https://www.makeitfrom.com/material-properties/UNS-C36000-CW603N-Free-Cutting-Brass",
+     "quote": "Yield Strength 140 to 260 MPa"
+    },
+    {
+     "url": "https://www.osha.gov/ship-building-repair/welding",
+     "quote": "Zinc exposure is the usual cause of metal fume fever."
+    }
+   ]
+  },
+  {
+   "name": "Bronze C51000 phosphor bronze (with C95400 aluminium bronze noted)",
+   "family": "Copper-tin (phosphor) bronze",
+   "also_called": "Phosphor bronze 5% A, CW451K",
+   "density_g_cc": 8.8,
+   "modulus_gpa": 110,
+   "yield_mpa": 130,
+   "uts_mpa": 330,
+   "thermal_conductivity_w_mk": 77,
+   "melting_c": "solidus about 960",
+   "heat_limit_c": "Cold-worked tempers soften on annealing (temperatures not captured).",
+   "heated_hazards": "No zinc to speak of, so less metal-fume-fever risk than brass when brazed (inference). No specific data.",
+   "corrosion": "Very good.",
+   "tube_availability": "Mostly strip, wire, rod and bushings. Thin-wall 3/4 in round tube was not found.",
+   "price_note": "Not captured.",
+   "staff_verdict": "Only relevant for end weights or bushings. Heavy, and no advantage over stainless for a staff body.",
+   "notes": "Yield is the LOW END (annealed) of the MakeItFrom range, 130-750 MPa depending on temper. For C95400 aluminium bronze (cast), MakeItFrom lists 240-360 MPa yield, 110 GPa modulus and 59 W/m-K; its 8.2 g/cm3 density looks high against usual handbook values of about 7.45 (unverified).",
+   "sources": [
+    {
+     "url": "https://www.makeitfrom.com/material-properties/UNS-C51000-CW451K-Phosphor-Bronze",
+     "quote": "Thermal Conductivity 77 W/m-K"
+    },
+    {
+     "url": "https://www.makeitfrom.com/material-properties/UNS-C51000-CW451K-Phosphor-Bronze",
+     "quote": "Yield Strength 130 to 750 MPa"
+    },
+    {
+     "url": "https://www.makeitfrom.com/material-properties/UNS-C95400-Aluminum-Bronze",
+     "quote": "Thermal Conductivity 59 W/m-K"
+    }
+   ]
+  },
+  {
+   "name": "Beryllium copper C17200",
+   "family": "Copper-beryllium, age-hardenable",
+   "also_called": "BeCu, Alloy 25, CW101C",
+   "density_g_cc": 8.25,
+   "modulus_gpa": 120,
+   "yield_mpa": 160,
+   "uts_mpa": 480,
+   "thermal_conductivity_w_mk": 110,
+   "melting_c": "solidus about 870 (MakeItFrom)",
+   "heat_limit_c": "MakeItFrom gives a maximum mechanical service temperature of 280 C. The age-hardened strength would be at risk at the wick end.",
+   "heated_hazards": "TOXIC DUST AND FUME when processed. OSHA: inhaling airborne beryllium can cause chronic beryllium disease, and it is linked to lung cancer. The exposure comes from machining, grinding and welding. The OSHA rule does not cover beryllium-containing articles that are not processed, so handling finished solid parts is not the concern. Do not cut, sand, drill or grind it at home.",
+   "corrosion": "Good.",
+   "tube_availability": "Specialty (springs, bushings, non-sparking tools). No thin-wall 3/4 in tube found.",
+   "price_note": "Not captured; expensive (unverified).",
+   "staff_verdict": "Do NOT use. It is heavy, costly, and the build steps (cutting, drilling, sanding) are exactly the steps that create the toxic dust.",
+   "notes": "Yield and UTS are the LOW END of MakeItFrom ranges (160-1250 MPa yield, 480-1380 MPa UTS; the top end is age-hardened). The density field (8.25) is the commonly published manufacturer value and was NOT captured from a source this pass; MakeItFrom lists 8.8. Wikipedia gives 0.5-3% beryllium.",
+   "sources": [
+    {
+     "url": "https://www.osha.gov/beryllium/faqs",
+     "quote": "Inhaling airborne beryllium can cause a lung disease called chronic beryllium disease"
+    },
+    {
+     "url": "https://www.osha.gov/beryllium/faqs",
+     "quote": "fabricating, machining, and grinding beryllium metal and alloys"
+    },
+    {
+     "url": "https://www.makeitfrom.com/material-properties/UNS-C17200-CW101C-Beryllium-Copper",
+     "quote": "Maximum Mechanical Temperature: 280 °C"
+    },
+    {
+     "url": "https://en.wikipedia.org/wiki/Beryllium_copper",
+     "quote": "Inhalation of dust, mist, or fumes containing beryllium can cause chronic beryllium disease"
+    }
+   ]
+  },
+  {
+   "name": "Carbon fibre tube (roll-wrapped CFRP, epoxy matrix), comparison only",
+   "family": "Polymer composite",
+   "also_called": "CF, CFRP",
+   "density_g_cc": 1.55,
+   "modulus_gpa": 70,
+   "yield_mpa": 0,
+   "thermal_conductivity_w_mk": 5,
+   "heat_limit_c": "Limited by the resin, not the fibre. Dark Monk says the resin cannot take high temperatures and fits aluminium sleeves where the fire is. The resin glass-transition temperature was not captured (typical epoxies are about 100-180 C, unverified).",
+   "heated_hazards": "Overheated or burning epoxy gives off smoke and pyrolysis products, and damaged CF sheds sharp fibre splinters (not sourced from an agency this pass). Do not put a wick directly on CF.",
+   "corrosion": "Does not corrode. Can cause galvanic corrosion of aluminium it touches when wet (general knowledge, unverified).",
+   "tube_availability": "Common. Rock West lists roll-wrapped tubes (for example about 0.81 in OD, .036 in wall, 72 in, standard-modulus 3k twill, $94.99 on 2026-09-24; the listing's ID figure was garbled, so confirm before relying on it). Flowtoys uses 18 mm CF on its contact staffs.",
+   "price_note": "Rock West, checked 2026-09-24: about 0.81 in OD x 72 in roll-wrapped standard-modulus tube, $94.99.",
+   "staff_verdict": "The light, stiff, non-corroding choice for LED and practice staffs. For fire it needs metal (aluminium) sleeves at the ends, as Dark Monk describes. Dark Monk also says CF staves weigh 'the same or even slightly more' than its regular-wall 7075 staves once sleeves are added.",
+   "notes": "yield_mpa is 0 because CF has NO yield point: it is linear-elastic to failure and does not take a permanent bend, it breaks or cracks. Read the 0 as 'not applicable', not 'zero strength'. The density (1.55) and axial modulus (70) are ROUGH ESTIMATES for a roll-wrapped mixed-ply tube, not sourced this pass; actual values depend on layup. DragonPlate's 33.5 msi (231 GPa) figure is for the bare AS4 FIBRE, not the finished tube. Thermal conductivity (5) is a placeholder order of magnitude, unverified.",
+   "sources": [
+    {
+     "url": "https://dark-monk.com/Article/Comparing-Aluminum-CarbonFiber-Contact-Staff",
+     "quote": "the resin compounds that hold the fibers together cannot"
+    },
+    {
+     "url": "https://www.rockwestcomposites.com/roll-wrapped-carbon-fiber-tubes",
+     "quote": "3k 2X2 Twill Weave ... Standard Modulus Carbon ... $94.99"
+    },
+    {
+     "url": "https://flowtoys.com/props/staffs/contact",
+     "quote": "rigid 18mm carbon fiber"
+    },
+    {
+     "url": "https://dragonplate.com/dragonplate-weights-specs",
+     "quote": "Standard modulus fibers like AS4: 33.5 msi"
+    }
+   ]
+  }
+ ],
+ "general_findings": [
+  "RESEARCH DATE: 2026-09-24. The web search budget for this session ran out partway through, so several items are marked unverified: the price of 316 in 3/4 in; whether 1/4-hard 304 is sold as round tube; spring-steel tube; US retail magnesium tube; the density of beryllium copper; carbon fibre tube properties.",
+  "WEIGHT, MY CALCULATION from the densities above for a 60 in (1.524 m) bare tube, 3/4 in OD x .035 in wall (cross-section 50.7 mm2, volume 77.3 cm3): carbon fibre about 120 g, AZ31B magnesium about 137 g, 6061 aluminium about 209 g, stainless or carbon steel about 600-612 g, brass about 659 g, copper about 691 g. Speedy Metals' own weight for 60 in of 3/4 x .035 304 is 1.35 lb (612 g), which matches. The same 304 at .049 wall is about 838 g, and at .065 wall 2.40 lb (1089 g, Speedy). For scale, Fusion Arts says its titanium pro fire staffs weigh 500-750 g complete, and Sacred Flow Art's 150 cm 7075 contact staff is about 830 g complete. A bare 5 ft stainless .035 tube already weighs as much as a whole pro fire staff, before wicks and fuel.",
+  "STIFFNESS PER GRAM IS ALMOST IDENTICAL for steel, aluminium and magnesium: E/density is about 25 for each (200/7.9, 69/2.7, 45/1.77). So at the same OD and the same weight, a stainless tube is NOT stiffer than aluminium. It is stiffer only because it is heavier. Matching the weight of 6061 3/4 x .035 in stainless would need a wall of about .012 in (0.3 mm), which is impractical and would dent. Carbon fibre is the only material here with clearly better stiffness per gram.",
+  "BENDING NUMBERS, MY CALCULATION for 3/4 in x .035 wall: I = 2096 mm4, section modulus 220 mm3. Stiffness (EI): steel or stainless about 419 N*m2, brass about 231, 6061 about 145, magnesium about 94. Moment at which yielding starts (yield x 220 mm3): annealed 304 about 46 N*m at its spec minimum (about 53 typical); 6061-T6 about 59; 201 about 83 (typical); DOM 1020 about 91 (minimum); 4130N about 96 (typical); 17-4 H1150 about 159 (minimum); AZ31B about 44 (typical). An annealed stainless tube starts to take a PERMANENT bend at roughly the same impact as a same-size 6061-T6 tube, even though it flexes about 3x less before that point. Its advantage is ductility (35-40%+ elongation against about 10%): it bends and can usually be straightened rather than cracking. These are elastic-limit figures; thin tubes also ovalise and dent first.",
+  "HEAT CONDUCTION toward the hands, W/m-K: austenitic stainless 14.6-16.3; ferritic and martensitic stainless about 25-26; 4130 about 43; brass about 121; 6061 about 170; copper about 340. Home of Poi makes the same point (stainless conducts much less heat than plain steel, and aluminium about 4x more than plain steel). The flip side, which is my inference and not measured: low conductivity keeps heat concentrated in the metal under the wick, so that section of a stainless staff probably runs hotter than on aluminium and stays hot longer. Nobody has published a measurement of this.",
+  "HOT STRENGTH: annealed austenitic stainless has no heat treatment to lose. Rolled Alloys' typical 304 yield is 35 ksi (241 MPa) at 21 C, 23 ksi (159 MPa) at 204 C and 19 ksi (131 MPa) at 427 C. Anything whose strength comes from heat treatment or ageing can be softened by flame heat above its treatment temperature: 17-4PH (aged at 482-621 C; Sandmeyer says do not use above 300 C, while SSA says strength holds to 316-427 C, so the two sources DISAGREE), quenched-and-tempered 4130, hardened 410/420, age-hardened BeCu, cold-worked brass (anneals at 427-760 C) and hard-drawn copper (MakeItFrom: 200 C maximum). Magnesium (150 C mechanical limit, ignites near about 650 C) and carbon fibre (resin-limited) are the worst for fire.",
+  "FUMES, WHAT IS ACTUALLY DOCUMENTED: (1) ZINC coatings (galvanised conduit or EMT, zinc-plated hardware) and zinc-rich brass when overheated give zinc oxide fume; OSHA: 'Zinc exposure is the usual cause of metal fume fever.' Home of Poi warns specifically that zinc-coated fire gear can give off zinc oxide fume. (2) CADMIUM-plated steel (some aerospace, marine and older hardware) gives cadmium fume when heated; OSHA lists it among welding fume hazards. (3) Paints, powder coats and other finishes release 'other pyrolysis products' (OSHA). (4) Chromium or hexavalent chromium from stainless is documented for WELDING, which melts the metal. I found NO source saying solid stainless gives off meaningful chromium fume at staff-end temperatures; do not claim that it does. (5) Magnesium: a fire hazard, never use water on it, and it gives MgO fume. (6) Beryllium copper: toxic dust and fume from machining, grinding and welding (OSHA). (7) Leaded brass (C36000, 2.5-3.7% Pb): lead from chips and residue. The practical rule: the fume risk on a steel staff comes from its COATING, which is one more reason bare stainless suits fire use.",
+  "GALVANISED EMT CONDUIT, a common DIY tube: 1/2 in trade size is 0.706 in OD x 0.042 in wall; 3/4 in trade size is 0.922 in OD x 0.049 in wall (Wikipedia, Electrical conduit). EMT is 'generally made of coated steel, though it may be aluminum'. Steel EMT's zinc coating is exactly the metal-fume-fever material OSHA describes, so it should not be used at a burning wick. Strip the zinc or choose another tube. (No mechanical-property spec for EMT was captured.)",
+  "WHAT FLOW-ARTS MAKERS ACTUALLY USE, IN THE SOURCES FOUND: aluminium (mainly 7075) and carbon fibre dominate staff shafts. Sacred Flow Art uses 7075 aluminium tube at about 22 mm; Flowtoys uses 18 mm carbon fibre; Dark Monk compares 7075 with CF and uses aluminium sleeves near the flames on CF; Fusion Arts uses titanium for its pro fire staffs. Threeworlds calls steel 'typically too heavy for most people'. Stainless appears as COMPONENTS: Sacred Flow Art's Feicha has a 'mirror-polished stainless steel' fork on a 7075 or CF shaft, and Home of Poi calls stainless 'the preferred alloy for use on fire twirling equipment', but that page is about fire POI chains and hardware, not staff tubes. No established maker was found selling a stainless-shaft contact staff.",
+  "HONEST ANSWER TO 'IS STAINLESS A GOOD OPTION?': it is a good material for fire HARDWARE and a defensible choice for a short or heavy fire prop. It needs no coating, does not corrode, keeps its strength when hot and conducts little heat. For a 5 ft contact staff it is heavy: about 3x a same-size aluminium tube, with no stiffness-per-weight gain. Annealed stainless takes a permanent bend at about the same impact as 6061-T6, and it is harder to drill, cut and thread (it work-hardens, and threads can gall). For LED and practice staffs its only real advantage is durability against corrosion.",
+  "PRICE SNAPSHOT, 2026-09-24 (prices change; shipping extra): Speedy Metals 3/4 in OD tube, 60 in length: 304 annealed .035 = $43.00; 304 annealed .065 = $30.00; 1020/1026 DOM .035 = $72.73 (the carbon steel cost more than the stainless here). Aircraft Spruce 4130 condition N seamless, per foot: .028 $9.95, .035 $7.50, .049 $5.35, .058 $6.50, .065 $5.35. Rock West roll-wrapped CF, about 0.81 in OD x 72 in: $94.99. Online Metals and Metals Depot blocked automated fetching, so their prices were not captured. Note that thinner walls are not always cheaper, because stocked sizes sell at a lower price.",
+  "BUYING-SPEC NOTES FOR BUILDERS: ASTM A554 (welded decorative stainless tube) allows condition 'as welded, welded and annealed, cold reduced, or cold reduced and annealed', and states tensile requirements only for ANNEALED round tube (austenitic minimums 75 ksi UTS and 30 ksi yield; 304L and 316L 70 and 25 ksi). A554 also lets the inside weld bead be left 'not removed', which can stop an end plug or inner weight sliding in, so ask for bead removed or controlled. Its straightness tolerance is 0.030 in in any 3 ft, and wall thickness is plus or minus 10%. A magnet sorts grades: 304, 316, 321 and 201 are essentially non-magnetic when annealed (slightly magnetic after cold work), while 409, 430, 410, 420 and 17-4 are magnetic.",
+  "COPPER TUBE SIZING TRAP: US plumbing copper is named by a nominal size 1/8 in SMALLER than its real OD (1/2 in nominal = 5/8 in OD, 3/4 in nominal = 7/8 in OD). ACR refrigeration tube is named by its true OD. Type M comes only hard-drawn; K and L come hard or soft.",
+  "SPRING STEEL: no thin-wall round 'spring steel' tube was found (search budget ran out before this was settled, so it is UNVERIFIED). Spring tempers are sold as strip, wire and flat bar. The nearest tube equivalents are heat-treated 4130 (rare as tube) and cold-worked stainless tempers, which AK Steel lists for 201 STRIP only: 1/4 hard 75/125 ksi up to full hard 140/185 ksi yield/UTS.",
+  "UNIT AND SOURCE CAVEATS: MakeItFrom values are database typicals and some are rounded oddly (copper 9.0, C36000 8.2, C17200 8.8 g/cm3 against handbook values of about 8.94, 8.49 and about 8.25); those are flagged in each entry. Rolled Alloys, Sandmeyer, AK Steel, SSA (AMS 5643), Combined Metals (A240), Wieland Concast (ASTM B927 / CDA) and the ASTM A554 text are manufacturer or spec sources. Each entry's notes say whether its strength figures are minimums or typicals."
+ ]
+}

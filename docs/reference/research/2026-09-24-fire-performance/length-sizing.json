@@ -1,0 +1,473 @@
+{
+ "summary_answer": "CONTACT STAFF: the most common rule is floor to chin. Flow Arts Institute, Bonobo Flow, Fire Mecca and Dark Monk all use the chin, or the point between the lower lip and chin. Other makers put the acceptable range anywhere from chest height (RandyLeeSticks) through shoulder to nose (Master Flow Arts) to chin to eyes (Fire and Flow NZ). Home of Poi is the outlier, saying measure to the top of the shoulder. A \"height minus about 20 cm (8 in)\" rule (NeoFlowArt) gives nearly the same number for someone of average height, because the chin sits at roughly 0.87 of a person's height. So a 60 in (5 ft) staff is chin height for someone around 5 ft 9 in. Contact staffs on sale as of 2026-09-24 cluster at 54 to 60 in (Fire Mecca 48/54/60 with 60 recommended; RandyLeeSticks 54/60; Dark Monk 55 to 67; Trick Concepts 54 to 72; Flowtoys Vision XL 57/60/64). Firetoys says 150 to 160 cm staffs are \"generally only chosen by contact staff spinners\".\n\nWHY SHORTER OR LONGER: every source agrees that a longer staff turns slower, carries more momentum and gives more leverage. A shorter one is faster, leaves more room around the body, is easier to throw and suits a \"dancey\" style or mixing in spin moves. Longer than eye level makes some horizontal moves very hard. Physics explains why the difference feels bigger than it looks: a plain tube's resistance to turning grows with the cube of its length, so 60 in has about 37% more than 54 in. Longer also weighs more, is harder to transport unless it breaks down, is easier to bruise yourself with and hits the ground more.\n\nFIRE: Home of Poi and Blanketfort both say a short staff puts the flames closer to you and makes burns more likely. On a neck or shoulder roll the wick sits half the staff's length from where it touches you (that is geometry, not a source). No maker gives a separate length rule for fire, and I found no measurement of flame distance. The one nearby rule is Bonobo's advice to add 4 to 6 in when a dragon staff has end wicks, because the wicks take up rollable length.\n\nOTHER STAFFS: spin/manipulation staffs run shorter (armpit to chin; Bonobo gives 35 to 55 in; 120 to 130 cm is a typical first staff). Double staffs are 26 to 36 in (32 in most common), or just under twice your arm length; Bonobo says many people won't go under 32 in for fire because of the heat. Dragon staffs are where sources disagree most: chin to nose for 8 wicks and eye height for 10 wicks (Sacred Flow), measure the playable shaft to mouth or nose (Flowtoys), or the top of your head (Home of Poi). A bo is traditionally about 6 ft (1.82 m), sized at your height or down to eyebrow height.\n\nHOW TO MEASURE: stand straight with the tape's tongue under your heel and read to the bottom of your chin. Pick the nearest length you can buy. Go shorter for a faster style or longer (up to about eye level) for slower contact. For fire, allow for the wicks. Test with a broomstick or dowel cut down step by step. Check that the ends don't hit the floor, your face or the ceiling. And as RandyLeeSticks says, don't stress over a couple of inches.\n\nCEILINGS: no flow-arts source gives a ceiling height. Worked out from standard body data, a 60 in staff held by its centre at full overhead reach puts its tip at about 2.86 m (9.4 ft) for an average man. The US building-code minimum for a living room is 7 ft (2134 mm).",
+ "findings": [
+  {
+   "claim": "Floor to chin is the single most common sizing rule for contact staffs. Several makers and teachers phrase it as the bottom of the chin or the point between the lower lip and chin.",
+   "confidence": "high",
+   "sources": [
+    {
+     "url": "https://flowartsinstitute.com/tips-for-first-staff/",
+     "quote": "Measure to the bottom of your chin and record this number",
+     "source_date": "undated (accessed 2026-09-24)"
+    },
+    {
+     "url": "https://bonoboflow.com/how-to-choose-the-perfect-staff-length/",
+     "quote": "Chin height is the gold standard for contact staff",
+     "source_date": "2024-02-20"
+    },
+    {
+     "url": "https://dark-monk.com/Article/Sizing-Contact-Staff",
+     "quote": "midpoint between your lower lip and the bottom of your chin",
+     "source_date": "undated (accessed 2026-09-24)"
+    },
+    {
+     "url": "https://firemecca.com/products/contact-fire-staff",
+     "quote": "measure from the ground to the bottom of your chin",
+     "source_date": "product page accessed 2026-09-24"
+    },
+    {
+     "url": "https://flowartsinstitute.com/discoveries-contact-staff/",
+     "quote": "somewhere between your bottom lip and your chin",
+     "source_date": "comment by Poppe Tsunami, 2015-02-13"
+    }
+   ],
+   "caveats": "These are makers and teachers giving rules of thumb, not measured studies. Quotes came through a page summarizer, so check the wording against the live page before quoting it publicly."
+  },
+  {
+   "claim": "Beyond chin height, sources disagree on the acceptable window: it runs from chest height up to eye level, and Home of Poi says the top of the shoulder.",
+   "confidence": "high",
+   "sources": [
+    {
+     "url": "https://randyleesticks.com/sizing-a-contact-staff/",
+     "quote": "between your chest and chin",
+     "source_date": "undated (accessed 2026-09-24)"
+    },
+    {
+     "url": "https://www.masterflowarts.com/contact-staff/choosing-a-contact-staff",
+     "quote": "from the ground to between the shoulder or nose",
+     "source_date": "undated (accessed 2026-09-24)"
+    },
+    {
+     "url": "https://www.homeofpoi.com/us/help/faq/3/159",
+     "quote": "measure from the top of your shoulder to the ground",
+     "source_date": "undated FAQ (accessed 2026-09-24)"
+    },
+    {
+     "url": "https://fireandflow.co.nz/blogs/resources/size-guide",
+     "quote": "from the ground to somewhere between your chin and eyes",
+     "source_date": "undated (accessed 2026-09-24)"
+    },
+    {
+     "url": "https://www.trickconcepts.com/custom-fire-weighted-contact-staff/",
+     "quote": "Most people prefer a staff length between their chin and nose",
+     "source_date": "product page accessed 2026-09-24"
+    },
+    {
+     "url": "https://dark-monk.com/Equipment/Fire-Contact-Staff",
+     "quote": "Measure from the ground to just above your chin.",
+     "source_date": "product page accessed 2026-09-24"
+    }
+   ],
+   "caveats": "Home of Poi's shoulder rule is the lowest of these, and it sells fixed lengths ('take the closest pole length'). Every source says personal preference and style move the number."
+  },
+  {
+   "claim": "Some sources size by 'height minus X' instead of a body landmark: about 20 cm (8 in) shorter than your height for contact and balanced flow, or about 30 cm (12 in) shorter for spin-focused staffs, with plus or minus 5 cm counted as fine. For someone of average height this matches chin height closely, but the two rules drift apart for very tall or very short people.",
+   "confidence": "medium",
+   "sources": [
+    {
+     "url": "https://neoflowart.com/blog/cstaff-vs-staff/",
+     "quote": "20 cm (about 8 inches) shorter than your height",
+     "source_date": "2025-04-15"
+    },
+    {
+     "url": "https://swordstem.com/2018/12/05/thibault-vs-modern-anthropometry/",
+     "quote": "average shoulder height will be 0.818 times an individual's total height",
+     "source_date": "2018-12-05"
+    },
+    {
+     "url": "https://www.medicinalaboraldevenezuela.com.ve/archivo/doc_ergo_higiene/Fromuth2008.pdf",
+     "quote": "the actual body dimensions that each ratio represents are not clear",
+     "source_date": "2008 (ASME DETC2008-50091)"
+    }
+   ],
+   "caveats": "Chin at about 0.870 of height is the widely quoted Drillis and Contini (1966) ratio, as reproduced in Winter's biomechanics textbook. I could not extract the chin figure from a primary text, only the 0.818 shoulder ratio and secondary mentions of 0.870. Fromuth and Parkinson (2008) warn that these ratios are ambiguously defined and have never been validated. Worked example: 0.87 x 170 cm = 148 cm (22 cm short of height, close to the 20 cm rule), but 0.87 x 190 cm = 165 cm (25 cm short). A landmark measurement is more personal than either formula. A 60 in staff is about chin height for someone around 5 ft 9 in (69 in)."
+  },
+  {
+   "claim": "Phoenix Fire Props publishes a height-to-length chart for contact fire staffs: 3'6\"-3'11\" gets 3 ft; 4'0\"-4'4\" gets 3.5 ft; 4'5\"-4'11\" gets 4 ft; 5'0\"-5'7\" gets 4.5 ft; 5'8\"-6'3\" gets 5 ft; 6'4\"-6'10\" gets 5.5 ft; 6'11\"-7'4\" gets 6 ft.",
+   "confidence": "high",
+   "sources": [
+    {
+     "url": "https://phoenix-fireprops.com/product/the-full-package-contact-fire-staff/",
+     "quote": "Check the height chart for recommendations or forge your own path",
+     "source_date": "product page accessed 2026-09-24"
+    }
+   ],
+   "caveats": "Each band covers 7 to 8 in of height with one staff length, so people at the tall end of a band get a staff well below chin height (a 6'3\" person gets 5 ft). That is shorter than the chin rule gives. It is the only published chart I found that reaches down to children's heights."
+  },
+  {
+   "claim": "Contact staffs on sale as of 2026-09-24 mostly come in 54 to 60 in, with 5 ft (60 in) the most common default and longer lengths available to order.",
+   "confidence": "high",
+   "sources": [
+    {
+     "url": "https://firemecca.com/products/contact-fire-staff",
+     "quote": "48\", 54\", 60\" (recommended)",
+     "source_date": "accessed 2026-09-24"
+    },
+    {
+     "url": "https://randyleesticks.com/shop/fire-contact-staff/",
+     "quote": "54 inches / 60 inches / Custom length",
+     "source_date": "accessed 2026-09-24"
+    },
+    {
+     "url": "https://dark-monk.com/Equipment/Fire-Contact-Staff",
+     "quote": "55, 57, 59, 61, 63, 65, 67 inches",
+     "source_date": "accessed 2026-09-24"
+    },
+    {
+     "url": "https://www.trickconcepts.com/custom-fire-weighted-contact-staff/",
+     "quote": "54\" through 72\" ... in 1-inch increments",
+     "source_date": "accessed 2026-09-24"
+    },
+    {
+     "url": "https://flowtoys.com/vision-contact-staff-xl",
+     "quote": "57\" (145cm) ... 60\" (152cm) ... 64\" (162cm)",
+     "source_date": "accessed 2026-09-24"
+    },
+    {
+     "url": "https://www.firetoys.com/blogs/fire/how-to-choose-a-staff-for-spinning",
+     "quote": "generally only chosen by contact staff spinners because they are long and heavy",
+     "source_date": "2025-04-23 (the Firetoys quote refers to 150-160 cm staffs)"
+    }
+   ],
+   "caveats": "Prices on the same pages as of 2026-09-24: Fire Mecca $229.97 on sale, RandyLeeSticks $160-250, Dark Monk from $135, Trick Concepts $134.97, Phoenix kit $109.95-169.95, Flowtoys Vision XL (LED) $450. Phoenix lists 36 to 72 in. Several sellers take custom lengths."
+  },
+  {
+   "claim": "Makers agree on the trade-off. A longer staff turns more slowly, carries its own momentum and gives more leverage, which suits slower, flowing contact rolls. A shorter one turns and stops faster, leaves more room around the body and is easier to throw.",
+   "confidence": "high",
+   "sources": [
+    {
+     "url": "https://randyleesticks.com/sizing-a-contact-staff/",
+     "quote": "the longer the stick, the slower it will spin, and the more leverage",
+     "source_date": "undated (accessed 2026-09-24)"
+    },
+    {
+     "url": "https://randyleesticks.com/sizing-a-contact-staff/",
+     "quote": "shorter sticks are easier to throw",
+     "source_date": "undated"
+    },
+    {
+     "url": "https://flowartsinstitute.com/your-first-contact-staff/",
+     "quote": "Longer staves compliment the beginner and the dancer",
+     "source_date": "undated"
+    },
+    {
+     "url": "https://fireandflow.co.nz/blogs/resources/size-guide",
+     "quote": "A shorter staff is better for faster movements",
+     "source_date": "undated"
+    },
+    {
+     "url": "https://www.homeofpoi.com/us/lessons/teach/Staff/Beginners-2/Selecting-staff",
+     "quote": "The weight allows it to have its own momentum",
+     "source_date": "undated lesson (about long staffs)"
+    }
+   ],
+   "caveats": "Flow Arts Institute also says short staffs are 'used for fast paced, explosive routines, and doubles'. Home of Poi lists long staffs as 'really good for speed', which seems to mean their momentum keeps them turning, and that reads oddly against every other source saying longer turns slower."
+  },
+  {
+   "claim": "Physics explains why a few inches matter. A plain tube's resistance to turning is I = ML²/12, and M itself grows with length, so for the same tube I grows with the cube of the length: 60 in has about 37% more than 54 in (1.111³ ≈ 1.37). For weight fixed at the ends, it grows with the square of the length.",
+   "confidence": "high",
+   "sources": [
+    {
+     "url": "http://hyperphysics.gsu.edu/hbase/mi2.html",
+     "quote": "I = ML²/12",
+     "source_date": "undated reference (accessed 2026-09-24)"
+    }
+   ],
+   "caveats": "The 37% figure is my arithmetic. It applies only to a plain tube; wicks, end weights and grips change it. It explains why makers say a longer staff 'keeps spinning more easily' and a shorter one starts and stops faster."
+  },
+  {
+   "claim": "Style shifts the number. Choose shorter (about 54 in, or up to 8 in under chin) for a dancey style or for mixing spin moves into contact. Choose longer (about 60 in or more) for long, slow contact rolls. Above eye level some horizontal moves become very hard, and the ends must not strike the floor.",
+   "confidence": "high",
+   "sources": [
+    {
+     "url": "https://randyleesticks.com/sizing-a-contact-staff/",
+     "quote": "go with the shorter if you have or want to develop a dancey style",
+     "source_date": "undated"
+    },
+    {
+     "url": "https://randyleesticks.com/sizing-a-contact-staff/",
+     "quote": "go with the longer if youre more interested in extended contact",
+     "source_date": "undated"
+    },
+    {
+     "url": "https://bonoboflow.com/how-to-choose-the-perfect-staff-length/",
+     "quote": "I prefer a contact staff that's shorter than chin height (by about 8 inches)",
+     "source_date": "2024-02-20"
+    },
+    {
+     "url": "https://www.masterflowarts.com/contact-staff/choosing-a-contact-staff",
+     "quote": "Longer than eye level, some horizontal movements will become very difficult",
+     "source_date": "undated"
+    },
+    {
+     "url": "https://dark-monk.com/Article/Sizing-Contact-Staff",
+     "quote": "as long a staff as you can safely and comfortably spin without hitting the ground",
+     "source_date": "undated"
+    }
+   ],
+   "caveats": "Bonobo's 8 in shorter is one teacher's personal preference, not a rule. Master Flow Arts adds that staffs under about waist height 'will enable inside movements' (moves between arm and body)."
+  },
+  {
+   "claim": "Fire: sources say shorter staffs bring the flames closer to your body and make burns more likely, and longer staffs make it harder to burn yourself. Wicks on the ends also take up length you can roll on.",
+   "confidence": "medium",
+   "sources": [
+    {
+     "url": "https://www.homeofpoi.com/us/lessons/teach/Staff/Beginners-2/Selecting-staff",
+     "quote": "easier to burn yourself with as there are flames really close to you",
+     "source_date": "undated lesson (about short staffs)"
+    },
+    {
+     "url": "https://www.homeofpoi.com/us/lessons/teach/Staff/Beginners-2/Selecting-staff",
+     "quote": "It is harder to burn yourself",
+     "source_date": "undated lesson (about long staffs)"
+    },
+    {
+     "url": "https://www.blanketfort.com/juggling/staff.html",
+     "quote": "bring the flame a lot closer to your body",
+     "source_date": "undated"
+    },
+    {
+     "url": "https://bonoboflow.com/how-to-choose-the-perfect-staff-length/",
+     "quote": "usable staff area gets reduced by about 4-6 inches on each side",
+     "source_date": "2024-02-20 (about dragon staffs with end wicks)"
+    }
+   ],
+   "caveats": "No maker gives a separate length rule for fire contact staffs. Dark Monk's fire staff says 'just above your chin', which is essentially the same as its practice advice. No source measures flame-to-face distance against staff length. The geometry is my own reasoning: on a neck or shoulder roll the wick sits half the staff's length from where it touches you, so about 30 in on a 60 in staff and 27 in on a 54 in one. The same Home of Poi page warns that long staffs make it 'much easier to whack yourself and leave bruises', so length alone is not a safety measure. Bonobo's 4-6 in allowance is written for dragon staffs; applying it to contact staffs with end wicks is my extension. Fire wicks on contact staffs sold today are 2 to 4 in wide (Fire Mecca, Trick Concepts, Dark Monk 4 in)."
+  },
+  {
+   "claim": "Spin and manipulation staffs (hand-spun single staffs) run shorter than contact staffs: armpit, chest or shoulder height up to chin, with 120 to 130 cm a typical first staff. Spin staffs do not follow the chin rule.",
+   "confidence": "high",
+   "sources": [
+    {
+     "url": "https://www.homeofpoi.com/us/help/faq/3/159",
+     "quote": "measure from your armpit to the ground and take the closest pole length",
+     "source_date": "undated FAQ"
+    },
+    {
+     "url": "https://fireandflow.co.nz/blogs/resources/size-guide",
+     "quote": "from the ground to your shoulder/chest height",
+     "source_date": "undated"
+    },
+    {
+     "url": "https://www.firetoys.com/blogs/fire/how-to-choose-a-staff-for-spinning",
+     "quote": "pick a staff that is somewhere between shoulder and chin height",
+     "source_date": "2025-04-23"
+    },
+    {
+     "url": "https://www.firetoys.com/blogs/fire/how-to-choose-a-staff-for-spinning",
+     "quote": "Often seen as a standard size for a first-time staff",
+     "source_date": "2025-04-23 (about 120-130 cm staffs)"
+    },
+    {
+     "url": "https://bonoboflow.com/how-to-choose-the-perfect-staff-length/",
+     "quote": "Shorter staffs are faster, lighter, and more maneuverable",
+     "source_date": "2024-02-20 (spin staff range 35-55 in)"
+    },
+    {
+     "url": "https://www.homeofpoi.com/us/lessons/teach/Staff/Beginners-2/Selecting-staff",
+     "quote": "Ground to shoulder height is a good length to start with",
+     "source_date": "undated lesson"
+    }
+   ],
+   "caveats": "Firetoys calls 140 cm 'a very popular size for single staff spinners, especially guys', and says younger or shorter people may find it too cumbersome."
+  },
+  {
+   "claim": "Double staffs (one in each hand) are about 26 to 36 in, 32 in being most common. Sizing is by arm: just under twice your arm length, so that holding a staff at its centre, its end tucks between your torso and arm. For fire, many spinners won't go below 32 in because of the heat.",
+   "confidence": "high",
+   "sources": [
+    {
+     "url": "https://bonoboflow.com/how-to-choose-the-perfect-staff-length/",
+     "quote": "They should not hit or burn your face when spinning inward",
+     "source_date": "2024-02-20"
+    },
+    {
+     "url": "https://bonoboflow.com/how-to-choose-the-perfect-staff-length/",
+     "quote": "many people won't go shorter than 32 inches",
+     "source_date": "2024-02-20"
+    },
+    {
+     "url": "https://fireandflow.co.nz/blogs/resources/size-guide",
+     "quote": "just under twice the length of your arm",
+     "source_date": "undated"
+    },
+    {
+     "url": "https://www.blanketfort.com/juggling/staff.html",
+     "quote": "I want the end to reach the middle of my upper-arm",
+     "source_date": "undated (author 6 ft tall, uses 38 in)"
+    },
+    {
+     "url": "https://www.homeofpoi.com/us/lessons/teach/Staff/Beginners-2/Selecting-staff",
+     "quote": "generally shorter than twice your arm length",
+     "source_date": "undated lesson"
+    }
+   ],
+   "caveats": "The 32 in fire minimum applies to DOUBLE staffs. Search engines sometimes present it as a contact-staff rule, and it is not one."
+  },
+  {
+   "claim": "Dragon staffs are where sizing advice varies most: chin to nose for 8 wicks and eye height for 10 wicks (Sacred Flow); the playable shaft, not overall length, to mouth or nose (Flowtoys); the top of your head (Home of Poi); chin plus 4 to 6 in when there are end wicks (Bonobo). The trade-off: nearer chin, the spokes can hit your head; nearer eye level, they hit the ground more.",
+   "confidence": "high",
+   "sources": [
+    {
+     "url": "https://sacredflowart.com/product/fire-dragon-staff/",
+     "quote": "the distance from the floor to between chin & nose level",
+     "source_date": "product page accessed 2026-09-24 (8 wick; 10 wick: 'between eye & height level')"
+    },
+    {
+     "url": "https://flowtoys2.freshdesk.com/support/solutions/articles/6000173340-how-to-size-a-dragon-staff",
+     "quote": "the distance from the ground to around your mouth/nose",
+     "source_date": "modified 2026-09-22"
+    },
+    {
+     "url": "https://www.homeofpoi.com/us/help/faq/3/159",
+     "quote": "measure from the top of your head to the ground",
+     "source_date": "undated FAQ"
+    },
+    {
+     "url": "https://fireandflow.co.nz/blogs/resources/size-guide",
+     "quote": "you run a higher chance of the spokes colliding with your head",
+     "source_date": "undated (about chin-length dragons)"
+    },
+    {
+     "url": "https://fireandflow.co.nz/blogs/resources/size-guide",
+     "quote": "you may find the spokes hitting the ground more often",
+     "source_date": "undated (about eye-length dragons)"
+    }
+   ],
+   "caveats": "Sacred Flow sells 8-wick staffs at 55-67 in and 10-wick staffs at 63-75 in ($139.95 base as of 2026-09-24). Flowtoys notes that some hubs add about 5 in beyond the shaft, so compare shaft lengths, not overall lengths."
+  },
+  {
+   "claim": "The martial-arts bo (a separate tradition, not a flow prop) is traditionally about 6 shaku (1.82 m, about 72 in). Advice is to match your own height or go a few inches shorter, to about eyebrow level. Competition performers use shorter bo than traditional practitioners.",
+   "confidence": "medium",
+   "sources": [
+    {
+     "url": "https://en.wikipedia.org/wiki/B%C5%8D",
+     "quote": "about 6-shaku (1.82 m; 5.96 feet)",
+     "source_date": "accessed 2026-09-24"
+    },
+    {
+     "url": "https://globalmartialarts.university/2022/03/16/know-your-weapon-bo/",
+     "quote": "a few inches shorter than their heights (e.g., to eyebrow level)",
+     "source_date": "2022-03-16"
+    },
+    {
+     "url": "https://blackbeltathome.com/the-complete-beginners-guide-to-bo-staff/",
+     "quote": "If you are 5′ 9\", get a 5′ 6\" inches tall bo",
+     "source_date": "2013-09-24 (competition/freestyle advice)"
+    }
+   ],
+   "caveats": "BlackBeltAtHome recommends at or slightly above your height for traditional training ('If you are 5′ 10\", get a 6′ bo'). Bo sizing does not carry over to contact staffs, which run much shorter."
+  },
+  {
+   "claim": "Children and shorter adults: no separate kids' rule exists, since the body-landmark rules scale with the person. Makers do suggest short staffs (90 to 110 cm) and thinner tube, and Phoenix's chart reaches down to 3 ft staffs for people 3'6\" to 3'11\".",
+   "confidence": "medium",
+   "sources": [
+    {
+     "url": "https://www.firetoys.com/blogs/fire/how-to-choose-a-staff-for-spinning",
+     "quote": "Great for children and shorter adults",
+     "source_date": "2025-04-23 (about 90-110 cm staffs)"
+    },
+    {
+     "url": "https://randyleesticks.com/sizing-a-contact-staff/",
+     "quote": "if you're under 5'4\", i usually recommend a 5/8\" tube",
+     "source_date": "undated (3/4 in for over 6 ft)"
+    },
+    {
+     "url": "https://phoenix-fireprops.com/product/the-full-package-contact-fire-staff/",
+     "quote": "3'6\" – 3'11\" ... 3 ft (91.5 cm)",
+     "source_date": "accessed 2026-09-24"
+    }
+   ],
+   "caveats": "No source gives age-specific guidance or a minimum age. Home of Poi calls short staffs hard to hurt yourself with in practice, but also easier to burn yourself with on fire, so the short sizes that suit children put flames closer to them."
+  },
+  {
+   "claim": "No flow-arts source gives a ceiling height for staff practice. Worked out from body data: holding a staff by its centre at full overhead reach puts the tip at your reach plus half the staff length. That is about 2.10 m + 0.76 m ≈ 2.86 m (9.4 ft) for an average man with a 60 in staff, and about 1.94 m + 0.70 m ≈ 2.64 m (8.7 ft) for an average woman with a 55 in staff. US code allows living rooms as low as 7 ft (2134 mm), so overhead vertical moves indoors often need a shorter staff or a higher room.",
+   "confidence": "medium",
+   "sources": [
+    {
+     "url": "https://www.roymech.co.uk/Useful_Tables/Ergonomics/Human_sizes.html",
+     "quote": "Vertical reach (standing) Men 50th: 2100mm; Women 50th: 1940mm",
+     "source_date": "undated table, based on Pheasant's Bodyspace (British adults 19-65)"
+    },
+    {
+     "url": "https://codes.iccsafe.org/s/IRC2021P2/chapter-3-building-planning/IRC2021P2-Pt03-Ch03-SecR305.1",
+     "quote": "a ceiling height of not less than 7 feet (2134 mm)",
+     "source_date": "2021 IRC"
+    },
+    {
+     "url": "https://flowartsinstitute.com/tips-for-first-staff/",
+     "quote": "A 5 foot staff can eat up a decent amount of space",
+     "source_date": "undated"
+    }
+   ],
+   "caveats": "The ceiling figures are my arithmetic, not a published rule, and depend on which moves you do: horizontal overhead moves need far less height. Sources for the ceiling-height number: the vertical reach figures are from the RoyMech table and the 7 ft minimum from the 2021 IRC. Lighting and ceiling fans lower the real clearance. Spinning fire indoors is a separate topic that this length research does not cover."
+  },
+  {
+   "claim": "For travel and storage, a long one-piece staff is awkward. Take-apart designs exist: Home of Poi's AERO splits in half and its ULTIMATE splits in three (1.8 m down to 60 cm), Flowtoys' Pop'n Flow breaks down for travel, and a connector can turn a full contact staff into a 40 to 50 in spin staff.",
+   "confidence": "high",
+   "sources": [
+    {
+     "url": "https://www.homeofpoi.com/us/lessons/teach/Staff/Beginners-2/Selecting-staff",
+     "quote": "harder to transport unless they break down",
+     "source_date": "undated lesson (about long staffs)"
+    },
+    {
+     "url": "https://www.homeofpoi.com/us/help/faq/3/159",
+     "quote": "ULTIMATE: Breaks into three sections",
+     "source_date": "undated FAQ"
+    },
+    {
+     "url": "https://bonoboflow.com/what-is-a-contact-staff/",
+     "quote": "shorter spin staff (40-50″ in length depending on your end piece length)",
+     "source_date": "2023-07-01"
+    }
+   ],
+   "caveats": "For DIY builders, a sectional staff adds joints (couplers), which change weight and balance. Joint strength and fire-safety effects were not researched here."
+  },
+  {
+   "claim": "A step-by-step way to measure yourself can be put together from these sources. (1) Stand straight with the tape measure's tongue under your heel (Flow Arts Institute). (2) Read to the bottom of your chin, or the midpoint between lower lip and chin (Flow Arts Institute, Fire Mecca, Dark Monk); a helper or a book held level against a wall makes this easier. (3) That is your starting contact staff length; pick the nearest stocked length (Home of Poi). (4) Adjust for style: a few inches to 8 in shorter for fast, dancey or spin-mixed flow; longer, but not past eye level, for slow extended contact (RandyLeeSticks, Bonobo, Master Flow Arts). (5) For fire staffs with end wicks, consider adding length so the rollable metal matches your practice staff (Bonobo, for dragon staffs). (6) Test with a cheap dowel or broomstick cut down in steps, since you can shorten a tube but not lengthen it (Bonobo's tip for doubles; Flow Arts Institute uses a broomstick for a first staff). (7) Check that the ends don't hit the floor or your face in your moves, and that your practice room's ceiling clears them. (8) Don't agonise over a couple of inches.",
+   "confidence": "medium",
+   "sources": [
+    {
+     "url": "https://flowartsinstitute.com/tips-for-first-staff/",
+     "quote": "stand on the tongue of the tape measure and stand",
+     "source_date": "undated"
+    },
+    {
+     "url": "https://www.homeofpoi.com/us/help/faq/3/159",
+     "quote": "take the closest pole length",
+     "source_date": "undated FAQ"
+    },
+    {
+     "url": "https://bonoboflow.com/how-to-choose-the-perfect-staff-length/",
+     "quote": "If your dragon staff has end wicks, go longer than chin height",
+     "source_date": "2024-02-20"
+    },
+    {
+     "url": "https://randyleesticks.com/sizing-a-contact-staff/",
+     "quote": "don't stress out too much over a couple of inches length",
+     "source_date": "undated"
+    }
+   ],
+   "caveats": "This combines several sources; no single source gives the whole procedure. None says whether to measure barefoot or in shoes; measuring in the shoes you practise in is a sensible default but is my suggestion. The cut-long-then-trim test is Bonobo's advice for double staffs, applied here to contact staffs. As a quick check without a tape, chin height is about 0.87 x your height (Drillis and Contini ratio, unvalidated)."
+  }
+ ],
+ "disagreements_or_myths": [
+  "Landmark for contact staffs: most sources say the chin (Flow Arts Institute, Bonobo, Fire Mecca, Dark Monk). RandyLeeSticks says chest to chin, Master Flow Arts shoulder to nose, Fire and Flow NZ chin to eyes, and Home of Poi 'top of your shoulder'. Treat it as a range, roughly shoulder to eye level, with the chin as the usual starting point.",
+  "Dragon staffs vary the most: Sacred Flow says chin to nose for 8 wicks and eye height for 10 wicks, Flowtoys says the playable shaft to mouth or nose (excluding hubs), Home of Poi says the top of your head, and Bonobo says chin plus 4 to 6 in with end wicks. Some measure overall length and some measure shaft only.",
+  "'Height minus 20 cm' (NeoFlowArt) and 'floor to chin' agree for someone of average height (chin is about 0.87 of height) but drift apart for very tall or short people. Home of Poi's lesson says long staffs are 'really good for speed', which is at odds with every other source saying longer turns slower (it probably means momentum).",
+  "The '32 inch minimum for fire' is a DOUBLE-staff rule from Bonobo Flow. Search summaries sometimes present it as a contact-staff rule, which it is not.",
+  "Myth to avoid: 'longer is always safer with fire.' Sources do say short staffs bring the flames closer (Home of Poi, Blanketfort), but the same Home of Poi page warns long staffs make it 'much easier to whack yourself', and longer staffs hit the ground more. No source measures flame distance, and no maker gives a separate fire-sizing rule beyond allowing for wick length.",
+  "Unsourced claims such as 'you need 9 ft of ceiling' appear in search summaries without any flow-arts source. The only ceiling figures here are my own arithmetic from body data and building code.",
+  "The Drillis and Contini body ratios used for the height shortcut (chin about 0.870, shoulder 0.818) are widely copied, but Fromuth and Parkinson (2008) say they are ambiguously defined and have never been validated. Use them only as a rough check, not in place of a tape measure."
+ ]
+}

@@ -612,6 +612,38 @@
             "materials",
             "safety"
           ]
+        },
+        {
+          "title": "Choosing a Staff Tube: Alloys, Walls and Length",
+          "file": "staff_tubes.md",
+          "tags": [
+            "guide",
+            "real",
+            "making",
+            "materials",
+            "technical"
+          ]
+        },
+        {
+          "title": "Fire Performance Fuels",
+          "file": "fire_performance_fuels.md",
+          "tags": [
+            "guide",
+            "real",
+            "making",
+            "safety"
+          ]
+        },
+        {
+          "title": "Clothing for Fire Performance",
+          "file": "fire_performance_clothing.md",
+          "tags": [
+            "guide",
+            "real",
+            "making",
+            "materials",
+            "safety"
+          ]
         }
       ],
       "section": "Learn"

@@ -1,0 +1,644 @@
+{
+ "summary_answer": "Researched 2026-09-24. Fire authorities and the big fire-arts groups mostly allow the same fuels. Portland Fire & Rescue policy FIR 3.07 (revised 2018, reviewed 2019) lists denatured alcohol, white gas/Coleman fuel, smokeless lamp oil, isoparaffin oil (Shell Sol T), a gel fuel, and kerosene for outdoor use only. It bans gasoline outright. Burning Man's Fire Conclave (2021) lists white gas, naphtha-type lighter fluid, lamp oil, kerosene and alcohol.\n\nIs naphtha the same as white gas and camp fuel? Coleman Camp Fuel is a light petroleum naphtha blend, and \"white gas\" is its historical name. But the \"VM&P naphtha\" sold as paint thinner is a heavier cut with a different flash point (69 F against below 0 F). So all camp fuel is naphtha, but not all naphtha is camp fuel.\n\nFlash points from the makers' safety data sheets (SDS):\n- Gasoline: -45 F\n- Coleman fuel: below -0.4 F\n- Denatured alcohol: 45 F\n- Kerosene: above 100 F (40 C)\n- Isopar L: at least 62 C\n- Lamp oil: 97 to 121 C, depending on formulation\n\nA fuel whose flash point is below the air temperature always gives off ignitable vapour, and that vapour is heavier than air and travels. So the dip can, the spin-off area and spills are fire hazards at any outdoor temperature.\n\nWhy most spinners pick camp fuel: it lights instantly, burns bright with the least soot and residue, and dries off wicks, skin and clothes. The costs are short burns (about 3 to 4 minutes), vapour that flashes, harder wear on wicks, and a hexane content that earns a reproductive-toxicity warning.\n\nWhy some pick kerosene: it is cheap, burns longer (about 5 to 7 minutes), and its higher flash point means a puddle will not ignite at normal temperatures. The costs are more smoke and smell, a sticky residue, slow lighting in the cold, skin irritation and aromatic compounds. Portland allows it outdoors only, and one Canadian performance society ranks it below white gas and lamp oil because it is less pure.\n\nBlends of white gas with lamp oil (1:1, 1:2, or 60 to 75% white gas) are common, to get easy lighting and a longer burn.\n\nDenatured alcohol burns dim, nearly invisibly in daylight. US brands contain 5 to 60% methanol and are labelled toxic through the skin.\n\nNever use:\n- Gasoline: extremely volatile, contains benzene, and labelled for motor fuel only.\n- Diesel: sooty, a suspected carcinogen, and its SDS forbids non-motor uses.\n- Methanol: burns with an invisible flame.\n- Tiki-torch fuel: not recommended by a flow-arts retailer.\n- Anything you cannot identify.\n\nStorage and handling: keep fuel in its original container or a lidded metal can, never glass, and away from sun and heat. Keep it 10 ft from combustibles, have open flames 25 ft away when pouring, and keep the audience and smokers 30 ft from the fuel station. Use secondary containment, dip for 1 to 2 seconds, and spin off into a can or bag away from the fire. Take static seriously. Never re-dip a hot head. Staff builders need that last point most, because metal at a few hundred C is above every spinning fuel's flash point and near the roughly 200 C self-ignition point of lamp oil.\n\nFire breathing and eating is a separate discipline with its own rules. Aspirated fuel causes \"fire-eater's pneumonia\".\n\nPrices checked 2026-09-24: Coleman fuel at $19.99 and $24.99 a gallon at two hardware stores. Kerosene around $15 a gallon was seen in a search snippet only.",
+ "findings": [
+  {
+   "claim": "Fire authorities and fire-arts organisations name a short list of approved spinning fuels and explicitly ban gasoline. Portland Fire & Rescue lists denatured alcohol, white gas/Coleman fuel, smokeless/odorless lamp oil, isoparaffin oil (Shell Sol T), 'Allume Feu' gel fuel, and kerosene for outdoor use only. The Burning Man Fire Conclave lists white gas, naphtha-type lighter fluid (Ronsonol, Zippo), lamp oil, kerosene and alcohol.",
+   "confidence": "high",
+   "sources": [
+    {
+     "url": "https://www.portland.gov/sites/default/files/2020-06/fir-3.07-fire-performance-art-080218-755010.pdf",
+     "quote": "Gasoline is prohibited under any circumstance.",
+     "source_date": "FIR 3.07, revised 2018-08-02, reviewed 2019-12-30"
+    },
+    {
+     "url": "https://www.portland.gov/sites/default/files/2020-06/fir-3.07-fire-performance-art-080218-755010.pdf",
+     "quote": "Kerosene (for outside use only)",
+     "source_date": "2018-08-02"
+    },
+    {
+     "url": "https://fireconclave.org/resources/03-create/fire-tools-safety/",
+     "quote": "White Gas – aka: Naptha, Coleman Fuel, Camping Fuel",
+     "source_date": "2021-03-20"
+    }
+   ],
+   "caveats": "Portland's list is one city's policy. Local fire codes vary, and the NAFAA guidelines say they do not replace local codes."
+  },
+  {
+   "claim": "Naphtha, white gas and camp fuel: Coleman Camp Fuel is a proprietary blend of light petroleum naphtha. Its SDS lists light hydrotreated distillates plus pentane, isopentane, cyclohexene, hexane and hydrotreated light naphtha. 'White gas' is its historical name and originally meant additive-free gasoline. The hardware-store 'VM&P Naphtha' paint thinner is a heavier naphtha cut: flash point 69 F and boiling range 264-291 F, against Coleman's below 0 F and a boiling point from about 100 F. The name 'naphtha' alone does not mean camp fuel. The same fuel goes by other names abroad: Shellite in Australia and New Zealand, 'Essence C' in France.",
+   "confidence": "high",
+   "sources": [
+    {
+     "url": "https://pdf.lowes.com/productdocuments/711459ad-1d09-4fe6-bf94-388642ed144f/74946251.pdf",
+     "quote": "Naphtha, petroleum, hydrotreated light (CAS-No.) 64742-49-0",
+     "source_date": "Coleman Camp Fuel SDS rev. 2022-04-07"
+    },
+    {
+     "url": "https://en.wikipedia.org/wiki/Coleman_fuel",
+     "quote": "White gas was originally simply additive-free gasoline.",
+     "source_date": "accessed 2026-09-24"
+    },
+    {
+     "url": "https://www1.mscdirect.com/MSDS/MSDS00052/70250410-20200318.PDF",
+     "quote": "Flash Pt: 69.00 F Method Used: TAG Closed Cup",
+     "source_date": "Klean-Strip VM&P Naphtha SDS rev. 2016-01-04"
+    },
+    {
+     "url": "https://www.homeofpoi.com/en/lessons/teach/Fire-Training/Fire-training-safety/International-Fuel-Names",
+     "quote": "Shellite",
+     "source_date": "list version 63, Sept 2009"
+    }
+   ],
+   "caveats": "The makers do not describe VM&P naphtha as a spinning fuel. No source found reports its behaviour on wicks. Coleman fuel's formulation and colour have changed over time: a 2006/2009 SDS says red, the 2022 SDS says pale green."
+  },
+  {
+   "claim": "Flash points from the makers' safety data sheets, lowest to highest: gasoline -45 F (-43 C); Coleman camp fuel below -0.4 F (below -18 C); denatured alcohol 45 F (7 C); methanol 52 F; VM&P naphtha 69 F; kerosene above 100 F (Klean-Strip) or 104 F / 40 C (Imperial Oil); No. 2 diesel above 100 F; Isopar L at least 62 C; Lamplight Ultra-Pure lamp oil 207 F (97 C, 2007 MSDS) or 250 F (121 C, 2002 MSDS). Practical meaning: a fuel whose flash point is below the air temperature always gives off an ignitable vapour layer. That is gasoline, white gas and alcohol at any outdoor temperature. A fuel above that point, such as kerosene, Isopar or lamp oil, must be heated or held in a wick before it will light. That is why puddled paraffin will not ignite at normal temperatures.",
+   "confidence": "high",
+   "sources": [
+    {
+     "url": "https://pdf.lowes.com/productdocuments/711459ad-1d09-4fe6-bf94-388642ed144f/74946251.pdf",
+     "quote": "Flash point : < -18 °C (-0.4°F)",
+     "source_date": "2022-04-07"
+    },
+    {
+     "url": "https://www.hess.com/docs/us-safety-data-sheets/gasoline-all-grades.pdf?sfvrsn=2",
+     "quote": "Flash Point: -45 °F (-43 °C)",
+     "source_date": "Hess SDS rev. 2012-08-30"
+    },
+    {
+     "url": "https://production-s3.wmbarrhub.com/assets/sds/1625_6_Klean_Strip_Denatured_Alcohol_EN.pdf",
+     "quote": "45.00 F Method Used: Setaflash Closed Cup",
+     "source_date": "2023-08-10"
+    },
+    {
+     "url": "https://www.cochise.edu/_resources/pdfs/sds-library/construction/Construction-SDS-73-Klean-Strip-Kerosene-GKP85-Apr2022.pdf",
+     "quote": "Flash Pt: > 100.00 F",
+     "source_date": "Klean-Strip Kerosene SDS rev. 2015-06-01"
+    },
+    {
+     "url": "https://www.exxonmobilchemical.com/en/chemicals/webapi/dps/v1/datasheets/130000000367/1/en",
+     "quote": "Flash Point 62 -- °C ASTM D93",
+     "source_date": "Isopar L sales spec, effective 2015-04-01"
+    },
+    {
+     "url": "https://images.homedepot-static.com/catalog/pdfImages/85/852bc5fb-04cd-43b4-9db5-d00e7c146886.pdf",
+     "quote": "207°F (97° C) / PM",
+     "source_date": "Lamplight Ultra-Pure MSDS rev. 2007-01-09"
+    },
+    {
+     "url": "https://www.firetoys.com/blogs/fire/fuel-for-fire-spinners",
+     "quote": "Puddled paraffin on the ground will not ignite",
+     "source_date": "2019-10-04"
+    }
+   ],
+   "caveats": "Flash points differ between brands, formulations and test methods (closed cup or Pensky-Martens). Ultra-Pure's own MSDS versions disagree (97 C vs 121 C). An older Coleman SDS notes that mists and sprays can ignite below the normal flash point, and spinning a wet wick throws exactly such a mist. Read the SDS for the bottle actually in hand."
+  },
+  {
+   "claim": "Evaporation speed follows vapour pressure. From the SDSs: gasoline 275-475 mmHg at 20 C; Coleman fuel 5.3 psi (about 274 mmHg) at 38 C; denatured alcohol 76 mmHg at 20 C; VM&P naphtha 11 mmHg; kerosene 0.3 mmHg; diesel 0.5 mmHg; Ultra-Pure lamp oil below 0.01 to 0.05 mmHg. White gas and alcohol flash off wicks, skin, clothes and spills within minutes. Kerosene and lamp oil barely evaporate: they stay wet and flammable on clothing and leave oily puddles. Flow-arts sources describe the same pattern.",
+   "confidence": "high",
+   "sources": [
+    {
+     "url": "https://pdf.lowes.com/productdocuments/711459ad-1d09-4fe6-bf94-388642ed144f/74946251.pdf",
+     "quote": "Vapour pressure : 5.3 psi @ 38 °C",
+     "source_date": "2022-04-07"
+    },
+    {
+     "url": "https://images.homedepot-static.com/catalog/pdfImages/85/852bc5fb-04cd-43b4-9db5-d00e7c146886.pdf",
+     "quote": "<0.01 @ 68° F (20° C).",
+     "source_date": "2007-01-09"
+    },
+    {
+     "url": "https://dark-monk.com/Article/About%20Fire%20Fuels",
+     "quote": "Spills evaporate very quickly",
+     "source_date": "Ember Flynn, copyright 2026"
+    },
+    {
+     "url": "https://flowartsinstitute.com/fuel-science/",
+     "quote": "doesn't evaporate well at all",
+     "source_date": "undated (Howard Chen, Flow Arts Institute)"
+    }
+   ],
+   "caveats": "The vapour pressures were measured at different temperatures (20 C or 38 C), so treat the ranking as approximate."
+  },
+  {
+   "claim": "Why most spinners prefer camp fuel: it lights instantly, burns brightest and cleanest (least soot and residue), smells least while burning, and evaporates, so props and clothes are not left oily. Many US performers use it straight or blended with lamp oil. The trade-offs are the shortest burn (about 3-4 minutes by one maker's estimate) and faster wick wear.",
+   "confidence": "high",
+   "sources": [
+    {
+     "url": "https://www.homeofpoi.com/en/lessons/teach/Fire-Training/Fire-training-safety/Which-Fuel-should-I-use-my-fire-tools",
+     "quote": "Cleanest burning",
+     "source_date": "2013-04-19"
+    },
+    {
+     "url": "https://dark-monk.com/Article/About%20Fire%20Fuels",
+     "quote": "about 3 or 4 minutes",
+     "source_date": "copyright 2026"
+    },
+    {
+     "url": "https://sacredflowart.com/fire-spinning-fuel-review-white-gas-camp-fuel-vs-kerosene/",
+     "quote": "the smell was much less intrusive to my senses",
+     "source_date": "Jesse Hart, 2021-06-14"
+    },
+    {
+     "url": "https://www.synergyflowarts.com/pages/fire-safety",
+     "quote": "burns bright, hot and clean, making it less smoky",
+     "source_date": "undated"
+    }
+   ],
+   "caveats": "'Brightest' and 'cleanest' come from performers' experience, not measurement. No published lab comparison of spinning fuels was found."
+  },
+  {
+   "claim": "The hazards of camp fuel are real and similar in kind to gasoline. The Coleman SDS rates it NFPA fire hazard 3, the same as gasoline, and Flammable Liquid category 2. Its vapour is heavier than air, travels to distant ignition sources and flashes back. It requires static precautions. It is labelled H361 'suspected of damaging fertility or the unborn child' because of its hexane content, plus aspiration hazard (H304), drowsiness (H336) and possible skin irritation. Flow-arts safety guides warn that its vapour creeps along the ground and ignites at a distance.",
+   "confidence": "high",
+   "sources": [
+    {
+     "url": "https://pdf.lowes.com/productdocuments/711459ad-1d09-4fe6-bf94-388642ed144f/74946251.pdf",
+     "quote": "Vapors are heavier than air and may travel considerable distances",
+     "source_date": "2022-04-07"
+    },
+    {
+     "url": "https://pdf.lowes.com/productdocuments/711459ad-1d09-4fe6-bf94-388642ed144f/74946251.pdf",
+     "quote": "H361 - Suspected of damaging fertility or the unborn child.",
+     "source_date": "2022-04-07"
+    },
+    {
+     "url": "https://flowartsinstitute.com/fuel-science/",
+     "quote": "can track along the ground and ignite at a distance",
+     "source_date": "undated"
+    }
+   ],
+   "caveats": "H361 is a hazard classification driven by hexane at 1-5%. It is not a measured risk from spinning, and exposure depends on ventilation and skin contact."
+  },
+  {
+   "claim": "Why some spinners use kerosene: it is cheap and sold almost everywhere, it burns longer (one maker says 5-7 minutes against 3-4 for white gas, and a 2021 comparison found about 40% longer), and its flash point above 100 F means a spill does not give off flammable vapour at ordinary temperatures. Temple of Poi recommended it for beginners for that reason. Renegade Juggling, which has made Kevlar fire wicks since 1984, says kerosene-based fuel at least doubles wick life compared with white gas.",
+   "confidence": "medium",
+   "sources": [
+    {
+     "url": "https://dark-monk.com/Article/About%20Fire%20Fuels",
+     "quote": "5 to 7 minutes",
+     "source_date": "copyright 2026"
+    },
+    {
+     "url": "https://templeofpoi.wordpress.com/2013/01/31/fire-fuel/",
+     "quote": "I recommend kerosene to the beginner",
+     "source_date": "2013-01-31"
+    },
+    {
+     "url": "https://renegadejuggling.com/blogs/juggling-guides-tips/how-to-select-and-use-kevlar-fire-wicks",
+     "quote": "at least double the life span of the wicking material",
+     "source_date": "2025-04-01"
+    },
+    {
+     "url": "https://sacredflowart.com/fire-spinning-fuel-review-white-gas-camp-fuel-vs-kerosene/",
+     "quote": "Kerosene also does not evaporate like white gasoline does",
+     "source_date": "2021-06-14"
+    }
+   ],
+   "caveats": "Burn-time figures vary with wick size, weather and how much fuel is spun off. Home of Poi's user compilation also contains the opposite claim ('Quick ignite, short burn'). See disagreements."
+  },
+  {
+   "claim": "The downsides of kerosene: the smokiest and smelliest of the common fuels, with the most residue on props and a smell that clings to clothes. It is slow to light in the cold. It is a skin irritant (H315) and can cause dermatitis, and it contains aromatics: up to 5% trimethylbenzene in Klean-Strip, 0.1-1% naphthalene in Imperial Oil. Portland allows it outdoors only. A Canadian performance society ranks it last among petroleum fuels, and a New Zealand retailer calls it a last resort. 'Low-odour' kerosenes may contain odour-masking additives.",
+   "confidence": "high",
+   "sources": [
+    {
+     "url": "https://www.homeofpoi.com/en/lessons/teach/Fire-Training/Fire-training-safety/Which-Fuel-should-I-use-my-fire-tools",
+     "quote": "Most smelly, smokey and leaves most residue",
+     "source_date": "2013-04-19"
+    },
+    {
+     "url": "https://www.cochise.edu/_resources/pdfs/sds-library/construction/Construction-SDS-73-Klean-Strip-Kerosene-GKP85-Apr2022.pdf",
+     "quote": "H315: Causes skin irritation.",
+     "source_date": "2015-06-01"
+    },
+    {
+     "url": "https://kindlearts.ca/wp-content/uploads/2015/04/Kindle-Arts-Society-Fire-Performance-Guidelines-V207-2015.pdf",
+     "quote": "white gas or lamp oil should be used before kerosene.",
+     "source_date": "Kindle Arts Society, Version 207, Jan 2015"
+    },
+    {
+     "url": "https://fireandflow.co.nz/pages/wick-care-fire-safety-guide",
+     "quote": "only using it as a last resort",
+     "source_date": "undated"
+    },
+    {
+     "url": "https://dark-monk.com/Article/About%20Fire%20Fuels",
+     "quote": "sootier and can leave a sticky residue",
+     "source_date": "copyright 2026"
+    }
+   ],
+   "caveats": "The claim about low-odour kerosene additives comes from a retailer and was not checked against a low-odour kerosene SDS. Composition varies by brand and grade (1-K vs 2-K)."
+  },
+  {
+   "claim": "Lamp oil (US 'paraffin', meaning pure liquid paraffin such as Lamplight Ultra-Pure): very high flash point (97-121 C), so it is hard to light and does not flash when spilled. It gives the longest burns, but its flame is smaller and it lights slowly. It leaves a slippery, oily residue on floors and props. It is only mildly irritating to skin and is not a DOT-regulated hazardous material. Some formulations freeze at 0-8 C. Marketing words like 'smokeless' describe lamp use; spinners still report some smoke. Regional warning: in the UK, South Africa and South-East Asia, 'paraffin' means kerosene.",
+   "confidence": "high",
+   "sources": [
+    {
+     "url": "https://kindlearts.ca/wp-content/uploads/2015/04/Kindle-Arts-Society-Fire-Performance-Guidelines-V207-2015.pdf",
+     "quote": "Product will freeze at 47° F (8° C)",
+     "source_date": "Ultra-Pure MSDS (2002) reproduced in 2015 guidelines"
+    },
+    {
+     "url": "https://templeofpoi.wordpress.com/2013/01/31/fire-fuel/",
+     "quote": "very slippery and nasty residue on the ground",
+     "source_date": "2013-01-31"
+    },
+    {
+     "url": "https://dark-monk.com/Article/About%20Fire%20Fuels",
+     "quote": "paraffin is synonymous with Kerosene",
+     "source_date": "copyright 2026"
+    },
+    {
+     "url": "https://flowartsinstitute.com/fuel-science/",
+     "quote": "creates more smoke and soot than naptha",
+     "source_date": "undated"
+    }
+   ],
+   "caveats": "The two Ultra-Pure MSDS versions found (2002, 2007) list different compositions (C14-C16 vs C5-C20) and flash points. The current formulation was not verified."
+  },
+  {
+   "claim": "Isoparaffin fluids (Isopar L/M/G/H, Shellsol T, Pegasol 3440) are highly refined. Isopar L specifies no more than 0.01 wt% aromatics and a flash point of at least 62 C, and is described as essentially odourless. Fire retailers say they burn with the least smoke, fumes and smell, which makes them the usual choice for indoor shows. The catch is availability: in the US they are sold mainly by chemical distributors in 5-gallon pails and 55-gallon drums.",
+   "confidence": "medium",
+   "sources": [
+    {
+     "url": "https://www.exxonmobilchemical.com/en/chemicals/webapi/dps/v1/datasheets/130000000367/1/en",
+     "quote": "Aromatic Content -- 0.01 wt%",
+     "source_date": "effective 2015-04-01"
+    },
+    {
+     "url": "https://fireandflow.co.nz/pages/wick-care-fire-safety-guide",
+     "quote": "absolute must for any indoor fire performances",
+     "source_date": "undated"
+    },
+    {
+     "url": "https://www.southafricanfiredancers.co.za/firedancersfuelandsafety_southafricanfiredancers.htm",
+     "quote": "burn clean with little smoke",
+     "source_date": "undated"
+    }
+   ],
+   "caveats": "No measurements of Isopar emissions on fire wicks were found. Isopar pricing and consumer availability were seen only in search snippets from distributors (CORECHEM, Ecolink, Argent Scientific) and were not verified. Isopar grades differ in flash point; only Isopar L's 62 C was confirmed from a primary document."
+  },
+  {
+   "claim": "Blends: many spinners mix white gas with lamp oil to get easy lighting plus a longer burn. Ratios cited: 1:1 or 1:2 (Fire Conclave, Dark Monk), 60-75% white gas (Temple of Poi), or 3/4 Coleman to 1/4 lamp oil (Home of Poi). White gas with kerosene is also used, and reportedly smokes more than straight white gas. Inference not taken from a source: a blend containing white gas gives off white-gas vapour, so it should be stored and handled with the same care as white gas.",
+   "confidence": "medium",
+   "sources": [
+    {
+     "url": "https://dark-monk.com/Article/About%20Fire%20Fuels",
+     "quote": "easy to light, initially impressive, and long lasting",
+     "source_date": "copyright 2026"
+    },
+    {
+     "url": "https://templeofpoi.wordpress.com/2013/01/31/fire-fuel/",
+     "quote": "60-75% white gas to lamp oil mix",
+     "source_date": "2013-01-31"
+    },
+    {
+     "url": "https://www.homeofpoi.com/en/lessons/teach/Fire-Training/Fire-training-safety/Which-Fuel-should-I-use-my-fire-tools",
+     "quote": "smoke more but not nearly as bad",
+     "source_date": "2013-04-19"
+    }
+   ],
+   "caveats": "No SDS or test data exists for home blends. The handling advice is my own inference from mixture volatility, not a published rule."
+  },
+  {
+   "claim": "Denatured alcohol: allowed by Portland, and NAFAA says high-proof alcohols are preferable to petroleum fuels indoors. It gives a dim bluish flame that is hard to see in daylight, the shortest burns, and it evaporates very fast. The big caution is methanol: the US Klean-Strip product contains 5-60% methanol and is labelled toxic if swallowed, by skin contact and by inhalation (H301/H311/H331), with warnings of blindness. Methanol itself burns with an invisible flame. A South African troupe reports that additives in alcohol fuels tend to destroy wicks.",
+   "confidence": "high",
+   "sources": [
+    {
+     "url": "https://production-s3.wmbarrhub.com/assets/sds/1625_6_Klean_Strip_Denatured_Alcohol_EN.pdf",
+     "quote": "H311: Toxic in contact with skin.",
+     "source_date": "2023-08-10"
+    },
+    {
+     "url": "https://production-s3.wmbarrhub.com/assets/sds/1625_6_Klean_Strip_Denatured_Alcohol_EN.pdf",
+     "quote": "Methanol {Methyl alcohol; Carbinol; Wood alcohol} 67-56-1 5.0 -60.0 %",
+     "source_date": "2023-08-10"
+    },
+    {
+     "url": "https://cameochemicals.noaa.gov/chemical/3874",
+     "quote": "Methanol (UN1230) will burn with an invisible flame.",
+     "source_date": "NOAA CAMEO, accessed 2026-09-24"
+    },
+    {
+     "url": "https://www.avon.org/DocumentCenter/View/19606/Fire-Performer-Safety-Guidelines",
+     "quote": "When possible, use high-proof alcohols in place of petrol fuels.",
+     "source_date": "NAFAA Rev 3.0, as reprinted Jan 2019"
+    },
+    {
+     "url": "https://www.southafricanfiredancers.co.za/firedancersfuelandsafety_southafricanfiredancers.htm",
+     "quote": "have a tendency to destroy wicks",
+     "source_date": "undated"
+    }
+   ],
+   "caveats": "The methanol content of denatured alcohol varies widely by brand and year. NAFAA's 'high-proof alcohols' could also mean undenatured grain alcohol. Flow Arts Institute's 'a bit of methanol' understates what the SDS shows."
+  },
+  {
+   "claim": "Gasoline is never used, for three reasons. It is more volatile than white gas (flash point -45 F, up to 15 psi Reid vapour pressure). It contains 0.1-4.9% benzene, a known human carcinogen, plus toluene and xylenes, and is labelled 'may cause cancer'. Its makers state it is for motor fuel only. Fire authorities ban it (Portland), and flow-arts retailers warn it is explosive; one repeats a warning that the vapour left in an 'empty' one-gallon gasoline container can explode 'with the force of dynamite'.",
+   "confidence": "high",
+   "sources": [
+    {
+     "url": "https://www.hess.com/docs/us-safety-data-sheets/gasoline-all-grades.pdf?sfvrsn=2",
+     "quote": "USE ONLY AS A MOTOR FUEL.",
+     "source_date": "2012-08-30"
+    },
+    {
+     "url": "https://www.hess.com/docs/us-safety-data-sheets/gasoline-all-grades.pdf?sfvrsn=2",
+     "quote": "Benzene 0.1-4.9",
+     "source_date": "2012-08-30"
+    },
+    {
+     "url": "https://www.firetoys.com/blogs/fire/fuel-for-fire-spinners",
+     "quote": "can explode with the force of dynamite",
+     "source_date": "2019-10-04"
+    },
+    {
+     "url": "https://fireandflow.co.nz/pages/wick-care-fire-safety-guide",
+     "quote": "Never ever use petrol or diesel",
+     "source_date": "undated"
+    }
+   ],
+   "caveats": "The Hess SDS is from 2012. Benzene limits in US gasoline have tightened since, but it is still present."
+  },
+  {
+   "claim": "Diesel is never used. Its flash point is above 100 F, so it is not especially volatile, and Firetoys' claim that diesel has a low flash point is wrong. The real reasons: it is sooty and hard to light; its SDS classifies it as a suspected carcinogen (H351), notes carcinogenic combustion products, and forbids non-motor-fuel uses; and flow-arts guides lump it with 'unlisted fuels' that are dangerous or bring no benefit.",
+   "confidence": "medium",
+   "sources": [
+    {
+     "url": "https://www.exxon.com/-/media/project/wep/exxon/exxon-retail-us/us-fuel-delivery/pdf/no-2-diesel-fuel-safety-data-sheet.pdf",
+     "quote": "Do not use as a cleaning solvent or other non-motor fuel uses.",
+     "source_date": "ExxonMobil No. 2 Diesel SDS rev. 2019-10-22"
+    },
+    {
+     "url": "https://www.exxon.com/-/media/project/wep/exxon/exxon-retail-us/us-fuel-delivery/pdf/no-2-diesel-fuel-safety-data-sheet.pdf",
+     "quote": "H351: Suspected of causing cancer.",
+     "source_date": "2019-10-22"
+    },
+    {
+     "url": "https://flowartsinstitute.com/fuel-science/",
+     "quote": "not recommended due to their danger or lack of additional benefit",
+     "source_date": "undated"
+    }
+   ],
+   "caveats": "No flow-arts source measured diesel's performance on wicks. 'Sooty and hard to light' is general practitioner opinion."
+  },
+  {
+   "claim": "Other fuels to avoid: methanol (invisible flame, poisonous, absorbed through skin); tiki-torch fuel (a maker says it is not recommended for spinning); and any fuel you cannot identify. No flow-arts or fire-authority source was found that specifically addresses acetone or jet fuel. Both fall under 'unlisted fuels' / 'any fuel you cannot positively identify', and neither is on any approved list.",
+   "confidence": "medium",
+   "sources": [
+    {
+     "url": "https://dark-monk.com/Article/About%20Fire%20Fuels",
+     "quote": "not recommended for spinning or fire breathing",
+     "source_date": "copyright 2026"
+    },
+    {
+     "url": "https://thespinsterz.com/blogs/resources/fire-safety",
+     "quote": "any fuel you cannot positively identify",
+     "source_date": "2018-10-17"
+    }
+   ],
+   "caveats": "This is a gap: I found no primary source on acetone or jet fuel as spinning fuels. Jet A is a kerosene-type fuel but may carry additives; that was not verified. Charcoal lighter fluid differs from naphtha-type lighter fluid (Ronsonol, Zippo); no SDS was checked."
+  },
+  {
+   "claim": "Flame colour and 'heat': practitioners' descriptions are inconsistent. White gas is called 'orangey-yellow', 'bright orange' or 'whitest'; kerosene 'deep orange' or 'low yellow'; lamp oil 'reddish' or 'bluest'. Alcohol is consistently described as dim and blue. On 'white gas burns hotter': the adiabatic flame temperatures of hydrocarbon fuels in air sit in a narrow band (kerosene 2,093 C, gasoline 2,138 C, ethanol 2,082 C, methanol 1,949 C). Perceived differences in heat and wick wear more likely come from how fast a fuel feeds the flame and how big the flame is than from a hotter flame (inference).",
+   "confidence": "medium",
+   "sources": [
+    {
+     "url": "https://en.wikipedia.org/wiki/Adiabatic_flame_temperature",
+     "quote": "in a relatively narrow range around 1,950 °C",
+     "source_date": "accessed 2026-09-24"
+    },
+    {
+     "url": "https://www.homeofpoi.com/en/lessons/teach/Fire-Training/Fire-training-safety/Which-Fuel-should-I-use-my-fire-tools",
+     "quote": "More of a deep orange flame",
+     "source_date": "2013-04-19"
+    },
+    {
+     "url": "https://templeofpoi.wordpress.com/2013/01/31/fire-fuel/",
+     "quote": "bluest",
+     "source_date": "2013-01-31"
+    }
+   ],
+   "caveats": "No spectral or temperature measurements of fire-prop flames were found. Adiabatic flame temperature is a theoretical maximum, not the temperature of a spinning wick."
+  },
+  {
+   "claim": "Fuel and wicks: fuel choice affects wick life. Kerosene-based fuels are said to at least double Kevlar wick life compared with white gas. Alcohol additives are reported to degrade wicks. Letting a wick burn dry (running out of fuel) damages it. Petroleum fuels damage silicone handles. Let wicks cool and air out before bagging them, because covers soak up fumes and become more flammable.",
+   "confidence": "medium",
+   "sources": [
+    {
+     "url": "https://renegadejuggling.com/blogs/juggling-guides-tips/how-to-select-and-use-kevlar-fire-wicks",
+     "quote": "Kerosene-based fuel burns slower and at lower temperature",
+     "source_date": "2025-04-01"
+    },
+    {
+     "url": "https://bonoboflow.com/how-to-maintain-fire-prop-wicks/",
+     "quote": "Dry spots can cause the wick to burn itself",
+     "source_date": "2024-03-03"
+    },
+    {
+     "url": "https://www.firetoys.com/blogs/fire/fuel-for-fire-spinners",
+     "quote": "Fuel will damage silicone",
+     "source_date": "2019-10-04"
+    },
+    {
+     "url": "https://bonoboflow.com/how-to-maintain-fire-prop-wicks/",
+     "quote": "Covers and bags will absorb the fumes and become more flammable.",
+     "source_date": "2024-03-03"
+    }
+   ],
+   "caveats": "These are maker and retailer claims, not controlled tests. Renegade's 'lower temperature' wording conflicts with the flame-temperature data above."
+  },
+  {
+   "claim": "Fumes and indoor use: NAFAA and Kindle Arts say petroleum fuels burned on open wicks always produce toxic fumes and smoke, should be very limited indoors even with ventilation, and that low-wind, semi-enclosed outdoor spots can be as bad as indoors. They prefer the most purified fuel. Portland requires fire-performance venues to have sprinklers and a ceiling of at least 12 ft, and allows kerosene outdoors only. A gasoline SDS warns generally that burning any hydrocarbon without ventilation can build up carbon monoxide.",
+   "confidence": "high",
+   "sources": [
+    {
+     "url": "https://www.avon.org/DocumentCenter/View/19606/Fire-Performer-Safety-Guidelines",
+     "quote": "Petrol fuels burnt on open wicks always produce toxic fumes, smoke",
+     "source_date": "NAFAA Rev 3.0 (reprint 2019)"
+    },
+    {
+     "url": "https://www.avon.org/DocumentCenter/View/19606/Fire-Performer-Safety-Guidelines",
+     "quote": "semi-enclosed areas with low wind can be as hazardous as indoor",
+     "source_date": "2019"
+    },
+    {
+     "url": "https://www.hess.com/docs/us-safety-data-sheets/gasoline-all-grades.pdf?sfvrsn=2",
+     "quote": "may result in hazardous levels of combustion products, including carbon monoxide",
+     "source_date": "2012-08-30"
+    }
+   ],
+   "caveats": "No measurements of air quality at fire-spinning events were found."
+  },
+  {
+   "claim": "Skin and clothing: every petroleum fuel is a skin irritant or defatting agent with repeated contact. Coleman: 'may cause skin irritation'. Kerosene: H315. Lamp oil: dermatitis with prolonged contact. Denatured alcohol is toxic through the skin because of its methanol. SDSs advise nitrile or neoprene gloves and removing fuel-soaked clothing. White gas evaporates but transfers easily to skin and clothing, where it can catch fire. Kerosene and lamp oil stay wet (and flammable) in clothes, and their soot is hard to wash out. Portland requires snug natural-fibre or fire-resistant clothing and bans synthetics.",
+   "confidence": "high",
+   "sources": [
+    {
+     "url": "https://images.homedepot-static.com/catalog/pdfImages/85/852bc5fb-04cd-43b4-9db5-d00e7c146886.pdf",
+     "quote": "Repeated or prolonged contact can cause redness, irritation, and scaling",
+     "source_date": "2007-01-09"
+    },
+    {
+     "url": "https://dark-monk.com/Article/About%20Fire%20Fuels",
+     "quote": "can easily transfer to clothing, skin",
+     "source_date": "copyright 2026"
+    },
+    {
+     "url": "https://www.southafricanfiredancers.co.za/firedancersfuelandsafety_southafricanfiredancers.htm",
+     "quote": "difficult to wash out of clothing",
+     "source_date": "undated"
+    },
+    {
+     "url": "https://www.portland.gov/sites/default/files/2020-06/fir-3.07-fire-performance-art-080218-755010.pdf",
+     "quote": "Synthetic clothing shall not be worn.",
+     "source_date": "2018-08-02"
+    }
+   ],
+   "caveats": "'Stays flammable in clothing' is an inference from the low evaporation rates; no direct test was found."
+  },
+  {
+   "claim": "Storage rules from fire authorities and events: keep fuel in the original container with the cap on, or a lidded metal container. Never use glass. Portland caps fuel on site at 1 gallon. Keep fuel out of direct sun and away from heat and flames; Burning Man forbids shade structures over liquid fuel. Keep stored fuel at least 10 ft from combustibles and ignition sources, keep open flames 25 ft away when pouring, and use secondary containment sized at 110% of the largest container. Keep the audience and smokers 30 ft from the fuel station, ideally with a hard wall between fuel and fire. Label every container and keep the SDS on hand.",
+   "confidence": "high",
+   "sources": [
+    {
+     "url": "https://www.portland.gov/sites/default/files/2020-06/fir-3.07-fire-performance-art-080218-755010.pdf",
+     "quote": "Glass containers shall never be used for storage of fuel.",
+     "source_date": "2018-08-02"
+    },
+    {
+     "url": "https://burningman.org/event/participate/art-performance/playa-art/art-installation-guidelines/fire-art-guidelines/fire-safety-agreements/fuel-and-hazardous-materials-storage/",
+     "quote": "Open flames must be kept at least 25 ft. away when filling or dispensing",
+     "source_date": "accessed 2026-09-24"
+    },
+    {
+     "url": "https://www.avon.org/DocumentCenter/View/19606/Fire-Performer-Safety-Guidelines",
+     "quote": "Audience and smoking should be restricted within 30 feet of fuel station.",
+     "source_date": "2019"
+    },
+    {
+     "url": "https://fireconclave.org/resources/03-create/fire-tools-safety/",
+     "quote": "Keep your fuel out of direct sunlight and away from any open flames",
+     "source_date": "2021-03-20"
+    }
+   ],
+   "caveats": "Burning Man's storage rules are written for camp-scale fuel (up to 110 gallons), not a spinner's single can. The distances differ by source: 10, 20, 25 or 30 ft."
+  },
+  {
+   "claim": "Dipping, spin-off and fuel dump practice: dip into a small metal can (5 gallons or less) with a tight or self-closing lid, sitting in a drip pan or secondary basin. Immerse wicks only briefly (1-2 seconds) and keep handles out of the fuel. Spin off into a spin-off can, bucket or zip-top bag away from foot traffic and ignition sources, and return reclaimed fuel to its can. Never dump fuel on the ground. Close all fuel containers before anything is lit, and never light up near the dip station. Kindle Arts describes the fuel dump as a short barrel with a heavy hinged lid that can be slammed shut to smother a fire. Handle fuel with nitrile or neoprene gloves and eye protection, and keep phones away from the dip area.",
+   "confidence": "high",
+   "sources": [
+    {
+     "url": "https://flowartsinstitute.com/fire-safety-use/",
+     "quote": "Dip and fully immerse the wicks BRIEFLY (1-2 seconds) in fuel",
+     "source_date": "undated (Howard Chen)"
+    },
+    {
+     "url": "https://www.portland.gov/sites/default/files/2020-06/fir-3.07-fire-performance-art-080218-755010.pdf",
+     "quote": "A shallow drip pan should be used in the fuel area",
+     "source_date": "2018-08-02"
+    },
+    {
+     "url": "https://kindlearts.ca/wp-content/uploads/2015/04/Kindle-Arts-Society-Fire-Performance-Guidelines-V207-2015.pdf",
+     "quote": "A short height barrel with a heavy hinged lid.",
+     "source_date": "Jan 2015"
+    },
+    {
+     "url": "https://fireconclave.org/resources/03-create/fire-tools-safety/",
+     "quote": "Do not dump excess or unused fuel on the playa",
+     "source_date": "2021-03-20"
+    },
+    {
+     "url": "https://www.synergyflowarts.com/pages/fire-safety",
+     "quote": "Flames can travel and transfer back to ignite the fuel source",
+     "source_date": "undated"
+    }
+   ],
+   "caveats": "Advice on phones and 'ground yourself' comes from Flow Arts Institute. The SDSs themselves call for static precautions (P240/P243)."
+  },
+  {
+   "claim": "Hot metal and re-dipping, directly relevant to staff builders: never put a prop back into fuel right after it goes out. If the head has a lot of metal, wait several minutes. Let wicks cool before refuelling. The SDSs show why. Metal under a wick at 'a few hundred degrees C' is far above every spinning fuel's flash point, and close to the self-ignition temperatures of the heavier fuels: Ultra-Pure lamp oil about 200-216 C, diesel above 200 C, VM&P naphtha 246 C, gasoline above 280 C. Heavier fuels self-ignite at LOWER temperatures, so a hot staff end dipped in lamp oil or kerosene could ignite it without any flame.",
+   "confidence": "medium",
+   "sources": [
+    {
+     "url": "https://thespinsterz.com/blogs/resources/fire-safety",
+     "quote": "wait a few minutes before re-submerging it",
+     "source_date": "2018-10-17"
+    },
+    {
+     "url": "https://thespinsterz.com/blogs/resources/fire-safety",
+     "quote": "do not put the prop back in the fuel after it has gone out",
+     "source_date": "2018-10-17"
+    },
+    {
+     "url": "https://images.homedepot-static.com/catalog/pdfImages/85/852bc5fb-04cd-43b4-9db5-d00e7c146886.pdf",
+     "quote": "AUTOIGNITION TEMPERATURE: >392°F (200° C)",
+     "source_date": "2007-01-09"
+    },
+    {
+     "url": "https://www.hess.com/docs/us-safety-data-sheets/gasoline-all-grades.pdf?sfvrsn=2",
+     "quote": "Auto Ignition: >530°F (>280°C)",
+     "source_date": "2012-08-30"
+    }
+   ],
+   "caveats": "The link between staff-end temperature and self-ignition is my inference. No published temperature measurement of a staff end under a burning wick was found, and self-ignition temperatures depend on the test method."
+  },
+  {
+   "claim": "Cost and availability on 2026-09-24: Coleman Camp Fuel was $19.99 per gallon at Grange Supply (Issaquah, WA) and $24.99 at a Salemi's Ace Hardware, where it was in-store pickup only. As a DOT Class 3 hazmat (UN1268, packing group II) it is awkward to ship. A Walmart price of $14.98 and a Home Depot 1-K kerosene price of $14.97 were seen only in search snippets and could not be opened. Older flow-arts pages quote $8-10 per gallon for white gas. Kerosene is shipped as an exempt combustible liquid, and Ultra-Pure lamp oil is not DOT-regulated, so both are easier to buy online.",
+   "confidence": "medium",
+   "sources": [
+    {
+     "url": "https://shop.grangesupply.com/products/camp-fuel-coleman-gal-4498.html",
+     "quote": "$19.99",
+     "source_date": "fetched 2026-09-24"
+    },
+    {
+     "url": "https://www.mycoastalace.com/products/fuel-wht-gas-colman-1gal",
+     "quote": "in-store pickup only",
+     "source_date": "fetched 2026-09-24 ($24.99 listed)"
+    },
+    {
+     "url": "https://www.homedepot.com/p/Klean-Strip-1-K-Kerosene-Heater-Fuel-1-Gal-GKP85/203000700",
+     "quote": "Klean-Strip 1-K Kerosene Heater Fuel, 1 Gal. GKP85",
+     "source_date": "search result 2026-09-24; page itself returned 403"
+    },
+    {
+     "url": "https://pdf.lowes.com/productdocuments/711459ad-1d09-4fe6-bf94-388642ed144f/74946251.pdf",
+     "quote": "UN1268 Petroleum products, n.o.s, 3, II",
+     "source_date": "2022-04-07"
+    }
+   ],
+   "caveats": "Big-box retail pages (Walmart, Home Depot, Menards, Ace corporate) blocked automated fetching, so their prices are unverified. Prices vary by region and store. No lamp oil or Isopar price was verified."
+  },
+  {
+   "claim": "Fire breathing and fire eating are a separate discipline with stricter rules and their own fuel requirements. Aspirating fuel causes 'fire-eater's pneumonia' (hydrocarbon pneumonitis), documented in medical case reports. Performance guidelines put separate responsibilities on breathers. Members should learn it only from an experienced in-person teacher and should not treat spinning-fuel advice as applying to it.",
+   "confidence": "high",
+   "sources": [
+    {
+     "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC2459199/",
+     "quote": "also referred to as fire-eater's pneumonia",
+     "source_date": "Journal of Medical Case Reports, 2008"
+    },
+    {
+     "url": "https://kindlearts.ca/wp-content/uploads/2015/04/Kindle-Arts-Society-Fire-Performance-Guidelines-V207-2015.pdf",
+     "quote": "Fire Breathers are responsible for monitoring their fuel container.",
+     "source_date": "Jan 2015"
+    }
+   ],
+   "caveats": "No technique or fuel advice for breathing is given here, on purpose."
+  }
+ ],
+ "disagreements_or_myths": [
+  "Kerosene burn time: Home of Poi's 2013 compilation and Sacred Flow Art (2019) say 'quick ignite, short burn'. Dark Monk (5-7 minutes), Flow Arts Institute, Temple of Poi and Sacred Flow Art's own 2021 review (about 40% longer than white gas) say it burns long. The same Home of Poi page also calls it 'longest burn time'. The majority, and the physics of low volatility, favour long.",
+  "Kerosene flash point: Dark Monk calls it 'low'. The SDSs show above 100 F (40 C): higher than white gas and alcohol, lower than lamp oil or Isopar L. 'Low' is only true compared with lamp oil.",
+  "Firetoys US (2019) says diesel has 'low flash points' and is explosive. The ExxonMobil diesel SDS gives a flash point above 38 C (100 F). Diesel is excluded for soot, carcinogenicity and the maker's 'motor fuel only' rule, not for volatility.",
+  "'White gas is safe, gasoline is dangerous' is a myth of degree. Both carry an NFPA fire rating of 3 and both have flash points below 0 F. White gas is cleaner and has no benzene, but its vapour is just as ready to flash and just as apt to travel.",
+  "'Naphtha' does not automatically mean camp fuel. Hardware-store VM&P naphtha is a heavier cut (flash point 69 F, boils at 264-291 F).",
+  "'Paraffin' means lamp oil in the US but kerosene in the UK, South Africa and South-East Asia. UK advice to 'use paraffin' (for example Firetoys) is really advice to use kerosene.",
+  "Alcohol: Portland lists denatured alcohol and NAFAA prefers high-proof alcohol indoors, but The Spinsterz says 'Never use ... alcohol'. Flow Arts Institute says denatured alcohol has 'a bit of methanol', while a 2023 Klean-Strip SDS lists 5-60% methanol and 'toxic in contact with skin'.",
+  "Indoor fuel: NAFAA and Kindle Arts favour alcohol or the most purified fuel and limit petroleum indoors, and Fire and Flow NZ says Isopar is a must indoors. South African Fire Dancers says white gas is 'preferred ... for indoor shows in the US'.",
+  "Beginner fuel: Temple of Poi (2013) recommends kerosene for beginners (less likely to catch accidentally). Kindle Arts ranks kerosene last among petroleum fuels, and Fire and Flow NZ calls it a last resort (fumes). Renegade Juggling favours kerosene-based fuels for wick life.",
+  "Flame colour words are inconsistent. Lamp oil is called 'reddish' (Home of Poi) and 'bluest' (Temple of Poi); white gas 'orangey-yellow', 'bright orange' and 'whitest'. Treat colour as subjective.",
+  "'White gas burns hotter' is not supported by flame-temperature data: hydrocarbon fuels in air all sit near 1,950-2,140 C adiabatic. Any real difference is likely burn rate and flame size, not flame temperature.",
+  "Lamp oil marketed as 'smokeless/odorless' is judged in a lamp with a controlled wick. Spinners still report smoke and soot from lamp oil on an open wick (Flow Arts Institute, Home of Poi).",
+  "Lamplight Ultra-Pure's own MSDS versions disagree: 250 F / 121 C with C14-C16 paraffins (2002) versus 207 F / 97 C with C5-C20 paraffins (2007). Check the current SDS rather than trusting a quoted number.",
+  "White gas price: Dark Monk (copyright 2026) says about $9-10 a gallon and Sacred Flow Art (2021) says $8-9. Live listings on 2026-09-24 showed $19.99 and $24.99."
+ ]
+}

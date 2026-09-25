@@ -1,0 +1,429 @@
+{
+ "summary_answer": "Short version, researched 2026-09-24. Nobody has published a measurement of staff-end temperatures, so this rests on occupational-safety sources, manufacturer data sheets and vapour-pressure tables.\n\n1) Bare structural metals give off no meaningful fume at wick-zone temperatures of a few hundred °C. That covers aluminium, titanium (any grade, CP1 included), carbon steel, stainless (chromium and nickel), copper and manganese. In the CRC vapour-pressure data none of them reaches even 1 Pa below about 950 °C: aluminium 1209 °C, chromium 1383 °C, titanium 1709 °C. OSHA describes hexavalent chromium, nickel and manganese fume from stainless as a hot-work problem, meaning welding, melting and cutting. OSHA's own words are that the chromium \"is not originally hexavalent\" and that the high temperatures of the process convert it. I found no authoritative source giving a Cr(VI) threshold at a few hundred °C. The often-quoted \"1000 °F\" figure could not be traced to a primary source. So \"stainless or titanium poisons you at the wick\" is not supported. It has not been measured either, which should be said honestly.\n\n2) What does become real in the few-hundred-°C range is the surface treatments:\n- **Cadmium plating.** The federal plating spec bars it on parts reaching 232 °C (450 °F) and warns of \"poisonous vapors\" when welded, brazed or soldered. Cadmium melts at 321 °C and reaches 1 Pa vapour pressure at 257 °C. This is the one plating where wick temperatures overlap evaporation.\n- **Galvanized and zinc coatings.** The coating peels above about 200–250 °C (AGA). Zinc reaches 1 Pa at 337 °C and melts at about 419 °C. Heavy zinc-oxide fume (metal fume fever) comes mainly from welding, cutting and brazing, but direct flame contact could get close.\n- **PTFE tape and coatings.** Tape SDS values give no known toxicity below 260 °C (500 °F). The industry handling guide puts TFE release near 330 °C, polymer-fume-fever particles at 420 °C, carbonyl fluoride and HF around 450 °C, and PFIB above 475 °C.\n- **PVC and vinyl wraps.** 3M 2080 wrap is cast vinyl. PVC's main HCl release is at 250–350 °C, and benzene appears from 220–240 °C.\n- **Paint and powder coat.** Powder coats cure at about 200 °C and are stripped in 300–450 °C burn-off ovens, so they will char and smoke at the wick.\n- **Old lead paint.** HSE says keep heat below 500 °C and US HUD rules ban open flame, so it is a real hazard near a flame.\n- **Threadlocker.** Loctite 242 is rated only to 149 °C and lets go at about 250 °C, giving off irritating vapours.\n- **Yellow or gold chromate on zinc or cadmium hardware.** Traditionally contains Cr(VI), and heat above about 70 °C damages it.\n- **Anodizing.** Cracks above about 80 °C and the dyes fade. I found no data on fumes, and the amount of material is tiny.\n\n3) Lead weights, solder and leaded brass: fume is low below about 500 °C (HSE). The practical problem at wick heat is melting and dripping (lead melts at about 327 °C, and solder lower), plus dust on the hands. Free-machining brass C360 contains about 3% lead.\n\n4) Hazards that only arise when building (cutting, grinding, welding):\n- galvanized steel gives metal fume fever;\n- stainless gives Cr(VI), nickel and manganese fume;\n- beryllium copper is a serious inhalation hazard from grinding, heat treating or welding, and OSHA requires local exhaust plus airline respirators for welding it;\n- magnesium ignites near its melting point, and water on burning magnesium makes hydrogen;\n- titanium is not combustible as solid tube, but fine chips and dust can self-ignite (powder auto-ignition about 250 °C), and water must never go on a titanium fire;\n- chlorinated cutting oils and solvents: TIMET says titanium must be cleaned with non-chlorinated solvents before heating, because chloride residue is linked to stress-corrosion cracking. OSHA also requires chlorinated degreasing vapour to be kept away from welding, and OSHA lists phosgene among welding gases.\n\nBottom line for the post: bare aluminium, stainless or titanium ends are fine from a fume standpoint. Keep every plating, coating, tape, wrap, paint, powder coat and threadlocker out of the burn zone. Never use galvanized, cadmium-plated, lead-painted or yellow-zinc parts at the fire end. Save the respirator and ventilation warnings for cutting, grinding and welding.",
+ "findings": [
+  {
+   "claim": "Framework: at 'a few hundred °C' the bare structural metals used for staff tubes have negligible vapour pressure; only cadmium and zinc (and to a lesser degree magnesium) start evaporating in or near that range. Temperatures at which vapour pressure reaches 1 Pa (CRC Handbook data): cadmium 257 °C, zinc 337 °C, magnesium 428 °C, lead 705 °C, manganese 955 °C, beryllium 1189 °C, aluminium 1209 °C, copper 1236 °C, chromium 1383 °C, iron 1455 °C, nickel 1510 °C, titanium 1709 °C. At 10 Pa: cadmium 310 °C, zinc 397 °C.",
+   "confidence": "high",
+   "sources": [
+    {
+     "url": "https://en.wikipedia.org/wiki/Vapor_pressures_of_the_elements_(data_page)",
+     "quote": "the temperature necessary to reach the specified pressure",
+     "source_date": "accessed 2026-09-24 (table rows cite CRC Handbook, 'CRC.b')"
+    }
+   ],
+   "caveats": "Wikipedia data page transcribing the CRC Handbook of Chemistry and Physics. Vapour pressure is a relative marker of how easily a metal evaporates, not an exposure measurement. 1 Pa is small but not zero. Zinc alloyed in brass evaporates less than pure zinc. Surface oxide films also slow evaporation."
+  },
+  {
+   "claim": "Galvanized (hot-dip zinc). The American Galvanizers Association limits long-term service to 200 °C (392 °F), says above 250 °C (480 °F) is not recommended, and allows about 350 °C (660 °F) for short exposures (under 2 h, or a one-off under 24 h). These are limits on coating peeling and corrosion protection, not fume thresholds; the page does not mention fumes. Metal fume fever comes from zinc oxide fume, mainly from welding, cutting or brazing galvanized metal. Zinc melts at 785 °F (419 °C). NIOSH REL for zinc oxide fume is 5 mg/m3 (STEL 10 mg/m3). AGA notes that galvanized welding fume can also contain lead.",
+   "confidence": "high",
+   "sources": [
+    {
+     "url": "https://galvanizeit.org/hot-dip-galvanizing/how-long-does-hdg-last/in-extreme-temperatures",
+     "quote": "the recommended maximum temperature is 392 F (200 C)",
+     "source_date": "2019-10 (page date)"
+    },
+    {
+     "url": "https://galvanizeit.org/hot-dip-galvanizing/how-long-does-hdg-last/in-extreme-temperatures",
+     "quote": "Temperature applications of hot-dip galvanized steel above 480 F (250 C) are not recommended",
+     "source_date": "2019-10"
+    },
+    {
+     "url": "http://apps.ocfl.net/dept/county_admin/public_safety/risk/FACT_25.pdf",
+     "quote": "caused primarily by exposure to zinc oxide fume (ZnO) in the workplace",
+     "source_date": "2002-01 (American Welding Society Fact Sheet No. 25)"
+    },
+    {
+     "url": "https://galvanizeit.org/knowledgebase/article/can-you-weld-galvanized-steel",
+     "quote": "Fumes from welding galvanized steel can contain zinc, iron, lead",
+     "source_date": "undated, accessed 2026-09-24"
+    },
+    {
+     "url": "https://engineeringlibrary.org/reference/fastener-design-criteria-nasa",
+     "quote": "Zinc melts at 785 °F but has a useful service temperature limit of 250 °F.",
+     "source_date": "NASA RP-1228 Fastener Design Manual, March 1990 (reproduction)"
+    },
+    {
+     "url": "https://www.cdc.gov/niosh/npg/npgd0675.html",
+     "quote": "Fume: TWA 5 mg/m³",
+     "source_date": "NIOSH Pocket Guide, accessed 2026-09-24"
+    }
+   ],
+   "caveats": "No source gives a zinc-fume onset temperature for a staff. Evaporation becomes non-negligible from roughly 340 °C (1 Pa), and the coating melts at 419 °C. Direct flame contact at the wick edge could plausibly exceed that locally. The practical advice is still not to use galvanized at a fire end, but the '200 °C = toxic' reading of the AGA figure is a misreading."
+  },
+  {
+   "claim": "Cadmium plating is the worst plating for heat, because its danger temperature overlaps wick-zone temperatures. Cadmium melts at 610 °F (321 °C) and boils at 1409 °F (767 °C). The federal plating spec QQ-P-416F bars cadmium plating on parts that reach 450 °F (232 °C) in service, and requires plated stock to be labelled because of poisonous vapour when welded, brazed or soldered. NASA RP-1228 sets the same 450 °F limit. OSHA says immediately dangerous exposures occur when workers heat cadmium-coated surfaces. It treats about 1 mg/m3 over 8 hours as immediately dangerous, and 1910.252(c)(9) requires local exhaust or airline respirators when welding or cutting cadmium-coated metal indoors.",
+   "confidence": "high",
+   "sources": [
+    {
+     "url": "https://www.anoplex.com/references/QQ-P-416.html",
+     "quote": "danger from poisonous vapors during operations",
+     "source_date": "QQ-P-416F federal specification (1991), reproduced by Anoplex, accessed 2026-09-24"
+    },
+    {
+     "url": "https://www.anoplex.com/references/QQ-P-416.html",
+     "quote": "parts which in service reach a temperature of 450°F (232°C) or higher",
+     "source_date": "QQ-P-416F"
+    },
+    {
+     "url": "https://engineeringlibrary.org/reference/fastener-design-criteria-nasa",
+     "quote": "Since cadmium melts at 600 °F, its useful service temperature limit is 450 °F.",
+     "source_date": "NASA RP-1228, March 1990"
+    },
+    {
+     "url": "https://www.osha.gov/laws-regs/regulations/standardnumber/1910/1910.1027AppA",
+     "quote": "heat cadmium-containing compounds or cadmium-coated surfaces",
+     "source_date": "29 CFR 1910.1027 App A, accessed 2026-09-24"
+    },
+    {
+     "url": "https://www.cdc.gov/niosh/npg/npgd0087.html",
+     "quote": "Boiling Point: 1409°F",
+     "source_date": "NIOSH Pocket Guide, accessed 2026-09-24"
+    },
+    {
+     "url": "https://www.osha.gov/laws-regs/regulations/standardnumber/1910/1910.252",
+     "quote": "cadmium-bearing or cadmium-coated base metals must be done using local exhaust ventilation",
+     "source_date": "29 CFR 1910.252(c)(9)(i), accessed 2026-09-24"
+    }
+   ],
+   "caveats": "Cadmium plating is uncommon on modern consumer hardware but shows up on aerospace and military surplus fasteners. I found no reliable way to tell it from yellow-chromated zinc by eye, so the safe rule is no plated hardware near the flame unless you know what it is."
+  },
+  {
+   "claim": "Lead (weights, solder, old paint, leaded brass). HSE classes high-temperature lead work as above 500 °C and tells workers to keep hot-air guns below 500 °C on leaded paint. US HUD rules ban open-flame burning of lead paint and heat guns above 1100 °F. Lead only reaches 1 Pa vapour pressure at 705 °C, so at wick temperatures the practical problems are melting (lead about 327 °C, solder lower) and lead dust on hands, not bulk fume. Old lead paint under a flame is a real fume hazard. Free-machining brass C36000 contains about 3% lead.",
+   "confidence": "high",
+   "sources": [
+    {
+     "url": "https://www.hse.gov.uk/construction/healthrisks/hazardous-substances/lead.htm",
+     "quote": "Keep hot air guns and infrared equipment below 500 oC",
+     "source_date": "HSE web page, accessed 2026-09-24"
+    },
+    {
+     "url": "https://www.law.cornell.edu/cfr/text/24/35.140",
+     "quote": "Heat guns operating above 1100 degrees Fahrenheit or charring the paint",
+     "source_date": "24 CFR 35.140 (HUD), accessed 2026-09-24"
+    },
+    {
+     "url": "https://en.wikipedia.org/wiki/Vapor_pressures_of_the_elements_(data_page)",
+     "quote": "the temperature necessary to reach the specified pressure",
+     "source_date": "CRC data; Pb 1 Pa at 978 K (705 °C)"
+    },
+    {
+     "url": "https://copper.org/applications/rodbar/alloy360/alloy360.php",
+     "quote": "a standard alloy of copper and zinc containing about three percent lead",
+     "source_date": "Copper Development Association; the text came from a search snippet because the page returned HTTP 403 when fetched on 2026-09-24"
+    }
+   ],
+   "caveats": "Lead's melting point (about 327 °C) is general reference knowledge, not taken from one of the fetched sources. I did not find a primary source for a solder fume threshold. University EHS pages say flux fume, not lead fume, is the main soldering exposure, but I could not fetch a clean primary quote."
+  },
+  {
+   "claim": "Stainless steel and hexavalent chromium. OSHA says Cr(VI) is formed by hot work, such as welding stainless or melting chromium metal: the chromium is not hexavalent in the steel, and the high process temperatures oxidise it. OSHA lists stainless welding as the main source and requires mechanical ventilation for gas-shielded arc or flux cutting of stainless. Nickel and manganese are also stainless welding-fume metals; OSHA notes prolonged manganese fume exposure can cause Parkinson's-like symptoms. I found no authoritative temperature threshold at which bare stainless produces Cr(VI) at wick-type temperatures. The widely repeated '1000 °F' figure could not be traced to a primary source (the Sentry Air page it is attributed to gives no number). Chromium's vapour pressure only reaches 1 Pa at 1383 °C.",
+   "confidence": "medium",
+   "sources": [
+    {
+     "url": "https://www.osha.gov/sites/default/files/publications/OSHA_small_entity_comp.pdf",
+     "quote": "the chromium is not originally hexavalent, but the high temperatures",
+     "source_date": "OSHA 3320-10N, 2006"
+    },
+    {
+     "url": "https://www.osha.gov/sites/default/files/publications/OSHA_FS-3647_WELDING.pdf",
+     "quote": "Chromium is converted to its hexavalent state, Cr(VI), during the welding process.",
+     "source_date": "OSHA FS-3647, 2013-03"
+    },
+    {
+     "url": "https://www.osha.gov/sites/default/files/publications/OSHA_FS-3647_WELDING.pdf",
+     "quote": "Prolonged exposure to manganese fume can cause Parkinson's–like symptoms.",
+     "source_date": "2013-03"
+    },
+    {
+     "url": "https://www.osha.gov/laws-regs/regulations/standardnumber/1910/1910.252",
+     "quote": "gas-shielded arc cutting of stainless steel, shall be done using mechanical ventilation",
+     "source_date": "29 CFR 1910.252(c)(12)"
+    }
+   ],
+   "caveats": "'Welding-only' is inferred from how OSHA frames the hazard plus the vapour-pressure data. It is not a measured negative at few-hundred-°C staff temperatures. Stainless heated in air forms a coloured oxide ('heat tint') that stays on the surface. Chrome-plated tube would behave like chromium metal. Grinding stainless produces mostly metallic and Cr(III) dust (not verified in detail here)."
+  },
+  {
+   "claim": "Yellow, gold or olive chromate conversion coatings ('yellow zinc', and the gold finish on cadmium) traditionally contain hexavalent chromium left in the dried film. EU RoHS and REACH push toward trivalent replacements. Heat above about 70 °C gradually damages the coating. So yellow-zinc hardware near a wick is both a Cr(VI)-bearing and a zinc-bearing surface.",
+   "confidence": "medium",
+   "sources": [
+    {
+     "url": "https://en.wikipedia.org/wiki/Chromate_conversion_coating",
+     "quote": "progressing from clear/blue to yellow, gold, olive drab and black",
+     "source_date": "accessed 2026-09-24"
+    },
+    {
+     "url": "https://en.wikipedia.org/wiki/Chromate_conversion_coating",
+     "quote": "higher temperature will gradually damage the coating on steel",
+     "source_date": "accessed 2026-09-24"
+    }
+   ],
+   "caveats": "Wikipedia is a secondary source. The amount of Cr(VI) in a conversion film is very small, and I found no measurement of what heating releases. Modern 'yellow' may be a trivalent imitation. Treat this as 'avoid and don't grind', not as a quantified hazard."
+  },
+  {
+   "claim": "Beryllium copper is harmless as solid parts but seriously hazardous when processed. Materion's SDS (revised 2025-05-07) lists exposure when melting, heat treating, abrasive cutting, welding, grinding, sanding, polishing or otherwise heating or abrading the surface. OSHA 1910.252(c)(8) requires local exhaust and airline respirators for welding or cutting beryllium-bearing metals indoors or out, unless air testing shows exposure is acceptable.",
+   "confidence": "high",
+   "sources": [
+    {
+     "url": "https://www.materion.com/en/resources/environmental-health-safety/safety-data-sheets/DownloadSds?sdsId=A10_COPPER+BERYLLIUM+WROUGHT+ALLOY+_SDS-US_English.pdf",
+     "quote": "heat treating, abrasive cutting, welding, grinding, sanding, polishing",
+     "source_date": "Materion SDS Version 09, revised 2025-05-07"
+    },
+    {
+     "url": "https://www.materion.com/en/resources/environmental-health-safety/safety-data-sheets/DownloadSds?sdsId=A10_COPPER+BERYLLIUM+WROUGHT+ALLOY+_SDS-US_English.pdf",
+     "quote": "In solid form this material poses no special clean-up problems.",
+     "source_date": "2025-05-07"
+    },
+    {
+     "url": "https://www.osha.gov/laws-regs/regulations/standardnumber/1910/1910.252",
+     "quote": "shall be done using local exhaust ventilation and airline respirators",
+     "source_date": "29 CFR 1910.252(c)(8)"
+    }
+   ],
+   "caveats": "Because the SDS lists 'heat treating' among exposure routes, repeated heating of a BeCu part near a flame and handling of its oxide scale is at least a grey area. The age-hardening temperature of BeCu was not verified here. BeCu is also an unlikely staff material. Recommendation: never use it at a fire end, and never grind or sand it."
+  },
+  {
+   "claim": "Copper and brass: copper can cause metal-fume-fever-like effects, and brass contains zinc (about 35%) and, in free-machining grades, lead (about 3%). The fume comes from brazing, melting or flame-cutting temperatures, which are far above wick-zone metal temperatures. Copper reaches 1 Pa vapour pressure only at 1236 °C.",
+   "confidence": "medium",
+   "sources": [
+    {
+     "url": "http://apps.ocfl.net/dept/county_admin/public_safety/risk/FACT_25.pdf",
+     "quote": "Other elements, such as copper and magnesium, may cause similar effects.",
+     "source_date": "AWS Fact Sheet 25, 2002-01"
+    },
+    {
+     "url": "https://en.wikipedia.org/wiki/Vapor_pressures_of_the_elements_(data_page)",
+     "quote": "the temperature necessary to reach the specified pressure",
+     "source_date": "CRC data; Cu 1 Pa at 1509 K"
+    }
+   ],
+   "caveats": "I found no primary source giving a zinc-from-brass fume onset temperature. The zinc content comes from standard brass composition (about 61.5% Cu, 35.5% Zn, 3% Pb for C360, per supplier listings in search results), not a fetched datasheet."
+  },
+  {
+   "claim": "Magnesium is a flammability hazard, not mainly a fume hazard. The stockist SDS classifies it as a flammable solid that reacts with water. Magnesium alloys ignite and burn with a white flame when heated in air near their melting point (about 650 °C). Water on burning magnesium produces hydrogen and can cause an explosion. Chips, turnings and ribbon are the easy-ignition forms.",
+   "confidence": "high",
+   "sources": [
+    {
+     "url": "https://www.twmetals.com/media/category_pdfs/SDS-Magnesium.pdf",
+     "quote": "When heated in air to a temperature near its melting point, Magnesium alloys ignite",
+     "source_date": "TW Metals SDS, revised 2022-02-08"
+    },
+    {
+     "url": "https://www.twmetals.com/media/category_pdfs/SDS-Magnesium.pdf",
+     "quote": "Use of water on burning magnesium will produce hydrogen gas",
+     "source_date": "2022-02-08"
+    }
+   ],
+   "caveats": "About 650 °C is magnesium's melting point from general reference, not a figure from the SDS. Thin-wall magnesium tube directly in a flame for long periods is untested. Magnesium is not a common staff material."
+  },
+  {
+   "claim": "Titanium (CP grades and alloys alike): solid tube is not combustible; fine chips, turnings and dust can self-ignite, with powder auto-ignition at about 250 °C. TIMET says fines must be collected daily, dry-powder (Class D) extinguishers used, and water never applied to a titanium fire. Welding, cutting and grinding make dust and fume; titanium is not classified as carcinogenic. TIMET says CP titanium can be hot-formed at 204–316 °C with no fear of thermal damage, and surface oxidation only becomes significant above 593 °C (1100 °F). So wick-zone heat is not a titanium fume or fire problem.",
+   "confidence": "high",
+   "sources": [
+    {
+     "url": "https://www.alleima.com/contentassets/d9bd874a53914c4e804963021ac88f7b/titanium-grade-9.pdf",
+     "quote": "in massive form are not combustible",
+     "source_date": "Alleima Safety Information Sheet, Titanium Grade 9, November 2023"
+    },
+    {
+     "url": "https://www.alleima.com/contentassets/d9bd874a53914c4e804963021ac88f7b/titanium-grade-9.pdf",
+     "quote": "auto ignition temperature 250°C/480 F for powders",
+     "source_date": "2023-11"
+    },
+    {
+     "url": "https://www.timet.com/assets/local/documents/technicalmanuals/DesignandFabrication.pdf",
+     "quote": "Fine particles of titanium can ignite and burn.",
+     "source_date": "TIMET Titanium Design and Fabrication Handbook (undated, post-1995)"
+    },
+    {
+     "url": "https://www.timet.com/assets/local/documents/technicalmanuals/DesignandFabrication.pdf",
+     "quote": "Water should never be applied directly to a titanium fire.",
+     "source_date": "TIMET handbook"
+    },
+    {
+     "url": "https://www.timet.com/assets/local/documents/technicalmanuals/DesignandFabrication.pdf",
+     "quote": "hot formed in the 400°-600°F (204°-316°C) range with no fear of thermal damage",
+     "source_date": "TIMET handbook (the sentence refers to unalloyed/CP grades)"
+    }
+   ],
+   "caveats": "The Alleima sheet is for Grade 9 (Ti-3Al-2.5V), but its fire statements are generic to titanium. The 'no fear of thermal damage' statement is about forming, not long-term strength at temperature."
+  },
+  {
+   "claim": "Chlorinated cutting oils and solvents with titanium or near heat. TIMET says titanium must be cleaned with non-chlorinated solvents before heating, and that chlorinated cutting fluids on alloys prone to stress-corrosion cracking need carefully controlled post-machining cleaning. Hot-salt stress-corrosion cracking of titanium alloys has been studied at 380 °C, which sits in the plausible upper wick-zone range. OSHA requires chlorinated-hydrocarbon degreasing to be kept so its vapour cannot reach welding, and lists phosgene among welding process gases.",
+   "confidence": "medium",
+   "sources": [
+    {
+     "url": "https://www.timet.com/assets/local/documents/technicalmanuals/DesignandFabrication.pdf",
+     "quote": "cleaned carefully prior to heating, using nonchlorinated solvents",
+     "source_date": "TIMET handbook"
+    },
+    {
+     "url": "https://www.timet.com/assets/local/documents/technicalmanuals/DesignandFabrication.pdf",
+     "quote": "carefully controlled post-machining cleaning operations must be followed",
+     "source_date": "TIMET handbook"
+    },
+    {
+     "url": "https://arxiv.org/abs/2010.13875",
+     "quote": "AgCl-induced hot salt stress corrosion cracking in a titanium alloy",
+     "source_date": "Shi, Dye et al., submitted 2020-10-26, revised 2021-03-19 (tested at 380 °C, 500 MPa, 24 h)"
+    },
+    {
+     "url": "https://www.osha.gov/laws-regs/regulations/standardnumber/1910/1910.252",
+     "quote": "Degreasing and other cleaning operations involving chlorinated hydrocarbons shall be so located",
+     "source_date": "29 CFR 1910.252(c)(11)(ii)"
+    },
+    {
+     "url": "https://www.osha.gov/sites/default/files/publications/OSHA_FS-3647_WELDING.pdf",
+     "quote": "Carbon Monoxide, Ozone, Phosgene, Hydrogen Fluoride",
+     "source_date": "2013-03"
+    }
+   ],
+   "caveats": "The Shi study used an aerospace alloy (Ti-6246), high stress and AgCl. Whether CP titanium staff tube at wick temperatures with chloride residue has any real cracking risk is unknown. The practical advice (clean off chlorinated fluids and salt with a non-chlorinated cleaner before first burn) is low-cost but a precaution, not a proven failure mode. I found no source giving the decomposition temperature of chlorinated cutting-oil residue."
+  },
+  {
+   "claim": "Aluminium (bare) has no fume issue at wick temperatures: its vapour pressure reaches 1 Pa only at 1209 °C, and OSHA lists it only as a welding-fume constituent. Anodized coatings are thin (Type II is 1.8–25 µm), crack from thermal stress above about 80 °C, and their dyes fade (reds and blues most). Seals can include nickel acetate, cobalt acetate or dichromate. I found no authoritative data on fumes from heated anodizing dyes or seals; the mass involved is tiny.",
+   "confidence": "medium",
+   "sources": [
+    {
+     "url": "https://en.wikipedia.org/wiki/Anodizing",
+     "quote": "will crack from thermal stress if exposed to temperatures above 80 °C",
+     "source_date": "accessed 2026-09-24"
+    },
+    {
+     "url": "https://en.wikipedia.org/wiki/Anodizing",
+     "quote": "nickel acetate, cobalt acetate, and hot sodium or potassium dichromate seals",
+     "source_date": "accessed 2026-09-24"
+    },
+    {
+     "url": "https://www.osha.gov/sites/default/files/publications/OSHA_FS-3647_WELDING.pdf",
+     "quote": "Aluminum, Antimony, Arsenic, Beryllium,",
+     "source_date": "2013-03 (list of metals in welding fume)"
+    }
+   ],
+   "caveats": "Anodizing data is from Wikipedia (secondary). 'Anodizing crazes and discolours at the burn end' is cosmetic and well supported. Any fume claim either way is unsupported. Aluminium's loss of strength when heated is a separate structural question, not covered here."
+  },
+  {
+   "claim": "PTFE (Teflon tape, coatings): polymer fume fever is a real hazard at wick-zone temperatures. The Plastics Industry Association guide (5th ed., 2019) says TFE monomer is released near 330 °C (625 °F). Overheated PTFE at 420 °C gives off ultra-fine particles that cause pulmonary inflammation. Carbonyl fluoride and hydrogen fluoride dominate around 450 °C, and the highly toxic PFIB appears above 475 °C. Smoking PTFE-contaminated tobacco also causes fume fever, which matters if tape residue is on fingers. A PTFE thread-tape SDS states no known toxicity below 500 °F (260 °C) and toxic fumes above 700 °F (371 °C).",
+   "confidence": "high",
+   "sources": [
+    {
+     "url": "https://www.theic2.org/wp-content/uploads/2023/05/Guide-to-the-Safe-Handling-of-Fluoropolymer-Resins-v5-20190130-1.pdf",
+     "quote": "near the gel point of a typical polymer 625°F (330°C)",
+     "source_date": "Guide to the Safe Handling of Fluoropolymer Resins, 5th ed., January 2019"
+    },
+    {
+     "url": "https://www.theic2.org/wp-content/uploads/2023/05/Guide-to-the-Safe-Handling-of-Fluoropolymer-Resins-v5-20190130-1.pdf",
+     "quote": "overheating PTFE, 778°F (420°C), evolves fumes containing ultra-fine particles",
+     "source_date": "2019-01"
+    },
+    {
+     "url": "https://www.theic2.org/wp-content/uploads/2023/05/Guide-to-the-Safe-Handling-of-Fluoropolymer-Resins-v5-20190130-1.pdf",
+     "quote": "minor product at temperatures above 890°F (475°C)",
+     "source_date": "2019-01"
+    },
+    {
+     "url": "https://www.theic2.org/wp-content/uploads/2023/05/Guide-to-the-Safe-Handling-of-Fluoropolymer-Resins-v5-20190130-1.pdf",
+     "quote": "smoking fluoropolymer-contaminated tobacco may also cause PFF",
+     "source_date": "2019-01"
+    },
+    {
+     "url": "https://www.argco.com/pdf/MSDS/PTFE_Tape_SDS.pdf",
+     "quote": "No known toxicity below 500F",
+     "source_date": "ARGCO PTFE Thread Seal Tape SDS, prepared 2023-02-16"
+    },
+    {
+     "url": "https://www.argco.com/pdf/MSDS/PTFE_Tape_SDS.pdf",
+     "quote": "Polytetrafluoroethylene can eemit [sic] toxic fumes when heated to temperatures exceeding 700F",
+     "source_date": "2023-02-16"
+    }
+   ],
+   "caveats": "Onset figures vary by source (260, 330, 371, 420 °C) because decomposition depends on time, oxygen and form. For a post, the honest number is 'trouble starts around 260–330 °C and gets serious by 400 °C', which is inside the plausible wick-zone range. Flame contact would exceed all of these."
+  },
+  {
+   "claim": "PVC and vinyl wraps (e.g. 3M 2080 is cast vinyl): PVC gives off hydrogen chloride and some benzene when heated. A UW-Madison/NREL pyrolysis study found the main dehydrochlorination stage (about 65% weight loss) between 250 and 350 °C, with benzene forming from 220–240 °C. So vinyl wrap or PVC tape at the burn end will release HCl at wick-zone temperatures.",
+   "confidence": "high",
+   "sources": [
+    {
+     "url": "https://www.osti.gov/servlets/purl/2352421",
+     "quote": "occurs in a temperature range between 250 and 350 °C",
+     "source_date": "Wu, Huber et al., 'Kinetic Study of PVC Pyrolysis', OSTI record (circa 2024)"
+    },
+    {
+     "url": "https://www.osti.gov/servlets/purl/2352421",
+     "quote": "Benzene formation starts at 220 ~ 240°C.",
+     "source_date": "circa 2024"
+    },
+    {
+     "url": "https://s3.amazonaws.com/fellers-website/production/documents/3m-series-2080-wrap-film-product-data-bulletin-1524.pdf",
+     "quote": "Material Cast vinyl",
+     "source_date": "3M Product Bulletin 2080, September 2024"
+    }
+   ],
+   "caveats": "The study used pure PVC in nitrogen. Commercial wraps also contain plasticizers, pigments and acrylic adhesive, which add their own smoke. The 3M bulletin fetched does not state a maximum service temperature."
+  },
+  {
+   "claim": "Paint and powder coat will char at wick-zone temperatures. Common powder coats cure at about 200 °C (392 °F), and powder coat is industrially stripped in burn-off ovens at 300–450 °C air temperature, i.e. it decomposes in the plausible wick-zone range. OSHA advises removing paint and solvent-residue coatings before welding because they create toxic exposure. For old lead paint see the lead finding (HSE: keep below 500 °C; HUD bans open flame).",
+   "confidence": "medium",
+   "sources": [
+    {
+     "url": "https://en.wikipedia.org/wiki/Powder_coating",
+     "quote": "Common powders cure at 200 °C (392 °F) object temperature for 10 minutes.",
+     "source_date": "accessed 2026-09-24"
+    },
+    {
+     "url": "https://en.wikipedia.org/wiki/Powder_coating",
+     "quote": "temperatures typically reaching an air temperature of 300–450 °C",
+     "source_date": "accessed 2026-09-24"
+    },
+    {
+     "url": "https://www.osha.gov/sites/default/files/publications/OSHA_FS-3647_WELDING.pdf",
+     "quote": "Welding surfaces should be cleaned of any coating that could potentially create toxic exposure",
+     "source_date": "2013-03"
+    }
+   ],
+   "caveats": "I could not fetch a powder-coat SDS or paint maker's heat rating (Rust-Oleum pages returned 403), so I have no primary source naming specific decomposition products (e.g. isocyanates from polyurethane powders, or TGIC). High-heat paints rated to about 1200 °F exist but were not verified. The search budget was exhausted before powder-coat SDS research."
+  },
+  {
+   "claim": "Threadlockers: Loctite 242 (blue) is rated for service only from -54 to 149 °C (300 °F). Henkel's disassembly instruction is to heat the fastener to about 250 °C (482 °F), so at wick-zone temperatures it lets go. Its SDS lists decomposition products as oxides of carbon, sulfur and nitrogen plus irritating organic vapours. A threaded end cap near the wick should not rely on blue threadlocker.",
+   "confidence": "high",
+   "sources": [
+    {
+     "url": "https://datasheets.tdx.henkel.com/LOCTITE-THREADLOCKER-BLUE-242-en_US.pdf",
+     "quote": "apply localized heat to nut or bolt to approximately 482°F (250°C)",
+     "source_date": "Henkel Technical Data Sheet, revised 2024-10-05"
+    },
+    {
+     "url": "https://www.kbctools.ca/customer/docs/skudocs/1-444-24231_SDS%20Sheet.pdf",
+     "quote": "Oxides of carbon. Oxides of sulfur. Oxides of nitrogen. Irritating organic vapours.",
+     "source_date": "Loctite 242 SDS Revision 008.0, issued 2018-01-11"
+    }
+   ],
+   "caveats": "High-temperature threadlockers exist (e.g. red/high-temp grades) but were not researched here. The fume amount from a thread's worth of adhesive is small. The mechanical-loosening risk is arguably the bigger issue."
+  },
+  {
+   "claim": "Anti-seize: Permatex regular anti-seize (aluminium, copper, graphite) is rated -51 to 871 °C (1600 °F), and Permatex nickel anti-seize up to 1316 °C (2400 °F). The product carries a California Prop 65 cancer warning. The solid metal/graphite lubricant survives wick temperatures; what the grease carrier gives off on heating was not verified.",
+   "confidence": "low",
+   "sources": [
+    {
+     "url": "https://www.permatex.com/products/lubricants/anti-seize-lubricants/permatex-anti-seize-lubricant/",
+     "quote": "a highly refined blend of aluminum, copper, and graphite lubricants",
+     "source_date": "Permatex product page, accessed 2026-09-24"
+    },
+    {
+     "url": "https://www.permatex.com/products/lubricants/anti-seize-lubricants/permatex-nickel-anti-seize/",
+     "quote": "at temperatures up to 2400°F (1316°C)",
+     "source_date": "accessed 2026-09-24"
+    }
+   ],
+   "caveats": "I could not fetch the anti-seize SDS decomposition sections. Some older or industrial anti-seize compounds contained lead, and nickel-bearing anti-seize puts nickel powder on hands; neither was verified here. Treat any claim that anti-seize makes no smoke at the fire end as unverified."
+  }
+ ],
+ "disagreements_or_myths": [
+  "MYTH: 'Galvanized steel becomes toxic above 200 °C.' AGA's 200 °C (392 °F) figure is a long-term coating-peeling and corrosion limit; its temperature page never mentions fumes. Zinc evaporation becomes non-negligible around 340 °C (1 Pa), the coating melts at 419 °C, and metal fume fever is documented mainly from welding, cutting and brazing. Galvanized is still a bad choice at a fire end because flame contact can exceed those temperatures, but the post should not claim toxicity starts at 200 °C.",
+  "MYTH: 'Stainless steel gives off hexavalent chromium in a fire.' OSHA describes Cr(VI) as formed by hot work (welding, melting chromium, kilns); the chromium is not hexavalent in the steel. No authoritative source found for Cr(VI) release from bare stainless at a few hundred °C. The frequently repeated '1000 °F' threshold could not be traced to a primary source. Not measured either way at staff temperatures.",
+  "MYTH: 'Titanium is flammable, so a titanium staff is a fire hazard.' Titanium in solid (massive) form is not combustible (Alleima SIS 2023). The fire hazard is fine chips, turnings and dust from cutting and grinding (powder auto-ignition about 250 °C). This applies equally to CP1 and alloy grades.",
+  "DISAGREEMENT on the PTFE onset temperature: the tape SDS says no known toxicity below 500 °F (260 °C) and toxic fumes above 700 °F (371 °C). The fluoropolymer industry guide puts TFE release near 330 °C, dangerous ultrafine fume at 420 °C, COF2/HF at 450 °C and PFIB above 475 °C. Other tape SDSs (seen in search results) say toxic gas forms above 260 °C. All of them fall within or just above the plausible wick-zone range.",
+  "Soldering: lead fume is low below about 500 °C (HSE's high-temperature lead-work threshold). The common soldering exposure is rosin flux fume, not lead vapour. At wick temperatures the lead problem is melting or dripping and dust on hands, not vapour. Old lead PAINT under a flame is a genuine fume hazard.",
+  "Yellow or gold zinc-plated hardware is often assumed to be 'just zinc'. Traditional yellow chromate conversion films contain hexavalent chromium, and yellow-iridescent cadmium plating can look similar to yellow zinc. Unknown plated hardware should stay out of the burn zone and should not be ground.",
+  "Anodized aluminium 'burning off toxic dye' is unsupported either way. The coating cracks above about 80 °C and dyes fade, but I found no fume data, and the dye mass is tiny. The cosmetic damage is certain; the hazard is unknown.",
+  "No published measurement of metal temperature under or next to a burning fire wick was found. Every 'wick-zone' conclusion here compares hazard thresholds against an assumed range of roughly 200–400 °C, with local flame contact potentially far hotter."
+ ]
+}

@@ -112,10 +112,10 @@ whether a non-programmer can add the second instance.
 
 Study these to understand the target architecture:
 
-- **Items**: `data/items.csv` → `src/ecs/components/inventory.rs` loads via AssetManager.
+- **Items**: `data/items.csv` → loaded via AssetManager; the components live in the single file `src/ecs/components.rs` (there is no `src/ecs/components/` directory).
 - **Recipes**: `data/recipes.csv` → crafting system.
 - **Plants**: `data/plants.csv` → farming system.
-- **Planets**: `data/solar_system/planets/*.ron` → terrain loader.
+- **Planets**: `data/planets/*.ron` → terrain loader.
 - **Quests**: `data/quests/*.ron` → quest system.
 - **Ships**: `data/ships/*.ron` → ship layout parser.
 - **Chemistry**: `data/chemistry/*` → 396 entries (elements, alloys, compounds, gases, toxins).

@@ -1,0 +1,780 @@
+[
+ {
+  "key": "effects-history",
+  "summary": "Verdict: NEW for a real EmberGen-style volumetric fire, smoke or explosion simulation. It has never been built, never attempted, and never removed. The only things that exist are simple sprite effects, a design direction, and systems that track disasters without drawing them.\n\nEvidence, in the four categories:\n\n(1) EXISTS, but basic and never used in the world. The particle system went in with v0.90.0 (commit b72a00c8, 2026-04-07). Particles are flat camera-facing dots, not volumes. data/particles.ron defines 15 emitter types, including \"fire\" (line 9), \"smoke\" (26), \"sparks\" (43), \"explosion\" (181), \"welding\" and \"engine_exhaust\". The explosion is 300 glowing dots with a lifetime of 0.3 to 1.0 s. The simulation moved to the GPU in v0.1068.0 (146c3335) and became the default in v0.1085.0 (dabed6a2). Neither step added density, temperature, smoke shading or fluid behaviour.\n\nThe world only ever creates four emitter types: leaf_drift (src/lib.rs:3839), dive_bubbles (3860), space_dust (3921) and rain/snow (4140). Fire, smoke, sparks and explosion appear only in a doc-comment example (src/renderer/particles.rs:8). No in-game code ever creates them.\n\n(2) DESIGNED, not built.\n- The realistic-first rule of 2026-08-02 names \"EmberGen-class volumetric effects\" as a target (CLAUDE.md:836; docs/history/journal-archive-2026-08.md, the 2026-08-02 entry).\n- The overnight arc of 2026-08-03 was told to \"learn from SpeedTree + EmberGen\". What it actually shipped was tree work only.\n- The one written technical direction for smoke is in commit 24e8e3ce (2026-08-26), now archived at docs/history/priorities-archive-2026-08-to-09.md:3347-3352. It says the 2030 version of a smoke grenade \"is a small dense voxel grid marched against the SAME scattering model\", and that we should \"feed a local volume into the cloud march rather than building a second billboard system\".\n- docs/design/voxel-terrain.md:7-12 quotes the operator (2026-07-26) asking for asteroid craters, explosions, shockwave, smoke cloud and debris. Line 3 says \"Nothing here is built yet\". Rung 6 (lines 82-84) is the impact-crater step, and it plans to reuse \"the existing particles/audio\".\n- docs/design/weather-water-roadmap.md:85-104 sketches a meteor storm and a fire storm, with smoke columns running through the cloud system.\n\n(3) Simulation without visuals.\n- src/systems/disasters.rs has MeteorImpact and AsteroidImpact (lines 36-37, 104-105). Each carries a vfx_id string (\"vfx_meteor\", \"vfx_asteroid\"), but nothing outside that file reads it. The system is not registered (tests/engine_wiring_lint.rs:41). docs/PRIORITIES.md:63-66 says so directly: \"nothing outside that file reads them, so a wildfire is invisible.\"\n- src/systems/fire.rs (fuel, spread, suppression, lines 1-9) with data/fire_system.ron is an unregistered scaffold (tests/engine_wiring_lint.rs:71).\n- src/systems/atmosphere.rs:473-477 does run. When a sealed room has a flammable atmosphere and an ignition source, it logs \"EXPLOSION\" and applies damage. Nothing is drawn.\n- The oxygen-driven fire and smoke spread design is in docs/design/engine-architecture.md:702-710. It is text only.\n\n(4) What the operator is probably remembering. Most likely several real things blended together:\n- JangaFX is listed as a partner organization on his old Project Universe site (docs/history/project-universe-site/pages/organizations.txt, archived 2023-07-10). That fits \"forever ago\".\n- The v0.90.0 release notes (April 2026) listed \"fire, smoke, explosion\" emitters.\n- EmberGen was named as a target on 2026-08-02/03.\n- The volumetric cloud renderer is the one EmberGen-style technique that actually shipped: a ray-marched scattering volume (src/renderer/clouds.rs, assets/shaders/pbr/40-clouds.wgsl, 41-cloud-bodies.wgsl, 45-cloud-temporal.wgsl).\n\n`git log --all -i --grep=embergen` returns nothing. No commit ever claimed to build EmberGen-style functionality.\n\nThe real gap: build a small local density and temperature grid (fire, smoke, soot) that feeds the existing cloud ray-march and its scattering model, with flame colour driven by temperature. Then wire it to the existing fire, disaster and atmosphere systems. That one mechanism would serve both the fire props and the asteroid impact. The doc direction already exists for it, so extend that rather than adding a second billboard system. There are also no 3D models of fire props: assets/models/ holds only furniture, plants and a beam .blend. The fire staff exists only as a written guide (data/library/fire_staff_materials.md).",
+  "exists": [
+   {
+    "what": "Particle system: camera-facing point sprites with data-driven emitters. Simulation moved to a GPU compute pool in v0.1068.0 (146c3335) and became the default in v0.1085.0 (dabed6a2)",
+    "where": "C:/Humanity/src/renderer/particles.rs:1-67,568 (particles.wgsl); C:/Humanity/src/renderer/particles_gpu.rs:1-30; C:/Humanity/assets/shaders/particle_sim.wgsl; origin commit b72a00c8 (v0.90.0, 2026-04-07)",
+    "state": "working (weather, leaves, dust and bubbles only)"
+   },
+   {
+    "what": "Fire, smoke, sparks, explosion, welding and engine_exhaust emitter definitions: additive glowing dots with no volume, density or temperature",
+    "where": "C:/Humanity/data/particles.ron:9 (fire), :26 (smoke), :43 (sparks), :181-197 (explosion: 300 dots, 0.3-1.0 s)",
+    "state": "stub (defined in data, but no code ever creates them; the only created emitters are leaf_drift, dive_bubbles, space_dust and rain/snow at C:/Humanity/src/lib.rs:3839,3860,3921,4140)"
+   },
+   {
+    "what": "Disaster system with MeteorImpact and AsteroidImpact (radius, damage, chain to earthquake/tsunami) and a vfx_id string per type ('vfx_meteor', 'vfx_asteroid', 'vfx_nuke')",
+    "where": "C:/Humanity/src/systems/disasters.rs:1-5,36-37,86-130",
+    "state": "stub (not registered, per C:/Humanity/tests/engine_wiring_lint.rs:41; no code outside the file reads vfx_id; docs/PRIORITIES.md:63-66 says 'a wildfire is invisible')"
+   },
+   {
+    "what": "Fire system: fuel burn, spread to flammable entities, suppression, damage. Plus 411 lines of fire data",
+    "where": "C:/Humanity/src/systems/fire.rs:1-9; C:/Humanity/data/fire_system.ron",
+    "state": "stub (unregistered scaffold, per C:/Humanity/tests/engine_wiring_lint.rs:71)"
+   },
+   {
+    "what": "Room atmosphere explosion check: a flammable atmosphere plus an ignition source applies damage and logs 'EXPLOSION'",
+    "where": "C:/Humanity/src/systems/atmosphere.rs:473-477",
+    "state": "working (simulation only, nothing drawn)"
+   },
+   {
+    "what": "Volumetric cloud ray-march with a scattering model. The only EmberGen-style volume technique in the engine, and the documented host for future smoke",
+    "where": "C:/Humanity/src/renderer/clouds.rs; C:/Humanity/assets/shaders/pbr/40-clouds.wgsl, 41-cloud-bodies.wgsl, 45-cloud-temporal.wgsl",
+    "state": "working (clouds only)"
+   },
+   {
+    "what": "EmberGen-class volumetrics named as a target in the realistic-first rule, and the overnight arc told to 'learn from SpeedTree + EmberGen' (it shipped tree work only)",
+    "where": "C:/Humanity/CLAUDE.md:836; C:/Humanity/docs/history/journal-archive-2026-08.md (2026-08-02 and 2026-08-03 entries)",
+    "state": "design-only"
+   },
+   {
+    "what": "Smoke architecture decision: do not build a second billboard system. Feed a small dense local voxel grid into the cloud march with the same scattering model",
+    "where": "C:/Humanity/docs/history/priorities-archive-2026-08-to-09.md:3347-3352 (commit 24e8e3ce, 2026-08-26)",
+    "state": "design-only"
+   },
+   {
+    "what": "Asteroid impact crater ladder (heightmap depression, voxel rim, existing particles and audio for shockwave, smoke and debris), quoting the operator's 2026-07-26 ask",
+    "where": "C:/Humanity/docs/design/voxel-terrain.md:3-12,82-84,92-94 (added in 32b2c6e1, 2026-07-27)",
+    "state": "design-only (the doc says 'Nothing here is built yet')"
+   },
+   {
+    "what": "Meteor storm and fire storm sketches (impactors, craters, smoke columns through the cloud system, embers, burn scars)",
+    "where": "C:/Humanity/docs/design/weather-water-roadmap.md:80-104",
+    "state": "design-only"
+   },
+   {
+    "what": "Fire simulation design: fire triangle, oxygen use, smoke flow between connected rooms",
+    "where": "C:/Humanity/docs/design/engine-architecture.md:702-710",
+    "state": "design-only"
+   },
+   {
+    "what": "JangaFX listed as a partner organization on the old Project Universe website (a likely source of the 'forever ago' memory)",
+    "where": "C:/Humanity/docs/history/project-universe-site/pages/organizations.txt:14 (archived 2023-07-10); organizations.html:64",
+    "state": "removed (historical website only; no code)"
+   }
+  ],
+  "gaps": [
+   "No volumetric fire, smoke or explosion simulation of any kind: no density, temperature or velocity grid, no heat-driven flame colour, no soot or smoke shading. `git log --all -i --grep=embergen` returns nothing.",
+   "Fire, smoke, sparks and explosion emitters exist in data/particles.ron but no in-game code ever creates them.",
+   "The disaster system's vfx_id strings have no renderer, and the system is not registered, so a meteor or asteroid impact has no visuals, no crater and no shockwave.",
+   "The fire system is an unregistered scaffold, and the atmosphere explosion only applies damage and writes a log line.",
+   "The voxel overlay, craters and impact events (voxel-terrain.md steps 1-6) are all unbuilt. The only craters in the code are static procedural ones in src/terrain/procedural_heightmap.rs.",
+   "No 3D models of fire props (staff, poi, fans, hoops, darts): assets/models/ holds only furniture, plants and a beam .blend. The fire staff exists only as a written guide (data/library/fire_staff_materials.md).",
+   "Nothing models combustion products (CO2, water vapour, soot, unburned fuel vapour) visually or in the simulation for props.",
+   "docs/FEATURES.md:1334-1338 and :2402-2404 are stale. They say the system is CPU-simulated, name particle.wgsl, and list 'steam, ember, lightning' emitters that do not exist. The real file has 15 emitters and uses particles.wgsl with a GPU simulation."
+  ],
+  "notes": [
+   "The recommended route is already written down: a small local density and temperature grid marched through the existing cloud scattering model (commit 24e8e3ce, archived at docs/history/priorities-archive-2026-08-to-09.md:3347-3352). A caller should extend that rather than build a second sprite-based fire system beside it.",
+   "One mechanism, a local volume in the cloud march with flame colour driven by temperature, would serve both the handheld fire props and the asteroid impact fireball and smoke column. Sparks and debris can reuse the existing GPU particle pool.",
+   "The 'forever ago' memory is most plausibly a blend of four real things: JangaFX on the 2023 Project Universe partner page, the 'fire, smoke, explosion' emitters in the v0.90.0 release notes (April 2026), EmberGen named as a target in August 2026, and the shipped volumetric clouds.",
+   "docs/PRIORITIES.md:63-66 already ranks 'Disasters through the buffer' as item 2 of the current environment list, which is the nearest existing backlog hook for making impacts visible."
+  ]
+ },
+ {
+  "key": "effects-code",
+  "summary": "No EmberGen-class volumetric fire or explosion code exists anywhere in the repo: there is no GPU fluid grid and no combustion model. EmberGen appears only as a stated goal: CLAUDE.md:836 (the realistic-first norm, commit c71bc90b, 2026-08-01) and two August 2026 journal entries (docs/history/journal-archive-2026-08.md lines 14 and 98).\n\nThe operator's memory is probably the \"fire\", \"smoke\", \"sparks\" and \"explosion\" entries in data/particles.ron, added in v0.90.0 (b72a00c8, 2026-04-07). They are simple sprite recipes: flat camera-facing dots whose colour and size change in a straight line over their lifetime. The particle system was not drawn on screen until v0.966 (96d5b69f, 2026-07-25), and no code has ever spawned fire, smoke, explosion, welding, engine_exhaust, healing, magic_sparkle or bubbles.\n\nWhat is live today is weather and ambience only:\n- rain and snow, on the CPU plus a GPU compute pool\n- leaves drifting among trees\n- bubbles while diving\n- dust in space while flying\n- \"dust\" during a tornado weather event and \"sparks\" during a meteor-shower event\n\nFire and disasters are simulation scaffolds with no visual output. They are not registered, so they never run. The disaster system names effects like \"vfx_asteroid\" and \"vfx_meteor\", but nothing reads those names. The fire system only burns down abstract fuel numbers. Wildfire exists only as a data row that nothing draws.\n\nThe glow (bloom) pass is built but never called. The frame renders straight into an 8-bit screen buffer, and only the main 3D surface shader applies tone mapping. Bright particles therefore clip to flat white-yellow.\n\nAlso missing: heat haze, particles that fade softly where they touch geometry, sprite textures or animated frames, flame trails, smoke that reacts to sunlight, shadows from local lights, and craters created at runtime.\n\nParts that could be reused for real fire:\n- a working compute-shader path (src/renderer/particles_gpu.rs)\n- 3D textures and a full volumetric ray-march with frame-to-frame accumulation (the cloud system, but built for planet scale and driven by noise, not simulation)\n- a tiled light system that takes up to 2048 point, spot or line lights per frame\n- a glowing lava material (shader type 11)\n- tsunami and rogue-wave shapes on the ocean surface, triggered only by a developer command",
+  "exists": [
+   {
+    "what": "CPU particle simulation and emitter management. Each emitter is a point or a jittered box volume; spawning is a random cone with a speed range; motion is constant acceleration (gravity) only; colour and size change in a straight line from start to end; the spawn rate is capped at what the pool can sustain. Measured cost is 17-20 ns per particle per frame; rayon is used above 50k particles. The module doc calls it a 'GPU particle system' but the simulation runs on the CPU.",
+    "where": "src/renderer/particles.rs:1-521 (Particle 32-37, tick 225-289, spawn 291-336, linear colour/size change 359-376, collect_split 495-508, cost comment 214-234)",
+    "state": "working (weather and ambient only)"
+   },
+   {
+    "what": "Particle draw: camera-facing quads expanded in the vertex shader, stretched along velocity for rain streaks, soft round falloff, colour multiplied by (1+emissive), a scalar day/night dimmer, depth-tested but never writing depth. Two pipelines, alpha and additive, one instanced draw each. No textures, no rotation, no sorting, no soft fade against geometry, no tone mapping.",
+    "where": "src/renderer/particles.rs:561-649; assets/shaders/particles.wgsl:1-95; src/renderer/overlay_draw.rs:114-219; frame call site src/lib.rs:15030-15044",
+    "state": "working"
+   },
+   {
+    "what": "Emitter definitions (15 entries: fire, smoke, sparks, rain, snow, dust, magic_sparkle, engine_exhaust, healing, explosion, bubbles, welding, dive_bubbles, leaf_drift, space_dust). Loaded once at boot; the 'hot-reloadable' comments are wrong.",
+    "where": "data/particles.ron:8-302; loaded at src/lib.rs:1697-1700 via ParticleSystem::load_defs (particles.rs:406-428)",
+    "state": "working (data)"
+   },
+   {
+    "what": "Fire, smoke, explosion, welding, engine_exhaust, healing, magic_sparkle and bubbles emitters. Defined but never spawned by any code; the only spawn sites are lib.rs:3839, 3860, 3921 and 4140. Of the fire-type set, only 'sparks' is ever reached, through the meteor_shower weather event.",
+    "where": "data/particles.ron:9-42 (fire, smoke), 147-163 (exhaust), 181-197 (explosion: 300 sprites at 3-8 m/s), 215-231 (welding)",
+    "state": "design-only"
+   },
+   {
+    "what": "GPU compute particle pool: 32-byte state plus 52-byte vertex records, dead slots respawn in place inside the emitter volume, one SimParams uniform per dispatch (a single emitter), draws with the alpha pipeline only. Used for rain and snow when Settings gpu_particles is on (the default).",
+    "where": "src/renderer/particles_gpu.rs:1-254; assets/shaders/particle_sim.wgsl:1-164; driver src/lib.rs:4043-4107; draw src/renderer/overlay_draw.rs:221-328 (alpha-only at 323); default src/config.rs:940",
+    "state": "working (precipitation only)"
+   },
+   {
+    "what": "Ambient and weather emitter wiring: leaf_drift among trees, dive_bubbles underwater, space_dust while thrusting, rain and snow from the weather sim with wind tilt and a density slider, plus weather-event emitters (tornado adds dust and rain, meteor_shower adds sparks). All are placed 13 m above the camera.",
+    "where": "src/lib.rs:3812-4151; data/weather/events.ron:33-86; src/systems/weather.rs:529 (event roll)",
+    "state": "working"
+   },
+   {
+    "what": "Procedural snowflake sprite shape (the 'shape' field). It was added to particle.wgsl, which is never compiled; the live particles.wgsl has no shape branch, so the field never reaches the screen.",
+    "where": "assets/shaders/particle.wgsl:97-120 (added da795adc, v0.1065); live shader included at src/renderer/particles.rs:568",
+    "state": "removed/dead (unreferenced shader)"
+   },
+   {
+    "what": "Bloom post-process: threshold, two blur passes and composite at half resolution. Constructed at boot but apply() is never called, and bloom_intensity defaults to 0.",
+    "where": "src/renderer/bloom.rs:1-396 (apply at 169); src/renderer/mod.rs:1194, 1931, 2045",
+    "state": "stub (never invoked)"
+   },
+   {
+    "what": "Tone mapping and output format: ACES-like tone mapping per fragment inside the main 3D shader only; the swapchain and the scene texture are 8-bit sRGB. Particles skip tone mapping, so emissive values clip.",
+    "where": "assets/shaders/pbr/80-fragment-shared.wgsl:436-442; src/renderer/mod.rs:1160-1165, 1192; assets/shaders/particles.wgsl:92-94",
+    "state": "working (3D surfaces only)"
+   },
+   {
+    "what": "Emissive 3D surface materials, including lava (type 11): black rock with glowing Voronoi cracks. A candidate base for a charred, glowing wick.",
+    "where": "assets/shaders/pbr/90-fragment-main.wgsl:1186-1193; assets/shaders/pbr/80-fragment-shared.wgsl:400-405",
+    "state": "working"
+   },
+   {
+    "what": "Local lights: point, spot and line lights (the line light lights each pixel from the nearest point on a segment), gathered every frame, up to 2048 with screen-tile binning. Light types are data. There is no flame or flicker type and no shadows from local lights.",
+    "where": "src/renderer/light.rs:87-133; src/lib.rs:14631-14676; src/renderer/light_tiles.rs; data/lighting/light_types.ron:8-21",
+    "state": "working"
+   },
+   {
+    "what": "Volumetric cloud ray-marcher: tiling 3D noise textures (384^3 shape at 216 MiB, 256^3 detail at 64 MiB), cloud bodies built from blended lobes, frame-to-frame accumulation maps and a resolve pass. The only 3D-density rendering in the engine. Planet scale, driven by noise, not a fluid simulation.",
+    "where": "src/renderer/cloud_noise.rs:65-69; assets/shaders/pbr/40-clouds.wgsl:3746 (cloud_layer_volumetric), 4758 (cloud_march_core); src/renderer/cloud_temporal.rs; src/renderer/cloud_resolve.rs; src/renderer/cloud_primitives.rs",
+    "state": "working (planet-scale clouds only)"
+   },
+   {
+    "what": "God rays: a full-screen pass that marches the depth buffer toward the sun.",
+    "where": "src/renderer/godrays.rs; assets/shaders/godrays.wgsl",
+    "state": "working (sun only)"
+   },
+   {
+    "what": "FireSystem: Fire, Flammable and FireSuppressor components; fuel burn, random spread and health damage. data/fire_system.ron is read into untyped values that are never used. Nothing is drawn.",
+    "where": "src/systems/fire.rs:1-169 (unused data at 30-36); src/ecs/components.rs:505-535; data/fire_system.ron; deferred in tests/engine_wiring_lint.rs:71",
+    "state": "stub (unregistered, never ticks)"
+   },
+   {
+    "what": "DisasterSystem: 21 disaster types including MeteorImpact and AsteroidImpact, with radius, duration, damage per second, chain reactions (asteroid -> earthquake + tsunami) and damage that falls off with distance. vfx_id strings such as 'vfx_asteroid' and 'vfx_meteor' are read by nothing.",
+    "where": "src/systems/disasters.rs:84-131, 161-219, 227-291; deferred in tests/engine_wiring_lint.rs:41; docs/STATUS.md:319",
+    "state": "stub (unregistered, no visuals)"
+   },
+   {
+    "what": "Gas explosion check in enclosed spaces: explosive limits per gas; a flammable atmosphere plus an ignition source means 200 damage and a log line. No visual or audio effect.",
+    "where": "src/systems/atmosphere.rs:149-151, 194-230, 473-478",
+    "state": "partial (registered, damage only)"
+   },
+   {
+    "what": "Wildfire environment region kind (kind 6, 25 km radius, ground band). The only shader consumer is the cloud deck, which ignores ground-band regions, so a wildfire draws nothing.",
+    "where": "data/environment/region_kinds.ron:91-98; assets/shaders/pbr/40-clouds.wgsl:2348-2363; docs/PRIORITIES.md:64-67",
+    "state": "design-only (no visual consumer)"
+   },
+   {
+    "what": "Ocean disaster height fields: tsunami wave, rogue-wave group, whirlpool vortex and hurricane eyewall, computed identically on CPU and GPU, drawn on the water and ridden by the camera. Triggered only by a developer showcase request.",
+    "where": "src/terrain/ocean_events.rs:1-25; assets/shaders/pbr/00-bindings-vertex.wgsl:696-706; src/lib.rs:13422-13460",
+    "state": "partial (dev-pinned only, not linked to disasters)"
+   },
+   {
+    "what": "Static craters: power-law crater stamps baked into procedural heightmaps at world generation, plus crater() terms in the moon, mars and mercury shaders. Nothing deforms terrain at runtime; planet impact craters are rung 6 of the voxel-terrain plan and unbuilt.",
+    "where": "src/terrain/procedural_heightmap.rs:18-21, 101-118; assets/shaders/moon.wgsl:81-145; docs/design/voxel-terrain.md:82-83",
+    "state": "working (static only)"
+   },
+   {
+    "what": "Voxel asteroid mining (remove_voxel on a sparse octree).",
+    "where": "src/terrain/asteroid.rs:345",
+    "state": "working (asteroids only)"
+   },
+   {
+    "what": "Sound entries sfx.explosion and ambient.campfire_crackle. The referenced .ogg files do not exist (assets/audio/sfx holds 15 clips, none for fire or explosions, and there is no ambient folder). The audio code has no speed-of-sound delay.",
+    "where": "data/sounds.toml:118-126, 389-396; assets/audio/sfx/; src/audio/",
+    "state": "design-only"
+   },
+   {
+    "what": "Particle cost instrumentation: frame-cost scopes gpu.particles, gpu.gpu_particles and gpu.particles_sim, with a particle budget of 5% of the frame.",
+    "where": "data/performance/budget_systems.ron:116-127; src/renderer/overlay_draw.rs:121, 182, 243, 302",
+    "state": "working"
+   }
+  ],
+  "gaps": [
+   "The prop itself: an emitter carries only a position, with no parent transform (src/renderer/particles.rs:163-186). A wick would be driven the way leaf_drift is, by rewriting e.position every frame (src/lib.rs:3830-3842). No held-item or first-person model renderer and no skeletal animation were found, so nothing yet supplies a moving wick transform.",
+   "Trail persistence: particles already live independently of their emitter and are shifted with the floating origin (particles.rs:480-487), so a moving emitter does leave a trail. But every particle spawned in a frame appears at the single current position (spawn_particle, particles.rs:330-335). At poi and staff tip speeds of about 10-20 m/s and 60 fps that means 17-33 cm gaps between clumps. Needed: spawn positions spread along the previous-to-current path (ideally the swept arc) and inherited emitter velocity; neither exists.",
+   "Motion model: constant acceleration only (particles.rs:239-241, 255-256; particle_sim.wgsl:139-140). There is no drag toward the surrounding air, no buoyancy from temperature, no per-particle wind, no turbulence or curl noise and no collision. Believable flame tongues and smoke need drag, temperature buoyancy and curl noise.",
+   "Look: the sprite is a procedural soft disc (particles.wgsl:76-95). The pipeline binds only the camera and a frame uniform (particles.rs:570-586), so there are no texture or animated-frame slots and no rotation. Colour and size are two-point straight-line changes (particles.rs:359-367). Fire needs a temperature-to-colour (blackbody) ramp; smoke needs density-based shading.",
+   "Smoke lighting: particles receive only one day/night brightness number (particles.wgsl:19-27, 92). No sun direction, shadowing, self-shadowing or scattering model, so smoke cannot look lit.",
+   "No soft fade where particles meet geometry (the particle pass never samples depth) and no back-to-front sorting (emitters are concatenated in order, particles.rs:495-508). Smoke quads will show hard lines against the prop, body and ground, and will pop when order changes.",
+   "Brightness and glow: there is no high-range render target and bloom is never applied (bloom.rs:169 apply is unused). Particles write rgb*(1+emissive) straight into 8-bit sRGB with no tone mapping, while 3D surfaces use per-fragment ACES (80-fragment-shared.wgsl:436-442). Flames clip to flat yellow-white with no glare. Needed: a floating-point scene target, one shared tone-mapping pass, and bloom wired in.",
+   "Firelight: particles emit no light. A flame needs a per-frame light (a line light along the wick, light.rs:111-113) added in the light gather at lib.rs:14631, with data-driven flicker. light_types.ron has no flame or flicker type, and no local-light shadow code exists, so neither the performer nor the prop will cast firelight shadows.",
+   "Heat haze: there is no distortion or refraction pass and no copy of the rendered scene. Needed: render to an offscreen target first, then offset screen UVs by a heat mask.",
+   "The GPU pool handles one emitter, respawns dead slots at the current origin, and draws alpha only (particles_gpu.rs:26-30; overlay_draw.rs:323). GPU flames would need an emitter table, a dead-slot list with atomics for bursts and trails, and an additive/emissive draw.",
+   "EmberGen-class fire (the realistic-first route) does not exist in any form: no 3D fluid grid, advection, pressure solve, vorticity or combustion step (fuel + O2 -> heat + smoke + CO2/H2O). Parts that do exist: compute pipelines proven on a real device (particles_gpu.rs:345-391), 3D textures (cloud_noise.rs), and a volumetric ray-march with frame-to-frame accumulation (40-clouds.wgsl:4758, cloud_resolve.rs). A spinning prop's flame would need a simulation box that travels with the wick, or sparse bricks. The affordable shape is probably a hybrid: GPU particles or a ribbon for the flame at the wick, plus a coarse grid for smoke.",
+   "Combustion chemistry is not connected. FireSystem does not consume O2 or add CO2, CO, water vapour or soot to the room gas tracking in atmosphere.rs. The chemistry data has kerosene, CO2 and CO rows but no heat of combustion, flame temperature, soot yield or flash point columns (data/chemistry/compounds.csv header). The fields in fire_system.ron are never read.",
+   "Asteroid impact has no visuals at all. DisasterSystem is unregistered and its vfx_id is never read. The 'explosion' emitter is 300 sprites at 3-8 m/s, firecracker scale (particles.ron:181-197). Also missing: a fireball volume, a shock ring, a pressure wave, ejecta or debris physics (the rapier wrapper in src/physics/mod.rs is unused for this), runtime craters, a sound delay by distance, and the explosion.ogg file. The ocean tsunami field is the only impact-related visual that exists."
+  ],
+  "notes": [
+   "The docs overstate or misstate the particle system:\n- docs/FEATURES.md:1334-1338 and 2402-2404, and docs/STATUS.md:333, claim 12 emitters including steam, ember and lightning, and point at particle.wgsl. There are actually 15 definitions, with no steam, ember or lightning, and the live shader is particles.wgsl.\n- data/particles.ron:2 and particles.rs:4 claim hot reload, but the file is loaded once at boot (lib.rs:1699), and the particle shader is compiled in with include_str! (particles.rs:568), outside the shader hot-reload.\n- docs/contributor/ENGINE_REFERENCE.md:409 still lists the particle system as unbuilt.\n- particles.rs:1 calls itself a GPU particle system, but the simulation runs on the CPU.",
+   "Any new flame shape has to go into assets/shaders/particles.wgsl. The v0.1065 snowflake (da795adc) was written into the unused particle.wgsl, so the shape field has never reached the screen.",
+   "Possible double rain (not checked at runtime, because this task forbade booting the game). The comment at src/lib.rs:4036-4042 says the CPU rain and snow emitters stay inactive when gpu_particles is on. The list at lib.rs:4108-4109 still switches them on, so both the CPU and GPU pools appear to run and draw.",
+   "The meteor_shower weather event only turns on the 'sparks' emitter 13 m above the camera, with gravity -9.8 (lib.rs:4029, 4126-4150). It looks like a spark fountain overhead, not meteors.",
+   "Cost reference points: the CPU path costs 17-20 ns per particle per frame (particles.rs:233-234) and goes parallel above 50k (223). The GPU pool uses 84 bytes per slot, and a 128 MiB buffer holds 4.19M particles (particles_gpu.rs:22-24). Particles get 5% of the frame (budget_systems.ron:124). For a single fire prop, the GPU cost will come from large overlapping quads near the camera, not particle count. An EmberGen-class approach would be dominated by the grid simulation and ray-march; the planet cloud march only became affordable with frame-to-frame accumulation.",
+   "Timeline:\n- disasters.rs: 792b9d96 (2026-03-24)\n- particle definitions, particle.wgsl and bloom.rs: v0.90.0, b72a00c8 (2026-04-07)\n- fire.rs: d17d5cf9 (2026-04-10)\n- particles first drawn on screen: 96d5b69f (2026-07-25)\n- GPU pool: 146c3335 (2026-07-30)\n- EmberGen named as a goal only: c71bc90b (2026-08-01)",
+   "Plans already written down but unbuilt:\n- docs/design/weather-water-roadmap.md:89-104 (smoke reusing the cloud volumetrics; fire storm with embers and burn scars; meteor storm with craters and dust/smoke)\n- docs/design/voxel-terrain.md:82-83 (impact crater = heightmap depression + rim voxels + particles/audio)\n- docs/PRIORITIES.md:64-67 (the disaster region data is invisible without a consumer)"
+  ]
+ },
+ {
+  "key": "models-items",
+  "summary": "The game can load 3D models, but they only work for machines, furniture and plants. Items and anything held in the hands have no models at all. There are no flow-arts props in the game data. The one real asset is a sourced Library guide on building a fire staff.\n\n**How models load.** One glTF loader in src/assets/mod.rs does all of it: `decode_first_primitive` at 261-297, the textured variant at 320-390 and the cached `load_gltf` at 399-432, using `gltf = \"1.4\"` (Cargo.toml:44). It reads only the FIRST mesh's FIRST primitive and ignores node transforms. It decodes only the base-colour texture, so the normal and roughness maps that ship with the photoscans are never used. The vertex type (src/renderer/mesh.rs:9-13) holds only position, normal and UV, with no tangents, bone joints/weights or vertex colours.\n\n**Which objects can have a model:**\n- A machine or furniture row can declare `model: Some(path)` in data/machines/home.ron (field defined at src/machines.rs:116-123). This shipped in v0.734 (c9163b42), and textured models followed in v0.993 (68e09967).\n- Models are scaled to the height declared in `size` (v0.1324, 3bafa7c8 and b1aa6f34).\n- Decorations, crop growth-stage models and tree species are also data-driven.\n- Procedural geometry exists: primitive builders (mesh.rs:171-685, including tube and polytube) and a large spline-lofted tree and plant generator (tree_mesh.rs, 6354 lines; plant_mesh.rs, 895 lines).\n- Since 9f7910e9 (2026-09-19) the release zip includes assets/models (188 MB) and assets/textures (build-desktop.yml:90-111, 284-291).\n\n**Items have no model link.** Neither data/items.csv (columns at line 16) nor `ItemDef` (src/systems/inventory/mod.rs:277-295) has a model field. data/equipment.csv adds damage and reach numbers for items worn in the single \"hands\" slot (data/inventory/equipment_slots.json). The F-key melee swing reads those numbers (src/lib.rs:11865-11907) but nothing appears on screen.\n\n**No held items, player body or animation:**\n- First person has no hands or held item.\n- Third person orbits an empty point (src/renderer/camera.rs:1147-1180); no mesh for the local player was found.\n- Remote players and NPCs are a box plus a sphere (src/lib.rs:9044-9099). The avatar on the character-select podium is built from boxes (src/engine/world_load.rs:14-63).\n- There is no skeletal animation and no glTF animation import (docs/PRIORITIES.md:1083, docs/design/multi-agent-workflow.md:108-117). The only object animation is rigid door panels (src/systems/door_anim.rs).\n- The Rapier joint sets exist (src/physics/mod.rs:19-20), but nothing creates a joint, so there is no rope or chain simulation for poi or meteors.\n\n**Flow-arts items: none.** No staff for spinning, poi, fire axe, darts or meteors, fans, hoops, wick, dip can, fire-blanket item, or naphtha / white-gas / lamp-oil fuel item. Nearest existing items:\n- `staff_0`, an oak blunt weapon (items.csv:107, crafted by recipes.csv:88)\n- `torch_handheld_0` (items.csv:466), `lantern_oil_0` (467), `candle_0` (464), `campfire_kit_0` (494)\n- `fire_extinguisher_0` (346), `fuel_refined_0` (228), `rope_0` (235)\n- `chain` and `bearing` components (components.csv:20 and 18)\n\nThe fire blanket exists only as a suppression-system row (data/fire_system.ron:258-276).\n\n**The fire staff guide.** data/library/fire_staff_materials.md (664 lines, a copy of docs/user/making/fire_staff_materials.md; commits 972582da, 113e4395, 1a6382f3, 2773ef75) is sourced from NASA, NIOSH, CAMEO and DuPont data. It covers:\n- shaft alloys\n- wick blends\n- heat breaks\n- a fuel table with flash points, burn times, soot and radiant heat (lines 340-356)\n- safety kit\n- real 1:1 dimensions: 19 mm shaft, 140-150 cm length, 700-850 g, 7-9 minute burn (lines 446-460)\n\nThe curriculum lesson materials_fire_staff (data/curriculum/syllabus.json:1332-1350) links it to the metalworking and fire_making skills.\n\n**Skills.** data/skills/skills.csv has 20 skills. fire_making (line 4) has no gameplay use: no recipe or system awards it. There is no performance, dance or flow skill. data/creative_arts.ron has a dance_performance row but refers to skills (\"music\", \"art\") that are not in skills.csv.\n\n**Materials and fuel data.** The chemistry CSVs are embedded in the build (src/embedded_data.rs:19-23) but nothing in the game uses them:\n- **compounds.csv:** kerosene, ethanol, methanol, isopropanol, octane, propane and butane are present. Naphtha, white gas and lamp oil are missing. There are no columns for flash point, heat of combustion, soot, combustion products or flame temperature.\n- **gases.csv:** 48 gases including CO and CO2. Water vapour is missing.\n- **alloys.csv:** 6061 and 7075 aluminium and Ti-6Al-4V.\n- **materials.csv:** kevlar, fiberglass, carbon fiber and wax. Nomex is missing, and there are no thermal-limit columns.\n\nFireSystem (src/systems/fire.rs) is compiled but not registered, and it ignores fire_system.ron.",
+  "exists": [
+   {
+    "what": "glTF/GLB loader: first mesh's first primitive only, node transforms ignored, flat normals / planar UVs made up when missing; the cached load_gltf path and the uncached per-instance parse paths",
+    "where": "src/assets/mod.rs:192-297 (decode_first_primitive 261-297), load_gltf 399-432; Cargo.toml:44 gltf = \"1.4\"",
+    "state": "working"
+   },
+   {
+    "what": "Base-colour texture decode (RGBA8, downscaled above 1024 px, white key-out for cut-outs). Normal, ARM and roughness maps are NOT read, although the photoscans ship them (e.g. assets/models/plants/fir_sapling/textures/*_nor_gl_1k.jpg, *_arm_1k.jpg)",
+    "where": "src/assets/mod.rs:320-390; added in 52a81864 (v0.909, 2026-07-20)",
+    "state": "partial"
+   },
+   {
+    "what": "Scale a model to its declared real-world height (uniform, about the model's origin), fixing furniture authored at half scale",
+    "where": "src/assets/mod.rs:38-97, 224-236, 353-363; commits 3bafa7c8 and b1aa6f34 (v0.1324)",
+    "state": "working"
+   },
+   {
+    "what": "Vertex format is position + normal + UV only (no tangents, vertex colours or joints/weights); RenderObject is position/rotation/scale/mesh/material/fade",
+    "where": "src/renderer/mesh.rs:9-13; src/renderer/mod.rs:159-173",
+    "state": "working"
+   },
+   {
+    "what": "Materials: base colour, metallic, roughness, a material_type shader band and a scalar emissive; one albedo texture per material (type 19 = textured model, type 20 = plants)",
+    "where": "src/renderer/materials.rs:72-119, 247-275",
+    "state": "working"
+   },
+   {
+    "what": "Machine/furniture models are data-driven via model: Some(path) in the machine catalogue; the primitive shape is the fallback; 12 Kenney furniture pieces + test_crate.glb wired",
+    "where": "data/machines/home.ron:915-1174, 1374; src/machines.rs:116-123, 690-692, 1647; docs/game/model-pipeline.md; commits c9163b42 (v0.734), 68e09967 (v0.993)",
+    "state": "working"
+   },
+   {
+    "what": "Two machine-model paths: the editor rebuild path is textured; the world-load path uses the untextured parse plus the def's flat colour",
+    "where": "src/engine/home_meshes.rs:566-619 (textured, per-model material cache); src/engine/world_load.rs:298-323 (untextured)",
+    "state": "partial"
+   },
+   {
+    "what": "Plant models: 102 Quaternius CC0 crop growth-stage models + photoscans (fir, pine, fern, grass, shrub, potted plant); hero-crop loader; decoration scatter",
+    "where": "assets/models/plants/*; src/engine/home_meshes.rs:957-990; src/engine/world_load.rs:505-530; data/entities/decorations.ron; commits 83986869, 775546dd",
+    "state": "working"
+   },
+   {
+    "what": "Model asset tree: 188 MB assets/models (furniture/, plants/, two .blend source files not loaded by the game), CC0 credits",
+    "where": "assets/models/, assets/models/LICENSE-cc0-model-packs.md, data/models/test_crate.glb",
+    "state": "working"
+   },
+   {
+    "what": "Models ship in the release bundle (assets/models + assets/textures copied into the zip and the portable tree)",
+    "where": ".github/workflows/build-desktop.yml:90-111, 284-291; commit 9f7910e9 (2026-09-19)",
+    "state": "working"
+   },
+   {
+    "what": "Model conversion tooling: OBJ+MTL to single-primitive glTF with a palette texture (the workaround for the one-material limit), plant glTF repacker/splitter, GLB byte-layout generator",
+    "where": "scripts/obj-to-plant-gltf.js, scripts/repack-plant-gltf.js, scripts/gen-test-glb.js",
+    "state": "working"
+   },
+   {
+    "what": "Procedural mesh builders (cube, plane, cylinder, capped cylinder, sphere, box, ring, pyramid, octahedron, tube, polytube, segment)",
+    "where": "src/renderer/mesh.rs:171-685",
+    "state": "working"
+   },
+   {
+    "what": "Procedural spline-lofted trees and plants (parallel-transport rings, organ tags, per-face colour in UV); species with an empty model are built from numbers",
+    "where": "src/renderer/tree_mesh.rs (6354 lines), src/renderer/plant_mesh.rs (895 lines), data/vegetation/trees.ron",
+    "state": "working"
+   },
+   {
+    "what": "Player-facing how-to for adding a model",
+    "where": "data/library/3d-model.md",
+    "state": "working"
+   },
+   {
+    "what": "Items database: 868 lines, columns id,name,category,subcategory,base_material,weight_kg,stack_size,durability,description,content_class,volume_l; NO model/mesh/icon column",
+    "where": "data/items.csv:16; ItemDef src/systems/inventory/mod.rs:277-295 (a second ItemDef at src/systems/inventory/items.rs:7-14)",
+    "state": "working"
+   },
+   {
+    "what": "Equipment stats joined to items (armour, damage, damage_type, range_m, stat_modifiers); six slots, one 'hands' slot; the melee swing uses hands-slot damage/reach with no visual",
+    "where": "data/equipment.csv; data/inventory/equipment_slots.json; src/systems/economy/mod.rs:79-104; src/lib.rs:11865-11907 (swing), 12282-12363 (equip/unequip)",
+    "state": "partial"
+   },
+   {
+    "what": "Held-item / first-person hands / viewmodel rendering",
+    "where": "none found (grep for held_item/viewmodel/hand_mesh in src/ only hits construction-palette UI)",
+    "state": "design-only"
+   },
+   {
+    "what": "Local player body in third person: the camera orbits tp_target with no player mesh drawn",
+    "where": "src/renderer/camera.rs:1147-1180 (update_third_person); no body draw found in src/lib.rs or src/engine/",
+    "state": "stub"
+   },
+   {
+    "what": "Humanoid stand-ins: remote players and crew NPCs as box + sphere markers; box 'blockman' avatar on the character-select podium; build-mode avatar box",
+    "where": "src/lib.rs:9044-9099; src/engine/world_load.rs:14-63; src/lib.rs:8900-8973",
+    "state": "stub"
+   },
+   {
+    "what": "Skeletal/skinned animation, glTF animation import",
+    "where": "absent; confirmed by docs/PRIORITIES.md:1083, docs/design/multi-agent-workflow.md:108-117, docs/design/npc-crowd-stress.md:24",
+    "state": "design-only"
+   },
+   {
+    "what": "Rigid procedural animation (door/window panels), the only object-animation precedent",
+    "where": "src/systems/door_anim.rs",
+    "state": "working"
+   },
+   {
+    "what": "Rapier joint sets present in the physics wrapper, but no joint is ever created (no rope/chain/tether simulation)",
+    "where": "src/physics/mod.rs:19-20, 37-38",
+    "state": "stub"
+   },
+   {
+    "what": "Fire-adjacent items: staff_0 (oak blunt weapon), torch_handheld_0, candle_0, lantern_oil_0, campfire_kit_0, fire_extinguisher_0, smoke_detector_0, fuel_refined_0, fuel_drum_0, charcoal/coal, rope_0; chain and bearing components",
+    "where": "data/items.csv:107, 466, 464, 467, 494, 346, 347, 228, 334, 225, 513, 235; data/recipes.csv:88 (craft_staff); data/components.csv:18, 20",
+    "state": "working"
+   },
+   {
+    "what": "Flow-arts / fire-performance props (fire or contact staff, poi, fire axe, darts/meteors, fans, hoops, wicks, dip can, spin-off can, fuel depot, fire-blanket item)",
+    "where": "none in data/*.csv, *.ron or *.json",
+    "state": "design-only"
+   },
+   {
+    "what": "Sourced Library guide 'Building a Fire Staff: Every Material, and Why' (shaft alloys, wick blends, heat breaks, grip vs fuel, hardware, fuel table with flash points/burn times/soot, safety kit, 1:1 sizing table)",
+    "where": "data/library/fire_staff_materials.md (fuel 340-356, safety 390-444, sizing 446-460), copy of docs/user/making/fire_staff_materials.md; commits 972582da, 113e4395, 1a6382f3, 2773ef75",
+    "state": "working"
+   },
+   {
+    "what": "Curriculum lesson materials_fire_staff linking the guide to the metalworking + fire_making skills",
+    "where": "data/curriculum/syllabus.json:1332-1350",
+    "state": "working"
+   },
+   {
+    "what": "Skills list: 20 skills incl. fire_making, metalworking, tailoring, alchemy, melee; no performance/dance/flow/juggling skill. fire_making has no consumer beyond the curriculum",
+    "where": "data/skills/skills.csv:4 (fire_making), :8 (metalworking)",
+    "state": "partial"
+   },
+   {
+    "what": "Creative-arts data (instruments, art tools, performances incl. dance_performance); refers to skills 'music'/'art' that are not in skills.csv; system not registered",
+    "where": "data/creative_arts.ron:398-480; src/systems/creative_arts.rs; the registrations in src/lib.rs:1055-1327 omit it",
+    "state": "stub"
+   },
+   {
+    "what": "Fire simulation data (ignition sources, fire behaviours incl. fuel_fire 1100 C, suppression incl. fire_blanket, damage effects incl. smoke_inhalation/burns) and a FireSystem (fuel burn, spread, suppression, damage); the system ignores the RON values (stored as ron::Value, hard-coded constants) and is NOT registered",
+    "where": "data/fire_system.ron:94-103, 258-276, 318-370; src/systems/fire.rs:20-36; src/systems/mod.rs:33; the src/lib.rs:1055-1327 registration list omits it",
+    "state": "stub"
+   },
+   {
+    "what": "Chemistry CSVs: 118 elements, 74 alloys (aluminum_6061 855 K, aluminum_7075 908 K, ti_6al_4v), 166 compounds (fuel/hydrocarbon rows: kerosene, hydrazine, biodiesel, DME, nitromethane, methane, propane, butane, octane, ethanol, methanol, isopropanol), 47 gases (incl. CO, CO2, NO2, formaldehyde; with flammable/LEL/UEL/toxic/asphyxiant/auto-ignition), 78 toxins; embedded in the build but no gameplay consumer found",
+    "where": "data/chemistry/*.csv (compounds.csv:141-145 fuels); src/embedded_data.rs:19-23, 173-177",
+    "state": "partial"
+   },
+   {
+    "what": "Materials table incl. kevlar, fiberglass, carbon_fiber_mat, wax, aluminum, titanium (density, tensile, thermal conductivity, hardness, flexibility, cost)",
+    "where": "data/materials.csv (kevlar :26, wax :126)",
+    "state": "working"
+   },
+   {
+    "what": "Hard-coded flammable-gas explosive limits and toxic thresholds in the atmosphere system (duplicates what gases.csv holds)",
+    "where": "src/systems/atmosphere.rs:192-237",
+    "state": "working"
+   },
+   {
+    "what": "Particle emitter defs for fire, smoke, sparks (small billboard particles, additive blend) + CPU/GPU particle renderer",
+    "where": "data/particles.ron:9-60; src/renderer/particles.rs, src/renderer/particles_gpu.rs",
+    "state": "working"
+   }
+  ],
+  "gaps": [
+   "Nothing links an item to a model: items.csv and ItemDef have no model column, so no inventory item (tool, weapon, prop) can ever render in the world. Only machine catalogue rows, decorations, crops and tree species carry models.",
+   "No held-item rendering in first person (no hands, arms or viewmodel) or third person (the local player has no body; the camera orbits an empty point). Equipping into the single 'hands' slot changes only damage/reach numbers.",
+   "Only one 'hands' slot (data/inventory/equipment_slots.json), so there is no left/right hand. Poi, fans, double staffs and darts need two independent hand attachments.",
+   "No skeletal or skinned animation, no glTF animation import and no pose system. A prop cannot be animated in a character's hands; remote players are box + sphere markers.",
+   "No rope, chain or tether physics: the Rapier joint sets are never used. Poi, meteors, rope darts and fire darts need a tether simulation, which could come from Rapier joints or a small constrained-particle solver.",
+   "Loader limits block a realistic multi-part prop: one mesh and one primitive, node transforms ignored, a single material, base-colour texture only (normal, roughness and emissive maps dropped even though photoscans ship them), no tangents for normal mapping. A fire staff (metal shaft, aramid wick, grip tape, hardware) must today be squashed into one primitive with the palette-texture trick from scripts/obj-to-plant-gltf.js.",
+   "Zero flow-arts or fire-performance items or recipes: no fire/contact staff, poi, fire axe, darts/meteors, fans, hoops, wick tape (Kevlar/Nomex/fibreglass blend), dip can, spin-off can, fuel depot, or fire blanket as an item (it exists only as a fire_system.ron suppression row). staff_0 is an oak blunt weapon, not a spinning prop.",
+   "The fuels the Library guide discusses are missing from the chemistry data: naphtha / white gas / camp fuel, lamp oil / paraffin, isoparaffins. compounds.csv has no flash point, heat of combustion, stoichiometry/combustion products, soot yield/smoke point, adiabatic flame temperature or H/C ratio, which are what drive a believable flame look, burn time, radiant heat, and the CO2/H2O/CO/soot a burning wick gives off.",
+   "gases.csv has no water vapour (the main combustion product besides CO2), so a 'gases expelled' readout for a burning wick has no H2O entry to point at.",
+   "materials.csv and alloys.csv lack the thermal limits a heat-transfer-to-grip model needs: melting/decomposition temperature, maximum service temperature, specific heat, emissivity. alloys.csv holds one melting point per alloy, while the guide relies on solidus-liquidus ranges (7075: 477-638 C). There is no Nomex / aramid-blend material.",
+   "Chemistry CSVs are embedded but no system reads them; atmosphere.rs hard-codes gas limits instead of reading gases.csv (an infinite-of-X violation).",
+   "FireSystem and CreativeArtsSystem are compiled but never registered with the SystemRunner; FireSystem uses hard-coded constants instead of fire_system.ron's per-material temperatures and smoke values.",
+   "No performance / flow-arts / dance / juggling skill in skills.csv; fire_making has no recipe or system that awards XP; creative_arts.ron refers to skills 'music' and 'art' that do not exist.",
+   "The flame visual today is small billboard particles (data/particles.ron fire/smoke/sparks); nothing ties a flame emitter to an item or wick, or to fuel properties (soot, colour, flame height)."
+  ],
+  "notes": [
+   "Stale docs found: docs/game/model-pipeline.md:38-40 still says glTF textures are ignored (textured parse shipped in 52a81864 / v0.909 and v0.993); src/renderer/tree_mesh.rs:9-10 says the release bundle does not ship assets/models/ (fixed in 9f7910e9 on 2026-09-19); docs/contributor/ENGINE_REFERENCE.md:75-85 lists bloom, shadows and particles as missing (all exist).",
+   "The fire staff guide already gives 1:1 build numbers a modeller can use directly: 19 mm (3/4 in) shaft, 1.5-2 mm wall, 140-150 cm length, 3-5 in wick tape, heat sleeve 2x wick length, 700-850 g finished, 7-9 min burn (data/library/fire_staff_materials.md:452-460, labelled community figures), plus fuel behaviour (camp fuel brightest/least soot, kerosene heaviest soot and radiant heat, alcohol least visible) at lines 99-131 and 340-356. It is a ready spec for props and flame looks.",
+   "Cheapest path to a first realistic prop: a fire staff is geometrically a tube plus two wick knots. Mesh::polytube / tube (src/renderer/mesh.rs:593-685) and the parallel-transport ring lofting in plant_mesh.rs could build it procedurally from guide numbers (shaft diameter, length, wick width) as data, in line with the procedural-trees precedent. The operator's GLB-first rule (docs/game/model-pipeline.md:11-17) still applies for hand-authored models.",
+   "Machine models are parsed per instance with no shared cache (docs/game/model-pipeline.md:73-77) and duplicate GPU meshes; an item-model registry for many props would want a shared, cache-safe path (load_gltf at src/assets/mod.rs:399-432 is cached but untextured).",
+   "Possible inconsistency to verify at runtime (not checked, per the no-launch rule): world_load.rs:298-323 draws machine models untextured in the def's flat colour at world load, while home_meshes.rs:586-619 draws them textured on rebuild.",
+   "The 'EmberGen-like' volumetric fire the operator remembers: no src/ or data/ file mentions EmberGen or JangaFX. The only hits are journal entries (docs/history/journal-archive-2026-08.md, e.g. line 14) naming EmberGen-class volumetrics as a realistic-first north star. The existing fire visuals are the particles.ron billboard emitters. The volumetrics question is presumably covered by another subagent.",
+   "Reading chosen and data only, no build or launch: I did not confirm at runtime which machine-model path the player sees, or how particle emitters are currently spawned."
+  ]
+ },
+ {
+  "key": "combustion-sim",
+  "summary": "No combustion simulation runs in the game today. A small fire ticker exists (src/systems/fire.rs, added in v0.142.0, commit 5ffea893, 2026-05-01), but it is never registered. The system list at src/lib.rs:1055-1327 has no FireSystem, HvacSystem, MedicalSystem or DisasterSystem. No code anywhere attaches the Fire, Flammable or FireSuppressor components (the only `Fire {` literal is fire.rs:78). Even if it were switched on, its model is a unitless 0-1 `intensity` plus `fuel_remaining` seconds. It burns 1 unit of fuel per second at full intensity (fire.rs:21, 117), spreads by a random roll within `ignition_dist` (fire.rs:130-137) and takes a flat 1 HP/s from anything within 1.5 m (fire.rs:25-27, 139-145). It has no fuel type, temperature, oxygen, smoke, gas output, light or burns. Its data file, data/fire_system.ron, has 8 fire behaviours, 8 suppression systems and 10 damage effects with temperatures and smoke factors. It is parsed into untyped `Vec<ron::Value>` (fire.rs:31-36) and tick() never reads it. The status IDs it names (debuff_smoke_inhalation, debuff_burn_minor/severe, debuff_poisoned, debuff_poor_visibility, debuff_low_oxygen; fire_system.ron:335-399) do not exist in data/status_effects.csv. The only live gas simulation is AtmosphereSystem (registered at lib.rs:1070, made live in v0.617, commit 310714e4). It holds one 14,000 m3 home air volume (engine/home_spawn.rs:36) as a gas-percent map. Three occupants use O2 and add CO2, and powered scrubbers offset them (atmosphere.rs:407-429). Its explosive-limit and toxic-threshold tables are hardcoded match arms (atmosphere.rs:195-237) that duplicate data/chemistry/gases.csv. Its code that hurts entities for toxic gas or explosions (atmosphere.rs:431-486) needs an `InEnclosedSpace` component that nothing attaches, and nothing spawns the `IgnitionSource` marker (atmosphere.rs:151). So the only thing that reaches the player is the O2-only `breathable` flag. It passes from AirStatus to EnvironmentContext.oxygenated (lib.rs:5741-5758) and then to the blood-oxygen drain in FoodSystem. The player does have more than a health bar. The Vitals component tracks satiation, hydration, energy, oxygen, body_temp_c and waste (ecs/components.rs:79-110). Live health drains are starvation, dehydration, suffocation, freezing, heat exhaustion, high g and status-effect damage over time (food.rs:476-630), and there is a death-cause line. The in-world HUD, however, shows only a health bar (gui/pages/hud.rs:101-118). The other meters, body temperature, a sealed/EXPOSED line and effect chips appear only on the Inventory page (gui/pages/inventory.rs:1431-1520). Several pieces would work the moment something triggers them: status rows `burning` (8 damage every 2 s), `poisoned`, `toxic_atmosphere` and `overheated` (status_effects.csv:46, 47, 80, 54) would be applied by the live effect tick (food.rs:601-626), but nothing applies them. Burn-degree conditions 1-3 exist in data/medical.ron:105-139, but MedicalSystem is dormant. The fire, smoke and sparks particle emitters are defined in data/particles.ron:9-58, but nothing spawns them (spawn call sites are only leaf_drift, dive_bubbles, space_dust and precipitation, lib.rs:3839-4140). EmberGen appears only as a named target technique in the 2026-08-02 realistic-first norm (CLAUDE.md:836; docs/history/journal-archive-2026-08.md:14, 98). No volumetric fire or explosion system exists. The most detailed real-world fire-prop data in the repo is prose, not machine-readable: the Library guide docs/user/making/fire_staff_materials.md (re-sourced in 1a6382f3, 2026-09-15) gives flash points, community burn times, soot and radiant-heat differences between fuels, and dated material failure temperatures. docs/user/skills/treating_burns.md covers burn depth, smoke and airway care.",
+  "exists": [
+   {
+    "what": "FireSystem: fuel countdown in unitless intensity, random spread to Flammable entities within ignition_dist, suppressors lower intensity, 1 HP/s at full intensity within 1.5 m. No oxygen, temperature, fuel type, smoke or gas. No unit tests.",
+    "where": "src/systems/fire.rs:1-169 (constants 20-27, tick 72-168); components Fire/Flammable/FireSuppressor at src/ecs/components.rs:508-537; added in commit 5ffea893 (v0.142.0, 2026-05-01)",
+    "state": "stub: never registered (absent from src/lib.rs:1055-1327); no code attaches Fire, Flammable or FireSuppressor"
+   },
+   {
+    "what": "fire_system.ron: 7 ignition sources, 8 fire behaviours (spread_rate_mps, oxygen_dependency, smoke_production, temperature_c, fuel_consumption_rate), 8 suppression systems with per-fire-type effectiveness, and 10 damage effects (smoke inhalation, minor/severe burns, toxic fumes, obscuration, atmosphere consumption) with threshold temperatures",
+    "where": "data/fire_system.ron:14-410 (commit 76a6af7f, 2026-04-07); loaded as untyped ron::Value at src/systems/fire.rs:31-36",
+    "state": "design-only: parsed but never read by tick(). Its status_effect IDs (debuff_smoke_inhalation, debuff_burn_minor/severe, debuff_poisoned, debuff_poor_visibility, debuff_low_oxygen) are not rows in data/status_effects.csv"
+   },
+   {
+    "what": "AtmosphereSystem: gas-composition map (percent), pressure, temperature and humidity per EnclosedSpace; equalises with the per-body outside air; the home's single 14,000 m3 space loses O2 and gains CO2 from 3 occupants, offset by powered AirScrubbers; publishes AirStatus (O2, CO2, pressure, temperature, breathable)",
+    "where": "src/systems/atmosphere.rs:17-505 (occupancy 169-174, home life support 407-429, AirStatus publish 488-503); registered at src/lib.rs:1070; home space spawned at src/engine/home_spawn.rs:30-36; scrubbers at home_spawn.rs:164-174; live since commit 310714e4 (v0.617.0)",
+    "state": "working (O2/CO2 only)"
+   },
+   {
+    "what": "Explosive-limit (lower/upper) and toxic-threshold checks (CO 50 ppm, H2S, SO2, Cl2, NO2, HCN, CO2 5%) that set the atmosphere's flammable/toxic flags; toxic-gas and explosion damage (200 HP) when an IgnitionSource exists",
+    "where": "src/systems/atmosphere.rs:192-237 (hardcoded tables), 286-312 (evaluate), 431-486 (damage to entities)",
+    "state": "partial: the flags compute, but the damage code needs an InEnclosedSpace component that nothing attaches, and nothing spawns IgnitionSource, so it never fires. The tables duplicate data/chemistry/gases.csv instead of loading it"
+   },
+   {
+    "what": "Link from atmosphere to player: home AirStatus.breathable becomes EnvironmentContext.oxygenated, which drives the blood-oxygen drain, then hypoxia, suffocation and death",
+    "where": "src/lib.rs:5741-5777; src/ecs/components.rs:147-175 (EnvironmentContext: sealed, oxygenated, ambient_temp_c, g_load; no toxicity or smoke field); src/systems/food.rs:519-540",
+    "state": "working (O2 only; CO, smoke and toxicity never reach the player)"
+   },
+   {
+    "what": "Player Vitals: satiation, hydration, energy, oxygen, body_temp_c, waste. Body temperature drifts toward ambient when exposed, causing hypothermia or heat exhaustion; outfit heat_resist/cold_resist scale the damage; status-effect damage and healing over time; death with a named cause",
+    "where": "src/ecs/components.rs:79-140; src/systems/food.rs:105-118 (constants), 441-640 (decay, conditions, effect tick, death)",
+    "state": "working"
+   },
+   {
+    "what": "Status-effect rows that fit fire and would tick as soon as something applies them: burning (8 damage / 2 s), poisoned, overheated, toxic_atmosphere, oxygen_depleted, sunburn, fire_resistance, campfire_warmth",
+    "where": "data/status_effects.csv:23, 46, 47, 54, 56, 75, 80, 87; loader src/systems/status_effects.rs:17-50 (drops stackable, max_stacks, damage_type and dispel_type); effects applied in code are only hunger, thirst, fatigue, hypoxia, suffocation, hypothermia, heat exhaustion, high_g, unsanitary, food poisoning and food buffs",
+    "state": "partial: data present and the effect tick is live; nothing applies the fire, poison or toxic rows"
+   },
+   {
+    "what": "MedicalSystem (per-condition severity, time remaining, HP per second) and medical.ron with burn_degree_1/2/3 (symptoms, treatments, progression to infection, recovery time), hypothermia, heatstroke and more",
+    "where": "src/systems/medical.rs:1-104 (commit e2dfb6f4, v0.143.0); data/medical.ron:105-139 (burns); ActiveCondition at src/ecs/components.rs:593-617",
+    "state": "stub: not registered; medical.ron loaded as untyped ron::Value; no caller of apply_condition"
+   },
+   {
+    "what": "HvacSystem: a second, separate room model (RoomEnvironment temp_c, humidity, co2_ppm) with occupant CO2 and venting",
+    "where": "src/systems/hvac.rs:1-144; src/ecs/components.rs:480-506",
+    "state": "stub: not registered; duplicates the atmosphere CO2 model in different units (ppm here, percent there)"
+   },
+   {
+    "what": "DisasterSystem: 21 disaster types with radius, duration, damage per second, damage type and vfx id; MeteorImpact and AsteroidImpact are Force damage chaining to Earthquake and Tsunami, with no heat, fire, debris or crater",
+    "where": "src/systems/disasters.rs:20-127 (AsteroidImpact defaults :105, chains :124)",
+    "state": "stub: not registered; vfx ids never read (docs/PRIORITIES.md:64-66 confirms nothing outside the file reads them)"
+   },
+   {
+    "what": "Chemistry data useful for fumes: gases.csv with lower/upper explosive limits, toxicity, asphyxiant flag and auto-ignition temperature (includes CO, CO2, propane, butane, formaldehyde); compounds.csv with kerosene, ethanol, methanol, isopropanol and propane rows (flammable/toxic flags only, no flash point, heat of combustion or soot yield); toxins.csv (benzene, formaldehyde)",
+    "where": "data/chemistry/gases.csv; data/chemistry/compounds.csv; data/chemistry/toxins.csv; embedded at src/embedded_data.rs:19-23",
+    "state": "design-only: embedded but read by no simulation code"
+   },
+   {
+    "what": "materials.csv thermal_conductivity per material (aluminum 237, steel 50, titanium 22, oak 0.17, kevlar 0.04, silicone 0.20, fiberglass 0.04), the obvious input for heat reaching a prop's handle",
+    "where": "data/materials.csv:19-126 (columns at header line 2)",
+    "state": "design-only for heat transfer (no conduction model; no specific heat, service temperature or decomposition temperature columns)"
+   },
+   {
+    "what": "Fire, smoke and sparks particle emitter definitions (additive emissive fire, alpha smoke, gravity sparks)",
+    "where": "data/particles.ron:9-58; engine src/renderer/particles.rs (spawn at :431)",
+    "state": "stub: definitions exist, but nothing spawns fire, smoke or sparks (live spawns are only leaf_drift, dive_bubbles, space_dust and precipitation at src/lib.rs:3839, 3860, 3921, 4140)"
+   },
+   {
+    "what": "Dynamic point and spot light list that a lit wick could add a moving light to",
+    "where": "src/lib.rs:14660-14700 (sorted, truncated to 256, or 2048 with tiled lighting); catalog data/lighting/light_types.ron (its 'up to 8 lights' comment is stale)",
+    "state": "working (no link to any fire or held item; torch_handheld_0, lantern_oil_0 and candle_0 in data/items.csv:464-467 give off no light)"
+   },
+   {
+    "what": "Fire-related inventory items: coal, crude oil, refined fuel, fuel drum, candle, handheld torch, oil lantern, campfire kit, welding torch, charcoal",
+    "where": "data/items.csv:84, 225-228, 334, 464-467, 494, 513",
+    "state": "partial: inventory records only (weight, volume, durability); no burn, fuel or flame properties; no flow-arts props (staff, poi, fire axe, darts, fans, hoops)"
+   },
+   {
+    "what": "Combat thermal damage: a scalar DamageEvent reduced by per-type Armor resistance; the fire abilities in abilities.csv map to Thermal",
+    "where": "src/systems/combat/damage.rs:11; src/systems/combat/mod.rs:32; src/systems/abilities.rs:197; data/abilities.csv:30-37",
+    "state": "working (instant hit damage only, not combustion)"
+   },
+   {
+    "what": "UI: the HUD shows one health bar plus credits. The Inventory page shows tiles for Health, Satiation, Hydration, Energy, Oxygen, Waste, Weight and Volume, a body-temperature line, a sealed/EXPOSED flag and effect chips with time remaining. The Home page shows a Live air card (O2, CO2, pressure, temperature, breathable)",
+    "where": "src/gui/pages/hud.rs:101-118; src/gui/pages/inventory.rs:1380-1520; src/gui/state_types.rs:712-731 (GuiVitals); src/gui/pages/homes.rs:277-286, 451-476; ECS-to-GUI sync at src/lib.rs:12470-12490",
+    "state": "working (no in-world HUD warning for vitals or conditions; docs/design/gameplay-loop-map.md:71 lists this gap)"
+   },
+   {
+    "what": "Library teaching content for fire props: flash-point ranges, community burn times, soot and radiant heat by fuel (camp fuel, lamp oil, kerosene, denatured alcohol), wick and shaft material failure temperatures, heat to the grip, fuel attacking grip adhesives, zinc fume. Also a sourced burns first-aid guide covering smoke and airway",
+    "where": "docs/user/making/fire_staff_materials.md:61-131, 340-388 (mirrored in data/library/fire_staff_materials.md; re-sourced in commit 1a6382f3, 2026-09-15); docs/user/skills/treating_burns.md (smoke and airway section at :238)",
+    "state": "working as reading material; not machine-readable data"
+   },
+   {
+    "what": "EmberGen-class volumetric fire and explosions",
+    "where": "only named as a target technique in CLAUDE.md:836 and docs/history/journal-archive-2026-08.md:14, 98",
+    "state": "design-only: nothing implemented"
+   }
+  ],
+  "gaps": [
+   "No fuel data: nothing records per fuel its flash point, auto-ignition temperature, heat of combustion, burn rate per wick area, soot yield, radiant fraction, flame colour and visibility, or CO/CO2/soot/unburned-vapour yields. The sourced values exist only as prose in docs/user/making/fire_staff_materials.md:340-388 and would need a data file (for example a data/chemistry fuels table) with the guide's sources and dates carried along.",
+   "No model of a prop or wick: nothing tracks wick material, wick volume, how much fuel is soaked in, spin-off (excess fuel flung off before lighting), how long a lit wick lasts, relighting, or 'burning with no fuel left destroys the wick' (fire_staff_materials.md:94-97). FireSystem's Fire component (intensity 0-1, fuel_remaining seconds) cannot hold these, and FireSystem is not registered.",
+   "No heat transfer: no conduction from wick to shaft to grip, even though materials.csv has thermal_conductivity. There are no specific heat, service temperature, decomposition temperature or emissivity columns, and nothing computes the radiant heat a flame puts on skin. The aluminium conductivity of 237 is the pure-metal value; 6061 and 7075 alloys are lower, so a handle-heat model should use alloy rows (alloys.csv has melting points only).",
+   "No combustion products reaching the air: a burning object never adds CO, CO2, soot or water vapour to Atmosphere.composition and never uses O2. FireSystem ignores oxygen entirely (a fire would burn in vacuum), even though fire_system.ron sets oxygen_dependency per behaviour.",
+   "Toxic gas never reaches the player: EnvironmentContext has no toxicity, CO or smoke field (ecs/components.rs:147-162). AirStatus carries only O2, CO2, pressure, temperature and breathable. The atmosphere's toxic and explosion damage requires InEnclosedSpace, which nothing attaches. There is no carboxyhaemoglobin or CO-uptake model; CO counts only as a 50 ppm on/off threshold.",
+   "One air volume per home: the whole home is a single 14,000 m3 space (home_spawn.rs:36), so fumes from a prop spun indoors would be diluted house-wide. There are no rooms, local plumes, outdoor air mixing near the player, or wind blowing smoke. The HVAC per-room model is separate, unregistered and in different units (ppm vs percent).",
+   "No burn injuries: nothing converts heat exposure (temperature and seconds of contact, or radiant flux) into burn_degree_1/2/3. MedicalSystem is unregistered, medical.ron is untyped ron::Value, and there is no body-part location even though medical.ron has a body_part field.",
+   "Status-effect IDs don't match: fire_system.ron uses debuff_* IDs that are not in status_effects.csv, and enchantments.csv refers to debuff_burning and debuff_poisoned (lines 24, 27, 30) while the CSV rows are burning and poisoned. The loader also drops stackable, max_stacks, damage_type and dispel_type.",
+   "Nothing applies the fire-relevant status effects (burning, poisoned, toxic_atmosphere, overheated, campfire_warmth). Only the survival conditions and food buffs are applied in code.",
+   "Infinite-of-X violations: the explosive-limit and toxic-threshold tables are hardcoded match arms (atmosphere.rs:195-237) instead of reading data/chemistry/gases.csv, which already has explosive_range_percent_low/high and auto_ignition_temp_k. FireSystem's rates are hardcoded constants (fire.rs:20-27) instead of fire_behaviors.",
+   "No visual or audio hookup: the fire, smoke and sparks particle defs are never spawned. No fire entity gives off a point light, although the light list supports 256 to 2048 lights (lib.rs:14676). No flame colour or brightness comes from soot. Held light items (torch_handheld_0, lantern_oil_0, candle_0) give no light. Nothing exists for volumetric flame or smoke.",
+   "UI can't show a fire hazard at a glance: the HUD is a single health bar (hud.rs:101-118). Vitals, body temperature and effects appear only on the Inventory page, with no in-world warning for oxygen, smoke, heat or burns. Nothing displays air quality beyond O2/CO2 (no CO, particulates or visibility).",
+   "No flow-arts props anywhere in items.csv, recipes or models (fire staff, contact staff, poi, fire axe, fire darts or meteors, fans, hoops), and no safety kit such as a fire blanket as a usable item wired to suppression (fire_blanket exists only as a fire_system.ron suppression entry).",
+   "Asteroid impact (secondary): AsteroidImpact is a 50 km, 30 s, 500 damage-per-second Force area that chains to earthquake and tsunami (disasters.rs:105, 124). It has no heat pulse, fireball, air blast or shockwave travel time, ejecta, crater or ignition of flammables. DisasterSystem is unregistered and its vfx_id is read by nothing."
+  ],
+  "notes": [
+   "docs/design/gameplay-loop-map.md:235-247 calls FireSystem, MedicalSystem and DisasterSystem 'Dormant but complete'. For FireSystem that overstates it: the code runs, but it ignores its own data file, oxygen, temperature and products. The same doc (lines 240-247) puts fire, disease and disasters as the LAST rung of the risk-layer closure ladder, as homestead threats that the habitat systems defend against.",
+   "The quickest real carrier for a lit prop is to reuse what is live rather than revive fire.rs as it stands. That means: a fuel data table built from the Library guide's sourced numbers; a per-wick component (fuel mass, burn rate, soot factor) ticked by a registered system; each wick adding a moving point light and spawning the existing fire, smoke and sparks emitters; combustion products written into the existing AtmosphereSystem composition map; a toxicity or CO field added to EnvironmentContext so the FoodSystem vitals pass can apply the existing toxic_atmosphere, poisoned, burning and overheated rows; and heat exposure mapped to the medical.ron burn degrees once MedicalSystem is registered.",
+   "The live status-effect tick (food.rs:601-626) already turns damage_per_tick and tick_interval_s into per-second drains and records the death cause. Any new condition row (for example smoke_inhalation or carbon_monoxide) needs only a CSV row plus one effects.apply() call; no new tick code is required.",
+   "src/reactions.rs and data/reactions.json are the chat emoji reaction palette, not chemical reactions. Don't confuse them with combustion.",
+   "When fire content is authored, docs/user/making/fire_staff_materials.md is the sourced, dated reference to seed data from (flash-point ranges from NIOSH and CAMEO; burn times explicitly labelled community figures; soot drives radiant heat). Per CLAUDE.md, carry those source labels into the data rather than restating figures from memory, and give the toxic-gas thresholds in atmosphere.rs (CO 50 ppm and so on) the same sourced treatment."
+  ]
+ },
+ {
+  "key": "data-consistency",
+  "summary": "I compared the repo's chemistry data (C:/Humanity/data/chemistry/alloys.csv, elements.csv, compounds.csv, gases.csv and toxins.csv) and the two Library guides (C:/Humanity/docs/user/making/metals_and_alloys.md and fire_staff_materials.md) against the 2026-09-24 research files. \"R/\" below means docs/reference/research/2026-09-24-fire-performance/. I found 54 conflicts, listed in gaps[] as C1-C54, each with both values and what each rests on. Nothing was resolved and nothing was edited. Where two research files disagree with each other, the entry says which one the repo matches; alloy-corrections.json is the audit layer over aluminium.json, titanium.json and steels-others.json.\n\nThe five that matter most:\n1. **Melting points in alloys.csv use two different bases.** 7075 and 2024 carry the liquidus (908 K and 911 K), while 6061 carries the solidus (855 K). The research gives the 7075 solidus as 477 C and the 2024 solidus as 502 C.\n2. **The fire staff guide's \"starts to fail\" table uses melting points.** The research puts the permanent strength loss of T6 aluminium at roughly 150-260 C, and the service ceiling of Ti-6Al-4V at about 325-400 C.\n3. **Fuel flash points in the fire guide conflict with manufacturers' safety data sheets.** Examples: camp fuel is grouped with VM&P naphtha, lamp oil is placed inside the kerosene range when it is actually 83.5-121 C, kerosene's lower bound is given as 35 C against the ASTM D3699 minimum of 38 C, and denatured alcohol is given as 11-13 C against 7 C on the product sheet.\n4. **The guide's titanium claims conflict with the research.** It says titanium shafts are nearly absent from the market and titanium is the lowest-conductivity metal. The research found Fusion Arts titanium staffs, widely stocked Grade 9 CWSR tube, and CP titanium at 22 W/m-K, above stainless at 14.6-16.3.\n5. **compounds.csv marks teflon, zinc oxide, titanium dioxide and kerosene as non-toxic.** The research documents fume or aspiration hazards for each.\n\nThe repo files were last changed in these commits: alloys.csv 6845aa5f, compounds.csv db1e98e8, elements.csv b8c1c6db, metals guide 459c74ae, fire guide 2773ef75.",
+  "exists": [
+   {
+    "what": "Alloy property table: 74 rows; columns density, melting_point_k, tensile_strength_mpa, hardness, thermal and electrical conductivity, corrosion word, description. No modulus, yield, elongation or temper column.",
+    "where": "C:/Humanity/data/chemistry/alloys.csv (rows compared: lines 2-5, 12-19, 21, 23, 24, 51, 65, 75; last changed 6845aa5f, 2026-09-15 12:44)",
+    "state": "partial"
+   },
+   {
+    "what": "Element table, used for Al, Ti, Zn, Cd, Pb and Mg melting point, boiling point, density and conductivity",
+    "where": "C:/Humanity/data/chemistry/elements.csv:13,14,23,31,49,83 (b8c1c6db, 2026-03-24)",
+    "state": "working"
+   },
+   {
+    "what": "Compounds. The only fuel or fume rows are kerosene (line 142), methanol (48), ethanol (47), isopropanol (49), propane and butane (40-41), octane (42), benzene (43), teflon (101), zinc_oxide (114), titanium_dioxide (8) and magnesium_oxide (167). There is no flash_point column.",
+    "where": "C:/Humanity/data/chemistry/compounds.csv (db1e98e8)",
+    "state": "partial"
+   },
+   {
+    "what": "Gases: CO (line 8), HCl (34), phosgene (26), formaldehyde (39). No fuel-vapour rows, and nothing that conflicts with the research.",
+    "where": "C:/Humanity/data/chemistry/gases.csv (b72a00c8)",
+    "state": "partial"
+   },
+   {
+    "what": "Toxins: cadmium (57), chromium_vi (61), benzene (55), methanol (72), lead (37, 68). No rows for metal-fume fever, polymer-fume fever, n-hexane or hydrocarbon aspiration.",
+    "where": "C:/Humanity/data/chemistry/toxins.csv (331bcd15)",
+    "state": "partial"
+   },
+   {
+    "what": "Metals and Alloys Library guide, sourced from NASA, DOE, Army and OSHA. It was written 25 minutes before the alloys.csv rewrite, so its data-file section is stale.",
+    "where": "C:/Humanity/docs/user/making/metals_and_alloys.md (459c74ae, 2026-09-15 12:19)",
+    "state": "partial"
+   },
+   {
+    "what": "Fire Staff Materials Library guide, covering shaft, wick, shield, grip, hardware, fuel, sizing and cost",
+    "where": "C:/Humanity/docs/user/making/fire_staff_materials.md (2773ef75; re-sourced in 1a6382f3)",
+    "state": "partial"
+   },
+   {
+    "what": "Research files dated 2026-09-24: aluminium, titanium, steels-others, alloy-corrections (79 audit entries over the three alloy files), fuel-identities, fuel-use, heated-fumes. length-sizing and wall-thickness were out of scope.",
+    "where": "docs/reference/research/2026-09-24-fire-performance/",
+    "state": "design-only"
+   }
+  ],
+  "gaps": [
+   "C1 alloys.csv:13 aluminum_7075 melting_point_k=908 (634.85 C, the liquidus; no source in the row) vs research solidus 477 C, range 477-635 C (Alcoa solidus 890 F plus Aluminum Association via MatWeb), with Kaiser's tube sheet giving 532-635 C [R/aluminium.json:361, :550; R/alloy-corrections.json #10 line 83]. The same CSV column uses the SOLIDUS for 6061 (alloys.csv:12, 855 K = 582 C, which metals_and_alloys.md:947-951 relies on), so the column mixes bases. fire_staff_materials.md:76 uses 477 C.",
+   "C2 alloys.csv:14 aluminum_2024 melting_point_k=911 (637.85 C, the liquidus) vs Kaiser 502-638 C, solidus 502 C [R/aluminium.json:516, :550]. Same mixed-basis problem as C1.",
+   "C3 alloys.csv:5 stainless_316 density 8.0, melting 1648 K (1374.85 C), thermal_conductivity 16.3, UTS 515 vs Sandmeyer figures of 7.9 g/cc, 14.6 W/m-K and a 1390-1440 C melting range; the UTS is the ASTM minimum of 517 MPa, with Sandmeyer's plate typical at 586 [R/steels-others.json:89,92,94,95 and its notes; R/alloy-corrections.json #42 line 339 confirms 7.90 and 14.6]. The CSV melting point sits about 15 C below the research range, and the CSV conductivity is 12% high.",
+   "C4 alloys.csv:4 stainless_304 density 8.0 and UTS 505 vs research density 7.89 (from 0.285 lb/in3) [R/steels-others.json:7], or 7.9 in R/alloy-corrections.json #39 line 315 (Speedy Metals weights back-calculate to 7.92). UTS: ASTM A554/A240 minimum 517 MPa, Rolled Alloys typical 620 [R/steels-others.json:10 and its notes]. The melting point (1400 C, within 1399-1421) and conductivity (16.2 vs 16.3) agree.",
+   "C5 alloys.csv:17 ti_cp_grade2 thermal_conductivity 16.4 vs 22 W/m-K from Zapp, or 17-23 from the Carpenter chart [R/titanium.json:61, :452]. 16.4 is below even Carpenter's low end. The repo's own elements.csv:23 gives Ti 21.9.",
+   "C6 alloys.csv:16 ti_6al_4v tensile 900 MPa (condition unlabelled) vs Grade 5 annealed tube minimum 800 MPa (Fine Tubes), TIMET typical rod 985, Grade 23 860 [R/titanium.json:280, :290]. Melting point, three values: alloys.csv:16 gives 1933 K (1660 C); fire_staff_materials.md:78 gives 1943 K (1670 C), citing NIST pulse heating; the research gives more than 1538 C (SDS, above 2800 F) and 1604-1660 C for Grade 23 (AZoM) [R/titanium.json:283]. The guide's figure is 10 C above every research value.",
+   "C7 alloys.csv:21 phosphor_bronze (Cu95 Sn5 P0.2) thermal 50, melting 1273 K (999.85 C), UTS 380 vs research thermal 69 (copper.org, 40 Btu/ft-hr-F) [R/alloy-corrections.json #71 line 571] or 77 [R/steels-others.json:668, a MakeItFrom-based row]. Research melting: solidus about 960 C [R/steels-others.json:669]. Research UTS: 330 at the low (annealed) end of the MakeItFrom range [R/steels-others.json:667], or 324 typical for copper.org's annealed OS050 temper [R/alloy-corrections.json #73]. The CSV density of 8.86 matches the correction (8.86, copper.org) but not steels-others.json:664 (8.8). The repo also carries tin_bronze (C510, Cu95 Sn5) at alloys.csv:75 with thermal 67 and UTS 550, which is nearly the same alloy as phosphor_bronze but with different numbers.",
+   "C8 alloys.csv:24 beryllium_copper thermal 115 vs 110 [R/steels-others.json:700]; the correction does not revise this figure. UTS 1200 carries no temper label, against a research range of 480 (annealed) to 1380 (age-hardened) [R/steels-others.json:699, :708]. The Be:2 composition sits at the top of C17200's 1.80-2.00% (copper.org) [R/alloy-corrections.json:614].",
+   "C9 alloys.csv:18 brass_c360 thermal 115 vs 120 [R/steels-others.json:636] vs 116 from copper.org [R/alloy-corrections.json #68 line 547]. UTS 340 vs 330, which is the low end of the MakeItFrom range and the minimum basis [R/steels-others.json:634], vs 400 copper.org H02 typical [R/alloy-corrections.json #70]. Density 8.49 agrees; the correction gives 8.5. Pb:3 agrees with copper.org's 2.5-3.0%; steels-others says 2.5-3.7%, which the correction calls out of date.",
+   "C10 alloys.csv:19 brass_c260 UTS 325 vs 370, the ASTM B927 minimum for H02 rod (Wieland) [R/steels-others.json:597]. The correction says the TUBE tempers are OS025 at 359, OS050 at 324 and H80 at 538 [R/alloy-corrections.json #64 line 515], so the CSV's 325 matches annealed OS050 without saying so. Conductivity (120 vs 121) and melting point (915 vs 916 C solidus) are trivial differences.",
+   "C11 alloys.csv:23 aluminum_bronze thermal 56 vs 58.7 (copper.org C95400) [R/alloy-corrections.json #74 line 595], or 59 (MakeItFrom) [R/steels-others.json C51000 notes]. The density of 7.45 agrees.",
+   "C12 alloys.csv:51 magnesium_az31 UTS 260 matches steels-others.json:515 (AZoM typical for extruded SOLID bar), but conflicts with the correction for tube: 241 typical (BTI Metals), 220 minimum (ASTM B107) [R/alloy-corrections.json #58 line 467]. The description says 'flammable as chips'. The research adds that the SDS treats pieces over 3 mm as hard to ignite, a 0.9 mm tube wall is well under that, and ignition comes near 630-650 C [R/steels-others.json:519-521; R/alloy-corrections.json #61].",
+   "C13 alloys.csv:14 aluminum_2024 UTS 470, density 2.78, thermal 121 vs research 469 (Kaiser T4/T351 typical used as a stand-in for T3), 2.77 and 120 [R/aluminium.json:510-515]. The correction gives the drawn T3 tube minimum as 441 UTS, and a T3 typical of about 483 marked 'from memory' [R/alloy-corrections.json #21].",
+   "C14 alloys.csv:15 aluminum_5052 corrosion 'moderate', the same as aluminum_6061 at alloys.csv:12, vs Kaiser's ratings of A for 5052 and B for 6061 [R/aluminium.json:559]. The CSV's own description of 5052 says 'good ... corrosion resistance'. UTS 228 vs 230 (typical H32) or 213 (drawn H32 minimum) [R/aluminium.json:69 and its tube_availability field] is minor.",
+   "C15 alloys.csv:65 chromoly_4130 UTS 670 and thermal 42.7 match the research numbers, but the research labels 670 as MatWeb TYPICAL for normalized BAR. Tube minimums are 655 (MIL-T-6736 Cond N, 95 ksi) and AMS 6371 at 95 ksi, and Aircraft Spruce quotes 90,000 psi for its tube. The 42.7 W/m-K is MatWeb's value at 100 C, falling to 40.7 at 300 C [R/steels-others.json:445, :449 and its notes; R/alloy-corrections.json #54-55].",
+   "C16 alloys.csv:2-3 carbon_steel UTS 400 and mild_steel UTS 370 vs research DOM 1020 tube (A513 mandrel-drawn minimum): 483 UTS, 414 yield [R/steels-others.json:409, Totten Tubes]. The conditions differ (a generic row vs cold-drawn tube), so this conflict is low confidence.",
+   "C17 elements.csv:23 Ti density 4.54 (cited in metals_and_alloys.md:1761) vs 4.51 for CP Grades 1 and 2, which are 99%+ titanium (TIMET/ATI) [R/titanium.json:56]. The repo's own ti_cp_grade2 row gives 4.51 (alloys.csv:17).",
+   "C18 elements.csv:14 Al boiling point 2792 K (2518.85 C, the CRC value) vs NIOSH's 4221 F (2327 C, about 2600 K), as quoted in the research [R/aluminium.json:551 and the 1100-row heated_hazards].",
+   "C19 Pure aluminium conductivity. fire_staff_materials.md:138-141 says pure aluminium is 216 W/m-K (Forest Products Laboratory) and that 'alloying costs conductivity'. elements.csv:14 gives 237. The research gives 222 for 1100-O and 218 for 1100-H18 (Kaiser) [R/aluminium.json:4-17, :560]. A 99.0% alloy above the guide's 'pure' figure contradicts the guide's stated ordering.",
+   "C20 compounds.csv:101 teflon: toxic=false, described as 'chemically inert; heat resistant', melting 600 K. The research [R/heated-fumes.json:304 F12, M3] gives: no known toxicity below 260 C and toxic fumes above 371 C (ARGCO tape SDS, 2023); TFE release near 330 C, ultrafine fume at 420 C, COF2 and HF around 450 C, PFIB above 475 C (Plastics Industry Assoc. guide, 5th ed., 2019). Those start near or below the listed melting point.",
+   "C21 compounds.csv:114 zinc_oxide toxic=false vs NIOSH's zinc oxide fume limit of 5 mg/m3 TWA (10 STEL), with metal-fume fever as the effect [R/heated-fumes.json:17 F1]. The repo's own guides quote the same NIOSH hazard: fire_staff_materials.md:171-178 and metals_and_alloys.md:1136-1147.",
+   "C22 compounds.csv:8 titanium_dioxide toxic=false vs NIOSH CIB 63 (2011): 2.4 mg/m3 for fine and 0.3 mg/m3 for ultrafine TiO2, with ultrafine TiO2 a potential occupational carcinogen [R/alloy-corrections.json #30 line 246; marked 'from knowledge, not re-fetched']. The research disagrees internally: R/heated-fumes.json:218 F9 says titanium metal is 'not classified as carcinogenic'.",
+   "C23 compounds.csv:167 magnesium_oxide toxic=false vs research that burning magnesium gives off MgO fume [R/steels-others.json:521], and the AWS fact sheet line 'copper and magnesium may cause similar effects' to metal-fume fever [R/heated-fumes.json:184 F7]. Low confidence.",
+   "C24 compounds.csv:142 kerosene row: name 'Kerosene (Jet Fuel)', description 'Aviation fuel (Jet A-1); heating oil; lamp fuel', formula C12H26, a single boiling point of 423 K, toxic=false. Research: (1) Jet A/A-1 is kerosene-type but not the same product as 1-K, because its spec allows additives [R/fuel-identities.json:674 M11, F16]. (2) US lamp oil is usually NOT kerosene: Firefly is C12-15 alkanes flashing at 83.5 C, and Lamplight flashes at 97 or 121 C [R/fuel-identities.json:359-374, :667 M4]. (3) Kerosene is a distillation range with an end point of 300 C or lower under ASTM D3699 (via COMAR), and its NIOSH synonyms are Fuel Oil No. 1 and Range oil [R/fuel-identities.json F12 ~line 264]. (4) SDS hazards: H315 skin irritant, aspiration hazard, and aromatics (up to 5% trimethylbenzene; 0.1-1% naphthalene) [R/fuel-use.json F7]. The toxic=false flag also contradicts fire_staff_materials.md:382-386 on aspiration poisoning.",
+   "C25 fire_staff_materials.md:67-78 'Starts to fail' table, and :336-338, treat the start of failure as the melting point: 7075-T6 at 477 C, 6061-T6 at 582 C, Ti-6Al-4V at 1670 C. Research: 6061-T6 starts losing temper permanently at about 150 C after 1000 h or about 190 C after 0.5 h, and long exposure above 230-260 C leaves about 20% of T6 yield (MMPDS-04 curves read by eye) [R/aluminium.json:106, :547]; correction #11 flags the 190 C / 0.5 h reading as possibly optimistic. 7075-T6 is aged at 120 C and drifts toward T73 at 160-180 C; it anneals at 413 C [R/aluminium.json:363]. Kaiser measured 7068 losing 36% of its yield after 100 h at 150 C [R/alloy-corrections.json #16]. Ti-6Al-4V is used annealed up to about 400 C (Fine Tubes), with creep resistance to 325 C (TIMET) [R/titanium.json:284]. Research summary line: 'Structural strength is effectively gone long before melting' [R/aluminium.json:550].",
+   "C26 fire_staff_materials.md:43-45 gives melting ranges of 477-638 C for 7075 and 582-649 C for 6061 (NASA) vs research 477-635 C for 7075 (Alcoa and the Aluminum Association) with Kaiser's tube sheet at 532-635 C, and 582-652 C for 6061 (Kaiser) [R/aluminium.json:105, :361]. The guide's 'more than a hundred degrees of margin' (582 - 477 = 105) shrinks to 50 C on Kaiser's tube solidus.",
+   "C27 fire_staff_materials.md:45 'Pick 7075 for stiffness at low weight' vs research: every aluminium alloy has a modulus of 68.3-73.1 GPa, so 7075 flexes the same as 6061 and buys resistance to permanent bending (yield), not stiffness [R/aluminium.json:545; the 7075 staff_verdict]. This also contradicts the repo's own metals_and_alloys.md:159-163.",
+   "C28 fire_staff_materials.md:145 describes 6061-T6 as giving 'the heaviest metal build' vs the research weights for 60 in of 3/4 x .035 tube: 6061 about 209 g, stainless or DOM steel about 600-612 g, brass 659 g [R/steels-others.json:765]; both steels are rows in the same guide table. Low confidence, because the phrase may mean the heaviest aluminium build.",
+   "C29 fire_staff_materials.md:147 says carbon fibre is the 'Stiffest option, no flex' vs the research estimate for roll-wrapped CF tube of about 70 GPa axial modulus, the same as aluminium and well below steel's 200; only its stiffness per gram is clearly better [R/steels-others.json:729-742, :766]. The research's CF numbers are self-described ROUGH ESTIMATES, unsourced.",
+   "C30 fire_staff_materials.md:148-149 say titanium conductivity is the 'Lowest of the metals here', put stainless 'between titanium and mild steel', and call titanium 'the only material that actually solves heat reaching your hands'. Research: CP titanium is 17-23 W/m-K (22 per Zapp), which is HIGHER than austenitic stainless at 14.6-16.3. Only Grade 5 (6.7) and Grade 9 (7.6-8.2) are lower [R/titanium.json:452; R/steels-others.json:768]. The guide's own hardwood row (0.1-0.2) also contradicts 'only'.",
+   "C31 fire_staff_materials.md:35-37 and :148 say a titanium shaft is 'close to nonexistent in the trade', 'usually an anodising colour or a search keyword', 'poor thin-wall availability', 'effectively absent from the market'. Research: Fusion Arts sells titanium pro fire staffs at 500-750 g complete [R/steels-others.json:765, :772]. Grade 9 CWSR is 'the most widely stocked titanium tube in staff sizes': Tiger Titanium stocks 0.750 in OD in walls of 0.023-0.130 in at $1.85/in, and McMaster lists AMS 4945 tube [R/titanium.json:230, :441].",
+   "C32 fire_staff_materials.md:150 gives mild steel conductivity as 'About 45' vs repo alloys.csv:2-3 at 51.9, and research AISI 1020 at about 51.9 (MatWeb, not re-fetched) [R/alloy-corrections.json #53]. The research gives 42.7 for 4130.",
+   "C33 fire_staff_materials.md:150 calls mild steel the 'Cheapest metal', and :178-179 advise 'Buy plain or black steel tube instead; it costs barely more'. Research prices from Speedy Metals, 3/4 in OD x 60 in: 1020/1026 DOM .035 at $72.73 vs 304 annealed .035 at $43.00, with the note 'the carbon steel cost more than the stainless here' [R/steels-others.json:774]. The research also says bare carbon steel needs a rust coating that becomes a fume or flaking problem at the fire end, and recommends stainless for fire [R/steels-others.json DOM row heated_hazards and staff_verdict, :770].",
+   "C34 fire_staff_materials.md:172-173: 'Heating it releases zinc oxide fume', stated without a temperature. Research: AGA's 200 C figure is a coating-peel limit, not a fume threshold; zinc reaches 1 Pa vapour pressure at 337 C and melts at 419 C; zinc oxide fume is documented mainly from welding, cutting and brazing. The practical advice (keep galvanised away from the wick) is the same [R/heated-fumes.json:5 F0, :17 F1, M0]. Low confidence: only the mechanism differs.",
+   "C35 fire_staff_materials.md:354 camp fuel '(white gas, naphtha)': 'NIOSH gives -40 to -66 C for light petroleum naphtha and -7 to 13 C for the heavier VM&P grade'. Research: (a) VM&P naphtha is a paint thinner, not a camp-fuel grade ('not all naphtha is camp fuel') [R/fuel-identities.json F0, M0; R/fuel-use.json F1]. (b) The retail VM&P SDS (Klean-Strip) gives 69 F / 21 C TCC, against the guide's NIOSH 20-55 F [R/fuel-identities.json:15, :20]. (c) Product safety data sheets for camp and lighter fuels: Coleman below -18 C, Zippo below -6.5 C, Diggers Shellite -30 C, Hunter's Shellite -15 C, Ronsonol 2 C (2018) or 5 C (2008) [R/fuel-identities.json:10, :120, :166-190]. Hunter's and Ronsonol fall outside the guide's -40 to -66 C band.",
+   "C36 fire_staff_materials.md:355 lamp oil '(paraffin) A refined kerosene, so within the kerosene range below [35 to 72 C] ... toward or above its top end' vs research: US lamp oils flash at 83.5 C (Firefly, C12-15 alkanes, 2023) and 97 C (2007) or 121 C (2002) for Lamplight Ultra-Pure, all above the whole kerosene range. The research lists 'Lamp oil = kerosene' as a myth, and notes 'paraffin' means kerosene in the UK and wax in the US [R/fuel-identities.json:359-374, :667 M4, M2; R/fuel-use.json:231 F8].",
+   "C37 fire_staff_materials.md:356 kerosene flash point '35 to 72 C' (CAMEO 95 F as the lower bound) vs the ASTM D3699 minimum of 38 C / 100 F for 1-K and 2-K (via Maryland COMAR). Hess SDS: above 100 F; Imperial Oil: 104 F / 40 C [R/fuel-identities.json:264-274; R/fuel-use.json F2].",
+   "C38 fire_staff_materials.md:356 gives kerosene the 'Longest burn' vs R/fuel-use.json:231 F8, which says lamp oil 'gives the longest burns' (Dark Monk: lamp oil 5+ min, kerosene 5-7 min). The research also records sources that disagree: Home of Poi (2013) and Sacred Flow Art (2019) say 'quick ignite, short burn' [R/fuel-use.json:629 M0; R/fuel-identities.json M9].",
+   "C39 fire_staff_materials.md:357 denatured alcohol flash point 'About 11 to 13 C' (NIOSH pure methanol 52 F, ethanol 55 F) vs the retail product SDS: Klean-Strip Denatured Alcohol 45 F / 7 C Setaflash, with 5-60% methanol [R/fuel-use.json:69; R/fuel-identities.json F24].",
+   "C40 fire_staff_materials.md:460 sizing table 'Burn time 7 to 9 min ... per fuelling' vs research per-fuel burn times of 3-4 min for white gas, 5+ min for lamp oil and 5-7 min for kerosene (Dark Monk) [R/fuel-use.json:133, :177]. It also contradicts the guide's own :125-128 and :354. The research has no figure specific to knotted wicks.",
+   "C41 fire_staff_materials.md:226-229 'Fuel does not attack the fibre ... it is heat and abrasion, not the fuel', and :356, where kerosene 'loads the prop most'. Research: fuel choice affects wick life. Renegade Juggling (2025) says kerosene-based fuel at least doubles Kevlar wick life compared with white gas; South African Fire Dancers say alcohol additives 'destroy wicks'; white gas gives faster wick wear [R/fuel-use.json:187, :327, :422 F16, F4]. The guide rests on DuPont's 1000-hour gasoline test; the research rests on maker and practitioner claims.",
+   "C42 fire_staff_materials.md:318-320: silicone and industrial rubber 'shed fuel instead of absorbing it', with 'no adhesive to attack' vs research 'Petroleum fuels damage silicone handles' (Firetoys, 2019: 'Fuel will damage silicone') [R/fuel-use.json:422, :437].",
+   "C43 fire_staff_materials.md:122 'Camp fuel burns cleaner and bluer' vs practitioners describing white gas as 'orangey-yellow', 'bright orange' or 'whitest', and lamp oil as 'bluest' (Temple of Poi). The research calls colour words inconsistent [R/fuel-use.json F15, M9]. Low confidence.",
+   "C44 fire_staff_materials.md:456 'Traditional fitting is chin to nose height' vs Dark Monk's 'measure from the ground to just above your chin' [R/aluminium.json:555]. Low confidence.",
+   "C45 fire_staff_materials.md:506-515 cost table. The 6061 shaft is $55 vs Online Metals at $31.83 per 72 in, Fire Mecca at $29.99 sale / $32.80 regular per 5 ft (their maximum length), and Speedy at $11.51 per 72 in, which the correction flags as doubtful [R/aluminium.json:110; R/alloy-corrections.json:70, #7]. The 7075 shaft is $90-200 vs Dark Monk at $40 per 72 in, buyfirefans at about $30 each in a 20-piece lot, and a COMPLETE Matrix 7075 staff at AUD 99.95 [R/aluminium.json:366]. Fuel is $15 vs Coleman at $19.99-24.99 a gallon [R/fuel-use.json:584-589]. (The $185 production staff at :517 agrees with R/titanium.json:453.)",
+   "C46 metals_and_alloys.md:145-148 and :1640-1641 give the 6061 modulus as 10.0 x 10^3 ksi (68.9 GPa, NASA CR-123772) vs R/aluminium.json:100, :148, :175 at 68.3 GPa (the MMPDS tension-only value). R/alloy-corrections.json #6 (line 51) sides with 68.9, so the guide matches the correction and conflicts with the raw aluminium file.",
+   "C47 metals_and_alloys.md:958-959 and :1639 give 6061-T6 elongation as 17% and 6061-O as 30% (NASA, 2 in gauge) vs research 12% (T6) and 25% (O), both Kaiser typical values on a 0.0625 in specimen, with drawn T6 tube minimums of 10-12% [R/aluminium.json:103, :178]. The 7075-T6 figure of 11% agrees.",
+   "C48 metals_and_alloys.md:136 (DOE Table 1) gives 'stainless' a yield of 40,000-50,000 psi (276-345 MPa) and UTS of 78,000-100,000 psi, and :139-141 then says stainless is 'up to half again as strong' as carbon steel. Research for annealed stainless tube: 304 yield 207 minimum / 241 typical, UTS 517 minimum / 620 typical; 316 yield 207 minimum / 303 plate typical. The research also finds DOM 1020's minimum yield is about twice that of annealed 304, and annealed stainless yield is 'no higher than 6061-T6' [R/steels-others.json:7-16, :89-100, :767]. The DOE row does not name a grade or condition.",
+   "C49 metals_and_alloys.md:999-1002 applies NASA's ZINC PLATING limits (250 F service; protection degrades above 140 F) straight after 'Hot-dip zinc coating is what galvanising means'. Hot-dip galvanising has its own limits (American Galvanizers Association): 200 C / 392 F long-term, above 250 C not recommended, about 350 C for short exposures [R/heated-fumes.json:17 F1]. The NASA plating figure itself matches the research's quotation of RP-1228.",
+   "C50 metals_and_alloys.md:1136: 'Heating or cutting anything galvanised, and any brass. Zinc fume causes metal fume fever.' Research: zinc fume from brass needs brazing, melting or flame-cutting temperatures and is 'not expected at a few hundred C' [R/heated-fumes.json:184 F7; R/steels-others.json:601-605]. This also sits badly with the repo's fire_staff_materials.md:329, which recommends brass screws in the wick zone.",
+   "C51 Cadmium 'immediately dangerous' thresholds. metals_and_alloys.md:1722 cites NIOSH IDLH 9 mg/m3 as Cd (the text at :1152 gives the OSHA PEL of 0.005) vs OSHA 1910.1027 App A treating 'about 1 mg/m3 over 8 hours' as immediately dangerous [R/heated-fumes.json:54 F2]. These are different metrics: IDLH is a 30-minute escape figure, App A is 8 hours. The research also gives a 232 C service ban on cadmium plating (QQ-P-416F) and a Cd vapour pressure of 1 Pa at 257 C; the guide gives no temperature.",
+   "C52 metals_and_alloys.md:984-985 gives beryllium copper as 1.5-2.75% Be (TM 9-237, the family) vs research: the family is 0.5-3% (Wikipedia) and C17200 specifically is 1.80-2.00% (copper.org) [R/alloy-corrections.json:613-614]. Low confidence.",
+   "C53 metals_and_alloys.md:1656 gives 7075 density as 2.80 g/cm3 (NASA CR-123773) vs 2.81 for T6 in both research and the repo CSV [R/aluminium.json:355; alloys.csv:13]. The research's 2.80 is the T73 value [R/aluminium.json:409-417]. Trivial.",
+   "C54 Trivial differences (<1%), listed for completeness: stainless_304 k 16.2 vs 16.3; aluminum_2024 k 121 vs 120 and density 2.78 vs 2.77; aluminum_5052 UTS 228 vs 230; brass_c260 k 120 vs 121 and melting 915 vs 916 C; elements.csv:49 Cd boiling point 1040 K vs NIOSH 1409 F (1038 K)."
+  ],
+  "notes": [
+   "Internal repo inconsistencies, not research conflicts. metals_and_alloys.md was committed in 459c74ae (2026-09-15 12:19). alloys.csv was rewritten 25 minutes later in 6845aa5f ('rated corrosion on two scales at once, and hid the lead'). As a result, guide lines 1311-1323, 1397-1404 and 1445-1450 still describe the old vocabulary: stainless_316 'very_high', stainless_440c 'medium', and counts of excellent 21 / medium 20 / low 19 / good 12. The CSV now reads excellent 21 / fair 20 / poor 19 / moderate 12 / good 1 / very_good 1. Defect #6 (lead mentioned only on pewter) is also stale: solder_60_40, type_metal, wood_metal and brass_c360 now carry lead warnings (alloys.csv:18, 35, 59, 60).",
+   "Internal repo inconsistencies, continued: (a) fire_staff_materials.md:81-91 says every material except titanium falls inside the 1030-1730 C flame band, yet gives titanium's melting point as 1670 C, which is inside that band. (b) compounds.csv:48 gives methanol a lethal_dose of 100 mg/kg, while toxins.csv:72 methanol_poison gives 810 mg/kg. (c) alloys.csv phosphor_bronze (line 21) and tin_bronze (line 75) are essentially the same 95/5 alloy with thermal conductivity 50 vs 67 and UTS 380 vs 550.",
+   "Agreements, where there is no conflict: 6061 (density 2.70, UTS 310, k 167, solidus 582 C); 7075-T6 (UTS 572, yield 503, k 130, elongation 11); 7075 1.8x the strength of 6061; 6061 T6 ageing at 171-182 C, consistent with about 177 C for 8 h; ti_6al_4v density 4.43 and k 6.7; ti_cp_grade2 density 4.51, UTS 345 (minimum) and melting 1668 C; chromoly density 7.85; AZ31B density 1.77, k 96 and melting 630 C; beryllium copper density 8.25 and solidus 870 C; brass_c360 composition Cu61.5 Zn35.5 Pb3; elements.csv melting points for Zn (419.5 C), Cd (321 C), Pb (327.5 C), Mg (650 C) and Al (660 C), and Zn boiling at 907 C; NIOSH zinc oxide fume at 5 mg/m3; NIOSH flash points of 52 F for methanol and 55 F for ethanol; the -40 to -66 C NIOSH naphtha conversion; camp fuel 3-4 min and kerosene 5-7 min (Dark Monk); a finished staff weight of 700-850 g; a $185 production 7075 staff; NIOSH beryllium, lead and cadmium PELs (the research gives no competing figures).",
+   "Places where the research files disagree with each other, so a 'conflict' depends on which file is taken as true. The repo matches alloy-corrections for the 6061 modulus (68.9), C51000 density (8.86) and C36000 k (≈116), and matches the raw files for AZ31B UTS (260) and C26000 UTS basis. heated-fumes F9 ('titanium not classified as carcinogenic', about the metal) vs alloy-corrections #30 (ultrafine TiO2 a potential occupational carcinogen). fuel-use summary 'lamp oil 97-121 C' vs fuel-identities Firefly 83.5 C.",
+   "Weakly supported research values, which should not be treated as settled when resolving: the 6061-T6 over-ageing onsets are MMPDS curves read by eye, and alloy-corrections #11 doubts the 190 C / 0.5 h point. alloy-corrections #21 (2024-T3 typical), #25 (Grade 23 minimums), #30 (NIOSH CIB 63 TiO2 limits) and #53 (1020 k = 51.9) are marked 'from memory / not re-fetched'. The carbon fibre modulus of 70 GPa and k of 5 are self-described rough estimates. All burn times and wick-life claims are practitioner statements, not measurements. Nobody has published the metal temperature under a burning wick.",
+   "Omissions in the repo relative to the research. These are not conflicts, but they matter for the goal of simulating fuel gases and fumes. compounds.csv has no rows for naphtha or white gas (CAS 68410-97-9), n-hexane (the H361 driver in Coleman fuel), pentane, isopentane, cyclohexene, lamp oil (C12-15 alkanes), mineral spirits or Stoddard solvent, isoparaffins, gasoline or diesel, and no flash_point or autoignition column for liquids anywhere in data/chemistry. toxins.csv lacks metal-fume fever (ZnO), polymer-fume fever (PTFE), n-hexane peripheral neuropathy and hydrocarbon aspiration pneumonitis. alloys.csv lacks rows for the materials the research found actually used or stocked for staffs: 6063, 7075-T73, 7068, Grade 9 CWSR titanium, 17-4PH, 201, 410 and 430.",
+   "Research content with no counterpart in the fire staff guide, so omissions rather than conflicts: a hot head re-dipped in lamp oil or kerosene can self-ignite (lamp oil autoignition about 200-216 C) [R/fuel-use.json F21]; blue threadlocker (Loctite 242) lets go at about 250 C [R/heated-fumes.json:385]; cadmium plating is banned above 232 C and yellow chromate zinc may carry Cr(VI) [R/heated-fumes.json:54, :145]; PVC or vinyl wraps give off HCl at 250-350 C [R/heated-fumes.json:341]; storage distances of 10/25/30 ft and the 1-gallon on-site cap (Portland FIR 3.07) [R/fuel-use.json F19]; methanol in US denatured alcohol runs 5-60% [R/fuel-identities.json F24].",
+   "Scope: length-sizing.json and wall-thickness.json in the same research folder were not in the requested list and were not compared, except where aluminium.json general finding 10 (sizing) overlapped. No files were edited, staged or built, and no git state was changed; the only commands run were read-only git log and git show."
+  ]
+ },
+ {
+  "key": "reference-technique",
+  "summary": "EmberGen-class volumetric fire was never built. The repo only names EmberGen as a \"north star\" for future work (C:/Humanity/CLAUDE.md:836; C:/Humanity/docs/history/journal-archive-2026-08.md:14 and :98), and `git log --grep=embergen` returns nothing.\n\nWhat does exist for fire:\n- **A generic particle system.** It draws camera-facing sprites, with a CPU path and a GPU pool that holds one emitter at a time and was built for rain and snow. Its fire, smoke, sparks, explosion and welding definitions exist, but no code ever spawns them.\n- **A fire system with no visuals.** It tracks fuel, spread and damage only.\n- **An AsteroidImpact disaster** whose effect id, \"vfx_asteroid\", nothing reads.\n- **A low-range 8-bit colour target.** The scene renders into an 8-bit sRGB target, each material converts its own brightness to display range, and bloom is built but switched off. Any flame brighter than white gets clipped.\n\n**What a 2030-grade engine would do for dozens of fire props in an MMO: three tiers.**\n- **Tier A, every prop at any distance.** Treat the flame as a trail of burning gas left behind in the air. Emit small \"flame parcels\" continuously along the path the wick travelled during the frame, not in bursts at its end-of-frame position. Colour each parcel from its temperature using the real blackbody colour curve (a precomputed table). Add soot that absorbs light and the thin blue CH*/C2* band at the base. Give each wick one light whose brightness is set from real light output in lumens and which flickers.\n- **Tier B, the nearest 1 to 4 flames.** Run a live GPU fire simulation on a grid anchored in the world around the performer, which stores only the cells that contain fire. NVIDIA Flow is the open reference: it has a combustion model and is BSD-3 licensed since PhysX 5.6 / Flow 2.2. Its airflow pushes the Tier A parcels around.\n- **Tier C, one-off effects such as explosions and impacts.** This is what EmberGen actually is: a GPU fluid solver used to author effects ahead of time, not code that runs inside the game. Its output is baked into animated texture sheets (with motion vectors, emissive and six-way lighting maps), or into OpenVDB volume sequences. The in-game renderer ray-marches those volumes with the machinery the Nubis-style clouds already use.\n\nAll three tiers assume the planned move to a 16-bit linear HDR colour buffer.\n\n**The single most convincing cue for poi and staffs (finding #1):** the flame is a trail of burning vapour left in the air, not a sprite stuck to the wick. The current code spawns a whole frame's particles at the wick's end-of-frame position. At about 10 m/s and 60 fps that breaks a trail into clumps 16.7 cm apart. The biggest cue at mid range (finding #2) is the warm flickering light sweeping over the ground.\n\nNumbers marked as derived estimates must be measured before they go into data. The test rig cannot yet place a burning prop, so a showcase setting for that is a prerequisite for every acceptance test below.",
+  "exists": [
+   {
+    "what": "CPU billboard particle system: emitter definitions loaded from RON, constant gravity, colour and size fading linearly over life, velocity streak stretch, alpha and additive pipelines",
+    "where": "C:/Humanity/src/renderer/particles.rs:1-649 (physics 250-258, spawn at the emitter's end-of-frame position 330-335, linear colour fade 359-375, blend states 626-647); C:/Humanity/data/particles.ron",
+    "state": "working (weather and ambient); partial for fire"
+   },
+   {
+    "what": "GPU particle simulation: a recycling pool that respawns dead slots, one SimParams uniform per pool (one emitter), writes the vertex layout the draw uses; ceiling of 4.19M slots",
+    "where": "C:/Humanity/src/renderer/particles_gpu.rs:1-80, 22-24; C:/Humanity/assets/shaders/particle_sim.wgsl:29-45, 89-117; commits 146c3335, dabed6a2",
+    "state": "working for weather; has no floating-origin shift (no shift/rebase in particles_gpu.rs), unlike the CPU path's shift_all (particles.rs:476-487)"
+   },
+   {
+    "what": "Emitter definitions for fire, smoke, sparks, explosion and welding",
+    "where": "C:/Humanity/data/particles.ron:9-59, 181-197, 215-231. Only leaf_drift, dive_bubbles, space_dust and rain/snow are ever spawned: C:/Humanity/src/lib.rs:3839, 3860, 3921, 4140",
+    "state": "stub (defined but nothing spawns them)"
+   },
+   {
+    "what": "Particle fragment shader: soft round sprite, rgb*(1+emissive), emissive particles exempt from night dimming; no depth fade, no lighting, no flipbook or texture",
+    "where": "C:/Humanity/assets/shaders/particles.wgsl:76-95 (streak billboard 51-66); commit 216c2db1",
+    "state": "working, minimal"
+   },
+   {
+    "what": "Fire gameplay system: fuel burn, spread chance, suppression, 1 hp/s damage; burn behaviours with smoke_production",
+    "where": "C:/Humanity/src/systems/fire.rs:1-169; C:/Humanity/data/fire_system.ron:73-150",
+    "state": "working as logic only; no visual or light hook"
+   },
+   {
+    "what": "MeteorImpact and AsteroidImpact disasters with radius, duration, damage and a vfx_id",
+    "where": "C:/Humanity/src/systems/disasters.rs:36-37, 104-105, 124; vfx_id only stored at 79, 168, 178, 208",
+    "state": "stub for visuals (nothing reads vfx_id)"
+   },
+   {
+    "what": "Forward+ screen-tile light binning: 16x9 tiles, 64 lights per tile, 2048-light ceiling",
+    "where": "C:/Humanity/src/renderer/light_tiles.rs:1-21",
+    "state": "working"
+   },
+   {
+    "what": "Point, spot and LINE (capsule, nearest-point) local lights",
+    "where": "C:/Humanity/src/renderer/light.rs:86-113; the shader's line sentinel is referenced at C:/Humanity/src/renderer/mod.rs:2450",
+    "state": "working; local lights cast no shadows (no shadow code in light.rs); intensity is a non-photometric multiplier (C:/Humanity/data/lighting/light_types.ron:1-23)"
+   },
+   {
+    "what": "Scene render target and tone mapping: off-screen scene texture in the swapchain's 8-bit sRGB format, ACES tone mapping applied inside every PBR fragment",
+    "where": "C:/Humanity/src/renderer/surface.rs:171-194; C:/Humanity/src/renderer/mod.rs:1159-1165, 1192; C:/Humanity/assets/shaders/pbr/80-fragment-shared.wgsl:436-442",
+    "state": "working but LDR (flames clip)"
+   },
+   {
+    "what": "Bloom post-process (threshold, blur, composite)",
+    "where": "C:/Humanity/src/renderer/bloom.rs; default intensity 0.0 at C:/Humanity/src/renderer/mod.rs:2045; dormancy noted at C:/Humanity/src/gui/pages/performance.rs:526-534",
+    "state": "dormant (built, never called)"
+   },
+   {
+    "what": "Linear-HDR endgame: one tone map after all layers, bloom fed real energy",
+    "where": "C:/Humanity/docs/design/environment-program.md:19, 807",
+    "state": "design-only"
+   },
+   {
+    "what": "Volumetric ray-march infrastructure: Nubis-style clouds, precomputed 3D noise, light march",
+    "where": "C:/Humanity/src/renderer/cloud_noise.rs; C:/Humanity/assets/shaders/pbr/40-clouds.wgsl; commit 1f9faa40 (v0.822.0)",
+    "state": "working for clouds; reusable for a fire and smoke volume march"
+   },
+   {
+    "what": "Blackbody-ish colour function (piecewise B-V colour index to RGB for stars)",
+    "where": "C:/Humanity/src/renderer/stars.rs:2285-2310",
+    "state": "partial (piecewise approximation, not a Planck x CIE integral; no absolute radiance)"
+   },
+   {
+    "what": "Depth texture created with TEXTURE_BINDING, so particles can sample scene depth cheaply",
+    "where": "C:/Humanity/src/renderer/surface.rs:196-217",
+    "state": "working (not used by particles)"
+   },
+   {
+    "what": "EmberGen named as the target standard for volumetric effects",
+    "where": "C:/Humanity/CLAUDE.md:836; C:/Humanity/docs/history/journal-archive-2026-08.md:14, 98",
+    "state": "design-only (never implemented)"
+   },
+   {
+    "what": "Fire staff Library guide with sourced flame temperatures, soot and radiance by fuel, community burn times and wick-wear signal",
+    "where": "C:/Humanity/docs/user/making/fire_staff_materials.md:80-86, 117-129, 232-235; commits 1a6382f3, a0f481f5",
+    "state": "working (reference data a renderer can be held to)"
+   },
+   {
+    "what": "Fuel compounds (kerosene, methanol, ethanol, isopropanol)",
+    "where": "C:/Humanity/data/chemistry/compounds.csv (header has no heat-of-combustion, soot-yield, smoke-point or H/C columns)",
+    "state": "partial"
+   },
+   {
+    "what": "Visual probe rig with night vantages (desert-night, silverdale-osm-night, home-clock-night)",
+    "where": "C:/Humanity/tests/visual/vantages.json (418 vantages; showcase settings are time, sea, weather, cloud_*, wind, lights_tiled and gpu_precip only)",
+    "state": "working; cannot place, light or spin a prop"
+   }
+  ],
+  "gaps": [
+   "#1 THE FLAME IS A TRAIL LEFT IN THE AIR, NOT A SPRITE ON THE WICK (0.5-30 m; medium cost, the top cue for poi and staffs). MISSING CUE: a moving fire prop reads fake when its flame is glued to the wick, either standing upright or breaking into a string of blobs. Real flames lie as a continuous tapering tongue along the wick's recent path. REAL BEHAVIOUR: fuel vapour leaves the wick and burns where it was released. A staff tip or poi head at about 2 rev/s on a 0.7-0.8 m radius moves at about 9-13 m/s (derived estimate). That swamps the flame's buoyant rise of about 1-2 m/s, so the glowing region lies along the path and fades as the vapour burns out. With the prop stationary, the same vapour rises into a teardrop. Heskestad's correlation L = 0.235 Q^(2/5) - 1.02 D gives about 0.3 m for a 5 cm wick at about 2.5 kW (derived: roughly 25 mL of kerosene over the guide's community figure of about 5 min burn). The flame puffs at f of about 1.5/sqrt(D), which is 5-7 Hz (Cetegen & Ahmed 1993 D^-1/2 scaling; the same fit gives about 15 Hz for a 1 cm candle). WHY IT BREAKS TODAY: C:/Humanity/src/renderer/particles.rs:330-335 and C:/Humanity/assets/shaders/particle_sim.wgsl:108 spawn a frame's particles at the emitter's end-of-frame position. At 10 m/s and 60 fps that is a clump every 16.7 cm, 2-3 flame widths apart, and even 144 Hz leaves 7 cm steps. TECHNIQUE: Lagrangian flame parcels. (a) Store each wick's previous and current world position (or angular velocity, for an exact arc). Spread each frame's emission along that sub-frame path and pre-age every parcel by its sub-frame offset. This alone removes the beads. (b) Each parcel carries temperature and soot mass. Velocity relaxes toward the local air velocity (drag, instead of the constant gravity at particles.rs:250-258), plus buoyancy proportional to (T-Ta)/Ta. Add curl-noise turbulence (Bridson, Hourihan and Nordenstam, SIGGRAPH 2007) sampled from a small precomputed 3D noise; the cloud noise machinery exists. Burnout time shortens as relative air speed rises (calibrate). (c) Shade from temperature. A blackbody lookup table built by integrating Planck against the CIE 1931 colour-matching functions into linear sRGB (Nguyen, Fedkiw and Jensen, SIGGRAPH 2002; Pegoraro and Parker, EG Natural Phenomena 2006, which adds per-fuel spectra and soot) replaces the linear colour_start to colour_end fade. Soot must absorb as well as emit, so flames need a premultiplied blend (emission + dst x transmittance) beside the pure alpha and additive states at particles.rs:626-647. Add a thin blue CH* 431 nm / C2* 516 nm band where vapour first meets air at the wick. Fuel choice (soot, colour, burn time) comes from data rows, never code. (d) Floating origin: world-anchored parcels need the GPU pool to take a rebase shift. The CPU path has one (particles.rs:476-487); the GPU pool does not. COST: one increment. It needs a trail emitter mode with a per-emitter parameter array (the GPU sim has one SimParams, particle_sim.wgsl:29-45), a flame fragment path and the blackbody table. 50 props at about 300 parcels is about 15k particles, trivial against the 4.19M-slot ceiling (particles_gpu.rs:22-24). ACCEPTANCE, new vantage firestaff-night-4m (22:00, grass, staff spinning 2 rev/s square to the camera, kerosene). EXPECT: \"Each wick trails a continuous tapering tongue of flame roughly a quarter turn of arc (0.3-1 m) behind it: near-white-yellow at the wick, deepening through orange to a dull red thin tail, with a faint blue edge at the wick itself; nowhere near a full circle.\" REGRESSIONS: \"no string-of-beads: the trail must not break into blobs spaced one frame of travel apart (end-of-frame spawn clumping)\"; \"no full-circle rings of fire (that is a long-exposure photograph, not what the eye sees)\"; \"no flame standing upright above a wick moving at speed (flame emitted in prop-local space)\". Static companion firestaff-static-1m (spin 0). EXPECT: \"one upright teardrop flame about 25-35 cm tall that visibly flickers several times a second\". Measured gate: a 64-frame luminance series of the flame has its spectral peak between 3.5 and 10 Hz for a 5 cm wick.",
+   "#2 THE FLAME'S OWN LIGHT, MOVING, WARM, FLICKERING, CASTING THE PERFORMER'S SHADOW (1-50 m; the main cue beyond about 10 m; small cost for the lights, medium for shadows). MISSING CUE: from mid range a fire performer is read mostly from the warm pool of light sweeping over the ground and body, and the shadow swinging opposite the prop. A flame with no light, or a steady light, reads as a sticker. REAL BEHAVIOUR: a sooty flame's colour temperature is about 1850-1950 K (candle measurements run 1847-2626 K, 1914 K at the brightest point). A candle releases about 77 +/- 9 W of heat for about 12.6 lm (0.1-0.17 lm/W). Scaled to a roughly 2.5 kW wick, that is about 250-400 lm, like a 25-40 W incandescent bulb (derived estimate: verify with a lux meter at 1 m from a lit wick before putting it in data). Brightness flickers at the puffing frequency, and the source sweeps at about 10 m/s. TECHNIQUE: one light per wick, packed as the existing capsule LINE light (C:/Humanity/src/renderer/light.rs:104-113) from last frame's wick position to this frame's. The ground then shows the frame's swept emission as a smear instead of a point jumping 15 cm per frame. Intensity comes in lumens from the fuel row, colour from the same blackbody table. Luminance follows the parcel system's summed emission, so flicker is caused by the flame, not a separate random number. Forward+ already bins 2048 lights (C:/Humanity/src/renderer/light_tiles.rs:1-21), so dozens of props are affordable. SHADOWS: local lights cast none today. The 2030 answer is ReSTIR direct lighting (Bitterli et al., SIGGRAPH 2020) with ray-query shadow rays. wgpu exposes EXPERIMENTAL_RAY_QUERY: full on Vulkan, passthrough on DX12 and Metal, flagged as liable to breaking changes; the repo is on wgpu 24 (C:/Humanity/Cargo.toml:33). A rung that belongs to that architecture: screen-space contact shadows toward the 1-2 nearest flame lights (Bend Studio's Apache-2.0 code), plus one low-resolution cube shadow for the nearest performer. ACCEPTANCE, new vantage firepoi-night-10m (a performer with two poi, 22:00). EXPECT: \"A warm orange pool lights the ground and the performer, visibly brighter on the side the poi are currently on, and the performer's shadow swings away from the flames.\" REGRESSIONS: \"no light pool that stays centred on the performer while the flames swing (light parented to the body)\"; \"no neutral or white flame light (must read about 1900 K warm)\"; \"no steady unflickering flame light\". Measured: ground-pixel chromaticity under the pool sits at 1700-2100 K CCT.",
+   "#3 A 16-BIT LINEAR HDR BUFFER BEFORE ANY FLAME CAN READ AS LIGHT (all ranges at night; decisive past about 20 m, where the flame is a few pixels and its glare IS its size; large cost, already planned). MISSING CUE: no near-white bleached core with a coloured falloff and a glare halo, and two overlapping flames are no brighter than one. REAL BEHAVIOUR: a flame's luminance is thousands of cd/m^2 (derived: a candle is about 1 cd from about 2.5 cm^2 of projected area, about 4000 cd/m^2) against a night scene at 10^-3 to 1 cd/m^2. Eye and camera both saturate the core toward white and spread veiling glare around it. WHY IT BREAKS TODAY: the scene target is the 8-bit sRGB swapchain format (C:/Humanity/src/renderer/surface.rs:171-194; C:/Humanity/src/renderer/mod.rs:1159-1165). Every PBR material tone-maps itself (C:/Humanity/assets/shaders/pbr/80-fragment-shared.wgsl:436-442). The particle shader writes rgb*(1+emissive) with no tone map into that 8-bit target (C:/Humanity/assets/shaders/particles.wgsl:92-94), so the fire, sparks, explosion and welding emissive values of 3-10 (C:/Humanity/data/particles.ron:23, 57, 195, 229) clip. Bloom exists but is never called (mod.rs:2045; C:/Humanity/src/gui/pages/performance.rs:526-534). TECHNIQUE: an Rgba16Float scene-referred target, one tone map after every layer, and bloom as energy-conserving glare. Use a multi-mip bloom like Jimenez's 'Next Generation Post Processing in Call of Duty: Advanced Warfare' (SIGGRAPH 2014), not a threshold. This is W5 of C:/Humanity/docs/design/environment-program.md:807, which says layers cannot be converted piecemeal. Fire work is gated on it: either pull that increment forward or accept that fire is judged on shape only until it lands. ACCEPTANCE (firestaff-night-4m and firepoi-night-10m). EXPECT: \"Flame cores render near-white-yellow with a smooth orange-to-red falloff and a soft glow halo that widens with brightness; where two flames cross, the overlap is visibly brighter.\" REGRESSIONS: \"no hard-edged flat clipped-yellow flame discs\"; \"no glow halo around non-emissive surfaces (bloom threshold or energy leak)\".",
+   "#4 THE SPINNING PROP BODY NEEDS MOTION BLUR FOR ONE FRAME'S EXPOSURE, NOT A LONG EXPOSURE (1-20 m; medium-large cost for a velocity buffer, small for an exact analytic rung). MISSING CUE: a staff at 2 rev/s is drawn as a crisp stick jumping between poses. The eye sees a translucent blurred disc with a solid grip at the hub. REAL BEHAVIOUR: the tip moves about 9 m/s, which is about 15 cm per 60 Hz frame. The eye sums light over roughly 50-100 ms (Bloch's-law critical duration). A camera sums over its shutter; long-exposure photos (1/2 s and up) show the full circles people associate with fire poi. Displays add judder until about 250 fps (Kuroki et al., JSID 2007), and phantom-array doubling appears during eye movement across moving sampled lights. THE PHYSICALLY RIGHT TARGET: render what a camera with shutter about equal to the frame time sees, plus the real vapour trail (#1). Do NOT add retinal persistence on top, because the viewer's own eye integrates the screen. The one caveat: a display is far dimmer than a real flame, so the retina's own trail is shorter than in life. Restoring it is a taste call for the operator. TECHNIQUE: a per-object velocity buffer plus a reconstruction filter (McGuire, Hennessy, Bukowski and Osman, I3D 2012; Jimenez 2014). The engine has no motion vectors, TAA or motion blur (none found in C:/Humanity/src). A cheap rung that is exact for rigid rotation: draw the spinning prop as K sub-frame instances (K = angular travel / about 5 degrees) at 1/K weight. ACCEPTANCE (firestaff-night-4m). EXPECT: \"The spinning shaft reads as a translucent blurred disc with the grip solid at its centre and the flames at its rim.\" REGRESSIONS: \"no crisp multiple copies of the shaft (too few sub-frame instances)\"; \"no smear on the static background while the camera is still\".",
+   "#5 SMOKE AMOUNT AND COLOUR FROM THE FUEL; SMOKE THAT FADES INTO GEOMETRY AND IS LIT FROM WITHIN (0.5-20 m; small cost for depth fade and fuel data, medium for six-way or froxel lighting). MISSING CUE: every fire gets the same grey puffs (C:/Humanity/data/particles.ron:26-42) with hard edges where sprites meet the ground or body. Real smoke colour and quantity follow the fuel, and near a flame the smoke is lit from inside and below. REAL BEHAVIOUR: flame smoke's specific extinction is about 8.7 m^2/g at 633 nm (Mulholland and Croarkin, Fire and Materials 2000). Fresh soot is strongly absorbing, with a mass absorption cross-section of 7.5 +/- 1.2 m^2/g at 550 nm (Bond and Bergstrom 2006), so it is black-brown, not grey. The repo's own guide: kerosene soots heavily, camp fuel is cleaner and bluer, alcohol hardly soots and is hard to see (C:/Humanity/docs/user/making/fire_staff_materials.md:117-123). Derived estimate: a 2.5 kW kerosene wick at a few-percent soot yield sheds a few mg/s. That gives optical depth of about 0.1-0.3 across the tail within about 0.5 m, diluting out within about 1 m (verify). White smoke is condensed water or fuel/wax vapour, for example after dousing a wick or the relightable white smoke of a snuffed candle. TECHNIQUE: smoke parcels continue from the flame parcels, inheriting soot mass as T drops. Extinction = soot mass x 8.7 m^2/g, with low albedo for fresh soot. Soft particles fade by scene depth (Lorach, NVIDIA 2007); the depth texture already allows sampling (C:/Humanity/src/renderer/surface.rs:211-212). Lighting: six-way lightmaps for baked puffs (Unity, 'Realistic smoke lighting with 6-way lighting', 2023; EmberGen exports these), or froxel injection (Hillaire, 'Physically Based and Unified Volumetric Rendering in Frostbite', SIGGRAPH 2015) for volumetric smoke with shadows. DATA: add heat_of_combustion, soot_yield (Tewarson's SFPE tables, looked up and cited, not recalled), smoke_point and H/C to C:/Humanity/data/chemistry/compounds.csv, with sources in data/sources/registry.json. ACCEPTANCE, new vantage firestaff-static-dusk-1m (kerosene, then a methanol A/B). EXPECT: \"Thin black-brown smoke wisps peel off the flame tips and thin to nothing within about a metre; on methanol the flame is a nearly invisible pale blue with no smoke and a much dimmer light pool.\" REGRESSIONS: \"no hard straight cut lines where smoke or flame sprites meet the ground or the body (missing depth fade)\"; \"no grey fog-ball smoke on a clean-burning fuel\".",
+   "#6 EMBERS AND SPARKS: DRAG, UPDRAFT AND COOLING COLOUR (1-30 m; small cost; matters most for campfires, forges, grinding and impacts; fire props shed few). MISSING CUE: sparks follow constant-gravity parabolas and fade colour linearly (C:/Humanity/src/renderer/particles.rs:255-256, 359-367). Real embers are carried by the plume, and they dim red-ward and vanish as they cool. REAL BEHAVIOUR: small particles reach terminal velocity within milliseconds and ride the updraft. Incandescent colour is blackbody, first dull red near 800 K. Radiated brightness falls with T^4, so cooling embers darken quickly. High-carbon steel sparks burst into branching stars, which is metallurgical spark testing and a genuine teaching cue. Real fire-prop specific: an overloaded wick flings burning fuel droplets off on a tangent, the reason spinners do a 'fuel dump' before lighting. TECHNIQUE: per-particle temperature and mass; quadratic drag toward the shared air-velocity field; emission from the same blackbody table with Stefan-Boltzmann scaling; an optional data-driven burst event for steel. ACCEPTANCE (campfire or forge vantage, or the firestaff tail). EXPECT: \"Embers rise and swirl with the smoke, glowing orange, dimming through dull red and vanishing as they cool.\" REGRESSIONS: \"no embers flying straight ballistic parabolas inside a plume\"; \"no sparks holding full brightness until they pop out\".",
+   "#7 THE PROP ITSELF: REAL DIMENSIONS, WOVEN ARAMID WICK, CHAR STATE (0.3-3 m; small-medium cost). MISSING CUE: no flow-arts props exist at all. C:/Humanity/data/items.csv has only candle_0 (line 464) and lantern_oil_0 (line 467). Close up, the prop sells itself through its materials. REAL BEHAVIOUR (repo guide, C:/Humanity/docs/user/making/fire_staff_materials.md:187-235): wick tape is an aramid (Kevlar/Nomex) blend with fibreglass. The aramid sheath chars away first, and 'white showing through yellow is your replacement signal'. Shafts are aluminium or hardwood with metal flashing at the ends. TECHNIQUE: prop definitions as data rows with real dimensions (staff shaft length and diameter, wick width and thickness, poi chain length and handles). The wick uses an anisotropic woven-fibre normal and BRDF and a char parameter driven by accumulated burn time from the fire system (C:/Humanity/src/systems/fire.rs already tracks fuel_remaining). Fibres at the flame edge glow by temperature. ACCEPTANCE, new vantage firestaff-wick-closeup-0.5m (unlit, worn wick). EXPECT: \"The wick reads as a coiled woven tape, yellow-tan where fresh, charred brown-black on the outer wraps, with white fibreglass showing through at the worn edges.\" REGRESSIONS: \"no uniform flat-yellow wick\"; \"no wick with no char after long burn time\".",
+   "#8 HEAT HAZE (0.5-10 m; small-medium cost; physically subtle for props, larger for campfires and explosions). MISSING CUE: background edges above and behind the flame do not shimmer. REAL BEHAVIOUR: by the Gladstone-Dale relation (refractivity proportional to air density), air at 600 K has about half the refractivity of ambient air. Derived estimate: a 5-10 cm prop plume bends rays by about 10^-3 rad, roughly one pixel at 1080p with a 60 degree field of view. A campfire plume bends them by several pixels. The shimmer shows only against textured backgrounds, grows with the background's distance from the plume, and is invisible against open sky (schlieren principle; Settles, 'Schlieren and Shadowgraph Techniques', 2001). TECHNIQUE: copy scene colour before the transparent draw, then have distortion sprites riding the hot parcels offset the UVs by a curl-noise normal scaled by temperature (Sousa, 'Generic Refraction Simulation', GPU Gems 2 ch. 19, 2005). ACCEPTANCE (firestaff-static-dusk-1m, with a fence or wall behind). EXPECT: \"Straight edges seen just above the flame wobble by about a pixel, flickering with the flame.\" REGRESSIONS: \"no shimmer against open sky\"; \"no whole-screen wobble\"; \"no distortion applied to the flame's own pixels in front of the plume\".",
+   "#9 THE EMBERGEN-CLASS TIERS: A LIVE GRID SIMULATION FOR THE NEAREST FLAMES, AND BAKED VOLUMES FOR ONE-OFF EFFECTS (large cost). MISSING CUE: particle flames lack the vortex shedding, curling and tearing that a real fluid produces; explosions need rolling, self-shadowed fireballs. REAL BEHAVIOUR: puffing is a buoyant instability in which a ring-shaped vortex forms just above the fuel (Cetegen and Ahmed 1993). TECHNIQUE, TIER B (within about 10 m, the 1-4 nearest sources): a GPU combustion simulation on a grid anchored in the world around the performer that stores only occupied cells. NVIDIA Flow 2.2 is the open reference (real-time sparse-voxel fluid simulation 'that includes a combustion model'; HLSL compute; BSD-3 since PhysX 5.6, April 2025), so it can be ported to WGSL rather than reinvented. Foundations: Stam's 'Stable Fluids' (1999); Fedkiw, Stam and Jensen's vorticity confinement (2001); Kim et al.'s wavelet turbulence for extra detail (2008); Crane, Llamas and Tariq, GPU Gems 3 ch. 30 (fire and smoke on the GPU). Its airflow moves the Tier A parcels, and its temperature and soot grids can be ray-marched with the Nubis cloud machinery (commit 1f9faa40). Derived cost estimate: about 1 ms per 64^3 domain at 3 cm cells on the RTX 4070, to be measured with the rig. TIER C (authored one-shots at any distance): run the same solver offline, then bake either animated texture sheets with motion vectors (Klemen Lozar's frame blending, a variation of Guerrilla's Killzone 2 technique) plus emissive and six-way lighting maps, or sparse volume sequences (OpenVDB, or NanoVDB for the GPU). Unreal Engine 5.3's Sparse Volume Textures, which import VDB sequences, are the industry precedent. ACCEPTANCE (hero close-up of a static staff or campfire). EXPECT: \"The flame surface tears into curling tongues that roll upward and pinch off in pulses several times a second.\" REGRESSIONS: \"no visible voxel stair-steps or box edge where the simulation domain ends\"; \"no loop seam or pop in a baked sheet or volume\".",
+   "#10 ASTEROID IMPACT, DRIVEN BY REAL IMPACT PHYSICS (secondary; large cost; ranges from 100 m to orbit). MISSING CUE: nothing renders (vfx_asteroid is unused, C:/Humanity/src/systems/disasters.rs:105). REAL CUES IN ORDER: (1) Entry: a bolide brighter than the Sun and a persistent dust trail lit by sunlight and twisted by winds. At Chelyabinsk the shock wave reached Korkino 87.5 s after peak brightness, so at distance the flash always precedes the boom by distance/343 m/s. (2) Contact: a vapour plume fireball that rises and expands. Beyond the curvature horizon it cannot be seen (Collins, Melosh and Marcus 2005). (3) Air blast: a hemispherical shock whose passage lifts a skirt of dust and, in humid air, a brief condensation shell. (4) Ejecta curtain: an inverted cone thrown out at about 45 degrees that sweeps outward across the ground. Material from farther out launches later and slower and lands nearer the rim. Ejecta blanket thickness falls roughly as distance^-3 (McGetchin et al. 1973, used by Collins et al.), with rays and secondary craters. Oblique impacts throw lopsided ejecta. In space, DART's plume on Dimorphos was a cone with a 140 +/- 4 degree opening, full of filaments and boulders, blue near the asteroid and redder farther out (LICIACube, Nature 2024). (5) Crater: a bowl that forms and then partly collapses. Small impacts leave simple bowls; larger ones leave complex craters with central peaks and terraces. (6) Aftermath: a rising dust column, and fires started by the heat pulse near the site. TECHNIQUE: compute sizes and timings from the Earth Impact Effects Program equations (inputs are diameter, density, velocity, angle, target type and distance), with baked Tier C volumes for the fireball and plume, GPU particle ejecta for the curtain, and terrain deformation for the crater. ACCEPTANCE, new vantage impact-300m-20km (a 300 m stony impactor at 20 km/s, viewer 20 km away). EXPECT: \"A flash lights the horizon first; a rising fireball and an inverted-cone curtain of ejecta spread from the site; the air-blast dust skirt and the sound arrive about a minute later (20 km / 343 m/s = 58 s).\" REGRESSIONS: \"no simultaneous flash and boom at distance\"; \"no spherical particle burst instead of an inverted-cone ejecta curtain\"; \"crater and fireball sizes must match the Earth Impact Effects Program for the same inputs within 20 percent\".",
+   "RIG PREREQUISITE (small cost; blocks verifying all of the above): the probe rig's showcase settings cannot place, light or spin a prop, and there is no capture of consecutive frames at a fixed time step. The showcase settings are time, sea, weather, cloud_*, wind, lights_tiled and gpu_precip (C:/Humanity/tests/visual/vantages.json). Add a data-driven showcase entry such as fire_prop {kind, fuel, spin_rps, radius_m, plane, lit_s} and an N-frame capture at a fixed dt. The flicker-frequency, light-CCT and trail-length gates depend on them. A single PNG can already show the string-of-beads defect, because end-of-frame clumping is spatial within one frame."
+  ],
+  "notes": [
+   "CORRECTION FOR THE OPERATOR, in plain terms: the belief that EmberGen-like functionality was added 'forever ago' is not borne out by the repo. EmberGen appears only as the named target for future volumetric effects (C:/Humanity/CLAUDE.md:836; C:/Humanity/docs/history/journal-archive-2026-08.md:14 and :98), and `git log -i --grep=embergen` returns no commits. The only fire-looking pieces are sprite particle definitions that no code spawns (C:/Humanity/data/particles.ron:9-59, 181-231).",
+   "WHAT EMBERGEN ACTUALLY IS (JangaFX, checked 2026-09-24): an authoring tool whose GPU solver runs in real time for the artist while designing, then exports image sequences and flipbooks (EXR/PNG/TGA) with channels including final render, motion vectors, 6-point lighting, normals and depth, plus VDB volumes. The product page says nothing about a runtime or SDK for running the simulation inside a shipped game, so it is a bake tool. A search snippet attributes to JangaFX the claim that 'a 6 GiB GPU can simulate up to 200 million active (sparse) voxels'; the page was not reachable (HTTP 401), so treat that as unverified. Licensing EmberGen as an authoring tool would be the operator's decision. The repo rule is to use public techniques, never proprietary code or assets. NVIDIA Flow (BSD-3) is the open solver to learn from or port.",
+   "MMO FEASIBILITY, dozens of props: Tier A (flame parcels, one light each) scales to every visible prop. Tier B (live grid simulation) is affordable only for the 1-4 nearest sources. Tier C (baked volumes and sheets) costs nothing to simulate at run time and is for authored one-shots. A single shared, low-resolution air-velocity field around the camera that every flame, smoke plume and ember reads is what makes a gust bend all of them together (the motion-coherence cue). It serves weather, leaves and dust as well.",
+   "EYE VERSUS CAMERA, the subtle point behind #1 and #4: photos of fire poi usually show full circles because of long exposures; the naked eye sees roughly 0.3-1 m arcs, which is the physical vapour trail plus the retina's roughly 50-100 ms integration. The game should draw the physical trail plus one frame's motion blur and let the viewer's eye add its own persistence. Whether to add a short extra 'retinal' trail, to make up for a display being far dimmer than a real flame, is a TASTE CALL for the operator, not a physics answer.",
+   "GASES YOU CANNOT SEE: combustion makes CO2, water vapour and CO, all invisible. Realism says do not draw them. Visible products are soot (black), and condensed water or fuel/wax aerosol (white, for example when dousing a wick). For the education and MMO depth the operator wants, an optional analysis view (a thermal-camera look or a gas-concentration overlay from the same parcel data) teaches without faking the normal view. That is a design/taste call for the operator. Coloured-fire additives used in fire performance emit narrow spectral lines, not a blackbody curve, so if supported they need a per-additive line-colour term from data, never a tint.",
+   "SODIUM CUE: dust, sweat or salt on a wick adds the 589 nm sodium line and pushes the flame more orange. It is a small but true cue; the same line-colour term covers it.",
+   "DERIVED NUMBERS TO MEASURE BEFORE THEY BECOME DATA: wick heat release about 2.5 kW (from an assumed 25 mL soak and the guide's community burn times); light output 250-400 lm; prop speed 9-13 m/s; flame tail 0.3-1 m; smoke optical depth 0.1-0.3; heat-haze deflection about 10^-3 rad; Tier B cost about 1 ms per 64^3 domain. Each can be calibrated from a 240 fps phone video of a real staff (count frames for trail length and flicker) plus a lux meter reading at 1 m.",
+   "SOUND belongs to the audio lane, not rendering. The fire-prop 'whoosh' is turbulent combustion noise that rises with speed, and the impact's delayed boom is covered in #10. Both are strong realism cues worth a separate audio pass.",
+   "REFERENCES (fire): Nguyen, Fedkiw and Jensen, 'Physically Based Modeling and Animation of Fire', SIGGRAPH 2002. Pegoraro and Parker, 'Physically-Based Realistic Fire Rendering', EG Natural Phenomena 2006, https://www.sci.utah.edu/~vpegorar/research/2006_EGWNP.pdf. Stam, 'Stable Fluids', SIGGRAPH 1999. Fedkiw, Stam and Jensen, 'Visual Simulation of Smoke', SIGGRAPH 2001. Bridson, Hourihan and Nordenstam, 'Curl-Noise for Procedural Fluid Flow', SIGGRAPH 2007. Kim, Thuerey, James and Gross, 'Wavelet Turbulence for Fluid Simulation', SIGGRAPH 2008. Crane, Llamas and Tariq, GPU Gems 3 ch. 30, 2007. NVIDIA Flow docs, https://nvidia-omniverse.github.io/PhysX/flow/Overview.html, and the open-sourcing note, https://github.com/NVIDIA-Omniverse/PhysX/discussions/384. EmberGen, https://jangafx.com/software/embergen, and VDB export, https://docs.jangafx.com/embergen/pages/references/How-To%20Guides/exportVDB.html. Unity six-way smoke lighting, https://unity.com/blog/engine-platform/realistic-smoke-with-6-way-lighting-in-vfx-graph. Lozar, frame blending with motion vectors, https://www.klemenlozar.com/frame-blending-with-motion-vectors/. UE Sparse Volume Textures, https://dev.epicgames.com/documentation/en-us/unreal-engine/sparse-volume-textures-in-unreal-engine. Hillaire 2015 Frostbite volumetrics, https://www.ea.com/frostbite/news/physically-based-unified-volumetric-rendering-in-frostbite. Lorach, 'Soft Particles', NVIDIA 2007. Sousa, GPU Gems 2 ch. 19, 2005.",
+   "REFERENCES (light, motion, perception): McGuire et al., 'A Reconstruction Filter for Plausible Motion Blur', I3D 2012, https://casual-effects.com/research/McGuire2012Blur/McGuire12Blur.pdf. Jimenez, SIGGRAPH 2014, https://www.iryoku.com/next-generation-post-processing-in-call-of-duty-advanced-warfare/. Bitterli et al., 'Spatiotemporal Reservoir Resampling' (ReSTIR), SIGGRAPH 2020. Bend Studio screen-space shadows, https://www.bendstudio.com/blog/inside-bend-screen-space-shadows/. wgpu ray tracing spec, https://github.com/gfx-rs/wgpu/blob/trunk/docs/api-specs/ray_tracing.md. Kuroki et al., JSID 2007, https://sid.onlinelibrary.wiley.com/doi/abs/10.1889/1.2451560. Bloch's law and temporal resolution (Webvision), https://www.ncbi.nlm.nih.gov/books/NBK11559/. Phantom array effect, https://www.nature.com/articles/s41598-023-38477-z.",
+   "REFERENCES (combustion data): Heskestad flame height (SFPE Handbook; NIST flame-height report https://tsapps.nist.gov/publication/get_pdf.cfm?pub_id=905896). Cetegen and Ahmed 1993, https://www.sciencedirect.com/science/article/abs/pii/001021809390090P. Mulholland and Croarkin 2000, https://onlinelibrary.wiley.com/doi/abs/10.1002/1099-1018(200009/10)24:5%3C227::AID-FAM742%3E3.0.CO;2-9. Bond and Bergstrom 2006, https://www.tandfonline.com/doi/abs/10.1080/02786820500421521. CH* and C2 Swan-band flame spectra, https://stevesopenlab.org/bunsen-burner-swan-bands-the-dicarbon-enigma/. Candle CCT figure, https://www.researchgate.net/figure/Candle-shows-different-color-temperatures-CTs-at-different-positions-inside-the-flame_fig1_261761189. Settles, 'Schlieren and Shadowgraph Techniques', Springer 2001.",
+   "REFERENCES (impact): Collins, Melosh and Marcus 2005, https://onlinelibrary.wiley.com/doi/abs/10.1111/j.1945-5100.2005.tb00157.x. The Imperial College PDF mirror returned 404 on 2026-09-24, but the live calculator at https://impact.ese.ic.ac.uk/cgi-bin/crater.cgi is a usable oracle. Melosh, 'Impact Cratering: A Geologic Process', 1989 (ch. 6, https://geosci.uchicago.edu/~kite/doc/Melosh_ch_6.pdf). Chelyabinsk overview, https://en.wikipedia.org/wiki/Chelyabinsk_meteor, and the 87.5 s delay per the shockwave analyses indexed at https://ui.adsabs.harvard.edu/abs/2014acm..conf..427P/abstract. DART and LICIACube, https://www.nature.com/articles/s41586-023-06998-2.",
+   "REPO CONSTRAINTS FOR WHOEVER IMPLEMENTS: fire parcels must live in floating-origin render space, and the GPU pool needs a rebase shift that it lacks today. A new flame branch in the PBR megashader would have to follow the PSO-class and override-switch rules in CLAUDE.md, although a separate particle pipeline, as today, avoids the megashader entirely. Fuel, prop and effect definitions belong in data files (the infinite-of-X rule). Every renderer change must pass world entry in the probe rig. Only one GPU rig may run at a time."
+  ]
+ }
+]

@@ -1,0 +1,676 @@
+{
+ "summary_answer": "Short answer, as of 2026-09-24: \"naphtha\" is the name of a whole family of light petroleum cuts. Camp fuel / white gas / Coleman fuel is one member of that family: a very light, very volatile blend. Coleman's own safety data sheet (SDS, 2022) gives its flash point as below -18 °C (0 °F). It is mostly CAS 68410-97-9 (a light hydrotreated distillate), plus pentane, isopentane and cyclohexene at 5-10% each and n-hexane at 1-5%.\n\nSo the \"naphtha\" sold in the US paint aisle is NOT the same as camp fuel. That product is VM&P naphtha: Klean-Strip VM&P is 95-100% CAS 64742-49-0, flash point 69 °F (about 21 °C), and it is sold as a paint thinner. NIOSH gives VM&P naphtha a flash point of 20-55 °F. Both are naphthas, but they have different boiling ranges and flash points.\n\n**Other camp-fuel-type products:**\n- **Wick lighter fluid is the closest relative.** Zippo fluid (EU SDS, 2022) is 50-100% the same CAS 68410-97-9 as Coleman, with flash point below -6.5 °C.\n- **Ronsonol runs heavier.** Its EU SDS (2018) describes C7-C9 hydrocarbons, CAS 64742-49-0, boiling 90-165 °C, flash point 2 °C.\n- **Crown Camp Fuel** had the same main CAS as Coleman on its 2001 MSDS. Its current formula was not verified.\n- **Australia's Shellite** is the local camp-fuel equivalent, but brands differ. Diggers/Recochem (2022) is 100% CAS 64742-89-8 with up to 30% n-hexane and flash point -30 °C. Hunter's (2021) is a heptane / cyclohexane / n-hexane blend with flash point -15 °C.\n- **MSR SuperFuel** is sold as refined \"white gas\" with no dyes or additives. No SDS was found, so its composition is unverified.\n- Historically, \"white gas\" meant additive-free gasoline, which is not what it means today.\n\n**Kerosene and the fuels near it:**\n- **Kerosene** (CAS 8008-20-6; ASTM D3699 grades 1-K and 2-K) must have a flash point of at least 38 °C (100 °F). Grade 1-K allows at most 0.04% sulfur; grade 2-K allows at most 0.30%.\n- **UK and South African \"paraffin\"** is kerosene.\n- **UK \"liquid paraffin\"** is medicinal mineral oil (a laxative), not a fuel.\n- **Jet A / Jet A-1** are kerosene-type fuels with flash point above 38 °C, plus additives.\n- **US lamp oil** is usually a more refined straight-chain hydrocarbon oil with a much higher flash point than kerosene. Firefly (2023) is C12-15 alkanes, flash point 83.5 °C. Lamplight Ultra-Pure (2007) is C5-20 paraffins, flash point 97 °C.\n- **Klean-Heat** is sold as a \"kerosene alternative\": CAS 64742-47-8, flash point 152 °F.\n- Klean-Strip's now-discontinued \"1-K Kerosene\" SDS listed its main ingredient as Stoddard solvent (mineral spirits).\n\n**Solvents and torch fuel:**\n- **Isopar** grades are synthetic isoparaffins. ExxonMobil's minimum flash points are: G 40 °C, H 49 °C, K 49 °C, L 62 °C, M 93.5 °C, V 118 °C.\n- **ShellSol D60** is a de-aromatized (aromatics removed) C10-C13 fluid, flash point 66 °C.\n- **Mineral spirits / Stoddard solvent / white spirit** have a flash point of about 102-110 °F per NIOSH. White spirit comes in low-, regular- and high-flash grades.\n- **TIKI citronella torch fuel** is hydrotreated distillates, flash point 62.8-135 °C.\n- **TIKI Clean Burn** is methyl esters (a biodiesel-type fuel), flash point above 93.9 °C.\n\n**Alcohols, gasoline, diesel and gels:**\n- **Alcohols** have flash points of about 52-55 °F. US \"denatured alcohol\" can be 5-60% methanol (Klean-Strip), which is toxic through skin and by inhalation. Methanol burns with a flame that is invisible in daylight.\n- **Gasoline** has a flash point of -45 °F.\n- **No. 2 diesel** has a flash point of 126-152 °F (Sinclair SDS). That SDS classifies it as a Category 2 carcinogen.\n- **Gel fuels** like Sterno canned heat are gelled denatured alcohol.\n\n**The same CAS number does not mean the same fuel.** The same numbers turn up on products with very different flash points:\n- CAS 64742-49-0 is on products from below -18 °C to about 21 °C.\n- CAS 64742-47-8 is on products from about 41 °C to 135 °C.\n\nAlways compare the SDS flash point and boiling range, not just the name or the CAS number.\n\n**Regional names:** \"paraffin\", \"white spirit\", \"benzine\" and \"petroleum\" each mean different things in different countries. The main sources are the Home of Poi table (2009), Wikipedia and WHO EHC 187.\n\n**Not verified in this pass:**\n- MSR SuperFuel SDS\n- a charcoal lighter fluid SDS (only Wikipedia)\n- the current Crown formula\n- European lamp-oil (Paraffinöl/Lampenöl) SDSs\n- whether Isopar is actually used in fire arts\n- fire department / NFPA fuel rules (the search budget ran out)\n- the 2011 CPSC pourable gel fuel warnings",
+ "findings": [
+  {
+   "claim": "'Naphtha' is not one product. Camp fuel / white gas is a very light, very low flash naphtha; the 'naphtha' sold as paint thinner in US hardware stores (VM&P naphtha) is a heavier naphtha with a flash point roughly 40 °C higher. They are related but not interchangeable in behavior.",
+   "confidence": "high",
+   "sources": [
+    {
+     "url": "https://pdf.lowes.com/productdocuments/711459ad-1d09-4fe6-bf94-388642ed144f/74946251.pdf",
+     "quote": "Flash point : < -18 °C (-0.4°F)",
+     "source_date": "Coleman Camp Fuel SDS rev. 04/07/2022"
+    },
+    {
+     "url": "https://www1.mscdirect.com/MSDS/MSDS00052/70250410-20160522.PDF",
+     "quote": "Flash Pt: 69.00 F Method Used: TAG Closed Cup",
+     "source_date": "Klean-Strip VM&P Naphtha SDS rev. 12/30/2015"
+    },
+    {
+     "url": "https://www.cdc.gov/niosh/npg/npgd0664.html",
+     "quote": "Flash Point: 20-55°F",
+     "source_date": "NIOSH Pocket Guide, VM&P Naphtha (accessed 2026-09-24)"
+    },
+    {
+     "url": "https://en.wikipedia.org/wiki/Naphtha",
+     "quote": "White gas, exemplified by Coleman Camp Fuel, is a common naphtha-based fuel",
+     "source_date": "accessed 2026-09-24"
+    }
+   ],
+   "caveats": "The VM&P number is from a 2015 Klean-Strip SDS; a newer SDS (LL227, dated 1-4-16) is linked from kleanstrip.com but was not text-extracted. Klean-Strip's product page describes VM&P only as a paint thinner and cleaner, not a fuel."
+  },
+  {
+   "claim": "Coleman Camp Fuel composition (current US SDS): 60-100% CAS 68410-97-9 (distillates, petroleum, light distillate hydrotreating process, low-boiling), plus pentane 5-10%, isopentane 5-10%, cyclohexene 5-10%, hydrotreated light petroleum distillates (64742-47-8) 1-5%, n-hexane 1-5%, and hydrotreated light naphtha (64742-49-0) 1-5%. Flash point below -18 °C, boiling point above 38 °C, relative density about 0.69, colour pale green. Shipped as UN1268 (flammable liquid, packing group II).",
+   "confidence": "high",
+   "sources": [
+    {
+     "url": "https://pdf.lowes.com/productdocuments/711459ad-1d09-4fe6-bf94-388642ed144f/74946251.pdf",
+     "quote": "Distillates, petroleum, light distillate hydrotreating process, low-boiling (CAS-No.) 68410-97-9 60 – 100",
+     "source_date": "SDS rev. 04/07/2022"
+    },
+    {
+     "url": "https://pdf.lowes.com/productdocuments/711459ad-1d09-4fe6-bf94-388642ed144f/74946251.pdf",
+     "quote": "Cyclohexene (CAS-No.) 110-83-8 5 – 10",
+     "source_date": "SDS rev. 04/07/2022"
+    },
+    {
+     "url": "https://pdf.lowes.com/productdocuments/711459ad-1d09-4fe6-bf94-388642ed144f/74946251.pdf",
+     "quote": "Colour : Pale Green",
+     "source_date": "SDS rev. 04/07/2022"
+    }
+   ],
+   "caveats": "The SDS notes that exact identity/percentages may be withheld as a trade secret. The percentages are ranges, not a recipe."
+  },
+  {
+   "claim": "Coleman fuel's formula has changed over time. A 2007 Coleman MSDS listed 100% CAS 68410-97-9 'containing' cyclohexane, nonane, octane, heptane and pentane. The 2022 SDS instead lists separate pentane, isopentane and cyclohexene at 5-10% each and hexane at 1-5%. Brand-name white gas is not a fixed chemical specification.",
+   "confidence": "medium",
+   "sources": [
+    {
+     "url": "https://www.oldtowncoleman.com/safety/sds-coleman-premium-fuel.pdf",
+     "quote": "CAS # 68410-97-9, OSHA-500 ppm, 100.0",
+     "source_date": "MSDS DATE REVISED: 6/19/07"
+    },
+    {
+     "url": "https://www.oldtowncoleman.com/safety/sds-coleman-premium-fuel.pdf",
+     "quote": "*Cyclohexane, CAS # 110-82-7",
+     "source_date": "MSDS revised 6/19/07"
+    },
+    {
+     "url": "https://pdf.lowes.com/productdocuments/711459ad-1d09-4fe6-bf94-388642ed144f/74946251.pdf",
+     "quote": "Pentane (CAS-No.) 109-66-0 5 – 10",
+     "source_date": "SDS rev. 04/07/2022"
+    }
+   ],
+   "caveats": "Part of the difference may come from the format change (old MSDS vs GHS SDS disclosure rules) rather than a real reformulation. Both show flash point below 0 °F / -18 °C."
+  },
+  {
+   "claim": "Camp fuels and Shellite contain n-hexane, a nerve toxin with long-term exposure. Coleman's SDS lists hexane at 1-5%, notes ACGIH's basis for its limit includes peripheral neuropathy, carries a California Prop 65 reproductive warning for hexane, and classifies the product 'Repr. 2'. Diggers Shellite lists n-hexane below 30%; Hunter's Shellite 15-20%.",
+   "confidence": "high",
+   "sources": [
+    {
+     "url": "https://pdf.lowes.com/productdocuments/711459ad-1d09-4fe6-bf94-388642ed144f/74946251.pdf",
+     "quote": "TLV® Basis: CNS impair; peripheral neuropathy; eye irr.",
+     "source_date": "SDS rev. 04/07/2022"
+    },
+    {
+     "url": "https://pdf.lowes.com/productdocuments/711459ad-1d09-4fe6-bf94-388642ed144f/74946251.pdf",
+     "quote": "H361 - Suspected of damaging fertility or the unborn child.",
+     "source_date": "SDS rev. 04/07/2022"
+    },
+    {
+     "url": "https://www.diggersaustralia.com.au/wp-content/uploads/sds/Shellite%20NZ%20v6.pdf",
+     "quote": "n-Hexane 110-54-3 < 30",
+     "source_date": "Recochem/Diggers Shellite SDS issue 6, 01/02/2022"
+    }
+   ],
+   "caveats": "The hazard classes describe the liquid and vapour under workplace-type exposure (handling, refuelling). They are not measurements of what a burning wick emits."
+  },
+  {
+   "claim": "Zippo lighter fluid is chemically very close to Coleman camp fuel. Its main component is the same CAS 68410-97-9 (50-100%), with hydrotreated light naphtha 64742-49-0 at 25-50%. Flash point below -6.5 °C, boiling point above 35 °C, autoignition temperature above 200 °C.",
+   "confidence": "high",
+   "sources": [
+    {
+     "url": "https://web.mit.edu/tsg/sds/zippo_lighter_fluid.pdf",
+     "quote": "Flash Point : < -6,5 °C (20,3 °F)",
+     "source_date": "Zippo Lighter Fluid EU SDS rev. 06/06/2022"
+    },
+    {
+     "url": "https://web.mit.edu/tsg/sds/zippo_lighter_fluid.pdf",
+     "quote": "Naphtha, petroleum, hydrotreated light ... (CAS-No.) 64742-49-0 ... 25 – 50",
+     "source_date": "SDS rev. 06/06/2022"
+    }
+   ],
+   "caveats": "This is the EU/REACH SDS. The same SDS also says 'Water: Fully miscible', which is clearly wrong for a hydrocarbon: SDSs can contain errors, so cross-check them. A US Zippo SDS was not examined."
+  },
+  {
+   "claim": "Ronsonol / Ronson lighter fluid is a heavier, less volatile naphtha than Coleman or Zippo. The EU SDS (2018) gives C7-C9 hydrocarbons (CAS 64742-49-0), boiling range 90-165 °C, flash point 2 °C. An older UK Ronson SDS (2008) gives CAS 64742-89-8 over 99%, boiling point 100-125 °C, flash point 5 °C.",
+   "confidence": "high",
+   "sources": [
+    {
+     "url": "https://doryventures.scene7.com/is/content/DoryVentures/Ronson/Website/Servicing/2018MSDSRonsonol.pdf",
+     "quote": "Flash point 2°C Closed cup.",
+     "source_date": "Ronsonol EU SDS rev. 19/01/2018"
+    },
+    {
+     "url": "https://doryventures.scene7.com/is/content/DoryVentures/Ronson/Website/Servicing/2018MSDSRonsonol.pdf",
+     "quote": "Hydrocarbons, C7-C9, n-alkanes, isoalkanes, cyclics",
+     "source_date": "SDS rev. 19/01/2018"
+    },
+    {
+     "url": "https://alexandriamn.city/wp-content/uploads/2019/06/Ronson-Lighter-Fluid_SDS.pdf",
+     "quote": "FLASH POINT (°C) 5 CC (Closed cup).",
+     "source_date": "Ronson Lighter Fluid SDS rev. 06/05/08"
+    }
+   ],
+   "caveats": "The current US Ronsonol formula was not verified."
+  },
+  {
+   "claim": "Crown Camp Fuel's 2001 MSDS listed the same main component as Coleman: 95-100% light hydrotreated distillate, CAS 68410-97-9. Boiling range 52/110/137 °C (initial/mid/end), autoignition temperature 321 °C.",
+   "confidence": "medium",
+   "sources": [
+    {
+     "url": "https://zenstoves.net/MSDS/CrownCamp.pdf",
+     "quote": "95 - 100% LIGHT HYDROTREATED DIST",
+     "source_date": "NEW MSDS DATE: 11/28/2001"
+    }
+   ],
+   "caveats": "This is a 2001 document. Forum posts suggest later Crown formulas changed (e.g. aliphatic naphtha with a little toluene, stronger smell), but the current SolvChem SDS server refused the connection. The current composition is unverified."
+  },
+  {
+   "claim": "MSR SuperFuel is marketed as a more refined white gas with no dyes or additives. MSR/Cascade Designs publishes no SDS on the product page and none was found, so its composition cannot be compared with Coleman from primary data.",
+   "confidence": "medium",
+   "sources": [
+    {
+     "url": "https://cascadedesigns.com/products/superfuel",
+     "quote": "The highest-performance white gas on the market",
+     "source_date": "accessed 2026-09-24"
+    },
+    {
+     "url": "https://cascadedesigns.com/products/superfuel",
+     "quote": "No dyes or additives to solidify and cause clogs",
+     "source_date": "accessed 2026-09-24"
+    }
+   ],
+   "caveats": "These are marketing claims. The MSR SDS found by search was for the IsoPro gas canister (isobutane/propane/n-butane), not SuperFuel. Coleman's SDS lists the colour as pale green, which is consistent with MSR's 'no dyes' positioning but proves nothing about either."
+  },
+  {
+   "claim": "Australian/NZ 'Shellite' is the camp-fuel/lighter-fuel equivalent, but brands differ chemically. Diggers/Recochem Shellite is 100% CAS 64742-89-8 (light aliphatic solvent naphtha), n-hexane below 30%, boiling range 50-135 °C, flash point -30 °C (Abel), recommended use 'solvent, lighter fuel', GHS Carcinogenicity 1A. Hunter's Shellite (2021) is a heptane / cyclohexane / n-hexane blend with flash point -15 °C.",
+   "confidence": "high",
+   "sources": [
+    {
+     "url": "https://www.diggersaustralia.com.au/wp-content/uploads/sds/Shellite%20NZ%20v6.pdf",
+     "quote": "Flash point (°C) : -30 (Abel)",
+     "source_date": "issue 6, 01/02/2022"
+    },
+    {
+     "url": "https://www.diggersaustralia.com.au/wp-content/uploads/sds/Shellite%20NZ%20v6.pdf",
+     "quote": "Recommended Use Solvent, lighter fuel",
+     "source_date": "01/02/2022"
+    },
+    {
+     "url": "https://www.huntersproducts.com.au/volumes/documents/Shellite-SDS-r1-Feb-2021.pdf",
+     "quote": "Highly flammable liquid, flash point -15 °C.",
+     "source_date": "Hunter's Shellite SDS, January 2021"
+    },
+    {
+     "url": "https://en.wikipedia.org/wiki/Naphtha",
+     "quote": "Naphtha is also known as Shellite in Australia",
+     "source_date": "accessed 2026-09-24"
+    }
+   ],
+   "caveats": "The Hunter composition table came out of text extraction with shifted columns. The reading of heptane ~32-36%, cyclohexane ~25-27%, n-hexane ~15-20% should be double-checked against the PDF. The Diggers SDS classifies the product as Carc 1A / Muta 1B even though it notes benzene below 0.1%; other naphtha SDSs (e.g. Zippo) waive that classification on the same basis. Hazard labelling differs between companies."
+  },
+  {
+   "claim": "Historically, 'white gas' / 'white gasoline' meant additive-free (unleaded, undyed) gasoline. Modern white gases like Coleman fuel are a different, purpose-made naphtha product with additives.",
+   "confidence": "medium",
+   "sources": [
+    {
+     "url": "https://en.wikipedia.org/wiki/Coleman_fuel",
+     "quote": "White gas was originally simply additive-free gasoline.",
+     "source_date": "accessed 2026-09-24"
+    },
+    {
+     "url": "https://en.wikipedia.org/wiki/Coleman_fuel",
+     "quote": "contain additives for inhibiting rust, ease of lighting, and fast burning",
+     "source_date": "accessed 2026-09-24"
+    }
+   ],
+   "caveats": "This is Wikipedia, not a primary historical source. The additive claim is not reflected in Coleman's SDS ingredient list."
+  },
+  {
+   "claim": "The 'naphtha' family is very wide. NIOSH's 'petroleum distillates (naphtha) / rubber solvent' (CAS 8002-05-9) has a flash point of -40 to -86 °F. NIOSH's VM&P naphtha (CAS 8032-32-4) has a flash point of 20-55 °F and synonyms that include ligroin, petroleum ether and petroleum spirit. It is typically C7-C11 with about 12% alkylbenzenes (aromatics).",
+   "confidence": "high",
+   "sources": [
+    {
+     "url": "https://www.cdc.gov/niosh/npg/npgd0492.html",
+     "quote": "Aliphatic petroleum naphtha, Petroleum naphtha, Rubber solvent",
+     "source_date": "NIOSH Pocket Guide (accessed 2026-09-24)"
+    },
+    {
+     "url": "https://www.cdc.gov/niosh/npg/npgd0492.html",
+     "quote": "-40 to -86°F",
+     "source_date": "NIOSH Pocket Guide (accessed 2026-09-24)"
+    },
+    {
+     "url": "https://www.cdc.gov/niosh/npg/npgd0664.html",
+     "quote": "Ligroin, Painters naphtha, Petroleum ether, Petroleum spirit",
+     "source_date": "NIOSH Pocket Guide (accessed 2026-09-24)"
+    },
+    {
+     "url": "https://www.cdc.gov/niosh/npg/npgd0664.html",
+     "quote": "typically 55% paraffins, 30% monocycloparaffins, 2% dicycloparaffins & 12% alklybenzenes",
+     "source_date": "NIOSH Pocket Guide (accessed 2026-09-24)"
+    }
+   ],
+   "caveats": "NIOSH ranges describe generic occupational categories, not specific retail brands."
+  },
+  {
+   "claim": "The same CAS number does not mean the same fuel. CAS 64742-49-0 appears in Coleman camp fuel (1-5%), Zippo (25-50%), Ronsonol (the whole product) and Klean-Strip VM&P (95-100%), with flash points from below -18 °C to about 21 °C. CAS 64742-47-8 appears in Klean-Strip odorless mineral spirits (flash point above 105.8 °F), Klean-Heat (152 °F) and TIKI citronella torch fuel (145-275 °F). These CAS numbers name broad refinery streams, so the SDS flash point and boiling range are the properties to compare.",
+   "confidence": "medium",
+   "sources": [
+    {
+     "url": "https://production-s3.wmbarrhub.com/assets/sds/GL251_Klean_Strip_Odorless_Mineral_Spirits_EN.pdf",
+     "quote": "> 105.80 F Method Used: TAG Closed Cup",
+     "source_date": "Klean-Strip Odorless Mineral Spirits SDS rev. 11/05/2021"
+    },
+    {
+     "url": "https://production-s3.wmbarrhub.com/assets/sds/LL1994_Klean_Heat_EN.pdf",
+     "quote": "Flash Pt: 152.00 F Method Used: TAG Closed Cup",
+     "source_date": "Klean Heat SDS rev. 03/21/2023"
+    },
+    {
+     "url": "https://cdn.shopify.com/s/files/1/0668/2574/8734/files/SDS-Tiki-Torch-Fuel-Rev-03_2.pdf?v=1764710774",
+     "quote": "Flash Point, Closed cup: 145°F - 275°F / 62.8°C - 135 °C",
+     "source_date": "TIKI Citronella Torch Fuel SDS Rev 03, 5/11/15"
+    }
+   ],
+   "caveats": "The data points are from primary SDSs. The general conclusion (CAS numbers for petroleum streams are broad) is our reasoning from those documents, not a quoted regulatory statement."
+  },
+  {
+   "claim": "Kerosene (CAS 8008-20-6) in the US is specified by ASTM D3699 in two grades. No. 1-K has at most 0.04% sulfur and No. 2-K at most 0.30%; both must have a flash point of at least 38 °C (100 °F) by ASTM D56 and an end point of 300 °C or lower. NIOSH gives kerosene a flash point of 100-162 °F, with synonyms 'Fuel Oil No. 1' and 'Range oil'.",
+   "confidence": "high",
+   "sources": [
+    {
+     "url": "https://www.law.cornell.edu/regulations/maryland/COMAR-03-03-05-03",
+     "quote": "0.04 percent by mass, maximum",
+     "source_date": "Maryland COMAR 03.03.05.03 (eff. 1979, amended 1988)"
+    },
+    {
+     "url": "https://www.cdc.gov/niosh/npg/npgd0366.html",
+     "quote": "Fuel Oil No. 1, Range oil",
+     "source_date": "NIOSH Pocket Guide (accessed 2026-09-24)"
+    },
+    {
+     "url": "https://monroetn.gov/wp-content/uploads/2024/10/Kerosene.pdf",
+     "quote": "Flash Point: >100 °F (38 °C)",
+     "source_date": "Hess Kerosene K1 and K2 SDS No. 0290, rev. 8/30/12"
+    },
+    {
+     "url": "https://monroetn.gov/wp-content/uploads/2024/10/Kerosene.pdf",
+     "quote": "Synonyms: K-1 and K-2 Kerosene; Kero; Kerosene Motor Fuel",
+     "source_date": "rev. 8/30/12"
+    }
+   ],
+   "caveats": "The Maryland regulation incorporates an older version of ASTM D3699. The current ASTM text is paywalled and was not read. The Hess SDS lists naphthalene at 0.04%."
+  },
+  {
+   "claim": "A US retail 'kerosene' was described on its SDS as Stoddard solvent (mineral spirits). Klean-Strip's now-discontinued 1-K Kerosene SDS lists Stoddard solvent 80-100% plus trimethylbenzene 1-5%, flash point above 100 °F. Kerosene and mineral spirits are neighbouring cuts, and retail labels do not always map onto one chemical identity.",
+   "confidence": "high",
+   "sources": [
+    {
+     "url": "https://production-s3.wmbarrhub.com/assets/sds/archived/GKP85-GL42KS_Klean_Strip_Kerosene_EN.pdf",
+     "quote": "Stoddard solvent {Mineral spirits; Aliphatic Petroleum Distillates; White spirits}",
+     "source_date": "Klean-Strip Kerosene SDS rev. 06/16/2021 (archived)"
+    },
+    {
+     "url": "https://kleanstrip.com/discontinued/1-k-heater-fuel-kerosene/",
+     "quote": "This 1-K kerosene burns cleaner than 2-K kerosene.",
+     "source_date": "product page under /discontinued/, accessed 2026-09-24"
+    }
+   ],
+   "caveats": "This is one brand. Other US kerosenes (e.g. the Hess SDS) list CAS 8008-20-6."
+  },
+  {
+   "claim": "Klean-Heat is marketed as a kerosene alternative that meets K-1 specifications. Its SDS lists 100% hydrotreated light distillate (CAS 64742-47-8, 'mineral spirits'), flash point 152 °F, boiling range about 350-475 °F, NFPA Class IIIA combustible.",
+   "confidence": "high",
+   "sources": [
+    {
+     "url": "https://kleanstrip.com/heating-fuels/klean-heat/",
+     "quote": "Meets or exceeds all K-1 Kerosene specifications",
+     "source_date": "accessed 2026-09-24"
+    },
+    {
+     "url": "https://production-s3.wmbarrhub.com/assets/sds/LL1994_Klean_Heat_EN.pdf",
+     "quote": "Hydrotreated light distillate (petroleum, mineral spirits) 64742-47-8",
+     "source_date": "SDS rev. 03/21/2023"
+    }
+   ],
+   "caveats": "'Meets K-1 specs' is a manufacturer claim. Chemically it is a high-flash hydrotreated distillate, not CAS 8008-20-6 kerosene."
+  },
+  {
+   "claim": "'Paraffin' means different things in different places. In the UK, Ireland, South Africa, East Africa, Norway and Chile, 'paraffin' is kerosene (the UK lamp/heater grade is BS 2869 Class C1). In the US, 'paraffin' usually means wax. 'Liquid paraffin' in UK/pharmacy usage is highly refined mineral oil used medically, e.g. as a laxative. It is not a fuel.",
+   "confidence": "high",
+   "sources": [
+    {
+     "url": "https://en.wikipedia.org/wiki/Kerosene",
+     "quote": "paraffin (or a closely related variant) is used in ... the United Kingdom",
+     "source_date": "accessed 2026-09-24"
+    },
+    {
+     "url": "https://en.wikipedia.org/wiki/Kerosene",
+     "quote": "BS 2869 Class C1 is the lightest grade used for lanterns",
+     "source_date": "accessed 2026-09-24"
+    },
+    {
+     "url": "https://en.wikipedia.org/wiki/Paraffin",
+     "quote": "a very highly refined mineral oil used in cosmetics and for medical purposes",
+     "source_date": "accessed 2026-09-24"
+    },
+    {
+     "url": "https://en.wikipedia.org/wiki/Mineral_oil",
+     "quote": "Mineral oil is used as a laxative to alleviate constipation",
+     "source_date": "accessed 2026-09-24"
+    }
+   ],
+   "caveats": "Wikipedia, not a UK standard or retailer SDS. The NHS and BNF pages returned 404/403. The US products labelled 'liquid paraffin lamp oil' (e.g. Firefly) are fuels, which adds to the confusion."
+  },
+  {
+   "claim": "Jet fuel (Jet A / Jet A-1, military JP-8) is a kerosene-type fuel with flash point above 38 °C. The specifications allow additives such as antistatic agents, antioxidants, icing inhibitors, biocides and corrosion inhibitors, so it is not the same product as K-1 lamp/heater kerosene.",
+   "confidence": "medium",
+   "sources": [
+    {
+     "url": "https://en.wikipedia.org/wiki/Jet_fuel",
+     "quote": "flash point higher than 38 °C (100 °F)",
+     "source_date": "accessed 2026-09-24"
+    }
+   ],
+   "caveats": "This is Wikipedia; ASTM D1655 was not read. No evidence was gathered on jet fuel being used or recommended in fire arts."
+  },
+  {
+   "claim": "US 'lamp oil' is usually a refined paraffinic hydrocarbon with a much higher flash point than kerosene. Firefly Paraffin Lamp Oil (2023) is over 95% C12-15 branched and linear alkanes, flash point 83.5 °C, boiling range 210-260 °C, GHS H227 (combustible) and H304 (aspiration). Lamplight Ultra-Pure (2007 MSDS) is 100% C5-20 paraffins (CAS 64771-72-8), flash point 207 °F (97 °C), boiling range 221-248 °C.",
+   "confidence": "high",
+   "sources": [
+    {
+     "url": "https://fireflyfuel.com/files/pdfs/paraffin-lamp-oil.pdf",
+     "quote": "Alkanes, C12-15-branched and linear >95",
+     "source_date": "Firefly SDS rev. 10.10.2023"
+    },
+    {
+     "url": "https://fireflyfuel.com/files/pdfs/paraffin-lamp-oil.pdf",
+     "quote": "Flash point (closed cup) 83.5 °C / 182.3 °F",
+     "source_date": "rev. 10.10.2023"
+    },
+    {
+     "url": "https://www.pacwestspfx.com/uploads/b/cb6e2e80-cdf2-11eb-9fd2-3111f6e4ef1b/Lamp%20Oil%20paraffin%20based%20msds.pdf",
+     "quote": "FLASH POINT / METHOD: 207°F (97° C) / PM",
+     "source_date": "Lamplight Ultra-Pure MSDS rev. 1/9/07"
+    }
+   ],
+   "caveats": "The Lamplight document is from 2007 and a current SDS was not retrieved. One Home Depot-hosted 'Lamplight Ultra-Pure' PDF was actually a citronella candle MSDS, so check that the document matches the product. 'Lamp oil' can also mean plain kerosene in some regions."
+  },
+  {
+   "claim": "Tiki torch fuels vary. TIKI Citronella Torch Fuel (2015) is hydrotreated light (64742-47-8) and/or middle (64742-46-7) distillates, flash point 62.8-135 °C, boiling range 180-271 °C. TIKI Clean Burn Torch Fuel (2015) is methyl esters (coconut fatty acid methyl esters, a biodiesel-type fuel), flash point above 201 °F. A fire-arts maker advises against torch fuel for performing because of scent additives.",
+   "confidence": "high",
+   "sources": [
+    {
+     "url": "https://cdn.shopify.com/s/files/1/0668/2574/8734/files/SDS-Tiki-Torch-Fuel-Rev-03_2.pdf?v=1764710774",
+     "quote": "Distillates (petroleum), hydro treated light 64742-47-8 0-100%",
+     "source_date": "Rev 03, 5/11/15"
+    },
+    {
+     "url": "https://cdn.shopify.com/s/files/1/0668/2574/8734/files/oasgdu60ve7fdaqa7i1y.pdf?v=1755133676",
+     "quote": "Synonyms: Methyl Esters",
+     "source_date": "TIKI Clean Burn SDS rev. 07/30/2015"
+    },
+    {
+     "url": "https://dark-monk.com/Article/About%20Fire%20Fuels",
+     "quote": "scent additives like citronella oil",
+     "source_date": "Dark Monk, copyright 2026"
+    }
+   ],
+   "caveats": "The citronella SDS does not list citronella oil as a disclosed hazardous ingredient. Both TIKI SDSs are from 2015 and are hosted on tikibrand.com's current Material Safety page."
+  },
+  {
+   "claim": "Isopar grades are high-purity synthetic isoparaffin fluids (aromatics ≤0.01 wt% for G/H/K/L). ExxonMobil sales-spec minimum flash points: Isopar G 40 °C (D56), H 49 °C (D56), K 49 °C (D56), L 62 °C (D93), M 93.5 °C (D93), V 118 °C (D93). Distillation ranges run roughly from 153-180 °C (G) up to 263-329 °C (V).",
+   "confidence": "high",
+   "sources": [
+    {
+     "url": "https://www.exxonmobilchemical.com/en/chemicals/webapi/dps/v1/datasheets/130000000306/1/en",
+     "quote": "Flash Point 40 -- °C ASTM D56",
+     "source_date": "Isopar G sales spec, effective 06/11/2018 (EMEAF)"
+    },
+    {
+     "url": "https://www.exxonmobilchemical.com/en/chemicals/webapi/dps/v1/datasheets/130000000366/1/en",
+     "quote": "Flash Point 49 -- °C ASTM D56",
+     "source_date": "Isopar H sales spec, effective 09/07/2020 (Asia Pacific)"
+    },
+    {
+     "url": "https://www.exxonmobilchemical.com/en/chemicals/webapi/dps/v1/datasheets/130000000284/1/en",
+     "quote": "Flash Point 49 -- °C ASTM D56",
+     "source_date": "Isopar K sales spec, effective 07/01/2012 (North America)"
+    },
+    {
+     "url": "https://www.exxonmobilchemical.com/en/chemicals/webapi/dps/v1/datasheets/130000000367/1/en",
+     "quote": "Flash Point 62 -- °C ASTM D93",
+     "source_date": "Isopar L sales spec, effective 04/01/2015 (Asia Pacific)"
+    },
+    {
+     "url": "https://www.exxonmobilchemical.com/en/chemicals/webapi/dps/v1/datasheets/130000000289/1/en",
+     "quote": "Flash Point 93.5 -- °C ASTM D93",
+     "source_date": "Isopar M sales spec, effective 07/01/2014 (North America)"
+    },
+    {
+     "url": "https://www.exxonmobilchemical.com/en/chemicals/webapi/dps/v1/datasheets/130000000292/1/en",
+     "quote": "Flash Point 118 -- °C ASTM D93",
+     "source_date": "Isopar V sales spec, effective 07/01/2012 (Americas/Asia Pacific)"
+    }
+   ],
+   "caveats": "These are MINIMUM specification values for particular regions, not typical values. Typical flash points quoted elsewhere are somewhat higher. Isopar use in fire arts was seen only in a search snippet and was not verified."
+  },
+  {
+   "claim": "ShellSol D60 is a de-aromatized (deep-hydrogenated) aliphatic mineral spirit: CAS 64742-48-9, mostly C10-C13 paraffins and naphthenes, aromatics below 100 mg/kg, benzene below 3 mg/kg. Typical flash point 66 °C (D93), initial boiling point 189 °C, dry point 212 °C.",
+   "confidence": "high",
+   "sources": [
+    {
+     "url": "https://www.shell.com/content/dam/shell/assets/en/business-functions/chemical/documents/ShellSol%20TDS-D60.pdf",
+     "quote": "consists predominantly of C 10 - C 13 paraffins and naphthenes",
+     "source_date": "Shell technical datasheet (undated; accessed 2026-09-24)"
+    },
+    {
+     "url": "https://www.shell.com/content/dam/shell/assets/en/business-functions/chemical/documents/ShellSol%20TDS-D60.pdf",
+     "quote": "Flashpoint °C 66 ASTM D93",
+     "source_date": "undated; accessed 2026-09-24"
+    }
+   ],
+   "caveats": "The datasheet carries no date. Other ShellSol D60 sheets quote 61-67 °C. No retail consumer source for D60 was checked."
+  },
+  {
+   "claim": "Mineral spirits / Stoddard solvent / white spirit are one family of mid-range solvents. NIOSH: Stoddard solvent (CAS 8052-41-3), synonyms include mineral spirits and spotting naphtha, flash point 102-110 °F, boiling range 309-396 °F. WHO EHC 187: white spirit is C7-C12 aliphatic/alicyclic hydrocarbons with up to 25% aromatics. Type 1 (hydrodesulfurized) has under 25% aromatics, type 2 (solvent-extracted) under 5%, type 3 (hydrotreated) under 1%. Flash-point grades are 21-30 °C (low), 31-54 °C (regular) and above 55 °C (high).",
+   "confidence": "high",
+   "sources": [
+    {
+     "url": "https://www.cdc.gov/niosh/npg/npgd0569.html",
+     "quote": "Dry cleaning safety solvent, Mineral spirits, Petroleum solvent, Spotting naphtha",
+     "source_date": "NIOSH Pocket Guide (accessed 2026-09-24)"
+    },
+    {
+     "url": "https://www.inchem.org/documents/ehc/ehc/ehc187.htm",
+     "quote": "Mineral Spirit; Mineral Turpentine; Stoddard Solvent; Petroleum Spirits",
+     "source_date": "WHO/IPCS Environmental Health Criteria 187 (1996)"
+    },
+    {
+     "url": "https://www.inchem.org/documents/ehc/ehc/ehc187.htm",
+     "quote": "21–30°C",
+     "source_date": "EHC 187 (1996), low-flash grade"
+    }
+   ],
+   "caveats": "EHC 187 is from 1996. Retail 'odorless mineral spirits' (e.g. Klean-Strip, CAS 64742-47-8, flash point above 105.8 °F) are low-aromatic versions."
+  },
+  {
+   "claim": "'White spirit' is ambiguous by region. Wikipedia: white spirit (AU/UK/Ireland) = mineral spirits (US/Canada) = mineral turpentine / 'mineral turps' (AU/NZ/ZA). But the Home of Poi fire-fuel table lists 'White Spirit' for New Zealand in the white-gas/naphtha column alongside Shellite. In NZ, check the SDS before assuming which one it is.",
+   "confidence": "medium",
+   "sources": [
+    {
+     "url": "https://en.wikipedia.org/wiki/White_spirit",
+     "quote": "White spirit (AU, UK and Ireland) or mineral spirits (US, Canada)",
+     "source_date": "accessed 2026-09-24"
+    },
+    {
+     "url": "https://en.wikipedia.org/wiki/White_spirit",
+     "quote": "mineral turpentine (AU/NZ/ZA)",
+     "source_date": "accessed 2026-09-24"
+    },
+    {
+     "url": "https://www.homeofpoi.com/en/lessons/teach/Fire-Training/Fire-training-safety/International-Fuel-Names",
+     "quote": "60% Hexane + 40% Heptane? Usually colorless?",
+     "source_date": "Home of Poi table, version 63, September 2009"
+    }
+   ],
+   "caveats": "The Home of Poi table is crowd-edited, dated 2009, and its own column header shows uncertainty about white-gas composition. No NZ retailer SDS for a product sold as 'white spirit' was checked."
+  },
+  {
+   "claim": "Regional name glossary (Home of Poi international fuel names, 2009): USA & Canada: kerosene; white gas / naphtha / Coleman fuel / Blazo; denatured alcohol. UK: paraffin (= kerosene); petrol; Coleman fuel; methylated spirit ('meths'). Australia: kerosene ('kero'); Shellite / white gas / Mobilite; methylated spirits ('metho'). New Zealand: kerosene; White Spirit / Shellite / Callite; methylated spirit. South Africa: paraffin (= kerosene); benzine (= white-gas type); meths. Germany: Petroleum / Paraffinöl (= kerosene type); Reinbenzin / Reinigungsbenzin (= white-gas type); Spiritus / Brennspiritus. France: pétrole / pétrole lampant; essence C; alcool à brûler. Netherlands: petroleum / lampen-olie; wasbenzine; (brand)spiritus. Sweden: fotogen; industribensin; T-sprit / rödsprit.",
+   "confidence": "medium",
+   "sources": [
+    {
+     "url": "https://www.homeofpoi.com/en/lessons/teach/Fire-Training/Fire-training-safety/International-Fuel-Names",
+     "quote": "Decane (mostly). Kerosene/diesel is a crude cut from oil refineries",
+     "source_date": "version 63, September 2009 (editor Mike Buckler); accessed 2026-09-24"
+    },
+    {
+     "url": "https://en.wikipedia.org/wiki/Methylated_spirit",
+     "quote": "The main additive usually is 10% methanol (methyl alcohol), hence the name methylated spirits",
+     "source_date": "accessed 2026-09-24"
+    }
+   ],
+   "caveats": "This is a 2009 crowd-sourced list from a fire-toy retailer, not a regulatory source. Brand names like Mobilite and Callite may no longer exist. The table's column descriptions are approximate ('60% Hexane + 40% Heptane?'). A false friend to flag: German/Dutch 'Petroleum' means kerosene, not crude oil or gasoline."
+  },
+  {
+   "claim": "US 'denatured alcohol' is not simply ethanol. Klean-Strip Denatured Alcohol (2023 SDS) is 30-90% ethanol, 5-60% methanol and 0.1-1% MIBK (methyl isobutyl ketone). Flash point 45 °F. Classified toxic if swallowed, in contact with skin or if inhaled (H301/H311/H331) because of the methanol. UK/AU/NZ 'methylated spirits' is typically about 10% methanol with a bittering agent and dye.",
+   "confidence": "high",
+   "sources": [
+    {
+     "url": "https://production-s3.wmbarrhub.com/assets/sds/1625_6_Klean_Strip_Denatured_Alcohol_EN.pdf",
+     "quote": "Methanol {Methyl alcohol; Carbinol; Wood alcohol} 67-56-1 5.0 -60.0 %",
+     "source_date": "Klean-Strip Denatured Alcohol SDS rev. 08/10/2023"
+    },
+    {
+     "url": "https://production-s3.wmbarrhub.com/assets/sds/1625_6_Klean_Strip_Denatured_Alcohol_EN.pdf",
+     "quote": "H311: Toxic in contact with skin.",
+     "source_date": "rev. 08/10/2023"
+    },
+    {
+     "url": "https://en.wikipedia.org/wiki/Methylated_spirit",
+     "quote": "The main additive usually is 10% methanol (methyl alcohol), hence the name methylated spirits",
+     "source_date": "accessed 2026-09-24"
+    }
+   ],
+   "caveats": "Denaturant formulas vary by country and brand. The EU 'complete denaturation' recipe uses isopropanol and MEK rather than methanol."
+  },
+  {
+   "claim": "Alcohol fuels flash at room temperature and burn with weak or invisible flames. NIOSH flash points: ethanol 55 °F, isopropyl alcohol 53 °F, methanol 52 °F. Methanol flames are invisible in daylight, which fire-arts sources flag as a specific danger.",
+   "confidence": "high",
+   "sources": [
+    {
+     "url": "https://www.cdc.gov/niosh/npg/npgd0397.html",
+     "quote": "Carbinol, Columbian spirits, Methanol, Pyroligneous spirit, Wood alcohol",
+     "source_date": "NIOSH Pocket Guide, methyl alcohol (flash 52°F; accessed 2026-09-24)"
+    },
+    {
+     "url": "https://www.cdc.gov/niosh/npg/npgd0359.html",
+     "quote": "Dimethyl carbinol, IPA, Isopropanol, 2-Propanol, sec-Propyl alcohol, Rubbing alcohol",
+     "source_date": "NIOSH Pocket Guide, isopropyl alcohol (flash 53°F)"
+    },
+    {
+     "url": "https://en.wikipedia.org/wiki/Methanol",
+     "quote": "Methanol flames are invisible in daylight.",
+     "source_date": "accessed 2026-09-24"
+    },
+    {
+     "url": "https://www.trickconcepts.com/what-fuel-do-i-use/",
+     "quote": "burns with an almost invisible flame. This can make it dangerous",
+     "source_date": "undated; accessed 2026-09-24"
+    }
+   ],
+   "caveats": "The ethanol flash point (55 °F) is from NIOSH npgd0262.html."
+  },
+  {
+   "claim": "Gasoline/petrol is far more volatile than any common fire-arts fuel, and fire-arts teaching sources say never to use it. NIOSH gasoline (CAS 8006-61-9; synonyms motor fuel, petrol): flash point -45 °F, initial boiling point 102 °F.",
+   "confidence": "high",
+   "sources": [
+    {
+     "url": "https://www.cdc.gov/niosh/npg/npgd0299.html",
+     "quote": "Motor fuel, Motor spirits, Natural gasoline, Petrol",
+     "source_date": "NIOSH Pocket Guide (accessed 2026-09-24)"
+    },
+    {
+     "url": "https://www.trickconcepts.com/what-fuel-do-i-use/",
+     "quote": "do not use gasoline because of its explosive properties",
+     "source_date": "undated; accessed 2026-09-24"
+    },
+    {
+     "url": "https://thefiretriangle.com/fire-spinning-101/",
+     "quote": "incredibly unstable",
+     "source_date": "The Fire Triangle, (c) 2026"
+    }
+   ],
+   "caveats": "Community sources are opinion. No fire-department or NFPA fuel rule could be retrieved in this pass."
+  },
+  {
+   "claim": "No. 2 diesel is a heavier distillate. Sinclair SDS: CAS 68476-34-6 at 97-100%, naphthalene 0-3%, boiling range about 160-371 °C, flash point 126-152 °F (51.6-66.6 °C). Classified as a Category 2 carcinogen, among other hazards.",
+   "confidence": "high",
+   "sources": [
+    {
+     "url": "https://www.sinclairoil.com/sites/default/files/MSDS.Fuels_.Diesel%20No%202.pdf",
+     "quote": "Flash point: 126 - 152 °F (51.6 - 66.6 °C)",
+     "source_date": "Sinclair Diesel No. 2 SDS, revised January 23, 2015"
+    },
+    {
+     "url": "https://www.sinclairoil.com/sites/default/files/MSDS.Fuels_.Diesel%20No%202.pdf",
+     "quote": "Carcinogen Category 2",
+     "source_date": "revised January 23, 2015"
+    }
+   ],
+   "caveats": "The ASTM D975 minimum flash points (52 °C for No. 2-D, 38 °C for No. 1-D) appeared only in a search summary; the D975 PDF text could not be extracted, so treat them as unverified."
+  },
+  {
+   "claim": "Charcoal lighter fluid is generally a petroleum solvent (mineral-spirits type), though some versions are alcohol-based. It is distinct from naphtha wick-lighter fluid.",
+   "confidence": "low",
+   "sources": [
+    {
+     "url": "https://en.wikipedia.org/wiki/Lighter_fluid",
+     "quote": "an aliphatic petroleum solvent used in lighting charcoal in a barbecue grill",
+     "source_date": "accessed 2026-09-24"
+    },
+    {
+     "url": "https://en.wikipedia.org/wiki/Charcoal_lighter_fluid",
+     "quote": "mineral spirits",
+     "source_date": "accessed 2026-09-24"
+    }
+   ],
+   "caveats": "No manufacturer SDS (Kingsford, Gulf Lite, etc.) could be retrieved: product pages were 404 and the search budget ran out. Composition and flash point are unverified."
+  },
+  {
+   "claim": "Common 'gel fuels' such as Sterno canned heat are gelled denatured alcohol (ethanol with methanol, water and a gelling agent). They share the alcohol hazards above.",
+   "confidence": "low",
+   "sources": [
+    {
+     "url": "https://en.wikipedia.org/wiki/Sterno",
+     "quote": "made from ethanol denatured by adding methanol, water, and an amphoteric oxide gelling agent",
+     "source_date": "accessed 2026-09-24"
+    }
+   ],
+   "caveats": "No SDS for any gel fire fuel was retrieved. Wikipedia's 'Gel fuel' page returned 404. The 2011 US CPSC warnings about pourable gel fuel (firepots) were not verified in this pass."
+  },
+  {
+   "claim": "Fire-arts practice: teachers and retailers describe white gas as the quickest to light, shortest-burning and cleanest; lamp oil as longer-burning but slower to light, with a higher flash point; and kerosene as long-burning but smelly, smoky and leaving residue. Mixing white gas with lamp oil is common.",
+   "confidence": "medium",
+   "sources": [
+    {
+     "url": "https://www.homeofpoi.com/us/lessons/teach/Fire-Training/Fire-training-safety/Which-Fuel-should-I-use-my-fire-tools",
+     "quote": "quickest light and shortest burn. Cleanest burning",
+     "source_date": "Home of Poi, April 19, 2013"
+    },
+    {
+     "url": "https://www.homeofpoi.com/us/lessons/teach/Fire-Training/Fire-training-safety/Which-Fuel-should-I-use-my-fire-tools",
+     "quote": "Most smelly, smokey and leaves most residue",
+     "source_date": "April 19, 2013"
+    },
+    {
+     "url": "https://www.homeofpoi.com/us/lessons/teach/Fire-Training/Fire-training-safety/Which-Fuel-should-I-use-my-fire-tools",
+     "quote": "50/50 or 3/4 Coleman 1/4 lamp oil",
+     "source_date": "April 19, 2013"
+    },
+    {
+     "url": "https://dark-monk.com/Article/About%20Fire%20Fuels",
+     "quote": "very low flash point",
+     "source_date": "Dark Monk (Ember Flynn), copyright 2026"
+    }
+   ],
+   "caveats": "These are practitioner opinions, not measurements. The sources disagree on kerosene burn time (see the disagreements list). No fire-department or NFPA source on fuel choice could be retrieved in this pass."
+  }
+ ],
+ "disagreements_or_myths": [
+  "MYTH: 'Naphtha from the hardware store = camp fuel.' US paint-aisle naphtha is VM&P naphtha: Klean-Strip VM&P flash point 69 °F TCC (2015 SDS); NIOSH gives 20-55 °F. Coleman camp fuel is below 0 °F / -18 °C. Both are 'naphtha', but the vapour behaviour is very different.",
+  "MYTH: 'Same CAS number = same fuel.' CAS 64742-49-0 appears on products flashing from below -18 °C to about 21 °C. CAS 64742-47-8 covers odorless mineral spirits (~41 °C), Klean-Heat (152 °F) and TIKI torch fuel (145-275 °F). Compare SDS flash point and boiling range, not CAS or name alone.",
+  "CONFUSION: 'Paraffin' is kerosene in the UK, South Africa, East Africa, Norway and Chile. In the US it is usually wax. UK 'liquid paraffin' is medicinal mineral oil (a laxative), while US 'liquid paraffin lamp oil' (e.g. Firefly) is a fuel. German/Dutch 'Petroleum' means kerosene.",
+  "CONFUSION: 'White spirit' means mineral spirits / mineral turps in the UK and Australia (Wikipedia, WHO EHC 187). But the 2009 Home of Poi table lists 'White Spirit' in New Zealand alongside Shellite as a white-gas-type fuel. 'Benzine' (South Africa, Europe) usually means a white-gas-type naphtha.",
+  "MYTH: 'Lamp oil = kerosene.' US lamp oils are often refined paraffinic fluids with much higher flash points (Firefly 83.5 °C; Lamplight Ultra-Pure 97 °C) than kerosene's 38 °C minimum. Meanwhile one US retail 'kerosene' (Klean-Strip 1-K, discontinued) listed Stoddard solvent / mineral spirits on its SDS.",
+  "MYTH: 'Shellite is one fixed product.' Diggers/Recochem Shellite is 100% CAS 64742-89-8, flash -30 °C, labelled Carc 1A / Muta 1B. Hunter's Shellite is a heptane/cyclohexane/n-hexane blend, flash -15 °C. Chemtools Shellite (2016) is yet another SDS. Hazard labelling of similar naphthas also varies between companies (Zippo waives carcinogen classification on the <0.1% benzene basis; Diggers does not).",
+  "MYTH: 'Coleman fuel has always been the same.' The 2007 Coleman MSDS listed 100% CAS 68410-97-9; the 2022 SDS lists separate pentane, isopentane and cyclohexene at 5-10% each and hexane at 1-5%. Old 'white gas' was simply additive-free gasoline.",
+  "UNVERIFIED CLAIM: 'MSR SuperFuel is chemically purer/different from Coleman.' This is MSR marketing ('more refined', 'no dyes or additives'); no MSR SuperFuel SDS was found to compare.",
+  "MYTH: 'Denatured alcohol is just ethanol.' Klean-Strip denatured alcohol can be 5-60% methanol and is labelled toxic by skin contact and inhalation. Methanol flames are invisible in daylight.",
+  "DISAGREEMENT among fire-arts sources on kerosene burn time. Home of Poi (2013) says kerosene gives the 'longest burn time'. Sacred Flow Art's 2019 guide says kerosene is 'quick to ignite but a short burn time', while its own 2021 review says kerosene gives '40% longer burn time' than white gas. Dark Monk (2026) gives white gas 3-4 min, lamp oil 5+ min, kerosene 5-7 min.",
+  "SDS QUALITY: SDSs contain errors. The 2022 Zippo EU SDS states the hydrocarbon fluid is 'Water: Fully miscible', which is wrong. Cross-check SDS numbers against other sources and use the latest revision date.",
+  "'Jet fuel is just kerosene' is only half true. Jet A / A-1 are kerosene-type fuels (flash >38 °C), but the specifications allow antistatic, anti-icing, biocide and other additives, so jet fuel is not the same product as K-1 lamp/heater kerosene."
+ ]
+}

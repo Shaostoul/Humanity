@@ -1,0 +1,457 @@
+{
+ "alloys": [
+  {
+   "name": "Titanium CP Grade 1 (annealed)",
+   "also_called": "CP1, Ti Grade 1, UNS R50250, TIMETAL 35A, ATI 30, TA1",
+   "family": "Commercially pure titanium (all-alpha, unalloyed; lowest oxygen)",
+   "density_g_cc": 4.51,
+   "modulus_gpa": 105,
+   "yield_mpa": 138,
+   "uts_mpa": 240,
+   "elongation_pct": 24,
+   "thermal_conductivity_w_mk": 22,
+   "melting_c": "1649-1671 (ATI melting range for CP grades); Zapp gives ca. 1660",
+   "heat_limit_c": "No temper to lose (it is sold annealed), but it gets much weaker while hot: yield is about 103 MPa at 315 C and 90 MPa at 425 C (Zapp approximate values), compared with 138 MPa spec minimum and ~220 MPa typical at room temperature. Zapp says titanium takes up air gases (oxidation, surface embrittlement) from 250 C upward; this is written about welding, so treat it as an indication for long soaks, not a hard limit.",
+   "corrosion": "Best of all the grades. Carpenter: the purer the CP titanium, the better it resists corrosion. Sweat, rain and fuel will not affect it.",
+   "heated_hazards": "At wick temperatures the solid tube itself is not a fume or fire hazard: supplier SDSs rate solid titanium non-combustible, with auto-ignition around 1204 C (2200 F) for solid metal. Hazards come from processing: chips, turnings and dust are combustible (dust auto-ignition about 249 C / 480 F); burning titanium must never be hit with water (Class D); grinding sparks can light fuel vapour. Welding or grinding produces TiO2 fume/dust, which NIOSH says to keep to the lowest feasible concentration.",
+   "tube_availability": "Checked 2026-09-24: not stocked in 3/4 in thin wall at the retail stockists. Tiger Titanium's CP Grade 1 tube list had only 1.375 in OD. TMS Titanium's CP1 tube came in 0.500, 1.25 and 1.5 in OD only. SAM Materials lists a 3/4 in Grade 1 ASTM B338 tube, quote only, walls not stated.",
+   "price_note": "No 3/4 in CP1 price found (2026-09-24). For scale: TMS Titanium sold CP1 0.500 x 0.039 in at $34 for 24 in or $68 for 48 in (about $1.42/in, uncertified surplus), and Tiger priced CP1 1.375 x 0.036 in at $2.31/in. Neither is cheaper per inch than Grade 9 at 3/4 in (Tiger, $1.85/in).",
+   "staff_verdict": "Avoid. It is not cheaper at 3/4 in (it is barely sold in that size), and it is the softest titanium: spec-minimum yield is 138 MPa, about half of Grade 2 and about a fifth of Grade 9 CWSR. It flexes like any other titanium staff (same stiffness) but takes a permanent bend or dent far sooner, and heat at the tips makes that worse. Its only advantages are ductility (it bends before it cracks) and corrosion resistance, and a staff needs neither.",
+   "notes": "Yield figure is the ASTM B338 spec minimum (range 138-310 MPa, per SAM Materials' B338 listing; one other listing gives 170-310, likely an older edition). TIMET's typical values are 220 MPa yield and 345 MPa UTS. Illustrative calculation (mine; first-yield only, ignores ovalising and local buckling): a 0.750 x 0.035 in tube starts to yield at about 30 N·m of bending moment in CP1, compared with 61 (CP2) and 160 (Grade 9 CWSR). On a simply supported 5 ft span that means roughly 8 kg hung at mid-span, compared with 16 kg and 43 kg. A 5 ft length of 0.750 x 0.035 in tube weighs about 350 g for any titanium grade.",
+   "sources": [
+    {
+     "url": "https://www.samaterials.com/item/tm7273-titanium-tube-ti-tube-grade-1-ta1-od-34-inch.html",
+     "quote": "Yield Strength 138–310 MPa ... Elongation ≥24%"
+    },
+    {
+     "url": "https://www.tigertitanium.com/storek/Tube/CP-Grade-1",
+     "quote": "OD 1.375\" ... Wall 0.036\" ... ANNEALED ... $2.31 per inch"
+    },
+    {
+     "url": "https://store.tmstitanium.com/products/titanium-tubing/cp-grade-1/51g",
+     "quote": "24.00\" length - $34.00; 48.00\" length - $68.00"
+    },
+    {
+     "url": "https://www.zapp.com/fileadmin/_documents/Downloads/materials/high_performance_alloys/en/Titanium-Grade-1-4_Datasheet.pdf",
+     "quote": "high affinity to atmospheric gases at temperature higher or equal 250 °C"
+    },
+    {
+     "url": "https://www.atimaterials.com/Products/Documents/datasheets/titanium/commerciallypure/ati_cp1_cp2_cp3_cp4_tds_en1_v1.pdf",
+     "quote": "Melting Range: 3,000-3,040°F, (1,649 - 1,671°C)"
+    },
+    {
+     "url": "https://www.timet.com/assets/local/documents/technicalmanuals/TiAlloys.pdf",
+     "quote": "TIMETAL 35A contains the lowest oxygen and iron levels"
+    },
+    {
+     "url": "https://titanium.com/wp-content/uploads/2010/08/Material-Safety-Data-Sheet.pdf",
+     "quote": "2200F for metal in air, 480F for powder in air."
+    }
+   ]
+  },
+  {
+   "name": "Titanium CP Grade 2 (annealed)",
+   "also_called": "CP2, Ti Grade 2, UNS R50400, TIMETAL 50A, ATI 40",
+   "family": "Commercially pure titanium (all-alpha, unalloyed; standard oxygen)",
+   "density_g_cc": 4.51,
+   "modulus_gpa": 105,
+   "yield_mpa": 275,
+   "uts_mpa": 345,
+   "elongation_pct": 20,
+   "thermal_conductivity_w_mk": 22,
+   "melting_c": "1649-1671 (ATI); Carpenter liquidus 3020-3040 F (1660-1671 C)",
+   "heat_limit_c": "It is sold annealed, so heat below about 538 C (the stress-relief and anneal range) causes no permanent softening, but it is much weaker while hot. Zapp gives yield of about 124 MPa at 315 C, 103 MPa at 425 C and 76 MPa at 540 C, which is only 35-45% of its room-temperature yield. McMaster rates its Grade 2 tube for -20 to 600 F (-29 to 316 C). Heated in air it builds a hard, brittle oxygen-rich surface layer ('alpha case').",
+   "corrosion": "Excellent. Resists salt spray and seawater (Carpenter rates it 'Excellent'), and is fully resistant in seawater up to 315 C.",
+   "heated_hazards": "Same as the other titanium grades. The solid tube gives off no fume at wick temperatures and is rated non-combustible. Cutting and filing chips and dust are combustible, and Carpenter says titanium chips are highly combustible. No water on burning titanium. Grinding sparks can ignite flammable vapour.",
+   "tube_availability": "Checked 2026-09-24. Easily found in 3/4 in. Tiger Titanium: 0.750 x 0.035 in and 0.750 x 0.049 in, seamless, annealed, ASTM B338 (also 0.625 and 1.000 x 0.035 in), in lengths of 6-96 in. McMaster-Carr: seamless 3/4 in x 0.035 and 0.049 in, in 1, 3 and 5 ft lengths, temper 'Soft' (price would not load). Online Metals has a '3/4\" OD x 0.035\" Wall ... Grade 2 Welded' listing, but the page returned 403 so no price. TMS Titanium had a surplus 0.749 x 0.035 x 94.75 in piece.",
+   "price_note": "Tiger Titanium, 2026-09-24: 0.750 x 0.035 in seamless annealed, $1.85/in, so $111.00 for 60 in or $133.20 for 72 in, before cutting and shipping. That is the same per-inch price Tiger charges for Grade 9 CWSR in the same size. 0.750 x 0.049 in was $1.75/in ($105.00 for 60 in). TMS Titanium, 2026-09-24: 0.749 x 0.035 x 94.75 in for $145.90 (about $1.54/in), sold without certification.",
+   "staff_verdict": "It works, but it is soft, and it is NOT cheaper than Grade 9 at the main retail stockist. Spec-minimum yield (275 MPa) is about 38% of Grade 9 CWSR (725 MPa), so the same 0.750 x 0.035 in tube takes a permanent bend at roughly 2.6 times less bending load. Stiffness (how much it flexes in normal use) is essentially the same as Grade 9. It is very ductile and bends rather than snaps. Going to a 0.049 in wall raises the bend resistance about 30% and the weight about 38% (≈480 g for 5 ft), which is still only half of Grade 9 CWSR at 0.035 in. The hot tips lose over half their strength. The only reason to choose it is if it is the only titanium you can get.",
+   "notes": "Yield is the ASTM B338 minimum (range 275-450 MPa). TIMET gives typical values of 345 MPa yield and 485 MPa UTS. Alleima's comparison chart shows Ti Grade 2 at about 40 ksi yield against about 102 ksi for Ti-3-2.5 CWSR. Illustrative first-yield bending moment for 0.750 x 0.035 in: about 61 N·m, roughly 16 kg hung at the middle of a 5 ft span (my calculation, for ranking only). ATI gives typical annealed hardness of about Rockwell B80. Carpenter notes CP titanium galls, so titanium-on-titanium threaded end fittings need anti-seize. Its thermal conductivity (~17-23 W/m-K depending on heat per Carpenter; 22 per Zapp) is about 2.5 times that of Grade 9.",
+   "sources": [
+    {
+     "url": "https://www.tigertitanium.com/storek/Tube/CP-Grade-2",
+     "quote": "0.750\" ... Wall 0.035\" ... Seamless, Annealed | ASTM B338 | $1.85/in."
+    },
+    {
+     "url": "https://store.tmstitanium.com/products/titanium-tubing/cp-grade-2/15519",
+     "quote": "CP Grade 2 ... Wall Thickness: 0.0350\" ... $145.90 per piece"
+    },
+    {
+     "url": "https://www.steelpipesfactory.com/material-grades-standards/astm-b338-grade-2/",
+     "quote": "Tensile Strength: 345 min ... Yield Strength: 275-450 ... Elongation: 20 min"
+    },
+    {
+     "url": "https://www.spacematdb.com/spacemat/manudatasheets/Ti%20grade%202.pdf",
+     "quote": "titanium chips are highly combustible and appropriate safety precautions are necessary"
+    },
+    {
+     "url": "https://www.zapp.com/fileadmin/_documents/Downloads/materials/high_performance_alloys/en/Titanium-Grade-1-4_Datasheet.pdf",
+     "quote": "Ti 2 YS at 0.2 % Offset [MPa] 124 (315 °C)"
+    },
+    {
+     "url": "https://www.mcmaster.com/products/titanium-tubing/",
+     "quote": "Temperature Range: -20 to 600 °F ... Temper: Soft"
+    },
+    {
+     "url": "https://www.atimaterials.com/Products/Documents/datasheets/titanium/commerciallypure/ati_cp1_cp2_cp3_cp4_tds_en1_v1.pdf",
+     "quote": "ATI CP Grade 2 titanium is approximately Rockwell B80"
+    }
+   ]
+  },
+  {
+   "name": "Titanium CP Grade 3 (annealed)",
+   "also_called": "CP3, Ti Grade 3, UNS R50550, TIMETAL 65A, ATI 55",
+   "family": "Commercially pure titanium (all-alpha, medium oxygen)",
+   "density_g_cc": 4.51,
+   "modulus_gpa": 105,
+   "yield_mpa": 380,
+   "uts_mpa": 450,
+   "elongation_pct": 18,
+   "thermal_conductivity_w_mk": 22,
+   "melting_c": "1649-1671 (ATI)",
+   "heat_limit_c": "Sold annealed, so no permanent softening below the anneal range (≥538 C). While hot, Zapp gives yield of about 138 MPa at 315 C, 117 MPa at 425 C and 90 MPa at 540 C. Surface oxygen pickup and embrittlement behave as for the other CP grades.",
+   "corrosion": "Excellent (CP titanium); marginally below Grades 1-2 because it holds more oxygen.",
+   "heated_hazards": "Same as the other titanium grades. The solid tube is inert at wick temperatures. Chips, fines and dust are combustible, and burning titanium must not be hit with water (Class D).",
+   "tube_availability": "Not found in 3/4 in at the retail stockists checked on 2026-09-24. Tiger Titanium has no Grade 3 tube category, and TMS Titanium and McMaster list none. ASTM B338 covers Grade 3, so mills make it (mainly as heat-exchanger tube), but it is a mill-order item, not a hobby purchase.",
+   "price_note": "No retail price found (2026-09-24).",
+   "staff_verdict": "Its strength sits between Grade 2 and annealed Grade 9 (minimum yield 380 MPa), but nobody sells it in staff sizes. Not a practical option.",
+   "notes": "Yield is the ASTM B338 minimum (range 380-550 MPa). TIMET gives typical values of 450 MPa yield and 585 MPa UTS. Illustrative first-yield moment for 0.750 x 0.035 in: about 84 N·m (my calculation).",
+   "sources": [
+    {
+     "url": "https://www.steelpipesfactory.com/material-grades-standards/astm-b338-grade-3/",
+     "quote": "Tensile Strength: 450 min ... Yield Strength: 380-550 ... Elongation: 18 min"
+    },
+    {
+     "url": "https://www.zapp.com/fileadmin/_documents/Downloads/materials/high_performance_alloys/en/Titanium-Grade-1-4_Datasheet.pdf",
+     "quote": "Ti 3 YS at 0.2 % Offset [MPa] 138 (315 °C)"
+    },
+    {
+     "url": "https://www.tigertitanium.com/storek/Tube",
+     "quote": "3Al-2.5V (Grade 9) ... CP Grade 1 ... CP Grade 2 ... CP Grade 4"
+    },
+    {
+     "url": "https://www.timet.com/assets/local/documents/technicalmanuals/TiAlloys.pdf",
+     "quote": "progressively higher oxygen contents and correspondingly higher strength levels"
+    }
+   ]
+  },
+  {
+   "name": "Titanium CP Grade 4 (annealed)",
+   "also_called": "CP4, Ti Grade 4, UNS R50700, TIMETAL 75A, ATI 70",
+   "family": "Commercially pure titanium (all-alpha, highest oxygen and iron)",
+   "density_g_cc": 4.51,
+   "modulus_gpa": 103,
+   "yield_mpa": 480,
+   "uts_mpa": 550,
+   "elongation_pct": 15,
+   "thermal_conductivity_w_mk": 22,
+   "melting_c": "Liquidus 3000-3040 F (1649-1671 C) per Carpenter",
+   "heat_limit_c": "Carpenter: 'Applicable service temperatures up to 204ºC (400ºF)'. Carpenter's elevated-temperature chart (my reading, approximate) shows yield falling from about 550 MPa at room temperature to about 170 MPa near 300 C. That is the biggest proportional loss of the CP grades, because its strength comes from interstitial oxygen.",
+   "corrosion": "Excellent. Carpenter: fully resistant in seawater up to 315 C, and outstanding against corrosion fatigue.",
+   "heated_hazards": "Same as the other titanium grades. The solid tube is inert at wick temperatures. Carpenter says titanium chips are highly combustible.",
+   "tube_availability": "Not in 3/4 in at retail (checked 2026-09-24). Tiger Titanium's CP Grade 4 tube came only in 2.5 and 3.0 in OD. Carpenter's list of Grade 4 product forms includes no tube.",
+   "price_note": "No 3/4 in price found (2026-09-24).",
+   "staff_verdict": "On paper as strong as annealed Grade 9 (yield minimum 480 MPa compared with 483), but it is not sold as small tube, loses strength faster when hot, and is less formable. Not a real option; Grade 9 is the alloy made for this job.",
+   "notes": "Carpenter: 'Specified properties' 480 MPa yield (min), 550 MPa UTS (min) and 15% elongation; typical 480-635 MPa yield. Carpenter's thermal-conductivity chart shows 17-23 W/m-K depending on the heat of metal; Zapp gives 22 for Grades 1-4. Illustrative first-yield moment for 0.750 x 0.035 in: about 106 N·m (my calculation).",
+   "sources": [
+    {
+     "url": "https://www.carpentertechnology.com/hubfs/Data%20Sheets/CP_Ti_Grade_4_Datasheet.pdf",
+     "quote": "Applicable service temperatures up to 204ºC (400ºF)"
+    },
+    {
+     "url": "https://www.carpentertechnology.com/hubfs/Data%20Sheets/CP_Ti_Grade_4_Datasheet.pdf",
+     "quote": "minimum yield strength of 480 MPa (70 ksi)"
+    },
+    {
+     "url": "https://www.tigertitanium.com/storek/Tube/CP-Grade-4",
+     "quote": "Found 3 Items (OD 2.500\", 3.000\", 3.000\")"
+    }
+   ]
+  },
+  {
+   "name": "Titanium Grade 9 (Ti-3Al-2.5V), annealed",
+   "also_called": "Ti 3-2.5, 'half 6-4', UNS R56320, AMS 4943, TIMETAL 3-2.5",
+   "family": "Near-alpha / alpha-beta titanium alloy",
+   "density_g_cc": 4.48,
+   "modulus_gpa": 103,
+   "yield_mpa": 483,
+   "uts_mpa": 620,
+   "elongation_pct": 15,
+   "thermal_conductivity_w_mk": 7.6,
+   "melting_c": "Approx. 1705 per Haynes; Granta/AZoM give 1617-1627 (1890-1900 K). Sources disagree, but either way it is far above anything a staff sees.",
+   "heat_limit_c": "Alleima: usable to about 427 C (800 F), after which oxidation sets in. AZoM/Granta give a maximum service temperature of 327-402 C (600-675 K). Annealed material has no cold work to lose.",
+   "corrosion": "Excellent. Alleima: resists seawater, chlorides and stress-corrosion cracking better than high-oxygen CP titanium.",
+   "heated_hazards": "Contains about 3% aluminium and 2.5% vanadium. The solid tube is inert at wick temperatures: TIMET's SDS covering 3-2.5 says it is not an inhalation hazard 'as sold/shipped' and rates it non-flammable. Welding, grinding or burning can make vanadium pentoxide (V2O5) fume or dust (IARC 2B), and the chips and fines are combustible (Class D; no water).",
+   "tube_availability": "Checked 2026-09-24. Tiger Titanium: 0.750 x 0.039 in annealed (Haynes), 0.052 in annealed and 0.065 in annealed; also 0.875 x 0.035/0.045/0.047 in annealed. Future Metals (aerospace distributor, quote only): 0.750 in OD x 0.022, 0.027, 0.028, 0.035 and 0.049 in walls to AMS 4943 (annealed).",
+   "price_note": "Tiger Titanium, 2026-09-24: 0.750 x 0.039 in annealed $2.20/in ($132 for 60 in); 0.750 x 0.052 in annealed $2.31/in; 0.750 x 0.065 in annealed $2.58/in. That is dearer than the CWSR version at Tiger ($1.85/in). Future Metals: quote only.",
+   "staff_verdict": "Good, but for a staff it is the weaker and (at Tiger) dearer choice of the two Grade 9 conditions. Annealed Grade 9 has about the strength of CP Grade 4 (yield minimum 483 MPa) with more ductility and better formability. Buy CWSR unless you plan to bend or form the tube.",
+   "notes": "Yield is the ASTM B338 minimum (Alleima table). Haynes gives 517 MPa (75 ksi) yield for AMS 4943, so the minimum depends on the spec. Haynes: the alloy was developed specifically as tubing (aircraft hydraulic lines, bicycle frames) because Ti-6Al-4V cold-forms poorly. Thermal conductivity is 7.6 W/m-K (Fine Tubes) or 8.2 at room temperature (Alleima), about a third of CP titanium, so less heat travels down the staff from the wick. Tiger also lists 'HALF ANNEALED' Grade 9, an intermediate condition I could not find specified. Illustrative first-yield moment for 0.750 x 0.035 in: about 106 N·m (my calculation).",
+   "sources": [
+    {
+     "url": "https://www.alleima.com/contentassets/78a2c72e5e4d423487741aac04fa9afb/datasheet-sandvik-ti-grade-9-en-v2025-05-09-0638-version-1.pdf/download",
+     "quote": "usable to about 800°F (427°C), above that temperature, oxidation can occur"
+    },
+    {
+     "url": "https://haynesintl.com/wp-content/uploads/2024/08/ti-3al-2-5v-brochure.pdf",
+     "quote": "Annealed AMS 4943 517 75 621 90 15"
+    },
+    {
+     "url": "https://www.tigertitanium.com/storek/Tube/3Al-25V?diameter=0.750&currentPage=1&recordsPerPage=25",
+     "quote": "0.039\" ... Seamless | Annealed | Haynes | $2.20"
+    },
+    {
+     "url": "https://futuremetals.com/product-category/tube-products/titanium-tubr/",
+     "quote": ".750\" ... .035\" ... 3AL-2.5V ... AMS 4943"
+    },
+    {
+     "url": "https://www.azom.com/properties.aspx?ArticleID=1728",
+     "quote": "Maximum Service Temperature 600 - 675 K"
+    },
+    {
+     "url": "https://www.finetubes.co.uk/-/media/ametekfinetubes/files/downloads/alloy-data-sheets/titanium--alloy-ti-3al-25v-grade-9.pdf?la=en&revision=616b77e0-f6fa-439b-ad7a-978c32188664",
+     "quote": "Thermal Conductivity 7.6 W.m-1.°K-1 ... Density 4.48 g/cm3"
+    }
+   ]
+  },
+  {
+   "name": "Titanium Grade 9 (Ti-3Al-2.5V), cold-worked stress-relieved (CWSR)",
+   "also_called": "Ti 3-2.5 CWSR, UNS R56320, AMS 4944/AMS 4945, 'aerospace/bicycle titanium tube'",
+   "family": "Near-alpha / alpha-beta titanium alloy, cold drawn then stress relieved",
+   "density_g_cc": 4.48,
+   "modulus_gpa": 100,
+   "yield_mpa": 725,
+   "uts_mpa": 860,
+   "elongation_pct": 10,
+   "thermal_conductivity_w_mk": 8.2,
+   "melting_c": "Approx. 1705 (Haynes); 1617-1627 per Granta/AZoM",
+   "heat_limit_c": "Keeps most of its strength when hot. Alleima's measured average yield (my reading of their Fig. 6) is about 120 ksi (~830 MPa) at room temperature, about 97 ksi (~670 MPa) at 204 C, about 87 ksi (~600 MPa) at 316 C and about 71 ksi (~490 MPa) at 427 C, so roughly 72% of room-temperature strength is left at 316 C. Alleima: usable to about 427 C, then it oxidises. Possible permanent loss: Haynes says Grade 9 heat treatments (stress relief up to full anneal) use 371-790 C, so long or repeated soaks of the tip above about 370 C could slowly relax the cold work that gives CWSR its strength. That is my inference; nobody has measured it on a staff.",
+   "corrosion": "Excellent. Alleima: no stress-corrosion cracking after 440 days in boiling seawater; crevice-corrosion resistance better than duplex stainless.",
+   "heated_hazards": "Same as annealed Grade 9. The solid tube is inert at wick temperatures. Only welding, grinding or burning makes metal-oxide fume, including V2O5 (IARC 2B). Chips and fines are combustible; use coolant, sharp tools and low speed, and never water on a titanium fire.",
+   "tube_availability": "Checked 2026-09-24. The most widely stocked titanium tube in staff sizes. Tiger Titanium's 0.750 in OD CWSR walls: 0.023, 0.028 (ASTM B338), 0.035 (ASTM B338), 0.039, 0.065 and 0.130 in; also 0.875 and 1.000 in OD in many walls. McMaster-Carr: 'Easy-Weld' Grade 9, 3/4 in x 0.039 in, AMS 4945, 105,000 psi yield, in 1, 3 and 5 ft lengths (price would not load). TMS Titanium: uncertified surplus pieces 0.748-0.760 in OD x 0.023-0.040 in, 22-95 in long. Haynes' standard 3/4 in walls are 0.020, 0.028, 0.035, 0.039, 0.054 and 0.081 in. Nexmetal lists 0.75 x 0.052 in CWSR, sold out.",
+   "price_note": "Tiger Titanium, 2026-09-24: 0.750 x 0.035 in CWSR ASTM B338 $1.85/in ($111.00 for 60 in, $133.20 for 72 in); 0.750 x 0.039 in CWSR $1.85/in; 0.750 x 0.028 in CWSR B338 $1.94/in; 1.000 x 0.036 in CWSR $1.96/in. TMS Titanium, 2026-09-24 (uncertified surplus): 0.751 x 0.040 in, 57.5 in for $91 (about $1.58/in); 0.748 x 0.039 in, 59.25 in for $91; 0.750 x 0.023 in, 59 in for $121. Cutting and shipping of long lengths were not checked.",
+   "staff_verdict": "Best titanium choice for a staff. It is the grade actually sold in 3/4 in thin wall and costs the same per inch as CP Grade 2 at Tiger. It has about 2.6 times the bend and dent resistance of Grade 2 at the same size and weight, keeps about 72% of its strength at 316 C, and conducts heat poorly (8 W/m-K), so less heat travels toward the hands. Downsides: it is heavier than aluminium tube of the same size, springback makes it hard to straighten if it does bend, the cold work may slowly relax if the tips are soaked hot, and threaded titanium parts gall.",
+   "notes": "Yield is the ASTM B338 / AMS 4944/4945 minimum. Alleima gives modulus 100 GPa for CWSR and 103 GPa annealed; Fine Tubes gives 107. Illustrative first-yield bending moments (my calculation, spec-minimum yield, ignoring ovalising and local buckling): 0.750 x 0.028 in about 131 N·m, 0.035 in about 160, 0.039 in about 175, 0.049 in about 211. For 0.035 in that is roughly 43 kg hung mid-span on a 5 ft span before permanent set, against about 16 kg for CP2. Weight of 5 ft: about 280 g (0.028 in), 346 g (0.035 in), 384 g (0.039 in), 475 g (0.049 in), before end caps and wicks. Alleima: 'springback is about twice that of stainless steel'; thin walls need internal support when bent. Alleima measured 0.750 x 0.039 in CWSR tube bursting at 19,200 psi on average.",
+   "sources": [
+    {
+     "url": "https://www.tigertitanium.com/storek/Tube/3Al-25V?diameter=0.750&currentPage=1&recordsPerPage=25",
+     "quote": "0.035\" | 0.680\" | Seamless | CWSR | ASTM B338 | $1.85"
+    },
+    {
+     "url": "https://www.finetubes.co.uk/-/media/ametekfinetubes/files/downloads/alloy-data-sheets/titanium--alloy-ti-3al-25v-grade-9.pdf?la=en&revision=616b77e0-f6fa-439b-ad7a-978c32188664",
+     "quote": "R.p. 0.2% Yield ... 725 MPa (min) ... Tensile Rm 860 MPa (min)"
+    },
+    {
+     "url": "https://www.alleima.com/contentassets/78a2c72e5e4d423487741aac04fa9afb/datasheet-sandvik-ti-grade-9-en-v2025-05-09-0638-version-1.pdf/download",
+     "quote": "springback is about twice that of stainless steel"
+    },
+    {
+     "url": "https://www.alleima.com/contentassets/78a2c72e5e4d423487741aac04fa9afb/datasheet-sandvik-ti-grade-9-en-v2025-05-09-0638-version-1.pdf/download",
+     "quote": "Ti-3-2.5 is usable to about 800°F (427°C)"
+    },
+    {
+     "url": "https://haynesintl.com/wp-content/uploads/2024/08/ti-3al-2-5v-brochure.pdf",
+     "quote": "Temperatures used generally range from 700°F to 1450°F (371°C 790°C)"
+    },
+    {
+     "url": "https://www.mcmaster.com/products/titanium-tubing/",
+     "quote": "Grade 9 ... easier to weld but not as strong ... 105,000 psi"
+    },
+    {
+     "url": "https://store.tmstitanium.com/products/titanium-tubing/3-2.5-grade-9/11250",
+     "quote": "Wall Thickness: 0.0400\" ... 57.500\" – $91.00"
+    },
+    {
+     "url": "https://store.tmstitanium.com/products/titanium-tubing/3-2.5-grade-9/11887",
+     "quote": "eCommerce material sold without certifications unless otherwise indicated"
+    },
+    {
+     "url": "https://nexmetal.com/products/titanium-tube",
+     "quote": "0.75\" x .052\" WT ... Cold-Worked Stress-Relieved"
+    }
+   ]
+  },
+  {
+   "name": "Titanium Grade 5 (Ti-6Al-4V), annealed tube",
+   "also_called": "Ti 6-4, 6Al-4V, UNS R56400, TIMETAL 6-4, 'aerospace titanium'",
+   "family": "Alpha-beta titanium alloy (heat-treatable)",
+   "density_g_cc": 4.43,
+   "modulus_gpa": 120,
+   "yield_mpa": 700,
+   "uts_mpa": 800,
+   "elongation_pct": 10,
+   "thermal_conductivity_w_mk": 6.7,
+   "melting_c": ">1538 (SDS: >2800 F); Grade 23 of the same base is 1604-1660 per AZoM",
+   "heat_limit_c": "Fine Tubes: normally used annealed 'through 400°C (750°F)'. TIMET: creep resistance to 325 C, and used up to 400 C in less critical parts.",
+   "corrosion": "Excellent in everyday conditions (sweat, rain, fuel).",
+   "heated_hazards": "Contains 6% aluminium and 4% vanadium. The solid tube is inert at wick temperatures (TIMET SDS: non-flammable as sold, with no inhalation hazard in solid form). Welding, grinding or burning can make V2O5 and TiO2 fume. Chips and fines are combustible (Class D, no water).",
+   "tube_availability": "Seamless 6Al-4V tube exists: Fine Tubes makes it annealed and cold-worked, and Future Metals says it offers 6Al-4V tube, quote only. I found no 3/4 in thin-wall Grade 5 stocked at retail on 2026-09-24: Tiger Titanium has no Grade 5 tube category and TMS Titanium showed no Grade 5 tube. Haynes explains why: Ti-6Al-4V has poor cold forming, which is why Grade 9 was developed for tubing. Be sceptical of marketplace 'Grade 5 tube' listings without mill certs.",
+   "price_note": "No retail 3/4 in price found (2026-09-24). Future Metals is quote only.",
+   "staff_verdict": "No real advantage for a staff. Annealed Grade 5 tube has a lower spec minimum yield (700 MPa, Fine Tubes) than Grade 9 CWSR (725 MPa). Only cold-worked Grade 5 (930 MPa minimum) is clearly stronger, and that is hard to source and costs more. Titanium stiffness is similar across grades (Fine Tubes gives 120 GPa for 6-4; TIMET gives 105-120 for both), so it flexes about the same. If someone offers 'Grade 5' at 3/4 in, check the cert: it is often Grade 9.",
+   "notes": "Fine Tubes tube minimums: annealed 800 MPa UTS, 700 MPa yield, 10% elongation; cold-worked 1034 MPa UTS, 930 MPa yield, 8%. TIMET's typical rod values are 885 MPa yield and 985 MPa UTS. Illustrative first-yield moment for 0.750 x 0.035 in annealed: about 154 N·m (my calculation).",
+   "sources": [
+    {
+     "url": "https://www.finetubes.co.uk/-/media/ametekfinetubes/files/downloads/alloy-data-sheets/titanium---alloy-6al4v-grade-5.pdf?la=en&revision=d0752f07-8c0a-42ff-bbd9-1fbb4eda61b4",
+     "quote": "typically used in the annealed condition, at service temperatures through 400°C"
+    },
+    {
+     "url": "https://www.finetubes.co.uk/-/media/ametekfinetubes/files/downloads/alloy-data-sheets/titanium---alloy-6al4v-grade-5.pdf?la=en&revision=d0752f07-8c0a-42ff-bbd9-1fbb4eda61b4",
+     "quote": "R.p. 0.2% Yield 700 MPa (min) ... 930 MPa (min)"
+    },
+    {
+     "url": "https://haynesintl.com/wp-content/uploads/2024/08/ti-3al-2-5v-brochure.pdf",
+     "quote": "Ti-6Al-4V alloy did not have good cold forming characteristics"
+    },
+    {
+     "url": "https://www.timet.com/assets/local/documents/technicalmanuals/TiAlloys.pdf",
+     "quote": "creep resistance up to 325°C ... less critical applications up to 400°C"
+    },
+    {
+     "url": "https://store.tmstitanium.com/products/grade-5-titanium/",
+     "quote": "6-4 Grade 5 Titanium Round Bar/Rod (no tubing listed)"
+    },
+    {
+     "url": "https://www.timet.com/assets/local/documents/datasheets/safety/Alloys_SDS_6-4_6-4ELI_230_3-_5_511_2014.pdf",
+     "quote": "Flammability (solid, gas): Non-flammable, non-combustible"
+    }
+   ]
+  },
+  {
+   "name": "Titanium Grade 23 (Ti-6Al-4V ELI)",
+   "also_called": "6-4 ELI, 'extra low interstitial', UNS R56401, medical/implant titanium",
+   "family": "Alpha-beta titanium alloy, low-oxygen version of Grade 5",
+   "density_g_cc": 4.43,
+   "modulus_gpa": 113.8,
+   "yield_mpa": 790,
+   "uts_mpa": 860,
+   "elongation_pct": 15,
+   "thermal_conductivity_w_mk": 6.7,
+   "melting_c": "1604-1660 (AZoM)",
+   "heat_limit_c": "About the same as Grade 5 (around 400 C service ceiling). No separate elevated-temperature data found.",
+   "corrosion": "Excellent.",
+   "heated_hazards": "Same as Grade 5: the solid tube is inert at wick temperatures, and welding, grinding or burning fumes include V2O5 and TiO2. Covered in the same TIMET SDS as 6-4.",
+   "tube_availability": "Future Metals lists 6Al-4V ELI among its tube alloys (quote only). I found no retail 3/4 in thin-wall on 2026-09-24. Mostly bar and wire for implants.",
+   "price_note": "No price found (2026-09-24).",
+   "staff_verdict": "No benefit for a staff. You pay for low oxygen (fracture toughness and implant use), which a staff does not need, and it is not sold in staff tube sizes.",
+   "notes": "AZoM values (790 MPa yield, 860 UTS, 15% elongation) look like bar/implant-spec figures, not tube minimums. Wikipedia: 0.13% max oxygen, compared with 0.20% for Grade 5.",
+   "sources": [
+    {
+     "url": "https://www.azom.com/article.aspx?ArticleID=9365",
+     "quote": "Yield Strength: 790 MPa ... Tensile Strength: 860 MPa"
+    },
+    {
+     "url": "https://en.wikipedia.org/wiki/Titanium_alloys",
+     "quote": "ELI stands for 'extra low interstitial'."
+    },
+    {
+     "url": "https://futuremetals.com/product-category/tube-products/titanium-tubr/",
+     "quote": "6AL-4V, 6AL-4V ELI, and 3AL-2.5V"
+    }
+   ]
+  },
+  {
+   "name": "Titanium Grade 7 (Ti-0.15Pd), annealed",
+   "also_called": "Grade 7 / 7H, UNS R52400, palladium-stabilised CP2",
+   "family": "Commercially pure titanium with 0.12-0.25% palladium (corrosion grade)",
+   "density_g_cc": 4.51,
+   "modulus_gpa": 105,
+   "yield_mpa": 275,
+   "uts_mpa": 345,
+   "elongation_pct": 20,
+   "melting_c": "About the same as CP titanium (~1660); not separately sourced",
+   "heat_limit_c": "About the same as CP Grade 2 (weak while hot; see Grade 2). Not separately sourced.",
+   "corrosion": "Better than Grade 2 in reducing acids. That matters in chemical plants, not on a staff.",
+   "heated_hazards": "Same as CP titanium. Palladium adds no meaningful hazard.",
+   "tube_availability": "Not found at any retail stockist checked on 2026-09-24. It is an ASTM B338 heat-exchanger grade.",
+   "price_note": "No price found. Palladium content would be expected to make it dearer than Grade 2 (inference).",
+   "staff_verdict": "Pointless for a staff: Grade 2 strength at a premium price, for corrosion resistance you will never use.",
+   "notes": "B338 mechanical minimums are identical to Grade 2. Density and modulus are taken as the CP values (not separately sourced).",
+   "sources": [
+    {
+     "url": "https://www.steelpipesfactory.com/material-grades-standards/astm-b338-grade-7/",
+     "quote": "Yield Strength: 275-450 ... Palladium (Pd) Content: 0.12-0.25"
+    },
+    {
+     "url": "https://en.wikipedia.org/wiki/Titanium_alloys",
+     "quote": "Contains 0.12 to 0.25% palladium. This grade is similar to Grade 2."
+    }
+   ]
+  },
+  {
+   "name": "Titanium Grade 12 (Ti-0.3Mo-0.8Ni)",
+   "also_called": "TIMETAL Code 12, UNS R53400",
+   "family": "Near-alpha titanium alloy (corrosion grade)",
+   "density_g_cc": 4.51,
+   "modulus_gpa": 105,
+   "yield_mpa": 345,
+   "uts_mpa": 483,
+   "elongation_pct": 18,
+   "melting_c": "Not sourced (expected close to CP titanium)",
+   "heat_limit_c": "TIMET says it has 'improved strength and temperature capability over CP'. No numbers found.",
+   "corrosion": "Excellent, with better crevice-corrosion resistance in hot chlorides than CP titanium.",
+   "heated_hazards": "Contains about 0.8% nickel. The solid tube is inert at wick temperatures. Welding or grinding fume would include nickel, which the Titanium Industries SDS lists among fume constituents of special concern.",
+   "tube_availability": "Not found at retail stockists checked on 2026-09-24 (a B338 heat-exchanger grade).",
+   "price_note": "No price found (2026-09-24).",
+   "staff_verdict": "Not worth pursuing. Strength sits between CP2 and CP3, and it is not sold in staff sizes.",
+   "notes": "Yield is the B338 minimum. TIMET's typical values are 460 MPa yield and 600 MPa UTS, with modulus 105-120 GPa. Illustrative first-yield moment for 0.750 x 0.035 in: about 76 N·m (my calculation).",
+   "sources": [
+    {
+     "url": "https://www.steelpipesfactory.com/material-grades-standards/astm-b338-grade-12/",
+     "quote": "Tensile Strength: 483 min ... Yield Strength: 345 min ... Elongation: 18 min"
+    },
+    {
+     "url": "https://www.timet.com/assets/local/documents/technicalmanuals/TiAlloys.pdf",
+     "quote": "improved strength and temperature capability over CP"
+    },
+    {
+     "url": "https://en.wikipedia.org/wiki/Titanium_alloys",
+     "quote": "Contains 0.3% molybdenum and 0.8% nickel."
+    }
+   ]
+  },
+  {
+   "name": "Ti-15V-3Cr-3Sn-3Al (Ti-15-3), annealed",
+   "also_called": "TIMETAL 15-3, AMS 4914 (strip)",
+   "family": "Metastable beta titanium alloy (cold formable, age-hardenable)",
+   "density_g_cc": 4.78,
+   "modulus_gpa": 70,
+   "yield_mpa": 780,
+   "uts_mpa": 825,
+   "elongation_pct": 16,
+   "melting_c": "Not sourced; beta transus 760 C (TIMET)",
+   "heat_limit_c": "TIMET: used for fabricated structures 'up to 300°C'. Ageing at 482-538 C greatly raises strength and stiffness (TIMET), so strong heating would change its properties.",
+   "corrosion": "Good (titanium), but not sourced specifically.",
+   "heated_hazards": "Contains about 15% vanadium and 3% chromium. The solid form is inert at wick temperatures. Welding, grinding or burning fume would contain vanadium and chromium oxides; the Titanium Industries SDS flags chromium and vanadium as fume constituents of special concern.",
+   "tube_availability": "Not found as tube. TIMET describes it as a strip alloy used for aircraft ducting. My web-search budget ran out before a dedicated tube search, so treat 'not found' as weak evidence.",
+   "price_note": "No price found (2026-09-24).",
+   "staff_verdict": "Skip. Not sold as staff tube, and annealed it is much floppier (70 GPa modulus against about 100-120 GPa for other titanium). You would have to age it to get it stiff and strong, which is not a home-shop job.",
+   "notes": "Values are TIMET typical annealed strip (780 MPa proof, 825 UTS, 16%). Aged at 482 C: 1210/1300 MPa and 107 GPa. Density 4.78 g/cc is the highest of the titanium grades listed here.",
+   "sources": [
+    {
+     "url": "https://www.timet.com/assets/local/documents/technicalmanuals/TiAlloys.pdf",
+     "quote": "this strip alloy is primarily used for aircraft ducting ... up to 300°C"
+    },
+    {
+     "url": "https://archpdfs.lps.org/Chemicals/Titanium%20metal.pdf",
+     "quote": "Chromium 7440-47-3 ... 0-11% ... Vanadium 7440-62-2 ... 2-4%"
+    }
+   ]
+  }
+ ],
+ "general_findings": [
+  "PRICE (the 'CP1 is cheaper' question), checked 2026-09-24: at the main small-quantity US titanium stockist, CP titanium is NOT cheaper at staff size. Tiger Titanium charges exactly $1.85/in both for CP Grade 2 0.750 x 0.035 in seamless annealed and for Grade 9 CWSR 0.750 x 0.035 in (both ASTM B338), which is $111 for 5 ft or $133.20 for 6 ft before cutting and shipping. TMS Titanium surplus was similar per inch for both grades (CP2 ~$1.54/in, Grade 9 ~$1.58/in). CP Grade 1 is not stocked in 3/4 in at either (Tiger's only CP1 tube was 1.375 in OD; TMS had 0.5, 1.25 and 1.5 in). At retail the price is set by the size and the stockist's pricing, not by alloy content. Grade 9 is the grade tube mills make in quantity, for aircraft hydraulic lines and bicycle frames. Online Metals and McMaster-Carr both list 3/4 in Grade 2 and Grade 9 tube, but neither page would give me a price (403 / script-rendered).",
+  "WHY GRADE 9: Haynes says Ti-3Al-2.5V was developed specifically for seamless tubing because Ti-6Al-4V (Grade 5) does not cold-form well. That is why Grade 9 CWSR is everywhere in 3/4 in thin wall and Grade 5 tube is rare and quote-only.",
+  "STIFFNESS vs STRENGTH (what the grade actually changes): every common titanium grade here has about the same elastic modulus (100-120 GPa), so a CP2 staff and a Grade 9 staff of the same size flex almost identically in normal play. What changes with grade is how much load it takes before the bend or dent becomes PERMANENT. Spec-minimum yields: CP1 138, CP2 275, CP3 380, CP4 480, Grade 9 annealed 483, Grade 9 CWSR 725, Grade 5 annealed tube 700 MPa. The one exception is the beta alloy Ti-15-3, which annealed is only about 70 GPa, so noticeably floppier.",
+  "ROUGH STAFF NUMBERS (my own calculation, spec-minimum yield, first yield only, ignores ovalising/local buckling; use for ranking, not design). For 0.750 in OD: a 0.035 in wall first yields at about 30 N·m in CP1, 61 in CP2, 84 in CP3, 106 in CP4 or annealed Grade 9, and 160 in Grade 9 CWSR. On a simply supported 5 ft span that is about 8, 16, 22, 28 and 43 kg hung at the middle. Grade 9 CWSR at 0.028 in is about 131 N·m, 0.039 in about 175, 0.049 in about 211. CP2 at 0.049 in is only about 80 N·m. Tube-only weight for 5 ft of 0.750 in OD titanium: about 280 g (0.028 in), 350 g (0.035 in), 385 g (0.039 in), 480 g (0.049 in), 620 g (0.065 in).",
+  "WALL THICKNESS & DIAMETERS in titanium catalogues: Haynes' standard Grade 9 walls at 3/4 in are 0.020, 0.028, 0.035, 0.039, 0.054 and 0.081 in. Tiger stocks 0.750 in Grade 9 in 0.020-0.130 in walls, and 5/8, 7/8 and 1 in OD as well. McMaster's Grade 9 'Easy-Weld' at 3/4 in is 0.039 in wall to AMS 4945. Very thin walls (0.020-0.023 in, diameter-to-wall ratio over 30) are light but will dent and kink locally long before the bending figures above suggest (engineering reasoning; not tested). Master Flow Arts, writing about aluminium, says hardware-store tube under 1.6 mm (0.06 in) wall 'will bend very easily'.",
+  "HEAT: nobody has published the metal temperature under a burning wick. Titanium data at a few hundred C: Grade 9 CWSR keeps about 72% of its room-temperature yield at 316 C (Alleima's measured average, my reading of their chart, about 87 of 120 ksi). CP Grade 2 drops to about 124 MPa at 315 C, roughly 35-45% of room-temperature yield (Zapp). CP Grade 4 falls hardest (Carpenter chart, about 170 MPa near 300 C), and Carpenter lists CP4 service to 204 C. Alleima: Grade 9 is 'usable to about 800°F (427°C)', and above that oxidation sets in. Engineering reasoning: bending moment on a staff is largest mid-length and smallest at the tips, where the heat is, so heat weakening matters mostly for impact dents at the tips, not for mid-staff bends.",
+  "PERMANENT HEAT DAMAGE: annealed CP grades cannot lose temper below their stress-relief and anneal range (about 538 C and up per ATI and Carpenter). Cold-worked Grade 9 (CWSR) is different. Its strength comes from cold work, and Haynes says Grade 9 heat treatments (stress relief up to full anneal) use 371-790 C, so long or repeated soaking of the tips above about 370 C could slowly relax that strength. This is inference; I found no test data for short flame exposures.",
+  "OXYGEN PICKUP and HEAT TINT: heated in air, titanium absorbs oxygen and forms a hard, brittle surface layer called 'alpha case' (Carpenter). Zapp says titanium has high affinity for air gases at 250 C and above (written about welding). Research abstracts in search results put rapid alpha-case formation above about 480 C; I did not open those papers, so that figure is secondary. As a rough visual thermometer, a jewellery reference (Untracht 1982, cited by Wikipedia) gives titanium heat-tint colours of pale gold/straw about 385 C, purple about 412 C and deep blue about 440 C. Colour also depends on time at temperature, so it is only an indication. A straw or blue tip means the metal got into the range where oxidation starts.",
+  "FUMES FROM THE TUBE: solid titanium tube is not a fume source at wick temperatures. Titanium Industries' SDS: no toxic effects expected 'from its inert solid form or under normal usage such as forging and heating'. TIMET's SDS for 6-4, 6-4 ELI and 3-2.5 says 'as sold/shipped' it presents no inhalation hazard and rates it non-flammable and non-combustible. Metal-oxide fume (TiO2; V2O5 from the vanadium in Grades 5, 9 and 23) comes only from welding, grinding, sawing or burning the metal. Massive titanium auto-ignites around 1204 C (2200 F) and melts around 1650 C or higher, far above wick-contact temperatures. Fuel smoke from the wick is a separate question for the fuels research.",
+  "CUTTING and DRILLING HAZARDS (the real titanium hazard): chips, turnings, fines and dust are combustible. Carpenter: 'titanium chips are highly combustible'. Titanium Industries: powder auto-ignites at about 249 C (480 F); 'Piled chips may burn vigorously'; 'Water applied to burning titanium may cause an explosion'. TIMET: treat it as a Class D fire, never water. The Titanium Industries SDS also warns that sparks from welding or grinding can ignite combustible and flammable materials. Practical rules for staff builders: cut with a tube cutter, hacksaw or slow abrasive saw using coolant; sweep up and bin fines; never grind titanium near fuel, a fuel dump or fuel-soaked wicks; and flush all filings and swarf out of the tube and wick heads before the first burn, since a burning wick is exactly the ignition source the SDS warns about for fine pieces. By the same logic (my inference), avoid fine titanium wire, mesh or wool inside wick heads.",
+  "GALLING: Carpenter says CP titanium and its alloys 'have a tendency to gall', and they are not recommended for wear applications. Threaded titanium-on-titanium end plugs or wick mounts can seize; use anti-seize or a dissimilar-metal fitting. Titanium also has large springback (about twice stainless, Alleima), so a bent titanium staff is hard to straighten true.",
+  "THERMAL CONDUCTIVITY: titanium conducts heat poorly: CP grades 17-23 W/m-K (Carpenter chart, varies by heat; Zapp gives 22), Grade 9 7.6-8.2, Grade 5 and 23 6.7. Less wick heat therefore travels down the tube toward the hands than in higher-conductivity metals (compare with the aluminium and steel research). Master Flow Arts' advice still applies: cap the tube ends so flame cannot get inside, and cover exposed metal near the wicks.",
+  "FLOW-ARTS CONTEXT: most commercial contact staffs are aluminium. Sacred Flow Art's contact fire staff, for example, is 3/4 in 7075 aluminium, 55 or 59 in long, 700-850 g, $185 on 2026-09-24. Master Flow Arts sums up titanium as 'Similar to Al, but usually stronger and heavier.' I found no established flow-arts maker that publishes which titanium grade to use; Grade 9 CWSR comes from the bicycle-frame and aerospace-tube world.",
+  "CERTIFICATION CAUTION: TMS Titanium's e-commerce surplus is 'sold without certifications unless otherwise indicated'. Tiger labels some Grade 9 'UNMARKED' or 'HALF ANNEALED'. For staff use any honest Grade 9 is fine, but a 'Grade 5 tube' or 'titanium' listing without a mill cert may be Grade 9 or CP. Ask for the cert or buy B338/AMS-marked stock.",
+  "GAPS / UNCERTAINTY: no retail price was retrievable for Online Metals, McMaster-Carr, Grade 5, Grade 23, Grade 3, Grade 7 or Grade 12 tube at 3/4 in, and shipping costs for 5-6 ft lengths were not checked. The session's web-search budget ran out before I could search Grade 5 retail tube and Ti-15-3 tube specifically, so 'not found' for those is weaker evidence than for CP1 and CP4, whose stockist catalogues I read directly. Elevated-temperature numbers for Grade 9 CWSR and CP4 are my readings of manufacturer charts. All bending and weight figures are my calculations from spec minimums and nominal dimensions."
+ ]
+}

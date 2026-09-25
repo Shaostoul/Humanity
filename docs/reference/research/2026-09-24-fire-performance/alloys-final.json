@@ -1,0 +1,336 @@
+[
+  {
+    "name": "Aluminium 5052-H32",
+    "basis": "tube min",
+    "density_g_cc": 2.68,
+    "modulus_gpa": 70,
+    "yield_mpa": 159,
+    "thermal_conductivity_w_mk": 138,
+    "note": "Kaiser drawn tube H32 minimum (ASTM B210/B483); k is Kaiser O-temper figure"
+  },
+  {
+    "name": "Aluminium 6061-T6",
+    "basis": "tube min",
+    "density_g_cc": 2.7,
+    "modulus_gpa": 68.9,
+    "yield_mpa": 241,
+    "thermal_conductivity_w_mk": 167,
+    "note": "Kaiser drawn tube T6 minimum 35 ksi (ASTM B210/B483, AMS 4080-4083); E 10.0 Msi Kaiser typical (auditor fix from 68.3)",
+    "baseline": true,
+    "sweep": true
+  },
+  {
+    "name": "Aluminium 6063-T5",
+    "basis": "tube min",
+    "density_g_cc": 2.7,
+    "modulus_gpa": 69,
+    "yield_mpa": 110,
+    "thermal_conductivity_w_mk": 209,
+    "note": "ASTM B221-05a Table 2, alloy 6063 T5, walls up through 0.500 in: 22.0 ksi UTS, 16.0 ksi yield, 8% minimum (copy at cnkpipefitting.com/wp-content/uploads/2018/10/ASTM-B221-Extruded-Aluminum-Alloy-Tubes-for-General-Purpose-Applications..pdf, read 2026-09-24; current B221 edition not checked). Wikipedia 6063 page gives 97 MPa (14 ksi); the ASTM table is used. T5 is an extrusion-only temper; k ASM 209 (auditor)"
+  },
+  {
+    "name": "Aluminium 6063-T6",
+    "basis": "tube min",
+    "density_g_cc": 2.7,
+    "modulus_gpa": 69,
+    "yield_mpa": 193,
+    "thermal_conductivity_w_mk": 201,
+    "note": "Kaiser drawn tube T6 minimum 28 ksi"
+  },
+  {
+    "name": "Aluminium 6063-T832",
+    "basis": "tube min",
+    "density_g_cc": 2.7,
+    "modulus_gpa": 69,
+    "yield_mpa": 241,
+    "thermal_conductivity_w_mk": 201,
+    "note": "Kaiser drawn T832 minimum: 248 MPa (36 ksi) for 0.025-0.049 in walls, 241 MPa (35 ksi) for 0.050-0.250 in; tables.js applies the band for each wall via yield_bands; k ASM T6/T83 201 (auditor)",
+    "yield_bands": [
+      {
+        "min_in": 0.025,
+        "max_in": 0.049,
+        "yield_mpa": 248
+      },
+      {
+        "min_in": 0.05,
+        "max_in": 0.25,
+        "yield_mpa": 241
+      }
+    ],
+    "footnote": "The Kaiser drawn-tube minimum depends on wall: 248 MPa for 0.025-0.049 in, 241 MPa for 0.050-0.250 in. Each table uses the band for its own wall."
+  },
+  {
+    "name": "Aluminium 6082-T6",
+    "basis": "tube min",
+    "density_g_cc": 2.7,
+    "modulus_gpa": 70,
+    "yield_mpa": 250,
+    "thermal_conductivity_w_mk": 180,
+    "note": "BS EN 755-2 extruded tube minimum, walls to 5 mm (auditor fix: 290/340 had no source)"
+  },
+  {
+    "name": "Aluminium 7005-T6",
+    "basis": "typical",
+    "density_g_cc": 2.78,
+    "modulus_gpa": 72,
+    "yield_mpa": 290,
+    "thermal_conductivity_w_mk": 137,
+    "note": "Aluminum Association typical via MatWeb; no T6 tube minimum found (Kaiser lists 7005 tube in F temper only)"
+  },
+  {
+    "name": "Aluminium 7075-T6",
+    "basis": "tube min",
+    "density_g_cc": 2.8,
+    "modulus_gpa": 71,
+    "yield_mpa": 455,
+    "thermal_conductivity_w_mk": 130,
+    "note": "Kaiser drawn tube T6 minimum 66 ksi (ASTM B210, AMS-WW-T-700/7); Kaiser MPa column misprinted, converted from ksi. Density 2.80 (0.101 lb/in3) and E 71.0 GPa (10.3 Msi) from the Kaiser 7075 Tube & Pipe sheet (Rev. 05/06), which lists each once for the alloy; same values on the T73 row (was 2.81 / 71.7 from Alcoa/AA)",
+    "sweep": true
+  },
+  {
+    "name": "Aluminium 7075-T73",
+    "basis": "tube min",
+    "density_g_cc": 2.8,
+    "modulus_gpa": 71,
+    "yield_mpa": 386,
+    "thermal_conductivity_w_mk": 155,
+    "note": "Kaiser drawn tube T73 minimum 56 ksi; density 2.80 and E 71.0 from the Kaiser 7075 Tube & Pipe sheet, same as the T6 row"
+  },
+  {
+    "name": "Aluminium 7068-T6",
+    "basis": "tube min",
+    "density_g_cc": 2.85,
+    "modulus_gpa": 73.1,
+    "yield_mpa": 579,
+    "thermal_conductivity_w_mk": null,
+    "note": "Kaiser drawn tube T6 minimum; E from MMPDS-04 via Kaiser brochure (auditor); k left null (Kaiser sheet 190 is a copy error, 31% IACS implies ~120)"
+  },
+  {
+    "name": "Aluminium 2024-T3",
+    "basis": "tube min",
+    "density_g_cc": 2.77,
+    "modulus_gpa": 73.1,
+    "yield_mpa": 290,
+    "thermal_conductivity_w_mk": 120,
+    "note": "Kaiser drawn tube T3 minimum 42 ksi (ASTM B210); k is Kaiser T4/T351 figure"
+  },
+  {
+    "name": "Titanium grade 1",
+    "basis": "tube min",
+    "density_g_cc": 4.51,
+    "modulus_gpa": 105,
+    "yield_mpa": 138,
+    "thermal_conductivity_w_mk": 22,
+    "note": "ASTM B338 annealed minimum; k Zapp (grades 1-4)"
+  },
+  {
+    "name": "Titanium grade 2",
+    "basis": "tube min",
+    "density_g_cc": 4.51,
+    "modulus_gpa": 105,
+    "yield_mpa": 275,
+    "thermal_conductivity_w_mk": 22,
+    "note": "ASTM B338 annealed minimum",
+    "sweep": true
+  },
+  {
+    "name": "Titanium grade 3",
+    "basis": "tube min",
+    "density_g_cc": 4.51,
+    "modulus_gpa": 105,
+    "yield_mpa": 380,
+    "thermal_conductivity_w_mk": 22,
+    "note": "ASTM B338 annealed minimum"
+  },
+  {
+    "name": "Titanium grade 4",
+    "basis": "bar/plate min",
+    "density_g_cc": 4.51,
+    "modulus_gpa": 103,
+    "yield_mpa": 480,
+    "thermal_conductivity_w_mk": 22,
+    "note": "Carpenter specified minimum (bar/plate); no grade 4 tube spec or stock in staff sizes"
+  },
+  {
+    "name": "Titanium grade 9 annealed",
+    "basis": "tube min",
+    "density_g_cc": 4.48,
+    "modulus_gpa": 103,
+    "yield_mpa": 483,
+    "thermal_conductivity_w_mk": 7.6,
+    "note": "ASTM B338 annealed minimum (AMS 4943 is 517); k Fine Tubes"
+  },
+  {
+    "name": "Titanium grade 9 CWSR",
+    "basis": "tube min",
+    "density_g_cc": 4.48,
+    "modulus_gpa": 100,
+    "yield_mpa": 725,
+    "thermal_conductivity_w_mk": 7.6,
+    "note": "ASTM B338 / AMS 4944-4945 CWSR minimum 105 ksi; E Alleima; k 7.6 (auditor fix from 8.2)",
+    "sweep": true
+  },
+  {
+    "name": "Titanium grade 5",
+    "basis": "tube min",
+    "density_g_cc": 4.43,
+    "modulus_gpa": 114,
+    "yield_mpa": 700,
+    "thermal_conductivity_w_mk": 6.7,
+    "note": "Fine Tubes annealed tube minimum; E 114 (auditor fix, Fine Tubes 120 is high outlier); rarely stocked as tube",
+    "sweep": true
+  },
+  {
+    "name": "Titanium grade 23",
+    "basis": "bar/plate min",
+    "density_g_cc": 4.43,
+    "modulus_gpa": 113.8,
+    "yield_mpa": 759,
+    "thermal_conductivity_w_mk": 6.7,
+    "note": "ASTM B348/B265 grade 23 minimum 110 ksi (auditor, from the standard, not re-fetched); no tube minimum found; bar/implant form"
+  },
+  {
+    "name": "Titanium grade 12",
+    "basis": "tube min",
+    "density_g_cc": 4.51,
+    "modulus_gpa": 103,
+    "yield_mpa": 345,
+    "thermal_conductivity_w_mk": null,
+    "note": "ASTM B338 minimum; E 103 from TIMET grade 12 sheet (auditor fix from 105); k not sourced"
+  },
+  {
+    "name": "Stainless 304 annealed",
+    "basis": "tube min",
+    "density_g_cc": 7.9,
+    "modulus_gpa": 200,
+    "yield_mpa": 207,
+    "thermal_conductivity_w_mk": 16.3,
+    "note": "ASTM A269/A213/A554 annealed tube minimum 30 ksi",
+    "sweep": true
+  },
+  {
+    "name": "Stainless 304 1/4-hard",
+    "basis": "strip min",
+    "density_g_cc": 7.9,
+    "modulus_gpa": 200,
+    "yield_mpa": 517,
+    "thermal_conductivity_w_mk": 16.3,
+    "note": "ASTM A666 1/4-hard minimum 75 ksi (a strip temper; no 1/4-hard round tube spec found); density/k same as annealed (auditor)"
+  },
+  {
+    "name": "Stainless 316 annealed",
+    "basis": "tube min",
+    "density_g_cc": 7.9,
+    "modulus_gpa": 200,
+    "yield_mpa": 207,
+    "thermal_conductivity_w_mk": 14.6,
+    "note": "ASTM A269/A213 annealed tube minimum 30 ksi"
+  },
+  {
+    "name": "Stainless 201 annealed",
+    "basis": "sheet min",
+    "density_g_cc": 7.81,
+    "modulus_gpa": 197,
+    "yield_mpa": 310,
+    "thermal_conductivity_w_mk": 16.2,
+    "note": "ASTM A240/A240M-23 Table 2, S20100 type 201-2: 95 ksi (655 MPa) UTS, 45 ksi (310 MPa) yield, 40% minimum; type 201-1 is 75/38 ksi (515/260 MPa) (read 2026-09-24 from the Table 2 extract at chinastainless-steel.com/uploads/39866/files/ASTM-A240-A240M-904L.pdf). MakeItFrom typical 300 and AK Steel typical 379 not used. Density/E/k from AK Steel. Not in A554, no tube minimum",
+    "alts": [
+      {
+        "label": "the A240 type 201-1 minimum",
+        "yield_mpa": 260
+      }
+    ],
+    "footnote": "No tube minimum exists for 201; this is the ASTM A240 sheet minimum for type 201-2. Tube is welded from strip, and the 201-1 variant has a lower minimum."
+  },
+  {
+    "name": "Stainless 430",
+    "basis": "tube min",
+    "density_g_cc": 7.74,
+    "modulus_gpa": 200,
+    "yield_mpa": 241,
+    "thermal_conductivity_w_mk": 26.1,
+    "note": "ASTM A554 MT430 welded tube minimum 35 ksi (auditor fix from A240 sheet 205)"
+  },
+  {
+    "name": "Stainless 17-4PH H1150",
+    "basis": "bar min",
+    "density_g_cc": 7.83,
+    "modulus_gpa": 196,
+    "yield_mpa": 724,
+    "thermal_conductivity_w_mk": 18.3,
+    "note": "AMS 5643 H1150 minimum 105 ksi; bar spec, rarely sold as thin-wall tube"
+  },
+  {
+    "name": "Carbon steel 1020 DOM (as drawn)",
+    "basis": "tube min",
+    "density_g_cc": 7.85,
+    "modulus_gpa": 205,
+    "yield_mpa": 414,
+    "thermal_conductivity_w_mk": 51.9,
+    "note": "ASTM A513 Type 5 mandrel-drawn (as drawn) 1020 minimum 60 ksi (Totten); stress-relieved 1020 is 55 ksi (379), as-drawn 1026 is 70 ksi (483), stress-relieved 1026 is 65 ksi (448) (Totten, re-read 2026-09-24); k MatWeb 51.9 (auditor)",
+    "alts": [
+      {
+        "label": "stress-relieved 1020 (A513 minimum 379 MPa)",
+        "yield_mpa": 379
+      },
+      {
+        "label": "as-drawn 1026 (A513 minimum 483 MPa)",
+        "yield_mpa": 483
+      }
+    ],
+    "footnote": "Retail DOM is sold as \"1020/1026\" and is often supplied stress-relieved. The row assumes as-drawn 1020 (A513 minimum 414 MPa)."
+  },
+  {
+    "name": "4130 chromoly normalized",
+    "basis": "tube min",
+    "density_g_cc": 7.85,
+    "modulus_gpa": 205,
+    "yield_mpa": 517,
+    "thermal_conductivity_w_mk": 42.7,
+    "note": "MIL-T-6736B (3 May 1965) Table II, condition (N) normalized or stress relieved: 95,000 psi UTS and 75,000 psi yield minimum for walls up to 0.035 in incl. (10%) and over 0.035 to 0.187 in incl. (12%); over 0.187 in is 90,000/70,000 (everyspec copy at meracing.com/UserFiles/Products/Tubes/MIL-T-6736B_2.pdf, read 2026-09-24). Retail aircraft 4130 tube (e.g. Aircraft Spruce condition N) is sold to MIL-T-6736 / its successor AMS-T-6736, whose current table was not checked. Replaces 483 (AMS 6371 cold-drawn tube, 70 ksi, Aircraft Materials), which was a different condition",
+    "sweep": true
+  },
+  {
+    "name": "4130 chromoly heat-treated",
+    "basis": "tube min",
+    "density_g_cc": 7.85,
+    "modulus_gpa": 205,
+    "yield_mpa": 689,
+    "thermal_conductivity_w_mk": 42.7,
+    "note": "MIL-T-6736B (1965) Table II condition (HT-125): 125,000 psi UTS, 100,000 psi yield minimum, all walls (same source as the normalized row); AMS 6346 hardened-and-tempered bar is also 100 ksi; thin tube is rarely sold heat-treated"
+  },
+  {
+    "name": "Magnesium AZ31B tube",
+    "basis": "tube min",
+    "density_g_cc": 1.77,
+    "modulus_gpa": 44.8,
+    "yield_mpa": 110,
+    "thermal_conductivity_w_mk": 96,
+    "note": "ASTM B107 AZ31B-F tube minimum 16 ksi (low end of 110-140 range read from B107); compressive yield 12 ksi (83 MPa) typical against 24 ksi (165 MPa) tensile yield typical, BTI AZ31B tube page, so bending onset is lower (footnote in tables.md)",
+    "alts": [
+      {
+        "label": "the ~83 MPa typical compressive yield instead",
+        "yield_mpa": 83
+      }
+    ],
+    "footnote": "Bending yields the compression face first, and AZ31B tube is much weaker in compression: BTI lists 83 MPa (12 ksi) compressive yield against 165 MPa tensile, both typical. The row uses the ASTM B107 tensile minimum, so it overstates the load before a permanent bend by about 1.3x. The figures that follow mix a typical compressive value with the minimum-based rows; no compressive minimum was found."
+  },
+  {
+    "name": "Brass C260 annealed tube",
+    "basis": "typical",
+    "density_g_cc": 8.53,
+    "modulus_gpa": 110,
+    "yield_mpa": 138,
+    "thermal_conductivity_w_mk": 121,
+    "note": "copper.org C26000 tube OS025 typical (OS050 is 103); retail tube temper is usually unstated, hard-drawn H80 is much stronger"
+  },
+  {
+    "name": "Copper C12200 drawn (H58, plumbing \"hard\")",
+    "basis": "tube min",
+    "density_g_cc": 8.94,
+    "modulus_gpa": 120,
+    "yield_mpa": 205,
+    "thermal_conductivity_w_mk": 340,
+    "note": "ASTM B88 drawn (H58) plumbing tube minimum 30 ksi (commonly cited; 36 ksi UTS confirmed); B88 measures yield at 0.5% extension under load, not 0.2% offset; copper.org H55 typical 221; copper.org \"hard drawn\" H80 (310-379 typical) is a different, stronger temper"
+  }
+]

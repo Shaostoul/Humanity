@@ -945,6 +945,10 @@ them up.
    (`/library#making-water-safe-to-drink`, `/library#keeping-what-you-grew`)
    stay at `sourced` until a human has read them, per the rule the operator
    chose. `curriculum-status.js` enforces it.
+   **Added 2026-09-24:** the fire-performance guides on the lethal topic
+   `materials_fire_staff` (`/library#fire-staff-materials`, updated, plus the
+   new `/library#staff-tubes`, `/library#fire-performance-fuels` and
+   `/library#fire-performance-clothing`) are at `sourced` for the same reason.
 5. **GitHub branch and tag protection on `main`.** Deploy auto-pushes to the
    live relay with no approval gate. GitHub settings, not code.
 6. **Donations copy** needs the exact earmarked Sponsor-A-Can URL for HumanityOS
@@ -1134,6 +1138,33 @@ we want". The legal position is written down in
   platforms' terms, strips the ads that make embedding permitted, and invites a
   takedown against the repository that hosts our releases. B1 (a docked WebView2
   panel) is dropped: it cannot project onto a 3D surface.
+
+### G. Realistic fire props, fire, smoke and gases (designed 2026-09-24)
+
+Operator: 1:1 in-game flow-arts fire props (fire staff, poi, fire axe, darts,
+fans, hoops) with believable fire, smoke and emitted gases, for teaching and for
+depth beyond a health bar, while staying intuitive. Design, scout findings and
+his seven answers: `docs/design/fire-props-and-combustion.md` (section 6 is
+decisions). Key facts: EmberGen-class volumetrics were NEVER built (the fire,
+smoke and explosion rows in data/particles.ron are never spawned); items cannot
+carry a model; there is no body, hand or rope physics; the frame is 8-bit with
+bloom off.
+
+- **Next rung, unblocked: F1, one source of truth.** Turn the verified research
+  in `docs/reference/research/2026-09-24-fire-performance/` into data rows both
+  the Library and the sim read (alloys.csv solidus, liquidus, temper and
+  service-limit columns; a fuels table; materials rows for fabrics). First
+  resolve the 54 conflicts the data-consistency scout listed between
+  data/chemistry/ and that research (fire-props-scout-reports.json).
+- **Then the character body arc** (skinned mesh, skeleton, two hand attachment
+  points instead of the single hands slot): the operator chose body first for
+  props in hands. Pivot-mounted props are test fixtures only.
+- **Rules he set for every rung:** full-realism and simplified modes; gear AND a
+  toggle for gas visibility; open source only, our own solver (no EmberGen
+  licence); cosmetic simulation client-local and never networked, each tier with
+  a measured frame budget; fire trails drawn as the eye sees them; coloured fire
+  from chemistry data plus a creative any-colour toggle.
+- Ordering against arcs A to F is the operator's call.
 
 ---
 

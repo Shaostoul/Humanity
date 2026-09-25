@@ -1,0 +1,566 @@
+{
+ "alloys": [
+  {
+   "name": "Aluminium 1100-H14 (1100-O for contrast)",
+   "family": "1xxx commercially pure aluminium (99.0% Al min), non-heat-treatable, strengthened only by cold work (H tempers)",
+   "density_g_cc": 2.71,
+   "modulus_gpa": 69,
+   "yield_mpa": 115,
+   "uts_mpa": 125,
+   "elongation_pct": 9,
+   "thermal_conductivity_w_mk": 222,
+   "melting_c": "640-655 C (Kaiser)",
+   "heat_limit_c": "Cannot over-age (no precipitation hardening). The H14 strength comes from cold work, which fades progressively when heated (recovery, then recrystallisation to the O temper); no tube-specific temperature found. 1100-O is already fully soft: typical yield only 35 MPa, UTS 90 MPa, 35% elongation.",
+   "heated_hazards": "Bare metal gives off no meaningful fume at a few hundred C: aluminium melts about 660 C (NIOSH lists 1220 F) and boils far higher. Fine dust from sanding or cutting is combustible. Paint, tape or plastic on the tube can smoke; that is the coating, not the metal.",
+   "corrosion": "Kaiser rating A (best) general and stress-corrosion",
+   "tube_availability": "Kaiser makes 1100-O extruded seamless tube and lists cold-drawn specs (ASTM B210, AMS 4062); the alloy is 'subject to cast lot quantity restriction'. Retail stock in 5/8-1 in OD was not checked. Not a structural staff tube in practice.",
+   "price_note": "Not found.",
+   "staff_verdict": "Not recommended for fire or contact staffs. H14 yield is about 42% of 6061-T6 and O temper is about 13%, so it bends easily. Its only plus is the highest thermal conductivity of the list. OK only for a throwaway LED or prop tube.",
+   "notes": "Values are Kaiser typical values (0.0625 in specimen). Thermal conductivity 222 W/m-K is for O temper; H18 is 218.",
+   "sources": [
+    {
+     "url": "https://online.kaiseraluminum.com/depot/PublicProductInformation/Document/1011/Kaiser_Aluminum_Soft_Alloy_Tube.pdf",
+     "quote": "The purest of the aluminum alloys."
+    },
+    {
+     "url": "https://online.kaiseraluminum.com/depot/PublicProductInformation/Document/1011/Kaiser_Aluminum_Soft_Alloy_Tube.pdf",
+     "quote": "maximum ductility and relatively low strength"
+    },
+    {
+     "url": "https://www.cdc.gov/niosh/npg/npgd0022.html",
+     "quote": "finely divided dust is easily ignited; may cause explosions"
+    }
+   ]
+  },
+  {
+   "name": "Aluminium 3003-H14",
+   "family": "3xxx Al-Mn, non-heat-treatable, cold-worked",
+   "density_g_cc": 2.73,
+   "modulus_gpa": 69,
+   "yield_mpa": 145,
+   "uts_mpa": 152,
+   "elongation_pct": 16,
+   "thermal_conductivity_w_mk": 193,
+   "melting_c": "640-655 C (Kaiser)",
+   "heat_limit_c": "Cannot over-age. H14 cold-work strength fades as the tube is heated toward recrystallisation; no tube-specific temperature found. 3003-O: typical yield 40 MPa.",
+   "heated_hazards": "Same as the other aluminium grades: no fume from the bare metal at staff temperatures, combustible fine dust when sanding, and coatings can smoke.",
+   "corrosion": "Kaiser rating A",
+   "tube_availability": "Kaiser draws seamless 3003 tube in O, H12 and H14 (ASTM B210, AMS 4065/4067), with walls 0.018-0.250 in. The drawn-tube spec minimum for H14 is 138 MPa UTS and 117 MPa yield. Used for condenser and heat-exchanger tube. Retail stock in staff sizes was not checked.",
+   "price_note": "Not found.",
+   "staff_verdict": "Not a good staff alloy: roughly half the yield of 6061-T6 at the same weight and stiffness. OK only for light LED props.",
+   "notes": "Kaiser typical values: H14 is 22 ksi UTS and 21 ksi yield; O is 16 ksi UTS and 6 ksi yield.",
+   "sources": [
+    {
+     "url": "https://online.kaiseraluminum.com/depot/PublicProductInformation/Document/1011/Kaiser_Aluminum_Soft_Alloy_Tube.pdf",
+     "quote": "Typically used for condensers and heat exchangers"
+    },
+    {
+     "url": "https://online.kaiseraluminum.com/depot/PublicProductInformation/Document/1009/Kaiser_Aluminum_Hard_Alloy_Drawn_Seamless_Tube_Capabilities.pdf",
+     "quote": "DRAWN SEAMLESS ALUMINUM TUBE CAPABILITIES"
+    }
+   ]
+  },
+  {
+   "name": "Aluminium 5052-H32",
+   "family": "5xxx Al-Mg (2.2-2.8% Mg), non-heat-treatable, cold-worked",
+   "density_g_cc": 2.68,
+   "modulus_gpa": 70,
+   "yield_mpa": 195,
+   "uts_mpa": 230,
+   "elongation_pct": 12,
+   "thermal_conductivity_w_mk": 138,
+   "melting_c": "605-650 C (Kaiser)",
+   "heat_limit_c": "Cannot over-age. H32/H34 cold-work strength fades with heating (the Maljaars/TNO fire literature study says cold-work strength 'gradually vanishes' at elevated temperature). 5052-O typical yield is 90 MPa.",
+   "heated_hazards": "No fume from the solid tube at staff temperatures. The magnesium content matters only for molten metal or fine dust (combustible).",
+   "corrosion": "Kaiser rating A general and stress-corrosion. Very good in wet or salty conditions.",
+   "tube_availability": "Kaiser draws 5052 tube in O, H32 and H34 (ASTM B210/B234/B483, AMS 4069-4071); it is typically used as hydraulic tube. Drawn H32 minimums are 213 MPa UTS and 159 MPa yield; H34 typical is 260/215 MPa. Retail staff-size stock was not checked.",
+   "price_note": "Not found.",
+   "staff_verdict": "Weaker than 6061-T6 (about 70% of its yield) but tough and very corrosion resistant. Workable for LED or practice staffs; no advantage for fire use.",
+   "notes": "Kaiser density is 0.097 lb/in3 (about 2.68 g/cc). Thermal conductivity 138 W/m-K is Kaiser's figure for O temper.",
+   "sources": [
+    {
+     "url": "https://online.kaiseraluminum.com/depot/PublicProductInformation/Document/1040/Kaiser_Aluminum_5052_Tube_and_Pipe.pdf",
+     "quote": "Typically used in hydraulic tube applications."
+    },
+    {
+     "url": "https://online.kaiseraluminum.com/depot/PublicProductInformation/Document/1009/Kaiser_Aluminum_Hard_Alloy_Drawn_Seamless_Tube_Capabilities.pdf",
+     "quote": "5052-H32 0.018-0.250 0.48-6.35 31.0"
+    },
+    {
+     "url": "https://pure.tue.nl/ws/files/2310557/633114.pdf",
+     "quote": "strength at room temperature obtained through cold working gradually vanishes"
+    }
+   ]
+  },
+  {
+   "name": "Aluminium 6061-T6 (drawn tube)",
+   "family": "6xxx Al-Mg-Si, heat-treatable, solution treated and artificially aged (peak aged)",
+   "also_called": "EN AW-6061, UNS A96061",
+   "density_g_cc": 2.7,
+   "modulus_gpa": 68.3,
+   "yield_mpa": 276,
+   "uts_mpa": 310,
+   "elongation_pct": 12,
+   "thermal_conductivity_w_mk": 167,
+   "melting_c": "582-652 C (Kaiser)",
+   "heat_limit_c": "Over-ageing, meaning permanent loss of room-temperature yield, depends on both time and temperature. Read by eye from MMPDS-04 Fig. 3.6.2.2.1(d), so the numbers are approximate: loss starts at about 120 C (250 F) after 10,000 h, about 150 C (300 F) after 1,000 h, and about 190 C (375 F) after 1/2 h. After 1/2 h at about 260 C (500 F), roughly two-thirds of the T6 yield remains. Long exposures at or above about 230-260 C bottom out near 20% of the T6 yield, which is about the O-temper 55 MPa. While hot, strength at about 150 C is roughly 70-85% of room-temperature yield (MMPDS Fig. 3.6.2.2.1(b)).",
+   "heated_hazards": "No meaningful fume from the bare or anodized tube at a few hundred C. Cutting or sanding dust is a combustible-dust hazard. Hazards come from coatings, grips and tape near the wick, not from the alloy.",
+   "corrosion": "Kaiser rating B general, A stress-corrosion for T6",
+   "tube_availability": "The most available staff tube. Drawn seamless tube is made to ASTM B210/B483 and AMS 4080-4083, with Kaiser walls from 0.018 to 0.250 in. Online Metals lists 3/4 in OD x 0.058 in wall drawn T6. Speedy Metals lists 3/4 in x 0.065 in wall. Fire Mecca sells hard-anodized drawn 6061-T6 in 3/4 in and 7/8 in OD, which telescope. The drawn T6 spec minimum is 290 MPa UTS and 241 MPa yield, with 10% elongation for 0.025-0.049 in walls and 12% for 0.050-0.259 in walls (full section).",
+   "price_note": "Checked 2026-09-24: Speedy Metals 3/4 in OD x 0.065 in wall, 72 in length, $11.51. Fire Mecca hard-anodized 6061-T6 staff tubing, $6.67 per ft (about $40 for 6 ft). Online Metals refused automated access, so its price was not captured.",
+   "staff_verdict": "The baseline. Cheap, everywhere, anodizes well, and forgiving: it bends before it breaks and can usually be straightened (Kaiser cold-workability rating C). Downsides: about half the yield of 7075-T6, so it bends more easily on hard drops. Like every T6 temper, it can slowly lose temper at the wick ends if the metal there runs hot for long cumulative times. Fine for LED and practice staffs; a solid budget fire staff.",
+   "notes": "Typical values: Kaiser 0.0625 in specimen. Spec minimums: Kaiser drawn tube table and MMPDS Table 3.6.2.0(c1), where the A-basis drawn T6 values are 42 ksi Ftu and 35 ksi Fty.",
+   "sources": [
+    {
+     "url": "https://online.kaiseraluminum.com/depot/PublicProductInformation/Document/1071/Kaiser_Aluminum_6061_Pipe_Tube.pdf",
+     "quote": "T6 45 310 40 276 12 95"
+    },
+    {
+     "url": "https://online.kaiseraluminum.com/depot/PublicProductInformation/Document/1071/Kaiser_Aluminum_6061_Pipe_Tube.pdf",
+     "quote": "Melting Range 1080 °F - 1206 °F 582 °C - 652 °C"
+    },
+    {
+     "url": "http://files.engineering.com/files/49c1ee2a-17b1-4ab6-80ff-8e30dcd95171/Pages_from_04sect3.pdf",
+     "quote": "Effect of exposure at elevated temperatures on the room temperature tensile yield strength"
+    },
+    {
+     "url": "https://www.speedymetals.com/pc-4565-8371-34-od-x-0065-wall-tube-6061-t6-aluminum.aspx",
+     "quote": "3/4\" OD x 0.620\" ID x .065\" Wall 6061-T6 Aluminum Tube"
+    },
+    {
+     "url": "https://firemecca.com/products/aluminum-staff-tubing",
+     "quote": "All Aluminum is hard-anodized drawn 6061-T6."
+    },
+    {
+     "url": "https://www.onlinemetals.com/en/buy/aluminum/0-75-od-x-0-058-wall-x-0-634-id-aluminum-round-tube-6061-t6-drawn/pid/4784",
+     "quote": "3/4\" OD x 0.058\" Wall x 0.634\" ID Alum Round Tube 6061-T6-Drawn"
+    },
+    {
+     "url": "https://dark-monk.com/Article/Comparing-Aluminum-CarbonFiber-Contact-Staff",
+     "quote": "6061 is by far the most common aluminum out there"
+    }
+   ]
+  },
+  {
+   "name": "Aluminium 6061-T4",
+   "family": "6xxx Al-Mg-Si, solution treated and naturally aged (not artificially aged)",
+   "density_g_cc": 2.7,
+   "modulus_gpa": 68.3,
+   "yield_mpa": 145,
+   "uts_mpa": 241,
+   "elongation_pct": 22,
+   "thermal_conductivity_w_mk": 154,
+   "melting_c": "582-652 C (Kaiser)",
+   "heat_limit_c": "Opposite of T6: moderate heat artificially ages T4, so strength can first rise. The Maljaars/TNO study puts the turn from increasing to decreasing strength at about 200 C for 0.5-1 h exposures. Beyond that it softens like T6.",
+   "heated_hazards": "Same as 6061-T6.",
+   "corrosion": "Kaiser rating B general, B stress-corrosion",
+   "tube_availability": "Kaiser draws T4 tube (AMS 4081, AMS-WW-T-700/6); drawn minimum is 207 MPa UTS and 110 MPa yield. Much less commonly stocked than T6.",
+   "price_note": "Not found.",
+   "staff_verdict": "About half the yield of T6. Only useful if someone plans to form the tube and then age it. Not a good off-the-shelf staff temper.",
+   "sources": [
+    {
+     "url": "https://online.kaiseraluminum.com/depot/PublicProductInformation/Document/1071/Kaiser_Aluminum_6061_Pipe_Tube.pdf",
+     "quote": "T4 35 241 21 145 22 65"
+    },
+    {
+     "url": "https://pure.tue.nl/ws/files/2310557/633114.pdf",
+     "quote": "strength of naturally aged alloys (tempers T1-T4) increases at moderately elevated temperatures"
+    }
+   ]
+  },
+  {
+   "name": "Aluminium 6061-O (annealed)",
+   "family": "6xxx Al-Mg-Si, fully annealed",
+   "density_g_cc": 2.7,
+   "modulus_gpa": 68.3,
+   "yield_mpa": 55,
+   "uts_mpa": 124,
+   "elongation_pct": 25,
+   "thermal_conductivity_w_mk": 180,
+   "melting_c": "582-652 C (Kaiser)",
+   "heat_limit_c": "Already fully soft, so heat cannot soften it further. This is also roughly where 6061-T6 ends up after long exposure above about 230-260 C: MMPDS shows a floor of about 20% of T6 yield, and 55/276 is 20%.",
+   "heated_hazards": "Same as 6061-T6.",
+   "corrosion": "Kaiser rating B",
+   "tube_availability": "Kaiser draws O-temper tube; the drawn spec maximums are 152 MPa UTS and 97 MPa yield. Mainly sold for forming before heat treatment.",
+   "price_note": "Not found.",
+   "staff_verdict": "Unsuitable: about 20% of the T6 yield, so it bends like a coat hanger. Included to show what a badly overheated T6 end can turn into.",
+   "sources": [
+    {
+     "url": "https://online.kaiseraluminum.com/depot/PublicProductInformation/Document/1071/Kaiser_Aluminum_6061_Pipe_Tube.pdf",
+     "quote": "0 18 124 8 55 25 30"
+    },
+    {
+     "url": "http://files.engineering.com/files/49c1ee2a-17b1-4ab6-80ff-8e30dcd95171/Pages_from_04sect3.pdf",
+     "quote": "Strength at room temperature Exposure up to 10,000 hr"
+    }
+   ]
+  },
+  {
+   "name": "Aluminium 6063-T5",
+   "family": "6xxx Al-Mg-Si (lean), cooled from extrusion and artificially aged",
+   "also_called": "EN AW-6063, the 'architectural' alloy",
+   "density_g_cc": 2.7,
+   "modulus_gpa": 69,
+   "yield_mpa": 145,
+   "uts_mpa": 185,
+   "elongation_pct": 12,
+   "melting_c": "615-655 C (Kaiser)",
+   "heat_limit_c": "Same Mg-Si precipitation mechanism as 6061, so it over-ages in a similar time-temperature band. That is an inference: no 6063-T5 residual-strength curve was found. Kaiser gives no T5 thermal conductivity (T6 is 201 W/m-K, T1 is 193 W/m-K).",
+   "heated_hazards": "Same as 6061.",
+   "corrosion": "Kaiser rating A general and stress-corrosion, better than 6061's B",
+   "tube_availability": "Kaiser extrudes seamless 6063 in O, T4, T5 and T6, used for air-cylinder tubing, bus conductor and architectural parts. Much generic 'aluminium tube' from hardware and DIY stores is likely 6063, but that is unverified; check the label.",
+   "price_note": "Not found.",
+   "staff_verdict": "About half the yield of 6061-T6 at the same weight and stiffness. Fine for LED or light practice staffs. It will bend on hard drops, so it is a poor choice for a contact fire staff.",
+   "sources": [
+    {
+     "url": "https://online.kaiseraluminum.com/depot/PublicProductInformation/Document/1011/Kaiser_Aluminum_Soft_Alloy_Tube.pdf",
+     "quote": "T5 27 185 21 145 12 60"
+    },
+    {
+     "url": "https://online.kaiseraluminum.com/depot/PublicProductInformation/Document/1066/Kaiser_Aluminum_6063_Tube_and_Pipe.pdf",
+     "quote": "Target applications include air cylinder tubing, electrical bus conductor"
+    }
+   ]
+  },
+  {
+   "name": "Aluminium 6063-T6",
+   "family": "6xxx Al-Mg-Si, solution treated and artificially aged",
+   "density_g_cc": 2.7,
+   "modulus_gpa": 69,
+   "yield_mpa": 215,
+   "uts_mpa": 240,
+   "elongation_pct": 12,
+   "thermal_conductivity_w_mk": 201,
+   "melting_c": "615-655 C (Kaiser)",
+   "heat_limit_c": "Peak-aged Mg-Si alloy, so the over-ageing behaviour should be similar to 6061-T6 (inference). The Maljaars/TNO study reports that EN 1999-1-2 includes 6063-T6 reduction factors for exposures up to 2 h.",
+   "heated_hazards": "Same as 6061.",
+   "corrosion": "Kaiser rating A",
+   "tube_availability": "Available extruded (Kaiser) and drawn; the drawn T6 minimum is 228 MPa UTS and 193 MPa yield. It anodizes more attractively than 6061.",
+   "price_note": "Not found.",
+   "staff_verdict": "About 78% of the 6061-T6 yield, with better corrosion resistance and anodize finish. Acceptable for LED or practice staffs; 6061-T6 or 7075 are better for fire contact staffs.",
+   "sources": [
+    {
+     "url": "https://online.kaiseraluminum.com/depot/PublicProductInformation/Document/1011/Kaiser_Aluminum_Soft_Alloy_Tube.pdf",
+     "quote": "T6 35 240 31 215 12 73"
+    },
+    {
+     "url": "https://online.kaiseraluminum.com/depot/PublicProductInformation/Document/1066/Kaiser_Aluminum_6063_Tube_and_Pipe.pdf",
+     "quote": "Finer grain structure than 6061 lends itself to more aesthetically pleasing anodize"
+    }
+   ]
+  },
+  {
+   "name": "Aluminium 6063-T832 (drawn tube temper)",
+   "family": "6xxx Al-Mg-Si, solution treated, cold worked (drawn) and artificially aged",
+   "density_g_cc": 2.7,
+   "modulus_gpa": 69,
+   "yield_mpa": 270,
+   "uts_mpa": 290,
+   "elongation_pct": 12,
+   "melting_c": "615-655 C (Kaiser)",
+   "heat_limit_c": "Its strength comes from both precipitates and cold work, so it is expected to over-age like the other 6xxx T tempers (inference; no specific curve found). Kaiser gives no T832 thermal conductivity; assume about 200 W/m-K like 6063-T6 (unverified).",
+   "heated_hazards": "Same as 6061.",
+   "corrosion": "Kaiser rating A (6063)",
+   "tube_availability": "A drawn-tube-only temper: Kaiser's drawn list for 6063 is T6, T831 and T832. Drawn T832 minimums are 283 MPa UTS and 248 MPa yield for 0.025-0.049 in walls, and 276/241 MPa for 0.050-0.250 in walls, both with 8% elongation. That is practically the same as the 6061-T6 drawn minimums (290/241 MPa). Retail availability in 5/8-1 in OD was not confirmed.",
+   "price_note": "Not found.",
+   "staff_verdict": "The overlooked equal of 6061-T6: nearly the same strength, better corrosion resistance and nicer anodize, if a stockist has it. Minimum elongation is lower (8% vs 10-12%).",
+   "sources": [
+    {
+     "url": "https://online.kaiseraluminum.com/depot/PublicProductInformation/Document/1011/Kaiser_Aluminum_Soft_Alloy_Tube.pdf",
+     "quote": "T832 42 290 39 270 12 95"
+    },
+    {
+     "url": "https://online.kaiseraluminum.com/depot/PublicProductInformation/Document/1009/Kaiser_Aluminum_Hard_Alloy_Drawn_Seamless_Tube_Capabilities.pdf",
+     "quote": "Mechanical Property Limits—Hard Alloy—Drawn Seamless Aluminum Tube"
+    }
+   ]
+  },
+  {
+   "name": "Aluminium 6082-T6",
+   "family": "6xxx Al-Si-Mg-Mn, solution treated and artificially aged",
+   "also_called": "EN AW-6082, AlSi1MgMn, HE30 (old UK), DIN 3.2315",
+   "density_g_cc": 2.7,
+   "modulus_gpa": 70,
+   "yield_mpa": 290,
+   "uts_mpa": 340,
+   "elongation_pct": 6,
+   "thermal_conductivity_w_mk": 180,
+   "melting_c": "555 C (Aalco's listed 'melting point', probably the solidus)",
+   "heat_limit_c": "Over-ages like 6061-T6 (same Mg-Si precipitates). EN 1999-1-2 (Eurocode 9 fire design) tabulates 6082-T6 proof-strength reduction factors for up to 2 h of exposure. I could not read the table text myself. The Maljaars/TNO study notes that TALAT data show strength after cooling is substantially higher than strength while hot, so short heating costs less than it appears during the heating.",
+   "heated_hazards": "Same as 6061.",
+   "corrosion": "Aalco: 'excellent corrosion resistance'",
+   "tube_availability": "The standard structural extrusion alloy in the UK and Europe; Aalco says it replaced 6061 in many applications. The BS EN 755-2 minimums for extruded tube with walls up to 5 mm are 250 MPa proof stress, 290 MPa tensile and 6% A50 elongation. Regional stocking of small round tube in the UK or Australia was not verified (stockist pages refused automated access). Australia may lean toward 6060/6061 (unverified).",
+   "price_note": "Not found (UK stockist sites refused automated access).",
+   "staff_verdict": "For UK and European members, the local equivalent of 6061-T6, slightly stronger on typical values. Good budget fire and practice staff alloy.",
+   "notes": "The 290/340 MPa figures are Aalco typical values for T6/T651. Use the EN 755-2 tube minimums (250/290 MPa) for conservative comparisons.",
+   "sources": [
+    {
+     "url": "https://www.aalco.co.uk/datasheets/Aluminium-Alloy-6082-T6-Extrusions_338.ashx",
+     "quote": "Proof Stress: 250 Min MPa, Tensile Strength: 290 Min MPa"
+    },
+    {
+     "url": "https://www.merlinmotorsport.co.uk/files/transfer/technical/doc/aluminium_alloy_6082_t6_data_sheet.pdf",
+     "quote": "Proof Stress 290 Typical MPa"
+    },
+    {
+     "url": "https://www.merlinmotorsport.co.uk/files/transfer/technical/doc/aluminium_alloy_6082_t6_data_sheet.pdf",
+     "quote": "the higher strength of 6082 has seen it replace 6061 in many applications"
+    },
+    {
+     "url": "https://pure.tue.nl/ws/files/2310557/633114.pdf",
+     "quote": "strength after cooling of alloy AA 6082 is substantially higher"
+    }
+   ]
+  },
+  {
+   "name": "Aluminium 7005-T6 (bike tube alloy)",
+   "family": "7xxx Al-Zn-Mg (4-5% Zn, 1-1.8% Mg), heat-treatable; air-quench capable",
+   "density_g_cc": 2.78,
+   "modulus_gpa": 72,
+   "yield_mpa": 290,
+   "uts_mpa": 350,
+   "elongation_pct": 13,
+   "thermal_conductivity_w_mk": 137,
+   "melting_c": "607-643 C (MatWeb, Aluminum Association typical)",
+   "heat_limit_c": "Artificially aged 7xxx, so it over-ages with prolonged heating. No specific curve was found. MatWeb gives 343 C as the annealing temperature, the point where it goes fully soft.",
+   "heated_hazards": "Contains 4-5% zinc, but zinc boils at 907 C, far above aluminium's melting range, so no zinc fume unless the metal is melted, welded or torch-cut. Otherwise the same as the other grades.",
+   "corrosion": "Not rated in the sources found",
+   "tube_availability": "Mainly bicycle frame tubing, often butted or shaped. Kaiser lists 7005 extruded seamless tube only in F (as-fabricated) temper. No retail straight T6 round tube near 3/4 in OD was found.",
+   "price_note": "Not found.",
+   "staff_verdict": "On paper slightly stronger than 6061-T6 (290 vs 276 MPa typical yield). Hard to buy as straight staff tube, so not worth chasing.",
+   "notes": "Source is a 2006 MatWeb printout of Aluminum Association typical data. A bicycle maker's 2006 forum post (IBEX) says 7005 frames can be air-cooled after welding.",
+   "sources": [
+    {
+     "url": "https://tuulparg.eu/KB/alumiinium/AL7005T6.pdf",
+     "quote": "Aluminum 7005-T6, 7005-T63, and 7005-T6351"
+    },
+    {
+     "url": "https://tuulparg.eu/KB/alumiinium/AL7005T6.pdf",
+     "quote": "Applications : bike frames"
+    },
+    {
+     "url": "https://online.kaiseraluminum.com/depot/PublicProductInformation/Document/1009/Kaiser_Aluminum_Hard_Alloy_Drawn_Seamless_Tube_Capabilities.pdf",
+     "quote": "EXTRUDED SEAMLESS ALUMINUM TUBE CAPABILITIES"
+    },
+    {
+     "url": "https://tuulparg.eu/KB/alumiinium/AL6061vs7005frames.pdf",
+     "quote": "whereas 7005 can be air cooled"
+    }
+   ]
+  },
+  {
+   "name": "Aluminium 7075-T6",
+   "family": "7xxx Al-Zn-Mg-Cu (5.1-6.1% Zn, 2.1-2.9% Mg, 1.2-2.0% Cu), peak aged",
+   "also_called": "EN AW-7075, 'aircraft aluminium', 'Zicral'",
+   "density_g_cc": 2.81,
+   "modulus_gpa": 71.7,
+   "yield_mpa": 503,
+   "uts_mpa": 572,
+   "elongation_pct": 11,
+   "thermal_conductivity_w_mk": 130,
+   "melting_c": "477-635 C (Aluminum Association typical via MatWeb and Alcoa: solidus 890 F). Kaiser's tube sheet gives 532-635 C.",
+   "heated_hazards": "No fume from the solid tube at staff temperatures. The zinc (about 5.6%) boils at 907 C, far above the alloy's melting range, so zinc oxide fume (the cause of metal fume fever) needs melting, welding or torch-cutting. The dust caveat applies as for the other grades.",
+   "heat_limit_c": "T6 is aged at only about 120 C for 24 h, lower than 6061. The over-aged T73 temper is made by holding at about 160-180 C for 24 h or more. So many cumulative hours in that range drift a T6 tube toward T73 strength, about 14% lower yield, and hotter or longer exposure keeps going down. The annealing temperature is 413 C. No 7075 residual-strength curve was obtained; that is the next check.",
+   "corrosion": "Kaiser: general C and stress-corrosion C for T6, the worst here apart from 2024. Anodize or keep dry.",
+   "tube_availability": "Drawn seamless tube is made in O, T6, T73 and T76 (Kaiser; ASTM B210, AMS-WW-T-700/7). Online Metals lists 7075-T6 drawn tube, but it was not fetched. Flow-arts sellers: Dark Monk 19 x 1.4 mm (about 3/4 in), also 16, 22 and 25 mm; buyfirefans 19.1 x 1.4 mm x 1.62 m; the Matrix staff (Threeworlds, AU) uses 22 mm extruded 7075. Drawn T6 tube minimums are 77 ksi UTS and 66 ksi yield (531/455 MPa) with 8% elongation. Kaiser's MPa columns for that row are printed swapped.",
+   "price_note": "Checked 2026-09-24: Dark Monk 7075 tube, 72 in, $40.00 each (listed out of stock). buyfirefans 7075-T6 19.1 x 1.4 mm x 1.62 m, $599 for 20 pieces (about $30 each) plus long-parcel shipping. A complete Matrix 7075 contact fire staff is AUD 99.95.",
+   "staff_verdict": "The flow-arts premium choice: about 1.8x the 6061-T6 yield at the same weight (density 2.81 vs 2.70) and the same stiffness, so it resists permanent bends and dents much better. Cons: less forgiving. Dark Monk says it cracks if you cold-form it much, so a bent 7075 staff may crack when straightened rather than bend back. Poorer corrosion resistance. Its low ageing temperature means heat at the wick ends is at least as much a concern as for 6061. Cannot be welded.",
+   "notes": "Typical values are Kaiser (0.500 in specimen) and AA/MatWeb. Seller claims like 'strongest aluminium commercially available' are marketing: Kaiser's 7068-T6511 is stronger.",
+   "sources": [
+    {
+     "url": "https://online.kaiseraluminum.com/depot/PublicProductInformation/Document/1042/Kaiser_Aluminum_7075_Tube_and_Pipe.pdf",
+     "quote": "T6 83 572 73 503 11 150"
+    },
+    {
+     "url": "https://online.kaiseraluminum.com/depot/PublicProductInformation/Document/1009/Kaiser_Aluminum_Hard_Alloy_Drawn_Seamless_Tube_Capabilities.pdf",
+     "quote": "7075-T6 0.025-0.250 0.64-6.35 77.0"
+    },
+    {
+     "url": "https://www.spacematdb.com/spacemat/manudatasheets/alcoa_alloy_7075.pdf",
+     "quote": "Solidus Temperature: 890°F"
+    },
+    {
+     "url": "https://en.wikipedia.org/wiki/7075_aluminium_alloy",
+     "quote": "ageing at 120 °C for 24 hours"
+    },
+    {
+     "url": "https://en.wikipedia.org/wiki/7075_aluminium_alloy",
+     "quote": "then at 160–180 °C for 24 hours or more"
+    },
+    {
+     "url": "https://tuulparg.eu/KB/alumiinium/AL7075T6.pdf",
+     "quote": "AA; Typical range based on typical composition for wrought products"
+    },
+    {
+     "url": "https://dark-monk.com/Equipment/Aluminum-Tubing",
+     "quote": "it can be cold formed some, but not much. It cracks."
+    },
+    {
+     "url": "https://www.threeworlds.com.au/products/matrix-contact-fire-staff",
+     "quote": "extruded 7075 Aluminium tube"
+    },
+    {
+     "url": "https://buyfirefans.com/product/7075-t6-aluminum-tube/",
+     "quote": "7075-T6 Aluminum Tube is twice as strong as 6061-T6 aluminum"
+    }
+   ]
+  },
+  {
+   "name": "Aluminium 7075-T73",
+   "family": "7xxx Al-Zn-Mg-Cu, solution treated and over-aged (two-step)",
+   "density_g_cc": 2.8,
+   "modulus_gpa": 71,
+   "yield_mpa": 434,
+   "uts_mpa": 503,
+   "elongation_pct": 13,
+   "thermal_conductivity_w_mk": 155,
+   "melting_c": "477-635 C (as 7075)",
+   "heat_limit_c": "Already deliberately over-aged at about 160-180 C, so it should be more stable than T6 up to roughly that range (inference). Above it, it keeps softening toward the annealed state (413 C anneal for 7075).",
+   "heated_hazards": "Same as 7075-T6.",
+   "corrosion": "Much better stress-corrosion resistance than T6: Kaiser stress rating B vs C.",
+   "tube_availability": "Kaiser draws 7075-T73 tube; drawn minimums are 66 ksi UTS and 56 ksi yield (455/386 MPa) with 10% elongation. No retail small-diameter T73 tube was found.",
+   "price_note": "Not found.",
+   "staff_verdict": "On paper arguably the better fire-staff 7075: about 14% lower yield than T6, but already over-aged, so wick heat changes it less, and it resists corrosion better. Hard to buy in staff sizes.",
+   "sources": [
+    {
+     "url": "https://online.kaiseraluminum.com/depot/PublicProductInformation/Document/1042/Kaiser_Aluminum_7075_Tube_and_Pipe.pdf",
+     "quote": "T73 73 503 63 434 13"
+    },
+    {
+     "url": "https://online.kaiseraluminum.com/depot/PublicProductInformation/Document/1042/Kaiser_Aluminum_7075_Tube_and_Pipe.pdf",
+     "quote": "superior stress corrosion resistance of the T73 temper"
+    },
+    {
+     "url": "https://www.spacematdb.com/spacemat/manudatasheets/alcoa_alloy_7075.pdf",
+     "quote": "overaged -T73 and -T7351 tempers offers good stress-corrosion cracking resistance"
+    },
+    {
+     "url": "https://online.kaiseraluminum.com/depot/PublicProductInformation/Document/1009/Kaiser_Aluminum_Hard_Alloy_Drawn_Seamless_Tube_Capabilities.pdf",
+     "quote": "7075-T73 0.025-0.250 0.64-6.35 66.0"
+    }
+   ]
+  },
+  {
+   "name": "Aluminium 7050-T76 (T74 similar)",
+   "family": "7xxx Al-Zn-Mg-Cu-Zr, over-aged aerospace tempers",
+   "density_g_cc": 2.83,
+   "modulus_gpa": 70.3,
+   "yield_mpa": 489,
+   "uts_mpa": 552,
+   "elongation_pct": 11,
+   "thermal_conductivity_w_mk": 154,
+   "melting_c": "524-635 C (Kaiser)",
+   "heat_limit_c": "T76/T74 are over-aged tempers, so they are more heat-stable than a peak-aged T6 (inference). No specific curve found.",
+   "heated_hazards": "Same as 7075: zinc is present, but no fume below melting.",
+   "corrosion": "Kaiser: general C, stress-corrosion B; good exfoliation resistance",
+   "tube_availability": "Kaiser draws 7050 tube in O, T6 and T76. Drawn minimums: T6 is 586 MPa UTS and 510 MPa yield; T76 is 552/476 MPa. Drawn seamless press minimums of about 2,000 lb apply (for 2.125-6.25 in OD). No retail staff-size stock was found.",
+   "price_note": "Not found.",
+   "staff_verdict": "Very strong, but essentially unobtainable in small quantities. Not practical.",
+   "notes": "Kaiser typical T74 values are 524 MPa UTS, 469 MPa yield and 11% elongation. Thermal conductivity is 154/157 W/m-K.",
+   "sources": [
+    {
+     "url": "https://online.kaiseraluminum.com/depot/PublicProductInformation/Document/1041/Kaiser_Aluminum_7050_Tube_and_Pipe.pdf",
+     "quote": "This alloy is used in aircraft structural parts."
+    },
+    {
+     "url": "https://online.kaiseraluminum.com/depot/PublicProductInformation/Document/1009/Kaiser_Aluminum_Hard_Alloy_Drawn_Seamless_Tube_Capabilities.pdf",
+     "quote": "7050-T6 0.025-0.250 0.64-6.35 85.0"
+    }
+   ]
+  },
+  {
+   "name": "Aluminium 7068-T6 / T6511",
+   "family": "7xxx Al-Zn-Mg-Cu-Zr (7.3-8.3% Zn), peak aged",
+   "density_g_cc": 2.85,
+   "modulus_gpa": 72,
+   "yield_mpa": 683,
+   "uts_mpa": 710,
+   "elongation_pct": 9,
+   "thermal_conductivity_w_mk": 190,
+   "melting_c": "476-635 C (Kaiser)",
+   "heat_limit_c": "Peak-aged 7xxx, expected to over-age like 7075-T6 (inference). Kaiser also offers the over-aged T76/T76511, typical 614 MPa UTS and 572 MPa yield.",
+   "heated_hazards": "Highest zinc content here, but zinc still boils at 907 C, above the melting range. No fume from the solid tube at staff temperatures.",
+   "corrosion": "Kaiser: general C, stress-corrosion C for T6511",
+   "tube_availability": "Kaiser lists 7068 drawn seamless tube in O and T6, with drawn T6 minimums of 607 MPa UTS and 579 MPa yield (5% elongation). It is mostly sold as extruded rod and bar. No retail staff-size tube was found.",
+   "price_note": "Not found.",
+   "staff_verdict": "The strongest alloy on this list (about 2.5x the 6061-T6 yield), but niche and hard to source; the lowest elongation. Not a practical choice.",
+   "notes": "Modulus is NOT given in the Kaiser rod/bar sheet or on Wikipedia; 72 GPa is an assumed 7xxx-typical value. The 190 W/m-K conductivity is Kaiser's own figure; it is unusually high for a 7xxx alloy, so treat it with caution.",
+   "sources": [
+    {
+     "url": "https://online.kaiseraluminum.com/depot/PublicProductInformation/Document/1027/Kaiser_Aluminum_7068_Rod_and_Bar.pdf",
+     "quote": "T6, T6511 103 710 99 683 9"
+    },
+    {
+     "url": "https://online.kaiseraluminum.com/depot/PublicProductInformation/Document/1027/Kaiser_Aluminum_7068_Rod_and_Bar.pdf",
+     "quote": "light weight recreational applications where extremely high strength is required"
+    },
+    {
+     "url": "https://online.kaiseraluminum.com/depot/PublicProductInformation/Document/1009/Kaiser_Aluminum_Hard_Alloy_Drawn_Seamless_Tube_Capabilities.pdf",
+     "quote": "7068-T6 0.025-0.250 0.64-6.35 88.0"
+    },
+    {
+     "url": "https://en.wikipedia.org/wiki/7068_aluminium_alloy",
+     "quote": "710 MPa (103 ksi)"
+    }
+   ]
+  },
+  {
+   "name": "Aluminium 2024-T3 (drawn tube)",
+   "family": "2xxx Al-Cu-Mg (3.8-4.9% Cu), solution treated, cold worked, naturally aged",
+   "density_g_cc": 2.77,
+   "modulus_gpa": 73.1,
+   "yield_mpa": 324,
+   "uts_mpa": 469,
+   "elongation_pct": 19,
+   "thermal_conductivity_w_mk": 120,
+   "melting_c": "502-638 C (Kaiser)",
+   "heat_limit_c": "Naturally aged, so moderate heating first artificially ages it. That raises yield toward T8-type levels (Kaiser T851 typical yield 448 MPa) while cutting ductility; with more heat it over-ages and softens. This is an inference from the Maljaars/TNO T1-T4 findings; no 2024 curve was found.",
+   "heated_hazards": "No fume from the solid tube. The copper and magnesium matter only if molten. Dust caveat as for the other grades.",
+   "corrosion": "Kaiser: general D (poor) for T4/T351; Kaiser also says corrosion resistance and anodizability are only fair. It needs anodizing, paint or clean, dry storage.",
+   "tube_availability": "Aircraft tube. Aircraft Spruce stocks 2024-T3 round drawn tube in 5/8, 3/4, 7/8 and 1 in OD with 0.035, 0.049, 0.058 and 0.065 in walls, in 1, 3, 6 and 12 ft lengths. Online Metals lists 2024-T3 drawn tube (not fetched). Drawn T3 minimums are 64 ksi UTS and 42 ksi yield (441/290 MPa) with 12-14% elongation.",
+   "price_note": "Checked 2026-09-24: Aircraft Spruce 3/4 in OD x 0.065 in wall, $10.50 for a 1 ft piece (0.049 in wall $12.50, 0.035 in wall $13.50 per 1 ft). Prices for 6 ft and 12 ft lengths were not captured.",
+   "staff_verdict": "Stronger than 6061-T6 and about 7% stiffer (73 vs 68 GPa), easy to buy in exact aircraft sizes, and ductile. Poor corrosion resistance means sweat and salt will pit it unless it is anodized or painted. A reasonable but unusual staff choice.",
+   "notes": "Kaiser does not list T3 typicals for tube; the yield/UTS/elongation above are Kaiser's T4/T351 typical values as a proxy. The T3 drawn-tube spec minimum is 441/290 MPa. Thermal conductivity 120 W/m-K is Kaiser's T4/T351 figure.",
+   "sources": [
+    {
+     "url": "https://online.kaiseraluminum.com/depot/PublicProductInformation/Document/1039/Kaiser_Aluminum_2024_Tube_and_Pipe.pdf",
+     "quote": "T4,T351 68 469 47 324"
+    },
+    {
+     "url": "https://online.kaiseraluminum.com/depot/PublicProductInformation/Document/1039/Kaiser_Aluminum_2024_Tube_and_Pipe.pdf",
+     "quote": "Corrosion resistance and anodizeablilty are only fair."
+    },
+    {
+     "url": "https://www.aircraftspruce.com/catalog/mepages/alumtube_2024.php",
+     "quote": "2024T3 Round Drawn"
+    },
+    {
+     "url": "https://online.kaiseraluminum.com/depot/PublicProductInformation/Document/1009/Kaiser_Aluminum_Hard_Alloy_Drawn_Seamless_Tube_Capabilities.pdf",
+     "quote": "Mechanical Property Limits—Hard Alloy—Drawn Seamless Aluminum Tube"
+    }
+   ]
+  }
+ ],
+ "general_findings": [
+  "STIFFNESS IS THE SAME FOR EVERY ALUMINIUM ALLOY. Kaiser gives elastic modulus 68.3-73.1 GPa across 1100, 3003, 5052, 6061, 6063, 2024, 7050 and 7075, and densities run 2.68-2.85 g/cc. For the same OD and wall, every alloy flexes and whips almost identically and weighs within about 5%. The alloy only changes how much bending the tube survives before it takes a permanent set (yield), plus corrosion and heat behaviour. To change flex, change OD or wall, not alloy.",
+  "MY OWN CALCULATION (no source): for a 3/4 in OD x 0.058 in wall tube, section modulus is about 332 mm3. The bending moment to start a permanent bend (typical yield x section modulus) is about 48 N-m for 6063-T5, 92 for 6061-T6, 90 for 6063-T832, 96 for 6082-T6, 144 for 7075-T73, 167 for 7075-T6 and 227 for 7068. Mass of a bare 5 ft (1.524 m) tube: about 335 g in 6061 at 0.058 in wall, about 371 g at 0.065 in wall, and about 331 g for 19 x 1.4 mm 7075. Recompute before quoting.",
+  "OVER-AGEING IS TIME x TEMPERATURE, AND CUMULATIVE. MMPDS-04 Fig. 3.6.2.2.1(d) plots the room-temperature yield of 6061-T6 after exposures of 1/2 h to 10,000 h. Read by eye (approximate): loss begins at about 120 C for 10,000 h, about 150 C for 1,000 h and about 190 C for 1/2 h. After 1/2 h at about 260 C, roughly 2/3 of the yield remains. Long exposures above about 230-260 C bottom out near 20% of T6 yield (about the O temper). Nobody has published the metal temperature under a burning wick, so whether a staff crosses these lines is unknown. If the tube just under the wick reaches 200-300 C for about 5 minutes per burn, a few dozen burns could add up to hours at that temperature. That is an inference, not a measurement. A cheap check: temperature-indicating crayons or labels on the metal next to the wick.",
+  "Maljaars (TNO/TU Eindhoven, 2005) literature study on aluminium in fire (https://pure.tue.nl/ws/files/2310557/633114.pdf): artificially aged tempers (T5-T8) lose strength as temperature rises. Naturally aged tempers (T1-T4) can first gain strength from artificial ageing, turning at about 200 C for 0.5-1 h. Cold-worked (H) tempers lose their cold-work strength. 'In general, the largest reduction in the 0,2 % proof stress occurs between 100 °C and 350 °C.' It also notes that EN 1999-1-2 tabulates proof-strength reduction factors for exposures up to 2 h.",
+  "UNVERIFIED, DO NOT QUOTE WITHOUT CHECKING THE STANDARD: a search-engine summary claimed these EN 1999-1-2:2023 Table 5.1 proof-strength factors (at 100/150/200/250/300 C, up to 2 h exposure): 6061-T6 0.95/0.91/0.79/0.55/0.31; 6063-T6 0.91/0.84/0.71/0.38/0.19; 6082-T6 0.90/0.79/0.65/0.38/0.20; 5052-H34 1.00/0.92/0.52/0.29/0.20. I could not open the standard text. The 2005 Maljaars study says the edition of the time used 1.0 at 100 C for all alloys, so the numbers may differ between editions.",
+  "MELTING: the lowest incipient-melting points are in the 7xxx and 2xxx alloys: 7075 about 477 C (Alcoa solidus 890 F), 7068 about 476 C, 2024 about 502 C. 6061 is about 582 C, 6082 about 555 C (Aalco), and 1100/3003 about 640 C. All are well above a 'few hundred C' tube temperature, but a bare tube section held in a flame (for example a wick burned down to the metal) could approach them. Structural strength is effectively gone long before melting.",
+  "FUMES: at staff temperatures, bare or anodized aluminium gives off no meaningful fume. NIOSH lists aluminium melting at 1220 F (660 C) and boiling at 4221 F. The zinc in 7xxx alloys (4-8%) boils at 907 C (Wikipedia, zinc), above the alloys' melting range, so zinc oxide fume (metal fume fever; NIOSH lists chills, muscle ache, nausea, fever, cough) needs melting, welding or torch-cutting. The realistic hazards: (1) fine sanding or cutting dust. OSHA: 'Even materials that do not burn in larger pieces (such as aluminum or iron)' can explode as dust, and NIOSH says 'finely divided dust is easily ignited'. (2) Coatings, paint, grip tape, heat-shrink or glue near the wick smoking. That is inference; check what the finish is. Aerospace tube can carry chromate conversion coatings, which can contain hexavalent chromium; I did not verify this for any listed product.",
+  "OUT-OF-SCOPE WARNING, verify with the steel researcher: the Flow Arts Institute suggests hardware-store 'conduit' as a cheap practice staff. Much EMT conduit is zinc-galvanized STEEL, not aluminium, and heating the zinc coating near a wick is a different fume question from aluminium.",
+  "WHAT FLOW-ARTS MAKERS USE (checked 2026-09-24): Dark Monk uses 7075-T6 (19 x 1.4 mm, 72 in; staffs 55-67 in, 3/4 in OD). The Matrix contact fire staff (Threeworlds AU) uses 22 mm anodised extruded 7075, 680 g at 1400 mm. Fire Mecca sells hard-anodized drawn 6061-T6, 3/4 and 7/8 in OD, which telescope. buyfirefans sells 7075-T6 19.1 x 1.4 mm. The Flow Arts Institute says '6061 or 7075 being the standard'. A search snippet (page not loadable, HTTP 503) said LMF Props upgraded to 7075-T6. I did not verify any UK or Australian maker using 6082 or 6063.",
+  "MAKER STATEMENTS ON HEAT: the Threeworlds Matrix page says aluminium is flame and heat proof but 'gets very hot where it is close to the flame'. Dark Monk says silicone wraps near the wicks are 'the difference in grabbing a hot coffee mug vs a hot cast iron pan'. Neither gives a temperature.",
+  "SIZING: Dark Monk's rule is 'measure from the ground to just above your chin'; it sells 55-67 in lengths and says experienced spinners may prefer longer or shorter. A 5-6 ft tube covers most adults.",
+  "COMMON WALLS near 3/4 in OD in US stock: 0.035, 0.049, 0.058 and 0.065 in (Aircraft Spruce 2024-T3 list; Online Metals 6061-T6 at 0.058; Speedy Metals 6061-T6 at 0.065). Flow-arts 7075 is typically 1.4 mm (0.055 in). Kaiser draws walls from 0.018 to 0.250 in. Dark Monk notes thicker walls add weight and slow spin but resist bending, and heavier staffs suit beginners.",
+  "STRAIGHTNESS: the Aluminum Association standard tolerance for drawn tube 0.375-5.999 in OD (reprinted by Kaiser, Table 12.25) is 0.010 in per foot of measured length, about 0.06 in over 6 ft. Extruded tube is the same (Table 12.8). Tolerances do not apply to O temper.",
+  "STRAIGHTENING A BENT STAFF: Kaiser rates cold workability for 6061-T6 and 6063-T6 as C and for 7075-T6/T73 and 7068 as D. Dark Monk says 7075 'can be cold formed some, but not much. It cracks.' Expect to be able to bend a 6061 staff back sometimes; a bent 7075 staff may crack instead.",
+  "CORROSION RANKING (Kaiser general / stress-corrosion ratings): 1100, 3003, 5052 and 6063 A; 6061 B; 7075-T6 C/C; 7075-T73 C/B; 7050 C/B; 7068 C/C; 2024 D. For a staff that sees sweat, rain or salt, anodized 6xxx is the low-maintenance choice.",
+  "THERMAL CONDUCTIVITY ranges from about 120 W/m-K (2024) and 130 (7075-T6) to 167 (6061-T6), about 200 (6063) and 222 (1100). Inference, not measured on staffs: a more conductive tube pulls heat away from the wick zone faster, lowering peak metal temperature there but warming more of the tube toward the hands.",
+  "MARKETING CLAIMS TO CORRECT: 'strongest aluminum commercially available' for 7075-T6 (Dark Monk, buyfirefans) is not true; Kaiser's 7068-T6511 has 683 MPa typical yield vs 503. 'Equivalent to titanium' depends entirely on which titanium grade; see the titanium research. '7075 is 2x 6061' holds for typical yield (503 vs 276 MPa, about 1.8x).",
+  "SCANDIUM-ALUMINIUM ('Scandium' bikes, bats, tent poles, lacrosse shafts): Wikipedia says 'These alloys contain between 0.1% and 0.5% of scandium' and that titanium alloys are cheaper and more widely used. A bicycle maker (IBEX, 2006 forum post) called scandium frames aluminium 'alloyed with a small amount of Scandium' and too expensive for the general market. They are proprietary, usually butted or shaped bike tubes, and I found no straight round tube for sale or published tube properties. I gave them no numeric entry rather than invent values. Not relevant for staff builders.",
+  "SIX-SIX vs SEVEN-OH: the drawn temper 6063-T832 has spec minimums (283/248 MPa for thin walls) practically equal to 6061-T6 drawn (290/241 MPa). If a stockist sells it, it is an equal-strength alternative with better corrosion resistance and anodize.",
+  "DATA-SOURCE CAVEATS: MatWeb, ASM (asm.matweb.com), Online Metals, Metals Depot and Metals4U refused automated access (403 or refused), and the web-search budget ran out mid-task. Typical values therefore come from Kaiser Aluminum tube datasheets (Rev. 05/06 and KA-TPH 1.09), Alcoa's 7075 sheet, Aalco (UK), a 2006 MatWeb printout of Aluminum Association typical data, and MMPDS-04 (2008). Kaiser's drawn-tube limit table prints the MPa columns swapped for 7075-T6 and T73 (77 ksi is 531 MPa, not 455). Typical values are not design minimums. All prices were looked at on 2026-09-24."
+ ]
+}

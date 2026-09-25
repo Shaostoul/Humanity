@@ -3,8 +3,8 @@
 Find a paperclip. Straighten one bend, then bend it back. Then back
 again, in the same place, as fast as you like. Count.
 
-Somewhere between the third and the tenth bend it snaps. Three things
-just happened, and between them they explain most of what metal does.
+Within a handful of bends it snaps. Three things just happened, and
+between them they explain most of what metal does.
 
 **The first bend was easy.** You pushed past the point where the metal
 springs back and it stayed where you put it. That is plastic
@@ -14,10 +14,15 @@ deformation, and it is the whole reason metal is useful.
 alloy it or hammer it. You bent it, and bending it made it stronger.
 That is work hardening.
 
-**Then it broke, at a load nowhere near what it takes to pull a
-paperclip in half.** You never came close to tearing it. You cycled it,
-and cycling it killed it. That is fatigue, and it is the commonest way
-real metal parts fail in real life.
+**Then it broke, though you never pulled on it.** You never came close
+to tearing it apart in a straight pull. You cycled it, and cycling it
+killed it. That is fatigue. The Department of Energy's materials handbook uses
+this very demonstration, a thin steel wire bent back and forth in one
+place until it breaks, and states that the majority of engineering
+failures are caused by fatigue. Strictly, the paperclip is the harsh
+version, **low-cycle fatigue**, because every bend yields the metal.
+The quieter version, where a part never yields at all and still
+cracks, is covered below.
 
 One paperclip, twenty seconds, and you have done the experiment that
 underlies work hardening, annealing, tempering, and why a bolt that held
@@ -44,9 +49,27 @@ steels are heat treated to meet specific requirements. If you do not
 know which steel you have, you do not know its recipe, and this guide
 will not invent one.
 
-Every number here comes from a federal publication opened and read for
-this guide, all listed at the bottom with what each gave. Where
-something is convention rather than a published measurement, it says so.
+Nor can it make hot work safe. **Heating, cutting or grinding some
+metals and coatings gives off fume or dust that injures people**:
+zinc, cadmium, lead, beryllium, and the chromium in stainless steel
+and in chromate coatings among them. The hazard sections below name them. The rule that covers
+all of them is to find out what a part is made of before you put heat
+or a grinder to it, and to leave it alone if you cannot.
+
+Most numbers here come from United States federal publications opened
+and read for this guide. The rest are credited where they are used:
+two NASA-funded contractor handbooks for aluminium, a national
+laboratory report, named manufacturer data sheets, two industry
+associations, a professional society's magazine, one peer-reviewed
+paper, one aerospace handbook chart read by eye, standard reference
+values for melting points and vapour pressure, and the project's own
+data files (the alloy table and the Silverdale climate record). One
+description comes only from a metal retailer, and one thermal
+conductivity figure only from a distributor's data sheet; both are
+labelled **community figure**. Where something is
+convention, or this guide's own reasoning rather than a published
+measurement, it says so. Everything is listed at the bottom with what
+each source gave.
 
 ## The one idea: a crystal with mistakes in it
 
@@ -109,8 +132,10 @@ start bending again.
 **Grain size.** Boundaries stop ripples too, so more boundaries means a
 stronger metal. The operational rule, from the handbook: generally, the
 faster a metal is cooled, the smaller the grain sizes, and this will
-make the metal harder. That one sentence is the basis of the entire heat
-treating trade.
+make the metal harder. Finer grain is one of the things a quench buys.
+In steel it is not the main one: the big jump in hardness from a quench
+comes from carbon trapped in a strained crystal, which the heat
+treating section below describes.
 
 Hold on to the ripple picture. Everything below follows from it.
 
@@ -136,11 +161,24 @@ structural materials:
 | Stainless steel | 29 x 10^6 psi | 40,000 to 50,000 psi | 78,000 to 100,000 psi |
 | Aluminium | 10 x 10^6 psi | 35,000 to 45,000 psi | 54,000 to 65,000 psi |
 
-Read the first column against the third. The stainless is up to half
-again as strong at the top of its range, and its stiffness is slightly
-**lower**. In modern units 30 x 10^6 psi is 207 GPa and 29 x 10^6 psi is
-200 GPa, a difference of about 3 percent against a strength difference
-of roughly 50 percent.
+Read the first column against the third. On these figures the stainless
+is up to half again as strong at the top of its range, and its stiffness
+is slightly **lower**. In modern units 30 x 10^6 psi is 207 GPa and 29 x
+10^6 psi is 200 GPa, a difference of about 3 percent against a strength
+difference of roughly 50 percent.
+
+**Read the strength columns with the caution this guide asks of every
+table.** The DOE row names neither a grade nor a condition, and
+stainless strength depends heavily on both. An Oak Ridge National
+Laboratory report on type 304 plate notes that the ASTM A 240
+specification sets 304's minimum yield at 30,000 psi, which is the
+bottom of the carbon steel row and below the stainless one, and NASA's
+fastener manual gives 300-series stainless fasteners an ultimate
+anywhere from 70 to 140 ksi, a factor of two inside one family. So 304
+bought to that specification is not reliably stronger than plain carbon
+steel in yield at all.
+The stiffness column is the one that does not move with condition, and
+that is the point of this section.
 
 The same shows up inside one alloy. NASA's data handbook for aluminium
 6061 gives the annealed condition an ultimate of 18.0 ksi and the T6
@@ -204,19 +242,20 @@ force: Brinell, Rockwell, Vickers.
 It correlates usefully with strength. The DOE handbook gives a
 conversion worth knowing: for quenched and tempered steel, the tensile
 strength in psi is about 500 times the Brinell number, provided the
-strength is not over 200,000 psi. Take its own example of 352 Brinell:
-times 500 is 176,000 psi, which is 1,213 MPa. **That is a rule of thumb
-with a stated ceiling**, for quenched and tempered steel, not for
-aluminium, brass or cast iron.
+strength is not over 200,000 psi. A worked example of our own: a steel
+reading 352 Brinell comes out at 352 times 500, or 176,000 psi, which
+is 1,213 MPa. **That is a rule of thumb with a stated ceiling**, for
+quenched and tempered steel, not for aluminium, brass or cast iron.
 
 **A warning about the Mohs scale.** Mohs is a mineralogist's scratch
-ladder built for rocks, and it is far too coarse for metals. In the
-project's own alloy file every iron-based entry, from mild steel at 4.0
-to Hadfield manganese steel at 8.0, sits in that one band, so the
-difference between a knife that holds an edge and one that does not is
-invisible at that resolution. Treat a Mohs number
-for a metal as a rough ordering, never a specification. This matters for
-the data file below, which uses exactly that column.
+ladder built for rocks, and it is far too coarse for metals. Its steps
+are whole scratch ranks, not equal amounts of hardness, so the gaps
+between them are uneven, and a single step can span the kind of
+hardness difference that decides whether an edge holds or rolls. Treat
+a Mohs number for
+a metal as a rough ordering, never a specification. This matters for
+the data file below, which uses exactly that column, gives no source
+for it, and has at least one row that contradicts itself (defect 2).
 
 ### Toughness: how much abuse before it cracks
 
@@ -253,7 +292,7 @@ tough enough that the apex does not chip out.
 A cheap knife sits at one end of that trade because hitting the middle
 costs money. The middle needs controlled steel chemistry, a controlled
 hardening temperature, a controlled quench and a controlled temper, each
-held within tens of degrees, using that alloy's own recipe. Err toward
+held to that alloy's own recipe. Err toward
 soft and the edge rolls over every few minutes. Err toward hard and it
 chips, which is worse, because a rolled edge can be straightened and a
 chipped one must be ground back past the damage.
@@ -268,11 +307,28 @@ with a grinder.
 Everything so far assumed you load a part once and see whether it holds.
 Real parts mostly fail in ways a single pull test never predicts.
 
-### Fatigue: failure far below yield, because you did it again
+### Fatigue: failure because you did it again
 
-Your paperclip broke at a stress nowhere near what it takes to pull a
-paperclip apart. That is what takes out most parts that see any cycling:
-engine mounts, springs, shafts, trailer frames, ladder rungs.
+Fatigue comes in two regimes, and the paperclip shows only the first.
+
+**Low-cycle fatigue** is the paperclip. Every bend pushes the metal
+past yield, so it takes a permanent set each time, and it fails in a
+handful of cycles. Big loads, few cycles.
+
+**High-cycle fatigue** is the one that surprises people. The part never
+yields at all. Every load it sees is well below the stress that would
+bend it, it springs back perfectly every time, and after enough
+thousands or millions of repetitions it cracks anyway. The DOE handbook
+defines fatigue this way, as fracture under repeated stresses
+considerably below the normal strength, and notes that the number of
+cycles needed is generally quite large but falls as the stress rises.
+This is what takes out engine mounts, springs, shafts, trailer frames
+and ladder rungs.
+
+The same handbook separates the two when it says what a designer should
+ask of the steel: where load variations are small but frequent, high
+fatigue strength matters; where load variations are large but
+infrequent, ductility is the main requirement.
 
 The DOE handbook is honest that the cause is not settled: the primary
 cause of the phenomenon of fatigue failure is not well known. What it
@@ -296,14 +352,17 @@ one-pull fracture: a smooth region where the crack crept, and a rough
 torn region where the rest gave way. If you can see both zones, fitting
 an identical replacement will get you an identical failure.
 
-**One honest gap.** Steels are generally described as having a fatigue
-limit, a stress below which they survive indefinitely, while aluminium
-alloys are described as having none. That is the standard engineering
-position and the reason aircraft have finite lives. **No federal
-publication opened for this guide states it**, so it is recorded here as
-convention. What is sourced is that NASA's handbooks for 6061 and 7075
-publish S-N curves rather than a single safe stress, which is what you
-would do for a material with no plateau to quote.
+**One half-sourced claim.** Steels are generally described as having a
+fatigue limit, a stress below which they survive indefinitely, while
+aluminium alloys are described as having none. The first half is
+sourced: the DOE handbook says that for some mild steels the cycling can
+go on indefinitely provided the peak stress stays below the endurance
+limit, and the FAA's repair circular speaks of an endurance limit for
+metals in general. **The second half, that aluminium has no such limit,
+is not stated in any source opened for this guide.** It is the standard
+engineering position and the usual explanation for why aircraft
+structures are given finite lives, and it is recorded here as
+convention.
 
 ### Stress concentration: the notch does the damage
 
@@ -333,10 +392,11 @@ failure at all.
 
 On 17 July 1981 two suspended walkways in the atrium of the Hyatt
 Regency hotel in Kansas City collapsed. The National Bureau of
-Standards, now NIST, investigated. Its executive summary records 113
-dead and 186 injured, and calls it in terms of loss of life and injuries
-the most devastating structural collapse ever to take place in the
-United States.
+Standards, now NIST, investigated. Its 1982 report records 113 dead and
+186 injured, and calls it, as of that report, the most devastating
+structural collapse ever to take place in the United States in terms of
+loss of life and injuries. The death toll later rose to 114, the figure
+the American Society of Civil Engineers gives.
 
 The steel was not the problem. NBS concluded the most probable cause was
 insufficient load capacity of the box beam and hanger rod connections,
@@ -347,8 +407,10 @@ essentially doubled the load on the fourth floor connection.
 
 The numbers are the part to carry. At collapse, the load on a fourth
 floor connection was only **31 percent** of the ultimate capacity that
-connection should have had under the Kansas City building code. Even
-unchanged, it would have been about **60 percent**. NBS concluded that
+connection should have had under the Kansas City building code. Even as
+originally designed, before the rod change, the connection's ultimate
+capacity would have been only about **60 percent** of what the building
+code required. NBS concluded that
 with the change, the walkways had from the day of construction only
 minimal capacity to resist their own weight and virtually none to resist
 the additional load of people.
@@ -407,24 +469,33 @@ The most treacherous failure on the list, because the part looks
 perfect, passes a test, and then breaks later under a load it had
 already carried.
 
-The DOE handbook gives the mechanism for steel: hydrogen diffuses along
-grain boundaries and combines with the carbon to form methane gas, which
-collects in small voids and builds up enormous pressures that start
-cracks and reduce ductility, so a part under high tensile stress can
-fail in a brittle way.
+"Hydrogen embrittlement" covers more than one kind of damage, and
+NASA's fastener manual separates three. The first is a **chemical
+reaction**: hydrogen reacts with the carbon in steel to form methane
+gas, which cracks and weakens it. The DOE handbook describes this one,
+with the methane collecting in small voids along the grain boundaries
+and building up enormous pressures. The third needs a high-pressure
+hydrogen atmosphere, such as the inside of a hydrogen storage tank, and
+does not arise for ordinary hardware.
 
-NASA's fastener manual gives the version that matters for hardware you
-buy. Most plating is an electrolytic bath process, so free hydrogen is
-present at the surface. Most plating therefore requires baking
-afterwards to drive the hydrogen out, and for cadmium it gives the
-figures: bake at 375 degrees F for 23 hours, within 2 hours after
-plating. It then names the trap: heating a plating to its decomposition
-temperature can generate free hydrogen again, so **exceeding the safe
-operating temperature of a plating can cause premature fastener failure
-from hydrogen embrittlement** as well as loss of corrosion protection.
-And the reason this one frightens engineers: internal hydrogen
-embrittlement can cause delayed failures after proof testing, with **no
-external indication that the hydrogen is present**.
+**The second is the one that breaks bolts you buy: internal hydrogen
+embrittlement.** Hydrogen sits dissolved between the atoms of the
+lattice. No methane forms and nothing visible happens. The part simply
+fails later, under a load it had already carried, and NASA's warning is
+the reason this one frightens engineers: it can cause delayed failures
+after proof testing, with **no external indication that the hydrogen
+is present**. NASA adds that the problem grows as fastener strength
+rises.
+
+Plating is where it comes from. Most plating is an electrolytic bath
+process, so free hydrogen is present at the surface, and most plating
+therefore requires baking afterwards to drive the hydrogen out. For
+cadmium NASA gives the figures: bake at 375 degrees F (191 C) for 23
+hours, within 2 hours after plating. It then names the trap: heating a
+plating to its decomposition temperature can generate free hydrogen
+again, so **exceeding the safe operating temperature of a plating can
+cause premature fastener failure from hydrogen embrittlement** as well
+as loss of corrosion protection.
 
 So: buy high-strength plated fasteners from a source that bakes them. Do
 not electroplate a high-strength bolt in the garage, and do not
@@ -445,8 +516,11 @@ demonstrated: the load is applied **in a downward vertical direction**,
 and for a non-self-supporting ladder with it **placed at 75 and a half
 degrees from the horizontal**.
 
-So the rating already contains a factor of four, and the ladder still
-fails. Why:
+A 300 pound ladder is exactly that reduced case. OSHA's extension ladder
+fact sheet lists the duty ratings: Type IA, extra duty, is the 300 pound
+class. So a 300 pound metal ladder is only required to hold 3.3 times
+its rating, a smaller margin than the general factor of four. That is
+still a large margin, and ladders still fail inside it. Why:
 
 - **The rated load is not just you.** The regulation defines maximum
   intended load as the total load of all employees, equipment, tools,
@@ -475,7 +549,7 @@ fails. Why:
 
 The label describes a new ladder, loaded straight down, at the right
 angle, by a test machine. Every difference from that spends some of the
-factor of four.
+margin, which on a 300 pound metal ladder is 3.3 times, not four.
 
 ## Heat treating plain carbon steel
 
@@ -531,8 +605,10 @@ dial marked in degrees. Every tool in your house sits somewhere on it,
 chosen by whoever made it.
 
 **The order is not negotiable.** Anneal to a known soft state, shape,
-normalise if forged or welded, harden, then temper immediately. A
-hardened piece left untempered can crack sitting on the bench.
+normalise if forged or welded, harden, then temper. Heat treaters
+temper promptly rather than leave a quenched piece lying about, because
+of the manual's "highly stressed" and "brittle"; that habit is shop
+convention rather than a figure from the sources.
 
 **One irreversible mistake.** The manual warns that the metal should
 never be heated close to its melting point, because certain elements are
@@ -547,31 +623,63 @@ that cannot harden through. A low carbon steel cannot be hardened much
 because of its low carbon, yet the surface can be hardened by increasing
 the carbon content of the surface only, for example by pack carburising.
 The result is a hard skin over a soft, tough core, which is what a gear
-tooth wants. It is also why you must never grind deeply into a
-case-hardened part: underneath is mild steel.
+tooth wants. The skin is thin: for one carburising procedure the manual
+gives a case depth of 0.040 to 0.060 inch, about 1 to 1.5 mm. That is
+why you must never grind deeply into a case-hardened part: underneath
+is mild steel.
 
 ### Colours, honestly
 
 Two colour systems get confused and only one is about tempering.
 
-**Glowing colour** is light the steel emits when hot enough to glow, dull
-red up through orange and yellow. That is the scale behind "a good red"
-for the hardening heat.
+**Glowing colour** is light the steel emits when hot enough to glow.
+The Army welding manual's table of heat colours runs from a faint red
+visible only in the dark at about 750 degrees F (400 C), through blood
+red, cherry and bright red around 1,050 to 1,550 F, then salmon, orange,
+lemon and light yellow, to white at about 2,200 F (1,200 C). That is the
+scale behind "a good red" for the hardening heat.
 
 **Oxide colour** is different: it appears on clean bright steel at far
 lower temperatures as a thin oxide film thickens, and it is the
-traditional tempering guide. [Sharpening](sharpening.md) covers it,
-including the one colour two federal manuals name and agree on, blue,
-meaning the temper is drawn and the affected metal must be ground away.
-That guide also states plainly what could not be sourced: the full
-straw, brown, purple sequence everyone quotes appears in none of the
-manuals opened for it.
+traditional tempering guide. The same manual tabulates it in Table IV,
+Temper and Heat Colors, each colour with a temperature and the tools
+usually tempered there:
+
+- **The straws, 400 to 480 degrees F (about 205 to 250 C):** faint
+  straw at 400; straw at 440 for scrapers, hammer faces and lathe,
+  shaper and planer tools; dark straw at 460 for milling cutters, taps
+  and dies; very deep straw at 480 for punches, dies, knives and
+  reamers.
+- **The browns and purples, about 500 to 550 F (260 to 290 C):** brown
+  yellow for stone cutting tools and twist drills; bronze or brown
+  purple at 520 for drift pins; peacock or full purple at 540 for augers
+  and cold chisels for steel; bluish purple at 550 for axes, cold
+  chisels for iron, screwdrivers and springs.
+- **The blues, 570 to 640 F (about 300 to 340 C):** blue at 570 for
+  wood saws, then full blue at 590, very dark blue at 600 and light blue
+  at 640.
+
+(The scanned text of the manual prints brown yellow's temperature
+illegibly, so it is left out here; its place in the sequence puts it
+between 480 and 520.)
+
+Read down the list and the hardness-toughness trade is visible: cutting
+tools that must stay hardest, such as scrapers, taps, reamers and
+knives, sit in the straws, while axes, cold chisels, screwdrivers and
+springs, which must take shock or flex, sit in the purples and blues.
+That is also why [Sharpening](sharpening.md) treats blue at the edge of
+a knife or drill as damage: the table tempers knives in the straws and
+twist drills at brown yellow, so a blue edge has been heated past the
+temperature its maker chose.
 
 **The limits.** Glowing colour depends heavily on ambient light, which
 is why smiths work in shade. Oxide colour depends on surface finish and
-on time at temperature as well as peak temperature. Neither says
-anything about how far the heat has penetrated. And for one important
-metal, colour does not exist at all.
+on time at temperature as well as peak temperature, so a long soak at a
+straw temperature can colour like a quick touch of a hotter one. Neither
+says anything about how far the heat has penetrated, and the manual
+itself says a pyrometer should be used wherever possible, because
+estimating metal temperature by its colour is not accurate. And for one
+important metal, colour does not exist at all.
 
 ### The hazards, at the operations that carry them
 
@@ -609,10 +717,15 @@ the first minutes decide the outcome, and
 [Treating Burns](../skills/treating_burns.md) gives the cooling numbers
 and the criteria for getting help.
 
-## Corrosion, where most household metal actually dies
+## Corrosion, the slow failure
 
-Very few things fail by being overloaded. They fail because they rusted,
-or because they touched something they should not have.
+Plenty of household metal never meets a load big enough to break it. It
+rusts, or it touches something it should not have, and corrosion then
+hands the part to the failure modes above: a pit is a notch, and a
+thinned section carries the same load on less metal. The FAA's repair
+circular makes the link explicit for fatigue: when a cycled part is also
+in a corrosive environment, the stress needed to break it can fall many
+times over.
 
 ### The battery in your fence post
 
@@ -631,7 +744,9 @@ metal is cathodic and protected. Then the line that makes it vivid:
 **with no electrical contact, the two metals would be uniformly attacked
 by the corrosive medium as if the other metal were absent.** Bolting
 them together creates the battery. The larger the potential difference,
-the greater the probability.
+the greater the probability. The FAA's repair circular adds how you spot
+it: usually a build-up of corrosion products at the joint between the
+two metals.
 
 ### The ranking, and how to use it
 
@@ -681,9 +796,9 @@ same alloy with its film destroyed or starved, sits at 14, near mild
 steel. **The same stainless bolt is a different metal electrically
 depending on whether its film is intact.**
 
-**Graphite is on the list at 35, more noble than silver.** Graphite
-grease, pencil marks and carbon fibre will all drive corrosion in any
-metal they touch in the wet.
+**Graphite is on the list at 35, more noble than silver.** Only gold
+sits above it, so graphite grease, pencil marks and carbon fibre will
+drive corrosion in almost any common metal they touch in the wet.
 
 ### The area rule, which decides how bad it gets
 
@@ -708,9 +823,12 @@ manifold will be eaten.
 
 **Copper against aluminium is the unambiguous disaster.** Positions 25
 against 4 to 9, and in the usual arrangement the copper is the small
-noble part. A copper pipe strapped to an aluminium bracket, a copper
-earthing conductor bolted to an aluminium chassis, or runoff from a
-copper roof dripping on aluminium gutters will all eat the aluminium.
+noble part. A copper pipe strapped to an aluminium bracket or a copper
+earthing conductor bolted to an aluminium chassis will eat the
+aluminium. (Runoff from a copper roof onto aluminium gutters is often
+listed here too. It involves no electrical contact, so it is not the
+galvanic couple defined above but a different mechanism, and no source
+opened for this guide describes it, so it is only noted.)
 
 **Stainless against aluminium in salt** is the marina classic. Passive
 stainless at 32 against aluminium at 4 to 9 is nearly the worst
@@ -750,9 +868,16 @@ the protected metal.** That is a sacrificial anode, and zinc is a common
 one, often used in cooling water systems containing seawater.
 
 This is why boats and water heaters carry anodes meant to dissolve. An
-anode still looking new after years is not good health. It means it is
-not electrically connected to what it should be protecting, and the
-protected metal is corroding instead.
+anode still looking new after years is not good health. It means the
+anode is not working, and the protected metal may be corroding instead.
+There are three usual reasons. It may not be electrically connected to
+what it should protect. It may have **passivated**: the Bureau of
+Reclamation reports that zinc anodes in some fresh waters form a
+passive film and lose their protective ability, and that Reclamation
+tends to use magnesium anodes, which seem less likely to passivate, for
+that reason. Or it may be the wrong metal for the water, which is the
+same problem seen from the buying end. So check the bonding, and check
+that the anode type suits the water it sits in.
 
 ### Why stainless is stainless, and the two ways to defeat it
 
@@ -775,14 +900,18 @@ formation of a very thin oxide film on the surface of the metal.**
 A stainless part is a thin ceramic film on a steel that would otherwise
 rust briskly. Two things destroy it.
 
-**One: chlorides.** The DOE handbook's prevention list names them first,
+**One: chlorides.** The DOE handbook's prevention list names them,
 avoiding agents in the medium that cause pitting, for example chlorides
-and oxygen. It is more specific about cracking: stainless steels
-containing 18 percent chromium and 8 percent nickel, which is the 304
-family, **are susceptible to cracking in environments containing
-chloride ions** and in concentrated caustic environments, while showing
-no such tendency in water containing nitrate, sulfite or ammonium ions.
-It is specifically chloride.
+and oxygen, and it gives the mechanism: chloride ions make local defects
+in the passivating oxide layer, each a tiny active spot surrounded by a
+large passive area, so the attack concentrates there and runs fast; in
+some tests deep pits appeared within a few hours. It is more specific
+still about cracking: stainless steels containing 18 percent chromium
+and 8 percent nickel, which is the 304 family, **are susceptible to
+cracking in environments containing chloride ions** and in concentrated
+caustic environments, while showing no such tendency in water
+containing nitrate, sulfite or ammonium ions. Of the exposures a
+household meets, the one that matters is chloride.
 
 That is why the same stainless behaves differently in two places. In a
 kitchen, chloride exposure is intermittent and gets rinsed. In a
@@ -836,14 +965,33 @@ the higher the heat-treating temperature and the lower the ductility,
 the more susceptible it is.** This is why the strongest fastener is not
 always the right one.
 
-Two more mechanisms, defined in the FAA's inspection and repair
-circular. **Fretting corrosion** is corrosion damage between
-close-fitting parts allowed to rub together, where the rubbing prevents
-the formation of protective oxide films. It looks like red-brown powder
-emerging from a joint that is supposed to be tight, and it means the
-joint has been moving; tightening it is the fix, wiping it is not.
-**Filiform corrosion** is a thread-like corrosion forming on aluminium
-skins beneath the finish, looking like worm tracks under paint, meaning
+Two more mechanisms from the FAA's inspection and repair circular.
+
+**Fretting corrosion**, which the circular also calls wear corrosion or
+friction oxidation, happens where two heavily loaded surfaces that are
+not supposed to move against each other are made to rub by vibration.
+The rubbing strips the protective film, the sheared-off particles
+oxidise, and the oxide debris then does more damage by abrasion and by
+raising the local stress. The circular's commonest example is the
+"smoking rivet" on engine cowlings and wing skins, and elsewhere it
+describes a loose rivet as standing out on visual inspection in that
+same smoking-rivet pattern. Two details are worth having. This is one
+corrosion reaction that is not driven by an electrolyte, and moisture
+may even slow it, so a dry joint is not safe from it. And where the
+circular deals with a loose friction-lock blind rivet, removal is to
+punch out its locking stem and then take the rivet out like any
+other; nothing in the procedure tightens it. **A fretting joint has been moving
+and wearing, so take it apart, look at the holes and the fastener for
+wear and cracks, and replace what is worn. Retightening alone leaves the
+worn hole and any fatigue damage in service.** That last instruction is
+this guide's reading of the circular, not a sentence from it.
+
+**Filiform corrosion** is a special case of the oxygen-difference cell,
+forming under an organic coating. The circular describes worm-like
+traces of corrosion products under the paint, most often when the air
+is between 78 and 90 percent relative humidity and the surface is
+slightly acidic, and notes that the traces cross under one another on
+aluminium, which makes the damage deeper there than on steel. It means
 moisture has got under the coating.
 
 ### Silverdale specifically
@@ -900,11 +1048,31 @@ marine version, is austenitic: tough, very formable, and **it cannot be
 hardened by heat treatment.** The DOE handbook notes exactly this of a
 reactor tank, that because of the crystal pattern of type 304, heat
 treatment is unsuitable for increasing hardness and strength. You
-strengthen it by working it. The 400 series is different metal wearing
-the same name: less chromium, and it hardens like a carbon steel, which
-is why knife blades use it. NASA warns of the cost: series 400 contains
-only 12 percent chromium and thus will corrode in some environments. A
-400-series blade buys hardness with corrosion resistance.
+strengthen it by working it.
+
+The 400 series is two different families wearing one name. The FAA's
+repair circular lists them side by side: 410 as martensitic at about
+12.5 percent chromium, and 430 as ferritic at about 17 percent, both
+magnetic.
+
+- **The martensitic grades, 410, 420, 440A and 440C, harden by heat
+  treatment** and are the knife steels. ATI's data sheet for them calls
+  them hardenable straight-chromium stainless steels, hardened by an oil
+  quench from 1,800 to 1,950 degrees F, with cutlery as a major use.
+  The carbon sets how hard each one gets, from 0.15 percent maximum in
+  410 to 0.95 to 1.20 percent in 440C.
+- **The ferritic grades, such as 430, do not.** ATI's data sheet for
+  430 gives annealing as its heat treatment, one that produces no phase
+  transformation and only softens it, and lists sinks, trim and
+  flatware as its uses. It is not a steel you harden.
+
+Chromium content varies by grade, not by family. ATI gives 410 11.5 to
+13.5 percent, 420 12 to 14, and both 430 and 440C 16 to 18, so 440C
+carries nearly as much chromium as 304's 18. NASA's fastener manual
+says series 400 contains only 12 percent chromium and so will corrode
+in some environments; read that as a statement about 410-type fastener
+stock, which is what the manual is discussing, not about the whole
+series.
 
 **Cast iron.** So much carbon that some appears as free graphite. The
 Army manual gives total carbon of 1.7 to 4.5 percent, and for commercial
@@ -944,12 +1112,40 @@ as fine particles precipitate out of the solid. Quench a piece of 6061
 and it will be soft on Monday and harder on Friday having done nothing.
 That is the opposite of steel.
 
-Notice how narrow the window is. The project data file gives 6061 a
-melting point of 855 K, which is 582 degrees C. The top of the solution
-treatment range is about 545. That leaves **under 40 degrees C** between
-doing it right and melting the part, and aluminium gives no colour
-warning at all as it approaches that line. This is furnace work with an instrument,
-not eyeball work.
+Notice how narrow the window is. An alloy does not melt at one
+temperature; it starts to melt at its **solidus** and is fully liquid at
+its **liquidus**. NASA gives 6061 a melting range of 582 to 649 degrees
+C, and the project data file's 855 K, which is 582 degrees C, is the
+solidus, the bottom of that range. The top of the solution treatment
+range is about 545. That leaves **under 40 degrees C** between doing it
+right and starting to melt the part, and aluminium gives no colour
+warning at all as it approaches that line. This is furnace work with an
+instrument, not eyeball work.
+
+**The same numbers say T6 is not a hot-service material.** Its strength
+is made by holding it at 171 to 182 degrees C for about 8 hours, and
+NASA describes the 413 degree C anneal that returns it to the soft O
+condition as essentially an overaging treatment: the precipitates that
+gave the strength keep growing past their best size. **So the ageing
+temperature is not a safe temperature.** Held there longer than the
+recipe, the metal keeps ageing past its peak, and somewhat below it the
+same thing happens more slowly. The loss is permanent: the strength
+does not come back when the part cools.
+
+How far below the ageing temperature this starts depends on time. Read
+by eye from a chart in the MMPDS aerospace materials handbook, so
+approximate, 6061-T6 begins to lose room-temperature strength after
+about 10,000 hours at 120 C, 1,000 hours at 150 C, or half an hour at
+190 C, and long exposures above about 230 to 260 C take it down to
+roughly a fifth of its T6 yield, close to the fully soft O condition.
+NASA's own 6061 handbook carries the same kind of data in section
+7.413, in figures on the effect of exposure and test temperature on T6
+strength; they are charts in a scanned report and are not transcribed
+here. **The damage depends on time as well as temperature, and it adds
+up**: time spent hot across many separate heatings accumulates. The
+NASA handbook also lists low strength at elevated temperatures among
+the four things anyone welding aluminium must understand. **A melting point is where
+the part is certainly lost, never the temperature it can work at.**
 
 What the treatment buys, and what it costs:
 
@@ -964,7 +1160,15 @@ Ultimate rises by about 2.5 times in both alloys, and in both the
 elongation, the measure of how far it stretches before parting, falls by
 more than a third: 30 percent to 17 in the 6061, and 17 to 11 in the
 7075. **The strength was bought with ductility**, as the ripple
-model predicts, and the modulus did not move. NASA also lists 7075 as
+model predicts, and the modulus did not move.
+
+Those are NASA's typical values. The same 6061 handbook's design
+section, which gives what a part may be counted on for, lists lower
+elongations for the same T6 temper: 8 to 10 percent for sheet and plate
+depending on thickness, and for tube 10 percent at walls of 0.025 to
+0.049 inch and 12 percent at 0.050 to 0.259 inch. So another table
+quoting 10 or 12 percent for 6061-T6 is not necessarily wrong; ask
+whether a figure is typical or minimum, and for what product. NASA also lists 7075 as
 resistant to stress corrosion cracking in the T73 temper, a deliberately
 over-aged, slightly weaker condition: **a temper is a choice about which
 failure mode you would rather have.**
@@ -976,13 +1180,19 @@ ductility, and that it oxidises to various shades of green. **Brass is
 copper plus zinc; bronze is copper plus tin**, and the manual
 immediately warns the naming is unreliable: many bronzes contain more
 zinc than tin and some contain zinc and no tin at all. Do not trust the
-name on a fitting. In high brasses, 20 to 45 percent zinc, tensile
-strength, hardness and ductility all rise with the zinc. Copper-nickel
+name on a fitting. The Army manual says that in high brasses, 20 to 45
+percent zinc, tensile strength, hardness and ductility all rise with
+the zinc. Ductility does not keep rising. The Copper Development
+Association's typical figures put it at its best near 30 percent zinc:
+annealed cartridge brass, C26000, about 30 percent zinc, stretches
+about 54 to 65 percent before breaking, while annealed Muntz metal,
+C28000, about 40 percent zinc, stretches about 45 to 50 percent, with a
+slightly higher tensile strength. Copper-nickel
 alloys at 10, 20 or 30 percent nickel are moderately hard, tough and
 ductile, and **very resistant to high velocity seawater, stress
 corrosion and corrosion fatigue**, which is why they appear in marine
-plumbing. **Beryllium copper** needs its own warning: 1.5 to 2.75
-percent beryllium, ductile when soft, gaining tensile strength when age
+plumbing. **Beryllium copper** needs its own warning: the manual gives
+the family as 1.5 to 2.75 percent beryllium, ductile when soft, gaining tensile strength when age
 hardened, and superb for springs and non-sparking tools. It is also the
 most dangerous common alloy to grind or machine, for reasons in the
 hazards below.
@@ -995,13 +1205,38 @@ lead pipe, flashing, paint and plumbing solder are things you may
 encounter in an existing building; encountering them is different from
 choosing them. Its hazard entry below is not a formality.
 
-**Zinc** is medium-low strength with a very low melting point, and its
-main structural role is as a coating. Hot-dip zinc coating is what
-galvanising means. NASA gives its limits: zinc plating has a useful
-service temperature limit of 250 degrees F, and its corrosion-inhibiting
-qualities degrade above 140 degrees F.
+**Zinc** is medium-low strength with a very low melting point, 785
+degrees F per NASA (about 419 C in modern tables), and its main
+structural role is as a coating, put on either by dipping the part in
+molten zinc, which is what galvanising means, or by electroplating.
+NASA's fastener manual groups both under zinc plating and gives a
+useful service temperature limit of 250 degrees F (121 C), with the
+corrosion-inhibiting qualities degrading above 140 degrees F (60 C).
+Read that as an aerospace design limit for plated fasteners. The
+American Galvanizers Association, the galvanising industry's own body
+and not a federal source, gives hot-dip galvanised steel a higher
+ceiling: 392 degrees F (200 C) for long continuous exposure. Past that,
+the outer zinc layer can start to peel from the zinc-iron layers
+beneath it, though those layers keep protecting the steel up to 480 F
+(250 C). Use above 480 F is not recommended, because peeling speeds up
+and continued exposure can crack the zinc-iron layers away from the
+steel. For short-term use it allows about 660 F (350 C), and it defines
+short term precisely: periods of less than two hours at a time, or a
+single excursion of less than 24 hours.
 
-**Magnesium** is the lightest structural metal, and two things matter.
+**Every one of those temperatures is a limit on the coating's
+protection, not a fume threshold.** Neither NASA nor the association
+says anything about fume at those figures, so none of them is a safe
+ceiling for breathing. **Keep galvanised and zinc-plated parts out of
+and away from open flame.** A flame touching the coating can take it
+past zinc's melting point, and zinc already has a measurable vapour
+pressure, 1 pascal, at about 337 C, below its melting point; what comes
+off burns to zinc oxide fume, the cause of metal fume fever described
+in the hazards section. The heavy exposures in the federal rules come
+from welding, cutting and brazing, but a coated part in a fire or a
+torch flame is the same chemistry on a smaller scale.
+
+**Magnesium** is the lightest structural metal, and three things matter.
 Galvanic corrosion is an important factor in any assembly with
 magnesium, which the NASA list confirms by putting it at the very top of
 the active end: it will corrode in preference to absolutely everything
@@ -1009,10 +1244,36 @@ else present. NASA's instruction is that magnesium must be totally
 insulated from fasteners by an inert coating such as zinc chromate
 primer, and that if the coating is damaged, cadmium or zinc plated
 fasteners are the most compatible because they are closest to magnesium
-in the series. Second, and useful in the shop, magnesium is
-distinguished from aluminium with silver nitrate solution, which does
+in the series. Inert there means inert in the joint, not safe to
+breathe: zinc chromate primer is itself a hexavalent chromium product,
+and cadmium plating is cadmium, so read their entries under Hazards,
+at the operation that carries them, in the joining section below
+before you sand, grind or heat either. Second, and useful in the shop,
+magnesium is distinguished from aluminium with silver nitrate solution, which does
 not affect aluminium but leaves a black deposit of silver on magnesium.
-Magnesium chips and dust burn fiercely and are not put out with water.
+
+**Third, it burns, and water makes that worse.** NOAA's CAMEO Chemicals
+entry for magnesium turnings and ribbons says it burns with a very
+bright flame and dense white smoke, reacts with water to release
+hydrogen, a flammable gas, and must not be fought with water, foam,
+halogenated agents or carbon dioxide; the agents it names are inert dry
+powders such as graphite, limestone or salt. A named supplier safety
+data sheet (TW Metals, magnesium AZ31B, revised February 2022) says the
+same and is blunter about water: on burning magnesium it produces
+hydrogen and may cause an explosion. Its instruction is to smother the
+fire with a powder approved for magnesium fires, and it names two
+proprietary ones, G1 and MET-LX, alongside inert dry powders such as
+graphite, limestone or salt. Powders like these come in Class D, or
+metal-fire, extinguishers, **but Class D agents are made for
+particular metals, so not every Class D unit suits magnesium**:
+Amerex, an extinguisher maker, says its copper-powder agent was
+developed by the US Navy specifically for lithium and lithium alloy
+fires. Buy one whose label lists magnesium. Thin and fine pieces are
+what catch: CAMEO notes that ribbon and fine
+shavings can be ignited at air temperatures of about 950 degrees F
+(510 C), and very fine powder below 900 F (480 C). Keep chips and dust
+swept up, dry, and away from sparks, and have the right powder on hand
+before you machine magnesium, not after.
 
 ## Joining, and why the weld fails beside the weld
 
@@ -1073,21 +1334,35 @@ cracks. The remedies are preheating to slow the cooling, and stress
 relieving afterwards.
 
 For heat-treated aluminium the concern is softening, and NASA's 6061
-handbook has the direct evidence. Testing welded 6061, it reports that
-**all specimens in that study failed at the edge of the weld or in the
-annealed zone areas which do not respond to ageing.** It also measured
-the reach: the effect of welding heat did not extend more than 1.5
-inches, 38.1 mm, from the weld centreline.
+handbook has the direct evidence, from two different studies that are
+worth keeping apart.
 
-Those two sentences are the whole thing. Weld a 6061-T6 frame and you
-get a band roughly an inch and a half either side of every weld that has
-been annealed back toward the soft condition, and that does not recover
-by sitting there, because the precipitation that gave it strength needs
-a proper solution treatment and age. The weld metal is fine. The soft
-band beside it is where it breaks. This is why welded aluminium frames
-and boat fittings are either heat treated after welding or designed with
-extra section at the joints, and why an amateur repair weld on a T6
-extrusion often fails about an inch from the repair.
+The first tested MIG and TIG welded 6061 sheet, including joints with
+deliberate mismatch between the pieces. The handbook reports that **all
+specimens in that study failed at the edge of the weld or in the
+annealed zone areas which do not respond to ageing**, and that its data
+indicate repair welding may cost strength, with the loss depending on
+the number of repairs.
+
+The second looked at semiautomatic MIG repair welds on 6061-T6 plate
+with 5356 filler, rewelded up to six times with no heat treatment
+afterwards. It found little effect: only a slight loss of tensile
+strength at half an inch and one inch from the weld, and only after two
+or more rewelds. In that study the effect of the welding heat did not
+extend more than 1.5 inches, 38.1 mm, from the weld centreline. Treat
+that as an upper bound seen in one plate study, not a rule: how wide
+the softened band is depends on the thickness of the metal and how much
+heat went in.
+
+Put together, the picture is this. Beside every weld in 6061-T6 is a
+band that has been annealed back toward the soft condition, and it does
+not recover by sitting there, because the precipitation that gave it
+strength needs a proper solution treatment and age. The weld metal is
+fine. The soft band beside it is where it breaks. So a welded T6 part
+either goes back through a full solution treatment and age, or the
+joint has to be sized for the softened metal; that is this guide's
+reasoning from the handbook's findings, not a figure the handbook
+gives.
 
 ### Bolts, and why one shears
 
@@ -1104,8 +1379,11 @@ is to vary the washer thickness under the head or nut.
 much stiffer than the bolt, so the bolt load does not rise much as
 external load is applied, and does not rise significantly until the
 external load exceeds the preload. **A tight bolt is shielded from the
-cyclic load; a loose bolt takes all of it.** The commonest reason a bolt
-fails in fatigue is that it was not tight.
+cyclic load; a loose bolt takes all of it.** It follows, as this guide's
+inference from that analysis rather than a statistic NASA gives, that a
+bolt which has lost its preload is set up for fatigue, and that when one
+breaks in fatigue, the rest of the joint is worth checking for lost
+preload.
 
 **Tightening is far less accurate than people think.** The manual's tool
 accuracy table gives preload accuracy of only plus or minus 15 to 30
@@ -1133,14 +1411,23 @@ problem: a bolt that will not shear is no use in a member that splits.
 
 ### Hazards, at the operation that carries them
 
-**Heating or cutting anything galvanised, and any brass.** Zinc fume
-causes metal fume fever. The NIOSH entry for zinc oxide lists chills,
-muscle ache, nausea, fever, dry throat and cough, along with weakness,
+**Welding, brazing or torch-cutting anything galvanised, brazing,
+welding, cutting or casting brass, and putting galvanised or
+zinc-plated parts in a flame.** Brazing, welding and cutting are the
+operations the Army manual and the federal welding rule name; casting
+brass means melting all of it. Every one of them takes the metal past
+zinc's melting point, and so can direct flame on a coated part, which
+is the exposure most likely outside a workshop: a zinc-plated bracket
+in a campfire, or galvanised hardware next to a burning wick. Zinc fume
+causes metal fume fever. The NIOSH entry
+for zinc oxide lists chills, muscle ache, nausea, fever, dry throat and cough, along with weakness,
 metallic taste, headache, blurred vision, low back pain, vomiting, chest
 discomfort and difficulty breathing. The NIOSH limit for the fume is 5
-mg/m3 as an eight-hour average with a 10 mg/m3 short-term limit, and 500
-mg/m3 is immediately dangerous. Federal regulation requires local
-exhaust or mechanical ventilation indoors for welding or cutting
+mg/m3 as an eight-hour average with a 10 mg/m3 short-term limit, and its
+immediately-dangerous figure (IDLH) is 500 mg/m3. An IDLH is an escape
+figure: NIOSH bases it on what a 30-minute exposure might do, which is
+why it sits so far above the working limits. Federal regulation
+requires local exhaust or mechanical ventilation indoors for welding or cutting
 zinc-bearing or zinc-coated metal, and full confined-space provisions in
 a confined space. **Outdoors, upwind, with the coating ground off
 first, is the amateur's version.** The illness is usually self-limiting,
@@ -1152,13 +1439,33 @@ occupational carcinogen with prostate and lung as the cancer sites,
 gives an OSHA limit of 0.005 mg/m3, and lists pulmonary oedema,
 difficulty breathing, cough, chest tightness, emphysema, proteinuria and
 mild anaemia, with the respiratory system, kidneys, prostate and blood
-as target organs. Federal regulation requires local exhaust or airline
-respirators indoors or in confined spaces, and approved respirators even
-outdoors. The Army manual adds the brazing warning: grind all cadmium
-surfaces back to base metal first, because **cadmium oxide formed by
-overheating and melting of the silver brazing alloys is highly toxic.**
-Old plated hardware is often cadmium and looks like zinc. If you cannot
-tell, do not heat it.
+as target organs. Its IDLH is 9 mg/m3, but do not read that as a safe
+ceiling for a working session: OSHA's cadmium standard treats about 1
+mg/m3 over an eight-hour period as immediately dangerous, and warns that
+the lung damage arrives late, with acute pneumonitis 10 to 24 hours
+after breathing heavy fume and pulmonary oedema usually developing
+within a day. Feeling fine at the end of the job proves nothing. NASA
+gives cadmium a melting point of 600 degrees F (it is 321 C, 610 F, in
+modern tables) and cadmium plating a useful service limit of 450
+degrees F (232 C), so a cadmium-plated part is already past its limit
+well before it glows. **The part can fail before the plating limit,
+too.** On the same page NASA warns that hydrogen embrittlement failure
+of cadmium-plated parts can start as low as 325 degrees F (163 C), and
+a separate cadmium embrittlement around 400 F (204 C), and that the two
+together can be disastrous. Federal regulation requires local exhaust
+or airline respirators indoors or in confined spaces, and approved
+respirators even outdoors.
+
+The Army manual adds a brazing warning: grind all cadmium surfaces back
+to base metal first, because **cadmium oxide formed by overheating and
+melting of the silver brazing alloys is highly toxic.** Read that as an
+instruction for a ventilated professional shop, because **grinding
+cadmium is itself a cadmium exposure.** The NIOSH entry covers cadmium
+dust as well as fume, and the same 0.005 mg/m3 limit applies to both.
+For anyone without that setup, the safer course is not to braze, weld,
+heat or grind a cadmium-plated part at all: replace it. Old plated
+hardware is often cadmium and looks like zinc. If you cannot tell, do
+not heat it and do not grind it.
 
 **Anything containing lead, including old paint and old solder.** The
 NIOSH limit is 0.050 mg/m3, and the effects listed include weakness,
@@ -1187,6 +1494,41 @@ exemption here as it is for zinc. Do not grind, sand, machine or torch
 beryllium copper. The non-sparking tools it makes are safe to use and
 hazardous to shape.
 
+**Welding or torch-cutting stainless steel.** Handling stainless is
+not the problem; hot work is. OSHA's welding fume fact sheet says
+chromium, which is in stainless steel, some nonferrous alloys, chromate
+coatings and some welding consumables, is **converted to its hexavalent
+form, Cr(VI), during welding**, and that Cr(VI) fume is highly toxic, can damage the
+eyes, skin, nose, throat and lungs, and causes cancer. It has its own
+OSHA standard, 29 CFR 1910.1026, with a limit of 5 micrograms per cubic
+metre as an eight-hour average, which is 0.005 mg/m3, the same as
+cadmium's. Nickel and manganese are also in stainless welding fume, and
+the same fact sheet warns that prolonged exposure to manganese fume can
+cause Parkinson's-like symptoms. The federal welding rule requires
+mechanical ventilation for oxygen cutting of stainless with flux or
+iron powder and for gas-shielded arc cutting of it. What is **not**
+documented in any source opened for this guide is Cr(VI) coming off
+bare stainless at ordinary heat, such as a stainless part near a
+flame; the documented hazard is welding and cutting, where the metal
+melts.
+
+**Chromate coatings, with no welding needed.** Chromate primers and
+chromate conversion coatings are a different case from stainless. A
+chromate is chromium already in its hexavalent form, so the coating is
+a Cr(VI) compound before any heat reaches it. OSHA's hexavalent
+chromium page says Cr(VI) compounds are used as an anticorrosive agent
+in paints, primers and other surface coatings, and it lists the use of
+pigments, spray paints and coatings as a source of exposure separately
+from hot work. So sanding, grinding, wire-brushing or flame-heating a
+chromate-primed or chromate-treated part can release the same Cr(VI)
+that the 5 microgram limit above is written for, with no welding at
+all. Treat these coatings as this guide treats cadmium plating: find
+out what the coating is before you abrade or heat it, and if you
+cannot, leave it alone or replace the part. Two identification hints,
+which are this guide's and not the sources': zinc chromate primer is
+the yellow or green primer on old aircraft and military parts, and
+yellow or gold-tinted plated hardware may carry a chromate treatment.
+
 **Confined spaces, for all of the above.** Federal regulation requires
 adequate ventilation to prevent accumulation of toxic materials or
 oxygen deficiency, applies that to helpers and bystanders as well as the
@@ -1197,25 +1539,32 @@ used for ventilation.**
 **Grinding sparks and dust** are covered in [Sharpening](sharpening.md),
 including the federal requirements for abrasive wheels and the silica
 limit for stone dust. The metal-specific addition is that grinding is
-how plating comes off, so grinding a plated part liberates exactly the
-coating the welding rules above are written about.
+how plating comes off, so grinding a plated or chromate-coated part
+liberates exactly the coating the welding rules and the chromate entry
+above are written about.
 
 ## Identifying an unknown metal with what you have
 
 How far each ordinary test gets you, and where it stops.
 
-**A magnet.** The fastest single test. Strongly magnetic means
-iron-based: carbon steel, alloy steel, cast iron, wrought iron, or a
-400-series stainless. Not magnetic means aluminium, copper, brass,
-bronze, lead, zinc, titanium, or an annealed 300-series stainless.
-**Where it stops:** it does not distinguish mild steel from tool steel,
-which is usually the distinction you need, and cold-worked 304 can be
-mildly magnetic, so a weak response settles nothing.
+**A magnet.** The fastest single test. The FAA's repair circular
+describes it: a metal attracted by a magnet is usually iron, steel, or
+an iron-based alloy containing nickel, cobalt or chromium, which covers
+carbon steel, alloy steel and cast iron; its stainless table marks the
+martensitic 410 and the ferritic 430 as magnetic too. Lightly attracted
+metals could be cold-worked stainless steel or Monel. Non-magnetic
+metals could be aluminium, magnesium, silver, a copper-based alloy, or
+an annealed 300-series stainless steel. **Where it stops:** the circular
+itself says never to use it as the final basis for identification,
+since some nickel and cobalt alloys go either way. It does not
+distinguish mild steel from tool steel, which is usually the
+distinction you need, and because cold work can make 300-series
+stainless mildly magnetic, a weak response settles nothing.
 
 **Mass and volume, for density.** Weigh it, find its volume by water
 displacement, divide. Genuinely discriminating across families:
-aluminium near 2.7 g/cm3, titanium near 4.5, steel near 7.85, copper
-alloys near 8.5, lead near 11.3. **Where it stops:** it cannot tell
+magnesium near 1.7 g/cm3, aluminium near 2.7, titanium near 4.5, steel
+near 7.85, copper alloys near 8.5, lead near 11.3. **Where it stops:** it cannot tell
 steels apart at all: every steel in the project's alloy file, from D2
 tool steel at 7.70 to high-speed steel at 8.16, sits inside a spread of
 6 percent. It also fails on anything hollow, plated or thickly painted.
@@ -1227,8 +1576,9 @@ keep.
 easily means soft; skates means hard. This is the most useful hardness
 test available without equipment, and it is how you tell an annealed
 tool steel from a hardened one. **Where it stops:** two categories, not
-a number, and a case-hardened part skates at the surface and cuts like
-butter a millimetre in.
+a number, and a case-hardened part skates at the surface and cuts
+easily once you are through the case, which may be only a millimetre
+or so deep.
 
 **Colour.** Copper reddish brown, oxidising to green. Brass yellow.
 Bronze browner than brass. Aluminium light grey to silver, bright
@@ -1238,7 +1588,9 @@ grey. **Where it stops:** plating defeats it entirely, and the
 brass-versus-bronze call by eye is not reliable, as the manual's own
 warning about the naming makes clear.
 
-**Sound and fracture.** Cast iron rings dull; steel rings. Nick a corner
+**Sound and fracture.** Shop lore says cast iron rings dull when struck
+and steel rings clear; that is convention, not something the sources
+state. The fracture test is sourced. Nick a corner
 with a chisel and strike it: grey cast iron shows a dark grey surface
 from fine black graphite specks and breaks short with brittle chips;
 wrought iron breaks jagged because of its fibrous slag structure; low
@@ -1246,8 +1598,31 @@ carbon steel shows bright crystalline and is tough when chipped; high
 carbon steel is very fine grained and whiter. **Where it stops:** you
 have to damage the part, and the distinctions take practice.
 
-**The spark test.** Touch the metal to a grinding wheel in shadow. The
-Army manual's descriptions are detailed enough to use:
+**The spark test, only for metal you already think is iron-based.**
+Do the magnet test first. Spark-test only a piece the magnet pulls, or
+a non-magnetic silver-grey piece that weighs like steel (the annealed
+300-series stainless case above), and grind it only where the metal is
+already bare, such as a sawn end or an uncoated offcut. Do not grind
+through plating or paint to reach bare metal: that turns the coating
+into dust, which is how the cadmium and chromate hazards above reach
+people with no welding at all. **Do not spark-test anything
+copper-coloured, soft and grey-white, or light and silvery that you
+cannot identify.** The list below says those families give no sparks
+at all, so grinding them tells you nothing, and they include metals
+whose dust this guide warns about: a copper-coloured piece may be
+beryllium copper, which is not to be ground at all, a soft grey-white
+one may be lead, and a light silver one may be magnesium, whose fine
+dust and shavings are what catches fire. Separate magnesium from aluminium with the silver
+nitrate test in the magnesium section, and titanium from both by
+density (above). **Never grind magnesium on a wheel that has been used
+on steel**, because steel sparks thrown into magnesium dust are the
+ignition the magnesium section warns about. That last rule is this
+guide's reasoning from the supplier data sheet's instructions to keep
+magnesium away from sparks and to minimise dust, not a sentence from
+any source.
+
+With those conditions met, touch the metal to a grinding wheel in
+shadow. The Army manual's descriptions are detailed enough to use:
 
 - **Wrought iron:** straw-coloured sparks near the wheel, changing to
   white forked sparklers near the end of the stream.
@@ -1267,7 +1642,30 @@ Army manual's descriptions are detailed enough to use:
 - **Nickel:** a short, sharply defined dash of brilliant light just
   before the fork, recognisable only when carbon is low enough that the
   bursts are not prominent.
-- **Aluminium, copper, lead, zinc and titanium:** no sparks at all.
+- **Aluminium, copper, lead, magnesium, tin and zinc:** no sparks at
+  all.
+
+**Titanium is the exception, and it matters.** It is not iron-based,
+yet it can throw sparks on a grinding wheel, which one metal retailer
+describes as the most brilliant sparks of any metal (**community
+figure**). Whether it does depends on how it is ground. TIMET's
+titanium fabrication handbook tells fabricators to protect their
+surroundings from **the extremely hot grinding sparks**, yet the same
+handbook reports no appreciable sparking when titanium is ground on
+aluminium oxide wheels at the low speeds it recommends for them, 2,000
+surface feet per minute or less, tells fabricators always to use
+grinding fluid, partly to eliminate sparks that might start fires, and
+says that where titanium has to be ground by hand or without coolant,
+nearby people and equipment need protecting. The Army manual gives no spark result for
+titanium at all. So **a lack of sparks is not evidence that the metal
+is not titanium**; tell titanium by its density, near 4.5, instead.
+The fire hazard is sourced beyond TIMET, too: a University of
+California, Irvine study found that titanium golf club heads striking
+or grazing hard surfaces such as rock threw off burning particles hot
+enough to ignite dry vegetation, where stainless heads threw none.
+**Grind or cut titanium well away from fuel and anything else that
+burns, whatever wheel you use**, which matters to anyone building fire
+props, where titanium tube is common.
 
 **Where the spark test stops, and this matters.** It identifies family
 and rough carbon content, not grade. The manual's own manganese example
@@ -1295,7 +1693,8 @@ Eleven fields. **`id`** and **`name`** are the handle and the label.
 in `Fe:68|Cr:16|Ni:10|Mo:2|Mn:2`, and it is the recipe that makes the
 rest possible. **`density_g_cm3`** is the one property you can verify
 yourself with a scale and a bucket of water. **`melting_point_k`** is
-kelvin, so subtract 273.15 for degrees C.
+kelvin, so subtract 273.15 for degrees C; for an alloy it does not say
+whether it means the start or the end of melting (defect 7 below).
 **`tensile_strength_mpa`** is ultimate tensile strength, the point where
 it parts. **`hardness_mohs`** is the mineral scratch scale, 1 to 10.
 **`thermal_conductivity`** and **`electrical_conductivity`** carry no
@@ -1309,7 +1708,7 @@ kelvin and siemens per metre, but the file does not say so.
 A lot, read as chemistry rather than as a specification.
 
 `stainless_316` is `Fe:68|Cr:16|Ni:10|Mo:2|Mn:2`, corrosion resistance
-`very_high`, described as marine grade with molybdenum adding pitting
+`very_good`, one rung above 304's `good`, described as marine grade with molybdenum adding pitting
 resistance. Everything in the corrosion section above is visible there:
 the chromium forms the passive film, the molybdenum is the addition that
 helps against chloride pitting. Compare `stainless_304`,
@@ -1318,11 +1717,11 @@ you are paying for at the chandlery.
 
 `stainless_440c` is `Fe:80|Cr:17|C:1.1|Mo:0.75`, hardness 6.0 against
 5.5 for 304, described as high-carbon martensitic stainless for knife
-blades. The 1.1 percent carbon is the whole story: it is what lets the
-alloy harden, per the 0.35 percent threshold above, and it is why its
-corrosion resistance is `medium` rather than `high`. The knife alloy
-trades corrosion resistance for the ability to take a temper, in one
-line of a CSV.
+blades. The 1.1 percent carbon is what lets the alloy harden, per the
+0.35 percent threshold above, and the file rates its corrosion
+resistance `fair` where 304's is `good`, although its 17 percent
+chromium is nearly 304's 18. The knife alloy trades corrosion
+resistance for the ability to take a temper, in one line of a CSV.
 
 The thermal conductivity column reads against household experience too.
 `carbon_steel` is 51.9 and `stainless_304` is 16.2, roughly a third,
@@ -1383,25 +1782,38 @@ is a property of a pair.
 
 **A row cannot tell you whether the metal is poisonous.**
 `beryllium_copper` reads `Cu:98|Be:2`, described as non-sparking tools,
-springs, highest strength copper alloy, corrosion resistance `good`.
+springs, highest strength copper alloy, corrosion resistance `moderate`.
 Nothing hints that its dust has a limit 250 times lower than lead's.
 `wood_metal` reads `Bi:50|Pb:25|Sn:12.5|Cd:12.5`, over a third of its
-mass lead and cadmium, and is described only by its melting point and
-its use in sprinkler links. You have to read the composition and know
-the elements.
+mass lead and cadmium. Its description now warns about both, but only
+because someone wrote that into the free text after this guide found it
+missing (defect 6); there is no hazard column, and the beryllium row
+still says nothing. You have to read the composition and know the
+elements.
 
 ### Data defects found while writing this guide
 
-Reported, not fixed, and each checkable against the file itself.
+Each is checkable against the file itself. Defects 1 and 6 were fixed
+in the file shortly after this guide was first written, and are kept
+here, marked, so the history reads straight; the rest are reported, not
+fixed.
 
-**1. `corrosion_resistance` uses two overlapping vocabularies at once.**
-Across the 74 rows: `excellent` 21 times, `medium` 20, `low` 19, `good`
-12, `very_high` once, `high` once. One ladder runs low, medium, high,
-very_high and another runs low, medium, good, excellent, mixed in one
-column. The only row using `high` is `stainless_304` and the only one
-using `very_high` is `stainless_316`. There is no way to know whether
-`good` on `aluminum_6061` ranks above or below `high` on
-`stainless_304`, which makes the column unsortable.
+**1. `corrosion_resistance` used two overlapping vocabularies at once.
+Fixed.** When this guide was written the 74 rows read `excellent` 21
+times, `medium` 20, `low` 19, `good` 12, `very_high` once and `high`
+once: one ladder running low, medium, high, very_high and another
+running low, medium, good, excellent, mixed in one column, so nobody
+could say whether `good` on `aluminum_6061` ranked above or below `high`
+on `stainless_304`. The file now uses one ordered ladder, `poor`,
+`fair`, `moderate`, `good`, `very_good`, `excellent`. Each old
+ladder's internal order was kept, and the two were interleaved by a
+new judgement that the old data did not contain: old `high` (304) now
+sits above old `good` (6061 and the other eleven), and old `very_high`
+(316) sits just below `excellent`. The counts are 21 `excellent`, 20
+`fair`, 19 `poor`, 12 `moderate`, and one each of `good` (304) and
+`very_good` (316). **If you
+read an older copy of the file, note that `good` changed meaning**: it
+was 6061's word and is now 304's, one rung higher.
 
 **2. `manganese_steel` has a hardness that contradicts its own
 description.** The row is `Hadfield Manganese Steel`, `hardness_mohs`
@@ -1442,12 +1854,48 @@ from the other.
 **5. Two conductivity columns have no units in their names**, unlike
 `density_g_cm3`, `melting_point_k` and `tensile_strength_mpa`.
 
-**6. The file editorialises about lead in the one row that does not
-contain it.** `pewter` is described as "formerly contained lead," while
-`solder_60_40` (`Sn:60|Pb:40`), `type_metal` (`Pb:75|Sb:20|Sn:5`) and
-`wood_metal` (25 percent lead plus 12.5 percent cadmium) carry no such
-note. A reader scanning descriptions would conclude the opposite of the
-truth.
+**6. The file editorialised about lead in the one row that did not
+contain it. Fixed.** `pewter` is described as "formerly contained lead,"
+while `solder_60_40` (`Sn:60|Pb:40`), `type_metal` (`Pb:75|Sb:20|Sn:5`)
+and `wood_metal` (25 percent lead plus 12.5 percent cadmium) carried no
+such note, so a reader scanning descriptions would have concluded the
+opposite of the truth. Those three now warn about their lead, and
+`wood_metal` about its cadmium, as does `brass_c360`, whose 3 percent
+lead matters because its description recommends it for plumbing
+fittings.
+
+**7. `melting_point_k` mixes the start and the end of melting.**
+`aluminum_6061` is 855 K, 582 degrees C, the bottom of NASA's 582 to 649
+C range: a solidus. `aluminum_7075` is 908 K, 635 C, the top of NASA's
+approximately 477 to 638 C range for that alloy: in effect a liquidus.
+`aluminum_2024`, at 911 K, looks like the same top-of-range kind of
+figure, though no handbook for 2024 was opened for this guide. Read side
+by side, the file says 7075 takes about 50 degrees more heat than 6061
+before melting. On NASA's figures 7075 starts to melt about 105 degrees
+**sooner**. Neither number is a working limit either; see the aluminium
+section above on what heat does to T6 long before any melting point.
+
+**8. `ti_cp_grade2` takes one side of a real disagreement between
+sources without saying so.** The row, which is 99.5 percent titanium by
+its own composition, gives a thermal conductivity of 16.4. That is a
+published figure, not a slip: a distributor's data sheet for annealed
+grade 2, laid out in MatWeb's format with its data credited to Allvac,
+gives exactly 16.4 W/(m K) (**community figure**). Other makers' data
+for the commercially pure grades runs higher. Zapp's data sheet for
+titanium grades 1 to 4 gives 22 W/(m K) at room temperature, and
+Carpenter's chart for CP titanium shows the figure varying from one
+heat (production batch) of metal to another, across roughly 17 to 23
+(read by eye). The titanium row in `data/chemistry/elements.csv` gives
+21.9, but that describes the pure element, a different material. A
+handful of data sheets does not settle which figure is typical, so the
+defect is that the row does not say which basis it uses. It matters
+for a practical ranking: at 16.4, commercially pure titanium looks
+interchangeable with `stainless_304` (16.2) and `stainless_316` (16.3)
+for how fast heat travels along it, while at those higher figures it
+carries about as much heat as stainless at the low end and about a
+third more at 22. **So do not assume CP titanium tube is
+interchangeable with stainless for heat travelling along it.** Only
+the alloyed `ti_6al_4v` row, at 6.7, is far lower.
 
 **Columns a teaching file about metals arguably needs and lacks:**
 `condition` or `temper`, `yield_strength_mpa`, `elastic_modulus_gpa`,
@@ -1457,12 +1905,18 @@ explaining are different from each other, and the file records exactly
 one of them.
 
 **One note on the source registry.** The `placeholder-alloy-data` entry
-in `data/sources/registry.json` says it stands in for a citation never
-made and should be replaced with `mil-hdbk-5` for aluminium and titanium
-allowables. There is no `mil-hdbk-5` entry to replace it with. For this
-topic `nasa-ntrs` covers those allowables directly, and its own registry
-note already names CR-123772 for 6061 and CR-123773 for 7075, both read
-for this guide.
+in `data/sources/registry.json` stands in for a citation never made.
+Its note now says to replace it with `nasa-contractor-reports` for the
+6061 and 7075 Materials Data Handbooks (CR-123772 and CR-123773),
+cited for facts because they are contractor reports rather than
+federal works; with a named producer data sheet such as
+`kaiser-aluminum-technical` or `alleima-technical`; with `doe` for the
+general mechanical-property tables; with `fpl-wood-handbook` for wood;
+and with a named manufacturer technical guide for aramid fibre. An
+earlier version of the note pointed at a `mil-hdbk-5` id that is not
+in the registry, and that was corrected. Both NASA handbooks were read
+for this guide and are cited under `nasa-contractor-reports` in
+Sources below, for facts restated in our own words.
 
 ## You own this when
 
@@ -1486,9 +1940,13 @@ for this guide.
 - You understand that stainless is a film, that chloride and trapped
   water destroy it, and that the dangerous corrosion leaves no visible
   mess.
-- You look up a metal's composition before putting heat to it, and know
-  the four elements that make that question urgent: zinc, cadmium, lead
-  and beryllium.
+- You look up a metal's composition before putting heat or a grinder
+  to it, and know the five elements that make that question urgent:
+  zinc, cadmium, lead, beryllium, and chromium, in stainless steel
+  when it is welded or cut and in chromate coatings whenever they are
+  sanded, ground or heated, with manganese and nickel close behind.
+- You keep galvanised and plated parts out of flames, and grind
+  titanium and magnesium well away from anything that burns.
 - You can read a materials table and immediately ask the two questions
   it usually does not answer: in what condition, and compared with what.
 
@@ -1500,11 +1958,15 @@ neighbour in the joint, or a different number of cycles ago.
 
 ## Sources
 
-Every URL below was opened and read while writing this guide.
-Government publications are listed first because they are works of the
-United States federal government, are in the public domain under 17 USC
-105, and can be redistributed with this guide. Bracketed ids are the
-entries in `data/sources/registry.json` that cover them.
+Every URL below was opened and read while writing this guide, the last
+of them on September 24, 2026. They are grouped by what kind of
+authority each one is. United States federal government publications
+come first because they are works of the federal government, are in
+the public domain under 17 USC 105, and can be redistributed with this
+guide. Everything after that group cannot, so its facts are restated
+here in our own words and cited to the body that established them.
+Bracketed ids are the entries in `data/sources/registry.json` that
+cover each source.
 
 ### United States government (public domain)
 
@@ -1523,11 +1985,13 @@ entries in `data/sources/registry.json` that cover them.
   that faster cooling gives smaller grains and a harder metal; that as
   hardness and tensile strength rise in heat-treated steel, toughness
   and ductility fall; the Brinell rule of about 500 times the Brinell
-  number below 200,000 psi with the 352 Brinell example; the alloying
-  effects of nickel, chromium and copper, including that copper raises
-  hardness by retarding dislocation movement; that type 304 cannot
-  usefully be hardened by heat treatment; and hydrogen embrittlement by
-  grain-boundary diffusion and methane formation.
+  number for quenched and tempered steel below 200,000 psi (the 352
+  Brinell worked example in the text is this guide's own; the handbook
+  uses that number only to show how a converted hardness is written);
+  the alloying effects of nickel, chromium and copper, including that
+  copper raises hardness by retarding dislocation movement; that type
+  304 cannot usefully be hardened by heat treatment; and hydrogen
+  damage by grain-boundary diffusion and methane formation.
 - Department of Energy. *DOE Fundamentals Handbook: Material Science,
   Volume 2 of 2*, DOE-HDBK-1017/2-93, January 1993. [`doe`]
   https://www.energy.gov/sites/default/files/2026-04/DOE-HDBK-1017-93_VOL2.pdf
@@ -1535,12 +1999,20 @@ entries in `data/sources/registry.json` that cover them.
   temperature, that it is not precise, varies with prior treatment and
   impurities, is found by drop-weight test, and is lowered by small
   grain size and by small nickel and manganese additions; fatigue
-  failure, that its primary cause is not well known, the crack
-  initiation and propagation sequence, and that it can be initiated by
-  microscopic cracks, notches and even grinding and machining marks;
-  that work hardening reduces ductility and raises apparent yield
-  stress; and creep, its three stages, and the stainless above 1000
-  degrees F and zircaloy above 500 degrees F examples.
+  failure defined as fracture under repeated stresses considerably below
+  the normal strength, the statement that the majority of engineering
+  failures are caused by fatigue, the example of a thin steel wire bent
+  back and forth in one place, that the cycles needed are generally
+  large and fall as the stress rises, that some mild steels survive
+  cycling indefinitely below the endurance limit, and the design
+  distinction between small frequent load variations, where fatigue
+  strength matters, and large infrequent ones, where ductility is the
+  main requirement; that the primary cause of fatigue is not well
+  known, the crack initiation and propagation sequence, and that it can
+  be initiated by microscopic cracks, notches and even grinding and
+  machining marks; that work hardening reduces ductility and raises
+  apparent yield stress; and creep, its three stages, and the stainless
+  above 1000 degrees F and zircaloy above 500 degrees F examples.
 - Department of Energy. *DOE Fundamentals Handbook: Chemistry, Volume 1
   of 2*, DOE-HDBK-1015/1-93, February 1993. [`doe`]
   https://www.energy.gov/sites/default/files/2026-04/DOE-HDBK-1015-93_VOL1.pdf
@@ -1553,42 +2025,56 @@ entries in `data/sources/registry.json` that cover them.
   seawater systems; passivity as a stable tenacious oxide barrier, the
   metals that form it in air or pure water at room temperature, and that
   the film may be invisible; pitting and crevice corrosion, the
-  differential aeration cell, the low-flow requirement, the rapid
-  penetration with little loss of mass, and the four preventions
-  including designing out crevices; and stress corrosion cracking, its
-  three required conditions, that general corrosion can be essentially
-  nil while it occurs, that 18-8 stainless is susceptible in chloride
-  and concentrated caustic but not in nitrate, sulfite or ammonium, and
-  that cracking can occur in minutes.
+  differential aeration cell, the low-flow requirement, chloride ions
+  causing local defects in the passivating layer with deep pits
+  observed within a few hours in some tests, the rapid penetration with
+  little loss of mass, and the four preventions (avoiding stagnant or
+  low flow, less susceptible alloys, avoiding chlorides and oxygen,
+  designing out crevices); and stress corrosion cracking, its three
+  required conditions, that general corrosion can be essentially nil
+  while it occurs, that 18-8 stainless is susceptible in chloride and
+  concentrated caustic but not in nitrate, sulfite or ammonium, and that
+  cracking can occur in minutes.
 - Departments of the Army and the Air Force. *Welding Theory and
   Application*, TM 9-237 / TO 34W4-1-5, 6 November 1967.
   [`dod-technical-manuals`] Read as the full text at the Internet
   Archive.
   https://archive.org/download/TM9-237/TM9-237_djvu.txt
-  Gave (Chapter 2): the property definitions of tensile, shear and
-  compressive strength, elasticity, elastic limit, yield point and
-  strength, modulus of elasticity, ductility, malleability, toughness,
-  hardness and machinability, including that toughness decreases as
-  hardness increases; cast iron carbon ranges and that it breaks short;
-  the carbon bands for low, medium, high carbon and tool steels with
-  their weldability; that low carbon steel, wrought iron and steel
-  castings cannot be hardened; the alloying effects of chromium, nickel,
+  Gave (Chapter 1): that ferrous metals are magnetic. (Chapter 2): the
+  property definitions of tensile, shear and compressive strength,
+  elasticity, elastic limit, yield point and strength, modulus of
+  elasticity, ductility, malleability, toughness, hardness and
+  machinability, including that toughness decreases as hardness
+  increases; cast iron carbon ranges and that it breaks short; the
+  carbon bands for low, medium, high carbon and tool steels with their
+  weldability; that low carbon steel, wrought iron and steel castings
+  cannot be hardened; the alloying effects of chromium, nickel,
   manganese and molybdenum; that stainless properties are due to a very
   thin surface oxide film; the descriptions of aluminium, copper,
-  beryllium copper, nickel copper, high brasses, lead, zinc and
-  magnesium including the silver nitrate test; and the appearance,
-  fracture, spark and torch tests, including the manganese ambiguity
-  where 0.55 percent carbon sparks like 1.60 to 1.90 percent manganese.
-  (Section III, heat treatment): the 0.35 percent carbon threshold; the
-  warning against heating close to the melting point and that such steel
-  usually cannot be restored; annealing and its purposes; normalising at
-  about 100 degrees F above the critical range with still-air cooling;
-  hardening and the carbon fixed in a highly stressed finely divided
-  state; tempering, the rule that rising temperature raises toughness
-  and lowers hardness, and the 370 to 750 degrees F range sometimes as
-  high as 1,100; and case hardening by pack carburising. (Chapters 4 to
-  7): that fumes from welding or cutting brass, lead, zinc and
-  galvanised or cadmium plated parts carry poisonous oxides; the thermit
+  beryllium copper, nickel copper, high brasses (whose ductility claim
+  the text corrects), lead, zinc and magnesium including the silver
+  nitrate test; and the appearance, fracture, spark and torch tests,
+  including the no-spark result for aluminium, copper, lead, magnesium,
+  tin and zinc, the absence of any spark result in its titanium entry,
+  and the manganese ambiguity where 0.55 percent carbon sparks like 1.60
+  to 1.90 percent manganese. (Section III, heat treatment): the 0.35
+  percent carbon threshold; the warning against heating close to the
+  melting point and that such steel usually cannot be restored;
+  annealing and its purposes; normalising at about 100 degrees F above
+  the critical range with still-air cooling; hardening and the carbon
+  fixed in a highly stressed finely divided state; tempering, the rule
+  that rising temperature raises toughness and lowers hardness, and the
+  370 to 750 degrees F range sometimes as high as 1,100; case hardening
+  by pack carburising and a case depth of 0.040 to 0.060 inch for one
+  procedure; and that a pyrometer should be used wherever possible
+  because estimating metal temperature by colour is not accurate.
+  (Tables): Table IV, Temper and Heat Colors, faint straw at 400
+  degrees F through light blue at 640 with typical tools for each; and
+  Table V, heat colours with approximate temperatures, faint red
+  visible in the dark at 750 F through white at 2,200 F. (Chapters 4
+  to 7): that fumes from brazing, welding or cutting brass, lead, zinc
+  and galvanised or cadmium plated parts carry poisonous oxides;
+  beryllium copper as 1.5 to 2.75 percent beryllium; the thermit
   warning that the mould must be dried and that burns may follow molten
   metal contacting moisture in it; the instruction to grind cadmium back
   to base metal before silver brazing because cadmium oxide from
@@ -1602,27 +2088,40 @@ entries in `data/sources/registry.json` that cover them.
   [`nasa-ntrs`]
   https://ntrs.nasa.gov/api/citations/19900009424/downloads/19900009424.pdf
   Gave: that plating is usually the limiting factor on service
-  temperature; hydrogen embrittlement as a problem with most plating
-  methods, the requirement to bake afterwards, the cadmium bake at 375
-  degrees F for 23 hours within 2 hours of plating, that exceeding a
-  plating's safe temperature can regenerate free hydrogen, and that
-  internal hydrogen embrittlement causes delayed failures after proof
-  testing with no external indication; zinc plating as sacrificial and
-  migrating to scratched areas, with a 250 degrees F service limit and
-  degradation above 140; that series 400 stainless has only 12 percent
-  chromium and will corrode in some environments; galvanic corrosion set
-  up by dissimilar metals with an electrolyte such as moisture, the
-  36-entry ranking from magnesium to gold, the rule that farther apart
-  means greater action, the active and passive entries for 304 and 316
-  with the explanation of passivation, the rule that the anode should be
-  the larger mass with its consequences for fasteners, and the magnesium
-  isolation requirement; stress corrosion failing a ductile part far
-  below yield and the rule that higher heat-treating temperature and
-  lower ductility increase susceptibility; that a bolt cycled in tension
-  normally breaks near the end of the threaded portion as the point of
-  maximum stress concentration, and the reduced-shank remedy; the
-  preload analysis showing bolt load does not rise significantly until
-  external load exceeds preload; that more smaller fasteners give a more
+  temperature; the ultimate of 300-series stainless fasteners as 70 to
+  140 ksi; that series 400 stainless contains only 12 percent chromium
+  and will corrode in some environments, in its list of fastener
+  material cautions, with 410, 416 and 430 grouped in its materials
+  table; that cadmium melts at 600 degrees F and cadmium plating has a
+  useful service limit of 450 degrees F; that hydrogen embrittlement
+  failure of cadmium-plated parts can start as low as 325 degrees F and
+  cadmium embrittlement around 400 degrees F, and that the combined
+  effect can be disastrous; that hot-dip zinc plating is what is sold
+  as galvanising, that zinc can also be electrodeposited, and that zinc
+  melts at 785 degrees F; hydrogen embrittlement as a problem with most
+  plating methods, its three types (hydrogen chemical reaction forming
+  methane, internal hydrogen embrittlement, and hydrogen environment
+  embrittlement in high-pressure hydrogen), that internal hydrogen
+  embrittlement causes delayed failures after proof testing with no
+  external indication, and that the problem increases with fastener
+  strength; the requirement to bake after plating, the cadmium bake at
+  375 degrees F for 23 hours within 2 hours of plating, and that
+  exceeding a plating's safe temperature can regenerate free hydrogen;
+  zinc plating as sacrificial and migrating to scratched areas, with a
+  250 degrees F service limit and degradation above 140; galvanic
+  corrosion set up by dissimilar metals with an electrolyte such as
+  moisture, the 36-entry ranking from magnesium to gold, the rule that
+  farther apart means greater action, the active and passive entries
+  for 304 and 316 with the explanation of passivation, the rule that
+  the anode should be the larger mass with its consequences for
+  fasteners, and the magnesium isolation requirement; stress corrosion
+  failing a ductile part far below yield and the rule that higher
+  heat-treating temperature and lower ductility increase
+  susceptibility; that a bolt cycled in tension normally breaks near
+  the end of the threaded portion as the point of maximum stress
+  concentration, and the reduced-shank remedy; the preload analysis
+  showing bolt load does not rise significantly until external load
+  exceeds preload; that more smaller fasteners give a more
   fatigue-resistant joint and are preferable to a few high-strength
   ones; the grip length rule that threads are never in bearing and the
   washer remedy; the tool accuracy table giving plus or minus 15 to 30
@@ -1630,50 +2129,26 @@ entries in `data/sources/registry.json` that cover them.
   bolt stretch; and the counterfeit grade 8.2 boron bolts marked as
   grade 8, their 0.22 against 0.37 percent carbon, and the 500 against
   800 degrees F behaviour.
-- National Aeronautics and Space Administration. Muraca, R.F. and
-  Whittick, J.S., *Materials Data Handbook: Aluminum Alloy 6061*, 2nd
-  edition, NASA CR-123772, May 1972. [`nasa-ntrs`]
-  https://ntrs.nasa.gov/api/citations/19720022808/downloads/19720022808.pdf
-  Gave: density 2.70 g/cm3; typical mechanical properties for the O and
-  T6 tempers, ultimate 18.0 and 45.0 ksi, yield 8.0 and 40.0 ksi,
-  elongation in 2 inches 30 and 17 percent, and a single tensile modulus
-  of 10.0 x 10^3 ksi; that the alloy is strengthened by precipitation
-  hardening and cold work; annealing at 413 degrees C held 2 to 3 hours
-  with slow cooling; solution treatment at 516 to 545 degrees C by
-  product form with a rapid cold water quench; natural ageing to T4 at
-  room temperature for 96 hours and artificial ageing at 171 to 182
-  degrees C for 7.5 to 8.5 hours; that aluminium exhibits no
-  characteristic colour changes even at temperatures up to the melting
-  point and that temperatures must be controlled by measurement rather
-  than judged by appearance; that all specimens in the welded study
-  failed at the edge of the weld or in the annealed zone areas which do
-  not respond to ageing; and that the effect of welding heat did not
-  extend more than 1.5 inches, 38.1 mm, from the weld centreline.
-- National Aeronautics and Space Administration. Muraca, R.F. and
-  Whittick, J.S., *Materials Data Handbook: Aluminum Alloy 7075*, 2nd
-  edition, NASA CR-123773, May 1972. [`nasa-ntrs`]
-  https://ntrs.nasa.gov/api/citations/19720022809/downloads/19720022809.pdf
-  Gave: density 2.80 g/cm3; typical mechanical properties for the O and
-  T6/T651 tempers, ultimate 33.0 and 83.0 ksi, yield 15.0 and 73.0 ksi,
-  elongation 17 and 11 percent, and a single tensile modulus of 10.4 x
-  10^3 ksi; that fusion welding is not recommended; and that the alloy
-  is resistant to stress corrosion cracking in the T73 temper.
 - National Bureau of Standards, now NIST. Marshall, R.D., Pfrang, E.O.,
   Leyendecker, E.V., Woodward, K.A., et al., *Investigation of the
   Kansas City Hyatt Regency Walkways Collapse*, NBSIR 82-2465, February
   1982. [`nist`]
   https://nvlpubs.nist.gov/nistpubs/Legacy/IR/nbsir82-2465.pdf
-  Gave: the 17 July 1981 collapse; 113 dead and 186 injured; that it was
-  the most devastating structural collapse in United States history in
-  terms of loss of life and injuries; that the most probable cause was
-  insufficient load capacity of the box beam and hanger rod connections;
-  the two contributing factors of an inadequate original connection
-  design and a construction change from continuous rods to two sets that
+  Gave: the 17 July 1981 collapse; 113 dead and 186 injured as recorded
+  in 1982; that it was, as of that report, the most devastating
+  structural collapse in United States history in terms of loss of life
+  and injuries; that the most probable cause was insufficient load
+  capacity of the box beam and hanger rod connections; the two
+  contributing factors of an inadequate original connection design and
+  a construction change from continuous rods to two sets that
   essentially doubled the load; that the load at collapse was only 31
   percent of the ultimate capacity expected under the Kansas City
-  building code; that the unchanged arrangement would have given about
-  60 percent; and that from the day of construction the walkways had
-  only minimal capacity to resist their own weight.
+  building code; that had the original rod arrangement not been
+  changed, the connection's ultimate capacity would still have been only
+  about 60 percent of that expected under the code; and that from the
+  day of construction the walkways had only minimal capacity to resist
+  their own weight. NIST's own summary page, updated 15 September 2025,
+  still gives 113 dead and 186 injured.
 - Occupational Safety and Health Administration, US Department of Labor.
   29 CFR 1910.252, Welding, cutting and brazing, general requirements.
   [`osha`]
@@ -1685,8 +2160,39 @@ entries in `data/sources/registry.json` that cover them.
   such as paint and the outdoor respirator requirement; (c)(8)
   beryllium, requiring local exhaust ventilation and airline respirators
   indoors, outdoors and in confined spaces unless atmospheric testing
-  under the most adverse conditions shows otherwise; and (c)(9) cadmium,
-  including the outdoor respirator requirement.
+  under the most adverse conditions shows otherwise; (c)(9) cadmium,
+  including the outdoor respirator requirement; and (c)(12), mechanical
+  ventilation for oxygen cutting of stainless steel with flux or iron
+  powder and for gas-shielded arc cutting of it.
+- Occupational Safety and Health Administration, US Department of Labor.
+  *Controlling Hazardous Fume and Gases during Welding*, Fact Sheet
+  FS-3647, March 2013. [`osha`]
+  https://www.osha.gov/sites/default/files/publications/OSHA_FS-3647_WELDING.pdf
+  Gave: that chromium is a component of stainless steel, nonferrous
+  alloys, chromate coatings and some welding consumables, and is
+  converted to hexavalent chromium during welding; that Cr(VI) fume is
+  highly toxic, damages the eyes, skin, nose, throat and lungs and
+  causes cancer; that it is regulated under 29 CFR 1910.1026 and
+  1926.1126 with a limit of 5 micrograms per cubic metre as an
+  eight-hour average; the list of metals in welding fume, including
+  nickel and manganese; and that prolonged manganese fume exposure can
+  cause Parkinson's-like symptoms.
+- Occupational Safety and Health Administration, US Department of Labor.
+  *Hexavalent Chromium*, safety and health topic page, undated, read 24
+  September 2026. [`osha`] https://www.osha.gov/hexavalent-chromium
+  Gave: that Cr(VI) compounds may be used as pigments in paints and as
+  an anticorrosive agent added to paints, primers and other surface
+  coatings; and its list of exposure sources, which names welding and
+  other hot work on chromium-bearing metals and, as a separate entry,
+  the use of pigments, spray paints and coatings.
+- Occupational Safety and Health Administration, US Department of Labor.
+  29 CFR 1910.1027 Appendix A, Substance Safety Data Sheet: Cadmium.
+  [`osha`]
+  https://www.osha.gov/laws-regs/regulations/standardnumber/1910/1910.1027AppA
+  Gave: that a cadmium concentration of about 1 mg/m3 over an eight-hour
+  period is treated as immediately dangerous; that acute pneumonitis
+  follows heavy fume inhalation by 10 to 24 hours; and that acute
+  pulmonary oedema usually develops within 24 hours.
 - Occupational Safety and Health Administration, US Department of Labor.
   29 CFR 1926.1053, Ladders. [`osha`]
   https://www.govinfo.gov/content/pkg/CFR-2024-title29-vol8/xml/CFR-2024-title29-vol8-sec1926-1053.xml
@@ -1707,6 +2213,21 @@ entries in `data/sources/registry.json` that cover them.
   Gave: the definition of maximum intended load as the total load of all
   employees, equipment, tools, materials, transmitted loads and other
   loads anticipated to be applied to a ladder component at any one time.
+- Occupational Safety and Health Administration, US Department of Labor.
+  *Reducing Falls in Construction: Safe Use of Extension Ladders*, Fact
+  Sheet FS-3660, May 2013. [`osha`]
+  https://www.osha.gov/sites/default/files/publications/OSHA3660.pdf
+  Gave: the ladder duty rating table, with Type IA, extra duty, at 300
+  pounds (and Type IAA 375, Type I 250, Type II 225, Type III 200),
+  sourced there to Appendix A of Subpart X and the ANSI A14 ladder
+  standards, which are referred to here by designation only; and the
+  restatement of the four times and 3.3 times requirements.
+- National Institute for Occupational Safety and Health, CDC. *NIOSH
+  Pocket Guide to Chemical Hazards*: Introduction.
+  [`niosh-pocket-guide`] https://www.cdc.gov/niosh/npg/pgintrod.html
+  Gave: that IDLH values are based, as a safety margin, on the effects
+  that might occur from a 30-minute exposure, and that this does not
+  mean anyone should stay that long.
 - National Institute for Occupational Safety and Health, CDC. *NIOSH
   Pocket Guide to Chemical Hazards*: Zinc oxide.
   [`niosh-pocket-guide`] https://www.cdc.gov/niosh/npg/npgd0675.html
@@ -1717,11 +2238,11 @@ entries in `data/sources/registry.json` that cover them.
 - National Institute for Occupational Safety and Health, CDC. *NIOSH
   Pocket Guide to Chemical Hazards*: Cadmium dust and fume (as Cd).
   [`niosh-pocket-guide`] https://www.cdc.gov/niosh/npg/npgd0087.html
-  Gave: OSHA PEL 0.005 mg/m3 under 1910.1027 covering all cadmium
-  compounds; the potential occupational carcinogen designation with
-  prostate and lung as cancer sites; IDLH 9 mg/m3 as Cd; the symptom
-  list; and respiratory system, kidneys, prostate and blood as target
-  organs.
+  Gave: that the entry covers cadmium dust as well as fume; OSHA PEL
+  0.005 mg/m3 under 1910.1027 covering all cadmium compounds; the
+  potential occupational carcinogen designation with prostate and lung
+  as cancer sites; IDLH 9 mg/m3 as Cd; the symptom list; and
+  respiratory system, kidneys, prostate and blood as target organs.
 - National Institute for Occupational Safety and Health, CDC. *NIOSH
   Pocket Guide to Chemical Hazards*: Lead. [`niosh-pocket-guide`]
   https://www.cdc.gov/niosh/npg/npgd0368.html
@@ -1738,43 +2259,306 @@ entries in `data/sources/registry.json` that cover them.
   list.
 - Federal Aviation Administration, US Department of Transportation.
   *Acceptable Methods, Techniques, and Practices: Aircraft Inspection
-  and Repair*, Advisory Circular 43.13-1B with Change 1. **No registry
-  id covers the FAA yet**; one is needed before this citation can be
-  wired, or the three glossary definitions below can be dropped.
+  and Repair*, Advisory Circular 43.13-1B with Change 1. [`faa`]
   https://www.faa.gov/documentLibrary/media/Advisory_Circular/AC_43.13-1B_w-chg1.pdf
-  Gave, from its glossary only: galvanic corrosion as corrosion due to
-  the presence of dissimilar metals in contact with each other; fretting
-  corrosion as corrosion damage between close-fitting parts allowed to
-  rub together, where the rubbing prevents the formation of protective
-  oxide films; and filiform corrosion as a thread or filament-like
-  corrosion forming on aluminium skins beneath the finish. **Note:**
-  only the glossary and contents of this document extracted as readable
-  text. The body of Chapter 6, Corrosion, did not, so nothing from the
-  chapter body, including its dissimilar-metals table, is cited here.
+  Read as text extracted from the whole PDF, Chapter 6 included. (An
+  earlier version of this guide said the Chapter 6 body could not be
+  extracted; that was a failed extraction attempt, not a property of the
+  document.) Gave: (Chapter 4) Table 4-3, classing 410 as martensitic
+  and magnetic at 12.5 percent chromium and 430 as ferritic and magnetic
+  at 17 percent; para 4-22, the magnet test, what strongly, lightly and
+  non-magnetic metals could be, that cold-worked stainless may be
+  lightly attracted and annealed 300-series is not, and that the test
+  must never be the final basis for identification; and para 4-57, a
+  loose self-plugging friction-lock blind rivet standing out in the
+  smoking-rivet pattern, and its removal by punching out the
+  friction-locked stem and then treating it like any other rivet.
+  (Chapter 6) para 6-16, filiform corrosion as an
+  oxygen concentration cell under organic coatings, its worm-like
+  traces, the 78 to 90 percent humidity range and slightly acidic
+  surface, and the traces crossing on aluminium; para 6-19, galvanic
+  corrosion recognisable by a build-up of corrosion at the joint; para
+  6-21, fatigue corrosion, metals withstanding cycling below the
+  endurance limit, and the failure stress falling many times in a
+  corrosive environment; and para 6-22, fretting corrosion, also called
+  wear corrosion or friction oxidation, between highly loaded surfaces
+  made to rub by vibration, the oxide debris damaging by abrasion and
+  raised local stress, the smoking rivet as the commonest example, and
+  that it is not driven by an electrolyte and moisture may inhibit it.
+  (Glossary) the definitions of galvanic, fretting and filiform
+  corrosion.
+- National Oceanic and Atmospheric Administration. CAMEO Chemicals:
+  Magnesium. [`cameo-chemicals`]
+  https://cameochemicals.noaa.gov/chemical/6949
+  Gave: that magnesium burns with a very bright flame and dense white
+  smoke; that it reacts slowly with water to release hydrogen, a
+  flammable gas; that water, foam, halogenated agents and carbon dioxide
+  are not to be used on it and inert dry powders such as graphite,
+  limestone or salt are (attributed on the page to US Coast Guard data,
+  1999); and that ribbon and fine shavings can be ignited at air
+  temperatures of about 950 degrees F and very fine powder below 900.
+- Bureau of Reclamation, US Department of the Interior. Research and
+  Development Office project 8623, *Potentiodynamic Polarization Testing
+  of Zinc Anodes in Natural Waters*, fiscal year 2015. [`usbr`]
+  https://www.usbr.gov/research/projects/detail.cfm?id=8623
+  Gave: that zinc anodes in some waters form a passive film and lose
+  their protective capability, and that Reclamation tends to avoid the
+  problem by using magnesium anodes, which seem less likely to
+  passivate.
+
+### NASA contractor reports and a national laboratory report
+
+These were paid for by the federal government but written by
+contractors, and 17 USC 105 covers only works made by federal
+employees. NASA's Technical Reports Server records both aluminium
+handbooks as contractor reports that do not belong to the US
+government, with the determination that public use is permitted, which
+is not the same thing as the public domain. Oak Ridge National
+Laboratory is run for the Department of Energy by a contractor. All
+three are therefore cited for facts restated in our own words, and
+nothing from them is copied into the bundle.
+
+- Muraca, R.F. and Whittick, J.S., Western Applied Research &
+  Development, Inc., for NASA George C. Marshall Space Flight Center
+  under contract NAS8-26644, *Materials Data Handbook: Aluminum Alloy
+  6061*, 2nd edition, NASA CR-123772, May 1972. [`nasa-contractor-reports`]
+  https://ntrs.nasa.gov/api/citations/19720022808/downloads/19720022808.pdf
+  Gave: density 2.70 g/cm3; typical mechanical properties for the O and
+  T6 tempers, ultimate 18.0 and 45.0 ksi, yield 8.0 and 40.0 ksi,
+  elongation in 2 inches 30 and 17 percent, and a single tensile modulus
+  of 10.0 x 10^3 ksi; the design elongation table (Table 7.4112), with
+  T6 sheet and plate at 8 to 10 percent by thickness and T6 tube at 10
+  percent for walls of 0.025 to 0.049 inch and 12 percent for 0.050 to
+  0.259 inch; section 7.413, the figures on the effect of test and
+  exposure temperature on T6 and O strength (charts, not transcribed);
+  the melting range of 582 to 649 degrees C; that the alloy is
+  strengthened by precipitation hardening and cold work; annealing at
+  413 degrees C held 2 to 3 hours with slow cooling, described as
+  essentially an overaging treatment; solution treatment at 516 to 545
+  degrees C by product form with a rapid cold water quench; natural
+  ageing to T4 at room temperature for 96 hours and artificial ageing
+  at 171 to 182 degrees C for 7.5 to 8.5 hours; the four factors a
+  welder of aluminium must understand, including low strength at
+  elevated temperatures; that aluminium exhibits no characteristic
+  colour changes even at temperatures up to the melting point and that
+  temperatures must be controlled by measurement rather than judged by
+  appearance; and, from section 12.21, two separate welding studies:
+  one on welded sheet in which all specimens failed at the edge of the
+  weld or in the annealed zone areas which do not respond to ageing,
+  with repair welding costing strength by the number of repairs, and
+  another on semiautomatic MIG repair welds in 6061-T6 plate with 5356
+  filler, rewelded up to six times, which found only a slight tensile
+  loss at half an inch and one inch from the weld after two or more
+  rewelds and a welding-heat effect extending no more than 1.5 inches,
+  38.1 mm, from the weld centreline.
+- Muraca, R.F. and Whittick, J.S., Western Applied Research &
+  Development, Inc., for NASA George C. Marshall Space Flight Center
+  under contract NAS8-26644, *Materials Data Handbook: Aluminum Alloy
+  7075*, 2nd edition, NASA CR-123773, April 1972.
+  [`nasa-contractor-reports`]
+  https://ntrs.nasa.gov/api/citations/19720022809/downloads/19720022809.pdf
+  Gave: density 2.80 g/cm3; typical mechanical properties for the O and
+  T6/T651 tempers, ultimate 33.0 and 83.0 ksi, yield 15.0 and 73.0 ksi,
+  elongation 17 and 11 percent, and a single tensile modulus of 10.4 x
+  10^3 ksi; the melting range of approximately 477 to 638 degrees C;
+  that fusion welding is not recommended; and that the alloy is
+  resistant to stress corrosion cracking in the T73 temper.
+- The NTRS records for both handbooks, which give the contractor, the
+  contract number, the report type and the public-use determination.
+  https://ntrs.nasa.gov/api/citations/19720022808 and
+  https://ntrs.nasa.gov/api/citations/19720022809
+- Swindeman, R.W., *Room-Temperature Characterization Data on Type 304
+  Stainless Steel (Heat 9T2796) Plate*, ORNL-TM-4396, Oak Ridge National
+  Laboratory, February 1974. Abstract read at OSTI. [`ornl-osti`]
+  https://www.osti.gov/biblio/4308196
+  Gave: that the measured yield strength was near the 30,000 psi minimum
+  specified for type 304 under ASTM A 240. The specification itself is a
+  sold standard and was not opened; it is referred to by designation
+  only.
+
+### Standards and specifications
+
+- MMPDS-04, *Metallic Materials Properties Development and
+  Standardization*, 2008: the chart of room-temperature yield of
+  6061-T6 after exposure at elevated temperature, read by eye, so
+  approximate. [`mmpds`] Not a free publication. The readings (loss
+  beginning after about 10,000 hours at 120 C, 1,000 hours at 150 C or
+  half an hour at 190 C, and a floor near a fifth of T6 yield after long
+  exposure above about 230 to 260 C) were taken during the project's
+  research for [Choosing a Staff Tube](staff_tubes.md) on
+  September 24, 2026, and are used here as that guide uses them.
+- ASTM A 240 (stainless plate) and ANSI A14.1, A14.2 and A14.5
+  (portable ladders) are named only because the ORNL report and OSHA
+  fact sheet above name them. Neither was opened, and nothing is quoted
+  from them.
+
+### Reference handbooks
+
+- CRC Handbook of Chemistry and Physics, 84th edition, 2003, vapour
+  pressure of the metallic elements: zinc reaches 1 pascal at 337 C.
+  [`crc-handbook`] Read as transcribed on Wikipedia's data page, which
+  cites it. [`wikipedia`]
+  https://en.wikipedia.org/wiki/Vapor_pressures_of_the_elements_(data_page)
+- Melting points of zinc, 419.53 C, and cadmium, 321.07 C, as the
+  standard reference values given in Wikipedia's articles on the
+  elements, used only to set modern figures beside NASA's rounded ones.
+  [`wikipedia`] https://en.wikipedia.org/wiki/Zinc and
+  https://en.wikipedia.org/wiki/Cadmium
+
+### Peer-reviewed literature
+
+- Arulmoli, J., Vu, B., Sung, M.J., Mohamed, F.A. and Earthman, J.C.,
+  *Spark production by abrasion of titanium alloys in golf club heads*,
+  Fire and Materials 39(2):119-126, 2015. [`peer-reviewed-literature`]
+  Gave: that titanium alloy club heads abraded against hard surfaces
+  threw off burning particles capable of igniting dry vegetation, and
+  that stainless steel heads produced no such reaction. The journal page
+  refused automated access; the findings were read in the University of
+  California, Irvine news release as reprinted by ScienceDaily, 19 March
+  2014.
+  https://www.sciencedaily.com/releases/2014/03/140319143910.htm
+
+### Manufacturer and industry technical literature (named documents)
+
+- TIMET. *Titanium Design and Fabrication Handbook for Industrial
+  Applications*. [`timet-fabrication-handbook`]
+  https://www.timet.com/assets/local/documents/technicalmanuals/DesignandFabrication.pdf
+  Gave: that when titanium is ground, adjacent surfaces and surroundings
+  must be protected from the extremely hot grinding sparks; that
+  aluminium oxide wheels give good results when limited to grinding
+  speeds of 2,000 surface feet per minute or less, and that no
+  appreciable sparking accompanies aluminium oxide wheel grinding of
+  titanium under that condition (the handbook's no-sparks result is for
+  that low-speed setup, not for aluminium oxide wheels in general); that
+  fluids should always be used when grinding titanium, to protect the
+  workpiece and to eliminate sparks that might cause fires; that where titanium must be ground by hand or coolant cannot
+  be used, nearby personnel and equipment should be protected; and
+  that the discharge from torch cutting titanium is extremely hot and
+  brilliant.
+- ATI. *ATI 430 Technical Data Sheet, Stainless Steel: Ferritic (UNS
+  S43000)*, version 1, 13 July 2012. [`ati-technical-data-sheets`]
+  https://www.atimaterials.com/Products/Documents/datasheets/stainless-specialty-steel/ferritic/ati_430_tds_en.pdf
+  Gave: a ferritic structure; 16.0 to 18.0 percent chromium; annealing
+  as the heat treatment, producing no phase transformations and used
+  only to impart full softness and ductility; and sinks, trim and
+  flatware among its uses.
+- ATI. *ATI 410/ATI 420/ATI 425 Mod/ATI 440A/ATI 440C Technical Data
+  Sheet, Stainless Steel: Martensitic*, version 1, 18 February 2014.
+  [`ati-technical-data-sheets`]
+  https://www.atimaterials.com/Products/Documents/datasheets/stainless-specialty-steel/martensitic/ati_410_420_425_mod_440a_440c_tds_en1_v2.pdf
+  Gave: that these are hardenable straight-chromium stainless steels,
+  oil quenched from 1,800 to 1,950 degrees F; cutlery as a major use;
+  carbon from 0.15 percent maximum in 410 to 0.95 to 1.20 percent in
+  440C; and chromium of 11.5 to 13.5 percent in 410, 12.0 to 14.0 in
+  420 and 16.0 to 18.0 in 440A and 440C.
+- Zapp. *Titanium Grade 1-4* data sheet, last revised January 2022.
+  [`zapp-titanium-datasheet`]
+  https://www.zapp.com/fileadmin/_documents/Downloads/materials/high_performance_alloys/en/Titanium-Grade-1-4_Datasheet.pdf
+  Gave: thermal conductivity of 22 W/(m K) at room temperature for the
+  commercially pure grades 1 to 4.
+- Carpenter Technology. *CP Ti Grade 4* data sheet. Accessed September
+  24, 2026. [`carpenter-technical-datasheets`]
+  https://www.carpentertechnology.com/hubfs/Data%20Sheets/CP_Ti_Grade_4_Datasheet.pdf
+  Gave: a chart of the thermal conductivity of CP titanium for three
+  heats of metal, read by eye as spanning roughly 17 to 23 W/(m K) near
+  room temperature.
+- TW Metals. *Safety Data Sheet: Magnesium* (AZ31B), MSDS 700, revised
+  8 February 2022. [`tw-metals-sds`]
+  https://www.twmetals.com/media/category_pdfs/SDS-Magnesium.pdf
+  Gave: to smother burning magnesium with a powder approved for
+  magnesium fires, naming G1 and MET-LX, or inert dry powders such as
+  graphite, limestone or salt; not to use water, foam, halogenated
+  agents or carbon dioxide; that water on burning magnesium produces
+  hydrogen and may cause an explosion; to keep it away from heat,
+  sparks, open flames and hot surfaces; and to minimise activities that
+  generate dust.
+- Amerex, an extinguisher manufacturer. *Understanding Class D Fires
+  and the Benefits of Specialized Extinguishing Agents*, Flashpoint
+  article, 20 June 2025, read 24 September 2026. [`amerex`]
+  https://amerex-fire.com/learning-center/flashpoint/understanding-class-d-fires-and-the-benefits-of-specialized-extinguishing-agents/
+  Gave: that its copper-powder Class D agent was developed by the US
+  Navy specifically for lithium and lithium alloy fires, beside its
+  sodium chloride and graphite agents.
+- American Galvanizers Association, the trade association of the
+  hot-dip galvanising industry. *In Extreme Temperatures*, last updated
+  October 2019, read 24 September 2026.
+  [`american-galvanizers-association`]
+  https://galvanizeit.org/hot-dip-galvanizing/how-long-does-hdg-last/in-extreme-temperatures
+  Gave: a recommended maximum of 392 degrees F (200 C) for long-term
+  continuous exposure of hot-dip galvanised steel, above which the outer
+  free zinc layer can peel from the zinc-iron alloy layer; that the
+  alloy layers keep protecting between 200 and 250 C; that use above
+  480 F (250 C) is not recommended, because peeling speeds up and
+  continued exposure can crack the alloy layers away from the steel;
+  and about 660 F (350 C) for short-term use, defined as periods of
+  less than two hours at a time or a single excursion of less than 24
+  hours. The page says nothing about fume at any temperature.
+- Copper Development Association, the copper industry's technical and
+  trade body. Alloy data pages for C26000 (cartridge brass) and C28000
+  (Muntz metal), read 24 September 2026.
+  [`copper-development-association`]
+  https://alloys.copper.org/alloy/C26000 and
+  https://alloys.copper.org/alloy/C28000
+  Gave: compositions of 68.5 to 71.5 percent copper for C26000 and 59.0
+  to 63.0 percent for C28000, the rest essentially zinc; typical
+  annealed elongations of about 54 to 65 percent for C26000 and 45 to
+  50 percent for C28000; and typical annealed tensile strengths of about
+  46 to 53 ksi and 54 ksi respectively.
+
+### Professional press
+
+- Hoke, T., *The Hyatt Regency Walkway Collapse*, Civil Engineering,
+  American Society of Civil Engineers, January 2007. [`asce`]
+  https://www.asce.org/publications-and-news/civil-engineering-source/civil-engineering-magazine/article/2007/01/the-hyatt-regency-walkway-collapse
+  Gave: the final death toll of 114.
+
+### Not authorities, but each useful for one practical detail
+
+Everything sourced here is labelled **community figure** in the text.
+
+- Metal Supermarkets, a metal retailer. *What is the Spark Test?*, dated
+  20 January 2022, read 24 September 2026, for its description of
+  titanium as making the most brilliant sparks of any metal.
+  [`metal-supermarkets`]
+  https://www.metalsupermarkets.com/what-is-the-spark-test/
+- Aerospace Metals, a metal distributor. *Titanium Grade 2, Annealed,
+  Data Sheet*, a page in MatWeb's format whose material notes credit
+  its data to Allvac, undated, read 24 September 2026.
+  [`aerospace-metals-datasheets`]
+  https://www.aerospacemetals.com/wp-content/uploads/2023/07/Titanium-Grade-2-Annealed-Data-Sheet.pdf
+  Gave: a thermal conductivity of 16.4 W/(m K) for annealed grade 2,
+  set against other makers' data sheets in defect 8 rather than relied
+  on.
 
 ### Project data read for this guide
 
 - `data/chemistry/alloys.csv`, all 74 rows, for the column-by-column
-  reading, the worked temper comparison and the six reported defects.
+  reading, the worked temper comparison and the eight reported defects.
+  Re-read on 24 September 2026 after the file's corrosion vocabulary and
+  lead warnings were changed, which is why defects 1 and 6 are marked
+  fixed and the corrosion words quoted in the text are the current ones.
 - `data/chemistry/elements.csv`, for the element densities used in the
   identification section and in the `electrum` density calculation:
-  gold 19.282, silver 10.501, copper 8.96, lead 11.342, titanium 4.54.
+  gold 19.282, silver 10.501, copper 8.96, lead 11.342, titanium 4.54,
+  magnesium 1.738;
+  and titanium's thermal conductivity of 21.9, compared in defect 8.
+  The titanium density is on the high side: the file's own
+  `ti_cp_grade2` row, 99.5 percent titanium, gives 4.51. The text says
+  "near 4.5", which covers both.
 - `data/locales/silverdale_wa/locale.json`: the setting at the head of
   Dyes Inlet, an arm of Puget Sound on the Kitsap Peninsula.
 - `data/locales/silverdale_wa/climate.json`: 1,446 mm annual
   precipitation, 236 mm in January, January mean high 8.1 degrees C and
   mean low 2.0 degrees C.
 - `data/sources/registry.json`: the licence status of every authority
-  cited, and the `placeholder-alloy-data` note reported above.
+  cited, and the `placeholder-alloy-data` note described above.
 
 ### What could not be sourced, and is labelled in the text
 
-- **That steels have a fatigue limit and aluminium alloys do not.** The
-  standard engineering position and the reason aircraft structures are
-  given finite lives. No federal publication opened for this guide
-  states it, so the text records it as convention. What is sourced is
-  that NASA's handbooks for both 6061 and 7075 publish S-N curves rather
-  than a single safe stress.
+- **That aluminium alloys have no fatigue limit.** The steel half of the
+  usual statement is sourced to the DOE handbook; the aluminium half is
+  the standard engineering position but is not stated in any source
+  opened for this guide, so the text records it as convention.
 - **The dynamic multiplier on a climbing load.** That stepping down onto
   a rung applies more than body weight for an instant is ordinary
   mechanics, but no figure was found in the ladder regulation or
@@ -1787,13 +2571,19 @@ entries in `data/sources/registry.json` that cover them.
   copies on commercial standards resellers were not used.
   **Uncheckable**, so nothing is cited from either. The galvanic ranking
   used here is NASA's own published list from RP-1228, read in full.
-- **The body of FAA AC 43.13-1B Chapter 6, Corrosion.** The document
-  downloaded and its glossary extracted as text; the chapter body did
-  not, so only the glossary definitions are cited.
-- **The full temper-colour sequence for steel.** Straw, brown and purple
-  before blue are universally quoted and appear in none of the manuals
-  opened for this guide or for [Sharpening](sharpening.md). Blue appears
-  in two of them, and blue is the one that matters.
+- **The temperature of the brown yellow temper colour.** It is printed
+  illegibly in the scanned text of TM 9-237, so the text gives its
+  position in the sequence and no number.
+- **Copper roof runoff attacking aluminium.** Often listed as a galvanic
+  pairing; it involves no electrical contact, and no source opened for
+  this guide describes it, so the text only notes it.
+- **Hexavalent chromium from bare stainless at ordinary heat.** OSHA
+  documents Cr(VI) from welding and cutting. Nothing opened for this
+  guide shows or rules out release from unmelted stainless near a
+  flame, and the text says so rather than guessing either way.
+- **Two pieces of shop lore**, that cast iron rings dull and steel rings
+  clear, and that a quenched piece should be tempered promptly. Both
+  are labelled convention where they appear.
 - **Verdicts on specific metal pairings in specific environments.** The
   galvanic series gives the physics and the area rule gives the design
   principle. Specific verdicts come from corrosion engineering practice
@@ -1804,10 +2594,13 @@ entries in `data/sources/registry.json` that cover them.
 
 Metal suppliers, fastener manufacturers, knife makers and welding
 equipment vendors publish an enormous amount of materials information,
-much of it accurate. None of them is an authority on an exposure limit,
-a load factor or a heat treating temperature, and where a number here
-exists only in that literature it has been left out or labelled as
-convention. Nothing in this guide rests on a vendor's claim about a
-product. ASTM and ASME standards are referred to by designation where a
-source referred to them, and are never reproduced: they are copyrighted
-works, unlike the federal regulations that cite them.
+much of it accurate. Where a number here comes from a manufacturer, it
+comes from a named data sheet for a named alloy, listed above and
+credited in the text, and none of them is used as an authority on an
+exposure limit or a load factor. The one retailer and the one
+distributor data sheet used are labelled **community figure**: the
+retailer supplies a description, and the data sheet one number that
+the text sets against other makers' data rather than relies on. ASTM,
+ASME and ANSI standards are referred to by designation where a source
+referred to them, and are never reproduced: they are copyrighted works,
+unlike the federal regulations that cite them.

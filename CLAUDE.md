@@ -840,3 +840,11 @@ real technique), never when it is a throwaway look-alike. Draw on public
 algorithms and papers freely; never copy assets or code from proprietary
 tools. When unsure which approach is the 2030 one, ask the fidelity-expert
 for the reference technique BEFORE fencing the increment.
+
+## Dual modes, open source, and a compute budget (operator, 2026-09-24)
+
+Three rules from the fire-props design answers (docs/design/fire-props-and-combustion.md, section 6):
+
+- **Every deep system ships two modes**: full realism, and a simplified mode (the way the simple health bar came first and full vitals sit behind it). Realistic severity exists; general play defaults to softened. Gear-gated features (a gas meter that reveals CO) also get a plain toggle, so development and accessibility never depend on owning the gear.
+- **Open source only, and build what does not exist.** Verbatim: "If we have to build the system ourselves, especially if it doesn't exist in rust or whatever, then we should." No proprietary tool licences for core tech (EmberGen was declined); published methods and permissively licensed references are fine.
+- **Compute and bandwidth are a hard budget.** Verbatim: "Even graphically simple games like Starmade can use tons of compute/bandwidth to the point of making the game unplayable despite having a powerful PC." Cosmetic simulation (flames, smoke, particles) runs locally on each client and is never networked; only gameplay state syncs, at a low rate; every effect tier states its per-frame ms budget and its network footprint in the design before it is built.
