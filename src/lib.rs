@@ -12066,6 +12066,7 @@ mod native_app {
                                     materials: bp.materials.clone(),
                                     build_time: bp.build_time,
                                     provides: bp.provides.clone().unwrap_or_default(),
+                                    stations: bp.stations.clone(),
                                 })
                                 .collect();
                             bps.sort_by(|a, b| {
@@ -12079,16 +12080,29 @@ mod native_app {
                     // Station-gate input (v0.749, ladder rung 6): the set of
                     // machine TYPES placed in the home, for CraftingSystem's
                     // manual-craft required_station check.
+                    // Built structures count too (2026-09-25): a furnace the
+                    // player built is a smelter, a crafting table a workbench
+                    // (Blueprint::stations). Mirrored into GuiState so the
+                    // Crafting page's check says the same thing.
+                    let built = state
+                        .data_store
+                        .get::<crate::systems::construction::BlueprintRegistry>("blueprint_registry")
+                        .map(|reg| {
+                            crate::systems::construction::built_station_types(&state.game_world.world, reg)
+                        })
+                        .unwrap_or_default();
                     if let Some(hm) = &state.gui_state.home_machines {
                         let mut types: std::collections::HashSet<String> =
                             hm.instances.iter().map(|i| i.machine.clone()).collect();
                         for a in &hm.arrays {
                             types.insert(a.machine.clone());
                         }
+                        types.extend(built.iter().cloned());
                         state
                             .data_store
                             .insert("placed_machine_types", std::sync::Mutex::new(types));
                     }
+                    state.gui_state.built_station_types = built;
 
                     // ── Vendor + wallet bridges (v0.747, ladder rung 3) ──
                     // Live credit balance for the HUD + vendor modal.

@@ -1086,8 +1086,11 @@ between the simulation and the person. Its tier ladder is the build order.
   Offline remaining: drone and manufacturing timers, livestock, then the server
   clock for multiplayer. Put the simulation
   on the HUD; fix crop pacing (blocked on the operator question above); a
-  scripted first-run sequence in the world; make a built thing do something by
-  consuming `Structure.provides`.
+  scripted first-run sequence in the world. **Made a built thing do something
+  (2026-09-25):** a built Furnace is a smelter and kiln, a Crafting Table a
+  workbench, through `Blueprint::stations` into the station gate; and the build
+  menu works at all now (BUG-082: every blueprint named items that did not
+  exist). Still unconsumed: `rest` (bed), `storage` (chest), `shelter`.
 - **Tier B (make the construction tool good enough to build a city).** Pick one
   canonical layout schema of the three that exist; the four multi-storey
   blockers in order, starting with a base Y on `InteriorWall`; collision for

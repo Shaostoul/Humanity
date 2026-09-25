@@ -709,6 +709,11 @@
    "date": "2026-09-25",
    "decision": "BUG-082 fixed: blueprint materials in data/blueprints/basic.ron mapped from fake ids (wood, stone, iron, silicate, fiber) to real items (wood_plank_0, stone_brick_0, iron_ingot_0, glass_pane_0, fiber_bundle_0); new test every_blueprint_material_is_a_real_item reads items.csv.",
    "why": "Found while looking at what Structure.provides feeds after persisting builds. Every blueprint was unbuildable in play since v0.746 made materials real; the build tests stocked the player with the blueprint's own ids, so their evidence was their setup (the checks-that-cannot-fail class). Test run red on the old catalog first (15 missing refs). Quantities left as they were (a 4x3 m wall from 6 planks is light; a realism pass on costs is a separate question)."
+  },
+  {
+   "date": "2026-09-25",
+   "decision": "Built structures are workstations: Blueprint::stations (data) feeds built_station_types into placed_machine_types each frame and into GuiState.built_station_types for the Crafting page. Furnace = smelter + kiln, Crafting Table = workbench. Missing-station message names the buildable structure.",
+   "why": "Playable assessment 2.4 / Tier A item 5: construction terminated in a decorative box. Data-driven stations list rather than mapping provides strings in code (infinite-of-X). Furnace also kiln because a furnace fires clay; forge left separate. Bed/chest/shelter provides still unconsumed: those need a design call (does rest need a bed? what does shelter change?)."
   }
  ],
  "active_scopes_to_avoid": [

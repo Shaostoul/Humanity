@@ -707,6 +707,9 @@ pub struct GuiBlueprint {
     pub build_time: f32,
     /// Capability the finished structure provides (e.g. "smelting"), or empty.
     pub provides: String,
+    /// Machine types it serves as once built (e.g. "smelter"), for the
+    /// station gate and the "or build a Furnace" hint.
+    pub stations: Vec<String>,
 }
 
 /// Player survival vitals for GUI display (synced from the ECS each frame).

@@ -1630,7 +1630,13 @@ Recipe matching from CSV, input validation, timed crafting.
 - Data: `data/recipes.csv`
 
 ### Construction
-Blueprint placement, snap-to-grid, timed building, material consumption. **⚠️ NOT registered, never ticks (see the lint).**
+Blueprint placement, snap-to-grid, timed building, material consumption. **Registered, ticks live** (`src/lib.rs`
+`system_runner.register(...ConstructionSystem::new())`; the old "NOT registered" note here was stale, corrected
+2026-09-25). Materials are real item ids (BUG-082, 2026-09-25: the catalog had named items that did not exist,
+so nothing could be built). Finished structures and scaffolds persist in the save. **A built structure is a
+workstation** when its blueprint lists `stations` (a Furnace works as a smelter and a kiln, a Crafting Table as
+a workbench), feeding the same recipe station gate the home's machines do; the Crafting page says "or build a
+Furnace" when a station is missing.
 - Native: `src/systems/construction/mod.rs`
 - Data: `data/blueprints/basic.ron`
 

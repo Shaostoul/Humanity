@@ -26,6 +26,31 @@ pub struct Blueprint {
     pub snap_to: Vec<String>,
     pub health: f32,
     pub provides: Option<String>,
+    /// Machine types this structure serves as once BUILT (2026-09-25): a
+    /// built furnace counts as a "smelter" for the recipe station gate, a
+    /// crafting table as a "workbench". The names are the home machines'
+    /// types, which is what a recipe's station_required strips down to.
+    /// Before this a built structure did nothing at all (the playable
+    /// assessment's 2.4: "the construction sink terminates in a decorative
+    /// box"). Empty for structures that are not workstations.
+    #[serde(default)]
+    pub stations: Vec<String>,
+}
+
+/// Every machine type the player's FINISHED structures serve as, for the
+/// recipe station gate (see `Blueprint::stations`). A scaffold still going
+/// up is a `Construction`, not a `Structure`, so it serves as nothing yet.
+pub fn built_station_types(
+    world: &hecs::World,
+    registry: &BlueprintRegistry,
+) -> std::collections::HashSet<String> {
+    let mut out = std::collections::HashSet::new();
+    for (_e, s) in world.query::<&Structure>().iter() {
+        if let Some(bp) = registry.get(&s.blueprint_id) {
+            out.extend(bp.stations.iter().cloned());
+        }
+    }
+    out
 }
 
 /// Registry of all available blueprints.
@@ -316,6 +341,29 @@ mod tests {
         }
         missing.sort();
         assert!(missing.is_empty(), "blueprint materials that are not items: {missing:?}");
+    }
+
+    /// A FINISHED furnace serves as a smelter and a finished crafting table
+    /// as a workbench; a scaffold still going up serves as nothing. Reads
+    /// the shipped catalog, so the data and the gate cannot drift apart.
+    #[test]
+    fn built_structures_serve_as_their_stations_once_finished() {
+        let reg = shipped_registry();
+        let mut world = hecs::World::new();
+        assert!(built_station_types(&world, &reg).is_empty());
+        world.spawn((Construction {
+            blueprint_id: "furnace".into(),
+            progress: 1.0,
+            build_time: 12.0,
+            builder_key: None,
+        },));
+        assert!(built_station_types(&world, &reg).is_empty(), "a scaffold is not a smelter yet");
+        for id in ["furnace", "crafting_table", "wood_wall"] {
+            world.spawn((Structure { blueprint_id: id.into(), health: 1.0, max_health: 1.0, provides: None },));
+        }
+        let got = built_station_types(&world, &reg);
+        assert!(got.contains("smelter") && got.contains("workbench"), "{got:?}");
+        assert!(got.contains("kiln"), "a furnace fires clay too: {got:?}");
     }
 
     #[test]

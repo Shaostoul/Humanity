@@ -7,8 +7,8 @@
     (id: "wood_door", name: "Wood Door", category: "door", materials: [("wood_plank_0", 4)], build_time: 3.0, size: (1.0, 2.5, 0.1), snap_to: ["wall"], health: 100.0, provides: None),
     (id: "window", name: "Window", category: "window", materials: [("wood_plank_0", 2), ("glass_pane_0", 1)], build_time: 3.0, size: (1.0, 1.0, 0.1), snap_to: ["wall"], health: 50.0, provides: None),
     (id: "roof", name: "Wood Roof", category: "roof", materials: [("wood_plank_0", 10)], build_time: 6.0, size: (4.0, 0.2, 4.0), snap_to: ["wall"], health: 180.0, provides: Some("shelter")),
-    (id: "crafting_table", name: "Crafting Table", category: "furniture", materials: [("wood_plank_0", 6)], build_time: 4.0, size: (1.0, 1.0, 1.0), snap_to: ["foundation"], health: 100.0, provides: Some("crafting_station")),
-    (id: "furnace", name: "Furnace", category: "machine", materials: [("stone_brick_0", 15), ("iron_ingot_0", 3)], build_time: 12.0, size: (1.0, 1.5, 1.0), snap_to: ["foundation"], health: 300.0, provides: Some("smelting")),
+    (id: "crafting_table", name: "Crafting Table", category: "furniture", materials: [("wood_plank_0", 6)], build_time: 4.0, size: (1.0, 1.0, 1.0), snap_to: ["foundation"], health: 100.0, provides: Some("crafting_station"), stations: ["workbench"]),
+    (id: "furnace", name: "Furnace", category: "machine", materials: [("stone_brick_0", 15), ("iron_ingot_0", 3)], build_time: 12.0, size: (1.0, 1.5, 1.0), snap_to: ["foundation"], health: 300.0, provides: Some("smelting"), stations: ["smelter", "kiln"]),
     (id: "storage_chest", name: "Storage Chest", category: "furniture", materials: [("wood_plank_0", 8)], build_time: 3.0, size: (1.0, 0.8, 0.6), snap_to: ["foundation"], health: 80.0, provides: Some("storage")),
     (id: "bed", name: "Bed", category: "furniture", materials: [("wood_plank_0", 6), ("fiber_bundle_0", 4)], build_time: 4.0, size: (1.0, 0.6, 2.0), snap_to: ["foundation"], health: 60.0, provides: Some("rest")),
 ]

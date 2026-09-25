@@ -1434,6 +1434,10 @@ pub struct GuiState {
     /// the player needs to read rather than a confirmation (the offline
     /// progression "while you were away" line). See `GuiState::notice`.
     pub pending_notices: Vec<String>,
+    /// Machine types the player's finished structures serve as (a built
+    /// furnace is a "smelter"), mirrored each frame from the world so the
+    /// Crafting page's station check agrees with CraftingSystem's.
+    pub built_station_types: std::collections::HashSet<String>,
 
     // ── Wallet state ──
     pub wallet_balance: f64,
@@ -3557,6 +3561,7 @@ impl Default for GuiState {
             pending_bookmark_recat: None,
             pending_toasts: Vec::new(),
             pending_notices: Vec::new(),
+            built_station_types: std::collections::HashSet::new(),
             surface_altitude_m: None,
             surface_gravity_now: None,
             surface_speed_mult: 1.0,

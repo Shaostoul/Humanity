@@ -369,6 +369,15 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                                 .color(theme.accent()),
                                         );
                                     }
+                                    // What it unlocks once built: the station recipes
+                                    // that name these machine types.
+                                    if !bp.stations.is_empty() {
+                                        ui.label(
+                                            RichText::new(format!("works as a {}", bp.stations.join(" and ")))
+                                                .size(theme.font_size_small)
+                                                .color(theme.text_secondary()),
+                                        );
+                                    }
                                     ui.with_layout(
                                         egui::Layout::right_to_left(egui::Align::Center),
                                         |ui| {
@@ -637,10 +646,11 @@ fn draw_recipe_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, re
             .station_required
             .strip_suffix("_0")
             .unwrap_or(&recipe.station_required);
-        state.home_machines.as_ref().map_or(true, |hm| {
-            hm.instances.iter().any(|i| i.machine == machine_type)
-                || hm.arrays.iter().any(|a| a.machine == machine_type)
-        })
+        state.built_station_types.contains(machine_type)
+            || state.home_machines.as_ref().map_or(true, |hm| {
+                hm.instances.iter().any(|i| i.machine == machine_type)
+                    || hm.arrays.iter().any(|a| a.machine == machine_type)
+            })
     };
     let can_craft = has_ingredients && skill_ok && station_ok;
 
@@ -693,10 +703,21 @@ fn draw_recipe_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, re
         } else if !skill_ok {
             "Skill level too low".to_string()
         } else {
-            format!(
-                "Needs a {} placed in your home",
-                recipe.station_required.trim_end_matches("_0").replace('_', " ")
-            )
+            // Name the structure that would serve, when one can be built,
+            // so the message is a way forward and not only a wall.
+            let machine_type = recipe.station_required.trim_end_matches("_0");
+            let buildable = state
+                .blueprints
+                .iter()
+                .find(|b| b.stations.iter().any(|s| s == machine_type))
+                .map(|b| b.name.clone());
+            match buildable {
+                Some(name) => format!(
+                    "Needs a {} in your home, or build a {name}",
+                    machine_type.replace('_', " ")
+                ),
+                None => format!("Needs a {} placed in your home", machine_type.replace('_', " ")),
+            }
         };
         ui.label(
             RichText::new(msg)
