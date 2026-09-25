@@ -23,6 +23,29 @@
   var searchQuery = '';
   var syllabus = null;      // fetched in the background at load; 10 KB gzipped
   var curFilter = '';       // '' | written | absent | lethal | locale
+  // Which rail sections (Learn, The Accord, ...) and categories are unfolded.
+  // The rail shows the PATH to the open document, plus whatever the reader
+  // unfolded or folded by hand, which is remembered here (category by index,
+  // section by name) and never overridden by navigation. Everything else is
+  // folded, unless a tag filter is on: a filtered tree is short, and folding it
+  // would hide the very matches the filter found. Folded down to that path the
+  // rail fits a laptop screen, which is what lets it do without a scrollbar of
+  // its own (see pinRail).
+  var openCats = {};
+  var openSecs = {};
+  function currentCat() {
+    return (current && typeof current === 'object' && manifest)
+      ? (manifest.categories || [])[current.ci] : null;
+  }
+  function catIsOpen(ci) {
+    if (openCats[ci] !== undefined) return openCats[ci];
+    return !!tagFilter || (current && typeof current === 'object' && current.ci === +ci);
+  }
+  function secIsOpen(name) {
+    if (openSecs[name] !== undefined) return openSecs[name];
+    var cat = currentCat();
+    return !!tagFilter || (!!cat && cat.section === name);
+  }
 
   function esc(s) {
     if (!s) return '';
@@ -358,7 +381,7 @@
 
     var html = '';
     var shown = 0;
-    order.forEach(function(sectionName) {
+    order.forEach(function(sectionName, si) {
       var inSection = cats
         .map(function(cat, ci) { return { cat: cat, ci: ci }; })
         .filter(function(x) {
@@ -378,9 +401,19 @@
       if (!sectionShown) return;
       shown += sectionShown;
       if (sectionName) {
-        html += '<div class="lib-section">' + esc(sectionName) + '</div>';
+        var secOpen = secIsOpen(sectionName);
+        html += '<div class="lib-section" role="button" tabindex="0" data-sec="' + si + '"' +
+            ' data-sec-name="' + esc(sectionName) + '" aria-expanded="' + secOpen + '"' +
+            ' aria-controls="lib-sec-' + si + '">' +
+            '<span class="lib-cat-arrow' + (secOpen ? '' : ' collapsed') + '" id="lib-sec-arrow-' + si + '">&#9660;</span>' +
+            '<span>' + esc(sectionName) + '</span>' +
+          '</div>' +
+          '<div class="lib-sec-body" id="lib-sec-' + si + '"' + (secOpen ? '' : ' style="display:none"') + '>' +
+            sectionHtml +
+          '</div>';
+      } else {
+        html += sectionHtml;   // an older manifest with no sections: nothing to fold
       }
-      html += sectionHtml;
     });
 
     // Returns its own markup and count rather than mutating the outer state,
@@ -393,14 +426,16 @@
       var visible = docs.map(function(d, di) { return { d: d, di: di }; })
                         .filter(function(x) { return docHasTag(x.d, tagFilter); });
       if (!visible.length) return { html: '', count: 0 };
+      var open = catIsOpen(ci);
       return {
         count: visible.length,
         html: '<div class="lib-cat">' +
-          '<div class="lib-cat-head" role="button" tabindex="0" data-cat="' + ci + '">' +
-            '<span class="lib-cat-arrow" id="lib-arrow-' + ci + '">&#9660;</span>' +
+          '<div class="lib-cat-head" role="button" tabindex="0" data-cat="' + ci + '"' +
+            ' aria-expanded="' + open + '" aria-controls="lib-docs-' + ci + '">' +
+            '<span class="lib-cat-arrow' + (open ? '' : ' collapsed') + '" id="lib-arrow-' + ci + '">&#9660;</span>' +
             '<span>' + esc(cat.name) + '</span>' +
           '</div>' +
-          '<div class="lib-cat-docs" id="lib-docs-' + ci + '">' +
+          '<div class="lib-cat-docs" id="lib-docs-' + ci + '"' + (open ? '' : ' style="display:none"') + '>' +
             visible.map(function(x) {
               var active = current && current.ci === ci && current.di === x.di;
               return '<button class="lib-doc' + (active ? ' active" aria-current="page' : '') +
@@ -436,20 +471,33 @@
     var clearBtn = rail.querySelector('[data-clear-filter]');
     if (clearBtn) clearBtn.addEventListener('click', function() { tagFilter = null; renderTagBar(); renderRail(); });
 
-    rail.querySelectorAll('[data-cat]').forEach(function(h) {
+    // One fold/unfold for both levels. The choice is remembered, so the next
+    // rail rebuild (every document opened rebuilds it) keeps it.
+    function wireFold(h, box, arrow, isOpen, remember) {
       var toggle = function() {
-        var ci = h.getAttribute('data-cat');
-        var box = document.getElementById('lib-docs-' + ci);
-        var arrow = document.getElementById('lib-arrow-' + ci);
         if (!box) return;
-        var hidden = box.style.display === 'none';
-        box.style.display = hidden ? 'block' : 'none';
-        if (arrow) arrow.classList.toggle('collapsed', !hidden);
+        var open = !isOpen();
+        remember(open);
+        box.style.display = open ? '' : 'none';
+        h.setAttribute('aria-expanded', String(open));
+        if (arrow) arrow.classList.toggle('collapsed', !open);
+        pinRail();   // the rail changed height; keep its pinned edge in range
       };
       h.addEventListener('click', toggle);
       h.addEventListener('keydown', function(ev) {
         if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); toggle(); }
       });
+    }
+    rail.querySelectorAll('[data-cat]').forEach(function(h) {
+      var ci = h.getAttribute('data-cat');
+      wireFold(h, document.getElementById('lib-docs-' + ci), document.getElementById('lib-arrow-' + ci),
+        function() { return catIsOpen(ci); }, function(v) { openCats[ci] = v; });
+    });
+    rail.querySelectorAll('[data-sec]').forEach(function(h) {
+      var si = h.getAttribute('data-sec');
+      var name = h.getAttribute('data-sec-name');
+      wireFold(h, document.getElementById('lib-sec-' + si), document.getElementById('lib-sec-arrow-' + si),
+        function() { return secIsOpen(name); }, function(v) { openSecs[name] = v; });
     });
     rail.querySelectorAll('[data-ci]').forEach(function(b) {
       b.addEventListener('click', function() {
@@ -464,36 +512,92 @@
       var focusTo = rail.querySelector('.lib-doc.active');
       if (focusTo) focusTo.focus({ preventScroll: true });
     }
+    pinRail();
     keepActiveInView();
   }
 
+  /* ── The rail travels with the page ──
+     The rail has no scrollbar of its own (see the .lib-rail comment in
+     library.html). It is position:sticky, and this moves its `top`:
+
+       - A rail that fits the window pins under the top bar and stays there.
+       - A taller rail moves WITH the page as you scroll, until its bottom edge
+         reaches the bottom of the window (scrolling down) or its top edge
+         reaches the top bar (scrolling up), and pins there. So reading down a
+         long document carries the lower half of the tree into view, and a
+         little scroll back up brings the upper half, without ever scrolling
+         the rail by itself.
+
+     railPin is the `top` the rail is pinned at, between maxTop (the top bar)
+     and minTop (negative: the rail's bottom sitting on the window's bottom).
+     Sticky positioning never lifts the rail above its place in the page, so at
+     the top of the page the rail sits in the flow whatever railPin says. */
+  var railPin = null;
+  var railLastY = 0;
+
+  function bottomGap() {
+    return parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--lib-bottom')) || 16;
+  }
+
+  /** The range railPin may take for the rail's current height. */
+  function railBounds(wrap) {
+    var maxTop = stickyTop();
+    var minTop = Math.min(maxTop, window.innerHeight - bottomGap() - wrap.offsetHeight);
+    return { min: minTop, max: maxTop };
+  }
+
+  function clampPin(v, b) { return Math.max(b.min, Math.min(b.max, v)); }
+
+  /** Called on every page scroll, and with no scroll delta whenever the rail's
+      height or the window's size may have changed, to re-clamp the pin. */
+  function pinRail() {
+    var wrap = document.getElementById('lib-rail-wrap');
+    var y = window.scrollY;
+    var d = y - railLastY;
+    railLastY = y;
+    if (!wrap) return;
+    // Narrow screens stack the rail above the reader (position:static), where
+    // there is nothing to pin.
+    if (getComputedStyle(wrap).position !== 'sticky') {
+      if (wrap.style.top) wrap.style.top = '';
+      railPin = null;
+      return;
+    }
+    var b = railBounds(wrap);
+    if (railPin === null) railPin = b.max;
+    railPin = clampPin(railPin - d, b);
+    wrap.style.top = Math.round(railPin) + 'px';
+  }
+
   /**
-   * Scroll the rail (not the page) so the open document's entry is visible.
+   * Bring the open document's rail entry into view, if the pin can do it
+   * without moving the page.
    *
-   * A deep link such as /library#staff-tubes opened the right document but left
-   * the rail at its top, so the highlighted entry was several screens down the
-   * tree and the reader could not see where they were (operator, 2026-09-25).
-   * Only moves when the entry is out of view, so a click in the rail never
-   * jumps, and only when the rail is its own scroller: on a narrow screen the
-   * rail is part of the page and revealReader() handles the page instead.
+   * A deep link such as /library#staff-tubes opened the right document with its
+   * entry off screen, so the reader could not see where they were (operator,
+   * 2026-09-25). Folding the other categories keeps most entries on screen to
+   * begin with. When the rail is still taller than the window, sliding the pin
+   * brings the entry into view. That cannot lift the rail above its place in
+   * the page, so at the very top of the page a low entry waits for the first
+   * scroll. Only moves when the entry is out of view, so a click in the rail
+   * never jumps.
    */
   function keepActiveInView() {
     var wrap = document.getElementById('lib-rail-wrap');
     var rail = document.getElementById('lib-rail');
     var active = rail && rail.querySelector('.lib-doc.active');
     if (!wrap || !active || active.offsetParent === null) return;
-    if (wrap.scrollHeight <= wrap.clientHeight) return;
-    if (getComputedStyle(wrap).overflowY === 'visible') return;
+    if (getComputedStyle(wrap).position !== 'sticky') return;
+    var b = railBounds(wrap);
+    if (b.min >= b.max) return;   // the whole rail fits: the entry is on screen
     var a = active.getBoundingClientRect();
-    var w = wrap.getBoundingClientRect();
-    // Visible means inside the rail AND inside the window. At the top of the
-    // page the rail is not stuck yet, so its box runs below the window's
-    // bottom edge; an entry in that strip is inside the box but off screen.
-    var bottomGap = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--lib-bottom')) || 16;
-    var top = Math.max(w.top, stickyTop());
-    var bottom = Math.min(w.bottom, window.innerHeight - bottomGap);
+    var top = b.max;
+    var bottom = window.innerHeight - bottomGap();
     if (a.top >= top && a.bottom <= bottom) return;
-    wrap.scrollTop += a.top - (top + (bottom - top) / 3);
+    // Slide the rail so the entry sits a third of the way down the window.
+    var shift = (top + (bottom - top) / 3) - a.top;
+    railPin = clampPin(wrap.getBoundingClientRect().top + shift, b);
+    wrap.style.top = Math.round(railPin) + 'px';
   }
 
   /** The fixed top bar's bottom edge, which the sticky rail and jumps stop at. */
@@ -521,6 +625,7 @@
     }
     root.setProperty('--lib-top', Math.round(top) + 'px');
     root.setProperty('--lib-bottom', Math.round(bottom) + 'px');
+    pinRail();   // the pin's range depends on both offsets and the window height
   }
 
   /**
@@ -710,6 +815,10 @@
     if (!doc) return;
     var wasFirst = current === null;
     current = { ci: ci, di: di };
+    // However it was opened (rail, search, link, Next), show where it lives,
+    // even inside a branch the reader had folded by hand.
+    if (openCats[ci] === false) delete openCats[ci];
+    if (cat.section && openSecs[cat.section] === false) delete openSecs[cat.section];
     // PUSH rather than replace, so the browser Back button steps back through
     // the documents you actually read. replaceState kept the address bar
     // shareable but left one history entry for the whole Library, which meant
@@ -952,7 +1061,9 @@
   }
 
   document.addEventListener('DOMContentLoaded', function() {
+    railLastY = window.scrollY;
     syncOffsets();
+    window.addEventListener('scroll', pinRail, { passive: true });
     window.addEventListener('resize', syncOffsets);
     window.addEventListener('popstate', function() { fromHistory = true; });
     if (window.ResizeObserver) {
@@ -961,6 +1072,10 @@
         var n = document.querySelector(sel);
         if (n) ro.observe(n);
       });
+      // The rail changes height when a category folds, search results replace
+      // the tree, or web fonts land; each moves the pin's lower limit.
+      var wrapEl = document.getElementById('lib-rail-wrap');
+      if (wrapEl) new ResizeObserver(function() { pinRail(); }).observe(wrapEl);
     }
     // The footer collapses by changing its class (and then transform), which a
     // ResizeObserver does not see, so watch the class and re-measure after the

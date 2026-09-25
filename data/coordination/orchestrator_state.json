@@ -724,6 +724,11 @@
    "date": "2026-09-25",
    "decision": "Site embed terms researched for all 34 needs_review records (3 parallel agents) into docs/reference/findings/2026-09-25-site-embed-terms.md; statuses NOT changed. Reader user agent now carries a contact URL (Wikimedia User-Agent policy).",
    "why": "The workflow says a person records each decision; the AI prepared quoted, dated evidence instead. 1 allowed, 21 conditional, 7 forbidden as written (Gutenberg, Khan Academy, Instructables, Coursera, Discord, GOG, Examine), 4 silent, 1 gone (OpenFarm, shut April 2025); ISS tracker URL dead. Table cells were checked against each section before commit (six corrected to the exact licence named)."
+  },
+  {
+   "date": "2026-09-25",
+   "decision": "Library web page: ONE scrollbar (the page). The rail lost its own scroller; it is sticky and pinRail() slides its top so a rail taller than the window travels with the page and pins at the end you are heading for. Sections and categories now fold to the PATH of the open document plus whatever the reader unfolded by hand, on web AND native (native keeps its rail ScrollArea, as app panes do).",
+   "why": "Operator asked why there should be two vertical scrollbars. A single-scroll layout cannot show the top of an article and an entry far down a tall list at once, so the list had to get short: fully unfolded it was ~2,500px, folded to the open path it is ~780px (fits a 900px window). Tested: clicking a deep entry from far down a long doc first left it 30px off screen when two hand-opened branches stayed open, so AUTO-opened branches fold again when the reader moves elsewhere (hand-opened ones never do). Phone rail went from ~2,565px to 776px."
   }
  ],
  "active_scopes_to_avoid": [

@@ -20,16 +20,23 @@
     .lib-main { display:flex; gap:var(--space-xl); align-items:flex-start; min-height:0; }
 
     /* ── Left rail: nested document tree ──
-       ONE scroll for the page (2026-09-25). The rail and the reader used to be
-       two fixed-height boxes, each with its own scrollbar, inside a page that
-       also scrolled: three scrollbars, and a wheel over the empty margins moved
-       the page instead of what you were reading. Now the reader flows with the
-       page and the rail stays in view beside it (sticky), scrolling on its own
-       only when the tree is taller than the screen. --lib-top and --lib-bottom
-       are kept in step with the fixed top bar and footer by library-app.js. */
-    .lib-rail { flex:0 0 280px; position:sticky; top:var(--lib-top, 64px); max-height:calc(100vh - var(--lib-top, 64px) - var(--lib-bottom, 16px)); overflow-y:auto; scrollbar-width:thin; border-right:1px solid var(--border); padding-right:var(--space-md); }
-    .lib-section { font-size:var(--text-sm); font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:var(--text); margin:var(--space-lg) 0 var(--space-xs); padding-bottom:4px; border-bottom:1px solid var(--border); }
+       ONE scrollbar, the page's (2026-09-25). The rail and the reader used to
+       be two fixed-height boxes, each with its own scrollbar, inside a page
+       that also scrolled: three scrollbars. Then the reader joined the page and
+       the rail kept a scrollbar of its own for when the tree is taller than the
+       screen, which still made two, and the operator asked why there should be
+       more than one. Now the rail has no scroller at all. It is sticky, and
+       library-app.js (pinRail) moves its `top` so that a rail taller than the
+       window travels with the page and pins at whichever end you are heading
+       for, the way long sidebars do on most sites. Categories start folded
+       except the one holding the open document, so the rail usually fits on
+       screen and simply stays put. --lib-top and --lib-bottom are kept in step
+       with the fixed top bar and footer by library-app.js. */
+    .lib-rail { flex:0 0 280px; position:sticky; top:var(--lib-top, 64px); border-right:1px solid var(--border); padding-right:var(--space-md); }
+    /* A section heading folds like a category (native: a CollapsingHeader). */
+    .lib-section { display:flex; align-items:center; gap:var(--space-sm); cursor:pointer; user-select:none; font-size:var(--text-sm); font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:var(--text); margin:var(--space-lg) 0 var(--space-xs); padding-bottom:4px; border-bottom:1px solid var(--border); }
     .lib-section:first-child { margin-top:0; }
+    .lib-section:focus-visible { outline:2px solid var(--accent); outline-offset:2px; border-radius:var(--radius); }
     .lib-cat { margin-bottom:var(--space-xs); }
     .lib-cat-head { display:flex; align-items:center; gap:var(--space-sm); cursor:pointer; padding:6px 0; user-select:none; font-weight:600; color:var(--accent); font-size:var(--text-sm); }
     .lib-cat-head:focus-visible { outline:2px solid var(--accent); outline-offset:2px; border-radius:var(--radius); }
@@ -66,8 +73,9 @@
        behind the row keeps the static entry distinct from the category headings,
        which are also drawn in the accent. */
     [data-reduced-motion] .lib-doc.active, [data-no-rgb] .lib-doc.active { animation:none; color:var(--accent); box-shadow:inset 3px 0 0 var(--accent); background:color-mix(in srgb, var(--accent) 14%, transparent); }
-    /* Sticky inside the rail, so the notice stays in view when the rail has scrolled to the open entry. */
-    .lib-filter-note { position:sticky; top:0; z-index:1; font-size:var(--text-sm); color:var(--text-muted); margin:0 0 var(--space-sm); padding:6px 8px; border:1px solid var(--border); border-radius:var(--radius); background:var(--bg-card); }
+    /* Sticky under the top bar, so the notice stays in view while a tall rail
+       has travelled up with the page to show its lower entries. */
+    .lib-filter-note { position:sticky; top:var(--lib-top, 64px); z-index:1; font-size:var(--text-sm); color:var(--text-muted); margin:0 0 var(--space-sm); padding:6px 8px; border:1px solid var(--border); border-radius:var(--radius); background:var(--bg-card); }
     .lib-filter-note b { color:var(--text); }
     .lib-filter-clear { background:none; border:none; color:var(--accent); font-family:inherit; font-size:inherit; cursor:pointer; text-decoration:underline; padding:0 0 0 4px; }
     .lib-special { margin-top:var(--space-lg); padding-top:var(--space-md); border-top:1px solid var(--border); }
@@ -186,7 +194,7 @@
          and a wide table scrolls inside itself. */
       .lib-main { flex-direction:column; align-items:stretch; }
       .lib-content { width:100%; }
-      .lib-rail { flex:none; width:100%; position:static; max-height:none; overflow:visible; border-right:none; border-bottom:1px solid var(--border); padding-right:0; padding-bottom:var(--space-md); }
+      .lib-rail { flex:none; width:100%; position:static; border-right:none; border-bottom:1px solid var(--border); padding-right:0; padding-bottom:var(--space-md); }
     }
     @media (prefers-reduced-motion: reduce) { .lib-cat-arrow { transition:none; } }
   </style>

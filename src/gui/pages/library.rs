@@ -73,6 +73,19 @@ struct LibState {
     /// scrolls the new entry into view once, then leaves the reader alone.
     /// Mirrors keepActiveInView() in web/pages/library-app.js.
     revealed: Option<Sel>,
+    /// Rail folds the reader chose by hand: sections by index, categories by
+    /// (section, category). Anything absent follows the default, which is
+    /// unfolded only on the PATH to the open document (or everywhere while a
+    /// tag filter is on), so the tree shows where you are instead of all 125
+    /// titles at once. Mirrors openSecs/openCats in web/pages/library-app.js,
+    /// where the fold is what lets the web rail drop its second scrollbar;
+    /// here the rail keeps its own ScrollArea, as panes in a desktop app do.
+    fold_secs: std::collections::HashMap<usize, bool>,
+    fold_cats: std::collections::HashMap<(usize, usize), bool>,
+    /// The selection whose path was last unfolded. Opening a document inside a
+    /// branch folded by hand unfolds that branch once, then leaves it to the
+    /// reader (web: the openDoc() hunk that deletes a `false` entry).
+    path_shown: Option<Sel>,
 }
 
 /// Open the document with this slug, if the Library has one.
@@ -128,6 +141,9 @@ fn lib_state<R>(f: impl FnOnce(&mut LibState) -> R) -> R {
             toc_open: false,
             tag_filter: None,
             revealed: None,
+            fold_secs: std::collections::HashMap::new(),
+            fold_cats: std::collections::HashMap::new(),
+            path_shown: None,
         });
     }
     S.with(|s| f(&mut s.borrow_mut()))
@@ -328,6 +344,21 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                         }
 
                         lib_state(|s| {
+                            // A newly opened document unfolds its own path, even
+                            // through a branch the reader folded by hand. Once per
+                            // selection, so folding it again afterwards sticks.
+                            if s.path_shown.as_ref() != Some(&s.sel) {
+                                if let Sel::Doc(a, b, _) = s.sel {
+                                    if s.fold_secs.get(&a) == Some(&false) {
+                                        s.fold_secs.remove(&a);
+                                    }
+                                    if s.fold_cats.get(&(a, b)) == Some(&false) {
+                                        s.fold_cats.remove(&(a, b));
+                                    }
+                                }
+                                s.path_shown = Some(s.sel.clone());
+                            }
+                            let filtering = s.tag_filter.is_some();
                             for (si, section) in state.library.iter().enumerate() {
                                 // Never render a section header with nothing under
                                 // it, which an active tag filter can easily cause.
@@ -339,11 +370,19 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                 if !has_docs {
                                     continue;
                                 }
-                                egui::CollapsingHeader::new(
+                                // Open state is driven from LibState every frame
+                                // (`open(Some(..))`) rather than left to egui's own
+                                // memory, because the default FOLLOWS the selection:
+                                // the path to the open document is unfolded, the rest
+                                // folded, and only a hand-made choice overrides that.
+                                let sec_open = s.fold_secs.get(&si).copied().unwrap_or(
+                                    filtering || matches!(s.sel, Sel::Doc(a, _, _) if a == si),
+                                );
+                                let sec_resp = egui::CollapsingHeader::new(
                                     RichText::new(section.name.as_str()).size(theme.font_size_body).strong().color(theme.text_primary()),
                                 )
                                 .id_salt(("libsec", si))
-                                .default_open(true)
+                                .open(Some(sec_open))
                                 .show(ui, |ui| {
                                     for (ci, cat) in section.categories.iter().enumerate() {
                                         let docs: Vec<(usize, &str)> = cat
@@ -360,9 +399,12 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                         if docs.is_empty() {
                                             continue;
                                         }
-                                        egui::CollapsingHeader::new(RichText::new(cat.name.as_str()).color(theme.accent()))
+                                        let cat_open = s.fold_cats.get(&(si, ci)).copied().unwrap_or(
+                                            filtering || matches!(s.sel, Sel::Doc(a, b, _) if a == si && b == ci),
+                                        );
+                                        let cat_resp = egui::CollapsingHeader::new(RichText::new(cat.name.as_str()).color(theme.accent()))
                                             .id_salt(("libcat", si, ci))
-                                            .default_open(true)
+                                            .open(Some(cat_open))
                                             .show(ui, |ui| {
                                                 for (ei, title) in docs {
                                                     let is_sel = s.sel == Sel::Doc(si, ci, ei);
@@ -376,8 +418,14 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                                     }
                                                 }
                                             });
+                                        if cat_resp.header_response.clicked() {
+                                            s.fold_cats.insert((si, ci), !cat_open);
+                                        }
                                     }
                                 });
+                                if sec_resp.header_response.clicked() {
+                                    s.fold_secs.insert(si, !sec_open);
+                                }
                             }
 
                             // A filter that matches nothing would otherwise leave
