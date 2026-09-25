@@ -1519,3 +1519,30 @@ side, with no seam along the terminator.
 **Do not re-flag:** a black night side with no cyan is correct. The Earth has
 no light of its own on a moonless night apart from city lights and airglow,
 neither of which the renderer draws yet.
+
+## BUG-082: nothing in the build menu could ever be built (FIXED v0.1339.0)
+
+**Symptom:** every blueprint in `data/blueprints/basic.ron` (foundations,
+walls, door, window, roof, crafting table, furnace, chest, bed) was refused
+in play with "need 6x wood to build Wood Wall" and the like, however much
+lumber, stone or iron the player carried.
+
+**Cause:** the catalog named its materials `wood`, `stone`, `iron`,
+`silicate` and `fiber`. None of those is an item id; the items are
+`wood_plank_0`, `stone_brick_0`, `iron_ingot_0`, `glass_pane_0` and
+`fiber_bundle_0`. Since v0.746 the ConstructionSystem consumes real
+materials by item id, so a count of "wood" was always zero.
+
+**Why the tests did not see it:** the build tests stock the player with the
+blueprint's OWN material ids before building, so a fake id passed through
+them untouched. The evidence was the setup, not the game.
+
+**Fix:** the 15 material references mapped to the real items, each craftable
+from an existing recipe (planks from logs, bricks from clay or cut stone,
+ingots from ore, glass from sand, fiber from plants).
+`every_blueprint_material_is_a_real_item` reads the shipped `items.csv`
+and fails on any blueprint material that is not an item; it was run red on
+the old catalog first (15 missing references, every blueprint).
+
+**Found by:** reading what `Structure.provides` feeds while persisting
+builds for offline progression (2026-09-25).

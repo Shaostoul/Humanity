@@ -290,6 +290,34 @@ mod tests {
     /// A registry built from garbage bytes must fail cleanly (Err), not panic --
     /// `load_data_registries` logs a warning and leaves ConstructionSystem idle on a
     /// bad/missing file rather than crashing world init.
+    /// Every material a shipped blueprint asks for is a REAL item (2026-09-25).
+    /// The catalog asked for "wood", "stone", "iron", "silicate" and "fiber",
+    /// none of which is an item id, so in play nothing could ever be built:
+    /// the build was refused for "need 6x wood" forever. The build tests
+    /// below never saw it because they stock the player with the blueprint's
+    /// own ids, so their evidence was their setup. This reads the shipped
+    /// items.csv instead. Made red on the old catalog before the ids were
+    /// fixed.
+    #[test]
+    fn every_blueprint_material_is_a_real_item() {
+        let items = crate::systems::inventory::ItemRegistry::from_csv(include_bytes!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/data/items.csv"
+        )))
+        .expect("items.csv");
+        let reg = shipped_registry();
+        let mut missing: Vec<String> = Vec::new();
+        for bp in reg.blueprints.values() {
+            for (id, _) in &bp.materials {
+                if !items.items.contains_key(id) {
+                    missing.push(format!("{} needs '{id}'", bp.id));
+                }
+            }
+        }
+        missing.sort();
+        assert!(missing.is_empty(), "blueprint materials that are not items: {missing:?}");
+    }
+
     #[test]
     fn from_ron_rejects_malformed_data_without_panicking() {
         let result = BlueprintRegistry::from_ron(b"not valid ron at all {{{");

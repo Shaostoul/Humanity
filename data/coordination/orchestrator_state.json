@@ -704,6 +704,11 @@
    "date": "2026-09-25",
    "decision": "Embed placement gate built: WebSites::embed_verdict + WebViewState::apply_embed_gate, run by the Browser page and every web: wall right before drawing. Forbidden sites are refused before fetch (link, address field, Back/Forward), a wall placed on one never navigates (status refused), unreviewed/unlisted pages carry a one-line note. Stale PRIORITIES/ROADMAP lines corrected (watch-screen retry fixed 2026-09-18 a494c7fc; console room 9 fps predates P2/P3, now 29.8 fps at the vsync cap).",
    "why": "Last open legality item on arc A: sites.json recorded embed.status since rung 6 but nothing enforced it. Gate lives in the view so both clients run it (the gate-both-mirrors lesson); the web mirror only links out, so it has nothing to gate. The refusal note names whose rule it is per the operator 2026-09-18 standing rule (platform rule, not law, not our setting). Own-domain prefixes never speak for the rest of a shared host (github.com). Tests red with the gate disabled before trusting. 34/38 records still needs_review: that needs a person to read terms, and each reading goes into a dated findings doc per the 2026-09-19 rule."
+  },
+  {
+   "date": "2026-09-25",
+   "decision": "BUG-082 fixed: blueprint materials in data/blueprints/basic.ron mapped from fake ids (wood, stone, iron, silicate, fiber) to real items (wood_plank_0, stone_brick_0, iron_ingot_0, glass_pane_0, fiber_bundle_0); new test every_blueprint_material_is_a_real_item reads items.csv.",
+   "why": "Found while looking at what Structure.provides feeds after persisting builds. Every blueprint was unbuildable in play since v0.746 made materials real; the build tests stocked the player with the blueprint's own ids, so their evidence was their setup (the checks-that-cannot-fail class). Test run red on the old catalog first (15 missing refs). Quantities left as they were (a 4x3 m wall from 6 planks is light; a realism pass on costs is a separate question)."
   }
  ],
  "active_scopes_to_avoid": [
