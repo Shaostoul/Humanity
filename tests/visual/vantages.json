@@ -12312,6 +12312,102 @@
       "showcase": {"clouds":"1","weather":"clear"},
       "settle_s": 8,
       "hold_altitude": true
+    },
+    {
+      "id": "deck-55-nadir",
+      "desc": "BALL PIT bisect (operator, 2026-09-25): a sunlit cumulus deck from 55 km at local noon on the HIGH tier, which he described as a ball pit with dark gaps and straight repeating shapes. The coverage and family are PINNED (cloud_cover 0.6, cloud_type 0.34 cumulus) because the unpinned field left this spot cloudless, which the first version of this fixture measured by mistake. Every arm sets every bisect switch explicitly: they are sticky across rig cells. Arms differ ONLY in the switch named. This arm: default, looking straight down.",
+      "expect": "A merged deck with bright crevices, no dominant puff size, and no shape recurring at a fixed spacing.",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {"body":"earth","lat":20,"lon":150,"time":12.0,"altitude_km":55,"look_offset_deg":0},
+      "showcase": {"clouds":"1","weather":"clear","cloud_cover":"0.6","cloud_type":"0.34","cloud_clock":"120","cloud_no_cell":"0","cloud_no_puff":"0"},
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "deck-55-nocell",
+      "desc": "BALL PIT bisect (operator, 2026-09-25): a sunlit cumulus deck from 55 km at local noon on the HIGH tier, which he described as a ball pit with dark gaps and straight repeating shapes. The coverage and family are PINNED (cloud_cover 0.6, cloud_type 0.34 cumulus) because the unpinned field left this spot cloudless, which the first version of this fixture measured by mistake. Every arm sets every bisect switch explicitly: they are sticky across rig cells. Arms differ ONLY in the switch named. This arm: the 1.33 km cell split OFF.",
+      "expect": "A merged deck with bright crevices, no dominant puff size, and no shape recurring at a fixed spacing.",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {"body":"earth","lat":20,"lon":150,"time":12.0,"altitude_km":55,"look_offset_deg":0},
+      "showcase": {"clouds":"1","weather":"clear","cloud_cover":"0.6","cloud_type":"0.34","cloud_clock":"120","cloud_no_cell":"1","cloud_no_puff":"0"},
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "deck-55-nopuff",
+      "desc": "BALL PIT bisect (operator, 2026-09-25): a sunlit cumulus deck from 55 km at local noon on the HIGH tier, which he described as a ball pit with dark gaps and straight repeating shapes. The coverage and family are PINNED (cloud_cover 0.6, cloud_type 0.34 cumulus) because the unpinned field left this spot cloudless, which the first version of this fixture measured by mistake. Every arm sets every bisect switch explicitly: they are sticky across rig cells. Arms differ ONLY in the switch named. This arm: the puff erosion band OFF.",
+      "expect": "A merged deck with bright crevices, no dominant puff size, and no shape recurring at a fixed spacing.",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {"body":"earth","lat":20,"lon":150,"time":12.0,"altitude_km":55,"look_offset_deg":0},
+      "showcase": {"clouds":"1","weather":"clear","cloud_cover":"0.6","cloud_type":"0.34","cloud_clock":"120","cloud_no_cell":"0","cloud_no_puff":"1"},
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "deck-55-oblique",
+      "desc": "BALL PIT bisect (operator, 2026-09-25): a sunlit cumulus deck from 55 km at local noon on the HIGH tier, which he described as a ball pit with dark gaps and straight repeating shapes. The coverage and family are PINNED (cloud_cover 0.6, cloud_type 0.34 cumulus) because the unpinned field left this spot cloudless, which the first version of this fixture measured by mistake. Every arm sets every bisect switch explicitly: they are sticky across rig cells. Arms differ ONLY in the switch named. This arm: default, looking 55 degrees off nadir.",
+      "expect": "A merged deck with bright crevices, no dominant puff size, and no shape recurring at a fixed spacing.",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {"body":"earth","lat":20,"lon":150,"time":12.0,"altitude_km":55,"look_offset_deg":55},
+      "showcase": {"clouds":"1","weather":"clear","cloud_cover":"0.6","cloud_type":"0.34","cloud_clock":"120","cloud_no_cell":"0","cloud_no_puff":"0"},
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "deck-55-sc",
+      "desc": "BALL PIT family check (2026-09-25): the same 55 km noon down-look as deck-55-nadir with a different pinned cloud family, so a change to the cell split is judged on every family, not only cumulus. Family: stratocumulus (cloud_type 1).",
+      "expect": "A merged deck with surface texture, no ball pit, no dark gaps.",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {"body":"earth","lat":20,"lon":150,"time":12.0,"altitude_km":55,"look_offset_deg":0},
+      "showcase": {"clouds":"1","weather":"clear","cloud_cover":"0.6","cloud_type":"1","cloud_clock":"120","cloud_no_cell":"0","cloud_no_puff":"0"},
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "deck-55-st",
+      "desc": "BALL PIT family check (2026-09-25): the same 55 km noon down-look as deck-55-nadir with a different pinned cloud family, so a change to the cell split is judged on every family, not only cumulus. Family: stratus (cloud_type 0.67).",
+      "expect": "A merged deck with surface texture, no ball pit, no dark gaps.",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {"body":"earth","lat":20,"lon":150,"time":12.0,"altitude_km":55,"look_offset_deg":0},
+      "showcase": {"clouds":"1","weather":"clear","cloud_cover":"0.6","cloud_type":"0.67","cloud_clock":"120","cloud_no_cell":"0","cloud_no_puff":"0"},
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "deck-55-cb",
+      "desc": "BALL PIT family check (2026-09-25): the same 55 km noon down-look as deck-55-nadir with a different pinned cloud family, so a change to the cell split is judged on every family, not only cumulus. Family: cumulonimbus (cloud_type 0.5).",
+      "expect": "A merged deck with surface texture, no ball pit, no dark gaps.",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {"body":"earth","lat":20,"lon":150,"time":12.0,"altitude_km":55,"look_offset_deg":0},
+      "showcase": {"clouds":"1","weather":"clear","cloud_cover":"0.6","cloud_type":"0.5","cloud_clock":"120","cloud_no_cell":"0","cloud_no_puff":"0"},
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "deck-55-equator",
+      "desc": "REPEATING SHAPES (operator, 2026-09-25: \"a lot of straight repeating shapes in the clouds... in certain areas the effect is strong\"). The noise-body volumes tile in world space with one shared grid orientation, and the fidelity review predicted the repeat is strongest where a grid axis lies in the ground plane: along the planet-frame equator. A near-overcast stratus deck there fills the frame with texture, so a high-passed autocorrelation (scratchpad hpac.js pattern) shows any tile period as a peak well above the noise floor.",
+      "expect": "No autocorrelation peak at a tile period: nothing recurs at a fixed spacing.",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {"body":"earth","lat":0,"lon":150,"time":12.0,"altitude_km":55,"look_offset_deg":0},
+      "showcase": {"clouds":"1","weather":"clear","cloud_cover":"0.8","cloud_type":"0.67","cloud_clock":"120","cloud_no_cell":"0","cloud_no_puff":"0"},
+      "settle_s": 12,
+      "hold_altitude": true
     }
   ],
   "ladder": {

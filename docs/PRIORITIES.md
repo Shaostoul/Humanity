@@ -260,6 +260,20 @@ report is summarised here because it is the build order):
 4. **Cellular texture** (Worley 15-40 km cells for flat decks). Measure the deck's
    column optical depth first: texture only shows below roughly 30.
 
+**The ball pit (operator, 2026-09-25). FIXED on High in v0.1335.0.** He runs
+`cloud_quality` High, and nearly all the earlier anti-ball-pit work (built
+bodies, SDF shaping, v0.1230) is Ultra-only: High draws the noise body. The
+1.33 km Worley cell split (`CLOUD_CELL_SPLIT`) divided every mass into equal
+balls; bisected at 55 km (fixtures `deck-55-*`), it alone was the ball pit.
+Now 0.05 (from 0.15): masses stay merged and the cells survive as cauliflower
+texture. Rejected on evidence, so do not retry: fully off (cotton blobs),
+gating it to the upper band (visible tops sit low, so it vanished), moving
+the cell texture into the water term alone (barely visible). Still open from
+the same review, measure first: the powder term runs at full strength on High
+at a noon down-look (removed for Ultra already); crevice darkening
+`CLOUD_PUFF_AO`; the per-family `reg.tint` applied from above; built bodies
+as the High default (environment-program increment 16, never done).
+
 **Grey: what was measured.** Thick sunlit decks are NOT dark: forced overcast
 from orbit reads 199 to 234, in range of the review's own 215 to 225 target.
 Cloud median RISES as altitude falls on both ladders tried (broken coverage: 58,

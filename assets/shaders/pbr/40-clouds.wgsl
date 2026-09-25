@@ -630,9 +630,30 @@ const CLOUD_PUFF_FADE_FAR_KM: f32 = 289.0;
 // coverage threshold between cells, splitting the shape volume's >= 11 km
 // masses into discrete 1-2 km cumuli near the camera. Threshold-side (not
 // erosion) because erosion can only nibble a blob's edges, never divide
-// it. Distance-faded so orbit never changes.
+// it. (Its distance fade was deleted in v0.1179, so it applies at every
+// range; this comment used to say otherwise.)
 const CLOUD_CELL_TILE_KM: f32 = 8.0;
-const CLOUD_CELL_SPLIT: f32 = 0.15;
+// ── 0.05, down from 0.15: THE BALL PIT (operator, 2026-09-25) ──
+//
+// "Lower down to where I can see the detail the main problem now is that the
+// clouds look like a ball pit ... I think the ball pit effect is what is
+// making the clouds look dark, since they have all the dark spaces between
+// the balls." At 0.15 this split divided every cloud mass into near-equal
+// 1.33 km cells (one Worley point per lattice cell), so a 55 km down-look
+// held thousands of same-size balls with dark gaps between them.
+//
+// Bisected on the High tier at 55 km, noon, a pinned cumulus deck, one
+// switch per arm (fixtures deck-55-*): the split OFF turned the ball pit into
+// smooth merged masses, and the puff band OFF changed nothing, so this term
+// alone is the ball pit. But fully off is too smooth (cotton blobs with no
+// surface), gating it to the upper band did the same (the visible tops sit
+// low in the band, below where the gate opened), and moving the cell texture
+// into the water term alone barely showed. At ONE THIRD the cells no longer
+// separate the mass: it stays continuous, and the split survives as
+// cauliflower texture on the surface, which is how real cumulus and
+// stratocumulus show their cells from above (thickness variation, not holes).
+// Mirrored in cloud_reference.rs (pinned by the sync test there).
+const CLOUD_CELL_SPLIT: f32 = 0.05;
 const CLOUD_CELL_FADE_NEAR_KM: f32 = 30.0;
 const CLOUD_CELL_FADE_FAR_KM: f32 = 60.0;
 // Crevice occlusion from the SAME puff noise (already sampled for the
