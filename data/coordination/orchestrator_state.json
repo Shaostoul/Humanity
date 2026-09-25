@@ -682,12 +682,12 @@
   },
   {
    "date": "2026-09-25",
-   "decision": "Cloud repeating shapes (v0.1336.0): a fixed rotation per tiled noise tap (shape, cell, detail, puff, fray, warp), generated from one axis-angle table into WGSL and the Rust reference, pinned by tap_rotations_match_the_shader (proven to fail when one entry is perturbed).",
+   "decision": "Cloud repeating shapes (v0.1337.0): a fixed rotation per tiled noise tap (shape, cell, detail, puff, fray, warp), generated from one axis-angle table into WGSL and the Rust reference, pinned by tap_rotations_match_the_shader (proven to fail when one entry is perturbed).",
    "why": "Every tap sampled one shared world grid aligned with the planet axes, so where a grid axis lies in the ground plane (the planet-frame equator) the same cell arrangement recurred every tile in straight rows. Confirmed first at the equator from 55 km: high-passed autocorrelation peaks at (0,104), (0,212), (0,316) px, 23x the floor, all on one vertical line. After: strongest near-repeat 20 km, oblique, still 21.7x, but peaks no longer collinear and no visible striping. Rotation lengthens the repeat rather than removing periodicity; stochastic tiling is the next rung if a repeat is seen again. Orbital coverage unchanged (30.3 -> 30.0%)."
   },
   {
    "date": "2026-09-25",
-   "decision": "Clouds whiter from orbit (v0.1336.0): multiple-scattering gain default 1.0 -> 1.8 (gui/mod.rs and the renderer initial value).",
+   "decision": "Clouds whiter from orbit (v0.1337.0): multiple-scattering gain default 1.0 -> 1.8 (gui/mod.rs and the renderer initial value).",
    "why": "Operator: clouds \"still kind of gray while in high orbit\". The unit gain was my own earlier choice, justified by matching the Low tier ratio, but the Low tier is only another path, not a physical reference. Physical: thick cloud reflectance ~0.8 vs desert 0.35-0.4, about 2x in linear, ~215-225 vs ~180 in this tonemap. Measured at approach-2000 (Sahara, High): thick cloud p50/p90 against sand 181 at gain 1.0 199/219, 1.6 213/226, 1.8 223/232, 2.2 221/232. 1.8 in target; 2.2 starts washing out texture; at 55 km 1.8 keeps the cauliflower surface. Not persisted in config.json, so a default change reaches the operator on the next build."
   }
  ],

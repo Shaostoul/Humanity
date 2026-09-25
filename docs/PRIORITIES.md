@@ -274,7 +274,7 @@ at a noon down-look (removed for Ultra already); crevice darkening
 `CLOUD_PUFF_AO`; the per-family `reg.tint` applied from above; built bodies
 as the High default (environment-program increment 16, never done).
 
-**Repeating shapes (operator, 2026-09-25). FIXED in v0.1336.0** with a fixed
+**Repeating shapes (operator, 2026-09-25). FIXED in v0.1337.0** with a fixed
 rotation per tiled noise tap, mirrored and pinned in Rust. Confirmed first at
 the planet-frame equator (fixture `deck-55-equator`): straight north-south
 rows every 8 km (the cell tile), 23x the autocorrelation floor. After: no
@@ -283,7 +283,7 @@ repeat, it cannot remove periodicity). If a repeat is ever seen again, the
 next rung is stochastic (hex) tiling on that tap.
 
 **Grey from orbit (2026-09-25). Multiple-scattering gain 1.0 -> 1.8 in
-v0.1336.0**, calibrated to physical reflectance against the Sahara in the same
+v0.1337.0**, calibrated to physical reflectance against the Sahara in the same
 frame (thick cloud p50 199 -> 223 against sand 181). The earlier unit gain was
 matched to the Low tier, which is not a physical reference.
 
