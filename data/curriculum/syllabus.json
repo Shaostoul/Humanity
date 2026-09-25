@@ -1452,7 +1452,8 @@
         "tyndale",
         "firwin",
         "utah-state-fire-marshal",
-        "ananas-anam"
+        "ananas-anam",
+        "dnv"
       ],
       "locale_dependent": false,
       "hazard": "lethal"

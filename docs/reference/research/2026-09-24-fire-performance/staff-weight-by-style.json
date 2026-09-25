@@ -1,0 +1,1121 @@
+[
+ {
+  "key": "contact",
+  "summary": "Makers and teachers mostly agree on one principle: for contact staff, where the weight sits matters more than how much the staff weighs in total. Put the weight in the ends and keep the shaft light. Heavier ends slow the spin, keep momentum and make a roll hold to the body. That suits slow body rolls and beginners. A light staff changes plane and direction more easily, which suits advanced, mixed spin-and-contact play.\n\n**Heavier or lighter?** The guidance below is opinion, not published specs.\n- **For heavier, especially for beginners:** Master Flow Arts, Dark Monk (\"up to a point\"), the Home of Poi lesson, Fusion Arts, the Sacred Flow Art guide, and NetJuggler's product copy.\n- **Against:** a Home of Poi forum poster practises new moves on a lighter staff so the weight cannot do the work.\n- **Mid-level players:** Fusion Arts, a spin-staff maker, says players past the beginner stage move to lighter staffs. Its reason is that a lighter staff needs a smaller push to change plane or direction.\n\n**Weight by style**\n- **Slow body rolls:** support heavy, end-weighted staffs with a light middle. Sources: Dark Monk (\"heavier... slower it will roll\"), the Home of Poi lesson, Gora, Oddballs, and LMF (LMF quote seen only in a search excerpt).\n  - Tools that slow the roll: the \"flowers\" add-ons (Threeworlds, Firetoys, Sacred Flow Art, Renegade) and, per Bonobo Flow and Ninja Pyrate, a thinner staff.\n- **Isolations and \"anti-gravity\" moves:** no contact-staff source gives weight guidance. The only related evidence:\n  - Props built for isolations run light: the RD Buugeng iso stick is 322 g at 55 cm.\n  - Physics: pivoting a staff about one end means your hand keeps pulling the centre of mass around in a circle. That pull grows in step with total weight, which favours lighter staffs.\n- **Tosses:** almost nothing published. RandyLeeSticks says only that shorter sticks are easier to throw. The Flow Arts Institute says bouncy hardwood makes tosses harder.\n- **Mixed contact and spin:** Fusion Arts says lighter. Bonobo Flow recommends 3/4 or 7/8 inch diameters for this style. Bonobo also says its carbon-fibre handle puts proportionally more weight in the ends, while aluminium feels more grounded and helps learners.\n\n**Where sources disagree**\n1. **Total mass or distribution:** NeoFlowArt (2025) says contact staffs are \"usually heavier\", at about 850 g to 1.1 kg. LMF calls that a misconception (search excerpt only; its site returned an error). Several commercial staffs weigh 680 to 850 g, which supports LMF.\n2. **End-weighted or evenly weighted:** Fusion Arts says beginners like a heavy staff weighted evenly along its length, for example with a wooden dowel inside. Gora, Master Flow Arts and the Home of Poi lesson say heavy ends and a light middle. One forum post says roughly as much weight in each end as in the middle.\n3. **Gora Practice Contact Staff:** Firetoys lists 2.25 kg, while a search excerpt of a now-deleted Renegade page gives 2.5 lb (about 1.13 kg). The Firetoys figure looks like an error or a shipping weight, but that is unconfirmed.\n4. **Bonobo Flow's physics claim:** Bonobo says end weights make the centre \"feel heavier\". That does not follow physically. End weights raise rotational inertia, the resistance to changes in spin.\n\n**Physics (a calculation, not a source):** For a 1.5 m staff weighing 800 g, compare 250 g in each end with the same mass spread evenly. The end-weighted staff has about 2 to 2.25 times the rotational inertia. That supports the claim that distribution, not total mass, gives the flywheel feel.\n\n**Corrections to the ranges already known**\n- **Complete fire contact staffs:** the top of the range goes above 965 g.\n  - Play Geryon, older version: 1,140 g without fuel (NetJuggler).\n  - Gora Travel fire staff: 1 kg.\n  - Renegade breakdown staff: 871 to 930 g.\n  - Current Geryon: 800 g.\n- **LED contact staffs:** can be much lighter than 700 g. The Pyroterra Lumi FT2 at 150 cm is 541 g (a retailer's figure). Other LED staffs sit in the known range: Flowtoys Vision XL 848 g, NeoStaff Pro about 980 g, IzoStaff 1 kg.\n- **Practice contact staffs:** go above 840 g. NetJuggler 770 g, Sacred Flow Art collapsible 830 g, Gora Travel practice 1 kg. The existing 760 to 840 g figure is the Sacred Flow Art Contact Staff Pro spec alone.\n\n**Includes wicks, fuel and grip?** Fire staff weights are dry: wicks and grip included, no fuel. Threeworlds weighs its ends \"dry with fasteners and without flowers\". NetJuggler says \"without fuel\". No source put a number on fuel weight. Dark Monk says weighted wick covers on practice staffs simulate fuel weight.\n\n**Access limits:** Home of Poi forum threads returned 403 and LMF props returned 503. Quotes from those two are search-engine excerpts, not pages I read directly; each such finding says so.",
+  "findings": [
+   {
+    "claim": "Master Flow Arts states the core trade-off: heavier is easier for beginners, lighter gives more freedom of movement. Opinion, from a teacher's guide.",
+    "kind": "guidance",
+    "url": "https://www.masterflowarts.com/contact-staff/choosing-a-contact-staff",
+    "quote": "Heavier tends to be easier for beginners, while lighter enables more freedom of movement."
+   },
+   {
+    "claim": "Fusion Arts (a spin-staff maker): beginner contact spinners prefer a heavier staff weighted evenly throughout, often a metal tube with a wooden dowel inside. Opinion.",
+    "kind": "guidance",
+    "url": "https://fusion-arts.com/choose-fire-staff/",
+    "quote": "fixing a wooden dowel within the metal tubing is a common design"
+   },
+   {
+    "claim": "Fusion Arts: past the beginner stage, lighter contact staffs are preferred because changing plane or direction takes less effort. Supports lighter staffs for mixed contact-and-spin play and fast direction changes. Opinion.",
+    "kind": "guidance",
+    "url": "https://fusion-arts.com/choose-fire-staff/",
+    "quote": "a lighter staff is preferable as less of an impulse is needed"
+   },
+   {
+    "claim": "Fusion Arts: at its workshops, students on heavy or evenly weighted contact staffs struggled with basic direction changes and staying in plane. This conflicts with sources that favour heavy staffs throughout. Opinion.",
+    "kind": "disagreement",
+    "url": "https://fusion-arts.com/choose-fire-staff/",
+    "quote": "so much more difficult with a staff which is heavy or evenly weighted"
+   },
+   {
+    "claim": "Dark Monk: a thicker, heavier tube raises rotational inertia, so the staff spins slower and responds less to small movements; heavier is easier for beginners, but only up to a point. Maker opinion with a physical explanation.",
+    "kind": "guidance",
+    "url": "https://dark-monk.com/Article/Comparing-Aluminum-CarbonFiber-Contact-Staff",
+    "quote": "the heavier the staff (up to a point) the easier it is"
+   },
+   {
+    "claim": "Dark Monk: a longer, heavier staff rolls more slowly, which makes contact moves easier. The clearest maker statement for slow body rolls. Its contact double staves carry half-ounce (about 14 g) weights under each wick to raise rotational inertia.",
+    "kind": "guidance",
+    "url": "https://dark-monk.com/Equipment/Contact-Double-Staves",
+    "quote": "longer and heavier the staff, the slower it will roll"
+   },
+   {
+    "claim": "Dark Monk: weighted wick covers on practice staffs simulate fuel weight, so practice feels like burning. This is the only source found that mentions fuel weight; none gives a gram figure.",
+    "kind": "guidance",
+    "url": "https://dark-monk.com/Article/Comparing-Aluminum-CarbonFiber-Contact-Staff",
+    "quote": "simulating fuel weight so that your practice efforts feel much more"
+   },
+   {
+    "claim": "Home of Poi beginner lesson: a heavier contact staff makes contact moves cleaner because it carries its own momentum, but it hits harder when you get whacked. Teacher guidance.",
+    "kind": "guidance",
+    "url": "https://www.homeofpoi.com/us/lessons/teach/Staff/Beginners-2/Selecting-staff",
+    "quote": "Heavier contact Staffs will generally make contact moves cleaner"
+   },
+   {
+    "claim": "Home of Poi beginner lesson: the more the ends outweigh the centre, the slower the staff spins and the more control you have. Explicit guidance favouring end weighting.",
+    "kind": "guidance",
+    "url": "https://www.homeofpoi.com/us/lessons/teach/Staff/Beginners-2/Selecting-staff",
+    "quote": "the slower the staff with spin and the more control you will have"
+   },
+   {
+    "claim": "Home of Poi forum poster: practise new moves on a lighter staff so you cannot rely on weight; a heavier staff then feels easier. Minority opinion that conflicts with the heavier-for-beginners view. Seen in a search excerpt; the thread returned 403 to direct fetch.",
+    "kind": "disagreement",
+    "url": "https://www.homeofpoi.com/en/community/forums/topics/920591/Contact-Staff-Weight",
+    "quote": "the fact it is lighter forces you to do it right"
+   },
+   {
+    "claim": "Home of Poi forum: the lighter the shaft and the heavier the ends, the easier contact work gets. Other posts say light aluminium staffs bounce off limbs instead of rolling. Opinion, seen in search excerpts; the thread returned 403.",
+    "kind": "guidance",
+    "url": "https://www.homeofpoi.com/us/community/forums/topics/896046/Re-Making-a-staff-for-contact-juggling-a-non-auwi-",
+    "quote": "the lighter the actual bar of the staff and the heavier the ends"
+   },
+   {
+    "claim": "LMF props: saying contact staffs must be heavy is a misconception; what matters is putting most of the weight in the ends. Conflicts with NeoFlowArt's 'usually heavier'. Seen in a search excerpt; the site returned 503.",
+    "kind": "disagreement",
+    "url": "https://www.lmfprops.com/fire-staff-options/",
+    "quote": "common misconception that contact staffs need to be heavy"
+   },
+   {
+    "claim": "NeoFlowArt blog (2025-04-15): contact staffs usually weigh about 850 g to 1.1 kg, versus about 350 to 800 g for regular spin staffs. A general range, not a spec. Many commercial contact staffs listed here weigh 680 to 850 g, below it.",
+    "kind": "disagreement",
+    "url": "https://neoflowart.com/blog/cstaff-vs-staff/",
+    "quote": "~850g–1.1kg (30–40 oz)"
+   },
+   {
+    "claim": "Bonobo Flow (retailer): an aluminium Fusion staff feels more stable and grounded, which helps learners. Carbon fibre's lighter shaft puts proportionally more weight in the ends, giving a stronger, more responsive contact feel. Opinion.",
+    "kind": "guidance",
+    "url": "https://bonoboflow.com/product/fusion-collapsible-fire-contact-staff/",
+    "quote": "lighter shaft shifts more weight toward the ends, creating a stronger contact feel"
+   },
+   {
+    "claim": "Bonobo Flow claims end weights make the staff's centre point 'feel heavier'. Physically dubious: end weights raise rotational inertia; they do not add weight at the centre. Treat as marketing language.",
+    "kind": "disagreement",
+    "url": "https://bonoboflow.com/what-is-a-contact-staff/",
+    "quote": "makes the staff's center point feel heavier, increasing control"
+   },
+   {
+    "claim": "Bonobo Flow diameter guide (2024-02-20): a smaller-diameter staff travels more slowly across the body. 3/4 inch suits beginners and mixed contact-and-spin styles. A larger 7/8 inch tube puts more weight in the shaft.",
+    "kind": "guidance",
+    "url": "https://bonoboflow.com/how-to-choose-the-right-staff-diameter/",
+    "quote": "distributing more weight throughout the shaft instead of concentrating it at the ends"
+   },
+   {
+    "claim": "Threeworlds: optional silicone flowers slow the roll, making body rolls easier to learn. Firetoys (Gora), Sacred Flow Art and Renegade make the same claim. Flowtoys' flower kit weighs 72 g, which puts the added end weight in numbers.",
+    "kind": "guidance",
+    "url": "https://www.threeworlds.com.au/products/fusion-contact-fire-led-staff-builder",
+    "quote": "slow the roll down and make body rolls easier to learn"
+   },
+   {
+    "claim": "Firetoys / Gora: a good contact staff needs a good swing, which requires heavy ends and a light middle. Maker opinion.",
+    "kind": "guidance",
+    "url": "https://www.firetoys.com/products/gora-travel-contact-practice-staff-3-part-collapsible-contact-staff-150cm",
+    "quote": "only possible if the ends are heavy, while the middle is light"
+   },
+   {
+    "claim": "Sacred Flow Art guide: contact staffs are weighted to slow rotation, which makes balancing on the body easier, especially for beginners. Carbon fibre puts slightly more of the weight in the ends. Opinion.",
+    "kind": "guidance",
+    "url": "https://sacredflowart.com/contact-fire-staff-guide/",
+    "quote": "weighted to slow down rotations and momentum. This makes balance easier"
+   },
+   {
+    "claim": "RD Buugeng Iso Stick: 322 g, 55 cm, 18 mm tube, 70 mm ball ends. Marketed as shorter and lighter for precise isolations. No contact-staff source addresses isolation weight; this is the nearest published evidence. Spec, plus maker opinion.",
+    "kind": "spec",
+    "url": "https://rdbuugeng.com/product/iso-stick/",
+    "quote": "shorter, lighter, and specifically designed for precision isolations",
+    "includes": "complete stick with ball ends; no fuel"
+   },
+   {
+    "claim": "RandyLeeSticks: shorter sticks are easier to throw, and very long ones make horizontal 'matrix' propellers easiest. A thin stick is harder to start rolling but feels stickier once moving. The only toss guidance found, and it concerns length, not weight.",
+    "kind": "guidance",
+    "url": "https://randyleesticks.com/sizing-a-contact-staff/",
+    "quote": "shorter sticks are easier to throw"
+   },
+   {
+    "claim": "Trick Concepts weighted fire contact staff: 34 oz (964 g); 5 ft (152 cm); 1 inch 6061-T6 aluminium; 3-inch Kevlar wicks; 3 oz (85 g) of added weight inside each end.",
+    "kind": "spec",
+    "url": "https://www.trickconcepts.com/5ft-fire-weighted-contact-staff/",
+    "quote": "3 Ounces of Weight are added inside each end",
+    "includes": "wicks and internal end weights; dry (no fuel stated)"
+   },
+   {
+    "claim": "Play Geryon fire contact staff, older version (NetJuggler): 1.140 kg without fuel; 1.50 m; 25 mm aluminium tube with 2 mm wall. Above the known 965 g ceiling. The retailer says a lighter staff struggles to match its fluidity.",
+    "kind": "spec",
+    "url": "https://www.netjuggler.net/En/buy/staff-contact.html",
+    "quote": "It allows a fluidity which is difficult to obtain with a lighter staff.",
+    "includes": "wicks included, no fuel (stated 'staff only, without fuel')"
+   },
+   {
+    "claim": "Play Geryon fire contact staff, current version (maker): 0.800 kg; 150 or 160 cm; 22 or 25 mm; 7075 aluminium with 1.5 mm wall; 75 cm of Kevlar per end; wood plugs in the ends. Thinner-wall 7075 cut about 340 g from the older version.",
+    "kind": "spec",
+    "url": "https://playjuggling.com/products/geryon-contact-staff/",
+    "quote": "0,800 KG",
+    "includes": "wicks and grip presumably included; fuel not stated"
+   },
+   {
+    "claim": "Threeworlds Fusion collapsible fire contact staff (Bonobo Flow): 756 to 922 g depending on handle and length. 1500 mm aluminium with EPDM grip is 806 g; carbon with EPDM is 756 g; a silicone grip adds about 18 to 20 g.",
+    "kind": "spec",
+    "url": "https://bonoboflow.com/product/fusion-collapsible-fire-contact-staff/",
+    "quote": "550mm ends: 806g total (1.78 lbs)",
+    "includes": "handle with grip plus two 4-inch Kevlar fire ends; dry"
+   },
+   {
+    "claim": "Threeworlds' own Fusion figures: handle 280 g aluminium or 225 g carbon; each fire end 300 to 357 g (4-inch sushi) or 349 to 384 g (Isis). That puts roughly 70% of the mass in the ends. Bonobo's totals imply about 283 g per end, roughly 40 g less.",
+    "kind": "spec",
+    "url": "https://www.threeworlds.com.au/products/fusion-contact-fire-led-staff-builder",
+    "quote": "Fire ends are weighed dry with fasteners and without flowers.",
+    "includes": "F-grip handle; ends dry with wicks and fasteners, no flowers"
+   },
+   {
+    "claim": "Threeworlds Matrix fire contact staff: 680 g at 1400 mm; 22 mm aluminium; 100 mm wicks. The maker stresses end weighting.",
+    "kind": "spec",
+    "url": "https://www.threeworlds.com.au/products/matrix-contact-fire-staff",
+    "quote": "more weight on the ends, which is where you want it",
+    "includes": "wicks included; fuel not stated; grip presumably included"
+   },
+   {
+    "claim": "Renegade breakdown contact fire staff (listed as Gora, with the same figures on a Threeworlds page): 1.92 lb (871 g) at 150 cm and 2.05 lb (930 g) at 166.5 cm; 1 inch diameter; 4-inch wicks.",
+    "kind": "spec",
+    "url": "https://renegadejuggling.com/products/gora-portable-fire-contact-staff",
+    "quote": "light in the middle of staff and heavy on the ends",
+    "includes": "wicks presumably included; not stated; no fuel"
+   },
+   {
+    "claim": "Gora Travel Contact Fire Staff (Firetoys): 1 kg at 150 cm; 7075 aluminium or carbon core. Silicone end sheaths offset the weight of the central joint. Flowers are sold separately. Marked Intermediate/Advanced.",
+    "kind": "spec",
+    "url": "https://www.firetoys.com/products/gora-travel-contact-fire-staff",
+    "quote": "1kg",
+    "includes": "complete staff with wicks and grip; flowers excluded; no fuel"
+   },
+   {
+    "claim": "Flowtoys Vision Contact Staff XL (LED): 848 g at 152 cm, 18 mm carbon shaft, 340 g in each end. About 80% of the mass is in the ends, an extreme end-weighting.",
+    "kind": "spec",
+    "url": "https://flowtoys.com/vision-contact-staff-xl-w-pods",
+    "quote": "End weight: pod shell + pod sleeve + 1x mass + flower = 340g",
+    "includes": "LED electronics, pods, one flowmass and one flower per end, grip"
+   },
+   {
+    "claim": "NeoFlowArt NeoStaff Pro (LED contact staff): about 980 g at 150 cm, with about 350 g per head (about 71% in the heads). The maker says it is not for beginners.",
+    "kind": "spec",
+    "url": "https://neoflowart.com/pixel-contact-staff/",
+    "quote": "~980gr full staff",
+    "includes": "LED heads with batteries, 3 mm grip"
+   },
+   {
+    "claim": "NeoFlowArt IzoStaff (LED contact staff with 100 mm glowing balls): 1 kg at 150 cm (140 and 160 cm also offered). Marketed for smooth, stable rolls.",
+    "kind": "spec",
+    "url": "https://neoflowart.com/izostaff-led-contact-staff/",
+    "quote": "weighted to provide smooth momentum, stable rolls, and excellent balance",
+    "includes": "LED balls with batteries, grip"
+   },
+   {
+    "claim": "Pyroterra Lumi Staff FT2 (LED; the 150 cm size is Pyroterra's contact 'Long Lumi'): 541 g at 150 cm (349 g at 85 cm); carbon core in polycarbonate, 22 mm. Retailer figure; Pyroterra's site returned 403. This lowers the known LED contact floor of 700 g.",
+    "kind": "spec",
+    "url": "https://www.firelovers.com/products/lumi-staff-ft2",
+    "quote": "150 cm: 541 g",
+    "includes": "LED units; grip inclusion unclear (a search excerpt cited with-grip and without-grip ranges)"
+   },
+   {
+    "claim": "NetJuggler training contact staff: about 770 g, 150 cm, 22 mm aluminium, 45 mm rubber tips. The retailer says it suits slow, precise movement.",
+    "kind": "spec",
+    "url": "https://www.netjuggler.net/En/buy/training-contact-staff.html",
+    "quote": "suitable for rather slow and precise movements",
+    "includes": "complete practice staff with rubber tips; no wicks"
+   },
+   {
+    "claim": "Sacred Flow Art collapsible practice contact staff: about 830 g (1.8 lb), 150 cm, 22 mm 7075 aluminium, 3.2 mm grip, steel rods in rubber knobs at the ends.",
+    "kind": "spec",
+    "url": "https://sacredflowart.com/product/practice-contact-staff/",
+    "quote": "Steel rods ... give massive momentum to the Staff",
+    "includes": "grip and weighted rubber ends; no wicks"
+   },
+   {
+    "claim": "Gora Travel contact practice staff (Oddballs): 1 kg, 150 cm, 3-piece 7075 aluminium, EPDM grip with tennis-grip wrap. Oddballs says its momentum suits neck, shoulder and torso rolls.",
+    "kind": "spec",
+    "url": "https://www.oddballs.co.uk/products/gora-travel-contact-practice-staff-1-5m-3-piece",
+    "quote": "massive, smooth momentum for neck, shoulder, and torso rolls",
+    "includes": "grip and rubber ends; no wicks; optional flowers extra"
+   },
+   {
+    "claim": "Gora Practice Contact Staff weight disagrees between retailers: Firetoys lists 2.25 kg at 153 cm (steel rods at the ends). A search excerpt of a now-removed Renegade page gave 2.5 lb (about 1.13 kg). The 2.25 kg figure looks like an error or shipping weight; unconfirmed.",
+    "kind": "disagreement",
+    "url": "https://www.firetoys.com/products/gora-practice-contact-staff-150cm",
+    "quote": "2.25kg",
+    "includes": "complete practice staff with steel-rod rubber ends"
+   },
+   {
+    "claim": "Flowtoys sells end weights so heavier-staff fans can add mass 'where it matters': flowmass 20.8 g, flow-flower kit 72 g, wrap-on mass kit 135 g. Most of its staffs take 2+ flowmass and 1 to 2 flowers per end.",
+    "kind": "spec",
+    "url": "https://flowtoys2.freshdesk.com/support/solutions/articles/6000246071-how-to-add-weight-to-a-staff",
+    "quote": "easily add weight to the ends - where it matters",
+    "includes": "add-on weights only"
+   },
+   {
+    "claim": "Home of Poi forum builder: a 1.4 m aluminium staff with a wooden core weighed 1.15 kg with Kevlar wicks and 820 g without. The builder still found it heavy for contact, after cutting down a 1.7 m, 1.4 kg version. User-measured; search excerpt only (thread returned 403).",
+    "kind": "spec",
+    "url": "https://www.homeofpoi.com/us/community/forums/topics/498080/Staff-Weight-Contact-Page-1",
+    "quote": "1.4m aluminum staff with wooden core ... weighs 1.15kg",
+    "includes": "with wicks 1.15 kg; without wicks 820 g; no fuel"
+   },
+   {
+    "claim": "Physics (my calculation): for a 1.5 m, 800 g staff, putting 250 g in each end with a 300 g shaft gives about 0.34 kg·m² of rotational inertia, against 0.15 kg·m² for the same mass spread evenly. That is roughly 2 to 2.25 times, a little less in practice because wick mass extends inward from the tips. Where the weight sits drives the flywheel feel more than total mass, which matches LMF and Master Flow Arts.",
+    "kind": "physics",
+    "url": "https://www.masterflowarts.com/contact-staff/choosing-a-contact-staff",
+    "quote": "Most of the staff's weight should be at the ends.",
+    "includes": "n/a"
+   },
+   {
+    "claim": "Physics: a spinning staff resists being tilted into a new plane, and the effort needed scales with rotational inertia times spin rate. Heavy ends therefore make plane and direction changes harder (Fusion Arts' complaint) while damping bumps from the body during rolls (the smoother, less bouncy roll others praise). One property drives both effects, in opposite directions.",
+    "kind": "physics",
+    "url": "https://fusion-arts.com/choose-fire-staff/",
+    "quote": "less of an impulse is needed to change planes/ directions",
+    "includes": "n/a"
+   },
+   {
+    "claim": "Physics: in an end-pivot isolation, the hand must keep pulling the centre of mass around a circle. At 1 revolution per second with the pivot at one end of a 1.5 m staff, that is about 24 N for an 800 g staff versus about 15 N at 500 g. Isolation force grows with total mass, whatever the balance, so lighter favours isolations. No contact-staff source addresses this.",
+    "kind": "physics",
+    "url": "https://rdbuugeng.com/product/iso-stick/",
+    "quote": "shorter, lighter, and specifically designed for precision isolations",
+    "includes": "n/a"
+   },
+   {
+    "claim": "Physics: for a toss, the spin you can give the staff with a given wrist effort goes down as rotational inertia goes up. An end-weighted staff turns more slowly in the air, which makes the catch easier to read but takes more effort to throw. Published toss guidance covers only length (RandyLeeSticks) and bounciness (Flow Arts Institute).",
+    "kind": "physics",
+    "url": "https://flowartsinstitute.com/beau-staff/",
+    "quote": "hardwood staves tend to be bouncier, making tosses harder",
+    "includes": "n/a"
+   }
+  ],
+  "problems": [
+   {
+    "claim": "Threeworlds Fusion collapsible fire contact staff (Bonobo Flow): 756 to 922 g ... a silicone grip adds about 18 to 20 g. Quote: '550mm ends: 806g total (1.78 lbs)'. Includes: dry. (Related claim: 'Bonobo's totals imply about 283 g per end'.)",
+    "verdict": "wrong",
+    "detail": "The 18 to 20 g is only the handle difference (240 to 258 g aluminium, 190 to 210 g carbon). The silicone option also changes the ends: Bonobo lists 'EPDM: 2 x 283g' against 'Silicone: 2 x 299g' for 550 mm ends, 303 against 319 g for 600 mm, and 318 against 332 g for 650 mm. So on the finished staff the silicone option adds 46 to 52 g (806 to 856, 846 to 896, 876 to 922, 756 to 808 g and so on), not 18 to 20 g. The quote is not verbatim either. The page reads '550mm Ends (EPDM: 2 x 283g): Total Weight: 806g (1.78 lbs)'. The per-end 283 g is printed on the page, not implied by the totals. The page never says 'dry'; it says only 'Weight fluctuates minutely depending on stock of kevlar used during production'.",
+    "correction": "A silicone grip adds about 18 to 20 g to the handle, but about 46 to 52 g to the whole staff, because the silicone ends weigh 14 to 16 g more each (299/319/332 g against 283/303/318 g). Bonobo states 283 g per EPDM end at 550 mm directly. Quote verbatim: '550mm Ends (EPDM: 2 x 283g): Total Weight: 806g (1.78 lbs)'. Fuel or dryness is not stated."
+   },
+   {
+    "claim": "Play Geryon fire contact staff, older version (NetJuggler): 1.140 kg without fuel ... includes: wicks included, no fuel (stated 'staff only, without fuel')",
+    "verdict": "misquoted",
+    "detail": "The NetJuggler English page (fetched raw 2026-09-25) never uses the word 'fuel', and no 'staff only, without fuel' wording appears anywhere. The spec block reads: 'Weight: 1.140kg. Aluminum type: T6. Tube diameter: 25mm. Tube thickness: 2mm ... Wooden end caps 15cm at each end.' The page also does not call this an older version. NetJuggler currently sells it in Ø22mm 160cm, Ø22mm 150cm and Ø25mm 150cm (out of stock), while its spec block gives only the 25 mm / 2 mm-wall figures. The fluidity quote is verbatim and correct.",
+    "correction": "NetJuggler lists Play's Geryon at 1.140 kg (25 mm T6 tube, 2 mm wall, 150 cm, 15 cm wooden end caps, wicks included). Whether fuel is included is not stated. That this is an 'older version' is our inference from the differing Play spec, not something NetJuggler says."
+   },
+   {
+    "claim": "Play Geryon current version: 0.800 kg ... Thinner-wall 7075 cut about 340 g from the older version.",
+    "verdict": "unsupported",
+    "detail": "Play gives one '0,800 KG' figure across 150/160 cm and 22/25 mm, so we cannot tell which variant it describes. Both versions have 15 cm wood plugs in each end. A rough tube-mass calculation covers only part of the gap. Over the 128 cm stick, 25 mm × 2 mm aluminium is about 500 g; 25 mm × 1.5 mm 7075 is about 400 g; 22 mm × 1.5 mm is about 350 g. The wall and alloy change therefore accounts for roughly 100 to 150 g, not 340 g. The rest could come from the diameter variant, the amount of Kevlar (NetJuggler lists 'Length of the wicks: 2x10cm', Play '75 CM OF ... KEVLAR ON EACH END') or different weighing conventions. Neither source gives the cause.",
+    "correction": "Play's current Geryon page lists 0.800 kg (7075, 1.5 mm wall), against NetJuggler's 1.140 kg for a 25 mm, 2 mm-wall T6 build. The sources do not explain the 340 g difference, and the thinner wall alone plausibly accounts for only about 100 to 150 g of it."
+   },
+   {
+    "claim": "Pyroterra Lumi Staff FT2 (LED; the 150 cm size is Pyroterra's contact 'Long Lumi'): 541 g at 150 cm (349 g at 85 cm) ... quote '150 cm: 541 g' ... grip inclusion unclear. This lowers the known LED contact floor of 700 g.",
+    "verdict": "misquoted",
+    "detail": "The Firelovers page gives only ranges: 'Length: 85-150 cm Weight: 349-541 g'. The string '150 cm: 541 g' does not appear, and pairing 541 g with 150 cm is inferred from the range endpoints. On grip the page is explicit: 'Special thin silicone tape wound along the full length for perfect grip', so the grip is built into the staff. The page never calls the 150 cm size a contact staff and never mentions 'Long Lumi' (lighttoys.cz returned 403). The 'Long Lumi = 150 cm FT2' link and the new LED-contact floor both rest on unconfirmed inference.",
+    "correction": "Firelovers lists the Lumi Staff FT2 at 85 to 150 cm and 349 to 541 g, with no per-length breakdown; the grip is silicone tape along the full length. The 541 g figure probably belongs to the 150 cm size, but that is inferred, and whether that size is Pyroterra's contact 'Long Lumi' is unverified. Treat the lower LED contact floor as provisional."
+   },
+   {
+    "claim": "Dark Monk: a longer, heavier staff rolls more slowly, which makes contact moves easier. The clearest maker statement for slow body rolls.",
+    "verdict": "overstated",
+    "detail": "The sentence ('The longer and heavier the staff, the slower it will roll which makes contact moves easier.') comes from Dark Monk's Contact Double Staves product page. Those staves come in 48 and 54 inch, and the page describes them as 'the intermediary step between Double Staves and Contact Staves, allowing for smooth Stick on Stick spinning combos'. Body rolls are not mentioned. Calling it the clearest maker statement for slow body rolls generalises beyond a double-staves product page.",
+    "correction": "Dark Monk, on its 48/54-inch Contact Double Staves page: longer and heavier staves roll more slowly, which makes contact moves easier. The context is stick-on-stick double-staff work, not full-length contact-staff body rolls, though the principle plausibly carries over."
+   },
+   {
+    "claim": "Fusion Arts: past the beginner stage, lighter contact staffs are preferred ... Supports lighter staffs for mixed contact-and-spin play and fast direction changes.",
+    "verdict": "overstated",
+    "detail": "The article never discusses mixing or combining contact and spin; it says only 'beyond the beginner phase of contact staff, a lighter staff is preferable as less of an impulse is needed to change planes/ directions.' The 'mixed contact-and-spin play' framing is our addition. The same article does give a concrete figure the findings omit: 'My pro fire staffs weigh between 500-750 grams and I wouldn't want them any heavier.'",
+    "correction": "Fusion Arts: past the beginner stage a lighter contact staff is preferable, because changing plane or direction takes less impulse. The author's own pro fire staffs weigh 500 to 750 g. Hybrid play is not addressed."
+   },
+   {
+    "claim": "Bonobo Flow diameter guide: ... A larger 7/8 inch tube puts more weight in the shaft.",
+    "verdict": "misquoted",
+    "detail": "The quoted sentence sits in the SPIN staff section and refers to 'larger diameters' in general: 'Most spin staffs use 7/8\" (22mm) or 3/4\" (19mm), although 1\" (25mm) staffs can be found as well. The larger diameter gives you more to grip ... while also distributing more weight throughout the shaft instead of concentrating it at the ends.' It is not about 7/8 inch in particular. The same guide lists 7/8 inch as the most common contact staff diameter, so presenting 7/8 as the heavy-shaft option misreads it.",
+    "correction": "Bonobo Flow: for spin staffs, larger diameters (they cite 3/4, 7/8 and 1 inch) spread more weight through the shaft instead of the ends. 7/8 inch is listed as the most common contact staff diameter and 3/4 inch as a safe choice for beginners and for mixed contact-and-spin styles."
+   },
+   {
+    "claim": "RD Buugeng Iso Stick: 322 g, 55 cm ... Marketed as shorter and lighter for precise isolations ... the nearest published evidence (also cited in the isolation physics claim).",
+    "verdict": "overstated",
+    "detail": "The comparison is to RD's own double staffs: 'Iso Sticks are shorter, lighter, and specifically designed for precision isolations and floating illusions. Double staffs are longer and heavier.' It is a 55 cm stick with 70 mm balls compared against double staffs, so it says nothing directly about how heavy a 150 cm contact staff should be for isolations.",
+    "correction": "RD Buugeng markets its 322 g, 55 cm Iso Stick as shorter and lighter than its own double staffs, for isolations. At best this is indirect, cross-prop evidence that lighter suits isolations; it says nothing about full-length contact staffs."
+   }
+  ]
+ },
+ {
+  "key": "spin",
+  "summary": "SPIN / MANIPULATION STAFFS (hand-spun, bo/baton style) are clearly the light end of the staff family, and makers agree on why: lighter spins faster, tosses higher, tires you less and changes direction more easily. Heavier and end-weighted staffs hold momentum, turn more slowly and roll better on the body, which is the contact-staff trade. Published weights for complete staffs as sold (wicks and grip on, DRY; no maker says whether fuel is counted, and fuel is almost certainly not counted):\n- Full-length fire spin staffs, 120-150 cm: about 470-770 g. Threeworlds Flare 470 g at 120 cm and 500 g at 135 cm; Thai staff 500-620 g; Renegade 657 g at 135 cm; Isis Pro 700 g at 130 cm; Trick Concepts 5 ft 765 g (27 oz). The 5 ft collapsible version is 936 g, because joints add weight.\n- Fusion Arts' founder says his own titanium pro staffs are 500-750 g and he \"wouldn't want them any heavier\". That is one teacher's personal preference, not a product spec.\n- Short, finger-spin and juggling staffs, 80-110 cm: 190-360 g. Ninja Pyrate training juggling staff 190-220 g; Threeworlds Spark 200 g; Sacred Flow Art juggling staff 310 g; NetJuggler 310 g; Firetoys Classic 100 cm 332 g; Firetoys Fibre Air 360 g.\n- LED spin staffs: NeoFlowArt Spectrum about 400 g at 140 cm; NeoStaff 32 590 g at 150 cm. Flowtoys publishes no staff weights, only add-on end masses of 20.8 g, 72 g and 135 g.\n- NeoFlowArt's buying blog gives rule-of-thumb ranges: regular staff about 350-800 g, contact staff about 850 g-1.1 kg. That fits the specs above.\n\nDOUBLE STAFFS (about 78-114 cm each): 220-375 g each, most 280-370 g. Sacred Flow Art Kevlar Pro 220-305 g; Renegade and Threeworlds 280 g; Inspyre and NeoFlowArt 330 g; Renegade 4-inch-wick version 357 g; Trick Concepts 369 g (13 oz); Sacred Flow Art fire and practice versions 375 g.\n- Correction to the known list: 375 g is the top of the range, not the typical figure.\n- Outlier: Fire Mecca/UltraPoi list about 680 g (1.5 lb) per 36-inch double, which has a wood dowel inside. It could be a shipping weight; unverified.\n- Threeworlds contradicts itself: the DuoFlare page says 714 g per pair (357 g each), while its spec block says 560 g per pair (280 g each). The same 560/280 block appears on three Threeworlds products, so it looks like reused template text.\n- Makers say doubles are \"shorter and lighter and made with smaller tubing\" (Trick Concepts). Dark Monk says its doubles are \"slightly weighted\" and puts half-ounce (14 g) weights under each wick of its contact doubles to add momentum.\n\nEND WEIGHTING: makers agree the weight belongs at the ends: in the wicks and fuel on fire staffs, or in added end masses (Threeworlds, Fusion Arts, Fire Mecca, NeoFlowArt, Flowtoys). For contact staffs, Trick Concepts suggests starting with 3 oz (85 g) added per end. Master Flow Arts' 100-300 g per end figure is for contact staffs only. Bonobo notes that spin staffs usually use wider 19-25 mm tube, which spreads more of the weight along the shaft.\n\nFIRE VS PRACTICE: fuel is weight added right at the ends. Renegade measured a 1 ft strip of 2 in x 1/8 in Kevlar wick at 19.4-19.8 g dry and 40.6-45.8 g soaked, so about 21-26 g of fuel per foot. My own rough estimate from that (not a maker figure): a typical spin staff soaks up something like 50-150 g of fuel before spin-off. Sacred Flow Art sells its practice doubles at the same 375 g as its fire doubles.\n\nWHERE SOURCES DISAGREE, ON BEGINNERS: Dark Monk, Master Flow Arts and Home of Poi say heavier (up to a point) is easier, but they are talking about contact spinning. For hand spinning, Trick Concepts and NeoFlowArt say most people start on a lighter spin staff. Fusion Arts argues heavy or evenly weighted staffs make changing direction and staying in plane harder. The advice fits together once you split it by style: heavier and end-weighted for contact rolling, lighter for hand-spinning speed, tosses and doubles.\n\nBO STAFF, for comparison: competition graphite \"XMA\" bos weigh about 4 oz (113 g). Wing Lam red oak bos are 1.8-2.5 lb (0.8-1.1 kg). One article's \"4 pounds or more\" for hardwood bos is higher than that retailer's actual specs.\n\nGaps: Pyroterra, Phoenix Fire Props, Flowtoys and Home of Poi publish no spin-staff weights that I could find, and the Home of Poi forum threads returned 403 errors.",
+  "findings": [
+   {
+    "claim": "Rule-of-thumb ranges from a maker's buying guide: regular (non-contact) spin staff about 350-800 g; contact staff about 850 g-1.1 kg.",
+    "kind": "guidance",
+    "url": "https://neoflowart.com/blog/cstaff-vs-staff/",
+    "quote": "~350–800g (12–28 oz)",
+    "includes": "Not stated; general range for complete staffs"
+   },
+   {
+    "claim": "The same guide says regular (lighter) staffs are easier for beginners to learn basic tricks on; contact staffs are heavier on purpose, for rolling. This is opinion.",
+    "kind": "guidance",
+    "url": "https://neoflowart.com/blog/cstaff-vs-staff/",
+    "quote": "more intuitive for beginners"
+   },
+   {
+    "claim": "Trick Concepts 5 ft fire spinning staff: 27 oz (765 g); 1 in 6061-T6 aluminium; 4 ft of 3 in x 1/16 in Kevlar per end; padded grip. The maker says spin staffs are kept light for speed and tosses.",
+    "kind": "spec",
+    "url": "https://www.trickconcepts.com/5ft-fire-spinning-staff/",
+    "quote": "lightweight in nature in order to build up momentum and speed",
+    "includes": "Complete staff as sold (wicks + grips), dry; the page does not say explicitly"
+   },
+   {
+    "claim": "Trick Concepts 5 ft collapsible (breakdown) fire staff: 33 oz (936 g), about 170 g more than the one-piece staff because of the joints.",
+    "kind": "spec",
+    "url": "https://www.trickconcepts.com/fire-props/staff/",
+    "quote": "weighs 33oz each",
+    "includes": "Complete staff, dry; not explicit"
+   },
+   {
+    "claim": "Trick Concepts' prop selector: too much wick makes a spin staff heavy and tiring. Spin staffs are spun quickly and often tossed. This is maker guidance.",
+    "kind": "guidance",
+    "url": "https://www.trickconcepts.com/prop-selector",
+    "quote": "Excessive amounts of wick can make for an overly heavy staff"
+   },
+   {
+    "claim": "The same prop selector says double staffs are shorter, lighter and thinner than a single staff, and are a more advanced skill.",
+    "kind": "guidance",
+    "url": "https://www.trickconcepts.com/prop-selector",
+    "quote": "Shorter and lighter and made with smaller tubing"
+   },
+   {
+    "claim": "The same prop selector suggests adding about 3 oz (85 g) per end for a contact staff, warns that a heavy staff increases fatigue, and says most people start on a spinning staff and move to contact later.",
+    "kind": "guidance",
+    "url": "https://www.trickconcepts.com/prop-selector",
+    "quote": "Three oz of weight is a good starting point for most people"
+   },
+   {
+    "claim": "Trick Concepts 5 ft weighted contact staff: 34 oz (964 g), made from the spin staff by adding 3 oz inside each end. That gives a direct spin-vs-contact comparison: 765 g vs 964 g.",
+    "kind": "spec",
+    "url": "https://www.trickconcepts.com/5ft-fire-weighted-contact-staff/",
+    "quote": "3 Ounces of Weight are added inside each end",
+    "includes": "Complete staff, 3 in wicks, grip, dry"
+   },
+   {
+    "claim": "Trick Concepts fire double staff, 36 in: 13 oz (369 g) each; 3/4 in aluminium; 4 ft of 2 in Kevlar per end.",
+    "kind": "spec",
+    "url": "https://www.trickconcepts.com/fire-double-staff-36-sold-individually/",
+    "quote": "13oz each",
+    "includes": "Complete staff with padded grips, dry; the page does not say explicitly"
+   },
+   {
+    "claim": "Threeworlds Spark fire staff: 200 g at 100 cm; 12 mm 7075 tube; 50 mm wicks. Sold for kids, shorter people and finger spinning.",
+    "kind": "spec",
+    "url": "https://www.threeworlds.com.au/products/spin-fire-staff-with-50mm-wicks",
+    "quote": "fast finger spinning tricks",
+    "includes": "Complete staff (wicks + EPDM grip), dry; not explicit"
+   },
+   {
+    "claim": "Threeworlds Flare fire staff with 100 mm wicks and 20 mm tube: about 470 g at 120 cm and about 500 g at 135 cm.",
+    "kind": "spec",
+    "url": "https://www.threeworlds.com.au/products/flare-fire-staff-with-100mm-wicks",
+    "quote": "470gms approx",
+    "includes": "Complete staff with 100 mm Kevlar wicks + grip, dry"
+   },
+   {
+    "claim": "Threeworlds Isis Pro fire staff: 700 g at 1300 mm; 16 mm 7075 tube; Isis-knot rope wicks (6.8 m of 10 mm Kevlar rope per staff).",
+    "kind": "spec",
+    "url": "https://www.threeworlds.com.au/products/isis-pro-fire-staff",
+    "quote": "Total weight: 700g",
+    "includes": "Complete staff with wicks + grip, dry"
+   },
+   {
+    "claim": "Threeworlds says its spin staffs put more of the weight at the ends so they build momentum. This is maker guidance.",
+    "kind": "guidance",
+    "url": "https://www.threeworlds.com.au/products/flicker-fire-staff-with-75mm-wicks",
+    "quote": "more weight on the ends, which is where you want it"
+   },
+   {
+    "claim": "Threeworlds DuoSpark doubles: 280 g each (560 g per pair) at 900 mm; 16 mm tube; 50 mm Kevlar wicks. The same page also gives 545 g per pair.",
+    "kind": "spec",
+    "url": "https://www.threeworlds.com.au/products/duospark-double-fire-staffs-pair-50mm-wicks",
+    "quote": "560g approx. for the pair = 280g each",
+    "includes": "Complete pair, dry; not explicit"
+   },
+   {
+    "claim": "Threeworlds contradicts itself on the DuoFlare doubles (100 mm wicks): 714 g per pair (357 g each) in the description vs 560 g per pair (280 g each) in the spec block. The 560 g block appears to be template text reused across three products (DuoSpark, DuoFlare, Isis doubles).",
+    "kind": "disagreement",
+    "url": "https://www.threeworlds.com.au/products/duoflare-double-fire-staffs-pair-100mm-wicks",
+    "quote": "714g for the pair",
+    "includes": "Complete pair, dry"
+   },
+   {
+    "claim": "Firetoys Classic fire staff: 332 g at 100 cm; 15 mm handle; 47 mm wicks. The maker says it suits single and double spinning, but is too light for learning contact.",
+    "kind": "spec",
+    "url": "https://www.firetoys.com/products/firetoys-classic-fire-spinning-staff",
+    "quote": "their lighter weight is less ideal for mastering contact moves",
+    "includes": "Complete staff as sold, dry; only the 100 cm weight is published"
+   },
+   {
+    "claim": "Firetoys Fibre Air throwing staff: 360 g (90 or 110 cm; 12 mm fibreglass; 65 mm wicks). The maker says the light weight is what makes higher, longer throwing sessions possible.",
+    "kind": "guidance",
+    "url": "https://www.firetoys.com/products/firetoys-fibre-air-throwing-staff",
+    "quote": "throw these staffs higher and for longer periods",
+    "includes": "Complete staff with wicks, dry"
+   },
+   {
+    "claim": "Firetoys' sizing guide: 120-130 cm is the standard first staff for single and double spinning, but too long and heavy for finger spinning and juggling. 150-160 cm staffs are chosen almost only by contact spinners.",
+    "kind": "guidance",
+    "url": "https://www.firetoys.com/blogs/fire/how-to-choose-a-staff-for-spinning",
+    "quote": "can be a bit long and heavy for finger spinning manipulations or staff juggling"
+   },
+   {
+    "claim": "The Fusion Arts founder's own titanium fire staffs weigh 500-750 g and he would not want them heavier. This is one teacher's personal preference, not a product spec. Correction to the known list: it is his 'pro fire staffs', and he does not say whether the figure includes fuel.",
+    "kind": "guidance",
+    "url": "https://fusion-arts.com/choose-fire-staff/",
+    "quote": "pro fire staffs weigh between 500-750 grams and I wouldn't want them any heavier",
+    "includes": "Unclear; he says most of the weight is in the wick and fuel"
+   },
+   {
+    "claim": "Fusion Arts, for a dance-based fire style: a light shaft with the weight in the ends (wick plus fuel).",
+    "kind": "guidance",
+    "url": "https://fusion-arts.com/choose-fire-staff/",
+    "quote": "the majority of the weight is on the ends (in the wick and fuel)"
+   },
+   {
+    "claim": "Fusion Arts disagrees with the 'heavier is easier for beginners' camp: his workshop students with heavy or evenly weighted staffs struggled with changing direction and staying in plane.",
+    "kind": "disagreement",
+    "url": "https://fusion-arts.com/choose-fire-staff/",
+    "quote": "changing directions and staying in plane are so much more difficult"
+   },
+   {
+    "claim": "Home of Poi's shop FAQ: standard twirling and spinning staffs are much lighter than contact staffs and are built for speed.",
+    "kind": "guidance",
+    "url": "https://www.homeofpoi.com/us/shop/listItems/Fire-Staff",
+    "quote": "A Standard Twirling / Spinning staff is usually a lot lighter than a Contact Staff"
+   },
+   {
+    "claim": "Home of Poi's lesson: heavier staffs make contact moves cleaner through their own momentum, but hit harder. A commenter (opinion) suggests learning on a light staff with inner tube taped to the ends as weight.",
+    "kind": "guidance",
+    "url": "https://www.homeofpoi.com/en/lessons/teach/Staff/Beginners-2/Selecting-staff",
+    "quote": "heavier contact Staffs will generally make contact moves cleaner"
+   },
+   {
+    "claim": "Home of Poi FAQ: fire batons, the lightest option, are under 1 m, lighter, and on much thinner pipe, for finger strength, speed and agility.",
+    "kind": "guidance",
+    "url": "https://www.homeofpoi.com/en/help/faq/3/159",
+    "quote": "shorter (less than 1m) and lighter"
+   },
+   {
+    "claim": "Dark Monk: a heavier staff is easier for beginners, but only up to a point. Thicker walls spin slower and respond less to small movements. The context is contact staffs.",
+    "kind": "guidance",
+    "url": "https://dark-monk.com/Article/Comparing-Aluminum-CarbonFiber-Contact-Staff",
+    "quote": "heavier the staff (up to a point) the easier it is to spin"
+   },
+   {
+    "claim": "Dark Monk contact double staves (5/8 in 7075, 48 or 54 in, 3 in wicks) carry half-ounce (14 g) weights under each wick. Longer and heavier doubles roll more slowly, which makes contact moves easier. No total weight is published.",
+    "kind": "physics",
+    "url": "https://dark-monk.com/Equipment/Contact-Double-Staves",
+    "quote": "Half-ounce weights embedded under each wick increase rotational inertia"
+   },
+   {
+    "claim": "Dark Monk's regular double staves (1/2 in 7075, 28-36 in, 2 in wicks) are described only as lightly weighted; no weight is given.",
+    "kind": "spec",
+    "url": "https://dark-monk.com/Equipment/Double-Staves",
+    "quote": "Slightly weighted for fluid motion",
+    "includes": "No figure published"
+   },
+   {
+    "claim": "Dark Monk collapsible fire contact staff: 25-30 oz (709-850 g); 7/8 in 7075; 4 in wicks; 55-67 in.",
+    "kind": "spec",
+    "url": "https://dark-monk.com/Equipment/Threeworlds-Contact-Staff-Collapsible",
+    "quote": "Staff weight: 25-30 ounces",
+    "includes": "Complete staff, dry; wicks and grip likely included but not stated"
+   },
+   {
+    "claim": "Dark Monk on length: longer staffs spin slower and keep their momentum; shorter ones start and stop more quickly. This is the length side of the same inertia trade-off.",
+    "kind": "physics",
+    "url": "https://dark-monk.com/Article/Sizing-Contact-Staff",
+    "quote": "Longer staves will spin slower and keep spinning more easily"
+   },
+   {
+    "claim": "Sacred Flow Art: non-contact staffs are light, spun baton-style, build momentum fast and suit fast moves and tosses. Contact staffs are weighted to slow rotation, for balance moves and beginners.",
+    "kind": "guidance",
+    "url": "https://sacredflowart.com/contact-fire-staff-guide/",
+    "quote": "build up momentum fast and are ideal for faster moves and tosses"
+   },
+   {
+    "claim": "Sacred Flow Art fire double staff: 13 oz (375 g) each; 85-100 cm; 15 mm 6082 aluminium; 9 cm ceramic-rope wicks. Correction to the known list: this is the top of the doubles range, not typical.",
+    "kind": "spec",
+    "url": "https://sacredflowart.com/product/fire-double-staff/",
+    "quote": "13 oz (375 g) – Each Staff",
+    "includes": "Complete staff, dry; not explicit"
+   },
+   {
+    "claim": "Sacred Flow Art practice double staff, sold as the practice version of its fire doubles: the same 375 g each, with nylon-cord Isis ends in place of wicks.",
+    "kind": "spec",
+    "url": "https://sacredflowart.com/product/practice-double-staff/",
+    "quote": "13 oz (375 g)",
+    "includes": "Complete practice staff with nylon ends"
+   },
+   {
+    "claim": "Sacred Flow Art Kevlar Double Staff Pro: 220-305 g per staff over 78-114 cm; 16 mm 7075. The maker says the thin tube keeps overall weight low and the ends heavy.",
+    "kind": "spec",
+    "url": "https://sacredflowart.com/product/double-staff-pro/",
+    "quote": "8 oz – 11 oz (220 g – 305 g) – Single Staff",
+    "includes": "Complete staff with Kevlar rope wicks, dry"
+   },
+   {
+    "claim": "Sacred Flow Art fire juggling staff, co-designed with multi-staff jugglers: 11 oz (310 g) at 90 cm; 19 mm 7075; 2 in wicks.",
+    "kind": "spec",
+    "url": "https://sacredflowart.com/product/fire-juggling-staff/",
+    "quote": "11 oz (310 g)",
+    "includes": "Complete staff with wicks, dry"
+   },
+   {
+    "claim": "Sacred Flow Art Thai staff (long Kevlar sections): 530 g (model 1, 130-150 cm) or 500-620 g (model 2, 115-150 cm).",
+    "kind": "spec",
+    "url": "https://sacredflowart.com/product/thai-staff/",
+    "quote": "17-22 oz (500-620 g)",
+    "includes": "Complete staff with wicks, dry"
+   },
+   {
+    "claim": "Sacred Flow Art Turbo fire staff (15.75 in of wick per end; 55-63 in): about 0.9 kg. Big-flame staffs sit well above normal spin-staff weights.",
+    "kind": "spec",
+    "url": "https://sacredflowart.com/product/turbo-fire-staff/",
+    "quote": "~ 2 lbs (0.9 kg)",
+    "includes": "Complete staff with wicks, dry"
+   },
+   {
+    "claim": "NetJuggler juggling and isolation fire staff: 310 g at 80 cm; 12 mm tube; 55 cm of 50 mm Kevlar per end. The seller says this mass and length suit spinning and isolations.",
+    "kind": "spec",
+    "url": "https://www.netjuggler.net/En/buy/juggling-fire-staff.html",
+    "quote": "made to excel in spinning and to make isolations",
+    "includes": "Complete staff with wicks, dry"
+   },
+   {
+    "claim": "Ninja Pyrate training juggling staff: 36 in; 1/2 in carbon tube; about 190 g with minimal ends, about 220 g with nubby ends.",
+    "kind": "spec",
+    "url": "https://ninjapyrate.com/juggling-staff-training-single/",
+    "quote": "Staffs with minimal ends weigh approximately 190g each",
+    "includes": "Complete practice staff with silicone grip and rubber ends"
+   },
+   {
+    "claim": "Renegade double fire staff: 280 g each at 90 cm; 16 mm anodized aluminium; 2 in wicks. The 4-inch-wick version is 357 g each; that figure comes from a search snippet, and I did not open the page.",
+    "kind": "spec",
+    "url": "https://www.renegadejuggling.com/double-fire-staff",
+    "quote": "light weight 280 grams each",
+    "includes": "Not stated whether wicks are included; presumably complete and dry"
+   },
+   {
+    "claim": "Renegade aluminium fire staff with doubled 4 in wicks: 657 g at 53 in (135 cm); 20 mm tube.",
+    "kind": "spec",
+    "url": "https://renegadejuggling.com/products/aluminum-fire-staff-eight-inch-wicks",
+    "quote": "657 grams",
+    "includes": "Not stated; presumably complete and dry"
+   },
+   {
+    "claim": "Outlier: Fire Mecca (also listed on UltraPoi) gives about 680 g per 36 in double staff (3/4 in 6061 with a wood dowel inside). That is nearly twice the other makers' doubles. It could be a shipping weight or the dowel's mass; unverified.",
+    "kind": "disagreement",
+    "url": "https://firemecca.com/products/double-fire-staff-set",
+    "quote": "Approximately 1.5 lbs (0.68 kg)",
+    "includes": "Stated per staff; unclear whether it is a shipping or product weight"
+   },
+   {
+    "claim": "Fire Mecca's single fire staff (3/4 in aluminium, 4-5 ft) has deliberately weighted ends for slower spins. No weight is published.",
+    "kind": "guidance",
+    "url": "https://firemecca.com/products/contact-fire-staff",
+    "quote": "Carefully weighted ends distribute balance and allow for slower, controlled spins"
+   },
+   {
+    "claim": "Inspyre fire double staffs: 330 g each; 16 or 19 mm aluminium; EPDM grip; length made to order.",
+    "kind": "spec",
+    "url": "https://www.inspyreflowprops.com/products/regular-double-staffs",
+    "quote": "330g (each staff)",
+    "includes": "Not stated"
+   },
+   {
+    "claim": "NeoFlowArt LED double staffs: 330 g each at 90 cm, with the weight concentrated at the ends.",
+    "kind": "spec",
+    "url": "https://neoflowart.com/neo-double-staffs-32/",
+    "quote": "330g. / 1 staff",
+    "includes": "Complete LED staff with electronics"
+   },
+   {
+    "claim": "The NeoFlowArt Spectrum LED doubles page lists about 250 g, but it is unclear whether that is per pair or per staff.",
+    "kind": "spec",
+    "url": "https://neoflowart.com/double-staffs-spectrum/",
+    "quote": "~250gr.",
+    "includes": "Complete LED staff(s); ambiguous per-pair vs each"
+   },
+   {
+    "claim": "NeoFlowArt Spectrum LED staff, sold for performers who want a light, fast staff: about 400 g at 140 cm; 25 mm polycarbonate.",
+    "kind": "spec",
+    "url": "https://neoflowart.com/staff-spectrum-full/",
+    "quote": "~400gr.",
+    "includes": "Complete LED staff with electronics"
+   },
+   {
+    "claim": "NeoFlowArt NeoStaff 32 (two LED poi joined by a connector into a staff): 590 g at 150 cm. That puts LED spin staffs at about 400-590 g, below the 700-1100 g LED contact staffs.",
+    "kind": "spec",
+    "url": "https://neoflowart.com/pixel-staff-27/",
+    "quote": "590 gr, full staff with aluminium grip",
+    "includes": "Complete LED staff with aluminium grip"
+   },
+   {
+    "claim": "Flowtoys publishes no staff weights. It sells add-on end masses of 20.8 g (flowmass), 72 g (flow-flower kit) and 135 g (wrap-on kit) for people who want a heavier staff.",
+    "kind": "spec",
+    "url": "https://flowtoys2.freshdesk.com/support/solutions/articles/6000246071-how-to-add-weight-to-a-staff",
+    "quote": "add weight to the ends - where it matters",
+    "includes": "Add-on end masses only"
+   },
+   {
+    "claim": "Bonobo Flow: spin staffs are usually 19-22 mm, sometimes 25 mm. A wider tube spreads more of the weight along the shaft, unlike end-heavy contact staffs. Its spin-staff kit uses the lightest grip to keep the staff fast.",
+    "kind": "guidance",
+    "url": "https://bonoboflow.com/how-to-choose-the-right-staff-diameter/",
+    "quote": "distributing more weight throughout the shaft instead of concentrating it at the ends"
+   },
+   {
+    "claim": "Bonobo's Fusion collapsible spin staff kit (1400 mm) is not meant for contact. The maker picked the lightest grip for faster spinning; no weight is published.",
+    "kind": "guidance",
+    "url": "https://bonoboflow.com/product/fusion-collapsible-fire-and-led-spin-staff-kit/",
+    "quote": "lightest weight grip option to keep the focus on faster spinning styles"
+   },
+   {
+    "claim": "Master Flow Arts' 100-300 g per end is contact-staff guidance only; the page does not cover spin staffs or doubles. It confirms the known figure: heavier for beginners, lighter for freedom of movement.",
+    "kind": "guidance",
+    "url": "https://www.masterflowarts.com/contact-staff/choosing-a-contact-staff",
+    "quote": "Heavier tends to be easier for beginners, while lighter enables more freedom of movement"
+   },
+   {
+    "claim": "Fuel adds weight right at the ends. Renegade measured a 1 ft strip of 2 in x 1/8 in Kevlar wick at 19.4-19.8 g dry and 40.6-45.8 g soaked, about 21-26 g of fuel per foot. My own rough estimate from that, not a maker figure: a spin staff with 3-4 ft of wick per end carries something like 50-150 g of fuel before spin-off. That is why the same staff feels heavier and slower lit than cold.",
+    "kind": "physics",
+    "url": "https://renegadejuggling.com/blogs/juggling-guides-tips/how-to-select-and-use-kevlar-fire-wicks",
+    "quote": "19.8 gram",
+    "includes": "Wick alone, dry vs saturated"
+   },
+   {
+    "claim": "Bo staff for comparison: a Wing Lam red oak bo weighs 1.8 lb (60 x 1 in) to 2.5 lb (72 x 1.25 in), about 0.8-1.1 kg.",
+    "kind": "spec",
+    "url": "https://wle.com/products/red-oak-straight-staff",
+    "quote": "72\" x 1.25\" weight: 2.5lbs",
+    "includes": "Plain wooden staff"
+   },
+   {
+    "claim": "Competition XMA graphite bo: about 4 oz (113 g), tapering from 1 in at the centre to 0.25 in at the tips; ultra-light for forms, not for contact.",
+    "kind": "spec",
+    "url": "https://centurymartialarts.com/products/tapered-xma-graphite-performance-staff-solid",
+    "quote": "Approximately 4 oz",
+    "includes": "Plain staff"
+   },
+   {
+    "claim": "An article says a hardwood bo may weigh 4 lb or more, higher than Wing Lam's 1.8-2.5 lb oak specs. It also argues that a lighter bo moved faster can hit as hard as a heavier one.",
+    "kind": "disagreement",
+    "url": "https://globalmartialarts.university/2022/03/16/know-your-weapon-bo/",
+    "quote": "traditional hardwood bo may weigh 4 pounds or more",
+    "includes": "Plain staff"
+   }
+  ],
+  "problems": [
+   {
+    "claim": "Trick Concepts 5 ft collapsible (breakdown) fire staff: 33 oz (936 g), about 170 g more than the one-piece staff because of the joints.",
+    "verdict": "wrong",
+    "detail": "The cited URL (trickconcepts.com/fire-props/staff/) is a category listing and shows no weights. The maker's own product page for 'Breakdown 5ft - Fire Spinning Staff - Collapsible' (trickconcepts.com/breakdown-5ft-fire-spinning-staff-collapsible/) says 'Staff Weight: 27oz each', the same as the one-piece staff, and 33 oz appears nowhere on it. The collapsible weighted contact staff page likewise says 34 oz, the same as the one-piece contact staff. The 33 oz figure appears to come only from an Amazon listing (B018H3WB2G). So the maker does not say the breakdown staff is heavier, and 'because of the joints' is inference.",
+    "correction": "Trick Concepts lists its breakdown 5 ft spin staff at 27 oz (765 g), the same as the one-piece staff; only a third-party Amazon listing says 33 oz. The maker publishes no weight penalty for the joints. Its collapsible contact staff is listed at 34 oz, the same as the one-piece contact staff."
+   },
+   {
+    "claim": "Home of Poi's lesson: heavier staffs make contact moves cleaner through their own momentum, but hit harder. A commenter (opinion) suggests learning on a light staff with inner tube taped to the ends as weight.",
+    "verdict": "misquoted",
+    "detail": "The 'Heavier contact Staffs will generally make contact moves cleaner' sentence and the 'they do whack you harder' remark are not in the lesson text. Both come from the same user comment (Pyrodanza, 24 Oct 2012) as the inner-tube tip. The lesson itself only says short staffs are 'short and light usually' and that a long staff's weight lets it keep its own momentum. It makes no heavy-vs-light comparison.",
+    "correction": "A commenter on a Home of Poi lesson (Pyrodanza, 2012) says heavier contact staffs make contact moves cleaner because of their own momentum but hit you harder. The same commenter suggests starting on a lighter staff and taping inner-tube strips to the ends for weight. All of this is one user's opinion, not Home of Poi's lesson text."
+   },
+   {
+    "claim": "Fusion Arts disagrees with the 'heavier is easier for beginners' camp: his workshop students with heavy or evenly weighted staffs struggled with changing direction and staying in plane.",
+    "verdict": "overstated",
+    "detail": "On the same page the author concedes the point: learning works best with staffs that keep their momentum, and 'many beginner contact staff spinners generally prefer a heavier staff'. His objection is narrower. Students who brought heavy contact staffs to his workshops struggled to learn HIS dance-based techniques. Those students are not called beginners.",
+    "correction": "Fusion Arts accepts that beginner contact spinners often prefer heavier staffs, because the momentum helps. He argues that heavy or evenly weighted staffs make direction changes and staying in plane harder, as seen in workshop students who brought heavy contact staffs to learn his dance-based style."
+   },
+   {
+    "claim": "My own rough estimate: a spin staff with 3-4 ft of wick per end carries something like 50-150 g of fuel before spin-off. That is why the same staff feels heavier and slower lit than cold.",
+    "verdict": "overstated",
+    "detail": "The measured figures (19.4-19.8 g dry, 40.6-45.8 g saturated, per 1 ft of 2 in x 1/8 in Kevlar) are quoted correctly and give 21-26 g of fuel per foot. The estimate does not follow from them. 3-4 ft per end means 6-8 ft per staff, so about 127-208 g per staff saturated, or about 64-104 g per end. Even scaled to Trick Concepts' thinner 3 in x 1/16 in wick (about 75% of the cross-section), 8 ft gives about 127-156 g. The 50 g floor fits no reading of '3-4 ft per end'. The page also does not say which fuel was used. The contrast that matters is fuelled vs dry, not 'lit vs cold': fuel burns off during a burn.",
+    "correction": "From Renegade's measurement (about 21-26 g of fuel held per foot of 2 in x 1/8 in Kevlar), 3-4 ft of wick per end holds roughly 65-105 g per end, or about 125-210 g per staff, when fully saturated. Spinning off the excess before lighting removes some of that. A soaked staff is noticeably heavier at the ends than the same staff dry."
+   },
+   {
+    "claim": "Trick Concepts 5 ft weighted contact staff: 34 oz (964 g), made from the spin staff by adding 3 oz inside each end. That gives a direct spin-vs-contact comparison: 765 g vs 964 g.",
+    "verdict": "overstated",
+    "detail": "The page gives 34 oz and '3 Ounces of Weight are added inside each end'. It never says the contact staff is the spin staff with weights added. The numbers do not add up to that either: 27 oz + 2 x 3 oz = 33 oz, not 34 oz. The collapsible contact version also lists '2 extra long' padded grips, so the builds are not identical.",
+    "correction": "Trick Concepts 5 ft weighted contact staff: 34 oz (964 g), with 3 oz added inside each end. It uses the same tube and wick spec as its 27 oz (765 g) spin staff. The 7 oz gap is a bit more than the 6 oz of added end weight, presumably from other differences such as the grips."
+   },
+   {
+    "claim": "The same prop selector suggests adding about 3 oz (85 g) per end for a contact staff, warns that a heavy staff increases fatigue, and says most people start on a spinning staff and move to contact later.",
+    "verdict": "unsupported",
+    "detail": "The prop selector says only 'Three oz of weight is a good starting point for most people'. It does not say whether that is per end or in total. 'Per end' comes from the product pages ('3 Ounces of Weight are added inside each end'), not from the cited page. The fatigue and progression parts check out.",
+    "correction": "The prop selector calls 3 oz of added weight 'a good starting point for most people' without saying per end or total. Trick Concepts' contact staff product pages add 3 oz inside each end."
+   },
+   {
+    "claim": "Home of Poi FAQ: fire batons, the lightest option, are under 1 m, lighter, and on much thinner pipe, for finger strength, speed and agility.",
+    "verdict": "overstated",
+    "detail": "The FAQ says fire batons are 'shorter (less than 1m) and lighter' with 'a much thinner pipe', and 'great for finger strength, speed, and agility'. It compares them only with standard fire staffs. It never calls them the lightest option.",
+    "correction": "Home of Poi FAQ: fire batons are shorter (under 1 m), lighter than a standard fire staff, and on much thinner pipe; good for finger strength, speed and agility, and easier to use two at once."
+   },
+   {
+    "claim": "Bonobo Flow: spin staffs are usually 19-22 mm, sometimes 25 mm. A wider tube spreads more of the weight along the shaft, unlike end-heavy contact staffs. Its spin-staff kit uses the lightest grip to keep the staff fast.",
+    "verdict": "overstated",
+    "detail": "The diameter article says the larger diameter spreads 'more weight throughout the shaft instead of concentrating it at the ends'. That is about why spin staffs use larger diameters. It says nothing about contact staffs being end-heavy, and never mentions end weighting for contact staffs. The lightest-grip statement is not in the cited article; it is on the separate Fusion spin-staff kit page.",
+    "correction": "Bonobo Flow: most spin staffs are 19 or 22 mm, some 25 mm. A larger diameter gives more to grip and spreads more of the weight along the shaft instead of at the ends. Separately, its Fusion spin-staff kit page says it uses the lightest grip option to suit faster spinning."
+   },
+   {
+    "claim": "Firetoys' sizing guide: 120-130 cm is the standard first staff for single and double spinning, but too long and heavy for finger spinning and juggling.",
+    "verdict": "overstated",
+    "detail": "The source hedges: 120-130 cm 'can be a bit long and heavy for finger spinning manipulations or staff juggling'. The claim drops the hedge and says it is 'too long and heavy'.",
+    "correction": "Firetoys: 120-130 cm is often the standard first staff and works for single and double staff spinning, but can be a bit long and heavy for finger spinning or staff juggling."
+   },
+   {
+    "claim": "Threeworlds DuoSpark doubles: 280 g each (560 g per pair) at 900 mm; 16 mm tube; 50 mm Kevlar wicks. The same page also gives 545 g per pair.",
+    "verdict": "unsupported",
+    "detail": "The description block reads 'Length (each): 900mm / Weight (approx.): 545g' with no pair or each label. Calling it 'per pair' is an inference, most likely right given the 560 g pair figure, but not stated.",
+    "correction": "The DuoSpark page gives 560 g for the pair (280 g each) in its spec block, and an unlabeled 'Weight (approx.): 545g' in the description, presumably the pair."
+   }
+  ]
+ },
+ {
+  "key": "dragon-and-weighting",
+  "summary": "DRAGON STAFF WEIGHTS (dry, with wicks, no fuel, from makers' published specs). Full-size fire dragons with 8 to 10 wicks weigh about 1.0 to 1.6 kg. Examples: Trick Concepts cable-spine 8-wick 1077 g; Sacred Flow Art 8-wick 1.2 kg and 10-wick 1.5 kg; Dark Monk 4-spoke plus end wicks 1.36 kg; Trick Concepts Halo 1360 g (1585 g with XL wicks); Gora 8-wick 1.4 kg; Ignis 1500 g. Ninja Pyrate DragonFly ends alone weigh 420 g (3 spines) and 560 g (4 spines) each. Some weights are my own sums of a maker's component weights: Bonobo/Threeworlds Fusion comes to about 1.15-1.35 kg with 6 spokes and 1.33-1.53 kg with 8; the Dark Monk 3-spoke Ultra comes to about 1.03-1.12 kg. Lighter dragons exist: Sacred Flow Art Kevlar Dragon Pro 840 g; Gora Pixie (90 cm, 8 wicks) 410 g; Dark Monk Pixie body 476 g plus 57 g spokes. LED dragons weigh 0.97-1.3 kg (Cosmo adjustable 970 g-1.27 kg; Ignis LED 1300 g). Makers agree on the order: 3 spokes is lightest and fastest, 5 spokes (with end wicks) is heaviest, and cable spines are lighter than rigid ones.\n\nWICK AND FUEL WEIGHT. A dragon fire spoke weighs about 88-90 g (Threeworlds, Bonobo), against 54 g for the same spoke without its 450 mm of 50 mm Kevlar. So the wick and fittings add about 34 g per spoke when dry. Renegade measured 1 ft of 2 in x 1/8 in wick: 19.4-19.8 g dry and 40.6-45.8 g fully soaked, which is about 21-26 g of fuel per foot. Applied to a spoke, that is about 31-38 g of fuel per spoke fully soaked before spin-off, or about 250-300 g on an 8-spoke dragon (my derivation). NO maker or teacher I found publishes how much fuel stays in after spin-off, so that number is still unknown. The only maker figure giving both a dry and a fueled weight is for poi: Dark Monk's Pineapple poi is about 170 g unfueled and about 300 g fueled, roughly 130 g of fuel on a 4-inch head.\n\nHOW END WEIGHT CHANGES THE FEEL (physics, my derivation). Moment of inertia is I = m r^2, so fuel sitting at the ends raises rotational inertia faster than it raises total mass. Example: 25 g of fuel per end adds 7% to the mass of a 700 g contact staff but 11% to its end-over-end inertia. For a dragon rolling on its own long axis, the spokes put their weight about 0.2 m off the shaft. That gives roughly 200 times the roll inertia of a bare tube. Fully soaked spoke tips could add up to about 70% more roll inertia before spin-off, which is one reason dragon handling changes between wet and dry.\n\nMATCHING PRACTICE AND LED ENDS TO FIRE ENDS. Makers do not publish matched weights, and the figures show mismatches in both directions. Practice versions are lighter: Sacred Flow Art practice dragons are 200 g under the fire ones, and a Threeworlds blank spoke weighs 54 g against 88 g for a fire spoke. Ignis's LED dragon is 200 g lighter than its fire dragon. Going the other way, Dark Monk's LED spoke is about 4 oz, heavier than its dry fire spokes (2.4-3.1 oz). Adding capsule lights puts 75 g on each DragonFly end. Flowtoys sells add-on end weights (20.8 g flowmass, 72 g flower kit, 135 g wrap kit) so buyers can tune the weight themselves.\n\nBODY SIZE, KIDS, WRISTS. There is almost no published weight guidance by body size; sizing is done almost entirely by LENGTH (dragon: floor to about head or eye height). The kid and short-person options are short, light staffs: Threeworlds Spark, 1 m and 200 g, 'ideal for kids, shorter people'; Firetoys Classic, 100 cm and 332 g, and 90-110 cm is 'great for children and shorter adults'. Firetoys also notes that under-18s need parental permission and supervision for fire. The rest is opinion from teachers: heavier ends are easier for beginners but more tiring; lighter ends mean 'longer play times from less physical exertion' (Master Flow Arts). Dragons are heavy enough to call for a thicker grip. Flow Arts Institute warns that added prop weight is felt in the wrists and advises a relaxed grip.\n\nWHERE SOURCES DISAGREE:\n- NeoFlowArt puts contact staffs at about 850 g-1.1 kg, above the already-known 610-965 g range for complete fire contact staffs.\n- Trick Concepts adds only 3 oz (about 85 g) per end and calls 3 oz a good start, while Master Flow Arts suggests about 250 g end weights for beginners (added ballast versus total end mass).\n- The V3 hub is listed at 99 g by Bonobo and 120 g by Threeworlds.\n- Flowmass is listed at 20.8 g on its own page and 30 g on a staff page.\n- Fire Mecca's 'Approximately 1.5 lbs' for its double staffs does not say whether that is per staff or per set. If it is per staff, it contradicts the known ~375 g each; per set, it agrees.\n\nCORRECTIONS TO WHAT WAS ALREADY KNOWN: nothing is contradicted. The Sacred Flow Art 1.2-1.5 kg dragon figure is confirmed (8 and 10 wicks). The Fusion Arts page describes its 500-750 g staffs as 'pro fire staffs' built on 19 mm x 140 cm tubing with a rope wick. I did not see 'titanium' on that page, so that label is unverified.\n\nHome of Poi forum pages returned 403, so no forum measurements are included.",
+  "findings": [
+   {
+    "claim": "Dark Monk 4 Spoke Dragon + End Wick: 5'6\" long, 48 oz (~1.36 kg) total; the body alone is 26 oz (737 g) of 7/8\" 7075-T6 aluminium.",
+    "kind": "spec",
+    "url": "https://dark-monk.com/Equipment/Dragon-Staff",
+    "quote": "5'6\" overall length - 48oz",
+    "includes": "Total includes the spokes with their dry Kevlar wicks and the grip; no fuel (burn times are quoted separately for white gas)"
+   },
+   {
+    "claim": "Dark Monk dragon fire spokes, dry: 2\" spoke 2.4 oz (68 g), 3\" spoke 2.9 oz (82 g), 3\" long 3.1 oz (88 g), Isis knot 4.5 oz (128 g). Each burns about 4 minutes on white gas.",
+    "kind": "spec",
+    "url": "https://dark-monk.com/Equipment/Dragon-and-Helio-Wick",
+    "quote": "2.4oz each with 2\" wicks and burn about 4 minutes",
+    "includes": "Per spoke, with Kevlar wick, dry (no fuel)"
+   },
+   {
+    "claim": "Dark Monk 3 Spoke Ultra Dragon: 5' body, 3/4\" thin wall, 22 oz aluminium or 20 oz carbon, gripped. With 6 spokes at 2.4-2.9 oz the total comes to about 36-39 oz (1.03-1.12 kg); that total is my own sum. Dark Monk says it is designed for faster, more technical styles.",
+    "kind": "spec",
+    "url": "https://dark-monk.com/Equipment/Ultra-Three-Spoke-Dragon-Staff",
+    "quote": "22oz gripped",
+    "includes": "Body with grip only; spokes and wicks not included; no fuel"
+   },
+   {
+    "claim": "Dark Monk Pixie Dragon: 45\" long, 5/8\" 7075 aluminium, 16.8 oz (476 g) aluminium or 15.4 oz carbon, gripped. Its 5\" spokes weigh 2 oz each, with 1.5\" wicks and a burn of about 3:30. Aimed at quick moves and double dragons, not at small users as such.",
+    "kind": "spec",
+    "url": "https://dark-monk.com/Equipment/Pixie-Dragon-Staff",
+    "quote": "16.8oz gripped",
+    "includes": "Body with grip only; spokes (2 oz each with wick) extra; no fuel"
+   },
+   {
+    "claim": "Sacred Flow Art Fire Dragon Staff: 8-wick weighs 1.2 kg (lengths 55-67\"); 10-wick weighs 1.5 kg (lengths 63-75\"). 22 mm 6082 aluminium, wicks 2\" long by 1.4\" diameter, 4-6 minute burn. More wicks means a longer staff as well as more weight.",
+    "kind": "spec",
+    "url": "https://sacredflowart.com/product/fire-dragon-staff/",
+    "quote": "Weight: 2.7 lbs (1.2 kg)",
+    "includes": "Complete staff, apparently with wicks and grip (not stated explicitly); dry"
+   },
+   {
+    "claim": "Sacred Flow Art Practice Dragon Staff (nylon cord in place of wicks): 8-wick 1 kg, 10-wick 1.3 kg. That is about 200 g lighter than the matching fire version, even before the fire version takes on fuel, yet it is sold as replicating the fire staff.",
+    "kind": "spec",
+    "url": "https://sacredflowart.com/product/practice-dragon-staff/",
+    "quote": "Weight: 2.2 lb (1 kg)",
+    "includes": "Complete practice staff with nylon practice heads; no fuel"
+   },
+   {
+    "claim": "Sacred Flow Art Kevlar Dragon Staff Pro: 840 g, 65\" (166 cm), 7075 aluminium, Kevlar wicks about 3.5\" tall on spikes about 8\" long. Much lighter than their standard fire dragon. The spec list does not give a head count.",
+    "kind": "spec",
+    "url": "https://sacredflowart.com/product/kevlar-dragon-staff-pro/",
+    "quote": "Weight: 1.85 lb (840 g)",
+    "includes": "Complete staff, presumably with wicks and grip; dry"
+   },
+   {
+    "claim": "Trick Concepts Halo Fire Dragon: 5 ft, 1\" 6061-T6 tubing, 4 spines each carrying 2 wicks. Weighs 1360 g with regular wicks and 1585 g with XL wicks, so the bigger wicks alone add about 225 g dry.",
+    "kind": "spec",
+    "url": "https://www.trickconcepts.com/custom-halo-fire-dragon-staff/",
+    "quote": "Staff Weight Regular Wicks: 48oz (1360g)",
+    "includes": "Complete staff with Kevlar wicks and grip; dry"
+   },
+   {
+    "claim": "Trick Concepts 8-wick cable-spine dragon, 5 ft, 1\" 6061-T6 tubing: 38 oz (1077 g). That is about 280 g lighter than their rigid-spine Halo dragon.",
+    "kind": "spec",
+    "url": "https://www.trickconcepts.com/8-wick-fire-dragon-staff-cable-spine-5ft-long/",
+    "quote": "Staff Weight: 38oz each",
+    "includes": "Complete staff with wicks and padded grip; dry"
+   },
+   {
+    "claim": "Ninja Pyrate DragonFly modular dragon: a 3-spine end weighs 420 g and a 4-spine end 560 g, each spine carrying 2 ft of 2\" Kevlar. Adding capsule lights brings a 3-spine end to 495 g. Shaft (7/8\" carbon) weight not given.",
+    "kind": "spec",
+    "url": "https://ninjapyrate.com/dragonfly-modular-dragon-staff-fire/",
+    "quote": "4-spine ends weigh 560 grams each",
+    "includes": "Per end, with dry wicks; shaft and fuel excluded"
+   },
+   {
+    "claim": "Bonobo Flow / Threeworlds Fusion collapsible fire dragon, sold as components: fire spoke about 90 g (50 mm wick), V3 hub 99 g, Ultra hub 87 g, 1500 mm pole 436 g carbon or 609 g aluminium with EPDM grip. My sums: about 1.15-1.35 kg with 6 spokes, 1.33-1.53 kg with 8.",
+    "kind": "spec",
+    "url": "https://bonoboflow.com/product/fusion-collapsible-fire-dragon-staff/",
+    "quote": "Add all weights of components together",
+    "includes": "Component weights with dry wicks and grip; fuel excluded"
+   },
+   {
+    "claim": "Threeworlds dragon fire spoke: about 88 g, carrying 450 mm of 50 mm Kevlar on an 8 mm rod. The blank spoke it is built from weighs 54 g (18 cm), so the wick and fixings add about 34 g per spoke when dry.",
+    "kind": "spec",
+    "url": "https://www.threeworlds.com.au/products/matrix-dragon-fire-spoke",
+    "quote": "Weight: 88grams approx.",
+    "includes": "Per spoke with dry Kevlar wick; no fuel"
+   },
+   {
+    "claim": "The Threeworlds blank (practice/build) spoke weighs 54 g against about 88 g for the fire spoke. A practice end built from blanks is about 34 g per spoke lighter than a dry fire end, and lighter still than a fueled one.",
+    "kind": "spec",
+    "url": "https://www.threeworlds.com.au/products/dragon-spoke-blank",
+    "quote": "54grams",
+    "includes": "Bare spoke, no wick"
+   },
+   {
+    "claim": "Hub weights differ between the two sellers of the same Threeworlds hubs: Bonobo lists V3 99 g and Ultra 87 g; Threeworlds lists V3 120 g and Ultra about 92 g.",
+    "kind": "disagreement",
+    "url": "https://www.threeworlds.com.au/pages/dragon-hub-guide",
+    "quote": "120 g each",
+    "includes": "Hub only"
+   },
+   {
+    "claim": "Gora aluminium dragon (NetJuggler): 8 Kevlar wicks, 1.50 m, 1.4 kg. Gora Pixie Dragon: 90 cm, 8 wicks (2.5 cm wide), 410 g, described as aimed at adults.",
+    "kind": "spec",
+    "url": "https://www.netjuggler.net/En/buy/aluminum-gora-dragon-staff.html",
+    "quote": "1.4Kg",
+    "includes": "Not stated whether wicks are included, but almost certainly the complete staff; dry"
+   },
+   {
+    "claim": "Ignis: fire dragon staff 1500 g (25 mm, 50 mm x 3.2 mm Kevlar); LED dragon staff 1300 g. The same maker's LED dragon is about 200 g lighter than its fire dragon even dry.",
+    "kind": "spec",
+    "url": "https://ignisshop.com/en/staff/72-led-dragon-staff-ignis-10.html",
+    "quote": "Weight: 1300 g / 45.8oz",
+    "includes": "LED: complete with batteries; fire version: complete with dry wicks"
+   },
+   {
+    "claim": "Sacred Flow Art Cosmo LED Dragon: default 1.1 kg, adjustable from about 970 g to 1.27 kg. Each disc weighs 290 g, and up to 81 g can be added per disc in 13 g steps so the balance can be tuned.",
+    "kind": "spec",
+    "url": "https://sacredflowart.com/product/cosmo-led-dragon-staff/",
+    "quote": "From ~ 2.1 lbs. (970 g) to 2.8 lbs. (1.27 kg)",
+    "includes": "Complete LED staff; adjustable weights"
+   },
+   {
+    "claim": "Dark Monk's flowtoys LED dragon spoke weighs just under 4 oz (about 110 g) with the capsule, heavier than its dry fire spokes (2.4-3.1 oz). My estimate is that this lands close to a fire spoke carrying fuel. Dark Monk makes no matching claim.",
+    "kind": "spec",
+    "url": "https://dark-monk.com/Equipment/LED-Dragon-Staff-Wicks",
+    "quote": "just shy of 4 oz with a capsule in them",
+    "includes": "Per LED spoke with light capsule"
+   },
+   {
+    "claim": "Renegade Juggling measured 1 ft of 2\" x 1/8\" wick: 19.4-19.8 g dry and 40.6-45.8 g fully soaked. That is about 21-26 g of fuel per foot at full soak, before any spin-off. Renegade's fiber-core wick holds about 12% more than pure Kevlar.",
+    "kind": "spec",
+    "url": "https://renegadejuggling.com/blogs/juggling-guides-tips/how-to-select-and-use-kevlar-fire-wicks",
+    "quote": "statured weight Renegade 45.8 grams Puro 40.6 grams",
+    "includes": "Wick only, dry versus fully saturated (not spun off)"
+   },
+   {
+    "claim": "DERIVED: applying Renegade's per-foot figures to the 450 mm of 50 mm wick on a Threeworlds spoke gives about 29 g of dry wick and about 31-38 g of fuel per spoke fully soaked. An 8-spoke dragon could carry roughly 250-300 g of fuel at the ends before spin-off. No maker or teacher found publishes how much remains after spin-off.",
+    "kind": "physics",
+    "url": "https://www.threeworlds.com.au/products/matrix-dragon-fire-spoke",
+    "quote": "Kevlar Length: 450mm",
+    "includes": "Estimate of fuel at full saturation, not after spin-off"
+   },
+   {
+    "claim": "Dark Monk is the only maker found that publishes both a dry and a fueled weight. Its Pineapple fire poi head is about 6 oz (about 170 g) unfueled and about 300 g fueled, roughly 130 g of fuel on a 4\" head (a poi, not a staff).",
+    "kind": "spec",
+    "url": "https://dark-monk.com/Equipment/Pineapple-Flat-Wick-Poi",
+    "quote": "~300g (10 oz) when fueled with a burn time between 6-7 minutes",
+    "includes": "Poi head with wick; both dry and fueled figures given"
+   },
+   {
+    "claim": "Home of Poi sizes a dragon staff from the floor to the top of the head, taller than a contact staff (shoulder) or a beginner staff (armpit). It says the spokes add weight that builds momentum. No numeric weights are given.",
+    "kind": "guidance",
+    "url": "https://www.homeofpoi.com/us/help/faq/3/159",
+    "quote": "The added weight of the dragon spokes will create more momentum.",
+    "includes": "n/a"
+   },
+   {
+    "claim": "Bonobo Flow ranks spoke counts: 3 spokes is lightest and fastest rolling, 4 is in the middle, and 5 is usually heaviest (it adds end wicks and needs a staff 4-6\" longer). Heavier staffs are more tiring and need more force to start a roll. It recommends 3 or 4 spokes for most people. This is opinion.",
+    "kind": "guidance",
+    "url": "https://bonoboflow.com/3-4-or-5-spoke-dragon-staffs/",
+    "quote": "3 spoke dragons are the lightest and fastest rolling.",
+    "includes": "n/a"
+   },
+   {
+    "claim": "Master Flow Arts (dragon buyer's guide, opinion): heavier heads are easier for beginners because of tactile feedback, while lighter heads give more freedom and longer sessions with less exertion.",
+    "kind": "guidance",
+    "url": "https://www.masterflowarts.com/dragonstaff/choosing-a-dragonstaff",
+    "quote": "lighter enables more freedom of movement and longer play times",
+    "includes": "n/a"
+   },
+   {
+    "claim": "Master Flow Arts recommends a thicker grip (2-3 mm yoga-mat style) on dragon staffs because their weight presses on the skin. This is a comfort point for people with sensitive hands.",
+    "kind": "guidance",
+    "url": "https://www.masterflowarts.com/dragonstaff/choosing-a-dragonstaff",
+    "quote": "many Dragonstaffs are quite heavy and can squish your skin",
+    "includes": "n/a"
+   },
+   {
+    "claim": "Trick Concepts weighted fire contact staff: 34 oz (964 g) with 3 oz of ballast inside each end to slow momentum. Its prop selector (opinion) calls 3 oz a good starting point and warns that heavy staffs increase fatigue.",
+    "kind": "guidance",
+    "url": "https://www.trickconcepts.com/prop-selector",
+    "quote": "Three oz of weight is a good starting point for most people.",
+    "includes": "The 3 oz is added ballast per end; the 34 oz is the complete staff with dry wicks"
+   },
+   {
+    "claim": "The size of the beginner end weight differs by source: Trick Concepts adds about 85 g (3 oz) per end, while Master Flow Arts recommends about 250 g padded ends for beginners (and 100-300 g in general). Part of the gap is that one is added ballast and the other is total end mass.",
+    "kind": "disagreement",
+    "url": "https://www.masterflowarts.com/contact-staff/choosing-a-contact-staff",
+    "quote": "I recommend a soft/padded end weight about 250g (8.8oz).",
+    "includes": "Master Flow Arts: total end weight; Trick Concepts: added ballast"
+   },
+   {
+    "claim": "Fusion Arts (a teacher's opinion): her pro fire staffs weigh 500-750 g and she would not want them heavier. She says having the weight in the ends, in the wick and fuel, keeps the staff in plane, and that past the beginner stage of contact a lighter staff is better.",
+    "kind": "guidance",
+    "url": "https://fusion-arts.com/choose-fire-staff/",
+    "quote": "the majority of the weight is on the ends (in the wick and fuel)",
+    "includes": "Total staff weight; she counts the fuel as part of the end weight"
+   },
+   {
+    "claim": "Sacred Flow Art: contact staffs are weighted to slow rotation for body-contact moves and beginners. Carbon fiber staffs put relatively more of their weight at the ends than aluminium ones do.",
+    "kind": "guidance",
+    "url": "https://sacredflowart.com/contact-fire-staff-guide/",
+    "quote": "weighted to slow down rotations and momentum",
+    "includes": "n/a"
+   },
+   {
+    "claim": "Flow Arts Institute wrist care (guidance): make sure you can handle a heavier prop safely, because added weight is felt in the wrists during and after spinning. A tight grip adds strain, so relax the grip and take breaks.",
+    "kind": "guidance",
+    "url": "https://flowartsinstitute.com/wrist-care/",
+    "quote": "added weight to a prop will be felt in your wrists immediately",
+    "includes": "n/a"
+   },
+   {
+    "claim": "Firetoys UK Classic fire staff: 100 cm 332 g, 120 cm 402 g, 140 cm 446 g, 150 cm 456 g, with 47 mm wicks and a 15 mm handle. Its lightness makes it less suited to contact moves. Firetoys's staff guide recommends 90-110 cm for children and shorter adults.",
+    "kind": "spec",
+    "url": "https://www.firetoys.co.uk/products/firetoys-classic-fire-spinning-staff",
+    "quote": "their lighter weight is less ideal for mastering contact moves",
+    "includes": "Listed under Details; not stated whether wicks are included, but these appear to be complete staffs; dry"
+   },
+   {
+    "claim": "Firetoys staff guide (opinion) matches staff length to body size and strength rather than weight: 90-110 cm for children and shorter adults, while taller and stronger people may like 140 cm staffs. It also states under-18s need parental permission and adult supervision for fire.",
+    "kind": "guidance",
+    "url": "https://www.firetoys.com/blogs/fire/how-to-choose-a-staff-for-spinning",
+    "quote": "Great for children and shorter adults as a staff for normal spinning.",
+    "includes": "n/a"
+   },
+   {
+    "claim": "Threeworlds Spark fire staff: 1 m long, 200 g, 12 mm aluminium tube, 50 mm wicks, with weight biased to the ends. Marketed as suited to kids, shorter people and finger spinning.",
+    "kind": "spec",
+    "url": "https://www.threeworlds.com.au/products/spin-fire-staff-with-50mm-wicks",
+    "quote": "ideal for kids, shorter people and anyone who likes to do fast finger spinning",
+    "includes": "Complete staff with wicks; fuel not included"
+   },
+   {
+    "claim": "NeoFlowArt gives ranges of about 350-800 g for regular spinning staffs and about 850 g-1.1 kg for contact staffs. The contact range is above the already-known 610-965 g for complete fire contact staffs and 760-840 g for practice ones.",
+    "kind": "disagreement",
+    "url": "https://neoflowart.com/blog/cstaff-vs-staff/",
+    "quote": "~850g–1.1kg (30–40 oz)",
+    "includes": "Not specified (a general range)"
+   },
+   {
+    "claim": "Flowtoys end-weight add-ons: flowmass 20.8 g, flow-flower kit 72 g, wrap-on mass kit 135 g. Most staffs take 2 or more flowmass plus 1-2 flowers per end. Flowtoys staffs ship with light end tubes so users add weight themselves.",
+    "kind": "spec",
+    "url": "https://flowtoys2.freshdesk.com/support/solutions/articles/6000246071-how-to-add-weight-to-a-staff",
+    "quote": "flow-flower kit (72g)",
+    "includes": "Add-on weights only"
+   },
+   {
+    "claim": "Flowmass weight disagrees between Flowtoys pages: 20.8 g each on the flowmass product page, 30 g each on the composite contact staff 4-capsule page.",
+    "kind": "disagreement",
+    "url": "https://flowtoys.com/composite-contact-flowstaff-4-capsule",
+    "quote": "2x flowmass per end | 30g/ea",
+    "includes": "Add-on weight"
+   },
+   {
+    "claim": "Phoenix Fire Props sells a practice contact staff built to look and feel like its fire contact staff, using rubber weights in place of Kevlar wicks and described as easier on the body. No weight is published (listed as N/A), so the match cannot be checked.",
+    "kind": "guidance",
+    "url": "https://phoenix-fireprops.com/product/practice-contact-staff/",
+    "quote": "designed to look & feel like your fire contact staff",
+    "includes": "Weight not published"
+   },
+   {
+    "claim": "Fire Mecca's double staff set lists 'Approximately 1.5 lbs (0.68 kg)' without saying whether that is per staff or per set. If per staff, it contradicts the known ~375 g each for fire doubles; if per set, it agrees (about 340 g each).",
+    "kind": "disagreement",
+    "url": "https://firemecca.com/products/double-fire-staff-set",
+    "quote": "Weight: Approximately 1.5 lbs (0.68 kg)",
+    "includes": "Ambiguous; includes 2-inch MoonBlaze wick"
+   },
+   {
+    "claim": "PHYSICS (derived): I = m r^2, so mass at the ends counts by the square of its distance from the grip. Example 150 cm staff: a 400 g tube (about 0.075 kg·m²) plus 150 g per end at 0.7 m (about 0.147 kg·m²) totals about 0.22 kg·m². Adding 25 g of fuel per end raises the mass by 7% but the end-over-end inertia by about 11%. Fuel therefore changes the feel more than the scale reading suggests.",
+    "kind": "physics",
+    "url": "https://hyperphysics.gsu.edu/hbase/mi.html",
+    "quote": "the mass times the square of perpendicular distance to the rotation axis",
+    "includes": "Worked example with assumed masses"
+   },
+   {
+    "claim": "PHYSICS (derived): on a dragon, the spokes put the wick mass about 0.2 m off the shaft axis (Renegade lists 9 inches from centre). Eight 88 g spokes give about 0.015 kg·m² of roll inertia, against about 0.00007 for a bare 600 g, 22 mm tube, roughly 200 times more. That is why dragons roll slowly and keep rolling. End over end, the same spokes roughly double the inertia of a contact staff. Fuel at the spoke tips (up to about 35 g each fully soaked) could raise roll inertia by up to about 70% before spin-off.",
+    "kind": "physics",
+    "url": "https://renegadejuggling.com/products/led-dragon-heads",
+    "quote": "spoke lenght from center 9 inches",
+    "includes": "Derived estimate with assumed spoke geometry; fuel figure is the full-saturation upper bound"
+   }
+  ],
+  "problems": [
+   {
+    "claim": "Sacred Flow Art Kevlar Dragon Staff Pro: 840 g ... Much lighter than their standard fire dragon. The spec list does not give a head count.",
+    "verdict": "wrong",
+    "detail": "The page calls it 'The 10 Head Kevlar Dragon Staff Pro' and describes it as 'A one piece fire contact staff easily converted into a 10-Head Dragon'. The package lists 1x Fire Contact Staff, 2x Dragon Adapter Cuffs and 8x Dragon Spikes. So there is a head count (10). The product is a contact staff that converts into a dragon. The page does not say whether the 840 g is the contact staff alone or the staff with cuffs and spikes fitted, and the contact-staff reading is at least as likely. Comparing it with the 1.2 kg dedicated 8-wick fire dragon is therefore not like with like.",
+    "correction": "Kevlar Dragon Staff Pro: a fire contact staff (65 in, 7075, 840 g as listed) that converts into a 10-head dragon using 2 adapter cuffs and 8 spikes (about 8 in, with Kevlar about 3.5 in tall). The page does not say whether the 840 g includes the dragon parts. Do not quote it as a lighter complete dragon."
+   },
+   {
+    "claim": "Firetoys staff guide ... It also states under-18s need parental permission and adult supervision for fire.",
+    "verdict": "misquoted",
+    "detail": "The source is stricter than the paraphrase: 'if you're under 18 you shouldn't be fire spinning, and if you are it should be with your parent's permission and under the supervision of an experienced adult.' Its first advice is that under-18s should not fire spin at all, and the supervisor has to be an EXPERIENCED adult. The '140 cm for taller and stronger people' wording is also a stretch. The source says 140 cm is 'A very popular size for single staff spinners, especially guys. Younger or shorter people can find this size too cumbersome.' It also does mention weight: 150-160 cm is 'generally only chosen by contact staff spinners because they are long and heavy.'",
+    "correction": "Firetoys says under-18s should not fire spin. If they do, it should be with a parent's permission and under the supervision of an experienced adult. It calls 140 cm popular 'especially' with men and possibly too cumbersome for younger or shorter people, and 150-160 cm long and heavy, chosen mostly by contact spinners."
+   },
+   {
+    "claim": "Flowtoys end-weight add-ons ... Flowtoys staffs ship with light end tubes so users add weight themselves.",
+    "verdict": "unsupported",
+    "detail": "The cited support article gives the weights (flowmass 20.8 g, flow-flower kit 72 g, wrap-on mass kit 135 g) and says 'Most flowtoys staffs can fit 2+ pieces of flowmass + 1-2 flowers per end'. It says nothing about staffs shipping with light end tubes. Its only framing is: 'If you like your staff on the heavier side, we offer a couple options for you to easily add weight to the ends'.",
+    "correction": "Remove the 'ship with light end tubes' sentence. Say Flowtoys offers optional end weights for people who want a heavier staff."
+   },
+   {
+    "claim": "Trick Concepts weighted fire contact staff: 34 oz (964 g) with 3 oz of ballast inside each end ... (url: trickconcepts.com/prop-selector)",
+    "verdict": "misquoted",
+    "detail": "The prop-selector page does not give the 34 oz total or the ballast figure. It says only 'Three oz of weight is a good starting point for most people' and 'a heavy staff will increase fatigue'. The 34 oz and 3 oz figures come from the product page https://www.trickconcepts.com/5ft-fire-weighted-contact-staff/, which reads 'Staff Weight: 34oz each' and '3 Ounces of Weight are added inside each end to slow the momentum and make contact moves easier'. The numbers are right, but the citation is wrong. The product also has 4 ft of 3 in x 1/16 in Kevlar per end, a wick much larger than a typical 2 in wick, which accounts for part of the 34 oz.",
+    "correction": "Cite the 34 oz and 3 oz per end to trickconcepts.com/5ft-fire-weighted-contact-staff/, and the 'good starting point' and fatigue guidance to /prop-selector."
+   },
+   {
+    "claim": "Renegade Juggling measured 1 ft of 2\" x 1/8\" wick ... Renegade's fiber-core wick holds about 12% more than pure Kevlar.",
+    "verdict": "overstated",
+    "detail": "The 12% is Renegade's claim about its own product, and the article admits no burn test was done. By Renegade's own figures the 12% matches the ratio of SATURATED total weights (45.8/40.6 = 1.13), not fuel held. Fuel absorbed is 45.8-19.8 = 26.0 g against 40.6-19.4 = 21.2 g, which is about 23% more. That also makes the claim's own '21-26 g of fuel per foot' inconsistent with 'about 12% more'. The wick has a thin fiberglass core, so it is not pure Kevlar.",
+    "correction": "Renegade's measurements: Renegade 19.8 g dry to 45.8 g saturated, Puro 19.4 g to 40.6 g per foot of 2 in x 1/8 in (about 26 g and 21 g of fuel). Renegade, the seller, says its fiberglass-core wick holds 'about 12% more fuel', a figure that matches the saturated-weight ratio and that it did not burn-test."
+   },
+   {
+    "claim": "Trick Concepts 8-wick cable-spine dragon ... about 280 g lighter than their rigid-spine Halo dragon.",
+    "verdict": "unsupported",
+    "detail": "The Halo page does not say what the spines are made of. It describes them only as 'wicked spokes or \"spines\" set at a perpendicular angle' ('4 Fire Spines with 2 wicks each (15\" long)'). 'Rigid-spine' is an inference, so putting the 280 g difference down to cable versus rigid spines is not sourced. The two figures themselves (38 oz vs 48 oz) check out.",
+    "correction": "Say the cable-spine 8-wick is about 280 g lighter than the Halo (1077 g vs 1360 g), without calling the Halo rigid-spine or naming the cause."
+   },
+   {
+    "claim": "Dark Monk is the only maker found that publishes both a dry and a fueled weight. Its Pineapple fire poi head is about 6 oz (about 170 g) unfueled and about 300 g fueled, roughly 130 g of fuel.",
+    "verdict": "overstated",
+    "detail": "The source says '~6oz when unfueled' and '~300g (10 oz) when fueled'. Its own units disagree: 10 oz is 283 g. Worked in ounces the fuel is 4 oz (about 113 g); in grams it is about 130 g. So '130 g' is the top of a 113-130 g range. The 'only maker' claim is also too broad: the Renegade article already in this set publishes dry and saturated weights for its wick, though for wick stock rather than a finished prop.",
+    "correction": "The Pineapple head takes on about 113-130 g of fuel (6 oz dry to '~300 g (10 oz)' fueled, whose own units disagree). Dark Monk is the only maker found giving dry and fueled weights for a complete head. Renegade gives both for wick stock."
+   },
+   {
+    "claim": "Dark Monk's flowtoys LED dragon spoke weighs just under 4 oz (about 110 g) with the capsule, heavier than its dry fire spokes (2.4-3.1 oz).",
+    "verdict": "overstated",
+    "detail": "Dark Monk's fire spokes are not all lighter: its Isis Knot spokes are '4.5 oz each with 3\" long wicks', heavier than the LED spoke. The range 2.4-3.1 oz leaves out a product listed on the same spoke pages.",
+    "correction": "The LED spoke (just under 4 oz) is heavier than Dark Monk's 2-3 in regular and long fire spokes (2.4-3.1 oz dry) but lighter than its Isis Knot spoke (4.5 oz)."
+   },
+   {
+    "claim": "Dark Monk Pixie Dragon: ... Its 5\" spokes weigh 2 oz each, with 1.5\" wicks and a burn of about 3:30.",
+    "verdict": "overstated",
+    "detail": "Dark Monk's own pages disagree. The Pixie page says '5\" spokes ... weigh 2oz each' with '1.5\" wicks ... providing a 3:30 minute burn'. The Dragon-and-Helio-Wick spoke page says Pixie spokes are '5.5\" in overall length and use a 1.5\" wick ... an approximate 3:15 minute burn time'. The Pixie page also says the spokes are 'primarily made of rigid 5/32\" steel cable and weigh 2oz each' without making clear that the wick is included (the 'includes' field assumes it is).",
+    "correction": "Pixie spokes: 5 in (Pixie page) or 5.5 in (spoke page), 2 oz each (unclear whether the wick is included), 1.5 in wick, burn about 3:15-3:30 on white gas. The two pages disagree."
+   },
+   {
+    "claim": "NeoFlowArt gives ... about 850 g-1.1 kg for contact staffs. The contact range is above the already-known 610-965 g for complete fire contact staffs and 760-840 g for practice ones.",
+    "verdict": "overstated",
+    "detail": "850-1100 g overlaps the 610-965 g fire contact range (850-965 g is in both), so it is shifted higher rather than 'above' it. NeoFlowArt also does not say whether its ranges are for fire, LED or practice staffs, or whether fuel is included.",
+    "correction": "NeoFlowArt's contact range (about 850 g-1.1 kg, prop type and fuel not stated) sits higher than, and partly overlaps, the 610-965 g listed for complete fire contact staffs."
+   }
+  ]
+ }
+]

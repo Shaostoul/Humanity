@@ -9,7 +9,8 @@ Raw research gathered on **2026-09-24** for the Fire Disciples Facebook posts an
 | aluminium.json, titanium.json, steels-others.json | Per-alloy properties, availability and prices, with sources |
 | alloy-corrections.json | A datasheet audit's corrections to those three files |
 | alloys-final.json | The corrected, consistent-basis property table (spec minimum for tube where one exists) |
-| tables.js, tables.md | The calculator and its output: weight, stiffness, bend strength, dent index and heat carried for a 60 in x 0.75 in staff tube at several walls |
+| tables.js, tables.md | The calculator and its output: weight, stiffness, bend strength, dent index and heat carried for a 60 in x 0.75 in staff tube at several walls. **Dent index changed 2026-09-25** from yield x wall^2 (a ring-crush scaling) to yield x wall^1.5, the pipeline dent model of Wierzbicki and Suh (1988) used in DNV-RP-F107, in which the force for a dent of a given depth does not depend on diameter |
+| staff-weight-by-style.json | Added 2026-09-25: published staff weights by type (contact, spin, doubles, dragon; fire, LED, practice) and makers' guidance on heavier vs lighter, with an adversarial verifier's corrections in each problems[] array (apply those over the findings) |
 | heated-fumes.json | Which metals, platings and coatings give off harmful fumes when heated, and at what temperature |
 | wall-thickness.json, length-sizing.json | Tube walls and diameters makers use; staff length and how to size one |
 | fuel-identities.json, fuel-use.json | Fuel names by region, safety-data-sheet identities and flash points; what spinners use and why |

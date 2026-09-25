@@ -1109,6 +1109,17 @@
       "note": "Standard 60-degree thread form, external thread depth about 0.61 of pitch. Used only for arithmetic; paywalled and not read directly. ASME conference papers are cited under peer-reviewed-literature."
     },
     {
+      "id": "dnv",
+      "name": "DNV recommended practices (DNV-RP-F107, Risk Assessment of Pipeline Protection)",
+      "publisher": "DNV (Det Norske Veritas)",
+      "url": "https://rules.dnv.com/docs/pdf/dnvpm/codes/docs/2001-03/RP-F107.pdf",
+      "kind": "authority",
+      "licence": "copyright-all-rights-reserved",
+      "use": "facts",
+      "bundle": false,
+      "note": "Classification society standard. DNV-RP-F107 (2001) Eq. 3 gives the dent energy of a pipe under a knife-edge impact after Wierzbicki and Suh (1988); expanded, the diameter cancels and the force for a given dent depth scales with yield x wall^1.5. Used for the staff dent index from 2026-09-25."
+    },
+    {
       "id": "crc-handbook",
       "name": "CRC Handbook of Chemistry and Physics",
       "publisher": "CRC Press",

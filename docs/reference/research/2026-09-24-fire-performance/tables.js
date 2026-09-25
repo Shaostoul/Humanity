@@ -7,7 +7,8 @@
 // Computes, for a 60 in staff tube at 0.75 in OD and several walls:
 //   weight (g), bending stiffness EI relative to a 3/4 x 0.065 in 6061-T6 tube,
 //   bending strength (yield moment, sigma_y * I / c) relative to the same baseline,
-//   a rough dent-resistance index (sigma_y * t^2, ring-crush scaling) relative to baseline,
+//   a dent index (sigma_y * t^1.5: the pipeline dent model of Wierzbicki and Suh 1988 used in DNV-RP-F107,
+//   in which the force to make a dent of a given depth does not depend on diameter) relative to baseline,
 //   heat carried along the tube (k * A) relative to baseline.
 const fs = require('fs');
 const alloys = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
@@ -31,7 +32,7 @@ function calc(a, t_in, yOverride) {
     mass_g: a.density_g_cc * 1000 * g.A * L * 1000,      // density kg/m3 * m3 -> kg -> g
     EI: a.modulus_gpa * 1e9 * g.I,
     My: y * 1e6 * g.I / g.c,
-    dent: y * g.t * g.t,
+    dent: y * Math.pow(g.t, 1.5),   // local dent: DNV-RP-F107 / Wierzbicki-Suh, force for a given dent depth ~ yield x wall^1.5, independent of diameter
     heat: (a.thermal_conductivity_w_mk || NaN) * g.A,
   };
 }
@@ -52,7 +53,7 @@ for (const a of alloys) {
   out += `| ${label(a)} | ${a.basis || "?"} | ${c.mass_g.toFixed(0)} (${(c.mass_g / 453.592).toFixed(2)}) | ${r(c.EI, B.EI)} | ${r(c.My, B.My)} | ${r(c.dent, B.dent)} | ${isNaN(c.heat) ? 'n/a' : r(c.heat, B.heat)} |\n`;
 }
 out += `\n## Same tube (60 in x 0.75 in OD x 0.065 in wall), every alloy\n\n`;
-out += `At this wall the dent index equals the bending strength for every alloy (both reduce to yield strength / 241 MPa), so it is not repeated here.\n\n`;
+out += `At this wall the dent index equals yield strength / 241 MPa for every alloy, the same as bending strength, so it is not repeated here.\n\n`;
 out += `| Alloy | Strength basis | Weight g (lb) | Stiffness | Bending strength |\n|---|---|---|---|---|\n`;
 for (const a of alloys) {
   const c = calc(a, 0.065);
@@ -68,7 +69,7 @@ for (const a of pick) {
   }
   out += '\n';
 }
-out += `Notes: stiffness = how much it flexes (higher = stiffer). Bending strength = load before it takes a permanent bend (yield). Dent index = yield strength x wall squared, a rough ring-crush scaling for denting on a drop, useful only for comparing, not a prediction. Heat carried = thermal conductivity x metal cross-section (how much heat the tube walls conduct toward the hands).\n\n`;
+out += `Notes: stiffness = how much it flexes (higher = stiffer). Bending strength = load before it takes a permanent bend (yield). Dent index = yield strength x wall^1.5: in the pipeline dent model (Wierzbicki and Suh 1988, used in DNV-RP-F107) the force needed to push in a dent of a given depth scales this way and does not depend on the tube diameter. Useful only for comparing, not a prediction. (Crushing a tube flat is different: there a narrower tube does better.) Heat carried = thermal conductivity x metal cross-section (how much heat the tube walls conduct toward the hands).\n\n`;
 out += `Strength basis: "tube min" = a published specification minimum for tube in that alloy and condition. "sheet min", "strip min", "bar min" and "bar/plate min" = the specification minimum for another product form, used because no tube minimum was found. "typical" = a typical value, not a guaranteed minimum, so it reads high next to the minimum-based rows.\n`;
 if (fn.size) {
   out += `\nRow notes:\n\n`;

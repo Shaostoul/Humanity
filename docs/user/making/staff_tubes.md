@@ -43,7 +43,9 @@ corrected.
 
 Where a figure comes only from staff makers, retailers or practitioners,
 it is labelled **community figure**. Prices and stock were checked on
-**September 24, 2026** and are a snapshot that will age quickly.
+**September 24, 2026** (the grade 9 titanium options in the worked
+example on **September 25, 2026**) and are a snapshot that will age
+quickly.
 
 ## Quick terms
 
@@ -208,11 +210,29 @@ staff and 22 mm (7/8 inch) on its Fusion system, which US shops such as The
 Spinsterz resell. At least one US maker, Renegade Juggling, also uses 20 mm
 (**community figure**).
 
-Makers describe the feel differently. A thinner tube rolls across the body
-more slowly; some say that gives more control for traps and wrist moves,
-others that it demands more control and is less grippy. A fatter tube is
-easier to grab, rolls faster and flexes less. 3/4 inch is the middle
-ground. Grip layers add to the diameter you actually hold.
+Makers describe the feel differently (all **community figure**). No
+source says a thinner tube will not roll. Bonobo Flow and Master Flow Arts
+both say a thinner tube rolls across the body more slowly and speeds up
+or slows down more gradually; Master Flow Arts adds that the fattest
+tubes, around 25 mm (1 inch), get rolling and stop rolling very quickly,
+and that thin ones are slower and less grippy. Some makers say the slower
+roll gives more control for traps and wrist moves; others that it demands
+more control. Bonobo Flow calls 3/4 inch a safe choice for beginners and
+for mixing contact with spinning, and lists 7/8 inch as the most common
+contact staff diameter worldwide, describing it as easier to grab. A
+fatter tube also flexes less. Grip layers add to the diameter you
+actually hold.
+
+How much faster does a fatter tube roll? A rigid-body estimate (this
+guide's own physics, not a measurement): a staff rolling along your arm
+turns about its own axis as it travels, and a fatter tube covers more
+ground per turn. With heavy heads on the ends, which dominate how hard
+the staff is to set turning, a 7/8 inch staff rolls roughly 16 to 24
+percent faster than a 3/4 inch one down the same slope. As a bare tube
+with nothing on the ends there is almost no difference, because the tube's
+own spin inertia grows with its diameter and cancels the gain. 5/8 inch is
+the bounciest of the three and has the smallest inside diameter for plugs
+and heads.
 
 **Diameter changes stiffness far more than wall does.** Computed from tube
 geometry: going from 3/4 to 7/8 inch at the same 0.058 inch wall makes a
@@ -220,6 +240,15 @@ tube about 64 percent stiffer, while going from a 0.049 to a 0.065 inch
 wall on a 3/4 inch tube adds only about 24 percent. If a staff is too
 bouncy, a slightly larger diameter fixes it more efficiently than a
 thicker wall.
+
+**Diameter does not change dent resistance; wall and alloy do.** In the
+dent model used for pipelines (explained under the dent index below), the
+force needed to push in a dent of a given depth when a tube lands across
+an edge depends on the metal's strength and the wall, and the tube's
+diameter cancels out. So a 5/8, 3/4 or 7/8 inch tube of the same alloy and
+wall dents about equally on the same edge. The one case where a narrower
+tube does better is being crushed flat across its whole width, pinched in
+a door or stepped on.
 
 ### What walls makers use
 
@@ -252,10 +281,12 @@ you cannot tell which by looking.
 
 - Weight, stiffness and bending strength all rise roughly in step with the
   wall.
-- **Dent resistance rises faster than the wall.** As an engineering estimate, not a
-  measurement, common models for crushing a tube's wall scale it between
-  the wall to the power 1.5 and the wall squared. Halve the wall and you keep only about a
-  quarter to a third of the dent resistance.
+- **Dent resistance rises faster than the wall.** As an engineering
+  estimate, not a measurement, the pipeline dent model this guide uses
+  scales it with the wall to the power 1.5. On 6061-T6, going from a
+  0.065 to a 0.035 inch wall, roughly halving it, drops the dent index
+  from 1.00 to 0.40: you keep only about 40 percent of the dent
+  resistance.
 - A dent or ding makes a later bend kink much sooner. That is reasoning
   from how tubes fail, not a test.
 - In aluminium, going from a 0.035 to a 0.065 inch wall on a 5 ft tube
@@ -306,85 +337,85 @@ Inside diameters are the same for every metal at a given wall.
 
 | Wall in (mm) | ID in | Weight g (lb) | Stiffness | Bending strength | Dent index |
 |---|---|---|---|---|---|
-| 0.028 (0.71) | 0.694 | 169 (0.37) | 0.50 | 0.50 | 0.19 |
-| 0.035 (0.89) | 0.680 | 209 (0.46) | 0.61 | 0.61 | 0.29 |
-| 0.040 (1.02) | 0.670 | 237 (0.52) | 0.68 | 0.68 | 0.38 |
-| 0.049 (1.24) | 0.652 | 286 (0.63) | 0.80 | 0.80 | 0.57 |
-| 0.058 (1.47) | 0.634 | 335 (0.74) | 0.92 | 0.92 | 0.80 |
+| 0.028 (0.71) | 0.694 | 169 (0.37) | 0.50 | 0.50 | 0.28 |
+| 0.035 (0.89) | 0.680 | 209 (0.46) | 0.61 | 0.61 | 0.40 |
+| 0.040 (1.02) | 0.670 | 237 (0.52) | 0.68 | 0.68 | 0.48 |
+| 0.049 (1.24) | 0.652 | 286 (0.63) | 0.80 | 0.80 | 0.65 |
+| 0.058 (1.47) | 0.634 | 335 (0.74) | 0.92 | 0.92 | 0.84 |
 | 0.065 (1.65) | 0.620 | 371 (0.82) | 1.00 | 1.00 | 1.00 |
-| 0.083 (2.11) | 0.584 | 462 (1.02) | 1.19 | 1.19 | 1.63 |
+| 0.083 (2.11) | 0.584 | 462 (1.02) | 1.19 | 1.19 | 1.44 |
 
 **Aluminium 7075-T6** (tube minimum)
 
 | Wall in (mm) | ID in | Weight g (lb) | Stiffness | Bending strength | Dent index |
 |---|---|---|---|---|---|
-| 0.028 (0.71) | 0.694 | 175 (0.39) | 0.52 | 0.95 | 0.35 |
-| 0.035 (0.89) | 0.680 | 216 (0.48) | 0.63 | 1.15 | 0.55 |
-| 0.040 (1.02) | 0.670 | 246 (0.54) | 0.70 | 1.29 | 0.71 |
-| 0.049 (1.24) | 0.652 | 297 (0.65) | 0.83 | 1.52 | 1.07 |
-| 0.058 (1.47) | 0.634 | 347 (0.77) | 0.95 | 1.73 | 1.50 |
+| 0.028 (0.71) | 0.694 | 175 (0.39) | 0.52 | 0.95 | 0.53 |
+| 0.035 (0.89) | 0.680 | 216 (0.48) | 0.63 | 1.15 | 0.75 |
+| 0.040 (1.02) | 0.670 | 246 (0.54) | 0.70 | 1.29 | 0.91 |
+| 0.049 (1.24) | 0.652 | 297 (0.65) | 0.83 | 1.52 | 1.24 |
+| 0.058 (1.47) | 0.634 | 347 (0.77) | 0.95 | 1.73 | 1.59 |
 | 0.065 (1.65) | 0.620 | 385 (0.85) | 1.03 | 1.89 | 1.89 |
-| 0.083 (2.11) | 0.584 | 479 (1.06) | 1.22 | 2.24 | 3.08 |
+| 0.083 (2.11) | 0.584 | 479 (1.06) | 1.22 | 2.24 | 2.72 |
 
 **Titanium grade 2** (tube minimum)
 
 | Wall in (mm) | ID in | Weight g (lb) | Stiffness | Bending strength | Dent index |
 |---|---|---|---|---|---|
-| 0.028 (0.71) | 0.694 | 282 (0.62) | 0.76 | 0.57 | 0.21 |
-| 0.035 (0.89) | 0.680 | 349 (0.77) | 0.93 | 0.69 | 0.33 |
-| 0.040 (1.02) | 0.670 | 396 (0.87) | 1.04 | 0.78 | 0.43 |
-| 0.049 (1.24) | 0.652 | 479 (1.05) | 1.23 | 0.92 | 0.65 |
-| 0.058 (1.47) | 0.634 | 559 (1.23) | 1.40 | 1.05 | 0.91 |
+| 0.028 (0.71) | 0.694 | 282 (0.62) | 0.76 | 0.57 | 0.32 |
+| 0.035 (0.89) | 0.680 | 349 (0.77) | 0.93 | 0.69 | 0.45 |
+| 0.040 (1.02) | 0.670 | 396 (0.87) | 1.04 | 0.78 | 0.55 |
+| 0.049 (1.24) | 0.652 | 479 (1.05) | 1.23 | 0.92 | 0.75 |
+| 0.058 (1.47) | 0.634 | 559 (1.23) | 1.40 | 1.05 | 0.96 |
 | 0.065 (1.65) | 0.620 | 620 (1.37) | 1.52 | 1.14 | 1.14 |
-| 0.083 (2.11) | 0.584 | 771 (1.70) | 1.81 | 1.35 | 1.86 |
+| 0.083 (2.11) | 0.584 | 771 (1.70) | 1.81 | 1.35 | 1.65 |
 
 **Titanium grade 9 CWSR** (tube minimum)
 
 | Wall in (mm) | ID in | Weight g (lb) | Stiffness | Bending strength | Dent index |
 |---|---|---|---|---|---|
-| 0.028 (0.71) | 0.694 | 280 (0.62) | 0.73 | 1.51 | 0.56 |
-| 0.035 (0.89) | 0.680 | 346 (0.76) | 0.88 | 1.83 | 0.87 |
-| 0.040 (1.02) | 0.670 | 393 (0.87) | 0.99 | 2.05 | 1.14 |
-| 0.049 (1.24) | 0.652 | 475 (1.05) | 1.17 | 2.42 | 1.71 |
-| 0.058 (1.47) | 0.634 | 555 (1.22) | 1.33 | 2.76 | 2.40 |
+| 0.028 (0.71) | 0.694 | 280 (0.62) | 0.73 | 1.51 | 0.85 |
+| 0.035 (0.89) | 0.680 | 346 (0.76) | 0.88 | 1.83 | 1.19 |
+| 0.040 (1.02) | 0.670 | 393 (0.87) | 0.99 | 2.05 | 1.45 |
+| 0.049 (1.24) | 0.652 | 475 (1.05) | 1.17 | 2.42 | 1.97 |
+| 0.058 (1.47) | 0.634 | 555 (1.22) | 1.33 | 2.76 | 2.54 |
 | 0.065 (1.65) | 0.620 | 616 (1.36) | 1.45 | 3.01 | 3.01 |
-| 0.083 (2.11) | 0.584 | 766 (1.69) | 1.72 | 3.57 | 4.91 |
+| 0.083 (2.11) | 0.584 | 766 (1.69) | 1.72 | 3.57 | 4.34 |
 
 **Titanium grade 5** (one tube maker's minimum; see the titanium section)
 
 | Wall in (mm) | ID in | Weight g (lb) | Stiffness | Bending strength | Dent index |
 |---|---|---|---|---|---|
-| 0.028 (0.71) | 0.694 | 277 (0.61) | 0.83 | 1.45 | 0.54 |
-| 0.035 (0.89) | 0.680 | 342 (0.75) | 1.01 | 1.77 | 0.84 |
-| 0.040 (1.02) | 0.670 | 389 (0.86) | 1.13 | 1.98 | 1.10 |
-| 0.049 (1.24) | 0.652 | 470 (1.04) | 1.33 | 2.34 | 1.65 |
-| 0.058 (1.47) | 0.634 | 549 (1.21) | 1.52 | 2.67 | 2.31 |
+| 0.028 (0.71) | 0.694 | 277 (0.61) | 0.83 | 1.45 | 0.82 |
+| 0.035 (0.89) | 0.680 | 342 (0.75) | 1.01 | 1.77 | 1.15 |
+| 0.040 (1.02) | 0.670 | 389 (0.86) | 1.13 | 1.98 | 1.40 |
+| 0.049 (1.24) | 0.652 | 470 (1.04) | 1.33 | 2.34 | 1.90 |
+| 0.058 (1.47) | 0.634 | 549 (1.21) | 1.52 | 2.67 | 2.45 |
 | 0.065 (1.65) | 0.620 | 609 (1.34) | 1.65 | 2.90 | 2.90 |
-| 0.083 (2.11) | 0.584 | 758 (1.67) | 1.96 | 3.45 | 4.74 |
+| 0.083 (2.11) | 0.584 | 758 (1.67) | 1.96 | 3.45 | 4.19 |
 
 **Stainless 304, annealed** (tube minimum)
 
 | Wall in (mm) | ID in | Weight g (lb) | Stiffness | Bending strength | Dent index |
 |---|---|---|---|---|---|
-| 0.028 (0.71) | 0.694 | 493 (1.09) | 1.45 | 0.43 | 0.16 |
-| 0.035 (0.89) | 0.680 | 611 (1.35) | 1.77 | 0.52 | 0.25 |
-| 0.040 (1.02) | 0.670 | 693 (1.53) | 1.98 | 0.59 | 0.33 |
-| 0.049 (1.24) | 0.652 | 838 (1.85) | 2.34 | 0.69 | 0.49 |
-| 0.058 (1.47) | 0.634 | 979 (2.16) | 2.67 | 0.79 | 0.68 |
+| 0.028 (0.71) | 0.694 | 493 (1.09) | 1.45 | 0.43 | 0.24 |
+| 0.035 (0.89) | 0.680 | 611 (1.35) | 1.77 | 0.52 | 0.34 |
+| 0.040 (1.02) | 0.670 | 693 (1.53) | 1.98 | 0.59 | 0.41 |
+| 0.049 (1.24) | 0.652 | 838 (1.85) | 2.34 | 0.69 | 0.56 |
+| 0.058 (1.47) | 0.634 | 979 (2.16) | 2.67 | 0.79 | 0.72 |
 | 0.065 (1.65) | 0.620 | 1087 (2.40) | 2.90 | 0.86 | 0.86 |
-| 0.083 (2.11) | 0.584 | 1351 (2.98) | 3.44 | 1.02 | 1.40 |
+| 0.083 (2.11) | 0.584 | 1351 (2.98) | 3.44 | 1.02 | 1.24 |
 
 **4130 chromoly, normalized** (tube minimum)
 
 | Wall in (mm) | ID in | Weight g (lb) | Stiffness | Bending strength | Dent index |
 |---|---|---|---|---|---|
-| 0.028 (0.71) | 0.694 | 490 (1.08) | 1.49 | 1.07 | 0.40 |
-| 0.035 (0.89) | 0.680 | 607 (1.34) | 1.81 | 1.31 | 0.62 |
-| 0.040 (1.02) | 0.670 | 689 (1.52) | 2.03 | 1.46 | 0.81 |
-| 0.049 (1.24) | 0.652 | 833 (1.84) | 2.39 | 1.73 | 1.22 |
-| 0.058 (1.47) | 0.634 | 973 (2.15) | 2.73 | 1.97 | 1.71 |
+| 0.028 (0.71) | 0.694 | 490 (1.08) | 1.49 | 1.07 | 0.61 |
+| 0.035 (0.89) | 0.680 | 607 (1.34) | 1.81 | 1.31 | 0.85 |
+| 0.040 (1.02) | 0.670 | 689 (1.52) | 2.03 | 1.46 | 1.04 |
+| 0.049 (1.24) | 0.652 | 833 (1.84) | 2.39 | 1.73 | 1.40 |
+| 0.058 (1.47) | 0.634 | 973 (2.15) | 2.73 | 1.97 | 1.81 |
 | 0.065 (1.65) | 0.620 | 1080 (2.38) | 2.98 | 2.15 | 2.15 |
-| 0.083 (2.11) | 0.584 | 1342 (2.96) | 3.53 | 2.55 | 3.50 |
+| 0.083 (2.11) | 0.584 | 1342 (2.96) | 3.53 | 2.55 | 3.10 |
 
 ## How to read the alloy tables
 
@@ -399,14 +430,22 @@ twice the baseline; 0.50 means half.
 - **Bending strength** is the bending load the tube takes before it bends
   for good: the alloy's minimum yield strength times the tube's section
   from its shape. At 2.00 it takes twice the load.
-- **Dent index** is yield strength times wall thickness squared, a scaling
-  used for crushing the wall of a ring. **It is a rough comparison for
-  ranking tubes against each other, not a prediction.** It ignores how
-  ductile a metal is, how much it hardens as it deforms, and what a real
-  impact on a real edge does. Nobody has published a drop test for staff
-  tube. At the 0.065 inch wall the dent index equals bending strength for
-  every alloy, by how both are defined, so it is not repeated in that
-  table.
+- **Dent index** is yield strength times wall thickness to the power 1.5.
+  That is how the force (or energy) needed to push in a dent of a given
+  depth scales when a tube lands across an edge, in the pipeline dent
+  model of Wierzbicki and Suh (1988) that the DNV pipeline protection
+  guidance (DNV-RP-F107) uses for dents from dropped objects. In that
+  model the tube's diameter cancels out, so the index is the same for a
+  5/8, 3/4 or 7/8 inch tube of the same alloy and wall. (Crushing a tube
+  flat across its whole width is a different case, and there a narrower
+  tube does better.) An earlier version of this guide used yield times
+  wall squared, a scaling for crushing a ring, which exaggerated how much
+  a thin wall loses. **It is a rough comparison for ranking tubes against
+  each other, not a prediction.** It ignores how ductile a metal is, how
+  much it hardens as it deforms, and what a real impact on a real edge
+  does. Nobody has published a drop test for staff tube. At the 0.065 inch
+  wall the dent index equals bending strength for every alloy, by how both
+  are defined, so it is not repeated in that table.
 - **Heat carried** is thermal conductivity times the metal's cross
   section: how readily the tube walls conduct heat from the wick zone
   toward your hands. Lower keeps your hands cooler, but also keeps heat
@@ -428,38 +467,38 @@ repository only), and the full calculator output is in
 
 | Alloy | Strength basis | Weight g (lb) | Stiffness | Bending strength | Dent index | Heat carried |
 |---|---|---|---|---|---|---|
-| Aluminium 5052-H32 | tube min | 235 (0.52) | 0.69 | 0.45 | 0.25 | 0.53 |
-| Aluminium 6061-T6 | tube min | 237 (0.52) | 0.68 | 0.68 | 0.38 | 0.64 |
-| Aluminium 6063-T5 | tube min | 237 (0.52) | 0.68 | 0.31 | 0.17 | 0.80 |
-| Aluminium 6063-T6 | tube min | 237 (0.52) | 0.68 | 0.55 | 0.30 | 0.77 |
-| Aluminium 6063-T832 [1] | tube min | 237 (0.52) | 0.68 | 0.70 | 0.39 | 0.77 |
-| Aluminium 6082-T6 | tube min | 237 (0.52) | 0.69 | 0.71 | 0.39 | 0.69 |
-| Aluminium 7005-T6 | typical | 244 (0.54) | 0.71 | 0.82 | 0.46 | 0.52 |
-| Aluminium 7075-T6 | tube min | 246 (0.54) | 0.70 | 1.29 | 0.71 | 0.50 |
-| Aluminium 7075-T73 | tube min | 246 (0.54) | 0.70 | 1.09 | 0.61 | 0.59 |
-| Aluminium 7068-T6 | tube min | 250 (0.55) | 0.72 | 1.64 | 0.91 | n/a |
-| Aluminium 2024-T3 | tube min | 243 (0.54) | 0.72 | 0.82 | 0.46 | 0.46 |
-| Titanium grade 1 | tube min | 396 (0.87) | 1.04 | 0.39 | 0.22 | 0.08 |
-| Titanium grade 2 | tube min | 396 (0.87) | 1.04 | 0.78 | 0.43 | 0.08 |
-| Titanium grade 3 | tube min | 396 (0.87) | 1.04 | 1.07 | 0.60 | 0.08 |
-| Titanium grade 4 | bar/plate min | 396 (0.87) | 1.02 | 1.36 | 0.75 | 0.08 |
-| Titanium grade 9 annealed | tube min | 393 (0.87) | 1.02 | 1.37 | 0.76 | 0.03 |
-| Titanium grade 9 CWSR | tube min | 393 (0.87) | 0.99 | 2.05 | 1.14 | 0.03 |
-| Titanium grade 5 | tube min | 389 (0.86) | 1.13 | 1.98 | 1.10 | 0.03 |
-| Titanium grade 23 | bar/plate min | 389 (0.86) | 1.13 | 2.15 | 1.19 | 0.03 |
-| Titanium grade 12 | tube min | 396 (0.87) | 1.02 | 0.98 | 0.54 | n/a |
-| Stainless 304 annealed | tube min | 693 (1.53) | 1.98 | 0.59 | 0.33 | 0.06 |
-| Stainless 304 1/4-hard | strip min | 693 (1.53) | 1.98 | 1.46 | 0.81 | 0.06 |
-| Stainless 316 annealed | tube min | 693 (1.53) | 1.98 | 0.59 | 0.33 | 0.06 |
-| Stainless 201 annealed [2] | sheet min | 685 (1.51) | 1.95 | 0.88 | 0.49 | 0.06 |
-| Stainless 430 | tube min | 679 (1.50) | 1.98 | 0.68 | 0.38 | 0.10 |
-| Stainless 17-4PH H1150 | bar min | 687 (1.51) | 1.94 | 2.05 | 1.14 | 0.07 |
-| Carbon steel 1020 DOM (as drawn) [3] | tube min | 689 (1.52) | 2.03 | 1.17 | 0.65 | 0.20 |
-| 4130 chromoly normalized | tube min | 689 (1.52) | 2.03 | 1.46 | 0.81 | 0.16 |
-| 4130 chromoly heat-treated | tube min | 689 (1.52) | 2.03 | 1.95 | 1.08 | 0.16 |
-| Magnesium AZ31B tube [4] | tube min | 155 (0.34) | 0.44 | 0.31 | 0.17 | 0.37 |
-| Brass C260 annealed tube | typical | 748 (1.65) | 1.09 | 0.39 | 0.22 | 0.46 |
-| Copper C12200 drawn (H58, plumbing "hard") | tube min | 784 (1.73) | 1.19 | 0.58 | 0.32 | 1.30 |
+| Aluminium 5052-H32 | tube min | 235 (0.52) | 0.69 | 0.45 | 0.32 | 0.53 |
+| Aluminium 6061-T6 | tube min | 237 (0.52) | 0.68 | 0.68 | 0.48 | 0.64 |
+| Aluminium 6063-T5 | tube min | 237 (0.52) | 0.68 | 0.31 | 0.22 | 0.80 |
+| Aluminium 6063-T6 | tube min | 237 (0.52) | 0.68 | 0.55 | 0.39 | 0.77 |
+| Aluminium 6063-T832 [1] | tube min | 237 (0.52) | 0.68 | 0.70 | 0.50 | 0.77 |
+| Aluminium 6082-T6 | tube min | 237 (0.52) | 0.69 | 0.71 | 0.50 | 0.69 |
+| Aluminium 7005-T6 | typical | 244 (0.54) | 0.71 | 0.82 | 0.58 | 0.52 |
+| Aluminium 7075-T6 | tube min | 246 (0.54) | 0.70 | 1.29 | 0.91 | 0.50 |
+| Aluminium 7075-T73 | tube min | 246 (0.54) | 0.70 | 1.09 | 0.77 | 0.59 |
+| Aluminium 7068-T6 | tube min | 250 (0.55) | 0.72 | 1.64 | 1.16 | n/a |
+| Aluminium 2024-T3 | tube min | 243 (0.54) | 0.72 | 0.82 | 0.58 | 0.46 |
+| Titanium grade 1 | tube min | 396 (0.87) | 1.04 | 0.39 | 0.28 | 0.08 |
+| Titanium grade 2 | tube min | 396 (0.87) | 1.04 | 0.78 | 0.55 | 0.08 |
+| Titanium grade 3 | tube min | 396 (0.87) | 1.04 | 1.07 | 0.76 | 0.08 |
+| Titanium grade 4 | bar/plate min | 396 (0.87) | 1.02 | 1.36 | 0.96 | 0.08 |
+| Titanium grade 9 annealed | tube min | 393 (0.87) | 1.02 | 1.37 | 0.97 | 0.03 |
+| Titanium grade 9 CWSR | tube min | 393 (0.87) | 0.99 | 2.05 | 1.45 | 0.03 |
+| Titanium grade 5 | tube min | 389 (0.86) | 1.13 | 1.98 | 1.40 | 0.03 |
+| Titanium grade 23 | bar/plate min | 389 (0.86) | 1.13 | 2.15 | 1.52 | 0.03 |
+| Titanium grade 12 | tube min | 396 (0.87) | 1.02 | 0.98 | 0.69 | n/a |
+| Stainless 304 annealed | tube min | 693 (1.53) | 1.98 | 0.59 | 0.41 | 0.06 |
+| Stainless 304 1/4-hard | strip min | 693 (1.53) | 1.98 | 1.46 | 1.04 | 0.06 |
+| Stainless 316 annealed | tube min | 693 (1.53) | 1.98 | 0.59 | 0.41 | 0.06 |
+| Stainless 201 annealed [2] | sheet min | 685 (1.51) | 1.95 | 0.88 | 0.62 | 0.06 |
+| Stainless 430 | tube min | 679 (1.50) | 1.98 | 0.68 | 0.48 | 0.10 |
+| Stainless 17-4PH H1150 | bar min | 687 (1.51) | 1.94 | 2.05 | 1.45 | 0.07 |
+| Carbon steel 1020 DOM (as drawn) [3] | tube min | 689 (1.52) | 2.03 | 1.17 | 0.83 | 0.20 |
+| 4130 chromoly normalized | tube min | 689 (1.52) | 2.03 | 1.46 | 1.04 | 0.16 |
+| 4130 chromoly heat-treated | tube min | 689 (1.52) | 2.03 | 1.95 | 1.38 | 0.16 |
+| Magnesium AZ31B tube [4] | tube min | 155 (0.34) | 0.44 | 0.31 | 0.22 | 0.37 |
+| Brass C260 annealed tube | typical | 748 (1.65) | 1.09 | 0.39 | 0.28 | 0.46 |
+| Copper C12200 drawn (H58, plumbing "hard") | tube min | 784 (1.73) | 1.19 | 0.58 | 0.41 | 1.30 |
 
 ### 60 in x 3/4 in OD x 0.065 in wall, every alloy
 
@@ -508,13 +547,13 @@ table uses the band for its own wall.
 uses the ASTM A240 sheet minimum for type 201-2. Tube is welded from
 strip, and the 201-1 variant has a lower minimum. With the 201-1 minimum,
 bending strength is 0.74 at 0.040 inch and 1.08 at 0.065 inch (dent index
-0.41 at 0.040 inch).
+0.52 at 0.040 inch).
 
 **[3] Carbon steel 1020 DOM.** Retail DOM tube is sold as "1020/1026" and
 is often supplied stress relieved. The row assumes as-drawn 1020 (ASTM
 A513 minimum 414 MPa). Stress-relieved 1020 (379 MPa) gives 1.07 at 0.040
-inch and 1.57 at 0.065 inch (dent index 0.60 at 0.040 inch). As-drawn
-1026 (483 MPa) gives 1.37 and 2.00 (dent index 0.76).
+inch and 1.57 at 0.065 inch (dent index 0.76 at 0.040 inch). As-drawn
+1026 (483 MPa) gives 1.37 and 2.00 (dent index 0.97).
 
 **[4] Magnesium AZ31B.** Bending yields the compressed face first, and
 AZ31B tube is much weaker in compression: one aerospace distributor lists
@@ -522,7 +561,7 @@ about 83 MPa compressive yield against 165 MPa tensile, both typical. The
 row uses the ASTM B107 tensile minimum, so it overstates the load before a
 permanent bend by about 1.3 times. With the typical compressive yield
 instead, bending strength is about 0.23 at 0.040 inch and 0.34 at 0.065
-inch (dent index 0.13 at 0.040 inch). No compressive minimum was found.
+inch (dent index 0.17 at 0.040 inch). No compressive minimum was found.
 
 ### What the comparison says in one paragraph
 
@@ -624,16 +663,16 @@ Figures are bending strength / dent index at 0.040 inch.
 
 | Grade | 0.040 in | Verdict |
 |---|---|---|
-| **Grade 9 CWSR** | 2.05 / 1.14 | **The titanium to buy.** Made in quantity as thin tube, certified to ASTM B338 or AMS specifications, and priced like grade 2 at the main small-quantity stockist |
-| Grade 5 | 1.98 / 1.10 on one tube maker's minimum | A little stiffer than grade 9, but not stocked as thin tube. Bought to the usual ASTM minimum (828 MPa) it would be about 14 percent stronger than grade 9 CWSR: about 2.34 / 1.30. Either way, grade 9 CWSR is the practical buy |
-| Grade 9 annealed | 1.37 / 0.76 | Good, but weaker than CWSR and, at one stockist, dearer. Only worth it if you plan to bend or form the tube |
-| Grade 23 | 2.15 / 1.19 on its bar minimum | No benefit. It is grade 5 with low oxygen for implants. Its minimum (759 MPa) is below grade 5's own (828 MPa); it only looks stronger here because the grade 5 row uses one maker's lower tube figure. Sold as bar and wire, not staff tube |
-| Grade 4 | 1.36 / 0.75 on a bar/plate minimum | Skip. Not sold as small tube, and it loses much of its strength when hot |
-| Grade 3 | 1.07 / 0.60 | Decent on paper, but a mill-order heat-exchanger item, not sold in staff sizes |
-| Grade 12 | 0.98 / 0.54 | Skip. A heat-exchanger corrosion grade between grades 2 and 3 in strength, not sold at retail |
-| Grade 2 | 0.78 / 0.43 | Works but soft. Fine for LED and practice; for fire only if it is all you can get |
+| **Grade 9 CWSR** | 2.05 / 1.45 | **The titanium to buy.** Made in quantity as thin tube, certified to ASTM B338 or AMS specifications, and priced like grade 2 at the main small-quantity stockist |
+| Grade 5 | 1.98 / 1.40 on one tube maker's minimum | A little stiffer than grade 9, but not stocked as thin tube. Bought to the usual ASTM minimum (828 MPa) it would be about 14 percent stronger than grade 9 CWSR on both indices (bending strength about 2.34). Either way, grade 9 CWSR is the practical buy |
+| Grade 9 annealed | 1.37 / 0.97 | Good, but weaker than CWSR and, at one stockist, dearer. Only worth it if you plan to bend or form the tube |
+| Grade 23 | 2.15 / 1.52 on its bar minimum | No benefit. It is grade 5 with low oxygen for implants. Its minimum (759 MPa) is below grade 5's own (828 MPa); it only looks stronger here because the grade 5 row uses one maker's lower tube figure. Sold as bar and wire, not staff tube |
+| Grade 4 | 1.36 / 0.96 on a bar/plate minimum | Skip. Not sold as small tube, and it loses much of its strength when hot |
+| Grade 3 | 1.07 / 0.76 | Decent on paper, but a mill-order heat-exchanger item, not sold in staff sizes |
+| Grade 12 | 0.98 / 0.69 | Skip. A heat-exchanger corrosion grade between grades 2 and 3 in strength, not sold at retail |
+| Grade 2 | 0.78 / 0.55 | Works but soft. Fine for LED and practice; for fire only if it is all you can get |
 | Grade 7 | about grade 2 | Grade 2 plus palladium for chemical plants. Grade 2 strength at a premium. Pointless for a staff |
-| Grade 1 | 0.39 / 0.22 | **Avoid.** The softest titanium there is |
+| Grade 1 | 0.39 / 0.28 | **Avoid.** The softest titanium there is |
 
 **Buy with a mill certificate.** Surplus and marketplace titanium is often
 sold without certification. Any honest grade 9 is fine for a staff, but a
@@ -656,7 +695,7 @@ At staff size it is not cheaper, and it is the weakest titanium there is.
 - Grade 1's minimum yield is 138 MPa, about half of grade 2 and about a
   fifth of grade 9 CWSR. At 0.040 inch a grade 1 tube weighs 396 g, more
   than a standard aluminium staff, yet has only 0.39 of its bending
-  strength and 0.22 of its dent index. Even at 0.065 inch it reaches only
+  strength and 0.28 of its dent index. Even at 0.065 inch it reaches only
   0.57. Wick heat weakens it further. Its virtues, ductility and corrosion
   resistance, are things a staff does not need.
 
@@ -728,12 +767,12 @@ So in practice, the cheap titanium for a staff is grade 9 CWSR.
 ### Do makers use titanium?
 
 Almost no flow-arts maker publishes a titanium contact staff to compare
-against. At least two brands sell titanium fire staffs, mostly spin
-staffs rather than contact staffs. Fusion Arts builds its pro fire staffs on
-19 mm x 140 cm titanium tube and gives 500 to 750 g complete, and
-Firelovers sells a 140 cm titanium staff; neither names a grade
-(**community figure**). Grade 9 CWSR comes from the bicycle-frame and
-aerospace-tube world, not from flow arts.
+against. At least one brand, Firelovers, sells a titanium fire staff
+(140 cm, grade not named). Fusion Arts gives 500 to 750 g for its pro fire
+staffs on 19 mm x 140 cm tube; an earlier read described that tube as
+titanium, but a later re-read did not find the word on the page, so treat
+it as unconfirmed (**community figure**). Grade 9 CWSR comes from the
+bicycle-frame and aerospace-tube world, not from flow arts.
 
 **Cost.** On the snapshot date a 5 ft length of 3/4 x 0.039 inch grade 9
 CWSR cost about $111 at the main small-quantity stockist, against $10.46
@@ -742,6 +781,78 @@ prorated to 5 ft) for a standard 6061 tube: roughly 4 to 11 times the
 price, depending on where the aluminium comes from. A marketplace listing
 on Online Metals for the same titanium size was $750 for 5 ft, so shop
 around.
+
+### A worked example: a 60 inch grade 9 CWSR contact staff
+
+The build this guide was first written around was a 60 inch contact
+staff in grade 9 CWSR titanium, 3/4 inch OD with a 0.040 inch wall, and a
+thicker 0.049 to 0.050 inch wall as the tougher alternative. From the
+grade 9 table above, 3/4 x 0.040 comes to 393 g, stiffness 0.99, bending
+strength 2.05 and dent index 1.45; 3/4 x 0.049 comes to 475 g, 1.17, 2.42
+and 1.97.
+
+Those exact walls turn out not to be all on the shelf. 3/4 x 0.049 in
+grade 9 is quote-only, and 5/8 x 0.049 and 7/8 x 0.040 or 0.049 are not
+stocked. The nearest certified CWSR walls you can actually buy in 5 ft
+lengths, a thin and a thick wall in each of the three common diameters,
+are below. All are grade 9 CWSR at the ASTM B338 tube minimum, bare 60 inch
+tube, scored against the standard 3/4 x 0.065 inch 6061-T6 staff (1.00),
+computed the same way as the tables above. Prices were checked on
+**September 25, 2026**, before shipping.
+
+| Tube (OD x wall, in) | Weight g (lb) | ID in | Stiffness | Bending strength | Dent index | Stock and price, 5 ft |
+|---|---|---|---|---|---|---|
+| 5/8 x 0.042 | 339 (0.75) | 0.541 | 0.58 | 1.43 | 1.56 | CWSR, certified; $106 to $111 (Titanium Joe, Tiger Titanium) |
+| 5/8 x 0.054 | 427 (0.94) | 0.517 | 0.70 | 1.74 | 2.28 | CWSR, certified; $132 (Tiger Titanium) |
+| 3/4 x 0.039 | 384 (0.85) | 0.672 | 0.97 | 2.01 | 1.40 | CWSR, certified; $106 to $111 (Titanium Joe, Tiger Titanium) |
+| 3/4 x 0.052 | 502 (1.11) | 0.646 | 1.22 | 2.54 | 2.15 | CWSR, certified; $132 (Titanium Joe) |
+| 7/8 x 0.035 | 407 (0.90) | 0.805 | 1.43 | 2.54 | 1.19 | CWSR, certified to ASTM B338; $116 (Tiger Titanium) |
+| 7/8 x 0.047 | 539 (1.19) | 0.781 | 1.84 | 3.27 | 1.85 | CWSR; $142 (Tiger Titanium, whose page says it is certified to ASTM B338) |
+
+How to read it:
+
+- **Dent resistance follows the wall, not the diameter.** Every option
+  beats the standard aluminium staff's 1.00. The thick walls (1.85 to
+  2.28) match or beat 7075-T6 even at a 0.065 inch wall (1.89), and
+  clearly beat the 1.4 mm (0.055 inch) 7075 wall most makers use (about
+  1.47 on the same index, this guide's own calculation). Among the thin
+  walls, the 5/8 x 0.042 scores highest (1.56) simply because its wall is
+  the thickest of the three.
+- **Stiffness follows the diameter.** 5/8 inch is the bounciest (0.58 to
+  0.70), 3/4 inch runs from about the standard staff to about a fifth stiffer
+  (0.97 to 1.22), and
+  7/8 inch is clearly stiffer (1.43 to 1.84).
+- **Rolling.** With heads on the ends, the 7/8 inch staff should roll
+  roughly 16 to 24 percent faster than the 3/4 inch one (this guide's own
+  estimate, from the diameter section above). Bonobo Flow's advice
+  (**community figure**) is that 3/4 inch is a safe choice for beginners
+  and for mixing contact with spinning, and that 7/8 inch is the most
+  common contact diameter and easier to grab.
+- **Inside diameter.** 5/8 inch leaves the least room for plugs and
+  heads (0.517 to 0.541 inch inside); check your plug and head sizes
+  against the ID column before ordering.
+- **Weight.** Diameter costs less weight than you might expect: bare
+  7/8 x 0.035 is only 23 g heavier than bare 3/4 x 0.039. The thick walls
+  add about 90 to 130 g over the thin wall of the same diameter, all of it
+  along the middle, which makes the staff feel less end-heavy. Built with
+  fire ends (roughly 100 to 150 g per end, plug included), these options
+  land at roughly 540 to 840 g dry. The heavier builds sit inside the
+  published range for complete fire contact staffs (about 610 g to
+  1.14 kg; see "How heavy should a staff be?" below). The lightest
+  thin-wall builds come in a little under the lightest published one.
+
+Buying notes:
+
+- A "0.05 inch" wall is sold as 0.049 inch (18 gauge), and ASTM B338
+  allows plus or minus 10 percent on wall thickness, so 0.049 against
+  0.050 does not matter. Likewise 3/4 x 0.039 performs almost exactly
+  like the planned 0.040 (dent index 1.40 against 1.45).
+- Buy **tube**, which is sized by its real outside diameter, not **pipe**,
+  which uses nominal sizes and has no 5/8 inch size at all.
+- Ask for the mill test report showing the alloy, the CWSR condition and
+  that the tube is seamless.
+- Grade 5 thin-wall tube in these sizes was not found at retail, so grade
+  9 CWSR is the titanium option in practice.
 
 ## Stainless steel and other steels
 
@@ -848,6 +959,90 @@ Wood, bamboo, carbon fibre, fibreglass and plastics are covered in the
 fire staff guide. In short: carbon fibre and fibreglass are good LED and
 practice tube and need metal heat shields for fire; wood makes a good
 practice staff and, for fire, only works with metal-covered ends.
+
+## How heavy should a staff be?
+
+Total weight gets most of the attention, but makers and teachers mostly
+agree that **where the weight sits matters more than how much there is.**
+Everything below is from published maker and retailer listings and
+teachers' advice (**community figure**) unless it is marked as this
+guide's own calculation. Weights are for complete staffs as sold, dry:
+wicks and grip on, no fuel. Few makers say outright whether fuel is
+counted, but it is almost certainly not.
+
+### What published staffs weigh
+
+| Staff type | Published complete weight | Examples |
+|---|---|---|
+| Fire contact staff | About 610 g (the low end of the fire staff guide's survey) to about 1.14 kg; most 670 to 910 g | Threeworlds Matrix 680 g at 140 cm; Dark Monk collapsible 709 to 850 g; Sacred Flow Art 700 to 850 g; Threeworlds Fusion (via Bonobo Flow) 756 to 922 g; Play Geryon 800 g on the maker's page; the Gora breakdown staff as listed by Renegade 871 to 930 g; Gora Travel 1 kg; Play Geryon 1.14 kg as listed by NetJuggler for a 25 mm, 2 mm wall build, fuel not stated |
+| Practice contact staff | About 770 g to 1 kg | NetJuggler 770 g; Sacred Flow Art collapsible 830 g; Gora Travel practice 1 kg |
+| LED contact staff | Roughly 850 g to 1 kg, possibly as low as about 540 g | Pyroterra Lumi FT2 up to 541 g (a retailer range of 349 to 541 g over 85 to 150 cm; pairing 541 g with 150 cm, and treating that size as a contact staff, are both inferred, so the lower floor is provisional); Flowtoys Vision XL 848 g; NeoStaff Pro about 980 g; NeoFlowArt IzoStaff 1 kg |
+| Fire spin staff, 120 to 150 cm | About 470 to 770 g | Threeworlds Flare 470 g at 120 cm; Sacred Flow Art Thai staff 500 to 620 g; Renegade 657 g at 135 cm; Threeworlds Isis Pro 700 g at 130 cm; Trick Concepts 5 ft 765 g |
+| Short, finger and juggling staffs, 80 to 110 cm | About 190 to 360 g | Ninja Pyrate training staff 190 to 220 g; Threeworlds Spark 200 g; Sacred Flow Art and NetJuggler juggling staffs 310 g; Firetoys Classic 332 g at 100 cm; Firetoys Fibre Air 360 g |
+| Fire double staffs | About 220 to 375 g each; most 280 to 370 g | Sacred Flow Art Kevlar Pro 220 to 305 g; Renegade 280 g; Inspyre 330 g; Trick Concepts 369 g; Sacred Flow Art 375 g |
+| Full-size fire dragon staff | About 1.0 to 1.6 kg | Trick Concepts 8-wick cable spine 1077 g; Sacred Flow Art 1.2 kg (8 wicks) and 1.5 kg (10 wicks); Dark Monk 4 spoke plus end wick about 1.36 kg; Gora 1.4 kg; Ignis 1.5 kg |
+
+NeoFlowArt's buying guide puts contact staffs at about 850 g to 1.1 kg,
+without saying whether it means fire, LED or practice staffs; that sits
+higher than, and partly overlaps, the published fire contact range.
+Trick Concepts sells a 34 oz (964 g) weighted fire contact staff with 3 oz
+(85 g) added inside each end, on the same tube and wick specification as
+its 27 oz (765 g) spin staff; the 7 oz gap is a little more than the 6 oz
+of added end weight, presumably from other differences such as the grips.
+
+### Why where the weight sits matters
+
+Mass at the ends counts by the square of its distance from your hand, so
+end weight raises a staff's resistance to turning much faster than it
+raises the number on the scale. As this guide's own calculation: an
+800 g, 1.5 m staff with 250 g in each end has roughly 2 to 2.25 times the
+rotational inertia of the same 800 g spread evenly along its length. That
+flywheel effect is what makes an end-weighted staff turn slowly, hold its
+momentum and damp small bumps from the body during a roll. By the same
+physics (again this guide's own reasoning), it is also what makes the
+staff harder to tip into a new plane or reverse.
+
+### Heavier or lighter? Opinion, not specification
+
+- **For heavier and end-weighted, especially for beginners and slow body
+  rolls:** Master Flow Arts says heavier tends to be easier for beginners
+  and lighter gives more freedom of movement. Dark Monk says heavier is
+  easier, but only up to a point, and on its contact double staves page
+  that longer, heavier staves roll more slowly, which makes contact moves
+  easier. A commenter on a Home of Poi beginner lesson (one user's
+  opinion, not the lesson text) says heavier contact staffs make contact
+  moves cleaner but hit harder, and suggests taping inner-tube strips to
+  the ends of a light staff for weight. Gora (on Firetoys) calls for heavy
+  ends and a light middle, and Sacred Flow Art describes contact staffs as
+  weighted to slow the rotation.
+- **For lighter past the beginner stage:** Fusion Arts accepts that
+  beginner contact spinners often prefer a heavier staff, but says that
+  past the beginner stage a lighter staff is better because changing plane
+  or direction takes less effort. Its own pro fire staffs weigh 500 to
+  750 g.
+- **Isolations and tosses:** almost nothing published gives a weight. The
+  only toss guidance found concerns length (RandyLeeSticks: shorter sticks
+  are easier to throw) and bounciness (Flow Arts Institute: bouncy
+  hardwood staffs make tosses harder); neither gives a weight. As this
+  guide's own reasoning: in an isolation your hand
+  keeps pulling the staff's centre around a circle, and that pull grows
+  with total weight, which favours lighter staffs.
+- **Spin and doubles:** makers agree these are the light end of the
+  family, because lighter spins faster, tosses higher and tires you less.
+
+### Fuel is weight at the very ends
+
+Fuel adds weight exactly where it has the most effect. Renegade weighed a
+1 ft strip of 2 in x 1/8 in Kevlar wick dry and fully soaked: it held about
+21 to 26 g of fuel, depending on the wick. Nobody publishes how much stays
+in after spinning off the excess, so the fuelled weight of a real staff is
+unknown. Some practice staffs use weighted wick covers (Dark Monk sells
+them) to make practice feel like a fuelled staff.
+
+For the worked example above, this means a titanium staff that is light in
+the middle is not a problem: the ends, the wicks and the fuel set the
+feel, and extra end weight can be added inside the plugs if you want the
+slower, heavier roll.
 
 ## Which tube for which staff
 
@@ -984,6 +1179,7 @@ not checked.
 | Titanium grade 2, 3/4 in | Tiger Titanium | $1.85/in (0.035), $1.75/in (0.049): about $105 to $111 for 5 ft |
 | Titanium grade 9 CWSR, 3/4 x 0.035 or 0.039 in | Tiger Titanium | $1.85/in, about $111 for 5 ft |
 | Titanium grade 9 annealed, 3/4 x 0.039 in | Tiger Titanium | $2.20/in, about $132 for 5 ft |
+| Titanium grade 9 CWSR, 5/8, 3/4 and 7/8 in, thin and thick walls | Titanium Joe, Tiger Titanium | $106 to $142 for 5 ft, checked September 25, 2026; see the worked example in the titanium section |
 | Titanium grade 9, 3/4 x 0.039 in | Online Metals (marketplace seller Metal Mart Studio) | $750 for 5 ft (read from the listing as indexed; the page blocks automated fetching) |
 | 304 annealed, 3/4 in | Speedy Metals | $43 (0.035), $25.91 (0.049), $30 (0.065), each 60 in |
 | 1020/1026 DOM, 3/4 x 0.035 in | Speedy Metals | $72.73 for 60 in |
@@ -994,8 +1190,9 @@ not checked.
 - You measured your own starting length against a wall, and tested it on
   a cheap dowel before cutting good tube.
 - You can say why 3/4 inch at about 0.055 to 0.065 inch wall is the
-  common contact staff tube, and what going thinner costs in dent
-  resistance.
+  common contact staff tube, what going thinner costs in dent
+  resistance, why a fatter tube does not dent less, and why where a
+  staff's weight sits matters more than its total.
 - You can check whether a plug, dowel or LED head will fit, from the
   outside diameter and the wall.
 - You know that within a metal family the alloy changes strength, not
@@ -1068,7 +1265,12 @@ project's source repository, not inside the app.
 ### Standards and specifications
 
 - ASTM B338, seamless and welded titanium tubes (grade 1, 2, 3, 9
-  annealed, 9 CWSR and 12 minimums).
+  annealed, 9 CWSR and 12 minimums; the plus or minus 10 percent wall
+  tolerance).
+- DNV (Det Norske Veritas). DNV-RP-F107, *Risk Assessment of Pipeline
+  Protection*, 2001 edition, Equation 3, the energy to push a dent of a
+  given depth into a pipe (yield strength times wall to the power 1.5,
+  independent of diameter): the basis of the dent index.
 - ASTM B348 and B265, titanium bar and plate (grade 23 minimum), and the
   grade 5 minimum cited for comparison.
 - ASTM B210 and B483, drawn aluminium tube (5052, 6061, 6063, 7075, 7068
@@ -1140,6 +1342,9 @@ project's source repository, not inside the app.
   ASME IDETC/CIE 2008 (the body-proportion ratios are ambiguously defined
   and unvalidated).
   https://asmedigitalcollection.asme.org/IDETC-CIE/proceedings-abstract/IDETC-CIE2008/43253/581/330839
+- Wierzbicki, T. and Suh, M.S., *Indentation of tubes under combined
+  loading*, International Journal of Mechanical Sciences 30(3-4):229-248,
+  1988 (the tube dent model behind DNV-RP-F107 and the dent index).
 
 ### Manufacturer and industry technical literature (named documents)
 
@@ -1236,7 +1441,8 @@ project's source repository, not inside the app.
 
 Figures from staff makers, teachers and retailers are labelled
 **community figure** in the text, and prices and stock are a snapshot
-checked September 24, 2026. The reference sites at the end of this list
+checked September 24, 2026 (the grade 9 titanium options on September
+25, 2026). The reference sites at the end of this list
 each supply a single textbook or database value, and the text says where
 it uses one.
 
@@ -1252,7 +1458,9 @@ it uses one.
   price and 5 ft maximum, https://firemecca.com/products/aluminum-staff-tubing),
   RandyLeeSticks (https://randyleesticks.com/sizing-a-contact-staff/, also
   for 5/8 inch tube under about 5 ft 4 in), Master Flow Arts
-  (https://www.masterflowarts.com/contact-staff/choosing-a-contact-staff),
+  (https://www.masterflowarts.com/contact-staff/choosing-a-contact-staff,
+  also for how diameter changes rolling speed, heavier being easier for
+  beginners, and most of the weight belonging in the ends),
   Home of Poi (https://www.homeofpoi.com/us/help/faq/3/159), Fire and
   Flow NZ (https://fireandflow.co.nz/blogs/resources/size-guide, for the
   double-staff torso and arm test), NeoFlowArt
@@ -1285,11 +1493,11 @@ it uses one.
   and 22 mm (the Fusion system).
 - The Flowbonacci dragon staff, for a 1.5 mm carbon fibre wall
   (https://flowtoys.com/flowbonacci-dragon-staff).
-- Titanium fire staffs on sale: Fusion Arts, for 19 mm x 140 cm titanium
-  tube and 500 to 750 g complete
-  (https://fusion-arts.com/choose-fire-staff/), and Firelovers, via
-  Oddballs, for a 140 cm titanium staff
-  (https://www.oddballs.co.uk/products/firelovers-titanium-fire-staff-140cm).
+- Titanium fire staffs on sale: Firelovers, via Oddballs, for a 140 cm
+  titanium staff
+  (https://www.oddballs.co.uk/products/firelovers-titanium-fire-staff-140cm),
+  and Fusion Arts, for 19 mm x 140 cm tube (titanium unconfirmed) and 500
+  to 750 g complete (https://fusion-arts.com/choose-fire-staff/).
 - Metal stockists, for prices, stock sizes and some product weights:
   Speedy Metals (https://www.speedymetals.com/c-8371-round-tube.aspx),
   Online Metals (https://www.onlinemetals.com/, and for the grade 9
@@ -1310,6 +1518,100 @@ it uses one.
   and SAM Materials (Stanford Advanced Materials), which listed 3/4 inch
   grade 1 as quote-only
   (https://www.samaterials.com/item/tm7273-titanium-tube-ti-tube-grade-1-ta1-od-34-inch.html).
+- Titanium stockists, for the grade 9 CWSR sizes, walls, certification and
+  prices in the worked example, checked September 25, 2026: Titanium Joe
+  (https://titaniumjoe.com/index.cfm/titanium-products/titanium-tubing-titanium-tube-titanium-tubes-titanium-pipe-titanium-piping-3al-2-5v-titanium-tubing-grade-9-titanium-cp-grade-2-titanium-tubing)
+  and Tiger Titanium's 3Al-2.5V tube listings
+  (https://www.tigertitanium.com/storek/Tube/3Al-25V; its 7/8 x 0.047 inch
+  page says the tube is certified to ASTM B338).
+- Bonobo Flow, *How to choose the right staff diameter*, February 20, 2024,
+  for thinner tube rolling more slowly across the body, 3/4 inch as a safe
+  choice for beginners and mixed contact and spin, 7/8 inch as the most
+  common contact diameter and easier to grab, and larger diameters
+  spreading more weight along the shaft.
+  https://bonoboflow.com/how-to-choose-the-right-staff-diameter/
+- Staff makers and retailers, for the published weights in the weight
+  section (weights as listed; most listings do not say whether fuel is
+  included, and it is almost certainly not):
+  Threeworlds Matrix contact staff
+  (https://www.threeworlds.com.au/products/matrix-contact-fire-staff),
+  Fusion builder
+  (https://www.threeworlds.com.au/products/fusion-contact-fire-led-staff-builder),
+  Flare (https://www.threeworlds.com.au/products/flare-fire-staff-with-100mm-wicks),
+  Isis Pro (https://www.threeworlds.com.au/products/isis-pro-fire-staff)
+  and Spark (https://www.threeworlds.com.au/products/spin-fire-staff-with-50mm-wicks);
+  Bonobo Flow's Fusion collapsible contact staff
+  (https://bonoboflow.com/product/fusion-collapsible-fire-contact-staff/);
+  Dark Monk's collapsible contact staff
+  (https://dark-monk.com/Equipment/Threeworlds-Contact-Staff-Collapsible)
+  and 4 spoke dragon (https://dark-monk.com/Equipment/Dragon-Staff);
+  Play Juggling's Geryon
+  (https://playjuggling.com/products/geryon-contact-staff/); NetJuggler,
+  for the Geryon at 1.140 kg, its training contact staff, its juggling
+  staff and the Gora dragon
+  (https://www.netjuggler.net/En/buy/staff-contact.html,
+  https://www.netjuggler.net/En/buy/training-contact-staff.html,
+  https://www.netjuggler.net/En/buy/juggling-fire-staff.html,
+  https://www.netjuggler.net/En/buy/aluminum-gora-dragon-staff.html);
+  Renegade Juggling's Gora portable contact staff
+  (https://renegadejuggling.com/products/gora-portable-fire-contact-staff),
+  aluminium spin staff (listed above) and double staff
+  (https://www.renegadejuggling.com/double-fire-staff); Firetoys, for the
+  Gora Travel contact staff
+  (https://www.firetoys.com/products/gora-travel-contact-fire-staff), the
+  Classic staff
+  (https://www.firetoys.com/products/firetoys-classic-fire-spinning-staff)
+  and the Fibre Air
+  (https://www.firetoys.com/products/firetoys-fibre-air-throwing-staff);
+  Oddballs, for the Gora Travel practice staff
+  (https://www.oddballs.co.uk/products/gora-travel-contact-practice-staff-1-5m-3-piece);
+  Sacred Flow Art's practice contact staff
+  (https://sacredflowart.com/product/practice-contact-staff/), Thai staff
+  (https://sacredflowart.com/product/thai-staff/), juggling staff
+  (https://sacredflowart.com/product/fire-juggling-staff/), double staffs
+  (https://sacredflowart.com/product/fire-double-staff/,
+  https://sacredflowart.com/product/double-staff-pro/) and contact staff
+  guide (https://sacredflowart.com/contact-fire-staff-guide/); Flowtoys
+  Vision Contact Staff XL
+  (https://flowtoys.com/vision-contact-staff-xl-w-pods); NeoFlowArt's
+  NeoStaff Pro (https://neoflowart.com/pixel-contact-staff/), IzoStaff
+  (https://neoflowart.com/izostaff-led-contact-staff/) and buying guide
+  (https://neoflowart.com/blog/cstaff-vs-staff/, already listed above);
+  Firelovers, for the Pyroterra Lumi FT2 weight range
+  (https://www.firelovers.com/products/lumi-staff-ft2); Trick Concepts'
+  spin staff (https://www.trickconcepts.com/5ft-fire-spinning-staff/),
+  weighted contact staff
+  (https://www.trickconcepts.com/5ft-fire-weighted-contact-staff/, for
+  34 oz and 3 oz added inside each end), double staff
+  (https://www.trickconcepts.com/fire-double-staff-36-sold-individually/)
+  and 8-wick cable-spine dragon
+  (https://www.trickconcepts.com/8-wick-fire-dragon-staff-cable-spine-5ft-long/);
+  Ninja Pyrate's training juggling staff
+  (https://ninjapyrate.com/juggling-staff-training-single/); Inspyre's
+  double staffs (https://www.inspyreflowprops.com/products/regular-double-staffs);
+  Sacred Flow Art's fire dragon
+  (https://sacredflowart.com/product/fire-dragon-staff/, listed above);
+  and Ignis, for its fire and LED dragons
+  (https://ignisshop.com/en/staff/72-led-dragon-staff-ignis-10.html).
+- Teachers and makers, for weight guidance: Fusion Arts
+  (https://fusion-arts.com/choose-fire-staff/, listed above, for lighter
+  past the beginner stage and its own 500 to 750 g pro staffs); Dark
+  Monk's aluminium and carbon fibre comparison, for heavier being easier
+  up to a point and for weighted wick covers
+  (https://dark-monk.com/Article/Comparing-Aluminum-CarbonFiber-Contact-Staff),
+  and its contact double staves page
+  (https://dark-monk.com/Equipment/Contact-Double-Staves); a user comment
+  (Pyrodanza, 2012) on Home of Poi's beginner staff lesson
+  (https://www.homeofpoi.com/en/lessons/teach/Staff/Beginners-2/Selecting-staff);
+  Firetoys' Gora practice listing, for heavy ends and a light middle
+  (https://www.firetoys.com/products/gora-travel-contact-practice-staff-3-part-collapsible-contact-staff-150cm);
+  RandyLeeSticks (listed above), for shorter sticks being easier to
+  throw; and the Flow Arts Institute's beau staff page, for bouncier
+  hardwood staffs making tosses harder
+  (https://flowartsinstitute.com/beau-staff/).
+- Renegade Juggling, *How to select and use Kevlar fire wicks*, for the dry
+  and fully soaked weights of 1 ft of 2 in x 1/8 in wick.
+  https://renegadejuggling.com/blogs/juggling-guides-tips/how-to-select-and-use-kevlar-fire-wicks
 - BTI Metals, an aerospace distributor, for the typical compressive and
   tensile yield of AZ31B tube.
   https://btimetals.com/aerospace_metal/magnesium-az31b-tubes/
