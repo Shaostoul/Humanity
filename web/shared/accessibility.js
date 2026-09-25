@@ -135,11 +135,17 @@
       if (valid.indexOf(mode) === -1) mode = 'none';
       localStorage.setItem(KEYS.colorblindMode, mode);
 
+      // On <html>, not <body> (2026-09-25). A CSS filter on any element except
+      // the root makes that element the containing block for position:fixed
+      // descendants, so with the filter on <body> the "fixed" top bar and
+      // footer scrolled away with the page. The spec exempts the root element.
+      // The attribute is also cleared from <body> for pages loaded before this.
+      document.body.removeAttribute('data-colorblind');
       if (mode === 'none') {
-        document.body.removeAttribute('data-colorblind');
+        document.documentElement.removeAttribute('data-colorblind');
       } else {
         ensureFilters();
-        document.body.setAttribute('data-colorblind', mode);
+        document.documentElement.setAttribute('data-colorblind', mode);
       }
     },
 

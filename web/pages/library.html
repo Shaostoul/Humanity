@@ -19,8 +19,15 @@
 
     .lib-main { display:flex; gap:var(--space-xl); align-items:flex-start; min-height:0; }
 
-    /* ── Left rail: nested document tree ── */
-    .lib-rail { flex:0 0 280px; max-height:calc(100vh - 220px); overflow-y:auto; border-right:1px solid var(--border); padding-right:var(--space-md); }
+    /* ── Left rail: nested document tree ──
+       ONE scroll for the page (2026-09-25). The rail and the reader used to be
+       two fixed-height boxes, each with its own scrollbar, inside a page that
+       also scrolled: three scrollbars, and a wheel over the empty margins moved
+       the page instead of what you were reading. Now the reader flows with the
+       page and the rail stays in view beside it (sticky), scrolling on its own
+       only when the tree is taller than the screen. --lib-top and --lib-bottom
+       are kept in step with the fixed top bar and footer by library-app.js. */
+    .lib-rail { flex:0 0 280px; position:sticky; top:var(--lib-top, 64px); max-height:calc(100vh - var(--lib-top, 64px) - var(--lib-bottom, 16px)); overflow-y:auto; scrollbar-width:thin; border-right:1px solid var(--border); padding-right:var(--space-md); }
     .lib-section { font-size:var(--text-sm); font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:var(--text); margin:var(--space-lg) 0 var(--space-xs); padding-bottom:4px; border-bottom:1px solid var(--border); }
     .lib-section:first-child { margin-top:0; }
     .lib-cat { margin-bottom:var(--space-xs); }
@@ -30,11 +37,45 @@
     .lib-cat-arrow.collapsed { transform:rotate(-90deg); }
     .lib-doc { display:block; width:100%; text-align:left; background:none; border:none; font-family:inherit; color:var(--text-muted); font-size:var(--text-sm); padding:5px 0 5px 20px; cursor:pointer; border-radius:var(--radius); }
     .lib-doc:hover { color:var(--text); }
-    .lib-doc.active { color:var(--accent); font-weight:600; }
+    /* The open document cycles through the same six colours as the active tab
+       in the top bar (the "channeling" effect), with a bar of the same colour
+       on its left edge, so it is easy to spot in a long tree. The literal stops
+       are inherent to the effect (theme tokens cannot express a colour cycle);
+       purple is lightened from the top bar's #80f because it is text here, and
+       #80f on the dark background is too faint to read. */
+    @keyframes lib-channeling-text {
+      0%   { color:#ff5c5c; }
+      16%  { color:#ff9a33; }
+      33%  { color:#ffe94d; }
+      50%  { color:#3dff7a; }
+      66%  { color:#4aa8ff; }
+      83%  { color:#b77bff; }
+      100% { color:#ff5c5c; }
+    }
+    .lib-doc.active { color:var(--accent); font-weight:600; box-shadow:inset 3px 0 0 currentColor; background:color-mix(in srgb, currentColor 12%, transparent); animation:lib-channeling-text 3s linear infinite; }
+    /* Light theme: bright yellow text is unreadable on a light background, so
+       use the top bar's own treatment there instead: dark text, cycling border. */
+    [data-theme="light"] .lib-doc.active { color:var(--text); background:none; animation:channeling 3s linear infinite; }
+    /* The site's own Reduced motion switch stops the cycling. The OS-level
+       setting does not, matching the top bar's active tab: this is a slow
+       colour change in place, not movement, and on the operator's machine the
+       OS reports reduced motion, so honouring it would have made this the one
+       accent on the page that never changes colour. */
+    /* The site's Disable RGB Effects switch (data-no-rgb on <html>) stops it too,
+       like every other colour cycle on the site (web/shared/theme.css). A tint
+       behind the row keeps the static entry distinct from the category headings,
+       which are also drawn in the accent. */
+    [data-reduced-motion] .lib-doc.active, [data-no-rgb] .lib-doc.active { animation:none; color:var(--accent); box-shadow:inset 3px 0 0 var(--accent); background:color-mix(in srgb, var(--accent) 14%, transparent); }
+    /* Sticky inside the rail, so the notice stays in view when the rail has scrolled to the open entry. */
+    .lib-filter-note { position:sticky; top:0; z-index:1; font-size:var(--text-sm); color:var(--text-muted); margin:0 0 var(--space-sm); padding:6px 8px; border:1px solid var(--border); border-radius:var(--radius); background:var(--bg-card); }
+    .lib-filter-note b { color:var(--text); }
+    .lib-filter-clear { background:none; border:none; color:var(--accent); font-family:inherit; font-size:inherit; cursor:pointer; text-decoration:underline; padding:0 0 0 4px; }
     .lib-special { margin-top:var(--space-lg); padding-top:var(--space-md); border-top:1px solid var(--border); }
 
     /* ── Right pane: the reader ── */
-    .lib-content { flex:1; min-width:0; max-height:calc(100vh - 220px); overflow-y:auto; }
+    .lib-content { flex:1; min-width:0; scroll-margin-top:var(--lib-top, 64px); }
+    /* Headings jumped to from the contents list stop below the fixed top bar. */
+    .md-viewer h1, .md-viewer h2, .md-viewer h3, .md-viewer h4, .md-viewer h5, .md-viewer h6 { scroll-margin-top:var(--lib-top, 64px); }
     /* Contents: one collapsed line until the reader wants it, then an indented
        outline of the document's own headings. */
     .lib-toc { margin:0 0 var(--space-md); border:1px solid var(--border); border-radius:var(--radius); background:var(--bg-secondary); }
@@ -87,6 +128,13 @@
     .md-viewer ul, .md-viewer ol { margin:var(--space-md) 0; padding-left:var(--space-xl); }
     .md-viewer li { margin:4px 0; }
     .md-viewer a { color:var(--accent); }
+    /* Long unbroken strings (source URLs, file paths, inline code) wrap instead
+       of widening the column, which is what put a sideways scrollbar under the
+       reader. Ordinary words only break when a single word cannot fit. Tables
+       and code blocks keep their own sideways scroll below. */
+    .md-viewer p, .md-viewer li, .md-viewer blockquote, .md-viewer td, .md-viewer th { overflow-wrap:break-word; }
+    .md-viewer a, .md-viewer code { overflow-wrap:anywhere; }
+    .md-viewer img { max-width:100%; height:auto; }
     .md-viewer code { background:var(--bg-secondary); padding:2px 6px; border-radius:3px; font-size:0.9em; }
     .md-viewer pre { background:var(--bg-secondary); padding:var(--space-md); border-radius:var(--radius); overflow-x:auto; }
     .md-viewer pre code { background:none; padding:0; }
@@ -131,9 +179,14 @@
     .lib-search-note { color:var(--text-muted); font-size:var(--text-sm); font-style:italic; margin-bottom:var(--space-sm); }
 
     @media (max-width:820px) {
-      .lib-main { flex-direction:column; }
-      .lib-rail { flex:none; width:100%; max-height:none; border-right:none; border-bottom:1px solid var(--border); padding-right:0; padding-bottom:var(--space-md); }
-      .lib-content { max-height:none; }
+      /* align-items:stretch, not the desktop flex-start: in a column flex-start
+         sizes the reader to its widest content (a wide table measured 824px on
+         a 375px phone), which widened the whole page and put a sideways
+         scrollbar under everything. Stretched, the reader is the screen's width
+         and a wide table scrolls inside itself. */
+      .lib-main { flex-direction:column; align-items:stretch; }
+      .lib-content { width:100%; }
+      .lib-rail { flex:none; width:100%; position:static; max-height:none; overflow:visible; border-right:none; border-bottom:1px solid var(--border); padding-right:0; padding-bottom:var(--space-md); }
     }
     @media (prefers-reduced-motion: reduce) { .lib-cat-arrow { transition:none; } }
   </style>

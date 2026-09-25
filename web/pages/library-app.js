@@ -69,11 +69,14 @@
     // the native resolver, so a link can point at the map or at the words
     // without either having to become a fake .md file.
     var frag = location.hash.replace(/^#/, '');
-    if (frag === 'curriculum') { openCurriculum(); return true; }
-    if (frag === 'dictionary') { openDictionary(); return true; }
+    // Back/Forward: the browser restores the reading position itself (the
+    // window is the scroller), so the view must not jump to the top after it.
+    var hist = takeHistoryFlag();
+    if (frag === 'curriculum') { openCurriculum(hist); return true; }
+    if (frag === 'dictionary') { openDictionary(hist); return true; }
     var parts = splitFragment(location.hash.replace(/^#/, ''));
     var hit = findBySlug(parts.slug);
-    if (hit) openDoc(hit.ci, hit.di, true, parts.anchor);
+    if (hit) openDoc(hit.ci, hit.di, true, parts.anchor, hist);
     return !!hit;
   }
 
@@ -400,7 +403,7 @@
           '<div class="lib-cat-docs" id="lib-docs-' + ci + '">' +
             visible.map(function(x) {
               var active = current && current.ci === ci && current.di === x.di;
-              return '<button class="lib-doc' + (active ? ' active' : '') +
+              return '<button class="lib-doc' + (active ? ' active" aria-current="page' : '') +
                 '" data-ci="' + ci + '" data-di="' + x.di + '">' + esc(x.d.title) + '</button>';
             }).join('') +
           '</div>' +
@@ -412,13 +415,26 @@
     }
 
     html += '<div class="lib-special">' +
-      '<button class="lib-doc' + (current === 'dictionary' ? ' active' : '') +
+      '<button class="lib-doc' + (current === 'dictionary' ? ' active" aria-current="page' : '') +
       '" data-dict="1" style="padding-left:0;font-weight:600;">Dictionary</button>' +
-      '<button class="lib-doc' + (current === 'curriculum' ? ' active' : '') +
+      '<button class="lib-doc' + (current === 'curriculum' ? ' active" aria-current="page' : '') +
       '" data-curriculum="1" style="padding-left:0;font-weight:600;">What there is to learn</button>' +
     '</div>';
 
+    // With a tag filter on, say so INSIDE the rail: the rail is sticky, the tag
+    // bar scrolls away with the page, and a filtered tree with no sign of the
+    // filter reads as missing documents.
+    if (tagFilter) {
+      html = '<div class="lib-filter-note">Showing only <b>' + esc(tagLabel(tagFilter)) +
+        '</b> <button type="button" class="lib-filter-clear" data-clear-filter="1">show all</button></div>' + html;
+    }
+    // Rebuilding the rail destroys the button that was just pressed, which drops
+    // keyboard focus to the page. If focus was in the rail, put it back on the
+    // open entry so the next Tab continues from there.
+    var railHadFocus = rail.contains(document.activeElement);
     rail.innerHTML = html;
+    var clearBtn = rail.querySelector('[data-clear-filter]');
+    if (clearBtn) clearBtn.addEventListener('click', function() { tagFilter = null; renderTagBar(); renderRail(); });
 
     rail.querySelectorAll('[data-cat]').forEach(function(h) {
       var toggle = function() {
@@ -441,9 +457,82 @@
       });
     });
     var dictBtn = rail.querySelector('[data-dict]');
-    if (dictBtn) dictBtn.addEventListener('click', openDictionary);
+    if (dictBtn) dictBtn.addEventListener('click', function() { openDictionary(); });
     var curBtn = rail.querySelector('[data-curriculum]');
-    if (curBtn) curBtn.addEventListener('click', openCurriculum);
+    if (curBtn) curBtn.addEventListener('click', function() { openCurriculum(); });
+    if (railHadFocus) {
+      var focusTo = rail.querySelector('.lib-doc.active');
+      if (focusTo) focusTo.focus({ preventScroll: true });
+    }
+    keepActiveInView();
+  }
+
+  /**
+   * Scroll the rail (not the page) so the open document's entry is visible.
+   *
+   * A deep link such as /library#staff-tubes opened the right document but left
+   * the rail at its top, so the highlighted entry was several screens down the
+   * tree and the reader could not see where they were (operator, 2026-09-25).
+   * Only moves when the entry is out of view, so a click in the rail never
+   * jumps, and only when the rail is its own scroller: on a narrow screen the
+   * rail is part of the page and revealReader() handles the page instead.
+   */
+  function keepActiveInView() {
+    var wrap = document.getElementById('lib-rail-wrap');
+    var rail = document.getElementById('lib-rail');
+    var active = rail && rail.querySelector('.lib-doc.active');
+    if (!wrap || !active || active.offsetParent === null) return;
+    if (wrap.scrollHeight <= wrap.clientHeight) return;
+    if (getComputedStyle(wrap).overflowY === 'visible') return;
+    var a = active.getBoundingClientRect();
+    var w = wrap.getBoundingClientRect();
+    // Visible means inside the rail AND inside the window. At the top of the
+    // page the rail is not stuck yet, so its box runs below the window's
+    // bottom edge; an entry in that strip is inside the box but off screen.
+    var bottomGap = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--lib-bottom')) || 16;
+    var top = Math.max(w.top, stickyTop());
+    var bottom = Math.min(w.bottom, window.innerHeight - bottomGap);
+    if (a.top >= top && a.bottom <= bottom) return;
+    wrap.scrollTop += a.top - (top + (bottom - top) / 3);
+  }
+
+  /** The fixed top bar's bottom edge, which the sticky rail and jumps stop at. */
+  function stickyTop() {
+    return parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--lib-top')) || 64;
+  }
+
+  /**
+   * Keep the sticky rail clear of the fixed top bar and footer. The top bar can
+   * wrap to two rows and the footer can be collapsed, so their heights are read
+   * live instead of guessed, and written to --lib-top / --lib-bottom.
+   */
+  function syncOffsets() {
+    var root = document.documentElement.style;
+    var nav = document.querySelector('.hub-nav');
+    var sep = document.querySelector('.nav-separator');
+    var top = 16;
+    if (nav) top = Math.max(top, nav.getBoundingClientRect().bottom + 12);
+    if (sep) top = Math.max(top, sep.getBoundingClientRect().bottom + 12);
+    var bottom = 16;
+    var footer = document.querySelector('.site-footer');
+    if (footer && !footer.classList.contains('collapsed')) {
+      var fr = footer.getBoundingClientRect();
+      if (fr.top < window.innerHeight) bottom += window.innerHeight - fr.top;
+    }
+    root.setProperty('--lib-top', Math.round(top) + 'px');
+    root.setProperty('--lib-bottom', Math.round(bottom) + 'px');
+  }
+
+  /**
+   * Bring the reader's top edge into view when a new document or view opens.
+   * The page is the scroller now, so this moves the window, and only if the
+   * reader starts above the top bar (the reader had scrolled down the previous
+   * document); on first arrival it is already on screen and nothing moves.
+   */
+  function readerToTop(el) {
+    var top = stickyTop();
+    var r = el.getBoundingClientRect();
+    if (r.top < top) window.scrollTo(0, window.scrollY + r.top - top);
   }
 
   /**
@@ -568,7 +657,16 @@
     }
     return html + '</div>';
   }
-  function paintDoc(el, doc, text, anchor) {
+  /* Set by the browser's Back/Forward (popstate). The window is the scroller
+     now, so the browser restores the reading position on its own; the next
+     paint must not throw that away by jumping to the top. Consumed once. */
+  var fromHistory = false;
+  function takeHistoryFlag() { var f = fromHistory; fromHistory = false; return f; }
+
+  /** keepPosition: leave the scroll where it is: a repaint in place (late
+      syllabus data adds a line to the open document) or a Back/Forward the
+      browser already restored. */
+  function paintDoc(el, doc, text, anchor, keepPosition) {
     el.innerHTML = docTagsHtml(doc) + teachesHtml(doc) + tocHtml(text) +
       '<div class="md-viewer">' + md(text) + '</div>' +
       (current && typeof current === 'object' ? nextPrevHtml(current.ci, current.di) : '');
@@ -584,23 +682,29 @@
         scrollToAnchor(el, a.getAttribute('data-anchor'));
       });
     });
-    el.scrollTop = 0;
-    if (anchor) scrollToAnchor(el, anchor);
+    if (keepPosition) { /* repaint in place, or Back/Forward restored it */ }
+    else if (anchor) scrollToAnchor(el, anchor);
+    else readerToTop(el);
+    // Once more after the text is in, and after web fonts settle: either can
+    // shift the rail's line heights after renderRail() already placed it. It
+    // only moves when the entry is out of view, so repeating it is harmless.
+    keepActiveInView();
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(keepActiveInView);
   }
 
-  /* Scroll inside the reader pane, not the window. The pane is the scrolling
-     element, so scrollIntoView on the window would move the page and leave the
-     heading where it was. */
+  /* Scroll the page to a heading. Since 2026-09-25 the page is the only
+     scroller (the reader pane no longer has its own scrollbar), and the
+     headings carry scroll-margin-top so they stop below the fixed top bar. */
   function scrollToAnchor(el, anchor) {
     if (!anchor) return;
     var target = el.querySelector('[id="' + String(anchor).replace(/"/g, '') + '"]');
     if (!target) return;
-    el.scrollTop = target.offsetTop - el.offsetTop - 8;
+    target.scrollIntoView({ block: 'start' });
     target.classList.add('lib-jumped');
     setTimeout(function() { target.classList.remove('lib-jumped'); }, 1200);
   }
 
-  function openDoc(ci, di, reveal, anchor) {
+  function openDoc(ci, di, reveal, anchor, keepPosition) {
     var cat = (manifest.categories || [])[ci];
     var doc = cat && (cat.docs || [])[di];
     if (!doc) return;
@@ -622,8 +726,8 @@
 
     var el = contentEl();
     if (docCache[doc.file]) {
-      paintDoc(el, doc, docCache[doc.file], anchor);
-      if (reveal) revealReader();
+      paintDoc(el, doc, docCache[doc.file], anchor, keepPosition);
+      if (reveal && !anchor && !keepPosition) revealReader();   // an anchor jump already brings the reader into view; revealing after it would undo the jump on phones
       return;
     }
     el.innerHTML = '<div class="lib-empty">Loading ' + esc(doc.title) + '...</div>';
@@ -636,8 +740,8 @@
         docCache[doc.file] = text;
         // Guard against a slow fetch landing after the reader moved on.
         if (current && current.ci === ci && current.di === di) {
-          paintDoc(el, doc, text, anchor);
-          if (reveal) revealReader();
+          paintDoc(el, doc, text, anchor, keepPosition);
+          if (reveal && !anchor && !keepPosition) revealReader();   // an anchor jump already brings the reader into view; revealing after it would undo the jump on phones
         }
       })
       .catch(function(err) {
@@ -679,22 +783,22 @@
   }
 
   function repaintForSyllabus() {
-    if (current === 'curriculum') { renderCurriculum(); return; }
+    if (current === 'curriculum') { renderCurriculum(true); return; }
     // A document is open and may now have a Teaches line it did not have a
     // moment ago. Repaint it rather than leaving the page half-informed.
     if (current && typeof current === 'object') {
       var cat = (manifest.categories || [])[current.ci];
       var doc = cat && (cat.docs || [])[current.di];
-      if (doc && docCache[doc.file]) paintDoc(contentEl(), doc, docCache[doc.file], null);
+      if (doc && docCache[doc.file]) paintDoc(contentEl(), doc, docCache[doc.file], null, true);
     }
   }
 
-  function openCurriculum() {
+  function openCurriculum(keepPosition) {
     current = 'curriculum';
     if (history.replaceState) history.replaceState(null, '', '#curriculum');
     renderRail();
-    renderCurriculum();
-    revealReader();
+    renderCurriculum(keepPosition);
+    if (!keepPosition) revealReader();
     loadSyllabus();
   }
 
@@ -706,7 +810,7 @@
     return true;
   }
 
-  function renderCurriculum() {
+  function renderCurriculum(keepPosition) {
     var el = contentEl();
     if (!el) return;
     if (!syllabus) {
@@ -761,7 +865,7 @@
     });
 
     el.innerHTML = html;
-    el.scrollTop = 0;
+    if (!keepPosition) readerToTop(el);
     el.querySelectorAll('[data-curfilter]').forEach(function(b) {
       b.addEventListener('click', function() {
         var v = b.getAttribute('data-curfilter');
@@ -778,10 +882,14 @@
     });
   }
   /* ── Dictionary: every glossary term, searchable ── */
-  function openDictionary() {
+  function openDictionary(keepPosition) {
     current = 'dictionary';
     renderRail();
     renderDictionary();
+    // The rail is sticky, so Dictionary can be clicked from deep inside a long
+    // document; start the Dictionary at its top (its search box), not at the
+    // old scroll depth. Not in renderDictionary(), which runs on every keystroke.
+    if (!keepPosition) { readerToTop(contentEl()); revealReader(); }
     if (!glossary) {
       fetch(GLOSSARY_URL, { cache: 'no-cache' })
         .then(function(r) { return r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)); })
@@ -844,6 +952,24 @@
   }
 
   document.addEventListener('DOMContentLoaded', function() {
+    syncOffsets();
+    window.addEventListener('resize', syncOffsets);
+    window.addEventListener('popstate', function() { fromHistory = true; });
+    if (window.ResizeObserver) {
+      var ro = new ResizeObserver(syncOffsets);
+      ['.hub-nav', '.site-footer'].forEach(function(sel) {
+        var n = document.querySelector(sel);
+        if (n) ro.observe(n);
+      });
+    }
+    // The footer collapses by changing its class (and then transform), which a
+    // ResizeObserver does not see, so watch the class and re-measure after the
+    // slide finishes.
+    var footerEl = document.querySelector('.site-footer');
+    if (footerEl && window.MutationObserver) {
+      new MutationObserver(function() { setTimeout(syncOffsets, 300); })
+        .observe(footerEl, { attributes: true, attributeFilter: ['class'] });
+    }
     fetch(MANIFEST_URL, { cache: 'no-cache' })
       .then(function(r) {
         if (!r.ok) throw new Error('HTTP ' + r.status);

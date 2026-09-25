@@ -68,6 +68,11 @@ struct LibState {
     /// None shows everything. Narrows the rail without changing what is open,
     /// so filtering never yanks the document you are reading out from under you.
     tag_filter: Option<String>,
+    /// The selection the rail last scrolled into view. When `sel` changes from
+    /// outside the rail (a cross-reference, Back, a search hit), the rail
+    /// scrolls the new entry into view once, then leaves the reader alone.
+    /// Mirrors keepActiveInView() in web/pages/library-app.js.
+    revealed: Option<Sel>,
 }
 
 /// Open the document with this slug, if the Library has one.
@@ -122,6 +127,7 @@ fn lib_state<R>(f: impl FnOnce(&mut LibState) -> R) -> R {
             cur_filter: String::new(),
             toc_open: false,
             tag_filter: None,
+            revealed: None,
         });
     }
     S.with(|s| f(&mut s.borrow_mut()))
@@ -360,11 +366,12 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                             .show(ui, |ui| {
                                                 for (ei, title) in docs {
                                                     let is_sel = s.sel == Sel::Doc(si, ci, ei);
-                                                    // egui fills a selected label with the
-                                                    // accent, so accent TEXT on it is invisible.
-                                                    // Flip to the panel colour, same as tag_chip.
-                                                    let color = if is_sel { theme.bg_primary() } else { theme.text_primary() };
-                                                    if ui.selectable_label(is_sel, RichText::new(title).color(color)).clicked() {
+                                                    let entry = rail_entry(ui, theme, title, is_sel, false);
+                                                    if is_sel && s.revealed.as_ref() != Some(&s.sel) {
+                                                        entry.scroll_to_me(None);
+                                                        s.revealed = Some(s.sel.clone());
+                                                    }
+                                                    if entry.clicked() {
                                                         s.sel = Sel::Doc(si, ci, ei);
                                                     }
                                                 }
@@ -393,11 +400,12 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
 
                             ui.add_space(theme.spacing_sm);
                             let dict_active = s.sel == Sel::Dictionary;
-                            let dcolor = if dict_active { theme.bg_primary() } else { theme.text_primary() };
-                            if ui
-                                .selectable_label(dict_active, RichText::new("Dictionary").strong().color(dcolor))
-                                .clicked()
-                            {
+                            let dict_entry = rail_entry(ui, theme, "Dictionary", dict_active, true);
+                            if dict_active && s.revealed.as_ref() != Some(&s.sel) {
+                                dict_entry.scroll_to_me(None);
+                                s.revealed = Some(s.sel.clone());
+                            }
+                            if dict_entry.clicked() {
                                 s.sel = Sel::Dictionary;
                             }
                             // The syllabus, in the app. It is what makes "how
@@ -407,15 +415,12 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             // good enough for anything a user might want to see.
                             if !state.curriculum.is_empty() {
                                 let cur_active = s.sel == Sel::Curriculum;
-                                let ccolor =
-                                    if cur_active { theme.bg_primary() } else { theme.text_primary() };
-                                if ui
-                                    .selectable_label(
-                                        cur_active,
-                                        RichText::new("What there is to learn").strong().color(ccolor),
-                                    )
-                                    .clicked()
-                                {
+                                let cur_entry = rail_entry(ui, theme, "What there is to learn", cur_active, true);
+                                if cur_active && s.revealed.as_ref() != Some(&s.sel) {
+                                    cur_entry.scroll_to_me(None);
+                                    s.revealed = Some(s.sel.clone());
+                                }
+                                if cur_entry.clicked() {
                                     s.sel = Sel::Curriculum;
                                 }
                             }
@@ -1056,6 +1061,54 @@ fn heading_for_match(body: &str, q: &str) -> Option<markdown::Heading> {
         }
     }
     None
+}
+
+/// One entry in the Library rail.
+///
+/// The open entry takes the same "channeling" colour as the active nav button,
+/// in whatever style the player picked in Settings (RGB cycle, solid, pulse or
+/// off, and the master animations switch), with a bar of that colour on its
+/// left edge, so it is easy to find in a long tree. It replaced egui's filled
+/// selection, a static accent block that was easy to lose (operator,
+/// 2026-09-25). Mirrors `.lib-doc.active` in web/pages/library.html.
+///
+/// Three details, each from review (2026-09-25):
+/// - The TEXT is the channeling colour mixed 40% toward the theme's text
+///   colour. The raw cycle passes through pure blue, 2.6:1 on the black panel,
+///   and PULSE dims the accent to 2.0:1; mixed, the worst case is about 5:1.
+///   The bar keeps the full colour (a non-text indicator needs only 3:1).
+/// - A faint tint of the same colour sits behind the row, so with animations
+///   off (a static accent) the entry cannot be mistaken for a category header,
+///   which is also drawn in the accent.
+/// - The caller reveals the entry once when the selection changes from
+///   outside the rail (see `LibState::revealed`).
+fn rail_entry(ui: &mut egui::Ui, theme: &Theme, text: &str, selected: bool, strong: bool) -> egui::Response {
+    if !selected {
+        let mut rich = RichText::new(text).color(theme.text_primary());
+        if strong {
+            rich = rich.strong();
+        }
+        return ui.selectable_label(false, rich);
+    }
+    let time = ui.ctx().input(|i| i.time) as f32;
+    let chan = crate::gui::pages::escape_menu::channeling_color(theme, time, false, theme.accent());
+    if theme.animations_enabled {
+        ui.ctx().request_repaint();
+    }
+    // Reserve the background slot first so the tint is painted UNDER the label.
+    let tint_slot = ui.painter().add(egui::Shape::Noop);
+    let resp = ui.selectable_label(false, RichText::new(text).color(mix(chan, theme.text_primary(), 0.4)).strong());
+    let r = resp.rect;
+    ui.painter().set(tint_slot, egui::Shape::rect_filled(r, egui::Rounding::same(4), chan.gamma_multiply(0.12)));
+    let bar = egui::Rect::from_min_max(r.left_top(), egui::pos2(r.left() + 3.0, r.bottom()));
+    ui.painter().rect_filled(bar, egui::Rounding::ZERO, chan);
+    resp
+}
+
+/// Mix `a` toward `b` by `t` (0 = all `a`, 1 = all `b`), channel by channel.
+fn mix(a: egui::Color32, b: egui::Color32, t: f32) -> egui::Color32 {
+    let l = |x: u8, y: u8| (x as f32 + (y as f32 - x as f32) * t).round() as u8;
+    egui::Color32::from_rgb(l(a.r(), b.r()), l(a.g(), b.g()), l(a.b(), b.b()))
 }
 
 fn tag_chip(ui: &mut egui::Ui, theme: &Theme, label: &str, active: bool) -> bool {
