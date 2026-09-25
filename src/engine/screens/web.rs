@@ -53,6 +53,9 @@ pub struct WebProvider {
     /// (`Some(false)`), or no frame has happened yet (`None`). Only the
     /// status report reads it.
     last_on: Option<bool>,
+    /// The placed url is a site whose terms forbid being shown here, so the
+    /// screen shows why instead and never navigates (the embed gate).
+    refused: bool,
 }
 
 impl WebProvider {
@@ -60,7 +63,7 @@ impl WebProvider {
         let mut view = WebViewState::new();
         // A wall has no card list to return to.
         view.show_sites_button = false;
-        Self { url: url.to_string(), view, navigated: false, last_on: None }
+        Self { url: url.to_string(), view, navigated: false, last_on: None, refused: false }
     }
 
     /// The view, for tests that inject a page or read what was queued.
@@ -85,10 +88,22 @@ impl WebProvider {
             let url = self.url.clone();
             return core.run_with(gui_state, |ctx, _state| off_notice(ctx, theme, &url));
         }
+        // The embed placement gate (2026-09-25): a screen PLACED on a site
+        // whose terms forbid being shown inside other software never
+        // navigates at all; it says so instead. After that, the view's own
+        // gate refuses any queued navigation (a link, the address field,
+        // Back) to such a site before it is fetched.
         if !self.navigated {
+            let verdict = gui_state.web_sites.embed_verdict(&self.url);
+            if matches!(verdict, crate::web_reader::sites::EmbedVerdict::Forbidden { .. }) {
+                self.refused = true;
+                let note = verdict.note().unwrap_or_default();
+                return core.run_with(gui_state, |ctx, _state| refused_notice(ctx, theme, &note));
+            }
             self.view.navigate(&self.url);
             self.navigated = true;
         }
+        self.view.apply_embed_gate(&gui_state.web_sites);
         // The affiliate transparency line for the site the current page
         // belongs to, if the database carries a tag for it (none do yet).
         let disclosure: Option<String> = self
@@ -135,6 +150,7 @@ impl WebProvider {
         match self.last_on {
             None => "unframed".to_string(),
             Some(false) => "off".to_string(),
+            Some(true) if self.refused => "refused".to_string(),
             Some(true) => match &self.view.status {
                 ViewStatus::Idle => "idle".to_string(),
                 ViewStatus::Fetching(_) => "fetching".to_string(),
@@ -196,6 +212,24 @@ impl ScreenProvider for WebProvider {
     fn link_rects(&self) -> Vec<egui::Rect> {
         self.view.link_rects().iter().map(|(_, r)| *r).collect()
     }
+}
+
+/// The screen when its placed site's terms forbid being shown inside other
+/// software: the reason, in the words `EmbedVerdict::note` gives every host.
+fn refused_notice(ctx: &egui::Context, theme: &Theme, note: &str) {
+    egui::CentralPanel::default()
+        .frame(egui::Frame::none().fill(theme.bg_primary()).inner_margin(egui::Margin::same(theme.spacing_md as i8)))
+        .show(ctx, |ui| {
+            ui.add_space(theme.spacing_md);
+            ui.label(
+                egui::RichText::new("This site is not shown on screens")
+                    .size(theme.font_size_title)
+                    .color(theme.text_primary())
+                    .strong(),
+            );
+            ui.add_space(theme.spacing_sm);
+            widgets::alert(ui, theme, AlertKind::Warning, note);
+        });
 }
 
 /// The screen when in-app web reading is off: what it would show, and the
@@ -320,6 +354,50 @@ mod tests {
         p.tick(&mut core, &theme, &mut state);
         assert_eq!(p.status()["status"], "off");
         assert_eq!(p.load_state(), LoadState::Static);
+    }
+
+    /// THE PLACEMENT GATE on a wall (2026-09-25). A screen placed on a site
+    /// whose terms forbid being shown inside other software never
+    /// navigates, even with in-app reading on and fetching enabled: nothing
+    /// queued, nothing in flight, an empty history, status "refused", and
+    /// the notice gives the reason. Proven able to fail by removing the
+    /// placement check in `tick`: the view navigates and history_len is 1.
+    #[test]
+    fn a_screen_placed_on_a_forbidden_site_never_navigates() {
+        use crate::web_reader::sites::*;
+        let theme = load_theme();
+        let mut state = GuiState::default();
+        state.settings.readable_web = true;
+        state.web_sites.sites.push(WebSite {
+            id: "nope".into(),
+            name: "Nope".into(),
+            url: "https://nope.example/".into(),
+            category: "c".into(),
+            description: String::new(),
+            icon: String::new(),
+            embed: WebSiteEmbed {
+                status: "forbidden".into(),
+                basis: "its terms, section 4".into(),
+                terms_url: None,
+                reviewed_on: None,
+                reviewed_by: None,
+            },
+            affiliate: WebSiteAffiliate { program: None, tag: None, disclosure: String::new() },
+            notes: String::new(),
+        });
+        let mut core = core(&theme);
+        let mut p = WebProvider::new("https://nope.example/news");
+        assert!(p.view().fetch_enabled, "the view would fetch if asked; the test is that it is not asked");
+        for _ in 0..3 {
+            p.tick(&mut core, &theme, &mut state);
+        }
+        assert!(p.view().queued_navigation().is_none());
+        assert!(!p.view().fetch_in_flight());
+        assert_eq!(p.view().history_len(), 0);
+        assert_eq!(p.status()["status"], "refused");
+        core.find_text("not a law");
+        p.tick(&mut core, &theme, &mut state);
+        assert!(core.take_found_text().flatten().is_some(), "the notice says whose rule it is");
     }
 
     /// A page injected as if the fetch had answered: status becomes ready,

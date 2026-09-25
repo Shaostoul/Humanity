@@ -1012,8 +1012,10 @@ the readable web. Design in `docs/design/in-world-screens.md`,
 
 Remaining, in the order they were fenced:
 
-- A placement gate on `embed.status` (nothing affiliate until the legality
-  column says so; `data/web/sites.json` is the record).
+- ~~A placement gate on `embed.status`~~ BUILT 2026-09-25: a forbidden site
+  is refused before it is fetched on the Browser page and every wall, an
+  unreviewed one carries a note (`docs/design/readable-web.md`). The 34
+  `needs_review` records still need a person to read their terms.
 - ~~The screens' share of the interior frame (the console room at 9 fps)~~
   STALE, corrected 2026-09-25: that figure predates the P2/P3 megashader split.
   Measured after P3 (`docs/design/frame-cost-arc.md`, the phase-B table):

@@ -10,7 +10,7 @@
     {
       "status": "building",
       "version": "v0.1313 to v0.1325",
-      "text": "In-world screens: the app's pages as touchscreens in the 3D world. SHIPPED (v0.1313 to v0.1325): a wall screen draws the real inventory or tasks page (the same page, the same data, not a picture of it) and takes look-and-click, scroll and typing; the console room as a named zone with six live walls; an in-game camera post; a purpose-built WebM/AV1/Opus player with spatial audio, click-to-pause and a seek bar you can scrub; and the readable web (HTML parsed and drawn by us, no JavaScript, no Chromium), off by default, with data/web/sites.json recording per site whether embedding it has been reviewed. NEXT: a placement gate on that embed-legality column, the screens' share of the interior frame (six live walls ran at 9 fps), and playback synchronised between players. Design in docs/design/in-world-screens.md, readable-web.md, media-player.md."
+      "text": "In-world screens: the app's pages as touchscreens in the 3D world. SHIPPED (v0.1313 to v0.1325): a wall screen draws the real inventory or tasks page (the same page, the same data, not a picture of it) and takes look-and-click, scroll and typing; the console room as a named zone with six live walls; an in-game camera post; a purpose-built WebM/AV1/Opus player with spatial audio, click-to-pause and a seek bar you can scrub; and the readable web (HTML parsed and drawn by us, no JavaScript, no Chromium), off by default, with data/web/sites.json recording per site whether embedding it has been reviewed, enforced by a placement gate (a site whose terms forbid it is never shown, an unreviewed one says so). NEXT: playback synchronised between players, and subtitles. Design in docs/design/in-world-screens.md, readable-web.md, media-player.md."
     },
     {
       "status": "next",
@@ -333,7 +333,7 @@
         {
           "status": "building",
           "version": "v0.1313 to v0.1325",
-          "text": "In-world screens: native app pages, live feeds, video and the readable web drawn on displays placed in the 3D world and driven by look-and-click; the console room they populate; the websites database with an embed-legality field per site. All six rungs are merged (v0.1313 to v0.1325), including the video player with a seek bar. What remains: a placement gate on the embed-legality column, the frame cost of six live walls, and playback synchronised between players."
+          "text": "In-world screens: native app pages, live feeds, video and the readable web drawn on displays placed in the 3D world and driven by look-and-click; the console room they populate; the websites database with an embed-legality field per site. All six rungs are merged (v0.1313 to v0.1325), including the video player with a seek bar, and the embed-legality placement gate (2026-09-25). The console room now holds the 30 fps cap with its walls live (the old 9 fps predates the shader split). What remains: playback synchronised between players, and subtitles."
         },
         {
           "status": "done",

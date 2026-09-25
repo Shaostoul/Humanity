@@ -319,14 +319,29 @@ reports its reason.
 
 Rung 6 core and its wall integration are shipped. The sites database
 records each site's review state (`embed.status`: needs_review, allowed,
-forbidden, unknown, with the basis and the reviewer); today its only
-consumer is the review label on the Browser page's site cards, and nothing
-checks it when a `web:` source is placed on a screen. Still wanted:
+forbidden, unknown, with the basis and the reviewer).
 
-- **A placement gate on `embed.status`:** a `forbidden` site is never
-  placed on a screen and a `needs_review` one carries the review badge on
-  the wall. Until it exists the only guard is that the shipped
-  `wall_screen_6` shows our own site.
+**The placement gate (BUILT 2026-09-25).** `WebSites::embed_verdict`
+(`src/web_reader/sites.rs`) gives every page a verdict: ours (an
+`own_domains` prefix) or reviewed `allowed`; `forbidden`; listed but
+unreviewed (`needs_review`, or `unknown` when the terms could not be
+found); or not listed at all. `WebViewState::apply_embed_gate`, which the
+Browser page and every `web:` wall screen call right before drawing,
+REFUSES a queued navigation to a `forbidden` site before it is fetched (a
+link, the address field, Back or Forward), puts the view back on the page
+it had, and says why in the words the operator's rule asks for: the
+site's own terms, not a law and not a HumanityOS setting. A wall PLACED on
+a forbidden site never navigates and shows that notice instead (status
+"refused" for the dev IPC). Every other non-allowed page is shown with a
+one-line note under the status line ("Review pending: nobody has checked
+yet whether ... allows its pages to be shown here", or "not in the sites
+list"). Both clients of the view run the same gate, so neither is the
+unchecked twin. Tests: `embed_verdict_covers_every_status_and_shared_hosts`,
+`every_shipped_site_gets_the_verdict_its_record_states`, and the refusal
+tests in `web_view.rs` and `screens/web.rs`.
+
+Still wanted:
+
 - From the old kiosk design: input from a VR controller ray, distance-based
   suspend of a wall's fetches, an affiliate dashboard once any programme is
   joined.

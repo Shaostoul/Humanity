@@ -96,6 +96,102 @@ impl WebSites {
     }
 }
 
+/// What may be done with a page at a given url, from the database (the
+/// embed placement gate, 2026-09-25). Every host of the readable view (the
+/// Browser page and every `web:` wall screen) asks this before a
+/// navigation is fetched, through `WebViewState::apply_embed_gate`.
+#[derive(Debug, Clone, PartialEq)]
+pub enum EmbedVerdict {
+    /// Ours (an `own_domains` prefix), or reviewed and allowed.
+    Allowed,
+    /// The site's terms were read and do not allow its pages to be shown
+    /// inside other software. Never fetched, never drawn.
+    Forbidden { name: String, basis: String },
+    /// Listed, but nobody has read its terms yet (`needs_review`), or they
+    /// could not be found (`unknown`). Shown, with a note saying so.
+    Unreviewed { name: String, terms_not_found: bool },
+    /// Not in the database at all (a link off a listed site, or a typed
+    /// address). Shown, with a note saying so.
+    NotListed { host: String },
+}
+
+impl EmbedVerdict {
+    /// The one line a host draws with the page, or None when there is
+    /// nothing to say. Worded for the person reading, and plain about whose
+    /// rule it is (the operator's standing rule: name a platform's rule as
+    /// the platform's, never as ours).
+    pub fn note(&self) -> Option<String> {
+        match self {
+            EmbedVerdict::Allowed => None,
+            EmbedVerdict::Forbidden { name, basis } => Some(format!(
+                "Not shown inside HumanityOS: {name}'s own terms do not allow its pages to be \
+                 shown inside other software ({basis}). That is the site's rule, not a law and \
+                 not a HumanityOS setting; your system browser can still open it."
+            )),
+            EmbedVerdict::Unreviewed { name, terms_not_found: false } => Some(format!(
+                "Review pending: nobody has checked yet whether {name}'s terms allow its pages \
+                 to be shown here."
+            )),
+            EmbedVerdict::Unreviewed { name, terms_not_found: true } => Some(format!(
+                "{name}'s terms could not be found, so whether it allows its pages to be shown \
+                 here is unknown."
+            )),
+            EmbedVerdict::NotListed { host } => Some(format!(
+                "{host} is not in the sites list, so whether its terms allow its pages to be \
+                 shown here has not been checked."
+            )),
+        }
+    }
+}
+
+/// True when `url` is `prefix` or a page under it (the next character is a
+/// path, query or fragment separator), case-insensitively. So
+/// "https://github.com/Shaostoul/Humanity/issues" is under the repository
+/// prefix and "https://github.com/Shaostoul/HumanityFork" is not.
+fn url_under(url: &str, prefix: &str) -> bool {
+    let u = url.to_ascii_lowercase();
+    let p = prefix.trim_end_matches('/').to_ascii_lowercase();
+    u == p || (u.starts_with(&p) && matches!(u.as_bytes().get(p.len()), Some(b'/' | b'?' | b'#')))
+}
+
+impl WebSites {
+    /// The placement verdict for a page at `url`. Our own domains are
+    /// allowed by prefix. Otherwise the site is found by host; when several
+    /// records share a host the one whose url is the longest prefix of the
+    /// page wins, and a record that is one of our own prefixes never speaks
+    /// for the rest of its host (the repository record does not make every
+    /// github.com page "allowed").
+    pub fn embed_verdict(&self, url: &str) -> EmbedVerdict {
+        if self.own_domains.iter().any(|d| url_under(url, d)) {
+            return EmbedVerdict::Allowed;
+        }
+        let Some(host) = host_of(url) else {
+            return EmbedVerdict::NotListed { host: url.to_string() };
+        };
+        let candidates: Vec<&WebSite> = self
+            .sites
+            .iter()
+            .filter(|s| host_of(&s.url).as_deref() == Some(host.as_str()))
+            .filter(|s| !self.own_domains.iter().any(|d| url_under(&s.url, d)))
+            .collect();
+        let site = candidates
+            .iter()
+            .filter(|s| url_under(url, &s.url))
+            .max_by_key(|s| s.url.len())
+            .or_else(|| candidates.first())
+            .copied();
+        match site {
+            None => EmbedVerdict::NotListed { host },
+            Some(s) => match s.embed.status.as_str() {
+                "allowed" => EmbedVerdict::Allowed,
+                "forbidden" => EmbedVerdict::Forbidden { name: s.name.clone(), basis: s.embed.basis.clone() },
+                "unknown" => EmbedVerdict::Unreviewed { name: s.name.clone(), terms_not_found: true },
+                _ => EmbedVerdict::Unreviewed { name: s.name.clone(), terms_not_found: false },
+            },
+        }
+    }
+}
+
 /// "https://Example.com:8443/x?y#z" -> "example.com". Plain string handling:
 /// the card only needs the host for its footer line.
 pub fn host_of(url: &str) -> Option<String> {
@@ -163,5 +259,73 @@ mod tests {
         });
         assert_eq!(db.disclosure_for("https://shop.example/some/other/page"), Some("This link supports HumanityOS."));
         assert_eq!(db.disclosure_for("https://other.example/"), None);
+    }
+
+    fn site(id: &str, url: &str, status: &str) -> WebSite {
+        WebSite {
+            id: id.into(),
+            name: id.into(),
+            url: url.into(),
+            category: "c".into(),
+            description: String::new(),
+            icon: String::new(),
+            embed: WebSiteEmbed {
+                status: status.into(),
+                basis: format!("{id} terms section 4"),
+                terms_url: None,
+                reviewed_on: None,
+                reviewed_by: None,
+            },
+            affiliate: WebSiteAffiliate { program: None, tag: None, disclosure: String::new() },
+            notes: String::new(),
+        }
+    }
+
+    /// The placement gate's verdicts: every status, our own prefixes, the
+    /// longest-prefix rule for a shared host, and the rule that our own
+    /// repository record does not speak for the rest of github.com.
+    #[test]
+    fn embed_verdict_covers_every_status_and_shared_hosts() {
+        let mut db = WebSites::default();
+        db.own_domains = vec!["https://github.com/Shaostoul/Humanity".into()];
+        db.sites = vec![
+            site("ours", "https://github.com/Shaostoul/Humanity", "allowed"),
+            site("nope", "https://nope.example/", "forbidden"),
+            site("fine", "https://fine.example/", "allowed"),
+            site("pending", "https://pending.example/", "needs_review"),
+            site("lost", "https://lost.example/", "unknown"),
+            site("wiki-en", "https://wiki.example/en", "allowed"),
+            site("wiki-de", "https://wiki.example/de", "forbidden"),
+        ];
+        let v = |u: &str| db.embed_verdict(u);
+        assert_eq!(v("https://github.com/Shaostoul/Humanity/issues/3"), EmbedVerdict::Allowed);
+        assert_eq!(v("https://github.com/someone/else"), EmbedVerdict::NotListed { host: "github.com".into() });
+        assert_eq!(v("https://github.com/Shaostoul/HumanityFork"), EmbedVerdict::NotListed { host: "github.com".into() });
+        assert!(matches!(v("https://NOPE.example/a/b"), EmbedVerdict::Forbidden { .. }));
+        assert_eq!(v("https://fine.example/x"), EmbedVerdict::Allowed);
+        assert_eq!(v("https://pending.example/"), EmbedVerdict::Unreviewed { name: "pending".into(), terms_not_found: false });
+        assert_eq!(v("https://lost.example/"), EmbedVerdict::Unreviewed { name: "lost".into(), terms_not_found: true });
+        assert_eq!(v("https://wiki.example/en/Page"), EmbedVerdict::Allowed);
+        assert!(matches!(v("https://wiki.example/de/Seite"), EmbedVerdict::Forbidden { .. }));
+        assert_eq!(v("https://elsewhere.example/"), EmbedVerdict::NotListed { host: "elsewhere.example".into() });
+        assert!(v("https://nope.example/").note().unwrap().contains("the site's rule, not a law"));
+        assert_eq!(EmbedVerdict::Allowed.note(), None);
+    }
+
+    /// Every shipped record gets a verdict matching its own status, so the
+    /// gate agrees with what the Browser page's cards say about each site.
+    #[test]
+    fn every_shipped_site_gets_the_verdict_its_record_states() {
+        let text = std::fs::read_to_string("data/web/sites.json").expect("data/web/sites.json readable");
+        let db: WebSites = serde_json::from_str(&text).expect("sites.json parses");
+        for s in &db.sites {
+            let got = db.embed_verdict(&s.url);
+            let ok = match s.embed.status.as_str() {
+                "allowed" => got == EmbedVerdict::Allowed,
+                "forbidden" => matches!(got, EmbedVerdict::Forbidden { .. }),
+                _ => matches!(got, EmbedVerdict::Unreviewed { .. }),
+            };
+            assert!(ok, "{} ({}) got {:?}", s.id, s.embed.status, got);
+        }
     }
 }

@@ -64,9 +64,9 @@ Tactical, per-iteration detail lives in `docs/PRIORITIES.md` and
    post; a purpose-built WebM/AV1/Opus player with spatial audio, click-to-pause and a
    seek bar you can scrub; and the readable web (HTML parsed and drawn by us, no
    JavaScript, no Chromium), off by default, with `data/web/sites.json` recording per
-   site whether embedding it has been reviewed. NEXT: a placement gate on that
-   embed-legality column, the screens' share of the interior frame (six live walls ran
-   at 9 fps), and playback synchronised between players. Design in
+   site whether embedding it has been reviewed, enforced by a placement gate (a site
+   whose terms forbid it is never shown, an unreviewed one says so). NEXT: playback
+   synchronised between players, and subtitles. Design in
    `docs/design/in-world-screens.md`, `readable-web.md`, `media-player.md`.
 3. `[next]` **Make the game legible and durable.** An honest assessment against the code
    (`docs/design/playable-assessment-2026-09-19.md`) found eleven loops that close end to
@@ -247,8 +247,9 @@ The game teaches the homestead; the homestead is real.
   web drawn on displays placed in the 3D world and driven by look-and-click; the
   console room they populate; the websites database with an embed-legality field per
   site. All six rungs are merged (v0.1313 to v0.1325), including the video player with
-  a seek bar. What remains: a placement gate on the embed-legality column, the frame
-  cost of six live walls, and playback synchronised between players.
+  a seek bar, and the embed-legality placement gate (2026-09-25). The console room
+  now holds the 30 fps cap with its walls live (the old 9 fps predates the shader
+  split). What remains: playback synchronised between players, and subtitles.
 - `[done]` Engine: a wgpu PBR renderer, an ECS, and 40-plus game systems wired in.
 - `[done]` World: icosphere planets with level-of-detail, voxel asteroids, and a
   ship-at-origin starting world.

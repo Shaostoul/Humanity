@@ -699,6 +699,11 @@
    "date": "2026-09-25",
    "decision": "Craft batches in flight are saved and restored (WorldSave.crafts, CraftSave in systems::crafting because persistence is native-only and crafting compiles into the relay), and count down by the time away when offline progression is on. Machine batches are keyed by MachineInstanceId, not entity. Notices (\"while you were away\") get a 12 s toast life instead of 2.6 s.",
    "why": "A batch consumes its inputs at start and lived only inside the CraftingSystem, so every restart destroyed whatever was mid-smelt: the same materials-spent-then-lost defect as builds. The entity-keyed busy check also let a machine start a second batch whenever world entry respawned it (proven: the restart test fails with the id clause removed). Toast life: the first real boot on the operator save logged the catch-up correctly (1691 s away, 401 crops aged, exactly as predicted from his save) but the 2.6 s confirmation toast was adopted during boot and expired before the UI settled, so the notice was never seen."
+  },
+  {
+   "date": "2026-09-25",
+   "decision": "Embed placement gate built: WebSites::embed_verdict + WebViewState::apply_embed_gate, run by the Browser page and every web: wall right before drawing. Forbidden sites are refused before fetch (link, address field, Back/Forward), a wall placed on one never navigates (status refused), unreviewed/unlisted pages carry a one-line note. Stale PRIORITIES/ROADMAP lines corrected (watch-screen retry fixed 2026-09-18 a494c7fc; console room 9 fps predates P2/P3, now 29.8 fps at the vsync cap).",
+   "why": "Last open legality item on arc A: sites.json recorded embed.status since rung 6 but nothing enforced it. Gate lives in the view so both clients run it (the gate-both-mirrors lesson); the web mirror only links out, so it has nothing to gate. The refusal note names whose rule it is per the operator 2026-09-18 standing rule (platform rule, not law, not our setting). Own-domain prefixes never speak for the rest of a shared host (github.com). Tests red with the gate disabled before trusting. 34/38 records still needs_review: that needs a person to read terms, and each reading goes into a dated findings doc per the 2026-09-19 rule."
   }
  ],
  "active_scopes_to_avoid": [

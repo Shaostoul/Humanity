@@ -263,15 +263,15 @@ The rules that make it safe to hang a web page on a wall:
   navigation on the next frame; turning it off again stops the view being
   drawn at all. `off_switch_draws_a_notice_and_never_fetches` in `web.rs`
   proves the off case through the view's own fetch state.
-- **The sites database is shown on a wall, not enforced.** The affiliate
+- **The sites database is enforced on a wall (2026-09-25).** The affiliate
   disclosure line for the current page's site is drawn above the page on
-  the wall too. The database also records each site's review state
-  (`embed.status`: needs_review, allowed, forbidden, unknown, with the basis
-  and the reviewer), but nothing checks it when a `web:` source is placed
-  on a screen: today its only consumer is the review label on the Browser
-  page's site cards. A placement gate on it is a later rung (see "The
-  ladder above this"); until then the only guard is that the shipped
-  `wall_screen_6` shows our own site.
+  the wall too, and the placement gate runs on every frame before the view
+  draws: a screen placed on a site whose terms forbid being shown inside
+  other software never navigates and says why; a link or typed address to
+  such a site is refused before it is fetched; an unreviewed or unlisted
+  site is shown with a one-line note. The gate itself lives in the view,
+  so the Browser page runs the identical check. Detail:
+  `docs/design/readable-web.md`, "The placement gate".
 
 Status for the dev IPC: `{url, title, status, links}`, where the title is
 the page's first heading (else its `<title>`, else the url), the status is
@@ -1081,10 +1081,7 @@ Each is a separate increment on the same surface:
   Twitch video cannot decode, and that paid streaming services need a signed
   Widevine path only Google grants. YouTube and Rumble play. Nothing from that
   spike is wired in; it is two standalone crates under `tools/`.
-- **A placement gate on the sites database:** `embed.status` is recorded
-  and shown (the Browser page's site cards) but not enforced when a `web:`
-  source is placed on a screen. The gate (a `forbidden` site is never
-  placed, a `needs_review` one carries the review badge on the wall) is
-  its own increment on top of rung 6.
+- ~~A placement gate on the sites database~~ BUILT 2026-09-25 (see "The
+  sites database is enforced on a wall" above).
 - **A planet in a camera's window:** the cloud pass for a second pose needs
   its own temporal history, keyed per camera.

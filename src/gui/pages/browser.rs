@@ -47,6 +47,10 @@ fn draw_reader(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         .and_then(|u| state.web_sites.disclosure_for(u))
         .map(str::to_string);
     let inner = theme.spacing_md;
+    // The embed placement gate, the same one every wall screen runs: a
+    // navigation to a site whose terms forbid being shown inside other
+    // software is refused before it is fetched (web_view.rs).
+    state.web_view.apply_embed_gate(&state.web_sites);
     Frame::none().inner_margin(egui::Margin::same(inner as i8)).show(ui, |ui| {
         let resp = state.web_view.show(ui, theme, &mut state.image_cache, disclosure.as_deref());
         if resp.wants_close {

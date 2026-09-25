@@ -78,6 +78,13 @@ pub struct WebViewState {
     scroll_top: bool,
     /// (href, rect) of every link drawn last frame. Tests click these.
     link_rects: Vec<(String, egui::Rect)>,
+    /// History index of the page on screen (set when a page arrives), so a
+    /// refused navigation can return to it without a re-fetch.
+    shown_pos: Option<usize>,
+    /// The embed gate's line for the current page (review pending, not
+    /// listed, or why a navigation was refused), drawn under the status
+    /// line. Set by `apply_embed_gate`.
+    embed_note: Option<String>,
 }
 
 impl Default for WebViewState {
@@ -102,7 +109,63 @@ impl WebViewState {
             open: false,
             scroll_top: false,
             link_rects: Vec::new(),
+            shown_pos: None,
+            embed_note: None,
         }
+    }
+
+    /// The embed placement gate (2026-09-25; docs/design/readable-web.md).
+    /// Every host calls this right before `show`. A queued navigation to a
+    /// site whose terms forbid being shown inside other software is
+    /// REFUSED before it is fetched: it never leaves the machine, the view
+    /// stays on the page it had, and the note says why. Otherwise the note
+    /// is the review line for the page being shown or fetched.
+    pub fn apply_embed_gate(&mut self, sites: &crate::web_reader::sites::WebSites) {
+        use crate::web_reader::sites::EmbedVerdict;
+        if let Some(q) = self.queued.clone() {
+            let verdict = sites.embed_verdict(&q);
+            if matches!(verdict, EmbedVerdict::Forbidden { .. }) {
+                self.refuse_queued();
+                self.embed_note = verdict.note();
+                return;
+            }
+        }
+        // A refusal note stays until the next navigation is queued.
+        if self.queued.is_none() && self.embed_note.as_deref().map_or(false, |n| n.starts_with("Not shown inside")) {
+            return;
+        }
+        self.embed_note = self.current_url().and_then(|u| sites.embed_verdict(u).note());
+    }
+
+    /// Drop the queued navigation without dispatching it and put the view
+    /// back on the page that was on screen. A `navigate` pushed the refused
+    /// url onto the end of the history, so it is popped; a Back or Forward
+    /// only moved the position, so the position is restored.
+    fn refuse_queued(&mut self) {
+        if self.queued.take().is_none() {
+            return;
+        }
+        match self.shown_pos {
+            Some(shown) if shown < self.history.len() => {
+                if self.pos + 1 == self.history.len() && self.pos > shown {
+                    self.history.pop();
+                }
+                self.pos = shown.min(self.history.len().saturating_sub(1));
+                self.status = if self.page.is_some() { ViewStatus::Ready } else { ViewStatus::Idle };
+            }
+            _ => {
+                // Nothing was ever shown: there is no page to return to.
+                self.history.clear();
+                self.pos = 0;
+                self.status = ViewStatus::Idle;
+            }
+        }
+        self.url_input = self.current_url().unwrap_or("").to_string();
+    }
+
+    /// The embed gate's line for the current page, if any.
+    pub fn embed_note(&self) -> Option<&str> {
+        self.embed_note.as_deref()
     }
 
     /// True while the view has something to show.
@@ -247,6 +310,7 @@ impl WebViewState {
                     self.page = Some(page);
                     self.status = ViewStatus::Ready;
                     self.scroll_top = true;
+                    self.shown_pos = Some(self.pos);
                 }
                 Err(e) => self.status = ViewStatus::Error(e.to_string()),
             }
@@ -342,6 +406,11 @@ impl WebViewState {
         ui.label(RichText::new(status_text).size(theme.font_size_small).color(status_color));
         if let Some(d) = disclosure {
             ui.label(RichText::new(d).size(theme.font_size_small).color(theme.warning()));
+        }
+        if let Some(n) = &self.embed_note {
+            // A refusal reads as a warning; a review note is quieter.
+            let color = if n.starts_with("Not shown inside") { theme.warning() } else { theme.text_muted() };
+            ui.label(RichText::new(n).size(theme.font_size_small).color(color));
         }
         ui.add_space(theme.spacing_sm);
 
@@ -673,5 +742,89 @@ mod tests {
         v.navigate("https://a.example/doc#section-2");
         assert!(v.queued_navigation().is_none(), "same document: no fetch");
         assert_eq!(v.history.len(), 1);
+    }
+
+    fn gate_site(id: &str, url: &str, status: &str) -> crate::web_reader::sites::WebSite {
+        use crate::web_reader::sites::*;
+        WebSite {
+            id: id.into(),
+            name: id.into(),
+            url: url.into(),
+            category: "c".into(),
+            description: String::new(),
+            icon: String::new(),
+            embed: WebSiteEmbed {
+                status: status.into(),
+                basis: "its terms, section 4".into(),
+                terms_url: None,
+                reviewed_on: None,
+                reviewed_by: None,
+            },
+            affiliate: WebSiteAffiliate { program: None, tag: None, disclosure: String::new() },
+            notes: String::new(),
+        }
+    }
+
+    fn gate_db() -> crate::web_reader::sites::WebSites {
+        crate::web_reader::sites::WebSites {
+            categories: Vec::new(),
+            sites: vec![
+                gate_site("nope", "https://nope.example/", "forbidden"),
+                gate_site("pending", "https://pending.example/", "needs_review"),
+            ],
+            own_domains: vec!["https://ours.example".into()],
+        }
+    }
+
+    /// THE PLACEMENT GATE (2026-09-25). A link to a site whose terms forbid
+    /// being shown inside other software is refused BEFORE it is fetched:
+    /// the queued navigation is dropped, the view stays on the page it had
+    /// (no re-fetch of that either), the refused url is not left in the
+    /// history, and the note says why. Proven able to fail by skipping the
+    /// refusal in apply_embed_gate: the queued navigation survives to the
+    /// pump and the first assertion after the click fires.
+    #[test]
+    fn embed_gate_refuses_a_forbidden_link_before_it_is_fetched() {
+        let db = gate_db();
+        let mut v = WebViewState::new();
+        v.fetch_enabled = false;
+        v.navigate("https://pending.example/");
+        // As if the fetch had answered.
+        v.queued = None;
+        v.page = Some(Page { url: "https://pending.example/".into(), ..Default::default() });
+        v.status = ViewStatus::Ready;
+        v.shown_pos = Some(v.pos);
+        v.apply_embed_gate(&db);
+        assert!(v.embed_note().unwrap().starts_with("Review pending"), "{:?}", v.embed_note());
+
+        v.navigate("https://nope.example/article"); // a link click
+        v.apply_embed_gate(&db);
+        assert!(v.queued_navigation().is_none(), "a refused navigation is never dispatched");
+        assert_eq!(v.current_url(), Some("https://pending.example/"), "back on the page that was shown");
+        assert_eq!(v.history_len(), 1, "the refused url is not left in the history");
+        assert!(matches!(v.status, ViewStatus::Ready), "{:?}", v.status);
+        assert!(v.embed_note().unwrap().contains("the site's rule, not a law"));
+        v.apply_embed_gate(&db);
+        assert!(v.embed_note().unwrap().starts_with("Not shown inside"), "the reason stays up until the next navigation");
+
+        v.navigate("https://ours.example/page");
+        v.apply_embed_gate(&db);
+        assert_eq!(v.queued_navigation(), Some("https://ours.example/page"), "an allowed navigation goes ahead");
+        assert_eq!(v.embed_note(), None, "our own site carries no note");
+    }
+
+    /// A refused FIRST navigation (nothing on screen yet) leaves an empty,
+    /// idle view rather than a history pointing at the refused site.
+    #[test]
+    fn embed_gate_refuses_a_first_navigation_to_an_empty_view() {
+        let mut v = WebViewState::new();
+        v.fetch_enabled = false;
+        v.navigate("https://nope.example/");
+        v.apply_embed_gate(&gate_db());
+        assert!(v.queued_navigation().is_none());
+        assert_eq!(v.history_len(), 0);
+        assert_eq!(v.current_url(), None);
+        assert!(matches!(v.status, ViewStatus::Idle));
+        assert!(v.embed_note().is_some());
     }
 }
