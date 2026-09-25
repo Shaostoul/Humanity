@@ -81,6 +81,34 @@ impl WindowMode {
 ///     add/remove, corridors); Normal/Creative are pinned to the HOME zone.
 ///
 /// Persisted in AppConfig (`#[serde(default)]`); surfaced in Settings >
+/// How much of the survival simulation the HUD shows (2026-09-25; the
+/// playable assessment's Tier A item 2: "without it the five death causes
+/// are invisible mechanics that only frustrate"). The two-modes rule: `Off`
+/// is the simple health-bar-only HUD, `Always` the full one, and the
+/// default `WhenLow` shows a need exactly when it starts to matter.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub enum HudVitals {
+    /// Every need, all the time.
+    Always,
+    /// A need appears once it falls below half; air and body temperature
+    /// appear whenever they are out of the safe range.
+    #[default]
+    WhenLow,
+    /// Health only.
+    Off,
+}
+
+impl HudVitals {
+    pub const ALL: [HudVitals; 3] = [HudVitals::Always, HudVitals::WhenLow, HudVitals::Off];
+    pub fn label(self) -> &'static str {
+        match self {
+            HudVitals::Always => "Always",
+            HudVitals::WhenLow => "When low",
+            HudVitals::Off => "Off (health only)",
+        }
+    }
+}
+
 /// Gameplay as three radio buttons; shown as a HUD tag when not Normal so
 /// screenshots are honest.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
@@ -666,6 +694,9 @@ pub struct AppConfig {
     /// flips to Normal at launch). Applied live: the gates read it per frame.
     #[serde(default)]
     pub play_mode: PlayMode,
+    /// Survival bars on the HUD (2026-09-25): Always | WhenLow | Off.
+    #[serde(default)]
+    pub hud_vitals: HudVitals,
 
     // ── v0.488: native voice input prefs ────────────────────────────────
     // The mic device + speaker device the user picked (empty => system
@@ -1320,6 +1351,7 @@ impl AppConfig {
             hostile_wildlife: state.settings.hostile_wildlife,
             vitals_drain: state.settings.vitals_drain,
             play_mode: state.settings.play_mode,
+            hud_vitals: state.settings.hud_vitals,
             // v0.488 voice input prefs (top-level GuiState, not SettingsState).
             voice_input_device: state.audio_input_device.clone(),
             voice_output_device: state.audio_output_device.clone(),
@@ -1589,6 +1621,7 @@ impl AppConfig {
         // Creative/Dev the Inventory page's Creative toggle stays a live
         // fine-tune on top of this preset.
         state.settings.play_mode = self.play_mode;
+        state.settings.hud_vitals = self.hud_vitals;
         state.creative_mode = self.play_mode.allows(Capability::FreeResources);
         // v0.488 voice input prefs.
         state.audio_input_device = self.voice_input_device.clone();

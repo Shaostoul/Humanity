@@ -16,7 +16,7 @@
 //! one GET per image the page declares (through the same image cache chat
 //! uses). No cookies (the ureq `cookies` feature is not enabled, so there is
 //! no cookie store to send from), no scripts, no fonts, no stylesheets, no
-//! third-party beacons. The User-Agent is "HumanityOS/<version> readable-web".
+//! third-party beacons. The User-Agent is "HumanityOS/<version> (+https://united-humanity.us) readable-web".
 //!
 //! GATES. A URL is checked BEFORE any request: only `http` and `https` are
 //! fetched, and the same check runs on every redirect hop, so a page cannot
@@ -53,9 +53,13 @@ pub const TIMEOUT_SECS: u64 = 10;
 pub const MAX_REDIRECTS: usize = 5;
 
 /// The User-Agent sent with every page request. Plain and honest: a site can
-/// tell it is us, and can serve a simpler page if it wants to.
+/// tell it is us, and can serve a simpler page if it wants to. It carries a
+/// contact URL (2026-09-25): the Wikimedia User-Agent policy asks for
+/// "an informative User-Agent string with contact information", and the
+/// "(+url)" form is the common convention for that
+/// (docs/reference/findings/2026-09-25-site-embed-terms.md).
 pub fn user_agent() -> String {
-    format!("HumanityOS/{} readable-web", env!("CARGO_PKG_VERSION"))
+    format!("HumanityOS/{} (+https://united-humanity.us) readable-web", env!("CARGO_PKG_VERSION"))
 }
 
 /// A run of styled text inside a block. Nesting is flattened: a link is one

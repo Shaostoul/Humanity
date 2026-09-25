@@ -4547,6 +4547,8 @@ pub struct SettingsState {
     /// Survival-needs speed: scales hunger/thirst/energy decay in the food
     /// system (1.0 = normal, 0 = paused). v0.791, with slowed base rates.
     pub vitals_drain: f32,
+    /// Which survival bars the HUD draws (2026-09-25). See HudVitals.
+    pub hud_vitals: crate::config::HudVitals,
     /// Play mode (task #50): Normal | Creative | Dev -- one ladder for every
     /// cheat/scope gate (see `crate::config::PlayMode` + `Capability` for the
     /// tested truth table). Persisted in AppConfig; edited as radios in
@@ -4652,6 +4654,7 @@ impl Default for SettingsState {
             home_variant: "home".to_string(),
             hostile_wildlife: false,
             vitals_drain: 1.0,
+            hud_vitals: crate::config::HudVitals::default(),
             play_mode: crate::config::PlayMode::default(),
             profile_visible: true,
             online_status_visible: true,

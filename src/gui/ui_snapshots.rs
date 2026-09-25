@@ -844,6 +844,46 @@ fn settings_panel(
     });
 }
 
+// The in-world HUD with the survival rows and the active quest (2026-09-25):
+// thirsty, tiring, exposed and cold, under the default "When low" mode, so
+// every kind of row is on screen at once. Drawn over the theme background,
+// not a world, which is enough to judge the layout and colours.
+#[test]
+    #[ignore = "GPU snapshot; run via `just snapshots`"]
+    fn snapshot_hud_vitals() {
+    render_page_png("hud_vitals", 900, 360, |ctx, theme, state| {
+        state.player_health = 72.0;
+        state.player_health_max = 100.0;
+        state.wallet_credits = 140;
+        state.vitals = crate::gui::GuiVitals {
+            satiation: 68.0,
+            hydration: 22.0,
+            energy: 41.0,
+            oxygen: 63.0,
+            body_temp_c: 35.4,
+            waste: 30.0,
+            satiation_max: 100.0,
+            hydration_max: 100.0,
+            energy_max: 100.0,
+            oxygen_max: 100.0,
+            waste_max: 100.0,
+            sealed: false,
+            effects: Vec::new(),
+        };
+        state.quests = vec![crate::gui::GuiQuest {
+            name: "First Steps".to_string(),
+            step_index: 1,
+            step_total: 4,
+            step_desc: "Plant a seed in the garden".to_string(),
+            completed: false,
+        }];
+        egui::CentralPanel::default()
+            .frame(egui::Frame::none().fill(theme.bg_primary()))
+            .show(ctx, |_ui| {});
+        crate::gui::pages::hud::draw(ctx, theme, state, 0.0, glam::Mat4::IDENTITY, glam::Vec3::ZERO);
+    });
+}
+
 #[test]
     #[ignore = "GPU snapshot; run via `just snapshots`"]
     fn snapshot_audio_settings() {

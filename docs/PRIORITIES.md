@@ -1015,7 +1015,11 @@ Remaining, in the order they were fenced:
 - ~~A placement gate on `embed.status`~~ BUILT 2026-09-25: a forbidden site
   is refused before it is fetched on the Browser page and every wall, an
   unreviewed one carries a note (`docs/design/readable-web.md`). The 34
-  `needs_review` records still need a person to read their terms.
+  `needs_review` records still need a person to decide. The evidence is ready:
+  `docs/reference/findings/2026-09-25-site-embed-terms.md` (one allowed, 21
+  conditional, seven forbidden as written: Project Gutenberg, Khan Academy,
+  Instructables, Coursera, Discord, GOG, Examine; OpenFarm no longer exists and
+  the ISS tracker URL is dead).
 - ~~The screens' share of the interior frame (the console room at 9 fps)~~
   STALE, corrected 2026-09-25: that figure predates the P2/P3 megashader split.
   Measured after P3 (`docs/design/frame-cost-arc.md`, the phase-B table):
@@ -1084,9 +1088,12 @@ between the simulation and the person. Its tier ladder is the build order.
   plus scaffolds plus craft batches (now saved too; a restart used to destroy
   whatever was mid-smelt) catch up by the time away behind a Settings toggle.
   Offline remaining: drone and manufacturing timers, livestock, then the server
-  clock for multiplayer. Put the simulation
-  on the HUD; fix crop pacing (blocked on the operator question above); a
-  scripted first-run sequence in the world. **Made a built thing do something
+  clock for multiplayer. **Simulation on the HUD DONE 2026-09-25:** food,
+  water, energy, air, body temperature and waste under the health bar, and the
+  active quest objective, with a Settings choice of Always / When low (default)
+  / Off (health only). **Crop pacing DONE** (the growth-speed setting of
+  2026-09-20 plus offline progression). Remaining: a scripted first-run
+  sequence in the world. **Made a built thing do something
   (2026-09-25):** a built Furnace is a smelter and kiln, a Crafting Table a
   workbench, through `Blueprint::stations` into the station gate; and the build
   menu works at all now (BUG-082: every blueprint named items that did not

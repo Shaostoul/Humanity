@@ -119,3 +119,8 @@ what we will say about it.
   video and AAC audio. Covers the Cisco OpenH264 grant, remaining patent expiry
   dates, calling the operating system's own decoders, Via LA's published rates,
   and what other free projects did.
+- [`2026-09-25-site-embed-terms.md`](2026-09-25-site-embed-terms.md),
+  whether the 34 sites awaiting review in `data/web/sites.json` allow the
+  readable web to fetch, reformat and show their pages. One allowed, 21
+  conditional (mostly attribution), seven forbidden as written, four silent,
+  one gone. Evidence for the person who records each site's `embed.status`.

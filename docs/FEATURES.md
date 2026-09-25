@@ -826,7 +826,11 @@ table in `CLAUDE.md` + `docs/reference/retention_and_deletion_semantics.md`.
 - Native: `src/net/dm_pq.rs` (seal/open), `src/gui/pages/chat.rs` (send/receive UI)
 
 ### HUD
-Health bar, hotbar, crosshair, compass, day/night indicator, FPS counter.
+Health bar, hotbar, crosshair, compass, day/night indicator, FPS counter. **Survival rows and the active quest
+(2026-09-25):** food, water, energy, air, body temperature and waste under the health bar, then the first
+active quest and its step. Settings > Gameplay > "Survival bars on the HUD": Always / When low (the default:
+a need shows once below half; air and body temperature whenever out of range) / Off (health only).
+`hud::vital_rows` decides, tested; snapshot `hud_vitals`.
 - Native: `src/gui/pages/hud.rs`
 
 ### Maps Page

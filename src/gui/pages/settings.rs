@@ -3424,6 +3424,29 @@ pub(crate) fn draw_gameplay_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
             "How fast hunger, thirst, and energy fall. 1.0 = normal (about \
              half an hour from full to empty), 0 = survival needs paused.",
         );
+        // Survival bars on the HUD (2026-09-25): the simple and full modes of
+        // the same readout, plus the default that shows a need when it matters.
+        ui.add_space(theme.spacing_sm);
+        ui.label(RichText::new("Survival bars on the HUD").color(theme.text_secondary()));
+        ui.horizontal(|ui| {
+            for mode in crate::config::HudVitals::ALL {
+                let selected = state.settings.hud_vitals == mode;
+                if ui.radio(selected, RichText::new(mode.label()).color(theme.text_primary())).clicked()
+                    && !selected
+                {
+                    state.settings.hud_vitals = mode;
+                    state.settings_dirty = true;
+                }
+            }
+        });
+        widgets::setting_hint(
+            ui,
+            theme,
+            hint,
+            "Food, water, energy, air, body temperature and waste under the health \
+             bar. \"When low\" shows each one only once it needs attention; air and \
+             body temperature show whenever they are outside the safe range.",
+        );
 
         ui.add_space(theme.spacing_lg);
         // Crop growth speed (operator, 2026-09-20). A multiplier on crop growth

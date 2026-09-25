@@ -714,6 +714,16 @@
    "date": "2026-09-25",
    "decision": "Built structures are workstations: Blueprint::stations (data) feeds built_station_types into placed_machine_types each frame and into GuiState.built_station_types for the Crafting page. Furnace = smelter + kiln, Crafting Table = workbench. Missing-station message names the buildable structure.",
    "why": "Playable assessment 2.4 / Tier A item 5: construction terminated in a decorative box. Data-driven stations list rather than mapping provides strings in code (infinite-of-X). Furnace also kiln because a furnace fires clay; forge left separate. Bed/chest/shelter provides still unconsumed: those need a design call (does rest need a bed? what does shelter change?)."
+  },
+  {
+   "date": "2026-09-25",
+   "decision": "Simulation on the HUD (Tier A item 2): food/water/energy/air/body temp/waste rows under the health bar plus the active quest; HudVitals setting Always / WhenLow (default) / Off, persisted in AppConfig. hud::vital_rows is pure and tested; snapshot hud_vitals.",
+   "why": "Assessment: five death causes were invisible mechanics. Two-modes rule: Off is the simple health-only HUD, Always the full one; WhenLow default shows a need when it matters (<50%), and air/body temp whenever out of range because they kill fastest; waste colours by the 75% unsanitary threshold. Test caught my own wrong expectation (80% waste is past the debuff line, so red is right)."
+  },
+  {
+   "date": "2026-09-25",
+   "decision": "Site embed terms researched for all 34 needs_review records (3 parallel agents) into docs/reference/findings/2026-09-25-site-embed-terms.md; statuses NOT changed. Reader user agent now carries a contact URL (Wikimedia User-Agent policy).",
+   "why": "The workflow says a person records each decision; the AI prepared quoted, dated evidence instead. 1 allowed, 21 conditional, 7 forbidden as written (Gutenberg, Khan Academy, Instructables, Coursera, Discord, GOG, Examine), 4 silent, 1 gone (OpenFarm, shut April 2025); ISS tracker URL dead. Table cells were checked against each section before commit (six corrected to the exact licence named)."
   }
  ],
  "active_scopes_to_avoid": [

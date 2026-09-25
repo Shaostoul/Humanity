@@ -126,6 +126,28 @@ pub fn draw(
                 theme.accent(),
             );
 
+            // ── Survival needs + active quest (top-left, 2026-09-25) ──
+            // The playable assessment's Tier A item 2: five things can kill
+            // the player and the HUD showed one of them. Which rows show is
+            // decided by `vital_rows` (pure, tested); drawing stacks them
+            // under the credits, then the quest, then the co-presence block.
+            let mut y = 56.0;
+            for row in vital_rows(&state.vitals, state.settings.hud_vitals) {
+                y = draw_vital_row(painter, theme, y, &row);
+            }
+            if let Some(q) = state.quests.iter().find(|q| !q.completed) {
+                y += 4.0;
+                text_shadowed(painter, Pos2::new(16.0, y), Align2::LEFT_TOP, &truncate_chars(&q.name, 48), 12.0, theme.accent());
+                y += 15.0;
+                let step = if q.step_total > 0 {
+                    format!("{} ({}/{})", q.step_desc, (q.step_index + 1).min(q.step_total), q.step_total)
+                } else {
+                    q.step_desc.clone()
+                };
+                text_shadowed(painter, Pos2::new(16.0, y), Align2::LEFT_TOP, &truncate_chars(&step, 64), 11.0, theme.text_secondary());
+                y += 16.0;
+            }
+
             // ── Shared-world co-presence (top-left, under credits, v0.774) ──
             // Only shown once we've joined the relay's shared game world (in-world
             // + connected). Makes the mission-critical co-presence legible: you can
@@ -142,7 +164,7 @@ pub fn draw(
                     let host = crate::gui::pages::chat::server_display_name(&state.server_url);
                     format!("Shared world · {host}")
                 };
-                text_shadowed(painter, Pos2::new(16.0, 56.0), Align2::LEFT_TOP, &header, 12.0, theme.accent());
+                text_shadowed(painter, Pos2::new(16.0, y), Align2::LEFT_TOP, &header, 12.0, theme.accent());
                 let others = state.copresence_names.len();
                 let (roster, col) = if others == 0 {
                     ("no one else here yet".to_string(), theme.text_muted())
@@ -152,7 +174,7 @@ pub fn draw(
                     let names = truncate_chars(&state.copresence_names.join(", "), 48);
                     (format!("{others} here: {names}"), theme.success())
                 };
-                text_shadowed(painter, Pos2::new(16.0, 72.0), Align2::LEFT_TOP, &roster, 11.0, col);
+                text_shadowed(painter, Pos2::new(16.0, y + 16.0), Align2::LEFT_TOP, &roster, 11.0, col);
             }
 
             // ── FPS counter (top-right) ──
@@ -918,6 +940,88 @@ fn world_to_screen(world: Vec3, view_proj: Mat4, screen: Rect) -> Option<Pos2> {
 /// Draw text with a black OUTLINE (stroke) so it stays legible over any 3D background
 /// without needing a panel behind it. Renders the text in black at 8 surrounding offsets,
 /// then the colored text on top. (v0.444: was a 1px drop-shadow.)
+/// One survival row on the HUD: a bar with its fill fraction, or a line of
+/// text (body temperature reads as degrees, not as a bar).
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct VitalRow {
+    pub label: &'static str,
+    /// 0..1 fill; None for a text-only row.
+    pub frac: Option<f32>,
+    /// Text shown after the label (the temperature, or empty).
+    pub text: String,
+    /// 0 = fine, 1 = attention, 2 = danger. Drives the colour.
+    pub severity: u8,
+}
+
+/// Normal core body temperature, degrees C. Outside it the row shows in
+/// every mode but Off; outside the outer pair it reads as danger (mild
+/// hypothermia starts at 35 C, a fever past 39 C needs attention).
+const BODY_TEMP_OK: (f32, f32) = (36.0, 37.8);
+const BODY_TEMP_DANGER: (f32, f32) = (35.0, 39.0);
+
+/// Which survival rows the HUD draws for these vitals in this mode. Pure, so
+/// the choice is tested without a painter. Fill needs (food, water, energy)
+/// are low when they fall; waste is the other way round, a need when it
+/// fills. Air and body temperature show whenever they are out of range in
+/// both non-Off modes, because those kill fastest.
+pub(crate) fn vital_rows(v: &crate::gui::GuiVitals, mode: crate::config::HudVitals) -> Vec<VitalRow> {
+    use crate::config::HudVitals;
+    let mut rows = Vec::new();
+    // Not synced yet (menus before the world): nothing to say.
+    if mode == HudVitals::Off || v.satiation_max <= 0.0 {
+        return rows;
+    }
+    let always = mode == HudVitals::Always;
+    let sev = |f: f32| if f > 0.5 { 0 } else if f > 0.25 { 1 } else { 2 };
+    for (label, value, max) in [
+        ("Food", v.satiation, v.satiation_max),
+        ("Water", v.hydration, v.hydration_max),
+        ("Energy", v.energy, v.energy_max),
+    ] {
+        let f = if max > 0.0 { (value / max).clamp(0.0, 1.0) } else { 0.0 };
+        if always || f < 0.5 {
+            rows.push(VitalRow { label, frac: Some(f), text: String::new(), severity: sev(f) });
+        }
+    }
+    let air = if v.oxygen_max > 0.0 { (v.oxygen / v.oxygen_max).clamp(0.0, 1.0) } else { 1.0 };
+    if always || !v.sealed || air < 0.999 {
+        rows.push(VitalRow { label: "Air", frac: Some(air), text: String::new(), severity: if v.sealed { sev(air) } else { sev(air).max(1) } });
+    }
+    let t = v.body_temp_c;
+    let t_out = t < BODY_TEMP_OK.0 || t > BODY_TEMP_OK.1;
+    if always || t_out {
+        let severity = if t < BODY_TEMP_DANGER.0 || t > BODY_TEMP_DANGER.1 { 2 } else if t_out { 1 } else { 0 };
+        rows.push(VitalRow { label: "Body", frac: None, text: format!("{t:.1} °C"), severity });
+    }
+    let waste = if v.waste_max > 0.0 { (v.waste / v.waste_max).clamp(0.0, 1.0) } else { 0.0 };
+    if always || waste > 0.5 {
+        // Shown as how full it is; the colour runs the other way.
+        rows.push(VitalRow { label: "Waste", frac: Some(waste), text: String::new(), severity: sev(1.0 - waste) });
+    }
+    rows
+}
+
+/// Draw one survival row at `y`; returns the next row's y.
+fn draw_vital_row(painter: &egui::Painter, theme: &Theme, y: f32, row: &VitalRow) -> f32 {
+    let color = match row.severity {
+        0 => theme.success(),
+        1 => theme.warning(),
+        _ => theme.danger(),
+    };
+    text_shadowed(painter, Pos2::new(16.0, y), Align2::LEFT_TOP, row.label, 11.0, theme.text_secondary());
+    match row.frac {
+        Some(f) => {
+            let bar = Rect::from_min_size(Pos2::new(66.0, y + 3.0), Vec2::new(120.0, 8.0));
+            painter.rect_filled(bar, Rounding::same(3), Color32::from_black_alpha(140));
+            painter.rect_filled(Rect::from_min_size(bar.min, Vec2::new(120.0 * f, 8.0)), Rounding::same(3), color);
+        }
+        None => {
+            text_shadowed(painter, Pos2::new(66.0, y), Align2::LEFT_TOP, &row.text, 11.0, color);
+        }
+    }
+    y + 14.0
+}
+
 fn text_shadowed(
     painter: &egui::Painter,
     pos: Pos2,
@@ -1421,6 +1525,59 @@ mod crew_label_tests {
         let out = truncate_chars(&s, CREW_ACTIVITY_MAX_CHARS);
         assert!(out.ends_with("..."));
         assert!(out.chars().count() <= CREW_ACTIVITY_MAX_CHARS);
+    }
+
+    fn vitals(food: f32, water: f32, energy: f32, air: f32, sealed: bool, temp: f32, waste: f32) -> crate::gui::GuiVitals {
+        crate::gui::GuiVitals {
+            satiation: food,
+            hydration: water,
+            energy,
+            oxygen: air,
+            body_temp_c: temp,
+            waste,
+            satiation_max: 100.0,
+            hydration_max: 100.0,
+            energy_max: 100.0,
+            oxygen_max: 100.0,
+            waste_max: 100.0,
+            sealed,
+            effects: Vec::new(),
+        }
+    }
+
+    fn labels(rows: &[VitalRow]) -> Vec<&'static str> {
+        rows.iter().map(|r| r.label).collect()
+    }
+
+    /// The survival rows (2026-09-25). Always shows everything; When low
+    /// shows only what needs attention (and nothing for a healthy player);
+    /// Off shows nothing. Air shows whenever the player is exposed, even at
+    /// full, because it runs out fastest; a cold body shows as danger.
+    #[test]
+    fn vital_rows_show_what_needs_attention() {
+        use crate::config::HudVitals;
+        let fine = vitals(90.0, 90.0, 90.0, 100.0, true, 36.8, 10.0);
+        assert_eq!(labels(&vital_rows(&fine, HudVitals::Always)), vec!["Food", "Water", "Energy", "Air", "Body", "Waste"]);
+        assert!(vital_rows(&fine, HudVitals::WhenLow).is_empty(), "a healthy player sees no bars");
+        assert!(vital_rows(&fine, HudVitals::Off).is_empty());
+
+        let thirsty = vitals(90.0, 20.0, 45.0, 100.0, true, 36.8, 80.0);
+        let rows = vital_rows(&thirsty, HudVitals::WhenLow);
+        assert_eq!(labels(&rows), vec!["Water", "Energy", "Waste"]);
+        assert_eq!(rows[0].severity, 2, "20% water is danger");
+        assert_eq!(rows[1].severity, 1, "45% energy is attention");
+        assert_eq!(rows[2].severity, 2, "80% waste is past the 75% line where the unsanitary debuff starts");
+
+        let exposed = vitals(90.0, 90.0, 90.0, 100.0, false, 34.5, 10.0);
+        let rows = vital_rows(&exposed, HudVitals::WhenLow);
+        assert_eq!(labels(&rows), vec!["Air", "Body"]);
+        assert_eq!(rows[0].severity, 1, "exposed air is never shown as fine");
+        assert_eq!(rows[1].severity, 2, "34.5 C is hypothermia");
+        assert_eq!(rows[1].text, "34.5 °C");
+        assert!(vital_rows(&exposed, HudVitals::Off).is_empty(), "Off is the simple mode: health only");
+
+        let unsynced = crate::gui::GuiVitals::default();
+        assert!(vital_rows(&unsynced, HudVitals::Always).is_empty(), "no vitals yet, no rows");
     }
 
     #[test]
