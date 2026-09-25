@@ -280,6 +280,23 @@ const AURORA_DIFFUSE_LEVEL: f32 = 0.06;
 /// and the red cap only takes over in strong events and at heights where the
 /// green has already stopped.
 const AURORA_RED_LEVEL: f32 = 0.30;
+// Curtain top height, as a fraction of the emitting layer (0 = the 99 km
+// lower border, 1 = the top). Most of a curtain tops out at the BASE height,
+// and PEAKS rise above it: peaky terms (a cube or fourth power of a wave) so
+// tall spires are occasional rather than a symmetric ripple.
+const AURORA_TOP_BASE: f32 = 0.60;
+// Slow swing along the arc (stretch to stretch).
+const AURORA_TOP_SWING: f32 = 0.08;
+// Peaks at two spacings, about 250 km (55 around the oval) and 90 km (170).
+const AURORA_TOP_PEAK_WIDE: f32 = 0.30;
+const AURORA_TOP_PEAK_FINE: f32 = 0.22;
+// Ray-scale spires, only where individual rays resolve.
+const AURORA_TOP_SPIRE: f32 = 0.14;
+// How far below its top a ray fades out, in the same fraction units.
+const AURORA_TOP_FADE: f32 = 0.16;
+// The red glow fades out between these heights ABOVE each ray top.
+const AURORA_RED_ABOVE_LO: f32 = 0.10;
+const AURORA_RED_ABOVE_HI: f32 = 0.40;
 /// Scales the integrated emission to screen radiance.
 const AURORA_STRENGTH: f32 = 24.0;
 /// 557.7 nm atomic oxygen: the green every photograph is dominated by.
@@ -617,8 +634,55 @@ fn aurora_emission(ro: vec3<f32>, rd: vec3<f32>, t0: f32, t1: f32, rp: f32, pix_
             let green_v = 1.0 - aurora_ss_avg(0.05, 0.62, h_a, h_b);
             let red_v = aurora_ss_avg(0.55, 0.95, h_a, h_b)
                 * (1.0 - 0.5 * aurora_ss_avg(0.90, 1.0, h_a, h_b));
-            let col = AURORA_GREEN * green_v
-                + AURORA_RED * (red_v * AURORA_RED_LEVEL);
+            // ── RAGGED TOPS (operator, 2026-09-25) ──
+            //
+            // "Right now they seem kind of consistent in height ... Can we have
+            // not perfectly smooth aurora wall heights?" Every curtain filled the
+            // same 99-190 km band, so every top was level. A real curtain has a
+            // sharp, fairly even LOWER border (where the incoming electrons are
+            // stopped) and a ragged top, because individual rays reach different
+            // heights. The lower border is left alone; the top becomes a height
+            // per position along the arc: a slow swing, so whole stretches stand
+            // taller or lower, plus a ray-scale swing, so neighbouring rays are
+            // spires of different lengths.
+            //
+            // The red emission sits HIGH (it is the 0.55-0.95 band above), so
+            // it now only appears where a ray is tall enough to reach it: short
+            // rays are all green and tall spires get red tips, which is what the
+            // reference photographs show.
+            //
+            // The spire term rides the SAME ray pattern and the same ray_lod as
+            // the brightness comb, so wherever rays are too fine to resolve it
+            // fades to zero and only the slow swing remains; otherwise the tops
+            // would alias into shimmer exactly where the comb already stopped.
+            // The cutoff is box-filtered over the step's height span like the
+            // colour ramps, so it cannot band either.
+            // Each band fades by its OWN on-screen spacing, the same rule as the
+            // comb (stripe_px is the comb's spacing in pixels; a band with N
+            // lobes is AURORA_RAY_LOBES / N times wider), so a band exists only
+            // where it can be drawn without shimmering.
+            let lod_w = smoothstep(AURORA_RAY_PX_LO, AURORA_RAY_PX_HI, stripe_px * (AURORA_RAY_LOBES / 55.0));
+            let lod_f = smoothstep(AURORA_RAY_PX_LO, AURORA_RAY_PX_HI, stripe_px * (AURORA_RAY_LOBES / 170.0));
+            let top_swing = aurora_wave(phi * 6.0, time * AURORA_DRIFT, 23.0);
+            let peak_w = pow(clamp(0.5 + 0.5 * aurora_wave(phi * 55.0, time * AURORA_DRIFT * 3.0, 29.0), 0.0, 1.0), 3.0);
+            let peak_f = pow(clamp(0.5 + 0.5 * aurora_wave(phi * 170.0, time * AURORA_DRIFT * 5.0, 41.0), 0.0, 1.0), 4.0);
+            let top_spire = (pow(ray_s, 2.0) * ray_amp - AURORA_RAY_MEAN) * 2.0 * ray_lod;
+            let top = clamp(
+                AURORA_TOP_BASE + AURORA_TOP_SWING * top_swing
+                    + AURORA_TOP_PEAK_WIDE * peak_w * lod_w
+                    + AURORA_TOP_PEAK_FINE * peak_f * lod_f
+                    + AURORA_TOP_SPIRE * top_spire,
+                0.30, 1.0);
+            let top_v = 1.0 - aurora_ss_avg(top - AURORA_TOP_FADE, top, h_a, h_b);
+            // The red is NOT clipped with the rays. It comes from higher along the
+            // same field lines and hangs as a softer glow ABOVE the ray tops, so it
+            // fades out a band above each top instead: it follows the same ragged
+            // outline, rising over a tall spire and sinking over a short one, but
+            // the red layer the reference photographs show stays present. (Cutting
+            // it at the green top, as first tried, removed nearly all of it.)
+            let top_rv = 1.0 - aurora_ss_avg(top + AURORA_RED_ABOVE_LO, top + AURORA_RED_ABOVE_HI, h_a, h_b);
+            let col = AURORA_GREEN * (green_v * top_v)
+                + AURORA_RED * (red_v * AURORA_RED_LEVEL * top_rv);
             total = total + col * (ring * night * curtain
                 * reg.kind_shape.y * AURORA_STRENGTH * dt_a);
         }

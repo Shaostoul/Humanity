@@ -12300,6 +12300,18 @@
       "showcase": {"clouds":"1","weather":"clear","cloud_cover":"0.95","cloud_type":"0.5","cloud_step_eco":"1"},
       "settle_s": 10,
       "hold_altitude": true
+    },
+    {
+      "id": "stars-parked-2000",
+      "desc": "SPACE TWINKLE. The operator: specks that twinkle in space even when not looking at the planet; after v0.1332.0 gated the space dust on movement, \"still a bit of twinkling but super fast now and much more infrequent\". Parked at 2000 km, local midnight, aimed away from the Earth at open stars, so nothing here should change between frames: nothing moves, the clock is frozen, and the dust cannot spawn without a movement key. Take a burst of frames (probe-sweep --keep-open, then debug/screenshot_request.json) and count pixels bright in exactly one frame. MEASURED 2026-09-25 (v0.1334.0 build, burst of 16 frames): ZERO transient bright pixels, and 1 pixel changed between the first and last frame. Nothing twinkles while parked; what the operator still sees needs motion, which points at the space dust doing its designed job while he flies at low gear (motes passing close to the camera). The dust cannot spawn without a movement key.",
+      "expect": "No transient specks: consecutive frames of a parked camera looking at stars should be identical apart from noise below a few levels.",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {"body":"earth","lat":40,"lon":0,"time":0.0,"altitude_km":2000,"look_offset_deg":170},
+      "showcase": {"clouds":"1","weather":"clear"},
+      "settle_s": 8,
+      "hold_altitude": true
     }
   ],
   "ladder": {
