@@ -8,6 +8,7 @@
 pub mod crops;
 pub mod soil;
 pub mod pests;
+pub mod pollination;
 pub mod lighting;
 pub mod soil_ph;
 pub mod automation;
@@ -849,6 +850,9 @@ pub struct FarmingSystem {
     /// and the amendment bags opened, which are not saved.
     ph_data: Option<soil_ph::SoilPhData>,
     ph_rt: soil_ph::PhRuntime,
+    /// Pollination (2026-09-26, pollination.rs): its data, and the areas
+    /// told their flowers wait for a pollinator.
+    pollination: pollination::Pollination,
 }
 
 impl FarmingSystem {
@@ -862,6 +866,7 @@ impl FarmingSystem {
             pests: None,
             ph_data: None,
             ph_rt: soil_ph::PhRuntime::default(),
+            pollination: pollination::Pollination::new(),
         }
     }
 }
@@ -1567,6 +1572,9 @@ impl System for FarmingSystem {
             };
             soil_ph::handle_request(world, data, ph_data, &mut self.ph_rt, &area, &amendment, creative, &mut need_n);
         }
+        // POLLINATION (2026-09-26, pollination.rs): the Hand-pollinate request,
+        // each indoor flowering crop's record on the garden clock, the notices.
+        self.pollination.tick(world, data, game_dt * f64::from(growth_speed) / SECONDS_PER_DAY);
 
         // DEV: instantly mature every living crop (a testing affordance, like
         // "Dev: stock all materials" — so the loop is verifiable without waiting
@@ -1654,7 +1662,7 @@ impl System for FarmingSystem {
                         let qty = harvest_quantity(
                             ymin * n,
                             ymax * n,
-                            crop_season_health,
+                            crop_season_health * self.pollination.harvest_set(world, data, entity),
                             rand::random::<f32>(),
                             rand::random::<f32>(),
                         );

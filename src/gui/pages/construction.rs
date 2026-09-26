@@ -4076,6 +4076,7 @@ mod multi_select_tests {
             irrigates: false,
             auto_keep: None,
             lights_crops: false,
+            pollinates_crops: false,
             level_gauge: false,
             container_type: None,
             model: None,

@@ -1,0 +1,365 @@
+// Pollination decides how much fruit and seed a crop sets (2026-09-26,
+// gardening depth). Read by src/systems/farming/pollination.rs, which carries
+// the model; this file carries the crops, the numbers and where each came
+// from. Every source below was read on 2026-09-26.
+//
+// WHAT THE GAME TEACHES. A crop whose harvest is a fruit or a seed only makes
+// it from a pollinated flower. Outdoors the wind and wild insects do that
+// work unnoticed. Indoors there is neither, so a tomato's pollen stays in its
+// flower and a zucchini's never reaches the female flower: the plant grows
+// and flowers normally and then sets little or nothing. The grower's answer
+// is to pollinate by hand (shaking or buzzing the flowers, or carrying pollen
+// with a brush) every few days while they flower, or to keep bumblebees,
+// which is how commercial glasshouses do it. Leafy greens, roots and tubers
+// are harvested without fruit, so pollination does not matter for them and
+// they are not listed here; nor are the crops that pollinate themselves
+// inside a closed flower, beyond the few listed to say so with a source.
+//
+// THE MODEL, in one paragraph (pollination.rs has the detail). A crop listed
+// here with `no_help` below 1 keeps a record of the garden days it spent in
+// its `flowering` stages and how many of those its flowers were pollinated:
+// always in an outdoor field (farming::is_field_area), and indoors while a
+// hand pollination still covers it (`hand_every_days` from the last one) or
+// while a bumblebee hive reaches its grow area (Vibration and Insects crops
+// only; bees do nothing for a wind-pollinated crop). At harvest its fruit set
+// is no_help + (1 - no_help) x (pollinated days / flowering days), one
+// multiplier on the yield, the way flowers opened while nobody pollinated
+// them set at the unhelped rate and the rest set fully. A crop that never
+// flowered on the clock (spawned ripe, ripened by the dev button, or carried
+// past flowering by the offline catch-up) is not charged for flowers it
+// never had.
+//
+// FIELDS
+//   id              - a data/plants.csv id (a test checks each)
+//   by              - how its flowers are pollinated:
+//                       SelfPollinating: inside the flower, before or as it
+//                         opens; nothing is needed indoors
+//                       Vibration: self-fertile, but the pollen only falls
+//                         when the flower is shaken (wind, a bumblebee's buzz,
+//                         a hand vibrator)
+//                       Insects: pollen must be carried to another flower
+//                       Wind: pollen blown from the tassel to the silks
+//   flowering       - its plants.csv growth stages while its flowers are open
+//                     (a test checks each against the crop's stage list)
+//   no_help         - the share of a full crop it sets indoors with no
+//                     pollinator and no hand pollination, 0 to 1
+//   hand_every_days - how many garden days one hand pollination covers: how
+//                     often the grower must repeat it while the crop flowers
+//   how             - how to do it by hand, told to the player
+//
+// hive_cover_m2: the greenhouse floor one bumblebee colony serves. It reaches
+//   the indoor grow areas whose centre lies within the radius of a circle of
+//   that area around the hive, sqrt(1000 / pi) = 17.8 m (58 ft), measured
+//   across the floor. Ohio State (Runnion, below): "bumble bee colonies should
+//   be placed in densities of 7-15 colonies per hectare", so one colony per
+//   667 to 1,429 m2 (7,200 to 15,400 ft2); 1,000 m2 (10,800 ft2) is ten per
+//   hectare, inside that range. Seeds of Diversity Canada's pepper page gives
+//   more: "A single hive of bumble bees can pollinate 3000 square meters of
+//   greenhouse sweet peppers." A colony does not last: "In commercially
+//   managed hives, colonies generally last 10-14 weeks in a greenhouse or
+//   field setting" (Runnion). The game does not age a hive yet. And a small
+//   garden is not what the bees are sold for: LSU (Hanna, below) warns "In
+//   smaller operations, however, bumblebee pollination is not a good choice.
+//   At any given time, opened flowers are too few in number to supply enough
+//   pollen for the foraging bees. As a result, bees visit opened flowers
+//   repeatedly, destroying the protective anther tube". The game does not
+//   model that harm either; both are said on the hive's card.
+//
+// SOURCES (cited by short name in the entries; the date after each is the
+// source's own date):
+//   McGregor: McGregor, S.E., "Insect Pollination of Cultivated Crop Plants",
+//     USDA Agriculture Handbook 496, 1976; the online edition kept by the USDA
+//     ARS Carl Hayden Bee Research Center (chapter pages captured 21 January
+//     2009): https://www.ars.usda.gov/ARSUserFiles/20220500/OnlinePollinationHandbook.pdf
+//   UMD Tunnels: Brust, G., "Problems with Pollination in High Tunnel
+//     Tomatoes", University of Maryland Extension, 22 October 2024,
+//     https://extension.umd.edu/resource/problems-pollination-high-tunnel-tomatoes
+//   UMD Vegetables: "Pollination Problems of Vegetables", University of
+//     Maryland Extension, updated 20 February 2023,
+//     https://extension.umd.edu/resource/pollination-problems-vegetables
+//   Abak: Abak, K., Sari, N., Paksoy, M., Kaftanoglu, O. and Yeninar, H.,
+//     "Efficiency of bumble bees on the yield and quality of eggplant and
+//     tomato grown in unheated glasshouses", Acta Horticulturae 412: 268-274,
+//     1995, https://doi.org/10.17660/ActaHortic.1995.412.30
+//   Klatt: Klatt, B.K. et al., "Bee pollination improves crop quality, shelf
+//     life and commercial value", Proceedings of the Royal Society B 281:
+//     20132440, 22 January 2014, https://pmc.ncbi.nlm.nih.gov/articles/PMC3866401/
+//   UF/IFAS: Mallinger, R.E. and Liburd, O.E., "Pollination of Cucurbita spp.
+//     (Squash and Pumpkin) Crops in Florida", ENY-2056/IN1311, University of
+//     Florida IFAS Extension (no date shown on the page as read),
+//     https://ask.ifas.ufl.edu/publication/IN1311
+//   NDSU: Kandel, H., Endres, G. and Buetow, R. (eds.), "Sunflower Production
+//     Guide", A1995, North Dakota State University Extension, December 2020,
+//     https://www.ndsu.edu/agriculture/extension/publications/sunflower-production-guide
+//   Purdue: Nielsen, R.L., "Silk Development and Emergence in Corn", Purdue
+//     University Corny News Network, July 2020,
+//     https://www.agry.purdue.edu/ext/corn/news/timeless/silks.html
+//   Runnion: Runnion, E., "Bumble Bee Pollination in Tomato Greenhouses",
+//     ENT-0092, Ohio State University Extension (Ohioline), 23 May 2023,
+//     https://ohioline.osu.edu/factsheet/ent-0092
+//   Hanna: Benedict, L.F., reporting research by Hanna, H.Y., "Pollinating
+//     Greenhouse Tomatoes with Vibrators, Blowers", Louisiana Agriculture,
+//     winter 2005, LSU AgCenter,
+//     https://www.lsuagcenter.com/portals/communications/publications/agmag/archive/2005/winter/pollinatinggreenhousetomatoeswithvibratorsblowers
+//   Seeds of Diversity: "Greenhouse Sweet and Hot Peppers (Capsicum annuum)",
+//     Pollinator Best Practices, Seeds of Diversity Canada (no date shown),
+//     https://seeds.ca/pollinator/bestpractices/greenhouse_peppers.html
+//   Suza and Lamkey: Suza, W. and Lamkey, K. (eds.), "Crop Improvement",
+//     Iowa State University Digital Press, chapter 1 "Basic Principles of
+//     Plant Breeding" (LibreTexts copy, page dated 15 July 2023),
+//     https://bio.libretexts.org/Bookshelves/Agriculture_and_Horticulture/Crop_Improvement_(Suza_and_Lamkey)/01:_Chapters/1.01:_Basic_Principles_of_Plant_Breeding
+//   ICRISAT: Sajja, S.B., Samineni, S. and Gaur, P.M., "Botany of Chickpea",
+//     in Varshney, R.K. et al. (eds.), The Chickpea Genome, Springer, 2017,
+//     https://oar.icrisat.org/10476/1/Botany%20of%20Chickpea.pdf
+//   Saskatchewan: "Red Lentils", Pulse Crops, Government of Saskatchewan
+//     (no date shown),
+//     https://www.saskatchewan.ca/business/agriculture-natural-resources-and-industry/agribusiness-farmers-and-ranchers/crops-and-irrigation/field-crops/pulse-crop-bean-chickpea-faba-bean-lentils/red-lentils
+//   Hilli: Hilli, H.J., Kapoor, R. and Amandeep, "Oat Floral Biology and
+//     Factors Affecting Seed Set", Bhartiya Krishi Anushandhan Patrika,
+//     accepted June 2021,
+//     https://arccarticles.s3.amazonaws.com/arcc/Attachment-at-accept-article-BKAP275.pdf
+(
+    hive_cover_m2: 1000.0,
+    crops: [
+        // TOMATO. McGregor (tomato chapter): "Various tests in greenhouses
+        // have proven that the tomato flower is not self-pollinating. However,
+        // if the inflorescence is shaken, the pollen will fall from the anthers
+        // onto the stigma and fertilization will result." Hanna: "In the
+        // absence of naturally occurring wind in the greenhouse, tomato flowers
+        // have to be vibrated by some mechanical means, such as electric
+        // vibrators, air blowers or bumblebees, to release the pollen."
+        // no_help 0.49: McGregor, "Moore (1968) obtained only 4.3 pounds of
+        //   fruit from control plants in a plastic greenhouse; 6.6 pounds, from
+        //   hormone treated plants; 8.8 pounds, from vibrator treated plants";
+        //   4.3 / 8.8 = 0.49. The published range is wide, and this sits inside
+        //   it: UMD Tunnels, "just 1-2 visits by bumblebees to tomato flowers
+        //   will result in greater than 80% fruit set vs no visits which result
+        //   in approximately 30% fruit set" (30 / 80 = 0.375 of the flowers),
+        //   while in Abak's glasshouses the bee-pollinated plants yielded only
+        //   17% more than netted ones (1 / 1.17 = 0.85). Moore's figure is a
+        //   yield, which is what the harvest counts, and sits between the two.
+        // hand_every_days 2.5: McGregor, "For maximum effectiveness, vibration
+        //   must be repeated every 2 or 3 days."
+        (
+            id: "tomato",
+            by: Vibration,
+            flowering: ["flower"],
+            no_help: 0.49,
+            hand_every_days: 2.5,
+            how: "tap each flower truss, or hold an electric toothbrush to its stem for a second, so the pollen falls",
+        ),
+        // PEPPER. Seeds of Diversity: "Pepper flowers are self-fertile, and
+        // most flowers can set fruit without cross-pollination." But: "In
+        // windless greenhouses, insect activity is generally required to
+        // facilitate both self- and cross-pollination in pepper crops."
+        // no_help 0.65: McGregor (pepper chapter), "Erwin (1932) measured the
+        //   effect of pollination on set of fruit. He found that only 46
+        //   percent of self-pollinated flowers set compared to 71 percent that
+        //   were left to open pollination by bees"; 46 / 71 = 0.65.
+        // hand_every_days 1: the same chapter, on the stigma: "apparently it
+        //   functions only the first day the flower opens", so each day's new
+        //   flowers need their own visit.
+        (
+            id: "pepper",
+            by: Vibration,
+            flowering: ["flower"],
+            no_help: 0.65,
+            hand_every_days: 1.0,
+            how: "touch each newly opened flower with an electric toothbrush or a soft brush, the day it opens",
+        ),
+        // EGGPLANT. no_help 0.81: Abak, bumblebees in a glasshouse against
+        //   netted control plots: "In the bumble bee pollinated plants, yield
+        //   was higher than in the control plants (23% in eggplant, 17% in
+        //   tomato)"; 1 / 1.23 = 0.81. The range runs to nothing: McGregor
+        //   (eggplant chapter) cites Jones and Rosa (1928), "plants grown in a
+        //   screened house isolated from insects were nonfruitful". Today's
+        //   cultivars in Abak's trial are the better guide to what a home grows.
+        // hand_every_days 2.5: GAME ESTIMATE. No source gives an interval for
+        //   eggplant; it is buzz-pollinated like the tomato (same family, the
+        //   same pore-opening anthers), so the tomato's is used.
+        (
+            id: "eggplant",
+            by: Vibration,
+            flowering: ["flower"],
+            no_help: 0.81,
+            hand_every_days: 2.5,
+            how: "tap the flower clusters, or touch them with an electric toothbrush, so the pollen falls",
+        ),
+        // CUCUMBER. McGregor (cucumber chapter): "Numerous tests have shown
+        // that all present varieties of cucumber are inter-fertile, but the
+        // pollen must be transferred to the stigma by a pollinating agent,
+        // usually honey bees. The exception is the previously mentioned
+        // parthenocarpic slicing cultivars." A seedless (parthenocarpic)
+        // greenhouse cucumber would be its own plants.csv row with no_help 1;
+        // the row here is the ordinary garden cucumber.
+        // no_help 0: with the pollen never carried, the female flower sets
+        //   nothing. UMD Vegetables: "Crops in the plant family Cucurbitaceae
+        //   such as cucumber, muskmelon/cantaloupe, squash, pumpkin, and
+        //   watermelon require cross-pollination to produce fruits."
+        // hand_every_days 1: UF/IFAS, of the squash family's flowers,
+        //   "individual flowers are only open for a few hours in the morning,
+        //   typically lasting until around noon", so each morning's flowers
+        //   need that morning's visit.
+        (
+            id: "cucumber",
+            by: Insects,
+            flowering: ["flower"],
+            no_help: 0.0,
+            hand_every_days: 1.0,
+            how: "each morning, carry pollen from a male flower to a female one (the one with a tiny fruit behind it) with a soft brush, or pick the male flower and touch it to her",
+        ),
+        // ZUCCHINI, SQUASH and PUMPKIN (Cucurbita). McGregor (pumpkin, squash
+        // and gourd chapter): "Because the anthers are in one flower and the
+        // stigma is in another, the mechanical transfer of pollen is essential
+        // to fruit set." UF/IFAS: "All varieties of squash and pumpkin are
+        // highly dependent on insect pollination, without which crop yields
+        // are low to nonexistent."
+        // no_help 0: the "nonexistent" end, for a home with no insect at all.
+        //   (A few zucchini cultivars set some fruit unpollinated; they would
+        //   be their own rows.)
+        // hand_every_days 1: UF/IFAS, flowers "only open for a few hours in
+        //   the morning".
+        (
+            id: "zucchini",
+            by: Insects,
+            flowering: ["flower"],
+            no_help: 0.0,
+            hand_every_days: 1.0,
+            how: "each morning, carry pollen from a male flower to a female one (the one with a tiny fruit behind it) with a soft brush, or pick the male flower and touch it to her",
+        ),
+        (
+            id: "squash",
+            by: Insects,
+            flowering: ["flower"],
+            no_help: 0.0,
+            hand_every_days: 1.0,
+            how: "each morning, carry pollen from a male flower to a female one (the one with a tiny fruit behind it) with a soft brush, or pick the male flower and touch it to her",
+        ),
+        (
+            id: "pumpkin",
+            by: Insects,
+            flowering: ["flower"],
+            no_help: 0.0,
+            hand_every_days: 1.0,
+            how: "each morning, carry pollen from a male flower to a female one (the one with a tiny fruit behind it) with a soft brush, or pick the male flower and touch it to her",
+        ),
+        // WATERMELON. McGregor (watermelon chapter): "Watermelon pollen is not
+        // windblown (Porter 1931). The flowers are almost exclusively insect
+        // pollinated." no_help 0 and hand_every_days 1 as the other cucurbits.
+        // (plants.csv has no melon row yet; a muskmelon would be the same:
+        // McGregor reports muskmelon plants "shielded from bees, set no fruit".)
+        (
+            id: "watermelon",
+            by: Insects,
+            flowering: ["flower"],
+            no_help: 0.0,
+            hand_every_days: 1.0,
+            how: "each morning, carry pollen from a male flower to a female one (the one with a tiny melon behind it) with a soft brush",
+        ),
+        // STRAWBERRY. McGregor (strawberry chapter): "Allen and Gaede (1963)
+        // studied fruit-setting of 'Shasta' strawberries in the greenhouse and
+        // showed that plants caged and undisturbed by man, insects, or breezes
+        // set no fruit; those uncaged and undisturbed set 20 percent; those
+        // uncaged but receiving wind from a fan over them set 77 percent;
+        // whereas those that were caged, but brush pollinated daily, set 97
+        // percent of the flowers."
+        // no_help 0.21: the uncaged, undisturbed greenhouse plants, 20 / 97.
+        //   Outdoors, self-pollination does better (Klatt: "Bee-pollinated
+        //   fruits were on average 11.0% heavier than wind-pollinated and 30.3%
+        //   heavier than self-pollinated fruits", so 0.77 by weight), and a
+        //   still, sealed room does worse (the caged plants set none).
+        // hand_every_days 1: Allen and Gaede's brush, "daily".
+        (
+            id: "strawberry",
+            by: Insects,
+            flowering: ["flower"],
+            no_help: 0.21,
+            hand_every_days: 1.0,
+            how: "brush the centre of each open flower with a soft paintbrush every day, flower to flower",
+        ),
+        // SUNFLOWER. NDSU: "Current hybrids have been selected for and possess
+        // high levels of self-compatibility. However, modern hybrids benefit
+        // from insect pollination." and "Scientific literature indicates that
+        // yield could increase as much as 48.8% and oil percentage could
+        // increase 6.4% in bee-exposed hybrids."
+        // no_help 0.67: 1 / 1.488, the largest loss NDSU reports for today's
+        //   hybrids. Older cultivars lost far more: McGregor (sunflower
+        //   chapter), Luttso (1956), "Caged without bees, 315 g; exposed to
+        //   bees, 995 g" of seed from ten heads (0.32).
+        // hand_every_days 2: McGregor, the florets "are normally open 2 or
+        //   more days" and "The opening of all the florets of a single head
+        //   takes 5 to 10 days", so a head rubbed every other day reaches each
+        //   ring of florets while it is open. McGregor also reports the method:
+        //   "supplemental pollination of the heads with a soft mitten".
+        (
+            id: "sunflower",
+            by: Insects,
+            flowering: ["bloom"],
+            no_help: 0.67,
+            hand_every_days: 2.0,
+            how: "rub the ring of open florets on each head with a soft glove or cloth, and move between heads",
+        ),
+        // CORN. UMD Vegetables: "Corn is pollinated by wind and should be
+        // planted in blocks for adequate cross-pollination to occur." Indoors
+        // there is no wind; the pollen only falls straight down.
+        // no_help 0.5: GAME ESTIMATE. No source measured corn in still air;
+        //   a tassel stands above its own ear, so some pollen reaches its
+        //   silks by falling, and the rest of each ear goes unfilled. Bees do
+        //   nothing for it (by: Wind), only a hand does.
+        // hand_every_days 3: GAME ESTIMATE from Purdue: "Silks remain receptive
+        //   to pollen grain germination up to 10 days after silk emergence, but
+        //   to an ever-decreasing degree." and "The majority of successful ovule
+        //   fertilization occurs during the first 4 to 5 days after silk
+        //   emergence", so shaking every third day reaches each silk well
+        //   inside its best days.
+        (
+            id: "corn",
+            by: Wind,
+            flowering: ["silk"],
+            no_help: 0.5,
+            hand_every_days: 3.0,
+            how: "shake the tassels over the silks, or collect pollen in a paper bag and sprinkle it on them",
+        ),
+        // SELF-POLLINATING: these set fully indoors with no help, listed so
+        // the crop card can say so with a source.
+        //
+        // BEAN. McGregor (bean chapter): "Bean breeders state that beans
+        // excluded from insect visitors set a full complement of pods and
+        // seeds", and Taylor (1919) "stated that the flowers are entirely
+        // self-fertile as is abundantly proved by their productiveness when
+        // grown in greenhouses where bees are not present."
+        (id: "bean", by: SelfPollinating, no_help: 1.0),
+        // PEA. McGregor (introduction) lists "beans, cotton, flax, peanuts,
+        // peas, and soybeans" as crops that "may receive some benefit from
+        // insect pollination but are largely self-pollinating". Suza and
+        // Lamkey: "Cleistogamy is observed in some legumes (e.g., groundnut,
+        // peas, some beans, soybean)." (cleistogamy: the pollen is shed before
+        // the flower opens).
+        (id: "pea", by: SelfPollinating, no_help: 1.0),
+        // SOYBEAN. McGregor (soybean chapter): "Tests with plants caged to
+        // exclude bees have shown no decrease in production over exposed
+        // plots".
+        (id: "soybean", by: SelfPollinating, no_help: 1.0),
+        // CHICKPEA. ICRISAT: "Chickpea is a highly self-pollinated crop. The
+        // anthers dehisce one day before the flower opens ensuring
+        // self-pollination."
+        (id: "chickpea", by: SelfPollinating, no_help: 1.0),
+        // LENTIL. Saskatchewan: "Flowers are self-pollinated."
+        (id: "lentil", by: SelfPollinating, no_help: 1.0),
+        // OKRA. McGregor (okra chapter): "Okra is self-fertile" and "Purewal
+        // and Randhawa (1947) reported that 100 percent of both bagged and
+        // open flowers set fruit".
+        (id: "okra", by: SelfPollinating, no_help: 1.0),
+        // WHEAT, RICE and BARLEY. Suza and Lamkey: "In some cereals (e.g.,
+        // rice, wheat, and barley) the majority of self-pollination occurs
+        // before flowers open", and "Examples of important crops with an
+        // autogamous mating system include: sorghum, millet, rice, wheat,
+        // barley".
+        (id: "wheat", by: SelfPollinating, no_help: 1.0),
+        (id: "rice", by: SelfPollinating, no_help: 1.0),
+        (id: "barley", by: SelfPollinating, no_help: 1.0),
+        // OAT. Hilli: "It's a self-pollinated crop with a limited range of
+        // diversity".
+        (id: "oat", by: SelfPollinating, no_help: 1.0),
+    ],
+)

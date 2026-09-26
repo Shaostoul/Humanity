@@ -550,6 +550,16 @@
             // the lesson. Priority 5 = optional, shed first.
             power: Some(Consumer(watts: 100.0, priority: 5)),
         ),
+        "bumblebee_hive": (
+            shape: "box", size: (0.35, 0.28, 0.28), color: (0.85, 0.62, 0.20),
+            label: "Bumblebee hive",
+            category: "Food",
+            pollinates_crops: true, // pollinates the indoor grow areas within ~18 m (data/garden/pollination.ron); corn still needs a hand
+            stats: [(kind: "food", value: "pollinates flowers within ~18 m", status: "ok"), (kind: "progress", value: "a colony lasts 10-14 weeks", status: "warn")],
+            // Not placed in the seed design: the solo garden is hand-pollinated until the player
+            // chooses bees. A real colony lasts 10-14 weeks and can over-work the few flowers of a
+            // small garden (both cited in pollination.ron; neither is modelled yet).
+        ),
         "aeroponic_tower_nutrition": (
             shape: "cylinder", size: (0.3, 2.4, 0.3), color: (0.30, 0.65, 0.38),
             label: "Variety tower",

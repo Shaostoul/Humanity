@@ -462,6 +462,36 @@ date; re-check before trusting one. The container data basis is
   outline's 660 m2 finding stands). (4) A harvest still returns 2 seeds a
   unit whatever its plants, and pest pressure still counts units, not
   plants. (5) Hazelnut and walnut carry kernel nutrition on in-shell items.
+- **Pollination decides how much fruit and seed a crop sets: DONE
+  2026-09-26.** Until now an indoor tomato set a full crop with nothing to
+  shake its flowers. `data/garden/pollination.ron` lists 21 crops by
+  plants.csv id: how each is pollinated (self, vibration, insects or wind),
+  its flowering stages, the share of a full crop it sets indoors with no help,
+  and how often a hand pollination must be repeated, each with a quoted,
+  dated source (mostly McGregor's USDA Agriculture Handbook 496, with UMD,
+  UF/IFAS, NDSU, Purdue, Ohio State, Abak 1995 and Klatt 2014). Tomato 0.49
+  (Moore 1968: 4.3 against 8.8 pounds in a plastic greenhouse), pepper 0.65,
+  eggplant 0.81, strawberry 0.21 (Allen and Gaede 1963, an undisturbed
+  greenhouse), sunflower 0.67, cucurbits nothing, corn 0.5 (a game estimate:
+  no source measured still air); beans, peas, the pulses, okra and the
+  grains pollinate themselves. The model (`farming/pollination.rs`): an
+  indoor crop that needs help records its flowering days and how many were
+  pollinated, by a hand pollination (the Garden panel's Hand-pollinate button
+  on an area with flowers waiting, "pollinate_request") or by a bumblebee
+  hive, a new catalog machine (`bumblebee_hive`, not placed in the seed
+  homes) whose bees reach the indoor grow areas within 17.8 m, the radius of
+  the 1,000 m2 one colony serves (Ohio State: 7 to 15 colonies a hectare);
+  bees do nothing for corn. Outdoor fields need no help. At harvest the fruit
+  set is ONE multiplier on the yield. The player is told once when an area
+  starts flowering with nothing to pollinate it, and the crop card gains a
+  "Pollination" row. Settings has Pollination Off / On (On by default; Off
+  sets every crop fully and shows nothing). The record is saved with the
+  crop. Not modelled yet, and said on the hive's card: a colony lasts 10 to
+  14 weeks, and LSU warns a small garden's few flowers can leave the bees
+  over-working and damaging them. Found, left alone: the harvest returns two
+  seeds whatever the fruit set, so an unpollinated zucchini still gives
+  seed; and a crop the offline catch-up carries past flowering is not
+  charged for flowers nobody pollinated while the game was closed.
 
 ## Defects found (things that are wrong, not merely missing)
 

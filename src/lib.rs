@@ -1180,6 +1180,7 @@ mod native_app {
             data_store.insert("garden_pest_severity", std::sync::Mutex::new(crate::systems::farming::pests::DEFAULT_PEST_SEVERITY));
             data_store.insert("pest_control_request", std::sync::Mutex::new(Option::<(String, String)>::None));
             crate::systems::farming::soil_ph::register(&mut data_store); // soil pH: data, Settings switch, Lime/Sulfur
+            crate::systems::farming::pollination::register(&mut data_store); // pollination data, Settings mode, Hand-pollinate
             // Backpack <-> container transfers (organize-layer inventory): the GUI pushes
             // (item_id, qty, is_add) ops; InventorySystem applies them to the player's
             // backpack. Mirrored from GuiState.pending_inventory_transfers each frame.
@@ -6609,6 +6610,8 @@ mod native_app {
                         }
                     }
                     crate::systems::farming::soil_ph::bridge(&state.data_store, !state.gui_state.garden_pests.soil_ph_off, state.gui_state.garden_pests.ph_pending.take());
+                    let gp = &mut state.gui_state.garden_pests; // pollination: Settings mode + Hand-pollinate -> sim
+                    crate::systems::farming::pollination::publish(&state.data_store, !gp.pollination_off, gp.pollinate_pending.take());
                     if let Some(req) = state.gui_state.garden_pests.pending.take() {
                         if let Some(m) = state.data_store.get::<std::sync::Mutex<Option<(String, String)>>>("pest_control_request") {
                             if let Ok(mut s) = m.lock() {
@@ -12807,6 +12810,7 @@ mod native_app {
                         let (sun_up, lamp) = crate::systems::farming::lighting::light_now(&state.game_world.world, &state.data_store);
                         let ph_view = crate::systems::farming::soil_ph::GardenView::new(&state.data_store, &state.game_world.world);
                         state.gui_state.garden_pests.ph_amendments = ph_view.amendments();
+                        let pollination = crate::systems::farming::pollination::GuiView::new(&state.game_world.world, &state.data_store);
                         for (entity, (crop, soil)) in state
                             .game_world
                             .world
@@ -12870,8 +12874,10 @@ mod native_app {
                                 ph_window: phc.window,
                                 ph_cap: phc.cap,
                                 ph_held: phc.held,
+                                pollination: pollination.row(entity),
                             });
                         }
+                        state.gui_state.garden_pests.pollinate_areas = pollination.areas;
                         // Pests per grow area for the Garden panel (2026-09-26).
                         if let Some(pd) = state.data_store.get::<crate::systems::farming::pests::PestData>("garden_pests") {
                             let mut areas: Vec<String> =

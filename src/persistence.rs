@@ -81,6 +81,11 @@ pub struct WorldSave {
     /// None for a crop that had no soil record yet.
     #[serde(default)]
     pub crop_soil: Vec<Option<crate::ecs::components::CropSoil>>,
+    /// Each saved crop's pollination record (2026-09-26,
+    /// farming::pollination), parallel to `crops`; None for a crop without
+    /// one. serde-default so a save from before it loads with none.
+    #[serde(default)]
+    pub crop_pollination: Vec<Option<crate::ecs::components::CropPollination>>,
     /// What each emptied unit's soil still held, for the next crop sown there.
     #[serde(default)]
     pub soil_memory: crate::ecs::components::SoilMemory,
@@ -149,6 +154,7 @@ impl WorldSave {
             deployed_vehicles: Vec::new(),
             crops: Vec::new(),
             crop_soil: Vec::new(),
+            crop_pollination: Vec::new(),
             inventory_state: Vec::new(),
             soil_memory: Default::default(),
             credits: -1,
@@ -356,6 +362,7 @@ mod tests {
             deployed_vehicles: Vec::new(),
             crops: Vec::new(),
             crop_soil: Vec::new(),
+            crop_pollination: Vec::new(),
             inventory_state: Vec::new(),
             soil_memory: Default::default(),
             credits: -1,

@@ -3466,6 +3466,20 @@ pub(crate) fn draw_gameplay_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
                 }
             }
         });
+        // Pollination (2026-09-26, farming::pollination; the dual-mode house rule).
+        ui.add_space(theme.spacing_lg);
+        ui.label(RichText::new("Pollination").color(theme.text_secondary()).strong());
+        ui.add_space(theme.spacing_xs);
+        widgets::setting_hint(ui, theme, hint, "Indoors there is no wind and no bees, so tomatoes, peppers, squash, cucumbers, strawberries and corn set little or no fruit unless you hand-pollinate them or keep a bumblebee hive. On uses the fruit set the extension guides report; Off lets every crop set fully.");
+        ui.horizontal(|ui| {
+            for (off, label) in [(true, "Off"), (false, "On")] {
+                let selected = state.garden_pests.pollination_off == off;
+                if ui.radio(selected, RichText::new(label).color(theme.text_primary())).clicked() && !selected {
+                    state.garden_pests.pollination_off = off;
+                    state.settings_dirty = true;
+                }
+            }
+        });
         ui.add_space(theme.spacing_lg);
         // Soil pH (2026-09-26, farming::soil_ph; the dual-mode house rule).
         ui.label(RichText::new("Soil pH").color(theme.text_secondary()).strong());

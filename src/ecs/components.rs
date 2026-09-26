@@ -397,6 +397,25 @@ pub struct CropSoil {
     pub uptake: f32,
 }
 
+/// A flowering crop's pollination for its season (2026-09-26,
+/// `farming::pollination`, data/garden/pollination.ron): how many garden days
+/// it has spent flowering, how many of those its flowers were pollinated (by
+/// a bumblebee hive, or a hand pollination still in effect), and what is left
+/// of the last hand pollination. At harvest its fruit set is its unhelped
+/// share plus the rest in proportion to the pollinated days
+/// (`pollination::fruit_set`). Only indoor crops that need help carry one.
+/// A separate component for the same reason as `CropSoil`; saved alongside
+/// the crop in `WorldSave::crop_pollination`.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct CropPollination {
+    #[serde(default)]
+    pub flowering_days: f64,
+    #[serde(default)]
+    pub pollinated_days: f64,
+    #[serde(default)]
+    pub hand_days_left: f64,
+}
+
 /// What is left in the soil of units whose crop was harvested or died,
 /// keyed by grow-area tag then unit index (2026-09-26). The next crop sown
 /// in that unit starts from it instead of fresh soil, so a bed that fed one
@@ -897,6 +916,13 @@ pub struct Irrigator;
 /// sunrise.
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
 pub struct GrowLight;
+
+/// A bumblebee hive (2026-09-26, `MachineDef::pollinates_crops`): its bees
+/// pollinate the flowers of the indoor grow areas around its `Transform`
+/// (`farming::pollination::hive_cover`, as far as one colony's cited floor
+/// area reaches). Needs no power.
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
+pub struct PollinatorHive;
 
 /// A bulk water store (a cistern/tank) (v0.608). `liters` is the live level; `PlumbingSystem` fills it
 /// from powered producers and drains it for consumers, so the day's water budget is a draining number.

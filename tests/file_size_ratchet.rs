@@ -381,7 +381,7 @@ const BUDGETS: &[(&str, usize)] = &[
     ("src/gui/pages/chat/p2p_groups.rs", 800),
     ("src/gui/pages/chat/right_panel.rs", 600),
     ("src/gui/mod.rs", 4_800),
-    ("src/gui/state_types.rs", 1_880),
+    ("src/gui/state_types.rs", 1_850),
     ("src/gui/loaders.rs", 1_650),
     ("src/relay/relay.rs", 6_500),
     ("src/relay/handlers/msg_handlers.rs", 4_660),

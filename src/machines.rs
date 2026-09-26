@@ -137,6 +137,12 @@ pub struct MachineDef {
     /// Spawns a `GrowLight` marker. See `farming::light_growth_rate`.
     #[serde(default)]
     pub lights_crops: bool,
+    /// This machine is a bumblebee hive (2026-09-26): its bees pollinate the
+    /// flowers of the indoor grow areas around it, as far as one colony's
+    /// cited floor area reaches (farming::pollination,
+    /// data/garden/pollination.ron). Spawns a `PollinatorHive` marker.
+    #[serde(default)]
+    pub pollinates_crops: bool,
     /// Typed-container archetype id from `data/containers/types.csv` (v0.728,
     /// "containers show contents"): a grain silo IS a `grain_silo_bin`, the
     /// fuel refinery a `steel_fuel_drum`. Spawns a `Container` ECS component
@@ -1950,6 +1956,7 @@ mod tests {
             irrigates: false,
             auto_keep: None,
             lights_crops: false,
+            pollinates_crops: false,
             level_gauge: false,
             container_type: None,
             model: None,

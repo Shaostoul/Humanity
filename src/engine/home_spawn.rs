@@ -77,6 +77,7 @@ pub(crate) fn spawn_home_machine_entity(
         && def.rf_emission <= 0.0
         && def.auto_recipe.is_none()
         && def.container_type.is_none()
+        && !def.pollinates_crops
     {
         return;
     }
@@ -181,6 +182,11 @@ pub(crate) fn spawn_home_machine_entity(
     if def.lights_crops {
         let _ = world.insert_one(e, crate::ecs::components::GrowLight);
     }
+    // Bumblebee hive (2026-09-26): FarmingSystem pollinates the indoor grow
+    // areas around this entity's Transform (farming::pollination).
+    if def.pollinates_crops {
+        let _ = world.insert_one(e, crate::ecs::components::PollinatorHive);
+    }
     // AIR handler (v0.618): a machine with an Air OUT port scrubs the home air while powered.
     if air_out > 0.0 {
         let _ = world.insert_one(
@@ -278,6 +284,46 @@ mod tests {
                 .map(|(_, (_, _, id))| id.0.clone())
                 .collect();
             assert_eq!(lit, vec!["gl_test".to_string()], "{file}: only the grow light lights crops");
+        }
+    }
+
+    /// Pollination (2026-09-26): the bumblebee hive in either shipped
+    /// catalog spawns as a PollinatorHive at its Transform, the pair
+    /// FarmingSystem reads to decide which grow areas the bees reach. A hive
+    /// has no power, water or air role, so without its own case it would
+    /// spawn no entity at all. No other catalog machine is a hive. Seen red
+    /// by dropping `pollinates_crops` from the no-entity test above (the
+    /// hive then spawned nothing).
+    #[test]
+    fn shipped_bumblebee_hive_spawns_a_hive() {
+        use crate::ecs::components::{MachineInstanceId, PollinatorHive, Transform};
+        for file in ["home.ron", "home_solo.ron"] {
+            let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("machines").join(file);
+            let home = crate::machines::MachineHome::load(&path).unwrap_or_else(|| panic!("{file} parses"));
+            let hives: Vec<&String> = home.catalog.iter().filter(|(_, d)| d.pollinates_crops).map(|(id, _)| id).collect();
+            assert_eq!(hives, vec!["bumblebee_hive"], "{file}: the hive and nothing else pollinates");
+            assert!(
+                !home.instances.iter().any(|i| i.machine == "bumblebee_hive"),
+                "{file}: the seed design places no hive (hand pollination until the player chooses bees)"
+            );
+            let mut world = hecs::World::new();
+            let empty = std::collections::HashMap::new();
+            let inst = crate::machines::MachineInstance {
+                id: "hive_test".to_string(),
+                machine: "bumblebee_hive".to_string(),
+                room: "room-greenhouse".to_string(),
+                offset: (2.0, 0.0, 3.0),
+                rotation: 0.0,
+                zone: "home".to_string(),
+                screen_source: None,
+            };
+            spawn_home_machine_entity(&mut world, &inst, &home.catalog["bumblebee_hive"], &empty, &empty, None, None);
+            let found: Vec<(String, [f32; 3])> = world
+                .query::<(&PollinatorHive, &MachineInstanceId, &Transform)>()
+                .iter()
+                .map(|(_, (_, id, t))| (id.0.clone(), t.position.to_array()))
+                .collect();
+            assert_eq!(found, vec![("hive_test".to_string(), [2.0, 0.0, 3.0])], "{file}");
         }
     }
 }

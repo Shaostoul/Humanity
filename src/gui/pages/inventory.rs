@@ -1333,6 +1333,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     let mut action_pest_control: Option<(String, String)> = None;
     // Soil pH amendment (farming::soil_ph): (area, amendment id).
     let mut action_soil_ph: Option<(String, String)> = None;
+    let mut action_pollinate: Option<String> = None;
     // Summon a world vehicle to drive itself to the player (Stage 3, v0.680),
     // set by the Vehicles section's Summon button; applied after the panel.
     let mut action_summon_vehicle: Option<u64> = None;
@@ -2116,6 +2117,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             .filter_map(|c| c.ph)
                             .collect();
                         let ph_amendments = state.garden_pests.ph_amendments.clone();
+                        let pollinate_here = state.garden_pests.pollinate_areas.iter().any(|a| *a == area_tag);
                         widgets::expandable_row(
                             ui,
                             ("garden_grp", gi),
@@ -2165,6 +2167,16 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                             if widgets::compact_button(ui, theme, label, widgets::ButtonVariant::Secondary) {
                                                 action_soil_ph = Some((area_tag.clone(), id.clone()));
                                             }
+                                        }
+                                    });
+                                }
+                                // Flowers waiting for a pollinator (2026-09-26,
+                                // farming::pollination): indoors only a hand or bees do it.
+                                if pollinate_here {
+                                    ui.horizontal_wrapped(|ui| {
+                                        ui.label(RichText::new("Flowering, nothing to pollinate it").size(theme.font_size_small).color(theme.warning()));
+                                        if widgets::compact_button(ui, theme, "Hand-pollinate", widgets::ButtonVariant::Secondary) {
+                                            action_pollinate = Some(area_tag.clone());
                                         }
                                     });
                                 }
@@ -2415,6 +2427,9 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                                                 if c.ph_cap < 99.5 {
                                                                     stat(ui, "pH holds health to", format!("{:.0}%", c.ph_cap));
                                                                 }
+                                                            }
+                                                            if !c.pollination.is_empty() {
+                                                                stat(ui, "Pollination", c.pollination.clone());
                                                             }
                                                             stat(ui, "Water/day", format!("{:.1} L", c.water_per_day));
                                                             stat(ui, "Temp window", format!("{:.0}-{:.0} °C", c.temp_min, c.temp_max));
@@ -2693,6 +2708,9 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     }
     if let Some(c) = action_soil_ph {
         state.garden_pests.ph_pending = Some(c);
+    }
+    if let Some(area) = action_pollinate {
+        state.garden_pests.pollinate_pending = Some(area);
     }
     if action_dev_grow {
         state.dev_grow_crops = true;

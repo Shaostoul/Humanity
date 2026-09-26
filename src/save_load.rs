@@ -132,13 +132,16 @@ pub fn extract_world_save(world: &hecs::World) -> WorldSave {
     // was saved when nothing wrote it, and every restart rewound the garden.)
     // Each crop with its soil (2026-09-26, N-P-K), and the soil the emptied
     // units remember, so a restart does not refill every unit.
-    let crops: Vec<(crate::ecs::components::CropInstance, Option<crate::ecs::components::CropSoil>)> = world
-        .query::<(&crate::ecs::components::CropInstance, Option<&crate::ecs::components::CropSoil>)>()
+    // And each crop's pollination record (2026-09-26, farming::pollination).
+    use crate::ecs::components::{CropInstance, CropPollination, CropSoil};
+    let crops: Vec<(CropInstance, Option<CropSoil>, Option<CropPollination>)> = world
+        .query::<(&CropInstance, Option<&CropSoil>, Option<&CropPollination>)>()
         .iter()
-        .map(|(_e, (c, s))| (c.clone(), s.cloned()))
+        .map(|(_e, (c, s, p))| (c.clone(), s.cloned(), p.cloned()))
         .collect();
-    save.crop_soil = crops.iter().map(|(_, s)| s.clone()).collect();
-    save.crops = crops.into_iter().map(|(c, _)| c).collect();
+    save.crop_soil = crops.iter().map(|(_, s, _)| s.clone()).collect();
+    save.crop_pollination = crops.iter().map(|(_, _, p)| p.clone()).collect();
+    save.crops = crops.into_iter().map(|(c, _, _)| c).collect();
     save.soil_memory = world
         .query::<&crate::ecs::components::SoilMemory>()
         .iter()
@@ -297,13 +300,12 @@ pub fn apply_save_to_world(world: &mut hecs::World, save: &WorldSave) {
         let _ = world.despawn(e);
     }
     for (i, c) in save.crops.iter().enumerate() {
-        match save.crop_soil.get(i).cloned().flatten() {
-            Some(soil) => {
-                world.spawn((c.clone(), soil));
-            }
-            None => {
-                world.spawn((c.clone(),));
-            }
+        let e = world.spawn((c.clone(),));
+        if let Some(soil) = save.crop_soil.get(i).cloned().flatten() {
+            let _ = world.insert_one(e, soil);
+        }
+        if let Some(pollination) = save.crop_pollination.get(i).cloned().flatten() {
+            let _ = world.insert_one(e, pollination);
         }
     }
     // One soil memory per world (2026-09-26): the save's replaces the live one.
@@ -1038,6 +1040,57 @@ mod tests {
         let mems: Vec<SoilMemory> = fresh.query::<&SoilMemory>().iter().map(|(_, m)| m.clone()).collect();
         assert_eq!(mems.len(), 1, "one soil memory per world");
         assert_eq!(mems[0].units["bed_1"][&5], Npk::new(4.0, 5.0, 6.0));
+    }
+
+    /// A crop's pollination record survives a save (2026-09-26,
+    /// farming::pollination): the flowering and pollinated days and what is
+    /// left of a hand pollination come back on the same crop, and a crop
+    /// that had none still has none. A save from before the field (no
+    /// `crop_pollination`) still loads, its crops with no record. Seen red
+    /// by not writing `crop_pollination` in `extract_world_save`.
+    #[test]
+    fn crop_pollination_survives_a_save() {
+        use crate::ecs::components::{CropInstance, CropPollination};
+        let mut world = hecs::World::new();
+        let crop = |plant: &str| CropInstance {
+            crop_def_id: plant.into(),
+            growth_stage: "flower".into(),
+            planted_at: 0.0,
+            water_level: 1.0,
+            health: 100.0,
+            tower_id: Some("ntower_3".into()),
+            tower_slot: Some(1),
+            health_seconds: 0.0,
+            growing_seconds: 0.0,
+        };
+        let rec = CropPollination { flowering_days: 4.5, pollinated_days: 2.25, hand_days_left: 1.5 };
+        world.spawn((crop("tomato"), rec.clone()));
+        world.spawn((crop("lettuce"),));
+        let save = extract_world_save(&world);
+        let text = serde_json::to_string(&save).unwrap();
+        let back: WorldSave = serde_json::from_str(&text).unwrap();
+        let mut fresh = hecs::World::new();
+        apply_save_to_world(&mut fresh, &back);
+        let got: Vec<(String, Option<CropPollination>)> = fresh
+            .query::<(&CropInstance, Option<&CropPollination>)>()
+            .iter()
+            .map(|(_, (c, p))| (c.crop_def_id.clone(), p.cloned()))
+            .collect();
+        assert_eq!(got.len(), 2);
+        for (plant, p) in got {
+            match plant.as_str() {
+                "tomato" => assert_eq!(p, Some(rec.clone()), "the tomato's record came back"),
+                _ => assert_eq!(p, None, "the lettuce still has none"),
+            }
+        }
+        // An older save: strip the field, and it still loads.
+        let mut old: serde_json::Value = serde_json::from_str(&text).unwrap();
+        old.as_object_mut().unwrap().remove("crop_pollination");
+        let back: WorldSave = serde_json::from_value(old).unwrap();
+        let mut older = hecs::World::new();
+        apply_save_to_world(&mut older, &back);
+        assert_eq!(older.query::<&CropInstance>().iter().count(), 2);
+        assert_eq!(older.query::<&CropPollination>().iter().count(), 0);
     }
 
     /// pre-v0.517 save (no `placed_items` field) loads with an empty pool (serde

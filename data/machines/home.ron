@@ -219,6 +219,42 @@
             container_type: None,
             model: None,
         ),
+        "bumblebee_hive": (
+            shape: "box",
+            size: (0.35, 0.28, 0.28),
+            color: (0.85, 0.62, 0.2),
+            label: "Bumblebee hive",
+            category: "Food",
+            // A commercial greenhouse colony. Its bees pollinate the flowers of
+            // the indoor grow areas within about 18 m (one colony per 1,000 m2 of
+            // glasshouse, data/garden/pollination.ron), so tomatoes, peppers,
+            // cucumbers, squash and strawberries set fruit without hand
+            // pollination; corn is wind-pollinated and still needs a hand. Not
+            // placed in the seed design: the home is hand-pollinated until the
+            // player chooses bees. Real colonies last 10-14 weeks, and in a small
+            // garden too few flowers can leave the bees over-working them (both
+            // cited in pollination.ron; neither is modelled yet).
+            pollinates_crops: true,
+            stats: [
+                (
+                    kind: "food",
+                    value: "pollinates flowers within ~18 m",
+                    status: "ok",
+                ),
+                (
+                    kind: "progress",
+                    value: "a colony lasts 10-14 weeks",
+                    status: "warn",
+                ),
+            ],
+            power: None,
+            ports: [],
+            storage: [],
+            rf_emission: 0.0,
+            auto_recipe: None,
+            container_type: None,
+            model: None,
+        ),
         "chemistry_set": (
             shape: "box",
             size: (1.0, 0.9, 0.6),
