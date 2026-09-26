@@ -38,7 +38,9 @@ use std::path::PathBuf;
 /// Every byproduct item a recipe makes on the side. Add a row when a recipe
 /// starts leaving something behind; the tests below then insist it is used.
 const BYPRODUCTS: &[(&str, &str)] = &[
-    ("slag_0", "smelting copper ore (smelt_copper, smelt_copper_graphite)"),
+    ("slag_0", "smelting copper and iron ore (smelt_copper, smelt_copper_graphite, smelt_iron, smelt_iron_graphite)"),
+    ("whey_0", "making cheese (cook_cheese)"),
+    ("apple_pomace_0", "pressing apple juice (cook_juice)"),
     ("sawdust_0", "sawing logs into planks (saw_planks, saw_planks_hand)"),
     ("bran_0", "milling wheat into white flour (grind_flour)"),
     ("press_cake_0", "pressing oilseed (press_oil_rapeseed, _camelina, _safflower)"),

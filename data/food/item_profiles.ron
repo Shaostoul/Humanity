@@ -230,7 +230,9 @@
         ("herb_hop_0", "hop cones flavour beer; they are not eaten"),
         ("fruit_coffee_0", "coffee cherries are grown for the bean, which is roasted and brewed (the cook_coffee recipe); the cherry is not a food"),
         ("fruit_cacao_0", "cacao pods are grown for the beans, which are fermented, dried and roasted before they become chocolate"),
-        ("fruit_olive_0", "olives straight from the tree are too bitter to eat; they are cured in brine or pressed for oil first, and neither step exists yet"),
+        ("fruit_olive_0", "olives straight from the tree are too bitter to eat; they are cured in brine or pressed for oil first (pressing exists: press_oil_olive; curing does not yet)"),
+        ("whey_0", "the liquid left from cheese making; used here in baking (cook_bread_whey), drinking it is not modelled yet"),
+        ("apple_pomace_0", "the pressed skins, cores and pulp left from juicing; composted here (compost_apple_pomace), not eaten"),
 
         // --- Oilseeds grown for pressing ---
         ("grain_rapeseed_0", "grown to be pressed for oil; the seed is not eaten as it is"),

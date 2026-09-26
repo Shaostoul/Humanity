@@ -92,10 +92,23 @@ date; re-check before trusting one. The container data basis is
   leather (`leather_0`, which the leatherwork recipes now take) instead of
   two hides; the sawmill no longer cuts an 8 kg log into 10 kg of planks
   (it takes two logs); the grain mill grinds wheat, not paddy rice; the
-  corn-seed oil recipe and the wheat-seed fertilizer are replaced. Not yet:
-  iron slag (a test pins `smelt_iron` outputs), whey and apple pomace
-  (cooking outputs need a food decision in `data/food/item_profiles.ron`),
-  and the sawmill's slabs and bark.
+  corn-seed oil recipe and the wheat-seed fertilizer are replaced. Added
+  when merging (v0.1351.0): iron smelting leaves slag too (about 275 kg per
+  tonne of iron, worldsteel); cheese leaves whey (about 3.4 kg of the 4 kg
+  of milk), which bakes whey bread; pressing apples leaves pomace (about a
+  quarter to a third of the fruit), which composts; and the juice press no
+  longer makes 1.0 kg of juice from 0.8 kg of apples. Not yet: the sawmill's
+  slabs and bark, and four older recipes that still multiply an input
+  (listed in the lint).
+- **Automated machines fill the Barn, and rest when enough is on hand: DONE
+  2026-09-26** (v0.1351.0). A machine's output used to land in the player's
+  backpack wherever they were; it now goes into home storage (the Barn,
+  where it shows as crates). A machine can carry `auto_keep` in
+  data/machines/*.ron: it rests while that many of its product are on hand.
+  The grain mill keeps 20 flour (whole grain keeps for years, flour for
+  months, so it should not mill the whole store); the workbench keeps 2
+  hammers. Without this the mill, now grinding wheat, would have milled the
+  Barn's 400 wheat into the backpack.
 - **Containers as items (3c): BLOCKED** on the unified placement schema
   (Tier B in PRIORITIES.md). The walk-up machine card and every vessel are
   tied to `data/machines/home.ron` placements; a container that can be

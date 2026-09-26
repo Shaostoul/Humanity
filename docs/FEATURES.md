@@ -1632,6 +1632,17 @@ material (`data/containers/materials.csv`) refuses what it reacts with.
 - Data: `data/containers/types.csv`, `materials.csv`, `content_traits.ron`, `data/machines/home.ron`
 - Design: `docs/design/containers.md`
 
+### Byproducts and Machine Output to Storage
+Recipes leave real byproducts at sourced ratios (slag, sawdust, bran, press
+cake, olive and apple pomace, whey; ratios and sources as # comments in
+data/recipes.csv), each consumed by another recipe (slag concrete, compost,
+whey bread); `tests/byproduct_use_lint.rs` keeps them used and stops
+byproduct recipes creating mass or multiplying an input. Automated machines
+deliver into home storage (the Barn) and rest while `auto_keep` of their
+product is on hand (v0.1351.0).
+- Native: `src/systems/crafting/mod.rs` (`home_stock_outputs`, keep gate), `src/engine/stock_piles.rs` (`receive_machine_outputs`)
+- Data: `data/recipes.csv`, `data/items.csv`, `data/machines/home.ron` (`auto_keep`)
+
 ### Station Power (idle and working draw)
 A work station's power role can carry `idle_watts` (data/machines/*.ron): it
 draws that until a craft runs at it and its full `watts` while one does. A

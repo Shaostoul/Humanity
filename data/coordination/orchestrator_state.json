@@ -789,6 +789,11 @@
    "date": "2026-09-26",
    "decision": "Gardening depth rung 1 merged (v0.1350.0, worktree agent commit cherry-picked as 2e15cae1): CropInstance keeps health_seconds/growing_seconds; the harvest scales the rolled yield by season health (FAO 33 linear, Ky 1) and posts one notice for a stressed harvest; data/plants_visual.ron stage_models maps six previously unused model sets (plus wheat for spelt/triticale/rye/barley) to 24 species, 36 of 189 now draw a stage model. Added the Season health stat to the crop card (agent suggestion; it could not touch lib.rs).",
    "why": "Season average, not harvest-day health, because health recovers in minutes and freezes at maturity, so a drought would be forgotten. Edible mushrooms deliberately NOT mapped to the mushroom model: it carries Amanita field marks (warted cap, ring, swollen base), which would teach the wrong look. Visual check: planted oat, coconut, raspberry, prickly pear and tulip in the showcase fields for one rig run (reverted), all rendered, 0 panics. Byproducts handed to the homestead-engineer agent in a worktree."
+  },
+  {
+   "date": "2026-09-26",
+   "decision": "v0.1351.0 bundle: (1) a craft pauses while its station has no power; (2) tool wear survives storage (transfer op carries wear, PlacedItem.wear, add_item_worn/remove_worn; found reviewing the v0.1348 rung, a worn hammer came back fresh); (3) byproducts merged from the homestead-engineer worktree (slag, sawdust, bran, press cake, olive pomace; tan_leather fixed; sawmill/oil/fertilizer mass creation fixed; byproduct_use_lint) plus follow-ups it could not make (iron slag, whey with whey bread, apple pomace with juice mass fix and compost); (4) automated machines deliver into home storage via home_stock_outputs, filed into the Barn by stock_piles::receive_machine_outputs, and AutoRefine.keep / MachineDef.auto_keep rest a machine while that many of its product are on hand (grain mill 20 flour, workbench 2 hammers).",
+   "why": "The byproducts change made the grain mill grind wheat; as an automated machine drawing from home storage it would have milled the seeded Barn wheat straight into the backpack. Filing machine output in the Barn is also the Starmade loop the operator asked for (the barn grows as machines produce). Tests red on purpose first for each piece."
   }
  ],
  "active_scopes_to_avoid": [

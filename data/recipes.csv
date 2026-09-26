@@ -15,7 +15,9 @@
 #
 # === SMELTING (ores to ingots) ===
 id,name,category,inputs,outputs,craft_time_sec,station_required,skill_required,skill_level,description
-smelt_iron,Smelt Iron,smelting,iron_ore_0:2|coal_0:1,iron_ingot_0:1,10,smelter_0,metalworking,1,Reduce iron ore into a pure iron ingot
+# Iron slag: worldsteel ("Steel industry co-products", April 2021) gives about 275 kg of blast-furnace
+# slag per tonne of iron. A 3 kg ingot leaves about 0.83 kg, rounded to one 1 kg unit (2026-09-26).
+smelt_iron,Smelt Iron,smelting,iron_ore_0:2|coal_0:1,iron_ingot_0:1|slag_0:1,10,smelter_0,metalworking,1,Reduce iron ore into a pure iron ingot
 # Slag (byproducts, 2026-09-26): about 2.2 t of slag per t of copper (Gorai, Jana and Premchand 2003,
 # a review of copper slag characteristics and uses in Resources, Conservation and Recycling 39:299-313;
 # later reviews give 2.2-3 t). A 2.8 kg ingot leaves 6.2 kg, so 6 slag of 1 kg; the rest of the ore
@@ -169,6 +171,8 @@ build_picture_frame,Craft Picture Frame,construction,wood_plank_0:1|glass_pane_0
 #
 # === COOKING ===
 cook_bread,Bake Bread,cooking,flour_0:2|water_purified_0:1|salt_food_0:1,bread_0:3,10,oven_0,cooking,1,Knead and bake wheat bread loaves
+# Whey stands in for the water in bread, a long-standing farm-kitchen use of the cheese-making leftover.
+cook_bread_whey,Bake Whey Bread,cooking,flour_0:2|whey_0:1|salt_food_0:1,bread_0:3,10,oven_0,cooking,1,Knead bread with the whey left from cheese making instead of water
 cook_jerky,Make Jerky,cooking,dried_meat_0:2|salt_food_0:1|spice_mix_0:1,jerky_0:4,15,stove_0,cooking,1,Season and dry cure meat strips
 cook_canned_food,Can Food,cooking,vegetable_potato_0:2|vegetable_carrot_0:2|salt_food_0:1,canned_food_0:3,15,stove_0,cooking,2,Pressure-seal preserved meals
 cook_mre,Pack MRE,cooking,bread_0:1|jerky_0:2|protein_bar_0:1,mre_0:2,10,,cooking,2,Vacuum-pack field rations
@@ -177,11 +181,17 @@ cook_soup,Cook Soup,cooking,vegetable_potato_0:2|vegetable_carrot_0:1|water_puri
 cook_stew,Cook Stew,cooking,vegetable_potato_0:2|vegetable_onion_0:1|jerky_0:1|water_purified_0:1,canned_food_0:3,15,stove_0,cooking,2,Slow-cook a thick meat stew
 cook_fried_egg,Fry Egg,cooking,egg_0:2|cooking_oil_0:1,bread_0:1,3,stove_0,,0,Fry eggs for a quick meal
 cook_pancake,Make Pancakes,cooking,flour_0:1|egg_0:2|milk_0:1,bread_0:3,8,stove_0,cooking,1,Mix batter and griddle pancakes
-cook_cheese,Make Cheese,cooking,milk_0:4|salt_food_0:1,cheese_0:2,30,stove_0,cooking,3,Culture and press milk into cheese
+# Whey: cheese keeps a small share of the milk (the Tetra Pak Dairy Processing Handbook gives about 10 kg of
+# hard cheese per 100 kg of milk; soft cheeses keep more). Here 4 kg of milk makes 0.6 kg of cheese and
+# about 3.4 kg leaves as whey, three 1 kg units (2026-09-26).
+cook_cheese,Make Cheese,cooking,milk_0:4|salt_food_0:1,cheese_0:2|whey_0:3,30,stove_0,cooking,3,Culture and press milk into cheese
 cook_butter,Churn Butter,cooking,milk_0:3,butter_0:2,15,,cooking,1,Agitate cream into solid butter
 cook_dried_fruit,Dry Fruit,cooking,fruit_apple_0:3|fruit_banana_0:2,dried_fruit_0:4,20,oven_0,,0,Dehydrate fruit for preservation
 cook_dried_meat,Dry Meat,cooking,jerky_0:3|salt_food_0:1,dried_meat_0:4,20,stove_0,cooking,1,Salt and air-dry meat strips
-cook_juice,Press Juice,cooking,fruit_apple_0:4,juice_0:2,8,,cooking,1,Squeeze fresh fruit into juice
+# Apple pomace: the skins, cores and pulp left after pressing are about a quarter to a third of the fruit
+# (Shalini and Gupta 2010, J Food Sci Technol 47:365-371). It used to press 0.8 kg of apples into 1.0 kg of
+# juice; now 7 apples (1.4 kg) give 2 juice (1.0 kg) and one 0.4 kg unit of pomace (2026-09-26).
+cook_juice,Press Juice,cooking,fruit_apple_0:7,juice_0:2|apple_pomace_0:1,8,,cooking,1,Squeeze fresh fruit into juice
 cook_coffee,Brew Coffee,cooking,fruit_coffee_0:1|water_purified_0:1,energy_drink_0:2,5,stove_0,,0,Brew hot coffee from roasted beans
 cook_sugar,Refine Sugar,cooking,vegetable_corn_0:4,sugar_0:2,15,stove_0,cooking,2,Extract and crystallize plant sugar
 cook_honey,Harvest Honey,cooking,water_purified_0:1,honey_0:1,5,,farming,2,Collect and filter raw honey
@@ -317,6 +327,9 @@ craft_flare,Make Flare,chemistry,iron_ingot_0:1|coal_0:1|plastic_sheet_0:1,flare
 craft_fertilizer,Compost Fertilizer,chemistry,sawdust_0:4|press_cake_0:2|water_purified_0:3,fertilizer_0:2,20,composter_0,farming,1,Compost sawdust with seed press cake into plant food
 compost_bran,Compost Sawdust and Bran,chemistry,sawdust_0:3|bran_0:4|water_purified_0:3,fertilizer_0:2,20,composter_0,farming,1,Compost sawdust with wheat bran into plant food
 compost_pomace,Compost Olive Pomace,chemistry,olive_pomace_0:6|water_purified_0:1,fertilizer_0:1,20,composter_0,farming,1,Compost pressed olive pomace into plant food
+# Apple pomace is wet fruit pulp and composts without added water; a turned pile loses about half its mass
+# (Tiquia, Richard and Honeyman 2002, as the other compost recipes): 4 kg in, one 2 kg unit out.
+compost_apple_pomace,Compost Apple Pomace,chemistry,apple_pomace_0:10,fertilizer_0:1,20,composter_0,farming,1,Compost the pulp left from pressing apples into plant food
 #
 # === MISCELLANEOUS ===
 craft_compass,Craft Compass,crafting,iron_ingot_0:1|glass_pane_0:1,compass_0:1,10,workbench_0,woodworking,1,Magnetize a needle in a glass housing
@@ -490,7 +503,7 @@ assemble_truck_kit,Assemble Pickup Truck Kit,crafting,steel_ingot_0:12|iron_ingo
 assemble_rover_kit,Assemble Rover Kit,crafting,steel_ingot_0:6|iron_ingot_0:4|rubber_sheet_0:4,rover_kit_0:1,60,workbench_0,metalworking,2,Bolt together a flat-packed rover kit
 assemble_rover,Assemble Rover,crafting,steel_ingot_0:6|iron_ingot_0:4|rubber_sheet_0:4,rover_0:1,120,vehicle_assembler_0,metalworking,2,Assemble a complete rover on the factory pad
 assemble_truck,Assemble Pickup Truck,crafting,steel_ingot_0:12|iron_ingot_0:6|rubber_sheet_0:4,truck_pickup_0:1,180,vehicle_assembler_0,metalworking,2,Assemble a complete pickup truck on the factory pad
-smelt_iron_graphite,Smelt Iron (graphite),smelting,iron_ore_0:2|graphite_0:1,iron_ingot_0:1,10,smelter_0,metalworking,1,Reduce iron ore using asteroid graphite as the carbon source
+smelt_iron_graphite,Smelt Iron (graphite),smelting,iron_ore_0:2|graphite_0:1,iron_ingot_0:1|slag_0:1,10,smelter_0,metalworking,1,Reduce iron ore using asteroid graphite as the carbon source
 smelt_copper_graphite,Smelt Copper (graphite),smelting,copper_ore_0:2|graphite_0:1,copper_ingot_0:1|slag_0:6,10,smelter_0,metalworking,1,Reduce copper ore using asteroid graphite and skim off the slag
 smelt_nickel_graphite,Smelt Nickel (graphite),smelting,nickel_ore_0:2|graphite_0:1,nickel_ingot_0:1,10,smelter_0,metalworking,2,Reduce nickel ore using asteroid graphite
 assemble_nova,Assemble 1975 Chevy Nova,crafting,steel_ingot_0:14|iron_ingot_0:6|rubber_sheet_0:4|glass_pane_0:4,car_nova_1975_0:1,240,vehicle_assembler_0,metalworking,3,Assemble a complete 1975 Chevy Nova on the factory pad

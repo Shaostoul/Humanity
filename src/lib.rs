@@ -1176,6 +1176,9 @@ mod native_app {
             // Backpack <-> container transfers (organize-layer inventory): the GUI pushes
             // (item_id, qty, is_add) ops; InventorySystem applies them to the player's
             // backpack. Mirrored from GuiState.pending_inventory_transfers each frame.
+            // What automated machines made, for the main loop to file into
+            // home storage (2026-09-26, engine::stock_piles::receive_machine_outputs).
+            data_store.insert("home_stock_outputs", std::sync::Mutex::new(Vec::<(String, u32)>::new()));
             data_store.insert(
                 "inventory_transfer_ops",
                 std::sync::Mutex::new(Vec::<(String, u32, bool, u32)>::new()),
@@ -6793,6 +6796,7 @@ mod native_app {
                             }
                         }
                     }
+                    crate::engine::stock_piles::receive_machine_outputs(state);
                     // Backpack overflow from "Take to backpack" goes back to the
                     // container it came from (2026-09-25; it used to vanish).
                     let returned: Vec<(String, u32)> = state

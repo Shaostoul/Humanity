@@ -727,6 +727,12 @@ pub struct StationLoad {
 pub struct AutoRefine {
     /// Recipe id from `data/recipes.csv` this machine keeps running.
     pub recipe_id: String,
+    /// Stop while this many of the recipe's first output are on hand (in the
+    /// backpack and home storage together), 2026-09-26: the grain mill keeps
+    /// some flour ready instead of milling the whole store of grain (whole
+    /// grain keeps for years, flour for months). None = run whenever it can.
+    #[serde(default)]
+    pub keep: Option<u32>,
 }
 
 /// The electrical ISLAND (connected power component) a power entity belongs to (v0.607). Attached to

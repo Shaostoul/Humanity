@@ -1092,8 +1092,9 @@ jerrycans filled at a tank). Crafting depth rung 1 is DONE (v0.1348.0: tools
 needed and worn); rung 2 is DONE (v0.1349.0: stations draw power only while
 they work and refuse a craft when unpowered). Gardening depth rung 1 is DONE
 (v0.1350.0: yield follows season health; 36 of 189 species draw stage
-models). In flight: byproducts with real mass-balance ratios (and the
-tan_leather hide duplication). A craft now pauses while its station has no
+models). Byproducts at real ratios are DONE (v0.1351.0: slag, sawdust,
+bran, press cake, pomace, whey, each used; tanning fixed), and automated
+machines now fill the Barn and rest at a keep target. A craft now pauses while its station has no
 power. Next: quality tiers, N-P-K, pests; light is in flight. Containers as items (3c) waits on the unified placement
 schema. Progress and open items live at the top of the gap doc.
 

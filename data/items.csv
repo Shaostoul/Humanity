@@ -271,6 +271,8 @@ sawdust_0,Sawdust,material,byproduct,pine,1.0,20,0,Fine wood left by the saw cut
 bran_0,Wheat Bran,material,byproduct,plant_fiber,0.5,20,0,Outer layers of the wheat kernel sifted from white flour 500g bag,dry_goods,1.85
 press_cake_0,Seed Press Cake,material,byproduct,plant_fiber,0.5,20,0,Protein-rich seed solids left in the press after the oil runs out,dry_goods,0.69
 olive_pomace_0,Olive Pomace,material,byproduct,plant_fiber,0.5,20,0,Crushed olive skins and pulp and stones left after pressing out the oil,solid,0.69
+apple_pomace_0,Apple Pomace,material,byproduct,plant_fiber,0.4,20,0,Pressed apple skins and cores and pulp left after juicing,solid,0.55
+whey_0,Whey,food,dairy,plant_fiber,1.0,5,0,The liquid left when milk becomes cheese 1L,food,1.85
 #
 # === MACHINES / APPLIANCES ===
 generator_portable_0,Portable Generator,machine,power,steel,25.0,1,300,Gasoline electric generator 2kW,solid,7.96

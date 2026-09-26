@@ -120,6 +120,10 @@ pub struct MachineDef {
     /// unless watered by hand. Spawns an `Irrigator` marker.
     #[serde(default)]
     pub irrigates: bool,
+    /// With `auto_recipe`: stop while this many of its first output are on
+    /// hand (2026-09-26; `AutoRefine::keep`). None = run whenever it can.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub auto_keep: Option<u32>,
     /// Typed-container archetype id from `data/containers/types.csv` (v0.728,
     /// "containers show contents"): a grain silo IS a `grain_silo_bin`, the
     /// fuel refinery a `steel_fuel_drum`. Spawns a `Container` ECS component
@@ -1931,6 +1935,7 @@ mod tests {
             rf_emission: 0.0,
             auto_recipe: None,
             irrigates: false,
+            auto_keep: None,
             container_type: None,
             model: None,
             screen: None,

@@ -1,5 +1,5 @@
 {
-  "count": 373,
+  "count": 375,
   "categories": [
     "assembly",
     "chemistry",
@@ -32,6 +32,11 @@
         {
           "id": "iron_ingot_0",
           "label": "Iron Ingot",
+          "qty": 1
+        },
+        {
+          "id": "slag_0",
+          "label": "Slag",
           "qty": 1
         }
       ],
@@ -3486,6 +3491,41 @@
       "tools": []
     },
     {
+      "id": "cook_bread_whey",
+      "name": "Bake Whey Bread",
+      "category": "cooking",
+      "inputs": [
+        {
+          "id": "flour_0",
+          "label": "Flour",
+          "qty": 2
+        },
+        {
+          "id": "whey_0",
+          "label": "Whey",
+          "qty": 1
+        },
+        {
+          "id": "salt_food_0",
+          "label": "Salt Food",
+          "qty": 1
+        }
+      ],
+      "outputs": [
+        {
+          "id": "bread_0",
+          "label": "Bread",
+          "qty": 3
+        }
+      ],
+      "craft_time_sec": 10,
+      "station": "Oven",
+      "skill": "Cooking",
+      "skill_level": 1,
+      "description": "Knead bread with the whey left from cheese making instead of water",
+      "tools": []
+    },
+    {
       "id": "cook_jerky",
       "name": "Make Jerky",
       "category": "cooking",
@@ -3811,6 +3851,11 @@
           "id": "cheese_0",
           "label": "Cheese",
           "qty": 2
+        },
+        {
+          "id": "whey_0",
+          "label": "Whey",
+          "qty": 3
         }
       ],
       "craft_time_sec": 30,
@@ -3918,7 +3963,7 @@
         {
           "id": "fruit_apple_0",
           "label": "Fruit Apple",
-          "qty": 4
+          "qty": 7
         }
       ],
       "outputs": [
@@ -3926,6 +3971,11 @@
           "id": "juice_0",
           "label": "Juice",
           "qty": 2
+        },
+        {
+          "id": "apple_pomace_0",
+          "label": "Apple Pomace",
+          "qty": 1
         }
       ],
       "craft_time_sec": 8,
@@ -7944,6 +7994,31 @@
       "skill": "Farming",
       "skill_level": 1,
       "description": "Compost pressed olive pomace into plant food",
+      "tools": []
+    },
+    {
+      "id": "compost_apple_pomace",
+      "name": "Compost Apple Pomace",
+      "category": "chemistry",
+      "inputs": [
+        {
+          "id": "apple_pomace_0",
+          "label": "Apple Pomace",
+          "qty": 10
+        }
+      ],
+      "outputs": [
+        {
+          "id": "fertilizer_0",
+          "label": "Fertilizer",
+          "qty": 1
+        }
+      ],
+      "craft_time_sec": 20,
+      "station": "Composter",
+      "skill": "Farming",
+      "skill_level": 1,
+      "description": "Compost the pulp left from pressing apples into plant food",
       "tools": []
     },
     {
@@ -13439,6 +13514,11 @@
         {
           "id": "iron_ingot_0",
           "label": "Iron Ingot",
+          "qty": 1
+        },
+        {
+          "id": "slag_0",
+          "label": "Slag",
           "qty": 1
         }
       ],

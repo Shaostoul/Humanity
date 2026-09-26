@@ -182,6 +182,52 @@ pub fn in_storage_room(places: &[crate::gui::Place], path: &str, rooms: &[String
     }
 }
 
+/// File what automated machines made this tick (the "home_stock_outputs"
+/// channel, 2026-09-26) into home storage: the organize-pool place labelled
+/// as a storage zone (the Barn), else loose in the home. Merges into an
+/// unworn entry of the same item there. The Barn's crates follow.
+pub fn receive_machine_outputs(state: &mut crate::engine::state::EngineState) {
+    let made: Vec<(String, u32)> = state
+        .data_store
+        .get::<std::sync::Mutex<Vec<(String, u32)>>>("home_stock_outputs")
+        .and_then(|m| m.lock().ok().map(|mut v| std::mem::take(&mut *v)))
+        .unwrap_or_default();
+    if made.is_empty() {
+        return;
+    }
+    let rooms = storage_room_labels(state);
+    let container = store_path(&state.gui_state.places, &rooms).unwrap_or_else(|| "Home".to_string());
+    let reg = state.data_store.get::<crate::systems::inventory::ItemRegistry>("item_registry");
+    for (id, qty) in made {
+        let pool = &mut state.gui_state.placed_items;
+        if let Some(p) = pool.iter_mut().find(|p| p.key == id && p.container == container && p.wear == 0) {
+            p.qty += qty;
+        } else {
+            let name = reg.and_then(|r| r.items.get(&id).map(|d| d.name.clone())).unwrap_or_else(|| id.clone());
+            pool.push(PlacedItem { key: id, name, qty, container: container.clone(), wear: 0 });
+        }
+    }
+}
+
+/// The organize-pool container path of the first place labelled as one of
+/// `rooms` (depth-first, the renderer's index scheme), e.g. the Barn.
+pub fn store_path(places: &[crate::gui::Place], rooms: &[String]) -> Option<String> {
+    fn walk(p: &crate::gui::Place, path: String, rooms: &[String]) -> Option<String> {
+        if rooms.iter().any(|r| r == &p.label) {
+            return Some(path);
+        }
+        for (j, c) in p.children.iter().enumerate() {
+            if c.kind != "item" {
+                if let Some(found) = walk(c, format!("{path}/{j}"), rooms) {
+                    return Some(found);
+                }
+            }
+        }
+        None
+    }
+    places.iter().enumerate().find_map(|(i, p)| walk(p, i.to_string(), rooms))
+}
+
 /// The home's storage zones in world metres, with their crate slots: rack
 /// decks where the zone's filler builds racks, floor stacks otherwise.
 fn home_storage_slots(state: &crate::engine::state::EngineState, count: u32) -> Vec<Vec3> {
@@ -393,6 +439,10 @@ mod tests {
         assert!(in_storage_room(&places, "Home", &rooms), "loose home stock goes to the barn");
         assert!(!in_storage_room(&places, "9/9", &rooms));
         assert!(!in_storage_room(&places, "", &rooms));
+        // Machine output is filed where the barn stock lives.
+        let barn = store_path(&places, &rooms).expect("the seeded barn");
+        assert!(in_storage_room(&places, &barn, &rooms));
+        assert!(pool.iter().any(|p| p.key == "grain_wheat_0" && p.container == barn));
     }
 
     /// The Barn's crates sit ON the rack decks the mesh bake builds: every

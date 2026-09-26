@@ -202,7 +202,7 @@ pub(crate) fn spawn_home_machine_entity(
     if let Some(recipe_id) = &def.auto_recipe {
         let _ = world.insert_one(
             e,
-            crate::ecs::components::AutoRefine { recipe_id: recipe_id.clone() },
+            crate::ecs::components::AutoRefine { recipe_id: recipe_id.clone(), keep: def.auto_keep },
         );
     }
     // Typed container (v0.728, "containers show contents"): the machine IS

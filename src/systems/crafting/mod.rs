@@ -234,7 +234,11 @@ mod crafting_end_to_end_tests {
             recipe.inputs,
             vec![("iron_ore_0".to_string(), 2), ("coal_0".to_string(), 1)]
         );
-        assert_eq!(recipe.outputs, vec![("iron_ingot_0".to_string(), 1)]);
+        assert_eq!(
+            recipe.outputs,
+            vec![("iron_ingot_0".to_string(), 1), ("slag_0".to_string(), 1)],
+            "an iron ingot and its slag (2026-09-26)"
+        );
         assert!(recipe.craft_time > 0.0, "smelt_iron should be a timed craft");
 
         let mut data = DataStore::new();
@@ -653,6 +657,10 @@ impl System for CraftingSystem {
         let item_registry = data.get::<crate::systems::inventory::ItemRegistry>("item_registry");
         // Tap water (2026-09-26): which inputs the home tanks can supply.
         let fluids = data.get::<crate::systems::fluids::FluidTable>("fluid_table");
+        // Automated machines deliver into HOME STORAGE (2026-09-26): the main
+        // loop files what lands on this channel into the Barn, where it shows
+        // as crates. Absent (tests, headless) = the old path, the backpack.
+        let to_storage = data.contains("home_stock_outputs");
         // Vehicle-class outputs (economy Phase 2 Stage 2): any output item the kit
         // registry resolves as an ASSEMBLED vehicle rolls out onto the factory pad
         // as a real world entity instead of landing in an inventory slot.
@@ -839,7 +847,7 @@ impl System for CraftingSystem {
                     .and_then(|m| m.lock().ok().map(|s| s.get(id).copied().unwrap_or(0)))
                     .unwrap_or(0)
             };
-            let mut auto_starts: Vec<(hecs::Entity, String)> = Vec::new();
+            let mut auto_starts: Vec<(hecs::Entity, String, Option<u32>)> = Vec::new();
             for (machine, (auto, inst)) in world
                 .query::<(
                     &crate::ecs::components::AutoRefine,
@@ -864,12 +872,12 @@ impl System for CraftingSystem {
                     continue;
                 }
                 if recipes.recipes.contains_key(&auto.recipe_id) {
-                    auto_starts.push((machine, auto.recipe_id.clone()));
+                    auto_starts.push((machine, auto.recipe_id.clone(), auto.keep));
                 } else {
                     statuses.push(format!("Unknown recipe '{}'", auto.recipe_id));
                 }
             }
-            for (machine, recipe_id) in auto_starts {
+            for (machine, recipe_id, keep) in auto_starts {
                 let recipe = recipes.recipes.get(&recipe_id).cloned();
                 let Some(recipe) = recipe else { continue };
                 // Authoritative check at consume time (not a stale snapshot):
@@ -892,9 +900,20 @@ impl System for CraftingSystem {
                                 format!("waiting for {name} x{}", qty - have)
                             })
                         });
+                        // Enough on hand (2026-09-26): the machine rests.
+                        let stocked = keep.zip(recipe.outputs.first()).and_then(|(k, (out, _))| {
+                            (inv.count_item(out) + home_count(out) >= k).then(|| {
+                                let name = item_registry
+                                    .and_then(|r| r.items.get(out).map(|d| d.name.clone()))
+                                    .unwrap_or_else(|| out.clone());
+                                format!("{k} {name} on hand, resting")
+                            })
+                        });
                         if let Some(m) = missing {
                             Some(m)
-                        } else if !Self::outputs_fit(&inv, &recipe, item_registry, vehicle_kits) {
+                        } else if let Some(s) = stocked {
+                            Some(s)
+                        } else if !to_storage && !Self::outputs_fit(&inv, &recipe, item_registry, vehicle_kits) {
                             Some("inventory full".to_string())
                         } else {
                             None
@@ -1190,6 +1209,7 @@ impl System for CraftingSystem {
                         // Manual/instant crafts: the crafter IS the player; a
                         // player has no Container, so the vessel pass no-ops.
                         Some(request.crafter),
+                        false,
                     );
                     log::debug!("Instant craft complete: {}", recipe.id);
                 } else {
@@ -1281,7 +1301,7 @@ impl System for CraftingSystem {
                     // discarded (the inputs were already spent at the start).
                     // A machine with its own vessel still delivers: the vessel
                     // takes what it can and the start-time check covered it.
-                    let target_fits = {
+                    let target_fits = (craft.auto && to_storage) || {
                         let t = if craft.auto { player } else { Some(craft.crafter) };
                         t.and_then(|t| world.get::<&Inventory>(t).ok().map(|inv| {
                             Self::outputs_fit(&inv, recipe, item_registry, vehicle_kits)
@@ -1328,6 +1348,7 @@ impl System for CraftingSystem {
                             // Auto crafts: the crafter is the MACHINE — its own
                             // vessel gets first claim on the outputs (v0.732).
                             Some(craft.crafter),
+                            craft.auto && to_storage,
                         );
                         log::debug!("Craft complete: {}", recipe.id);
                     }
@@ -1435,6 +1456,9 @@ impl CraftingSystem {
         // compatible vessel keeps the output there (v0.732, fuel loop: the
         // refinery's product fills its drum). None/player for manual crafts.
         crafter_vessel: Option<hecs::Entity>,
+        // An automated machine's outputs go to home storage (the Barn) via
+        // the "home_stock_outputs" channel instead of the backpack.
+        to_storage: bool,
     ) {
         // Split out the vehicle-class outputs (usually none).
         let vehicle_outputs: Vec<(String, u32)> = match vehicle_kits {
@@ -1544,7 +1568,13 @@ impl CraftingSystem {
             // (No early return when the vessel took everything: that used to
             // skip on_craft_complete below, so the craft gave no XP and no
             // quest event. 2026-09-25.)
-            if !inv_recipe.outputs.is_empty() {
+            if !inv_recipe.outputs.is_empty() && to_storage {
+                if let Some(slot) = data.get::<std::sync::Mutex<Vec<(String, u32)>>>("home_stock_outputs") {
+                    if let Ok(mut out) = slot.lock() {
+                        out.extend(inv_recipe.outputs.iter().cloned());
+                    }
+                }
+            } else if !inv_recipe.outputs.is_empty() {
                 if let Ok(mut inv) = world.get::<&mut Inventory>(target) {
                     Self::produce_outputs(&mut inv, &inv_recipe, item_registry);
                 } else {
@@ -1909,6 +1939,66 @@ mod skill_xp_tests {
         assert_eq!(world.get::<&PowerConsumer>(stove).unwrap().draw_watts, 0.0, "idle again once done");
     }
 
+    /// Automated machines file their output in home storage (2026-09-26),
+    /// and a machine with a keep target rests while that many are on hand.
+    #[test]
+    fn an_auto_machine_fills_home_storage_and_rests_when_stocked() {
+        let recipe_csv = "id,name,category,inputs,outputs,craft_time_sec,station_required,skill_required,skill_level,description\n\
+             mill,Mill,refining,grain_0:4,flour_0:3,0.5,,,0,test\n";
+        let mut data = DataStore::new();
+        data.insert("recipe_registry", RecipeRegistry::from_csv(recipe_csv.as_bytes()).unwrap());
+        data.insert(
+            "item_registry",
+            ItemRegistry::from_csv(b"id,name,weight_kg,stack_size,volume_l\ngrain_0,Grain,0.5,20,0.9\nflour_0,Flour,0.5,20,0.9\n").unwrap(),
+        );
+        data.insert("dev_stock_materials", std::sync::Mutex::new(false));
+        data.insert("craft_request", std::sync::Mutex::new(Option::<String>::None));
+        data.insert("player_notices", std::sync::Mutex::new(Vec::<String>::new()));
+        let mut stock = std::collections::HashMap::new();
+        stock.insert("grain_0".to_string(), 40u32);
+        data.insert("home_stock", std::sync::Mutex::new(stock));
+        data.insert("home_stock_outputs", std::sync::Mutex::new(Vec::<(String, u32)>::new()));
+        let mut world = hecs::World::new();
+        let player = world.spawn((Inventory::new(16), Controllable));
+        world.spawn((crate::ecs::components::AutoRefine { recipe_id: "mill".to_string(), keep: Some(6) },));
+        let mut sys = CraftingSystem::new();
+        let filed = |data: &DataStore| -> u32 {
+            data.get::<std::sync::Mutex<Vec<(String, u32)>>>("home_stock_outputs")
+                .unwrap()
+                .lock()
+                .unwrap()
+                .iter()
+                .filter(|(id, _)| id == "flour_0")
+                .map(|(_, q)| *q)
+                .sum()
+        };
+        // Stand in for the main loop: what was filed joins home storage.
+        let settle = |data: &DataStore| {
+            let out: Vec<(String, u32)> = std::mem::take(
+                &mut *data.get::<std::sync::Mutex<Vec<(String, u32)>>>("home_stock_outputs").unwrap().lock().unwrap(),
+            );
+            let mut s = data
+                .get::<std::sync::Mutex<std::collections::HashMap<String, u32>>>("home_stock")
+                .unwrap()
+                .lock()
+                .unwrap();
+            for (id, q) in out {
+                *s.entry(id).or_insert(0) += q;
+            }
+        };
+        for _ in 0..10 {
+            sys.tick(&mut world, 1.0, &data);
+            assert_eq!(world.get::<&Inventory>(player).unwrap().count_item("flour_0"), 0, "not into the backpack");
+            let _ = filed(&data);
+            settle(&data);
+        }
+        let s = data.get::<std::sync::Mutex<std::collections::HashMap<String, u32>>>("home_stock").unwrap();
+        let s = s.lock().unwrap();
+        let flour = s.get("flour_0").copied().unwrap_or(0);
+        assert!(flour >= 6 && flour <= 9, "milled up to the keep target and rested: {flour} flour");
+        assert!(s.get("grain_0").copied().unwrap_or(0) >= 28, "the rest of the grain stays whole");
+    }
+
     fn notices(data: &DataStore) -> Vec<String> {
         data.get::<std::sync::Mutex<Vec<String>>>("player_notices").unwrap().lock().unwrap().clone()
     }
@@ -2003,7 +2093,7 @@ mod auto_refine_tests {
         inv.add_item("oil_crude_0", 2, 10);
         world.spawn((inv, Controllable));
         let refinery = world.spawn((
-            AutoRefine { recipe_id: "refine_fuel".to_string() },
+            AutoRefine { recipe_id: "refine_fuel".to_string(), keep: None },
             Container::new("steel_fuel_drum", 200.0),
         ));
         let mut sys = CraftingSystem::new();
@@ -2028,7 +2118,7 @@ mod auto_refine_tests {
         inv.add_item("iron_ore_0", 2, 20);
         inv.add_item("coal_0", 1, 99);
         let player = world.spawn((inv, Controllable));
-        world.spawn((AutoRefine { recipe_id: "smelt_iron".to_string() },));
+        world.spawn((AutoRefine { recipe_id: "smelt_iron".to_string(), keep: None },));
 
         let mut sys = CraftingSystem::new();
         for _ in 0..12 {
@@ -2068,8 +2158,8 @@ mod auto_refine_tests {
             ores: [("iron_ore_0".to_string(), 2.0)].into_iter().collect(),
             position: [0.0, 0.0, 0.0],
         },));
-        world.spawn((AutoRefine { recipe_id: "smelt_iron".to_string() },));
-        world.spawn((AutoRefine { recipe_id: "craft_hammer".to_string() },));
+        world.spawn((AutoRefine { recipe_id: "smelt_iron".to_string(), keep: None },));
+        world.spawn((AutoRefine { recipe_id: "craft_hammer".to_string(), keep: None },));
 
         // The ONLY player action in this test: commission the drone.
         *data
@@ -2104,8 +2194,8 @@ mod auto_refine_tests {
         data.insert("creative_mode", std::sync::Mutex::new(true));
         let mut world = hecs::World::new();
         let player = world.spawn((Inventory::new(16), Controllable)); // EMPTY stock
-        world.spawn((AutoRefine { recipe_id: "smelt_iron".to_string() },));
-        world.spawn((AutoRefine { recipe_id: "craft_hammer".to_string() },));
+        world.spawn((AutoRefine { recipe_id: "smelt_iron".to_string(), keep: None },));
+        world.spawn((AutoRefine { recipe_id: "craft_hammer".to_string(), keep: None },));
 
         let mut sys = CraftingSystem::new();
         for _ in 0..30 {
@@ -2127,8 +2217,8 @@ mod auto_refine_tests {
         inv.add_item("iron_ore_0", 2, 20);
         inv.add_item("coal_0", 1, 99);
         let player = world.spawn((inv, Controllable));
-        world.spawn((AutoRefine { recipe_id: "smelt_iron".to_string() },));
-        world.spawn((AutoRefine { recipe_id: "smelt_iron".to_string() },)); // second smelter
+        world.spawn((AutoRefine { recipe_id: "smelt_iron".to_string(), keep: None },));
+        world.spawn((AutoRefine { recipe_id: "smelt_iron".to_string(), keep: None },)); // second smelter
 
         let mut sys = CraftingSystem::new();
         for _ in 0..25 {
@@ -2153,7 +2243,7 @@ mod auto_refine_tests {
         inv.add_item("iron_ore_0", 2, 20);
         inv.add_item("coal_0", 1, 99);
         let player = world.spawn((inv, Controllable));
-        let smelter = world.spawn((AutoRefine { recipe_id: "smelt_iron".to_string() },));
+        let smelter = world.spawn((AutoRefine { recipe_id: "smelt_iron".to_string(), keep: None },));
 
         let mut sys = CraftingSystem::new();
         sys.tick(&mut world, 1.0, &data); // batch starts (inputs consumed)
@@ -2184,7 +2274,7 @@ mod auto_refine_tests {
         let mut data = real_data();
         data.insert("active_crafts_export", std::sync::Mutex::new(Vec::<CraftSave>::new()));
         data.insert("restore_active_crafts", std::sync::Mutex::new(Option::<Vec<CraftSave>>::None));
-        let smelter = || (AutoRefine { recipe_id: "smelt_iron".to_string() }, MachineInstanceId("smelter_1".to_string()));
+        let smelter = || (AutoRefine { recipe_id: "smelt_iron".to_string(), keep: None }, MachineInstanceId("smelter_1".to_string()));
 
         // Session 1: the batch starts and is 3 s in when the game closes.
         let mut world = hecs::World::new();
@@ -2249,7 +2339,7 @@ mod auto_refine_tests {
         inv.add_item("coal_0", 2, 99);
         inv.volume_current_l = inv.volume_capacity_l;
         let player = world.spawn((inv, Controllable));
-        world.spawn((AutoRefine { recipe_id: "smelt_iron".to_string() },));
+        world.spawn((AutoRefine { recipe_id: "smelt_iron".to_string(), keep: None },));
 
         let mut sys = CraftingSystem::new();
         for _ in 0..25 {
@@ -2275,7 +2365,7 @@ mod auto_refine_tests {
         inv.add_item("iron_ore_0", 2, 20);
         inv.add_item("coal_0", 1, 99);
         let player = world.spawn((inv, Controllable));
-        world.spawn((AutoRefine { recipe_id: "smelt_iron".to_string() },));
+        world.spawn((AutoRefine { recipe_id: "smelt_iron".to_string(), keep: None },));
 
         let mut sys = CraftingSystem::new();
         // 3 ticks of 1s at 10x = 30 scaled seconds; the 10s smelt must be done.
@@ -2336,7 +2426,7 @@ mod vehicle_factory_tests {
 
     fn assembler_at(world: &mut hecs::World, pos: glam::Vec3) -> hecs::Entity {
         world.spawn((
-            AutoRefine { recipe_id: "assemble_rover".to_string() },
+            AutoRefine { recipe_id: "assemble_rover".to_string(), keep: None },
             Transform { position: pos, rotation: glam::Quat::IDENTITY, scale: glam::Vec3::ONE },
         ))
     }
@@ -2660,7 +2750,7 @@ mod factory_review_fix_tests {
 
     fn assembler_at(world: &mut hecs::World, pos: glam::Vec3) -> hecs::Entity {
         world.spawn((
-            AutoRefine { recipe_id: "assemble_rover".to_string() },
+            AutoRefine { recipe_id: "assemble_rover".to_string(), keep: None },
             Transform { position: pos, rotation: glam::Quat::IDENTITY, scale: glam::Vec3::ONE },
         ))
     }
