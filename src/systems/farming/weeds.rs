@@ -334,6 +334,15 @@ pub fn unit_m2(data: &WeedData, store: &DataStore, area: &str, def: Option<&Plan
         .unwrap_or(data.default_unit_area_m2.max(1e-6))
 }
 
+/// The plots a grow machine is divided into (the engine's "grow_instances":
+/// machine type -> (instance id, plots)); 1 for anything it does not list.
+pub fn area_plots(store: &DataStore, area: &str) -> u32 {
+    store
+        .get::<HashMap<String, Vec<(String, u32)>>>("grow_instances")
+        .and_then(|m| m.values().flatten().find(|(id, _)| id == area).map(|(_, n)| (*n).max(1)))
+        .unwrap_or(1)
+}
+
 /// How many garden days into its season a crop is: its growth age on the
 /// garden clock (game seconds at the growth speed).
 pub fn crop_days(crop: &CropInstance, elapsed_seconds: f64, growth_speed: f32) -> f64 {
@@ -478,11 +487,15 @@ impl Weeds {
             .filter(|(_, c)| c.growth_stage != STAGE_DEAD && c.tower_id.as_deref().unwrap_or("") == area)
             .map(|(_, c)| c.crop_def_id.clone())
             .collect();
-        if crops.is_empty() {
-            super::push_notice(store, format!("There is nothing planted to weed in {name}."));
-            return;
-        }
-        let m2: f64 = crops.iter().map(|p| unit_m2(data, store, &area, plants.and_then(|r| r.get(p)))).sum();
+        // An empty bed keeps its weeds (its soil is remembered), so it can be
+        // hoed or mulched bare, the way a gardener clears a bed before sowing
+        // (2026-09-26 review: the game said to hoe an emptied bed and then
+        // refused). Its ground is every plot of its machine.
+        let m2: f64 = if crops.is_empty() {
+            unit_m2(data, store, &area, None) * f64::from(area_plots(store, &area))
+        } else {
+            crops.iter().map(|p| unit_m2(data, store, &area, plants.and_then(|r| r.get(p)))).sum()
+        };
         let items = store.get::<crate::systems::inventory::ItemRegistry>("item_registry");
         let item_name = |id: &str| items.and_then(|r| r.items.get(id).map(|d| d.name.clone())).unwrap_or_else(|| id.to_string());
         // What the backpack gives up: the hoe's wear, or the mulch.
@@ -649,7 +662,8 @@ pub struct GuiView {
     severity: f32,
     elapsed: f64,
     speed: f32,
-    /// A row per soil area with a living crop, sorted by area.
+    /// A row per soil area with a living crop, or an emptied bed that still
+    /// carries weeds or mulch, sorted by area.
     pub areas: Vec<WeedAreaRow>,
 }
 
@@ -679,6 +693,13 @@ impl GuiView {
             for (_, c) in q.iter() {
                 if c.growth_stage != STAGE_DEAD {
                     set.insert(c.tower_id.as_deref().unwrap_or(""));
+                }
+            }
+            // And the emptied beds whose soil still carries weeds or mulch, so
+            // the player can see and clear them before sowing again.
+            for (a, st) in view.weeds.iter() {
+                if st.level >= 0.01 || !st.mulch.is_empty() {
+                    set.insert(a.as_str());
                 }
             }
             set.into_iter().filter(|a| soil.soil_for(a).is_some()).map(str::to_string).collect()

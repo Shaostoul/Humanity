@@ -174,6 +174,33 @@ fn hoeing_removes_weeds_and_wears_the_hoe() {
     assert!(notices(&data).iter().any(|n| n.contains("needs a hoe")));
 }
 
+/// An emptied bed keeps its weeds (its soil is remembered), and it can be
+/// hoed bare and is listed in the Garden panel (2026-09-26 review: the game
+/// told the player to hoe an emptied bed, then refused, and showed no row).
+/// Its ground is every plot of its machine (the engine's grow_instances).
+/// Seen red by putting back the "nothing planted to weed" refusal.
+#[test]
+fn an_emptied_bed_can_be_hoed_and_is_shown() {
+    let mut data = store(1.0, 1.0);
+    let mut inst: std::collections::HashMap<String, Vec<(String, u32)>> = std::collections::HashMap::new();
+    inst.insert("potato_grow_bed".into(), vec![("potato_0".into(), 2)]);
+    data.insert("grow_instances", inst);
+    // The panel view reads the data the game registers at startup.
+    data.insert(weeds::DATA_KEY, WeedData::parse(weeds::WEEDS_RON).unwrap());
+    data.insert("garden_soil_ph", super::soil_ph::SoilPhData::parse(super::soil_ph::SOIL_PH_RON).unwrap());
+    let mut sys = FarmingSystem::new();
+    let mut world = hecs::World::new();
+    let mut inv = Inventory::new(16);
+    inv.add_item("hoe_0", 1, 1);
+    world.spawn((inv, Controllable));
+    seed_weeds(&mut world, "potato_0", 0.3, 0.25);
+    let view = weeds::GuiView::new(&world, &data);
+    assert!(view.areas.iter().any(|a| a.area == "potato_0"), "the empty weedy bed has a row");
+    request(&data, "potato_0", "hoe");
+    sys.tick(&mut world, 0.016, &data);
+    assert!(cover(&world, "potato_0") < 0.3, "hoed bare: {}", cover(&world, "potato_0"));
+    assert_eq!(weeds::area_plots(&data, "potato_0"), 2);
+}
 /// A sawdust mulch spends its cited 2.441 kg a square metre (OSU: 50 lb on a
 /// 10 ft x 10 ft plot) from the backpack, smothers half the weeds there, and
 /// keeps new ones down: over sixty garden days a mulched bed stays nearly

@@ -1985,8 +1985,14 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             .as_ref()
                             .map(|h| h.all_instances().into_iter().map(|i| (i.id, i.machine)).collect())
                             .unwrap_or_default();
-                        let crop_areas: Vec<&str> =
-                            state.crops.iter().filter_map(|c| c.tower_id.as_deref()).collect();
+                        // Crops' areas, and an emptied bed that still carries weeds or
+                        // mulch (farming::weeds), so it can be hoed before sowing.
+                        let crop_areas: Vec<&str> = state
+                            .crops
+                            .iter()
+                            .filter_map(|c| c.tower_id.as_deref())
+                            .chain(state.garden_pests.weeds.iter().map(|w| w.area.as_str()))
+                            .collect();
                         for (id, title) in crate::gui::machine_crop_groups(&crop_areas, &known, &type_of, &state.garden_areas) {
                             groups.push((Some(id), title));
                         }

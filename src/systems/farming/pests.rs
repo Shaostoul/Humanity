@@ -617,13 +617,22 @@ pub(super) fn handle_request(
         log::warn!("[Farming] no pest control '{control_id}' in data/garden/pests.ron");
         return;
     };
+    // Every plant in the area counts, not every crop entity: since the
+    // per-plot harvest (units.rs) one bed plot is many plants, and a soap
+    // spray or a hosing is per plant (2026-09-26 review: a 128-plant bean
+    // field was charged one item and 2 L).
+    let registry = data.get::<super::PlantRegistry>("plant_registry");
+    let plot_areas = data.get::<std::collections::HashMap<String, f32>>(super::units::PLOT_AREA_KEY);
+    let mut plants = 0usize;
     let here: Vec<String> = world
         .query::<&CropInstance>()
         .iter()
         .filter(|(_, c)| c.growth_stage != STAGE_DEAD && c.tower_id.as_deref().unwrap_or("") == area)
-        .map(|(_, c)| c.crop_def_id.clone())
+        .map(|(_, c)| {
+            plants += super::units::crop_plants(c, registry, plot_areas) as usize;
+            c.crop_def_id.clone()
+        })
         .collect();
-    let plants = here.len();
     if plants == 0 {
         super::push_notice(data, format!("There are no crops to treat in {}.", area.replace('_', " ")));
         return;

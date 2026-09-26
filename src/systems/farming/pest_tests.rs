@@ -285,6 +285,36 @@ fn each_control_lowers_its_pests_by_the_cited_share() {
     assert_eq!(world.get::<&Inventory>(player).unwrap().count_item("insecticidal_soap_0"), 1, "one spray used");
 }
 
+/// A control is charged per PLANT, not per crop entity (2026-09-26 review):
+/// one bed plot is many plants since the per-plot harvest, so hosing four
+/// bean plots of 1.44 m2 (32 plants each at 0.045 m2 a plant, 128 in all)
+/// takes 64 L and a soap spray takes ceil(128 / 20) = 7 bottles. Seen red
+/// by counting crop entities again (2 L and 1 bottle).
+#[test]
+fn a_control_is_charged_for_every_plant_in_the_plots() {
+    let draw = |d: &DataStore| *d.get::<std::sync::Mutex<f32>>("hand_water_draw_l").unwrap().lock().unwrap();
+    let mut data = store(1.0, 1.0);
+    let areas: std::collections::HashMap<String, f32> = [("legume_field_1".to_string(), 1.44_f32)].into_iter().collect();
+    data.insert(super::units::PLOT_AREA_KEY, areas);
+    let bean = data.get::<PlantRegistry>("plant_registry").unwrap().get("bean").unwrap().clone();
+    let per_plot = super::units::plants_in_plot(&bean, Some(1.44)) as usize;
+    assert_eq!(per_plot, 32, "1.44 m2 at 0.045 m2 a bean plant");
+    let mut sys = FarmingSystem::new();
+    let mut world = hecs::World::new();
+    world.spawn((Irrigator,));
+    let player = world.spawn((Inventory::new(16), Controllable));
+    for slot in 0..4 {
+        world.spawn((crop(&data, "bean", "legume_field_1", slot),));
+    }
+    seed_pest(&mut world, "legume_field_1", "aphid", 0.4, true);
+    request(&data, "legume_field_1", "hose_off");
+    sys.tick(&mut world, 0.016, &data);
+    assert!((draw(&data) - 0.5 * 128.0).abs() < 1e-3, "half a litre a plant for 128 plants: {}", draw(&data));
+    world.get::<&mut Inventory>(player).unwrap().add_item("insecticidal_soap_0", 10, 99);
+    request(&data, "legume_field_1", "soap_spray");
+    sys.tick(&mut world, 0.016, &data);
+    assert_eq!(world.get::<&Inventory>(player).unwrap().count_item("insecticidal_soap_0"), 3, "seven sprays for 128 plants");
+}
 /// What a control costs is real: hosing off draws half a litre a plant from
 /// the home tanks (queued for the plumbing the way hand watering is) and is
 /// refused with empty tanks; an item control takes one item per so many
