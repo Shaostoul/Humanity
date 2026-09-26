@@ -824,6 +824,11 @@
    "date": "2026-09-26",
    "decision": "v0.1357.0: 13 station blueprints (forge, anvil, electronics bench, sewing machine, loom, stove, oven, chemistry set, composter, sawmill, grain mill, fuel refinery, water purifier) each consume the crafted station item; recipe_sources_lint every_recipe_station_can_be_built (vehicle_assembler exempt, family-home only).",
    "why": "The gap survey found 12 of 17 station types unreachable in the one-person home (160 recipes). The crafted station items existed but nothing placed them; a blueprint consuming the item joins craft and construction without new systems. Built electric stations do not draw home power yet (no MachineType/PowerConsumer on built structures), noted."
+  },
+  {
+   "date": "2026-09-26",
+   "decision": "v0.1358.0: construction::wire_built_stations gives built electric stations (blueprint power_watts/idle_watts/power_priority) MachineType + PowerConsumer + StationLoad on the strongest island; vessel level gauges via MachineDef.level_gauge (silo, fuel drums), crossed plates; silo_1 moved from (45,78) inside a rack bay to (52.3,76).",
+   "why": "v0.1357 made stations buildable but a built stove ignored power. Gauges on every container would have covered 21 shelves, so an explicit machine flag marks bulk vessels."
   }
  ],
  "active_scopes_to_avoid": [
