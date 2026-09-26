@@ -134,3 +134,9 @@ what we will say about it.
   go back to food or drinking water after holding something else (FDA Food
   Code, the Pasteurized Milk Ordinance, Codex previous-cargo lists, USDA dairy
   equipment rules). The data basis for realistic containers in the game.
+- [`2026-09-26-crop-daily-light-integrals.md`](2026-09-26-crop-daily-light-integrals.md),
+  how much light each of the home's 63 crops needs a day (minimum, target and
+  saturation daily light integral, mol/m2/day) and which flower by day length,
+  from Purdue, Cornell, Michigan State, NASA and peer-reviewed horticulture;
+  27 sourced, 35 not found (listed), fungi not applicable. The data basis for
+  each crop's own light need in the game.
