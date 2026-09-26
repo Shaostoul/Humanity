@@ -914,6 +914,11 @@
    "date": "2026-09-26",
    "decision": "v0.1370.0: merged greenhouse humidity + fungal disease (b339091f: humidity.rs/.ron, room vapour balance with UGA leakage 0.5 ACH and an AC Infinity-based exhaust fan placed in home.ron, FAO-56 saturation, gray mold/powdery/downy mildew as pests.ron rows with a Humidity condition, Cultural controls first, potassium bicarbonate item, humidity-window health cap). Bearing plants now stay in the crop tick (a ripe plant with a picking window). home.ron energy loop marked closes: false (fan 0.7 kWh/day tips 12.7 vs 12.2). Also: photograph-home --keep-open works; hero_plant_objects removed.",
    "why": "The 3-person greenhouse on leakage alone would sit at 100% RH, so the fan is required, and its power has to show in the energy loop honestly. Bearing plants skipped by the tick drank no water for 63 days; fixed now that humidity has merged into the same loop. Left from the humidity agent: greenhouse vents into fixed 40% home air (no condensate recovery), constant day/night transpiration and 21 C rooms, the mushroom room sits near 50% (oyster wants 85-95%: a humidifier), no in-panel fan switch, no web mirror."
+  },
+  {
+   "date": "2026-09-26",
+   "decision": "v0.1370.0 delivered. In flight (worktree agents): (1) mushroom-room humidifier (humidity.rs, machine catalogs, home_spawn, plumbing draw, mushroom-specific humidity cap); (2) weeds in soil areas (weeds.rs/.ron, SoilMemory, hoe wear, bark/sawdust mulch, Garden panel rows). Operator decision still open: ground site at Silverdale vs the GEO station (BUG-090, seasonal daylight).",
+   "why": "Both extend systems shipped today; humidity.rs and weeds.rs are disjoint, the overlap is small hooks in farming/mod.rs, inventory.rs and lib.rs."
   }
  ],
  "active_scopes_to_avoid": [
