@@ -844,6 +844,11 @@
    "date": "2026-09-26",
    "decision": "Pests merged (v0.1361.0, worktree agent commit cherry-picked cleanly): pests.rs + data/garden/pests.ron (5 pests, UC IPM / UMN / Iowa State / Cornell / CSU / Clemson sources, game estimates labelled), pressure in SoilMemory.pests (saved), IPM-ordered controls via pest_control_request. Wired here: garden_pests/garden_pest_severity/pest_control_request channels, GardenPests + GuiAreaPests in state_types, per-area report in the crop bridge, Garden panel rows with control buttons, Settings Off/Gentle/Realistic (AppConfig.pest_severity, default gentle).",
    "why": "Pests default to gentle, so shipping the sim without the panel buttons would have left the player unable to respond; wired in the same release. Left open: pests in the offline catch-up, all hand-planted crops share one pest area."
+  },
+  {
+   "date": "2026-09-26",
+   "decision": "v0.1362.0: harvest surplus that neither pack nor vessel takes goes to home_stock_outputs (the Barn) instead of being discarded. Per-crop nutrient removal columns handed to the homestead-engineer in a worktree.",
+   "why": "Last loss path noted in the storage work; the channel already existed for automated machines."
   }
  ],
  "active_scopes_to_avoid": [
