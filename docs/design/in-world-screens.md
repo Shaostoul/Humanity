@@ -768,8 +768,8 @@ ffmpeg run.
   `debug/screen_done.json`.
 
 Not done in this rung, on purpose: **synchronised playback between players**
-(two people in the same room seeing the same frame needs the relay clock
-and a shared play/pause/seek state; a later rung), **subtitles**, a **file picker** (the
+(designed 2026-09-25 as a one-shot "jump to where they are", see "Screens
+are per viewer" below), **subtitles**, a **file picker** (the
 source is the data file's string), inline **volume** per screen, and true 3D
 spatial audio (above).
 
@@ -1085,3 +1085,45 @@ Each is a separate increment on the same surface:
   sites database is enforced on a wall" above).
 - **A planet in a camera's window:** the cloud pass for a second pose needs
   its own temporal history, keyed per camera.
+
+### Screens are per viewer; "sync" means the same source, not the same pixels (operator, 2026-09-25)
+
+Two decisions, both the operator's:
+
+1. **Every screen is drawn by the viewer's own copy of the app, from that
+   viewer's own data.** Nothing on a screen is ever sent to another player.
+   That is how it already works (no screen content passes through `src/net/`),
+   and it is now a rule, for three reasons: a wall can never leak one
+   player's private information to another; each person reading a page in
+   their own app is ordinary viewing, while one screen shown to others is
+   closer to the "public display" and "any other network" clauses the
+   2026-09-25 terms research found (`docs/reference/findings/2026-09-25-site-embed-terms.md`);
+   and nothing is streamed, which keeps within the bandwidth budget.
+2. **"Synced" screens share a SOURCE, and only our own.** A synced display
+   (the development task list, the announcements channel, the devlog, and
+   similar) is every viewer's app showing the same page from our own
+   domains, each drawing it itself. When synced displays are built, the
+   code refuses a synced source outside `own_domains`.
+
+**Video sync is a one-shot "jump to where they are", not a shared stream.**
+Verbatim: "clicking sync has the player load the URL and grab the same
+timestamp, if possible but, each view experience is individual instead of
+shared. That way we don't infringe on YouTube ads or whatever." So:
+
+- A player presses **Sync** on someone else's screen (or a sync offer in
+  chat). What travels is three values: the source URL, the position in
+  seconds, and when that position was read (relay time, so the two clocks
+  do not have to agree), plus whether it was playing.
+- The receiver's own app loads that URL in its own player and seeks to
+  `position + (now - read_at)` when the other was playing, or to `position`
+  when paused. From then on the two playbacks are independent: pause, seek
+  and ads are each viewer's own. Pressing Sync again re-aligns.
+- For a platform video the platform's own player does the playing, with
+  its own advertising intact, and most platforms take a start time in the
+  URL (YouTube `t=`, Twitch `t=` on past broadcasts), so even the "Open in
+  browser" fallback lands at the right moment. For our own AV1 player it is
+  a load and a seek (seek shipped in v0.1325.0). A live stream has no
+  position to share; Sync there just opens the same stream.
+- It replaces the earlier plan of lockstep playback with a shared
+  play/pause/seek state, which needed a continuously running shared clock
+  and would have made one person's pause everyone's pause.

@@ -91,6 +91,10 @@ for (const s of sites) {
     if (typeof e.reviewed_by !== 'string' || !e.reviewed_by.trim()) fail(where, 'embed.status ' + e.status + ' needs reviewed_by');
     if (e.status !== 'unknown' && (typeof e.terms_url !== 'string' || !/^https?:\/\//.test(e.terms_url))) fail(where, 'embed.status ' + e.status + ' needs terms_url (http(s))');
   }
+  // attribution: the credit line the licence asks for, shown on every page
+  // of an allowed site. Optional, but never an empty promise.
+  if ('attribution' in e && (typeof e.attribution !== 'string' || !e.attribution.trim())) fail(where, 'embed.attribution, when present, must be a non-empty string');
+  if (e.status === 'allowed' && !isOwn && !(typeof e.attribution === 'string' && e.attribution.trim())) fail(where, 'an allowed third-party site needs embed.attribution (the credit line its licence asks for)');
 
   // affiliate: the transparency record.
   const a = s.affiliate;

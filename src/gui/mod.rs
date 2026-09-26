@@ -4413,6 +4413,15 @@ pub struct SettingsState {
     /// so crops grow by the time you were away. Read once when a save is
     /// loaded (save_load::resume_home), not every frame.
     pub offline_progression: bool,
+    /// Start every session from the DEFAULT home, keeping only the character
+    /// (name, look, outfit). Operator, 2026-09-25: "let's stay in the dev
+    /// mode, I don't want to diverge again so that we can make sure I always
+    /// see what you build and what our default is." A save that keeps
+    /// progress drifts from what a new player sees (his had 1,575 of 1,976
+    /// crops dead of thirst while a new player gets a fresh garden). ON by
+    /// default until the starting home is finished; the progress save on
+    /// disk is left untouched while it is on. Revisit at launch.
+    pub fresh_world_each_launch: bool,
     /// Aerial perspective strength (v0.916): how strongly distant land and
     /// sea fade toward sky color. 0 = off, 1 = earthlike.
     pub aerial_strength: f32,
@@ -4616,6 +4625,7 @@ impl Default for SettingsState {
             shadow_strength: 1.0,
             crop_growth_speed: crate::systems::farming::DEFAULT_CROP_GROWTH_SPEED,
             offline_progression: true,
+            fresh_world_each_launch: true,
             aerial_strength: 1.0,
             godray_intensity: 0.55,
             ssao_strength: 0.55,

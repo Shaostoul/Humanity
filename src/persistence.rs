@@ -25,6 +25,12 @@ pub struct WorldSave {
     /// Craft batches in flight (2026-09-25); see CraftSave.
     #[serde(default)]
     pub crafts: Vec<crate::systems::crafting::CraftSave>,
+    /// False for a save written while "Start every session from the default
+    /// home" was on and no progress save existed yet: it carries the
+    /// character only, so applying it must never replace the default home
+    /// (an empty inventory in it means "not recorded", not "empty").
+    #[serde(default = "default_true_save")]
+    pub progress_saved: bool,
     pub weather_state: String,
     /// What this home IS (the "who owns the truth" axis): "offline" (you own the
     /// local save), "server" (a relay owns it), or "real" (physical sensors own
@@ -120,6 +126,7 @@ impl WorldSave {
             skills: HashMap::new(),
             constructions: Vec::new(),
             crafts: Vec::new(),
+            progress_saved: true,
             weather_state: "clear".to_string(),
             kind: "offline".to_string(),
             design: design.into(),
@@ -158,6 +165,10 @@ pub struct ConstructionSave {
     /// construction; None once it is a finished Structure.
     #[serde(default)]
     pub building: Option<(f32, f32)>,
+}
+
+fn default_true_save() -> bool {
+    true
 }
 
 fn unit_scale() -> [f32; 3] {
@@ -319,6 +330,7 @@ mod tests {
                 },
             ],
             crafts: Vec::new(),
+            progress_saved: true,
             weather_state: "clear".to_string(),
             kind: "offline".to_string(),
             design: "fibonacci".to_string(),

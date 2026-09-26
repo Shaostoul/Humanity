@@ -134,7 +134,14 @@ impl WebViewState {
         if self.queued.is_none() && self.embed_note.as_deref().map_or(false, |n| n.starts_with("Not shown inside")) {
             return;
         }
-        self.embed_note = self.current_url().and_then(|u| sites.embed_verdict(u).note());
+        // An allowed page whose licence asks for credit gets its credit line
+        // (the condition most "allowed" decisions rest on); anything else
+        // gets its review note, if it has one.
+        self.embed_note = self.current_url().and_then(|u| {
+            sites.embed_verdict(u).note().or_else(|| {
+                sites.attribution_for(u).map(|a| format!("From {a}. Original page: {u}"))
+            })
+        });
     }
 
     /// Drop the queued navigation without dispatching it and put the view
@@ -759,6 +766,7 @@ mod tests {
                 terms_url: None,
                 reviewed_on: None,
                 reviewed_by: None,
+                attribution: None,
             },
             affiliate: WebSiteAffiliate { program: None, tag: None, disclosure: String::new() },
             notes: String::new(),
@@ -811,6 +819,24 @@ mod tests {
         v.apply_embed_gate(&db);
         assert_eq!(v.queued_navigation(), Some("https://ours.example/page"), "an allowed navigation goes ahead");
         assert_eq!(v.embed_note(), None, "our own site carries no note");
+    }
+
+    /// An allowed site whose licence asks for credit gets its credit line
+    /// under the status line, with the page it came from.
+    #[test]
+    fn an_allowed_site_carries_its_credit_line() {
+        let mut db = gate_db();
+        let mut wiki = gate_site("wiki", "https://wiki.example/", "allowed");
+        wiki.embed.attribution = Some("Wiki, under CC BY-SA 4.0".into());
+        db.sites.push(wiki);
+        let mut v = WebViewState::new();
+        v.fetch_enabled = false;
+        v.navigate("https://wiki.example/Page");
+        v.apply_embed_gate(&db);
+        assert_eq!(
+            v.embed_note(),
+            Some("From Wiki, under CC BY-SA 4.0. Original page: https://wiki.example/Page")
+        );
     }
 
     /// A refused FIRST navigation (nothing on screen yet) leaves an empty,

@@ -431,8 +431,10 @@ the no-toolchain build is worth keeping simple.
   never a silent black screen. The command line is pinned by
   `transcode_args`, so a later edit cannot quietly change the quality or
   drop the audio. Implementation: `src/media/transcode.rs`.
-  Still to come on that side: synchronised playback between players (needs
-  the relay clock), subtitles, and true 3D spatial audio once the
+  Still to come on that side: synchronised playback between players (a
+  one-shot Sync: load the same source, seek to the same moment, then play
+  independently; `docs/design/in-world-screens.md`, "Screens are per
+  viewer"), subtitles, and true 3D spatial audio once the
   engine has a kira spatial scene (today the stream's volume and pan are set
   per frame from distance and bearing).
 - **Loop-point audio alignment.** A looping stream wraps at the Opus sample

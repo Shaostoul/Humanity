@@ -152,11 +152,12 @@
       "description": "Largest free encyclopedia. Mirror via Kiwix for offline use.",
       "icon": "📖",
       "embed": {
-        "status": "needs_review",
-        "basis": "not yet reviewed",
-        "terms_url": null,
-        "reviewed_on": null,
-        "reviewed_by": null
+        "status": "allowed",
+        "basis": "Terms s7: \"Reuse of content that we host is welcome\", under CC BY-SA 4.0 with attribution and a licence notice; automated use fine when not abusive and the user agent carries contact information (it does since v0.1341.0).",
+        "terms_url": "https://foundation.wikimedia.org/wiki/Policy:Terms_of_Use",
+        "reviewed_on": "2026-09-25",
+        "reviewed_by": "Shaostoul (decision), evidence in docs/reference/findings/2026-09-25-site-embed-terms.md",
+        "attribution": "Wikipedia, under CC BY-SA 4.0"
       },
       "affiliate": {
         "program": null,
@@ -173,11 +174,12 @@
       "description": "Books, films, software, and the Wayback Machine.",
       "icon": "🏛",
       "embed": {
-        "status": "needs_review",
-        "basis": "not yet reviewed",
-        "terms_url": null,
-        "reviewed_on": null,
-        "reviewed_by": null
+        "status": "allowed",
+        "basis": "Terms grant access \"for scholarship and research purposes only\"; one person reading a page to learn is read as within that. Many archive.org pages need JavaScript and show little in the reader.",
+        "terms_url": "https://archive.org/about/terms.php",
+        "reviewed_on": "2026-09-25",
+        "reviewed_by": "Shaostoul (decision), evidence in docs/reference/findings/2026-09-25-site-embed-terms.md",
+        "attribution": "the Internet Archive"
       },
       "affiliate": {
         "program": null,
@@ -194,11 +196,11 @@
       "description": "70,000+ free public-domain ebooks.",
       "icon": "📚",
       "embed": {
-        "status": "needs_review",
-        "basis": "not yet reviewed",
-        "terms_url": null,
-        "reviewed_on": null,
-        "reviewed_by": null
+        "status": "forbidden",
+        "basis": "The website \"is intended for human users only\" and blocks automated tools (the books themselves are free to reuse; open the site in a browser).",
+        "terms_url": "https://www.gutenberg.org/policy/terms_of_use.html",
+        "reviewed_on": "2026-09-25",
+        "reviewed_by": "Shaostoul (decision), evidence in docs/reference/findings/2026-09-25-site-embed-terms.md"
       },
       "affiliate": {
         "program": null,
@@ -215,11 +217,12 @@
       "description": "Free, peer-reviewed college textbooks.",
       "icon": "🎓",
       "embed": {
-        "status": "needs_review",
-        "basis": "not yet reviewed",
-        "terms_url": null,
-        "reviewed_on": null,
-        "reviewed_by": null
+        "status": "allowed",
+        "basis": "Books under CC BY 4.0, and since 22 April 2026 new and updated books under CC BY-NC-SA 4.0; a donation-funded, ad-free app is treated as non-commercial (a judgement, recorded as such).",
+        "terms_url": "https://openstax.org/blog/openstax-licensing",
+        "reviewed_on": "2026-09-25",
+        "reviewed_by": "Shaostoul (decision), evidence in docs/reference/findings/2026-09-25-site-embed-terms.md",
+        "attribution": "OpenStax, under CC BY 4.0 or CC BY-NC-SA 4.0 (see the book)"
       },
       "affiliate": {
         "program": null,
@@ -236,11 +239,11 @@
       "description": "Free K-12 + early college courses.",
       "icon": "🧮",
       "embed": {
-        "status": "needs_review",
-        "basis": "not yet reviewed",
-        "terms_url": null,
-        "reviewed_on": null,
-        "reviewed_by": null
+        "status": "forbidden",
+        "basis": "Bans any software used \"to scrape the Services or otherwise copy materials\"; a plain fetch also gets a bot check.",
+        "terms_url": "https://www.khanacademy.org/about/docs/khan-academy-terms-of-service",
+        "reviewed_on": "2026-09-25",
+        "reviewed_by": "Shaostoul (decision), evidence in docs/reference/findings/2026-09-25-site-embed-terms.md"
       },
       "affiliate": {
         "program": null,
@@ -257,11 +260,12 @@
       "description": "Open repair guides for everything from phones to tractors.",
       "icon": "🔧",
       "embed": {
-        "status": "needs_review",
-        "basis": "not yet reviewed",
-        "terms_url": null,
-        "reviewed_on": null,
-        "reviewed_by": null
+        "status": "allowed",
+        "basis": "Content Licensing page: content under CC BY-NC-SA 3.0 with a link back to iFixit.com. Its Terms of Use are narrower (display \"using the means provided\" by iFixit); the licence is relied on and the conflict is recorded in the findings.",
+        "terms_url": "https://www.ifixit.com/Info/Licensing",
+        "reviewed_on": "2026-09-25",
+        "reviewed_by": "Shaostoul (decision), evidence in docs/reference/findings/2026-09-25-site-embed-terms.md",
+        "attribution": "iFixit (ifixit.com), under CC BY-NC-SA 3.0"
       },
       "affiliate": {
         "program": null,
@@ -278,11 +282,11 @@
       "description": "DIY projects: woodworking, electronics, food, craft.",
       "icon": "🪚",
       "embed": {
-        "status": "needs_review",
-        "basis": "not yet reviewed",
-        "terms_url": null,
-        "reviewed_on": null,
-        "reviewed_by": null
+        "status": "forbidden",
+        "basis": "Autodesk's Instructables terms (2013) bar framing or mirroring any part of the Service and adapting it.",
+        "terms_url": "https://www.autodesk.com/company/legal-notices-trademarks/terms-of-service-autodesk360-web-services/instructables-terms-of-service-june-5-2013",
+        "reviewed_on": "2026-09-25",
+        "reviewed_by": "Shaostoul (decision), evidence in docs/reference/findings/2026-09-25-site-embed-terms.md"
       },
       "affiliate": {
         "program": null,
@@ -299,32 +303,12 @@
       "description": "Sustainable technology, appropriate-tech, off-grid living wiki.",
       "icon": "🌱",
       "embed": {
-        "status": "needs_review",
-        "basis": "not yet reviewed",
-        "terms_url": null,
-        "reviewed_on": null,
-        "reviewed_by": null
-      },
-      "affiliate": {
-        "program": null,
-        "tag": null,
-        "disclosure": ""
-      },
-      "notes": "seeded from data/browser/bookmarks.json (native Browser page)"
-    },
-    {
-      "id": "openfarm",
-      "name": "OpenFarm",
-      "url": "https://openfarm.cc",
-      "category": "skills",
-      "description": "Crowdsourced gardening + farming guides per crop and region.",
-      "icon": "🌾",
-      "embed": {
-        "status": "needs_review",
-        "basis": "not yet reviewed",
-        "terms_url": null,
-        "reviewed_on": null,
-        "reviewed_by": null
+        "status": "allowed",
+        "basis": "\"Content on Appropedia defaults to a Creative Commons Attribution-ShareAlike 4.0 license.\"",
+        "terms_url": "https://www.appropedia.org/Appropedia:Copyrights",
+        "reviewed_on": "2026-09-25",
+        "reviewed_by": "Shaostoul (decision), evidence in docs/reference/findings/2026-09-25-site-embed-terms.md",
+        "attribution": "Appropedia, under CC BY-SA 4.0"
       },
       "affiliate": {
         "program": null,
@@ -341,11 +325,12 @@
       "description": "Non-profit Git hosting on Forgejo, EU-based.",
       "icon": "⛰",
       "embed": {
-        "status": "needs_review",
-        "basis": "not yet reviewed",
-        "terms_url": null,
-        "reviewed_on": null,
-        "reviewed_by": null
+        "status": "allowed",
+        "basis": "Terms s2(1)1: public content must carry a licence allowing unlimited copies and redistribution; each repository's own licence applies.",
+        "terms_url": "https://codeberg.org/codeberg/org/src/branch/main/TermsOfUse.md",
+        "reviewed_on": "2026-09-25",
+        "reviewed_by": "Shaostoul (decision), evidence in docs/reference/findings/2026-09-25-site-embed-terms.md",
+        "attribution": "Codeberg; each repository under its own licence"
       },
       "affiliate": {
         "program": null,
@@ -362,11 +347,12 @@
       "description": "Self-hostable Git forge. Used by HumanityOS for sovereign mirroring.",
       "icon": "🍴",
       "embed": {
-        "status": "needs_review",
-        "basis": "not yet reviewed",
-        "terms_url": null,
-        "reviewed_on": null,
-        "reviewed_by": null
+        "status": "allowed",
+        "basis": "Imprint: \"The Forgejo website is published under the CC BY-SA 4.0 license.\" No terms of use page exists.",
+        "terms_url": "https://forgejo.org/imprint/",
+        "reviewed_on": "2026-09-25",
+        "reviewed_by": "Shaostoul (decision), evidence in docs/reference/findings/2026-09-25-site-embed-terms.md",
+        "attribution": "the Forgejo project, under CC BY-SA 4.0"
       },
       "affiliate": {
         "program": null,
@@ -383,11 +369,12 @@
       "description": "Foundational free-software movement and tooling.",
       "icon": "🐃",
       "embed": {
-        "status": "needs_review",
-        "basis": "not yet reviewed",
-        "terms_url": null,
-        "reviewed_on": null,
-        "reviewed_by": null
+        "status": "allowed",
+        "basis": "Page footers: CC BY-ND 4.0; s2(a)(4) permits \"technical modifications necessary\" for other media and formats, which is what the reader does; no adaptation.",
+        "terms_url": "https://creativecommons.org/licenses/by-nd/4.0/legalcode.en",
+        "reviewed_on": "2026-09-25",
+        "reviewed_by": "Shaostoul (decision), evidence in docs/reference/findings/2026-09-25-site-embed-terms.md",
+        "attribution": "the GNU Project, under CC BY-ND 4.0"
       },
       "affiliate": {
         "program": null,
@@ -404,32 +391,12 @@
       "description": "User-freedom advocacy, license stewardship.",
       "icon": "📜",
       "embed": {
-        "status": "needs_review",
-        "basis": "not yet reviewed",
-        "terms_url": null,
-        "reviewed_on": null,
-        "reviewed_by": null
-      },
-      "affiliate": {
-        "program": null,
-        "tag": null,
-        "disclosure": ""
-      },
-      "notes": "seeded from data/browser/bookmarks.json (native Browser page)"
-    },
-    {
-      "id": "iss-live-tracker",
-      "name": "ISS live tracker",
-      "url": "https://spotthestation.nasa.gov/tracking_map.cfm",
-      "category": "spaceflight",
-      "description": "Where the International Space Station is right now. The mothership is fictional, this is real.",
-      "icon": "🛰",
-      "embed": {
-        "status": "needs_review",
-        "basis": "not yet reviewed",
-        "terms_url": null,
-        "reviewed_on": null,
-        "reviewed_by": null
+        "status": "allowed",
+        "basis": "Site footer: CC BY-ND 3.0; the grant covers modifications \"technically necessary\" for other media and formats; notices and attribution kept, substance unaltered.",
+        "terms_url": "https://creativecommons.org/licenses/by-nd/3.0/legalcode",
+        "reviewed_on": "2026-09-25",
+        "reviewed_by": "Shaostoul (decision), evidence in docs/reference/findings/2026-09-25-site-embed-terms.md",
+        "attribution": "the Free Software Foundation, under CC BY-ND 3.0"
       },
       "affiliate": {
         "program": null,
@@ -446,11 +413,11 @@
       "description": "Browser planetarium, see what's overhead tonight.",
       "icon": "🌠",
       "embed": {
-        "status": "needs_review",
-        "basis": "not yet reviewed",
+        "status": "unknown",
+        "basis": "No terms of use published (checked the site, its robots.txt and its in-app About/Privacy/Credits dialogs); the site shows nothing without JavaScript.",
         "terms_url": null,
-        "reviewed_on": null,
-        "reviewed_by": null
+        "reviewed_on": "2026-09-25",
+        "reviewed_by": "Shaostoul (decision), evidence in docs/reference/findings/2026-09-25-site-embed-terms.md"
       },
       "affiliate": {
         "program": null,
@@ -467,11 +434,11 @@
       "description": "Solar storms, aurora forecasts, near-Earth asteroids.",
       "icon": "☄",
       "embed": {
-        "status": "needs_review",
-        "basis": "not yet reviewed",
+        "status": "unknown",
+        "basis": "No terms of use published (checked the site and robots.txt).",
         "terms_url": null,
-        "reviewed_on": null,
-        "reviewed_by": null
+        "reviewed_on": "2026-09-25",
+        "reviewed_by": "Shaostoul (decision), evidence in docs/reference/findings/2026-09-25-site-embed-terms.md"
       },
       "affiliate": {
         "program": null,
@@ -488,11 +455,12 @@
       "description": "University courses, free.",
       "icon": "🏫",
       "embed": {
-        "status": "needs_review",
-        "basis": "not yet reviewed",
-        "terms_url": null,
-        "reviewed_on": null,
-        "reviewed_by": null
+        "status": "allowed",
+        "basis": "CC BY-NC-SA 4.0; MIT: commercial vs non-commercial \"is based on the use, not the user\". A donation-funded, ad-free app reading a page is treated as non-commercial (a judgement).",
+        "terms_url": "https://ocw.mit.edu/pages/privacy-and-terms-of-use/",
+        "reviewed_on": "2026-09-25",
+        "reviewed_by": "Shaostoul (decision), evidence in docs/reference/findings/2026-09-25-site-embed-terms.md",
+        "attribution": "MIT OpenCourseWare, under CC BY-NC-SA 4.0"
       },
       "affiliate": {
         "program": null,
@@ -509,11 +477,11 @@
       "description": "Online courses from universities.",
       "icon": "🎓",
       "embed": {
-        "status": "needs_review",
-        "basis": "not yet reviewed",
-        "terms_url": null,
-        "reviewed_on": null,
-        "reviewed_by": null
+        "status": "forbidden",
+        "basis": "Screen scraping and extracting by software need Coursera's prior written consent; licence is \"only for your personal, non-commercial use, unless you obtain our written permission\".",
+        "terms_url": "https://www.coursera.org/about/terms",
+        "reviewed_on": "2026-09-25",
+        "reviewed_by": "Shaostoul (decision), evidence in docs/reference/findings/2026-09-25-site-embed-terms.md"
       },
       "affiliate": {
         "program": null,
@@ -530,11 +498,12 @@
       "description": "Code hosting and collaboration.",
       "icon": "🐙",
       "embed": {
-        "status": "needs_review",
-        "basis": "not yet reviewed",
-        "terms_url": null,
-        "reviewed_on": null,
-        "reviewed_by": null
+        "status": "allowed",
+        "basis": "Acceptable Use: scraping (automated extraction) limited to research and archiving, and no bulk automated activity; one page a person asked to see is read as not scraping. GitHub's own HTML/CSS/design is not reused (the reader uses its own styling).",
+        "terms_url": "https://docs.github.com/en/site-policy/acceptable-use-policies/github-acceptable-use-policies",
+        "reviewed_on": "2026-09-25",
+        "reviewed_by": "Shaostoul (decision), evidence in docs/reference/findings/2026-09-25-site-embed-terms.md",
+        "attribution": "GitHub; each repository under its own licence"
       },
       "affiliate": {
         "program": null,
@@ -551,11 +520,12 @@
       "description": "Web technology reference.",
       "icon": "📘",
       "embed": {
-        "status": "needs_review",
-        "basis": "not yet reviewed",
-        "terms_url": null,
-        "reviewed_on": null,
-        "reviewed_by": null
+        "status": "allowed",
+        "basis": "MDN content \"available under the terms of the Creative Commons Attribution-ShareAlike license (CC-BY-SA), v2.5\" or later; Mozilla Terms s3: abide by the licence notices.",
+        "terms_url": "https://developer.mozilla.org/en-US/docs/MDN/Writing_guidelines/Attrib_copyright_license",
+        "reviewed_on": "2026-09-25",
+        "reviewed_by": "Shaostoul (decision), evidence in docs/reference/findings/2026-09-25-site-embed-terms.md",
+        "attribution": "MDN Web Docs (Mozilla contributors), under CC BY-SA 2.5"
       },
       "affiliate": {
         "program": null,
@@ -572,11 +542,12 @@
       "description": "Questions and answers for developers.",
       "icon": "💬",
       "embed": {
-        "status": "needs_review",
-        "basis": "not yet reviewed",
-        "terms_url": null,
-        "reviewed_on": null,
-        "reviewed_by": null
+        "status": "allowed",
+        "basis": "Access needed for human use is exempt from the scraping ban; content under CC BY-SA. The reader does not copy the site's \"appearance or function\" (it draws its own).",
+        "terms_url": "https://stackoverflow.com/legal/terms-of-service/public",
+        "reviewed_on": "2026-09-25",
+        "reviewed_by": "Shaostoul (decision), evidence in docs/reference/findings/2026-09-25-site-embed-terms.md",
+        "attribution": "Stack Overflow contributors, under CC BY-SA"
       },
       "affiliate": {
         "program": null,
@@ -593,11 +564,12 @@
       "description": "The Rust programming language, the official book.",
       "icon": "🦀",
       "embed": {
-        "status": "needs_review",
-        "basis": "not yet reviewed",
-        "terms_url": null,
-        "reviewed_on": null,
-        "reviewed_by": null
+        "status": "allowed",
+        "basis": "Official Rust projects \"are generally dual-licensed\"; the book repository is Apache 2.0 or MIT.",
+        "terms_url": "https://www.rust-lang.org/policies/licenses",
+        "reviewed_on": "2026-09-25",
+        "reviewed_by": "Shaostoul (decision), evidence in docs/reference/findings/2026-09-25-site-embed-terms.md",
+        "attribution": "The Rust Programming Language, under MIT or Apache 2.0"
       },
       "affiliate": {
         "program": null,
@@ -614,11 +586,11 @@
       "description": "Voice, video and text chat. Where HumanityOS development is coordinated today.",
       "icon": "📣",
       "embed": {
-        "status": "needs_review",
-        "basis": "not yet reviewed",
-        "terms_url": null,
-        "reviewed_on": null,
-        "reviewed_by": null
+        "status": "forbidden",
+        "basis": "\"scraping our services without our written consent, including by using any robot, spider, crawler, scraper\" is prohibited.",
+        "terms_url": "https://discord.com/terms",
+        "reviewed_on": "2026-09-25",
+        "reviewed_by": "Shaostoul (decision), evidence in docs/reference/findings/2026-09-25-site-embed-terms.md"
       },
       "affiliate": {
         "program": null,
@@ -635,11 +607,12 @@
       "description": "Decentralized encrypted chat (Matrix).",
       "icon": "🔒",
       "embed": {
-        "status": "needs_review",
-        "basis": "not yet reviewed",
-        "terms_url": null,
-        "reviewed_on": null,
-        "reviewed_by": null
+        "status": "allowed",
+        "basis": "Content may be used with authorship acknowledged and not for commercial purposes; other uses via support@element.io. Donation-funded, ad-free reading is treated as non-commercial (a judgement).",
+        "terms_url": "https://element.io/terms-of-use",
+        "reviewed_on": "2026-09-25",
+        "reviewed_by": "Shaostoul (decision), evidence in docs/reference/findings/2026-09-25-site-embed-terms.md",
+        "attribution": "Element (element.io)"
       },
       "affiliate": {
         "program": null,
@@ -656,11 +629,11 @@
       "description": "Private messaging.",
       "icon": "📱",
       "embed": {
-        "status": "needs_review",
-        "basis": "not yet reviewed",
-        "terms_url": null,
-        "reviewed_on": null,
-        "reviewed_by": null
+        "status": "unknown",
+        "basis": "Terms address only automated account creation; nothing on reading or displaying pages.",
+        "terms_url": "https://signal.org/legal/",
+        "reviewed_on": "2026-09-25",
+        "reviewed_by": "Shaostoul (decision), evidence in docs/reference/findings/2026-09-25-site-embed-terms.md"
       },
       "affiliate": {
         "program": null,
@@ -677,11 +650,12 @@
       "description": "Space exploration and science.",
       "icon": "🚀",
       "embed": {
-        "status": "needs_review",
-        "basis": "not yet reviewed",
-        "terms_url": null,
-        "reviewed_on": null,
-        "reviewed_by": null
+        "status": "allowed",
+        "basis": "NASA material \"generally [is] not subject to copyright in the United States\"; use for \"educational or informational purposes\" with NASA \"acknowledged as the source\" and no implied endorsement.",
+        "terms_url": "https://www.nasa.gov/nasa-brand-center/images-and-media/",
+        "reviewed_on": "2026-09-25",
+        "reviewed_by": "Shaostoul (decision), evidence in docs/reference/findings/2026-09-25-site-embed-terms.md",
+        "attribution": "NASA (not an endorsement)"
       },
       "affiliate": {
         "program": null,
@@ -698,11 +672,12 @@
       "description": "Open-access research papers.",
       "icon": "📄",
       "embed": {
-        "status": "needs_review",
-        "basis": "not yet reviewed",
-        "terms_url": null,
-        "reviewed_on": null,
-        "reviewed_by": null
+        "status": "allowed",
+        "basis": "Only automated bulk downloading and re-hosting are forbidden; interactive human use comes first. Each paper carries its own licence.",
+        "terms_url": "https://info.arxiv.org/help/license/reuse.html",
+        "reviewed_on": "2026-09-25",
+        "reviewed_by": "Shaostoul (decision), evidence in docs/reference/findings/2026-09-25-site-embed-terms.md",
+        "attribution": "arXiv; each paper under its own licence"
       },
       "affiliate": {
         "program": null,
@@ -719,11 +694,12 @@
       "description": "Free, editable map of the world.",
       "icon": "🗺",
       "embed": {
-        "status": "needs_review",
-        "basis": "not yet reviewed",
-        "terms_url": null,
-        "reviewed_on": null,
-        "reviewed_by": null
+        "status": "allowed",
+        "basis": "Credit \"OpenStreetMap and its contributors\" (ODbL data), send an honest user agent, do not overload the servers.",
+        "terms_url": "https://www.openstreetmap.org/copyright",
+        "reviewed_on": "2026-09-25",
+        "reviewed_by": "Shaostoul (decision), evidence in docs/reference/findings/2026-09-25-site-embed-terms.md",
+        "attribution": "OpenStreetMap and its contributors"
       },
       "affiliate": {
         "program": null,
@@ -740,11 +716,12 @@
       "description": "Free office suite.",
       "icon": "📝",
       "embed": {
-        "status": "needs_review",
-        "basis": "not yet reviewed",
-        "terms_url": null,
-        "reviewed_on": null,
-        "reviewed_by": null
+        "status": "allowed",
+        "basis": "Site footer: \"Unless otherwise specified, all text and images on this website are licensed\" under CC BY-SA 3.0.",
+        "terms_url": "https://creativecommons.org/licenses/by-sa/3.0/legalcode",
+        "reviewed_on": "2026-09-25",
+        "reviewed_by": "Shaostoul (decision), evidence in docs/reference/findings/2026-09-25-site-embed-terms.md",
+        "attribution": "LibreOffice (The Document Foundation), under CC BY-SA 3.0"
       },
       "affiliate": {
         "program": null,
@@ -761,11 +738,12 @@
       "description": "Game store and community.",
       "icon": "🎮",
       "embed": {
-        "status": "needs_review",
-        "basis": "not yet reviewed",
-        "terms_url": null,
-        "reviewed_on": null,
-        "reviewed_by": null
+        "status": "allowed",
+        "basis": "Valve Site Terms: one copy for personal use, not passed to \"any other Web site or network\". Screens are drawn per viewer (operator decision 2026-09-25), so nothing is passed on; whether re-laying-out text counts as modifying it is not settled by the terms.",
+        "terms_url": "https://www.valvesoftware.com/en/legal",
+        "reviewed_on": "2026-09-25",
+        "reviewed_by": "Shaostoul (decision), evidence in docs/reference/findings/2026-09-25-site-embed-terms.md",
+        "attribution": "Valve / Steam"
       },
       "affiliate": {
         "program": null,
@@ -782,11 +760,11 @@
       "description": "DRM-free games.",
       "icon": "💿",
       "embed": {
-        "status": "needs_review",
-        "basis": "not yet reviewed",
-        "terms_url": null,
-        "reviewed_on": null,
-        "reviewed_by": null
+        "status": "forbidden",
+        "basis": "User Agreement 11.1(e) bars \"other software that interact with or affect GOG services or GOG content in any way\"; GOG says it considers permission requests.",
+        "terms_url": "https://support.gog.com/hc/en-us/articles/212632089-GOG-User-Agreement",
+        "reviewed_on": "2026-09-25",
+        "reviewed_by": "Shaostoul (decision), evidence in docs/reference/findings/2026-09-25-site-embed-terms.md"
       },
       "affiliate": {
         "program": null,
@@ -803,11 +781,11 @@
       "description": "Indie games marketplace.",
       "icon": "🎲",
       "embed": {
-        "status": "needs_review",
-        "basis": "not yet reviewed",
-        "terms_url": null,
-        "reviewed_on": null,
-        "reviewed_by": null
+        "status": "unknown",
+        "basis": "Nothing on reading or displaying pages; the closest rule forbids \"misrepresenting\" its interface, which the reader does not do.",
+        "terms_url": "https://itch.io/docs/legal/terms",
+        "reviewed_on": "2026-09-25",
+        "reviewed_by": "Shaostoul (decision), evidence in docs/reference/findings/2026-09-25-site-embed-terms.md"
       },
       "affiliate": {
         "program": null,
@@ -824,11 +802,12 @@
       "description": "Medical research database.",
       "icon": "🩺",
       "embed": {
-        "status": "needs_review",
-        "basis": "not yet reviewed",
-        "terms_url": null,
-        "reviewed_on": null,
-        "reviewed_by": null
+        "status": "allowed",
+        "basis": "Government content in the public domain with acknowledgment requested; abstracts may belong to their publishers; rate limits apply to automated use.",
+        "terms_url": "https://www.nlm.nih.gov/web_policies.html",
+        "reviewed_on": "2026-09-25",
+        "reviewed_by": "Shaostoul (decision), evidence in docs/reference/findings/2026-09-25-site-embed-terms.md",
+        "attribution": "PubMed, U.S. National Library of Medicine"
       },
       "affiliate": {
         "program": null,
@@ -845,11 +824,11 @@
       "description": "Supplement and nutrition research, summarized.",
       "icon": "🍎",
       "embed": {
-        "status": "needs_review",
-        "basis": "not yet reviewed",
-        "terms_url": null,
-        "reviewed_on": null,
-        "reviewed_by": null
+        "status": "forbidden",
+        "basis": "Bans scraping and any use of \"access to Examine.com\" without express written permission; pages sit behind a JavaScript browser check. Read from the Internet Archive copy of 2026-05-01 (the live page returned 429).",
+        "terms_url": "https://examine.com/terms/",
+        "reviewed_on": "2026-09-25",
+        "reviewed_by": "Shaostoul (decision), evidence in docs/reference/findings/2026-09-25-site-embed-terms.md"
       },
       "affiliate": {
         "program": null,

@@ -729,6 +729,21 @@
    "date": "2026-09-25",
    "decision": "Library web page: ONE scrollbar (the page). The rail lost its own scroller; it is sticky and pinRail() slides its top so a rail taller than the window travels with the page and pins at the end you are heading for. Sections and categories now fold to the PATH of the open document plus whatever the reader unfolded by hand, on web AND native (native keeps its rail ScrollArea, as app panes do).",
    "why": "Operator asked why there should be two vertical scrollbars. A single-scroll layout cannot show the top of an article and an entry far down a tall list at once, so the list had to get short: fully unfolded it was ~2,500px, folded to the open path it is ~780px (fits a 900px window). Tested: clicking a deep entry from far down a long doc first left it 30px off screen when two hand-opened branches stayed open, so AUTO-opened branches fold again when the reader moves elsewhere (hand-opened ones never do). Phone rail went from ~2,565px to 776px."
+  },
+  {
+   "date": "2026-09-25",
+   "decision": "Site embed decisions recorded (operator: \"we already have our answers\"): 21 allowed with embed.attribution credit lines drawn on every page, 7 forbidden, 4 unknown, openfarm + iss-live-tracker removed. Checker requires attribution on allowed third-party records.",
+   "why": "Most allowances rest on licences requiring credit (CC BY-SA etc.), so allowed without the credit line would break the condition; the attribution line is what makes allowed true. Non-commercial readings (OpenStax, MIT OCW, iFixit, Element) recorded as judgements in basis. Steam allowed only because screens are per viewer (operator decision), noted in basis."
+  },
+  {
+   "date": "2026-09-25",
+   "decision": "Start every session from the default home (fresh_world_each_launch, default ON): only the character applies from the save; saving writes identity only into the existing save (progress untouched) or a progress_saved:false save. Automated irrigation default 0.8 for grow areas with no slider set.",
+   "why": "Operator: stay in dev mode, never diverge from the default until it is good; perpetual saving is a liability now. His save had 1,575/1,976 crops dead of thirst: an unconfigured grow area got no water, so every growing crop died ~8 min into any session (new players too). Default irrigation fixes the showcase; slider still overrides, dry cistern still cuts it, hand-planted crops still need water. Both tests made red first."
+  },
+  {
+   "date": "2026-09-25",
+   "decision": "Screens are per viewer (never streamed); synced displays share a SOURCE from own_domains only; video Sync is a one-shot load-same-URL + seek-to-same-moment, then independent playback.",
+   "why": "Operator direction: privacy (no one sees another player's info), avoids the public-display / any-other-network clauses, keeps platform ads intact per viewer, no bandwidth. Replaces the earlier lockstep shared play/pause design."
   }
  ],
  "active_scopes_to_avoid": [

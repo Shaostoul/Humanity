@@ -321,6 +321,16 @@ Rung 6 core and its wall integration are shipped. The sites database
 records each site's review state (`embed.status`: needs_review, allowed,
 forbidden, unknown, with the basis and the reviewer).
 
+**The decisions (2026-09-25).** Every record is decided, by the operator,
+from the dated findings (`docs/reference/findings/2026-09-25-site-embed-terms.md`).
+Most "allowed" decisions rest on a licence that requires credit, so an
+allowed third-party record carries `embed.attribution` (for example
+"Wikipedia, under CC BY-SA 4.0") and the reader draws "From <attribution>.
+Original page: <url>" under the status line on every page of that site
+(`WebSites::attribution_for`). `scripts/check-web-sites.js` refuses an
+allowed third-party record without one. The reader's user agent carries a
+contact URL, which the Wikimedia User-Agent policy asks for.
+
 **The placement gate (BUILT 2026-09-25).** `WebSites::embed_verdict`
 (`src/web_reader/sites.rs`) gives every page a verdict: ours (an
 `own_domains` prefix) or reviewed `allowed`; `forbidden`; listed but

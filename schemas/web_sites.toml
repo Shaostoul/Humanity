@@ -114,14 +114,22 @@ Whether this site's pages may be shown inside HumanityOS. Fields:
                 terms were not found) and is null while needs_review.
   reviewed_on - ISO date (YYYY-MM-DD) of the review, or null.
   reviewed_by - the reviewer's name, or null.
+  attribution - (2026-09-25) the credit line the site's licence asks for,
+                e.g. "Wikipedia, under CC BY-SA 4.0". The reader shows it
+                under the status line on every page of the site, with the
+                original page's address. REQUIRED for an allowed
+                third-party site: almost every allowance rests on a
+                licence that requires attribution.
 
 A status other than needs_review REQUIRES basis + reviewed_on + reviewed_by,
 and allowed/forbidden also require terms_url. The checker enforces this so a
 record cannot claim a decision without saying whose and on what.
 
-The native card shows the status in its hover text; nothing else acts on it
-yet. When in-world screens ship, "forbidden" sites will not be placed on
-screens, and "needs_review" sites will be shown with the review badge.
+Enforced since v0.1339.0 (the placement gate, WebViewState::apply_embed_gate,
+on the Browser page and every wall screen): a "forbidden" site is refused
+before it is fetched and the reader says whose rule it is; "needs_review"
+and "unknown" sites are shown with a one-line note; an "allowed" site shows
+its attribution line. The native card also shows the status on hover.
 """
 
 [fields.affiliate]

@@ -381,6 +381,7 @@ mod tests {
                 terms_url: None,
                 reviewed_on: None,
                 reviewed_by: None,
+                attribution: None,
             },
             affiliate: WebSiteAffiliate { program: None, tag: None, disclosure: String::new() },
             notes: String::new(),

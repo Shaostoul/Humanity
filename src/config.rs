@@ -557,6 +557,10 @@ pub struct AppConfig {
     /// closed. On by default; see save_load::catch_up_world.
     #[serde(default = "default_true")]
     pub offline_progression: bool,
+    /// Start every session from the default home (operator, 2026-09-25).
+    /// On by default during development; see GuiState's field.
+    #[serde(default = "default_true")]
+    pub fresh_world_each_launch: bool,
     /// God-ray shaft intensity (v0.907 slider; 0 disables the pass).
     #[serde(default = "default_godray_intensity")]
     pub godray_intensity: f32,
@@ -1324,6 +1328,7 @@ impl AppConfig {
             shadow_strength: state.settings.shadow_strength,
             crop_growth_speed: state.settings.crop_growth_speed,
             offline_progression: state.settings.offline_progression,
+            fresh_world_each_launch: state.settings.fresh_world_each_launch,
             godray_intensity: state.settings.godray_intensity,
             aerial_strength: state.settings.aerial_strength,
             ssao_strength: state.settings.ssao_strength,
@@ -1553,6 +1558,7 @@ impl AppConfig {
         state.settings.crop_growth_speed =
             crate::systems::farming::clamp_growth_speed(self.crop_growth_speed);
         state.settings.offline_progression = self.offline_progression;
+        state.settings.fresh_world_each_launch = self.fresh_world_each_launch;
         state.settings.godray_intensity = self.godray_intensity.clamp(0.0, 1.5);
         state.settings.aerial_strength = self.aerial_strength.clamp(0.0, 2.0);
         state.settings.ssao_strength = self.ssao_strength.clamp(0.0, 1.5);

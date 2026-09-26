@@ -124,3 +124,8 @@ what we will say about it.
   readable web to fetch, reformat and show their pages. One allowed, 21
   conditional (mostly attribution), seven forbidden as written, four silent,
   one gone. Evidence for the person who records each site's `embed.status`.
+- [`2026-09-25-permission-routes-and-launchers.md`](2026-09-25-permission-routes-and-launchers.md),
+  where to ask each site that forbids the reader for permission (GOG,
+  Examine, Coursera, Discord, Project Gutenberg, Khan Academy, Instructables,
+  Element, iFixit), and whether HumanityOS could act as a game launcher
+  (GOG and Steam: contacts, APIs, affiliate programme, Playnite and Heroic).

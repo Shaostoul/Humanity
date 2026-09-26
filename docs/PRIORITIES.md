@@ -1014,12 +1014,15 @@ Remaining, in the order they were fenced:
 
 - ~~A placement gate on `embed.status`~~ BUILT 2026-09-25: a forbidden site
   is refused before it is fetched on the Browser page and every wall, an
-  unreviewed one carries a note (`docs/design/readable-web.md`). The 34
-  `needs_review` records still need a person to decide. The evidence is ready:
-  `docs/reference/findings/2026-09-25-site-embed-terms.md` (one allowed, 21
-  conditional, seven forbidden as written: Project Gutenberg, Khan Academy,
-  Instructables, Coursera, Discord, GOG, Examine; OpenFarm no longer exists and
-  the ISS tracker URL is dead).
+  unreviewed one carries a note (`docs/design/readable-web.md`). **All 34
+  records DECIDED 2026-09-25 by the operator** from
+  `docs/reference/findings/2026-09-25-site-embed-terms.md`: 21 allowed, each
+  with the credit line its licence asks for (`embed.attribution`, drawn on
+  every page; the checker requires it for an allowed third-party site), seven
+  forbidden (Project Gutenberg, Khan Academy, Instructables, Coursera,
+  Discord, GOG, Examine), four unknown (no terms address it), OpenFarm and
+  the dead ISS tracker link removed. Asking GOG and others for permission is
+  the operator's to send; the contact routes are being gathered.
 - ~~The screens' share of the interior frame (the console room at 9 fps)~~
   STALE, corrected 2026-09-25: that figure predates the P2/P3 megashader split.
   Measured after P3 (`docs/design/frame-cost-arc.md`, the phase-B table):
@@ -1027,8 +1030,12 @@ Remaining, in the order they were fenced:
   `gpu.transparent` 2.45; `console-face-3` (camera wall in view) 11.81 / 2.64.
   A web screen costs 0.064 ms GPU. What remains is the room's own scene cost,
   which belongs to arc B, not to the screens.
-- Player-synchronised playback (needs the relay clock), and subtitles. Seek
-  shipped in v0.1325.0 and is off this list.
+- **Sync** (redesigned by the operator 2026-09-25): a one-shot "jump to where
+  they are". The receiver's own app loads the same URL and seeks to the same
+  moment; playback, pauses and ads stay each viewer's own. Screens are drawn
+  per viewer and never streamed; synced displays share a SOURCE and only our
+  own domains. `docs/design/in-world-screens.md`, "Screens are per viewer".
+  Then subtitles. Seek shipped in v0.1325.0 and is off this list.
 - ~~Open defect: a `watch:` screen with no server retries a hostless URL~~
   FIXED 2026-09-18 in a494c7fc (`live_status` names where to set a server
   and does not connect at all); this line was stale until 2026-09-25.

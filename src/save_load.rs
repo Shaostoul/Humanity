@@ -327,6 +327,43 @@ pub fn apply_save_to_world(world: &mut hecs::World, save: &WorldSave) {
     }
 }
 
+/// Apply ONLY the character (name, look, outfit) from a save: the path for
+/// "Start every session from the default home" and for a save that carries
+/// no progress (`progress_saved == false`). The home, inventory, garden,
+/// builds and clock stay the default.
+pub fn apply_identity(world: &mut hecs::World, save: &WorldSave) {
+    for (_e, (name, appearance, outfit, _ctrl)) in world.query_mut::<(
+        &mut crate::ecs::components::Name,
+        &mut crate::ecs::components::Appearance,
+        &mut crate::ecs::components::Outfit,
+        &Controllable,
+    )>() {
+        if !save.character_name.is_empty() {
+            name.0 = save.character_name.clone();
+        }
+        *appearance = save.appearance.clone();
+        *outfit = save.outfit.clone();
+        break;
+    }
+}
+
+/// The save to write when progress is NOT being kept: the existing save
+/// with only the character replaced, so the progress on disk survives
+/// untouched for when the setting is turned off. With no save yet, a
+/// character-only save marked `progress_saved: false`.
+pub fn identity_only_save(existing: Option<WorldSave>, world: &hecs::World) -> WorldSave {
+    let current = extract_world_save(world);
+    let mut save = existing.unwrap_or_else(|| {
+        let mut s = WorldSave::new_offline("My Homestead", "fibonacci");
+        s.progress_saved = false;
+        s
+    });
+    save.character_name = current.character_name;
+    save.appearance = current.appearance;
+    save.outfit = current.outfit;
+    save
+}
+
 /// Extract + write the active offline home to disk. Logs on failure. `placed` is the
 /// organize-layer container pool (GuiState-owned, not in the ECS world), persisted
 /// alongside the world-derived save so container contents + transfers survive a restart.
@@ -334,12 +371,23 @@ pub fn save_active_home(
     world: &hecs::World,
     placed: &[crate::gui::PlacedItem],
     data: &crate::hot_reload::data_store::DataStore,
+    keep_progress: bool,
 ) {
+    if !keep_progress {
+        // "Start every session from the default home": record the character,
+        // leave any progress save exactly as it was.
+        let save = identity_only_save(load_active_home(), world);
+        if let Err(e) = persistence::save_world(&active_home_path(), &save) {
+            log::error!("save_active_home (character only) failed: {e}");
+        }
+        return;
+    }
     let mut save = extract_world_save(world);
     save.placed_items = placed.to_vec();
     // The world clock, from the TimeSystem's DataStore export. Crop
     // planted_at values are only meaningful against it.
     save.game_time = crate::systems::time::elapsed_now(data);
+    save.progress_saved = true;
     // Craft batches in flight, from the CraftingSystem's export (the list
     // lives inside the system). Their inputs are already spent.
     save.crafts = data
@@ -365,6 +413,7 @@ pub fn maybe_periodic_save(
     world: &hecs::World,
     placed: &[crate::gui::PlacedItem],
     data: &crate::hot_reload::data_store::DataStore,
+    keep_progress: bool,
     interval_secs: u64,
 ) {
     let now = now_secs();
@@ -377,7 +426,7 @@ pub fn maybe_periodic_save(
     }
     if now.saturating_sub(last) >= interval_secs {
         LAST_SAVE_SECS.store(now, Ordering::Relaxed);
-        save_active_home(world, placed, data);
+        save_active_home(world, placed, data, keep_progress);
     }
 }
 
@@ -1082,6 +1131,39 @@ mod tests {
         assert_eq!(r, vec![0.0, 5_400.0]);
         let r: Vec<f32> = restored_crafts(&save, 0.0).iter().map(|c| c.time_remaining).collect();
         assert_eq!(r, vec![7.0, 9_000.0], "no time away, no change");
+    }
+
+    /// "Start every session from the default home" (2026-09-25): writing
+    /// keeps an existing progress save untouched apart from the character,
+    /// and with no save yet writes a character-only save that is marked as
+    /// carrying no progress.
+    #[test]
+    fn identity_only_save_leaves_progress_alone() {
+        let mut world = hecs::World::new();
+        world.spawn((
+            Controllable,
+            Inventory::new(8),
+            PlayerSkills::new(),
+            crate::ecs::components::Name("Astra".to_string()),
+            crate::ecs::components::Appearance::default(),
+            crate::ecs::components::Outfit::default(),
+        ));
+        let mut existing = WorldSave::new_offline("t", "fibonacci");
+        existing.character_name = "Old Name".into();
+        existing.inventory = vec![("wood_plank_0".into(), 40)];
+        existing.crops = vec![crop(5.0, "seedling")];
+        existing.game_time = 999.0;
+        let out = identity_only_save(Some(existing), &world);
+        assert_eq!(out.character_name, "Astra", "the character is recorded");
+        assert_eq!(out.inventory, vec![("wood_plank_0".to_string(), 40)], "progress untouched");
+        assert_eq!(out.crops.len(), 1);
+        assert_eq!(out.game_time, 999.0);
+        assert!(out.progress_saved);
+
+        let fresh = identity_only_save(None, &world);
+        assert_eq!(fresh.character_name, "Astra");
+        assert!(!fresh.progress_saved, "a character-only save says so");
+        assert!(fresh.inventory.is_empty() && fresh.crops.is_empty());
     }
 
     #[test]

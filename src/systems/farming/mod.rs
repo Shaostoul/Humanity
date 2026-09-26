@@ -348,6 +348,12 @@ const HEALTH_RECOVERY_RATE: f32 = 0.5;
 /// Health decay rate per second when water-stressed.
 const HEALTH_DECAY_RATE: f32 = 1.0;
 
+/// Water level the home's automated irrigation holds a grow area at when
+/// the player has not set that area's slider (2026-09-25). Well above the
+/// 0.2 stress line, below saturation, the way a timed drip or aeroponic
+/// pump keeps a root zone.
+pub const DEFAULT_AUTO_IRRIGATION: f32 = 0.8;
+
 /// Home RF level above which crops start taking RF stress (v0.620). Any notable wireless emission.
 const RF_HARM_THRESHOLD: f32 = 0.1;
 /// Crop health lost per second per unit of home RF level. Scaled so one WiFi router (~0.6) outpaces the
@@ -1045,11 +1051,20 @@ impl System for FarmingSystem {
             // lets them dehydrate and wilt -- so the garden edit slider is meaningful.
             // GATED on the home's water sim (v0.611): a dry cistern can't feed the
             // irrigation, so the top-up is suppressed and the crops dehydrate.
+            //
+            // A grow area with NO slider set is watered by the home's automated
+            // irrigation at DEFAULT_AUTO_IRRIGATION (2026-09-25). Before this an
+            // un-configured area got nothing, so every crop still growing died of
+            // thirst about eight minutes into a session (0.002/s down to the 0.2
+            // stress line, then 100 s of health): the operator's save held 1,575
+            // of 1,976 crops dead of thirst, and a new player's showcase garden
+            // went the same way. A slider still overrides it (set it low to let an
+            // area dry out), a dry cistern still cuts it off, and a crop planted
+            // outside any grow area still needs watering by hand.
             if water_available {
                 if let Some(tid) = &crop.tower_id {
-                    if let Some(target) = irrigation.get(tid) {
-                        crop.water_level = crop.water_level.max(*target);
-                    }
+                    let target = irrigation.get(tid).copied().unwrap_or(DEFAULT_AUTO_IRRIGATION);
+                    crop.water_level = crop.water_level.max(target);
                 }
             }
 
@@ -1620,15 +1635,19 @@ mod gardening_tests {
 
     /// Per-area irrigation: a crop whose grow area is configured with a water target
     /// (the garden edit modal's water slider) stays topped up and holds health, while
-    /// an un-configured crop dehydrates and loses health. Proves the slider is wired
-    /// through to the sim -- editing a grow area actually changes crop survival.
+    /// an area whose slider is turned down to zero dehydrates and loses health. Proves
+    /// the slider is wired through to the sim -- editing a grow area actually changes
+    /// crop survival. (Until 2026-09-25 the dry case was an UN-configured area; that
+    /// is now watered by default, see `unconfigured_grow_areas_are_watered_by_default`.)
     #[test]
     fn per_area_irrigation_keeps_configured_crops_watered() {
         use crate::ecs::components::CropInstance;
         let mut data = make_store();
-        // Configure the "nutrition" tower for full irrigation (water slider = 1.0).
+        // Configure the "nutrition" tower for full irrigation (water slider = 1.0),
+        // and turn the "apothecary" tower's slider right down.
         let mut irr = std::collections::HashMap::new();
         irr.insert("nutrition".to_string(), 1.0_f32);
+        irr.insert("apothecary".to_string(), 0.0_f32);
         data.insert("garden_irrigation", std::sync::Mutex::new(irr));
 
         let mut sys = FarmingSystem::new();
@@ -1644,7 +1663,7 @@ mod gardening_tests {
         };
         // Irrigated crop lives in the configured "nutrition" tower.
         let irrigated = world.spawn((dry("nutrition"),));
-        // Parched crop lives in an un-configured tower (not in the irrigation map).
+        // Parched crop lives in the tower whose water slider is turned down to zero.
         let parched = world.spawn((dry("apothecary"),));
 
         for _ in 0..5 {
@@ -1674,6 +1693,45 @@ mod gardening_tests {
             "un-irrigated crop lost health vs the irrigated one ({} vs {})",
             dry_c.health,
             irr_c.health
+        );
+    }
+
+    /// The default (2026-09-25): a grow area nobody configured is watered by the
+    /// home's automated irrigation, so a showcase garden does not die of thirst
+    /// eight minutes into a session (the operator's save held 1,575 of 1,976 crops
+    /// dead that way). A crop planted outside any grow area still dries out and
+    /// needs watering by hand.
+    #[test]
+    fn unconfigured_grow_areas_are_watered_by_default() {
+        use crate::ecs::components::CropInstance;
+        let data = make_store();
+        let mut sys = FarmingSystem::new();
+        let mut world = hecs::World::new();
+        let crop = |tower: Option<&str>| CropInstance {
+            crop_def_id: "tomato".to_string(),
+            growth_stage: "sprout".to_string(),
+            planted_at: 0.0,
+            water_level: 1.0,
+            health: 100.0,
+            tower_id: tower.map(str::to_string),
+            tower_slot: None,
+        };
+        let in_area = world.spawn((crop(Some("ntower_3")),));
+        let by_hand = world.spawn((crop(None),));
+        // Ten minutes: past the eight it used to take to die.
+        for _ in 0..600 {
+            sys.tick(&mut world, 1.0, &data);
+        }
+        let a = world.get::<&CropInstance>(in_area).unwrap();
+        assert!(a.water_level >= DEFAULT_AUTO_IRRIGATION - 1e-4, "grow area watered by default, got {}", a.water_level);
+        assert!(a.health >= 99.0, "and healthy, got {}", a.health);
+        assert_ne!(a.growth_stage, STAGE_DEAD);
+        let h = world.get::<&CropInstance>(by_hand).unwrap();
+        assert!(
+            h.water_level < 0.2 && h.health < 100.0,
+            "a hand-planted crop still dries out ({} water, {} health)",
+            h.water_level,
+            h.health
         );
     }
 

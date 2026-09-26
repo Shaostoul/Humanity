@@ -95,6 +95,29 @@ where the consequence is self-inflicted:
   authoritative game time (`game_time_sync`), so this is a matter of reading the
   clock that already exists rather than building one.
 
+## During development: every session starts from the default home (2026-09-25)
+
+Operator, verbatim: "let's stay in the dev mode, I don't want to diverge
+again so that we can make sure I always see what you build and what our
+default is. Once the default is good then I'll be more comfortable
+'playing.' Until then perpetual saving for normal gameplay like experience
+is a liability."
+
+The divergence was real: his save held 1,976 crops with 1,575 dead of
+thirst, and because the showcase garden only replants an EMPTY garden, it
+would never have come back, while a new player got a fresh one.
+
+So Settings > Gameplay > "Start every session from the default home" is ON
+by default (`fresh_world_each_launch`). While it is on, only the character
+(name, look, outfit) is applied from the save; the home, garden, inventory,
+builds, craft batches and clock start from the default every launch, and
+offline progression does not apply. Saving writes only the character into
+the existing save, so the progress on disk is left exactly as it was and
+comes back when the setting is turned off. A save written with no progress
+save yet is marked `progress_saved: false` and is never applied as a home.
+The build editor still saves the LAYOUT into `data/`, which is the default
+itself, so shaping the starting home keeps working. Revisit at launch.
+
 ## What is built (2026-09-25)
 
 - **The clock is saved and restored.** Before this, `GameTime` started at zero

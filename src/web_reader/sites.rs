@@ -42,6 +42,12 @@ pub struct WebSiteEmbed {
     pub reviewed_on: Option<String>,
     /// Who reviewed it, or null.
     pub reviewed_by: Option<String>,
+    /// The credit line the site's licence asks for (2026-09-25), e.g.
+    /// "Wikipedia, under CC BY-SA 4.0". Shown under the status line on every
+    /// page of the site; most "allowed" decisions rest on it, because the
+    /// licences that allow reuse almost all require attribution.
+    #[serde(default)]
+    pub attribution: Option<String>,
 }
 
 /// Affiliate programme fields. All null today; recorded so the day a tag is
@@ -162,25 +168,13 @@ impl WebSites {
     /// for the rest of its host (the repository record does not make every
     /// github.com page "allowed").
     pub fn embed_verdict(&self, url: &str) -> EmbedVerdict {
-        if self.own_domains.iter().any(|d| url_under(url, d)) {
+        if self.is_own(url) {
             return EmbedVerdict::Allowed;
         }
         let Some(host) = host_of(url) else {
             return EmbedVerdict::NotListed { host: url.to_string() };
         };
-        let candidates: Vec<&WebSite> = self
-            .sites
-            .iter()
-            .filter(|s| host_of(&s.url).as_deref() == Some(host.as_str()))
-            .filter(|s| !self.own_domains.iter().any(|d| url_under(&s.url, d)))
-            .collect();
-        let site = candidates
-            .iter()
-            .filter(|s| url_under(url, &s.url))
-            .max_by_key(|s| s.url.len())
-            .or_else(|| candidates.first())
-            .copied();
-        match site {
+        match self.site_for(url) {
             None => EmbedVerdict::NotListed { host },
             Some(s) => match s.embed.status.as_str() {
                 "allowed" => EmbedVerdict::Allowed,
@@ -189,6 +183,42 @@ impl WebSites {
                 _ => EmbedVerdict::Unreviewed { name: s.name.clone(), terms_not_found: false },
             },
         }
+    }
+
+    fn is_own(&self, url: &str) -> bool {
+        self.own_domains.iter().any(|d| url_under(url, d))
+    }
+
+    /// The record a page belongs to, by the rules `embed_verdict` documents:
+    /// matched on host, the longest url prefix winning, and never one of our
+    /// own prefixes speaking for the rest of its host.
+    fn site_for(&self, url: &str) -> Option<&WebSite> {
+        let host = host_of(url)?;
+        let candidates: Vec<&WebSite> = self
+            .sites
+            .iter()
+            .filter(|s| host_of(&s.url).as_deref() == Some(host.as_str()))
+            .filter(|s| !self.is_own(&s.url))
+            .collect();
+        candidates
+            .iter()
+            .filter(|s| url_under(url, &s.url))
+            .max_by_key(|s| s.url.len())
+            .or_else(|| candidates.first())
+            .copied()
+    }
+
+    /// The credit line for a page on an ALLOWED site whose record carries one
+    /// (see `WebSiteEmbed::attribution`). None for our own pages, for sites
+    /// without a credit, and for anything not allowed.
+    pub fn attribution_for(&self, url: &str) -> Option<&str> {
+        if self.is_own(url) {
+            return None;
+        }
+        self.site_for(url)
+            .filter(|s| s.embed.status == "allowed")
+            .and_then(|s| s.embed.attribution.as_deref())
+            .filter(|a| !a.trim().is_empty())
     }
 }
 
@@ -249,6 +279,7 @@ mod tests {
                 terms_url: None,
                 reviewed_on: None,
                 reviewed_by: None,
+                attribution: None,
             },
             affiliate: WebSiteAffiliate {
                 program: Some("p".into()),
@@ -275,6 +306,7 @@ mod tests {
                 terms_url: None,
                 reviewed_on: None,
                 reviewed_by: None,
+                attribution: None,
             },
             affiliate: WebSiteAffiliate { program: None, tag: None, disclosure: String::new() },
             notes: String::new(),
@@ -310,6 +342,41 @@ mod tests {
         assert_eq!(v("https://elsewhere.example/"), EmbedVerdict::NotListed { host: "elsewhere.example".into() });
         assert!(v("https://nope.example/").note().unwrap().contains("the site's rule, not a law"));
         assert_eq!(EmbedVerdict::Allowed.note(), None);
+    }
+
+    /// The credit line: shown for an allowed site that carries one, never
+    /// for our own pages, a forbidden site or an unlisted host.
+    #[test]
+    fn attribution_is_given_only_for_allowed_sites_that_carry_one() {
+        let mut db = WebSites::default();
+        db.own_domains = vec!["https://github.com/Shaostoul/Humanity".into()];
+        let mut wiki = site("wiki", "https://wiki.example/", "allowed");
+        wiki.embed.attribution = Some("Wiki, under CC BY-SA 4.0".into());
+        let mut nope = site("nope", "https://nope.example/", "forbidden");
+        nope.embed.attribution = Some("never shown".into());
+        let mut ours = site("ours", "https://github.com/Shaostoul/Humanity", "allowed");
+        ours.embed.attribution = Some("never shown either".into());
+        db.sites = vec![wiki, nope, ours, site("plain", "https://plain.example/", "allowed")];
+        assert_eq!(db.attribution_for("https://wiki.example/a/b"), Some("Wiki, under CC BY-SA 4.0"));
+        assert_eq!(db.attribution_for("https://nope.example/x"), None);
+        assert_eq!(db.attribution_for("https://github.com/Shaostoul/Humanity/issues"), None);
+        assert_eq!(db.attribution_for("https://plain.example/"), None);
+        assert_eq!(db.attribution_for("https://elsewhere.example/"), None);
+    }
+
+    /// The 2026-09-25 decisions: nothing is left awaiting review, and every
+    /// ALLOWED third-party site carries its credit line, because almost every
+    /// one of those decisions rests on a licence that requires attribution.
+    #[test]
+    fn every_allowed_third_party_site_carries_its_credit_line() {
+        let text = std::fs::read_to_string("data/web/sites.json").expect("data/web/sites.json readable");
+        let db: WebSites = serde_json::from_str(&text).expect("sites.json parses");
+        for s in &db.sites {
+            assert_ne!(s.embed.status, "needs_review", "{} is still awaiting review", s.id);
+            if s.embed.status == "allowed" && !db.is_own(&s.url) {
+                assert!(db.attribution_for(&s.url).is_some(), "{} is allowed but carries no credit line", s.id);
+            }
+        }
     }
 
     /// Every shipped record gets a verdict matching its own status, so the

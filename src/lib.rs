@@ -1369,15 +1369,10 @@ mod native_app {
             // it instead of overwriting with empty).
             // Kept for two later steps: the placed-items pool below, and the
             // clock resume + offline catch-up after the config loads.
+            // APPLIED after the config loads (below), because whether the
+            // progress in it is used at all is a setting ("Start every session
+            // from the default home", 2026-09-25). Nothing ticks in between.
             let home_save = crate::save_load::load_active_home();
-            if let Some(save) = &home_save {
-                crate::save_load::apply_save_to_world(&mut game_world.world, save);
-                log::info!(
-                    "Loaded offline home: {} item stacks, {} skills",
-                    save.inventory.len(),
-                    save.skills.len()
-                );
-            }
             // Test asteroids for the mining loop (finite ore; DroneSystem deletes one
             // when fully consumed). Dev/testing content — MMO asteroids are server-side.
             game_world.world.spawn((crate::ecs::components::AsteroidBody {
@@ -1481,11 +1476,9 @@ mod native_app {
             // active home has any (transfers persisted, v0.517), else seed from the
             // places spine (every leaf item tagged with its container path). The live
             // backpack stays ECS-driven (restored separately by apply_save_to_world).
-            gui_state.placed_items = home_save
-                .as_ref()
-                .map(|s| s.placed_items.clone())
-                .filter(|p| !p.is_empty())
-                .unwrap_or_else(|| crate::gui::flatten_placed_items(&gui_state.places));
+            // (the saved pool replaces it below, after the config, when
+            // progress is being kept)
+            gui_state.placed_items = crate::gui::flatten_placed_items(&gui_state.places);
             gui_state.homestead_design = crate::gui::load_homestead_design(&data_dir);
             // Load the home's machine layout ONCE: both the Home-page self-sufficiency
             // loops AND the construction editor's editable machine layout come from it
@@ -1656,15 +1649,36 @@ mod native_app {
             // by the time away when offline progression is on (2026-09-25).
             // Here and not at the apply above because the toggle is a setting,
             // and settings land only now. Nothing has ticked in between.
+            //
+            // "Start every session from the default home" (on by default
+            // during development) keeps only the character, and so does a
+            // save that carries no progress.
             if let Some(save) = &home_save {
-                let resumed = crate::save_load::resume_home(
-                    &mut game_world.world,
-                    &data_store,
-                    save,
-                    gui_state.settings.offline_progression,
-                );
-                if let Some(msg) = crate::save_load::away_notice(&resumed) {
-                    gui_state.pending_notices.push(msg);
+                if gui_state.settings.fresh_world_each_launch || !save.progress_saved {
+                    crate::save_load::apply_identity(&mut game_world.world, save);
+                    log::info!(
+                        "Fresh home this session: kept the character '{}', started from the default home (Settings > Gameplay)",
+                        save.character_name
+                    );
+                } else {
+                    crate::save_load::apply_save_to_world(&mut game_world.world, save);
+                    if !save.placed_items.is_empty() {
+                        gui_state.placed_items = save.placed_items.clone();
+                    }
+                    log::info!(
+                        "Loaded offline home: {} item stacks, {} skills",
+                        save.inventory.len(),
+                        save.skills.len()
+                    );
+                    let resumed = crate::save_load::resume_home(
+                        &mut game_world.world,
+                        &data_store,
+                        save,
+                        gui_state.settings.offline_progression,
+                    );
+                    if let Some(msg) = crate::save_load::away_notice(&resumed) {
+                        gui_state.pending_notices.push(msg);
+                    }
                 }
             }
             // Bring the self-hosted relay node back up if it was running at
@@ -2081,6 +2095,7 @@ mod native_app {
                         &state.game_world.world,
                         &state.gui_state.placed_items,
                         &state.data_store,
+                        !state.gui_state.settings.fresh_world_each_launch,
                     );
                     // Flush unsaved build edits too (v0.791): quitting without the
                     // explicit Save button used to silently drop every wall/light/
@@ -6907,6 +6922,7 @@ mod native_app {
                         &state.game_world.world,
                         &state.gui_state.placed_items,
                         &state.data_store,
+                        !state.gui_state.settings.fresh_world_each_launch,
                         120,
                     );
                     // Ship-structure autosave (v0.791): build edits used to persist
@@ -7356,6 +7372,7 @@ mod native_app {
                             &state.game_world.world,
                             &state.gui_state.placed_items,
                             &state.data_store,
+                            !state.gui_state.settings.fresh_world_each_launch,
                         );
                         state.controller.showroom_lock = false;
                         state
@@ -14503,20 +14520,30 @@ mod native_app {
                                     }
                                     if let Ok(save) = crate::persistence::load_world(&path) {
                                         if save.name == name {
-                                            crate::save_load::apply_save_to_world(
-                                                &mut state.game_world.world,
-                                                &save,
-                                            );
-                                            // The clock rewinds with the save, and
-                                            // the garden is caught up from its stamp.
-                                            let resumed = crate::save_load::resume_home(
-                                                &mut state.game_world.world,
-                                                &state.data_store,
-                                                &save,
-                                                state.gui_state.settings.offline_progression,
-                                            );
-                                            if let Some(msg) = crate::save_load::away_notice(&resumed) {
-                                                state.gui_state.pending_notices.push(msg);
+                                            // Same rule as startup: with "Start every
+                                            // session from the default home" on (or a
+                                            // save carrying no progress) only the
+                                            // character is applied.
+                                            if state.gui_state.settings.fresh_world_each_launch
+                                                || !save.progress_saved
+                                            {
+                                                crate::save_load::apply_identity(&mut state.game_world.world, &save);
+                                            } else {
+                                                crate::save_load::apply_save_to_world(
+                                                    &mut state.game_world.world,
+                                                    &save,
+                                                );
+                                                // The clock rewinds with the save, and
+                                                // the garden is caught up from its stamp.
+                                                let resumed = crate::save_load::resume_home(
+                                                    &mut state.game_world.world,
+                                                    &state.data_store,
+                                                    &save,
+                                                    state.gui_state.settings.offline_progression,
+                                                );
+                                                if let Some(msg) = crate::save_load::away_notice(&resumed) {
+                                                    state.gui_state.pending_notices.push(msg);
+                                                }
                                             }
                                             // The world just REWOUND to the save:
                                             // drop in-flight craft batches or their
