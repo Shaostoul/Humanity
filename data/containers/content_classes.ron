@@ -152,6 +152,8 @@
     // Flammable liquid, fuel, oil, solvents. Needs a sealed non-reactive vessel.
     (
         id: "flammable",
+        // Leaves a toxic history (2026-09-26): never food or water again.
+        leaves_toxic_history: true,
         name: "Flammable",
         needs_pressure: false,
         needs_insulation: false,
@@ -165,6 +167,8 @@
     // Corrosive, strong acids/bases. Needs a chemical-resistant sealed container.
     (
         id: "corrosive",
+        // Leaves a toxic history (2026-09-26): never food or water again.
+        leaves_toxic_history: true,
         name: "Corrosive",
         needs_pressure: false,
         needs_insulation: false,
@@ -178,6 +182,8 @@
     // Hazmat, toxic or hazardous solids/liquids requiring containment.
     (
         id: "hazmat",
+        // Leaves a toxic history (2026-09-26): never food or water again.
+        leaves_toxic_history: true,
         name: "Hazardous Material",
         needs_pressure: false,
         needs_insulation: false,
@@ -191,6 +197,8 @@
     // Toxic, poisonous content; subset of hazmat handling.
     (
         id: "toxic",
+        // Leaves a toxic history (2026-09-26): never food or water again.
+        leaves_toxic_history: true,
         name: "Toxic",
         needs_pressure: false,
         needs_insulation: false,

@@ -26,27 +26,37 @@
 #   max_temp_c                - Highest content temperature the container tolerates (deg C).
 #   min_temp_c                - Lowest content temperature the container tolerates (deg C).
 #                               Cryogenic tanks go very low (e.g. -200) and are insulated.
+#   direct_contact            - (2026-09-26) true when the contents touch the material itself
+#                               (barrels, tanks, pots, sacks, bins); false when they sit in
+#                               their own packaging (cabinets, shelves, freezers). Only a
+#                               direct-contact vessel is held to its material's food-grade
+#                               and reactivity rules (materials.csv, content_traits.ron).
+#   base_material             - (2026-09-26) an id from materials.csv.
 #   accepted_content_classes  - Pipe-separated whitelist of content classes this container
 #                               can safely hold (e.g. "liquid|water"). Matches ids in
 #                               content_classes.ron. Anything NOT in this list is
 #                               incompatible and damages the container.
 #   description               - One-line description.
 #
-id,name,base_material,capacity_liters,pressure_rating_atm,max_temp_c,min_temp_c,accepted_content_classes,description
-dry_goods_crate,Dry Goods Crate,pine,200.0,1.0,60.0,-20.0,solid|dry_goods,Slatted wooden crate for dry bulk solids and packaged goods
-canvas_sack,Canvas Sack,canvas,50.0,1.0,60.0,-20.0,solid|dry_goods,Flexible woven sack for grain seed and loose dry goods
-wooden_barrel,Wooden Barrel,oak,200.0,1.2,50.0,-5.0,liquid|food,Curved-stave barrel for water wine and non-corrosive liquids
-steel_fuel_drum,Steel Fuel Drum,steel,200.0,2.0,80.0,-30.0,liquid|flammable,Sealed steel drum for fuel oil and flammable liquids
-hdpe_water_tank,HDPE Water Tank,hdpe,1000.0,1.0,50.0,-5.0,liquid|water,Food-safe polyethylene cistern for potable water
-glass_food_jar,Glass Food Jar,glass,2.0,1.0,100.0,-20.0,liquid|solid|food,Sealable glass jar for preserved food liquids and dry goods
-steel_gas_cylinder,Steel Gas Cylinder,steel,50.0,200.0,60.0,-40.0,gas|compressed,High-pressure steel cylinder for compressed gases
-cryo_pressure_tank,Cryogenic Pressure Tank,steel,500.0,25.0,40.0,-200.0,liquid_cryogenic,Vacuum-insulated pressure tank for cryogenic liquids like liquid nitrogen or liquid CO2
-hazmat_box,Hazmat Containment Box,hdpe,100.0,1.5,80.0,-30.0,solid|hazmat|toxic|corrosive,Sealed chemical-resistant box for hazardous solids and toxic or corrosive materials
-dairy_food_tank,Dairy Food Tank,steel,2000.0,1.0,40.0,0.0,liquid|food,Food-grade stainless tank for milk and potable food liquids
-grain_silo_bin,Grain Silo Bin,steel,4000.0,1.0,60.0,-30.0,solid|dry_goods,Vertical bulk storage bin for grain and dry staples
-furniture_drawer,Furniture Drawer,pine,60.0,1.0,60.0,-20.0,solid|dry_goods,Built-in drawer of a desk or nightstand for small dry items
-wardrobe_cabinet,Wardrobe,pine,600.0,1.0,60.0,-20.0,solid|dry_goods,Tall clothing cabinet with rail and shelves
-bookshelf_bin,Bookshelf,pine,300.0,1.0,60.0,-20.0,solid|dry_goods,Open shelving for books and boxed dry goods
-pantry_cabinet_bin,Pantry Cabinet,pine,700.0,1.0,60.0,-20.0,solid|dry_goods|food,Sealed kitchen cabinet for dry and jarred food
-tool_cabinet,Tool Rack,steel,250.0,1.0,120.0,-40.0,solid,Wall rack and bins for hand tools and hardware
-freezer_chest,Freezer Chest,steel,400.0,1.0,10.0,-30.0,solid|food,Insulated chest freezer holding food well below zero
+id,name,base_material,capacity_liters,pressure_rating_atm,max_temp_c,min_temp_c,accepted_content_classes,description,direct_contact
+dry_goods_crate,Dry Goods Crate,pine,200.0,1.0,60.0,-20.0,solid|dry_goods,Slatted wooden crate for dry bulk solids and packaged goods,true
+canvas_sack,Canvas Sack,canvas,50.0,1.0,60.0,-20.0,solid|dry_goods,Flexible woven sack for grain seed and loose dry goods,true
+wooden_barrel,Wooden Barrel,oak,200.0,1.2,50.0,-5.0,liquid|food,Curved-stave barrel for water wine and non-corrosive liquids,true
+steel_fuel_drum,Steel Fuel Drum,carbon_steel,200.0,2.0,80.0,-30.0,liquid|flammable,Sealed steel drum for fuel oil and flammable liquids,true
+hdpe_water_tank,HDPE Water Tank,hdpe,1000.0,1.0,50.0,-5.0,liquid|water,Food-safe polyethylene cistern for potable water,true
+glass_food_jar,Glass Food Jar,glass,2.0,1.0,100.0,-20.0,liquid|solid|food,Sealable glass jar for preserved food liquids and dry goods,true
+steel_gas_cylinder,Steel Gas Cylinder,carbon_steel,50.0,200.0,60.0,-40.0,gas|compressed,High-pressure steel cylinder for compressed gases,true
+cryo_pressure_tank,Cryogenic Pressure Tank,stainless_304,500.0,25.0,40.0,-200.0,liquid_cryogenic,Vacuum-insulated pressure tank for cryogenic liquids like liquid nitrogen or liquid CO2,true
+hazmat_box,Hazmat Containment Box,hdpe,100.0,1.5,80.0,-30.0,solid|hazmat|toxic|corrosive,Sealed chemical-resistant box for hazardous solids and toxic or corrosive materials,true
+dairy_food_tank,Dairy Food Tank,stainless_304,2000.0,1.0,40.0,0.0,liquid|food,Food-grade stainless tank for milk and potable food liquids,true
+grain_silo_bin,Grain Silo Bin,galvanized_steel,4000.0,1.0,60.0,-30.0,solid|dry_goods,Vertical bulk storage bin for grain and dry staples,true
+furniture_drawer,Furniture Drawer,pine,60.0,1.0,60.0,-20.0,solid|dry_goods,Built-in drawer of a desk or nightstand for small dry items,false
+wardrobe_cabinet,Wardrobe,pine,600.0,1.0,60.0,-20.0,solid|dry_goods,Tall clothing cabinet with rail and shelves,false
+bookshelf_bin,Bookshelf,pine,300.0,1.0,60.0,-20.0,solid|dry_goods,Open shelving for books and boxed dry goods,false
+pantry_cabinet_bin,Pantry Cabinet,pine,700.0,1.0,60.0,-20.0,solid|dry_goods|food,Sealed kitchen cabinet for dry and jarred food,false
+tool_cabinet,Tool Rack,carbon_steel,250.0,1.0,120.0,-40.0,solid,Wall rack and bins for hand tools and hardware,false
+freezer_chest,Freezer Chest,aluminium,400.0,1.0,10.0,-30.0,solid|food,Insulated chest freezer holding food well below zero,false
+ibc_tote,IBC Tote (1000 L),hdpe,1000.0,1.0,60.0,-20.0,liquid|water|food|flammable,"Caged HDPE bulk tote, the usual homestead rainwater tank; what it first held decides whether it may ever hold water or food",true
+copper_pot,Copper Pot,copper,8.0,1.0,300.0,-20.0,liquid|water|food,"Unlined copper pot for water and non-acidic cooking; copper reacts with acidic foods, oils and milk",true
+galvanized_bucket,Galvanised Bucket,galvanized_steel,12.0,1.0,60.0,-20.0,liquid|water|food|solid|dry_goods,"Zinc-coated steel pail for grain, feed and wash water; never acidic foods, and drinking water only with a liner",true
+fermenting_crock,Fermenting Crock,glazed_ceramic,20.0,1.0,100.0,-5.0,liquid|water|food,"Lead-free glazed stoneware crock for sauerkraut, pickles and brines",true

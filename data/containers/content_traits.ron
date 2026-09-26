@@ -1,0 +1,41 @@
+// HumanityOS Content Traits: what a content does to a container's surface.
+// ---------------------------------------------------------------------------
+// Added 2026-09-26 for docs/design/containers.md. A vessel whose contents
+// touch its material directly (types.csv `direct_contact`) refuses a content
+// carrying a trait its material lists under `refuses` in materials.csv:
+// copper and brass refuse acidic, fatty and dairy; galvanised steel refuses
+// acidic and drinking water; aluminium refuses acidic and salty; 304
+// stainless refuses long salty storage (316 takes it).
+//
+// Traits:
+//   acidic - below about pH 6 (fruit, juice, honey, coffee, fermented and
+//            pickled foods). The pH figures are approximate, typical values.
+//   salty  - brines and salt-cured foods.
+//   fatty  - edible oils and fats.
+//   dairy  - milk and milk products.
+//   water  - drinking water.
+//
+// `profiles` keys are food profile ids from data/food_system.ron (every edible
+// item maps to one in data/food/item_profiles.ron). `classes` keys are content
+// class ids from content_classes.ron, for contents that are not food items.
+// A profile or class not listed carries no trait.
+(
+    profiles: {
+        "fruit": ["acidic"],
+        "fruit_juice": ["acidic"],
+        "dried_fruit": ["acidic"],
+        "fruit_pie": ["acidic"],
+        "energy_drink": ["acidic"],
+        "brewed_coffee": ["acidic"],
+        "honey": ["acidic"],
+        "milk": ["dairy"],
+        "dairy": ["dairy"],
+        "cheese": ["dairy", "salty"],
+        "fats_oils": ["fatty"],
+        "jerky": ["salty"],
+        "water": ["water"],
+    },
+    classes: {
+        "water": ["water"],
+    },
+)

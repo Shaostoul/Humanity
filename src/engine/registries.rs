@@ -237,6 +237,27 @@ pub(crate) fn load_data_registries(store: &mut DataStore, data_dir: &std::path::
             (Some(types_text), Some(classes_text)) => {
                 match ContainerRegistry::from_bytes(types_text.as_bytes(), classes_text.as_bytes()) {
                     Ok(reg) => {
+                        // Contact rules (2026-09-26): materials, content traits and
+                        // the food profile map. A missing or broken file leaves the
+                        // registry without material rules, never without a registry.
+                        let rd = |rel: &str| crate::embedded_data::read_data_or_embedded(data_dir, rel);
+                        let reg = match (
+                            rd("containers/materials.csv"),
+                            rd("containers/content_traits.ron"),
+                            rd("food/item_profiles.ron"),
+                        ) {
+                            (Some(m), Some(t), Some(p)) => match reg.clone().with_contact_rules(m.as_bytes(), t.as_bytes(), p.as_bytes()) {
+                                Ok(r) => r,
+                                Err(e) => {
+                                    log::warn!("container contact rules did not load: {e}");
+                                    reg
+                                }
+                            },
+                            _ => {
+                                log::warn!("container contact rules missing; no material rules this session");
+                                reg
+                            }
+                        };
                         log::info!(
                             "Loaded ContainerRegistry: {} container types, {} content classes",
                             reg.types.len(),

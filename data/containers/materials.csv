@@ -1,0 +1,41 @@
+# HumanityOS Container Materials (what a container's contact surface is made of)
+# ---------------------------------------------------------------------------
+# Added 2026-09-26 for docs/design/containers.md, from the dated research in
+# docs/reference/findings/2026-09-25-container-materials-and-reuse.md (its
+# section 6 table and the sources it cites). One row per material; a container
+# type's `base_material` in types.csv names one of these ids.
+#
+# Columns:
+#   id            - material id (snake_case), referenced by types.csv base_material.
+#   name          - display name.
+#   food_grade    - true if food and drinking water may touch it at all.
+#   absorbent     - true if it soaks up what it holds (plastics, wood, organic
+#                   linings, canvas); false for glass, metal and intact glaze.
+#   memory_fills  - how many fills a CLEANED absorbent container still carries
+#                   a trace of its previous content into. Codex (bulk edible-oil
+#                   tanks): 1 for stainless steel, 2 for organically coated
+#                   tanks. Wood's 3 is an inference (liquid soaks ~8 mm into
+#                   staves; no cleaning route is published), marked as such.
+#   refuses       - pipe-separated content traits this material must not store:
+#                   acidic (below about pH 6), salty (brines, salty foods),
+#                   fatty (edible oils), dairy (milk contact), water (drinking
+#                   water without a liner). Empty = no trait restriction.
+#   note          - one line, plain language.
+id,name,food_grade,absorbent,memory_fills,refuses,note
+stainless_304,Stainless steel 304,true,false,1,salty,"Milk, water, beer and most foods; strong brines and salty foods belong in 316"
+stainless_316,Stainless steel 316,true,false,1,,"As 304, plus brines, cheese brine and salty foods"
+glass,Glass,true,false,0,,"Inert: water, acidic foods, fermenting; breaks"
+glazed_ceramic,Glazed ceramic (lead-free),true,false,0,,"Crocks for fermenting and storage while the glaze is lead-free and intact"
+hdpe,Food-grade HDPE (#2),true,true,2,,"Water, dry foods, brining; absorbs what it held, so fuel, oil, solvent or cleaner means never food again"
+pet,PET (#1),true,true,2,,"Drinks and water bottles; absorbs like HDPE; weakens with repeated reuse"
+pp,Polypropylene (#5),true,true,2,,"Tubs and food bins; absorbs like HDPE"
+aluminium,Aluminium,true,false,1,acidic|salty,"Dry foods and short contact; not for storing acidic or salty food"
+copper,Copper,true,false,1,acidic|fatty|dairy,"Non-acidic foods only; never below about pH 6, never edible oils or milk"
+brass,Brass,true,false,1,acidic|fatty|dairy,"As copper"
+galvanized_steel,Galvanised steel,true,false,1,acidic|water,"Dry goods and grain; never acidic foods; drinking water only with a liner"
+carbon_steel,Plain carbon steel,false,false,1,acidic|salty|water,"Fuel and oil drums, tools, gas cylinders; rusts wet; not a food store"
+epoxy_lined_steel,Epoxy-lined steel,true,true,2,,"Foods within the lining's range; the organic lining remembers previous loads longer than stainless (Codex: 2 loads)"
+phenolic_lined_steel,Phenolic-lined steel,true,true,2,,"As epoxy-lined"
+oak,Oak (barrel staves),true,true,3,,"Traditional wine, beer and whole produce; soaks liquid about 8 mm deep (memory 3 is an inference)"
+pine,Pine (crates and cabinets),true,true,3,,"Whole produce and dry goods in crates; soaks up spills"
+canvas,Canvas,true,true,2,,"Sacks of grain and dry goods; soaks up spills"

@@ -759,6 +759,11 @@
    "date": "2026-09-26",
    "decision": "Real water, rung 1: MachineDef.irrigates + Irrigator marker; irrigation only while powered; demand = sum of growing crops water_liters_per_day / 1440 as L/min drawn by plumbing through the irrigator consumer; rain waters fields; hand watering draws 2 L and is refused when empty. player_notices channel shared by crafting and farming.",
    "why": "Irrigation took no water and the irrigation machine did nothing. Chose real-time L/min because the plumbing sim and the homestead sizing are real-time; a compressed-time draw (plants per game day) would drain the 8000 L cistern in minutes. Checked the budget first: family home 2.40 L/min production vs 1.35 household, ~1.05 spare vs ~1.0 garden. Tests red on purpose first."
+  },
+  {
+   "date": "2026-09-26",
+   "decision": "Containers 3a+3b: containers remember last_content (clean before switching; Clean on the machine card uses tank water) and toxic_from (fuel/solvent/corrosive/hazmat bars food and water forever); materials.csv + content_traits.ron + direct_contact make copper refuse acidic/fatty/dairy, galvanised refuse drinking water and acidic, carbon steel refuse food, 304 refuse salty. New vessels: IBC tote, copper pot, galvanised bucket, fermenting crock.",
+   "why": "Operator brief 2026-09-25 (oil then milk; lining matters). Rules straight from the dated findings (FDA Food Code 7-203.11, PMO, Codex previous cargoes, USDA dairy). direct_contact exists because a freezer or pantry holds packaged goods, so its liner must not refuse juice. Existing cryo test encoded the operator point that N2 or CO2 can share a tank: kept, now with a purge between. Tests red on purpose first."
   }
  ],
  "active_scopes_to_avoid": [

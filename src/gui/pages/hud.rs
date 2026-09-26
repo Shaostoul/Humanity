@@ -1256,6 +1256,7 @@ pub fn draw_machine_recipe_selector(ctx: &egui::Context, theme: &Theme, state: &
     if state.machine_card_recipe_options.is_empty()
         && state.machine_card_container.is_none()
         && state.machine_card_storable.is_empty()
+        && state.machine_card_container_note.is_none()
         && !state.machine_card_vendor
     {
         return;
@@ -1317,6 +1318,23 @@ pub fn draw_machine_recipe_selector(ctx: &egui::Context, theme: &Theme, state: &
                             state.machine_card_take_pending = true;
                         }
                     });
+                }
+                // What the vessel remembers (2026-09-26): residue that must be
+                // cleaned before it holds anything else, or a toxic history
+                // that bars food and drinking water for good.
+                if let Some(note) = state.machine_card_container_note.clone() {
+                    ui.label(
+                        RichText::new(note)
+                            .size(theme.font_size_small)
+                            .color(theme.warning()),
+                    );
+                }
+                if state.machine_card_can_clean
+                    && crate::gui::widgets::Button::secondary("Clean")
+                        .tooltip("Clean out the residue (it uses water from the home tanks) so it can hold something else. A toxic history stays.")
+                        .show(ui, theme)
+                {
+                    state.machine_card_clean_pending = true;
                 }
                 // Store (v0.733): per-item deposit buttons for compatible pack
                 // items — how refined fuel gets from the pack into the genset

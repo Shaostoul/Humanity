@@ -56,6 +56,13 @@ pub struct ContainerTypeRow {
     /// Pipe-separated whitelist of content-class ids this vessel accepts.
     pub accepted_content_classes: String,
     pub description: String,
+    /// Contents touch the material itself (2026-09-26). See types.csv.
+    #[serde(default = "default_direct_contact")]
+    pub direct_contact: bool,
+}
+
+fn default_direct_contact() -> bool {
+    true
 }
 
 /// A container archetype with the accepted-class whitelist already parsed.
@@ -74,6 +81,60 @@ pub struct ContainerType {
     /// The content classes this container can safely hold.
     pub accepted_content_classes: Vec<String>,
     pub description: String,
+    /// Contents touch the material itself, so its food-grade and reactivity
+    /// rules apply (false for cabinets and freezers of packaged goods).
+    pub direct_contact: bool,
+}
+
+/// A contact material, one row of `data/containers/materials.csv`
+/// (2026-09-26, from the dated container research).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Material {
+    pub id: String,
+    pub name: String,
+    pub food_grade: bool,
+    pub absorbent: bool,
+    pub memory_fills: u32,
+    /// Pipe-separated content traits it must not hold (acidic, salty,
+    /// fatty, dairy, water).
+    #[serde(default)]
+    pub refuses: String,
+    #[serde(default)]
+    pub note: String,
+}
+
+impl Material {
+    pub fn refuses_trait(&self, t: &str) -> bool {
+        self.refuses.split('|').any(|r| r.trim() == t)
+    }
+}
+
+/// `data/containers/content_traits.ron`.
+#[derive(Debug, Clone, Default, Deserialize)]
+struct ContentTraitsFile {
+    #[serde(default)]
+    profiles: HashMap<String, Vec<String>>,
+    #[serde(default)]
+    classes: HashMap<String, Vec<String>>,
+}
+
+/// The item -> food profile list in `data/food/item_profiles.ron`.
+#[derive(Debug, Clone, Default, Deserialize)]
+struct ItemProfilesFile {
+    #[serde(default)]
+    items: Vec<(String, String)>,
+}
+
+/// How a trait reads in a refusal message.
+fn trait_words(t: &str) -> &str {
+    match t {
+        "acidic" => "acidic",
+        "salty" => "salty or brined",
+        "fatty" => "oily or fatty",
+        "dairy" => "milk or dairy",
+        "water" => "drinking water",
+        other => other,
+    }
 }
 
 impl ContainerType {
@@ -96,6 +157,7 @@ impl ContainerType {
             min_temp_c: row.min_temp_c,
             accepted_content_classes: accepted,
             description: row.description,
+            direct_contact: row.direct_contact,
         }
     }
 
@@ -129,6 +191,12 @@ pub struct ContentClass {
     /// per-container whitelists in types.csv).
     pub accepted_by: Vec<String>,
     pub description: String,
+    /// A container that ever holds this class may never hold food or drinking
+    /// water again (2026-09-26; FDA Food Code 7-203.11: a container that held
+    /// "poisonous or toxic materials", which include petroleum products and
+    /// cleaners, may not be used for food). See docs/design/containers.md.
+    #[serde(default)]
+    pub leaves_toxic_history: bool,
 }
 
 // ===========================================================================
@@ -159,6 +227,15 @@ pub struct Container {
     /// Structural integrity: 1.0 = intact, 0.0 = broken. Reduced when an
     /// incompatible content class is forced in.
     pub damage_ratio: f32,
+    /// What it held last (2026-09-26). Survives emptying: residue stays until
+    /// the container is CLEANED, and until then it takes only more of the
+    /// same content.
+    #[serde(default)]
+    pub last_content: Option<String>,
+    /// The first toxic content it ever held (fuel, solvent, cleaner...). Never
+    /// cleared: such a container may not hold food or drinking water again.
+    #[serde(default)]
+    pub toxic_from: Option<String>,
 }
 
 impl Container {
@@ -171,7 +248,27 @@ impl Container {
             current_content_item: None,
             current_qty: 0,
             damage_ratio: 1.0,
+            last_content: None,
+            toxic_from: None,
         }
+    }
+
+    /// Empty but carrying the residue of something it must be cleaned of
+    /// before it can hold anything else.
+    pub fn needs_cleaning(&self) -> bool {
+        self.is_empty() && self.last_content.is_some()
+    }
+
+    /// Clean an EMPTY container: its last content is washed out, so it can
+    /// take something else. A toxic history stays. Returns the litres of water
+    /// the wash used (2% of capacity, at least 1 L, at most 50 L), or None
+    /// when there is nothing to clean or it still holds something.
+    pub fn clean(&mut self) -> Option<f32> {
+        if !self.needs_cleaning() {
+            return None;
+        }
+        self.last_content = None;
+        Some((self.capacity_liters * 0.02).clamp(1.0, 50.0))
     }
 
     /// Build a container instance directly from a registry archetype.
@@ -253,6 +350,14 @@ pub enum StoreOutcome {
     NoRoom,
     /// Compatible but a DIFFERENT content item is already inside (no mixing).
     WrongContent { current: String },
+    /// Empty, but it still carries the residue of `last`: clean it first.
+    NeedsCleaning { last: String },
+    /// Its material is not fit for this content (not food-grade, or it
+    /// reacts with it). Refused without damage.
+    Unfit { reason: String },
+    /// It once held a toxic content, so it may never hold food or drinking
+    /// water again (it can still hold other non-food contents).
+    Contaminated { toxic_from: String },
 }
 
 // ===========================================================================
@@ -274,6 +379,14 @@ pub struct ContainerRegistry {
     pub types: HashMap<String, ContainerType>,
     /// Content classes keyed by id (from `content_classes.ron`).
     pub content_classes: HashMap<String, ContentClass>,
+    /// Contact materials keyed by id (from `materials.csv`, 2026-09-26).
+    pub materials: HashMap<String, Material>,
+    /// Food profile -> traits, and content class -> traits
+    /// (`content_traits.ron`).
+    pub traits_by_profile: HashMap<String, Vec<String>>,
+    pub traits_by_class: HashMap<String, Vec<String>>,
+    /// Edible item -> food profile (`food/item_profiles.ron`).
+    pub profile_of: HashMap<String, String>,
 }
 
 impl ContainerRegistry {
@@ -303,6 +416,8 @@ impl ContainerRegistry {
         Ok(Self {
             types,
             content_classes,
+            // The contact rules arrive through `with_contact_rules`.
+            ..Default::default()
         })
     }
 
@@ -384,6 +499,85 @@ impl ContainerRegistry {
     ///
     /// This is the single funnel the inventory/storage flow should call so the
     /// "wrong material breaks the container" rule is enforced in one place.
+    /// Add the contact rules (2026-09-26, docs/design/containers.md): the
+    /// materials table, content traits, and the item -> food profile map the
+    /// traits are keyed through. Without them no material rule applies.
+    pub fn with_contact_rules(
+        mut self,
+        materials_csv: &[u8],
+        traits_ron: &[u8],
+        item_profiles_ron: &[u8],
+    ) -> Result<Self, String> {
+        let mats: Vec<Material> = crate::assets::loader::parse_csv(materials_csv)?;
+        self.materials = mats.into_iter().map(|m| (m.id.clone(), m)).collect();
+        let traits: ContentTraitsFile = crate::assets::loader::parse_ron(traits_ron)?;
+        self.traits_by_profile = traits.profiles;
+        self.traits_by_class = traits.classes;
+        let profiles: ItemProfilesFile = crate::assets::loader::parse_ron(item_profiles_ron)?;
+        self.profile_of = profiles.items.into_iter().collect();
+        Ok(self)
+    }
+
+    /// The traits a content carries: its food profile's, plus its class's.
+    pub fn traits_for(&self, item_id: &str, content_class: &str) -> Vec<String> {
+        let mut out: Vec<String> = self
+            .profile_of
+            .get(item_id)
+            .and_then(|p| self.traits_by_profile.get(p))
+            .cloned()
+            .unwrap_or_default();
+        for t in self.traits_by_class.get(content_class).into_iter().flatten() {
+            if !out.contains(t) {
+                out.push(t.clone());
+            }
+        }
+        out
+    }
+
+    /// Is this vessel's material fit for this content? Only a direct-contact
+    /// vessel is judged: food and drinking water need a food-grade surface,
+    /// and a material refuses the traits it reacts with (copper and acidic
+    /// foods, galvanised steel and drinking water, and so on).
+    pub fn material_fit(&self, ctype: &ContainerType, item_id: &str, content_class: &str) -> Result<(), String> {
+        if !ctype.direct_contact {
+            return Ok(());
+        }
+        let Some(mat) = self.materials.get(&ctype.base_material) else {
+            return Ok(());
+        };
+        if self.content_classes.get(content_class).map_or(false, |c| c.food_safe) && !mat.food_grade {
+            return Err(format!("{} is not food-grade: no food or drinking water in it", mat.name));
+        }
+        for t in self.traits_for(item_id, content_class) {
+            if mat.refuses_trait(&t) {
+                return Err(format!("{} must not hold {} contents", mat.name, trait_words(&t)));
+            }
+        }
+        Ok(())
+    }
+
+    /// Would `try_store` take this item now, and if not, why? The class
+    /// whitelist plus the history rules (mixing, residue, toxic history), for
+    /// UIs that list what a container will accept without trying.
+    pub fn would_accept(&self, container: &Container, item_id: &str, content_class: &str) -> Result<(), String> {
+        if let Compatibility::Incompatible { reason } = self.check(&container.container_type_id, content_class) {
+            return Err(reason);
+        }
+        if let Some(ctype) = self.types.get(&container.container_type_id) {
+            self.material_fit(ctype, item_id, content_class)?;
+        }
+        if self.content_classes.get(content_class).map_or(false, |c| c.food_safe) {
+            if let Some(t) = &container.toxic_from {
+                return Err(format!("held {t}: never food or drinking water again"));
+            }
+        }
+        match (&container.current_content_item, &container.last_content) {
+            (Some(cur), _) if !container.is_empty() && cur != item_id => Err(format!("already holds {cur}")),
+            (_, Some(last)) if container.is_empty() && last != item_id => Err(format!("still has {last} residue: clean it first")),
+            _ => Ok(()),
+        }
+    }
+
     pub fn try_store(
         &self,
         container: &mut Container,
@@ -402,6 +596,30 @@ impl ContainerRegistry {
         {
             let broke = container.apply_incompatible_damage(INCOMPATIBLE_DAMAGE_PER_ATTEMPT);
             return StoreOutcome::Damaged { reason, broke };
+        }
+
+        // 1a. Material (2026-09-26): an unfit surface refuses, without damage.
+        if let Some(ctype) = self.types.get(&container.container_type_id) {
+            if let Err(reason) = self.material_fit(ctype, item_id, content_class) {
+                return StoreOutcome::Unfit { reason };
+            }
+        }
+
+        // 1b. History (2026-09-26, docs/design/containers.md). A container
+        //     that ever held a toxic content never holds food or water again,
+        //     and an emptied container takes nothing new until it is cleaned.
+        let class = self.content_classes.get(content_class);
+        if class.map_or(false, |c| c.food_safe) {
+            if let Some(t) = &container.toxic_from {
+                return StoreOutcome::Contaminated { toxic_from: t.clone() };
+            }
+        }
+        if container.is_empty() {
+            if let Some(last) = &container.last_content {
+                if last != item_id {
+                    return StoreOutcome::NeedsCleaning { last: last.clone() };
+                }
+            }
         }
 
         // 2. No mixing: a typed container holds one content item at a time.
@@ -429,6 +647,10 @@ impl ContainerRegistry {
         }
 
         container.current_content_item = Some(item_id.to_string());
+        container.last_content = Some(item_id.to_string());
+        if container.toxic_from.is_none() && class.map_or(false, |c| c.leaves_toxic_history) {
+            container.toxic_from = Some(item_id.to_string());
+        }
         container.current_qty += storable;
         container.used_liters += unit_vol * storable as f32;
         StoreOutcome::Stored { quantity: storable }
@@ -560,6 +782,25 @@ impl System for ContainerCompatibilitySystem {
                         req.item_id
                     );
                 }
+                StoreOutcome::Unfit { reason } => {
+                    log::debug!("{} refused {}: {}", container.container_type_id, req.item_id, reason);
+                }
+                StoreOutcome::NeedsCleaning { last } => {
+                    log::debug!(
+                        "{} still has {} residue: clean it before adding {}",
+                        container.container_type_id,
+                        last,
+                        req.item_id
+                    );
+                }
+                StoreOutcome::Contaminated { toxic_from } => {
+                    log::debug!(
+                        "{} once held {}: never food or water again (refused {})",
+                        container.container_type_id,
+                        toxic_from,
+                        req.item_id
+                    );
+                }
             }
         }
     }
@@ -582,7 +823,15 @@ mod tests {
             std::fs::read(format!("{root}/data/containers/types.csv")).expect("read types.csv");
         let classes = std::fs::read(format!("{root}/data/containers/content_classes.ron"))
             .expect("read content_classes.ron");
-        ContainerRegistry::from_bytes(&types, &classes).expect("build registry")
+        let read = |rel: &str| std::fs::read(format!("{root}/data/{rel}")).expect(rel);
+        ContainerRegistry::from_bytes(&types, &classes)
+            .expect("build registry")
+            .with_contact_rules(
+                &read("containers/materials.csv"),
+                &read("containers/content_traits.ron"),
+                &read("food/item_profiles.ron"),
+            )
+            .expect("contact rules")
     }
 
     #[test]
@@ -714,12 +963,141 @@ mod tests {
         assert_eq!(cryo.damage_ratio, 1.0);
 
         // Liquid CO2 (also cryogenic) shares the same tank — the operator's
-        // "N2 OR CO2 in the same pressure tank" point. Empty first (no mixing).
+        // "N2 OR CO2 in the same pressure tank" point. Empty first (no mixing),
+        // and since 2026-09-26 clean it out (a purge, in reality) before the
+        // other gas goes in: an emptied tank still carries its last content.
         cryo.spill();
+        assert!(matches!(
+            reg.try_store(&mut cryo, "liquid_co2_0", "liquid_cryogenic", 1.0, 50),
+            StoreOutcome::NeedsCleaning { .. }
+        ));
+        cryo.clean().expect("purge the empty tank");
         assert_eq!(
             reg.try_store(&mut cryo, "liquid_co2_0", "liquid_cryogenic", 1.0, 50),
             StoreOutcome::Stored { quantity: 50 }
         );
+    }
+
+    /// Containers remember what they held (2026-09-26; docs/design/containers.md).
+    /// A tote that held fuel may never hold water or food again, even cleaned;
+    /// it may still hold fuel.
+    #[test]
+    fn a_container_that_held_fuel_never_holds_water_again() {
+        let reg = load_registry();
+        let mut tote = Container::from_type(reg.container_type("ibc_tote").unwrap());
+        assert_eq!(reg.try_store(&mut tote, "fuel_refined_0", "flammable", 1.0, 10), StoreOutcome::Stored { quantity: 10 });
+        assert_eq!(tote.toxic_from.as_deref(), Some("fuel_refined_0"));
+        tote.spill();
+        assert!(tote.needs_cleaning(), "the residue stays after emptying");
+        assert!(tote.clean().is_some());
+        match reg.try_store(&mut tote, "water_purified_0", "water", 1.0, 1) {
+            StoreOutcome::Contaminated { toxic_from } => assert_eq!(toxic_from, "fuel_refined_0"),
+            other => panic!("expected Contaminated, got {other:?}"),
+        }
+        assert!(reg.would_accept(&tote, "water_purified_0", "water").is_err());
+        assert_eq!(
+            reg.try_store(&mut tote, "fuel_refined_0", "flammable", 1.0, 1),
+            StoreOutcome::Stored { quantity: 1 },
+            "it can still hold fuel"
+        );
+    }
+
+    /// An emptied container carries the residue of what it held: the same
+    /// content tops up, anything else is refused until it is cleaned, and
+    /// cleaning costs water in proportion to its size.
+    #[test]
+    fn an_emptied_container_must_be_cleaned_before_holding_something_else() {
+        let reg = load_registry();
+        let mut tank = Container::from_type(reg.container_type("dairy_food_tank").unwrap());
+        assert_eq!(reg.try_store(&mut tank, "milk_0", "food", 1.0, 5), StoreOutcome::Stored { quantity: 5 });
+        tank.spill();
+        match reg.try_store(&mut tank, "juice_0", "food", 1.0, 1) {
+            StoreOutcome::NeedsCleaning { last } => assert_eq!(last, "milk_0"),
+            other => panic!("expected NeedsCleaning, got {other:?}"),
+        }
+        assert_eq!(reg.try_store(&mut tank, "milk_0", "food", 1.0, 1), StoreOutcome::Stored { quantity: 1 }, "more milk is fine");
+        assert_eq!(tank.clean(), None, "cannot clean while it holds something");
+        tank.spill();
+        let litres = tank.clean().expect("clean an empty tank");
+        assert!((litres - 40.0).abs() < 1e-3, "2% of 2000 L: {litres}");
+        assert!(!tank.needs_cleaning());
+        assert_eq!(reg.try_store(&mut tank, "juice_0", "food", 1.0, 1), StoreOutcome::Stored { quantity: 1 });
+        assert!(tank.toxic_from.is_none(), "food never leaves a toxic history");
+    }
+
+    fn unfit(o: StoreOutcome) -> String {
+        match o {
+            StoreOutcome::Unfit { reason } => reason,
+            other => panic!("expected Unfit, got {other:?}"),
+        }
+    }
+
+    /// The material a vessel is made of decides what it may hold (2026-09-26,
+    /// docs/design/containers.md; the rules come from the dated research).
+    /// Copper refuses acidic foods, oils and milk but holds water; galvanised
+    /// steel refuses drinking water and acidic foods but holds grain; glazed
+    /// stoneware takes juice; 304 stainless takes milk but not a salty cheese.
+    #[test]
+    fn the_material_decides_what_a_vessel_may_hold() {
+        let reg = load_registry();
+        let fresh = |id: &str| Container::from_type(reg.container_type(id).unwrap());
+
+        let mut pot = fresh("copper_pot");
+        assert!(unfit(reg.try_store(&mut pot, "juice_0", "food", 1.0, 1)).contains("acidic"));
+        assert!(unfit(reg.try_store(&mut pot, "milk_0", "food", 1.0, 1)).contains("milk"));
+        assert!(unfit(reg.try_store(&mut pot, "cooking_oil_0", "food", 1.0, 1)).contains("oily"));
+        assert_eq!(reg.try_store(&mut pot, "water_purified_0", "water", 1.0, 1), StoreOutcome::Stored { quantity: 1 });
+        assert_eq!(pot.damage_ratio, 1.0, "a refusal does no damage");
+
+        let mut bucket = fresh("galvanized_bucket");
+        assert!(unfit(reg.try_store(&mut bucket, "water_purified_0", "water", 1.0, 1)).contains("drinking water"));
+        assert!(unfit(reg.try_store(&mut bucket, "honey_0", "food", 1.0, 1)).contains("acidic"));
+        assert_eq!(reg.try_store(&mut bucket, "grain_wheat_0", "dry_goods", 1.0, 3), StoreOutcome::Stored { quantity: 3 });
+
+        let mut crock = fresh("fermenting_crock");
+        assert_eq!(reg.try_store(&mut crock, "juice_0", "food", 1.0, 2), StoreOutcome::Stored { quantity: 2 });
+
+        let mut tank = fresh("dairy_food_tank");
+        assert_eq!(reg.try_store(&mut tank, "milk_0", "food", 1.0, 5), StoreOutcome::Stored { quantity: 5 });
+        let mut tank2 = fresh("dairy_food_tank");
+        assert!(unfit(reg.try_store(&mut tank2, "cheese_0", "food", 1.0, 1)).contains("salty"));
+
+        // A freezer holds packaged food: its aluminium liner is not judged.
+        let mut freezer = fresh("freezer_chest");
+        assert_eq!(reg.try_store(&mut freezer, "juice_0", "food", 1.0, 1), StoreOutcome::Stored { quantity: 1 });
+
+        // would_accept agrees with try_store, so a menu never offers a refusal.
+        assert!(reg.would_accept(&fresh("copper_pot"), "juice_0", "food").is_err());
+        assert!(reg.would_accept(&fresh("copper_pot"), "water_purified_0", "water").is_ok());
+    }
+
+    /// A food vessel made of a non-food-grade material refuses all food.
+    #[test]
+    fn a_non_food_grade_vessel_refuses_food() {
+        let root = env!("CARGO_MANIFEST_DIR");
+        let types = b"id,name,base_material,capacity_liters,pressure_rating_atm,max_temp_c,min_temp_c,accepted_content_classes,description,direct_contact\n\
+            steel_bin,Steel Bin,carbon_steel,50.0,1.0,60.0,-20.0,food|dry_goods,test,true\n";
+        let read = |rel: &str| std::fs::read(format!("{root}/data/{rel}")).expect(rel);
+        let reg = ContainerRegistry::from_bytes(types, &read("containers/content_classes.ron"))
+            .unwrap()
+            .with_contact_rules(
+                &read("containers/materials.csv"),
+                &read("containers/content_traits.ron"),
+                &read("food/item_profiles.ron"),
+            )
+            .unwrap();
+        let mut bin = Container::from_type(reg.container_type("steel_bin").unwrap());
+        assert!(unfit(reg.try_store(&mut bin, "milk_0", "food", 1.0, 1)).contains("not food-grade"));
+    }
+
+    /// Every container type names a real material, so no type silently
+    /// escapes the material rules.
+    #[test]
+    fn every_container_type_names_a_real_material() {
+        let reg = load_registry();
+        for t in reg.types.values() {
+            assert!(reg.materials.contains_key(&t.base_material), "{} names material {}", t.id, t.base_material);
+        }
     }
 
     #[test]

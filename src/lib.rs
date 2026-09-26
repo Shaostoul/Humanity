@@ -13880,6 +13880,8 @@ mod native_app {
                             let mut cont_entity: Option<hecs::Entity> = None;
                             let mut contents: Option<(String, u32)> = None;
                             let mut cont_type: Option<String> = None;
+                            // The whole container, for what it remembers (2026-09-26).
+                            let mut cont_snapshot: Option<crate::systems::inventory::containers::Container> = None;
                             for (e, (id, c)) in state
                                 .game_world
                                 .world
@@ -13894,12 +13896,47 @@ mod native_app {
                                 }
                                 cont_entity = Some(e);
                                 cont_type = Some(c.container_type_id.clone());
+                                cont_snapshot = Some(c.clone());
                                 if let Some(item) = &c.current_content_item {
                                     if c.current_qty > 0 {
                                         contents = Some((item.clone(), c.current_qty));
                                     }
                                 }
                                 break;
+                            }
+                            // Clean (2026-09-26): wash an emptied vessel of its
+                            // residue with water from the home tanks.
+                            if std::mem::take(&mut state.gui_state.machine_card_clean_pending) {
+                                if let Some(e) = cont_entity {
+                                    let water_ok = state
+                                        .data_store
+                                        .get::<std::sync::Mutex<crate::systems::plumbing::WaterStatus>>("water_status")
+                                        .and_then(|m| m.lock().ok().map(|ws| ws.capacity_l <= 0.0 || ws.stored_l > ws.capacity_l * 0.02))
+                                        .unwrap_or(true);
+                                    if !water_ok {
+                                        state.gui_state.pending_toasts.push((
+                                            "The water tanks are empty: nothing to clean with.".to_string(),
+                                            crate::gui::ToastKind::Info,
+                                        ));
+                                    } else if let Ok(mut c) = state
+                                        .game_world
+                                        .world
+                                        .get::<&mut crate::systems::inventory::containers::Container>(e)
+                                    {
+                                        if let Some(litres) = c.clean() {
+                                            if let Some(m) = state.data_store.get::<std::sync::Mutex<f32>>("hand_water_draw_l") {
+                                                if let Ok(mut v) = m.lock() {
+                                                    *v += litres;
+                                                }
+                                            }
+                                            cont_snapshot = Some(c.clone());
+                                            state.gui_state.pending_toasts.push((
+                                                format!("Cleaned with {litres:.0} L of water."),
+                                                crate::gui::ToastKind::Success,
+                                            ));
+                                        }
+                                    }
+                                }
                             }
                             if take {
                                 if let (Some(e), Some((item, qty))) = (cont_entity, contents.clone()) {
@@ -13977,6 +14014,7 @@ mod native_app {
                                                 .clone()
                                                 .filter(|_| c.current_qty > 0)
                                                 .map(|i| (i, c.current_qty));
+                                            cont_snapshot = Some(c.clone());
                                         }
                                     }
                                     if stored > 0 {
@@ -14020,11 +14058,16 @@ mod native_app {
                                         let class = item_reg
                                             .map(|r| r.class_for(&id).to_string())
                                             .unwrap_or_else(|| "solid".to_string());
-                                        let mix_ok = current_item
-                                            .as_ref()
-                                            .map(|ci| *ci == id)
-                                            .unwrap_or(true);
-                                        if mix_ok && creg.check(ct, &class).is_accepted() {
+                                        // The class whitelist AND what the vessel
+                                        // remembers (residue, toxic history).
+                                        let ok = match &cont_snapshot {
+                                            Some(c) => creg.would_accept(c, &id, &class).is_ok(),
+                                            None => {
+                                                current_item.as_ref().map(|ci| *ci == id).unwrap_or(true)
+                                                    && creg.check(ct, &class).is_accepted()
+                                            }
+                                        };
+                                        if ok {
                                             let name = item_reg
                                                 .and_then(|r| r.items.get(&id))
                                                 .map(|d| d.name.clone())
@@ -14038,6 +14081,27 @@ mod native_app {
                                 storable.truncate(4);
                             }
                             state.gui_state.machine_card_storable = storable;
+                            // What the vessel remembers, for the card (2026-09-26).
+                            let name_of = |id: &str| {
+                                item_reg
+                                    .and_then(|r| r.items.get(id))
+                                    .map(|d| d.name.clone())
+                                    .unwrap_or_else(|| id.to_string())
+                            };
+                            state.gui_state.machine_card_can_clean =
+                                cont_snapshot.as_ref().map_or(false, |c| c.needs_cleaning());
+                            state.gui_state.machine_card_container_note = cont_snapshot.as_ref().and_then(|c| {
+                                let mut parts = Vec::new();
+                                if c.needs_cleaning() {
+                                    if let Some(last) = &c.last_content {
+                                        parts.push(format!("Empty, with {} residue: clean it before it holds anything else.", name_of(last)));
+                                    }
+                                }
+                                if let Some(t) = &c.toxic_from {
+                                    parts.push(format!("Held {}: never food or drinking water again.", name_of(t)));
+                                }
+                                if parts.is_empty() { None } else { Some(parts.join(" ")) }
+                            });
                             container_pub = contents.map(|(item, qty)| {
                                 let name = item_reg
                                     .and_then(|r| r.items.get(&item))

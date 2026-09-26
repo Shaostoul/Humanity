@@ -67,6 +67,25 @@ any cleaning, liners, or fluids measured in litres.
   (`data/food/item_profiles.ron` gives each edible item a profile; a small
   table maps profiles to traits).
 
+## Built
+
+- **3a (2026-09-26):** `last_content` and `toxic_from` on every container;
+  an emptied container takes only more of the same until it is CLEANED
+  (the machine card offers Clean, which uses 2% of its capacity in water from
+  the home tanks, 1 to 50 L); a container that held fuel, a solvent, a
+  corrosive or anything hazardous never holds food or drinking water again
+  (`leaves_toxic_history` in content_classes.ron). The card says what the
+  vessel remembers. New type: the 1000 L IBC tote, the real-world case.
+- **3b (2026-09-26):** `data/containers/materials.csv` (17 materials),
+  `data/containers/content_traits.ron` (food profile and class traits), real
+  material ids in types.csv, and a `direct_contact` column so cabinets and
+  freezers of packaged food are not judged by their liner. A direct-contact
+  vessel refuses food if its material is not food-grade and refuses traits
+  its material reacts with, without damage. New types: copper pot,
+  galvanised bucket, fermenting crock. Not yet: the absorbent memory
+  (`memory_fills` is recorded but not used) and a cleaning agent for food and
+  dairy vessels.
+
 ## Increments
 
 - **3a. Memory and cleaning.** `toxic_ever` and `last_content` on the

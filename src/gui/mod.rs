@@ -1135,6 +1135,13 @@ pub struct GuiState {
     /// Item id the player chose to Store; lib.rs moves as much as fits from
     /// the backpack into the machine's Container next frame. (v0.733)
     pub machine_card_store_pending: Option<String>,
+    /// What the pinned container remembers (2026-09-26): residue that needs
+    /// cleaning, or a toxic history that bars food for good. None = nothing.
+    pub machine_card_container_note: Option<String>,
+    /// Empty and carrying residue: the card offers Clean.
+    pub machine_card_can_clean: bool,
+    /// Set by the card's Clean button; lib.rs washes the container next frame.
+    pub machine_card_clean_pending: bool,
     /// True when the pinned machine is a trading post (v0.747, ladder rung 3):
     /// the card shows a Trade button that opens the vendor modal.
     pub machine_card_vendor: bool,
@@ -3439,6 +3446,9 @@ impl Default for GuiState {
             machine_card_take_pending: false,
             machine_card_storable: Vec::new(),
             machine_card_store_pending: None,
+            machine_card_container_note: None,
+            machine_card_can_clean: false,
+            machine_card_clean_pending: false,
             machine_card_vendor: false,
             vendor_open: false,
             vendor_goods: Vec::new(),
