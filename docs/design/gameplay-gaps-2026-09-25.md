@@ -103,8 +103,11 @@ date; re-check before trusting one. The container data basis is
   of milk), which bakes whey bread; pressing apples leaves pomace (about a
   quarter to a third of the fruit), which composts; and the juice press no
   longer makes 1.0 kg of juice from 0.8 kg of apples. Not yet: the sawmill's
-  slabs and bark, and four older recipes that still multiply an input
-  (listed in the lint).
+  slabs and bark, and vulcanizing rubber, which still turns 2 sheets into 3
+  (it needs a raw rubber item and the sulfur the process uses). Removed
+  2026-09-26: three recipes that only multiplied an item and made nothing any
+  recipe used (charging a battery pack into two, "titanium alloy" doubling
+  titanium ingots, and "nanomaterial" turning one plastic sheet into five).
 - **Automated machines fill the Barn, and rest when enough is on hand: DONE
   2026-09-26** (v0.1351.0). A machine's output used to land in the player's
   backpack wherever they were; it now goes into home storage (the Barn,

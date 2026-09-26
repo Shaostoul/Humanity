@@ -347,11 +347,9 @@ craft_grain_silo,Build Grain Silo,assembly,steel_ingot_0:8|bolt_box_0:4|concrete
 # === ADVANCED MATERIALS ===
 craft_carbon_fiber,Synthesize Carbon Fiber,chemistry,coal_0:4|plastic_sheet_0:2|oil_crude_0:1,carbon_fiber_sheet_0:2,60,chemistry_set_0,engineering,4,Pyrolyze polymer precursor into carbon composite
 craft_fiberglass,Lay Up Fiberglass,chemistry,glass_fiber_0:1|oil_crude_0:2,fiberglass_sheet_0:2,45,chemistry_set_0,engineering,3,Wet glass fiber with polyester resin made from crude oil and cure it into rigid sheet
-craft_titanium_alloy,Forge Titanium Alloy,smelting,titanium_ingot_0:2|aluminum_ingot_0:1|steel_ingot_0:1,titanium_ingot_0:4,45,smelter_0,metalworking,5,Alloy titanium with aluminum and steel for strength
 craft_ceramic_composite,Fire Ceramic Composite,smelting,clay_raw_0:3|sand_0:2|carbon_fiber_sheet_0:1,concrete_block_0:4,40,kiln_0,metalworking,4,Sinter ceramic matrix with carbon reinforcement
 craft_optical_fiber,Draw Optical Fiber,electronics,glass_pane_0:3|plastic_sheet_0:1,wire_0:6,35,electronics_bench_0,engineering,4,Draw silica glass into light-transmitting strands
 craft_superconductor,Synthesize Superconductor,chemistry,copper_ingot_0:3|titanium_ingot_0:1|gold_ingot_0:1,wire_0:8,90,chemistry_set_0,engineering,5,Cool rare-earth compound into zero-resistance wire
-craft_nanomaterial,Synthesize Nanomaterial,chemistry,carbon_fiber_sheet_0:2|gold_ingot_0:1|plastic_sheet_0:1,plastic_sheet_0:5,120,chemistry_set_0,engineering,5,Assemble molecular-scale structured material
 craft_kevlar_sheet,Weave Kevlar Sheet,textile,fiber_bundle_0:6|plastic_sheet_0:2,cloth_bolt_0:3,50,loom_0,tailoring,4,Weave aramid fiber into ballistic fabric
 craft_aerogel,Synthesize Aerogel,chemistry,glass_pane_0:2|oil_crude_0:1|water_purified_0:2,plastic_sheet_0:4,80,chemistry_set_0,engineering,5,Supercritically dry silica gel into ultralight insulator
 craft_graphene,Synthesize Graphene,chemistry,coal_0:5|copper_ingot_0:1,carbon_fiber_sheet_0:3,100,chemistry_set_0,engineering,5,Exfoliate graphite into single-atom carbon sheets
@@ -392,7 +390,6 @@ craft_arrows_batch,Fletch Arrow Batch,crafting,wood_plank_0:2|iron_ingot_0:1|fib
 craft_bullets_pistol,Load Pistol Rounds,crafting,copper_ingot_0:1|coal_0:1|iron_ingot_0:1,bullet_pistol_0:50,20,workbench_0,metalworking,2,Press brass casings and seat projectiles
 craft_bullets_rifle,Load Rifle Rounds,crafting,copper_ingot_0:2|coal_0:1|steel_ingot_0:1,bullet_rifle_0:30,25,workbench_0,metalworking,3,Press long casings and seat heavy projectiles
 craft_fuel_cell,Manufacture Fuel Cell,electronics,steel_ingot_0:2|copper_ingot_0:1|wire_0:2|water_purified_0:2,battery_large_0:1,40,electronics_bench_0,engineering,4,Assemble hydrogen electrochemical converter
-craft_battery_charge,Charge Battery Pack,electronics,battery_pack_0:1|wire_0:1,battery_pack_0:2,10,electronics_bench_0,engineering,1,Recondition and recharge depleted cells
 craft_healing_potion,Brew Healing Potion,chemistry,water_purified_0:2|honey_0:1|seed_wheat_0:2,medkit_0:1,20,chemistry_set_0,medicine,2,Distill restorative herbal tincture
 craft_grenade,Assemble Grenade,crafting,iron_ingot_0:2|coal_0:2|rope_0:1,flare_0:3,30,workbench_0,metalworking,3,Pack and fuse fragmentation shells
 craft_smoke_bomb,Craft Smoke Bomb,crafting,iron_ingot_0:1|coal_0:2|cloth_bolt_0:1,flare_0:5,15,workbench_0,woodworking,2,Pack slow-burn obscurant canisters

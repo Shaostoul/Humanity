@@ -18,7 +18,7 @@
 //!      have hidden the defect instead of fixing it;
 //!   4. no recipe hands back more of an item than it takes of that same item
 //!      (tan_leather turned one hide into two of the same hide, so hides
-//!      multiplied forever). Four older recipes still do this and are listed in
+//!      multiplied forever). One older recipe still does this and is listed in
 //!      KNOWN_MULTIPLIERS with the reason; the list may only shrink.
 //!
 //! The ratios themselves, and their sources, are in the `#` comments next to
@@ -48,25 +48,15 @@ const BYPRODUCTS: &[(&str, &str)] = &[
 ];
 
 /// Recipes that already hand back more of an input than they take, each with
-/// why it is not fixed here. Fixing one means removing its row; a NEW recipe
+/// why it is not fixed here. (2026-09-26: craft_battery_charge,
+/// craft_titanium_alloy and craft_nanomaterial were removed; each only
+/// multiplied an item and made nothing any recipe used.) Fixing one means removing its row; a NEW recipe
 /// that does this fails. The honest fix is a second item for the changed state
 /// (tan_leather now makes leather_0 from leather_hide_0), not a bigger number.
 const KNOWN_MULTIPLIERS: &[(&str, &str)] = &[
     (
         "vulcanize_rubber",
         "2 rubber_sheet_0 in, 3 out: needs a raw (unvulcanized) rubber item",
-    ),
-    (
-        "craft_battery_charge",
-        "1 battery_pack_0 in, 2 out: needs separate charged and depleted battery items",
-    ),
-    (
-        "craft_titanium_alloy",
-        "2 titanium_ingot_0 in, 4 out: the alloy needs its own ingot item",
-    ),
-    (
-        "craft_nanomaterial",
-        "1 plastic_sheet_0 in, 5 out: the product needs its own item",
     ),
 ];
 

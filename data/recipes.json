@@ -1,5 +1,5 @@
 {
-  "count": 376,
+  "count": 373,
   "categories": [
     "assembly",
     "chemistry",
@@ -8336,41 +8336,6 @@
       "tools": []
     },
     {
-      "id": "craft_titanium_alloy",
-      "name": "Forge Titanium Alloy",
-      "category": "smelting",
-      "inputs": [
-        {
-          "id": "titanium_ingot_0",
-          "label": "Titanium Ingot",
-          "qty": 2
-        },
-        {
-          "id": "aluminum_ingot_0",
-          "label": "Aluminum Ingot",
-          "qty": 1
-        },
-        {
-          "id": "steel_ingot_0",
-          "label": "Steel Ingot",
-          "qty": 1
-        }
-      ],
-      "outputs": [
-        {
-          "id": "titanium_ingot_0",
-          "label": "Titanium Ingot",
-          "qty": 4
-        }
-      ],
-      "craft_time_sec": 45,
-      "station": "Smelter",
-      "skill": "Metalworking",
-      "skill_level": 5,
-      "description": "Alloy titanium with aluminum and steel for strength",
-      "tools": []
-    },
-    {
       "id": "craft_ceramic_composite",
       "name": "Fire Ceramic Composite",
       "category": "smelting",
@@ -8477,41 +8442,6 @@
       "skill": "Engineering",
       "skill_level": 5,
       "description": "Cool rare-earth compound into zero-resistance wire",
-      "tools": []
-    },
-    {
-      "id": "craft_nanomaterial",
-      "name": "Synthesize Nanomaterial",
-      "category": "chemistry",
-      "inputs": [
-        {
-          "id": "carbon_fiber_sheet_0",
-          "label": "Carbon Fiber Sheet",
-          "qty": 2
-        },
-        {
-          "id": "gold_ingot_0",
-          "label": "Gold Ingot",
-          "qty": 1
-        },
-        {
-          "id": "plastic_sheet_0",
-          "label": "Plastic Sheet",
-          "qty": 1
-        }
-      ],
-      "outputs": [
-        {
-          "id": "plastic_sheet_0",
-          "label": "Plastic Sheet",
-          "qty": 5
-        }
-      ],
-      "craft_time_sec": 120,
-      "station": "Chemistry Set",
-      "skill": "Engineering",
-      "skill_level": 5,
-      "description": "Assemble molecular-scale structured material",
       "tools": []
     },
     {
@@ -9745,45 +9675,6 @@
       "skill": "Engineering",
       "skill_level": 4,
       "description": "Assemble hydrogen electrochemical converter",
-      "tools": [
-        {
-          "id": "soldering_iron_0",
-          "label": "Soldering Iron"
-        },
-        {
-          "id": "pliers_0",
-          "label": "Pliers"
-        }
-      ]
-    },
-    {
-      "id": "craft_battery_charge",
-      "name": "Charge Battery Pack",
-      "category": "electronics",
-      "inputs": [
-        {
-          "id": "battery_pack_0",
-          "label": "Battery Pack",
-          "qty": 1
-        },
-        {
-          "id": "wire_0",
-          "label": "Wire",
-          "qty": 1
-        }
-      ],
-      "outputs": [
-        {
-          "id": "battery_pack_0",
-          "label": "Battery Pack",
-          "qty": 2
-        }
-      ],
-      "craft_time_sec": 10,
-      "station": "Electronics Bench",
-      "skill": "Engineering",
-      "skill_level": 1,
-      "description": "Recondition and recharge depleted cells",
       "tools": [
         {
           "id": "soldering_iron_0",
