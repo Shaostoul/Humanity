@@ -542,7 +542,7 @@ pub(crate) struct EngineState {
     /// [crate, gauge back, water] materials, and the crate layout cached
     /// against the stored volume it was built for.
     pub(crate) stock_pile_mesh: Option<[usize; 2]>, // [unit box, unit barrel]
-    pub(crate) stock_pile_mats: Option<[usize; 5]>, // [crate, gauge back, water, burlap, cask]
+    pub(crate) stock_pile_mats: Option<[usize; 6]>, // [crate, gauge back, water, burlap, cask, vessel gauge]
     pub(crate) stock_pile_cache: ([f32; 3], Vec<(glam::Vec3, usize)>),
     /// Animal in reach + look cone (v0.751): drives the "[E] collect" prompt.
     pub(crate) targeted_livestock: Option<hecs::Entity>,

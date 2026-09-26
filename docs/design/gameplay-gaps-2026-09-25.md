@@ -41,7 +41,10 @@ date; re-check before trusting one. The container data basis is
   96 L crate per 96 L of stock (`src/engine/stock_piles.rs`). The default
   home's Barn starts with a homestead dry store (grain, flour, seed
   potatoes, fertiliser, lumber: 1,620 L, 17 crates) in
-  `data/places/seed.json`. Every water tank carries a level gauge. Named
+  `data/places/seed.json`. Every water tank carries a level gauge, and so do
+  the bulk vessels (the grain silo, the fuel drums: `level_gauge` in
+  home.ron), as two crossed plates readable from any side. The silo stood
+  inside a rack bay and was moved to the Barn's clear east strip. Named
   bags, the garage and the car trunk are elsewhere and are not drawn in the
   Barn. Not yet: the harvest overflow goes into machine vessels, not the
   Barn, so harvesting does not yet grow the crate count (automated machines

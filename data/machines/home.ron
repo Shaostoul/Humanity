@@ -386,6 +386,7 @@
             rf_emission: 0.0,
             auto_recipe: Some("refine_fuel"),
             container_type: Some("steel_fuel_drum"),
+            level_gauge: true,
             model: None,
         ),
         "generator_portable": (
@@ -415,6 +416,7 @@
             rf_emission: 0.0,
             auto_recipe: None,
             container_type: Some("steel_fuel_drum"),
+            level_gauge: true,
             model: None,
         ),
         "grain_field": (
@@ -489,6 +491,7 @@
             rf_emission: 0.0,
             auto_recipe: None,
             container_type: Some("grain_silo_bin"),
+            level_gauge: true,
             model: None,
         ),
         "grow_light": (
@@ -3426,7 +3429,7 @@
             id: "silo_1",
             machine: "grain_silo",
             room: "room-barn",
-            offset: (45.0, 0.0, 78.0),
+            offset: (52.3, 0.0, 76.0),
             rotation: 0.0,
             zone: "home",
         ),

@@ -124,6 +124,11 @@ pub struct MachineDef {
     /// hand (2026-09-26; `AutoRefine::keep`). None = run whenever it can.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub auto_keep: Option<u32>,
+    /// A bulk vessel (silo, fuel drum) shows its fill as a level gauge above
+    /// it, like the water tanks (2026-09-26, engine::stock_piles). Furniture
+    /// that holds goods (shelves, drawers) does not.
+    #[serde(default)]
+    pub level_gauge: bool,
     /// This machine is an electric grow light (2026-09-26): while it is
     /// powered, every indoor grow area counts as lit, so green crops there
     /// keep growing after the sun sets (outdoor fields have only the sun).
@@ -1944,6 +1949,7 @@ mod tests {
             irrigates: false,
             auto_keep: None,
             lights_crops: false,
+            level_gauge: false,
             container_type: None,
             model: None,
             screen: None,

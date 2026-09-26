@@ -316,10 +316,12 @@ pub fn push_render_objects(state: &mut crate::engine::state::EngineState, out: &
         // theme-exempt: burlap and cask colours for the sacks and barrels.
         let burlap = state.renderer.add_material_typed([0.72, 0.62, 0.44, 1.0], 0.0, 0.95, 0.0);
         let cask = state.renderer.add_material_typed([0.40, 0.26, 0.15, 1.0], 0.1, 0.7, 0.0);
-        state.stock_pile_mats = Some([wood, back, water, burlap, cask]);
+        // theme-exempt: the lit amber band of a vessel's level gauge.
+        let goods = state.renderer.add_material_full([0.90, 0.62, 0.20, 1.0], 0.1, 0.4, 0.0, 0.8);
+        state.stock_pile_mats = Some([wood, back, water, burlap, cask, goods]);
     }
     let [mesh, barrel_mesh] = state.stock_pile_mesh.unwrap();
-    let [wood, back, water, burlap, cask] = state.stock_pile_mats.unwrap();
+    let [wood, back, water, burlap, cask, goods] = state.stock_pile_mats.unwrap();
 
     // Crates: what is filed in a storage room (the Barn) or loose in the
     // home, recomputed only when that volume changes. Things in named bags,
@@ -369,10 +371,12 @@ pub fn push_render_objects(state: &mut crate::engine::state::EngineState, out: &
         out.push(RenderObject { fade: 0.0, position: *p, rotation: Quat::IDENTITY, scale, mesh, material });
     }
 
-    // Tank level gauges: an upright dark plate above each water tank, turned
-    // with the tank, with the water level as a lit blue band that grows from
-    // its left end. As long as the tank is wide (at least 1 m).
-    let heights: std::collections::HashMap<String, (f32, f32)> = state
+    // Level gauges: an upright dark plate above each water tank and each
+    // vessel machine (grain silo, fuel drum, dairy tank; 2026-09-26), turned
+    // with it, with the level as a lit band that grows from its left end:
+    // blue for water, amber for what a vessel holds. As long as the machine
+    // is wide (at least 1 m).
+    let heights: std::collections::HashMap<String, (f32, f32, bool)> = state
         .gui_state
         .home_machines
         .as_ref()
@@ -388,46 +392,60 @@ pub fn push_render_objects(state: &mut crate::engine::state::EngineState, out: &
                             "sphere" => (d.size.0 * 2.0, d.size.0 * 2.0),
                             _ => (d.size.1, d.size.0),
                         };
-                        (i.id, hw)
+                        (i.id, (hw.0, hw.1, d.level_gauge))
                     })
                 })
                 .collect()
         })
         .unwrap_or_default();
-    for (_e, (tank, tf, id)) in state
-        .game_world
-        .world
-        .query::<(
-            &crate::ecs::components::WaterTank,
-            &crate::ecs::components::Transform,
-            &crate::ecs::components::MachineInstanceId,
-        )>()
-        .iter()
-    {
-        let (h, w) = heights.get(&id.0).copied().unwrap_or((2.0, 1.0));
+    let gauges: Vec<(String, crate::ecs::components::Transform, f32, bool)> = {
+        use crate::ecs::components::{MachineInstanceId, Transform, WaterTank};
+        use crate::systems::inventory::containers::Container;
+        let w = &state.game_world.world;
+        let level = |have: f32, cap: f32| if cap > 0.0 { (have / cap).clamp(0.0, 1.0) } else { 0.0 };
+        let mut v: Vec<(String, Transform, f32, bool)> = w
+            .query::<(&WaterTank, &Transform, &MachineInstanceId)>()
+            .iter()
+            .map(|(_e, (t, tf, id))| (id.0.clone(), tf.clone(), level(t.liters, t.capacity_l), true))
+            .collect();
+        // Bulk vessels only: machines marked level_gauge (the silo, the fuel
+        // drums). Shelves, drawers and cabinets hold goods and get no gauge.
+        v.extend(
+            w.query::<(&Container, &Transform, &MachineInstanceId)>()
+                .iter()
+                .filter(|(_e, (_, _, id))| heights.get(&id.0).map_or(false, |x| x.2))
+                .map(|(_e, (c, tf, id))| (id.0.clone(), tf.clone(), level(c.used_liters, c.capacity_liters), false)),
+        );
+        v
+    };
+    for (id, tf, frac, is_water) in gauges {
+        let (h, w, _) = heights.get(&id).copied().unwrap_or((2.0, 1.0, false));
         let len = w.max(1.0);
-        let frac = if tank.capacity_l > 0.0 { (tank.liters / tank.capacity_l).clamp(0.0, 1.0) } else { 0.0 };
-        let rot = tf.rotation;
         let top = tf.position + Vec3::new(0.0, h + 0.3, 0.0);
-        out.push(RenderObject {
-            fade: 0.0,
-            position: top,
-            rotation: rot,
-            scale: Vec3::new(len + 0.06, GAUGE_H_M, 0.04),
-            mesh,
-            material: back,
-        });
-        if frac > 0.0 {
-            // Proud of the plate on both faces, so it reads from either side.
-            let fill_len = len * frac;
+        // Two crossed plates, so the level reads from any side (one plate is
+        // a thin line seen end-on).
+        for turn in [0.0_f32, std::f32::consts::FRAC_PI_2] {
+            let rot = tf.rotation * Quat::from_rotation_y(turn);
             out.push(RenderObject {
                 fade: 0.0,
-                position: top + rot * Vec3::new(-(len - fill_len) * 0.5, 0.03, 0.0),
+                position: top,
                 rotation: rot,
-                scale: Vec3::new(fill_len, GAUGE_H_M - 0.06, 0.07),
+                scale: Vec3::new(len + 0.06, GAUGE_H_M, 0.04),
                 mesh,
-                material: water,
+                material: back,
             });
+            if frac > 0.0 {
+                // Proud of the plate on both faces, so it reads from either side.
+                let fill_len = len * frac;
+                out.push(RenderObject {
+                    fade: 0.0,
+                    position: top + rot * Vec3::new(-(len - fill_len) * 0.5, 0.03, 0.0),
+                    rotation: rot,
+                    scale: Vec3::new(fill_len, GAUGE_H_M - 0.06, 0.07),
+                    mesh,
+                    material: if is_water { water } else { goods },
+                });
+            }
         }
     }
 }
