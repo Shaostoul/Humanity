@@ -1546,3 +1546,80 @@ the old catalog first (15 missing references, every blueprint).
 
 **Found by:** reading what `Structure.provides` feeds while persisting
 builds for offline progression (2026-09-25).
+
+## BUG-083: tanning turned one hide into two hides, forever (FIXED v0.1351.0)
+
+**Symptom:** `tan_leather` took one `leather_hide_0` and salt and gave two
+`leather_hide_0`, the same item, so every tanning doubled the hides.
+
+**Cause:** there was no separate item for tanned leather in the recipe; the
+output reused the input id.
+
+**Fix:** tanning now turns one raw hide into one `leather_0` (tanned
+leather, 35% of the raw hide's mass per UNIDO's leather mass balance), and
+16 leatherwork recipes take `leather_0`. `tests/byproduct_use_lint.rs`
+fails any recipe that hands back more of an input than it takes (four older
+multipliers are allowlisted with reasons; the list may only shrink).
+
+**Found by:** the byproducts rung's mass-balance review (2026-09-26).
+
+## BUG-084: a worn tool came back new after being stored (FIXED v0.1351.0)
+
+**Symptom:** putting a worn hammer into home storage and taking it back gave
+a fresh one: tool wear (v0.1348.0) did not survive the backpack/storage
+transfer.
+
+**Cause:** the transfer carried only an item id and a quantity, and the
+storage pool's `PlacedItem` had no wear field.
+
+**Fix:** the transfer is a `TransferOp` carrying wear and grade both ways,
+`PlacedItem` stores them, `Inventory::add_item_worn` / `remove_worn` keep
+the picked stack's wear, and storage entries only merge when wear and grade
+match. `a_worn_tool_keeps_its_wear_through_storage` was run red both ways.
+
+**Found by:** reviewing the tool-wear rung the same day it shipped.
+
+## BUG-085: 13 crafting stations could be crafted but never placed (FIXED v0.1357.0)
+
+**Symptom:** in the one-person home about 160 recipes could not be made: the
+forge, anvil, stove, oven, electronics bench, sewing machine, loom,
+chemistry set, composter, sawmill, grain mill, fuel refinery and water
+purifier never existed, although `build_*` recipes crafted each one.
+
+**Cause:** the `build_*` recipes produced station ITEMS that nothing could set
+down; the station gate counts placed home machines and built structures.
+
+**Fix:** a blueprint per station that consumes the crafted item
+(`data/blueprints/basic.ron`); `recipe_sources_lint`
+`every_recipe_station_can_be_built` fails on a station no blueprint builds
+(red on the old catalog, naming all 13). Built electric stations draw home
+power since v0.1358.0.
+
+**Found by:** the gameplay gap survey (2026-09-25).
+
+## BUG-086: the water pump offered "Drink" (FIXED v0.1354.0)
+
+**Symptom:** the inventory's Drink button appeared on the water pump, the
+water purifier, the water tester, empty bottles and shampoo.
+
+**Cause:** the button guessed from the item id prefix `water_` and from the
+subcategory "liquid" instead of the food data.
+
+**Fix:** the buttons ask `food::consume_kinds`, built from the same
+`item_profiles.ron` and `food_system.ron` the food system uses.
+`consume_kinds_says_what_is_drunk_what_is_eaten_and_what_is_neither` was
+run red first.
+
+## BUG-087: NPC shops sold 16 items that do not exist (FIXED v0.1354.0)
+
+**Symptom:** `data/npcs.ron` shop lists named `seed_bag_0`, `torch_0`,
+`poultice_0`, `ale_0`, `engine_gasoline_0` and others with no items.csv row.
+
+**Cause:** shop lists were written before or apart from the item catalog, and
+nothing checked them.
+
+**Fix:** mapped to the real items (or removed where none exists; the glass
+flask became a real item); `recipe_sources_lint` `npc_shops_sell_real_items`
+fails on any shop item that is not in items.csv (it failed on the real data
+first). `data/tech_tree.ron` is left out on purpose: the game does not read
+it yet and it names future items by design.
