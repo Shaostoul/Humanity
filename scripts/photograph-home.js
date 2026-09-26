@@ -308,7 +308,10 @@ async function main() {
 
   manifest.panics = panicCount();
   save();
-  kill();
+  // --keep-open leaves the game running for a look around (2026-09-26: this
+  // kill() used to run regardless, so the flag did nothing).
+  if (KEEP_OPEN) log(`left running (--keep-open): taskkill /PID ${pid} /T /F to close it`);
+  else kill();
   log(`${manifest.shots.filter((s) => s.ok).length}/${vantages.length} captured, ${manifest.panics} panic(s)`);
   log(`evidence: ${path.relative(REPO, OUT)}`);
   process.exit(failed || manifest.panics ? 2 : 0);
