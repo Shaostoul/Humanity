@@ -859,6 +859,11 @@
    "date": "2026-09-26",
    "decision": "v0.1364.0: grow lights light the plots near them (farming/lighting.rs + data/garden/lighting.ron: watts x 2.30 umol/J DLC Hort V3.0 over Cornell 17 mol/m2/d in a 12 h night = 394 umol/m2/s, 0.58 m2 per 100 W, nearest first within 3 m, partial cover = that share of a night's growth). Engine publishes grow_plots / grow_instances / grow_plot_area_m2 from grow anchors (home_meshes::publish_grow_plots). grow_media.ron gains plots (+ stacked for racks); showcase sows one crop per plot (bed_units removed). BUG-089 fixed: bed Plant button crops were tagged with the machine TYPE and never drawn; farming now expands a type to its instances.",
    "why": "The first light rung admitted one light lit the whole home. Local lighting needs each crop's place, which exposed that bed-planted crops had none (never rendered). Plots per machine were needed anyway for the area-based harvest agent, which I told to read grow_plot_area_m2. Left: per-species DLI, and the renderer draws one plant per plot until plants-per-plot lands."
+  },
+  {
+   "date": "2026-09-26",
+   "decision": "v0.1365.0: crop card Light row (lighting::light_now/light_word); pests do not advance offline (recorded in offline-progression.md: harms without a decision; soil draw for offline growth is paid on return); removed three pure-multiplier recipes (craft_battery_charge, craft_titanium_alloy, craft_nanomaterial); sawmill keeps slabs (wood_slab_0 -> make_charcoal_slabs) and bark (bark_0 -> tan_leather at 2x hide weight, Traditional Tanners).",
+   "why": "Worked the non-conflicting leftovers while the area and pH agents run. Rubber vulcanization stays on the multiplier list until the pH agent's sulfur item lands (vulcanizing needs sulfur and a raw rubber item; the rubber tree currently harvests a fiber bundle, a defect like flax)."
   }
  ],
  "active_scopes_to_avoid": [
