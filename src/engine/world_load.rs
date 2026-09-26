@@ -601,6 +601,12 @@ pub(crate) fn load_world(state: &mut EngineState) {
             }
         }
     }
+    // The grow machines' plots, lights and plot areas (2026-09-26). This load
+    // path records the grow anchors itself, so it has to publish them too:
+    // only `rebuild_machine_objects` did, which a fresh boot never runs, so
+    // until the first machine edit every bed, tray and field plot counted as
+    // one plant to the farm and drew as one plant.
+    crate::engine::home_meshes::publish_grow_plots(state);
     // ── Wild hostiles (v0.761, combat arc) ── absolute-position spawns
     // away from the homestead; the AISystem drives them (hunt-class rows
     // become predators that stalk prey INCLUDING the player). Runs even

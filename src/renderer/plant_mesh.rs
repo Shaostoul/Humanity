@@ -118,6 +118,19 @@ pub struct PlantVisualRegistry {
     /// `data/plants_visual.ron`, not a rebuild.
     #[serde(default)]
     pub stage_models: HashMap<String, String>,
+    /// The most plants one garden plot is drawn with (2026-09-26). A bed,
+    /// tray or field plot draws every plant it holds up to this many, and
+    /// above it this many clumps, each as wide as the plants it stands for
+    /// (`engine::plant_layout::plot_plants`). The reason for the number is
+    /// beside it in the file. 0, or absent, draws one plant per plot.
+    #[serde(default)]
+    pub plot_visual_cap: u32,
+    /// The most vertices one garden plot is drawn with (2026-09-26): the
+    /// plant cap is lowered further for a heavy model, so a plot never costs
+    /// more geometry than this (`engine::plant_layout::plot_draw_cap`). 0, or
+    /// absent, leaves only the plant cap.
+    #[serde(default)]
+    pub plot_vertex_budget: u32,
 }
 
 impl PlantVisualRegistry {
@@ -912,6 +925,10 @@ mod tests {
         ] {
             assert!(reg.get(id).is_some(), "missing visual def for {id}");
         }
+        // Without a cap a wheat plot would draw its hundreds of plants one
+        // by one; the shipped file must set one (2026-09-26).
+        assert!(reg.plot_visual_cap > 0, "plants_visual.ron sets no plot_visual_cap");
+        assert!(reg.plot_vertex_budget > 0, "plants_visual.ron sets no plot_vertex_budget");
     }
 
     /// A species' stage-model set is its `stage_models` entry, else its own

@@ -370,10 +370,11 @@ pub(crate) struct EngineState {
     /// pos, yaw deg, uniform scale) scattered from
     /// data/entities/decorations.ron at home build.
     pub(crate) decoration_objects: Vec<(usize, usize, Vec3, f32, f32)>,
-    /// Hero crop models (v0.992): planted crops whose species has a converted
-    /// Quaternius stage model (assets/models/plants/<crop>_<1..4>/) render as
-    /// real 3D models instead of joining the procedural plant mesh. Same
-    /// tuple shape as decoration_objects; rebuilt inside rebuild_plant_meshes.
+    /// Hero crop models drawn one object per crop (v0.992). EMPTY since
+    /// 2026-09-26: a plot now draws every plant it holds, so the stage models
+    /// bake into the merged meshes in `plant_objects` (one draw per machine
+    /// and model). Kept only because its draw loop is in lib.rs; delete both
+    /// together.
     pub(crate) hero_plant_objects: Vec<(usize, usize, Vec3, f32, f32)>,
     /// Crop model names that failed to load once - skipped on later rebuilds
     /// so ~114 modelless species never re-attempt a parse per growth tick.
@@ -462,8 +463,10 @@ pub(crate) struct EngineState {
     /// rebuild_machine_objects: catalog type + instance id + placement, so the
     /// plant pass can dress towers (helix) and beds/fields (footprint grid).
     pub(crate) grow_positions: Vec<GrowSpot>,
-    /// Procedural plant meshes (v0.862): one merged world-space mesh per planted
-    /// tower config, one draw each: (mesh_idx, mat_idx). See rebuild_plant_meshes.
+    /// Garden plant meshes (v0.862): merged world-space meshes, one draw each:
+    /// (mesh_idx, mat_idx). A procedural mesh per planted tower or grow
+    /// machine, plus one per machine and hero stage model (2026-09-26). See
+    /// rebuild_plant_meshes.
     pub(crate) plant_objects: Vec<(usize, usize)>,
     /// Change signature of the last plant build; 0 forces a rebuild (hot reload).
     pub(crate) plant_mesh_sig: u64,

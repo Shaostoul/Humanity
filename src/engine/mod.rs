@@ -22,6 +22,9 @@ pub mod ipc_parse;
 /// The Settings > Controls key-capture step (rebindable keybinds, 2026-08-12).
 pub mod keybind_capture;
 pub mod launch_focus;
+/// Where a garden plot's plants stand: plots of a machine, the crop's rows at
+/// its real spacing, and the clump rule above the visual cap (2026-09-26).
+pub mod plant_layout;
 /// Near-tree model cache + sprite-atlas bake (extracted from lib.rs, v0.1108).
 pub mod near_tree_models;
 /// One frame's relay WebSocket message pump: every `type` the relay can send,

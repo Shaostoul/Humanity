@@ -26,6 +26,12 @@
 // running, the operator's own game included, and never sets the take-focus env
 // var.
 //
+// Frame cost per room (2026-09-26): run with HUMANITY_FRAME_COSTS=1 in the
+// environment and the engine rewrites debug/frame_costs.json once a second.
+// After each capture the rig waits for a fresh one and keeps it beside the
+// picture as <id>.costs.json, with frame_ms in the manifest, so a before and
+// after of a room is two runs and a diff instead of a guess.
+//
 // Usage:
 //   node scripts/photograph-home.js [--exe PATH] [--only id,id] [--width N] [--height N]
 // Exit 0 = every vantage captured. 1 = refused. 2 = one or more captures failed.
@@ -123,7 +129,8 @@ function setupRig() {
     if (fs.existsSync(s)) fs.copyFileSync(s, path.join(RIG, dll));
   }
   for (const f of fs.readdirSync(DEBUG)) {
-    if (/\.png$/.test(f) || /_done\.json$/.test(f) || /_request\.json$/.test(f)) fs.unlinkSync(path.join(DEBUG, f));
+    if (/\.png$/.test(f) || /_done\.json$/.test(f) || /_request\.json$/.test(f) || f === "frame_costs.json")
+      fs.unlinkSync(path.join(DEBUG, f));
   }
   if (fs.existsSync(LOG)) fs.truncateSync(LOG, 0);
 }
@@ -159,6 +166,21 @@ async function waitBoot(timeoutMs) {
     await sleep(1000);
   }
   throw new Error("the exe did not finish booting in time");
+}
+// The frame-cost drop written after this call (null when the run was not
+// started with HUMANITY_FRAME_COSTS=1). The engine rewrites it once a
+// second, so waiting for a newer mtime means the numbers are from frames
+// drawn at this pose, not from the walk here.
+async function freshCosts() {
+  const p = path.join(DEBUG, "frame_costs.json");
+  const since = Date.now();
+  while (Date.now() - since < 4000) {
+    try {
+      if (fs.statSync(p).mtimeMs > since) return JSON.parse(fs.readFileSync(p, "utf8"));
+    } catch {}
+    await sleep(200);
+  }
+  return null;
 }
 const panicCount = () => (fs.existsSync(LOG) ? (fs.readFileSync(LOG, "utf8").match(/PANIC/g) || []).length : 0);
 
@@ -269,7 +291,13 @@ async function main() {
       const src = path.join(RIG, out);
       const name = `${v.id}.png`;
       if (fs.existsSync(src)) fs.copyFileSync(src, path.join(OUT, name));
-      manifest.shots.push({ id: v.id, room: v.room, note: v.note, pose, file: name, ok: fs.existsSync(path.join(OUT, name)) });
+      const shot = { id: v.id, room: v.room, note: v.note, pose, file: name, ok: fs.existsSync(path.join(OUT, name)) };
+      const costs = await freshCosts();
+      if (costs) {
+        fs.writeFileSync(path.join(OUT, `${v.id}.costs.json`), JSON.stringify(costs, null, 2));
+        shot.frame_ms = costs.frame_ms;
+      }
+      manifest.shots.push(shot);
       save();
       log(`ok   ${v.id.padEnd(16)} ${v.note || ""}`);
     }

@@ -6,6 +6,33 @@
 // forms: rosette | herb | vine | tree | bulb | bromeliad (unknown -> rosette)
 // flower_at / fruit_at: growth fraction (0..1) where flowers/fruit appear.
 (
+    // Plants drawn per garden plot (2026-09-26). A bed, tray or field plot
+    // holds as many plants as its floor fits at the crop's spacing
+    // (plants.csv area_per_plant_m2), and the farm harvests, feeds and waters
+    // that many. The garden draws every one of them, in rows at that spacing,
+    // up to this many per plot. A plot that holds more (a 1.44 m2 field plot
+    // of wheat is 480 plants) is drawn as this many clumps instead, each
+    // standing for the plants whose floor it covers and drawn that much
+    // wider, never taller: a cereal plot reads as a stand, not a count.
+    // Why 128: wheat stands 5.5 cm apart, so its 480 plants on a 1.2 m plot
+    // drawn as 128 clumps put one every 10.6 cm at 1.9 times a stalk's
+    // width, which still reads as a stand of stalks; at 64 the clumps are
+    // 2.7 times as wide and read as fat single stalks. Every crop the
+    // showcase grows except wheat (beans 32, rice 33, potatoes 4 to 6,
+    // sunflowers 5 to 7 a plot) is under it, so they draw their real count.
+    // 0 draws one plant per plot, the look before plots were drawn in full.
+    plot_visual_cap: 128,
+    // And no plot draws more vertices than this: a heavy stage model lowers
+    // the cap further, the plants it drops going into wider clumps as above.
+    // 65,536 is about one planted aeroponic tower (50 plants of roughly
+    // 1,400 vertices), so a plot costs at most what a tower does. It binds on
+    // the heavy stage models: rice at its last stage is 3,954 vertices a
+    // plant, so a rice plot of 33 then draws 16 clumps. Measured 2026-09-26
+    // (photograph-home rig, greenhouse beds view): drawing the real counts
+    // took the GPU scene pass from 5.1 to 7.1 ms and the mesh memory from
+    // 105 to 185 MB; this budget brought them to 6.7 ms and 154 MB.
+    // 0 turns it off.
+    plot_vertex_budget: 65536,
     plants: {
         // Strawberry: low leafy rosette, white 5-petal flowers, red hanging cones.
         "strawberry": (
