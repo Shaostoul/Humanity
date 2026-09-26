@@ -1114,7 +1114,9 @@ cited to NRCS, UW-Madison A2809 and FoodData Central; the old indices had
 understated grain and legume removal 5 to 20 times, and urine now covers 26%
 of the household's net N, not 118%). In flight: harvest per grow unit from
 its floor area and the crop's spacing (the per-unit harvest masses are not
-grounded, a soybean cup grew 1.65 kg), and soil pH. Grow lights now light
+grounded, a soybean cup grew 1.65 kg). Soil pH is DONE (v0.1366.0: cited
+drift from nitrogen, lime and sulfur with delays, a health cap outside each
+crop's window, Off/On). Grow lights now light
 only the plots near them (v0.1364.0: 0.58 m2 per 100 W from the DLC and
 Cornell figures), beds are divided into plots, and bed-planted crops are
 drawn (BUG-089). Next: per-species light need, drawing each plot's plants at

@@ -869,6 +869,11 @@
    "date": "2026-09-26",
    "decision": "In flight (worktree agents, merge by cherry-pick): (1) harvest per plot from area x crop spacing (plants.csv area_per_plant_m2 + per-plant yields, reads grow_plot_area_m2; crop_nutrition grams_per_yield_unit removed in favour of items.csv mass); (2) soil pH (data/garden/soil_ph.ron, lime/sulfur items, Off/On); (3) crop DLI research as docs/reference/findings/2026-09-26-crop-daily-light-integrals.md (no plants.csv edit; I add a dli column after (1) merges); (4) pollination (data/garden/pollination.ron, farming/pollination.rs, hand-pollinate + bumblebee_hive, Off/On).",
    "why": "Parallel waves on disjoint files; plants.csv is edited by (1) only, so every other agent was told not to touch it. Merge order: (1) then (2) then (4); DLI column and the renderer drawing plants per plot come after (1). Rubber vulcanization waits for (2)'s sulfur item."
+  },
+  {
+   "date": "2026-09-26",
+   "decision": "v0.1366.0: merged soil pH (worktree commit 75f7928c cherry-picked; four keep-both conflicts with the lighting work in farming/mod.rs, lib.rs, inventory.rs, the gap doc). Switched its stopgap unit area (inferred from N removal) to the real plot floor area from grow_plot_area_m2 (soil_ph::plot_area; unit_area_m2 takes plot_m2 first), test a_placed_plot_buffers_over_its_real_floor_area red first.",
+   "why": "The agent inferred area because plots did not exist when it started; they do now. Kept its Settings switch on GardenPests.soil_ph_off (gui/mod.rs has no line budget left) and default On (slow drift, gentle cap). Left: the Home page tower compatibility check still intersects plants.csv soil windows for the held tower solution; wood ash liming waits for an ash item."
   }
  ],
  "active_scopes_to_avoid": [

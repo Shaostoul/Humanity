@@ -1585,7 +1585,13 @@ lights near them, each covering about 0.58 m2 of canopy per 100 W, nearest machi
 first: `farming/lighting.rs`, `data/garden/lighting.ron`, v0.1364.0) and pause in the
 dark; plants.csv `needs_light` is false for fungi. Beds, trays, fields and racks are
 divided into plots (grow_media.ron `plots`), one crop per plot, each crop tagged with
-the machine it stands in. Nutrients (v0.1355.0):
+the machine it stands in. Soil pH (v0.1366.0): each soil plot has a pH remembered
+between crops (beds start at 6.5; tower solutions are held at 6.0); nitrogen from urine
+and fertilizer acidifies it, garden lime raises it and garden sulfur lowers it after
+their delays, buffered over the plot's real floor area; a crop outside its plants.csv
+`ph_min`..`ph_max` has its health capped; Lime and Sulfur buttons per grow area;
+Settings: Soil pH Off/On (`farming/soil_ph.rs`, `data/garden/soil_ph.ron`).
+Nutrients (v0.1355.0):
 each unit holds grams of N, P2O5 and K2O (`CropSoil`), crops draw their
 season need, the scarcest nutrient caps health, compost adds its cited
 first-season nutrients, the "nutrient" slider runs a feeder from home
