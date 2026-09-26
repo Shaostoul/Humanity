@@ -30,7 +30,7 @@
             category: "Food",
             stats: [
                 (
-                    kind: "food",
+                    kind: "nutrient",
                     value: "herbs + teas",
                     status: "ok",
                 ),
@@ -55,11 +55,6 @@
             label: "Variety tower",
             category: "Food",
             stats: [
-                (
-                    kind: "food",
-                    value: "+92 kcal/d",
-                    status: "warn",
-                ),
                 (
                     kind: "nutrient",
                     value: "vitamins + protein",
@@ -167,7 +162,7 @@
             stats: [
                 (
                     kind: "food",
-                    value: "+75 kcal/d",
+                    value: "+75 kcal/d (estimate, fish not modelled)",
                     status: "ok",
                 ),
                 (
@@ -462,11 +457,6 @@
             label: "Grain field",
             category: "Food",
             stats: [
-                (
-                    kind: "food",
-                    value: "+3100 kcal/d",
-                    status: "ok",
-                ),
                 (
                     kind: "nutrient",
                     value: "-N -P -K",
@@ -1361,11 +1351,6 @@
             category: "Food",
             stats: [
                 (
-                    kind: "food",
-                    value: "+700 kcal/d",
-                    status: "ok",
-                ),
-                (
                     kind: "nutrient",
                     value: "+N (fixing)",
                     status: "ok",
@@ -1428,11 +1413,6 @@
             label: "Mushroom rack",
             category: "Food",
             stats: [
-                (
-                    kind: "food",
-                    value: "+50 kcal/d",
-                    status: "ok",
-                ),
                 (
                     kind: "power",
                     value: "no light needed",
@@ -1503,9 +1483,9 @@
             category: "Food",
             stats: [
                 (
-                    kind: "food",
-                    value: "+25 kcal/d (fats)",
-                    status: "warn",
+                    kind: "nutrient",
+                    value: "fats (oil)",
+                    status: "ok",
                 ),
                 (
                     kind: "power",
@@ -1529,8 +1509,8 @@
             category: "Food",
             stats: [
                 (
-                    kind: "food",
-                    value: "+500 kcal/d (fats)",
+                    kind: "nutrient",
+                    value: "fats (oil)",
                     status: "ok",
                 ),
             ],
@@ -1574,11 +1554,6 @@
             label: "Potato bed",
             category: "Food",
             stats: [
-                (
-                    kind: "food",
-                    value: "+120 kcal/d",
-                    status: "ok",
-                ),
                 (
                     kind: "power",
                     value: "sun-lit, 0 W",
@@ -1733,11 +1708,6 @@
             category: "Food",
             stats: [
                 (
-                    kind: "food",
-                    value: "+20 kcal/d",
-                    status: "low",
-                ),
-                (
                     kind: "power",
                     value: "sun-lit, 0 W",
                     status: "ok",
@@ -1804,11 +1774,6 @@
             label: "Tuber field",
             category: "Food",
             stats: [
-                (
-                    kind: "food",
-                    value: "+1900 kcal/d",
-                    status: "ok",
-                ),
             ],
             power: None,
             ports: [],
@@ -3993,10 +3958,11 @@
         (
             name: "Food",
             demand: "~6,600 kcal/day + complete nutrition (3 people)",
-            supply: "indoor sun-lit garden (26 towers + potato/grain/oilseed beds + mushroom racks + 2 aquaponic fish tanks): ALL veg/herbs/protein/vitamins + B12 + omega-3 + ~half the calories + ~a fifth of the fat; outdoor field crops carry the rest; silo = ~750 days",
+            supply: "indoor sun-lit garden (variety + herb towers, potato/grain/oilseed beds, mushroom racks, aquaponic fish tanks): ALL veg/herbs/protein/vitamins + B12 + omega-3; outdoor grain, legume, tuber and oilseed fields add bulk calories and fat; silo = ~750 days. The calories are the grown line, computed from the crops placed",
             closes: true,
             weakest: true,
-            note: "The garden is now a real indoor farm, but honestly area-capped. Sun-lit (skylight) single canopy: 24 variety towers + 2 herb towers cover ALL vegetables, herbs, plant protein, and plant vitamins for 3. Potato/grain/oilseed beds, dark mushroom racks, and a small aquaponic fish loop add real calories, fats, and the B12 + omega-3 no plant can make. Together the room supplies all veg + protein, about half the calories, and a fifth of the fat. The rest of the bulk calories and fat stay on the outdoor sun-lit field crops; the silo buffers winter. The hard limit: free sunlight is ONE canopy, so the floor caps it near 1 to 1.5 person-equivalents of complete food. Grow-lights to feed 3 indoors would need 2.5x to 12x the whole energy budget, so we do not, and that is the lesson.",
+            note: "The garden is now a real indoor farm, but honestly area-capped. Sun-lit (skylight) single canopy: the variety and herb towers cover ALL vegetables, herbs, plant protein, and plant vitamins for 3. Potato/grain/oilseed beds, dark mushroom racks, and a small aquaponic fish loop add real calories, fats, and the B12 + omega-3 no plant can make; the outdoor field crops add bulk grain, pulses and oil; the silo buffers winter. The grown figure is computed from the crops placed (2026-09-26): each plant at its cited yield, cropped back to back all year, so it is an upper bound that does not yet discount for the light the canopy really gets, and the fish tanks' figure is an estimate the crop model cannot count. The hard limit is light: free sunlight is ONE canopy, and a real sun-lit greenhouse here gives about 7.2 kcal/m2/day across the year (data/home_outline.json). Grow-lights to feed 3 indoors would need 2.5x to 12x the whole energy budget, so we do not, and that is the lesson.",
+            food_demand_kcal: Some(6600.0),
         ),
         (
             name: "Nutrients",

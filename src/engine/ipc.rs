@@ -127,15 +127,9 @@ fn normalised_or(v: Vec3, fallback: impl FnOnce() -> Vec3) -> Vec3 {
     }
 }
 
-/// data/world/showcase.ron shape (v0.863 perpetual showcase).
-#[derive(serde::Deserialize)]
-pub(crate) struct ShowcaseCfg {
-    pub(crate) enabled: bool,
-    #[serde(default)]
-    pub(crate) bed_crops: std::collections::HashMap<String, String>,
-    #[serde(default)]
-    pub(crate) tower_overrides: std::collections::HashMap<String, String>,
-}
+/// data/world/showcase.ron shape (v0.863 perpetual showcase). Lives with the grow
+/// machines' food model, which reads the same crops to compute each machine's figure.
+pub(crate) use crate::systems::grow_machines::ShowcaseCfg;
 
 /// Perpetual showcase auto-seed (v0.863). Operator: "just preload everything
 /// with plants at different stages... a perpetual showcase." Whenever the
@@ -236,12 +230,12 @@ pub(crate) fn auto_seed_showcase(state: &mut EngineState) {
             } else {
                 tcfg.plantings.iter().map(|p| p.plant.clone()).collect()
             };
-            if cycle.is_empty() {
-                continue;
-            }
-            for slot in 0..slots {
+            // One crop per cup, the plantings cycled: the same rule the grow
+            // machines' food figure counts (grow_machines::tower_cup_crops).
+            let cups = crate::systems::grow_machines::tower_cup_crops(&cycle, slots);
+            for (slot, plant) in (0u32..).zip(&cups) {
                 let frac = slot as f32 / (slots.max(2) - 1) as f32;
-                stagger(&mut to_spawn, &cycle[slot as usize % cycle.len()], &g.id, slot, frac);
+                stagger(&mut to_spawn, plant, &g.id, slot, frac);
             }
         } else if let Some(plant) = cfg.bed_crops.get(&g.ty) {
             let plots = state.gui_state.grow_media.iter().find(|m| m.matches(&g.ty)).map_or(1, |m| m.plots.max(1));

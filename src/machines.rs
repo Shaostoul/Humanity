@@ -501,6 +501,19 @@ pub struct HomeLoop {
     #[serde(default)]
     pub weakest: bool,
     pub note: String,
+    /// Marks the FOOD loop and states its demand in kcal a day (2026-09-26). Its
+    /// supply is then the home's computed food (`MachineHome::grown_kcal_per_day`), and
+    /// whether it closes is computed against this, not read from `closes`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub food_demand_kcal: Option<f32>,
+}
+
+impl HomeLoop {
+    /// Does this loop close? The food loop (`food_demand_kcal`) closes when the home's
+    /// computed food meets its demand; every other loop by its authored `closes`.
+    pub fn closes_given(&self, grown_kcal_per_day: f32) -> bool {
+        self.food_demand_kcal.map_or(self.closes, |d| grown_kcal_per_day >= d)
+    }
 }
 
 /// A conduit junction NODE (v0.581): a draggable point where conduit edges meet / branch. Position is
@@ -563,6 +576,11 @@ pub struct MachineHome {
     /// Conduit EDGES (v0.581) -- node/machine-to-node/machine links, each routed as a real pipe.
     #[serde(default)]
     pub conduit_edges: Vec<ConduitEdge>,
+    /// COMPUTED, never saved (2026-09-26): each grow machine type's food a day, from
+    /// the crops it grows (`systems::grow_machines`). Filled by `load`; read through
+    /// `stats_for`, which makes it the food line of every card that shows the machine.
+    #[serde(skip)]
+    pub grown: BTreeMap<String, crate::systems::grow_machines::GrownFood>,
 }
 
 /// Pass / warn / fail verdict for one buildability check. Ord follows declaration order
@@ -788,7 +806,13 @@ impl MachineHome {
             }
         };
         match ron::from_str::<MachineHome>(&text) {
-            Ok(h) => Some(h),
+            Ok(mut h) => {
+                // The home file sits in <data>/machines/, so its data dir is two up.
+                if let Some(data_dir) = path.parent().and_then(|p| p.parent()) {
+                    h.grown = crate::systems::grow_machines::grown_food(&h, data_dir);
+                }
+                Some(h)
+            }
             Err(e) => {
                 log::warn!("machines: failed to parse {}: {e}", path.display());
                 None
@@ -827,6 +851,26 @@ impl MachineHome {
                 .to_string()
         });
         std::fs::write(path, format!("{header}{body}")).map_err(|e| e.to_string())
+    }
+
+    /// The stat readouts to SHOW for a machine type: its catalog stats, with a grow
+    /// machine's food line replaced by the computed one (`grown`). Every card, the
+    /// construction editor and the garden overview read stats through this, so no two
+    /// of them show a different food figure for the same machine.
+    pub fn stats_for(&self, machine: &str) -> Vec<MachineStat> {
+        let mut stats = self.catalog.get(machine).map(|d| d.stats.clone()).unwrap_or_default();
+        if let Some(g) = self.grown.get(machine) {
+            stats.retain(|s| s.kind != "food");
+            stats.insert(0, g.stat());
+        }
+        stats
+    }
+
+    /// The whole home's computed food, kcal a day: every placed machine (instances and
+    /// array cells) at its type's computed figure. The Home page and the garden overview
+    /// both show this one number.
+    pub fn grown_kcal_per_day(&self) -> f32 {
+        self.all_instances().iter().filter_map(|i| self.grown.get(&i.machine)).map(|g| g.kcal_per_day).sum()
     }
 
     /// A machine-instance id not already used by ANY placed machine, so the editor can add a
@@ -1679,7 +1723,7 @@ impl MachineHome {
                 size: def.size,
                 color: def.color,
                 label: if def.label.is_empty() { inst.machine.clone() } else { def.label.clone() },
-                stats: def.stats.clone(),
+                stats: self.stats_for(&inst.machine),
                 rotation: inst.rotation,
                 model: def.model.clone(),
                 // The instance's own page wins over the def's default, so two
@@ -1990,7 +2034,8 @@ mod tests {
             loops: Vec::new(),
             conduit_nodes: Vec::new(),
             conduit_edges: Vec::new(),
-        };
+            grown: Default::default(),
+};
         let id = home.unique_instance_id("solar_panel");
         // The four array cells occupy _0.._3, so the next free id must be _4 (not _0).
         let taken: std::collections::HashSet<String> =
@@ -2028,7 +2073,8 @@ mod tests {
             loops: Vec::new(),
             conduit_nodes: Vec::new(),
             conduit_edges: Vec::new(),
-        };
+            grown: Default::default(),
+};
         home.remove_instance("b");
         assert!(!home.instances.iter().any(|i| i.id == "b"), "instance b removed");
         // a->b and b->c referenced b and must be gone; c->a survives.
@@ -2074,7 +2120,8 @@ mod tests {
             loops: Vec::new(),
             conduit_nodes: Vec::new(),
             conduit_edges: Vec::new(),
-        };
+            grown: Default::default(),
+};
         let changed = home.remove_room("garden");
         assert!(changed, "remove_room reports it removed something");
         assert_eq!(home.instances.len(), 1, "only the kitchen instance survives");
@@ -2108,7 +2155,8 @@ mod tests {
             loops: Vec::new(),
             conduit_nodes: Vec::new(),
             conduit_edges: Vec::new(),
-        };
+            grown: Default::default(),
+};
         assert!(home.add_connection("a", "b", "power"), "valid connection added");
         assert!(!home.add_connection("a", "b", "power"), "exact duplicate refused");
         assert!(!home.add_connection("a", "a", "power"), "self-loop refused");
@@ -2144,7 +2192,8 @@ mod tests {
             loops: Vec::new(),
             conduit_nodes: Vec::new(),
             conduit_edges: Vec::new(),
-        };
+            grown: Default::default(),
+};
         // A direct instance is already movable -> no-op.
         assert!(!home.detach_array_member("solo"), "a direct instance does not detach");
         // An unknown id -> no-op.
@@ -2178,7 +2227,8 @@ mod tests {
             loops: Vec::new(),
             conduit_nodes: Vec::new(),
             conduit_edges: Vec::new(),
-        };
+            grown: Default::default(),
+};
         assert!(home.add_connection("a", "b", "power"));
         assert!(home.add_connection("b", "c", "water"));
         // Remove a->b by the REVERSED endpoints -> still found.
@@ -2205,7 +2255,8 @@ mod tests {
             loops: Vec::new(),
             conduit_nodes: Vec::new(),
             conduit_edges: Vec::new(),
-        };
+            grown: Default::default(),
+};
         let id = home.add_conduit_node((1.0, 0.5, 2.0), "power");
         {
             let n = home.conduit_nodes.iter().find(|n| n.id == id).unwrap();
@@ -2238,7 +2289,8 @@ mod tests {
             loops: Vec::new(),
             conduit_nodes: Vec::new(),
             conduit_edges: Vec::new(),
-        };
+            grown: Default::default(),
+};
         // placements (box mode) carry the yaw through to the renderer.
         let placed = home.placements(&std::collections::HashMap::new(), Some(&one_zone(20.0, 20.0, 4.0)));
         let m = placed.iter().find(|p| p.id == "m1").expect("m1 placed");
@@ -2271,7 +2323,8 @@ mod tests {
             loops: Vec::new(),
             conduit_nodes: Vec::new(),
             conduit_edges: Vec::new(),
-        };
+            grown: Default::default(),
+};
         let report = home.buildability_report(4.5);
         assert_eq!(report.worst(), CheckStatus::Fail);
         assert!(report.checks.iter().any(|c| c.name == "Power source" && c.status == CheckStatus::Fail));
@@ -2293,7 +2346,8 @@ mod tests {
             loops: Vec::new(),
             conduit_nodes: Vec::new(),
             conduit_edges: Vec::new(),
-        };
+            grown: Default::default(),
+};
         let meters = home.utility_meters(4.5);
         let power = meters.iter().find(|m| m.utility == "power").expect("a power meter exists");
         // gen = 1000 W * 4.5 h / 1000 = 4.5 kWh/day; demand = 100 W * 24 h / 1000 = 2.4 kWh/day.
@@ -2325,7 +2379,8 @@ mod tests {
             loops: Vec::new(),
             conduit_nodes: Vec::new(),
             conduit_edges: Vec::new(),
-        };
+            grown: Default::default(),
+};
         let meters = home.utility_meters(4.5);
         let power = meters.iter().find(|m| m.utility == "power").expect("a power meter exists");
         // Demand is ONLY the 100 W consumer (2.4 kWh/day) -- not 2.4 + the battery's 48.
@@ -2354,7 +2409,8 @@ mod tests {
             loops: Vec::new(),
             conduit_nodes: Vec::new(),
             conduit_edges: Vec::new(),
-        };
+            grown: Default::default(),
+};
         // Zero grow lights -> no report (the meter row only appears once one is placed).
         assert!(home.grow_light_report(4.5).is_none(), "no lights -> no report");
 
@@ -2460,7 +2516,8 @@ mod tests {
             loops: Vec::new(),
             conduit_nodes: Vec::new(),
             conduit_edges: Vec::new(),
-        };
+            grown: Default::default(),
+};
         // 1000W * 4.5h = 4500 Wh/day made vs 100W * 24h = 2400 used; night need = 100W * 19.5h =
         // 1950 Wh <= 2000 Wh battery, so every check passes.
         let report = home.buildability_report(4.5);
@@ -2487,7 +2544,8 @@ mod tests {
             loops: Vec::new(),
             conduit_nodes: Vec::new(),
             conduit_edges: Vec::new(),
-        };
+            grown: Default::default(),
+};
         let report = home.buildability_report(4.5);
         assert_eq!(report.worst(), CheckStatus::Warn, "tiny battery warns: {:?}", report.checks);
     }
@@ -2505,7 +2563,8 @@ mod tests {
             loops: Vec::new(),
             conduit_nodes: Vec::new(),
             conduit_edges: Vec::new(),
-        };
+            grown: Default::default(),
+};
         let report = home.buildability_report(4.5);
         assert!(report.checks.iter().any(|c| c.name == "Wiring" && c.status == CheckStatus::Fail));
         assert_eq!(report.worst(), CheckStatus::Fail);
@@ -2547,7 +2606,8 @@ mod tests {
             loops: Vec::new(),
             conduit_nodes: Vec::new(),
             conduit_edges: Vec::new(),
-        }
+            grown: Default::default(),
+}
     }
 
     /// A single "home" zone at the world origin -- the pre-v0.754 single-box world, expressed in
@@ -2806,7 +2866,8 @@ mod tests {
             loops: Vec::new(),
             conduit_nodes: Vec::new(),
             conduit_edges: Vec::new(),
-        }
+            grown: Default::default(),
+}
     }
 
     /// derive_ports infers an electrical port from the `power` role, explicit ports override it, and
@@ -2890,7 +2951,8 @@ mod tests {
             loops: Vec::new(),
             conduit_nodes: Vec::new(),
             conduit_edges: Vec::new(),
-        };
+            grown: Default::default(),
+};
         let wired = home.buildability_report(4.5);
         let d = wired.checks.iter().find(|c| c.name == "Data links").expect("a Data links check");
         assert_eq!(d.status, CheckStatus::Pass, "wired Cat6 carries 100 Mbps: {}", d.detail);
@@ -2930,7 +2992,8 @@ mod tests {
             loops: Vec::new(),
             conduit_nodes: Vec::new(),
             conduit_edges: Vec::new(),
-        };
+            grown: Default::default(),
+};
         let circuit = home.power_circuit_check(&home.all_instances()).expect("electrical machines -> a circuit check");
         assert_eq!(circuit.status, CheckStatus::Fail, "battery-only load fails: {}", circuit.detail);
         // Now wire a panel onto the same bus -> the load traces to generation -> Pass.
@@ -2957,7 +3020,8 @@ mod tests {
             loops: Vec::new(),
             conduit_nodes: Vec::new(),
             conduit_edges: Vec::new(),
-        };
+            grown: Default::default(),
+};
         let nid = home.add_conduit_node((1.0, 1.0, 1.0), "power");
         assert!(home.add_conduit_edge(ConduitEnd::Machine("p1".into()), ConduitEnd::Node(nid.clone()), "power"));
         assert!(home.add_conduit_edge(ConduitEnd::Node(nid), ConduitEnd::Machine("l1".into()), "power"));

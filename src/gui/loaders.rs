@@ -601,25 +601,25 @@ pub struct GardenArea {
     pub label: String,
     pub machine_id: String,
     pub count: u32,
+    /// The food line: the computed figure (`systems::grow_machines`), or the
+    /// typed estimate of a machine the model cannot compute.
     pub food: String,
     /// Footprint (w, h, d) in meters from the machine catalog.
     pub size: (f32, f32, f32),
 }
 
-/// Count every growing machine in the garden room of `data/machines/home.ron` (a
-/// "grow" machine has a food stat but is not pure storage like the silo), grouped by
-/// type, with its catalog label / food stat / footprint. Resolved via `data_dir` so it
-/// works regardless of the process CWD. Empty if the file is absent.
+/// Count every growing machine in `data/machines/home.ron` (a machine a grow medium
+/// matches, the same test the engine publishes plots by), grouped by type, with its
+/// catalog label / food line / footprint. The food line is the one every card shows
+/// (`MachineHome::stats_for`). Resolved via `data_dir` so it works regardless of the
+/// process CWD. Empty if the file is absent.
 pub fn load_garden_areas(data_dir: &std::path::Path) -> Vec<GardenArea> {
     let path = crate::machines::home_ron_path(data_dir);
     let Some(home) = crate::machines::MachineHome::load(&path) else {
         return Vec::new();
     };
-    let is_grow = |machine: &str| {
-        home.catalog.get(machine).map_or(false, |d| {
-            d.stats.iter().any(|s| s.kind == "food") && !d.stats.iter().any(|s| s.kind == "storage")
-        })
-    };
+    let media = load_grow_media(data_dir);
+    let is_grow = |machine: &str| home.catalog.contains_key(machine) && media.iter().any(|m| m.matches(machine));
     // v0.538: count EVERY grow machine, not just those in a literal "garden" room. The HomeStructure
     // home's rooms are flood-fill ids (home/room_1/...) that never equal "garden", so the old
     // room-name filter silently emptied the garden inventory. The is_grow catalog predicate is the
@@ -640,10 +640,7 @@ pub fn load_garden_areas(data_dir: &std::path::Path) -> Vec<GardenArea> {
         .map(|(machine, count)| {
             let def = home.catalog.get(&machine);
             let label = def.map(|d| d.label.clone()).unwrap_or_else(|| machine.clone());
-            let food = def
-                .and_then(|d| d.stats.iter().find(|s| s.kind == "food"))
-                .map(|s| s.value.clone())
-                .unwrap_or_default();
+            let food = home.stats_for(&machine).into_iter().find(|s| s.kind == "food").map(|s| s.value).unwrap_or_default();
             let size = def.map(|d| d.size).unwrap_or((0.0, 0.0, 0.0));
             GardenArea { label, machine_id: machine, count, food, size }
         })
@@ -653,77 +650,10 @@ pub fn load_garden_areas(data_dir: &std::path::Path) -> Vec<GardenArea> {
     out
 }
 
-/// One control in a grow medium's edit form (rendered top-to-bottom in the modal).
-#[derive(Debug, Clone, serde::Deserialize)]
-pub enum GrowControl {
-    /// A 0..1 slider stored under `key` (water / nutrient / humidity / ...).
-    Slider { key: String, label: String },
-    /// A free-text field for the primary crop / species / fish.
-    Crop { label: String, hint: String },
-    /// A checkbox stored under `key`.
-    Toggle { key: String, label: String },
-}
-
-/// A grow MEDIUM: a way crops are grown (aeroponic, soil bed, field, ...), matched to a
-/// garden machine by id, with the controls its edit modal shows. Data-driven from
-/// `data/garden/grow_media.ron` so plot-types are added without code (infinite-of-X).
-#[derive(Debug, Clone, serde::Deserialize)]
-pub struct GrowMedium {
-    pub id: String,
-    #[serde(default)]
-    pub match_prefix: Option<String>,
-    #[serde(default)]
-    pub match_suffix: Option<String>,
-    #[serde(default)]
-    pub match_exact: Option<String>,
-    pub label: String,
-    #[serde(default)]
-    pub note: String,
-    #[serde(default)]
-    pub show_slots: bool,
-    /// Plant id (data/plants.csv) the bed/tray/field Plant button sows when the
-    /// user hasn't typed a crop into the edit modal (v0.738 grain loop).
-    #[serde(default)]
-    pub default_crop: Option<String>,
-    /// How many plots a machine of this medium is divided into, one crop in
-    /// each (2026-09-26; 0 or absent is 1). A plot's floor is the machine's
-    /// footprint over this; towers ignore it (a cup is one plant).
-    #[serde(default)]
-    pub plots: u32,
-    /// The plots are shelves one above another (a mushroom rack), each with
-    /// the whole footprint.
-    #[serde(default)]
-    pub stacked: bool,
-    #[serde(default)]
-    pub controls: Vec<GrowControl>,
-}
-
-impl GrowMedium {
-    /// Does this medium apply to the given machine id? (exact, then prefix, then suffix.)
-    pub fn matches(&self, machine_id: &str) -> bool {
-        self.match_exact.as_deref() == Some(machine_id)
-            || self.match_prefix.as_deref().is_some_and(|p| machine_id.starts_with(p))
-            || self.match_suffix.as_deref().is_some_and(|s| machine_id.ends_with(s))
-    }
-}
-
-/// Load the grow-media registry (data/garden/grow_media.ron). Empty on absence/parse error.
-pub fn load_grow_media(data_dir: &std::path::Path) -> Vec<GrowMedium> {
-    #[derive(serde::Deserialize)]
-    struct File {
-        media: Vec<GrowMedium>,
-    }
-    match crate::embedded_data::read_data_or_embedded(data_dir, "garden/grow_media.ron") {
-        Some(t) => match ron::from_str::<File>(&t) {
-            Ok(f) => f.media,
-            Err(e) => {
-                log::warn!("grow_media parse failed: {e}");
-                Vec::new()
-            }
-        },
-        None => Vec::new(),
-    }
-}
+/// The grow-media registry (data/garden/grow_media.ron): its types and loader live
+/// with the food model in `systems::grow_machines`, which needs them under every
+/// feature set; re-exported so `crate::gui::GrowMedium` keeps its spelling.
+pub use crate::systems::grow_machines::{load_grow_media, GrowControl, GrowMedium};
 
 /// Load the aeroponic tower configs (data/towers/aeroponic_configs.ron). Empty on
 /// absence/parse error.

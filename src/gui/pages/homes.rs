@@ -246,7 +246,10 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 temp_c: state.air_temp_c,
                 breathable: state.air_breathable,
             };
-            draw_design(ui, theme, &design, &state.tower_configs, &state.tower_compat, &state.homestead_loops, power, water, air);
+            // The home's food, computed from the crops in its placed grow machines: the
+            // same figure the machine cards and the garden overview sum.
+            let grown_kcal = state.home_machines.as_ref().map_or(0.0, |h| h.grown_kcal_per_day());
+            draw_design(ui, theme, &design, &state.tower_configs, &state.tower_compat, &state.homestead_loops, grown_kcal, power, water, air);
         });
 }
 
@@ -292,6 +295,7 @@ fn draw_design(
     towers: &[TowerConfig],
     compat: &[TowerCompat],
     loops: &[crate::machines::HomeLoop],
+    grown_kcal: f32,
     power: LivePower,
     water: LiveWater,
     air: LiveAir,
@@ -500,7 +504,7 @@ fn draw_design(
         // ── Loop closure (the self-sufficiency demonstration, v0.432) ──
         // The four coupled loops with whether each closes, from data/machines/home.ron.
         if !loops.is_empty() {
-            let closed = loops.iter().filter(|l| l.closes).count();
+            let closed = loops.iter().filter(|l| l.closes_given(grown_kcal)).count();
             widgets::card(ui, theme, |ui| {
                 ui.label(RichText::new("Closed-loop self-sufficiency").size(theme.font_size_body).strong().color(theme.text_primary()));
                 ui.label(
@@ -513,7 +517,7 @@ fn draw_design(
                 );
                 ui.add_space(theme.spacing_xs);
                 for l in loops {
-                    let (mark, mark_color) = if l.closes {
+                    let (mark, mark_color) = if l.closes_given(grown_kcal) {
                         ("closed", theme.success())
                     } else {
                         ("short", theme.danger())
@@ -526,6 +530,10 @@ fn draw_design(
                         }
                     });
                     widgets::detail_row(ui, theme, "  demand", &l.demand);
+                    if let Some(d) = l.food_demand_kcal.filter(|d| *d > 0.0) {
+                        let grown = format!("{grown_kcal:.0} kcal/day, {:.0}% of {d:.0}, computed from the crops placed", grown_kcal / d * 100.0);
+                        widgets::detail_row(ui, theme, "  grown", &grown);
+                    }
                     widgets::detail_row(ui, theme, "  supply", &l.supply);
                     ui.label(RichText::new(&l.note).size(theme.font_size_small).color(theme.text_secondary()));
                     ui.add_space(theme.spacing_xs);

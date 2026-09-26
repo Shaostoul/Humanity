@@ -51,6 +51,7 @@ pub mod genetics;
 pub mod transportation;
 pub mod offline;
 pub mod self_sufficiency;
+pub mod grow_machines;
 
 /// Push a one-shot SFX request onto the shared `"sfx_events"` DataStore
 /// channel (v0.985): ECS systems (construction, crafting) have no engine

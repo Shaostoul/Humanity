@@ -1918,8 +1918,10 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 let areas = state.garden_areas.clone();
                 if !areas.is_empty() {
                     let total: u32 = areas.iter().map(|a| a.count).sum();
+                    // The Home page's food total, computed from the crops (one figure, one source).
+                    let grown = state.home_machines.as_ref().map_or(0.0, |h| h.grown_kcal_per_day());
                     ui.label(
-                        RichText::new(format!("{} grow areas, {} kinds", total, areas.len()))
+                        RichText::new(format!("{} grow areas, {} kinds, {:.0} kcal/day grown", total, areas.len(), grown))
                             .size(theme.font_size_small)
                             .color(theme.text_muted()),
                     );

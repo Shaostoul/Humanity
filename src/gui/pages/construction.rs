@@ -1361,8 +1361,8 @@ fn draw_light_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 /// machine def's stats + power role (no schema change). Read-only; shown while you hold it to place.
 fn draw_building_info(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     let Some(tid) = state.construction_place_type.clone() else { return };
-    let def = state.home_machines.as_ref().and_then(|h| h.catalog.get(&tid).cloned());
-    let Some(def) = def else {
+    let def = state.home_machines.as_ref().and_then(|h| h.catalog.get(&tid).cloned().map(|d| (d, h.stats_for(&tid))));
+    let Some((def, stats)) = def else {
         ui.label(RichText::new(format!("Placing {tid}")).strong().color(theme.text_primary()));
         ui.label(RichText::new("Click the floor to place. Right-click cancels.").size(theme.font_size_small).color(theme.text_muted()));
         return;
@@ -1382,10 +1382,10 @@ fn draw_building_info(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         };
         ui.label(RichText::new(s).size(theme.font_size_small).color(theme.text_secondary()));
     }
-    if !def.stats.is_empty() {
+    if !stats.is_empty() {
         ui.add_space(theme.spacing_xs);
         ui.label(RichText::new("Readouts").size(theme.font_size_small).strong().color(theme.text_muted()));
-        for st in &def.stats {
+        for st in &stats {
             ui.label(RichText::new(format!("  {} : {}  ({})", st.kind, st.value, st.status)).size(theme.font_size_small).color(theme.text_muted()));
         }
     }
@@ -1461,7 +1461,11 @@ fn draw_machine_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     // home_machines borrow ends before the Remove/Deselect buttons mutate state.
     let resolved = state.home_machines.as_ref().and_then(|home| {
         home.all_instances().into_iter().find(|i| i.id == id).map(|inst| {
-            let def = home.catalog.get(&inst.machine).cloned();
+            // The shown stats carry the computed food line (MachineHome::stats_for).
+            let def = home.catalog.get(&inst.machine).cloned().map(|mut d| {
+                d.stats = home.stats_for(&inst.machine);
+                d
+            });
             let conns: Vec<(String, String, String)> = home
                 .connections
                 .iter()
@@ -4098,6 +4102,7 @@ mod multi_select_tests {
             loops: Vec::new(),
             conduit_nodes: Vec::new(),
             conduit_edges: Vec::new(),
+            grown: Default::default(),
         }
     }
 

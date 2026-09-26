@@ -371,6 +371,16 @@ Honest gaps to author, following the schema patterns in the files above —
    potato bed supplies about 61 kcal/day cropped back to back, so home.ron's
    "+120 kcal/d" is about twice what the cited yield gives (the old test
    reached 0.96x by modelling a bed as a tuber a day).
+   **Wired 2026-09-26:** the typed food strings are gone from both home
+   files. Every grow machine's food line (walk-up card, construction editor,
+   garden overview) and the Home page's food total are computed from the
+   crops the showcase plants (`src/systems/grow_machines.rs`). Per machine:
+   potato bed 61.5, grain tray (rice) 41.0, oilseed bed 23.8, mushroom rack
+   198.0, variety tower 148.6, apothecary tower 232.5, grain field 54.1,
+   legume field 63.2 kcal/day. The solo home totals 2,729 kcal/day computed
+   against the 5,878 the typed strings summed to; the "Sizing the indoor
+   garden" table is the pre-model design and is kept as history. The fish tank has no crop
+   row, so its "+75" stays, marked as an estimate.
 
 4. ~~**No editable component-output table for the self-sufficiency
    score.**~~ **CLOSED (v0.663, 2026-07-01) — data + loader shipped, UI

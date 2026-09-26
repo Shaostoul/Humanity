@@ -7,9 +7,9 @@
 //! This slice is **data + loaders + pure math** -- deliberately NOT UI. It is
 //! feature-neutral (ron + serde + std, plus the farming and inventory registries, no
 //! GUI/renderer/persistence imports), so it compiles under both `native` and `relay` with
-//! no cfg gate. Wiring these numbers into the Home-page loop summary (so the food loop is
-//! computed instead of trusting the hand-typed catalog strings) is the next, deferred
-//! increment.
+//! no cfg gate. Every grow machine's food line, and the Home page's food total, come from
+//! `food_supply_kcal_per_day` through `systems::grow_machines` (2026-09-26); the hand-typed
+//! catalog strings they replaced are gone from data/machines/.
 //!
 //! Data files (all hot-reloadable, edited by hand or eventually the GUI):
 //!   - `data/food/crop_nutrition.ron`            -- gap #3: per-crop calories/macros for
@@ -145,11 +145,11 @@ impl Location {
 /// items.csv mass) once every `growth_days`, so it supplies
 /// `harvest kg x 10 x calories_per_100g / growth_days` kcal a day.
 ///
-/// This is the gap #3 bridge in action: the food loop is computed from crop data, not read
-/// off the hand-typed "+120 kcal/d" catalog strings, and on the same harvest figure the game
+/// This is the gap #3 bridge in action: the food loop is computed from crop data (the
+/// hand-typed "+120 kcal/d" catalog strings are gone, `grow_machines`), on the same harvest figure the game
 /// hands the player and the nutrient model bills the soil for. A crop with no
 /// `crop_nutrition.ron` entry, no plants.csv row or no growth days contributes 0 (honest --
-/// an un-tabulated crop cannot be counted, rather than guessed).
+/// an un-tabulated crop cannot be counted, rather than guessed; see `crop_is_tabulated`).
 pub fn food_supply_kcal_per_day(
     plots: &[(String, Option<f32>, f32)],
     nutrition: &CropNutrition,
@@ -162,13 +162,24 @@ pub fn food_supply_kcal_per_day(
             let (Some(n), Some(def)) = (nutrition.get(id), plants.get(id)) else {
                 return 0.0;
             };
-            if def.growth_days <= 0.0 {
+            if !crop_is_tabulated(id, nutrition, plants) {
                 return 0.0;
             }
             let kg = crate::systems::farming::units::plot_harvest_kg(id, *area, Some(plants), Some(items));
             (kg * 10.0 * f64::from(n.calories_per_100g) / f64::from(def.growth_days)) as f32 * count
         })
         .sum()
+}
+
+/// Can the food model count this crop at all: it has a `crop_nutrition.ron` entry, a
+/// plants.csv row and a positive growth period. A crop that fails this adds 0 kcal, so a
+/// machine growing only such crops has no computed figure (`grow_machines`).
+pub fn crop_is_tabulated(
+    plant_id: &str,
+    nutrition: &CropNutrition,
+    plants: &crate::systems::farming::PlantRegistry,
+) -> bool {
+    nutrition.get(plant_id).is_some() && plants.get(plant_id).is_some_and(|d| d.growth_days > 0.0)
 }
 
 /// `(supply, demand)` daily household ENERGY balance in kWh/day.
@@ -289,7 +300,9 @@ mod tests {
     /// within 2x of home.ron's "+120 kcal/d" per bed. From the cited yields that
     /// claim is 2x high even cropping back to back all year (61.5 against 120),
     /// and data/home_outline.json's own cross-check, at two crops a year, puts a
-    /// bed at 38. The finding is reported, not tuned away here.
+    /// bed at 38. The finding is reported, not tuned away here. (Since 2026-09-26
+    /// the typed "+120" is gone: the bed's card shows this figure, computed by
+    /// `grow_machines`, and its test holds the two equal.)
     ///
     /// Seen red by making `units::plants_in_plot` return 1 (the bed then gave
     /// the calories of one plant, 7.7 kcal a day).
