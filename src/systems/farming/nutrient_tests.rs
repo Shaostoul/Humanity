@@ -132,8 +132,11 @@ fn fertilizing_adds_a_bags_nutrients_at_the_cited_ratio_and_nothing_else() {
     let mut inv = Inventory::new(8);
     inv.add_item("fertilizer_0", 2, 99);
     let player = world.spawn((inv, Controllable));
-    let ripe = stages_of(&data, "tomato").last().unwrap().clone();
-    let mut c = crop("tomato", "bed_a", &ripe, 0.0);
+    // A ripe lettuce, harvested once, so its health sits frozen and any
+    // change would be the fertilizer's (a ripe tomato keeps living through
+    // its picking window since 2026-09-26, and would recover on its own).
+    let ripe = stages_of(&data, "lettuce").last().unwrap().clone();
+    let mut c = crop("lettuce", "bed_a", &ripe, 0.0);
     c.health = 40.0;
     let e = world.spawn((c, CropSoil { store: Npk::ZERO, uptake: 1.0 }));
 

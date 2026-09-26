@@ -2036,6 +2036,13 @@ impl System for FarmingSystem {
             }
         }
 
+        // A plant picked over a season keeps living through its picking window
+        // (2026-09-26): it drinks, breathes out its water, takes stress and can
+        // die, so an unwatered tomato stops bearing. A picked plant still
+        // standing is a bearing one: it leaves its plot at its last share.
+        let windows = data
+            .get::<picking::HarvestWindows>(picking::DATA_KEY)
+            .unwrap_or_else(|| picking::HarvestWindows::shipped());
         for (entity, (crop, crop_soil)) in world.query_mut::<(&CropInstance, Option<&CropSoil>)>() {
             // Skip dead crops
             if crop.growth_stage == STAGE_DEAD {
@@ -2049,9 +2056,11 @@ impl System for FarmingSystem {
                 .map(|def| def.stages())
                 .unwrap_or_else(|| default_stages.clone());
 
-            // Skip crops already at their final stage (they sit until harvested)
+            // Skip crops already at their final stage (they sit until
+            // harvested), except a plant still bearing through its picking
+            // window (see `windows` above).
             if let Some(last) = plant_stages.last() {
-                if crop.growth_stage == *last {
+                if crop.growth_stage == *last && windows.plan(&crop.crop_def_id).is_none() {
                     continue;
                 }
             }
@@ -2271,7 +2280,10 @@ impl System for FarmingSystem {
             // season_health). Taken after every stress above so a tick spent
             // thirsty, in RF or under a burn counts at the health it left the
             // crop with. Mature crops never reach this line (skipped above),
-            // so the record covers the growing season and nothing after it.
+            // so the record covers the growing season and nothing after it,
+            // except a plant bearing through its picking window: its record
+            // keeps running, so a drought shows in its health and can kill it,
+            // though its picks were rolled at the first one (picking.rs).
             crop.health_seconds += f64::from((crop.health / 100.0).clamp(0.0, 1.0)) * f64::from(dt);
             crop.growing_seconds += f64::from(dt);
 
@@ -2713,6 +2725,38 @@ mod gardening_tests {
             .sum();
         assert_eq!(world.get::<&Inventory>(player).unwrap().count_item("grain_wheat_0"), 0, "the pack is full");
         assert!((3..=6).contains(&filed), "the harvest went to home storage, not away: {filed}");
+    }
+
+    /// A plant picked over a season keeps living through its window
+    /// (2026-09-26): a ripe tomato left without water loses health like a
+    /// growing one, while a ripe lettuce, harvested once, sits frozen until
+    /// it is picked, as ripe crops always have. Seen red by putting back the
+    /// plain skip of every ripe crop (the tomato then kept its 100).
+    #[test]
+    fn a_bearing_plant_keeps_drinking_through_its_picking_window() {
+        let data = make_store();
+        let mut sys = FarmingSystem::new();
+        let mut world = hecs::World::new();
+        let plants = data.get::<PlantRegistry>("plant_registry").unwrap();
+        let ripe = |plant: &str| CropInstance {
+            crop_def_id: plant.to_string(),
+            growth_stage: plants.get(plant).unwrap().last_stage().to_string(),
+            planted_at: 0.0,
+            water_level: 0.0,
+            health: 100.0,
+            tower_id: None,
+            tower_slot: None,
+            health_seconds: 0.0,
+            growing_seconds: 0.0,
+        };
+        let tomato = world.spawn((ripe("tomato"),));
+        let lettuce = world.spawn((ripe("lettuce"),));
+        for _ in 0..60 {
+            sys.tick(&mut world, 1.0, &data);
+        }
+        let health = |e| world.get::<&CropInstance>(e).unwrap().health;
+        assert!(health(tomato) < 100.0, "a dry bearing tomato suffers, health {}", health(tomato));
+        assert_eq!(health(lettuce), 100.0, "a ripe lettuce sits frozen until it is picked");
     }
 
     /// v0.739 BULK HARVEST: the "Harvest N ready" button sends every mature
@@ -3207,6 +3251,7 @@ mod gardening_tests {
     /// downstream end of power -> water -> food (a power cut drains the cistern, then the garden wilts).
     #[test]
     fn dry_cistern_stops_irrigation_and_wilts_crops() {
+
         use crate::ecs::components::CropInstance;
         use crate::systems::plumbing::WaterStatus;
 

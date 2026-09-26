@@ -28,6 +28,10 @@ fn store() -> DataStore {
         [("tomato_bed".to_string(), 4.2_f32), ("lettuce_bed".to_string(), 1.0)].into_iter().collect();
     data.insert(PLOT_AREA_KEY, areas);
     data.insert("player_notices", Mutex::new(Vec::<String>::new()));
+    // Pests off: a plant bearing through its window keeps ticking, and over
+    // the weeks these tests jump, pests on the bed would trim its health and
+    // so its picks; the picking arithmetic is what is under test here.
+    data.insert("garden_pest_severity", Mutex::new(0.0_f32));
     data
 }
 
@@ -54,10 +58,13 @@ fn crop(plant: &str, area: Option<&str>, stage: &str) -> CropInstance {
     }
 }
 
-/// A player whose pack never fills.
+/// A player whose pack never fills, in a home whose irrigation runs: a plant
+/// bearing through its window keeps drinking (2026-09-26), so without it the
+/// days these tests jump over would dry it out and kill it.
 fn player(world: &mut hecs::World) -> hecs::Entity {
     let mut inv = Inventory::new(64);
     inv.volume_capacity_l = 1.0e9;
+    world.spawn((crate::ecs::components::Irrigator,));
     world.spawn((inv, Controllable))
 }
 
