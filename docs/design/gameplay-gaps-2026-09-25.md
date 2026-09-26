@@ -289,9 +289,9 @@ date; re-check before trusting one. The container data basis is
   soft-bodied pests only, per CSU, and it kills the predatory mites) and iron
   phosphate slug bait. No synthetic pesticide. Three modes by
   `garden_pest_severity`: off, gentle (the default, half the damage) and the
-  cited damage. Still to do: the Garden panel buttons and pressure display,
-  the Settings mode switch, whitefly and thrips, row covers, and pests during
-  the offline catch-up.
+  cited damage. The Garden panel buttons, pressure display and Settings mode
+  switch shipped in the same release. Still to do: whitefly and thrips, row
+  covers, and pests during the offline catch-up.
 - **Gardening depth: per-crop nutrient removal, DONE 2026-09-26.** plants.csv
   gained `removal_n_g_per_kg`, `removal_p2o5_g_per_kg` and
   `removal_k2o_g_per_kg`, filled for 64 crops: every crop in the family home's
@@ -323,9 +323,15 @@ date; re-check before trusting one. The container data basis is
   bean item 300 g, a unit 50 g of dry seed), and the need follows items.csv,
   so grain and pulse units remove 6 to 10 times what the food model says they
   feed (a tower cup grows 1.65 kg of dry soybeans a season; the rice trays
-  alone remove 9.7 kg of N a year). Still to do: the remaining crops (fruit
-  trees, spices, dried herbs, fiber), mushrooms drawing on their substrate,
-  and N-P-K in the Garden panel.
+  alone remove 9.7 kg of N a year). Shipped with it (v0.1363.0): the crop
+  card's "Each kg takes" row shows the grams of N, P2O5 and K2O a kg of that
+  harvest carries out of the soil (it had carried the old unitless index,
+  shown nowhere), and the showcase oil bed grows sunflower instead of flax,
+  which is modelled as a fiber crop. In progress: a grow unit holding as many
+  plants as its floor area fits at the crop's spacing, with real per-plant
+  yields, which fixes the harvest-mass disagreement above. Still to do: the
+  remaining crops (fruit trees, spices, dried herbs, fiber) and mushrooms
+  drawing on their substrate.
 
 ## Defects found (things that are wrong, not merely missing)
 

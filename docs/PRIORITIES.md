@@ -1109,9 +1109,14 @@ share is a design call for the operator (it belongs with the full-realism
 and simplified modes). Pests are DONE (v0.1361.0: five pests from university
 IPM guides, controls in IPM order, Off/Gentle/Realistic in Settings). A
 review of the day's crafting and storage work found and fixed eight defects
-(v0.1360.0, BUG-088). Next: per-crop removal columns, per-species light need,
-local grow lights, pH, a urine-diverting toilet machine, pests in the offline
-catch-up. Containers as items (3c) waits on the unified placement
+(v0.1360.0, BUG-088). Per-crop nutrient removal is DONE (v0.1363.0: 64 crops
+cited to NRCS, UW-Madison A2809 and FoodData Central; the old indices had
+understated grain and legume removal 5 to 20 times, and urine now covers 26%
+of the household's net N, not 118%). In flight: harvest per grow unit from
+its floor area and the crop's spacing (the per-unit harvest masses are not
+grounded, a soybean cup grew 1.65 kg), and soil pH. Next: per-species light
+need, local grow lights, a urine-diverting toilet machine, pests in the
+offline catch-up. Containers as items (3c) waits on the unified placement
 schema. Progress and open items live at the top of the gap doc.
 
 **Gameplay gap survey (2026-09-25):** `docs/design/gameplay-gaps-2026-09-25.md`

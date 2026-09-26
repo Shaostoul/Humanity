@@ -2373,6 +2373,8 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                                             if let Some(n) = &c.short_of {
                                                                 stat(ui, "Short of", n.clone());
                                                             }
+                                                            // What each kg of this harvest takes out of the soil.
+                                                            stat(ui, "Each kg takes", format!("{:.1} · {:.1} · {:.1} g", c.n, c.p, c.k));
                                                             stat(ui, "Water/day", format!("{:.1} L", c.water_per_day));
                                                             stat(ui, "Temp window", format!("{:.0}-{:.0} °C", c.temp_min, c.temp_max));
                                                             stat(ui, "Reservoir", format!("{:.0}%", c.water * 100.0));

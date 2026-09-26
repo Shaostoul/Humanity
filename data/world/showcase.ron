@@ -17,7 +17,9 @@
         "staple_grain_tray": "rice",
         "legume_field": "bean",
         "oilseed_field": "sunflower",
-        "oilseed_bed": "flax",
+        // Sunflower, not flax: flax is modelled as a fiber crop (its harvest
+        // is a fiber bundle), so it does not belong in the oil bed (2026-09-26).
+        "oilseed_bed": "sunflower",
         "tuber_field": "potato",
         "potato_grow_bed": "potato",
         "mushroom_rack": "oyster_mushroom",

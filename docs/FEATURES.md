@@ -1590,7 +1590,11 @@ Nitrogen sources (v0.1359.0): compost banks the organic N it does not release
 in year one and releases it over the following years; stored urine (collected
 on the Compost action) is an all-available N fertilizer withheld a month
 before harvest; legumes draw only their unfixed share and leave a credit
-(plants.csv `n_fixed_pct`). Pests (v0.1361.0): aphids, spider mites, cabbage
+(plants.csv `n_fixed_pct`). A crop's season need is its expected harvest
+times its cited removal per kg (plants.csv `removal_n_g_per_kg`,
+`removal_p2o5_g_per_kg`, `removal_k2o_g_per_kg`, 64 crops, v0.1363.0, sources
+in `data/garden/nutrients.ron`), else its index read against the tomato
+anchor; the crop card shows what each kg takes. Pests (v0.1361.0): aphids, spider mites, cabbage
 caterpillars, slugs and Colorado potato beetles build up per grow area on their
 host crops under their favouring conditions and cap crop health; the Garden
 panel lists each with its controls in IPM order (hose off, hand-pick, Bt,

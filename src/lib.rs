@@ -12812,6 +12812,7 @@ mod native_app {
                             let store = soil.map_or_else(|| sl::fresh_store(need), |s| s.store);
                             let (supply, scarce) = sl::sufficiency(&store, &need);
                             let def = plant_reg.and_then(|r| r.get(&crop.crop_def_id));
+                            let per_kg = def.zip(nutrient_scale).map_or(crate::ecs::components::Npk::default(), |(d, s)| sl::removal_per_kg(d, s));
                             let name = def
                                 .map(|d| d.name.clone())
                                 .unwrap_or_else(|| crop.crop_def_id.clone());
@@ -12846,9 +12847,9 @@ mod native_app {
                                 dead,
                                 tower_id: crop.tower_id.clone(),
                                 tower_slot: crop.tower_slot,
-                                n: def.map(|d| d.nutrient_n).unwrap_or(0.0),
-                                p: def.map(|d| d.nutrient_p).unwrap_or(0.0),
-                                k: def.map(|d| d.nutrient_k).unwrap_or(0.0),
+                                n: per_kg.n as f32,
+                                p: per_kg.p2o5 as f32,
+                                k: per_kg.k2o as f32,
                                 water_per_day: def.map(|d| d.water_per_day).unwrap_or(0.0),
                                 temp_min: def.map(|d| d.temp_min_c).unwrap_or(0.0),
                                 temp_max: def.map(|d| d.temp_max_c).unwrap_or(0.0),

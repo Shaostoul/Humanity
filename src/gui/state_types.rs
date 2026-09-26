@@ -783,9 +783,11 @@ pub struct GuiCrop {
     pub tower_id: Option<String>,
     /// Which slot of the tower this crop occupies (0-based), for the slot view.
     pub tower_slot: Option<u32>,
-    /// Plant-def reference data (from plants.csv) shown as Garden-table columns:
-    /// relative nutrient demand (N, P, K), daily water need (L), and the
-    /// tolerated temperature window (Celsius). 0 when the species is unknown.
+    /// Plant-def reference data (from plants.csv) for the crop card: grams of
+    /// N, P2O5 and K2O each kg of harvest carries out of the soil (the crop's
+    /// cited removal columns, else its index read against the anchor;
+    /// farming::soil::removal_per_kg), daily water need (L), and the tolerated
+    /// temperature window (Celsius). 0 when the species is unknown.
     pub n: f32,
     pub p: f32,
     pub k: f32,

@@ -849,6 +849,11 @@
    "date": "2026-09-26",
    "decision": "v0.1362.0: harvest surplus that neither pack nor vessel takes goes to home_stock_outputs (the Barn) instead of being discarded. Per-crop nutrient removal columns handed to the homestead-engineer in a worktree.",
    "why": "Last loss path noted in the storage work; the channel already existed for automated machines."
+  },
+  {
+   "date": "2026-09-26",
+   "decision": "v0.1363.0: merged the per-crop nutrient removal columns (worktree agent commit cherry-picked cleanly): plants.csv removal_n/p2o5/k2o_g_per_kg for 64 crops (NRCS AWMFH Table 6-6 N for dry harvests, FDC protein/N-factor N for fresh, UW A2809 P/K), soil::removal_per_kg with per-nutrient fallback to the index. Wired here: the crop card row \"Each kg takes\" (GuiCrop n/p/k now carry removal per kg; they held the unitless index and were shown nowhere). Showcase oilseed_bed plants sunflower (flax is modelled as fiber). Launched two worktree agents: harvest per grow unit from floor area x crop spacing (plants.csv area_per_plant_m2, per-plant yields, water and nutrient need scale with plants, one harvest-mass source), and soil pH (data/garden/soil_ph.ron, acidification from N, lime/sulfur, availability cap, Off/On setting).",
+   "why": "The agent found the old indices had made urine look like it closed the nitrogen loop (118%); real removal makes it 26%. It also found items.csv and crop_nutrition.ron disagree on harvest mass by 6-10x and a tower cup grew 1.65 kg of dry soybeans: the unit means a whole 2 m2 tray for beds but one plant for towers while yields are per plant. Area x spacing is the real model, so that is the next rung rather than retuning numbers."
   }
  ],
  "active_scopes_to_avoid": [
