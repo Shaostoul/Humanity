@@ -20,12 +20,15 @@
 #   data/curriculum/syllabus.json  -- the `bio_plants` and `grow_pests` topics
 #                                     declare this file as their data layer.
 #
-# EIGHT COLUMNS ARE NOT READ BY THE ENGINE AT ALL. `PlantDef` carries 19 of the
-# 27. `description` and `type` are documentation for a human or an AI reading the
-# file; `seed_value`, `harvest_value`, `seed_source`, `companion_plants` and
-# `adverse_plants` are read by nothing in `src/` today. They are content waiting
-# for a system, not dead weight, but do not assume editing one changes anything
-# in the game. Each is marked `engine = false` below.
+# EIGHT COLUMNS ARE NOT READ BY THE ENGINE AT ALL. `PlantDef` carries 23 of the
+# 31 (counted 2026-09-26, after the three removal columns). `description` and
+# `type` are documentation for a human or an AI reading the file; `seed_value`,
+# `harvest_value`, `seed_source`, `companion_plants` and `adverse_plants` are
+# read by nothing in `src/` today. They are content waiting for a system, not
+# dead weight, but do not assume editing one changes anything in the game. Each
+# is marked `engine = false` below. The eighth is `skill_required`: it is marked
+# `engine = true` below, but no plant loader reads it (the `skill_required` the
+# crafting page reads is recipes.csv's).
 #
 # FILE FORMAT. Unquoted CSV, one plant per row, `#` comment lines at the top.
 # A field may therefore NOT contain a comma; the file uses semicolons inside
@@ -89,21 +92,21 @@ example = "1.5"
 type = "float"
 required = true
 engine = true
-description = """Relative nitrogen demand, higher is hungrier. NOT kilograms: tomato 0.15 is no real per-plant or per-hectare figure. Since 2026-09-26 the farming sim reads it (src/systems/farming/soil.rs): a crop needs, each season, its expected harvest in kg times the anchor crop's published N removal per kg (data/garden/nutrients.ron: tomato, 1.5 g/kg, CDFA FREP) times this index over the anchor's. Its unit of growing space holds a store of available N that the crop draws down as it grows. Known weakness: the indices understate dense harvests (grain, dry legumes) 5 to 20 times against extension removal tables, so per-crop removal columns in g per kg of harvest would be the real fix."""
+description = """Relative nitrogen demand, higher is hungrier. NOT kilograms: tomato 0.15 is no real per-plant or per-hectare figure. Since 2026-09-26 the farming sim reads it (src/systems/farming/soil.rs) ONLY for a crop whose removal_n_g_per_kg is blank: that crop needs, each season, its expected harvest in kg times the anchor crop's published N removal per kg (data/garden/nutrients.ron: tomato, 1.5 g/kg, CDFA FREP) times this index over the anchor's. Its unit of growing space holds a store of available N that the crop draws down as it grows. Known weakness, and why the removal columns exist: the indices understate dense harvests (grain, dry legumes) 5 to 20 times against extension removal tables."""
 example = "0.15"
 
 [fields.nutrient_p]
 type = "float"
 required = true
 engine = true
-description = "Relative phosphorus demand, read the same way as nutrient_n and counted as grams of P2O5 (anchor: tomato 0.9 g P2O5 per kg, UW-Madison A2809 Table 4.2)."
+description = "Relative phosphorus demand, read the same way as nutrient_n (and only where removal_p2o5_g_per_kg is blank), counted as grams of P2O5 (anchor: tomato 0.9 g P2O5 per kg, UW-Madison A2809 Table 4.2)."
 example = "0.05"
 
 [fields.nutrient_k]
 type = "float"
 required = true
 engine = true
-description = "Relative potassium demand, read the same way as nutrient_n and counted as grams of K2O (anchor: tomato 4.0 g K2O per kg, UW-Madison A2809 Table 4.2)."
+description = "Relative potassium demand, read the same way as nutrient_n (and only where removal_k2o_g_per_kg is blank), counted as grams of K2O (anchor: tomato 4.0 g K2O per kg, UW-Madison A2809 Table 4.2)."
 example = "0.20"
 
 [fields.ph_min]
@@ -306,6 +309,59 @@ semiarid seasons in Saskatchewan). Other legumes fix nitrogen too but have no
 figure yet and are blank. Blank, absent or unparseable reads as 0 (no
 fixation) and never drops the row: the loader parses it from text."""
 example = "55"
+
+[fields.removal_n_g_per_kg]
+type = "float"
+required = false
+engine = true
+description = """
+Grams of N that one kg of this crop's harvest carries out of its unit of
+growing space (added 2026-09-26). The basis is the harvest as the game's
+harvest item represents it: fresh produce as picked, grain and dry seed at
+the storage moisture its source table reports. The farming sim
+(src/systems/farming/soil.rs, `removal_per_kg`) takes a crop's season need of
+N as this times its expected harvest in kg; a legume still fixes its
+n_fixed_pct share of it from the air.
+
+Blank means not sourced yet: that crop's N need then falls back to nutrient_n
+read against the anchor crop (data/garden/nutrients.ron), as every crop did
+before this column. Each of the three removal columns falls back on its own.
+
+Every filled value, and the table cell it came from, is listed in
+data/garden/nutrients.ron under REMOVAL COLUMNS. In short: grain, dry pulses
+and oilseeds from USDA NRCS Agricultural Waste Management Field Handbook
+Table 6-6; fresh produce from the nitrogen USDA measured in the food
+(FoodData Central SR Legacy protein over its nitrogen factor), except the
+tomato, which keeps the anchor's CDFA figure. The shipped-data test
+`shipped_removal_columns_are_read_and_plausible` holds every value between
+0.5 and 80 g/kg and within 0.65 to 1.4 times the N in the crop's own protein
+(data/food/crop_nutrition.ron), which catches a pound-per-ton figure typed
+as grams per kg. Blank, absent, unparseable, zero or negative reads as blank
+and never drops the row; the test fails on any filled cell that does not
+read."""
+example = "20.8"
+
+[fields.removal_p2o5_g_per_kg]
+type = "float"
+required = false
+engine = true
+description = """
+Grams of P2O5 per kg of harvest, same basis and same fallback (to nutrient_p)
+as removal_n_g_per_kg. Mostly UW-Madison A2809 Table 4.2, the table the
+anchor already uses; otherwise NRCS Table 6-6 (P x 2.29) or FoodData Central
+(P x 2.29). Held between 0.3 and 25 g/kg and between 0.08 and 1.8 times the
+crop's removal N."""
+example = "8.33"
+
+[fields.removal_k2o_g_per_kg]
+type = "float"
+required = false
+engine = true
+description = """
+Grams of K2O per kg of harvest, same basis and same fallback (to nutrient_k)
+as removal_n_g_per_kg. Sources as for removal_p2o5_g_per_kg, with K x 1.2.
+Held between 1 and 30 g/kg and between 0.1 and 6 times the crop's removal N."""
+example = "5.83"
 
 # ── Known gaps, so nobody rediscovers them ───────────────────────
 #

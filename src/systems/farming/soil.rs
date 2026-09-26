@@ -11,10 +11,13 @@
 //!    hand-planted crop's pot) holds a store of plant-available nutrients, the
 //!    `CropSoil` on the crop growing in it. A fresh unit starts with
 //!    `FRESH_UNIT_SEASONS` of its crop's season need.
-//! 2. A growing crop draws its season need (`season_need`, scaled from the
-//!    plants.csv indices by a cited removal figure, see
-//!    data/garden/nutrients.ron) in step with its growth clock, so it draws
-//!    nothing in the dark and ten times as fast at the 10x growth setting.
+//! 2. A growing crop draws its season need (`season_need`: its expected
+//!    harvest times the grams each kg of it removes, from the crop's own
+//!    cited plants.csv removal columns, or, where those are blank, from its
+//!    relative index scaled by the anchor crop's cited removal; see
+//!    `removal_per_kg` and data/garden/nutrients.ron) in step with its growth
+//!    clock, so it draws nothing in the dark and ten times as fast at the 10x
+//!    growth setting.
 //! 3. A crop whose store of ANY nutrient falls below `RESERVE_SEASONS` of its
 //!    need runs short, and its health is capped by the SCARCEST one
 //!    (`sufficiency`, Liebig's law of the minimum). The cap only ever pulls
@@ -316,9 +319,12 @@ impl NutrientData {
 
     /// Grams of each nutrient a crop needs per kg of harvest per point of its
     /// plants.csv index: the anchor's removal divided by the anchor's index.
+    /// Only a crop with a blank removal column uses it (`removal_per_kg`).
     /// None when the anchor is not a known plant, or has a zero index (there
     /// is then no scale, and the caller runs no nutrient model at all rather
-    /// than invent one).
+    /// than invent one, even for crops with removal columns: a data folder
+    /// that has lost its anchor is broken, and nothing going short is the
+    /// safe way for it to fail).
     pub fn demand_scale(&self, anchor_def: Option<&PlantDef>) -> Option<Npk> {
         let def = anchor_def?;
         let (n, p, k) = (def.nutrient_n as f64, def.nutrient_p as f64, def.nutrient_k as f64);
@@ -347,16 +353,36 @@ pub fn expected_harvest_kg(def: &PlantDef, item_kg: f64) -> f64 {
 }
 
 /// A crop's nutrient need over one growing season, grams: its expected
-/// harvest times its plants.csv index times the per-index scale
-/// (`NutrientData::demand_scale`). For the anchor tomato this is exactly the
-/// cited removal of its 1.0 kg harvest; everything else is read against it.
+/// harvest times what each kg of it removes (`removal_per_kg`). For the
+/// anchor tomato this is exactly the cited removal of its 1.0 kg harvest.
 pub fn season_need(def: &PlantDef, harvest_kg: f64, scale: Npk) -> Npk {
-    let index = Npk::new(
-        def.nutrient_n.max(0.0) as f64,
-        def.nutrient_p.max(0.0) as f64,
-        def.nutrient_k.max(0.0) as f64,
-    );
-    index.times(scale).scaled(harvest_kg.max(0.0))
+    removal_per_kg(def, scale).scaled(harvest_kg.max(0.0))
+}
+
+/// Grams of N, P2O5 and K2O one kg of this crop's harvest carries away.
+///
+/// Per nutrient: the crop's own plants.csv removal column where it is
+/// filled (2026-09-26; every value cited in data/garden/nutrients.ron under
+/// REMOVAL COLUMNS), else its relative plants.csv index times the per-index
+/// scale (`NutrientData::demand_scale`), the anchor-scaled reading every crop
+/// used before the columns existed. The fallback is kept because the indices
+/// are not kilograms of anything: they understate dense harvests (a wheat
+/// unit read 7 g of N a season against the 146 g its cited column gives), so
+/// a crop only uses one until its removal is sourced. Each nutrient falls back
+/// on its own, so a crop with a cited N and no cited potash still gets its
+/// real N.
+pub fn removal_per_kg(def: &PlantDef, scale: Npk) -> Npk {
+    let pick = |column: Option<f32>, index: f32, per_index: f64| -> f64 {
+        match column {
+            Some(g) if g.is_finite() && g > 0.0 => f64::from(g),
+            _ => f64::from(index.max(0.0)) * per_index,
+        }
+    };
+    Npk::new(
+        pick(def.removal_n, def.nutrient_n, scale.n),
+        pick(def.removal_p2o5, def.nutrient_p, scale.p2o5),
+        pick(def.removal_k2o, def.nutrient_k, scale.k2o),
+    )
 }
 
 /// What a freshly prepared unit holds for a crop with this season need.
@@ -873,6 +899,186 @@ mod tests {
         assert!((need.n - 1.5).abs() < 1e-6, "N {}", need.n);
         assert!((need.p2o5 - 0.9).abs() < 1e-6, "P2O5 {}", need.p2o5);
         assert!((need.k2o - 4.0).abs() < 1e-6, "K2O {}", need.k2o);
+        // The tomato carries the anchor's figures in its own removal columns
+        // too, so it reads the same by either route.
+        assert_eq!((tomato.removal_n, tomato.removal_p2o5, tomato.removal_k2o), (Some(1.5), Some(0.9), Some(4.0)));
+    }
+
+    /// A crop with removal columns needs exactly its removal times its
+    /// harvest, whatever its index says: a tomato twin whose index is tripled
+    /// but whose columns read 10 / 5 / 20 g per kg needs those grams times its
+    /// 2.5 kg. And wheat, the crop the indices understated most, now needs its
+    /// cited 20.8 g N (NRCS Table 6-6), 8.33 g P2O5 and 5.83 g K2O (A2809
+    /// Table 4.2) per kg times its 7 kg unit: 145.6 / 58.3 / 40.8 g a season,
+    /// against the 7.0 / 5.0 / 8.4 g its index gave. Seen red by making
+    /// `removal_per_kg` ignore the columns (the twin then needed 11.25 g of N,
+    /// its tripled index, instead of 25).
+    #[test]
+    fn a_crop_with_removal_columns_needs_exactly_removal_times_harvest() {
+        let (data, plants, items) = shipped();
+        let scale = data.scale_for(&plants).expect("the anchor scales");
+        let mut twin = plants.get("tomato").unwrap().clone();
+        twin.nutrient_n *= 3.0;
+        twin.nutrient_p *= 3.0;
+        twin.nutrient_k *= 3.0;
+        (twin.removal_n, twin.removal_p2o5, twin.removal_k2o) = (Some(10.0), Some(5.0), Some(20.0));
+        let need = season_need(&twin, 2.5, scale);
+        assert!((need.n - 25.0).abs() < 1e-9, "N {}", need.n);
+        assert!((need.p2o5 - 12.5).abs() < 1e-9, "P2O5 {}", need.p2o5);
+        assert!((need.k2o - 50.0).abs() < 1e-9, "K2O {}", need.k2o);
+
+        let wheat = plants.get("wheat").unwrap();
+        let kg = expected_harvest_kg(wheat, f64::from(items.mass_for("grain_wheat_0")));
+        assert!((kg - 7.0).abs() < 1e-6, "a wheat unit is 8 to 20 items of 0.5 kg: {kg}");
+        let need = season_need(wheat, kg, scale);
+        assert!((need.n - 20.8 * 7.0).abs() < 1e-3, "wheat N {}", need.n);
+        assert!((need.p2o5 - 8.33 * 7.0).abs() < 1e-3, "wheat P2O5 {}", need.p2o5);
+        assert!((need.k2o - 5.83 * 7.0).abs() < 1e-3, "wheat K2O {}", need.k2o);
+    }
+
+    /// A crop whose removal columns are blank keeps the need it had before
+    /// the columns existed: its index times the anchor's per-index scale times
+    /// its harvest (the apple, unsourced, needs 0.10 x 10 g x 10 kg = 10 g of
+    /// N). And each nutrient falls back on its own: a twin with only its N
+    /// cited takes N from the column and P2O5 and K2O from its index. Seen red
+    /// by reading a blank column as zero instead of falling back (the apple
+    /// then needed nothing at all).
+    #[test]
+    fn a_crop_without_removal_columns_keeps_the_index_based_need() {
+        let (data, plants, items) = shipped();
+        let scale = data.scale_for(&plants).expect("the anchor scales");
+        let apple = plants.get("apple").unwrap();
+        assert_eq!((apple.removal_n, apple.removal_p2o5, apple.removal_k2o), (None, None, None), "apple is unsourced");
+        let kg = expected_harvest_kg(apple, f64::from(items.mass_for("fruit_apple_0")));
+        let need = season_need(apple, kg, scale);
+        let by_index = Npk::new(
+            f64::from(apple.nutrient_n) * scale.n,
+            f64::from(apple.nutrient_p) * scale.p2o5,
+            f64::from(apple.nutrient_k) * scale.k2o,
+        )
+        .scaled(kg);
+        assert!(need.n > 0.0 && need.p2o5 > 0.0 && need.k2o > 0.0, "{need:?}");
+        assert!((need.n - by_index.n).abs() < 1e-9, "N {} vs {}", need.n, by_index.n);
+        assert!((need.p2o5 - by_index.p2o5).abs() < 1e-9, "P2O5 {} vs {}", need.p2o5, by_index.p2o5);
+        assert!((need.k2o - by_index.k2o).abs() < 1e-9, "K2O {} vs {}", need.k2o, by_index.k2o);
+        assert!((need.n - 10.0).abs() < 1e-3, "10 kg of apples at the tomato-anchored index: {}", need.n);
+
+        let mut twin = apple.clone();
+        twin.removal_n = Some(2.0);
+        let mixed = season_need(&twin, kg, scale);
+        assert!((mixed.n - 2.0 * kg).abs() < 1e-9, "N from the column: {}", mixed.n);
+        assert!((mixed.p2o5 - by_index.p2o5).abs() < 1e-9 && (mixed.k2o - by_index.k2o).abs() < 1e-9, "{mixed:?}");
+    }
+
+    /// The shipped removal columns, as data. Every filled cell must be a
+    /// positive number the loader actually read (a cell it cannot read
+    /// silently falls back to the index, so a typo would hide), and in a
+    /// believable proportion, so a unit slip cannot ship. The bounds, and why:
+    ///
+    /// - N 0.5 to 80 g per kg. The low end is a watery fruit (95% water at
+    ///   1% N in its dry matter, the bottom of the NRCS handbook's "By weight,
+    ///   nitrogen makes up from 1 to 4 percent of the plant's harvested
+    ///   material"); the high end clears soybean seed, the richest harvest in
+    ///   its Table 6-6 at 6.25%.
+    /// - P2O5 0.3 to 25 and K2O 1 to 30 g per kg: the lowest and highest the
+    ///   cited tables give (radish 0.46 and soybean 13.3 g P2O5; cucumber 1.8
+    ///   and soybean 23.3 g K2O) with room either side. They catch a value
+    ///   typed straight from lb per cwt, lb per bushel or lb per lb.
+    /// - N against the crop's own protein (data/food/crop_nutrition.ron, from
+    ///   USDA FoodData Central): USDA derives protein as measured N times a
+    ///   factor of 5.3 to 6.25, so for the same food N over protein / 6.25 is
+    ///   1.0 to 1.18. The removal tables weigh a slightly different product
+    ///   (whole oats with the hull against groats: 0.72; paddy rice against
+    ///   milled: 1.32), so 0.65 to 1.4 holds every shipped crop, and a lb per
+    ///   ton figure typed as g per kg, which doubles it, lands above 1.4 for
+    ///   all of them. (kg per tonne IS g per kg, so it is no slip.)
+    /// - P2O5 and K2O against N: 0.08 to 1.8 and 0.1 to 6 (shipped: 0.11 to
+    ///   1.5 and 0.17 to 4.5), so a grain's P or K typed per bushel, which is
+    ///   dozens of times too small, fails. A doubled P or K value can pass:
+    ///   nothing in the repo measures them independently.
+    ///
+    /// Seen red three ways: wheat N set to 41.6 (lb per ton read as g per kg;
+    /// failed the protein band at 1.90), potato P2O5 set to 0.12 (the A2809
+    /// lb per cwt typed raw; failed the range and the P2O5 to N band), and a
+    /// cell set to "x" (not a number; the loader would have read it as blank
+    /// and quietly fallen back to the index).
+    #[test]
+    fn shipped_removal_columns_are_read_and_plausible() {
+        let csv = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/data/plants.csv"));
+        let plants = PlantRegistry::from_csv(csv.as_bytes()).expect("plants.csv");
+        let nutrition = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/data/food/crop_nutrition.ron"));
+        let protein: std::collections::HashMap<&str, f64> = nutrition
+            .lines()
+            .filter_map(|l| {
+                let id = l.split("plant_id: \"").nth(1)?.split('"').next()?;
+                let p = l.split("protein_g:").nth(1)?.split(',').next()?.trim().parse().ok()?;
+                Some((id, p))
+            })
+            .collect();
+        assert!(protein.len() > 100, "crop_nutrition.ron read: {} rows", protein.len());
+
+        let mut rows = csv.lines().filter(|l| !l.trim_start().starts_with('#') && !l.trim().is_empty());
+        let header: Vec<&str> = rows.next().expect("header").split(',').map(str::trim).collect();
+        let col = |name: &str| header.iter().position(|h| *h == name).unwrap_or_else(|| panic!("no column {name}"));
+        let cols = [col("removal_n_g_per_kg"), col("removal_p2o5_g_per_kg"), col("removal_k2o_g_per_kg")];
+        let names = ["N", "P2O5", "K2O"];
+        let ranges = [(0.5, 80.0), (0.3, 25.0), (1.0, 30.0)];
+
+        let mut bad: Vec<String> = Vec::new();
+        let mut filled = 0;
+        for row in rows {
+            let cells: Vec<&str> = row.split(',').map(str::trim).collect();
+            let id = cells[0];
+            let def = plants.get(id).unwrap_or_else(|| panic!("{id} is in plants.csv but not the registry"));
+            let loaded = [def.removal_n, def.removal_p2o5, def.removal_k2o];
+            let mut v = [None::<f64>; 3];
+            for i in 0..3 {
+                let text = cells.get(cols[i]).copied().unwrap_or("");
+                if text.is_empty() {
+                    if loaded[i].is_some() {
+                        bad.push(format!("{id} {}: blank in the file but loaded as {:?}", names[i], loaded[i]));
+                    }
+                    continue;
+                }
+                match text.parse::<f64>() {
+                    Ok(x) if x.is_finite() && x > 0.0 => {
+                        v[i] = Some(x);
+                        if loaded[i].map_or(true, |l| (f64::from(l) - x).abs() > 1e-5 * x) {
+                            bad.push(format!("{id} {}: file says {x}, loader read {:?}", names[i], loaded[i]));
+                        }
+                        let (lo, hi) = ranges[i];
+                        if !(lo..=hi).contains(&x) {
+                            bad.push(format!("{id} {} = {x} g/kg is outside {lo} to {hi}", names[i]));
+                        }
+                    }
+                    _ => bad.push(format!("{id} {}: {text:?} is not a positive number of g per kg", names[i])),
+                }
+            }
+            if v.iter().any(Option::is_some) {
+                filled += 1;
+            }
+            if let Some(n) = v[0] {
+                if let Some(p) = protein.get(id).copied().filter(|p| *p > 0.0) {
+                    let ratio = n / (p * 10.0 / 6.25);
+                    if !(0.65..=1.4).contains(&ratio) {
+                        bad.push(format!("{id} N {n} is {ratio:.2} x the N in its protein ({p} g/100 g)"));
+                    }
+                }
+                if let Some(p) = v[1].filter(|p| !(0.08..=1.8).contains(&(p / n))) {
+                    bad.push(format!("{id} P2O5 {p} is {:.3} x its N", p / n));
+                }
+                if let Some(k) = v[2].filter(|k| !(0.1..=6.0).contains(&(k / n))) {
+                    bad.push(format!("{id} K2O {k} is {:.3} x its N", k / n));
+                }
+            }
+        }
+        assert!(bad.is_empty(), "removal columns:\n{}", bad.join("\n"));
+        assert!(filled >= 60, "only {filled} crops carry removal columns");
+        // The family home's staples all carry the three columns.
+        for id in ["wheat", "rice", "potato", "bean", "soybean", "pea", "lentil", "chickpea", "tomato", "lettuce", "sunflower"] {
+            let d = plants.get(id).unwrap();
+            assert!(d.removal_n.is_some() && d.removal_p2o5.is_some() && d.removal_k2o.is_some(), "{id} is sourced");
+        }
     }
 
     /// Liebig's law of the minimum: plenty of N and K does not make up for no

@@ -58,9 +58,229 @@
 // season, where Wisconsin A2809 puts wheat grain at 0.5 lb P2O5 and 0.35 lb
 // K2O per 60 lb bushel (58 g and 41 g for 7 kg) and grain protein puts its N
 // near 20 g/kg (about 140 g). Grain and dry legumes are dense in nutrients and
-// the indices were not built from that. The real fix is to replace the three
-// plants.csv columns with per-crop removal in g per kg of harvest, from tables
-// like A2809's, and drop the index ratio; the formula above then loses one term.
+// the indices were not built from that. FIXED 2026-09-26 for the crops that
+// matter most: plants.csv now carries each crop's own removal in g per kg of
+// harvest (REMOVAL COLUMNS, below), and a crop with those columns does not use
+// this anchor at all. The index reading above is now only the fallback for a
+// crop whose columns are still blank, one nutrient at a time.
+//
+// -- REMOVAL COLUMNS: plants.csv removal_n_g_per_kg, removal_p2o5_g_per_kg,
+//    removal_k2o_g_per_kg (2026-09-26) ---------------------------------------
+//
+// A crop whose removal column is filled needs, of that nutrient, exactly
+//
+//     need (g) = removal (g per kg) x expected harvest (kg)
+//
+// with the expected harvest as above (mid yield x the items.csv item mass).
+// The grams are per kg of the harvest AS THE GAME'S ITEM REPRESENTS IT: fresh
+// produce as picked, grain and dry seed at the storage moisture its source
+// table reports, and for the pulses the dry seed, because data/food/
+// crop_nutrition.ron counts bean, soybean, lentil and chickpea as dry seed (the
+// pea it counts as green peas, so the pea row is green peas). Legumes still fix
+// their n_fixed_pct share of this N from the air.
+//
+// SOURCES, all read 2026-09-26:
+//   A2809  University of Wisconsin-Madison Extension, "Nutrient application
+//          guidelines for field, vegetable, and fruit crops in Wisconsin" (A2809),
+//          Table 4.2, crop removal of P2O5 and K2O in lb per unit of yield at the
+//          table's reporting moisture (the same table as the anchor, URL above).
+//          lb per ton x 0.5, lb per cwt x 10, lb per lb x 1000, and lb per bushel
+//          / the bushel's weight in lb x 1000, give g per kg.
+//   NRCS   USDA Soil Conservation Service, Agricultural Waste Management Field
+//          Handbook, Part 651, Chapter 6 "Role of Plants in Waste Management"
+//          (210-AWMFH, 4/92; the table pages rev. 1, July 1996), Table 6-6 "Plant
+//          nutrient uptake by specified crop and removed in the harvested part of
+//          the crop" (from Kilmer 1982; Morrison 1956; Sanchez 1976; USDA 1985):
+//          percent N, P and K of the harvested part (https://efotg.sc.egov.usda.gov/
+//          references/Delete/2016-8-13/AWMFH_Chapter_6_Role_of_Plants_in_Waste_Man.pdf).
+//          Its "Dry wt. lb/bu" column gives the bushel weights used here: wheat
+//          and soybeans 60, barley 48, oats 32, rye and sorghum 56. Its own worked
+//          example applies a grain percent to the bushel weight ("corn grain: 130
+//          bu/ac @ 56 lb/bu = 7,280 lb" and "1.61% N x 7,280 lb = 117 lb N"), so a
+//          grain percent is read as percent of the grain as harvested. P x 2.29 =
+//          P2O5 and K x 1.2 = K2O, the factors used for urine below. (The 2012
+//          revision of the chapter dropped N, P and K from Table 6-6 in favour of
+//          the USDA PLANTS Crop Nutrient Tool, which no longer loads as a page.)
+//   FDC    USDA FoodData Central, SR Legacy, April 2018 release (the file
+//          FoodData_Central_sr_legacy_food_csv_2018-04.zip from fdc.nal.usda.gov):
+//          protein, phosphorus and potassium per 100 g of the raw food, cited by FDC
+//          id. N = protein / the food's own nitrogen-to-protein factor in that
+//          release (6.25 for every food used here), which undoes how USDA got the
+//          protein from the nitrogen it measured. P2O5 = P x 2.29, K2O = K x 1.2.
+//   CDFA   the tomato's N, as in demand_anchor above.
+//
+// THE RULE, and why. Grain, dry pulses and oilseeds: N from NRCS, P2O5 and K2O
+// from A2809, each falling back to the next source when the crop is missing.
+// Fresh produce: N is the N USDA measured in the food (FDC), P2O5 and K2O from
+// A2809 where it lists the crop, else FDC. Why FDC and not NRCS for fresh N:
+// NRCS's fresh vegetable rows run up to three times the measured N of the same
+// produce (tomato 0.30% N, against FDC's 0.14% and CDFA's measured 3 lb per
+// ton, 0.15%; bell pepper 0.40% against 0.14%, and that row's P and K are two
+// to five times A2809's too), while for the one fresh crop with a measured
+// removal (CDFA's tomato, 1.5 g per kg) FDC agrees within 6% (1.41). For the
+// dry harvests NRCS and FDC agree within about 20% (wheat 2.08% N against
+// 2.16%, soybean 6.25% against 6.39%, dry bean 3.13% against 3.57 to 3.77%;
+// oats aside, where FDC weighs groats), so the removal table is used there.
+//
+// WHERE THE SOURCES DISAGREE, stated so each choice can be checked:
+//   - FDC-based P2O5 and K2O run below A2809 for the same crop: A2809's lettuce
+//     K2O (4.55 g/kg) is twice FDC's (2.33), its onion P2O5 1.8 times. So the
+//     rows that had to use FDC (kale, turnip, radish, leek, garlic, the herbs
+//     and others marked FDC below) may understate P and K by up to half.
+//   - A2809's per-pound rows run two to three times the P and K USDA measured
+//     in the same produce: pea, canning (0.0046 lb P2O5 and 0.0092 lb K2O per
+//     lb, against FDC green peas' 2.47 and 2.93 g/kg) and sunflower K2O (0.024
+//     lb per lb would be 2.0% K in the seed, against 0.65% in FDC's kernels).
+//     For the pea FDC is used, for sunflower K2O NRCS (1.11% K). Asparagus,
+//     buckwheat and triticale, which would need those rows too, are left blank
+//     rather than guessed.
+//   - oat: the item says groats, the tables weigh whole oats with the hull. Per
+//     kg of groats the removal would be about a quarter higher.
+// Blank on purpose: flax (its harvest item is a fiber bundle, not seed or straw,
+// and no table weighs that) and the mushrooms (they feed on their substrate,
+// straw or sawdust with bran, which is replaced with each block rather than
+// fertilized; filling their removal would bill the garden's compost and urine
+// for nitrogen the substrate supplies). Every other blank is simply not yet
+// sourced.
+//
+// Per crop (64): N / P2O5 / K2O in g per kg of harvest, its basis, then where
+// each number came from (FDC ids are SR Legacy; "x / 6.25" is its protein over
+// its nitrogen factor):
+//   wheat 20.8 / 8.33 / 5.83: grain at 13.5% moisture. N: NRCS wheat 2.08%. P2O5: A2809
+//       wheat grain 0.5 lb/bu of 60 lb. K2O: A2809 0.35 lb/bu.
+//   barley 18.2 / 8.33 / 7.29: grain at 14.5% moisture. N: NRCS barley 1.82%. P2O5: A2809
+//       barley grain 0.4 lb/bu of 48 lb. K2O: A2809 0.35 lb/bu.
+//   oat 19.5 / 9.06 / 5.94: whole grain at 14% moisture (the item says groats). N: NRCS
+//       oats 1.95%. P2O5: A2809 oat grain 0.29 lb/bu of 32 lb. K2O: A2809 0.19 lb/bu.
+//   rye 20.8 / 7.32 / 5.54: grain at 14% moisture. N: NRCS rye 2.08%. P2O5: A2809 rye grain
+//       0.41 lb/bu of 56 lb. K2O: A2809 0.31 lb/bu.
+//   sorghum 16.7 / 7.14 / 7.14: grain at 14% moisture. N: NRCS sorghum 1.67%. P2O5: A2809
+//       sorghum grain 0.4 lb/bu of 56 lb. K2O: A2809 0.4 lb/bu.
+//   rice 13.9 / 5.5 / 2.76: paddy (rough) rice. N: NRCS rice 1.39%. P2O5: NRCS 0.24% P
+//       (A2809 has no rice). K2O: NRCS 0.23% K.
+//   bean 31.3 / 12 / 16: dry seed at 18% moisture (crop_nutrition.ron: dry). N: NRCS beans,
+//       dry 3.13%. P2O5: A2809 bean, dry (kidney, navy) 1.2 lb/cwt. K2O: A2809 1.6 lb/cwt.
+//   kidney_bean 31.3 / 12 / 16: dry seed at 18% moisture (crop_nutrition.ron: dry). N: NRCS
+//       beans, dry 3.13%. P2O5: A2809 bean, dry (kidney, navy) 1.2 lb/cwt. K2O: A2809 1.6
+//       lb/cwt.
+//   pinto_bean 31.3 / 12 / 16: dry seed at 18% moisture (crop_nutrition.ron: dry). N: NRCS
+//       beans, dry 3.13%. P2O5: A2809 bean, dry (kidney, navy) 1.2 lb/cwt. K2O: A2809 1.6
+//       lb/cwt.
+//   navy_bean 31.3 / 12 / 16: dry seed at 18% moisture (crop_nutrition.ron: dry). N: NRCS
+//       beans, dry 3.13%. P2O5: A2809 bean, dry (kidney, navy) 1.2 lb/cwt. K2O: A2809 1.6
+//       lb/cwt.
+//   soybean 62.5 / 13.3 / 23.3: grain at 13% moisture. N: NRCS soybeans 6.25%. P2O5: A2809
+//       soybean grain 0.8 lb/bu of 60 lb. K2O: A2809 1.4 lb/bu.
+//   chickpea 32.8 / 10 / 12: dry seed at 10% moisture. N: FDC 173756 chickpeas, mature
+//       seeds, raw: protein 20.47 / 6.25. P2O5: A2809 pea, chick/field/cow 20 lb/ton. K2O:
+//       A2809 24 lb/ton.
+//   cowpea 37.6 / 10 / 12: dry seed at 10% moisture. N: FDC 173758 cowpeas, mature seeds,
+//       raw: 23.52 / 6.25. P2O5: A2809 pea, chick/field/cow 20 lb/ton. K2O: A2809 24
+//       lb/ton.
+//   lentil 39.4 / 6.43 / 8.12: dry seed. N: FDC 172420 lentils, raw: 24.63 / 6.25. P2O5:
+//       FDC 281 mg P. K2O: FDC 677 mg K (no table row).
+//   fava_bean 41.8 / 9.64 / 12.7: dry seed. N: FDC 175205 broadbeans (fava), mature seeds,
+//       raw: 26.12 / 6.25. P2O5: FDC 421 mg P. K2O: FDC 1062 mg K.
+//   mung_bean 38.2 / 8.4 / 15: dry seed. N: FDC 174256 mung beans, mature seeds, raw: 23.86
+//       / 6.25. P2O5: FDC 367 mg P. K2O: FDC 1246 mg K.
+//   pigeon_pea 34.7 / 8.4 / 16.7: dry seed. N: FDC 172436 pigeon peas, mature seeds, raw:
+//       21.7 / 6.25. P2O5: FDC 367 mg P. K2O: FDC 1392 mg K.
+//   peanut 36 / 3.89 / 6: nuts in shell. N: NRCS peanuts 3.60%. P2O5: NRCS 0.17% P (A2809
+//       has no peanut). K2O: NRCS 0.50% K.
+//   sunflower 35.7 / 12 / 13.3: seed (crop_nutrition.ron: seed). N: NRCS sunflower 3.57%.
+//       P2O5: A2809 sunflower 0.012 lb/lb. K2O: NRCS 1.11% K, not A2809 0.024 lb/lb (2.0%
+//       K, three times the 0.65% FDC measured in the kernels).
+//   tomato 1.5 / 0.9 / 4: fresh fruit (the demand anchor). N: CDFA 3 lb N/ton (FDC 170457:
+//       1.41). P2O5: A2809 tomato 1.8 lb/ton. K2O: A2809 8 lb/ton.
+//   potato 3.28 / 1.2 / 5: fresh tubers. N: FDC 170026 potatoes, flesh and skin, raw: 2.05
+//       / 6.25 (NRCS 3.3 agrees). P2O5: A2809 potato 0.12 lb/cwt. K2O: A2809 0.5 lb/cwt.
+//   sweet_potato 2.51 / 1.08 / 4.04: fresh roots. N: FDC 168482 sweet potato, raw: 1.57 /
+//       6.25. P2O5: FDC 47 mg P. K2O: FDC 337 mg K.
+//   lettuce 2.18 / 1.15 / 4.55: fresh heads. N: FDC 169249 lettuce, green leaf, raw: 1.36 /
+//       6.25. P2O5: A2809 lettuce 2.3 lb/ton. K2O: A2809 9.1 lb/ton.
+//   spinach 4.58 / 2 / 5: fresh leaves. N: FDC 168462 spinach, raw: 2.86 / 6.25. P2O5:
+//       A2809 spinach 4 lb/ton. K2O: A2809 10 lb/ton.
+//   kale 4.67 / 1.26 / 4.18: fresh leaves. N: FDC 168421 kale, raw: 2.92 / 6.25. P2O5: FDC
+//       55 mg P. K2O: FDC 348 mg K.
+//   cabbage 2.05 / 0.8 / 3.6: fresh heads. N: FDC 169975 cabbage, raw: 1.28 / 6.25. P2O5:
+//       A2809 cabbage 1.6 lb/ton. K2O: A2809 7.2 lb/ton.
+//   broccoli 4.51 / 1 / 4: fresh heads. N: FDC 170379 broccoli, raw: 2.82 / 6.25. P2O5:
+//       A2809 broccoli 2 lb/ton. K2O: A2809 8 lb/ton.
+//   cauliflower 3.07 / 1.45 / 3.55: fresh heads. N: FDC 169986 cauliflower, raw: 1.92 /
+//       6.25. P2O5: A2809 cauliflower 2.9 lb/ton. K2O: A2809 7.1 lb/ton.
+//   brussels_sprout 5.41 / 1.6 / 4.7: fresh sprouts. N: FDC 170383 brussels sprouts, raw:
+//       3.38 / 6.25. P2O5: A2809 brussels sprouts 3.2 lb/ton. K2O: A2809 9.4 lb/ton.
+//   beet 2.58 / 0.65 / 4: fresh roots. N: FDC 169145 beets, raw: 1.61 / 6.25. P2O5: A2809
+//       beet, table 1.3 lb/ton. K2O: A2809 8 lb/ton.
+//   turnip 1.44 / 0.618 / 2.29: fresh roots. N: FDC 170465 turnips, raw: 0.90 / 6.25. P2O5:
+//       FDC 27 mg P. K2O: FDC 191 mg K.
+//   radish 1.09 / 0.458 / 2.8: fresh roots. N: FDC 169276 radishes, raw: 0.68 / 6.25. P2O5:
+//       FDC 20 mg P. K2O: FDC 233 mg K.
+//   carrot 1.49 / 0.9 / 4.8: fresh roots. N: FDC 170393 carrots, raw: 0.93 / 6.25. P2O5:
+//       A2809 carrot 1.8 lb/ton. K2O: A2809 9.6 lb/ton.
+//   parsnip 1.92 / 1.63 / 4.5: fresh roots. N: FDC 170417 parsnips, raw: 1.20 / 6.25. P2O5:
+//       FDC 71 mg P. K2O: FDC 375 mg K.
+//   rutabaga 1.73 / 1.21 / 3.66: fresh roots. N: FDC 168454 rutabagas, raw: 1.08 / 6.25.
+//       P2O5: FDC 53 mg P. K2O: FDC 305 mg K.
+//   celery 1.1 / 1.65 / 5: fresh stalks. N: FDC 169988 celery, raw: 0.69 / 6.25. P2O5:
+//       A2809 celery 3.3 lb/ton. K2O: A2809 10 lb/ton.
+//   leek 2.4 / 0.801 / 2.16: fresh. N: FDC 169246 leeks, raw: 1.50 / 6.25. P2O5: FDC 35 mg
+//       P. K2O: FDC 180 mg K.
+//   onion 1.76 / 1.2 / 2.6: fresh bulbs. N: FDC 170000 onions, raw: 1.10 / 6.25. P2O5:
+//       A2809 onion 0.12 lb/cwt. K2O: A2809 0.26 lb/cwt.
+//   garlic 10.2 / 3.5 / 4.81: fresh bulbs. N: FDC 169230 garlic, raw: 6.36 / 6.25. P2O5:
+//       FDC 153 mg P. K2O: FDC 401 mg K.
+//   chive 5.23 / 1.33 / 3.55: fresh leaves. N: FDC 169994 chives, raw: 3.27 / 6.25. P2O5:
+//       FDC 58 mg P. K2O: FDC 296 mg K.
+//   cucumber 1.04 / 0.6 / 1.8: fresh fruit. N: FDC 168409 cucumber, with peel, raw: 0.65 /
+//       6.25. P2O5: A2809 cucumber 1.2 lb/ton. K2O: A2809 3.6 lb/ton.
+//   zucchini 1.94 / 1.4 / 3.2: fresh fruit. N: FDC 169291 zucchini, includes skin, raw:
+//       1.21 / 6.25. P2O5: A2809 squash 2.8 lb/ton. K2O: A2809 6.4 lb/ton.
+//   squash 1.94 / 1.4 / 3.2: fresh fruit. N: FDC 170487 squash, summer, all varieties, raw:
+//       1.21 / 6.25. P2O5: A2809 squash 2.8 lb/ton. K2O: A2809 6.4 lb/ton.
+//   pumpkin 1.6 / 1.45 / 3.15: fresh fruit. N: FDC 168448 pumpkin, raw: 1.0 / 6.25. P2O5:
+//       A2809 pumpkin 2.9 lb/ton. K2O: A2809 6.3 lb/ton.
+//   pepper 1.38 / 0.55 / 2.8: fresh fruit. N: FDC 170427 peppers, sweet, green, raw: 0.86 /
+//       6.25. P2O5: A2809 pepper 1.1 lb/ton. K2O: A2809 5.6 lb/ton.
+//   eggplant 1.57 / 0.55 / 2.75: fresh fruit. N: FDC 169228 eggplant, raw: 0.98 / 6.25.
+//       P2O5: FDC 24 mg P. K2O: FDC 229 mg K.
+//   okra 3.09 / 1.4 / 3.59: fresh pods. N: FDC 169260 okra, raw: 1.93 / 6.25. P2O5: FDC 61
+//       mg P. K2O: FDC 299 mg K.
+//   pea 8.67 / 2.47 / 2.93: fresh green peas (crop_nutrition.ron: green). N: FDC 170419
+//       peas, green, raw: 5.42 / 6.25. P2O5: FDC 108 mg P (not A2809 pea, canning 0.0046
+//       lb/lb, 1.9x FDC). K2O: FDC 244 mg K (A2809 0.0092 lb/lb is 3.1x FDC).
+//   strawberry 1.07 / 0.55 / 1.84: fresh fruit. N: FDC 167762 strawberries, raw: 0.67 /
+//       6.25. P2O5: FDC 24 mg P. K2O: FDC 153 mg K.
+//   chard 2.88 / 1.05 / 4.55: fresh leaves. N: FDC 169991 chard, swiss, raw: 1.80 / 6.25.
+//       P2O5: FDC 46 mg P. K2O: FDC 379 mg K.
+//   collard 4.83 / 0.573 / 2.56: fresh leaves. N: FDC 170406 collards, raw: 3.02 / 6.25.
+//       P2O5: FDC 25 mg P. K2O: FDC 213 mg K.
+//   mustard_greens 4.58 / 1.33 / 4.61: fresh leaves. N: FDC 169256 mustard greens, raw:
+//       2.86 / 6.25. P2O5: FDC 58 mg P. K2O: FDC 384 mg K.
+//   bok_choy 2.4 / 0.847 / 3.02: fresh heads. N: FDC 170390 cabbage, chinese (pak-choi),
+//       raw: 1.50 / 6.25. P2O5: FDC 37 mg P. K2O: FDC 252 mg K.
+//   arugula 4.13 / 1.19 / 4.43: fresh leaves. N: FDC 169387 arugula, raw: 2.58 / 6.25.
+//       P2O5: FDC 52 mg P. K2O: FDC 369 mg K.
+//   fennel 1.98 / 1.15 / 4.97: fresh bulb. N: FDC 169385 fennel, bulb, raw: 1.24 / 6.25.
+//       P2O5: FDC 50 mg P. K2O: FDC 414 mg K.
+//   parsley 4.75 / 1.33 / 6.65: fresh leaves. N: FDC 170416 parsley, fresh: 2.97 / 6.25.
+//       P2O5: FDC 58 mg P. K2O: FDC 554 mg K.
+//   cilantro 3.41 / 1.1 / 6.25: fresh leaves. N: FDC 169997 coriander (cilantro) leaves,
+//       raw: 2.13 / 6.25. P2O5: FDC 48 mg P. K2O: FDC 521 mg K.
+//   basil 5.04 / 1.28 / 3.54: fresh leaves. N: FDC 172232 basil, fresh: 3.15 / 6.25. P2O5:
+//       FDC 56 mg P. K2O: FDC 295 mg K.
+//   dill 5.54 / 1.51 / 8.86: fresh leaves. N: FDC 172233 dill weed, fresh: 3.46 / 6.25.
+//       P2O5: FDC 66 mg P. K2O: FDC 738 mg K.
+//   mint 5.26 / 1.37 / 5.5: fresh leaves. N: FDC 173475 spearmint, fresh: 3.29 / 6.25.
+//       P2O5: FDC 60 mg P. K2O: FDC 458 mg K.
+//   thyme 8.9 / 2.43 / 7.31: fresh sprigs. N: FDC 173470 thyme, fresh: 5.56 / 6.25. P2O5:
+//       FDC 106 mg P. K2O: FDC 609 mg K.
+//   rosemary 5.3 / 1.51 / 8.02: fresh sprigs. N: FDC 173473 rosemary, fresh: 3.31 / 6.25.
+//       P2O5: FDC 66 mg P. K2O: FDC 668 mg K.
+//   lemongrass 2.91 / 2.31 / 8.68: fresh stalks. N: FDC 168573 lemon grass (citronella),
+//       raw: 1.82 / 6.25. P2O5: FDC 101 mg P. K2O: FDC 723 mg K.
+//   ginger 2.91 / 0.779 / 4.98: fresh rhizome. N: FDC 169231 ginger root, raw: 1.82 / 6.25.
+//       P2O5: FDC 34 mg P. K2O: FDC 415 mg K.
 //
 // -- fertilizers: what one item puts into a unit -----------------------------
 //

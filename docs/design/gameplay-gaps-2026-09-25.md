@@ -292,6 +292,40 @@ date; re-check before trusting one. The container data basis is
   cited damage. Still to do: the Garden panel buttons and pressure display,
   the Settings mode switch, whitefly and thrips, row covers, and pests during
   the offline catch-up.
+- **Gardening depth: per-crop nutrient removal, DONE 2026-09-26.** plants.csv
+  gained `removal_n_g_per_kg`, `removal_p2o5_g_per_kg` and
+  `removal_k2o_g_per_kg`, filled for 64 crops: every crop in the family home's
+  beds and nutrition towers except flax and the mushrooms (14 of the
+  apothecary tower's dried and medicinal herbs are still blank), each value
+  cited to its table cell
+  in `data/garden/nutrients.ron` (REMOVAL COLUMNS). Grain, dry pulses and
+  oilseeds take N from USDA NRCS's Agricultural Waste Management Field
+  Handbook Table 6-6 and P2O5 and K2O from UW-Madison A2809 Table 4.2; fresh
+  produce takes N from the nitrogen USDA measured in the food (FoodData
+  Central SR Legacy protein over its nitrogen factor, which matches CDFA's
+  measured tomato removal within 6%) and P2O5 and K2O from A2809, else
+  FoodData Central. A filled column is the need (removal x expected harvest,
+  `soil::removal_per_kg`); a blank one falls back, nutrient by nutrient, to the
+  old anchor-scaled index. A wheat unit now needs 146 g N, 58 g P2O5 and 41 g
+  K2O a season (was 7, 5 and 8.4), and legume fixation and credits now work on
+  real N. The home garden by the rung-4 method (1,600 units, seasons a garden
+  year from growth days): N removed 71.7 kg (was 10.35), drawn from the soil
+  after fixation 57.6 kg, returned by legumes 11.5 kg (was 0.08), net 46.1 kg
+  (was 10.2); P2O5 25.0 kg (was 8.7); K2O 53.2 kg (was 23.9). Three residents'
+  urine (12.0 kg N, 2.5 kg P2O5, 4.0 kg K2O) covers 26% of the net N (was
+  118%), 10% of the P2O5 and 7% of the K2O; one player covers 9% of the N. So
+  rung 4's "urine alone covers it" was an artifact of the indices: that garden
+  removed 10.35 kg of N from its soil while its own harvest held about 80 kg.
+  A shipped-data test holds every value to a physical range and within 0.65
+  to 1.4 times the N in the crop's protein, which a lb-per-ton slip fails.
+  Found, not fixed: items.csv and `data/food/crop_nutrition.ron` disagree on
+  what a harvest weighs (a wheat item is 500 g, a wheat yield unit 50 g; a
+  bean item 300 g, a unit 50 g of dry seed), and the need follows items.csv,
+  so grain and pulse units remove 6 to 10 times what the food model says they
+  feed (a tower cup grows 1.65 kg of dry soybeans a season; the rice trays
+  alone remove 9.7 kg of N a year). Still to do: the remaining crops (fruit
+  trees, spices, dried herbs, fiber), mushrooms drawing on their substrate,
+  and N-P-K in the Garden panel.
 
 ## Defects found (things that are wrong, not merely missing)
 

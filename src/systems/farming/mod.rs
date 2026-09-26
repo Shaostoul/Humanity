@@ -120,6 +120,18 @@ pub struct PlantDef {
     /// in its roots behind for the next crop (`soil::legume_credit_n`).
     #[serde(default)]
     pub n_fixed_share: f32,
+    /// Grams of N, P2O5 and K2O one kg of this crop's harvest carries out of
+    /// its unit (plants.csv `removal_n_g_per_kg`, `removal_p2o5_g_per_kg`,
+    /// `removal_k2o_g_per_kg`, 2026-09-26), on the basis its harvest item
+    /// represents. `None` where the column is blank: that nutrient's need then
+    /// falls back to the relative `nutrient_*` index read against the anchor
+    /// crop (`soil::removal_per_kg`). Each nutrient falls back on its own.
+    #[serde(default)]
+    pub removal_n: Option<f32>,
+    #[serde(default)]
+    pub removal_p2o5: Option<f32>,
+    #[serde(default)]
+    pub removal_k2o: Option<f32>,
 }
 
 fn default_needs_light() -> bool {
@@ -131,6 +143,16 @@ fn default_needs_light() -> bool {
 /// text for the same reason as `parse_needs_light`.
 fn parse_fixed_share(cell: &str) -> f32 {
     cell.trim().parse::<f32>().ok().filter(|v| v.is_finite()).map_or(0.0, |pct| (pct / 100.0).clamp(0.0, 1.0))
+}
+
+/// Read a plants.csv removal cell (grams per kg of harvest). Blank, absent,
+/// unparseable, zero or negative reads as `None`, so the crop falls back to
+/// its index for that nutrient and the row is never dropped: parsed from
+/// text for the same reason as `parse_needs_light`. A filled cell that reads
+/// as `None` is a data error, and the shipped-data lint in soil.rs fails on it
+/// rather than let the fallback hide it.
+fn parse_removal(cell: &str) -> Option<f32> {
+    cell.trim().parse::<f32>().ok().filter(|v| v.is_finite() && *v > 0.0)
 }
 
 /// Read the plants.csv `needs_light` cell. Only an explicit no (`false`,
@@ -216,6 +238,9 @@ impl PlantRegistry {
                     harvest_item: row.harvest_item,
                     needs_light: parse_needs_light(&row.needs_light),
                     n_fixed_share: parse_fixed_share(&row.n_fixed_pct),
+                    removal_n: parse_removal(&row.removal_n_g_per_kg),
+                    removal_p2o5: parse_removal(&row.removal_p2o5_g_per_kg),
+                    removal_k2o: parse_removal(&row.removal_k2o_g_per_kg),
                 },
             );
         }
@@ -272,6 +297,13 @@ struct PlantRow {
     /// Text, not a number: see `parse_fixed_share`.
     #[serde(default)]
     n_fixed_pct: String,
+    /// Text, not numbers: see `parse_removal`.
+    #[serde(default)]
+    removal_n_g_per_kg: String,
+    #[serde(default)]
+    removal_p2o5_g_per_kg: String,
+    #[serde(default)]
+    removal_k2o_g_per_kg: String,
 }
 
 /// Split a colon-separated list field into trimmed, non-empty entries.
@@ -661,8 +693,10 @@ pub fn crop_season_need(
 
 /// What a crop's harvest carries out of its unit in one season, grams: its
 /// expected harvest (mid yield x the items.csv mass of what it harvests into)
-/// read against the anchor's published removal (soil.rs). `scale` is
-/// `NutrientData::scale_for`; None, or an unknown plant, removes nothing.
+/// times what each kg of it removes: the crop's own plants.csv removal
+/// columns where filled, else its index read against the anchor's published
+/// removal (`soil::removal_per_kg`). `scale` is `NutrientData::scale_for`;
+/// None, or an unknown plant, removes nothing.
 /// For a legume this is more than it draws (`crop_season_need`): the rest
 /// of the N came from the air.
 pub fn crop_removal(

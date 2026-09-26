@@ -163,24 +163,28 @@ fn fertilizing_adds_a_bags_nutrients_at_the_cited_ratio_and_nothing_else() {
     assert!((twice.n - 2.0 * bag.n).abs() < 1e-9, "the second bag landed, the third did not exist: {}", twice.n);
 }
 
-/// A crop's draw follows its plants.csv demand: a tomato twin with every
-/// index doubled draws exactly twice as much of each nutrient over the same
-/// growth, and the real tomato draws its cited season removal (1.5 g N,
-/// 0.9 g P2O5, 4.0 g K2O) times the share of the season it has grown.
-/// Seen red by making `season_need` use a flat index of 1 for every crop
-/// instead of the crop's own: the twin then drew the same as the tomato.
+/// A crop's draw follows its plants.csv demand: a tomato twin with its
+/// removal columns doubled (2026-09-26: the columns, where filled, are the
+/// demand; the tomato's carry its cited 1.5 / 0.9 / 4.0 g per kg) draws
+/// exactly twice as much of each nutrient over the same growth, and the real
+/// tomato draws its cited season removal (1.5 g N, 0.9 g P2O5, 4.0 g K2O)
+/// times the share of the season it has grown. Seen red, before the columns,
+/// by making `season_need` use a flat index of 1 for every crop instead of
+/// the crop's own, and since them by making `soil::removal_per_kg` ignore the
+/// columns: either way the twin drew the same as the tomato.
 #[test]
 fn nutrient_draw_scales_with_the_plants_csv_demand() {
     let mut data = make_store();
     data.insert("crop_growth_speed", std::sync::Mutex::new(1.0_f32));
-    // The twin: the tomato row with every nutrient index doubled.
+    // The twin: the tomato row with its removal columns doubled.
     let mut plants = PlantRegistry::from_csv(include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/data/plants.csv")))
         .expect("plants.csv");
     let mut twin = plants.get("tomato").unwrap().clone();
     twin.id = "hungry_tomato".to_string();
-    twin.nutrient_n *= 2.0;
-    twin.nutrient_p *= 2.0;
-    twin.nutrient_k *= 2.0;
+    let double = |g: Option<f32>| Some(2.0 * g.expect("the tomato's removal columns are filled"));
+    twin.removal_n = double(twin.removal_n);
+    twin.removal_p2o5 = double(twin.removal_p2o5);
+    twin.removal_k2o = double(twin.removal_k2o);
     plants.plants.insert(twin.id.clone(), twin);
     data.insert("plant_registry", plants);
 
@@ -503,7 +507,10 @@ fn a_legume_draws_less_and_leaves_its_fixed_nitrogen_for_the_next_crop() {
     world.spawn((Irrigator,));
     world.spawn((Inventory::new(16), Controllable));
     let first = stages_of(&data, "soybean")[0].clone();
-    let start = Npk::new(100.0, 100.0, 100.0);
+    // Enough for the twin's whole season: soybean's cited removal (62.5 g N
+    // per kg, NRCS Table 6-6) on its 1.65 kg unit is 103 g of N, all of it
+    // from the soil for a twin that fixes nothing.
+    let start = Npk::new(1000.0, 1000.0, 1000.0);
     let soy = world.spawn((crop("soybean", "field_a", &first, 0.0), CropSoil { store: start, uptake: 0.0 }));
     let non = world.spawn((crop("soybean_nonfixing", "field_b", &first, 0.0), CropSoil { store: start, uptake: 0.0 }));
 
