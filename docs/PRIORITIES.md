@@ -1126,8 +1126,13 @@ light need and an 18 h grow-light timer are DONE (v0.1368.0). In flight
 (agents): drawing each plot's plants at the crop's spacing, computed kcal on
 the grow machines' cards, and picking windows with seed return that follows
 the harvest. Next: the rubber tree yields latex (it harvests a fiber
-bundle) and vulcanizing uses sulfur; the sun side of light (latitude and
-seasonal day length); greenhouse humidity and fungal disease. Containers as items (3c) waits on the unified placement
+bundle) and vulcanizing uses sulfur (both DONE v0.1368.0); greenhouse
+humidity and fungal disease (in flight). OPERATOR DECISION NEEDED before the
+sun side of light (seasons and day length): is the homestead a GROUND site at
+Silverdale 47.6 N (what data/home_outline.json and the garden figures assume)
+or the equatorial GEO station the engine runs (about 12 h of sun all year, no
+seasons)? The gameplay sun (a fixed 6 to 18 arc) and the drawn sun (the real
+ephemeris on the wall clock) also disagree aboard by up to 12 h (BUG-090). Containers as items (3c) waits on the unified placement
 schema. Progress and open items live at the top of the gap doc.
 
 **Gameplay gap survey (2026-09-25):** `docs/design/gameplay-gaps-2026-09-25.md`

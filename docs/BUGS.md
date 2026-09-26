@@ -1671,3 +1671,34 @@ expands a TYPE into its machines ("grow_instances", published by the engine)
 and sows one crop per plot of each, tagged with the machine. Test
 `planting_a_bed_type_sows_every_plot_of_every_machine`, red with the
 expansion switched off.
+
+## BUG-090: the gameplay sun and the drawn sun disagree aboard the home station (OPEN, 2026-09-26)
+
+Found by a read-only survey while preparing seasonal daylight for the garden.
+The home is a station in equatorial geosynchronous orbit (`data/stations/home.ron`:
+`period: Synchronous`, `inclination_deg: 0.0`, phased over Silverdale). Two
+separate suns run the game:
+
+- GAMEPLAY: `solar::sun_factor(hour)` is a fixed 6:00 to 18:00 arc on the
+  global game hour. Solar panels, crop light, the grow-light timer
+  (`farming::lighting::lamps_on_at`) and `farming::DAYLIGHT_FRACTION` all read it.
+- DRAWN: the sky's sun is the real Keplerian ephemeris on the WALL clock
+  (`src/lib.rs` ~9395, `sun_rel_earth_m`), at a permanent equinox
+  (`dev_travel.rs` "eternal equinox"), lighting the hull through
+  `station::to_hull`.
+
+Aboard, the deck's local solar time is about the game hour + 3.85 h + the Sun's
+real ecliptic longitude / 15 (derived, not yet measured), so on 2026-09-26 the
+deck's noon falls near game hour 20, when `sun_factor` says night, and the
+offset drifts through a full day each real year. A player can see the sun up
+while the crops and panels are in the dark, or the reverse. Not measured in the
+running game yet: confirm with a rig capture at game hours 12 and 20.
+
+Also found: the gameplay latitude aboard is a default 45 degrees
+(`body_environment::REFERENCE_LATITUDE_DEG`, used only for temperature), the
+data files size the home as a GROUND site at Silverdale 47.6 N
+(`data/home_outline.json`, `data/world/spawn.ron` `homestead_orbit`, parsed by
+nothing), and the station is really at 0 degrees. Which of these the home is
+decides whether it has seasons at all (at equatorial GEO the sun is up about
+12 h all year), so the fix waits on that decision (docs/PRIORITIES.md).
+

@@ -894,6 +894,11 @@
    "date": "2026-09-26",
    "decision": "v0.1368.0 released (per-crop DLI + 18 h lamp timer + rubber chain). In flight (worktree agents, cherry-pick each): (1) plot plants drawn at spacing with a visual cap (home_meshes.rs); (2) grow machine cards show computed kcal (self_sufficiency display, home.ron food stats removed); (3) picking windows + seed return follows harvest (farming harvest, yields.ron or harvest_windows.ron, self_sufficiency season count); (4) greenhouse humidity from transpiration + ventilation, diseases as pests.ron rows with a Humidity condition, plants.csv humidity windows as a health cap.",
    "why": "Disjoint files per agent; the likely overlaps are self_sufficiency.rs (2 and 3), farming/mod.rs hooks (3 and 4), home.ron (2 food stats vs 4 a new fan entry), lib.rs crop bridge (3 and 4). Merge order: whichever lands first, then resolve."
+  },
+  {
+   "date": "2026-09-26",
+   "decision": "Merged computed kcal on grow machine cards (2c8e48e9: src/systems/grow_machines.rs, MachineHome::stats_for/grown_kcal_per_day, typed food figures removed from both home RONs; home.ron computed 9,507 kcal/day vs demand 6,600, solo 2,728 vs 2,200; showcase crops per machine type). Read-only survey: the home is an equatorial GEO station; the gameplay sun (6-18 arc on the game hour) and the drawn sun (real ephemeris, wall clock, permanent equinox) disagree aboard by up to 12 h (BUG-090, OPEN). Seasonal daylight for crops waits on an operator decision: ground site at Silverdale 47.6 N (the data assumes it) or the GEO station (no seasons).",
+   "why": "Did not pick a side: whether the home is on the ground or in orbit is a world-direction decision for the operator, and it decides whether seasons exist. Findings to follow up: crop_nutrition.ron oregano/sage/turmeric kcal look like dried-spice values applied to fresh harvest (apothecary tower 232 kcal/day inflated); the computed food model is an upper bound (no light limit yet)."
   }
  ],
  "active_scopes_to_avoid": [
