@@ -819,6 +819,11 @@
    "date": "2026-09-26",
    "decision": "v0.1356.0: soap needs lye (lye_0 vendor item, corrosive class; craft_soap_bar = 3 tallow + 2 lye + 1 water -> 15 bars at a ~0.143 SAP ratio, the salt-only recipe removed) and ContentClass.cleaning_agent (food: soap_bar_0) makes a food/dairy vessel clean take one soap use besides water, via containers::clean_container (the lib.rs Clean handler shrank to a call).",
    "why": "Soap was the last open item in the found-defects list that is not a pacing decision; making it the cleaning agent closes the containers arc item (PMO hot wash) at the same time."
+  },
+  {
+   "date": "2026-09-26",
+   "decision": "v0.1357.0: 13 station blueprints (forge, anvil, electronics bench, sewing machine, loom, stove, oven, chemistry set, composter, sawmill, grain mill, fuel refinery, water purifier) each consume the crafted station item; recipe_sources_lint every_recipe_station_can_be_built (vehicle_assembler exempt, family-home only).",
+   "why": "The gap survey found 12 of 17 station types unreachable in the one-person home (160 recipes). The crafted station items existed but nothing placed them; a blueprint consuming the item joins craft and construction without new systems. Built electric stations do not draw home power yet (no MachineType/PowerConsumer on built structures), noted."
   }
  ],
  "active_scopes_to_avoid": [

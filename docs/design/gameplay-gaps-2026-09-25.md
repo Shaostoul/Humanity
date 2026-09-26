@@ -124,6 +124,15 @@ date; re-check before trusting one. The container data basis is
   the grade survives storage; machines turn out standard goods. The
   inventory card shows the grade and the real uses left, and the Crafting
   page shows the grade to expect.
+- **Every station can be built: DONE 2026-09-26** (v0.1357.0). The build_*
+  recipes made station items (a forge, an anvil, a stove, an electronics
+  bench...) that nothing could set down, so in the one-person home 13 of the
+  stations recipes name never existed and about 160 recipes could not be
+  made. Each now has a blueprint that consumes the crafted station item
+  (`data/blueprints/basic.ron`), and `recipe_sources_lint` checks every
+  station a recipe names can be built (the vehicle assembler stays a
+  family-home machine by design). A built electric station does not yet
+  draw power from the home (only placed home machines do).
 - **Containers as items (3c): BLOCKED** on the unified placement schema
   (Tier B in PRIORITIES.md). The walk-up machine card and every vessel are
   tied to `data/machines/home.ron` placements; a container that can be

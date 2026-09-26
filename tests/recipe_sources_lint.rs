@@ -554,6 +554,40 @@ fn npc_shops_sell_real_items() {
     assert!(missing.is_empty(), "names no item in data/items.csv: {missing:#?}");
 }
 
+/// Every station a recipe names can be built from a blueprint (2026-09-26):
+/// the build_* recipes made station items nothing could place, so about 160
+/// recipes could not be made in the one-person home. The vehicle assembler
+/// is the one exception: it stands only in the family home, by design.
+#[test]
+fn every_recipe_station_can_be_built() {
+    const ONLY_IN_THE_FAMILY_HOME: &[&str] = &["vehicle_assembler"];
+    let rcsv = Csv::load("data/recipes.csv");
+    let st = rcsv.col("station_required");
+    let needed: BTreeSet<String> = rcsv
+        .rows
+        .iter()
+        .map(|(_, r)| field(r, st).trim().trim_end_matches("_0").to_string())
+        .filter(|s| !s.is_empty() && s != "none")
+        .collect();
+    let bp = strip_line_comments(&read("data/blueprints/basic.ron"));
+    let mut built: BTreeSet<String> = BTreeSet::new();
+    let mut rest = bp.as_str();
+    while let Some(k) = rest.find("stations:") {
+        rest = &rest[k + "stations:".len()..];
+        let Some(close) = rest.find(']') else { break };
+        for (i, part) in rest[..close].split('"').enumerate() {
+            if i % 2 == 1 {
+                built.insert(part.to_string());
+            }
+        }
+    }
+    let missing: Vec<&String> = needed
+        .iter()
+        .filter(|s| !built.contains(*s) && !ONLY_IN_THE_FAMILY_HOME.contains(&s.as_str()))
+        .collect();
+    assert!(missing.is_empty(), "stations no blueprint builds: {missing:?}");
+}
+
 #[test]
 fn recipe_ids_are_unique() {
     let d = load();

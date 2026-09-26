@@ -9,6 +9,23 @@
     (id: "roof", name: "Wood Roof", category: "roof", materials: [("wood_plank_0", 10)], build_time: 6.0, size: (4.0, 0.2, 4.0), snap_to: ["wall"], health: 180.0, provides: Some("shelter")),
     (id: "crafting_table", name: "Crafting Table", category: "furniture", materials: [("wood_plank_0", 6)], build_time: 4.0, size: (1.0, 1.0, 1.0), snap_to: ["foundation"], health: 100.0, provides: Some("crafting_station"), stations: ["workbench"]),
     (id: "furnace", name: "Furnace", category: "machine", materials: [("stone_brick_0", 15), ("iron_ingot_0", 3)], build_time: 12.0, size: (1.0, 1.5, 1.0), snap_to: ["foundation"], health: 300.0, provides: Some("smelting"), stations: ["smelter", "kiln"]),
+    // Stations you craft at the workbench, then set down here (2026-09-26): each
+    // blueprint consumes the crafted station item. Before this the build_* recipes
+    // made station items nothing could place, so their stations never existed and
+    // about 160 recipes could not be made in the one-person home.
+    (id: "forge_station", name: "Forge", category: "machine", materials: [("forge_0", 1)], build_time: 5.0, size: (1.2, 1.2, 1.0), snap_to: ["foundation"], health: 300.0, provides: Some("crafting_station"), stations: ["forge"]),
+    (id: "anvil", name: "Anvil Station", category: "machine", materials: [("anvil_station_0", 1)], build_time: 5.0, size: (0.8, 0.9, 0.5), snap_to: ["foundation"], health: 400.0, provides: Some("crafting_station"), stations: ["anvil_station"]),
+    (id: "electronics_bench", name: "Electronics Bench", category: "machine", materials: [("electronics_bench_0", 1)], build_time: 5.0, size: (1.4, 0.9, 0.7), snap_to: ["foundation"], health: 120.0, provides: Some("crafting_station"), stations: ["electronics_bench"]),
+    (id: "sewing_machine", name: "Sewing Machine", category: "machine", materials: [("sewing_machine_0", 1)], build_time: 5.0, size: (0.9, 0.8, 0.5), snap_to: ["foundation"], health: 80.0, provides: Some("crafting_station"), stations: ["sewing_machine"]),
+    (id: "loom", name: "Loom", category: "machine", materials: [("loom_0", 1)], build_time: 5.0, size: (1.5, 1.4, 1.0), snap_to: ["foundation"], health: 100.0, provides: Some("crafting_station"), stations: ["loom"]),
+    (id: "stove", name: "Stove", category: "machine", materials: [("stove_0", 1)], build_time: 5.0, size: (0.8, 0.9, 0.7), snap_to: ["foundation"], health: 150.0, provides: Some("crafting_station"), stations: ["stove"]),
+    (id: "oven", name: "Oven", category: "machine", materials: [("oven_0", 1)], build_time: 5.0, size: (0.8, 0.9, 0.7), snap_to: ["foundation"], health: 150.0, provides: Some("crafting_station"), stations: ["oven"]),
+    (id: "chemistry_set", name: "Chemistry Set", category: "machine", materials: [("chemistry_set_0", 1)], build_time: 5.0, size: (1.2, 0.9, 0.6), snap_to: ["foundation"], health: 60.0, provides: Some("crafting_station"), stations: ["chemistry_set"]),
+    (id: "composter", name: "Composter", category: "machine", materials: [("composter_0", 1)], build_time: 5.0, size: (1.0, 1.0, 1.0), snap_to: ["foundation"], health: 100.0, provides: Some("crafting_station"), stations: ["composter"]),
+    (id: "sawmill", name: "Sawmill", category: "machine", materials: [("sawmill_0", 1)], build_time: 5.0, size: (2.0, 1.2, 1.0), snap_to: ["foundation"], health: 250.0, provides: Some("crafting_station"), stations: ["sawmill"]),
+    (id: "grain_mill", name: "Grain Mill", category: "machine", materials: [("grain_mill_0", 1)], build_time: 5.0, size: (1.0, 1.2, 1.0), snap_to: ["foundation"], health: 200.0, provides: Some("crafting_station"), stations: ["grain_mill"]),
+    (id: "fuel_refinery", name: "Fuel Refinery", category: "machine", materials: [("fuel_refinery_0", 1)], build_time: 5.0, size: (1.5, 2.0, 1.5), snap_to: ["foundation"], health: 300.0, provides: Some("crafting_station"), stations: ["fuel_refinery"]),
+    (id: "water_purifier", name: "Water Purifier", category: "machine", materials: [("water_purifier_0", 1)], build_time: 5.0, size: (0.6, 1.0, 0.5), snap_to: ["foundation"], health: 100.0, provides: Some("crafting_station"), stations: ["water_purifier"]),
     (id: "storage_chest", name: "Storage Chest", category: "furniture", materials: [("wood_plank_0", 8)], build_time: 3.0, size: (1.0, 0.8, 0.6), snap_to: ["foundation"], health: 80.0, provides: Some("storage")),
     (id: "bed", name: "Bed", category: "furniture", materials: [("wood_plank_0", 6), ("fiber_bundle_0", 4)], build_time: 4.0, size: (1.0, 0.6, 2.0), snap_to: ["foundation"], health: 60.0, provides: Some("rest")),
 ]
