@@ -1128,8 +1128,11 @@ the grow machines' cards and picking windows with seed return that follows
 the harvest are DONE (v0.1369.0), and so is drawing each plot's plants at
 their spacing (which found BUG-091: plot maps were never published on a
 fresh boot). The solo home's food loop no longer closes (2,154 of 2,200
-kcal a day, an upper bound) and says so. In flight: greenhouse humidity with
-fungal disease. Next: the rubber tree yields latex (it harvests a fiber
+kcal a day, an upper bound) and says so. Greenhouse humidity and fungal
+disease are DONE (v0.1370.0), and the 3-person home's energy loop now says
+it does not close on sun and wind once the greenhouse fan runs (about 12.7
+of 12.2 kWh a day; a ninth panel would). A bearing plant now lives through
+its picking window. Next: the rubber tree yields latex (it harvests a fiber
 bundle) and vulcanizing uses sulfur (both DONE v0.1368.0); greenhouse
 humidity and fungal disease (in flight). OPERATOR DECISION NEEDED before the
 sun side of light (seasons and day length): is the homestead a GROUND site at

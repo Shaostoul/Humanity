@@ -1594,7 +1594,14 @@ Picking Forgiving/Realistic. Grow machine cards show kcal a day computed from th
 crops (`systems/grow_machines.rs`), the same figure the Home page's food loop sums.
 Each bed, tray or field plot is drawn with the plants it holds at the crop's spacing, up
 to 128 per plot and then as wider clumps, within a per-plot vertex budget
-(`engine/plant_layout.rs`, `data/plants_visual.ron`; only changed machines rebuild). Beds, trays, fields and racks are
+(`engine/plant_layout.rs`, `data/plants_visual.ron`; only changed machines rebuild).
+Greenhouse air (v0.1370.0): each grow room gains the water its crops breathe out and
+loses it to leakage and an exhaust fan (`exhaust_fan_1`, humidity-triggered, cube-law
+power), relative humidity from the FAO-56 formula; gray mold, powdery mildew and downy
+mildew are pests.ron rows favoured by humid air, with ventilate, remove leaves, sulfur and
+potassium bicarbonate controls; a crop outside its plants.csv humidity range is capped
+(`farming/humidity.rs`, `data/garden/humidity.ron`). A plant picked over a season keeps
+drinking, breathing and taking stress through its window. Beds, trays, fields and racks are
 divided into plots (grow_media.ron `plots`), one crop per plot, each crop tagged with
 the machine it stands in. A plot holds as many plants as fit at the crop's cited
 spacing (plants.csv `area_per_plant_m2`; a tower cup is one plant) and yields a

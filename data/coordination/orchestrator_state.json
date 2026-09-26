@@ -909,6 +909,11 @@
    "date": "2026-09-26",
    "decision": "v0.1369.0: merged plot drawing (665311f8 + 281d2707: plant_layout.rs, 128-plant cap + 65,536-vertex plot budget in plants_visual.ron, per-machine rebuilds 2-6 ms, first build ~190 ms for 3.35M vertices; world_load now publishes grow plots = BUG-091 fix) and the crop_nutrition fresh-vs-dried check (a2d5fe44: oregano/sage/turmeric fresh estimates, drinks and lavender to 0, FDC ids on every row; apothecary tower 232 -> 161 kcal/day). The solo food loop now reads closes: false (2,154 vs 2,200).",
    "why": "BUG-091 was mine from v0.1364.0: publish_grow_plots was only called on a machine edit, and every test inserted its own maps (checks-that-cannot-fail again); the plot-drawing agent saw no visual change and traced it. Left from the agents: hero_plant_objects is dead (delete with its lib.rs loop), photograph-home --keep-open is broken, runner_bean harvests a dry-bean item for a green-pod yield, in-shell weights inflate nut/seed calories, a bearing plant takes no water or nutrients during its picking window."
+  },
+  {
+   "date": "2026-09-26",
+   "decision": "v0.1370.0: merged greenhouse humidity + fungal disease (b339091f: humidity.rs/.ron, room vapour balance with UGA leakage 0.5 ACH and an AC Infinity-based exhaust fan placed in home.ron, FAO-56 saturation, gray mold/powdery/downy mildew as pests.ron rows with a Humidity condition, Cultural controls first, potassium bicarbonate item, humidity-window health cap). Bearing plants now stay in the crop tick (a ripe plant with a picking window). home.ron energy loop marked closes: false (fan 0.7 kWh/day tips 12.7 vs 12.2). Also: photograph-home --keep-open works; hero_plant_objects removed.",
+   "why": "The 3-person greenhouse on leakage alone would sit at 100% RH, so the fan is required, and its power has to show in the energy loop honestly. Bearing plants skipped by the tick drank no water for 63 days; fixed now that humidity has merged into the same loop. Left from the humidity agent: greenhouse vents into fixed 40% home air (no condensate recovery), constant day/night transpiration and 21 C rooms, the mushroom room sits near 50% (oyster wants 85-95%: a humidifier), no in-panel fan switch, no web mirror."
   }
  ],
  "active_scopes_to_avoid": [
