@@ -335,6 +335,24 @@ pub struct CropInstance {
     /// crops on every replant (v0.410). Seed-planted crops are None.
     #[serde(default)]
     pub tower_slot: Option<u32>,
+    /// The crop's growing-season health record (2026-09-26): the sum of
+    /// `health / 100 x dt` over every tick it spent growing, from planting
+    /// to maturity. Divided by `growing_seconds` it is the SEASON health the
+    /// harvest reads (`farming::season_health`), because a crop's yield is
+    /// set by the stress it carried through its season, not by how it looks
+    /// on the day it is picked: health recovers in a few minutes once the
+    /// water comes back, but the lost growth does not. f64 because a long
+    /// season is hundreds of thousands of seconds and f32 would drop a
+    /// 16 ms tick. #[serde(default)]: a save without it reads as "no
+    /// record", and the harvest then falls back to the current health.
+    #[serde(default)]
+    pub health_seconds: f64,
+    /// Seconds of growth the crop has been ticked through: the denominator
+    /// for `health_seconds`. Zero for a crop that has never ticked (a
+    /// showcase crop spawned already mature, or one read from an older
+    /// save).
+    #[serde(default)]
+    pub growing_seconds: f64,
 }
 
 // ── Vehicles & Mechs ─────────────────────────────────────────

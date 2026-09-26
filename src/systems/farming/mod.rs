@@ -455,6 +455,55 @@ fn harvest_item_for(
     None
 }
 
+/// A crop's SEASON health, 0..1 (2026-09-26): the time-average of its health
+/// over every tick it spent growing, from `CropInstance::health_seconds` /
+/// `growing_seconds`. This, not the health on harvest day, is what sets the
+/// yield: current health recovers in a few minutes once water comes back and
+/// is frozen once the crop matures (mature crops are skipped by the growth
+/// loop), so reading it at harvest would forget a drought the plant came
+/// through. A crop with no record (never ticked: a showcase crop spawned
+/// mature, or one from an older save) falls back to its current health.
+pub fn season_health(crop: &CropInstance) -> f32 {
+    if crop.growing_seconds > 0.0 {
+        (crop.health_seconds / crop.growing_seconds).clamp(0.0, 1.0) as f32
+    } else {
+        (crop.health / 100.0).clamp(0.0, 1.0)
+    }
+}
+
+/// Season health below which a harvest tells the player the crop was
+/// stressed (2026-09-26). A presentation threshold, not agronomy: small dips
+/// stay quiet so a well-kept garden does not nag.
+const STRESSED_HARVEST_NOTICE_BELOW: f32 = 0.9;
+
+/// Whole items one harvest yields (2026-09-26, extracted so a test can drive
+/// it with a seeded generator).
+///
+/// `roll` and `round` are two uniform draws in [0, 1). The continuous yield
+/// is rolled in [ymin, ymax] and then SCALED BY SEASON HEALTH: a crop kept
+/// well all season gets the full range, one that spent the season at half
+/// health gets half, one that barely survived gets next to nothing. The
+/// linear shape is the standard crop-water production function (FAO
+/// Irrigation and Drainage Paper 33, Doorenbos and Kassam 1979: relative
+/// yield loss is proportional to the relative water deficit over the
+/// season, 1 - Ya/Ym = Ky (1 - ETa/ETm)). Season health stands in for the
+/// deficit, since stress (thirst above all, and RF and hard acceleration)
+/// is what drives crop health down here. Ky is taken as 1 because
+/// plants.csv carries no per-crop response factor yet; FAO's Ky runs above
+/// and below 1 by crop and by growth stage, so a per-crop column is the
+/// natural next rung, not a number invented here.
+///
+/// The scaled yield becomes a whole count by PROBABILISTIC ROUNDING (floor +
+/// Bernoulli on the fraction): a 0.3 yields 1 item 30% of the time and 0
+/// items 70%, so the expected value equals the scaled roll. Fractional crops
+/// average their real output over repeated harvests instead of being
+/// silently rounded up to a full unit (3x inflation for saffron) or floored
+/// to permanent zero, and a stressed crop's loss shows up the same way.
+fn harvest_quantity(ymin: f32, ymax: f32, season_health: f32, roll: f32, round: f32) -> u32 {
+    let rolled = (ymin + roll * (ymax - ymin)) * season_health.clamp(0.0, 1.0);
+    rolled.floor() as u32 + u32::from(round < rolled.fract())
+}
+
 /// Simulates crop growth based on elapsed time and environmental factors.
 pub struct FarmingSystem {
     _initialized: bool,
@@ -645,6 +694,8 @@ impl System for FarmingSystem {
                             health: 100.0,
                             tower_id: None,
                             tower_slot: None,
+                            health_seconds: 0.0,
+                            growing_seconds: 0.0,
                         },));
                         log::info!("[Farming] planted {plant_id} (from {seed_id})");
                     }
@@ -726,6 +777,8 @@ impl System for FarmingSystem {
                     health: 100.0,
                     tower_id: Some(tower_id.clone()),
                     tower_slot: Some(slot_idx),
+                    health_seconds: 0.0,
+                    growing_seconds: 0.0,
                 },));
                 planted += 1;
             }
@@ -767,6 +820,8 @@ impl System for FarmingSystem {
                         health: 100.0,
                         tower_id: Some(tower_id.clone()),
                         tower_slot: Some(slot),
+                        health_seconds: 0.0,
+                        growing_seconds: 0.0,
                     },));
                 }
                 log::info!("[Farming] showcase: {tower_id} filled with staggered {plant_id}");
@@ -833,6 +888,8 @@ impl System for FarmingSystem {
                         health: 100.0,
                         tower_id: Some(area_id.clone()),
                         tower_slot: Some(unit),
+                        health_seconds: 0.0,
+                        growing_seconds: 0.0,
                     },));
                     planted += 1;
                 }
@@ -957,22 +1014,28 @@ impl System for FarmingSystem {
                 harvest_list.append(&mut s);
             }
         }
+        // Stressed crops picked this tick, for ONE summary notice after the
+        // loop (a bulk harvest of fifty would otherwise post fifty lines):
+        // how many, and the sum of their season health for the average.
+        let mut stressed_picked = 0u32;
+        let mut stressed_health_sum = 0.0f32;
         for bits in harvest_list {
             if let Some(entity) = hecs::Entity::from_bits(bits) {
-                // Read the crop (immutable, scoped) to confirm maturity + plant id.
-                let plant_id = world.get::<&CropInstance>(entity).ok().and_then(|crop| {
+                // Read the crop (immutable, scoped) to confirm maturity + plant
+                // id, and take its season health for the yield below.
+                let picked = world.get::<&CropInstance>(entity).ok().and_then(|crop| {
                     let stages: Vec<&str> = plant_registry
                         .and_then(|reg| reg.get(&crop.crop_def_id))
                         .map(|d| d.stages())
                         .unwrap_or_else(|| default_stages.clone());
                     let mature = stages.last().map(|l| crop.growth_stage == *l).unwrap_or(false);
                     if mature {
-                        Some(crop.crop_def_id.clone())
+                        Some((crop.crop_def_id.clone(), season_health(&crop)))
                     } else {
                         None
                     }
                 });
-                if let Some(plant_id) = plant_id {
+                if let Some((plant_id, crop_season_health)) = picked {
                     if let Some(yield_item) = harvest_item_for(&plant_id, plant_registry, item_registry) {
                         // Yield range from the plant def. Yields are FRACTIONAL (f32):
                         // saffron's 0.3 means less than one unit per plant per harvest.
@@ -985,16 +1048,21 @@ impl System for FarmingSystem {
                                 (lo, d.yield_max.max(lo))
                             })
                             .unwrap_or((1.0, 1.0));
-                        // Roll a continuous yield in [ymin, ymax], then convert to a
-                        // whole item count by PROBABILISTIC ROUNDING (floor + Bernoulli
-                        // on the fraction): a 0.3 roll yields 1 item 30% of the time and
-                        // 0 items 70%, so the expected value equals the roll. Fractional
-                        // crops average their real output over repeated harvests instead
-                        // of being silently rounded up to a full unit (3x inflation for
-                        // saffron) or floored to permanent zero.
-                        let rolled = ymin + rand::random::<f32>() * (ymax - ymin);
-                        let qty = rolled.floor() as u32
-                            + u32::from(rand::random::<f32>() < rolled.fract());
+                        // Roll in [ymin, ymax], scale by the crop's season
+                        // health, round probabilistically: see harvest_quantity
+                        // for the model and its source (2026-09-26; before
+                        // this the yield ignored how the crop was kept).
+                        let qty = harvest_quantity(
+                            ymin,
+                            ymax,
+                            crop_season_health,
+                            rand::random::<f32>(),
+                            rand::random::<f32>(),
+                        );
+                        if crop_season_health < STRESSED_HARVEST_NOTICE_BELOW {
+                            stressed_picked += 1;
+                            stressed_health_sum += crop_season_health;
+                        }
                         let max_stack =
                             item_registry.map(|r| r.max_stack_for(&yield_item)).unwrap_or(99);
                         for (_e, (inv, _ctrl)) in world.query_mut::<(
@@ -1041,6 +1109,25 @@ impl System for FarmingSystem {
                     let _ = world.despawn(entity);
                 }
             }
+        }
+        // Say why a harvest came in light (2026-09-26): the Garden panel
+        // shows each crop's CURRENT health, which has usually recovered by
+        // harvest day, so without this line a stressed season's small
+        // harvest would look like bad luck.
+        if stressed_picked > 0 {
+            let pct = (stressed_health_sum / stressed_picked as f32 * 100.0).round();
+            let what = if stressed_picked == 1 {
+                "This crop was".to_string()
+            } else {
+                format!("{stressed_picked} of these crops were")
+            };
+            push_notice(
+                data,
+                format!(
+                    "{what} stressed while growing (thirst, RF or hard acceleration) \
+                     and gave about {pct}% of a full harvest."
+                ),
+            );
         }
 
         // Route harvest surplus into a compatible home vessel (v0.729): a
@@ -1171,6 +1258,15 @@ impl System for FarmingSystem {
             if g_harm_per_sec > 0.0 {
                 crop.health = (crop.health - g_harm_per_sec * dt).max(0.0);
             }
+
+            // Season health record (2026-09-26): every tick of growth adds
+            // this tick's health to the running total the harvest reads (see
+            // season_health). Taken after every stress above so a tick spent
+            // thirsty, in RF or under a burn counts at the health it left the
+            // crop with. Mature crops never reach this line (skipped above),
+            // so the record covers the growing season and nothing after it.
+            crop.health_seconds += f64::from((crop.health / 100.0).clamp(0.0, 1.0)) * f64::from(dt);
+            crop.growing_seconds += f64::from(dt);
 
             // If health hits zero, crop dies
             if crop.health <= 0.0 {
@@ -1699,6 +1795,8 @@ mod gardening_tests {
             health: 40.0,
             tower_id: None,
             tower_slot: None,
+            health_seconds: 0.0,
+            growing_seconds: 0.0,
         },));
 
         *data
@@ -1749,6 +1847,8 @@ mod gardening_tests {
             health: 80.0,
             tower_id: Some(tower.to_string()),
             tower_slot: Some(0),
+            health_seconds: 0.0,
+            growing_seconds: 0.0,
         };
         // Irrigated crop lives in the configured "nutrition" tower.
         let irrigated = world.spawn((dry("nutrition"),));
@@ -1815,6 +1915,8 @@ mod gardening_tests {
             health: 100.0,
             tower_id: tower.map(str::to_string),
             tower_slot: None,
+            health_seconds: 0.0,
+            growing_seconds: 0.0,
         };
         let in_area = world.spawn((crop(Some("ntower_3")),));
         let by_hand = world.spawn((crop(None),));
@@ -1852,6 +1954,8 @@ mod gardening_tests {
             health: 100.0,
             tower_id: Some(tower.to_string()),
             tower_slot: None,
+            health_seconds: 0.0,
+            growing_seconds: 0.0,
         };
         let demand = |d: &DataStore| *d.get::<std::sync::Mutex<f32>>("irrigation_demand_lpm").unwrap().lock().unwrap();
         let mut data = make_store();
@@ -1928,6 +2032,8 @@ mod gardening_tests {
             health: 80.0,
             tower_id: Some("nutrition".to_string()),
             tower_slot: Some(0),
+            health_seconds: 0.0,
+            growing_seconds: 0.0,
         };
 
         // Control: a FULL cistern -> irrigation works -> the crop stays topped up.
@@ -1995,6 +2101,8 @@ mod gardening_tests {
                 health: 100.0,
                 tower_id: None,
                 tower_slot: None,
+                health_seconds: 0.0,
+                growing_seconds: 0.0,
             },));
             sys.tick(&mut world, 1.0, &data);
             let c = world.get::<&CropInstance>(e).unwrap();
@@ -2041,6 +2149,8 @@ mod gardening_tests {
                 health: 100.0,
                 tower_id: None,
                 tower_slot: None,
+                health_seconds: 0.0,
+                growing_seconds: 0.0,
             }];
             let mut world = hecs::World::new();
             crate::save_load::apply_save_to_world(&mut world, &save);
@@ -2093,6 +2203,8 @@ mod gardening_tests {
             health: 80.0,
             tower_id: None,
             tower_slot: None,
+            health_seconds: 0.0,
+            growing_seconds: 0.0,
         };
         let data = make_store();
         let mut sys = FarmingSystem::new();
@@ -2155,6 +2267,8 @@ mod gardening_tests {
             health: 100.0,
             tower_id: Some(tower.to_string()),
             tower_slot: Some(0),
+            health_seconds: 0.0,
+            growing_seconds: 0.0,
         };
         let rich = world.spawn((young("nutrition"),));
         let starved = world.spawn((young("apothecary"),));
@@ -2171,6 +2285,196 @@ mod gardening_tests {
             rich_idx,
             starved_c.growth_stage,
             starved_idx
+        );
+    }
+
+    /// Yield follows the crop's season health (2026-09-26): forty wheat
+    /// crops kept well all season out-yield forty that spent it at half
+    /// health, by about half, through the real harvest path. Every crop's
+    /// CURRENT health is 100, the way a stressed crop's health has usually
+    /// recovered by harvest day, so this also proves the harvest reads the
+    /// season record and not today's health. Averaged over forty harvests
+    /// each (wheat rolls 8 to 20), so the ratio sits near 0.5 with a spread
+    /// far inside the bounds asserted: not flaky.
+    #[test]
+    fn healthy_crop_out_yields_a_stressed_one() {
+        let mut data = make_store();
+        // Creative: no seeds come back with the grain, so the count below is
+        // produce only.
+        data.insert("creative_mode", std::sync::Mutex::new(true));
+        data.insert("player_notices", std::sync::Mutex::new(Vec::<String>::new()));
+        let last_stage = data
+            .get::<PlantRegistry>("plant_registry")
+            .unwrap()
+            .get("wheat")
+            .unwrap()
+            .last_stage()
+            .to_string();
+        let mut sys = FarmingSystem::new();
+        let mut world = hecs::World::new();
+        // A pack big enough that no grain overflows (grain is ~0.93 L a unit).
+        let mut inv = Inventory::new(64);
+        inv.volume_capacity_l = 1.0e6;
+        let player = world.spawn((inv, Controllable));
+        let mature = |season: f64| CropInstance {
+            crop_def_id: "wheat".to_string(),
+            growth_stage: last_stage.clone(),
+            planted_at: 0.0,
+            water_level: 1.0,
+            health: 100.0,
+            tower_id: None,
+            tower_slot: None,
+            health_seconds: 1000.0 * season,
+            growing_seconds: 1000.0,
+        };
+        let healthy: Vec<u64> =
+            (0..40).map(|_| world.spawn((mature(1.0),)).to_bits().into()).collect();
+        let stressed: Vec<u64> =
+            (0..40).map(|_| world.spawn((mature(0.5),)).to_bits().into()).collect();
+        let grain = |world: &hecs::World| {
+            world.get::<&Inventory>(player).unwrap().count_item("grain_wheat_0")
+        };
+        let notices = |data: &DataStore| {
+            std::mem::take(
+                &mut *data.get::<std::sync::Mutex<Vec<String>>>("player_notices").unwrap().lock().unwrap(),
+            )
+        };
+
+        *data.get::<std::sync::Mutex<Vec<u64>>>("harvest_many_request").unwrap().lock().unwrap() =
+            healthy;
+        sys.tick(&mut world, 1.0, &data);
+        let healthy_total = grain(&world);
+        assert!(
+            notices(&data).is_empty(),
+            "a well-kept harvest posts no stress notice"
+        );
+
+        *data.get::<std::sync::Mutex<Vec<u64>>>("harvest_many_request").unwrap().lock().unwrap() =
+            stressed;
+        sys.tick(&mut world, 1.0, &data);
+        let stressed_total = grain(&world) - healthy_total;
+        assert_eq!(world.query::<&CropInstance>().iter().count(), 0, "all eighty harvested");
+
+        assert!(
+            healthy_total >= 40 * 8,
+            "full season health gives the full range (>= yield_min 8 each), got {healthy_total}"
+        );
+        assert!(
+            stressed_total < healthy_total,
+            "a stressed season yields less ({stressed_total} vs {healthy_total})"
+        );
+        let ratio = stressed_total as f32 / healthy_total as f32;
+        assert!(
+            (0.35..=0.65).contains(&ratio),
+            "half the season health gives about half the harvest, got {ratio:.2} \
+             ({stressed_total} vs {healthy_total})"
+        );
+        let said = notices(&data);
+        assert_eq!(said.len(), 1, "one summary notice for the whole bulk harvest: {said:?}");
+        assert!(
+            said[0].contains("40 of these crops") && said[0].contains("50%"),
+            "the notice says how many and how much: {}",
+            said[0]
+        );
+    }
+
+    /// The yield model on its own, seeded so it is exact run to run
+    /// (2026-09-26): the average harvest is proportional to season health
+    /// for a whole-unit crop and a fractional one alike (saffron rolls 0.3
+    /// to 1.0, so probabilistic rounding carries the loss), and a crop at
+    /// zero season health yields nothing at all.
+    #[test]
+    fn harvest_quantity_scales_the_average_with_season_health() {
+        use rand::{Rng, SeedableRng};
+        let mean = |ymin: f32, ymax: f32, health: f32| {
+            let mut rng = rand::rngs::StdRng::seed_from_u64(0x5eed);
+            let n = 20_000;
+            let total: u32 = (0..n)
+                .map(|_| harvest_quantity(ymin, ymax, health, rng.random(), rng.random()))
+                .sum();
+            total as f32 / n as f32
+        };
+        for (ymin, ymax) in [(8.0, 20.0), (0.3, 1.0)] {
+            let full = mean(ymin, ymax, 1.0);
+            let half = mean(ymin, ymax, 0.5);
+            let expect = (ymin + ymax) / 2.0;
+            assert!(
+                (full - expect).abs() < expect * 0.03,
+                "full health averages the plant's range ({ymin}..{ymax}): {full} vs {expect}"
+            );
+            assert!(
+                (half / full - 0.5).abs() < 0.03,
+                "half the season health averages half the harvest ({ymin}..{ymax}): {half} vs {full}"
+            );
+            assert_eq!(mean(ymin, ymax, 0.0), 0.0, "zero season health yields nothing");
+        }
+    }
+
+    /// A drought the crop recovered from still counts (2026-09-26). Two wheat
+    /// crops grow side by side; one goes thirty seconds without water, is
+    /// watered by hand, and climbs back to full health. By the end both show
+    /// health 100, but only the one that never went thirsty carries a full
+    /// season record, which is what its harvest will read.
+    #[test]
+    fn season_health_remembers_a_drought_the_crop_recovered_from() {
+        let data = make_store();
+        let first_stage = data
+            .get::<PlantRegistry>("plant_registry")
+            .unwrap()
+            .get("wheat")
+            .unwrap()
+            .first_stage()
+            .to_string();
+        let mut sys = FarmingSystem::new();
+        let mut world = hecs::World::new();
+        // Hand-planted (no grow area, so no automated irrigation): only the
+        // water level set here, and the hand watering below, reach them.
+        let young = |water: f32| CropInstance {
+            crop_def_id: "wheat".to_string(),
+            growth_stage: first_stage.clone(),
+            planted_at: 0.0,
+            water_level: water,
+            health: 100.0,
+            tower_id: None,
+            tower_slot: None,
+            health_seconds: 0.0,
+            growing_seconds: 0.0,
+        };
+        let kept = world.spawn((young(1.0),));
+        let dry = world.spawn((young(0.0),));
+
+        // Thirty seconds of drought for one of them.
+        for _ in 0..30 {
+            sys.tick(&mut world, 1.0, &data);
+        }
+        let low = world.get::<&CropInstance>(dry).unwrap().health;
+        assert!(low < 75.0, "the thirsty crop lost health, got {low}");
+
+        // Water it by hand, then let it recover.
+        *data.get::<std::sync::Mutex<Option<u64>>>("water_request").unwrap().lock().unwrap() =
+            Some(dry.to_bits().into());
+        for _ in 0..80 {
+            sys.tick(&mut world, 1.0, &data);
+        }
+
+        let k = (*world.get::<&CropInstance>(kept).unwrap()).clone();
+        let d = (*world.get::<&CropInstance>(dry).unwrap()).clone();
+        assert!(
+            k.health >= 99.9 && d.health >= 99.9,
+            "both crops look fully healthy today ({} and {})",
+            k.health,
+            d.health
+        );
+        assert_eq!(d.growth_stage, first_stage, "still growing, not harvested or dead");
+        assert!(
+            season_health(&k) > 0.999,
+            "the crop that never went thirsty has a full season record, got {}",
+            season_health(&k)
+        );
+        assert!(
+            season_health(&d) < 0.95,
+            "the drought stays in the record after the plant recovers, got {}",
+            season_health(&d)
         );
     }
 }

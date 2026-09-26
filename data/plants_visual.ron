@@ -218,4 +218,66 @@
             show_roots: false,
         ),
     },
+    // Growth-stage MODELS for beds and fields (2026-09-26): plant id -> model
+    // set, where a set is the four folders assets/models/plants/<set>_1 to
+    // <set>_4 (the Quaternius CC0 crop pack; see
+    // assets/models/LICENSE-cc0-model-packs.md). A species not listed here
+    // uses the set named after its own id, so tomato, carrot, wheat, lettuce,
+    // corn, rice, pumpkin, beet, apple, orange, watermelon and bamboo need no
+    // line. A model set wins over the procedural recipe above in beds and
+    // fields; towers and dead crops stay procedural.
+    //
+    // Only map a species the model is a fair likeness of, in shape, colour
+    // AND size (the models draw at their own scale). Left out on purpose:
+    // - oyster_mushroom, shiitake, button_mushroom: the mushroom set has a
+    //   warted cap, a ring on the stem and a swollen base, the field marks of
+    //   Amanita, the genus foragers are taught to avoid. Drawing edible
+    //   species with them would teach the wrong look. It fits the two
+    //   fictional fungi only.
+    // - blueberry, haskap (blue fruit), blackcurrant, elderberry (black),
+    //   sea_buckthorn (orange fruit, silver leaves), cranberry (a low mat,
+    //   not a 1.2 m bush): the berry bush carries red berries.
+    // - chive: the grass set stands 1 m tall, three times a chive clump.
+    // - lily, rose, dahlia, marigold and the other real flowers: the flower
+    //   set is one four-petalled teal bloom on a bare stem.
+    // - aloe_vera: a succulent rosette, not a cactus.
+    // - sorghum, sugarcane: broad-leaved and cane-stalked, not a grass clump.
+    stage_models: {
+        // Berry bush: a rounded shrub about 1.2 m tall carrying red berries.
+        "raspberry": "bushberries",
+        "gooseberry": "bushberries", // red-ripening cultivars
+        "coffee": "bushberries", // a pruned shrub of red cherries
+        // Cactus: spined segments with magenta flowers at the tips. The
+        // segments are round where a prickly pear's pads are flat.
+        "prickly_pear": "cactus",
+        // Palm: a single curved trunk under a crown of feather fronds, with
+        // a fruit cluster at the top by stage 4 (3.2 m, a young palm).
+        "coconut": "palmtree",
+        "date_palm": "palmtree",
+        "palm": "palmtree",
+        // Flower: one bloom on one upright stem. A tulip's habit (the colour
+        // is not a tulip's), and the fictional flowers.
+        "tulip": "flower",
+        "frost_blossom": "flower",
+        "gravity_bloom": "flower",
+        "nebula_lily": "flower",
+        "void_orchid": "flower",
+        // Grass: a clump of long blades about 1 m tall, no seed head. The
+        // grasses and grass-like cereals without a closer model.
+        "lemongrass": "grass",
+        "oat": "grass",
+        "millet": "grass",
+        "finger_millet": "grass",
+        "teff": "grass",
+        "ember_reed": "grass",
+        // Mushroom: the fictional fungi only (see above).
+        "shadow_fungi": "mushroom",
+        "phase_mushroom": "mushroom",
+        // Wheat's own set for the cereals that carry a spike head like it:
+        // spelt IS a wheat, triticale is wheat crossed with rye.
+        "spelt": "wheat",
+        "triticale": "wheat",
+        "rye": "wheat",
+        "barley": "wheat",
+    },
 )

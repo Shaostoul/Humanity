@@ -221,6 +221,8 @@ pub(crate) fn auto_seed_showcase(state: &mut EngineState) {
             health: 100.0,
             tower_id: Some(grow_id.to_string()),
             tower_slot: Some(slot),
+            health_seconds: 0.0,
+            growing_seconds: 0.0,
         });
     };
     for g in &state.grow_positions {

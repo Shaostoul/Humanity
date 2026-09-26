@@ -78,6 +78,26 @@ date; re-check before trusting one. The container data basis is
   (Tier B in PRIORITIES.md). The walk-up machine card and every vessel are
   tied to `data/machines/home.ron` placements; a container that can be
   picked up and set down needs placement to be one system first.
+- **Gardening depth, first rung: yield from health and the unused plant
+  models, DONE 2026-09-26.** Each crop now keeps a season health record
+  (`health_seconds` / `growing_seconds` on `CropInstance`, the time-average
+  of its health while growing), and the harvest scales the rolled yield by
+  it, linearly, the shape of the FAO-33 crop-water production function with
+  Ky taken as 1 (`farming::harvest_quantity`). A crop kept well gets the
+  full range; one that spent its season at half health gets about half,
+  even if it has recovered by harvest day; a harvest of stressed crops
+  posts one notice saying how much was lost. Dead crops still cannot be
+  harvested. The six model sets are mapped in DATA, a `stage_models` table
+  in `data/plants_visual.ron`: berry bush for raspberry, gooseberry and
+  coffee; cactus for prickly pear; palm for coconut, date palm and palm;
+  flower for tulip and four fictional flowers; grass for lemongrass, oat,
+  millet, finger millet, teff and one fictional reed; mushroom for the two
+  fictional fungi only (the model carries Amanita field marks, so the three
+  edible mushrooms stay procedural); and the wheat set for spelt,
+  triticale, rye and barley. 36 of 189 species now draw a stage model in
+  beds and fields, up from 12. Still to do on gardening: N-P-K, pests,
+  light, a per-crop yield response factor, season health in the Garden
+  panel, and models for the species no set fits.
 - Found while merging, still open: the Eat/Drink buttons still show on water
   MACHINES (the food system now ignores those clicks); `animal_fat_0` has
   base material `plant_fiber` and there is no tallow material; items.csv

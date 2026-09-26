@@ -107,6 +107,17 @@ pub fn generic_visual(def_id: &str) -> PlantVisualDef {
 #[derive(Debug, Clone, Deserialize, Default)]
 pub struct PlantVisualRegistry {
     pub plants: HashMap<String, PlantVisualDef>,
+    /// Which growth-stage model set draws a species in beds and fields
+    /// (2026-09-26): plant id -> model set name, where the set is the four
+    /// folders `assets/models/plants/<set>_1` to `<set>_4`. A species not
+    /// listed here uses the set named after its own id (tomato draws
+    /// `tomato_1..4`), the convention the stage models shipped with; this
+    /// map is for sets whose name matches no plant id (bushberries, palmtree,
+    /// ...) and for species that fairly share another's model. Data, not
+    /// code, so a new model pack or a new species is a line in
+    /// `data/plants_visual.ron`, not a rebuild.
+    #[serde(default)]
+    pub stage_models: HashMap<String, String>,
 }
 
 impl PlantVisualRegistry {
@@ -116,6 +127,16 @@ impl PlantVisualRegistry {
     }
     pub fn get(&self, id: &str) -> Option<&PlantVisualDef> {
         self.plants.get(id)
+    }
+    /// The stage-model set name for a species: its `stage_models` entry, or
+    /// else its own id lowercased (the folder naming convention). Whether
+    /// the set's folders actually exist is the loader's business; a species
+    /// with no model falls back to its procedural recipe there.
+    pub fn stage_model_for(&self, plant_id: &str) -> String {
+        self.stage_models
+            .get(plant_id)
+            .cloned()
+            .unwrap_or_else(|| plant_id.to_lowercase())
     }
 }
 
@@ -890,6 +911,66 @@ mod tests {
             "garlic", "carrot", "dandelion", "pineapple",
         ] {
             assert!(reg.get(id).is_some(), "missing visual def for {id}");
+        }
+    }
+
+    /// A species' stage-model set is its `stage_models` entry, else its own
+    /// id lowercased, and a file with no `stage_models` section still parses
+    /// (2026-09-26).
+    #[test]
+    fn stage_model_for_uses_the_mapping_then_the_plant_id() {
+        let reg = PlantVisualRegistry::from_ron(
+            r#"(plants: {}, stage_models: { "coconut": "palmtree" })"#,
+        )
+        .expect("a stage_models section parses");
+        assert_eq!(reg.stage_model_for("coconut"), "palmtree", "a mapped species uses its set");
+        assert_eq!(reg.stage_model_for("Tomato"), "tomato", "an unmapped one uses its own id");
+        let bare = PlantVisualRegistry::from_ron("(plants: {})").expect("no stage_models parses");
+        assert_eq!(bare.stage_model_for("coconut"), "coconut");
+    }
+
+    /// Every stage-model line in the shipped `data/plants_visual.ron` names a
+    /// plant that exists in `data/plants.csv` and a model set whose four
+    /// stage files exist on disk, down to the buffer and palette each glTF
+    /// points at (2026-09-26). A typo on either side would not error at run
+    /// time: the loader treats a missing model as "this species has none"
+    /// and quietly draws the procedural stand-in, which is how six model
+    /// sets sat unused for two months.
+    #[test]
+    fn every_stage_model_mapping_names_a_real_plant_and_a_model_on_disk() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let text = std::fs::read_to_string(root.join("data/plants_visual.ron"))
+            .expect("data/plants_visual.ron exists");
+        let reg = PlantVisualRegistry::from_ron(&text).expect("plants_visual.ron parses");
+        let csv = std::fs::read(root.join("data/plants.csv")).expect("data/plants.csv exists");
+        let plants =
+            crate::systems::farming::PlantRegistry::from_csv(&csv).expect("plants.csv parses");
+        assert!(!reg.stage_models.is_empty(), "the shipped file maps stage models");
+        for (plant, set) in &reg.stage_models {
+            assert!(
+                plants.get(plant).is_some(),
+                "stage_models names '{plant}', which is not a plant in data/plants.csv"
+            );
+            for q in 1..=4 {
+                let dir = root.join(format!("assets/models/plants/{set}_{q}"));
+                let gltf = dir.join(format!("{set}_{q}.gltf"));
+                let body = std::fs::read_to_string(&gltf).unwrap_or_else(|_| {
+                    panic!("'{plant}' maps to set '{set}', but {} is missing", gltf.display())
+                });
+                let doc: serde_json::Value = serde_json::from_str(&body)
+                    .unwrap_or_else(|e| panic!("{} is not valid glTF JSON: {e}", gltf.display()));
+                for list in ["buffers", "images"] {
+                    for entry in doc[list].as_array().into_iter().flatten() {
+                        if let Some(uri) = entry["uri"].as_str() {
+                            assert!(
+                                dir.join(uri).is_file(),
+                                "{} points at {uri}, which is missing",
+                                gltf.display()
+                            );
+                        }
+                    }
+                }
+            }
         }
     }
 }

@@ -882,16 +882,20 @@ pub(crate) fn rebuild_plant_meshes(state: &mut EngineState) {
             } else {
                 continue;
             };
-            // Hero crop models (v0.992, the Quaternius growth stages):
-            // convention over config - a species whose lowercased id has a
-            // converted stage model (assets/models/plants/<id>_<1..4>/) uses
-            // the real 3D model at the stage quartile instead of the
-            // procedural recipe. Beds/fields only: tower net cups keep the
-            // scaled procedural look, and dead crops keep the procedural
-            // wilt. Everything else falls through unchanged.
+            // Hero crop models (v0.992, the Quaternius growth stages): a
+            // species with a converted stage model set
+            // (assets/models/plants/<set>_<1..4>/) uses the real 3D model at
+            // the stage quartile instead of the procedural recipe. The set
+            // is the species' own lowercased id by convention, or the one
+            // `stage_models` in data/plants_visual.ron names for it
+            // (2026-09-26: berries, palms, cactus, flowers, grasses and
+            // fungi, whose model sets match no plant id). Beds/fields only:
+            // tower net cups keep the scaled procedural look, and dead crops
+            // keep the procedural wilt. Everything else falls through
+            // unchanged.
             if grid_spot.is_some() && !dead {
                 let q = ((t * 4.0).ceil() as u32).clamp(1, 4);
-                let model = format!("{}_{q}", def_id.to_lowercase());
+                let model = format!("{}_{q}", visuals.stage_model_for(def_id));
                 if let Some((mi, ma)) = load_hero_plant_model(state, &model) {
                     // Deterministic per-slot yaw so replanting never spins.
                     let yaw = ((*slot).wrapping_mul(2_654_435_761) % 360) as f32;

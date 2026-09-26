@@ -985,6 +985,8 @@ mod tests {
             health: 90.0,
             tower_id: None,
             tower_slot: None,
+            health_seconds: 0.0,
+            growing_seconds: 0.0,
         }
     }
 
