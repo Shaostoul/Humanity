@@ -27,6 +27,9 @@ mod pest_tests;
 mod soil_ph_tests;
 #[cfg(test)]
 mod unit_tests;
+pub mod weeds;
+#[cfg(test)]
+mod weed_tests;
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -920,11 +923,14 @@ pub struct FarmingSystem {
     /// data/garden/humidity.ron, read on the first tick (see humidity.rs);
     /// a "garden_humidity" DataStore entry wins over it.
     humidity: Option<humidity::HumidityData>,
+    /// Weeds (2026-09-26, weeds.rs; every number in data/garden/weeds.ron).
+    weeds: weeds::Weeds,
 }
 
 impl FarmingSystem {
     pub fn new() -> Self {
         Self {
+            weeds: weeds::Weeds::new(),
             picking: picking::Picking::new(),
             _initialized: false,
             nutrients: None,
@@ -1634,6 +1640,8 @@ impl System for FarmingSystem {
                 pests::handle_request(world, data, pest_data, air_data, &area, &control_id, creative, water_available);
             }
         }
+        // WEED CONTROL (weeds.rs): Hoe or Mulch on one soil area, from "weed_control_request".
+        self.weeds.handle_request(world, data, ph_data, pest_severity, creative);
         // SOIL pH AMENDMENT (2026-09-26, soil_ph.rs): Lime or Sulfur on one
         // grow area, `(area tag, amendment id)`, from "soil_ph_request".
         let ph_request = data
@@ -2035,6 +2043,10 @@ impl System for FarmingSystem {
                 }
             }
         }
+        // WEEDS (weeds.rs): every soil area's cover and seed bank, taken out and
+        // stepped on the garden clock like the pests, and put back after the loop.
+        let weed_days = game_dt * f64::from(growth_speed) / SECONDS_PER_DAY;
+        let area_weeds = self.weeds.step(world, data, ph_data, pest_severity, weed_days);
 
         // A plant picked over a season keeps living through its picking window
         // (2026-09-26): it drinks, breathes out its water, takes stress and can
@@ -2228,6 +2240,9 @@ impl System for FarmingSystem {
             if let Some(o) = off {
                 ph_out.entry(area.to_string()).or_insert(o);
             }
+            // Weeds (weeds.rs): the cover caps it, hardest in its critical period;
+            // a sawdust or bark mulch over its unit takes nitrogen as it rots.
+            let weed_ceiling = self.weeds.crop_tick(data, &area_weeds, &crop, def, pest_severity, elapsed_seconds, growth_speed, weed_days, &mut crop_soil.store, &mut organic);
             // Humidity (humidity.rs): outside its plants.csv window a crop is
             // gently capped; and a growing, watered crop breathes its day's
             // water into its grow room's air (the room steps after the loop).
@@ -2238,7 +2253,7 @@ impl System for FarmingSystem {
                 *breathed.entry(area.to_string()).or_insert(0.0) +=
                     def.map_or(0.0, |d| f64::from(d.water_per_day)) * f64::from(plants_here);
             }
-            let ceiling = nutrient_ceiling.min(pest_ceiling).min(ph_ceiling).min(air_ceiling);
+            let ceiling = nutrient_ceiling.min(pest_ceiling).min(ph_ceiling).min(air_ceiling).min(weed_ceiling);
 
             // Health effects from water level, capped by nutrients and pests.
             if crop.water_level < WATER_STRESS_THRESHOLD {
@@ -2438,6 +2453,7 @@ impl System for FarmingSystem {
             m.pests = area_pests;
             m.ph = ph_units;
             m.rooms = room_air;
+            m.weeds = area_weeds;
         }
         self.ph_rt.tell(data, ph_data, &ph_out);
 

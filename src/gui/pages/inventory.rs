@@ -1331,6 +1331,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     // "Harvest N ready" button, applied after the panel.
     let mut action_harvest_many: Option<Vec<u64>> = None;
     let mut action_pest_control: Option<(String, String)> = None;
+    let mut action_weed: Option<(String, String)> = None; // Hoe / Mulch (farming::weeds)
     // Soil pH amendment (farming::soil_ph): (area, amendment id).
     let mut action_soil_ph: Option<(String, String)> = None;
     let mut action_pollinate: Option<String> = None;
@@ -2123,6 +2124,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                         let ph_amendments = state.garden_pests.ph_amendments.clone();
                         let pollinate_here = state.garden_pests.pollinate_areas.iter().any(|a| *a == area_tag);
                         let air_here = state.garden_pests.air.iter().find(|a| a.0 == area_tag).cloned();
+                        let weeds_here = state.garden_pests.weeds.iter().find(|w| w.area == area_tag).cloned();
                         widgets::expandable_row(
                             ui,
                             ("garden_grp", gi),
@@ -2191,6 +2193,19 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                 if let Some((_, line, level)) = &air_here {
                                     let col = match level { 2 => theme.danger(), 1 => theme.warning(), _ => theme.text_secondary() };
                                     ui.label(RichText::new(line).size(theme.font_size_small).color(col));
+                                }
+                                // Weeds in this soil (2026-09-26, farming::weeds): cover, mulch,
+                                // seed bank, and the controls in the order growers are taught.
+                                if let Some(w) = &weeds_here {
+                                    ui.horizontal_wrapped(|ui| {
+                                        let col = if w.level >= 0.3 { theme.danger() } else if w.noticed { theme.warning() } else { theme.text_secondary() };
+                                        ui.label(RichText::new(&w.line).size(theme.font_size_small).color(col));
+                                        for (cid, cname, _note) in &w.controls {
+                                            if widgets::compact_button(ui, theme, cname, widgets::ButtonVariant::Secondary) {
+                                                action_weed = Some((w.area.clone(), cid.clone()));
+                                            }
+                                        }
+                                    });
                                 }
                                 // Pests and diseases here (2026-09-26, farming::pests):
                                 // each with its level and its controls, gentlest first (IPM).
@@ -2453,6 +2468,9 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                                             // The air it grows in against its window (farming::humidity).
                                                             if !c.humidity.is_empty() {
                                                                 stat(ui, "Humidity", c.humidity.clone());
+                                                            }
+                                                            if !c.weeds.is_empty() {
+                                                                stat(ui, "Weeds", c.weeds.clone()); // farming::weeds
                                                             }
                                                             stat(ui, "Water/day", format!("{:.1} L", c.water_per_day));
                                                             stat(ui, "Temp window", format!("{:.0}-{:.0} °C", c.temp_min, c.temp_max));
@@ -2732,6 +2750,9 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     }
     if let Some(c) = action_pest_control {
         state.garden_pests.pending = Some(c);
+    }
+    if let Some(c) = action_weed {
+        state.garden_pests.weed_pending = Some(c);
     }
     if let Some(c) = action_soil_ph {
         state.garden_pests.ph_pending = Some(c);

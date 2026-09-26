@@ -1635,7 +1635,12 @@ host crops under their favouring conditions and cap crop health; the Garden
 panel lists each with its controls in IPM order (hose off, hand-pick, Bt,
 predatory mites, insecticidal soap made from the player's soap, iron phosphate
 bait); rotation lets pressure decay; Settings: Off/Gentle/Realistic
-(`farming/pests.rs`, `data/garden/pests.ron`). Plantable grow
+(`farming/pests.rs`, `data/garden/pests.ron`). Weeds (2026-09-26): every soil grow
+area holds a weed cover and a seed bank (saved), weeds come up from the bank and cap
+crop health hardest in the crop's cited critical period at WSSA's season-long losses;
+Hoe (wears the backpack hoe) and Mulch with sawdust or bark (spends them, stops most new
+weeds for a cited time, ties up nitrogen as it rots) per soil area; the pest severity
+setting covers weeds (`farming/weeds.rs`, `data/garden/weeds.ron`). Plantable grow
 areas beyond towers (v0.738 grain loop): beds/trays/fields render as Garden
 groups with a Plant button (crop = edit-modal Crop field or the medium's
 `default_crop` in grow_media.ron; survival consumes one seed per unit,

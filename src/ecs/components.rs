@@ -490,6 +490,33 @@ pub struct SoilMemory {
     /// starts at the home's air.
     #[serde(default)]
     pub rooms: std::collections::HashMap<String, RoomAir>,
+    /// The weeds in each SOIL grow area, keyed by grow-area tag (2026-09-26,
+    /// gardening depth: weeds, `farming::weeds`). Like `pests`, they belong to
+    /// the place: the weeds and the seed bank stay in the soil while crops
+    /// come and go. Saved with no save-format change; a save from before it
+    /// loads with none, and each soil area then starts from its seed bank.
+    #[serde(default)]
+    pub weeds: std::collections::HashMap<String, AreaWeeds>,
+}
+
+/// One soil grow area's weeds (2026-09-26, `farming::weeds`,
+/// data/garden/weeds.ron): the weed cover, the seed bank it comes up from,
+/// whether the player was told, and the mulches still working there.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct AreaWeeds {
+    /// Weed cover, 0 (none) to 1 (as weedy as an uncontrolled stand).
+    #[serde(default)]
+    pub level: f64,
+    /// Weed seeds in the soil, 1.0 being a typical field's.
+    #[serde(default)]
+    pub bank: f64,
+    /// True once the player has been told weeds are coming up here; cleared
+    /// when the cover falls below half the level at which they are noticed.
+    #[serde(default)]
+    pub told: bool,
+    /// Garden days left on each mulch laid here (a control id from weeds.ron).
+    #[serde(default)]
+    pub mulch: std::collections::HashMap<String, f64>,
 }
 
 /// One grow room's air (2026-09-26, `farming::humidity`): its water vapour,

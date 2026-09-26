@@ -646,6 +646,46 @@ date; re-check before trusting one. The container data basis is
   reservoir is not modelled (it stops with the tanks); its vapour leaves
   into the home air, still held at 40%; and the humidifier's litres are
   billed on the irrigation's per-real-day clock, like the crops' water.
+- **Weeds compete with the crops in soil, and the player keeps them down:
+  DONE 2026-09-26.** Every soil grow area (beds, trays, fields and the
+  hand-planted crops; `soil_ph.ron` decides which are soil, so towers and
+  the mushroom racks have none) now holds a weed cover and a seed bank in
+  the saved soil memory (`farming/weeds.rs`, every number in
+  `data/garden/weeds.ron` with its quoted, dated source). Weeds come up from
+  the bank on the garden clock and reach half cover on bare soil in about
+  three weeks; an outdoor field starts with a typical field's bank
+  (eOrganic: "thousands of weed seeds ... per square foot") and a filled
+  indoor bed with a quarter of it (UMass greenhouse guide: "using sterile
+  media"), so fields get weedy faster. The bank runs down to 5% in five
+  clean years and one uncontrolled season fills it back to about 90%
+  (Burnside 1986, via eOrganic), so letting weeds flower costs years. Cover
+  caps crop health like a pest, hardest in the crop's critical period: the
+  cited windows for tomato (UMass, 3.3 to 5.8 weeks), onion (NC State, 4 to
+  6 weeks), carrot (UC IPM, the first four weeks), dry beans, sweet potato
+  and wheat (Agostinetto 2008, days 12 to 24), FAO's "first one-third of the
+  crop growing cycle" for the rest; the loss from weeds left all season is
+  WSSA's table per crop (corn 50%, spring wheat 19.5%, dry bean 55.3% and
+  so on; its median, 47%, for crops it does not list; onion capped at 0.8
+  under NC State's 96%). A quarter of the cap applies before the window and
+  half after it. Controls in the order growers are taught: Hoe (the hoe the
+  player starts with, one use of wear per 10 m2; 90% of small weeds, NEVG's
+  60% once they are big), then Mulch with sawdust (Oklahoma State: 50 lb on
+  100 sq ft, a season) or bark (Clemson: 2 to 3 inches, 2 to 4 years), both
+  from the sawmill; each stops 90% of new weeds and draws 20 g of nitrogen
+  per kg from the soil under it as it rots (Oklahoma State's "1 pound of
+  actual nitrogen per 50 pounds"), which is banked as slow organic N. The
+  Settings pest severity now reads "Garden pests, diseases and weeds" and
+  covers them (Off / Gentle / Realistic). The Garden panel shows each soil
+  area's weed row (cover, mulch days left, seed bank) with Hoe and Mulch
+  buttons; the crop card a "Weeds" row when they cap it. Found, left alone:
+  (1) the harvest follows the season's average health, so an untouched bed
+  loses about half the cited season-long figure (roughly 20% for a tomato
+  against WSSA's 47%). (2) The game has no straw, the usual vegetable
+  mulch, and both mulches it can make tie up nitrogen (Cornell does not
+  recommend bark in vegetable beds). (3) No source read gave the share of a
+  bed's nutrients weeds take, so their competition is all in the health
+  cap. (4) Perennial weeds, and weeds as a home for pests, are not
+  modelled.
 
 ## Defects found (things that are wrong, not merely missing)
 

@@ -1,0 +1,333 @@
+// Weeds in the garden's soil, and how the grower keeps them down
+// (2026-09-26, gardening depth). Read by src/systems/farming/weeds.rs, which
+// carries the model; this file carries the numbers and where each one came
+// from. Every source was read on 2026-09-26.
+//
+// WHAT THE GAME TEACHES. In a soil bed or a field, weeds are the main labour of
+// growing. They come up from the SEED BANK in the soil, compete with the crop for
+// light, water and nutrients, and cost the most yield in the crop's CRITICAL
+// PERIOD, roughly the first third of its growth. Growers are taught, in order:
+// hoe or hand-weed them while they are small, then MULCH so new ones cannot come
+// up, and never let them set seed, because the seed they drop feeds the bank for
+// years. Soilless towers and the mushroom racks have no soil and no weeds.
+//
+// THE MODEL, in one paragraph (weeds.rs has the detail). Each SOIL grow area
+// (a bed, tray or field; soil_ph.ron decides which areas are soil) holds a weed
+// COVER, 0 (none) to 1 (as weedy as an uncontrolled stand), and a SEED BANK,
+// 1.0 being a typical field's. Cover grows as dW/dt = (r W + a)(1 - W) on the
+// garden clock (the pests' exact solution), with a = emergence_per_day x the
+// bank: seedlings come up from the bank and grow into a stand. A mulch cuts
+// both r and a by its `blocks` share while it lasts. The bank loses the cited
+// share a year to germination, decay and seed eaters, and gains seed_set_per_day
+// x the cover (weeds going to seed). Each crop in the area has its health capped
+// at 100 x (1 - max_loss x severity x cover x phase), never below 20 (the house
+// floor pests, pH and a nutrient shortage share), where phase is 1 inside the
+// crop's critical period and less before and after it. The harvest follows the
+// season's average health, so an untouched bed loses less than the cited
+// season-long figure (about half of it for a tomato): the cited loss is what full
+// cover does to health through the critical period.
+//
+// GARDEN DAYS run at the crop growth speed (10x by default), the clock the crops
+// ripen on, so a weed flush keeps its real length against the crop's season.
+//
+// GAME CHOICES, said as such (numbers no source gives):
+//   growth_per_day 0.2 and emergence_per_day 0.003: a bare bed with a typical
+//     field's seed bank reaches half cover in 21 garden days. Anchored on the
+//     critical period below: weeds that come up with the crop are competing in
+//     earnest about three weeks in, where UMass CPWC puts the tomato's critical
+//     period ("3.3 – 5.8 WAT") and FAO puts it "approximately centred on the
+//     first one-third of the crop growing cycle". A test pins the three weeks.
+//   indoor_start_bank 0.25: a bed indoors is filled once, from bought or
+//     screened mix and compost, and nothing blows seed into it from a field
+//     margin; UMass GH (below) tells growers to "Keep weed seeds, and rhizomes
+//     out of the greenhouse by using sterile media" and names how they still get
+//     in: "Seeds can be moved in soil, by the wind, irrigation water, animals
+//     and people." A quarter of a field's bank is the estimate. An outdoor field
+//     starts at a typical field's bank (field_start_bank 1.0).
+//   seed_set_per_day 0.008: calibrated to Burnside's sixth year (eOrganic Seed
+//     Bank, below): one uncontrolled season, taken as 150 garden days, takes a
+//     bank run down to 5% back to about 90% (a test pins it). Seed is set in
+//     proportion to the cover, which stands in for the weeds' age: a stand is
+//     only near full cover after the weeks it takes to flower.
+//   bank_max 3.0: the richest bank, three typical fields' worth.
+//   detect_at 0.1: the cover at which the player notices the weeds.
+//   before_period_share 0.25 and after_period_share 0.5: how much of the cap
+//     applies before and after the critical period. The critical period's start
+//     is by definition how long weeds that came up with the crop can stay
+//     without an unacceptable loss (UMass CPWC; SDSU CPWC: "usually 5% yield
+//     loss"), so early weeds cost a quarter. After it, SDSU CPWC: "later
+//     emerging weeds (outside of the CPWC) do not decrease yield directly", but
+//     weeds already standing keep competing, so half.
+//   default_unit_area_m2 0.25: the ground one hand-planted plant stands on, the
+//     same estimate soil_ph.ron uses, when neither the plot nor the plant gives
+//     one.
+//   Every control's shares, the hoe's m2_per_use, and the mulches' `blocks`,
+//     `smothers` and sawdust's `lasts_days`: the sources say what works and
+//     roughly how well, not by how much per pass.
+//
+// FIELDS
+//   crops             - per plant (data/plants.csv ids): its critical period in
+//                       garden days after sowing or transplanting, and its
+//                       yield loss from weeds left all season. A plant with no
+//                       window takes default_period (shares of its growth_days);
+//                       with no loss, default_max_loss.
+//   controls          - Hoe (uses `tool` from the backpack and wears it: one use
+//                       per m2_per_use of ground; takes `removes` of the cover,
+//                       only `removes_when_large` once the cover is above
+//                       large_above), and Mulch (spends `item`: kg_per_m2, or
+//                       depth_cm of it at its items.csv volume; smothers
+//                       `smothers` of the cover at once; for lasts_days it cuts
+//                       emergence and growth by `blocks`, and ties up
+//                       n_tie_g_per_kg grams of nitrogen per kg of it, spread
+//                       over lasts_days, from the soil of each planted unit
+//                       under it). Listed in the order growers are taught.
+//
+// SOURCES (cited by short name in the entries):
+//   MSU E2717: Renner, K., "Weed Seedbank Dynamics", Michigan State University
+//     Extension Bulletin E2717, page dated 13 October 2015,
+//     https://www.canr.msu.edu/resources/weed_seedbank_dynamics_e2717
+//   eOrganic Seed Bank: Menalled, F. and Schonbeck, M., "Manage the Weed Seed
+//     Bank: Minimize 'Deposits' and Maximize 'Withdrawals'", eOrganic, 20 January
+//     2009, https://eorganic.org/pages/18527/manage-the-weed-seed-bankminimize-deposits-and-maximize-withdrawals
+//   UMass CPWC: Gannett, M., "Critical Period of Weed Control", UMass Amherst
+//     CAFE vegetable fact sheet, last updated 5 June 2025,
+//     https://www.umass.edu/agriculture-food-environment/vegetable/fact-sheets/critical-period-of-weed-control
+//   FAO: Sattin, M. and Berti, A., "Parameters for weed-crop competition", in
+//     Labrada, R. (ed.), Weed Management for Developing Countries, Addendum 1,
+//     FAO Plant Production and Protection Paper 120 Add. 1, Rome, 2003,
+//     https://www.fao.org/4/y5031e/y5031e04.htm
+//   SDSU CPWC: Jones, E., Rozeboom, P., Alms, J. and Vos, D., "Critical Period
+//     of Weed Control: A good, but not perfect guideline", SDSU Extension,
+//     updated 30 May 2024,
+//     https://extension.sdstate.edu/critical-period-weed-control-good-not-perfect-guideline
+//   NCSU Onions: Batts, R.B., Monks, D.W., Mitchem, W.E. and Jennings, K.M.,
+//     "Weed Management in Onions", NC State Extension, reviewed/revised 30
+//     January 2024, https://content.ces.ncsu.edu/weed-management-in-onions
+//   UC IPM Carrot: Fennimore, S.A. and Sidhu, J.K., "Integrated Weed
+//     Management", UC IPM Pest Management Guidelines: Carrot, text updated 04/24,
+//     https://ipm.ucanr.edu/agriculture/carrot/integrated-weed-management/
+//   Agostinetto 2008: Agostinetto, D., Rigoli, R.P., Schaedler, C.E., Tironi,
+//     S.P. and Santos, L.S., "Critical period for weed competition with wheat",
+//     Planta Daninha 26(2), 2008,
+//     https://awsjournal.org/article/critical-period-for-weed-competition-with-wheat/
+//   WSSA: "Weed impacts on crop yields", Weed Science Society of America, table
+//     "Average yield loss without weed control" (no date on the page; each row
+//     cites its WSSA Weed Loss Committee paper),
+//     https://wssa.net/resources/weed-impacts-on-crop-yields/
+//   ISU ICM: Hartzler, B., "Managing weeds to protect crop yields", Iowa State
+//     University Integrated Crop Management encyclopedia (no date on the page),
+//     https://crops.extension.iastate.edu/encyclopedia/managing-weeds-protect-crop-yields
+//   UMass GH: "Weed Management", UMass Amherst Greenhouse Best Management
+//     Practices manual (no date on the page),
+//     https://www.umass.edu/agriculture-food-environment/greenhouse-floriculture/greenhouse-best-management-practices-bmp-manual/weed-management
+//   NEVG: "Physical Weed Management", New England Vegetable Management Guide (no
+//     date on the page), https://nevegetable.org/book/export/html/209
+//   SARE Hoeing: Mohler, C.L., Teasdale, J.R. and DiTommaso, A., Manage Weeds
+//     on Your Farm (SARE, 2021), section 4.12 "Hoeing Weeds", as published on
+//     LibreTexts, https://bio.libretexts.org/Bookshelves/Agriculture_and_Horticulture/Manage_Weeds_on_Your_Farm_(Mohler_Teasdale_and_DiTommaso)/04:_Mechanical_and_Other_Physical_Weed_Management_Methods/4.12:_Hoeing_Weeds
+//   ISU Garden: Steil, A., "Weed Control in the Vegetable Garden", Iowa State
+//     University Yard and Garden, January 2024,
+//     https://yardandgarden.extension.iastate.edu/how-to/weed-control-vegetable-garden
+//   OSU Mulch: "Mulching Garden Soils", Oklahoma State University Extension fact
+//     sheet, page published 1 April 2023,
+//     https://extension.okstate.edu/fact-sheets/mulching-garden-soils
+//   Clemson Mulch: Kluepfel, M. and Polomski, R.F., revised by Williamson, J.
+//     and Scott, J.M., "Mulch", Clemson HGIC, updated 20 June 2016,
+//     https://hgic.clemson.edu/factsheet/mulch/
+//   eOrganic Mulch: Schonbeck, M., "Organic Mulching Materials for Weed
+//     Management", eOrganic, 15 August 2012, https://eorganic.org/node/4871
+//   Cornell Organic: "Organic weed management", Cornell CALS Weed Science (no
+//     author or date on the page),
+//     https://cals.cornell.edu/weed-science/ecological-management/organic-weed-management
+//
+// NOT MODELLED, said so: perennial weeds from roots and rhizomes (Cornell
+// Organic: "Mulches are nearly useless for controlling perennial weeds"; the
+// cover here is annual weeds from seed); weeds taking a share of the unit's
+// nutrients directly (ISU ICM: "Weeds impact yields primarily by competing with
+// the crop for light, water and nutrients", but no source read gave a share, so
+// their competition is all in the health cap); weeds as a home for pests (UMass
+// GH: "Weeds are also a primary source of insects such as aphids"); and straw,
+// the usual vegetable-garden mulch (Cornell Organic: "A 3 to 5 inch layer of
+// straw, hay, or leaves (which subsequently settles to about 2-3 inches) is
+// generally effective against most of the small seeded annual weeds"), because
+// the game has no straw item yet.
+(
+    // COVER. Game estimates (see the header): half cover in 21 garden days on
+    // bare soil with a typical field's bank.
+    growth_per_day: 0.2,
+    emergence_per_day: 0.003,
+    detect_at: 0.1,
+
+    // THE SEED BANK. eOrganic Seed Bank: "Agricultural soils can contain
+    // thousands of weed seeds and a dozen or more vegetative weed propagules per
+    // square foot." 1.0 is such a field. MSU E2717: "Only a fraction of the weed
+    // seeds (less than 10 percent of most weed species) germinate each year", so
+    // a flush does not empty the bank and a bed keeps producing weeds for years.
+    // How fast it runs down, eOrganic Seed Bank: "Over a five-year period in
+    // Nebraska, broadleaf and grass weed seed banks were reduced to 5 percent of
+    // their original density when weeds were not allowed to produce seeds.
+    // However, in the sixth year, weeds were not controlled and the seed bank
+    // density increased to 90 percent of the original level (Burnside et al.,
+    // 1986)." So the bank falls to 5% in 1,825 garden days with no seed set
+    // (bank_to_5pct_days), and seed_set_per_day is calibrated to the sixth year
+    // (see the header).
+    field_start_bank: 1.0,
+    indoor_start_bank: 0.25,
+    bank_to_5pct_days: 1825.0,
+    seed_set_per_day: 0.008,
+    bank_max: 3.0,
+
+    // THE CRITICAL PERIOD. SDSU CPWC: "Where the weed-free and weed removal
+    // timings intersect at a specified acceptable yield loss (usually 5% yield
+    // loss) determines the critical period". For a crop with no cited window of
+    // its own, FAO: "In conditions of medium-high weed pressure, the critical
+    // period is approximately centred on the first one-third of the crop growing
+    // cycle. For example, several major arable crops of temperate climates (e.g.
+    // maize, soybean, sunflower) take 100-140 days after emergence (DAE) to
+    // mature and the critical period is often between 25-40 DAE". 25 and 40 of
+    // the middle, 120 days, are 0.21 and 0.33 of the crop's growth_days.
+    default_period: (start: 0.21, end: 0.33),
+    before_period_share: 0.25,
+    after_period_share: 0.5,
+
+    // THE LOSS from weeds left all season, where no crop row gives its own. The
+    // median of the nine crops in WSSA's table "Average yield loss without weed
+    // control" (19.5, 23.4, 30, 44, 47, 50, 52.1, 55.3 and 72.2%): grain
+    // sorghum's "47%". A test checks it is the median.
+    default_max_loss: 0.47,
+    wssa_losses: [0.195, 0.234, 0.30, 0.44, 0.47, 0.50, 0.521, 0.553, 0.722],
+    default_unit_area_m2: 0.25,
+
+    crops: [
+        // TOMATO. UMass CPWC, table row "Tomatoes (non-grafted)": "3.3 – 5.8
+        // WAT" (weeks after transplanting): days 23 to 41. plants.csv counts the
+        // tomato's 70 growth days from transplanting.
+        (plants: ["tomato"], start_days: Some(23.0), end_days: Some(41.0)),
+        // ONION. NCSU Onions: "The critical weed-free period for onion is
+        // approximately four to six weeks after crop emergence" (days 28 to 42),
+        // and "Season-long exposure of seeded onion to weed competition has been
+        // shown to reduce onion yield up to 96 percent": 0.8, the most any pest
+        // or weed may take here (the same cap the pests' data test holds them
+        // to), under the cited 96%.
+        (plants: ["onion"], start_days: Some(28.0), end_days: Some(42.0), max_loss: Some(0.8)),
+        // CARROT. UC IPM Carrot: "The first four weeks of crop growth are an
+        // especially critical period for weed control", and "Carrot is a
+        // slow-growing crop that suffers severe yield loss from weed
+        // competition" (no figure given: the default loss).
+        (plants: ["carrot"], start_days: Some(0.0), end_days: Some(28.0)),
+        // DRY BEANS. UMass CPWC, row "Dry beans": "3 – 5 or 6 WAP" (weeks after
+        // planting): days 21 to 42, the later end. WSSA, "Dry bean": "55.3%".
+        // The snap bean shares the window and takes the default loss.
+        (plants: ["kidney_bean", "pinto_bean", "navy_bean"], start_days: Some(21.0), end_days: Some(42.0), max_loss: Some(0.553)),
+        (plants: ["bean"], start_days: Some(21.0), end_days: Some(42.0)),
+        // SWEET POTATO. UMass CPWC, row "Sweet potatoes": "2 – 6 WAT": days 14
+        // to 42.
+        (plants: ["sweet_potato"], start_days: Some(14.0), end_days: Some(42.0)),
+        // WHEAT, the grain. Agostinetto 2008: "effective control measures should
+        // be taken between 12 and 24 days after emergence". WSSA, "Spring wheat":
+        // "19.5%" (plants.csv wheat ripens in 120 days, a spring wheat; WSSA's
+        // "Winter wheat" is "23.4%").
+        (plants: ["wheat"], start_days: Some(12.0), end_days: Some(24.0), max_loss: Some(0.195)),
+        // The rest of WSSA's table, each with the default window (FAO's first
+        // third): "Corn" "50%", "Soybean" "52.1%", "Potato" "44%", "Grain
+        // sorghum" "47%", "Sugar beet" "72.2%", "Spring canola" "30%" (rapeseed
+        // here).
+        (plants: ["corn"], max_loss: Some(0.50)),
+        (plants: ["soybean"], max_loss: Some(0.521)),
+        (plants: ["potato"], max_loss: Some(0.44)),
+        (plants: ["sorghum"], max_loss: Some(0.47)),
+        (plants: ["sugar_beet"], max_loss: Some(0.722)),
+        (plants: ["rapeseed"], max_loss: Some(0.30)),
+    ],
+
+    controls: [
+        // HOE (hand-weeding). SARE Hoeing: "Hoeing is easiest when the weeds are
+        // still small", and "Hoeing when the weeds are small allows you to hoe
+        // shallowly, which prevents bringing more seeds to the soil surface where
+        // they can establish." ISU Garden: "It is very important to destroy these
+        // weeds while they are small before they produce thousands of seeds."
+        // removes 0.9 is a game estimate for seedlings cut just below the
+        // surface; once the cover passes 0.3 (a game estimate for weeds grown
+        // past seedlings) a pass gets NEVG's figure for cultivation,
+        // "Effectiveness of cultivation is relatively low (60% of weeds killed is
+        // common)". One use of the hoe per 10 m2 hoed is a game estimate (the
+        // hoe's items.csv durability of 150 uses is then 1,500 m2 of bed).
+        (
+            id: "hoe",
+            name: "Hoe",
+            kind: Hoe,
+            tool: "hoe_0",
+            m2_per_use: 10.0,
+            removes: 0.9,
+            removes_when_large: Some(0.6),
+            large_above: 0.3,
+            note: "Hoe weeds while they are small: shallow, just below the surface, so no buried seed is brought up. Big weeds survive a hoe far more often, and weeds left to flower fill the soil with seed.",
+        ),
+        // SAWDUST MULCH, from the sawmill (sawdust_0). OSU Mulch: "The amount used
+        // might vary from 1 inch for sawdust, peat moss, cotton seed hulls, ground
+        // corncobs, compost, or similar density materials to 4 to 8 inches for
+        // straw, hay, corn stalks, or other coarse materials." And "How to Use
+        // Sawdust As a Mulch": "The material, preferably partially decom-posed,
+        // may be applied to a depth of 1 to 11/2 [sic: 1 1/2] inches. This would
+        // require about 5 bushels (6.25 cu. ft.) of sawdust for a 10 ft. x 10 ft.
+        // plot. This amount of sawdust would, if dry, weigh approximately 50
+        // pounds." 50 lb on 100 sq ft is 22.68 kg on 9.290 m2: 2.441 kg a m2.
+        // Weeds: "it provides excellent control of most annual weeds".
+        // NITROGEN, the same page: "Before application, mix 1 pound of actual
+        // nitrogen per 5 bushels of sawdust to aid in further decomposition" and
+        // "If no nitrogen were mixed with the sawdust, some of the nitrogen in
+        // the soil would be used for sawdust de-composition after mulching. The
+        // result would be nitrogen starvation of the mulched crop." 1 lb of N for
+        // 50 lb of sawdust is 20 g of N per kg (n_tie_g_per_kg): 48.8 g a m2,
+        // drawn evenly over the mulch's life (a game choice), from the units
+        // under it, and banked as slow organic N (it comes back as the sawdust
+        // rots, over years, on compost's schedule: a game choice).
+        // How long: OSU's table rates sawdust 2 of 5 (1 = excellent) for "Will
+        // the Mulch Remain Effective for a Season?" and calls it "a summer
+        // mulch": 150 garden days, a game estimate for a season.
+        // blocks 0.9 is a game estimate for eOrganic Mulch: "Straw and other
+        // organic mulches effectively block emergence of most weeds germinating
+        // from seed". smothers 0.5 is a game estimate for Clemson Mulch: mulches
+        // work "when the mulch material itself is weed-free and applied deeply
+        // enough to prevent weed seed germination or to smother existing weeds".
+        (
+            id: "mulch_sawdust",
+            name: "Mulch with sawdust",
+            kind: Mulch,
+            item: "sawdust_0",
+            kg_per_m2: Some(2.441),
+            lasts_days: 150.0,
+            blocks: 0.9,
+            smothers: 0.5,
+            n_tie_g_per_kg: 20.0,
+            note: "About an inch of sawdust (2.4 kg a square metre) stops most new weeds for a season. It takes nitrogen from the soil as it rots, so feed the bed: Oklahoma State adds a pound of nitrogen for every 50 pounds of sawdust. Hoe first.",
+        ),
+        // BARK MULCH, from the sawmill (bark_0). Clemson Mulch: "A 2- to 3-inch
+        // layer of pine bark is good for weed control" (2.5 inches, 6.35 cm; at
+        // bark_0's items.csv 3.3 L a kg that is 63.5 L, 19.2 kg, a m2), and
+        // "Pine needles and bark mulches typically last for around 2 to 4 years
+        // before the need to add more": 3 years, 1,095 garden days.
+        // NITROGEN: Cornell Organic, "Bark and wood chips cannot be recommended
+        // for use in vegetable gardens (except on permanent paths) because their
+        // high carbon to nitrogen ratio encourages decomposer microbes to take
+        // nitrogen from the soil"; Clemson Mulch, "Small wood chips decompose very
+        // rapidly using nitrogen from the soil, which needs to be replaced by
+        // nitrogen fertilizer". The amount is OSU Mulch's rule for every organic
+        // mulch in its table, "Add 1 pound actual nitrogen per 50 pounds of dry
+        // organic matter to provide for decomposition": 20 g a kg, spread over
+        // the three years (bark_0's mass taken as dry, a game choice). That is
+        // about as much a day as sawdust draws, for six times as long.
+        (
+            id: "mulch_bark",
+            name: "Mulch with bark",
+            kind: Mulch,
+            item: "bark_0",
+            depth_cm: Some(6.35),
+            lasts_days: 1095.0,
+            blocks: 0.9,
+            smothers: 0.5,
+            n_tie_g_per_kg: 20.0,
+            note: "Two to three inches of bark (about 19 kg a square metre) stops most new weeds for two to four years. It is the lasting mulch for paths and perennial beds; Cornell does not recommend it for vegetable beds because it takes nitrogen from the soil as it rots. Hoe first.",
+        ),
+    ],
+)

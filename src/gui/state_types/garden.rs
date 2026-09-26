@@ -1,7 +1,7 @@
 //! The Garden panel's value types: a growing crop for its card, the pests
 //! and diseases in each grow area and the air it grows in, and the garden
 //! settings and requests carried between the panel and the farming system
-//! (pests, soil pH, pollination, humidity).
+//! (pests, soil pH, pollination, humidity, weeds).
 //!
 //! Moved VERBATIM out of `gui/state_types.rs` (2026-09-26) when the garden
 //! rungs pushed that file past its line budget in tests/file_size_ratchet.rs.
@@ -50,6 +50,11 @@ pub struct GardenPests {
     /// setpoint, 2 at the damp diseases' line). The line names the grow room
     /// and what its exhaust fans are doing.
     pub air: Vec<(String, String, u8)>,
+    /// Weeds (2026-09-26, farming::weeds): a row per soil area with its cover,
+    /// mulch and seed bank and the Hoe / Mulch buttons, and the control the
+    /// player just chose as (area, control id), carried next frame.
+    pub weeds: Vec<crate::systems::farming::weeds::WeedAreaRow>,
+    pub weed_pending: Option<(String, String)>,
 }
 
 /// A growing crop for GUI display (synced from the ECS each frame).
@@ -112,4 +117,7 @@ pub struct GuiCrop {
     /// Its "Humidity" card row: the air it grows in against its plants.csv
     /// window, and the cap outside it (farming::humidity::GuiView); "" = none.
     pub humidity: String,
+    /// Its "Weeds" card row when weeds are capping it: the cover, where it is
+    /// in its critical period, the health held to (farming::weeds::GuiView).
+    pub weeds: String,
 }

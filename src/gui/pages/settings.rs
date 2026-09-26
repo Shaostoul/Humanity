@@ -3454,9 +3454,9 @@ pub(crate) fn draw_gameplay_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
         // time. plants.csv keeps its real agricultural growth_days, so 1x stays a
         // truthful mode and the displayed numbers stay teachable at every rung.
         // Garden pests (2026-09-26, the dual-mode house rule for deep systems).
-        ui.label(RichText::new("Garden pests and diseases").color(theme.text_secondary()).strong());
+        ui.label(RichText::new("Garden pests, diseases and weeds").color(theme.text_secondary()).strong());
         ui.add_space(theme.spacing_xs);
-        widgets::setting_hint(ui, theme, hint, "Aphids, spider mites, caterpillars, slugs and potato beetles build up on the crops they feed on, and gray mold, powdery mildew and downy mildew spread in humid air; all of them cut the harvest. Gentle halves the damage; Realistic uses the losses the extension guides report; Off turns pests and diseases off. The greenhouse air stays real either way.");
+        widgets::setting_hint(ui, theme, hint, "Aphids, spider mites, caterpillars, slugs and potato beetles build up on the crops they feed on, gray mold, powdery mildew and downy mildew spread in humid air, and weeds come up from the seed in any soil bed or field; all of them cut the harvest. Gentle halves the damage; Realistic uses the losses the extension guides report; Off turns pests, diseases and weeds off. The greenhouse air stays real either way.");
         ui.horizontal(|ui| {
             for (value, label) in [(0.0_f32, "Off"), (0.5, "Gentle"), (1.0, "Realistic")] {
                 let selected = (state.settings.pest_severity - value).abs() < 0.01;
