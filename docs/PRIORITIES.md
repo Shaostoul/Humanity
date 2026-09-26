@@ -1112,19 +1112,24 @@ review of the day's crafting and storage work found and fixed eight defects
 (v0.1360.0, BUG-088). Per-crop nutrient removal is DONE (v0.1363.0: 64 crops
 cited to NRCS, UW-Madison A2809 and FoodData Central; the old indices had
 understated grain and legume removal 5 to 20 times, and urine now covers 26%
-of the household's net N, not 118%). In flight: harvest per grow unit from
-its floor area and the crop's spacing (the per-unit harvest masses are not
-grounded, a soybean cup grew 1.65 kg). Soil pH is DONE (v0.1366.0: cited
-drift from nitrogen, lime and sulfur with delays, a health cap outside each
-crop's window, Off/On). Grow lights now light
-only the plots near them (v0.1364.0: 0.58 m2 per 100 W from the DLC and
-Cornell figures), beds are divided into plots, and bed-planted crops are
-drawn (BUG-089). Next: per-species light need, drawing each plot's plants at
-the crop's spacing, a urine-diverting toilet machine. Pests do not advance
-offline, by the offline-progression rule for anything that harms without a
-decision (recorded in docs/design/offline-progression.md). The crop card
-shows what is lighting each crop. Also in flight: pollination (indoor fruit set, hand-pollinate,
-bumblebee hive) and the research for each crop's own light need. Containers as items (3c) waits on the unified placement
+of the household's net N, not 118%, before the harvest rung below). Since
+then, all DONE: a grow unit harvests what its plants really give
+(v0.1367.0: plots hold plants at the crop's cited spacing, per-plant yields
+from NASS and extension guides, water from FAO-56; the home garden now
+feeds about 6,300 kcal a day, not 28,400, and three residents' urine covers
+77% of its net N); soil pH (v0.1366.0); pollination (v0.1367.0: indoor
+fruit set without help from McGregor's USDA handbook, Hand-pollinate and a
+bumblebee hive, Off/On); grow lights that light only nearby plots
+(v0.1364.0); and the crop card shows light, pH, plants and pollination.
+Pests do not advance offline (offline-progression.md). Next: each crop's
+own light need (docs/reference/findings/2026-09-26-crop-daily-light-integrals.md,
+27 of 63 sourced) with a grow-light timer, since tomato is harmed by 24 h
+light; draw each plot's plants at the crop's spacing; the rubber tree
+yields latex (it harvests a fiber bundle) and vulcanizing uses sulfur;
+computed kcal on the grow machines' cards (home.ron's hand-typed "+120
+kcal/d" potato bed is about double its cited yield); a picking window
+(a picked crop yields its whole season at once, so back-to-back replants
+run 2-3x a real year). Containers as items (3c) waits on the unified placement
 schema. Progress and open items live at the top of the gap doc.
 
 **Gameplay gap survey (2026-09-25):** `docs/design/gameplay-gaps-2026-09-25.md`
