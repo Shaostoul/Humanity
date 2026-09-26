@@ -912,7 +912,9 @@ fn draw_item_card(
             widgets::detail_row(ui, theme, "Stack Size", &d.stack_size.to_string());
             widgets::detail_row(ui, theme, "Material", &d.base_material);
             if d.durability > 0 {
-                widgets::detail_row(ui, theme, "Durability", &d.durability.to_string());
+                // Tools wear one use per craft and break at 0 (2026-09-26).
+                let left = d.durability.saturating_sub(item.wear);
+                widgets::detail_row(ui, theme, "Uses left", &format!("{left} of {}", d.durability));
             }
         }
     });
@@ -1775,6 +1777,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             name: pi.name.clone(),
                             item_id: pi.key.clone(),
                             quantity: pi.qty,
+                            wear: 0,
                         };
                         let containers = crate::gui::collect_containers(&state.places);
                         let mut move_to: Option<String> = None;

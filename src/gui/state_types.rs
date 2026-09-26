@@ -46,7 +46,7 @@ use super::*;
 
 /// Item slot data bridged from ECS Inventory for GUI display.
 #[cfg(feature = "native")]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct GuiItemSlot {
     /// Item ID from items.csv.
     pub item_id: String,
@@ -54,6 +54,8 @@ pub struct GuiItemSlot {
     pub name: String,
     /// Quantity in this stack.
     pub quantity: u32,
+    /// Uses worn off the top item (tools, 2026-09-26; 0 = unworn).
+    pub wear: u32,
 }
 
 /// Game time snapshot bridged from TimeSystem for GUI display.
@@ -679,6 +681,8 @@ pub struct GuiRecipe {
     /// Minimum level of `skill_required` (0 = none).
     pub skill_level: u32,
     pub description: String,
+    /// Hand tools the craft needs in the backpack (data/crafting/tools.ron).
+    pub tools: Vec<String>,
 }
 
 /// One vendor-tradeable good for GUI display (v0.747, ladder rung 3).

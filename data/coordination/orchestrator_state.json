@@ -774,6 +774,11 @@
    "date": "2026-09-26",
    "decision": "Fluids as litres, first rung (v0.1347.0): data/containers/fluids.ron names tap-water items (water_purified_0 = 1 L) and carryable vessels (bottle 0.5 L, jerrycan 20 L). Crafting draws tap water from the tanks when the pack lacks it (manual and auto paths; refused and nothing spent when the tanks are low); the Crafting page counts the tanks. A water tank card fills and pours vessels. Drinking a bottle returns the empty bottle.",
    "why": "The tanks held real litres and the water items came from nowhere; this joins the two. A vessel is an empty item plus a full item because ItemStack carries no metadata and real vessels keep to one fluid anyway (a water jerrycan is never a fuel can). No auto recipe uses water, so automation cannot drain the cistern. Tests red on purpose first."
+  },
+  {
+   "date": "2026-09-26",
+   "decision": "Crafting depth rung 1 (v0.1348.0): hand tools. data/crafting/tools.ron (rules by station+category, per-recipe overrides) gives 182 recipes tools that must be in the backpack; not consumed; ItemStack gained a serde-default wear counter and Inventory::wear_item breaks one at items.csv durability. Automated machines need no tools; creative skips the check. Starter kit + hammer, hand saw, screwdriver, wrench, pliers. Statues stopped consuming their chisel. The web recipes.json generator resolves the same tools and a Rust test compares every recipe across the two.",
+   "why": "Operator-agreed gameplay order item 5 (crafting depth). Tools-as-items is the real model and ItemStack was only ever built via ItemStack::new, so per-stack wear was a clean add. The obtainability test (fixed point over vendor, kit and recipes) exists because a rule can silently lock recipes behind a tool nobody can get: it failed on purpose with forge_hammer_0, which has no source. Tests red on purpose first. Gardening rung 1 (yield from health, six unmapped plant model sets) was handed to a worktree agent in parallel."
   }
  ],
  "active_scopes_to_avoid": [

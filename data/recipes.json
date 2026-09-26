@@ -39,7 +39,8 @@
       "station": "Smelter",
       "skill": "Metalworking",
       "skill_level": 1,
-      "description": "Reduce iron ore into a pure iron ingot"
+      "description": "Reduce iron ore into a pure iron ingot",
+      "tools": []
     },
     {
       "id": "smelt_copper",
@@ -68,7 +69,8 @@
       "station": "Smelter",
       "skill": "Metalworking",
       "skill_level": 1,
-      "description": "Reduce copper ore into a pure copper ingot"
+      "description": "Reduce copper ore into a pure copper ingot",
+      "tools": []
     },
     {
       "id": "smelt_nickel",
@@ -97,7 +99,8 @@
       "station": "Smelter",
       "skill": "Metalworking",
       "skill_level": 2,
-      "description": "Reduce nickel ore into a nickel ingot"
+      "description": "Reduce nickel ore into a nickel ingot",
+      "tools": []
     },
     {
       "id": "smelt_platinum",
@@ -126,7 +129,8 @@
       "station": "Smelter",
       "skill": "Metalworking",
       "skill_level": 4,
-      "description": "Refine platinum-group ore into a platinum ingot"
+      "description": "Refine platinum-group ore into a platinum ingot",
+      "tools": []
     },
     {
       "id": "smelt_stainless",
@@ -160,7 +164,8 @@
       "station": "Smelter",
       "skill": "Metalworking",
       "skill_level": 3,
-      "description": "Alloy iron with nickel into corrosion-resistant stainless steel"
+      "description": "Alloy iron with nickel into corrosion-resistant stainless steel",
+      "tools": []
     },
     {
       "id": "smelt_steel",
@@ -189,7 +194,8 @@
       "station": "Smelter",
       "skill": "Metalworking",
       "skill_level": 2,
-      "description": "Alloy iron with carbon to form steel"
+      "description": "Alloy iron with carbon to form steel",
+      "tools": []
     },
     {
       "id": "smelt_aluminum",
@@ -218,7 +224,8 @@
       "station": "Smelter",
       "skill": "Metalworking",
       "skill_level": 3,
-      "description": "Electrolytic reduction of alumina ore"
+      "description": "Electrolytic reduction of alumina ore",
+      "tools": []
     },
     {
       "id": "smelt_titanium",
@@ -247,7 +254,8 @@
       "station": "Smelter",
       "skill": "Metalworking",
       "skill_level": 5,
-      "description": "High-temperature titanium extraction"
+      "description": "High-temperature titanium extraction",
+      "tools": []
     },
     {
       "id": "smelt_gold",
@@ -271,7 +279,8 @@
       "station": "Smelter",
       "skill": "Metalworking",
       "skill_level": 4,
-      "description": "Refine gold from raw ore"
+      "description": "Refine gold from raw ore",
+      "tools": []
     },
     {
       "id": "smelt_silver",
@@ -295,7 +304,8 @@
       "station": "Smelter",
       "skill": "Metalworking",
       "skill_level": 3,
-      "description": "Refine silver from raw ore"
+      "description": "Refine silver from raw ore",
+      "tools": []
     },
     {
       "id": "smelt_glass",
@@ -324,7 +334,8 @@
       "station": "Smelter",
       "skill": "Metalworking",
       "skill_level": 2,
-      "description": "Melt silica sand into clear glass"
+      "description": "Melt silica sand into clear glass",
+      "tools": []
     },
     {
       "id": "draw_glass_fiber",
@@ -353,7 +364,8 @@
       "station": "Smelter",
       "skill": "Metalworking",
       "skill_level": 3,
-      "description": "Remelt glass and draw it through a bushing into continuous fiber"
+      "description": "Remelt glass and draw it through a bushing into continuous fiber",
+      "tools": []
     },
     {
       "id": "fire_brick",
@@ -382,7 +394,8 @@
       "station": "Kiln",
       "skill": "Metalworking",
       "skill_level": 1,
-      "description": "Fire clay into durable bricks"
+      "description": "Fire clay into durable bricks",
+      "tools": []
     },
     {
       "id": "fire_porcelain",
@@ -416,7 +429,8 @@
       "station": "Kiln",
       "skill": "Metalworking",
       "skill_level": 3,
-      "description": "Fire fine porcelain ceramic"
+      "description": "Fire fine porcelain ceramic",
+      "tools": []
     },
     {
       "id": "saw_planks",
@@ -440,7 +454,8 @@
       "station": "Sawmill",
       "skill": "",
       "skill_level": 1,
-      "description": "Cut a log into flat lumber boards"
+      "description": "Cut a log into flat lumber boards",
+      "tools": []
     },
     {
       "id": "saw_planks_hand",
@@ -464,7 +479,8 @@
       "station": "",
       "skill": "Woodworking",
       "skill_level": 1,
-      "description": "Hand-saw a log into planks"
+      "description": "Hand-saw a log into planks",
+      "tools": []
     },
     {
       "id": "cut_stone",
@@ -488,7 +504,8 @@
       "station": "Workbench",
       "skill": "Woodworking",
       "skill_level": 1,
-      "description": "Shape raw stone into building blocks"
+      "description": "Shape raw stone into building blocks",
+      "tools": []
     },
     {
       "id": "refine_fuel",
@@ -512,7 +529,8 @@
       "station": "Fuel Refinery",
       "skill": "Engineering",
       "skill_level": 2,
-      "description": "Distill crude oil into refined fuel"
+      "description": "Distill crude oil into refined fuel",
+      "tools": []
     },
     {
       "id": "grind_flour",
@@ -536,7 +554,8 @@
       "station": "Grain Mill",
       "skill": "",
       "skill_level": 1,
-      "description": "Mill grain into baking flour"
+      "description": "Mill grain into baking flour",
+      "tools": []
     },
     {
       "id": "purify_water",
@@ -560,7 +579,8 @@
       "station": "Water Purifier",
       "skill": "",
       "skill_level": 1,
-      "description": "Filter and sterilize drinking water"
+      "description": "Filter and sterilize drinking water",
+      "tools": []
     },
     {
       "id": "make_charcoal",
@@ -584,7 +604,8 @@
       "station": "Kiln",
       "skill": "",
       "skill_level": 1,
-      "description": "Carbonize wood into charcoal"
+      "description": "Carbonize wood into charcoal",
+      "tools": []
     },
     {
       "id": "extract_fiber",
@@ -608,7 +629,8 @@
       "station": "",
       "skill": "Woodworking",
       "skill_level": 1,
-      "description": "Strip plant matter into raw fibers"
+      "description": "Strip plant matter into raw fibers",
+      "tools": []
     },
     {
       "id": "make_rope",
@@ -632,7 +654,8 @@
       "station": "",
       "skill": "Woodworking",
       "skill_level": 1,
-      "description": "Braid plant fibers into strong rope"
+      "description": "Braid plant fibers into strong rope",
+      "tools": []
     },
     {
       "id": "make_wire",
@@ -656,7 +679,8 @@
       "station": "Workbench",
       "skill": "Metalworking",
       "skill_level": 2,
-      "description": "Draw copper into insulated wire"
+      "description": "Draw copper into insulated wire",
+      "tools": []
     },
     {
       "id": "vulcanize_rubber",
@@ -685,7 +709,8 @@
       "station": "Forge",
       "skill": "Metalworking",
       "skill_level": 2,
-      "description": "Heat-treat rubber for durability"
+      "description": "Heat-treat rubber for durability",
+      "tools": []
     },
     {
       "id": "tan_leather",
@@ -714,7 +739,8 @@
       "station": "Workbench",
       "skill": "Woodworking",
       "skill_level": 2,
-      "description": "Cure raw hide into usable leather"
+      "description": "Cure raw hide into usable leather",
+      "tools": []
     },
     {
       "id": "make_cement",
@@ -748,7 +774,8 @@
       "station": "",
       "skill": "Shelter Building",
       "skill_level": 1,
-      "description": "Blend mineral powder for concrete"
+      "description": "Blend mineral powder for concrete",
+      "tools": []
     },
     {
       "id": "make_concrete",
@@ -782,7 +809,8 @@
       "station": "",
       "skill": "Shelter Building",
       "skill_level": 2,
-      "description": "Mix and cure concrete blocks"
+      "description": "Mix and cure concrete blocks",
+      "tools": []
     },
     {
       "id": "make_plastic",
@@ -806,7 +834,8 @@
       "station": "Fuel Refinery",
       "skill": "Engineering",
       "skill_level": 2,
-      "description": "Polymerize crude oil into HDPE sheet"
+      "description": "Polymerize crude oil into HDPE sheet",
+      "tools": []
     },
     {
       "id": "weave_cloth",
@@ -830,7 +859,8 @@
       "station": "Loom",
       "skill": "Tailoring",
       "skill_level": 1,
-      "description": "Weave raw fiber into cotton fabric"
+      "description": "Weave raw fiber into cotton fabric",
+      "tools": []
     },
     {
       "id": "spin_thread",
@@ -854,7 +884,8 @@
       "station": "",
       "skill": "Tailoring",
       "skill_level": 1,
-      "description": "Hand-spin fiber into thread and fabric"
+      "description": "Hand-spin fiber into thread and fabric",
+      "tools": []
     },
     {
       "id": "make_glue",
@@ -883,7 +914,8 @@
       "station": "Stove",
       "skill": "",
       "skill_level": 1,
-      "description": "Boil bones into adhesive glue"
+      "description": "Boil bones into adhesive glue",
+      "tools": []
     },
     {
       "id": "render_tallow",
@@ -907,7 +939,8 @@
       "station": "Stove",
       "skill": "Cooking",
       "skill_level": 1,
-      "description": "Slowly melt the fat out of mutton trimmings and strain it to set as tallow"
+      "description": "Slowly melt the fat out of mutton trimmings and strain it to set as tallow",
+      "tools": []
     },
     {
       "id": "mold_salt_block",
@@ -936,7 +969,8 @@
       "station": "Stove",
       "skill": "",
       "skill_level": 1,
-      "description": "Pack damp salt into a mold and dry it hard over low heat into a solid block"
+      "description": "Pack damp salt into a mold and dry it hard over low heat into a solid block",
+      "tools": []
     },
     {
       "id": "make_paint",
@@ -965,7 +999,8 @@
       "station": "Chemistry Set",
       "skill": "",
       "skill_level": 1,
-      "description": "Mix pigment with binder for paint"
+      "description": "Mix pigment with binder for paint",
+      "tools": []
     },
     {
       "id": "craft_hammer",
@@ -994,7 +1029,8 @@
       "station": "Workbench",
       "skill": "Metalworking",
       "skill_level": 1,
-      "description": "Forge a claw hammer"
+      "description": "Forge a claw hammer",
+      "tools": []
     },
     {
       "id": "craft_screwdriver_flat",
@@ -1023,7 +1059,8 @@
       "station": "Workbench",
       "skill": "Metalworking",
       "skill_level": 1,
-      "description": "Forge a slotted screwdriver"
+      "description": "Forge a slotted screwdriver",
+      "tools": []
     },
     {
       "id": "craft_screwdriver_phillips",
@@ -1052,7 +1089,8 @@
       "station": "Workbench",
       "skill": "Metalworking",
       "skill_level": 1,
-      "description": "Forge a cross-head screwdriver"
+      "description": "Forge a cross-head screwdriver",
+      "tools": []
     },
     {
       "id": "craft_wrench",
@@ -1076,7 +1114,13 @@
       "station": "Forge",
       "skill": "Metalworking",
       "skill_level": 2,
-      "description": "Forge an adjustable wrench"
+      "description": "Forge an adjustable wrench",
+      "tools": [
+        {
+          "id": "hammer_0",
+          "label": "Hammer"
+        }
+      ]
     },
     {
       "id": "craft_pliers",
@@ -1100,7 +1144,13 @@
       "station": "Forge",
       "skill": "Metalworking",
       "skill_level": 2,
-      "description": "Forge a pair of pliers"
+      "description": "Forge a pair of pliers",
+      "tools": [
+        {
+          "id": "hammer_0",
+          "label": "Hammer"
+        }
+      ]
     },
     {
       "id": "craft_saw_hand",
@@ -1129,7 +1179,13 @@
       "station": "Forge",
       "skill": "Metalworking",
       "skill_level": 2,
-      "description": "Forge and set a hand saw blade"
+      "description": "Forge and set a hand saw blade",
+      "tools": [
+        {
+          "id": "hammer_0",
+          "label": "Hammer"
+        }
+      ]
     },
     {
       "id": "craft_axe",
@@ -1158,7 +1214,13 @@
       "station": "Forge",
       "skill": "Metalworking",
       "skill_level": 2,
-      "description": "Forge an axe head and haft it"
+      "description": "Forge an axe head and haft it",
+      "tools": [
+        {
+          "id": "hammer_0",
+          "label": "Hammer"
+        }
+      ]
     },
     {
       "id": "craft_hatchet",
@@ -1187,7 +1249,13 @@
       "station": "Forge",
       "skill": "Metalworking",
       "skill_level": 1,
-      "description": "Forge a compact chopping hatchet"
+      "description": "Forge a compact chopping hatchet",
+      "tools": [
+        {
+          "id": "hammer_0",
+          "label": "Hammer"
+        }
+      ]
     },
     {
       "id": "craft_pickaxe",
@@ -1216,7 +1284,13 @@
       "station": "Forge",
       "skill": "Metalworking",
       "skill_level": 2,
-      "description": "Forge a pointed mining pick"
+      "description": "Forge a pointed mining pick",
+      "tools": [
+        {
+          "id": "hammer_0",
+          "label": "Hammer"
+        }
+      ]
     },
     {
       "id": "craft_shovel",
@@ -1245,7 +1319,13 @@
       "station": "Forge",
       "skill": "Metalworking",
       "skill_level": 1,
-      "description": "Forge a flat digging blade"
+      "description": "Forge a flat digging blade",
+      "tools": [
+        {
+          "id": "hammer_0",
+          "label": "Hammer"
+        }
+      ]
     },
     {
       "id": "craft_hoe",
@@ -1274,7 +1354,13 @@
       "station": "Forge",
       "skill": "Metalworking",
       "skill_level": 1,
-      "description": "Forge a soil cultivation hoe"
+      "description": "Forge a soil cultivation hoe",
+      "tools": [
+        {
+          "id": "hammer_0",
+          "label": "Hammer"
+        }
+      ]
     },
     {
       "id": "craft_chisel",
@@ -1298,7 +1384,13 @@
       "station": "Forge",
       "skill": "Metalworking",
       "skill_level": 2,
-      "description": "Forge a flat-edge chisel"
+      "description": "Forge a flat-edge chisel",
+      "tools": [
+        {
+          "id": "hammer_0",
+          "label": "Hammer"
+        }
+      ]
     },
     {
       "id": "craft_crowbar",
@@ -1322,7 +1414,13 @@
       "station": "Forge",
       "skill": "Metalworking",
       "skill_level": 2,
-      "description": "Forge a heavy prying bar"
+      "description": "Forge a heavy prying bar",
+      "tools": [
+        {
+          "id": "hammer_0",
+          "label": "Hammer"
+        }
+      ]
     },
     {
       "id": "craft_knife_utility",
@@ -1351,7 +1449,13 @@
       "station": "Forge",
       "skill": "Metalworking",
       "skill_level": 1,
-      "description": "Forge a folding knife"
+      "description": "Forge a folding knife",
+      "tools": [
+        {
+          "id": "hammer_0",
+          "label": "Hammer"
+        }
+      ]
     },
     {
       "id": "craft_trowel",
@@ -1380,7 +1484,13 @@
       "station": "Forge",
       "skill": "Metalworking",
       "skill_level": 1,
-      "description": "Forge a flat masonry trowel"
+      "description": "Forge a flat masonry trowel",
+      "tools": [
+        {
+          "id": "hammer_0",
+          "label": "Hammer"
+        }
+      ]
     },
     {
       "id": "craft_rake",
@@ -1409,7 +1519,13 @@
       "station": "Forge",
       "skill": "Metalworking",
       "skill_level": 1,
-      "description": "Forge tines and mount on handle"
+      "description": "Forge tines and mount on handle",
+      "tools": [
+        {
+          "id": "hammer_0",
+          "label": "Hammer"
+        }
+      ]
     },
     {
       "id": "craft_scythe",
@@ -1438,7 +1554,13 @@
       "station": "Forge",
       "skill": "Metalworking",
       "skill_level": 3,
-      "description": "Forge a curved harvesting blade"
+      "description": "Forge a curved harvesting blade",
+      "tools": [
+        {
+          "id": "hammer_0",
+          "label": "Hammer"
+        }
+      ]
     },
     {
       "id": "craft_anvil",
@@ -1462,7 +1584,13 @@
       "station": "Forge",
       "skill": "Metalworking",
       "skill_level": 4,
-      "description": "Forge a heavy work anvil"
+      "description": "Forge a heavy work anvil",
+      "tools": [
+        {
+          "id": "hammer_0",
+          "label": "Hammer"
+        }
+      ]
     },
     {
       "id": "craft_vise",
@@ -1491,7 +1619,13 @@
       "station": "Forge",
       "skill": "Metalworking",
       "skill_level": 3,
-      "description": "Assemble a bench clamping vise"
+      "description": "Assemble a bench clamping vise",
+      "tools": [
+        {
+          "id": "hammer_0",
+          "label": "Hammer"
+        }
+      ]
     },
     {
       "id": "craft_clamp",
@@ -1520,7 +1654,8 @@
       "station": "Workbench",
       "skill": "Metalworking",
       "skill_level": 1,
-      "description": "Forge adjustable workpiece clamps"
+      "description": "Forge adjustable workpiece clamps",
+      "tools": []
     },
     {
       "id": "craft_file",
@@ -1544,7 +1679,13 @@
       "station": "Forge",
       "skill": "Metalworking",
       "skill_level": 2,
-      "description": "Cut abrasive grooves into a steel bar"
+      "description": "Cut abrasive grooves into a steel bar",
+      "tools": [
+        {
+          "id": "hammer_0",
+          "label": "Hammer"
+        }
+      ]
     },
     {
       "id": "craft_bolt_cutter",
@@ -1573,7 +1714,13 @@
       "station": "Forge",
       "skill": "Metalworking",
       "skill_level": 3,
-      "description": "Forge heavy shearing jaws"
+      "description": "Forge heavy shearing jaws",
+      "tools": [
+        {
+          "id": "hammer_0",
+          "label": "Hammer"
+        }
+      ]
     },
     {
       "id": "craft_pipe_wrench",
@@ -1597,7 +1744,13 @@
       "station": "Forge",
       "skill": "Metalworking",
       "skill_level": 2,
-      "description": "Forge a serrated-jaw wrench"
+      "description": "Forge a serrated-jaw wrench",
+      "tools": [
+        {
+          "id": "hammer_0",
+          "label": "Hammer"
+        }
+      ]
     },
     {
       "id": "craft_pruning_shears",
@@ -1621,7 +1774,13 @@
       "station": "Forge",
       "skill": "Metalworking",
       "skill_level": 2,
-      "description": "Forge spring-loaded branch cutters"
+      "description": "Forge spring-loaded branch cutters",
+      "tools": [
+        {
+          "id": "hammer_0",
+          "label": "Hammer"
+        }
+      ]
     },
     {
       "id": "craft_knife_combat",
@@ -1650,7 +1809,13 @@
       "station": "Forge",
       "skill": "Metalworking",
       "skill_level": 2,
-      "description": "Forge a fixed-blade fighting knife"
+      "description": "Forge a fixed-blade fighting knife",
+      "tools": [
+        {
+          "id": "hammer_0",
+          "label": "Hammer"
+        }
+      ]
     },
     {
       "id": "craft_sword",
@@ -1679,7 +1844,13 @@
       "station": "Forge",
       "skill": "Metalworking",
       "skill_level": 4,
-      "description": "Forge and temper a steel sword"
+      "description": "Forge and temper a steel sword",
+      "tools": [
+        {
+          "id": "hammer_0",
+          "label": "Hammer"
+        }
+      ]
     },
     {
       "id": "craft_spear",
@@ -1708,7 +1879,13 @@
       "station": "Forge",
       "skill": "Metalworking",
       "skill_level": 2,
-      "description": "Forge a spearhead and mount on shaft"
+      "description": "Forge a spearhead and mount on shaft",
+      "tools": [
+        {
+          "id": "hammer_0",
+          "label": "Hammer"
+        }
+      ]
     },
     {
       "id": "craft_mace",
@@ -1737,7 +1914,13 @@
       "station": "Forge",
       "skill": "Metalworking",
       "skill_level": 3,
-      "description": "Forge a flanged striking head"
+      "description": "Forge a flanged striking head",
+      "tools": [
+        {
+          "id": "hammer_0",
+          "label": "Hammer"
+        }
+      ]
     },
     {
       "id": "craft_bow_recurve",
@@ -1766,7 +1949,13 @@
       "station": "Workbench",
       "skill": "Woodworking",
       "skill_level": 2,
-      "description": "Laminate and string a curved bow"
+      "description": "Laminate and string a curved bow",
+      "tools": [
+        {
+          "id": "knife_utility_0",
+          "label": "Knife Utility"
+        }
+      ]
     },
     {
       "id": "craft_bow_compound",
@@ -1800,7 +1989,8 @@
       "station": "Workbench",
       "skill": "Woodworking",
       "skill_level": 4,
-      "description": "Assemble a cam-levered bow"
+      "description": "Assemble a cam-levered bow",
+      "tools": []
     },
     {
       "id": "craft_crossbow",
@@ -1834,7 +2024,8 @@
       "station": "Workbench",
       "skill": "Woodworking",
       "skill_level": 3,
-      "description": "Assemble a trigger-release crossbow"
+      "description": "Assemble a trigger-release crossbow",
+      "tools": []
     },
     {
       "id": "craft_sling",
@@ -1863,7 +2054,8 @@
       "station": "",
       "skill": "Woodworking",
       "skill_level": 1,
-      "description": "Cut and tie a leather sling pouch"
+      "description": "Cut and tie a leather sling pouch",
+      "tools": []
     },
     {
       "id": "craft_staff",
@@ -1887,7 +2079,8 @@
       "station": "",
       "skill": "Woodworking",
       "skill_level": 1,
-      "description": "Carve and smooth a hardwood staff"
+      "description": "Carve and smooth a hardwood staff",
+      "tools": []
     },
     {
       "id": "craft_shield_round",
@@ -1916,7 +2109,13 @@
       "station": "Forge",
       "skill": "Metalworking",
       "skill_level": 3,
-      "description": "Hammer and rivet a circular shield"
+      "description": "Hammer and rivet a circular shield",
+      "tools": [
+        {
+          "id": "hammer_0",
+          "label": "Hammer"
+        }
+      ]
     },
     {
       "id": "craft_shield_tower",
@@ -1945,7 +2144,13 @@
       "station": "Forge",
       "skill": "Metalworking",
       "skill_level": 4,
-      "description": "Construct a full-body standing shield"
+      "description": "Construct a full-body standing shield",
+      "tools": [
+        {
+          "id": "hammer_0",
+          "label": "Hammer"
+        }
+      ]
     },
     {
       "id": "craft_arrow",
@@ -1974,7 +2179,13 @@
       "station": "Workbench",
       "skill": "Woodworking",
       "skill_level": 1,
-      "description": "Whittle shafts and forge broadheads"
+      "description": "Whittle shafts and forge broadheads",
+      "tools": [
+        {
+          "id": "knife_utility_0",
+          "label": "Knife Utility"
+        }
+      ]
     },
     {
       "id": "craft_bolt_crossbow",
@@ -2003,7 +2214,8 @@
       "station": "Workbench",
       "skill": "Woodworking",
       "skill_level": 2,
-      "description": "Forge short heavy bolts"
+      "description": "Forge short heavy bolts",
+      "tools": []
     },
     {
       "id": "craft_quiver",
@@ -2027,7 +2239,13 @@
       "station": "Workbench",
       "skill": "Woodworking",
       "skill_level": 1,
-      "description": "Stitch a back-mounted arrow holder"
+      "description": "Stitch a back-mounted arrow holder",
+      "tools": [
+        {
+          "id": "knife_utility_0",
+          "label": "Knife Utility"
+        }
+      ]
     },
     {
       "id": "craft_holster",
@@ -2051,7 +2269,13 @@
       "station": "Workbench",
       "skill": "Woodworking",
       "skill_level": 2,
-      "description": "Stitch a belt-mounted holster"
+      "description": "Stitch a belt-mounted holster",
+      "tools": [
+        {
+          "id": "knife_utility_0",
+          "label": "Knife Utility"
+        }
+      ]
     },
     {
       "id": "craft_ammo_pouch",
@@ -2080,7 +2304,8 @@
       "station": "Workbench",
       "skill": "Woodworking",
       "skill_level": 1,
-      "description": "Sew a belt cartridge carrier"
+      "description": "Sew a belt cartridge carrier",
+      "tools": []
     },
     {
       "id": "build_chair",
@@ -2109,7 +2334,17 @@
       "station": "Workbench",
       "skill": "Shelter Building",
       "skill_level": 1,
-      "description": "Assemble a four-leg wooden chair"
+      "description": "Assemble a four-leg wooden chair",
+      "tools": [
+        {
+          "id": "hammer_0",
+          "label": "Hammer"
+        },
+        {
+          "id": "saw_hand_0",
+          "label": "Saw Hand"
+        }
+      ]
     },
     {
       "id": "build_table_dining",
@@ -2138,7 +2373,17 @@
       "station": "Workbench",
       "skill": "Shelter Building",
       "skill_level": 2,
-      "description": "Assemble a six-seat table"
+      "description": "Assemble a six-seat table",
+      "tools": [
+        {
+          "id": "hammer_0",
+          "label": "Hammer"
+        },
+        {
+          "id": "saw_hand_0",
+          "label": "Saw Hand"
+        }
+      ]
     },
     {
       "id": "build_table_work",
@@ -2172,7 +2417,17 @@
       "station": "Workbench",
       "skill": "Shelter Building",
       "skill_level": 2,
-      "description": "Assemble a reinforced work table"
+      "description": "Assemble a reinforced work table",
+      "tools": [
+        {
+          "id": "hammer_0",
+          "label": "Hammer"
+        },
+        {
+          "id": "saw_hand_0",
+          "label": "Saw Hand"
+        }
+      ]
     },
     {
       "id": "build_desk",
@@ -2201,7 +2456,17 @@
       "station": "Workbench",
       "skill": "Shelter Building",
       "skill_level": 2,
-      "description": "Assemble a writing desk"
+      "description": "Assemble a writing desk",
+      "tools": [
+        {
+          "id": "hammer_0",
+          "label": "Hammer"
+        },
+        {
+          "id": "saw_hand_0",
+          "label": "Saw Hand"
+        }
+      ]
     },
     {
       "id": "build_bed_single",
@@ -2235,7 +2500,17 @@
       "station": "Workbench",
       "skill": "Shelter Building",
       "skill_level": 2,
-      "description": "Assemble a single sleeping frame"
+      "description": "Assemble a single sleeping frame",
+      "tools": [
+        {
+          "id": "hammer_0",
+          "label": "Hammer"
+        },
+        {
+          "id": "saw_hand_0",
+          "label": "Saw Hand"
+        }
+      ]
     },
     {
       "id": "build_bed_double",
@@ -2269,7 +2544,17 @@
       "station": "Workbench",
       "skill": "Shelter Building",
       "skill_level": 3,
-      "description": "Assemble a double sleeping frame"
+      "description": "Assemble a double sleeping frame",
+      "tools": [
+        {
+          "id": "hammer_0",
+          "label": "Hammer"
+        },
+        {
+          "id": "saw_hand_0",
+          "label": "Saw Hand"
+        }
+      ]
     },
     {
       "id": "build_bunk_bed",
@@ -2303,7 +2588,17 @@
       "station": "Workbench",
       "skill": "Shelter Building",
       "skill_level": 3,
-      "description": "Assemble a stacked two-tier bed"
+      "description": "Assemble a stacked two-tier bed",
+      "tools": [
+        {
+          "id": "hammer_0",
+          "label": "Hammer"
+        },
+        {
+          "id": "saw_hand_0",
+          "label": "Saw Hand"
+        }
+      ]
     },
     {
       "id": "build_shelf",
@@ -2332,7 +2627,17 @@
       "station": "Workbench",
       "skill": "Shelter Building",
       "skill_level": 1,
-      "description": "Mount a wall shelf with brackets"
+      "description": "Mount a wall shelf with brackets",
+      "tools": [
+        {
+          "id": "hammer_0",
+          "label": "Hammer"
+        },
+        {
+          "id": "saw_hand_0",
+          "label": "Saw Hand"
+        }
+      ]
     },
     {
       "id": "build_bookcase",
@@ -2361,7 +2666,17 @@
       "station": "Workbench",
       "skill": "Shelter Building",
       "skill_level": 2,
-      "description": "Assemble a multi-shelf bookcase"
+      "description": "Assemble a multi-shelf bookcase",
+      "tools": [
+        {
+          "id": "hammer_0",
+          "label": "Hammer"
+        },
+        {
+          "id": "saw_hand_0",
+          "label": "Saw Hand"
+        }
+      ]
     },
     {
       "id": "build_cabinet",
@@ -2390,7 +2705,17 @@
       "station": "Workbench",
       "skill": "Shelter Building",
       "skill_level": 2,
-      "description": "Assemble an enclosed shelf cabinet"
+      "description": "Assemble an enclosed shelf cabinet",
+      "tools": [
+        {
+          "id": "hammer_0",
+          "label": "Hammer"
+        },
+        {
+          "id": "saw_hand_0",
+          "label": "Saw Hand"
+        }
+      ]
     },
     {
       "id": "build_wardrobe",
@@ -2419,7 +2744,17 @@
       "station": "Workbench",
       "skill": "Shelter Building",
       "skill_level": 3,
-      "description": "Assemble a full-height wardrobe"
+      "description": "Assemble a full-height wardrobe",
+      "tools": [
+        {
+          "id": "hammer_0",
+          "label": "Hammer"
+        },
+        {
+          "id": "saw_hand_0",
+          "label": "Saw Hand"
+        }
+      ]
     },
     {
       "id": "build_dresser",
@@ -2448,7 +2783,17 @@
       "station": "Workbench",
       "skill": "Shelter Building",
       "skill_level": 2,
-      "description": "Assemble a multi-drawer dresser"
+      "description": "Assemble a multi-drawer dresser",
+      "tools": [
+        {
+          "id": "hammer_0",
+          "label": "Hammer"
+        },
+        {
+          "id": "saw_hand_0",
+          "label": "Saw Hand"
+        }
+      ]
     },
     {
       "id": "build_nightstand",
@@ -2477,7 +2822,17 @@
       "station": "Workbench",
       "skill": "Shelter Building",
       "skill_level": 1,
-      "description": "Assemble a bedside table"
+      "description": "Assemble a bedside table",
+      "tools": [
+        {
+          "id": "hammer_0",
+          "label": "Hammer"
+        },
+        {
+          "id": "saw_hand_0",
+          "label": "Saw Hand"
+        }
+      ]
     },
     {
       "id": "build_couch",
@@ -2511,7 +2866,17 @@
       "station": "Workbench",
       "skill": "Shelter Building",
       "skill_level": 3,
-      "description": "Upholster a three-seat sofa frame"
+      "description": "Upholster a three-seat sofa frame",
+      "tools": [
+        {
+          "id": "hammer_0",
+          "label": "Hammer"
+        },
+        {
+          "id": "saw_hand_0",
+          "label": "Saw Hand"
+        }
+      ]
     },
     {
       "id": "build_bench",
@@ -2540,7 +2905,17 @@
       "station": "Workbench",
       "skill": "Shelter Building",
       "skill_level": 1,
-      "description": "Assemble a backless long seat"
+      "description": "Assemble a backless long seat",
+      "tools": [
+        {
+          "id": "hammer_0",
+          "label": "Hammer"
+        },
+        {
+          "id": "saw_hand_0",
+          "label": "Saw Hand"
+        }
+      ]
     },
     {
       "id": "build_stool",
@@ -2569,7 +2944,17 @@
       "station": "Workbench",
       "skill": "Shelter Building",
       "skill_level": 1,
-      "description": "Assemble a simple round stool"
+      "description": "Assemble a simple round stool",
+      "tools": [
+        {
+          "id": "hammer_0",
+          "label": "Hammer"
+        },
+        {
+          "id": "saw_hand_0",
+          "label": "Saw Hand"
+        }
+      ]
     },
     {
       "id": "build_door",
@@ -2598,7 +2983,17 @@
       "station": "Workbench",
       "skill": "Shelter Building",
       "skill_level": 1,
-      "description": "Assemble a hinged wood door"
+      "description": "Assemble a hinged wood door",
+      "tools": [
+        {
+          "id": "hammer_0",
+          "label": "Hammer"
+        },
+        {
+          "id": "saw_hand_0",
+          "label": "Saw Hand"
+        }
+      ]
     },
     {
       "id": "build_window",
@@ -2627,7 +3022,17 @@
       "station": "Workbench",
       "skill": "Shelter Building",
       "skill_level": 2,
-      "description": "Frame glass into a window"
+      "description": "Frame glass into a window",
+      "tools": [
+        {
+          "id": "hammer_0",
+          "label": "Hammer"
+        },
+        {
+          "id": "saw_hand_0",
+          "label": "Saw Hand"
+        }
+      ]
     },
     {
       "id": "build_hammock",
@@ -2656,7 +3061,8 @@
       "station": "",
       "skill": "Shelter Building",
       "skill_level": 1,
-      "description": "Sew and tie a fabric hammock"
+      "description": "Sew and tie a fabric hammock",
+      "tools": []
     },
     {
       "id": "build_rug",
@@ -2680,7 +3086,8 @@
       "station": "Loom",
       "skill": "Tailoring",
       "skill_level": 2,
-      "description": "Weave a decorative floor covering"
+      "description": "Weave a decorative floor covering",
+      "tools": []
     },
     {
       "id": "build_curtain",
@@ -2704,7 +3111,8 @@
       "station": "Sewing Machine",
       "skill": "Tailoring",
       "skill_level": 1,
-      "description": "Stitch window covering drapes"
+      "description": "Stitch window covering drapes",
+      "tools": []
     },
     {
       "id": "build_chest",
@@ -2733,7 +3141,17 @@
       "station": "Workbench",
       "skill": "Shelter Building",
       "skill_level": 2,
-      "description": "Assemble a lidded storage chest"
+      "description": "Assemble a lidded storage chest",
+      "tools": [
+        {
+          "id": "hammer_0",
+          "label": "Hammer"
+        },
+        {
+          "id": "saw_hand_0",
+          "label": "Saw Hand"
+        }
+      ]
     },
     {
       "id": "build_crate",
@@ -2762,7 +3180,17 @@
       "station": "Workbench",
       "skill": "Shelter Building",
       "skill_level": 1,
-      "description": "Nail together a shipping crate"
+      "description": "Nail together a shipping crate",
+      "tools": [
+        {
+          "id": "hammer_0",
+          "label": "Hammer"
+        },
+        {
+          "id": "saw_hand_0",
+          "label": "Saw Hand"
+        }
+      ]
     },
     {
       "id": "build_barrel",
@@ -2791,7 +3219,17 @@
       "station": "Workbench",
       "skill": "Shelter Building",
       "skill_level": 2,
-      "description": "Cooperage of a staved barrel"
+      "description": "Cooperage of a staved barrel",
+      "tools": [
+        {
+          "id": "hammer_0",
+          "label": "Hammer"
+        },
+        {
+          "id": "saw_hand_0",
+          "label": "Saw Hand"
+        }
+      ]
     },
     {
       "id": "build_picture_frame",
@@ -2820,7 +3258,17 @@
       "station": "Workbench",
       "skill": "Shelter Building",
       "skill_level": 1,
-      "description": "Assemble a simple picture frame"
+      "description": "Assemble a simple picture frame",
+      "tools": [
+        {
+          "id": "hammer_0",
+          "label": "Hammer"
+        },
+        {
+          "id": "saw_hand_0",
+          "label": "Saw Hand"
+        }
+      ]
     },
     {
       "id": "cook_bread",
@@ -2854,7 +3302,8 @@
       "station": "Oven",
       "skill": "Cooking",
       "skill_level": 1,
-      "description": "Knead and bake wheat bread loaves"
+      "description": "Knead and bake wheat bread loaves",
+      "tools": []
     },
     {
       "id": "cook_jerky",
@@ -2888,7 +3337,13 @@
       "station": "Stove",
       "skill": "Cooking",
       "skill_level": 1,
-      "description": "Season and dry cure meat strips"
+      "description": "Season and dry cure meat strips",
+      "tools": [
+        {
+          "id": "knife_utility_0",
+          "label": "Knife Utility"
+        }
+      ]
     },
     {
       "id": "cook_canned_food",
@@ -2922,7 +3377,13 @@
       "station": "Stove",
       "skill": "Cooking",
       "skill_level": 2,
-      "description": "Pressure-seal preserved meals"
+      "description": "Pressure-seal preserved meals",
+      "tools": [
+        {
+          "id": "knife_utility_0",
+          "label": "Knife Utility"
+        }
+      ]
     },
     {
       "id": "cook_mre",
@@ -2956,7 +3417,8 @@
       "station": "",
       "skill": "Cooking",
       "skill_level": 2,
-      "description": "Vacuum-pack field rations"
+      "description": "Vacuum-pack field rations",
+      "tools": []
     },
     {
       "id": "cook_protein_bar",
@@ -2990,7 +3452,8 @@
       "station": "Oven",
       "skill": "Cooking",
       "skill_level": 1,
-      "description": "Bake high-protein nutrition bars"
+      "description": "Bake high-protein nutrition bars",
+      "tools": []
     },
     {
       "id": "cook_soup",
@@ -3029,7 +3492,13 @@
       "station": "Stove",
       "skill": "Cooking",
       "skill_level": 1,
-      "description": "Simmer a hearty vegetable soup"
+      "description": "Simmer a hearty vegetable soup",
+      "tools": [
+        {
+          "id": "knife_utility_0",
+          "label": "Knife Utility"
+        }
+      ]
     },
     {
       "id": "cook_stew",
@@ -3068,7 +3537,13 @@
       "station": "Stove",
       "skill": "Cooking",
       "skill_level": 2,
-      "description": "Slow-cook a thick meat stew"
+      "description": "Slow-cook a thick meat stew",
+      "tools": [
+        {
+          "id": "knife_utility_0",
+          "label": "Knife Utility"
+        }
+      ]
     },
     {
       "id": "cook_fried_egg",
@@ -3097,7 +3572,8 @@
       "station": "Stove",
       "skill": "",
       "skill_level": 1,
-      "description": "Fry eggs for a quick meal"
+      "description": "Fry eggs for a quick meal",
+      "tools": []
     },
     {
       "id": "cook_pancake",
@@ -3131,7 +3607,8 @@
       "station": "Stove",
       "skill": "Cooking",
       "skill_level": 1,
-      "description": "Mix batter and griddle pancakes"
+      "description": "Mix batter and griddle pancakes",
+      "tools": []
     },
     {
       "id": "cook_cheese",
@@ -3160,7 +3637,8 @@
       "station": "Stove",
       "skill": "Cooking",
       "skill_level": 3,
-      "description": "Culture and press milk into cheese"
+      "description": "Culture and press milk into cheese",
+      "tools": []
     },
     {
       "id": "cook_butter",
@@ -3184,7 +3662,8 @@
       "station": "",
       "skill": "Cooking",
       "skill_level": 1,
-      "description": "Agitate cream into solid butter"
+      "description": "Agitate cream into solid butter",
+      "tools": []
     },
     {
       "id": "cook_dried_fruit",
@@ -3213,7 +3692,13 @@
       "station": "Oven",
       "skill": "",
       "skill_level": 1,
-      "description": "Dehydrate fruit for preservation"
+      "description": "Dehydrate fruit for preservation",
+      "tools": [
+        {
+          "id": "knife_utility_0",
+          "label": "Knife Utility"
+        }
+      ]
     },
     {
       "id": "cook_dried_meat",
@@ -3242,7 +3727,8 @@
       "station": "Stove",
       "skill": "Cooking",
       "skill_level": 1,
-      "description": "Salt and air-dry meat strips"
+      "description": "Salt and air-dry meat strips",
+      "tools": []
     },
     {
       "id": "cook_juice",
@@ -3266,7 +3752,8 @@
       "station": "",
       "skill": "Cooking",
       "skill_level": 1,
-      "description": "Squeeze fresh fruit into juice"
+      "description": "Squeeze fresh fruit into juice",
+      "tools": []
     },
     {
       "id": "cook_coffee",
@@ -3295,7 +3782,8 @@
       "station": "Stove",
       "skill": "",
       "skill_level": 1,
-      "description": "Brew hot coffee from roasted beans"
+      "description": "Brew hot coffee from roasted beans",
+      "tools": []
     },
     {
       "id": "cook_sugar",
@@ -3319,7 +3807,8 @@
       "station": "Stove",
       "skill": "Cooking",
       "skill_level": 2,
-      "description": "Extract and crystallize plant sugar"
+      "description": "Extract and crystallize plant sugar",
+      "tools": []
     },
     {
       "id": "cook_oil",
@@ -3343,7 +3832,8 @@
       "station": "",
       "skill": "Cooking",
       "skill_level": 2,
-      "description": "Cold-press seeds into cooking oil"
+      "description": "Cold-press seeds into cooking oil",
+      "tools": []
     },
     {
       "id": "cook_honey",
@@ -3367,7 +3857,8 @@
       "station": "",
       "skill": "Farming",
       "skill_level": 2,
-      "description": "Collect and filter raw honey"
+      "description": "Collect and filter raw honey",
+      "tools": []
     },
     {
       "id": "cook_spice",
@@ -3396,7 +3887,8 @@
       "station": "",
       "skill": "Cooking",
       "skill_level": 1,
-      "description": "Grind and mix seasoning blend"
+      "description": "Grind and mix seasoning blend",
+      "tools": []
     },
     {
       "id": "sew_tshirt",
@@ -3420,7 +3912,8 @@
       "station": "Sewing Machine",
       "skill": "Tailoring",
       "skill_level": 1,
-      "description": "Cut and stitch a cotton t-shirt"
+      "description": "Cut and stitch a cotton t-shirt",
+      "tools": []
     },
     {
       "id": "sew_long_sleeve",
@@ -3444,7 +3937,8 @@
       "station": "Sewing Machine",
       "skill": "Tailoring",
       "skill_level": 1,
-      "description": "Cut and stitch a long-sleeve shirt"
+      "description": "Cut and stitch a long-sleeve shirt",
+      "tools": []
     },
     {
       "id": "sew_hoodie",
@@ -3473,7 +3967,8 @@
       "station": "Sewing Machine",
       "skill": "Tailoring",
       "skill_level": 2,
-      "description": "Construct a hooded sweatshirt"
+      "description": "Construct a hooded sweatshirt",
+      "tools": []
     },
     {
       "id": "sew_pants",
@@ -3497,7 +3992,8 @@
       "station": "Sewing Machine",
       "skill": "Tailoring",
       "skill_level": 1,
-      "description": "Cut and stitch full-length trousers"
+      "description": "Cut and stitch full-length trousers",
+      "tools": []
     },
     {
       "id": "sew_shorts",
@@ -3521,7 +4017,8 @@
       "station": "Sewing Machine",
       "skill": "Tailoring",
       "skill_level": 1,
-      "description": "Cut and stitch knee-length shorts"
+      "description": "Cut and stitch knee-length shorts",
+      "tools": []
     },
     {
       "id": "sew_dress",
@@ -3545,7 +4042,8 @@
       "station": "Sewing Machine",
       "skill": "Tailoring",
       "skill_level": 2,
-      "description": "Pattern and stitch a one-piece dress"
+      "description": "Pattern and stitch a one-piece dress",
+      "tools": []
     },
     {
       "id": "sew_overalls",
@@ -3574,7 +4072,8 @@
       "station": "Sewing Machine",
       "skill": "Tailoring",
       "skill_level": 2,
-      "description": "Construct bib-and-brace overalls"
+      "description": "Construct bib-and-brace overalls",
+      "tools": []
     },
     {
       "id": "sew_underwear",
@@ -3598,7 +4097,8 @@
       "station": "Sewing Machine",
       "skill": "Tailoring",
       "skill_level": 1,
-      "description": "Cut and stitch basic undergarments"
+      "description": "Cut and stitch basic undergarments",
+      "tools": []
     },
     {
       "id": "sew_socks",
@@ -3622,7 +4122,8 @@
       "station": "Sewing Machine",
       "skill": "Tailoring",
       "skill_level": 1,
-      "description": "Knit ankle-height foot coverings"
+      "description": "Knit ankle-height foot coverings",
+      "tools": []
     },
     {
       "id": "sew_backpack_small",
@@ -3651,7 +4152,8 @@
       "station": "Sewing Machine",
       "skill": "Tailoring",
       "skill_level": 2,
-      "description": "Construct a 20L day rucksack"
+      "description": "Construct a 20L day rucksack",
+      "tools": []
     },
     {
       "id": "sew_backpack_large",
@@ -3685,7 +4187,8 @@
       "station": "Sewing Machine",
       "skill": "Tailoring",
       "skill_level": 3,
-      "description": "Construct a 60L expedition rucksack"
+      "description": "Construct a 60L expedition rucksack",
+      "tools": []
     },
     {
       "id": "sew_apron",
@@ -3709,7 +4212,8 @@
       "station": "Sewing Machine",
       "skill": "Tailoring",
       "skill_level": 1,
-      "description": "Stitch a front-body work apron"
+      "description": "Stitch a front-body work apron",
+      "tools": []
     },
     {
       "id": "sew_scarf",
@@ -3733,7 +4237,8 @@
       "station": "Sewing Machine",
       "skill": "Tailoring",
       "skill_level": 1,
-      "description": "Cut and hem a neck wrap"
+      "description": "Cut and hem a neck wrap",
+      "tools": []
     },
     {
       "id": "sew_vest",
@@ -3757,7 +4262,8 @@
       "station": "Sewing Machine",
       "skill": "Tailoring",
       "skill_level": 1,
-      "description": "Cut and stitch a sleeveless top"
+      "description": "Cut and stitch a sleeveless top",
+      "tools": []
     },
     {
       "id": "sew_skirt",
@@ -3781,7 +4287,8 @@
       "station": "Sewing Machine",
       "skill": "Tailoring",
       "skill_level": 1,
-      "description": "Pattern and stitch a simple skirt"
+      "description": "Pattern and stitch a simple skirt",
+      "tools": []
     },
     {
       "id": "sew_jumpsuit",
@@ -3805,7 +4312,8 @@
       "station": "Sewing Machine",
       "skill": "Tailoring",
       "skill_level": 2,
-      "description": "Construct a one-piece utility suit"
+      "description": "Construct a one-piece utility suit",
+      "tools": []
     },
     {
       "id": "sew_coveralls",
@@ -3829,7 +4337,8 @@
       "station": "Sewing Machine",
       "skill": "Tailoring",
       "skill_level": 2,
-      "description": "Stitch full-body mechanic coveralls"
+      "description": "Stitch full-body mechanic coveralls",
+      "tools": []
     },
     {
       "id": "sew_poncho",
@@ -3858,7 +4367,8 @@
       "station": "Sewing Machine",
       "skill": "Tailoring",
       "skill_level": 1,
-      "description": "Waterproof a sleeveless rain cover"
+      "description": "Waterproof a sleeveless rain cover",
+      "tools": []
     },
     {
       "id": "sew_hat_beanie",
@@ -3882,7 +4392,8 @@
       "station": "Sewing Machine",
       "skill": "Tailoring",
       "skill_level": 1,
-      "description": "Knit a cold-weather cap"
+      "description": "Knit a cold-weather cap",
+      "tools": []
     },
     {
       "id": "sew_gloves_work",
@@ -3906,7 +4417,8 @@
       "station": "Sewing Machine",
       "skill": "Tailoring",
       "skill_level": 2,
-      "description": "Cut and stitch reinforced gloves"
+      "description": "Cut and stitch reinforced gloves",
+      "tools": []
     },
     {
       "id": "sew_gloves_winter",
@@ -3935,7 +4447,8 @@
       "station": "Sewing Machine",
       "skill": "Tailoring",
       "skill_level": 2,
-      "description": "Insulate and stitch warm gloves"
+      "description": "Insulate and stitch warm gloves",
+      "tools": []
     },
     {
       "id": "sew_belt",
@@ -3959,7 +4472,8 @@
       "station": "Workbench",
       "skill": "Tailoring",
       "skill_level": 1,
-      "description": "Cut and buckle a leather belt"
+      "description": "Cut and buckle a leather belt",
+      "tools": []
     },
     {
       "id": "craft_boots_work",
@@ -3993,7 +4507,8 @@
       "station": "Workbench",
       "skill": "Tailoring",
       "skill_level": 3,
-      "description": "Cobble steel-toe protective boots"
+      "description": "Cobble steel-toe protective boots",
+      "tools": []
     },
     {
       "id": "craft_boots_hiking",
@@ -4022,7 +4537,8 @@
       "station": "Workbench",
       "skill": "Tailoring",
       "skill_level": 2,
-      "description": "Cobble ankle-support trail boots"
+      "description": "Cobble ankle-support trail boots",
+      "tools": []
     },
     {
       "id": "craft_shoes",
@@ -4051,7 +4567,8 @@
       "station": "Workbench",
       "skill": "Tailoring",
       "skill_level": 2,
-      "description": "Cobble everyday walking shoes"
+      "description": "Cobble everyday walking shoes",
+      "tools": []
     },
     {
       "id": "craft_sandals",
@@ -4080,7 +4597,8 @@
       "station": "",
       "skill": "Tailoring",
       "skill_level": 1,
-      "description": "Shape rubber sole open-toe footwear"
+      "description": "Shape rubber sole open-toe footwear",
+      "tools": []
     },
     {
       "id": "sew_raincoat",
@@ -4109,7 +4627,8 @@
       "station": "Sewing Machine",
       "skill": "Tailoring",
       "skill_level": 2,
-      "description": "Laminate waterproof full-length coat"
+      "description": "Laminate waterproof full-length coat",
+      "tools": []
     },
     {
       "id": "sew_wetsuit",
@@ -4138,7 +4657,8 @@
       "station": "Sewing Machine",
       "skill": "Tailoring",
       "skill_level": 3,
-      "description": "Construct a neoprene thermal suit"
+      "description": "Construct a neoprene thermal suit",
+      "tools": []
     },
     {
       "id": "craft_helmet_hard",
@@ -4162,7 +4682,8 @@
       "station": "Workbench",
       "skill": "Woodworking",
       "skill_level": 2,
-      "description": "Thermoform an impact safety helmet"
+      "description": "Thermoform an impact safety helmet",
+      "tools": []
     },
     {
       "id": "craft_goggles",
@@ -4191,7 +4712,8 @@
       "station": "Workbench",
       "skill": "Woodworking",
       "skill_level": 1,
-      "description": "Mold splash-proof eye guards"
+      "description": "Mold splash-proof eye guards",
+      "tools": []
     },
     {
       "id": "craft_hat_baseball",
@@ -4215,7 +4737,8 @@
       "station": "Sewing Machine",
       "skill": "Tailoring",
       "skill_level": 1,
-      "description": "Stitch a brimmed casual cap"
+      "description": "Stitch a brimmed casual cap",
+      "tools": []
     },
     {
       "id": "craft_nails",
@@ -4239,7 +4762,13 @@
       "station": "Forge",
       "skill": "Metalworking",
       "skill_level": 1,
-      "description": "Cut and point a box of wire nails"
+      "description": "Cut and point a box of wire nails",
+      "tools": [
+        {
+          "id": "hammer_0",
+          "label": "Hammer"
+        }
+      ]
     },
     {
       "id": "craft_screws",
@@ -4263,7 +4792,13 @@
       "station": "Forge",
       "skill": "Metalworking",
       "skill_level": 2,
-      "description": "Thread and slot steel screws"
+      "description": "Thread and slot steel screws",
+      "tools": [
+        {
+          "id": "hammer_0",
+          "label": "Hammer"
+        }
+      ]
     },
     {
       "id": "craft_bolts",
@@ -4287,7 +4822,13 @@
       "station": "Forge",
       "skill": "Metalworking",
       "skill_level": 2,
-      "description": "Thread and hex-head steel bolts"
+      "description": "Thread and hex-head steel bolts",
+      "tools": [
+        {
+          "id": "hammer_0",
+          "label": "Hammer"
+        }
+      ]
     },
     {
       "id": "craft_tape_duct",
@@ -4321,7 +4862,8 @@
       "station": "Workbench",
       "skill": "Woodworking",
       "skill_level": 1,
-      "description": "Laminate adhesive reinforced tape"
+      "description": "Laminate adhesive reinforced tape",
+      "tools": []
     },
     {
       "id": "craft_sandpaper",
@@ -4350,7 +4892,8 @@
       "station": "Workbench",
       "skill": "",
       "skill_level": 1,
-      "description": "Bond grit to paper backing"
+      "description": "Bond grit to paper backing",
+      "tools": []
     },
     {
       "id": "assemble_circuit_board",
@@ -4384,7 +4927,17 @@
       "station": "Electronics Bench",
       "skill": "Engineering",
       "skill_level": 2,
-      "description": "Etch and populate a printed circuit board"
+      "description": "Etch and populate a printed circuit board",
+      "tools": [
+        {
+          "id": "soldering_iron_0",
+          "label": "Soldering Iron"
+        },
+        {
+          "id": "pliers_0",
+          "label": "Pliers"
+        }
+      ]
     },
     {
       "id": "assemble_battery_pack",
@@ -4418,7 +4971,17 @@
       "station": "Electronics Bench",
       "skill": "Engineering",
       "skill_level": 2,
-      "description": "Wire cells into a rechargeable pack"
+      "description": "Wire cells into a rechargeable pack",
+      "tools": [
+        {
+          "id": "soldering_iron_0",
+          "label": "Soldering Iron"
+        },
+        {
+          "id": "pliers_0",
+          "label": "Pliers"
+        }
+      ]
     },
     {
       "id": "assemble_solar_charger",
@@ -4452,7 +5015,17 @@
       "station": "Electronics Bench",
       "skill": "Engineering",
       "skill_level": 3,
-      "description": "Wire a portable PV charging panel"
+      "description": "Wire a portable PV charging panel",
+      "tools": [
+        {
+          "id": "soldering_iron_0",
+          "label": "Soldering Iron"
+        },
+        {
+          "id": "pliers_0",
+          "label": "Pliers"
+        }
+      ]
     },
     {
       "id": "assemble_flashlight",
@@ -4486,7 +5059,8 @@
       "station": "Workbench",
       "skill": "Engineering",
       "skill_level": 1,
-      "description": "Assemble an LED handheld torch"
+      "description": "Assemble an LED handheld torch",
+      "tools": []
     },
     {
       "id": "assemble_lantern",
@@ -4520,7 +5094,8 @@
       "station": "Workbench",
       "skill": "Engineering",
       "skill_level": 1,
-      "description": "Assemble a portable area light"
+      "description": "Assemble a portable area light",
+      "tools": []
     },
     {
       "id": "assemble_radio",
@@ -4554,7 +5129,17 @@
       "station": "Electronics Bench",
       "skill": "Engineering",
       "skill_level": 3,
-      "description": "Assemble a two-way transceiver"
+      "description": "Assemble a two-way transceiver",
+      "tools": [
+        {
+          "id": "soldering_iron_0",
+          "label": "Soldering Iron"
+        },
+        {
+          "id": "pliers_0",
+          "label": "Pliers"
+        }
+      ]
     },
     {
       "id": "assemble_walkie_talkie",
@@ -4588,7 +5173,17 @@
       "station": "Electronics Bench",
       "skill": "Engineering",
       "skill_level": 2,
-      "description": "Assemble a short-range voice radio"
+      "description": "Assemble a short-range voice radio",
+      "tools": [
+        {
+          "id": "soldering_iron_0",
+          "label": "Soldering Iron"
+        },
+        {
+          "id": "pliers_0",
+          "label": "Pliers"
+        }
+      ]
     },
     {
       "id": "assemble_multimeter",
@@ -4622,7 +5217,17 @@
       "station": "Electronics Bench",
       "skill": "Engineering",
       "skill_level": 2,
-      "description": "Assemble an electrical test meter"
+      "description": "Assemble an electrical test meter",
+      "tools": [
+        {
+          "id": "soldering_iron_0",
+          "label": "Soldering Iron"
+        },
+        {
+          "id": "pliers_0",
+          "label": "Pliers"
+        }
+      ]
     },
     {
       "id": "assemble_smoke_detector",
@@ -4656,7 +5261,17 @@
       "station": "Electronics Bench",
       "skill": "Engineering",
       "skill_level": 1,
-      "description": "Wire a particle fire alarm"
+      "description": "Wire a particle fire alarm",
+      "tools": [
+        {
+          "id": "soldering_iron_0",
+          "label": "Soldering Iron"
+        },
+        {
+          "id": "pliers_0",
+          "label": "Pliers"
+        }
+      ]
     },
     {
       "id": "assemble_motion_light",
@@ -4690,7 +5305,17 @@
       "station": "Electronics Bench",
       "skill": "Engineering",
       "skill_level": 2,
-      "description": "Wire a PIR-activated light"
+      "description": "Wire a PIR-activated light",
+      "tools": [
+        {
+          "id": "soldering_iron_0",
+          "label": "Soldering Iron"
+        },
+        {
+          "id": "pliers_0",
+          "label": "Pliers"
+        }
+      ]
     },
     {
       "id": "assemble_gps",
@@ -4724,7 +5349,17 @@
       "station": "Electronics Bench",
       "skill": "Engineering",
       "skill_level": 3,
-      "description": "Assemble a satellite positioning unit"
+      "description": "Assemble a satellite positioning unit",
+      "tools": [
+        {
+          "id": "soldering_iron_0",
+          "label": "Soldering Iron"
+        },
+        {
+          "id": "pliers_0",
+          "label": "Pliers"
+        }
+      ]
     },
     {
       "id": "assemble_camera",
@@ -4763,7 +5398,17 @@
       "station": "Electronics Bench",
       "skill": "Engineering",
       "skill_level": 3,
-      "description": "Assemble a digital photography device"
+      "description": "Assemble a digital photography device",
+      "tools": [
+        {
+          "id": "soldering_iron_0",
+          "label": "Soldering Iron"
+        },
+        {
+          "id": "pliers_0",
+          "label": "Pliers"
+        }
+      ]
     },
     {
       "id": "assemble_computer",
@@ -4802,7 +5447,17 @@
       "station": "Electronics Bench",
       "skill": "Engineering",
       "skill_level": 4,
-      "description": "Assemble a networked computing terminal"
+      "description": "Assemble a networked computing terminal",
+      "tools": [
+        {
+          "id": "soldering_iron_0",
+          "label": "Soldering Iron"
+        },
+        {
+          "id": "pliers_0",
+          "label": "Pliers"
+        }
+      ]
     },
     {
       "id": "assemble_geiger",
@@ -4836,7 +5491,17 @@
       "station": "Electronics Bench",
       "skill": "Engineering",
       "skill_level": 3,
-      "description": "Assemble an ionizing radiation detector"
+      "description": "Assemble an ionizing radiation detector",
+      "tools": [
+        {
+          "id": "soldering_iron_0",
+          "label": "Soldering Iron"
+        },
+        {
+          "id": "pliers_0",
+          "label": "Pliers"
+        }
+      ]
     },
     {
       "id": "assemble_water_tester",
@@ -4865,7 +5530,17 @@
       "station": "Electronics Bench",
       "skill": "Engineering",
       "skill_level": 1,
-      "description": "Assemble a water quality probe"
+      "description": "Assemble a water quality probe",
+      "tools": [
+        {
+          "id": "soldering_iron_0",
+          "label": "Soldering Iron"
+        },
+        {
+          "id": "pliers_0",
+          "label": "Pliers"
+        }
+      ]
     },
     {
       "id": "build_workbench",
@@ -4899,7 +5574,8 @@
       "station": "",
       "skill": "Shelter Building",
       "skill_level": 2,
-      "description": "Assemble a general crafting station"
+      "description": "Assemble a general crafting station",
+      "tools": []
     },
     {
       "id": "build_forge",
@@ -4933,7 +5609,8 @@
       "station": "",
       "skill": "Shelter Building",
       "skill_level": 3,
-      "description": "Construct a metal-heating furnace"
+      "description": "Construct a metal-heating furnace",
+      "tools": []
     },
     {
       "id": "build_smelter",
@@ -4967,7 +5644,8 @@
       "station": "",
       "skill": "Shelter Building",
       "skill_level": 3,
-      "description": "Construct an ore-melting furnace"
+      "description": "Construct an ore-melting furnace",
+      "tools": []
     },
     {
       "id": "build_kiln",
@@ -4996,7 +5674,8 @@
       "station": "",
       "skill": "Shelter Building",
       "skill_level": 3,
-      "description": "Construct a high-temperature kiln"
+      "description": "Construct a high-temperature kiln",
+      "tools": []
     },
     {
       "id": "build_anvil_station",
@@ -5030,7 +5709,17 @@
       "station": "Workbench",
       "skill": "Shelter Building",
       "skill_level": 2,
-      "description": "Mount anvil on a stable platform"
+      "description": "Mount anvil on a stable platform",
+      "tools": [
+        {
+          "id": "wrench_adjustable_0",
+          "label": "Wrench Adjustable"
+        },
+        {
+          "id": "screwdriver_flat_0",
+          "label": "Screwdriver Flat"
+        }
+      ]
     },
     {
       "id": "build_electronics_bench",
@@ -5064,7 +5753,17 @@
       "station": "Workbench",
       "skill": "Shelter Building",
       "skill_level": 2,
-      "description": "Set up a circuit assembly station"
+      "description": "Set up a circuit assembly station",
+      "tools": [
+        {
+          "id": "wrench_adjustable_0",
+          "label": "Wrench Adjustable"
+        },
+        {
+          "id": "screwdriver_flat_0",
+          "label": "Screwdriver Flat"
+        }
+      ]
     },
     {
       "id": "build_sewing_machine",
@@ -5098,7 +5797,17 @@
       "station": "Workbench",
       "skill": "Engineering",
       "skill_level": 2,
-      "description": "Assemble an electric sewing machine"
+      "description": "Assemble an electric sewing machine",
+      "tools": [
+        {
+          "id": "wrench_adjustable_0",
+          "label": "Wrench Adjustable"
+        },
+        {
+          "id": "screwdriver_flat_0",
+          "label": "Screwdriver Flat"
+        }
+      ]
     },
     {
       "id": "build_loom",
@@ -5132,7 +5841,17 @@
       "station": "Workbench",
       "skill": "Shelter Building",
       "skill_level": 2,
-      "description": "Assemble a frame-based loom"
+      "description": "Assemble a frame-based loom",
+      "tools": [
+        {
+          "id": "wrench_adjustable_0",
+          "label": "Wrench Adjustable"
+        },
+        {
+          "id": "screwdriver_flat_0",
+          "label": "Screwdriver Flat"
+        }
+      ]
     },
     {
       "id": "build_stove",
@@ -5166,7 +5885,17 @@
       "station": "Workbench",
       "skill": "Shelter Building",
       "skill_level": 2,
-      "description": "Assemble a four-burner range"
+      "description": "Assemble a four-burner range",
+      "tools": [
+        {
+          "id": "wrench_adjustable_0",
+          "label": "Wrench Adjustable"
+        },
+        {
+          "id": "screwdriver_flat_0",
+          "label": "Screwdriver Flat"
+        }
+      ]
     },
     {
       "id": "build_oven",
@@ -5200,7 +5929,17 @@
       "station": "Workbench",
       "skill": "Shelter Building",
       "skill_level": 3,
-      "description": "Construct an enclosed baking oven"
+      "description": "Construct an enclosed baking oven",
+      "tools": [
+        {
+          "id": "wrench_adjustable_0",
+          "label": "Wrench Adjustable"
+        },
+        {
+          "id": "screwdriver_flat_0",
+          "label": "Screwdriver Flat"
+        }
+      ]
     },
     {
       "id": "build_fridge",
@@ -5239,7 +5978,17 @@
       "station": "Workbench",
       "skill": "Engineering",
       "skill_level": 3,
-      "description": "Assemble a refrigerated storage unit"
+      "description": "Assemble a refrigerated storage unit",
+      "tools": [
+        {
+          "id": "wrench_adjustable_0",
+          "label": "Wrench Adjustable"
+        },
+        {
+          "id": "screwdriver_flat_0",
+          "label": "Screwdriver Flat"
+        }
+      ]
     },
     {
       "id": "build_generator",
@@ -5278,7 +6027,17 @@
       "station": "Workbench",
       "skill": "Engineering",
       "skill_level": 4,
-      "description": "Assemble a 2kW gasoline generator"
+      "description": "Assemble a 2kW gasoline generator",
+      "tools": [
+        {
+          "id": "wrench_adjustable_0",
+          "label": "Wrench Adjustable"
+        },
+        {
+          "id": "screwdriver_flat_0",
+          "label": "Screwdriver Flat"
+        }
+      ]
     },
     {
       "id": "build_solar_panel",
@@ -5312,7 +6071,17 @@
       "station": "Electronics Bench",
       "skill": "Engineering",
       "skill_level": 3,
-      "description": "Assemble a photovoltaic panel"
+      "description": "Assemble a photovoltaic panel",
+      "tools": [
+        {
+          "id": "soldering_iron_0",
+          "label": "Soldering Iron"
+        },
+        {
+          "id": "pliers_0",
+          "label": "Pliers"
+        }
+      ]
     },
     {
       "id": "build_wind_turbine",
@@ -5351,7 +6120,17 @@
       "station": "Workbench",
       "skill": "Engineering",
       "skill_level": 4,
-      "description": "Construct a rooftop wind generator"
+      "description": "Construct a rooftop wind generator",
+      "tools": [
+        {
+          "id": "wrench_adjustable_0",
+          "label": "Wrench Adjustable"
+        },
+        {
+          "id": "screwdriver_flat_0",
+          "label": "Screwdriver Flat"
+        }
+      ]
     },
     {
       "id": "build_water_pump",
@@ -5390,7 +6169,17 @@
       "station": "Workbench",
       "skill": "Engineering",
       "skill_level": 2,
-      "description": "Assemble an electric water pump"
+      "description": "Assemble an electric water pump",
+      "tools": [
+        {
+          "id": "wrench_adjustable_0",
+          "label": "Wrench Adjustable"
+        },
+        {
+          "id": "screwdriver_flat_0",
+          "label": "Screwdriver Flat"
+        }
+      ]
     },
     {
       "id": "build_water_purifier",
@@ -5424,7 +6213,17 @@
       "station": "Workbench",
       "skill": "Engineering",
       "skill_level": 2,
-      "description": "Construct a filtration treatment unit"
+      "description": "Construct a filtration treatment unit",
+      "tools": [
+        {
+          "id": "wrench_adjustable_0",
+          "label": "Wrench Adjustable"
+        },
+        {
+          "id": "screwdriver_flat_0",
+          "label": "Screwdriver Flat"
+        }
+      ]
     },
     {
       "id": "build_heater",
@@ -5458,7 +6257,17 @@
       "station": "Workbench",
       "skill": "Engineering",
       "skill_level": 2,
-      "description": "Assemble an electric space heater"
+      "description": "Assemble an electric space heater",
+      "tools": [
+        {
+          "id": "wrench_adjustable_0",
+          "label": "Wrench Adjustable"
+        },
+        {
+          "id": "screwdriver_flat_0",
+          "label": "Screwdriver Flat"
+        }
+      ]
     },
     {
       "id": "build_cooler",
@@ -5492,7 +6301,17 @@
       "station": "Workbench",
       "skill": "Engineering",
       "skill_level": 2,
-      "description": "Assemble an evaporative cooler"
+      "description": "Assemble an evaporative cooler",
+      "tools": [
+        {
+          "id": "wrench_adjustable_0",
+          "label": "Wrench Adjustable"
+        },
+        {
+          "id": "screwdriver_flat_0",
+          "label": "Screwdriver Flat"
+        }
+      ]
     },
     {
       "id": "build_washing_machine",
@@ -5526,7 +6345,17 @@
       "station": "Workbench",
       "skill": "Engineering",
       "skill_level": 3,
-      "description": "Assemble an automatic laundry washer"
+      "description": "Assemble an automatic laundry washer",
+      "tools": [
+        {
+          "id": "wrench_adjustable_0",
+          "label": "Wrench Adjustable"
+        },
+        {
+          "id": "screwdriver_flat_0",
+          "label": "Screwdriver Flat"
+        }
+      ]
     },
     {
       "id": "build_sawmill",
@@ -5565,7 +6394,17 @@
       "station": "Workbench",
       "skill": "Engineering",
       "skill_level": 3,
-      "description": "Construct a powered lumber cutting station"
+      "description": "Construct a powered lumber cutting station",
+      "tools": [
+        {
+          "id": "wrench_adjustable_0",
+          "label": "Wrench Adjustable"
+        },
+        {
+          "id": "screwdriver_flat_0",
+          "label": "Screwdriver Flat"
+        }
+      ]
     },
     {
       "id": "build_grain_mill",
@@ -5599,7 +6438,17 @@
       "station": "Workbench",
       "skill": "Shelter Building",
       "skill_level": 2,
-      "description": "Construct a seed-to-flour grinding mill"
+      "description": "Construct a seed-to-flour grinding mill",
+      "tools": [
+        {
+          "id": "wrench_adjustable_0",
+          "label": "Wrench Adjustable"
+        },
+        {
+          "id": "screwdriver_flat_0",
+          "label": "Screwdriver Flat"
+        }
+      ]
     },
     {
       "id": "build_fuel_refinery",
@@ -5638,7 +6487,17 @@
       "station": "Workbench",
       "skill": "Engineering",
       "skill_level": 5,
-      "description": "Construct a crude oil distillation unit"
+      "description": "Construct a crude oil distillation unit",
+      "tools": [
+        {
+          "id": "wrench_adjustable_0",
+          "label": "Wrench Adjustable"
+        },
+        {
+          "id": "screwdriver_flat_0",
+          "label": "Screwdriver Flat"
+        }
+      ]
     },
     {
       "id": "build_battery_bank",
@@ -5677,7 +6536,17 @@
       "station": "Electronics Bench",
       "skill": "Engineering",
       "skill_level": 4,
-      "description": "Wire a large-scale energy storage array"
+      "description": "Wire a large-scale energy storage array",
+      "tools": [
+        {
+          "id": "soldering_iron_0",
+          "label": "Soldering Iron"
+        },
+        {
+          "id": "pliers_0",
+          "label": "Pliers"
+        }
+      ]
     },
     {
       "id": "build_3d_printer",
@@ -5716,7 +6585,17 @@
       "station": "Electronics Bench",
       "skill": "Engineering",
       "skill_level": 4,
-      "description": "Assemble an additive manufacturing device"
+      "description": "Assemble an additive manufacturing device",
+      "tools": [
+        {
+          "id": "soldering_iron_0",
+          "label": "Soldering Iron"
+        },
+        {
+          "id": "pliers_0",
+          "label": "Pliers"
+        }
+      ]
     },
     {
       "id": "build_microscope",
@@ -5750,7 +6629,17 @@
       "station": "Electronics Bench",
       "skill": "Engineering",
       "skill_level": 3,
-      "description": "Assemble an optical magnification instrument"
+      "description": "Assemble an optical magnification instrument",
+      "tools": [
+        {
+          "id": "soldering_iron_0",
+          "label": "Soldering Iron"
+        },
+        {
+          "id": "pliers_0",
+          "label": "Pliers"
+        }
+      ]
     },
     {
       "id": "build_telescope",
@@ -5784,7 +6673,17 @@
       "station": "Workbench",
       "skill": "Engineering",
       "skill_level": 3,
-      "description": "Assemble a celestial observation instrument"
+      "description": "Assemble a celestial observation instrument",
+      "tools": [
+        {
+          "id": "wrench_adjustable_0",
+          "label": "Wrench Adjustable"
+        },
+        {
+          "id": "screwdriver_flat_0",
+          "label": "Screwdriver Flat"
+        }
+      ]
     },
     {
       "id": "build_chemistry_set",
@@ -5818,7 +6717,17 @@
       "station": "Workbench",
       "skill": "Engineering",
       "skill_level": 2,
-      "description": "Assemble laboratory reaction apparatus"
+      "description": "Assemble laboratory reaction apparatus",
+      "tools": [
+        {
+          "id": "wrench_adjustable_0",
+          "label": "Wrench Adjustable"
+        },
+        {
+          "id": "screwdriver_flat_0",
+          "label": "Screwdriver Flat"
+        }
+      ]
     },
     {
       "id": "build_composter",
@@ -5847,7 +6756,17 @@
       "station": "Workbench",
       "skill": "Shelter Building",
       "skill_level": 1,
-      "description": "Construct an organic waste bin"
+      "description": "Construct an organic waste bin",
+      "tools": [
+        {
+          "id": "wrench_adjustable_0",
+          "label": "Wrench Adjustable"
+        },
+        {
+          "id": "screwdriver_flat_0",
+          "label": "Screwdriver Flat"
+        }
+      ]
     },
     {
       "id": "build_greenhouse",
@@ -5881,7 +6800,17 @@
       "station": "Workbench",
       "skill": "Shelter Building",
       "skill_level": 3,
-      "description": "Construct a climate-controlled enclosure"
+      "description": "Construct a climate-controlled enclosure",
+      "tools": [
+        {
+          "id": "wrench_adjustable_0",
+          "label": "Wrench Adjustable"
+        },
+        {
+          "id": "screwdriver_flat_0",
+          "label": "Screwdriver Flat"
+        }
+      ]
     },
     {
       "id": "build_irrigation",
@@ -5915,7 +6844,17 @@
       "station": "Workbench",
       "skill": "Engineering",
       "skill_level": 2,
-      "description": "Assemble an automated watering network"
+      "description": "Assemble an automated watering network",
+      "tools": [
+        {
+          "id": "wrench_adjustable_0",
+          "label": "Wrench Adjustable"
+        },
+        {
+          "id": "screwdriver_flat_0",
+          "label": "Screwdriver Flat"
+        }
+      ]
     },
     {
       "id": "build_air_filter",
@@ -5949,7 +6888,17 @@
       "station": "Workbench",
       "skill": "Engineering",
       "skill_level": 2,
-      "description": "Construct a powered air purifier"
+      "description": "Construct a powered air purifier",
+      "tools": [
+        {
+          "id": "wrench_adjustable_0",
+          "label": "Wrench Adjustable"
+        },
+        {
+          "id": "screwdriver_flat_0",
+          "label": "Screwdriver Flat"
+        }
+      ]
     },
     {
       "id": "craft_toolbox",
@@ -5973,7 +6922,8 @@
       "station": "Workbench",
       "skill": "Metalworking",
       "skill_level": 1,
-      "description": "Weld a portable compartmented case"
+      "description": "Weld a portable compartmented case",
+      "tools": []
     },
     {
       "id": "craft_locker",
@@ -6002,7 +6952,8 @@
       "station": "Workbench",
       "skill": "Shelter Building",
       "skill_level": 2,
-      "description": "Assemble a vertical locking cabinet"
+      "description": "Assemble a vertical locking cabinet",
+      "tools": []
     },
     {
       "id": "craft_safe",
@@ -6031,7 +6982,13 @@
       "station": "Forge",
       "skill": "Metalworking",
       "skill_level": 4,
-      "description": "Forge an armored valuables vault"
+      "description": "Forge an armored valuables vault",
+      "tools": [
+        {
+          "id": "hammer_0",
+          "label": "Hammer"
+        }
+      ]
     },
     {
       "id": "craft_fuel_drum",
@@ -6055,7 +7012,13 @@
       "station": "Forge",
       "skill": "Metalworking",
       "skill_level": 2,
-      "description": "Roll and weld a 200L drum"
+      "description": "Roll and weld a 200L drum",
+      "tools": [
+        {
+          "id": "hammer_0",
+          "label": "Hammer"
+        }
+      ]
     },
     {
       "id": "craft_water_tank",
@@ -6084,7 +7047,8 @@
       "station": "Workbench",
       "skill": "Shelter Building",
       "skill_level": 2,
-      "description": "Mold a potable water cistern"
+      "description": "Mold a potable water cistern",
+      "tools": []
     },
     {
       "id": "craft_ammo_crate",
@@ -6113,7 +7077,8 @@
       "station": "Workbench",
       "skill": "Shelter Building",
       "skill_level": 1,
-      "description": "Nail together sealed ammo shipping boxes"
+      "description": "Nail together sealed ammo shipping boxes",
+      "tools": []
     },
     {
       "id": "build_bicycle",
@@ -6147,7 +7112,17 @@
       "station": "Workbench",
       "skill": "Engineering",
       "skill_level": 2,
-      "description": "Assemble a two-wheel pedal vehicle"
+      "description": "Assemble a two-wheel pedal vehicle",
+      "tools": [
+        {
+          "id": "wrench_adjustable_0",
+          "label": "Wrench Adjustable"
+        },
+        {
+          "id": "screwdriver_flat_0",
+          "label": "Screwdriver Flat"
+        }
+      ]
     },
     {
       "id": "build_hand_cart",
@@ -6181,7 +7156,17 @@
       "station": "Workbench",
       "skill": "Shelter Building",
       "skill_level": 1,
-      "description": "Assemble a two-wheel push cart"
+      "description": "Assemble a two-wheel push cart",
+      "tools": [
+        {
+          "id": "wrench_adjustable_0",
+          "label": "Wrench Adjustable"
+        },
+        {
+          "id": "screwdriver_flat_0",
+          "label": "Screwdriver Flat"
+        }
+      ]
     },
     {
       "id": "build_horse_cart",
@@ -6215,7 +7200,17 @@
       "station": "Workbench",
       "skill": "Shelter Building",
       "skill_level": 3,
-      "description": "Construct a four-wheel wagon"
+      "description": "Construct a four-wheel wagon",
+      "tools": [
+        {
+          "id": "wrench_adjustable_0",
+          "label": "Wrench Adjustable"
+        },
+        {
+          "id": "screwdriver_flat_0",
+          "label": "Screwdriver Flat"
+        }
+      ]
     },
     {
       "id": "build_sled",
@@ -6244,7 +7239,17 @@
       "station": "Workbench",
       "skill": "Shelter Building",
       "skill_level": 1,
-      "description": "Assemble a snow-surface sled"
+      "description": "Assemble a snow-surface sled",
+      "tools": [
+        {
+          "id": "wrench_adjustable_0",
+          "label": "Wrench Adjustable"
+        },
+        {
+          "id": "screwdriver_flat_0",
+          "label": "Screwdriver Flat"
+        }
+      ]
     },
     {
       "id": "build_raft",
@@ -6273,7 +7278,8 @@
       "station": "",
       "skill": "Shelter Building",
       "skill_level": 1,
-      "description": "Lash together a simple floating platform"
+      "description": "Lash together a simple floating platform",
+      "tools": []
     },
     {
       "id": "build_canoe",
@@ -6307,7 +7313,17 @@
       "station": "Workbench",
       "skill": "Shelter Building",
       "skill_level": 3,
-      "description": "Hollow and seal a narrow paddle boat"
+      "description": "Hollow and seal a narrow paddle boat",
+      "tools": [
+        {
+          "id": "wrench_adjustable_0",
+          "label": "Wrench Adjustable"
+        },
+        {
+          "id": "screwdriver_flat_0",
+          "label": "Screwdriver Flat"
+        }
+      ]
     },
     {
       "id": "build_rowboat",
@@ -6341,7 +7357,17 @@
       "station": "Workbench",
       "skill": "Shelter Building",
       "skill_level": 3,
-      "description": "Plank and seal a small rowboat hull"
+      "description": "Plank and seal a small rowboat hull",
+      "tools": [
+        {
+          "id": "wrench_adjustable_0",
+          "label": "Wrench Adjustable"
+        },
+        {
+          "id": "screwdriver_flat_0",
+          "label": "Screwdriver Flat"
+        }
+      ]
     },
     {
       "id": "build_sailboat",
@@ -6380,7 +7406,17 @@
       "station": "Workbench",
       "skill": "Shelter Building",
       "skill_level": 4,
-      "description": "Construct a wind-powered sailing vessel"
+      "description": "Construct a wind-powered sailing vessel",
+      "tools": [
+        {
+          "id": "wrench_adjustable_0",
+          "label": "Wrench Adjustable"
+        },
+        {
+          "id": "screwdriver_flat_0",
+          "label": "Screwdriver Flat"
+        }
+      ]
     },
     {
       "id": "build_wheelbarrow",
@@ -6414,7 +7450,17 @@
       "station": "Workbench",
       "skill": "Shelter Building",
       "skill_level": 1,
-      "description": "Assemble a single-wheel hand cart"
+      "description": "Assemble a single-wheel hand cart",
+      "tools": [
+        {
+          "id": "wrench_adjustable_0",
+          "label": "Wrench Adjustable"
+        },
+        {
+          "id": "screwdriver_flat_0",
+          "label": "Screwdriver Flat"
+        }
+      ]
     },
     {
       "id": "build_ladder",
@@ -6443,7 +7489,17 @@
       "station": "Workbench",
       "skill": "Shelter Building",
       "skill_level": 1,
-      "description": "Assemble a folding step ladder"
+      "description": "Assemble a folding step ladder",
+      "tools": [
+        {
+          "id": "wrench_adjustable_0",
+          "label": "Wrench Adjustable"
+        },
+        {
+          "id": "screwdriver_flat_0",
+          "label": "Screwdriver Flat"
+        }
+      ]
     },
     {
       "id": "craft_bandage",
@@ -6467,7 +7523,8 @@
       "station": "",
       "skill": "Medicine",
       "skill_level": 1,
-      "description": "Cut and roll sterile wound dressings"
+      "description": "Cut and roll sterile wound dressings",
+      "tools": []
     },
     {
       "id": "craft_medkit",
@@ -6506,7 +7563,8 @@
       "station": "Workbench",
       "skill": "Medicine",
       "skill_level": 2,
-      "description": "Pack a complete first-aid kit"
+      "description": "Pack a complete first-aid kit",
+      "tools": []
     },
     {
       "id": "craft_splint",
@@ -6535,7 +7593,8 @@
       "station": "Workbench",
       "skill": "Medicine",
       "skill_level": 1,
-      "description": "Bend and pad fracture immobilizers"
+      "description": "Bend and pad fracture immobilizers",
+      "tools": []
     },
     {
       "id": "craft_antiseptic",
@@ -6564,7 +7623,8 @@
       "station": "Chemistry Set",
       "skill": "Medicine",
       "skill_level": 1,
-      "description": "Distill wound disinfectant solution"
+      "description": "Distill wound disinfectant solution",
+      "tools": []
     },
     {
       "id": "craft_fire_extinguisher",
@@ -6593,7 +7653,8 @@
       "station": "Workbench",
       "skill": "Engineering",
       "skill_level": 2,
-      "description": "Pressurize a fire suppression unit"
+      "description": "Pressurize a fire suppression unit",
+      "tools": []
     },
     {
       "id": "craft_flare",
@@ -6627,7 +7688,8 @@
       "station": "Chemistry Set",
       "skill": "Alchemy",
       "skill_level": 1,
-      "description": "Mix and pack emergency signal flares"
+      "description": "Mix and pack emergency signal flares",
+      "tools": []
     },
     {
       "id": "craft_fertilizer",
@@ -6656,7 +7718,8 @@
       "station": "Composter",
       "skill": "Farming",
       "skill_level": 1,
-      "description": "Decompose organic waste into plant food"
+      "description": "Decompose organic waste into plant food",
+      "tools": []
     },
     {
       "id": "craft_compass",
@@ -6685,7 +7748,8 @@
       "station": "Workbench",
       "skill": "Woodworking",
       "skill_level": 1,
-      "description": "Magnetize a needle in a glass housing"
+      "description": "Magnetize a needle in a glass housing",
+      "tools": []
     },
     {
       "id": "craft_lamp_floor",
@@ -6719,7 +7783,8 @@
       "station": "Workbench",
       "skill": "Woodworking",
       "skill_level": 2,
-      "description": "Assemble a standing room light"
+      "description": "Assemble a standing room light",
+      "tools": []
     },
     {
       "id": "craft_lamp_desk",
@@ -6753,7 +7818,8 @@
       "station": "Workbench",
       "skill": "Woodworking",
       "skill_level": 1,
-      "description": "Assemble an adjustable task light"
+      "description": "Assemble an adjustable task light",
+      "tools": []
     },
     {
       "id": "craft_chandelier",
@@ -6787,7 +7853,8 @@
       "station": "Workbench",
       "skill": "Woodworking",
       "skill_level": 3,
-      "description": "Assemble a suspended multi-light fixture"
+      "description": "Assemble a suspended multi-light fixture",
+      "tools": []
     },
     {
       "id": "craft_clock",
@@ -6821,7 +7888,13 @@
       "station": "Workbench",
       "skill": "Woodworking",
       "skill_level": 2,
-      "description": "Assemble a mechanical wall clock"
+      "description": "Assemble a mechanical wall clock",
+      "tools": [
+        {
+          "id": "screwdriver_flat_0",
+          "label": "Screwdriver Flat"
+        }
+      ]
     },
     {
       "id": "craft_mirror",
@@ -6855,7 +7928,8 @@
       "station": "Workbench",
       "skill": "Woodworking",
       "skill_level": 2,
-      "description": "Coat glass with reflective silver"
+      "description": "Coat glass with reflective silver",
+      "tools": []
     },
     {
       "id": "craft_grain_silo",
@@ -6889,7 +7963,17 @@
       "station": "Workbench",
       "skill": "Shelter Building",
       "skill_level": 4,
-      "description": "Erect a bulk crop storage cylinder"
+      "description": "Erect a bulk crop storage cylinder",
+      "tools": [
+        {
+          "id": "wrench_adjustable_0",
+          "label": "Wrench Adjustable"
+        },
+        {
+          "id": "screwdriver_flat_0",
+          "label": "Screwdriver Flat"
+        }
+      ]
     },
     {
       "id": "craft_carbon_fiber",
@@ -6923,7 +8007,8 @@
       "station": "Chemistry Set",
       "skill": "Engineering",
       "skill_level": 4,
-      "description": "Pyrolyze polymer precursor into carbon composite"
+      "description": "Pyrolyze polymer precursor into carbon composite",
+      "tools": []
     },
     {
       "id": "craft_fiberglass",
@@ -6952,7 +8037,8 @@
       "station": "Chemistry Set",
       "skill": "Engineering",
       "skill_level": 3,
-      "description": "Wet glass fiber with polyester resin made from crude oil and cure it into rigid sheet"
+      "description": "Wet glass fiber with polyester resin made from crude oil and cure it into rigid sheet",
+      "tools": []
     },
     {
       "id": "craft_titanium_alloy",
@@ -6986,7 +8072,8 @@
       "station": "Smelter",
       "skill": "Metalworking",
       "skill_level": 5,
-      "description": "Alloy titanium with aluminum and steel for strength"
+      "description": "Alloy titanium with aluminum and steel for strength",
+      "tools": []
     },
     {
       "id": "craft_ceramic_composite",
@@ -7020,7 +8107,8 @@
       "station": "Kiln",
       "skill": "Metalworking",
       "skill_level": 4,
-      "description": "Sinter ceramic matrix with carbon reinforcement"
+      "description": "Sinter ceramic matrix with carbon reinforcement",
+      "tools": []
     },
     {
       "id": "craft_optical_fiber",
@@ -7049,7 +8137,17 @@
       "station": "Electronics Bench",
       "skill": "Engineering",
       "skill_level": 4,
-      "description": "Draw silica glass into light-transmitting strands"
+      "description": "Draw silica glass into light-transmitting strands",
+      "tools": [
+        {
+          "id": "soldering_iron_0",
+          "label": "Soldering Iron"
+        },
+        {
+          "id": "pliers_0",
+          "label": "Pliers"
+        }
+      ]
     },
     {
       "id": "craft_superconductor",
@@ -7083,7 +8181,8 @@
       "station": "Chemistry Set",
       "skill": "Engineering",
       "skill_level": 5,
-      "description": "Cool rare-earth compound into zero-resistance wire"
+      "description": "Cool rare-earth compound into zero-resistance wire",
+      "tools": []
     },
     {
       "id": "craft_nanomaterial",
@@ -7117,7 +8216,8 @@
       "station": "Chemistry Set",
       "skill": "Engineering",
       "skill_level": 5,
-      "description": "Assemble molecular-scale structured material"
+      "description": "Assemble molecular-scale structured material",
+      "tools": []
     },
     {
       "id": "craft_kevlar_sheet",
@@ -7146,7 +8246,8 @@
       "station": "Loom",
       "skill": "Tailoring",
       "skill_level": 4,
-      "description": "Weave aramid fiber into ballistic fabric"
+      "description": "Weave aramid fiber into ballistic fabric",
+      "tools": []
     },
     {
       "id": "craft_aerogel",
@@ -7180,7 +8281,8 @@
       "station": "Chemistry Set",
       "skill": "Engineering",
       "skill_level": 5,
-      "description": "Supercritically dry silica gel into ultralight insulator"
+      "description": "Supercritically dry silica gel into ultralight insulator",
+      "tools": []
     },
     {
       "id": "craft_graphene",
@@ -7209,7 +8311,8 @@
       "station": "Chemistry Set",
       "skill": "Engineering",
       "skill_level": 5,
-      "description": "Exfoliate graphite into single-atom carbon sheets"
+      "description": "Exfoliate graphite into single-atom carbon sheets",
+      "tools": []
     },
     {
       "id": "craft_bioplastic",
@@ -7243,7 +8346,8 @@
       "station": "Fuel Refinery",
       "skill": "Engineering",
       "skill_level": 3,
-      "description": "Polymerize plant starch into biodegradable plastic"
+      "description": "Polymerize plant starch into biodegradable plastic",
+      "tools": []
     },
     {
       "id": "manufacture_circuit_board",
@@ -7277,7 +8381,17 @@
       "station": "Electronics Bench",
       "skill": "Engineering",
       "skill_level": 3,
-      "description": "Etch copper traces on laminate substrate"
+      "description": "Etch copper traces on laminate substrate",
+      "tools": [
+        {
+          "id": "soldering_iron_0",
+          "label": "Soldering Iron"
+        },
+        {
+          "id": "pliers_0",
+          "label": "Pliers"
+        }
+      ]
     },
     {
       "id": "manufacture_battery_small",
@@ -7311,7 +8425,17 @@
       "station": "Electronics Bench",
       "skill": "Engineering",
       "skill_level": 2,
-      "description": "Assemble lithium-ion cell packs"
+      "description": "Assemble lithium-ion cell packs",
+      "tools": [
+        {
+          "id": "soldering_iron_0",
+          "label": "Soldering Iron"
+        },
+        {
+          "id": "pliers_0",
+          "label": "Pliers"
+        }
+      ]
     },
     {
       "id": "manufacture_battery_large",
@@ -7350,7 +8474,17 @@
       "station": "Electronics Bench",
       "skill": "Engineering",
       "skill_level": 4,
-      "description": "Wire high-capacity energy storage module"
+      "description": "Wire high-capacity energy storage module",
+      "tools": [
+        {
+          "id": "soldering_iron_0",
+          "label": "Soldering Iron"
+        },
+        {
+          "id": "pliers_0",
+          "label": "Pliers"
+        }
+      ]
     },
     {
       "id": "manufacture_solar_cell",
@@ -7384,7 +8518,17 @@
       "station": "Electronics Bench",
       "skill": "Engineering",
       "skill_level": 3,
-      "description": "Deposit photovoltaic layer on glass substrate"
+      "description": "Deposit photovoltaic layer on glass substrate",
+      "tools": [
+        {
+          "id": "soldering_iron_0",
+          "label": "Soldering Iron"
+        },
+        {
+          "id": "pliers_0",
+          "label": "Pliers"
+        }
+      ]
     },
     {
       "id": "manufacture_antenna",
@@ -7418,7 +8562,17 @@
       "station": "Electronics Bench",
       "skill": "Engineering",
       "skill_level": 2,
-      "description": "Shape and tune radio signal transducers"
+      "description": "Shape and tune radio signal transducers",
+      "tools": [
+        {
+          "id": "soldering_iron_0",
+          "label": "Soldering Iron"
+        },
+        {
+          "id": "pliers_0",
+          "label": "Pliers"
+        }
+      ]
     },
     {
       "id": "manufacture_sensor_module",
@@ -7457,7 +8611,17 @@
       "station": "Electronics Bench",
       "skill": "Engineering",
       "skill_level": 3,
-      "description": "Calibrate multi-spectrum detector array"
+      "description": "Calibrate multi-spectrum detector array",
+      "tools": [
+        {
+          "id": "soldering_iron_0",
+          "label": "Soldering Iron"
+        },
+        {
+          "id": "pliers_0",
+          "label": "Pliers"
+        }
+      ]
     },
     {
       "id": "manufacture_cpu",
@@ -7491,7 +8655,17 @@
       "station": "Electronics Bench",
       "skill": "Engineering",
       "skill_level": 5,
-      "description": "Etch logic gates into silicon wafer die"
+      "description": "Etch logic gates into silicon wafer die",
+      "tools": [
+        {
+          "id": "soldering_iron_0",
+          "label": "Soldering Iron"
+        },
+        {
+          "id": "pliers_0",
+          "label": "Pliers"
+        }
+      ]
     },
     {
       "id": "manufacture_servo_motor",
@@ -7525,7 +8699,17 @@
       "station": "Electronics Bench",
       "skill": "Engineering",
       "skill_level": 3,
-      "description": "Wind precision position actuator coils"
+      "description": "Wind precision position actuator coils",
+      "tools": [
+        {
+          "id": "soldering_iron_0",
+          "label": "Soldering Iron"
+        },
+        {
+          "id": "pliers_0",
+          "label": "Pliers"
+        }
+      ]
     },
     {
       "id": "manufacture_led_panel",
@@ -7559,7 +8743,17 @@
       "station": "Electronics Bench",
       "skill": "Engineering",
       "skill_level": 2,
-      "description": "Solder diode array onto display substrate"
+      "description": "Solder diode array onto display substrate",
+      "tools": [
+        {
+          "id": "soldering_iron_0",
+          "label": "Soldering Iron"
+        },
+        {
+          "id": "pliers_0",
+          "label": "Pliers"
+        }
+      ]
     },
     {
       "id": "manufacture_camera",
@@ -7598,7 +8792,17 @@
       "station": "Electronics Bench",
       "skill": "Engineering",
       "skill_level": 4,
-      "description": "Assemble digital image sensor and lens optics"
+      "description": "Assemble digital image sensor and lens optics",
+      "tools": [
+        {
+          "id": "soldering_iron_0",
+          "label": "Soldering Iron"
+        },
+        {
+          "id": "pliers_0",
+          "label": "Pliers"
+        }
+      ]
     },
     {
       "id": "craft_bandage_sterile",
@@ -7627,7 +8831,8 @@
       "station": "",
       "skill": "Medicine",
       "skill_level": 1,
-      "description": "Cut and sterilize wound dressing strips"
+      "description": "Cut and sterilize wound dressing strips",
+      "tools": []
     },
     {
       "id": "craft_medkit_full",
@@ -7666,7 +8871,8 @@
       "station": "Workbench",
       "skill": "Medicine",
       "skill_level": 3,
-      "description": "Pack a comprehensive field medical kit"
+      "description": "Pack a comprehensive field medical kit",
+      "tools": []
     },
     {
       "id": "craft_splint_padded",
@@ -7695,7 +8901,8 @@
       "station": "Workbench",
       "skill": "Medicine",
       "skill_level": 1,
-      "description": "Bend and cushion fracture immobilizers"
+      "description": "Bend and cushion fracture immobilizers",
+      "tools": []
     },
     {
       "id": "craft_painkillers",
@@ -7729,7 +8936,8 @@
       "station": "Chemistry Set",
       "skill": "Medicine",
       "skill_level": 3,
-      "description": "Extract and tablet analgesic compounds"
+      "description": "Extract and tablet analgesic compounds",
+      "tools": []
     },
     {
       "id": "craft_antibiotics",
@@ -7763,7 +8971,8 @@
       "station": "Chemistry Set",
       "skill": "Medicine",
       "skill_level": 4,
-      "description": "Culture and extract antimicrobial compounds"
+      "description": "Culture and extract antimicrobial compounds",
+      "tools": []
     },
     {
       "id": "craft_antivenom",
@@ -7797,7 +9006,8 @@
       "station": "Chemistry Set",
       "skill": "Medicine",
       "skill_level": 4,
-      "description": "Prepare venom neutralization serum"
+      "description": "Prepare venom neutralization serum",
+      "tools": []
     },
     {
       "id": "craft_surgical_kit",
@@ -7831,7 +9041,8 @@
       "station": "Workbench",
       "skill": "Medicine",
       "skill_level": 5,
-      "description": "Sterilize and pack field surgery instruments"
+      "description": "Sterilize and pack field surgery instruments",
+      "tools": []
     },
     {
       "id": "craft_stim_pack",
@@ -7865,7 +9076,8 @@
       "station": "Chemistry Set",
       "skill": "Medicine",
       "skill_level": 3,
-      "description": "Mix fast-acting combat stimulant formula"
+      "description": "Mix fast-acting combat stimulant formula",
+      "tools": []
     },
     {
       "id": "craft_chest_wood",
@@ -7894,7 +9106,17 @@
       "station": "Workbench",
       "skill": "Shelter Building",
       "skill_level": 1,
-      "description": "Assemble a lidded wooden storage box"
+      "description": "Assemble a lidded wooden storage box",
+      "tools": [
+        {
+          "id": "hammer_0",
+          "label": "Hammer"
+        },
+        {
+          "id": "saw_hand_0",
+          "label": "Saw Hand"
+        }
+      ]
     },
     {
       "id": "craft_chest_metal",
@@ -7923,7 +9145,13 @@
       "station": "Forge",
       "skill": "Metalworking",
       "skill_level": 3,
-      "description": "Weld a reinforced lockable container"
+      "description": "Weld a reinforced lockable container",
+      "tools": [
+        {
+          "id": "hammer_0",
+          "label": "Hammer"
+        }
+      ]
     },
     {
       "id": "craft_safe_heavy",
@@ -7957,7 +9185,13 @@
       "station": "Forge",
       "skill": "Metalworking",
       "skill_level": 4,
-      "description": "Forge a thick-walled armored vault"
+      "description": "Forge a thick-walled armored vault",
+      "tools": [
+        {
+          "id": "hammer_0",
+          "label": "Hammer"
+        }
+      ]
     },
     {
       "id": "craft_barrel_coopered",
@@ -7986,7 +9220,17 @@
       "station": "Workbench",
       "skill": "Shelter Building",
       "skill_level": 2,
-      "description": "Stave and band wooden liquid containers"
+      "description": "Stave and band wooden liquid containers",
+      "tools": [
+        {
+          "id": "hammer_0",
+          "label": "Hammer"
+        },
+        {
+          "id": "saw_hand_0",
+          "label": "Saw Hand"
+        }
+      ]
     },
     {
       "id": "craft_backpack_small",
@@ -8020,7 +9264,8 @@
       "station": "Sewing Machine",
       "skill": "Tailoring",
       "skill_level": 2,
-      "description": "Construct a 20L carry pack"
+      "description": "Construct a 20L carry pack",
+      "tools": []
     },
     {
       "id": "craft_backpack_large",
@@ -8059,7 +9304,8 @@
       "station": "Sewing Machine",
       "skill": "Tailoring",
       "skill_level": 3,
-      "description": "Construct a 65L expedition rucksack"
+      "description": "Construct a 65L expedition rucksack",
+      "tools": []
     },
     {
       "id": "craft_arrows_batch",
@@ -8093,7 +9339,8 @@
       "station": "Workbench",
       "skill": "Woodworking",
       "skill_level": 1,
-      "description": "Whittle shafts and forge broadhead tips"
+      "description": "Whittle shafts and forge broadhead tips",
+      "tools": []
     },
     {
       "id": "craft_bullets_pistol",
@@ -8127,7 +9374,8 @@
       "station": "Workbench",
       "skill": "Metalworking",
       "skill_level": 2,
-      "description": "Press brass casings and seat projectiles"
+      "description": "Press brass casings and seat projectiles",
+      "tools": []
     },
     {
       "id": "craft_bullets_rifle",
@@ -8161,7 +9409,8 @@
       "station": "Workbench",
       "skill": "Metalworking",
       "skill_level": 3,
-      "description": "Press long casings and seat heavy projectiles"
+      "description": "Press long casings and seat heavy projectiles",
+      "tools": []
     },
     {
       "id": "craft_fuel_cell",
@@ -8200,7 +9449,17 @@
       "station": "Electronics Bench",
       "skill": "Engineering",
       "skill_level": 4,
-      "description": "Assemble hydrogen electrochemical converter"
+      "description": "Assemble hydrogen electrochemical converter",
+      "tools": [
+        {
+          "id": "soldering_iron_0",
+          "label": "Soldering Iron"
+        },
+        {
+          "id": "pliers_0",
+          "label": "Pliers"
+        }
+      ]
     },
     {
       "id": "craft_battery_charge",
@@ -8229,7 +9488,17 @@
       "station": "Electronics Bench",
       "skill": "Engineering",
       "skill_level": 1,
-      "description": "Recondition and recharge depleted cells"
+      "description": "Recondition and recharge depleted cells",
+      "tools": [
+        {
+          "id": "soldering_iron_0",
+          "label": "Soldering Iron"
+        },
+        {
+          "id": "pliers_0",
+          "label": "Pliers"
+        }
+      ]
     },
     {
       "id": "craft_healing_potion",
@@ -8263,7 +9532,8 @@
       "station": "Chemistry Set",
       "skill": "Medicine",
       "skill_level": 2,
-      "description": "Distill restorative herbal tincture"
+      "description": "Distill restorative herbal tincture",
+      "tools": []
     },
     {
       "id": "craft_grenade",
@@ -8297,7 +9567,8 @@
       "station": "Workbench",
       "skill": "Metalworking",
       "skill_level": 3,
-      "description": "Pack and fuse fragmentation shells"
+      "description": "Pack and fuse fragmentation shells",
+      "tools": []
     },
     {
       "id": "craft_smoke_bomb",
@@ -8331,7 +9602,8 @@
       "station": "Workbench",
       "skill": "Woodworking",
       "skill_level": 2,
-      "description": "Pack slow-burn obscurant canisters"
+      "description": "Pack slow-burn obscurant canisters",
+      "tools": []
     },
     {
       "id": "enchant_fire_imbue",
@@ -8365,7 +9637,13 @@
       "station": "Forge",
       "skill": "Metalworking",
       "skill_level": 4,
-      "description": "Imbue an item with searing flame essence"
+      "description": "Imbue an item with searing flame essence",
+      "tools": [
+        {
+          "id": "hammer_0",
+          "label": "Hammer"
+        }
+      ]
     },
     {
       "id": "enchant_sharpness",
@@ -8399,7 +9677,13 @@
       "station": "Forge",
       "skill": "Metalworking",
       "skill_level": 4,
-      "description": "Hone an edge to preternatural keenness"
+      "description": "Hone an edge to preternatural keenness",
+      "tools": [
+        {
+          "id": "hammer_0",
+          "label": "Hammer"
+        }
+      ]
     },
     {
       "id": "enchant_fortification",
@@ -8433,7 +9717,13 @@
       "station": "Forge",
       "skill": "Metalworking",
       "skill_level": 4,
-      "description": "Reinforce material beyond natural limits"
+      "description": "Reinforce material beyond natural limits",
+      "tools": [
+        {
+          "id": "hammer_0",
+          "label": "Hammer"
+        }
+      ]
     },
     {
       "id": "enchant_efficiency",
@@ -8467,7 +9757,17 @@
       "station": "Electronics Bench",
       "skill": "Engineering",
       "skill_level": 4,
-      "description": "Tune a tool for reduced resource consumption"
+      "description": "Tune a tool for reduced resource consumption",
+      "tools": [
+        {
+          "id": "soldering_iron_0",
+          "label": "Soldering Iron"
+        },
+        {
+          "id": "pliers_0",
+          "label": "Pliers"
+        }
+      ]
     },
     {
       "id": "enchant_indestructible",
@@ -8501,7 +9801,13 @@
       "station": "Forge",
       "skill": "Metalworking",
       "skill_level": 5,
-      "description": "Render material virtually immune to wear"
+      "description": "Render material virtually immune to wear",
+      "tools": [
+        {
+          "id": "hammer_0",
+          "label": "Hammer"
+        }
+      ]
     },
     {
       "id": "enchant_speed_boost",
@@ -8535,7 +9841,17 @@
       "station": "Electronics Bench",
       "skill": "Engineering",
       "skill_level": 4,
-      "description": "Accelerate action speed beyond normal limits"
+      "description": "Accelerate action speed beyond normal limits",
+      "tools": [
+        {
+          "id": "soldering_iron_0",
+          "label": "Soldering Iron"
+        },
+        {
+          "id": "pliers_0",
+          "label": "Pliers"
+        }
+      ]
     },
     {
       "id": "enchant_night_vision",
@@ -8569,7 +9885,17 @@
       "station": "Electronics Bench",
       "skill": "Engineering",
       "skill_level": 4,
-      "description": "Grant low-light visual amplification"
+      "description": "Grant low-light visual amplification",
+      "tools": [
+        {
+          "id": "soldering_iron_0",
+          "label": "Soldering Iron"
+        },
+        {
+          "id": "pliers_0",
+          "label": "Pliers"
+        }
+      ]
     },
     {
       "id": "enchant_auto_repair",
@@ -8603,7 +9929,17 @@
       "station": "Electronics Bench",
       "skill": "Engineering",
       "skill_level": 5,
-      "description": "Enable gradual self-restoration of durability"
+      "description": "Enable gradual self-restoration of durability",
+      "tools": [
+        {
+          "id": "soldering_iron_0",
+          "label": "Soldering Iron"
+        },
+        {
+          "id": "pliers_0",
+          "label": "Pliers"
+        }
+      ]
     },
     {
       "id": "craft_painting",
@@ -8637,7 +9973,8 @@
       "station": "Workbench",
       "skill": "Woodworking",
       "skill_level": 2,
-      "description": "Stretch and paint a framed canvas"
+      "description": "Stretch and paint a framed canvas",
+      "tools": []
     },
     {
       "id": "craft_statue_small",
@@ -8648,11 +9985,6 @@
           "id": "stone_raw_0",
           "label": "Stone Raw",
           "qty": 4
-        },
-        {
-          "id": "chisel_0",
-          "label": "Chisel",
-          "qty": 1
         }
       ],
       "outputs": [
@@ -8666,7 +9998,17 @@
       "station": "Workbench",
       "skill": "Woodworking",
       "skill_level": 3,
-      "description": "Chisel a decorative stone figure"
+      "description": "Chisel a decorative stone figure",
+      "tools": [
+        {
+          "id": "chisel_0",
+          "label": "Chisel"
+        },
+        {
+          "id": "hammer_0",
+          "label": "Hammer"
+        }
+      ]
     },
     {
       "id": "craft_statue_large",
@@ -8677,11 +10019,6 @@
           "id": "stone_raw_0",
           "label": "Stone Raw",
           "qty": 12
-        },
-        {
-          "id": "chisel_0",
-          "label": "Chisel",
-          "qty": 1
         },
         {
           "id": "steel_ingot_0",
@@ -8700,7 +10037,17 @@
       "station": "Workbench",
       "skill": "Woodworking",
       "skill_level": 5,
-      "description": "Sculpt a monumental stone figure"
+      "description": "Sculpt a monumental stone figure",
+      "tools": [
+        {
+          "id": "chisel_0",
+          "label": "Chisel"
+        },
+        {
+          "id": "hammer_0",
+          "label": "Hammer"
+        }
+      ]
     },
     {
       "id": "craft_flag",
@@ -8734,7 +10081,8 @@
       "station": "Sewing Machine",
       "skill": "Tailoring",
       "skill_level": 1,
-      "description": "Stitch and mount a cloth standard"
+      "description": "Stitch and mount a cloth standard",
+      "tools": []
     },
     {
       "id": "craft_fountain",
@@ -8773,7 +10121,17 @@
       "station": "Workbench",
       "skill": "Shelter Building",
       "skill_level": 4,
-      "description": "Construct an ornamental water feature"
+      "description": "Construct an ornamental water feature",
+      "tools": [
+        {
+          "id": "hammer_0",
+          "label": "Hammer"
+        },
+        {
+          "id": "saw_hand_0",
+          "label": "Saw Hand"
+        }
+      ]
     },
     {
       "id": "craft_planter",
@@ -8802,7 +10160,8 @@
       "station": "Kiln",
       "skill": "Woodworking",
       "skill_level": 2,
-      "description": "Fire and glaze ornamental plant pots"
+      "description": "Fire and glaze ornamental plant pots",
+      "tools": []
     },
     {
       "id": "build_electric_car",
@@ -8851,7 +10210,17 @@
       "station": "Workbench",
       "skill": "Engineering",
       "skill_level": 5,
-      "description": "Assemble a battery-powered four-seat sedan"
+      "description": "Assemble a battery-powered four-seat sedan",
+      "tools": [
+        {
+          "id": "wrench_adjustable_0",
+          "label": "Wrench Adjustable"
+        },
+        {
+          "id": "screwdriver_flat_0",
+          "label": "Screwdriver Flat"
+        }
+      ]
     },
     {
       "id": "build_electric_truck",
@@ -8900,7 +10269,17 @@
       "station": "Workbench",
       "skill": "Engineering",
       "skill_level": 5,
-      "description": "Assemble a battery-powered cargo hauler"
+      "description": "Assemble a battery-powered cargo hauler",
+      "tools": [
+        {
+          "id": "wrench_adjustable_0",
+          "label": "Wrench Adjustable"
+        },
+        {
+          "id": "screwdriver_flat_0",
+          "label": "Screwdriver Flat"
+        }
+      ]
     },
     {
       "id": "build_electric_scooter",
@@ -8939,7 +10318,17 @@
       "station": "Workbench",
       "skill": "Engineering",
       "skill_level": 3,
-      "description": "Assemble a personal mobility scooter"
+      "description": "Assemble a personal mobility scooter",
+      "tools": [
+        {
+          "id": "wrench_adjustable_0",
+          "label": "Wrench Adjustable"
+        },
+        {
+          "id": "screwdriver_flat_0",
+          "label": "Screwdriver Flat"
+        }
+      ]
     },
     {
       "id": "build_locomotive",
@@ -8983,7 +10372,17 @@
       "station": "Workbench",
       "skill": "Engineering",
       "skill_level": 5,
-      "description": "Construct a diesel-electric rail engine"
+      "description": "Construct a diesel-electric rail engine",
+      "tools": [
+        {
+          "id": "wrench_adjustable_0",
+          "label": "Wrench Adjustable"
+        },
+        {
+          "id": "screwdriver_flat_0",
+          "label": "Screwdriver Flat"
+        }
+      ]
     },
     {
       "id": "build_bicycle_full",
@@ -9022,7 +10421,17 @@
       "station": "Workbench",
       "skill": "Engineering",
       "skill_level": 2,
-      "description": "Assemble a lightweight two-wheel pedal vehicle"
+      "description": "Assemble a lightweight two-wheel pedal vehicle",
+      "tools": [
+        {
+          "id": "wrench_adjustable_0",
+          "label": "Wrench Adjustable"
+        },
+        {
+          "id": "screwdriver_flat_0",
+          "label": "Screwdriver Flat"
+        }
+      ]
     },
     {
       "id": "build_motorcycle_full",
@@ -9066,7 +10475,17 @@
       "station": "Workbench",
       "skill": "Engineering",
       "skill_level": 4,
-      "description": "Assemble a two-wheel combustion cycle"
+      "description": "Assemble a two-wheel combustion cycle",
+      "tools": [
+        {
+          "id": "wrench_adjustable_0",
+          "label": "Wrench Adjustable"
+        },
+        {
+          "id": "screwdriver_flat_0",
+          "label": "Screwdriver Flat"
+        }
+      ]
     },
     {
       "id": "build_hovercraft",
@@ -9110,7 +10529,17 @@
       "station": "Workbench",
       "skill": "Engineering",
       "skill_level": 5,
-      "description": "Construct an air-cushion surface vehicle"
+      "description": "Construct an air-cushion surface vehicle",
+      "tools": [
+        {
+          "id": "wrench_adjustable_0",
+          "label": "Wrench Adjustable"
+        },
+        {
+          "id": "screwdriver_flat_0",
+          "label": "Screwdriver Flat"
+        }
+      ]
     },
     {
       "id": "build_rover",
@@ -9164,7 +10593,17 @@
       "station": "Workbench",
       "skill": "Engineering",
       "skill_level": 5,
-      "description": "Assemble an all-terrain exploration vehicle"
+      "description": "Assemble an all-terrain exploration vehicle",
+      "tools": [
+        {
+          "id": "wrench_adjustable_0",
+          "label": "Wrench Adjustable"
+        },
+        {
+          "id": "screwdriver_flat_0",
+          "label": "Screwdriver Flat"
+        }
+      ]
     },
     {
       "id": "build_mech_light",
@@ -9218,7 +10657,17 @@
       "station": "Workbench",
       "skill": "Engineering",
       "skill_level": 5,
-      "description": "Assemble a bipedal exosuit for rough terrain"
+      "description": "Assemble a bipedal exosuit for rough terrain",
+      "tools": [
+        {
+          "id": "wrench_adjustable_0",
+          "label": "Wrench Adjustable"
+        },
+        {
+          "id": "screwdriver_flat_0",
+          "label": "Screwdriver Flat"
+        }
+      ]
     },
     {
       "id": "build_mech_heavy",
@@ -9272,7 +10721,17 @@
       "station": "Workbench",
       "skill": "Engineering",
       "skill_level": 5,
-      "description": "Construct an armored combat walker"
+      "description": "Construct an armored combat walker",
+      "tools": [
+        {
+          "id": "wrench_adjustable_0",
+          "label": "Wrench Adjustable"
+        },
+        {
+          "id": "screwdriver_flat_0",
+          "label": "Screwdriver Flat"
+        }
+      ]
     },
     {
       "id": "build_mech_construction",
@@ -9321,7 +10780,17 @@
       "station": "Workbench",
       "skill": "Engineering",
       "skill_level": 5,
-      "description": "Assemble an industrial lifter with crane arms"
+      "description": "Assemble an industrial lifter with crane arms",
+      "tools": [
+        {
+          "id": "wrench_adjustable_0",
+          "label": "Wrench Adjustable"
+        },
+        {
+          "id": "screwdriver_flat_0",
+          "label": "Screwdriver Flat"
+        }
+      ]
     },
     {
       "id": "build_mech_mining",
@@ -9370,7 +10839,17 @@
       "station": "Workbench",
       "skill": "Engineering",
       "skill_level": 5,
-      "description": "Construct a drill-equipped tunnel borer"
+      "description": "Construct a drill-equipped tunnel borer",
+      "tools": [
+        {
+          "id": "wrench_adjustable_0",
+          "label": "Wrench Adjustable"
+        },
+        {
+          "id": "screwdriver_flat_0",
+          "label": "Screwdriver Flat"
+        }
+      ]
     },
     {
       "id": "build_mech_scout",
@@ -9424,7 +10903,17 @@
       "station": "Workbench",
       "skill": "Engineering",
       "skill_level": 5,
-      "description": "Assemble a fast recon walker with sensors"
+      "description": "Assemble a fast recon walker with sensors",
+      "tools": [
+        {
+          "id": "wrench_adjustable_0",
+          "label": "Wrench Adjustable"
+        },
+        {
+          "id": "screwdriver_flat_0",
+          "label": "Screwdriver Flat"
+        }
+      ]
     },
     {
       "id": "build_spacecraft_fighter",
@@ -9483,7 +10972,17 @@
       "station": "Workbench",
       "skill": "Engineering",
       "skill_level": 5,
-      "description": "Assemble a light combat vessel with dual thrusters"
+      "description": "Assemble a light combat vessel with dual thrusters",
+      "tools": [
+        {
+          "id": "wrench_adjustable_0",
+          "label": "Wrench Adjustable"
+        },
+        {
+          "id": "screwdriver_flat_0",
+          "label": "Screwdriver Flat"
+        }
+      ]
     },
     {
       "id": "build_spacecraft_freighter",
@@ -9537,7 +11036,17 @@
       "station": "Workbench",
       "skill": "Engineering",
       "skill_level": 5,
-      "description": "Construct a large modular cargo hauler"
+      "description": "Construct a large modular cargo hauler",
+      "tools": [
+        {
+          "id": "wrench_adjustable_0",
+          "label": "Wrench Adjustable"
+        },
+        {
+          "id": "screwdriver_flat_0",
+          "label": "Screwdriver Flat"
+        }
+      ]
     },
     {
       "id": "build_spacecraft_shuttle",
@@ -9591,7 +11100,17 @@
       "station": "Workbench",
       "skill": "Engineering",
       "skill_level": 5,
-      "description": "Assemble a personnel transport shuttle"
+      "description": "Assemble a personnel transport shuttle",
+      "tools": [
+        {
+          "id": "wrench_adjustable_0",
+          "label": "Wrench Adjustable"
+        },
+        {
+          "id": "screwdriver_flat_0",
+          "label": "Screwdriver Flat"
+        }
+      ]
     },
     {
       "id": "build_spacecraft_corvette",
@@ -9650,7 +11169,17 @@
       "station": "Workbench",
       "skill": "Engineering",
       "skill_level": 5,
-      "description": "Construct a fast multi-role warship"
+      "description": "Construct a fast multi-role warship",
+      "tools": [
+        {
+          "id": "wrench_adjustable_0",
+          "label": "Wrench Adjustable"
+        },
+        {
+          "id": "screwdriver_flat_0",
+          "label": "Screwdriver Flat"
+        }
+      ]
     },
     {
       "id": "build_spacecraft_mining",
@@ -9704,7 +11233,17 @@
       "station": "Workbench",
       "skill": "Engineering",
       "skill_level": 5,
-      "description": "Assemble an asteroid ore extraction ship"
+      "description": "Assemble an asteroid ore extraction ship",
+      "tools": [
+        {
+          "id": "wrench_adjustable_0",
+          "label": "Wrench Adjustable"
+        },
+        {
+          "id": "screwdriver_flat_0",
+          "label": "Screwdriver Flat"
+        }
+      ]
     },
     {
       "id": "build_spacecraft_explorer",
@@ -9758,7 +11297,17 @@
       "station": "Workbench",
       "skill": "Engineering",
       "skill_level": 5,
-      "description": "Construct a long-range survey vessel with sensors"
+      "description": "Construct a long-range survey vessel with sensors",
+      "tools": [
+        {
+          "id": "wrench_adjustable_0",
+          "label": "Wrench Adjustable"
+        },
+        {
+          "id": "screwdriver_flat_0",
+          "label": "Screwdriver Flat"
+        }
+      ]
     },
     {
       "id": "build_station_module",
@@ -9812,7 +11361,17 @@
       "station": "Workbench",
       "skill": "Engineering",
       "skill_level": 5,
-      "description": "Fabricate a habitable orbital station segment"
+      "description": "Fabricate a habitable orbital station segment",
+      "tools": [
+        {
+          "id": "wrench_adjustable_0",
+          "label": "Wrench Adjustable"
+        },
+        {
+          "id": "screwdriver_flat_0",
+          "label": "Screwdriver Flat"
+        }
+      ]
     },
     {
       "id": "build_spacecraft_pod",
@@ -9861,7 +11420,17 @@
       "station": "Workbench",
       "skill": "Engineering",
       "skill_level": 5,
-      "description": "Assemble a single-seat orbital vehicle"
+      "description": "Assemble a single-seat orbital vehicle",
+      "tools": [
+        {
+          "id": "wrench_adjustable_0",
+          "label": "Wrench Adjustable"
+        },
+        {
+          "id": "screwdriver_flat_0",
+          "label": "Screwdriver Flat"
+        }
+      ]
     },
     {
       "id": "craft_wall_wood",
@@ -9890,7 +11459,17 @@
       "station": "Workbench",
       "skill": "Shelter Building",
       "skill_level": 2,
-      "description": "Frame and sheath a standard wall section"
+      "description": "Frame and sheath a standard wall section",
+      "tools": [
+        {
+          "id": "hammer_0",
+          "label": "Hammer"
+        },
+        {
+          "id": "saw_hand_0",
+          "label": "Saw Hand"
+        }
+      ]
     },
     {
       "id": "craft_wall_reinforced",
@@ -9924,7 +11503,17 @@
       "station": "Workbench",
       "skill": "Shelter Building",
       "skill_level": 4,
-      "description": "Construct a steel-reinforced concrete wall panel"
+      "description": "Construct a steel-reinforced concrete wall panel",
+      "tools": [
+        {
+          "id": "hammer_0",
+          "label": "Hammer"
+        },
+        {
+          "id": "saw_hand_0",
+          "label": "Saw Hand"
+        }
+      ]
     },
     {
       "id": "craft_floor_tile",
@@ -9953,7 +11542,8 @@
       "station": "Kiln",
       "skill": "Shelter Building",
       "skill_level": 2,
-      "description": "Fire and set ceramic floor tiles"
+      "description": "Fire and set ceramic floor tiles",
+      "tools": []
     },
     {
       "id": "craft_roof_panel",
@@ -9987,7 +11577,17 @@
       "station": "Workbench",
       "skill": "Shelter Building",
       "skill_level": 2,
-      "description": "Frame and weatherproof a roof section"
+      "description": "Frame and weatherproof a roof section",
+      "tools": [
+        {
+          "id": "hammer_0",
+          "label": "Hammer"
+        },
+        {
+          "id": "saw_hand_0",
+          "label": "Saw Hand"
+        }
+      ]
     },
     {
       "id": "craft_ring_gold",
@@ -10011,7 +11611,13 @@
       "station": "Anvil Station",
       "skill": "Metalworking",
       "skill_level": 3,
-      "description": "Hammer a polished gold finger band"
+      "description": "Hammer a polished gold finger band",
+      "tools": [
+        {
+          "id": "hammer_0",
+          "label": "Hammer"
+        }
+      ]
     },
     {
       "id": "craft_ring_silver",
@@ -10035,7 +11641,13 @@
       "station": "Anvil Station",
       "skill": "Metalworking",
       "skill_level": 2,
-      "description": "Hammer a polished silver finger band"
+      "description": "Hammer a polished silver finger band",
+      "tools": [
+        {
+          "id": "hammer_0",
+          "label": "Hammer"
+        }
+      ]
     },
     {
       "id": "craft_necklace_gold",
@@ -10059,7 +11671,13 @@
       "station": "Anvil Station",
       "skill": "Metalworking",
       "skill_level": 4,
-      "description": "Link gold rings into a neck chain"
+      "description": "Link gold rings into a neck chain",
+      "tools": [
+        {
+          "id": "hammer_0",
+          "label": "Hammer"
+        }
+      ]
     },
     {
       "id": "craft_bracelet_silver",
@@ -10083,7 +11701,13 @@
       "station": "Anvil Station",
       "skill": "Metalworking",
       "skill_level": 3,
-      "description": "Link silver into a wrist band"
+      "description": "Link silver into a wrist band",
+      "tools": [
+        {
+          "id": "hammer_0",
+          "label": "Hammer"
+        }
+      ]
     },
     {
       "id": "craft_amulet",
@@ -10107,7 +11731,13 @@
       "station": "Anvil Station",
       "skill": "Metalworking",
       "skill_level": 3,
-      "description": "Engrave a protective silver charm"
+      "description": "Engrave a protective silver charm",
+      "tools": [
+        {
+          "id": "hammer_0",
+          "label": "Hammer"
+        }
+      ]
     },
     {
       "id": "craft_book_blank",
@@ -10141,7 +11771,8 @@
       "station": "Workbench",
       "skill": "Woodworking",
       "skill_level": 2,
-      "description": "Sew and bind paper into a blank book"
+      "description": "Sew and bind paper into a blank book",
+      "tools": []
     },
     {
       "id": "craft_pencil",
@@ -10170,7 +11801,8 @@
       "station": "Workbench",
       "skill": "Woodworking",
       "skill_level": 1,
-      "description": "Glue graphite core into wooden sticks"
+      "description": "Glue graphite core into wooden sticks",
+      "tools": []
     },
     {
       "id": "craft_ink",
@@ -10199,7 +11831,8 @@
       "station": "Chemistry Set",
       "skill": "Alchemy",
       "skill_level": 2,
-      "description": "Combine carbon and binder into writing fluid"
+      "description": "Combine carbon and binder into writing fluid",
+      "tools": []
     },
     {
       "id": "craft_notebook",
@@ -10228,7 +11861,8 @@
       "station": "Workbench",
       "skill": "Woodworking",
       "skill_level": 1,
-      "description": "Spiral-bind paper into a notebook"
+      "description": "Spiral-bind paper into a notebook",
+      "tools": []
     },
     {
       "id": "craft_candle",
@@ -10257,7 +11891,8 @@
       "station": "Workbench",
       "skill": "Woodworking",
       "skill_level": 1,
-      "description": "Pour wax around cotton wicks"
+      "description": "Pour wax around cotton wicks",
+      "tools": []
     },
     {
       "id": "craft_lantern_oil",
@@ -10291,7 +11926,8 @@
       "station": "Workbench",
       "skill": "Woodworking",
       "skill_level": 2,
-      "description": "Build a glass-shielded oil lamp"
+      "description": "Build a glass-shielded oil lamp",
+      "tools": []
     },
     {
       "id": "craft_flashlight",
@@ -10330,7 +11966,17 @@
       "station": "Electronics Bench",
       "skill": "Engineering",
       "skill_level": 2,
-      "description": "Assemble a handheld battery torch"
+      "description": "Assemble a handheld battery torch",
+      "tools": [
+        {
+          "id": "soldering_iron_0",
+          "label": "Soldering Iron"
+        },
+        {
+          "id": "pliers_0",
+          "label": "Pliers"
+        }
+      ]
     },
     {
       "id": "craft_headlamp",
@@ -10374,7 +12020,17 @@
       "station": "Electronics Bench",
       "skill": "Engineering",
       "skill_level": 2,
-      "description": "Build a strap-mounted hands-free light"
+      "description": "Build a strap-mounted hands-free light",
+      "tools": [
+        {
+          "id": "soldering_iron_0",
+          "label": "Soldering Iron"
+        },
+        {
+          "id": "pliers_0",
+          "label": "Pliers"
+        }
+      ]
     },
     {
       "id": "cook_soup_vegetable",
@@ -10413,7 +12069,13 @@
       "station": "Stove",
       "skill": "Cooking",
       "skill_level": 1,
-      "description": "Simmer vegetables into a hot broth"
+      "description": "Simmer vegetables into a hot broth",
+      "tools": [
+        {
+          "id": "knife_utility_0",
+          "label": "Knife Utility"
+        }
+      ]
     },
     {
       "id": "cook_stew_meat",
@@ -10452,7 +12114,13 @@
       "station": "Stove",
       "skill": "Cooking",
       "skill_level": 2,
-      "description": "Slow-simmer meat and vegetables"
+      "description": "Slow-simmer meat and vegetables",
+      "tools": [
+        {
+          "id": "knife_utility_0",
+          "label": "Knife Utility"
+        }
+      ]
     },
     {
       "id": "cook_sandwich",
@@ -10486,7 +12154,13 @@
       "station": "Workbench",
       "skill": "Cooking",
       "skill_level": 1,
-      "description": "Layer bread cheese and greens"
+      "description": "Layer bread cheese and greens",
+      "tools": [
+        {
+          "id": "knife_utility_0",
+          "label": "Knife Utility"
+        }
+      ]
     },
     {
       "id": "cook_pasta",
@@ -10525,7 +12199,8 @@
       "station": "Stove",
       "skill": "Cooking",
       "skill_level": 2,
-      "description": "Boil noodles and toss with sauce"
+      "description": "Boil noodles and toss with sauce",
+      "tools": []
     },
     {
       "id": "cook_pizza",
@@ -10559,7 +12234,8 @@
       "station": "Oven",
       "skill": "Cooking",
       "skill_level": 3,
-      "description": "Bake topped flatbread into pizza"
+      "description": "Bake topped flatbread into pizza",
+      "tools": []
     },
     {
       "id": "cook_omelette",
@@ -10593,7 +12269,8 @@
       "station": "Stove",
       "skill": "Cooking",
       "skill_level": 1,
-      "description": "Fold eggs and filling in a pan"
+      "description": "Fold eggs and filling in a pan",
+      "tools": []
     },
     {
       "id": "cook_porridge",
@@ -10627,7 +12304,8 @@
       "station": "Stove",
       "skill": "Cooking",
       "skill_level": 1,
-      "description": "Simmer grain in milk"
+      "description": "Simmer grain in milk",
+      "tools": []
     },
     {
       "id": "bake_cake",
@@ -10671,7 +12349,8 @@
       "station": "Oven",
       "skill": "Cooking",
       "skill_level": 3,
-      "description": "Bake a sweet layered dessert"
+      "description": "Bake a sweet layered dessert",
+      "tools": []
     },
     {
       "id": "bake_pie",
@@ -10710,7 +12389,13 @@
       "station": "Oven",
       "skill": "Cooking",
       "skill_level": 3,
-      "description": "Bake a fruit-filled pastry"
+      "description": "Bake a fruit-filled pastry",
+      "tools": [
+        {
+          "id": "knife_utility_0",
+          "label": "Knife Utility"
+        }
+      ]
     },
     {
       "id": "bake_cookies",
@@ -10749,7 +12434,8 @@
       "station": "Oven",
       "skill": "Cooking",
       "skill_level": 2,
-      "description": "Bake sweet dough discs"
+      "description": "Bake sweet dough discs",
+      "tools": []
     },
     {
       "id": "cook_salad",
@@ -10783,7 +12469,13 @@
       "station": "Workbench",
       "skill": "Cooking",
       "skill_level": 1,
-      "description": "Combine raw vegetables in a bowl"
+      "description": "Combine raw vegetables in a bowl",
+      "tools": [
+        {
+          "id": "knife_utility_0",
+          "label": "Knife Utility"
+        }
+      ]
     },
     {
       "id": "craft_soap_bar",
@@ -10812,7 +12504,8 @@
       "station": "Chemistry Set",
       "skill": "Alchemy",
       "skill_level": 2,
-      "description": "Saponify fat into cleaning bars"
+      "description": "Saponify fat into cleaning bars",
+      "tools": []
     },
     {
       "id": "craft_pipe_metal",
@@ -10836,7 +12529,13 @@
       "station": "Forge",
       "skill": "Metalworking",
       "skill_level": 2,
-      "description": "Form threaded steel pipe segments"
+      "description": "Form threaded steel pipe segments",
+      "tools": [
+        {
+          "id": "hammer_0",
+          "label": "Hammer"
+        }
+      ]
     },
     {
       "id": "craft_faucet",
@@ -10865,7 +12564,8 @@
       "station": "Workbench",
       "skill": "Metalworking",
       "skill_level": 3,
-      "description": "Assemble a threaded water tap"
+      "description": "Assemble a threaded water tap",
+      "tools": []
     },
     {
       "id": "craft_toilet",
@@ -10894,7 +12594,8 @@
       "station": "Kiln",
       "skill": "Woodworking",
       "skill_level": 3,
-      "description": "Fire a porcelain waste fixture"
+      "description": "Fire a porcelain waste fixture",
+      "tools": []
     },
     {
       "id": "craft_sink",
@@ -10918,7 +12619,8 @@
       "station": "Kiln",
       "skill": "Woodworking",
       "skill_level": 2,
-      "description": "Fire a porcelain wash basin"
+      "description": "Fire a porcelain wash basin",
+      "tools": []
     },
     {
       "id": "craft_paintbrush_set",
@@ -10952,7 +12654,8 @@
       "station": "Workbench",
       "skill": "Woodworking",
       "skill_level": 1,
-      "description": "Bind bristles to wooden handles"
+      "description": "Bind bristles to wooden handles",
+      "tools": []
     },
     {
       "id": "craft_canvas_blank",
@@ -10981,7 +12684,8 @@
       "station": "Workbench",
       "skill": "Tailoring",
       "skill_level": 2,
-      "description": "Stretch primed cloth on a frame"
+      "description": "Stretch primed cloth on a frame",
+      "tools": []
     },
     {
       "id": "craft_easel",
@@ -11010,7 +12714,17 @@
       "station": "Workbench",
       "skill": "Woodworking",
       "skill_level": 2,
-      "description": "Construct a tripod canvas stand"
+      "description": "Construct a tripod canvas stand",
+      "tools": [
+        {
+          "id": "hammer_0",
+          "label": "Hammer"
+        },
+        {
+          "id": "saw_hand_0",
+          "label": "Saw Hand"
+        }
+      ]
     },
     {
       "id": "craft_guitar_acoustic",
@@ -11044,7 +12758,17 @@
       "station": "Workbench",
       "skill": "Woodworking",
       "skill_level": 4,
-      "description": "Hand-build a six-string fretted guitar"
+      "description": "Hand-build a six-string fretted guitar",
+      "tools": [
+        {
+          "id": "saw_hand_0",
+          "label": "Saw Hand"
+        },
+        {
+          "id": "knife_utility_0",
+          "label": "Knife Utility"
+        }
+      ]
     },
     {
       "id": "craft_violin",
@@ -11078,7 +12802,17 @@
       "station": "Workbench",
       "skill": "Woodworking",
       "skill_level": 5,
-      "description": "Hand-build a four-string bowed instrument"
+      "description": "Hand-build a four-string bowed instrument",
+      "tools": [
+        {
+          "id": "saw_hand_0",
+          "label": "Saw Hand"
+        },
+        {
+          "id": "knife_utility_0",
+          "label": "Knife Utility"
+        }
+      ]
     },
     {
       "id": "craft_flute_wood",
@@ -11102,7 +12836,13 @@
       "station": "Workbench",
       "skill": "Woodworking",
       "skill_level": 3,
-      "description": "Carve a hollow keyed wind instrument"
+      "description": "Carve a hollow keyed wind instrument",
+      "tools": [
+        {
+          "id": "knife_utility_0",
+          "label": "Knife Utility"
+        }
+      ]
     },
     {
       "id": "craft_drum_hand",
@@ -11131,7 +12871,8 @@
       "station": "Workbench",
       "skill": "Woodworking",
       "skill_level": 2,
-      "description": "Stretch hide over a wooden frame"
+      "description": "Stretch hide over a wooden frame",
+      "tools": []
     },
     {
       "id": "craft_harmonica",
@@ -11155,7 +12896,8 @@
       "station": "Workbench",
       "skill": "Metalworking",
       "skill_level": 3,
-      "description": "Cut and tune brass reed plates"
+      "description": "Cut and tune brass reed plates",
+      "tools": []
     },
     {
       "id": "craft_tent_2person",
@@ -11189,7 +12931,8 @@
       "station": "Sewing Machine",
       "skill": "Tailoring",
       "skill_level": 3,
-      "description": "Sew a backpack camping shelter"
+      "description": "Sew a backpack camping shelter",
+      "tools": []
     },
     {
       "id": "craft_sleeping_bag",
@@ -11218,7 +12961,8 @@
       "station": "Sewing Machine",
       "skill": "Tailoring",
       "skill_level": 2,
-      "description": "Sew an insulated portable bedroll"
+      "description": "Sew an insulated portable bedroll",
+      "tools": []
     },
     {
       "id": "craft_fishing_rod",
@@ -11247,7 +12991,8 @@
       "station": "Workbench",
       "skill": "Woodworking",
       "skill_level": 1,
-      "description": "Carve a reel-and-line fish capture pole"
+      "description": "Carve a reel-and-line fish capture pole",
+      "tools": []
     },
     {
       "id": "craft_fishing_net",
@@ -11276,7 +13021,8 @@
       "station": "Sewing Machine",
       "skill": "Tailoring",
       "skill_level": 2,
-      "description": "Weave a weighted mesh fish trap"
+      "description": "Weave a weighted mesh fish trap",
+      "tools": []
     },
     {
       "id": "craft_binoculars",
@@ -11305,7 +13051,8 @@
       "station": "Workbench",
       "skill": "Woodworking",
       "skill_level": 3,
-      "description": "Build a twin-tube long-range optic"
+      "description": "Build a twin-tube long-range optic",
+      "tools": []
     },
     {
       "id": "assemble_truck_kit",
@@ -11339,7 +13086,8 @@
       "station": "Workbench",
       "skill": "Metalworking",
       "skill_level": 2,
-      "description": "Bolt together a flat-packed pickup truck kit"
+      "description": "Bolt together a flat-packed pickup truck kit",
+      "tools": []
     },
     {
       "id": "assemble_rover_kit",
@@ -11373,7 +13121,8 @@
       "station": "Workbench",
       "skill": "Metalworking",
       "skill_level": 2,
-      "description": "Bolt together a flat-packed rover kit"
+      "description": "Bolt together a flat-packed rover kit",
+      "tools": []
     },
     {
       "id": "assemble_rover",
@@ -11407,7 +13156,8 @@
       "station": "Vehicle Assembler",
       "skill": "Metalworking",
       "skill_level": 2,
-      "description": "Assemble a complete rover on the factory pad"
+      "description": "Assemble a complete rover on the factory pad",
+      "tools": []
     },
     {
       "id": "assemble_truck",
@@ -11441,7 +13191,8 @@
       "station": "Vehicle Assembler",
       "skill": "Metalworking",
       "skill_level": 2,
-      "description": "Assemble a complete pickup truck on the factory pad"
+      "description": "Assemble a complete pickup truck on the factory pad",
+      "tools": []
     },
     {
       "id": "smelt_iron_graphite",
@@ -11470,7 +13221,8 @@
       "station": "Smelter",
       "skill": "Metalworking",
       "skill_level": 1,
-      "description": "Reduce iron ore using asteroid graphite as the carbon source"
+      "description": "Reduce iron ore using asteroid graphite as the carbon source",
+      "tools": []
     },
     {
       "id": "smelt_copper_graphite",
@@ -11499,7 +13251,8 @@
       "station": "Smelter",
       "skill": "Metalworking",
       "skill_level": 1,
-      "description": "Reduce copper ore using asteroid graphite"
+      "description": "Reduce copper ore using asteroid graphite",
+      "tools": []
     },
     {
       "id": "smelt_nickel_graphite",
@@ -11528,7 +13281,8 @@
       "station": "Smelter",
       "skill": "Metalworking",
       "skill_level": 2,
-      "description": "Reduce nickel ore using asteroid graphite"
+      "description": "Reduce nickel ore using asteroid graphite",
+      "tools": []
     },
     {
       "id": "assemble_nova",
@@ -11567,7 +13321,8 @@
       "station": "Vehicle Assembler",
       "skill": "Metalworking",
       "skill_level": 3,
-      "description": "Assemble a complete 1975 Chevy Nova on the factory pad"
+      "description": "Assemble a complete 1975 Chevy Nova on the factory pad",
+      "tools": []
     },
     {
       "id": "bundle_cotton",
@@ -11591,7 +13346,8 @@
       "station": "Workbench",
       "skill": "",
       "skill_level": 1,
-      "description": "Card and bundle cotton into usable fiber"
+      "description": "Card and bundle cotton into usable fiber",
+      "tools": []
     },
     {
       "id": "bundle_flax",
@@ -11615,7 +13371,8 @@
       "station": "Workbench",
       "skill": "",
       "skill_level": 1,
-      "description": "Rett and bundle flax into usable fiber"
+      "description": "Rett and bundle flax into usable fiber",
+      "tools": []
     },
     {
       "id": "bundle_hemp",
@@ -11639,7 +13396,8 @@
       "station": "Workbench",
       "skill": "",
       "skill_level": 1,
-      "description": "Strip and bundle hemp into usable fiber"
+      "description": "Strip and bundle hemp into usable fiber",
+      "tools": []
     },
     {
       "id": "bundle_jute",
@@ -11663,7 +13421,8 @@
       "station": "Workbench",
       "skill": "",
       "skill_level": 1,
-      "description": "Strip and bundle jute into usable fiber"
+      "description": "Strip and bundle jute into usable fiber",
+      "tools": []
     }
   ]
 }

@@ -45,8 +45,34 @@ function splitRow(line) {
   return head;
 }
 
+// Hand tools each recipe needs (data/crafting/tools.ron, 2026-09-26). The
+// file's shape is fixed and simple, so it is read with two patterns; the
+// resolution mirrors ToolRules::tools_for in src/systems/crafting/tools.rs:
+// a per-recipe list overrides the rules, the first rule matching the station
+// (and the category, when it names one) applies, a recipe made by hand
+// matches no rule, and a recipe never needs a tool it makes.
+const TOOLS_RON = fs.readFileSync(path.join('data', 'crafting', 'tools.ron'), 'utf8')
+  .split(/\r?\n/).map((l) => l.replace(/\/\/.*$/, '')).join('\n');
+const listOf = (s) => (s.match(/"([^"]+)"/g) || []).map((q) => q.slice(1, -1));
+const toolRules = [...TOOLS_RON.matchAll(/\(station:\s*"([^"]*)",\s*category:\s*"([^"]*)",\s*tools:\s*\[([^\]]*)\]\)/g)]
+  .map((m) => ({ station: m[1], category: m[2], tools: listOf(m[3]) }));
+const recipesPart = TOOLS_RON.slice(TOOLS_RON.indexOf('recipes:'));
+const toolOverrides = Object.fromEntries(
+  [...recipesPart.matchAll(/"([^"]+)":\s*\[([^\]]*)\]/g)].map((m) => [m[1], listOf(m[2])]),
+);
+if (!toolRules.length) throw new Error('tools.ron: no rules parsed');
+function toolsFor(id, station, category, outputs) {
+  let list = toolOverrides[id];
+  if (!list) {
+    const rule = station && toolRules.find((r) => r.station === station && (!r.category || r.category === category));
+    list = rule ? rule.tools : [];
+  }
+  return list.filter((t) => !outputs.some((o) => o.id === t)).map((t) => ({ id: t, label: pretty(t) }));
+}
+
 const recipes = lines.map((line) => {
   const f = splitRow(line);
+  const outputs = parseItems(f[col.outputs]);
   return {
     id: f[col.id],
     name: f[col.name],
@@ -58,6 +84,7 @@ const recipes = lines.map((line) => {
     skill: f[col.skill_required] ? pretty(f[col.skill_required]) : '',
     skill_level: Number(f[col.skill_level]) || 1,
     description: (f[col.description] || '').trim(),
+    tools: toolsFor(f[col.id], (f[col.station_required] || '').trim(), f[col.category] || '', outputs),
   };
 }).filter((r) => r.id);
 

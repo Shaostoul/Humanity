@@ -31,5 +31,12 @@
         ("trowel_0", 1),
         ("hoe_0", 1),
         ("knife_utility_0", 1),
+        // A homestead's basic hand tools (2026-09-26): carpentry, machine
+        // assembly and electronics each need some (data/crafting/tools.ron).
+        ("hammer_0", 1),
+        ("saw_hand_0", 1),
+        ("screwdriver_flat_0", 1),
+        ("wrench_adjustable_0", 1),
+        ("pliers_0", 1),
     ],
 )

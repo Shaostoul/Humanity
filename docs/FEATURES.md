@@ -1628,6 +1628,16 @@ material (`data/containers/materials.csv`) refuses what it reacts with.
 - Data: `data/containers/types.csv`, `materials.csv`, `content_traits.ron`, `data/machines/home.ron`
 - Design: `docs/design/containers.md`
 
+### Hand Tools and Tool Wear
+A manual craft needs its hand tools in the backpack (data/crafting/tools.ron:
+rules by station and category, plus per-recipe lists); tools are not consumed
+but each craft wears one use off them, and they break at their items.csv
+durability. The inventory card shows "Uses left". Automated machines need no
+tools. The web Crafting page lists the same tools (v0.1348.0).
+- Native: `src/systems/crafting/tools.rs`, `src/systems/crafting/mod.rs`, `src/systems/inventory/mod.rs` (`wear_item`), `src/gui/pages/crafting.rs`
+- Data: `data/crafting/tools.ron`, `data/items.csv` (durability)
+- Web: `scripts/gen-recipes-json.js` -> `data/recipes.json`, `web/pages/crafting.html`
+
 ### Tap Water and Water Vessels (fluids as litres)
 A recipe that needs a measure of tap water draws it from the home tanks when
 the backpack has none (the Crafting page counts the tanks too); a water

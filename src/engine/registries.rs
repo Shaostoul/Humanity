@@ -64,12 +64,11 @@ pub(crate) fn load_data_registries(store: &mut DataStore, data_dir: &std::path::
         "item_registry",
         crate::systems::inventory::ItemRegistry::from_csv,
     );
-    load_csv_registry(
-        store,
-        data_dir.join("recipes.csv"),
-        "recipe_registry",
-        crate::systems::crafting::RecipeRegistry::from_csv,
-    );
+    // Recipes, with the hand tools each needs (data/crafting/tools.ron, 2026-09-26).
+    let tool_rules = crate::systems::crafting::tools::load(data_dir);
+    load_csv_registry(store, data_dir.join("recipes.csv"), "recipe_registry", |b: &[u8]| {
+        crate::systems::crafting::RecipeRegistry::from_csv(b).map(|r| r.with_tools(&tool_rules))
+    });
     load_csv_registry(
         store,
         data_dir.join("plants.csv"),

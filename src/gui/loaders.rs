@@ -1300,8 +1300,15 @@ pub fn load_crafting_recipes(data_dir: &std::path::Path) -> Vec<GuiRecipe> {
         Err(_) => return Vec::new(),
     };
     let rows: Vec<Row> = crate::assets::loader::parse_csv(&bytes).unwrap_or_default();
+    let tool_rules = crate::systems::crafting::tools::load(data_dir);
     rows.into_iter()
         .map(|r| GuiRecipe {
+            tools: tool_rules.tools_for(
+                &r.id,
+                r.station_required.trim(),
+                &r.category,
+                &crate::systems::crafting::Recipe::parse_ingredients(&r.outputs),
+            ),
             id: r.id,
             name: r.name,
             category: r.category,

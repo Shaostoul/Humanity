@@ -50,6 +50,19 @@ date; re-check before trusting one. The container data basis is
   that need tap water draw it from the tanks; bottles and jerrycans are
   filled at a tank and poured back; drinking a bottle returns it empty. See
   [containers.md](containers.md).
+- **Crafting needs tools, and tools wear out: DONE 2026-09-26** (v0.1348.0).
+  `data/crafting/tools.ron` names the hand tools a manual craft needs, by
+  station and category (carpentry: hammer and hand saw; machine assembly:
+  wrench and screwdriver; smithing: hammer; electronics: soldering iron and
+  pliers) plus per-recipe lists (whittling and kitchen chopping: a knife;
+  stone carving: chisel and hammer). 182 recipes need a tool. A tool is not
+  consumed: it must be in the backpack, each craft wears it by one use, and
+  it breaks at its items.csv durability ("Uses left" on its inventory card).
+  Automated machines need none. A recipe that makes a tool never needs it,
+  and a test proves every required tool can be had (vendor, kit, or a recipe
+  whose tools can be had). The starter kit gained a hammer, hand saw,
+  screwdriver, wrench and pliers. The statues no longer eat their chisel.
+  The web Crafting page lists the same tools (a test keeps the two in step).
 - **Containers as items (3c): BLOCKED** on the unified placement schema
   (Tier B in PRIORITIES.md). The walk-up machine card and every vessel are
   tied to `data/machines/home.ron` placements; a container that can be

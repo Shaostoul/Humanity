@@ -1,0 +1,58 @@
+// Hand tools a manual craft needs (2026-09-26; crafting depth, rung 1 of the
+// gameplay arc, docs/design/gameplay-gaps-2026-09-25.md). Read by
+// src/systems/crafting/tools.rs for both the crafting system and the
+// Crafting page.
+//
+// A tool is not consumed. Each manual craft wears every tool it names by one
+// use, and the tool breaks when its uses reach its items.csv `durability`.
+// Tools must be in the backpack: you carry the hammer to the bench. An
+// automated machine needs none (the machine is the tool). A recipe that
+// MAKES a tool never needs that tool, so the first one can always be made.
+//
+// `rules`: by station, and by category when one is given (empty = any); the
+// first rule that matches wins. Recipes made by hand match no rule.
+// `recipes`: a recipe's tools outright, overriding the rules ([] = none).
+// tests/: every tool named here must be a real item with a durability that a
+// player can get (vendor, starter kit, or a recipe whose tools they can get).
+(
+    rules: [
+        // Carpentry: furniture, doors, walls and crates are sawn and nailed.
+        (station: "workbench_0", category: "construction", tools: ["hammer_0", "saw_hand_0"]),
+        // Putting machines and vehicles together: bolts and screws.
+        (station: "workbench_0", category: "assembly", tools: ["wrench_adjustable_0", "screwdriver_flat_0"]),
+        // Smithing: hot metal is shaped with a hammer.
+        (station: "forge_0", category: "crafting", tools: ["hammer_0"]),
+        (station: "anvil_station_0", category: "", tools: ["hammer_0"]),
+        // Electronics: joints are soldered, leads bent and cut.
+        (station: "electronics_bench_0", category: "", tools: ["soldering_iron_0", "pliers_0"]),
+    ],
+    recipes: {
+        // Woodwork at the general bench.
+        "craft_chest_wood": ["hammer_0", "saw_hand_0"],
+        "craft_barrel_coopered": ["hammer_0", "saw_hand_0"],
+        "craft_easel": ["hammer_0", "saw_hand_0"],
+        "craft_guitar_acoustic": ["saw_hand_0", "knife_utility_0"],
+        "craft_violin": ["saw_hand_0", "knife_utility_0"],
+        // Whittling and leather.
+        "craft_bow_recurve": ["knife_utility_0"],
+        "craft_arrow": ["knife_utility_0"],
+        "craft_flute_wood": ["knife_utility_0"],
+        "craft_quiver": ["knife_utility_0"],
+        "craft_holster": ["knife_utility_0"],
+        // Stone carving: the chisel is a tool, not an ingredient.
+        "craft_statue_small": ["chisel_0", "hammer_0"],
+        "craft_statue_large": ["chisel_0", "hammer_0"],
+        "craft_clock": ["screwdriver_flat_0"],
+        // Kitchen work that chops or slices.
+        "cook_soup": ["knife_utility_0"],
+        "cook_stew": ["knife_utility_0"],
+        "cook_soup_vegetable": ["knife_utility_0"],
+        "cook_stew_meat": ["knife_utility_0"],
+        "cook_canned_food": ["knife_utility_0"],
+        "cook_salad": ["knife_utility_0"],
+        "cook_sandwich": ["knife_utility_0"],
+        "cook_jerky": ["knife_utility_0"],
+        "bake_pie": ["knife_utility_0"],
+        "cook_dried_fruit": ["knife_utility_0"],
+    },
+)

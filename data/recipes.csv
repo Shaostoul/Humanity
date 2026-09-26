@@ -338,8 +338,8 @@ enchant_auto_repair,Enchant Auto Repair,crafting,wire_0:4|gold_ingot_0:2|copper_
 #
 # === DECORATION CRAFTING ===
 craft_painting,Paint Canvas Art,crafting,cloth_bolt_0:1|wood_plank_0:1|paint_0:2,painting_0:1,20,workbench_0,woodworking,2,Stretch and paint a framed canvas
-craft_statue_small,Carve Small Statue,crafting,stone_raw_0:4|chisel_0:1,statue_small_0:1,30,workbench_0,woodworking,3,Chisel a decorative stone figure
-craft_statue_large,Sculpt Large Statue,crafting,stone_raw_0:12|chisel_0:1|steel_ingot_0:2,statue_large_0:1,90,workbench_0,woodworking,5,Sculpt a monumental stone figure
+craft_statue_small,Carve Small Statue,crafting,stone_raw_0:4,statue_small_0:1,30,workbench_0,woodworking,3,Chisel a decorative stone figure
+craft_statue_large,Sculpt Large Statue,crafting,stone_raw_0:12|steel_ingot_0:2,statue_large_0:1,90,workbench_0,woodworking,5,Sculpt a monumental stone figure
 craft_flag,Sew Flag,textile,cloth_bolt_0:2|wood_plank_0:1|paint_0:1,flag_0:2,10,sewing_machine_0,tailoring,1,Stitch and mount a cloth standard
 craft_fountain,Build Fountain,construction,stone_raw_0:8|steel_ingot_0:2|rubber_sheet_0:1|wire_0:2,fountain_0:1,60,workbench_0,shelter_building,4,Construct an ornamental water feature
 craft_planter,Shape Planter,crafting,clay_raw_0:4|paint_0:1,planter_0:2,15,kiln_0,woodworking,2,Fire and glaze ornamental plant pots

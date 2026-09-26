@@ -118,9 +118,9 @@ fn demo_state() -> GuiState {
         effects: vec![("Well-fed".into(), 180.0), ("Rested".into(), 90.0)],
     };
     let mut items = vec![
-        Some(GuiItemSlot { item_id: "water_bottle_0".into(), name: "Water Bottle".into(), quantity: 2 }),
-        Some(GuiItemSlot { item_id: "bread_0".into(), name: "Bread".into(), quantity: 5 }),
-        Some(GuiItemSlot { item_id: "iron_ore_0".into(), name: "Iron Ore".into(), quantity: 6 }),
+        Some(GuiItemSlot { item_id: "water_bottle_0".into(), name: "Water Bottle".into(), quantity: 2, wear: 0 }),
+        Some(GuiItemSlot { item_id: "bread_0".into(), name: "Bread".into(), quantity: 5, wear: 0 }),
+        Some(GuiItemSlot { item_id: "iron_ore_0".into(), name: "Iron Ore".into(), quantity: 6, wear: 0 }),
     ];
     // A big flat seed list, to exercise the multi-column leaf layout.
     for s_name in [
@@ -132,6 +132,7 @@ fn demo_state() -> GuiState {
             item_id: format!("seed_{}_0", s_name.to_lowercase().replace(' ', "_")),
             name: format!("{} Seeds", s_name),
             quantity: 1,
+            wear: 0,
         }));
     }
     s.inventory_items = items;

@@ -605,6 +605,24 @@ fn draw_recipe_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, re
         }
     });
 
+    // Hand tools (2026-09-26): carried in the backpack, worn by each craft.
+    if !recipe.tools.is_empty() {
+        ui.add_space(theme.spacing_sm);
+        widgets::card_with_header(ui, theme, "Tools (not used up)", |ui| {
+            for tool in &recipe.tools {
+                let have = count_in_inventory(state, tool) > 0;
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new(tool).size(theme.font_size_body).color(theme.text_primary()));
+                    ui.label(
+                        RichText::new(if have { "in your backpack" } else { "not in your backpack" })
+                            .size(theme.font_size_small)
+                            .color(if have { theme.success() } else { theme.danger() }),
+                    );
+                });
+            }
+        });
+    }
+
     ui.add_space(theme.spacing_sm);
 
     // Outputs
@@ -652,7 +670,8 @@ fn draw_recipe_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, re
                     || hm.arrays.iter().any(|a| a.machine == machine_type)
             })
     };
-    let can_craft = has_ingredients && skill_ok && station_ok;
+    let missing_tool = recipe.tools.iter().find(|t| count_in_inventory(state, t) == 0).cloned();
+    let can_craft = has_ingredients && missing_tool.is_none() && skill_ok && station_ok;
 
     // Skill requirement line (shown in danger colour when the player is under-level).
     // Only for gated recipes (level 2+); level-1 recipes are the free starter tier.
@@ -700,6 +719,8 @@ fn draw_recipe_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, re
         ui.add_space(theme.spacing_xs);
         let msg = if !has_ingredients {
             "Missing ingredients".to_string()
+        } else if let Some(t) = &missing_tool {
+            format!("Needs a {t} in your backpack")
         } else if !skill_ok {
             "Skill level too low".to_string()
         } else {

@@ -79,6 +79,7 @@
       function card(r){
         var meta=[];
         if(r.station) meta.push('Station: '+esc(r.station));
+        if(r.tools&&r.tools.length) meta.push('Tools: '+r.tools.map(function(t){return esc(t.label);}).join(', '));
         if(r.skill) meta.push(esc(r.skill)+' Lv '+r.skill_level);
         if(r.craft_time_sec) meta.push(r.craft_time_sec+'s');
         return '<div class="recipe-card">'+

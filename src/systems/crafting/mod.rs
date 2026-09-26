@@ -3,6 +3,7 @@
 //! Recipes loaded from `data/recipes.csv`.
 //! Inputs/outputs use pipe-separated `item_id:quantity` format.
 
+pub mod tools;
 pub mod workstations;
 
 use serde::{Deserialize, Serialize};
@@ -33,6 +34,13 @@ pub struct Recipe {
     /// Minimum level of `skill_required` to craft (0 = none). Also scales the XP
     /// reward so harder recipes grant more.
     pub skill_level: u32,
+    /// The recipes.csv category ("construction", "cooking", ...).
+    #[serde(default)]
+    pub category: String,
+    /// Hand tools a manual craft needs in the backpack, not consumed but worn
+    /// (2026-09-26, data/crafting/tools.ron via `RecipeRegistry::with_tools`).
+    #[serde(default)]
+    pub tools: Vec<String>,
 }
 
 impl Recipe {
@@ -125,10 +133,21 @@ impl RecipeRegistry {
                         }
                     },
                     skill_level: row.skill_level,
+                    category: row.category,
+                    tools: Vec::new(),
                 },
             );
         }
         Ok(Self { recipes })
+    }
+
+    /// Give every recipe the hand tools `rules` say it needs.
+    pub fn with_tools(mut self, rules: &tools::ToolRules) -> Self {
+        for r in self.recipes.values_mut() {
+            let station = r.required_station.clone().unwrap_or_default();
+            r.tools = rules.tools_for(&r.id, &station, &r.category, &r.outputs);
+        }
+        self
     }
 }
 
@@ -139,6 +158,8 @@ impl RecipeRegistry {
 struct RecipeRow {
     id: String,
     name: String,
+    #[serde(default)]
+    category: String,
     #[serde(default)]
     inputs: String,
     #[serde(default)]
@@ -1048,6 +1069,31 @@ impl System for CraftingSystem {
                     continue;
                 }
 
+                // Hand tools (2026-09-26): each must be in the backpack. Not
+                // spent; worn by one use below. Creative mode skips it.
+                let name_of = |id: &str| {
+                    item_registry
+                        .and_then(|r| r.items.get(id).map(|d| d.name.clone()))
+                        .unwrap_or_else(|| id.to_string())
+                };
+                let notice = |msg: String| {
+                    if let Some(slot) = data.get::<std::sync::Mutex<Vec<String>>>("player_notices") {
+                        if let Ok(mut n) = slot.lock() {
+                            n.push(msg);
+                        }
+                    }
+                };
+                if !creative {
+                    let lacking = world
+                        .get::<&Inventory>(request.crafter)
+                        .ok()
+                        .and_then(|inv| recipe.tools.iter().find(|t| inv.count_item(t) == 0).cloned());
+                    if let Some(t) = lacking {
+                        notice(format!("{} needs a {} in your backpack.", recipe.name, name_of(&t)));
+                        continue;
+                    }
+                }
+
                 // Room for the result BEFORE anything is spent (2026-09-25): a
                 // manual craft whose outputs cannot fit the backpack now is
                 // refused with a notice, so its inputs are never consumed into
@@ -1077,6 +1123,15 @@ impl System for CraftingSystem {
                     };
                     if owed > 0.0 {
                         crate::systems::fluids::draw_from_tanks(world, owed);
+                    }
+                    // Each tool loses one use; one that is used up breaks.
+                    if let Ok(mut inv) = world.get::<&mut Inventory>(request.crafter) {
+                        for t in &recipe.tools {
+                            let durability = item_registry.map(|r| r.durability_for(t)).unwrap_or(0);
+                            if inv.wear_item(t, durability) {
+                                notice(format!("Your {} wore out.", name_of(t)));
+                            }
+                        }
                     }
                 }
 
@@ -1649,6 +1704,53 @@ mod skill_xp_tests {
         let inv = world.get::<&Inventory>(player).unwrap();
         assert_eq!(inv.count_item("dough_0"), 1, "the tank is too low: refused");
         assert_eq!(inv.count_item("flour_0"), 2, "a refused craft spends nothing");
+    }
+
+    /// Hand tools (2026-09-26): a recipe that needs a tool is refused, with a
+    /// notice and nothing spent, until the tool is in the backpack; each craft
+    /// wears the tool by one use, and at its durability the tool breaks.
+    #[test]
+    fn a_craft_needs_its_tool_and_wears_it_out() {
+        let recipe_csv = "id,name,category,inputs,outputs,craft_time_sec,station_required,skill_required,skill_level,description\n\
+             nail_board,Nail Board,construction,plank_0:1,board_0:1,0,,,0,test\n";
+        let mut rules = tools::ToolRules::default();
+        rules.recipes.insert("nail_board".into(), vec!["hammer_0".into()]);
+        let mut data = DataStore::new();
+        data.insert("recipe_registry", RecipeRegistry::from_csv(recipe_csv.as_bytes()).unwrap().with_tools(&rules));
+        data.insert(
+            "item_registry",
+            ItemRegistry::from_csv(
+                b"id,name,weight_kg,stack_size,volume_l,durability\nplank_0,Plank,1,99,1,0\nboard_0,Board,1,99,1,0\nhammer_0,Hammer,0.8,1,0.3,2\n",
+            )
+            .unwrap(),
+        );
+        data.insert("dev_stock_materials", std::sync::Mutex::new(false));
+        data.insert("craft_request", std::sync::Mutex::new(Option::<String>::None));
+        data.insert("player_notices", std::sync::Mutex::new(Vec::<String>::new()));
+        let mut world = hecs::World::new();
+        let mut inv = Inventory::new(16);
+        inv.add_item("plank_0", 5, 99);
+        let player = world.spawn((inv, Controllable));
+        let craft = |world: &mut hecs::World| {
+            *data.get::<std::sync::Mutex<Option<String>>>("craft_request").unwrap().lock().unwrap() =
+                Some("nail_board".into());
+            CraftingSystem::new().tick(world, 0.016, &data);
+        };
+        let count = |world: &hecs::World, id: &str| world.get::<&Inventory>(player).unwrap().count_item(id);
+
+        craft(&mut world);
+        assert_eq!(count(&world, "board_0"), 0, "no hammer: refused");
+        assert_eq!(count(&world, "plank_0"), 5, "nothing spent");
+        assert!(notices(&data).iter().any(|n| n.contains("Hammer")), "{:?}", notices(&data));
+
+        world.get::<&mut Inventory>(player).unwrap().add_item("hammer_0", 1, 1);
+        craft(&mut world);
+        assert_eq!(count(&world, "board_0"), 1);
+        assert_eq!(count(&world, "hammer_0"), 1, "a tool is not an ingredient");
+        craft(&mut world);
+        assert_eq!(count(&world, "board_0"), 2);
+        assert_eq!(count(&world, "hammer_0"), 0, "two uses: the hammer wore out");
+        assert!(notices(&data).iter().any(|n| n.contains("wore out")), "{:?}", notices(&data));
     }
 
     fn notices(data: &DataStore) -> Vec<String> {

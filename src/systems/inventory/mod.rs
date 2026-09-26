@@ -24,6 +24,10 @@ pub struct ItemStack {
     pub quantity: u32,
     /// Maximum items per stack (from item def or default 99).
     pub max_stack: u32,
+    /// Uses worn off the item on top of this stack (2026-09-26, tool wear):
+    /// when it reaches the item's items.csv durability, one breaks.
+    #[serde(default)]
+    pub wear: u32,
 }
 
 impl ItemStack {
@@ -32,6 +36,7 @@ impl ItemStack {
             item_id,
             quantity,
             max_stack,
+            wear: 0,
         }
     }
 
@@ -201,6 +206,26 @@ impl Inventory {
         self.count_item(item_id) >= quantity
     }
 
+    /// One use of the tool `item_id` (2026-09-26): wears the stack of it that
+    /// remove_item takes from first (the last one). When the uses reach
+    /// `durability`, one breaks: it is removed and the next starts fresh.
+    /// Returns true when one broke. A durability of 0 never wears.
+    pub fn wear_item(&mut self, item_id: &str, durability: u32) -> bool {
+        if durability == 0 {
+            return false;
+        }
+        let Some(stack) = self.slots.iter_mut().rev().flatten().find(|s| s.item_id == item_id) else {
+            return false;
+        };
+        stack.wear += 1;
+        if stack.wear < durability {
+            return false;
+        }
+        stack.wear = 0;
+        self.remove_item(item_id, 1);
+        true
+    }
+
     /// Count total quantity of an item across all stacks.
     pub fn count_item(&self, item_id: &str) -> u32 {
         self.slots
@@ -291,6 +316,8 @@ pub struct ItemDef {
     pub content_class: String,
     pub stackable: bool,
     pub max_stack: u32,
+    /// Uses before one of these wears out (items.csv durability; 0 = never).
+    pub durability: u32,
 }
 
 /// Registry of all item definitions, keyed by item ID.
@@ -306,6 +333,11 @@ impl ItemRegistry {
             .get(item_id)
             .map(|def| def.max_stack)
             .unwrap_or(DEFAULT_MAX_STACK)
+    }
+
+    /// Uses before one unit wears out (0 = never, or unknown).
+    pub fn durability_for(&self, item_id: &str) -> u32 {
+        self.items.get(item_id).map(|d| d.durability).unwrap_or(0)
     }
 
     /// Look up mass in kg for one unit of an item, defaulting to 0 if unknown.
@@ -361,6 +393,7 @@ impl ItemRegistry {
                     },
                     stackable: max_stack > 1,
                     max_stack,
+                    durability: row.durability,
                 },
             );
         }
@@ -385,6 +418,9 @@ struct ItemRow {
     content_class: String,
     #[serde(default = "default_item_stack")]
     stack_size: u32,
+    /// Uses before it wears out (tools; 0 = never).
+    #[serde(default)]
+    durability: u32,
 }
 
 fn default_item_stack() -> u32 {

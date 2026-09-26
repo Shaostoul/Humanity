@@ -12577,6 +12577,7 @@ mod native_app {
                                     item_id: stack.item_id.clone(),
                                     name,
                                     quantity: stack.quantity,
+                                    wear: stack.wear,
                                 }
                             })
                         }).collect();
