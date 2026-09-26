@@ -348,6 +348,18 @@
       ],
       "yaw": -0.12,
       "pitch": -0.06
+    },
+    {
+      "id": "29-barn-stock",
+      "room": "Barn",
+      "note": "Close on the north racks, where the stored goods sit as crates, sacks and barrels (src/engine/stock_piles.rs)",
+      "pos": [
+        44.1,
+        1.3,
+        81.5
+      ],
+      "yaw": -0.35,
+      "pitch": -0.28
     }
   ]
 }

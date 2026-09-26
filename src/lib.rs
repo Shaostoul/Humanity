@@ -1898,7 +1898,7 @@ mod native_app {
                 vehicle_mats: None,
                 stock_pile_mesh: None,
                 stock_pile_mats: None,
-                stock_pile_cache: (0.0, Vec::new()),
+                stock_pile_cache: ([0.0; 3], Vec::new()),
                 targeted_livestock: None,
                 pending_livestock_harvest: None,
                 livestock_mesh: None,

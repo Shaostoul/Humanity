@@ -44,8 +44,10 @@ date; re-check before trusting one. The container data basis is
   `data/places/seed.json`. Every water tank carries a level gauge. Named
   bags, the garage and the car trunk are elsewhere and are not drawn in the
   Barn. Not yet: the harvest overflow goes into machine vessels, not the
-  Barn, so harvesting does not yet grow the crate count; crates of one
-  generic look rather than sacks, barrels and crates by content class.
+  Barn, so harvesting does not yet grow the crate count (automated machines
+  now do file their output there). Stock is drawn by kind since the same
+  day: dry goods as sacks, liquids and fresh food as barrels, the rest as
+  crates, each kind standing together.
 - **Fluids are litres, first rung: DONE 2026-09-26** (v0.1347.0). Recipes
   that need tap water draw it from the tanks; bottles and jerrycans are
   filled at a tank and poured back; drinking a bottle returns it empty. See

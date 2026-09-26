@@ -38,24 +38,60 @@ const MAX_LAYERS: u32 = 4;
 /// Height of a tank's level gauge plate, metres.
 const GAUGE_H_M: f32 = 0.3;
 
-/// The volume, in litres, of everything in the home's storage pool.
-pub fn stored_volume_l(pool: &[PlacedItem], volume_of: impl Fn(&str) -> f32) -> f32 {
-    pool.iter()
-        .map(|p| {
-            let v = volume_of(&p.key);
-            let v = if v > 0.0 { v } else { UNKNOWN_ITEM_VOLUME_L };
-            v * p.qty as f32
-        })
-        .sum()
+/// Stock is drawn by kind (2026-09-26): dry goods in sacks, liquids and
+/// perishable food in barrels, everything else in crates. Index into the
+/// arrays below; the order is also the order they fill the racks in.
+pub const CRATE: usize = 0;
+pub const SACK: usize = 1;
+pub const BARREL: usize = 2;
+/// A grain or flour sack: about 40 L (a 25 kg feed sack), lying flat.
+pub const SACK_SIZE: Vec3 = Vec3::new(0.58, 0.26, 0.38);
+/// A small cask: about 60 L, 0.40 m across, 0.46 m tall.
+pub const BARREL_SIZE: Vec3 = Vec3::new(0.40, 0.46, 0.40);
+/// Litres one unit of each kind holds: crate, sack, barrel.
+pub const UNIT_VOLUME_L: [f32; 3] = [CRATE_VOLUME_L, 40.0, 60.0];
+
+/// Which kind of container an item's content class is stored in.
+pub fn kind_for_class(class: &str) -> usize {
+    match class {
+        "dry_goods" => SACK,
+        "water" | "liquid" | "flammable" | "food" => BARREL,
+        _ => CRATE,
+    }
 }
 
-/// How many crates that volume fills.
-pub fn crate_count(volume_l: f32) -> u32 {
-    if volume_l <= 0.0 {
-        0
-    } else {
-        (volume_l / CRATE_VOLUME_L).ceil() as u32
+/// The litres of stock of each kind (crate, sack, barrel) in `pool`.
+pub fn stored_volumes(
+    pool: &[PlacedItem],
+    volume_of: impl Fn(&str) -> f32,
+    class_of: impl Fn(&str) -> String,
+) -> [f32; 3] {
+    let mut out = [0.0_f32; 3];
+    for p in pool {
+        let v = volume_of(&p.key);
+        let v = if v > 0.0 { v } else { UNKNOWN_ITEM_VOLUME_L };
+        out[kind_for_class(&class_of(&p.key))] += v * p.qty as f32;
     }
+    out
+}
+
+/// How many units of each kind those volumes fill.
+pub fn unit_counts(volumes: [f32; 3]) -> [u32; 3] {
+    let mut out = [0u32; 3];
+    for k in 0..3 {
+        out[k] = if volumes[k] <= 0.0 { 0 } else { (volumes[k] / UNIT_VOLUME_L[k]).ceil() as u32 };
+    }
+    out
+}
+
+/// Deal the kinds onto the slots in order (crates, then sacks, then
+/// barrels), so each kind stands together on the racks.
+pub fn assign_kinds(slots: Vec<Vec3>, counts: [u32; 3]) -> Vec<(Vec3, usize)> {
+    let mut kinds = Vec::new();
+    for k in 0..3 {
+        kinds.extend(std::iter::repeat(k).take(counts[k] as usize));
+    }
+    slots.into_iter().zip(kinds).collect()
 }
 
 /// Crate BASE CENTRES (the unit box mesh is floor-anchored) for `count` crates across `zones` (each a (min corner,
@@ -267,19 +303,23 @@ fn home_storage_slots(state: &crate::engine::state::EngineState, count: u32) -> 
 pub fn push_render_objects(state: &mut crate::engine::state::EngineState, out: &mut Vec<RenderObject>) {
     use crate::renderer::mesh::Mesh;
     if state.stock_pile_mesh.is_none() {
-        state.stock_pile_mesh =
-            Some(state.renderer.add_mesh(Mesh::box_xyz(&state.renderer.device, 1.0, 1.0, 1.0)));
+        let unit_box = state.renderer.add_mesh(Mesh::box_xyz(&state.renderer.device, 1.0, 1.0, 1.0));
+        let unit_barrel = state.renderer.add_mesh(Mesh::cylinder_capped(&state.renderer.device, 0.5, 1.0, 16));
+        state.stock_pile_mesh = Some([unit_box, unit_barrel]);
     }
     if state.stock_pile_mats.is_none() {
-        // theme-exempt: placeholder crate wood, gauge back and water blue; world props, not UI colours.
+        // theme-exempt: placeholder crate wood, gauge back, water blue, sack burlap, cask oak; world props, not UI colours.
         let wood = state.renderer.add_material_typed([0.55, 0.42, 0.26, 1.0], 0.05, 0.8, 0.0);
         let back = state.renderer.add_material_typed([0.08, 0.08, 0.09, 1.0], 0.0, 0.9, 0.0);
         // The water level glows a little so the gauge reads in a dim plant room.
         let water = state.renderer.add_material_full([0.20, 0.45, 0.85, 1.0], 0.1, 0.4, 0.0, 0.8);
-        state.stock_pile_mats = Some([wood, back, water]);
+        // theme-exempt: burlap and cask colours for the sacks and barrels.
+        let burlap = state.renderer.add_material_typed([0.72, 0.62, 0.44, 1.0], 0.0, 0.95, 0.0);
+        let cask = state.renderer.add_material_typed([0.40, 0.26, 0.15, 1.0], 0.1, 0.7, 0.0);
+        state.stock_pile_mats = Some([wood, back, water, burlap, cask]);
     }
-    let mesh = state.stock_pile_mesh.unwrap();
-    let [wood, back, water] = state.stock_pile_mats.unwrap();
+    let [mesh, barrel_mesh] = state.stock_pile_mesh.unwrap();
+    let [wood, back, water, burlap, cask] = state.stock_pile_mats.unwrap();
 
     // Crates: what is filed in a storage room (the Barn) or loose in the
     // home, recomputed only when that volume changes. Things in named bags,
@@ -288,7 +328,7 @@ pub fn push_render_objects(state: &mut crate::engine::state::EngineState, out: &
     if rooms.is_empty() {
         return; // the world (and its storage zones) has not loaded yet
     }
-    let volume = {
+    let volumes = {
         let reg = state
             .data_store
             .get::<crate::systems::inventory::ItemRegistry>("item_registry");
@@ -299,26 +339,34 @@ pub fn push_render_objects(state: &mut crate::engine::state::EngineState, out: &
             .filter(|p| in_storage_room(&state.gui_state.places, &p.container, &rooms))
             .cloned()
             .collect();
-        stored_volume_l(&stock, |id| reg.map(|r| r.volume_for(id)).unwrap_or(0.0))
+        stored_volumes(
+            &stock,
+            |id| reg.map(|r| r.volume_for(id)).unwrap_or(0.0),
+            |id| reg.map(|r| r.class_for(id).to_string()).unwrap_or_default(),
+        )
     };
-    if (volume - state.stock_pile_cache.0).abs() > 0.01 {
-        let want = crate_count(volume);
+    let changed = (0..3).any(|k| (volumes[k] - state.stock_pile_cache.0[k]).abs() > 0.01);
+    if changed {
+        let counts = unit_counts(volumes);
+        let want: u32 = counts.iter().sum();
         let slots = home_storage_slots(state, want);
         log::info!(
-            "Stock piles: {volume:.0} L stored = {want} crates, {} shown in the storage zones",
+            "Stock piles: {:.0} L stored = {} crates, {} sacks, {} barrels; {} shown in the storage zones",
+            volumes.iter().sum::<f32>(),
+            counts[CRATE],
+            counts[SACK],
+            counts[BARREL],
             slots.len()
         );
-        state.stock_pile_cache = (volume, slots);
+        state.stock_pile_cache = (volumes, assign_kinds(slots, counts));
     }
-    for p in &state.stock_pile_cache.1 {
-        out.push(RenderObject {
-            fade: 0.0,
-            position: *p,
-            rotation: Quat::IDENTITY,
-            scale: CRATE_SIZE,
-            mesh,
-            material: wood,
-        });
+    for (p, kind) in &state.stock_pile_cache.1 {
+        let (scale, mesh, material) = match *kind {
+            SACK => (SACK_SIZE, mesh, burlap),
+            BARREL => (BARREL_SIZE, barrel_mesh, cask),
+            _ => (CRATE_SIZE, mesh, wood),
+        };
+        out.push(RenderObject { fade: 0.0, position: *p, rotation: Quat::IDENTITY, scale, mesh, material });
     }
 
     // Tank level gauges: an upright dark plate above each water tank, turned
@@ -395,11 +443,34 @@ mod tests {
     #[test]
     fn stock_volume_uses_item_volumes_and_a_default_for_labels() {
         let pool = vec![item("wood_plank_0", 10), item("a free-text label", 3)];
-        let v = stored_volume_l(&pool, |id| if id == "wood_plank_0" { 4.0 } else { 0.0 });
-        assert!((v - (40.0 + 3.0 * UNKNOWN_ITEM_VOLUME_L)).abs() < 1e-4, "{v}");
-        assert_eq!(crate_count(0.0), 0);
-        assert_eq!(crate_count(1.0), 1);
-        assert_eq!(crate_count(CRATE_VOLUME_L * 3.0), 3);
+        let v = stored_volumes(&pool, |id| if id == "wood_plank_0" { 4.0 } else { 0.0 }, |_| "solid".into());
+        assert!((v[CRATE] - (40.0 + 3.0 * UNKNOWN_ITEM_VOLUME_L)).abs() < 1e-4, "{v:?}");
+        assert_eq!(unit_counts([0.0, 0.0, 0.0]), [0, 0, 0]);
+        assert_eq!(unit_counts([1.0, 1.0, 1.0]), [1, 1, 1]);
+        assert_eq!(unit_counts([CRATE_VOLUME_L * 3.0, 0.0, 0.0])[CRATE], 3);
+    }
+
+    /// Stock is drawn by kind (2026-09-26): grain and flour in sacks, milk
+    /// and water in barrels, tools and lumber in crates, each kind together.
+    #[test]
+    fn dry_goods_go_in_sacks_liquids_in_barrels_the_rest_in_crates() {
+        assert_eq!(kind_for_class("dry_goods"), SACK);
+        assert_eq!(kind_for_class("water"), BARREL);
+        assert_eq!(kind_for_class("food"), BARREL);
+        assert_eq!(kind_for_class("solid"), CRATE);
+        let pool = vec![item("grain_wheat_0", 100), item("milk_0", 30), item("wood_plank_0", 12)];
+        let class = |id: &str| match id {
+            "grain_wheat_0" => "dry_goods".to_string(),
+            "milk_0" => "food".to_string(),
+            _ => "solid".to_string(),
+        };
+        let v = stored_volumes(&pool, |id| if id == "wood_plank_0" { 8.0 } else { 1.0 }, class);
+        assert_eq!(v, [96.0, 100.0, 30.0]);
+        let counts = unit_counts(v);
+        assert_eq!(counts, [1, 3, 1], "one crate of planks, three sacks of grain, one barrel of milk");
+        let slots: Vec<Vec3> = (0..5).map(|i| Vec3::new(i as f32, 0.0, 0.0)).collect();
+        let kinds: Vec<usize> = assign_kinds(slots, counts).into_iter().map(|(_, k)| k).collect();
+        assert_eq!(kinds, [CRATE, SACK, SACK, SACK, BARREL], "each kind stands together");
     }
 
     /// The barn fills with the stock: more stock, more crates; stacks go up
