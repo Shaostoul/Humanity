@@ -874,6 +874,11 @@
    "date": "2026-09-26",
    "decision": "v0.1366.0: merged soil pH (worktree commit 75f7928c cherry-picked; four keep-both conflicts with the lighting work in farming/mod.rs, lib.rs, inventory.rs, the gap doc). Switched its stopgap unit area (inferred from N removal) to the real plot floor area from grow_plot_area_m2 (soil_ph::plot_area; unit_area_m2 takes plot_m2 first), test a_placed_plot_buffers_over_its_real_floor_area red first.",
    "why": "The agent inferred area because plots did not exist when it started; they do now. Kept its Settings switch on GardenPests.soil_ph_off (gui/mod.rs has no line budget left) and default On (slow drift, gentle cap). Left: the Home page tower compatibility check still intersects plants.csv soil windows for the held tower solution; wood ash liming waits for an ash item."
+  },
+  {
+   "date": "2026-09-26",
+   "decision": "Merged the crop DLI findings doc (docs/reference/findings/2026-09-26-crop-daily-light-integrals.md: 27 of 63 crops sourced, min/target/saturation, photoperiod for 13). Plan for the per-species light rung, AFTER the area agent merges plants.csv: add dli_min/dli_target/dli_saturation columns; lighting.rs cover = delivered DLI / crop target (capped 1), so a lamp planned at 17 covers a tomato (25) only 68%; unsourced crops show \"light need not sourced, planned at 17\" on the card (the agent warned not to fill blanks silently). Flagged for later: tomato and some potatoes are harmed by continuous light (sun by day + lamp all night = 24 h), so grow lights need a photoperiod timer; lettuce ceiling 17 needs airflow (12 in still air); potato/soy/NASA wheat figures are CO2-enriched.",
+   "why": "The findings doc is the source of truth; plants.csv is edited only by the area agent until it merges, so the column waits. Rubber chain also waits on plants.csv (rubber_tree harvests a fiber bundle; should be latex, DRC 28-40% per Wattana et al. 2025 Polymers PMC12073864; vulcanize 36 raw rubber + 1 garden_sulfur_0 bag = ~5 phr soft rubber)."
   }
  ],
  "active_scopes_to_avoid": [
