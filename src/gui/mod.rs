@@ -43,6 +43,8 @@ pub mod ops_registry;
 /// `crate::gui::Place` spellings they have always used. See `gui/loaders.rs`.
 mod loaders;
 pub use loaders::*;
+mod organize;
+pub use organize::*;
 
 
 // Headless UI snapshot tests (v0.495): render egui pages to PNGs for review +
@@ -1261,6 +1263,12 @@ pub struct GuiState {
     /// page pushes these when an item moves into/out of the live backpack; lib.rs drains
     /// them into the InventorySystem channel each frame. is_add => add to the backpack.
     pub pending_inventory_transfers: Vec<(String, u32, bool)>,
+    /// Where each "Take to backpack" came from (2026-09-25), so whatever the
+    /// backpack cannot hold goes back to that container instead of
+    /// vanishing. Moved to `inflight_take_origins` when the ops are handed to
+    /// the InventorySystem, and resolved after its tick.
+    pub pending_take_origins: Vec<crate::gui::PlacedItem>,
+    pub inflight_take_origins: Vec<crate::gui::PlacedItem>,
     /// Per-tower shared-reservoir compatibility (parallel to `tower_configs`),
     /// computed once from the plant registry in the crop sync. The "make sure
     /// they grow together" check shown on the Home page.
@@ -3482,6 +3490,8 @@ impl Default for GuiState {
             garden_nutrient: std::collections::HashMap::new(),
             placed_items: Vec::new(),
             pending_inventory_transfers: Vec::new(),
+            pending_take_origins: Vec::new(),
+            inflight_take_origins: Vec::new(),
             tower_compat: Vec::new(),
             creative_mode: true,
             // Must be an id that EXISTS in real.rs's section_nav list, or the

@@ -375,6 +375,10 @@ pub struct ActiveCraft {
     /// load does that, and so does a restart), so "is this machine busy" and
     /// the save both match on the id, which survives.
     pub machine_id: Option<String>,
+    /// A finished craft whose outputs do not fit waits for room instead of
+    /// being thrown away (2026-09-25); this marks that the player has been
+    /// told once, so the notice does not repeat every tick.
+    pub waiting_notified: bool,
 }
 
 impl ActiveCraft {
@@ -450,8 +454,9 @@ impl CraftingSystem {
     /// math (existing same-item stack headroom first, then free slots). Used by
     /// the AutoRefine arm so automation never grinds inputs into discarded
     /// outputs when the home inventory is full (adversarial review 2026-07-01);
-    /// manual crafting keeps its existing lossy-with-warning behavior since a
-    /// human sees the warning and made the click.
+    /// manual crafts use it too since 2026-09-25: a craft whose outputs cannot
+    /// fit is refused before its inputs are spent (it used to go ahead and
+    /// discard the overflow).
     fn outputs_fit(
         inventory: &Inventory,
         recipe: &Recipe,
@@ -482,6 +487,15 @@ impl CraftingSystem {
             // factory pad as world entities -- they never need an inventory slot,
             // so a full backpack must not stall the assembly line.
             if vehicle_kits.is_some_and(|k| k.get_vehicle(item_id).is_some()) {
+                continue;
+            }
+            // An item with a volume is limited by VOLUME alone (checked above):
+            // the backpack grows its slots for any volume-legal add since v0.735,
+            // so counting slots here refused crafts that would have fit (found
+            // 2026-09-25 when manual crafts started using this check). Slot
+            // arithmetic is only for items without a volume, which the plain
+            // add_item still places into fixed slots.
+            if item_registry.map(|r| r.volume_for(item_id)).unwrap_or(0.0) > 0.0 {
                 continue;
             }
             let max_stack = item_registry.map(|r| r.max_stack_for(item_id)).unwrap_or(99);
@@ -708,6 +722,7 @@ impl System for CraftingSystem {
                         auto: c.auto,
                         pad: c.pad.map(|(pos, rot)| (glam::Vec3::from_array(pos), glam::Quat::from_array(rot))),
                         machine_id: c.machine_id,
+                        waiting_notified: false,
                     });
                 }
             }
@@ -917,6 +932,7 @@ impl System for CraftingSystem {
                     auto: true,
                     pad,
                     machine_id,
+                    waiting_notified: false,
                 });
             }
         }
@@ -1001,6 +1017,27 @@ impl System for CraftingSystem {
                     continue;
                 }
 
+                // Room for the result BEFORE anything is spent (2026-09-25): a
+                // manual craft whose outputs cannot fit the backpack now is
+                // refused with a notice, so its inputs are never consumed into
+                // nothing. (A backpack that fills DURING a timed craft is covered
+                // at completion: the finished craft waits for room.)
+                let fits = world
+                    .get::<&Inventory>(request.crafter)
+                    .map(|inv| Self::outputs_fit(&inv, &recipe, item_registry, vehicle_kits))
+                    .unwrap_or(true);
+                if !fits {
+                    if let Some(slot) = data.get::<std::sync::Mutex<Vec<String>>>("craft_notices") {
+                        if let Ok(mut n) = slot.lock() {
+                            n.push(format!(
+                                "No room in your backpack for {}: make room and craft again.",
+                                recipe.name
+                            ));
+                        }
+                    }
+                    continue;
+                }
+
                 // Consume inputs immediately (skipped in creative mode).
                 if !creative {
                     if let Ok(mut inv) = world.get::<&mut Inventory>(request.crafter) {
@@ -1039,6 +1076,7 @@ impl System for CraftingSystem {
                         auto: false,
                         pad,
                         machine_id: None,
+                        waiting_notified: false,
                     });
                     log::debug!(
                         "Started crafting {} ({:.1}s)",
@@ -1067,11 +1105,45 @@ impl System for CraftingSystem {
         }
 
         // Process completions (reverse order to preserve indices)
+        let mut still_waiting: Vec<ActiveCraft> = Vec::new();
         for i in completed.into_iter().rev() {
-            let craft = self.active_crafts.remove(i);
+            let mut craft = self.active_crafts.remove(i);
 
             if let Some(recipes) = recipe_registry {
                 if let Some(recipe) = recipes.recipes.get(&craft.recipe_id) {
+                    // NOTHING IS LOST (2026-09-25). A finished craft whose
+                    // outputs will not fit the backpack WAITS for room, with
+                    // one notice, instead of being added with the overflow
+                    // discarded (the inputs were already spent at the start).
+                    // A machine with its own vessel still delivers: the vessel
+                    // takes what it can and the start-time check covered it.
+                    let target_fits = {
+                        let t = if craft.auto { player } else { Some(craft.crafter) };
+                        t.and_then(|t| world.get::<&Inventory>(t).ok().map(|inv| {
+                            Self::outputs_fit(&inv, recipe, item_registry, vehicle_kits)
+                        }))
+                        .unwrap_or(true)
+                    };
+                    let has_vessel = craft.auto
+                        && world
+                            .get::<&crate::systems::inventory::containers::Container>(craft.crafter)
+                            .is_ok();
+                    if !target_fits && !has_vessel {
+                        if !craft.waiting_notified {
+                            craft.waiting_notified = true;
+                            if let Some(slot) = data.get::<std::sync::Mutex<Vec<String>>>("craft_notices") {
+                                if let Ok(mut n) = slot.lock() {
+                                    n.push(format!(
+                                        "{} is finished, but your backpack is full: make room and it will be added.",
+                                        recipe.name
+                                    ));
+                                }
+                            }
+                        }
+                        craft.time_remaining = 0.0;
+                        still_waiting.push(craft);
+                        continue;
+                    }
                     // AutoRefine crafts carry the MACHINE as crafter (for
                     // per-machine concurrency) but their outputs land in the
                     // HOME inventory the inputs came from -- keyed on the
@@ -1098,6 +1170,7 @@ impl System for CraftingSystem {
                 }
             }
         }
+        self.active_crafts.extend(still_waiting);
 
         // Publish the in-flight batches for the save (2026-09-25). The list
         // lives inside this system, which nothing outside the SystemRunner can
@@ -1278,13 +1351,15 @@ impl CraftingSystem {
                     }
                 }
             }
-            if inv_recipe.outputs.is_empty() {
-                return;
-            }
-            if let Ok(mut inv) = world.get::<&mut Inventory>(target) {
-                Self::produce_outputs(&mut inv, &inv_recipe, item_registry);
-            } else {
-                log::warn!("Craft complete but entity lost Inventory: {}", recipe.id);
+            // (No early return when the vessel took everything: that used to
+            // skip on_craft_complete below, so the craft gave no XP and no
+            // quest event. 2026-09-25.)
+            if !inv_recipe.outputs.is_empty() {
+                if let Ok(mut inv) = world.get::<&mut Inventory>(target) {
+                    Self::produce_outputs(&mut inv, &inv_recipe, item_registry);
+                } else {
+                    log::warn!("Craft complete but entity lost Inventory: {}", recipe.id);
+                }
             }
         }
 
@@ -1471,6 +1546,77 @@ mod skill_xp_tests {
             assert_eq!(inv.count_item("iron_ore_0"), 1, "the craft consumed one ore");
         }
     }
+
+    /// A tiny world for the "nothing is lost" tests (2026-09-25): one recipe
+    /// that turns a small input into a BIG output (40 L each), a backpack,
+    /// and the notice channel.
+    fn big_output_world(craft_time: f32) -> (DataStore, hecs::World, hecs::Entity) {
+        let recipe_csv = format!(
+            "id,name,category,inputs,outputs,craft_time_sec,station_required,skill_required,skill_level,description\n\
+             make_crate,Make Crate,crafting,plank_0:1,crate_big_0:1,{craft_time},,,0,test\n"
+        );
+        let mut data = DataStore::new();
+        data.insert("recipe_registry", RecipeRegistry::from_csv(recipe_csv.as_bytes()).unwrap());
+        data.insert(
+            "item_registry",
+            ItemRegistry::from_csv(
+                b"id,name,weight_kg,stack_size,volume_l\nplank_0,Plank,1,99,1\ncrate_big_0,Big Crate,5,5,40\n",
+            )
+            .unwrap(),
+        );
+        data.insert("dev_stock_materials", std::sync::Mutex::new(false));
+        data.insert("craft_request", std::sync::Mutex::new(Option::<String>::None));
+        data.insert("craft_notices", std::sync::Mutex::new(Vec::<String>::new()));
+        let mut world = hecs::World::new();
+        let mut inv = Inventory::new(16);
+        inv.add_item("plank_0", 5, 99);
+        let player = world.spawn((inv, Controllable));
+        (data, world, player)
+    }
+
+    fn notices(data: &DataStore) -> Vec<String> {
+        data.get::<std::sync::Mutex<Vec<String>>>("craft_notices").unwrap().lock().unwrap().clone()
+    }
+
+    /// A manual craft whose output cannot fit is REFUSED before its inputs are
+    /// spent, with a notice. It used to consume the inputs and discard the
+    /// output with only a log line.
+    #[test]
+    fn a_craft_with_no_room_is_refused_before_spending_anything() {
+        let (data, mut world, player) = big_output_world(0.0);
+        // Fill the backpack's volume so a 40 L crate cannot fit.
+        world.get::<&mut Inventory>(player).unwrap().volume_current_l = 64.0;
+        *data.get::<std::sync::Mutex<Option<String>>>("craft_request").unwrap().lock().unwrap() =
+            Some("make_crate".into());
+        let mut sys = CraftingSystem::new();
+        sys.tick(&mut world, 0.016, &data);
+        let inv = world.get::<&Inventory>(player).unwrap();
+        assert_eq!(inv.count_item("plank_0"), 5, "no input spent");
+        assert_eq!(inv.count_item("crate_big_0"), 0);
+        assert_eq!(notices(&data).len(), 1, "the player is told why: {:?}", notices(&data));
+    }
+
+    /// A timed craft that started with room, but whose backpack filled while
+    /// it ran, WAITS when it finishes (one notice), then delivers as soon as
+    /// there is room. Nothing is discarded.
+    #[test]
+    fn a_finished_craft_waits_for_room_instead_of_being_discarded() {
+        let (data, mut world, player) = big_output_world(5.0);
+        *data.get::<std::sync::Mutex<Option<String>>>("craft_request").unwrap().lock().unwrap() =
+            Some("make_crate".into());
+        let mut sys = CraftingSystem::new();
+        sys.tick(&mut world, 1.0, &data); // started, input spent
+        assert_eq!(world.get::<&Inventory>(player).unwrap().count_item("plank_0"), 4);
+        world.get::<&mut Inventory>(player).unwrap().volume_current_l = 64.0; // filled meanwhile
+        for _ in 0..10 {
+            sys.tick(&mut world, 1.0, &data);
+        }
+        assert_eq!(world.get::<&Inventory>(player).unwrap().count_item("crate_big_0"), 0, "no room yet");
+        assert_eq!(notices(&data).len(), 1, "told once, not every tick");
+        world.get::<&mut Inventory>(player).unwrap().volume_current_l = 0.0; // room made
+        sys.tick(&mut world, 1.0, &data);
+        assert_eq!(world.get::<&Inventory>(player).unwrap().count_item("crate_big_0"), 1, "delivered once there is room");
+    }
 }
 
 #[cfg(test)]
@@ -1498,6 +1644,41 @@ mod auto_refine_tests {
             .expect("items.csv"),
         );
         data
+    }
+
+    /// A machine whose own vessel takes EVERY output still counts the craft
+    /// (2026-09-25): the refinery filling its fuel drum used to return before
+    /// the completion hook, so it gave no skill XP and no quest event.
+    #[test]
+    fn a_craft_kept_in_the_machines_own_vessel_still_awards_xp() {
+        use crate::systems::inventory::containers::{Container, ContainerRegistry};
+        use crate::systems::skills::SkillXPEvent;
+        let mut data = real_data();
+        data.insert(
+            "container_registry",
+            ContainerRegistry::from_bytes(
+                include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/data/containers/types.csv")),
+                include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/data/containers/content_classes.ron")),
+            )
+            .expect("container registry"),
+        );
+        data.insert("xp_grants", std::sync::Mutex::new(Vec::<SkillXPEvent>::new()));
+        let mut world = hecs::World::new();
+        let mut inv = Inventory::new(16);
+        inv.add_item("oil_crude_0", 2, 10);
+        world.spawn((inv, Controllable));
+        let refinery = world.spawn((
+            AutoRefine { recipe_id: "refine_fuel".to_string() },
+            Container::new("steel_fuel_drum", 200.0),
+        ));
+        let mut sys = CraftingSystem::new();
+        for _ in 0..40 {
+            sys.tick(&mut world, 1.0, &data); // refine_fuel is a 30 s recipe
+        }
+        let drum = world.get::<&Container>(refinery).unwrap();
+        assert_eq!(drum.current_content_item.as_deref(), Some("fuel_refined_0"), "the drum kept the fuel");
+        let grants = data.get::<std::sync::Mutex<Vec<SkillXPEvent>>>("xp_grants").unwrap().lock().unwrap().clone();
+        assert_eq!(grants.len(), 1, "the craft still trained a skill");
     }
 
     /// Economy automation Phase 1 (v0.663): a smelter machine with an AutoRefine
@@ -1725,10 +1906,13 @@ mod auto_refine_tests {
     fn full_inventory_blocks_batch_start_without_consuming() {
         let data = real_data();
         let mut world = hecs::World::new();
-        // 2 slots only: ore stack + coal stack -- zero room for an ingot.
+        // A backpack with no VOLUME left for an ingot. (Until 2026-09-25 this
+        // was "2 slots, both taken", but slots grow for any volume-legal add
+        // since v0.735, so slots are not what makes a backpack full.)
         let mut inv = Inventory::new(2);
         inv.add_item("iron_ore_0", 4, 20);
         inv.add_item("coal_0", 2, 99);
+        inv.volume_current_l = inv.volume_capacity_l;
         let player = world.spawn((inv, Controllable));
         world.spawn((AutoRefine { recipe_id: "smelt_iron".to_string() },));
 

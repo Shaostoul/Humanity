@@ -1180,6 +1180,15 @@ mod native_app {
                 "inventory_transfer_ops",
                 std::sync::Mutex::new(Vec::<(String, u32, bool)>::new()),
             );
+            // One-line notices from CraftingSystem (2026-09-25): a finished craft
+            // waiting for backpack room says so once.
+            data_store.insert("craft_notices", std::sync::Mutex::new(Vec::<String>::new()));
+            // What a backpack could not take back out of a transfer (2026-09-25):
+            // InventorySystem fills it, the main loop puts it back in storage.
+            data_store.insert(
+                "inventory_transfer_returns",
+                std::sync::Mutex::new(Vec::<(String, u32)>::new()),
+            );
             // Creative mode (default ON during early dev): the resource-consuming
             // systems (farming seeds/fertilizer, crafting materials) skip the
             // inventory requirement + consumption when this is true. Mirrored from
@@ -1346,13 +1355,20 @@ mod native_app {
             // it auto-accepts its dependents (prerequisite chaining in QuestSystem).
             let mut player_quests = QuestTracker::default();
             player_quests.accept_quest("gs_first_steps");
+            // A new player's starting kit (2026-09-25; data/world/player.ron).
+            // A save replaces it through apply_save_to_world when progress is
+            // kept; with a fresh home each launch this is what you start with.
+            let mut start_inv = Inventory::new(36);
+            for (id, qty) in crate::save_load::starting_kit(&data_dir) {
+                start_inv.add_item(&id, qty, 99);
+            }
             game_world.world.spawn((
                 Transform::default(),
                 Velocity::default(),
                 Controllable,
                 Health::default(),
                 Name("Player".to_string()),
-                Inventory::new(36),
+                start_inv,
                 crate::ecs::components::Vitals::default(),
                 crate::ecs::components::StatusEffects::default(),
                 crate::ecs::components::Appearance::default(),
@@ -6587,6 +6603,8 @@ mod native_app {
                     // the InventorySystem channel (it applies them to the player backpack).
                     if !state.gui_state.pending_inventory_transfers.is_empty() {
                         let ops = std::mem::take(&mut state.gui_state.pending_inventory_transfers);
+                        let origins = std::mem::take(&mut state.gui_state.pending_take_origins);
+                        state.gui_state.inflight_take_origins.extend(origins);
                         if let Some(slot) = state
                             .data_store
                             .get::<std::sync::Mutex<Vec<(String, u32, bool)>>>("inventory_transfer_ops")
@@ -6766,6 +6784,34 @@ mod native_app {
                                 state.gui_state.placed_items.retain(|p| p.qty > 0);
                             }
                         }
+                    }
+                    // Backpack overflow from "Take to backpack" goes back to the
+                    // container it came from (2026-09-25; it used to vanish).
+                    let returned: Vec<(String, u32)> = state
+                        .data_store
+                        .get::<std::sync::Mutex<Vec<(String, u32)>>>("inventory_transfer_returns")
+                        .and_then(|m| m.lock().ok().map(|mut v| std::mem::take(&mut *v)))
+                        .unwrap_or_default();
+                    if let Some(slot) = state.data_store.get::<std::sync::Mutex<Vec<String>>>("craft_notices") {
+                        if let Ok(mut n) = slot.lock() {
+                            for msg in n.drain(..) {
+                                state.gui_state.pending_notices.push(msg);
+                            }
+                        }
+                    }
+                    let origins = std::mem::take(&mut state.gui_state.inflight_take_origins);
+                    for (key, qty) in returned {
+                        let origin = origins.iter().find(|o| o.key == key).cloned();
+                        let msg = crate::gui::return_to_storage(
+                            &mut state.gui_state.placed_items,
+                            &key,
+                            qty,
+                            origin.as_ref(),
+                        );
+                        state
+                            .gui_state
+                            .pending_toasts
+                            .push((msg, crate::gui::ToastKind::Info));
                     }
 
                     // ── Multiplayer co-presence (v0.472) ──────────────────────────────────────

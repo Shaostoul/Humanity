@@ -327,6 +327,26 @@ pub fn apply_save_to_world(world: &mut hecs::World, save: &WorldSave) {
     }
 }
 
+/// A NEW player's starting kit: `starting_items` in data/world/player.ron
+/// (the data dir first, the embedded copy otherwise). Empty when the file
+/// is missing or does not parse, so a broken data file never blocks a boot.
+pub fn starting_kit(data_dir: &std::path::Path) -> Vec<(String, u32)> {
+    #[derive(serde::Deserialize)]
+    struct PlayerDef {
+        #[serde(default)]
+        starting_items: Vec<(String, u32)>,
+    }
+    crate::embedded_data::read_data_or_embedded(data_dir, "world/player.ron")
+        .and_then(|text| match ron::from_str::<PlayerDef>(&text) {
+            Ok(def) => Some(def.starting_items),
+            Err(e) => {
+                log::warn!("world/player.ron did not parse, starting kit empty: {e}");
+                None
+            }
+        })
+        .unwrap_or_default()
+}
+
 /// Apply ONLY the character (name, look, outfit) from a save: the path for
 /// "Start every session from the default home" and for a save that carries
 /// no progress (`progress_saved == false`). The home, inventory, garden,
@@ -1164,6 +1184,24 @@ mod tests {
         assert_eq!(fresh.character_name, "Astra");
         assert!(!fresh.progress_saved, "a character-only save says so");
         assert!(fresh.inventory.is_empty() && fresh.crops.is_empty());
+    }
+
+    /// The shipped starting kit parses and every item in it is a real item,
+    /// so a new player never starts with a name that resolves to nothing.
+    #[test]
+    fn the_starting_kit_is_real_items() {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let kit = starting_kit(&dir);
+        assert!(kit.iter().any(|(id, _)| id.starts_with("seed_")), "a new player can plant: {kit:?}");
+        let items = crate::systems::inventory::ItemRegistry::from_csv(include_bytes!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/data/items.csv"
+        )))
+        .unwrap();
+        for (id, qty) in &kit {
+            assert!(items.items.contains_key(id), "starting item {id} is not in items.csv");
+            assert!(*qty > 0);
+        }
     }
 
     #[test]

@@ -348,6 +348,18 @@ const HEALTH_RECOVERY_RATE: f32 = 0.5;
 /// Health decay rate per second when water-stressed.
 const HEALTH_DECAY_RATE: f32 = 1.0;
 
+/// Is this grow-area tag an outdoor FIELD? True for the field machine type
+/// ("grain_field") and for one physical field ("grain_field_1", how the
+/// showcase garden tags its crops). Until 2026-09-25 only the first form
+/// matched, so showcase field crops skipped season and weather entirely.
+pub fn is_field_area(tid: &str) -> bool {
+    let base = match tid.rsplit_once('_') {
+        Some((head, tail)) if !tail.is_empty() && tail.chars().all(|c| c.is_ascii_digit()) => head,
+        _ => tid,
+    };
+    base.ends_with("_field")
+}
+
 /// Water level the home's automated irrigation holds a grow area at when
 /// the player has not set that area's slider (2026-09-25). Well above the
 /// 0.2 stress line, below saturation, the way a timed drip or aeroponic
@@ -1132,7 +1144,7 @@ impl System for FarmingSystem {
                         let climate_factor = if crop
                             .tower_id
                             .as_deref()
-                            .map_or(false, |tid| tid.ends_with("_field"))
+                            .map_or(false, is_field_area)
                         {
                             let season_ok = season.is_empty()
                                 || plant_def.seasons.is_empty()
@@ -1694,6 +1706,16 @@ mod gardening_tests {
             dry_c.health,
             irr_c.health
         );
+    }
+
+    #[test]
+    fn numbered_fields_are_fields_and_towers_are_not() {
+        assert!(is_field_area("grain_field"));
+        assert!(is_field_area("grain_field_1"));
+        assert!(is_field_area("legume_field_12"));
+        assert!(!is_field_area("ntower_3"));
+        assert!(!is_field_area("nutrition"));
+        assert!(!is_field_area("oilseed_bed_4"));
     }
 
     /// The default (2026-09-25): a grow area nobody configured is watered by the

@@ -11,5 +11,24 @@
     run_speed: 10.0,         // m/s
     jump_velocity: 5.0,      // m/s upward
     inventory_slots: 36,
-    starting_items: [],
+    // What a NEW player carries (2026-09-25; read by
+    // save_load::starting_kit at spawn). Before this the list was empty and
+    // nothing read it, so a player started with nothing and could only get a
+    // first seed from a dev button. A small real homestead start: quick crops
+    // to plant in the first minutes, water and food for the first day, and
+    // the hand tools gardening uses. Every id must exist in data/items.csv
+    // (tests/recipe_sources_lint.rs and a unit test check it).
+    starting_items: [
+        ("seed_lettuce_0", 5),
+        ("seed_tomato_0", 5),
+        ("seed_potato_0", 5),
+        ("seed_bean_0", 5),
+        ("seed_carrot_0", 5),
+        ("seed_wheat_0", 10),
+        ("water_purified_0", 4),
+        ("ration_basic_0", 3),
+        ("trowel_0", 1),
+        ("hoe_0", 1),
+        ("knife_utility_0", 1),
+    ],
 )

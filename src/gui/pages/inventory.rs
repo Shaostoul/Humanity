@@ -212,6 +212,14 @@ fn with_garden_edit<R>(f: impl FnOnce(&mut GardenEditState) -> R) -> R {
 fn snapshot_garden_sim(state: &mut GuiState) {
     let mut irr: std::collections::HashMap<String, f32> = std::collections::HashMap::new();
     let mut nut: std::collections::HashMap<String, f32> = std::collections::HashMap::new();
+    // Every placed machine by type, so a slider set for a TYPE also reaches
+    // crops tagged with one of its physical machines (the showcase garden,
+    // 2026-09-25; the sliders never reached those crops before).
+    let instances: Vec<(String, String)> = state
+        .home_machines
+        .as_ref()
+        .map(|h| h.all_instances().into_iter().map(|i| (i.id, i.machine)).collect())
+        .unwrap_or_default();
     with_garden_edit(|s| {
         for (machine_id, cfg) in &s.configs {
             let grows_towers = state
@@ -219,6 +227,17 @@ fn snapshot_garden_sim(state: &mut GuiState) {
                 .iter()
                 .find(|m| m.matches(machine_id))
                 .map_or(false, |m| m.show_slots);
+            // The physical machines of this type (showcase-tagged crops).
+            for (inst_id, ty) in &instances {
+                if ty == machine_id {
+                    if let Some(w) = cfg.values.get("water").copied() {
+                        irr.insert(inst_id.clone(), w);
+                    }
+                    if let Some(n) = cfg.values.get("nutrient").copied() {
+                        nut.insert(inst_id.clone(), n);
+                    }
+                }
+            }
             if !grows_towers {
                 // Beds/trays/fields (v0.738): their crops carry the MACHINE id
                 // as their grow-area tag (in tower_id), so the modal's sliders
@@ -1794,6 +1813,9 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                         });
                         if take_to_backpack {
                             state.pending_inventory_transfers.push((pi.key.clone(), pi.qty, true));
+                            // Remember where it came from: a full backpack sends
+                            // the rest back here (lib.rs, after the tick).
+                            state.pending_take_origins.push(pi.clone());
                             state.placed_items.remove(idx);
                             with_placed_sel(|s| *s = None);
                         } else if let Some(target) = move_to {
@@ -1904,6 +1926,22 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             continue;
                         }
                         groups.push((Some(a.machine_id.clone()), a.label.clone()));
+                    }
+                    // Crops planted into a specific machine (the showcase
+                    // garden: "ntower_3", "grain_field_1") get one group per
+                    // machine (2026-09-25; they were invisible before).
+                    {
+                        let known: Vec<String> = groups.iter().filter_map(|(g, _)| g.clone()).collect();
+                        let type_of: std::collections::HashMap<String, String> = state
+                            .home_machines
+                            .as_ref()
+                            .map(|h| h.all_instances().into_iter().map(|i| (i.id, i.machine)).collect())
+                            .unwrap_or_default();
+                        let crop_areas: Vec<&str> =
+                            state.crops.iter().filter_map(|c| c.tower_id.as_deref()).collect();
+                        for (id, title) in crate::gui::machine_crop_groups(&crop_areas, &known, &type_of, &state.garden_areas) {
+                            groups.push((Some(id), title));
+                        }
                     }
                     if state.crops.iter().any(|c| c.tower_id.is_none()) {
                         groups.push((None, "Other crops".to_string()));

@@ -29,9 +29,6 @@ hands = ""
 tool = "omnitool"                      # Start with construction omnitool
 
 [inventory]
-# Starting inventory items: [item_id, quantity]
-starting_items = [
-    ["omnitool", 1],
-    ["emergency_ration", 3],
-    ["water_bottle", 1],
-]
+# The starting kit lives in data/world/player.ron (`starting_items`), which
+# is the one the game reads. The list that was here named items that do not
+# exist and was never read; removed 2026-09-25 so there is one source.

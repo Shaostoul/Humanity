@@ -706,6 +706,48 @@ mod transfer_tests {
             "ops are drained; a tick with no new ops changes nothing"
         );
     }
+
+    /// A transfer into a full backpack (2026-09-25): what does not fit is
+    /// reported on the returns channel instead of being dropped, because the
+    /// GUI has already taken it out of its container. Before this the
+    /// overflow from `add_item_volume_gated` was ignored and the items were
+    /// gone.
+    #[test]
+    fn transfer_overflow_is_returned_not_destroyed() {
+        let mut data = DataStore::new();
+        let reg = ItemRegistry::from_csv(
+            b"id,name,weight_kg,stack_size,volume_l\nbarrel_0,Barrel,20,5,40\n",
+        )
+        .expect("registry");
+        data.insert("item_registry", reg);
+        data.insert(
+            "inventory_transfer_ops",
+            std::sync::Mutex::new(Vec::<(String, u32, bool)>::new()),
+        );
+        data.insert(
+            "inventory_transfer_returns",
+            std::sync::Mutex::new(Vec::<(String, u32)>::new()),
+        );
+        let mut world = hecs::World::new();
+        let player = world.spawn((Inventory::new(16), Controllable));
+        let mut sys = InventorySystem::new();
+        // 40 L each against the backpack's volume: some fit, the rest must come back.
+        data.get::<std::sync::Mutex<Vec<(String, u32, bool)>>>("inventory_transfer_ops")
+            .unwrap()
+            .lock()
+            .unwrap()
+            .push(("barrel_0".into(), 5, true));
+        sys.tick(&mut world, 1.0, &data);
+        let held = world.get::<&Inventory>(player).unwrap().count_item("barrel_0");
+        let returned: Vec<(String, u32)> = data
+            .get::<std::sync::Mutex<Vec<(String, u32)>>>("inventory_transfer_returns")
+            .unwrap()
+            .lock()
+            .unwrap()
+            .clone();
+        assert!(held < 5, "the backpack cannot hold all five 40 L barrels (held {held})");
+        assert_eq!(returned, vec![("barrel_0".to_string(), 5 - held)], "every barrel is accounted for");
+    }
 }
 
 /// Manages inventory components and processes queued operations.
@@ -761,7 +803,20 @@ impl System for InventorySystem {
                             // Volume-gated (Stage A slice 2): a full backpack
                             // refuses the transfer instead of over-filling.
                             let unit_vol = registry.map(|r| r.volume_for(&item_id)).unwrap_or(0.0);
-                            inv.add_item_volume_gated(&item_id, quantity, max_stack, unit_vol);
+                            let overflow = inv.add_item_volume_gated(&item_id, quantity, max_stack, unit_vol);
+                            // What did not fit goes BACK (2026-09-25). The GUI has
+                            // already taken it out of its container, so a dropped
+                            // overflow was an item destroyed; the main loop puts
+                            // these back where they came from and says so.
+                            if overflow > 0 {
+                                if let Some(ret) = data.get::<std::sync::Mutex<Vec<(String, u32)>>>(
+                                    "inventory_transfer_returns",
+                                ) {
+                                    if let Ok(mut r) = ret.lock() {
+                                        r.push((item_id.clone(), overflow));
+                                    }
+                                }
+                            }
                         } else {
                             inv.remove_item(&item_id, quantity);
                         }
