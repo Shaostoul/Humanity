@@ -401,4 +401,5 @@
 
     (id: "garden_lime_0",     name: "Garden Lime",        category: "agricultural",    base_value: 20,   weight_kg: 5.0,   description: "Ground limestone that raises garden soil pH"),
     (id: "garden_sulfur_0",   name: "Garden Sulfur",      category: "agricultural",    base_value: 30,   weight_kg: 2.0,   description: "Elemental sulfur that lowers garden soil pH"),
+    (id: "sulfur_powder_0",   name: "Rubber Sulfur",      category: "chemical",        base_value: 4,    weight_kg: 0.1,   description: "Powdered sulfur for curing raw rubber"),
 ]

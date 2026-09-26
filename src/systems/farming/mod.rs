@@ -152,6 +152,17 @@ pub struct PlantDef {
     /// every crop had before.
     #[serde(default)]
     pub area_per_plant_m2: Option<f32>,
+    /// The daily light integral the crop needs, mol/m2/day (plants.csv
+    /// `dli_min`, `dli_target`, `dli_saturation`, 2026-09-26; sources in
+    /// docs/reference/findings/2026-09-26-crop-daily-light-integrals.md).
+    /// `None` where not sourced. The target sets how much of a grow light a
+    /// plot needs (`lighting::area_needs`).
+    #[serde(default)]
+    pub dli_min: Option<f32>,
+    #[serde(default)]
+    pub dli_target: Option<f32>,
+    #[serde(default)]
+    pub dli_saturation: Option<f32>,
 }
 
 fn default_needs_light() -> bool {
@@ -270,6 +281,9 @@ impl PlantRegistry {
                     removal_p2o5: parse_removal(&row.removal_p2o5_g_per_kg),
                     removal_k2o: parse_removal(&row.removal_k2o_g_per_kg),
                     area_per_plant_m2: parse_area(&row.area_per_plant_m2),
+                    dli_min: parse_removal(&row.dli_min),
+                    dli_target: parse_removal(&row.dli_target),
+                    dli_saturation: parse_removal(&row.dli_saturation),
                 },
             );
         }
@@ -336,6 +350,13 @@ struct PlantRow {
     /// Text, not a number: see `parse_area`.
     #[serde(default)]
     area_per_plant_m2: String,
+    /// Text, not numbers: blank = not sourced (see `parse_removal`).
+    #[serde(default)]
+    dli_min: String,
+    #[serde(default)]
+    dli_target: String,
+    #[serde(default)]
+    dli_saturation: String,
 }
 
 /// Split a colon-separated list field into trimmed, non-empty entries.
@@ -995,14 +1016,12 @@ impl System for FarmingSystem {
         // light the electrical sim sheds (priority 5 goes first) or the player
         // switches off gives no light, and one with no power role at all is
         // never lit. Cover by grow-area id (instance or tower design id).
-        let sun_up = crate::systems::solar::sun_factor(hour) > 0.0;
-        let lamp_cover: HashMap<String, f64> = match (
-            data.get::<Vec<lighting::GrowPlot>>("grow_plots"),
-            data.get::<lighting::LightingData>("garden_lighting"),
-        ) {
-            (Some(plots), Some(ld)) if !sun_up => lighting::light_cover(&lighting::powered_lights(world), plots, ld),
-            _ => HashMap::new(),
-        };
+        // The lights run on a timer (lighting.ron `lamp_photoperiod_h`) and a
+        // plot's share of one follows its crops' own light need (plants.csv
+        // `dli_target`, 2026-09-26): lighting::light_at.
+        let lit_now = lighting::light_at(world, data, hour);
+        let sun_up = lit_now.sun_up;
+        let lamp_cover = lit_now.cover;
         // Game seconds this tick, computed the way TimeSystem advances the
         // clock, so holding a crop in the dark holds it by exactly what
         // passed. A clock jump (the dev hour set, a save restore) is not a
@@ -3648,7 +3667,10 @@ mod gardening_tests {
         let (shed_tower, _) = night_growth(Some(false));
         assert!(dark_tower.abs() < 1e-6, "no grow light: paused at night, age {dark_tower}");
         assert!(shed_tower.abs() < 1e-6, "a shed grow light gives no light, age {shed_tower}");
-        assert!((lit_tower - 900.0).abs() < 1e-6, "a powered grow light lights it, age {lit_tower}");
+        // The timer (lighting.ron lamp_photoperiod_h 18) runs it 19:00 to
+        // midnight of this 19:00-04:00 night: five lit hours at 2x, 500 s.
+        // Within a tick (2 s of growth) at the midnight switch, as the natural-day test allows at sunrise and sunset.
+        assert!((lit_tower - 500.0).abs() <= 2.0, "a powered grow light lights it until midnight, age {lit_tower}");
         assert!(lit_field.abs() < 1e-6, "a grow light does not reach an outdoor field, age {lit_field}");
 
         // By day, no grow light needed.
@@ -3688,7 +3710,7 @@ mod gardening_tests {
         let far = world.spawn((fresh_crop(&data, "lettuce", Some("ntower_9")),));
         run_seconds(&mut sys, &mut world, &data, 450); // 19:00 to 04:00
         let (n, f) = (growth_age(&world, near, &data), growth_age(&world, far, &data));
-        assert!((n - 900.0).abs() < 1e-6, "the tower under the light grew all night, age {n}");
+        assert!((n - 500.0).abs() <= 2.0, "the tower under the light grew until the timer, age {n}");
         assert!(f.abs() < 1e-6, "the tower across the room did not, age {f}");
     }
 

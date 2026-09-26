@@ -21,7 +21,7 @@
 #                                     declare this file as their data layer.
 #
 # EIGHT COLUMNS ARE NOT READ BY THE ENGINE AT ALL. `PlantDef` carries 24 of the
-# 32 (counted 2026-09-26, after the three removal columns and area_per_plant_m2). `description` and
+# 35 (counted 2026-09-26, after the three removal columns, area_per_plant_m2 and the three dli columns). `description` and
 # `type` are documentation for a human or an AI reading the file; `seed_value`,
 # `harvest_value`, `seed_source`, `companion_plants` and `adverse_plants` are
 # read by nothing in `src/` today. They are content waiting for a system, not
@@ -392,16 +392,52 @@ src/systems/farming/unit_tests.rs holds each crop's harvest per m2 to a band for
 its kind of harvest, so a per-m2 figure typed as per-plant fails."""
 example = "0.003"
 
+[fields.dli_min]
+type = "float"
+required = false
+engine = false
+description = """
+The least daily light integral (mol of photons per m2 a day) the crop still
+grows acceptably on. Sourced per crop in
+docs/reference/findings/2026-09-26-crop-daily-light-integrals.md; blank where not
+found. Shown on the crop card; not yet used by the growth model."""
+example = "15"
+
+[fields.dli_target]
+type = "float"
+required = false
+engine = true
+description = """
+The daily light integral (mol/m2/day) recommended for good yield and quality,
+from the same findings document. Sets how much of a grow light a plot needs
+(src/systems/farming/lighting.rs, area_needs and light_cover): a plot takes
+target / 17 times the canopy of a light quoted at the lettuce reference in
+data/garden/lighting.ron. Blank = planned at that reference, and the crop card
+says the crop's own is not sourced. Some targets are speed-breeding or
+CO2-enriched chamber figures (flags SB and CO2 in the findings)."""
+example = "25"
+
+[fields.dli_saturation]
+type = "float"
+required = false
+engine = false
+description = """
+The daily light integral (mol/m2/day) above which more light gives little more
+growth, or harms (lettuce tipburn above about 17 with airflow, 12 without).
+From the same findings document; NR there means growth was still rising at the
+highest light tested. Shown on the crop card; not yet used by the growth model."""
+example = "30"
+
 # ── Known gaps, so nobody rediscovers them ───────────────────────
 #
 # These are things the file CANNOT express that the Library's guides say matter.
 # Each is a real content decision, not an oversight to be silently patched.
 #
-#   No light AMOUNT or shade-tolerance column. `needs_light` says only whether
-#     a species needs light at all. The daily light integral a crop wants and
-#     its compensation point, which is the budget governing whether a plant can
-#     live where you put it, have no field, so the sim cannot yet scale growth
-#     under weak light or saturate it under strong light.
+#   Light AMOUNT: dli_min/dli_target/dli_saturation exist since 2026-09-26 for
+#     27 crops, and dli_target sets a grow light's share. Still missing: the
+#     compensation point and shade tolerance, and the sun side (the skylight
+#     is treated as meeting every crop's target: there is no latitude or
+#     seasonal day length yet), so growth under weak sun does not slow.
 #   No photoperiod or vernalization field, so bolting cannot emerge from the
 #     data and can only be scripted.
 #   No pollination mode, which is the thing saving_your_own_seeds.md turns on:

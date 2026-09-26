@@ -106,8 +106,11 @@ date; re-check before trusting one. The container data basis is
   sawmill keeps its slabs and bark (FAO's split, 3 kg of slabs and 1 kg of
   bark from two 8 kg logs); slabs burn to charcoal at the log's yield, and
   bark tans leather at twice the hide's weight (Traditional Tanners), so
-  leather now needs tannin as well as salt. Not yet: vulcanizing rubber, which still turns 2 sheets into 3
-  (it needs a raw rubber item and the sulfur the process uses). Removed
+  leather now needs tannin as well as salt. Rubber (v0.1368.0): the rubber
+  tree yields latex (it harvested a fiber bundle), 3 kg of latex sets into
+  1 kg of raw rubber (dry rubber content 28%, Wattana et al. 2025), and
+  vulcanizing cures 4 kg of it with 100 g of sulfur and heat into 4 sheets
+  (it turned 2 sheets into 3); no recipe multiplies an item any more. Removed
   2026-09-26: three recipes that only multiplied an item and made nothing any
   recipe used (charging a battery pack into two, "titanium alloy" doubling
   titanium ingots, and "nanomaterial" turning one plastic sheet into five).
@@ -492,6 +495,25 @@ date; re-check before trusting one. The container data basis is
   seeds whatever the fruit set, so an unpollinated zucchini still gives
   seed; and a crop the offline catch-up carries past flowering is not
   charged for flowers nobody pollinated while the game was closed.
+
+- **Each crop's own light need, and a grow-light timer, DONE 2026-09-26**
+  (v0.1368.0). plants.csv gained `dli_min`, `dli_target` and
+  `dli_saturation` (mol/m2/day) for the 27 of the home's 63 crops the
+  research found (docs/reference/findings/2026-09-26-crop-daily-light-integrals.md:
+  Purdue HO-238, Cornell CEA, Michigan State, NASA and peer-reviewed work;
+  the rest are listed there as not found). A grow light's area is now quoted
+  at the lettuce reference (17) and a plot takes its neediest crop's target
+  over 17 times the canopy, so the same 100 W light fully covers 0.58 m2 of
+  lettuce and 79% of a 0.5 m2 tomato plot (25). The lights run on a timer
+  (`lamp_photoperiod_h`, 18 h): on at sunset, off at midnight, because
+  "Some crops, especially tomato, become stressed and develop chlorotic
+  leaves if grown under continuous light" (Runkle, MSU), so a lit night is
+  now half a day of extra growth, not a whole one. Each crop card shows its
+  light need, or says it is not sourced and planned at 17. Still to do: the
+  sun side (the skylight is treated as meeting every target; there is no
+  latitude or seasonal day length), `dli_min` and saturation in the growth
+  rate, a timer the player can set, and lettuce's still-air tipburn ceiling
+  (12, not 17) once the greenhouse has airflow.
 
 ## Defects found (things that are wrong, not merely missing)
 

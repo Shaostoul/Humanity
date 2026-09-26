@@ -1,5 +1,5 @@
 {
-  "count": 374,
+  "count": 375,
   "categories": [
     "assembly",
     "chemistry",
@@ -748,14 +748,44 @@
       "tools": []
     },
     {
+      "id": "coagulate_latex",
+      "name": "Set Latex into Raw Rubber",
+      "category": "refining",
+      "inputs": [
+        {
+          "id": "latex_0",
+          "label": "Latex",
+          "qty": 3
+        }
+      ],
+      "outputs": [
+        {
+          "id": "raw_rubber_0",
+          "label": "Raw Rubber",
+          "qty": 1
+        }
+      ],
+      "craft_time_sec": 60,
+      "station": "",
+      "skill": "",
+      "skill_level": 1,
+      "description": "Let fresh latex stand in a pan until it sets and press it into a sheet",
+      "tools": []
+    },
+    {
       "id": "vulcanize_rubber",
       "name": "Vulcanize Rubber",
       "category": "refining",
       "inputs": [
         {
-          "id": "rubber_sheet_0",
-          "label": "Rubber Sheet",
-          "qty": 2
+          "id": "raw_rubber_0",
+          "label": "Raw Rubber",
+          "qty": 4
+        },
+        {
+          "id": "sulfur_powder_0",
+          "label": "Sulfur Powder",
+          "qty": 1
         },
         {
           "id": "coal_0",
@@ -767,14 +797,14 @@
         {
           "id": "rubber_sheet_0",
           "label": "Rubber Sheet",
-          "qty": 3
+          "qty": 4
         }
       ],
       "craft_time_sec": 15,
       "station": "Forge",
       "skill": "Metalworking",
       "skill_level": 2,
-      "description": "Heat-treat rubber for durability",
+      "description": "Cure raw rubber with sulfur and heat into tough elastic sheets",
       "tools": []
     },
     {

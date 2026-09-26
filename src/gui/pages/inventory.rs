@@ -2416,6 +2416,9 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                                             // What each kg of this harvest takes out of the soil.
                                                             stat(ui, "Each kg takes", format!("{:.1} · {:.1} · {:.1} g", c.n, c.p, c.k));
                                                             stat(ui, "Light", c.light.clone());
+                                                            if !c.light_need.is_empty() {
+                                                                stat(ui, "Light need", c.light_need.clone());
+                                                            }
                                                             // The unit's pH against the crop's window (farming::soil_ph).
                                                             if let Some(ph) = c.ph {
                                                                 let (k, v) = if c.ph_held {

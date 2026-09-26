@@ -66,7 +66,22 @@ make_charcoal_slabs,Make Charcoal from Slabs,refining,wood_slab_0:8,coal_0:2,20,
 extract_fiber,Extract Fiber,refining,wood_log_0:1,fiber_bundle_0:3,8,,woodworking,1,Strip plant matter into raw fibers
 make_rope,Make Rope,refining,fiber_bundle_0:3,rope_0:1,10,,woodworking,1,Braid plant fibers into strong rope
 make_wire,Draw Wire,refining,copper_ingot_0:1,wire_0:5,8,workbench_0,metalworking,2,Draw copper into insulated wire
-vulcanize_rubber,Vulcanize Rubber,refining,rubber_sheet_0:2|coal_0:1,rubber_sheet_0:3,15,forge_0,metalworking,2,Heat-treat rubber for durability
+# Rubber (2026-09-26). A rubber tree is tapped for latex (plants.csv harvests latex_0; it used to
+# harvest a "fiber bundle"). Fresh field latex is about a third rubber: "dry rubber content (DRC) of
+# 28.2 +/- 0.5%" for RRIM 600 latex (Wattana et al., "Thin-Layer Drying Model and Antifungal
+# Properties of Rubber Sheets Produced with Wood Vinegar as a Substitute for Formic and Acetic
+# Acids", Polymers, 27 April 2025, https://pmc.ncbi.nlm.nih.gov/articles/PMC12073864/, read
+# 2026-09-26), so 3 kg of latex sets into 1 kg of raw rubber. Left to stand it sets on its own as
+# the microorganisms in it make organic acids (Bai et al., "Microstructure and Lamellae Phase of
+# Raw Natural Rubber via Spontaneous Coagulation Assisted by Sugars", Polymers 13(24):4306, 2021:
+# "produce abundant kinds of organic acids to coagulate the latex particles"); smallholders speed
+# it with formic acid or wood vinegar, which the game does not have yet. The setting time is a
+# game estimate. Curing takes sulfur and heat: a soft rubber takes a few parts of sulfur per hundred
+# of rubber, here 100 g for 4 kg (2.5 parts); the hard rubber called ebonite takes far more ("Ebonite
+# may contain from 25% to 80% sulfur and linseed oil", Wikipedia "Hard rubber", read 2026-09-26).
+# vulcanize_rubber used to turn 2 sheets into 3.
+coagulate_latex,Set Latex into Raw Rubber,refining,latex_0:3,raw_rubber_0:1,60,,,0,Let fresh latex stand in a pan until it sets and press it into a sheet
+vulcanize_rubber,Vulcanize Rubber,refining,raw_rubber_0:4|sulfur_powder_0:1|coal_0:1,rubber_sheet_0:4,15,forge_0,metalworking,2,Cure raw rubber with sulfur and heat into tough elastic sheets
 # Tanning: UNIDO "Mass balance in leather processing" (Buljan, Reich and Ludvik, 2000): 1000 kg of
 # wet-salted hide (1100 kg green) gives 255 kg of finished leather once the unusable split (107 kg)
 # and shavings (99 kg) are thrown away, about 460 kg if the whole thickness is kept. One 2 kg raw

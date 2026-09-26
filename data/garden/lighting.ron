@@ -3,19 +3,23 @@
 // carries the numbers and where each came from. Sources read on 2026-09-26.
 //
 // THE MODEL. A powered grow light puts out PPF = watts x ppe_umol_per_j
-// micromoles of photons a second. After dark it gives a plot a second day of
-// growth only if it delivers that plot the crop's daily light integral (DLI)
-// through the night, so the photon flux density it must hold on each square
-// metre is target_dli / the seconds of night (24 h x (1 - the daylight share,
-// farming::DAYLIGHT_FRACTION, 0.5) = 43,200 s). The area one light covers is
-// PPF / that density; it covers the plots nearest it first, within reach_m,
-// and a plot it only partly covers grows that share of a night's growth. Two
-// lights over one bed add up. Outdoor fields get only the sun.
+// micromoles of photons a second. Each hour it lights a plot counts as an hour
+// of sun if it holds the density of an average sunlit hour: the reference
+// daily light integral (DLI) over the daylight seconds (24 h x the daylight
+// share, farming::DAYLIGHT_FRACTION, 0.5 = 43,200 s). The area one light covers
+// at that density is PPF / it; a plot whose crops need more than the reference
+// (plants.csv dli_target) takes proportionally more canopy of the same light.
+// It covers the plots nearest it first, within reach_m, and a plot it only
+// partly covers grows that share. Two lights over one bed add up. The lights
+// run on a timer (lamp_photoperiod_h) from sunset, so a night is not all lit.
+// Outdoor fields get only the sun.
 //
 // A 100 W light: 100 x 2.30 = 230 umol/s over 17e6 / 43,200 = 394 umol/m2/s
-// covers 0.58 m2. Run through the 12 h night that is 1.2 kWh for 0.58 m2,
-// 2.1 kWh per m2 a day, which agrees with the 2.2 kWh per m2 a day for greens
-// in docs/design/self-sufficiency.md, worked out independently.
+// covers 0.58 m2 of a crop needing 17. Run through a whole 12 h night that
+// would be 1.2 kWh for 0.58 m2, 2.1 kWh per m2 a day, which agrees with the
+// 2.2 kWh per m2 a day for greens in docs/design/self-sufficiency.md, worked
+// out independently. The 18 h timer runs it 6 h: 0.6 kWh, and half a day of
+// extra growth.
 //
 // SOURCES
 //
@@ -32,13 +36,32 @@
 //   https://cpb-us-e1.wpmucdn.com/blogs.cornell.edu/dist/8/8824/files/2019/06/Cornell-CEA-Lettuce-Handbook-.pdf
 //   "It should be noted that 17 mol/m2/d is the light integral that worked
 //   best for the particular cultivar of boston bibb lettuce that we used."
-//   One figure for every crop until each species carries its own (the next
-//   rung): fruiting crops such as tomato want more, and some lettuces tip-burn
+//   Now the REFERENCE a light's area is quoted at; each crop's own need is its
+//   plants.csv dli_target (see PER-CROP NEED below). Some lettuces tip-burn
 //   above about 15 (the same page).
 //
 // cup_canopy_m2: the same handbook, pond growing area: "After re-spacing (from
 //   97 plants m-2 to 38 plants m-2)". 1 / 38 = 0.026 m2 of canopy a finished
 //   plant needs, used for each planted cup of a tower.
+//
+// lamp_photoperiod_h: the timer. Lights switch on at sunset and off once the
+//   day's light reaches this many hours, so 18 leaves six hours of dark.
+//   Runkle (Michigan State), "Technically speaking: Lighting greenhouse
+//   vegetables", Greenhouse Product News, December 2011, p. 42,
+//   https://www.canr.msu.edu/uploads/resources/pdfs/lightingvegetables.pdf
+//   (read 2026-09-26 through the Internet Archive): "Some crops, especially
+//   tomato, become stressed and develop chlorotic leaves if grown under
+//   continuous light. Therefore, four to six hours of darkness is suggested
+//   each night." Some potato cultivars are also intolerant of continuous light
+//   (Wheeler et al., in docs/reference/findings/2026-09-26-crop-daily-light-integrals.md).
+//   So the light model's "second day of growth" from a lamp is now six hours
+//   of it, half a day, not the whole night.
+//
+// PER-CROP NEED (2026-09-26): target_dli_mol_m2_d is now the REFERENCE a
+//   light's covered area is quoted at. A plot's own need is the highest
+//   plants.csv dli_target among its crops (sourced for 27 crops in the findings
+//   document above), and it takes need / 17 times the canopy of the same light;
+//   a crop without a sourced target is planned at 17 and its card says so.
 //
 // reach_m: GAME ESTIMATE. A fixture hangs over the bed it serves; light
 //   falls off with the square of distance, so a bed a few metres away gets a
@@ -49,4 +72,5 @@
     target_dli_mol_m2_d: 17.0,
     cup_canopy_m2: 0.026,
     reach_m: 3.0,
+    lamp_photoperiod_h: 18.0,
 )

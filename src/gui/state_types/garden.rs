@@ -79,6 +79,8 @@ pub struct GuiCrop {
     pub temp_max: f32,
     /// What is lighting it now (farming::lighting::light_word).
     pub light: String,
+    /// How much light it needs a day (farming::lighting::light_need_word).
+    pub light_need: String,
     /// Grams of N, P2O5 and K2O the crop's unit holds, and what its season
     /// needs (2026-09-26, farming::soil).
     pub soil: [f32; 3],

@@ -256,6 +256,9 @@ water_purified_0,Purified Water,material,liquid,ice,1.0,10,0,Filtered clean wate
 ice_block_0,Ice Block,material,frozen,ice,10.0,5,0,Solid frozen water block,solid,18.2
 fiber_bundle_0,Fiber Bundle,material,raw,plant_fiber,0.5,20,0,Raw plant fiber bundle,solid,0.69
 rubber_sheet_0,Rubber Sheet,material,processed,rubber,1.0,10,0,Flat vulcanized rubber panel,solid,1.52
+latex_0,Natural Rubber Latex,material,raw,rubber,1.0,10,0,Field latex tapped from a rubber tree; about a third of it by weight is rubber and the rest mostly water,liquid,1.02
+raw_rubber_0,Raw Rubber,material,processed,rubber,1.0,10,0,A sheet of set latex; soft and sticky until it is cured with sulfur and heat,solid,1.09
+sulfur_powder_0,Rubber Sulfur,material,chemical,hdpe,0.1,20,0,100 g of powdered sulfur for curing (vulcanizing) rubber,dry_goods,0.09
 plastic_sheet_0,Plastic Sheet,material,processed,hdpe,0.5,20,0,Flat polyethylene panel,solid,0.87
 carbon_fiber_sheet_0,Carbon Fiber Sheet,material,processed,carbon_fiber_mat,0.3,10,0,Woven carbon composite panel,solid,0.31
 glass_fiber_0,Glass Fiber Roving,material,processed,glass,2.4,10,0,Spool of continuous drawn glass filament,solid,2.00
@@ -824,7 +827,6 @@ produce_jasmine_0,Jasmine,decoration,decorative,plant_fiber,0.3,20,0,Fresh harve
 fiber_cotton_0,Cotton,material,fiber,plant_fiber,0.3,20,0,Harvested cotton fiber bundle,solid,0.45
 wool_0,Wool,material,fiber,wool,0.4,20,0,Shorn sheep's wool fleece,solid,1.2
 fiber_flax_0,Flax,material,fiber,plant_fiber,0.3,20,0,Harvested flax fiber bundle,solid,0.45
-fiber_rubber_tree_0,Rubber Tree,material,fiber,plant_fiber,0.3,20,0,Harvested rubber tree fiber bundle,solid,0.45
 fiber_sugarcane_0,Sugarcane,material,fiber,plant_fiber,0.3,20,0,Harvested sugarcane fiber bundle,solid,0.45
 fiber_hemp_0,Hemp,material,fiber,plant_fiber,0.3,20,0,Harvested hemp fiber bundle,solid,0.45
 fiber_jute_0,Jute,material,fiber,plant_fiber,0.3,20,0,Harvested jute fiber bundle,solid,0.45

@@ -403,6 +403,7 @@
             ("wire_0", 20, 300),
             ("bolt_box_0", 15, 600),
             ("rubber_sheet_0", 10, 600),
+            ("sulfur_powder_0", 20, 600),
             ("circuit_board_0", 5, 1800),
         ],
         dialogue_intro: "Broken gear? Bring it here. If it was built by hands, my hands can fix it.",

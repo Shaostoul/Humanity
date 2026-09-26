@@ -12807,7 +12807,8 @@ mod native_app {
                             .get::<crate::systems::farming::soil::NutrientData>("garden_nutrients")
                             .zip(plant_reg)
                             .and_then(|(nd, reg)| nd.scale_for(reg));
-                        let (sun_up, lamp) = crate::systems::farming::lighting::light_now(&state.game_world.world, &state.data_store);
+                        let lit = crate::systems::farming::lighting::light_now(&state.game_world.world, &state.data_store);
+                        let light_data = state.data_store.get::<crate::systems::farming::lighting::LightingData>("garden_lighting");
                         let ph_view = crate::systems::farming::soil_ph::GardenView::new(&state.data_store, &state.game_world.world);
                         state.gui_state.garden_pests.ph_amendments = ph_view.amendments();
                         let pollination = crate::systems::farming::pollination::GuiView::new(&state.game_world.world, &state.data_store);
@@ -12866,7 +12867,8 @@ mod native_app {
                                 plants,
                                 temp_min: def.map(|d| d.temp_min_c).unwrap_or(0.0),
                                 temp_max: def.map(|d| d.temp_max_c).unwrap_or(0.0),
-                                light: crate::systems::farming::lighting::light_word(def.map_or(true, |d| d.needs_light), crop.tower_id.as_deref().map_or(false, crate::systems::farming::is_field_area), sun_up, crop.tower_id.as_deref().and_then(|t| lamp.get(t)).copied().unwrap_or(0.0)),
+                                light: crate::systems::farming::lighting::light_word(def.map_or(true, |d| d.needs_light), crop.tower_id.as_deref().map_or(false, crate::systems::farming::is_field_area), lit.sun_up, crop.tower_id.as_deref().and_then(|t| lit.cover.get(t)).copied().unwrap_or(0.0)),
+                                light_need: light_data.map(|d| crate::systems::farming::lighting::light_need_word(def, d)).unwrap_or_default(),
                                 soil: [store.n as f32, store.p2o5 as f32, store.k2o as f32],
                                 need: [need.n as f32, need.p2o5 as f32, need.k2o as f32],
                                 short_of: (supply < 1.0).then(|| scarce.word().to_string()),

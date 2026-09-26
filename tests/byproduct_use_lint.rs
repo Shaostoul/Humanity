@@ -18,8 +18,9 @@
 //!      have hidden the defect instead of fixing it;
 //!   4. no recipe hands back more of an item than it takes of that same item
 //!      (tan_leather turned one hide into two of the same hide, so hides
-//!      multiplied forever). One older recipe still does this and is listed in
-//!      KNOWN_MULTIPLIERS with the reason; the list may only shrink.
+//!      multiplied forever). No recipe does this any more: vulcanize_rubber, the
+//!      last, now cures raw_rubber_0 into rubber_sheet_0 (2026-09-26), so
+//!      KNOWN_MULTIPLIERS is empty and a new multiplier fails.
 //!
 //! The ratios themselves, and their sources, are in the `#` comments next to
 //! each recipe in data/recipes.csv.
@@ -55,12 +56,7 @@ const BYPRODUCTS: &[(&str, &str)] = &[
 /// multiplied an item and made nothing any recipe used.) Fixing one means removing its row; a NEW recipe
 /// that does this fails. The honest fix is a second item for the changed state
 /// (tan_leather now makes leather_0 from leather_hide_0), not a bigger number.
-const KNOWN_MULTIPLIERS: &[(&str, &str)] = &[
-    (
-        "vulcanize_rubber",
-        "2 rubber_sheet_0 in, 3 out: needs a raw (unvulcanized) rubber item",
-    ),
-];
+const KNOWN_MULTIPLIERS: &[(&str, &str)] = &[];
 
 // -------------------------------------------------------------------------
 // File reading (same conventions as tests/recipe_sources_lint.rs)
