@@ -102,8 +102,11 @@ date; re-check before trusting one. The container data basis is
   tonne of iron, worldsteel); cheese leaves whey (about 3.4 kg of the 4 kg
   of milk), which bakes whey bread; pressing apples leaves pomace (about a
   quarter to a third of the fruit), which composts; and the juice press no
-  longer makes 1.0 kg of juice from 0.8 kg of apples. Not yet: the sawmill's
-  slabs and bark, and vulcanizing rubber, which still turns 2 sheets into 3
+  longer makes 1.0 kg of juice from 0.8 kg of apples. Added 2026-09-26: the
+  sawmill keeps its slabs and bark (FAO's split, 3 kg of slabs and 1 kg of
+  bark from two 8 kg logs); slabs burn to charcoal at the log's yield, and
+  bark tans leather at twice the hide's weight (Traditional Tanners), so
+  leather now needs tannin as well as salt. Not yet: vulcanizing rubber, which still turns 2 sheets into 3
   (it needs a raw rubber item and the sulfur the process uses). Removed
   2026-09-26: three recipes that only multiplied an item and made nothing any
   recipe used (charging a battery pack into two, "titanium alloy" doubling

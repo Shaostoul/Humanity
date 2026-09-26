@@ -47,10 +47,12 @@ fire_porcelain,Fire Porcelain,smelting,clay_raw_0:2|sand_0:1|coal_0:1,glass_pane
 # for sawn timber into 28% sawn timber, 7.5% sawdust and fines, 17% slabs edgings and off-cuts and
 # 5.5% bark; on the log alone that is about 48 / 13 / 29 / 10. An 8 kg log leaves about 1 kg of
 # sawdust. The sawmill used to cut ONE 8 kg log into 10 kg of planks; it now takes two logs
-# (16 kg -> 10 kg of planks + 2 kg of sawdust; slabs and bark are not modelled yet). 62.5% lumber
-# is generous against FAO's 48%, the same yield as sawing by hand.
-saw_planks,Saw Planks,refining,wood_log_0:2,wood_plank_0:4|sawdust_0:2,5,sawmill_0,,0,Cut logs into flat lumber boards and bag the sawdust
-saw_planks_hand,Saw Planks by Hand,refining,wood_log_0:1,wood_plank_0:2|sawdust_0:1,15,,woodworking,1,Hand-saw a log into planks and sweep up the sawdust
+# (16 kg -> 10 kg of planks + 2 kg of sawdust + 3 kg of slabs + 1 kg of bark, 2026-09-26: the rest
+# of FAO's split, slabs to bark about 3 to 1). 62.5% lumber is generous against FAO's 48%, the same
+# yield as sawing by hand. By hand the bark is kept (it tans leather) and the thin off-cuts, about
+# 1 kg, are burnt where they fall. Slabs burn to charcoal at the log's own ratio (make_charcoal).
+saw_planks,Saw Planks,refining,wood_log_0:2,wood_plank_0:4|sawdust_0:2|wood_slab_0:2|bark_0:1,5,sawmill_0,,0,Cut logs into flat lumber boards and keep the sawdust slabs and bark
+saw_planks_hand,Saw Planks by Hand,refining,wood_log_0:1,wood_plank_0:2|sawdust_0:1|bark_0:1,15,,woodworking,1,Hand-saw a log into planks and keep the sawdust and bark
 cut_stone,Cut Stone,refining,stone_raw_0:1,stone_brick_0:2,10,workbench_0,woodworking,1,Shape raw stone into building blocks
 refine_fuel,Refine Fuel,refining,oil_crude_0:2,fuel_refined_0:2,30,fuel_refinery_0,engineering,2,Distill crude oil into refined fuel
 # Milling: efficient mills extract 72-76% of the wheat as white flour (BAKERpedia, "Extraction
@@ -60,6 +62,7 @@ refine_fuel,Refine Fuel,refining,oil_crude_0:2,fuel_refined_0:2,30,fuel_refinery
 grind_flour,Grind Flour,refining,grain_wheat_0:4,flour_0:3|bran_0:1,8,grain_mill_0,,0,Mill wheat and sift the white flour from the bran
 purify_water,Purify Water,refining,water_bottle_0:2,water_purified_0:2,5,water_purifier_0,,0,Filter and sterilize drinking water
 make_charcoal,Make Charcoal,refining,wood_log_0:3,coal_0:4,20,kiln_0,,0,Carbonize wood into charcoal
+make_charcoal_slabs,Make Charcoal from Slabs,refining,wood_slab_0:8,coal_0:2,20,kiln_0,,0,Carbonize sawmill slabs into charcoal at the same yield as logs
 extract_fiber,Extract Fiber,refining,wood_log_0:1,fiber_bundle_0:3,8,,woodworking,1,Strip plant matter into raw fibers
 make_rope,Make Rope,refining,fiber_bundle_0:3,rope_0:1,10,,woodworking,1,Braid plant fibers into strong rope
 make_wire,Draw Wire,refining,copper_ingot_0:1,wire_0:5,8,workbench_0,metalworking,2,Draw copper into insulated wire
@@ -70,7 +73,12 @@ vulcanize_rubber,Vulcanize Rubber,refining,rubber_sheet_0:2|coal_0:1,rubber_shee
 # hide -> one 0.7 kg leather (35% of green weight) sits between the two. This recipe used to turn
 # one hide into TWO of the same hide, so hides multiplied forever. Everything cut and stitched from
 # leather now takes leather_0; the hand drum keeps the raw hide, because drum heads are rawhide.
-tan_leather,Tan Leather,refining,leather_hide_0:1|salt_food_0:1,leather_0:1,20,workbench_0,woodworking,2,Salt-cure and tan a raw hide into leather
+# Bark (2026-09-26): vegetable tanning needs tannin, which the salt alone never gave. "in general it
+# takes about twice the weight of the hide in bark to effect a good tan" (Mark Odle, Traditional
+# Tanners, "Bark Tanning: the basics", https://braintan.com/barktan/1basics.htm, read 2026-09-26;
+# its table gives oak, hemlock and willow bark about 10% tannin, fir 11, birch 12). A 2 kg hide takes
+# 4 kg of bark, spent in the tan.
+tan_leather,Tan Leather,refining,leather_hide_0:1|salt_food_0:1|bark_0:4,leather_0:1,20,workbench_0,woodworking,2,Salt-cure a raw hide and tan it in bark liquor into leather
 make_cement,Mix Cement,refining,stone_raw_0:2|clay_raw_0:1|sand_0:1,cement_0:2,10,,shelter_building,1,Blend mineral powder for concrete
 make_concrete,Pour Concrete,refining,cement_0:2|gravel_0:2|water_purified_0:1,concrete_block_0:2,15,,shelter_building,2,Mix and cure concrete blocks
 # Slag concrete: slag replaces part of the natural aggregate. For copper slag the review by Ahmad

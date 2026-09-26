@@ -1,5 +1,5 @@
 {
-  "count": 373,
+  "count": 374,
   "categories": [
     "assembly",
     "chemistry",
@@ -463,13 +463,23 @@
           "id": "sawdust_0",
           "label": "Sawdust",
           "qty": 2
+        },
+        {
+          "id": "wood_slab_0",
+          "label": "Wood Slab",
+          "qty": 2
+        },
+        {
+          "id": "bark_0",
+          "label": "Bark",
+          "qty": 1
         }
       ],
       "craft_time_sec": 5,
       "station": "Sawmill",
       "skill": "",
       "skill_level": 1,
-      "description": "Cut logs into flat lumber boards and bag the sawdust",
+      "description": "Cut logs into flat lumber boards and keep the sawdust slabs and bark",
       "tools": []
     },
     {
@@ -493,13 +503,18 @@
           "id": "sawdust_0",
           "label": "Sawdust",
           "qty": 1
+        },
+        {
+          "id": "bark_0",
+          "label": "Bark",
+          "qty": 1
         }
       ],
       "craft_time_sec": 15,
       "station": "",
       "skill": "Woodworking",
       "skill_level": 1,
-      "description": "Hand-saw a log into planks and sweep up the sawdust",
+      "description": "Hand-saw a log into planks and keep the sawdust and bark",
       "tools": []
     },
     {
@@ -633,6 +648,31 @@
       "tools": []
     },
     {
+      "id": "make_charcoal_slabs",
+      "name": "Make Charcoal from Slabs",
+      "category": "refining",
+      "inputs": [
+        {
+          "id": "wood_slab_0",
+          "label": "Wood Slab",
+          "qty": 8
+        }
+      ],
+      "outputs": [
+        {
+          "id": "coal_0",
+          "label": "Coal",
+          "qty": 2
+        }
+      ],
+      "craft_time_sec": 20,
+      "station": "Kiln",
+      "skill": "",
+      "skill_level": 1,
+      "description": "Carbonize sawmill slabs into charcoal at the same yield as logs",
+      "tools": []
+    },
+    {
       "id": "extract_fiber",
       "name": "Extract Fiber",
       "category": "refining",
@@ -751,6 +791,11 @@
           "id": "salt_food_0",
           "label": "Salt Food",
           "qty": 1
+        },
+        {
+          "id": "bark_0",
+          "label": "Bark",
+          "qty": 4
         }
       ],
       "outputs": [
@@ -764,7 +809,7 @@
       "station": "Workbench",
       "skill": "Woodworking",
       "skill_level": 2,
-      "description": "Salt-cure and tan a raw hide into leather",
+      "description": "Salt-cure a raw hide and tan it in bark liquor into leather",
       "tools": []
     },
     {

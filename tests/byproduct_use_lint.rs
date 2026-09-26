@@ -42,6 +42,8 @@ const BYPRODUCTS: &[(&str, &str)] = &[
     ("whey_0", "making cheese (cook_cheese)"),
     ("apple_pomace_0", "pressing apple juice (cook_juice)"),
     ("sawdust_0", "sawing logs into planks (saw_planks, saw_planks_hand)"),
+    ("wood_slab_0", "sawing logs into planks at the sawmill (saw_planks)"),
+    ("bark_0", "sawing logs into planks (saw_planks, saw_planks_hand)"),
     ("bran_0", "milling wheat into white flour (grind_flour)"),
     ("press_cake_0", "pressing oilseed (press_oil_rapeseed, _camelina, _safflower)"),
     ("olive_pomace_0", "pressing olives (press_oil_olive)"),
