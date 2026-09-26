@@ -1335,14 +1335,20 @@ Holographic display rendering for ship interfaces.
 Floating-origin and multi-scale rendering for planetary to galactic distances.
 - Native: `src/renderer/multi_scale.rs`, `src/renderer/floating_origin.rs`
 
-### Particle System (v0.90.0)
-CPU-simulated, GPU-rendered billboarded point sprites. 12 data-driven emitter types from particles.ron (fire, smoke, sparks, rain, snow, dust, magic, explosion, bubbles, steam, ember, lightning).
-- Native: `src/renderer/particles.rs`
-- Shaders: `assets/shaders/particle.wgsl`
-- Data: `data/particles.ron`
+### Particle System (v0.90.0; state checked against the code 2026-09-25)
+Billboarded sprites, simulated on the CPU (`particles.rs`) and, for rain and snow when the GPU-particles setting is on (v0.1068), in a GPU compute pass (`particles_gpu.rs` + `particle_sim.wgsl`). `data/particles.ron` DEFINES 15 emitters (fire, smoke, sparks, rain, snow, dust, magic_sparkle, engine_exhaust, healing, explosion, bubbles, welding, dive_bubbles, leaf_drift, space_dust), but a definition only reaches the screen when code spawns it. The ones anything spawns today:
+- `leaf_drift`, `dive_bubbles`, `space_dust`: ambient emitters placed by `src/lib.rs` (around lines 3885-3976).
+- `rain`, `snow`: precipitation (`src/lib.rs` around 4099-4200), CPU or GPU path.
+- Whatever `data/weather/events.ron` lists for an active extreme-weather event: currently `dust` (tornado) and `sparks` (meteor shower), plus rain and snow.
 
-### Bloom Post-Process (v0.90.0, partial)
-Half-resolution bright-pixel extraction, Gaussian blur, composite. Scaffolding built, needs render loop integration.
+NOT spawned by anything: fire, smoke, explosion, welding, engine_exhaust, healing, magic_sparkle, bubbles. Fire, smoke and explosions are designed but not built (docs/design/fire-props-and-combustion.md).
+- Native: `src/renderer/particles.rs`, `src/renderer/particles_gpu.rs`
+- Shaders: `assets/shaders/particles.wgsl` (the live draw shader, PLURAL), `assets/shaders/particle_sim.wgsl` (GPU sim). `assets/shaders/particle.wgsl` (singular) is not loaded by anything.
+- **New particle shapes go in `particles.wgsl`.** The procedural six-fold snowflake of v0.1065 (commit da795adc) was written into the unused `particle.wgsl`, so it never reached the screen: snow's `shape: 1.0` in `particles.ron` is copied into every particle's vertex data, but the live `particles.wgsl` reads only size and emissive from that attribute, and every flake draws as a round dot.
+- Data: `data/particles.ron`, read once at startup (edits take effect on the next launch; it is not hot-reloaded)
+
+### Bloom Post-Process (v0.90.0, built but not run)
+Half-resolution bright-pixel extraction, Gaussian blur, composite. The pass is built at startup and resized with the window, but nothing calls `BloomPass::apply`: the call site was removed when `bloom_intensity` was set to 0.0 (`src/renderer/mod.rs`), so there is no bloom in the frame and no setting that turns it on. Switching it back on means restoring the call site; the `gpu.bloom` timing row is kept for that (`src/renderer/frame_costs.rs`).
 - Native: `src/renderer/bloom.rs`
 - Shaders: `assets/shaders/bloom.wgsl`
 
@@ -2417,7 +2423,7 @@ Dialogue trees with branching choices, conditions, and consequences.
 - Data: `data/dialogues.ron`
 
 ### Particle Emitters (v0.90.0)
-12 particle emitter definitions (fire, smoke, sparks, rain, snow, dust, magic, explosion, bubbles, steam, ember, lightning).
+15 particle emitter DEFINITIONS (fire, smoke, sparks, rain, snow, dust, magic_sparkle, engine_exhaust, healing, explosion, bubbles, welding, dive_bubbles, leaf_drift, space_dust). Only leaf_drift, dive_bubbles, space_dust, rain, snow and the weather-event emitters (dust, sparks) are ever spawned; fire, smoke, explosion and the rest are data with nothing that uses them yet. See "Particle System" under rendering for the detail.
 - Data: `data/particles.ron`
 
 ### Sound Configuration (v0.90.0)

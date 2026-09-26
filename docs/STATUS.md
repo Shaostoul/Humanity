@@ -330,8 +330,8 @@ Mostly **built and working**; the two voice-parity rows flagged ⚠️/❌ below
 | Drone↔asteroid mining | ✅ | `DroneSystem` **registered + ticking** (v0.332.0): commission a drone for an ore → Outbound→Mining→Returning state machine → delivers mined ore to the player; an asteroid mined empty is deleted. `AsteroidBody` (finite multi-ore) + `Drone` ECS components; Mining panel on the inventory page. Proven by `mining::drone_tests`. **#5b** (tracked in gameplay-loops.md): server-authoritative MMO asteroids + swarm/abandoned-deletion, 3D voxel asteroid visuals + drone flight, nickel/platinum refine recipes. |
 | Emissive materials | ✅ | PBR shader emissive support (params.w = emissive_strength) (v0.90.0) |
 | 12 procedural materials | ✅ | Glass, ice, water, leather, crystal, rust, moss, lava + original brick, metal, wood, concrete (v0.90.0) |
-| Particle system | ✅ | particles.rs + particle.wgsl, 12 data-driven emitter types from particles.ron (v0.90.0) |
-| Bloom post-process | ⚠️ | bloom.rs + bloom.wgsl scaffolding built, needs render loop integration (v0.90.0) |
+| Particle system | ✅ | particles.rs + particles_gpu.rs, drawn by `particles.wgsl` (PLURAL; `particle.wgsl` is unused). `particles.ron` defines 15 emitters, but only leaf_drift, dive_bubbles, space_dust, rain, snow and the weather-event emitters (dust, sparks) are ever spawned. Fire, smoke and explosion are definitions nothing spawns. Checked against the code 2026-09-25. |
+| Bloom post-process | ⚠️ | bloom.rs + bloom.wgsl built and allocated, but nothing calls `BloomPass::apply` (call site removed; `bloom_intensity` 0.0), so no bloom is drawn (v0.90.0, checked 2026-09-25) |
 | Sun direction uniform | ✅ | Data-driven sun direction as shader uniform, not hardcoded (v0.90.8) |
 | Planet registry | ✅ | Unified celestial body management for renderer and terrain (v0.90.8) |
 

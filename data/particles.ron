@@ -1,5 +1,8 @@
 // HumanityOS Particle Emitter Definitions
-// Hot-reloadable particle system configurations.
+// Particle system configurations. Read ONCE at startup (src/lib.rs, where the
+// ParticleSystem is built); this file is NOT hot-reloaded, so edits show on the
+// next launch. Defining an emitter here does not put it on screen: something in
+// code has to spawn it (see "Particle System" in docs/FEATURES.md for which ones do).
 // Each emitter type defines how particles spawn, move, and look.
 //
 // Used by: src/renderer/particles.rs

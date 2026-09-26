@@ -21,9 +21,12 @@
 These come from reading `load_gltf` — they are the engine's real behavior,
 not aspiration:
 
-1. **Units are meters.** The engine applies NO scaling on load: a 4.85 m car
-   must be 4.85 m in the file. Blender: work in meters, apply scale
-   (Ctrl+A → Scale) before export.
+1. **Units are meters.** Author at real size: a 4.85 m car must be 4.85 m in
+   the file. Blender: work in meters, apply scale (Ctrl+A → Scale) before
+   export. One exception (v0.1324): a MACHINE model is scaled uniformly on
+   load so its height matches the `size` height in its `data/machines/*.ron`
+   def (`parse_gltf_mesh_textured_fit_height` in `src/assets/mod.rs`), so
+   there the def's `size` decides the drawn height, not the file.
 2. **Y is up, -Z is forward** (glTF convention; Blender's exporter converts
    automatically when "+Y up" is checked, which is its default).
 3. **Only the FIRST mesh's FIRST primitive is used.** Join your objects into
@@ -35,9 +38,15 @@ not aspiration:
    generated. Smooth-shaded models should export their own normals.
 6. **UVs are optional** — missing UVs get simple planar projection. Textured
    models should export real UVs (TEXCOORD_0).
-7. **Textures/images inside the GLB are currently ignored** (the loader
-   reads geometry only; materials come from the engine's typed material
-   system). Don't waste file size embedding 4K textures yet.
+7. **Only the base-colour texture is used** (checked against the code
+   2026-09-25; this line used to say textures were ignored). The loader
+   (`decode_base_color_texture` in `src/assets/mod.rs`) takes the first
+   primitive's material, reads its `pbrMetallicRoughness.baseColorTexture`,
+   converts it to RGBA8 and scales it down to at most 1024 px on the long
+   side. Normal, metallic-roughness, occlusion and emissive maps are NOT read,
+   and neither are the material's roughness and metallic numbers: a machine
+   model draws with fixed values (roughness 0.85, not metallic). So embed one
+   base-colour image, 1024 px is enough, and leave the other maps out.
 8. **Keep it light.** These render alongside a whole homestead: aim for
    game-prop budgets (a vehicle in the low tens of thousands of triangles,
    a machine well under that), not sculpt-resolution meshes.

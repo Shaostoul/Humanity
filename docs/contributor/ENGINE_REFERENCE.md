@@ -64,7 +64,7 @@ src/
 | floating_origin.rs | 36 | **Stub** | DVec3 world coords, f32 camera-relative rendering (declared, not wired) |
 | multi_scale.rs | 29 | **Stub** | Multi-scale rendering transitions (declared, not wired) |
 
-**Current pipeline:** Forward rendering, single PBR pass, no shadows, no post-processing.
+**Current pipeline:** Forward rendering. The v0.88 snapshot said "single PBR pass, no shadows, no post-processing"; that is long out of date. Checked against the code 2026-09-25: a sun shadow map exists (see "Missing" below for the corrected particle, bloom and shadow lines). The file table above and the rest of this module section are still the v0.88 picture and have NOT been re-audited: the renderer is now far larger than 3,148 LOC across ten files.
 
 **Key types:**
 - `Vertex { position: [f32; 3], normal: [f32; 3], uv: [f32; 2] }` -- 32 bytes
@@ -72,14 +72,17 @@ src/
 - Bind groups: Group 0 = Camera, Group 1 = Object (dynamic offset), Group 2 = Material
 - Depth: reverse-Z (clear to 0.0, CompareFunction::Greater)
 
-**Missing (not built):**
-- Shadow mapping (no shadow pass, no shadow maps)
-- Post-processing (no bloom, no SSAO, no FXAA)
+**Built since this list was written (checked against the code 2026-09-25):**
+- **Sun shadow map.** One directional depth map, 4096 x 4096, over an orthographic box 1500 m half-extent (`SUN_SHADOW_MAP_SIZE`, `SUN_SHADOW_EXTENT_M` in `src/renderer/mod.rs`), with cutout shadows for alpha-tested foliage (`shadow_cutout.rs`). On by default; Settings has a "Sun shadows" toggle.
+- **Particles.** A CPU particle system (`src/renderer/particles.rs`) and a GPU compute path for rain and snow (`particles_gpu.rs`, `particle_sim.wgsl`), both drawn by `assets/shaders/particles.wgsl`. `data/particles.ron` defines 15 emitters, but only leaf_drift, dive_bubbles, space_dust, rain, snow and the weather-event emitters (dust, sparks) are ever spawned. Fire, smoke and explosions have definitions and nothing that spawns them.
+- **Bloom: built, not run.** `bloom.rs` + `bloom.wgsl` exist and the pass is allocated at startup, but nothing calls `BloomPass::apply`; the call site went when `bloom_intensity` was set to 0.0 (`src/renderer/mod.rs`). So there is no bloom in the frame.
+
+**Missing when this list was written (v0.88), not re-checked since:** the entries below are the original list minus the three above. Some are known to be out of date (screen-space ambient occlusion shipped in v0.901, and there are volumetric clouds, fog and god rays), so check the code before relying on any of them.
+- Post-processing beyond the above (no FXAA)
 - Deferred rendering (forward only)
 - Frustum culling (all objects rendered every frame)
 - Occlusion culling
 - Skeletal animation / skinned meshes
-- Particle system (NO particle emitters, NO GPU particles)
 - Volumetric effects (fog, clouds, god rays)
 - Screen-space reflections
 - Global illumination
@@ -391,13 +394,13 @@ impl System for MySystem {
 
 ## Critical Architecture Decisions
 
-1. **Forward rendering only** -- No deferred pass. Add shadow map pass before main pass when implementing shadows.
+1. **Forward rendering only** -- No deferred pass. The sun shadow map pass runs before the main pass (built since v0.88; see "Built since this list was written" above).
 2. **Dynamic uniform buffer** -- 256 object slots with 256-byte alignment. Increase if > 256 objects needed.
 3. **Reverse-Z depth** -- Clear to 0.0, use `CompareFunction::Greater`. Better far-field precision.
 4. **Point primitives for stars** -- 119k stars rendered as GL_POINTS, not instanced meshes or particles.
 5. **egui on top of wgpu** -- GUI rendered as egui overlay after 3D scene. No render-to-texture for GUI.
-6. **Hot-reload everything** -- All data files watched by notify. Theme, items, recipes, shaders all reload on save.
-7. **No texture pipeline yet** -- All materials are procedural in shader. No texture loading, no UV mapping pipeline.
+6. **Hot-reload (most things)** -- Data files are watched by notify; theme, items, recipes and shaders reload on save. Not every file does: `data/particles.ron` is read once at startup (checked 2026-09-25), so its edits need a relaunch.
+7. **Textures: partly** -- (corrected 2026-09-25; the v0.88 text said there was no texture loading at all.) glTF models have their BASE-COLOUR texture decoded and drawn (`decode_base_color_texture` in `src/assets/mod.rs`, uploaded through `Renderer::add_textured_material`), and the terrain has ground textures (`src/renderer/ground_textures.rs`). A model's normal, metallic-roughness, occlusion and emissive maps are not read. Most other materials are still procedural in the shader.
 8. **Camera-relative rendering** -- World positions are DVec3, rendering uses f32 offset from camera.
 
 ---
@@ -405,8 +408,8 @@ impl System for MySystem {
 ## Priority Gaps (what to build next)
 
 ### Tier 1: Visual Quality
-- [ ] **Shadow mapping** -- Single directional shadow map (sun), 2048x2048 depth texture
-- [ ] **Particle system** -- GPU instanced quads with lifetime, velocity, gravity. Needed for: engine exhaust, dust, sparks, rain, snow, fire, explosions
+- [x] **Shadow mapping** -- Built: one directional sun shadow map, 4096x4096 (see "Built since this list was written")
+- [x] **Particle system** -- Built (CPU system plus a GPU compute path for rain and snow). Still to do: spawn the fire, smoke, explosion and engine-exhaust emitters that `data/particles.ron` already defines (fire is designed in docs/design/fire-props-and-combustion.md)
 - [ ] **Room-specific PBR materials** -- Assign material_type per room in fibonacci.rs (currently all default)
 - [ ] **Frustum culling** -- Skip draw calls for objects outside camera view
 

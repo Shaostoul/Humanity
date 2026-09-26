@@ -50,13 +50,16 @@ It also helps to know what EmberGen itself is. It is an **offline authoring tool
 - **No flow-arts props anywhere in data.** The nearest items are `staff_0` (an oak blunt weapon, items.csv:107), `torch_handheld_0`, `candle_0` and `lantern_oil_0`, and none of them gives off light.
 - **The strongest real asset is the sourced Library guide** data/library/fire_staff_materials.md (a copy of docs/user/making/, commits 972582da, 113e4395, 1a6382f3, 2773ef75). It covers 1:1 dimensions (:446-460), fuels (:340-356), wicks, fumes and a safety kit that includes a natural-fibre clothing rule (:398-413).
 
-### Stale docs found along the way (fix in passing)
+### Stale docs found along the way (FIXED 2026-09-25)
 
-- docs/FEATURES.md:1334-1338 and :2402-2404, and STATUS.md:333, claim emitters that do not exist and name the dead `particle.wgsl`.
-- ENGINE_REFERENCE.md:409 and :75-85 say particles, bloom and shadows are missing.
-- model-pipeline.md:38-40 says textures are ignored.
-- The "hot reload" comment in particles.ron:2 is wrong: the file loads once at lib.rs:1699.
-- The v0.1065 snowflake shape was written into the unused particle.wgsl (da795adc), so it never reached the screen. New particle shapes must go in `particles.wgsl`.
+Each was checked against the code before the doc was changed.
+
+- docs/FEATURES.md (Particle System, Particle Emitters, Bloom) and STATUS.md (particle and bloom rows) now say which of the 15 emitters are actually spawned (leaf_drift, dive_bubbles, space_dust, rain, snow, plus dust and sparks from weather events; fire, smoke and explosion are never spawned), and name the live `particles.wgsl`.
+- ENGINE_REFERENCE.md now describes the sun shadow map, the CPU and GPU particle paths, and bloom as built but never run (nothing calls `BloomPass::apply`, which is stricter than "off by default"). The rest of its v0.88 renderer picture is flagged as not re-audited.
+- model-pipeline.md: only the base-colour texture is used (at most 1024 px); the other maps and the material's numbers are not. Also corrected: machine models ARE scaled on load, to their def's height (v0.1324).
+- particles.ron's header now says it is read once at startup.
+- The v0.1065 snowflake in the unused `particle.wgsl` (da795adc) is recorded in FEATURES.md: new particle shapes go in `particles.wgsl`, which today ignores the `shape` value the CPU already sends.
+- Still wrong, left for the next Rust change because this was a docs-only fix: the module comment at the top of `src/renderer/particles.rs` also claims the definitions are hot-reloadable.
 
 ---
 
