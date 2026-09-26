@@ -1704,13 +1704,13 @@ decides whether it has seasons at all (at equatorial GEO the sun is up about
 
 ## BUG-091: plot areas were never published on a fresh boot, so every plot counted one plant (FIXED v0.1369.0)
 
-v0.1364.0 added  (the grow machines, their positions and plot areas, for the
+v0.1364.0 added `publish_grow_plots` (the grow machines, their positions and plot areas, for the
 grow lights, the per-plot plant count, soil pH buffering and pollination) and called it from
- only. A fresh boot records the grow machines in
- and never runs that rebuild, so until the player first edited a machine
+`rebuild_machine_objects` only. A fresh boot records the grow machines in
+`engine::world_load` and never runs that rebuild, so until the player first edited a machine
 the DataStore had no "grow_plots", "grow_instances" or "grow_plot_area_m2": every plot
 harvested, fed and watered as one plant, grow lights lit nothing, and the bed Plant button fell
 back to TYPE-tagged units. Every unit test inserted its own maps, so none could see it. Found by
 the plot-drawing work (2026-09-26) when its first after-photo showed no change. Fix:
- publishes the plots as soon as it records the grow anchors.
+`world_load` publishes the plots as soon as it records the grow anchors.
 
