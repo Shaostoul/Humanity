@@ -884,6 +884,11 @@
    "date": "2026-09-26",
    "decision": "v0.1367.0: merged per-plot harvest (ba43d132: units.rs, yields.ron, plants.csv area_per_plant_m2 + per-plant yields for 52+ crops, FAO-56 water, grams_per_yield_unit deleted) and pollination (cc8e8dd6: pollination.rs/.ron, CropPollination saved, bumblebee_hive, Hand-pollinate, Off/On). Merge fixes: pH paths pass plant counts to need_for; unit_tests test-only; harvest = ymin*plants with season health x fruit set; Garden panel conflict blocks re-nested by hand. Moved GuiCrop/GuiAreaPests/GardenPests verbatim to gui/state_types/garden.rs (state_types.rs hit 1,881 of 1,880); budget lowered to 1,850.",
    "why": "Realistic yields cut the home garden from ~28,400 to ~6,300 kcal/day (NASS/extension per-plant yields at real spacing), which is the honest number: a finding for the operator, not a bug. Open from the agents: season compression (whole-season yield on first pick), home.ron hand-typed kcal claims now contradict the computed model, seeds per harvest ignore plants and fruit set, pests count units not plants, hive colony life unmodelled. Pollination and pH default On (slow, gentle); the house rule favours softened defaults, flagged to the operator."
+  },
+  {
+   "date": "2026-09-26",
+   "decision": "v0.1368.0 (in progress): per-crop light need. plants.csv dli_min/dli_target/dli_saturation from the findings table (27 crops); lighting::area_needs (neediest crop per area) scales a plot canopy by target/17 in light_cover; lamps_on_at + lighting.ron lamp_photoperiod_h 18 (on at sunset, off at midnight: Runkle \"four to six hours of darkness\"); light_at/light_now return LightNow {sun_up, lamps_on, cover}; crop card Light need row. Launched three worktree agents: plot plants drawn at spacing (home_meshes), computed kcal on grow machine cards (self_sufficiency display + home.ron food stats), picking windows + seed return (farming harvest, yields.ron).",
+   "why": "The findings agent warned not to fill blanks silently with 17, so unsourced crops say so on the card. The timer halves a lamp night to half a day of growth: honest, since 24 h light harms tomato. Two farming tests moved from 900 to 500 s of growth with a one-tick tolerance at the midnight switch."
   }
  ],
  "active_scopes_to_avoid": [

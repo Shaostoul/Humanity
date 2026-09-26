@@ -1583,7 +1583,9 @@ crop card; stage models map to species through `stage_models` in
 (the sun, through the skylight indoors; after dark, the powered `lights_crops` grow
 lights near them, each covering about 0.58 m2 of canopy per 100 W, nearest machines
 first: `farming/lighting.rs`, `data/garden/lighting.ron`, v0.1364.0) and pause in the
-dark; plants.csv `needs_light` is false for fungi. Beds, trays, fields and racks are
+dark; plants.csv `needs_light` is false for fungi. Each crop's own light need
+(plants.csv `dli_target` for 27 crops, v0.1368.0) sets its share of a grow light, the
+lights run on an 18 h timer (off at midnight, Runkle), and the crop card shows the need. Beds, trays, fields and racks are
 divided into plots (grow_media.ron `plots`), one crop per plot, each crop tagged with
 the machine it stands in. A plot holds as many plants as fit at the crop's cited
 spacing (plants.csv `area_per_plant_m2`; a tower cup is one plant) and yields a

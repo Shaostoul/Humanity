@@ -1121,15 +1121,13 @@ feeds about 6,300 kcal a day, not 28,400, and three residents' urine covers
 fruit set without help from McGregor's USDA handbook, Hand-pollinate and a
 bumblebee hive, Off/On); grow lights that light only nearby plots
 (v0.1364.0); and the crop card shows light, pH, plants and pollination.
-Pests do not advance offline (offline-progression.md). Next: each crop's
-own light need (docs/reference/findings/2026-09-26-crop-daily-light-integrals.md,
-27 of 63 sourced) with a grow-light timer, since tomato is harmed by 24 h
-light; draw each plot's plants at the crop's spacing; the rubber tree
-yields latex (it harvests a fiber bundle) and vulcanizing uses sulfur;
-computed kcal on the grow machines' cards (home.ron's hand-typed "+120
-kcal/d" potato bed is about double its cited yield); a picking window
-(a picked crop yields its whole season at once, so back-to-back replants
-run 2-3x a real year). Containers as items (3c) waits on the unified placement
+Pests do not advance offline (offline-progression.md). Each crop's own
+light need and an 18 h grow-light timer are DONE (v0.1368.0). In flight
+(agents): drawing each plot's plants at the crop's spacing, computed kcal on
+the grow machines' cards, and picking windows with seed return that follows
+the harvest. Next: the rubber tree yields latex (it harvests a fiber
+bundle) and vulcanizing uses sulfur; the sun side of light (latitude and
+seasonal day length); greenhouse humidity and fungal disease. Containers as items (3c) waits on the unified placement
 schema. Progress and open items live at the top of the gap doc.
 
 **Gameplay gap survey (2026-09-25):** `docs/design/gameplay-gaps-2026-09-25.md`
