@@ -262,6 +262,35 @@ date; re-check before trusting one. The container data basis is
   person's whole excreta (12.5 g a day, Jonsson Table 1), and the plants.csv
   indices make grain and legume removal (and so legume credits) far too
   small; per-crop removal columns are the fix for both.
+- **Gardening depth, rung 5: pests and integrated pest management, DONE
+  2026-09-26.** Five pests in `data/garden/pests.ron`, each with its hosts
+  (plants.csv ids), where it lives, what favours it, how fast it multiplies
+  and how much it can cost, all cited: aphids (UC IPM 7404: 80 offspring a
+  generation, favoured at 65-80 F and by excess nitrogen, "large populations
+  can turn leaves yellow and stunt shoots"), spider mites (UC IPM 7405 and
+  Iowa State: "70-fold in as little as 6 days", hot and dry, 40-60% soybean
+  loss untreated), cabbage caterpillars (UMN, outdoors in the growing season),
+  slugs (UC IPM 7427, outdoors, damp or dark) and the Colorado potato beetle
+  (UMN, Cornell, UKY: outdoors, warm, and it waits in the soil where potatoes
+  grew). Each grow area holds a pressure per pest (`SoilMemory::pests`, so it
+  is saved and stays with the place between crops) that grows logistically
+  from a trickle of arrivals, faster on a monoculture of its host and in the
+  conditions it likes, and fades with no host, which is why rotation works:
+  a season of wheat where potatoes grew halves the beetles every 30 garden
+  days. Pressure caps a host's health like a nutrient shortage (gently, never
+  below 20), so a neglected infestation costs season health and yield, not
+  the crop. The player is told once when a pest appears, with what favours it
+  and its controls gentlest first; the controls, in the IPM order, come
+  through a new `pest_control_request` channel: hosing off (half a litre a
+  plant from the tanks), hand-picking, Bt for caterpillars and predatory
+  mites that keep eating for days while there are spider mites (UC IPM), then
+  insecticidal soap (a bar of soap in 5 L of water, 2%, Clemson's "1 to 2%";
+  soft-bodied pests only, per CSU, and it kills the predatory mites) and iron
+  phosphate slug bait. No synthetic pesticide. Three modes by
+  `garden_pest_severity`: off, gentle (the default, half the damage) and the
+  cited damage. Still to do: the Garden panel buttons and pressure display,
+  the Settings mode switch, whitefly and thrips, row covers, and pests during
+  the offline catch-up.
 
 ## Defects found (things that are wrong, not merely missing)
 

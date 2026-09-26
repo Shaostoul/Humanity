@@ -7,9 +7,12 @@
 
 pub mod crops;
 pub mod soil;
+pub mod pests;
 pub mod automation;
 #[cfg(test)]
 mod nutrient_tests;
+#[cfg(test)]
+mod pest_tests;
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -765,6 +768,10 @@ pub struct FarmingSystem {
     /// nutrient, so each shortage is announced once; an area leaves the set
     /// when its crops are supplied again.
     short_told: std::collections::HashSet<String>,
+    /// data/garden/pests.ron, read on the first tick (see pests.rs). A
+    /// "garden_pests" entry in the DataStore, if one is ever registered, wins
+    /// over it.
+    pests: Option<pests::PestData>,
 }
 
 impl FarmingSystem {
@@ -775,6 +782,7 @@ impl FarmingSystem {
             feed_open: HashMap::new(),
             feeder_dry_told: false,
             short_told: std::collections::HashSet::new(),
+            pests: None,
         }
     }
 }
@@ -921,6 +929,17 @@ impl System for FarmingSystem {
                 }
             }))
             .unwrap_or(0.0);
+        // Damp weather for the pests that like it (2026-09-26, pests.rs):
+        // UC IPM, "Snails and slugs are most active at night and on cloudy or
+        // foggy days". Absent weather reads as dry; night counts as damp
+        // below, where the pests are stepped.
+        let damp_weather = data
+            .get::<std::sync::Mutex<crate::systems::weather::Weather>>("weather")
+            .and_then(|m| m.lock().ok().map(|w| {
+                use crate::systems::weather::WeatherCondition::*;
+                matches!(w.condition, Cloudy | Rain | Storm | Fog)
+            }))
+            .unwrap_or(false);
         let mut irrigation_l_per_day = 0.0_f32;
         let water_available = data
             .get::<std::sync::Mutex<crate::systems::plumbing::WaterStatus>>("water_status")
@@ -982,6 +1001,25 @@ impl System for FarmingSystem {
                 .collect();
             (scale, doses, nd.organic_n_release.yearly_pct.clone(), nd.legume_harvest_n_share)
         };
+        // PESTS (2026-09-26, pests.rs; the pests, the controls and every
+        // source in data/garden/pests.ron). Loaded once, like the nutrients.
+        // The severity is the player's mode, published as a plain f32 the way
+        // the growth speed is: 0 turns pests off, 0.5 (the default) halves
+        // their damage, 1 is the cited damage. Absent = the gentle default.
+        if self.pests.is_none() {
+            self.pests = Some(pests::PestData::load());
+        }
+        let pest_data: &pests::PestData = data
+            .get::<pests::PestData>("garden_pests")
+            .or(self.pests.as_ref())
+            .expect("pest data loaded above");
+        let pest_severity = data
+            .get::<std::sync::Mutex<f32>>("garden_pest_severity")
+            .and_then(|m| m.lock().ok().map(|v| *v))
+            .filter(|v| v.is_finite())
+            .unwrap_or(pests::DEFAULT_PEST_SEVERITY)
+            .clamp(0.0, 1.0);
+
         // A crop's season need, by plant id (soil::season_need). Cached for the
         // tick: a garden is a few dozen species and a few thousand crops.
         let mut need_cache: HashMap<String, Npk> = HashMap::new();
@@ -1378,6 +1416,21 @@ impl System for FarmingSystem {
             }
         }
 
+        // PEST CONTROL (2026-09-26, pests.rs): one control on one grow area,
+        // `(area tag, control id from data/garden/pests.ron)`, from the
+        // "pest_control_request" channel (the Garden panel's buttons, once
+        // wired). Hosing off draws its water the way hand watering does, and
+        // an item control takes its items from the backpack (free in creative
+        // mode). With pests switched off there is nothing to control.
+        let pest_control = data
+            .get::<std::sync::Mutex<Option<(String, String)>>>("pest_control_request")
+            .and_then(|m| m.lock().ok().and_then(|mut s| s.take()));
+        if let Some((area, control_id)) = pest_control {
+            if pest_severity > 0.0 {
+                pests::handle_request(world, data, pest_data, &area, &control_id, creative, water_available);
+            }
+        }
+
         // DEV: instantly mature every living crop (a testing affordance, like
         // "Dev: stock all materials" — so the loop is verifiable without waiting
         // game-days for growth).
@@ -1551,8 +1604,8 @@ impl System for FarmingSystem {
             push_notice(
                 data,
                 format!(
-                    "{what} stressed while growing (thirst, too few nutrients, RF or \
-                     hard acceleration) and gave about {pct}% of a full harvest."
+                    "{what} stressed while growing (thirst, too few nutrients, pests, \
+                     RF or hard acceleration) and gave about {pct}% of a full harvest."
                 ),
             );
         }
@@ -1623,6 +1676,77 @@ impl System for FarmingSystem {
             .get::<&mut crate::ecs::components::SoilMemory>(memory)
             .map(|mut m| std::mem::take(&mut m.organic))
             .unwrap_or_default();
+        // Every area's pests, taken out the same way and put back after.
+        let mut area_pests = world
+            .get::<&mut crate::ecs::components::SoilMemory>(memory)
+            .map(|mut m| std::mem::take(&mut m.pests))
+            .unwrap_or_default();
+
+        // PESTS: step every grow area's pressure on the garden clock
+        // (2026-09-26, pests.rs). First a tally of each area's living crops
+        // (mature ones too: a ripe plant still feeds a pest until it is
+        // picked) and, per pest, how much of the area feeds it in the
+        // conditions it likes; then each area with crops or pests steps.
+        if pest_severity > 0.0 {
+            // Garden days this tick: game time at the growth speed, the clock
+            // the crops ripen on, so a pest's life cycle keeps its real length
+            // against the season. Continuous, not light-gated: pests feed in
+            // the dark too (slugs mostly at night).
+            let pest_days = game_dt * f64::from(growth_speed) / SECONDS_PER_DAY;
+            // Per area: living crops, and per pest (by its index in
+            // pests.ron) the summed favour. Indexed so this pass over every
+            // crop allocates nothing per crop.
+            let n_pests = pest_data.pests.len();
+            let mut tally: HashMap<String, (usize, Vec<f64>)> = HashMap::new();
+            for (_e, (c, s)) in world.query::<(&CropInstance, Option<&CropSoil>)>().iter() {
+                if c.growth_stage == STAGE_DEAD {
+                    continue;
+                }
+                let area = c.tower_id.as_deref().unwrap_or("");
+                let outdoors = is_field_area(area);
+                let need_n = need_for(&c.crop_def_id).n;
+                let cond = pests::CropConditions {
+                    outdoors,
+                    temp_c: if outdoors { f64::from(weather_temp) } else { pest_data.indoor_temp_c },
+                    water_stressed: c.water_level < WATER_STRESS_THRESHOLD,
+                    excess_n: s.map_or(false, |s| need_n > 0.0 && s.store.n > pest_data.excess_n_seasons * need_n),
+                    damp: outdoors && (damp_weather || !sun_up),
+                    season: &season,
+                };
+                if !tally.contains_key(area) {
+                    tally.insert(area.to_string(), (0, vec![0.0; n_pests]));
+                }
+                let entry = tally.get_mut(area).expect("inserted above");
+                entry.0 += 1;
+                for (i, pest) in pest_data.pests.iter().enumerate() {
+                    entry.1[i] += pests::favour(pest, &c.crop_def_id, &cond, pest_data.unfavoured_rate);
+                }
+            }
+            let mut areas: Vec<String> = tally.keys().chain(area_pests.keys()).cloned().collect();
+            areas.sort();
+            areas.dedup();
+            // Pests that just became noticeable, and where: one notice per
+            // pest per tick, however many areas it turned up in.
+            let mut appeared: Vec<(String, Vec<String>)> = Vec::new();
+            for area in areas {
+                let (n, fav): (usize, &[f64]) = tally.get(&area).map_or((0, &[]), |(n, f)| (*n, f.as_slice()));
+                let st = area_pests.entry(area.clone()).or_default();
+                for pest_id in pests::step_area(st, pest_data, fav, n, pest_days) {
+                    match appeared.iter_mut().find(|(p, _)| *p == pest_id) {
+                        Some((_, list)) => list.push(area.clone()),
+                        None => appeared.push((pest_id, vec![area.clone()])),
+                    }
+                }
+                if st.pressure.is_empty() && st.releases.is_empty() {
+                    area_pests.remove(&area);
+                }
+            }
+            for (pest_id, list) in appeared {
+                if let Some(pest) = pest_data.pest(&pest_id) {
+                    push_notice(data, pests::appeared_notice(pest_data, pest, &list));
+                }
+            }
+        }
 
         for (entity, (crop, crop_soil)) in world.query_mut::<(&CropInstance, Option<&CropSoil>)>() {
             // Skip dead crops
@@ -1775,20 +1899,39 @@ impl System for FarmingSystem {
                 crop.water_level = (crop.water_level + RAIN_WATER_PER_S * rain * dt).min(1.0);
             }
 
-            // Health effects from water level, capped by nutrients.
+            // Pests (2026-09-26, pests.rs): each pest in this crop's area that
+            // eats it caps its health by its pressure there, the same way a
+            // nutrient shortage does, and never below pests::PEST_HEALTH_FLOOR.
+            // The lower of the two caps is the one that binds.
+            let pest_ceiling = if pest_severity > 0.0 {
+                pests::health_ceiling(
+                    pest_data,
+                    area_pests.get(crop.tower_id.as_deref().unwrap_or("")),
+                    &crop.crop_def_id,
+                    pest_severity,
+                )
+            } else {
+                100.0
+            };
+            let ceiling = nutrient_ceiling.min(pest_ceiling);
+
+            // Health effects from water level, capped by nutrients and pests.
             if crop.water_level < WATER_STRESS_THRESHOLD {
                 // Water stress -- health decays
                 crop.health = (crop.health - HEALTH_DECAY_RATE * dt).max(0.0);
-            } else if crop.health < nutrient_ceiling {
+            } else if crop.health < ceiling {
                 // Well watered -- health recovers, as far as its nutrients
-                // allow (100 when fully supplied, so unchanged for a fed crop).
-                crop.health = (crop.health + HEALTH_RECOVERY_RATE * dt).min(nutrient_ceiling);
+                // and pests allow (100 when fed and pest-free, so unchanged
+                // for a healthy crop).
+                crop.health = (crop.health + HEALTH_RECOVERY_RATE * dt).min(ceiling);
             } else {
-                // Watered but short of a nutrient: health eases down to what
-                // the scarcest nutrient allows, slowly, and never below
-                // soil::NUTRIENT_HEALTH_FLOOR. A shortage stunts; it does not
-                // kill. Fertilize and the ceiling lifts at once.
-                crop.health = (crop.health - soil::NUTRIENT_DECLINE_RATE * dt).max(nutrient_ceiling);
+                // Watered but short of a nutrient or eaten by a pest: health
+                // eases down to what the cap allows, slowly, and never below
+                // the floors (soil::NUTRIENT_HEALTH_FLOOR,
+                // pests::PEST_HEALTH_FLOOR). A shortage or an infestation
+                // stunts; it does not kill. Fertilize, or knock the pest
+                // back, and the cap lifts at once.
+                crop.health = (crop.health - soil::NUTRIENT_DECLINE_RATE * dt).max(ceiling);
             }
 
             // RF stress (v0.620): a powered wireless emitter (WiFi router) bathes the grow in RF; crops
@@ -1948,9 +2091,10 @@ impl System for FarmingSystem {
             updates.push((entity, crop, crop_soil));
         }
         drop(home_stock);
-        // The banked organic N goes back where it lives.
+        // The banked organic N and the pests go back where they live.
         if let Ok(mut m) = world.get::<&mut crate::ecs::components::SoilMemory>(memory) {
             m.organic = organic;
+            m.pests = area_pests;
         }
 
         // Say so when crops run short (2026-09-26): the Garden panel does not

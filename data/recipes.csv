@@ -519,3 +519,10 @@ bundle_cotton,Bundle Cotton Fiber,refining,fiber_cotton_0:3,fiber_bundle_0:2,10,
 bundle_flax,Bundle Flax Fiber,refining,fiber_flax_0:3,fiber_bundle_0:2,10,workbench_0,,0,Rett and bundle flax into usable fiber
 bundle_hemp,Bundle Hemp Fiber,refining,fiber_hemp_0:3,fiber_bundle_0:2,10,workbench_0,,0,Strip and bundle hemp into usable fiber
 bundle_jute,Bundle Jute Fiber,refining,fiber_jute_0:3,fiber_bundle_0:2,10,workbench_0,,0,Strip and bundle jute into usable fiber
+# Insecticidal soap (2026-09-26, garden pests; data/garden/pests.ron): one 100 g bar of soap dissolved in 5 L
+# of tap water is 100 g in 5.1 kg, 1.96%. Clemson HGIC (Ubl and Munnerlyn, revised Williamson, 2021):
+# "Insecticidal soaps are usually used as a 1 to 2% solution"; Nebraska Extension (Browning, 2024): "Some
+# household hand soaps and liquid dishwashing detergents can be used to make effective insecticides". Strong
+# enough: Tremblay et al. 2009 (Phytoprotection 90: 35-39) saw aphid mortality "close to 100%" above 12.5 g
+# per litre, and this is about 20. Five 1 L sprays of 1.02 kg: no mass made or lost.
+mix_insecticidal_soap,Mix Insecticidal Soap,chemistry,soap_bar_0:1|water_purified_0:5,insecticidal_soap_0:5,30,,farming,1,Dissolve a bar of soap in 5 L of water for a 2% spray against aphids and mites

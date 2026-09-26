@@ -1023,3 +1023,15 @@ fruit_plantain_0,Plantain,food,fruit,plant_fiber,0.25,20,0,Fresh green cooking p
 # water jerrycan above (24.0 L for 20 L, so 1.2 L per litre), not the gen-item-volumes.js estimate, which
 # would size it by the density of its HDPE container. content_class liquid: not water, not food.
 urine_stored_0,Stored Urine,material,agricultural,hdpe,1.5,20,0,One person-day of urine from the sealed tank: quick nitrogen for crops but not within a month of harvest,liquid,1.8
+#
+# Garden pest controls (2026-09-26, gardening depth: pests; data/garden/pests.ron carries the controls and
+# their sources). insecticidal_soap_0 is one litre of the 2% spray mixed from a soap bar and 5 L of tap water
+# (data/recipes.csv mix_insecticidal_soap): 1.02 kg, volume_l 1.2 at the 20 L jerrycan's 1.2 L per litre, as
+# urine_stored_0 above. The other three are bought (data/trade_goods.ron): a 1 L ready-to-use spray of
+# Bacillus thuringiensis var. kurstaki, a shaker bottle of predatory mites (Phytoseiulus persimilis) on a
+# carrier (0.1 kg and 0.25 L, a game estimate), and a 1 kg box of iron phosphate slug pellets (1.2 L, a game
+# estimate). All four are sealed in HDPE, the base material of the pack as for urine_stored_0.
+insecticidal_soap_0,Insecticidal Soap Spray,material,agricultural,hdpe,1.02,10,0,1 L of 2% soap in water: kills the aphids and mites it wets but not caterpillars or beetles or slugs,liquid,1.2
+bt_kurstaki_0,Bt Spray (kurstaki),material,agricultural,hdpe,1.0,10,0,1 L ready-to-use Bacillus thuringiensis: a soil bacterium that hurts only the caterpillars that eat it,liquid,1.2
+predatory_mites_0,Predatory Mites,material,agricultural,hdpe,0.1,10,0,A shaker bottle of Phytoseiulus persimilis mites that eat spider mites and their eggs,solid,0.25
+iron_phosphate_bait_0,Iron Phosphate Slug Bait,material,agricultural,hdpe,1.0,10,0,1 kg of pellets that kill the slugs that eat them: the safest slug bait around children and pets and wildlife,dry_goods,1.2

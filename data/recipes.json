@@ -1,5 +1,5 @@
 {
-  "count": 375,
+  "count": 376,
   "categories": [
     "assembly",
     "chemistry",
@@ -13732,6 +13732,36 @@
       "skill": "",
       "skill_level": 1,
       "description": "Strip and bundle jute into usable fiber",
+      "tools": []
+    },
+    {
+      "id": "mix_insecticidal_soap",
+      "name": "Mix Insecticidal Soap",
+      "category": "chemistry",
+      "inputs": [
+        {
+          "id": "soap_bar_0",
+          "label": "Soap Bar",
+          "qty": 1
+        },
+        {
+          "id": "water_purified_0",
+          "label": "Water Purified",
+          "qty": 5
+        }
+      ],
+      "outputs": [
+        {
+          "id": "insecticidal_soap_0",
+          "label": "Insecticidal Soap",
+          "qty": 5
+        }
+      ],
+      "craft_time_sec": 30,
+      "station": "",
+      "skill": "Farming",
+      "skill_level": 1,
+      "description": "Dissolve a bar of soap in 5 L of water for a 2% spray against aphids and mites",
       "tools": []
     }
   ]

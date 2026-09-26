@@ -381,4 +381,15 @@
     (id: "glass_vial_0",      name: "Glass Vial",         category: "misc",            base_value: 2,    weight_kg: 0.05,  description: "Small vial for potions and samples"),
     (id: "backpack_cargo_0",  name: "Cargo Backpack",     category: "misc",            base_value: 40,   weight_kg: 2.0,   description: "Large-frame expedition pack, 80L"),
     (id: "oil_fish_0",        name: "Fish Oil",           category: "misc",            base_value: 4,    weight_kg: 0.3,   description: "Rendered oil from fish, fuel and crafting ingredient"),
+
+    // =========================================================================
+    // GARDEN PEST CONTROLS (2026-09-26; data/garden/pests.ron). Bought, as a gardener buys them: the
+    // insecticidal soap is made at home instead (data/recipes.csv mix_insecticidal_soap). Values are
+    // game estimates in the file's own scale (1 CR ~ 1 minute of unskilled labour): a litre of Bt spray
+    // or a box of slug pellets for about an hour's work, a bottle of live predators for two.
+    // =========================================================================
+
+    (id: "bt_kurstaki_0",     name: "Bt Spray (kurstaki)", category: "agricultural",   base_value: 60,   weight_kg: 1.0,   description: "Ready-to-use Bacillus thuringiensis for caterpillars"),
+    (id: "predatory_mites_0", name: "Predatory Mites",    category: "agricultural",    base_value: 120,  weight_kg: 0.1,   description: "Live Phytoseiulus persimilis that eat spider mites"),
+    (id: "iron_phosphate_bait_0", name: "Iron Phosphate Slug Bait", category: "agricultural", base_value: 60, weight_kg: 1.0, description: "Slug pellets, safe around children, pets and wildlife"),
 ]

@@ -417,6 +417,44 @@ pub struct SoilMemory {
     /// change. See `farming::soil::release_organic` for the schedule.
     #[serde(default)]
     pub organic: std::collections::HashMap<String, std::collections::HashMap<u32, Vec<OrganicCohort>>>,
+    /// The pests in each grow area, keyed by grow-area tag (2026-09-26,
+    /// gardening depth: pests, `farming::pests`). A pest belongs to the
+    /// PLACE, not to the crop: it lives on the area's plants and in its soil
+    /// and comes back to whatever is sown there next, which is what makes
+    /// rotating crops a control. Kept here, like `organic`, because the whole
+    /// `SoilMemory` is already saved in `WorldSave`, so this is saved with no
+    /// save-format change; a save from before it loads with no pests.
+    #[serde(default)]
+    pub pests: std::collections::HashMap<String, AreaPests>,
+}
+
+/// One grow area's pests (2026-09-26): the pressure of each pest there, and
+/// any release of natural enemies still working. See `farming::pests`.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct AreaPests {
+    /// Pressure per pest id (data/garden/pests.ron).
+    #[serde(default)]
+    pub pressure: std::collections::HashMap<String, PestPressure>,
+    /// Garden days left on each lasting control released here (a control id
+    /// from pests.ron, such as the predatory mites), ended early when its
+    /// prey is gone or a soap spray kills it.
+    #[serde(default)]
+    pub releases: std::collections::HashMap<String, f64>,
+}
+
+/// How bad one pest is in one grow area (2026-09-26): 0 is none, 1 is as bad
+/// as it gets. f64 for the same reason as `Npk`: a tick's growth at 1x is a
+/// few millionths.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Serialize, Deserialize)]
+pub struct PestPressure {
+    #[serde(default)]
+    pub level: f64,
+    /// True once the player has been told this pest is here, so the notice is
+    /// said once; cleared when the pest falls back below half the level at
+    /// which it is noticed, so a later outbreak is announced again. Saved, so
+    /// loading a game does not repeat it.
+    #[serde(default)]
+    pub told: bool,
 }
 
 /// Grams of organic nitrogen that went into a unit at about the same time,

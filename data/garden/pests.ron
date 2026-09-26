@@ -1,0 +1,430 @@
+// Garden pests and integrated pest management (2026-09-26, gardening depth).
+// Read by src/systems/farming/pests.rs, which carries the model and the
+// reasoning; this file carries the pests, the controls, the numbers and where
+// each one came from. Sources were read on 2026-09-26.
+//
+// WHAT THE GAME TEACHES. Integrated pest management (IPM), the order every
+// extension service teaches: prevent (grow in conditions the pest does not
+// like, and do not replant its host in the same place), monitor (the player
+// is told once when a pest appears on a grow area), then control, gentlest
+// first: by hand or with water, then natural enemies, and a least-toxic spray
+// last. No broad-spectrum or synthetic insecticide is in the game: UC IPM
+// warns they kill the natural enemies ("Spider mites frequently become a
+// problem after applying insecticides", Pest Notes: Spider Mites, below).
+//
+// THE MODEL, in one paragraph (pests.rs has the detail). Each grow area holds
+// a PRESSURE per pest, 0 (none) to 1 (as bad as it gets). On an area with host
+// crops it grows logistically, at the pest's own rate, from a slow trickle of
+// arrivals: dP/dt = (r P + a)(1 - P), per garden day, where r = ln(fold) /
+// fold_days. Both r and a are scaled by the area's HOST SHARE (hosts over all
+// crops in the area: a mixed planting slows a pest, a monoculture of its host
+// speeds it) and by the FAVOURING CONDITIONS below: every condition a crop
+// does not meet multiplies that crop's share by `unfavoured_rate`. With no
+// host in the area the pressure halves every `no_host_half_life_days`, which
+// is what makes rotation work. On each host crop the pressure caps health at
+// 100 x (1 - max_health_loss x P), and season health is what the harvest is
+// scaled by, so a neglected infestation costs yield gradually and never kills.
+//
+// GARDEN DAYS run at the crop growth speed (10x by default, so 120 s of play),
+// the same clock the crops ripen on, so a pest's life cycle keeps its real
+// length against the crop's season.
+//
+// GAME CHOICES, said as such (numbers no source gives):
+//   unfavoured_rate 0.25: a condition not met quarters that crop's part of
+//     the growth and arrivals. Anchored on the one source that gives two
+//     speeds: University of Minnesota Extension (Colorado potato beetle,
+//     below) has larvae developing "within 10 days if average temperatures are
+//     in the mid-80s degrees Fahrenheit while it can take over a month if
+//     temperatures average near 60 degrees Fahrenheit", a factor of three or
+//     more. It is also the factor the farming sim already uses for a field
+//     crop out of season.
+//   detect_at 0.05: the pressure at which the player notices the pest when
+//     checking the plants. UMN (cole crops, below): "Check at least once a
+//     week". Low, so the notice comes while the gentle controls still work.
+//   indoor_temp_c 21: the home's grow areas are climate controlled (the crop
+//     climate factor already skips them); the HVAC sim runs per room and does
+//     not reach them yet, so they are taken to sit at 21 C.
+//   excess_n_seasons 2: a unit holding more than two seasons of its crop's
+//     nitrogen need counts as over-fed (see aphids). A fresh unit holds 1.5
+//     (data/garden/nutrients.ron), so only real over-feeding trips it: a whole
+//     person-day of urine poured on one small crop does.
+//   arrival_per_day, no_host_half_life_days, and every control's `removes`
+//     unless its note cites a figure: the sources say what works and roughly
+//     how well, not by how much per visit, so these are game estimates.
+//
+// PEST FIELDS
+//   id, name          - the pest, and its plural display name
+//   indoors, outdoors - where it lives. Outdoors is an outdoor field
+//                       (farming::is_field_area); everything else is indoors.
+//   hosts             - data/plants.csv ids it feeds on (a test checks each)
+//   favoured_by       - conditions it thrives in; each unmet one multiplies the
+//                       growth by unfavoured_rate:
+//                         Temperature(min_c, max_c): the area's temperature
+//                           (the weather outdoors, indoor_temp_c indoors)
+//                         ExcessNitrogen: the crop's unit is over-fed
+//                         WaterStress: the crop is thirsty (water below 0.2)
+//                         Damp: outdoors in cloudy, foggy or wet weather, or
+//                           at night
+//                         Season([..]): the game season is one of these
+//   fold, fold_days   - growth: `fold` times as many in `fold_days` days
+//   arrival_per_day   - pressure arriving per garden day on a pure host stand
+//   no_host_half_life_days - with no host in the area
+//   max_health_loss   - the share of health (so of yield) a full infestation
+//                       takes from a host crop
+//   advice            - the prevention line the player is told
+//
+// CONTROL FIELDS
+//   kind              - Mechanical, Biological, LeastToxic: the IPM order.
+//                       The notice lists a pest's controls in this order.
+//   item              - consumed from the backpack (none: "")
+//   plants_per_item   - plants one item treats
+//   water_l_per_plant - litres from the home tanks per plant (hosing)
+//   removes           - share of each pest's pressure one application removes
+//   removes_per_day   - share removed per garden day while it lasts (a release
+//                       of natural enemies), for lasts_days, ending early when
+//                       the pest is gone (the predators starve or leave)
+//   ends              - releases this application kills
+//   note              - what it does and does not work on, told to the player
+//
+// SOURCES (cited by short name in the entries):
+//   UC IPM Aphids: Flint, M.L., "Pest Notes: Aphids", UC ANR Publication 7404,
+//     updated 07/2013, https://ipm.ucanr.edu/PMG/PESTNOTES/pn7404.html
+//   UC IPM Spider Mites: Godfrey, L.D., "Pest Notes: Spider Mites", UC ANR
+//     Publication 7405, updated 12/2011,
+//     https://ipm.ucanr.edu/PMG/PESTNOTES/pn7405.html
+//   Iowa State ICM: "Twospotted Spider Mites", Integrated Crop Management
+//     encyclopedia, Iowa State University Extension, updated 2022,
+//     https://crops.extension.iastate.edu/encyclopedia/twospotted-spider-mites
+//   UW IPCM: Cullen, E., "Dry Weather Increases Risk of Twospotted Spidermite",
+//     University of Wisconsin IPM, 5 July 2012, https://ipcm.wisc.edu/?p=1762
+//   UMN Cole Crops: Schuh, M., Hahn, J. and Wold-Burkness, S., "Caterpillars
+//     on cole crops", University of Minnesota Extension, reviewed 2022,
+//     https://extension.umn.edu/yard-and-garden-insects/caterpillars-cole-crops
+//   UMN VegEdge: Hutchison, W.D., Bolin, P.C. and Hines, R.L., "Imported
+//     Cabbageworm", VegEdge, University of Minnesota,
+//     https://vegedge.umn.edu/insect-pest-profiles/imported-cabbageworm
+//   UC IPM Snails and Slugs: Wilen, C.A. and Flint, M.L., "Pest Notes: Snails
+//     and Slugs", UC ANR Publication 7427, updated 03/2018,
+//     https://ipm.ucanr.edu/PMG/PESTNOTES/pn7427.html
+//   UMN CPB: Schuh, M., Hahn, J. and Burkness, S., "Colorado potato beetles",
+//     University of Minnesota Extension, reviewed 2026,
+//     https://extension.umn.edu/yard-and-garden-insects/colorado-potato-beetles
+//   Cornell CPB: Martinez, L. and Nault, B., "Colorado Potato Beetle Vegetable
+//     IPM Fact Sheet", Cornell Cooperative Extension, April 2025
+//   UKY CPB: Bessin, R., "Colorado Potato Beetle Management", ENTFACT-312,
+//     University of Kentucky, revised 1/2026,
+//     https://entomology.mgcafe.uky.edu/ef312
+//   CSU Soaps: Cranshaw, W.S., "Insect Control: Soaps and Detergents", Colorado
+//     State University Extension fact sheet 5.547, December 1996, reviewed
+//     August 2025
+//   Clemson Soaps: Ubl, J.D. and Munnerlyn, C., revised by Williamson, J.,
+//     "Insecticidal Soaps for Garden Pest Control", Clemson HGIC, updated
+//     30 July 2021
+//   Tremblay 2009: Tremblay, E., Belanger, A., Brosseau, M. and Boivin, G.,
+//     "Toxicity effects of an insecticidal soap on the green peach aphid",
+//     Phytoprotection 90(1): 35-39
+//   UC IPM Phytoseiulus: "Phytoseiulus Predatory Mites", UC IPM Natural
+//     Enemies Gallery, https://ipm.ucanr.edu/natural-enemies/phytoseiulus-predatory-mites/
+(
+    unfavoured_rate: 0.25,
+    detect_at: 0.05,
+    indoor_temp_c: 21.0,
+    excess_n_seasons: 2.0,
+
+    pests: [
+        // APHIDS. Hosts, UC IPM Aphids, table of common garden aphids:
+        // "Peppers, spinach, tomato, cucurbits, carrot, lettuce, legumes, corn,
+        // flowers"; "Potato, spinach, lettuce, tomato, and many others"; "Cole
+        // crops and other mustard family plants". The cucurbits here are
+        // cucumber, squash, zucchini, pumpkin and watermelon; the legumes are
+        // the bean and pea crops; the cole crops are those UMN lists (below)
+        // plus brussels sprout and bok choy (the same species as cabbage and
+        // as turnip).
+        // Favoured: "Many species of aphids cause the greatest damage in late
+        // spring when temperatures are warm but not hot (65°-80°F)" = 18.3 to
+        // 26.7 C; and "High levels of nitrogen fertilizer favor aphid
+        // reproduction, so never use more nitrogen than necessary."
+        // Growth: "many species of aphids can develop from newborn nymph to
+        // reproducing adult in seven to eight days" and "each adult aphid can
+        // produce up to 80 offspring in a matter of a week". 80-fold per
+        // generation, the generation taken as 7.5 days to adulthood plus half
+        // the week the 80 are born over: 11 days (r = ln 80 / 11 = 0.40 a
+        // day). The standard approximation r = ln R0 / T; the 80 is UC's "up
+        // to", so this is the top of the range.
+        // Damage: "Low to moderate numbers of leaf-feeding aphids aren't
+        // usually damaging in gardens or on trees", but "large populations can
+        // turn leaves yellow and stunt shoots". max_health_loss 0.3 is a game
+        // estimate for that.
+        (
+            id: "aphid",
+            name: "Aphids",
+            indoors: true,
+            outdoors: true,
+            hosts: [
+                "pepper", "spinach", "tomato", "carrot", "lettuce", "corn", "potato",
+                "cucumber", "squash", "zucchini", "pumpkin", "watermelon",
+                "bean", "pea", "soybean", "fava_bean", "lentil", "chickpea", "cowpea",
+                "kidney_bean", "pinto_bean", "navy_bean", "lima_bean", "runner_bean",
+                "cabbage", "cauliflower", "broccoli", "kale", "rutabaga", "radish", "turnip",
+                "collard", "brussels_sprout", "bok_choy", "mustard_greens",
+            ],
+            favoured_by: [Temperature(min_c: 18.3, max_c: 26.7), ExcessNitrogen],
+            fold: 80.0,
+            fold_days: 11.0,
+            arrival_per_day: 0.002,
+            no_host_half_life_days: 2.0,
+            max_health_loss: 0.3,
+            advice: "Aphids breed fastest on over-fed plants: give crops only the nitrogen they need.",
+        ),
+        // TWOSPOTTED SPIDER MITES. Hosts, UC IPM Spider Mites: they "feed on
+        // many fruit trees, vines, berries, vegetables, and ornamental plants",
+        // naming "squash, melons, and watermelons" and "sugar peas and beans";
+        // Iowa State ICM and UW IPCM add soybean and corn. Strawberry stands
+        // for UC's "berries" and grape for its "vines".
+        // Favoured: UC, "Spider mites prefer hot, dusty conditions" and "Plants
+        // under water stress also are highly susceptible"; Iowa State ICM,
+        // "temperatures are greater than 85°F, humidity is less than 90
+        // percent, and moisture levels are low" (85 F = 29.4 C).
+        // Growth: Iowa State ICM, "populations can increase 70-fold in as
+        // little as 6 days during the summer".
+        // Damage: Iowa State ICM, "capable of reducing soybean yield by 40-60
+        // percent when left untreated" (UW IPCM: "Yield reductions of 40% to
+        // 60% have been documented"); UC: for squash, melons and watermelons,
+        // "loss of leaves can have a significant impact on yield". 0.5 is the
+        // middle of 40-60%.
+        (
+            id: "spider_mite",
+            name: "Spider mites",
+            indoors: true,
+            outdoors: true,
+            hosts: [
+                "squash", "zucchini", "pumpkin", "watermelon", "pea", "bean", "soybean",
+                "kidney_bean", "pinto_bean", "navy_bean", "lima_bean", "runner_bean",
+                "corn", "strawberry", "grape",
+            ],
+            favoured_by: [Temperature(min_c: 29.4, max_c: 45.0), WaterStress],
+            fold: 70.0,
+            fold_days: 6.0,
+            arrival_per_day: 0.001,
+            no_host_half_life_days: 3.0,
+            max_health_loss: 0.5,
+            advice: "Spider mites thrive in heat and on thirsty plants: keep the crops watered.",
+        ),
+        // CABBAGE CATERPILLARS (imported cabbageworm and cabbage looper, one
+        // entry: the same hosts, damage and controls). Outdoors only: they are
+        // the larvae of a butterfly and a moth that fly in and lay eggs.
+        // Hosts, UMN Cole Crops: "Cole crops include cabbage, cauliflower,
+        // broccoli, kale, rutabaga, radish, turnip and collard"; UMN VegEdge
+        // adds "mustard"; brussels sprout and bok choy are the same species as
+        // cabbage and turnip.
+        // Favoured: the growing season. UMN: imported cabbageworm adults
+        // "begin to appear in gardens in mid-May" and have "3 to 5 overlapping
+        // generations a year"; cabbage loopers "do not survive the winter in
+        // the upper Midwest".
+        // Growth: UMN VegEdge, eggs hatch "After 3 to 7 days" and "Larvae take
+        // about 2 weeks to grow"; with the pupa, about 35 days a generation (3
+        // to 5 in a season). fold 10 a generation is a game estimate (most
+        // eggs and caterpillars are eaten or parasitized; VegEdge names
+        // Cotesia, Trichogramma and Pteromalus wasps): the pest arrives more
+        // than it breeds in place.
+        // Damage: UMN, "Cole crops can tolerate some feeding damage", but
+        // "Extensive feeding can also prevent the head formation of cabbage,
+        // cauliflower and broccoli" and "Severe defoliation of young seedlings
+        // and transplants can cause distorted growth or death". 0.5 is a game
+        // estimate.
+        (
+            id: "cabbage_caterpillar",
+            name: "Cabbage caterpillars",
+            indoors: false,
+            outdoors: true,
+            hosts: [
+                "cabbage", "cauliflower", "broccoli", "kale", "rutabaga", "radish", "turnip",
+                "collard", "mustard_greens", "brussels_sprout", "bok_choy",
+            ],
+            favoured_by: [Season(["spring", "summer", "autumn"])],
+            fold: 10.0,
+            fold_days: 35.0,
+            arrival_per_day: 0.004,
+            no_host_half_life_days: 7.0,
+            max_health_loss: 0.5,
+            advice: "Moths and butterflies lay their eggs through the growing season; young caterpillars are the easiest to stop.",
+        ),
+        // SLUGS. Outdoors only. Hosts, UC IPM Snails and Slugs: "Some plants
+        // these pests will seriously damage include basil, beans, cabbage,
+        // dahlia, delphinium, hosta, lettuce, marigolds, strawberries, and many
+        // other vegetable plants"; "they are primarily pests of seedlings and
+        // herbaceous plants" and of "ripening fruits that are close to the
+        // ground, such as strawberries and tomatoes".
+        // Favoured: "Snails and slugs are most active at night and on cloudy or
+        // foggy days"; drip rather than sprinkler irrigation "will reduce
+        // humidity and moist surfaces, making the habitat less favorable".
+        // Growth: "Slugs reach maturity after about 3 to 6 months" (135 days
+        // taken); fold 10 is a game estimate. Slugs build up over seasons, not
+        // weeks, and stay in the ground between crops (half-life 60 days, a
+        // game estimate): UC advises removing the "shady, cool places where
+        // they may hide".
+        // Damage: "irregular holes with smooth edges on leaves and flowers";
+        // 0.3 is a game estimate.
+        (
+            id: "slug",
+            name: "Slugs",
+            indoors: false,
+            outdoors: true,
+            hosts: [
+                "basil", "bean", "cabbage", "dahlia", "lettuce", "marigold", "strawberry", "tomato",
+            ],
+            favoured_by: [Damp],
+            fold: 10.0,
+            fold_days: 135.0,
+            arrival_per_day: 0.004,
+            no_host_half_life_days: 60.0,
+            max_health_loss: 0.3,
+            advice: "Slugs feed at night and in damp weather and hide in cover by day.",
+        ),
+        // COLORADO POTATO BEETLE. Outdoors only. Hosts, UMN CPB: potato, and
+        // "It can also feed on eggplant, tomatillo and related crops".
+        // Rotation is THE cultural control, because it lives in the ground
+        // where potatoes grew. Cornell CPB: "Adults survive overwinter in the
+        // soil during the cold months. Overwintering locations may be in the
+        // previous season's potato field or along nearby field borders", and
+        // "it is more common to see them walking to crop fields"; "Rotate host
+        // crops at least 0.25-0.5 miles from previous years potato fields".
+        // So it stays in an area between crops (no-host half-life 30 garden
+        // days, a game estimate: an empty month between two potato crops
+        // leaves half of it waiting; a season of something else clears most
+        // of it).
+        // Favoured: warmth. UMN, larvae "complete development within 10 days
+        // if average temperatures are in the mid-80s degrees Fahrenheit while
+        // it can take over a month if temperatures average near 60 degrees
+        // Fahrenheit": below 60 F (15.6 C) it is unfavoured.
+        // Growth: UKY CPB, "This insect can go from egg to adult in as little
+        // as 21 days"; UMN, females "lay clusters of 10 to 30 eggs". fold 20 a
+        // generation is a game estimate.
+        // Damage: Cornell, "Larvae and adults cause severe defoliation,
+        // reducing tuber yield. Unmanaged infestations can lead to complete
+        // defoliation"; UKY, "Plants can loss up to 30% of their foliage
+        // without yield loss". 0.5 is a game estimate.
+        (
+            id: "colorado_potato_beetle",
+            name: "Colorado potato beetles",
+            indoors: false,
+            outdoors: true,
+            hosts: ["potato", "eggplant"],
+            favoured_by: [Temperature(min_c: 15.6, max_c: 45.0)],
+            fold: 20.0,
+            fold_days: 21.0,
+            arrival_per_day: 0.003,
+            no_host_half_life_days: 30.0,
+            max_health_loss: 0.5,
+            advice: "They spend the winter in the soil where potatoes grew: plant something else there next (rotate) and they come up to nothing to eat.",
+        ),
+    ],
+
+    controls: [
+        // HOSING OFF (mechanical). UC IPM Aphids: "knock off the insects with a
+        // strong spray of water. Most dislodged aphids won't be able to
+        // return". UC IPM Spider Mites: "regular, forceful spraying of plants
+        // with water often will reduce spider mite numbers". Half the aphids
+        // and 0.4 of the mites per hosing are game estimates (mite eggs stay
+        // stuck to the leaves). 0.5 L a plant is a game estimate: a few
+        // seconds of a spray nozzle, drawn from the home tanks.
+        (
+            id: "hose_off",
+            name: "Hose off",
+            kind: Mechanical,
+            water_l_per_plant: 0.5,
+            removes: {"aphid": 0.5, "spider_mite": 0.4},
+            note: "A strong spray of water knocks aphids and spider mites off; most cannot climb back. It does nothing to caterpillars, beetles or slugs.",
+        ),
+        // HAND-PICKING (mechanical). UC IPM Snails and Slugs: "Hand-picking can
+        // be very effective if done thoroughly on a regular basis. At first you
+        // should look for snails and slugs daily." UMN Cole Crops: "Handpick
+        // and drop the caterpillars into a pail of soapy water". UMN CPB:
+        // "Adults and larvae can be put in a bucket of soapy water." Half per
+        // picking is a game estimate: some always hide.
+        (
+            id: "hand_pick",
+            name: "Hand-pick",
+            kind: Mechanical,
+            removes: {"cabbage_caterpillar": 0.5, "slug": 0.5, "colorado_potato_beetle": 0.5},
+            note: "Picking them off by hand works on caterpillars, beetles and slugs if it is done often; aphids and mites are too small to pick.",
+        ),
+        // Bt (biological). UMN Cole Crops: "Bacillius thuringiensis (Bt) is a
+        // bacterium that occurs naturally in the soil. Caterpillars must eat
+        // it to be effective." UMN VegEdge: "applied when early instars are
+        // present". 0.8 is a game estimate. It is the kurstaki strain, for
+        // caterpillars; the beetle strain (tenebrionis, UKY CPB: "effective
+        // against small larvae") is a different product, not this one.
+        (
+            id: "bt_spray",
+            name: "Bt spray",
+            kind: Biological,
+            item: "bt_kurstaki_0",
+            plants_per_item: 20,
+            removes: {"cabbage_caterpillar": 0.8},
+            note: "Bt is a soil bacterium that only caterpillars that eat it are hurt by. This strain (kurstaki) does not work on beetles, aphids, mites or slugs.",
+        ),
+        // PREDATORY MITES (biological), Phytoseiulus persimilis. UC IPM
+        // Phytoseiulus: "Adults consume 5 to 20 prey (eggs or mites) per day",
+        // "Generation times are 7 to 17 days ... twice as fast as that of its
+        // prey", and "If spider mite prey are not present, these predators will
+        // disperse or starve". So a release keeps working while there are
+        // mites and ends when they are gone. Half the mites a day for up to 21
+        // days is a game estimate for a predator that outbreeds its prey.
+        // One bottle to 50 plants is a game estimate.
+        (
+            id: "predatory_mites",
+            name: "Release predatory mites",
+            kind: Biological,
+            item: "predatory_mites_0",
+            plants_per_item: 50,
+            removes_per_day: {"spider_mite": 0.5},
+            lasts_days: 21.0,
+            note: "Predatory mites eat spider mites and their eggs for as long as there are any, then starve or leave. Soap sprays kill them too.",
+        ),
+        // INSECTICIDAL SOAP (least toxic). Made from a bar of soap and 5 L of
+        // water (data/recipes.csv, mix_insecticidal_soap): about 2%, the top of
+        // Clemson Soaps' "Insecticidal soaps are usually used as a 1 to 2%
+        // solution". Works on: CSU Soaps, "small, soft-bodied arthropods, such
+        // as aphids, young scales, whiteflies, psyllids, mealybugs, and mites".
+        // Does not: "Larger insects, such as caterpillars, sawflies, and beetle
+        // larvae, are generally immune to soap sprays"; slugs are not insects.
+        // Contact only: "Soaps and detergents act strictly as contact
+        // insecticides, with no residual effect", so it takes nothing off a
+        // pest's future growth, and "repeat applications may be needed at
+        // relatively short intervals (four to seven days)".
+        // How much: Tremblay 2009, on green peach aphid sprayed directly: "At
+        // soap concentrations higher than 12.50 g L-1, aphid mortality was
+        // close to 100%, regardless of the instar". A 2% spray is about 20 g
+        // per litre, so nearly every aphid it wets dies; 0.8 allows for the
+        // ones under leaves it does not reach (a game estimate). Mites 0.6: the
+        // eggs survive (a game estimate). Too weak does not work: Lami et al.
+        // 2024 (Insects 15: 556) found a 0.5% laundry soap no better than
+        // water on the same aphid.
+        // It kills the predatory mites: CSU Soaps, "Both beneficial and pest
+        // mites are affected."
+        (
+            id: "soap_spray",
+            name: "Insecticidal soap",
+            kind: LeastToxic,
+            item: "insecticidal_soap_0",
+            plants_per_item: 20,
+            removes: {"aphid": 0.8, "spider_mite": 0.6},
+            ends: ["predatory_mites"],
+            note: "Soap kills only the soft-bodied pests it wets (aphids and mites), with nothing left on the leaf afterwards, so repeat it in four to seven days. Caterpillars, beetles and slugs are immune, and it kills predatory mites too.",
+        ),
+        // IRON PHOSPHATE SLUG BAIT (least toxic). UC IPM Snails and Slugs:
+        // "Iron phosphate baits ... have the advantage of being safer for use
+        // around children, domestic animals, birds, fish, and other wildlife."
+        // 0.6 per baiting and one 1 kg box to 50 plants are game estimates.
+        (
+            id: "iron_phosphate_bait",
+            name: "Iron phosphate slug bait",
+            kind: LeastToxic,
+            item: "iron_phosphate_bait_0",
+            plants_per_item: 50,
+            removes: {"slug": 0.6},
+            note: "Iron phosphate pellets kill the slugs that eat them and are the safest bait around children, pets and wildlife. They do nothing to insects.",
+        ),
+    ],
+)
