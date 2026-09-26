@@ -260,8 +260,17 @@ plastic_sheet_0,Plastic Sheet,material,processed,hdpe,0.5,20,0,Flat polyethylene
 carbon_fiber_sheet_0,Carbon Fiber Sheet,material,processed,carbon_fiber_mat,0.3,10,0,Woven carbon composite panel,solid,0.31
 glass_fiber_0,Glass Fiber Roving,material,processed,glass,2.4,10,0,Spool of continuous drawn glass filament,solid,2.00
 fiberglass_sheet_0,Fiberglass Sheet,material,processed,fiberglass,1.8,10,0,Rigid glass-reinforced polyester laminate panel,solid,1.00
-leather_hide_0,Leather Hide,material,raw,leather,2.0,5,0,Tanned animal skin piece,solid,3.88
+leather_hide_0,Raw Hide,material,raw,leather,2.0,5,0,Untanned animal skin; salt and tan it into leather before it spoils,solid,3.88
 cloth_bolt_0,Cloth Bolt,material,processed,cotton,1.0,10,0,Rolled cotton fabric length,solid,1.08
+# Byproducts (2026-09-26): what crafting leaves behind; each is used by a recipe, which
+# tests/byproduct_use_lint.rs enforces. volume_l follows scripts/gen-item-volumes.js except where a
+# measured bulk density exists: sawdust 243 kg/m3 (NRAES-54 Table A.1: 410 lb per cubic yard) and
+# wheat bran about 270 kg/m3 (published measurements run 220-317).
+slag_0,Slag,material,byproduct,stone,1.0,50,0,Glassy stony crust skimmed off molten ore; it can stand in for gravel,solid,0.64
+sawdust_0,Sawdust,material,byproduct,pine,1.0,20,0,Fine wood left by the saw cut; rich in carbon and slow to rot alone,dry_goods,4.11
+bran_0,Wheat Bran,material,byproduct,plant_fiber,0.5,20,0,Outer layers of the wheat kernel sifted from white flour 500g bag,dry_goods,1.85
+press_cake_0,Seed Press Cake,material,byproduct,plant_fiber,0.5,20,0,Protein-rich seed solids left in the press after the oil runs out,dry_goods,0.69
+olive_pomace_0,Olive Pomace,material,byproduct,plant_fiber,0.5,20,0,Crushed olive skins and pulp and stones left after pressing out the oil,solid,0.69
 #
 # === MACHINES / APPLIANCES ===
 generator_portable_0,Portable Generator,machine,power,steel,25.0,1,300,Gasoline electric generator 2kW,solid,7.96
@@ -891,7 +900,7 @@ infernal_ash_0,Infernal Ash,material,exotic,essence,0.05,20,0,Exotic residue fro
 infernal_plate_0,Infernal Plate,material,exotic,essence,0.05,20,0,Exotic residue from a creature,solid,0.08
 ink_sac_0,Ink Sac,material,creature_part,organic,0.2,20,0,Organic extract from a creature,solid,0.3
 ivory_0,Ivory,material,creature_part,bone,0.3,20,0,Skeletal material from a creature,solid,0.45
-leather_0,Leather,material,fiber,leather,0.7,20,0,Hide or pelt from a creature,solid,1.05
+leather_0,Leather,material,processed,leather,0.7,20,0,Tanned leather ready to cut and stitch,solid,1.05
 legendary_shard_0,Legendary Shard,material,exotic,crystal,0.3,20,0,Energetic material from a creature,solid,0.45
 lens_0,Lens,material,salvage,metal,0.8,20,0,Salvage from a mechanical creature,solid,1.2
 lightning_shard_0,Lightning Shard,material,exotic,crystal,0.3,20,0,Energetic material from a creature,solid,0.45

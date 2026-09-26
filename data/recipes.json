@@ -1,5 +1,5 @@
 {
-  "count": 367,
+  "count": 373,
   "categories": [
     "assembly",
     "chemistry",
@@ -63,13 +63,18 @@
           "id": "copper_ingot_0",
           "label": "Copper Ingot",
           "qty": 1
+        },
+        {
+          "id": "slag_0",
+          "label": "Slag",
+          "qty": 6
         }
       ],
       "craft_time_sec": 10,
       "station": "Smelter",
       "skill": "Metalworking",
       "skill_level": 1,
-      "description": "Reduce copper ore into a pure copper ingot",
+      "description": "Reduce copper ore into a pure copper ingot and skim off the slag",
       "tools": []
     },
     {
@@ -440,7 +445,7 @@
         {
           "id": "wood_log_0",
           "label": "Wood Log",
-          "qty": 1
+          "qty": 2
         }
       ],
       "outputs": [
@@ -448,13 +453,18 @@
           "id": "wood_plank_0",
           "label": "Wood Plank",
           "qty": 4
+        },
+        {
+          "id": "sawdust_0",
+          "label": "Sawdust",
+          "qty": 2
         }
       ],
       "craft_time_sec": 5,
       "station": "Sawmill",
       "skill": "",
       "skill_level": 1,
-      "description": "Cut a log into flat lumber boards",
+      "description": "Cut logs into flat lumber boards and bag the sawdust",
       "tools": []
     },
     {
@@ -473,13 +483,18 @@
           "id": "wood_plank_0",
           "label": "Wood Plank",
           "qty": 2
+        },
+        {
+          "id": "sawdust_0",
+          "label": "Sawdust",
+          "qty": 1
         }
       ],
       "craft_time_sec": 15,
       "station": "",
       "skill": "Woodworking",
       "skill_level": 1,
-      "description": "Hand-saw a log into planks",
+      "description": "Hand-saw a log into planks and sweep up the sawdust",
       "tools": []
     },
     {
@@ -538,23 +553,28 @@
       "category": "refining",
       "inputs": [
         {
-          "id": "grain_rice_0",
-          "label": "Grain Rice",
-          "qty": 2
+          "id": "grain_wheat_0",
+          "label": "Grain Wheat",
+          "qty": 4
         }
       ],
       "outputs": [
         {
           "id": "flour_0",
           "label": "Flour",
-          "qty": 2
+          "qty": 3
+        },
+        {
+          "id": "bran_0",
+          "label": "Bran",
+          "qty": 1
         }
       ],
       "craft_time_sec": 8,
       "station": "Grain Mill",
       "skill": "",
       "skill_level": 1,
-      "description": "Mill grain into baking flour",
+      "description": "Mill wheat and sift the white flour from the bran",
       "tools": []
     },
     {
@@ -730,16 +750,16 @@
       ],
       "outputs": [
         {
-          "id": "leather_hide_0",
-          "label": "Leather Hide",
-          "qty": 2
+          "id": "leather_0",
+          "label": "Leather",
+          "qty": 1
         }
       ],
       "craft_time_sec": 20,
       "station": "Workbench",
       "skill": "Woodworking",
       "skill_level": 2,
-      "description": "Cure raw hide into usable leather",
+      "description": "Salt-cure and tan a raw hide into leather",
       "tools": []
     },
     {
@@ -810,6 +830,46 @@
       "skill": "Shelter Building",
       "skill_level": 2,
       "description": "Mix and cure concrete blocks",
+      "tools": []
+    },
+    {
+      "id": "make_concrete_slag",
+      "name": "Pour Slag Concrete",
+      "category": "refining",
+      "inputs": [
+        {
+          "id": "cement_0",
+          "label": "Cement",
+          "qty": 2
+        },
+        {
+          "id": "gravel_0",
+          "label": "Gravel",
+          "qty": 1
+        },
+        {
+          "id": "slag_0",
+          "label": "Slag",
+          "qty": 2
+        },
+        {
+          "id": "water_purified_0",
+          "label": "Water Purified",
+          "qty": 1
+        }
+      ],
+      "outputs": [
+        {
+          "id": "concrete_block_0",
+          "label": "Concrete Block",
+          "qty": 2
+        }
+      ],
+      "craft_time_sec": 15,
+      "station": "",
+      "skill": "Shelter Building",
+      "skill_level": 2,
+      "description": "Mix concrete with smelter slag standing in for half the gravel",
       "tools": []
     },
     {
@@ -970,6 +1030,126 @@
       "skill": "",
       "skill_level": 1,
       "description": "Pack damp salt into a mold and dry it hard over low heat into a solid block",
+      "tools": []
+    },
+    {
+      "id": "press_oil_rapeseed",
+      "name": "Press Rapeseed Oil",
+      "category": "refining",
+      "inputs": [
+        {
+          "id": "grain_rapeseed_0",
+          "label": "Grain Rapeseed",
+          "qty": 6
+        }
+      ],
+      "outputs": [
+        {
+          "id": "cooking_oil_0",
+          "label": "Cooking Oil",
+          "qty": 2
+        },
+        {
+          "id": "press_cake_0",
+          "label": "Press Cake",
+          "qty": 4
+        }
+      ],
+      "craft_time_sec": 15,
+      "station": "",
+      "skill": "Cooking",
+      "skill_level": 2,
+      "description": "Screw-press rapeseed into cooking oil and seed cake",
+      "tools": []
+    },
+    {
+      "id": "press_oil_camelina",
+      "name": "Press Camelina Oil",
+      "category": "refining",
+      "inputs": [
+        {
+          "id": "grain_camelina_0",
+          "label": "Grain Camelina",
+          "qty": 6
+        }
+      ],
+      "outputs": [
+        {
+          "id": "cooking_oil_0",
+          "label": "Cooking Oil",
+          "qty": 2
+        },
+        {
+          "id": "press_cake_0",
+          "label": "Press Cake",
+          "qty": 4
+        }
+      ],
+      "craft_time_sec": 15,
+      "station": "",
+      "skill": "Cooking",
+      "skill_level": 2,
+      "description": "Screw-press camelina seed into cooking oil and seed cake",
+      "tools": []
+    },
+    {
+      "id": "press_oil_safflower",
+      "name": "Press Safflower Oil",
+      "category": "refining",
+      "inputs": [
+        {
+          "id": "grain_safflower_0",
+          "label": "Grain Safflower",
+          "qty": 6
+        }
+      ],
+      "outputs": [
+        {
+          "id": "cooking_oil_0",
+          "label": "Cooking Oil",
+          "qty": 2
+        },
+        {
+          "id": "press_cake_0",
+          "label": "Press Cake",
+          "qty": 4
+        }
+      ],
+      "craft_time_sec": 15,
+      "station": "",
+      "skill": "Cooking",
+      "skill_level": 2,
+      "description": "Screw-press safflower seed into cooking oil and seed cake",
+      "tools": []
+    },
+    {
+      "id": "press_oil_olive",
+      "name": "Press Olive Oil",
+      "category": "refining",
+      "inputs": [
+        {
+          "id": "fruit_olive_0",
+          "label": "Fruit Olive",
+          "qty": 10
+        }
+      ],
+      "outputs": [
+        {
+          "id": "cooking_oil_0",
+          "label": "Cooking Oil",
+          "qty": 1
+        },
+        {
+          "id": "olive_pomace_0",
+          "label": "Olive Pomace",
+          "qty": 2
+        }
+      ],
+      "craft_time_sec": 20,
+      "station": "",
+      "skill": "Cooking",
+      "skill_level": 2,
+      "description": "Crush and press olives and skim the oil off the fruit water",
       "tools": []
     },
     {
@@ -1793,8 +1973,8 @@
           "qty": 1
         },
         {
-          "id": "leather_hide_0",
-          "label": "Leather Hide",
+          "id": "leather_0",
+          "label": "Leather",
           "qty": 1
         }
       ],
@@ -1828,8 +2008,8 @@
           "qty": 3
         },
         {
-          "id": "leather_hide_0",
-          "label": "Leather Hide",
+          "id": "leather_0",
+          "label": "Leather",
           "qty": 1
         }
       ],
@@ -2033,8 +2213,8 @@
       "category": "crafting",
       "inputs": [
         {
-          "id": "leather_hide_0",
-          "label": "Leather Hide",
+          "id": "leather_0",
+          "label": "Leather",
           "qty": 1
         },
         {
@@ -2093,8 +2273,8 @@
           "qty": 2
         },
         {
-          "id": "leather_hide_0",
-          "label": "Leather Hide",
+          "id": "leather_0",
+          "label": "Leather",
           "qty": 1
         }
       ],
@@ -2128,8 +2308,8 @@
           "qty": 4
         },
         {
-          "id": "leather_hide_0",
-          "label": "Leather Hide",
+          "id": "leather_0",
+          "label": "Leather",
           "qty": 2
         }
       ],
@@ -2223,8 +2403,8 @@
       "category": "crafting",
       "inputs": [
         {
-          "id": "leather_hide_0",
-          "label": "Leather Hide",
+          "id": "leather_0",
+          "label": "Leather",
           "qty": 2
         }
       ],
@@ -2253,8 +2433,8 @@
       "category": "crafting",
       "inputs": [
         {
-          "id": "leather_hide_0",
-          "label": "Leather Hide",
+          "id": "leather_0",
+          "label": "Leather",
           "qty": 2
         }
       ],
@@ -2288,8 +2468,8 @@
           "qty": 1
         },
         {
-          "id": "leather_hide_0",
-          "label": "Leather Hide",
+          "id": "leather_0",
+          "label": "Leather",
           "qty": 1
         }
       ],
@@ -3811,31 +3991,6 @@
       "tools": []
     },
     {
-      "id": "cook_oil",
-      "name": "Press Oil",
-      "category": "cooking",
-      "inputs": [
-        {
-          "id": "seed_corn_0",
-          "label": "Seed Corn",
-          "qty": 5
-        }
-      ],
-      "outputs": [
-        {
-          "id": "cooking_oil_0",
-          "label": "Cooking Oil",
-          "qty": 2
-        }
-      ],
-      "craft_time_sec": 15,
-      "station": "",
-      "skill": "Cooking",
-      "skill_level": 2,
-      "description": "Cold-press seeds into cooking oil",
-      "tools": []
-    },
-    {
       "id": "cook_honey",
       "name": "Harvest Honey",
       "category": "cooking",
@@ -4401,8 +4556,8 @@
       "category": "textile",
       "inputs": [
         {
-          "id": "leather_hide_0",
-          "label": "Leather Hide",
+          "id": "leather_0",
+          "label": "Leather",
           "qty": 1
         }
       ],
@@ -4431,8 +4586,8 @@
           "qty": 1
         },
         {
-          "id": "leather_hide_0",
-          "label": "Leather Hide",
+          "id": "leather_0",
+          "label": "Leather",
           "qty": 1
         }
       ],
@@ -4456,8 +4611,8 @@
       "category": "textile",
       "inputs": [
         {
-          "id": "leather_hide_0",
-          "label": "Leather Hide",
+          "id": "leather_0",
+          "label": "Leather",
           "qty": 1
         }
       ],
@@ -4481,8 +4636,8 @@
       "category": "textile",
       "inputs": [
         {
-          "id": "leather_hide_0",
-          "label": "Leather Hide",
+          "id": "leather_0",
+          "label": "Leather",
           "qty": 2
         },
         {
@@ -4516,8 +4671,8 @@
       "category": "textile",
       "inputs": [
         {
-          "id": "leather_hide_0",
-          "label": "Leather Hide",
+          "id": "leather_0",
+          "label": "Leather",
           "qty": 2
         },
         {
@@ -4546,8 +4701,8 @@
       "category": "textile",
       "inputs": [
         {
-          "id": "leather_hide_0",
-          "label": "Leather Hide",
+          "id": "leather_0",
+          "label": "Leather",
           "qty": 1
         },
         {
@@ -7697,14 +7852,19 @@
       "category": "chemistry",
       "inputs": [
         {
-          "id": "seed_wheat_0",
-          "label": "Seed Wheat",
-          "qty": 3
+          "id": "sawdust_0",
+          "label": "Sawdust",
+          "qty": 4
+        },
+        {
+          "id": "press_cake_0",
+          "label": "Press Cake",
+          "qty": 2
         },
         {
           "id": "water_purified_0",
           "label": "Water Purified",
-          "qty": 1
+          "qty": 3
         }
       ],
       "outputs": [
@@ -7718,7 +7878,72 @@
       "station": "Composter",
       "skill": "Farming",
       "skill_level": 1,
-      "description": "Decompose organic waste into plant food",
+      "description": "Compost sawdust with seed press cake into plant food",
+      "tools": []
+    },
+    {
+      "id": "compost_bran",
+      "name": "Compost Sawdust and Bran",
+      "category": "chemistry",
+      "inputs": [
+        {
+          "id": "sawdust_0",
+          "label": "Sawdust",
+          "qty": 3
+        },
+        {
+          "id": "bran_0",
+          "label": "Bran",
+          "qty": 4
+        },
+        {
+          "id": "water_purified_0",
+          "label": "Water Purified",
+          "qty": 3
+        }
+      ],
+      "outputs": [
+        {
+          "id": "fertilizer_0",
+          "label": "Fertilizer",
+          "qty": 2
+        }
+      ],
+      "craft_time_sec": 20,
+      "station": "Composter",
+      "skill": "Farming",
+      "skill_level": 1,
+      "description": "Compost sawdust with wheat bran into plant food",
+      "tools": []
+    },
+    {
+      "id": "compost_pomace",
+      "name": "Compost Olive Pomace",
+      "category": "chemistry",
+      "inputs": [
+        {
+          "id": "olive_pomace_0",
+          "label": "Olive Pomace",
+          "qty": 6
+        },
+        {
+          "id": "water_purified_0",
+          "label": "Water Purified",
+          "qty": 1
+        }
+      ],
+      "outputs": [
+        {
+          "id": "fertilizer_0",
+          "label": "Fertilizer",
+          "qty": 1
+        }
+      ],
+      "craft_time_sec": 20,
+      "station": "Composter",
+      "skill": "Farming",
+      "skill_level": 1,
+      "description": "Compost pressed olive pomace into plant food",
       "tools": []
     },
     {
@@ -9283,8 +9508,8 @@
           "qty": 2
         },
         {
-          "id": "leather_hide_0",
-          "label": "Leather Hide",
+          "id": "leather_0",
+          "label": "Leather",
           "qty": 1
         },
         {
@@ -11750,8 +11975,8 @@
           "qty": 5
         },
         {
-          "id": "leather_hide_0",
-          "label": "Leather Hide",
+          "id": "leather_0",
+          "label": "Leather",
           "qty": 1
         },
         {
@@ -13245,13 +13470,18 @@
           "id": "copper_ingot_0",
           "label": "Copper Ingot",
           "qty": 1
+        },
+        {
+          "id": "slag_0",
+          "label": "Slag",
+          "qty": 6
         }
       ],
       "craft_time_sec": 10,
       "station": "Smelter",
       "skill": "Metalworking",
       "skill_level": 1,
-      "description": "Reduce copper ore using asteroid graphite",
+      "description": "Reduce copper ore using asteroid graphite and skim off the slag",
       "tools": []
     },
     {

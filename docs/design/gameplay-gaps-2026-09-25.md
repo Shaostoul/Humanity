@@ -76,6 +76,26 @@ date; re-check before trusting one. The container data basis is
   Crafting page says so too. Stations with no electrical role (workbench,
   fire-fed furnace) are unaffected. A craft whose station loses power
   partway pauses, with one notice, and carries on when power returns.
+- **Crafting leaves byproducts, at real ratios: DONE 2026-09-26.** Five
+  leftovers, each used by a recipe. Copper smelting leaves 6 kg of slag per
+  2.8 kg ingot (about 2.2 t per t of copper), and slag stands in for half the
+  gravel in a slag concrete. Sawing leaves sawdust (about 13% of the log,
+  FAO) and milling wheat leaves bran (white flour is 72-76% of the grain).
+  New oil presses for rapeseed, camelina, safflower and olives leave seed
+  press cake and olive pomace. The composter turns sawdust with press cake
+  or bran, and the pomace on its own, into fertilizer at C:N 20-40 with half
+  the mass lost as a turned pile loses it (NRAES-54; Tiquia et al. 2002).
+  Every ratio and its source sits beside its recipe in `data/recipes.csv`;
+  `tests/byproduct_use_lint.rs` keeps every byproduct used, keeps those
+  recipes from creating mass, and stops a recipe handing back more of an
+  input than it took. Fixed on the way: tanning turns one raw hide into one
+  leather (`leather_0`, which the leatherwork recipes now take) instead of
+  two hides; the sawmill no longer cuts an 8 kg log into 10 kg of planks
+  (it takes two logs); the grain mill grinds wheat, not paddy rice; the
+  corn-seed oil recipe and the wheat-seed fertilizer are replaced. Not yet:
+  iron slag (a test pins `smelt_iron` outputs), whey and apple pomace
+  (cooking outputs need a food decision in `data/food/item_profiles.ron`),
+  and the sawmill's slabs and bark.
 - **Containers as items (3c): BLOCKED** on the unified placement schema
   (Tier B in PRIORITIES.md). The walk-up machine card and every vessel are
   tied to `data/machines/home.ron` placements; a container that can be

@@ -16,7 +16,14 @@
 # === SMELTING (ores to ingots) ===
 id,name,category,inputs,outputs,craft_time_sec,station_required,skill_required,skill_level,description
 smelt_iron,Smelt Iron,smelting,iron_ore_0:2|coal_0:1,iron_ingot_0:1,10,smelter_0,metalworking,1,Reduce iron ore into a pure iron ingot
-smelt_copper,Smelt Copper,smelting,copper_ore_0:2|coal_0:1,copper_ingot_0:1,10,smelter_0,metalworking,1,Reduce copper ore into a pure copper ingot
+# Slag (byproducts, 2026-09-26): about 2.2 t of slag per t of copper (Gorai, Jana and Premchand 2003,
+# a review of copper slag characteristics and uses in Resources, Conservation and Recycling 39:299-313;
+# later reviews give 2.2-3 t). A 2.8 kg ingot leaves 6.2 kg, so 6 slag of 1 kg; the rest of the ore
+# leaves as gas. The graphite variant further down leaves the same slag: it comes from the ore, not
+# the carbon. Iron and steel get none yet: blast-furnace slag is 275 kg per t (worldsteel fact sheet,
+# April 2021), 1 slag per 3 kg iron ingot, but smelt_iron's outputs are pinned by a test in
+# src/systems/crafting/mod.rs; converter slag is 126 kg per t, under half a unit per steel ingot.
+smelt_copper,Smelt Copper,smelting,copper_ore_0:2|coal_0:1,copper_ingot_0:1|slag_0:6,10,smelter_0,metalworking,1,Reduce copper ore into a pure copper ingot and skim off the slag
 smelt_nickel,Smelt Nickel,smelting,nickel_ore_0:2|coal_0:1,nickel_ingot_0:1,10,smelter_0,metalworking,2,Reduce nickel ore into a nickel ingot
 smelt_platinum,Smelt Platinum,smelting,platinum_ore_0:2|coal_0:2,platinum_ingot_0:1,18,smelter_0,metalworking,4,Refine platinum-group ore into a platinum ingot
 smelt_stainless,Smelt Stainless Steel,smelting,iron_ingot_0:2|nickel_ingot_0:1|coal_0:1,stainless_steel_ingot_0:1,18,smelter_0,metalworking,3,Alloy iron with nickel into corrosion-resistant stainless steel
@@ -31,26 +38,62 @@ fire_brick,Fire Brick,smelting,clay_raw_0:4|coal_0:1,stone_brick_0:4,15,kiln_0,m
 fire_porcelain,Fire Porcelain,smelting,clay_raw_0:2|sand_0:1|coal_0:1,glass_pane_0:1,20,kiln_0,metalworking,3,Fire fine porcelain ceramic
 #
 # === REFINING (raw to processed) ===
-saw_planks,Saw Planks,refining,wood_log_0:1,wood_plank_0:4,5,sawmill_0,,0,Cut a log into flat lumber boards
-saw_planks_hand,Saw Planks by Hand,refining,wood_log_0:1,wood_plank_0:2,15,,woodworking,1,Hand-saw a log into planks
+# Byproducts (2026-09-26). Real processing leaves material behind. Each ratio below is a published
+# figure applied to the items.csv weight_kg of the units involved; tests/byproduct_use_lint.rs keeps
+# every byproduct used by some recipe and keeps these recipes from creating mass.
+# Sawing: FAO "The potential use of wood residues for energy generation", Table 7, splits a tree cut
+# for sawn timber into 28% sawn timber, 7.5% sawdust and fines, 17% slabs edgings and off-cuts and
+# 5.5% bark; on the log alone that is about 48 / 13 / 29 / 10. An 8 kg log leaves about 1 kg of
+# sawdust. The sawmill used to cut ONE 8 kg log into 10 kg of planks; it now takes two logs
+# (16 kg -> 10 kg of planks + 2 kg of sawdust; slabs and bark are not modelled yet). 62.5% lumber
+# is generous against FAO's 48%, the same yield as sawing by hand.
+saw_planks,Saw Planks,refining,wood_log_0:2,wood_plank_0:4|sawdust_0:2,5,sawmill_0,,0,Cut logs into flat lumber boards and bag the sawdust
+saw_planks_hand,Saw Planks by Hand,refining,wood_log_0:1,wood_plank_0:2|sawdust_0:1,15,,woodworking,1,Hand-saw a log into planks and sweep up the sawdust
 cut_stone,Cut Stone,refining,stone_raw_0:1,stone_brick_0:2,10,workbench_0,woodworking,1,Shape raw stone into building blocks
 refine_fuel,Refine Fuel,refining,oil_crude_0:2,fuel_refined_0:2,30,fuel_refinery_0,engineering,2,Distill crude oil into refined fuel
-grind_flour,Grind Flour,refining,grain_rice_0:2,flour_0:2,8,grain_mill_0,,0,Mill grain into baking flour
+# Milling: efficient mills extract 72-76% of the wheat as white flour (BAKERpedia, "Extraction
+# rate"; Kansas Wheat: a 60 lb bushel gives about 42 lb of white flour). The rest is bran, germ and
+# shorts. 4 wheat (2.0 kg) -> 3 flour (1.5 kg, 75%) + 1 bran (0.5 kg). flour_0 is wheat flour; this
+# recipe used to mill paddy rice into it, and nothing used the wheat the fields grow.
+grind_flour,Grind Flour,refining,grain_wheat_0:4,flour_0:3|bran_0:1,8,grain_mill_0,,0,Mill wheat and sift the white flour from the bran
 purify_water,Purify Water,refining,water_bottle_0:2,water_purified_0:2,5,water_purifier_0,,0,Filter and sterilize drinking water
 make_charcoal,Make Charcoal,refining,wood_log_0:3,coal_0:4,20,kiln_0,,0,Carbonize wood into charcoal
 extract_fiber,Extract Fiber,refining,wood_log_0:1,fiber_bundle_0:3,8,,woodworking,1,Strip plant matter into raw fibers
 make_rope,Make Rope,refining,fiber_bundle_0:3,rope_0:1,10,,woodworking,1,Braid plant fibers into strong rope
 make_wire,Draw Wire,refining,copper_ingot_0:1,wire_0:5,8,workbench_0,metalworking,2,Draw copper into insulated wire
 vulcanize_rubber,Vulcanize Rubber,refining,rubber_sheet_0:2|coal_0:1,rubber_sheet_0:3,15,forge_0,metalworking,2,Heat-treat rubber for durability
-tan_leather,Tan Leather,refining,leather_hide_0:1|salt_food_0:1,leather_hide_0:2,20,workbench_0,woodworking,2,Cure raw hide into usable leather
+# Tanning: UNIDO "Mass balance in leather processing" (Buljan, Reich and Ludvik, 2000): 1000 kg of
+# wet-salted hide (1100 kg green) gives 255 kg of finished leather once the unusable split (107 kg)
+# and shavings (99 kg) are thrown away, about 460 kg if the whole thickness is kept. One 2 kg raw
+# hide -> one 0.7 kg leather (35% of green weight) sits between the two. This recipe used to turn
+# one hide into TWO of the same hide, so hides multiplied forever. Everything cut and stitched from
+# leather now takes leather_0; the hand drum keeps the raw hide, because drum heads are rawhide.
+tan_leather,Tan Leather,refining,leather_hide_0:1|salt_food_0:1,leather_0:1,20,workbench_0,woodworking,2,Salt-cure and tan a raw hide into leather
 make_cement,Mix Cement,refining,stone_raw_0:2|clay_raw_0:1|sand_0:1,cement_0:2,10,,shelter_building,1,Blend mineral powder for concrete
 make_concrete,Pour Concrete,refining,cement_0:2|gravel_0:2|water_purified_0:1,concrete_block_0:2,15,,shelter_building,2,Mix and cure concrete blocks
+# Slag concrete: slag replaces part of the natural aggregate. For copper slag the review by Ahmad
+# et al. (Materials, 2022, "Concrete Made with Partially Substitutions of Copper Slag (CPS): A State
+# Art of Review") puts the best share at 50-60% by weight of the aggregate it replaces. 2 kg of
+# slag + 1.8 kg of gravel: slag is 53% of the aggregate.
+make_concrete_slag,Pour Slag Concrete,refining,cement_0:2|gravel_0:1|slag_0:2|water_purified_0:1,concrete_block_0:2,15,,shelter_building,2,Mix concrete with smelter slag standing in for half the gravel
 make_plastic,Mold Plastic Sheet,refining,oil_crude_0:1,plastic_sheet_0:3,12,fuel_refinery_0,engineering,2,Polymerize crude oil into HDPE sheet
 weave_cloth,Weave Cloth,refining,fiber_bundle_0:4,cloth_bolt_0:1,15,loom_0,tailoring,1,Weave raw fiber into cotton fabric
 spin_thread,Spin Thread,refining,fiber_bundle_0:2,cloth_bolt_0:1,20,,tailoring,1,Hand-spin fiber into thread and fabric
 make_glue,Make Glue,refining,bone_0:3|water_purified_0:1,glue_0:2,10,stove_0,,0,Boil bones into adhesive glue
 render_tallow,Render Tallow,refining,raw_mutton_0:3,animal_fat_0:1,40,stove_0,cooking,1,Slowly melt the fat out of mutton trimmings and strain it to set as tallow
 mold_salt_block,Mold Salt Block,refining,salt_food_0:4|water_purified_0:1,salt_block_0:1,30,stove_0,,0,Pack damp salt into a mold and dry it hard over low heat into a solid block
+# Oil pressing replaces cook_oil, which pressed five corn SEED packets (0.5 kg) into 1.0 kg of oil.
+# A screw press leaves the oil it cannot reach in the cake. Feedipedia: rapeseed holds 40-45% oil and
+# its expeller cake usually 5-20%; camelina 36-47%, cake 5-26% of dry matter. Safflower: 37-42% oil
+# in Montana trials (Jaeger and Siegel, Oregon State, on farm-energy.extension.org). 6 seed (3.0 kg,
+# about 1.2 kg of oil) -> 2 oil (1.0 kg) + 4 cake (2.0 kg, about 10% oil left in it).
+# Olives: FAO "Olive by-products for animal feed", Figure 4: 100 kg of olives at 27% oil press to
+# 33 kg of crude cake (24.3% water, 9.1% oil) and about 100 L of vegetation water. 10 olives
+# (3.0 kg) -> 1 oil (0.5 kg) + 2 pomace (1.0 kg); the fruit water drains off and is not modelled.
+press_oil_rapeseed,Press Rapeseed Oil,refining,grain_rapeseed_0:6,cooking_oil_0:2|press_cake_0:4,15,,cooking,2,Screw-press rapeseed into cooking oil and seed cake
+press_oil_camelina,Press Camelina Oil,refining,grain_camelina_0:6,cooking_oil_0:2|press_cake_0:4,15,,cooking,2,Screw-press camelina seed into cooking oil and seed cake
+press_oil_safflower,Press Safflower Oil,refining,grain_safflower_0:6,cooking_oil_0:2|press_cake_0:4,15,,cooking,2,Screw-press safflower seed into cooking oil and seed cake
+press_oil_olive,Press Olive Oil,refining,fruit_olive_0:10,cooking_oil_0:1|olive_pomace_0:2,20,,cooking,2,Crush and press olives and skim the oil off the fruit water
 make_paint,Make Paint,refining,oil_crude_0:1|clay_raw_0:1,paint_0:2,8,chemistry_set_0,,0,Mix pigment with binder for paint
 #
 # === TOOL CRAFTING ===
@@ -80,22 +123,22 @@ craft_pipe_wrench,Craft Pipe Wrench,crafting,steel_ingot_0:2,pipe_wrench_0:1,12,
 craft_pruning_shears,Craft Pruning Shears,crafting,steel_ingot_0:1,pruning_shears_0:1,10,forge_0,metalworking,2,Forge spring-loaded branch cutters
 #
 # === WEAPON CRAFTING ===
-craft_knife_combat,Craft Combat Knife,crafting,steel_ingot_0:1|leather_hide_0:1,knife_combat_0:1,15,forge_0,metalworking,2,Forge a fixed-blade fighting knife
-craft_sword,Craft Sword,crafting,steel_ingot_0:3|leather_hide_0:1,sword_0:1,30,forge_0,metalworking,4,Forge and temper a steel sword
+craft_knife_combat,Craft Combat Knife,crafting,steel_ingot_0:1|leather_0:1,knife_combat_0:1,15,forge_0,metalworking,2,Forge a fixed-blade fighting knife
+craft_sword,Craft Sword,crafting,steel_ingot_0:3|leather_0:1,sword_0:1,30,forge_0,metalworking,4,Forge and temper a steel sword
 craft_spear,Craft Spear,crafting,steel_ingot_0:1|wood_plank_0:2,spear_0:1,12,forge_0,metalworking,2,Forge a spearhead and mount on shaft
 craft_mace,Craft Mace,crafting,steel_ingot_0:2|wood_plank_0:1,mace_0:1,20,forge_0,metalworking,3,Forge a flanged striking head
 craft_bow_recurve,Craft Recurve Bow,crafting,wood_plank_0:3|rope_0:1,bow_recurve_0:1,20,workbench_0,woodworking,2,Laminate and string a curved bow
 craft_bow_compound,Craft Compound Bow,crafting,aluminum_ingot_0:2|rope_0:1|bolt_box_0:1,bow_compound_0:1,30,workbench_0,woodworking,4,Assemble a cam-levered bow
 craft_crossbow,Craft Crossbow,crafting,steel_ingot_0:2|wood_plank_0:2|rope_0:1,crossbow_0:1,30,workbench_0,woodworking,3,Assemble a trigger-release crossbow
-craft_sling,Craft Sling,crafting,leather_hide_0:1|rope_0:1,sling_0:1,5,,woodworking,1,Cut and tie a leather sling pouch
+craft_sling,Craft Sling,crafting,leather_0:1|rope_0:1,sling_0:1,5,,woodworking,1,Cut and tie a leather sling pouch
 craft_staff,Craft Staff,crafting,wood_plank_0:3,staff_0:1,8,,woodworking,1,Carve and smooth a hardwood staff
-craft_shield_round,Craft Round Shield,crafting,steel_ingot_0:2|leather_hide_0:1,shield_round_0:1,25,forge_0,metalworking,3,Hammer and rivet a circular shield
-craft_shield_tower,Craft Tower Shield,crafting,steel_ingot_0:4|leather_hide_0:2,shield_tower_0:1,40,forge_0,metalworking,4,Construct a full-body standing shield
+craft_shield_round,Craft Round Shield,crafting,steel_ingot_0:2|leather_0:1,shield_round_0:1,25,forge_0,metalworking,3,Hammer and rivet a circular shield
+craft_shield_tower,Craft Tower Shield,crafting,steel_ingot_0:4|leather_0:2,shield_tower_0:1,40,forge_0,metalworking,4,Construct a full-body standing shield
 craft_arrow,Craft Arrows,crafting,wood_plank_0:1|iron_ingot_0:1,arrow_0:20,10,workbench_0,woodworking,1,Whittle shafts and forge broadheads
 craft_bolt_crossbow,Craft Crossbow Bolts,crafting,wood_plank_0:1|steel_ingot_0:1,bolt_crossbow_0:15,10,workbench_0,woodworking,2,Forge short heavy bolts
-craft_quiver,Craft Quiver,crafting,leather_hide_0:2,quiver_0:1,10,workbench_0,woodworking,1,Stitch a back-mounted arrow holder
-craft_holster,Craft Gun Holster,crafting,leather_hide_0:2,gun_holster_0:1,10,workbench_0,woodworking,2,Stitch a belt-mounted holster
-craft_ammo_pouch,Craft Ammo Pouch,crafting,cloth_bolt_0:1|leather_hide_0:1,ammo_pouch_0:1,8,workbench_0,woodworking,1,Sew a belt cartridge carrier
+craft_quiver,Craft Quiver,crafting,leather_0:2,quiver_0:1,10,workbench_0,woodworking,1,Stitch a back-mounted arrow holder
+craft_holster,Craft Gun Holster,crafting,leather_0:2,gun_holster_0:1,10,workbench_0,woodworking,2,Stitch a belt-mounted holster
+craft_ammo_pouch,Craft Ammo Pouch,crafting,cloth_bolt_0:1|leather_0:1,ammo_pouch_0:1,8,workbench_0,woodworking,1,Sew a belt cartridge carrier
 #
 # === FURNITURE CONSTRUCTION ===
 build_chair,Build Chair,construction,wood_plank_0:4|nail_box_0:1,chair_0:1,15,workbench_0,shelter_building,1,Assemble a four-leg wooden chair
@@ -141,7 +184,6 @@ cook_dried_meat,Dry Meat,cooking,jerky_0:3|salt_food_0:1,dried_meat_0:4,20,stove
 cook_juice,Press Juice,cooking,fruit_apple_0:4,juice_0:2,8,,cooking,1,Squeeze fresh fruit into juice
 cook_coffee,Brew Coffee,cooking,fruit_coffee_0:1|water_purified_0:1,energy_drink_0:2,5,stove_0,,0,Brew hot coffee from roasted beans
 cook_sugar,Refine Sugar,cooking,vegetable_corn_0:4,sugar_0:2,15,stove_0,cooking,2,Extract and crystallize plant sugar
-cook_oil,Press Oil,cooking,seed_corn_0:5,cooking_oil_0:2,15,,cooking,2,Cold-press seeds into cooking oil
 cook_honey,Harvest Honey,cooking,water_purified_0:1,honey_0:1,5,,farming,2,Collect and filter raw honey
 cook_spice,Blend Spices,cooking,seed_wheat_0:2|salt_food_0:1,spice_mix_0:3,5,,cooking,1,Grind and mix seasoning blend
 #
@@ -165,12 +207,12 @@ sew_jumpsuit,Sew Jumpsuit,textile,cloth_bolt_0:5,jumpsuit_0:1,20,sewing_machine_
 sew_coveralls,Sew Coveralls,textile,cloth_bolt_0:4,coveralls_0:1,18,sewing_machine_0,tailoring,2,Stitch full-body mechanic coveralls
 sew_poncho,Sew Poncho,textile,cloth_bolt_0:2|rubber_sheet_0:1,poncho_0:1,10,sewing_machine_0,tailoring,1,Waterproof a sleeveless rain cover
 sew_hat_beanie,Knit Beanie,textile,cloth_bolt_0:1,hat_beanie_0:2,5,sewing_machine_0,tailoring,1,Knit a cold-weather cap
-sew_gloves_work,Sew Work Gloves,textile,leather_hide_0:1,gloves_work_0:1,10,sewing_machine_0,tailoring,2,Cut and stitch reinforced gloves
-sew_gloves_winter,Sew Winter Gloves,textile,cloth_bolt_0:1|leather_hide_0:1,gloves_winter_0:1,10,sewing_machine_0,tailoring,2,Insulate and stitch warm gloves
-sew_belt,Craft Belt,textile,leather_hide_0:1,belt_0:2,8,workbench_0,tailoring,1,Cut and buckle a leather belt
-craft_boots_work,Craft Work Boots,textile,leather_hide_0:2|rubber_sheet_0:1|steel_ingot_0:1,boots_work_0:1,25,workbench_0,tailoring,3,Cobble steel-toe protective boots
-craft_boots_hiking,Craft Hiking Boots,textile,leather_hide_0:2|rubber_sheet_0:1,boots_hiking_0:1,20,workbench_0,tailoring,2,Cobble ankle-support trail boots
-craft_shoes,Craft Casual Shoes,textile,leather_hide_0:1|rubber_sheet_0:1,shoes_casual_0:1,15,workbench_0,tailoring,2,Cobble everyday walking shoes
+sew_gloves_work,Sew Work Gloves,textile,leather_0:1,gloves_work_0:1,10,sewing_machine_0,tailoring,2,Cut and stitch reinforced gloves
+sew_gloves_winter,Sew Winter Gloves,textile,cloth_bolt_0:1|leather_0:1,gloves_winter_0:1,10,sewing_machine_0,tailoring,2,Insulate and stitch warm gloves
+sew_belt,Craft Belt,textile,leather_0:1,belt_0:2,8,workbench_0,tailoring,1,Cut and buckle a leather belt
+craft_boots_work,Craft Work Boots,textile,leather_0:2|rubber_sheet_0:1|steel_ingot_0:1,boots_work_0:1,25,workbench_0,tailoring,3,Cobble steel-toe protective boots
+craft_boots_hiking,Craft Hiking Boots,textile,leather_0:2|rubber_sheet_0:1,boots_hiking_0:1,20,workbench_0,tailoring,2,Cobble ankle-support trail boots
+craft_shoes,Craft Casual Shoes,textile,leather_0:1|rubber_sheet_0:1,shoes_casual_0:1,15,workbench_0,tailoring,2,Cobble everyday walking shoes
 craft_sandals,Craft Sandals,textile,rubber_sheet_0:1|rope_0:1,sandals_0:1,8,,tailoring,1,Shape rubber sole open-toe footwear
 sew_raincoat,Sew Raincoat,textile,cloth_bolt_0:2|rubber_sheet_0:2,raincoat_0:1,15,sewing_machine_0,tailoring,2,Laminate waterproof full-length coat
 sew_wetsuit,Sew Wetsuit,textile,rubber_sheet_0:4|cloth_bolt_0:1,wetsuit_0:1,25,sewing_machine_0,tailoring,3,Construct a neoprene thermal suit
@@ -262,7 +304,19 @@ craft_splint,Craft Splint,chemistry,aluminum_ingot_0:1|cloth_bolt_0:1,splint_0:3
 craft_antiseptic,Brew Antiseptic,chemistry,water_purified_0:2|salt_food_0:1,antiseptic_0:3,10,chemistry_set_0,medicine,1,Distill wound disinfectant solution
 craft_fire_extinguisher,Build Fire Extinguisher,chemistry,steel_ingot_0:2|water_purified_0:2,fire_extinguisher_0:1,15,workbench_0,engineering,2,Pressurize a fire suppression unit
 craft_flare,Make Flare,chemistry,iron_ingot_0:1|coal_0:1|plastic_sheet_0:1,flare_0:5,10,chemistry_set_0,alchemy,1,Mix and pack emergency signal flares
-craft_fertilizer,Compost Fertilizer,chemistry,seed_wheat_0:3|water_purified_0:1,fertilizer_0:2,20,composter_0,farming,1,Decompose organic waste into plant food
+# Composting (2026-09-26). NRAES-54 On-Farm Composting Handbook (Rynk et al., 1992): a pile composts
+# well at C:N 20-40 (ideal 25-30) and 40-65% moisture. Its Table A.1: sawdust C:N 442 at 39% water,
+# far too lean to rot alone; soybean and cottonseed meal C:N 4-7; olive husks C:N 30-35. The seed
+# cake (Feedipedia: expeller rapeseed meal 33.7% protein, so C:N about 9) or bran (Feedipedia: 14-19%
+# protein, C:N about 17) brings the nitrogen. A turned pile loses about half its mass as CO2 and water
+# (Tiquia, Richard and Honeyman 2002, Nutrient Cycling in Agroecosystems 62: 47-57%). Blends, taking
+# carbon as 50% of dry wood and cake and 45% of dry bran: 4 sawdust + 2 cake + 3 water = 8 kg at
+# C:N 33 and 58% water; 3 sawdust + 4 bran + 3 water = 8 kg at C:N 34 and 55% water; each -> 4 kg,
+# 2 bags. 6 olive pomace (3 kg at 24% water) + 1 water = 4 kg at 43% water -> 2 kg, 1 bag.
+# craft_fertilizer used to turn three wheat SEED packets (0.3 kg) and a jug of water into 4 kg.
+craft_fertilizer,Compost Fertilizer,chemistry,sawdust_0:4|press_cake_0:2|water_purified_0:3,fertilizer_0:2,20,composter_0,farming,1,Compost sawdust with seed press cake into plant food
+compost_bran,Compost Sawdust and Bran,chemistry,sawdust_0:3|bran_0:4|water_purified_0:3,fertilizer_0:2,20,composter_0,farming,1,Compost sawdust with wheat bran into plant food
+compost_pomace,Compost Olive Pomace,chemistry,olive_pomace_0:6|water_purified_0:1,fertilizer_0:1,20,composter_0,farming,1,Compost pressed olive pomace into plant food
 #
 # === MISCELLANEOUS ===
 craft_compass,Craft Compass,crafting,iron_ingot_0:1|glass_pane_0:1,compass_0:1,10,workbench_0,woodworking,1,Magnetize a needle in a glass housing
@@ -314,7 +368,7 @@ craft_chest_metal,Build Metal Chest,crafting,steel_ingot_0:4|bolt_box_0:2,chest_
 craft_safe_heavy,Build Heavy Safe,crafting,steel_ingot_0:8|bolt_box_0:3|copper_ingot_0:1,safe_0:1,50,forge_0,metalworking,4,Forge a thick-walled armored vault
 craft_barrel_coopered,Cooper Barrel,crafting,wood_plank_0:6|steel_ingot_0:1,barrel_0:2,20,workbench_0,shelter_building,2,Stave and band wooden liquid containers
 craft_backpack_small,Sew Small Backpack,textile,cloth_bolt_0:3|rope_0:1|bolt_box_0:1,backpack_small_0:1,15,sewing_machine_0,tailoring,2,Construct a 20L carry pack
-craft_backpack_large,Sew Large Backpack,textile,cloth_bolt_0:5|rope_0:2|leather_hide_0:1|bolt_box_0:1,backpack_large_0:1,25,sewing_machine_0,tailoring,3,Construct a 65L expedition rucksack
+craft_backpack_large,Sew Large Backpack,textile,cloth_bolt_0:5|rope_0:2|leather_0:1|bolt_box_0:1,backpack_large_0:1,25,sewing_machine_0,tailoring,3,Construct a 65L expedition rucksack
 #
 # === AMMUNITION / CONSUMABLES ===
 craft_arrows_batch,Fletch Arrow Batch,crafting,wood_plank_0:2|iron_ingot_0:1|fiber_bundle_0:1,arrow_0:30,15,workbench_0,woodworking,1,Whittle shafts and forge broadhead tips
@@ -385,7 +439,7 @@ craft_bracelet_silver,Forge Silver Bracelet,crafting,silver_ingot_0:1,bracelet_s
 craft_amulet,Carve Amulet,crafting,silver_ingot_0:1,amulet_protective_0:1,45,anvil_station_0,metalworking,3,Engrave a protective silver charm
 #
 # === BOOK / WRITING CRAFTING ===
-craft_book_blank,Bind Blank Book,crafting,fiber_bundle_0:5|leather_hide_0:1|glue_0:1,book_blank_0:1,60,workbench_0,woodworking,2,Sew and bind paper into a blank book
+craft_book_blank,Bind Blank Book,crafting,fiber_bundle_0:5|leather_0:1|glue_0:1,book_blank_0:1,60,workbench_0,woodworking,2,Sew and bind paper into a blank book
 craft_pencil,Make Pencil,crafting,wood_plank_0:1|coal_0:1,pencil_0:5,15,workbench_0,woodworking,1,Glue graphite core into wooden sticks
 craft_ink,Brew Ink,chemistry,coal_0:1|water_purified_0:1,ink_bottle_0:1,30,chemistry_set_0,alchemy,2,Combine carbon and binder into writing fluid
 craft_notebook,Bind Notebook,crafting,fiber_bundle_0:3|wire_0:1,notebook_0:1,30,workbench_0,woodworking,1,Spiral-bind paper into a notebook
@@ -437,7 +491,7 @@ assemble_rover_kit,Assemble Rover Kit,crafting,steel_ingot_0:6|iron_ingot_0:4|ru
 assemble_rover,Assemble Rover,crafting,steel_ingot_0:6|iron_ingot_0:4|rubber_sheet_0:4,rover_0:1,120,vehicle_assembler_0,metalworking,2,Assemble a complete rover on the factory pad
 assemble_truck,Assemble Pickup Truck,crafting,steel_ingot_0:12|iron_ingot_0:6|rubber_sheet_0:4,truck_pickup_0:1,180,vehicle_assembler_0,metalworking,2,Assemble a complete pickup truck on the factory pad
 smelt_iron_graphite,Smelt Iron (graphite),smelting,iron_ore_0:2|graphite_0:1,iron_ingot_0:1,10,smelter_0,metalworking,1,Reduce iron ore using asteroid graphite as the carbon source
-smelt_copper_graphite,Smelt Copper (graphite),smelting,copper_ore_0:2|graphite_0:1,copper_ingot_0:1,10,smelter_0,metalworking,1,Reduce copper ore using asteroid graphite
+smelt_copper_graphite,Smelt Copper (graphite),smelting,copper_ore_0:2|graphite_0:1,copper_ingot_0:1|slag_0:6,10,smelter_0,metalworking,1,Reduce copper ore using asteroid graphite and skim off the slag
 smelt_nickel_graphite,Smelt Nickel (graphite),smelting,nickel_ore_0:2|graphite_0:1,nickel_ingot_0:1,10,smelter_0,metalworking,2,Reduce nickel ore using asteroid graphite
 assemble_nova,Assemble 1975 Chevy Nova,crafting,steel_ingot_0:14|iron_ingot_0:6|rubber_sheet_0:4|glass_pane_0:4,car_nova_1975_0:1,240,vehicle_assembler_0,metalworking,3,Assemble a complete 1975 Chevy Nova on the factory pad
 bundle_cotton,Bundle Cotton Fiber,refining,fiber_cotton_0:3,fiber_bundle_0:2,10,workbench_0,,0,Card and bundle cotton into usable fiber
