@@ -141,7 +141,7 @@
         research_cost: [("wood_log_0", 15), ("stone_raw_0", 10)],
         unlocks_recipes: [],
         unlocks_structures: ["farm_plot_0"],
-        unlocks_items: ["hoe_stone_0", "seed_bag_0"],
+        unlocks_items: ["hoe_0", "seed_wheat_0"],
         description: "Deliberate cultivation of crops through planting, tending, and harvesting",
     ),
 

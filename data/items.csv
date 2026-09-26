@@ -190,15 +190,15 @@ honey_0,Honey,food,preserved,glass,0.5,10,0,Natural bee honey jar,food,0.44
 spice_mix_0,Spice Mix,food,seasoning,plant_fiber,0.05,30,0,Assorted cooking spices,solid,0.09
 #
 # === MEDICAL ===
-bandage_0,Bandage,food,medical,cotton,0.05,30,0,Sterile wound dressing strip,solid,0.07
-medkit_0,Medkit,food,medical,abs_plastic,1.0,5,0,Complete first-aid supply box,solid,2.12
-antidote_0,Antidote,food,medical,glass,0.1,20,0,General anti-toxin vial,solid,0.09
-stimulant_0,Stimulant,food,medical,abs_plastic,0.02,30,0,Adrenaline boost injection,solid,0.04
-vitamins_0,Vitamins,food,medical,abs_plastic,0.05,30,0,Daily multivitamin bottle,solid,0.11
-splint_0,Splint,food,medical,aluminum,0.2,10,0,Bone fracture immobilizer,solid,0.16
-antiseptic_0,Antiseptic,food,medical,hdpe,0.1,20,0,Wound disinfectant solution,liquid,0.23
-surgical_kit_0,Surgical Kit,food,medical,steel,2.0,1,0,Field surgery instrument set,solid,0.57
-blood_pack_0,Blood Pack,food,medical,pvc,0.5,5,0,Stored blood transfusion unit,solid,0.79
+bandage_0,Bandage,medical,medical,cotton,0.05,30,0,Sterile wound dressing strip,solid,0.07
+medkit_0,Medkit,medical,medical,abs_plastic,1.0,5,0,Complete first-aid supply box,solid,2.12
+antidote_0,Antidote,medical,medical,glass,0.1,20,0,General anti-toxin vial,solid,0.09
+stimulant_0,Stimulant,medical,medical,abs_plastic,0.02,30,0,Adrenaline boost injection,solid,0.04
+vitamins_0,Vitamins,medical,medical,abs_plastic,0.05,30,0,Daily multivitamin bottle,solid,0.11
+splint_0,Splint,medical,medical,aluminum,0.2,10,0,Bone fracture immobilizer,solid,0.16
+antiseptic_0,Antiseptic,medical,medical,hdpe,0.1,20,0,Wound disinfectant solution,liquid,0.23
+surgical_kit_0,Surgical Kit,medical,medical,steel,2.0,1,0,Field surgery instrument set,solid,0.57
+blood_pack_0,Blood Pack,medical,medical,pvc,0.5,5,0,Stored blood transfusion unit,solid,0.79
 #
 # === MATERIALS / RESOURCES ===
 wood_log_0,Wood Log,material,raw_wood,pine,8.0,10,0,Unprocessed timber round,solid,26.1
@@ -448,6 +448,7 @@ book_engineering_0,Engineering Manual,tool,reference,plant_fiber,0.7,5,60,Mechan
 scroll_blank_0,Blank Scroll,tool,writing,plant_fiber,0.1,20,20,Rolled blank parchment sheet,solid,0.24
 map_paper_0,Paper Map,tool,navigation,plant_fiber,0.1,10,30,Folded geographic chart,solid,0.24
 pen_quill_0,Quill Pen,tool,writing,plant_fiber,0.02,10,40,Feather and reservoir writing instrument,solid,0.05
+flask_0,Glass Flask,tool,container,glass,0.2,10,0,Laboratory glass flask for mixing and heating,solid,0.35
 ink_bottle_0,Ink Bottle,tool,writing,glass,0.2,10,50,Glass-stoppered writing fluid,solid,0.23
 pencil_0,Pencil,tool,writing,pine,0.01,50,30,Graphite-core wooden writing stick,solid,0.06
 notebook_0,Notebook,tool,writing,plant_fiber,0.3,5,40,Spiral-bound lined paper book,solid,0.71
@@ -523,7 +524,7 @@ towel_0,Towel,tool,hygiene,cotton,0.4,5,80,Absorbent body-drying cloth,solid,0.7
 #
 # === SPECIALTY MATERIALS ===
 beeswax_0,Beeswax,material,raw,plant_fiber,0.3,20,0,Natural hive wax block,solid,0.42
-animal_fat_0,Animal Fat,material,raw,plant_fiber,0.5,20,0,Rendered tallow chunk,solid,0.69
+animal_fat_0,Animal Fat,material,raw,tallow,0.5,20,0,Rendered tallow chunk,solid,0.69
 salt_block_0,Salt Block,material,mineral,salt,2.0,10,0,Compressed mineral salt slab,solid,1.54
 # Garden plant seeds for the curated towers (v0.398): one seed item per
 # distinct tower variety so survival-mode planting has something to consume.
@@ -779,34 +780,34 @@ herb_cinnamon_0,Cinnamon,food,herb,plant_fiber,0.05,20,0,Fresh harvested cinnamo
 herb_dill_0,Dill,food,herb,plant_fiber,0.05,20,0,Fresh harvested dill,dry_goods,0.15
 herb_chive_0,Chive,food,herb,plant_fiber,0.05,20,0,Fresh harvested chive,dry_goods,0.15
 herb_lemongrass_0,Lemongrass,food,herb,plant_fiber,0.05,20,0,Fresh harvested lemongrass,dry_goods,0.15
-produce_oak_0,Oak,food,tree,plant_fiber,0.3,20,0,Fresh harvested oak,solid,0.45
-produce_pine_0,Pine,food,tree,plant_fiber,0.3,20,0,Fresh harvested pine,solid,0.45
-produce_birch_0,Birch,food,tree,plant_fiber,0.3,20,0,Fresh harvested birch,solid,0.45
-produce_maple_0,Maple,food,tree,plant_fiber,0.3,20,0,Fresh harvested maple,solid,0.45
-produce_willow_0,Willow,food,tree,plant_fiber,0.3,20,0,Fresh harvested willow,solid,0.45
-produce_bamboo_0,Bamboo,food,tree,plant_fiber,0.3,20,0,Fresh harvested bamboo,solid,0.45
-produce_palm_0,Palm,food,tree,plant_fiber,0.3,20,0,Fresh harvested palm,solid,0.45
-produce_redwood_0,Redwood,food,tree,plant_fiber,0.3,20,0,Fresh harvested redwood,solid,0.45
-produce_eucalyptus_0,Eucalyptus,food,tree,plant_fiber,0.3,20,0,Fresh harvested eucalyptus,solid,0.45
-produce_baobab_0,Baobab,food,tree,plant_fiber,0.3,20,0,Fresh harvested baobab,solid,0.45
-produce_cherry_blossom_0,Cherry Blossom,food,tree,plant_fiber,0.3,20,0,Fresh harvested cherry blossom,solid,0.45
-produce_aloe_vera_0,Aloe Vera,food,medicinal,plant_fiber,0.3,20,0,Fresh harvested aloe vera,solid,0.45
-produce_echinacea_0,Echinacea,food,medicinal,plant_fiber,0.3,20,0,Fresh harvested echinacea,solid,0.45
-produce_ginseng_0,Ginseng,food,medicinal,plant_fiber,0.3,20,0,Fresh harvested ginseng,solid,0.45
-produce_valerian_0,Valerian,food,medicinal,plant_fiber,0.3,20,0,Fresh harvested valerian,solid,0.45
-produce_feverfew_0,Feverfew,food,medicinal,plant_fiber,0.3,20,0,Fresh harvested feverfew,solid,0.45
-produce_comfrey_0,Comfrey,food,medicinal,plant_fiber,0.3,20,0,Fresh harvested comfrey,solid,0.45
-produce_calendula_0,Calendula,food,medicinal,plant_fiber,0.3,20,0,Fresh harvested calendula,solid,0.45
-produce_tea_tree_0,Tea Tree,food,medicinal,plant_fiber,0.3,20,0,Fresh harvested tea tree,solid,0.45
-produce_st_johns_wort_0,St. Johns Wort,food,medicinal,plant_fiber,0.3,20,0,Fresh harvested st. johns wort,solid,0.45
-produce_witch_hazel_0,Witch Hazel,food,medicinal,plant_fiber,0.3,20,0,Fresh harvested witch hazel,solid,0.45
-produce_rose_0,Rose,food,decorative,plant_fiber,0.3,20,0,Fresh harvested rose,solid,0.45
-produce_tulip_0,Tulip,food,decorative,plant_fiber,0.3,20,0,Fresh harvested tulip,solid,0.45
-produce_orchid_0,Orchid,food,decorative,plant_fiber,0.3,20,0,Fresh harvested orchid,solid,0.45
-produce_lily_0,Lily,food,decorative,plant_fiber,0.3,20,0,Fresh harvested lily,solid,0.45
-produce_dahlia_0,Dahlia,food,decorative,plant_fiber,0.3,20,0,Fresh harvested dahlia,solid,0.45
-produce_marigold_0,Marigold,food,decorative,plant_fiber,0.3,20,0,Fresh harvested marigold,solid,0.45
-produce_jasmine_0,Jasmine,food,decorative,plant_fiber,0.3,20,0,Fresh harvested jasmine,solid,0.45
+produce_oak_0,Oak,material,tree,plant_fiber,0.3,20,0,Fresh harvested oak,solid,0.45
+produce_pine_0,Pine,material,tree,plant_fiber,0.3,20,0,Fresh harvested pine,solid,0.45
+produce_birch_0,Birch,material,tree,plant_fiber,0.3,20,0,Fresh harvested birch,solid,0.45
+produce_maple_0,Maple,material,tree,plant_fiber,0.3,20,0,Fresh harvested maple,solid,0.45
+produce_willow_0,Willow,material,tree,plant_fiber,0.3,20,0,Fresh harvested willow,solid,0.45
+produce_bamboo_0,Bamboo,material,tree,plant_fiber,0.3,20,0,Fresh harvested bamboo,solid,0.45
+produce_palm_0,Palm,material,tree,plant_fiber,0.3,20,0,Fresh harvested palm,solid,0.45
+produce_redwood_0,Redwood,material,tree,plant_fiber,0.3,20,0,Fresh harvested redwood,solid,0.45
+produce_eucalyptus_0,Eucalyptus,material,tree,plant_fiber,0.3,20,0,Fresh harvested eucalyptus,solid,0.45
+produce_baobab_0,Baobab,material,tree,plant_fiber,0.3,20,0,Fresh harvested baobab,solid,0.45
+produce_cherry_blossom_0,Cherry Blossom,material,tree,plant_fiber,0.3,20,0,Fresh harvested cherry blossom,solid,0.45
+produce_aloe_vera_0,Aloe Vera,material,medicinal,plant_fiber,0.3,20,0,Fresh harvested aloe vera,solid,0.45
+produce_echinacea_0,Echinacea,material,medicinal,plant_fiber,0.3,20,0,Fresh harvested echinacea,solid,0.45
+produce_ginseng_0,Ginseng,material,medicinal,plant_fiber,0.3,20,0,Fresh harvested ginseng,solid,0.45
+produce_valerian_0,Valerian,material,medicinal,plant_fiber,0.3,20,0,Fresh harvested valerian,solid,0.45
+produce_feverfew_0,Feverfew,material,medicinal,plant_fiber,0.3,20,0,Fresh harvested feverfew,solid,0.45
+produce_comfrey_0,Comfrey,material,medicinal,plant_fiber,0.3,20,0,Fresh harvested comfrey,solid,0.45
+produce_calendula_0,Calendula,material,medicinal,plant_fiber,0.3,20,0,Fresh harvested calendula,solid,0.45
+produce_tea_tree_0,Tea Tree,material,medicinal,plant_fiber,0.3,20,0,Fresh harvested tea tree,solid,0.45
+produce_st_johns_wort_0,St. Johns Wort,material,medicinal,plant_fiber,0.3,20,0,Fresh harvested st. johns wort,solid,0.45
+produce_witch_hazel_0,Witch Hazel,material,medicinal,plant_fiber,0.3,20,0,Fresh harvested witch hazel,solid,0.45
+produce_rose_0,Rose,decoration,decorative,plant_fiber,0.3,20,0,Fresh harvested rose,solid,0.45
+produce_tulip_0,Tulip,decoration,decorative,plant_fiber,0.3,20,0,Fresh harvested tulip,solid,0.45
+produce_orchid_0,Orchid,decoration,decorative,plant_fiber,0.3,20,0,Fresh harvested orchid,solid,0.45
+produce_lily_0,Lily,decoration,decorative,plant_fiber,0.3,20,0,Fresh harvested lily,solid,0.45
+produce_dahlia_0,Dahlia,decoration,decorative,plant_fiber,0.3,20,0,Fresh harvested dahlia,solid,0.45
+produce_marigold_0,Marigold,decoration,decorative,plant_fiber,0.3,20,0,Fresh harvested marigold,solid,0.45
+produce_jasmine_0,Jasmine,decoration,decorative,plant_fiber,0.3,20,0,Fresh harvested jasmine,solid,0.45
 fiber_cotton_0,Cotton,material,fiber,plant_fiber,0.3,20,0,Harvested cotton fiber bundle,solid,0.45
 wool_0,Wool,material,fiber,wool,0.4,20,0,Shorn sheep's wool fleece,solid,1.2
 fiber_flax_0,Flax,material,fiber,plant_fiber,0.3,20,0,Harvested flax fiber bundle,solid,0.45
@@ -821,18 +822,18 @@ legume_peanut_0,Peanut,food,legume,plant_fiber,0.3,20,0,Fresh harvested peanut,s
 vegetable_oyster_mushroom_0,Oyster Mushroom,food,vegetable,plant_fiber,0.3,20,0,Fresh harvested oyster mushroom,solid,0.45
 vegetable_shiitake_0,Shiitake,food,vegetable,plant_fiber,0.3,20,0,Fresh harvested shiitake,solid,0.45
 vegetable_button_mushroom_0,Button Mushroom,food,vegetable,plant_fiber,0.3,20,0,Fresh harvested button mushroom,solid,0.45
-produce_luminous_fern_0,Luminous Fern,food,alien,plant_fiber,0.3,20,0,Fresh harvested luminous fern,solid,0.45
-produce_void_orchid_0,Void Orchid,food,alien,plant_fiber,0.3,20,0,Fresh harvested void orchid,solid,0.45
-produce_crystal_moss_0,Crystal Moss,food,alien,plant_fiber,0.3,20,0,Fresh harvested crystal moss,solid,0.45
-produce_plasma_vine_0,Plasma Vine,food,alien,plant_fiber,0.3,20,0,Fresh harvested plasma vine,solid,0.45
-produce_gravity_bloom_0,Gravity Bloom,food,alien,plant_fiber,0.3,20,0,Fresh harvested gravity bloom,solid,0.45
-produce_nebula_lily_0,Nebula Lily,food,alien,plant_fiber,0.3,20,0,Fresh harvested nebula lily,solid,0.45
-produce_shadow_fungi_0,Shadow Fungi,food,alien,plant_fiber,0.3,20,0,Fresh harvested shadow fungi,solid,0.45
-produce_star_thistle_0,Star Thistle,food,alien,plant_fiber,0.3,20,0,Fresh harvested star thistle,solid,0.45
-produce_ember_reed_0,Ember Reed,food,alien,plant_fiber,0.3,20,0,Fresh harvested ember reed,solid,0.45
-produce_frost_blossom_0,Frost Blossom,food,alien,plant_fiber,0.3,20,0,Fresh harvested frost blossom,solid,0.45
-produce_phase_mushroom_0,Phase Mushroom,food,alien,plant_fiber,0.3,20,0,Fresh harvested phase mushroom,solid,0.45
-produce_aether_kelp_0,Aether Kelp,food,alien,plant_fiber,0.3,20,0,Fresh harvested aether kelp,solid,0.45
+produce_luminous_fern_0,Luminous Fern,material,alien,plant_fiber,0.3,20,0,Fresh harvested luminous fern,solid,0.45
+produce_void_orchid_0,Void Orchid,material,alien,plant_fiber,0.3,20,0,Fresh harvested void orchid,solid,0.45
+produce_crystal_moss_0,Crystal Moss,material,alien,plant_fiber,0.3,20,0,Fresh harvested crystal moss,solid,0.45
+produce_plasma_vine_0,Plasma Vine,material,alien,plant_fiber,0.3,20,0,Fresh harvested plasma vine,solid,0.45
+produce_gravity_bloom_0,Gravity Bloom,material,alien,plant_fiber,0.3,20,0,Fresh harvested gravity bloom,solid,0.45
+produce_nebula_lily_0,Nebula Lily,material,alien,plant_fiber,0.3,20,0,Fresh harvested nebula lily,solid,0.45
+produce_shadow_fungi_0,Shadow Fungi,material,alien,plant_fiber,0.3,20,0,Fresh harvested shadow fungi,solid,0.45
+produce_star_thistle_0,Star Thistle,material,alien,plant_fiber,0.3,20,0,Fresh harvested star thistle,solid,0.45
+produce_ember_reed_0,Ember Reed,material,alien,plant_fiber,0.3,20,0,Fresh harvested ember reed,solid,0.45
+produce_frost_blossom_0,Frost Blossom,material,alien,plant_fiber,0.3,20,0,Fresh harvested frost blossom,solid,0.45
+produce_phase_mushroom_0,Phase Mushroom,material,alien,plant_fiber,0.3,20,0,Fresh harvested phase mushroom,solid,0.45
+produce_aether_kelp_0,Aether Kelp,material,alien,plant_fiber,0.3,20,0,Fresh harvested aether kelp,solid,0.45
 herb_saffron_0,Saffron,food,herb,plant_fiber,0.05,20,0,Fresh harvested saffron,dry_goods,0.15
 herb_vanilla_0,Vanilla,food,herb,plant_fiber,0.05,20,0,Fresh harvested vanilla,dry_goods,0.15
 herb_hop_0,Hop,food,herb,plant_fiber,0.05,20,0,Fresh harvested hop,dry_goods,0.15

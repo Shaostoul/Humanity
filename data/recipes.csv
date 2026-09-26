@@ -192,7 +192,11 @@ cook_dried_meat,Dry Meat,cooking,jerky_0:3|salt_food_0:1,dried_meat_0:4,20,stove
 # (Shalini and Gupta 2010, J Food Sci Technol 47:365-371). It used to press 0.8 kg of apples into 1.0 kg of
 # juice; now 7 apples (1.4 kg) give 2 juice (1.0 kg) and one 0.4 kg unit of pomace (2026-09-26).
 cook_juice,Press Juice,cooking,fruit_apple_0:7,juice_0:2|apple_pomace_0:1,8,,cooking,1,Squeeze fresh fruit into juice
-cook_coffee,Brew Coffee,cooking,fruit_coffee_0:1|water_purified_0:1,energy_drink_0:2,5,stove_0,,0,Brew hot coffee from roasted beans
+# Coffee (2026-09-26): this used to turn one cherry and a litre of water into two energy drinks. Coffee
+# cherries yield roughly a fifth of their weight as green beans and roasting drives off about a sixth more
+# (commonly cited processing figures), so six 0.3 kg cherries roast into one 250 g bag of beans; a cup is
+# brewed when the beans are drunk (coffee_0's brewed_coffee profile).
+cook_coffee,Roast Coffee Beans,cooking,fruit_coffee_0:6,coffee_0:1,20,stove_0,,0,Pulp dry and roast coffee cherries into beans
 cook_sugar,Refine Sugar,cooking,vegetable_corn_0:4,sugar_0:2,15,stove_0,cooking,2,Extract and crystallize plant sugar
 cook_honey,Harvest Honey,cooking,water_purified_0:1,honey_0:1,5,,farming,2,Collect and filter raw honey
 cook_spice,Blend Spices,cooking,seed_wheat_0:2|salt_food_0:1,spice_mix_0:3,5,,cooking,1,Grind and mix seasoning blend

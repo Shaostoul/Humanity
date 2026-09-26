@@ -3987,32 +3987,27 @@
     },
     {
       "id": "cook_coffee",
-      "name": "Brew Coffee",
+      "name": "Roast Coffee Beans",
       "category": "cooking",
       "inputs": [
         {
           "id": "fruit_coffee_0",
           "label": "Fruit Coffee",
-          "qty": 1
-        },
-        {
-          "id": "water_purified_0",
-          "label": "Water Purified",
-          "qty": 1
+          "qty": 6
         }
       ],
       "outputs": [
         {
-          "id": "energy_drink_0",
-          "label": "Energy Drink",
-          "qty": 2
+          "id": "coffee_0",
+          "label": "Coffee",
+          "qty": 1
         }
       ],
-      "craft_time_sec": 5,
+      "craft_time_sec": 20,
       "station": "Stove",
       "skill": "",
       "skill_level": 1,
-      "description": "Brew hot coffee from roasted beans",
+      "description": "Pulp dry and roast coffee cherries into beans",
       "tools": []
     },
     {

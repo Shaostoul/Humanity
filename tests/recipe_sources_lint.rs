@@ -531,6 +531,29 @@ fn every_recipe_is_reachable_from_base_sources() {
     );
 }
 
+/// Item ids NPC shops sell are real items (2026-09-26): the Farming Elder
+/// sold `seed_bag_0`, and a dozen other shop lines named items that did not
+/// exist. data/tech_tree.ron is left out on purpose: the game does not read it
+/// yet and it names future items (antimatter cells, stone tools) that are
+/// design intent, not stale references.
+#[test]
+fn npc_shops_sell_real_items() {
+    let d = load();
+    let mut missing = Vec::new();
+    let npcs = strip_line_comments(&read("data/npcs.ron"));
+    let mut rest = npcs.as_str();
+    while let Some(k) = rest.find("shop_items:") {
+        rest = &rest[k + "shop_items:".len()..];
+        let Some(close) = rest.find(']') else { break };
+        for (i, part) in rest[..close].split('"').enumerate() {
+            if i % 2 == 1 && !d.items.contains(part) {
+                missing.push(format!("npcs.ron shop item {part}"));
+            }
+        }
+    }
+    assert!(missing.is_empty(), "names no item in data/items.csv: {missing:#?}");
+}
+
 #[test]
 fn recipe_ids_are_unique() {
     let d = load();

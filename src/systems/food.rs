@@ -76,6 +76,33 @@ impl ItemProfiles {
     }
 }
 
+/// Which items a person eats or drinks, from the copies of the same two
+/// files the food system reads (item_profiles.ron and food_system.ron,
+/// built into the exe): item id to true when it is drunk (a beverage
+/// profile), false when it is eaten. Anything absent is not food.
+/// 2026-09-26: the inventory's Eat and Drink buttons ask this instead of
+/// guessing from the item id, which offered Drink on the water pump, the
+/// water tester and empty bottles.
+pub fn consume_kinds() -> &'static HashMap<String, bool> {
+    static KINDS: std::sync::OnceLock<HashMap<String, bool>> = std::sync::OnceLock::new();
+    KINDS.get_or_init(|| {
+        let list: ItemProfiles = crate::embedded_data::get_embedded(ItemProfiles::FILE)
+            .and_then(|t| ron::from_str(t).ok())
+            .unwrap_or_default();
+        let data: Option<FoodData> =
+            crate::embedded_data::get_embedded("food_system.ron").and_then(|t| ron::from_str(t).ok());
+        let mut out = HashMap::new();
+        if let Some(data) = data {
+            for (item, profile) in &list.items {
+                if let Some(p) = data.nutrition_profiles.iter().find(|p| &p.id == profile) {
+                    out.insert(item.clone(), p.category == "beverage");
+                }
+            }
+        }
+        out
+    })
+}
+
 /// Top-level RON schema for `data/food_system.ron`.
 #[derive(Debug, Deserialize)]
 pub struct FoodData {
@@ -1307,6 +1334,20 @@ mod nutrition_tests {
         assert_eq!(inv.count_item("water_bottle_0"), 0, "drunk");
         assert_eq!(inv.count_item("water_bottle_empty_0"), 1, "the empty bottle comes back");
         assert!(world.get::<&Vitals>(player).unwrap().hydration > 40.0);
+    }
+
+    /// The Eat and Drink buttons ask consume_kinds (2026-09-26): water and
+    /// bottles are drunk, bread is eaten, and the water pump, the tester and
+    /// an empty bottle are neither.
+    #[test]
+    fn consume_kinds_says_what_is_drunk_what_is_eaten_and_what_is_neither() {
+        let k = consume_kinds();
+        assert_eq!(k.get("water_purified_0"), Some(&true));
+        assert_eq!(k.get("water_bottle_0"), Some(&true));
+        assert_eq!(k.get("bread_0"), Some(&false));
+        for id in ["water_pump_0", "water_tester_0", "water_bottle_empty_0", "shampoo_bottle_0", "water_jerrycan_0"] {
+            assert!(k.get(id).is_none(), "{id} is not food");
+        }
     }
 
     /// The Drink action consumes a beverage and restores hydration (mirrors Eat).

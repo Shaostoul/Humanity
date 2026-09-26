@@ -168,12 +168,20 @@ date; re-check before trusting one. The container data basis is
   mushrooms grow in the dark. Still to do on light: per-light coverage, a
   per-species light amount (daily light integral) with saturation, seasonal
   day length, and showing the light state in the Garden panel.
-- Found while merging, still open: the Eat/Drink buttons still show on water
-  MACHINES (the food system now ignores those clicks); `animal_fat_0` has
-  base material `plant_fiber` and there is no tallow material; items.csv
-  files 11 medical supplies, trees, flowers and alien plants under category
-  "food"; `cook_coffee` makes an energy drink; soap has no lye; one hide
-  tans into two leathers; eating one of anything counts as 100 g.
+- Found while merging: FIXED 2026-09-26 (v0.1354.0): the Eat and Drink
+  buttons ask the food data (`food::consume_kinds`), so the water pump, the
+  tester and empty bottles no longer offer Drink; `animal_fat_0` is made of
+  tallow (a new material); 49 medical supplies, trees, medicinal plants,
+  flowers and alien plants are refiled out of category "food"; `cook_coffee`
+  roasts six cherries into a bag of beans instead of making energy drinks;
+  tanning (fixed with the byproducts). NPC shops sold 16 items that do not
+  exist; they now sell the real ones (`recipe_sources_lint` checks it), and
+  `flask_0` became a real item. STILL OPEN: soap has no lye (it needs a lye
+  item and a source for it, e.g. wood ash); eating one of anything counts as
+  100 g, which is tied to satiation being an abstract 7-day reserve and
+  belongs with the full-realism and simplified vitals modes rather than a
+  quick fix; data/tech_tree.ron (not read by the game) names about 50 items
+  that do not exist yet.
 
 ## Defects found (things that are wrong, not merely missing)
 

@@ -804,6 +804,11 @@
    "date": "2026-09-26",
    "decision": "Crafting quality (v0.1353.0): crafting/quality.rs reads manufacturing.ron quality_levels; ItemStack.quality (index+1, 0 ungraded); add_item_q / add_item_volume_gated_q keep grades apart; the backpack/storage transfer became a TransferOp struct carrying wear and quality; PlacedItem.quality; hand-made durable outputs graded by skill_factor(level,max) (level 1 = 0.45, max = 1.0) plus the file spread; wear_item takes a per-grade durability; vendor_sell prices by grade via remove_item_report; machine outputs are standard; inventory card shows grade and true uses left; Crafting page shows expected grade (GuiRecipe.graded, GuiSkill.max_level).",
    "why": "Last item of the crafting list the operator agreed to. Grading only durable goods so materials never fragment into six stacks. BEGINNER_FACTOR 0.45 is a design choice (a beginner does standard work most of the time), stated as such in the code. Tests red on purpose first (no grading, flat price, grades merging)."
+  },
+  {
+   "date": "2026-09-26",
+   "decision": "v0.1354.0: the Barn draws stock by kind (sacks for dry goods, casks for liquids and fresh food, crates for the rest; 29-barn-stock vantage added); Eat/Drink buttons ask food::consume_kinds (built from the embedded food data) instead of the water_ prefix; 49 non-food items refiled out of category food and their not_food exemptions removed; tallow material for animal_fat_0; cook_coffee roasts 6 cherries into coffee_0 (was 1 cherry + water -> 2 energy drinks); 16 stale NPC shop items mapped to real ones, flask_0 added, recipe_sources_lint npc_shops_sell_real_items guards it.",
+   "why": "Closing the defects list found while merging. Left open deliberately: soap needs a lye item and source; the 100 g eating rule is satiation pacing (abstract 7-day reserve) and belongs to the realism/simplified vitals modes; tech_tree.ron is unread aspirational data (about 50 future items), so the new lint covers only NPC shops."
   }
  ],
  "active_scopes_to_avoid": [

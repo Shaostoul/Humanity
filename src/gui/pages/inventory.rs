@@ -943,12 +943,12 @@ fn draw_item_card(
     ui.add_space(theme.spacing_sm);
     ui.horizontal(|ui| {
         ui.spacing_mut().item_spacing.x = 4.0;
-        let is_drink = details
-            .as_ref()
-            .map(|d| d.subcategory == "drink" || d.subcategory == "liquid")
-            .unwrap_or(false)
-            || item.item_id.starts_with("water_");
-        let is_food = details.as_ref().map(|d| d.category == "food").unwrap_or(false) && !is_drink;
+        // What is eaten or drunk comes from the food data, the same source
+        // the food system uses (2026-09-26); it used to be guessed from the
+        // id and offered Drink on the water pump and empty bottles.
+        let kind = crate::systems::food::consume_kinds().get(&item.item_id).copied();
+        let is_drink = kind == Some(true);
+        let is_food = kind == Some(false);
         let is_seed = details.as_ref().map(|d| d.subcategory == "seed").unwrap_or(false)
             || item.item_id.starts_with("seed_");
         // A vehicle KIT (category vehicle / subcategory kit) deploys into the world
