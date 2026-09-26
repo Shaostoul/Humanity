@@ -495,6 +495,47 @@ date; re-check before trusting one. The container data basis is
   seeds whatever the fruit set, so an unpollinated zucchini still gives
   seed; and a crop the offline catch-up carries past flowering is not
   charged for flowers nobody pollinated while the game was closed.
+- **Picked crops are picked over a season, and seed follows the harvest:
+  DONE 2026-09-26.** A tomato, pepper, cucumber, zucchini, eggplant, okra,
+  strawberry, kale or cut herb no longer hands over its whole season at its
+  first ripe fruit. `data/garden/harvest_windows.ron` says, for all 56 crops
+  the homes grow, whether each is harvested once or picked, and for the 20
+  picked ones the window and interval, each quoted with its link and date:
+  UMN's planting tools (the page whose per-plant yields yields.ron already
+  uses) for the fruiting crops and kale (tomato "Indeterminate: 4x per week
+  over 8-10 weeks", 36 picks; pepper 21; eggplant 18; cucumber 21; zucchini
+  14; kale 12; high tunnel strawberries "Daily over 16 weeks", 112),
+  Stapleton and Hochmuth's weekly-cut tower herbs from each herb's first cut
+  to mid-June (basil 38 cuts over 266 days), Montana State's herb trials
+  (chamomile 4 rakings 10 days apart, calendula 12 pickings 5 days apart,
+  feverfew 2 cuttings a month apart), India's NHB for lemongrass (5
+  cuttings 65 days apart) and USU for chives; okra's window, chive's spacing
+  of cuts and comfrey's interval are labelled estimates. The model
+  (`farming/picking.rs`, a `CropPicking` on the crop, saved in `WorldSave`):
+  once ripe, a picked plant's season is split into equal shares, one coming
+  ripe each interval; Harvest takes the ripe shares, pressing again before
+  the next gives nothing, and the season is rolled once per plant with
+  whole items out and the fraction carried, so a plant picked every time
+  gives exactly its cited season, scaled by season health and fruit set.
+  After its last share the plant is spent and its plot empties (keeping its
+  soil), with a notice; a Clear button pulls a ripe picked plant early. Two
+  modes in Settings, "Picking": Forgiving (default), where ripe produce waits
+  on the plant, and Realistic, where a pick not taken before the next comes
+  ripe goes past its best and the plant is spent when its window ends. The
+  crop card gains a "Picking" row ("35 of 36 picks left, next in 1.2 garden
+  days"), and "ready" and the bulk "Harvest N ready" button mean a pick is
+  ready. The home food model (`self_sufficiency::food_supply_kcal_per_day`)
+  now counts a picked crop's season once per growth days plus window, not
+  once per growth days: a tower basil cup a season per 296 days, not per 30.
+  Seed: a survival harvest returns 2 seed items for a full season (a game
+  rule) in proportion to what it harvested, so a zucchini nothing pollinated
+  gives no seed and a pick gives a share. Found, not fixed: the farming tick
+  skips a ripe plant, so through its window a bearing plant takes no water,
+  no nutrients and no stress; for tomato, pepper and cucumber the season
+  total is a high tunnel's and the window a field crop's (UMN's timing table
+  has field rows only), so the total is right and the daily rate high; and
+  mint, rosemary, aloe vera, St. John's wort and the oyster mushroom stay
+  harvested once until their yields are sourced.
 
 - **Each crop's own light need, and a grow-light timer, DONE 2026-09-26**
   (v0.1368.0). plants.csv gained `dli_min`, `dli_target` and

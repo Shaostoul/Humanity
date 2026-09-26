@@ -142,8 +142,11 @@ impl Location {
 /// `(plant_id, plot floor area in m2, number of such plots)`; a `None` area is a single
 /// plant (a tower cup). A plot harvests `farming::units::plot_harvest_kg` (the plants its
 /// area holds at the crop's plants.csv spacing x the per-plant yield x the harvest item's
-/// items.csv mass) once every `growth_days`, so it supplies
-/// `harvest kg x 10 x calories_per_100g / growth_days` kcal a day.
+/// items.csv mass) once a season, so it supplies
+/// `harvest kg x 10 x calories_per_100g / season days` kcal a day. A season is
+/// `growth_days` for a crop harvested once, and `growth_days` plus its picking
+/// window for a crop picked over weeks (`farming::picking::HarvestWindows::season_days`;
+/// until 2026-09-26 every crop counted a whole season per `growth_days`).
 ///
 /// This is the gap #3 bridge in action: the food loop is computed from crop data (the
 /// hand-typed "+120 kcal/d" catalog strings are gone, `grow_machines`), on the same harvest figure the game
@@ -166,7 +169,13 @@ pub fn food_supply_kcal_per_day(
                 return 0.0;
             }
             let kg = crate::systems::farming::units::plot_harvest_kg(id, *area, Some(plants), Some(items));
-            (kg * 10.0 * f64::from(n.calories_per_100g) / f64::from(def.growth_days)) as f32 * count
+            // A crop picked over a season holds its plot for its growth days
+            // AND its picking window, and gives one season's harvest in that
+            // time (2026-09-26, farming::picking, data/garden/harvest_windows.ron):
+            // a tower basil is one season per 30 + 266 days, not per 30.
+            let season_days = crate::systems::farming::picking::HarvestWindows::shipped()
+                .season_days(id, f64::from(def.growth_days));
+            (kg * 10.0 * f64::from(n.calories_per_100g) / season_days) as f32 * count
         })
         .sum()
 }

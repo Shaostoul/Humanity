@@ -1334,6 +1334,8 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     // Soil pH amendment (farming::soil_ph): (area, amendment id).
     let mut action_soil_ph: Option<(String, String)> = None;
     let mut action_pollinate: Option<String> = None;
+    // Clear a ripe picked plant from its plot (farming::picking).
+    let mut action_clear_crop: Option<u64> = None;
     // Summon a world vehicle to drive itself to the player (Stage 3, v0.680),
     // set by the Vehicles section's Summon button; applied after the panel.
     let mut action_summon_vehicle: Option<u64> = None;
@@ -2436,6 +2438,10 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                                             if !c.pollination.is_empty() {
                                                                 stat(ui, "Pollination", c.pollination.clone());
                                                             }
+                                                            // Picked over a season (farming::picking).
+                                                            if !c.picking.is_empty() {
+                                                                stat(ui, "Picking", c.picking.clone());
+                                                            }
                                                             stat(ui, "Water/day", format!("{:.1} L", c.water_per_day));
                                                             stat(ui, "Temp window", format!("{:.0}-{:.0} °C", c.temp_min, c.temp_max));
                                                             stat(ui, "Reservoir", format!("{:.0}%", c.water * 100.0));
@@ -2454,6 +2460,10 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                                         }
                                                         if !c.dead && widgets::compact_button(ui, theme, "Fertilize", widgets::ButtonVariant::Secondary) {
                                                             action_fertilize_crop = Some(c.entity_bits);
+                                                        }
+                                                        // A ripe picked plant can be pulled early to free its plot.
+                                                        if !c.dead && c.progress >= 1.0 && !c.picking.is_empty() && widgets::compact_button(ui, theme, "Clear", widgets::ButtonVariant::Secondary) {
+                                                            action_clear_crop = Some(c.entity_bits);
                                                         }
                                                     });
                                                 }
@@ -2716,6 +2726,9 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     }
     if let Some(area) = action_pollinate {
         state.garden_pests.pollinate_pending = Some(area);
+    }
+    if let Some(bits) = action_clear_crop {
+        state.garden_pests.clear_pending = Some(bits);
     }
     if action_dev_grow {
         state.dev_grow_crops = true;

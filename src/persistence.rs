@@ -86,6 +86,12 @@ pub struct WorldSave {
     /// one. serde-default so a save from before it loads with none.
     #[serde(default)]
     pub crop_pollination: Vec<Option<crate::ecs::components::CropPollination>>,
+    /// Each saved crop's picking state (2026-09-26, farming::picking),
+    /// parallel to `crops`; None for a crop without one (not yet ripe, or
+    /// harvested once). serde-default so a save from before it loads with
+    /// none, and a ripe picked crop then starts its window afresh.
+    #[serde(default)]
+    pub crop_picking: Vec<Option<crate::ecs::components::CropPicking>>,
     /// What each emptied unit's soil still held, for the next crop sown there.
     #[serde(default)]
     pub soil_memory: crate::ecs::components::SoilMemory,
@@ -155,6 +161,7 @@ impl WorldSave {
             crops: Vec::new(),
             crop_soil: Vec::new(),
             crop_pollination: Vec::new(),
+            crop_picking: Vec::new(),
             inventory_state: Vec::new(),
             soil_memory: Default::default(),
             credits: -1,
@@ -363,6 +370,7 @@ mod tests {
             crops: Vec::new(),
             crop_soil: Vec::new(),
             crop_pollination: Vec::new(),
+            crop_picking: Vec::new(),
             inventory_state: Vec::new(),
             soil_memory: Default::default(),
             credits: -1,

@@ -39,6 +39,11 @@ pub struct GardenPests {
     pub pollination_off: bool,
     pub pollinate_areas: Vec<String>,
     pub pollinate_pending: Option<String>,
+    /// Picking over a season (2026-09-26, farming::picking): Settings
+    /// "Realistic" (saved as AppConfig::picking_realistic; Forgiving is the
+    /// default), and the crop the player chose to clear from its plot.
+    pub picking_realistic: bool,
+    pub clear_pending: Option<u64>,
 }
 
 /// A growing crop for GUI display (synced from the ECS each frame).
@@ -95,4 +100,7 @@ pub struct GuiCrop {
     pub ph_held: bool,
     /// Its "Pollination" card row (farming::pollination::GuiView); "" = none.
     pub pollination: String,
+    /// Its "Picking" card row (farming::picking::GuiView, 2026-09-26): how a
+    /// crop picked over a season stands; "" for a crop harvested once.
+    pub picking: String,
 }

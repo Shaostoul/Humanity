@@ -698,6 +698,10 @@ mod tests {
     /// the ratio sits near 0.49 well inside the bounds whatever plants.csv
     /// says a tomato plant yields. Seen red by removing the multiplication from the harvest
     /// path in farming/mod.rs (the ratio was then 1.0).
+    ///
+    /// CHANGED 2026-09-26 (picking.rs): a tomato is picked over a season, so
+    /// each one here has waited out its whole window (Forgiving picking) and
+    /// one press takes its season, as one harvest did before.
     #[test]
     fn the_harvest_carries_the_fruit_set() {
         let mut data = store(10.0, true);
@@ -711,7 +715,10 @@ mod tests {
         let flowered = |pollinated: f64| CropPollination { flowering_days: 10.0, pollinated_days: pollinated, hand_days_left: 0.0 };
         let mut pick = |world: &mut hecs::World, pollinated: f64| -> u32 {
             let bits: Vec<u64> = (0..600)
-                .map(|_| world.spawn((crop("tomato", "ntower_3", &ripe), flowered(pollinated))).to_bits().into())
+                .map(|_| {
+                    let waited = crate::ecs::components::CropPicking { days_ripe: 1000.0, ..Default::default() };
+                    world.spawn((crop("tomato", "ntower_3", &ripe), flowered(pollinated), waited)).to_bits().into()
+                })
                 .collect();
             let before = world.get::<&Inventory>(player).unwrap().count_item("vegetable_tomato_0");
             *data.get::<std::sync::Mutex<Vec<u64>>>("harvest_many_request").unwrap().lock().unwrap() = bits;

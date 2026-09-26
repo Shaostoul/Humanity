@@ -94,17 +94,16 @@
 //
 // -- Where these numbers are weak (so nobody trusts them further than they go) --
 //
-//   - SEASON COMPRESSION. growth_days is days to the FIRST harvest, and the game
-//     picks a crop once and removes it. For a crop picked or cut over a season
-//     (tomato, pepper, cucumber, zucchini, eggplant, okra, strawberry, kale and
-//     every cut herb) the yield here is the whole season's pick, delivered at
-//     growth_days. So a unit replanted back to back yields a season's pick every
-//     growth_days: a year of tower tomatoes (70 days each) comes to about 2 to 3
-//     times what a real plant gives in a year, and a year of tower basil (30 days,
-//     Stapleton's nine-month total) about 9 times. The per-plant figures are the
-//     real ones; the gap is the missing picking window (a ripe plant that keeps
-//     producing until its season ends), which is a farming-system change, not a
-//     number to shrink here.
+//   - SEASON COMPRESSION, fixed 2026-09-26. growth_days is days to the FIRST
+//     harvest, and until then the game picked a crop once and removed it, so a
+//     crop picked or cut over a season (tomato, pepper, cucumber, zucchini,
+//     eggplant, okra, strawberry, kale and every cut herb) delivered its whole
+//     season here at growth_days, and a unit replanted back to back yielded a
+//     season every growth_days (a year of tower basil, Stapleton's nine-month
+//     total every 30 days, about 12 seasons). The per-plant figures here were
+//     always the season's; data/garden/harvest_windows.ron now gives each picked
+//     crop its cited picking window and interval, and the game hands the season
+//     over pick by pick across that window (farming::picking).
 //   - Two sources joined for one crop: rice (NASS yield for drill-seeded rice,
 //     IRRI hill spacing), potato, the pulses, chive, and the dry-weight herbs.
 //     Their per-m2 harvest is the cited one; the per-plant split leans on the

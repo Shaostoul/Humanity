@@ -1,0 +1,251 @@
+// Harvested once, or picked over a season (2026-09-26, gardening depth).
+// Read by src/systems/farming/picking.rs, which carries the model; this file
+// carries the crops, the numbers and where each came from. Every source below
+// was read on 2026-09-26.
+//
+// -- The problem this fixes ------------------------------------------------------
+//
+// plants.csv `growth_days` is the days to the FIRST ripe harvest, and its
+// yield_min/yield_max are a cited harvest per plant for the WHOLE season (see
+// data/garden/yields.ron). Until 2026-09-26 the game harvested every crop once
+// at growth_days and emptied the unit, so a crop that is really picked for weeks
+// delivered its whole season at its first ripe fruit, and a unit replanted back
+// to back yielded a season every growth_days: a tower tomato (70 days) about
+// 5 seasons a year, a tower basil (30 days) about 12, where the cited basil
+// total is nine months of weekly cutting.
+//
+// -- The rule --------------------------------------------------------------------
+//
+// Once: harvested whole when ripe, as before; the unit is then empty.
+// Picked(window_days, every_days): once ripe, the plant bears for window_days
+//   garden days and is picked every every_days. Its season is split into
+//   picks = round(window_days / every_days) equal shares; pick k comes ripe
+//   k x every_days after the plant first ripened, so the first is ready the day
+//   it ripens. Each pick gives its share of the plant's cited season yield,
+//   scaled by season health and fruit set exactly as a once harvest is, so a
+//   plant picked every time gives exactly the season yield and never more.
+//   After its last pick the plant is spent and the unit is empty.
+//
+// Two modes (Settings, "Picking"; the house rule for a deep system):
+//   Forgiving (the default): ripe produce waits on the plant. A pick takes
+//     every share that has come ripe since the last one, and the plant is spent
+//     only when its last share has been picked.
+//   Realistic: each pick is at its best for one interval and is lost if it is
+//     not picked by the time the next comes ripe, and the plant is spent when
+//     its window ends. The sources say why: Iowa State PM 534 on summer squash,
+//     "If harvested every other day, plants will keep producing until frost",
+//     and on cucumbers, "Production is continuous if kept picked"; University of
+//     Maryland on okra, "Harvest young and tender 2- to 4-inch long pods
+//     approximately one to three days after the flowers open, before pods get
+//     woody (they become tough)"; Montana State on calendula, "Flowers must be
+//     harvested regularly to avoid overmaturity". The one-interval hold is a
+//     game reading of those, not a measured shelf life on the plant.
+//
+// The window runs on the garden clock (the growth speed setting applies) and
+// only while the game runs: the offline catch-up does not advance it.
+//
+// -- Sources (read 2026-09-26; the date after each is the source's own) ----------
+//
+//   UMN Hoidal  University of Minnesota Extension, "Crop and field planning tools
+//               for vegetable farmers", Natalie Hoidal ("Reviewed in 2026"),
+//               https://extension.umn.edu/agriculture/specialty-crops/vegetable-
+//               farming/crop-and-field-planning-tools-for-vegetable-farmers.
+//               The same page gives the per-plant yields yields.ron uses, and a
+//               "Harvest window" column in its timing tables for transplanted and
+//               direct-seeded crops. The timing tables have field rows only,
+//               except day-neutral strawberries, which also have a high tunnel
+//               row. yields.ron takes the HIGH TUNNEL yield for tomato, pepper
+//               and cucumber, so for those three the season total is a high
+//               tunnel's and the window a field crop's: the total is right and
+//               the daily rate is high (a high tunnel stretches the season).
+//   Stapleton   Stapleton, S. C. and Hochmuth, R. C. (2001), "Greenhouse
+//               production of several fresh-cut herbs in vertical hydroponic
+//               systems in north central Florida", Proc. Fla. State Hort. Soc.
+//               114: 332-334, https://svaec.ifas.ufl.edu/media/svaecifasufledu/
+//               docs/pdf/svreports/crops/leafygreens/Fresh-cut-herbs-in-Vertical-
+//               hydroponic-Systems.pdf. "Herbs were harvested weekly by hand" and
+//               "Non-destructive harvests continued as plant growth allowed, from
+//               Sept. until trial was terminated in mid-June." Seeds "were sown ...
+//               on 3 Aug. 2000"; Table 1 gives each herb's days from sowing to
+//               transplant and from transplant to first harvest, so its first cut
+//               is 3 Aug. 2000 plus both ("The first harvest occurred on 22 Sept.
+//               for basil and 27 Sept. for ... thyme"). The window is that first
+//               cut to 15 June 2001 (mid-June). These are the per-plant totals
+//               yields.ron uses for the tower herbs.
+//   MSU WARC    Montana State University, Western Agricultural Research Center,
+//               herb trial pages (Callan and others; undated pages, trials of 1998
+//               and 1999), https://agresearch.montana.edu/warc/research_current/
+//               research_past/herbsandoils/ (calendula.html, chamomile.html,
+//               feverfew.html). The same trials yields.ron cites.
+//   UMD Okra    University of Maryland Extension, "Growing Okra in a Home Garden"
+//               (updated 20 February 2023), https://extension.umd.edu/resource/
+//               growing-okra-home-garden.
+//   NHB         India National Horticulture Board, model project report "Lemon
+//               Grass" (undated), https://nhb.gov.in/model-project-reports/
+//               Horticulture%20Crops/Lemongrass/Lemongrass1.htm.
+//   USU Chives  Utah State University Extension, "How to Grow Chives in Your
+//               Garden", Dan Drost (published March 2020),
+//               https://extension.usu.edu/yardandgarden/research/chives-in-the-garden.
+//   AFCM        Alternative Field Crops Manual, "Comfrey", Teynor et al.
+//               (February 1992), https://corn.agronomy.wisc.edu/Crops/Comfrey.aspx.
+//   ISU PM 534  Iowa State University Extension, "Planting and harvesting times
+//               for garden vegetables", PM 534, Jauron and Nelson (revised
+//               February 2009), read at https://www.creighton.edu/fileadmin/user/
+//               health/wellness-council/docs/Programs/Planting__Harvesting_Times-
+//               ISU.pdf.
+//
+// -- Where these numbers are weak ------------------------------------------------
+//
+//   - Eggplant: UMN's "Biweekly" is read as twice a week. The same word means
+//     twice a week in MSU's calendula trial ("harvested biweekly from July 20
+//     through August 21, then weekly until September 23 (13 harvests)", which
+//     only reaches 13 at twice a week).
+//   - ESTIMATES, labelled on their rows: okra's window, chive's first-year
+//     spacing of cuts, and comfrey's interval.
+//   - A picked plant's nutrient draw is its whole season's, drawn by the time it
+//     ripens (farming::soil); a bearing plant really keeps drawing. And the
+//     farming tick does not step a ripe plant, so during its window it takes no
+//     water and no stress. Both are the farming tick's, not this file's.
+//   - The seed a harvest returns (2 seed items for a full harvest, fewer for a
+//     smaller one, picking.rs SEEDS_PER_FULL_HARVEST) is a game rule.
+//
+// FIELDS: plant is a data/plants.csv id (a test checks each, and that every crop
+// the homes grow is listed). harvest is Once, or Picked(window_days, every_days)
+// in garden days.
+(
+    crops: [
+        // -- Picked: fruiting crops (UMN Hoidal, timing table "Harvest window") --
+        // tomato: "Tomato: slicers / Romas | 28-35 | June 1 | 65-85 | Determinate: daily
+        //     over 3-4 weeks Indeterminate: 4x per week over 8-10 weeks". The yield is the
+        //     indeterminate high tunnel slicer's, so 9 weeks at 4 picks a week: 36 picks.
+        (plant: "tomato", harvest: Picked(window_days: 63.0, every_days: 1.75)),
+        // pepper: "Pepper: bell | 35-50 | June 1 | 50-70 | 3x per week over 6-8 weeks": 7
+        //     weeks at 3 a week, 21 picks.
+        (plant: "pepper", harvest: Picked(window_days: 49.0, every_days: 2.3333)),
+        // eggplant: "Eggplant | 28-35 | June 1 | 50-70 | Biweekly over 8-10 weeks": 9 weeks
+        //     at twice a week (see the weak points above), 18 picks.
+        (plant: "eggplant", harvest: Picked(window_days: 63.0, every_days: 3.5)),
+        // cucumber: "Cucumber (field) | 28 | June 1 | 40-60 | Daily over 3 weeks": 21 picks.
+        (plant: "cucumber", harvest: Picked(window_days: 21.0, every_days: 1.0)),
+        // zucchini: "Summer squash & zucchini | 21-28 | June 1 | 50-55 | 4x per week for 3-4
+        //     weeks": 3.5 weeks at 4 a week, 14 picks.
+        (plant: "zucchini", harvest: Picked(window_days: 24.5, every_days: 1.75)),
+        // strawberry: "Day neutral strawberries (high tunnel) | N/A | May 15 | 65 | Daily over
+        //     16 weeks": 112 picks. The yield is the same row's ("1 lb" per plant, high tunnel).
+        (plant: "strawberry", harvest: Picked(window_days: 112.0, every_days: 1.0)),
+        // okra: UMD Okra: "Harvest okra three times a week" and "It will consistently yield
+        //     okra pods from the height of summer until the late fall." The window is a game
+        //     ESTIMATE reading that as mid-July to the end of October, 14 weeks: 42 picks.
+        (plant: "okra", harvest: Picked(window_days: 98.0, every_days: 2.3333)),
+        // kale: UMN Hoidal, "Kale | 21 | May 1 | 40-50 | 1x for bunching weekly up to 12
+        //     weeks for continuous harvest", and the yield row "2.75 - 4 lb (continuous
+        //     harvest)": 12 weekly picks.
+        (plant: "kale", harvest: Picked(window_days: 84.0, every_days: 7.0)),
+
+        // -- Picked: cut herbs --------------------------------------------------------
+        // Stapleton, weekly cutting from each herb's first cut to mid-June 2001.
+        // basil: first harvest "22 Sept." (Table 1: 36 + 13 days from sowing), 266 days: 38 cuts.
+        (plant: "basil", harvest: Picked(window_days: 266.0, every_days: 7.0)),
+        // parsley: 47 + 21 days, first cut 10 Oct. 2000, 248 days: 35 cuts.
+        (plant: "parsley", harvest: Picked(window_days: 248.0, every_days: 7.0)),
+        // dill: 44 + 23 days, first cut 9 Oct. 2000, 249 days: 36 cuts. Dill's figure is
+        //     marked "average from multiple plantings" (it bolted and was replanted).
+        (plant: "dill", harvest: Picked(window_days: 249.0, every_days: 7.0)),
+        // oregano: 40 + 21 days, first cut 3 Oct. 2000, 255 days: 36 cuts.
+        (plant: "oregano", harvest: Picked(window_days: 255.0, every_days: 7.0)),
+        // thyme: first harvest "27 Sept." (33 + 22 days), 261 days: 37 cuts.
+        (plant: "thyme", harvest: Picked(window_days: 261.0, every_days: 7.0)),
+        // sage: 33 + 28 days, first cut 3 Oct. 2000, 255 days: 36 cuts.
+        (plant: "sage", harvest: Picked(window_days: 255.0, every_days: 7.0)),
+        // chive: USU Chives: "Harvest 3-4 times during the first year. In subsequent years,
+        //     cut plants back monthly." yields.ron's chive figure (a USVI trial's total fresh
+        //     yield) does not say how many cuts it took, so 4 monthly cuts is a game ESTIMATE
+        //     from USU's first year.
+        (plant: "chive", harvest: Picked(window_days: 120.0, every_days: 30.0)),
+        // lemongrass: NHB: "Subsequent harvests are done at intervals of 60-70 days" and
+        //     "25 to 30 tonnes of fresh herbage are harvested per hectare per annum from 4 -6
+        //     cuttings" (yields.ron's figure): 5 cuttings, 65 days apart.
+        (plant: "lemongrass", harvest: Picked(window_days: 325.0, every_days: 65.0)),
+        // chamomile: MSU WARC: "Raking in 1999 was done at 10-day intervals" and "In 1999,
+        //     both cultivars were harvested four times" (in 1998 three or four): 4 rakings.
+        (plant: "chamomile", harvest: Picked(window_days: 40.0, every_days: 10.0)),
+        // calendula: MSU WARC: "In 1999 flowers were harvested every 4-6 days (10 harvests)
+        //     from July 22 ... through September 3, with a final harvest September 15", and in
+        //     1998 "biweekly from July 20 through August 21, then weekly until September 23 (13
+        //     harvests)": 55 and 65 days, so 60 days at 5 days, 12 pickings.
+        (plant: "calendula", harvest: Picked(window_days: 60.0, every_days: 5.0)),
+        // feverfew: MSU WARC: "After vigorous regrowth the plants that had been harvested at
+        //     early bloom were cut again about 1 month later", and "Harvesting twice resulted
+        //     in greater total yields than a single harvest": 2 cuttings a month apart. The
+        //     yields.ron range spans single and double cutting, so it understates two cuts.
+        (plant: "feverfew", harvest: Picked(window_days: 60.0, every_days: 30.0)),
+        // comfrey: AFCM: annual yields in Minnesota "for four or five cuttings", and "on a
+        //     fresh-weight basis, the same yields ranged from 13 to 61 t/acre" (yields.ron's
+        //     figure). The page gives no interval, so 4 cuttings 5 weeks apart across a
+        //     Minnesota summer is a game ESTIMATE.
+        (plant: "comfrey", harvest: Picked(window_days: 140.0, every_days: 35.0)),
+
+        // -- Once --------------------------------------------------------------------
+        // Grain, dry pulses and oilseed: cut once when the crop is dry; each yields.ron
+        // figure is one harvest (USDA NASS).
+        (plant: "wheat", harvest: Once),
+        (plant: "rice", harvest: Once),
+        (plant: "bean", harvest: Once),
+        (plant: "soybean", harvest: Once),
+        (plant: "lentil", harvest: Once),
+        (plant: "chickpea", harvest: Once),
+        (plant: "sunflower", harvest: Once),
+        // pea: green peas for shelling, and yields.ron's figure is NASS processing peas, a
+        //     once-over harvest. (UMN's snap pea row, "Every other day for 1-2 weeks", is a
+        //     different crop with a different yield.)
+        (plant: "pea", harvest: Once),
+        // Roots, tubers and bulbs, lifted whole. UMN Hoidal: "Potato | ... | 1x, can be
+        //     harvested over many weeks", "Beets | ... | 1x over 2-3 weeks", "Carrots | ... |
+        //     1x over 2-3 weeks", "Radish | ... | 1x over a few days", "Onions | ... | 1x, 1
+        //     week window", "Garlic | ... | 1 week". Turnip, parsnip, leek, ginger and
+        //     turmeric are lifted the same way.
+        (plant: "potato", harvest: Once),
+        (plant: "beet", harvest: Once),
+        (plant: "carrot", harvest: Once),
+        (plant: "radish", harvest: Once),
+        (plant: "turnip", harvest: Once),
+        (plant: "parsnip", harvest: Once),
+        (plant: "onion", harvest: Once),
+        (plant: "garlic", harvest: Once),
+        (plant: "leek", harvest: Once),
+        (plant: "ginger", harvest: Once),
+        (plant: "turmeric", harvest: Once),
+        // Heads and whole plants. yields.ron's figures are one head or one plant: UMN Hoidal
+        //     broccoli and cauliflower "100 lb/~80 marketable heads" and "100 lb/~60
+        //     marketable heads", cabbage "150 lb/~80 marketable heads"; NCSU CEFS lettuce
+        //     heads; OSU fresh-market celery. (UMN's broccoli side shoots are not in the yield.)
+        (plant: "lettuce", harvest: Once),
+        (plant: "cabbage", harvest: Once),
+        (plant: "broccoli", harvest: Once),
+        (plant: "cauliflower", harvest: Once),
+        (plant: "celery", harvest: Once),
+        // spinach: UMN Hoidal "1x or multiple cuts over 3-4 weeks"; yields.ron's NCSU figure
+        //     does not say, and is taken as one cut.
+        (plant: "spinach", harvest: Once),
+        // cilantro: NCSU CEFS gives no number of cuts, and cilantro bolts: Stapleton dropped
+        //     it from the tower trial for "repeated bolting". One cut.
+        (plant: "cilantro", harvest: Once),
+        // One crop a year of flowers, cones or roots: lavender (Penn State's per-acre yield
+        //     "of dried flowers" a year), hop ("One cone harvest a year", yields.ron), saffron
+        //     (a year's flowers per corm, picked over its short autumn bloom and counted here
+        //     as one picking), echinacea flowers (Kleitz et al.) and valerian root.
+        (plant: "lavender", harvest: Once),
+        (plant: "hop", harvest: Once),
+        (plant: "saffron", harvest: Once),
+        (plant: "echinacea", harvest: Once),
+        (plant: "valerian", harvest: Once),
+        // No yield sourced yet (yields.ron "Not sourced yet"): mint, rosemary, aloe vera, St.
+        //     John's wort and the oyster mushroom stay harvested once until a yield with its
+        //     cutting or flush schedule is found. All five are really cut or flush repeatedly.
+        (plant: "mint", harvest: Once),
+        (plant: "rosemary", harvest: Once),
+        (plant: "aloe_vera", harvest: Once),
+        (plant: "st_johns_wort", harvest: Once),
+        (plant: "oyster_mushroom", harvest: Once),
+    ],
+)

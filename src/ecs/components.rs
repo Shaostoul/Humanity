@@ -416,6 +416,37 @@ pub struct CropPollination {
     pub hand_days_left: f64,
 }
 
+/// A ripe crop that is PICKED over a season, not harvested once (2026-09-26,
+/// `farming::picking`, data/garden/harvest_windows.ron): a tomato, a pepper,
+/// a cut herb. Its window is split into picks at the crop's cited interval;
+/// pick `k` comes ripe `k x every_days` garden days after the plant first
+/// ripened. Given to a picked crop the first time it is seen ripe. A separate
+/// component for the same reason as `CropSoil`; saved alongside the crop in
+/// `WorldSave::crop_picking`.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct CropPicking {
+    /// Garden days since the plant first ripened.
+    #[serde(default)]
+    pub days_ripe: f64,
+    /// One past the last share picked (0-based): shares from here on are
+    /// still to pick, unless (Realistic mode) they have passed over.
+    #[serde(default)]
+    pub next_pick: u32,
+    /// Shares picked so far (one press can take several in Forgiving mode),
+    /// so the card can say how many passed over unpicked.
+    #[serde(default)]
+    pub taken: u32,
+    /// Where this plant's season fell in the plants.csv yield range, 0..1,
+    /// rolled at its first pick: one plant has one season, so its picks share
+    /// one roll the way a crop harvested once has one.
+    #[serde(default)]
+    pub roll: Option<f32>,
+    /// Items this plant has grown that its picks have not yet handed over
+    /// (below one), so whole items come out and the season adds up.
+    #[serde(default)]
+    pub carry: f64,
+}
+
 /// What is left in the soil of units whose crop was harvested or died,
 /// keyed by grow-area tag then unit index (2026-09-26). The next crop sown
 /// in that unit starts from it instead of fresh soil, so a bed that fed one

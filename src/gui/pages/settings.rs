@@ -3480,6 +3480,20 @@ pub(crate) fn draw_gameplay_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
                 }
             }
         });
+        // Picking over a season (2026-09-26, farming::picking; the dual-mode house rule).
+        ui.add_space(theme.spacing_lg);
+        ui.label(RichText::new("Picking").color(theme.text_secondary()).strong());
+        ui.add_space(theme.spacing_xs);
+        widgets::setting_hint(ui, theme, hint, "Tomatoes, peppers, cucumbers, strawberries, kale and cut herbs are picked every few days for weeks once ripe, each pick a share of the season. Forgiving lets ripe produce wait on the plant until you pick it; Realistic loses a pick you do not take before the next comes ripe, as real produce goes past its best.");
+        ui.horizontal(|ui| {
+            for (realistic, label) in [(false, "Forgiving"), (true, "Realistic")] {
+                let selected = state.garden_pests.picking_realistic == realistic;
+                if ui.radio(selected, RichText::new(label).color(theme.text_primary())).clicked() && !selected {
+                    state.garden_pests.picking_realistic = realistic;
+                    state.settings_dirty = true;
+                }
+            }
+        });
         ui.add_space(theme.spacing_lg);
         // Soil pH (2026-09-26, farming::soil_ph; the dual-mode house rule).
         ui.label(RichText::new("Soil pH").color(theme.text_secondary()).strong());

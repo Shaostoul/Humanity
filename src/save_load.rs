@@ -132,16 +132,19 @@ pub fn extract_world_save(world: &hecs::World) -> WorldSave {
     // was saved when nothing wrote it, and every restart rewound the garden.)
     // Each crop with its soil (2026-09-26, N-P-K), and the soil the emptied
     // units remember, so a restart does not refill every unit.
-    // And each crop's pollination record (2026-09-26, farming::pollination).
-    use crate::ecs::components::{CropInstance, CropPollination, CropSoil};
-    let crops: Vec<(CropInstance, Option<CropSoil>, Option<CropPollination>)> = world
-        .query::<(&CropInstance, Option<&CropSoil>, Option<&CropPollination>)>()
+    // And each crop's pollination record (2026-09-26, farming::pollination),
+    // and a picked crop's picking state (farming::picking).
+    use crate::ecs::components::{CropInstance, CropPicking, CropPollination, CropSoil};
+    type Saved = (CropInstance, Option<CropSoil>, Option<CropPollination>, Option<CropPicking>);
+    let crops: Vec<Saved> = world
+        .query::<(&CropInstance, Option<&CropSoil>, Option<&CropPollination>, Option<&CropPicking>)>()
         .iter()
-        .map(|(_e, (c, s, p))| (c.clone(), s.cloned(), p.cloned()))
+        .map(|(_e, (c, s, p, k))| (c.clone(), s.cloned(), p.cloned(), k.cloned()))
         .collect();
-    save.crop_soil = crops.iter().map(|(_, s, _)| s.clone()).collect();
-    save.crop_pollination = crops.iter().map(|(_, _, p)| p.clone()).collect();
-    save.crops = crops.into_iter().map(|(c, _, _)| c).collect();
+    save.crop_soil = crops.iter().map(|(_, s, _, _)| s.clone()).collect();
+    save.crop_pollination = crops.iter().map(|(_, _, p, _)| p.clone()).collect();
+    save.crop_picking = crops.iter().map(|(_, _, _, k)| k.clone()).collect();
+    save.crops = crops.into_iter().map(|(c, _, _, _)| c).collect();
     save.soil_memory = world
         .query::<&crate::ecs::components::SoilMemory>()
         .iter()
@@ -306,6 +309,9 @@ pub fn apply_save_to_world(world: &mut hecs::World, save: &WorldSave) {
         }
         if let Some(pollination) = save.crop_pollination.get(i).cloned().flatten() {
             let _ = world.insert_one(e, pollination);
+        }
+        if let Some(picking) = save.crop_picking.get(i).cloned().flatten() {
+            let _ = world.insert_one(e, picking);
         }
     }
     // One soil memory per world (2026-09-26): the save's replaces the live one.
@@ -527,7 +533,10 @@ pub struct Resumed {
 /// anything that consumes or destroys. That includes garden PESTS
 /// (2026-09-26): their pressure costs crop health and the player could not
 /// have answered it while away, so it resumes where the save left it and the
-/// character's upkeep kept them down in the meantime. A crop's soil draw is
+/// character's upkeep kept them down in the meantime. Nor does a picked
+/// crop's picking window (2026-09-26, farming::picking): its clock runs on
+/// the tick, so produce the player could not have picked while away does
+/// not pass over, and the window resumes where the save left it. A crop's soil draw is
 /// not in that class: the growth made offline is paid for from its unit on
 /// the first tick back (farming's uptake), which is the crop's own feeding.
 ///
@@ -1091,6 +1100,57 @@ mod tests {
         apply_save_to_world(&mut older, &back);
         assert_eq!(older.query::<&CropInstance>().iter().count(), 2);
         assert_eq!(older.query::<&CropPollination>().iter().count(), 0);
+    }
+
+    /// A picked crop's picking state survives a save (2026-09-26,
+    /// farming::picking): how long it has been ripe, the picks taken, its
+    /// season roll and the fraction it carries come back on the same crop,
+    /// and a crop that had none still has none. A save from before the field
+    /// (no `crop_picking`) still loads, its crops with no state (a ripe picked
+    /// crop then starts its window afresh). Seen red by not writing
+    /// `crop_picking` in `extract_world_save`.
+    #[test]
+    fn crop_picking_survives_a_save() {
+        use crate::ecs::components::{CropInstance, CropPicking};
+        let mut world = hecs::World::new();
+        let crop = |plant: &str, stage: &str| CropInstance {
+            crop_def_id: plant.into(),
+            growth_stage: stage.into(),
+            planted_at: 0.0,
+            water_level: 1.0,
+            health: 100.0,
+            tower_id: Some("ntower_3".into()),
+            tower_slot: Some(1),
+            health_seconds: 0.0,
+            growing_seconds: 0.0,
+        };
+        let rec = CropPicking { days_ripe: 12.25, next_pick: 7, taken: 6, roll: Some(0.625), carry: 0.375 };
+        world.spawn((crop("tomato", "ripe"), rec.clone()));
+        world.spawn((crop("lettuce", "mature"),));
+        let save = extract_world_save(&world);
+        let text = serde_json::to_string(&save).unwrap();
+        let back: WorldSave = serde_json::from_str(&text).unwrap();
+        let mut fresh = hecs::World::new();
+        apply_save_to_world(&mut fresh, &back);
+        let got: Vec<(String, Option<CropPicking>)> = fresh
+            .query::<(&CropInstance, Option<&CropPicking>)>()
+            .iter()
+            .map(|(_, (c, p))| (c.crop_def_id.clone(), p.cloned()))
+            .collect();
+        assert_eq!(got.len(), 2);
+        for (plant, p) in got {
+            match plant.as_str() {
+                "tomato" => assert_eq!(p, Some(rec.clone()), "the tomato's picking came back"),
+                _ => assert_eq!(p, None, "the lettuce still has none"),
+            }
+        }
+        let mut old: serde_json::Value = serde_json::from_str(&text).unwrap();
+        old.as_object_mut().unwrap().remove("crop_picking");
+        let back: WorldSave = serde_json::from_value(old).unwrap();
+        let mut older = hecs::World::new();
+        apply_save_to_world(&mut older, &back);
+        assert_eq!(older.query::<&CropInstance>().iter().count(), 2);
+        assert_eq!(older.query::<&CropPicking>().iter().count(), 0);
     }
 
     /// pre-v0.517 save (no `placed_items` field) loads with an empty pool (serde

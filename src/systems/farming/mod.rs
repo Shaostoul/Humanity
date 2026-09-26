@@ -13,8 +13,11 @@ pub mod lighting;
 pub mod soil_ph;
 pub mod automation;
 pub mod units;
+pub mod picking;
 #[cfg(test)]
 mod nutrient_tests;
+#[cfg(test)]
+mod picking_tests;
 #[cfg(test)]
 mod pest_tests;
 #[cfg(test)]
@@ -775,6 +778,40 @@ pub fn crop_removal(
     }
 }
 
+/// A crop leaves its unit (2026-09-26): harvested whole, a picked plant spent
+/// after its last pick or its window (picking.rs), or cleared by the player.
+/// The unit keeps what the crop left in its soil for the next crop sown there
+/// (soil.rs); a legume also leaves the FIXED nitrogen in its roots, nodules
+/// and haulm (soil::legume_credit_n), in proportion to the share of its
+/// season it actually grew: a crop ripened by the dev button fixed nothing
+/// and leaves nothing. Then the crop is despawned.
+#[allow(clippy::too_many_arguments)]
+fn vacate_unit(
+    world: &mut hecs::World,
+    entity: hecs::Entity,
+    plants_here: u32,
+    plant_registry: Option<&PlantRegistry>,
+    item_registry: Option<&crate::systems::inventory::ItemRegistry>,
+    demand_scale: Option<Npk>,
+    legume_harvest_share: f64,
+) {
+    let unit = world
+        .get::<&CropInstance>(entity)
+        .ok()
+        .map(|c| (c.crop_def_id.clone(), c.tower_id.clone().zip(c.tower_slot)));
+    let left = world.get::<&CropSoil>(entity).ok().map(|s| (s.store, s.uptake));
+    if let (Some((plant_id, Some((area, slot)))), Some((store, uptake))) = (unit, left) {
+        let fixed = plant_registry.and_then(|r| r.get(&plant_id)).map_or(0.0, |d| f64::from(d.n_fixed_share));
+        let removal = crop_removal(&plant_id, plants_here, plant_registry, item_registry, demand_scale);
+        let credit = soil::legume_credit_n(removal.n, fixed, legume_harvest_share) * f64::from(uptake.clamp(0.0, 1.0));
+        if credit > 0.0 {
+            log::info!("[Farming] {plant_id} left {credit:.3} g of fixed N in {area} unit {slot}");
+        }
+        soil::remember(world, &area, slot, Npk::new(store.n + credit, store.p2o5, store.k2o));
+    }
+    let _ = world.despawn(entity);
+}
+
 /// Clear the dead crops found in a unit before it is replanted, keeping
 /// what their soil still holds for the crop about to go in (2026-09-26).
 fn clear_dead_keeping_soil(world: &mut hecs::World, dead: Vec<hecs::Entity>, area: &str, slot: u32) {
@@ -874,11 +911,15 @@ pub struct FarmingSystem {
     /// Pollination (2026-09-26, pollination.rs): its data, and the areas
     /// told their flowers wait for a pollinator.
     pollination: pollination::Pollination,
+    /// Picking over a season (2026-09-26, picking.rs): its data, and the
+    /// areas told their produce passed over.
+    picking: picking::Picking,
 }
 
 impl FarmingSystem {
     pub fn new() -> Self {
         Self {
+            picking: picking::Picking::new(),
             _initialized: false,
             nutrients: None,
             feed_open: HashMap::new(),
@@ -1616,10 +1657,30 @@ impl System for FarmingSystem {
             }
         }
 
+        // PICKING (2026-09-26, picking.rs): the Clear request, each ripe
+        // picked plant's window on the garden clock, and (Realistic mode) the
+        // plants whose window ended. Each leaves its unit as a harvest does.
+        let leaving = self.picking.step(world, data, game_dt * f64::from(growth_speed) / SECONDS_PER_DAY);
+        let mut finished: Vec<String> = Vec::new();
+        for (e, why) in leaving {
+            let Some((plant_id, plants_here)) =
+                world.get::<&CropInstance>(e).ok().map(|c| (c.crop_def_id.clone(), unit_plants(&c)))
+            else {
+                continue;
+            };
+            if why == picking::Leaving::Spent {
+                finished.push(plant_id);
+            }
+            vacate_unit(world, e, plants_here, plant_registry, item_registry, demand_scale, legume_harvest_share);
+        }
+
         // HARVEST: a fully-grown crop -> produce items into the player + despawn it.
         // Volume-gate surplus that doesn't fit the pack routes into a compatible
         // home vessel (the grain silo) instead of vanishing — collected here,
         // applied after the inventory borrow ends. (v0.729)
+        // A PICKED crop (2026-09-26, picking.rs) gives the picks that have
+        // come ripe and stays until its last; a press before the next pick is
+        // ripe gives nothing.
         let mut vessel_routes: Vec<(String, u32)> = Vec::new();
         let mut harvest_list: Vec<u64> = Vec::new();
         if let Some(bits) = data
@@ -1657,35 +1718,35 @@ impl System for FarmingSystem {
                     }
                 });
                 if let Some((plant_id, crop_season_health, plants_here)) = picked {
+                    // Yield range from the plant def, PER PLANT and FRACTIONAL
+                    // (f32): a wheat plant gives 0.002 of an item. Sanitize the
+                    // window (min >= 0, max >= min); unknown plants fall back
+                    // to exactly 1 unit as before.
+                    let (ymin, ymax) = plant_registry
+                        .and_then(|reg| reg.get(&plant_id))
+                        .map(|d| {
+                            let lo = d.yield_min.max(0.0);
+                            (lo, d.yield_max.max(lo))
+                        })
+                        .unwrap_or((1.0, 1.0));
+                    // The unit's harvest is its plants' (2026-09-26,
+                    // units.rs): one for a tower cup, every plant a bed
+                    // plot holds. One roll for the whole unit: its plants
+                    // shared one season, one water supply and one soil.
+                    // Rolled in [ymin, ymax], scaled by the crop's season
+                    // health and fruit set, rounded probabilistically: see
+                    // harvest_quantity for the model and its source. A crop
+                    // harvested once gives it all now; a picked one the share
+                    // its ripe picks cover, or nothing yet (picking.rs).
+                    let scale = crop_season_health * self.pollination.harvest_set(world, data, entity);
+                    let Some(taken) =
+                        self.picking.harvest(world, data, entity, &plant_id, (ymin, ymax), plants_here, scale)
+                    else {
+                        continue;
+                    };
                     if let Some(yield_item) = harvest_item_for(&plant_id, plant_registry, item_registry) {
-                        // Yield range from the plant def, PER PLANT and FRACTIONAL
-                        // (f32): a wheat plant gives 0.002 of an item. Sanitize the
-                        // window (min >= 0, max >= min); unknown plants fall back
-                        // to exactly 1 unit as before.
-                        let (ymin, ymax) = plant_registry
-                            .and_then(|reg| reg.get(&plant_id))
-                            .map(|d| {
-                                let lo = d.yield_min.max(0.0);
-                                (lo, d.yield_max.max(lo))
-                            })
-                            .unwrap_or((1.0, 1.0));
-                        // The unit's harvest is its plants' (2026-09-26,
-                        // units.rs): one for a tower cup, every plant a bed
-                        // plot holds. One roll for the whole unit: its plants
-                        // shared one season, one water supply and one soil.
-                        let n = plants_here as f32;
-                        // Roll in [ymin, ymax], scale by the crop's season
-                        // health, round probabilistically: see harvest_quantity
-                        // for the model and its source (2026-09-26; before
-                        // this the yield ignored how the crop was kept).
-                        let qty = harvest_quantity(
-                            ymin * n,
-                            ymax * n,
-                            crop_season_health * self.pollination.harvest_set(world, data, entity),
-                            rand::random::<f32>(),
-                            rand::random::<f32>(),
-                        );
-                        if crop_season_health < STRESSED_HARVEST_NOTICE_BELOW {
+                        let qty = taken.items;
+                        if taken.first && crop_season_health < STRESSED_HARVEST_NOTICE_BELOW {
                             stressed_picked += 1;
                             stressed_health_sum += crop_season_health;
                         }
@@ -1705,26 +1766,36 @@ impl System for FarmingSystem {
                                 vessel_routes.push((yield_item.clone(), lost));
                             }
                             // Saved-seed loop (operator's "harvest yields seeds"):
-                            // a SURVIVAL harvest returns a few seeds of this plant, so
+                            // a SURVIVAL harvest returns seeds of this plant, so
                             // the garden is self-sustaining (plant 1 -> harvest -> get 2
-                            // back -> replant + surplus). Creative needs no seeds, so it
-                            // stays clean. Plot-agnostic: works for any plot type.
-                            if !creative {
+                            // back -> replant + surplus). Since 2026-09-26 in step with
+                            // what it harvested (picking::seed_count): 2 for a full
+                            // season, fewer for a stressed or poorly set one, none
+                            // from a crop that set no fruit, a share of 2 from a pick.
+                            // Creative needs no seeds, so it stays clean.
+                            if !creative && taken.seeds > 0 {
                                 let seed_id = format!("seed_{plant_id}_0");
                                 let seed_stack =
                                     item_registry.map(|r| r.max_stack_for(&seed_id)).unwrap_or(99);
                                 let seed_vol =
                                     item_registry.map(|r| r.volume_for(&seed_id)).unwrap_or(0.0);
-                                inv.add_item_volume_gated(&seed_id, 2, seed_stack, seed_vol);
+                                inv.add_item_volume_gated(&seed_id, taken.seeds, seed_stack, seed_vol);
                             }
                             log::info!("[Farming] harvested {qty}x {yield_item} from {plant_id}");
                             // Harvesting trains Farming (scales lightly with yield).
-                            crate::systems::skills::award_skill_xp(data, "farming", 10 + qty * 2);
-                            // Quest progress: a harvest of this crop (Harvest objectives).
-                            crate::systems::quests::push_quest_event(
-                                data,
-                                format!("harvest_{}", plant_id),
-                            );
+                            // A picked plant earns the per-harvest 10 at its first
+                            // pick only (2026-09-26), so 36 picks of a tomato train
+                            // about what one harvest of its season did.
+                            let base = if taken.first { 10 } else { 0 };
+                            crate::systems::skills::award_skill_xp(data, "farming", base + qty * 2);
+                            // Quest progress: a harvest of this crop (Harvest
+                            // objectives count plants, so a picked one counts once).
+                            if taken.first {
+                                crate::systems::quests::push_quest_event(
+                                    data,
+                                    format!("harvest_{}", plant_id),
+                                );
+                            }
                             break;
                         }
                     } else {
@@ -1732,33 +1803,34 @@ impl System for FarmingSystem {
                             "[Farming] {plant_id} has no produce item in items.csv; harvest yielded nothing"
                         );
                     }
-                    // The unit keeps what this crop left in it, for the next
-                    // crop sown there (2026-09-26, soil.rs). A legume also
-                    // leaves the FIXED nitrogen in its roots, nodules and
-                    // haulm (soil::legume_credit_n), in proportion to the
-                    // share of its season it actually grew: a crop ripened
-                    // by the dev button fixed nothing and leaves nothing.
-                    let unit = world
-                        .get::<&CropInstance>(entity)
-                        .ok()
-                        .and_then(|c| c.tower_id.clone().zip(c.tower_slot));
-                    let left = world.get::<&CropSoil>(entity).ok().map(|s| (s.store, s.uptake));
-                    if let (Some((area, slot)), Some((store, uptake))) = (unit, left) {
-                        let fixed = plant_registry
-                            .and_then(|r| r.get(&plant_id))
-                            .map_or(0.0, |d| f64::from(d.n_fixed_share));
-                        let removal =
-                            crop_removal(&plant_id, plants_here, plant_registry, item_registry, demand_scale);
-                        let credit = soil::legume_credit_n(removal.n, fixed, legume_harvest_share)
-                            * f64::from(uptake.clamp(0.0, 1.0));
-                        if credit > 0.0 {
-                            log::info!("[Farming] {plant_id} left {credit:.3} g of fixed N in {area} unit {slot}");
+                    // Harvested whole, or a picked plant's last pick: the unit
+                    // keeps what the crop left in its soil, and is empty.
+                    if taken.ends_plant {
+                        if taken.picked {
+                            finished.push(plant_id.clone());
                         }
-                        soil::remember(world, &area, slot, Npk::new(store.n + credit, store.p2o5, store.k2o));
+                        vacate_unit(world, entity, plants_here, plant_registry, item_registry, demand_scale, legume_harvest_share);
                     }
-                    let _ = world.despawn(entity);
                 }
             }
+        }
+        // Say when picked plants finish bearing (2026-09-26, picking.rs): the
+        // plot empties with no harvest of its own, so without this line a
+        // tomato tower thinning out would look like plants vanishing.
+        if !finished.is_empty() {
+            finished.sort();
+            finished.dedup();
+            let names: Vec<String> = finished
+                .iter()
+                .map(|p| plant_registry.and_then(|r| r.get(p)).map_or(p.replace('_', " "), |d| d.name.to_lowercase()))
+                .collect();
+            push_notice(
+                data,
+                format!(
+                    "Finished bearing and cleared from their plots: {}. Sow again to start a new season.",
+                    names.join(", ")
+                ),
+            );
         }
         // Say why a harvest came in light (2026-09-26): the Garden panel
         // shows each crop's CURRENT health, which has usually recovered by
@@ -2445,20 +2517,26 @@ mod gardening_tests {
 
     /// Full gardening loop: plant a seed (consumed → crop spawned) → dev-grow to
     /// maturity → harvest (produce yielded into the player + crop despawned).
+    ///
+    /// CHANGED 2026-09-26 (picking.rs): lettuce, not tomato. A tomato is now
+    /// picked over a season, so one press gives a 36th of it and the plant
+    /// stays; the picked loop is tested in picking_tests.rs. And the seed
+    /// returned follows the harvest: a full-health lettuce (1.085 items, no
+    /// range to roll) returns exactly the 2 of a full harvest.
     #[test]
     fn plant_grow_harvest_full_loop() {
         let data = make_store();
         let mut sys = FarmingSystem::new();
         let mut world = hecs::World::new();
         let mut inv = Inventory::new(16);
-        inv.add_item("seed_tomato_0", 1, 99);
+        inv.add_item("seed_lettuce_0", 1, 99);
         let player = world.spawn((inv, Controllable));
 
         // PLANT.
-        set_string(&data, "plant_request", "seed_tomato_0");
+        set_string(&data, "plant_request", "seed_lettuce_0");
         sys.tick(&mut world, 1.0, &data);
         assert_eq!(
-            world.get::<&Inventory>(player).unwrap().count_item("seed_tomato_0"),
+            world.get::<&Inventory>(player).unwrap().count_item("seed_lettuce_0"),
             0,
             "seed consumed by planting"
         );
@@ -2468,16 +2546,17 @@ mod gardening_tests {
         let crop_entity = crops[0];
         assert_eq!(
             world.get::<&CropInstance>(crop_entity).unwrap().crop_def_id,
-            "tomato",
-            "seed mapped to the tomato plant def"
+            "lettuce",
+            "seed mapped to the lettuce plant def"
         );
 
-        // DEV-GROW to maturity (tomato's last stage is `ripe`).
+        // DEV-GROW to maturity (lettuce's last stage).
+        let last = data.get::<PlantRegistry>("plant_registry").unwrap().get("lettuce").unwrap().last_stage().to_string();
         *data.get::<std::sync::Mutex<bool>>("dev_grow_crops").unwrap().lock().unwrap() = true;
         sys.tick(&mut world, 1.0, &data);
         assert_eq!(
             world.get::<&CropInstance>(crop_entity).unwrap().growth_stage,
-            "ripe",
+            last,
             "dev-grow matured the crop"
         );
 
@@ -2492,17 +2571,17 @@ mod gardening_tests {
             world.get::<&CropInstance>(crop_entity).is_err(),
             "harvested crop was despawned"
         );
-        let tomatoes = world
+        let heads = world
             .get::<&Inventory>(player)
             .unwrap()
-            .count_item("vegetable_tomato_0");
+            .count_item("vegetable_lettuce_0");
         assert!(
-            tomatoes >= 2,
-            "harvest yielded produce (>= yield_min 2 tomatoes), got {tomatoes}"
+            (1..=2).contains(&heads),
+            "harvest yielded produce (1.085 items of lettuce), got {heads}"
         );
         // Saved-seed loop: this survival harvest returned seeds (planted 1 -> 0, then
         // the harvest granted 2 back), so the garden is self-sustaining.
-        let seeds = world.get::<&Inventory>(player).unwrap().count_item("seed_tomato_0");
+        let seeds = world.get::<&Inventory>(player).unwrap().count_item("seed_lettuce_0");
         assert_eq!(seeds, 2, "survival harvest yielded 2 seeds, got {seeds}");
     }
 

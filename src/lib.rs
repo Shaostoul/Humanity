@@ -1181,6 +1181,7 @@ mod native_app {
             data_store.insert("pest_control_request", std::sync::Mutex::new(Option::<(String, String)>::None));
             crate::systems::farming::soil_ph::register(&mut data_store); // soil pH: data, Settings switch, Lime/Sulfur
             crate::systems::farming::pollination::register(&mut data_store); // pollination data, Settings mode, Hand-pollinate
+            crate::systems::farming::picking::register(&mut data_store); // harvest windows, Settings picking mode, Clear
             // Backpack <-> container transfers (organize-layer inventory): the GUI pushes
             // (item_id, qty, is_add) ops; InventorySystem applies them to the player's
             // backpack. Mirrored from GuiState.pending_inventory_transfers each frame.
@@ -6612,6 +6613,7 @@ mod native_app {
                     crate::systems::farming::soil_ph::bridge(&state.data_store, !state.gui_state.garden_pests.soil_ph_off, state.gui_state.garden_pests.ph_pending.take());
                     let gp = &mut state.gui_state.garden_pests; // pollination: Settings mode + Hand-pollinate -> sim
                     crate::systems::farming::pollination::publish(&state.data_store, !gp.pollination_off, gp.pollinate_pending.take());
+                    crate::systems::farming::picking::publish(&state.data_store, gp.picking_realistic, gp.clear_pending.take());
                     if let Some(req) = state.gui_state.garden_pests.pending.take() {
                         if let Some(m) = state.data_store.get::<std::sync::Mutex<Option<(String, String)>>>("pest_control_request") {
                             if let Ok(mut s) = m.lock() {
@@ -12812,6 +12814,7 @@ mod native_app {
                         let ph_view = crate::systems::farming::soil_ph::GardenView::new(&state.data_store, &state.game_world.world);
                         state.gui_state.garden_pests.ph_amendments = ph_view.amendments();
                         let pollination = crate::systems::farming::pollination::GuiView::new(&state.game_world.world, &state.data_store);
+                        let picking = crate::systems::farming::picking::GuiView::new(&state.game_world.world, &state.data_store);
                         for (entity, (crop, soil)) in state
                             .game_world
                             .world
@@ -12856,7 +12859,7 @@ mod native_app {
                                 water: crop.water_level,
                                 health: crop.health,
                                 season_health: crate::systems::farming::season_health(crop),
-                                mature,
+                                mature: picking.ready(entity, mature),
                                 dead,
                                 tower_id: crop.tower_id.clone(),
                                 tower_slot: crop.tower_slot,
@@ -12877,6 +12880,7 @@ mod native_app {
                                 ph_cap: phc.cap,
                                 ph_held: phc.held,
                                 pollination: pollination.row(entity),
+                                picking: picking.row(entity),
                             });
                         }
                         state.gui_state.garden_pests.pollinate_areas = pollination.areas;
