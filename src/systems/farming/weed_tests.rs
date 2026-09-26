@@ -282,6 +282,9 @@ fn off_mode_turns_weeds_off() {
 /// writes whole, so a round trip keeps an area's cover, seed bank, notice and
 /// mulch days; and a save from before weeds existed loads with none. Seen red
 /// by marking `SoilMemory::weeds` `#[serde(skip)]` (the bed came back empty).
+/// Native only: the world save lives in the desktop build (save_load and
+/// persistence are native-gated), as in soil_ph_tests.
+#[cfg(feature = "native")]
 #[test]
 fn weeds_survive_a_save_and_old_saves_load_with_none() {
     use crate::save_load::{apply_save_to_world, extract_world_save};
