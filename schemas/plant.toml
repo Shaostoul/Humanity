@@ -20,8 +20,8 @@
 #   data/curriculum/syllabus.json  -- the `bio_plants` and `grow_pests` topics
 #                                     declare this file as their data layer.
 #
-# EIGHT COLUMNS ARE NOT READ BY THE ENGINE AT ALL. `PlantDef` carries 23 of the
-# 31 (counted 2026-09-26, after the three removal columns). `description` and
+# EIGHT COLUMNS ARE NOT READ BY THE ENGINE AT ALL. `PlantDef` carries 24 of the
+# 32 (counted 2026-09-26, after the three removal columns and area_per_plant_m2). `description` and
 # `type` are documentation for a human or an AI reading the file; `seed_value`,
 # `harvest_value`, `seed_source`, `companion_plants` and `adverse_plants` are
 # read by nothing in `src/` today. They are content waiting for a system, not
@@ -85,8 +85,14 @@ example = "70"
 type = "float"
 required = true
 engine = true
-description = "Litres per plant per day. Read as `water_per_day` in PlantDef."
-example = "1.5"
+description = """
+Litres PER PLANT per day. Read as `water_per_day` in PlantDef; a grow unit's
+irrigation draws this times the plants in it (area_per_plant_m2). For every crop
+with an area_per_plant_m2 and a row in FAO-56 Table 12 (2026-09-26) it is the
+FAO crop evapotranspiration over that area: season-average Kc x a reference ET0
+of 3 mm/day x area_per_plant_m2. Method and old and new values are in
+data/garden/yields.ron, WATER."""
+example = "0.0077"
 
 [fields.nutrient_n]
 type = "float"
@@ -156,20 +162,27 @@ type = "float"
 required = true
 engine = true
 description = """
-Minimum produce units from a fully grown plant. FLOAT, not integer, because real
-crops can yield less than one unit per plant: saffron is 0.3, a few stigma
-threads. The harvest roll converts the continuous value to whole inventory items
-by probabilistic rounding so the expected value is preserved. This was u32 once,
-which made serde reject every fractional row and silently drop it from the
-registry; saffron was un-plantable for months before the 2026-07-01 fix."""
-example = "2"
+Minimum harvest from ONE plant, counted in items of `harvest_item` (so its kg is
+this times the item's items.csv weight_kg). A grow unit harvests this times the
+plants in it: one for a tower cup or a hand-planted crop, as many as fit at
+area_per_plant_m2 for a bed, tray or field plot. For every crop with an
+area_per_plant_m2 (2026-09-26) it is a cited good-practice harvest, sourced crop
+by crop in data/garden/yields.ron, and for a crop picked or cut over a season it
+is the whole season's pick. FLOAT, not integer, because a plant usually gives
+far less than one item: a wheat plant is 0.0019 of a 0.5 kg item, a saffron corm
+0.00027 of a 50 g one. The harvest roll converts the continuous total to whole
+inventory items by probabilistic rounding so the expected value is preserved.
+This was u32 once, which made serde reject every fractional row and silently
+drop it from the registry; saffron was un-plantable for months before the
+2026-07-01 fix."""
+example = "0.001856"
 
 [fields.yield_max]
 type = "float"
 required = true
 engine = true
-description = "Maximum produce units from a fully grown plant. Same float rule."
-example = "8"
+description = "Maximum harvest from one plant, same basis and float rule."
+example = "0.002118"
 
 [fields.growth_stages]
 type = "list<string>"
@@ -363,6 +376,22 @@ as removal_n_g_per_kg. Sources as for removal_p2o5_g_per_kg, with K x 1.2.
 Held between 1 and 30 g/kg and between 0.1 and 6 times the crop's removal N."""
 example = "5.83"
 
+[fields.area_per_plant_m2]
+type = "float"
+required = false
+engine = true
+description = """
+Floor area one plant takes, m2: the in-row x between-row spacing a university
+extension or planting guide gives (for drilled cereals and pulses, 1 / the
+recommended established plants per m2). A bed, tray or field plot holds
+floor(plot floor area / this) plants, at least 1; a tower cup and a hand-planted
+crop hold one (src/systems/farming/units.rs). Blank means one plant a unit, the
+behaviour before 2026-09-26. Every filled value has a record in
+data/garden/yields.ron with its source, and the shipped-data test in
+src/systems/farming/unit_tests.rs holds each crop's harvest per m2 to a band for
+its kind of harvest, so a per-m2 figure typed as per-plant fails."""
+example = "0.003"
+
 # ── Known gaps, so nobody rediscovers them ───────────────────────
 #
 # These are things the file CANNOT express that the Library's guides say matter.
@@ -381,3 +410,10 @@ example = "5.83"
 #   No pest or disease susceptibility, and no resistance. Choosing a resistant
 #     variety is the single most effective control on the whole response ladder
 #     in pests_and_disease.md, and it is inexpressible here.
+#   No picking window. growth_days is days to the FIRST harvest and the game
+#     picks a crop once, while a crop picked or cut over a season (tomato,
+#     cucumber, kale, every cut herb) carries its whole season's pick in
+#     yield_min/yield_max. A unit replanted back to back therefore yields a
+#     season's pick every growth_days: about 2 to 3 times a real tomato's year,
+#     9 times a tower basil's. A column for the picking season (and a crop that
+#     keeps producing after it first ripens) is what closes it.

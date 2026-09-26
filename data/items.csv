@@ -587,7 +587,7 @@ grain_oat_0,Oat Grain,food,grain,plant_fiber,0.5,20,0,Threshed oat groats 500g,d
 grain_rye_0,Rye Grain,food,grain,plant_fiber,0.5,20,0,Threshed rye kernels 500g,dry_goods,0.93
 grain_sorghum_0,Sorghum Grain,food,grain,plant_fiber,0.5,20,0,Threshed sorghum kernels 500g,dry_goods,0.93
 grain_millet_0,Millet Grain,food,grain,plant_fiber,0.5,20,0,Threshed millet kernels 500g,dry_goods,0.93
-fruit_sunflower_0,Sunflower Heads,food,fruit,plant_fiber,0.5,20,0,Oil-rich sunflower seed heads,solid,0.93
+fruit_sunflower_0,Sunflower Seed,food,fruit,plant_fiber,0.5,20,0,Threshed oil-type sunflower seed,solid,1.34
 seed_barley_0,Barley Seeds,material,seed,plant_fiber,0.1,50,0,Planting barley seeds packet,dry_goods,0.14
 seed_oat_0,Oat Seeds,material,seed,plant_fiber,0.1,50,0,Planting oat seeds packet,dry_goods,0.14
 seed_rye_0,Rye Seeds,material,seed,plant_fiber,0.1,50,0,Planting rye seeds packet,dry_goods,0.14
@@ -730,7 +730,17 @@ seed_horseradish_0,Horseradish Root Cuttings,material,seed,plant_fiber,0.2,30,0,
 seed_triticale_0,Triticale Seeds,material,seed,plant_fiber,0.1,50,0,Planting triticale seeds packet,dry_goods,0.14
 seed_plantain_0,Plantain Suckers,material,seed,plant_fiber,2.0,5,0,Sword suckers dug from a plantain mat for planting,solid,2.78
 fruit_strawberry_0,Strawberry,food,fruit,plant_fiber,0.3,20,0,Fresh harvested strawberry,solid,0.45
-legume_bean_0,Bean,food,legume,plant_fiber,0.3,20,0,Fresh harvested bean,solid,0.45
+# Pulse harvests (2026-09-26): every legume_* item except legume_pea_0 is the DRY seed, the basis
+# data/plants.csv yields, its removal columns and data/food/crop_nutrition.ron all use; they said
+# "fresh harvested" until then. legume_pea_0 is fresh green peas, shelled. volume_l of the dry ones
+# is the item's mass at the bushel weights in USDA AH-697 ("Weights, Measures, and Conversion
+# Factors for Agricultural Commodities and Their Products"): 60 lb a 35.24 L bushel for dry beans,
+# peas and lentils (0.39 L for 0.3 kg; used for the other dry pulses too), 58 for small chickpeas
+# (0.40 L), and peanuts in the shell 17 to 25 lb by type, 21 used (1.11 L). fruit_sunflower_0 is
+# threshed oil-type seed (its yield and removal basis), at about 29 lb a bushel (NDSU oil
+# sunflower variety trials report 28 to 30): 1.34 L for 0.5 kg. Both bushel weights were read
+# 2026-09-26 through search excerpts of those sources, not the documents themselves.
+legume_bean_0,Bean,food,legume,plant_fiber,0.3,20,0,Dry beans shelled from the pod and dried for storage,solid,0.39
 vegetable_cucumber_0,Cucumber,food,vegetable,plant_fiber,0.3,20,0,Fresh harvested cucumber,solid,0.45
 vegetable_garlic_0,Garlic,food,vegetable,plant_fiber,0.3,20,0,Fresh harvested garlic,solid,0.45
 fruit_pepper_0,Bell Pepper,food,fruit,plant_fiber,0.3,20,0,Fresh harvested bell pepper,solid,0.45
@@ -738,7 +748,7 @@ fruit_pumpkin_0,Pumpkin,food,fruit,plant_fiber,0.3,20,0,Fresh harvested pumpkin,
 vegetable_spinach_0,Spinach,food,vegetable,plant_fiber,0.3,20,0,Fresh harvested spinach,solid,0.45
 herb_basil_0,Basil,food,herb,plant_fiber,0.05,20,0,Fresh harvested basil,dry_goods,0.15
 vegetable_radish_0,Radish,food,vegetable,plant_fiber,0.3,20,0,Fresh harvested radish,solid,0.45
-legume_pea_0,Pea,food,legume,plant_fiber,0.3,20,0,Fresh harvested pea,solid,0.45
+legume_pea_0,Pea,food,legume,plant_fiber,0.3,20,0,Fresh green peas shelled from the pod,solid,0.45
 vegetable_broccoli_0,Broccoli,food,vegetable,plant_fiber,0.3,20,0,Fresh harvested broccoli,solid,0.45
 vegetable_squash_0,Squash,food,vegetable,plant_fiber,0.3,20,0,Fresh harvested squash,solid,0.45
 fruit_eggplant_0,Eggplant,food,fruit,plant_fiber,0.3,20,0,Fresh harvested eggplant,solid,0.45
@@ -818,10 +828,10 @@ fiber_rubber_tree_0,Rubber Tree,material,fiber,plant_fiber,0.3,20,0,Harvested ru
 fiber_sugarcane_0,Sugarcane,material,fiber,plant_fiber,0.3,20,0,Harvested sugarcane fiber bundle,solid,0.45
 fiber_hemp_0,Hemp,material,fiber,plant_fiber,0.3,20,0,Harvested hemp fiber bundle,solid,0.45
 fiber_jute_0,Jute,material,fiber,plant_fiber,0.3,20,0,Harvested jute fiber bundle,solid,0.45
-legume_soybean_0,Soybean,food,legume,plant_fiber,0.3,20,0,Fresh harvested soybean,solid,0.45
-legume_lentil_0,Lentil,food,legume,plant_fiber,0.3,20,0,Fresh harvested lentil,solid,0.45
-legume_chickpea_0,Chickpea,food,legume,plant_fiber,0.3,20,0,Fresh harvested chickpea,solid,0.45
-legume_peanut_0,Peanut,food,legume,plant_fiber,0.3,20,0,Fresh harvested peanut,solid,0.45
+legume_soybean_0,Soybean,food,legume,plant_fiber,0.3,20,0,Dry soybeans shelled and dried for storage,solid,0.39
+legume_lentil_0,Lentil,food,legume,plant_fiber,0.3,20,0,Dry lentils shelled and dried for storage,solid,0.39
+legume_chickpea_0,Chickpea,food,legume,plant_fiber,0.3,20,0,Dry chickpeas shelled and dried for storage,solid,0.4
+legume_peanut_0,Peanut,food,legume,plant_fiber,0.3,20,0,Dried peanuts in the shell,solid,1.11
 vegetable_oyster_mushroom_0,Oyster Mushroom,food,vegetable,plant_fiber,0.3,20,0,Fresh harvested oyster mushroom,solid,0.45
 vegetable_shiitake_0,Shiitake,food,vegetable,plant_fiber,0.3,20,0,Fresh harvested shiitake,solid,0.45
 vegetable_button_mushroom_0,Button Mushroom,food,vegetable,plant_fiber,0.3,20,0,Fresh harvested button mushroom,solid,0.45
@@ -977,9 +987,9 @@ herb_dandelion_0,Dandelion Greens,food,herb,plant_fiber,0.05,20,0,Fresh dandelio
 grain_quinoa_0,Quinoa Grain,food,grain,plant_fiber,0.5,20,0,Threshed quinoa seed 500g,dry_goods,0.93
 grain_buckwheat_0,Buckwheat Grain,food,grain,plant_fiber,0.5,20,0,Threshed buckwheat groats 500g,dry_goods,0.93
 grain_teff_0,Teff Grain,food,grain,plant_fiber,0.5,20,0,Threshed teff seed 500g,dry_goods,0.93
-legume_cowpea_0,Cowpea,food,legume,plant_fiber,0.3,20,0,Fresh harvested cowpea,solid,0.45
-legume_fava_bean_0,Fava Bean,food,legume,plant_fiber,0.3,20,0,Fresh harvested fava bean,solid,0.45
-legume_pigeon_pea_0,Pigeon Pea,food,legume,plant_fiber,0.3,20,0,Fresh harvested pigeon pea,solid,0.45
+legume_cowpea_0,Cowpea,food,legume,plant_fiber,0.3,20,0,Dry cowpeas (black-eyed peas) shelled and dried for storage,solid,0.39
+legume_fava_bean_0,Fava Bean,food,legume,plant_fiber,0.3,20,0,Dry fava beans shelled and dried for storage,solid,0.39
+legume_pigeon_pea_0,Pigeon Pea,food,legume,plant_fiber,0.3,20,0,Dry pigeon peas shelled and dried for storage,solid,0.39
 vegetable_cassava_0,Cassava,food,vegetable,plant_fiber,0.3,20,0,Fresh harvested cassava root,solid,0.45
 vegetable_taro_0,Taro,food,vegetable,plant_fiber,0.3,20,0,Fresh harvested taro corm,solid,0.45
 vegetable_yam_0,Yam,food,vegetable,plant_fiber,0.3,20,0,Fresh harvested yam tuber,solid,0.45
@@ -993,9 +1003,9 @@ grain_spelt_0,Spelt Grain,food,grain,plant_fiber,0.5,20,0,Dehulled spelt kernels
 grain_finger_millet_0,Finger Millet Grain,food,grain,plant_fiber,0.5,20,0,Threshed finger millet seed 500g,dry_goods,0.93
 grain_camelina_0,Camelina Seed,food,grain,plant_fiber,0.5,20,0,Threshed camelina seed for oil pressing 500g,dry_goods,0.93
 grain_safflower_0,Safflower Seed,food,grain,plant_fiber,0.5,20,0,Threshed safflower seed for oil pressing 500g,dry_goods,0.93
-legume_lupin_0,White Lupin,food,legume,plant_fiber,0.3,20,0,Fresh harvested white lupin seed,solid,0.45
-legume_mung_bean_0,Mung Bean,food,legume,plant_fiber,0.3,20,0,Fresh harvested mung bean,solid,0.45
-legume_bambara_groundnut_0,Bambara Groundnut,food,legume,plant_fiber,0.3,20,0,Fresh harvested bambara groundnut pods,solid,0.45
+legume_lupin_0,White Lupin,food,legume,plant_fiber,0.3,20,0,Dry white lupin seed shelled and dried for storage,solid,0.39
+legume_mung_bean_0,Mung Bean,food,legume,plant_fiber,0.3,20,0,Dry mung beans shelled and dried for storage,solid,0.39
+legume_bambara_groundnut_0,Bambara Groundnut,food,legume,plant_fiber,0.3,20,0,Dry bambara groundnut seed shelled and dried for storage,solid,0.39
 vegetable_oca_0,Oca,food,vegetable,plant_fiber,0.3,20,0,Fresh harvested oca tuber,solid,0.45
 vegetable_sugar_beet_0,Sugar Beet,food,vegetable,plant_fiber,0.3,20,0,Fresh harvested sugar beet root,solid,0.45
 vegetable_moringa_0,Moringa Leaves,food,vegetable,plant_fiber,0.3,20,0,Fresh harvested moringa leaves and pods,solid,0.45

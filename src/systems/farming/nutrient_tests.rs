@@ -167,8 +167,9 @@ fn fertilizing_adds_a_bags_nutrients_at_the_cited_ratio_and_nothing_else() {
 /// removal columns doubled (2026-09-26: the columns, where filled, are the
 /// demand; the tomato's carry its cited 1.5 / 0.9 / 4.0 g per kg) draws
 /// exactly twice as much of each nutrient over the same growth, and the real
-/// tomato draws its cited season removal (1.5 g N, 0.9 g P2O5, 4.0 g K2O)
-/// times the share of the season it has grown. Seen red, before the columns,
+/// tomato draws its cited season removal (1.5 g N, 0.9 g P2O5, 4.0 g K2O a kg,
+/// times its expected harvest: since 2026-09-26 one high-tunnel plant's 6.35
+/// kg, where it was 1.0 kg) times the share of the season it has grown. Seen red, before the columns,
 /// by making `season_need` use a flat index of 1 for every crop instead of
 /// the crop's own, and since them by making `soil::removal_per_kg` ignore the
 /// columns: either way the twin drew the same as the tomato.
@@ -219,9 +220,16 @@ fn nutrient_draw_scales_with_the_plants_csv_demand() {
     // read the share from the crop's actual age.
     let age = crate::systems::time::elapsed_now(&data) - world.get::<&CropInstance>(tomato).unwrap().planted_at;
     let share = f64::from(soil::uptake_fraction((age / growth_seconds) as f32, stages_of(&data, "tomato").len()));
-    assert!((t.n - 1.5 * share).abs() < 1e-5, "N {} vs 1.5 x {share}", t.n);
-    assert!((t.p2o5 - 0.9 * share).abs() < 1e-5, "P2O5 {} vs 0.9 x {share}", t.p2o5);
-    assert!((t.k2o - 4.0 * share).abs() < 1e-5, "K2O {} vs 4.0 x {share}", t.k2o);
+    let kg = units::plot_harvest_kg(
+        "tomato",
+        None,
+        data.get::<PlantRegistry>("plant_registry"),
+        data.get::<crate::systems::inventory::ItemRegistry>("item_registry"),
+    );
+    assert!((kg - 6.350).abs() < 1e-3, "one tomato plant's expected harvest: {kg} kg");
+    assert!((t.n - 1.5 * kg * share).abs() < 1e-5, "N {} vs 1.5 x {kg} x {share}", t.n);
+    assert!((t.p2o5 - 0.9 * kg * share).abs() < 1e-5, "P2O5 {} vs 0.9 x {kg} x {share}", t.p2o5);
+    assert!((t.k2o - 4.0 * kg * share).abs() < 1e-5, "K2O {} vs 4.0 x {kg} x {share}", t.k2o);
 }
 
 /// Nothing is counted twice with the old slider. Until this rung the
@@ -304,14 +312,24 @@ fn the_nutrient_slider_runs_a_feeder_that_spends_stored_fertilizer() {
 
     // Survival, three bags in the Barn.
     let ((fed1, unfed1), fed_h, unfed_h, left, said) = run(false, 3);
-    let need_n = 1.5; // the tomato's season N (soil.rs pins it)
-    assert!(
-        fed1.n > 0.9 * soil::feed_target(Npk::new(need_n, 0.9, 4.0), 1.0).n,
-        "topped up to about two reserves of N: {fed1:?}"
-    );
+    // The tomato's season need (soil.rs pins it): one high-tunnel plant's
+    // 6.35 kg at 1.5 / 0.9 / 4.0 g a kg, 9.5 g of N. Two reserves of that N
+    // are 1.9 g, which is 1.45 bags of compost at 1.3 g of available N a bag,
+    // so the feeder opens two (it opened one while the tomato's harvest was
+    // an unsourced 1.0 kg, until 2026-09-26).
+    let shipped = make_store();
+    let plants = shipped.get::<PlantRegistry>("plant_registry");
+    let items = shipped.get::<crate::systems::inventory::ItemRegistry>("item_registry");
+    let scale = soil::NutrientData::parse(soil::NUTRIENTS_RON).unwrap().scale_for(plants.unwrap());
+    let need = crop_season_need("tomato", 1, plants, items, scale);
+    assert!((need.n - 9.525).abs() < 1e-2, "a tomato plant's season N: {}", need.n);
+    let target = soil::feed_target(need, 1.0);
+    assert!(fed1.n > 0.9 * target.n, "topped up to about two reserves of N: {fed1:?}");
     assert!(fed1.p2o5 > 0.0 && fed1.k2o > 0.0, "with the compost's P and K along with it");
     assert_eq!(unfed1, Npk::ZERO, "the unfed unit got nothing");
-    assert_eq!(left, 2, "the feeder opened exactly one bag from home storage");
+    let bags = (target.n / compost_bag().n).ceil() as u32;
+    assert_eq!(bags, 2, "two reserves of N take {} bags", target.n / compost_bag().n);
+    assert_eq!(left, 3 - bags, "the feeder opened exactly the bags it needed from home storage");
     assert!(fed_h >= 99.9, "the fed crop stays healthy: {fed_h}");
     assert!(unfed_h < 90.0, "the unfed one goes short: {unfed_h}");
     assert!(said.iter().any(|s| s.contains("unfed")), "and the player is told: {said:?}");
@@ -507,9 +525,10 @@ fn a_legume_draws_less_and_leaves_its_fixed_nitrogen_for_the_next_crop() {
     world.spawn((Irrigator,));
     world.spawn((Inventory::new(16), Controllable));
     let first = stages_of(&data, "soybean")[0].clone();
-    // Enough for the twin's whole season: soybean's cited removal (62.5 g N
-    // per kg, NRCS Table 6-6) on its 1.65 kg unit is 103 g of N, all of it
-    // from the soil for a twin that fixes nothing.
+    // Plenty for the twin's whole season: soybean's cited removal (62.5 g N
+    // per kg, NRCS Table 6-6) on one plant's 14 g of dry beans (these test
+    // areas are not grow machines, so each unit is one plant) is under 1 g of
+    // N, all of it from the soil for a twin that fixes nothing.
     let start = Npk::new(1000.0, 1000.0, 1000.0);
     let soy = world.spawn((crop("soybean", "field_a", &first, 0.0), CropSoil { store: start, uptake: 0.0 }));
     let non = world.spawn((crop("soybean_nonfixing", "field_b", &first, 0.0), CropSoil { store: start, uptake: 0.0 }));
@@ -539,6 +558,7 @@ fn a_legume_draws_less_and_leaves_its_fixed_nitrogen_for_the_next_crop() {
     }
     let removal = crop_removal(
         "soybean",
+        1,
         data.get::<PlantRegistry>("plant_registry"),
         data.get::<crate::systems::inventory::ItemRegistry>("item_registry"),
         soil::NutrientData::parse(soil::NUTRIENTS_RON).unwrap().scale_for(data.get::<PlantRegistry>("plant_registry").unwrap()),

@@ -2393,6 +2393,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                                                 c.stage.clone()
                                                             };
                                                             stat(ui, "Stage", stage);
+                                                            stat(ui, "Plants", c.plants.to_string());
                                                             stat(ui, "Growth", format!("{:.0}%", c.progress * 100.0));
                                                             // Grams in the unit against the season's need (2026-09-26).
                                                             stat(ui, "Soil N·P·K", format!("{:.1} · {:.1} · {:.1} g", c.soil[0], c.soil[1], c.soil[2]));

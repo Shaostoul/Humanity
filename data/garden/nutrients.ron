@@ -22,11 +22,15 @@
 //     need (g) = expected harvest (kg) x anchor removal (g per kg)
 //                x (crop's plants.csv index / anchor's plants.csv index)
 //
-// The expected harvest is the middle of the crop's plants.csv yield range times
-// the items.csv mass of what it harvests into, so a crop that yields more
-// takes more out, and the index sets how rich that harvest is in each
-// nutrient relative to a tomato. For the tomato itself: yield 2 to 8 fruit of
-// 0.2 kg = 1.0 kg, so its season need is exactly the removal below.
+// The expected harvest is the middle of the crop's plants.csv yield range (per
+// PLANT since 2026-09-26) times the items.csv mass of what it harvests into,
+// times the plants in the unit (one in a tower cup, as many as fit at the
+// crop's spacing in a bed plot: src/systems/farming/units.rs and
+// data/garden/yields.ron), so a crop that yields more takes more out, and the
+// index sets how rich that harvest is in each nutrient relative to a tomato.
+// For the tomato itself, one high-tunnel plant's 18 to 45 fruit of 0.2 kg is
+// 6.35 kg (it was an unsourced 2 to 8 fruit, 1.0 kg), and its season need is
+// the removal below times that.
 //
 // Removal, not whole-plant uptake: the soil loses what LEAVES in the harvest.
 // Stems, leaves and roots are assumed to stay in the unit or go back through
@@ -54,7 +58,8 @@
 //
 // WHAT THIS GETS WRONG, stated so nobody trusts it further than it goes: the
 // plants.csv indices do not track real removal between crop kinds. Read this
-// way, a wheat unit (7 kg of grain) needs 7.0 g N, 5.0 g P2O5 and 8.4 g K2O a
+// way, a wheat unit (7 kg of grain, the unsourced per-unit yield of that day;
+// a 2 m2 tray really gives about 0.66 kg) needs 7.0 g N, 5.0 g P2O5 and 8.4 g K2O a
 // season, where Wisconsin A2809 puts wheat grain at 0.5 lb P2O5 and 0.35 lb
 // K2O per 60 lb bushel (58 g and 41 g for 7 kg) and grain protein puts its N
 // near 20 g/kg (about 140 g). Grain and dry legumes are dense in nutrients and
@@ -71,7 +76,8 @@
 //
 //     need (g) = removal (g per kg) x expected harvest (kg)
 //
-// with the expected harvest as above (mid yield x the items.csv item mass).
+// with the expected harvest as above (mid yield per plant x the items.csv item
+// mass x the plants in the unit).
 // The grams are per kg of the harvest AS THE GAME'S ITEM REPRESENTS IT: fresh
 // produce as picked, grain and dry seed at the storage moisture its source
 // table reports, and for the pulses the dry seed, because data/food/

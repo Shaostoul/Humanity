@@ -412,6 +412,56 @@ date; re-check before trusting one. The container data basis is
   cannot yet be set per crop (a blueberry wants a lower one), and the Home
   page's tower compatibility check still intersects the plants.csv SOIL
   windows for a reservoir the pH model treats as held.
+- **Gardening depth: what a grow unit really harvests, DONE 2026-09-26.**
+  A bed, tray or field plot now holds as many plants as fit
+  (`max(1, floor(plot area / area_per_plant_m2))`), a tower cup and a
+  hand-planted crop hold one, and plants.csv yield_min/yield_max are a cited
+  harvest PER PLANT in items of the harvest item. The plot area is the
+  engine's `grow_plot_area_m2` (footprint over plots); `area_per_plant_m2` is
+  a planting guide's in-row x between-row spacing, or 1 / the recommended
+  plants per m2 for drilled grain and pulses. 52 crops are sourced, every one
+  the home plants except mint, rosemary, aloe vera, St. John's wort and the
+  oyster mushroom (left at one plant a unit, each named with its reason), in
+  the new `data/garden/yields.ron`: NCSU CEFS's planting guide and UMN's
+  per-plant yields for vegetables (high-tunnel figures for fruiting crops),
+  NASS 2023-2024 yields with UMN, NDSU, Montana State and IRRI plant densities
+  for grain, pulses, sunflower and potato, Stapleton and Hochmuth's vertical
+  tower herb trial, Montana State's herb trials, and more, each with its
+  table, link and read date. The harvest roll, the season nutrient need (so
+  a fresh unit's store and the feeder's target), the legume credit and the
+  irrigation draw all scale with the plants (`farming::units`). Water per
+  plant is now FAO-56 crop ET (season-average Kc x 3 mm/day x the plant's
+  area) for 30 crops, and the small-vegetable curve as an estimate for 12
+  more that were over 3x off (a wheat plant 0.6 L/day was 80x too much; now
+  0.0077). One weight for a harvest: crop_nutrition.ron's
+  `grams_per_yield_unit` is gone, the food model weighs by the items.csv item
+  and the plants per plot, and the legume items say they are dry seed (green
+  peas excepted) with USDA bushel-weight volumes. Before and after: a 2 m2
+  wheat tray 7.0 kg of grain needing 146 g N a season, now 666 plants giving
+  0.66 kg and needing 13.8 g; a 2 m2 rice tray 6.0 kg and 83 g, now 66 hills,
+  1.71 kg and 23.7 g; a soybean tower cup 1.65 kg of dry beans removing 103 g
+  N, now one plant, 14 g and 0.86 g; a tomato cup 1.0 kg and 1.5 g, now one
+  high-tunnel plant's 6.35 kg and 9.5 g. The home garden by the rung-4 method
+  (1,300 tower cups and one plot a bed; the showcase's six units a bed give
+  within 3%): N removed 15.9 kg a garden year (was 71.7), drawn from the soil
+  after fixation 15.8 kg (was 57.6), returned by legumes 0.1 kg (was 11.5),
+  net 15.7 kg (was 46.1); P2O5 6.5 kg (was 25.0); K2O 22.1 kg (was 53.2).
+  Three residents' urine now covers 77% of the net N (was 26%), 39% of the
+  P2O5 and 18% of the K2O; one player 26% of the N. On the same basis the
+  garden supplies about 6,300 kcal a day (was 28,400). A shipped-data test
+  holds every crop's harvest per m2 to a band for its kind of harvest (dry
+  seed 0.05 to 1.5 kg/m2, and so on), so a per-m2 figure typed as per-plant
+  fails, and holds plants.csv to the cited kg through the items.csv weight.
+  Found, not fixed: (1) season compression: growth_days is days to the first
+  pick and the game picks once, while a picked or cut crop's yield is its
+  whole season, so a cup replanted back to back yields about 2 to 3 times a
+  real tomato's year and 9 times a tower basil's; the next rung is a picking
+  window. (2) home.ron's potato bed "+120 kcal/d" is about twice the cited
+  yield (61.5 kcal/d cropped back to back). (3) The 5.76 m2 grain field
+  really gives about 54 kcal/d of wheat against its "+3100 kcal/d" (the
+  outline's 660 m2 finding stands). (4) A harvest still returns 2 seeds a
+  unit whatever its plants, and pest pressure still counts units, not
+  plants. (5) Hazelnut and walnut carry kernel nutrition on in-shell items.
 
 ## Defects found (things that are wrong, not merely missing)
 

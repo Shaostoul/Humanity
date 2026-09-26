@@ -5,14 +5,19 @@
 //! `docs/design/self-sufficiency.md`.
 //!
 //! This slice is **data + loaders + pure math** -- deliberately NOT UI. It is
-//! feature-neutral (ron + serde + std only, no GUI/renderer/persistence imports), so it
-//! compiles under both `native` and `relay` with no cfg gate. Wiring these numbers into
-//! the Home-page loop summary (so the food loop is computed instead of trusting the
-//! hand-typed catalog strings) is the next, deferred increment.
+//! feature-neutral (ron + serde + std, plus the farming and inventory registries, no
+//! GUI/renderer/persistence imports), so it compiles under both `native` and `relay` with
+//! no cfg gate. Wiring these numbers into the Home-page loop summary (so the food loop is
+//! computed instead of trusting the hand-typed catalog strings) is the next, deferred
+//! increment.
 //!
 //! Data files (all hot-reloadable, edited by hand or eventually the GUI):
-//!   - `data/food/crop_nutrition.ron`            -- gap #3: per-crop calories/macros + a
-//!     grams-per-yield-unit bridge for every FOOD crop in `data/plants.csv`.
+//!   - `data/food/crop_nutrition.ron`            -- gap #3: per-crop calories/macros for
+//!     every FOOD crop in `data/plants.csv`. What a harvest WEIGHS is not here (it carried
+//!     its own `grams_per_yield_unit` until 2026-09-26, which disagreed with items.csv by up
+//!     to 10x): it is plants.csv's per-plant yield x the harvest item's items.csv mass x the
+//!     plants in the plot (`farming::units::plot_harvest_kg`), the same figure the harvest
+//!     and the nutrient model use.
 //!   - `data/self_sufficiency/component_outputs.ron` -- gap #4: per generation/collection/
 //!     recycling machine, an output figure + assumptions.
 //!   - `data/self_sufficiency/location.ron`      -- gap #4: the reference location the design
@@ -25,11 +30,9 @@ use std::path::Path;
 // Gap #3 -- per-crop nutrition bridge.
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// One crop's nutrition + yield-to-grams bridge. All macro fields are per 100 g of edible
-/// portion (USDA magnitude); `grams_per_yield_unit` is the grams of edible harvest that ONE
-/// `data/plants.csv` yield unit represents (the normalization that makes the CSV's abstract,
-/// per-crop-inconsistent yield numbers computable). See `crop_nutrition.ron`'s header for the
-/// per-class estimation basis and the potato calibration anchor.
+/// One crop's nutrition. All macro fields are per 100 g of the harvest as its items.csv
+/// item describes it (USDA magnitude). How much a plot harvests is not here: see
+/// `food_supply_kcal_per_day`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CropNutritionEntry {
     /// MUST match a row id in `data/plants.csv` (a typo would be a dead entry; a unit test
@@ -39,8 +42,6 @@ pub struct CropNutritionEntry {
     pub protein_g: f32,
     pub fat_g: f32,
     pub carbs_g: f32,
-    /// Grams of edible harvest per one `data/plants.csv` yield unit.
-    pub grams_per_yield_unit: f32,
 }
 
 /// The whole crop-nutrition table (`data/food/crop_nutrition.ron`).
@@ -137,20 +138,35 @@ impl Location {
 // Pure math (the computed sketch -- small + honest, no UI).
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Computed food supply in kcal/day from a list of `(plant_id, yield_units_per_day)`:
-/// `sum over crops of units/day * grams_per_yield_unit * calories_per_100g / 100`.
+/// Computed food supply in kcal/day from grow plots cropped back to back. Each entry is
+/// `(plant_id, plot floor area in m2, number of such plots)`; a `None` area is a single
+/// plant (a tower cup). A plot harvests `farming::units::plot_harvest_kg` (the plants its
+/// area holds at the crop's plants.csv spacing x the per-plant yield x the harvest item's
+/// items.csv mass) once every `growth_days`, so it supplies
+/// `harvest kg x 10 x calories_per_100g / growth_days` kcal a day.
 ///
 /// This is the gap #3 bridge in action: the food loop is computed from crop data, not read
-/// off the hand-typed "+120 kcal/d" catalog strings. A crop with no `crop_nutrition.ron`
-/// entry contributes 0 (honest -- an un-tabulated crop cannot be counted, rather than guessed).
-pub fn food_supply_kcal_per_day(counts: &[(String, f32)], nutrition: &CropNutrition) -> f32 {
-    counts
+/// off the hand-typed "+120 kcal/d" catalog strings, and on the same harvest figure the game
+/// hands the player and the nutrient model bills the soil for. A crop with no
+/// `crop_nutrition.ron` entry, no plants.csv row or no growth days contributes 0 (honest --
+/// an un-tabulated crop cannot be counted, rather than guessed).
+pub fn food_supply_kcal_per_day(
+    plots: &[(String, Option<f32>, f32)],
+    nutrition: &CropNutrition,
+    plants: &crate::systems::farming::PlantRegistry,
+    items: &crate::systems::inventory::ItemRegistry,
+) -> f32 {
+    plots
         .iter()
-        .map(|(id, units)| {
-            nutrition
-                .get(id)
-                .map(|c| units * c.grams_per_yield_unit * c.calories_per_100g / 100.0)
-                .unwrap_or(0.0)
+        .map(|(id, area, count)| {
+            let (Some(n), Some(def)) = (nutrition.get(id), plants.get(id)) else {
+                return 0.0;
+            };
+            if def.growth_days <= 0.0 {
+                return 0.0;
+            }
+            let kg = crate::systems::farming::units::plot_harvest_kg(id, *area, Some(plants), Some(items));
+            (kg * 10.0 * f64::from(n.calories_per_100g) / f64::from(def.growth_days)) as f32 * count
         })
         .sum()
 }
@@ -229,11 +245,7 @@ mod tests {
                 "crop_nutrition plant_id '{}' has no data/plants.csv row (dead entry)",
                 c.plant_id
             );
-            assert!(
-                c.calories_per_100g >= 0.0 && c.grams_per_yield_unit > 0.0,
-                "{} has sane bridge numbers (cal>=0, grams/unit>0)",
-                c.plant_id
-            );
+            assert!(c.calories_per_100g >= 0.0, "{} has a sane calorie figure (>= 0)", c.plant_id);
         }
     }
 
@@ -253,29 +265,78 @@ mod tests {
         }
     }
 
-    /// Calibration sanity check for `grams_per_yield_unit` (gap #3). home.ron's
-    /// `potato_grow_bed` asserts "+120 kcal/d". Modeling a bed as ~1.0 harvested tuber-unit/day
-    /// (a 2 m^2 intensive aeroponic bed at ~150 g/day, NASA/CIP magnitude), 8 beds through the
-    /// crop-nutrition bridge = 8 * 150 g * 77 kcal/100g = 924 kcal/day, which must land within
-    /// 2x of the 8 * 120 = 960 kcal claim. It does (0.96x), so no re-tuning of the potato
-    /// grams_per_yield_unit was needed.
+    fn load_registries() -> (crate::systems::farming::PlantRegistry, crate::systems::inventory::ItemRegistry) {
+        let plants = crate::systems::farming::PlantRegistry::from_csv(
+            &std::fs::read(data_dir().join("plants.csv")).expect("data/plants.csv reads"),
+        )
+        .expect("plants.csv parses");
+        let items = crate::systems::inventory::ItemRegistry::from_csv(
+            &std::fs::read(data_dir().join("items.csv")).expect("data/items.csv reads"),
+        )
+        .expect("items.csv parses");
+        (plants, items)
+    }
+
+    /// The food loop's potato bed, from cited data (2026-09-26). A 2 x 1 m
+    /// `potato_grow_bed` (its home.ron footprint) holds floor(2.0 / 0.234) = 8
+    /// plants at UMN's 11 x 33 in spacing, each giving 0.88 to 0.92 kg (NASS
+    /// North Dakota's 335 to 350 cwt/acre), so a bed harvests about 7.2 kg every
+    /// 90 growth days: 80 g a day, 61.5 kcal a day at 77 kcal/100 g. Held to 55
+    /// to 70, the span of the two cited years with a little room.
+    ///
+    /// It replaced `potato_grams_calibration_matches_home_ron_kcal_claim`, which
+    /// passed by modelling a bed as "~1.0 harvested tuber-unit/day" to land
+    /// within 2x of home.ron's "+120 kcal/d" per bed. From the cited yields that
+    /// claim is 2x high even cropping back to back all year (61.5 against 120),
+    /// and data/home_outline.json's own cross-check, at two crops a year, puts a
+    /// bed at 38. The finding is reported, not tuned away here.
+    ///
+    /// Seen red by making `units::plants_in_plot` return 1 (the bed then gave
+    /// the calories of one plant, 7.7 kcal a day).
     #[test]
-    fn potato_grams_calibration_matches_home_ron_kcal_claim() {
+    fn potato_bed_calories_come_from_the_cited_yield() {
         let nutrition = load_nutrition();
-        let counts = vec![("potato".to_string(), 8.0_f32)]; // 8 beds * ~1.0 tuber-unit/day
-        let kcal = food_supply_kcal_per_day(&counts, &nutrition);
-        let claim = 8.0 * 120.0; // home.ron potato_grow_bed: +120 kcal/d per bed
-        assert!(
-            kcal > claim * 0.5 && kcal < claim * 2.0,
-            "8-bed potato supply {kcal:.0} kcal/day not within 2x of the home.ron claim {claim:.0}"
-        );
+        let (plants, items) = load_registries();
+        let home = crate::machines::MachineHome::load(&data_dir().join("machines").join("home.ron"))
+            .expect("data/machines/home.ron loads");
+        let bed = home.catalog.get("potato_grow_bed").expect("potato_grow_bed is in the catalog");
+        let area = bed.size.0 * bed.size.2;
+        assert!((area - 2.0).abs() < 1e-6, "a potato bed is 2 m2: {area}");
+        let one_bed = food_supply_kcal_per_day(&[("potato".to_string(), Some(area), 1.0)], &nutrition, &plants, &items);
+        assert!((55.0..=70.0).contains(&one_bed), "a potato bed supplies {one_bed:.1} kcal/day");
+        let eight = food_supply_kcal_per_day(&[("potato".to_string(), Some(area), 8.0)], &nutrition, &plants, &items);
+        assert!((eight - 8.0 * one_bed).abs() < 1e-3, "plots add up: {eight} vs 8 x {one_bed}");
+        // A tower cup of potato is one plant.
+        let cup = food_supply_kcal_per_day(&[("potato".to_string(), None, 1.0)], &nutrition, &plants, &items);
+        assert!((cup * 8.0 - one_bed).abs() < 1e-3, "one plant is an eighth of the bed: {cup} vs {one_bed}");
+    }
+
+    /// A harvest weighs what its items.csv item weighs, nothing else
+    /// (2026-09-26: crop_nutrition.ron's own grams per yield unit is gone).
+    /// A 2 m2 wheat tray's 666 plants at 0.001987 items of 0.5 kg each is
+    /// 0.662 kg of grain per 120-day crop, 5.5 g a day, 18.8 kcal a day at
+    /// 340 kcal/100 g; it was 8 to 20 items of 0.5 kg in the harvest and 8 to
+    /// 20 units of 50 g in this model, a 10x disagreement inside one crop.
+    /// Seen red by weighing the harvest at a flat 50 g an item (the old wheat
+    /// grams_per_yield_unit): the tray then gave a tenth of the calories.
+    #[test]
+    fn a_harvest_weighs_what_its_item_weighs() {
+        let nutrition = load_nutrition();
+        let (plants, items) = load_registries();
+        let tray = food_supply_kcal_per_day(&[("wheat".to_string(), Some(2.0), 1.0)], &nutrition, &plants, &items);
+        let wheat = plants.get("wheat").unwrap();
+        let per_plant_kg = f64::from(wheat.yield_min + wheat.yield_max) / 2.0 * f64::from(items.mass_for("grain_wheat_0"));
+        let want = 666.0 * per_plant_kg * 10.0 * 340.0 / 120.0;
+        assert!((f64::from(tray) - want).abs() < 1e-3, "wheat tray {tray} kcal/day vs {want}");
+        assert!((18.0..=20.0).contains(&tray), "{tray}");
     }
 
     /// An un-tabulated crop id contributes 0 to the computed supply (honest, not a guess).
     #[test]
     fn unknown_crop_contributes_zero() {
         let nutrition = load_nutrition();
-        let kcal = food_supply_kcal_per_day(&[("not_a_real_crop".to_string(), 5.0)], &nutrition);
+        let (plants, items) = load_registries();
+        let kcal = food_supply_kcal_per_day(&[("not_a_real_crop".to_string(), Some(2.0), 5.0)], &nutrition, &plants, &items);
         assert_eq!(kcal, 0.0);
     }
 

@@ -12814,7 +12814,8 @@ mod native_app {
                             .iter()
                         {
                             use crate::systems::farming::soil as sl;
-                            let need = crate::systems::farming::crop_season_need(&crop.crop_def_id, plant_reg, item_reg, nutrient_scale);
+                            let plants = crate::systems::farming::units::crop_plants(crop, plant_reg, state.data_store.get(crate::systems::farming::units::PLOT_AREA_KEY));
+                            let need = crate::systems::farming::crop_season_need(&crop.crop_def_id, plants, plant_reg, item_reg, nutrient_scale);
                             let store = soil.map_or_else(|| sl::fresh_store(need), |s| s.store);
                             let (supply, scarce) = sl::sufficiency(&store, &need);
                             let def = plant_reg.and_then(|r| r.get(&crop.crop_def_id));
@@ -12857,7 +12858,8 @@ mod native_app {
                                 n: per_kg.n as f32,
                                 p: per_kg.p2o5 as f32,
                                 k: per_kg.k2o as f32,
-                                water_per_day: def.map(|d| d.water_per_day).unwrap_or(0.0),
+                                water_per_day: def.map(|d| d.water_per_day * plants as f32).unwrap_or(0.0),
+                                plants,
                                 temp_min: def.map(|d| d.temp_min_c).unwrap_or(0.0),
                                 temp_max: def.map(|d| d.temp_max_c).unwrap_or(0.0),
                                 light: crate::systems::farming::lighting::light_word(def.map_or(true, |d| d.needs_light), crop.tower_id.as_deref().map_or(false, crate::systems::farming::is_field_area), sun_up, crop.tower_id.as_deref().and_then(|t| lamp.get(t)).copied().unwrap_or(0.0)),

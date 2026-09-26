@@ -12,7 +12,9 @@
 //!    `CropSoil` on the crop growing in it. A fresh unit starts with
 //!    `FRESH_UNIT_SEASONS` of its crop's season need.
 //! 2. A growing crop draws its season need (`season_need`: its expected
-//!    harvest times the grams each kg of it removes, from the crop's own
+//!    harvest, which is its per-plant yield times the plants in its unit
+//!    (`super::units`, 2026-09-26: one in a tower cup, hundreds of wheat
+//!    plants in a tray), times the grams each kg of it removes, from the crop's own
 //!    cited plants.csv removal columns, or, where those are blank, from its
 //!    relative index scaled by the anchor crop's cited removal; see
 //!    `removal_per_kg` and data/garden/nutrients.ron) in step with its growth
@@ -122,8 +124,10 @@ impl Npk {
 /// has no soil type per unit yet. 1.5 means the first crop in a newly prepared
 /// unit grows unfed and unstressed, the second runs short about 40% of the way
 /// through its season, and the third starts short: cropping mines a unit, and
-/// fertilizing is how it is kept. Sized to the crop because units range from a
-/// tower cup to a field patch and the game does not know their volume.
+/// fertilizing is how it is kept. Sized to the crop's need, which since
+/// 2026-09-26 counts the plants in the unit (a tower cup holds one, a bed plot
+/// as many as fit at the crop's spacing), because the game does not know the
+/// volume of soil or root zone behind a unit.
 pub const FRESH_UNIT_SEASONS: f64 = 1.5;
 
 /// A crop runs short of a nutrient once its unit holds less than this share
@@ -347,18 +351,21 @@ impl NutrientData {
 
 // -- The model ------------------------------------------------------------------
 
-/// The harvest a crop is expected to give at full health, kg: the middle of
-/// its plants.csv yield range times the items.csv mass of one harvested item.
+/// The harvest a unit of `plants` plants of this crop is expected to give at
+/// full health, kg: the middle of its plants.csv per-plant yield range, times
+/// the items.csv mass of one harvested item, times the plants (2026-09-26:
+/// one for a tower cup, as many as fit for a bed plot, `units::crop_plants`).
 /// Zero for a crop whose harvest has no mass (it then takes nothing out).
-pub fn expected_harvest_kg(def: &PlantDef, item_kg: f64) -> f64 {
+pub fn expected_harvest_kg(def: &PlantDef, item_kg: f64, plants: u32) -> f64 {
     let lo = def.yield_min.max(0.0) as f64;
     let hi = (def.yield_max as f64).max(lo);
-    (lo + hi) / 2.0 * item_kg.max(0.0)
+    (lo + hi) / 2.0 * item_kg.max(0.0) * f64::from(plants)
 }
 
 /// A crop's nutrient need over one growing season, grams: its expected
 /// harvest times what each kg of it removes (`removal_per_kg`). For the
-/// anchor tomato this is exactly the cited removal of its 1.0 kg harvest.
+/// anchor tomato's cup this is the cited removal a kg times one high-tunnel
+/// plant's 6.35 kg.
 pub fn season_need(def: &PlantDef, harvest_kg: f64, scale: Npk) -> Npk {
     removal_per_kg(def, scale).scaled(harvest_kg.max(0.0))
 }
@@ -889,20 +896,23 @@ mod tests {
     }
 
     /// The anchor tomato's season need is exactly the cited removal of its
-    /// expected 1.0 kg harvest (2 to 8 fruit of 0.2 kg), which is the whole
-    /// point of the anchor: the scale is a published number, not a guess.
-    /// Seen red by setting the anchor's N to 1.6 g/kg in the data.
+    /// expected harvest, which is the whole point of the anchor: the scale is a
+    /// published number, not a guess. Since 2026-09-26 that harvest is one
+    /// high-tunnel plant's season, UMN's "8-20 lb" (18.14 to 45.36 fruit of 0.2
+    /// kg; data/garden/yields.ron), so 14 lb, 6.35 kg, needing 9.5 g of N (it
+    /// was 1.0 kg from 2 to 8 unsourced fruit). Seen red by setting the
+    /// anchor's N to 1.6 g/kg in the data.
     #[test]
     fn the_anchor_tomato_needs_its_published_removal() {
         let (data, plants, items) = shipped();
         let tomato = plants.get("tomato").unwrap();
         let scale = data.demand_scale(Some(tomato)).expect("tomato anchors the scale");
-        let kg = expected_harvest_kg(tomato, f64::from(items.mass_for("vegetable_tomato_0")));
-        assert!((kg - 1.0).abs() < 1e-6, "tomato's expected harvest {kg} kg");
+        let kg = expected_harvest_kg(tomato, f64::from(items.mass_for("vegetable_tomato_0")), 1);
+        assert!((kg - 14.0 * 0.45359237).abs() < 1e-3, "tomato's expected harvest {kg} kg");
         let need = season_need(tomato, kg, scale);
-        assert!((need.n - 1.5).abs() < 1e-6, "N {}", need.n);
-        assert!((need.p2o5 - 0.9).abs() < 1e-6, "P2O5 {}", need.p2o5);
-        assert!((need.k2o - 4.0).abs() < 1e-6, "K2O {}", need.k2o);
+        assert!((need.n - 1.5 * kg).abs() < 1e-6, "N {}", need.n);
+        assert!((need.p2o5 - 0.9 * kg).abs() < 1e-6, "P2O5 {}", need.p2o5);
+        assert!((need.k2o - 4.0 * kg).abs() < 1e-6, "K2O {}", need.k2o);
         // The tomato carries the anchor's figures in its own removal columns
         // too, so it reads the same by either route.
         assert_eq!((tomato.removal_n, tomato.removal_p2o5, tomato.removal_k2o), (Some(1.5), Some(0.9), Some(4.0)));
@@ -911,10 +921,12 @@ mod tests {
     /// A crop with removal columns needs exactly its removal times its
     /// harvest, whatever its index says: a tomato twin whose index is tripled
     /// but whose columns read 10 / 5 / 20 g per kg needs those grams times its
-    /// 2.5 kg. And wheat, the crop the indices understated most, now needs its
+    /// 2.5 kg. And wheat, the crop the indices understated most, needs its
     /// cited 20.8 g N (NRCS Table 6-6), 8.33 g P2O5 and 5.83 g K2O (A2809
-    /// Table 4.2) per kg times its 7 kg unit: 145.6 / 58.3 / 40.8 g a season,
-    /// against the 7.0 / 5.0 / 8.4 g its index gave. Seen red by making
+    /// Table 4.2) per kg times its harvest. Since 2026-09-26 that harvest is
+    /// per plant (about 1 g of grain) times the plants in the unit: a 2 m2 tray
+    /// holds 666 at 0.003 m2 each and harvests 0.66 kg, needing 13.8 g of N a
+    /// season (it was "a 7 kg unit" needing 146 g). Seen red by making
     /// `removal_per_kg` ignore the columns (the twin then needed 11.25 g of N,
     /// its tripled index, instead of 25).
     #[test]
@@ -932,12 +944,14 @@ mod tests {
         assert!((need.k2o - 50.0).abs() < 1e-9, "K2O {}", need.k2o);
 
         let wheat = plants.get("wheat").unwrap();
-        let kg = expected_harvest_kg(wheat, f64::from(items.mass_for("grain_wheat_0")));
-        assert!((kg - 7.0).abs() < 1e-6, "a wheat unit is 8 to 20 items of 0.5 kg: {kg}");
+        let tray_plants = crate::systems::farming::units::plants_in_plot(wheat, Some(2.0));
+        assert_eq!(tray_plants, 666, "2 m2 at 0.003 m2 a plant");
+        let kg = expected_harvest_kg(wheat, f64::from(items.mass_for("grain_wheat_0")), tray_plants);
+        assert!((kg - 0.6617).abs() < 1e-3, "a 2 m2 wheat tray harvests about 0.66 kg: {kg}");
         let need = season_need(wheat, kg, scale);
-        assert!((need.n - 20.8 * 7.0).abs() < 1e-3, "wheat N {}", need.n);
-        assert!((need.p2o5 - 8.33 * 7.0).abs() < 1e-3, "wheat P2O5 {}", need.p2o5);
-        assert!((need.k2o - 5.83 * 7.0).abs() < 1e-3, "wheat K2O {}", need.k2o);
+        assert!((need.n - 20.8 * kg).abs() < 1e-3, "wheat N {}", need.n);
+        assert!((need.p2o5 - 8.33 * kg).abs() < 1e-3, "wheat P2O5 {}", need.p2o5);
+        assert!((need.k2o - 5.83 * kg).abs() < 1e-3, "wheat K2O {}", need.k2o);
     }
 
     /// A crop whose removal columns are blank keeps the need it had before
@@ -953,7 +967,7 @@ mod tests {
         let scale = data.scale_for(&plants).expect("the anchor scales");
         let apple = plants.get("apple").unwrap();
         assert_eq!((apple.removal_n, apple.removal_p2o5, apple.removal_k2o), (None, None, None), "apple is unsourced");
-        let kg = expected_harvest_kg(apple, f64::from(items.mass_for("fruit_apple_0")));
+        let kg = expected_harvest_kg(apple, f64::from(items.mass_for("fruit_apple_0")), 1);
         let need = season_need(apple, kg, scale);
         let by_index = Npk::new(
             f64::from(apple.nutrient_n) * scale.n,

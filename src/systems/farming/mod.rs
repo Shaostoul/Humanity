@@ -11,12 +11,15 @@ pub mod pests;
 pub mod lighting;
 pub mod soil_ph;
 pub mod automation;
+pub mod units;
 #[cfg(test)]
 mod nutrient_tests;
 #[cfg(test)]
 mod pest_tests;
 #[cfg(test)]
 mod soil_ph_tests;
+#[cfg(test)]
+mod unit_tests;
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -81,12 +84,16 @@ pub struct PlantDef {
     /// Loaded from plants.csv `growth_stages` column (colon-separated).
     /// Falls back to DEFAULT_GROWTH_STAGES when empty.
     pub growth_stages: Vec<String>,
-    /// Harvest yield range (units of produce per fully-grown plant). f32 because real
-    /// crops can yield LESS than one unit per plant per harvest (saffron: 0.3 -- a few
-    /// stigma threads); the harvest roll converts the continuous roll to whole inventory
-    /// items by probabilistic rounding, preserving the expected value. Was u32, which made
-    /// serde reject (and the registry silently drop) any plants.csv row with a fractional
-    /// yield -- saffron was un-plantable for months before the 2026-07-01 fix.
+    /// Harvest range PER PLANT, in items of `harvest_item` (so the kg are this
+    /// times the item's items.csv weight_kg). A grow unit harvests this times
+    /// the plants in it (`units::crop_plants`, 2026-09-26): one for a tower cup
+    /// or a hand-planted crop, as many as fit at `area_per_plant_m2` for a bed,
+    /// tray or field plot. f32 because a plant often gives far LESS than one
+    /// item (a wheat plant is 0.002 of a 0.5 kg item); the harvest roll turns
+    /// the continuous total into whole items by probabilistic rounding,
+    /// preserving the expected value. Was u32, which made serde reject (and the
+    /// registry silently drop) any plants.csv row with a fractional yield --
+    /// saffron was un-plantable for months before the 2026-07-01 fix.
     pub yield_min: f32,
     pub yield_max: f32,
     /// Relative nutrient demand fractions (N, P, K) from plants.csv. Shown per
@@ -136,6 +143,14 @@ pub struct PlantDef {
     pub removal_p2o5: Option<f32>,
     #[serde(default)]
     pub removal_k2o: Option<f32>,
+    /// Floor area one plant takes, m2 (plants.csv `area_per_plant_m2`,
+    /// 2026-09-26): the in-row x between-row spacing of a planting guide,
+    /// cited per crop in data/garden/yields.ron. A bed, tray or field plot
+    /// holds `units::plants_in_plot` of them. `None` where the column is
+    /// blank: that crop is one plant whatever unit it grows in, the behaviour
+    /// every crop had before.
+    #[serde(default)]
+    pub area_per_plant_m2: Option<f32>,
 }
 
 fn default_needs_light() -> bool {
@@ -157,6 +172,14 @@ fn parse_fixed_share(cell: &str) -> f32 {
 /// rather than let the fallback hide it.
 fn parse_removal(cell: &str) -> Option<f32> {
     cell.trim().parse::<f32>().ok().filter(|v| v.is_finite() && *v > 0.0)
+}
+
+/// Read the plants.csv `area_per_plant_m2` cell. The same rule as
+/// `parse_removal`: blank, unparseable, zero or negative is `None` (one plant
+/// a unit), never a dropped row, and the shipped-data test in unit_tests.rs
+/// fails a filled cell that reads as `None`.
+fn parse_area(cell: &str) -> Option<f32> {
+    parse_removal(cell)
 }
 
 /// Read the plants.csv `needs_light` cell. Only an explicit no (`false`,
@@ -245,6 +268,7 @@ impl PlantRegistry {
                     removal_n: parse_removal(&row.removal_n_g_per_kg),
                     removal_p2o5: parse_removal(&row.removal_p2o5_g_per_kg),
                     removal_k2o: parse_removal(&row.removal_k2o_g_per_kg),
+                    area_per_plant_m2: parse_area(&row.area_per_plant_m2),
                 },
             );
         }
@@ -308,6 +332,9 @@ struct PlantRow {
     removal_p2o5_g_per_kg: String,
     #[serde(default)]
     removal_k2o_g_per_kg: String,
+    /// Text, not a number: see `parse_area`.
+    #[serde(default)]
+    area_per_plant_m2: String,
 }
 
 /// Split a colon-separated list field into trimmed, non-empty entries.
@@ -388,15 +415,18 @@ mod plant_registry_csv_tests {
             data_rows
         );
         // The row that exposed the bug: saffron's fractional yield survives as-is.
+        // (0.3 until 2026-09-26; now its cited per-corm harvest, 0.00027 of a
+        // 50 g item, data/garden/yields.ron, which is still the point: a
+        // yield far under one item must load.)
         let saffron = reg.get("saffron").expect("saffron present (fractional-yield row)");
         assert!(
-            (saffron.yield_min - 0.3).abs() < 1e-6,
-            "saffron yield_min survives as 0.3, got {}",
+            (saffron.yield_min - 0.00027).abs() < 1e-9,
+            "saffron yield_min survives as 0.00027, got {}",
             saffron.yield_min
         );
         assert!(
-            (saffron.yield_max - 1.0).abs() < 1e-6,
-            "saffron yield_max survives as 1.0, got {}",
+            (saffron.yield_max - 0.00216).abs() < 1e-9,
+            "saffron yield_max survives as 0.00216, got {}",
             saffron.yield_max
         );
     }
@@ -684,36 +714,40 @@ fn harvest_quantity(ymin: f32, ymax: f32, season_health: f32, roll: f32, round: 
 /// soybean asks its unit for 45% of its N and a tomato for all of it. This
 /// is the need the tick draws, the feeder feeds and the shortage test reads.
 /// Public so the Garden panel shows a unit's store against the same need the
-/// tick uses.
+/// tick uses. `unit_plants` is the plants in the crop's unit
+/// (`units::crop_plants`): a unit's need is its plants' harvest's removal,
+/// so a 666-plant wheat tray needs 666 times what one wheat plant does.
 pub fn crop_season_need(
     plant_id: &str,
+    unit_plants: u32,
     plants: Option<&PlantRegistry>,
     items: Option<&crate::systems::inventory::ItemRegistry>,
     scale: Option<Npk>,
 ) -> Npk {
     let fixed = plants.and_then(|r| r.get(plant_id)).map_or(0.0, |d| f64::from(d.n_fixed_share));
-    soil::soil_draw(crop_removal(plant_id, plants, items, scale), fixed)
+    soil::soil_draw(crop_removal(plant_id, unit_plants, plants, items, scale), fixed)
 }
 
 /// What a crop's harvest carries out of its unit in one season, grams: its
-/// expected harvest (mid yield x the items.csv mass of what it harvests into)
-/// times what each kg of it removes: the crop's own plants.csv removal
-/// columns where filled, else its index read against the anchor's published
-/// removal (`soil::removal_per_kg`). `scale` is `NutrientData::scale_for`;
-/// None, or an unknown plant, removes nothing.
+/// expected harvest (mid yield per plant x `unit_plants` x the items.csv mass
+/// of what it harvests into, `soil::expected_harvest_kg`) times what each kg
+/// of it removes: the crop's own plants.csv removal columns where filled,
+/// else its index read against the anchor's published removal
+/// (`soil::removal_per_kg`). `scale` is `NutrientData::scale_for`; None, or
+/// an unknown plant, removes nothing.
 /// For a legume this is more than it draws (`crop_season_need`): the rest
 /// of the N came from the air.
 pub fn crop_removal(
     plant_id: &str,
+    unit_plants: u32,
     plants: Option<&PlantRegistry>,
     items: Option<&crate::systems::inventory::ItemRegistry>,
     scale: Option<Npk>,
 ) -> Npk {
     match (scale, plants.and_then(|r| r.get(plant_id))) {
         (Some(scale), Some(def)) => {
-            let item_kg = harvest_item_for(plant_id, plants, items)
-                .map_or(0.0, |i| items.map_or(0.0, |r| f64::from(r.mass_for(&i))));
-            soil::season_need(def, soil::expected_harvest_kg(def, item_kg), scale)
+            let item_kg = units::harvest_item_kg(plant_id, plants, items);
+            soil::season_need(def, soil::expected_harvest_kg(def, item_kg, unit_plants), scale)
         }
         _ => Npk::ZERO,
     }
@@ -902,6 +936,12 @@ impl System for FarmingSystem {
         let default_stages: Vec<&str> = DEFAULT_GROWTH_STAGES.iter().copied().collect();
 
         let item_registry = data.get::<crate::systems::inventory::ItemRegistry>("item_registry");
+        // Each bed, tray and field plot's floor area, published by the engine
+        // (2026-09-26, units.rs): how many plants a unit holds, and so what it
+        // harvests, needs and drinks. Absent (tests, early boot) = every unit
+        // is one plant, as before.
+        let plot_areas = data.get::<HashMap<String, f32>>(units::PLOT_AREA_KEY);
+        let unit_plants = |c: &CropInstance| units::crop_plants(c, plant_registry, plot_areas);
 
         // Per-area irrigation: a grow area the player has configured (in the garden
         // edit modal) tops its crops up to a target water level each tick. Keyed by
@@ -1074,16 +1114,21 @@ impl System for FarmingSystem {
             data.get::<soil_ph::SoilPhData>("garden_soil_ph").or(self.ph_data.as_ref()).expect("loaded above");
         let ph_on = soil_ph::is_on(data);
 
-        // A crop's season need, by plant id (soil::season_need). Cached for the
-        // tick: a garden is a few dozen species and a few thousand crops.
+        // A unit's season need (soil::season_need): one plant's, cached by
+        // plant id for the tick (a garden is a few dozen species and a few
+        // thousand crops), times the plants in the unit. The need is linear in
+        // the harvest, so the scaling is exact.
         let mut need_cache: HashMap<String, Npk> = HashMap::new();
-        let mut need_for = |plant_id: &str| -> Npk {
-            if let Some(n) = need_cache.get(plant_id) {
-                return *n;
-            }
-            let need = crop_season_need(plant_id, plant_registry, item_registry, demand_scale);
-            need_cache.insert(plant_id.to_string(), need);
-            need
+        let mut need_for = |plant_id: &str, plants: u32| -> Npk {
+            let per_plant = match need_cache.get(plant_id) {
+                Some(n) => *n,
+                None => {
+                    let n = crop_season_need(plant_id, 1, plant_registry, item_registry, demand_scale);
+                    need_cache.insert(plant_id.to_string(), n);
+                    n
+                }
+            };
+            per_plant.scaled(f64::from(plants))
         };
 
         // ── GUI / dev gardening commands (the inventory page writes these via the
@@ -1404,10 +1449,10 @@ impl System for FarmingSystem {
             let target = hecs::Entity::from_bits(bits).and_then(|e| {
                 world.get::<&CropInstance>(e).ok().map(|c| {
                     let unit = c.tower_id.clone().zip(c.tower_slot);
-                    (e, c.crop_def_id.clone(), unit)
+                    (e, c.crop_def_id.clone(), unit, unit_plants(&c))
                 })
             });
-            if let Some((entity, plant_id, unit)) = target {
+            if let Some((entity, plant_id, unit, plants_here)) = target {
                 let uptake = world.get::<&CropSoil>(entity).map_or(0.0, |s| s.uptake);
                 let days_left = plant_registry.and_then(|r| r.get(&plant_id)).map_or(f64::INFINITY, |d| {
                     soil::days_to_maturity(f64::from(d.growth_days), d.stages().len(), uptake)
@@ -1451,7 +1496,7 @@ impl System for FarmingSystem {
                     };
                     if !fed {
                         // Never ticked yet: fresh soil plus the fertilizer.
-                        let store = soil::fresh_store(need_for(&plant_id)).plus(dose.available);
+                        let store = soil::fresh_store(need_for(&plant_id, plants_here)).plus(dose.available);
                         let _ = world.insert_one(entity, CropSoil { store, uptake: 0.0 });
                     }
                     // Compost's organic N goes into the unit's slow pool,
@@ -1462,7 +1507,7 @@ impl System for FarmingSystem {
                         soil::bank_organic_in(world, area, *slot, dose.organic_n);
                         // Its ammonium acidifies the unit as it nitrifies (soil_ph.rs).
                         if ph_on {
-                            let need_n = need_for(&plant_id).n;
+                            let need_n = need_for(&plant_id, plants_here).n;
                             let def = plant_registry.and_then(|r| r.get(&plant_id));
                             let plot_m2 = soil_ph::plot_area(data, area);
                             soil_ph::add_n_in(world, ph_data, area, *slot, &dose.item, dose.available.n, def, need_n, plot_m2);
@@ -1514,7 +1559,12 @@ impl System for FarmingSystem {
             .get::<std::sync::Mutex<Option<(String, String)>>>("soil_ph_request")
             .and_then(|m| m.lock().ok().and_then(|mut s| s.take()));
         if let (Some((area, amendment)), true) = (ph_request, ph_on) {
-            let mut need_n = |p: &str| need_for(p).n;
+            // A plant's need for the plants one plot of this area holds.
+            let plot_m2 = units::plot_area(plot_areas, Some(area.as_str()));
+            let mut need_n = |p: &str| {
+                let plants = plant_registry.and_then(|r| r.get(p)).map_or(1, |d| units::plants_in_plot(d, plot_m2));
+                need_for(p, plants).n
+            };
             soil_ph::handle_request(world, data, ph_data, &mut self.ph_rt, &area, &amendment, creative, &mut need_n);
         }
 
@@ -1574,17 +1624,17 @@ impl System for FarmingSystem {
                         .unwrap_or_else(|| default_stages.clone());
                     let mature = stages.last().map(|l| crop.growth_stage == *l).unwrap_or(false);
                     if mature {
-                        Some((crop.crop_def_id.clone(), season_health(&crop)))
+                        Some((crop.crop_def_id.clone(), season_health(&crop), unit_plants(&crop)))
                     } else {
                         None
                     }
                 });
-                if let Some((plant_id, crop_season_health)) = picked {
+                if let Some((plant_id, crop_season_health, plants_here)) = picked {
                     if let Some(yield_item) = harvest_item_for(&plant_id, plant_registry, item_registry) {
-                        // Yield range from the plant def. Yields are FRACTIONAL (f32):
-                        // saffron's 0.3 means less than one unit per plant per harvest.
-                        // Sanitize the window (min >= 0, max >= min); unknown plants
-                        // fall back to exactly 1 unit as before.
+                        // Yield range from the plant def, PER PLANT and FRACTIONAL
+                        // (f32): a wheat plant gives 0.002 of an item. Sanitize the
+                        // window (min >= 0, max >= min); unknown plants fall back
+                        // to exactly 1 unit as before.
                         let (ymin, ymax) = plant_registry
                             .and_then(|reg| reg.get(&plant_id))
                             .map(|d| {
@@ -1592,13 +1642,18 @@ impl System for FarmingSystem {
                                 (lo, d.yield_max.max(lo))
                             })
                             .unwrap_or((1.0, 1.0));
+                        // The unit's harvest is its plants' (2026-09-26,
+                        // units.rs): one for a tower cup, every plant a bed
+                        // plot holds. One roll for the whole unit: its plants
+                        // shared one season, one water supply and one soil.
+                        let n = plants_here as f32;
                         // Roll in [ymin, ymax], scale by the crop's season
                         // health, round probabilistically: see harvest_quantity
                         // for the model and its source (2026-09-26; before
                         // this the yield ignored how the crop was kept).
                         let qty = harvest_quantity(
-                            ymin,
-                            ymax,
+                            ymin * n,
+                            ymax * n,
                             crop_season_health,
                             rand::random::<f32>(),
                             rand::random::<f32>(),
@@ -1665,7 +1720,8 @@ impl System for FarmingSystem {
                         let fixed = plant_registry
                             .and_then(|r| r.get(&plant_id))
                             .map_or(0.0, |d| f64::from(d.n_fixed_share));
-                        let removal = crop_removal(&plant_id, plant_registry, item_registry, demand_scale);
+                        let removal =
+                            crop_removal(&plant_id, plants_here, plant_registry, item_registry, demand_scale);
                         let credit = soil::legume_credit_n(removal.n, fixed, legume_harvest_share)
                             * f64::from(uptake.clamp(0.0, 1.0));
                         if credit > 0.0 {
@@ -1812,7 +1868,8 @@ impl System for FarmingSystem {
                 }
                 let area = c.tower_id.as_deref().unwrap_or("");
                 let outdoors = is_field_area(area);
-                let need_n = need_for(&c.crop_def_id).n;
+                // The unit's need, against the unit's store.
+                let need_n = need_for(&c.crop_def_id, unit_plants(c)).n;
                 let cond = pests::CropConditions {
                     outdoors,
                     temp_c: if outdoors { f64::from(weather_temp) } else { pest_data.indoor_temp_c },
@@ -1881,8 +1938,10 @@ impl System for FarmingSystem {
             // NUTRIENTS (2026-09-26, soil.rs). The crop's unit: what it had,
             // or fresh soil if it never ticked (newly sown in an unremembered
             // unit, spawned by the showcase, or loaded from a save, which does
-            // not carry soil yet).
-            let need = need_for(&crop.crop_def_id);
+            // not carry soil yet). Its need, its fresh store and its water
+            // are all for the plants the unit holds (units.rs).
+            let plants_here = unit_plants(&crop);
+            let need = need_for(&crop.crop_def_id, plants_here);
             let mut crop_soil = crop_soil.cloned().unwrap_or_else(|| CropSoil {
                 store: soil::fresh_store(need),
                 uptake: 0.0,
@@ -1997,13 +2056,16 @@ impl System for FarmingSystem {
                 if let Some(tid) = &crop.tower_id {
                     let target = irrigation.get(tid).copied().unwrap_or(DEFAULT_AUTO_IRRIGATION);
                     crop.water_level = crop.water_level.max(target);
-                    // The water is real: this crop's daily need, from
-                    // plants.csv, counts toward what the irrigation draws.
+                    // The water is real: this unit's daily need, plants.csv's
+                    // litres per plant times the plants it holds (2026-09-26;
+                    // a 666-plant wheat tray drinks 666 wheat plants' water,
+                    // not one), counts toward what the irrigation draws.
                     if target > 0.0 {
                         irrigation_l_per_day += plant_registry
                             .as_ref()
                             .and_then(|r| r.get(&crop.crop_def_id))
-                            .map_or(0.0, |d| d.water_per_day);
+                            .map_or(0.0, |d| d.water_per_day)
+                            * plants_here as f32;
                     }
                 }
             }
@@ -2459,11 +2521,17 @@ mod gardening_tests {
     }
 
     /// A harvest the pack cannot take, with no vessel for it, goes to home
-    /// storage (the Barn) instead of being thrown away (2026-09-26).
+    /// storage (the Barn) instead of being thrown away (2026-09-26). The trays
+    /// are 2 m2 plots of 666 wheat plants each (units.rs): 1 or 2 items a
+    /// tray, where one unsourced "plant" used to give at least 8.
     #[test]
     fn a_harvest_the_pack_cannot_take_goes_to_home_storage() {
         let mut data = make_store();
         data.insert("home_stock_outputs", std::sync::Mutex::new(Vec::<(String, u32)>::new()));
+        data.insert(
+            units::PLOT_AREA_KEY,
+            [("staple_grain_tray".to_string(), 2.0_f32)].into_iter().collect::<HashMap<_, _>>(),
+        );
         let mut sys = FarmingSystem::new();
         let mut world = hecs::World::new();
         let mut inv = Inventory::new(24);
@@ -2496,15 +2564,20 @@ mod gardening_tests {
             .map(|(_, q)| *q)
             .sum();
         assert_eq!(world.get::<&Inventory>(player).unwrap().count_item("grain_wheat_0"), 0, "the pack is full");
-        assert!(filed >= 24, "the harvest went to home storage, not away: {filed}");
+        assert!((3..=6).contains(&filed), "the harvest went to home storage, not away: {filed}");
     }
 
     /// v0.739 BULK HARVEST: the "Harvest N ready" button sends every mature
     /// crop's bits through harvest_many_request; one tick picks them all
-    /// (immature crops in the list are left standing).
+    /// (immature crops in the list are left standing). Each tray is a 2 m2
+    /// plot of 666 wheat plants (2026-09-26, units.rs): 1 or 2 items a tray.
     #[test]
     fn bulk_harvest_picks_every_ready_crop_in_one_tick() {
-        let data = make_store();
+        let mut data = make_store();
+        data.insert(
+            units::PLOT_AREA_KEY,
+            [("staple_grain_tray".to_string(), 2.0_f32)].into_iter().collect::<HashMap<_, _>>(),
+        );
         let mut sys = FarmingSystem::new();
         let mut world = hecs::World::new();
         let mut inv = Inventory::new(24);
@@ -2538,8 +2611,8 @@ mod gardening_tests {
         );
         let grain = world.get::<&Inventory>(player).unwrap().count_item("grain_wheat_0");
         assert!(
-            grain >= 24,
-            "three harvests of wheat (yield_min 8 each) landed, got {grain}"
+            (3..=6).contains(&grain),
+            "three trays of wheat (1 or 2 items each) landed, got {grain}"
         );
     }
 
@@ -2547,9 +2620,18 @@ mod gardening_tests {
     /// (consuming one seed each in survival), grows, and harvest yields REAL
     /// grain_wheat_0 — the item the grain silo accepts (dry_goods). Replanting is
     /// idempotent: live units are skipped, so no crop stacking.
+    ///
+    /// CHANGED 2026-09-26 (units.rs): a unit's harvest is its plants', so the
+    /// store now publishes the tray's 2 m2 plot. Its 666 wheat plants give 1
+    /// or 2 items of 0.5 kg (1.32 on average), where the old test asked for at
+    /// least 8, the unsourced per-"plant" yield_min a whole tray used to get.
     #[test]
     fn bed_plant_grow_harvest_yields_grain() {
-        let data = make_store();
+        let mut data = make_store();
+        data.insert(
+            units::PLOT_AREA_KEY,
+            [("staple_grain_tray".to_string(), 2.0_f32)].into_iter().collect::<HashMap<_, _>>(),
+        );
         let mut sys = FarmingSystem::new();
         let mut world = hecs::World::new();
         let mut inv = Inventory::new(24);
@@ -2600,8 +2682,8 @@ mod gardening_tests {
         sys.tick(&mut world, 1.0, &data);
         let grain = world.get::<&Inventory>(player).unwrap().count_item("grain_wheat_0");
         assert!(
-            grain >= 8,
-            "harvest yielded real wheat grain (>= yield_min 8), got {grain}"
+            (1..=2).contains(&grain),
+            "a 2 m2 tray's 666 wheat plants harvest 1 or 2 items of grain, got {grain}"
         );
     }
 
@@ -3181,36 +3263,38 @@ mod gardening_tests {
         assert!(safe >= 80.0, "no RF -> the crop holds/recovers, got {safe}");
     }
 
-    /// Yield follows the crop's season health (2026-09-26): forty wheat
-    /// crops kept well all season out-yield forty that spent it at half
+    /// Yield follows the crop's season health (2026-09-26): forty potato
+    /// plants kept well all season out-yield forty that spent it at half
     /// health, by about half, through the real harvest path. Every crop's
     /// CURRENT health is 100, the way a stressed crop's health has usually
     /// recovered by harvest day, so this also proves the harvest reads the
     /// season record and not today's health. Averaged over forty harvests
-    /// each (wheat rolls 8 to 20), so the ratio sits near 0.5 with a spread
-    /// far inside the bounds asserted: not flaky.
+    /// each (a potato plant rolls 2.93 to 3.06 items), so the ratio sits near
+    /// 0.5 with a spread far inside the bounds asserted: not flaky. It used
+    /// wheat until units.rs: a hand-planted crop is ONE plant, and one wheat
+    /// plant gives 0.002 of an item, too little to compare.
     #[test]
     fn healthy_crop_out_yields_a_stressed_one() {
         let mut data = make_store();
-        // Creative: no seeds come back with the grain, so the count below is
+        // Creative: no seeds come back with the potatoes, so the count below is
         // produce only.
         data.insert("creative_mode", std::sync::Mutex::new(true));
         data.insert("player_notices", std::sync::Mutex::new(Vec::<String>::new()));
         let last_stage = data
             .get::<PlantRegistry>("plant_registry")
             .unwrap()
-            .get("wheat")
+            .get("potato")
             .unwrap()
             .last_stage()
             .to_string();
         let mut sys = FarmingSystem::new();
         let mut world = hecs::World::new();
-        // A pack big enough that no grain overflows (grain is ~0.93 L a unit).
+        // A pack big enough that nothing overflows.
         let mut inv = Inventory::new(64);
         inv.volume_capacity_l = 1.0e6;
         let player = world.spawn((inv, Controllable));
         let mature = |season: f64| CropInstance {
-            crop_def_id: "wheat".to_string(),
+            crop_def_id: "potato".to_string(),
             growth_stage: last_stage.clone(),
             planted_at: 0.0,
             water_level: 1.0,
@@ -3225,7 +3309,7 @@ mod gardening_tests {
         let stressed: Vec<u64> =
             (0..40).map(|_| world.spawn((mature(0.5),)).to_bits().into()).collect();
         let grain = |world: &hecs::World| {
-            world.get::<&Inventory>(player).unwrap().count_item("grain_wheat_0")
+            world.get::<&Inventory>(player).unwrap().count_item("vegetable_potato_0")
         };
         let notices = |data: &DataStore| {
             std::mem::take(
@@ -3249,8 +3333,8 @@ mod gardening_tests {
         assert_eq!(world.query::<&CropInstance>().iter().count(), 0, "all eighty harvested");
 
         assert!(
-            healthy_total >= 40 * 8,
-            "full season health gives the full range (>= yield_min 8 each), got {healthy_total}"
+            healthy_total >= 40 * 2,
+            "full season health gives the full range (at least 2 potatoes a plant), got {healthy_total}"
         );
         assert!(
             stressed_total < healthy_total,

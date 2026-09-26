@@ -114,7 +114,8 @@ fn need_n(data: &DataStore, plant: &str) -> f64 {
     let items = data.get::<ItemRegistry>("item_registry");
     let nd = soil::NutrientData::parse(soil::NUTRIENTS_RON).unwrap();
     let scale = plants.and_then(|r| nd.scale_for(r));
-    crop_season_need(plant, plants, items, scale).n
+    // One plant: these tests publish no plot areas, so the tick counts one.
+    crop_season_need(plant, 1, plants, items, scale).n
 }
 
 /// The pH one gram of CaCO3 equivalent moves the unit of a `plant` crop.

@@ -363,6 +363,14 @@ Honest gaps to author, following the schema patterns in the files above —
    within 2x of home.ron's "+120 kcal/d per bed" claim (924 vs 960 kcal for
    8 beds). Still to do (deferred): wire the computed supply into the
    Home-page loop summary so it replaces the hand-typed catalog strings.
+   **Replaced 2026-09-26:** `grams_per_yield_unit` is gone. plants.csv now
+   carries a cited harvest per PLANT and a spacing (`area_per_plant_m2`,
+   sources in `data/garden/yields.ron`), a bed plot holds as many plants as
+   fit, and `food_supply_kcal_per_day` weighs a harvest by its items.csv item,
+   the same weight the harvest and the nutrient model use. On those numbers a
+   potato bed supplies about 61 kcal/day cropped back to back, so home.ron's
+   "+120 kcal/d" is about twice what the cited yield gives (the old test
+   reached 0.96x by modelling a bed as a tuber a day).
 
 4. ~~**No editable component-output table for the self-sufficiency
    score.**~~ **CLOSED (v0.663, 2026-07-01) — data + loader shipped, UI

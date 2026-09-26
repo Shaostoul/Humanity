@@ -1,0 +1,431 @@
+// Plant spacing and per-plant harvests (2026-09-26, gardening depth: what one
+// grow unit really yields). data/plants.csv carries the compiled numbers the
+// game reads (area_per_plant_m2, yield_min, yield_max, water_liters_per_day);
+// this file carries where each one came from, and the shipped-data test in
+// src/systems/farming/unit_tests.rs holds plants.csv to it.
+//
+// -- The problem this fixes ---------------------------------------------------
+//
+// Until 2026-09-26 plants.csv said yield_min/yield_max were "units of produce
+// per fully-grown plant", and the game applied them to whatever was planted: a
+// tower cup (one plant), a 2 x 1 m tray or a 2.4 x 2.4 m field (a whole bed of
+// plants), or a hand-planted seed. So a 2 m2 wheat tray harvested 8 to 20
+// items of 0.5 kg (7 kg, 3.5 kg/m2, several times what good wheat gives), one
+// soybean plant in a tower cup gave 1.65 kg of dry beans (a real one gives
+// about 14 g), and a staked tomato gave 1 kg (a real one gives several). The
+// nutrient model multiplies the harvest, so the fertilizer every unit needed
+// was inflated with it.
+//
+// -- The rule ------------------------------------------------------------------
+//
+// A tower cup and a hand-planted crop hold ONE plant. A bed, tray or field plot
+// holds
+//
+//     plants = max(1, floor(plot floor area / area_per_plant_m2))
+//
+// where the plot area is the machine's footprint (size x times size z in
+// data/machines/home.ron) divided by the plots it is sown in, published by the
+// engine as "grow_plot_area_m2", and area_per_plant_m2 is the in-row x
+// between-row spacing a planting guide gives (for drilled cereals and pulses,
+// 1 / the recommended established plants per m2). Its harvest, its season
+// nutrient need and its daily water are each the per-plant figure times the
+// plants. A crop with no area_per_plant_m2 stays one plant whatever it sits in.
+//
+// yield_min and yield_max are per PLANT, in items of the crop's harvest_item, so
+// the kg are yield x the item's items.csv weight_kg: one source of truth for
+// what a harvest weighs (data/food/crop_nutrition.ron no longer carries its own
+// grams per yield unit). per_plant_kg below is that same harvest in kg, and the
+// test checks the two agree through items.csv.
+//
+// -- How each value was chosen -------------------------------------------------
+//
+// Good-practice garden, market-farm or protected-cropping yields, never records.
+// Where one source gives both the spacing and the yield, both come from it, so
+// the per-m2 harvest is that source's own. Where a source gives a per-area yield
+// and another the spacing, per plant = yield per m2 x area per plant, and the
+// per-m2 figure is still the cited one; only the per-plant split leans on the
+// spacing. A range is the source's own range, or the spread between two cited
+// years or cultivars; a single figure has min = max. Fruiting crops use the
+// high-tunnel (protected) figure where the source has one, because the home
+// grows under glass; elsewhere the field figure stands, and understates a
+// protected crop.
+//
+// Unit conversions used throughout: 1 lb = 0.45359237 kg; 1 acre = 4046.8564224
+// m2; 1 in2 = 0.00064516 m2; 1 ft2 = 0.09290304 m2; 1 cwt = 100 lb; a bushel of
+// wheat or soybeans = 60 lb; a short ton = 2,000 lb.
+//
+// DRY_TO_FRESH = 4.5. Several herb sources weigh the DRIED herb, while the game's
+// herb and medicinal items are the fresh harvest. University of Vermont
+// Extension Ag Engineering, "Drying and Curing Herbs and Flowers (Hops, Hemp, and
+// Everything Else!)" (Chris Callahan, 23 February 2021): "plant matter is
+// typically 80% moisture content at harvest" and "we typically want to dry it to
+// 10% for storage". Fresh = dried x (1 - 0.10) / (1 - 0.80) = 4.5 x dried. A
+// general figure: a leafy herb can run wetter and a root drier, so every row that
+// uses it says so. Hops use their own source's moisture instead.
+//
+// -- Sources (all read 2026-09-26) ----------------------------------------------
+//
+//   NCSU CEFS  Center for Environmental Farming Systems, NC State, "Vegetable
+//              Planting Guide" (K. Baldwin 2011), https://cefs.ncsu.edu/wp-content/
+//              uploads/sfu-vegetable-planting-guide.pdf: per crop, yield in lb per
+//              acre, plants per acre, in-row and between-row spacing in the bed.
+//              Per plant = lb per acre / plants per acre.
+//   UMN Hoidal University of Minnesota Extension, "Crop and field planning tools for
+//              vegetable farmers" (Natalie Hoidal, 2026), https://extension.umn.edu/
+//              agriculture/specialty-crops/vegetable-farming/crop-and-field-
+//              planning-tools-for-vegetable-farmers: "Expected Yield per Plant" with
+//              within-row spacing and rows per bed, for "beds approximately 3 feet
+//              wide". Between-row spacing = 36 in / rows per bed (paths excluded,
+//              because a game bed is planted edge to edge).
+//   NASS       USDA National Agricultural Statistics Service reports, each named on
+//              its row.
+//   Stapleton  Stapleton, S. C. and Hochmuth, R. C. (2001), "Greenhouse production of
+//              several fresh-cut herbs in vertical hydroponic systems in north
+//              central Florida", Proc. Fla. State Hort. Soc. 114: 332-334, Table 1
+//              (https://svaec.ifas.ufl.edu/media/svaecifasufledu/docs/pdf/svreports/
+//              crops/leafygreens/Fresh-cut-herbs-in-Vertical-hydroponic-Systems.pdf).
+//              Towers of "eight pots with 32 plants per tower, equivalent to 0.34 ft2
+//              per plant", cut weekly from September 2000 to mid-June 2001: the
+//              trial closest to the game's aeroponic towers.
+//   MSU WARC   Montana State University, Western Agricultural Research Center,
+//              herbs and oils research pages (Callan, Westcott, Wall-MacLane, Miller
+//              and others), https://agresearch.montana.edu/warc/research_current/
+//              research_past/herbsandoils/, one page per herb.
+//
+// -- Where these numbers are weak (so nobody trusts them further than they go) --
+//
+//   - SEASON COMPRESSION. growth_days is days to the FIRST harvest, and the game
+//     picks a crop once and removes it. For a crop picked or cut over a season
+//     (tomato, pepper, cucumber, zucchini, eggplant, okra, strawberry, kale and
+//     every cut herb) the yield here is the whole season's pick, delivered at
+//     growth_days. So a unit replanted back to back yields a season's pick every
+//     growth_days: a year of tower tomatoes (70 days each) comes to about 2 to 3
+//     times what a real plant gives in a year, and a year of tower basil (30 days,
+//     Stapleton's nine-month total) about 9 times. The per-plant figures are the
+//     real ones; the gap is the missing picking window (a ripe plant that keeps
+//     producing until its season ends), which is a farming-system change, not a
+//     number to shrink here.
+//   - Two sources joined for one crop: rice (NASS yield for drill-seeded rice,
+//     IRRI hill spacing), potato, the pulses, chive, and the dry-weight herbs.
+//     Their per-m2 harvest is the cited one; the per-plant split leans on the
+//     spacing source.
+//   - ESTIMATES, labelled on their rows: echinacea's row spacing, calendula's and
+//     comfrey's in-row spacing, and every use of DRY_TO_FRESH.
+//   - Rice and chive yields were read through a search engine's excerpt of the
+//     source (the pages would not load); the rest were read on the page.
+//
+// -- Not sourced yet (area_per_plant_m2 blank: one plant a unit, old yields) -----
+//
+//   mint: planted as runners in continuous rows, so no source gives a per-plant
+//     spacing (DAV University's course notes on medicinal and aromatic crops give
+//     "20-25 t/ha" of fresh herb from three cuttings, which is a per-area figure
+//     waiting for a per-cup canopy area). rosemary, aloe_vera, st_johns_wort: no
+//     primary per-plant or per-area yield found in this pass (commercial wiki
+//     figures only). oyster_mushroom: a substrate block, not floor area, sets a
+//     mushroom's yield, which is its own model.
+//
+// -- The band the test holds each basis to (kg of harvest per m2 per planting) ---
+//
+// Per m2 = per-plant kg / area_per_plant_m2. Each band spans the cited values
+// below with room of about 2x either side, so a slip fails it:
+//   DrySeed    0.05 to 1.5  shipped 0.14 (lentil) to 0.87 (rice, NASS US average).
+//   FreshVeg   0.2 to 15    shipped 0.36 (green peas) to 10.4 (kale, UMN).
+//   FreshFruit 0.5 to 40    shipped 1.4 (okra) to 24.4 (high-tunnel cucumber, UMN).
+//   FreshHerb  0.1 to 20    shipped 0.15 (lavender) to 16.4 (tower basil, Stapleton).
+//   Spice      0.0005 to 0.05  saffron 0.0013 to 0.0105 fresh.
+//   Fiber      0.05 to 0.5  flax fiber 0.20.
+// The slip it exists to catch is a per-m2 figure typed as per-plant: that
+// multiplies the per-m2 harvest by the plants per m2, so every dense crop
+// (wheat x333, lentil x140, carrot x65, lettuce x14) lands far outside its band.
+// It cannot catch it for crops spaced wider than about 3 plants a m2 (sunflower,
+// tomato, hop), where the slip stays inside a band that must also hold the
+// honest spread between crops.
+//
+// -- WATER: water_liters_per_day per plant (plants.csv) --------------------------
+//
+// FAO Irrigation and Drainage Paper 56 (Allen, Pereira, Raes and Smith 1998),
+// the standard crop-water method: crop evapotranspiration ETc = Kc x ET0, in mm
+// a day, which is litres per m2 a day; per plant = ETc x area_per_plant_m2.
+//   ET0 = 3 mm/day: FAO-56 Table 2 ("Average ETo for different agroclimatic
+//     regions in mm/day"), temperate region, humid and sub-humid, moderate
+//     (20 C): "2 - 4". The home's reference location is Silverdale, WA
+//     (data/self_sufficiency/location.ron), and the greenhouse runs near 20 C.
+//   Kc = the season average of the FAO single crop-coefficient curve: Kc ini
+//     through the initial stage, a straight line to Kc mid over development,
+//     Kc mid through mid-season, a straight line to Kc end over the late stage,
+//     weighted by FAO-56 Table 11's stage lengths (equal quarters where Table 11
+//     has no row). Kc ini, mid and end from FAO-56 Table 12, the group row's Kc
+//     ini where the crop's own row gives none.
+//   Crops with no Table 12 row get the "small vegetables" group curve (0.7,
+//     1.05, 0.95) as an ESTIMATE, and only where the old value was more than 3x
+//     off it; otherwise the old value stands (kale, okra, lemongrass, chamomile,
+//     lavender, turmeric, echinacea, feverfew, calendula, chive).
+// These are crop transpiration plus soil evaporation for a well-watered crop. A
+// paddy also loses water to percolation (none in a lined tray), and a tower's
+// recirculating mist loses less to evaporation than soil does; neither is
+// modelled. Old and new values:
+//   wheat: 0.6 -> 0.00768 L/day (FAO-56, Kc 0.85, 0.003 m2)
+//   rice: 3 -> 0.0999 L/day (FAO-56, Kc 1.11, 0.03 m2)
+//   bean: 0.8 -> 0.115 L/day (FAO-56, Kc 0.85, 0.045 m2)
+//   sunflower: 1.5 -> 0.445 L/day (FAO-56, Kc 0.77, 0.193 m2)
+//   potato: 1.2 -> 0.624 L/day (FAO-56, Kc 0.89, 0.234 m2)
+//   flax: 0.6 -> 0.00137 L/day (FAO-56, Kc 0.77, 0.000588 m2)
+//   lettuce: 0.4 -> 0.179 L/day (FAO-56, Kc 0.86, 0.0697 m2)
+//   spinach: 0.3 -> 0.0799 L/day (FAO-56, Kc 0.86, 0.031 m2)
+//   cabbage: 1.2 -> 0.468 L/day (FAO-56, Kc 0.90, 0.174 m2)
+//   broccoli: 1.2 -> 0.467 L/day (FAO-56, Kc 0.90, 0.174 m2)
+//   cauliflower: 1.3 -> 0.467 L/day (FAO-56, Kc 0.89, 0.174 m2)
+//   beet: 0.35 -> 0.0769 L/day (FAO-56, Kc 0.83, 0.031 m2)
+//   turnip: 0.3 -> 0.0767 L/day (FAO-56, Kc 0.82, 0.031 m2)
+//   radish: 0.15 -> 0.017 L/day (FAO-56, Kc 0.84, 0.00677 m2)
+//   carrot: 0.3 -> 0.044 L/day (FAO-56, Kc 0.95, 0.0155 m2)
+//   parsnip: 0.7 -> 0.101 L/day (FAO-56, Kc 0.83, 0.0406 m2)
+//   celery: 1.5 -> 0.227 L/day (FAO-56, Kc 0.96, 0.079 m2)
+//   leek: 0.8 -> 0.184 L/day (estimate (4.3x off), Kc 0.91, 0.0677 m2)
+//   onion: 0.3 -> 0.132 L/day (FAO-56, Kc 0.95, 0.0465 m2)
+//   garlic: 0.25 -> 0.119 L/day (FAO-56, Kc 0.85, 0.0465 m2)
+//   chive: 0.4 -> 0.4 L/day (kept (2.8x the estimate 0.142), Kc 0.91, 0.0523 m2)
+//   cucumber: 1.5 -> 0.71 L/day (FAO-56, Kc 0.85, 0.279 m2)
+//   zucchini: 1.5 -> 0.933 L/day (FAO-56, Kc 0.74, 0.418 m2)
+//   tomato: 1.5 -> 1.15 L/day (FAO-56, Kc 0.91, 0.418 m2)
+//   pepper: 1.2 -> 0.487 L/day (FAO-56, Kc 0.87, 0.186 m2)
+//   eggplant: 1.3 -> 0.483 L/day (FAO-56, Kc 0.87, 0.186 m2)
+//   strawberry: 1.2 -> 0.233 L/day (FAO-56, Kc 0.67, 0.116 m2)
+//   pea: 0.6 -> 0.0293 L/day (FAO-56, Kc 0.95, 0.0103 m2)
+//   soybean: 1 -> 0.109 L/day (FAO-56, Kc 0.89, 0.0405 m2)
+//   lentil: 0.5 -> 0.0178 L/day (FAO-56, Kc 0.83, 0.00715 m2)
+//   chickpea: 0.4 -> 0.0387 L/day (FAO-56, Kc 0.69, 0.0186 m2)
+//   parsley: 0.5 -> 0.0859 L/day (estimate (5.8x off), Kc 0.91, 0.0316 m2)
+//   cilantro: 0.5 -> 0.0843 L/day (estimate (5.9x off), Kc 0.91, 0.031 m2)
+//   basil: 0.6 -> 0.0859 L/day (estimate (7.0x off), Kc 0.91, 0.0316 m2)
+//   dill: 0.4 -> 0.0859 L/day (estimate (4.7x off), Kc 0.91, 0.0316 m2)
+//   oregano: 0.3 -> 0.0859 L/day (estimate (3.5x off), Kc 0.91, 0.0316 m2)
+//   thyme: 0.3 -> 0.0859 L/day (estimate (3.5x off), Kc 0.91, 0.0316 m2)
+//   sage: 0.4 -> 0.0859 L/day (estimate (4.7x off), Kc 0.91, 0.0316 m2)
+//   ginger: 1.2 -> 0.175 L/day (estimate (6.9x off), Kc 0.91, 0.0645 m2)
+//   saffron: 0.3 -> 0.028 L/day (estimate (10.7x off), Kc 0.91, 0.0103 m2)
+//   hop: 1.5 -> 11.3 L/day (FAO-56, Kc 0.74, 5.06 m2)
+//   valerian: 0.8 -> 0.253 L/day (estimate (3.2x off), Kc 0.91, 0.0929 m2)
+//   comfrey: 0.8 -> 2.65 L/day (estimate (0.3x off), Kc 0.91, 0.975 m2)
+//
+// -- The crops -------------------------------------------------------------------
+//
+// basis: the band above. per_plant_kg: (min, max) kg one plant harvests, which
+// plants.csv holds as yield_min/yield_max items of the harvest item.
+(
+    crops: [
+        // wheat: Spacing: University of Minnesota Extension, "Seeding rate for small grains" (Wiersma, Ransom
+        //     and Hofman, reviewed 2018), desired stand for spring wheat "30 to 32 [plants per square foot]";
+        //     31 per ft2 is 334 per m2, 0.0030 m2 a plant. Yield: USDA NASS, Small Grains 2024 Summary
+        //     (September 2024), other spring wheat, United States: 46.0 bu/acre in 2023 and a record 52.5 in
+        //     2024, at 60 lb a bushel: 0.309 to 0.353 kg/m2. Field grain, the tray under glass assumed the
+        //     same.
+        (plant: "wheat", basis: DrySeed, per_plant_kg: (0.0009281, 0.001059)),
+        // rice: Spacing: IRRI and partners, Rice Knowledge Bank Odisha fact sheet "Manual transplanting of rice"
+        //     (https://rkb-odisha.in/wp-content/uploads/2024/09/manual-transplanting-of-rice-english.pdf):
+        //     "Transplant 2-3 seedlings per hill at shallow depth at optimum spacing (20cm x 15cm - long / 15cm
+        //     x 15 cm - short duration)". The game's rice (150 days) is long duration, so a "plant" is one hill
+        //     of 2 to 3 seedlings at 20 x 15 cm, 0.03 m2. Yield: USDA NASS, Crop Production 2024 Summary
+        //     (January 2025): "The average yield for all United States rice was estimated at 7,748 pounds per
+        //     acre, up 107 pounds from 2023" (so 7,641 in 2023): rough (paddy) rice, 0.856 to 0.868 kg/m2,
+        //     the basis the rice item and its removal columns use. Read through the search excerpt of that
+        //     report; the PDF would not render. US rice is drill-seeded; the per-m2 yield is what carries over.
+        (plant: "rice", basis: DrySeed, per_plant_kg: (0.02569, 0.02605)),
+        // bean: Spacing: NDSU Extension (Greg Endres, 13 May 2022): "establishing pinto bean at 70,000 plants per
+        //     acre, and black and navy bean at 90,000 plants per acre in wide (30-inch) rows"; 90,000 is 0.045
+        //     m2 a plant. Yield: USDA NASS, North Dakota 2024 Annual Crop Production Summary (10 January 2025):
+        //     dry edible bean "Yield, at 1,830 pounds per acre, is up 130 pounds from a year earlier and a
+        //     record high" (1,700 in 2023): 0.191 to 0.205 kg/m2 of dry beans.
+        (plant: "bean", basis: DrySeed, per_plant_kg: (0.008575, 0.00923)),
+        // sunflower: Spacing: NDSU A1995 Sunflower Production Guide (Kandel, Endres and Buetow, eds., December 2020):
+        //     "Plant populations for oilseed sunflower should be between 18,000 and 24,000 plants per acre";
+        //     21,000 is 0.193 m2 a plant. Yield: NASS North Dakota 2024 summary: oil sunflower "Yield, at 1,800
+        //     pounds per acre, is down 170 pounds from a year earlier" (1,970 in 2023): 0.202 to 0.221 kg/m2
+        //     of seed.
+        (plant: "sunflower", basis: DrySeed, per_plant_kg: (0.03894, 0.04262)),
+        // potato: Spacing: University of Minnesota Extension, "Growing potatoes in home gardens" (Schuh and Tong):
+        //     "Plant tuber pieces cut side down, 10 to 12 inches apart ... in rows 30 to 36 inches apart";
+        //     11 x 33 in is 0.234 m2. Yield: NASS North Dakota 2024 summary: potato "Yield, at 335 cwt per acre,
+        //     is down 15 cwt from a year earlier" (350 in 2023): 3.75 to 3.92 kg/m2 of fresh tubers.
+        (plant: "potato", basis: FreshVeg, per_plant_kg: (0.8786, 0.918)),
+        // flax: Fiber flax (the harvest item is a fiber bundle). Goudenhooft, Bourmaud and Baley 2019, "Flax
+        //     (Linum usitatissimum L.) Fibers for Composite Reinforcement", Frontiers in Plant Science 10: 411:
+        //     "a sowing rate of about 1800 seeds/m2 is encouraged and commonly used, leading to about 1650-1750
+        //     plants/m2" (1,700 a m2, 0.000588 m2 a plant), and a French fiber yield of "2.02 t/ha average in
+        //     2015": 0.202 kg/m2.
+        (plant: "flax", basis: Fiber, per_plant_kg: (0.0001188, 0.0001188)),
+        // lettuce: NCSU CEFS "Vegetable Planting Guide" (K. Baldwin 2011, https://cefs.ncsu.edu/wp-content/uploads/
+        //     sfu-vegetable-planting-guide.pdf), row Lettuce: 25,000 lb/acre from 34,848 plants/acre, 9 in in
+        //     the row and 12 in between rows in the bed. Per plant 0.717 lb, area 108 in2.
+        (plant: "lettuce", basis: FreshVeg, per_plant_kg: (0.3254, 0.3254)),
+        // spinach: NCSU CEFS guide, row Spinach: 8,000 lb/acre from 104,544 plants/acre, 4 x 12 in.
+        (plant: "spinach", basis: FreshVeg, per_plant_kg: (0.03471, 0.03471)),
+        // kale: University of Minnesota Extension, "Crop and field planning tools for vegetable farmers" (Natalie
+        //     Hoidal, 2026), transplanted crops: Kale "12-18 inches" in the row, 2 rows per bed, "2.75-4 lb"
+        //     per plant. Beds "approximately 3 feet wide", so 2 rows are 18 in apart: 15 x 18 in, 270 in2.
+        //     Picked leaf by leaf over the season.
+        (plant: "kale", basis: FreshVeg, per_plant_kg: (1.247, 1.814)),
+        // cabbage: UMN Hoidal (as kale): Cabbage 12-18 in, 2 rows per bed, "1-2 lb" per plant.
+        (plant: "cabbage", basis: FreshVeg, per_plant_kg: (0.4536, 0.9072)),
+        // broccoli: UMN Hoidal: Broccoli 12-18 in, 2 rows per bed, "1-1.3 lb" per plant.
+        (plant: "broccoli", basis: FreshVeg, per_plant_kg: (0.4536, 0.5897)),
+        // cauliflower: UMN Hoidal: Cauliflower 12-18 in, 2 rows per bed, "1-1.3 lb" per plant.
+        (plant: "cauliflower", basis: FreshVeg, per_plant_kg: (0.4536, 0.5897)),
+        // beet: NCSU CEFS guide, row Beets: 25,000 lb/acre from 78,408 plants/acre, 4 x 12 in.
+        (plant: "beet", basis: FreshVeg, per_plant_kg: (0.1446, 0.1446)),
+        // turnip: NCSU CEFS guide, row Turnips: 8,000 lb/acre from 78,408 plants/acre, 4 x 12 in.
+        (plant: "turnip", basis: FreshVeg, per_plant_kg: (0.04628, 0.04628)),
+        // radish: UMN Hoidal, direct-seeded crops: "Radish - cherry/salad" 0.75-1 in apart, 3 rows per 3 ft bed
+        //     (12 in), 3,600-4,800 seeds and 25-65 lb per 100 ft bed. Seeds are taken as plants (radish is sown
+        //     to a stand): 2.4 to 8.2 g a radish, 0.875 x 12 in.
+        (plant: "radish", basis: FreshVeg, per_plant_kg: (0.002362, 0.00819)),
+        // carrot: NCSU CEFS guide, row Carrots: 26,000 lb/acre from 156,816 plants/acre, 2 x 12 in.
+        (plant: "carrot", basis: FreshVeg, per_plant_kg: (0.07521, 0.07521)),
+        // parsnip: University of Maine Cooperative Extension, "Planting Chart for the Home Vegetable Garden" (Lois
+        //     Stack): parsnips 2-4 in apart in rows 18-24 in apart, "15 lbs/10 ft row". At 2 to 4 in a 10 ft
+        //     row holds 60 to 30 plants: 0.25 to 0.5 lb a plant. Area 3 x 21 in.
+        (plant: "parsnip", basis: FreshVeg, per_plant_kg: (0.1134, 0.2268)),
+        // celery: Oregon State University, Oregon Vegetables, "Celery" (revised 1 February 2010): "Rows should be
+        //     spaced 15-20 inches apart with plants spaced 6-8 inches apart within the rows" and "Average
+        //     yields of celery for fresh market are reported as approximately 535 cwt/acre while good yields
+        //     are about 700 cwt/acre". 17.5 x 7 in; 6.0 to 7.8 kg/m2.
+        (plant: "celery", basis: FreshVeg, per_plant_kg: (0.4737, 0.6198)),
+        // leek: Oregon State University, Oregon Vegetables, "Leeks" (revised 11 February 2010): "rows that are 18
+        //     to 24 inches apart, with plants at 4 to 6-inch spacing within the row" and "Leek yields are
+        //     approximately 370 cwt/acre". 21 x 5 in; 4.15 kg/m2.
+        (plant: "leek", basis: FreshVeg, per_plant_kg: (0.2808, 0.2808)),
+        // onion: NCSU CEFS guide, row "Storage onions": 35,000 lb/acre from 87,120 plants/acre, 6 x 12 in.
+        (plant: "onion", basis: FreshVeg, per_plant_kg: (0.1822, 0.1822)),
+        // garlic: NCSU CEFS guide, row Garlic: 5,000 lb/acre from 87,120 plants/acre, 6 x 12 in: 26 g a bulb, at
+        //     the small end of garden garlic.
+        (plant: "garlic", basis: FreshVeg, per_plant_kg: (0.02603, 0.02603)),
+        // chive: Spacing: University of Minnesota Extension, "Growing chives in home gardens" (MacKenzie and Mah
+        //     Kooyman): "Space plants 6 to 12 inches apart" (9 in square). Yield: HortScience abstract "412
+        //     Organic Mulch Improves Yield and Economic Returns From Chive Production" (U.S. Virgin Islands),
+        //     straw-mulched plots "producing on average 1203 g/m2 of fresh chives"; read through the search
+        //     excerpt of the abstract, the page itself would not load. Two sources joined, so the per-plant
+        //     figure leans on the 9 in spacing.
+        (plant: "chive", basis: FreshHerb, per_plant_kg: (0.06292, 0.06292)),
+        // cucumber: UMN Hoidal: "Cucumber (high tunnel)" 12 in in the row, 1 row per 3 ft bed, "10-15 lb" per plant.
+        //     12 x 36 in. Protected cropping, like the home's sun-lit towers. Picked over its season.
+        (plant: "cucumber", basis: FreshFruit, per_plant_kg: (4.536, 6.804)),
+        // zucchini: UMN Hoidal: "Summer squash & zucchini" 18 in, 1 row, "3-3.5 lb" per plant (field). 18 x 36 in.
+        (plant: "zucchini", basis: FreshFruit, per_plant_kg: (1.361, 1.588)),
+        // tomato: UMN Hoidal: "Tomato: slicer/Roma (high tunnel)" 18 in, 1 row per bed, "8-20 lb" per plant.
+        //     18 x 36 in. Protected cropping. Picked over its season; the season-total per plant.
+        (plant: "tomato", basis: FreshFruit, per_plant_kg: (3.629, 9.072)),
+        // pepper: UMN Hoidal: "Pepper: bell (high tunnel)" 14-18 in, 2 rows per bed, "3-5 lb" per plant. 16 x 18 in.
+        (plant: "pepper", basis: FreshFruit, per_plant_kg: (1.361, 2.268)),
+        // eggplant: UMN Hoidal: Eggplant 14-18 in, 2 rows per bed, "1.25 lb" per plant (field). 16 x 18 in.
+        (plant: "eggplant", basis: FreshFruit, per_plant_kg: (0.567, 0.567)),
+        // okra: University of Maryland Extension, "Growing Okra in a Home Garden" (updated 20 February 2023):
+        //     "12"-18" in-row x 36"-48" between rows" and "Approximate yield: 10-15 lbs. per 10-foot row". At
+        //     15 in a 10 ft row holds 8 plants: 1.25 to 1.9 lb a plant. 15 x 42 in.
+        (plant: "okra", basis: FreshFruit, per_plant_kg: (0.567, 0.8505)),
+        // strawberry: UMN Hoidal: "Day-neutral strawberries (high tunnel)" 8-12 in, 2 rows per bed, "1 lb" per plant.
+        //     10 x 18 in.
+        (plant: "strawberry", basis: FreshFruit, per_plant_kg: (0.4536, 0.4536)),
+        // pea: Green peas, shelled (the pea item and its removal columns are green peas). Spacing: Montana State
+        //     University Extension EB0210, Montana Cool-Season Pulse Production Guide (McVay et al.): "A
+        //     population of eight to 10 plants per square foot is needed"; 9 per ft2 is 0.0103 m2. Yield:
+        //     USDA NASS, Minnesota Ag News, Vegetables Annual Summary (12 February 2025): green peas 41.3 cwt
+        //     per acre in 2023 and 32.1 in 2024 (NASS processing peas are weighed shelled; the release does not
+        //     restate it): 0.360 to 0.463 kg/m2.
+        (plant: "pea", basis: FreshVeg, per_plant_kg: (0.003706, 0.004768)),
+        // soybean: Spacing: University of Minnesota Extension, "Soybean seeding rates in Minnesota" (Seth Naeve,
+        //     reviewed 2018): "soybean stands of 100,000 plants per acre or more at harvest are sufficient for
+        //     maximizing soybean yields" (0.0405 m2 a plant). Yield: USDA NASS news release, 10 January 2025:
+        //     "The average soybean yield is estimated at 50.7 bushels per acre, 0.1 bushel above 2023", at 60
+        //     lb a bushel: 0.340 to 0.341 kg/m2 of dry beans.
+        (plant: "soybean", basis: DrySeed, per_plant_kg: (0.01378, 0.01381)),
+        // lentil: Spacing: MSU EB0210: "A population of eleven to 15 plants per square foot is needed for successful
+        //     grain production" (13 per ft2, 0.00715 m2). Yield: NASS North Dakota 2024 summary: lentil "Yield
+        //     is estimated at 1,450 pounds per acre, up 220 pounds from last year" (1,230 in 2023).
+        (plant: "lentil", basis: DrySeed, per_plant_kg: (0.0009857, 0.001162)),
+        // chickpea: Spacing: MSU EB0210: "Target a final plant population of four to six plants per square foot" (5
+        //     per ft2, 0.0186 m2). Yield: NASS North Dakota 2024 summary: chickpea "Yield, at 1,640 pounds per
+        //     acre, is up 170 pounds from a year earlier" (1,470 in 2023).
+        (plant: "chickpea", basis: DrySeed, per_plant_kg: (0.003065, 0.003419)),
+        // parsley: Stapleton and Hochmuth 2001, "Greenhouse production of several fresh-cut herbs in vertical
+        //     hydroponic systems in north central Florida", Proc. Fla. State Hort. Soc. 114: 332-334, Table 1:
+        //     Verti-Gro towers of "eight pots with 32 plants per tower, equivalent to 0.34 ft2 per plant", cut
+        //     weekly from September to mid-June: Italian parsley 0.74 and parsley 0.85 lb per plant. The trial
+        //     closest to the game's towers. Season total over about nine months of cutting.
+        (plant: "parsley", basis: FreshHerb, per_plant_kg: (0.3357, 0.3856)),
+        // cilantro: NCSU CEFS guide, row Cilantro: 18,000 lb/acre from 69,696 plants/acre, 6 x 8 in (Stapleton dropped
+        //     cilantro from the tower trial for bolting).
+        (plant: "cilantro", basis: FreshHerb, per_plant_kg: (0.1171, 0.1171)),
+        // basil: Stapleton and Hochmuth 2001, Table 1: purple basil 0.80 and basil 1.14 lb per plant, 0.34 ft2 a
+        //     plant. Season total over about nine months of weekly cutting.
+        (plant: "basil", basis: FreshHerb, per_plant_kg: (0.3629, 0.5171)),
+        // dill: Stapleton and Hochmuth 2001, Table 1: dill 0.55 lb per plant ("average from multiple plantings").
+        (plant: "dill", basis: FreshHerb, per_plant_kg: (0.2495, 0.2495)),
+        // oregano: Stapleton and Hochmuth 2001, Table 1: oregano 0.60 lb per plant, about nine months of cutting.
+        (plant: "oregano", basis: FreshHerb, per_plant_kg: (0.2722, 0.2722)),
+        // thyme: Stapleton and Hochmuth 2001, Table 1: thyme 0.42 lb per plant, about nine months of cutting.
+        (plant: "thyme", basis: FreshHerb, per_plant_kg: (0.1905, 0.1905)),
+        // sage: Stapleton and Hochmuth 2001, Table 1: sage 0.78 lb per plant, about nine months of cutting.
+        (plant: "sage", basis: FreshHerb, per_plant_kg: (0.3538, 0.3538)),
+        // lemongrass: India National Horticulture Board, model project report "Lemon Grass" (nhb.gov.in, undated):
+        //     "planted at a spacing of 60x80 cm" and "25 to 30 tonnes of fresh herbage are harvested per hectare
+        //     per annum from 4 -6 cuttings". A year's cuttings per plant.
+        (plant: "lemongrass", basis: FreshHerb, per_plant_kg: (1.2, 1.44)),
+        // chamomile: Montana State University WARC, "German Chamomile" (Callan, Westcott, Wall-MacLane, Miller, Welty and
+        //     Strang): transplants "8.4" between plants and 18" between rows", flowers raked at 10-day
+        //     intervals, 1,259 to 1,875 lb/acre DRY (1998-1999). Converted to fresh flowers with DRY_TO_FRESH
+        //     (below).
+        (plant: "chamomile", basis: FreshHerb, per_plant_kg: (0.06191, 0.09221)),
+        // lavender: Penn State Extension, "Agritourism Diversification: Lavender Production" (Schmidt, Cornelisse and
+        //     Kime): "3 to 4 feet between plants and 6 to 10 feet between rows" (3.5 x 8 ft) and "An acre of
+        //     English lavender produces between 300 and 1,800 pounds of dried flowers". A year's flowers per
+        //     plant, converted to fresh with DRY_TO_FRESH.
+        (plant: "lavender", basis: FreshHerb, per_plant_kg: (0.3934, 2.361)),
+        // ginger: University of Delaware Weekly Crop Update, "Growing Baby Ginger" (Elias and Johnson, 16 September
+        //     2022): "Standard spacing is 10 in x 10 in", "Yield per acre = 10 tons" and "Yield per square foot
+        //     = 0.5 lbs" (0.46 to 0.5 lb/ft2) of fresh rhizome, harvested 4-5 months after transplanting in
+        //     tunnels.
+        (plant: "ginger", basis: FreshHerb, per_plant_kg: (0.1446, 0.1575)),
+        // turmeric: Virginia State University / Virginia Cooperative Extension, "Growing and Selling High Tunnel Fresh
+        //     Turmeric in Virginia" (Rafie and Nartea, 2016): "Distance between rows = 4 feet; Distance between
+        //     plants = 2.5 feet" and "Each plant will yield two to four pounds of marketable turmeric hands and
+        //     fingers".
+        (plant: "turmeric", basis: FreshHerb, per_plant_kg: (0.9072, 1.814)),
+        // saffron: University of Vermont, North American Center for Saffron Research, "Saffron By the Numbers"
+        //     (Skinner, Parker and Ghalehgolabbehbahani, 28 January 2020): "6-12 corms per sq ft" (9, 0.0103
+        //     m2), "one saffron flower produces 0.006 grams of dry saffron", in the first year "usually only 50%
+        //     of the corms produce any flowers", later "one large corm can produce 2-4 flowers": 0.003 to 0.024
+        //     g of dry saffron a corm a year, converted to fresh stigmas with DRY_TO_FRESH. A 50 g item is
+        //     thousands of corms' harvest, which is why saffron costs what it does.
+        (plant: "saffron", basis: Spice, per_plant_kg: (0.0000135, 0.000108)),
+        // hop: Alternative Field Crops Manual (Univ. of Wisconsin and Minnesota), "Hop" (Carter et al., September
+        //     1990): "hills with a spacing of approximately 8 x 8 ft at a planting density of 800 hills/acre",
+        //     dry cones "up to 800 lb/acre" (Tettnanger, Hallertauer) to "up to 2,000 lb/acre" (Willamette,
+        //     Cascade, Late Cluster): 1.0 to 2.5 lb dry a hill. "Moisture content of the hop cone must be reduced
+        //     from 65 to 80% to 8 to 10% for storage", so fresh = dry x (1 - 0.09) / (1 - 0.725) = 3.31 x dry.
+        //     One cone harvest a year. A whole hop bine; a tower cup is its "partial fit" per the tower design.
+        (plant: "hop", basis: FreshHerb, per_plant_kg: (1.501, 3.752)),
+        // echinacea: Kleitz et al. 2003, "Yield potential of selected medicinal herbs grown at three plant spacings in New
+        //     Mexico", HortTechnology 13(4): 631-636, abstract as published by USDA ARS: at the 30 cm in-row
+        //     spacing, "3.5 t ha-1" fresh echinacea flowers (Las Cruces). The abstract gives no row spacing, so
+        //     the 0.09 m2 (30 x 30 cm) is a game ESTIMATE; the per-m2 yield is the cited one.
+        (plant: "echinacea", basis: FreshHerb, per_plant_kg: (0.0315, 0.0315)),
+        // valerian: Montana State University WARC, "Valerian" (Callan, Westcott, Wall-MacLane and Miller): one-year roots
+        //     at "18" x 8" spacing", 3,384 and 3,279 lb/acre DRY (2001-2002, Common). Fresh with DRY_TO_FRESH.
+        //     One root harvest.
+        (plant: "valerian", basis: FreshHerb, per_plant_kg: (0.1536, 0.1586)),
+        // feverfew: Montana State University WARC, "Feverfew" (Callan et al.): "rows 18" apart and 10" between plants",
+        //     plant tops 1,871 to 5,804 lb/acre DRY across strains and single or double harvests (1998-1999).
+        //     Fresh with DRY_TO_FRESH.
+        (plant: "feverfew", basis: FreshHerb, per_plant_kg: (0.1095, 0.3396)),
+        // calendula: Montana State University WARC, "Calendula" (Callan et al.): direct-seeded "rows 18" apart", flower
+        //     heads plucked 10 to 13 times a season, 990 to 1,485 lb/acre DRY (1998-1999). The trial was seeded
+        //     at 5 lb/acre and gives no plant spacing, so 12 in in the row is a game ESTIMATE (12 x 18 in); the
+        //     per-m2 yield is the cited one. Fresh with DRY_TO_FRESH.
+        (plant: "calendula", basis: FreshHerb, per_plant_kg: (0.06941, 0.1041)),
+        // comfrey: Alternative Field Crops Manual, "Comfrey" (citing Teynor et al. 1992): "planted in a checkerboard
+        //     arrangement in rows that are 3 to 4 ft apart" and "Annual yields ranged from 13 to 61 t/acre" fresh
+        //     for four or five cuttings in Minnesota. 3 x 3.5 ft; the 3 ft in the row is a game ESTIMATE (the
+        //     checkerboard's in-row distance is not stated).
+        (plant: "comfrey", basis: FreshHerb, per_plant_kg: (2.841, 13.33)),
+    ],
+)
