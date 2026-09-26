@@ -3467,6 +3467,20 @@ pub(crate) fn draw_gameplay_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
             }
         });
         ui.add_space(theme.spacing_lg);
+        // Soil pH (2026-09-26, farming::soil_ph; the dual-mode house rule).
+        ui.label(RichText::new("Soil pH").color(theme.text_secondary()).strong());
+        ui.add_space(theme.spacing_xs);
+        widgets::setting_hint(ui, theme, hint, "Each bed has a pH. Nitrogen fertilizer, stored urine too, slowly turns it acid; lime raises it and sulfur lowers it, over weeks. A crop outside the pH it grows best at gives less. Off turns this off and hides it.");
+        ui.horizontal(|ui| {
+            for (off, label) in [(true, "Off"), (false, "On")] {
+                let selected = state.garden_pests.soil_ph_off == off;
+                if ui.radio(selected, RichText::new(label).color(theme.text_primary())).clicked() && !selected {
+                    state.garden_pests.soil_ph_off = off;
+                    state.settings_dirty = true;
+                }
+            }
+        });
+        ui.add_space(theme.spacing_lg);
         ui.label(RichText::new("Crop growth speed").color(theme.text_secondary()).strong());
         ui.add_space(theme.spacing_xs);
         widgets::setting_hint(ui, theme, hint, "How fast plants grow, and nothing else: the clock, the seasons and the weather are untouched. 1x is real agricultural time, where even a fast crop takes hours. Applies immediately, including to plants already in the ground.");

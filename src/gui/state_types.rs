@@ -754,12 +754,18 @@ pub struct GuiAreaPests {
     pub releases: Vec<(String, f32)>,
 }
 
-/// The Garden panel's pests and the control the player just chose.
+/// The Garden panel's pests and soil pH, and what the player just chose.
 #[derive(Debug, Clone, Default)]
 pub struct GardenPests {
     pub areas: Vec<GuiAreaPests>,
     /// (area, control id), carried to the farming system next frame.
     pub pending: Option<(String, String)>,
+    /// Soil pH (farming::soil_ph): Settings "Soil pH: Off" (saved as
+    /// AppConfig::soil_ph), the amendments as (id, label), and the one the
+    /// player chose as (area, amendment id), carried next frame.
+    pub soil_ph_off: bool,
+    pub ph_amendments: Vec<(String, String)>,
+    pub ph_pending: Option<(String, String)>,
 }
 
 /// A growing crop for GUI display (synced from the ECS each frame).
@@ -802,6 +808,12 @@ pub struct GuiCrop {
     pub need: [f32; 3],
     /// The scarcest nutrient, when the crop is short of one.
     pub short_of: Option<String>,
+    /// Its unit's pH (None: pH off or not modelled), its plants.csv window,
+    /// the health cap pH sets, and whether a tower holds it (farming::soil_ph).
+    pub ph: Option<f32>,
+    pub ph_window: [f32; 2],
+    pub ph_cap: f32,
+    pub ph_held: bool,
 }
 
 /// An asteroid (with remaining ore) for GUI display.

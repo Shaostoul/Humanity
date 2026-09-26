@@ -1,0 +1,316 @@
+// Soil pH (2026-09-26, gardening depth: the next rung of the soil model).
+// Read by src/systems/farming/soil_ph.rs, which carries the model and the
+// reasoning; this file carries the numbers and where each one came from.
+// Every source below was read on 2026-09-26.
+//
+// THE MODEL, in one paragraph (soil_ph.rs has the detail). Each unit of a soil
+// grow area (a bed, tray or field unit) has a pH, remembered between crops. It
+// starts at its medium's `start_ph`. Nitrogen fertilizer acidifies it as its
+// ammonium nitrifies; lime raises it and elemental sulfur lowers it. Every one
+// of those is counted in grams of CALCIUM CARBONATE EQUIVALENT (positive
+// raises the pH, negative lowers it), turned into pH units by the medium's
+// BUFFER (grams of CaCO3 per m2 that move the pH of the root zone by one unit)
+// and the unit's area, and reaches the pH over garden days as it reacts
+// (first-order, at the half-life given for each). A crop whose unit is outside
+// its plants.csv ph_min..ph_max window has its health capped: 100 x (1 -
+// loss_per_ph_unit x how far outside), never below `health_floor`.
+//
+// GARDEN DAYS are game time at the crop growth speed (10x by default), the
+// clock the crops ripen on and the pests step on. The reactions are soil
+// chemistry and soil bacteria, so they are not paused at night.
+//
+// TWO MODES (the house rule for a deep system): Settings "Soil pH: Off / On".
+// Off freezes all of it: nothing drifts, nothing is capped, pH is not shown.
+//
+// SOURCES (cited by short name in the entries):
+//   UC Vossen   Vossen, P., "Changing pH in Soil", University of California
+//               Cooperative Extension, Sonoma County (undated handout, hosted
+//               2026-02), https://ucanr.edu/sites/default/files/2026-02/Changing-pH-in-Soil-UC-Paul-Vossen.pdf
+//   Purdue      Mickelbart, M.V., Stanton, K.M., Hawkins, S. and Camberato, J.,
+//               "Lowering Soil pH for Horticulture Crops", Purdue Extension
+//               HO-241-W, 4/12, https://www.extension.purdue.edu/extmedia/ho/ho-241-w.pdf
+//   Clemson     Kluepfel, M. and Lippert, B., revised by Williamson, J.,
+//               "Changing the pH of Your Soil", Clemson HGIC 1650, 06/99,
+//               reviewed 13 May 2026, https://hgic.clemson.edu/factsheet/changing-the-ph-of-your-soil/
+//   OSU 1560    Hart, J., Horneck, D., Stevens, R., Bell, N. and Cogger, C.,
+//               "Acidifying Soil for Blueberries and Ornamental Plants in the
+//               Yard and Garden", Oregon State University Extension EC 1560-E,
+//               April 2003, https://extension.oregonstate.edu/sites/extd8/files/documents/ec1560.pdf
+//   UNL G1503   Wortmann, C.S., Mamo, M. and Shapiro, C.A., "Management
+//               Strategies to Reduce the Rate of Soil Acidification", University
+//               of Nebraska-Lincoln Extension G1503, 2003, revised March 2009,
+//               https://extensionpubs.unl.edu/publication/g1503/2015/html/view
+//   PSU Aglime  Beegle, D.B. and Lingenfelter, D.D., "Soil Acidity and Aglime",
+//               Penn State Extension, updated 17 November 2014,
+//               https://extension.psu.edu/soil-acidity-and-aglime
+//   NRCS pH     USDA Natural Resources Conservation Service, "Soil Quality
+//               Indicators: Soil pH", April 2011, Table 1 (adapted from Smith and
+//               Doran 1996), https://www.nrcs.usda.gov/sites/default/files/2022-10/soil_ph.pdf
+//   Neina 2013  Neina, D. and Dowuona, G.N.N., "Short-term effects of human urine
+//               fertiliser and wood ash on soil pH and electrical conductivity",
+//               Journal of Agriculture and Rural Development in the Tropics and
+//               Subtropics 114(2), 2013,
+//               https://www.jarts.info/index.php/jarts/article/view/2013081343323
+//   Frontiers   Mustaffa, M.R.A.F., Pandian, K., Shanmugam, V. et al., "Human urine
+//               as a new-gen fertilizer for sustainable agriculture: a review
+//               towards a circular nutrient economy", Frontiers in Soil Science,
+//               16 March 2026, https://www.frontiersin.org/journals/soil-science/articles/10.3389/fsoil.2026.1643200/full
+//   UMN N       Fernandez, F.G. and Kaiser, D.E., "Understanding nitrogen in
+//               soils", University of Minnesota Extension, reviewed 2021,
+//               https://extension.umn.edu/agriculture/crop-production/nutrient-management-for-minnesota-crops/understanding-nitrogen-in-soils
+//   UF HS796    Hochmuth, G.J. and Hochmuth, R.C., "Nutrient Solution Formulation
+//               for Hydroponic (Perlite, Rockwool, NFT) Tomatoes in Florida",
+//               UF/IFAS EDIS HS796/CV216, https://ask.ifas.ufl.edu/publication/CV216
+//   UF HS1262   Zhu, Q., Li, Y., Liu, G. and Ozores-Hampton, M., "Determination of
+//               Carbonate Concentrations in Calcareous Soils with Common Vinegar
+//               Test", UF/IFAS EDIS HS1262, https://ask.ifas.ufl.edu/publication/HS1262
+//   CDFA        California Department of Food and Agriculture, FREP California
+//               Fertilization Guidelines, "Processing Tomatoes",
+//               https://www.cdfa.ca.gov/is/ffldrs/frep/FertilizationGuidelines/Tomato.html
+//               (also the anchor of data/garden/nutrients.ron)
+//
+// UNIT CONVERSIONS used below: 1 short ton per acre = 907.185 kg / 4046.86 m2
+// = 224.17 g per m2; 1 lb per 100 sq ft = 453.59 g / 9.2903 m2 = 48.82 g per
+// m2; 1 lb per 1,000 sq ft = 4.882 g per m2; 1 lb per acre = 0.1121 g per m2.
+(
+    // -- MEDIA: how each kind of grow area holds its pH --------------------------
+    //
+    // A crop's grow-area tag (its `tower_id`) is matched against these in order,
+    // exact names first then prefixes, and the first match wins; a tag nothing
+    // matches (a bed, tray, field, or "" for hand-planted crops) is
+    // `default_medium`. The sim cannot see which machine a tag belongs to, so
+    // the tower and rack tags are listed here; a test (soil_ph.rs) checks every
+    // grow machine in data/machines/home.ron and home_solo.ron, and every tower
+    // design in data/towers/aeroponic_configs.ron, lands in the right medium, so
+    // a new tower prefix cannot silently read as soil.
+    //
+    //   held_ph   a medium whose pH is held at a setpoint by the grower (a
+    //             tower's nutrient solution is tested and dosed). It never
+    //             drifts, lime and sulfur do not apply, and the plants.csv
+    //             windows are not applied to it: they are SOIL ranges, and a
+    //             solution is kept where its dissolved nutrients stay available.
+    //   soil      a soil medium: its starting pH and its buffer.
+    //   neither   the medium is not modelled (pH is not shown for it).
+    media: [
+        // Aeroponic towers: roots in a nutrient mist, no soil. UF HS796:
+        // "Final solution pH should be in the range of 5.8 to 6.2." The
+        // setpoint is the middle of that range.
+        (
+            id: "aeroponic",
+            name: "Tower nutrient solution",
+            match_exact: ["nutrition", "apothecary"],
+            match_prefix: ["aeroponic_tower", "ntower_", "ctower_", "apoth_"],
+            held_ph: Some(6.0),
+        ),
+        // Mushroom racks: the substrate is made up fresh for each flush, its pH
+        // set for the species by the grower. Not modelled.
+        (
+            id: "mushroom",
+            name: "Mushroom substrate",
+            match_exact: [],
+            match_prefix: ["mushroom_rack", "mush_"],
+        ),
+        // Garden soil (beds, trays, fields, and hand-planted crops): a loam.
+        //
+        // start_ph 6.5: a bed prepared the way the guides say. OSU 1560:
+        // "vegetable gardens produce well in a soil pH of 6.5"; UC Vossen: "If a
+        // soil test indicates a pH below 6.5, the usual recommendation is for
+        // the application of ground limestone." Nearly every plants.csv window
+        // includes 6.5; the acid lovers (blueberry, cranberry) do not, as they
+        // should not.
+        //
+        // buffer_g_caco3_per_m2 381.1: grams of calcium carbonate that move the
+        // pH of the root zone one unit. UC Vossen Table 1, "Approximate Amount
+        // of Finely Ground Limestone Needed to Raise the pH of a 7-inch Layer of
+        // Soil", row "Loam": 1.7 tons per acre "From pH 5.5 to 6.5" = 1.7 x
+        // 224.17 = 381.1 g per m2 (the same row gives 1.2 tons, 269 g, from 4.5
+        // to 5.5: the garden works in the upper range, so the upper figure).
+        // Cross-checks through sulfur (3.12 g CaCO3 per g S, below):
+        //   Purdue Table 3 ("elemental sulfur needed to lower soil pH of a silt
+        //   loam soil to a depth of 6 inches"): 2.0 lb per 100 sq ft from 7.0 to
+        //   6.0 and 2.5 lb from 6.5 to 5.5 = 97.6 and 122.1 g S per m2 = 305 and
+        //   381 g CaCO3 per m2 per unit.
+        //   Clemson sulfur table ("pounds per 10 square feet for a loamy
+        //   soil"): 0.2 lb for one unit from 7.0, 6.5 or 6.0 = 97.6 g S = 305 g.
+        //   OSU 1560 measured a stronger buffer in the field: "a single
+        //   application of 45 pounds of S per 1,000 square feet was made to a
+        //   loam soil with a pH of 5.7 and 3.5 percent organic matter. After 2
+        //   years, the soil pH was reduced to and stabilized at pH 5.1", which
+        //   is 219.7 g S per m2 for 0.6 units, about 1,140 g CaCO3 per unit: a
+        //   loam rich in organic matter ("Soil with a high organic matter
+        //   content also requires more elemental S"). The UC figure is taken.
+        (
+            id: "soil",
+            name: "Garden loam",
+            match_exact: [],
+            match_prefix: [],
+            soil: Some((start_ph: 6.5, buffer_g_caco3_per_m2: 381.1)),
+        ),
+    ],
+    default_medium: "soil",
+
+    // The pH the soil cannot go past. ph_ceiling 8.3: excess lime stops there,
+    // UF HS1262: "Calcareous soils are those that have free calcium carbonate
+    // (CaCO3) and pH values in the range of 7.0 to 8.3." ph_floor 4.0 is a
+    // GAME FLOOR, the lowest a mineral garden soil is taken to go; the lowest
+    // plants.csv window starts at 4.0 (cranberry) and the NRCS yield table
+    // below stops at 4.7.
+    ph_floor: 4.0,
+    ph_ceiling: 8.3,
+
+    // -- NITROGEN: acidity as ammonium nitrifies -----------------------------------
+    //
+    // Grams of CaCO3 needed to neutralise the acidity from each gram of
+    // plant-available N a fertilizer adds (applied as negative CaCO3).
+    //
+    // urine_stored_0 1.8: stored urine's N is urea that storage has turned to
+    // ammonium (Frontiers: "Under storage (e.g., sealed conditions for several
+    // months), urea is converted into ammonium, resulting in increased pH"), so
+    // it acidifies as urea does once that ammonium nitrifies. UNL G1503 Table 1:
+    // "Urea 46-0-0 1.8" lb CaCO3 per lb N (the same row for ammonium nitrate
+    // and anhydrous ammonia; ammonium sulfate 5.4). Purdue Table 2 agrees: urea
+    // needs 81 lb CaCO3 per 100 lb, 1.76 per lb of its N. UNL notes the figure
+    // assumes the crop takes up the nitrate: "Nitrate leached from the root zone
+    // does not neutralize acidity as occurs when nitrate is taken up by plants";
+    // PSU Aglime gives the higher 3 lb for urea for that reason. The garden's
+    // units are fed to the crop's need, so 1.8. Measured on urine itself,
+    // Neina 2013: "an increase in soil pH by 1.2 units ... after one week of
+    // HUF application followed by a decline by about 2 pH units for both soil
+    // types after twelve weeks", "attributed to nitrification of ammonium to
+    // nitrate leading to acidification" (the brief rise is the ammonium
+    // bicarbonate of stored urine; its net is already in the urea figure).
+    //
+    // fertilizer_0 (compost) 0.0: Purdue Table 2 lists compost at "0 to 10+"
+    // lb CaCO3 per 100 lb, noting "Organic materials can be highly variable".
+    // The low end: taking even 5 per 100 lb would make one 2 kg bag as
+    // acidifying as 55 g of urea N, forty times the nitrogen the bag gives in
+    // its season, which no guide describes. Compost's slow organic N is not
+    // counted either, for the same reason.
+    fertilizer_acidity: [
+        (item: "urine_stored_0", caco3_g_per_g_n: 1.8),
+        (item: "fertilizer_0", caco3_g_per_g_n: 0.0),
+    ],
+
+    // Half the acidity from newly added ammonium reaches the pH in this many
+    // garden days. A GAME ESTIMATE: UMN N, nitrification "rapidly proceeds in
+    // warm, moist, well-aerated soils, and slows at soil temperatures below 50
+    // degrees Fahrenheit" (the indoor beds sit at 21 C); Neina 2013 saw urine's
+    // acidity arrive over twelve weeks. Fourteen days puts nine tenths of it in
+    // within about seven weeks.
+    nitrification_half_life_days: 14.0,
+
+    // -- UNIT AREA ----------------------------------------------------------------
+    //
+    // The pH a gram of lime or acid moves depends on the soil area it is
+    // spread over. plants.csv does not carry each crop's area yet (it is being
+    // added, as area_per_plant_m2; soil_ph.rs `unit_area_m2` is the one place
+    // to switch to it). Until then a unit's area is INFERRED from its crop's
+    // season N removal (soil::season_need), taking every crop to remove about
+    // what the anchor crop of the nutrient model does per m2: CDFA's processing
+    // tomato, "the fruits contained on average 3 lbs N/ton" of a crop the page
+    // puts at "a yield of 50 tons/acre": 150 lb N per acre = 16.8 g N per m2.
+    // A GAME ESTIMATE for every other crop (cited removals run from about half
+    // to about the same). It sizes a tomato unit at 0.09 m2 and a wheat unit
+    // (7 kg of grain) at 8.7 m2, which is what those harvests need.
+    // A crop with no N need at all takes `default_unit_area_m2` (an estimate).
+    reference_n_removal_g_per_m2: 16.8,
+    default_unit_area_m2: 0.25,
+
+    // -- AMENDMENTS: the player's Lime and Sulfur buttons ------------------------
+    //
+    //   item                 bought from the vendor or the Farming Elder
+    //   caco3_g_per_g_pure   CaCO3 equivalent per gram of the pure material
+    //   purity               share of the item's mass that is the material
+    //   half_life_days       half of it reacts in this many garden days
+    //   max_g_per_m2         the most one application may put on (None: no cap)
+    //
+    // A button brings each planted unit of the area toward the middle of its
+    // crop's window, counting what is still reacting, so pressing it twice does
+    // not double the dose.
+    amendments: [
+        // Garden lime, finely ground limestone. UC Vossen Table 2 "Common Liming
+        // Materials": "Limestone CaCO3 100 Pure form, finely ground", so 1 g of
+        // CaCO3 equivalent per gram. Its speed, a GAME ESTIMATE of a 30-day
+        // half-life (three quarters reacted in two months) anchored on Clemson,
+        // "limestone should be applied two to three months before planting to
+        // allow time for it to neutralize the acidity", and PSU Aglime, "Even
+        // finely ground liming materials require several months to react."
+        (
+            id: "lime",
+            name: "Lime",
+            item: "garden_lime_0",
+            caco3_g_per_g_pure: 1.0,
+            purity: 1.0,
+            half_life_days: 30.0,
+            max_g_per_m2: None,
+        ),
+        // Garden sulfur, elemental S. Purdue Table 2: "Elemental sulfur, S 312"
+        // lb CaCO3 per 100 lb, 3.12 per gram (the chemistry: 32.06 g of S makes
+        // one mole of sulfuric acid, which neutralises 100.09 g of CaCO3), so
+        // -3.12. purity 0.9: the bag is sold as 90% elemental sulfur (a GAME
+        // ESTIMATE of a common garden product; UC Vossen: "The percent purity is
+        // given on the bag").
+        // Its speed, a GAME ESTIMATE of a 60-day half-life: OSU 1560, "allow
+        // several months for the reaction to proceed. A logical approach is to
+        // apply S in the fall and test the soil pH in the spring" (six months:
+        // seven eighths reacted), and "Soil acidification reactions may take a
+        // year or more to complete"; Purdue, "Sulfur compounds may take up to a
+        // year before they have their full effect on soil pH"; Clemson,
+        // "Conversion rate can be slow and take several months".
+        // max_g_per_m2 97.6: OSU 1560 Table 2 gives 10 to 20 lb of S per 1,000
+        // sq ft for soil under 20 percent clay and 20 to 40 lb for 20 to 40
+        // percent; a loam sits between, so 20 lb = 97.6 g of S per m2 at most
+        // per application, with its advice: "Two small applications of
+        // acidifying material a year apart are better than a single large
+        // application" and "Do not try to speed the process by applying more
+        // than the recommended amount of sulfur."
+        (
+            id: "sulfur",
+            name: "Sulfur",
+            item: "garden_sulfur_0",
+            caco3_g_per_g_pure: -3.12,
+            purity: 0.9,
+            half_life_days: 60.0,
+            max_g_per_m2: Some(97.6),
+        ),
+    ],
+
+    // -- WHAT pH DOES: availability outside the crop's window --------------------
+    //
+    // A crop's health is capped at 100 x (1 - loss_per_ph_unit x d), where d
+    // is how far its unit's pH is below ph_min or above ph_max, and never
+    // below health_floor.
+    //
+    // loss_per_ph_unit 0.30: the MEDIAN loss per pH unit outside the window
+    // over every point of NRCS pH Table 1 ("Relative yield of selected crops
+    // grown in a corn, small grain, legumes or timothy rotation at different
+    // pH levels", adapted from Smith and Doran 1996) that lies outside its
+    // crop's plants.csv window, for the five table crops plants.csv carries
+    // (the table is `yield_table` below, and a test recomputes the median from
+    // it). Seventeen points, from 0 (oats at 7.5) to 1.7 (corn at 5.7, just
+    // 0.1 under its window); the median, 0.30, is corn at 7.5, 15% down at 0.5
+    // over. It gives wheat 91% at 5.7, 70% at 5.0 and 61% at 4.7 against the
+    // table's 89, 78 and 68. The NRCS guide: "The nutrition, growth, and
+    // yields of most crops decrease where pH is low and increase as pH rises to
+    // an optimum level".
+    //
+    // health_floor 20: the same floor as a nutrient shortage and a pest
+    // (soil::NUTRIENT_HEALTH_FLOOR, from Rothamsted's unfertilised wheat), so
+    // pH stunts a crop and never kills it. A GAME CHOICE: the table has barley
+    // at 0 at pH 4.7, so real soil can be worse.
+    loss_per_ph_unit: 0.30,
+    health_floor: 20.0,
+
+    // NRCS pH Table 1, relative average yield at pH 4.7, 5.0, 5.7, 6.8 and 7.5,
+    // for the crops plants.csv carries ("Oats" is plants.csv "oat"). Its other
+    // two rows, alfalfa (2, 9, 42, 100, 100) and timothy (31, 47, 66, 100, 95),
+    // are not plants.csv crops.
+    yield_table_ph: [4.7, 5.0, 5.7, 6.8, 7.5],
+    yield_table: [
+        (plant: "corn", relative_yield: [34.0, 73.0, 83.0, 100.0, 85.0]),
+        (plant: "wheat", relative_yield: [68.0, 78.0, 89.0, 100.0, 99.0]),
+        (plant: "oat", relative_yield: [77.0, 93.0, 99.0, 98.0, 100.0]),
+        (plant: "barley", relative_yield: [0.0, 23.0, 80.0, 95.0, 100.0]),
+        (plant: "soybean", relative_yield: [65.0, 79.0, 80.0, 100.0, 93.0]),
+    ],
+)

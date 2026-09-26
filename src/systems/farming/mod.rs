@@ -9,11 +9,14 @@ pub mod crops;
 pub mod soil;
 pub mod pests;
 pub mod lighting;
+pub mod soil_ph;
 pub mod automation;
 #[cfg(test)]
 mod nutrient_tests;
 #[cfg(test)]
 mod pest_tests;
+#[cfg(test)]
+mod soil_ph_tests;
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -807,6 +810,11 @@ pub struct FarmingSystem {
     /// "garden_pests" entry in the DataStore, if one is ever registered, wins
     /// over it.
     pests: Option<pests::PestData>,
+    /// data/garden/soil_ph.ron, read on the first tick (see soil_ph.rs); a
+    /// "garden_soil_ph" DataStore entry wins over it. And the pH notices told
+    /// and the amendment bags opened, which are not saved.
+    ph_data: Option<soil_ph::SoilPhData>,
+    ph_rt: soil_ph::PhRuntime,
 }
 
 impl FarmingSystem {
@@ -818,6 +826,8 @@ impl FarmingSystem {
             feeder_dry_told: false,
             short_told: std::collections::HashSet::new(),
             pests: None,
+            ph_data: None,
+            ph_rt: soil_ph::PhRuntime::default(),
         }
     }
 }
@@ -1055,6 +1065,14 @@ impl System for FarmingSystem {
             .filter(|v| v.is_finite())
             .unwrap_or(pests::DEFAULT_PEST_SEVERITY)
             .clamp(0.0, 1.0);
+        // SOIL pH (2026-09-26, soil_ph.rs; every number in soil_ph.ron).
+        // Loaded once, like the pests; Off (Settings) freezes all of it.
+        if self.ph_data.is_none() {
+            self.ph_data = Some(soil_ph::SoilPhData::load());
+        }
+        let ph_data: &soil_ph::SoilPhData =
+            data.get::<soil_ph::SoilPhData>("garden_soil_ph").or(self.ph_data.as_ref()).expect("loaded above");
+        let ph_on = soil_ph::is_on(data);
 
         // A crop's season need, by plant id (soil::season_need). Cached for the
         // tick: a garden is a few dozen species and a few thousand crops.
@@ -1442,6 +1460,13 @@ impl System for FarmingSystem {
                     // for it only the first season's share counts.
                     if let Some((area, slot)) = &unit {
                         soil::bank_organic_in(world, area, *slot, dose.organic_n);
+                        // Its ammonium acidifies the unit as it nitrifies (soil_ph.rs).
+                        if ph_on {
+                            let need_n = need_for(&plant_id).n;
+                            let def = plant_registry.and_then(|r| r.get(&plant_id));
+                            let plot_m2 = soil_ph::plot_area(data, area);
+                            soil_ph::add_n_in(world, ph_data, area, *slot, &dose.item, dose.available.n, def, need_n, plot_m2);
+                        }
                     }
                     log::info!(
                         "[Farming] fertilized {plant_id} with {}: +{:.2} g N, {:.2} g P2O5, {:.2} g K2O now, {:.2} g organic N banked",
@@ -1482,6 +1507,15 @@ impl System for FarmingSystem {
             if pest_severity > 0.0 {
                 pests::handle_request(world, data, pest_data, &area, &control_id, creative, water_available);
             }
+        }
+        // SOIL pH AMENDMENT (2026-09-26, soil_ph.rs): Lime or Sulfur on one
+        // grow area, `(area tag, amendment id)`, from "soil_ph_request".
+        let ph_request = data
+            .get::<std::sync::Mutex<Option<(String, String)>>>("soil_ph_request")
+            .and_then(|m| m.lock().ok().and_then(|mut s| s.take()));
+        if let (Some((area, amendment)), true) = (ph_request, ph_on) {
+            let mut need_n = |p: &str| need_for(p).n;
+            soil_ph::handle_request(world, data, ph_data, &mut self.ph_rt, &area, &amendment, creative, &mut need_n);
         }
 
         // DEV: instantly mature every living crop (a testing affordance, like
@@ -1744,6 +1778,17 @@ impl System for FarmingSystem {
             .get::<&mut crate::ecs::components::SoilMemory>(memory)
             .map(|mut m| std::mem::take(&mut m.pests))
             .unwrap_or_default();
+        // Every soil unit's pH (soil_ph.rs), taken out the same way. Its lime,
+        // sulfur and nitrifying ammonium react first, on garden days (the
+        // crops' clock, not paused at night: soil chemistry goes on).
+        let mut ph_units = world
+            .get::<&mut crate::ecs::components::SoilMemory>(memory)
+            .map(|mut m| std::mem::take(&mut m.ph))
+            .unwrap_or_default();
+        if ph_on {
+            soil_ph::step_all(&mut ph_units, ph_data, game_dt * f64::from(growth_speed) / SECONDS_PER_DAY);
+        }
+        let mut ph_out: HashMap<String, soil_ph::OutOfWindow> = HashMap::new();
 
         // PESTS: step every grow area's pressure on the garden clock
         // (2026-09-26, pests.rs). First a tally of each area's living crops
@@ -1900,6 +1945,11 @@ impl System for FarmingSystem {
                         if let Some(slot) = crop.tower_slot {
                             let pool = organic.entry(tid.clone()).or_default().entry(slot).or_default();
                             soil::bank_organic(pool, dose_def.organic_n * given);
+                            // Its ammonium acidifies the unit as it nitrifies.
+                            if ph_on {
+                                let def = plant_registry.and_then(|r| r.get(&crop.crop_def_id));
+                                soil_ph::add_n(&mut ph_units, ph_data, tid, slot, &dose_def.item, per_item.n * given, def, need.n, soil_ph::plot_area(data, tid));
+                            }
                         }
                     }
                     // Out of stock: after every fertilizer had its turn, the
@@ -1976,7 +2026,15 @@ impl System for FarmingSystem {
             } else {
                 100.0
             };
-            let ceiling = nutrient_ceiling.min(pest_ceiling);
+            // Soil pH (soil_ph.rs): outside its window a crop's nutrients are
+            // less available, capped the same way; said once per area below.
+            let def = plant_registry.and_then(|r| r.get(&crop.crop_def_id));
+            let area = crop.tower_id.as_deref().unwrap_or("");
+            let (ph_ceiling, off) = soil_ph::check_crop(&ph_units, ph_data, ph_on, area, crop.tower_slot, def);
+            if let Some(o) = off {
+                ph_out.entry(area.to_string()).or_insert(o);
+            }
+            let ceiling = nutrient_ceiling.min(pest_ceiling).min(ph_ceiling);
 
             // Health effects from water level, capped by nutrients and pests.
             if crop.water_level < WATER_STRESS_THRESHOLD {
@@ -2159,7 +2217,9 @@ impl System for FarmingSystem {
         if let Ok(mut m) = world.get::<&mut crate::ecs::components::SoilMemory>(memory) {
             m.organic = organic;
             m.pests = area_pests;
+            m.ph = ph_units;
         }
+        self.ph_rt.tell(data, ph_data, &ph_out);
 
         // Say so when crops run short (2026-09-26): the Garden panel does not
         // show a unit's N-P-K yet, so without this a starving bed only shows

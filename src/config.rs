@@ -556,6 +556,10 @@ pub struct AppConfig {
     /// Garden pests (2026-09-26): 0 off, 0.5 gentle, 1 the cited damage.
     #[serde(default = "default_pest_severity")]
     pub pest_severity: f32,
+    /// Soil pH in the garden (2026-09-26, farming::soil_ph): On models it,
+    /// Off freezes it and hides it. On by default.
+    #[serde(default = "default_true")]
+    pub soil_ph: bool,
     /// Offline progression (2026-09-25): crops keep growing while the game is
     /// closed. On by default; see save_load::catch_up_world.
     #[serde(default = "default_true")]
@@ -1332,6 +1336,7 @@ impl AppConfig {
             shadow_strength: state.settings.shadow_strength,
             crop_growth_speed: state.settings.crop_growth_speed,
             pest_severity: state.settings.pest_severity,
+            soil_ph: !state.garden_pests.soil_ph_off,
             offline_progression: state.settings.offline_progression,
             fresh_world_each_launch: state.settings.fresh_world_each_launch,
             godray_intensity: state.settings.godray_intensity,
@@ -1563,6 +1568,7 @@ impl AppConfig {
         state.settings.crop_growth_speed =
             crate::systems::farming::clamp_growth_speed(self.crop_growth_speed);
         state.settings.pest_severity = self.pest_severity.clamp(0.0, 1.0);
+        state.garden_pests.soil_ph_off = !self.soil_ph;
         state.settings.offline_progression = self.offline_progression;
         state.settings.fresh_world_each_launch = self.fresh_world_each_launch;
         state.settings.godray_intensity = self.godray_intensity.clamp(0.0, 1.5);

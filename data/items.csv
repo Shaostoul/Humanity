@@ -1037,3 +1037,12 @@ insecticidal_soap_0,Insecticidal Soap Spray,material,agricultural,hdpe,1.02,10,0
 bt_kurstaki_0,Bt Spray (kurstaki),material,agricultural,hdpe,1.0,10,0,1 L ready-to-use Bacillus thuringiensis: a soil bacterium that hurts only the caterpillars that eat it,liquid,1.2
 predatory_mites_0,Predatory Mites,material,agricultural,hdpe,0.1,10,0,A shaker bottle of Phytoseiulus persimilis mites that eat spider mites and their eggs,solid,0.25
 iron_phosphate_bait_0,Iron Phosphate Slug Bait,material,agricultural,hdpe,1.0,10,0,1 kg of pellets that kill the slugs that eat them: the safest slug bait around children and pets and wildlife,dry_goods,1.2
+#
+# Soil pH amendments (2026-09-26, gardening depth: soil pH; data/garden/soil_ph.ron carries the rates and
+# their sources). garden_lime_0 is a 5 kg bag of finely ground limestone: calcium carbonate at 100% CaCO3
+# equivalent (UC Cooperative Extension, Changing pH in Soil, Table 2). garden_sulfur_0 is a 2 kg bag of 90%
+# elemental sulfur. Both are bought (data/trade_goods.ron, and the Farming Elder in data/npcs.ron). The bag
+# sizes, the purity and the volumes (3.6 L and 1.7 L, at about 1.4 and 1.2 kg per litre of loose powder and
+# pellets) are game estimates. The sulfur is sealed in HDPE, the base material of the pack as for urine_stored_0.
+garden_lime_0,Garden Lime,material,agricultural,limestone,5.0,10,0,5 kg of finely ground limestone: raises soil pH as it reacts over a couple of months,dry_goods,3.6
+garden_sulfur_0,Garden Sulfur,material,agricultural,hdpe,2.0,10,0,2 kg of 90% elemental sulfur: soil bacteria turn it to acid over months and lower soil pH,dry_goods,1.7

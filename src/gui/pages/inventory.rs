@@ -1331,6 +1331,8 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     // "Harvest N ready" button, applied after the panel.
     let mut action_harvest_many: Option<Vec<u64>> = None;
     let mut action_pest_control: Option<(String, String)> = None;
+    // Soil pH amendment (farming::soil_ph): (area, amendment id).
+    let mut action_soil_ph: Option<(String, String)> = None;
     // Summon a world vehicle to drive itself to the player (Stage 3, v0.680),
     // set by the Vehicles section's Summon button; applied after the panel.
     let mut action_summon_vehicle: Option<u64> = None;
@@ -2106,6 +2108,14 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                         let planted_label = if crops.is_empty() { "Plant this tower" } else { "Plant again" };
                         let area_tag = tid.clone().unwrap_or_default();
                         let pests_here = state.garden_pests.areas.iter().find(|a| a.area == area_tag).cloned();
+                        // The pH range of this group's soil units, for the Lime /
+                        // Sulfur row (none for towers, which hold theirs).
+                        let soil_phs: Vec<f32> = crops
+                            .iter()
+                            .filter(|c| !c.dead && !c.ph_held && c.tower_slot.is_some())
+                            .filter_map(|c| c.ph)
+                            .collect();
+                        let ph_amendments = state.garden_pests.ph_amendments.clone();
                         widgets::expandable_row(
                             ui,
                             ("garden_grp", gi),
@@ -2143,6 +2153,21 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                 }
                             },
                             |ui| {
+                                // Soil pH here (2026-09-26, farming::soil_ph): the
+                                // range over its units, and one button per amendment.
+                                if !soil_phs.is_empty() && !ph_amendments.is_empty() {
+                                    let lo = soil_phs.iter().copied().fold(f32::INFINITY, f32::min);
+                                    let hi = soil_phs.iter().copied().fold(f32::NEG_INFINITY, f32::max);
+                                    ui.horizontal_wrapped(|ui| {
+                                        let range = if hi - lo < 0.05 { format!("Soil pH {lo:.1}") } else { format!("Soil pH {lo:.1} to {hi:.1}") };
+                                        ui.label(RichText::new(range).size(theme.font_size_small).color(theme.text_secondary()));
+                                        for (id, label) in &ph_amendments {
+                                            if widgets::compact_button(ui, theme, label, widgets::ButtonVariant::Secondary) {
+                                                action_soil_ph = Some((area_tag.clone(), id.clone()));
+                                            }
+                                        }
+                                    });
+                                }
                                 // Pests here (2026-09-26, farming::pests): each with
                                 // its level and its controls, gentlest first (IPM).
                                 if let Some(ap) = &pests_here {
@@ -2378,6 +2403,18 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                                             // What each kg of this harvest takes out of the soil.
                                                             stat(ui, "Each kg takes", format!("{:.1} · {:.1} · {:.1} g", c.n, c.p, c.k));
                                                             stat(ui, "Light", c.light.clone());
+                                                            // The unit's pH against the crop's window (farming::soil_ph).
+                                                            if let Some(ph) = c.ph {
+                                                                let (k, v) = if c.ph_held {
+                                                                    ("Solution pH", format!("{ph:.1}, held by the tower"))
+                                                                } else {
+                                                                    ("Soil pH", format!("{ph:.1} (grows best at {:.1} to {:.1})", c.ph_window[0], c.ph_window[1]))
+                                                                };
+                                                                stat(ui, k, v);
+                                                                if c.ph_cap < 99.5 {
+                                                                    stat(ui, "pH holds health to", format!("{:.0}%", c.ph_cap));
+                                                                }
+                                                            }
                                                             stat(ui, "Water/day", format!("{:.1} L", c.water_per_day));
                                                             stat(ui, "Temp window", format!("{:.0}-{:.0} °C", c.temp_min, c.temp_max));
                                                             stat(ui, "Reservoir", format!("{:.0}%", c.water * 100.0));
@@ -2652,6 +2689,9 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     }
     if let Some(c) = action_pest_control {
         state.garden_pests.pending = Some(c);
+    }
+    if let Some(c) = action_soil_ph {
+        state.garden_pests.ph_pending = Some(c);
     }
     if action_dev_grow {
         state.dev_grow_crops = true;

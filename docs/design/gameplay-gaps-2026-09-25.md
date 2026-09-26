@@ -364,6 +364,54 @@ date; re-check before trusting one. The container data basis is
   light and what share of the plot it covers, or dark until sunrise). Pests
   are not advanced by the offline catch-up, on purpose: the offline design's
   rule for anything that harms without a decision (offline-progression.md).
+- **Gardening depth: soil pH, DONE 2026-09-26** (the Garden crop card shows
+  the unit's pH against its crop's window, each soil grow area has Lime and
+  Sulfur buttons, and Settings has "Soil pH: Off / On"). plants.csv's
+  `ph_min`/`ph_max` windows, read by nothing before, now matter. The model is
+  `src/systems/farming/soil_ph.rs`; every number and its source is in
+  `data/garden/soil_ph.ron`. Each soil unit (bed, tray or field unit) has a pH
+  kept in `SoilMemory::ph`, so it stays with the unit between crops and is
+  saved (an older save reads every unit at its medium's start). A bed starts
+  at 6.5 (OSU EC 1560: "vegetable gardens produce well in a soil pH of 6.5");
+  a tower's nutrient solution is held at 6.0 by its dosing (UF/IFAS HS796:
+  "Final solution pH should be in the range of 5.8 to 6.2") and never drifts;
+  mushroom substrate is not modelled. Everything that moves a pH is counted in
+  grams of calcium carbonate equivalent over the loam's buffer, 381.1 g of
+  CaCO3 per m2 per pH unit (UC Cooperative Extension, Vossen, Table 1, loam,
+  5.5 to 6.5, 7-inch layer; Purdue HO-241-W's and Clemson HGIC 1650's sulfur
+  tables give 305 to 381 through sulfur's 3.12), and reaches the pH over garden
+  days at a half-life per pool. Stored urine acidifies as urea does, 1.8 g of
+  CaCO3 per g of N (UNL G1503 Table 1; Purdue Table 2 gives 1.76; Neina and
+  Dowuona 2013 measured urine's pH fall "attributed to nitrification"), with a
+  14-day nitrification half-life (an estimate on UMN's "rapidly proceeds in
+  warm, moist, well-aerated soils"); compost is taken as neutral (the low end
+  of Purdue's "0 to 10+"). Lime is 100% CaCO3 equivalent (UC Table 2) with a
+  30-day half-life (Clemson: "two to three months before planting"); sulfur is
+  90% S at 3.12 (Purdue Table 2) with a 60-day half-life (OSU EC 1560: "apply S
+  in the fall and test the soil pH in the spring"), capped at 97.6 g per m2 an
+  application (OSU EC 1560 Table 2). Each button brings every planted unit to
+  the middle of its crop's window, counting what is still reacting, and takes
+  the bags from the backpack: garden lime (5 kg) and garden sulfur (2 kg) are
+  new items, sold by the vendor and the Farming Elder. Outside its window a
+  crop's health is capped at 30% per pH unit, the median of USDA NRCS's "Soil
+  Quality Indicators: Soil pH" (2011) Table 1 points against the plants.csv
+  windows (a test recomputes it), never below 20, the lowest of the nutrient,
+  pest and pH caps binding; the player is told once per bed which amendment
+  fixes it. Checked: OSU's lawn example (3.5 lb N per 1,000 sq ft a year as
+  ammonium sulfate, "0.1 to 0.2 units each year") runs at 0.24 a year in the
+  model, the fast end; OSU's own high-organic-matter loam needed about three
+  times the UC buffer. Eleven tests, each seen red on a deliberate break.
+  Merged as v0.1366.0, when a plot of a placed bed started buffering over its
+  real floor (the engine's "grow_plot_area_m2"); the area inferred from the
+  crop's N removal is now only the fallback for a unit with no machine.
+  Left: wood ash is
+  skipped because burning gives the player no ash item yet; crop removal of
+  calcium and magnesium, and legumes, which also acidify (NRCS), are not
+  counted; hand-planted crops have no unit, so they sit at 6.5 and cannot be
+  limed; pH does not step during the offline catch-up; a tower's solution
+  cannot yet be set per crop (a blueberry wants a lower one), and the Home
+  page's tower compatibility check still intersects the plants.csv SOIL
+  windows for a reservoir the pH model treats as held.
 
 ## Defects found (things that are wrong, not merely missing)
 

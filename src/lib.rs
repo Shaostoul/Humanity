@@ -1179,6 +1179,7 @@ mod native_app {
             data_store.insert("garden_lighting", crate::systems::farming::lighting::LightingData::load());
             data_store.insert("garden_pest_severity", std::sync::Mutex::new(crate::systems::farming::pests::DEFAULT_PEST_SEVERITY));
             data_store.insert("pest_control_request", std::sync::Mutex::new(Option::<(String, String)>::None));
+            crate::systems::farming::soil_ph::register(&mut data_store); // soil pH: data, Settings switch, Lime/Sulfur
             // Backpack <-> container transfers (organize-layer inventory): the GUI pushes
             // (item_id, qty, is_add) ops; InventorySystem applies them to the player's
             // backpack. Mirrored from GuiState.pending_inventory_transfers each frame.
@@ -6607,6 +6608,7 @@ mod native_app {
                             *s = state.gui_state.settings.pest_severity.clamp(0.0, 1.0);
                         }
                     }
+                    crate::systems::farming::soil_ph::bridge(&state.data_store, !state.gui_state.garden_pests.soil_ph_off, state.gui_state.garden_pests.ph_pending.take());
                     if let Some(req) = state.gui_state.garden_pests.pending.take() {
                         if let Some(m) = state.data_store.get::<std::sync::Mutex<Option<(String, String)>>>("pest_control_request") {
                             if let Ok(mut s) = m.lock() {
@@ -12803,6 +12805,8 @@ mod native_app {
                             .zip(plant_reg)
                             .and_then(|(nd, reg)| nd.scale_for(reg));
                         let (sun_up, lamp) = crate::systems::farming::lighting::light_now(&state.game_world.world, &state.data_store);
+                        let ph_view = crate::systems::farming::soil_ph::GardenView::new(&state.data_store, &state.game_world.world);
+                        state.gui_state.garden_pests.ph_amendments = ph_view.amendments();
                         for (entity, (crop, soil)) in state
                             .game_world
                             .world
@@ -12815,6 +12819,7 @@ mod native_app {
                             let (supply, scarce) = sl::sufficiency(&store, &need);
                             let def = plant_reg.and_then(|r| r.get(&crop.crop_def_id));
                             let per_kg = def.zip(nutrient_scale).map_or(crate::ecs::components::Npk::default(), |(d, s)| sl::removal_per_kg(d, s));
+                            let phc = ph_view.crop(crop, def); // soil pH for the crop card
                             let name = def
                                 .map(|d| d.name.clone())
                                 .unwrap_or_else(|| crop.crop_def_id.clone());
@@ -12859,6 +12864,10 @@ mod native_app {
                                 soil: [store.n as f32, store.p2o5 as f32, store.k2o as f32],
                                 need: [need.n as f32, need.p2o5 as f32, need.k2o as f32],
                                 short_of: (supply < 1.0).then(|| scarce.word().to_string()),
+                                ph: phc.ph,
+                                ph_window: phc.window,
+                                ph_cap: phc.cap,
+                                ph_held: phc.held,
                             });
                         }
                         // Pests per grow area for the Garden panel (2026-09-26).

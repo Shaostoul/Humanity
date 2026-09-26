@@ -54,9 +54,13 @@
 //!    (`soil_draw`), and leave the fixed N in their roots and haulm behind as
 //!    a credit for the next crop (`legume_credit_n`).
 //!
-//! pH and humidity stay out of scope: they are the next rungs (pH decides how
-//! much of the store is available at all, so it slots in as a multiplier on
-//! `sufficiency`).
+//! SOIL pH (2026-09-26) is its own rung, in soil_ph.rs. It landed as a
+//! separate health ceiling rather than the multiplier on `sufficiency` this
+//! note once planned: its cited losses are relative yields, so the cap is
+//! that share of full health directly, where `health_ceiling`'s floor-to-100
+//! mapping would have softened them (a 30% loss read as 24%); and a separate
+//! ceiling combines with the nutrient and pest ones the way those combine
+//! with each other, the lowest binding. Humidity is still the next rung.
 
 use serde::Deserialize;
 

@@ -426,6 +426,26 @@ pub struct SoilMemory {
     /// save-format change; a save from before it loads with no pests.
     #[serde(default)]
     pub pests: std::collections::HashMap<String, AreaPests>,
+    /// Each soil unit's pH, keyed like `units` (2026-09-26, gardening depth:
+    /// soil pH, `farming::soil_ph`). Like `organic`, it belongs to the unit
+    /// and stays while crops come and go, and it is saved with no save-format
+    /// change; a save from before it loads with none, and every unit then
+    /// reads its medium's starting pH (data/garden/soil_ph.ron).
+    #[serde(default)]
+    pub ph: std::collections::HashMap<String, std::collections::HashMap<u32, UnitPh>>,
+}
+
+/// One soil unit's pH (2026-09-26): what it is now, and what is still
+/// reacting toward it, in pH units by pool ("nitrification" for the acidity of
+/// added ammonium, or an amendment id from soil_ph.ron such as "lime" or
+/// "sulfur"; positive raises the pH, negative lowers it). Each pool reaches the
+/// pH over garden days at its own half-life. f64 for the same reason as `Npk`.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct UnitPh {
+    #[serde(default)]
+    pub ph: f64,
+    #[serde(default)]
+    pub pending: std::collections::HashMap<String, f64>,
 }
 
 /// One grow area's pests (2026-09-26): the pressure of each pest there, and

@@ -392,4 +392,13 @@
     (id: "bt_kurstaki_0",     name: "Bt Spray (kurstaki)", category: "agricultural",   base_value: 60,   weight_kg: 1.0,   description: "Ready-to-use Bacillus thuringiensis for caterpillars"),
     (id: "predatory_mites_0", name: "Predatory Mites",    category: "agricultural",    base_value: 120,  weight_kg: 0.1,   description: "Live Phytoseiulus persimilis that eat spider mites"),
     (id: "iron_phosphate_bait_0", name: "Iron Phosphate Slug Bait", category: "agricultural", base_value: 60, weight_kg: 1.0, description: "Slug pellets, safe around children, pets and wildlife"),
+
+    // =========================================================================
+    // SOIL pH AMENDMENTS (2026-09-26; data/garden/soil_ph.ron). Bought, as a gardener buys them. Values are
+    // game estimates in the file's scale (1 CR ~ 1 minute of unskilled labour): a 5 kg bag of garden lime
+    // for about twenty minutes of work, a 2 kg bag of sulfur for about half an hour.
+    // =========================================================================
+
+    (id: "garden_lime_0",     name: "Garden Lime",        category: "agricultural",    base_value: 20,   weight_kg: 5.0,   description: "Ground limestone that raises garden soil pH"),
+    (id: "garden_sulfur_0",   name: "Garden Sulfur",      category: "agricultural",    base_value: 30,   weight_kg: 2.0,   description: "Elemental sulfur that lowers garden soil pH"),
 ]
