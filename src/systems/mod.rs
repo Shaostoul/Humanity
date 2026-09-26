@@ -35,6 +35,8 @@ pub mod medical;
 pub mod status_effects;
 pub mod flight;
 pub mod food;
+/// Fluids are litres: tap water for recipes, vessels filled at a tank.
+pub mod fluids;
 pub mod mining;
 pub mod governance;
 pub mod docking;

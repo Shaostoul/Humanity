@@ -1257,6 +1257,7 @@ pub fn draw_machine_recipe_selector(ctx: &egui::Context, theme: &Theme, state: &
         && state.machine_card_container.is_none()
         && state.machine_card_storable.is_empty()
         && state.machine_card_container_note.is_none()
+        && state.machine_card_fluid_actions.is_empty()
         && !state.machine_card_vendor
     {
         return;
@@ -1335,6 +1336,13 @@ pub fn draw_machine_recipe_selector(ctx: &egui::Context, theme: &Theme, state: &
                         .show(ui, theme)
                 {
                     state.machine_card_clean_pending = true;
+                }
+                // Fill and pour at a water tank (2026-09-26): the vessels the
+                // player carries, filled from this tank or emptied into it.
+                for (key, label, tip) in state.machine_card_fluid_actions.clone() {
+                    if crate::gui::widgets::Button::secondary(&label).tooltip(&tip).show(ui, theme) {
+                        state.machine_card_fluid_pending = Some(key);
+                    }
                 }
                 // Store (v0.733): per-item deposit buttons for compatible pack
                 // items — how refined fuel gets from the pack into the genset

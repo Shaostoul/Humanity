@@ -151,6 +151,9 @@ window_frame_0,Window Frame,furniture,structure,pine,8.0,1,200,Glazed wall openi
 #
 # === FOOD / CONSUMABLES ===
 water_bottle_0,Water Bottle,food,drink,hdpe,0.5,10,0,Purified drinking water 500ml,water,1.16
+water_bottle_empty_0,Water Bottle (empty),tool,container,hdpe,0.03,10,0,Empty 500 ml bottle: fill it at a water tank,solid,1.16
+water_jerrycan_empty_0,Water Jerrycan (empty),tool,container,hdpe,1.2,5,0,20 L food-grade HDPE jerrycan kept for water only: fill it at a water tank,solid,24.0
+water_jerrycan_0,Water Jerrycan (20 L),material,liquid,hdpe,21.2,1,0,A 20 L jerrycan of drinking water: pour it into a tank or carry it where water is needed,water,24.0
 ration_basic_0,Basic Ration,food,meal,cotton,0.4,20,0,Vacuum-packed survival meal,solid,0.58
 bread_0,Bread,food,baked,cotton,0.3,10,0,Baked wheat loaf,solid,0.43
 jerky_0,Jerky,food,preserved,cotton,0.1,30,0,Dried seasoned meat strip,solid,0.14

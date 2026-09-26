@@ -1086,9 +1086,9 @@ PSOs each compile one entry, and the split was itself a perf win (console
 **Gameplay arc (operator: "Let's work through that", 2026-09-25).** The seven
 defects and the first rung of real water are DONE (v0.1344.0); container
 memory, cleaning and materials are DONE (v0.1345.0); visible storage is DONE
-(v0.1346.0: the Barn racks fill with crates, tanks show their level). Next:
-fluids as litres (jugs filled from a tank and poured back), then crafting
-and gardening depth. Containers as items (3c) waits on the unified placement
+(v0.1346.0: the Barn racks fill with crates, tanks show their level); fluids
+as litres, first rung, is DONE (v0.1347.0: tap water for recipes, bottles and
+jerrycans filled at a tank). Next: crafting and gardening depth. Containers as items (3c) waits on the unified placement
 schema. Progress and open items live at the top of the gap doc.
 
 **Gameplay gap survey (2026-09-25):** `docs/design/gameplay-gaps-2026-09-25.md`

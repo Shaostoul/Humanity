@@ -752,12 +752,21 @@ fn skill_display_name(state: &GuiState, skill_id: &str) -> String {
 }
 
 /// Count how many of an item_id the player has in their inventory.
+/// What the backpack holds, plus, for a measure of tap water, what the home
+/// tanks can supply (2026-09-26): mirrors CraftingSystem::can_craft, which
+/// draws the water the pack lacks from the tanks.
 fn count_in_inventory(state: &GuiState, item_id: &str) -> u32 {
-    state
+    let pack: u32 = state
         .inventory_items
         .iter()
         .filter_map(|slot| slot.as_ref())
         .filter(|item| item.item_id == item_id)
         .map(|item| item.quantity)
-        .sum()
+        .sum();
+    let tap = state
+        .tap_litres
+        .get(item_id)
+        .filter(|l| **l > 0.0)
+        .map_or(0, |l| (state.water_stored_l.max(0.0) / l + 1e-4).floor() as u32);
+    pack + tap
 }

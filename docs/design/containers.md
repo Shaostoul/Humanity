@@ -89,6 +89,17 @@ any cleaning, liners, or fluids measured in litres.
 - **Visible storage (2026-09-26):** the Barn's racks are real shelving and
   what is filed in the Barn shows as crates on their decks; each water tank
   shows its level. `src/engine/stock_piles.rs`; details in the gap doc.
+- **3d, first rung (2026-09-26):** `data/containers/fluids.ron` and
+  `src/systems/fluids.rs`. A recipe that needs a measure of tap water
+  (`water_purified_0`, 1 L) draws it from the home tanks when the backpack
+  has none, and the Crafting page counts the tanks too; a water tank's card
+  fills the empty bottles and jerrycans you carry and pours full ones back;
+  drinking a bottle hands the empty bottle back. Each vessel keeps to one
+  fluid, so a vessel is an empty item and a full item rather than an item
+  that remembers a fluid. The starter kit has two empty bottles; the vendor
+  sells bottles and jerrycans. Not yet: fuel and milk as litres (their tanks
+  still hold items), partial fills, a watering can for hand watering (it
+  still draws straight from the tanks, like a hose).
 - **3c is blocked** on the unified placement schema (a container that can be
   picked up and set down needs machine placement and item placement to be
   one system; PRIORITIES.md Tier B).

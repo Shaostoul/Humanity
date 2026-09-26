@@ -1,0 +1,18 @@
+// Fluids are litres (2026-09-26; docs/design/containers.md, increment 3d).
+// Read by src/systems/fluids.rs.
+(
+    // Items that ARE a measure of tap water. A recipe or use that needs one
+    // draws it from the home's water tanks when the backpack has none, the
+    // way a cook uses the tap. Litres per unit.
+    tap: {
+        "water_purified_0": 1.0,
+    },
+    // Vessels the player carries water in: filled at a water tank's walk-up
+    // card, poured back there, and handed back empty when drunk from. One
+    // fluid per vessel, as in real life: a water jerrycan is kept for water
+    // and never used for fuel.
+    fillables: [
+        (empty: "water_bottle_empty_0", full: "water_bottle_0", fluid: "water", litres: 0.5),
+        (empty: "water_jerrycan_empty_0", full: "water_jerrycan_0", fluid: "water", litres: 20.0),
+    ],
+)

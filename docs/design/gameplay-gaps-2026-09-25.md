@@ -46,6 +46,10 @@ date; re-check before trusting one. The container data basis is
   Barn. Not yet: the harvest overflow goes into machine vessels, not the
   Barn, so harvesting does not yet grow the crate count; crates of one
   generic look rather than sacks, barrels and crates by content class.
+- **Fluids are litres, first rung: DONE 2026-09-26** (v0.1347.0). Recipes
+  that need tap water draw it from the tanks; bottles and jerrycans are
+  filled at a tank and poured back; drinking a bottle returns it empty. See
+  [containers.md](containers.md).
 - **Containers as items (3c): BLOCKED** on the unified placement schema
   (Tier B in PRIORITIES.md). The walk-up machine card and every vessel are
   tied to `data/machines/home.ron` placements; a container that can be

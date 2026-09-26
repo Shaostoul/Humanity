@@ -13641,6 +13641,11 @@ mod native_app {
                         state.gui_state.water_capacity_l = ws.capacity_l;
                         state.gui_state.water_days_autonomy = ws.days_autonomy;
                     }
+                    if state.gui_state.tap_litres.is_empty() {
+                        if let Some(ft) = state.data_store.get::<crate::systems::fluids::FluidTable>("fluid_table") {
+                            state.gui_state.tap_litres = ft.tap.clone();
+                        }
+                    }
 
                     // Bridge the live home AIR readout (AtmosphereSystem writes it via Mutex). (v0.617)
                     if let Some(asr) = state
@@ -13842,6 +13847,7 @@ mod native_app {
                         // Cleared here; the selected-machine block below
                         // repopulates it when a vessel is pinned.
                         state.gui_state.machine_card_storable.clear();
+                        state.gui_state.machine_card_fluid_actions.clear();
                         if let Some(mid) = sel_mid {
                             let pending = state.gui_state.machine_card_recipe_pending.take();
                             for (_e, (id, auto)) in state
@@ -14111,6 +14117,21 @@ mod native_app {
                                 }
                                 if parts.is_empty() { None } else { Some(parts.join(" ")) }
                             });
+                            // Fill and pour at a water tank (2026-09-26): src/systems/fluids.rs.
+                            if let Some(ft) = state.data_store.get::<crate::systems::fluids::FluidTable>("fluid_table") {
+                                use crate::systems::fluids::{apply_action, card_actions};
+                                if let Some(key) = state.gui_state.machine_card_fluid_pending.take() {
+                                    let toast = match apply_action(ft, &mut state.game_world.world, item_reg, &mid, &key) {
+                                        Ok(m) => (m, crate::gui::ToastKind::Success),
+                                        Err(m) => (m, crate::gui::ToastKind::Info),
+                                    };
+                                    state.gui_state.pending_toasts.push(toast);
+                                }
+                                state.gui_state.machine_card_fluid_actions = card_actions(ft, &state.game_world.world, item_reg, &mid)
+                                    .into_iter()
+                                    .map(|a| (a.key, a.label, a.tip))
+                                    .collect();
+                            }
                             container_pub = contents.map(|(item, qty)| {
                                 let name = item_reg
                                     .and_then(|r| r.items.get(&item))

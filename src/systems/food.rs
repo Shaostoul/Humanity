@@ -258,7 +258,14 @@ impl FoodSystem {
     /// Eat or drink one `item_id` from the first player (Inventory + Vitals +
     /// StatusEffects) who carries it, applying the food's nutrition. Items that
     /// are not food, and non-beverages sent to Drink, are ignored.
-    fn consume(&self, world: &mut hecs::World, item_id: &str, how: Consume, fx: &MealEffects) {
+    fn consume(
+        &self,
+        world: &mut hecs::World,
+        item_id: &str,
+        how: Consume,
+        fx: &MealEffects,
+        returns: Option<&str>,
+    ) {
         use crate::ecs::components::{StatusEffects, Vitals};
         use crate::systems::inventory::Inventory;
 
@@ -308,6 +315,11 @@ impl FoodSystem {
                 .is_some_and(|s| s.spoiled);
 
             inv.remove_item(item_id, 1);
+            // Drinking from a vessel hands the empty vessel back (2026-09-26,
+            // data/containers/fluids.ron), ready to fill at a tank again.
+            if let Some(empty) = returns {
+                inv.add_item(empty, 1, 99);
+            }
             let nutrition_mult = if is_spoiled { 0.25 } else { 1.0 };
             vitals.satiation = (vitals.satiation + calories * SATIATION_PER_CALORIE * nutrition_mult)
                 .min(vitals.satiation_max);
@@ -381,11 +393,13 @@ impl System for FoodSystem {
                 well_fed_s: effect_s("well_fed", FALLBACK_WELL_FED_S),
                 nourished_s: effect_s("well_nourished", FALLBACK_WELL_FED_S),
             };
+            let fluids = data.get::<crate::systems::fluids::FluidTable>("fluid_table");
+            let empty_of = |id: &str| fluids.and_then(|t| t.empty_of(id)).map(str::to_string);
             if let Some(item_id) = consumed {
-                self.consume(world, &item_id, Consume::Eat, &fx);
+                self.consume(world, &item_id, Consume::Eat, &fx, empty_of(&item_id).as_deref());
             }
             if let Some(item_id) = drank {
-                self.consume(world, &item_id, Consume::Drink, &fx);
+                self.consume(world, &item_id, Consume::Drink, &fx, empty_of(&item_id).as_deref());
             }
         }
 
@@ -1272,6 +1286,27 @@ mod nutrition_tests {
             !world.get::<&StatusEffects>(player).unwrap().has("unsanitary"),
             "composting lifted the unsanitary debuff"
         );
+    }
+
+    /// Drinking a bottle hands the empty bottle back (2026-09-26): the vessel
+    /// comes from data/containers/fluids.ron.
+    #[test]
+    fn drinking_a_bottle_hands_the_empty_bottle_back() {
+        let mut data = make_store();
+        let bytes = std::fs::read(concat!(env!("CARGO_MANIFEST_DIR"), "/data/containers/fluids.ron")).unwrap();
+        data.insert("fluid_table", crate::systems::fluids::FluidTable::from_ron(&bytes).unwrap());
+        let mut sys = FoodSystem::new(data_dir());
+        let mut world = hecs::World::new();
+        let mut inv = Inventory::new(8);
+        inv.add_item("water_bottle_0", 1, 99);
+        let player = world.spawn((inv, vitals(80.0, 40.0), StatusEffects::default(), Health::default()));
+        *data.get::<std::sync::Mutex<Option<String>>>("drink_request").unwrap().lock().unwrap() =
+            Some("water_bottle_0".to_string());
+        sys.tick(&mut world, 1.0, &data);
+        let inv = world.get::<&Inventory>(player).unwrap();
+        assert_eq!(inv.count_item("water_bottle_0"), 0, "drunk");
+        assert_eq!(inv.count_item("water_bottle_empty_0"), 1, "the empty bottle comes back");
+        assert!(world.get::<&Vitals>(player).unwrap().hydration > 40.0);
     }
 
     /// The Drink action consumes a beverage and restores hydration (mirrors Eat).

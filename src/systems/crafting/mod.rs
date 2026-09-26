@@ -435,19 +435,33 @@ impl CraftingSystem {
         self.pending_requests.push(CraftRequest { recipe_id, crafter });
     }
 
-    /// Check if an entity has all required inputs for a recipe.
-    fn can_craft(inventory: &Inventory, recipe: &Recipe) -> bool {
+    /// Check if an entity has all required inputs for a recipe. `tap` is how
+    /// many units of an input the home tanks can supply (non-zero only for a
+    /// measure of tap water, 2026-09-26): the pack need not carry the water.
+    fn can_craft(inventory: &Inventory, recipe: &Recipe, tap: impl Fn(&str) -> u32) -> bool {
         recipe
             .inputs
             .iter()
-            .all(|(item_id, qty)| inventory.has_item(item_id, *qty))
+            .all(|(item_id, qty)| inventory.count_item(item_id) + tap(item_id) >= *qty)
     }
 
-    /// Consume recipe inputs from inventory.
-    fn consume_inputs(inventory: &mut Inventory, recipe: &Recipe) {
+    /// Consume recipe inputs from the pack. Returns the litres of tap water
+    /// still owed (inputs the pack lacked that are a measure of tap water);
+    /// the caller draws them from the tanks.
+    fn consume_inputs(
+        inventory: &mut Inventory,
+        recipe: &Recipe,
+        fluids: Option<&crate::systems::fluids::FluidTable>,
+    ) -> f32 {
+        let mut owed = 0.0;
         for (item_id, qty) in &recipe.inputs {
-            inventory.remove_item(item_id, *qty);
+            let from_pack = inventory.count_item(item_id).min(*qty);
+            inventory.remove_item(item_id, from_pack);
+            if let Some(l) = fluids.and_then(|t| t.tap_litres(item_id)) {
+                owed += (qty - from_pack) as f32 * l;
+            }
         }
+        owed
     }
 
     /// Would the recipe's outputs land WITHOUT overflow-loss? Conservative slot
@@ -594,6 +608,8 @@ impl System for CraftingSystem {
     fn tick(&mut self, world: &mut hecs::World, dt: f32, data: &DataStore) {
         let recipe_registry = data.get::<RecipeRegistry>("recipe_registry");
         let item_registry = data.get::<crate::systems::inventory::ItemRegistry>("item_registry");
+        // Tap water (2026-09-26): which inputs the home tanks can supply.
+        let fluids = data.get::<crate::systems::fluids::FluidTable>("fluid_table");
         // Vehicle-class outputs (economy Phase 2 Stage 2): any output item the kit
         // registry resolves as an ASSEMBLED vehicle rolls out onto the factory pad
         // as a real world entity instead of landing in an inventory slot.
@@ -822,7 +838,9 @@ impl System for CraftingSystem {
                         // ore stashed into a clothing bag now genuinely feeds
                         // the smelter.
                         let missing = recipe.inputs.iter().find_map(|(id, qty)| {
-                            let have = inv.count_item(id) + home_count(id);
+                            let have = inv.count_item(id)
+                                + home_count(id)
+                                + fluids.map_or(0, |t| crate::systems::fluids::tap_units(t, world, id));
                             (have < *qty).then(|| {
                                 let name = item_registry
                                     .and_then(|r| r.items.get(id).map(|d| d.name.clone()))
@@ -902,6 +920,7 @@ impl System for CraftingSystem {
                 // Consume backpack-first; whatever the pack lacks comes out of
                 // home storage (the map decrement is drained from the GUI's
                 // placed containers by lib.rs right after this tick).
+                let mut owed_l = 0.0_f32;
                 if let Ok(mut inv) = world.get::<&mut Inventory>(player_e) {
                     for (id, qty) in &recipe.inputs {
                         let from_pack = inv.count_item(id).min(*qty);
@@ -910,15 +929,25 @@ impl System for CraftingSystem {
                         }
                         let remainder = qty - from_pack;
                         if remainder > 0 {
+                            let mut from_home = 0;
                             if let Some(m) = home_stock.as_ref() {
                                 if let Ok(mut s) = m.lock() {
                                     if let Some(c) = s.get_mut(id) {
+                                        from_home = (*c).min(remainder);
                                         *c = c.saturating_sub(remainder);
                                     }
                                 }
                             }
+                            // What storage lacked of a measure of tap water
+                            // comes from the tanks (2026-09-26).
+                            if let Some(l) = fluids.and_then(|t| t.tap_litres(id)) {
+                                owed_l += (remainder - from_home) as f32 * l;
+                            }
                         }
                     }
+                }
+                if owed_l > 0.0 {
+                    crate::systems::fluids::draw_from_tanks(world, owed_l);
                 }
                 statuses.push(format!("{} — starting", recipe.name));
                 let machine_id = world
@@ -1004,7 +1033,9 @@ impl System for CraftingSystem {
                     true
                 } else {
                     match world.get::<&Inventory>(request.crafter) {
-                        Ok(inv) => Self::can_craft(&inv, &recipe),
+                        Ok(inv) => Self::can_craft(&inv, &recipe, |id| {
+                            fluids.map_or(0, |t| crate::systems::fluids::tap_units(t, world, id))
+                        }),
                         Err(_) => {
                             log::warn!("Craft request on entity without Inventory");
                             continue;
@@ -1040,8 +1071,12 @@ impl System for CraftingSystem {
 
                 // Consume inputs immediately (skipped in creative mode).
                 if !creative {
-                    if let Ok(mut inv) = world.get::<&mut Inventory>(request.crafter) {
-                        Self::consume_inputs(&mut inv, &recipe);
+                    let owed = match world.get::<&mut Inventory>(request.crafter) {
+                        Ok(mut inv) => Self::consume_inputs(&mut inv, &recipe, fluids),
+                        Err(_) => 0.0,
+                    };
+                    if owed > 0.0 {
+                        crate::systems::fluids::draw_from_tanks(world, owed);
                     }
                 }
 
@@ -1572,6 +1607,48 @@ mod skill_xp_tests {
         inv.add_item("plank_0", 5, 99);
         let player = world.spawn((inv, Controllable));
         (data, world, player)
+    }
+
+    /// Tap water (2026-09-26, fluids as litres): a recipe that needs a measure
+    /// of tap water draws it from the home tanks when the backpack has none,
+    /// and is refused, spending nothing, when the tanks are too low too.
+    #[test]
+    fn a_recipe_draws_its_water_from_the_tanks() {
+        let recipe_csv = "id,name,category,inputs,outputs,craft_time_sec,station_required,skill_required,skill_level,description\n\
+             knead,Knead,cooking,flour_0:2|water_purified_0:1,dough_0:1,0,,,0,test\n";
+        let mut data = DataStore::new();
+        data.insert("recipe_registry", RecipeRegistry::from_csv(recipe_csv.as_bytes()).unwrap());
+        data.insert(
+            "item_registry",
+            ItemRegistry::from_csv(
+                b"id,name,weight_kg,stack_size,volume_l\nflour_0,Flour,0.5,20,1\nwater_purified_0,Water,1,10,1.8\ndough_0,Dough,1,10,1\n",
+            )
+            .unwrap(),
+        );
+        data.insert("dev_stock_materials", std::sync::Mutex::new(false));
+        data.insert("craft_request", std::sync::Mutex::new(Option::<String>::None));
+        data.insert("player_notices", std::sync::Mutex::new(Vec::<String>::new()));
+        let mut ft = crate::systems::fluids::FluidTable::default();
+        ft.tap.insert("water_purified_0".into(), 1.0);
+        data.insert("fluid_table", ft);
+        let mut world = hecs::World::new();
+        let mut inv = Inventory::new(16);
+        inv.add_item("flour_0", 4, 20);
+        let player = world.spawn((inv, Controllable));
+        let tank = world.spawn((crate::ecs::components::WaterTank { liters: 1.5, capacity_l: 100.0 },));
+        let craft = |world: &mut hecs::World| {
+            *data.get::<std::sync::Mutex<Option<String>>>("craft_request").unwrap().lock().unwrap() =
+                Some("knead".into());
+            CraftingSystem::new().tick(world, 0.016, &data);
+        };
+        craft(&mut world);
+        assert_eq!(world.get::<&Inventory>(player).unwrap().count_item("dough_0"), 1, "made with tank water");
+        let left = world.get::<&crate::ecs::components::WaterTank>(tank).unwrap().liters;
+        assert!((left - 0.5).abs() < 1e-4, "one litre came out of the tank: {left}");
+        craft(&mut world);
+        let inv = world.get::<&Inventory>(player).unwrap();
+        assert_eq!(inv.count_item("dough_0"), 1, "the tank is too low: refused");
+        assert_eq!(inv.count_item("flour_0"), 2, "a refused craft spends nothing");
     }
 
     fn notices(data: &DataStore) -> Vec<String> {

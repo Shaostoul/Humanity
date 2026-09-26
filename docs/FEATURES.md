@@ -1628,6 +1628,14 @@ material (`data/containers/materials.csv`) refuses what it reacts with.
 - Data: `data/containers/types.csv`, `materials.csv`, `content_traits.ron`, `data/machines/home.ron`
 - Design: `docs/design/containers.md`
 
+### Tap Water and Water Vessels (fluids as litres)
+A recipe that needs a measure of tap water draws it from the home tanks when
+the backpack has none (the Crafting page counts the tanks too); a water
+tank's walk-up card fills the empty bottles and jerrycans you carry and
+pours full ones back; drinking a bottle hands the empty back (v0.1347.0).
+- Native: `src/systems/fluids.rs`, `src/systems/crafting/mod.rs`, `src/systems/food.rs`
+- Data: `data/containers/fluids.ron`, `data/items.csv` (water_bottle_empty_0, water_jerrycan_empty_0, water_jerrycan_0)
+
 ### Visible Storage (Barn racks and tank gauges)
 The Barn's storage zone builds open pallet racks (`ZoneFiller` mesh_kind
 "rack"), and whatever is filed in the Barn (the organize layer's places tree)

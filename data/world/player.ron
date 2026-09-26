@@ -26,6 +26,7 @@
         ("seed_carrot_0", 5),
         ("seed_wheat_0", 10),
         ("water_purified_0", 4),
+        ("water_bottle_empty_0", 2),
         ("ration_basic_0", 3),
         ("trowel_0", 1),
         ("hoe_0", 1),

@@ -272,5 +272,19 @@ pub(crate) fn load_data_registries(store: &mut DataStore, data_dir: &std::path::
                 "Container data not found (containers/types.csv + content_classes.ron, no embedded copy); container compatibility disabled"
             ),
         }
+        // Fluids are litres (2026-09-26): tap-water items and carryable vessels.
+        {
+            use crate::systems::fluids::FluidTable;
+            match crate::embedded_data::read_data_or_embedded(data_dir, FluidTable::FILE)
+                .map(|s| FluidTable::from_ron(s.as_bytes()))
+            {
+                Some(Ok(t)) => {
+                    log::info!("Loaded fluid table: {} tap items, {} vessels", t.tap.len(), t.fillables.len());
+                    store.insert("fluid_table", t);
+                }
+                Some(Err(e)) => log::warn!("{e}"),
+                None => log::warn!("{} not found: no tap water or vessels this session", FluidTable::FILE),
+            }
+        }
     }
 }

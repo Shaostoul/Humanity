@@ -1142,6 +1142,10 @@ pub struct GuiState {
     pub machine_card_can_clean: bool,
     /// Set by the card's Clean button; lib.rs washes the container next frame.
     pub machine_card_clean_pending: bool,
+    /// Fill and pour at a water tank (2026-09-26): (key, label, tooltip).
+    pub machine_card_fluid_actions: Vec<(String, String, String)>,
+    /// Set by a fill or pour button; lib.rs carries it out next frame.
+    pub machine_card_fluid_pending: Option<String>,
     /// True when the pinned machine is a trading post (v0.747, ladder rung 3):
     /// the card shows a Trade button that opens the vendor modal.
     pub machine_card_vendor: bool,
@@ -1637,6 +1641,9 @@ pub struct GuiState {
     pub water_production_lpm: f32,
     pub water_demand_lpm: f32,
     pub water_stored_l: f32,
+    /// Tap-water items and litres per unit (data/containers/fluids.ron), so
+    /// the Crafting page counts what the tanks can supply (2026-09-26).
+    pub tap_litres: std::collections::HashMap<String, f32>,
     pub water_capacity_l: f32,
     pub water_days_autonomy: f32,
     /// Live home AIR readout (v0.617), mirrored from AtmosphereSystem each frame: O2/CO2 percent, total
@@ -3449,6 +3456,8 @@ impl Default for GuiState {
             machine_card_container_note: None,
             machine_card_can_clean: false,
             machine_card_clean_pending: false,
+            machine_card_fluid_actions: Vec::new(),
+            machine_card_fluid_pending: None,
             machine_card_vendor: false,
             vendor_open: false,
             vendor_goods: Vec::new(),
@@ -3674,6 +3683,7 @@ impl Default for GuiState {
             water_production_lpm: 0.0,
             water_demand_lpm: 0.0,
             water_stored_l: 0.0,
+            tap_litres: Default::default(),
             water_capacity_l: 0.0,
             water_days_autonomy: 0.0,
             air_o2_pct: 0.0,
