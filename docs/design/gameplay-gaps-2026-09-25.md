@@ -131,8 +131,10 @@ date; re-check before trusting one. The container data basis is
   made. Each now has a blueprint that consumes the crafted station item
   (`data/blueprints/basic.ron`), and `recipe_sources_lint` checks every
   station a recipe names can be built (the vehicle assembler stays a
-  family-home machine by design). A built electric station does not yet
-  draw power from the home (only placed home machines do).
+  family-home machine by design). A built electric station (stove, oven,
+  electronics bench, sewing machine) joins the home's power on its
+  strongest island, idle until a craft runs at it, and refuses a craft
+  without power, like a placed one (`wire_built_stations`).
 - **Containers as items (3c): BLOCKED** on the unified placement schema
   (Tier B in PRIORITIES.md). The walk-up machine card and every vessel are
   tied to `data/machines/home.ron` placements; a container that can be

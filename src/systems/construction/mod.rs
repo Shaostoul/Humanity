@@ -35,6 +35,58 @@ pub struct Blueprint {
     /// box"). Empty for structures that are not workstations.
     #[serde(default)]
     pub stations: Vec<String>,
+    /// An ELECTRIC station's working draw, in watts (2026-09-26): once built
+    /// it joins the home's power like a placed station machine, drawing
+    /// `idle_watts` until a craft runs at it (see `wire_built_stations`).
+    /// 0 = it needs no power (a workbench, a fire-fed furnace).
+    #[serde(default)]
+    pub power_watts: f32,
+    #[serde(default)]
+    pub idle_watts: f32,
+    /// Shed priority (1 critical .. 5 optional), as the machines use.
+    #[serde(default)]
+    pub power_priority: u8,
+}
+
+/// Give every finished structure whose blueprint draws power the components
+/// a placed station machine carries (2026-09-26): its station type, a power
+/// consumer at idle draw, its working/idle loads, on the home's strongest
+/// power island (the one with the most generation). The crafting system then
+/// refuses a craft there without power and raises its draw while it works.
+/// Runs each tick, so it also covers structures restored from a save.
+pub fn wire_built_stations(world: &mut hecs::World, registry: &BlueprintRegistry) {
+    use crate::ecs::components::{MachineType, PowerCircuit, PowerConsumer, PowerGenerator, StationLoad};
+    let todo: Vec<(hecs::Entity, String, f32, f32, u8)> = world
+        .query::<hecs::Without<&Structure, &StationLoad>>()
+        .iter()
+        .filter_map(|(e, s)| {
+            let bp = registry.get(&s.blueprint_id)?;
+            let station = bp.stations.first()?.clone();
+            (bp.power_watts > 0.0).then(|| (e, station, bp.power_watts, bp.idle_watts, bp.power_priority.max(1)))
+        })
+        .collect();
+    if todo.is_empty() {
+        return;
+    }
+    let mut by_island: HashMap<u32, f32> = HashMap::new();
+    for (_e, (g, pc)) in world.query::<(&PowerGenerator, &PowerCircuit)>().iter() {
+        *by_island.entry(pc.island).or_default() += g.output_watts;
+    }
+    let island = by_island
+        .into_iter()
+        .max_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal))
+        .map_or(0, |(i, _)| i);
+    for (e, station, watts, idle, priority) in todo {
+        let _ = world.insert(
+            e,
+            (
+                MachineType(station),
+                PowerConsumer { draw_watts: idle, priority, enabled: true },
+                StationLoad { active_watts: watts, idle_watts: idle },
+                PowerCircuit { island },
+            ),
+        );
+    }
 }
 
 /// Every machine type the player's FINISHED structures serve as, for the
@@ -273,6 +325,11 @@ impl System for ConstructionSystem {
             status = Some(format!("{name} complete"));
         }
 
+        // Built electric stations join the home's power (2026-09-26).
+        if let Some(reg) = registry.as_ref() {
+            wire_built_stations(world, reg);
+        }
+
         // One honest status line for the GUI (missing materials, in-progress,
         // completed) — same pattern as auto_craft_status.
         if let Some(s) = status {
@@ -364,6 +421,30 @@ mod tests {
         let got = built_station_types(&world, &reg);
         assert!(got.contains("smelter") && got.contains("workbench"), "{got:?}");
         assert!(got.contains("kiln"), "a furnace fires clay too: {got:?}");
+    }
+
+    /// A built stove joins the home's power (2026-09-26): it gets a power
+    /// consumer on the island with the most generation, at its idle draw, and
+    /// a workbench (no power role) gets nothing.
+    #[test]
+    fn a_built_stove_joins_the_home_power_and_a_workbench_does_not() {
+        use crate::ecs::components::{MachineType, PowerCircuit, PowerConsumer, PowerGenerator, StationLoad};
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("blueprints").join("basic.ron");
+        let reg = BlueprintRegistry::from_ron(&std::fs::read(path).unwrap()).unwrap();
+        let mut world = hecs::World::new();
+        world.spawn((PowerGenerator { output_watts: 50.0, fuel_per_second: 0.0, active: true }, PowerCircuit { island: 1 }));
+        world.spawn((PowerGenerator { output_watts: 3000.0, fuel_per_second: 0.0, active: true }, PowerCircuit { island: 2 }));
+        let stove = world.spawn((Structure { blueprint_id: "stove".into(), health: 1.0, max_health: 1.0, provides: None },));
+        let bench = world.spawn((Structure { blueprint_id: "crafting_table".into(), health: 1.0, max_health: 1.0, provides: None },));
+        wire_built_stations(&mut world, &reg);
+        assert_eq!(world.get::<&MachineType>(stove).unwrap().0, "stove");
+        assert_eq!(world.get::<&PowerCircuit>(stove).unwrap().island, 2, "the island with the most generation");
+        let load = *world.get::<&StationLoad>(stove).unwrap();
+        assert!(load.active_watts > 0.0);
+        assert_eq!(world.get::<&PowerConsumer>(stove).unwrap().draw_watts, load.idle_watts, "idle until it works");
+        assert!(world.get::<&PowerConsumer>(bench).is_err(), "a workbench needs no power");
+        wire_built_stations(&mut world, &reg);
+        assert_eq!(world.query::<&StationLoad>().iter().count(), 1, "wired once, not again");
     }
 
     #[test]
