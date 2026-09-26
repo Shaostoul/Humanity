@@ -355,6 +355,61 @@ pub struct CropInstance {
     pub growing_seconds: f64,
 }
 
+/// Grams of plant-available nitrogen, phosphate and potash (2026-09-26,
+/// gardening depth rung 3: nutrients). Counted as N, P2O5 and K2O, the
+/// convention every fertilizer label and every extension-service removal
+/// table uses, so a number here can be checked against a bag or a table
+/// with no conversion. (For the element: P = 0.436 x P2O5, K = 0.830 x K2O,
+/// from the molar masses.) f64 because a crop's draw in one tick at 1x
+/// growth is a few micrograms against a store of grams, which f32 would
+/// round to nothing. See `farming::soil` for the model.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Serialize, Deserialize)]
+pub struct Npk {
+    #[serde(default)]
+    pub n: f64,
+    #[serde(default)]
+    pub p2o5: f64,
+    #[serde(default)]
+    pub k2o: f64,
+}
+
+/// The nutrient state of the unit of growing space a crop sits in: one
+/// tower slot, one bed, tray or field unit, or the pot of a hand-planted
+/// crop (2026-09-26). The code already treats one unit as holding exactly
+/// one crop (`CropInstance::tower_slot` is the unit index), so the unit's
+/// soil rides on the crop's entity while it grows and passes to the next
+/// crop sown in that unit through `SoilMemory`.
+///
+/// A separate component rather than fields on `CropInstance` because a new
+/// field there would have to be named in every struct literal that builds
+/// one, and two of those live outside the farming lane. The cost, stated
+/// plainly: `WorldSave::crops` serializes `CropInstance` only, so this is
+/// NOT saved yet, and a loaded crop starts from fresh soil. The fix is a
+/// save field for it (see the rung-3 notes in docs/design/gameplay-gaps).
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct CropSoil {
+    /// Plant-available grams left in the unit.
+    #[serde(default)]
+    pub store: Npk,
+    /// Share (0..1) of this crop's season need it has already drawn. A
+    /// high-water mark on its growth clock, so the draw is the season need
+    /// spread over the season however the clock got there (light, the
+    /// growth-speed setting, the offline catch-up).
+    #[serde(default)]
+    pub uptake: f32,
+}
+
+/// What is left in the soil of units whose crop was harvested or died,
+/// keyed by grow-area tag then unit index (2026-09-26). The next crop sown
+/// in that unit starts from it instead of fresh soil, so a bed that fed one
+/// crop is poorer for the next until it is fertilized. One per world,
+/// spawned by FarmingSystem on first use. Not saved yet (see `CropSoil`).
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct SoilMemory {
+    #[serde(default)]
+    pub units: std::collections::HashMap<String, std::collections::HashMap<u32, Npk>>,
+}
+
 // ── Vehicles & Mechs ─────────────────────────────────────────
 
 /// A deployed vehicle standing in the world (economy Phase 2 Stage 1, v0.677).

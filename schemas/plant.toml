@@ -89,21 +89,21 @@ example = "1.5"
 type = "float"
 required = true
 engine = true
-description = "Relative nitrogen demand. Shown per crop in the Garden table and intended to feed shared-reservoir mix maths."
+description = """Relative nitrogen demand, higher is hungrier. NOT kilograms: tomato 0.15 is no real per-plant or per-hectare figure. Since 2026-09-26 the farming sim reads it (src/systems/farming/soil.rs): a crop needs, each season, its expected harvest in kg times the anchor crop's published N removal per kg (data/garden/nutrients.ron: tomato, 1.5 g/kg, CDFA FREP) times this index over the anchor's. Its unit of growing space holds a store of available N that the crop draws down as it grows. Known weakness: the indices understate dense harvests (grain, dry legumes) 5 to 20 times against extension removal tables, so per-crop removal columns in g per kg of harvest would be the real fix."""
 example = "0.15"
 
 [fields.nutrient_p]
 type = "float"
 required = true
 engine = true
-description = "Relative phosphorus demand."
+description = "Relative phosphorus demand, read the same way as nutrient_n and counted as grams of P2O5 (anchor: tomato 0.9 g P2O5 per kg, UW-Madison A2809 Table 4.2)."
 example = "0.05"
 
 [fields.nutrient_k]
 type = "float"
 required = true
 engine = true
-description = "Relative potassium demand."
+description = "Relative potassium demand, read the same way as nutrient_n and counted as grams of K2O (anchor: tomato 4.0 g K2O per kg, UW-Madison A2809 Table 4.2)."
 example = "0.20"
 
 [fields.ph_min]

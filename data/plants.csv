@@ -13,9 +13,12 @@
 #                           for them, since a mushroom has no roots drawing a soil solution.
 #   growth_days           - Total days from planting to harvest (real-world basis, game may scale)
 #   water_liters_per_day  - Water requirement in liters per plant per day
-#   nutrient_n            - Nitrogen need (kg/hectare equivalent, scaled to single plant)
-#   nutrient_p            - Phosphorus need (kg/hectare equivalent, scaled to single plant)
-#   nutrient_k            - Potassium need (kg/hectare equivalent, scaled to single plant)
+#   nutrient_n            - Relative nitrogen demand (higher = hungrier). NOT kilograms of anything: until
+#                           2026-09-26 this line called it a kg/hectare equivalent scaled to one plant
+#                           and tomato's 0.15 is no such figure. The farming sim reads it against one anchor
+#                           crop's published removal per kg of harvest: see data/garden/nutrients.ron
+#   nutrient_p            - Relative phosphorus demand; read the same way (the sim counts grams of P2O5)
+#   nutrient_k            - Relative potassium demand; read the same way (the sim counts grams of K2O)
 #   ph_min                - Minimum preferred soil pH
 #   ph_max                - Maximum preferred soil pH
 #   temp_min_c            - Minimum growing temperature in Celsius

@@ -15,6 +15,11 @@
 //
 // Controls (rendered top to bottom in the edit modal):
 //   Slider(key, label)  a 0..1 slider stored under `key` (water / nutrient / humidity / ...)
+//                       "nutrient" runs the area's automatic feeder (2026-09-26): it tops each
+//                       slot's N-P-K up from fertilizer in home storage. Half-way is just
+//                       enough, lower under-feeds, higher holds a bigger reserve but grows
+//                       nothing faster (src/systems/farming/soil.rs, feed_target). It no
+//                       longer multiplies growth speed.
 //   Crop(label, hint)   a text field for the primary crop / species / fish
 //   Toggle(key, label)  a checkbox stored under `key`
 //
@@ -29,7 +34,7 @@
             show_slots: true,
             controls: [
                 Slider(key: "water", label: "Mist water"),
-                Slider(key: "nutrient", label: "Nutrient strength"),
+                Slider(key: "nutrient", label: "Nutrient feed (half is enough)"),
             ],
         ),
         (

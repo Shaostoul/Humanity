@@ -1,0 +1,114 @@
+// Plant nutrients as N, P2O5 and K2O (2026-09-26, gardening depth rung 3).
+// Read by src/systems/farming/soil.rs, which carries the model and the
+// reasoning; this file carries the numbers and where each one came from.
+//
+// UNITS. Every nutrient amount in the simulation is GRAMS of N, P2O5 and K2O,
+// the convention fertilizer labels and extension-service removal tables use,
+// so any number can be checked against a bag or a table without converting.
+// (For the element: P = 0.436 x P2O5 and K = 0.830 x K2O, from molar masses.)
+//
+// -- demand_anchor: what a crop takes out of its unit in one season ---------
+//
+// data/plants.csv carries nutrient_n / nutrient_p / nutrient_k, and they are
+// NOT kilograms of anything. Until 2026-09-26 its header called them
+// "kg/hectare equivalent, scaled to single plant", but tomato's 0.15 / 0.05 /
+// 0.20 is no real per-plant or per-hectare figure; schemas/plant.toml and the
+// Library describe them as RELATIVE demand (higher means hungrier), and that
+// is how they are used here (the header now says so).
+//
+// So one crop with a published removal figure fixes the scale, and every
+// other crop is read against it. A crop's season need, per nutrient:
+//
+//     need (g) = expected harvest (kg) x anchor removal (g per kg)
+//                x (crop's plants.csv index / anchor's plants.csv index)
+//
+// The expected harvest is the middle of the crop's plants.csv yield range times
+// the items.csv mass of what it harvests into, so a crop that yields more
+// takes more out, and the index sets how rich that harvest is in each
+// nutrient relative to a tomato. For the tomato itself: yield 2 to 8 fruit of
+// 0.2 kg = 1.0 kg, so its season need is exactly the removal below.
+//
+// Removal, not whole-plant uptake: the soil loses what LEAVES in the harvest.
+// Stems, leaves and roots are assumed to stay in the unit or go back through
+// the composter (CDFA below: the fruit is about two thirds of the crop's
+// above-ground N). This is the basis the Wisconsin guide uses for maintaining
+// P and K.
+//
+// Tomato, fresh fruit. 1 lb per short ton (2,000 lb) = 0.5 g per kg.
+//   N:    3 lb N/ton = 1.5 g/kg. California Department of Food and Agriculture,
+//         FREP California Fertilization Guidelines, "Processing Tomatoes"
+//         (https://www.cdfa.ca.gov/is/ffldrs/frep/FertilizationGuidelines/Tomato.html,
+//         read 2026-09-26): "the fruits contained on average 3 lbs N/ton, which
+//         accounted for about two thirds of the total N in the aboveground biomass".
+//   P2O5: 1.8 lb/ton = 0.9 g/kg. University of Wisconsin-Madison Extension,
+//         "Nutrient application guidelines for field, vegetable, and fruit crops
+//         in Wisconsin" (A2809), Table 4.2, row "Tomato": crop removal 1.8 lb P2O5
+//         and 8 lb K2O per ton fresh
+//         (https://cropsandsoils.extension.wisc.edu/files/2024/07/Table-4.2.pdf,
+//         read 2026-09-26).
+//   K2O:  8 lb/ton = 4.0 g/kg. Same table and row.
+//   Range, for the record: Oregon State EM 9165 (Sullivan et al. 2017) Table 3
+//   has a 12 ton/acre tomato removing 10 lb P2O5 and 80 lb K2O, which is 0.83
+//   and 6.7 lb/ton; the CDFA page gives 4 to 6 lb K/ton (4.8 to 7.2 lb K2O).
+//   The Wisconsin figures sit at the top of those ranges and are one table.
+//
+// WHAT THIS GETS WRONG, stated so nobody trusts it further than it goes: the
+// plants.csv indices do not track real removal between crop kinds. Read this
+// way, a wheat unit (7 kg of grain) needs 7.0 g N, 5.0 g P2O5 and 8.4 g K2O a
+// season, where Wisconsin A2809 puts wheat grain at 0.5 lb P2O5 and 0.35 lb
+// K2O per 60 lb bushel (58 g and 41 g for 7 kg) and grain protein puts its N
+// near 20 g/kg (about 140 g). Grain and dry legumes are dense in nutrients and
+// the indices were not built from that. The real fix is to replace the three
+// plants.csv columns with per-crop removal in g per kg of harvest, from tables
+// like A2809's, and drop the index ratio; the formula above then loses one term.
+//
+// -- fertilizers: what one item puts into a unit -----------------------------
+//
+// Each entry names an items.csv item and its analysis as a PERCENT OF THE
+// ITEM'S AS-IS (WET) MASS, plus the share of each nutrient that is plant
+// available in the season it goes on. The item's mass comes from items.csv,
+// so the grams follow the bag if its size ever changes. The first entry is
+// the one the automatic feeder uses (the "nutrient" slider on towers and fish
+// tanks). Add a fertilizer here, with its source, and fertilizing and the
+// feeder pick it up.
+//
+// fertilizer_0 is the composter's finished compost (data/recipes.csv: sawdust
+// with seed press cake or bran, olive or apple pomace), a 2.0 kg bag. Source for
+// all six numbers: Washington State University Snohomish County Extension,
+// "Recommended Best Management Practices for Compost Use (Working Draft)",
+// January 2016, WSU Compost Outreach Project, Table 1, worked example for a
+// "Food & Yard Waste Compost": 18.8 lb N, 6.4 lb P2O5 and 11.6 lb K2O per wet
+// ton as-is (0.94%, 0.32%, 0.58%), "Plant availability of N in compost: 7
+// Percent", and on page 4: "Compost will provide approximately 1.3 lb Total N
+// /wet ton compost, 6.4 lb P2O5/wet ton of compost, and 11.6 lb K2O/wet ton of
+// compost in the first season after application". It assumes 50% moisture, so
+// on a dry basis that compost is 1.88% N, 0.64% P2O5, 1.16% K2O: inside the 1
+// to 3% N of Oregon State EM 9165 and near the "about 1-1-1 (N-P2O5-K2O)" of
+// UMass Extension's "Compost Use and Soil Fertility" (Mangan, Barker, Bodine
+// and Borten, updated 2013).
+//
+// One 2.0 kg bag therefore adds 18.8 g of N, of which 1.3 g is available this
+// season, plus 6.4 g P2O5 and 11.6 g K2O. N availability is a range: EM 9165
+// Table 10 gives 5 to 10% at one year, UMass "10% to 30%" in one season; 7% is
+// the WSU worksheet's value, inside both. The other 93% of the N is organic
+// and releases over years; the simulation does not model that slow release
+// yet, so compost here is the weak nitrogen source it is in its first season.
+(
+    demand_anchor: (
+        plant: "tomato",
+        n_g_per_kg: 1.5,
+        p2o5_g_per_kg: 0.9,
+        k2o_g_per_kg: 4.0,
+    ),
+    fertilizers: [
+        (
+            item: "fertilizer_0",
+            n_pct: 0.94,
+            p2o5_pct: 0.32,
+            k2o_pct: 0.58,
+            n_available: 0.07,
+            p2o5_available: 1.0,
+            k2o_available: 1.0,
+        ),
+    ],
+)

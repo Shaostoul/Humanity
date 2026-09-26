@@ -8,11 +8,13 @@
 pub mod crops;
 pub mod soil;
 pub mod automation;
+#[cfg(test)]
+mod nutrient_tests;
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-use crate::ecs::components::{CropInstance, DEFAULT_GROWTH_STAGES, STAGE_DEAD};
+use crate::ecs::components::{CropInstance, CropSoil, Npk, DEFAULT_GROWTH_STAGES, STAGE_DEAD};
 use crate::ecs::systems::System;
 use crate::hot_reload::data_store::DataStore;
 
@@ -619,15 +621,102 @@ fn harvest_quantity(ymin: f32, ymax: f32, season_health: f32, roll: f32, round: 
     rolled.floor() as u32 + u32::from(round < rolled.fract())
 }
 
+/// Clear the dead crops found in a unit before it is replanted, keeping
+/// what their soil still holds for the crop about to go in (2026-09-26).
+fn clear_dead_keeping_soil(world: &mut hecs::World, dead: Vec<hecs::Entity>, area: &str, slot: u32) {
+    for e in dead {
+        let left = world.get::<&CropSoil>(e).ok().map(|s| s.store);
+        if let Some(store) = left {
+            soil::remember(world, area, slot, store);
+        }
+        let _ = world.despawn(e);
+    }
+}
+
+/// Spawn a newly sown crop into its unit, on whatever soil that unit was
+/// left with (soil::recall). A unit with nothing remembered, and a
+/// hand-planted crop with no unit, get fresh soil on the crop's first tick.
+fn spawn_in_remembered_soil(world: &mut hecs::World, crop: CropInstance) -> hecs::Entity {
+    let remembered = match (&crop.tower_id, crop.tower_slot) {
+        (Some(area), Some(slot)) => soil::recall(world, area, slot),
+        _ => None,
+    };
+    match remembered {
+        Some(store) => world.spawn((crop, CropSoil { store, uptake: 0.0 })),
+        None => world.spawn((crop,)),
+    }
+}
+
+/// The one-line notice for grow areas whose crops have just run short. An
+/// area tag is a machine or tower id ("potato_grow_bed", "ntower_3"); the
+/// empty tag is the hand-planted crops outside any grow area.
+fn short_notice(newly_short: &[(String, soil::Nutrient)]) -> String {
+    let place = |area: &str| {
+        if area.is_empty() {
+            "your hand-planted crops".to_string()
+        } else {
+            format!("the crops in {}", area.replace('_', " "))
+        }
+    };
+    let fix = "Fertilize them: compost adds nitrogen, phosphorus and potassium.";
+    match newly_short {
+        [(area, nutrient)] => format!("{} are short of {}. {fix}", capitalize(&place(area)), nutrient.word()),
+        many => {
+            let mut counts: HashMap<soil::Nutrient, usize> = HashMap::new();
+            for (_, n) in many {
+                *counts.entry(*n).or_default() += 1;
+            }
+            let most = counts
+                .into_iter()
+                .max_by_key(|(n, c)| (*c, matches!(n, soil::Nutrient::Nitrogen)))
+                .map_or(soil::Nutrient::Nitrogen, |(n, _)| n);
+            format!(
+                "Crops in {} grow areas are short of nutrients, most often {}. {fix}",
+                many.len(),
+                most.word()
+            )
+        }
+    }
+}
+
+fn capitalize(s: &str) -> String {
+    let mut c = s.chars();
+    match c.next() {
+        Some(f) => f.to_uppercase().chain(c).collect(),
+        None => String::new(),
+    }
+}
+
 /// Simulates crop growth based on elapsed time and environmental factors.
 pub struct FarmingSystem {
     _initialized: bool,
+    /// data/garden/nutrients.ron, read on the first tick (see soil.rs). A
+    /// "garden_nutrients" entry in the DataStore, if one is ever registered,
+    /// wins over it.
+    nutrients: Option<soil::NutrientData>,
+    /// The automatic feeder's opened fertilizer, per grow area: the share of
+    /// one item not yet dosed out (2026-09-26). The feeder doses a unit a few
+    /// milligrams at a time, so it opens a whole bag from home storage and
+    /// works through it. Not saved: a reload loses at most one part-used bag
+    /// per fed area.
+    feed_open: HashMap<String, f64>,
+    /// True once the player has been told the feeder has no fertilizer, so
+    /// the notice is said once, not every tick; cleared when a bag is opened.
+    feeder_dry_told: bool,
+    /// Grow areas whose crops the player has been told are short of a
+    /// nutrient, so each shortage is announced once; an area leaves the set
+    /// when its crops are supplied again.
+    short_told: std::collections::HashSet<String>,
 }
 
 impl FarmingSystem {
     pub fn new() -> Self {
         Self {
             _initialized: false,
+            nutrients: None,
+            feed_open: HashMap::new(),
+            feeder_dry_told: false,
+            short_told: std::collections::HashSet::new(),
         }
     }
 }
@@ -713,8 +802,10 @@ impl System for FarmingSystem {
             .and_then(|m| m.lock().ok())
             .map(|g| g.clone())
             .unwrap_or_default();
-        // Per-area nutrient strength (garden edit slider), keyed by tower_id. Scales
-        // each tower crop's growth speed. Same neutral-map pattern as irrigation.
+        // Per-area nutrient slider (garden edit modal), keyed by tower_id. Until
+        // 2026-09-26 it multiplied growth speed (0.5x..1.5x); it now sets the
+        // automatic FEEDER that tops each unit's N-P-K store up from home
+        // storage (soil::feed_target). Same neutral-map pattern as irrigation.
         let nutrient: std::collections::HashMap<String, f32> = data
             .get::<std::sync::Mutex<std::collections::HashMap<String, f32>>>("garden_nutrient")
             .and_then(|m| m.lock().ok())
@@ -801,6 +892,50 @@ impl System for FarmingSystem {
             .get::<std::sync::Mutex<bool>>("creative_mode")
             .and_then(|m| m.lock().ok().map(|g| *g))
             .unwrap_or(false);
+
+        // NUTRIENTS (2026-09-26, gardening depth rung 3; the model is in
+        // soil.rs, the numbers and their sources in data/garden/nutrients.ron).
+        // Worked out once per tick: the per-index scale from the anchor crop's
+        // published removal, and what one item of each fertilizer puts into a
+        // unit. No scale (the anchor is missing) means no nutrient model at
+        // all: every crop's need reads zero and nothing is ever short.
+        if self.nutrients.is_none() {
+            self.nutrients = Some(soil::NutrientData::load());
+        }
+        let (demand_scale, fertilizer_grams): (Option<Npk>, Vec<(String, Npk)>) = {
+            let nd = data
+                .get::<soil::NutrientData>("garden_nutrients")
+                .or(self.nutrients.as_ref())
+                .expect("nutrient data loaded above");
+            let scale = nd.demand_scale(plant_registry.and_then(|r| r.get(&nd.demand_anchor.plant)));
+            let grams = nd
+                .fertilizers
+                .iter()
+                .map(|f| {
+                    let kg = item_registry.map_or(0.0, |r| f64::from(r.mass_for(&f.item)));
+                    (f.item.clone(), f.available_per_item(kg))
+                })
+                .collect();
+            (scale, grams)
+        };
+        // A crop's season need, by plant id (soil::season_need). Cached for the
+        // tick: a garden is a few dozen species and a few thousand crops.
+        let mut need_cache: HashMap<String, Npk> = HashMap::new();
+        let mut need_for = |plant_id: &str| -> Npk {
+            if let Some(n) = need_cache.get(plant_id) {
+                return *n;
+            }
+            let need = match (demand_scale, plant_registry.and_then(|r| r.get(plant_id))) {
+                (Some(scale), Some(def)) => {
+                    let item_kg = harvest_item_for(plant_id, plant_registry, item_registry)
+                        .map_or(0.0, |i| item_registry.map_or(0.0, |r| f64::from(r.mass_for(&i))));
+                    soil::season_need(def, soil::expected_harvest_kg(def, item_kg), scale)
+                }
+                _ => Npk::ZERO,
+            };
+            need_cache.insert(plant_id.to_string(), need);
+            need
+        };
 
         // ── GUI / dev gardening commands (the inventory page writes these via the
         //    main-loop bridge): plant a seed, water a crop, dev-grow all, harvest. ──
@@ -891,9 +1026,7 @@ impl System for FarmingSystem {
                 if occupied {
                     continue;
                 }
-                for e in dead_in_slot {
-                    let _ = world.despawn(e);
-                }
+                clear_dead_keeping_soil(world, dead_in_slot, &tower_id, slot_idx);
                 // Survival: consume one seed for this variety, skip if absent.
                 if !creative {
                     let seed_id = format!("seed_{plant_id}_0");
@@ -913,7 +1046,7 @@ impl System for FarmingSystem {
                         continue;
                     }
                 }
-                world.spawn((CropInstance {
+                let crop = CropInstance {
                     crop_def_id: plant_id,
                     growth_stage: first_stage,
                     planted_at: elapsed_seconds,
@@ -923,7 +1056,8 @@ impl System for FarmingSystem {
                     tower_slot: Some(slot_idx),
                     health_seconds: 0.0,
                     growing_seconds: 0.0,
-                },));
+                };
+                spawn_in_remembered_soil(world, crop);
                 planted += 1;
             }
             if planted > 0 || skipped > 0 {
@@ -1004,9 +1138,7 @@ impl System for FarmingSystem {
                     if occupied {
                         continue;
                     }
-                    for e in dead_in_slot {
-                        let _ = world.despawn(e);
-                    }
+                    clear_dead_keeping_soil(world, dead_in_slot, &area_id, unit);
                     if !creative {
                         let seed_id = format!("seed_{plant_id}_0");
                         let mut had = false;
@@ -1024,7 +1156,7 @@ impl System for FarmingSystem {
                             continue;
                         }
                     }
-                    world.spawn((CropInstance {
+                    let crop = CropInstance {
                         crop_def_id: plant_id.clone(),
                         growth_stage: first_stage.clone(),
                         planted_at: elapsed_seconds,
@@ -1034,7 +1166,8 @@ impl System for FarmingSystem {
                         tower_slot: Some(unit),
                         health_seconds: 0.0,
                         growing_seconds: 0.0,
-                    },));
+                    };
+                    spawn_in_remembered_soil(world, crop);
                     planted += 1;
                 }
                 log::info!("[Farming] bed-planted {planted}x {plant_id} in {area_id}");
@@ -1087,14 +1220,26 @@ impl System for FarmingSystem {
             }
         }
 
-        // FERTILIZE: consume 1 fertilizer_0 from the player -> boost a crop's health
-        // (growth is health-weighted, so fertilizing speeds it up). Closes the
-        // food -> waste -> compost -> fertilizer -> crop cycle (#7c sanitation).
+        // FERTILIZE: consume 1 fertilizer_0 from the player and put its
+        // plant-available N, P2O5 and K2O into the crop's unit (2026-09-26,
+        // soil.rs). Closes the food -> waste -> compost -> fertilizer -> crop
+        // cycle (#7c sanitation). Until this rung it added 40 health and
+        // watered the crop to half; now it feeds the soil, and the health
+        // follows through the nutrient cap in the growth loop, so the old
+        // boost is gone rather than counted twice.
         let fertilize_bits = data
             .get::<std::sync::Mutex<Option<u64>>>("fertilize_crop_request")
             .and_then(|m| m.lock().ok().and_then(|mut s| s.take()));
         if let Some(bits) = fertilize_bits {
-            if let Some(entity) = hecs::Entity::from_bits(bits) {
+            // Only a crop that is there takes the bag.
+            let target = hecs::Entity::from_bits(bits).and_then(|e| {
+                world.get::<&CropInstance>(e).ok().map(|c| (e, c.crop_def_id.clone()))
+            });
+            let per_bag = fertilizer_grams
+                .iter()
+                .find(|(item, _)| item == "fertilizer_0")
+                .map(|(_, g)| *g);
+            if let (Some((entity, plant_id)), Some(per_bag)) = (target, per_bag) {
                 let mut had_fertilizer = false;
                 for (_e, (inv, _ctrl)) in world.query_mut::<(
                     &mut crate::systems::inventory::Inventory,
@@ -1109,11 +1254,23 @@ impl System for FarmingSystem {
                     break;
                 }
                 if had_fertilizer {
-                    if let Ok(mut crop) = world.get::<&mut CropInstance>(entity) {
-                        crop.health = (crop.health + 40.0).min(100.0);
-                        crop.water_level = crop.water_level.max(0.5);
-                        log::info!("[Farming] fertilized a crop (+health)");
+                    let fed = if let Ok(mut s) = world.get::<&mut CropSoil>(entity) {
+                        s.store = s.store.plus(per_bag);
+                        true
+                    } else {
+                        false
+                    };
+                    if !fed {
+                        // Never ticked yet: fresh soil plus the bag.
+                        let store = soil::fresh_store(need_for(&plant_id)).plus(per_bag);
+                        let _ = world.insert_one(entity, CropSoil { store, uptake: 0.0 });
                     }
+                    log::info!(
+                        "[Farming] fertilized {plant_id}: +{:.2} g N, {:.2} g P2O5, {:.2} g K2O",
+                        per_bag.n,
+                        per_bag.p2o5,
+                        per_bag.k2o
+                    );
                 }
             }
         }
@@ -1250,6 +1407,16 @@ impl System for FarmingSystem {
                             "[Farming] {plant_id} has no produce item in items.csv; harvest yielded nothing"
                         );
                     }
+                    // The unit keeps what this crop left in it, for the next
+                    // crop sown there (2026-09-26, soil.rs).
+                    let unit = world
+                        .get::<&CropInstance>(entity)
+                        .ok()
+                        .and_then(|c| c.tower_id.clone().zip(c.tower_slot));
+                    let left = world.get::<&CropSoil>(entity).ok().map(|s| s.store);
+                    if let (Some((area, slot)), Some(store)) = (unit, left) {
+                        soil::remember(world, &area, slot, store);
+                    }
                     let _ = world.despawn(entity);
                 }
             }
@@ -1268,8 +1435,8 @@ impl System for FarmingSystem {
             push_notice(
                 data,
                 format!(
-                    "{what} stressed while growing (thirst, RF or hard acceleration) \
-                     and gave about {pct}% of a full harvest."
+                    "{what} stressed while growing (thirst, too few nutrients, RF or \
+                     hard acceleration) and gave about {pct}% of a full harvest."
                 ),
             );
         }
@@ -1316,9 +1483,24 @@ impl System for FarmingSystem {
         }
 
         // Collect entities to update (avoid borrow conflict with world)
-        let mut updates: Vec<(hecs::Entity, CropInstance)> = Vec::new();
+        let mut updates: Vec<(hecs::Entity, CropInstance, CropSoil)> = Vec::new();
 
-        for (entity, crop) in world.query_mut::<&CropInstance>() {
+        // The automatic feeder's fertilizer (2026-09-26): the first one listed
+        // in data/garden/nutrients.ron, drawn from home storage (the same
+        // "home_stock" mirror of the Barn the automated machines use; lib.rs
+        // takes what was used back out of the containers after the tick).
+        // Absent (tests, early boot) = no stock, so survival feeding finds
+        // nothing and says so; creative mode feeds for free.
+        let feed_fertilizer: Option<(String, Npk)> = fertilizer_grams.first().cloned();
+        let home_stock = data
+            .get::<std::sync::Mutex<std::collections::HashMap<String, u32>>>("home_stock");
+        let mut home_stock = home_stock.and_then(|m| m.lock().ok());
+        let mut feeder_ran_dry = false;
+        // Grow areas with a crop short of a nutrient this tick, and which
+        // nutrient is scarcest there (for one notice per shortage).
+        let mut short_now: HashMap<String, soil::Nutrient> = HashMap::new();
+
+        for (entity, (crop, crop_soil)) in world.query_mut::<(&CropInstance, Option<&CropSoil>)>() {
             // Skip dead crops
             if crop.growth_stage == STAGE_DEAD {
                 continue;
@@ -1339,6 +1521,68 @@ impl System for FarmingSystem {
             }
 
             let mut crop = crop.clone();
+
+            // NUTRIENTS (2026-09-26, soil.rs). The crop's unit: what it had,
+            // or fresh soil if it never ticked (newly sown in an unremembered
+            // unit, spawned by the showcase, or loaded from a save, which does
+            // not carry soil yet).
+            let need = need_for(&crop.crop_def_id);
+            let mut crop_soil = crop_soil.cloned().unwrap_or_else(|| CropSoil {
+                store: soil::fresh_store(need),
+                uptake: 0.0,
+            });
+            // The feeder, where this area's "nutrient" slider is set: top the
+            // unit up to the slider's target from the area's opened bag,
+            // opening another from home storage when it runs out.
+            if let (Some(tid), Some((feed_item, per_item))) = (&crop.tower_id, &feed_fertilizer) {
+                if let Some(v) = nutrient.get(tid).copied() {
+                    let target = soil::feed_target(need, v);
+                    let dose = soil::feed_dose(&crop_soil.store, &target, per_item);
+                    if dose > 0.0 {
+                        let given = if creative {
+                            dose
+                        } else {
+                            if !self.feed_open.contains_key(tid) {
+                                self.feed_open.insert(tid.clone(), 0.0);
+                            }
+                            let open = self.feed_open.get_mut(tid).expect("inserted above");
+                            while *open < dose {
+                                let took = home_stock
+                                    .as_mut()
+                                    .and_then(|s| s.get_mut(feed_item))
+                                    .map_or(false, |q| {
+                                        if *q > 0 {
+                                            *q -= 1;
+                                            true
+                                        } else {
+                                            false
+                                        }
+                                    });
+                                if !took {
+                                    break;
+                                }
+                                *open += 1.0;
+                                self.feeder_dry_told = false;
+                            }
+                            let given = dose.min(*open);
+                            *open -= given;
+                            if given < dose {
+                                feeder_ran_dry = true;
+                            }
+                            given
+                        };
+                        crop_soil.store = crop_soil.store.plus(per_item.scaled(given));
+                    }
+                }
+            }
+            // Liebig: the scarcest nutrient caps the crop's health (soil.rs).
+            let (supplied, scarcest) = soil::sufficiency(&crop_soil.store, &need);
+            let nutrient_ceiling = soil::health_ceiling(supplied);
+            if supplied < 1.0 {
+                short_now
+                    .entry(crop.tower_id.clone().unwrap_or_default())
+                    .or_insert(scarcest);
+            }
 
             // Dehydration: water level drops over time
             crop.water_level = (crop.water_level - DEHYDRATION_RATE * dt).max(0.0);
@@ -1378,13 +1622,20 @@ impl System for FarmingSystem {
                 crop.water_level = (crop.water_level + RAIN_WATER_PER_S * rain * dt).min(1.0);
             }
 
-            // Health effects from water level
+            // Health effects from water level, capped by nutrients.
             if crop.water_level < WATER_STRESS_THRESHOLD {
                 // Water stress -- health decays
                 crop.health = (crop.health - HEALTH_DECAY_RATE * dt).max(0.0);
+            } else if crop.health < nutrient_ceiling {
+                // Well watered -- health recovers, as far as its nutrients
+                // allow (100 when fully supplied, so unchanged for a fed crop).
+                crop.health = (crop.health + HEALTH_RECOVERY_RATE * dt).min(nutrient_ceiling);
             } else {
-                // Well watered -- health recovers toward 100
-                crop.health = (crop.health + HEALTH_RECOVERY_RATE * dt).min(100.0);
+                // Watered but short of a nutrient: health eases down to what
+                // the scarcest nutrient allows, slowly, and never below
+                // soil::NUTRIENT_HEALTH_FLOOR. A shortage stunts; it does not
+                // kill. Fertilize and the ceiling lifts at once.
+                crop.health = (crop.health - soil::NUTRIENT_DECLINE_RATE * dt).max(nutrient_ceiling);
             }
 
             // RF stress (v0.620): a powered wireless emitter (WiFi router) bathes the grow in RF; crops
@@ -1415,7 +1666,7 @@ impl System for FarmingSystem {
             // If health hits zero, crop dies
             if crop.health <= 0.0 {
                 crop.growth_stage = STAGE_DEAD.to_string();
-                updates.push((entity, crop));
+                updates.push((entity, crop, crop_soil));
                 continue;
             }
 
@@ -1446,17 +1697,15 @@ impl System for FarmingSystem {
                         let age = elapsed_seconds - crop.planted_at;
                         let progress = (age / growth_seconds) as f32;
 
-                        // Health-weighted progress: unhealthy crops grow slower
+                        // Health-weighted progress: unhealthy crops grow slower.
+                        // Nutrients act through this (and through the season
+                        // health the harvest reads): a crop short of its
+                        // scarcest nutrient has its health capped above, so it
+                        // grows slower and yields less. The "nutrient" slider's
+                        // old direct growth multiplier (0.5x..1.5x, until
+                        // 2026-09-26) is gone: the slider now runs the feeder,
+                        // and past sufficiency more feed grows nothing faster.
                         let health_factor = (crop.health / 100.0).max(0.1);
-                        // Per-area nutrient strength (garden edit slider) scales growth
-                        // speed: the 0..1 slider maps to a 0.5x..1.5x multiplier, so the
-                        // default 0.5 is neutral, a rich feed grows faster, a starved
-                        // area grows slower. Un-configured crops grow at the 1.0x base.
-                        let nutrient_factor = crop
-                            .tower_id
-                            .as_ref()
-                            .and_then(|tid| nutrient.get(tid))
-                            .map_or(1.0, |n| 0.5 + n);
                         // Outdoor climate (v0.749, ladder rung 6): FIELD crops
                         // face the season + live weather; indoor grows (towers,
                         // beds, trays, racks) are climate-controlled and skip
@@ -1493,11 +1742,23 @@ impl System for FarmingSystem {
                         // growth_speed is the player/dev multiplier; it multiplies
                         // PROGRESS, so 10x reaches harvest in a tenth of the real
                         // growth_days while the world clock is untouched.
-                        let effective_progress = progress
-                            * health_factor
-                            * nutrient_factor
-                            * climate_factor
-                            * growth_speed;
+                        let clock_progress = progress * climate_factor * growth_speed;
+                        let effective_progress = clock_progress * health_factor;
+
+                        // The crop draws its season need in step with its
+                        // growth clock (soil::uptake_fraction): nothing in the
+                        // dark, ten times as fast at 10x, and after the offline
+                        // catch-up the whole time away in one go, so growth
+                        // made while the player was away is paid for from the
+                        // unit on return. What the unit cannot give the crop
+                        // goes without; the cap above already says so.
+                        let drawn_by_now =
+                            soil::uptake_fraction(clock_progress, plant_stages.len());
+                        if drawn_by_now > crop_soil.uptake {
+                            let want = need.scaled(f64::from(drawn_by_now - crop_soil.uptake));
+                            soil::draw(&mut crop_soil.store, want);
+                            crop_soil.uptake = drawn_by_now;
+                        }
 
                         let new_stage =
                             stage_from_progress(effective_progress, &plant_stages);
@@ -1520,7 +1781,38 @@ impl System for FarmingSystem {
                 }
             }
 
-            updates.push((entity, crop));
+            updates.push((entity, crop, crop_soil));
+        }
+        drop(home_stock);
+
+        // Say so when crops run short (2026-09-26): the Garden panel does not
+        // show a unit's N-P-K yet, so without this a starving bed only shows
+        // as falling health. Once per shortage per grow area, as one line.
+        let newly_short: Vec<(String, soil::Nutrient)> = short_now
+            .iter()
+            .filter(|(area, _)| !self.short_told.contains(*area))
+            .map(|(a, n)| (a.clone(), *n))
+            .collect();
+        self.short_told.retain(|area| short_now.contains_key(area));
+        if !newly_short.is_empty() {
+            for (area, _) in &newly_short {
+                self.short_told.insert(area.clone());
+            }
+            push_notice(data, short_notice(&newly_short));
+        }
+        if feeder_ran_dry && !self.feeder_dry_told {
+            self.feeder_dry_told = true;
+            let item = feed_fertilizer.as_ref().map_or("fertilizer", |(i, _)| i.as_str());
+            let name = item_registry
+                .and_then(|r| r.items.get(item))
+                .map_or(item.to_string(), |d| d.name.to_lowercase());
+            push_notice(
+                data,
+                format!(
+                    "The garden feeder has run out of {name} in home storage: fed crops will go \
+                     short until the composter makes more."
+                ),
+            );
         }
 
         // What the irrigation draws, in litres per minute of real time: the
@@ -1532,10 +1824,21 @@ impl System for FarmingSystem {
             }
         }
 
-        // Apply updates back to the world
-        for (entity, crop) in updates {
+        // Apply updates back to the world. A crop ticking for the first time
+        // gets its soil component here.
+        for (entity, crop, crop_soil) in updates {
             if let Ok(mut existing) = world.get::<&mut CropInstance>(entity) {
                 *existing = crop;
+            }
+            let had_soil = match world.get::<&mut CropSoil>(entity) {
+                Ok(mut s) => {
+                    *s = crop_soil.clone();
+                    true
+                }
+                Err(_) => false,
+            };
+            if !had_soil {
+                let _ = world.insert_one(entity, crop_soil);
             }
         }
 
@@ -1552,8 +1855,8 @@ mod gardening_tests {
     use crate::systems::inventory::{Inventory, ItemRegistry};
 
     /// DataStore with plant + item registries and the four gardening channels,
-    /// mirroring the runtime wiring in lib.rs.
-    fn make_store() -> DataStore {
+    /// mirroring the runtime wiring in lib.rs. Shared with nutrient_tests.
+    pub(super) fn make_store() -> DataStore {
         let mut data = DataStore::new();
         let plants = PlantRegistry::from_csv(include_bytes!(concat!(
             env!("CARGO_MANIFEST_DIR"),
@@ -1937,48 +2240,10 @@ mod gardening_tests {
         );
     }
 
-    /// Fertilizing a crop consumes one fertilizer_0 from the player and boosts the
-    /// crop's health (closing the compost → fertilizer → crop cycle).
-    #[test]
-    fn fertilize_consumes_fertilizer_and_boosts_crop_health() {
-        use crate::ecs::components::{Controllable, CropInstance};
-        let data = make_store();
-        let mut sys = FarmingSystem::new();
-        let mut world = hecs::World::new();
-        let mut inv = Inventory::new(8);
-        inv.add_item("fertilizer_0", 2, 99);
-        world.spawn((inv, Controllable));
-        let crop = world.spawn((CropInstance {
-            crop_def_id: "tomato".to_string(),
-            growth_stage: "sprout".to_string(),
-            planted_at: 0.0,
-            water_level: 0.5,
-            health: 40.0,
-            tower_id: None,
-            tower_slot: None,
-            health_seconds: 0.0,
-            growing_seconds: 0.0,
-        },));
-
-        *data
-            .get::<std::sync::Mutex<Option<u64>>>("fertilize_crop_request")
-            .unwrap()
-            .lock()
-            .unwrap() = Some(crop.to_bits().into());
-        sys.tick(&mut world, 1.0, &data);
-
-        let fert_count = world
-            .query::<(&Inventory, &Controllable)>()
-            .iter()
-            .next()
-            .map(|(_, (i, _))| i.count_item("fertilizer_0"))
-            .unwrap();
-        assert_eq!(fert_count, 1, "fertilizing consumed one fertilizer_0");
-        assert!(
-            world.get::<&CropInstance>(crop).unwrap().health > 40.0,
-            "fertilizing boosted the crop's health"
-        );
-    }
+    // Fertilizing (fertilize_consumes_fertilizer_and_boosts_crop_health until
+    // 2026-09-26) and the nutrient slider (per_area_nutrient_speeds_growth)
+    // are tested in nutrient_tests.rs, against the N-P-K model that replaced
+    // the +40 health and the growth multiplier those two tests pinned.
 
     /// Per-area irrigation: a crop whose grow area is configured with a water target
     /// (the garden edit modal's water slider) stays topped up and holds health, while
@@ -2384,69 +2649,6 @@ mod gardening_tests {
         for _ in 0..5 { sys.tick(&mut world2, 1.0, &data); }
         let safe = world2.get::<&CropInstance>(c2).unwrap().health;
         assert!(safe >= 80.0, "no RF -> the crop holds/recovers, got {safe}");
-    }
-
-    /// Per-area nutrient strength (garden edit slider) scales growth speed: a
-    /// rich-fed tower (nutrient 1.0 -> 1.5x) grows further in the same elapsed time
-    /// than a starved one (nutrient 0.0 -> 0.5x), proving the nutrient slider reaches
-    /// the sim. Both crops are equally healthy + watered, so only the feed differs.
-    #[test]
-    fn per_area_nutrient_speeds_growth() {
-        use crate::ecs::components::CropInstance;
-        let mut data = make_store();
-        let mut nut = std::collections::HashMap::new();
-        nut.insert("nutrition".to_string(), 1.0_f32); // rich feed -> 1.5x
-        nut.insert("apothecary".to_string(), 0.0_f32); // starved   -> 0.5x
-        data.insert("garden_nutrient", std::sync::Mutex::new(nut));
-        // Pin the GLOBAL growth multiplier to 1x: this test is about the nutrient
-        // factor, and at the shipped 10x default both feed rates race past ripe and
-        // land on the same stage, which would make the test pass or fail for a
-        // reason that has nothing to do with nutrients.
-        data.insert("crop_growth_speed", std::sync::Mutex::new(1.0_f32));
-
-        // Advance game time to 60% of tomato's growth window so the two feed rates
-        // land the crops on different stages.
-        let (growth_seconds, stages): (f64, Vec<&str>) = {
-            let reg = data.get::<PlantRegistry>("plant_registry").unwrap();
-            let def = reg.get("tomato").unwrap();
-            (def.growth_days as f64 * SECONDS_PER_DAY, def.stages())
-        };
-        {
-            let gt = data
-                .get::<std::sync::Mutex<crate::systems::time::GameTime>>("game_time")
-                .unwrap();
-            gt.lock().unwrap().elapsed_seconds = growth_seconds * 0.6;
-        }
-
-        let mut sys = FarmingSystem::new();
-        let mut world = hecs::World::new();
-        let young = |tower: &str| CropInstance {
-            crop_def_id: "tomato".to_string(),
-            growth_stage: stages[0].to_string(),
-            planted_at: 0.0,
-            water_level: 1.0,
-            health: 100.0,
-            tower_id: Some(tower.to_string()),
-            tower_slot: Some(0),
-            health_seconds: 0.0,
-            growing_seconds: 0.0,
-        };
-        let rich = world.spawn((young("nutrition"),));
-        let starved = world.spawn((young("apothecary"),));
-        sys.tick(&mut world, 1.0, &data);
-
-        let rich_c = world.get::<&CropInstance>(rich).unwrap();
-        let starved_c = world.get::<&CropInstance>(starved).unwrap();
-        let rich_idx = stage_index(&rich_c.growth_stage, &stages).unwrap();
-        let starved_idx = stage_index(&starved_c.growth_stage, &stages).unwrap();
-        assert!(
-            rich_idx > starved_idx,
-            "rich-fed crop ({}, idx {}) outgrew starved ({}, idx {})",
-            rich_c.growth_stage,
-            rich_idx,
-            starved_c.growth_stage,
-            starved_idx
-        );
     }
 
     /// Yield follows the crop's season health (2026-09-26): forty wheat

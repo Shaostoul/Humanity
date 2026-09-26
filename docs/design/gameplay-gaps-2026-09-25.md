@@ -182,6 +182,40 @@ date; re-check before trusting one. The container data basis is
   belongs with the full-realism and simplified vitals modes rather than a
   quick fix; data/tech_tree.ron (not read by the game) names about 50 items
   that do not exist yet.
+- **Gardening depth, rung 3: nutrients as N-P-K, DONE 2026-09-26.** Every
+  unit of growing space (tower slot, bed, tray or field unit) holds grams of
+  plant-available N, P2O5 and K2O (`CropSoil`, `farming/soil.rs`, which
+  replaces the unused scaffold; numbers and sources in
+  `data/garden/nutrients.ron`). A fresh unit holds 1.5 seasons of its crop's
+  need, a stated game assumption. A crop draws its season need in step with
+  its growth clock. The plants.csv N-P-K columns turned out to be relative
+  indices, not kilograms, so one anchor fixes their scale: the tomato's
+  published removal (1.5 g N per kg of fruit, CDFA FREP; 0.9 g P2O5 and 4.0 g
+  K2O, UW-Madison A2809 Table 4.2), applied to each crop's expected harvest
+  mass. When any nutrient falls below a tenth of a season's need, the
+  scarcest one caps the crop's health (Liebig's law of the minimum). Health
+  eases down at 0.1 a second to a floor of 20 and never reaches death: on
+  Rothamsted's Broadbalk, unfertilised wheat still yields 10 to 40% of
+  fertilised. Season health turns that into a smaller harvest. Fertilizing
+  adds a bag's first-season nutrients instead of +40 health: compost gives
+  1.3 g N (7% of 18.8), 6.4 g P2O5 and 11.6 g K2O per 2 kg bag (WSU
+  Snohomish County Extension, 2016). The "nutrient" slider no longer
+  multiplies growth. It now runs a feeder that tops each slot up from
+  fertilizer in home storage, and half-way is just enough. A harvested unit
+  keeps its worked soil for the next crop. Found, not fixed: at compost's
+  real 7% first-season N, a 50-slot lettuce tower needs about 27 bags a
+  season and the Barn holds 40, so compost alone cannot feed the towers.
+  The indices understate grain and legume removal 5 to 20 times. Soil is not
+  saved yet (`WorldSave` has no field for it), so a reload refreshes it.
+  Still to do: pH and humidity, the slow organic N that compost releases over
+  years, urine and legume N, per-crop removal columns, and N-P-K in the
+  Garden panel.
+- Found while merging, still open: the Eat/Drink buttons still show on water
+  MACHINES (the food system now ignores those clicks); `animal_fat_0` has
+  base material `plant_fiber` and there is no tallow material; items.csv
+  files 11 medical supplies, trees, flowers and alien plants under category
+  "food"; `cook_coffee` makes an energy drink; soap has no lye; one hide
+  tans into two leathers; eating one of anything counts as 100 g.
 
 ## Defects found (things that are wrong, not merely missing)
 
