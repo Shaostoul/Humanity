@@ -2543,35 +2543,47 @@ mod tests {
         }
     }
 
-    /// The mushroom room (2026-09-26): the humidifier in both shipped
-    /// catalogs is the only machine FarmingSystem reads as one, with its
-    /// cited output (AC Infinity CLOUDFORGE T7, 1300 ml/h) and a 100 W
-    /// Consumer power role (its controller scales that draw), and both homes
-    /// place exactly one in their mushroom room, cabled to a battery. Seen
-    /// red by turning home_solo.ron's `humidifier_1` into a composter (0
-    /// placed).
+    /// The mushroom racks' humidifiers (2026-09-26): both shipped catalogs
+    /// carry two humidifiers and nothing else humidifies, each with its cited
+    /// output and a Consumer power role (the controller scales that draw):
+    /// the room unit (AC Infinity CLOUDFORGE T7, 1300 ml/h, 100 W), which
+    /// neither home places now its racks fruit in tents, and the tent unit
+    /// (CLOUDFORGE T3, 240 ml/h, 24 W), one placed on every mushroom rack
+    /// (at the rack's spot, inside its tent) and cabled to a battery. Seen
+    /// red by turning home.ron's `mushhum` array into another machine (the
+    /// six home racks then had none).
     #[test]
-    fn shipped_humidifier_is_cataloged_placed_in_the_mushroom_room_and_wired() {
+    fn every_shipped_mushroom_rack_has_a_wired_tent_humidifier() {
         for file in ["home.ron", "home_solo.ron"] {
             let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("machines").join(file);
             let home = MachineHome::load(&path).unwrap_or_else(|| panic!("{file} parses"));
             for (id, def) in &home.catalog {
-                assert_eq!(def.humidifies_l_h > 0.0, id == "humidifier", "{file}: `{id}` humidifies only if it is the humidifier");
+                let humidifier = id == "humidifier" || id == "tent_humidifier";
+                assert_eq!(def.humidifies_l_h > 0.0, humidifier, "{file}: `{id}` humidifies only if it is a humidifier");
             }
-            let def = &home.catalog["humidifier"];
-            assert!((def.humidifies_l_h - 1.3).abs() < 1e-6, "{file}: 1300 ml/h");
-            assert!(
-                matches!(def.power, Some(MachinePower::Consumer { watts, .. }) if (watts - 100.0).abs() < 1e-3),
-                "{file}: a 100 W Consumer, so it can be switched on and shed"
-            );
-            let placed: Vec<MachineInstance> =
-                home.all_instances().into_iter().filter(|i| i.machine == "humidifier").collect();
-            assert_eq!(placed.len(), 1, "{file}: one humidifier placed");
-            assert_eq!(placed[0].room, "room-mushroom", "{file}: in the mushroom room");
-            assert!(
-                home.connections.iter().any(|c| c.kind == "power" && c.to == placed[0].id && c.from.starts_with("battery_")),
-                "{file}: cabled to a battery"
-            );
+            for (id, l_h, w) in [("humidifier", 1.3, 100.0), ("tent_humidifier", 0.24, 24.0)] {
+                let def = &home.catalog[id];
+                assert!((def.humidifies_l_h - l_h).abs() < 1e-6, "{file}: {id} {l_h} L/h");
+                assert!(
+                    matches!(def.power, Some(MachinePower::Consumer { watts, .. }) if (watts - w).abs() < 1e-3),
+                    "{file}: {id} a {w} W Consumer, so it can be switched on and shed"
+                );
+            }
+            let all = home.all_instances();
+            assert!(!all.iter().any(|i| i.machine == "humidifier"), "{file}: no whole-room humidifier placed");
+            let racks: Vec<&MachineInstance> = all.iter().filter(|i| i.machine == "mushroom_rack").collect();
+            assert!(!racks.is_empty(), "{file}: mushroom racks");
+            for r in racks {
+                let hum = all
+                    .iter()
+                    .find(|h| h.machine == "tent_humidifier" && h.offset == r.offset)
+                    .unwrap_or_else(|| panic!("{file}: no tent humidifier on rack {}", r.id));
+                assert!(
+                    home.connections.iter().any(|c| c.kind == "power" && c.to == hum.id && c.from.starts_with("battery_")),
+                    "{file}: {} cabled to a battery",
+                    hum.id
+                );
+            }
         }
     }
 

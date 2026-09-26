@@ -420,26 +420,71 @@
             // humidity (oyster mushrooms fruit at 85 to 95%), drawing its watts
             // in proportion to its output and its litres from the home's tanks
             // with the irrigation (data/garden/humidity.ron has the balance).
+            // For a whole grow room; the shipped homes place none, because
+            // their mushroom racks fruit in tents (the tent humidifier below).
             humidifies_l_h: 1.3,
             stats: [
                 (
                     kind: "power",
-                    value: "~88 W holding the mushroom room at 90%, 100 W flat out",
+                    value: "~88 W holding a 300 m3 room at 90%, 100 W flat out",
                     status: "warn",
                 ),
                 (
                     kind: "water",
-                    value: "~27 L a day from the tanks",
+                    value: "~27 L a day from the tanks for a 300 m3 room",
                     status: "ok",
                 ),
                 (
                     kind: "air",
-                    value: "holds the mushroom room at 90% humidity",
+                    value: "holds a grow room at 90% humidity",
                     status: "ok",
                 ),
             ],
             power: Some(Consumer(
                 watts: 100.0,
+                priority: 4,
+            )),
+            ports: [],
+            storage: [],
+            rf_emission: 0.0,
+            auto_recipe: None,
+            container_type: None,
+            model: None,
+        ),
+        "tent_humidifier": (
+            shape: "box",
+            size: (0.172, 0.357, 0.172),
+            color: (0.9, 0.9, 0.88),
+            label: "Tent humidifier (mushroom rack)",
+            category: "Food",
+            // A small ultrasonic grow-tent humidifier with a humidity
+            // controller (AC Infinity CLOUDFORGE T3: "Output Rate: 8.11 fl
+            // oz/h" = 240 ml/h, "Power Consumption: 24 W", a 4.5 L reservoir,
+            // 17.2 x 17.2 x 35.7 cm). It stands on a mushroom rack's bottom
+            // shelf inside the rack's fruiting tent and holds the tent at 90%,
+            // drawing its watts in proportion to its output and its litres from
+            // the home's tanks with the irrigation (data/garden/humidity.ron,
+            // THE FRUITING TENT, has the balance).
+            humidifies_l_h: 0.24,
+            stats: [
+                (
+                    kind: "power",
+                    value: "~6 to 17 W holding one rack's tent at 90%, 24 W flat out",
+                    status: "ok",
+                ),
+                (
+                    kind: "water",
+                    value: "~1.5 to 4 L a day from the tanks",
+                    status: "ok",
+                ),
+                (
+                    kind: "air",
+                    value: "holds a mushroom rack's tent at 90% humidity",
+                    status: "ok",
+                ),
+            ],
+            power: Some(Consumer(
+                watts: 24.0,
                 priority: 4,
             )),
             ports: [],
@@ -3401,18 +3446,17 @@
             rotation: 270.0,
             zone: "home",
         ),
-        // The mushroom room's humidifier (2026-09-26): the racks' oyster
-        // mushrooms fruit at 85 to 95% humidity, and the room holds about 48%
-        // on its own, where their pins dry out; data/garden/humidity.ron has
-        // the balance. In the corner past the racks, plumbed to the garden's
-        // irrigation line.
+        // The commons rack's tent humidifier (2026-09-26): each mushroom rack
+        // fruits in its own tent, held at 90% by a small humidifier on its
+        // bottom shelf (data/garden/humidity.ron, THE FRUITING TENT). The home's
+        // six racks have theirs in the "mushhum" array below.
         (
-            id: "humidifier_1",
-            machine: "humidifier",
-            room: "room-mushroom",
-            offset: (8.5, 0.0, 59.5),
+            id: "mushhum_c1",
+            machine: "tent_humidifier",
+            room: "commons",
+            offset: (76.5, 0.0, 49.0),
             rotation: 0.0,
-            zone: "home",
+            zone: "commons",
         ),
         (
             id: "composter_2",
@@ -3675,6 +3719,18 @@
             id_prefix: "mush",
             zone: "home",
         ),
+        // One tent humidifier on each rack's bottom shelf, inside its tent
+        // (the same grid as the racks above, 2026-09-26).
+        (
+            machine: "tent_humidifier",
+            room: "room-mushroom",
+            origin: (2.0, 0.0, 53.0),
+            rows: 3,
+            cols: 2,
+            spacing: (2.6, 2.2),
+            id_prefix: "mushhum",
+            zone: "home",
+        ),
         (
             machine: "aeroponic_tower_nutrition",
             room: "commons",
@@ -3813,12 +3869,13 @@
             kind: "power",
             spec: None,
         ),
-        (
-            from: "battery_7",
-            to: "humidifier_1",
-            kind: "power",
-            spec: None,
-        ),
+        (from: "battery_7", to: "mushhum_0", kind: "power", spec: None),
+        (from: "battery_7", to: "mushhum_1", kind: "power", spec: None),
+        (from: "battery_7", to: "mushhum_2", kind: "power", spec: None),
+        (from: "battery_7", to: "mushhum_3", kind: "power", spec: None),
+        (from: "battery_7", to: "mushhum_4", kind: "power", spec: None),
+        (from: "battery_7", to: "mushhum_5", kind: "power", spec: None),
+        (from: "battery_7", to: "mushhum_c1", kind: "power", spec: None),
         (
             from: "battery_8",
             to: "turret_1",
@@ -4061,19 +4118,19 @@
     loops: [
         (
             name: "Energy",
-            demand: "~14.8 kWh/day (home + machines + garden pumps + greenhouse exhaust fan + mushroom room humidifier)",
+            demand: "~14.0 kWh/day (home + machines + garden pumps + greenhouse exhaust fan + mushroom tent humidifiers)",
             supply: "~12.2 kWh/day: 8 solar panels + wind; 8 batteries = 2.8 days autonomy; generator backstop",
             closes: false,
             weakest: false,
-            note: "Does not close on sun and wind alone (2026-09-26). The greenhouse needs its exhaust fan to keep the air under the gray-mold line (farming::humidity; about 540 L of water a day breathed out by the crops at full planting), and at the half speed that takes it draws about 30 W, 0.7 kWh a day. The mushroom room needs its humidifier to hold 90% for the oyster mushrooms (the room sits near 48% on its own, where their pins dry out): about 88 W, 2.1 kWh a day, and about 27 L of the tanks' water. Together they put demand about 21% past the panels. The generator covers it today; two more panels (about 2.9 kWh a day at 4.5 sun-hours) would close it, and a fruiting tent around the racks instead of a whole humidified room would take most of the humidifier's share away. Energy is Wh/day, not nameplate watts. Eight 400 W panels make ~11.5 kWh/d at 4.5 sun-hours; eight battery banks ride a ~3-day no-sun-no-wind stretch; the generator covers the deeper tail. The indoor garden is SUN-LIT: only its recirculation pumps draw power (~0.5 kWh/d, inside headroom). Artificial grow-lights to feed 3 people indoors would draw 30 to 150+ kWh/d, 2.5x to 12x this whole budget, so the garden uses the sun, not LEDs. That is what keeps the home off-grid.",
+            note: "Does not close on sun and wind alone (2026-09-26). The greenhouse needs its exhaust fan to keep the air under the gray-mold line (farming::humidity; about 540 L of water a day breathed out by the crops at full planting), and at the half speed that takes it draws about 30 W, 0.7 kWh a day. The seven mushroom racks fruit in tents, each held at 90% for its oyster mushrooms by a small humidifier (farming::humidity; the racks' room sits near 48% on its own, where the pins dry out): about 55 W together, 1.3 kWh a day, and about 13 L of the tanks' water. That replaced one humidifier for the whole mushroom room (88 W, 2.1 kWh and 27 L a day for six racks). Together the fan and the tents put demand about 15% past the panels. The generator covers it today; the fan alone already tipped it, and two more panels (about 2.9 kWh a day at 4.5 sun-hours) would close it. Energy is Wh/day, not nameplate watts. Eight 400 W panels make ~11.5 kWh/d at 4.5 sun-hours; eight battery banks ride a ~3-day no-sun-no-wind stretch; the generator covers the deeper tail. The indoor garden is SUN-LIT: only its recirculation pumps draw power (~0.5 kWh/d, inside headroom). Artificial grow-lights to feed 3 people indoors would draw 30 to 150+ kWh/d, 2.5x to 12x this whole budget, so the garden uses the sun, not LEDs. That is what keeps the home off-grid.",
         ),
         (
             name: "Water",
-            demand: "~267 L/day net (household ~240 + mushroom room humidifier ~27)",
-            supply: "rain + well + ~155 L/day greywater recycling; 8000 L cistern = 30 days",
+            demand: "~253 L/day net (household ~240 + mushroom tent humidifiers ~13)",
+            supply: "rain + well + ~155 L/day greywater recycling; 8000 L cistern = 32 days",
             closes: true,
             weakest: false,
-            note: "Greywater recycling covers all irrigation, so net demand is the household plus the mushroom room's humidifier (2026-09-26): about 27 L a day it turns to vapour to hold the room at 90%, water that leaves in the air and does not come back as greywater. The binding constraint is dry-season STORAGE, not annual rainfall: the cistern rides a ~30-day dry stretch.",
+            note: "Greywater recycling covers all irrigation, so net demand is the household plus the mushroom racks' tent humidifiers (2026-09-26): about 13 L a day they turn to vapour to hold the seven fruiting tents at 90%, water that leaves in the air and does not come back as greywater. The binding constraint is dry-season STORAGE, not annual rainfall: the cistern rides a ~32-day dry stretch.",
         ),
         (
             name: "Food",

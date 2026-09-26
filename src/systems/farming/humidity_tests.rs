@@ -56,8 +56,8 @@ fn store(base: f64, speed: f32, severity: f32) -> DataStore {
     data.insert(
         humidity::ROOMS_KEY,
         Mutex::new(vec![
-            GrowRoom { id: "room-a".into(), name: "Greenhouse".into(), min: [0.0, 0.0, 0.0], max: [10.0, 3.0, 10.0] },
-            GrowRoom { id: "room-b".into(), name: "Plant room".into(), min: [20.0, 0.0, 0.0], max: [30.0, 3.0, 10.0] },
+            GrowRoom { id: "room-a".into(), name: "Greenhouse".into(), min: [0.0, 0.0, 0.0], max: [10.0, 3.0, 10.0], ..Default::default() },
+            GrowRoom { id: "room-b".into(), name: "Plant room".into(), min: [20.0, 0.0, 0.0], max: [30.0, 3.0, 10.0], ..Default::default() },
         ]),
     );
     data.insert(
@@ -663,18 +663,129 @@ fn mushrooms_below_their_range_lose_more_than_a_green_crop_out_of_its_range() {
     assert!((f64::from(health(&world, "oyster_mushroom")) - want).abs() < 0.5, "{} vs cap {want}", health(&world, "oyster_mushroom"));
 }
 
-/// The shipped mushroom rooms are in range at full planting. Each home's
-/// mushroom racks (the showcase sows oyster mushrooms in all four shelves)
-/// stand in the blueprint's 10 x 3 x 10 m mushroom room with the home's
-/// humidifier, built from the catalog def; after two game days the room is
-/// inside the oyster's 85 to 95% window and no oyster is capped. Without the
-/// humidifier's power the same room settles near 48% (family) and 41% (solo).
-/// Seen red by turning home.ron's `humidifier_1` into another machine (the
-/// family room then read 48%).
+/// A fruiting tent, as the shipped grow medium gives it: the mushroom rack
+/// medium's enclosure (grow_media.ron), so the tests read the shipped tent.
+fn shipped_tent() -> crate::systems::grow_machines::Enclosure {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+    let media = crate::systems::grow_machines::load_grow_media(&root);
+    let m = media.iter().find(|m| m.matches("mushroom_rack")).expect("a mushroom rack medium");
+    m.enclosure.clone().expect("the mushroom rack fruits in a tent")
+}
+
+/// A 300 m3 room (the Greenhouse, room-a, at the shipped half air change an
+/// hour) with one mushroom rack of four oysters: in its tent (`tent`) with a
+/// T3 on its bottom shelf, or bare with a T7 in the room. Returns the world
+/// and store after two game days, and the humidifier.
+fn one_rack(tent: bool) -> (DataStore, hecs::World, hecs::Entity) {
+    let mut data = store(0.5, 1.0, 0.0);
+    let enclosure = tent.then(shipped_tent);
+    data.insert("grow_plots", vec![GrowPlot { id: "mush_0".into(), pos: [3.0, 0.0, 5.0], enclosure, ..Default::default() }]);
+    let mut sys = FarmingSystem::new();
+    let mut world = hecs::World::new();
+    world.spawn((Irrigator,));
+    for shelf in 0..4 {
+        world.spawn((crop(&data, "oyster_mushroom", "mush_0", shelf),));
+    }
+    let (l_h, watts, at) = if tent { (0.24, 24.0, [3.0, 0.0, 5.0]) } else { (1.3, 100.0, [8.5, 0.0, 9.0]) };
+    let h = world.spawn((
+        Humidifier { output_l_h: l_h, watts },
+        Transform { position: glam::Vec3::from_array(at), ..Default::default() },
+        PowerConsumer { draw_watts: watts, priority: 4, enabled: true },
+    ));
+    run(&mut sys, &mut world, &data, 2400, 1.0); // two game days
+    (data, world, h)
+}
+
+/// A tent holds 90% with a fraction of the old humidifier load. One rack of
+/// oysters, held the old way (the whole 300 m3 room humidified by a T7) and
+/// in its tent (1.73 m3, fresh air set by its substrate's CO2, a T3 inside):
+/// the tent sits at 90.0% on about a fifth of the water and a quarter of the
+/// power the room took, and the room could not even reach 90% flat out.
+/// The tent's fresh air is the CO2 balance's 22.6 m3 an hour. Seen red by
+/// ignoring the enclosure in `AirMap::new` (there was then no tent air at
+/// all: the rack grew in the room's).
 #[test]
-fn the_placed_humidifier_keeps_the_shipped_mushroom_room_in_range() {
+fn a_tent_holds_its_setpoint_with_a_fraction_of_the_room_load() {
+    let d = shipped_air();
+    let (_, room_world, room_h) = one_rack(false);
+    let (data, tent_world, tent_h) = one_rack(true);
+    let (open, tented) = (room(&room_world, "room-a"), room(&tent_world, "tent:mush_0"));
+    let open_rh = rh(&room_world, "room-a");
+    assert!(open.humidifier == 1.0 && open_rh < 0.9, "the room flat out and short of 90%: {open_rh}");
+    assert!((d.rh_of(tented.vapour_g_m3, d.room_temp_c) - 0.9).abs() < 0.002, "the tent at 90%: {tented:?}");
+    let (open_w, tent_w) = (draw(&room_world, room_h), draw(&tent_world, tent_h));
+    println!("room {:.1} L/day {open_w:.1} W; tent {:.2} L/day {tent_w:.1} W", open.humidifier_l_day, tented.humidifier_l_day);
+    assert!(tented.humidifier_l_day < open.humidifier_l_day * 0.25, "{} vs {} L a day", tented.humidifier_l_day, open.humidifier_l_day);
+    assert!(tent_w < open_w * 0.3, "{tent_w} vs {open_w} W");
+    let map = humidity::AirMap::new(&tent_world, &data, &d);
+    let tent = map.rooms.iter().find(|r| r.id == "tent:mush_0").expect("the tent is a room");
+    let fresh = tent.air_changes_per_hour.unwrap() * tent.volume_m3();
+    assert!((fresh - 22.6).abs() < 0.1, "fresh air for 22.7 kg of substrate's CO2: {fresh} m3/h");
+    assert!((tent.volume_m3() - 1.3 * 1.9 * 0.7).abs() < 1e-3);
+}
+
+/// The room outside the tent is not humidified: it only takes what the tent
+/// vents, and carries exactly that away. With the rack in its tent at 90%,
+/// the Greenhouse around it stays near the home air (about 44%), and what
+/// its leakage carries to the home each hour equals what the T3 puts in and
+/// the oysters breathe out. The Garden panel line names the tent, its fresh
+/// air and its humidifier.
+/// Seen red by dropping the tent's vent into the room (`vented`), when the
+/// room stayed at the home air and the water vanished.
+#[test]
+fn the_room_outside_a_tent_takes_only_what_the_tent_vents() {
+    let d = shipped_air();
+    let (data, world, _) = one_rack(true);
+    let map = humidity::AirMap::new(&world, &data, &d);
+    let (outer, tent) = (room(&world, "room-a"), room(&world, "tent:mush_0"));
+    let out_rh = d.rh_of(outer.vapour_g_m3, d.room_temp_c);
+    assert!(out_rh < 0.5, "the room is not humidified: {out_rh}");
+    let carried = d.base_air_changes_per_hour * 300.0 * (outer.vapour_g_m3 - map.home_vapour);
+    let put_in = (tent.humidifier_l_day + tent.breathed_l_day) * 1000.0 / 24.0;
+    assert!(carried > 1.0 && (carried - put_in).abs() < put_in * 0.01, "{carried} g/h carried vs {put_in} g/h put in");
+    let view = humidity::GuiView::new(&world, &data);
+    let line = &view.areas.iter().find(|(a, _, _)| a == "mush_0").unwrap().1;
+    assert!(line.starts_with("Air 90% humidity in the Fruiting tent") && line.contains("fresh air 23 m3 an hour for its CO2"), "{line}");
+    assert!(line.contains("humidifier at "), "{line}");
+}
+
+/// A save from before the tents (the whole mushroom room held at 90%, no
+/// tent in the soil memory) still loads, and each tent starts from the air
+/// of the room it stands in, not the home's; a tent's air then saves and
+/// loads like any room's (keyed "tent:<rack>"). Seen red by starting a new
+/// tent at the home air (`vapour_g_m3: map.home_vapour` in `step_rooms`).
+#[test]
+fn a_tent_starts_from_its_rooms_air_and_saves_like_a_room() {
+    let d = shipped_air();
+    let mut data = store(0.5, 1.0, 0.0);
+    data.insert("grow_plots", vec![GrowPlot { id: "mush_0".into(), pos: [3.0, 0.0, 5.0], enclosure: Some(shipped_tent()), ..Default::default() }]);
+    let mut sys = FarmingSystem::new();
+    let mut world = hecs::World::new();
+    world.spawn((Irrigator,));
+    world.spawn((crop(&data, "oyster_mushroom", "mush_0", 0),));
+    let wet = d.vapour_at(0.9, d.room_temp_c);
+    set_room(&mut world, "room-a", wet); // the pre-tent save: the room humidified
+    sys.tick(&mut world, 0.001, &data);
+    let tent = room(&world, "tent:mush_0").vapour_g_m3;
+    assert!((tent - wet).abs() < 0.05, "the tent starts from the room's 90%: {}", d.rh_of(tent, d.room_temp_c));
+    let text = serde_json::to_string(&memory(&world)).unwrap();
+    let back: SoilMemory = serde_json::from_str(&text).unwrap();
+    assert_eq!(back.rooms.get("tent:mush_0"), memory(&world).rooms.get("tent:mush_0"), "the tent's air round-trips");
+}
+
+/// The shipped homes keep every rack's tent in range at full planting. Each
+/// home's mushroom racks (the showcase sows oyster mushrooms on all four
+/// shelves) stand in the blueprint's 10 x 3 x 10 m mushroom room (the
+/// commons rack in the home's air), each in the shipped tent with the tent
+/// humidifier placed on its bottom shelf, built from the catalog def. After
+/// two game days every tent is inside the oyster's 85 to 95% window and no
+/// oyster is capped; with the humidifiers unpowered no tent is in range.
+/// Seen red by turning home.ron's `mushhum` array into another machine (a
+/// humidifier for only one of the seven racks).
+#[test]
+fn the_shipped_homes_keep_every_racks_tent_in_range() {
     use crate::machines::{MachineHome, MachinePower};
-    let settle = |file: &str, powered: bool| -> (f64, f64, usize, bool) {
+    let settle = |file: &str, powered: bool| -> (Vec<f64>, f64, f64, f64, usize, bool) {
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
         let home = MachineHome::load(&root.join("data").join("machines").join(file)).expect("home parses");
         let blueprint = std::fs::read_to_string(root.join("data").join("blueprints").join("ship_structure.ron")).unwrap();
@@ -685,12 +796,13 @@ fn the_placed_humidifier_keeps_the_shipped_mushroom_room_in_range() {
             [v[0], v[1], v[2]]
         };
         let (o, s) = (triple("origin: ("), triple("size: ("));
-        let mushroom = GrowRoom { id: "room-mushroom".into(), name: "Mushroom room".into(), min: o, max: [o[0] + s[0], o[1] + s[1], o[2] + s[2]] };
+        let mushroom = GrowRoom { id: "room-mushroom".into(), name: "Mushroom room".into(), min: o, max: [o[0] + s[0], o[1] + s[1], o[2] + s[2]], ..Default::default() };
         let all = home.all_instances();
-        let racks: Vec<_> = all.iter().filter(|i| i.machine == "mushroom_rack" && i.room == "room-mushroom").collect();
+        let racks: Vec<_> = all.iter().filter(|i| i.machine == "mushroom_rack").collect();
         let mut data = store(0.5, 1.0, 0.0);
         data.insert(humidity::ROOMS_KEY, Mutex::new(vec![mushroom]));
-        let plots = racks.iter().map(|r| GrowPlot { id: r.id.clone(), pos: [r.offset.0, r.offset.1, r.offset.2], ..Default::default() });
+        let tent = shipped_tent();
+        let plots = racks.iter().map(|r| GrowPlot { id: r.id.clone(), pos: [r.offset.0, r.offset.1, r.offset.2], enclosure: Some(tent.clone()), ..Default::default() });
         data.insert("grow_plots", plots.collect::<Vec<_>>());
         let mut sys = FarmingSystem::new();
         let mut world = hecs::World::new();
@@ -700,29 +812,31 @@ fn the_placed_humidifier_keeps_the_shipped_mushroom_room_in_range() {
                 world.spawn((crop(&data, "oyster_mushroom", &r.id, shelf),));
             }
         }
-        let placed: Vec<_> = all.iter().filter(|i| i.machine == "humidifier").collect();
-        for p in &placed {
-            let def = &home.catalog["humidifier"];
+        let mut hums = Vec::new();
+        for p in all.iter().filter(|i| i.machine == "tent_humidifier") {
+            let def = &home.catalog["tent_humidifier"];
             let Some(MachinePower::Consumer { watts, .. }) = def.power else { panic!("a Consumer") };
-            world.spawn((
+            hums.push(world.spawn((
                 Humidifier { output_l_h: def.humidifies_l_h, watts },
                 Transform { position: glam::Vec3::new(p.offset.0, p.offset.1, p.offset.2), ..Default::default() },
                 PowerConsumer { draw_watts: watts, priority: 4, enabled: powered },
-            ));
+            )));
         }
         run(&mut sys, &mut world, &data, 2400, 1.0); // two game days
-        let rh = rh(&world, "room-mushroom");
+        let rhs: Vec<f64> = racks.iter().map(|r| rh(&world, &format!("tent:{}", r.id))).collect();
+        let litres: f64 = racks.iter().map(|r| room(&world, &format!("tent:{}", r.id)).humidifier_l_day).sum();
+        let watts: f64 = hums.iter().map(|h| if powered { draw(&world, *h) } else { 0.0 }).sum();
         let healthy = world.query::<&CropInstance>().iter().all(|(_, c)| c.health > 99.9);
-        println!("{file} powered={powered}: {} racks, {rh:.4} RH, humidifier {:.3} ({:.1} L/day)", racks.len(), room(&world, "room-mushroom").humidifier, room(&world, "room-mushroom").humidifier_l_day);
-        (rh, room(&world, "room-mushroom").humidifier, racks.len(), healthy)
+        let room_rh = rh(&world, "room-mushroom");
+        println!("{file} powered={powered}: {} racks, {} humidifiers, tents {rhs:.4?}, room {room_rh:.4}, {litres:.2} L/day, {watts:.1} W", racks.len(), hums.len());
+        (rhs, litres, watts, room_rh, hums.len(), healthy)
     };
-    for (file, racks, dry_rh) in [("home.ron", 6, 0.483), ("home_solo.ron", 2, 0.411)] {
-        let (rh, share, n, healthy) = settle(file, true);
-        assert_eq!(n, racks, "{file}: racks in the mushroom room");
-        assert!((0.85..=0.95).contains(&rh), "{file}: the room at {rh}, the oyster's window is 85 to 95%");
-        assert!(share > 0.5, "{file}: its humidifier is working ({share})");
+    for (file, racks) in [("home.ron", 7), ("home_solo.ron", 2)] {
+        let (rhs, _, _, _, n, healthy) = settle(file, true);
+        assert_eq!((rhs.len(), n), (racks, racks), "{file}: a humidifier for every rack");
+        assert!(rhs.iter().all(|rh| (0.85..=0.95).contains(rh)), "{file}: tents at {rhs:?}, the oyster's window is 85 to 95%");
         assert!(healthy, "{file}: no oyster capped");
-        let (dry, _, _, _) = settle(file, false);
-        assert!((dry - dry_rh).abs() < 0.01, "{file}: unpowered, the room sits near {dry_rh}: {dry}");
+        let (dry, _, _, _, _, _) = settle(file, false);
+        assert!(dry.iter().all(|rh| *rh < 0.85), "{file}: unpowered, the tents are dry: {dry:?}");
     }
 }

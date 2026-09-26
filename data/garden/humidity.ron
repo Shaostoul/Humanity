@@ -78,6 +78,28 @@
 //              humidity for Pleurotus eryngii cultivation", Journal of
 //              Mushroom 11(3): 131-136, 2013, doi:10.14480/JM.2013.11.3.131,
 //              https://koreascience.or.kr/article/JAKO201307954512342.page
+//   Nature Lion  Langevin, A., "Best Grow Tents for Mushroom Fruiting: Martha
+//              Tent to 4x8, Sized by Block Count", Nature Lion blog, 11 April
+//              2026, https://naturelion.ca/blog/best-grow-tent-mushroom-fruiting
+//   North Spore block  North Spore Organic Blue Oyster fruiting block, as
+//              listed by BetterGrow Hydro (read 2026-09-26, no page date),
+//              https://www.bghydro.com/mushrooms/north-spore-organic-blue-oyster-mushroom-grow-kit-fruiting-block.html
+//   Pavlik 2020  Pavlik, M., Fleischer, P., Fleischer, P. Jr., Pavlik, M. Jr.
+//              and Sulekova, M., "Evaluation of the Carbon Dioxide Production
+//              by Fungi Under Different Growing Conditions", Current
+//              Microbiology 77(9): 2374-2384, 2020 (online 29 May 2020),
+//              doi:10.1007/s00284-020-02033-z, PMID 32472260
+//   Lin 2022   Lin, R., Zhang, L., Yang, X., Li, Q., Zhang, C., Guo, L., Yu,
+//              H. and Yu, H., "Responses of the Mushroom Pleurotus ostreatus
+//              under Different CO2 Concentration by Comparative Proteomic
+//              Analyses", Journal of Fungi 8(7): 652, 2022,
+//              doi:10.3390/jof8070652, https://pmc.ncbi.nlm.nih.gov/articles/PMC9321156/
+//   AC Infinity T3  "CLOUDFORGE T3 Plant Humidifier 4.5L", AC Infinity
+//              product specifications (read 2026-09-26; no page date),
+//              https://acinfinity.com/cloudforge-t3-plant-humidifier-4-5l-with-vpd-humidity-controls/
+//   NIST       NIST Chemistry WebBook, carbon dioxide,
+//              https://webbook.nist.gov/cgi/cbook.cgi?ID=C124389 ; CODATA
+//              molar gas constant, https://physics.nist.gov/cgi-bin/cuu/Value?r
 (
     // -- RELATIVE AND ABSOLUTE HUMIDITY: the psychrometric formula ---------------
     //
@@ -171,8 +193,10 @@
     // holds on its own: oyster 85 to 95%, while the home's six racks breathe
     // out only about 7 L a day into the 300 m3 mushroom room, which settles
     // near 48% on its leakage (the one-person home's two racks, about 41%).
-    // So each home carries a humidifier there (the "humidifier" machine in
-    // data/machines/home.ron and home_solo.ron).
+    // So the racks need a humidifier. The first answer was one for the whole
+    // room (the "humidifier" machine below, still in the catalog for a
+    // player who wants a humidified grow room); the shipped homes now fruit
+    // each rack in its own tent instead (THE FRUITING TENT, at the end).
     //
     // The machine is an ultrasonic grow-room humidifier with an onboard
     // humidity controller, AC Infinity CLOUDFORGE T7: "Output Rate: 43.95 fl
@@ -205,10 +229,8 @@
     // 2.1 kWh and 27 L of water a day. The one-person home's two racks: the
     // T7 runs flat out and the room settles near 88%, inside oyster's window
     // but short of the setpoint, at 100 W, 2.4 kWh and 31 L a day. A whole
-    // room is a costly thing to humidify for 100 kcal of mushrooms a day;
-    // growers of this size fruit in a tent around the racks instead, which
-    // the game does not model yet (the Progress note in
-    // docs/design/gameplay-gaps-2026-09-25.md).
+    // room is a costly thing to humidify for 100 kcal of mushrooms a day,
+    // which is why growers of this size fruit in a tent around the racks.
     //
     // humidifier_setpoint_rh 0.90: UF/IFAS SS662's fruiting chamber, "90%
     // humidity controlled by humidifiers or foggers", where "The pinheads
@@ -297,4 +319,81 @@
     // of its window keeps 90.
     fungi_loss_full_at_rh: 0.47,
     health_floor: 20.0,
+
+    // -- THE FRUITING TENT (2026-09-26) ---------------------------------------------
+    //
+    // Small growers do not humidify a whole room: they fruit inside a tent, a
+    // shelving unit wrapped in clear plastic (a "Martha tent"), with a small
+    // humidifier inside. Nature Lion (Langevin 2026): a Martha tent is
+    // "roughly 65" x 27.5" x 20"" and holds "8-12 fruiting blocks depending on
+    // the model", with a humidifier of "3-6 L/day" output capacity. Each rack's
+    // grow medium carries its tent (data/garden/grow_media.ron, `enclosure`):
+    // the game's rack is a larger shelving unit (1.2 x 1.8 x 0.6 m), so its
+    // tent wraps it at 1.3 x 1.9 x 0.7 m (1.73 m3), loaded with a Martha
+    // tent's ten blocks (the middle of 8 to 12) of 5 lb each (North Spore's
+    // oyster fruiting block, BetterGrow listing: "Kit weight: 5 lbs"), 22.7 kg
+    // of substrate. The farming model keeps the tent as a room of its own
+    // (`humidity::AirMap`): its air exchanges with the room it stands in, and
+    // everything it vents goes into that room's air, which exchanges with the
+    // home's.
+    //
+    // HOW LEAKY: a tent is not sealed, because oyster mushrooms need fresh air
+    // for the CO2 their substrate breathes out, and the fresh air is what the
+    // humidifier has to keep wetting. It is sized to the CO2, not to a rule of
+    // thumb:
+    //   substrate_co2_g_kg_h 1.09: Pavlik et al. 2020, measuring P. ostreatus
+    //     in airtight chambers: "The highest values were measured during the
+    //     primordial production on rye straw substrate, with the average
+    //     values of 1.09 g CO2 kg-1 (substrate) h-1." Fruiting is the stage
+    //     that needs the humidity, so the fruiting stage's rate is used.
+    //   fruiting_co2_limit_ppm 1000: Lin et al. 2022, on P. ostreatus: "when
+    //     the CO2 concentration reaches more than 0.1%, it produces a toxic
+    //     effect", deforming the caps.
+    //   intake_co2_ppm 400: the home air the tent draws, at the life-support
+    //     model's floor of 0.04% CO2 (src/systems/atmosphere.rs), a GAME
+    //     CHOICE that ignores the CO2 the tents add to their own room.
+    //   The CO2 each cubic metre of intake air can take up is (1000 - 400)
+    //   ppm of CO2's density at the rooms' 21 °C, P M / (R T) with FAO-56's
+    //   sea-level P = 101.3 kPa (its equation 7 at z = 0), NIST's CO2
+    //   "Molecular weight: 44.0095" and molar gas constant "8.314 462 618...
+    //   J mol-1 K-1": 1,823 g/m3, so 1.09 g/m3. Ten blocks breathe out
+    //   24.7 g of CO2 an hour, so the tent needs about 22.6 m3 of fresh air an
+    //   hour: 13 air changes of its 1.73 m3 (`HumidityData::tent_fresh_air_m3_h`).
+    //   Nature Lion's rule of thumb, "4-6" air changes an hour of a 0.59 m3
+    //   Martha tent, is only 2.4 to 3.5 m3 an hour, which at the measured rate
+    //   would leave ten blocks' CO2 near 5,000 ppm. Its own humidifier sizing
+    //   agrees with the CO2 instead: 3 to 6 L a day is what 13 to 26 m3 of
+    //   fresh air an hour takes to wet from the home's 37% to 90%.
+    //
+    // THE HUMIDIFIER A TENT TAKES: an ultrasonic grow-tent humidifier, AC
+    // Infinity CLOUDFORGE T3: "Output Rate: 8.11 fl oz/h" (240 ml/h, 5.8 L a
+    // day, the top of Nature Lion's 3-6), "Power Consumption: 24 W", "Water
+    // Capacity: 1.18 gal (4.5 l)", "17.2 x 17.2 x 35.7 cm", with an "onboard
+    // controller ... equipped with humidity and VPD triggers" (the
+    // "tent_humidifier" machine, one inside each rack's tent). It has no
+    // refill valve, an "automatic shutoff system that turns this humidifier
+    // off when its water supply is depleted": it is filled from the home's
+    // tap, so its litres are billed to the tanks with the irrigation's, and
+    // its 4.5 L reservoir (about 19 hours at full output) is not modelled.
+    // Its draw is its 24 W times its output share, as for the T7 above.
+    //
+    // WHAT THE TENTS COST, measured by the shipped-homes test: every tent
+    // holds 90.0%. A tent's water depends on the air it draws, and a tent
+    // vents all of its water into the room around it, so the racks' shared
+    // room grows damper and the tents in it cheaper: the family home's six
+    // tents raise the mushroom room to about 62%, and each then needs about
+    // 1.5 L and 6.5 W; the commons rack's tent, drawing the home's 37% air,
+    // needs about 4.0 L and 17 W. All seven: about 13.3 L of water, 55 W and
+    // 1.3 kWh a day, against the whole-room T7's 27.5 L, 88 W and 2.1 kWh for
+    // six racks. The one-person home's two tents (room about 50%): about
+    // 5.6 L, 23 W and 0.56 kWh a day, against the room T7's 31 L, 100 W and
+    // 2.4 kWh. One rack alone in a 300 m3 room: its tent takes 3.35 L and
+    // 14 W, where holding the room took the T7 flat out at 31 L and 100 W,
+    // and still fell short of 90%.
+    substrate_co2_g_kg_h: 1.09,
+    fruiting_co2_limit_ppm: 1000.0,
+    intake_co2_ppm: 400.0,
+    co2_molar_mass: 44.0095,
+    air_pressure_kpa: 101.3,
+    molar_gas_constant: 8.314462618,
 )

@@ -34,6 +34,13 @@
 //! and use the weather's humidity. A crop in no known room (hand planted, or a
 //! machine outside every room) grows in the home's air.
 //!
+//! ENCLOSURES (a mushroom rack's fruiting tent): a grow machine whose medium
+//! has an `enclosure` grows in a small room of its own, "tent:<machine>",
+//! centred on it. The tent exchanges air with the room it stands in (the
+//! home's, if none), at the fresh air its substrate's CO2 needs
+//! (`HumidityData::tent_fresh_air_m3_h`) over its volume, and what it vents is
+//! a source of vapour for that room, stepped after it (`step_rooms`).
+//!
 //! THE FANS: an exhaust fan (`Ventilator`) standing in a room exchanges its air
 //! with the home's while its PowerConsumer is enabled. Its controller runs it
 //! flat out above `fan_setpoint_rh`, at the speed that holds the setpoint once
@@ -107,6 +114,12 @@ pub struct HumidityData {
     pub stress_full_at_rh: f64,
     pub fungi_loss_full_at_rh: f64,
     pub health_floor: f32,
+    pub substrate_co2_g_kg_h: f64,
+    pub fruiting_co2_limit_ppm: f64,
+    pub intake_co2_ppm: f64,
+    pub co2_molar_mass: f64,
+    pub air_pressure_kpa: f64,
+    pub molar_gas_constant: f64,
 }
 
 impl HumidityData {
@@ -160,6 +173,22 @@ impl HumidityData {
     /// What saturated air holds at the grow rooms' temperature, g/m3.
     pub fn room_saturation(&self) -> f64 {
         self.vapour_at(1.0, self.room_temp_c)
+    }
+
+    /// Grams of CO2 in a cubic metre of pure CO2 at the rooms' temperature:
+    /// the ideal gas law, P M / (R T).
+    pub fn co2_density(&self) -> f64 {
+        self.air_pressure_kpa * 1000.0 * self.co2_molar_mass / (self.molar_gas_constant * (self.room_temp_c + 273.15))
+    }
+
+    /// The fresh air, m3 an hour, a fruiting tent holding `substrate_kg` of
+    /// fruiting substrate must be given to keep its CO2 at the fruiting limit:
+    /// what the substrate breathes out over what each cubic metre of intake
+    /// air can take up before it reaches the limit (humidity.ron, THE
+    /// FRUITING TENT).
+    pub fn tent_fresh_air_m3_h(&self, substrate_kg: f64) -> f64 {
+        let room = (self.fruiting_co2_limit_ppm - self.intake_co2_ppm).max(1.0) * 1e-6 * self.co2_density();
+        substrate_kg.max(0.0) * self.substrate_co2_g_kg_h.max(0.0) / room
     }
 }
 
@@ -257,14 +286,18 @@ pub fn health_ceiling(d: &HumidityData, def: Option<&PlantDef>, rh: f64) -> f32 
 
 // -- The rooms ------------------------------------------------------------------------
 
-/// One room of the home, as the engine's room bounds give it: an axis-aligned
-/// box in world metres.
+/// One room of the home, as the engine's room bounds give it, or a grow
+/// machine's enclosure (a fruiting tent): an axis-aligned box in world metres.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct GrowRoom {
     pub id: String,
     pub name: String,
     pub min: [f32; 3],
     pub max: [f32; 3],
+    /// Its own air changes an hour with the air around it: a tent's fresh
+    /// air over its volume. None = a room, which leaks at
+    /// `base_air_changes_per_hour`.
+    pub air_changes_per_hour: Option<f64>,
 }
 
 impl GrowRoom {
@@ -303,7 +336,7 @@ where
         && v.iter().zip(rooms.clone()).all(|(a, (id, name, min, max))| a.id == id && a.name == room_name(id, name) && a.min == min && a.max == max);
     if !same {
         *v = rooms
-            .map(|(id, name, min, max)| GrowRoom { id: id.to_string(), name: room_name(id, name), min, max })
+            .map(|(id, name, min, max)| GrowRoom { id: id.to_string(), name: room_name(id, name), min, max, air_changes_per_hour: None })
             .collect();
     }
 }
@@ -327,8 +360,12 @@ fn room_name(id: &str, display: &str) -> String {
 /// room each grow area stands in, the home's air and the weather's.
 #[derive(Debug, Clone, Default)]
 pub struct AirMap {
-    /// The rooms that hold a grow machine.
+    /// The rooms that hold a grow machine, the machines' enclosures (fruiting
+    /// tents), and the rooms those stand in.
     pub rooms: Vec<GrowRoom>,
+    /// For each of `rooms`, the room its air exchanges with: an enclosure's
+    /// room (index into `rooms`), or None for the home's air.
+    parent: Vec<Option<usize>>,
     /// Grow area tag (a machine instance id, or a tower design alias) ->
     /// index into `rooms`.
     area_room: HashMap<String, usize>,
@@ -352,19 +389,20 @@ impl AirMap {
         let mut map = AirMap::default();
         if let Some(plots) = data.get::<Vec<GrowPlot>>("grow_plots") {
             for p in plots.iter().filter(|p| !p.outdoors) {
-                let Some(r) = boxes
+                // The smallest of the home's rooms the machine stands in.
+                let room = boxes
                     .iter()
                     .filter(|r| r.contains(p.pos))
                     .min_by(|a, b| a.volume_m3().total_cmp(&b.volume_m3()))
-                else {
-                    continue;
-                };
-                let idx = match map.rooms.iter().position(|x| x.id == r.id) {
-                    Some(i) => i,
-                    None => {
-                        map.rooms.push(r.clone());
-                        map.rooms.len() - 1
-                    }
+                    .map(|r| map.add(r.clone(), None));
+                // A machine in an enclosure grows in the enclosure's air,
+                // which exchanges with that room's (or the home's).
+                let idx = match &p.enclosure {
+                    Some(e) => map.add(tent_box(d, p, e), room),
+                    None => match room {
+                        Some(i) => i,
+                        None => continue,
+                    },
                 };
                 map.area_room.insert(p.id.clone(), idx);
                 for a in &p.aliases {
@@ -390,6 +428,28 @@ impl AirMap {
             .get::<Mutex<crate::systems::weather::Weather>>("weather")
             .and_then(|m| m.lock().ok().map(|w| f64::from(w.humidity).clamp(0.0, 1.0)));
         map
+    }
+
+    /// `room` as an index into `rooms`, added (exchanging with `parent`) if
+    /// it is not there yet.
+    fn add(&mut self, room: GrowRoom, parent: Option<usize>) -> usize {
+        if let Some(i) = self.rooms.iter().position(|x| x.id == room.id) {
+            return i;
+        }
+        self.rooms.push(room);
+        self.parent.push(parent);
+        self.rooms.len() - 1
+    }
+
+    /// The vapour, g/m3, of the air room `i` exchanges with: its parent
+    /// room's, or the home's.
+    fn outside(&self, i: usize, state: &HashMap<String, RoomAir>) -> f64 {
+        self.parent
+            .get(i)
+            .copied()
+            .flatten()
+            .and_then(|p| state.get(&self.rooms[p].id))
+            .map_or(self.home_vapour, |a| a.vapour_g_m3)
     }
 
     /// The grow room `area`'s machine stands in, if any.
@@ -434,6 +494,23 @@ impl AirMap {
             .min_by(|a, b| a.1.volume_m3().total_cmp(&b.1.volume_m3()))
             .map(|(i, _)| i)
     }
+}
+
+/// A grow machine's enclosure as a room: its box centred on the machine (on
+/// its floor), named for the player, and exchanging the fresh air its
+/// substrate's CO2 needs (`HumidityData::tent_fresh_air_m3_h`) over its
+/// volume, an hour.
+fn tent_box(d: &HumidityData, p: &GrowPlot, e: &crate::systems::grow_machines::Enclosure) -> GrowRoom {
+    let (w, h, dz) = (e.size.0.max(0.01), e.size.1.max(0.01), e.size.2.max(0.01));
+    let mut room = GrowRoom {
+        id: format!("tent:{}", p.id),
+        name: "Fruiting tent".to_string(),
+        min: [p.pos[0] - w / 2.0, p.pos[1], p.pos[2] - dz / 2.0],
+        max: [p.pos[0] + w / 2.0, p.pos[1] + h, p.pos[2] + dz / 2.0],
+        air_changes_per_hour: None,
+    };
+    room.air_changes_per_hour = Some(d.tent_fresh_air_m3_h(f64::from(e.substrate_kg)) / room.volume_m3().max(1e-6));
+    room
 }
 
 /// The exhaust fans, by the room they stand in: (entity, room index, full
@@ -529,28 +606,42 @@ pub fn step_rooms(
     let mut speed = vec![0.0f64; map.rooms.len()];
     let mut share = vec![0.0f64; map.rooms.len()];
     let mut hum_l_day = 0.0f64;
-    for (i, room) in map.rooms.iter().enumerate() {
-        let volume = room.volume_m3().max(1.0);
-        let source = litres[i] * d.vapour_share.max(0.0) * 1000.0 / 24.0 / volume;
+    // An enclosure (a fruiting tent) first: what it vents is a source of
+    // vapour for the room it stands in, g an hour, stepped after it.
+    let mut vented = vec![0.0f64; map.rooms.len()];
+    let order: Vec<usize> = (0..map.rooms.len())
+        .filter(|i| map.parent[*i].is_some())
+        .chain((0..map.rooms.len()).filter(|i| map.parent[*i].is_none()))
+        .collect();
+    for i in order {
+        let room = &map.rooms[i];
+        let volume = room.volume_m3().max(0.01);
+        let source = (litres[i] * d.vapour_share.max(0.0) * 1000.0 / 24.0 + vented[i]) / volume;
+        let outside = map.outside(i, state);
         let fan_max: f64 = fans.iter().filter(|f| f.1 == i && f.4).map(|f| f.2).sum::<f64>() / volume;
         let humidified = hums.iter().any(|h| h.1 == i);
         let powered_l_h: f64 = hums.iter().filter(|h| h.1 == i && h.4).map(|h| h.2).sum();
         // What the humidifiers can put in, g/m3 an hour: none without water.
         // (Tested with `>`: an empty float sum is -0.0, which would print.)
         let hum_max = if water_ok && powered_l_h > 0.0 { powered_l_h * 1000.0 / volume } else { 0.0 };
-        let st = state.entry(room.id.clone()).or_insert(RoomAir { vapour_g_m3: map.home_vapour, ..Default::default() });
-        let base = d.base_air_changes_per_hour.max(0.0);
-        let s = fan_speed(st.vapour_g_m3, source, base, fan_max, map.home_vapour, fan_set(d, humidified));
+        let st = state.entry(room.id.clone()).or_insert(RoomAir { vapour_g_m3: outside, ..Default::default() });
+        let base = room.air_changes_per_hour.unwrap_or(d.base_air_changes_per_hour).max(0.0);
+        let s = fan_speed(st.vapour_g_m3, source, base, fan_max, outside, fan_set(d, humidified));
         let n = base + s * fan_max;
         let v0 = st.vapour_g_m3;
-        let mut h = humidifier_share(v0, source, n, hum_max, map.home_vapour, hum_set);
-        st.vapour_g_m3 = step_vapour(v0, source + h * hum_max, n, map.home_vapour, hours, sat);
+        let mut h = humidifier_share(v0, source, n, hum_max, outside, hum_set);
+        st.vapour_g_m3 = step_vapour(v0, source + h * hum_max, n, outside, hours, sat);
         // Flat out, it reached the setpoint within the tick and held it from
         // there: the tick ends on the setpoint, not past it, however long it
         // was, and the output is the one that holds it.
         if h >= 1.0 && v0 < hum_set && st.vapour_g_m3 > hum_set {
             st.vapour_g_m3 = hum_set;
-            h = humidifier_share(hum_set, source, n, hum_max, map.home_vapour, hum_set);
+            h = humidifier_share(hum_set, source, n, hum_max, outside, hum_set);
+        }
+        // What it vents into the room around it: its air changes times its
+        // excess over that room's air, at the vapour it ends the tick on.
+        if let Some(p) = map.parent[i] {
+            vented[p] += n * volume * (st.vapour_g_m3 - outside);
         }
         st.fan_speed = s;
         st.breathed_l_day = litres[i];
@@ -617,21 +708,23 @@ pub fn ventilate(world: &mut hecs::World, data: &DataStore, d: &HumidityData, ar
     };
     let ri = map.rooms.iter().position(|r| r.id == room.id);
     let fans = room_fans(world, &map);
-    let volume = room.volume_m3().max(1.0);
+    let volume = room.volume_m3().max(0.01);
     let memory = super::soil::soil_memory_entity(world);
     let Ok(mut mem) = world.get::<&mut SoilMemory>(memory) else { return String::new() };
-    let st = mem.rooms.entry(room.id.clone()).or_insert(RoomAir { vapour_g_m3: map.home_vapour, ..Default::default() });
+    // The air it is changed with: a tent's room's, or the home's.
+    let outside = ri.map_or(map.home_vapour, |i| map.outside(i, &mem.rooms));
+    let st = mem.rooms.entry(room.id.clone()).or_insert(RoomAir { vapour_g_m3: outside, ..Default::default() });
     let before = st.vapour_g_m3;
-    st.vapour_g_m3 = map.home_vapour + (before - map.home_vapour) * (-air_changes.max(0.0)).exp();
+    st.vapour_g_m3 = outside + (before - outside) * (-air_changes.max(0.0)).exp();
     let (rh0, rh1) = (d.rh_of(before, d.room_temp_c).min(1.0), d.rh_of(st.vapour_g_m3, d.room_temp_c).min(1.0));
     // How long until the crops breathe it back: to the disease line, or to
     // where it was if that was lower, at the air change it has now.
     let source = st.breathed_l_day * d.vapour_share.max(0.0) * 1000.0 / 24.0 / volume;
     let fan_max: f64 = fans.iter().filter(|f| Some(f.1) == ri && f.4).map(|f| f.2).sum::<f64>() / volume;
-    let n = d.base_air_changes_per_hour.max(0.0) + st.fan_speed * fan_max;
+    let n = room.air_changes_per_hour.unwrap_or(d.base_air_changes_per_hour).max(0.0) + st.fan_speed * fan_max;
     let target = before.min(d.notice_above_rh * d.room_saturation());
     let back = if n > 1e-12 {
-        let eq = map.home_vapour + source / n;
+        let eq = outside + source / n;
         (eq > target && st.vapour_g_m3 < target).then(|| ((st.vapour_g_m3 - eq) / (target - eq)).ln() / n)
     } else {
         (source > 0.0 && st.vapour_g_m3 < target).then(|| (target - st.vapour_g_m3) / source)
@@ -711,10 +804,15 @@ impl GuiView {
                     let here: Vec<_> = fans.iter().filter(|f| f.1 == i).collect();
                     let hum: Vec<_> = hums.iter().filter(|h| h.1 == i).collect();
                     let mut parts = Vec::new();
-                    if here.is_empty() && hum.is_empty() {
-                        parts.push("no exhaust fan, its own leakage only".to_string());
-                    } else if here.is_empty() {
-                        // A humidified room says nothing of a fan it need not have.
+                    if let Some(ach) = room.air_changes_per_hour {
+                        // A fruiting tent: its fresh air is set by its CO2.
+                        parts.push(format!("fresh air {:.0} m3 an hour for its CO2", ach * room.volume_m3()));
+                    }
+                    if here.is_empty() {
+                        // A humidified room or a tent says nothing of a fan it need not have.
+                        if hum.is_empty() && room.air_changes_per_hour.is_none() {
+                            parts.push("no exhaust fan, its own leakage only".to_string());
+                        }
                     } else if !here.iter().any(|f| f.4) {
                         parts.push("exhaust fan off (no power)".to_string());
                     } else if st.fan_speed <= 0.0 {

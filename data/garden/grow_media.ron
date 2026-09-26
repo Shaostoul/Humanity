@@ -90,6 +90,12 @@
             // Four shelves in a 1.8 m rack (a layout choice).
             plots: 4,
             stacked: true,
+            // Each rack fruits inside its own tent (2026-09-26): the rack's
+            // 1.2 x 1.8 x 0.6 m shelving wrapped in clear plastic, 5 cm clear
+            // of it all round, holding ten 5 lb (2.27 kg) fruiting blocks.
+            // data/garden/humidity.ron (THE FRUITING TENT) has the sources and
+            // the fresh air this much substrate needs.
+            enclosure: Some((size: (1.3, 1.9, 0.7), substrate_kg: 22.7)),
             controls: [
                 Crop(label: "Species", hint: "e.g. oyster"),
                 Slider(key: "humidity", label: "Humidity"),

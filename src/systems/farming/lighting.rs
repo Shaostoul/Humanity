@@ -118,6 +118,9 @@ pub struct GrowPlot {
     pub cups: u32,
     /// An outdoor field: grow lights never serve it.
     pub outdoors: bool,
+    /// Its enclosure (a mushroom rack's fruiting tent), from its grow
+    /// medium: farming::humidity gives it its own small air.
+    pub enclosure: Option<crate::systems::grow_machines::Enclosure>,
 }
 
 impl GrowPlot {
@@ -478,6 +481,7 @@ mod tests {
             footprint_m2: 0.09,
             cups: 12,
             outdoors: false,
+            enclosure: None,
         };
         assert!((tower.canopy_m2(&d) - 12.0 * 0.026).abs() < 1e-9);
         let field = GrowPlot { id: "grain_field_1".into(), pos: [0.5, 0.0, 0.0], footprint_m2: 5.76, outdoors: true, ..Default::default() };

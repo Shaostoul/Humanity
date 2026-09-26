@@ -687,6 +687,39 @@ date; re-check before trusting one. The container data basis is
   cap. (4) Perennial weeds, and weeds as a home for pests, are not
   modelled.
 
+- **Every mushroom rack fruits in its own tent: DONE 2026-09-26.** The
+  fix the humidifier bullet above named. The rack's grow medium (`grow_media.ron`) now carries an
+  `enclosure`: its shelving wrapped in plastic at 1.3 x 1.9 x 0.7 m (1.73 m3),
+  holding ten 5 lb blocks (22.7 kg; a Martha tent's "8-12 fruiting blocks",
+  Nature Lion 2026). It is a property of the medium, not a tent machine,
+  because it is the same data path that already divides the rack into shelves
+  and needs nothing placed around each rack. `humidity::AirMap` makes each
+  tent a room of its own inside the room the rack stands in: the tent
+  exchanges air with that room, and everything it vents becomes that room's
+  vapour, which the room leaks to the home. THE TENT IS NOT SEALED: its fresh
+  air is set by its substrate's CO2. That is 1.09 g of CO2 per kg of
+  substrate an hour, the fruiting-stage rate in Pavlik et al. 2020. The limit
+  is 1,000 ppm, since above 0.1% CO2 "produces a toxic effect" (Lin et al.
+  2022). Together they give 22.6 m3 an hour, 13 air changes. The grower
+  rule of thumb of 4 to 6 air changes of a Martha tent would leave its CO2
+  near 5,000 ppm at that rate, while the growers'
+  humidifier sizing (3 to 6 L a day) matches the CO2 figure. Each rack
+  gets a `tent_humidifier` on its bottom shelf (AC Infinity CLOUDFORGE T3,
+  240 ml/h, 24 W), the whole-room T7 is no longer placed, and the
+  commons rack (which had none) gets one too. THE BALANCE, every tent at
+  90.0%: family seven tents 13.3 L and 1.3 kWh a day (was 27.5 L and 2.1 kWh
+  for six racks), the mushroom room around them at about 62%; solo two tents
+  5.6 L and 0.56 kWh a day (was 31 L and 2.4 kWh). The solo Energy loop
+  CLOSES again (about 4.6 against 5.76 kWh); the family loop still does not
+  (about 14.0 against 12.2, the exhaust fan's 0.7 kWh alone tipped it; two
+  more panels would close it). Cisterns now reach 32 and 93 days. Left: the
+  tents' CO2 is not tracked, so each tent draws the home's 400 ppm air. Six
+  racks put about 148 g of CO2 an hour into the mushroom room, like four
+  resting people, which its leakage dilutes by about 540 ppm. A real room this
+  full needs its air moved for CO2, which the model does not yet do. The tent
+  is not drawn in the world yet, and the T3's own 4.5 L reservoir is not
+  modelled.
+
 ## Defects found (things that are wrong, not merely missing)
 
 1. **Items vanish when the backpack is full.** "Take to backpack" removes the

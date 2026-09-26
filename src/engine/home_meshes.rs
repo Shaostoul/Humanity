@@ -725,6 +725,7 @@ pub(crate) fn publish_grow_plots(state: &mut EngineState) {
             footprint_m2: footprint,
             cups: tower_cfg.map_or(0, |t| t.slots),
             outdoors: crate::systems::farming::is_field_area(&g.ty) || crate::systems::farming::is_field_area(&g.id),
+            enclosure: medium.enclosure.clone(),
         });
         if tower_cfg.is_none() {
             let n = medium.plots.max(1);

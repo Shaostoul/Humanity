@@ -342,35 +342,38 @@ mod tests {
         }
     }
 
-    /// The mushroom room (2026-09-26): the humidifier in either shipped
-    /// catalog spawns as a Humidifier carrying its 1.3 L/h and full-output
-    /// 100 W, with an enabled PowerConsumer, at its Transform: what
-    /// FarmingSystem reads to run it (farming::humidity). Seen red by not
-    /// inserting the Humidifier (it then spawned as a plain 100 W load).
+    /// The mushroom racks (2026-09-26): both humidifiers in either shipped
+    /// catalog (the room T7 and the tent T3) spawn as a Humidifier carrying
+    /// their output and full-output watts, with an enabled PowerConsumer, at
+    /// their Transform: what FarmingSystem reads to run them
+    /// (farming::humidity). Seen red by not inserting the Humidifier (each
+    /// then spawned as a plain load).
     #[test]
     fn shipped_humidifier_spawns_a_humidifier() {
         use crate::ecs::components::{Humidifier, MachineInstanceId, PowerConsumer, Transform};
         for file in ["home.ron", "home_solo.ron"] {
             let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("machines").join(file);
             let home = crate::machines::MachineHome::load(&path).unwrap_or_else(|| panic!("{file} parses"));
-            let mut world = hecs::World::new();
-            let empty = std::collections::HashMap::new();
-            let inst = crate::machines::MachineInstance {
-                id: "hum_test".to_string(),
-                machine: "humidifier".to_string(),
-                room: "room-mushroom".to_string(),
-                offset: (8.5, 0.0, 59.5),
-                rotation: 0.0,
-                zone: "home".to_string(),
-                screen_source: None,
-            };
-            spawn_home_machine_entity(&mut world, &inst, &home.catalog["humidifier"], &empty, &empty, None, None);
-            let found: Vec<(String, f32, f32, bool, [f32; 3])> = world
-                .query::<(&Humidifier, &PowerConsumer, &MachineInstanceId, &Transform)>()
-                .iter()
-                .map(|(_, (h, p, id, t))| (id.0.clone(), h.output_l_h, h.watts, p.enabled, t.position.to_array()))
-                .collect();
-            assert_eq!(found, vec![("hum_test".to_string(), 1.3, 100.0, true, [8.5, 0.0, 59.5])], "{file}");
+            for (machine, l_h, watts) in [("humidifier", 1.3, 100.0), ("tent_humidifier", 0.24, 24.0)] {
+                let mut world = hecs::World::new();
+                let empty = std::collections::HashMap::new();
+                let inst = crate::machines::MachineInstance {
+                    id: "hum_test".to_string(),
+                    machine: machine.to_string(),
+                    room: "room-mushroom".to_string(),
+                    offset: (2.0, 0.0, 53.0),
+                    rotation: 0.0,
+                    zone: "home".to_string(),
+                    screen_source: None,
+                };
+                spawn_home_machine_entity(&mut world, &inst, &home.catalog[machine], &empty, &empty, None, None);
+                let found: Vec<(String, f32, f32, bool, [f32; 3])> = world
+                    .query::<(&Humidifier, &PowerConsumer, &MachineInstanceId, &Transform)>()
+                    .iter()
+                    .map(|(_, (h, p, id, t))| (id.0.clone(), h.output_l_h, h.watts, p.enabled, t.position.to_array()))
+                    .collect();
+                assert_eq!(found, vec![("hum_test".to_string(), l_h, watts, true, [2.0, 0.0, 53.0])], "{file} {machine}");
+            }
         }
     }
 

@@ -101,8 +101,26 @@ pub struct GrowMedium {
     /// the whole footprint.
     #[serde(default)]
     pub stacked: bool,
+    /// Every machine of this medium grows inside its own enclosure (a
+    /// mushroom rack's fruiting tent, 2026-09-26): its own small air, which
+    /// farming::humidity keeps as a room of its own inside the room the
+    /// machine stands in. None = the machine grows in the room's air.
+    #[serde(default)]
+    pub enclosure: Option<Enclosure>,
     #[serde(default)]
     pub controls: Vec<GrowControl>,
+}
+
+/// A grow machine's enclosure (`GrowMedium::enclosure`): a fruiting tent
+/// wrapped around a mushroom rack. Its box, centred on the machine, and the
+/// substrate inside it, whose breath sets how much fresh air it must be given
+/// (data/garden/humidity.ron, THE FRUITING TENT).
+#[derive(Debug, Clone, Default, PartialEq, Deserialize)]
+pub struct Enclosure {
+    /// Width (x), height (y) and depth (z), metres.
+    pub size: (f32, f32, f32),
+    /// Kilograms of fruiting substrate inside it.
+    pub substrate_kg: f32,
 }
 
 impl GrowMedium {
