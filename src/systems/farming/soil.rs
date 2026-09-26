@@ -230,6 +230,11 @@ impl NutrientData {
         let a = &self.demand_anchor;
         Some(Npk::new(a.n_g_per_kg / n, a.p2o5_g_per_kg / p, a.k2o_g_per_kg / k))
     }
+
+    /// `demand_scale` with the anchor looked up in `plants`.
+    pub fn scale_for(&self, plants: &super::PlantRegistry) -> Option<Npk> {
+        self.demand_scale(plants.get(&self.demand_anchor.plant))
+    }
 }
 
 // -- The model ------------------------------------------------------------------

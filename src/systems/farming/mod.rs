@@ -621,6 +621,28 @@ fn harvest_quantity(ymin: f32, ymax: f32, season_health: f32, roll: f32, round: 
     rolled.floor() as u32 + u32::from(round < rolled.fract())
 }
 
+/// A crop's nutrient need over one growing season, grams of N, P2O5 and K2O
+/// (2026-09-26, soil.rs): its expected harvest (mid yield x the items.csv mass
+/// of what it harvests into) read against the anchor's published removal.
+/// `scale` is `NutrientData::scale_for`; None, or an unknown plant, needs
+/// nothing. Public so the Garden panel can show a unit's store against the
+/// crop's need through the same arithmetic the tick uses.
+pub fn crop_season_need(
+    plant_id: &str,
+    plants: Option<&PlantRegistry>,
+    items: Option<&crate::systems::inventory::ItemRegistry>,
+    scale: Option<Npk>,
+) -> Npk {
+    match (scale, plants.and_then(|r| r.get(plant_id))) {
+        (Some(scale), Some(def)) => {
+            let item_kg = harvest_item_for(plant_id, plants, items)
+                .map_or(0.0, |i| items.map_or(0.0, |r| f64::from(r.mass_for(&i))));
+            soil::season_need(def, soil::expected_harvest_kg(def, item_kg), scale)
+        }
+        _ => Npk::ZERO,
+    }
+}
+
 /// Clear the dead crops found in a unit before it is replanted, keeping
 /// what their soil still holds for the crop about to go in (2026-09-26).
 fn clear_dead_keeping_soil(world: &mut hecs::World, dead: Vec<hecs::Entity>, area: &str, slot: u32) {
@@ -907,7 +929,7 @@ impl System for FarmingSystem {
                 .get::<soil::NutrientData>("garden_nutrients")
                 .or(self.nutrients.as_ref())
                 .expect("nutrient data loaded above");
-            let scale = nd.demand_scale(plant_registry.and_then(|r| r.get(&nd.demand_anchor.plant)));
+            let scale = plant_registry.and_then(|r| nd.scale_for(r));
             let grams = nd
                 .fertilizers
                 .iter()
@@ -925,14 +947,7 @@ impl System for FarmingSystem {
             if let Some(n) = need_cache.get(plant_id) {
                 return *n;
             }
-            let need = match (demand_scale, plant_registry.and_then(|r| r.get(plant_id))) {
-                (Some(scale), Some(def)) => {
-                    let item_kg = harvest_item_for(plant_id, plant_registry, item_registry)
-                        .map_or(0.0, |i| item_registry.map_or(0.0, |r| f64::from(r.mass_for(&i))));
-                    soil::season_need(def, soil::expected_harvest_kg(def, item_kg), scale)
-                }
-                _ => Npk::ZERO,
-            };
+            let need = crop_season_need(plant_id, plant_registry, item_registry, demand_scale);
             need_cache.insert(plant_id.to_string(), need);
             need
         };
