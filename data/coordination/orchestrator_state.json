@@ -889,6 +889,11 @@
    "date": "2026-09-26",
    "decision": "v0.1368.0 (in progress): per-crop light need. plants.csv dli_min/dli_target/dli_saturation from the findings table (27 crops); lighting::area_needs (neediest crop per area) scales a plot canopy by target/17 in light_cover; lamps_on_at + lighting.ron lamp_photoperiod_h 18 (on at sunset, off at midnight: Runkle \"four to six hours of darkness\"); light_at/light_now return LightNow {sun_up, lamps_on, cover}; crop card Light need row. Launched three worktree agents: plot plants drawn at spacing (home_meshes), computed kcal on grow machine cards (self_sufficiency display + home.ron food stats), picking windows + seed return (farming harvest, yields.ron).",
    "why": "The findings agent warned not to fill blanks silently with 17, so unsourced crops say so on the card. The timer halves a lamp night to half a day of growth: honest, since 24 h light harms tomato. Two farming tests moved from 900 to 500 s of growth with a one-tick tolerance at the midnight switch."
+  },
+  {
+   "date": "2026-09-26",
+   "decision": "v0.1368.0 released (per-crop DLI + 18 h lamp timer + rubber chain). In flight (worktree agents, cherry-pick each): (1) plot plants drawn at spacing with a visual cap (home_meshes.rs); (2) grow machine cards show computed kcal (self_sufficiency display, home.ron food stats removed); (3) picking windows + seed return follows harvest (farming harvest, yields.ron or harvest_windows.ron, self_sufficiency season count); (4) greenhouse humidity from transpiration + ventilation, diseases as pests.ron rows with a Humidity condition, plants.csv humidity windows as a health cap.",
+   "why": "Disjoint files per agent; the likely overlaps are self_sufficiency.rs (2 and 3), farming/mod.rs hooks (3 and 4), home.ron (2 food stats vs 4 a new fan entry), lib.rs crop bridge (3 and 4). Merge order: whichever lands first, then resolve."
   }
  ],
  "active_scopes_to_avoid": [
