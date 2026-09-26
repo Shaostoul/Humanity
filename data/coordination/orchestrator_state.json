@@ -924,6 +924,11 @@
    "date": "2026-09-26",
    "decision": "Merged the mushroom-room humidifier (82819864: AC Infinity CLOUDFORGE T7, 1.3 L/h, 100 W, setpoint 90% from UF/IFAS SS662; water through the irrigation draw; fungi cap fitted to Kim et al. 2013). Family room 48% -> 90%, solo 41% -> 88%. Energy loops: family 14.8 vs 12.2 kWh/day, solo 6.4 vs 5.76 (closes false). Asked the same agent to continue with fruiting tents (Martha tents: small room boxes around each rack) to cut the humidifier load.",
    "why": "Humidifying a 300 m3 room costs about 2 kWh and 30 L a day; real small growers fruit in a tent of a few m3. The agent proposed it; continuing it keeps its context. Also: give each agent its own scratchpad subfolder (two agents shared scratchpad/breaks.js today; no files crossed)."
+  },
+  {
+   "date": "2026-09-26",
+   "decision": "v0.1371.0: humidifier (82819864) + weeds (7fcb0f38: weeds.rs/.ron, soil areas only via soil_ph soil_for, WSSA yield-loss table, critical periods from UMass/NC State/UC IPM/FAO, hoe wear, sawdust and bark mulch with N tie-up from OSU; pest severity setting covers weeds). Fixed the relay test build (the weeds save test was not native-gated).",
+   "why": "Agents run the relay cargo check but not the relay TEST build; just verify caught it. Future agent prompts should say to run just verify (or cargo test --features relay --no-default-features --lib --no-run). Left from weeds: yield loss under-realised (~half WSSA because harvest follows average season health), no straw item, no nutrient share taken by weeds (sources blocked), no perennial weeds."
   }
  ],
  "active_scopes_to_avoid": [

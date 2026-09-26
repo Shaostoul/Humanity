@@ -1132,7 +1132,10 @@ kcal a day, an upper bound) and says so. Greenhouse humidity and fungal
 disease are DONE (v0.1370.0), and the 3-person home's energy loop now says
 it does not close on sun and wind once the greenhouse fan runs (about 12.7
 of 12.2 kWh a day; a ninth panel would). A bearing plant now lives through
-its picking window. Next: the rubber tree yields latex (it harvests a fiber
+its picking window. The mushroom room has a humidifier holding 90% (v0.1371.0;
+fruiting tents to cut its 2 kWh a day are in flight), and weeds compete in
+soil beds and fields, hoed with the hoe and mulched with the sawmill's bark
+and sawdust (v0.1371.0). Next: the rubber tree yields latex (it harvests a fiber
 bundle) and vulcanizing uses sulfur (both DONE v0.1368.0); greenhouse
 humidity and fungal disease (in flight). OPERATOR DECISION NEEDED before the
 sun side of light (seasons and day length): is the homestead a GROUND site at
