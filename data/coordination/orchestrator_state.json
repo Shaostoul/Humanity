@@ -899,6 +899,11 @@
    "date": "2026-09-26",
    "decision": "Merged computed kcal on grow machine cards (2c8e48e9: src/systems/grow_machines.rs, MachineHome::stats_for/grown_kcal_per_day, typed food figures removed from both home RONs; home.ron computed 9,507 kcal/day vs demand 6,600, solo 2,728 vs 2,200; showcase crops per machine type). Read-only survey: the home is an equatorial GEO station; the gameplay sun (6-18 arc on the game hour) and the drawn sun (real ephemeris, wall clock, permanent equinox) disagree aboard by up to 12 h (BUG-090, OPEN). Seasonal daylight for crops waits on an operator decision: ground site at Silverdale 47.6 N (the data assumes it) or the GEO station (no seasons).",
    "why": "Did not pick a side: whether the home is on the ground or in orbit is a world-direction decision for the operator, and it decides whether seasons exist. Findings to follow up: crop_nutrition.ron oregano/sage/turmeric kcal look like dried-spice values applied to fresh harvest (apothecary tower 232 kcal/day inflated); the computed food model is an upper bound (no light limit yet)."
+  },
+  {
+   "date": "2026-09-26",
+   "decision": "v0.1369.0: merged picking windows (a97dc32d: picking.rs, harvest_windows.ron with UMN/USU/MSU sources, CropPicking saved, Forgiving/Realistic setting, seed return follows the harvest, self_sufficiency divisor = growth_days + window) on top of the computed kcal cards; both cherry-picked cleanly; 219 targeted tests pass.",
+   "why": "Picking closes the season-compression overstatement (a replanted tomato yielded 2-3x a real year). Left: a bearing plant takes no water or nutrients during its window (the tick skips ripe plants; it is in the growth loop), and tomato/pepper/cucumber windows are field-timed against high-tunnel season totals."
   }
  ],
  "active_scopes_to_avoid": [

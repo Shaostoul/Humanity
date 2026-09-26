@@ -1124,8 +1124,9 @@ bumblebee hive, Off/On); grow lights that light only nearby plots
 Pests do not advance offline (offline-progression.md). Each crop's own
 light need and an 18 h grow-light timer are DONE (v0.1368.0). In flight
 (agents): drawing each plot's plants at the crop's spacing, computed kcal on
-the grow machines' cards, and picking windows with seed return that follows
-the harvest. Next: the rubber tree yields latex (it harvests a fiber
+the grow machines' cards and picking windows with seed return that follows
+the harvest are DONE (v0.1369.0); in flight: drawing each plot's plants, and
+greenhouse humidity with fungal disease. Next: the rubber tree yields latex (it harvests a fiber
 bundle) and vulcanizing uses sulfur (both DONE v0.1368.0); greenhouse
 humidity and fungal disease (in flight). OPERATOR DECISION NEEDED before the
 sun side of light (seasons and day length): is the homestead a GROUND site at

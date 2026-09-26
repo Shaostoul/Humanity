@@ -1585,7 +1585,13 @@ lights near them, each covering about 0.58 m2 of canopy per 100 W, nearest machi
 first: `farming/lighting.rs`, `data/garden/lighting.ron`, v0.1364.0) and pause in the
 dark; plants.csv `needs_light` is false for fungi. Each crop's own light need
 (plants.csv `dli_target` for 27 crops, v0.1368.0) sets its share of a grow light, the
-lights run on an 18 h timer (off at midnight, Runkle), and the crop card shows the need. Beds, trays, fields and racks are
+lights run on an 18 h timer (off at midnight, Runkle), and the crop card shows the need.
+Picking windows (v0.1369.0): tomatoes, peppers, cucumbers, zucchini, strawberries, kale
+and cut herbs are picked over a cited window at a cited interval, their season split
+into picks that sum to the cited season yield (`farming/picking.rs`,
+`data/garden/harvest_windows.ron`); seed return follows what was harvested; Settings:
+Picking Forgiving/Realistic. Grow machine cards show kcal a day computed from their
+crops (`systems/grow_machines.rs`), the same figure the Home page's food loop sums. Beds, trays, fields and racks are
 divided into plots (grow_media.ron `plots`), one crop per plot, each crop tagged with
 the machine it stands in. A plot holds as many plants as fit at the crop's cited
 spacing (plants.csv `area_per_plant_m2`; a tower cup is one plant) and yields a
