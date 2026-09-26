@@ -517,7 +517,8 @@ faucet_0,Faucet,furniture,plumbing,brass,0.6,5,150,Threaded water tap with handl
 toilet_0,Toilet,furniture,plumbing,ceramic,40.0,1,400,Porcelain waste fixture with tank,solid,138.9
 sink_0,Sink,furniture,plumbing,ceramic,18.0,1,300,Wall or counter-mounted basin,solid,62.5
 shower_head_0,Shower Head,furniture,plumbing,brass,0.4,5,200,Wall-mounted spray nozzle,solid,0.39
-soap_bar_0,Soap Bar,tool,hygiene,plant_fiber,0.1,20,30,Pressed cleaning lather bar,solid,0.24
+soap_bar_0,Soap Bar,tool,hygiene,tallow,0.1,20,30,Pressed cleaning lather bar,solid,0.24
+lye_0,Lye (sodium hydroxide),material,chemical,salt,0.1,10,0,Caustic soda for soap making 100 g: keep it away from food,corrosive,0.08
 shampoo_bottle_0,Shampoo,tool,hygiene,hdpe,0.4,10,30,Liquid hair cleaning bottle,liquid,1.19
 toothbrush_0,Toothbrush,tool,hygiene,abs_plastic,0.02,10,40,Bristled dental cleaning stick,solid,0.05
 towel_0,Towel,tool,hygiene,cotton,0.4,5,80,Absorbent body-drying cloth,solid,0.74

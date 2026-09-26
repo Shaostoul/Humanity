@@ -375,6 +375,7 @@
     (id: "paint_can_0",       name: "Paint Can",          category: "misc",            base_value: 10,   weight_kg: 3.0,   description: "Colored paint for customizing structures and vehicles"),
     (id: "water_bottle_0",    name: "Water Bottle",       category: "misc",            base_value: 3,    weight_kg: 0.6,   description: "Refillable container holding 0.5L"),
     (id: "water_bottle_empty_0", name: "Water Bottle (empty)", category: "misc",       base_value: 2,    weight_kg: 0.03,  description: "Empty 500 ml bottle; fill it at a water tank"),
+    (id: "lye_0",             name: "Lye",                category: "misc",            base_value: 4,    weight_kg: 0.1,   description: "Caustic soda for soap making; keep it away from food"),
     (id: "water_jerrycan_empty_0", name: "Water Jerrycan (empty)", category: "misc",   base_value: 12,   weight_kg: 1.2,   description: "20 L food-grade jerrycan, kept for water only"),
     (id: "flask_0",           name: "Glass Flask",        category: "misc",            base_value: 4,    weight_kg: 0.2,   description: "Laboratory flask for alchemy and chemistry"),
     (id: "glass_vial_0",      name: "Glass Vial",         category: "misc",            base_value: 2,    weight_kg: 0.05,  description: "Small vial for potions and samples"),

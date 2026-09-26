@@ -100,6 +100,13 @@ any cleaning, liners, or fluids measured in litres.
   sells bottles and jerrycans. Not yet: fuel and milk as litres (their tanks
   still hold items), partial fills, a watering can for hand watering (it
   still draws straight from the tanks, like a hose).
+- **Cleaning agent (2026-09-26):** a content class can name the agent its
+  residue needs (`cleaning_agent`); food and dairy name soap, so washing a
+  food vessel takes a Soap Bar from the backpack (one of its 30 washes) as
+  well as water, and is refused, with the reason, without one. Soap itself
+  is now made from fat and lye at a real saponification ratio (lye is sold
+  by the vendor; it is a corrosive, so a vessel that held it never holds
+  food again). Not yet: the absorbent-memory rule (`memory_fills`).
 - **3c is blocked** on the unified placement schema (a container that can be
   picked up and set down needs machine placement and item placement to be
   one system; PRIORITIES.md Tier B).

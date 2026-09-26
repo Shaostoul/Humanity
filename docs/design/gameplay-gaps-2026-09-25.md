@@ -176,8 +176,9 @@ date; re-check before trusting one. The container data basis is
   roasts six cherries into a bag of beans instead of making energy drinks;
   tanning (fixed with the byproducts). NPC shops sold 16 items that do not
   exist; they now sell the real ones (`recipe_sources_lint` checks it), and
-  `flask_0` became a real item. STILL OPEN: soap has no lye (it needs a lye
-  item and a source for it, e.g. wood ash); eating one of anything counts as
+  `flask_0` became a real item. Soap is now made with lye (v0.1356.0, sold by
+  the vendor; a real saponification ratio) and washing a food vessel takes a
+  soap bar. STILL OPEN: eating one of anything counts as
   100 g, which is tied to satiation being an abstract 7-day reserve and
   belongs with the full-realism and simplified vitals modes rather than a
   quick fix; data/tech_tree.ron (not read by the game) names about 50 items

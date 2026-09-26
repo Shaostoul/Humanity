@@ -12780,11 +12780,16 @@
         {
           "id": "animal_fat_0",
           "label": "Animal Fat",
-          "qty": 1
+          "qty": 3
         },
         {
-          "id": "salt_block_0",
-          "label": "Salt Block",
+          "id": "lye_0",
+          "label": "Lye",
+          "qty": 2
+        },
+        {
+          "id": "water_purified_0",
+          "label": "Water Purified",
           "qty": 1
         }
       ],
@@ -12792,14 +12797,14 @@
         {
           "id": "soap_bar_0",
           "label": "Soap Bar",
-          "qty": 5
+          "qty": 15
         }
       ],
       "craft_time_sec": 30,
       "station": "Chemistry Set",
       "skill": "Alchemy",
       "skill_level": 2,
-      "description": "Saponify fat into cleaning bars",
+      "description": "Saponify fat with lye into cleaning bars",
       "tools": []
     },
     {

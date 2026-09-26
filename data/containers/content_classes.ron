@@ -148,6 +148,8 @@
         max_temp_c: 80.0,
         accepted_by: ["food", "liquid", "water"],
         description: "Food or consumable liquid, requires a food-safe container",
+        // Food and dairy residue needs a hot wash with soap, not only a rinse.
+        cleaning_agent: Some("soap_bar_0"),
     ),
     // Flammable liquid, fuel, oil, solvents. Needs a sealed non-reactive vessel.
     (

@@ -197,6 +197,72 @@ pub struct ContentClass {
     /// cleaners, may not be used for food). See docs/design/containers.md.
     #[serde(default)]
     pub leaves_toxic_history: bool,
+    /// The item washing this class's residue out takes besides water
+    /// (2026-09-26): soap for food and dairy, whose cleaning is a hot wash
+    /// with detergent (the Pasteurized Milk Ordinance's rinse, alkaline wash,
+    /// acid rinse and sanitize, docs/design/containers.md). One use of it is
+    /// worn per clean. None = water alone does.
+    #[serde(default)]
+    pub cleaning_agent: Option<String>,
+}
+
+/// Clean the emptied container on entity `e` (the machine card's Clean,
+/// 2026-09-26): water from the home tanks (the caller checks there is some)
+/// and, when the residue's content class names a cleaning agent, one use of
+/// that agent from the backpack. Ok = (litres of water, the agent used, if
+/// any); Err = why it was not cleaned, for the player.
+pub fn clean_container(
+    world: &mut hecs::World,
+    data: &crate::hot_reload::data_store::DataStore,
+    e: hecs::Entity,
+) -> Result<(f32, Option<String>), String> {
+    use crate::systems::inventory::{Inventory, ItemRegistry};
+    let items = data.get::<ItemRegistry>("item_registry");
+    let name_of = |id: &str| items.and_then(|r| r.items.get(id).map(|d| d.name.clone())).unwrap_or_else(|| id.to_string());
+    let last = {
+        let c = world.get::<&Container>(e).map_err(|_| "That is not a container.".to_string())?;
+        if !c.needs_cleaning() {
+            return Err("There is nothing to clean out.".to_string());
+        }
+        c.last_content.clone().unwrap_or_default()
+    };
+    let agent = data.get::<ContainerRegistry>("container_registry").and_then(|reg| {
+        let class = items.map(|r| r.class_for(&last).to_string()).unwrap_or_default();
+        reg.content_classes.get(&class).and_then(|c| c.cleaning_agent.clone())
+    });
+    let player = world
+        .query::<(&Inventory, &crate::ecs::components::Controllable)>()
+        .iter()
+        .next()
+        .map(|(p, _)| p);
+    if let Some(a) = &agent {
+        let has = player.and_then(|p| world.get::<&Inventory>(p).ok().map(|i| i.count_item(a) > 0)).unwrap_or(false);
+        if !has {
+            return Err(format!(
+                "Washing out {} residue takes a {} as well as water: the hot wash needs soap.",
+                name_of(&last),
+                name_of(a)
+            ));
+        }
+    }
+    let litres = world
+        .get::<&mut Container>(e)
+        .ok()
+        .and_then(|mut c| c.clean())
+        .ok_or_else(|| "There is nothing to clean out.".to_string())?;
+    if let Some(m) = data.get::<std::sync::Mutex<f32>>("hand_water_draw_l") {
+        if let Ok(mut v) = m.lock() {
+            *v += litres;
+        }
+    }
+    if let (Some(a), Some(p)) = (&agent, player) {
+        let base = items.map(|r| r.durability_for(a)).unwrap_or(0);
+        let levels = data.get::<crate::systems::crafting::quality::QualityLevels>("quality_levels");
+        if let Ok(mut inv) = world.get::<&mut Inventory>(p) {
+            inv.wear_item(a, |q| levels.map_or(base, |l| l.durability(base, q)));
+        }
+    }
+    Ok((litres, agent.map(|a| name_of(&a))))
 }
 
 // ===========================================================================
@@ -1023,6 +1089,45 @@ mod tests {
         assert!(!tank.needs_cleaning());
         assert_eq!(reg.try_store(&mut tank, "juice_0", "food", 1.0, 1), StoreOutcome::Stored { quantity: 1 });
         assert!(tank.toxic_from.is_none(), "food never leaves a toxic history");
+    }
+
+    /// Washing out a food residue takes soap as well as water (2026-09-26):
+    /// refused without a bar, one use of the bar worn when cleaned; a vessel
+    /// that held only water is rinsed with water alone.
+    #[test]
+    fn a_food_residue_needs_soap_and_water_does_not() {
+        use crate::hot_reload::data_store::DataStore;
+        use crate::systems::inventory::{Inventory, ItemRegistry};
+        let reg = load_registry();
+        let mut data = DataStore::new();
+        let root = env!("CARGO_MANIFEST_DIR");
+        data.insert("item_registry", ItemRegistry::from_csv(&std::fs::read(format!("{root}/data/items.csv")).unwrap()).unwrap());
+        data.insert("container_registry", reg.clone());
+        let mut world = hecs::World::new();
+        let player = world.spawn((Inventory::new(8), crate::ecs::components::Controllable));
+        let mut tank = Container::from_type(reg.container_type("dairy_food_tank").unwrap());
+        reg.try_store(&mut tank, "milk_0", "food", 1.0, 2);
+        tank.current_qty = 0;
+        tank.current_content_item = None;
+        let e = world.spawn((tank,));
+        let err = clean_container(&mut world, &data, e).unwrap_err();
+        assert!(err.contains("Soap"), "{err}");
+        assert!(world.get::<&Container>(e).unwrap().needs_cleaning(), "not cleaned without soap");
+        world.get::<&mut Inventory>(player).unwrap().add_item("soap_bar_0", 1, 20);
+        let (litres, agent) = clean_container(&mut world, &data, e).unwrap();
+        assert!(litres > 0.0);
+        assert_eq!(agent.as_deref(), Some("Soap Bar"));
+        assert!(!world.get::<&Container>(e).unwrap().needs_cleaning());
+        let wear = world.get::<&Inventory>(player).unwrap().slots.iter().flatten().find(|s| s.item_id == "soap_bar_0").map(|s| s.wear);
+        assert_eq!(wear, Some(1), "one wash worn off the bar");
+
+        let mut jug = Container::from_type(reg.container_type("ibc_tote").unwrap());
+        reg.try_store(&mut jug, "water_purified_0", "water", 1.0, 1);
+        jug.current_qty = 0;
+        jug.current_content_item = None;
+        let j = world.spawn((jug,));
+        let (_, agent) = clean_container(&mut world, &data, j).unwrap();
+        assert_eq!(agent, None, "water residue rinses out with water alone");
     }
 
     fn unfit(o: StoreOutcome) -> String {

@@ -481,7 +481,11 @@ bake_cookies,Bake Cookies,cooking,flour_0:1|sugar_0:1|butter_0:1|egg_0:1,cookies
 cook_salad,Make Salad,cooking,vegetable_lettuce_0:1|vegetable_tomato_0:1|vegetable_carrot_0:1,salad_0:1,5,workbench_0,cooking,1,Combine raw vegetables in a bowl
 #
 # === HYGIENE / PLUMBING ===
-craft_soap_bar,Make Soap Bar,chemistry,animal_fat_0:1|salt_block_0:1,soap_bar_0:5,30,chemistry_set_0,alchemy,2,Saponify fat into cleaning bars
+# Soap (2026-09-26): soap is fat saponified with lye; salt alone makes none. Common soapmaking tables put
+# tallow's saponification value near 0.143 g of sodium hydroxide per g of fat, so 1.5 kg of fat takes about
+# 215 g of lye; 200 g leaves a few percent of the fat unsaponified, the usual small excess that keeps a bar
+# mild. The water evaporates as the bars cure: about 1.5 kg of bars.
+craft_soap_bar,Make Soap Bar,chemistry,animal_fat_0:3|lye_0:2|water_purified_0:1,soap_bar_0:15,30,chemistry_set_0,alchemy,2,Saponify fat with lye into cleaning bars
 craft_pipe_metal,Forge Metal Pipe,crafting,steel_ingot_0:2,pipe_metal_0:4,25,forge_0,metalworking,2,Form threaded steel pipe segments
 craft_faucet,Forge Faucet,crafting,copper_ingot_0:1|rubber_sheet_0:1,faucet_0:1,40,workbench_0,metalworking,3,Assemble a threaded water tap
 craft_toilet,Cast Toilet,crafting,clay_raw_0:8|water_purified_0:1,toilet_0:1,90,kiln_0,woodworking,3,Fire a porcelain waste fixture

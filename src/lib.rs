@@ -13975,23 +13975,15 @@ mod native_app {
                                             "The water tanks are empty: nothing to clean with.".to_string(),
                                             crate::gui::ToastKind::Info,
                                         ));
-                                    } else if let Ok(mut c) = state
-                                        .game_world
-                                        .world
-                                        .get::<&mut crate::systems::inventory::containers::Container>(e)
-                                    {
-                                        if let Some(litres) = c.clean() {
-                                            if let Some(m) = state.data_store.get::<std::sync::Mutex<f32>>("hand_water_draw_l") {
-                                                if let Ok(mut v) = m.lock() {
-                                                    *v += litres;
-                                                }
-                                            }
-                                            cont_snapshot = Some(c.clone());
-                                            state.gui_state.pending_toasts.push((
-                                                format!("Cleaned with {litres:.0} L of water."),
-                                                crate::gui::ToastKind::Success,
-                                            ));
-                                        }
+                                    } else {
+                                        // Water, and soap for a food residue (2026-09-26).
+                                        let toast = match crate::systems::inventory::containers::clean_container(&mut state.game_world.world, &state.data_store, e) {
+                                            Ok((l, None)) => (format!("Cleaned with {l:.0} L of water."), crate::gui::ToastKind::Success),
+                                            Ok((l, Some(a))) => (format!("Washed with {l:.0} L of water and your {a}."), crate::gui::ToastKind::Success),
+                                            Err(m) => (m, crate::gui::ToastKind::Info),
+                                        };
+                                        state.gui_state.pending_toasts.push(toast);
+                                        cont_snapshot = state.game_world.world.get::<&crate::systems::inventory::containers::Container>(e).ok().map(|c| (*c).clone());
                                     }
                                 }
                             }
