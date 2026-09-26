@@ -15,7 +15,8 @@ use super::lighting::GrowPlot;
 use super::pests::{self, PestData};
 use super::*;
 use crate::ecs::components::{
-    Controllable, CropInstance, Irrigator, PestPressure, PowerConsumer, RoomAir, SoilMemory, Transform, Ventilator,
+    Controllable, CropInstance, Humidifier, Irrigator, PestPressure, PowerConsumer, RoomAir, SoilMemory, Transform,
+    Ventilator,
 };
 use crate::ecs::systems::System;
 use crate::hot_reload::data_store::DataStore;
@@ -496,4 +497,232 @@ fn the_garden_panel_shows_each_areas_air_and_each_crops_window() {
     let line = view.areas.iter().find(|(area, _, _)| area == "bed_a").unwrap();
     assert!(line.1.contains("Air 90% humidity in the Greenhouse") && line.1.contains("no exhaust fan"), "{}", line.1);
     assert_eq!(line.2, 2, "at the diseases' line");
+}
+
+// -- The humidifier and the fungi (2026-09-26, the mushroom room) ----------------
+
+/// A powered humidifier of `l_h` litres an hour and `watts` at full output,
+/// standing in the Greenhouse (room-a).
+fn humidifier(world: &mut hecs::World, l_h: f32, watts: f32) -> hecs::Entity {
+    world.spawn((
+        Humidifier { output_l_h: l_h, watts },
+        Transform { position: glam::Vec3::new(8.5, 0.0, 9.0), ..Default::default() },
+        PowerConsumer { draw_watts: watts, priority: 4, enabled: true },
+    ))
+}
+
+fn draw(world: &hecs::World, e: hecs::Entity) -> f64 {
+    f64::from(world.get::<&PowerConsumer>(e).unwrap().draw_watts)
+}
+
+/// The humidifier holds a dry room at its setpoint. The Greenhouse (300 m3,
+/// at a quarter air change an hour here so one T7 has headroom) with four
+/// oyster mushrooms starts at the home air's 37%; its humidifier runs flat out
+/// until the room reaches the shipped 90% and then holds it there at part
+/// output, a day later still, while the Plant room next door with none stays
+/// dry. The Garden panel's line says what it is doing, and no damp-disease
+/// notice is given for a room humidified on purpose. Seen red by making
+/// `humidifier_share` always 0 (it then read 0 while the room was dry, and
+/// the room stayed at the home air's humidity).
+#[test]
+fn a_humidifier_raises_a_dry_room_to_its_setpoint_and_holds_it() {
+    let data = store(0.25, 1.0, 0.0);
+    let mut sys = FarmingSystem::new();
+    let mut world = hecs::World::new();
+    world.spawn((Irrigator,));
+    for slot in 0..4 {
+        world.spawn((crop(&data, "oyster_mushroom", "bed_a", slot),));
+        world.spawn((crop(&data, "oyster_mushroom", "bed_b", slot),));
+    }
+    humidifier(&mut world, 1.3, 100.0);
+    let d = shipped_air();
+    run(&mut sys, &mut world, &data, 5, 1.0);
+    assert!(rh(&world, "room-a") < 0.5, "it starts dry: {}", rh(&world, "room-a"));
+    assert_eq!(room(&world, "room-a").humidifier, 1.0, "flat out while dry");
+    run(&mut sys, &mut world, &data, 500, 1.0); // ten game hours
+    let held = rh(&world, "room-a");
+    assert!((held - d.humidifier_setpoint_rh).abs() < 0.002, "held at 90%: {held}");
+    let share = room(&world, "room-a").humidifier;
+    assert!(share > 0.2 && share < 0.9, "part output once there: {share}");
+    run(&mut sys, &mut world, &data, 1200, 1.0); // a game day more
+    assert!((rh(&world, "room-a") - d.humidifier_setpoint_rh).abs() < 0.002, "and holds it: {}", rh(&world, "room-a"));
+    assert!(rh(&world, "room-b") < 0.45, "no humidifier next door: {}", rh(&world, "room-b"));
+    assert!(notices(&data).iter().all(|n| !n.contains("Greenhouse air")), "no damp notice for a humidified room");
+    let view = humidity::GuiView::new(&world, &data);
+    let line = &view.areas.iter().find(|(area, _, _)| area == "bed_a").unwrap().1;
+    assert!(line.starts_with("Air 90% humidity in the Greenhouse") && line.contains("humidifier at "), "{line}");
+    assert!(line.contains(" W, ") && line.contains(" L of water a day") && !line.contains("exhaust fan"), "{line}");
+    // The oysters are in their window there: nothing caps them.
+    assert!(world.query::<&CropInstance>().iter().filter(|(_, c)| c.tower_id.as_deref() == Some("bed_a")).all(|(_, c)| c.health > 99.9));
+}
+
+/// Its power follows its output: 100 W at the T7's full 1.3 L/h, and in
+/// proportion below it (humidity.ron, THE HUMIDIFIER). The same room held at
+/// 90% on a tighter and a leakier envelope needs different outputs, and each
+/// draws its watts times its share. Seen red by writing `watts` for `watts *
+/// share[room]` in `step_rooms` (every humidifier then drew 100 W).
+#[test]
+fn a_humidifiers_power_scales_with_its_output() {
+    let held = |base: f64| -> (f64, f64) {
+        let data = store(base, 1.0, 0.0);
+        let mut sys = FarmingSystem::new();
+        let mut world = hecs::World::new();
+        world.spawn((Irrigator,));
+        let h = humidifier(&mut world, 1.3, 100.0);
+        run(&mut sys, &mut world, &data, 1, 1.0);
+        assert!((draw(&world, h) - 100.0).abs() < 1e-3, "flat out from dry: {} W", draw(&world, h));
+        run(&mut sys, &mut world, &data, 800, 1.0);
+        (room(&world, "room-a").humidifier, draw(&world, h))
+    };
+    let (tight, tight_w) = held(0.15);
+    let (leaky, leaky_w) = held(0.35);
+    assert!(tight > 0.1 && leaky < 1.0 && leaky > tight * 2.0, "{tight} vs {leaky}");
+    assert!((tight_w - 100.0 * tight).abs() < 1e-3 && (leaky_w - 100.0 * leaky).abs() < 1e-3, "{tight_w} W, {leaky_w} W");
+}
+
+/// Its water comes out of the home's tanks, and a dry cistern stops it. With
+/// no crops in the room, the irrigation's published draw is exactly the
+/// humidifier's litres (1.3 L/h flat out, 31.2 L a day, billed per day like
+/// the crops' water) and the plumbing takes them from the cistern. With the
+/// cistern dry it stops: no vapour, no draw, no watts, the Garden panel says
+/// why, and the room dries back toward the home air. Seen red twice: by
+/// dropping the humidifier's litres from `irrigation_l_per_day` in the tick
+/// (the draw was then 0), and by passing `true` for the water gate (it ran on
+/// a dry cistern).
+#[test]
+fn a_humidifier_draws_its_water_from_the_tanks_and_stops_when_they_are_dry() {
+    use crate::ecs::components::{WaterConsumer, WaterTank};
+    use crate::systems::plumbing::{PlumbingSystem, WaterStatus};
+    let mut data = store(0.5, 1.0, 0.0);
+    data.insert("irrigation_demand_lpm", Mutex::new(0.0_f32));
+    data.insert("water_status", Mutex::new(WaterStatus { stored_l: 7000.0, capacity_l: 8000.0, ..Default::default() }));
+    let mut sys = FarmingSystem::new();
+    let mut pipes = PlumbingSystem::new();
+    let mut world = hecs::World::new();
+    world.spawn((Irrigator, WaterConsumer { lpm: 0.0, needs_power: false }));
+    let cistern = world.spawn((WaterTank { liters: 7000.0, capacity_l: 8000.0 },));
+    let h = humidifier(&mut world, 1.3, 100.0);
+    sys.tick(&mut world, 1.0, &data);
+    let demand = *data.get::<Mutex<f32>>("irrigation_demand_lpm").unwrap().lock().unwrap();
+    assert!((f64::from(demand) - 1.3 * 24.0 / 1440.0).abs() < 1e-6, "the humidifier's 31.2 L a day: {demand} L/min");
+    pipes.tick(&mut world, 60.0, &data);
+    let left = world.get::<&WaterTank>(cistern).unwrap().liters;
+    assert!((f64::from(7000.0 - left) - 1.3 * 24.0 / 1440.0).abs() < 1e-3, "a minute's draw left the cistern: {left}");
+    run(&mut sys, &mut world, &data, 300, 1.0);
+    let wet = rh(&world, "room-a");
+    // The cistern runs dry (the plumbing publishes it): the humidifier stops.
+    world.get::<&mut WaterTank>(cistern).unwrap().liters = 0.0;
+    pipes.tick(&mut world, 1.0, &data);
+    run(&mut sys, &mut world, &data, 300, 1.0);
+    let demand = *data.get::<Mutex<f32>>("irrigation_demand_lpm").unwrap().lock().unwrap();
+    assert_eq!(demand, 0.0, "nothing drawn from dry tanks");
+    let air = room(&world, "room-a");
+    assert!(air.humidifier == 0.0 && air.humidifier_l_day == 0.0 && air.humidifier_dry, "{air:?}");
+    assert_eq!(draw(&world, h), 0.0, "no mist, no watts");
+    assert!(rh(&world, "room-a") < wet - 0.2, "the room dries: {wet} to {}", rh(&world, "room-a"));
+    world.spawn((crop(&data, "oyster_mushroom", "bed_a", 0),)); // so the panel has a line for bed_a
+    let view = humidity::GuiView::new(&world, &data);
+    assert!(view.areas[0].1.contains("humidifier stopped: no water from the tanks"), "{:?}", view.areas);
+    assert_eq!(view.areas[0].2, 1, "a humidifier that cannot run is a warning");
+}
+
+/// Mushrooms below their range lose far more than a green crop out of its
+/// own: a fungus's pins dry out (humidity.ron, FUNGI; Kim 2013's yields fitted
+/// as the square of the shortfall). 37 points under their windows, an oyster
+/// mushroom (85 to 95%) is held to about 38 and kale (40 to 70%) to 90;
+/// Kim's own points come back (4.5% lost 10 under, 18.1% 20 under); wet air
+/// above a fungus's window takes the green crops' gentle cap; the house floor
+/// holds. Through the tick, oysters in a room held at 48% sink to that cap.
+/// Seen red by removing the fungi branch from `health_ceiling` (the oyster
+/// then kept 90, the same as the kale).
+#[test]
+fn mushrooms_below_their_range_lose_more_than_a_green_crop_out_of_its_range() {
+    let data = store(0.5, 1.0, 0.0);
+    let d = shipped_air();
+    let reg = data.get::<PlantRegistry>("plant_registry").unwrap();
+    let (oyster, kale) = (reg.get("oyster_mushroom"), reg.get("kale"));
+    assert!(!oyster.unwrap().needs_light && kale.unwrap().needs_light);
+    let cap = |def, rh| f64::from(humidity::health_ceiling(&d, def, rh));
+    let (o, k) = (cap(oyster, 0.85 - 0.37), cap(kale, 0.40 - 0.37));
+    assert!((o - 38.0).abs() < 1.0 && (k - 90.0).abs() < 1e-3, "oyster {o}, kale {k}");
+    assert!((cap(oyster, 0.75) - 95.47).abs() < 0.01 && (cap(oyster, 0.65) - 81.89).abs() < 0.01, "Kim's points");
+    assert!((cap(oyster, 1.0) - 98.0).abs() < 1e-3, "5 points too wet: the gentle cap");
+    assert_eq!(cap(oyster, 0.2), f64::from(d.health_floor), "never under the floor");
+    assert_eq!(cap(oyster, 0.9), 100.0, "in its window");
+    // Through the tick: oysters in a room held at 48% ease down to the cap.
+    let mut sys = FarmingSystem::new();
+    let mut world = hecs::World::new();
+    world.spawn((Irrigator,));
+    world.spawn((crop(&data, "oyster_mushroom", "bed_a", 0),));
+    let dry = d.vapour_at(0.48, d.room_temp_c);
+    for _ in 0..1000 {
+        set_room(&mut world, "room-a", dry);
+        sys.tick(&mut world, 1.0, &data);
+    }
+    let want = cap(oyster, 0.48);
+    assert!((f64::from(health(&world, "oyster_mushroom")) - want).abs() < 0.5, "{} vs cap {want}", health(&world, "oyster_mushroom"));
+}
+
+/// The shipped mushroom rooms are in range at full planting. Each home's
+/// mushroom racks (the showcase sows oyster mushrooms in all four shelves)
+/// stand in the blueprint's 10 x 3 x 10 m mushroom room with the home's
+/// humidifier, built from the catalog def; after two game days the room is
+/// inside the oyster's 85 to 95% window and no oyster is capped. Without the
+/// humidifier's power the same room settles near 48% (family) and 41% (solo).
+/// Seen red by turning home.ron's `humidifier_1` into another machine (the
+/// family room then read 48%).
+#[test]
+fn the_placed_humidifier_keeps_the_shipped_mushroom_room_in_range() {
+    use crate::machines::{MachineHome, MachinePower};
+    let settle = |file: &str, powered: bool| -> (f64, f64, usize, bool) {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let home = MachineHome::load(&root.join("data").join("machines").join(file)).expect("home parses");
+        let blueprint = std::fs::read_to_string(root.join("data").join("blueprints").join("ship_structure.ron")).unwrap();
+        let block = &blueprint[blueprint.find("id: \"room-mushroom\"").expect("the blueprint has the mushroom room")..];
+        let triple = |key: &str| -> [f32; 3] {
+            let s = &block[block.find(key).unwrap() + key.len()..];
+            let v: Vec<f32> = s[..s.find(')').unwrap()].split(',').map(|x| x.trim().parse().unwrap()).collect();
+            [v[0], v[1], v[2]]
+        };
+        let (o, s) = (triple("origin: ("), triple("size: ("));
+        let mushroom = GrowRoom { id: "room-mushroom".into(), name: "Mushroom room".into(), min: o, max: [o[0] + s[0], o[1] + s[1], o[2] + s[2]] };
+        let all = home.all_instances();
+        let racks: Vec<_> = all.iter().filter(|i| i.machine == "mushroom_rack" && i.room == "room-mushroom").collect();
+        let mut data = store(0.5, 1.0, 0.0);
+        data.insert(humidity::ROOMS_KEY, Mutex::new(vec![mushroom]));
+        let plots = racks.iter().map(|r| GrowPlot { id: r.id.clone(), pos: [r.offset.0, r.offset.1, r.offset.2], ..Default::default() });
+        data.insert("grow_plots", plots.collect::<Vec<_>>());
+        let mut sys = FarmingSystem::new();
+        let mut world = hecs::World::new();
+        world.spawn((Irrigator,));
+        for r in &racks {
+            for shelf in 0..4 {
+                world.spawn((crop(&data, "oyster_mushroom", &r.id, shelf),));
+            }
+        }
+        let placed: Vec<_> = all.iter().filter(|i| i.machine == "humidifier").collect();
+        for p in &placed {
+            let def = &home.catalog["humidifier"];
+            let Some(MachinePower::Consumer { watts, .. }) = def.power else { panic!("a Consumer") };
+            world.spawn((
+                Humidifier { output_l_h: def.humidifies_l_h, watts },
+                Transform { position: glam::Vec3::new(p.offset.0, p.offset.1, p.offset.2), ..Default::default() },
+                PowerConsumer { draw_watts: watts, priority: 4, enabled: powered },
+            ));
+        }
+        run(&mut sys, &mut world, &data, 2400, 1.0); // two game days
+        let rh = rh(&world, "room-mushroom");
+        let healthy = world.query::<&CropInstance>().iter().all(|(_, c)| c.health > 99.9);
+        println!("{file} powered={powered}: {} racks, {rh:.4} RH, humidifier {:.3} ({:.1} L/day)", racks.len(), room(&world, "room-mushroom").humidifier, room(&world, "room-mushroom").humidifier_l_day);
+        (rh, room(&world, "room-mushroom").humidifier, racks.len(), healthy)
+    };
+    for (file, racks, dry_rh) in [("home.ron", 6, 0.483), ("home_solo.ron", 2, 0.411)] {
+        let (rh, share, n, healthy) = settle(file, true);
+        assert_eq!(n, racks, "{file}: racks in the mushroom room");
+        assert!((0.85..=0.95).contains(&rh), "{file}: the room at {rh}, the oyster's window is 85 to 95%");
+        assert!(share > 0.5, "{file}: its humidifier is working ({share})");
+        assert!(healthy, "{file}: no oyster capped");
+        let (dry, _, _, _) = settle(file, false);
+        assert!((dry - dry_rh).abs() < 0.01, "{file}: unpowered, the room sits near {dry_rh}: {dry}");
+    }
 }

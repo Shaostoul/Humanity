@@ -79,6 +79,7 @@ pub(crate) fn spawn_home_machine_entity(
         && def.container_type.is_none()
         && !def.pollinates_crops
         && def.ventilation_m3_h <= 0.0
+        && def.humidifies_l_h <= 0.0
     {
         return;
     }
@@ -197,6 +198,17 @@ pub(crate) fn spawn_home_machine_entity(
             _ => 0.0,
         };
         let _ = world.insert_one(e, crate::ecs::components::Ventilator { airflow_m3_h: def.ventilation_m3_h, watts });
+    }
+    // Humidifier (2026-09-26): FarmingSystem runs it to hold the humidity of
+    // the grow room around this entity's Transform, drawing its litres from
+    // the tanks with the irrigation (farming::humidity). Its full-output draw
+    // is its Consumer watts; the controller scales it with the output.
+    if def.humidifies_l_h > 0.0 {
+        let watts = match &def.power {
+            Some(MachinePower::Consumer { watts, .. }) => *watts,
+            _ => 0.0,
+        };
+        let _ = world.insert_one(e, crate::ecs::components::Humidifier { output_l_h: def.humidifies_l_h, watts });
     }
     // AIR handler (v0.618): a machine with an Air OUT port scrubs the home air while powered.
     if air_out > 0.0 {
@@ -327,6 +339,38 @@ mod tests {
                 .map(|(_, (v, p, id, t))| (id.0.clone(), v.airflow_m3_h, v.watts, p.enabled, t.position.to_array()))
                 .collect();
             assert_eq!(found, vec![("fan_test".to_string(), 2725.0, 250.0, true, [54.5, 2.2, 62.0])], "{file}");
+        }
+    }
+
+    /// The mushroom room (2026-09-26): the humidifier in either shipped
+    /// catalog spawns as a Humidifier carrying its 1.3 L/h and full-output
+    /// 100 W, with an enabled PowerConsumer, at its Transform: what
+    /// FarmingSystem reads to run it (farming::humidity). Seen red by not
+    /// inserting the Humidifier (it then spawned as a plain 100 W load).
+    #[test]
+    fn shipped_humidifier_spawns_a_humidifier() {
+        use crate::ecs::components::{Humidifier, MachineInstanceId, PowerConsumer, Transform};
+        for file in ["home.ron", "home_solo.ron"] {
+            let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("machines").join(file);
+            let home = crate::machines::MachineHome::load(&path).unwrap_or_else(|| panic!("{file} parses"));
+            let mut world = hecs::World::new();
+            let empty = std::collections::HashMap::new();
+            let inst = crate::machines::MachineInstance {
+                id: "hum_test".to_string(),
+                machine: "humidifier".to_string(),
+                room: "room-mushroom".to_string(),
+                offset: (8.5, 0.0, 59.5),
+                rotation: 0.0,
+                zone: "home".to_string(),
+                screen_source: None,
+            };
+            spawn_home_machine_entity(&mut world, &inst, &home.catalog["humidifier"], &empty, &empty, None, None);
+            let found: Vec<(String, f32, f32, bool, [f32; 3])> = world
+                .query::<(&Humidifier, &PowerConsumer, &MachineInstanceId, &Transform)>()
+                .iter()
+                .map(|(_, (h, p, id, t))| (id.0.clone(), h.output_l_h, h.watts, p.enabled, t.position.to_array()))
+                .collect();
+            assert_eq!(found, vec![("hum_test".to_string(), 1.3, 100.0, true, [8.5, 0.0, 59.5])], "{file}");
         }
     }
 

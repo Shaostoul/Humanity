@@ -513,6 +513,18 @@ pub struct RoomAir {
     /// damp-loving diseases; cleared when it dries out again.
     #[serde(default)]
     pub told: bool,
+    /// Its humidifiers' output, 0 (idle, off or none) to 1 (full), as their
+    /// controller last set it (2026-09-26).
+    #[serde(default)]
+    pub humidifier: f64,
+    /// Litres a day of the home's water its humidifiers were turning into
+    /// vapour at the last step: what the tanks are billed for them.
+    #[serde(default)]
+    pub humidifier_l_day: f64,
+    /// True when its humidifiers wanted to run but had no water (the tanks dry
+    /// or the garden's irrigation off), for the Garden panel.
+    #[serde(default)]
+    pub humidifier_dry: bool,
 }
 
 /// One soil unit's pH (2026-09-26): what it is now, and what is still
@@ -993,6 +1005,18 @@ pub struct PollinatorHive;
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
 pub struct Ventilator {
     pub airflow_m3_h: f32,
+    pub watts: f32,
+}
+
+/// A humidifier (2026-09-26, `MachineDef::humidifies_l_h`): while its
+/// `PowerConsumer` is enabled and the home has water for the garden, it puts
+/// up to `output_l_h` litres of water an hour into the air of the grow room
+/// its `Transform` stands in. Its controller holds the room at its setpoint
+/// (`farming::humidity`); it draws `watts` in proportion to its output, and
+/// the litres are drawn from the home's tanks with the irrigation.
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
+pub struct Humidifier {
+    pub output_l_h: f32,
     pub watts: f32,
 }
 

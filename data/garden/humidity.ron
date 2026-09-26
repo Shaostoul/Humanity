@@ -7,7 +7,9 @@
 // crops breathe out nearly all the water they are given, the closed air grows
 // humid, and gray mold and the mildews follow (data/garden/pests.ron) unless
 // the grower ventilates. The balance is shown on the Garden panel for each
-// grow room, and on each crop's card against its plants.csv window.
+// grow room, and on each crop's card against its plants.csv window. The
+// mushroom room teaches the other side: fruiting mushrooms need air far wetter
+// than a home's, and holding a room there costs water and power every day.
 //
 // THE MODEL, in one paragraph (humidity.rs has the detail). Each indoor grow
 // room (the rooms the grow machines stand in) holds its water vapour, grams
@@ -56,6 +58,26 @@
 //              production of glasshouse fruit vegetables", PhD thesis,
 //              Landbouwuniversiteit Wageningen, 1991, abstract at
 //              https://research.wur.nl/en/publications/analysis-of-humidity-effects-on-growth-and-production-of-glasshou/
+//   AC Infinity T7  "CLOUDFORGE T7 Plant Humidifier, 15L", AC Infinity
+//              product specifications (read 2026-09-26; the page carries no
+//              date),
+//              https://acinfinity.com/cloudforge-t7-plant-humidifier-15l-with-vpd-humidity-controls/ ;
+//              also sold by mushroom-growing suppliers, e.g.
+//              https://www.redwoodmushroomsupply.com/products/ac-infinity-cloudforge-t7-humidifier
+//   UF/IFAS SS662  Hameed, K., Cotter, V.T., Liao, H.-L. and Hsu, C.-M.,
+//              "D.I.Y. FunGuide: Grow Your Own Oyster Mushrooms at Home",
+//              UF/IFAS Extension publication SL448/SS662 (no date on the page
+//              read), https://ask.ifas.ufl.edu/publication/SS662
+//   Agrodok 40  Oei, P., with contributions by van Nieuwenhuijzen, B.,
+//              "Small-scale mushroom cultivation: oyster, shiitake and wood ear
+//              mushrooms", Agrodok 40, Agromisa Foundation and CTA,
+//              Wageningen, first edition 2005,
+//              https://www.agromisa.org/wp-content/uploads/Agrodok-40-Small-scale-mushroom-cultivation.pdf
+//   Kim 2013   Kim, S.Y., Kim, M.K., Im, C.H., Kim, K.H., Kim, D.S., Kim,
+//              T.S., Park, K.K., Lee, S.D. and Ryu, J.S., "Optimal relative
+//              humidity for Pleurotus eryngii cultivation", Journal of
+//              Mushroom 11(3): 131-136, 2013, doi:10.14480/JM.2013.11.3.131,
+//              https://koreascience.or.kr/article/JAKO201307954512342.page
 (
     // -- RELATIVE AND ABSOLUTE HUMIDITY: the psychrometric formula ---------------
     //
@@ -144,6 +166,67 @@
     fan_setpoint_rh: 0.80,
     fan_power_exponent: 3.0,
 
+    // THE HUMIDIFIER (the mushroom room, 2026-09-26). The mushroom racks'
+    // crops are fungi, whose plants.csv window is far above what their room
+    // holds on its own: oyster 85 to 95%, while the home's six racks breathe
+    // out only about 7 L a day into the 300 m3 mushroom room, which settles
+    // near 48% on its leakage (the one-person home's two racks, about 41%).
+    // So each home carries a humidifier there (the "humidifier" machine in
+    // data/machines/home.ron and home_solo.ron).
+    //
+    // The machine is an ultrasonic grow-room humidifier with an onboard
+    // humidity controller, AC Infinity CLOUDFORGE T7: "Output Rate: 43.95 fl
+    // oz/h (1300 ml/h)", "Power Consumption: 100 W", "Water Capacity: 3.96 gal
+    // (15 l)", "10 humidity levels", and "Backlit display adjusts VPD and
+    // humidity triggers, timers, and output levels, while AI programming uses
+    // PID control to accelerate or slow output for a precise target climate."
+    // Its water: "Automatic water valve with tubing refills from an external
+    // water source", so it is plumbed to the garden's irrigation line and
+    // draws from the home's tanks with the crops' water: it runs only while
+    // the irrigation runs and the tanks are not dry (the crops' own gate).
+    // Its own 15 L reservoir (about 11 hours at full output) is not modelled:
+    // it stops with the tanks. Every litre it puts out is taken to become
+    // vapour in the room (the mist evaporates; its latent heat comes from the
+    // room air, which the rooms' fixed 21 °C does not track). The litres are
+    // billed on the irrigation's clock (see TIME above).
+    //
+    // Its controller holds the room at humidifier_setpoint_rh: flat out below
+    // it, the output that holds it once there, off above it (the PID the
+    // maker describes, reduced to what it settles on). Its DRAW is its 100 W
+    // times its output share: a GAME CHOICE, since the maker publishes only
+    // the full-output draw. The basis: an ultrasonic vaporizer turns water to
+    // mist at a steady energy per litre, and a lower level runs it less of the
+    // time, so the draw falls with the output (about 77 W per L/h here).
+    //
+    // What it costs, at the rooms' leakage and the home air's 37% (at 21 °C):
+    // holding 300 m3 at 90% takes 0.5 x (16.5 - 6.9) g/m3 x 300 m3 = about
+    // 1.45 L an hour carried away, less what the racks breathe out. The
+    // family home's six racks: about 1.14 L/h, 88% output, about 88 W and
+    // 2.1 kWh and 27 L of water a day. The one-person home's two racks: the
+    // T7 runs flat out and the room settles near 88%, inside oyster's window
+    // but short of the setpoint, at 100 W, 2.4 kWh and 31 L a day. A whole
+    // room is a costly thing to humidify for 100 kcal of mushrooms a day;
+    // growers of this size fruit in a tent around the racks instead, which
+    // the game does not model yet (the Progress note in
+    // docs/design/gameplay-gaps-2026-09-25.md).
+    //
+    // humidifier_setpoint_rh 0.90: UF/IFAS SS662's fruiting chamber, "90%
+    // humidity controlled by humidifiers or foggers", where "The pinheads
+    // expand into the first flush of oyster mushrooms if proper air exchange
+    // and humidity are maintained". Agrodok 40 agrees in range: "ensure that
+    // high humidity is maintained: 90 to 95%", then "When the pinheads have
+    // grown to a size of 1 cm, the humidity should be lowered somewhat to 85%
+    // by passing fresh air through the room."
+    //
+    // humidified_fan_margin_rh 0.05: in a room a humidifier holds, the exhaust
+    // fans' controller works this far above the humidifier's setpoint instead
+    // of at fan_setpoint_rh (0.95 in the mushroom room), so the fan never
+    // dries what the humidifier wets. A GAME CHOICE: the dead band a paired
+    // humidify and exhaust controller is set with. And no damp-disease notice
+    // is given there: the damp is meant.
+    humidifier_setpoint_rh: 0.90,
+    humidified_fan_margin_rh: 0.05,
+
     // THE VENTILATE CONTROL (pests.ron `ventilate`) replaces the room's air
     // once, the heat-and-vent UMass describes: "To prevent excessive humidity
     // and dew formation, turn on the heat and open the vents. The warm humid
@@ -180,9 +263,38 @@
     // relative humidity from 88% down to 64%: about 25 points. A GAME CHOICE
     // to read it as the whole loss 25 points outside the window.
     // health_floor 20: the house floor, the same as a nutrient shortage, a
-    // pest and soil pH (soil::NUTRIENT_HEALTH_FLOOR); this cap never gets near
-    // it.
+    // pest and soil pH (soil::NUTRIENT_HEALTH_FLOOR); a green crop's cap never
+    // gets near it, a fungus in dry air can reach it (FUNGI below).
     stress_loss_max: 0.10,
     stress_full_at_rh: 0.25,
+
+    // FUNGI (plants.csv needs_light false: the oyster, shiitake and button
+    // mushrooms) BELOW their window are not a green crop: a mushroom has no
+    // leaf to close, and a pin in dry air dries out. Agrodok 40: "Good control
+    // of the humidity during cropping is very important for all types of
+    // mushroom", and on shiitake, "If the humidity is also relatively low (60
+    // to 70%), then cracks may appear in the caps". So below its window a
+    // fungus is capped at 100 x (1 - (d / fungi_loss_full_at_rh)^2) for d
+    // points under the window's low edge (never below health_floor); above it
+    // (wet air) the green crops' cap above still applies.
+    //
+    // fungi_loss_full_at_rh 0.47, from Kim 2013, the one measured series of
+    // yield against fixed humidity found, on the king oyster (P. eryngii, the
+    // oyster's genus). Its Table 3 totals the harvest at "15,670" g at 90%
+    // humidity, "14,985" at 80% and "12,817" at 70%: 4.4% lost 10 points under
+    // the best and 18.2% lost 20 under, the loss growing as the square of the
+    // shortfall. (d / 0.47)^2 gives 4.5% and 18.1% there. The abstract adds
+    // that "as humidity was lower, period of harvest was longer as well as
+    // days for pinheading", and its Table 1 has only 77.8% of the thinned
+    // bottles reaching harvest at 70%, against 100.0% at 90%. Two readings
+    // are GAME CHOICES: it is applied to every fungus (the genus is the
+    // oyster's; the shiitake and button mushroom have no such series here),
+    // and it is carried past Kim's driest 70% on the same curve, reaching the
+    // whole crop 47 points under. It is measured from the window's low edge,
+    // oyster's 85%, five points under Kim's best, so it errs kind. An oyster
+    // crop in the family home's mushroom room without its humidifier (48%,
+    // 37 points under) is held to about 38, where a green crop that far out
+    // of its window keeps 90.
+    fungi_loss_full_at_rh: 0.47,
     health_floor: 20.0,
 )

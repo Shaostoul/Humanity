@@ -2422,11 +2422,16 @@ impl System for FarmingSystem {
         drop(home_stock);
         // The grow rooms' air takes in what the crops breathed out and loses
         // it to the home's air through leakage and fans, on the game clock
-        // (humidity.rs; its fans' draw is set here too).
+        // (humidity.rs; its fans' draw is set here too). Its humidifiers run
+        // on the crops' water gate, and their litres are drawn with the crops'.
         let air_hours = game_dt / SECONDS_PER_DAY * 24.0;
-        for n in humidity::step_rooms(world, air_data, pest_data, &air_map, &mut room_air, &breathed, air_hours) {
+        let water_ok = water_available && irrigation_on;
+        let (air_notices, humidifier_l_day) =
+            humidity::step_rooms(world, air_data, pest_data, &air_map, &mut room_air, &breathed, water_ok, air_hours);
+        for n in air_notices {
             push_notice(data, n);
         }
+        irrigation_l_per_day += humidifier_l_day as f32;
         // The banked organic N, the pests and the air go back where they live.
         if let Ok(mut m) = world.get::<&mut crate::ecs::components::SoilMemory>(memory) {
             m.organic = organic;

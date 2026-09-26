@@ -1052,17 +1052,29 @@ mod tests {
     }
 
     /// Each grow room's air survives a save (2026-09-26, farming::humidity):
-    /// its vapour, its fan's speed, what its crops were breathing out and
-    /// whether the player was told it is humid come back as they were, and a
-    /// save from before the field (no `rooms` in the soil memory) still loads,
-    /// with no rooms, so each starts from the home's air. Seen red by marking
-    /// `SoilMemory::rooms` `#[serde(skip)]` (the room came back empty).
+    /// its vapour, its fan's speed, what its crops were breathing out,
+    /// whether the player was told it is humid, and its humidifier's output,
+    /// litres and dry flag come back as they were. A save from before the
+    /// field (no `rooms` in the soil memory) still loads, with no rooms, so
+    /// each starts from the home's air, and one from before the humidifier
+    /// (a room with no humidifier fields) loads with it idle. Seen red by
+    /// marking `SoilMemory::rooms` `#[serde(skip)]` (the room came back
+    /// empty), and by marking `RoomAir::humidifier` `#[serde(skip)]` (its
+    /// output came back 0).
     #[test]
     fn grow_room_air_survives_a_save_and_old_saves_load() {
         use crate::ecs::components::{RoomAir, SoilMemory};
         let mut world = hecs::World::new();
         let mut memory = SoilMemory::default();
-        let air = RoomAir { vapour_g_m3: 16.25, fan_speed: 0.4, breathed_l_day: 540.0, told: true };
+        let air = RoomAir {
+            vapour_g_m3: 16.25,
+            fan_speed: 0.4,
+            breathed_l_day: 540.0,
+            told: true,
+            humidifier: 0.88,
+            humidifier_l_day: 27.5,
+            humidifier_dry: true,
+        };
         memory.rooms.insert("room-greenhouse".into(), air);
         world.spawn((memory,));
         let text = serde_json::to_string(&extract_world_save(&world)).unwrap();
@@ -1071,6 +1083,18 @@ mod tests {
         apply_save_to_world(&mut fresh, &back);
         let mems: Vec<SoilMemory> = fresh.query::<&SoilMemory>().iter().map(|(_, m)| m.clone()).collect();
         assert_eq!(mems[0].rooms.get("room-greenhouse"), Some(&air), "the room's air came back");
+        // A save from before the humidifier: the room has none of its fields.
+        let mut pre: serde_json::Value = serde_json::from_str(&text).unwrap();
+        let r = pre["soil_memory"]["rooms"]["room-greenhouse"].as_object_mut().unwrap();
+        for k in ["humidifier", "humidifier_l_day", "humidifier_dry"] {
+            assert!(r.remove(k).is_some(), "the save wrote {k}");
+        }
+        let back: WorldSave = serde_json::from_value(pre).unwrap();
+        let mut before = hecs::World::new();
+        apply_save_to_world(&mut before, &back);
+        let mems: Vec<SoilMemory> = before.query::<&SoilMemory>().iter().map(|(_, m)| m.clone()).collect();
+        let want = RoomAir { humidifier: 0.0, humidifier_l_day: 0.0, humidifier_dry: false, ..air };
+        assert_eq!(mems[0].rooms.get("room-greenhouse"), Some(&want), "a pre-humidifier room loads idle");
         // An older save: its soil memory has no `rooms` at all.
         let mut old: serde_json::Value = serde_json::from_str(&text).unwrap();
         old["soil_memory"].as_object_mut().unwrap().remove("rooms");

@@ -40,16 +40,30 @@
 //! there, and idle below (`fan_speed`); it draws its watts times the cube of
 //! its speed (the fan laws), which this step writes into its PowerConsumer.
 //!
-//! WHAT IT DRIVES: the diseases' Humidity condition (pests.rs) and a gentle
-//! health cap on a crop outside its plants.csv humidity window
-//! (`health_ceiling`), never below the house floor.
+//! THE HUMIDIFIERS (the mushroom room): a `Humidifier` standing in a room
+//! adds vapour while its PowerConsumer is enabled and the home has water for
+//! the garden (the tanks not dry and the irrigation running, the same gate the
+//! crops' water has). Its controller runs it flat out below
+//! `humidifier_setpoint_rh`, at the output that holds the setpoint once there
+//! (`humidifier_share`), and off above it; its draw is its watts times its
+//! output share, and the litres it puts in are billed to the home's tanks with
+//! the irrigation (`step_rooms` returns them). In a room a humidifier holds,
+//! the fans work `humidified_fan_margin_rh` above its setpoint so the two
+//! never fight, and the damp-disease notice is not given: the damp is meant.
+//!
+//! WHAT IT DRIVES: the diseases' Humidity condition (pests.rs) and a health
+//! cap on a crop outside its plants.csv humidity window (`health_ceiling`),
+//! never below the house floor: gentle for a green crop, steep for a fungus
+//! (plants.csv `needs_light` false) below its fruiting range.
 
 use std::collections::HashMap;
 use std::sync::Mutex;
 
 use serde::Deserialize;
 
-use crate::ecs::components::{CropInstance, PowerConsumer, RoomAir, SoilMemory, Transform, Ventilator, STAGE_DEAD};
+use crate::ecs::components::{
+    CropInstance, Humidifier, PowerConsumer, RoomAir, SoilMemory, Transform, Ventilator, STAGE_DEAD,
+};
 use crate::hot_reload::data_store::DataStore;
 
 use super::lighting::GrowPlot;
@@ -86,9 +100,12 @@ pub struct HumidityData {
     pub base_air_changes_per_hour: f64,
     pub fan_setpoint_rh: f64,
     pub fan_power_exponent: f64,
+    pub humidifier_setpoint_rh: f64,
+    pub humidified_fan_margin_rh: f64,
     pub notice_above_rh: f64,
     pub stress_loss_max: f64,
     pub stress_full_at_rh: f64,
+    pub fungi_loss_full_at_rh: f64,
     pub health_floor: f32,
 }
 
@@ -190,10 +207,33 @@ pub fn fan_speed(v: f64, source: f64, base: f64, fan_max: f64, outside: f64, set
     ((source / room - base) / fan_max).clamp(0.0, 1.0)
 }
 
+/// The share, 0..1 of their full output, a room's humidifiers run at, from
+/// the room's vapour `v`, what its crops add (`source`, g/m3 an hour), its air
+/// changes an hour this tick (`n`: leakage and fans), the humidifiers' full
+/// output `max` (g/m3 an hour; 0 when none can run), the home air's vapour and
+/// the setpoint's. Flat out below the setpoint (`step_rooms` stops it on the
+/// setpoint when it gets there within a tick); at it, and up to a
+/// `HOLD_BAND` share above it, the output whose balance settles exactly on it
+/// (none if the crops alone hold it); off once the room is further above.
+pub fn humidifier_share(v: f64, source: f64, n: f64, max: f64, outside: f64, set: f64) -> f64 {
+    if !(max > 0.0) {
+        return 0.0;
+    }
+    if v < set {
+        return 1.0;
+    }
+    if v > set * (2.0 - HOLD_BAND) {
+        return 0.0;
+    }
+    ((n * (set - outside) - source) / max).clamp(0.0, 1.0)
+}
+
 /// The highest health a crop can hold in air at `rh` (0..1): 100 inside its
 /// plants.csv humidity window, down to 100 x (1 - stress_loss_max) as the air
 /// goes `stress_full_at_rh` or further outside it, never below the floor.
-/// 100 for an unknown plant or one with no window.
+/// A fungus (`needs_light` false) BELOW its window loses far more: its pins
+/// dry out, 100 x (1 - (d / fungi_loss_full_at_rh)^2) for d points under it
+/// (humidity.ron, FUNGI). 100 for an unknown plant or one with no window.
 pub fn health_ceiling(d: &HumidityData, def: Option<&PlantDef>, rh: f64) -> f32 {
     let Some(def) = def else { return 100.0 };
     let (lo, hi) = (f64::from(def.humidity_min), f64::from(def.humidity_max));
@@ -207,7 +247,11 @@ pub fn health_ceiling(d: &HumidityData, def: Option<&PlantDef>, rh: f64) -> f32 
     } else {
         return 100.0;
     };
-    let loss = d.stress_loss_max.clamp(0.0, 1.0) * (off / d.stress_full_at_rh.max(1e-9)).min(1.0);
+    let loss = if rh < lo && !def.needs_light {
+        (off / d.fungi_loss_full_at_rh.max(1e-9)).powi(2).min(1.0)
+    } else {
+        d.stress_loss_max.clamp(0.0, 1.0) * (off / d.stress_full_at_rh.max(1e-9)).min(1.0)
+    };
     ((100.0 * (1.0 - loss)) as f32).clamp(d.health_floor, 100.0)
 }
 
@@ -405,6 +449,31 @@ fn room_fans(world: &hecs::World, map: &AirMap) -> Vec<(hecs::Entity, usize, f64
         .collect()
 }
 
+/// The humidifiers, by the room they stand in: (entity, room index, full
+/// L/h, full-output watts, powered).
+fn room_humidifiers(world: &hecs::World, map: &AirMap) -> Vec<(hecs::Entity, usize, f64, f64, bool)> {
+    world
+        .query::<(&Humidifier, &Transform, Option<&PowerConsumer>)>()
+        .iter()
+        .filter_map(|(e, (h, t, pc))| {
+            let room = map.room_at(t.position.to_array())?;
+            Some((e, room, f64::from(h.output_l_h), f64::from(h.watts), pc.map_or(false, |p| p.enabled)))
+        })
+        .collect()
+}
+
+/// The vapour the fans of a room hold it under, g/m3: `fan_setpoint_rh`, or,
+/// in a room a humidifier holds, `humidified_fan_margin_rh` above the
+/// humidifier's setpoint, so the two never work against each other.
+fn fan_set(d: &HumidityData, humidified: bool) -> f64 {
+    let rh = if humidified {
+        d.fan_setpoint_rh.max(d.humidifier_setpoint_rh + d.humidified_fan_margin_rh)
+    } else {
+        d.fan_setpoint_rh
+    };
+    rh.clamp(0.0, 1.0) * d.room_saturation()
+}
+
 /// The diseases whose Humidity window holds `rh`, by name (for the notice).
 fn humid_diseases(pests: &PestData, rh: f64) -> Vec<String> {
     pests
@@ -421,11 +490,15 @@ fn humid_diseases(pests: &PestData, rh: f64) -> Vec<String> {
 }
 
 /// Step every grow room's air `hours` game hours: the vapour the crops of its
-/// grow areas breathe out (`breathed`, L a day by area tag), exchanged with
-/// the home's air by its leakage and its fans, which this sets the speed and
-/// the draw of. Rooms the map no longer knows are forgotten. Returns the
-/// notices to say: a room that has just become humid enough for the damp
-/// diseases.
+/// grow areas breathe out (`breathed`, L a day by area tag) and its
+/// humidifiers put in, exchanged with the home's air by its leakage and its
+/// fans; this sets the fans' speed, the humidifiers' output and the draw of
+/// both. The humidifiers run only while `water_ok` (the home has water for the
+/// garden). Rooms the map no longer knows are forgotten. Returns the notices
+/// to say (a room that has just become humid enough for the damp diseases)
+/// and the litres a day the humidifiers are turning into vapour, which the
+/// caller bills to the home's tanks with the irrigation.
+#[allow(clippy::too_many_arguments)]
 pub fn step_rooms(
     world: &mut hecs::World,
     d: &HumidityData,
@@ -433,8 +506,9 @@ pub fn step_rooms(
     map: &AirMap,
     state: &mut HashMap<String, RoomAir>,
     breathed: &HashMap<String, f64>,
+    water_ok: bool,
     hours: f64,
-) -> Vec<String> {
+) -> (Vec<String>, f64) {
     let mut notices = Vec::new();
     // A room the home no longer has is forgotten, but only once the engine
     // has published the rooms at all: until then (early boot, before the
@@ -449,22 +523,48 @@ pub fn step_rooms(
         }
     }
     let fans = room_fans(world, map);
+    let hums = room_humidifiers(world, map);
     let sat = d.room_saturation();
-    let set = d.fan_setpoint_rh.clamp(0.0, 1.0) * sat;
+    let hum_set = d.humidifier_setpoint_rh.clamp(0.0, 1.0) * sat;
     let mut speed = vec![0.0f64; map.rooms.len()];
+    let mut share = vec![0.0f64; map.rooms.len()];
+    let mut hum_l_day = 0.0f64;
     for (i, room) in map.rooms.iter().enumerate() {
         let volume = room.volume_m3().max(1.0);
         let source = litres[i] * d.vapour_share.max(0.0) * 1000.0 / 24.0 / volume;
         let fan_max: f64 = fans.iter().filter(|f| f.1 == i && f.4).map(|f| f.2).sum::<f64>() / volume;
+        let humidified = hums.iter().any(|h| h.1 == i);
+        let powered_l_h: f64 = hums.iter().filter(|h| h.1 == i && h.4).map(|h| h.2).sum();
+        // What the humidifiers can put in, g/m3 an hour: none without water.
+        // (Tested with `>`: an empty float sum is -0.0, which would print.)
+        let hum_max = if water_ok && powered_l_h > 0.0 { powered_l_h * 1000.0 / volume } else { 0.0 };
         let st = state.entry(room.id.clone()).or_insert(RoomAir { vapour_g_m3: map.home_vapour, ..Default::default() });
         let base = d.base_air_changes_per_hour.max(0.0);
-        let s = fan_speed(st.vapour_g_m3, source, base, fan_max, map.home_vapour, set);
-        st.vapour_g_m3 = step_vapour(st.vapour_g_m3, source, base + s * fan_max, map.home_vapour, hours, sat);
+        let s = fan_speed(st.vapour_g_m3, source, base, fan_max, map.home_vapour, fan_set(d, humidified));
+        let n = base + s * fan_max;
+        let v0 = st.vapour_g_m3;
+        let mut h = humidifier_share(v0, source, n, hum_max, map.home_vapour, hum_set);
+        st.vapour_g_m3 = step_vapour(v0, source + h * hum_max, n, map.home_vapour, hours, sat);
+        // Flat out, it reached the setpoint within the tick and held it from
+        // there: the tick ends on the setpoint, not past it, however long it
+        // was, and the output is the one that holds it.
+        if h >= 1.0 && v0 < hum_set && st.vapour_g_m3 > hum_set {
+            st.vapour_g_m3 = hum_set;
+            h = humidifier_share(hum_set, source, n, hum_max, map.home_vapour, hum_set);
+        }
         st.fan_speed = s;
         st.breathed_l_day = litres[i];
+        st.humidifier = h;
+        st.humidifier_l_day = h * hum_max * volume / 1000.0 * 24.0;
+        // Powered, and stopped for want of water: dry tanks or the irrigation off.
+        st.humidifier_dry = !water_ok && powered_l_h > 0.0;
+        hum_l_day += st.humidifier_l_day;
         speed[i] = s;
+        share[i] = h;
         let rh = d.rh_of(st.vapour_g_m3, d.room_temp_c);
-        if rh >= d.notice_above_rh && !st.told {
+        if humidified {
+            // The damp is meant here (a mushroom room): no disease notice.
+        } else if rh >= d.notice_above_rh && !st.told {
             st.told = true;
             let names = humid_diseases(pests, rh.min(1.0));
             let spread = if names.is_empty() { String::new() } else { format!(", where {} spread", names.join(", ")) };
@@ -489,7 +589,17 @@ pub fn step_rooms(
             pc.draw_watts = (watts * speed[room].powf(d.fan_power_exponent.max(1.0))) as f32;
         }
     }
-    notices
+    // Each humidifier draws its watts in proportion to its output share
+    // (humidity.ron, THE HUMIDIFIER); one shed stays where it was, off.
+    for (e, room, _, watts, powered) in hums {
+        if !powered {
+            continue;
+        }
+        if let Ok(mut pc) = world.get::<&mut PowerConsumer>(e) {
+            pc.draw_watts = (watts * share[room]) as f32;
+        }
+    }
+    (notices, hum_l_day)
 }
 
 /// The Ventilate control on `area` (pests.ron `ventilate`): a heat-and-vent
@@ -562,7 +672,9 @@ pub struct GuiView {
     map: AirMap,
     state: HashMap<String, RoomAir>,
     /// (area tag, the line, how humid: 0 fine, 1 above the fans' setpoint, 2
-    /// at the damp diseases' line), for each grow area with a living crop.
+    /// at the damp diseases' line), for each grow area with a living crop. In
+    /// a humidified room, 1 means its humidifier cannot run (no power or no
+    /// water) or the air is past its fans' raised setpoint, and there is no 2.
     pub areas: Vec<(String, String, u8)>,
 }
 
@@ -577,6 +689,7 @@ impl GuiView {
             .map(|(_, m)| m.rooms.clone())
             .unwrap_or_default();
         let fans = room_fans(world, &map);
+        let hums = room_humidifiers(world, &map);
         let mut tags: Vec<String> = world
             .query::<&CropInstance>()
             .iter()
@@ -590,40 +703,65 @@ impl GuiView {
             .into_iter()
             .map(|area| {
                 let rh = map.rh_for(d, &area, &state);
+                let mut humidified = None;
                 let line = if super::is_field_area(&area) {
                     format!("Outdoor air {} humidity", pct(rh))
                 } else if let Some((i, room)) = map.area_room.get(&area).and_then(|i| map.rooms.get(*i).map(|r| (*i, r))) {
                     let st = state.get(&room.id).copied().unwrap_or_default();
                     let here: Vec<_> = fans.iter().filter(|f| f.1 == i).collect();
-                    let vent = if here.is_empty() {
-                        "no exhaust fan, its own leakage only".to_string()
+                    let hum: Vec<_> = hums.iter().filter(|h| h.1 == i).collect();
+                    let mut parts = Vec::new();
+                    if here.is_empty() && hum.is_empty() {
+                        parts.push("no exhaust fan, its own leakage only".to_string());
+                    } else if here.is_empty() {
+                        // A humidified room says nothing of a fan it need not have.
                     } else if !here.iter().any(|f| f.4) {
-                        "exhaust fan off (no power)".to_string()
+                        parts.push("exhaust fan off (no power)".to_string());
                     } else if st.fan_speed <= 0.0 {
-                        "exhaust fan idle".to_string()
+                        parts.push("exhaust fan idle".to_string());
                     } else {
                         let w: f64 = here
                             .iter()
                             .filter(|f| f.4)
                             .map(|f| f.3 * st.fan_speed.powf(d.fan_power_exponent.max(1.0)))
                             .sum();
-                        format!("exhaust fan at {:.0}%, {w:.0} W", st.fan_speed * 100.0)
-                    };
+                        parts.push(format!("exhaust fan at {:.0}%, {w:.0} W", st.fan_speed * 100.0));
+                    }
+                    if !hum.is_empty() {
+                        let running = hum.iter().any(|h| h.4) && !st.humidifier_dry;
+                        parts.push(if !hum.iter().any(|h| h.4) {
+                            "humidifier off (no power)".to_string()
+                        } else if st.humidifier_dry {
+                            "humidifier stopped: no water from the tanks".to_string()
+                        } else if st.humidifier <= 0.0 {
+                            "humidifier idle".to_string()
+                        } else {
+                            let w: f64 = hum.iter().filter(|h| h.4).map(|h| h.3 * st.humidifier).sum();
+                            format!(
+                                "humidifier at {:.0}%, {w:.0} W, {:.0} L of water a day",
+                                st.humidifier * 100.0,
+                                st.humidifier_l_day
+                            )
+                        });
+                        humidified = Some(running);
+                    }
                     format!(
-                        "Air {} humidity in the {} ({:.0} L a day breathed out): {vent}",
+                        "Air {} humidity in the {} ({:.0} L a day breathed out): {}",
                         pct(rh),
                         room.name,
-                        st.breathed_l_day
+                        st.breathed_l_day,
+                        parts.join("; ")
                     )
                 } else {
                     format!("Home air {} humidity", pct(rh))
                 };
-                let level = if rh >= d.notice_above_rh {
-                    2
-                } else if rh > d.fan_setpoint_rh {
-                    1
-                } else {
-                    0
+                // A humidified room is damp on purpose: warn only when its
+                // humidifier cannot run, or the air is past its fans' line.
+                let level = match humidified {
+                    Some(running) => u8::from(!running || rh * d.room_saturation() > fan_set(d, true)),
+                    None if rh >= d.notice_above_rh => 2,
+                    None if rh > d.fan_setpoint_rh => 1,
+                    None => 0,
                 };
                 (area, line, level)
             })

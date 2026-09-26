@@ -73,6 +73,52 @@
             container_type: None,
             model: None,
         ),
+        "humidifier": (
+            shape: "box",
+            size: (0.26, 0.52, 0.26),
+            color: (0.9, 0.9, 0.88),
+            label: "Humidifier (mushroom room)",
+            category: "Food",
+            // An ultrasonic grow-room humidifier with a humidity controller (AC
+            // Infinity CLOUDFORGE T7: "Output Rate: 43.95 fl oz/h (1300 ml/h)",
+            // "Power Consumption: 100 W", 26.0 x 26.0 x 52.1 cm, an "Automatic
+            // water valve with tubing refills from an external water source").
+            // While powered, and while the garden has water, it puts vapour
+            // into the grow room it stands in, as much as holds the room at 90%
+            // humidity (oyster mushrooms fruit at 85 to 95%), drawing its watts
+            // in proportion to its output and its litres from the home's tanks
+            // with the irrigation (data/garden/humidity.ron has the balance).
+            // Here its two racks breathe out little, so it runs flat out and
+            // the room settles near 88%.
+            humidifies_l_h: 1.3,
+            stats: [
+                (
+                    kind: "power",
+                    value: "100 W flat out holding the mushroom room near 88%",
+                    status: "warn",
+                ),
+                (
+                    kind: "water",
+                    value: "~31 L a day from the tanks",
+                    status: "ok",
+                ),
+                (
+                    kind: "air",
+                    value: "holds the mushroom room near 90% humidity",
+                    status: "ok",
+                ),
+            ],
+            power: Some(Consumer(
+                watts: 100.0,
+                priority: 4,
+            )),
+            ports: [],
+            storage: [],
+            rf_emission: 0.0,
+            auto_recipe: None,
+            container_type: None,
+            model: None,
+        ),
         "generator_portable": (
             shape: "box", size: (0.55, 0.45, 0.45), color: (0.45, 0.45, 0.20),
             label: "Generator (backup)",
@@ -1170,6 +1216,18 @@
             rotation: 0.0,
             zone: "home",
         ),
+        // The mushroom room's humidifier (2026-09-26): the racks' oyster
+        // mushrooms fruit at 85 to 95% humidity, and the room holds about 41%
+        // on its own, where their pins dry out; data/garden/humidity.ron has
+        // the balance. Plumbed to the garden's irrigation line.
+        (
+            id: "humidifier_1",
+            machine: "humidifier",
+            room: "room-mushroom",
+            offset: (8.5, 0.0, 59.5),
+            rotation: 0.0,
+            zone: "home",
+        ),
         (
             id: "composter_2",
             machine: "composter",
@@ -1295,6 +1353,7 @@
         (from: "battery_2", to: "pump_1", kind: "power"),
         (from: "battery_2", to: "purifier_1", kind: "power"),
         (from: "battery_1", to: "irrigation_1", kind: "power"),
+        (from: "battery_1", to: "humidifier_1", kind: "power"),
         (from: "battery_1", to: "air_recycler_1", kind: "power"),
 
         // Water: cistern -> pump -> purifier trunk, then per-fixture
@@ -1338,19 +1397,19 @@
     loops: [
         (
             name: "Energy",
-            demand: "~4.0 kWh/day (one person, off-grid frugal)",
+            demand: "~6.4 kWh/day (one person, off-grid frugal, + mushroom room humidifier)",
             supply: "~5.76 kWh/day: 4 solar panels + wind; 2 batteries = 2 days autonomy; generator backstop",
-            closes: true,
+            closes: false,
             weakest: false,
-            note: "4x400 W panels at ~4.5 sun-hours make ~5.76 kWh/d gross, 44% headroom over the 4.0 kWh/day target -- room for cloudy days and a winter derate to ~3.2 kWh/d, which the 2 battery banks (8 kWh, 2 days autonomy) and the backup generator cover. The indoor garden stays sun-lit, not grow-lit: artificial lights to feed one person indoors would cost 10-50 kWh/d, several times this whole budget.",
+            note: "Does not close on sun and wind alone (2026-09-26): the mushroom room's humidifier runs flat out to hold the two racks' oyster mushrooms near 88% humidity (the room sits near 41% on its own, where their pins dry out; farming::humidity), 100 W, 2.4 kWh a day and about 31 L of the tanks' water, for about 100 kcal of mushrooms. That puts demand about 11% past the panels. The generator covers it today; a fifth panel (about 1.44 kWh a day) would close it, and a fruiting tent around the two racks instead of a whole humidified 300 m3 room would take most of the humidifier's share away. Before it: 4x400 W panels at ~4.5 sun-hours make ~5.76 kWh/d gross, 44% headroom over the 4.0 kWh/day target -- room for cloudy days and a winter derate to ~3.2 kWh/d, which the 2 battery banks (8 kWh, 2 days autonomy) and the backup generator cover. The indoor garden stays sun-lit, not grow-lit: artificial lights to feed one person indoors would cost 10-50 kWh/d, several times this whole budget.",
         ),
         (
             name: "Water",
-            demand: "~80 L/day net (household)",
-            supply: "rain + well + ~52 L/day greywater recycling; 8000 L cistern = 100 days",
+            demand: "~111 L/day net (household ~80 + mushroom room humidifier ~31)",
+            supply: "rain + well + ~52 L/day greywater recycling; 8000 L cistern = 72 days",
             closes: true,
             weakest: false,
-            note: "The same 8000 L cistern the 3-person home rides for 33 days gives ONE person 100 days -- over-provisioned on purpose (self-sufficiency.md: dry-season storage, not annual rainfall, is the binding constraint). Greywater recycling covers all irrigation, so net demand is just the household tap.",
+            note: "The same 8000 L cistern the 3-person home rides for about 30 days gives ONE person about 72 days -- over-provisioned on purpose (self-sufficiency.md: dry-season storage, not annual rainfall, is the binding constraint). Greywater recycling covers all irrigation, so net demand is the household tap plus the mushroom room's humidifier (2026-09-26): about 31 L a day it turns to vapour to hold the room near 88%, water that leaves in the air and does not come back as greywater.",
         ),
         (
             name: "Food",

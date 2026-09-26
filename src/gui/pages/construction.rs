@@ -4082,6 +4082,7 @@ mod multi_select_tests {
             lights_crops: false,
             pollinates_crops: false,
             ventilation_m3_h: 0.0,
+            humidifies_l_h: 0.0,
             level_gauge: false,
             container_type: None,
             model: None,

@@ -604,6 +604,49 @@ date; re-check before trusting one. The container data basis is
   gently capped; a humidifier is the real answer. (5) Crowding is not
   modelled: every plant is sown at its cited spacing.
 
+- **The mushroom room is humid enough for mushrooms to fruit: DONE
+  2026-09-26.** A `humidifier` machine in both home catalogs (new
+  `MachineDef::humidifies_l_h`, spawned as a `Humidifier` component): an
+  ultrasonic grow-room humidifier with an onboard controller, AC Infinity
+  CLOUDFORGE T7 (1300 ml/h, 100 W, "PID control", an "Automatic water valve
+  with tubing refills from an external water source"). Its controller
+  (`humidity::humidifier_share`) runs it flat out below its setpoint, at the
+  output that holds the setpoint there, off above it; it draws 100 W times
+  its output share (a stated game choice: the maker publishes only the
+  full-output draw). The setpoint is 90%, UF/IFAS SS662's fruiting chamber
+  ("90% humidity controlled by humidifiers or foggers"). Its water is real:
+  it runs on the crops' own water gate (the tanks not dry, the irrigation
+  running), and `step_rooms` returns its litres, which the tick adds to
+  `irrigation_demand_lpm`, so the plumbing takes them from the tanks and a
+  dry cistern stops it. In a humidified room the fans work five points above
+  its setpoint and no damp-disease notice is given. Fungi (plants.csv
+  `needs_light` false) below their window now lose as the square of the
+  shortfall, `(d / 0.47)^2`, fitted to Kim et al. 2013's king oyster yields
+  (4.4% lost 10 points under the best, 18.2% 20 under), never below the
+  house floor; green crops keep Bakker's gentle cap. THE BALANCE: the family
+  home's mushroom room (300 m3, six racks, about 7 L a day breathed out) sat
+  at 48% (oysters held to about 38); with `humidifier_1` it holds 90.0% at
+  88% output, about 88 W, 2.1 kWh and 27 L of water a day. The solo home's
+  room (two racks) sat at 41% (oysters at the floor); its humidifier runs flat
+  out, 100 W, 2.4 kWh and 31 L a day, and the room settles at 88.3%, inside
+  the oyster's 85 to 95%. The Garden panel's line says what it is doing
+  ("humidifier at 88%, 88 W, 27 L of water a day", or "stopped: no water
+  from the tanks"). RoomAir saves its output, litres and dry flag; old saves
+  load it idle. FOUND, and written into both homes' loops rather than left
+  quiet: humidifying a whole room is expensive. The family home's Energy
+  loop is now about 14.8 kWh a day against 12.2 (two more panels would close
+  it), and the SOLO home's Energy loop NO LONGER CLOSES (about 6.4 against
+  5.76 kWh; a fifth panel would close it), both for roughly 100 to 300 kcal
+  of mushrooms a day; both Water loops gain the humidifier's litres (the
+  cistern's dry-season reach drops from 33 to 30 days and from 100 to 72).
+  The real answer at this scale is a fruiting tent around the racks, a few
+  cubic metres instead of 300, which the model could carry as a small room
+  box of its own (the AirMap already picks the smallest box a machine
+  stands in) but no machine publishes one yet. Also left: the T7's own 15 L
+  reservoir is not modelled (it stops with the tanks); its vapour leaves
+  into the home air, still held at 40%; and the humidifier's litres are
+  billed on the irrigation's per-real-day clock, like the crops' water.
+
 ## Defects found (things that are wrong, not merely missing)
 
 1. **Items vanish when the backpack is full.** "Take to backpack" removes the

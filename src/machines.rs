@@ -150,6 +150,14 @@ pub struct MachineDef {
     /// data/garden/humidity.ron). 0 = not a fan. Spawns a `Ventilator`.
     #[serde(default)]
     pub ventilation_m3_h: f32,
+    /// This machine is a humidifier (2026-09-26): while it is powered and the
+    /// home has water for the garden, it puts up to this many litres of water
+    /// an hour into the air of the grow room it stands in, as much as holds
+    /// the room at its setpoint (farming::humidity, data/garden/humidity.ron),
+    /// and the litres come out of the home's tanks with the irrigation.
+    /// 0 = not a humidifier. Spawns a `Humidifier`; needs a `Consumer` role.
+    #[serde(default)]
+    pub humidifies_l_h: f32,
     /// Typed-container archetype id from `data/containers/types.csv` (v0.728,
     /// "containers show contents"): a grain silo IS a `grain_silo_bin`, the
     /// fuel refinery a `steel_fuel_drum`. Spawns a `Container` ECS component
@@ -2009,6 +2017,7 @@ mod tests {
             lights_crops: false,
             pollinates_crops: false,
             ventilation_m3_h: 0.0,
+            humidifies_l_h: 0.0,
             level_gauge: false,
             container_type: None,
             model: None,
@@ -2531,6 +2540,38 @@ mod tests {
                 home.all_instances().into_iter().filter(|i| i.machine == "exhaust_fan").collect();
             assert_eq!(fans.len(), placed, "{file}: fans placed");
             assert!(fans.iter().all(|f| f.room == "room-greenhouse"), "{file}: in the greenhouse");
+        }
+    }
+
+    /// The mushroom room (2026-09-26): the humidifier in both shipped
+    /// catalogs is the only machine FarmingSystem reads as one, with its
+    /// cited output (AC Infinity CLOUDFORGE T7, 1300 ml/h) and a 100 W
+    /// Consumer power role (its controller scales that draw), and both homes
+    /// place exactly one in their mushroom room, cabled to a battery. Seen
+    /// red by turning home_solo.ron's `humidifier_1` into a composter (0
+    /// placed).
+    #[test]
+    fn shipped_humidifier_is_cataloged_placed_in_the_mushroom_room_and_wired() {
+        for file in ["home.ron", "home_solo.ron"] {
+            let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("machines").join(file);
+            let home = MachineHome::load(&path).unwrap_or_else(|| panic!("{file} parses"));
+            for (id, def) in &home.catalog {
+                assert_eq!(def.humidifies_l_h > 0.0, id == "humidifier", "{file}: `{id}` humidifies only if it is the humidifier");
+            }
+            let def = &home.catalog["humidifier"];
+            assert!((def.humidifies_l_h - 1.3).abs() < 1e-6, "{file}: 1300 ml/h");
+            assert!(
+                matches!(def.power, Some(MachinePower::Consumer { watts, .. }) if (watts - 100.0).abs() < 1e-3),
+                "{file}: a 100 W Consumer, so it can be switched on and shed"
+            );
+            let placed: Vec<MachineInstance> =
+                home.all_instances().into_iter().filter(|i| i.machine == "humidifier").collect();
+            assert_eq!(placed.len(), 1, "{file}: one humidifier placed");
+            assert_eq!(placed[0].room, "room-mushroom", "{file}: in the mushroom room");
+            assert!(
+                home.connections.iter().any(|c| c.kind == "power" && c.to == placed[0].id && c.from.starts_with("battery_")),
+                "{file}: cabled to a battery"
+            );
         }
     }
 
