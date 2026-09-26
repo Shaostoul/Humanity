@@ -199,13 +199,23 @@ pub fn apply_action(
     }
     let max_stack = reg.map(|r| r.max_stack_for(&give)).unwrap_or(99);
     let unit_vol = reg.map(|r| r.volume_for(&give)).unwrap_or(0.0);
+    let take_vol = reg.map(|r| r.volume_for(&take)).unwrap_or(0.0);
+    let take_stack = reg.map(|r| r.max_stack_for(&take)).unwrap_or(99);
     let mut done = 0u32;
     for (_e, (inv, _c)) in world.query_mut::<(&mut Inventory, &crate::ecs::components::Controllable)>() {
+        // A swap, not an add (2026-09-26): the vessels going out free their
+        // volume before the ones coming in are counted, so a pack with room
+        // for the swap is not refused.
         inv.remove_item(&take, n);
+        inv.volume_current_l = (inv.volume_current_l - n as f32 * take_vol).max(0.0);
         let lost = inv.add_item_volume_gated(&give, n, max_stack, unit_vol);
         if lost > 0 {
-            // Whatever did not fit goes back the way it was.
-            inv.add_item(&take, lost, reg.map(|r| r.max_stack_for(&take)).unwrap_or(99));
+            // Whatever did not fit goes back the way it was, with a slot made
+            // for it so nothing is dropped.
+            let occupied = inv.slots.iter().filter(|s| s.is_some()).count();
+            inv.ensure_slots(occupied + lost as usize);
+            inv.add_item(&take, lost, take_stack);
+            inv.volume_current_l += lost as f32 * take_vol;
         }
         done = n - lost;
         break;
@@ -316,6 +326,21 @@ mod tests {
         let mut dry = world_with(0.2, 20.0, &[("water_bottle_empty_0", 2)]);
         assert!(card_actions(&t, &dry, Some(&reg), "cistern").is_empty());
         assert!(apply_action(&t, &mut dry, Some(&reg), "cistern", "fill:water_bottle_empty_0").is_err());
+    }
+
+    /// Filling a jerrycan is a swap: a pack with room for it is not refused
+    /// because the empty can's own volume was counted twice (2026-09-26).
+    #[test]
+    fn filling_a_vessel_in_a_nearly_full_pack_works() {
+        let t = table();
+        let reg = registry();
+        let mut w = world_with(100.0, 200.0, &[("water_jerrycan_empty_0", 1)]);
+        for (_e, (inv, _c)) in w.query_mut::<(&mut Inventory, &Controllable)>() {
+            inv.volume_current_l = inv.volume_capacity_l - 16.5;
+        }
+        apply_action(&t, &mut w, Some(&reg), "cistern", "fill:water_jerrycan_empty_0").expect("the swap fits");
+        assert_eq!(pack(&w, "water_jerrycan_0"), 1);
+        assert_eq!(pack(&w, "water_jerrycan_empty_0"), 0);
     }
 
     /// A full tank takes nothing back: the pour is refused and nothing moves.

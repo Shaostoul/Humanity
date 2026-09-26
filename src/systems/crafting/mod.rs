@@ -1280,13 +1280,22 @@ impl System for CraftingSystem {
         // stops until power returns, with one notice. An automated machine
         // holds when it is itself unpowered; a manual craft when no machine
         // of its station type is. Stations with no power role never hold.
+        // An automated batch belongs to its machine by id, not by the entity
+        // captured when it started: a restored batch, or one whose machine was
+        // respawned, holds a stale entity (2026-09-26).
+        let machines_by_id: std::collections::HashMap<String, hecs::Entity> = world
+            .query::<&crate::ecs::components::MachineInstanceId>()
+            .iter()
+            .map(|(e, id)| (id.0.clone(), e))
+            .collect();
         let held: Vec<bool> = self
             .active_crafts
             .iter()
             .map(|c| {
                 if c.auto {
+                    let machine = c.machine_id.as_ref().and_then(|id| machines_by_id.get(id)).copied().unwrap_or(c.crafter);
                     world
-                        .get::<&crate::ecs::components::PowerConsumer>(c.crafter)
+                        .get::<&crate::ecs::components::PowerConsumer>(machine)
                         .map(|pc| !pc.enabled)
                         .unwrap_or(false)
                 } else {
@@ -1404,16 +1413,23 @@ impl System for CraftingSystem {
                     .collect()
             })
             .unwrap_or_default();
-        let busy_machines: std::collections::HashSet<hecs::Entity> =
-            self.active_crafts.iter().filter(|c| c.auto).map(|c| c.crafter).collect();
+        let busy_machines: std::collections::HashSet<hecs::Entity> = self
+            .active_crafts
+            .iter()
+            .filter(|c| c.auto)
+            .map(|c| c.machine_id.as_ref().and_then(|id| machines_by_id.get(id)).copied().unwrap_or(c.crafter))
+            .collect();
         let mut claimed: std::collections::HashSet<String> = std::collections::HashSet::new();
         for (e, (mt, load, pc)) in world.query_mut::<(
             &crate::ecs::components::MachineType,
             &crate::ecs::components::StationLoad,
             &mut crate::ecs::components::PowerConsumer,
         )>() {
+            // A station with a craft on it keeps its working demand even while
+            // shed (2026-09-26): dropping it would let the station switch back
+            // on, un-hold the craft, and shed again, every other tick.
             let busy = busy_machines.contains(&e)
-                || (busy_types.contains(&mt.0) && pc.enabled && claimed.insert(mt.0.clone()));
+                || (busy_types.contains(&mt.0) && claimed.insert(mt.0.clone()));
             pc.draw_watts = if busy { load.active_watts } else { load.idle_watts };
         }
 
@@ -1575,6 +1591,11 @@ impl CraftingSystem {
                         use crate::systems::inventory::containers::StoreOutcome;
                         for (id, qty) in inv_recipe.outputs.iter_mut() {
                             if *qty == 0 {
+                                continue;
+                            }
+                            // A vessel keeps a count, not each item's wear and
+                            // grade, so durable goods skip it (2026-09-26).
+                            if item_registry.map_or(false, |r| r.durability_for(id) > 0) {
                                 continue;
                             }
                             let class = item_registry
@@ -2065,6 +2086,78 @@ mod skill_xp_tests {
         let g = grade_of("hammer_0").expect("the hammer was made");
         assert!((2..=3).contains(&g), "a beginner's hammer is poor or standard: {g}");
         assert_eq!(grade_of("chips_0"), Some(0), "materials stay ungraded");
+    }
+
+    /// With the real electrical system ticking (2026-09-26): a stove on an
+    /// island that cannot carry it starts one craft (idle it draws nothing),
+    /// is shed as soon as it works, and then stays shed, so the craft is
+    /// paused once and the player is told once. It used to flip on and off
+    /// every tick, start more crafts and repeat the notice.
+    #[test]
+    fn a_stove_short_of_power_pauses_once_and_stays_paused() {
+        use crate::ecs::components::{MachineType, PowerCircuit, PowerConsumer, PowerGenerator, StationLoad};
+        use crate::systems::electrical::{ElectricalSystem, PowerStatus};
+        let recipe_csv = "id,name,category,inputs,outputs,craft_time_sec,station_required,skill_required,skill_level,description\n\
+             fry,Fry,cooking,egg_0:1,fried_egg_0:1,2,stove_0,,0,test\n";
+        let mut data = DataStore::new();
+        data.insert("recipe_registry", RecipeRegistry::from_csv(recipe_csv.as_bytes()).unwrap());
+        data.insert(
+            "item_registry",
+            ItemRegistry::from_csv(b"id,name,weight_kg,stack_size,volume_l\negg_0,Egg,0.06,12,0.1\nfried_egg_0,Fried Egg,0.05,12,0.1\n").unwrap(),
+        );
+        data.insert("dev_stock_materials", std::sync::Mutex::new(false));
+        data.insert("craft_request", std::sync::Mutex::new(Option::<String>::None));
+        data.insert("player_notices", std::sync::Mutex::new(Vec::<String>::new()));
+        data.insert("power_status", std::sync::Mutex::new(PowerStatus::default()));
+        let mut world = hecs::World::new();
+        let mut inv = Inventory::new(16);
+        inv.add_item("egg_0", 6, 12);
+        let player = world.spawn((inv, Controllable));
+        world.spawn((PowerGenerator { output_watts: 100.0, fuel_per_second: 0.0, active: true }, PowerCircuit { island: 0 }));
+        world.spawn((
+            MachineType("stove".into()),
+            StationLoad { active_watts: 1200.0, idle_watts: 0.0 },
+            PowerConsumer { draw_watts: 0.0, priority: 2, enabled: true },
+            PowerCircuit { island: 0 },
+        ));
+        let mut power = ElectricalSystem::new(std::path::Path::new("data"));
+        let mut sys = CraftingSystem::new();
+        for _ in 0..24 {
+            *data.get::<std::sync::Mutex<Option<String>>>("craft_request").unwrap().lock().unwrap() = Some("fry".into());
+            power.tick(&mut world, 0.1, &data);
+            sys.tick(&mut world, 0.1, &data);
+        }
+        let inv = world.get::<&Inventory>(player).unwrap();
+        assert_eq!(inv.count_item("egg_0"), 5, "one craft started, the rest refused");
+        assert_eq!(inv.count_item("fried_egg_0"), 0, "and it stays paused without power");
+        let paused = notices(&data).iter().filter(|n| n.contains("paused")).count();
+        assert_eq!(paused, 1, "told once: {:?}", notices(&data));
+    }
+
+    /// An automated batch restored from a save still belongs to its machine by
+    /// id (2026-09-26): its crafter entity is a stand-in until the machine
+    /// respawns, so the power hold must look the machine up by id.
+    #[test]
+    fn a_restored_batch_holds_on_its_own_machines_power() {
+        use crate::ecs::components::{MachineInstanceId, PowerConsumer};
+        let (data, mut world, player) = big_output_world(5.0);
+        let machine = world.spawn((MachineInstanceId("bench_1".into()), PowerConsumer { draw_watts: 0.0, priority: 2, enabled: false }));
+        let mut sys = CraftingSystem::new();
+        sys.active_crafts.push(ActiveCraft {
+            recipe_id: "make_crate".into(),
+            time_remaining: 1.0,
+            crafter: player,
+            auto: true,
+            pad: None,
+            machine_id: Some("bench_1".into()),
+            waiting_notified: false,
+            pause_notified: false,
+        });
+        sys.tick(&mut world, 5.0, &data);
+        assert_eq!(sys.active_crafts.len(), 1, "held: its machine has no power");
+        world.get::<&mut PowerConsumer>(machine).unwrap().enabled = true;
+        sys.tick(&mut world, 5.0, &data);
+        assert!(sys.active_crafts.is_empty(), "runs once the machine has power");
     }
 
     fn notices(data: &DataStore) -> Vec<String> {

@@ -1623,3 +1623,36 @@ flask became a real item); `recipe_sources_lint` `npc_shops_sell_real_items`
 fails on any shop item that is not in items.csv (it failed on the real data
 first). `data/tech_tree.ron` is left out on purpose: the game does not read
 it yet and it names future items by design.
+
+## BUG-088: eight defects in the day's crafting and storage work, found by review (FIXED v0.1360.0)
+
+An independent review of v0.1345.0..v0.1359.0 (a read-only critic agent that
+reproduced seven of them against the crate) found:
+
+1. **Saving wiped the wear and grade of everything carried.** The save kept
+   only (id, count). Now `WorldSave.inventory_state` keeps each stack's
+   (wear, grade) in order and the restore puts each stack back as it was.
+   Test `carried_tools_keep_their_wear_and_grade_across_a_save`.
+2. **Power shedding flip-flopped every tick,** so a craft could start without
+   power and the "paused" notice repeated. `ElectricalSystem` counted a load
+   shed last tick as 0 W, so it fit and switched back on. It now counts every
+   load's draw, and a station with a craft on it keeps its working demand
+   while shed. Tests `a_shed_load_stays_shed`,
+   `a_stove_short_of_power_pauses_once_and_stays_paused` (both systems ticking).
+3. **The vendor bought defective goods for 0 CR and sold whichever grade was
+   last.** `vendor_sell` now sells one named grade at its price, refuses
+   defective goods, and the Sell tab lists each stack with its grade and price.
+4. **Filling a jerrycan was refused with room in the pack:** the empty's
+   volume was counted twice. Filling is now a swap.
+5. **Storing a tool in a machine vessel (the Tool Rack) renewed it:** a
+   vessel keeps a count, not each tool's wear and grade. Durable goods are no
+   longer offered to vessels, and machine outputs skip vessels for them.
+6. **Putting away one grade could take another** when the grade spanned
+   several stacks. `remove_worn` takes every matching stack first.
+7. **A pack with every slot full lost the empty bottle after a drink.** A slot
+   is made for it.
+8. **A restored automated batch ignored its machine's power,** holding the
+   stand-in entity it was restored with. Held and busy checks find the machine
+   by id. Test `a_restored_batch_holds_on_its_own_machines_power`.
+
+Each test was run red by undoing its fix first.

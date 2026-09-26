@@ -243,25 +243,30 @@ pub fn vendor_sell(
     goods: &TradeGoodsRegistry,
     item_id: &str,
     qty: u32,
+    quality: u8,
     levels: Option<&crate::systems::crafting::quality::QualityLevels>,
 ) -> Result<String, String> {
     let price = goods
         .vendor_buy_price(item_id)
         .ok_or_else(|| format!("{item_id} is not traded here"))?;
-    let have = inv.count_item(item_id);
+    // One grade at a time, at that grade's price (2026-09-26): a good hammer
+    // fetches more than a poor one, and defective goods are not bought.
+    let m = levels.map_or(1.0, |l| l.price_multiplier(quality) as f64);
+    if m <= 0.0 {
+        return Err("The vendor will not buy defective goods: scrap or recycle them.".to_string());
+    }
+    let have: u32 = inv
+        .slots
+        .iter()
+        .flatten()
+        .filter(|s| s.item_id == item_id && s.quality == quality)
+        .map(|s| s.quantity)
+        .sum();
     if have < qty {
         return Err(format!("You only have {have}x {item_id}"));
     }
-    // Priced by grade (2026-09-26): a good hammer fetches more than a poor
-    // one; a defective one fetches nothing. Ungraded goods sell at base.
-    let removed = inv.remove_item_report(item_id, qty);
-    let total: i64 = removed
-        .iter()
-        .map(|(q, n)| {
-            let m = levels.map_or(1.0, |l| l.price_multiplier(*q) as f64);
-            (price as f64 * m).floor() as i64 * *n as i64
-        })
-        .sum();
+    inv.remove_graded(item_id, qty, quality);
+    let total = (price as f64 * m).floor() as i64 * qty as i64;
     *credits += total;
     Ok(format!("Sold {qty}x {item_id} for {total} CR"))
 }
@@ -407,12 +412,26 @@ mod tests {
             let mut inv = Inventory::new(4);
             inv.add_item_q("hammer_0", 1, 1, quality);
             let mut credits = 0i64;
-            vendor_sell(&mut inv, &mut credits, &goods, "hammer_0", 1, Some(&levels)).unwrap();
+            vendor_sell(&mut inv, &mut credits, &goods, "hammer_0", 1, quality, Some(&levels)).unwrap();
             credits
         };
         assert_eq!(sell(0), base, "ungraded: the base price");
         assert_eq!(sell(4), (base as f64 * 1.5).floor() as i64, "good: 1.5x");
-        assert_eq!(sell(1), 0, "defective: not sellable");
+        // Defective: refused, and the hammer is kept.
+        let mut inv = Inventory::new(4);
+        inv.add_item_q("hammer_0", 1, 1, 1);
+        let mut credits = 0i64;
+        assert!(vendor_sell(&mut inv, &mut credits, &goods, "hammer_0", 1, 1, Some(&levels)).is_err());
+        assert_eq!((inv.count_item("hammer_0"), credits), (1, 0), "nothing taken, nothing paid");
+        // Selling the masterwork sells the masterwork, not the defective one beside it.
+        let mut inv = Inventory::new(4);
+        inv.add_item_q("hammer_0", 1, 1, 6);
+        inv.add_item_q("hammer_0", 1, 1, 1);
+        let mut credits = 0i64;
+        vendor_sell(&mut inv, &mut credits, &goods, "hammer_0", 1, 6, Some(&levels)).unwrap();
+        assert_eq!(credits, (base as f64 * 5.0).floor() as i64);
+        let left: Vec<u8> = inv.slots.iter().flatten().map(|s| s.quality).collect();
+        assert_eq!(left, vec![1], "the defective one is still in the pack");
     }
 
     /// Buying charges the wallet + lands the items; refusals (broke, full pack)
@@ -437,13 +456,13 @@ mod tests {
         assert_eq!(inv.count_item("iron_ore_0"), 2);
 
         // Sell both back at 2 CR each.
-        let receipt = vendor_sell(&mut inv, &mut credits, &goods, "iron_ore_0", 2, None).unwrap();
+        let receipt = vendor_sell(&mut inv, &mut credits, &goods, "iron_ore_0", 2, 0, None).unwrap();
         assert!(receipt.contains("4 CR"), "{receipt}");
         assert_eq!(credits, 10);
         assert_eq!(inv.count_item("iron_ore_0"), 0);
 
         // Selling what you don't have: refused.
-        assert!(vendor_sell(&mut inv, &mut credits, &goods, "iron_ore_0", 1, None).is_err());
+        assert!(vendor_sell(&mut inv, &mut credits, &goods, "iron_ore_0", 1, 0, None).is_err());
     }
 
     /// v0.750 (ladder rung 8): the shipped equipment.csv parses; the stat

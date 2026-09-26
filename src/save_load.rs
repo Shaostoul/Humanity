@@ -79,6 +79,11 @@ pub fn extract_world_save(world: &hecs::World) -> WorldSave {
             .iter()
             .filter_map(|s| s.as_ref().map(|st| (st.item_id.clone(), st.quantity)))
             .collect();
+        save.inventory_state = inv
+            .slots
+            .iter()
+            .filter_map(|s| s.as_ref().map(|st| (st.wear, st.quality)))
+            .collect();
         save.skills = skills
             .skills
             .iter()
@@ -205,14 +210,16 @@ pub fn apply_save_to_world(world: &mut hecs::World, save: &WorldSave) {
         // discarded overflow here silently ate the excess on the NEXT restart,
         // undoing the never-lose-a-haul guarantee one launch later. Mirror the
         // delivery-site pattern: ensure the slots, then land everything.
-        let needed: usize = save
-            .inventory
-            .iter()
-            .map(|(_, q)| (*q as usize).div_ceil(99))
-            .sum();
-        inv.ensure_slots(needed);
-        for (item_id, qty) in &save.inventory {
-            inv.add_item(item_id, *qty, 99);
+        // Each saved stack comes back exactly as it was, with its wear and
+        // grade (2026-09-26); a stack an older save has no state for comes
+        // back unworn and ungraded.
+        inv.ensure_slots(save.inventory.len());
+        for (i, (item_id, qty)) in save.inventory.iter().enumerate() {
+            let (wear, quality) = save.inventory_state.get(i).copied().unwrap_or((0, 0));
+            let mut stack = crate::systems::inventory::ItemStack::new(item_id.clone(), *qty, (*qty).max(99));
+            stack.wear = wear;
+            stack.quality = quality;
+            inv.slots[i] = Some(stack);
         }
         // Rebuild skills.
         skills.skills.clear();
@@ -968,6 +975,31 @@ mod tests {
     }
 
     /// Organize-layer container contents survive a save serde round-trip, and a
+    /// A carried tool keeps its wear and grade across a save (2026-09-26):
+    /// the save used to keep only ids and counts, so every restart renewed
+    /// every tool and erased its grade.
+    #[test]
+    fn carried_tools_keep_their_wear_and_grade_across_a_save() {
+        use crate::systems::inventory::Inventory;
+        let mut world = hecs::World::new();
+        let mut inv = Inventory::new(8);
+        inv.add_item_q("hammer_0", 1, 1, 6);
+        inv.add_item_q("hammer_0", 1, 1, 1);
+        inv.slots[0].as_mut().unwrap().wear = 150;
+        world.spawn((inv, Controllable, crate::ecs::components::Name("Tester".into()), PlayerSkills::new(), crate::ecs::components::Appearance::default(), crate::ecs::components::Outfit::default()));
+        let save = extract_world_save(&world);
+        let back: WorldSave = serde_json::from_str(&serde_json::to_string(&save).unwrap()).unwrap();
+        let mut fresh = hecs::World::new();
+        fresh.spawn((Inventory::new(8), Controllable, crate::ecs::components::Name("Tester".into()), PlayerSkills::new(), crate::ecs::components::Appearance::default(), crate::ecs::components::Outfit::default()));
+        apply_save_to_world(&mut fresh, &back);
+        let got: Vec<(u32, u8)> = fresh
+            .query::<(&Inventory, &Controllable)>()
+            .iter()
+            .flat_map(|(_, (i, _))| i.slots.iter().flatten().map(|s| (s.wear, s.quality)).collect::<Vec<_>>())
+            .collect();
+        assert_eq!(got, vec![(150, 6), (0, 1)], "each hammer as it was");
+    }
+
     /// The garden's soil survives a save (2026-09-26, N-P-K): each crop's
     /// store and what emptied units remember come back after a restart.
     #[test]

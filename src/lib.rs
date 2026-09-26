@@ -12275,13 +12275,14 @@ mod native_app {
                                         &id,
                                         qty,
                                     )
-                                } else if let Some((id, qty)) = vendor_ops.1 {
+                                } else if let Some((id, qty, grade)) = vendor_ops.1 {
                                     crate::systems::economy::vendor_sell(
                                         &mut inv,
                                         &mut wallet.credits,
                                         goods,
                                         &id,
                                         qty,
+                                        grade,
                                         qlevels,
                                     )
                                 } else {
@@ -14102,6 +14103,12 @@ mod native_app {
                                     }
                                     for (id, qty) in counts {
                                         if qty == 0 {
+                                            continue;
+                                        }
+                                        // A vessel keeps a count, not each tool's
+                                        // wear and grade, so durable goods are not
+                                        // offered for it (2026-09-26).
+                                        if item_reg.map_or(false, |r| r.durability_for(&id) > 0) {
                                             continue;
                                         }
                                         let class = item_reg

@@ -280,25 +280,44 @@ impl Inventory {
     /// Remove like `remove_item`, but take first from the stack worn by
     /// `wear` (2026-09-26), so the tool that leaves the backpack is the one
     /// the player picked and its wear goes with it. Returns the deficit.
-    pub fn remove_worn(&mut self, item_id: &str, mut quantity: u32, wear: u32, quality: u8) -> u32 {
-        if let Some(i) = self
-            .slots
-            .iter()
-            .rposition(|s| s.as_ref().is_some_and(|st| st.item_id == item_id && st.wear == wear && st.quality == quality))
-        {
-            if let Some(stack) = self.slots[i].as_mut() {
-                let take = stack.quantity.min(quantity);
-                stack.quantity -= take;
-                quantity -= take;
-                if stack.quantity == 0 {
-                    self.slots[i] = None;
+    pub fn remove_worn(&mut self, item_id: &str, quantity: u32, wear: u32, quality: u8) -> u32 {
+        // Every stack worn and graded like the picked one first, then any
+        // stack of that grade, and only then anything (2026-09-26: taking
+        // from a single matching stack and then "any" swapped grades when
+        // the picked grade spanned several stacks).
+        let left = self.take_where(quantity, |st| st.item_id == item_id && st.wear == wear && st.quality == quality);
+        let left = self.take_where(left, |st| st.item_id == item_id && st.quality == quality);
+        if left > 0 {
+            return self.remove_item(item_id, left);
+        }
+        0
+    }
+
+    /// Remove `quantity` of `item_id` of grade `quality` only (2026-09-26,
+    /// the vendor sells one grade). Returns the deficit.
+    pub fn remove_graded(&mut self, item_id: &str, quantity: u32, quality: u8) -> u32 {
+        self.take_where(quantity, |st| st.item_id == item_id && st.quality == quality)
+    }
+
+    /// Take up to `quantity` from the stacks `pick` matches, last first.
+    /// Returns what could not be taken.
+    fn take_where(&mut self, mut quantity: u32, pick: impl Fn(&ItemStack) -> bool) -> u32 {
+        for slot in self.slots.iter_mut().rev() {
+            if quantity == 0 {
+                break;
+            }
+            if let Some(stack) = slot {
+                if pick(stack) {
+                    let take = stack.quantity.min(quantity);
+                    stack.quantity -= take;
+                    quantity -= take;
+                    if stack.quantity == 0 {
+                        *slot = None;
+                    }
                 }
             }
         }
-        if quantity > 0 {
-            return self.remove_item(item_id, quantity);
-        }
-        0
+        quantity
     }
 
     /// Check if the inventory contains at least `quantity` of the given item.
@@ -804,6 +823,22 @@ mod volume_gate_tests {
 #[cfg(test)]
 mod grade_tests {
     use super::*;
+
+    /// Putting away a stack of one grade takes that grade even when it spans
+    /// several stacks (2026-09-26: 5 standard shirts stashed from a pack of
+    /// standard x5, standard x1 and excellent x2 used to take the excellent).
+    #[test]
+    fn putting_away_takes_the_picked_grade_across_stacks() {
+        let mut inv = Inventory::new(8);
+        inv.add_item_q("shirt_0", 5, 5, 3);
+        inv.add_item_q("shirt_0", 1, 5, 3);
+        inv.add_item_q("shirt_0", 2, 5, 5);
+        inv.slots.swap(1, 2);
+        assert_eq!(inv.remove_worn("shirt_0", 5, 0, 3), 0);
+        let left: Vec<(u8, u32)> = inv.slots.iter().flatten().map(|s| (s.quality, s.quantity)).collect();
+        assert_eq!(left.iter().filter(|(q, _)| *q == 5).map(|(_, n)| n).sum::<u32>(), 2, "the excellent shirts stay: {left:?}");
+        assert_eq!(left.iter().filter(|(q, _)| *q == 3).map(|(_, n)| n).sum::<u32>(), 1, "one standard left: {left:?}");
+    }
 
     /// Grades never share a stack, and a tool lasts the uses its grade
     /// gives it (2026-09-26, crafting::quality).

@@ -233,7 +233,11 @@ impl System for ElectricalSystem {
             cons_by
                 .entry(pc.map(|p| p.island))
                 .or_default()
-                .push((e, if c.enabled { c.draw_watts } else { 0.0 }, c.priority));
+                // Counted whether or not it was shed last tick (2026-09-26): a
+                // shed load counted as 0 W made demand fit on the next tick, so
+                // it switched back on, and an island that cannot carry its load
+                // flipped on and off every tick.
+                .push((e, c.draw_watts, c.priority));
         }
         let mut batt_by: HashMap<Option<u32>, Vec<hecs::Entity>> = HashMap::new();
         for (e, (_b, pc)) in world.query::<(&Battery, Option<&PowerCircuit>)>().iter() {
@@ -511,6 +515,28 @@ mod tests {
     /// v0.607: power flows PER ISLAND. Island 0 has a generator + a load (the load runs). Island 1 has
     /// a load but NO generator (it is shed -- no magic transmission from island 0). The published
     /// PowerStatus aggregates: generation = island 0's, consumption = only the powered load.
+    #[test]
+    // (the #[test] above this doc comment belongs to this fn now)
+    /// A load an island cannot carry stays shed (2026-09-26): it used to
+    /// switch back on every other tick.
+    fn a_shed_load_stays_shed() {
+        use super::{ElectricalSystem, PowerStatus};
+        use crate::ecs::components::{PowerCircuit, PowerConsumer};
+        use crate::ecs::systems::System;
+        use crate::hot_reload::data_store::DataStore;
+        let mut data = DataStore::new();
+        data.insert("power_status", std::sync::Mutex::new(PowerStatus::default()));
+        let mut world = hecs::World::new();
+        let load = world.spawn((PowerConsumer { draw_watts: 200.0, priority: 1, enabled: true }, PowerCircuit { island: 0 }));
+        let mut sys = ElectricalSystem::new(std::path::Path::new("data"));
+        let mut seen = Vec::new();
+        for _ in 0..6 {
+            sys.tick(&mut world, 1.0, &data);
+            seen.push(world.get::<&PowerConsumer>(load).unwrap().enabled);
+        }
+        assert_eq!(seen, vec![false; 6]);
+    }
+
     #[test]
     fn tick_gates_power_per_island() {
         use super::{ElectricalSystem, PowerStatus};

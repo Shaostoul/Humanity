@@ -64,16 +64,21 @@ pub fn draw_vendor_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
 
             if sell_tab {
                 // SELL: backpack items the vendor trades, at the receive price.
-                let sellable: Vec<(String, String, u32, i64)> = state
+                // Each stack at its grade's price (2026-09-26); defective goods
+                // are listed with no price and cannot be sold.
+                let sellable: Vec<(String, String, u32, i64, u8)> = state
                     .inventory_items
                     .iter()
                     .flatten()
                     .filter_map(|it| {
-                        state
-                            .vendor_goods
-                            .iter()
-                            .find(|g| g.id == it.item_id)
-                            .map(|g| (it.item_id.clone(), it.name.clone(), it.quantity, g.sell_price))
+                        state.vendor_goods.iter().find(|g| g.id == it.item_id).map(|g| {
+                            let m = state.quality_levels.price_multiplier(it.quality) as f64;
+                            let name = match state.quality_levels.name(it.quality) {
+                                Some(grade) => format!("{} ({grade})", it.name),
+                                None => it.name.clone(),
+                            };
+                            (it.item_id.clone(), name, it.quantity, (g.sell_price as f64 * m).floor() as i64, it.quality)
+                        })
                     })
                     .collect();
                 ScrollArea::vertical().id_salt("vendor_sell").show(ui, |ui| {
@@ -83,7 +88,8 @@ pub fn draw_vendor_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
                                 .color(theme.text_muted()),
                         );
                     }
-                    for (id, name, qty, price) in &sellable {
+                    for (id, name, qty, price, grade) in &sellable {
+                        let sellable_grade = state.quality_levels.price_multiplier(*grade) > 0.0;
                         ui.horizontal(|ui| {
                             ui.label(
                                 RichText::new(format!("{name} x{qty}"))
@@ -91,14 +97,18 @@ pub fn draw_vendor_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
                                     .color(theme.text_primary()),
                             );
                             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                                if widgets::compact_button(ui, theme, "Sell all", widgets::ButtonVariant::Secondary) {
-                                    state.pending_vendor_sell = Some((id.clone(), *qty));
+                                if sellable_grade
+                                    && widgets::compact_button(ui, theme, "Sell all", widgets::ButtonVariant::Secondary)
+                                {
+                                    state.pending_vendor_sell = Some((id.clone(), *qty, *grade));
                                 }
-                                if widgets::compact_button(ui, theme, "Sell 1", widgets::ButtonVariant::Secondary) {
-                                    state.pending_vendor_sell = Some((id.clone(), 1));
+                                if sellable_grade
+                                    && widgets::compact_button(ui, theme, "Sell 1", widgets::ButtonVariant::Secondary)
+                                {
+                                    state.pending_vendor_sell = Some((id.clone(), 1, *grade));
                                 }
                                 ui.label(
-                                    RichText::new(format!("{price} CR each"))
+                                    RichText::new(if sellable_grade { format!("{price} CR each") } else { "not bought".to_string() })
                                         .size(theme.font_size_small)
                                         .color(theme.text_secondary()),
                                 );

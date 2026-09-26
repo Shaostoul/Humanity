@@ -1161,7 +1161,7 @@ pub struct GuiState {
     /// Buy/Sell clicked this frame: (item id, quantity). lib.rs settles them
     /// against the ECS inventory + Wallet via economy::vendor_buy/vendor_sell.
     pub pending_vendor_buy: Option<(String, u32)>,
-    pub pending_vendor_sell: Option<(String, u32)>,
+    pub pending_vendor_sell: Option<(String, u32, u8)>, // (id, qty, grade)
     /// Equip/unequip intents (v0.750, ladder rung 8): item id to wear / slot
     /// id to clear. The frame bridge moves items between the pack and the
     /// ECS Outfit (slot validated against equipment.csv).

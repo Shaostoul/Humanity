@@ -337,7 +337,7 @@ impl FoodSystem {
         item_id: &str,
         how: Consume,
         fx: &MealEffects,
-        returns: Option<&str>,
+        returns: Option<(&str, u32)>,
     ) {
         use crate::ecs::components::{StatusEffects, Vitals};
         use crate::systems::inventory::Inventory;
@@ -390,8 +390,11 @@ impl FoodSystem {
             inv.remove_item(item_id, 1);
             // Drinking from a vessel hands the empty vessel back (2026-09-26,
             // data/containers/fluids.ron), ready to fill at a tank again.
-            if let Some(empty) = returns {
-                inv.add_item(empty, 1, 99);
+            // A slot is made for it, so a full pack never drops it (2026-09-26).
+            if let Some((empty, max_stack)) = returns {
+                let occupied = inv.slots.iter().filter(|s| s.is_some()).count();
+                inv.ensure_slots(occupied + 1);
+                inv.add_item(empty, 1, max_stack);
             }
             let nutrition_mult = if is_spoiled { 0.25 } else { 1.0 };
             vitals.satiation = (vitals.satiation + calories * SATIATION_PER_CALORIE * nutrition_mult)
@@ -467,12 +470,16 @@ impl System for FoodSystem {
                 nourished_s: effect_s("well_nourished", FALLBACK_WELL_FED_S),
             };
             let fluids = data.get::<crate::systems::fluids::FluidTable>("fluid_table");
-            let empty_of = |id: &str| fluids.and_then(|t| t.empty_of(id)).map(str::to_string);
+            let empty_of = |id: &str| {
+                fluids.and_then(|t| t.empty_of(id)).map(|e| (e.to_string(), item_registry.map_or(99, |r| r.max_stack_for(e))))
+            };
             if let Some(item_id) = consumed {
-                self.consume(world, &item_id, Consume::Eat, &fx, empty_of(&item_id).as_deref());
+                let back = empty_of(&item_id);
+                self.consume(world, &item_id, Consume::Eat, &fx, back.as_ref().map(|(e, m)| (e.as_str(), *m)));
             }
             if let Some(item_id) = drank {
-                self.consume(world, &item_id, Consume::Drink, &fx, empty_of(&item_id).as_deref());
+                let back = empty_of(&item_id);
+                self.consume(world, &item_id, Consume::Drink, &fx, back.as_ref().map(|(e, m)| (e.as_str(), *m)));
             }
         }
 
@@ -1417,6 +1424,27 @@ mod nutrition_tests {
             2 + 13,
             "the tank holds 13.3 person-days; the rest of forty went to the septic tank"
         );
+    }
+
+    /// A pack with every slot full still gets the empty bottle back
+    /// (2026-09-26: it used to be dropped).
+    #[test]
+    fn a_full_pack_still_gets_the_empty_bottle_back() {
+        let mut data = make_store();
+        let bytes = std::fs::read(concat!(env!("CARGO_MANIFEST_DIR"), "/data/containers/fluids.ron")).unwrap();
+        data.insert("fluid_table", crate::systems::fluids::FluidTable::from_ron(&bytes).unwrap());
+        let mut sys = FoodSystem::new(data_dir());
+        let mut world = hecs::World::new();
+        let mut inv = Inventory::new(2);
+        inv.add_item("water_bottle_0", 2, 10);
+        inv.add_item("bread_0", 1, 10);
+        let player = world.spawn((inv, vitals(80.0, 40.0), StatusEffects::default(), Health::default()));
+        *data.get::<std::sync::Mutex<Option<String>>>("drink_request").unwrap().lock().unwrap() =
+            Some("water_bottle_0".to_string());
+        sys.tick(&mut world, 1.0, &data);
+        let inv = world.get::<&Inventory>(player).unwrap();
+        assert_eq!(inv.count_item("water_bottle_0"), 1);
+        assert_eq!(inv.count_item("water_bottle_empty_0"), 1, "the empty came back into a new slot");
     }
 
     /// Drinking a bottle hands the empty bottle back (2026-09-26): the vessel

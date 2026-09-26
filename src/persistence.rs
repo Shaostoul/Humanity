@@ -20,6 +20,11 @@ pub struct WorldSave {
     pub player_rotation: [f32; 4],
     pub player_health: f32,
     pub inventory: Vec<(String, u32)>,
+    /// Wear and grade of each saved backpack stack, in the same order as
+    /// `inventory` (2026-09-26: a restart used to renew every carried tool
+    /// and erase its grade). An older save without it restores unworn.
+    #[serde(default)]
+    pub inventory_state: Vec<(u32, u8)>,
     pub skills: HashMap<String, (u32, u32)>,
     pub constructions: Vec<ConstructionSave>,
     /// Craft batches in flight (2026-09-25); see CraftSave.
@@ -144,6 +149,7 @@ impl WorldSave {
             deployed_vehicles: Vec::new(),
             crops: Vec::new(),
             crop_soil: Vec::new(),
+            inventory_state: Vec::new(),
             soil_memory: Default::default(),
             credits: -1,
             quests: None,
@@ -350,6 +356,7 @@ mod tests {
             deployed_vehicles: Vec::new(),
             crops: Vec::new(),
             crop_soil: Vec::new(),
+            inventory_state: Vec::new(),
             soil_memory: Default::default(),
             credits: -1,
             quests: None,
