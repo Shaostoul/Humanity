@@ -749,6 +749,9 @@ pub struct GuiCrop {
     pub progress: f32,
     pub water: f32,
     pub health: f32,
+    /// Average health over the growing season, 0..1 (2026-09-26): what sets
+    /// the yield (farming::season_health). Current health recovers fast.
+    pub season_health: f32,
     pub mature: bool,
     pub dead: bool,
     /// The tower this crop belongs to (its config id), if planted via a tower.

@@ -2308,6 +2308,8 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                                             stat(ui, "Temp window", format!("{:.0}-{:.0} °C", c.temp_min, c.temp_max));
                                                             stat(ui, "Reservoir", format!("{:.0}%", c.water * 100.0));
                                                             stat(ui, "Health", format!("{:.0}%", c.health));
+                                                            // What the harvest will be scaled by (2026-09-26).
+                                                            stat(ui, "Season health", format!("{:.0}%", c.season_health * 100.0));
                                                         });
                                                     ui.add_space(theme.spacing_xs);
                                                     ui.horizontal(|ui| {

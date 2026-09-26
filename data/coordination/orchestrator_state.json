@@ -784,6 +784,11 @@
    "date": "2026-09-26",
    "decision": "Crafting depth rung 2 (v0.1349.0): station power. MachinePower::Consumer gained idle_watts (serde default None, skipped when None so editor saves do not churn); machine entities carry MachineType; a StationLoad component holds active/idle watts and the crafting tick sets PowerConsumer.draw_watts to active while a craft runs at the station (auto: its own batch; manual: one powered station of the type), idle otherwise. A manual craft at an electric station with no powered machine of its type is refused with a notice; the Crafting page mirrors it via GuiState.unpowered_station_types. Family home: stove idle 0, oven 2, electronics bench 5, sewing machine 0.",
    "why": "Those four drew ~3.65 kW around the clock, which is not how a stove works and distorted the home power budget. Not done: pausing a running craft when power drops (rung 3). An idle 0 W consumer is disabled by the shedder on an over-budget island, which reads as no power, and that is intended: there is no spare power to switch it on. Tests red on purpose first (no gate; no drop to idle)."
+  },
+  {
+   "date": "2026-09-26",
+   "decision": "Gardening depth rung 1 merged (v0.1350.0, worktree agent commit cherry-picked as 2e15cae1): CropInstance keeps health_seconds/growing_seconds; the harvest scales the rolled yield by season health (FAO 33 linear, Ky 1) and posts one notice for a stressed harvest; data/plants_visual.ron stage_models maps six previously unused model sets (plus wheat for spelt/triticale/rye/barley) to 24 species, 36 of 189 now draw a stage model. Added the Season health stat to the crop card (agent suggestion; it could not touch lib.rs).",
+   "why": "Season average, not harvest-day health, because health recovers in minutes and freezes at maturity, so a drought would be forgotten. Edible mushrooms deliberately NOT mapped to the mushroom model: it carries Amanita field marks (warted cap, ring, swollen base), which would teach the wrong look. Visual check: planted oat, coconut, raspberry, prickly pear and tulip in the showcase fields for one rig run (reverted), all rendered, 0 panics. Byproducts handed to the homestead-engineer agent in a worktree."
   }
  ],
  "active_scopes_to_avoid": [

@@ -79,7 +79,8 @@ date; re-check before trusting one. The container data basis is
   tied to `data/machines/home.ron` placements; a container that can be
   picked up and set down needs placement to be one system first.
 - **Gardening depth, first rung: yield from health and the unused plant
-  models, DONE 2026-09-26.** Each crop now keeps a season health record
+  models, DONE 2026-09-26** (v0.1350.0; the crop card now shows "Season
+  health", which is what the harvest is scaled by). Each crop now keeps a season health record
   (`health_seconds` / `growing_seconds` on `CropInstance`, the time-average
   of its health while growing), and the harvest scales the rolled yield by
   it, linearly, the shape of the FAO-33 crop-water production function with

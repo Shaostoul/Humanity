@@ -1575,7 +1575,11 @@ Gas tracking, explosions, suffocation, pressure simulation. **Registered (v0.617
 - Native: `src/systems/disasters.rs`
 
 ### Farming
-6 growth stages, water/health simulation, seasonal effects. Plantable grow
+6 growth stages, water/health simulation, seasonal effects. Yield follows the
+crop's SEASON health, the time-average of its health while growing
+(`farming::season_health`, FAO 33 linear response; v0.1350.0), shown on the
+crop card; stage models map to species through `stage_models` in
+`data/plants_visual.ron`. Plantable grow
 areas beyond towers (v0.738 grain loop): beds/trays/fields render as Garden
 groups with a Plant button (crop = edit-modal Crop field or the medium's
 `default_crop` in grow_media.ron; survival consumes one seed per unit,

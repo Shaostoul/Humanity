@@ -1090,9 +1090,11 @@ memory, cleaning and materials are DONE (v0.1345.0); visible storage is DONE
 as litres, first rung, is DONE (v0.1347.0: tap water for recipes, bottles and
 jerrycans filled at a tank). Crafting depth rung 1 is DONE (v0.1348.0: tools
 needed and worn); rung 2 is DONE (v0.1349.0: stations draw power only while
-they work and refuse a craft when unpowered). Next: byproducts and quality;
-gardening depth (yield from health, the six unmapped plant models) is being
-merged. Containers as items (3c) waits on the unified placement
+they work and refuse a craft when unpowered). Gardening depth rung 1 is DONE
+(v0.1350.0: yield follows season health; 36 of 189 species draw stage
+models). In flight: byproducts with real mass-balance ratios (and the
+tan_leather hide duplication). Next: quality tiers, a craft pausing when
+its station loses power, N-P-K, pests, light. Containers as items (3c) waits on the unified placement
 schema. Progress and open items live at the top of the gap doc.
 
 **Gameplay gap survey (2026-09-25):** `docs/design/gameplay-gaps-2026-09-25.md`

@@ -12801,6 +12801,7 @@ mod native_app {
                                 progress,
                                 water: crop.water_level,
                                 health: crop.health,
+                                season_health: crate::systems::farming::season_health(crop),
                                 mature,
                                 dead,
                                 tower_id: crop.tower_id.clone(),
