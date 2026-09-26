@@ -1330,6 +1330,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     // Bulk harvest (v0.739): every mature crop's bits from a group's
     // "Harvest N ready" button, applied after the panel.
     let mut action_harvest_many: Option<Vec<u64>> = None;
+    let mut action_pest_control: Option<(String, String)> = None;
     // Summon a world vehicle to drive itself to the player (Stage 3, v0.680),
     // set by the Vehicles section's Summon button; applied after the panel.
     let mut action_summon_vehicle: Option<u64> = None;
@@ -2101,6 +2102,8 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             (t.id.clone(), ids)
                         });
                         let planted_label = if crops.is_empty() { "Plant this tower" } else { "Plant again" };
+                        let area_tag = tid.clone().unwrap_or_default();
+                        let pests_here = state.garden_pests.areas.iter().find(|a| a.area == area_tag).cloned();
                         widgets::expandable_row(
                             ui,
                             ("garden_grp", gi),
@@ -2138,6 +2141,31 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                 }
                             },
                             |ui| {
+                                // Pests here (2026-09-26, farming::pests): each with
+                                // its level and its controls, gentlest first (IPM).
+                                if let Some(ap) = &pests_here {
+                                    for (name, level, controls) in &ap.pests {
+                                        ui.horizontal_wrapped(|ui| {
+                                            ui.label(
+                                                RichText::new(format!("{name} {:.0}%", level * 100.0))
+                                                    .size(theme.font_size_small)
+                                                    .color(if *level >= 0.3 { theme.danger() } else { theme.warning() }),
+                                            );
+                                            for (cid, cname, _note) in controls {
+                                                if widgets::compact_button(ui, theme, cname, widgets::ButtonVariant::Secondary) {
+                                                    action_pest_control = Some((ap.area.clone(), cid.clone()));
+                                                }
+                                            }
+                                        });
+                                    }
+                                    for (rname, days) in &ap.releases {
+                                        ui.label(
+                                            RichText::new(format!("{rname}: working, {days:.0} garden days left"))
+                                                .size(theme.font_size_small)
+                                                .color(theme.text_secondary()),
+                                        );
+                                    }
+                                }
                                 if slot_count == 0 {
                                     ui.label(
                                         RichText::new("Nothing growing here yet.")
@@ -2616,6 +2644,9 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     }
     if let Some(bits) = action_harvest_many {
         state.pending_harvest_many = bits;
+    }
+    if let Some(c) = action_pest_control {
+        state.garden_pests.pending = Some(c);
     }
     if action_dev_grow {
         state.dev_grow_crops = true;

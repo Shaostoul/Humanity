@@ -1106,8 +1106,12 @@ runs on real time while the garden runs about 720 times faster, so one
 player's urine is a fraction of a percent of the garden's nitrogen; three
 residents on one clock would cover it. Which clock the body and the garden
 share is a design call for the operator (it belongs with the full-realism
-and simplified modes). Next: per-crop removal columns, pests, per-species
-light need, local grow lights, pH, a urine-diverting toilet machine. Containers as items (3c) waits on the unified placement
+and simplified modes). Pests are DONE (v0.1361.0: five pests from university
+IPM guides, controls in IPM order, Off/Gentle/Realistic in Settings). A
+review of the day's crafting and storage work found and fixed eight defects
+(v0.1360.0, BUG-088). Next: per-crop removal columns, per-species light need,
+local grow lights, pH, a urine-diverting toilet machine, pests in the offline
+catch-up. Containers as items (3c) waits on the unified placement
 schema. Progress and open items live at the top of the gap doc.
 
 **Gameplay gap survey (2026-09-25):** `docs/design/gameplay-gaps-2026-09-25.md`

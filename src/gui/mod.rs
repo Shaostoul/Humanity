@@ -1535,6 +1535,7 @@ pub struct GuiState {
     pub dev_grow_crops: bool,
     /// Growing crops, synced from the ECS each frame for the Garden panel.
     pub crops: Vec<GuiCrop>,
+    pub garden_pests: crate::gui::GardenPests, // pests per grow area + a chosen control (farming::pests)
 
     // ── Mining / drones state ──
     /// Set the frame the player clicks "Launch drone" → bridged to DroneSystem's
@@ -3638,6 +3639,7 @@ impl Default for GuiState {
             pending_harvest_many: Vec::new(),
             dev_grow_crops: false,
             crops: Vec::new(),
+            garden_pests: Default::default(),
             pending_drone_manifest: None,
             auto_mine_enabled: false,
             last_drone_order: None,
@@ -4444,6 +4446,7 @@ pub struct SettingsState {
     /// presets. The default is 10x because a 1x default makes plant life
     /// cycles untestable without waiting days.
     pub crop_growth_speed: f32,
+    pub pest_severity: f32, // garden pests: 0 off, 0.5 gentle, 1 realistic (farming::pests)
     /// Offline progression (operator, 2026-09-21; docs/design/offline-
     /// progression.md): while the game is closed your character keeps living,
     /// so crops grow by the time you were away. Read once when a save is
@@ -4660,6 +4663,7 @@ impl Default for SettingsState {
             sun_shadows: true,
             shadow_strength: 1.0,
             crop_growth_speed: crate::systems::farming::DEFAULT_CROP_GROWTH_SPEED,
+            pest_severity: crate::systems::farming::pests::DEFAULT_PEST_SEVERITY,
             offline_progression: true,
             fresh_world_each_launch: true,
             aerial_strength: 1.0,

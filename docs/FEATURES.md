@@ -1590,7 +1590,13 @@ Nitrogen sources (v0.1359.0): compost banks the organic N it does not release
 in year one and releases it over the following years; stored urine (collected
 on the Compost action) is an all-available N fertilizer withheld a month
 before harvest; legumes draw only their unfixed share and leave a credit
-(plants.csv `n_fixed_pct`). Plantable grow
+(plants.csv `n_fixed_pct`). Pests (v0.1361.0): aphids, spider mites, cabbage
+caterpillars, slugs and Colorado potato beetles build up per grow area on their
+host crops under their favouring conditions and cap crop health; the Garden
+panel lists each with its controls in IPM order (hose off, hand-pick, Bt,
+predatory mites, insecticidal soap made from the player's soap, iron phosphate
+bait); rotation lets pressure decay; Settings: Off/Gentle/Realistic
+(`farming/pests.rs`, `data/garden/pests.ron`). Plantable grow
 areas beyond towers (v0.738 grain loop): beds/trays/fields render as Garden
 groups with a Plant button (crop = edit-modal Crop field or the medium's
 `default_crop` in grow_media.ron; survival consumes one seed per unit,

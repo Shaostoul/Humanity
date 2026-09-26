@@ -1173,6 +1173,11 @@ mod native_app {
                 "crop_growth_speed",
                 std::sync::Mutex::new(crate::systems::farming::DEFAULT_CROP_GROWTH_SPEED),
             );
+            // Garden pests (2026-09-26, systems::farming::pests): the data, the
+            // Settings severity, and the Garden panel's control buttons.
+            data_store.insert("garden_pests", crate::systems::farming::pests::PestData::load());
+            data_store.insert("garden_pest_severity", std::sync::Mutex::new(crate::systems::farming::pests::DEFAULT_PEST_SEVERITY));
+            data_store.insert("pest_control_request", std::sync::Mutex::new(Option::<(String, String)>::None));
             // Backpack <-> container transfers (organize-layer inventory): the GUI pushes
             // (item_id, qty, is_add) ops; InventorySystem applies them to the player's
             // backpack. Mirrored from GuiState.pending_inventory_transfers each frame.
@@ -6592,6 +6597,19 @@ mod native_app {
                         if let Ok(mut s) = slot.lock() {
                             if *s != state.gui_state.garden_nutrient {
                                 *s = state.gui_state.garden_nutrient.clone();
+                            }
+                        }
+                    }
+                    // Garden pests: Settings severity and the panel's chosen control -> sim.
+                    if let Some(m) = state.data_store.get::<std::sync::Mutex<f32>>("garden_pest_severity") {
+                        if let Ok(mut s) = m.lock() {
+                            *s = state.gui_state.settings.pest_severity.clamp(0.0, 1.0);
+                        }
+                    }
+                    if let Some(req) = state.gui_state.garden_pests.pending.take() {
+                        if let Some(m) = state.data_store.get::<std::sync::Mutex<Option<(String, String)>>>("pest_control_request") {
+                            if let Ok(mut s) = m.lock() {
+                                *s = Some(req);
                             }
                         }
                     }
@@ -12838,6 +12856,30 @@ mod native_app {
                                 need: [need.n as f32, need.p2o5 as f32, need.k2o as f32],
                                 short_of: (supply < 1.0).then(|| scarce.word().to_string()),
                             });
+                        }
+                        // Pests per grow area for the Garden panel (2026-09-26).
+                        if let Some(pd) = state.data_store.get::<crate::systems::farming::pests::PestData>("garden_pests") {
+                            let mut areas: Vec<String> =
+                                state.gui_state.crops.iter().map(|c| c.tower_id.clone().unwrap_or_default()).collect();
+                            areas.sort();
+                            areas.dedup();
+                            let world = &state.game_world.world;
+                            state.gui_state.garden_pests.areas = areas
+                                .into_iter()
+                                .filter_map(|area| {
+                                    let (pests, rel) = crate::systems::farming::pests::area_report(world, pd, &area);
+                                    let pests: Vec<(String, f32, Vec<(String, String, String)>)> = pests
+                                        .into_iter()
+                                        .filter(|(_, lvl, _)| *lvl >= 0.01)
+                                        .map(|(p, lvl, _)| {
+                                            let controls = pd.controls_for(&p.id).into_iter().map(|c| (c.id.clone(), c.name.clone(), c.note.clone())).collect();
+                                            (p.name.clone(), lvl as f32, controls)
+                                        })
+                                        .collect();
+                                    let releases: Vec<(String, f32)> = rel.into_iter().map(|(c, d)| (c.name.clone(), d as f32)).collect();
+                                    (!pests.is_empty() || !releases.is_empty()).then(|| crate::gui::GuiAreaPests { area, pests, releases })
+                                })
+                                .collect();
                         }
                         // One-time tower compatibility (operator: "make sure they
                         // grow together"): the shared reservoir pH / temperature /

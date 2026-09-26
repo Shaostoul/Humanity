@@ -3453,6 +3453,20 @@ pub(crate) fn draw_gameplay_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
         // ONLY: the world clock, day/night and weather all keep running at real
         // time. plants.csv keeps its real agricultural growth_days, so 1x stays a
         // truthful mode and the displayed numbers stay teachable at every rung.
+        // Garden pests (2026-09-26, the dual-mode house rule for deep systems).
+        ui.label(RichText::new("Garden pests").color(theme.text_secondary()).strong());
+        ui.add_space(theme.spacing_xs);
+        widgets::setting_hint(ui, theme, hint, "Aphids, spider mites, caterpillars, slugs and potato beetles build up on the crops they feed on and cut the harvest. Gentle halves the damage; Realistic uses the losses the extension guides report; Off turns them off.");
+        ui.horizontal(|ui| {
+            for (value, label) in [(0.0_f32, "Off"), (0.5, "Gentle"), (1.0, "Realistic")] {
+                let selected = (state.settings.pest_severity - value).abs() < 0.01;
+                if ui.radio(selected, RichText::new(label).color(theme.text_primary())).clicked() && !selected {
+                    state.settings.pest_severity = value;
+                    state.settings_dirty = true;
+                }
+            }
+        });
+        ui.add_space(theme.spacing_lg);
         ui.label(RichText::new("Crop growth speed").color(theme.text_secondary()).strong());
         ui.add_space(theme.spacing_xs);
         widgets::setting_hint(ui, theme, hint, "How fast plants grow, and nothing else: the clock, the seasons and the weather are untouched. 1x is real agricultural time, where even a fast crop takes hours. Applies immediately, including to plants already in the ground.");

@@ -741,6 +741,27 @@ pub struct GuiVitals {
     pub effects: Vec<(String, f32)>,
 }
 
+/// The pests in one grow area, for the Garden panel (2026-09-26,
+/// systems::farming::pests): each pest with its level and its controls in
+/// the IPM order (gentlest first), and the releases still working there.
+#[derive(Debug, Clone, Default)]
+pub struct GuiAreaPests {
+    /// The grow area's id (a crop's `tower_id`; "" for hand-planted crops).
+    pub area: String,
+    /// (pest name, level 0..1, controls as (id, name, note)).
+    pub pests: Vec<(String, f32, Vec<(String, String, String)>)>,
+    /// (release name, garden days left).
+    pub releases: Vec<(String, f32)>,
+}
+
+/// The Garden panel's pests and the control the player just chose.
+#[derive(Debug, Clone, Default)]
+pub struct GardenPests {
+    pub areas: Vec<GuiAreaPests>,
+    /// (area, control id), carried to the farming system next frame.
+    pub pending: Option<(String, String)>,
+}
+
 /// A growing crop for GUI display (synced from the ECS each frame).
 #[cfg(feature = "native")]
 #[derive(Debug, Clone, Default)]

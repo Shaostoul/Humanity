@@ -263,7 +263,8 @@ date; re-check before trusting one. The container data basis is
   indices make grain and legume removal (and so legume credits) far too
   small; per-crop removal columns are the fix for both.
 - **Gardening depth, rung 5: pests and integrated pest management, DONE
-  2026-09-26.** Five pests in `data/garden/pests.ron`, each with its hosts
+  2026-09-26** (v0.1361.0, with each grow area's pest levels and control
+  buttons in the Garden panel, and Off / Gentle / Realistic in Settings). Five pests in `data/garden/pests.ron`, each with its hosts
   (plants.csv ids), where it lives, what favours it, how fast it multiplies
   and how much it can cost, all cited: aphids (UC IPM 7404: 80 offspring a
   generation, favoured at 65-80 F and by excess nitrogen, "large populations

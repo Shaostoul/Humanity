@@ -553,6 +553,9 @@ pub struct AppConfig {
     pub shadow_strength: f32,
     #[serde(default = "default_crop_growth_speed")]
     pub crop_growth_speed: f32,
+    /// Garden pests (2026-09-26): 0 off, 0.5 gentle, 1 the cited damage.
+    #[serde(default = "default_pest_severity")]
+    pub pest_severity: f32,
     /// Offline progression (2026-09-25): crops keep growing while the game is
     /// closed. On by default; see save_load::catch_up_world.
     #[serde(default = "default_true")]
@@ -928,6 +931,7 @@ fn default_shadow_strength() -> f32 { 1.0 }
 /// see `GuiState::settings.crop_growth_speed` for why the world clock is not
 /// the knob the operator asked for.
 fn default_crop_growth_speed() -> f32 { crate::systems::farming::DEFAULT_CROP_GROWTH_SPEED }
+fn default_pest_severity() -> f32 { crate::systems::farming::pests::DEFAULT_PEST_SEVERITY }
 // ── Vegetation LOD ceilings (v0.1109) ──────────────────────────────────────
 // The OUTER limit of each vegetation-LOD control, in ONE place, because the
 // same number has to be known by three files: the Settings number box (so it
@@ -1327,6 +1331,7 @@ impl AppConfig {
             sun_shadows: state.settings.sun_shadows,
             shadow_strength: state.settings.shadow_strength,
             crop_growth_speed: state.settings.crop_growth_speed,
+            pest_severity: state.settings.pest_severity,
             offline_progression: state.settings.offline_progression,
             fresh_world_each_launch: state.settings.fresh_world_each_launch,
             godray_intensity: state.settings.godray_intensity,
@@ -1557,6 +1562,7 @@ impl AppConfig {
         // value would ripen the whole garden the instant the save loaded.
         state.settings.crop_growth_speed =
             crate::systems::farming::clamp_growth_speed(self.crop_growth_speed);
+        state.settings.pest_severity = self.pest_severity.clamp(0.0, 1.0);
         state.settings.offline_progression = self.offline_progression;
         state.settings.fresh_world_each_launch = self.fresh_world_each_launch;
         state.settings.godray_intensity = self.godray_intensity.clamp(0.0, 1.5);

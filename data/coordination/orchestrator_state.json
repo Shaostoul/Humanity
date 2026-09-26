@@ -839,6 +839,11 @@
    "date": "2026-09-26",
    "decision": "v0.1360.0: fixed the eight defects an independent critic review found in v0.1345..v0.1359 (BUG-088): backpack wear/grade saved (inventory_state), stable power shedding (demand counts shed loads; busy stations keep demand), vendor sells one grade and refuses defective, fill is a swap, durable goods kept out of machine vessels, remove_worn across matching stacks, a slot for the returned empty bottle, restored auto batches resolved by machine id.",
    "why": "Asked a critic to try to break the day's work; seven of eight were reproduced against the crate. The power flip-flop predated today (ElectricalSystem) but today's station power exposed it; the unit tests had set enabled by hand and never ran ElectricalSystem, the checks-that-cannot-fail pattern again. The new stove test ticks both systems."
+  },
+  {
+   "date": "2026-09-26",
+   "decision": "Pests merged (v0.1361.0, worktree agent commit cherry-picked cleanly): pests.rs + data/garden/pests.ron (5 pests, UC IPM / UMN / Iowa State / Cornell / CSU / Clemson sources, game estimates labelled), pressure in SoilMemory.pests (saved), IPM-ordered controls via pest_control_request. Wired here: garden_pests/garden_pest_severity/pest_control_request channels, GardenPests + GuiAreaPests in state_types, per-area report in the crop bridge, Garden panel rows with control buttons, Settings Off/Gentle/Realistic (AppConfig.pest_severity, default gentle).",
+   "why": "Pests default to gentle, so shipping the sim without the panel buttons would have left the player unable to respond; wired in the same release. Left open: pests in the offline catch-up, all hand-planted crops share one pest area."
   }
  ],
  "active_scopes_to_avoid": [
