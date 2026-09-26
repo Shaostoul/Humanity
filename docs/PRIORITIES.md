@@ -1100,9 +1100,14 @@ dark; powered grow lights light indoor beds after dark; fungi need none).
 Quality grades are DONE (v0.1353.0), which completes the crafting list.
 N-P-K is DONE (v0.1355.0), and it found that compost alone cannot feed the
 towers (7% first-season N: a 50-slot lettuce tower needs about 27 bags a
-season). Next: the nitrogen loop (urine diversion, legume fixation, compost's
-slow release), per-crop removal columns, pests, per-species light need,
-local grow lights, pH. Containers as items (3c) waits on the unified placement
+season). The nitrogen loop is DONE (v0.1359.0: compost's slow release over
+years, stored urine, legume fixation). It found the real blocker: the body
+runs on real time while the garden runs about 720 times faster, so one
+player's urine is a fraction of a percent of the garden's nitrogen; three
+residents on one clock would cover it. Which clock the body and the garden
+share is a design call for the operator (it belongs with the full-realism
+and simplified modes). Next: per-crop removal columns, pests, per-species
+light need, local grow lights, pH, a urine-diverting toilet machine. Containers as items (3c) waits on the unified placement
 schema. Progress and open items live at the top of the gap doc.
 
 **Gameplay gap survey (2026-09-25):** `docs/design/gameplay-gaps-2026-09-25.md`

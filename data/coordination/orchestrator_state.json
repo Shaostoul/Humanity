@@ -829,6 +829,11 @@
    "date": "2026-09-26",
    "decision": "v0.1358.0: construction::wire_built_stations gives built electric stations (blueprint power_watts/idle_watts/power_priority) MachineType + PowerConsumer + StationLoad on the strongest island; vessel level gauges via MachineDef.level_gauge (silo, fuel drums), crossed plates; silo_1 moved from (45,78) inside a rack bay to (52.3,76).",
    "why": "v0.1357 made stations buildable but a built stove ignored power. Gauges on every container would have covered 21 shelves, so an explicit machine flag marks bulk vessels."
+  },
+  {
+   "date": "2026-09-26",
+   "decision": "Nitrogen loop merged (v0.1359.0, homestead-engineer worktree, clean cherry-pick): compost organic cohorts in SoilMemory.organic released at [0, 3.5%, 2%/yr] of the remainder (Gravuer 2016; OSU EM 9165), urine_stored_0 (Jonsson 2004 per person-day, all available, WHO one-month withholding), legume n_fixed_pct for 9 species (Salvagiotti 2008, Hossain 2017) with a harvest credit; feeder uses urine for N first then compost. Follow-ups done here: Compost button relabelled \"Compost and draw off urine\"; the home.ron Nutrients loop now closes: false with an honest note.",
+   "why": "The agent computed the household balance: 3 residents urine = 12 kg N/yr vs 10.2 kg net need, but only on a shared clock; the body runs real-time and the garden ~720x faster, so in play urine is ~0.05-0.5% of need. That is a design call (which clock) for the operator, recorded in PRIORITIES, not tuned away. P and K do not close from urine at all."
   }
  ],
  "active_scopes_to_avoid": [

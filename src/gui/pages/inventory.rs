@@ -1529,7 +1529,8 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 if widgets::secondary_button(ui, theme, "Rest") {
                     action_rest = true;
                 }
-                if widgets::secondary_button(ui, theme, "Compost") {
+                // Compost also draws off the stored urine as fertilizer (2026-09-26).
+                if widgets::secondary_button(ui, theme, "Compost and draw off urine") {
                     action_compost = true;
                 }
             });

@@ -1585,7 +1585,12 @@ dark) and pause in the dark; plants.csv `needs_light` is false for fungi. Nutrie
 each unit holds grams of N, P2O5 and K2O (`CropSoil`), crops draw their
 season need, the scarcest nutrient caps health, compost adds its cited
 first-season nutrients, the "nutrient" slider runs a feeder from home
-storage, and the soil is saved (`farming/soil.rs`, `data/garden/nutrients.ron`). Plantable grow
+storage, and the soil is saved (`farming/soil.rs`, `data/garden/nutrients.ron`).
+Nitrogen sources (v0.1359.0): compost banks the organic N it does not release
+in year one and releases it over the following years; stored urine (collected
+on the Compost action) is an all-available N fertilizer withheld a month
+before harvest; legumes draw only their unfixed share and leave a credit
+(plants.csv `n_fixed_pct`). Plantable grow
 areas beyond towers (v0.738 grain loop): beds/trays/fields render as Garden
 groups with a Plant button (crop = edit-modal Crop field or the medium's
 `default_crop` in grow_media.ron; survival consumes one seed per unit,
