@@ -792,9 +792,9 @@ pub(crate) fn rebuild_plant_meshes(state: &mut EngineState) {
     // slice) and is summarised in run.log by `note_plant_rebuild`.
     let _cost = crate::renderer::frame_costs::stage("cpu.plant_rebuild");
     let rebuild_t0 = std::time::Instant::now();
-    // Hero stage models used to draw one object per crop here (v0.992); they
-    // bake into `plant_objects` now (2026-09-26), so this list stays empty.
-    state.hero_plant_objects.clear();
+    // Hero stage models used to draw one object per crop (v0.992,
+    // `hero_plant_objects`, removed 2026-09-26); they bake into
+    // `plant_objects` now, one draw per machine and model.
     let mut cache = match state.data_store.get::<PlantMeshCache>(PLANT_MESH_CACHE_KEY) {
         Some(c) => c.clone(),
         None => {

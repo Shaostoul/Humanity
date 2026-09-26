@@ -370,12 +370,6 @@ pub(crate) struct EngineState {
     /// pos, yaw deg, uniform scale) scattered from
     /// data/entities/decorations.ron at home build.
     pub(crate) decoration_objects: Vec<(usize, usize, Vec3, f32, f32)>,
-    /// Hero crop models drawn one object per crop (v0.992). EMPTY since
-    /// 2026-09-26: a plot now draws every plant it holds, so the stage models
-    /// bake into the merged meshes in `plant_objects` (one draw per machine
-    /// and model). Kept only because its draw loop is in lib.rs; delete both
-    /// together.
-    pub(crate) hero_plant_objects: Vec<(usize, usize, Vec3, f32, f32)>,
     /// Crop model names that failed to load once - skipped on later rebuilds
     /// so ~114 modelless species never re-attempt a parse per growth tick.
     pub(crate) hero_plant_missing: std::collections::HashSet<String>,
