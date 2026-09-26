@@ -3337,6 +3337,25 @@
             rotation: 0.0,
             zone: "home",
         ),
+        // solar_9 and solar_10 (2026-09-26): the greenhouse exhaust fan and the
+        // mushroom tents' humidifiers put demand past eight panels (see the
+        // Energy loop); two more close it.
+        (
+            id: "solar_9",
+            machine: "solar_panel",
+            room: "room-power",
+            offset: (11.0, 0.0, 17.0),
+            rotation: 0.0,
+            zone: "home",
+        ),
+        (
+            id: "solar_10",
+            machine: "solar_panel",
+            room: "room-power",
+            offset: (11.0, 0.0, 19.0),
+            rotation: 0.0,
+            zone: "home",
+        ),
         (
             id: "wind_1",
             machine: "wind_turbine_small",
@@ -3792,6 +3811,18 @@
             spec: None,
         ),
         (
+            from: "solar_9",
+            to: "battery_1",
+            kind: "power",
+            spec: None,
+        ),
+        (
+            from: "solar_10",
+            to: "battery_2",
+            kind: "power",
+            spec: None,
+        ),
+        (
             from: "wind_1",
             to: "battery_1",
             kind: "power",
@@ -4119,10 +4150,10 @@
         (
             name: "Energy",
             demand: "~14.0 kWh/day (home + machines + garden pumps + greenhouse exhaust fan + mushroom tent humidifiers)",
-            supply: "~12.2 kWh/day: 8 solar panels + wind; 8 batteries = 2.8 days autonomy; generator backstop",
-            closes: false,
+            supply: "~15.1 kWh/day: 10 solar panels + wind; 8 batteries = 2.8 days autonomy; generator backstop",
+            closes: true,
             weakest: false,
-            note: "Does not close on sun and wind alone (2026-09-26). The greenhouse needs its exhaust fan to keep the air under the gray-mold line (farming::humidity; about 540 L of water a day breathed out by the crops at full planting), and at the half speed that takes it draws about 30 W, 0.7 kWh a day. The seven mushroom racks fruit in tents, each held at 90% for its oyster mushrooms by a small humidifier (farming::humidity; the racks' room sits near 48% on its own, where the pins dry out): about 55 W together, 1.3 kWh a day, and about 13 L of the tanks' water. That replaced one humidifier for the whole mushroom room (88 W, 2.1 kWh and 27 L a day for six racks). Together the fan and the tents put demand about 15% past the panels. The generator covers it today; the fan alone already tipped it, and two more panels (about 2.9 kWh a day at 4.5 sun-hours) would close it. Energy is Wh/day, not nameplate watts. Eight 400 W panels make ~11.5 kWh/d at 4.5 sun-hours; eight battery banks ride a ~3-day no-sun-no-wind stretch; the generator covers the deeper tail. The indoor garden is SUN-LIT: only its recirculation pumps draw power (~0.5 kWh/d, inside headroom). Artificial grow-lights to feed 3 people indoors would draw 30 to 150+ kWh/d, 2.5x to 12x this whole budget, so the garden uses the sun, not LEDs. That is what keeps the home off-grid.",
+            note: "Closes with ten panels (2026-09-26). The greenhouse needs its exhaust fan to keep the air under the gray-mold line (farming::humidity; about 540 L of water a day breathed out by the crops at full planting), and at the half speed that takes it draws about 30 W, 0.7 kWh a day. The seven mushroom racks fruit in tents, each held at 90% for its oyster mushrooms by a small humidifier (farming::humidity; the racks' room sits near 48% on its own, where the pins dry out): about 55 W together, 1.3 kWh a day, and about 13 L of the tanks' water. That replaced one humidifier for the whole mushroom room (88 W, 2.1 kWh and 27 L a day for six racks). Together the fan and the tents put demand about 15% past the eight panels the home had, so two more were added (2026-09-26, solar_9 and solar_10: about 2.9 kWh a day at 4.5 sun-hours), which closes it with about 8% headroom. Energy is Wh/day, not nameplate watts. Ten 400 W panels make ~14.4 kWh/d at 4.5 sun-hours; eight battery banks ride a ~3-day no-sun-no-wind stretch; the generator covers the deeper tail. The indoor garden is SUN-LIT: only its recirculation pumps draw power (~0.5 kWh/d, inside headroom). Artificial grow-lights to feed 3 people indoors would draw 30 to 150+ kWh/d, 2.5x to 12x this whole budget, so the garden uses the sun, not LEDs. That is what keeps the home off-grid.",
         ),
         (
             name: "Water",

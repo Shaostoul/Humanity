@@ -1134,8 +1134,8 @@ it does not close on sun and wind once the greenhouse fan runs (about 12.7
 of 12.2 kWh a day; a ninth panel would). A bearing plant now lives through
 its picking window. Each mushroom rack fruits in its own tent at 90% (v0.1372.0: a small
 humidifier per tent, 0.56 to 1.3 kWh a day instead of 2.1 to 2.4; the solo
-home's energy loop closes again, the family home's is still about 14.0 of
-12.2 kWh because of the greenhouse fan), and weeds compete in
+home's energy loop closes again; the family home closes with two more
+panels, ten in all, about 15.1 of 14.0 kWh a day, v0.1372.1), and weeds compete in
 soil beds and fields, hoed with the hoe and mulched with the sawmill's bark
 and sawdust (v0.1371.0). Next: the rubber tree yields latex (it harvests a fiber
 bundle) and vulcanizing uses sulfur (both DONE v0.1368.0); greenhouse

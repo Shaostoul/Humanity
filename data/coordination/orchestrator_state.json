@@ -934,6 +934,11 @@
    "date": "2026-09-26",
    "decision": "v0.1372.0: fruiting tents (6b2798a6): grow_media enclosure on the mushroom rack medium, each tent its own room (tent:<rack>) venting into its room; fresh air 22.6 m3/h from oyster CO2 output (Pavlik 2020) against a 0.1% limit (Lin 2022); AC Infinity CLOUDFORGE T3 per tent. Family 13.3 L/55 W/1.3 kWh a day for 7 tents, solo 5.6 L/23 W/0.56 kWh; solo energy loop closes again, family still open (about 14.0 vs 12.2).",
    "why": "The whole-room humidifier was honest but wasteful; tents are what small growers use. Left: no CO2 model (the mushroom room gets about 540 ppm extra from six racks), tents not drawn, T3 reservoir not modelled."
+  },
+  {
+   "date": "2026-09-26",
+   "decision": "v0.1372.1: two more solar panels in the family home (solar_9 at (11,0,17) and solar_10 at (11,0,19) on the power terrace, to battery_1 and battery_2); Energy loop supply ~15.1 kWh/day vs demand ~14.0, closes: true.",
+   "why": "The home design is AI-authored data meant to close its loops; realism added real loads (greenhouse fan, tent humidifiers), so the design adapts the way a real homesteader would size up the array. Placed clear of the wind turbine at x 14."
   }
  ],
  "active_scopes_to_avoid": [
