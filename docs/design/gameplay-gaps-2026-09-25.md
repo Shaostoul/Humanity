@@ -182,7 +182,9 @@ date; re-check before trusting one. The container data basis is
   belongs with the full-realism and simplified vitals modes rather than a
   quick fix; data/tech_tree.ron (not read by the game) names about 50 items
   that do not exist yet.
-- **Gardening depth, rung 3: nutrients as N-P-K, DONE 2026-09-26.** Every
+- **Gardening depth, rung 3: nutrients as N-P-K, DONE 2026-09-26** (v0.1355.0;
+  merged with the soil saved in `WorldSave` and the crop card showing the
+  grams held, the season need and what is short). Every
   unit of growing space (tower slot, bed, tray or field unit) holds grams of
   plant-available N, P2O5 and K2O (`CropSoil`, `farming/soil.rs`, which
   replaces the unused scaffold; numbers and sources in
@@ -205,17 +207,10 @@ date; re-check before trusting one. The container data basis is
   keeps its worked soil for the next crop. Found, not fixed: at compost's
   real 7% first-season N, a 50-slot lettuce tower needs about 27 bags a
   season and the Barn holds 40, so compost alone cannot feed the towers.
-  The indices understate grain and legume removal 5 to 20 times. Soil is not
-  saved yet (`WorldSave` has no field for it), so a reload refreshes it.
+  The indices understate grain and legume removal 5 to 20 times.
   Still to do: pH and humidity, the slow organic N that compost releases over
   years, urine and legume N, per-crop removal columns, and N-P-K in the
   Garden panel.
-- Found while merging, still open: the Eat/Drink buttons still show on water
-  MACHINES (the food system now ignores those clicks); `animal_fat_0` has
-  base material `plant_fiber` and there is no tallow material; items.csv
-  files 11 medical supplies, trees, flowers and alien plants under category
-  "food"; `cook_coffee` makes an energy drink; soap has no lye; one hide
-  tans into two leathers; eating one of anything counts as 100 g.
 
 ## Defects found (things that are wrong, not merely missing)
 

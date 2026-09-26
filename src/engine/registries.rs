@@ -64,6 +64,9 @@ pub(crate) fn load_data_registries(store: &mut DataStore, data_dir: &std::path::
         "item_registry",
         crate::systems::inventory::ItemRegistry::from_csv,
     );
+    // Garden nutrients, N-P-K (data/garden/nutrients.ron, 2026-09-26): the
+    // farming system prefers this entry, so an edited file takes effect.
+    store.insert("garden_nutrients", crate::systems::farming::soil::NutrientData::load());
     // Quality grades for hand-made goods (data/manufacturing.ron, 2026-09-26).
     store.insert("quality_levels", crate::systems::crafting::quality::load(data_dir));
     // Recipes, with the hand tools each needs (data/crafting/tools.ron, 2026-09-26).

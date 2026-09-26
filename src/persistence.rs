@@ -72,6 +72,13 @@ pub struct WorldSave {
     /// the showcase auto-seed then fills the grow surfaces instead.
     #[serde(default)]
     pub crops: Vec<crate::ecs::components::CropInstance>,
+    /// Each saved crop's soil (2026-09-26, N-P-K), parallel to `crops`;
+    /// None for a crop that had no soil record yet.
+    #[serde(default)]
+    pub crop_soil: Vec<Option<crate::ecs::components::CropSoil>>,
+    /// What each emptied unit's soil still held, for the next crop sown there.
+    #[serde(default)]
+    pub soil_memory: crate::ecs::components::SoilMemory,
     /// The player's credit balance (v0.747, ladder rung 3). serde-default -1 =
     /// "no wallet saved yet" so pre-v0.747 saves keep the fresh-start default
     /// (10,000 CR) instead of loading as broke.
@@ -136,6 +143,8 @@ impl WorldSave {
             placed_items: Vec::new(),
             deployed_vehicles: Vec::new(),
             crops: Vec::new(),
+            crop_soil: Vec::new(),
+            soil_memory: Default::default(),
             credits: -1,
             quests: None,
         }
@@ -340,6 +349,8 @@ mod tests {
             placed_items: Vec::new(),
             deployed_vehicles: Vec::new(),
             crops: Vec::new(),
+            crop_soil: Vec::new(),
+            soil_memory: Default::default(),
             credits: -1,
             quests: None,
         }

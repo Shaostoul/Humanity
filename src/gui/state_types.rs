@@ -771,6 +771,12 @@ pub struct GuiCrop {
     pub water_per_day: f32,
     pub temp_min: f32,
     pub temp_max: f32,
+    /// Grams of N, P2O5 and K2O the crop's unit holds, and what its season
+    /// needs (2026-09-26, farming::soil).
+    pub soil: [f32; 3],
+    pub need: [f32; 3],
+    /// The scarcest nutrient, when the crop is short of one.
+    pub short_of: Option<String>,
 }
 
 /// An asteroid (with remaining ore) for GUI display.

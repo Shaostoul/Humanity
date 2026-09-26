@@ -2338,7 +2338,12 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                                             };
                                                             stat(ui, "Stage", stage);
                                                             stat(ui, "Growth", format!("{:.0}%", c.progress * 100.0));
-                                                            stat(ui, "N·P·K", format!("{:.2} · {:.2} · {:.2}", c.n, c.p, c.k));
+                                                            // Grams in the unit against the season's need (2026-09-26).
+                                                            stat(ui, "Soil N·P·K", format!("{:.1} · {:.1} · {:.1} g", c.soil[0], c.soil[1], c.soil[2]));
+                                                            stat(ui, "Season needs", format!("{:.1} · {:.1} · {:.1} g", c.need[0], c.need[1], c.need[2]));
+                                                            if let Some(n) = &c.short_of {
+                                                                stat(ui, "Short of", n.clone());
+                                                            }
                                                             stat(ui, "Water/day", format!("{:.1} L", c.water_per_day));
                                                             stat(ui, "Temp window", format!("{:.0}-{:.0} °C", c.temp_min, c.temp_max));
                                                             stat(ui, "Reservoir", format!("{:.0}%", c.water * 100.0));

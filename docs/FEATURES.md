@@ -1581,7 +1581,11 @@ crop's SEASON health, the time-average of its health while growing
 crop card; stage models map to species through `stage_models` in
 `data/plants_visual.ron`. Light (v0.1352.0): green crops grow only while lit
 (the sun, through the skylight indoors; a powered `lights_crops` grow light after
-dark) and pause in the dark; plants.csv `needs_light` is false for fungi. Plantable grow
+dark) and pause in the dark; plants.csv `needs_light` is false for fungi. Nutrients (v0.1355.0):
+each unit holds grams of N, P2O5 and K2O (`CropSoil`), crops draw their
+season need, the scarcest nutrient caps health, compost adds its cited
+first-season nutrients, the "nutrient" slider runs a feeder from home
+storage, and the soil is saved (`farming/soil.rs`, `data/garden/nutrients.ron`). Plantable grow
 areas beyond towers (v0.738 grain loop): beds/trays/fields render as Garden
 groups with a Plant button (crop = edit-modal Crop field or the medium's
 `default_crop` in grow_media.ron; survival consumes one seed per unit,

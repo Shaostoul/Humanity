@@ -1098,7 +1098,11 @@ machines now fill the Barn and rest at a keep target. A craft now pauses while i
 power. Light is DONE (v0.1352.0: crops grow in the light and pause in the
 dark; powered grow lights light indoor beds after dark; fungi need none).
 Quality grades are DONE (v0.1353.0), which completes the crafting list.
-In flight: N-P-K. Next: pests, per-species light need, local grow lights. Containers as items (3c) waits on the unified placement
+N-P-K is DONE (v0.1355.0), and it found that compost alone cannot feed the
+towers (7% first-season N: a 50-slot lettuce tower needs about 27 bags a
+season). Next: the nitrogen loop (urine diversion, legume fixation, compost's
+slow release), per-crop removal columns, pests, per-species light need,
+local grow lights, pH. Containers as items (3c) waits on the unified placement
 schema. Progress and open items live at the top of the gap doc.
 
 **Gameplay gap survey (2026-09-25):** `docs/design/gameplay-gaps-2026-09-25.md`

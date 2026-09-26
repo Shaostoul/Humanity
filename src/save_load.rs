@@ -125,11 +125,21 @@ pub fn extract_world_save(world: &hecs::World) -> WorldSave {
     // save_active_home stores that clock in save.game_time, and resume_home
     // puts it back on load. (Until 2026-09-25 this comment claimed the clock
     // was saved when nothing wrote it, and every restart rewound the garden.)
-    save.crops = world
-        .query::<&crate::ecs::components::CropInstance>()
+    // Each crop with its soil (2026-09-26, N-P-K), and the soil the emptied
+    // units remember, so a restart does not refill every unit.
+    let crops: Vec<(crate::ecs::components::CropInstance, Option<crate::ecs::components::CropSoil>)> = world
+        .query::<(&crate::ecs::components::CropInstance, Option<&crate::ecs::components::CropSoil>)>()
         .iter()
-        .map(|(_e, c)| c.clone())
+        .map(|(_e, (c, s))| (c.clone(), s.cloned()))
         .collect();
+    save.crop_soil = crops.iter().map(|(_, s)| s.clone()).collect();
+    save.crops = crops.into_iter().map(|(c, _)| c).collect();
+    save.soil_memory = world
+        .query::<&crate::ecs::components::SoilMemory>()
+        .iter()
+        .next()
+        .map(|(_e, m)| m.clone())
+        .unwrap_or_default();
     // Builds (2026-09-25): finished structures AND scaffolds still going up.
     // Until now nothing wrote this field, so everything the player built was
     // gone after a restart even though its materials had been consumed.
@@ -279,9 +289,26 @@ pub fn apply_save_to_world(world: &mut hecs::World, save: &WorldSave) {
     for e in existing {
         let _ = world.despawn(e);
     }
-    for c in &save.crops {
-        world.spawn((c.clone(),));
+    for (i, c) in save.crops.iter().enumerate() {
+        match save.crop_soil.get(i).cloned().flatten() {
+            Some(soil) => {
+                world.spawn((c.clone(), soil));
+            }
+            None => {
+                world.spawn((c.clone(),));
+            }
+        }
     }
+    // One soil memory per world (2026-09-26): the save's replaces the live one.
+    let old: Vec<hecs::Entity> = world
+        .query::<&crate::ecs::components::SoilMemory>()
+        .iter()
+        .map(|(e, _)| e)
+        .collect();
+    for e in old {
+        let _ = world.despawn(e);
+    }
+    world.spawn((save.soil_memory.clone(),));
     // Builds (2026-09-25): authoritative like crops and vehicles. The
     // ConstructionSystem finishes a restored scaffold on its own tick,
     // with the usual completion events, once progress reaches build_time.
@@ -941,6 +968,41 @@ mod tests {
     }
 
     /// Organize-layer container contents survive a save serde round-trip, and a
+    /// The garden's soil survives a save (2026-09-26, N-P-K): each crop's
+    /// store and what emptied units remember come back after a restart.
+    #[test]
+    fn crop_soil_and_soil_memory_survive_a_save() {
+        use crate::ecs::components::{CropInstance, CropSoil, Npk, SoilMemory};
+        let mut world = hecs::World::new();
+        let crop = CropInstance {
+            crop_def_id: "tomato".into(),
+            growth_stage: "seedling".into(),
+            planted_at: 0.0,
+            water_level: 1.0,
+            health: 100.0,
+            tower_id: Some("bed_1".into()),
+            tower_slot: Some(2),
+            health_seconds: 0.0,
+            growing_seconds: 0.0,
+        };
+        world.spawn((crop, CropSoil { store: Npk::new(1.0, 2.0, 3.0), uptake: 0.4 }));
+        let mut memory = SoilMemory::default();
+        memory.units.entry("bed_1".into()).or_default().insert(5, Npk::new(4.0, 5.0, 6.0));
+        world.spawn((memory,));
+        let save = extract_world_save(&world);
+        let text = serde_json::to_string(&save).unwrap();
+        let back: WorldSave = serde_json::from_str(&text).unwrap();
+        let mut fresh = hecs::World::new();
+        apply_save_to_world(&mut fresh, &back);
+        let soils: Vec<CropSoil> = fresh.query::<(&CropInstance, &CropSoil)>().iter().map(|(_, (_, s))| s.clone()).collect();
+        assert_eq!(soils.len(), 1);
+        assert_eq!(soils[0].store, Npk::new(1.0, 2.0, 3.0));
+        assert!((soils[0].uptake - 0.4).abs() < 1e-6);
+        let mems: Vec<SoilMemory> = fresh.query::<&SoilMemory>().iter().map(|(_, m)| m.clone()).collect();
+        assert_eq!(mems.len(), 1, "one soil memory per world");
+        assert_eq!(mems[0].units["bed_1"][&5], Npk::new(4.0, 5.0, 6.0));
+    }
+
     /// pre-v0.517 save (no `placed_items` field) loads with an empty pool (serde
     /// default) so it then re-seeds from the places spine.
     #[test]

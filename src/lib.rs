@@ -12775,12 +12775,23 @@ mod native_app {
                             .data_store
                             .get::<crate::systems::farming::PlantRegistry>("plant_registry");
                         state.gui_state.crops.clear();
-                        for (entity, crop) in state
+                        // N-P-K for the crop card (2026-09-26, farming::soil).
+                        let item_reg = state.data_store.get::<ItemRegistry>("item_registry");
+                        let nutrient_scale = state
+                            .data_store
+                            .get::<crate::systems::farming::soil::NutrientData>("garden_nutrients")
+                            .zip(plant_reg)
+                            .and_then(|(nd, reg)| nd.scale_for(reg));
+                        for (entity, (crop, soil)) in state
                             .game_world
                             .world
-                            .query::<&crate::ecs::components::CropInstance>()
+                            .query::<(&crate::ecs::components::CropInstance, Option<&crate::ecs::components::CropSoil>)>()
                             .iter()
                         {
+                            use crate::systems::farming::soil as sl;
+                            let need = crate::systems::farming::crop_season_need(&crop.crop_def_id, plant_reg, item_reg, nutrient_scale);
+                            let store = soil.map_or_else(|| sl::fresh_store(need), |s| s.store);
+                            let (supply, scarce) = sl::sufficiency(&store, &need);
                             let def = plant_reg.and_then(|r| r.get(&crop.crop_def_id));
                             let name = def
                                 .map(|d| d.name.clone())
@@ -12822,6 +12833,9 @@ mod native_app {
                                 water_per_day: def.map(|d| d.water_per_day).unwrap_or(0.0),
                                 temp_min: def.map(|d| d.temp_min_c).unwrap_or(0.0),
                                 temp_max: def.map(|d| d.temp_max_c).unwrap_or(0.0),
+                                soil: [store.n as f32, store.p2o5 as f32, store.k2o as f32],
+                                need: [need.n as f32, need.p2o5 as f32, need.k2o as f32],
+                                short_of: (supply < 1.0).then(|| scarce.word().to_string()),
                             });
                         }
                         // One-time tower compatibility (operator: "make sure they

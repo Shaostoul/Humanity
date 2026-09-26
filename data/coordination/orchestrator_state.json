@@ -809,6 +809,11 @@
    "date": "2026-09-26",
    "decision": "v0.1354.0: the Barn draws stock by kind (sacks for dry goods, casks for liquids and fresh food, crates for the rest; 29-barn-stock vantage added); Eat/Drink buttons ask food::consume_kinds (built from the embedded food data) instead of the water_ prefix; 49 non-food items refiled out of category food and their not_food exemptions removed; tallow material for animal_fat_0; cook_coffee roasts 6 cherries into coffee_0 (was 1 cherry + water -> 2 energy drinks); 16 stale NPC shop items mapped to real ones, flask_0 added, recipe_sources_lint npc_shops_sell_real_items guards it.",
    "why": "Closing the defects list found while merging. Left open deliberately: soap needs a lye item and source; the 100 g eating rule is satiation pacing (abstract 7-day reserve) and belongs to the realism/simplified vitals modes; tech_tree.ron is unread aspirational data (about 50 future items), so the new lint covers only NPC shops."
+  },
+  {
+   "date": "2026-09-26",
+   "decision": "Gardening rung 3, N-P-K (v0.1355.0): merged the homestead-engineer worktree (soil.rs model, data/garden/nutrients.ron with sources, slider becomes a feeder, the old growth multiplier and +40 fertilizer health removed) and did the wiring it could not touch: garden_nutrients registered and embedded, crop_soil + soil_memory in WorldSave (save/apply, round-trip test), crop card shows soil grams, season need and the scarcest nutrient, the home.ron Nutrients loop string replaced with the audited 53/75/93%.",
+   "why": "The agent found compost alone cannot close nitrogen (7% first-season availability) and the plants.csv indices understate dense crops 5-20x; both are recorded as next rungs rather than papered over. The conflict resolution in the gap doc had re-added the stale defects note; removed."
   }
  ],
  "active_scopes_to_avoid": [
