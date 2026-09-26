@@ -1318,9 +1318,9 @@
             name: "Food",
             demand: "~2,200 kcal/day + complete nutrition (1 person)",
             supply: "indoor sun-lit garden (9 variety towers + 1 apothecary + 8 potato beds + 3 oilseed beds + 2 grain trays + 2 mushroom racks + 1 aquaponic tank): ALL veg/herbs/protein/vitamins + B12 + omega-3; one outdoor grain field and one legume field add grain and pulses; silo = 750 days. The calories are the grown line, computed from the crops placed",
-            closes: true,
+            closes: false,
             weakest: true,
-            note: "The pedagogical payoff: this is the SAME 34x34 m garden room the 3-person home uses, sized for 1. The grown figure is computed from the crops placed (2026-09-26): each plant at its cited yield, cropped back to back all year, so it is an upper bound that does not yet discount for the light the canopy really gets. The hard limit is still light, not floor area: one sun, one canopy, no stacked tiers. The outdoor grain and legume fields (the 3-person tuber/oilseed fields dropped) add grain and pulses banked in the silo; the fish tank's figure is an estimate the crop model cannot count.",
+            note: "Does not close (2026-09-26): with each crop picked over its real window and the herbs' calories corrected from dried to fresh, the placed crops grow about 2,154 kcal a day against the 2,200 one person needs, 98%, and that is an upper bound. One more potato bed (about 61 kcal a day) or the fish tank (not counted) would close it on paper. The pedagogical payoff: this is the SAME 34x34 m garden room the 3-person home uses, sized for 1. The grown figure is computed from the crops placed (2026-09-26): each plant at its cited yield, cropped back to back all year, so it is an upper bound that does not yet discount for the light the canopy really gets. The hard limit is still light, not floor area: one sun, one canopy, no stacked tiers. The outdoor grain and legume fields (the 3-person tuber/oilseed fields dropped) add grain and pulses banked in the silo; the fish tank's figure is an estimate the crop model cannot count.",
             food_demand_kcal: Some(2200.0),
         ),
         (
