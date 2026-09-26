@@ -749,6 +749,16 @@
    "date": "2026-09-25",
    "decision": "Gameplay gap survey (4 parallel read-only passes + container materials research) written to docs/design/gameplay-gaps-2026-09-25.md and docs/reference/findings/2026-09-25-container-materials-and-reuse.md.",
    "why": "Operator asked what is missing for gardening/crafting/inventory and whether stored items exist physically (Starmade cargo fill, Space Engineers typed tanks, oil-then-milk contamination). Found 7 real defects (item loss on full backpack, showcase garden untagged, unsourced inputs, no first seed, cooked food no nutrition, XP skip, empty categories) and that the container food-safety rule exists only as a comment. Research: history not material decides reuse (FDA Food Code 7-203.11, PMO); linings remember longer (Codex 1/2/3 loads)."
+  },
+  {
+   "date": "2026-09-26",
+   "decision": "Gameplay defects 1-7 fixed across three lanes: my code fixes (item loss, craft waiting/refusal, vessel XP, showcase garden groups/sliders/field climate, starting kit) plus two worktree agents (recipe/seed/vendor data with tests/recipe_sources_lint.rs; data-driven food via data/food/item_profiles.ron). Merged by cherry-pick; reconciled fat_0 (deleted by the data agent) in the food list.",
+   "why": "Operator: \"Let's work through that.\" Parallel lanes on disjoint files, worktrees so a half-edited file never broke the main build. Found in passing: outputs_fit still counted slots for items with a volume although slots grow since v0.735, so it refused crafts that would fit; fixed to volume-first and the obsolete two-slot test updated. loaders.rs hit its file-size ratchet; new helpers moved to src/gui/organize.rs."
+  },
+  {
+   "date": "2026-09-26",
+   "decision": "Real water, rung 1: MachineDef.irrigates + Irrigator marker; irrigation only while powered; demand = sum of growing crops water_liters_per_day / 1440 as L/min drawn by plumbing through the irrigator consumer; rain waters fields; hand watering draws 2 L and is refused when empty. player_notices channel shared by crafting and farming.",
+   "why": "Irrigation took no water and the irrigation machine did nothing. Chose real-time L/min because the plumbing sim and the homestead sizing are real-time; a compressed-time draw (plants per game day) would drain the 8000 L cistern in minutes. Checked the budget first: family home 2.40 L/min production vs 1.35 household, ~1.05 spare vs ~1.0 garden. Tests red on purpose first."
   }
  ],
  "active_scopes_to_avoid": [

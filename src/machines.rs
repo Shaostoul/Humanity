@@ -106,6 +106,12 @@ pub struct MachineDef {
     /// component; `CraftingSystem` does the rest. None = a machine with no auto production.
     #[serde(default)]
     pub auto_recipe: Option<String>,
+    /// This machine is the home's garden irrigation (2026-09-25): while it is
+    /// powered it waters every grow area and draws the plants' real daily
+    /// litres from its plumbing island. With none powered, crops dry out
+    /// unless watered by hand. Spawns an `Irrigator` marker.
+    #[serde(default)]
+    pub irrigates: bool,
     /// Typed-container archetype id from `data/containers/types.csv` (v0.728,
     /// "containers show contents"): a grain silo IS a `grain_silo_bin`, the
     /// fuel refinery a `steel_fuel_drum`. Spawns a `Container` ECS component
@@ -1916,6 +1922,7 @@ mod tests {
             storage: Vec::new(),
             rf_emission: 0.0,
             auto_recipe: None,
+            irrigates: false,
             container_type: None,
             model: None,
             screen: None,

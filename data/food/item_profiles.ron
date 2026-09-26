@@ -50,7 +50,7 @@
         ("cheese_0", "cheese"),
         ("butter_0", "fats_oils"),
         ("cooking_oil_0", "fats_oils"),
-        ("fat_0", "fats_oils"),
+        ("animal_fat_0", "fats_oils"), // rendered tallow (render_tallow); fat_0 was a duplicate, removed 2026-09-25
         ("blubber_0", "fats_oils"),
         ("sky_blubber_0", "fats_oils"),       // fictional creature; rendered fat like any other
 
@@ -243,8 +243,6 @@
         // --- Medical supplies (items.csv files them under category food) ---
         ("bandage_0", "a medical supply, not food"),
         ("medkit_0", "a medical supply, not food"),
-        ("painkiller_0", "a medicine, not food"),
-        ("antibiotic_0", "a medicine, not food"),
         ("antidote_0", "a medicine, not food"),
         ("stimulant_0", "a medicine, not food"),
         ("vitamins_0", "a supplement tablet, not food"),

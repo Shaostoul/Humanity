@@ -7,6 +7,36 @@ stuff we have store anywhere physically?"). File references are as of that
 date; re-check before trusting one. The container data basis is
 [`docs/reference/findings/2026-09-25-container-materials-and-reuse.md`](../reference/findings/2026-09-25-container-materials-and-reuse.md).
 
+## Progress
+
+- **Defects 1-7: FIXED 2026-09-26** (v0.1344.0). Items return to their
+  container when the backpack is full; a craft with no room is refused before
+  spending anything and a finished one waits for room; crafting XP counts
+  vessel-kept outputs; the showcase garden shows in the Garden panel and the
+  sliders and field climate reach it; a new player starts with a kit from
+  `data/world/player.ron`; every recipe input has a source, every plant has
+  planting stock, the vendor sells real seeds, and
+  `tests/recipe_sources_lint.rs` keeps it so; edibility, nutrition and
+  spoilage come from `data/food/item_profiles.ron` (34 new profiles), not
+  item-id prefixes.
+- **Water is real: FIRST RUNG DONE 2026-09-26** (v0.1344.0). The Irrigation
+  machine (`irrigates: true`, an `Irrigator` marker) waters grow areas only
+  while powered, and draws each growing plant's `water_liters_per_day` from
+  its plumbing island through the plumbing sim (real minutes, the same time
+  base as the home's other machines). Rain waters outdoor fields. Hand
+  watering takes 2 L from the fullest tank and is refused with a notice when
+  the tanks are empty. The family home's water budget: production 2.40
+  L/min, household 1.35, leaving about 1.05 for a showcase garden that needs
+  up to 1.0 when everything is growing, so the cistern is the buffer. Still
+  to do on water: filling a jug from a tank and pouring it back (part of the
+  containers arc, where fluids become litres).
+- Found while merging, still open: the Eat/Drink buttons still show on water
+  MACHINES (the food system now ignores those clicks); `animal_fat_0` has
+  base material `plant_fiber` and there is no tallow material; items.csv
+  files 11 medical supplies, trees, flowers and alien plants under category
+  "food"; `cook_coffee` makes an energy drink; soap has no lye; one hide
+  tans into two leathers; eating one of anything counts as 100 g.
+
 ## Defects found (things that are wrong, not merely missing)
 
 1. **Items vanish when the backpack is full.** "Take to backpack" removes the

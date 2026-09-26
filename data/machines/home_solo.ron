@@ -598,6 +598,7 @@
             shape: "box", size: (0.45, 0.3, 0.45), color: (0.30, 0.55, 0.65),
             label: "Irrigation",
             category: "Water",
+            irrigates: true, // waters every grow area while powered (2026-09-25)
             stats: [(kind: "water", value: "20 L/d to plants", status: "ok"), (kind: "power", value: "-0.05 kWh/d", status: "ok")],
             power: Some(Consumer(watts: 7.0, priority: 3)),
             ports: [

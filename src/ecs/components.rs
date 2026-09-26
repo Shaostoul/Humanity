@@ -706,6 +706,13 @@ pub struct PowerCircuit {
     pub island: u32,
 }
 
+/// The home's garden irrigation (2026-09-25, `MachineDef::irrigates`). While
+/// its `WaterConsumer` is powered, FarmingSystem tops up grow-area crops, and
+/// PlumbingSystem sets that consumer's draw to what the crops actually need
+/// (the "irrigation_demand_lpm" FarmingSystem publishes).
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
+pub struct Irrigator;
+
 /// A bulk water store (a cistern/tank) (v0.608). `liters` is the live level; `PlumbingSystem` fills it
 /// from powered producers and drains it for consumers, so the day's water budget is a draining number.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]

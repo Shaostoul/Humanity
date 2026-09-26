@@ -1242,6 +1242,9 @@
             color: (0.3, 0.55, 0.65),
             label: "Irrigation",
             category: "Water",
+            // Waters every grow area while powered, drawing each plant's real
+            // litres per day (plants.csv) from this island (2026-09-25).
+            irrigates: true,
             stats: [
                 (
                     kind: "water",

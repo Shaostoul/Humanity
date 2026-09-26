@@ -1027,7 +1027,7 @@ impl System for CraftingSystem {
                     .map(|inv| Self::outputs_fit(&inv, &recipe, item_registry, vehicle_kits))
                     .unwrap_or(true);
                 if !fits {
-                    if let Some(slot) = data.get::<std::sync::Mutex<Vec<String>>>("craft_notices") {
+                    if let Some(slot) = data.get::<std::sync::Mutex<Vec<String>>>("player_notices") {
                         if let Ok(mut n) = slot.lock() {
                             n.push(format!(
                                 "No room in your backpack for {}: make room and craft again.",
@@ -1131,7 +1131,7 @@ impl System for CraftingSystem {
                     if !target_fits && !has_vessel {
                         if !craft.waiting_notified {
                             craft.waiting_notified = true;
-                            if let Some(slot) = data.get::<std::sync::Mutex<Vec<String>>>("craft_notices") {
+                            if let Some(slot) = data.get::<std::sync::Mutex<Vec<String>>>("player_notices") {
                                 if let Ok(mut n) = slot.lock() {
                                     n.push(format!(
                                         "{} is finished, but your backpack is full: make room and it will be added.",
@@ -1566,7 +1566,7 @@ mod skill_xp_tests {
         );
         data.insert("dev_stock_materials", std::sync::Mutex::new(false));
         data.insert("craft_request", std::sync::Mutex::new(Option::<String>::None));
-        data.insert("craft_notices", std::sync::Mutex::new(Vec::<String>::new()));
+        data.insert("player_notices", std::sync::Mutex::new(Vec::<String>::new()));
         let mut world = hecs::World::new();
         let mut inv = Inventory::new(16);
         inv.add_item("plank_0", 5, 99);
@@ -1575,7 +1575,7 @@ mod skill_xp_tests {
     }
 
     fn notices(data: &DataStore) -> Vec<String> {
-        data.get::<std::sync::Mutex<Vec<String>>>("craft_notices").unwrap().lock().unwrap().clone()
+        data.get::<std::sync::Mutex<Vec<String>>>("player_notices").unwrap().lock().unwrap().clone()
     }
 
     /// A manual craft whose output cannot fit is REFUSED before its inputs are

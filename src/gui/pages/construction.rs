@@ -4073,6 +4073,7 @@ mod multi_select_tests {
             storage: Vec::new(),
             rf_emission: 0.0,
             auto_recipe: None,
+            irrigates: false,
             container_type: None,
             model: None,
             screen: None,

@@ -1083,6 +1083,12 @@ PSOs each compile one entry, and the split was itself a perf win (console
 
 ### C. The playable game
 
+**Gameplay arc (operator: "Let's work through that", 2026-09-25).** The seven
+defects and the first rung of real water are DONE (v0.1344.0); next are
+real containers (material, lining, content history, cleaning, fluids as
+litres), then visible storage, then crafting and gardening depth. Progress
+and open items live at the top of the gap doc.
+
 **Gameplay gap survey (2026-09-25):** `docs/design/gameplay-gaps-2026-09-25.md`
 lists seven defects (items lost when the backpack is full, the showcase garden
 invisible to the Garden panel, 12 unsourced recipe inputs, no first seed, cooked

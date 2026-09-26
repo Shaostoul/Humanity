@@ -439,21 +439,12 @@ mod item_registry_csv_tests {
     /// listed id that is no longer duplicated ALSO fails the test (telling you
     /// to delete the line). So it can only shrink.
     ///
-    /// `recipes.csv` (2026-07-31): three recipe ids are defined twice. Picking
-    /// a winner is a crafting-content call (the pairs have different
-    /// ingredients, times and skill levels), not a data-hygiene one, so it is
-    /// left to the crafting lane. `RecipeRegistry::from_csv` keeps the LAST
-    /// row, so today the game runs: craft_compass = the copper/40 s/skill-3
-    /// version (line 431), craft_binoculars = the plastic/60 s version
-    /// (line 432), refine_fuel = the "processing" 2-output version (line 441).
-    /// The earlier rows (265, 266, 36) are dead weight. Note `data/recipes.json`
-    /// is GENERATED from the CSV by `node scripts/gen-recipes-json.js` and
-    /// carries the same three duplicates, so regenerate it after the fix.
-    const KNOWN_DUPLICATES: &[(&str, &str)] = &[
-        ("recipes.csv", "craft_compass"),
-        ("recipes.csv", "craft_binoculars"),
-        ("recipes.csv", "refine_fuel"),
-    ];
+    /// Empty since 2026-09-25: the three duplicated recipe ids (craft_compass,
+    /// craft_binoculars, refine_fuel) were resolved, keeping the iron-needle
+    /// compass (copper is not magnetic), the plastic-bodied binoculars and the
+    /// mass-conserving refine_fuel; tests/recipe_sources_lint.rs now refuses a
+    /// duplicate recipe id as well.
+    const KNOWN_DUPLICATES: &[(&str, &str)] = &[];
 
     /// Every id-keyed CSV under `data/` must have UNIQUE ids.
     ///

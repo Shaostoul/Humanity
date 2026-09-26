@@ -348,6 +348,24 @@ const HEALTH_RECOVERY_RATE: f32 = 0.5;
 /// Health decay rate per second when water-stressed.
 const HEALTH_DECAY_RATE: f32 = 1.0;
 
+/// Litres one hand watering uses (2026-09-25): a watering can, drawn from the
+/// home tanks.
+pub const HAND_WATER_L: f32 = 2.0;
+
+/// Water level a steady full-intensity rain adds per second to an outdoor
+/// field crop (2026-09-25). About twice the base dehydration, so rain keeps a
+/// field watered and a drizzle slows the drying.
+pub const RAIN_WATER_PER_S: f32 = 0.004;
+
+/// One line for the player (the "player_notices" channel the main loop shows).
+fn push_notice(data: &DataStore, msg: String) {
+    if let Some(slot) = data.get::<std::sync::Mutex<Vec<String>>>("player_notices") {
+        if let Ok(mut n) = slot.lock() {
+            n.push(msg);
+        }
+    }
+}
+
 /// Is this grow-area tag an outdoor FIELD? True for the field machine type
 /// ("grain_field") and for one physical field ("grain_field_1", how the
 /// showcase garden tags its crops). Until 2026-09-25 only the first form
@@ -535,6 +553,33 @@ impl System for FarmingSystem {
         // drains -> days later the garden starts to die.) Read from PlumbingSystem's live WaterStatus.
         // Absent water_status (tests / a home with no plumbing) OR no cistern (capacity 0) = water
         // available, so existing gardening behaviour + un-plumbed homes are unchanged.
+        // Is the home's irrigation running? (2026-09-25) A powered machine
+        // with the Irrigator marker; with none (or none powered) crops get no
+        // automatic water and must be watered by hand.
+        let irrigation_on = world
+            .query::<(
+                &crate::ecs::components::Irrigator,
+                Option<&crate::ecs::components::WaterConsumer>,
+                Option<&crate::ecs::components::PowerConsumer>,
+            )>()
+            .iter()
+            .any(|(_, (_, wc, pc))| {
+                let needs_power = wc.map_or(false, |w| w.needs_power);
+                !needs_power || pc.map_or(false, |p| p.enabled)
+            });
+        // Rain waters outdoor fields (2026-09-25): litres of water level per
+        // second at full intensity; 0 when it is not raining.
+        let rain = data
+            .get::<std::sync::Mutex<crate::systems::weather::Weather>>("weather")
+            .and_then(|m| m.lock().ok().map(|w| {
+                use crate::systems::weather::WeatherCondition::*;
+                match w.condition {
+                    Rain | Storm => w.intensity.clamp(0.0, 1.0),
+                    _ => 0.0,
+                }
+            }))
+            .unwrap_or(0.0);
+        let mut irrigation_l_per_day = 0.0_f32;
         let water_available = data
             .get::<std::sync::Mutex<crate::systems::plumbing::WaterStatus>>("water_status")
             .and_then(|m| m.lock().ok())
@@ -824,9 +869,19 @@ impl System for FarmingSystem {
             .and_then(|m| m.lock().ok().and_then(|mut s| s.take()));
         if let Some(bits) = water_bits {
             if let Some(entity) = hecs::Entity::from_bits(bits) {
-                if let Ok(mut crop) = world.get::<&mut CropInstance>(entity) {
+                // Hand watering is real water (2026-09-25): a can holds
+                // HAND_WATER_L, drawn from the home tanks, and an empty
+                // cistern means there is nothing to water with.
+                if !water_available {
+                    push_notice(data, "The water tanks are empty: nothing to water with.".to_string());
+                } else if let Ok(mut crop) = world.get::<&mut CropInstance>(entity) {
                     crop.water_level = 1.0;
                     crop.health = (crop.health + 10.0).min(100.0);
+                    if let Some(m) = data.get::<std::sync::Mutex<f32>>("hand_water_draw_l") {
+                        if let Ok(mut v) = m.lock() {
+                            *v += HAND_WATER_L;
+                        }
+                    }
                 }
             }
         }
@@ -1073,11 +1128,23 @@ impl System for FarmingSystem {
             // went the same way. A slider still overrides it (set it low to let an
             // area dry out), a dry cistern still cuts it off, and a crop planted
             // outside any grow area still needs watering by hand.
-            if water_available {
+            if water_available && irrigation_on {
                 if let Some(tid) = &crop.tower_id {
                     let target = irrigation.get(tid).copied().unwrap_or(DEFAULT_AUTO_IRRIGATION);
                     crop.water_level = crop.water_level.max(target);
+                    // The water is real: this crop's daily need, from
+                    // plants.csv, counts toward what the irrigation draws.
+                    if target > 0.0 {
+                        irrigation_l_per_day += plant_registry
+                            .as_ref()
+                            .and_then(|r| r.get(&crop.crop_def_id))
+                            .map_or(0.0, |d| d.water_per_day);
+                    }
                 }
+            }
+            // Rain on an outdoor field (2026-09-25).
+            if rain > 0.0 && crop.tower_id.as_deref().map_or(false, is_field_area) {
+                crop.water_level = (crop.water_level + RAIN_WATER_PER_S * rain * dt).min(1.0);
             }
 
             // Health effects from water level
@@ -1197,6 +1264,15 @@ impl System for FarmingSystem {
             }
 
             updates.push((entity, crop));
+        }
+
+        // What the irrigation draws, in litres per minute of real time: the
+        // plants' daily need is per real day, and the plumbing sim runs on
+        // real minutes like the rest of the home's machines.
+        if let Some(m) = data.get::<std::sync::Mutex<f32>>("irrigation_demand_lpm") {
+            if let Ok(mut v) = m.lock() {
+                *v = irrigation_l_per_day / 1440.0;
+            }
         }
 
         // Apply updates back to the world
@@ -1664,6 +1740,7 @@ mod gardening_tests {
 
         let mut sys = FarmingSystem::new();
         let mut world = hecs::World::new();
+        world.spawn((crate::ecs::components::Irrigator,)); // the home's irrigation, running
         let dry = |tower: &str| CropInstance {
             crop_def_id: "tomato".to_string(),
             growth_stage: "sprout".to_string(),
@@ -1729,6 +1806,7 @@ mod gardening_tests {
         let data = make_store();
         let mut sys = FarmingSystem::new();
         let mut world = hecs::World::new();
+        world.spawn((crate::ecs::components::Irrigator,)); // the home's irrigation, running
         let crop = |tower: Option<&str>| CropInstance {
             crop_def_id: "tomato".to_string(),
             growth_stage: "sprout".to_string(),
@@ -1757,6 +1835,83 @@ mod gardening_tests {
         );
     }
 
+    /// Real water (2026-09-25). With no irrigation machine running, a grow
+    /// area is NOT watered (the machine is what waters it); with one running,
+    /// the crops it waters publish their real daily need as litres per minute
+    /// for the plumbing to draw; rain waters an outdoor field; hand watering
+    /// queues litres and is refused when the tanks are empty.
+    #[test]
+    fn the_garden_water_is_real() {
+        use crate::ecs::components::{CropInstance, Irrigator};
+        use crate::systems::plumbing::WaterStatus;
+        let crop = |tower: &str, water: f32| CropInstance {
+            crop_def_id: "tomato".to_string(),
+            growth_stage: "sprout".to_string(),
+            planted_at: 0.0,
+            water_level: water,
+            health: 100.0,
+            tower_id: Some(tower.to_string()),
+            tower_slot: None,
+        };
+        let demand = |d: &DataStore| *d.get::<std::sync::Mutex<f32>>("irrigation_demand_lpm").unwrap().lock().unwrap();
+        let mut data = make_store();
+        data.insert("irrigation_demand_lpm", std::sync::Mutex::new(0.0_f32));
+        data.insert("hand_water_draw_l", std::sync::Mutex::new(0.0_f32));
+        data.insert("player_notices", std::sync::Mutex::new(Vec::<String>::new()));
+        let tomato_l_per_day = data
+            .get::<PlantRegistry>("plant_registry")
+            .unwrap()
+            .get("tomato")
+            .unwrap()
+            .water_per_day;
+        let mut sys = FarmingSystem::new();
+
+        // No irrigation machine: the tower crop dries.
+        let mut world = hecs::World::new();
+        let c = world.spawn((crop("ntower_1", 0.5),));
+        for _ in 0..60 {
+            sys.tick(&mut world, 1.0, &data);
+        }
+        assert!(world.get::<&CropInstance>(c).unwrap().water_level < 0.5, "nothing waters it");
+        assert_eq!(demand(&data), 0.0, "and nothing is drawn");
+
+        // Irrigation running: topped up, and its real need is published.
+        world.spawn((Irrigator,));
+        sys.tick(&mut world, 1.0, &data);
+        assert!(world.get::<&CropInstance>(c).unwrap().water_level >= DEFAULT_AUTO_IRRIGATION - 1e-4);
+        assert!((demand(&data) - tomato_l_per_day / 1440.0).abs() < 1e-6, "tomato's daily litres as L/min: {}", demand(&data));
+
+        // Rain on an outdoor field, none on a tower.
+        let mut rainy = make_store();
+        rainy.insert(
+            "weather",
+            std::sync::Mutex::new(crate::systems::weather::Weather {
+                condition: crate::systems::weather::WeatherCondition::Rain,
+                intensity: 1.0,
+                ..Default::default()
+            }),
+        );
+        let mut w2 = hecs::World::new();
+        let field = w2.spawn((crop("grain_field_1", 0.3),));
+        let tower = w2.spawn((crop("ntower_2", 0.3),));
+        for _ in 0..10 {
+            sys.tick(&mut w2, 1.0, &rainy);
+        }
+        assert!(w2.get::<&CropInstance>(field).unwrap().water_level > 0.3, "rain wets the field");
+        assert!(w2.get::<&CropInstance>(tower).unwrap().water_level < 0.3, "not the indoor tower");
+
+        // Hand watering: litres queued; refused with a notice when the tanks are empty.
+        let bits = world.query::<&CropInstance>().iter().next().unwrap().0.to_bits().get();
+        *data.get::<std::sync::Mutex<Option<u64>>>("water_request").unwrap().lock().unwrap() = Some(bits);
+        sys.tick(&mut world, 0.016, &data);
+        assert_eq!(*data.get::<std::sync::Mutex<f32>>("hand_water_draw_l").unwrap().lock().unwrap(), HAND_WATER_L);
+        data.insert("water_status", std::sync::Mutex::new(WaterStatus { stored_l: 0.0, capacity_l: 8000.0, ..Default::default() }));
+        *data.get::<std::sync::Mutex<Option<u64>>>("water_request").unwrap().lock().unwrap() = Some(bits);
+        sys.tick(&mut world, 0.016, &data);
+        let notes = data.get::<std::sync::Mutex<Vec<String>>>("player_notices").unwrap().lock().unwrap().clone();
+        assert_eq!(notes.len(), 1, "told the tanks are empty: {notes:?}");
+    }
+
     /// Water -> FOOD coupling (v0.611): the SAME configured irrigation that keeps a crop topped up with
     /// a full cistern FAILS when the cistern is dry, so the crop dehydrates + loses health. This is the
     /// downstream end of power -> water -> food (a power cut drains the cistern, then the garden wilts).
@@ -1783,6 +1938,7 @@ mod gardening_tests {
         full.insert("water_status", std::sync::Mutex::new(WaterStatus { stored_l: 7000.0, capacity_l: 8000.0, ..Default::default() }));
         let mut sys = FarmingSystem::new();
         let mut w_full = hecs::World::new();
+        w_full.spawn((crate::ecs::components::Irrigator,)); // the home's irrigation, running
         let c_full = w_full.spawn((configured_crop(),));
         for _ in 0..5 { sys.tick(&mut w_full, 1.0, &full); }
         let wet = w_full.get::<&CropInstance>(c_full).unwrap().water_level;
@@ -1793,6 +1949,7 @@ mod gardening_tests {
         empty.insert("garden_irrigation", std::sync::Mutex::new(irr));
         empty.insert("water_status", std::sync::Mutex::new(WaterStatus { stored_l: 0.0, capacity_l: 8000.0, ..Default::default() }));
         let mut w_dry = hecs::World::new();
+        w_dry.spawn((crate::ecs::components::Irrigator,));
         let c_dry = w_dry.spawn((configured_crop(),));
         for _ in 0..5 { sys.tick(&mut w_dry, 1.0, &empty); }
         let dry = w_dry.get::<&CropInstance>(c_dry).unwrap();

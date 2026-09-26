@@ -160,6 +160,9 @@ pub(crate) fn spawn_home_machine_entity(
         if dem > 0.0 {
             let _ = world.insert_one(e, WaterConsumer { lpm: dem, needs_power });
         }
+        if def.irrigates {
+            let _ = world.insert_one(e, crate::ecs::components::Irrigator);
+        }
     }
     // AIR handler (v0.618): a machine with an Air OUT port scrubs the home air while powered.
     if air_out > 0.0 {

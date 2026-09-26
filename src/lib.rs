@@ -1180,9 +1180,14 @@ mod native_app {
                 "inventory_transfer_ops",
                 std::sync::Mutex::new(Vec::<(String, u32, bool)>::new()),
             );
-            // One-line notices from CraftingSystem (2026-09-25): a finished craft
-            // waiting for backpack room says so once.
-            data_store.insert("craft_notices", std::sync::Mutex::new(Vec::<String>::new()));
+            // One-line notices from the sim systems for the player (2026-09-25):
+            // a finished craft waiting for room, an empty cistern at watering.
+            data_store.insert("player_notices", std::sync::Mutex::new(Vec::<String>::new()));
+            // The garden's real water use (2026-09-25): FarmingSystem publishes
+            // litres per minute, PlumbingSystem draws them through the
+            // irrigation machine; hand watering queues litres the same way.
+            data_store.insert("irrigation_demand_lpm", std::sync::Mutex::new(0.0_f32));
+            data_store.insert("hand_water_draw_l", std::sync::Mutex::new(0.0_f32));
             // What a backpack could not take back out of a transfer (2026-09-25):
             // InventorySystem fills it, the main loop puts it back in storage.
             data_store.insert(
@@ -6792,7 +6797,7 @@ mod native_app {
                         .get::<std::sync::Mutex<Vec<(String, u32)>>>("inventory_transfer_returns")
                         .and_then(|m| m.lock().ok().map(|mut v| std::mem::take(&mut *v)))
                         .unwrap_or_default();
-                    if let Some(slot) = state.data_store.get::<std::sync::Mutex<Vec<String>>>("craft_notices") {
+                    if let Some(slot) = state.data_store.get::<std::sync::Mutex<Vec<String>>>("player_notices") {
                         if let Ok(mut n) = slot.lock() {
                             for msg in n.drain(..) {
                                 state.gui_state.pending_notices.push(msg);

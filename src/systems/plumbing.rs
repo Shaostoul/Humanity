@@ -65,6 +65,44 @@ impl System for PlumbingSystem {
     fn tick(&mut self, world: &mut hecs::World, dt: f32, data: &DataStore) {
         use std::collections::HashMap;
 
+        // 0. Garden irrigation draws what the crops actually need (2026-09-25):
+        //    FarmingSystem publishes the litres per minute of the crops it
+        //    watered, and each irrigation machine's consumer is set to its
+        //    share, so a bigger garden drains the cistern faster.
+        if let Some(demand) = data
+            .get::<std::sync::Mutex<f32>>("irrigation_demand_lpm")
+            .and_then(|m| m.lock().ok().map(|v| *v))
+        {
+            let n = world
+                .query::<(&crate::ecs::components::Irrigator, &WaterConsumer)>()
+                .iter()
+                .count()
+                .max(1) as f32;
+            for (_, (_i, c)) in
+                world.query_mut::<(&crate::ecs::components::Irrigator, &mut WaterConsumer)>()
+            {
+                c.lpm = demand.max(0.0) / n;
+            }
+        }
+        // Hand watering draws from the tanks too: litres FarmingSystem
+        // queued, taken from the fullest tank.
+        let hand_l = data
+            .get::<std::sync::Mutex<f32>>("hand_water_draw_l")
+            .and_then(|m| m.lock().ok().map(|mut v| std::mem::replace(&mut *v, 0.0)))
+            .unwrap_or(0.0);
+        if hand_l > 0.0 {
+            let fullest = world
+                .query::<&WaterTank>()
+                .iter()
+                .max_by(|a, b| a.1.liters.total_cmp(&b.1.liters))
+                .map(|(e, _)| e);
+            if let Some(e) = fullest {
+                if let Ok(mut t) = world.get::<&mut WaterTank>(e) {
+                    t.liters = (t.liters - hand_l).max(0.0);
+                }
+            }
+        }
+
         // 1. Per-island production from powered producers. A producer that needs power only counts when
         //    the SAME entity's PowerConsumer is enabled (the power -> water consequence chain).
         let mut prod_by: HashMap<Option<u32>, f32> = HashMap::new();
@@ -285,5 +323,41 @@ mod tests {
         let empty = world2.spawn((WaterTank { liters: 10.0, capacity_l: 1000.0 }, PlumbingCircuit { island: 0 }));
         sys.tick(&mut world2, 600.0, &data);
         assert!(world2.get::<&WaterTank>(empty).unwrap().liters.abs() < 0.01, "drained to zero, not negative");
+    }
+
+    /// The garden's water is real (2026-09-25): the irrigation machine draws
+    /// what FarmingSystem says the crops need, not its fixed port rating, and
+    /// only while it is powered; hand watering takes its litres from the
+    /// fullest tank.
+    #[test]
+    fn irrigation_draws_what_the_crops_need_and_hand_watering_draws_too() {
+        use crate::ecs::components::Irrigator;
+        let mut data = DataStore::new();
+        data.insert("water_status", std::sync::Mutex::new(WaterStatus::default()));
+        data.insert("irrigation_demand_lpm", std::sync::Mutex::new(3.0_f32));
+        data.insert("hand_water_draw_l", std::sync::Mutex::new(0.0_f32));
+        let mut world = hecs::World::new();
+        let pump = world.spawn((
+            Irrigator,
+            WaterConsumer { lpm: 0.5, needs_power: true },
+            PowerConsumer { draw_watts: 7.0, priority: 3, enabled: true },
+            PlumbingCircuit { island: 0 },
+        ));
+        let cistern = world.spawn((WaterTank { liters: 500.0, capacity_l: 1000.0 }, PlumbingCircuit { island: 0 }));
+        let mut sys = PlumbingSystem::new();
+        sys.tick(&mut world, 60.0, &data);
+        let after = world.get::<&WaterTank>(cistern).unwrap().liters;
+        assert!((after - 497.0).abs() < 0.01, "one minute at the crops' 3 L/min, not the 0.5 port rating: {after}");
+
+        // Unpowered irrigation draws nothing.
+        world.get::<&mut PowerConsumer>(pump).unwrap().enabled = false;
+        sys.tick(&mut world, 60.0, &data);
+        assert!((world.get::<&WaterTank>(cistern).unwrap().liters - 497.0).abs() < 0.01, "no power, no draw");
+
+        // Hand watering: litres queued by FarmingSystem come out of the tank once.
+        *data.get::<std::sync::Mutex<f32>>("hand_water_draw_l").unwrap().lock().unwrap() = 4.0;
+        sys.tick(&mut world, 0.016, &data);
+        sys.tick(&mut world, 0.016, &data);
+        assert!((world.get::<&WaterTank>(cistern).unwrap().liters - 493.0).abs() < 0.01, "4 L drawn exactly once");
     }
 }
