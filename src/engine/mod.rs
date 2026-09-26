@@ -46,4 +46,6 @@ pub mod registries;
 /// (quads, look-ray hit tests, input routing, per-frame surface drawing).
 pub mod screens;
 pub mod state;
+/// Visible storage: crates in the storage zones and tank level bars.
+pub mod stock_piles;
 pub mod world_load;

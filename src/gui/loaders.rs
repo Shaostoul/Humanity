@@ -299,6 +299,14 @@ pub struct Place {
     pub items: Vec<String>,
     #[serde(default)]
     pub children: Vec<Place>,
+    /// For a `kind: "item"` leaf: the items.csv id it is (so it has a real
+    /// volume and can go into the backpack), with `label` as its display
+    /// name. Absent = the label is the key (a free-text item). 2026-09-26.
+    #[serde(default)]
+    pub item: Option<String>,
+    /// For a `kind: "item"` leaf: how many (default 1).
+    #[serde(default)]
+    pub qty: Option<u32>,
 }
 
 /// Load the seeded entities from `data/places/seed.json` — top-level entries
@@ -341,9 +349,9 @@ pub fn flatten_placed_items(places: &[Place]) -> Vec<PlacedItem> {
         for (j, child) in place.children.iter().enumerate() {
             if child.kind == "item" {
                 out.push(PlacedItem {
-                    key: child.label.clone(),
+                    key: child.item.clone().unwrap_or_else(|| child.label.clone()),
                     name: child.label.clone(),
-                    qty: 1,
+                    qty: child.qty.unwrap_or(1).max(1),
                     container: path.to_string(),
                 });
             } else {

@@ -105,6 +105,27 @@
               ]
             }
           ]
+        },
+        {
+          "id": "barn",
+          "label": "Barn",
+          "kind": "room",
+          "_comment": "The home's dry store, on the Barn's pallet racks. What is filed here shows as crates on the racks (src/engine/stock_piles.rs): the barn fills as the stock grows. Seeded like a homestead's few-month reserve so the default home shows how storage works.",
+          "children": [
+            { "label": "Wheat grain", "kind": "item", "item": "grain_wheat_0", "qty": 400 },
+            { "label": "Oat grain", "kind": "item", "item": "grain_oat_0", "qty": 200 },
+            { "label": "Corn grain", "kind": "item", "item": "grain_corn_0", "qty": 200 },
+            { "label": "Rice", "kind": "item", "item": "rice_0", "qty": 100 },
+            { "label": "Flour", "kind": "item", "item": "flour_0", "qty": 100 },
+            { "label": "Sugar", "kind": "item", "item": "sugar_0", "qty": 40 },
+            { "label": "Salt", "kind": "item", "item": "salt_food_0", "qty": 20 },
+            { "label": "Seed potatoes", "kind": "item", "item": "seed_potato_0", "qty": 100 },
+            { "label": "Fertilizer", "kind": "item", "item": "fertilizer_0", "qty": 40 },
+            { "label": "Wood planks", "kind": "item", "item": "wood_plank_0", "qty": 60 },
+            { "label": "Rope", "kind": "item", "item": "rope_0", "qty": 10 },
+            { "label": "Wire", "kind": "item", "item": "wire_0", "qty": 30 },
+            { "label": "Salt blocks (livestock)", "kind": "item", "item": "salt_block_0", "qty": 4 }
+          ]
         }
       ]
     },

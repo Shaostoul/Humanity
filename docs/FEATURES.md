@@ -1620,8 +1620,21 @@ Store buttons; harvest overflow and refinery output fill them; the backstop
 genset burns its drum's flammable contents (`src/systems/electrical.rs`).
 Always pre-check `registry.check().is_accepted()` before `try_store` — a
 wrong-class store DAMAGES the vessel by design.
+Content memory and materials (v0.1345.0): a vessel remembers its last
+content and any toxic history, needs a Clean (water from the tanks) before
+switching contents, never holds food again after fuel or solvents, and its
+material (`data/containers/materials.csv`) refuses what it reacts with.
 - Native: `src/systems/inventory/containers.rs`, `src/machines.rs`
-- Data: `data/containers/types.csv`, `data/machines/home.ron`
+- Data: `data/containers/types.csv`, `materials.csv`, `content_traits.ron`, `data/machines/home.ron`
+- Design: `docs/design/containers.md`
+
+### Visible Storage (Barn racks and tank gauges)
+The Barn's storage zone builds open pallet racks (`ZoneFiller` mesh_kind
+"rack"), and whatever is filed in the Barn (the organize layer's places tree)
+shows as 96 L crates on their decks, bottom deck first, updating as the stock
+changes. Every water tank carries a level gauge (v0.1346.0).
+- Native: `src/engine/stock_piles.rs`, `src/ship/structure.rs` (`rack_deck_levels`, `ZoneFiller::cells`)
+- Data: `data/places/seed.json` (the seeded Barn store), `data/blueprints/zone_filler.ron`
 
 ### Machine Walk-Up Cards (live)
 Distance-LOD machine labels (dot → name → stat card) with LIVE values

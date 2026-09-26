@@ -86,6 +86,13 @@ any cleaning, liners, or fluids measured in litres.
   (`memory_fills` is recorded but not used) and a cleaning agent for food and
   dairy vessels.
 
+- **Visible storage (2026-09-26):** the Barn's racks are real shelving and
+  what is filed in the Barn shows as crates on their decks; each water tank
+  shows its level. `src/engine/stock_piles.rs`; details in the gap doc.
+- **3c is blocked** on the unified placement schema (a container that can be
+  picked up and set down needs machine placement and item placement to be
+  one system; PRIORITIES.md Tier B).
+
 ## Increments
 
 - **3a. Memory and cleaning.** `toxic_ever` and `last_content` on the

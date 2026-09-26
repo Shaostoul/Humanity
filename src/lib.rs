@@ -1893,6 +1893,9 @@ mod native_app {
                 follow_vehicle: None,
                 targeted_vehicle: None,
                 vehicle_mats: None,
+                stock_pile_mesh: None,
+                stock_pile_mats: None,
+                stock_pile_cache: (0.0, Vec::new()),
                 targeted_livestock: None,
                 pending_livestock_harvest: None,
                 livestock_mesh: None,
@@ -13045,6 +13048,12 @@ mod native_app {
                                 }
                             }
                         }
+                    }
+
+                    // Visible storage: the barn fills with crates as the stock
+                    // grows, and each water tank shows its level.
+                    if !showroom {
+                        crate::engine::stock_piles::push_render_objects(state, &mut all_objects);
                     }
 
                     // ── Blueprint structures render (v0.746, ladder rung 2) ──

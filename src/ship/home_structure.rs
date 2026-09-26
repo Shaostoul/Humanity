@@ -954,7 +954,7 @@ impl HomeStructure {
         out: &mut std::collections::HashMap<[i32; 3], (Vec<Vertex>, Vec<u32>, [f32; 3])>,
     ) {
         let (ox, oy, oz) = z.origin;
-        let (zw, _zh, zd) = z.size;
+        let (zw, zh, zd) = z.size;
         if zw < 1.0 || zd < 1.0 {
             return; // degenerate zone, nothing fits
         }
@@ -967,25 +967,34 @@ impl HomeStructure {
         };
         let tint = crate::ship::structure::zone_type(&z.type_id).map(|t| t.color).unwrap_or((0.6, 0.6, 0.6));
         let (fw, fd) = filler.footprint;
-        let step_x = (fw + filler.spacing).max(0.5);
-        let step_z = (fd + filler.spacing).max(0.5);
-        let usable_w = (zw - 2.0 * filler.inset).max(0.0);
-        let usable_d = (zd - 2.0 * filler.inset).max(0.0);
-        let nx = (usable_w / step_x).floor() as u32;
-        let nz = (usable_d / step_z).floor() as u32;
-        if nx == 0 || nz == 0 {
+        let cells = filler.cells(ox, oz, zw, zd);
+        if cells.is_empty() {
             return; // the zone is too small to fit even one instance with its inset + spacing
         }
+        let h = filler.built_height(zh);
         let key = [(tint.0 * 64.0) as i32, (tint.1 * 64.0) as i32, (tint.2 * 64.0) as i32];
         let g = out.entry(key).or_insert_with(|| (Vec::new(), Vec::new(), [tint.0, tint.1, tint.2]));
-        for iz in 0..nz {
-            for ix in 0..nx {
-                let cx = ox + filler.inset + ix as f32 * step_x;
-                let cz = oz + filler.inset + iz as f32 * step_z;
-                let (v, idx) = footprint_box(cx, cz, fw, fd, oy, filler.height.max(0.2));
-                let base = g.0.len() as u32;
-                g.0.extend(v);
-                g.1.extend(idx.into_iter().map(|k| k + base));
+        let mut push = |b: (Vec<Vertex>, Vec<u32>)| {
+            let base = g.0.len() as u32;
+            g.0.extend(b.0);
+            g.1.extend(b.1.into_iter().map(|k| k + base));
+        };
+        for (cx, cz) in cells {
+            if filler.mesh_kind == "rack" {
+                // Open pallet shelving: six uprights (the corners and mid-depth) and a deck
+                // at every level, so the goods on it (engine::stock_piles) are visible.
+                use crate::ship::structure::{rack_deck_levels, RACK_DECK_M, RACK_POST_M};
+                let p = RACK_POST_M;
+                for px in [cx, cx + fw - p] {
+                    for pz in [cz, cz + (fd - p) * 0.5, cz + fd - p] {
+                        push(footprint_box(px, pz, p, p, oy, h));
+                    }
+                }
+                for level in rack_deck_levels(h) {
+                    push(footprint_box(cx, cz, fw, fd, oy + level, RACK_DECK_M));
+                }
+            } else {
+                push(footprint_box(cx, cz, fw, fd, oy, h));
             }
         }
     }

@@ -538,6 +538,12 @@ pub(crate) struct EngineState {
     /// The vehicle the crosshair currently targets (within reach + look cone).
     pub(crate) targeted_vehicle: Option<hecs::Entity>,
     pub(crate) vehicle_mats: Option<[usize; 3]>, // [body paint, cabin glass, wheel rubber]
+    /// Visible storage (src/engine/stock_piles.rs): the unit crate mesh, its
+    /// [crate, gauge back, water] materials, and the crate layout cached
+    /// against the stored volume it was built for.
+    pub(crate) stock_pile_mesh: Option<usize>,
+    pub(crate) stock_pile_mats: Option<[usize; 3]>,
+    pub(crate) stock_pile_cache: (f32, Vec<glam::Vec3>),
     /// Animal in reach + look cone (v0.751): drives the "[E] collect" prompt.
     pub(crate) targeted_livestock: Option<hecs::Entity>,
     /// E pressed on a targeted animal; the frame bridge settles the collect.

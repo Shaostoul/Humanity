@@ -158,8 +158,9 @@ pub struct ZoneFiller {
     pub spacing: f32,
     /// Metres kept clear from the zone's own walls on every side (a walkway margin).
     pub inset: f32,
-    /// Forward-looking shape tag ("rack" / "stall" / "cradle" / "array" / ...); read by a future
-    /// renderer stage. Every kind renders as a plain box today.
+    /// Shape tag ("rack" / "stall" / "cradle" / "array" / ...). "rack" builds open pallet
+    /// shelving (posts and decks, see `rack_deck_levels`) whose decks hold the home's stored
+    /// goods as crates (`engine::stock_piles`, 2026-09-26); every other kind is still a solid box.
     pub mesh_kind: String,
     /// If true, tint filler instances with the zone TYPE's own `color` (zone_types.ron) so each
     /// district reads as visually distinct. (No override field yet -- always true in the data; the
@@ -185,6 +186,56 @@ pub fn zone_fillers() -> &'static [ZoneFiller] {
             }
         }
     })
+}
+
+impl ZoneFiller {
+    /// Height one instance is built to inside a zone `zone_h` metres tall: its authored height,
+    /// clamped 0.1 m under the ceiling so it never pokes through the roof (the storage rack is
+    /// authored 3.5 m and the home's barn is 3 m).
+    pub fn built_height(&self, zone_h: f32) -> f32 {
+        self.height.min(zone_h - 0.1).max(0.2)
+    }
+
+    /// The (x, z) MIN CORNERS of every instance this filler tiles into a zone floor whose min
+    /// corner is (ox, oz) and whose extent is (zw, zd): a grid kept `inset` from the walls with
+    /// `spacing` between instances. Shared by the mesh bake and the stock piles, so the crates sit
+    /// on the racks that were actually built.
+    pub fn cells(&self, ox: f32, oz: f32, zw: f32, zd: f32) -> Vec<(f32, f32)> {
+        let (fw, fd) = self.footprint;
+        let step_x = (fw + self.spacing).max(0.5);
+        let step_z = (fd + self.spacing).max(0.5);
+        let usable_w = (zw - 2.0 * self.inset).max(0.0);
+        let usable_d = (zd - 2.0 * self.inset).max(0.0);
+        let nx = (usable_w / step_x).floor() as u32;
+        let nz = (usable_d / step_z).floor() as u32;
+        let mut out = Vec::with_capacity((nx * nz) as usize);
+        for iz in 0..nz {
+            for ix in 0..nx {
+                out.push((ox + self.inset + ix as f32 * step_x, oz + self.inset + iz as f32 * step_z));
+            }
+        }
+        out
+    }
+}
+
+/// Pallet racking (mesh_kind "rack"): the upright post section, deck thickness and the
+/// vertical pitch between decks, metres. 0.7 m leaves room for a 0.4 m crate and a hand.
+pub const RACK_POST_M: f32 = 0.08;
+pub const RACK_DECK_M: f32 = 0.04;
+pub const RACK_PITCH_M: f32 = 0.7;
+/// Clear height a deck needs above it to be worth building (a crate plus a hand).
+const RACK_CLEAR_M: f32 = 0.5;
+
+/// The floor-relative BOTTOM of every deck in a rack `h` metres tall, lowest first: one just
+/// off the floor, then one every `RACK_PITCH_M` while a crate still fits under the top.
+pub fn rack_deck_levels(h: f32) -> Vec<f32> {
+    let mut out = Vec::new();
+    let mut y = 0.1_f32;
+    while y + RACK_DECK_M + RACK_CLEAR_M <= h {
+        out.push(y);
+        y += RACK_PITCH_M;
+    }
+    out
 }
 
 /// Look up a zone filler spec by zone `type_id` (None if unknown / unlisted -- e.g. "residential",

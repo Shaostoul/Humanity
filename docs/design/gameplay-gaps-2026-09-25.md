@@ -30,6 +30,26 @@ date; re-check before trusting one. The container data basis is
   up to 1.0 when everything is growing, so the cistern is the buffer. Still
   to do on water: filling a jug from a tank and pouring it back (part of the
   containers arc, where fluids become litres).
+- **Containers remember and have materials: 3a + 3b DONE 2026-09-26**
+  (v0.1345.0). See [containers.md](containers.md): memory of the last content,
+  a Clean action that uses water, the toxic-history rule, a materials table
+  and reactivity rules.
+- **Stored goods are physical: DONE 2026-09-26** (v0.1346.0). The Barn's
+  solid placeholder blocks are now open pallet racks (`ZoneFiller` mesh_kind
+  "rack": posts and four decks, clamped under the 3 m ceiling), and what is
+  filed in the Barn shows as crates on their decks, lowest deck first, one
+  96 L crate per 96 L of stock (`src/engine/stock_piles.rs`). The default
+  home's Barn starts with a homestead dry store (grain, flour, seed
+  potatoes, fertiliser, lumber: 1,620 L, 17 crates) in
+  `data/places/seed.json`. Every water tank carries a level gauge. Named
+  bags, the garage and the car trunk are elsewhere and are not drawn in the
+  Barn. Not yet: the harvest overflow goes into machine vessels, not the
+  Barn, so harvesting does not yet grow the crate count; crates of one
+  generic look rather than sacks, barrels and crates by content class.
+- **Containers as items (3c): BLOCKED** on the unified placement schema
+  (Tier B in PRIORITIES.md). The walk-up machine card and every vessel are
+  tied to `data/machines/home.ron` placements; a container that can be
+  picked up and set down needs placement to be one system first.
 - Found while merging, still open: the Eat/Drink buttons still show on water
   MACHINES (the food system now ignores those clicks); `animal_fat_0` has
   base material `plant_fiber` and there is no tallow material; items.csv

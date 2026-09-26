@@ -764,6 +764,11 @@
    "date": "2026-09-26",
    "decision": "Containers 3a+3b: containers remember last_content (clean before switching; Clean on the machine card uses tank water) and toxic_from (fuel/solvent/corrosive/hazmat bars food and water forever); materials.csv + content_traits.ron + direct_contact make copper refuse acidic/fatty/dairy, galvanised refuse drinking water and acidic, carbon steel refuse food, 304 refuse salty. New vessels: IBC tote, copper pot, galvanised bucket, fermenting crock.",
    "why": "Operator brief 2026-09-25 (oil then milk; lining matters). Rules straight from the dated findings (FDA Food Code 7-203.11, PMO, Codex previous cargoes, USDA dairy). direct_contact exists because a freezer or pantry holds packaged goods, so its liner must not refuse juice. Existing cryo test encoded the operator point that N2 or CO2 can share a tank: kept, now with a purge between. Tests red on purpose first."
+  },
+  {
+   "date": "2026-09-26",
+   "decision": "Visible storage (v0.1346.0): the storage filler (mesh_kind rack) builds open pallet racks (6 posts, decks every 0.7 m, clamped 0.1 m under the ceiling; the rack was 3.5 m in a 3 m barn and poked through the roof). What is filed in the Barn (places tree, matched by the storage zone label) shows as 96 L crates on the rack decks, bottom deck first (src/engine/stock_piles.rs). Water tanks carry a lit level gauge. Place gained item + qty so a seeded leaf can name a real item id; the default Barn is stocked with a 1,620 L homestead dry store (17 crates).",
+   "why": "Operator asked for Starmade-style cargo that fills as inventory fills (2026-09-25). The pool mixes garage bags and a car trunk, which are not in the barn, so only Barn-filed and loose Home stock count. Harvest overflow still goes to machine vessels, so harvesting does not yet grow the crates; next is fluids as litres. 3c (containers as items) is blocked on the unified placement schema. Tests red on purpose first; photographed with the home-photos rig (28-barn, 19-plant-room)."
   }
  ],
  "active_scopes_to_avoid": [
