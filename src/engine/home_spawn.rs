@@ -87,6 +87,7 @@ pub(crate) fn spawn_home_machine_entity(
         e,
         crate::ecs::components::MachineInstanceId(inst.id.clone()),
     );
+    let _ = world.insert_one(e, crate::ecs::components::MachineType(inst.machine.clone()));
     // Every machine entity carries its world pose (economy Phase 2 Stage 2,
     // v0.679): CraftingSystem captures it as the FACTORY PAD where a
     // vehicle-class craft output rolls out, and it anchors any future
@@ -124,8 +125,17 @@ pub(crate) fn spawn_home_machine_entity(
                     },
                 );
             }
-            MachinePower::Consumer { watts, priority } => {
-                let _ = world.insert_one(e, PowerConsumer { draw_watts: *watts, priority: *priority, enabled: true });
+            MachinePower::Consumer { watts, priority, idle_watts } => {
+                // A work station starts idle; the crafting system raises it
+                // to its working draw while a craft runs (2026-09-26).
+                let draw = idle_watts.unwrap_or(*watts);
+                let _ = world.insert_one(e, PowerConsumer { draw_watts: draw, priority: *priority, enabled: true });
+                if let Some(idle) = idle_watts {
+                    let _ = world.insert_one(
+                        e,
+                        crate::ecs::components::StationLoad { active_watts: *watts, idle_watts: *idle },
+                    );
+                }
             }
             MachinePower::Battery { capacity_wh, max_charge_w, max_discharge_w } => {
                 let _ = world.insert_one(

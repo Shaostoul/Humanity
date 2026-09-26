@@ -327,6 +327,7 @@
             power: Some(Consumer(
                 watts: 150.0,
                 priority: 3,
+                idle_watts: Some(5.0),
             )),
             ports: [],
             storage: [],
@@ -1513,6 +1514,7 @@
             power: Some(Consumer(
                 watts: 2200.0,
                 priority: 2,
+                idle_watts: Some(2.0),
             )),
             ports: [],
             storage: [],
@@ -1584,6 +1586,7 @@
             power: Some(Consumer(
                 watts: 100.0,
                 priority: 3,
+                idle_watts: Some(0.0),
             )),
             ports: [],
             storage: [],
@@ -1720,6 +1723,7 @@
             power: Some(Consumer(
                 watts: 1200.0,
                 priority: 2,
+                idle_watts: Some(0.0),
             )),
             ports: [],
             storage: [],

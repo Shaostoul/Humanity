@@ -671,7 +671,13 @@ fn draw_recipe_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, re
             })
     };
     let missing_tool = recipe.tools.iter().find(|t| count_in_inventory(state, t) == 0).cloned();
-    let can_craft = has_ingredients && missing_tool.is_none() && skill_ok && station_ok;
+    // Power (2026-09-26): lib.rs publishes the electric station types that
+    // have no powered machine, mirroring CraftingSystem::station_unpowered.
+    let unpowered = recipe
+        .station_required
+        .strip_suffix("_0")
+        .map_or(false, |t| state.unpowered_station_types.contains(t));
+    let can_craft = has_ingredients && missing_tool.is_none() && skill_ok && station_ok && !unpowered;
 
     // Skill requirement line (shown in danger colour when the player is under-level).
     // Only for gated recipes (level 2+); level-1 recipes are the free starter tier.
@@ -721,6 +727,8 @@ fn draw_recipe_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, re
             "Missing ingredients".to_string()
         } else if let Some(t) = &missing_tool {
             format!("Needs a {t} in your backpack")
+        } else if unpowered {
+            format!("The {} has no power", recipe.station_required.trim_end_matches("_0").replace('_', " "))
         } else if !skill_ok {
             "Skill level too low".to_string()
         } else {

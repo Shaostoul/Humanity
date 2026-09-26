@@ -681,6 +681,21 @@ pub struct HomeMachine;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MachineInstanceId(pub String);
 
+/// The placed machine's TYPE (its `data/machines/*.ron` catalog key, e.g.
+/// "stove"), so the crafting system can find the station a recipe names
+/// (2026-09-26, station power).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MachineType(pub String);
+
+/// A work station's two power draws (2026-09-26): `active_watts` while a
+/// craft runs at it, `idle_watts` otherwise. The crafting system sets the
+/// station's `PowerConsumer::draw_watts` from these every tick.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub struct StationLoad {
+    pub active_watts: f32,
+    pub idle_watts: f32,
+}
+
 /// A home machine that CONTINUOUSLY runs one recipe against the HOME inventory
 /// (economy automation Phase 1, v0.663): whenever the recipe's inputs are
 /// present in the player/home stock and this machine has no craft already in

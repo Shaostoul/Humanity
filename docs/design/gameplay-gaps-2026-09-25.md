@@ -63,6 +63,17 @@ date; re-check before trusting one. The container data basis is
   whose tools can be had). The starter kit gained a hammer, hand saw,
   screwdriver, wrench and pliers. The statues no longer eat their chisel.
   The web Crafting page lists the same tools (a test keeps the two in step).
+- **Stations draw power only while they work: DONE 2026-09-26** (v0.1349.0).
+  The family home's stove (1.2 kW), oven (2.2 kW), electronics bench and
+  sewing machine drew their full rating around the clock, about 3.65 kW of
+  load that did no work. A Consumer's new `idle_watts` (data/machines/*.ron)
+  marks a work station: it draws idle watts until a craft runs at it, then
+  its working watts until the craft finishes (an automated machine while its
+  own batch runs). A manual craft at an electric station is refused with a
+  notice, nothing spent, while no machine of that type has power; the
+  Crafting page says so too. Stations with no electrical role (workbench,
+  fire-fed furnace) are unaffected. Not yet: a craft pausing when its
+  station loses power mid-craft.
 - **Containers as items (3c): BLOCKED** on the unified placement schema
   (Tier B in PRIORITIES.md). The walk-up machine card and every vessel are
   tied to `data/machines/home.ron` placements; a container that can be

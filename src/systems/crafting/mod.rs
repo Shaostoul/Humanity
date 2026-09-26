@@ -485,6 +485,25 @@ impl CraftingSystem {
         owed
     }
 
+    /// Why the station type `machine_type` cannot work right now, or None when
+    /// it can: an electric station (one with a power role) needs at least one
+    /// of its machines powered. Stations with no power role always can.
+    pub fn station_unpowered(world: &hecs::World, machine_type: &str) -> Option<String> {
+        let mut electric = false;
+        for (_e, (mt, pc)) in world
+            .query::<(&crate::ecs::components::MachineType, &crate::ecs::components::PowerConsumer)>()
+            .iter()
+        {
+            if mt.0 == machine_type {
+                if pc.enabled {
+                    return None;
+                }
+                electric = true;
+            }
+        }
+        electric.then(|| format!("the {} has no power", machine_type.replace('_', " ")))
+    }
+
     /// Would the recipe's outputs land WITHOUT overflow-loss? Conservative slot
     /// math (existing same-item stack headroom first, then free slots). Used by
     /// the AutoRefine arm so automation never grinds inputs into discarded
@@ -1046,6 +1065,17 @@ impl System for CraftingSystem {
                             );
                             continue;
                         }
+                        // Power (2026-09-26): an electric station needs power.
+                        // Stations with no electrical role (a workbench, a
+                        // fire-fed furnace) are not asked.
+                        if let Some(reason) = Self::station_unpowered(world, machine_type) {
+                            if let Some(slot) = data.get::<std::sync::Mutex<Vec<String>>>("player_notices") {
+                                if let Ok(mut n) = slot.lock() {
+                                    n.push(format!("{}: {reason}", recipe.name));
+                                }
+                            }
+                            continue;
+                        }
                     }
                 }
 
@@ -1261,6 +1291,32 @@ impl System for CraftingSystem {
             }
         }
         self.active_crafts.extend(still_waiting);
+
+        // Stations draw their working watts only while a craft runs at them
+        // (2026-09-26): an auto machine is busy while its own batch runs; a
+        // manual craft keeps one powered station of its type busy.
+        let busy_types: std::collections::HashSet<String> = recipe_registry
+            .map(|recipes| {
+                self.active_crafts
+                    .iter()
+                    .filter(|c| !c.auto)
+                    .filter_map(|c| recipes.recipes.get(&c.recipe_id)?.required_station.clone())
+                    .map(|s| s.strip_suffix("_0").map(str::to_string).unwrap_or(s))
+                    .collect()
+            })
+            .unwrap_or_default();
+        let busy_machines: std::collections::HashSet<hecs::Entity> =
+            self.active_crafts.iter().filter(|c| c.auto).map(|c| c.crafter).collect();
+        let mut claimed: std::collections::HashSet<String> = std::collections::HashSet::new();
+        for (e, (mt, load, pc)) in world.query_mut::<(
+            &crate::ecs::components::MachineType,
+            &crate::ecs::components::StationLoad,
+            &mut crate::ecs::components::PowerConsumer,
+        )>() {
+            let busy = busy_machines.contains(&e)
+                || (busy_types.contains(&mt.0) && pc.enabled && claimed.insert(mt.0.clone()));
+            pc.draw_watts = if busy { load.active_watts } else { load.idle_watts };
+        }
 
         // Publish the in-flight batches for the save (2026-09-25). The list
         // lives inside this system, which nothing outside the SystemRunner can
@@ -1751,6 +1807,54 @@ mod skill_xp_tests {
         assert_eq!(count(&world, "board_0"), 2);
         assert_eq!(count(&world, "hammer_0"), 0, "two uses: the hammer wore out");
         assert!(notices(&data).iter().any(|n| n.contains("wore out")), "{:?}", notices(&data));
+    }
+
+    /// Station power (2026-09-26): a craft at an electric station is refused,
+    /// with a notice and nothing spent, while the station has no power; once
+    /// powered it runs, and the station draws its working watts only while
+    /// the craft runs, dropping back to idle when it finishes.
+    #[test]
+    fn an_electric_station_needs_power_and_draws_it_only_while_working() {
+        use crate::ecs::components::{MachineType, PowerConsumer, StationLoad};
+        let recipe_csv = "id,name,category,inputs,outputs,craft_time_sec,station_required,skill_required,skill_level,description\n\
+             fry,Fry,cooking,egg_0:1,fried_egg_0:1,2,stove_0,,0,test\n";
+        let mut data = DataStore::new();
+        data.insert("recipe_registry", RecipeRegistry::from_csv(recipe_csv.as_bytes()).unwrap());
+        data.insert(
+            "item_registry",
+            ItemRegistry::from_csv(b"id,name,weight_kg,stack_size,volume_l\negg_0,Egg,0.06,12,0.1\nfried_egg_0,Fried Egg,0.05,12,0.1\n").unwrap(),
+        );
+        data.insert("dev_stock_materials", std::sync::Mutex::new(false));
+        data.insert("craft_request", std::sync::Mutex::new(Option::<String>::None));
+        data.insert("player_notices", std::sync::Mutex::new(Vec::<String>::new()));
+        let mut world = hecs::World::new();
+        let mut inv = Inventory::new(16);
+        inv.add_item("egg_0", 3, 12);
+        let player = world.spawn((inv, Controllable));
+        let stove = world.spawn((
+            MachineType("stove".into()),
+            StationLoad { active_watts: 1200.0, idle_watts: 0.0 },
+            PowerConsumer { draw_watts: 0.0, priority: 2, enabled: false },
+        ));
+        let mut sys = CraftingSystem::new();
+        let request = |data: &DataStore| {
+            *data.get::<std::sync::Mutex<Option<String>>>("craft_request").unwrap().lock().unwrap() = Some("fry".into());
+        };
+
+        request(&data);
+        sys.tick(&mut world, 0.016, &data);
+        assert_eq!(world.get::<&Inventory>(player).unwrap().count_item("egg_0"), 3, "no power: nothing spent");
+        assert!(notices(&data).iter().any(|n| n.contains("no power")), "{:?}", notices(&data));
+
+        world.get::<&mut PowerConsumer>(stove).unwrap().enabled = true;
+        request(&data);
+        sys.tick(&mut world, 0.016, &data);
+        assert_eq!(world.get::<&Inventory>(player).unwrap().count_item("egg_0"), 2, "powered: the craft started");
+        assert_eq!(world.get::<&PowerConsumer>(stove).unwrap().draw_watts, 1200.0, "working draw while it cooks");
+        sys.tick(&mut world, 3.0, &data);
+        assert_eq!(world.get::<&Inventory>(player).unwrap().count_item("fried_egg_0"), 1);
+        sys.tick(&mut world, 0.016, &data);
+        assert_eq!(world.get::<&PowerConsumer>(stove).unwrap().draw_watts, 0.0, "idle again once done");
     }
 
     fn notices(data: &DataStore) -> Vec<String> {

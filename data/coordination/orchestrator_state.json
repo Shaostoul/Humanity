@@ -779,6 +779,11 @@
    "date": "2026-09-26",
    "decision": "Crafting depth rung 1 (v0.1348.0): hand tools. data/crafting/tools.ron (rules by station+category, per-recipe overrides) gives 182 recipes tools that must be in the backpack; not consumed; ItemStack gained a serde-default wear counter and Inventory::wear_item breaks one at items.csv durability. Automated machines need no tools; creative skips the check. Starter kit + hammer, hand saw, screwdriver, wrench, pliers. Statues stopped consuming their chisel. The web recipes.json generator resolves the same tools and a Rust test compares every recipe across the two.",
    "why": "Operator-agreed gameplay order item 5 (crafting depth). Tools-as-items is the real model and ItemStack was only ever built via ItemStack::new, so per-stack wear was a clean add. The obtainability test (fixed point over vendor, kit and recipes) exists because a rule can silently lock recipes behind a tool nobody can get: it failed on purpose with forge_hammer_0, which has no source. Tests red on purpose first. Gardening rung 1 (yield from health, six unmapped plant model sets) was handed to a worktree agent in parallel."
+  },
+  {
+   "date": "2026-09-26",
+   "decision": "Crafting depth rung 2 (v0.1349.0): station power. MachinePower::Consumer gained idle_watts (serde default None, skipped when None so editor saves do not churn); machine entities carry MachineType; a StationLoad component holds active/idle watts and the crafting tick sets PowerConsumer.draw_watts to active while a craft runs at the station (auto: its own batch; manual: one powered station of the type), idle otherwise. A manual craft at an electric station with no powered machine of its type is refused with a notice; the Crafting page mirrors it via GuiState.unpowered_station_types. Family home: stove idle 0, oven 2, electronics bench 5, sewing machine 0.",
+   "why": "Those four drew ~3.65 kW around the clock, which is not how a stove works and distorted the home power budget. Not done: pausing a running craft when power drops (rung 3). An idle 0 W consumer is disabled by the shedder on an over-budget island, which reads as no power, and that is intended: there is no spare power to switch it on. Tests red on purpose first (no gate; no drop to idle)."
   }
  ],
  "active_scopes_to_avoid": [

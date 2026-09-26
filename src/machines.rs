@@ -53,7 +53,15 @@ pub enum MachinePower {
         fuel_lph: f32,
     },
     /// Power draw. `priority` 1 = critical (shed last), 5 = optional (shed first).
-    Consumer { watts: f32, priority: u8 },
+    /// `idle_watts` (2026-09-26): a work station (stove, oven, electronics
+    /// bench) draws `watts` only while a craft runs at it and `idle_watts`
+    /// otherwise. Absent = a steady load that always draws `watts`.
+    Consumer {
+        watts: f32,
+        priority: u8,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        idle_watts: Option<f32>,
+    },
     /// Battery bank: buffers surplus / supplies deficit (v0.473). Charges when generation exceeds
     /// consumption, discharges when it falls short, clamped by capacity + the charge/discharge rates.
     Battery { capacity_wh: f32, max_charge_w: f32, max_discharge_w: f32 },
@@ -2227,7 +2235,7 @@ mod tests {
     #[test]
     fn buildability_flags_load_without_a_source() {
         let mut catalog = BTreeMap::new();
-        catalog.insert("load".to_string(), def_with_power(Some(MachinePower::Consumer { watts: 100.0, priority: 1 })));
+        catalog.insert("load".to_string(), def_with_power(Some(MachinePower::Consumer { watts: 100.0, priority: 1, idle_watts: None })));
         let home = MachineHome {
             catalog,
             instances: vec![MachineInstance { id: "l1".into(), machine: "load".into(), room: "garage".into(), offset: (0.0, 0.0, 0.0), rotation: 0.0, zone: "home".into(), screen_source: None }],
@@ -2248,7 +2256,7 @@ mod tests {
     fn utility_meters_report_generation_demand_and_self_sufficiency() {
         let mut catalog = BTreeMap::new();
         catalog.insert("panel".to_string(), def_with_power(Some(MachinePower::Solar { peak_watts: 1000.0 })));
-        catalog.insert("load".to_string(), def_with_power(Some(MachinePower::Consumer { watts: 100.0, priority: 1 })));
+        catalog.insert("load".to_string(), def_with_power(Some(MachinePower::Consumer { watts: 100.0, priority: 1, idle_watts: None })));
         let inst = |id: &str, m: &str| MachineInstance { id: id.into(), machine: m.into(), room: "g".into(), offset: (0.0, 0.0, 0.0), rotation: 0.0, zone: "home".into(), screen_source: None };
         let home = MachineHome {
             catalog,
@@ -2280,7 +2288,7 @@ mod tests {
         let mut catalog = BTreeMap::new();
         catalog.insert("panel".to_string(), def_with_power(Some(MachinePower::Solar { peak_watts: 1000.0 })));
         catalog.insert("batt".to_string(), def_with_power(Some(MachinePower::Battery { capacity_wh: 4000.0, max_charge_w: 2000.0, max_discharge_w: 2000.0 })));
-        catalog.insert("load".to_string(), def_with_power(Some(MachinePower::Consumer { watts: 100.0, priority: 1 })));
+        catalog.insert("load".to_string(), def_with_power(Some(MachinePower::Consumer { watts: 100.0, priority: 1, idle_watts: None })));
         let inst = |id: &str, m: &str| MachineInstance { id: id.into(), machine: m.into(), room: "g".into(), offset: (0.0, 0.0, 0.0), rotation: 0.0, zone: "home".into(), screen_source: None };
         let home = MachineHome {
             catalog,
@@ -2308,8 +2316,8 @@ mod tests {
     fn grow_light_meter_green_amber_red_thresholds() {
         let mut catalog = BTreeMap::new();
         catalog.insert("panel".to_string(), def_with_power(Some(MachinePower::Solar { peak_watts: 1000.0 })));
-        catalog.insert("load".to_string(), def_with_power(Some(MachinePower::Consumer { watts: 100.0, priority: 1 })));
-        catalog.insert("grow_light".to_string(), def_with_power(Some(MachinePower::Consumer { watts: 100.0, priority: 5 })));
+        catalog.insert("load".to_string(), def_with_power(Some(MachinePower::Consumer { watts: 100.0, priority: 1, idle_watts: None })));
+        catalog.insert("grow_light".to_string(), def_with_power(Some(MachinePower::Consumer { watts: 100.0, priority: 5, idle_watts: None })));
         let inst = |id: &str, m: &str| MachineInstance { id: id.into(), machine: m.into(), room: "g".into(), offset: (0.0, 0.0, 0.0), rotation: 0.0, zone: "home".into(), screen_source: None };
         let mut home = MachineHome {
             catalog,
@@ -2381,7 +2389,7 @@ mod tests {
         let mut catalog = BTreeMap::new();
         catalog.insert("panel".to_string(), def_with_power(Some(MachinePower::Solar { peak_watts: 1000.0 })));
         catalog.insert("batt".to_string(), def_with_power(Some(MachinePower::Battery { capacity_wh: 2000.0, max_charge_w: 500.0, max_discharge_w: 500.0 })));
-        catalog.insert("load".to_string(), def_with_power(Some(MachinePower::Consumer { watts: 100.0, priority: 1 })));
+        catalog.insert("load".to_string(), def_with_power(Some(MachinePower::Consumer { watts: 100.0, priority: 1, idle_watts: None })));
         let inst = |id: &str, m: &str| MachineInstance { id: id.into(), machine: m.into(), room: "garage".into(), offset: (0.0, 0.0, 0.0), rotation: 0.0, zone: "home".into(), screen_source: None };
         let home = MachineHome {
             catalog,
@@ -2408,7 +2416,7 @@ mod tests {
         let mut catalog = BTreeMap::new();
         catalog.insert("panel".to_string(), def_with_power(Some(MachinePower::Solar { peak_watts: 1000.0 })));
         catalog.insert("batt".to_string(), def_with_power(Some(MachinePower::Battery { capacity_wh: 200.0, max_charge_w: 500.0, max_discharge_w: 500.0 })));
-        catalog.insert("load".to_string(), def_with_power(Some(MachinePower::Consumer { watts: 100.0, priority: 1 })));
+        catalog.insert("load".to_string(), def_with_power(Some(MachinePower::Consumer { watts: 100.0, priority: 1, idle_watts: None })));
         let inst = |id: &str, m: &str| MachineInstance { id: id.into(), machine: m.into(), room: "garage".into(), offset: (0.0, 0.0, 0.0), rotation: 0.0, zone: "home".into(), screen_source: None };
         let home = MachineHome {
             catalog,
@@ -2748,7 +2756,7 @@ mod tests {
     /// the load helper sums IN + bidirectional electrical ports.
     #[test]
     fn derive_ports_infers_from_power_and_explicit_wins() {
-        let consumer = def_with_power(Some(MachinePower::Consumer { watts: 200.0, priority: 1 }));
+        let consumer = def_with_power(Some(MachinePower::Consumer { watts: 200.0, priority: 1, idle_watts: None }));
         assert_eq!(consumer.derive_ports().len(), 1, "a consumer infers one IN port");
         assert_eq!(consumer.electrical_load_watts(), 200.0);
         let panel = def_with_power(Some(MachinePower::Solar { peak_watts: 1000.0 }));
@@ -2767,7 +2775,7 @@ mod tests {
     fn buildability_conduits_autosize_passes() {
         let home = wired_pair(
             def_with_power(Some(MachinePower::Solar { peak_watts: 1000.0 })),
-            def_with_power(Some(MachinePower::Consumer { watts: 120.0, priority: 1 })),
+            def_with_power(Some(MachinePower::Consumer { watts: 120.0, priority: 1, idle_watts: None })),
             2.0,
             None,
         );
@@ -2781,7 +2789,7 @@ mod tests {
     fn buildability_conduits_undersized_pinned_cable_fails() {
         let home = wired_pair(
             def_with_power(Some(MachinePower::Generator { watts: 5000.0, fuel_lph: 0.0 })),
-            def_with_power(Some(MachinePower::Consumer { watts: 3000.0, priority: 1 })),
+            def_with_power(Some(MachinePower::Consumer { watts: 3000.0, priority: 1, idle_watts: None })),
             1.0,
             Some("cu_awg14"), // 15 A cable; 3000 W @ 120 V = 25 A -> over ampacity
         );
@@ -2796,7 +2804,7 @@ mod tests {
     fn buildability_conduits_unknown_cable_id_fails() {
         let home = wired_pair(
             def_with_power(Some(MachinePower::Generator { watts: 500.0, fuel_lph: 0.0 })),
-            def_with_power(Some(MachinePower::Consumer { watts: 200.0, priority: 1 })),
+            def_with_power(Some(MachinePower::Consumer { watts: 200.0, priority: 1, idle_watts: None })),
             1.0,
             Some("unobtainium_42"),
         );
@@ -2854,7 +2862,7 @@ mod tests {
     fn buildability_power_circuit_flags_an_isolated_load() {
         let mut catalog = BTreeMap::new();
         catalog.insert("batt".to_string(), def_with_power(Some(MachinePower::Battery { capacity_wh: 1000.0, max_charge_w: 500.0, max_discharge_w: 500.0 })));
-        catalog.insert("load".to_string(), def_with_power(Some(MachinePower::Consumer { watts: 100.0, priority: 1 })));
+        catalog.insert("load".to_string(), def_with_power(Some(MachinePower::Consumer { watts: 100.0, priority: 1, idle_watts: None })));
         let inst = |id: &str, m: &str| MachineInstance { id: id.into(), machine: m.into(), room: "g".into(), offset: (0.0, 0.0, 0.0), rotation: 0.0, zone: "home".into(), screen_source: None };
         let mut home = MachineHome {
             catalog,
@@ -2882,7 +2890,7 @@ mod tests {
     fn buildability_power_circuit_traverses_conduit_nodes() {
         let mut catalog = BTreeMap::new();
         catalog.insert("panel".to_string(), def_with_power(Some(MachinePower::Solar { peak_watts: 500.0 })));
-        catalog.insert("load".to_string(), def_with_power(Some(MachinePower::Consumer { watts: 80.0, priority: 1 })));
+        catalog.insert("load".to_string(), def_with_power(Some(MachinePower::Consumer { watts: 80.0, priority: 1, idle_watts: None })));
         let inst = |id: &str, m: &str| MachineInstance { id: id.into(), machine: m.into(), room: "g".into(), offset: (0.0, 0.0, 0.0), rotation: 0.0, zone: "home".into(), screen_source: None };
         let mut home = MachineHome {
             catalog,

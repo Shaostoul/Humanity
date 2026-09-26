@@ -12174,6 +12174,17 @@ mod native_app {
                             .insert("placed_machine_types", std::sync::Mutex::new(types));
                     }
                     state.gui_state.built_station_types = built;
+                    // Electric stations with no power (2026-09-26), for the Crafting page.
+                    state.gui_state.unpowered_station_types = {
+                        let w = &state.game_world.world;
+                        let mut types = std::collections::HashSet::new();
+                        for (_e, mt) in w.query::<&crate::ecs::components::MachineType>().iter() {
+                            if crate::systems::crafting::CraftingSystem::station_unpowered(w, &mt.0).is_some() {
+                                types.insert(mt.0.clone());
+                            }
+                        }
+                        types
+                    };
 
                     // ── Vendor + wallet bridges (v0.747, ladder rung 3) ──
                     // Live credit balance for the HUD + vendor modal.

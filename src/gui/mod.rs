@@ -1644,6 +1644,8 @@ pub struct GuiState {
     /// Tap-water items and litres per unit (data/containers/fluids.ron), so
     /// the Crafting page counts what the tanks can supply (2026-09-26).
     pub tap_litres: std::collections::HashMap<String, f32>,
+    /// Electric station types with no powered machine right now (2026-09-26).
+    pub unpowered_station_types: std::collections::HashSet<String>,
     pub water_capacity_l: f32,
     pub water_days_autonomy: f32,
     /// Live home AIR readout (v0.617), mirrored from AtmosphereSystem each frame: O2/CO2 percent, total
@@ -3684,6 +3686,7 @@ impl Default for GuiState {
             water_demand_lpm: 0.0,
             water_stored_l: 0.0,
             tap_litres: Default::default(),
+            unpowered_station_types: Default::default(),
             water_capacity_l: 0.0,
             water_days_autonomy: 0.0,
             air_o2_pct: 0.0,

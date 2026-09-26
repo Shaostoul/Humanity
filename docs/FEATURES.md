@@ -1628,6 +1628,15 @@ material (`data/containers/materials.csv`) refuses what it reacts with.
 - Data: `data/containers/types.csv`, `materials.csv`, `content_traits.ron`, `data/machines/home.ron`
 - Design: `docs/design/containers.md`
 
+### Station Power (idle and working draw)
+A work station's power role can carry `idle_watts` (data/machines/*.ron): it
+draws that until a craft runs at it and its full `watts` while one does. A
+manual craft at an electric station with no powered machine of its type is
+refused (notice, nothing spent) and the Crafting page says the station has no
+power (v0.1349.0).
+- Native: `src/systems/crafting/mod.rs` (`station_unpowered`, the draw pass at the end of the tick), `src/engine/home_spawn.rs` (`MachineType`, `StationLoad`), `src/machines.rs`
+- Data: `data/machines/home.ron` (stove, oven, electronics bench, sewing machine)
+
 ### Hand Tools and Tool Wear
 A manual craft needs its hand tools in the backpack (data/crafting/tools.ron:
 rules by station and category, plus per-recipe lists); tools are not consumed
