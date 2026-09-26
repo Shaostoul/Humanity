@@ -3998,11 +3998,11 @@
     loops: [
         (
             name: "Energy",
-            demand: "~12.0 kWh/day (home + machines + garden pumps)",
+            demand: "~12.7 kWh/day (home + machines + garden pumps + greenhouse exhaust fan)",
             supply: "~12.2 kWh/day: 8 solar panels + wind; 8 batteries = 2.8 days autonomy; generator backstop",
-            closes: true,
+            closes: false,
             weakest: false,
-            note: "Energy is Wh/day, not nameplate watts. Eight 400 W panels make ~11.5 kWh/d at 4.5 sun-hours; eight battery banks ride a ~3-day no-sun-no-wind stretch; the generator covers the deeper tail. The indoor garden is SUN-LIT: only its recirculation pumps draw power (~0.5 kWh/d, inside headroom). Artificial grow-lights to feed 3 people indoors would draw 30 to 150+ kWh/d, 2.5x to 12x this whole budget, so the garden uses the sun, not LEDs. That is what keeps the home off-grid.",
+            note: "Does not close on sun and wind alone (2026-09-26): the greenhouse now needs its exhaust fan to keep the air under the gray-mold line (farming::humidity; about 540 L of water a day breathed out by the crops at full planting), and at the half speed that takes it draws about 30 W, 0.7 kWh a day, which tips demand about 4% past the panels. The generator covers it today; a ninth panel (about 1.4 kWh a day at 4.5 sun-hours) would close it. Energy is Wh/day, not nameplate watts. Eight 400 W panels make ~11.5 kWh/d at 4.5 sun-hours; eight battery banks ride a ~3-day no-sun-no-wind stretch; the generator covers the deeper tail. The indoor garden is SUN-LIT: only its recirculation pumps draw power (~0.5 kWh/d, inside headroom). Artificial grow-lights to feed 3 people indoors would draw 30 to 150+ kWh/d, 2.5x to 12x this whole budget, so the garden uses the sun, not LEDs. That is what keeps the home off-grid.",
         ),
         (
             name: "Water",
