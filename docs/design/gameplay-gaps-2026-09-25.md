@@ -46,9 +46,9 @@ date; re-check before trusting one. The container data basis is
   home.ron), as two crossed plates readable from any side. The silo stood
   inside a rack bay and was moved to the Barn's clear east strip. Named
   bags, the garage and the car trunk are elsewhere and are not drawn in the
-  Barn. Not yet: the harvest overflow goes into machine vessels, not the
-  Barn, so harvesting does not yet grow the crate count (automated machines
-  now do file their output there). Stock is drawn by kind since the same
+  Barn. Harvest the pack cannot take goes into a compatible vessel (the
+  silo) and, when there is none, into the Barn (it used to be thrown away);
+  automated machines file their output there too. Stock is drawn by kind since the same
   day: dry goods as sacks, liquids and fresh food as barrels, the rest as
   crates, each kind standing together.
 - **Fluids are litres, first rung: DONE 2026-09-26** (v0.1347.0). Recipes

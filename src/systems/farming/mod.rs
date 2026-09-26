@@ -1643,10 +1643,20 @@ impl System for FarmingSystem {
                         }
                     }
                 }
+                // What neither the pack nor a vessel took goes to home storage
+                // (the Barn, 2026-09-26), where it shows as crates and sacks;
+                // it used to be thrown away with a log line.
                 if remaining > 0 {
-                    log::warn!(
-                        "[Farming] pack + vessels full: {remaining}x {item_id} lost at harvest"
-                    );
+                    match data.get::<std::sync::Mutex<Vec<(String, u32)>>>("home_stock_outputs") {
+                        Some(m) => {
+                            if let Ok(mut out) = m.lock() {
+                                out.push((item_id.clone(), remaining));
+                            }
+                        }
+                        None => log::warn!(
+                            "[Farming] pack + vessels full: {remaining}x {item_id} lost at harvest"
+                        ),
+                    }
                 }
             }
         }
@@ -2285,6 +2295,47 @@ mod gardening_tests {
         // the harvest granted 2 back), so the garden is self-sustaining.
         let seeds = world.get::<&Inventory>(player).unwrap().count_item("seed_tomato_0");
         assert_eq!(seeds, 2, "survival harvest yielded 2 seeds, got {seeds}");
+    }
+
+    /// A harvest the pack cannot take, with no vessel for it, goes to home
+    /// storage (the Barn) instead of being thrown away (2026-09-26).
+    #[test]
+    fn a_harvest_the_pack_cannot_take_goes_to_home_storage() {
+        let mut data = make_store();
+        data.insert("home_stock_outputs", std::sync::Mutex::new(Vec::<(String, u32)>::new()));
+        let mut sys = FarmingSystem::new();
+        let mut world = hecs::World::new();
+        let mut inv = Inventory::new(24);
+        inv.add_item("seed_wheat_0", 3, 50);
+        let player = world.spawn((inv, Controllable));
+        *data
+            .get::<std::sync::Mutex<Option<(String, String, u32)>>>("plant_bed_request")
+            .unwrap()
+            .lock()
+            .unwrap() = Some(("staple_grain_tray".to_string(), "wheat".to_string(), 3));
+        sys.tick(&mut world, 1.0, &data);
+        let crops: Vec<hecs::Entity> = world.query::<&CropInstance>().iter().map(|(e, _)| e).collect();
+        *data.get::<std::sync::Mutex<bool>>("dev_grow_crops").unwrap().lock().unwrap() = true;
+        sys.tick(&mut world, 1.0, &data);
+        // The pack is full to its volume, and there is no vessel.
+        {
+            let mut inv = world.get::<&mut Inventory>(player).unwrap();
+            inv.volume_current_l = inv.volume_capacity_l;
+        }
+        *data.get::<std::sync::Mutex<Vec<u64>>>("harvest_many_request").unwrap().lock().unwrap() =
+            crops.iter().map(|e| e.to_bits().into()).collect();
+        sys.tick(&mut world, 1.0, &data);
+        let filed: u32 = data
+            .get::<std::sync::Mutex<Vec<(String, u32)>>>("home_stock_outputs")
+            .unwrap()
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|(id, _)| id == "grain_wheat_0")
+            .map(|(_, q)| *q)
+            .sum();
+        assert_eq!(world.get::<&Inventory>(player).unwrap().count_item("grain_wheat_0"), 0, "the pack is full");
+        assert!(filed >= 24, "the harvest went to home storage, not away: {filed}");
     }
 
     /// v0.739 BULK HARVEST: the "Harvest N ready" button sends every mature
