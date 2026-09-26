@@ -744,6 +744,11 @@
    "date": "2026-09-25",
    "decision": "Screens are per viewer (never streamed); synced displays share a SOURCE from own_domains only; video Sync is a one-shot load-same-URL + seek-to-same-moment, then independent playback.",
    "why": "Operator direction: privacy (no one sees another player's info), avoids the public-display / any-other-network clauses, keeps platform ads intact per viewer, no bandwidth. Replaces the earlier lockstep shared play/pause design."
+  },
+  {
+   "date": "2026-09-25",
+   "decision": "Gameplay gap survey (4 parallel read-only passes + container materials research) written to docs/design/gameplay-gaps-2026-09-25.md and docs/reference/findings/2026-09-25-container-materials-and-reuse.md.",
+   "why": "Operator asked what is missing for gardening/crafting/inventory and whether stored items exist physically (Starmade cargo fill, Space Engineers typed tanks, oil-then-milk contamination). Found 7 real defects (item loss on full backpack, showcase garden untagged, unsourced inputs, no first seed, cooked food no nutrition, XP skip, empty categories) and that the container food-safety rule exists only as a comment. Research: history not material decides reuse (FDA Food Code 7-203.11, PMO); linings remember longer (Codex 1/2/3 loads)."
   }
  ],
  "active_scopes_to_avoid": [

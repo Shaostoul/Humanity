@@ -129,3 +129,8 @@ what we will say about it.
   Examine, Coursera, Discord, Project Gutenberg, Khan Academy, Instructables,
   Element, iFixit), and whether HumanityOS could act as a game launcher
   (GOG and Steam: contacts, APIs, affiliate programme, Playnite and Heroic).
+- [`2026-09-25-container-materials-and-reuse.md`](2026-09-25-container-materials-and-reuse.md),
+  which container materials and linings can hold which contents, and which can
+  go back to food or drinking water after holding something else (FDA Food
+  Code, the Pasteurized Milk Ordinance, Codex previous-cargo lists, USDA dairy
+  equipment rules). The data basis for realistic containers in the game.

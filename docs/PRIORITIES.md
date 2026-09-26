@@ -1083,6 +1083,14 @@ PSOs each compile one entry, and the split was itself a perf win (console
 
 ### C. The playable game
 
+**Gameplay gap survey (2026-09-25):** `docs/design/gameplay-gaps-2026-09-25.md`
+lists seven defects (items lost when the backpack is full, the showcase garden
+invisible to the Garden panel, 12 unsourced recipe inputs, no first seed, cooked
+food with no nutrition, skipped XP, empty crafting categories) and the missing
+pieces for water, gardening, crafting, containers and visible storage, with a
+proposed order. Container data basis:
+`docs/reference/findings/2026-09-25-container-materials-and-reuse.md`.
+
 `docs/design/playable-assessment-2026-09-19.md` is the honest read: eleven loops
 close end to end through the UI with no console and 24 of 42 systems tick, so
 "framework built but not wired" is half wrong. What is missing is the layer
