@@ -752,6 +752,14 @@ pub struct PowerCircuit {
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
 pub struct Irrigator;
 
+/// An electric grow light (2026-09-26, `MachineDef::lights_crops`). While
+/// its `PowerConsumer` is enabled, FarmingSystem counts every indoor grow
+/// area as lit, so green crops there keep growing after the sun sets; shed
+/// or switched off, it gives no light and they pause until sunrise. Home-wide
+/// for now, like `Irrigator`: see `farming::light_growth_rate`.
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
+pub struct GrowLight;
+
 /// A bulk water store (a cistern/tank) (v0.608). `liters` is the live level; `PlumbingSystem` fills it
 /// from powered producers and drains it for consumers, so the day's water budget is a draining number.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]

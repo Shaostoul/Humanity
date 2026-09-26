@@ -134,6 +134,25 @@ date; re-check before trusting one. The container data basis is
   beds and fields, up from 12. Still to do on gardening: N-P-K, pests,
   light, a per-crop yield response factor, season health in the Garden
   panel, and models for the species no set fits.
+- **Gardening depth, rung 2: light, DONE 2026-09-26.** A green crop grows
+  only while its grow area is lit and pauses in the dark; the dark never
+  costs health, water or yield (`farming::light_growth_rate`). The sun is
+  the solar panels' sun (up 6:00 to 18:00). Outdoor fields (`_field`, the
+  test rain uses) have only the sun. Every other grow area has the sun too,
+  through the skylight, because both shipped homes are designed sun-lit and
+  place no grow light; a powered grow light (`lights_crops: true` on the
+  `grow_light` machine in both home files, a `GrowLight` marker) also lights
+  them after dark, and a shed or switched-off one gives no light. Lit time
+  counts double so a natural day still grows exactly one day and
+  `growth_days` stay true; a grow light left on all night therefore gives up
+  to twice the growth, an upper bound until a per-species light amount
+  exists. One powered light lights every indoor area (home-wide, like
+  irrigation), which overstates a 100 W LED's reach of under a square metre.
+  plants.csv gained `needs_light`, false only for the fungi (Penn State
+  Extension: mushrooms "lack the ability to use energy from the sun"), so
+  mushrooms grow in the dark. Still to do on light: per-light coverage, a
+  per-species light amount (daily light integral) with saturation, seasonal
+  day length, and showing the light state in the Garden panel.
 - Found while merging, still open: the Eat/Drink buttons still show on water
   MACHINES (the food system now ignores those clicks); `animal_fat_0` has
   base material `plant_fiber` and there is no tallow material; items.csv

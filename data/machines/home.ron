@@ -497,6 +497,9 @@
             color: (0.72, 0.3, 0.78),
             label: "LED grow light",
             category: "Food",
+            // While powered it lights every indoor grow area, so crops there
+            // keep growing after sunset; fields have only the sun (2026-09-26).
+            lights_crops: true,
             stats: [
                 (
                     kind: "power",

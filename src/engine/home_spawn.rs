@@ -174,6 +174,13 @@ pub(crate) fn spawn_home_machine_entity(
             let _ = world.insert_one(e, crate::ecs::components::Irrigator);
         }
     }
+    // Grow light (2026-09-26): FarmingSystem counts the indoor grow areas as
+    // lit while this entity's PowerConsumer is enabled. Outside the water
+    // block above because a light has no water role; it always has a power
+    // role (the machines.rs data test insists), so this entity exists.
+    if def.lights_crops {
+        let _ = world.insert_one(e, crate::ecs::components::GrowLight);
+    }
     // AIR handler (v0.618): a machine with an Air OUT port scrubs the home air while powered.
     if air_out > 0.0 {
         let _ = world.insert_one(
@@ -225,6 +232,52 @@ pub(crate) fn spawn_home_machine_entity(
                     );
                 }
             }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Gardening depth, rung 2 (2026-09-26): a grow light placed from either
+    /// shipped catalog spawns as a GrowLight with a PowerConsumer, which is
+    /// exactly the pair FarmingSystem reads to decide whether the indoor
+    /// garden is lit. The irrigation machine next to it gets no GrowLight.
+    #[test]
+    fn shipped_grow_light_spawns_a_powered_grow_light() {
+        use crate::ecs::components::{GrowLight, MachineInstanceId, PowerConsumer};
+        for file in ["home.ron", "home_solo.ron"] {
+            let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("data")
+                .join("machines")
+                .join(file);
+            let home = crate::machines::MachineHome::load(&path)
+                .unwrap_or_else(|| panic!("{file} parses"));
+            let mut world = hecs::World::new();
+            let empty = std::collections::HashMap::new();
+            for (id, machine) in [("gl_test", "grow_light"), ("irr_test", "irrigation_system")] {
+                let inst = crate::machines::MachineInstance {
+                    id: id.to_string(),
+                    machine: machine.to_string(),
+                    room: "room-greenhouse".to_string(),
+                    offset: (0.0, 0.0, 0.0),
+                    rotation: 0.0,
+                    zone: "home".to_string(),
+                    screen_source: None,
+                };
+                let def = home
+                    .catalog
+                    .get(machine)
+                    .unwrap_or_else(|| panic!("{file} catalogs {machine}"));
+                spawn_home_machine_entity(&mut world, &inst, def, &empty, &empty, None, None);
+            }
+            let lit: Vec<String> = world
+                .query::<(&GrowLight, &PowerConsumer, &MachineInstanceId)>()
+                .iter()
+                .map(|(_, (_, _, id))| id.0.clone())
+                .collect();
+            assert_eq!(lit, vec!["gl_test".to_string()], "{file}: only the grow light lights crops");
         }
     }
 }

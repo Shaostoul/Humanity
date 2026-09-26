@@ -124,6 +124,13 @@ pub struct MachineDef {
     /// hand (2026-09-26; `AutoRefine::keep`). None = run whenever it can.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub auto_keep: Option<u32>,
+    /// This machine is an electric grow light (2026-09-26): while it is
+    /// powered, every indoor grow area counts as lit, so green crops there
+    /// keep growing after the sun sets (outdoor fields have only the sun).
+    /// It needs a `Consumer` power role: an unpowered light gives no light.
+    /// Spawns a `GrowLight` marker. See `farming::light_growth_rate`.
+    #[serde(default)]
+    pub lights_crops: bool,
     /// Typed-container archetype id from `data/containers/types.csv` (v0.728,
     /// "containers show contents"): a grain silo IS a `grain_silo_bin`, the
     /// fuel refinery a `steel_fuel_drum`. Spawns a `Container` ECS component
@@ -1936,6 +1943,7 @@ mod tests {
             auto_recipe: None,
             irrigates: false,
             auto_keep: None,
+            lights_crops: false,
             container_type: None,
             model: None,
             screen: None,
@@ -2385,6 +2393,36 @@ mod tests {
                 home.grow_light_report(4.5).is_none(),
                 "{file}: the seed design places no grow lights (sun-lit by design)"
             );
+        }
+    }
+
+    /// Gardening depth, rung 2 (2026-09-26): the grow light in both shipped
+    /// catalogs is the light FarmingSystem reads, so it must carry
+    /// `lights_crops` (without it, placing one would draw 100 W and light
+    /// nothing, the gap this closes), and nothing else may: a pump or a
+    /// heater flagged by mistake would light the whole indoor garden. Grow
+    /// lights are named the way `grow_light_report` finds them.
+    #[test]
+    fn shipped_grow_lights_light_crops_and_nothing_else_does() {
+        for file in ["home.ron", "home_solo.ron"] {
+            let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("data")
+                .join("machines")
+                .join(file);
+            let home = MachineHome::load(&path).unwrap_or_else(|| panic!("{file} parses"));
+            for (id, def) in &home.catalog {
+                let is_grow_light = id == "grow_light" || id.starts_with("grow_light_");
+                assert_eq!(
+                    def.lights_crops, is_grow_light,
+                    "{file}: `{id}` lights_crops should be {is_grow_light}"
+                );
+                if def.lights_crops {
+                    assert!(
+                        matches!(def.power, Some(MachinePower::Consumer { .. })),
+                        "{file}: `{id}` lights crops, so it needs a Consumer power role to be switched on"
+                    );
+                }
+            }
         }
     }
 

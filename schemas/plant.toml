@@ -20,8 +20,8 @@
 #   data/curriculum/syllabus.json  -- the `bio_plants` and `grow_pests` topics
 #                                     declare this file as their data layer.
 #
-# EIGHT COLUMNS ARE NOT READ BY THE ENGINE AT ALL. `PlantDef` carries 18 of the
-# 26. `description` and `type` are documentation for a human or an AI reading the
+# EIGHT COLUMNS ARE NOT READ BY THE ENGINE AT ALL. `PlantDef` carries 19 of the
+# 27. `description` and `type` are documentation for a human or an AI reading the
 # file; `seed_value`, `harvest_value`, `seed_source`, `companion_plants` and
 # `adverse_plants` are read by nothing in `src/` today. They are content waiting
 # for a system, not dead weight, but do not assume editing one changes anything
@@ -260,13 +260,41 @@ warning. Empty falls back to the legacy vegetable_/fruit_/grain_ prefix search,
 so pre-column data still works."""
 example = "vegetable_tomato_0"
 
+[fields.needs_light]
+type = "bool"
+required = false
+engine = true
+description = """
+Whether the species needs light to grow at all (added 2026-09-26, gardening
+depth rung 2). `true` for every green plant: the farming sim grows it only
+while its grow area is lit (the sun for a field; the sun or a powered grow
+light indoors) and pauses it in the dark, without harming it. `false` for the
+fungi (oyster_mushroom, shiitake, button_mushroom, and the fictional
+shadow_fungi and phase_mushroom), which the sim grows at the calendar rate in
+light or dark.
+
+Source for the fungi: Penn State Extension, "Basic Procedures for Agaricus
+Mushroom Growing" (read 2026-09-26): "Mushrooms lack the ability to use energy
+from the sun. They are not green plants because they do not have chlorophyll."
+The same sheet adds that mushrooms "are usually grown in the absence of light,
+darkness is not a requirement". Oyster and shiitake do use some light as a cue
+to form well-shaped fruit bodies; that is a shape signal, not the energy they
+grow on, and it is not modelled.
+
+This says nothing about HOW MUCH light a plant needs (see Known gaps below).
+Blank or absent reads as `true`, so a row can never be dropped over it."""
+example = "true"
+
 # ── Known gaps, so nobody rediscovers them ───────────────────────
 #
 # These are things the file CANNOT express that the Library's guides say matter.
 # Each is a real content decision, not an oversight to be silently patched.
 #
-#   No light or shade-tolerance column. The compensation point, which is the
-#     budget governing whether a plant can live where you put it, has no field.
+#   No light AMOUNT or shade-tolerance column. `needs_light` says only whether
+#     a species needs light at all. The daily light integral a crop wants and
+#     its compensation point, which is the budget governing whether a plant can
+#     live where you put it, have no field, so the sim cannot yet scale growth
+#     under weak light or saturate it under strong light.
 #   No photoperiod or vernalization field, so bolting cannot emerge from the
 #     data and can only be scripted.
 #   No pollination mode, which is the thing saving_your_own_seeds.md turns on:

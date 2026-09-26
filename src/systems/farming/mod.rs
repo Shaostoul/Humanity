@@ -101,6 +101,25 @@ pub struct PlantDef {
     /// search (pre-column data still works).
     #[serde(default)]
     pub harvest_item: String,
+    /// Does this species need light to grow? (2026-09-26, plants.csv
+    /// `needs_light`.) True for every green plant: it grows only while its
+    /// grow area is lit (see `light_growth_rate`). False for the fungi, which
+    /// do not photosynthesise and grow on their substrate in light or dark.
+    /// Defaults to true so a row without the column still needs light.
+    #[serde(default = "default_needs_light")]
+    pub needs_light: bool,
+}
+
+fn default_needs_light() -> bool {
+    true
+}
+
+/// Read the plants.csv `needs_light` cell. Only an explicit no (`false`,
+/// `no`, `0`) turns the light gate off; blank or absent means the species
+/// needs light. Parsed from text rather than as a serde bool so a blank cell
+/// can never make the row-resilient loader drop the whole plant.
+fn parse_needs_light(cell: &str) -> bool {
+    !matches!(cell.trim().to_ascii_lowercase().as_str(), "false" | "no" | "0")
 }
 
 impl PlantDef {
@@ -176,6 +195,7 @@ impl PlantRegistry {
                     humidity_min: row.humidity_min,
                     humidity_max: row.humidity_max,
                     harvest_item: row.harvest_item,
+                    needs_light: parse_needs_light(&row.needs_light),
                 },
             );
         }
@@ -226,6 +246,9 @@ struct PlantRow {
     yield_max: f32,
     #[serde(default)]
     harvest_item: String,
+    /// Text, not bool: see `parse_needs_light`.
+    #[serde(default)]
+    needs_light: String,
 }
 
 /// Split a colon-separated list field into trimmed, non-empty entries.
@@ -334,6 +357,37 @@ mod plant_registry_csv_tests {
             assert!(def.humidity_min > 0.5, "{id} is a high-humidity crop, not a desert plant");
         }
     }
+
+    /// `needs_light` (2026-09-26): only an explicit no turns the light gate
+    /// off, a blank cell or a CSV without the column still needs light (and
+    /// never drops the row), and the shipped file marks the three real fungi
+    /// as growing without light while every green crop needs it.
+    #[test]
+    fn needs_light_column_parses_and_the_fungi_grow_without_light() {
+        let csv = b"id,name,growth_days,needs_light\n\
+                    a,A,10,false\n\
+                    b,B,10,true\n\
+                    c,C,10,\n\
+                    d,D,10,no\n";
+        let reg = PlantRegistry::from_csv(csv).expect("parse");
+        assert_eq!(reg.plants.len(), 4, "no row dropped over the light cell");
+        assert!(!reg.get("a").unwrap().needs_light, "false turns the gate off");
+        assert!(reg.get("b").unwrap().needs_light, "true keeps it");
+        assert!(reg.get("c").unwrap().needs_light, "blank means it needs light");
+        assert!(!reg.get("d").unwrap().needs_light, "no turns the gate off");
+        let old = PlantRegistry::from_csv(b"id,name,growth_days\nx,X,10\n").expect("parse");
+        assert!(old.get("x").unwrap().needs_light, "a CSV without the column needs light");
+
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("plants.csv");
+        let shipped = PlantRegistry::from_csv(&std::fs::read(&path).expect("plants.csv reads"))
+            .expect("plants.csv parses");
+        for id in ["oyster_mushroom", "shiitake", "button_mushroom"] {
+            assert!(!shipped.get(id).unwrap().needs_light, "{id} is a fungus and grows without light");
+        }
+        for id in ["tomato", "lettuce", "wheat", "potato", "strawberry"] {
+            assert!(shipped.get(id).unwrap().needs_light, "{id} is a green plant and needs light");
+        }
+    }
 }
 
 /// Rate at which water_level decreases per second (base dehydration).
@@ -383,6 +437,67 @@ pub fn is_field_area(tid: &str) -> bool {
 /// 0.2 stress line, below saturation, the way a timed drip or aeroponic
 /// pump keeps a root zone.
 pub const DEFAULT_AUTO_IRRIGATION: f32 = 0.8;
+
+/// Share of every game day the sun is up (2026-09-26, gardening depth rung
+/// 2: light). The game's sun, the same one the solar panels run on
+/// (`solar::sun_factor`), rises at 6:00 and sets at 18:00 every day, so half
+/// of each day is lit. A test pins this to that curve, so a change to the
+/// sun cannot quietly make every crop grow faster or slower than its data.
+pub const DAYLIGHT_FRACTION: f64 = 0.5;
+
+/// How fast a crop's growth clock runs this tick, as a multiple of the world
+/// clock (2026-09-26, gardening depth rung 2: light). Before this, light did
+/// nothing: crops grew at the same pace at midnight as at noon, and a grow
+/// light was only a power draw.
+///
+/// A green plant grows on the light it catches, so it grows only while its
+/// grow area is lit and not at all in the dark (`needs_light`). Darkness only
+/// PAUSES it: nothing here touches health, water or yield.
+///
+/// Why lit time runs at 1 / DAYLIGHT_FRACTION (2x) and not 1x: plants.csv
+/// `growth_days` are calendar days under a natural sky, nights included. A
+/// day's growth follows the light that day delivered (the daily light
+/// integral), so this puts the whole day's growth into its lit hours and
+/// none into the dark ones, and a crop under the sun alone still matures in
+/// exactly its `growth_days`. Real plants keep expanding at night on sugars
+/// made by day; placing all of a day's growth in its lit hours changes WHEN
+/// in the day a stage turns, not how many days the crop takes. It also keeps
+/// the offline catch-up in save_load.rs right on average: that ages a crop
+/// one day per day away, which is what a natural day gives.
+///
+/// Where the light comes from:
+/// - An outdoor FIELD (`is_field_area`, the same test rain uses) has only
+///   the sun.
+/// - Every other grow area has the sun too, through the glass: both shipped
+///   homes grow their beds and towers under a skylight (the home.ron design
+///   note "Sun-lit (skylight) single canopy", every tower and bed card says
+///   "sun-lit", and a machines.rs test pins the seed homes to no grow lights,
+///   "sun-lit by design"). A powered grow light lights it after dark as well.
+///   Home-wide, like irrigation: ONE powered grow light lights every indoor
+///   area. That overstates a light's reach (a 100 W LED really covers under
+///   a square metre of greens; docs/design/self-sufficiency.md puts greens at
+///   about 2.2 kWh per m2 per day) and is this rung's simplification; lights
+///   covering only the areas near them is the next one.
+/// - A species that does not need light (the fungi) grows at the calendar
+///   rate, lit or not.
+///
+/// A grow light left on through the night therefore gives up to twice the
+/// growth of the sun alone. That is the first-order effect of doubling the
+/// day's light, and an upper bound: real crops saturate at a species-specific
+/// daily light (a lettuce in full sun gains little from more), and some are
+/// harmed by light around the clock (tomato). plants.csv has no per-species
+/// light amount yet, so that is the next rung, not a number invented here.
+pub fn light_growth_rate(needs_light: bool, outdoors: bool, sun_up: bool, grow_light_on: bool) -> f64 {
+    if !needs_light {
+        return 1.0;
+    }
+    let lit = sun_up || (!outdoors && grow_light_on);
+    if lit {
+        1.0 / DAYLIGHT_FRACTION
+    } else {
+        0.0
+    }
+}
 
 /// Home RF level above which crops start taking RF stress (v0.620). Any notable wireless emission.
 const RF_HARM_THRESHOLD: f32 = 0.1;
@@ -543,6 +658,16 @@ impl System for FarmingSystem {
             .and_then(|m| m.lock().ok())
             .map(|gt| gt.elapsed_seconds)
             .unwrap_or(0.0);
+        // Light inputs (2026-09-26): the hour, for whether the sun is up, and
+        // the clock's rate, so a crop's growth clock can be held in the dark
+        // by exactly the game time that passed (see light_growth_rate).
+        // Absent clock (headless tests, early boot) = noon at real time, the
+        // same default SolarSystem uses, so nothing is dark by accident.
+        let (hour, time_scale) = data
+            .get::<std::sync::Mutex<crate::systems::time::GameTime>>("game_time")
+            .and_then(|m| m.lock().ok())
+            .map(|gt| (gt.hour, gt.time_scale))
+            .unwrap_or((12.0, 1.0));
         // Outdoor climate inputs (v0.749, ladder rung 6): the current season +
         // live weather temperature, applied to FIELD crops only below. Empty
         // season / absent weather = no penalty (headless tests, early boot).
@@ -616,6 +741,25 @@ impl System for FarmingSystem {
                 let needs_power = wc.map_or(false, |w| w.needs_power);
                 !needs_power || pc.map_or(false, |p| p.enabled)
             });
+        // Light (2026-09-26, see light_growth_rate). The sun is up when it
+        // makes solar power: the same curve, so the fields and the panels
+        // agree on when it is day. A grow light lights the indoor areas only
+        // while its PowerConsumer is enabled, so a light the electrical sim
+        // sheds (priority 5 goes first) or the player switches off gives no
+        // light, and one with no power role at all is never lit.
+        let sun_up = crate::systems::solar::sun_factor(hour) > 0.0;
+        let grow_light_on = world
+            .query::<(
+                &crate::ecs::components::GrowLight,
+                Option<&crate::ecs::components::PowerConsumer>,
+            )>()
+            .iter()
+            .any(|(_, (_, pc))| pc.map_or(false, |p| p.enabled));
+        // Game seconds this tick, computed the way TimeSystem advances the
+        // clock, so holding a crop in the dark holds it by exactly what
+        // passed. A clock jump (the dev hour set, a save restore) is not a
+        // tick and is not light-counted, as it was not before.
+        let game_dt = f64::from(dt) * f64::from(time_scale);
         // Rain waters outdoor fields (2026-09-25): litres of water level per
         // second at full intensity; 0 when it is not raining.
         let rain = data
@@ -1274,6 +1418,23 @@ impl System for FarmingSystem {
                 updates.push((entity, crop));
                 continue;
             }
+
+            // LIGHT (2026-09-26): run this crop's growth clock at the rate
+            // its light allows (see light_growth_rate). Growth below is read
+            // from the crop's age, elapsed minus planted_at, so the clock is
+            // run by moving planted_at: forward by this tick's game time in
+            // the dark (the age holds still), back by it in the light (the
+            // age gains two seconds a second). The same device the offline
+            // catch-up in save_load.rs uses. Clamped so a crop is never
+            // planted in the future. Health, water and the season record
+            // above are untouched: the dark pauses a crop, it does not harm
+            // it.
+            let outdoors = crop.tower_id.as_deref().map_or(false, is_field_area);
+            let needs_light = plant_registry
+                .and_then(|reg| reg.get(&crop.crop_def_id))
+                .map_or(true, |d| d.needs_light);
+            let light_rate = light_growth_rate(needs_light, outdoors, sun_up, grow_light_on);
+            crop.planted_at = (crop.planted_at + game_dt * (1.0 - light_rate)).min(elapsed_seconds);
 
             // Calculate growth progress based on elapsed time since planting
             if let Some(registry) = plant_registry {
@@ -2476,5 +2637,255 @@ mod gardening_tests {
             "the drought stays in the record after the plant recovers, got {}",
             season_health(&d)
         );
+    }
+
+    // ── Light (2026-09-26, gardening depth rung 2) ──────────────────────
+
+    /// Put the world clock at `hour` on game day `day`, through the same
+    /// set_elapsed every clock writer uses, so the derived hour follows.
+    fn set_clock(data: &DataStore, day: u32, hour: f64) {
+        data.get::<std::sync::Mutex<crate::systems::time::GameTime>>("game_time")
+            .unwrap()
+            .lock()
+            .unwrap()
+            .set_elapsed(f64::from(day) * SECONDS_PER_DAY + hour / 24.0 * SECONDS_PER_DAY);
+    }
+
+    /// Advance the clock one second at a time the way TimeSystem does (the
+    /// clock moves first, then the farming tick sees the new hour), `n` times.
+    fn run_seconds(sys: &mut FarmingSystem, world: &mut hecs::World, data: &DataStore, n: usize) {
+        for _ in 0..n {
+            {
+                let slot = data
+                    .get::<std::sync::Mutex<crate::systems::time::GameTime>>("game_time")
+                    .unwrap();
+                let mut gt = slot.lock().unwrap();
+                let next = gt.elapsed_seconds + 1.0;
+                gt.set_elapsed(next);
+            }
+            sys.tick(world, 1.0, data);
+        }
+    }
+
+    /// A crop's growth age right now: what its stage is read from.
+    fn growth_age(world: &hecs::World, e: hecs::Entity, data: &DataStore) -> f64 {
+        crate::systems::time::elapsed_now(data) - world.get::<&CropInstance>(e).unwrap().planted_at
+    }
+
+    /// A fresh, well-kept crop planted right now in `area`.
+    fn fresh_crop(data: &DataStore, plant: &str, area: Option<&str>) -> CropInstance {
+        let stage = data
+            .get::<PlantRegistry>("plant_registry")
+            .unwrap()
+            .get(plant)
+            .unwrap()
+            .first_stage()
+            .to_string();
+        CropInstance {
+            crop_def_id: plant.to_string(),
+            growth_stage: stage,
+            planted_at: crate::systems::time::elapsed_now(data),
+            water_level: 1.0,
+            health: 100.0,
+            tower_id: area.map(str::to_string),
+            tower_slot: Some(0),
+            health_seconds: 0.0,
+            growing_seconds: 0.0,
+        }
+    }
+
+    /// A grow light as the home spawns one: the marker plus its power role,
+    /// switched on or shed.
+    fn grow_light(powered: bool) -> (crate::ecs::components::GrowLight, crate::ecs::components::PowerConsumer) {
+        (
+            crate::ecs::components::GrowLight,
+            crate::ecs::components::PowerConsumer { draw_watts: 100.0, priority: 5, enabled: powered },
+        )
+    }
+
+    /// The sun the crops follow is the sun the solar panels follow, and it
+    /// is up exactly DAYLIGHT_FRACTION of the day. If the sun's arc ever
+    /// changes, this fails before every crop quietly starts growing faster or
+    /// slower than its plants.csv days.
+    #[test]
+    fn daylight_fraction_is_the_share_of_the_day_the_sun_is_up() {
+        let samples = 24_000;
+        let lit = (0..samples)
+            .filter(|i| {
+                let hour = (*i as f32 + 0.5) * 24.0 / samples as f32;
+                crate::systems::solar::sun_factor(hour) > 0.0
+            })
+            .count();
+        let measured = lit as f64 / samples as f64;
+        assert!(
+            (measured - DAYLIGHT_FRACTION).abs() < 1e-3,
+            "the sun is up {measured:.4} of the day, DAYLIGHT_FRACTION says {DAYLIGHT_FRACTION}"
+        );
+    }
+
+    /// An outdoor field crop does not grow at night and does by day. At
+    /// 100x growth so a day visibly moves it through its stages; its age
+    /// shows the mechanism: frozen through the night, two seconds a second
+    /// in the sun.
+    #[test]
+    fn an_outdoor_crop_grows_by_day_and_not_at_night() {
+        let mut data = make_store();
+        data.insert("crop_growth_speed", std::sync::Mutex::new(100.0_f32));
+        let mut sys = FarmingSystem::new();
+        let mut world = hecs::World::new();
+        world.spawn((crate::ecs::components::Irrigator,)); // watered, so only light differs
+        set_clock(&data, 0, 18.5);
+        let field = world.spawn((fresh_crop(&data, "tomato", Some("grain_field_1")),));
+        let first = world.get::<&CropInstance>(field).unwrap().growth_stage.clone();
+
+        // 18:30 to 05:30: eleven hours of night.
+        run_seconds(&mut sys, &mut world, &data, 550);
+        assert!(
+            growth_age(&world, field, &data).abs() < 1e-6,
+            "no growth in the dark, age {}",
+            growth_age(&world, field, &data)
+        );
+        assert_eq!(world.get::<&CropInstance>(field).unwrap().growth_stage, first, "same stage after a night");
+
+        // On to 06:30, then the first full hour of sun.
+        run_seconds(&mut sys, &mut world, &data, 50);
+        let dawn = growth_age(&world, field, &data);
+        run_seconds(&mut sys, &mut world, &data, 50);
+        let gained = growth_age(&world, field, &data) - dawn;
+        assert!((gained - 100.0).abs() < 1e-6, "an hour of sun (50 s) grows it 100 s, got {gained}");
+
+        // The rest of the day: it moves on.
+        run_seconds(&mut sys, &mut world, &data, 500);
+        assert_ne!(
+            world.get::<&CropInstance>(field).unwrap().growth_stage,
+            first,
+            "a day of sun moved the crop on a stage"
+        );
+    }
+
+    /// Why lit time counts double: over a whole natural day, a crop under
+    /// the sun gains exactly one day of growth, so plants.csv growth_days
+    /// (calendar days, nights included) stay true. Holds for a field and
+    /// for an indoor tower with no grow light (lit by the skylight); within
+    /// a tick either side, since the sun is sampled once a tick and is down
+    /// on the exact second of sunrise and of sunset.
+    #[test]
+    fn a_natural_day_grows_a_crop_exactly_one_day() {
+        let mut data = make_store();
+        data.insert("crop_growth_speed", std::sync::Mutex::new(1.0_f32));
+        let mut sys = FarmingSystem::new();
+        let mut world = hecs::World::new();
+        world.spawn((crate::ecs::components::Irrigator,));
+        set_clock(&data, 0, 0.0);
+        let crops = [
+            world.spawn((fresh_crop(&data, "tomato", Some("grain_field_1")),)),
+            world.spawn((fresh_crop(&data, "tomato", Some("ntower_3")),)),
+        ];
+        run_seconds(&mut sys, &mut world, &data, SECONDS_PER_DAY as usize);
+        for e in crops {
+            let age = growth_age(&world, e, &data);
+            assert!(
+                (age - SECONDS_PER_DAY).abs() <= 2.0,
+                "a day of sun and night is one day of growth, got {age} s of {SECONDS_PER_DAY}"
+            );
+        }
+    }
+
+    /// Indoors after dark, a crop grows only while a grow light is powered:
+    /// none, or one the electrical sim has shed, leaves it paused until
+    /// sunrise. By day the skylight lights it with no grow light at all, and
+    /// a grow light never reaches an outdoor field.
+    #[test]
+    fn an_indoor_crop_grows_at_night_only_under_a_powered_grow_light() {
+        let night_growth = |light: Option<bool>| -> (f64, f64) {
+            let mut data = make_store();
+            data.insert("crop_growth_speed", std::sync::Mutex::new(1.0_f32));
+            let mut sys = FarmingSystem::new();
+            let mut world = hecs::World::new();
+            world.spawn((crate::ecs::components::Irrigator,));
+            if let Some(powered) = light {
+                world.spawn(grow_light(powered));
+            }
+            set_clock(&data, 0, 19.0);
+            let tower = world.spawn((fresh_crop(&data, "lettuce", Some("ntower_3")),));
+            let field = world.spawn((fresh_crop(&data, "lettuce", Some("grain_field_1")),));
+            run_seconds(&mut sys, &mut world, &data, 450); // 19:00 to 04:00
+            (growth_age(&world, tower, &data), growth_age(&world, field, &data))
+        };
+        let (dark_tower, _) = night_growth(None);
+        let (lit_tower, lit_field) = night_growth(Some(true));
+        let (shed_tower, _) = night_growth(Some(false));
+        assert!(dark_tower.abs() < 1e-6, "no grow light: paused at night, age {dark_tower}");
+        assert!(shed_tower.abs() < 1e-6, "a shed grow light gives no light, age {shed_tower}");
+        assert!((lit_tower - 900.0).abs() < 1e-6, "a powered grow light lights it, age {lit_tower}");
+        assert!(lit_field.abs() < 1e-6, "a grow light does not reach an outdoor field, age {lit_field}");
+
+        // By day, no grow light needed.
+        let mut data = make_store();
+        let mut sys = FarmingSystem::new();
+        let mut world = hecs::World::new();
+        world.spawn((crate::ecs::components::Irrigator,));
+        set_clock(&data, 0, 9.0);
+        let tower = world.spawn((fresh_crop(&data, "lettuce", Some("ntower_3")),));
+        run_seconds(&mut sys, &mut world, &data, 100);
+        let age = growth_age(&world, tower, &data);
+        assert!((age - 200.0).abs() < 1e-6, "the skylight lights it by day, age {age}");
+    }
+
+    /// Darkness pauses a crop; it does not harm it. Two identical crops
+    /// start a night at 80 health, one under a powered grow light and one in
+    /// the dark: by morning both have recovered the same, neither lost any
+    /// water to the dark, and both carry the same season health record, so
+    /// the harvest will not punish the one that sat in the dark.
+    #[test]
+    fn darkness_pauses_a_crop_but_does_it_no_harm() {
+        let night = |lit: bool| -> CropInstance {
+            let mut data = make_store();
+            data.insert("crop_growth_speed", std::sync::Mutex::new(1.0_f32));
+            let mut sys = FarmingSystem::new();
+            let mut world = hecs::World::new();
+            world.spawn((crate::ecs::components::Irrigator,));
+            if lit {
+                world.spawn(grow_light(true));
+            }
+            set_clock(&data, 0, 18.5);
+            let mut c = fresh_crop(&data, "tomato", Some("ntower_3"));
+            c.health = 80.0;
+            let e = world.spawn((c,));
+            run_seconds(&mut sys, &mut world, &data, 550);
+            let c = world.get::<&CropInstance>(e).unwrap();
+            (*c).clone()
+        };
+        let dark = night(false);
+        let lit = night(true);
+        assert_ne!(dark.growth_stage, STAGE_DEAD);
+        assert_eq!(dark.health, lit.health, "the dark cost no health ({} vs {})", dark.health, lit.health);
+        assert!(dark.health >= 99.9, "and it recovered overnight like any watered crop, got {}", dark.health);
+        assert_eq!(dark.water_level, lit.water_level, "the dark changed nothing about water");
+        assert!(
+            (season_health(&dark) - season_health(&lit)).abs() < 1e-9,
+            "the same season record ({} vs {})",
+            season_health(&dark),
+            season_health(&lit)
+        );
+    }
+
+    /// Fungi grow without light (plants.csv `needs_light` false): an oyster
+    /// mushroom in the dark mushroom rack grows at the calendar rate through
+    /// the night, where a green crop beside it would be paused.
+    #[test]
+    fn mushrooms_grow_in_the_dark() {
+        let mut data = make_store();
+        data.insert("crop_growth_speed", std::sync::Mutex::new(1.0_f32));
+        let mut sys = FarmingSystem::new();
+        let mut world = hecs::World::new();
+        world.spawn((crate::ecs::components::Irrigator,));
+        set_clock(&data, 0, 19.0);
+        let mushroom = world.spawn((fresh_crop(&data, "oyster_mushroom", Some("mushroom_rack")),));
+        let lettuce = world.spawn((fresh_crop(&data, "lettuce", Some("mushroom_rack")),));
+        run_seconds(&mut sys, &mut world, &data, 450);
+        let m = growth_age(&world, mushroom, &data);
+        assert!((m - 450.0).abs() < 1e-6, "the mushroom grew through the night, age {m}");
+        assert!(growth_age(&world, lettuce, &data).abs() < 1e-6, "the green crop beside it did not");
     }
 }

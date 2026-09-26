@@ -540,6 +540,7 @@
             shape: "box", size: (1.2, 0.1, 0.6), color: (0.72, 0.30, 0.78),
             label: "LED grow light",
             category: "Food",
+            lights_crops: true, // lights every indoor grow area while powered; fields have only the sun (2026-09-26)
             stats: [(kind: "power", value: "-1.4 kWh/d (100 W x 14 h)", status: "warn"), (kind: "food", value: "light past the sun, at a cost", status: "warn")],
             // The honest teaching machine (v0.664, self-sufficiency.md's "light cap"): the solo
             // home's whole budget is ~4 kWh/day, and ONE 100 W LED on a 14 h crop photoperiod
