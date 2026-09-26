@@ -919,6 +919,11 @@
    "date": "2026-09-26",
    "decision": "v0.1370.0 delivered. In flight (worktree agents): (1) mushroom-room humidifier (humidity.rs, machine catalogs, home_spawn, plumbing draw, mushroom-specific humidity cap); (2) weeds in soil areas (weeds.rs/.ron, SoilMemory, hoe wear, bark/sawdust mulch, Garden panel rows). Operator decision still open: ground site at Silverdale vs the GEO station (BUG-090, seasonal daylight).",
    "why": "Both extend systems shipped today; humidity.rs and weeds.rs are disjoint, the overlap is small hooks in farming/mod.rs, inventory.rs and lib.rs."
+  },
+  {
+   "date": "2026-09-26",
+   "decision": "Merged the mushroom-room humidifier (82819864: AC Infinity CLOUDFORGE T7, 1.3 L/h, 100 W, setpoint 90% from UF/IFAS SS662; water through the irrigation draw; fungi cap fitted to Kim et al. 2013). Family room 48% -> 90%, solo 41% -> 88%. Energy loops: family 14.8 vs 12.2 kWh/day, solo 6.4 vs 5.76 (closes false). Asked the same agent to continue with fruiting tents (Martha tents: small room boxes around each rack) to cut the humidifier load.",
+   "why": "Humidifying a 300 m3 room costs about 2 kWh and 30 L a day; real small growers fruit in a tent of a few m3. The agent proposed it; continuing it keeps its context. Also: give each agent its own scratchpad subfolder (two agents shared scratchpad/breaks.js today; no files crossed)."
   }
  ],
  "active_scopes_to_avoid": [
