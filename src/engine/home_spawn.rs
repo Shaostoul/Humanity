@@ -78,6 +78,7 @@ pub(crate) fn spawn_home_machine_entity(
         && def.auto_recipe.is_none()
         && def.container_type.is_none()
         && !def.pollinates_crops
+        && def.ventilation_m3_h <= 0.0
     {
         return;
     }
@@ -187,6 +188,16 @@ pub(crate) fn spawn_home_machine_entity(
     if def.pollinates_crops {
         let _ = world.insert_one(e, crate::ecs::components::PollinatorHive);
     }
+    // Exhaust fan (2026-09-26): FarmingSystem runs it to hold the humidity of
+    // the grow room around this entity's Transform (farming::humidity). Its
+    // full-speed draw is its Consumer watts; the controller scales it.
+    if def.ventilation_m3_h > 0.0 {
+        let watts = match &def.power {
+            Some(MachinePower::Consumer { watts, .. }) => *watts,
+            _ => 0.0,
+        };
+        let _ = world.insert_one(e, crate::ecs::components::Ventilator { airflow_m3_h: def.ventilation_m3_h, watts });
+    }
     // AIR handler (v0.618): a machine with an Air OUT port scrubs the home air while powered.
     if air_out > 0.0 {
         let _ = world.insert_one(
@@ -284,6 +295,38 @@ mod tests {
                 .map(|(_, (_, _, id))| id.0.clone())
                 .collect();
             assert_eq!(lit, vec!["gl_test".to_string()], "{file}: only the grow light lights crops");
+        }
+    }
+
+    /// Greenhouse humidity (2026-09-26): the exhaust fan in either shipped
+    /// catalog spawns as a Ventilator carrying its airflow and full-speed
+    /// watts, with a PowerConsumer, at its Transform: the three FarmingSystem
+    /// reads to run it (farming::humidity). Seen red by not inserting the
+    /// Ventilator (the fan then spawned as a plain 250 W load).
+    #[test]
+    fn shipped_exhaust_fan_spawns_a_ventilator() {
+        use crate::ecs::components::{MachineInstanceId, PowerConsumer, Transform, Ventilator};
+        for file in ["home.ron", "home_solo.ron"] {
+            let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("machines").join(file);
+            let home = crate::machines::MachineHome::load(&path).unwrap_or_else(|| panic!("{file} parses"));
+            let mut world = hecs::World::new();
+            let empty = std::collections::HashMap::new();
+            let inst = crate::machines::MachineInstance {
+                id: "fan_test".to_string(),
+                machine: "exhaust_fan".to_string(),
+                room: "room-greenhouse".to_string(),
+                offset: (54.5, 2.2, 62.0),
+                rotation: 0.0,
+                zone: "home".to_string(),
+                screen_source: None,
+            };
+            spawn_home_machine_entity(&mut world, &inst, &home.catalog["exhaust_fan"], &empty, &empty, None, None);
+            let found: Vec<(String, f32, f32, bool, [f32; 3])> = world
+                .query::<(&Ventilator, &PowerConsumer, &MachineInstanceId, &Transform)>()
+                .iter()
+                .map(|(_, (v, p, id, t))| (id.0.clone(), v.airflow_m3_h, v.watts, p.enabled, t.position.to_array()))
+                .collect();
+            assert_eq!(found, vec![("fan_test".to_string(), 2725.0, 250.0, true, [54.5, 2.2, 62.0])], "{file}");
         }
     }
 

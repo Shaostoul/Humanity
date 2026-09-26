@@ -1058,3 +1058,10 @@ iron_phosphate_bait_0,Iron Phosphate Slug Bait,material,agricultural,hdpe,1.0,10
 # pellets) are game estimates. The sulfur is sealed in HDPE, the base material of the pack as for urine_stored_0.
 garden_lime_0,Garden Lime,material,agricultural,limestone,5.0,10,0,5 kg of finely ground limestone: raises soil pH as it reacts over a couple of months,dry_goods,3.6
 garden_sulfur_0,Garden Sulfur,material,agricultural,hdpe,2.0,10,0,2 kg of 90% elemental sulfur: soil bacteria turn it to acid over months and lower soil pH,dry_goods,1.7
+#
+# Garden disease control (2026-09-26, greenhouse humidity; data/garden/pests.ron carries the control and its
+# sources). potassium_bicarbonate_0 is a 454 g (1 lb) jar of potassium bicarbonate fungicide powder, bought
+# (data/trade_goods.ron, and the Farming Elder in data/npcs.ron): "For smaller areas, mix at 1 tbsp per gallon
+# of water" (MilStop, as sold). The jar size and its 0.4 L volume (about 1.1 kg per litre of powder) are game
+# estimates. Sealed in HDPE, the base material of the pack as for urine_stored_0.
+potassium_bicarbonate_0,Potassium Bicarbonate,material,agricultural,hdpe,0.454,10,0,454 g of potassium bicarbonate: a tablespoon to a gallon of water kills powdery mildew and guards leaves against gray mold,dry_goods,0.4

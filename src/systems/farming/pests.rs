@@ -32,6 +32,15 @@
 //! TWO MODES (the house rule for a deep system): the "garden_pest_severity"
 //! channel scales the damage. 0 turns pests off entirely, 0.5 (the default,
 //! `DEFAULT_PEST_SEVERITY`) is gentle, 1 is the cited damage.
+//!
+//! DISEASES (2026-09-26) are rows of this same model, not a second system:
+//! gray mold, powdery mildew and downy mildew, each favoured by a `Humidity`
+//! window read from the air the crop grows in (farming::humidity), each with
+//! its own `unfavoured_rate` because the sources say they infect only in
+//! those conditions. Their controls follow the IPM order too: ventilate
+//! (Cultural, acting on the grow room's air), remove infected leaves
+//! (Mechanical), then the least-toxic sprays, which may `protect` the leaves
+//! for days rather than kill what is there. The severity setting covers them.
 
 use std::collections::{HashMap, HashSet};
 
@@ -69,7 +78,9 @@ const FORGET_BELOW: f64 = 1e-6;
 /// kind sorts by it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Deserialize)]
 pub enum ControlKind {
-    /// By hand or with water: hand-picking, hosing off.
+    /// Changing the conditions: ventilating a humid grow room (2026-09-26).
+    Cultural,
+    /// By hand or with water: hand-picking, hosing off, removing leaves.
     Mechanical,
     /// Natural enemies and the microbes that sicken pests.
     Biological,
@@ -90,6 +101,9 @@ pub enum Condition {
     Damp,
     /// The game season is one of these (lower case).
     Season(Vec<String>),
+    /// The air's relative humidity, 0..1, is inside this window: the grow
+    /// room's indoors (farming::humidity), the weather's outdoors.
+    Humidity { min: f64, max: f64 },
 }
 
 /// One pest (pests.ron `pests`).
@@ -104,6 +118,14 @@ pub struct PestDef {
     pub hosts: Vec<String>,
     #[serde(default)]
     pub favoured_by: Vec<Condition>,
+    /// A disease rather than a pest (2026-09-26): said as "has appeared".
+    #[serde(default)]
+    pub disease: bool,
+    /// This pest's own factor for a favouring condition not met, when its
+    /// sources say it spreads ONLY in those conditions (the diseases); None
+    /// uses the file's `unfavoured_rate`.
+    #[serde(default)]
+    pub unfavoured_rate: Option<f64>,
     pub fold: f64,
     pub fold_days: f64,
     pub arrival_per_day: f64,
@@ -158,14 +180,40 @@ pub struct ControlDef {
     pub lasts_days: f64,
     #[serde(default)]
     pub ends: Vec<String>,
+    /// Share of each pest's growth and arrivals it stops while it lasts
+    /// (`lasts_days`): a protectant spray, which keeps new infection from
+    /// starting and cures nothing (2026-09-26).
+    #[serde(default)]
+    pub protects: HashMap<String, f64>,
+    /// Air changes it gives the area's grow room at once, with the home's air
+    /// (the heat-and-vent, farming::humidity::ventilate). 0 for the rest.
+    #[serde(default)]
+    pub air_changes: f64,
+    /// Pests whose conditions it takes away, listed with them though it
+    /// removes none (ventilating a humid room).
+    #[serde(default)]
+    pub prevents: Vec<String>,
+    /// plants.csv ids it must not be used on (sulfur burns cucurbits): it is
+    /// refused on an area where one grows.
+    #[serde(default)]
+    pub not_on: Vec<String>,
     #[serde(default)]
     pub note: String,
 }
 
 impl ControlDef {
-    /// Does this control act on `pest` at all, at once or over days?
+    /// Does this control act on `pest` at all: at once, over days, by
+    /// guarding against it, or by taking away its conditions?
     pub fn works_on(&self, pest: &str) -> bool {
-        self.removes.contains_key(pest) || self.removes_per_day.contains_key(pest)
+        self.removes.contains_key(pest)
+            || self.removes_per_day.contains_key(pest)
+            || self.protects.contains_key(pest)
+            || self.prevents.iter().any(|p| p == pest)
+    }
+
+    /// Does it keep working over the days after it is applied?
+    pub fn lasts(&self) -> bool {
+        self.lasts_days > 0.0 && (!self.removes_per_day.is_empty() || !self.protects.is_empty())
     }
 
     /// Items it takes to treat `plants` plants (0 when it uses none).
@@ -247,6 +295,9 @@ pub struct CropConditions<'a> {
     /// The game season, lower case ("" when there is no clock: every season
     /// condition then holds, the way the crop climate factor treats it).
     pub season: &'a str,
+    /// The relative humidity, 0..1, of the air the crop grows in: its grow
+    /// room's indoors, the weather's outdoors (farming::humidity::AirMap).
+    pub humidity: f64,
 }
 
 fn met(cond: &Condition, c: &CropConditions) -> bool {
@@ -256,20 +307,24 @@ fn met(cond: &Condition, c: &CropConditions) -> bool {
         Condition::WaterStress => c.water_stressed,
         Condition::Damp => c.damp,
         Condition::Season(seasons) => c.season.is_empty() || seasons.iter().any(|s| s.eq_ignore_ascii_case(c.season)),
+        Condition::Humidity { min, max } => c.humidity >= *min && c.humidity <= *max,
     }
 }
 
 /// How much one crop feeds `pest`'s growth in its area, 0..1: 0 if the pest
 /// does not live there (indoors or out) or does not eat this plant, else 1
-/// times `unfavoured` for every favouring condition the crop is not in.
+/// times `unfavoured` (or the pest's own `unfavoured_rate`, for a disease
+/// that spreads only in its conditions) for every favouring condition the
+/// crop is not in.
 pub fn favour(pest: &PestDef, plant: &str, c: &CropConditions, unfavoured: f64) -> f64 {
     let lives_here = if c.outdoors { pest.outdoors } else { pest.indoors };
     if !lives_here || !pest.hosts_plant(plant) {
         return 0.0;
     }
+    let unfavoured = pest.unfavoured_rate.unwrap_or(unfavoured).clamp(0.0, 1.0);
     pest.favoured_by
         .iter()
-        .map(|cond| if met(cond, c) { 1.0 } else { unfavoured.clamp(0.0, 1.0) })
+        .map(|cond| if met(cond, c) { 1.0 } else { unfavoured })
         .product()
 }
 
@@ -344,8 +399,17 @@ pub fn step_area(
             continue;
         }
         let mut st = existing.unwrap_or_default();
+        // A protectant spray still on the leaves (sulfur, potassium
+        // bicarbonate) stops its share of new infection: of the growth and
+        // the arrivals alike.
+        let guard: f64 = area
+            .releases
+            .keys()
+            .filter_map(|cid| data.control(cid).and_then(|c| c.protects.get(&pest.id)))
+            .map(|k| 1.0 - k.clamp(0.0, 1.0))
+            .product();
         st.level = if share > 0.0 {
-            grow(st.level, pest.growth_rate() * share, pest.arrival_per_day * share, days)
+            grow(st.level, pest.growth_rate() * share * guard, pest.arrival_per_day * share * guard, days)
         } else {
             decay(st.level, pest.no_host_half_life_days, days)
         };
@@ -367,15 +431,14 @@ pub fn step_area(
             area.pressure.insert(pest.id.clone(), st);
         }
     }
-    // Releases age, and end when their time is up or their prey is gone.
+    // Releases age, and end when their time is up or, for natural enemies,
+    // their prey is gone. A protectant spray has no prey: it lasts its time.
     let pressure = &area.pressure;
     area.releases.retain(|cid, left| {
         *left -= days;
         let Some(c) = data.control(cid) else { return false };
-        let prey_left = c
-            .removes_per_day
-            .keys()
-            .any(|p| pressure.get(p).map_or(false, |s| s.level >= PREY_GONE));
+        let prey_left = c.removes_per_day.is_empty()
+            || c.removes_per_day.keys().any(|p| pressure.get(p).map_or(false, |s| s.level >= PREY_GONE));
         *left > 0.0 && prey_left
     });
     appeared
@@ -423,11 +486,11 @@ pub fn apply_control(area: &mut AreaPests, data: &PestData, control: &ControlDef
             let before = st.level;
             st.level *= 1.0 - k.clamp(0.0, 1.0);
             out.changed.push((id, before, st.level));
-        } else if !control.removes_per_day.contains_key(&id) && st.level >= data.detect_at {
+        } else if !control.works_on(&id) && st.level >= data.detect_at {
             out.untouched.push(id);
         }
     }
-    if control.lasts_days > 0.0 && !control.removes_per_day.is_empty() {
+    if control.lasts() {
         let left = area.releases.entry(control.id.clone()).or_insert(0.0);
         *left = left.max(control.lasts_days);
         out.released = true;
@@ -458,9 +521,11 @@ fn pct(level: f64) -> String {
 /// The one line said when `pest` first becomes noticeable in `areas`: where,
 /// what favours it (its advice), and its controls, gentlest first.
 pub fn appeared_notice(data: &PestData, pest: &PestDef, areas: &[String]) -> String {
+    // "Aphids have", but "Gray mold has".
+    let verb = if pest.disease { "has" } else { "have" };
     let wherever = match areas {
-        [one] => format!("{} have appeared on {}.", pest.name, place(one)),
-        many => format!("{} have appeared in {} grow areas.", pest.name, many.len()),
+        [one] => format!("{} {verb} appeared on {}.", pest.name, place(one)),
+        many => format!("{} {verb} appeared in {} grow areas.", pest.name, many.len()),
     };
     let controls: Vec<&str> = data.controls_for(&pest.id).iter().map(|c| c.name.as_str()).collect();
     let ladder = if controls.is_empty() {
@@ -498,11 +563,20 @@ pub fn outcome_notice(
         s.push_str(&format!(": nothing it works on is there. {}", control.note));
         return s;
     }
-    if out.released {
+    if out.released && !control.removes_per_day.is_empty() {
         let prey: Vec<String> = control.removes_per_day.keys().map(|p| name_of(p)).collect();
         s.push_str(&format!(
             " They will work on the {} for up to {:.0} days, while there are any.",
             prey.join(" and "),
+            control.lasts_days
+        ));
+    }
+    if out.released && !control.protects.is_empty() {
+        let mut guarded: Vec<String> = control.protects.keys().map(|p| name_of(p)).collect();
+        guarded.sort();
+        s.push_str(&format!(
+            " It guards the leaves against {} for about {:.0} garden days.",
+            guarded.join(" and "),
             control.lasts_days
         ));
     }
@@ -532,6 +606,7 @@ pub(super) fn handle_request(
     world: &mut hecs::World,
     data: &crate::hot_reload::data_store::DataStore,
     pests: &PestData,
+    air: &super::humidity::HumidityData,
     area: &str,
     control_id: &str,
     creative: bool,
@@ -542,13 +617,33 @@ pub(super) fn handle_request(
         log::warn!("[Farming] no pest control '{control_id}' in data/garden/pests.ron");
         return;
     };
-    let plants = world
+    let here: Vec<String> = world
         .query::<&CropInstance>()
         .iter()
         .filter(|(_, c)| c.growth_stage != STAGE_DEAD && c.tower_id.as_deref().unwrap_or("") == area)
-        .count();
+        .map(|(_, c)| c.crop_def_id.clone())
+        .collect();
+    let plants = here.len();
     if plants == 0 {
         super::push_notice(data, format!("There are no crops to treat in {}.", area.replace('_', " ")));
+        return;
+    }
+    // A control whose label forbids a crop growing here (sulfur burns the
+    // cucurbits) is refused, with the reason, before anything is spent.
+    if let Some(plant) = here.iter().find(|p| control.not_on.iter().any(|n| n == *p)) {
+        let name = data
+            .get::<super::PlantRegistry>("plant_registry")
+            .and_then(|r| r.get(plant).map(|d| d.name.to_lowercase()))
+            .unwrap_or_else(|| plant.replace('_', " "));
+        super::push_notice(
+            data,
+            format!("{} is not for the {name} in {}. {}", control.name, area.replace('_', " "), control.note),
+        );
+        return;
+    }
+    // Ventilating acts on the air of the area's grow room, not on its pests.
+    if control.air_changes > 0.0 {
+        super::push_notice(data, super::humidity::ventilate(world, data, air, area, control.air_changes));
         return;
     }
     let water_l = control.water_l_per_plant.max(0.0) * plants as f64;
@@ -646,6 +741,7 @@ mod tests {
             excess_n: false,
             damp: false,
             season: "spring",
+            humidity: 0.6,
         }
     }
 
@@ -653,7 +749,11 @@ mod tests {
     /// items.csv id that the player can get (sold by the vendor or made by a
     /// recipe), every control names real pests, and every pest has at least
     /// one control. Seen red by misspelling "potato" as "potatoe" in the
-    /// data (the host test named it).
+    /// data (the host test named it), and again for the diseases (2026-09-26)
+    /// by misspelling gray mold's "blueberry" as "bluebery". It also checks
+    /// the diseases are there with their humidity windows, and that what a
+    /// control guards against, takes away the conditions of, or must not go
+    /// on, is a real pest or plant.
     #[test]
     fn the_shipped_pests_name_real_plants_items_and_pests() {
         let d = shipped();
@@ -674,7 +774,22 @@ mod tests {
             })
         };
         assert!(d.pests.len() >= 5, "a handful of pests");
+        // The diseases (2026-09-26): gray mold, powdery mildew and downy
+        // mildew, each spreading in a humidity window.
+        for id in ["gray_mold", "powdery_mildew", "downy_mildew"] {
+            let p = d.pest(id).unwrap_or_else(|| panic!("{id} is in pests.ron"));
+            assert!(p.disease, "{id} is a disease");
+            assert!(p.favoured_by.iter().any(|c| matches!(c, Condition::Humidity { .. })), "{id} has a Humidity window");
+        }
         for p in &d.pests {
+            for c in &p.favoured_by {
+                if let Condition::Humidity { min, max } = c {
+                    assert!(0.0 <= *min && min < max && *max <= 1.0, "{}: a humidity window inside 0..1", p.id);
+                }
+            }
+            if let Some(u) = p.unfavoured_rate {
+                assert!(u > 0.0 && u < 1.0, "{}: its own unfavoured rate slows, never stops", p.id);
+            }
             for h in &p.hosts {
                 assert!(plants.get(h).is_some(), "{}: host '{h}' is not in plants.csv", p.id);
             }
@@ -684,11 +799,17 @@ mod tests {
             assert!(!d.controls_for(&p.id).is_empty(), "{} has a control", p.id);
         }
         for c in &d.controls {
-            for id in c.removes.keys().chain(c.removes_per_day.keys()) {
+            for id in c.removes.keys().chain(c.removes_per_day.keys()).chain(c.protects.keys()).chain(c.prevents.iter()) {
                 assert!(d.pest(id).is_some(), "{}: '{id}' is not a pest", c.id);
             }
-            for k in c.removes.values().chain(c.removes_per_day.values()) {
+            for k in c.removes.values().chain(c.removes_per_day.values()).chain(c.protects.values()) {
                 assert!(*k > 0.0 && *k < 1.0, "{}: a control never removes all or none", c.id);
+            }
+            for p in &c.not_on {
+                assert!(plants.get(p).is_some(), "{}: not_on '{p}' is not in plants.csv", c.id);
+            }
+            if !c.protects.is_empty() || !c.removes_per_day.is_empty() {
+                assert!(c.lasts_days > 0.0, "{} works over days, so it says for how many", c.id);
             }
             for e in &c.ends {
                 assert!(d.control(e).is_some(), "{} ends unknown control {e}", c.id);

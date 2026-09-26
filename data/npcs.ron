@@ -318,6 +318,7 @@
             ("water_bottle_0", 10, 300),
             ("garden_lime_0", 10, 600),
             ("garden_sulfur_0", 10, 600),
+            ("potassium_bicarbonate_0", 10, 600),
         ],
         dialogue_intro: "The soil speaks if you listen. Help me with the harvest and I will teach you its language.",
         essential: true,

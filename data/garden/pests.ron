@@ -1,7 +1,10 @@
 // Garden pests and integrated pest management (2026-09-26, gardening depth).
 // Read by src/systems/farming/pests.rs, which carries the model and the
 // reasoning; this file carries the pests, the controls, the numbers and where
-// each one came from. Sources were read on 2026-09-26.
+// each one came from. Sources were read on 2026-09-26. The same day the
+// greenhouse air became real (data/garden/humidity.ron) and three diseases
+// joined the pests as rows of this model: gray mold, powdery mildew and downy
+// mildew, which humid air brings on.
 //
 // WHAT THE GAME TEACHES. Integrated pest management (IPM), the order every
 // extension service teaches: prevent (grow in conditions the pest does not
@@ -66,6 +69,15 @@
 //                         Damp: outdoors in cloudy, foggy or wet weather, or
 //                           at night
 //                         Season([..]): the game season is one of these
+//                         Humidity(min, max): the relative humidity (0..1) of
+//                           the air the crop grows in: its grow room's
+//                           (data/garden/humidity.ron) indoors, the weather's
+//                           outdoors (2026-09-26)
+//   disease           - true for a disease (gray mold, the mildews): said as
+//                       "has appeared" and listed with the pests
+//   unfavoured_rate   - this pest's own factor for an unmet condition, when
+//                       its sources say it spreads ONLY in its conditions
+//                       (default: the file's unfavoured_rate)
 //   fold, fold_days   - growth: `fold` times as many in `fold_days` days
 //   arrival_per_day   - pressure arriving per garden day on a pure host stand
 //   no_host_half_life_days - with no host in the area
@@ -74,8 +86,9 @@
 //   advice            - the prevention line the player is told
 //
 // CONTROL FIELDS
-//   kind              - Mechanical, Biological, LeastToxic: the IPM order.
-//                       The notice lists a pest's controls in this order.
+//   kind              - Cultural, Mechanical, Biological, LeastToxic: the IPM
+//                       order (changing the conditions comes first). The
+//                       notice lists a pest's controls in this order.
 //   item              - consumed from the backpack (none: "")
 //   plants_per_item   - plants one item treats
 //   water_l_per_plant - litres from the home tanks per plant (hosing)
@@ -84,6 +97,15 @@
 //                       of natural enemies), for lasts_days, ending early when
 //                       the pest is gone (the predators starve or leave)
 //   ends              - releases this application kills
+//   protects          - share of each pest's GROWTH (and arrivals) it stops
+//                       while it lasts (lasts_days): a protectant spray that
+//                       keeps new infection from starting but cures nothing
+//   air_changes       - air changes it gives the area's grow room at once, with
+//                       the home's air (a heat-and-vent)
+//   prevents          - the pests whose conditions it takes away (listed with
+//                       them, though it removes none)
+//   not_on            - plants.csv ids it must not be used on: refused where
+//                       one grows
 //   note              - what it does and does not work on, told to the player
 //
 // SOURCES (cited by short name in the entries):
@@ -125,6 +147,43 @@
 //     Phytoprotection 90(1): 35-39
 //   UC IPM Phytoseiulus: "Phytoseiulus Predatory Mites", UC IPM Natural
 //     Enemies Gallery, https://ipm.ucanr.edu/natural-enemies/phytoseiulus-predatory-mites/
+//   The disease sources (added 2026-09-26, read that day):
+//   UMass: Wick, R.L., revised by Madeiras, A., "Botrytis Blight of Greenhouse
+//     Crops", UMass Amherst CAFE fact sheet, last updated 5 June 2019,
+//     https://www.umass.edu/agriculture-food-environment/greenhouse-floriculture/fact-sheets/botrytis-blight-of-greenhouse-crops
+//   UC IPM Gray Mold: "Botrytis Blight, or Gray Mold", UC IPM Home and
+//     Landscape (no date on the page),
+//     https://ipm.ucanr.edu/home-and-landscape/botrytis-blight-or-gray-mold/
+//   OSU Gray Mold: Chin, A. and Miller, S.A., "Botrytis Gray Mold", Vegetable
+//     Disease Facts, The Ohio State University (no date on the page),
+//     https://u.osu.edu/vegetablediseasefacts/tomato-diseases/high-tunnel-diseases/botrytis-gray-mold/
+//   Clemson Gray Mold: Doubrava, N. and Blake, J.H., revised by Williamson, J.,
+//     "Gray Mold (Botrytis Blight) on Flowers, Fruits, and Vegetables", Clemson
+//     HGIC, updated 6 March 2026, https://hgic.clemson.edu/factsheet/gray-mold-botrytis-blight-2/
+//   PNW Gray Mold: "Tomato (Solanum lycopersicum)-Gray Mold (Ghost Spot)",
+//     Pacific Northwest Plant Disease Management Handbook, revised March 2026,
+//     https://pnwhandbooks.org/plantdisease/host-disease/tomato-solanum-lycopersicum-gray-mold-ghost-spot
+//   UF PP152: Mertely, J.C., Oliveira, M.S. and Peres, N.A., "Botrytis Fruit
+//     Rot or Gray Mold of Strawberry", UF/IFAS Extension PP152,
+//     https://ask.ifas.ufl.edu/publication/PP152
+//   UC IPM 7406: Davis, R.M., Gubler, W.D. and Koike, S.T., "Pest Notes:
+//     Powdery Mildew on Vegetables", UC ANR Publication 7406, updated 11/2008,
+//     https://ipm.ucanr.edu/home-and-landscape/powdery-mildew-on-vegetables/
+//   UC IPM 7493: Downer, A.J., de la Fuente, M. and Messenger-Sikes, B., "Pest
+//     Notes: Powdery Mildew on Ornamentals", UC ANR Publication 7493, updated
+//     02/2026, https://ipm.ucanr.edu/home-and-landscape/powdery-mildew-on-ornamentals/
+//   Cornell PM: McGrath, M.T., "Cucurbit Powdery Mildew", Cornell Vegetables
+//     disease fact sheet, April 2024,
+//     https://www.vegetables.cornell.edu/pest-management/disease-factsheets/cucurbit-powdery-mildew/
+//   PSU Mildews: Pollard, A.C., "Addressing Downy Mildew and Powdery Mildew in
+//     the Home Garden", Penn State Extension, updated 8 June 2026,
+//     https://extension.psu.edu/addressing-downy-mildew-and-powdery-mildew-in-the-home-garden
+//   MilStop: "MilStop SP Foliar Fungicide" (BioWorks), ARBICO Organics product
+//     page (no date on the page),
+//     https://www.arbico-organics.com/product/milstop-foliar-fungicide-potassium-bicarbonate/natural-organic-plant-disease-control
+//   Hi-Yield Sulfur: "Hi-Yield Dusting Wettable Sulfur", label text on the
+//     DoMyOwn product page (no date on the page),
+//     https://www.domyown.com/hiyield-dusting-wettable-sulfur-p-1567.html
 (
     unfavoured_rate: 0.25,
     detect_at: 0.05,
@@ -184,7 +243,9 @@
         // Favoured: UC, "Spider mites prefer hot, dusty conditions" and "Plants
         // under water stress also are highly susceptible"; Iowa State ICM,
         // "temperatures are greater than 85°F, humidity is less than 90
-        // percent, and moisture levels are low" (85 F = 29.4 C).
+        // percent, and moisture levels are low" (85 F = 29.4 C). The humidity
+        // part became a Humidity condition when the grow rooms got real air
+        // (2026-09-26, data/garden/humidity.ron): below 90%.
         // Growth: Iowa State ICM, "populations can increase 70-fold in as
         // little as 6 days during the summer".
         // Damage: Iowa State ICM, "capable of reducing soybean yield by 40-60
@@ -202,7 +263,7 @@
                 "kidney_bean", "pinto_bean", "navy_bean", "lima_bean", "runner_bean",
                 "corn", "strawberry", "grape",
             ],
-            favoured_by: [Temperature(min_c: 29.4, max_c: 45.0), WaterStress],
+            favoured_by: [Temperature(min_c: 29.4, max_c: 45.0), WaterStress, Humidity(min: 0.0, max: 0.90)],
             fold: 70.0,
             fold_days: 6.0,
             arrival_per_day: 0.001,
@@ -318,6 +379,139 @@
             max_health_loss: 0.5,
             advice: "They spend the winter in the soil where potatoes grew: plant something else there next (rotate) and they come up to nothing to eat.",
         ),
+
+        // -- DISEASES (2026-09-26, greenhouse humidity) ------------------------
+        // Rows in the same model as the pests: a pressure per grow area that
+        // builds on its host crops in the conditions it likes and caps their
+        // health. What drives them is the air: each has a Humidity window, the
+        // grow room's relative humidity from data/garden/humidity.ron indoors
+        // and the weather's outdoors. The sources say infection happens ONLY in
+        // those conditions, so each carries its own `unfavoured_rate` of 0.05
+        // (a GAME ESTIMATE for "only": a condition not met cuts that crop's
+        // part of the growth and arrivals to a twentieth, where a pest's is a
+        // quarter). Leaf wetness indoors comes from condensation, which is the
+        // top of the Humidity window, and the home waters by drip and
+        // aeroponics, never overhead. Every plant is sown at its cited spacing
+        // (plants.csv area_per_plant_m2), so crowding is not modelled; the
+        // advice says to space plants.
+        // `fold` is a GAME ESTIMATE for each: tenfold a cycle, each lesion
+        // making many spores of which few find a leaf in the right conditions.
+        //
+        // GRAY MOLD (Botrytis cinerea). Hosts: OSU Gray Mold lists "Tomato,
+        // Pepper, Lettuce, Cucumber"; Clemson Gray Mold "Beans", "Tomatoes" and
+        // the fruits "Apples, Blackberries, Blueberries, Grapes, Peaches,
+        // Pears, Plums, Raspberries, Strawberries" (blackberries are not in
+        // plants.csv).
+        // Favoured: UMass, "Germination of spores and infection of the host is
+        // dependent on a film of moisture for 8 to 12 hours, relative humidity
+        // 85% or greater, and temperatures 55 - 75°F" (12.8 to 23.9 C). UC IPM
+        // Gray Mold: "Spores germinate and produce new infections only after
+        // plants have been continuously wet for 6 or more consecutive hours or
+        // when relative humidity has been higher than about 90% for 6 or more
+        // hours."
+        // Growth: PNW Gray Mold, "The fungus will rapidly sporulate (5 to 7
+        // days) on diseased tissues": 6 days a cycle.
+        // Damage: UF PP152, on strawberry, "occasionally resulting in yield
+        // losses greater than 50%": 0.5.
+        // No host: UMass, it persists as "chlamydospores and/or microsclerotia"
+        // in soil and debris; a half-life of 30 garden days is a game estimate.
+        (
+            id: "gray_mold",
+            name: "Gray mold",
+            disease: true,
+            indoors: true,
+            outdoors: true,
+            hosts: [
+                "tomato", "pepper", "lettuce", "cucumber", "bean", "strawberry", "grape",
+                "blueberry", "raspberry", "apple", "peach", "pear", "plum",
+            ],
+            favoured_by: [Humidity(min: 0.85, max: 1.0), Temperature(min_c: 12.8, max_c: 23.9)],
+            unfavoured_rate: Some(0.05),
+            fold: 10.0,
+            fold_days: 6.0,
+            arrival_per_day: 0.002,
+            no_host_half_life_days: 30.0,
+            max_health_loss: 0.5,
+            advice: "Gray mold infects only in air at 85% humidity or more: ventilate, space the plants, keep the leaves dry and clear away dead leaves and flowers.",
+        ),
+        // POWDERY MILDEW. Hosts: UC IPM 7406, "artichoke, beans, beets,
+        // carrot, cucumber, eggplant, lettuce, melons, parsnips, peas, peppers,
+        // pumpkins, radicchio, radishes, squash, tomatillo, tomatoes, and
+        // turnips" (melons are watermelon here, radicchio is a chicory, and
+        // zucchini is a summer squash; the Phaseolus beans stand for "beans").
+        // Favoured: Cornell PM, "High relative humidity is favorable for
+        // infection and conidial survival; however, infection can take place
+        // as low as 50% RH" and "Mean temperature of 68-80°F is favorable;
+        // infection can occur at 50-90°F" (10 to 32.2 C, the range it infects
+        // in). Unlike the other two it needs no free water: UC IPM 7406, "all
+        // powdery mildew species can germinate and infect in the absence of
+        // free water", so it thrives in a greenhouse that is merely humid, and
+        // ventilation alone does not stop it.
+        // Growth: Cornell PM, "the length of time between infection and
+        // symptom appearance is usually only 3 to 7 days, and a large number of
+        // conidia can be produced in a short time": 5 days a cycle.
+        // Damage: Cornell PM, "Quantity of yield is reduced due to a decrease in
+        // the size or number of fruit or a decrease in the length of the
+        // harvest period"; 0.3 is a game estimate.
+        // No host: UC IPM 7406, "All powdery mildew fungi require living plant
+        // tissue to grow": a half-life of 5 garden days is a game estimate.
+        (
+            id: "powdery_mildew",
+            name: "Powdery mildew",
+            disease: true,
+            indoors: true,
+            outdoors: true,
+            hosts: [
+                "artichoke", "bean", "kidney_bean", "pinto_bean", "navy_bean", "lima_bean", "runner_bean",
+                "beet", "carrot", "cucumber", "eggplant", "lettuce", "watermelon", "parsnip", "pea",
+                "pepper", "pumpkin", "chicory", "radish", "squash", "zucchini", "tomato", "turnip",
+            ],
+            favoured_by: [Humidity(min: 0.50, max: 1.0), Temperature(min_c: 10.0, max_c: 32.2)],
+            unfavoured_rate: Some(0.05),
+            fold: 10.0,
+            fold_days: 5.0,
+            arrival_per_day: 0.002,
+            no_host_half_life_days: 5.0,
+            max_health_loss: 0.3,
+            advice: "Powdery mildew needs no wet leaves, only air above 50% humidity, so ventilating does little: sulfur before it spreads, or potassium bicarbonate once it has, and remove the worst leaves.",
+        ),
+        // DOWNY MILDEW (the cucurbit, brassica and basil downy mildews, one
+        // entry: the same conditions, damage and controls). Hosts, PSU Mildews:
+        // "Cucurbit downy mildew (Pseudoperonospora cubensis) – squash,
+        // pumpkin, melons, cucumber"; "Downy mildew (Hyaloperonospora
+        // parasitica) affects Brassicaceae: broccoli, Brussels sprouts, cabbage,
+        // cauliflower, kale, radish, and turnips"; and "Basil downy mildew
+        // (Peronospora belbahrii)".
+        // Favoured: PSU Mildews, "Cool temperatures (58-78°F) and relative
+        // humidity (>85%) near the plant or leaf surface favor infection"
+        // (14.4 to 25.6 C).
+        // Growth: PSU Mildews, "Post-infection, some spores begin to appear as
+        // soon as four days, but 7 to 10 days is more typical": 7 days a cycle.
+        // Damage: PSU Mildews, "left untreated, it can do severe damage to
+        // crops and is capable of killing all plants within a week": 0.7, a
+        // game estimate under the house cap (the floor keeps it from killing).
+        // No host: its resting spores stay in rotting crop debris; a half-life
+        // of 30 garden days is a game estimate.
+        (
+            id: "downy_mildew",
+            name: "Downy mildew",
+            disease: true,
+            indoors: true,
+            outdoors: true,
+            hosts: [
+                "squash", "zucchini", "pumpkin", "watermelon", "cucumber",
+                "broccoli", "brussels_sprout", "cabbage", "cauliflower", "kale", "radish", "turnip",
+                "basil",
+            ],
+            favoured_by: [Humidity(min: 0.85, max: 1.0), Temperature(min_c: 14.4, max_c: 25.6)],
+            unfavoured_rate: Some(0.05),
+            fold: 10.0,
+            fold_days: 7.0,
+            arrival_per_day: 0.001,
+            no_host_half_life_days: 30.0,
+            max_health_loss: 0.7,
+            advice: "Downy mildew infects in cool air above 85% humidity: ventilate, avoid crowding and overwatering, and remove infected leaves at once.",
+        ),
     ],
 
     controls: [
@@ -425,6 +619,99 @@
             plants_per_item: 50,
             removes: {"slug": 0.6},
             note: "Iron phosphate pellets kill the slugs that eat them and are the safest bait around children, pets and wildlife. They do nothing to insects.",
+        ),
+
+        // -- DISEASE CONTROLS (2026-09-26), in the IPM order -----------------
+        //
+        // VENTILATE (cultural: change the conditions, first). A heat-and-vent
+        // of the grow room the area stands in: one air change with the home's
+        // air (data/garden/humidity.ron has the arithmetic). UMass: "To prevent
+        // excessive humidity and dew formation, turn on the heat and open the
+        // vents. The warm humid air is ventilated to the outside as the cooler
+        // outside air is drawn into the greenhouse." PSU Mildews: "Ensure good
+        // air circulation by staking plants and/or selective pruning, keeping
+        // the relative humidity around the plants low." It kills nothing: it
+        // takes away the humidity the diseases need, for as long as it lasts,
+        // which is an hour or two before the crops breathe it back. An exhaust
+        // fan does it all the time.
+        (
+            id: "ventilate",
+            name: "Ventilate",
+            kind: Cultural,
+            air_changes: 1.0,
+            prevents: ["gray_mold", "powdery_mildew", "downy_mildew"],
+            note: "Heat and vent: the humid air goes out and the home's drier air comes in. It kills nothing, it takes away the damp the diseases need, and the crops breathe it back within an hour or two. An exhaust fan does it all the time.",
+        ),
+        // REMOVE INFECTED LEAVES (mechanical: sanitation). UC IPM Gray Mold:
+        // "Remove and dispose of old blossoms, declining green plant tissue,
+        // plant debris, fallen leaves, and weeds." PSU Mildews, for downy and
+        // powdery mildew: "If the symptoms of either disease are detected,
+        // begin by eliminating infected leaves, branches, flowers, or fruits."
+        // UMass: "Remove plant debris from the greenhouse completely; do not
+        // place it in garbage cans." How much one pass removes is a game
+        // estimate: half the gray mold (the rot is on dying tissue that is easy
+        // to see), 0.4 of the downy mildew, 0.3 of the powdery mildew (its
+        // spores are already on leaves that still look clean).
+        (
+            id: "remove_leaves",
+            name: "Remove infected leaves",
+            kind: Mechanical,
+            removes: {"gray_mold": 0.5, "downy_mildew": 0.4, "powdery_mildew": 0.3},
+            note: "Picking off the infected leaves, flowers and fallen debris, and carrying them out of the room, removes the spores' source. It does nothing to insects.",
+        ),
+        // SULFUR (least toxic, a protectant). garden_sulfur_0, the same 2 kg bag
+        // of 90% sulfur the soil pH amendment uses. UC IPM 7493: "Sulfur
+        // products have been used to manage powdery mildew for centuries but are
+        // effective only when applied before the disease appears." Cornell PM:
+        // "Sulfur is one of the most effective and least expensive products."
+        // So it takes nothing off what is there: it keeps new infection from
+        // starting, 0.9 of the growth (a game estimate), for 7 garden days.
+        // Hi-Yield Sulfur (a 90% dusting and wettable sulfur, label text):
+        // "4 tbs. per gallon of water", "Repeat applications at 7-10 day
+        // intervals", and "Do not use on Cucurbits (Cucumbers, Cantaloupes,
+        // Melons, Squash)" (UC IPM 7406: "sulfur can be damaging to some squash
+        // and melon varieties"), so it is refused where a cucurbit grows.
+        // How far a bag goes: MilStop (below) gives "1 gal covers ~550 sq. ft."
+        // for a foliar spray; at 4 tablespoons (about 60 g, a game estimate for a
+        // fine powder) to the gallon, 2 kg is 33 gallons over about 1,700 m2
+        // of leaf, and at a quarter square metre a plant (a game estimate)
+        // that is 6,800 plants.
+        (
+            id: "sulfur",
+            name: "Sulfur",
+            kind: LeastToxic,
+            item: "garden_sulfur_0",
+            plants_per_item: 6800,
+            protects: {"powdery_mildew": 0.9},
+            lasts_days: 7.0,
+            not_on: ["cucumber", "squash", "zucchini", "pumpkin", "watermelon"],
+            note: "Sulfur stops powdery mildew from starting for about a week but does not cure what is already there, so it goes on before the mildew spreads. Never on cucumbers, squash or melons, which it burns, and not in heat near 32 C.",
+        ),
+        // POTASSIUM BICARBONATE (least toxic). potassium_bicarbonate_0, a 454 g
+        // jar (bought, data/trade_goods.ron). UC IPM 7493: "Several products
+        // containing potassium bicarbonate such as MilStop effectively
+        // eradicate powdery mildew fungi", and "Do not use bicarbonate on
+        // advanced stages of powdery mildew disease as phytotoxicity will be
+        // severe." MilStop, as sold: "Preventative Control: Alternaria blight,
+        // Anthracnose, black spot, Botrytis blight, Cercospora leaf spot, Downy
+        // Mildew, Phomopsis blight, Septoria leaf spot and more.", "For smaller
+        // areas, mix at 1 tbsp per gallon of water.", "1 gal covers ~550 sq.
+        // ft.", and "Each application remains effective for 1-2 weeks." So it
+        // removes 0.6 of the powdery mildew (a game estimate for "effectively
+        // eradicate") and guards against new gray mold and downy mildew, 0.7 of
+        // their growth (a game estimate), for 7 garden days. A 454 g jar at
+        // about 15 g a tablespoon is 30 gallons over about 1,550 m2 of leaf:
+        // 6,000 plants at a quarter square metre each.
+        (
+            id: "potassium_bicarbonate",
+            name: "Potassium bicarbonate",
+            kind: LeastToxic,
+            item: "potassium_bicarbonate_0",
+            plants_per_item: 6000,
+            removes: {"powdery_mildew": 0.6},
+            protects: {"gray_mold": 0.7, "downy_mildew": 0.7},
+            lasts_days: 7.0,
+            note: "A tablespoon to a gallon of water kills the powdery mildew it wets and guards the leaves against gray mold and downy mildew for about a week. Use it early: on badly mildewed leaves it burns them.",
         ),
     ],
 )

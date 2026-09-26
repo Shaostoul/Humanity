@@ -1,6 +1,7 @@
 //! The Garden panel's value types: a growing crop for its card, the pests
-//! in each grow area, and the garden settings and requests carried between
-//! the panel and the farming system (pests, soil pH, pollination).
+//! and diseases in each grow area and the air it grows in, and the garden
+//! settings and requests carried between the panel and the farming system
+//! (pests, soil pH, pollination, humidity).
 //!
 //! Moved VERBATIM out of `gui/state_types.rs` (2026-09-26) when the garden
 //! rungs pushed that file past its line budget in tests/file_size_ratchet.rs.
@@ -44,6 +45,11 @@ pub struct GardenPests {
     /// default), and the crop the player chose to clear from its plot.
     pub picking_realistic: bool,
     pub clear_pending: Option<u64>,
+    /// The air each grow area grows in (2026-09-26, farming::humidity): (area
+    /// tag, its line for the panel, how humid: 0 fine, 1 above the fans'
+    /// setpoint, 2 at the damp diseases' line). The line names the grow room
+    /// and what its exhaust fans are doing.
+    pub air: Vec<(String, String, u8)>,
 }
 
 /// A growing crop for GUI display (synced from the ECS each frame).
@@ -103,4 +109,7 @@ pub struct GuiCrop {
     /// Its "Picking" card row (farming::picking::GuiView, 2026-09-26): how a
     /// crop picked over a season stands; "" for a crop harvested once.
     pub picking: String,
+    /// Its "Humidity" card row: the air it grows in against its plants.csv
+    /// window, and the cap outside it (farming::humidity::GuiView); "" = none.
+    pub humidity: String,
 }

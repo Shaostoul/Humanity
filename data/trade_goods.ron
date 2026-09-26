@@ -401,5 +401,8 @@
 
     (id: "garden_lime_0",     name: "Garden Lime",        category: "agricultural",    base_value: 20,   weight_kg: 5.0,   description: "Ground limestone that raises garden soil pH"),
     (id: "garden_sulfur_0",   name: "Garden Sulfur",      category: "agricultural",    base_value: 30,   weight_kg: 2.0,   description: "Elemental sulfur that lowers garden soil pH"),
+    // Garden disease control (2026-09-26; data/garden/pests.ron): a 1 lb jar of potassium bicarbonate
+    // fungicide, a game estimate of about half an hour's work in the file's scale.
+    (id: "potassium_bicarbonate_0", name: "Potassium Bicarbonate", category: "agricultural", base_value: 30, weight_kg: 0.454, description: "Fungicide powder for powdery mildew and gray mold"),
     (id: "sulfur_powder_0",   name: "Rubber Sulfur",      category: "chemical",        base_value: 4,    weight_kg: 0.1,   description: "Powdered sulfur for curing raw rubber"),
 ]

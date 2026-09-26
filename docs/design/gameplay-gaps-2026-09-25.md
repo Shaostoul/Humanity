@@ -556,6 +556,54 @@ date; re-check before trusting one. The container data basis is
   rate, a timer the player can set, and lettuce's still-air tipburn ceiling
   (12, not 17) once the greenhouse has airflow.
 
+- **Greenhouse humidity is real, and fungal disease follows it: DONE
+  2026-09-26.** Each indoor grow room (the room box a grow machine stands
+  in) now holds its own water vapour (`farming/humidity.rs`, every number in
+  `data/garden/humidity.ron` with its quoted, dated source). It gains what
+  its growing, watered crops breathe out: plants.csv's litres a day per plant
+  times the plants in each unit, all of it, because that column is FAO-56
+  crop evapotranspiration ("Nearly all water taken up is lost by
+  transpiration"). It loses vapour to the home's air at the room's leakage,
+  0.5 air changes an hour (UGA B792 Table 2, new double-layer film "0.5 to
+  1.0", out of the wind), plus any exhaust fans, solved exactly per tick on
+  the game clock and capped at saturation. Relative humidity uses FAO-56's
+  equation 11 and Annex 3 (287 / 0.622). THE BALANCE: the 3-person
+  greenhouse (2,970 m3) at full planting breathes out about 540 L a day and
+  would settle above saturation on leakage alone, so the home now carries an
+  `exhaust_fan` there: a 12 inch EC inline fan with a humidity controller
+  (AC Infinity CLOUDLINE T12, 1604 CFM = 2,725 m3/h, 250 W) that holds the
+  room at 80% (five points under UMass's 85% gray mold line) at about half
+  speed, drawing about 30 W by the fan laws' cube. The one-person greenhouse
+  (about 200 L a day) settles near 68% on leakage and carries none. Three
+  diseases joined `data/garden/pests.ron` as rows of the pest model, each
+  with a new `Humidity` window and its own `unfavoured_rate` (0.05, because
+  the sources say they infect only in their conditions): gray mold (85% and
+  up, 12.8 to 23.9 C, a 6-day cycle, up to half the yield), powdery mildew
+  (from 50%, it needs no wet leaves, so ventilating does little; 5 days; 0.3)
+  and downy mildew (above 85%, 14.4 to 25.6 C, 7 days, 0.7). Spider mites
+  gained the "humidity is less than 90 percent" their Iowa State source
+  already gave. Controls in the IPM order, with a new Cultural kind first:
+  Ventilate (a heat-and-vent: one air change of the room at once, which the
+  crops breathe back within an hour or two, as UMass says), Remove infected
+  leaves, then Sulfur (`garden_sulfur_0`, a protectant for 7 days, refused
+  where a cucurbit grows, per its label) and Potassium bicarbonate (a new
+  bought item, eradicates powdery mildew and guards against gray mold and
+  downy mildew for 7 days). A crop outside its plants.csv humidity window is
+  capped gently, at most 10% (Bakker 1991) 25 points outside it. The Garden
+  panel shows each area's air, its room and its fan, and each crop card a
+  "Humidity" row; the Settings pest severity now reads "Garden pests and
+  diseases" and covers them. The room air is saved in the soil memory; old
+  saves load with none. Found, left alone: (1) home.ron's Energy loop text
+  (12.0 against 12.2 kWh a day) does not count the fan's ~0.8 kWh a day,
+  and had only 0.2 kWh of headroom. (2) The greenhouse exhausts into the
+  home air, which the atmosphere model holds at 40%: a real home would
+  condense that water in its air handling and could return ~540 L a day to
+  the tanks; neither is modelled. (3) The crops breathe their daily water
+  evenly day and night, and the grow rooms sit at a fixed 21 C. (4) Oyster
+  mushrooms want 85 to 95% and the mushroom room sits near 50%, so they are
+  gently capped; a humidifier is the real answer. (5) Crowding is not
+  modelled: every plant is sown at its cited spacing.
+
 ## Defects found (things that are wrong, not merely missing)
 
 1. **Items vanish when the backpack is full.** "Take to backpack" removes the

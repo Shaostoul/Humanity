@@ -483,6 +483,36 @@ pub struct SoilMemory {
     /// reads its medium's starting pH (data/garden/soil_ph.ron).
     #[serde(default)]
     pub ph: std::collections::HashMap<String, std::collections::HashMap<u32, UnitPh>>,
+    /// The air of each grow room, keyed by room id (2026-09-26, gardening
+    /// depth: greenhouse humidity, `farming::humidity`). It belongs to the
+    /// room, not to a crop, and is saved with no save-format change, like
+    /// `pests`; a save from before it loads with none, and each room then
+    /// starts at the home's air.
+    #[serde(default)]
+    pub rooms: std::collections::HashMap<String, RoomAir>,
+}
+
+/// One grow room's air (2026-09-26, `farming::humidity`): its water vapour,
+/// grams per cubic metre, what its exhaust fans are doing, and whether the
+/// player has been told it is humid enough for gray mold. f64 for the same
+/// reason as `Npk`.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Serialize, Deserialize)]
+pub struct RoomAir {
+    /// Absolute humidity, g of water vapour per m3 of air.
+    #[serde(default)]
+    pub vapour_g_m3: f64,
+    /// Its fans' speed, 0 (idle or none) to 1 (full), as the controller last
+    /// set it.
+    #[serde(default)]
+    pub fan_speed: f64,
+    /// Litres a day its crops were breathing out at the last step, for the
+    /// Garden panel and the Ventilate notice.
+    #[serde(default)]
+    pub breathed_l_day: f64,
+    /// True once the player has been told the room is humid enough for the
+    /// damp-loving diseases; cleared when it dries out again.
+    #[serde(default)]
+    pub told: bool,
 }
 
 /// One soil unit's pH (2026-09-26): what it is now, and what is still
@@ -954,6 +984,17 @@ pub struct GrowLight;
 /// area reaches). Needs no power.
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
 pub struct PollinatorHive;
+
+/// An exhaust fan (2026-09-26, `MachineDef::ventilation_m3_h`): while its
+/// `PowerConsumer` is enabled it exchanges the air of the grow room its
+/// `Transform` stands in with the home's air, up to `airflow_m3_h` at full
+/// speed. Its humidity controller runs it only as fast as the room needs
+/// (`farming::humidity`), and it draws `watts` times the cube of its speed.
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
+pub struct Ventilator {
+    pub airflow_m3_h: f32,
+    pub watts: f32,
+}
 
 /// A bulk water store (a cistern/tank) (v0.608). `liters` is the live level; `PlumbingSystem` fills it
 /// from powered producers and drains it for consumers, so the day's water budget is a draining number.

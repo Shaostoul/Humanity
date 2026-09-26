@@ -14,6 +14,9 @@ pub mod soil_ph;
 pub mod automation;
 pub mod units;
 pub mod picking;
+pub mod humidity;
+#[cfg(test)]
+mod humidity_tests;
 #[cfg(test)]
 mod nutrient_tests;
 #[cfg(test)]
@@ -914,6 +917,9 @@ pub struct FarmingSystem {
     /// Picking over a season (2026-09-26, picking.rs): its data, and the
     /// areas told their produce passed over.
     picking: picking::Picking,
+    /// data/garden/humidity.ron, read on the first tick (see humidity.rs);
+    /// a "garden_humidity" DataStore entry wins over it.
+    humidity: Option<humidity::HumidityData>,
 }
 
 impl FarmingSystem {
@@ -929,6 +935,7 @@ impl FarmingSystem {
             ph_data: None,
             ph_rt: soil_ph::PhRuntime::default(),
             pollination: pollination::Pollination::new(),
+            humidity: None,
         }
     }
 }
@@ -1178,6 +1185,15 @@ impl System for FarmingSystem {
         let ph_data: &soil_ph::SoilPhData =
             data.get::<soil_ph::SoilPhData>("garden_soil_ph").or(self.ph_data.as_ref()).expect("loaded above");
         let ph_on = soil_ph::is_on(data);
+        // GREENHOUSE HUMIDITY (2026-09-26, humidity.rs; every number in
+        // humidity.ron): which grow room each area stands in and the home's
+        // air, for the diseases' Humidity condition and the crops' window.
+        if self.humidity.is_none() {
+            self.humidity = Some(humidity::HumidityData::load());
+        }
+        let air_data: &humidity::HumidityData =
+            data.get::<humidity::HumidityData>(humidity::DATA_KEY).or(self.humidity.as_ref()).expect("loaded above");
+        let air_map = humidity::AirMap::new(world, data, air_data);
 
         // A unit's season need (soil::season_need): one plant's, cached by
         // plant id for the tick (a garden is a few dozen species and a few
@@ -1615,7 +1631,7 @@ impl System for FarmingSystem {
             .and_then(|m| m.lock().ok().and_then(|mut s| s.take()));
         if let Some((area, control_id)) = pest_control {
             if pest_severity > 0.0 {
-                pests::handle_request(world, data, pest_data, &area, &control_id, creative, water_available);
+                pests::handle_request(world, data, pest_data, air_data, &area, &control_id, creative, water_available);
             }
         }
         // SOIL pH AMENDMENT (2026-09-26, soil_ph.rs): Lime or Sulfur on one
@@ -1933,6 +1949,13 @@ impl System for FarmingSystem {
             .get::<&mut crate::ecs::components::SoilMemory>(memory)
             .map(|mut m| std::mem::take(&mut m.pests))
             .unwrap_or_default();
+        // Every grow room's air (humidity.rs), the same way, and the litres a
+        // day each area's growing, watered crops breathe out this tick.
+        let mut room_air = world
+            .get::<&mut crate::ecs::components::SoilMemory>(memory)
+            .map(|mut m| std::mem::take(&mut m.rooms))
+            .unwrap_or_default();
+        let mut breathed: HashMap<String, f64> = HashMap::new();
         // Every soil unit's pH (soil_ph.rs), taken out the same way. Its lime,
         // sulfur and nitrifying ammonium react first, on garden days (the
         // crops' clock, not paused at night: soil chemistry goes on).
@@ -1976,6 +1999,7 @@ impl System for FarmingSystem {
                     excess_n: s.map_or(false, |s| need_n > 0.0 && s.store.n > pest_data.excess_n_seasons * need_n),
                     damp: outdoors && (damp_weather || !sun_up),
                     season: &season,
+                    humidity: air_map.rh_for(air_data, area, &room_air),
                 };
                 if !tally.contains_key(area) {
                     tally.insert(area.to_string(), (0, vec![0.0; n_pests]));
@@ -2195,7 +2219,17 @@ impl System for FarmingSystem {
             if let Some(o) = off {
                 ph_out.entry(area.to_string()).or_insert(o);
             }
-            let ceiling = nutrient_ceiling.min(pest_ceiling).min(ph_ceiling);
+            // Humidity (humidity.rs): outside its plants.csv window a crop is
+            // gently capped; and a growing, watered crop breathes its day's
+            // water into its grow room's air (the room steps after the loop).
+            let air_ceiling = air_map
+                .known_rh(air_data, area, &room_air)
+                .map_or(100.0, |rh| humidity::health_ceiling(air_data, def, rh));
+            if crop.water_level >= WATER_STRESS_THRESHOLD {
+                *breathed.entry(area.to_string()).or_insert(0.0) +=
+                    def.map_or(0.0, |d| f64::from(d.water_per_day)) * f64::from(plants_here);
+            }
+            let ceiling = nutrient_ceiling.min(pest_ceiling).min(ph_ceiling).min(air_ceiling);
 
             // Health effects from water level, capped by nutrients and pests.
             if crop.water_level < WATER_STRESS_THRESHOLD {
@@ -2374,11 +2408,19 @@ impl System for FarmingSystem {
             updates.push((entity, crop, crop_soil));
         }
         drop(home_stock);
-        // The banked organic N and the pests go back where they live.
+        // The grow rooms' air takes in what the crops breathed out and loses
+        // it to the home's air through leakage and fans, on the game clock
+        // (humidity.rs; its fans' draw is set here too).
+        let air_hours = game_dt / SECONDS_PER_DAY * 24.0;
+        for n in humidity::step_rooms(world, air_data, pest_data, &air_map, &mut room_air, &breathed, air_hours) {
+            push_notice(data, n);
+        }
+        // The banked organic N, the pests and the air go back where they live.
         if let Ok(mut m) = world.get::<&mut crate::ecs::components::SoilMemory>(memory) {
             m.organic = organic;
             m.pests = area_pests;
             m.ph = ph_units;
+            m.rooms = room_air;
         }
         self.ph_rt.tell(data, ph_data, &ph_out);
 

@@ -143,6 +143,13 @@ pub struct MachineDef {
     /// data/garden/pollination.ron). Spawns a `PollinatorHive` marker.
     #[serde(default)]
     pub pollinates_crops: bool,
+    /// This machine is an exhaust fan (2026-09-26): while it is powered it
+    /// exchanges the air of the grow room it stands in with the home's air,
+    /// up to this many m3 an hour at full speed, which is what carries off
+    /// the water the crops breathe out (farming::humidity,
+    /// data/garden/humidity.ron). 0 = not a fan. Spawns a `Ventilator`.
+    #[serde(default)]
+    pub ventilation_m3_h: f32,
     /// Typed-container archetype id from `data/containers/types.csv` (v0.728,
     /// "containers show contents"): a grain silo IS a `grain_silo_bin`, the
     /// fuel refinery a `steel_fuel_drum`. Spawns a `Container` ECS component
@@ -2001,6 +2008,7 @@ mod tests {
             auto_keep: None,
             lights_crops: false,
             pollinates_crops: false,
+            ventilation_m3_h: 0.0,
             level_gauge: false,
             container_type: None,
             model: None,
@@ -2493,6 +2501,36 @@ mod tests {
                     );
                 }
             }
+        }
+    }
+
+    /// Greenhouse humidity (2026-09-26): the exhaust fan in both shipped
+    /// catalogs is the machine FarmingSystem reads as a fan, with its cited
+    /// airflow (1604 CFM, 2,725 m3/h) and a 250 W Consumer power role (its
+    /// controller scales that draw), and nothing else ventilates. The
+    /// 3-person home places one in its greenhouse, which needs it
+    /// (data/garden/humidity.ron); the one-person home, which does not,
+    /// places none. Seen red by dropping the fan instance from home.ron.
+    #[test]
+    fn shipped_exhaust_fan_ventilates_and_only_the_family_home_places_one() {
+        for (file, placed) in [("home.ron", 1usize), ("home_solo.ron", 0)] {
+            let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("machines").join(file);
+            let home = MachineHome::load(&path).unwrap_or_else(|| panic!("{file} parses"));
+            for (id, def) in &home.catalog {
+                let is_fan = id == "exhaust_fan";
+                assert_eq!(def.ventilation_m3_h > 0.0, is_fan, "{file}: `{id}` ventilates only if it is the fan");
+                if is_fan {
+                    assert!((def.ventilation_m3_h - 2725.0).abs() < 1.0, "{file}: 1604 CFM");
+                    assert!(
+                        matches!(def.power, Some(MachinePower::Consumer { watts, .. }) if (watts - 250.0).abs() < 1e-3),
+                        "{file}: a 250 W Consumer, so it can be switched on and shed"
+                    );
+                }
+            }
+            let fans: Vec<MachineInstance> =
+                home.all_instances().into_iter().filter(|i| i.machine == "exhaust_fan").collect();
+            assert_eq!(fans.len(), placed, "{file}: fans placed");
+            assert!(fans.iter().all(|f| f.room == "room-greenhouse"), "{file}: in the greenhouse");
         }
     }
 

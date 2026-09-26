@@ -1182,6 +1182,7 @@ mod native_app {
             crate::systems::farming::soil_ph::register(&mut data_store); // soil pH: data, Settings switch, Lime/Sulfur
             crate::systems::farming::pollination::register(&mut data_store); // pollination data, Settings mode, Hand-pollinate
             crate::systems::farming::picking::register(&mut data_store); // harvest windows, Settings picking mode, Clear
+            crate::systems::farming::humidity::register(&mut data_store); // greenhouse air: its data and the home's room boxes
             // Backpack <-> container transfers (organize-layer inventory): the GUI pushes
             // (item_id, qty, is_add) ops; InventorySystem applies them to the player's
             // backpack. Mirrored from GuiState.pending_inventory_transfers each frame.
@@ -6610,6 +6611,7 @@ mod native_app {
                         }
                     }
                     crate::systems::farming::soil_ph::bridge(&state.data_store, !state.gui_state.garden_pests.soil_ph_off, state.gui_state.garden_pests.ph_pending.take());
+                    crate::systems::farming::humidity::publish_rooms(&state.data_store, state.gui_state.room_bounds.iter().map(|r| (r.id.as_str(), r.display_name.as_str(), r.min.to_array(), r.max.to_array()))); // grow rooms' air
                     let gp = &mut state.gui_state.garden_pests; // pollination: Settings mode + Hand-pollinate -> sim
                     crate::systems::farming::pollination::publish(&state.data_store, !gp.pollination_off, gp.pollinate_pending.take());
                     crate::systems::farming::picking::publish(&state.data_store, gp.picking_realistic, gp.clear_pending.take());
@@ -12802,6 +12804,7 @@ mod native_app {
                         state.gui_state.garden_pests.ph_amendments = ph_view.amendments();
                         let pollination = crate::systems::farming::pollination::GuiView::new(&state.game_world.world, &state.data_store);
                         let picking = crate::systems::farming::picking::GuiView::new(&state.game_world.world, &state.data_store);
+                        let air_view = crate::systems::farming::humidity::GuiView::new(&state.game_world.world, &state.data_store); // humidity rows
                         for (entity, (crop, soil)) in state
                             .game_world
                             .world
@@ -12868,9 +12871,11 @@ mod native_app {
                                 ph_held: phc.held,
                                 pollination: pollination.row(entity),
                                 picking: picking.row(entity),
+                                humidity: air_view.crop_row(crop, def),
                             });
                         }
                         state.gui_state.garden_pests.pollinate_areas = pollination.areas;
+                        state.gui_state.garden_pests.air = air_view.areas;
                         // Pests per grow area for the Garden panel (2026-09-26).
                         if let Some(pd) = state.data_store.get::<crate::systems::farming::pests::PestData>("garden_pests") {
                             let mut areas: Vec<String> =

@@ -1051,6 +1051,36 @@ mod tests {
         assert_eq!(mems[0].units["bed_1"][&5], Npk::new(4.0, 5.0, 6.0));
     }
 
+    /// Each grow room's air survives a save (2026-09-26, farming::humidity):
+    /// its vapour, its fan's speed, what its crops were breathing out and
+    /// whether the player was told it is humid come back as they were, and a
+    /// save from before the field (no `rooms` in the soil memory) still loads,
+    /// with no rooms, so each starts from the home's air. Seen red by marking
+    /// `SoilMemory::rooms` `#[serde(skip)]` (the room came back empty).
+    #[test]
+    fn grow_room_air_survives_a_save_and_old_saves_load() {
+        use crate::ecs::components::{RoomAir, SoilMemory};
+        let mut world = hecs::World::new();
+        let mut memory = SoilMemory::default();
+        let air = RoomAir { vapour_g_m3: 16.25, fan_speed: 0.4, breathed_l_day: 540.0, told: true };
+        memory.rooms.insert("room-greenhouse".into(), air);
+        world.spawn((memory,));
+        let text = serde_json::to_string(&extract_world_save(&world)).unwrap();
+        let back: WorldSave = serde_json::from_str(&text).unwrap();
+        let mut fresh = hecs::World::new();
+        apply_save_to_world(&mut fresh, &back);
+        let mems: Vec<SoilMemory> = fresh.query::<&SoilMemory>().iter().map(|(_, m)| m.clone()).collect();
+        assert_eq!(mems[0].rooms.get("room-greenhouse"), Some(&air), "the room's air came back");
+        // An older save: its soil memory has no `rooms` at all.
+        let mut old: serde_json::Value = serde_json::from_str(&text).unwrap();
+        old["soil_memory"].as_object_mut().unwrap().remove("rooms");
+        let back: WorldSave = serde_json::from_value(old).unwrap();
+        let mut older = hecs::World::new();
+        apply_save_to_world(&mut older, &back);
+        let mems: Vec<SoilMemory> = older.query::<&SoilMemory>().iter().map(|(_, m)| m.clone()).collect();
+        assert!(mems[0].rooms.is_empty(), "an old save loads with no room air");
+    }
+
     /// A crop's pollination record survives a save (2026-09-26,
     /// farming::pollination): the flowering and pollinated days and what is
     /// left of a hand pollination come back on the same crop, and a crop

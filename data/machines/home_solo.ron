@@ -35,6 +35,44 @@
             stats: [(kind: "power", value: "+0.7 kWh/d", status: "warn")],
             power: Some(Generator(watts: 150.0)),
         ),
+        "exhaust_fan": (
+            shape: "box",
+            size: (0.45, 0.36, 0.31),
+            color: (0.62, 0.64, 0.66),
+            label: "Exhaust fan (humidity)",
+            category: "Food",
+            // A 12 inch EC inline exhaust fan with a humidity controller (AC
+            // Infinity CLOUDLINE T12: "Total Airflow: 1604 CFM" = 2,725 m3/h,
+            // "Max Power Draw: 250 W", 31.2 x 45.0 x 35.7 cm). While powered it
+            // exchanges the air of the grow room it stands in with the home's,
+            // as fast as it takes to hold the room at 80% humidity, drawing its
+            // watts at the cube of its speed (data/garden/humidity.ron, which
+            // also shows why the 3-person greenhouse needs one: its crops
+            // breathe out more water than its leakage can carry away).
+            ventilation_m3_h: 2725.0,
+            stats: [
+                (
+                    kind: "power",
+                    value: "~30 W holding a full greenhouse, 250 W flat out",
+                    status: "ok",
+                ),
+                (
+                    kind: "air",
+                    value: "holds the grow room at 80% humidity",
+                    status: "ok",
+                ),
+            ],
+            power: Some(Consumer(
+                watts: 250.0,
+                priority: 4,
+            )),
+            ports: [],
+            storage: [],
+            rf_emission: 0.0,
+            auto_recipe: None,
+            container_type: None,
+            model: None,
+        ),
         "generator_portable": (
             shape: "box", size: (0.55, 0.45, 0.45), color: (0.45, 0.45, 0.20),
             label: "Generator (backup)",

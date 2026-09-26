@@ -2122,6 +2122,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             .collect();
                         let ph_amendments = state.garden_pests.ph_amendments.clone();
                         let pollinate_here = state.garden_pests.pollinate_areas.iter().any(|a| *a == area_tag);
+                        let air_here = state.garden_pests.air.iter().find(|a| a.0 == area_tag).cloned();
                         widgets::expandable_row(
                             ui,
                             ("garden_grp", gi),
@@ -2184,8 +2185,15 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                         }
                                     });
                                 }
-                                // Pests here (2026-09-26, farming::pests): each with
-                                // its level and its controls, gentlest first (IPM).
+                                // The air here (2026-09-26, farming::humidity): its
+                                // humidity and what the room's exhaust fans are
+                                // doing, warmer as it nears the diseases' line.
+                                if let Some((_, line, level)) = &air_here {
+                                    let col = match level { 2 => theme.danger(), 1 => theme.warning(), _ => theme.text_secondary() };
+                                    ui.label(RichText::new(line).size(theme.font_size_small).color(col));
+                                }
+                                // Pests and diseases here (2026-09-26, farming::pests):
+                                // each with its level and its controls, gentlest first (IPM).
                                 if let Some(ap) = &pests_here {
                                     for (name, level, controls) in &ap.pests {
                                         ui.horizontal_wrapped(|ui| {
@@ -2441,6 +2449,10 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                                             // Picked over a season (farming::picking).
                                                             if !c.picking.is_empty() {
                                                                 stat(ui, "Picking", c.picking.clone());
+                                                            }
+                                                            // The air it grows in against its window (farming::humidity).
+                                                            if !c.humidity.is_empty() {
+                                                                stat(ui, "Humidity", c.humidity.clone());
                                                             }
                                                             stat(ui, "Water/day", format!("{:.1} L", c.water_per_day));
                                                             stat(ui, "Temp window", format!("{:.0}-{:.0} °C", c.temp_min, c.temp_max));

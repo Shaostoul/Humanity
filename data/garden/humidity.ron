@@ -1,0 +1,188 @@
+// Greenhouse humidity (2026-09-26, gardening depth: the air the crops grow in).
+// Read by src/systems/farming/humidity.rs, which carries the model and the
+// reasoning; this file carries the numbers and where each one came from.
+// Every source below was read on 2026-09-26.
+//
+// WHAT THE GAME TEACHES. A greenhouse's hardest daily skill is humidity. The
+// crops breathe out nearly all the water they are given, the closed air grows
+// humid, and gray mold and the mildews follow (data/garden/pests.ron) unless
+// the grower ventilates. The balance is shown on the Garden panel for each
+// grow room, and on each crop's card against its plants.csv window.
+//
+// THE MODEL, in one paragraph (humidity.rs has the detail). Each indoor grow
+// room (the rooms the grow machines stand in) holds its water vapour, grams
+// per cubic metre of air. Every tick it GAINS the water its growing,
+// watered crops breathe out (plants.csv water_liters_per_day x the plants in
+// each unit x vapour_share, over the room's volume) and LOSES vapour to air
+// exchange with the home's air: air changes an hour (the room's own leakage,
+// base_air_changes_per_hour, plus any powered exhaust fans) times the
+// difference from the home air's vapour. It is solved exactly per tick, so a
+// frame and a clock jump agree, and it cannot pass saturation (the rest
+// condenses on the leaves and the glazing). Relative humidity is the vapour
+// over what saturated air at the room's temperature holds, by the FAO-56
+// formula below. Outdoor fields use the weather's humidity; a crop in no known
+// room uses the home air's.
+//
+// TIME. The air runs on the game clock, the one the day and night run on
+// (an hour of it is 50 seconds of play), not the crops' growth speed: the
+// crops' litres a day and the air changes an hour are both read on it, so
+// the humidity a room settles at is the physical one whatever the growth
+// speed, and a heat-and-vent wears off over game hours, the way it does over
+// an evening. The irrigation bills the home's tanks per real day instead
+// (farming::mod, irrigation_demand_lpm): the water supply's clock, a
+// separate question.
+//
+// SOURCES (cited by short name in the entries):
+//   FAO-56     Allen, R.G., Pereira, L.S., Raes, D. and Smith, M., "Crop
+//              evapotranspiration: Guidelines for computing crop water
+//              requirements", FAO Irrigation and Drainage Paper 56, FAO, Rome,
+//              1998. Chapter 1, https://www.fao.org/4/x0490e/x0490e04.htm ;
+//              Chapter 3, https://www.fao.org/4/x0490e/x0490e07.htm ; Annex 3,
+//              https://www.fao.org/4/x0490e/x0490e0k.htm
+//   UGA B792   Ferrarezi, R.S. and Worley, J.W., "Greenhouses: Heating,
+//              Ventilation, and Cooling", University of Georgia Extension
+//              Bulletin 792, published 4 November 2025,
+//              https://fieldreport.caes.uga.edu/publications/B792/greenhouses-heating-ventilation-and-cooling/
+//   UMass      Wick, R.L., revised by Madeiras, A., "Botrytis Blight of
+//              Greenhouse Crops", UMass Amherst Center for Agriculture, Food,
+//              and the Environment fact sheet, last updated 5 June 2019,
+//              https://www.umass.edu/agriculture-food-environment/greenhouse-floriculture/fact-sheets/botrytis-blight-of-greenhouse-crops
+//   AC Infinity  "CLOUDLINE T12 Inline Fan 12 inch", AC Infinity product
+//              specifications (read 2026-09-26; the page carries no date),
+//              https://acinfinity.com/cloudline-t12-quiet-inline-fan-12-with-temperature-humidity-vpd-controller/
+//   Affinity   "Affinity laws", Wikipedia, last edited 20 November 2025,
+//              https://en.wikipedia.org/wiki/Affinity_laws
+//   Bakker 1991  Bakker, J.C., "Analysis of humidity effects on growth and
+//              production of glasshouse fruit vegetables", PhD thesis,
+//              Landbouwuniversiteit Wageningen, 1991, abstract at
+//              https://research.wur.nl/en/publications/analysis-of-humidity-effects-on-growth-and-production-of-glasshou/
+(
+    // -- RELATIVE AND ABSOLUTE HUMIDITY: the psychrometric formula ---------------
+    //
+    // Saturation vapour pressure, FAO-56 Chapter 3, equation 11:
+    // "e°(T) = 0.6108 exp[17.27(T)/(T + 237.3)]", with "e°(T) saturation vapour
+    // pressure at the air temperature T [kPa]" and "T air temperature [°C]".
+    // Its worked Example 3 gives "e°(Tmax) = 3.075 kPa" at 24.5 °C; a test
+    // checks the formula against it.
+    // Relative humidity, FAO-56 Chapter 3 (equation 10): "The relative
+    // humidity (RH) expresses the degree of saturation of the air as a ratio of
+    // the actual (ea) to the saturation (e°(T)) vapour pressure at the same
+    // temperature (T)".
+    // Vapour in grams per m3 from its pressure is the ideal gas law with water
+    // vapour's gas constant, which is dry air's over the molecular-weight
+    // ratio. FAO-56 Annex 3: "R specific gas constant = 287 [J kg-1 K-1]" and
+    // "ε ratio molecular weight of water vapour/dry air = 0.622", so water
+    // vapour's is 287 / 0.622 = 461.4 J/(kg K). At the room's 21 °C saturated
+    // air holds 18.3 g/m3.
+    svp_a_kpa: 0.6108,
+    svp_b: 17.27,
+    svp_c_c: 237.3,
+    dry_air_gas_constant: 287.0,
+    vapour_weight_ratio: 0.622,
+
+    // The grow rooms' temperature, °C. A GAME CHOICE, the same 21 °C the pests
+    // take for the climate-controlled rooms (data/garden/pests.ron
+    // indoor_temp_c; a test keeps the two equal): the HVAC sim runs per room
+    // and does not reach the grow rooms yet.
+    room_temp_c: 21.0,
+
+    // -- WHERE THE WATER GOES ----------------------------------------------------
+    //
+    // vapour_share 1.0: the share of a crop's plants.csv water that goes into
+    // the room's air. plants.csv water_liters_per_day IS the FAO crop
+    // evapotranspiration (Kc x ET0 x the plant's area; see its header and
+    // data/garden/yields.ron, WATER), and evapotranspiration is by definition
+    // water that leaves as vapour. FAO-56 Chapter 1: "The combination of two
+    // separate processes whereby water is lost on the one hand from the soil
+    // surface by evaporation and on the other hand from the crop by
+    // transpiration is referred to as evapotranspiration (ET)", and "Nearly
+    // all water taken up is lost by transpiration and only a tiny fraction is
+    // used within the plant." The tiny fraction kept is on top of ET, not part
+    // of it, so all of the listed water becomes vapour. Only crops that are
+    // growing and watered count: a thirsty crop closes its stomata, a ripe one
+    // is no longer drawing water in the game (the same crops the irrigation
+    // bills).
+    vapour_share: 1.0,
+
+    // -- HOW THE AIR IS EXCHANGED -------------------------------------------------
+    //
+    // base_air_changes_per_hour 0.5: the room's own leakage with every fan off.
+    // UGA B792, "Table 2. Natural Air Exchanges for Greenhouses": "New
+    // Construction, double layer plastic film | 0.5 to 1.0" air exchanges per
+    // hour ("New Construction, glass or fiberglass | 0.75 to 1"), footnoted
+    // "Low wind or protection from wind reduces the air exchange rate." The
+    // home's grow rooms are indoors, out of the wind altogether, so the low
+    // end of the tightest construction is taken.
+    //
+    // With that alone the home's 3-person greenhouse does not stay healthy: at
+    // its full planting (about 540 L a day breathed out into 2,970 m3) the
+    // balance settles above saturation, so it runs at 100% with water
+    // condensing. The home therefore carries one exhaust fan there (the
+    // "exhaust_fan" machine in data/machines/home.ron). The one-person home's
+    // greenhouse (about 200 L a day) settles near 68% on its leakage alone and
+    // carries none.
+    base_air_changes_per_hour: 0.5,
+
+    // THE EXHAUST FAN'S CONTROLLER. The fan in the machine catalog is a 12 inch
+    // EC inline fan with a humidity controller, AC Infinity CLOUDLINE T12:
+    // "Total Airflow: 1604 CFM" (2,725 m3/h), "Max Power Draw: 250 W", and a
+    // controller with "temperature, humidity, and VPD triggers". Its motor is
+    // speed controlled, so it runs as fast as the room needs to hold the
+    // setpoint and no faster: flat out while the room is above it, at the
+    // speed that holds the setpoint once there, idle when the room is drier.
+    //
+    // fan_setpoint_rh 0.80: a GAME CHOICE five points under the line UMass
+    // gives for gray mold, "relative humidity 85% or greater".
+    //
+    // fan_power_exponent 3: the power a fan draws goes as the cube of its
+    // speed. Affinity: the affinity laws "(also known as the "Fan Laws" or
+    // "Pump Laws") for pumps/fans are used in hydraulics, hydronics and/or HVAC
+    // to express the relationship between variables involved in pump or fan
+    // performance"; their Law 1 has flow proportional to shaft speed and Law 3
+    // power proportional to its cube. So the T12 holding the full greenhouse at
+    // 80% (about half speed) draws about 30 W, not 250.
+    fan_setpoint_rh: 0.80,
+    fan_power_exponent: 3.0,
+
+    // THE VENTILATE CONTROL (pests.ron `ventilate`) replaces the room's air
+    // once, the heat-and-vent UMass describes: "To prevent excessive humidity
+    // and dew formation, turn on the heat and open the vents. The warm humid
+    // air is ventilated to the outside as the cooler outside air is drawn into
+    // the greenhouse." It is one air change of well-mixed air, which removes
+    // 1 - 1/e (63%) of the vapour above the home air's; the crops breathe it
+    // back within an hour or two, which is why UMass adds that it may need
+    // repeating "several times during evening hours" and "can be automated",
+    // and why the fan exists.
+    //
+    // notice_above_rh 0.85: the player is told once when a grow room reaches
+    // it, UMass's line for gray mold: "Germination of spores and infection of
+    // the host is dependent on a film of moisture for 8 to 12 hours, relative
+    // humidity 85% or greater, and temperatures 55 - 75°F."
+    notice_above_rh: 0.85,
+
+    // -- WHAT HUMIDITY DOES TO A CROP OUTSIDE ITS WINDOW --------------------------
+    //
+    // A crop whose air is outside its plants.csv humidity_min..humidity_max has
+    // its health capped at 100 x (1 - stress_loss_max x min(1, d /
+    // stress_full_at_rh)), where d is how far outside the window it is, and
+    // never below health_floor. Gentle on purpose: humidity's own effect on
+    // growth is small, and most of the harm humid air does comes through the
+    // diseases it favours, which pests.ron carries.
+    //
+    // stress_loss_max 0.10: Bakker 1991, on glasshouse cucumber, tomato, sweet
+    // pepper and eggplant: "the effect of humidity on leaf photosynthesis under
+    // normal growing conditions in moderate climates is limited to about 10%",
+    // with "yield of tomato was lower at continuously high humidity", "Yield of
+    // sweet pepper was unaffected" and "Final yield of cucumber was higher at
+    // high humidity by day".
+    // stress_full_at_rh 0.25: that ~10% is over the range Bakker studied,
+    // "0.3 to 0.9 kPa Vapour Pressure Deficit", which at the rooms' 21 °C is
+    // relative humidity from 88% down to 64%: about 25 points. A GAME CHOICE
+    // to read it as the whole loss 25 points outside the window.
+    // health_floor 20: the house floor, the same as a nutrient shortage, a
+    // pest and soil pH (soil::NUTRIENT_HEALTH_FLOOR); this cap never gets near
+    // it.
+    stress_loss_max: 0.10,
+    stress_full_at_rh: 0.25,
+    health_floor: 20.0,
+)
