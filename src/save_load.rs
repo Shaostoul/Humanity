@@ -522,7 +522,12 @@ pub struct Resumed {
 ///   the CraftingSystem's next tick (see `restored_crafts`).
 ///
 /// Deliberately not advanced: vitals (not persisted; you wake rested), and
-/// anything that consumes or destroys.
+/// anything that consumes or destroys. That includes garden PESTS
+/// (2026-09-26): their pressure costs crop health and the player could not
+/// have answered it while away, so it resumes where the save left it and the
+/// character's upkeep kept them down in the meantime. A crop's soil draw is
+/// not in that class: the growth made offline is paid for from its unit on
+/// the first tick back (farming's uptake), which is the crop's own feeding.
 ///
 /// Clock source: the device clock, because only offline single-player homes
 /// are saved today. Multiplayer and MMO must use the SERVER clock instead

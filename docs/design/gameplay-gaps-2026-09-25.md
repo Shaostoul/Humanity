@@ -353,7 +353,11 @@ date; re-check before trusting one. The container data basis is
   renderer draws one plant per plot, so a 1 m2 plot of wheat shows one stalk;
   it should draw the plot's plants at the crop's spacing once that lands.
   Still to do: each species' own light need (fruiting crops want more than
-  17, some lettuces tip-burn above 15).
+  17, some lettuces tip-burn above 15). Added after: each crop's card shows
+  what is lighting it now (the sun, the sun through the skylight, a grow
+  light and what share of the plot it covers, or dark until sunrise). Pests
+  are not advanced by the offline catch-up, on purpose: the offline design's
+  rule for anything that harms without a decision (offline-progression.md).
 
 ## Defects found (things that are wrong, not merely missing)
 

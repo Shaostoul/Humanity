@@ -69,7 +69,11 @@ systems happened to read the clock.
   thirst offline, a base running its battery flat and freezing, a fire spreading.
   These are the difference between "I came back to progress" and "I came back to
   a ruin I could not prevent." If a system can consume or destroy, it participates
-  only with an explicit design pass and probably a cap.
+  only with an explicit design pass and probably a cap. Garden pests are in this
+  class (decided 2026-09-26): an infestation would cut the harvest while nobody
+  could respond, so pest pressure does not advance offline; the character's
+  upkeep keeps them down. The soil nutrients the crops draw are not: growth made
+  offline is paid for from the unit on return, as the crop's own feeding.
 
 The honest tension: a fully simulated homestead SHOULD run out of water if the
 pump has no power for eight hours, and the project's whole posture is realistic

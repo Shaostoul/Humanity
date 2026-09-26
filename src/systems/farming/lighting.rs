@@ -167,6 +167,37 @@ pub fn light_cover(lights: &[([f32; 3], f64)], plots: &[GrowPlot], d: &LightingD
     out
 }
 
+/// Whether the sun is up now, and the grow lights' cover by area: the same
+/// inputs the farming tick reads, for the Garden panel. No clock = noon, the
+/// tick's default.
+pub fn light_now(world: &hecs::World, data: &crate::hot_reload::data_store::DataStore) -> (bool, HashMap<String, f64>) {
+    let hour = data
+        .get::<std::sync::Mutex<crate::systems::time::GameTime>>("game_time")
+        .and_then(|m| m.lock().ok().map(|g| g.hour))
+        .unwrap_or(12.0);
+    let cover = match (data.get::<Vec<GrowPlot>>("grow_plots"), data.get::<LightingData>("garden_lighting")) {
+        (Some(plots), Some(ld)) => light_cover(&powered_lights(world), plots, ld),
+        _ => HashMap::new(),
+    };
+    (crate::systems::solar::sun_factor(hour) > 0.0, cover)
+}
+
+/// What is lighting a crop right now, in words for its card: the same cases
+/// `farming::light_growth_rate` decides between.
+pub fn light_word(needs_light: bool, outdoors: bool, sun_up: bool, cover: f64) -> String {
+    if !needs_light {
+        "not needed".to_string()
+    } else if sun_up {
+        if outdoors { "the sun" } else { "the sun, through the skylight" }.to_string()
+    } else if outdoors || cover <= 0.0 {
+        "dark: growth waits for sunrise".to_string()
+    } else if cover >= 0.999 {
+        "grow light".to_string()
+    } else {
+        format!("grow light on {:.0}% of it: grows at that share", cover * 100.0)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -230,6 +261,19 @@ mod tests {
         assert!((two["bed"] - expect).abs() < 1e-9, "two lights add: {} vs {expect}", two["bed"]);
         let many = light_cover(&[([0.0, 2.0, 0.0], 500.0), ([0.0, 2.0, 0.0], 500.0)], &solo, &d);
         assert_eq!(many["bed"], 1.0, "never more than fully lit");
+    }
+
+    /// The card's words follow the same cases as the growth rate: fungi need
+    /// no light, the sun by day, a partly lit plot says how much, a dark one
+    /// says it waits.
+    #[test]
+    fn the_light_word_matches_what_the_crop_gets() {
+        assert_eq!(light_word(false, false, false, 0.0), "not needed");
+        assert_eq!(light_word(true, true, true, 0.0), "the sun");
+        assert_eq!(light_word(true, false, false, 1.0), "grow light");
+        assert!(light_word(true, false, false, 0.29).starts_with("grow light on 29%"));
+        assert!(light_word(true, true, false, 1.0).starts_with("dark"), "no lamp reaches a field");
+        assert!(light_word(true, false, false, 0.0).starts_with("dark"));
     }
 
     /// A tower's canopy is its planted cups at Cornell's finishing spacing

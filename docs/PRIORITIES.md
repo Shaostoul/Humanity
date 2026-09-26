@@ -1118,8 +1118,10 @@ grounded, a soybean cup grew 1.65 kg), and soil pH. Grow lights now light
 only the plots near them (v0.1364.0: 0.58 m2 per 100 W from the DLC and
 Cornell figures), beds are divided into plots, and bed-planted crops are
 drawn (BUG-089). Next: per-species light need, drawing each plot's plants at
-the crop's spacing, a urine-diverting toilet machine, pests in the offline
-catch-up. Containers as items (3c) waits on the unified placement
+the crop's spacing, a urine-diverting toilet machine. Pests do not advance
+offline, by the offline-progression rule for anything that harms without a
+decision (recorded in docs/design/offline-progression.md). The crop card
+shows what is lighting each crop. Containers as items (3c) waits on the unified placement
 schema. Progress and open items live at the top of the gap doc.
 
 **Gameplay gap survey (2026-09-25):** `docs/design/gameplay-gaps-2026-09-25.md`

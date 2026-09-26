@@ -12802,6 +12802,7 @@ mod native_app {
                             .get::<crate::systems::farming::soil::NutrientData>("garden_nutrients")
                             .zip(plant_reg)
                             .and_then(|(nd, reg)| nd.scale_for(reg));
+                        let (sun_up, lamp) = crate::systems::farming::lighting::light_now(&state.game_world.world, &state.data_store);
                         for (entity, (crop, soil)) in state
                             .game_world
                             .world
@@ -12854,6 +12855,7 @@ mod native_app {
                                 water_per_day: def.map(|d| d.water_per_day).unwrap_or(0.0),
                                 temp_min: def.map(|d| d.temp_min_c).unwrap_or(0.0),
                                 temp_max: def.map(|d| d.temp_max_c).unwrap_or(0.0),
+                                light: crate::systems::farming::lighting::light_word(def.map_or(true, |d| d.needs_light), crop.tower_id.as_deref().map_or(false, crate::systems::farming::is_field_area), sun_up, crop.tower_id.as_deref().and_then(|t| lamp.get(t)).copied().unwrap_or(0.0)),
                                 soil: [store.n as f32, store.p2o5 as f32, store.k2o as f32],
                                 need: [need.n as f32, need.p2o5 as f32, need.k2o as f32],
                                 short_of: (supply < 1.0).then(|| scarce.word().to_string()),
