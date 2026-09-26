@@ -4075,6 +4075,7 @@ mod multi_select_tests {
             auto_recipe: None,
             irrigates: false,
             auto_keep: None,
+            lights_crops: false,
             container_type: None,
             model: None,
             screen: None,

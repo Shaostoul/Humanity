@@ -1579,7 +1579,9 @@ Gas tracking, explosions, suffocation, pressure simulation. **Registered (v0.617
 crop's SEASON health, the time-average of its health while growing
 (`farming::season_health`, FAO 33 linear response; v0.1350.0), shown on the
 crop card; stage models map to species through `stage_models` in
-`data/plants_visual.ron`. Plantable grow
+`data/plants_visual.ron`. Light (v0.1352.0): green crops grow only while lit
+(the sun, through the skylight indoors; a powered `lights_crops` grow light after
+dark) and pause in the dark; plants.csv `needs_light` is false for fungi. Plantable grow
 areas beyond towers (v0.738 grain loop): beds/trays/fields render as Garden
 groups with a Plant button (crop = edit-modal Crop field or the medium's
 `default_crop` in grow_media.ron; survival consumes one seed per unit,
