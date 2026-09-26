@@ -9,14 +9,17 @@
     enabled: true,
     // Crop planted per bed / tray / field / rack machine TYPE. Towers instead
     // cycle their curated plantings from data/towers/aeroponic_configs.ron.
+    // Keys must be machine TYPE ids from the data/machines/home.ron catalog
+    // (a key that matches nothing is silently never planted; checked by
+    // tests/recipe_sources_lint.rs). Values are plants.csv ids.
     bed_crops: {
         "grain_field": "wheat",
-        "grain_tray": "rice",
+        "staple_grain_tray": "rice",
         "legume_field": "bean",
         "oilseed_field": "sunflower",
         "oilseed_bed": "flax",
         "tuber_field": "potato",
-        "potato_bed": "potato",
+        "potato_grow_bed": "potato",
         "mushroom_rack": "oyster_mushroom",
     },
     // Staggered units sown per bed-type machine.

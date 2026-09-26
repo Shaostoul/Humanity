@@ -1,5 +1,5 @@
 {
-  "count": 362,
+  "count": 367,
   "categories": [
     "assembly",
     "chemistry",
@@ -7,7 +7,6 @@
     "cooking",
     "crafting",
     "electronics",
-    "processing",
     "refining",
     "smelting",
     "textile"
@@ -328,6 +327,35 @@
       "description": "Melt silica sand into clear glass"
     },
     {
+      "id": "draw_glass_fiber",
+      "name": "Draw Glass Fiber",
+      "category": "smelting",
+      "inputs": [
+        {
+          "id": "glass_pane_0",
+          "label": "Glass Pane",
+          "qty": 1
+        },
+        {
+          "id": "coal_0",
+          "label": "Coal",
+          "qty": 1
+        }
+      ],
+      "outputs": [
+        {
+          "id": "glass_fiber_0",
+          "label": "Glass Fiber",
+          "qty": 1
+        }
+      ],
+      "craft_time_sec": 15,
+      "station": "Smelter",
+      "skill": "Metalworking",
+      "skill_level": 3,
+      "description": "Remelt glass and draw it through a bushing into continuous fiber"
+    },
+    {
       "id": "fire_brick",
       "name": "Fire Brick",
       "category": "smelting",
@@ -477,14 +505,14 @@
         {
           "id": "fuel_refined_0",
           "label": "Fuel Refined",
-          "qty": 3
+          "qty": 2
         }
       ],
       "craft_time_sec": 30,
       "station": "Fuel Refinery",
       "skill": "Engineering",
-      "skill_level": 3,
-      "description": "Distill crude oil into usable fuel"
+      "skill_level": 2,
+      "description": "Distill crude oil into refined fuel"
     },
     {
       "id": "grind_flour",
@@ -492,8 +520,8 @@
       "category": "refining",
       "inputs": [
         {
-          "id": "rice_0",
-          "label": "Rice",
+          "id": "grain_rice_0",
+          "label": "Grain Rice",
           "qty": 2
         }
       ],
@@ -834,7 +862,7 @@
       "category": "refining",
       "inputs": [
         {
-          "id": "bone",
+          "id": "bone_0",
           "label": "Bone",
           "qty": 3
         },
@@ -856,6 +884,59 @@
       "skill": "",
       "skill_level": 1,
       "description": "Boil bones into adhesive glue"
+    },
+    {
+      "id": "render_tallow",
+      "name": "Render Tallow",
+      "category": "refining",
+      "inputs": [
+        {
+          "id": "raw_mutton_0",
+          "label": "Raw Mutton",
+          "qty": 3
+        }
+      ],
+      "outputs": [
+        {
+          "id": "animal_fat_0",
+          "label": "Animal Fat",
+          "qty": 1
+        }
+      ],
+      "craft_time_sec": 40,
+      "station": "Stove",
+      "skill": "Cooking",
+      "skill_level": 1,
+      "description": "Slowly melt the fat out of mutton trimmings and strain it to set as tallow"
+    },
+    {
+      "id": "mold_salt_block",
+      "name": "Mold Salt Block",
+      "category": "refining",
+      "inputs": [
+        {
+          "id": "salt_food_0",
+          "label": "Salt Food",
+          "qty": 4
+        },
+        {
+          "id": "water_purified_0",
+          "label": "Water Purified",
+          "qty": 1
+        }
+      ],
+      "outputs": [
+        {
+          "id": "salt_block_0",
+          "label": "Salt Block",
+          "qty": 1
+        }
+      ],
+      "craft_time_sec": 30,
+      "station": "Stove",
+      "skill": "",
+      "skill_level": 1,
+      "description": "Pack damp salt into a mold and dry it hard over low heat into a solid block"
     },
     {
       "id": "make_paint",
@@ -3193,8 +3274,8 @@
       "category": "cooking",
       "inputs": [
         {
-          "id": "coffee_0",
-          "label": "Coffee",
+          "id": "fruit_coffee_0",
+          "label": "Fruit Coffee",
           "qty": 1
         },
         {
@@ -5254,8 +5335,8 @@
           "qty": 3
         },
         {
-          "id": "fiberglass",
-          "label": "Fiberglass",
+          "id": "fiberglass_sheet_0",
+          "label": "Fiberglass Sheet",
           "qty": 2
         }
       ],
@@ -6409,8 +6490,8 @@
           "qty": 1
         },
         {
-          "id": "painkiller_0",
-          "label": "Painkiller",
+          "id": "painkillers_0",
+          "label": "Painkillers",
           "qty": 3
         }
       ],
@@ -6605,35 +6686,6 @@
       "skill": "Woodworking",
       "skill_level": 1,
       "description": "Magnetize a needle in a glass housing"
-    },
-    {
-      "id": "craft_binoculars",
-      "name": "Build Binoculars",
-      "category": "crafting",
-      "inputs": [
-        {
-          "id": "glass_pane_0",
-          "label": "Glass Pane",
-          "qty": 2
-        },
-        {
-          "id": "aluminum_ingot_0",
-          "label": "Aluminum Ingot",
-          "qty": 1
-        }
-      ],
-      "outputs": [
-        {
-          "id": "binoculars_0",
-          "label": "Binoculars",
-          "qty": 1
-        }
-      ],
-      "craft_time_sec": 15,
-      "station": "Workbench",
-      "skill": "Woodworking",
-      "skill_level": 2,
-      "description": "Grind lenses and mount in tubes"
     },
     {
       "id": "craft_lamp_floor",
@@ -6872,6 +6924,35 @@
       "skill": "Engineering",
       "skill_level": 4,
       "description": "Pyrolyze polymer precursor into carbon composite"
+    },
+    {
+      "id": "craft_fiberglass",
+      "name": "Lay Up Fiberglass",
+      "category": "chemistry",
+      "inputs": [
+        {
+          "id": "glass_fiber_0",
+          "label": "Glass Fiber",
+          "qty": 1
+        },
+        {
+          "id": "oil_crude_0",
+          "label": "Oil Crude",
+          "qty": 2
+        }
+      ],
+      "outputs": [
+        {
+          "id": "fiberglass_sheet_0",
+          "label": "Fiberglass Sheet",
+          "qty": 2
+        }
+      ],
+      "craft_time_sec": 45,
+      "station": "Chemistry Set",
+      "skill": "Engineering",
+      "skill_level": 3,
+      "description": "Wet glass fiber with polyester resin made from crude oil and cure it into rigid sheet"
     },
     {
       "id": "craft_titanium_alloy",
@@ -7564,13 +7645,13 @@
           "qty": 2
         },
         {
-          "id": "painkiller_0",
-          "label": "Painkiller",
+          "id": "painkillers_0",
+          "label": "Painkillers",
           "qty": 5
         },
         {
-          "id": "antibiotic_0",
-          "label": "Antibiotic",
+          "id": "antibiotics_0",
+          "label": "Antibiotics",
           "qty": 3
         }
       ],
@@ -8297,8 +8378,8 @@
           "qty": 3
         },
         {
-          "id": "diamond",
-          "label": "Diamond",
+          "id": "platinum_ingot_0",
+          "label": "Platinum Ingot",
           "qty": 1
         },
         {
@@ -10034,8 +10115,8 @@
       "category": "crafting",
       "inputs": [
         {
-          "id": "plant_fiber_0",
-          "label": "Plant Fiber",
+          "id": "fiber_bundle_0",
+          "label": "Fiber Bundle",
           "qty": 5
         },
         {
@@ -10097,8 +10178,8 @@
       "category": "chemistry",
       "inputs": [
         {
-          "id": "charcoal_lump_0",
-          "label": "Charcoal Lump",
+          "id": "coal_0",
+          "label": "Coal",
           "qty": 1
         },
         {
@@ -10126,8 +10207,8 @@
       "category": "crafting",
       "inputs": [
         {
-          "id": "plant_fiber_0",
-          "label": "Plant Fiber",
+          "id": "fiber_bundle_0",
+          "label": "Fiber Bundle",
           "qty": 3
         },
         {
@@ -10184,8 +10265,8 @@
       "category": "crafting",
       "inputs": [
         {
-          "id": "brass_ingot_0",
-          "label": "Brass Ingot",
+          "id": "copper_ingot_0",
+          "label": "Copper Ingot",
           "qty": 1
         },
         {
@@ -10520,8 +10601,8 @@
       "category": "cooking",
       "inputs": [
         {
-          "id": "rice_0",
-          "label": "Rice",
+          "id": "grain_rice_0",
+          "label": "Grain Rice",
           "qty": 1
         },
         {
@@ -10763,8 +10844,8 @@
       "category": "crafting",
       "inputs": [
         {
-          "id": "brass_ingot_0",
-          "label": "Brass Ingot",
+          "id": "copper_ingot_0",
+          "label": "Copper Ingot",
           "qty": 1
         },
         {
@@ -11198,35 +11279,6 @@
       "description": "Weave a weighted mesh fish trap"
     },
     {
-      "id": "craft_compass",
-      "name": "Assemble Compass",
-      "category": "crafting",
-      "inputs": [
-        {
-          "id": "copper_ingot_0",
-          "label": "Copper Ingot",
-          "qty": 1
-        },
-        {
-          "id": "glass_pane_0",
-          "label": "Glass Pane",
-          "qty": 1
-        }
-      ],
-      "outputs": [
-        {
-          "id": "compass_0",
-          "label": "Compass",
-          "qty": 1
-        }
-      ],
-      "craft_time_sec": 40,
-      "station": "Workbench",
-      "skill": "Woodworking",
-      "skill_level": 3,
-      "description": "Build a magnetic direction indicator"
-    },
-    {
       "id": "craft_binoculars",
       "name": "Assemble Binoculars",
       "category": "crafting",
@@ -11518,28 +11570,100 @@
       "description": "Assemble a complete 1975 Chevy Nova on the factory pad"
     },
     {
-      "id": "refine_fuel",
-      "name": "Refine Fuel",
-      "category": "processing",
+      "id": "bundle_cotton",
+      "name": "Bundle Cotton Fiber",
+      "category": "refining",
       "inputs": [
         {
-          "id": "oil_crude_0",
-          "label": "Oil Crude",
-          "qty": 2
+          "id": "fiber_cotton_0",
+          "label": "Fiber Cotton",
+          "qty": 3
         }
       ],
       "outputs": [
         {
-          "id": "fuel_refined_0",
-          "label": "Fuel Refined",
+          "id": "fiber_bundle_0",
+          "label": "Fiber Bundle",
           "qty": 2
         }
       ],
-      "craft_time_sec": 30,
-      "station": "Fuel Refinery",
-      "skill": "Engineering",
-      "skill_level": 2,
-      "description": "Distill crude oil into refined fuel"
+      "craft_time_sec": 10,
+      "station": "Workbench",
+      "skill": "",
+      "skill_level": 1,
+      "description": "Card and bundle cotton into usable fiber"
+    },
+    {
+      "id": "bundle_flax",
+      "name": "Bundle Flax Fiber",
+      "category": "refining",
+      "inputs": [
+        {
+          "id": "fiber_flax_0",
+          "label": "Fiber Flax",
+          "qty": 3
+        }
+      ],
+      "outputs": [
+        {
+          "id": "fiber_bundle_0",
+          "label": "Fiber Bundle",
+          "qty": 2
+        }
+      ],
+      "craft_time_sec": 10,
+      "station": "Workbench",
+      "skill": "",
+      "skill_level": 1,
+      "description": "Rett and bundle flax into usable fiber"
+    },
+    {
+      "id": "bundle_hemp",
+      "name": "Bundle Hemp Fiber",
+      "category": "refining",
+      "inputs": [
+        {
+          "id": "fiber_hemp_0",
+          "label": "Fiber Hemp",
+          "qty": 3
+        }
+      ],
+      "outputs": [
+        {
+          "id": "fiber_bundle_0",
+          "label": "Fiber Bundle",
+          "qty": 2
+        }
+      ],
+      "craft_time_sec": 10,
+      "station": "Workbench",
+      "skill": "",
+      "skill_level": 1,
+      "description": "Strip and bundle hemp into usable fiber"
+    },
+    {
+      "id": "bundle_jute",
+      "name": "Bundle Jute Fiber",
+      "category": "refining",
+      "inputs": [
+        {
+          "id": "fiber_jute_0",
+          "label": "Fiber Jute",
+          "qty": 3
+        }
+      ],
+      "outputs": [
+        {
+          "id": "fiber_bundle_0",
+          "label": "Fiber Bundle",
+          "qty": 2
+        }
+      ],
+      "craft_time_sec": 10,
+      "station": "Workbench",
+      "skill": "",
+      "skill_level": 1,
+      "description": "Strip and bundle jute into usable fiber"
     }
   ]
 }

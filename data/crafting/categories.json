@@ -1,10 +1,10 @@
 {
-  "_comment": "Hierarchical crafting category tree for the Crafting page sidebar. Each top-level entry is a collapsible GROUP; its `categories` are leaf filters matched case-insensitively against recipe.category. 'All' is rendered first by the page (not listed here). The sidebar is built entirely from this file (infinite-of-X) -- add groups + categories freely; for very large categories, split a recipe's category into finer values and group them here.",
+  "_comment": "Hierarchical crafting category tree for the Crafting page sidebar. Each top-level entry is a collapsible GROUP; its `categories` are leaf filters matched case-insensitively against recipe.category (the `category` column of data/recipes.csv). 'All' is rendered first by the page (not listed here). The sidebar is built entirely from this file (infinite-of-X) -- add groups + categories freely; for very large categories, split a recipe's category into finer values and group them here. Every recipe category must appear in exactly ONE leaf here and every leaf must match at least one recipe, or recipes are reachable only under 'All' / a leaf lists nothing; tests/recipe_sources_lint.rs enforces both.",
   "groups": [
-    { "name": "Production", "categories": ["Smelting", "Refining"] },
-    { "name": "Equipment", "categories": ["Tools", "Weapons"] },
-    { "name": "Construction", "categories": ["Furniture", "Machines"] },
+    { "name": "Production", "categories": ["Smelting", "Refining", "Chemistry"] },
+    { "name": "Fabrication", "categories": ["Crafting", "Assembly"] },
+    { "name": "Construction", "categories": ["Construction"] },
     { "name": "Sustenance", "categories": ["Cooking", "Textile"] },
-    { "name": "Technology", "categories": ["Electronics", "Vehicles", "Medical"] }
+    { "name": "Technology", "categories": ["Electronics"] }
   ]
 }

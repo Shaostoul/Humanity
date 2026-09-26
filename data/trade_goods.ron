@@ -98,7 +98,6 @@
     (id: "linen_cloth_0",     name: "Linen Cloth",        category: "processed",       base_value: 6,    weight_kg: 0.3,   description: "Woven flax fabric, breathable"),
     (id: "leather_0",         name: "Leather",            category: "processed",       base_value: 12,   weight_kg: 1.0,   description: "Tanned hide, durable and flexible"),
     (id: "silk_cloth_0",      name: "Silk Cloth",         category: "processed",       base_value: 25,   weight_kg: 0.2,   description: "Woven silk fabric, luxurious"),
-    (id: "charcoal_0",        name: "Charcoal",           category: "processed",       base_value: 4,    weight_kg: 0.5,   description: "Slow-burned wood carbon for high-heat fuel"),
     (id: "gunpowder_0",       name: "Gunpowder",         category: "processed",       base_value: 15,   weight_kg: 0.3,   description: "Explosive propellant compound"),
     (id: "cement_0",          name: "Cement",             category: "processed",       base_value: 5,    weight_kg: 5.0,   description: "Powdered calcium silicate binding agent"),
     (id: "fuel_refined_0",    name: "Refined Fuel",       category: "processed",       base_value: 10,   weight_kg: 0.8,   description: "Distilled petroleum for engines and generators"),
@@ -327,6 +326,42 @@
     (id: "foundation_0",      name: "Foundation Block",   category: "construction",    base_value: 10,   weight_kg: 50.0,  description: "Concrete foundation for building base"),
 
     // =========================================================================
+    // SEEDS, Planting stock for a first garden (seed_<plant>_0 items; the
+    // price is plants.csv seed_value). A survival harvest returns two seeds,
+    // so one purchase starts a self-sustaining bed.
+    // =========================================================================
+
+    (id: "seed_wheat_0",      name: "Wheat Seeds",        category: "seeds",           base_value: 2,    weight_kg: 0.1,   description: "Bread wheat seed for a staple grain bed"),
+    (id: "seed_corn_0",       name: "Corn Seeds",         category: "seeds",           base_value: 6,    weight_kg: 0.1,   description: "Sweet corn seed for warm-season beds"),
+    (id: "seed_rice_0",       name: "Rice Seeds",         category: "seeds",           base_value: 3,    weight_kg: 0.1,   description: "Paddy rice seed for flooded grain trays"),
+    (id: "seed_barley_0",     name: "Barley Seeds",       category: "seeds",           base_value: 3,    weight_kg: 0.1,   description: "Hardy cool-season cereal seed"),
+    (id: "seed_oat_0",        name: "Oat Seeds",          category: "seeds",           base_value: 3,    weight_kg: 0.1,   description: "Oat seed for cool-season grain and feed"),
+    (id: "seed_potato_0",     name: "Seed Potatoes",      category: "seeds",           base_value: 4,    weight_kg: 0.2,   description: "Seed potatoes for the tuber bed"),
+    (id: "seed_sweet_potato_0", name: "Sweet Potato Slips", category: "seeds",           base_value: 5,    weight_kg: 0.2,   description: "Rooted sweet potato slips for warm soil"),
+    (id: "seed_tomato_0",     name: "Tomato Seeds",       category: "seeds",           base_value: 5,    weight_kg: 0.05,  description: "Tomato seed for warm-season beds"),
+    (id: "seed_carrot_0",     name: "Carrot Seeds",       category: "seeds",           base_value: 3,    weight_kg: 0.05,  description: "Carrot seed for deep loose soil"),
+    (id: "seed_lettuce_0",    name: "Lettuce Seeds",      category: "seeds",           base_value: 2,    weight_kg: 0.05,  description: "Fast salad greens for cool weather"),
+    (id: "seed_spinach_0",    name: "Spinach Seeds",      category: "seeds",           base_value: 2,    weight_kg: 0.05,  description: "Frost-hardy leafy green seed"),
+    (id: "seed_onion_0",      name: "Onion Seeds",        category: "seeds",           base_value: 3,    weight_kg: 0.05,  description: "Onion seed for long-day bulbs"),
+    (id: "seed_garlic_0",     name: "Seed Garlic",        category: "seeds",           base_value: 4,    weight_kg: 0.05,  description: "Garlic bulbs split into planting cloves"),
+    (id: "seed_cabbage_0",    name: "Cabbage Seeds",      category: "seeds",           base_value: 3,    weight_kg: 0.05,  description: "Cabbage seed for cool-season heads"),
+    (id: "seed_squash_0",     name: "Squash Seeds",       category: "seeds",           base_value: 4,    weight_kg: 0.05,  description: "Summer squash seed for compact vines"),
+    (id: "seed_pumpkin_0",    name: "Pumpkin Seeds",      category: "seeds",           base_value: 5,    weight_kg: 0.05,  description: "Pumpkin seed for sprawling vines"),
+    (id: "seed_bean_0",       name: "Bean Seeds",         category: "seeds",           base_value: 4,    weight_kg: 0.1,   description: "Nitrogen-fixing bean seed"),
+    (id: "seed_pea_0",        name: "Pea Seeds",          category: "seeds",           base_value: 3,    weight_kg: 0.05,  description: "Cool-season pea seed"),
+    (id: "seed_basil_0",      name: "Basil Seeds",        category: "seeds",           base_value: 3,    weight_kg: 0.05,  description: "Culinary basil seed"),
+    (id: "seed_sunflower_0",  name: "Sunflower Seeds",    category: "seeds",           base_value: 3,    weight_kg: 0.1,   description: "Oilseed sunflower seed"),
+    (id: "seed_cotton_0",     name: "Cotton Seeds",       category: "seeds",           base_value: 5,    weight_kg: 0.1,   description: "Cotton seed for textile fiber"),
+    (id: "seed_flax_0",       name: "Flax Seeds",         category: "seeds",           base_value: 4,    weight_kg: 0.1,   description: "Flax seed for linen fiber and linseed"),
+    (id: "seed_hemp_0",       name: "Hemp Seeds",         category: "seeds",           base_value: 4,    weight_kg: 0.1,   description: "Hemp seed for rope and cloth fiber"),
+    (id: "seed_jute_0",       name: "Jute Seeds",         category: "seeds",           base_value: 4,    weight_kg: 0.05,  description: "Jute seed for sacking fiber"),
+    (id: "seed_strawberry_0", name: "Strawberry Seeds",   category: "seeds",           base_value: 8,    weight_kg: 0.05,  description: "Strawberry seed for a perennial berry bed"),
+    (id: "seed_apple_0",      name: "Apple Grafted Sapling", category: "seeds",           base_value: 12,   weight_kg: 0.5,   description: "Grafted apple tree ready to plant"),
+    (id: "seed_banana_0",     name: "Banana Suckers",     category: "seeds",           base_value: 10,   weight_kg: 2.0,   description: "Banana suckers for a tropical bed"),
+    (id: "seed_coffee_0",     name: "Coffee Seeds",       category: "seeds",           base_value: 15,   weight_kg: 0.05,  description: "Coffee seed for a tropical shrub"),
+    (id: "seed_oyster_mushroom_0", name: "Oyster Mushroom Spawn", category: "seeds",           base_value: 3,    weight_kg: 0.5,   description: "Grain spawn to inoculate a mushroom rack"),
+
+    // =========================================================================
     // MISCELLANEOUS, Books, maps, rare items, quest objects
     // =========================================================================
 
@@ -338,7 +373,6 @@
     (id: "key_generic_0",     name: "Key",                category: "misc",            base_value: 5,    weight_kg: 0.02,  description: "Metal key for locked doors and chests"),
     (id: "lockpick_0",        name: "Lockpick",           category: "misc",            base_value: 8,    weight_kg: 0.02,  description: "Thin metal pick for opening locks without a key"),
     (id: "paint_can_0",       name: "Paint Can",          category: "misc",            base_value: 10,   weight_kg: 3.0,   description: "Colored paint for customizing structures and vehicles"),
-    (id: "seed_bag_0",        name: "Seed Bag",           category: "misc",            base_value: 3,    weight_kg: 0.5,   description: "Assorted crop seeds for planting"),
     (id: "water_bottle_0",    name: "Water Bottle",       category: "misc",            base_value: 3,    weight_kg: 0.6,   description: "Refillable container holding 0.5L"),
     (id: "flask_0",           name: "Glass Flask",        category: "misc",            base_value: 4,    weight_kg: 0.2,   description: "Laboratory flask for alchemy and chemistry"),
     (id: "glass_vial_0",      name: "Glass Vial",         category: "misc",            base_value: 2,    weight_kg: 0.05,  description: "Small vial for potions and samples"),

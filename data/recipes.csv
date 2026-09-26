@@ -26,6 +26,7 @@ smelt_titanium,Smelt Titanium,smelting,rutile_0:4|coal_0:3,titanium_ingot_0:1,30
 smelt_gold,Smelt Gold,smelting,gold_ore_0:5,gold_ingot_0:1,25,smelter_0,metalworking,4,Refine gold from raw ore
 smelt_silver,Smelt Silver,smelting,silver_ore_0:4,silver_ingot_0:1,20,smelter_0,metalworking,3,Refine silver from raw ore
 smelt_glass,Smelt Glass,smelting,sand_0:3|coal_0:1,glass_pane_0:2,12,smelter_0,metalworking,2,Melt silica sand into clear glass
+draw_glass_fiber,Draw Glass Fiber,smelting,glass_pane_0:1|coal_0:1,glass_fiber_0:1,15,smelter_0,metalworking,3,Remelt glass and draw it through a bushing into continuous fiber
 fire_brick,Fire Brick,smelting,clay_raw_0:4|coal_0:1,stone_brick_0:4,15,kiln_0,metalworking,1,Fire clay into durable bricks
 fire_porcelain,Fire Porcelain,smelting,clay_raw_0:2|sand_0:1|coal_0:1,glass_pane_0:1,20,kiln_0,metalworking,3,Fire fine porcelain ceramic
 #
@@ -33,7 +34,7 @@ fire_porcelain,Fire Porcelain,smelting,clay_raw_0:2|sand_0:1|coal_0:1,glass_pane
 saw_planks,Saw Planks,refining,wood_log_0:1,wood_plank_0:4,5,sawmill_0,,0,Cut a log into flat lumber boards
 saw_planks_hand,Saw Planks by Hand,refining,wood_log_0:1,wood_plank_0:2,15,,woodworking,1,Hand-saw a log into planks
 cut_stone,Cut Stone,refining,stone_raw_0:1,stone_brick_0:2,10,workbench_0,woodworking,1,Shape raw stone into building blocks
-refine_fuel,Refine Fuel,refining,oil_crude_0:2,fuel_refined_0:3,30,fuel_refinery_0,engineering,3,Distill crude oil into usable fuel
+refine_fuel,Refine Fuel,refining,oil_crude_0:2,fuel_refined_0:2,30,fuel_refinery_0,engineering,2,Distill crude oil into refined fuel
 grind_flour,Grind Flour,refining,grain_rice_0:2,flour_0:2,8,grain_mill_0,,0,Mill grain into baking flour
 purify_water,Purify Water,refining,water_bottle_0:2,water_purified_0:2,5,water_purifier_0,,0,Filter and sterilize drinking water
 make_charcoal,Make Charcoal,refining,wood_log_0:3,coal_0:4,20,kiln_0,,0,Carbonize wood into charcoal
@@ -48,6 +49,8 @@ make_plastic,Mold Plastic Sheet,refining,oil_crude_0:1,plastic_sheet_0:3,12,fuel
 weave_cloth,Weave Cloth,refining,fiber_bundle_0:4,cloth_bolt_0:1,15,loom_0,tailoring,1,Weave raw fiber into cotton fabric
 spin_thread,Spin Thread,refining,fiber_bundle_0:2,cloth_bolt_0:1,20,,tailoring,1,Hand-spin fiber into thread and fabric
 make_glue,Make Glue,refining,bone_0:3|water_purified_0:1,glue_0:2,10,stove_0,,0,Boil bones into adhesive glue
+render_tallow,Render Tallow,refining,raw_mutton_0:3,animal_fat_0:1,40,stove_0,cooking,1,Slowly melt the fat out of mutton trimmings and strain it to set as tallow
+mold_salt_block,Mold Salt Block,refining,salt_food_0:4|water_purified_0:1,salt_block_0:1,30,stove_0,,0,Pack damp salt into a mold and dry it hard over low heat into a solid block
 make_paint,Make Paint,refining,oil_crude_0:1|clay_raw_0:1,paint_0:2,8,chemistry_set_0,,0,Mix pigment with binder for paint
 #
 # === TOOL CRAFTING ===
@@ -213,7 +216,7 @@ build_oven,Build Oven,assembly,steel_ingot_0:5|stone_brick_0:4|wire_0:2,oven_0:1
 build_fridge,Build Fridge,assembly,steel_ingot_0:4|wire_0:3|copper_ingot_0:2|rubber_sheet_0:1,fridge_0:1,50,workbench_0,engineering,3,Assemble a refrigerated storage unit
 build_generator,Build Portable Generator,assembly,steel_ingot_0:5|copper_ingot_0:3|wire_0:4|rubber_sheet_0:1,generator_portable_0:1,60,workbench_0,engineering,4,Assemble a 2kW gasoline generator
 build_solar_panel,Build Solar Panel,assembly,glass_pane_0:4|wire_0:3|aluminum_ingot_0:2,solar_panel_0:1,40,electronics_bench_0,engineering,3,Assemble a photovoltaic panel
-build_wind_turbine,Build Wind Turbine,assembly,aluminum_ingot_0:4|wire_0:4|steel_ingot_0:3|fiberglass:2,wind_turbine_small_0:1,60,workbench_0,engineering,4,Construct a rooftop wind generator
+build_wind_turbine,Build Wind Turbine,assembly,aluminum_ingot_0:4|wire_0:4|steel_ingot_0:3|fiberglass_sheet_0:2,wind_turbine_small_0:1,60,workbench_0,engineering,4,Construct a rooftop wind generator
 build_water_pump,Build Water Pump,assembly,steel_ingot_0:3|rubber_sheet_0:1|wire_0:2|copper_ingot_0:1,water_pump_0:1,30,workbench_0,engineering,2,Assemble an electric water pump
 build_water_purifier,Build Water Purifier,assembly,steel_ingot_0:2|carbon_fiber_sheet_0:1|plastic_sheet_0:2,water_purifier_0:1,25,workbench_0,engineering,2,Construct a filtration treatment unit
 build_heater,Build Heater,assembly,steel_ingot_0:2|wire_0:3|copper_ingot_0:1,heater_0:1,20,workbench_0,engineering,2,Assemble an electric space heater
@@ -254,7 +257,7 @@ build_ladder,Build Ladder,assembly,aluminum_ingot_0:2|bolt_box_0:1,ladder_0:1,15
 #
 # === MEDICAL / CHEMISTRY ===
 craft_bandage,Craft Bandage,chemistry,cloth_bolt_0:1,bandage_0:5,5,,medicine,0,Cut and roll sterile wound dressings
-craft_medkit,Assemble Medkit,chemistry,bandage_0:5|antiseptic_0:2|splint_0:1|painkiller_0:3,medkit_0:1,15,workbench_0,medicine,2,Pack a complete first-aid kit
+craft_medkit,Assemble Medkit,chemistry,bandage_0:5|antiseptic_0:2|splint_0:1|painkillers_0:3,medkit_0:1,15,workbench_0,medicine,2,Pack a complete first-aid kit
 craft_splint,Craft Splint,chemistry,aluminum_ingot_0:1|cloth_bolt_0:1,splint_0:3,8,workbench_0,medicine,1,Bend and pad fracture immobilizers
 craft_antiseptic,Brew Antiseptic,chemistry,water_purified_0:2|salt_food_0:1,antiseptic_0:3,10,chemistry_set_0,medicine,1,Distill wound disinfectant solution
 craft_fire_extinguisher,Build Fire Extinguisher,chemistry,steel_ingot_0:2|water_purified_0:2,fire_extinguisher_0:1,15,workbench_0,engineering,2,Pressurize a fire suppression unit
@@ -263,7 +266,6 @@ craft_fertilizer,Compost Fertilizer,chemistry,seed_wheat_0:3|water_purified_0:1,
 #
 # === MISCELLANEOUS ===
 craft_compass,Craft Compass,crafting,iron_ingot_0:1|glass_pane_0:1,compass_0:1,10,workbench_0,woodworking,1,Magnetize a needle in a glass housing
-craft_binoculars,Build Binoculars,crafting,glass_pane_0:2|aluminum_ingot_0:1,binoculars_0:1,15,workbench_0,woodworking,2,Grind lenses and mount in tubes
 craft_lamp_floor,Build Floor Lamp,crafting,steel_ingot_0:2|wire_0:1|glass_pane_0:1,lamp_floor_0:1,15,workbench_0,woodworking,2,Assemble a standing room light
 craft_lamp_desk,Build Desk Lamp,crafting,aluminum_ingot_0:1|wire_0:1|glass_pane_0:1,lamp_desk_0:1,10,workbench_0,woodworking,1,Assemble an adjustable task light
 craft_chandelier,Build Chandelier,crafting,steel_ingot_0:2|wire_0:3|glass_pane_0:3,chandelier_0:1,25,workbench_0,woodworking,3,Assemble a suspended multi-light fixture
@@ -273,6 +275,7 @@ craft_grain_silo,Build Grain Silo,assembly,steel_ingot_0:8|bolt_box_0:4|concrete
 #
 # === ADVANCED MATERIALS ===
 craft_carbon_fiber,Synthesize Carbon Fiber,chemistry,coal_0:4|plastic_sheet_0:2|oil_crude_0:1,carbon_fiber_sheet_0:2,60,chemistry_set_0,engineering,4,Pyrolyze polymer precursor into carbon composite
+craft_fiberglass,Lay Up Fiberglass,chemistry,glass_fiber_0:1|oil_crude_0:2,fiberglass_sheet_0:2,45,chemistry_set_0,engineering,3,Wet glass fiber with polyester resin made from crude oil and cure it into rigid sheet
 craft_titanium_alloy,Forge Titanium Alloy,smelting,titanium_ingot_0:2|aluminum_ingot_0:1|steel_ingot_0:1,titanium_ingot_0:4,45,smelter_0,metalworking,5,Alloy titanium with aluminum and steel for strength
 craft_ceramic_composite,Fire Ceramic Composite,smelting,clay_raw_0:3|sand_0:2|carbon_fiber_sheet_0:1,concrete_block_0:4,40,kiln_0,metalworking,4,Sinter ceramic matrix with carbon reinforcement
 craft_optical_fiber,Draw Optical Fiber,electronics,glass_pane_0:3|plastic_sheet_0:1,wire_0:6,35,electronics_bench_0,engineering,4,Draw silica glass into light-transmitting strands
@@ -297,7 +300,7 @@ manufacture_camera,Manufacture Camera,electronics,glass_pane_0:2|wire_0:2|circui
 #
 # === MEDICAL CRAFTING ===
 craft_bandage_sterile,Craft Sterile Bandage,chemistry,cloth_bolt_0:1|water_purified_0:1,bandage_0:8,8,,medicine,0,Cut and sterilize wound dressing strips
-craft_medkit_full,Assemble Full Medkit,chemistry,bandage_0:5|splint_0:2|painkiller_0:5|antibiotic_0:3,medkit_0:1,20,workbench_0,medicine,3,Pack a comprehensive field medical kit
+craft_medkit_full,Assemble Full Medkit,chemistry,bandage_0:5|splint_0:2|painkillers_0:5|antibiotics_0:3,medkit_0:1,20,workbench_0,medicine,3,Pack a comprehensive field medical kit
 craft_splint_padded,Craft Padded Splint,chemistry,aluminum_ingot_0:1|cloth_bolt_0:2,splint_0:4,10,workbench_0,medicine,1,Bend and cushion fracture immobilizers
 craft_painkillers,Synthesize Painkillers,chemistry,water_purified_0:2|coal_0:1|salt_food_0:1,painkillers_0:10,30,chemistry_set_0,medicine,3,Extract and tablet analgesic compounds
 craft_antibiotics,Culture Antibiotics,chemistry,water_purified_0:3|flour_0:1|sugar_0:1,antibiotics_0:5,60,chemistry_set_0,medicine,4,Culture and extract antimicrobial compounds
@@ -384,7 +387,7 @@ craft_amulet,Carve Amulet,crafting,silver_ingot_0:1,amulet_protective_0:1,45,anv
 # === BOOK / WRITING CRAFTING ===
 craft_book_blank,Bind Blank Book,crafting,fiber_bundle_0:5|leather_hide_0:1|glue_0:1,book_blank_0:1,60,workbench_0,woodworking,2,Sew and bind paper into a blank book
 craft_pencil,Make Pencil,crafting,wood_plank_0:1|coal_0:1,pencil_0:5,15,workbench_0,woodworking,1,Glue graphite core into wooden sticks
-craft_ink,Brew Ink,chemistry,charcoal_lump_0:1|water_purified_0:1,ink_bottle_0:1,30,chemistry_set_0,alchemy,2,Combine carbon and binder into writing fluid
+craft_ink,Brew Ink,chemistry,coal_0:1|water_purified_0:1,ink_bottle_0:1,30,chemistry_set_0,alchemy,2,Combine carbon and binder into writing fluid
 craft_notebook,Bind Notebook,crafting,fiber_bundle_0:3|wire_0:1,notebook_0:1,30,workbench_0,woodworking,1,Spiral-bind paper into a notebook
 #
 # === LIGHTING CRAFTING ===
@@ -428,7 +431,6 @@ craft_tent_2person,Sew Two-Person Tent,textile,cloth_bolt_0:4|rope_0:2|aluminum_
 craft_sleeping_bag,Sew Sleeping Bag,textile,cloth_bolt_0:3|fiber_bundle_0:2,sleeping_bag_0:1,60,sewing_machine_0,tailoring,2,Sew an insulated portable bedroll
 craft_fishing_rod,Carve Fishing Rod,crafting,wood_plank_0:1|wire_0:1,fishing_rod_0:1,30,workbench_0,woodworking,1,Carve a reel-and-line fish capture pole
 craft_fishing_net,Weave Fishing Net,textile,cloth_bolt_0:3|rope_0:1,fishing_net_0:1,45,sewing_machine_0,tailoring,2,Weave a weighted mesh fish trap
-craft_compass,Assemble Compass,crafting,copper_ingot_0:1|glass_pane_0:1,compass_0:1,40,workbench_0,woodworking,3,Build a magnetic direction indicator
 craft_binoculars,Assemble Binoculars,crafting,plastic_sheet_0:2|glass_pane_0:2,binoculars_0:1,60,workbench_0,woodworking,3,Build a twin-tube long-range optic
 assemble_truck_kit,Assemble Pickup Truck Kit,crafting,steel_ingot_0:12|iron_ingot_0:6|rubber_sheet_0:4,truck_pickup_kit_0:1,90,workbench_0,metalworking,2,Bolt together a flat-packed pickup truck kit
 assemble_rover_kit,Assemble Rover Kit,crafting,steel_ingot_0:6|iron_ingot_0:4|rubber_sheet_0:4,rover_kit_0:1,60,workbench_0,metalworking,2,Bolt together a flat-packed rover kit
@@ -438,7 +440,6 @@ smelt_iron_graphite,Smelt Iron (graphite),smelting,iron_ore_0:2|graphite_0:1,iro
 smelt_copper_graphite,Smelt Copper (graphite),smelting,copper_ore_0:2|graphite_0:1,copper_ingot_0:1,10,smelter_0,metalworking,1,Reduce copper ore using asteroid graphite
 smelt_nickel_graphite,Smelt Nickel (graphite),smelting,nickel_ore_0:2|graphite_0:1,nickel_ingot_0:1,10,smelter_0,metalworking,2,Reduce nickel ore using asteroid graphite
 assemble_nova,Assemble 1975 Chevy Nova,crafting,steel_ingot_0:14|iron_ingot_0:6|rubber_sheet_0:4|glass_pane_0:4,car_nova_1975_0:1,240,vehicle_assembler_0,metalworking,3,Assemble a complete 1975 Chevy Nova on the factory pad
-refine_fuel,Refine Fuel,processing,oil_crude_0:2,fuel_refined_0:2,30,fuel_refinery_0,engineering,2,Distill crude oil into refined fuel
 bundle_cotton,Bundle Cotton Fiber,refining,fiber_cotton_0:3,fiber_bundle_0:2,10,workbench_0,,0,Card and bundle cotton into usable fiber
 bundle_flax,Bundle Flax Fiber,refining,fiber_flax_0:3,fiber_bundle_0:2,10,workbench_0,,0,Rett and bundle flax into usable fiber
 bundle_hemp,Bundle Hemp Fiber,refining,fiber_hemp_0:3,fiber_bundle_0:2,10,workbench_0,,0,Strip and bundle hemp into usable fiber

@@ -189,8 +189,6 @@ spice_mix_0,Spice Mix,food,seasoning,plant_fiber,0.05,30,0,Assorted cooking spic
 # === MEDICAL ===
 bandage_0,Bandage,food,medical,cotton,0.05,30,0,Sterile wound dressing strip,solid,0.07
 medkit_0,Medkit,food,medical,abs_plastic,1.0,5,0,Complete first-aid supply box,solid,2.12
-painkiller_0,Painkiller,food,medical,abs_plastic,0.02,50,0,Over-the-counter analgesic tablet,solid,0.04
-antibiotic_0,Antibiotic,food,medical,abs_plastic,0.02,50,0,Broad-spectrum antibiotic dose,solid,0.04
 antidote_0,Antidote,food,medical,glass,0.1,20,0,General anti-toxin vial,solid,0.09
 stimulant_0,Stimulant,food,medical,abs_plastic,0.02,30,0,Adrenaline boost injection,solid,0.04
 vitamins_0,Vitamins,food,medical,abs_plastic,0.05,30,0,Daily multivitamin bottle,solid,0.11
@@ -243,7 +241,7 @@ paint_0,Paint,material,finish,acrylic,1.0,10,0,Acrylic paint can 1L,flammable,1.
 fertilizer_0,Fertilizer,material,agricultural,plant_fiber,2.0,10,0,Nutrient-rich plant food bag,dry_goods,2.78
 seed_wheat_0,Wheat Seeds,material,seed,plant_fiber,0.1,50,0,Planting grain seeds packet,dry_goods,0.14
 seed_corn_0,Corn Seeds,material,seed,plant_fiber,0.1,50,0,Planting maize seeds packet,dry_goods,0.14
-seed_potato_0,Potato Seeds,material,seed,plant_fiber,0.2,30,0,Seed potato tuber set,dry_goods,0.28
+seed_potato_0,Seed Potatoes,material,seed,plant_fiber,0.2,30,0,Seed potato tuber set,dry_goods,0.28
 seed_tomato_0,Tomato Seeds,material,seed,plant_fiber,0.05,50,0,Planting tomato seeds packet,dry_goods,0.07
 seed_carrot_0,Carrot Seeds,material,seed,plant_fiber,0.05,50,0,Planting carrot seeds packet,dry_goods,0.07
 seed_lettuce_0,Lettuce Seeds,material,seed,plant_fiber,0.05,50,0,Planting lettuce seeds packet,dry_goods,0.07
@@ -257,6 +255,8 @@ fiber_bundle_0,Fiber Bundle,material,raw,plant_fiber,0.5,20,0,Raw plant fiber bu
 rubber_sheet_0,Rubber Sheet,material,processed,rubber,1.0,10,0,Flat vulcanized rubber panel,solid,1.52
 plastic_sheet_0,Plastic Sheet,material,processed,hdpe,0.5,20,0,Flat polyethylene panel,solid,0.87
 carbon_fiber_sheet_0,Carbon Fiber Sheet,material,processed,carbon_fiber_mat,0.3,10,0,Woven carbon composite panel,solid,0.31
+glass_fiber_0,Glass Fiber Roving,material,processed,glass,2.4,10,0,Spool of continuous drawn glass filament,solid,2.00
+fiberglass_sheet_0,Fiberglass Sheet,material,processed,fiberglass,1.8,10,0,Rigid glass-reinforced polyester laminate panel,solid,1.00
 leather_hide_0,Leather Hide,material,raw,leather,2.0,5,0,Tanned animal skin piece,solid,3.88
 cloth_bolt_0,Cloth Bolt,material,processed,cotton,1.0,10,0,Rolled cotton fabric length,solid,1.08
 #
@@ -510,12 +510,11 @@ towel_0,Towel,tool,hygiene,cotton,0.4,5,80,Absorbent body-drying cloth,solid,0.7
 # === SPECIALTY MATERIALS ===
 beeswax_0,Beeswax,material,raw,plant_fiber,0.3,20,0,Natural hive wax block,solid,0.42
 animal_fat_0,Animal Fat,material,raw,plant_fiber,0.5,20,0,Rendered tallow chunk,solid,0.69
-charcoal_lump_0,Charcoal Lump,material,fuel,charcoal,0.6,30,0,Pyrolyzed wood fuel,dry_goods,2.50
 salt_block_0,Salt Block,material,mineral,salt,2.0,10,0,Compressed mineral salt slab,solid,1.54
 # Garden plant seeds for the curated towers (v0.398): one seed item per
 # distinct tower variety so survival-mode planting has something to consume.
 # Plot-agnostic (a seed plants a crop in any plot type, not just aeroponics).
-seed_aloe_vera_0,Aloe Vera Seeds,material,seed,plant_fiber,0.05,50,0,Planting aloe vera seeds packet,dry_goods,0.07
+seed_aloe_vera_0,Aloe Vera Pups,material,seed,plant_fiber,0.05,50,0,Offset pups divided from a mother aloe,dry_goods,0.07
 seed_basil_0,Basil Seeds,material,seed,plant_fiber,0.05,50,0,Planting basil seeds packet,dry_goods,0.07
 seed_beet_0,Beet Seeds,material,seed,plant_fiber,0.05,50,0,Planting beet seeds packet,dry_goods,0.07
 seed_broccoli_0,Broccoli Seeds,material,seed,plant_fiber,0.05,50,0,Planting broccoli seeds packet,dry_goods,0.07
@@ -527,21 +526,21 @@ seed_chamomile_0,Chamomile Seeds,material,seed,plant_fiber,0.05,50,0,Planting ch
 seed_chickpea_0,Chickpea Seeds,material,seed,plant_fiber,0.05,50,0,Planting chickpea seeds packet,dry_goods,0.07
 seed_chive_0,Chive Seeds,material,seed,plant_fiber,0.05,50,0,Planting chive seeds packet,dry_goods,0.07
 seed_cilantro_0,Cilantro Seeds,material,seed,plant_fiber,0.05,50,0,Planting cilantro seeds packet,dry_goods,0.07
-seed_comfrey_0,Comfrey Seeds,material,seed,plant_fiber,0.05,50,0,Planting comfrey seeds packet,dry_goods,0.07
+seed_comfrey_0,Comfrey Root Cuttings,material,seed,plant_fiber,0.05,50,0,Comfrey root sections for planting,dry_goods,0.07
 seed_cucumber_0,Cucumber Seeds,material,seed,plant_fiber,0.05,50,0,Planting cucumber seeds packet,dry_goods,0.07
 seed_dill_0,Dill Seeds,material,seed,plant_fiber,0.05,50,0,Planting dill seeds packet,dry_goods,0.07
 seed_echinacea_0,Echinacea Seeds,material,seed,plant_fiber,0.05,50,0,Planting echinacea seeds packet,dry_goods,0.07
 seed_eggplant_0,Eggplant Seeds,material,seed,plant_fiber,0.05,50,0,Planting eggplant seeds packet,dry_goods,0.07
 seed_feverfew_0,Feverfew Seeds,material,seed,plant_fiber,0.05,50,0,Planting feverfew seeds packet,dry_goods,0.07
-seed_garlic_0,Garlic Seeds,material,seed,plant_fiber,0.05,50,0,Planting garlic seeds packet,dry_goods,0.07
-seed_ginger_0,Ginger Seeds,material,seed,plant_fiber,0.05,50,0,Planting ginger seeds packet,dry_goods,0.07
-seed_hop_0,Hop Seeds,material,seed,plant_fiber,0.05,50,0,Planting hop seeds packet,dry_goods,0.07
+seed_garlic_0,Seed Garlic,material,seed,plant_fiber,0.05,50,0,Garlic bulb split into cloves for planting,dry_goods,0.07
+seed_ginger_0,Ginger Seed Rhizomes,material,seed,plant_fiber,0.05,50,0,Sprouting ginger rhizome pieces for planting,dry_goods,0.07
+seed_hop_0,Hop Rhizomes,material,seed,plant_fiber,0.05,50,0,Dormant hop rhizome cuttings for planting,dry_goods,0.07
 seed_kale_0,Kale Seeds,material,seed,plant_fiber,0.05,50,0,Planting kale seeds packet,dry_goods,0.07
 seed_lavender_0,Lavender Seeds,material,seed,plant_fiber,0.05,50,0,Planting lavender seeds packet,dry_goods,0.07
 seed_leek_0,Leek Seeds,material,seed,plant_fiber,0.05,50,0,Planting leek seeds packet,dry_goods,0.07
-seed_lemongrass_0,Lemongrass Seeds,material,seed,plant_fiber,0.05,50,0,Planting lemongrass seeds packet,dry_goods,0.07
+seed_lemongrass_0,Lemongrass Stalks,material,seed,plant_fiber,0.05,50,0,Rooting lemongrass stalks for planting,dry_goods,0.07
 seed_lentil_0,Lentil Seeds,material,seed,plant_fiber,0.05,50,0,Planting lentil seeds packet,dry_goods,0.07
-seed_mint_0,Mint Seeds,material,seed,plant_fiber,0.05,50,0,Planting mint seeds packet,dry_goods,0.07
+seed_mint_0,Mint Cuttings,material,seed,plant_fiber,0.05,50,0,Rooted mint stem cuttings for planting,dry_goods,0.07
 seed_okra_0,Okra Seeds,material,seed,plant_fiber,0.05,50,0,Planting okra seeds packet,dry_goods,0.07
 seed_onion_0,Onion Seeds,material,seed,plant_fiber,0.05,50,0,Planting onion seeds packet,dry_goods,0.07
 seed_oregano_0,Oregano Seeds,material,seed,plant_fiber,0.05,50,0,Planting oregano seeds packet,dry_goods,0.07
@@ -550,15 +549,15 @@ seed_parsnip_0,Parsnip Seeds,material,seed,plant_fiber,0.05,50,0,Planting parsni
 seed_pea_0,Pea Seeds,material,seed,plant_fiber,0.05,50,0,Planting pea seeds packet,dry_goods,0.07
 seed_pepper_0,Bell Pepper Seeds,material,seed,plant_fiber,0.05,50,0,Planting bell pepper seeds packet,dry_goods,0.07
 seed_radish_0,Radish Seeds,material,seed,plant_fiber,0.05,50,0,Planting radish seeds packet,dry_goods,0.07
-seed_rosemary_0,Rosemary Seeds,material,seed,plant_fiber,0.05,50,0,Planting rosemary seeds packet,dry_goods,0.07
-seed_saffron_0,Saffron Seeds,material,seed,plant_fiber,0.05,50,0,Planting saffron seeds packet,dry_goods,0.07
+seed_rosemary_0,Rosemary Cuttings,material,seed,plant_fiber,0.05,50,0,Rooted rosemary stem cuttings for planting,dry_goods,0.07
+seed_saffron_0,Saffron Corms,material,seed,plant_fiber,0.05,50,0,Dormant saffron crocus corms for planting,dry_goods,0.07
 seed_sage_0,Sage Seeds,material,seed,plant_fiber,0.05,50,0,Planting sage seeds packet,dry_goods,0.07
 seed_soybean_0,Soybean Seeds,material,seed,plant_fiber,0.05,50,0,Planting soybean seeds packet,dry_goods,0.07
 seed_spinach_0,Spinach Seeds,material,seed,plant_fiber,0.05,50,0,Planting spinach seeds packet,dry_goods,0.07
 seed_st_johns_wort_0,St. Johns Wort Seeds,material,seed,plant_fiber,0.05,50,0,Planting st. johns wort seeds packet,dry_goods,0.07
 seed_strawberry_0,Strawberry Seeds,material,seed,plant_fiber,0.05,50,0,Planting strawberry seeds packet,dry_goods,0.07
 seed_thyme_0,Thyme Seeds,material,seed,plant_fiber,0.05,50,0,Planting thyme seeds packet,dry_goods,0.07
-seed_turmeric_0,Turmeric Seeds,material,seed,plant_fiber,0.05,50,0,Planting turmeric seeds packet,dry_goods,0.07
+seed_turmeric_0,Turmeric Seed Rhizomes,material,seed,plant_fiber,0.05,50,0,Sprouting turmeric rhizome pieces for planting,dry_goods,0.07
 seed_turnip_0,Turnip Seeds,material,seed,plant_fiber,0.05,50,0,Planting turnip seeds packet,dry_goods,0.07
 seed_valerian_0,Valerian Seeds,material,seed,plant_fiber,0.05,50,0,Planting valerian seeds packet,dry_goods,0.07
 seed_zucchini_0,Zucchini Seeds,material,seed,plant_fiber,0.05,50,0,Planting zucchini seeds packet,dry_goods,0.07
@@ -577,6 +576,141 @@ seed_rye_0,Rye Seeds,material,seed,plant_fiber,0.1,50,0,Planting rye seeds packe
 seed_sorghum_0,Sorghum Seeds,material,seed,plant_fiber,0.1,50,0,Planting sorghum seeds packet,dry_goods,0.14
 seed_millet_0,Millet Seeds,material,seed,plant_fiber,0.1,50,0,Planting millet seeds packet,dry_goods,0.14
 seed_sunflower_0,Sunflower Seeds,material,seed,plant_fiber,0.1,50,0,Planting sunflower seeds packet,dry_goods,0.14
+# Seeds and other planting stock for every plants.csv row that had none (2026-09-25).
+# The id stays seed_<plant>_0 for ALL of them because src/systems/farming plants from
+# that id and a survival harvest returns two of it. The NAME says what is really
+# planted: grafted saplings for fruit cultivars that do not come true from seed
+# cuttings/canes/pads for shrubs and vines tubers/bulbs/corms/crowns/rhizomes for
+# root crops and flowers suckers or offshoots for bananas and palms and spawn for
+# mushrooms. tests/recipe_sources_lint.rs fails if a plant is ever left without one.
+seed_pumpkin_0,Pumpkin Seeds,material,seed,plant_fiber,0.05,50,0,Planting pumpkin seeds packet,dry_goods,0.07
+seed_squash_0,Squash Seeds,material,seed,plant_fiber,0.05,50,0,Planting squash seeds packet,dry_goods,0.07
+seed_asparagus_0,Asparagus Crowns,material,seed,plant_fiber,0.2,30,0,Dormant bare-root asparagus crowns for planting,dry_goods,0.28
+seed_artichoke_0,Artichoke Seeds,material,seed,plant_fiber,0.05,50,0,Planting artichoke seeds packet,dry_goods,0.07
+seed_sweet_potato_0,Sweet Potato Slips,material,seed,plant_fiber,0.2,30,0,Rooted sweet potato sprouts for planting,solid,0.28
+seed_apple_0,Apple Grafted Sapling,material,seed,plant_fiber,0.5,10,0,Grafted nursery apple tree for planting,solid,0.69
+seed_orange_0,Orange Grafted Sapling,material,seed,plant_fiber,0.5,10,0,Grafted nursery orange tree for planting,solid,0.69
+seed_lemon_0,Lemon Grafted Sapling,material,seed,plant_fiber,0.5,10,0,Grafted nursery lemon tree for planting,solid,0.69
+seed_banana_0,Banana Suckers,material,seed,plant_fiber,2.0,5,0,Sword suckers dug from a banana mat for planting,solid,2.78
+seed_grape_0,Grape Vine Cuttings,material,seed,plant_fiber,0.2,30,0,Dormant hardwood grape cuttings for rooting,solid,0.28
+seed_blueberry_0,Blueberry Cuttings,material,seed,plant_fiber,0.2,30,0,Rooted blueberry cuttings for planting,solid,0.28
+seed_watermelon_0,Watermelon Seeds,material,seed,plant_fiber,0.05,50,0,Planting watermelon seeds packet,dry_goods,0.07
+seed_peach_0,Peach Grafted Sapling,material,seed,plant_fiber,0.5,10,0,Grafted nursery peach tree for planting,solid,0.69
+seed_pear_0,Pear Grafted Sapling,material,seed,plant_fiber,0.5,10,0,Grafted nursery pear tree for planting,solid,0.69
+seed_cherry_0,Cherry Grafted Sapling,material,seed,plant_fiber,0.5,10,0,Grafted nursery cherry tree for planting,solid,0.69
+seed_mango_0,Mango Grafted Sapling,material,seed,plant_fiber,0.5,10,0,Grafted nursery mango tree for planting,solid,0.69
+seed_pineapple_0,Pineapple Crowns,material,seed,plant_fiber,0.2,30,0,Leafy pineapple tops cured for planting,solid,0.28
+seed_coconut_0,Coconut Seed Nuts,material,seed,plant_fiber,1.5,5,0,Whole husked coconuts for sprouting,solid,2.08
+seed_fig_0,Fig Cuttings,material,seed,plant_fiber,0.2,30,0,Rooted fig cuttings for planting,solid,0.28
+seed_pomegranate_0,Pomegranate Seeds,material,seed,plant_fiber,0.05,50,0,Planting pomegranate seeds packet,dry_goods,0.07
+seed_cranberry_0,Cranberry Cuttings,material,seed,plant_fiber,0.2,30,0,Rooted cranberry runner cuttings for planting,solid,0.28
+seed_plum_0,Plum Grafted Sapling,material,seed,plant_fiber,0.5,10,0,Grafted nursery plum tree for planting,solid,0.69
+seed_cinnamon_0,Cinnamon Seeds,material,seed,plant_fiber,0.05,50,0,Planting cinnamon seeds packet,dry_goods,0.07
+seed_oak_0,Oak Acorns,material,seed,plant_fiber,0.2,30,0,Fresh acorns kept moist for sowing,solid,0.28
+seed_pine_0,Pine Seeds,material,seed,plant_fiber,0.05,50,0,Planting pine seeds packet,dry_goods,0.07
+seed_birch_0,Birch Seeds,material,seed,plant_fiber,0.05,50,0,Planting birch seeds packet,dry_goods,0.07
+seed_maple_0,Maple Seeds,material,seed,plant_fiber,0.05,50,0,Planting maple seeds packet,dry_goods,0.07
+seed_willow_0,Willow Cuttings,material,seed,plant_fiber,0.2,30,0,Hardwood willow whips for rooting,solid,0.28
+seed_bamboo_0,Bamboo Rhizome Divisions,material,seed,plant_fiber,1.0,10,0,Rhizome sections with culm buds for planting,solid,1.39
+seed_palm_0,Palm Seeds,material,seed,plant_fiber,0.1,50,0,Planting palm seeds packet,dry_goods,0.14
+seed_redwood_0,Redwood Seeds,material,seed,plant_fiber,0.05,50,0,Planting redwood seeds packet,dry_goods,0.07
+seed_eucalyptus_0,Eucalyptus Seeds,material,seed,plant_fiber,0.05,50,0,Planting eucalyptus seeds packet,dry_goods,0.07
+seed_baobab_0,Baobab Seeds,material,seed,plant_fiber,0.05,50,0,Planting baobab seeds packet,dry_goods,0.07
+seed_cherry_blossom_0,Cherry Blossom Grafted Sapling,material,seed,plant_fiber,0.5,10,0,Grafted nursery flowering cherry for planting,solid,0.69
+seed_ginseng_0,Ginseng Seeds,material,seed,plant_fiber,0.05,50,0,Stratified ginseng seeds packet,dry_goods,0.07
+seed_tea_tree_0,Tea Tree Cuttings,material,seed,plant_fiber,0.2,30,0,Rooted tea tree cuttings for planting,solid,0.28
+seed_witch_hazel_0,Witch Hazel Seeds,material,seed,plant_fiber,0.05,50,0,Planting witch hazel seeds packet,dry_goods,0.07
+seed_rose_0,Rose Cuttings,material,seed,plant_fiber,0.2,30,0,Rooted rose cuttings for planting,solid,0.28
+seed_tulip_0,Tulip Bulbs,material,seed,plant_fiber,0.2,30,0,Dormant tulip bulbs for planting,dry_goods,0.28
+seed_orchid_0,Orchid Seedlings,material,seed,plant_fiber,0.2,30,0,Flask-grown orchid seedlings ready to pot,solid,0.28
+seed_lily_0,Lily Bulbs,material,seed,plant_fiber,0.2,30,0,Dormant lily bulbs for planting,dry_goods,0.28
+seed_dahlia_0,Dahlia Tubers,material,seed,plant_fiber,0.2,30,0,Dormant dahlia tuber clumps for planting,dry_goods,0.28
+seed_marigold_0,Marigold Seeds,material,seed,plant_fiber,0.05,50,0,Planting marigold seeds packet,dry_goods,0.07
+seed_jasmine_0,Jasmine Cuttings,material,seed,plant_fiber,0.2,30,0,Rooted jasmine cuttings for planting,solid,0.28
+seed_cotton_0,Cotton Seeds,material,seed,plant_fiber,0.1,50,0,Planting cotton seeds packet,dry_goods,0.14
+seed_flax_0,Flax Seeds,material,seed,plant_fiber,0.1,50,0,Planting flax seeds packet,dry_goods,0.14
+seed_rubber_tree_0,Rubber Tree Seeds,material,seed,plant_fiber,0.1,50,0,Planting rubber tree seeds packet,dry_goods,0.14
+seed_sugarcane_0,Sugarcane Setts,material,seed,plant_fiber,0.5,10,0,Cane stem sections with buds for planting,solid,0.69
+seed_tobacco_0,Tobacco Seeds,material,seed,plant_fiber,0.05,50,0,Planting tobacco seeds packet,dry_goods,0.07
+seed_hemp_0,Hemp Seeds,material,seed,plant_fiber,0.1,50,0,Planting hemp seeds packet,dry_goods,0.14
+seed_jute_0,Jute Seeds,material,seed,plant_fiber,0.05,50,0,Planting jute seeds packet,dry_goods,0.07
+seed_peanut_0,Peanut Seeds,material,seed,plant_fiber,0.1,50,0,Planting peanut seeds packet,dry_goods,0.14
+seed_oyster_mushroom_0,Oyster Mushroom Spawn,material,seed,plant_fiber,0.5,10,0,Live oyster mycelium on sterilized grain,solid,0.69
+seed_shiitake_0,Shiitake Spawn,material,seed,plant_fiber,0.5,10,0,Live shiitake mycelium on hardwood sawdust,solid,0.69
+seed_button_mushroom_0,Button Mushroom Spawn,material,seed,plant_fiber,0.5,10,0,Live button mushroom mycelium on sterilized grain,solid,0.69
+seed_luminous_fern_0,Luminous Fern Spores,material,seed,plant_fiber,0.05,50,0,Planting luminous fern spores packet,dry_goods,0.07
+seed_void_orchid_0,Void Orchid Seeds,material,seed,plant_fiber,0.05,50,0,Planting void orchid seeds packet,dry_goods,0.07
+seed_crystal_moss_0,Crystal Moss Fragments,material,seed,plant_fiber,0.2,30,0,Living crystal moss fragments for planting,solid,0.28
+seed_plasma_vine_0,Plasma Vine Tendrils,material,seed,plant_fiber,0.2,30,0,Rooting plasma vine tendril cuttings,solid,0.28
+seed_gravity_bloom_0,Gravity Bloom Seeds,material,seed,plant_fiber,0.05,50,0,Planting gravity bloom seeds packet,dry_goods,0.07
+seed_nebula_lily_0,Nebula Lily Seeds,material,seed,plant_fiber,0.05,50,0,Planting nebula lily seeds packet,dry_goods,0.07
+seed_shadow_fungi_0,Shadow Fungi Spores,material,seed,plant_fiber,0.05,50,0,Planting shadow fungi spores packet,dry_goods,0.07
+seed_star_thistle_0,Star Thistle Seeds,material,seed,plant_fiber,0.05,50,0,Planting star thistle seeds packet,dry_goods,0.07
+seed_ember_reed_0,Ember Reed Rhizomes,material,seed,plant_fiber,0.2,30,0,Dormant ember reed rhizome pieces for planting,dry_goods,0.28
+seed_frost_blossom_0,Frost Blossom Seeds,material,seed,plant_fiber,0.05,50,0,Planting frost blossom seeds packet,dry_goods,0.07
+seed_phase_mushroom_0,Phase Mushroom Spores,material,seed,plant_fiber,0.05,50,0,Planting phase mushroom spores packet,dry_goods,0.07
+seed_aether_kelp_0,Aether Kelp Fragments,material,seed,plant_fiber,0.2,30,0,Living aether kelp fragments for planting,solid,0.28
+seed_vanilla_0,Vanilla Vine Cuttings,material,seed,plant_fiber,0.2,30,0,Rooting vanilla vine cuttings,solid,0.28
+seed_coffee_0,Coffee Seeds,material,seed,plant_fiber,0.05,50,0,Planting coffee seeds packet,dry_goods,0.07
+seed_cacao_0,Cacao Seeds,material,seed,plant_fiber,0.1,50,0,Fresh cacao beans for sowing,dry_goods,0.14
+seed_tea_0,Tea Seeds,material,seed,plant_fiber,0.05,50,0,Planting tea seeds packet,dry_goods,0.07
+seed_amaranth_0,Amaranth Seeds,material,seed,plant_fiber,0.1,50,0,Planting amaranth seeds packet,dry_goods,0.14
+seed_dandelion_0,Dandelion Seeds,material,seed,plant_fiber,0.05,50,0,Planting dandelion seeds packet,dry_goods,0.07
+seed_quinoa_0,Quinoa Seeds,material,seed,plant_fiber,0.1,50,0,Planting quinoa seeds packet,dry_goods,0.14
+seed_buckwheat_0,Buckwheat Seeds,material,seed,plant_fiber,0.1,50,0,Planting buckwheat seeds packet,dry_goods,0.14
+seed_teff_0,Teff Seeds,material,seed,plant_fiber,0.1,50,0,Planting teff seeds packet,dry_goods,0.14
+seed_cowpea_0,Cowpea Seeds,material,seed,plant_fiber,0.1,50,0,Planting cowpea seeds packet,dry_goods,0.14
+seed_fava_bean_0,Fava Bean Seeds,material,seed,plant_fiber,0.1,50,0,Planting fava bean seeds packet,dry_goods,0.14
+seed_pigeon_pea_0,Pigeon Pea Seeds,material,seed,plant_fiber,0.1,50,0,Planting pigeon pea seeds packet,dry_goods,0.14
+seed_cassava_0,Cassava Stem Cuttings,material,seed,plant_fiber,0.2,30,0,Mature cassava stem pieces for planting,solid,0.28
+seed_taro_0,Taro Corms,material,seed,plant_fiber,0.2,30,0,Taro corms and cormels for planting,dry_goods,0.28
+seed_yam_0,Yam Setts,material,seed,plant_fiber,0.2,30,0,Cut yam tuber pieces for planting,dry_goods,0.28
+seed_jerusalem_artichoke_0,Jerusalem Artichoke Tubers,material,seed,plant_fiber,0.2,30,0,Jerusalem artichoke tubers for planting,dry_goods,0.28
+seed_rutabaga_0,Rutabaga Seeds,material,seed,plant_fiber,0.05,50,0,Planting rutabaga seeds packet,dry_goods,0.07
+seed_sesame_0,Sesame Seeds,material,seed,plant_fiber,0.1,50,0,Planting sesame seeds packet,dry_goods,0.14
+seed_rapeseed_0,Rapeseed Sowing Seed,material,seed,plant_fiber,0.1,50,0,Planting rapeseed seed packet,dry_goods,0.14
+seed_olive_0,Olive Cuttings,material,seed,plant_fiber,0.2,30,0,Rooted olive cuttings for planting,solid,0.28
+seed_date_palm_0,Date Palm Offshoots,material,seed,plant_fiber,12.0,2,0,Rooted offshoot cut from a mother date palm,solid,16.7
+seed_spelt_0,Spelt Seeds,material,seed,plant_fiber,0.1,50,0,Planting spelt seeds packet,dry_goods,0.14
+seed_finger_millet_0,Finger Millet Seeds,material,seed,plant_fiber,0.1,50,0,Planting finger millet seeds packet,dry_goods,0.14
+seed_camelina_0,Camelina Seeds,material,seed,plant_fiber,0.1,50,0,Planting camelina seeds packet,dry_goods,0.14
+seed_safflower_0,Safflower Seeds,material,seed,plant_fiber,0.1,50,0,Planting safflower seeds packet,dry_goods,0.14
+seed_lupin_0,White Lupin Seeds,material,seed,plant_fiber,0.1,50,0,Planting white lupin seeds packet,dry_goods,0.14
+seed_mung_bean_0,Mung Bean Seeds,material,seed,plant_fiber,0.1,50,0,Planting mung bean seeds packet,dry_goods,0.14
+seed_bambara_groundnut_0,Bambara Groundnut Seeds,material,seed,plant_fiber,0.1,50,0,Planting bambara groundnut seeds packet,dry_goods,0.14
+seed_oca_0,Oca Tubers,material,seed,plant_fiber,0.2,30,0,Oca tubers for planting,dry_goods,0.28
+seed_sugar_beet_0,Sugar Beet Seeds,material,seed,plant_fiber,0.05,50,0,Planting sugar beet seeds packet,dry_goods,0.07
+seed_chestnut_0,Sweet Chestnut Seed Nuts,material,seed,plant_fiber,0.2,30,0,Fresh chestnuts kept moist for sowing,solid,0.28
+seed_hazelnut_0,Hazelnut Seed Nuts,material,seed,plant_fiber,0.2,30,0,Fresh hazelnuts kept moist for sowing,solid,0.28
+seed_walnut_0,Walnut Seed Nuts,material,seed,plant_fiber,0.2,30,0,Fresh walnuts kept moist for sowing,solid,0.28
+seed_breadfruit_0,Breadfruit Root Shoots,material,seed,plant_fiber,0.2,30,0,Suckers raised from breadfruit root cuttings,solid,0.28
+seed_moringa_0,Moringa Seeds,material,seed,plant_fiber,0.05,50,0,Planting moringa seeds packet,dry_goods,0.07
+seed_prickly_pear_0,Prickly Pear Pads,material,seed,plant_fiber,0.2,30,0,Callused cactus pads for planting,solid,0.28
+seed_kidney_bean_0,Kidney Bean Seeds,material,seed,plant_fiber,0.1,50,0,Planting kidney bean seeds packet,dry_goods,0.14
+seed_pinto_bean_0,Pinto Bean Seeds,material,seed,plant_fiber,0.1,50,0,Planting pinto bean seeds packet,dry_goods,0.14
+seed_navy_bean_0,Navy Bean Seeds,material,seed,plant_fiber,0.1,50,0,Planting navy bean seeds packet,dry_goods,0.14
+seed_lima_bean_0,Lima Bean Seeds,material,seed,plant_fiber,0.1,50,0,Planting lima bean seeds packet,dry_goods,0.14
+seed_runner_bean_0,Runner Bean Seeds,material,seed,plant_fiber,0.1,50,0,Planting runner bean seeds packet,dry_goods,0.14
+seed_tepary_bean_0,Tepary Bean Seeds,material,seed,plant_fiber,0.1,50,0,Planting tepary bean seeds packet,dry_goods,0.14
+seed_raspberry_0,Raspberry Canes,material,seed,plant_fiber,0.2,30,0,Bare-root raspberry canes for planting,solid,0.28
+seed_blackcurrant_0,Blackcurrant Cuttings,material,seed,plant_fiber,0.2,30,0,Rooted blackcurrant cuttings for planting,solid,0.28
+seed_gooseberry_0,Gooseberry Cuttings,material,seed,plant_fiber,0.2,30,0,Rooted gooseberry cuttings for planting,solid,0.28
+seed_haskap_0,Haskap Cuttings,material,seed,plant_fiber,0.2,30,0,Rooted haskap cuttings for planting,solid,0.28
+seed_sea_buckthorn_0,Sea Buckthorn Cuttings,material,seed,plant_fiber,0.2,30,0,Rooted sea buckthorn cuttings for planting,solid,0.28
+seed_elderberry_0,Elderberry Cuttings,material,seed,plant_fiber,0.2,30,0,Rooted elderberry cuttings for planting,solid,0.28
+seed_fennel_0,Florence Fennel Seeds,material,seed,plant_fiber,0.05,50,0,Planting florence fennel seeds packet,dry_goods,0.07
+seed_collard_0,Collard Seeds,material,seed,plant_fiber,0.05,50,0,Planting collard seeds packet,dry_goods,0.07
+seed_chard_0,Swiss Chard Seeds,material,seed,plant_fiber,0.05,50,0,Planting swiss chard seeds packet,dry_goods,0.07
+seed_mustard_greens_0,Mustard Greens Seeds,material,seed,plant_fiber,0.05,50,0,Planting mustard greens seeds packet,dry_goods,0.07
+seed_brussels_sprout_0,Brussels Sprout Seeds,material,seed,plant_fiber,0.05,50,0,Planting brussels sprout seeds packet,dry_goods,0.07
+seed_bok_choy_0,Bok Choy Seeds,material,seed,plant_fiber,0.05,50,0,Planting bok choy seeds packet,dry_goods,0.07
+seed_arugula_0,Arugula Seeds,material,seed,plant_fiber,0.05,50,0,Planting arugula seeds packet,dry_goods,0.07
+seed_mache_0,Mache Seeds,material,seed,plant_fiber,0.05,50,0,Planting mache seeds packet,dry_goods,0.07
+seed_chicory_0,Chicory Seeds,material,seed,plant_fiber,0.05,50,0,Planting chicory seeds packet,dry_goods,0.07
+seed_rhubarb_0,Rhubarb Crowns,material,seed,plant_fiber,0.5,10,0,Dormant rhubarb crown divisions for planting,dry_goods,0.69
+seed_horseradish_0,Horseradish Root Cuttings,material,seed,plant_fiber,0.2,30,0,Side-root horseradish cuttings for planting,dry_goods,0.28
+seed_triticale_0,Triticale Seeds,material,seed,plant_fiber,0.1,50,0,Planting triticale seeds packet,dry_goods,0.14
+seed_plantain_0,Plantain Suckers,material,seed,plant_fiber,2.0,5,0,Sword suckers dug from a plantain mat for planting,solid,2.78
 fruit_strawberry_0,Strawberry,food,fruit,plant_fiber,0.3,20,0,Fresh harvested strawberry,solid,0.45
 legume_bean_0,Bean,food,legume,plant_fiber,0.3,20,0,Fresh harvested bean,solid,0.45
 vegetable_cucumber_0,Cucumber,food,vegetable,plant_fiber,0.3,20,0,Fresh harvested cucumber,solid,0.45
@@ -738,7 +872,6 @@ enchanted_stone_0,Enchanted Stone,material,ore,stone,1,20,0,Mineral matter from 
 energy_gland_0,Energy Gland,material,creature_part,organic,0.2,20,0,Organic extract from a creature,solid,0.3
 ether_strand_0,Ether Strand,material,fiber,organic,0.05,20,0,Light material from a creature,solid,0.08
 fang_0,Fang,material,creature_part,bone,0.3,20,0,Skeletal material from a creature,solid,0.45
-fat_0,Fat,food,protein,flesh,0.5,20,0,Rendered creature fat,solid,0.75
 feather_0,Feather,material,fiber,organic,0.05,20,0,Light material from a creature,solid,0.08
 fire_gland_0,Fire Gland,material,creature_part,organic,0.2,20,0,Organic extract from a creature,solid,0.3
 fish_oil_0,Fish Oil,material,creature_part,organic,0.2,20,0,Part harvested from a creature,solid,0.3
