@@ -864,6 +864,11 @@
    "date": "2026-09-26",
    "decision": "v0.1365.0: crop card Light row (lighting::light_now/light_word); pests do not advance offline (recorded in offline-progression.md: harms without a decision; soil draw for offline growth is paid on return); removed three pure-multiplier recipes (craft_battery_charge, craft_titanium_alloy, craft_nanomaterial); sawmill keeps slabs (wood_slab_0 -> make_charcoal_slabs) and bark (bark_0 -> tan_leather at 2x hide weight, Traditional Tanners).",
    "why": "Worked the non-conflicting leftovers while the area and pH agents run. Rubber vulcanization stays on the multiplier list until the pH agent's sulfur item lands (vulcanizing needs sulfur and a raw rubber item; the rubber tree currently harvests a fiber bundle, a defect like flax)."
+  },
+  {
+   "date": "2026-09-26",
+   "decision": "In flight (worktree agents, merge by cherry-pick): (1) harvest per plot from area x crop spacing (plants.csv area_per_plant_m2 + per-plant yields, reads grow_plot_area_m2; crop_nutrition grams_per_yield_unit removed in favour of items.csv mass); (2) soil pH (data/garden/soil_ph.ron, lime/sulfur items, Off/On); (3) crop DLI research as docs/reference/findings/2026-09-26-crop-daily-light-integrals.md (no plants.csv edit; I add a dli column after (1) merges); (4) pollination (data/garden/pollination.ron, farming/pollination.rs, hand-pollinate + bumblebee_hive, Off/On).",
+   "why": "Parallel waves on disjoint files; plants.csv is edited by (1) only, so every other agent was told not to touch it. Merge order: (1) then (2) then (4); DLI column and the renderer drawing plants per plot come after (1). Rubber vulcanization waits for (2)'s sulfur item."
   }
  ],
  "active_scopes_to_avoid": [

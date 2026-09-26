@@ -1121,7 +1121,8 @@ drawn (BUG-089). Next: per-species light need, drawing each plot's plants at
 the crop's spacing, a urine-diverting toilet machine. Pests do not advance
 offline, by the offline-progression rule for anything that harms without a
 decision (recorded in docs/design/offline-progression.md). The crop card
-shows what is lighting each crop. Containers as items (3c) waits on the unified placement
+shows what is lighting each crop. Also in flight: pollination (indoor fruit set, hand-pollinate,
+bumblebee hive) and the research for each crop's own light need. Containers as items (3c) waits on the unified placement
 schema. Progress and open items live at the top of the gap doc.
 
 **Gameplay gap survey (2026-09-25):** `docs/design/gameplay-gaps-2026-09-25.md`
