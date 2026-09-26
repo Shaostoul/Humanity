@@ -109,6 +109,19 @@ date; re-check before trusting one. The container data basis is
   months, so it should not mill the whole store); the workbench keeps 2
   hammers. Without this the mill, now grinding wheat, would have milled the
   Barn's 400 wheat into the backpack.
+- **Crafted goods have a quality grade: DONE 2026-09-26** (v0.1353.0). The
+  six grades designed in `data/manufacturing.ron` (defective, poor,
+  standard, good, excellent, masterwork) were parsed and unused; now a
+  hand-made DURABLE good (anything with an items.csv durability) is graded
+  by the crafter's level in the recipe's skill, with the file's own formula
+  (skill factor plus a random -0.1..0.1). A level-1 crafter makes poor to
+  standard work, a master good work or better. The grade sets how many uses
+  a tool lasts (a defective one breaks at once, a masterwork lasts 2.5x)
+  and what a vendor pays (defective: nothing). Materials and food stay
+  ungraded, so stacks never split six ways; grades never share a stack;
+  the grade survives storage; machines turn out standard goods. The
+  inventory card shows the grade and the real uses left, and the Crafting
+  page shows the grade to expect.
 - **Containers as items (3c): BLOCKED** on the unified placement schema
   (Tier B in PRIORITIES.md). The walk-up machine card and every vessel are
   tied to `data/machines/home.ron` placements; a container that can be

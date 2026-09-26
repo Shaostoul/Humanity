@@ -1634,6 +1634,14 @@ material (`data/containers/materials.csv`) refuses what it reacts with.
 - Data: `data/containers/types.csv`, `materials.csv`, `content_traits.ron`, `data/machines/home.ron`
 - Design: `docs/design/containers.md`
 
+### Quality Grades for Crafted Goods
+Hand-made durable goods are graded (defective to masterwork, from
+data/manufacturing.ron) by the crafter's skill level; the grade scales a
+tool's uses and its sale price, never merges across stacks, and survives
+storage. Machines make standard goods (v0.1353.0).
+- Native: `src/systems/crafting/quality.rs`, `src/systems/inventory/mod.rs` (`ItemStack::quality`, `add_item_q`, `TransferOp`), `src/systems/economy/mod.rs` (`vendor_sell`)
+- Data: `data/manufacturing.ron` (`quality_levels`)
+
 ### Byproducts and Machine Output to Storage
 Recipes leave real byproducts at sourced ratios (slag, sawdust, bran, press
 cake, olive and apple pomace, whey; ratios and sources as # comments in

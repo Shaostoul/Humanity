@@ -3,6 +3,7 @@
 //! Recipes loaded from `data/recipes.csv`.
 //! Inputs/outputs use pipe-separated `item_id:quantity` format.
 
+pub mod quality;
 pub mod tools;
 pub mod workstations;
 
@@ -492,6 +493,30 @@ impl CraftingSystem {
         owed
     }
 
+    /// The grade a hand craft of `recipe` by `crafter` comes out at (0 when no
+    /// grades are loaded): the crafter's level in the recipe's skill against
+    /// that skill's max level, plus manufacturing.ron's random spread.
+    fn craft_quality(world: &hecs::World, data: &DataStore, recipe: &Recipe, crafter: hecs::Entity) -> u8 {
+        let Some(levels) = data.get::<quality::QualityLevels>("quality_levels") else { return 0 };
+        if levels.levels.is_empty() {
+            return 0;
+        }
+        let (level, max) = match &recipe.skill_required {
+            Some(skill) => (
+                world
+                    .get::<&crate::systems::skills::PlayerSkills>(crafter)
+                    .map(|s| s.level(skill))
+                    .unwrap_or(1),
+                data.get::<crate::systems::skills::SkillRegistry>("skill_registry")
+                    .and_then(|r| r.get(skill))
+                    .map(|d| d.max_level)
+                    .unwrap_or(1),
+            ),
+            None => (1, 1),
+        };
+        levels.grade_for(quality::score(quality::skill_factor(level, max), rand::random::<f32>()))
+    }
+
     /// Why the station type `machine_type` cannot work right now, or None when
     /// it can: an electric station (one with a power role) needs at least one
     /// of its machines powered. Stations with no power role always can.
@@ -582,15 +607,23 @@ impl CraftingSystem {
     }
 
     /// Produce recipe outputs into inventory.
-    fn produce_outputs(inventory: &mut Inventory, recipe: &Recipe, item_registry: Option<&crate::systems::inventory::ItemRegistry>) {
+    /// `quality` grades the durable outputs (items with a durability); the
+    /// rest stay ungraded so materials never split by grade (2026-09-26).
+    fn produce_outputs(
+        inventory: &mut Inventory,
+        recipe: &Recipe,
+        item_registry: Option<&crate::systems::inventory::ItemRegistry>,
+        quality: u8,
+    ) {
         for (item_id, qty) in &recipe.outputs {
+            let grade = if item_registry.map_or(false, |r| r.durability_for(item_id) > 0) { quality } else { 0 };
             let max_stack = item_registry
                 .map(|r| r.max_stack_for(item_id))
                 .unwrap_or(99);
             // Volume-gated (Stage A slice 2) — outputs_fit pre-checks volume
             // at batch start, so overflow here means the pack filled mid-batch.
             let unit_vol = item_registry.map(|r| r.volume_for(item_id)).unwrap_or(0.0);
-            let overflow = inventory.add_item_volume_gated(item_id, *qty, max_stack, unit_vol);
+            let overflow = inventory.add_item_volume_gated_q(item_id, *qty, max_stack, unit_vol, grade);
             if overflow > 0 {
                 log::warn!(
                     "Crafting output overflow: {} of {} lost (inventory full)",
@@ -1181,8 +1214,9 @@ impl System for CraftingSystem {
                     // Each tool loses one use; one that is used up breaks.
                     if let Ok(mut inv) = world.get::<&mut Inventory>(request.crafter) {
                         for t in &recipe.tools {
-                            let durability = item_registry.map(|r| r.durability_for(t)).unwrap_or(0);
-                            if inv.wear_item(t, durability) {
+                            let base = item_registry.map(|r| r.durability_for(t)).unwrap_or(0);
+                            let levels = data.get::<quality::QualityLevels>("quality_levels");
+                            if inv.wear_item(t, |q| levels.map_or(base, |l| l.durability(base, q))) {
                                 notice(format!("Your {} wore out.", name_of(t)));
                             }
                         }
@@ -1575,8 +1609,11 @@ impl CraftingSystem {
                     }
                 }
             } else if !inv_recipe.outputs.is_empty() {
+                // A hand craft's durable goods are graded by the crafter's
+                // skill (2026-09-26, crafting::quality).
+                let grade = Self::craft_quality(world, data, recipe, target);
                 if let Ok(mut inv) = world.get::<&mut Inventory>(target) {
-                    Self::produce_outputs(&mut inv, &inv_recipe, item_registry);
+                    Self::produce_outputs(&mut inv, &inv_recipe, item_registry, grade);
                 } else {
                     log::warn!("Craft complete but entity lost Inventory: {}", recipe.id);
                 }
@@ -1997,6 +2034,37 @@ mod skill_xp_tests {
         let flour = s.get("flour_0").copied().unwrap_or(0);
         assert!(flour >= 6 && flour <= 9, "milled up to the keep target and rested: {flour} flour");
         assert!(s.get("grain_0").copied().unwrap_or(0) >= 28, "the rest of the grain stays whole");
+    }
+
+    /// Hand-made durable goods carry a grade from the crafter's skill; the
+    /// materials in the same craft stay ungraded (2026-09-26).
+    #[test]
+    fn a_hand_made_tool_is_graded_and_its_materials_are_not() {
+        let recipe_csv = "id,name,category,inputs,outputs,craft_time_sec,station_required,skill_required,skill_level,description\n\
+             forge_hammer,Forge Hammer,crafting,iron_0:1,hammer_0:1|chips_0:1,0,,,0,test\n";
+        let mut data = DataStore::new();
+        data.insert("recipe_registry", RecipeRegistry::from_csv(recipe_csv.as_bytes()).unwrap());
+        data.insert(
+            "item_registry",
+            ItemRegistry::from_csv(b"id,name,weight_kg,stack_size,volume_l,durability\niron_0,Iron,1,20,0.2,0\nhammer_0,Hammer,0.8,1,0.3,200\nchips_0,Chips,0.1,50,0.1,0\n").unwrap(),
+        );
+        let bytes = std::fs::read(concat!(env!("CARGO_MANIFEST_DIR"), "/data/manufacturing.ron")).unwrap();
+        data.insert("quality_levels", quality::QualityLevels::from_ron(&bytes).unwrap());
+        data.insert("dev_stock_materials", std::sync::Mutex::new(false));
+        data.insert("craft_request", std::sync::Mutex::new(Option::<String>::None));
+        data.insert("player_notices", std::sync::Mutex::new(Vec::<String>::new()));
+        let mut world = hecs::World::new();
+        let mut inv = Inventory::new(16);
+        inv.add_item("iron_0", 1, 20);
+        let player = world.spawn((inv, Controllable));
+        *data.get::<std::sync::Mutex<Option<String>>>("craft_request").unwrap().lock().unwrap() = Some("forge_hammer".into());
+        CraftingSystem::new().tick(&mut world, 0.016, &data);
+        let inv = world.get::<&Inventory>(player).unwrap();
+        let grade_of = |id: &str| inv.slots.iter().flatten().find(|s| s.item_id == id).map(|s| s.quality);
+        // No skill: a beginner, poor or standard work.
+        let g = grade_of("hammer_0").expect("the hammer was made");
+        assert!((2..=3).contains(&g), "a beginner's hammer is poor or standard: {g}");
+        assert_eq!(grade_of("chips_0"), Some(0), "materials stay ungraded");
     }
 
     fn notices(data: &DataStore) -> Vec<String> {

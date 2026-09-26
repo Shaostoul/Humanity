@@ -56,6 +56,8 @@ pub struct GuiItemSlot {
     pub quantity: u32,
     /// Uses worn off the top item (tools, 2026-09-26; 0 = unworn).
     pub wear: u32,
+    /// Grade of a crafted durable good (0 = ungraded; crafting::quality).
+    pub quality: u8,
 }
 
 /// Game time snapshot bridged from TimeSystem for GUI display.
@@ -683,6 +685,8 @@ pub struct GuiRecipe {
     pub description: String,
     /// Hand tools the craft needs in the backpack (data/crafting/tools.ron).
     pub tools: Vec<String>,
+    /// Makes a durable good, so a hand craft grades it (2026-09-26).
+    pub graded: bool,
 }
 
 /// One vendor-tradeable good for GUI display (v0.747, ladder rung 3).
@@ -828,6 +832,8 @@ pub struct GuiSkill {
     pub level: u32,
     pub xp: u32,
     pub xp_needed: u32,
+    /// The skill's top level (for the quality a level gives, 2026-09-26).
+    pub max_level: u32,
 }
 
 /// A player quest for GUI display, synced from the ECS QuestTracker each frame.

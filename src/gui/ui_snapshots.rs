@@ -118,9 +118,9 @@ fn demo_state() -> GuiState {
         effects: vec![("Well-fed".into(), 180.0), ("Rested".into(), 90.0)],
     };
     let mut items = vec![
-        Some(GuiItemSlot { item_id: "water_bottle_0".into(), name: "Water Bottle".into(), quantity: 2, wear: 0 }),
-        Some(GuiItemSlot { item_id: "bread_0".into(), name: "Bread".into(), quantity: 5, wear: 0 }),
-        Some(GuiItemSlot { item_id: "iron_ore_0".into(), name: "Iron Ore".into(), quantity: 6, wear: 0 }),
+        Some(GuiItemSlot { item_id: "water_bottle_0".into(), name: "Water Bottle".into(), quantity: 2, wear: 0, quality: 0 }),
+        Some(GuiItemSlot { item_id: "bread_0".into(), name: "Bread".into(), quantity: 5, wear: 0, quality: 0 }),
+        Some(GuiItemSlot { item_id: "iron_ore_0".into(), name: "Iron Ore".into(), quantity: 6, wear: 0, quality: 0 }),
     ];
     // A big flat seed list, to exercise the multi-column leaf layout.
     for s_name in [
@@ -133,6 +133,7 @@ fn demo_state() -> GuiState {
             name: format!("{} Seeds", s_name),
             quantity: 1,
             wear: 0,
+            quality: 0,
         }));
     }
     s.inventory_items = items;
@@ -187,9 +188,9 @@ fn demo_state() -> GuiState {
 
     // ── Skills + quests ──
     s.skills = vec![
-        GuiSkill { id: "farming".into(), name: "Farming".into(), category: "Survival".into(), level: 4, xp: 120, xp_needed: 200 },
-        GuiSkill { id: "mining".into(), name: "Mining".into(), category: "Survival".into(), level: 2, xp: 40, xp_needed: 120 },
-        GuiSkill { id: "crafting".into(), name: "Crafting".into(), category: "Production".into(), level: 3, xp: 75, xp_needed: 150 },
+        GuiSkill { id: "farming".into(), name: "Farming".into(), category: "Survival".into(), level: 4, xp: 120, xp_needed: 200, max_level: 20 },
+        GuiSkill { id: "mining".into(), name: "Mining".into(), category: "Survival".into(), level: 2, xp: 40, xp_needed: 120, max_level: 20 },
+        GuiSkill { id: "crafting".into(), name: "Crafting".into(), category: "Production".into(), level: 3, xp: 75, xp_needed: 150, max_level: 20 },
     ];
     s.quests = vec![
         GuiQuest { name: "First Harvest".into(), step_index: 1, step_total: 3, step_desc: "Plant a seed in a tower".into(), completed: false },

@@ -953,6 +953,7 @@ mod tests {
                 qty: 1,
                 container: "1/0/0".into(),
                 wear: 0,
+                quality: 0,
             },
             crate::gui::PlacedItem {
                 key: "iron_ore_0".into(),
@@ -960,6 +961,7 @@ mod tests {
                 qty: 5,
                 container: "2/0".into(),
                 wear: 0,
+                quality: 0,
             },
         ];
         let json = serde_json::to_string(&save).expect("serialize");

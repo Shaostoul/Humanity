@@ -243,6 +243,7 @@ pub fn vendor_sell(
     goods: &TradeGoodsRegistry,
     item_id: &str,
     qty: u32,
+    levels: Option<&crate::systems::crafting::quality::QualityLevels>,
 ) -> Result<String, String> {
     let price = goods
         .vendor_buy_price(item_id)
@@ -251,8 +252,16 @@ pub fn vendor_sell(
     if have < qty {
         return Err(format!("You only have {have}x {item_id}"));
     }
-    inv.remove_item(item_id, qty);
-    let total = price * qty as i64;
+    // Priced by grade (2026-09-26): a good hammer fetches more than a poor
+    // one; a defective one fetches nothing. Ungraded goods sell at base.
+    let removed = inv.remove_item_report(item_id, qty);
+    let total: i64 = removed
+        .iter()
+        .map(|(q, n)| {
+            let m = levels.map_or(1.0, |l| l.price_multiplier(*q) as f64);
+            (price as f64 * m).floor() as i64 * *n as i64
+        })
+        .sum();
     *credits += total;
     Ok(format!("Sold {qty}x {item_id} for {total} CR"))
 }
@@ -383,6 +392,29 @@ mod tests {
         assert_eq!(reg.vendor_sell_price("nope"), None);
     }
 
+    /// A sale is priced by grade (2026-09-26): a good hammer fetches more than
+    /// an ungraded one, a defective one nothing.
+    #[test]
+    fn a_sale_is_priced_by_grade() {
+        use crate::systems::inventory::Inventory;
+        let goods = shipped_goods();
+        let levels = crate::systems::crafting::quality::QualityLevels::from_ron(
+            &std::fs::read(concat!(env!("CARGO_MANIFEST_DIR"), "/data/manufacturing.ron")).unwrap(),
+        )
+        .unwrap();
+        let base = goods.vendor_buy_price("hammer_0").expect("the vendor buys hammers");
+        let sell = |quality: u8| {
+            let mut inv = Inventory::new(4);
+            inv.add_item_q("hammer_0", 1, 1, quality);
+            let mut credits = 0i64;
+            vendor_sell(&mut inv, &mut credits, &goods, "hammer_0", 1, Some(&levels)).unwrap();
+            credits
+        };
+        assert_eq!(sell(0), base, "ungraded: the base price");
+        assert_eq!(sell(4), (base as f64 * 1.5).floor() as i64, "good: 1.5x");
+        assert_eq!(sell(1), 0, "defective: not sellable");
+    }
+
     /// Buying charges the wallet + lands the items; refusals (broke, full pack)
     /// change NOTHING - paid goods are never lost and refusals never charge.
     #[test]
@@ -405,13 +437,13 @@ mod tests {
         assert_eq!(inv.count_item("iron_ore_0"), 2);
 
         // Sell both back at 2 CR each.
-        let receipt = vendor_sell(&mut inv, &mut credits, &goods, "iron_ore_0", 2).unwrap();
+        let receipt = vendor_sell(&mut inv, &mut credits, &goods, "iron_ore_0", 2, None).unwrap();
         assert!(receipt.contains("4 CR"), "{receipt}");
         assert_eq!(credits, 10);
         assert_eq!(inv.count_item("iron_ore_0"), 0);
 
         // Selling what you don't have: refused.
-        assert!(vendor_sell(&mut inv, &mut credits, &goods, "iron_ore_0", 1).is_err());
+        assert!(vendor_sell(&mut inv, &mut credits, &goods, "iron_ore_0", 1, None).is_err());
     }
 
     /// v0.750 (ladder rung 8): the shipped equipment.csv parses; the stat

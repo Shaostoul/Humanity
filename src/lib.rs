@@ -1181,7 +1181,7 @@ mod native_app {
             data_store.insert("home_stock_outputs", std::sync::Mutex::new(Vec::<(String, u32)>::new()));
             data_store.insert(
                 "inventory_transfer_ops",
-                std::sync::Mutex::new(Vec::<(String, u32, bool, u32)>::new()),
+                std::sync::Mutex::new(Vec::<crate::systems::inventory::TransferOp>::new()),
             );
             // One-line notices from the sim systems for the player (2026-09-25):
             // a finished craft waiting for room, an empty cistern at watering.
@@ -6618,7 +6618,7 @@ mod native_app {
                         state.gui_state.inflight_take_origins.extend(origins);
                         if let Some(slot) = state
                             .data_store
-                            .get::<std::sync::Mutex<Vec<(String, u32, bool, u32)>>>("inventory_transfer_ops")
+                            .get::<std::sync::Mutex<Vec<crate::systems::inventory::TransferOp>>>("inventory_transfer_ops")
                         {
                             if let Ok(mut s) = slot.lock() {
                                 s.extend(ops);
@@ -12252,6 +12252,9 @@ mod native_app {
                                 ),
                         ) {
                             let items = state.data_store.get::<ItemRegistry>("item_registry");
+                            let qlevels = state
+                                .data_store
+                                .get::<crate::systems::crafting::quality::QualityLevels>("quality_levels");
                             let result = (|| -> Result<String, String> {
                                 let mut inv = state
                                     .game_world
@@ -12279,6 +12282,7 @@ mod native_app {
                                         goods,
                                         &id,
                                         qty,
+                                        qlevels,
                                     )
                                 } else {
                                     Ok(String::new())
@@ -12593,6 +12597,7 @@ mod native_app {
                                     name,
                                     quantity: stack.quantity,
                                     wear: stack.wear,
+                                    quality: stack.quality,
                                 }
                             })
                         }).collect();
@@ -12672,6 +12677,7 @@ mod native_app {
                                         level,
                                         xp,
                                         xp_needed: def.xp_for_level(level + 1),
+                                        max_level: def.max_level,
                                     });
                                 }
                                 state.gui_state.skills.sort_by(|a, b| {
@@ -13657,6 +13663,11 @@ mod native_app {
                         state.gui_state.water_stored_l = ws.stored_l;
                         state.gui_state.water_capacity_l = ws.capacity_l;
                         state.gui_state.water_days_autonomy = ws.days_autonomy;
+                    }
+                    if state.gui_state.quality_levels.levels.is_empty() {
+                        if let Some(q) = state.data_store.get::<crate::systems::crafting::quality::QualityLevels>("quality_levels") {
+                            state.gui_state.quality_levels = q.clone();
+                        }
                     }
                     if state.gui_state.tap_litres.is_empty() {
                         if let Some(ft) = state.data_store.get::<crate::systems::fluids::FluidTable>("fluid_table") {

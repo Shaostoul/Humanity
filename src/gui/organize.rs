@@ -58,15 +58,18 @@ pub fn return_to_storage(
     qty: u32,
     origin: Option<&PlacedItem>,
 ) -> String {
-    let (name, container, wear) = match origin {
-        Some(o) => (o.name.clone(), o.container.clone(), o.wear),
-        None => (key.to_string(), "Home".to_string(), 0),
+    let (name, container, wear, quality) = match origin {
+        Some(o) => (o.name.clone(), o.container.clone(), o.wear, o.quality),
+        None => (key.to_string(), "Home".to_string(), 0, 0),
     };
-    // Merge only with an entry worn the same (a worn tool stays its own entry).
-    if let Some(p) = pool.iter_mut().find(|p| p.key == key && p.container == container && p.wear == wear) {
+    // Merge only with an entry worn and graded the same.
+    if let Some(p) = pool
+        .iter_mut()
+        .find(|p| p.key == key && p.container == container && p.wear == wear && p.quality == quality)
+    {
         p.qty += qty;
     } else {
-        pool.push(PlacedItem { key: key.to_string(), name: name.clone(), qty, container: container.clone(), wear });
+        pool.push(PlacedItem { key: key.to_string(), name: name.clone(), qty, container: container.clone(), wear, quality });
     }
     format!("Backpack full: {qty} x {name} stayed in {container}")
 }
@@ -76,7 +79,7 @@ mod return_to_storage_tests {
     use super::*;
 
     fn item(key: &str, qty: u32, container: &str) -> PlacedItem {
-        PlacedItem { key: key.into(), name: "Rope".into(), qty, container: container.into(), wear: 0 }
+        PlacedItem { key: key.into(), name: "Rope".into(), qty, container: container.into(), wear: 0, quality: 0 }
     }
 
     /// Showcase crops carry machine instance ids; the panel gets one group per

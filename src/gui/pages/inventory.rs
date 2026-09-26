@@ -860,6 +860,7 @@ fn draw_item_card(
     theme: &Theme,
     item: &crate::gui::GuiItemSlot,
     acts: Option<&mut ItemCardActions>,
+    quality_levels: &crate::systems::crafting::quality::QualityLevels,
 ) {
     let details = lookup_item_details(&item.item_id);
     ui.add_space(theme.spacing_xs);
@@ -912,9 +913,14 @@ fn draw_item_card(
             widgets::detail_row(ui, theme, "Stack Size", &d.stack_size.to_string());
             widgets::detail_row(ui, theme, "Material", &d.base_material);
             if d.durability > 0 {
-                // Tools wear one use per craft and break at 0 (2026-09-26).
-                let left = d.durability.saturating_sub(item.wear);
-                widgets::detail_row(ui, theme, "Uses left", &format!("{left} of {}", d.durability));
+                // Tools wear one use per craft and break at 0; the grade sets
+                // how many uses a tool has (2026-09-26).
+                let full = quality_levels.durability(d.durability, item.quality);
+                let left = full.saturating_sub(item.wear);
+                widgets::detail_row(ui, theme, "Uses left", &format!("{left} of {full}"));
+            }
+            if let Some(grade) = quality_levels.name(item.quality) {
+                widgets::detail_row(ui, theme, "Quality", grade);
             }
         }
     });
@@ -1703,13 +1709,20 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 if let Some((i, target)) = places_out.stash_slot.take() {
                     if let Some(Some(it)) = state.inventory_items.get(i) {
                         let it = it.clone();
-                        state.pending_inventory_transfers.push((it.item_id.clone(), it.quantity, false, it.wear));
+                        state.pending_inventory_transfers.push(crate::systems::inventory::TransferOp {
+                            item_id: it.item_id.clone(),
+                            qty: it.quantity,
+                            add: false,
+                            wear: it.wear,
+                            quality: it.quality,
+                        });
                         state.placed_items.push(crate::gui::PlacedItem {
                             key: it.item_id,
                             name: it.name,
                             qty: it.quantity,
                             container: target,
                             wear: it.wear,
+                            quality: it.quality,
                         });
                         if state.selected_slot == Some(i) {
                             state.selected_slot = None;
@@ -1718,7 +1731,13 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 }
                 if let Some(idx) = places_out.take_placed.take() {
                     if let Some(pi) = state.placed_items.get(idx).cloned() {
-                        state.pending_inventory_transfers.push((pi.key, pi.qty, true, pi.wear));
+                        state.pending_inventory_transfers.push(crate::systems::inventory::TransferOp {
+                            item_id: pi.key,
+                            qty: pi.qty,
+                            add: true,
+                            wear: pi.wear,
+                            quality: pi.quality,
+                        });
                         state.placed_items.remove(idx);
                         with_placed_sel(|s| *s = None);
                     }
@@ -1738,7 +1757,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                         let mut stash_to: Option<String> = None;
                         ui.add_space(theme.spacing_xs);
                         widgets::card(ui, theme, |ui| {
-                            draw_item_card(ui, theme, &it, Some(&mut item_acts));
+                            draw_item_card(ui, theme, &it, Some(&mut item_acts), &state.quality_levels);
                             // Stash the whole stack OUT of the live backpack into a
                             // container (the backpack <-> container half of transfer).
                             if !containers.is_empty() {
@@ -1762,13 +1781,20 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             }
                         });
                         if let Some(target) = stash_to {
-                            state.pending_inventory_transfers.push((it.item_id.clone(), it.quantity, false, it.wear));
+                            state.pending_inventory_transfers.push(crate::systems::inventory::TransferOp {
+                                item_id: it.item_id.clone(),
+                                qty: it.quantity,
+                                add: false,
+                                wear: it.wear,
+                                quality: it.quality,
+                            });
                             state.placed_items.push(crate::gui::PlacedItem {
                                 key: it.item_id.clone(),
                                 name: it.name.clone(),
                                 qty: it.quantity,
                                 container: target,
                                 wear: it.wear,
+                                quality: it.quality,
                             });
                             state.selected_slot = None;
                         }
@@ -1780,13 +1806,14 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             item_id: pi.key.clone(),
                             quantity: pi.qty,
                             wear: pi.wear,
+                            quality: pi.quality,
                         };
                         let containers = crate::gui::collect_containers(&state.places);
                         let mut move_to: Option<String> = None;
                         let mut take_to_backpack = false;
                         ui.add_space(theme.spacing_xs);
                         widgets::card(ui, theme, |ui| {
-                            draw_item_card(ui, theme, &synth, None);
+                            draw_item_card(ui, theme, &synth, None, &state.quality_levels);
                             ui.add_space(theme.spacing_xs);
                             ui.horizontal(|ui| {
                                 ui.label(
@@ -1817,7 +1844,13 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             });
                         });
                         if take_to_backpack {
-                            state.pending_inventory_transfers.push((pi.key.clone(), pi.qty, true, pi.wear));
+                            state.pending_inventory_transfers.push(crate::systems::inventory::TransferOp {
+                                item_id: pi.key.clone(),
+                                qty: pi.qty,
+                                add: true,
+                                wear: pi.wear,
+                                quality: pi.quality,
+                            });
                             // Remember where it came from: a full backpack sends
                             // the rest back here (lib.rs, after the tick).
                             state.pending_take_origins.push(pi.clone());

@@ -64,6 +64,8 @@ pub(crate) fn load_data_registries(store: &mut DataStore, data_dir: &std::path::
         "item_registry",
         crate::systems::inventory::ItemRegistry::from_csv,
     );
+    // Quality grades for hand-made goods (data/manufacturing.ron, 2026-09-26).
+    store.insert("quality_levels", crate::systems::crafting::quality::load(data_dir));
     // Recipes, with the hand tools each needs (data/crafting/tools.ron, 2026-09-26).
     let tool_rules = crate::systems::crafting::tools::load(data_dir);
     load_csv_registry(store, data_dir.join("recipes.csv"), "recipe_registry", |b: &[u8]| {

@@ -702,6 +702,23 @@ fn draw_recipe_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, re
             ui.add_space(theme.spacing_xs);
         }
     }
+    // Expected grade of a hand-made durable good (2026-09-26): the band the
+    // crafter's skill lands in, give or take the random spread.
+    if recipe.graded && !state.quality_levels.levels.is_empty() {
+        use crate::systems::crafting::quality::{score, skill_factor};
+        let (lvl, max) = recipe
+            .skill_required
+            .as_ref()
+            .and_then(|s| state.skills.iter().find(|k| &k.id == s))
+            .map_or((1, 1), |k| (k.level, k.max_level));
+        let f = skill_factor(lvl, max);
+        let q = &state.quality_levels;
+        let lo = q.name(q.grade_for(score(f, 0.0))).unwrap_or("?").to_string();
+        let hi = q.name(q.grade_for(score(f, 0.999))).unwrap_or("?").to_string();
+        let text = if lo == hi { format!("Expected quality: {lo}") } else { format!("Expected quality: {lo} to {hi}") };
+        ui.label(RichText::new(text).size(theme.font_size_small).color(theme.text_secondary()));
+        ui.add_space(theme.spacing_xs);
+    }
 
     ui.add_enabled_ui(can_craft, |ui| {
         if widgets::primary_button(ui, theme, "Craft") {

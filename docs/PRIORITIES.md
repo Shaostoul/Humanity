@@ -1097,7 +1097,8 @@ bran, press cake, pomace, whey, each used; tanning fixed), and automated
 machines now fill the Barn and rest at a keep target. A craft now pauses while its station has no
 power. Light is DONE (v0.1352.0: crops grow in the light and pause in the
 dark; powered grow lights light indoor beds after dark; fungi need none).
-Next: quality tiers, N-P-K, pests, per-species light need, local grow lights. Containers as items (3c) waits on the unified placement
+Quality grades are DONE (v0.1353.0), which completes the crafting list.
+In flight: N-P-K. Next: pests, per-species light need, local grow lights. Containers as items (3c) waits on the unified placement
 schema. Progress and open items live at the top of the gap doc.
 
 **Gameplay gap survey (2026-09-25):** `docs/design/gameplay-gaps-2026-09-25.md`

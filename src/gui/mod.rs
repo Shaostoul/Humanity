@@ -1273,7 +1273,7 @@ pub struct GuiState {
     /// Pending backpack <-> container transfers (item_id, qty, is_add). The inventory
     /// page pushes these when an item moves into/out of the live backpack; lib.rs drains
     /// them into the InventorySystem channel each frame. is_add => add to the backpack.
-    pub pending_inventory_transfers: Vec<(String, u32, bool, u32)>,
+    pub pending_inventory_transfers: Vec<crate::systems::inventory::TransferOp>,
     /// Where each "Take to backpack" came from (2026-09-25), so whatever the
     /// backpack cannot hold goes back to that container instead of
     /// vanishing. Moved to `inflight_take_origins` when the ops are handed to
@@ -1646,6 +1646,8 @@ pub struct GuiState {
     pub tap_litres: std::collections::HashMap<String, f32>,
     /// Electric station types with no powered machine right now (2026-09-26).
     pub unpowered_station_types: std::collections::HashSet<String>,
+    /// Quality grades (data/manufacturing.ron), published once (2026-09-26).
+    pub quality_levels: crate::systems::crafting::quality::QualityLevels,
     pub water_capacity_l: f32,
     pub water_days_autonomy: f32,
     /// Live home AIR readout (v0.617), mirrored from AtmosphereSystem each frame: O2/CO2 percent, total
@@ -3687,6 +3689,7 @@ impl Default for GuiState {
             water_stored_l: 0.0,
             tap_litres: Default::default(),
             unpowered_station_types: Default::default(),
+            quality_levels: Default::default(),
             water_capacity_l: 0.0,
             water_days_autonomy: 0.0,
             air_o2_pct: 0.0,

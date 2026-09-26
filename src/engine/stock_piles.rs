@@ -198,13 +198,22 @@ pub fn receive_machine_outputs(state: &mut crate::engine::state::EngineState) {
     let rooms = storage_room_labels(state);
     let container = store_path(&state.gui_state.places, &rooms).unwrap_or_else(|| "Home".to_string());
     let reg = state.data_store.get::<crate::systems::inventory::ItemRegistry>("item_registry");
+    // A machine turns out standard goods (2026-09-26, crafting::quality).
+    let standard = state
+        .data_store
+        .get::<crate::systems::crafting::quality::QualityLevels>("quality_levels")
+        .map_or(0, |l| l.standard());
     for (id, qty) in made {
+        let quality = if reg.map_or(false, |r| r.durability_for(&id) > 0) { standard } else { 0 };
         let pool = &mut state.gui_state.placed_items;
-        if let Some(p) = pool.iter_mut().find(|p| p.key == id && p.container == container && p.wear == 0) {
+        if let Some(p) = pool
+            .iter_mut()
+            .find(|p| p.key == id && p.container == container && p.wear == 0 && p.quality == quality)
+        {
             p.qty += qty;
         } else {
             let name = reg.and_then(|r| r.items.get(&id).map(|d| d.name.clone())).unwrap_or_else(|| id.clone());
-            pool.push(PlacedItem { key: id, name, qty, container: container.clone(), wear: 0 });
+            pool.push(PlacedItem { key: id, name, qty, container: container.clone(), wear: 0, quality });
         }
     }
 }
@@ -380,7 +389,7 @@ mod tests {
     use super::*;
 
     fn item(key: &str, qty: u32) -> PlacedItem {
-        PlacedItem { key: key.into(), name: key.into(), qty, container: "Home".into(), wear: 0 }
+        PlacedItem { key: key.into(), name: key.into(), qty, container: "Home".into(), wear: 0, quality: 0 }
     }
 
     #[test]

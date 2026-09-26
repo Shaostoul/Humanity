@@ -343,6 +343,9 @@ pub struct PlacedItem {
     /// so putting a worn tool away and taking it back does not renew it.
     #[serde(default)]
     pub wear: u32,
+    /// Grade of a crafted durable good (0 = ungraded), kept through storage.
+    #[serde(default)]
+    pub quality: u8,
 }
 
 /// Flatten the places spine into the organize-layer item pool: every leaf `kind:"item"`
@@ -358,13 +361,14 @@ pub fn flatten_placed_items(places: &[Place]) -> Vec<PlacedItem> {
                     qty: child.qty.unwrap_or(1).max(1),
                     container: path.to_string(),
                     wear: 0,
+                    quality: 0,
                 });
             } else {
                 walk(child, &format!("{path}/{j}"), out);
             }
         }
         for id in &place.items {
-            out.push(PlacedItem { key: id.clone(), name: id.clone(), qty: 1, container: path.to_string(), wear: 0 });
+            out.push(PlacedItem { key: id.clone(), name: id.clone(), qty: 1, container: path.to_string(), wear: 0, quality: 0 });
         }
     }
     let mut out = Vec::new();
@@ -1306,8 +1310,23 @@ pub fn load_crafting_recipes(data_dir: &std::path::Path) -> Vec<GuiRecipe> {
     };
     let rows: Vec<Row> = crate::assets::loader::parse_csv(&bytes).unwrap_or_default();
     let tool_rules = crate::systems::crafting::tools::load(data_dir);
+    // Which outputs are durable (graded when made by hand, 2026-09-26).
+    #[derive(serde::Deserialize)]
+    struct Dur {
+        id: String,
+        #[serde(default)]
+        durability: u32,
+    }
+    let durable: std::collections::HashSet<String> = std::fs::read(data_dir.join("items.csv"))
+        .ok()
+        .and_then(|b| crate::assets::loader::parse_csv::<Dur>(&b).ok())
+        .map(|v| v.into_iter().filter(|d| d.durability > 0).map(|d| d.id).collect())
+        .unwrap_or_default();
     rows.into_iter()
         .map(|r| GuiRecipe {
+            graded: crate::systems::crafting::Recipe::parse_ingredients(&r.outputs)
+                .iter()
+                .any(|(o, _)| durable.contains(o)),
             tools: tool_rules.tools_for(
                 &r.id,
                 r.station_required.trim(),
