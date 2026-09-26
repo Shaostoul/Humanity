@@ -201,6 +201,59 @@ impl Inventory {
         quantity // deficit
     }
 
+    /// Add like `add_item_volume_gated`, and give the added item the wear it
+    /// carried in storage (2026-09-26): a worn tool put away and taken back
+    /// comes back as worn as it left. The wear goes on a stack this add
+    /// created (a tool's stack is one item), else on the last stack of it.
+    /// Returns the number NOT added.
+    pub fn add_item_worn(
+        &mut self,
+        item_id: &str,
+        quantity: u32,
+        max_stack: u32,
+        unit_volume_l: f32,
+        wear: u32,
+    ) -> u32 {
+        let before: Vec<bool> = self.slots.iter().map(|s| s.is_some()).collect();
+        let overflow = self.add_item_volume_gated(item_id, quantity, max_stack, unit_volume_l);
+        if wear > 0 && overflow < quantity {
+            let new_stack = self
+                .slots
+                .iter()
+                .enumerate()
+                .position(|(i, s)| !before.get(i).copied().unwrap_or(false) && s.as_ref().is_some_and(|st| st.item_id == item_id));
+            let idx = new_stack.or_else(|| self.slots.iter().rposition(|s| s.as_ref().is_some_and(|st| st.item_id == item_id)));
+            if let Some(stack) = idx.and_then(|i| self.slots[i].as_mut()) {
+                stack.wear = stack.wear.max(wear);
+            }
+        }
+        overflow
+    }
+
+    /// Remove like `remove_item`, but take first from the stack worn by
+    /// `wear` (2026-09-26), so the tool that leaves the backpack is the one
+    /// the player picked and its wear goes with it. Returns the deficit.
+    pub fn remove_worn(&mut self, item_id: &str, mut quantity: u32, wear: u32) -> u32 {
+        if let Some(i) = self
+            .slots
+            .iter()
+            .rposition(|s| s.as_ref().is_some_and(|st| st.item_id == item_id && st.wear == wear))
+        {
+            if let Some(stack) = self.slots[i].as_mut() {
+                let take = stack.quantity.min(quantity);
+                stack.quantity -= take;
+                quantity -= take;
+                if stack.quantity == 0 {
+                    self.slots[i] = None;
+                }
+            }
+        }
+        if quantity > 0 {
+            return self.remove_item(item_id, quantity);
+        }
+        0
+    }
+
     /// Check if the inventory contains at least `quantity` of the given item.
     pub fn has_item(&self, item_id: &str, quantity: u32) -> bool {
         self.count_item(item_id) >= quantity
@@ -692,15 +745,15 @@ mod transfer_tests {
         data.insert("item_registry", reg);
         data.insert(
             "inventory_transfer_ops",
-            std::sync::Mutex::new(Vec::<(String, u32, bool)>::new()),
+            std::sync::Mutex::new(Vec::<(String, u32, bool, u32)>::new()),
         );
 
         let mut world = hecs::World::new();
         let player = world.spawn((Inventory::new(16), Controllable));
         let mut sys = InventorySystem::new();
 
-        let push = |data: &DataStore, op: (String, u32, bool)| {
-            data.get::<std::sync::Mutex<Vec<(String, u32, bool)>>>("inventory_transfer_ops")
+        let push = |data: &DataStore, op: (String, u32, bool, u32)| {
+            data.get::<std::sync::Mutex<Vec<(String, u32, bool, u32)>>>("inventory_transfer_ops")
                 .unwrap()
                 .lock()
                 .unwrap()
@@ -708,7 +761,7 @@ mod transfer_tests {
         };
 
         // Container -> backpack: add 5.
-        push(&data, ("iron_ore_0".into(), 5, true));
+        push(&data, ("iron_ore_0".into(), 5, true, 0));
         sys.tick(&mut world, 1.0, &data);
         assert_eq!(
             world.get::<&Inventory>(player).unwrap().count_item("iron_ore_0"),
@@ -717,7 +770,7 @@ mod transfer_tests {
         );
 
         // Backpack -> container: remove 3.
-        push(&data, ("iron_ore_0".into(), 3, false));
+        push(&data, ("iron_ore_0".into(), 3, false, 0));
         sys.tick(&mut world, 1.0, &data);
         assert_eq!(
             world.get::<&Inventory>(player).unwrap().count_item("iron_ore_0"),
@@ -732,6 +785,44 @@ mod transfer_tests {
             2,
             "ops are drained; a tick with no new ops changes nothing"
         );
+    }
+
+    /// A worn tool keeps its wear through storage (2026-09-26): taking a
+    /// worn hammer out of storage gives the backpack a hammer that worn, and
+    /// putting it away takes THAT hammer (not a fresh one beside it).
+    #[test]
+    fn a_worn_tool_keeps_its_wear_through_storage() {
+        let mut data = DataStore::new();
+        data.insert(
+            "item_registry",
+            ItemRegistry::from_csv(b"id,name,weight_kg,stack_size,volume_l,durability\nhammer_0,Hammer,0.8,1,0.3,200\n").unwrap(),
+        );
+        data.insert("inventory_transfer_ops", std::sync::Mutex::new(Vec::<(String, u32, bool, u32)>::new()));
+        data.insert("inventory_transfer_returns", std::sync::Mutex::new(Vec::<(String, u32)>::new()));
+        let mut world = hecs::World::new();
+        let mut inv = Inventory::new(8);
+        // A fresh hammer in slot 1, slot 0 free: the worn one comes back into
+        // slot 0, BEFORE it, where a plain last-to-first removal would miss it.
+        inv.add_item("rope_0", 1, 1);
+        inv.add_item("hammer_0", 1, 1);
+        inv.remove_item("rope_0", 1);
+        let player = world.spawn((inv, Controllable));
+        let mut sys = InventorySystem::new();
+        let push = |op: (String, u32, bool, u32)| {
+            data.get::<std::sync::Mutex<Vec<(String, u32, bool, u32)>>>("inventory_transfer_ops").unwrap().lock().unwrap().push(op);
+        };
+        let wears = |world: &hecs::World| {
+            let inv = world.get::<&Inventory>(player).unwrap();
+            let mut w: Vec<u32> = inv.slots.iter().flatten().filter(|s| s.item_id == "hammer_0").map(|s| s.wear).collect();
+            w.sort();
+            w
+        };
+        push(("hammer_0".into(), 1, true, 150));
+        sys.tick(&mut world, 1.0, &data);
+        assert_eq!(wears(&world), vec![0, 150], "the stored hammer comes back worn");
+        push(("hammer_0".into(), 1, false, 150));
+        sys.tick(&mut world, 1.0, &data);
+        assert_eq!(wears(&world), vec![0], "putting it away takes the worn one, not the fresh one");
     }
 
     /// A transfer into a full backpack (2026-09-25): what does not fit is
@@ -749,7 +840,7 @@ mod transfer_tests {
         data.insert("item_registry", reg);
         data.insert(
             "inventory_transfer_ops",
-            std::sync::Mutex::new(Vec::<(String, u32, bool)>::new()),
+            std::sync::Mutex::new(Vec::<(String, u32, bool, u32)>::new()),
         );
         data.insert(
             "inventory_transfer_returns",
@@ -759,11 +850,11 @@ mod transfer_tests {
         let player = world.spawn((Inventory::new(16), Controllable));
         let mut sys = InventorySystem::new();
         // 40 L each against the backpack's volume: some fit, the rest must come back.
-        data.get::<std::sync::Mutex<Vec<(String, u32, bool)>>>("inventory_transfer_ops")
+        data.get::<std::sync::Mutex<Vec<(String, u32, bool, u32)>>>("inventory_transfer_ops")
             .unwrap()
             .lock()
             .unwrap()
-            .push(("barrel_0".into(), 5, true));
+            .push(("barrel_0".into(), 5, true, 0));
         sys.tick(&mut world, 1.0, &data);
         let held = world.get::<&Inventory>(player).unwrap().count_item("barrel_0");
         let returned: Vec<(String, u32)> = data
@@ -813,9 +904,9 @@ impl System for InventorySystem {
         // Controllable (player) inventory. (item_id, quantity, is_add): is_add adds to
         // the backpack (container -> backpack); else removes (backpack -> container).
         if let Some(slot) = data
-            .get::<std::sync::Mutex<Vec<(String, u32, bool)>>>("inventory_transfer_ops")
+            .get::<std::sync::Mutex<Vec<(String, u32, bool, u32)>>>("inventory_transfer_ops")
         {
-            let xfers: Vec<(String, u32, bool)> =
+            let xfers: Vec<(String, u32, bool, u32)> =
                 slot.lock().map(|mut g| std::mem::take(&mut *g)).unwrap_or_default();
             if !xfers.is_empty() {
                 if let Some((_e, (inv, _))) = world
@@ -823,14 +914,14 @@ impl System for InventorySystem {
                     .into_iter()
                     .next()
                 {
-                    for (item_id, quantity, is_add) in xfers {
+                    for (item_id, quantity, is_add, wear) in xfers {
                         if is_add {
                             let max_stack =
                                 registry.map(|r| r.max_stack_for(&item_id)).unwrap_or(DEFAULT_MAX_STACK);
                             // Volume-gated (Stage A slice 2): a full backpack
                             // refuses the transfer instead of over-filling.
                             let unit_vol = registry.map(|r| r.volume_for(&item_id)).unwrap_or(0.0);
-                            let overflow = inv.add_item_volume_gated(&item_id, quantity, max_stack, unit_vol);
+                            let overflow = inv.add_item_worn(&item_id, quantity, max_stack, unit_vol, wear);
                             // What did not fit goes BACK (2026-09-25). The GUI has
                             // already taken it out of its container, so a dropped
                             // overflow was an item destroyed; the main loop puts
@@ -845,7 +936,7 @@ impl System for InventorySystem {
                                 }
                             }
                         } else {
-                            inv.remove_item(&item_id, quantity);
+                            inv.remove_worn(&item_id, quantity, wear);
                         }
                     }
                 }

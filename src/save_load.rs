@@ -952,12 +952,14 @@ mod tests {
                 name: "Ice Axe".into(),
                 qty: 1,
                 container: "1/0/0".into(),
+                wear: 0,
             },
             crate::gui::PlacedItem {
                 key: "iron_ore_0".into(),
                 name: "Iron Ore".into(),
                 qty: 5,
                 container: "2/0".into(),
+                wear: 0,
             },
         ];
         let json = serde_json::to_string(&save).expect("serialize");

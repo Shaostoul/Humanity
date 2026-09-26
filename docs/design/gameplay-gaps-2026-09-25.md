@@ -63,6 +63,8 @@ date; re-check before trusting one. The container data basis is
   whose tools can be had). The starter kit gained a hammer, hand saw,
   screwdriver, wrench and pliers. The statues no longer eat their chisel.
   The web Crafting page lists the same tools (a test keeps the two in step).
+  A tool keeps its wear in storage: putting a worn tool away and taking it
+  back no longer renews it (fixed the same day it shipped).
 - **Stations draw power only while they work: DONE 2026-09-26** (v0.1349.0).
   The family home's stove (1.2 kW), oven (2.2 kW), electronics bench and
   sewing machine drew their full rating around the clock, about 3.65 kW of

@@ -1703,12 +1703,13 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 if let Some((i, target)) = places_out.stash_slot.take() {
                     if let Some(Some(it)) = state.inventory_items.get(i) {
                         let it = it.clone();
-                        state.pending_inventory_transfers.push((it.item_id.clone(), it.quantity, false));
+                        state.pending_inventory_transfers.push((it.item_id.clone(), it.quantity, false, it.wear));
                         state.placed_items.push(crate::gui::PlacedItem {
                             key: it.item_id,
                             name: it.name,
                             qty: it.quantity,
                             container: target,
+                            wear: it.wear,
                         });
                         if state.selected_slot == Some(i) {
                             state.selected_slot = None;
@@ -1717,7 +1718,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 }
                 if let Some(idx) = places_out.take_placed.take() {
                     if let Some(pi) = state.placed_items.get(idx).cloned() {
-                        state.pending_inventory_transfers.push((pi.key, pi.qty, true));
+                        state.pending_inventory_transfers.push((pi.key, pi.qty, true, pi.wear));
                         state.placed_items.remove(idx);
                         with_placed_sel(|s| *s = None);
                     }
@@ -1761,12 +1762,13 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             }
                         });
                         if let Some(target) = stash_to {
-                            state.pending_inventory_transfers.push((it.item_id.clone(), it.quantity, false));
+                            state.pending_inventory_transfers.push((it.item_id.clone(), it.quantity, false, it.wear));
                             state.placed_items.push(crate::gui::PlacedItem {
                                 key: it.item_id.clone(),
                                 name: it.name.clone(),
                                 qty: it.quantity,
                                 container: target,
+                                wear: it.wear,
                             });
                             state.selected_slot = None;
                         }
@@ -1777,7 +1779,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             name: pi.name.clone(),
                             item_id: pi.key.clone(),
                             quantity: pi.qty,
-                            wear: 0,
+                            wear: pi.wear,
                         };
                         let containers = crate::gui::collect_containers(&state.places);
                         let mut move_to: Option<String> = None;
@@ -1815,7 +1817,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             });
                         });
                         if take_to_backpack {
-                            state.pending_inventory_transfers.push((pi.key.clone(), pi.qty, true));
+                            state.pending_inventory_transfers.push((pi.key.clone(), pi.qty, true, pi.wear));
                             // Remember where it came from: a full backpack sends
                             // the rest back here (lib.rs, after the tick).
                             state.pending_take_origins.push(pi.clone());

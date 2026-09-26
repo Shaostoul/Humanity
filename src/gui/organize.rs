@@ -58,14 +58,15 @@ pub fn return_to_storage(
     qty: u32,
     origin: Option<&PlacedItem>,
 ) -> String {
-    let (name, container) = match origin {
-        Some(o) => (o.name.clone(), o.container.clone()),
-        None => (key.to_string(), "Home".to_string()),
+    let (name, container, wear) = match origin {
+        Some(o) => (o.name.clone(), o.container.clone(), o.wear),
+        None => (key.to_string(), "Home".to_string(), 0),
     };
-    if let Some(p) = pool.iter_mut().find(|p| p.key == key && p.container == container) {
+    // Merge only with an entry worn the same (a worn tool stays its own entry).
+    if let Some(p) = pool.iter_mut().find(|p| p.key == key && p.container == container && p.wear == wear) {
         p.qty += qty;
     } else {
-        pool.push(PlacedItem { key: key.to_string(), name: name.clone(), qty, container: container.clone() });
+        pool.push(PlacedItem { key: key.to_string(), name: name.clone(), qty, container: container.clone(), wear });
     }
     format!("Backpack full: {qty} x {name} stayed in {container}")
 }
@@ -75,7 +76,7 @@ mod return_to_storage_tests {
     use super::*;
 
     fn item(key: &str, qty: u32, container: &str) -> PlacedItem {
-        PlacedItem { key: key.into(), name: "Rope".into(), qty, container: container.into() }
+        PlacedItem { key: key.into(), name: "Rope".into(), qty, container: container.into(), wear: 0 }
     }
 
     /// Showcase crops carry machine instance ids; the panel gets one group per

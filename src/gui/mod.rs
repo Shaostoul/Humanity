@@ -1273,7 +1273,7 @@ pub struct GuiState {
     /// Pending backpack <-> container transfers (item_id, qty, is_add). The inventory
     /// page pushes these when an item moves into/out of the live backpack; lib.rs drains
     /// them into the InventorySystem channel each frame. is_add => add to the backpack.
-    pub pending_inventory_transfers: Vec<(String, u32, bool)>,
+    pub pending_inventory_transfers: Vec<(String, u32, bool, u32)>,
     /// Where each "Take to backpack" came from (2026-09-25), so whatever the
     /// backpack cannot hold goes back to that container instead of
     /// vanishing. Moved to `inflight_take_origins` when the ops are handed to

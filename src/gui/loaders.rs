@@ -339,6 +339,10 @@ pub struct PlacedItem {
     pub qty: u32,
     /// Container PATH in the places tree this item currently sits in.
     pub container: String,
+    /// Uses worn off it (a tool, 2026-09-26): it keeps its wear in storage,
+    /// so putting a worn tool away and taking it back does not renew it.
+    #[serde(default)]
+    pub wear: u32,
 }
 
 /// Flatten the places spine into the organize-layer item pool: every leaf `kind:"item"`
@@ -353,13 +357,14 @@ pub fn flatten_placed_items(places: &[Place]) -> Vec<PlacedItem> {
                     name: child.label.clone(),
                     qty: child.qty.unwrap_or(1).max(1),
                     container: path.to_string(),
+                    wear: 0,
                 });
             } else {
                 walk(child, &format!("{path}/{j}"), out);
             }
         }
         for id in &place.items {
-            out.push(PlacedItem { key: id.clone(), name: id.clone(), qty: 1, container: path.to_string() });
+            out.push(PlacedItem { key: id.clone(), name: id.clone(), qty: 1, container: path.to_string(), wear: 0 });
         }
     }
     let mut out = Vec::new();

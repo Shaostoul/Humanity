@@ -1178,7 +1178,7 @@ mod native_app {
             // backpack. Mirrored from GuiState.pending_inventory_transfers each frame.
             data_store.insert(
                 "inventory_transfer_ops",
-                std::sync::Mutex::new(Vec::<(String, u32, bool)>::new()),
+                std::sync::Mutex::new(Vec::<(String, u32, bool, u32)>::new()),
             );
             // One-line notices from the sim systems for the player (2026-09-25):
             // a finished craft waiting for room, an empty cistern at watering.
@@ -6615,7 +6615,7 @@ mod native_app {
                         state.gui_state.inflight_take_origins.extend(origins);
                         if let Some(slot) = state
                             .data_store
-                            .get::<std::sync::Mutex<Vec<(String, u32, bool)>>>("inventory_transfer_ops")
+                            .get::<std::sync::Mutex<Vec<(String, u32, bool, u32)>>>("inventory_transfer_ops")
                         {
                             if let Ok(mut s) = slot.lock() {
                                 s.extend(ops);

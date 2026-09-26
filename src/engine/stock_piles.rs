@@ -334,7 +334,7 @@ mod tests {
     use super::*;
 
     fn item(key: &str, qty: u32) -> PlacedItem {
-        PlacedItem { key: key.into(), name: key.into(), qty, container: "Home".into() }
+        PlacedItem { key: key.into(), name: key.into(), qty, container: "Home".into(), wear: 0 }
     }
 
     #[test]
