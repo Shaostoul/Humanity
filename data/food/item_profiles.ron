@@ -1,0 +1,304 @@
+// Which items are food, and which nutrition profile each one uses.
+//
+// Read by src/systems/food.rs for three things at once: whether an item can be
+// eaten or drunk, how nourishing it is, and how fast it spoils. The profile ids
+// on the right are rows of data/food_system.ron `nutrition_profiles`, where the
+// real-world numbers and their sources live.
+//
+// THE RULE: an item listed under `items` is food. Anything else is not: it
+// cannot be eaten or drunk and it never spoils. There is no guessing from the
+// item id any more. Before 2026-09-25 food.rs decided by id prefix, which made
+// the grain mill and grain silo edible ("grain_") and fish oil and fish scales
+// too ("fish_"), gave 18 of the 26 things the cooking recipes make no nutrition
+// at all, and let legumes never spoil.
+//
+// `not_food` lists the items that data/items.csv files under category "food"
+// but that people do not eat, each with the reason. The runtime never reads it;
+// it exists so the coverage test in food.rs can insist that every food-category
+// item has been decided one way or the other. If you add a food item to
+// items.csv, add it to one of the two lists below or that test fails.
+//
+// A profile stands for a group of foods (see its notes in food_system.ron for
+// which members sit furthest from the base food). Where an item is filed under
+// a group its items.csv subcategory would not suggest, the line says why.
+//
+// FORMAT: (item_id, profile_id) and (item_id, reason). Ids must match
+// data/items.csv exactly; a typo is caught by the test, not silently ignored.
+(
+    items: [
+        // --- Water and drinks ---
+        ("water_bottle_0", "water"),
+        ("water_purified_0", "water"),        // items.csv files it as material/liquid; it is drinking water
+        ("juice_0", "fruit_juice"),
+        ("energy_drink_0", "energy_drink"),
+        ("coffee_0", "brewed_coffee"),        // roasted beans; drinking one = brewing a cup
+        ("tea_0", "brewed_tea"),              // dried leaves; drinking one = brewing a cup
+        ("milk_0", "milk"),                   // also what the homestead's goats produce
+
+        // --- Meat, fish, eggs, dairy, fats ---
+        ("raw_meat_0", "raw_meat"),
+        ("raw_beef_0", "raw_meat"),
+        ("raw_pork_0", "raw_meat"),
+        ("raw_mutton_0", "raw_meat"),
+        ("raw_venison_0", "raw_meat"),
+        ("raw_poultry_0", "raw_meat"),
+        ("alien_meat_0", "raw_meat"),         // fictional creature; modelled as ordinary raw meat
+        ("raw_fish_0", "raw_fish"),
+        ("roast_chicken_0", "cooked_meat"),
+        ("fish_grilled_0", "cooked_fish"),
+        ("egg_0", "eggs"),
+        ("cheese_0", "cheese"),
+        ("butter_0", "fats_oils"),
+        ("cooking_oil_0", "fats_oils"),
+        ("fat_0", "fats_oils"),
+        ("blubber_0", "fats_oils"),
+        ("sky_blubber_0", "fats_oils"),       // fictional creature; rendered fat like any other
+
+        // --- Preserved and packaged ---
+        ("canned_food_0", "canned_food"),
+        ("mre_0", "field_ration"),
+        ("ration_basic_0", "field_ration"),
+        ("jerky_0", "jerky"),
+        ("dried_meat_0", "jerky"),
+        ("dried_fruit_0", "dried_fruit"),
+        ("fruit_date_palm_0", "dried_fruit"), // dates are eaten semi-dry; 277 kcal like dried fruit
+        ("protein_bar_0", "protein_bar"),
+        ("honey_0", "honey"),
+        ("sugar_0", "sugar"),
+
+        // --- Baked goods and cooked dishes (the outputs of the cooking recipes) ---
+        ("bread_0", "bread"),
+        ("cake_0", "cake"),
+        ("cookies_batch_0", "cookies"),
+        ("pie_0", "fruit_pie"),
+        ("soup_vegetable_0", "vegetable_soup"),
+        ("stew_meat_0", "meat_stew"),
+        ("sandwich_0", "sandwich"),
+        ("pasta_cooked_0", "pasta_dish"),
+        ("pizza_slice_0", "pizza"),
+        ("omelette_0", "omelette"),
+        ("porridge_0", "porridge"),
+        ("salad_0", "raw_vegetables"),        // raw lettuce, tomato and carrot, no dressing
+
+        // --- Grains and flour (dry, keep for a year) ---
+        ("rice_0", "grains"),
+        ("flour_0", "grains"),
+        ("grain_wheat_0", "grains"),
+        ("grain_corn_0", "grains"),
+        ("grain_rice_0", "grains"),
+        ("grain_barley_0", "grains"),
+        ("grain_oat_0", "grains"),
+        ("grain_rye_0", "grains"),
+        ("grain_sorghum_0", "grains"),
+        ("grain_millet_0", "grains"),
+        ("grain_amaranth_0", "grains"),
+        ("grain_quinoa_0", "grains"),
+        ("grain_buckwheat_0", "grains"),
+        ("grain_teff_0", "grains"),
+        ("grain_spelt_0", "grains"),
+        ("grain_finger_millet_0", "grains"),
+        ("grain_triticale_0", "grains"),
+
+        // --- Legumes (dry pulses keep for a year; green peas for days) ---
+        ("legume_bean_0", "legumes_dry"),
+        ("legume_soybean_0", "legumes_dry"),
+        ("legume_lentil_0", "legumes_dry"),
+        ("legume_chickpea_0", "legumes_dry"),
+        ("legume_cowpea_0", "legumes_dry"),
+        ("legume_fava_bean_0", "legumes_dry"),
+        ("legume_pigeon_pea_0", "legumes_dry"),
+        ("legume_lupin_0", "legumes_dry"),
+        ("legume_mung_bean_0", "legumes_dry"),
+        ("legume_bambara_groundnut_0", "legumes_dry"),
+        ("legume_pea_0", "legumes_fresh"),    // plants.csv: "producing edible pods", eaten green
+
+        // --- Nuts and seeds ---
+        ("legume_peanut_0", "nuts_seeds"),    // a legume, but eaten and stored like a nut
+        ("fruit_hazelnut_0", "nuts_seeds"),
+        ("fruit_walnut_0", "nuts_seeds"),
+        ("fruit_sunflower_0", "nuts_seeds"),  // grown for the seeds
+        ("grain_sesame_0", "nuts_seeds"),     // an oilseed that is also eaten whole
+        ("fruit_coconut_0", "coconut_meat"),
+
+        // --- Fruit ---
+        ("fruit_apple_0", "fruit"),
+        ("fruit_banana_0", "fruit"),
+        ("fruit_orange_0", "fruit"),
+        ("fruit_lemon_0", "fruit"),
+        ("fruit_berries_0", "fruit"),
+        ("fruit_strawberry_0", "fruit"),
+        ("fruit_blueberry_0", "fruit"),
+        ("fruit_cranberry_0", "fruit"),
+        ("fruit_grape_0", "fruit"),
+        ("fruit_cherry_0", "fruit"),
+        ("fruit_watermelon_0", "fruit"),
+        ("fruit_peach_0", "fruit"),
+        ("fruit_pear_0", "fruit"),
+        ("fruit_plum_0", "fruit"),
+        ("fruit_mango_0", "fruit"),
+        ("fruit_pineapple_0", "fruit"),
+        ("fruit_fig_0", "fruit"),
+        ("fruit_pomegranate_0", "fruit"),
+        ("fruit_prickly_pear_0", "fruit"),
+
+        // --- Vegetables (fresh, keep about a week) ---
+        ("vegetable_tomato_0", "raw_vegetables"),
+        ("fruit_pepper_0", "raw_vegetables"),   // botanical fruit, eaten as a vegetable
+        ("fruit_eggplant_0", "raw_vegetables"), // botanical fruit, eaten as a vegetable
+        ("fruit_pumpkin_0", "raw_vegetables"),  // botanical fruit, eaten as a vegetable
+        ("vegetable_cucumber_0", "raw_vegetables"),
+        ("vegetable_zucchini_0", "raw_vegetables"),
+        ("vegetable_squash_0", "raw_vegetables"),
+        ("vegetable_okra_0", "raw_vegetables"),
+        ("vegetable_lettuce_0", "raw_vegetables"),
+        ("vegetable_spinach_0", "raw_vegetables"),
+        ("vegetable_kale_0", "raw_vegetables"),
+        ("vegetable_collard_0", "raw_vegetables"),
+        ("vegetable_chard_0", "raw_vegetables"),
+        ("vegetable_mustard_greens_0", "raw_vegetables"),
+        ("vegetable_arugula_0", "raw_vegetables"),
+        ("vegetable_mache_0", "raw_vegetables"),
+        ("vegetable_chicory_0", "raw_vegetables"),
+        ("vegetable_bok_choy_0", "raw_vegetables"),
+        ("vegetable_cabbage_0", "raw_vegetables"),
+        ("vegetable_brussels_sprout_0", "raw_vegetables"),
+        ("vegetable_broccoli_0", "raw_vegetables"),
+        ("vegetable_cauliflower_0", "raw_vegetables"),
+        ("vegetable_celery_0", "raw_vegetables"),
+        ("vegetable_fennel_0", "raw_vegetables"),
+        ("vegetable_asparagus_0", "raw_vegetables"),
+        ("vegetable_artichoke_0", "raw_vegetables"),
+        ("vegetable_rhubarb_0", "raw_vegetables"),  // the stalks only; the leaf blades are not eaten
+        ("vegetable_radish_0", "raw_vegetables"),   // 16 kcal, closer to salad than to carrots
+        ("vegetable_moringa_0", "raw_vegetables"),  // leaves; 64 kcal, the densest member of the group
+        ("herb_dandelion_0", "raw_vegetables"),     // eaten as a leafy green, not a garnish
+        ("vegetable_oyster_mushroom_0", "raw_vegetables"),
+        ("vegetable_shiitake_0", "raw_vegetables"),
+        ("vegetable_button_mushroom_0", "raw_vegetables"),
+
+        // --- Roots and bulbs (keep for weeks) ---
+        ("vegetable_carrot_0", "root_vegetables"),
+        ("vegetable_beet_0", "root_vegetables"),
+        ("vegetable_turnip_0", "root_vegetables"),
+        ("vegetable_rutabaga_0", "root_vegetables"),
+        ("vegetable_parsnip_0", "root_vegetables"),
+        ("vegetable_sugar_beet_0", "root_vegetables"),
+        ("vegetable_horseradish_0", "root_vegetables"),
+        ("vegetable_onion_0", "root_vegetables"),
+        ("vegetable_leek_0", "root_vegetables"),
+        ("herb_ginger_0", "root_vegetables"),       // a fresh rhizome
+        ("herb_turmeric_0", "root_vegetables"),     // a fresh rhizome
+
+        // --- Starchy staples ---
+        ("vegetable_potato_0", "starchy_vegetables"),
+        ("vegetable_sweet_potato_0", "starchy_vegetables"),
+        ("vegetable_yam_0", "starchy_vegetables"),
+        ("vegetable_taro_0", "starchy_vegetables"),
+        ("vegetable_jerusalem_artichoke_0", "starchy_vegetables"),
+        ("vegetable_oca_0", "starchy_vegetables"),
+        ("vegetable_corn_0", "starchy_vegetables"), // sweet corn ear, 86 kcal
+        ("vegetable_garlic_0", "starchy_vegetables"), // 149 kcal and keeps a month, like the tubers
+        ("fruit_plantain_0", "starchy_vegetables"), // harvested green and cooked as a starch
+        ("fruit_breadfruit_0", "starchy_vegetables"),
+        ("fruit_chestnut_0", "starchy_vegetables"), // a starchy, low-fat nut, milled like grain
+        ("vegetable_cassava_0", "cassava"),
+
+        // --- Culinary herbs, eaten fresh ---
+        ("herb_basil_0", "fresh_herbs"),
+        ("herb_mint_0", "fresh_herbs"),
+        ("herb_parsley_0", "fresh_herbs"),
+        ("herb_cilantro_0", "fresh_herbs"),
+        ("herb_dill_0", "fresh_herbs"),
+        ("herb_chive_0", "fresh_herbs"),
+        ("herb_rosemary_0", "fresh_herbs"),
+        ("herb_thyme_0", "fresh_herbs"),
+        ("herb_oregano_0", "fresh_herbs"),
+        ("herb_sage_0", "fresh_herbs"),
+        ("herb_lemongrass_0", "fresh_herbs"),
+        ("herb_lavender_0", "fresh_herbs"),
+        ("herb_chamomile_0", "fresh_herbs"),
+        ("herb_tea_0", "fresh_herbs"),              // fresh tea leaves, before drying
+    ],
+
+    not_food: [
+        // --- Seasonings and brewing crops: used to flavour other food, not eaten ---
+        ("salt_food_0", "table salt: a seasoning with no food energy, never eaten on its own"),
+        ("spice_mix_0", "a seasoning blend used by the pinch in cooking"),
+        ("herb_cinnamon_0", "cinnamon bark: a spice used by the pinch"),
+        ("herb_saffron_0", "saffron threads: a spice used by the pinch"),
+        ("herb_vanilla_0", "green vanilla pods have to be cured for months before they flavour anything, and are used by the pinch even then"),
+        ("herb_hop_0", "hop cones flavour beer; they are not eaten"),
+        ("fruit_coffee_0", "coffee cherries are grown for the bean, which is roasted and brewed (the cook_coffee recipe); the cherry is not a food"),
+        ("fruit_cacao_0", "cacao pods are grown for the beans, which are fermented, dried and roasted before they become chocolate"),
+        ("fruit_olive_0", "olives straight from the tree are too bitter to eat; they are cured in brine or pressed for oil first, and neither step exists yet"),
+
+        // --- Oilseeds grown for pressing ---
+        ("grain_rapeseed_0", "grown to be pressed for oil; the seed is not eaten as it is"),
+        ("grain_camelina_0", "grown to be pressed for oil; the seed is not eaten as it is"),
+        ("grain_safflower_0", "grown to be pressed for oil; the hard-hulled seed is not eaten as it is"),
+
+        // --- Spoiled ---
+        ("rotten_flesh_0", "decomposing meat; not food at any stage"),
+
+        // --- Medical supplies (items.csv files them under category food) ---
+        ("bandage_0", "a medical supply, not food"),
+        ("medkit_0", "a medical supply, not food"),
+        ("painkiller_0", "a medicine, not food"),
+        ("antibiotic_0", "a medicine, not food"),
+        ("antidote_0", "a medicine, not food"),
+        ("stimulant_0", "a medicine, not food"),
+        ("vitamins_0", "a supplement tablet, not food"),
+        ("splint_0", "a medical supply, not food"),
+        ("antiseptic_0", "a wound disinfectant; never swallowed"),
+        ("surgical_kit_0", "a medical supply, not food"),
+        ("blood_pack_0", "a medical supply, not food"),
+
+        // --- Tree harvests (wood and bark; tree foods such as acorns, sap and pine nuts are not items yet) ---
+        ("produce_oak_0", "a tree harvest (wood), not food"),
+        ("produce_pine_0", "a tree harvest (wood), not food"),
+        ("produce_birch_0", "a tree harvest (wood), not food"),
+        ("produce_maple_0", "a tree harvest (wood), not food"),
+        ("produce_willow_0", "a tree harvest (wood), not food"),
+        ("produce_bamboo_0", "a tree harvest (canes), not food"),
+        ("produce_palm_0", "a tree harvest (wood), not food"),
+        ("produce_redwood_0", "a tree harvest (wood), not food"),
+        ("produce_eucalyptus_0", "a tree harvest (wood), not food"),
+        ("produce_baobab_0", "a tree harvest (wood), not food"),
+        ("produce_cherry_blossom_0", "a tree harvest (wood), not food"),
+
+        // --- Medicinal plants: remedies are prepared from them rather than eaten ---
+        ("produce_aloe_vera_0", "a medicinal plant; remedies are prepared from it, it is not eaten as food"),
+        ("produce_echinacea_0", "a medicinal plant; remedies are prepared from it, it is not eaten as food"),
+        ("produce_ginseng_0", "a medicinal plant; remedies are prepared from it, it is not eaten as food"),
+        ("produce_valerian_0", "a medicinal plant; remedies are prepared from it, it is not eaten as food"),
+        ("produce_feverfew_0", "a medicinal plant; remedies are prepared from it, it is not eaten as food"),
+        ("produce_comfrey_0", "a medicinal plant for external use; it is not eaten"),
+        ("produce_calendula_0", "a medicinal plant; remedies are prepared from it, it is not eaten as food"),
+        ("produce_tea_tree_0", "a medicinal plant whose oil is for external use; it is not eaten"),
+        ("produce_st_johns_wort_0", "a medicinal plant; remedies are prepared from it, it is not eaten as food"),
+        ("produce_witch_hazel_0", "a medicinal plant for external use; it is not eaten"),
+
+        // --- Ornamental flowers ---
+        ("produce_rose_0", "an ornamental flower"),
+        ("produce_tulip_0", "an ornamental flower"),
+        ("produce_orchid_0", "an ornamental flower"),
+        ("produce_lily_0", "an ornamental flower"),
+        ("produce_dahlia_0", "an ornamental flower"),
+        ("produce_marigold_0", "an ornamental flower"),
+        ("produce_jasmine_0", "an ornamental flower"),
+
+        // --- Alien plants: no real-world food composition, edibility not defined yet ---
+        ("produce_luminous_fern_0", "an alien species; whether it is edible is not defined yet"),
+        ("produce_void_orchid_0", "an alien species; whether it is edible is not defined yet"),
+        ("produce_crystal_moss_0", "an alien species; whether it is edible is not defined yet"),
+        ("produce_plasma_vine_0", "an alien species; whether it is edible is not defined yet"),
+        ("produce_gravity_bloom_0", "an alien species; whether it is edible is not defined yet"),
+        ("produce_nebula_lily_0", "an alien species; whether it is edible is not defined yet"),
+        ("produce_shadow_fungi_0", "an alien species; whether it is edible is not defined yet"),
+        ("produce_star_thistle_0", "an alien species; whether it is edible is not defined yet"),
+        ("produce_ember_reed_0", "an alien species; whether it is edible is not defined yet"),
+        ("produce_frost_blossom_0", "an alien species; whether it is edible is not defined yet"),
+        ("produce_phase_mushroom_0", "an alien species; whether it is edible is not defined yet"),
+        ("produce_aether_kelp_0", "an alien species; whether it is edible is not defined yet"),
+    ],
+)

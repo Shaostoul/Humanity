@@ -1,7 +1,15 @@
 //! Food system -- nutrition, spoilage, cooking, and meal quality.
 //!
 //! Loads nutrition profiles, preservation methods, cooking methods, meal quality
-//! levels, and temperature zones from `data/food_system.ron`.
+//! levels, and temperature zones from `data/food_system.ron`, and the list of
+//! which items are food (and which profile each one uses) from
+//! `data/food/item_profiles.ron`.
+//!
+//! WHAT COUNTS AS FOOD is decided by that list and nothing else. An item that
+//! is not in it cannot be eaten or drunk and never spoils. Until 2026-09-25
+//! this was guessed from item-id prefixes, which made the grain mill and grain
+//! silo edible (`grain_`), fish scales edible (`fish_`), gave 18 of the 26
+//! cooking-recipe outputs no nutrition at all, and let legumes never spoil.
 
 use std::collections::HashMap;
 use std::path::Path;
@@ -13,20 +21,59 @@ use crate::hot_reload::data_store::DataStore;
 
 /// One nutrition profile from `data/food_system.ron` (by food category). Only the
 /// fields the nutrition loop consumes are modeled; the rest (macros, vitamins,
-/// minerals, spoilage_rate_hours, description) are ignored by serde.
+/// minerals, description) are ignored by serde.
 #[derive(Debug, Clone, Deserialize)]
 pub struct NutritionProfile {
     /// Profile id, e.g. `fruit`, `raw_vegetables`, `cooked_meat`.
     pub id: String,
-    /// Macro category: `protein`, `produce`, `staple`, `preserved`.
+    /// Category: `protein`, `produce`, `staple`, `preserved`, `beverage`,
+    /// `meal`, `baked`, `fat`, `sweetener`. Drives hydration: a `beverage`
+    /// hydrates like a drink and is the only thing the Drink action accepts.
     #[serde(default)]
     pub category: String,
     /// Energy density (kcal / 100 g) — drives satiation gain.
     #[serde(default)]
     pub calories_per_100g: u32,
+    /// Hours the food stays safe under the storage it normally gets (see the
+    /// header of food_system.ron). Drives the spoilage timer, in real seconds
+    /// like every other survival clock here.
+    #[serde(default)]
+    pub spoilage_rate_hours: f32,
     /// Probability (0..1) of illness when eaten raw. 0 for cooked/preserved food.
     #[serde(default)]
     pub raw_consumption_risk: f32,
+}
+
+/// `data/food/item_profiles.ron`: which items are food, and the nutrition
+/// profile each one uses. The ONLY source of edibility (see the module doc).
+#[derive(Debug, Default, Deserialize)]
+pub struct ItemProfiles {
+    /// (item id, nutrition profile id) for every item a person can eat or drink.
+    pub items: Vec<(String, String)>,
+    /// (item id, reason) for items that items.csv files under category "food"
+    /// but that nobody eats. The runtime never reads this; it lets the
+    /// coverage test insist that every food-category item was decided.
+    #[serde(default)]
+    pub not_food: Vec<(String, String)>,
+}
+
+impl ItemProfiles {
+    /// Path of the list, relative to the data directory.
+    pub const FILE: &'static str = "food/item_profiles.ron";
+
+    /// Disk first (modding), embedded copy as the fallback, the same way
+    /// food_system.ron loads. A missing or unparseable file leaves the list
+    /// empty, which means nothing is edible: loud in the log, never a crash.
+    pub fn load(data_dir: &Path) -> Self {
+        let Some(text) = crate::embedded_data::read_data_or_embedded(data_dir, Self::FILE) else {
+            log::warn!("{} not found on disk or embedded: nothing is edible", Self::FILE);
+            return Self::default();
+        };
+        ron::from_str(&text).unwrap_or_else(|e| {
+            log::warn!("Failed to parse {}: {e}. Nothing is edible until it is fixed", Self::FILE);
+            Self::default()
+        })
+    }
 }
 
 /// Top-level RON schema for `data/food_system.ron`.
@@ -45,16 +92,10 @@ pub struct FoodData {
 // own, so keying by (entity, inventory-slot-index) is the practical way to
 // attach per-stack state without an item-entity architecture change.
 
-/// Spoilage time limits (seconds) by item category.
-/// Categories are inferred from item_id prefixes until a proper item-metadata system exists.
-const RAW_MEAT_FRESHNESS: f32 = 86_400.0;    // 24 hours
-const RAW_PRODUCE_FRESHNESS: f32 = 172_800.0; // 48 hours
-const COOKED_FOOD_FRESHNESS: f32 = 43_200.0;  // 12 hours
-const DEFAULT_FRESHNESS: f32 = 259_200.0;     // 72 hours
-
-/// Preservation multipliers applied to base freshness time.
-const REFRIGERATED_MULT: f32 = 4.0;
-const CANNED_MULT: f32 = 100.0;
+// Spoilage time comes from each food's nutrition profile
+// (`spoilage_rate_hours`), so an item spoils on the timescale of the food it
+// is: green peas in days, dried beans in a year. There is no cold storage yet,
+// so nothing multiplies it.
 
 // ── Nutrition tuning (real-time seconds). Vitals run 0..100. ──────────────
 // v0.1005 REAL SCALE (operator: "my character keeps dying from dehydration
@@ -137,9 +178,28 @@ struct SpoilageState {
     spoiled: bool,
 }
 
+/// Which button a consume request came from.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Consume {
+    /// The Eat button: anything that is food.
+    Eat,
+    /// The Drink button: only foods whose profile is a `beverage`.
+    Drink,
+}
+
+/// Status-effect durations a meal can apply, resolved once per tick.
+struct MealEffects {
+    poisoning_s: f32,
+    well_fed_s: f32,
+    nourished_s: f32,
+}
+
 /// Tracks nutrition, spoilage, and cooking.
 pub struct FoodSystem {
     pub data: FoodData,
+    /// Edible item id -> index into `data.nutrition_profiles`, built from
+    /// `data/food/item_profiles.ron`. An item absent from this map is not food.
+    item_profile: HashMap<String, usize>,
     /// Per-item spoilage timers, keyed by (entity_id, slot_index).
     spoilage: HashMap<FoodKey, SpoilageState>,
     /// Accumulator to throttle log spam.
@@ -160,88 +220,131 @@ impl FoodSystem {
             FoodData { nutrition_profiles: vec![], preservation_methods: vec![], cooking_methods: vec![], meal_quality_levels: vec![], temperature_zones: vec![] }
         });
         log::info!("Loaded food data: {} nutrition profiles, {} cooking methods", data.nutrition_profiles.len(), data.cooking_methods.len());
-        Self { data, spoilage: HashMap::new(), log_cooldown: 0.0 }
-    }
 
-    /// Determine base freshness (seconds) for an item based on its ID prefix.
-    fn base_freshness(item_id: &str) -> f32 {
-        if item_id.starts_with("raw_meat") || item_id.starts_with("fish_raw") {
-            RAW_MEAT_FRESHNESS
-        } else if item_id.starts_with("fruit_") || item_id.starts_with("vegetable_") {
-            RAW_PRODUCE_FRESHNESS
-        } else if item_id.starts_with("cooked_") || item_id.starts_with("meal_") {
-            COOKED_FOOD_FRESHNESS
-        } else {
-            DEFAULT_FRESHNESS
+        // Resolve the item list against the profiles once, so a lookup per
+        // inventory slot per tick is one hash probe. A row naming a profile
+        // that does not exist is dropped with a warning (and fails the
+        // coverage test), rather than silently feeding the item as something else.
+        let list = ItemProfiles::load(data_dir);
+        let mut item_profile = HashMap::with_capacity(list.items.len());
+        for (item_id, profile_id) in &list.items {
+            match data.nutrition_profiles.iter().position(|p| &p.id == profile_id) {
+                Some(idx) => {
+                    item_profile.insert(item_id.clone(), idx);
+                }
+                None => log::warn!(
+                    "{}: {item_id} names nutrition profile '{profile_id}', which food_system.ron does not define; it is not edible",
+                    ItemProfiles::FILE
+                ),
+            }
         }
+        log::info!("Loaded {} edible items from {}", item_profile.len(), ItemProfiles::FILE);
+        Self { data, item_profile, spoilage: HashMap::new(), log_cooldown: 0.0 }
     }
 
-    /// Determine preservation multiplier from item ID suffix conventions.
-    fn preservation_multiplier(item_id: &str) -> f32 {
-        if item_id.contains("_canned") {
-            CANNED_MULT
-        } else if item_id.contains("_refrigerated") || item_id.contains("_chilled") {
-            REFRIGERATED_MULT
-        } else {
-            1.0
-        }
-    }
-
-    /// Check whether an item_id represents food (vs tools, ores, etc.).
-    fn is_food(item_id: &str) -> bool {
-        let food_prefixes = [
-            "raw_meat", "fish_raw", "fruit_", "vegetable_", "cooked_",
-            "meal_", "bread_", "grain_", "food_", "berry_", "herb_",
-        ];
-        food_prefixes.iter().any(|p| item_id.starts_with(p))
-    }
-
-    /// Classify a food item to its nutrition-profile id. Mirrors the prefix
-    /// classification already used for spoilage. (A fully data-driven
-    /// item->profile link — e.g. a column on items.csv — is a tracked future
-    /// refinement; see docs/design/gameplay-loops.md.)
-    fn profile_id_for(item_id: &str) -> Option<&'static str> {
-        let id = item_id;
-        // Cooked/specific prefixes first, then the generic raw families.
-        if id.starts_with("cooked_meat") || id.starts_with("meat_cooked") {
-            Some("cooked_meat")
-        } else if id.starts_with("cooked_veg") || id.starts_with("vegetable_cooked") {
-            Some("cooked_vegetables")
-        } else if id.starts_with("raw_meat") || id.starts_with("meat_") {
-            Some("raw_meat")
-        } else if id.starts_with("fish_") || id.starts_with("raw_fish") {
-            Some("raw_fish")
-        } else if id.starts_with("fruit_") || id.starts_with("berry_") {
-            Some("fruit")
-        } else if id.starts_with("vegetable_") || id.starts_with("veg_") {
-            Some("raw_vegetables")
-        } else if id.starts_with("egg_") {
-            Some("eggs")
-        } else if id.starts_with("milk_") || id.starts_with("cheese_") || id.starts_with("dairy_") {
-            Some("dairy")
-        } else if id.starts_with("canned_") || id.starts_with("mre_") {
-            Some("canned_food")
-        } else if id.starts_with("jerky_") || id.starts_with("dried_") {
-            Some("dried_food")
-        } else if id.starts_with("frozen_") {
-            Some("frozen_food")
-        } else if id.starts_with("bread_")
-            || id.starts_with("grain_")
-            || id.starts_with("flour_")
-            || id.starts_with("protein_bar")
-            || id.starts_with("rice_")
-            || id.starts_with("cereal_")
-        {
-            Some("grains")
-        } else {
-            None
-        }
-    }
-
-    /// Resolve an item to its loaded nutrition profile, if it is food.
+    /// The nutrition profile of an item, or None when it is not food.
     fn profile_for(&self, item_id: &str) -> Option<&NutritionProfile> {
-        let pid = Self::profile_id_for(item_id)?;
-        self.data.nutrition_profiles.iter().find(|p| p.id == pid)
+        self.item_profile
+            .get(item_id)
+            .map(|&idx| &self.data.nutrition_profiles[idx])
+    }
+
+    /// How long (real seconds) this item stays fresh, or None when it is not
+    /// food and therefore never spoils.
+    fn freshness_secs(&self, item_id: &str) -> Option<f32> {
+        self.profile_for(item_id).map(|p| p.spoilage_rate_hours * 3600.0)
+    }
+
+    /// Eat or drink one `item_id` from the first player (Inventory + Vitals +
+    /// StatusEffects) who carries it, applying the food's nutrition. Items that
+    /// are not food, and non-beverages sent to Drink, are ignored.
+    fn consume(&self, world: &mut hecs::World, item_id: &str, how: Consume, fx: &MealEffects) {
+        use crate::ecs::components::{StatusEffects, Vitals};
+        use crate::systems::inventory::Inventory;
+
+        let Some(profile) = self.profile_for(item_id) else {
+            log::debug!("[Food] {how:?} request for {item_id} ignored: not food ({})", ItemProfiles::FILE);
+            return;
+        };
+        let is_beverage = profile.category == "beverage";
+        if how == Consume::Drink && !is_beverage {
+            log::debug!("[Food] Drink request for {item_id} ignored: '{}' is not a beverage", profile.id);
+            return;
+        }
+        let calories = profile.calories_per_100g as f32;
+        let risk = profile.raw_consumption_risk;
+        // Drinks hydrate most, watery produce some, everything else barely.
+        let hydration_gain = if is_beverage {
+            DRINK_HYDRATION
+        } else if profile.category == "produce" {
+            PRODUCE_HYDRATION
+        } else {
+            BASE_HYDRATION
+        };
+
+        for (e, (inv, vitals, effects)) in
+            world.query_mut::<(&mut Inventory, &mut Vitals, &mut StatusEffects)>()
+        {
+            if !inv.has_item(item_id, 1) {
+                continue;
+            }
+            // Spoiled food (tracked by the spoilage pass in tick, §3) nourishes
+            // far less and always poisons -- eating it is never a free meal.
+            // Must match remove_item's OWN consumption order below (last-to-
+            // first) or this can inspect a different slot's spoilage state
+            // than the one actually eaten when the same item_id occupies
+            // more than one slot (e.g. a fresh stack plus an older, spoiled
+            // one after add_item split it across slots).
+            let entity_bits: u64 = e.to_bits().into();
+            let slot_idx = inv
+                .slots
+                .iter()
+                .enumerate()
+                .rev()
+                .find(|(_, s)| s.as_ref().is_some_and(|stack| stack.item_id == item_id))
+                .map(|(idx, _)| idx);
+            let is_spoiled = slot_idx
+                .and_then(|idx| self.spoilage.get(&(entity_bits, idx)))
+                .is_some_and(|s| s.spoiled);
+
+            inv.remove_item(item_id, 1);
+            let nutrition_mult = if is_spoiled { 0.25 } else { 1.0 };
+            vitals.satiation = (vitals.satiation + calories * SATIATION_PER_CALORIE * nutrition_mult)
+                .min(vitals.satiation_max);
+            vitals.hydration =
+                (vitals.hydration + hydration_gain * nutrition_mult).min(vitals.hydration_max);
+            // Eating solid food leaves a little organic waste (scraps) to
+            // compost later; a drink leaves none.
+            if !is_beverage {
+                vitals.waste = (vitals.waste + WASTE_PER_MEAL).min(vitals.waste_max);
+            }
+            // Spoiled food always poisons; otherwise raw food risks illness while
+            // cooked/preserved food (risk 0) is safe.
+            if is_spoiled || (risk > 0.0 && rand::random::<f32>() < risk) {
+                effects.apply("food_poisoning", fx.poisoning_s);
+                log::info!(
+                    "[Food] {item_id} consumed {} -> food poisoning!",
+                    if is_spoiled { "spoiled" } else { "raw" }
+                );
+            }
+            // A satisfying meal grants well_fed (stamina regen) + well_nourished
+            // (a tangible +10% move speed via the camera speed_multiplier).
+            // Water has no food energy, so a glass of it is not a meal.
+            if calories > 0.0 && vitals.satiation >= WELL_FED_THRESHOLD {
+                effects.apply("well_fed", fx.well_fed_s);
+                effects.apply("well_nourished", fx.nourished_s);
+            }
+            log::info!(
+                "[Food] {} {item_id} ({}): satiation {:.0}/{:.0}, hydration {:.0}/{:.0}",
+                if how == Consume::Drink { "drank" } else { "ate" },
+                profile.id,
+                vitals.satiation,
+                vitals.satiation_max,
+                vitals.hydration,
+                vitals.hydration_max,
+            );
+            break; // first player only
+        }
     }
 }
 
@@ -255,113 +358,34 @@ impl System for FoodSystem {
         use crate::systems::inventory::{Inventory, ItemRegistry};
         use crate::systems::status_effects::StatusEffectRegistry;
 
-        // ── 1. EAT: drain the consume_request channel (the Eat button writes it
-        //    via the main-loop bridge) and apply the food's nutrition to the first
-        //    player (Inventory + Vitals + StatusEffects) that actually has the item.
+        // ── 1. EAT / DRINK: drain the consume_request (Eat button) and
+        //    drink_request (Drink button) channels, written by the main-loop
+        //    bridge, and apply the item's nutrition profile to the first player
+        //    (Inventory + Vitals + StatusEffects) that actually has the item.
+        //    Both go through consume(): whether an item is food, and what it
+        //    does for you, comes from data/food/item_profiles.ron.
         let registry = data.get::<StatusEffectRegistry>("status_effect_registry");
         let item_registry = data.get::<ItemRegistry>("item_registry");
         let consumed = data
             .get::<std::sync::Mutex<Option<String>>>("consume_request")
             .and_then(|m| m.lock().ok().and_then(|mut s| s.take()));
-        if let Some(item_id) = consumed {
-            // Resolve nutrition once (immutable self borrow) and copy out the scalars,
-            // so no self borrow is held across the &mut World pass below.
-            if let Some((calories, risk, is_produce)) = self.profile_for(&item_id).map(|p| {
-                (
-                    p.calories_per_100g as f32,
-                    p.raw_consumption_risk,
-                    p.category == "produce",
-                )
-            }) {
-                let poison_dur = registry
-                    .map(|r| r.duration("food_poisoning"))
-                    .filter(|d| *d > 0.0)
-                    .unwrap_or(FALLBACK_FOOD_POISONING_S);
-                let well_fed_dur = registry
-                    .map(|r| r.duration("well_fed"))
-                    .filter(|d| *d > 0.0)
-                    .unwrap_or(FALLBACK_WELL_FED_S);
-                let nourished_dur = registry
-                    .map(|r| r.duration("well_nourished"))
-                    .filter(|d| *d > 0.0)
-                    .unwrap_or(FALLBACK_WELL_FED_S);
-                for (e, (inv, vitals, effects)) in
-                    world.query_mut::<(&mut Inventory, &mut Vitals, &mut StatusEffects)>()
-                {
-                    if !inv.has_item(&item_id, 1) {
-                        continue;
-                    }
-                    // Spoiled food (tracked by the spoilage pass below, §3) nourishes
-                    // far less and always poisons -- eating it is never a free meal.
-                    // Must match remove_item's OWN consumption order below (last-to-
-                    // first) or this can inspect a different slot's spoilage state
-                    // than the one actually eaten when the same item_id occupies
-                    // more than one slot (e.g. a fresh stack plus an older, spoiled
-                    // one after add_item split it across slots).
-                    let entity_bits: u64 = e.to_bits().into();
-                    let slot_idx = inv
-                        .slots
-                        .iter()
-                        .enumerate()
-                        .rev()
-                        .find(|(_, s)| s.as_ref().is_some_and(|stack| stack.item_id == item_id))
-                        .map(|(idx, _)| idx);
-                    let is_spoiled = slot_idx
-                        .and_then(|idx| self.spoilage.get(&(entity_bits, idx)))
-                        .is_some_and(|s| s.spoiled);
-
-                    inv.remove_item(&item_id, 1);
-                    let nutrition_mult = if is_spoiled { 0.25 } else { 1.0 };
-                    vitals.satiation = (vitals.satiation + calories * SATIATION_PER_CALORIE * nutrition_mult)
-                        .min(vitals.satiation_max);
-                    let hydration_gain = if is_produce { PRODUCE_HYDRATION } else { BASE_HYDRATION };
-                    vitals.hydration =
-                        (vitals.hydration + hydration_gain * nutrition_mult).min(vitals.hydration_max);
-                    // Eating produces a little organic waste (scraps) to compost later.
-                    vitals.waste = (vitals.waste + WASTE_PER_MEAL).min(vitals.waste_max);
-                    // Spoiled food always poisons; otherwise raw food risks illness while
-                    // cooked/preserved food (risk 0) is safe.
-                    if is_spoiled || (risk > 0.0 && rand::random::<f32>() < risk) {
-                        effects.apply("food_poisoning", poison_dur);
-                        log::info!(
-                            "[Food] {item_id} eaten {} -> food poisoning!",
-                            if is_spoiled { "spoiled" } else { "raw" }
-                        );
-                    }
-                    // A satisfying meal grants well_fed (stamina regen) + well_nourished
-                    // (a tangible +10% move speed via the camera speed_multiplier).
-                    if vitals.satiation >= WELL_FED_THRESHOLD {
-                        effects.apply("well_fed", well_fed_dur);
-                        effects.apply("well_nourished", nourished_dur);
-                    }
-                    log::info!(
-                        "[Food] ate {item_id}: satiation {:.0}/{:.0}, hydration {:.0}/{:.0}",
-                        vitals.satiation,
-                        vitals.satiation_max,
-                        vitals.hydration,
-                        vitals.hydration_max,
-                    );
-                    break; // first player only
-                }
-            } else {
-                log::debug!("[Food] consume_request for non-food item {item_id} ignored");
-            }
-        }
-
-        // ── 1a. DRINK: drain drink_request -> consume a drink item -> restore hydration
-        //    (mirrors EAT for beverages, which carry no nutrition profile).
         let drank = data
             .get::<std::sync::Mutex<Option<String>>>("drink_request")
             .and_then(|m| m.lock().ok().and_then(|mut s| s.take()));
-        if let Some(item_id) = drank {
-            for (_e, (inv, vitals)) in world.query_mut::<(&mut Inventory, &mut Vitals)>() {
-                if inv.has_item(&item_id, 1) {
-                    inv.remove_item(&item_id, 1);
-                    vitals.hydration =
-                        (vitals.hydration + DRINK_HYDRATION).min(vitals.hydration_max);
-                    log::info!("[Food] drank {item_id}: hydration {:.0}", vitals.hydration);
-                }
-                break; // first player only
+        if consumed.is_some() || drank.is_some() {
+            let effect_s = |id: &str, fallback: f32| {
+                registry.map(|r| r.duration(id)).filter(|d| *d > 0.0).unwrap_or(fallback)
+            };
+            let fx = MealEffects {
+                poisoning_s: effect_s("food_poisoning", FALLBACK_FOOD_POISONING_S),
+                well_fed_s: effect_s("well_fed", FALLBACK_WELL_FED_S),
+                nourished_s: effect_s("well_nourished", FALLBACK_WELL_FED_S),
+            };
+            if let Some(item_id) = consumed {
+                self.consume(world, &item_id, Consume::Eat, &fx);
+            }
+            if let Some(item_id) = drank {
+                self.consume(world, &item_id, Consume::Drink, &fx);
             }
         }
 
@@ -681,15 +705,13 @@ impl System for FoodSystem {
                     None => continue,
                 };
 
-                if !Self::is_food(&stack.item_id) {
+                // Only food spoils, on its own profile's timescale.
+                let Some(max_freshness) = self.freshness_secs(&stack.item_id) else {
                     continue;
-                }
+                };
 
                 let key: FoodKey = (entity_bits, slot_idx);
                 active_keys.insert(key);
-
-                let max_freshness =
-                    Self::base_freshness(&stack.item_id) * Self::preservation_multiplier(&stack.item_id);
 
                 let state = self.spoilage.entry(key).or_insert_with(|| SpoilageState {
                     spoilage_timer: 0.0,
@@ -714,8 +736,8 @@ impl System for FoodSystem {
                         stack.item_id, state.spoilage_timer,
                     );
                     // The item itself stays as-is (no item-def swap, so it still
-                    // stacks/sells as the same item_id); the EAT handler above (§1)
-                    // looks up this slot's spoiled flag and applies the real
+                    // stacks/sells as the same item_id); consume() (§1, eat and
+                    // drink) looks up this slot's spoiled flag and applies the real
                     // consequence -- reduced nutrition + guaranteed food poisoning.
                 } else if should_log {
                     let pct = (state.spoilage_timer / state.max_freshness * 100.0) as u32;
@@ -985,6 +1007,9 @@ mod nutrition_tests {
     /// Eating a SPOILED item (tracked by the spoilage side-table in §3 of tick())
     /// always causes food poisoning and grants far less nutrition than eating the
     /// same fresh item -- even though cooked_meat's own raw_consumption_risk is 0.
+    /// (roast_chicken_0 is a real items.csv row that uses the cooked_meat
+    /// profile; these tests used an invented `cooked_meat_0` id until
+    /// 2026-09-25, which only worked while edibility was guessed from prefixes.)
     #[test]
     fn eating_spoiled_food_poisons_and_reduces_nutrition() {
         let mut sys = FoodSystem::new(data_dir());
@@ -992,7 +1017,7 @@ mod nutrition_tests {
 
         let mut world = hecs::World::new();
         let mut inv = Inventory::new(8);
-        inv.add_item("cooked_meat_0", 1, 99);
+        inv.add_item("roast_chicken_0", 1, 99);
         let player = world.spawn((inv, vitals(40.0, 50.0), StatusEffects::default(), Health::default()));
 
         // One tick (no consume_request) registers the item's slot in the
@@ -1005,15 +1030,15 @@ mod nutrition_tests {
             .unwrap()
             .slots
             .iter()
-            .position(|s| s.as_ref().is_some_and(|st| st.item_id == "cooked_meat_0"))
-            .expect("cooked_meat_0 tracked in spoilage side-table");
+            .position(|s| s.as_ref().is_some_and(|st| st.item_id == "roast_chicken_0"))
+            .expect("roast_chicken_0 tracked in spoilage side-table");
         sys.spoilage.get_mut(&(entity_bits, slot_idx)).unwrap().spoiled = true;
 
         *data
             .get::<std::sync::Mutex<Option<String>>>("consume_request")
             .unwrap()
             .lock()
-            .unwrap() = Some("cooked_meat_0".to_string());
+            .unwrap() = Some("roast_chicken_0".to_string());
         sys.tick(&mut world, 0.0, &data);
 
         let v = world.get::<&Vitals>(player).unwrap();
@@ -1049,8 +1074,8 @@ mod nutrition_tests {
         // Two separate stacks of the same item_id: slot 0 (fresh) and slot 3
         // (will be marked spoiled). remove_item consumes last-to-first, so a
         // single eat should draw from slot 3, not slot 0.
-        inv.slots[0] = Some(crate::systems::inventory::ItemStack::new("cooked_meat_0".to_string(), 1, 99));
-        inv.slots[3] = Some(crate::systems::inventory::ItemStack::new("cooked_meat_0".to_string(), 1, 99));
+        inv.slots[0] = Some(crate::systems::inventory::ItemStack::new("roast_chicken_0".to_string(), 1, 99));
+        inv.slots[3] = Some(crate::systems::inventory::ItemStack::new("roast_chicken_0".to_string(), 1, 99));
         let player = world.spawn((inv, vitals(40.0, 50.0), StatusEffects::default(), Health::default()));
 
         // Register both slots in the spoilage side-table, then mark ONLY
@@ -1064,7 +1089,7 @@ mod nutrition_tests {
             .get::<std::sync::Mutex<Option<String>>>("consume_request")
             .unwrap()
             .lock()
-            .unwrap() = Some("cooked_meat_0".to_string());
+            .unwrap() = Some("roast_chicken_0".to_string());
         sys.tick(&mut world, 0.0, &data);
 
         // Exactly one unit should have been removed, from slot 3 (last
@@ -1275,6 +1300,278 @@ mod nutrition_tests {
             world.get::<&Vitals>(player).unwrap().hydration > 40.0,
             "drinking restored hydration"
         );
+    }
+
+    // ── Which items are food: data/food/item_profiles.ron (2026-09-25) ──
+    //
+    // Each test below failed against the old id-prefix logic (same data files,
+    // prefix functions still deciding); see the commit message for the run.
+
+    /// The two columns of items.csv these tests need.
+    #[derive(serde::Deserialize)]
+    struct ItemRow {
+        id: String,
+        #[serde(default)]
+        category: String,
+    }
+
+    fn items_csv() -> Vec<ItemRow> {
+        let bytes = std::fs::read(data_dir().join("items.csv")).expect("read data/items.csv");
+        crate::assets::loader::parse_csv(&bytes).expect("parse data/items.csv")
+    }
+
+    /// A fresh world holding one player who carries a single `item_id`.
+    fn player_with(item_id: &str, satiation: f32, hydration: f32) -> (hecs::World, hecs::Entity) {
+        let mut world = hecs::World::new();
+        let mut inv = Inventory::new(8);
+        inv.add_item(item_id, 1, 99);
+        let player = world.spawn((
+            inv,
+            vitals(satiation, hydration),
+            StatusEffects::default(),
+            Health::default(),
+        ));
+        (world, player)
+    }
+
+    fn request(data: &DataStore, channel: &str, item_id: &str) {
+        *data
+            .get::<std::sync::Mutex<Option<String>>>(channel)
+            .unwrap()
+            .lock()
+            .unwrap() = Some(item_id.to_string());
+    }
+
+    /// Every items.csv row filed under category "food" has been decided: it has
+    /// a nutrition profile, or item_profiles.ron lists it as not food with a
+    /// reason (the medical supplies, trees and flowers items.csv files there).
+    /// Also keeps the list honest: every id it names exists in items.csv, none
+    /// is listed twice, every profile it names exists and spoils on a real
+    /// timescale.
+    #[test]
+    fn every_food_category_item_has_a_profile_or_a_stated_reason() {
+        use std::collections::HashSet;
+        let sys = FoodSystem::new(data_dir());
+        let list = ItemProfiles::load(data_dir());
+        let rows = items_csv();
+        let not_food: HashSet<&str> = list.not_food.iter().map(|(id, _)| id.as_str()).collect();
+
+        let undecided: Vec<&str> = rows
+            .iter()
+            .filter(|r| r.category == "food")
+            .map(|r| r.id.as_str())
+            .filter(|id| sys.profile_for(id).is_none() && !not_food.contains(id))
+            .collect();
+        assert!(
+            undecided.is_empty(),
+            "{} items.csv food items have no nutrition profile and no not_food reason in \
+             data/food/item_profiles.ron: {undecided:?}",
+            undecided.len()
+        );
+
+        let known: HashSet<&str> = rows.iter().map(|r| r.id.as_str()).collect();
+        let mut seen = HashSet::new();
+        for (id, _) in list.items.iter().chain(list.not_food.iter()) {
+            assert!(seen.insert(id.as_str()), "{id} is listed twice in item_profiles.ron");
+            assert!(known.contains(id.as_str()), "item_profiles.ron names {id}, which items.csv does not define");
+        }
+        for (id, reason) in &list.not_food {
+            assert!(!reason.trim().is_empty(), "{id} is listed as not food without a reason");
+        }
+        for (id, profile_id) in &list.items {
+            let p = sys.profile_for(id).unwrap_or_else(|| {
+                panic!("{id} uses profile '{profile_id}', which food_system.ron does not define")
+            });
+            assert!(p.spoilage_rate_hours > 0.0, "profile '{}' has no spoilage time", p.id);
+        }
+    }
+
+    /// Everything the cooking recipes make is either food with a profile or
+    /// listed as not food (the spice mix). Before the list, 18 of the 26
+    /// cooking outputs (stew, cake, pie, omelette, juice...) did nothing when eaten.
+    #[test]
+    fn every_cooking_recipe_output_is_decided() {
+        #[derive(serde::Deserialize)]
+        struct RecipeRow {
+            #[serde(default)]
+            category: String,
+            #[serde(default)]
+            outputs: String,
+        }
+        let sys = FoodSystem::new(data_dir());
+        let list = ItemProfiles::load(data_dir());
+        let bytes = std::fs::read(data_dir().join("recipes.csv")).expect("read data/recipes.csv");
+        let recipes: Vec<RecipeRow> = crate::assets::loader::parse_csv(&bytes).expect("parse recipes.csv");
+        let mut undecided = Vec::new();
+        for r in recipes.iter().filter(|r| r.category == "cooking") {
+            for out in r.outputs.split('|') {
+                let id = out.split(':').next().unwrap_or("").trim();
+                if id.is_empty() {
+                    continue;
+                }
+                if sys.profile_for(id).is_none() && !list.not_food.iter().any(|(nf, _)| nf == id) {
+                    undecided.push(id.to_string());
+                }
+            }
+        }
+        assert!(undecided.is_empty(), "cooking recipes make undecided items: {undecided:?}");
+    }
+
+    /// The grain mill and the grain silo are machines. The old prefix rule
+    /// ("grain_") made both edible and tracked them for spoilage.
+    #[test]
+    fn grain_mill_and_grain_silo_are_not_food() {
+        let mut sys = FoodSystem::new(data_dir());
+        let data = make_store();
+        let mut world = hecs::World::new();
+        let mut inv = Inventory::new(8);
+        inv.add_item("grain_mill_0", 1, 1);
+        inv.add_item("grain_silo_0", 1, 1);
+        let player = world.spawn((inv, vitals(40.0, 50.0), StatusEffects::default(), Health::default()));
+
+        for machine in ["grain_mill_0", "grain_silo_0"] {
+            request(&data, "consume_request", machine);
+            sys.tick(&mut world, 0.0, &data);
+            assert_eq!(
+                world.get::<&Inventory>(player).unwrap().count_item(machine),
+                1,
+                "{machine} was eaten"
+            );
+        }
+        assert_eq!(world.get::<&Vitals>(player).unwrap().satiation, 40.0, "a machine fed the player");
+        assert!(sys.profile_for("grain_mill_0").is_none() && sys.profile_for("grain_silo_0").is_none());
+        assert!(
+            sys.spoilage.is_empty(),
+            "machines are being tracked for spoilage ({} slots)",
+            sys.spoilage.len()
+        );
+    }
+
+    /// A cooked dish a recipe makes actually feeds you: the meat stew raises
+    /// satiation by exactly its calories (107 kcal/100 g, USDA FNDDS "Stew,
+    /// beef") times SATIATION_PER_CALORIE, and is used up.
+    #[test]
+    fn eating_the_meat_stew_raises_satiation() {
+        let data = make_store();
+        let mut sys = FoodSystem::new(data_dir());
+        let (mut world, player) = player_with("stew_meat_0", 40.0, 50.0);
+        request(&data, "consume_request", "stew_meat_0");
+        sys.tick(&mut world, 0.0, &data);
+
+        assert_eq!(
+            world.get::<&Inventory>(player).unwrap().count_item("stew_meat_0"),
+            0,
+            "the stew was eaten"
+        );
+        let satiation = world.get::<&Vitals>(player).unwrap().satiation;
+        assert!(satiation > 40.0, "eating the stew raised satiation (40 -> {satiation})");
+        let kcal = sys.profile_for("stew_meat_0").expect("stew has a profile").calories_per_100g as f32;
+        assert!(
+            (satiation - (40.0 + kcal * SATIATION_PER_CALORIE)).abs() < 1e-3,
+            "stew gave {} satiation, expected {kcal} kcal x {SATIATION_PER_CALORIE}",
+            satiation - 40.0
+        );
+    }
+
+    /// Every item on the list can really be consumed through the button the
+    /// GUI shows for it, and does something: Drink for beverages, Eat otherwise.
+    #[test]
+    fn every_listed_item_can_be_eaten_or_drunk() {
+        let list = ItemProfiles::load(data_dir());
+        assert!(!list.items.is_empty(), "item_profiles.ron loaded no items");
+        for (id, _) in &list.items {
+            let data = make_store();
+            let mut sys = FoodSystem::new(data_dir());
+            let beverage = sys.profile_for(id).is_some_and(|p| p.category == "beverage");
+            let (mut world, player) = player_with(id, 40.0, 40.0);
+            request(&data, if beverage { "drink_request" } else { "consume_request" }, id);
+            sys.tick(&mut world, 0.0, &data);
+            let v = world.get::<&Vitals>(player).unwrap();
+            assert_eq!(world.get::<&Inventory>(player).unwrap().count_item(id), 0, "{id} was not consumed");
+            assert!(
+                v.satiation > 40.0 || v.hydration > 40.0,
+                "{id} was consumed but did nothing (satiation {}, hydration {})",
+                v.satiation,
+                v.hydration
+            );
+        }
+    }
+
+    /// Legumes spoil on their own profile's clock. Green peas (legumes_fresh)
+    /// go off in days; dry beans (legumes_dry) sitting in the same pack for
+    /// the same time are still fine. The old prefix rule never tracked legumes
+    /// at all, so neither ever spoiled.
+    #[test]
+    fn a_fresh_legume_spoils_on_its_profile_timescale_and_a_dry_one_keeps() {
+        let mut sys = FoodSystem::new(data_dir());
+        let mut data = make_store();
+        // Pause hunger and thirst: this test is about the spoilage clock only.
+        data.insert("vitals_drain_scale", std::sync::Mutex::new(0.0_f32));
+        let mut world = hecs::World::new();
+        let mut inv = Inventory::new(4);
+        inv.slots[0] = Some(crate::systems::inventory::ItemStack::new("legume_pea_0".to_string(), 1, 99));
+        inv.slots[1] = Some(crate::systems::inventory::ItemStack::new("legume_bean_0".to_string(), 1, 99));
+        let player = world.spawn((inv, vitals(80.0, 80.0), StatusEffects::default(), Health::default()));
+        let bits: u64 = player.to_bits().into();
+
+        // A zero-length tick registers both stacks with the spoilage pass.
+        sys.tick(&mut world, 0.0, &data);
+        let pea = sys.spoilage.get(&(bits, 0)).expect("green peas are not tracked for spoilage").clone();
+        let bean = sys.spoilage.get(&(bits, 1)).expect("dry beans are not tracked for spoilage").clone();
+
+        // The clocks are the profiles' own, and they are the right scale:
+        // green peas keep days (FoodKeeper 3-5), dry beans a year or more.
+        let hours = |id: &str| sys.profile_for(id).map(|p| p.spoilage_rate_hours).unwrap();
+        assert_eq!(pea.max_freshness, hours("legume_pea_0") * 3600.0);
+        assert_eq!(bean.max_freshness, hours("legume_bean_0") * 3600.0);
+        assert!(hours("legume_pea_0") <= 7.0 * 24.0, "green peas keep {} h", hours("legume_pea_0"));
+        assert!(hours("legume_bean_0") >= 180.0 * 24.0, "dry beans keep {} h", hours("legume_bean_0"));
+
+        // One minute short of the pea's limit: still fresh.
+        sys.tick(&mut world, pea.max_freshness - 60.0, &data);
+        assert!(!sys.spoilage[&(bits, 0)].spoiled, "peas spoiled before their time");
+        // Two minutes later: spoiled. The dry beans beside them are fine.
+        sys.tick(&mut world, 120.0, &data);
+        assert!(sys.spoilage[&(bits, 0)].spoiled, "peas never spoiled");
+        assert!(!sys.spoilage[&(bits, 1)].spoiled, "dry beans spoiled on the green-pea clock");
+    }
+
+    /// Drink takes only beverages. The GUI offers Drink for every item whose
+    /// id starts with `water_` (pump, tank, purifier...), and the old handler
+    /// consumed whatever arrived and added hydration, so a water pump could
+    /// be drunk. Bread is food but not a drink. Juice is both a drink and a
+    /// little food.
+    #[test]
+    fn drink_accepts_only_beverages() {
+        let data = make_store();
+        let mut sys = FoodSystem::new(data_dir());
+        let mut world = hecs::World::new();
+        let mut inv = Inventory::new(8);
+        for id in ["water_pump_0", "bread_0", "juice_0"] {
+            inv.add_item(id, 1, 99);
+        }
+        let player = world.spawn((inv, vitals(40.0, 40.0), StatusEffects::default(), Health::default()));
+
+        for refused in ["water_pump_0", "bread_0"] {
+            request(&data, "drink_request", refused);
+            sys.tick(&mut world, 0.0, &data);
+            assert_eq!(
+                world.get::<&Inventory>(player).unwrap().count_item(refused),
+                1,
+                "{refused} was drunk"
+            );
+        }
+        {
+            let v = world.get::<&Vitals>(player).unwrap();
+            assert_eq!((v.satiation, v.hydration), (40.0, 40.0), "a refused drink changed vitals");
+        }
+
+        request(&data, "drink_request", "juice_0");
+        sys.tick(&mut world, 0.0, &data);
+        let v = world.get::<&Vitals>(player).unwrap();
+        assert_eq!(world.get::<&Inventory>(player).unwrap().count_item("juice_0"), 0);
+        assert!(v.hydration > 40.0, "juice hydrates");
+        assert!(v.satiation > 40.0, "juice carries its sugar's calories");
     }
 }
 

@@ -1,15 +1,52 @@
 // HumanityOS Food, Spoilage, Nutrition, and Cooking System
-// 46 entries across nutrition profiles, preservation methods, cooking methods, and meal quality.
-// Loaded by AssetManager, hot-reloadable.
+// Nutrition profiles, preservation methods, cooking methods, meal quality and
+// temperature zones. Loaded by src/systems/food.rs (disk first, embedded copy
+// as the fallback).
 //
-// Nutrition categories track macro and micronutrients per 100g serving.
-// Spoilage rates define how fast food categories decay at room temperature (20C).
+// WHICH ITEM USES WHICH PROFILE is decided by data/food/item_profiles.ron, not
+// by item-id prefixes. An item that is not listed there is not food: it cannot
+// be eaten or drunk and it never spoils.
+//
+// Nutrition profiles carry macro and micronutrients per 100 g.
+//   calories_per_100g, protein_g, carbs_g, fat_g, fiber_g: per 100 g.
+//   minerals: milligrams per 100 g.
+//   vitamins: fraction of the US FDA Daily Value per 100 g (1.0 = 100% DV).
+//     For the rows added 2026-09-25 "B" is the mean %DV of six B vitamins
+//     (thiamin, riboflavin, niacin, B6, folate, B12). The first twelve rows
+//     predate that rule and are rougher category estimates.
+//   spoilage_rate_hours: how long the food stays safe under the storage it
+//     normally gets (refrigerator for perishables, pantry for shelf-stable
+//     food). For the rows added 2026-09-25 this is the LOWER bound of the USDA
+//     FSIS FoodKeeper range for that food, which is also what the older rows
+//     match (raw meat 24 h = ground meat 1-2 days, eggs 504 h = 3-5 weeks).
+//     It is NOT a room-temperature figure: the game has no cold storage yet,
+//     so this is the one number that stands for "kept properly".
+//   raw_consumption_risk: chance (0..1) of food poisoning when eaten as-is.
+//     These are game-scale judgements, not measured probabilities; the notes
+//     on each row say what real hazard they stand for.
+//   category: protein, produce, staple, preserved, beverage, meal, baked, fat,
+//     sweetener. food.rs reads it for hydration: a "beverage" hydrates like a
+//     drink, "produce" hydrates a little, the rest barely.
+//
+// Sources for the rows added 2026-09-25, all downloaded 2026-09-25:
+//   * USDA FoodData Central, SR Legacy release (April 2018), cited by NDB number.
+//   * USDA FoodData Central, FNDDS 2021-2023 (released 2024-10-31), cited by
+//     FNDDS food code, for mixed dishes SR Legacy does not carry.
+//   * USDA FSIS FoodKeeper storage data, read from the 2019 copy published in
+//     github.com/jelera/food-shelflife-db (lib/seeds/ingredients.csv); the
+//     fsis.usda.gov download refused an automated request that day.
+//   * Meal, Ready-to-Eat facts from en.wikipedia.org/wiki/Meal,_Ready-to-Eat
+//     (1,200 to 1,250 kcal a menu, 510 to 740 g packed, shelf life three and a
+//     half years at 27 C) and the DLA figure of 1,250 kcal at 13% protein,
+//     36% fat, 51% carbohydrate as quoted by mreinfo.com.
+//
 // Preservation methods multiply base shelf life. Multiple methods do NOT stack.
 // Cooking methods modify nutrition, taste, preservation, and require cooking skill.
 // Meal quality is determined by ingredients, cooking method, and cook skill level.
+// (Preservation, cooking, meal quality and temperature zones are loaded but no
+// code acts on them yet.)
 //
-// Item IDs reference items.csv. Status effect IDs reference status_effects.csv.
-// Food category IDs are used by the inventory system for spoilage tracking.
+// Status effect IDs reference status_effects.csv.
 
 (
     nutrition_profiles: [
@@ -207,6 +244,698 @@
             spoilage_rate_hours: 2628.0,
             raw_consumption_risk: 0.0,
             description: "Flash-frozen food. Retains most nutrition but requires a freezer.",
+        ),
+
+        // =====================================================================
+        // PROFILES ADDED 2026-09-25 (34)
+        //
+        // Added when data/food/item_profiles.ron replaced the id-prefix guesses,
+        // because the first twelve rows could not describe these foods honestly
+        // (a potato is not 25 kcal, a cheese is not 98, a loaf of bread does
+        // not keep for a year). Each row names the ONE real food its numbers
+        // are copied from. A row stands for a group, so the note says which
+        // members sit furthest from the base food; every member is within a
+        // factor of two on calories unless the note says otherwise.
+        // =====================================================================
+
+        // --- Vegetables ---
+
+        // Base: USDA SR Legacy NDB 11124 "Carrots, raw".
+        // Keeps: FoodKeeper carrots and parsnips 2-3 weeks refrigerated,
+        // turnips 2 weeks, beets 1-2 weeks, onions 1 month in the pantry.
+        // Furthest members: ginger 80 kcal, parsnip 75 (1.9x the base).
+        (
+            id: "root_vegetables",
+            name: "Root Vegetables",
+            category: "produce",
+            calories_per_100g: 41,
+            protein_g: 0.93,
+            carbs_g: 9.58,
+            fat_g: 0.24,
+            fiber_g: 2.8,
+            vitamins: (A: 0.93, B: 0.05, C: 0.07, D: 0.0, E: 0.04, K: 0.11),
+            minerals: (iron: 0.3, calcium: 33.0, zinc: 0.24, potassium: 320.0),
+            spoilage_rate_hours: 336.0,
+            raw_consumption_risk: 0.02,
+            description: "Carrots, beets, turnips, onions, leeks and other firm roots and bulbs. They keep for weeks, not days.",
+        ),
+
+        // Base: USDA SR Legacy NDB 11601 "Yam, raw" (118 kcal), chosen from the
+        // middle of the group so every member is within a factor of two:
+        // potato 77, sweet potato 86, taro 112, plantain (green) 152, garlic
+        // 149, chestnut 213 (1.8x), oca 62 (0.5x).
+        // Keeps: FoodKeeper yams and sweet potatoes 2-3 weeks in the pantry,
+        // potatoes 1-2 months. Sweet corn (1-2 days refrigerated) and
+        // breadfruit spoil far faster than this row says.
+        // Raw risk: most of these are cooked before eating; taro must be
+        // cooked to break down its calcium oxalate.
+        (
+            id: "starchy_vegetables",
+            name: "Starchy Vegetables",
+            category: "produce",
+            calories_per_100g: 118,
+            protein_g: 1.53,
+            carbs_g: 27.88,
+            fat_g: 0.17,
+            fiber_g: 4.1,
+            vitamins: (A: 0.01, B: 0.06, C: 0.19, D: 0.0, E: 0.02, K: 0.02),
+            minerals: (iron: 0.54, calcium: 17.0, zinc: 0.24, potassium: 816.0),
+            spoilage_rate_hours: 336.0,
+            raw_consumption_risk: 0.05,
+            description: "Potatoes, yams, taro, sweet corn, plantains, chestnuts and other starchy staples, usually cooked before eating.",
+        ),
+
+        // Base: USDA SR Legacy NDB 11134 "Cassava, raw".
+        // Keeps: FoodKeeper yuca/cassava 7 days in the pantry. Fresh roots
+        // start to discolour and rot within a few days of harvest.
+        // Raw risk: the roots must be peeled and cooked (sweet varieties) or
+        // soaked, fermented or dried (bitter varieties) to drive off cyanide;
+        // plants.csv says the same.
+        (
+            id: "cassava",
+            name: "Cassava Root",
+            category: "produce",
+            calories_per_100g: 160,
+            protein_g: 1.36,
+            carbs_g: 38.06,
+            fat_g: 0.28,
+            fiber_g: 1.8,
+            vitamins: (A: 0.0, B: 0.05, C: 0.23, D: 0.0, E: 0.01, K: 0.02),
+            minerals: (iron: 0.27, calcium: 16.0, zinc: 0.34, potassium: 271.0),
+            spoilage_rate_hours: 168.0,
+            raw_consumption_risk: 0.30,
+            description: "Fresh cassava root. A staple for hundreds of millions of people, but it must be processed before eating and it spoils within days of digging.",
+        ),
+
+        // --- Legumes, nuts and seeds ---
+
+        // Base: USDA SR Legacy NDB 16027 "Beans, kidney, all types, mature
+        // seeds, raw". Furthest member: soybean 446 kcal (1.3x, and far more fat).
+        // Keeps: FoodKeeper dried beans 1-2 years, dried lentils 1 year, dried
+        // split peas 1 year.
+        // Raw risk: dry beans have to be soaked and boiled hard. Eaten raw or
+        // undercooked they cause severe stomach illness (FDA Bad Bug Book,
+        // kidney bean lectin), and lupins need their bitter alkaloids leached.
+        (
+            id: "legumes_dry",
+            name: "Dried Legumes",
+            category: "staple",
+            calories_per_100g: 333,
+            protein_g: 23.58,
+            carbs_g: 60.01,
+            fat_g: 0.83,
+            fiber_g: 24.9,
+            vitamins: (A: 0.0, B: 0.33, C: 0.05, D: 0.0, E: 0.01, K: 0.16),
+            minerals: (iron: 8.2, calcium: 143.0, zinc: 2.79, potassium: 1406.0),
+            spoilage_rate_hours: 8760.0,
+            raw_consumption_risk: 0.50,
+            description: "Dry beans, lentils, chickpeas and other pulses. Keep for a year or more, but must be soaked and cooked.",
+        ),
+
+        // Base: USDA SR Legacy NDB 11304 "Peas, green, raw".
+        // Keeps: FoodKeeper green beans and peas 3-5 days refrigerated.
+        (
+            id: "legumes_fresh",
+            name: "Fresh Legumes",
+            category: "produce",
+            calories_per_100g: 81,
+            protein_g: 5.42,
+            carbs_g: 14.45,
+            fat_g: 0.4,
+            fiber_g: 5.7,
+            vitamins: (A: 0.04, B: 0.12, C: 0.44, D: 0.0, E: 0.01, K: 0.21),
+            minerals: (iron: 1.47, calcium: 25.0, zinc: 1.24, potassium: 244.0),
+            spoilage_rate_hours: 72.0,
+            raw_consumption_risk: 0.02,
+            description: "Green peas and other legumes picked fresh. Sweet and tender, and gone within days.",
+        ),
+
+        // Base: USDA SR Legacy NDB 12135 "Nuts, mixed nuts, dry roasted, with
+        // peanuts, without salt added". Members: peanut 567, walnut 654,
+        // hazelnut 628, sunflower kernels 584, sesame 573.
+        // Keeps: FoodKeeper peanuts in the shell 4 months in the pantry,
+        // raw sunflower seeds 12 months. Walnuts go rancid in 2-4 weeks
+        // unrefrigerated, much faster than this row says.
+        (
+            id: "nuts_seeds",
+            name: "Nuts and Seeds",
+            category: "staple",
+            calories_per_100g: 607,
+            protein_g: 19.5,
+            carbs_g: 22.42,
+            fat_g: 53.5,
+            fiber_g: 6.4,
+            vitamins: (A: 0.0, B: 0.22, C: 0.01, D: 0.0, E: 0.41, K: 0.1),
+            minerals: (iron: 3.73, calcium: 87.0, zinc: 4.06, potassium: 643.0),
+            spoilage_rate_hours: 2880.0,
+            raw_consumption_risk: 0.01,
+            description: "Peanuts, walnuts, hazelnuts, sunflower and sesame seeds. The most energy-dense plant food there is.",
+        ),
+
+        // Base: USDA SR Legacy NDB 12104 "Nuts, coconut meat, raw".
+        // Keeps: FoodKeeper fresh coconuts 1 week in the pantry.
+        (
+            id: "coconut_meat",
+            name: "Fresh Coconut",
+            category: "produce",
+            calories_per_100g: 354,
+            protein_g: 3.33,
+            carbs_g: 15.23,
+            fat_g: 33.49,
+            fiber_g: 9.0,
+            vitamins: (A: 0.0, B: 0.03, C: 0.04, D: 0.0, E: 0.02, K: 0.0),
+            minerals: (iron: 2.43, calcium: 14.0, zinc: 1.1, potassium: 356.0),
+            spoilage_rate_hours: 168.0,
+            raw_consumption_risk: 0.01,
+            description: "Fresh coconut flesh. Rich in fat, and it keeps about a week once picked.",
+        ),
+
+        // --- Herbs ---
+
+        // Base: USDA SR Legacy NDB 11297 "Parsley, fresh". Members range from
+        // basil and cilantro (23 kcal) to thyme (101) and rosemary (131, 3.6x);
+        // no single base food sits within 2x of all of them, and herbs are
+        // eaten in gram amounts, so the gap matters less than it looks.
+        // Keeps: FoodKeeper fresh herbs 7-10 days refrigerated.
+        (
+            id: "fresh_herbs",
+            name: "Fresh Herbs",
+            category: "produce",
+            calories_per_100g: 36,
+            protein_g: 2.97,
+            carbs_g: 6.33,
+            fat_g: 0.79,
+            fiber_g: 3.3,
+            vitamins: (A: 0.47, B: 0.11, C: 1.48, D: 0.0, E: 0.05, K: 13.67),
+            minerals: (iron: 6.2, calcium: 138.0, zinc: 1.07, potassium: 554.0),
+            spoilage_rate_hours: 168.0,
+            raw_consumption_risk: 0.02,
+            description: "Basil, mint, parsley, dill, thyme and other culinary herbs, eaten fresh.",
+        ),
+
+        // --- Dairy, fats and sweeteners ---
+
+        // Base: USDA SR Legacy NDB 1009 "Cheese, cheddar".
+        // Keeps: FoodKeeper hard cheese 3-4 weeks refrigerated once opened
+        // (6 months unopened).
+        (
+            id: "cheese",
+            name: "Hard Cheese",
+            category: "protein",
+            calories_per_100g: 403,
+            protein_g: 22.87,
+            carbs_g: 3.37,
+            fat_g: 33.31,
+            fiber_g: 0.0,
+            vitamins: (A: 0.37, B: 0.15, C: 0.0, D: 0.03, E: 0.05, K: 0.02),
+            minerals: (iron: 0.14, calcium: 710.0, zinc: 3.64, potassium: 76.0),
+            spoilage_rate_hours: 504.0,
+            raw_consumption_risk: 0.0,
+            description: "Aged hard cheese such as cheddar. Dense in fat, protein and calcium, and it keeps for weeks.",
+        ),
+
+        // Base: USDA SR Legacy NDB 1077 "Milk, whole, 3.25% milkfat, with added
+        // vitamin D". Keeps: FoodKeeper lists fresh milk by package date; opened
+        // ultra-pasteurized and lactose-free milk keep 1 week refrigerated.
+        // Raw risk: milk from the homestead's own goats and cows is not
+        // pasteurized.
+        (
+            id: "milk",
+            name: "Fresh Milk",
+            category: "beverage",
+            calories_per_100g: 61,
+            protein_g: 3.15,
+            carbs_g: 4.8,
+            fat_g: 3.25,
+            fiber_g: 0.0,
+            vitamins: (A: 0.05, B: 0.07, C: 0.0, D: 0.07, E: 0.0, K: 0.0),
+            minerals: (iron: 0.03, calcium: 113.0, zinc: 0.37, potassium: 132.0),
+            spoilage_rate_hours: 168.0,
+            raw_consumption_risk: 0.05,
+            description: "Whole milk. Food and drink at once, and it goes off within a week.",
+        ),
+
+        // Base: USDA SR Legacy NDB 04002 "Lard". Members: butter 717 kcal
+        // (NDB 1001), vegetable oils 884, rendered animal fat.
+        // Keeps: FoodKeeper butter 1-2 months refrigerated; opened cooking oil
+        // 3-5 months, shortening 6-12 months in the pantry. The row takes
+        // butter's figure, the shortest of the group.
+        (
+            id: "fats_oils",
+            name: "Fats and Oils",
+            category: "fat",
+            calories_per_100g: 902,
+            protein_g: 0.0,
+            carbs_g: 0.0,
+            fat_g: 100.0,
+            fiber_g: 0.0,
+            vitamins: (A: 0.0, B: 0.0, C: 0.0, D: 0.13, E: 0.04, K: 0.0),
+            minerals: (iron: 0.0, calcium: 0.0, zinc: 0.11, potassium: 0.0),
+            spoilage_rate_hours: 720.0,
+            raw_consumption_risk: 0.0,
+            description: "Butter, cooking oil and rendered animal fat. Nine calories to the gram and nothing else.",
+        ),
+
+        // Base: USDA SR Legacy NDB 19296 "Honey".
+        // Keeps: FoodKeeper honey 2 years in the pantry.
+        (
+            id: "honey",
+            name: "Honey",
+            category: "sweetener",
+            calories_per_100g: 304,
+            protein_g: 0.3,
+            carbs_g: 82.4,
+            fat_g: 0.0,
+            fiber_g: 0.2,
+            vitamins: (A: 0.0, B: 0.01, C: 0.01, D: 0.0, E: 0.0, K: 0.0),
+            minerals: (iron: 0.42, calcium: 6.0, zinc: 0.22, potassium: 52.0),
+            spoilage_rate_hours: 17520.0,
+            raw_consumption_risk: 0.0,
+            description: "Bee honey. Almost pure sugar, and one of the longest-keeping foods there is.",
+        ),
+
+        // Base: USDA SR Legacy NDB 19335 "Sugars, granulated".
+        // Keeps: FoodKeeper "indefinitely". 87600 h (10 years) is the ceiling
+        // this file uses for food that does not spoil, as canned_food does.
+        (
+            id: "sugar",
+            name: "Sugar",
+            category: "sweetener",
+            calories_per_100g: 387,
+            protein_g: 0.0,
+            carbs_g: 99.98,
+            fat_g: 0.0,
+            fiber_g: 0.0,
+            vitamins: (A: 0.0, B: 0.0, C: 0.0, D: 0.0, E: 0.0, K: 0.0),
+            minerals: (iron: 0.05, calcium: 1.0, zinc: 0.01, potassium: 2.0),
+            spoilage_rate_hours: 87600.0,
+            raw_consumption_risk: 0.0,
+            description: "Granulated sugar. Pure energy with no other nutrition, and it never spoils.",
+        ),
+
+        // --- Drinks ---
+
+        // Base: USDA SR Legacy NDB 14555 "Water, bottled, generic".
+        // Keeps: FoodKeeper commercially bottled water "indefinitely" (10-year
+        // ceiling, see sugar).
+        (
+            id: "water",
+            name: "Drinking Water",
+            category: "beverage",
+            calories_per_100g: 0,
+            protein_g: 0.0,
+            carbs_g: 0.0,
+            fat_g: 0.0,
+            fiber_g: 0.0,
+            vitamins: (A: 0.0, B: 0.0, C: 0.0, D: 0.0, E: 0.0, K: 0.0),
+            minerals: (iron: 0.0, calcium: 10.0, zinc: 0.0, potassium: 0.0),
+            spoilage_rate_hours: 87600.0,
+            raw_consumption_risk: 0.0,
+            description: "Clean drinking water. No calories, and the one thing nobody lives three days without.",
+        ),
+
+        // Base: USDA SR Legacy NDB 9016 "Apple juice, canned or bottled,
+        // unsweetened, without added ascorbic acid".
+        // Keeps: FoodKeeper fresh-squeezed apple juice 6 days refrigerated
+        // (the cooking recipe squeezes fresh apples).
+        // Raw risk: fresh-squeezed juice is not pasteurized.
+        (
+            id: "fruit_juice",
+            name: "Fruit Juice",
+            category: "beverage",
+            calories_per_100g: 46,
+            protein_g: 0.1,
+            carbs_g: 11.3,
+            fat_g: 0.13,
+            fiber_g: 0.2,
+            vitamins: (A: 0.0, B: 0.01, C: 0.01, D: 0.0, E: 0.0, K: 0.0),
+            minerals: (iron: 0.12, calcium: 8.0, zinc: 0.02, potassium: 101.0),
+            spoilage_rate_hours: 144.0,
+            raw_consumption_risk: 0.01,
+            description: "Freshly squeezed fruit juice. The sugar of the fruit without most of its fibre.",
+        ),
+
+        // Base: USDA SR Legacy NDB 14060 "Beverages, Energy Drink with
+        // carbonated water and high fructose corn syrup" (unbranded).
+        // Keeps: FoodKeeper high-acid canned goods (juices) 12-18 months.
+        (
+            id: "energy_drink",
+            name: "Energy Drink",
+            category: "beverage",
+            calories_per_100g: 62,
+            protein_g: 0.42,
+            carbs_g: 15.0,
+            fat_g: 0.0,
+            fiber_g: 0.0,
+            vitamins: (A: 0.0, B: 0.37, C: 0.28, D: 0.0, E: 0.0, K: 0.0),
+            minerals: (iron: 0.0, calcium: 0.0, zinc: 0.63, potassium: 10.0),
+            spoilage_rate_hours: 8760.0,
+            raw_consumption_risk: 0.0,
+            description: "Sweetened, caffeinated canned drink with added B vitamins.",
+        ),
+
+        // Base: USDA SR Legacy NDB 14209 "Beverages, coffee, brewed, prepared
+        // with tap water". The item a player carries is the roasted beans, so
+        // the nutrition is the brewed cup and the shelf life is the beans:
+        // FoodKeeper whole coffee beans 3-5 months in the pantry. Drinking one
+        // stands for brewing and drinking a cup; brewing is not a separate step yet.
+        (
+            id: "brewed_coffee",
+            name: "Coffee",
+            category: "beverage",
+            calories_per_100g: 1,
+            protein_g: 0.12,
+            carbs_g: 0.0,
+            fat_g: 0.02,
+            fiber_g: 0.0,
+            vitamins: (A: 0.0, B: 0.01, C: 0.0, D: 0.0, E: 0.0, K: 0.0),
+            minerals: (iron: 0.01, calcium: 2.0, zinc: 0.02, potassium: 49.0),
+            spoilage_rate_hours: 2160.0,
+            raw_consumption_risk: 0.0,
+            description: "Coffee, brewed from roasted beans. Water and caffeine, with almost no food value.",
+        ),
+
+        // Base: USDA SR Legacy NDB 14355 "Beverages, tea, black, brewed,
+        // prepared with tap water". Same arrangement as brewed_coffee: the
+        // shelf life is the dry leaves, FoodKeeper loose tea 2 years.
+        (
+            id: "brewed_tea",
+            name: "Tea",
+            category: "beverage",
+            calories_per_100g: 1,
+            protein_g: 0.0,
+            carbs_g: 0.3,
+            fat_g: 0.0,
+            fiber_g: 0.0,
+            vitamins: (A: 0.0, B: 0.0, C: 0.0, D: 0.0, E: 0.0, K: 0.0),
+            minerals: (iron: 0.02, calcium: 0.0, zinc: 0.02, potassium: 37.0),
+            spoilage_rate_hours: 17520.0,
+            raw_consumption_risk: 0.0,
+            description: "Tea, brewed from dried leaves. Water and caffeine, with almost no food value.",
+        ),
+
+        // --- Baked goods ---
+
+        // Base: USDA SR Legacy NDB 18069 "Bread, white, commercially prepared".
+        // Keeps: FoodKeeper homemade bread 3-5 days in the pantry.
+        (
+            id: "bread",
+            name: "Bread",
+            category: "baked",
+            calories_per_100g: 266,
+            protein_g: 8.85,
+            carbs_g: 49.42,
+            fat_g: 3.33,
+            fiber_g: 2.7,
+            vitamins: (A: 0.0, B: 0.23, C: 0.0, D: 0.0, E: 0.01, K: 0.0),
+            minerals: (iron: 3.61, calcium: 144.0, zinc: 0.74, potassium: 126.0),
+            spoilage_rate_hours: 72.0,
+            raw_consumption_risk: 0.0,
+            description: "A baked wheat loaf. Homemade bread without preservatives goes stale and moulds in a few days.",
+        ),
+
+        // Base: USDA SR Legacy NDB 18146 "Cake, yellow, prepared from recipe
+        // without frosting" (flour, sugar, eggs, butter, milk, as the recipe).
+        // Keeps: FoodKeeper cakes 3-7 days in the pantry.
+        (
+            id: "cake",
+            name: "Cake",
+            category: "baked",
+            calories_per_100g: 361,
+            protein_g: 5.3,
+            carbs_g: 53.0,
+            fat_g: 14.6,
+            fiber_g: 0.7,
+            vitamins: (A: 0.04, B: 0.11, C: 0.0, D: 0.0, E: 0.0, K: 0.0),
+            minerals: (iron: 1.64, calcium: 146.0, zinc: 0.45, potassium: 91.0),
+            spoilage_rate_hours: 72.0,
+            raw_consumption_risk: 0.0,
+            description: "A sweet layered cake. A dense treat that keeps a few days.",
+        ),
+
+        // Base: USDA SR Legacy NDB 18204 "Cookies, sugar, commercially
+        // prepared, regular". Keeps: FoodKeeper soft cookies 2-3 months,
+        // crisp cookies 4-6 months in the pantry.
+        (
+            id: "cookies",
+            name: "Cookies",
+            category: "baked",
+            calories_per_100g: 464,
+            protein_g: 5.35,
+            carbs_g: 67.34,
+            fat_g: 19.55,
+            fiber_g: 1.3,
+            vitamins: (A: 0.01, B: 0.15, C: 0.0, D: 0.0, E: 0.2, K: 0.07),
+            minerals: (iron: 2.24, calcium: 35.0, zinc: 0.43, potassium: 87.0),
+            spoilage_rate_hours: 1440.0,
+            raw_consumption_risk: 0.0,
+            description: "Sweet baked cookies. Dry enough to keep for months.",
+        ),
+
+        // Base: USDA SR Legacy NDB 18301 "Pie, apple, commercially prepared,
+        // enriched flour". Keeps: FoodKeeper fruit pies 1-2 days in the pantry,
+        // 1 week refrigerated; the row takes the refrigerated figure as the
+        // other cooked foods do.
+        (
+            id: "fruit_pie",
+            name: "Fruit Pie",
+            category: "baked",
+            calories_per_100g: 237,
+            protein_g: 1.9,
+            carbs_g: 34.0,
+            fat_g: 11.0,
+            fiber_g: 1.6,
+            vitamins: (A: 0.04, B: 0.03, C: 0.04, D: 0.0, E: 0.1, K: 0.03),
+            minerals: (iron: 0.45, calcium: 11.0, zinc: 0.16, potassium: 65.0),
+            spoilage_rate_hours: 168.0,
+            raw_consumption_risk: 0.0,
+            description: "A fruit pie in a pastry crust. Half the calories of cake, because half of it is fruit.",
+        ),
+
+        // --- Cooked dishes --- (FoodKeeper keeps all leftovers 3-4 days refrigerated)
+
+        // Base: USDA SR Legacy NDB 6067 "Soup, chunky vegetable, canned,
+        // ready-to-serve".
+        (
+            id: "vegetable_soup",
+            name: "Vegetable Soup",
+            category: "meal",
+            calories_per_100g: 39,
+            protein_g: 1.14,
+            carbs_g: 7.9,
+            fat_g: 0.36,
+            fiber_g: 1.1,
+            vitamins: (A: 0.06, B: 0.02, C: 0.01, D: 0.0, E: 0.01, K: 0.07),
+            minerals: (iron: 0.51, calcium: 18.0, zinc: 0.23, potassium: 180.0),
+            spoilage_rate_hours: 72.0,
+            raw_consumption_risk: 0.0,
+            description: "Vegetables simmered in broth. Mostly water, warm and filling but light on calories.",
+        ),
+
+        // Base: USDA FNDDS 2021-2023 food code 27311410 "Stew, beef".
+        (
+            id: "meat_stew",
+            name: "Meat Stew",
+            category: "meal",
+            calories_per_100g: 107,
+            protein_g: 8.76,
+            carbs_g: 6.29,
+            fat_g: 5.07,
+            fiber_g: 1.3,
+            vitamins: (A: 0.14, B: 0.12, C: 0.08, D: 0.0, E: 0.02, K: 0.05),
+            minerals: (iron: 0.97, calcium: 17.0, zinc: 2.03, potassium: 254.0),
+            spoilage_rate_hours: 72.0,
+            raw_consumption_risk: 0.0,
+            description: "Meat and vegetables slow-simmered together. A complete meal in one pot.",
+        ),
+
+        // Base: USDA FNDDS 2021-2023 food code 14640008 "Cheese sandwich,
+        // cheddar cheese, on white bread".
+        (
+            id: "sandwich",
+            name: "Sandwich",
+            category: "meal",
+            calories_per_100g: 325,
+            protein_g: 15.14,
+            carbs_g: 29.95,
+            fat_g: 16.11,
+            fiber_g: 1.4,
+            vitamins: (A: 0.14, B: 0.2, C: 0.0, D: 0.01, E: 0.03, K: 0.01),
+            minerals: (iron: 2.04, calcium: 415.0, zinc: 2.03, potassium: 101.0),
+            spoilage_rate_hours: 72.0,
+            raw_consumption_risk: 0.0,
+            description: "Bread and cheese with greens. A dense, portable meal.",
+        ),
+
+        // Base: USDA SR Legacy NDB 36046 "Restaurant, Italian, spaghetti with
+        // pomodoro sauce (no meat)".
+        (
+            id: "pasta_dish",
+            name: "Pasta with Sauce",
+            category: "meal",
+            calories_per_100g: 104,
+            protein_g: 3.9,
+            carbs_g: 17.77,
+            fat_g: 1.89,
+            fiber_g: 1.7,
+            vitamins: (A: 0.01, B: 0.06, C: 0.01, D: 0.0, E: 0.05, K: 0.03),
+            minerals: (iron: 0.9, calcium: 15.0, zinc: 0.35, potassium: 140.0),
+            spoilage_rate_hours: 72.0,
+            raw_consumption_risk: 0.0,
+            description: "Boiled noodles in tomato sauce. Cooked pasta is two-thirds water.",
+        ),
+
+        // Base: USDA SR Legacy NDB 21224 "Pizza, cheese topping, regular crust,
+        // frozen, cooked".
+        (
+            id: "pizza",
+            name: "Pizza",
+            category: "meal",
+            calories_per_100g: 268,
+            protein_g: 10.36,
+            carbs_g: 29.02,
+            fat_g: 12.28,
+            fiber_g: 2.2,
+            vitamins: (A: 0.07, B: 0.17, C: 0.01, D: 0.0, E: 0.07, K: 0.06),
+            minerals: (iron: 2.27, calcium: 179.0, zinc: 1.32, potassium: 152.0),
+            spoilage_rate_hours: 72.0,
+            raw_consumption_risk: 0.0,
+            description: "Baked flatbread with cheese and tomato.",
+        ),
+
+        // Base: USDA SR Legacy NDB 1130 "Egg, whole, cooked, omelet".
+        (
+            id: "omelette",
+            name: "Omelette",
+            category: "meal",
+            calories_per_100g: 154,
+            protein_g: 10.57,
+            carbs_g: 0.64,
+            fat_g: 11.66,
+            fiber_g: 0.0,
+            vitamins: (A: 0.19, B: 0.14, C: 0.0, D: 0.09, E: 0.09, K: 0.04),
+            minerals: (iron: 1.48, calcium: 48.0, zinc: 1.09, potassium: 117.0),
+            spoilage_rate_hours: 72.0,
+            raw_consumption_risk: 0.0,
+            description: "Eggs beaten and cooked in a pan. Protein and fat with almost no carbohydrate.",
+        ),
+
+        // Base: USDA SR Legacy NDB 19193 "Puddings, rice, ready-to-eat" (the
+        // recipe simmers rice in milk with sugar). Oatmeal made with milk, FNDDS
+        // 56203066, is 116 kcal, so either grain lands in the same place.
+        (
+            id: "porridge",
+            name: "Porridge",
+            category: "meal",
+            calories_per_100g: 108,
+            protein_g: 3.23,
+            carbs_g: 18.39,
+            fat_g: 2.15,
+            fiber_g: 0.3,
+            vitamins: (A: 0.02, B: 0.05, C: 0.01, D: 0.0, E: 0.0, K: 0.0),
+            minerals: (iron: 0.11, calcium: 95.0, zinc: 0.43, potassium: 125.0),
+            spoilage_rate_hours: 72.0,
+            raw_consumption_risk: 0.0,
+            description: "Grain simmered soft in milk. A warm, easy breakfast.",
+        ),
+
+        // Base: USDA SR Legacy NDB 15016 "Fish, cod, Atlantic, cooked, dry heat".
+        (
+            id: "cooked_fish",
+            name: "Cooked Fish",
+            category: "protein",
+            calories_per_100g: 105,
+            protein_g: 22.83,
+            carbs_g: 0.0,
+            fat_g: 0.86,
+            fiber_g: 0.0,
+            vitamins: (A: 0.02, B: 0.15, C: 0.01, D: 0.06, E: 0.05, K: 0.0),
+            minerals: (iron: 0.49, calcium: 14.0, zinc: 0.58, potassium: 244.0),
+            spoilage_rate_hours: 72.0,
+            raw_consumption_risk: 0.0,
+            description: "A lean white fish fillet cooked over heat. Almost pure protein.",
+        ),
+
+        // --- Preserved and packaged ---
+
+        // Base: USDA SR Legacy NDB 19002 "Snacks, beef jerky, chopped and formed".
+        // Keeps: FoodKeeper homemade jerky 1-2 months in the pantry.
+        (
+            id: "jerky",
+            name: "Jerky and Dried Meat",
+            category: "preserved",
+            calories_per_100g: 410,
+            protein_g: 33.2,
+            carbs_g: 11.0,
+            fat_g: 25.6,
+            fiber_g: 1.8,
+            vitamins: (A: 0.0, B: 0.2, C: 0.0, D: 0.02, E: 0.03, K: 0.02),
+            minerals: (iron: 5.42, calcium: 20.0, zinc: 8.11, potassium: 597.0),
+            spoilage_rate_hours: 720.0,
+            raw_consumption_risk: 0.0,
+            description: "Salted, dried meat strips. Light, dense in protein, and keeps for weeks without cold.",
+        ),
+
+        // Base: USDA SR Legacy NDB 9011 "Apples, dried, sulfured, uncooked".
+        // Member: dates 277 kcal. Keeps: FoodKeeper dried fruit 6 months
+        // unopened, 1 month once opened; dates 2 months in the pantry.
+        (
+            id: "dried_fruit",
+            name: "Dried Fruit",
+            category: "preserved",
+            calories_per_100g: 243,
+            protein_g: 0.93,
+            carbs_g: 65.89,
+            fat_g: 0.32,
+            fiber_g: 8.7,
+            vitamins: (A: 0.0, B: 0.04, C: 0.04, D: 0.0, E: 0.04, K: 0.03),
+            minerals: (iron: 1.4, calcium: 14.0, zinc: 0.2, potassium: 450.0),
+            spoilage_rate_hours: 720.0,
+            raw_consumption_risk: 0.0,
+            description: "Dehydrated fruit and dates. The water is gone, so the sugar is five times as concentrated.",
+        ),
+
+        // FLAGGED ESTIMATE, no USDA row exists. Energy from the Defense
+        // Logistics Agency figure of 1,250 kcal a menu at 13% protein, 36% fat,
+        // 51% carbohydrate, spread over 625 g (the middle of the 510-740 g
+        // packed weight), so it is per 100 g of PACKED ration and the food
+        // alone is somewhat denser. Fibre, vitamins and minerals assume the
+        // design rule that three menus meet a day's needs (a third of the Daily
+        // Value per menu, about 0.05 DV per 100 g).
+        // Keeps: three years at 27 C, the official figure.
+        (
+            id: "field_ration",
+            name: "Field Ration",
+            category: "preserved",
+            calories_per_100g: 200,
+            protein_g: 6.5,
+            carbs_g: 25.5,
+            fat_g: 8.0,
+            fiber_g: 2.0,
+            vitamins: (A: 0.05, B: 0.05, C: 0.05, D: 0.05, E: 0.05, K: 0.05),
+            minerals: (iron: 1.0, calcium: 70.0, zinc: 0.6, potassium: 250.0),
+            spoilage_rate_hours: 26280.0,
+            raw_consumption_risk: 0.0,
+            description: "A sealed, ready-to-eat field ration. A full meal that keeps for years without cold.",
+        ),
+
+        // Base: USDA FNDDS 2021-2023 food code 53729000 "Nutrition bar or meal
+        // replacement bar, NFS" (fortified, hence the high vitamin values).
+        // Keeps: FoodKeeper cereal and granola bars 6-12 months in the pantry.
+        (
+            id: "protein_bar",
+            name: "Protein Bar",
+            category: "preserved",
+            calories_per_100g: 386,
+            protein_g: 22.36,
+            carbs_g: 55.22,
+            fat_g: 9.94,
+            fiber_g: 4.7,
+            vitamins: (A: 0.58, B: 0.75, C: 1.16, D: 0.0, E: 0.81, K: 0.16),
+            minerals: (iron: 5.11, calcium: 284.0, zinc: 5.96, potassium: 331.0),
+            spoilage_rate_hours: 4380.0,
+            raw_consumption_risk: 0.0,
+            description: "A fortified high-protein nutrition bar. Compact, shelf-stable calories.",
         ),
     ],
 

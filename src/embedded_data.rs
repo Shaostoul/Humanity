@@ -134,6 +134,7 @@ pub const STATUS_EFFECTS_CSV: &str = include_str!("../data/status_effects.csv");
 pub const CONTAINER_TYPES_CSV: &str = include_str!("../data/containers/types.csv");
 pub const CONTAINER_CONTENT_CLASSES_RON: &str = include_str!("../data/containers/content_classes.ron");
 pub const FOOD_SYSTEM_RON: &str = include_str!("../data/food_system.ron");
+pub const FOOD_ITEM_PROFILES_RON: &str = include_str!("../data/food/item_profiles.ron");
 pub const MACHINES_HOME_RON: &str = include_str!("../data/machines/home.ron");
 pub const MACHINES_HOME_SOLO_RON: &str = include_str!("../data/machines/home_solo.ron");
 pub const GROW_MEDIA_RON: &str = include_str!("../data/garden/grow_media.ron");
@@ -280,6 +281,7 @@ pub fn get_embedded(path: &str) -> Option<&'static str> {
         "containers/types.csv" => Some(CONTAINER_TYPES_CSV),
         "containers/content_classes.ron" => Some(CONTAINER_CONTENT_CLASSES_RON),
         "food_system.ron" => Some(FOOD_SYSTEM_RON),
+        "food/item_profiles.ron" => Some(FOOD_ITEM_PROFILES_RON),
         "machines/home.ron" => Some(MACHINES_HOME_RON),
         "machines/home_solo.ron" => Some(MACHINES_HOME_SOLO_RON),
         "garden/grow_media.ron" => Some(GROW_MEDIA_RON),
@@ -397,6 +399,7 @@ pub const EMBEDDED_KEYS: &[&str] = &[
     "containers/types.csv",
     "containers/content_classes.ron",
     "food_system.ron",
+    "food/item_profiles.ron",
     "machines/home.ron",
     "machines/home_solo.ron",
     "garden/grow_media.ron",
