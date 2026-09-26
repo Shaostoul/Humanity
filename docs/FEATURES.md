@@ -1591,7 +1591,10 @@ and cut herbs are picked over a cited window at a cited interval, their season s
 into picks that sum to the cited season yield (`farming/picking.rs`,
 `data/garden/harvest_windows.ron`); seed return follows what was harvested; Settings:
 Picking Forgiving/Realistic. Grow machine cards show kcal a day computed from their
-crops (`systems/grow_machines.rs`), the same figure the Home page's food loop sums. Beds, trays, fields and racks are
+crops (`systems/grow_machines.rs`), the same figure the Home page's food loop sums.
+Each bed, tray or field plot is drawn with the plants it holds at the crop's spacing, up
+to 128 per plot and then as wider clumps, within a per-plot vertex budget
+(`engine/plant_layout.rs`, `data/plants_visual.ron`; only changed machines rebuild). Beds, trays, fields and racks are
 divided into plots (grow_media.ron `plots`), one crop per plot, each crop tagged with
 the machine it stands in. A plot holds as many plants as fit at the crop's cited
 spacing (plants.csv `area_per_plant_m2`; a tower cup is one plant) and yields a

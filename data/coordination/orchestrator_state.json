@@ -904,6 +904,11 @@
    "date": "2026-09-26",
    "decision": "v0.1369.0: merged picking windows (a97dc32d: picking.rs, harvest_windows.ron with UMN/USU/MSU sources, CropPicking saved, Forgiving/Realistic setting, seed return follows the harvest, self_sufficiency divisor = growth_days + window) on top of the computed kcal cards; both cherry-picked cleanly; 219 targeted tests pass.",
    "why": "Picking closes the season-compression overstatement (a replanted tomato yielded 2-3x a real year). Left: a bearing plant takes no water or nutrients during its window (the tick skips ripe plants; it is in the growth loop), and tomato/pepper/cucumber windows are field-timed against high-tunnel season totals."
+  },
+  {
+   "date": "2026-09-26",
+   "decision": "v0.1369.0: merged plot drawing (665311f8 + 281d2707: plant_layout.rs, 128-plant cap + 65,536-vertex plot budget in plants_visual.ron, per-machine rebuilds 2-6 ms, first build ~190 ms for 3.35M vertices; world_load now publishes grow plots = BUG-091 fix) and the crop_nutrition fresh-vs-dried check (a2d5fe44: oregano/sage/turmeric fresh estimates, drinks and lavender to 0, FDC ids on every row; apothecary tower 232 -> 161 kcal/day). The solo food loop now reads closes: false (2,154 vs 2,200).",
+   "why": "BUG-091 was mine from v0.1364.0: publish_grow_plots was only called on a machine edit, and every test inserted its own maps (checks-that-cannot-fail again); the plot-drawing agent saw no visual change and traced it. Left from the agents: hero_plant_objects is dead (delete with its lib.rs loop), photograph-home --keep-open is broken, runner_bean harvests a dry-bean item for a green-pod yield, in-shell weights inflate nut/seed calories, a bearing plant takes no water or nutrients during its picking window."
   }
  ],
  "active_scopes_to_avoid": [
