@@ -767,6 +767,13 @@ pub(crate) fn rebuild_plant_meshes(state: &mut EngineState) {
         return;
     }
     state.plant_mesh_sig = sig;
+    // Rebuild cost (2026-09-26): the rebuild runs inside the frame that
+    // noticed the change, so its milliseconds are a hitch on that frame. It
+    // shows on the Performance page (cpu.plant_rebuild, in the vegetation
+    // slice) and is summarised in run.log by `note_plant_rebuild`.
+    let _cost = crate::renderer::frame_costs::stage("cpu.plant_rebuild");
+    let rebuild_t0 = std::time::Instant::now();
+    let mut plants_drawn = 0usize;
     // Hero crop models rebuild with the procedural plants (v0.992): the list
     // regenerates below from the same CropInstance query.
     state.hero_plant_objects.clear();
@@ -943,6 +950,7 @@ pub(crate) fn rebuild_plant_meshes(state: &mut EngineState) {
                     // Deterministic per-slot yaw so replanting never spins.
                     let yaw = ((*slot).wrapping_mul(2_654_435_761) % 360) as f32;
                     state.hero_plant_objects.push((mi, ma, Vec3::from(pos), yaw, 1.0));
+                    plants_drawn += 1;
                     continue;
                 }
             }
@@ -963,6 +971,7 @@ pub(crate) fn rebuild_plant_meshes(state: &mut EngineState) {
                 sh.finish()
             };
             crate::renderer::plant_mesh::build_plant(&mut b, &vis_scaled, pos, out, t, wilt, seed);
+            plants_drawn += 1;
         }
         if !b.vertices.is_empty() {
             builders.push(b);
@@ -970,6 +979,7 @@ pub(crate) fn rebuild_plant_meshes(state: &mut EngineState) {
     }
 
     // Upload: reuse existing mesh/material slots in place (renderer free path).
+    let verts: usize = builders.iter().map(|b| b.vertices.len()).sum::<usize>();
     let prior = std::mem::take(&mut state.plant_objects);
     let mut objs = Vec::with_capacity(builders.len());
     for (i, b) in builders.into_iter().enumerate() {
@@ -994,6 +1004,57 @@ pub(crate) fn rebuild_plant_meshes(state: &mut EngineState) {
         }
     }
     state.plant_objects = objs;
+    note_plant_rebuild(
+        rebuild_t0.elapsed().as_secs_f64() * 1000.0,
+        state.plant_objects.len() + state.hero_plant_objects.len(),
+        plants_drawn,
+        verts,
+    );
+}
+
+/// Running totals behind the plant-rebuild line in run.log.
+struct PlantRebuildLog {
+    since: std::time::Instant,
+    rebuilds: u32,
+    sum_ms: f64,
+    max_ms: f64,
+}
+
+/// Summarise the garden plant rebuilds in run.log (2026-09-26): the first
+/// rebuild at once, then one line per ten seconds at most. A fresh world's
+/// clock runs fast, so some crop changes stage every few seconds and a line
+/// per rebuild would bury the log. `draws` is the plant draw calls the
+/// rebuild left, `verts` the vertices in the merged meshes (hero models
+/// drawn one per object are counted in `draws` and `plants`, not `verts`).
+fn note_plant_rebuild(ms: f64, draws: usize, plants: usize, verts: usize) {
+    static LOG: std::sync::Mutex<Option<PlantRebuildLog>> = std::sync::Mutex::new(None);
+    let Ok(mut guard) = LOG.lock() else { return };
+    let first = guard.is_none();
+    let s = guard.get_or_insert_with(|| PlantRebuildLog {
+        since: std::time::Instant::now(),
+        rebuilds: 0,
+        sum_ms: 0.0,
+        max_ms: 0.0,
+    });
+    s.rebuilds += 1;
+    s.sum_ms += ms;
+    s.max_ms = s.max_ms.max(ms);
+    let secs = s.since.elapsed().as_secs_f64();
+    if first || secs >= 10.0 {
+        log::info!(
+            "[Plants] {} mesh rebuild(s) in {:.1} s: last {:.2} ms, mean {:.2} ms, max {:.2} ms; \
+             now {} draws, {} plants, {} merged vertices",
+            s.rebuilds,
+            secs,
+            ms,
+            s.sum_ms / f64::from(s.rebuilds),
+            s.max_ms,
+            draws,
+            plants,
+            verts
+        );
+        *s = PlantRebuildLog { since: std::time::Instant::now(), rebuilds: 0, sum_ms: 0.0, max_ms: 0.0 };
+    }
 }
 
 /// Load (and cache) one hero crop stage model by name ("carrot_3"). Shares

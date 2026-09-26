@@ -266,13 +266,13 @@
     ),
     (
         id: "cpu_vegetation",
-        display: "Trees + grass harvest",
+        display: "Trees, grass + garden plants",
         category: "cpu",
-        sources: ["cpu.near_tree_harvest", "cpu.grass_harvest"],
+        sources: ["cpu.near_tree_harvest", "cpu.grass_harvest", "cpu.plant_rebuild"],
         locked: false,
         base_frac: 0.10,
         color: "warning",
-        note: "Choosing which trees and grass tillers stand near you this frame.",
+        note: "Choosing which trees and grass tillers stand near you this frame, and rebuilding the garden plant meshes on a frame where a crop changed stage.",
     ),
     (
         id: "cpu_systems",
