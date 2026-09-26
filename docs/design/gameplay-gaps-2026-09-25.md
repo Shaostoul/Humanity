@@ -72,8 +72,8 @@ date; re-check before trusting one. The container data basis is
   own batch runs). A manual craft at an electric station is refused with a
   notice, nothing spent, while no machine of that type has power; the
   Crafting page says so too. Stations with no electrical role (workbench,
-  fire-fed furnace) are unaffected. Not yet: a craft pausing when its
-  station loses power mid-craft.
+  fire-fed furnace) are unaffected. A craft whose station loses power
+  partway pauses, with one notice, and carries on when power returns.
 - **Containers as items (3c): BLOCKED** on the unified placement schema
   (Tier B in PRIORITIES.md). The walk-up machine card and every vessel are
   tied to `data/machines/home.ron` placements; a container that can be

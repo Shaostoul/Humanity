@@ -1093,8 +1093,8 @@ needed and worn); rung 2 is DONE (v0.1349.0: stations draw power only while
 they work and refuse a craft when unpowered). Gardening depth rung 1 is DONE
 (v0.1350.0: yield follows season health; 36 of 189 species draw stage
 models). In flight: byproducts with real mass-balance ratios (and the
-tan_leather hide duplication). Next: quality tiers, a craft pausing when
-its station loses power, N-P-K, pests, light. Containers as items (3c) waits on the unified placement
+tan_leather hide duplication). A craft now pauses while its station has no
+power. Next: quality tiers, N-P-K, pests; light is in flight. Containers as items (3c) waits on the unified placement
 schema. Progress and open items live at the top of the gap doc.
 
 **Gameplay gap survey (2026-09-25):** `docs/design/gameplay-gaps-2026-09-25.md`

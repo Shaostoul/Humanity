@@ -400,6 +400,9 @@ pub struct ActiveCraft {
     /// being thrown away (2026-09-25); this marks that the player has been
     /// told once, so the notice does not repeat every tick.
     pub waiting_notified: bool,
+    /// The craft's station lost power and the craft is paused (2026-09-26);
+    /// marks that the player has been told once.
+    pub pause_notified: bool,
 }
 
 impl ActiveCraft {
@@ -779,6 +782,7 @@ impl System for CraftingSystem {
                         pad: c.pad.map(|(pos, rot)| (glam::Vec3::from_array(pos), glam::Quat::from_array(rot))),
                         machine_id: c.machine_id,
                         waiting_notified: false,
+                        pause_notified: false,
                     });
                 }
             }
@@ -1002,6 +1006,7 @@ impl System for CraftingSystem {
                     pad,
                     machine_id,
                     waiting_notified: false,
+                    pause_notified: false,
                 });
             }
         }
@@ -1197,6 +1202,7 @@ impl System for CraftingSystem {
                         pad,
                         machine_id: None,
                         waiting_notified: false,
+                        pause_notified: false,
                     });
                     log::debug!(
                         "Started crafting {} ({:.1}s)",
@@ -1216,8 +1222,46 @@ impl System for CraftingSystem {
         // current time_scale means "accelerated for testing" speeds every craft,
         // not just the wall clock. Absent game_time (unit tests) = raw dt.
         let sdt = crate::systems::time::scaled_dt(dt, data);
+        // A craft whose station has no power holds (2026-09-26): its timer
+        // stops until power returns, with one notice. An automated machine
+        // holds when it is itself unpowered; a manual craft when no machine
+        // of its station type is. Stations with no power role never hold.
+        let held: Vec<bool> = self
+            .active_crafts
+            .iter()
+            .map(|c| {
+                if c.auto {
+                    world
+                        .get::<&crate::ecs::components::PowerConsumer>(c.crafter)
+                        .map(|pc| !pc.enabled)
+                        .unwrap_or(false)
+                } else {
+                    recipe_registry
+                        .and_then(|r| r.recipes.get(&c.recipe_id))
+                        .and_then(|r| r.required_station.as_deref())
+                        .map(|s| Self::station_unpowered(world, s.strip_suffix("_0").unwrap_or(s)).is_some())
+                        .unwrap_or(false)
+                }
+            })
+            .collect();
         let mut completed = Vec::new();
         for (i, craft) in self.active_crafts.iter_mut().enumerate() {
+            if held[i] {
+                if !craft.pause_notified {
+                    craft.pause_notified = true;
+                    let name = recipe_registry
+                        .and_then(|r| r.recipes.get(&craft.recipe_id))
+                        .map(|r| r.name.clone())
+                        .unwrap_or_else(|| craft.recipe_id.clone());
+                    if let Some(slot) = data.get::<std::sync::Mutex<Vec<String>>>("player_notices") {
+                        if let Ok(mut n) = slot.lock() {
+                            n.push(format!("{name} is paused: its station lost power. It carries on when power returns."));
+                        }
+                    }
+                }
+                continue;
+            }
+            craft.pause_notified = false;
             craft.time_remaining -= sdt;
             if craft.time_remaining <= 0.0 {
                 completed.push(i);
@@ -1851,6 +1895,14 @@ mod skill_xp_tests {
         sys.tick(&mut world, 0.016, &data);
         assert_eq!(world.get::<&Inventory>(player).unwrap().count_item("egg_0"), 2, "powered: the craft started");
         assert_eq!(world.get::<&PowerConsumer>(stove).unwrap().draw_watts, 1200.0, "working draw while it cooks");
+        // The power fails partway: the craft holds, with one notice, and
+        // carries on when the power returns.
+        world.get::<&mut PowerConsumer>(stove).unwrap().enabled = false;
+        sys.tick(&mut world, 3.0, &data);
+        sys.tick(&mut world, 3.0, &data);
+        assert_eq!(world.get::<&Inventory>(player).unwrap().count_item("fried_egg_0"), 0, "paused without power");
+        assert_eq!(notices(&data).iter().filter(|n| n.contains("paused")).count(), 1, "{:?}", notices(&data));
+        world.get::<&mut PowerConsumer>(stove).unwrap().enabled = true;
         sys.tick(&mut world, 3.0, &data);
         assert_eq!(world.get::<&Inventory>(player).unwrap().count_item("fried_egg_0"), 1);
         sys.tick(&mut world, 0.016, &data);
