@@ -32,6 +32,25 @@
 //! 6. When a crop is harvested or dies, what is left in its unit passes to the
 //!    next crop sown there (`SoilMemory`), so cropping a unit mines it.
 //!
+//! CLOSING THE NITROGEN LOOP (2026-09-26, the next rung). Compost alone could
+//! not feed the towers: at its real 7% first-season N a 50-slot lettuce tower
+//! needed about 27 bags a season. The household's real nitrogen sources are:
+//!
+//! 7. Compost's SLOW release. The 93% of a bag's N that is not available in
+//!    its first season is organic N, banked in the unit's soil
+//!    (`SoilMemory::organic`) and released over the years after at the cited
+//!    schedule (`release_organic`), so a unit composted season after season
+//!    builds up, the way a real garden's soil does.
+//! 8. URINE, the household's largest nitrogen stream: one stored person-day
+//!    of it (`urine_stored_0`) carries 10.9 g of N, all of it available, and
+//!    it may not go on a crop within a month of its harvest (the WHO rule, in
+//!    `FertilizerDef::withhold_days`). It reaches the player through the
+//!    Compost action in src/systems/food.rs.
+//! 9. LEGUMES fix part of their own N from the air (plants.csv
+//!    `n_fixed_pct`), so they draw only the rest from their unit
+//!    (`soil_draw`), and leave the fixed N in their roots and haulm behind as
+//!    a credit for the next crop (`legume_credit_n`).
+//!
 //! pH and humidity stay out of scope: they are the next rungs (pH decides how
 //! much of the store is available at all, so it slots in as a multiplier on
 //! `sufficiency`).
@@ -148,6 +167,29 @@ pub struct NutrientData {
     pub demand_anchor: DemandAnchor,
     #[serde(default)]
     pub fertilizers: Vec<FertilizerDef>,
+    /// How banked organic N comes back, year by year (compost's slow
+    /// release). Absent means it never does: organic N is banked and stays.
+    #[serde(default)]
+    pub organic_n_release: OrganicRelease,
+    /// The share of a legume's whole-plant N, roots included, that leaves
+    /// with its harvest (0.55 shipped; Salvagiotti et al. 2008 via the data
+    /// file). Absent reads as 1.0: the harvest takes everything and a legume
+    /// leaves no credit, the safe reading of a file that does not say.
+    #[serde(default = "no_legume_credit")]
+    pub legume_harvest_n_share: f64,
+}
+
+fn no_legume_credit() -> f64 {
+    1.0
+}
+
+/// The share of the organic N still in the soil released in each year after
+/// it went on, percent: the first year first, and the LAST entry holds for
+/// every year after the list ends. See `release_organic`.
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct OrganicRelease {
+    #[serde(default)]
+    pub yearly_pct: Vec<f64>,
 }
 
 /// The crop whose published removal fixes the scale of the plants.csv
@@ -173,13 +215,69 @@ pub struct FertilizerDef {
     pub p2o5_available: f64,
     #[serde(default = "all_available")]
     pub k2o_available: f64,
+    /// True when the N that is not available in the first season is ORGANIC
+    /// N that releases over the years after (compost). It is banked in the
+    /// unit's soil (`SoilMemory::organic`). False: that N is not counted.
+    #[serde(default)]
+    pub organic_rest: bool,
+    /// The nutrients the automatic feeder doses this fertilizer by ("n",
+    /// "p2o5", "k2o"). Empty means all three: it is dosed for whichever the
+    /// unit lacks most, the way compost always was. Urine lists only "n".
+    #[serde(default)]
+    pub dose_for: Vec<String>,
+    /// Garden days before a crop is ripe after which this fertilizer may no
+    /// longer go on it (0 = no limit). Urine carries the WHO month.
+    #[serde(default)]
+    pub withhold_days: f64,
 }
 
 fn all_available() -> f64 {
     1.0
 }
 
+/// What one item of a fertilizer does to a unit, worked out once per tick
+/// from its `FertilizerDef` and the item's items.csv mass.
+#[derive(Debug, Clone, PartialEq)]
+pub struct FertilizerDose {
+    pub item: String,
+    /// Plant-available grams this season.
+    pub available: Npk,
+    /// Grams of organic N banked in the unit's slow pool (0 unless the
+    /// fertilizer's `organic_rest` is set).
+    pub organic_n: f64,
+    /// Which nutrients (N, P2O5, K2O) the feeder doses it by.
+    pub dose_for: [bool; 3],
+    /// See `FertilizerDef::withhold_days`.
+    pub withhold_days: f64,
+}
+
+impl FertilizerDose {
+    /// May this go on a crop with `days_left` garden days to ripening?
+    pub fn allowed(&self, days_left: f64) -> bool {
+        self.withhold_days <= 0.0 || days_left >= self.withhold_days
+    }
+}
+
 impl FertilizerDef {
+    /// Everything one item of `item_kg` does to a unit: its available grams,
+    /// the organic N it banks, and the feeder's rules for it.
+    pub fn dose(&self, item_kg: f64) -> FertilizerDose {
+        let total_n = item_kg.max(0.0) * 1000.0 / 100.0 * self.n_pct;
+        let organic_n = if self.organic_rest {
+            total_n * (1.0 - self.n_available.clamp(0.0, 1.0))
+        } else {
+            0.0
+        };
+        let named = |n: &str| self.dose_for.is_empty() || self.dose_for.iter().any(|d| d.eq_ignore_ascii_case(n));
+        FertilizerDose {
+            item: self.item.clone(),
+            available: self.available_per_item(item_kg),
+            organic_n,
+            dose_for: [named("n"), named("p2o5"), named("k2o")],
+            withhold_days: self.withhold_days.max(0.0),
+        }
+    }
+
     /// Plant-available grams one item of `item_kg` adds to a unit. Percent of
     /// mass times the available share: a 2.0 kg bag at 0.94% N with 7%
     /// available is 2000 x 0.0094 x 0.07 = 1.316 g of N.
@@ -320,16 +418,187 @@ pub fn feed_target(need: Npk, v: f32) -> Npk {
 /// WSU guide warns that rates "may need to" be based on P for that reason).
 /// A nutrient the fertilizer does not carry cannot be topped up by it.
 pub fn feed_dose(store: &Npk, target: &Npk, per_item: &Npk) -> f64 {
-    let lack = |have: f64, want: f64, per: f64| -> f64 {
-        if per <= 0.0 || have >= want {
+    feed_dose_for(store, target, per_item, [true; 3])
+}
+
+/// `feed_dose`, counting only the nutrients marked in `dose_for` (N, P2O5,
+/// K2O). Urine is dosed for its nitrogen alone, the way the source says to
+/// apply it (at a nitrogen fertilizer's rate): topping up potash with urine
+/// would pour in several times the nitrogen the crop can use.
+pub fn feed_dose_for(store: &Npk, target: &Npk, per_item: &Npk, dose_for: [bool; 3]) -> f64 {
+    let lack = |on: bool, have: f64, want: f64, per: f64| -> f64 {
+        if !on || per <= 0.0 || have >= want {
             0.0
         } else {
             (want - have) / per
         }
     };
-    lack(store.n, target.n, per_item.n)
-        .max(lack(store.p2o5, target.p2o5, per_item.p2o5))
-        .max(lack(store.k2o, target.k2o, per_item.k2o))
+    lack(dose_for[0], store.n, target.n, per_item.n)
+        .max(lack(dose_for[1], store.p2o5, target.p2o5, per_item.p2o5))
+        .max(lack(dose_for[2], store.k2o, target.k2o, per_item.k2o))
+}
+
+// -- Garden time -------------------------------------------------------------------
+
+/// The share of a crop's growth clock at which it ripens: it matures on
+/// entering its LAST stage, (n - 1) / n of the way (see `uptake_fraction`).
+fn mature_at(n_stages: usize) -> f64 {
+    if n_stages <= 1 {
+        1.0
+    } else {
+        (n_stages - 1) as f64 / n_stages as f64
+    }
+}
+
+/// Garden days a crop's unit lived through while its uptake share rose by
+/// `d_uptake`: the crop's days to ripening times that share. This is the
+/// clock the slow organic pool runs on, the same one the crop draws on, so
+/// it pauses in the dark and runs ten times as fast at 10x growth.
+pub fn garden_days(growth_days: f64, n_stages: usize, d_uptake: f64) -> f64 {
+    (growth_days.max(0.0) * mature_at(n_stages) * d_uptake.max(0.0)).max(0.0)
+}
+
+/// Garden days left before a crop with this uptake share ripens.
+pub fn days_to_maturity(growth_days: f64, n_stages: usize, uptake: f32) -> f64 {
+    let u = f64::from(uptake).clamp(0.0, 1.0);
+    growth_days.max(0.0) * mature_at(n_stages) * (1.0 - u)
+}
+
+// -- Compost's slow release: the organic N pool ---------------------------------
+
+/// A year of garden time, in garden days.
+pub const GARDEN_YEAR_DAYS: f64 = 365.0;
+
+/// Organic N put into a unit within this many garden days of its youngest
+/// cohort joins that cohort instead of starting a new one. The feeder adds a
+/// few milligrams every tick, and a cohort per tick would grow without end;
+/// 30 days keeps each cohort's age right to within a month of a year-long
+/// schedule, which is finer than the source's own resolution (whole years).
+pub const COHORT_MERGE_DAYS: f64 = 30.0;
+
+/// Bank `grams` of organic N in a unit's pool (`SoilMemory::organic`), as a
+/// new cohort aged 0, or into the youngest cohort if it is under
+/// `COHORT_MERGE_DAYS` old. The merged age is the mass-weighted mean, so a
+/// big new application pulls the cohort's age toward zero.
+pub fn bank_organic(pool: &mut Vec<crate::ecs::components::OrganicCohort>, grams: f64) {
+    if !(grams > 0.0) {
+        return;
+    }
+    if let Some(young) = pool.last_mut() {
+        if young.age_days < COHORT_MERGE_DAYS {
+            let total = young.n + grams;
+            young.age_days = if total > 0.0 { young.age_days * young.n / total } else { 0.0 };
+            young.n = total;
+            return;
+        }
+    }
+    pool.push(crate::ecs::components::OrganicCohort { age_days: 0.0, n: grams });
+}
+
+/// The yearly percent for organic N of this age: year 1 is `yearly_pct[0]`,
+/// and the last entry holds for every year after the list.
+fn yearly_rate(yearly_pct: &[f64], age_days: f64) -> f64 {
+    if yearly_pct.is_empty() {
+        return 0.0;
+    }
+    let year = (age_days.max(0.0) / GARDEN_YEAR_DAYS).floor() as usize;
+    (yearly_pct[year.min(yearly_pct.len() - 1)] / 100.0).clamp(0.0, 1.0)
+}
+
+/// Age every cohort in a unit's pool by `days` garden days and return the
+/// grams of N released, which become plant-available in the unit.
+///
+/// Each year's percent is a share of what is STILL in the soil at the start
+/// of that year (the CDFA wording: "5% of the remaining organically-bound
+/// nitrogen in the second year"). Within a year it comes out at an even
+/// proportional pace, `1 - (1 - r)^(days / 365)`, so a full year releases
+/// exactly r of what the cohort held at its start however the year is
+/// sliced into ticks. A step that crosses a year boundary is split there, so
+/// the offline catch-up's one big step gets the same answer as many small
+/// ones. Cohorts old enough to sit on the last (flat) rate merge into one.
+pub fn release_organic(
+    pool: &mut Vec<crate::ecs::components::OrganicCohort>,
+    days: f64,
+    yearly_pct: &[f64],
+) -> f64 {
+    if !(days > 0.0) || pool.is_empty() {
+        return 0.0;
+    }
+    let mut released = 0.0;
+    for c in pool.iter_mut() {
+        let mut left = days;
+        while left > 0.0 && c.n > 0.0 {
+            let rate = yearly_rate(yearly_pct, c.age_days);
+            // Days to the end of this cohort's current year, where the rate
+            // may change. Past the list's end the rate is flat for good.
+            let year = (c.age_days / GARDEN_YEAR_DAYS).floor();
+            let flat = yearly_pct.is_empty() || year as usize >= yearly_pct.len().saturating_sub(1);
+            let step = if flat {
+                left
+            } else {
+                ((year + 1.0) * GARDEN_YEAR_DAYS - c.age_days).max(1e-9).min(left)
+            };
+            let out = c.n * (1.0 - (1.0 - rate).powf(step / GARDEN_YEAR_DAYS));
+            c.n -= out;
+            released += out;
+            c.age_days += step;
+            left -= step;
+        }
+        if c.n <= 0.0 {
+            c.age_days += left.max(0.0);
+        }
+    }
+    // Cohorts on the flat tail release at the same rate, so one will do.
+    // Cohorts are kept oldest first (new ones are pushed on the end), so the
+    // settled ones are always at the front; only rebuild when two have
+    // settled or one has run out, which is rare, since this runs per crop
+    // per tick.
+    let flat_from = GARDEN_YEAR_DAYS * yearly_pct.len().saturating_sub(1) as f64;
+    let settled_count = pool.iter().filter(|c| c.age_days >= flat_from).count();
+    if settled_count <= 1 && pool.iter().all(|c| c.n > 1e-12) {
+        return released;
+    }
+    let (mut settled, mut rest): (Vec<_>, Vec<_>) = pool.drain(..).partition(|c| c.age_days >= flat_from);
+    rest.retain(|c| c.n > 1e-12);
+    settled.retain(|c| c.n > 1e-12);
+    if !settled.is_empty() {
+        let n: f64 = settled.iter().map(|c| c.n).sum();
+        let age = settled.iter().map(|c| c.age_days).fold(0.0, f64::max);
+        pool.push(crate::ecs::components::OrganicCohort { age_days: age, n });
+    }
+    pool.extend(rest);
+    released
+}
+
+/// Grams of organic N still banked in a unit's pool.
+pub fn organic_total(pool: &[crate::ecs::components::OrganicCohort]) -> f64 {
+    pool.iter().map(|c| c.n).sum()
+}
+
+// -- Legumes: nitrogen from the air ---------------------------------------------
+
+/// What a crop draws from its unit over a season: its season need, less the
+/// share of its N it fixes from the air (plants.csv `n_fixed_pct`, as 0..1).
+/// P and K are untouched: no plant fixes those.
+pub fn soil_draw(need: Npk, fixed_share: f64) -> Npk {
+    Npk::new(need.n * (1.0 - fixed_share.clamp(0.0, 1.0)), need.p2o5, need.k2o)
+}
+
+/// Grams of N a harvested legume leaves in its unit for the next crop: the
+/// fixed share of the N in the roots, nodules and haulm that stay behind.
+/// With `removal_n` the N its harvest carried away and `harvest_n_share`
+/// the share of the whole plant's N that harvest was, the plant held
+/// `removal_n / harvest_n_share`, the part left behind is that minus the
+/// removal, and `fixed_share` of it came from the air, so it is new to the
+/// unit. (The soil-derived rest of the residue is the unit's own N going
+/// back, which the removal-only model already nets out for every crop.)
+/// Zero for a non-legume or a nonsense share.
+pub fn legume_credit_n(removal_n: f64, fixed_share: f64, harvest_n_share: f64) -> f64 {
+    let f = fixed_share.clamp(0.0, 1.0);
+    if f <= 0.0 || !(harvest_n_share > 0.0) || harvest_n_share >= 1.0 || !(removal_n > 0.0) {
+        return 0.0;
+    }
+    f * removal_n * (1.0 / harvest_n_share - 1.0)
 }
 
 /// Share (0..1) of its season need a crop should have drawn by now, from its
@@ -369,7 +638,7 @@ pub fn draw(store: &mut Npk, want: Npk) -> Npk {
 // -- Soil memory: what an emptied unit still holds ----------------------------
 
 /// The world's one `SoilMemory`, spawned the first time it is needed.
-fn soil_memory_entity(world: &mut hecs::World) -> hecs::Entity {
+pub fn soil_memory_entity(world: &mut hecs::World) -> hecs::Entity {
     if let Some((e, _)) = world.query::<&crate::ecs::components::SoilMemory>().iter().next() {
         return e;
     }
@@ -391,6 +660,19 @@ pub fn recall(world: &mut hecs::World, area: &str, slot: u32) -> Option<Npk> {
     let e = world.query::<&crate::ecs::components::SoilMemory>().iter().next().map(|(e, _)| e)?;
     let mut mem = world.get::<&mut crate::ecs::components::SoilMemory>(e).ok()?;
     mem.units.get_mut(area).and_then(|slots| slots.remove(&slot))
+}
+
+/// Bank `grams` of organic N in unit `slot` of grow area `area`, where it
+/// stays through every crop sown there and releases slowly (`release_organic`).
+pub fn bank_organic_in(world: &mut hecs::World, area: &str, slot: u32, grams: f64) {
+    if !(grams > 0.0) {
+        return;
+    }
+    let e = soil_memory_entity(world);
+    if let Ok(mut mem) = world.get::<&mut crate::ecs::components::SoilMemory>(e) {
+        let pool = mem.organic.entry(area.to_string()).or_default().entry(slot).or_default();
+        bank_organic(pool, grams);
+    }
 }
 
 #[cfg(test)]
@@ -428,7 +710,152 @@ mod tests {
         assert!((g.n - 1.316).abs() < 1e-9, "available N {}", g.n);
         assert!((g.p2o5 - 6.4).abs() < 1e-9, "P2O5 {}", g.p2o5);
         assert!((g.k2o - 11.6).abs() < 1e-9, "K2O {}", g.k2o);
-        assert_eq!(data.fertilizers[0].item, "fertilizer_0", "compost is the feeder's fertilizer");
+        // The feeder's order (2026-09-26): urine first for the nitrogen,
+        // compost after it for the phosphorus and potassium.
+        let order: Vec<&str> = data.fertilizers.iter().map(|f| f.item.as_str()).collect();
+        assert_eq!(order, ["urine_stored_0", "fertilizer_0"], "the feeder's fertilizers, in order");
+    }
+
+    /// A bag's organic rest is the 93% of its 18.8 g of N that is not
+    /// available in its first season: 17.484 g, banked in the unit. Seen red
+    /// by dropping `organic_rest: true` from the compost entry in the data
+    /// (nothing banked).
+    #[test]
+    fn a_bag_of_compost_banks_the_rest_of_its_nitrogen_as_organic_n() {
+        let (data, _plants, items) = shipped();
+        let dose = data.fertilizer("fertilizer_0").unwrap().dose(f64::from(items.mass_for("fertilizer_0")));
+        assert!((dose.organic_n - 18.8 * 0.93).abs() < 1e-9, "organic N {}", dose.organic_n);
+        assert!((dose.available.n + dose.organic_n - 18.8).abs() < 1e-9, "all 18.8 g accounted for");
+        assert_eq!(dose.dose_for, [true; 3], "compost is dosed by whichever nutrient is short");
+        assert_eq!(dose.withhold_days, 0.0, "compost has no withholding period");
+    }
+
+    /// Compost's organic N comes back at the CDFA schedule applied to the
+    /// WSU first year: nothing more in its first year (that season's 7% was
+    /// credited when it went on), 3.5% of what is left in its second, and 2%
+    /// of what is left every year after. And a year is a year however it is
+    /// sliced into ticks, including one tick that crosses two birthdays (the
+    /// offline catch-up). Seen red two ways: `yearly_rate` reading the LAST
+    /// entry for every age (year one released 0.35 g), and the year-boundary
+    /// split removed from `release_organic` (one step over three years
+    /// released 0 g against 0.95 g day by day).
+    #[test]
+    fn compost_releases_the_rest_of_its_nitrogen_in_later_years_at_the_cited_schedule() {
+        let (data, _plants, _items) = shipped();
+        let yearly = data.organic_n_release.yearly_pct.clone();
+        assert_eq!(yearly, [0.0, 3.5, 2.0], "the shipped schedule");
+        let banked = 18.8 * 0.93;
+        let mut pool = Vec::new();
+        bank_organic(&mut pool, banked);
+
+        let year1 = release_organic(&mut pool, GARDEN_YEAR_DAYS, &yearly);
+        assert!(year1.abs() < 1e-12, "the first year's share was given up front: {year1}");
+        let year2 = release_organic(&mut pool, GARDEN_YEAR_DAYS, &yearly);
+        assert!((year2 - banked * 0.035).abs() < 1e-9, "year two: 3.5% of {banked} = {}, got {year2}", banked * 0.035);
+        let left = banked * 0.965;
+        let year3 = release_organic(&mut pool, GARDEN_YEAR_DAYS, &yearly);
+        assert!((year3 - left * 0.02).abs() < 1e-9, "year three: 2% of what is left, got {year3}");
+        let year4 = release_organic(&mut pool, GARDEN_YEAR_DAYS, &yearly);
+        assert!((year4 - left * 0.98 * 0.02).abs() < 1e-9, "year four: 2% again, got {year4}");
+        assert!(
+            (organic_total(&pool) + year2 + year3 + year4 - banked).abs() < 1e-9,
+            "nothing made or lost: what is released plus what is left is what went in"
+        );
+
+        // Sliced into days, or in one step that crosses two birthdays: the same.
+        let mut daily = Vec::new();
+        bank_organic(&mut daily, banked);
+        let by_day: f64 = (0..(3 * 365)).map(|_| release_organic(&mut daily, 1.0, &yearly)).sum();
+        let mut once = Vec::new();
+        bank_organic(&mut once, banked);
+        let at_once = release_organic(&mut once, 3.0 * GARDEN_YEAR_DAYS, &yearly);
+        assert!((by_day - (year2 + year3)).abs() < 1e-9, "day by day over three years: {by_day}");
+        assert!((at_once - by_day).abs() < 1e-9, "one step over three years: {at_once} vs {by_day}");
+    }
+
+    /// Applying compost every year builds the soil up: the release grows
+    /// year on year even though each year's bag is the same, which is what
+    /// a real garden's organic matter does. And the feeder's milligram doses
+    /// do not pile up a cohort per tick. Seen red by making `bank_organic`
+    /// always push a new cohort (the pool grew to one entry per dose).
+    #[test]
+    fn composting_year_after_year_builds_the_soil_up() {
+        let yearly = [0.0, 3.5, 2.0];
+        let mut pool = Vec::new();
+        let mut released = Vec::new();
+        for _ in 0..10 {
+            // A bag's organic N a year, as a feeder would give it: a
+            // thousand small doses over the first month.
+            for _ in 0..1000 {
+                bank_organic(&mut pool, 17.484 / 1000.0);
+                release_organic(&mut pool, 30.0 / 1000.0, &yearly);
+            }
+            released.push(release_organic(&mut pool, GARDEN_YEAR_DAYS - 30.0, &yearly));
+        }
+        for w in released.windows(2).skip(1) {
+            assert!(w[1] > w[0], "each year gives more than the last: {released:?}");
+        }
+        assert!(pool.len() <= 3, "a few cohorts, not one per dose: {}", pool.len());
+    }
+
+    /// A person-day of stored urine is Jonsson et al.'s Swedish urine: 10.9
+    /// g of N (0.727% of 1.5 kg), all of it available, with 2.28 g P2O5 and
+    /// 3.6 g K2O, none of it banked, dosed by nitrogen alone, and never on a
+    /// crop within 30 garden days of ripening. Seen red by setting the
+    /// urine's n_available to 0.07 (compost's) in the data (1.3 g, not 10.9).
+    #[test]
+    fn stored_urine_adds_its_cited_nitrogen_all_available_and_keeps_the_month() {
+        let (data, _plants, items) = shipped();
+        let kg = f64::from(items.mass_for("urine_stored_0"));
+        assert!((kg - 1.5).abs() < 1e-6, "one person-day is 1.5 kg in items.csv, got {kg}");
+        let dose = data.fertilizer("urine_stored_0").expect("urine is listed").dose(kg);
+        assert!((dose.available.n - 4000.0 / 550.0 * 1.5).abs() < 0.01, "N {} g", dose.available.n);
+        assert!((dose.available.n - 10.905).abs() < 1e-9, "N {} g", dose.available.n);
+        assert!((dose.available.p2o5 - 2.28).abs() < 1e-9, "P2O5 {}", dose.available.p2o5);
+        assert!((dose.available.k2o - 3.6).abs() < 1e-9, "K2O {}", dose.available.k2o);
+        assert_eq!(dose.organic_n, 0.0, "urine N is all available, nothing banked");
+        assert_eq!(dose.dose_for, [true, false, false], "dosed by nitrogen alone");
+        assert!(dose.allowed(30.0) && dose.allowed(90.0), "a month or more before harvest: allowed");
+        assert!(!dose.allowed(29.9), "within the month: withheld");
+        // Dosed for N only: a unit short of potash is not poured full of
+        // urine to cover it.
+        let store = Npk::new(1.0, 0.0, 0.0);
+        let target = Npk::new(1.0, 1.0, 1.0);
+        assert_eq!(feed_dose_for(&store, &target, &dose.available, dose.dose_for), 0.0);
+        assert!(feed_dose(&store, &target, &dose.available) > 0.0, "unmasked it would have been");
+    }
+
+    /// A legume draws only the share of its N it does not fix, and leaves
+    /// the fixed share of its roots' N behind; soybean at its own 55% ends
+    /// the season where it started (Salvagiotti et al.'s near-neutral
+    /// balance), a stronger fixer leaves the unit richer and a weaker one
+    /// poorer. Seen red by crediting the whole residue N instead of its
+    /// fixed share (soybean then left the unit richer).
+    #[test]
+    fn a_legume_draws_less_and_leaves_its_fixed_nitrogen_behind() {
+        let (data, plants, _items) = shipped();
+        let share = data.legume_harvest_n_share;
+        assert!((share - 0.55).abs() < 1e-12, "shipped share {share}");
+        let soy = f64::from(plants.get("soybean").unwrap().n_fixed_share);
+        assert!((soy - 0.55).abs() < 1e-6, "soybean fixes 55%, got {soy}");
+        assert_eq!(plants.get("tomato").unwrap().n_fixed_share, 0.0, "a tomato fixes nothing");
+        assert_eq!(plants.get("peanut").unwrap().n_fixed_share, 0.0, "no figure sourced yet: none");
+
+        // (1e-6, not 1e-9: plants.csv shares are f32, so 0.55 arrives as
+        // 0.55000001.)
+        let removal = Npk::new(10.0, 3.0, 4.0);
+        let drawn = soil_draw(removal, soy);
+        assert!((drawn.n - 4.5).abs() < 1e-6 && drawn.p2o5 == 3.0 && drawn.k2o == 4.0, "{drawn:?}");
+        let credit = legume_credit_n(removal.n, soy, share);
+        assert!((credit - drawn.n).abs() < 1e-6, "soybean: credit {credit} = what it drew {}", drawn.n);
+
+        let net = |f: f64| legume_credit_n(removal.n, f, share) - soil_draw(removal, f).n;
+        let fava = f64::from(plants.get("fava_bean").unwrap().n_fixed_share);
+        let bean = f64::from(plants.get("bean").unwrap().n_fixed_share);
+        assert!(net(fava) > 0.0, "fava bean (67%) leaves the unit richer: {}", net(fava));
+        assert!(net(bean) < 0.0, "common bean (26%) leaves it poorer: {}", net(bean));
+        assert!(net(0.0) == -removal.n, "a non-legume takes its whole removal");
+        assert_eq!(legume_credit_n(removal.n, soy, 1.0), 0.0, "a harvest that takes everything leaves nothing");
     }
 
     /// The anchor tomato's season need is exactly the cited removal of its

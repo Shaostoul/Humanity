@@ -226,6 +226,42 @@ date; re-check before trusting one. The container data basis is
   Still to do: pH and humidity, the slow organic N that compost releases over
   years, urine and legume N, per-crop removal columns, and N-P-K in the
   Garden panel.
+- **Gardening depth, rung 4: closing the nitrogen loop, DONE 2026-09-26.**
+  Three real sources, each from cited numbers in `data/garden/nutrients.ron`
+  and `data/plants.csv`. (1) Compost's slow release: the 93% of a bag's N not
+  available in its first season is banked as organic N in its unit
+  (`SoilMemory::organic`, saved) and released on the unit's garden clock by
+  CDFA's rule applied to the WSU 7% first year (Gravuer 2016: halving each
+  year to a 2% floor), so 3.5% of what is left in year two and 2% a year
+  after. A bag applied every year gives 1.3 g of N in year one, 4.5 g by year
+  ten and 12.4 g by year fifty of its 18.8 g: the soil builds up. (2) Urine:
+  `urine_stored_0` is one person-day (1.5 kg: 10.9 g N all available, 2.3 g
+  P2O5, 3.6 g K2O; Jonsson et al. 2004, EcoSanRes, Tables 1 and 3). It
+  collects in a 20 L sealed tank on the waste meter's real clock and the
+  Compost action draws whole person-days off. The feeder uses urine first,
+  dosed for N, then compost for P and K; the Fertilize button uses compost
+  first and urine when there is none; urine never goes on a crop within 30
+  garden days of harvest (WHO 2006, as in Richert et al. 2010). (3) Legumes:
+  plants.csv `n_fixed_pct` (soybean 55, Salvagiotti et al. 2008; fava 67, pea
+  54, lentil 54, chickpea 52, common beans 26, Hossain et al. 2017; the other
+  legumes blank until sourced). A legume draws only its unfixed share and
+  leaves its roots' fixed N for the next crop, sized so soybean leaves its
+  unit where it found it (Salvagiotti's near-neutral balance), fava richer,
+  common bean poorer. The balance, by the game's own need model: the home
+  zone's showcase garden (1,600 units) removes 10.35 kg of N a garden year and
+  its legumes return 0.08 kg. Three residents' urine is 12.0 kg a year, so on
+  one shared clock urine alone covers it with 1.8 kg over; the one player the
+  game has covers 39%. P2O5 and K2O do not close from urine (8.7 and 23.9 kg
+  needed against 2.5 and 4.0). Found, not fixed: the body and the garden run
+  on different clocks. Vitals, waste and urine run on real seconds (v0.1005),
+  the garden on 20-minute game days at the 10x growth default, 720 garden days
+  per real day, so in play one player's urine is about 0.05% of the garden's
+  draw (0.5% at 1x). Closing that is a design choice (bodily outputs on the
+  game clock, or a slower garden), not a number to tune. Also found: the
+  waste meter composts 1.8 bags (34 g of N) a real day, 2.7 times the N in a
+  person's whole excreta (12.5 g a day, Jonsson Table 1), and the plants.csv
+  indices make grain and legume removal (and so legume credits) far too
+  small; per-crop removal columns are the fix for both.
 
 ## Defects found (things that are wrong, not merely missing)
 

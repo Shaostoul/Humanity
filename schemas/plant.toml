@@ -285,6 +285,28 @@ This says nothing about HOW MUCH light a plant needs (see Known gaps below).
 Blank or absent reads as `true`, so a row can never be dropped over it."""
 example = "true"
 
+[fields.n_fixed_pct]
+type = "float"
+required = false
+engine = true
+description = """
+Share of the crop's nitrogen it fixes from the air, as a percent: the %Ndfa
+("N derived from the atmosphere") that legume studies report (added
+2026-09-26, closing the garden's nitrogen loop). The farming sim
+(src/systems/farming/soil.rs) draws only the other share of the crop's N need
+from its unit (`soil_draw`), and when the crop is harvested it leaves the
+fixed N held in its roots, nodules and haulm in the unit as a credit for the
+next crop (`legume_credit_n`, with the harvest's share of whole-plant N from
+data/garden/nutrients.ron `legume_harvest_n_share`).
+
+Filled only where a figure was found; the sources are in the plants.csv
+header. Soybean 55 (Salvagiotti et al. 2008: "50-60%"); fava bean 67, pea 54,
+lentil 54, chickpea 52 and the common beans 26 (Hossain et al. 2017, three
+semiarid seasons in Saskatchewan). Other legumes fix nitrogen too but have no
+figure yet and are blank. Blank, absent or unparseable reads as 0 (no
+fixation) and never drops the row: the loader parses it from text."""
+example = "55"
+
 # ── Known gaps, so nobody rediscovers them ───────────────────────
 #
 # These are things the file CANNOT express that the Library's guides say matter.

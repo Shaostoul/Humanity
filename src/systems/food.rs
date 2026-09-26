@@ -194,6 +194,48 @@ const UNSANITARY_THRESHOLD: f32 = 75.0;
 /// Waste units consumed per unit of fertilizer produced when composting.
 const WASTE_PER_FERTILIZER: f32 = 25.0;
 
+// ── Urine: the household's largest nitrogen stream (2026-09-26). ──
+//
+// A person makes urine every day they live, and it carries most of the
+// nitrogen a body gives back: 4.0 kg N a year of the 4.55 kg in all excreta
+// (Jonsson et al. 2004, "Guidelines on the Use of Urine and Faeces in Crop
+// Production", EcoSanRes 2004-2, Table 1, Swedish defaults). Before this the
+// game had no urine at all: the waste meter composted into bags of compost
+// at compost's 7% first-season nitrogen, and the nitrogen urine carries was
+// simply not there.
+//
+// It rides the same sanitation path as the waste. While the player lives,
+// their urine collects in the home's sealed tank, counted in PERSON-DAYS
+// because the source says to ("the calculation should preferably be based
+// upon the number of persons and days that it has been collected from",
+// p. 7), and the Compost action that empties the waste also draws off every
+// whole person-day as one `urine_stored_0` (1.5 kg, 10.9 g N; its analysis
+// and the WHO month before harvest are in data/garden/nutrients.ron). The
+// fraction of a day stays in the tank. The home has no urine-diverting
+// toilet placed yet (data/home_outline.json lists it as "not in game yet"),
+// so this stands in for its tank; like the waste meter, it is not saved.
+
+/// The item one person-day of stored urine becomes.
+const URINE_ITEM: &str = "urine_stored_0";
+/// Real seconds in one person-day of urine: a person makes one person-day's
+/// worth a day, on the same real clock the waste meter rises on.
+const SECONDS_PER_URINE_DAY: f64 = 86_400.0;
+/// The sealed tank holds this many person-days, then overflows to the septic
+/// tank, where it is lost to the garden. A GAME CHOICE, not a measurement:
+/// 20 L, the size of the game's water jerrycan (items.csv), because
+/// households collect urine in jerrycans (Ouagadougou's "yellow jerry cans",
+/// Richert et al. 2010, "Practical Guidance on the Use of Urine in Crop
+/// Production", p. 25, which gives no size). At 1.5 L a person-day (550 kg a
+/// year, Jonsson et al. 2004 Table 1) that is 13.3 person-days: about two
+/// weeks of one person between Compost presses before any is lost.
+const URINE_TANK_PERSON_DAYS: f64 = 20.0 / 1.5;
+
+/// Add `dt` real seconds of one living person's urine to the tank, capped at
+/// its size (the overflow goes to the septic tank). Returns the new level.
+fn collect_urine(tank_person_days: f64, dt: f64) -> f64 {
+    (tank_person_days + dt.max(0.0) / SECONDS_PER_URINE_DAY).min(URINE_TANK_PERSON_DAYS)
+}
+
 /// Unique key for tracking a specific food stack: (entity bits, inventory slot index).
 type FoodKey = (u64, usize);
 
@@ -231,6 +273,10 @@ pub struct FoodSystem {
     spoilage: HashMap<FoodKey, SpoilageState>,
     /// Accumulator to throttle log spam.
     log_cooldown: f32,
+    /// Person-days of urine in the home's sealed collection tank, drawn off
+    /// as `URINE_ITEM` by the Compost action (2026-09-26). Not saved, like
+    /// the waste meter it rides beside.
+    urine_person_days: f64,
 }
 
 impl FoodSystem {
@@ -266,7 +312,7 @@ impl FoodSystem {
             }
         }
         log::info!("Loaded {} edible items from {}", item_profile.len(), ItemProfiles::FILE);
-        Self { data, item_profile, spoilage: HashMap::new(), log_cooldown: 0.0 }
+        Self { data, item_profile, spoilage: HashMap::new(), log_cooldown: 0.0, urine_person_days: 0.0 }
     }
 
     /// The nutrition profile of an item, or None when it is not food.
@@ -469,6 +515,15 @@ impl System for FoodSystem {
             .get::<std::sync::Mutex<bool>>("compost_request")
             .and_then(|m| m.lock().ok().map(|mut s| std::mem::replace(&mut *s, false)))
             .unwrap_or(false);
+        // Urine collects in the sealed tank while the player lives, on the
+        // same real clock the waste meter rises on (see URINE_ITEM).
+        let player_alive = world
+            .query::<(&Vitals, &crate::ecs::components::Controllable, Option<&crate::ecs::components::Dead>)>()
+            .iter()
+            .any(|(_, (_, _, dead))| dead.is_none());
+        if player_alive {
+            self.urine_person_days = collect_urine(self.urine_person_days, f64::from(dt));
+        }
         if do_compost {
             let max_stack = item_registry
                 .map(|r| r.max_stack_for("fertilizer_0"))
@@ -488,6 +543,18 @@ impl System for FoodSystem {
                         log::warn!("[Sanitation] pack full: {lost}x fertilizer_0 lost");
                     }
                     log::info!("[Sanitation] composted waste -> {units}x fertilizer_0");
+                }
+                // The same action draws the urine tank off: every whole
+                // person-day becomes one stored urine for the garden. What
+                // does not fit the pack stays in the tank for next time.
+                let person_days = self.urine_person_days.floor().max(0.0) as u32;
+                if person_days > 0 {
+                    let unit_vol = item_registry.map(|r| r.volume_for(URINE_ITEM)).unwrap_or(0.0);
+                    let stack = item_registry.map(|r| r.max_stack_for(URINE_ITEM)).unwrap_or(20);
+                    let lost = inv.add_item_volume_gated(URINE_ITEM, person_days, stack, unit_vol);
+                    let taken = person_days.saturating_sub(lost);
+                    self.urine_person_days -= f64::from(taken);
+                    log::info!("[Sanitation] drew off {taken}x {URINE_ITEM} ({lost} left in the tank)");
                 }
                 vitals.waste = 0.0;
                 break; // first player only
@@ -1312,6 +1379,43 @@ mod nutrition_tests {
         assert!(
             !world.get::<&StatusEffects>(player).unwrap().has("unsanitary"),
             "composting lifted the unsanitary debuff"
+        );
+    }
+
+    /// The urine tank (2026-09-26): a living player's urine collects at one
+    /// person-day per real day, the Compost action draws off every whole
+    /// person-day as one stored urine and leaves the fraction in the tank,
+    /// and past 13.3 person-days (a 20 L tank at 1.5 L a day) the rest
+    /// overflows to the septic tank. Seen red by dropping the tank's cap in
+    /// `collect_urine` (forty days made 40 more, not 13).
+    #[test]
+    fn urine_collects_by_the_person_day_and_the_tank_overflows_after_two_weeks() {
+        let mut sys = FoodSystem::new(data_dir());
+        let mut data = make_store();
+        data.insert("vitals_drain_scale", std::sync::Mutex::new(0.0_f32));
+        let mut world = hecs::World::new();
+        let player = world.spawn((
+            Inventory::new(8),
+            vitals(80.0, 80.0),
+            StatusEffects::default(),
+            Health::default(),
+            crate::ecs::components::Controllable,
+        ));
+        let compost = |sys: &mut FoodSystem, world: &mut hecs::World| {
+            *data.get::<std::sync::Mutex<bool>>("compost_request").unwrap().lock().unwrap() = true;
+            sys.tick(world, 1.0, &data);
+            world.get::<&Inventory>(player).unwrap().count_item(URINE_ITEM)
+        };
+
+        sys.tick(&mut world, 1.5 * 86_400.0, &data);
+        assert_eq!(compost(&mut sys, &mut world), 1, "a day and a half: one whole person-day");
+        sys.tick(&mut world, 0.5 * 86_400.0, &data);
+        assert_eq!(compost(&mut sys, &mut world), 2, "the half day left in the tank made the second");
+        sys.tick(&mut world, 40.0 * 86_400.0, &data);
+        assert_eq!(
+            compost(&mut sys, &mut world),
+            2 + 13,
+            "the tank holds 13.3 person-days; the rest of forty went to the septic tank"
         );
     }
 

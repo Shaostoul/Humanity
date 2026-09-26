@@ -366,3 +366,265 @@ fn the_next_crop_in_a_unit_starts_on_what_the_last_one_left() {
     assert!(got.n <= worked.n && got.p2o5 <= worked.p2o5 && got.k2o <= worked.k2o, "worked soil, not fresh: {got:?}");
     assert!(got.n < fresh.n / 10.0, "far below fresh ({:?})", fresh);
 }
+
+// -- Closing the nitrogen loop (2026-09-26) -----------------------------------
+
+fn set_elapsed(data: &DataStore, secs: f64) {
+    data.get::<std::sync::Mutex<crate::systems::time::GameTime>>("game_time")
+        .unwrap()
+        .lock()
+        .unwrap()
+        .elapsed_seconds = secs;
+}
+
+fn soil_memory(world: &hecs::World) -> crate::ecs::components::SoilMemory {
+    world
+        .query::<&crate::ecs::components::SoilMemory>()
+        .iter()
+        .next()
+        .map(|(_, m)| m.clone())
+        .expect("the world has its soil memory")
+}
+
+fn home_stock_of(data: &DataStore, item: &str) -> u32 {
+    data.get::<std::sync::Mutex<HashMap<String, u32>>>("home_stock")
+        .unwrap()
+        .lock()
+        .unwrap()
+        .get(item)
+        .copied()
+        .unwrap_or(0)
+}
+
+/// Compost's organic nitrogen through the tick: a bag put on by hand banks
+/// its 17.484 g of organic N in the unit, and it comes back on the unit's
+/// garden clock at the cited schedule. Two apple trees side by side, one
+/// composted, both grown in the same tick through half their growth clock:
+/// an apple ripens 1460 x 5/6 = 1216.7 garden days after planting, so that
+/// is 0.6 of its uptake, 730 garden days, two years. The composted unit
+/// ends up richer by the bag's first-season 1.316 g plus year two's 3.5% of
+/// the organic N (year one's share was the 1.316 g), and the rest is still
+/// banked. Seen red twice: the growth loop's release not added to the
+/// store (the difference was the bag alone), and the Fertilize path not
+/// banking the organic N (nothing banked, nothing back).
+#[test]
+fn compost_banks_its_organic_nitrogen_and_it_comes_back_in_the_second_year() {
+    let mut data = make_store();
+    data.insert("crop_growth_speed", std::sync::Mutex::new(1.0_f32));
+    let mut sys = FarmingSystem::new();
+    let mut world = hecs::World::new();
+    world.spawn((Irrigator,));
+    let mut inv = Inventory::new(8);
+    inv.add_item("fertilizer_0", 1, 99);
+    world.spawn((inv, Controllable));
+    let first = stages_of(&data, "apple")[0].clone();
+    let plenty = CropSoil { store: Npk::new(100.0, 100.0, 100.0), uptake: 0.0 };
+    let fed = world.spawn((crop("apple", "orchard_a", &first, 0.0), plenty.clone()));
+    let unfed = world.spawn((crop("apple", "orchard_b", &first, 0.0), plenty));
+
+    set_fertilize(&data, fed);
+    set_elapsed(&data, 1460.0 * SECONDS_PER_DAY * 0.5);
+    sys.tick(&mut world, 1.0, &data);
+
+    let (a, b) = (store_of(&world, fed), store_of(&world, unfed));
+    let organic = 18.8 * 0.93;
+    let year_two = organic * 0.035;
+    let extra = a.n - b.n;
+    assert!(
+        (extra - (compost_bag().n + year_two)).abs() < 1e-3,
+        "the composted unit gained the bag's 1.316 g now and {year_two:.3} g back in year two: got {extra}"
+    );
+    let mem = soil_memory(&world);
+    let left = soil::organic_total(&mem.organic["orchard_a"][&0]);
+    assert!((left - (organic - year_two)).abs() < 1e-3, "the rest stays banked: {left}");
+    assert!(!mem.organic.contains_key("orchard_b"), "the other unit banked nothing");
+}
+
+/// Stored urine by hand: with no compost in the pack, Fertilize puts one
+/// person-day's cited grams into the crop's unit (10.9 g N, all available,
+/// 2.28 g P2O5, 3.6 g K2O), but refuses it on a crop within the WHO month of
+/// ripening and says why, keeping the urine. Seen red twice: the data's
+/// urine withhold_days set to 0 (the nearly ripe crop took it), and the
+/// Fertilize path trying compost only (the young crop got nothing).
+#[test]
+fn stored_urine_by_hand_feeds_a_crop_but_not_within_a_month_of_its_harvest() {
+    let mut data = make_store();
+    data.insert("crop_growth_speed", std::sync::Mutex::new(1.0_f32));
+    data.insert("player_notices", std::sync::Mutex::new(Vec::<String>::new()));
+    let mut sys = FarmingSystem::new();
+    let mut world = hecs::World::new();
+    let mut inv = Inventory::new(8);
+    inv.add_item("urine_stored_0", 2, 99);
+    let player = world.spawn((inv, Controllable));
+    let stages = stages_of(&data, "tomato");
+    // A tomato ripens 70 x 5/6 = 58.3 garden days after planting. The young
+    // one has all of that to go; the late one has drawn 0.6 of its season,
+    // so 23 days are left: inside the month.
+    let young = world.spawn((crop("tomato", "bed_a", &stages[0], 0.0), CropSoil { store: Npk::ZERO, uptake: 0.0 }));
+    let late = world.spawn((crop("tomato", "bed_b", &stages[3], 0.0), CropSoil { store: Npk::ZERO, uptake: 0.6 }));
+
+    set_fertilize(&data, young);
+    sys.tick(&mut world, 1.0, &data);
+    let got = store_of(&world, young);
+    assert!((got.n - 10.905).abs() < 1e-3, "one person-day of urine N: {}", got.n);
+    assert!((got.p2o5 - 2.28).abs() < 1e-3 && (got.k2o - 3.6).abs() < 1e-3, "{got:?}");
+    assert_eq!(world.get::<&Inventory>(player).unwrap().count_item("urine_stored_0"), 1);
+    notices(&data);
+
+    set_fertilize(&data, late);
+    sys.tick(&mut world, 1.0, &data);
+    assert_eq!(store_of(&world, late), Npk::ZERO, "within the month: no urine");
+    assert_eq!(world.get::<&Inventory>(player).unwrap().count_item("urine_stored_0"), 1, "and it is kept");
+    let said = notices(&data);
+    assert!(said.iter().any(|s| s.contains("month") && s.contains("urine")), "and says why: {said:?}");
+}
+
+/// A legume through the tick: a soybean draws only 45% of the nitrogen a
+/// twin that fixes nothing draws (the same P and K), and when it is
+/// harvested it leaves its fixed N behind, so the next crop sown in its unit
+/// starts where the soybean did (Salvagiotti et al.'s near-neutral balance),
+/// while the twin's unit is poorer by its whole removal. Seen red twice:
+/// `soil_draw` ignoring the fixed share (the soybean drew as much as the
+/// twin), and the harvest leaving no credit (the next crop started poorer).
+#[test]
+fn a_legume_draws_less_and_leaves_its_fixed_nitrogen_for_the_next_crop() {
+    let mut data = make_store();
+    data.insert("crop_growth_speed", std::sync::Mutex::new(1.0_f32));
+    data.insert("creative_mode", std::sync::Mutex::new(true));
+    let mut plants = PlantRegistry::from_csv(include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/data/plants.csv")))
+        .expect("plants.csv");
+    let mut twin = plants.get("soybean").unwrap().clone();
+    twin.id = "soybean_nonfixing".to_string();
+    twin.n_fixed_share = 0.0;
+    plants.plants.insert(twin.id.clone(), twin);
+    data.insert("plant_registry", plants);
+    let mut sys = FarmingSystem::new();
+    let mut world = hecs::World::new();
+    world.spawn((Irrigator,));
+    world.spawn((Inventory::new(16), Controllable));
+    let first = stages_of(&data, "soybean")[0].clone();
+    let start = Npk::new(100.0, 100.0, 100.0);
+    let soy = world.spawn((crop("soybean", "field_a", &first, 0.0), CropSoil { store: start, uptake: 0.0 }));
+    let non = world.spawn((crop("soybean_nonfixing", "field_b", &first, 0.0), CropSoil { store: start, uptake: 0.0 }));
+
+    // 30% of the soybean's 100 days.
+    set_elapsed(&data, 100.0 * SECONDS_PER_DAY * 0.3);
+    sys.tick(&mut world, 1.0, &data);
+    let drawn = |e| {
+        let s = store_of(&world, e);
+        Npk::new(start.n - s.n, start.p2o5 - s.p2o5, start.k2o - s.k2o)
+    };
+    let (s, t) = (drawn(soy), drawn(non));
+    assert!(t.n > 0.0, "the twin drew N: {t:?}");
+    assert!((s.n / t.n - 0.45).abs() < 1e-5, "the soybean drew 45% of the twin's N: {} vs {}", s.n, t.n);
+    assert!((s.p2o5 - t.p2o5).abs() < 1e-12 && (s.k2o - t.k2o).abs() < 1e-12, "and the same P and K");
+
+    // Ripen both (past the whole growth clock), pick them, and sow again.
+    set_elapsed(&data, 100.0 * SECONDS_PER_DAY * 1.2);
+    sys.tick(&mut world, 1.0, &data);
+    let last = stages_of(&data, "soybean").last().unwrap().clone();
+    for e in [soy, non] {
+        assert_eq!(world.get::<&CropInstance>(e).unwrap().growth_stage, last, "ripe");
+        assert!((world.get::<&CropSoil>(e).unwrap().uptake - 1.0).abs() < 1e-6, "drew its whole season");
+        *data.get::<std::sync::Mutex<Option<u64>>>("harvest_request").unwrap().lock().unwrap() =
+            Some(e.to_bits().into());
+        sys.tick(&mut world, 1.0, &data);
+    }
+    let removal = crop_removal(
+        "soybean",
+        data.get::<PlantRegistry>("plant_registry"),
+        data.get::<crate::systems::inventory::ItemRegistry>("item_registry"),
+        soil::NutrientData::parse(soil::NUTRIENTS_RON).unwrap().scale_for(data.get::<PlantRegistry>("plant_registry").unwrap()),
+    );
+    assert!(removal.n > 0.0);
+    for area in ["field_a", "field_b"] {
+        *data.get::<std::sync::Mutex<Option<(String, String, u32)>>>("plant_bed_request").unwrap().lock().unwrap() =
+            Some((area.to_string(), "lettuce".to_string(), 1));
+        sys.tick(&mut world, 1.0, &data);
+    }
+    let next = |area: &str| {
+        world
+            .query::<(&CropInstance, &CropSoil)>()
+            .iter()
+            .find(|(_, (c, _))| c.tower_id.as_deref() == Some(area) && c.crop_def_id == "lettuce")
+            .map(|(_, (_, s))| s.store)
+            .expect("the lettuce went in")
+    };
+    let (after_soy, after_twin) = (next("field_a"), next("field_b"));
+    assert!(
+        (after_soy.n - start.n).abs() < 1e-3,
+        "the soybean left its unit where it found it ({} of {}), give or take the lettuce's first sip",
+        after_soy.n,
+        start.n
+    );
+    assert!(
+        (after_soy.n - after_twin.n - removal.n).abs() < 1e-3,
+        "the twin's unit is poorer by its whole removal {}: {} vs {}",
+        removal.n,
+        after_twin.n,
+        after_soy.n
+    );
+}
+
+/// The household's urine reaches the garden through the existing waste
+/// path: a player who lives two and a half real days and presses Compost
+/// gets the waste's compost bags AND two stored person-days of urine (the
+/// half day stays in the tank), and filed in the Barn they feed a unit
+/// through the garden feeder: urine opened first for the nitrogen, compost
+/// after it for the phosphorus and potassium, and compost's organic N
+/// banked. Seen red twice: the Compost action not drawing the urine off
+/// (no urine items), and the feeder given compost only (the urine stayed
+/// in the Barn).
+#[test]
+fn the_households_urine_feeds_the_garden_through_the_compost_action() {
+    use crate::ecs::components::{Health, StatusEffects, Vitals};
+    let mut data = make_store();
+    data.insert("crop_growth_speed", std::sync::Mutex::new(1.0_f32));
+    data.insert("compost_request", std::sync::Mutex::new(false));
+    data.insert("vitals_drain_scale", std::sync::Mutex::new(0.0_f32));
+    data.insert("player_notices", std::sync::Mutex::new(Vec::<String>::new()));
+    let mut food = crate::systems::food::FoodSystem::new(std::path::Path::new(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/data"
+    )));
+    let mut world = hecs::World::new();
+    let player = world.spawn((
+        Inventory::new(16),
+        Vitals::default(),
+        StatusEffects::default(),
+        Health::default(),
+        Controllable,
+    ));
+    food.tick(&mut world, 2.5 * 86_400.0, &data);
+    *data.get::<std::sync::Mutex<bool>>("compost_request").unwrap().lock().unwrap() = true;
+    food.tick(&mut world, 1.0, &data);
+    let (urine, bags) = {
+        let inv = world.get::<&Inventory>(player).unwrap();
+        (inv.count_item("urine_stored_0"), inv.count_item("fertilizer_0"))
+    };
+    assert_eq!(urine, 2, "two whole person-days drawn off the tank");
+    assert!(bags > 0, "and the waste composted as before");
+
+    // Filed in the Barn: the feeder draws on them.
+    let mut stock = HashMap::new();
+    stock.insert("urine_stored_0".to_string(), urine);
+    stock.insert("fertilizer_0".to_string(), bags);
+    data.insert("home_stock", std::sync::Mutex::new(stock));
+    let mut nut = HashMap::new();
+    nut.insert("bed".to_string(), 1.0_f32);
+    data.insert("garden_nutrient", std::sync::Mutex::new(nut));
+    let first = stages_of(&data, "tomato")[0].clone();
+    let mut farm = FarmingSystem::new();
+    world.spawn((Irrigator,));
+    let tomato = world.spawn((crop("tomato", "bed", &first, 0.0), CropSoil { store: Npk::ZERO, uptake: 0.0 }));
+    farm.tick(&mut world, 1.0, &data);
+
+    assert_eq!(home_stock_of(&data, "urine_stored_0"), urine - 1, "one person-day of urine opened");
+    assert_eq!(home_stock_of(&data, "fertilizer_0"), bags - 1, "and one bag of compost for P and K");
+    let target = soil::feed_target(Npk::new(1.5, 0.9, 4.0), 1.0);
+    let got = store_of(&world, tomato);
+    assert!(got.n >= target.n * 0.999, "the unit is fed its nitrogen: {got:?} vs {target:?}");
+    assert!(got.k2o >= target.k2o * 0.999, "and its potash: {got:?}");
+    let banked = soil::organic_total(&soil_memory(&world).organic["bed"][&0]);
+    assert!(banked > 0.0, "compost's organic N banked in the unit: {banked}");
+}

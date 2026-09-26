@@ -1015,3 +1015,11 @@ vegetable_chicory_0,Chicory,food,vegetable,plant_fiber,0.3,20,0,Fresh harvested 
 vegetable_fennel_0,Fennel,food,vegetable,plant_fiber,0.4,20,0,Fresh harvested fennel bulb with fronds,solid,0.6
 grain_triticale_0,Triticale Grain,food,grain,plant_fiber,0.5,20,0,Threshed triticale kernels 500g,dry_goods,0.93
 fruit_plantain_0,Plantain,food,fruit,plant_fiber,0.25,20,0,Fresh green cooking plantain,solid,0.42
+#
+# Stored urine (2026-09-26, closing the garden's nitrogen loop): ONE PERSON-DAY of urine drawn off the
+# home's sealed collection tank by the Compost action (src/systems/food.rs), a fertilizer in
+# data/garden/nutrients.ron. 1.5 kg because a person makes 550 kg a year (Jonsson et al. 2004, EcoSanRes
+# 2004-2, Table 1: 550 / 365 = 1.51). volume_l 1.8 = 1.5 L at the storage volume per litre of the 20 L
+# water jerrycan above (24.0 L for 20 L, so 1.2 L per litre), not the gen-item-volumes.js estimate, which
+# would size it by the density of its HDPE container. content_class liquid: not water, not food.
+urine_stored_0,Stored Urine,material,agricultural,hdpe,1.5,20,0,One person-day of urine from the sealed tank: quick nitrogen for crops but not within a month of harvest,liquid,1.8

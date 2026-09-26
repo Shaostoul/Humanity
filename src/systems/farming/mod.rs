@@ -110,10 +110,24 @@ pub struct PlantDef {
     /// Defaults to true so a row without the column still needs light.
     #[serde(default = "default_needs_light")]
     pub needs_light: bool,
+    /// Share of this crop's nitrogen it fixes from the air, 0..1 (plants.csv
+    /// `n_fixed_pct` / 100, 2026-09-26). Nonzero only for the legumes with a
+    /// cited figure; every other plant draws all its N from its unit. A
+    /// legume draws only the rest (`soil::soil_draw`) and leaves the fixed N
+    /// in its roots behind for the next crop (`soil::legume_credit_n`).
+    #[serde(default)]
+    pub n_fixed_share: f32,
 }
 
 fn default_needs_light() -> bool {
     true
+}
+
+/// Read the plants.csv `n_fixed_pct` cell as a 0..1 share. Blank, absent or
+/// unparseable reads as 0 (no fixation), never as a dropped row: parsed from
+/// text for the same reason as `parse_needs_light`.
+fn parse_fixed_share(cell: &str) -> f32 {
+    cell.trim().parse::<f32>().ok().filter(|v| v.is_finite()).map_or(0.0, |pct| (pct / 100.0).clamp(0.0, 1.0))
 }
 
 /// Read the plants.csv `needs_light` cell. Only an explicit no (`false`,
@@ -198,6 +212,7 @@ impl PlantRegistry {
                     humidity_max: row.humidity_max,
                     harvest_item: row.harvest_item,
                     needs_light: parse_needs_light(&row.needs_light),
+                    n_fixed_share: parse_fixed_share(&row.n_fixed_pct),
                 },
             );
         }
@@ -251,6 +266,9 @@ struct PlantRow {
     /// Text, not bool: see `parse_needs_light`.
     #[serde(default)]
     needs_light: String,
+    /// Text, not a number: see `parse_fixed_share`.
+    #[serde(default)]
+    n_fixed_pct: String,
 }
 
 /// Split a colon-separated list field into trimmed, non-empty entries.
@@ -621,13 +639,30 @@ fn harvest_quantity(ymin: f32, ymax: f32, season_health: f32, roll: f32, round: 
     rolled.floor() as u32 + u32::from(round < rolled.fract())
 }
 
-/// A crop's nutrient need over one growing season, grams of N, P2O5 and K2O
-/// (2026-09-26, soil.rs): its expected harvest (mid yield x the items.csv mass
-/// of what it harvests into) read against the anchor's published removal.
-/// `scale` is `NutrientData::scale_for`; None, or an unknown plant, needs
-/// nothing. Public so the Garden panel can show a unit's store against the
-/// crop's need through the same arithmetic the tick uses.
+/// What a crop draws from its UNIT over one growing season, grams of N, P2O5
+/// and K2O (2026-09-26, soil.rs): its harvest's removal (`crop_removal`),
+/// less the nitrogen a legume fixes from the air (`soil::soil_draw`), so a
+/// soybean asks its unit for 45% of its N and a tomato for all of it. This
+/// is the need the tick draws, the feeder feeds and the shortage test reads.
+/// Public so the Garden panel shows a unit's store against the same need the
+/// tick uses.
 pub fn crop_season_need(
+    plant_id: &str,
+    plants: Option<&PlantRegistry>,
+    items: Option<&crate::systems::inventory::ItemRegistry>,
+    scale: Option<Npk>,
+) -> Npk {
+    let fixed = plants.and_then(|r| r.get(plant_id)).map_or(0.0, |d| f64::from(d.n_fixed_share));
+    soil::soil_draw(crop_removal(plant_id, plants, items, scale), fixed)
+}
+
+/// What a crop's harvest carries out of its unit in one season, grams: its
+/// expected harvest (mid yield x the items.csv mass of what it harvests into)
+/// read against the anchor's published removal (soil.rs). `scale` is
+/// `NutrientData::scale_for`; None, or an unknown plant, removes nothing.
+/// For a legume this is more than it draws (`crop_season_need`): the rest
+/// of the N came from the air.
+pub fn crop_removal(
     plant_id: &str,
     plants: Option<&PlantRegistry>,
     items: Option<&crate::systems::inventory::ItemRegistry>,
@@ -680,7 +715,7 @@ fn short_notice(newly_short: &[(String, soil::Nutrient)]) -> String {
             format!("the crops in {}", area.replace('_', " "))
         }
     };
-    let fix = "Fertilize them: compost adds nitrogen, phosphorus and potassium.";
+    let fix = "Fertilize them: compost adds nitrogen, phosphorus and potassium, and stored urine adds nitrogen fast.";
     match newly_short {
         [(area, nutrient)] => format!("{} are short of {}. {fix}", capitalize(&place(area)), nutrient.word()),
         many => {
@@ -716,12 +751,13 @@ pub struct FarmingSystem {
     /// "garden_nutrients" entry in the DataStore, if one is ever registered,
     /// wins over it.
     nutrients: Option<soil::NutrientData>,
-    /// The automatic feeder's opened fertilizer, per grow area: the share of
-    /// one item not yet dosed out (2026-09-26). The feeder doses a unit a few
-    /// milligrams at a time, so it opens a whole bag from home storage and
-    /// works through it. Not saved: a reload loses at most one part-used bag
-    /// per fed area.
-    feed_open: HashMap<String, f64>,
+    /// The automatic feeder's opened fertilizer, per grow area and item: the
+    /// share of one item not yet dosed out (2026-09-26). The feeder doses a
+    /// unit a few milligrams at a time, so it opens a whole bag (or a
+    /// person-day of stored urine) from home storage and works through it.
+    /// Not saved: a reload loses at most one part-used item of each kind per
+    /// fed area.
+    feed_open: HashMap<(String, String), f64>,
     /// True once the player has been told the feeder has no fertilizer, so
     /// the notice is said once, not every tick; cleared when a bag is opened.
     feeder_dry_told: bool,
@@ -924,21 +960,27 @@ impl System for FarmingSystem {
         if self.nutrients.is_none() {
             self.nutrients = Some(soil::NutrientData::load());
         }
-        let (demand_scale, fertilizer_grams): (Option<Npk>, Vec<(String, Npk)>) = {
+        // Also from the data (2026-09-26, closing the nitrogen loop): what each
+        // fertilizer banks as slow organic N and the feeder's rules for it,
+        // compost's year-by-year release schedule, and the share of a
+        // legume's N its harvest carries away (for the credit it leaves).
+        let (demand_scale, fertilizer_doses, organic_yearly, legume_harvest_share): (
+            Option<Npk>,
+            Vec<soil::FertilizerDose>,
+            Vec<f64>,
+            f64,
+        ) = {
             let nd = data
                 .get::<soil::NutrientData>("garden_nutrients")
                 .or(self.nutrients.as_ref())
                 .expect("nutrient data loaded above");
             let scale = plant_registry.and_then(|r| nd.scale_for(r));
-            let grams = nd
+            let doses = nd
                 .fertilizers
                 .iter()
-                .map(|f| {
-                    let kg = item_registry.map_or(0.0, |r| f64::from(r.mass_for(&f.item)));
-                    (f.item.clone(), f.available_per_item(kg))
-                })
+                .map(|f| f.dose(item_registry.map_or(0.0, |r| f64::from(r.mass_for(&f.item)))))
                 .collect();
-            (scale, grams)
+            (scale, doses, nd.organic_n_release.yearly_pct.clone(), nd.legume_harvest_n_share)
         };
         // A crop's season need, by plant id (soil::season_need). Cached for the
         // tick: a garden is a few dozen species and a few thousand crops.
@@ -1246,45 +1288,91 @@ impl System for FarmingSystem {
             .get::<std::sync::Mutex<Option<u64>>>("fertilize_crop_request")
             .and_then(|m| m.lock().ok().and_then(|mut s| s.take()));
         if let Some(bits) = fertilize_bits {
-            // Only a crop that is there takes the bag.
+            // Only a crop that is there takes the fertilizer. Read what the
+            // choice needs: its plant, its unit, and how far off ripe it is
+            // (a fertilizer with a withholding period, urine, may not go on
+            // within that many garden days of the harvest).
             let target = hecs::Entity::from_bits(bits).and_then(|e| {
-                world.get::<&CropInstance>(e).ok().map(|c| (e, c.crop_def_id.clone()))
+                world.get::<&CropInstance>(e).ok().map(|c| {
+                    let unit = c.tower_id.clone().zip(c.tower_slot);
+                    (e, c.crop_def_id.clone(), unit)
+                })
             });
-            let per_bag = fertilizer_grams
-                .iter()
-                .find(|(item, _)| item == "fertilizer_0")
-                .map(|(_, g)| *g);
-            if let (Some((entity, plant_id)), Some(per_bag)) = (target, per_bag) {
-                let mut had_fertilizer = false;
+            if let Some((entity, plant_id, unit)) = target {
+                let uptake = world.get::<&CropSoil>(entity).map_or(0.0, |s| s.uptake);
+                let days_left = plant_registry.and_then(|r| r.get(&plant_id)).map_or(f64::INFINITY, |d| {
+                    soil::days_to_maturity(f64::from(d.growth_days), d.stages().len(), uptake)
+                });
+                // Compost first, as the button always used; then the other
+                // listed fertilizers in order (stored urine), for a player
+                // who has no compost.
+                let order: Vec<&soil::FertilizerDose> = fertilizer_doses
+                    .iter()
+                    .filter(|d| d.item == "fertilizer_0")
+                    .chain(fertilizer_doses.iter().filter(|d| d.item != "fertilizer_0"))
+                    .collect();
+                let mut used: Option<soil::FertilizerDose> = None;
+                let mut withheld: Option<(String, f64)> = None;
                 for (_e, (inv, _ctrl)) in world.query_mut::<(
                     &mut crate::systems::inventory::Inventory,
                     &crate::ecs::components::Controllable,
                 )>() {
-                    if creative || inv.has_item("fertilizer_0", 1) {
-                        if !creative {
-                            inv.remove_item("fertilizer_0", 1);
+                    for dose in &order {
+                        if !(creative || inv.has_item(&dose.item, 1)) {
+                            continue;
                         }
-                        had_fertilizer = true;
+                        if !dose.allowed(days_left) {
+                            withheld.get_or_insert_with(|| (dose.item.clone(), dose.withhold_days));
+                            continue;
+                        }
+                        if !creative {
+                            inv.remove_item(&dose.item, 1);
+                        }
+                        used = Some((*dose).clone());
+                        break;
                     }
                     break;
                 }
-                if had_fertilizer {
+                if let Some(dose) = used {
                     let fed = if let Ok(mut s) = world.get::<&mut CropSoil>(entity) {
-                        s.store = s.store.plus(per_bag);
+                        s.store = s.store.plus(dose.available);
                         true
                     } else {
                         false
                     };
                     if !fed {
-                        // Never ticked yet: fresh soil plus the bag.
-                        let store = soil::fresh_store(need_for(&plant_id)).plus(per_bag);
+                        // Never ticked yet: fresh soil plus the fertilizer.
+                        let store = soil::fresh_store(need_for(&plant_id)).plus(dose.available);
                         let _ = world.insert_one(entity, CropSoil { store, uptake: 0.0 });
                     }
+                    // Compost's organic N goes into the unit's slow pool,
+                    // to come back over the years. A hand-planted crop has
+                    // no unit to remember it (the same as its soil), so
+                    // for it only the first season's share counts.
+                    if let Some((area, slot)) = &unit {
+                        soil::bank_organic_in(world, area, *slot, dose.organic_n);
+                    }
                     log::info!(
-                        "[Farming] fertilized {plant_id}: +{:.2} g N, {:.2} g P2O5, {:.2} g K2O",
-                        per_bag.n,
-                        per_bag.p2o5,
-                        per_bag.k2o
+                        "[Farming] fertilized {plant_id} with {}: +{:.2} g N, {:.2} g P2O5, {:.2} g K2O now, {:.2} g organic N banked",
+                        dose.item,
+                        dose.available.n,
+                        dose.available.p2o5,
+                        dose.available.k2o,
+                        dose.organic_n
+                    );
+                } else if let Some((item, days)) = withheld {
+                    // The withholding rule (for urine, the WHO's month), said
+                    // where the player meets it.
+                    let what = item_registry
+                        .and_then(|r| r.items.get(&item))
+                        .map_or(item.clone(), |d| d.name.to_lowercase());
+                    push_notice(
+                        data,
+                        format!(
+                            "No {what} on this crop: it ripens in under {days:.0} days, and {what} must go on \
+                             at least that long before a harvest (the WHO advises a month between the last \
+                             urine and the harvest). Compost is fine."
+                        ),
                     );
                 }
             }
@@ -1423,14 +1511,27 @@ impl System for FarmingSystem {
                         );
                     }
                     // The unit keeps what this crop left in it, for the next
-                    // crop sown there (2026-09-26, soil.rs).
+                    // crop sown there (2026-09-26, soil.rs). A legume also
+                    // leaves the FIXED nitrogen in its roots, nodules and
+                    // haulm (soil::legume_credit_n), in proportion to the
+                    // share of its season it actually grew: a crop ripened
+                    // by the dev button fixed nothing and leaves nothing.
                     let unit = world
                         .get::<&CropInstance>(entity)
                         .ok()
                         .and_then(|c| c.tower_id.clone().zip(c.tower_slot));
-                    let left = world.get::<&CropSoil>(entity).ok().map(|s| s.store);
-                    if let (Some((area, slot)), Some(store)) = (unit, left) {
-                        soil::remember(world, &area, slot, store);
+                    let left = world.get::<&CropSoil>(entity).ok().map(|s| (s.store, s.uptake));
+                    if let (Some((area, slot)), Some((store, uptake))) = (unit, left) {
+                        let fixed = plant_registry
+                            .and_then(|r| r.get(&plant_id))
+                            .map_or(0.0, |d| f64::from(d.n_fixed_share));
+                        let removal = crop_removal(&plant_id, plant_registry, item_registry, demand_scale);
+                        let credit = soil::legume_credit_n(removal.n, fixed, legume_harvest_share)
+                            * f64::from(uptake.clamp(0.0, 1.0));
+                        if credit > 0.0 {
+                            log::info!("[Farming] {plant_id} left {credit:.3} g of fixed N in {area} unit {slot}");
+                        }
+                        soil::remember(world, &area, slot, Npk::new(store.n + credit, store.p2o5, store.k2o));
                     }
                     let _ = world.despawn(entity);
                 }
@@ -1500,13 +1601,13 @@ impl System for FarmingSystem {
         // Collect entities to update (avoid borrow conflict with world)
         let mut updates: Vec<(hecs::Entity, CropInstance, CropSoil)> = Vec::new();
 
-        // The automatic feeder's fertilizer (2026-09-26): the first one listed
-        // in data/garden/nutrients.ron, drawn from home storage (the same
+        // The automatic feeder's fertilizers (2026-09-26): every one listed in
+        // data/garden/nutrients.ron, in order (stored urine for nitrogen, then
+        // compost for the rest), drawn from home storage (the same
         // "home_stock" mirror of the Barn the automated machines use; lib.rs
         // takes what was used back out of the containers after the tick).
         // Absent (tests, early boot) = no stock, so survival feeding finds
         // nothing and says so; creative mode feeds for free.
-        let feed_fertilizer: Option<(String, Npk)> = fertilizer_grams.first().cloned();
         let home_stock = data
             .get::<std::sync::Mutex<std::collections::HashMap<String, u32>>>("home_stock");
         let mut home_stock = home_stock.and_then(|m| m.lock().ok());
@@ -1514,6 +1615,14 @@ impl System for FarmingSystem {
         // Grow areas with a crop short of a nutrient this tick, and which
         // nutrient is scarcest there (for one notice per shortage).
         let mut short_now: HashMap<String, soil::Nutrient> = HashMap::new();
+        // Every unit's banked organic N (compost's slow release), taken out of
+        // the world's SoilMemory for the loop below (the crop query holds the
+        // world) and put back after it.
+        let memory = soil::soil_memory_entity(world);
+        let mut organic = world
+            .get::<&mut crate::ecs::components::SoilMemory>(memory)
+            .map(|mut m| std::mem::take(&mut m.organic))
+            .unwrap_or_default();
 
         for (entity, (crop, crop_soil)) in world.query_mut::<(&CropInstance, Option<&CropSoil>)>() {
             // Skip dead crops
@@ -1546,25 +1655,41 @@ impl System for FarmingSystem {
                 store: soil::fresh_store(need),
                 uptake: 0.0,
             });
+            // The unit's garden clock: this crop's days to ripening, and how
+            // far it has come (for urine's withholding period below).
+            let growth_days = plant_registry
+                .and_then(|reg| reg.get(&crop.crop_def_id))
+                .map_or(0.0, |d| f64::from(d.growth_days));
             // The feeder, where this area's "nutrient" slider is set: top the
-            // unit up to the slider's target from the area's opened bag,
-            // opening another from home storage when it runs out.
-            if let (Some(tid), Some((feed_item, per_item))) = (&crop.tower_id, &feed_fertilizer) {
+            // unit up to the slider's target, one fertilizer at a time in the
+            // listed order, each for the nutrients it is dosed by, from that
+            // area's opened item of it, opening another from home storage
+            // when it runs out. Urine goes first, for the nitrogen; compost
+            // then covers the phosphorus and potassium, and any nitrogen urine
+            // could not (none in stock, or the crop is within urine's month
+            // of harvest).
+            if let Some(tid) = &crop.tower_id {
                 if let Some(v) = nutrient.get(tid).copied() {
                     let target = soil::feed_target(need, v);
-                    let dose = soil::feed_dose(&crop_soil.store, &target, per_item);
-                    if dose > 0.0 {
+                    let days_left = soil::days_to_maturity(growth_days, plant_stages.len(), crop_soil.uptake);
+                    let mut could_supply = [false; 3];
+                    for dose_def in fertilizer_doses.iter().filter(|d| d.allowed(days_left)) {
+                        let per_item = dose_def.available;
+                        for (i, per) in [per_item.n, per_item.p2o5, per_item.k2o].into_iter().enumerate() {
+                            could_supply[i] |= dose_def.dose_for[i] && per > 0.0;
+                        }
+                        let dose = soil::feed_dose_for(&crop_soil.store, &target, &per_item, dose_def.dose_for);
+                        if dose <= 0.0 {
+                            continue;
+                        }
                         let given = if creative {
                             dose
                         } else {
-                            if !self.feed_open.contains_key(tid) {
-                                self.feed_open.insert(tid.clone(), 0.0);
-                            }
-                            let open = self.feed_open.get_mut(tid).expect("inserted above");
+                            let open = self.feed_open.entry((tid.clone(), dose_def.item.clone())).or_insert(0.0);
                             while *open < dose {
                                 let took = home_stock
                                     .as_mut()
-                                    .and_then(|s| s.get_mut(feed_item))
+                                    .and_then(|s| s.get_mut(&dose_def.item))
                                     .map_or(false, |q| {
                                         if *q > 0 {
                                             *q -= 1;
@@ -1581,12 +1706,25 @@ impl System for FarmingSystem {
                             }
                             let given = dose.min(*open);
                             *open -= given;
-                            if given < dose {
-                                feeder_ran_dry = true;
-                            }
                             given
                         };
                         crop_soil.store = crop_soil.store.plus(per_item.scaled(given));
+                        // Compost's organic N banks in the unit's slow pool.
+                        if let Some(slot) = crop.tower_slot {
+                            let pool = organic.entry(tid.clone()).or_default().entry(slot).or_default();
+                            soil::bank_organic(pool, dose_def.organic_n * given);
+                        }
+                    }
+                    // Out of stock: after every fertilizer had its turn, the
+                    // unit still lacks a nutrient one of them could have
+                    // supplied. (A tiny tolerance for the float sums.)
+                    let short = |have: f64, want: f64| have < want - 1e-9 * want.abs().max(1.0);
+                    if !creative
+                        && ((could_supply[0] && short(crop_soil.store.n, target.n))
+                            || (could_supply[1] && short(crop_soil.store.p2o5, target.p2o5))
+                            || (could_supply[2] && short(crop_soil.store.k2o, target.k2o)))
+                    {
+                        feeder_ran_dry = true;
                     }
                 }
             }
@@ -1770,7 +1908,18 @@ impl System for FarmingSystem {
                         let drawn_by_now =
                             soil::uptake_fraction(clock_progress, plant_stages.len());
                         if drawn_by_now > crop_soil.uptake {
-                            let want = need.scaled(f64::from(drawn_by_now - crop_soil.uptake));
+                            let step = f64::from(drawn_by_now - crop_soil.uptake);
+                            // Compost's slow release first (2026-09-26): the
+                            // unit's banked organic N ages by the garden days
+                            // this crop just grew through, and what it gives
+                            // up joins the store in time for this draw.
+                            if let (Some(tid), Some(slot)) = (&crop.tower_id, crop.tower_slot) {
+                                if let Some(pool) = organic.get_mut(tid).and_then(|m| m.get_mut(&slot)) {
+                                    let days = soil::garden_days(growth_days, plant_stages.len(), step);
+                                    crop_soil.store.n += soil::release_organic(pool, days, &organic_yearly);
+                                }
+                            }
+                            let want = need.scaled(step);
                             soil::draw(&mut crop_soil.store, want);
                             crop_soil.uptake = drawn_by_now;
                         }
@@ -1799,6 +1948,10 @@ impl System for FarmingSystem {
             updates.push((entity, crop, crop_soil));
         }
         drop(home_stock);
+        // The banked organic N goes back where it lives.
+        if let Ok(mut m) = world.get::<&mut crate::ecs::components::SoilMemory>(memory) {
+            m.organic = organic;
+        }
 
         // Say so when crops run short (2026-09-26): the Garden panel does not
         // show a unit's N-P-K yet, so without this a starving bed only shows
@@ -1817,15 +1970,21 @@ impl System for FarmingSystem {
         }
         if feeder_ran_dry && !self.feeder_dry_told {
             self.feeder_dry_told = true;
-            let item = feed_fertilizer.as_ref().map_or("fertilizer", |(i, _)| i.as_str());
-            let name = item_registry
-                .and_then(|r| r.items.get(item))
-                .map_or(item.to_string(), |d| d.name.to_lowercase());
+            // Name what it feeds with ("stored urine and fertilizer").
+            let names: Vec<String> = fertilizer_doses
+                .iter()
+                .map(|d| {
+                    item_registry
+                        .and_then(|r| r.items.get(&d.item))
+                        .map_or(d.item.clone(), |i| i.name.to_lowercase())
+                })
+                .collect();
+            let name = if names.is_empty() { "fertilizer".to_string() } else { names.join(" and ") };
             push_notice(
                 data,
                 format!(
                     "The garden feeder has run out of {name} in home storage: fed crops will go \
-                     short until the composter makes more."
+                     short until you compost more."
                 ),
             );
         }

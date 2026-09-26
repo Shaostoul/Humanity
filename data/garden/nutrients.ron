@@ -67,10 +67,26 @@
 // Each entry names an items.csv item and its analysis as a PERCENT OF THE
 // ITEM'S AS-IS (WET) MASS, plus the share of each nutrient that is plant
 // available in the season it goes on. The item's mass comes from items.csv,
-// so the grams follow the bag if its size ever changes. The first entry is
-// the one the automatic feeder uses (the "nutrient" slider on towers and fish
-// tanks). Add a fertilizer here, with its source, and fertilizing and the
-// feeder pick it up.
+// so the grams follow the bag if its size ever changes. The automatic feeder
+// (the "nutrient" slider on towers and fish tanks) uses EVERY entry, in the
+// order listed: each tops the unit up for the nutrients in its `dose_for`
+// (all three when absent), and the next covers what is still short. So urine
+// goes first, dosed for nitrogen alone, and compost after it covers the
+// phosphorus and potassium urine is thin in. The Fertilize button uses
+// compost first, as it always has, and the next listed fertilizer the player
+// carries when they have no compost. Add a fertilizer here, with its source,
+// and fertilizing and the feeder pick it up.
+//
+// Optional fields, with their defaults:
+//   organic_rest: false  - true when the N that is NOT available in the first
+//                          season is organic N that releases over later years
+//                          (see organic_n_release below). False means it is
+//                          simply not counted.
+//   dose_for: []         - the nutrients ("n", "p2o5", "k2o") the feeder
+//                          doses this fertilizer by. Empty means all three:
+//                          it is dosed for whichever it lacks most.
+//   withhold_days: 0.0   - garden days before a crop is ripe after which this
+//                          fertilizer may no longer go on it.
 //
 // fertilizer_0 is the composter's finished compost (data/recipes.csv: sawdust
 // with seed press cake or bran, olive or apple pomace), a 2.0 kg bag. Source for
@@ -91,8 +107,70 @@
 // season, plus 6.4 g P2O5 and 11.6 g K2O. N availability is a range: EM 9165
 // Table 10 gives 5 to 10% at one year, UMass "10% to 30%" in one season; 7% is
 // the WSU worksheet's value, inside both. The other 93% of the N is organic
-// and releases over years; the simulation does not model that slow release
-// yet, so compost here is the weak nitrogen source it is in its first season.
+// and releases over the years after (organic_rest: true, schedule below), so
+// compost is a weak nitrogen source in its first season and a slowly growing
+// one when it is applied year after year.
+//
+// urine_stored_0 is one PERSON-DAY of urine from the household's sealed
+// collection tank (1.5 kg, items.csv). A person-day, not a litre, because the
+// source says to count it that way: "the calculation should preferably be
+// based upon the number of persons and days that it has been collected from,
+// as this gives a better indication of the nutrient content than the volume"
+// (Jonsson et al. 2004, below, p. 7). Where the household's urine comes from
+// in the game: src/systems/food.rs, the Compost action.
+//
+// Source for N and P: Jonsson, H., Richert Stintzing, A., Vinneras, B. and
+// Salomon, E. (2004), "Guidelines on the Use of Urine and Faeces in Crop
+// Production", EcoSanRes Publications Series, Report 2004-2, Stockholm
+// Environment Institute, Table 1, "Proposed new Swedish default values for
+// excreted mass and nutrients (Vinneras, 2002)": urine 550 kg wet mass, 4000 g
+// N and 365 g P per person per year. The same table is reproduced as Table 2
+// in Richert et al. (2010), "Practical Guidance on the Use of Urine in Crop
+// Production", EcoSanRes Series 2010-1. So N is 4000 / 550000 = 0.727% of the
+// urine's mass (7.3 g per litre, at the top of the guide's "3-7 g N per
+// litre" rule of thumb), and P is 365 / 550000 x 2.29 = 0.152% as P2O5 (2.29
+// converts P to P2O5, Richert et al. 2010 Table 6). A person-day carries 10.9 g
+// N, 2.3 g P2O5 and 3.6 g K2O.
+//
+// Source for K: the Swedish table gives none, so Jonsson et al. 2004 Table 3
+// ("Estimated excretion of nutrients per capita in different countries"):
+// urine K of 1.3 (China), 0.9 (Haiti), 1.1 (India), 1.2 (South Africa) and 1.0
+// (Uganda) kg per person per year. The median, 1.1 kg, is 1100 / 550000 x 1.2
+// = 0.24% as K2O (1.2 converts K to K2O, Richert et al. 2010 Table 6). Mixing a
+// Swedish N and P with a five-country K is a stated choice: the K range is
+// narrow and Sweden's own K is not in the source.
+//
+// Availability, all 1.0, in the source's words (p. 9): "The plant
+// availability of urine N is the same as that of chemical urea or ammonium
+// fertilizers"; urine P availability "has been found to be at least as good
+// as that of chemical phosphate"; and "K is excreted in the urine as ions,
+// which are directly plant-available". The N stays in the urine only if the
+// tank is sealed: stored urine loses ammonia when ventilated, and "these losses
+// are easily eliminated by designing the system so that the tank and pipes are
+// not ventilated, but just pressure equalized" (p. 11). The game assumes a
+// sealed tank and urine worked into the soil when applied (p. 1: "urine should
+// be applied close to the soil and incorporated as soon as possible"); it does
+// not model the loss when either rule is broken.
+//
+// dose_for n: urine is dosed at a nitrogen fertilizer's rate (p. 1:
+// "Application rates for commercial mineral nitrogen fertilizers (urea or
+// ammonium), if available, can be used as a basis for recommendations on the
+// use of urine").
+//
+// withhold_days 30, the SAFETY RULE. The WHO guidelines as reproduced in
+// Richert et al. 2010 (p. 27, "Withholding period"): "The time between urine
+// application and harvest should be at least one month." Table 16 there
+// (WHO 2006, Guidelines for the Safe Use of Wastewater, Excreta and
+// Greywater, Volume 4) sets storage of 1 to 6 months, by temperature and crop,
+// for LARGER systems, meaning "a system where the urine mixture is used to
+// fertilize crops that will be consumed by individuals other than members of
+// the household from which the urine was collected"; for a household's own
+// urine on its own food the recommended storage is "0-1 month" (p. 25). The
+// family home feeds its own household, so the game applies the one-month
+// withholding period and no storage wait: urine is used straight from the
+// sealed tank, but never on a crop within 30 garden days of ripening. Selling
+// urine-fed crops to other people would, by WHO's own line, call for the
+// longer stored-urine rules, which the game does not model.
 (
     demand_anchor: (
         plant: "tomato",
@@ -102,6 +180,17 @@
     ),
     fertilizers: [
         (
+            item: "urine_stored_0",
+            n_pct: 0.727,
+            p2o5_pct: 0.152,
+            k2o_pct: 0.24,
+            n_available: 1.0,
+            p2o5_available: 1.0,
+            k2o_available: 1.0,
+            dose_for: ["n"],
+            withhold_days: 30.0,
+        ),
+        (
             item: "fertilizer_0",
             n_pct: 0.94,
             p2o5_pct: 0.32,
@@ -109,6 +198,86 @@
             n_available: 0.07,
             p2o5_available: 1.0,
             k2o_available: 1.0,
+            organic_rest: true,
         ),
     ],
+    // -- organic_n_release: how compost's organic N comes back -------------
+    //
+    // The share of the organic N STILL IN THE SOIL that is released in each
+    // year after it goes on, as percent: the first number is its first year,
+    // the second its second year, and the last number holds for every year
+    // after that. Released N becomes plant-available in the unit.
+    //
+    // The first year is 0 here only because compost's first-season release
+    // (7% of its N, WSU above) is already credited the moment it is applied.
+    //
+    // Source: Gravuer, K. (2016), "Compost Application Rates for California
+    // Croplands and Rangelands for a CDFA Healthy Soils Incentives Program",
+    // University of California, Davis, for the California Department of Food
+    // and Agriculture, Draft Version 2.0, 22 July 2016, p. 8, from its
+    // literature review: "Each subsequent year, additional remaining
+    // organically-bound nitrogen would be mineralized, at a rate that would
+    // decline by half each year to a minimum of approximately 2% until all of
+    // the organic N in the compost had been consumed". Its worked example:
+    // 10% in the first year, "5% of the remaining organically-bound nitrogen
+    // in the second year, 2.5% of the remaining organically-bound nitrogen in
+    // the third year, and 2% of the remaining organically-bound nitrogen in
+    // the fourth year and subsequent years" (for lower-N compost, "2-7%
+    // (average 5%)" in the first year, "with a similar pattern").
+    //
+    // Applied to this compost's 7% first year, the halving rule gives 3.5% in
+    // the second year, and 1.75% in the third, which the 2% floor lifts to 2%,
+    // held from then on. Cross-check on the floor: Oregon State EM 9165
+    // (Sullivan, Peachey, Heinrich and Brewer, May 2017), p. 18: "Only 2 to 3
+    // percent of total soil organic matter is mineralized each year", which is
+    // what old compost has become.
+    //
+    // A "year" is 365 GARDEN days: the unit's crop growth clock, the same clock
+    // the crops draw on (it pauses in the dark and runs ten times as fast at
+    // the 10x growth setting). The pool releases only while a crop grows in
+    // the unit. Nothing is lost from it: the game does not model leaching or
+    // denitrification, which in a real soil take part of this N.
+    organic_n_release: (
+        yearly_pct: [0.0, 3.5, 2.0],
+    ),
+    // -- legume_harvest_n_share: what a legume's harvest carries away -------
+    //
+    // A legume gets part of its N from the air (plants.csv n_fixed_pct, the
+    // %Ndfa), so it draws only the rest from its unit. When it is harvested,
+    // its roots, nodules and haulm stay behind holding N, and the FIXED share
+    // of that N is new to the unit: a credit for the next crop. This number is
+    // the share of a grain legume's whole-plant N, roots included, that leaves
+    // with the harvest; the credit is then
+    //
+    //     fixed share x removal x (1 / 0.55 - 1)
+    //
+    // where removal is the crop's season need before fixation.
+    //
+    // Source: Salvagiotti, F., Cassman, K.G., Specht, J.E., Walters, D.T.,
+    // Weiss, A. and Dobermann, A. (2008), "Nitrogen uptake, fixation and
+    // response to fertilizer N in soybeans: A review", Field Crops Research
+    // 108: 1-13, abstract (637 data sets): "On an average, 50-60% of soybean N
+    // demand was met by biological N2 fixation" and "The partial N balance
+    // (fixed N in above-ground biomass - N in seeds) was negative in 80% of all
+    // data sets ... However, when an average estimated below-ground N
+    // contribution of 24% of total plant N was included, the average N balance
+    // was close to neutral (-4 kg N ha-1)". A neutral balance means the fixed
+    // N equals the N the seed carried away, so the seed carried the same share
+    // of the whole plant's N as fixation supplied: 50 to 60%, taken as 0.55.
+    // With soybean's own fixed share (55%) the credit then equals what it drew
+    // from the unit, and the unit ends the season where it started, which is
+    // the review's finding. A stronger fixer (faba bean) leaves the unit
+    // richer, a weak one (common bean) poorer, as New Mexico State's Guide
+    // A-129 (Flynn and Idowu, rev. June 2015) says of them: common beans "fix
+    // less than their nitrogen needs", and "When the grain from a grain legume
+    // crop is harvested, little nitrogen is returned for the following crop."
+    //
+    // Soybean's share is used for every legume because no per-crop figure was
+    // found with roots included; a legume picked green (snap beans, fresh
+    // peas) leaves more of its N behind than this says. The credit goes into
+    // the unit's store as available N for the next crop sown there (NMSU A-129:
+    // "Most of the nitrogen eventually returns to the soil for neighboring
+    // plants when vegetation (roots, leaves, fruits) of the legume dies and
+    // decomposes").
+    legume_harvest_n_share: 0.55,
 )

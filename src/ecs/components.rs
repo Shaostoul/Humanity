@@ -382,10 +382,8 @@ pub struct Npk {
 ///
 /// A separate component rather than fields on `CropInstance` because a new
 /// field there would have to be named in every struct literal that builds
-/// one, and two of those live outside the farming lane. The cost, stated
-/// plainly: `WorldSave::crops` serializes `CropInstance` only, so this is
-/// NOT saved yet, and a loaded crop starts from fresh soil. The fix is a
-/// save field for it (see the rung-3 notes in docs/design/gameplay-gaps).
+/// one, and two of those live outside the farming lane. Saved alongside the
+/// crop in `WorldSave::crop_soil` (v0.1355.0).
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct CropSoil {
     /// Plant-available grams left in the unit.
@@ -403,11 +401,37 @@ pub struct CropSoil {
 /// keyed by grow-area tag then unit index (2026-09-26). The next crop sown
 /// in that unit starts from it instead of fresh soil, so a bed that fed one
 /// crop is poorer for the next until it is fertilized. One per world,
-/// spawned by FarmingSystem on first use. Not saved yet (see `CropSoil`).
+/// spawned by FarmingSystem on first use. Saved whole in `WorldSave`.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct SoilMemory {
     #[serde(default)]
     pub units: std::collections::HashMap<String, std::collections::HashMap<u32, Npk>>,
+    /// Each unit's ORGANIC nitrogen: the part of the compost put into it that
+    /// was not plant-available in its first season and releases slowly over
+    /// the years after (2026-09-26, closing the nitrogen loop). Keyed like
+    /// `units`, but never taken away: a unit's organic matter belongs to the
+    /// unit, not to the crop growing in it, so it stays here while crops come
+    /// and go, and the farming tick releases it into whichever crop grows
+    /// there. Kept on `SoilMemory` rather than `CropSoil` because the whole
+    /// `SoilMemory` is already saved, so this is saved with no save-format
+    /// change. See `farming::soil::release_organic` for the schedule.
+    #[serde(default)]
+    pub organic: std::collections::HashMap<String, std::collections::HashMap<u32, Vec<OrganicCohort>>>,
+}
+
+/// Grams of organic nitrogen that went into a unit at about the same time,
+/// and how long ago in garden days (2026-09-26). Compost releases a smaller
+/// share of what is left each year it ages (data/garden/nutrients.ron,
+/// `organic_n_release`), so the pool is kept as a few cohorts by age rather
+/// than one lump. f64 for the same reason as `Npk`.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Serialize, Deserialize)]
+pub struct OrganicCohort {
+    /// Garden days since this organic N went into the unit.
+    #[serde(default)]
+    pub age_days: f64,
+    /// Grams of organic N still locked up.
+    #[serde(default)]
+    pub n: f64,
 }
 
 // ── Vehicles & Mechs ─────────────────────────────────────────
