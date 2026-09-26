@@ -24,6 +24,14 @@
 //   Toggle(key, label)  a checkbox stored under `key`
 //
 // show_slots: true draws the matching aeroponic tower's planted-slot list above the controls.
+//
+// plots (2026-09-26): how many plots one machine of this medium is divided into, one crop
+// in each, so a bed can grow two crops or stagger its sowing. Every crop is tagged with the
+// machine it stands in. A plot's floor is the machine's footprint over `plots`, unless
+// `stacked: true` (shelves one above another, each with the whole footprint). Absent = 1.
+// Towers ignore it: a tower cup is one plant. The plot counts are layout choices, not data
+// about the crops: a 2 x 1 m bed or tray is two 1 m2 plots, a 2.4 x 2.4 m field four
+// 1.44 m2 plots (square-metre plots, the way a garden plan is drawn).
 (
     media: [
         (
@@ -43,6 +51,7 @@
             label: "Grain tray - shallow staple tray",
             note: "Shallow trays for cereals. Cereal is the worst per-m2 indoor crop, so these are deliberately few.",
             default_crop: Some("wheat"),
+            plots: 2,
             controls: [
                 Crop(label: "Grain", hint: "e.g. wheat"),
                 Slider(key: "water", label: "Soil moisture"),
@@ -54,6 +63,7 @@
             label: "Oilseed bed - oil crops",
             note: "Sunflower and other oil crops. Cooking fat is the hardest calorie to grow indoors.",
             default_crop: Some("sunflower"),
+            plots: 2,
             controls: [
                 Crop(label: "Oil crop", hint: "e.g. sunflower"),
                 Slider(key: "water", label: "Soil moisture"),
@@ -65,6 +75,7 @@
             label: "Soil bed - deep in-ground substrate",
             note: "A deep bed for root + bulk crops. Carries the real calories the towers cannot.",
             default_crop: Some("potato"),
+            plots: 2,
             controls: [
                 Crop(label: "Primary crop", hint: "e.g. potato"),
                 Slider(key: "water", label: "Soil moisture"),
@@ -76,6 +87,9 @@
             match_exact: Some("mushroom_rack"),
             label: "Mushroom rack - no light needed",
             note: "Uses the dark vertical space the canopy cannot. Substrate + humidity, no sun.",
+            // Four shelves in a 1.8 m rack (a layout choice).
+            plots: 4,
+            stacked: true,
             controls: [
                 Crop(label: "Species", hint: "e.g. oyster"),
                 Slider(key: "humidity", label: "Humidity"),
@@ -97,6 +111,7 @@
             label: "Field crop - outdoor sun-lit, large scale",
             note: "Carries the bulk calories no indoor canopy can. The silo buffers the winter.",
             default_crop: Some("wheat"),
+            plots: 4,
             controls: [
                 Crop(label: "Crop", hint: "e.g. wheat"),
                 Slider(key: "water", label: "Irrigation"),

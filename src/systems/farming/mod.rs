@@ -8,6 +8,7 @@
 pub mod crops;
 pub mod soil;
 pub mod pests;
+pub mod lighting;
 pub mod automation;
 #[cfg(test)]
 mod nutrient_tests;
@@ -527,12 +528,11 @@ pub const DAYLIGHT_FRACTION: f64 = 0.5;
 ///   homes grow their beds and towers under a skylight (the home.ron design
 ///   note "Sun-lit (skylight) single canopy", every tower and bed card says
 ///   "sun-lit", and a machines.rs test pins the seed homes to no grow lights,
-///   "sun-lit by design"). A powered grow light lights it after dark as well.
-///   Home-wide, like irrigation: ONE powered grow light lights every indoor
-///   area. That overstates a light's reach (a 100 W LED really covers under
-///   a square metre of greens; docs/design/self-sufficiency.md puts greens at
-///   about 2.2 kWh per m2 per day) and is this rung's simplification; lights
-///   covering only the areas near them is the next one.
+///   "sun-lit by design"). After dark, the powered grow lights near it light
+///   it: `lamp_cover` is the share of the area they cover (0 to 1,
+///   `lighting::light_cover`, 2026-09-26: a 100 W light covers about 0.58 m2,
+///   nearest plots first), and it grows that share of a lit night's growth.
+///   (The first light rung let one light light every indoor area.)
 /// - A species that does not need light (the fungi) grows at the calendar
 ///   rate, lit or not.
 ///
@@ -542,15 +542,16 @@ pub const DAYLIGHT_FRACTION: f64 = 0.5;
 /// daily light (a lettuce in full sun gains little from more), and some are
 /// harmed by light around the clock (tomato). plants.csv has no per-species
 /// light amount yet, so that is the next rung, not a number invented here.
-pub fn light_growth_rate(needs_light: bool, outdoors: bool, sun_up: bool, grow_light_on: bool) -> f64 {
+pub fn light_growth_rate(needs_light: bool, outdoors: bool, sun_up: bool, lamp_cover: f64) -> f64 {
     if !needs_light {
         return 1.0;
     }
-    let lit = sun_up || (!outdoors && grow_light_on);
-    if lit {
+    if sun_up {
         1.0 / DAYLIGHT_FRACTION
-    } else {
+    } else if outdoors {
         0.0
+    } else {
+        lamp_cover.clamp(0.0, 1.0) / DAYLIGHT_FRACTION
     }
 }
 
@@ -934,18 +935,19 @@ impl System for FarmingSystem {
             });
         // Light (2026-09-26, see light_growth_rate). The sun is up when it
         // makes solar power: the same curve, so the fields and the panels
-        // agree on when it is day. A grow light lights the indoor areas only
-        // while its PowerConsumer is enabled, so a light the electrical sim
-        // sheds (priority 5 goes first) or the player switches off gives no
-        // light, and one with no power role at all is never lit.
+        // agree on when it is day. A grow light lights the plots near it
+        // (lighting.rs), and only while its PowerConsumer is enabled, so a
+        // light the electrical sim sheds (priority 5 goes first) or the player
+        // switches off gives no light, and one with no power role at all is
+        // never lit. Cover by grow-area id (instance or tower design id).
         let sun_up = crate::systems::solar::sun_factor(hour) > 0.0;
-        let grow_light_on = world
-            .query::<(
-                &crate::ecs::components::GrowLight,
-                Option<&crate::ecs::components::PowerConsumer>,
-            )>()
-            .iter()
-            .any(|(_, (_, pc))| pc.map_or(false, |p| p.enabled));
+        let lamp_cover: HashMap<String, f64> = match (
+            data.get::<Vec<lighting::GrowPlot>>("grow_plots"),
+            data.get::<lighting::LightingData>("garden_lighting"),
+        ) {
+            (Some(plots), Some(ld)) if !sun_up => lighting::light_cover(&lighting::powered_lights(world), plots, ld),
+            _ => HashMap::new(),
+        };
         // Game seconds this tick, computed the way TimeSystem advances the
         // clock, so holding a crop in the dark holds it by exactly what
         // passed. A clock jump (the dev hour set, a save restore) is not a
@@ -1250,7 +1252,24 @@ impl System for FarmingSystem {
                 .map(|d| d.first_stage().to_string());
             if let Some(first_stage) = first_stage {
                 let mut planted = 0u32;
-                for unit in 0..count {
+                // A machine TYPE id ("staple_grain_tray", what the Garden
+                // panel's bed button sends) sows every plot of every machine
+                // of that type, each crop tagged with the machine it stands
+                // in (2026-09-26): the renderer, the grow lights and the pests
+                // all go by the physical machine. The engine publishes the
+                // machines ("grow_instances": type -> (instance id, plots)).
+                // Anything else is one area of `count` units, as before.
+                let targets: Vec<(String, u32)> = match data
+                    .get::<HashMap<String, Vec<(String, u32)>>>("grow_instances")
+                    .and_then(|m| m.get(&area_id))
+                {
+                    Some(insts) if !insts.is_empty() => insts
+                        .iter()
+                        .flat_map(|(id, plots)| (0..(*plots).max(1)).map(move |s| (id.clone(), s)))
+                        .collect(),
+                    _ => (0..count).map(|u| (area_id.clone(), u)).collect(),
+                };
+                for (area_id, unit) in targets {
                     let mut occupied = false;
                     let mut dead_in_slot: Vec<hecs::Entity> = Vec::new();
                     for (e, c) in world.query::<&CropInstance>().iter() {
@@ -1299,7 +1318,7 @@ impl System for FarmingSystem {
                     spawn_in_remembered_soil(world, crop);
                     planted += 1;
                 }
-                log::info!("[Farming] bed-planted {planted}x {plant_id} in {area_id}");
+                log::info!("[Farming] bed-planted {planted}x {plant_id} for {area_id}");
             } else {
                 log::warn!("[Farming] no plant def '{plant_id}' for bed {area_id}; not planted");
             }
@@ -2024,7 +2043,8 @@ impl System for FarmingSystem {
             let needs_light = plant_registry
                 .and_then(|reg| reg.get(&crop.crop_def_id))
                 .map_or(true, |d| d.needs_light);
-            let light_rate = light_growth_rate(needs_light, outdoors, sun_up, grow_light_on);
+            let cover = crop.tower_id.as_deref().and_then(|t| lamp_cover.get(t)).copied().unwrap_or(0.0);
+            let light_rate = light_growth_rate(needs_light, outdoors, sun_up, cover);
             crop.planted_at = (crop.planted_at + game_dt * (1.0 - light_rate)).min(elapsed_seconds);
 
             // Calculate growth progress based on elapsed time since planting
@@ -2257,6 +2277,12 @@ mod gardening_tests {
             std::sync::Mutex::new(Option::<(String, String, u32)>::None),
         );
         data.insert("harvest_many_request", std::sync::Mutex::new(Vec::<u64>::new()));
+        // One tower the light tests stand a grow light over (lighting.rs).
+        data.insert("garden_lighting", lighting::LightingData::parse(lighting::LIGHTING_RON).unwrap());
+        data.insert(
+            "grow_plots",
+            vec![lighting::GrowPlot { id: "ntower_3".into(), cups: 12, ..Default::default() }],
+        );
         data
     }
 
@@ -2329,6 +2355,47 @@ mod gardening_tests {
         // the harvest granted 2 back), so the garden is self-sustaining.
         let seeds = world.get::<&Inventory>(player).unwrap().count_item("seed_tomato_0");
         assert_eq!(seeds, 2, "survival harvest yielded 2 seeds, got {seeds}");
+    }
+
+    /// The bed Plant button sends a machine TYPE; it sows one crop in every
+    /// plot of every machine of that type, each tagged with the machine it
+    /// stands in, and a second press fills only the empty plots (2026-09-26).
+    /// Seen red by ignoring "grow_instances": the crops were then tagged with
+    /// the type id, which the renderer and the grow lights cannot place.
+    #[test]
+    fn planting_a_bed_type_sows_every_plot_of_every_machine() {
+        let data = {
+            let mut d = make_store();
+            let mut m: HashMap<String, Vec<(String, u32)>> = HashMap::new();
+            m.insert("staple_grain_tray".into(), vec![("graintray_0".into(), 2), ("graintray_1".into(), 2)]);
+            d.insert("grow_instances", m);
+            d
+        };
+        let mut sys = FarmingSystem::new();
+        let mut world = hecs::World::new();
+        let mut inv = Inventory::new(24);
+        inv.add_item("seed_wheat_0", 10, 50);
+        world.spawn((inv, Controllable));
+        let sow = |sys: &mut FarmingSystem, world: &mut hecs::World| {
+            *data
+                .get::<std::sync::Mutex<Option<(String, String, u32)>>>("plant_bed_request")
+                .unwrap()
+                .lock()
+                .unwrap() = Some(("staple_grain_tray".to_string(), "wheat".to_string(), 2));
+            sys.tick(world, 1.0, &data);
+        };
+        sow(&mut sys, &mut world);
+        let mut spots: Vec<(String, u32)> = world
+            .query::<&CropInstance>()
+            .iter()
+            .map(|(_, c)| (c.tower_id.clone().unwrap_or_default(), c.tower_slot.unwrap_or(99)))
+            .collect();
+        spots.sort();
+        let want: Vec<(String, u32)> =
+            [("graintray_0", 0), ("graintray_0", 1), ("graintray_1", 0), ("graintray_1", 1)].iter().map(|(a, b)| (a.to_string(), *b)).collect();
+        assert_eq!(spots, want, "one crop per plot, tagged with its machine");
+        sow(&mut sys, &mut world);
+        assert_eq!(world.query::<&CropInstance>().iter().count(), 4, "a second press finds every plot full");
     }
 
     /// A harvest the pack cannot take, with no vessel for it, goes to home
@@ -3300,11 +3367,18 @@ mod gardening_tests {
     }
 
     /// A grow light as the home spawns one: the marker plus its power role,
-    /// switched on or shed.
-    fn grow_light(powered: bool) -> (crate::ecs::components::GrowLight, crate::ecs::components::PowerConsumer) {
+    /// switched on or shed, hung 2 m over the test tower (make_store).
+    fn grow_light(
+        powered: bool,
+    ) -> (crate::ecs::components::GrowLight, crate::ecs::components::PowerConsumer, crate::ecs::components::Transform) {
         (
             crate::ecs::components::GrowLight,
             crate::ecs::components::PowerConsumer { draw_watts: 100.0, priority: 5, enabled: powered },
+            crate::ecs::components::Transform {
+                position: glam::Vec3::new(0.0, 2.0, 0.0),
+                rotation: glam::Quat::IDENTITY,
+                scale: glam::Vec3::ONE,
+            },
         )
     }
 
@@ -3435,6 +3509,35 @@ mod gardening_tests {
         run_seconds(&mut sys, &mut world, &data, 100);
         let age = growth_age(&world, tower, &data);
         assert!((age - 200.0).abs() < 1e-6, "the skylight lights it by day, age {age}");
+    }
+
+    /// A grow light lights the tower under it, not the one across the room:
+    /// with the same powered light, the test tower (make_store, under the
+    /// light) grows through the night and a tower 6 m away stays paused
+    /// (2026-09-26, lighting.rs). Seen red by giving every plot in the home
+    /// the light (the first light rung's rule): the far tower then grew too.
+    #[test]
+    fn a_grow_light_lights_the_tower_under_it_not_the_one_across_the_room() {
+        let mut data = make_store();
+        data.insert("crop_growth_speed", std::sync::Mutex::new(1.0_f32));
+        data.insert(
+            "grow_plots",
+            vec![
+                lighting::GrowPlot { id: "ntower_3".into(), cups: 12, ..Default::default() },
+                lighting::GrowPlot { id: "ntower_9".into(), cups: 12, pos: [6.0, 0.0, 0.0], ..Default::default() },
+            ],
+        );
+        let mut sys = FarmingSystem::new();
+        let mut world = hecs::World::new();
+        world.spawn((crate::ecs::components::Irrigator,));
+        world.spawn(grow_light(true));
+        set_clock(&data, 0, 19.0);
+        let near = world.spawn((fresh_crop(&data, "lettuce", Some("ntower_3")),));
+        let far = world.spawn((fresh_crop(&data, "lettuce", Some("ntower_9")),));
+        run_seconds(&mut sys, &mut world, &data, 450); // 19:00 to 04:00
+        let (n, f) = (growth_age(&world, near, &data), growth_age(&world, far, &data));
+        assert!((n - 900.0).abs() < 1e-6, "the tower under the light grew all night, age {n}");
+        assert!(f.abs() < 1e-6, "the tower across the room did not, age {f}");
     }
 
     /// Darkness pauses a crop; it does not harm it. Two identical crops

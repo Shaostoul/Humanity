@@ -1580,8 +1580,12 @@ crop's SEASON health, the time-average of its health while growing
 (`farming::season_health`, FAO 33 linear response; v0.1350.0), shown on the
 crop card; stage models map to species through `stage_models` in
 `data/plants_visual.ron`. Light (v0.1352.0): green crops grow only while lit
-(the sun, through the skylight indoors; a powered `lights_crops` grow light after
-dark) and pause in the dark; plants.csv `needs_light` is false for fungi. Nutrients (v0.1355.0):
+(the sun, through the skylight indoors; after dark, the powered `lights_crops` grow
+lights near them, each covering about 0.58 m2 of canopy per 100 W, nearest machines
+first: `farming/lighting.rs`, `data/garden/lighting.ron`, v0.1364.0) and pause in the
+dark; plants.csv `needs_light` is false for fungi. Beds, trays, fields and racks are
+divided into plots (grow_media.ron `plots`), one crop per plot, each crop tagged with
+the machine it stands in. Nutrients (v0.1355.0):
 each unit holds grams of N, P2O5 and K2O (`CropSoil`), crops draw their
 season need, the scarcest nutrient caps health, compost adds its cited
 first-season nutrients, the "nutrient" slider runs a feeder from home

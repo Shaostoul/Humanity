@@ -2026,7 +2026,9 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                                 .find(|m| m.matches(mid))
                                                 .and_then(|m| m.default_crop.clone())
                                         });
-                                        crop.map(|c| (mid.clone(), c, a.count.max(1)))
+                                        // One crop per plot of every machine (grow_media `plots`).
+                                        let plots = state.grow_media.iter().find(|m| m.matches(mid)).map_or(1, |m| m.plots.max(1));
+                                        crop.map(|c| (mid.clone(), c, a.count.max(1) * plots))
                                     })
                             })
                         } else {

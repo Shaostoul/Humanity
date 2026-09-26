@@ -12,6 +12,8 @@
     // Keys must be machine TYPE ids from the data/machines/home.ron catalog
     // (a key that matches nothing is silently never planted; checked by
     // tests/recipe_sources_lint.rs). Values are plants.csv ids.
+    // One crop per plot of each machine (the medium's plots in
+    // data/garden/grow_media.ron), staggered through the growth stages.
     bed_crops: {
         "grain_field": "wheat",
         "staple_grain_tray": "rice",
@@ -24,8 +26,6 @@
         "potato_grow_bed": "potato",
         "mushroom_rack": "oyster_mushroom",
     },
-    // Staggered units sown per bed-type machine.
-    bed_units: 6,
     // Whole-tower species overrides by INSTANCE id. ntower_0 is the
     // strawberry hero tower for the landing-page screenshot.
     tower_overrides: {

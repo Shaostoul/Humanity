@@ -332,6 +332,28 @@ date; re-check before trusting one. The container data basis is
   yields, which fixes the harvest-mass disagreement above. Still to do: the
   remaining crops (fruit trees, spices, dried herbs, fiber) and mushrooms
   drawing on their substrate.
+- **Grow lights light the plots near them, and beds are divided into plots,
+  DONE 2026-09-26** (v0.1364.0). A powered grow light used to light every
+  indoor grow area in the home. Now it covers the canopy its photons can
+  serve, nearest machines first, within 3 m across the floor (a game
+  estimate), and a machine it only partly covers grows that share of a
+  night's growth (`farming/lighting.rs`, `data/garden/lighting.ron`). A light
+  puts out watts x 2.30 umol/J (the DLC Horticultural V3.0 minimum for a
+  listed LED fixture) and a lit plot needs Cornell's 17 mol/m2/d lettuce light
+  integral delivered through the 12-hour night, 394 umol/m2/s, so a 100 W
+  light covers 0.58 m2: 2.1 kWh per m2 a day, which matches the 2.2 kWh per
+  m2 a day self-sufficiency.md gives greens. A tower's canopy is its cups at
+  Cornell's finishing spacing, 38 plants a m2. The engine publishes the home's
+  grow machines with their positions ("grow_plots"). Each grow medium now
+  divides its machine into `plots` (a 2 x 1 m bed or tray into two 1 m2
+  plots, a field into four, a mushroom rack into four shelves), one crop per
+  plot, and every crop is tagged with the machine it stands in. That fixed a
+  defect: the Garden panel's bed Plant button tagged crops with the machine
+  TYPE, so they were never drawn in the world (BUG-089). Found, not fixed: the
+  renderer draws one plant per plot, so a 1 m2 plot of wheat shows one stalk;
+  it should draw the plot's plants at the crop's spacing once that lands.
+  Still to do: each species' own light need (fruiting crops want more than
+  17, some lettuces tip-burn above 15).
 
 ## Defects found (things that are wrong, not merely missing)
 

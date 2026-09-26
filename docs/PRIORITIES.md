@@ -1114,9 +1114,12 @@ cited to NRCS, UW-Madison A2809 and FoodData Central; the old indices had
 understated grain and legume removal 5 to 20 times, and urine now covers 26%
 of the household's net N, not 118%). In flight: harvest per grow unit from
 its floor area and the crop's spacing (the per-unit harvest masses are not
-grounded, a soybean cup grew 1.65 kg), and soil pH. Next: per-species light
-need, local grow lights, a urine-diverting toilet machine, pests in the
-offline catch-up. Containers as items (3c) waits on the unified placement
+grounded, a soybean cup grew 1.65 kg), and soil pH. Grow lights now light
+only the plots near them (v0.1364.0: 0.58 m2 per 100 W from the DLC and
+Cornell figures), beds are divided into plots, and bed-planted crops are
+drawn (BUG-089). Next: per-species light need, drawing each plot's plants at
+the crop's spacing, a urine-diverting toilet machine, pests in the offline
+catch-up. Containers as items (3c) waits on the unified placement
 schema. Progress and open items live at the top of the gap doc.
 
 **Gameplay gap survey (2026-09-25):** `docs/design/gameplay-gaps-2026-09-25.md`

@@ -1656,3 +1656,18 @@ reproduced seven of them against the crate) found:
    by id. Test `a_restored_batch_holds_on_its_own_machines_power`.
 
 Each test was run red by undoing its fix first.
+
+## BUG-089: crops sown from the Garden panel's bed Plant button were never drawn (FIXED v0.1364.0)
+
+The bed/tray/field Plant button tagged each crop's `tower_id` with the machine
+TYPE ("staple_grain_tray") and numbered the units 0..count. The plant renderer
+(`src/engine/home_meshes.rs`) places crops by tower design id or machine
+INSTANCE id, found neither, and skipped them, so the crops grew, were
+harvestable in the panel, and were invisible in the world. The showcase
+auto-seed tagged instances, which is why the showcase garden always showed.
+Found while making grow lights reach only nearby machines, which needs the
+same thing the renderer does: where each crop stands. Fix: the farming system
+expands a TYPE into its machines ("grow_instances", published by the engine)
+and sows one crop per plot of each, tagged with the machine. Test
+`planting_a_bed_type_sows_every_plot_of_every_machine`, red with the
+expansion switched off.

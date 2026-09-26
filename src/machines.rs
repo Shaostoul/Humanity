@@ -130,8 +130,9 @@ pub struct MachineDef {
     #[serde(default)]
     pub level_gauge: bool,
     /// This machine is an electric grow light (2026-09-26): while it is
-    /// powered, every indoor grow area counts as lit, so green crops there
-    /// keep growing after the sun sets (outdoor fields have only the sun).
+    /// powered, it lights the grow machines nearest it, as much canopy as its
+    /// watts serve (farming::lighting), so green crops there keep growing
+    /// after the sun sets (outdoor fields have only the sun).
     /// It needs a `Consumer` power role: an unpowered light gives no light.
     /// Spawns a `GrowLight` marker. See `farming::light_growth_rate`.
     #[serde(default)]

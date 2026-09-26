@@ -134,8 +134,6 @@ pub(crate) struct ShowcaseCfg {
     #[serde(default)]
     pub(crate) bed_crops: std::collections::HashMap<String, String>,
     #[serde(default)]
-    pub(crate) bed_units: u32,
-    #[serde(default)]
     pub(crate) tower_overrides: std::collections::HashMap<String, String>,
 }
 
@@ -225,6 +223,9 @@ pub(crate) fn auto_seed_showcase(state: &mut EngineState) {
             growing_seconds: 0.0,
         });
     };
+    // Beds sow one crop per plot (the grow medium's `plots`, 2026-09-26),
+    // staggered across all the machines of a type through six stages.
+    let mut sown_of_type: std::collections::HashMap<&str, u32> = std::collections::HashMap::new();
     for g in &state.grow_positions {
         if let Some(cfg_key) = g.ty.strip_prefix("aeroponic_tower_") {
             let Some(tcfg) = tower_cfgs.iter().find(|t| t.id == cfg_key) else { continue };
@@ -243,9 +244,11 @@ pub(crate) fn auto_seed_showcase(state: &mut EngineState) {
                 stagger(&mut to_spawn, &cycle[slot as usize % cycle.len()], &g.id, slot, frac);
             }
         } else if let Some(plant) = cfg.bed_crops.get(&g.ty) {
-            let units = cfg.bed_units.max(1);
-            for u in 0..units {
-                let frac = u as f32 / (units.max(2) - 1) as f32;
+            let plots = state.gui_state.grow_media.iter().find(|m| m.matches(&g.ty)).map_or(1, |m| m.plots.max(1));
+            for u in 0..plots {
+                let k = sown_of_type.entry(g.ty.as_str()).or_insert(0);
+                let frac = (*k % 6) as f32 / 5.0;
+                *k += 1;
                 stagger(&mut to_spawn, plant, &g.id, u, frac);
             }
         }

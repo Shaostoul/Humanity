@@ -685,6 +685,15 @@ pub struct GrowMedium {
     /// user hasn't typed a crop into the edit modal (v0.738 grain loop).
     #[serde(default)]
     pub default_crop: Option<String>,
+    /// How many plots a machine of this medium is divided into, one crop in
+    /// each (2026-09-26; 0 or absent is 1). A plot's floor is the machine's
+    /// footprint over this; towers ignore it (a cup is one plant).
+    #[serde(default)]
+    pub plots: u32,
+    /// The plots are shelves one above another (a mushroom rack), each with
+    /// the whole footprint.
+    #[serde(default)]
+    pub stacked: bool,
     #[serde(default)]
     pub controls: Vec<GrowControl>,
 }

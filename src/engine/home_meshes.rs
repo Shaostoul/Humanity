@@ -687,6 +687,7 @@ pub(crate) fn rebuild_machine_objects(state: &mut EngineState) {
             }
         }
     }
+    publish_grow_plots(state);
     // In-world screens (rung 2): a surface + display quad per placed machine
     // with a `screen` def. Reuses surfaces by instance id (a count change
     // that keeps a screen keeps its page state), drops the ones whose
@@ -694,6 +695,48 @@ pub(crate) fn rebuild_machine_objects(state: &mut EngineState) {
     crate::engine::screens::sync_screens(state, &placements);
     state.plant_mesh_sig = 0; // machine layout may have moved: replant visuals
     rebuild_connection_objects(state);
+}
+
+/// Publish the home's grow machines for the farming system (2026-09-26),
+/// from the grow anchors just recorded, in placement order:
+/// - "grow_plots" (`Vec<lighting::GrowPlot>`): where each stands, its
+///   footprint and a tower's cups, for the grow lights (farming::lighting);
+/// - "grow_instances" (type -> [(instance id, plots)]): the machines a bed
+///   Plant button for a TYPE sows, one crop per plot;
+/// - "grow_plot_area_m2" (instance id and type id -> m2 of one plot): the
+///   floor one crop in that machine has.
+/// A grow machine is one a grow medium (data/garden/grow_media.ron) matches;
+/// a medium's `plots` divides a bed, tray, rack or field into plots.
+pub(crate) fn publish_grow_plots(state: &mut EngineState) {
+    use crate::systems::farming::lighting::GrowPlot;
+    use std::collections::HashMap;
+    let tower_cfgs = crate::gui::load_tower_configs(&crate::data_dir());
+    let mut plots: Vec<GrowPlot> = Vec::new();
+    let mut instances: HashMap<String, Vec<(String, u32)>> = HashMap::new();
+    let mut plot_area: HashMap<String, f32> = HashMap::new();
+    for g in &state.grow_positions {
+        let Some(medium) = state.gui_state.grow_media.iter().find(|m| m.matches(&g.ty)) else { continue };
+        let footprint = (g.size.0 * g.size.2).max(0.0);
+        let tower_cfg = g.ty.strip_prefix("aeroponic_tower_").and_then(|k| tower_cfgs.iter().find(|t| t.id == k));
+        plots.push(GrowPlot {
+            id: g.id.clone(),
+            aliases: tower_cfg.map(|t| vec![t.id.clone()]).unwrap_or_default(),
+            pos: g.pos.to_array(),
+            footprint_m2: footprint,
+            cups: tower_cfg.map_or(0, |t| t.slots),
+            outdoors: crate::systems::farming::is_field_area(&g.ty) || crate::systems::farming::is_field_area(&g.id),
+        });
+        if tower_cfg.is_none() {
+            let n = medium.plots.max(1);
+            let per_plot = if medium.stacked { footprint } else { footprint / n as f32 };
+            instances.entry(g.ty.clone()).or_default().push((g.id.clone(), n));
+            plot_area.insert(g.id.clone(), per_plot);
+            plot_area.entry(g.ty.clone()).or_insert(per_plot);
+        }
+    }
+    state.data_store.insert("grow_plots", plots);
+    state.data_store.insert("grow_instances", instances);
+    state.data_store.insert("grow_plot_area_m2", plot_area);
 }
 
 /// Procedural plants (v0.862): build ONE merged world-space mesh per planted

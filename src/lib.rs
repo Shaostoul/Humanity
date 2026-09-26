@@ -1176,6 +1176,7 @@ mod native_app {
             // Garden pests (2026-09-26, systems::farming::pests): the data, the
             // Settings severity, and the Garden panel's control buttons.
             data_store.insert("garden_pests", crate::systems::farming::pests::PestData::load());
+            data_store.insert("garden_lighting", crate::systems::farming::lighting::LightingData::load());
             data_store.insert("garden_pest_severity", std::sync::Mutex::new(crate::systems::farming::pests::DEFAULT_PEST_SEVERITY));
             data_store.insert("pest_control_request", std::sync::Mutex::new(Option::<(String, String)>::None));
             // Backpack <-> container transfers (organize-layer inventory): the GUI pushes

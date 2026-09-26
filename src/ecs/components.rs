@@ -870,10 +870,11 @@ pub struct PowerCircuit {
 pub struct Irrigator;
 
 /// An electric grow light (2026-09-26, `MachineDef::lights_crops`). While
-/// its `PowerConsumer` is enabled, FarmingSystem counts every indoor grow
-/// area as lit, so green crops there keep growing after the sun sets; shed
-/// or switched off, it gives no light and they pause until sunrise. Home-wide
-/// for now, like `Irrigator`: see `farming::light_growth_rate`.
+/// its `PowerConsumer` is enabled, it lights the grow machines nearest its
+/// `Transform`, as much canopy as its watts can serve (about 0.58 m2 per
+/// 100 W, `farming::lighting`), so green crops there keep growing after the
+/// sun sets; shed or switched off, it gives no light and they pause until
+/// sunrise.
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
 pub struct GrowLight;
 
