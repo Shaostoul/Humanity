@@ -464,8 +464,12 @@ impl System for LivestockSystem {
         "LivestockSystem"
     }
 
-    fn tick(&mut self, world: &mut hecs::World, dt: f32, _data: &DataStore) {
+    fn tick(&mut self, world: &mut hecs::World, dt: f32, data: &DataStore) {
         self.t += dt;
+        // Yields ripen on the GAME clock (2026-09-27), like crafting and the
+        // power grid: a night slept at 120x ripens a night's eggs. Movement
+        // below stays on real dt, so a herd never sprints while you sleep.
+        let game_dt = crate::systems::time::scaled_dt(dt, data);
 
         // Regrowth: every Harvestable in the world ages toward ready (animals
         // today; wild berry bushes ride the same pass when they land). Clamped
@@ -478,7 +482,7 @@ impl System for LivestockSystem {
                 continue;
             }
             if h.time_since_harvest < h.regrow_time {
-                h.time_since_harvest = (h.time_since_harvest + dt).min(h.regrow_time);
+                h.time_since_harvest = (h.time_since_harvest + game_dt).min(h.regrow_time);
             }
         }
 
@@ -851,6 +855,26 @@ mod tests {
             "the hen ran away from the wolf (x = {})",
             fled.x
         );
+    }
+
+    /// Yields ripen on the game clock (2026-09-27): at 120x, as while the
+    /// player sleeps, one real second ripens 120 game seconds of egg. Seen
+    /// red with the regrowth back on raw dt (the hen 1 s along, not 120 s).
+    #[test]
+    fn yields_ripen_on_the_game_clock() {
+        use crate::ecs::systems::System;
+        let mut data = DataStore::new();
+        let mut gt = crate::systems::time::GameTime::default();
+        gt.time_scale = 120.0;
+        data.insert("game_time", std::sync::Mutex::new(gt));
+        let mut world = hecs::World::new();
+        let hen = herd_hen(&mut world, "chicken#0", 0.0);
+        let mut sys = LivestockSystem::new();
+        for _ in 0..10 {
+            sys.tick(&mut world, 0.1, &data);
+        }
+        let since = world.get::<&Harvestable>(hen).unwrap().time_since_harvest;
+        assert!((since - 120.0).abs() < 0.5, "one real second at 120x ripens 120 s: {since}");
     }
 
     fn herd_hen(world: &mut hecs::World, slot: &str, since: f32) -> hecs::Entity {

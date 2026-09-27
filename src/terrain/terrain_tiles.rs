@@ -391,7 +391,7 @@ mod tests {
         // Build one synthetic tile (N45E135, the Fuji tile) whose value is a
         // known constant, drop it in a temp dir, and confirm region loading +
         // sampling inside the tile returns it while outside returns None.
-        let dir = std::env::temp_dir().join("hos_tile_test");
+        let dir = std::env::temp_dir().join(format!("hos_tile_test_{}", std::process::id()));
         let _ = std::fs::create_dir_all(&dir);
         let mut bytes = Vec::new();
         bytes.extend_from_slice(HEIGHTMAP_MAGIC);
@@ -411,8 +411,10 @@ mod tests {
 
         let mut tiles = TerrainTiles::new(dir.clone());
         tiles.ensure_region(35.36, 138.73);
-        // Wait for the loader thread (bounded).
-        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        // Wait for the loader thread (bounded, and generous: on 2026-09-27 a
+        // loaded machine running several test processes at once missed 5 s;
+        // the directory above carries the process id so they never share it).
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
         while !tiles.poll() {
             assert!(std::time::Instant::now() < deadline, "tile never arrived");
             std::thread::sleep(std::time::Duration::from_millis(10));

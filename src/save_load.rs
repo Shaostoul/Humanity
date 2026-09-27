@@ -494,7 +494,7 @@ pub fn save_active_home(
         return;
     }
     let mut save = extract_world_save(world);
-    save.placed_items = placed.to_vec();
+    save.placed_items = Some(placed.to_vec());
     // The world clock, from the TimeSystem's DataStore export. Crop
     // planted_at values are only meaningful against it.
     save.game_time = crate::systems::time::elapsed_now(data);
@@ -729,11 +729,12 @@ pub fn away_notice(r: &Resumed) -> Option<String> {
 /// the rewound backpack and the kept Barn both hold the same goods), the
 /// "while you were away" notice, and the Mining panel's "Keep mining" switch
 /// set to the standing order the save carried (the frame bridge ends the
-/// order while the switch is off). An empty `placed_items` is a save from
-/// before storage was saved, which keeps the seeded default, as at startup.
+/// order while the switch is off). A save that never wrote a pool (None, a
+/// fresh character) keeps the seeded default, as at startup; a pool saved
+/// empty comes back empty.
 pub fn after_resume(gui: &mut crate::gui::GuiState, save: &WorldSave, r: &Resumed) {
-    if !save.placed_items.is_empty() {
-        gui.placed_items = save.placed_items.clone();
+    if let Some(pool) = &save.placed_items {
+        gui.placed_items = pool.clone();
     }
     if let Some(msg) = away_notice(r) {
         gui.pending_notices.push(msg);
@@ -1354,12 +1355,40 @@ mod tests {
         assert_eq!(older.query::<&CropPicking>().iter().count(), 0);
     }
 
-    /// pre-v0.517 save (no `placed_items` field) loads with an empty pool (serde
-    /// default) so it then re-seeds from the places spine.
+    /// A pool saved EMPTY comes back empty, and a save that never wrote a
+    /// pool keeps the live one (2026-09-27, review of the sleep and offline
+    /// batch). Seen red with the old `is_empty` check on a Vec: the planks
+    /// stashed after the empty save stayed beside the rewound backpack.
+    #[test]
+    fn a_pool_saved_empty_comes_back_empty() {
+        let plank = crate::gui::PlacedItem {
+            key: "wood_plank_0".into(),
+            name: "Wood Plank".into(),
+            qty: 5,
+            container: "2/0".into(),
+            wear: 0,
+            quality: 0,
+        };
+        let mut gui = crate::gui::GuiState::default();
+        gui.placed_items = vec![plank.clone()];
+        let mut save = WorldSave::new_offline("Test", "fibonacci");
+        save.placed_items = Some(Vec::new());
+        let save: WorldSave = serde_json::from_str(&serde_json::to_string(&save).unwrap()).unwrap();
+        after_resume(&mut gui, &save, &Resumed::default());
+        assert!(gui.placed_items.is_empty(), "the empty pool came back empty: {:?}", gui.placed_items);
+
+        gui.placed_items = vec![plank];
+        let fresh = WorldSave::new_offline("Test", "fibonacci");
+        after_resume(&mut gui, &fresh, &Resumed::default());
+        assert_eq!(gui.placed_items.len(), 1, "a save with no pool keeps the live one");
+    }
+
+    /// A save with no `placed_items` field loads with no pool (serde default),
+    /// so the places spine's seed stays.
     #[test]
     fn placed_items_persist_and_old_saves_default_empty() {
         let mut save = WorldSave::new_offline("Test", "fibonacci");
-        save.placed_items = vec![
+        save.placed_items = Some(vec![
             crate::gui::PlacedItem {
                 key: "ice_axe_0".into(),
                 name: "Ice Axe".into(),
@@ -1376,13 +1405,14 @@ mod tests {
                 wear: 0,
                 quality: 0,
             },
-        ];
+        ]);
         let json = serde_json::to_string(&save).expect("serialize");
         let back: WorldSave = serde_json::from_str(&json).expect("deserialize");
-        assert_eq!(back.placed_items.len(), 2);
-        assert_eq!(back.placed_items[0].key, "ice_axe_0");
-        assert_eq!(back.placed_items[1].qty, 5);
-        assert_eq!(back.placed_items[1].container, "2/0");
+        let pool = back.placed_items.as_ref().expect("the pool came back");
+        assert_eq!(pool.len(), 2);
+        assert_eq!(pool[0].key, "ice_axe_0");
+        assert_eq!(pool[1].qty, 5);
+        assert_eq!(pool[1].container, "2/0");
 
         // A pre-v0.517 save JSON that lacks the field -> empty pool, no error.
         let old_json = r#"{"name":"Old","timestamp":0,"game_time":0.0,
@@ -1390,7 +1420,7 @@ mod tests {
             "player_health":100.0,"inventory":[],"skills":{},"constructions":[],
             "weather_state":"clear"}"#;
         let old: WorldSave = serde_json::from_str(old_json).expect("old save loads");
-        assert!(old.placed_items.is_empty(), "old save defaults to an empty pool");
+        assert!(old.placed_items.is_none(), "a save without the field has no pool");
     }
 
     fn crop(planted_at: f64, stage: &str) -> crate::ecs::components::CropInstance {
@@ -1556,14 +1586,14 @@ mod tests {
         // under the chest's path), then the home is saved as on exit.
         let path = uses::built_stores(&world, Some(&reg))[0].0.clone();
         let mut save = extract_world_save(&world);
-        save.placed_items = vec![crate::gui::PlacedItem {
+        save.placed_items = Some(vec![crate::gui::PlacedItem {
             key: "wood_plank_0".into(),
             name: "Wood Plank".into(),
             qty: 5,
             container: path.clone(),
             wear: 0,
             quality: 0,
-        }];
+        }]);
         let back: WorldSave = serde_json::from_str(&serde_json::to_string(&save).unwrap()).unwrap();
 
         // Next launch: the world comes back, the tree is rebuilt from it.
@@ -1574,7 +1604,7 @@ mod tests {
         let mut places = crate::gui::load_places(std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/data")));
         crate::gui::sync_built_stores(&mut places, &stores);
         assert!(crate::gui::collect_containers(&places).iter().any(|(p, l)| *p == path && l == "Storage Chest"));
-        let inside: Vec<_> = back.placed_items.iter().filter(|p| p.container == path).collect();
+        let inside: Vec<_> = back.placed_items.iter().flatten().filter(|p| p.container == path).collect();
         assert_eq!(inside.len(), 1);
         assert_eq!((inside[0].key.as_str(), inside[0].qty), ("wood_plank_0", 5));
     }
@@ -1718,7 +1748,14 @@ mod tests {
             crate::systems::livestock::HerdSlot("chicken#0".into()),
             crate::ecs::components::Harvestable { resource: "egg_0".into(), amount: 1.0, regrow_time: 300.0, time_since_harvest: 40.0 },
         ));
-        let save = extract_world_save(&world);
+        let mut save = extract_world_save(&world);
+        assert_eq!(save.herd, vec![("chicken#0".to_string(), 40.0)]);
+        // Through JSON, as on disk (2026-09-27 review: this test once
+        // extracted and applied in memory only), with the standing order,
+        // which the home save writes beside the world.
+        save.mining_order = Some(("rock".into(), vec![("iron_ore_0".into(), 2)]));
+        let save: WorldSave = serde_json::from_str(&serde_json::to_string(&save).unwrap()).unwrap();
+        assert_eq!(save.mining_order, Some(("rock".to_string(), vec![("iron_ore_0".to_string(), 2)])));
         assert_eq!(save.herd, vec![("chicken#0".to_string(), 40.0)]);
 
         // The next launch: a fresh player and the fresh, full asteroid.
@@ -1810,11 +1847,28 @@ mod tests {
         save.asteroids = Some(vec![rock(6.0)]);
         save.mining_order = Some(("rock".into(), vec![("iron_ore_0".into(), 2)]));
         save.herd = vec![("chicken#0".into(), 100.0)];
+        // A drone in flight at the save (2026-09-27 review: the doc promised
+        // the drone stays where it was, and the save held none).
+        let flying = crate::ecs::components::Drone {
+            home: 1,
+            target: "rock".into(),
+            manifest: vec![("iron_ore_0".into(), 2)],
+            phase: crate::ecs::components::DronePhase::Returning,
+            phase_time: 1.0,
+            cargo: vec![("iron_ore_0".into(), 2)],
+            home_pos: [0.0; 3],
+            target_pos: [0.0; 3],
+        };
+        save.drone = Some(flying.clone());
         let mut world = hecs::World::new();
         world.spawn((Inventory::new(16), Controllable));
         apply_save_to_world(&mut world, &save);
         let r = resume_home(&mut world, &data, &save, false, None);
         assert_eq!((r.away_secs, r.drone_hauls, r.animals_ready), (0.0, 0, 0));
+        let drones: Vec<crate::ecs::components::Drone> =
+            world.query::<&crate::ecs::components::Drone>().iter().map(|(_, d)| d.clone()).collect();
+        assert_eq!(drones.len(), 1, "the drone is still out");
+        assert_eq!((drones[0].phase_time, drones[0].cargo.clone()), (1.0, flying.cargo.clone()), "where it was, hold and all");
         assert_eq!(crate::systems::livestock::pending_herd(&data), Some(vec![("chicken#0".to_string(), 100.0)]));
         assert_eq!(crate::systems::mining::standing_order(&data), save.mining_order, "the order is the player's own setting");
         assert!(crate::systems::crafting::away::take(&data).is_none(), "nothing handed to the machines");

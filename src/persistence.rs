@@ -61,10 +61,14 @@ pub struct WorldSave {
     pub outfit: crate::ecs::components::Outfit,
     /// The organize-layer container contents (v0.516): every item that lives in a
     /// container other than the live backpack, tagged with its container path. The
-    /// backpack itself is `inventory` above. serde-default so pre-v0.517 saves load
-    /// with an empty pool (the inventory then re-seeds from data/places/seed.json).
+    /// backpack itself is `inventory` above. None means this save never wrote a
+    /// pool (a fresh character), and the seeded default stays; Some(empty) is a
+    /// home whose storage really is empty and comes back empty (2026-09-27: an
+    /// empty Vec used to mean both, so emptying every container, saving, then
+    /// stashing and pressing ESC > Play kept the live pool beside the rewound
+    /// backpack and doubled the stashed goods).
     #[serde(default)]
-    pub placed_items: Vec<crate::gui::PlacedItem>,
+    pub placed_items: Option<Vec<crate::gui::PlacedItem>>,
     /// Vehicles standing in the world (economy Phase 2 Stage 1, v0.677), deployed
     /// from kit items. serde-default so older saves load with none. NOTE: the
     /// separate `constructions` field above is dormant schema (never written or
@@ -174,7 +178,7 @@ impl WorldSave {
             character_name: default_character_name(),
             appearance: Default::default(),
             outfit: Default::default(),
-            placed_items: Vec::new(),
+            placed_items: None,
             deployed_vehicles: Vec::new(),
             crops: Vec::new(),
             crop_soil: Vec::new(),
@@ -393,7 +397,7 @@ mod tests {
             character_name: "Test Character".to_string(),
             appearance: Default::default(),
             outfit: Default::default(),
-            placed_items: Vec::new(),
+            placed_items: None,
             deployed_vehicles: Vec::new(),
             crops: Vec::new(),
             crop_soil: Vec::new(),
@@ -421,7 +425,7 @@ mod tests {
 
     #[test]
     fn round_trip_save_load() {
-        let dir = std::env::temp_dir().join("humanity_test_saves");
+        let dir = std::env::temp_dir().join(format!("humanity_test_saves_{}", std::process::id()));
         let _ = std::fs::create_dir_all(&dir);
         let path = dir.join("test_roundtrip.json");
 
@@ -446,7 +450,7 @@ mod tests {
     fn legacy_save_without_kind_design_defaults() {
         // A pre-v0.380 save has no kind/design fields; serde defaults must fill them
         // (kind=offline, design=fibonacci) so old saves load unchanged.
-        let dir = std::env::temp_dir().join("humanity_test_legacy_save");
+        let dir = std::env::temp_dir().join(format!("humanity_test_legacy_save_{}", std::process::id()));
         let _ = std::fs::create_dir_all(&dir);
         let path = dir.join("legacy.json");
         let legacy = r#"{"name":"Old","timestamp":1,"game_time":0.0,"player_position":[0.0,0.0,0.0],"player_rotation":[0.0,0.0,0.0,1.0],"player_health":100.0,"inventory":[],"skills":{},"constructions":[],"weather_state":"clear"}"#;
@@ -460,7 +464,7 @@ mod tests {
 
     #[test]
     fn list_saves_works() {
-        let dir = std::env::temp_dir().join("humanity_test_list_saves");
+        let dir = std::env::temp_dir().join(format!("humanity_test_list_saves_{}", std::process::id()));
         let _ = std::fs::create_dir_all(&dir);
 
         let mut s1 = test_save();

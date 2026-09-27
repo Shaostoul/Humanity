@@ -1992,3 +1992,56 @@ darker than its neighbour for no reason. Fix: a fourth organ, `Organ::Plain`
 those; only the bed's wooden tray keeps the grained wood look. Tests
 `fungus_nothing_but_the_tray_is_shaded_as_bark` (seen red with dry caps back
 on `Stem`) and `plain_organ_bit_rides_alone_and_keeps_the_color`.
+
+## BUG-099: a video test counted frames against the wall clock and failed under load (FIXED v0.1387.0)
+
+`frames_arrive_at_the_clip_size_in_pts_order_and_loop` (src/engine/screens/video.rs)
+watched the demo clip for a fixed 2.6 s and wanted 30 frames. With five agent builds
+running beside `just verify` on 2026-09-27, only 15 arrived, twice in one afternoon:
+`poll` drops late frames by design, and a starved decoder is late. The player was
+right and the test measured the machine. It now runs until it has what it checks
+(30 frames, and frames from after a wrap), with a 30 s deadline, so a quiet machine
+still finishes in about 2.1 s and a loaded one simply takes longer. The defects the
+count exists for (a decoder that never wakes, a stale generation) deliver a handful
+and never reach 30, so they still fail, at the deadline. Same class as BUG-094.
+
+The same afternoon `synthetic_tile_samples_through_the_global_grid`
+(src/terrain/terrain_tiles.rs) reported "tile never arrived". It gave its loader
+thread 5 s, and it wrote its tile to a FIXED path under the system temp directory,
+`hos_tile_test`, which every test process on the machine shares: with several
+worktree agents running `cargo test` at once, another run could rewrite or delete
+the file mid-read. Which of the two it was is not known, so both are fixed: the
+deadline is 30 s, and that test and twelve others that wrote fixed temp paths
+(machines.rs, persistence.rs, ship/home_structure.rs) now put the process id in
+the name, so concurrent runs never share a file.
+
+## BUG-100: seams in the sleep and offline batch, found by review (FIXED v0.1387.0, before release)
+
+A critic review of the built beds and chests work and offline progression rung 2,
+merged side by side, found no high defect and four others, all fixed before either
+shipped:
+
+1. While asleep the clock runs at 120x, and crafting, mining and farming follow it
+   through `time::scaled_dt`, but the power grid and the animals ran on raw frame
+   time. A night slept cost the batteries and the genset 1/120 of the night while
+   the crafts they powered ran all of it, so sleeping erased the night's power
+   deficit, and hens laid nothing overnight. `ElectricalSystem` (fuel and battery
+   charge) and the livestock yield timers now follow `scaled_dt`; movement and the
+   log cooldown stay on real time. At normal speed nothing changes. Tests
+   `a_fast_clock_drains_the_bank_by_game_time` (red: 1.37 Wh drawn where 166.7
+   were due) and `yields_ripen_on_the_game_clock`.
+2. A sleep in progress survived loading another save (ESC > Play or Characters):
+   the clock stayed at 120x for the loaded character, or a character whose clock
+   was ahead woke "rested" without sleeping. A clock outside the night (before it
+   began, or more than 60 game seconds past its end) now ends the sleep unrested
+   and puts the clock back. Test
+   `a_clock_that_jumps_out_of_the_night_ends_the_sleep_unrested`.
+3. The saved storage pool used an empty list to mean "this save never wrote one",
+   so a home whose containers were all emptied, saved, then stashed into and
+   re-applied kept the live pool beside the rewound backpack, doubling the stashed
+   goods (a path character select now takes). `WorldSave.placed_items` is an
+   Option: None keeps the seeded default, an empty list comes back empty. Test
+   `a_pool_saved_empty_comes_back_empty`.
+4. Two tests were weaker than their comments: the toggle-off test promised the
+   drone stays where it was with no drone in the save, and the save round trip
+   never went through JSON or carried the standing order. Both now do.

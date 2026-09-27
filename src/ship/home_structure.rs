@@ -2405,7 +2405,7 @@ mod tests {
             )],
             shell_thickness: None, lights: Vec::new(), spawn: None, structures: Vec::new(), road_nodes: Vec::new(), road_edges: Vec::new(), zones: Vec::new(), rail_nodes: Vec::new(), rail_edges: Vec::new(),
         };
-        let tmp = std::env::temp_dir().join("humanity_home_structure_rt.ron");
+        let tmp = std::env::temp_dir().join(format!("humanity_home_structure_rt_{}.ron", std::process::id()));
         h.save(&tmp).expect("save");
         let back = HomeStructure::load(&tmp).expect("reload");
         assert_eq!(back.width, 55.0);
@@ -2450,7 +2450,7 @@ mod tests {
                     ] },
             ])],
         };
-        let tmp = std::env::temp_dir().join("humanity_locks_rt.ron");
+        let tmp = std::env::temp_dir().join(format!("humanity_locks_rt_{}.ron", std::process::id()));
         h.save(&tmp).expect("save");
         let back = HomeStructure::load(&tmp).expect("reload");
         let locks = &back.walls[0].openings[0].locks;
@@ -2470,7 +2470,7 @@ mod tests {
             PlacedLight { type_id: "ceiling_panel".into(), pos: (27.5, 2.7, 44.5), dir: (0.0, -1.0, 0.0), on: true, color: None, intensity: Some(12.0), range: None, path: vec![(30.0, 2.7, 44.5), (30.0, 2.7, 48.0)], subdivision: 8 },
             PlacedLight { type_id: "warm_lamp".into(), pos: (5.0, 1.0, 5.0), dir: (0.0, 0.0, 0.0), on: false, color: Some((1.0, 0.5, 0.2)), intensity: None, range: Some(3.0), path: Vec::new(), subdivision: 0 },
         ];
-        let tmp = std::env::temp_dir().join("humanity_lights_rt.ron");
+        let tmp = std::env::temp_dir().join(format!("humanity_lights_rt_{}.ron", std::process::id()));
         h.save(&tmp).expect("save");
         let back = HomeStructure::load(&tmp).expect("reload");
         assert_eq!(back.lights.len(), 2);

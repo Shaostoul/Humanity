@@ -34,10 +34,15 @@ pub const SLEEP_TIME_SCALE: f32 = 120.0;
 /// The DataStore slot a sleep request travels in: where the player lies
 /// down ("Bed"), taken by the next tick.
 pub const REQUEST_SLOT: &str = "sleep_request";
+/// Game seconds past the wake time beyond which the clock must have been
+/// set by something else (a save loaded mid-sleep), not run there.
+const CLOCK_JUMP_SLACK_S: f64 = 60.0;
 
 /// A sleep in progress.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Asleep {
+    /// The game second the sleeper lay down at.
+    pub started_at: f64,
     /// The game second the sleeper wakes at.
     pub wake_at: f64,
     /// The clock speed to put back on waking: whatever the player had.
@@ -95,6 +100,7 @@ pub fn tick(asleep: &mut Option<Asleep>, world: &mut hecs::World, data: &DataSto
     if let Some(place) = requested {
         if asleep.is_none() && living_player(world) {
             *asleep = Some(Asleep {
+                started_at: now,
                 wake_at: now + SLEEP_HOURS * SECONDS_PER_DAY / 24.0,
                 resume_scale: scale,
                 place: place.clone(),
@@ -106,6 +112,18 @@ pub fn tick(asleep: &mut Option<Asleep>, world: &mut hecs::World, data: &DataSto
     }
 
     let Some(a) = asleep.as_ref() else { return };
+    // The clock left the night (2026-09-27, review of the sleep batch):
+    // another save loaded mid-sleep (ESC > Play, or Characters) sets the
+    // clock before the sleep began or past its end. That is no night slept:
+    // put the clock back and wake nobody rested, rather than leave it at 120x
+    // for the loaded character or refill someone who never lay down. A frame
+    // at 120x moves at most 12 game seconds (dt is capped at 0.1 s), so the
+    // slack below only ever catches a jump.
+    if now < a.started_at || now > a.wake_at + CLOCK_JUMP_SLACK_S {
+        set_clock_scale(data, a.resume_scale);
+        *asleep = None;
+        return;
+    }
     let alive = living_player(world);
     if alive && now < a.wake_at {
         return;
@@ -194,6 +212,30 @@ mod tests {
         assert!(!fx.has("fatigued") && fx.has("rested"));
         let notices = data.get::<Mutex<Vec<String>>>("player_notices").unwrap().lock().unwrap().clone();
         assert!(notices.last().unwrap().contains("slept 8 hours in the Bed"), "{notices:?}");
+    }
+
+    /// A save loaded mid-sleep moves the clock outside the night: before the
+    /// sleep began (an older save) or far past its end (another character).
+    /// Either way the clock goes back to its speed and nobody wakes rested.
+    /// Red check: without the jump test, the clock behind the start leaves
+    /// the sleep running (still asleep, no scale request), and the clock far
+    /// ahead refills the player who never slept.
+    #[test]
+    fn a_clock_that_jumps_out_of_the_night_ends_the_sleep_unrested() {
+        for jump_to in [9_000.0, 50_000.0] {
+            let data = store(10_000.0);
+            let mut world = hecs::World::new();
+            let p = tired_player(&mut world);
+            let mut asleep = None;
+            request(&data, "Bed");
+            tick(&mut asleep, &mut world, &data, 3600.0);
+            scale_asked(&data);
+            set_clock(&data, jump_to);
+            tick(&mut asleep, &mut world, &data, 3600.0);
+            assert!(asleep.is_none(), "clock at {jump_to}: the sleep ended");
+            assert_eq!(scale_asked(&data), Some(1.0), "clock at {jump_to}: speed put back");
+            assert_eq!(world.get::<&Vitals>(p).unwrap().energy, 10.0, "clock at {jump_to}: nobody refilled");
+        }
     }
 
     /// A player who dies in their sleep is not woken rested, and the clock
