@@ -27,6 +27,7 @@ use std::sync::OnceLock;
 
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
+use crate::gui::widgets::label_placer::{self, LabelPlacer};
 use crate::gui::GuiState;
 
 // The OSM region reader (HOSMREG1) lives in the terrain module now, shared
@@ -1850,6 +1851,10 @@ fn map_regions() -> &'static [OsmRegion] {
     })
 }
 
+/// The Planet view's ground: the map backdrop, island fill, and the halo
+/// that lifts street names off the road strokes.
+const MAP_GROUND: Color32 = Color32::from_rgb(14, 15, 13); // theme-exempt: map ground backdrop (near-black green), cartography
+
 /// Per-class road style: (stroke width at zoom 1, color). Widths scale with
 /// sqrt(zoom) so streets thicken as you close in without becoming ribbons.
 fn road_style(class: u8, zoom: f32) -> (f32, Color32) {
@@ -1927,7 +1932,7 @@ fn draw_planet_view(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 
     let (rect, response, center, zoom) = allocate_canvas(ui, state);
     let paint = ui.painter_at(rect);
-    paint.rect_filled(rect, Rounding::ZERO, Color32::from_rgb(14, 15, 13)); // theme-exempt: map ground backdrop (near-black green)
+    paint.rect_filled(rect, Rounding::ZERO, MAP_GROUND);
 
     // Meters -> pixels: the region's larger half-extent fills the canvas at
     // zoom 1. Screen north is up (n grows up, screen y grows down).
@@ -1961,7 +1966,7 @@ fn draw_planet_view(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         let color = match w.kind {
             WaterKind::Sea => Color32::from_rgb(21, 38, 51), // theme-exempt: cartography sea fill
             WaterKind::Inland => Color32::from_rgb(25, 45, 55), // theme-exempt: cartography lake fill
-            WaterKind::Island => Color32::from_rgb(14, 15, 13), // theme-exempt: island = map backdrop
+            WaterKind::Island => MAP_GROUND, // island = map backdrop
         };
         let Some(tris) = triangulate_ring(&w.ring) else {
             continue;
@@ -2021,56 +2026,137 @@ fn draw_planet_view(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         }
     }
 
-    // Named-road labels once zoomed in: majors first, capped so the map
-    // never becomes a word cloud.
+    // Scale bar geometry and the footer are laid out BEFORE the names so the
+    // label pass can keep off them; both are painted last, on top.
+    let target_m = 100.0 / scale;
+    let nice = [10.0, 20.0, 50.0, 100.0, 200.0, 500.0, 1000.0, 2000.0, 5000.0]
+        .into_iter()
+        .min_by(|a: &f64, b: &f64| {
+            (a / target_m - 1.0).abs().partial_cmp(&(b / target_m - 1.0).abs()).unwrap()
+        })
+        .unwrap_or(100.0);
+    let bar_px = (nice * scale) as f32;
+    let bar_y = rect.bottom() - 18.0;
+    let bar_x = rect.right() - 16.0 - bar_px;
+    let bar_label = if nice >= 1000.0 {
+        format!("{:.0} km", nice / 1000.0)
+    } else {
+        format!("{nice:.0} m")
+    };
+    // Footer: region + stats + the ODbL attribution OpenStreetMap requires.
+    // The notice text comes from credits::OSM_NOTICE, shared with the in-world
+    // credit, so the two surfaces that draw OSM data cannot drift apart.
+    let footer = MapFooter::layout(
+        &paint,
+        theme,
+        rect,
+        format!(
+            "{} ({:.4}, {:.4}) · {} roads, {} buildings, {} water in view · {}",
+            region.name,
+            region.origin_lat,
+            region.origin_lon,
+            roads_drawn,
+            buildings_drawn,
+            water_drawn,
+            crate::credits::OSM_NOTICE,
+        ),
+    );
+
+    // Street and water names, through one collision pass so no two print
+    // over each other (2026-09-27 snapshot review). Priority is road class
+    // (motorway first), then the longer road; water names rank just after
+    // primary roads. A road offers five spots along its length, middle
+    // first, so its name can slide clear of a crossing street; a name with no
+    // clear spot is dropped. The same name is not repeated within
+    // `MIN_REPEAT_PX` (OSM splits one street into many ways, each named).
+    // Capped, as before, so the map never becomes a word cloud.
+    const MIN_REPEAT_PX: f32 = 220.0;
+    const MAX_ROAD_LABELS: usize = 60;
+    const MAX_WATER_LABELS: usize = 20;
+    let road_ink = Color32::from_rgb(210, 210, 200); // theme-exempt: cartographic label, must read over both roads and ground
+    let water_ink = Color32::from_rgb(150, 185, 205); // theme-exempt: cartographic water label
+    struct MapName<'a> {
+        rank: f32,
+        length: f32,
+        name: &'a str,
+        spots: Vec<Pos2>,
+        water: bool,
+    }
+    let mut names: Vec<MapName> = Vec::new();
     if zoom >= 1.6 {
         let label_classes: u8 = if zoom >= 4.0 { 5 } else { 2 };
-        let mut labels = 0usize;
         for road in &region.roads {
-            if labels >= 60 {
-                break;
-            }
             let (Some(name), true) = (&road.name, road.class <= label_classes) else {
                 continue;
             };
             if !visible(&road.bounds) {
                 continue;
             }
-            let mid = road.points[road.points.len() / 2];
-            paint.text(
-                to_screen(mid.0, mid.1),
-                Align2::CENTER_CENTER,
-                name.as_ref(),
-                egui::FontId::proportional(9.5),
-                Color32::from_rgb(210, 210, 200), // theme-exempt: cartographic label — must read over both roads and ground
-            );
-            labels += 1;
+            let pts: Vec<Pos2> = road.points.iter().map(|&(e, n)| to_screen(e, n)).collect();
+            names.push(MapName {
+                rank: road.class as f32,
+                length: label_placer::polyline_length(&pts),
+                name: name.as_ref(),
+                spots: label_placer::along_polyline(&pts, &[0.5, 0.3, 0.7, 0.15, 0.85]),
+                water: false,
+            });
         }
     }
-
-    // Named water labels (lakes, bays): centred on the polygon bounds, in
-    // the italic-adjacent blue-grey every chart uses for water names.
+    // Named water (lakes, bays): centred on the polygon bounds, in the
+    // blue-grey every chart uses for water names.
     if zoom >= 0.7 {
-        let mut labels = 0usize;
         for w in &region.water {
-            if labels >= 20 {
-                break;
-            }
             let (Some(name), true) = (&w.name, w.kind != WaterKind::Island) else {
                 continue;
             };
             if !visible(&w.bounds) {
                 continue;
             }
-            paint.text(
-                to_screen((w.bounds.0 + w.bounds.2) * 0.5, (w.bounds.1 + w.bounds.3) * 0.5),
-                Align2::CENTER_CENTER,
-                name.as_ref(),
-                egui::FontId::proportional(9.5),
-                Color32::from_rgb(150, 185, 205), // theme-exempt: cartographic water label
-            );
-            labels += 1;
+            let (a, b) = (to_screen(w.bounds.0, w.bounds.1), to_screen(w.bounds.2, w.bounds.3));
+            names.push(MapName {
+                rank: 1.5,
+                length: (b - a).length(),
+                name: name.as_ref(),
+                spots: vec![to_screen((w.bounds.0 + w.bounds.2) * 0.5, (w.bounds.1 + w.bounds.3) * 0.5)],
+                water: true,
+            });
         }
+    }
+    names.sort_by(|a, b| a.rank.total_cmp(&b.rank).then(b.length.total_cmp(&a.length)));
+    let mut labels = LabelPlacer::new(rect.shrink(2.0), label_placer::LABEL_GAP);
+    labels.reserve(footer.backing);
+    labels.reserve(Rect::from_min_max(
+        Pos2::new(bar_x, bar_y - 18.0),
+        Pos2::new(bar_x + bar_px, bar_y + 2.0),
+    ));
+    let label_font = egui::FontId::proportional(9.5);
+    let mut placed: Vec<(&str, Pos2)> = Vec::new();
+    let (mut road_labels, mut water_labels) = (0usize, 0usize);
+    for n in &names {
+        let (count, cap, ink) = if n.water {
+            (&mut water_labels, MAX_WATER_LABELS, water_ink)
+        } else {
+            (&mut road_labels, MAX_ROAD_LABELS, road_ink)
+        };
+        if *count >= cap {
+            continue;
+        }
+        let g = paint.layout_no_wrap(n.name.to_string(), label_font.clone(), ink);
+        let size = g.size();
+        let spots = n.spots.iter().filter(|p| {
+            !placed.iter().any(|(other, at)| *other == n.name && (*at - **p).length() < MIN_REPEAT_PX)
+        });
+        let Some(spot) = labels.place(spots.map(|p| Align2::CENTER_CENTER.anchor_size(*p, size))) else {
+            continue;
+        };
+        // A thin halo in the ground colour lifts the name off the road
+        // strokes under it, the way printed street maps do.
+        for off in [Vec2::new(-1.0, 0.0), Vec2::new(1.0, 0.0), Vec2::new(0.0, -1.0), Vec2::new(0.0, 1.0)] {
+            paint.galley_with_override_text_color(spot.min + off, g.clone(), MAP_GROUND);
+        }
+        paint.galley(spot.min, g, ink);
+        placed.push((n.name, spot.center()));
+        *count += 1;
     }
 
     // Hover: nearest named road within reach.
@@ -2084,26 +2170,12 @@ fn draw_planet_view(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         });
     }
 
-    // Scale bar: a round-number length that spans 60-140 px at this zoom.
-    let target_m = 100.0 / scale;
-    let nice = [10.0, 20.0, 50.0, 100.0, 200.0, 500.0, 1000.0, 2000.0, 5000.0]
-        .into_iter()
-        .min_by(|a: &f64, b: &f64| {
-            (a / target_m - 1.0).abs().partial_cmp(&(b / target_m - 1.0).abs()).unwrap()
-        })
-        .unwrap_or(100.0);
-    let bar_px = (nice * scale) as f32;
-    let bar_y = rect.bottom() - 18.0;
-    let bar_x = rect.right() - 16.0 - bar_px;
+    // Scale bar: a round-number length that spans 60-140 px at this zoom
+    // (measured above, with the names).
     paint.line_segment(
         [Pos2::new(bar_x, bar_y), Pos2::new(bar_x + bar_px, bar_y)],
         Stroke::new(2.0, theme.text_secondary()),
     );
-    let bar_label = if nice >= 1000.0 {
-        format!("{:.0} km", nice / 1000.0)
-    } else {
-        format!("{nice:.0} m")
-    };
     paint.text(
         Pos2::new(bar_x + bar_px / 2.0, bar_y - 4.0),
         Align2::CENTER_BOTTOM,
@@ -2112,25 +2184,7 @@ fn draw_planet_view(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         theme.text_secondary(),
     );
 
-    // Footer: region + stats + the ODbL attribution OpenStreetMap requires.
-    // The notice text comes from credits::OSM_NOTICE, shared with the in-world
-    // credit, so the two surfaces that draw OSM data cannot drift apart.
-    paint.text(
-        Pos2::new(rect.left() + 8.0, rect.bottom() - 8.0),
-        Align2::LEFT_BOTTOM,
-        format!(
-            "{} ({:.4}, {:.4}) · {} roads, {} buildings, {} water in view · {}",
-            region.name,
-            region.origin_lat,
-            region.origin_lon,
-            roads_drawn,
-            buildings_drawn,
-            water_drawn,
-            crate::credits::OSM_NOTICE,
-        ),
-        egui::FontId::proportional(10.0),
-        theme.text_muted(),
-    );
+    footer.paint(&paint, theme);
 }
 
 /// The nearest named road within ~7 px of the pointer, by segment distance.
@@ -2172,34 +2226,39 @@ fn draw_galactic_view(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     let scale = (half / 50.0) * zoom as f64;
     let view_radius_ly = half / scale;
 
+    // Every name on this map goes through one collision pass: Sol first, the
+    // footer reserved, then stars brightest-first, then the ring labels, so
+    // no two names print over each other.
+    let mut labels = LabelPlacer::new(rect.shrink(2.0), label_placer::LABEL_GAP);
+
     // Distance rings on a 1-2-5 ladder: whichever rings land visibly inside
-    // the current view, up to the whole catalog span.
+    // the current view, up to the whole catalog span. Their labels are
+    // placed after the stars (`label_rings`), so a ring's "10 ly" never costs
+    // a bright star its name.
     const RINGS_LY: [f64; 13] = [
         1.0, 2.0, 5.0, 10.0, 25.0, 50.0, 100.0, 250.0, 500.0, 1000.0, 2500.0, 5000.0, 10000.0,
     ];
+    let mut rings: Vec<(f32, String)> = Vec::new();
     for &ring_ly in &RINGS_LY {
         let r = (ring_ly * scale) as f32;
         if r > 12.0 && r < rect.width().max(rect.height()) {
             paint.circle_stroke(center, r, Stroke::new(0.5, Color32::from_rgb(25, 25, 40)));  // theme-exempt: distance-ring — faint backdrop
-            paint.text(
-                center + Vec2::new(r * 0.7, -r * 0.7),
-                Align2::CENTER_CENTER,
-                format!("{} ly", ring_ly as i64),
-                egui::FontId::proportional(9.0),
-                Color32::from_rgb(80, 80, 110),  // theme-exempt: distance-ring label — faint backdrop
-            );
+            rings.push((r, format!("{} ly", ring_ly as i64)));
         }
     }
 
     // Sol at center — the universal anchor.
-    paint.circle_filled(center, 4.0_f32.max(2.0 * zoom.min(2.0)), body_color("sun"));
-    paint.text(
+    let sol_r = 4.0_f32.max(2.0 * zoom.min(2.0));
+    paint.circle_filled(center, sol_r, body_color("sun"));
+    labels.reserve_exact(Rect::from_center_size(center, Vec2::splat(2.0 * sol_r)));
+    let sol_label = paint.text(
         center + Vec2::new(8.0, 0.0),
         Align2::LEFT_CENTER,
         "Sol",
         egui::FontId::proportional(11.0),
         theme.text_primary(),
     );
+    labels.reserve(sol_label);
 
     let hover_pos = ui.input(|i| i.pointer.hover_pos());
 
@@ -2213,6 +2272,9 @@ fn draw_galactic_view(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         let mag_cutoff = (7.5 - 5.0 * (view_radius_ly / 50.0).log10()).clamp(2.0, 21.0);
         let mut drawn = 0usize;
         let mut hovered: Option<(&MapStar, Pos2, f32)> = None;
+        // Named stars big enough to label, brightest first (the catalog's
+        // order), labelled after every dot is down.
+        let mut named: Vec<(&str, Pos2, f32)> = Vec::new();
         let vis = rect.expand(8.0);
         for star in catalog {
             if star.mag > mag_cutoff as f32 {
@@ -2239,13 +2301,7 @@ fn draw_galactic_view(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             if let Some(n) = &star.name {
                 // Named stars label once they are comfortably in view.
                 if r > 2.0 {
-                    paint.text(
-                        pos + Vec2::new(r + 2.0, 0.0),
-                        Align2::LEFT_CENTER,
-                        n.as_ref(),
-                        egui::FontId::proportional(9.0),
-                        theme.text_secondary(),
-                    );
+                    named.push((n.as_ref(), pos, r));
                 }
             }
             if let Some(hp) = hover_pos {
@@ -2255,6 +2311,24 @@ fn draw_galactic_view(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 }
             }
         }
+
+        // Footer: what the view is actually showing right now. Laid out now
+        // so star names keep off it; painted last, over everything.
+        let footer = MapFooter::layout(
+            &paint,
+            theme,
+            rect,
+            format!(
+                "Top-down galactic plane · HYG catalog, {} stars · showing {} to mag {:.1} within {:.0} ly · scroll to zoom",
+                catalog.len(),
+                drawn,
+                mag_cutoff,
+                view_radius_ly,
+            ),
+        );
+        labels.reserve(footer.backing);
+        label_stars(&paint, theme, &mut labels, &named);
+        label_rings(&paint, &mut labels, center, &rings);
 
         if let Some((star, _, _)) = hovered {
             let dist = (star.x as f64 * star.x as f64
@@ -2274,26 +2348,14 @@ fn draw_galactic_view(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             });
         }
 
-        // Footer: what the view is actually showing right now.
-        paint.text(
-            Pos2::new(rect.left() + 8.0, rect.bottom() - 8.0),
-            Align2::LEFT_BOTTOM,
-            format!(
-                "Top-down galactic plane · HYG catalog, {} stars · showing {} to mag {:.1} within {:.0} ly · scroll to zoom",
-                catalog.len(),
-                drawn,
-                mag_cutoff,
-                view_radius_ly,
-            ),
-            egui::FontId::proportional(10.0),
-            theme.text_muted(),
-        );
+        footer.paint(&paint, theme);
         return;
     }
 
     // Fallback (stars-map.bin missing/corrupt): the curated nearby list.
     let stars = nearby_stars();
     let mut hovered_star: Option<&NearbyStar> = None;
+    let mut named: Vec<(&str, Pos2, f32)> = Vec::new();
     for star in stars {
         let px = center.x + (star.pos_ly.x * scale) as f32;
         let py = center.y - (star.pos_ly.y * scale) as f32;
@@ -2301,13 +2363,7 @@ fn draw_galactic_view(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         let r = ((6.0 - star.apparent_magnitude.min(6.0)) as f32 * 0.8 + 1.5).clamp(1.5, 6.0);
         paint.circle_filled(pos, r, spectral_color(&star.spectral));
         if zoom > 1.5 {
-            paint.text(
-                pos + Vec2::new(r + 2.0, 0.0),
-                Align2::LEFT_CENTER,
-                &star.name,
-                egui::FontId::proportional(9.0),
-                theme.text_secondary(),
-            );
+            named.push((star.name.as_str(), pos, r));
         }
         if let Some(hp) = hover_pos {
             if (hp - pos).length() < r + 4.0 {
@@ -2315,6 +2371,18 @@ fn draw_galactic_view(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             }
         }
     }
+    let footer = MapFooter::layout(
+        &paint,
+        theme,
+        rect,
+        format!("Top-down galactic plane · curated list, {} stars (stars-map.bin not found)", stars.len()),
+    );
+    labels.reserve(footer.backing);
+    // The curated list is nearest-first, not brightest-first: label the
+    // brightest first so they keep their names when two collide.
+    named.sort_by(|a, b| b.2.total_cmp(&a.2));
+    label_stars(&paint, theme, &mut labels, &named);
+    label_rings(&paint, &mut labels, center, &rings);
 
     if let Some(star) = hovered_star {
         response.on_hover_ui_at_pointer(|ui| {
@@ -2333,13 +2401,76 @@ fn draw_galactic_view(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         });
     }
 
-    paint.text(
-        Pos2::new(rect.left() + 8.0, rect.bottom() - 8.0),
-        Align2::LEFT_BOTTOM,
-        format!("Top-down galactic plane · curated list, {} stars (stars-map.bin not found)", stars.len()),
-        egui::FontId::proportional(10.0),
-        theme.text_muted(),
-    );
+    footer.paint(&paint, theme);
+}
+
+/// Name the stars in `named` (priority order: the first keeps its name when
+/// two collide), each in the first clear spot around its dot: right, left,
+/// above, below. The dots of every star in the list are reserved first, so a
+/// name never covers another labelled star.
+fn label_stars(paint: &egui::Painter, theme: &Theme, labels: &mut LabelPlacer, named: &[(&str, Pos2, f32)]) {
+    for &(_, pos, r) in named {
+        labels.reserve_exact(Rect::from_center_size(pos, Vec2::splat(2.0 * r)));
+    }
+    let font = egui::FontId::proportional(9.0);
+    for &(name, pos, r) in named {
+        let g = paint.layout_no_wrap(name.to_string(), font.clone(), theme.text_secondary());
+        if let Some(spot) = labels.place(label_placer::point_candidates(pos, r, g.size(), 2.0)) {
+            paint.galley(spot.min, g, theme.text_secondary());
+        }
+    }
+}
+
+/// Label the Galaxy view's distance rings (`(radius px, text)`), each at the
+/// first clear spot where the ring crosses a diagonal: upper right (where it
+/// always sat), then upper left, lower left, lower right. Placed after the
+/// stars so the scale gives way to a star's name rather than the other way
+/// round; a ring with no clear diagonal goes unlabelled, and the others still
+/// give the scale.
+fn label_rings(paint: &egui::Painter, labels: &mut LabelPlacer, center: Pos2, rings: &[(f32, String)]) {
+    let ink = Color32::from_rgb(80, 80, 110); // theme-exempt: distance-ring label, faint backdrop
+    for (r, text) in rings {
+        let g = paint.layout_no_wrap(text.clone(), egui::FontId::proportional(9.0), ink);
+        let d = r * 0.7;
+        let spots = [Vec2::new(d, -d), Vec2::new(-d, -d), Vec2::new(-d, d), Vec2::new(d, d)]
+            .map(|off| Align2::CENTER_CENTER.anchor_size(center + off, g.size()));
+        if let Some(spot) = labels.place(spots) {
+            paint.galley(spot.min, g, ink);
+        }
+    }
+}
+
+/// A map view's footer line (what the view is showing and, on the Planet
+/// view, the OpenStreetMap attribution the licence requires) on a themed
+/// backing, so it reads over whatever the map draws beneath it. Roads ran
+/// straight through the bare attribution (2026-09-27 snapshot review).
+/// `layout` first so the label pass can reserve `backing`; `paint` last so
+/// the footer sits over everything.
+struct MapFooter {
+    galley: std::sync::Arc<egui::Galley>,
+    text_rect: Rect,
+    backing: Rect,
+}
+
+impl MapFooter {
+    fn layout(paint: &egui::Painter, theme: &Theme, rect: Rect, text: String) -> Self {
+        let galley = paint.layout_no_wrap(text, egui::FontId::proportional(10.0), theme.text_muted());
+        let text_rect = Align2::LEFT_BOTTOM
+            .anchor_size(Pos2::new(rect.left() + 8.0, rect.bottom() - 8.0), galley.size());
+        let backing = text_rect.expand2(Vec2::new(theme.spacing_sm, theme.spacing_xs + 1.0));
+        Self { galley, text_rect, backing }
+    }
+
+    fn paint(self, paint: &egui::Painter, theme: &Theme) {
+        paint.rect(
+            self.backing,
+            theme.border_radius,
+            theme.bg_panel().gamma_multiply(0.85),
+            Stroke::new(theme.border_width, theme.border()),
+            egui::StrokeKind::Inside,
+        );
+        paint.galley(self.text_rect.min, self.galley, theme.text_muted());
+    }
 }
 
 // ─────────────────────── Night Sky view (RA/Dec, Earth-centered) ────────────

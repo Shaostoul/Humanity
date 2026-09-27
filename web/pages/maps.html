@@ -168,17 +168,23 @@ button { font-family: inherit; cursor: pointer; }
 }
 #map-controls button:hover { border-color: var(--accent); color: var(--accent); }
 
-/* Attribution */
+/* Attribution: on a themed backing so it reads over the map tiles under it,
+   the same chip the app's Maps footer sits on (cosmos.rs MapFooter). */
 #attribution {
   position: absolute;
   bottom: 4px;
   left: 8px;
   font-size: 10px;
-  color: #666;
+  color: var(--text-muted);
+  background: color-mix(in srgb, var(--bg-panel) 85%, transparent);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: var(--space-xs) var(--space-sm);
   z-index: 5;
   pointer-events: none;
 }
-#attribution a { color: #888; pointer-events: auto; }
+#attribution:empty { display: none; }
+#attribution a { color: var(--text-secondary); pointer-events: auto; }
 
 /* Tooltip */
 #hover-tooltip {
@@ -227,6 +233,7 @@ button { font-family: inherit; cursor: pointer; }
 <script src="/shared/defaults.js"></script>
 <script src="/shared/settings.js"></script>
 <script src="/shared/eli5.js"></script>
+<script src="/shared/label-placer.js"></script>
 <div class="eli5-block">
   <div class="eli5-simple">Zoom from your own street out to the whole galaxy. Scroll in past the Sun to land on the real Earth, or click any planet to visit it. This is the real cosmos for looking up. Your in-game ship and character live in the desktop app.</div>
   <div class="eli5-expert">Multi-scale seamless zoom from galaxy to street level on a single HTML5 Canvas. 3D perspective orbit with tilt/rotation, real orbital mechanics, planet globe rendering, and OpenStreetMap tile-based surface maps.</div>
@@ -854,23 +861,29 @@ function renderStellar(ctx, alpha) {
     if (gy > 0 && gy < H) { ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(W, gy); ctx.stroke(); }
   }
 
-  // Distance rings
+  // Every name on this map goes through one collision pass (shared/label-placer.js,
+  // the twin of the app's widgets/label_placer.rs): stars brightest-first,
+  // then the ring labels, so no two names print over each other (Alpha
+  // Centauri A, B and Proxima share one spot on this map).
+  const labels = new HosLabels.LabelPlacer({ x0: 2, y0: 2, x1: W - 2, y1: H - 2 }, HosLabels.LABEL_GAP);
+
+  // Distance rings. Their labels are placed after the stars, so a ring's
+  // "2 pc" never costs a star its name.
   ctx.strokeStyle = 'rgba(100,150,200,0.12)';
   ctx.lineWidth = 0.5;
+  const rings = [];
   for (const r of [1, 2, 5, 10, 20, 50]) {
     const pr = r * scale;
     if (pr > 5 && pr < W * 2) {
       ctx.beginPath();
       ctx.arc(cx, cy, pr, 0, TWO_PI);
       ctx.stroke();
-      ctx.fillStyle = 'rgba(100,150,200,0.3)';
-      ctx.font = '9px sans-serif';
-      ctx.textAlign = 'left';
-      ctx.fillText(`${r} pc`, cx + pr + 3, cy - 3);
+      rings.push({ pr, text: `${r} pc` });
     }
   }
 
-  // Draw stars with 3D projection
+  // Draw stars with 3D projection; names are placed after every dot is down.
+  const named = [];
   for (const star of STARS) {
     if (star.absMag > magCutoff && !star.name.startsWith('Sol')) continue;
 
@@ -896,16 +909,45 @@ function renderStellar(ctx, alpha) {
     ctx.fill();
 
     if (star.absMag < 6 || scale > 60) {
-      ctx.fillStyle = 'rgba(220,220,240,0.8)';
-      ctx.font = (star.name === 'Sol' ? 'bold ' : '') + '10px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText(star.name, p.sx, p.sy - r - 5);
+      named.push({ star, x: p.sx, y: p.sy, r });
     }
 
     // Store screen pos for hit testing
     star._sx = p.sx;
     star._sy = p.sy;
     star._sr = r;
+  }
+
+  // Brightest first (Sol, at magnitude -26.7, always keeps its name); every
+  // labelled dot is reserved so a name never covers another labelled star.
+  named.sort((a, b) => a.star.mag - b.star.mag);
+  for (const n of named) {
+    labels.reserveExact({ x0: n.x - n.r, y0: n.y - n.r, x1: n.x + n.r, y1: n.y + n.r });
+  }
+  ctx.fillStyle = 'rgba(220,220,240,0.8)';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  for (const n of named) {
+    ctx.font = (n.star.name === 'Sol' ? 'bold ' : '') + '10px sans-serif';
+    const w = ctx.measureText(n.star.name).width;
+    const spot = labels.place(HosLabels.pointCandidates(n.x, n.y, n.r, w, 12, 3));
+    if (spot) ctx.fillText(n.star.name, spot.x0, spot.y0);
+  }
+
+  // Ring labels: just outside the ring where it crosses the horizontal
+  // (right, where they always sat, then left), else just inside it at the
+  // top or bottom. A ring with no clear spot goes unlabelled.
+  ctx.fillStyle = 'rgba(100,150,200,0.3)';
+  ctx.font = '9px sans-serif';
+  for (const ring of rings) {
+    const w = ctx.measureText(ring.text).width, h = 11;
+    const spot = labels.place([
+      { x0: cx + ring.pr + 3, y0: cy - 3 - h, x1: cx + ring.pr + 3 + w, y1: cy - 3 },
+      { x0: cx - ring.pr - 3 - w, y0: cy - 3 - h, x1: cx - ring.pr - 3, y1: cy - 3 },
+      { x0: cx - w / 2, y0: cy - ring.pr + 3, x1: cx + w / 2, y1: cy - ring.pr + 3 + h },
+      { x0: cx - w / 2, y0: cy + ring.pr - 3 - h, x1: cx + w / 2, y1: cy + ring.pr - 3 },
+    ]);
+    if (spot) ctx.fillText(ring.text, spot.x0, spot.y0);
   }
 
   ctx.restore();

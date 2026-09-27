@@ -180,88 +180,9 @@ pub fn message_row(
     }
     // Append `content` with per-char styling merged from BOTH the mention
     // ranges and the msg_format spans (v0.702: bold/italic/code/strike +
-    // links). Build a per-char style mask, then append runs of identical
-    // style. Mentions and links win the color; the loaded font has no bold
-    // face, so Bold renders WHITE (the same convention as the header name).
-    {
-        use crate::gui::widgets::msg_format::SpanKind;
-        let chars: Vec<char> = content.chars().collect();
-        const M_MENTION: u8 = 1;
-        const M_BOLD: u8 = 2;
-        const M_ITALIC: u8 = 4;
-        const M_CODE: u8 = 8;
-        const M_STRIKE: u8 = 16;
-        const M_LINK: u8 = 32;
-        const M_QUOTE: u8 = 64;
-        let mut mask = vec![0u8; chars.len()];
-        for &(start, len) in mention_ranges {
-            for m in mask.iter_mut().skip(start).take(len) {
-                *m |= M_MENTION;
-            }
-        }
-        for sp in format_spans {
-            let bit = match sp.kind {
-                SpanKind::Bold => M_BOLD,
-                SpanKind::Italic => M_ITALIC,
-                SpanKind::Code => M_CODE,
-                SpanKind::Strike => M_STRIKE,
-                SpanKind::Link(_) => M_LINK,
-                SpanKind::Quote => M_QUOTE,
-            };
-            for m in mask.iter_mut().skip(sp.start).take(sp.len) {
-                *m |= bit;
-            }
-        }
-        let fmt_for = |m: u8| -> egui::TextFormat {
-            let family = if m & M_CODE != 0 {
-                egui::FontFamily::Monospace
-            } else {
-                egui::FontFamily::Proportional
-            };
-            let color = if m & M_MENTION != 0 || m & M_LINK != 0 {
-                theme.accent()
-            } else if m & M_BOLD != 0 {
-                Color32::WHITE
-            } else if m & M_QUOTE != 0 {
-                // Blockquote lines render muted, matching web's `.quote-block`.
-                theme.text_muted()
-            } else {
-                text_color
-            };
-            egui::TextFormat {
-                font_id: egui::FontId::new(body_font, family),
-                color,
-                italics: m & M_ITALIC != 0,
-                underline: if m & M_LINK != 0 {
-                    Stroke::new(1.0, theme.accent())
-                } else {
-                    Stroke::NONE
-                },
-                strikethrough: if m & M_STRIKE != 0 {
-                    Stroke::new(1.0, text_color)
-                } else {
-                    Stroke::NONE
-                },
-                background: if m & M_CODE != 0 {
-                    theme.bg_card()
-                } else {
-                    Color32::TRANSPARENT
-                },
-                ..Default::default()
-            }
-        };
-        let mut run_start = 0usize;
-        while run_start < chars.len() {
-            let m = mask[run_start];
-            let mut run_end = run_start + 1;
-            while run_end < chars.len() && mask[run_end] == m {
-                run_end += 1;
-            }
-            let text: String = chars[run_start..run_end].iter().collect();
-            job.append(&text, 0.0, fmt_for(m));
-            run_start = run_end;
-        }
-    }
+    // links). Shared with the in-world HUD chat feed (2026-09-27), so the
+    // two surfaces draw the same message the same way.
+    append_formatted(&mut job, theme, content, mention_ranges, format_spans, body_font, text_color);
 
     let galley = painter.layout_job(job);
     let text_h = galley.size().y;
@@ -425,6 +346,106 @@ pub fn message_row(
         deferred_avatar,
         clicked_mention,
         clicked_link,
+    }
+}
+
+/// Append a chat message's DISPLAY text to `job`, styled from its inline
+/// spans exactly as the Chat page draws it. The one place the dialect turns
+/// into ink: `message_row` calls it for every chat row and the in-world HUD
+/// feed (`pages::hud`) for its one-line preview, so a message cannot read one
+/// way on the Chat page and another over the world.
+///
+/// `content` is the text AFTER `msg_format::parse` stripped its markers;
+/// `mention_ranges` and `format_spans` are char ranges into it. A per-char
+/// style mask is built from both, then runs of identical style are appended.
+/// Mentions and links take the accent (links underlined); code is monospace
+/// on `bg_card`; quotes are muted; bold is `text_strong`, since the app's font
+/// has no bold face and brighter ink is the emphasis.
+pub fn append_formatted(
+    job: &mut egui::text::LayoutJob,
+    theme: &Theme,
+    content: &str,
+    mention_ranges: &[(usize, usize)],
+    format_spans: &[crate::gui::widgets::msg_format::FormatSpan],
+    font_size: f32,
+    text_color: Color32,
+) {
+    use crate::gui::widgets::msg_format::SpanKind;
+    let chars: Vec<char> = content.chars().collect();
+    const M_MENTION: u8 = 1;
+    const M_BOLD: u8 = 2;
+    const M_ITALIC: u8 = 4;
+    const M_CODE: u8 = 8;
+    const M_STRIKE: u8 = 16;
+    const M_LINK: u8 = 32;
+    const M_QUOTE: u8 = 64;
+    let mut mask = vec![0u8; chars.len()];
+    for &(start, len) in mention_ranges {
+        for m in mask.iter_mut().skip(start).take(len) {
+            *m |= M_MENTION;
+        }
+    }
+    for sp in format_spans {
+        let bit = match sp.kind {
+            SpanKind::Bold => M_BOLD,
+            SpanKind::Italic => M_ITALIC,
+            SpanKind::Code => M_CODE,
+            SpanKind::Strike => M_STRIKE,
+            SpanKind::Link(_) => M_LINK,
+            SpanKind::Quote => M_QUOTE,
+        };
+        for m in mask.iter_mut().skip(sp.start).take(sp.len) {
+            *m |= bit;
+        }
+    }
+    let fmt_for = |m: u8| -> egui::TextFormat {
+        let family = if m & M_CODE != 0 {
+            egui::FontFamily::Monospace
+        } else {
+            egui::FontFamily::Proportional
+        };
+        let color = if m & M_MENTION != 0 || m & M_LINK != 0 {
+            theme.accent()
+        } else if m & M_BOLD != 0 {
+            theme.text_strong()
+        } else if m & M_QUOTE != 0 {
+            // Blockquote lines render muted, matching web's `.quote-block`.
+            theme.text_muted()
+        } else {
+            text_color
+        };
+        egui::TextFormat {
+            font_id: egui::FontId::new(font_size, family),
+            color,
+            italics: m & M_ITALIC != 0,
+            underline: if m & M_LINK != 0 {
+                Stroke::new(1.0, theme.accent())
+            } else {
+                Stroke::NONE
+            },
+            strikethrough: if m & M_STRIKE != 0 {
+                Stroke::new(1.0, text_color)
+            } else {
+                Stroke::NONE
+            },
+            background: if m & M_CODE != 0 {
+                theme.bg_card()
+            } else {
+                Color32::TRANSPARENT
+            },
+            ..Default::default()
+        }
+    };
+    let mut run_start = 0usize;
+    while run_start < chars.len() {
+        let m = mask[run_start];
+        let mut run_end = run_start + 1;
+        while run_end < chars.len() && mask[run_end] == m {
+            run_end += 1;
+        }
+        let text: String = chars[run_start..run_end].iter().collect();
+        job.append(&text, 0.0, fmt_for(m));
+        run_start = run_end;
     }
 }
 

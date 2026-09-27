@@ -8,6 +8,31 @@ use crate::gui::{GuiPage, GuiState, VERSION};
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
 
+#[cfg(test)]
+thread_local! {
+    /// Test-only stand-in for the build version. The menu prints it, so its
+    /// snapshot changed on every release and could never be a baseline.
+    /// `set_version_for_snapshot` pins it for the calling thread, the way
+    /// `cosmos::set_clock_for_snapshot` pins that page's clock.
+    static TEST_VERSION: std::cell::Cell<Option<&'static str>> = const { std::cell::Cell::new(None) };
+}
+
+/// Test-only: pin (or with `None`, release) the version this menu shows, for
+/// the calling thread.
+#[cfg(test)]
+pub(crate) fn set_version_for_snapshot(version: Option<&'static str>) {
+    TEST_VERSION.with(|c| c.set(version));
+}
+
+/// The version the menu prints: the build's own, except under a snapshot pin.
+fn shown_version() -> &'static str {
+    #[cfg(test)]
+    if let Some(v) = TEST_VERSION.with(|c| c.get()) {
+        return v;
+    }
+    VERSION
+}
+
 pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     // Full-screen dark backdrop — derived from theme.bg_primary with 94% alpha
     // so the 3D world (if rendered behind) shows through faintly.
@@ -154,7 +179,7 @@ fn draw_step_welcome(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         }
 
         ui.add_space(16.0);
-        ui.label(RichText::new(format!("v{}", VERSION)).size(11.0).color(theme.text_muted()));
+        ui.label(RichText::new(format!("v{}", shown_version())).size(11.0).color(theme.text_muted()));
     });
 }
 
@@ -698,7 +723,7 @@ fn draw_hub(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 }
 
                 ui.add_space(20.0);
-                ui.label(RichText::new(format!("v{}", VERSION)).size(theme.font_size_small).color(theme.text_muted()));
+                ui.label(RichText::new(format!("v{}", shown_version())).size(theme.font_size_small).color(theme.text_muted()));
             });
         });
 }

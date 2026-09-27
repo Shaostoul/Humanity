@@ -1175,12 +1175,40 @@ maximum it no longer covers the value label (audio, graphics, controls,
 planet tuner); badges never wrap inside their pill; the Quests completed tick
 is painted (`icons::paint_check`) instead of the U+2713 glyph that sat high.
 
-Still open, all minor: star and street labels collide on the two Maps views
-and the OSM attribution has no backing over roads; `main_menu` carries the
-version string, so it changes every release; on Watch the "Live now" heading
-is larger than the page title; the Construction "Add room" picker shows empty
-because the snapshot does not seed room types; the in-world chat feed shows
-raw markdown (`__bold__`, a code fence).
+**The five minor leftovers, fixed 2026-09-27 (third pass), each page looked
+at before and after:**
+
+- `hud_vitals`: the in-world chat feed READS a message the way the Chat page
+  does instead of showing its raw text. Rendered, not stripped: a row holds
+  inline styling fine, so bold, italic, code, strike, links and quotes are
+  drawn by the Chat page's own span painter (`widgets::row::append_formatted`,
+  split out of `message_row`, so the chat pages are byte-identical) and their
+  markers never show. Only blocks change shape (`chat::one_line_formatted`): a
+  fenced block becomes inline code where it sat, bullets stay, line breaks
+  become spaces, and the line elides at the box edge with an ellipsis instead
+  of at 66 chars. `[text](url)` is not part of the chat dialect on either
+  client, so it shows as the Chat page shows it (the URL linked).
+- `watch`: the title was egui's built-in heading (18 px, not a token) under a
+  `font_size_heading` section; it is now `font_size_title`, and "Live now"
+  takes the section ink of `widgets::section_header`. The web page already
+  had the right order (2xl over lg).
+- `maps_galaxy`, `maps_planet`: one greedy label-collision pass per view
+  (`widgets/label_placer.rs`, web twin `web/shared/label-placer.js`): names
+  in priority order, candidate spots in preference order, a name with no
+  clear spot dropped, a 3 px gap so two names never read as one. Ring labels
+  go after the stars, so "5 ly" gives way rather than Fomalhaut; streets slide
+  along their length, do not repeat within 220 px and wear a ground halo. The
+  footer and the OSM attribution sit on a themed chip (`MapFooter`; the web
+  `#attribution` gets the same chip from theme variables).
+- `main_menu`: shows `v0.0.0-snapshot` under a test-only pin
+  (`main_menu::set_version_for_snapshot`, the way cosmos pins its clock).
+- `construction`: the snapshot seeds the room-type registry the way the app
+  does on entering the editor, so Add room shows its first type (airlock).
+
+Also refreshed, looked at and still right: `crafting`, `homes` and the rest of
+`construction` moved only because data committed after the baselines were
+rendered (the recipe byproducts of cc711305, the ship life support notes and
+loads). The other 55 pages are byte-identical.
 
 ---
 

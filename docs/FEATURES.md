@@ -918,6 +918,24 @@ Ladder: docs/design/maps-ladder.md rung 3 (next: 3D extrusion in-world).
 - Native: src/gui/pages/cosmos.rs (parse_region/map_regions/draw_planet_view)
 - Generator: scripts/fetch-osm-region.mjs
 
+### Map Label Placement (2026-09-27)
+Star and street names on the Maps views never print over each other: one greedy
+collision pass per view, the standard interactive-map technique. Names are offered
+in priority order (brightest star first; motorway before side street, then the
+longer road), each with candidate spots in preference order (a star's name right
+of its dot, then left, above, below; a street's name at five points along its
+length, middle first), and a name with no clear spot is dropped. Labelled dots,
+the footer and the scale bar are reserved; a street name is not repeated within
+220 px and wears a thin ground-coloured halo. The footer (and the OpenStreetMap
+attribution the licence requires) sits on a themed backing chip. The web Maps
+page runs the same placer for its star labels and puts its attribution on the
+same chip, from theme variables.
+- Native: `src/gui/widgets/label_placer.rs` (`LabelPlacer`, `point_candidates`,
+  `along_polyline`, `LABEL_GAP`, unit tests), `src/gui/pages/cosmos.rs`
+  (`label_stars`, `label_rings`, `MapFooter`)
+- Web: `web/shared/label-placer.js`, `web/pages/maps.html` (`renderStellar`,
+  `#attribution`)
+
 ### OSM Regions Extruded In-World (v0.1148)
 The same HOSMREG1 regions stand up in the 3D world: real roads draped on
 the terrain and real buildings extruded from their footprints, planet-
@@ -2686,9 +2704,14 @@ paints on the world overlay / a stream), and an interactive panel opened with En
 (frees the cursor, disables look/move, swallows gameplay hotkeys while typing; Esc or
 click-away closes, typed text survives a dismissed panel and an aborted send). Channel
 switcher mirrors the Chat page semantics (clear + refetch + unread clear).
+The feed shows each message as ONE styled line read the way the Chat page reads it
+(2026-09-27): bold, italic, code, strike, links and quotes are styled by the Chat
+page's own span painter (`widgets::row::append_formatted`) and their markers never
+show; a fenced code block becomes inline code where it sat, list items keep their
+bullet, and the line elides at the box edge with an ellipsis.
 - Native: `src/gui/pages/hud.rs` (feed), `src/gui/pages/chat.rs` (`draw_ingame_chat`,
-  `channel_display_label`), `src/lib.rs` (modal input guards keyed on
-  `GuiState::in_world_modal_open`, Enter handler)
+  `channel_display_label`, `one_line_formatted`), `src/lib.rs` (modal input guards
+  keyed on `GuiState::in_world_modal_open`, Enter handler)
 
 ### Shared-World Co-presence (visible)
 Auto-joins the relay's shared game world whenever in-world + connected (no launcher

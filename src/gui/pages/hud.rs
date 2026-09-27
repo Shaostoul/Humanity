@@ -844,14 +844,55 @@ pub fn draw(
                     // ONE line per message: the feed is a fixed 15 px grid, so
                     // a message with newlines (a list, a code block) painted
                     // its extra lines over the rows below and out past the
-                    // bottom of the box. Collapse every run of whitespace,
-                    // newlines included, to one space, then trim to fit.
-                    let flat = m.content.split_whitespace().collect::<Vec<_>>().join(" ");
-                    let mut line = format!("{name}: {flat}");
-                    if line.chars().count() > 66 {
-                        line = format!("{}...", line.chars().take(63).collect::<String>());
-                    }
-                    text_shadowed(painter, Pos2::new(x0, y), Align2::LEFT_TOP, &line, 11.0, theme.text_secondary());
+                    // bottom of the box. The line is the message READ the way
+                    // the Chat page reads it, not its raw text: markers are
+                    // styled and never shown (`__bold__`, a ```fence```), and
+                    // the Chat page's own span painter draws it, so the two
+                    // surfaces agree. Only blocks change shape (see
+                    // `chat::one_line_formatted`). The galley elides at the
+                    // box's edge with an ellipsis instead of a char count.
+                    let (text, spans) = crate::gui::pages::chat::one_line_formatted(&m.content);
+                    let line_job = |ink: Option<Color32>| {
+                        let mut job = egui::text::LayoutJob::default();
+                        job.wrap = egui::text::TextWrapping {
+                            max_width: width - 8.0,
+                            max_rows: 1,
+                            // egui's advice for a one-row elision: its
+                            // word-break path can still cut mid-word here.
+                            break_anywhere: true,
+                            overflow_character: Some('\u{2026}'),
+                        };
+                        job.append(
+                            &format!("{name}: "),
+                            0.0,
+                            egui::TextFormat {
+                                font_id: FontId::proportional(11.0),
+                                color: theme.text_secondary(),
+                                ..Default::default()
+                            },
+                        );
+                        crate::gui::widgets::row::append_formatted(
+                            &mut job,
+                            theme,
+                            &text,
+                            &[],
+                            &spans,
+                            11.0,
+                            theme.text_secondary(),
+                        );
+                        // The outline pass: every glyph, underline and strike
+                        // in the outline ink, no code backgrounds.
+                        if let Some(ink) = ink {
+                            for s in &mut job.sections {
+                                s.format.color = ink;
+                                s.format.background = Color32::TRANSPARENT;
+                                s.format.underline.color = ink;
+                                s.format.strikethrough.color = ink;
+                            }
+                        }
+                        job
+                    };
+                    job_shadowed(painter, Pos2::new(x0, y), line_job(None), line_job(Some(OUTLINE_INK)));
                 }
                 if recent.is_empty() {
                     let hint = if connected {
@@ -1037,16 +1078,39 @@ fn text_shadowed(
     color: Color32,
 ) {
     let font = FontId::proportional(size);
-    let outline = Color32::from_black_alpha(200);
-    const O: f32 = 1.2;
-    for (dx, dy) in [
-        (-O, -O), (0.0, -O), (O, -O),
-        (-O, 0.0), (O, 0.0),
-        (-O, O), (0.0, O), (O, O),
-    ] {
-        painter.text(pos + Vec2::new(dx, dy), anchor, text, font.clone(), outline);
+    for off in OUTLINE_OFFSETS {
+        painter.text(pos + off, anchor, text, font.clone(), OUTLINE_INK);
     }
     painter.text(pos, anchor, text, font, color);
+}
+
+/// The dark outline HUD text wears so it reads over any part of the world.
+const OUTLINE_INK: Color32 = Color32::from_black_alpha(200);
+/// Where the outline is stamped around each glyph, 1.2 px out in all eight
+/// directions.
+const OUTLINE_OFFSETS: [Vec2; 8] = {
+    const O: f32 = 1.2;
+    [
+        Vec2::new(-O, -O), Vec2::new(0.0, -O), Vec2::new(O, -O),
+        Vec2::new(-O, 0.0), Vec2::new(O, 0.0),
+        Vec2::new(-O, O), Vec2::new(0.0, O), Vec2::new(O, O),
+    ]
+};
+
+/// `text_shadowed` for a styled line: `outline` is the same job laid out in
+/// the outline ink (see the chat feed), stamped at each offset, then `job`
+/// on top, top-left at `pos`.
+fn job_shadowed(
+    painter: &egui::Painter,
+    pos: Pos2,
+    job: egui::text::LayoutJob,
+    outline: egui::text::LayoutJob,
+) {
+    let outline = painter.layout_job(outline);
+    for off in OUTLINE_OFFSETS {
+        painter.galley(pos + off, outline.clone(), OUTLINE_INK);
+    }
+    painter.galley(pos, painter.layout_job(job), OUTLINE_INK);
 }
 
 /// Build-mode CAD dimension overlay (v0.545): each interior wall's length at its midpoint, the angle

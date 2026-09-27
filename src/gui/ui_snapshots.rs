@@ -1263,7 +1263,17 @@ macro_rules! page_snapshot {
     };
 }
 
-page_snapshot!(snapshot_main_menu, "main_menu", main_menu, 1280, 900);
+/// The main menu prints the build version, so it is pinned to a fixed,
+/// plainly fake one; unpinned, this baseline changed on every release.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
+fn snapshot_main_menu() {
+    crate::gui::pages::main_menu::set_version_for_snapshot(Some("0.0.0-snapshot"));
+    render_page_png("main_menu", 1280, 900, |ctx, theme, state| {
+        crate::gui::pages::main_menu::draw(ctx, theme, state);
+    });
+    crate::gui::pages::main_menu::set_version_for_snapshot(None);
+}
 page_snapshot!(snapshot_humanity, "humanity", humanity, 1280, 900);
 page_snapshot!(snapshot_chat, "chat", chat, 1280, 900);
 
@@ -1655,6 +1665,17 @@ fn snapshot_construction() {
             );
         }
         state.construction_active = true;
+        // The room-type registry (data/rooms.ron) the app loads on entering
+        // the editor (lib.rs), and the Add-room picker's default, the first
+        // key. Unseeded, the picker drew as an empty box.
+        if state.construction_room_types.is_empty() {
+            let reg = crate::ship::room_types::RoomTypeRegistry::load(std::path::Path::new("data"));
+            let mut keys: Vec<String> = reg.types.keys().cloned().collect();
+            keys.sort();
+            state.construction_add_type = keys.first().cloned().unwrap_or_default();
+            state.construction_room_types = keys;
+            state.room_type_registry = reg;
+        }
         if state.construction_rooms.is_empty() {
             // Study holds a few machines in the seed (smelter/forge/fuel), so the panel stays
             // readable while still exercising Machines + the Connections add-row + the whole-home

@@ -27,6 +27,10 @@ pub mod web_view;
 /// Pie chart (resource budgets increment 1): the widget the Performance page
 /// draws its GPU / CPU / VRAM / RAM budgets with.
 pub mod pie;
+/// Map label placement (2026-09-27): the greedy collision pass the Maps views
+/// run so star and street names never print over each other. Web twin:
+/// `web/shared/label-placer.js`.
+pub mod label_placer;
 
 use egui::{Color32, Rect, RichText, Rounding, Sense, Stroke, Ui, Vec2};
 use super::theme::Theme;

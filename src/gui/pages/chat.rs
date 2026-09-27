@@ -2100,17 +2100,46 @@ struct CodeBlock {
 /// markup. An UNCLOSED opening fence is left verbatim (nothing is silently eaten),
 /// matching the "unclosed marker renders as text" rule in msg_format.
 fn extract_code_blocks(s: &str) -> (String, Vec<CodeBlock>) {
-    const FENCE: &str = "```";
-    if !s.contains(FENCE) {
+    if !s.contains("```") {
         return (s.to_string(), Vec::new());
     }
     let mut text = String::with_capacity(s.len());
     let mut blocks: Vec<CodeBlock> = Vec::new();
+    for seg in fence_segments(s) {
+        match seg {
+            FenceSeg::Text(t) => text.push_str(&t),
+            FenceSeg::Code(cb) => blocks.push(cb),
+        }
+    }
+    // Trim the blank lines the extraction can leave where a block used to be, so
+    // the surrounding prose doesn't render with stray empty rows.
+    let text = text.trim_matches('\n').to_string();
+    (text, blocks)
+}
+
+/// One piece of a message body split at its fenced code blocks.
+enum FenceSeg {
+    /// Prose between fences (or the whole body when there are none). An
+    /// UNCLOSED opening fence stays in here verbatim.
+    Text(String),
+    Code(CodeBlock),
+}
+
+/// Split a message body into prose and fenced ```code``` blocks, IN ORDER.
+/// The one fence scanner: the Chat page (`extract_code_blocks`, which draws
+/// the blocks as panels under the text) and the in-world feed
+/// (`one_line_formatted`, which keeps each block inline where it sat) both
+/// read the dialect through it, so they cannot disagree about what a fence is.
+fn fence_segments(s: &str) -> Vec<FenceSeg> {
+    const FENCE: &str = "```";
+    let mut segs: Vec<FenceSeg> = Vec::new();
     let mut rest = s;
     loop {
         match rest.find(FENCE) {
             None => {
-                text.push_str(rest);
+                if !rest.is_empty() {
+                    segs.push(FenceSeg::Text(rest.to_string()));
+                }
                 break;
             }
             Some(open) => {
@@ -2118,14 +2147,16 @@ fn extract_code_blocks(s: &str) -> (String, Vec<CodeBlock>) {
                 match after_open.find(FENCE) {
                     None => {
                         // No closing fence: leave the rest (incl. the ```) as text.
-                        text.push_str(rest);
+                        segs.push(FenceSeg::Text(rest.to_string()));
                         break;
                     }
                     Some(close_rel) => {
-                        text.push_str(&rest[..open]);
+                        if open > 0 {
+                            segs.push(FenceSeg::Text(rest[..open].to_string()));
+                        }
                         let inner = &after_open[..close_rel];
                         let (lang, code) = split_fence_lang(inner);
-                        blocks.push(CodeBlock { lang, code });
+                        segs.push(FenceSeg::Code(CodeBlock { lang, code }));
                         let tail = &after_open[close_rel + FENCE.len()..];
                         // Swallow one newline right after the closing fence so the
                         // following prose doesn't render with a leading blank line
@@ -2139,10 +2170,86 @@ fn extract_code_blocks(s: &str) -> (String, Vec<CodeBlock>) {
             }
         }
     }
-    // Trim the blank lines the extraction can leave where a block used to be, so
-    // the surrounding prose doesn't render with stray empty rows.
-    let text = text.trim_matches('\n').to_string();
-    (text, blocks)
+    segs
+}
+
+/// A chat message as ONE styled line, for a surface with room for nothing
+/// else: the in-world HUD feed, a fixed grid of one row per message.
+///
+/// It reads the same dialect through the same steps as the Chat page
+/// (fences, then `bulletize_list_lines`, then `msg_format::parse`), so bold,
+/// italic, code, strike, links and quotes keep their styling. Only the
+/// block-level pieces change shape, because a single row cannot hold a
+/// block: a fenced code block becomes an inline code span where it sat, with
+/// its whitespace collapsed; a list item keeps its bullet; and every line
+/// break becomes one space. Returns display text plus char-indexed spans,
+/// the same shape as `msg_format::parse`, so the caller styles it with
+/// `widgets::row::append_formatted`, the function the Chat page uses.
+pub(crate) fn one_line_formatted(
+    content: &str,
+) -> (String, Vec<crate::gui::widgets::msg_format::FormatSpan>) {
+    use crate::gui::widgets::msg_format::{parse, FormatSpan, SpanKind};
+    let mut text: Vec<char> = Vec::with_capacity(content.len());
+    let mut spans: Vec<FormatSpan> = Vec::new();
+    for seg in fence_segments(content) {
+        // A line break between pieces; the collapse below turns it into one
+        // space (or nothing, at the very start).
+        text.push('\n');
+        match seg {
+            FenceSeg::Text(t) => {
+                let (display, piece_spans) = parse(&bulletize_list_lines(&t));
+                let base = text.len();
+                text.extend(display.chars());
+                spans.extend(piece_spans.into_iter().map(|mut sp| {
+                    sp.start += base;
+                    sp
+                }));
+            }
+            FenceSeg::Code(cb) => {
+                let flat = cb.code.split_whitespace().collect::<Vec<_>>().join(" ");
+                let base = text.len();
+                let len = flat.chars().count();
+                if len > 0 {
+                    spans.push(FormatSpan { start: base, len, kind: SpanKind::Code });
+                }
+                text.extend(flat.chars());
+            }
+        }
+    }
+
+    // Collapse every run of whitespace (line breaks included) to one space,
+    // drop it at both ends, and carry each span across the removed chars.
+    // `new_at[i]` is where old char i lands (or would land) in the output.
+    let n = text.len();
+    let mut out: Vec<char> = Vec::with_capacity(n);
+    let mut new_at: Vec<usize> = vec![0; n + 1];
+    let mut after_space = true; // true at the start drops leading whitespace
+    for (i, &c) in text.iter().enumerate() {
+        new_at[i] = out.len();
+        if c.is_whitespace() {
+            if !after_space {
+                out.push(' ');
+                after_space = true;
+            }
+        } else {
+            out.push(c);
+            after_space = false;
+        }
+    }
+    new_at[n] = out.len();
+    if out.last() == Some(&' ') {
+        out.pop();
+    }
+    let out_len = out.len();
+    let spans = spans
+        .into_iter()
+        .filter_map(|sp| {
+            let start = new_at[sp.start.min(n)].min(out_len);
+            let end = new_at[(sp.start + sp.len).min(n)].min(out_len);
+            (end > start).then(|| FormatSpan { start, len: end - start, kind: sp.kind })
+        })
+        .collect();
+    (out.into_iter().collect(), spans)
 }
 
 /// Split the inside of a fence into an optional language token and the code,
@@ -4449,6 +4556,78 @@ mod code_block_tests {
         assert_eq!(b[0].code, "a");
         assert_eq!(b[1].lang, "js");
         assert_eq!(b[1].code, "b");
+    }
+}
+
+/// The in-world feed's one-line form of a message (2026-09-27): the markup is
+/// read, never shown, and every span still covers the text it styled.
+#[cfg(test)]
+mod one_line_tests {
+    use super::one_line_formatted;
+    use crate::gui::widgets::msg_format::SpanKind;
+
+    /// The text a span covers, for asserting against.
+    fn covered(text: &str, start: usize, len: usize) -> String {
+        text.chars().skip(start).take(len).collect()
+    }
+
+    #[test]
+    fn a_fenced_block_becomes_inline_code_where_it_sat() {
+        let (t, s) = one_line_formatted(
+            "Here's the tick loop:\n```rust\nfor sys in systems {\n    sys.tick(dt);\n}\n```\nLooks good to me.",
+        );
+        assert_eq!(t, "Here's the tick loop: for sys in systems { sys.tick(dt); } Looks good to me.");
+        assert!(!t.contains('`'), "no fence may be painted: {t}");
+        assert!(!t.contains("rust"), "the fence's language token is not prose: {t}");
+        let code: Vec<_> = s.iter().filter(|sp| sp.kind == SpanKind::Code).collect();
+        assert_eq!(code.len(), 1);
+        assert_eq!(covered(&t, code[0].start, code[0].len), "for sys in systems { sys.tick(dt); }");
+    }
+
+    #[test]
+    fn bold_quote_and_bullets_fold_onto_one_line_with_spans_aligned() {
+        let (t, s) = one_line_formatted(
+            "> from the design notes\nWe should try __two towers__ per plot:\n- more light\n- easier harvest",
+        );
+        assert_eq!(
+            t,
+            "| from the design notes We should try two towers per plot: \u{2022} more light \u{2022} easier harvest"
+        );
+        assert!(!t.contains('\n') && !t.contains("__"));
+        let bold: Vec<_> = s.iter().filter(|sp| sp.kind == SpanKind::Bold).collect();
+        assert_eq!(bold.len(), 1);
+        assert_eq!(covered(&t, bold[0].start, bold[0].len), "two towers");
+        let quote: Vec<_> = s.iter().filter(|sp| sp.kind == SpanKind::Quote).collect();
+        assert_eq!(quote.len(), 1);
+        assert_eq!(covered(&t, quote[0].start, quote[0].len), "| from the design notes");
+    }
+
+    #[test]
+    fn inline_markers_and_links_are_styled_not_shown() {
+        let (t, s) = one_line_formatted("see **this** and *that* `x` ~~old~~ at https://a.example/x");
+        assert_eq!(t, "see this and that x old at https://a.example/x");
+        let kinds: Vec<_> = s.iter().map(|sp| (covered(&t, sp.start, sp.len), sp.kind.clone())).collect();
+        assert!(kinds.contains(&("this".into(), SpanKind::Bold)));
+        assert!(kinds.contains(&("that".into(), SpanKind::Italic)));
+        assert!(kinds.contains(&("x".into(), SpanKind::Code)));
+        assert!(kinds.contains(&("old".into(), SpanKind::Strike)));
+        assert!(kinds.contains(&(
+            "https://a.example/x".into(),
+            SpanKind::Link("https://a.example/x".into())
+        )));
+    }
+
+    #[test]
+    fn plain_text_is_untouched_and_whitespace_runs_collapse() {
+        let (t, s) = one_line_formatted("  hello   there\n\n  friend  ");
+        assert_eq!(t, "hello there friend");
+        assert!(s.is_empty());
+    }
+
+    #[test]
+    fn an_unclosed_fence_stays_verbatim_like_the_chat_page() {
+        let (t, _) = one_line_formatted("look: ```rust\nlet x = 1;");
+        assert_eq!(t, "look: ```rust let x = 1;");
     }
 }
 

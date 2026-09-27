@@ -37,7 +37,11 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     egui::CentralPanel::default().show(ctx, |ui| {
         ScrollArea::vertical().id_salt("watch_scroll").show(ui, |ui| {
             ui.add_space(theme.panel_margin);
-            ui.heading("Watch");
+            // The page title at the title size, like every other page. It was
+            // egui's built-in heading (18 px, not a theme token), so the
+            // "Live now" section below, at `font_size_heading`, stood taller
+            // than the page it belongs to (2026-09-27 snapshot review).
+            ui.label(RichText::new("Watch").size(theme.font_size_title).color(theme.text_primary()));
             widgets::body_hint(
                 ui,
                 theme,
@@ -123,7 +127,9 @@ fn draw_player(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 
 /// The directory of live streams, plus a manual "watch by name" entry.
 fn draw_directory(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
-    ui.label(RichText::new("Live now").size(theme.font_size_heading).strong());
+    // A section heading: one step under the page title, in the same ink as
+    // `widgets::section_header`, so it never outranks the title above it.
+    ui.label(RichText::new("Live now").size(theme.font_size_heading).color(theme.text_primary()).strong());
     ui.add_space(theme.panel_margin);
 
     if state.watch_streams.is_empty() {
