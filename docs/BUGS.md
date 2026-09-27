@@ -1824,8 +1824,54 @@ single-threaded decode, hash `bc2eee527943655c` with the published crate and
 with the patched one. The two "run it in release" notes on the audio-device
 tests are gone.
 
-**Found alongside, not this bug (OPEN).** In the 150 screens runs, 4 failed
+**Found alongside, not this bug.** In the 150 screens runs, 4 failed
 normally (no abort), all in
 `engine::screens::video::tests::a_looked_at_or_paused_clip_draws_and_keeps_input_while_an_unwatched_one_drops_it`;
-the 150 runs on the published crate had 2 such failures. A timing-sensitive
-test under load, to be looked at next (docs/PRIORITIES.md).
+the 150 runs on the published crate had 2 such failures. A test that assumed a
+paused clip can deliver no new frame: BUG-094, fixed.
+
+## BUG-094: a video screen test assumed a paused clip delivers no new frame (FIXED v0.1374.1)
+
+**Symptom.** `engine::screens::video::tests::a_looked_at_or_paused_clip_draws_and_keeps_input_while_an_unwatched_one_drops_it`
+failed now and then under load, with no abort: 4 in 150 runs of the screens
+tests at 12 test threads (2026-09-27), then 1 in 150 on a rerun, and 2 in 60
+with six copies of the tests running at once. The rerun's message:
+`unwatched, nothing new: no draw`, left `Compose { px: (1280, 720), upload:
+true, strip: false }`, right `Keep`. `upload: true` means a newly decoded
+frame had arrived. With six copies the same test also failed one step earlier,
+on `the paused draw uploaded what there was to upload`.
+
+**What was wrong: the test, not the player.** The test pauses the clip and
+then expects a tick with nothing new to draw. Pausing stops the player's
+CLOCK, not its decode thread. On a loaded machine the decoder can still be
+behind the position where the clock stopped, so frames at or before that
+position keep arriving after the pause and are due. Handing them out is right
+(a paused film should show the picture at the paused position), and this is
+the draw the test saw. The earlier assertion was wrong as well:
+`frame_dirty` is cleared only by the GPU upload, and the test's draw helper
+has no GPU, so "false after the paused draw" held only while no frame had
+arrived at all.
+
+**Fix (test only, plus one test-only accessor).** After pausing, the test
+rewinds the paused clip to its first frame (`seek_to_start`), so where it
+stops no longer depends on how long the first half took. It then waits until
+the decoder has got past the paused clock: the new `VideoPlayer::decoder_past_clock`
+(`#[cfg(test)]`, `src/media/mod.rs`) is true once a queued frame is ahead of
+the clock or the decoder has finished. From then on no frame can fall due. The
+test now stands in for the upload its GPU-free draw cannot do
+(`frame_dirty = false`), and asserts that the paused clip has its first
+picture in hand instead.
+
+**Verified (2026-09-27).** Screens tests at 12 test threads: 0 in 150 runs failed.
+Six copies at once: the target test failed 0 in 60 (the old test: 2 in 60) runs. Still able to fail:
+with the drop removed from `plan_frame`'s Keep path, the backlog assertion
+reads 26 events, not 0.
+
+**Found, left alone.** With six copies at once (72 test threads on 12 logical
+processors), two real-time tests fail on their wall-clock floors:
+`frames_arrive_at_the_clip_size_in_pts_order_and_loop` (36 and then 51 of 60
+runs; its floor is 30 of the clip's 59 frames in 2.6 s, and at that
+oversubscription the player drops frames by design) and
+`notices_and_the_paused_picture_lay_out_at_the_display_size` (2 of 60; it
+gives the first frame 2 s to arrive). Neither failed at the normal test run's
+load: 0 in 450 screens runs and 5 whole-suite runs on 2026-09-27.

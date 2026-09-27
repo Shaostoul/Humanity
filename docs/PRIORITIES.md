@@ -1160,10 +1160,9 @@ fixed in vendor/rav1d). The operator chose the SPACESHIP FIRST (Blocked #2,
 2026-09-27), so next on the garden: the ship's closed loops (greenhouse
 moisture condensed back to the tanks, CO2 and O2 through the ship's air) and
 crop light from the ship's real sun direction (the BUG-090 fix); the clock
-question (Blocked #3) is still open. Next on tests: the flaky
-`engine::screens::video` test
-`a_looked_at_or_paused_clip_draws_and_keeps_input_while_an_unwatched_one_drops_it`
-(4 failures in 150 runs under load). Containers as items (3c) waits on the
+question (Blocked #3) is still open. The flaky screens test is fixed too
+(BUG-094, v0.1374.1: it assumed a paused clip delivers no new frame).
+Containers as items (3c) waits on the
 unified placement schema. Progress and open items live at the top of the gap
 doc.
 

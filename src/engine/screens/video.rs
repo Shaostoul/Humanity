@@ -1951,11 +1951,17 @@ mod tests {
     /// with no new frame, draws nothing and drops the backlog (the look ray
     /// reports every frame, and only a run drains the queue); a paused clip
     /// always draws and keeps its events for the run. The unwatched case is
-    /// forced deterministically: the clip is PAUSED so no frame can become
-    /// due, then `want_playing` is set without touching the clock, which is
-    /// exactly "playing, nothing new this tick". Proven able to fail: with
-    /// the drop removed from `plan_frame`'s Keep path the middle count
-    /// stays at 25.
+    /// forced deterministically: the clip is PAUSED at its first frame, the
+    /// test waits until the decoder has got past the paused clock (so no
+    /// frame can become due any more), then `want_playing` is set without
+    /// touching the clock, which is exactly "playing, nothing new this
+    /// tick". The wait matters: pausing stops the clock, not the decode
+    /// thread, and a decoder still behind the paused position keeps
+    /// delivering frames at or before it, which turned the "nothing new"
+    /// tick into a draw (BUG-094: 1 to 4 failures in 150 runs of the screens
+    /// tests at 12 test threads, 2026-09-27). Proven able to fail: with the
+    /// drop removed from `plan_frame`'s Keep path the backlog assertion reads
+    /// 26 events, not 0 (checked 2026-09-27).
     #[test]
     fn a_looked_at_or_paused_clip_draws_and_keeps_input_while_an_unwatched_one_drops_it() {
         let theme = load_theme();
@@ -1993,11 +1999,29 @@ mod tests {
         // next tick) with the pointer gone and the hold long expired.
         p.on_button((0.5, 0.5), true);
         assert!(p.is_paused());
+        // Pin the paused clip to a known place, its first frame, so the rest
+        // does not depend on how long the half above took (paused past the
+        // clip's end, the next playing tick would wrap and roll again).
+        p.player.as_mut().expect("the demo is open").seek_to_start();
+        // Let the decoder catch up with the paused clock, taking what falls
+        // due meanwhile (a full queue of due frames would otherwise stall
+        // it). After this, every frame still to come is ahead of the clock.
+        let deadline = Instant::now() + Duration::from_secs(30);
+        while !p.player.as_ref().expect("the demo is open").decoder_past_clock() {
+            assert!(Instant::now() < deadline, "the decoder never got past the paused clock");
+            p.advance();
+            std::thread::sleep(Duration::from_millis(2));
+        }
         let later = t0 + STRIP_HOLD + Duration::from_secs(1);
         core.pointer_gone();
         let _ = p.plan_frame(&mut core, later);
         let _ = run_draw(&mut core, &mut state, &mut p);
-        assert!(!p.frame_dirty, "the paused draw uploaded what there was to upload");
+        assert!(p.last.is_some(), "paused at the start, the first picture is in hand");
+        // `run_draw` has no GPU, so it cannot upload the picture the way the
+        // real draw does (`upload_frame` is what clears `frame_dirty`).
+        // Stand in for that upload. (The test used to ASSERT `frame_dirty`
+        // was false here, which held only while no frame had arrived yet.)
+        p.frame_dirty = false;
         // Stand in a decoded frame, so the film has a PICTURE. This half of
         // the test is about a playing film NOBODY IS LOOKING AT, and that
         // state only exists once there is something on screen: with nothing

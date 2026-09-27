@@ -980,6 +980,21 @@ impl VideoPlayer {
         self.shared.alive.clone()
     }
 
+    /// Whether the decoder has got past the clock: it has queued a frame
+    /// ahead of the clock's position, or it has delivered the clip's last
+    /// frame. Frames already due and still queued do not count against it,
+    /// because the next `poll` takes them. On a PAUSED clock this means no
+    /// new frame can become due any more, which a test needs to know: the
+    /// decode thread runs on its own and, on a loaded machine, can still be
+    /// behind a clock that was paused a moment ago, so frames at or before
+    /// the paused position keep arriving after the pause.
+    #[cfg(test)]
+    pub(crate) fn decoder_past_clock(&self) -> bool {
+        let clock = self.clock.position();
+        let q = self.shared.queue.lock().unwrap_or_else(|e| e.into_inner());
+        q.eof || q.frames.back().map_or(false, |f| f.pts_s > clock)
+    }
+
     /// Audio-led clock: while the kira sound is playing, adopt its reported
     /// position, provided it is within the trust window of the wall estimate
     /// (a reading far off is a stale pre-seek value or a stalled device; the
