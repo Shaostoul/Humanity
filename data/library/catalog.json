@@ -221,6 +221,15 @@
           ]
         },
         {
+          "title": "Perennials, Fruit and Nuts",
+          "src": "docs/user/skills/perennials_fruit_and_nuts.md",
+          "tags": [
+            "guide",
+            "real",
+            "food"
+          ]
+        },
+        {
           "title": "Pests and Disease",
           "src": "docs/user/skills/pests_and_disease.md",
           "tags": [
@@ -335,6 +344,16 @@
         {
           "title": "Making Water Safe to Drink",
           "src": "docs/user/skills/making_water_safe_to_drink.md",
+          "tags": [
+            "guide",
+            "real",
+            "water",
+            "safety"
+          ]
+        },
+        {
+          "title": "Heating Water",
+          "src": "docs/user/skills/heating_water.md",
           "tags": [
             "guide",
             "real",

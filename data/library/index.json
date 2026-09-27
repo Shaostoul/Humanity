@@ -336,6 +336,15 @@
           ]
         },
         {
+          "title": "Perennials, Fruit and Nuts",
+          "file": "perennials_fruit_and_nuts.md",
+          "tags": [
+            "guide",
+            "real",
+            "food"
+          ]
+        },
+        {
           "title": "Pests and Disease",
           "file": "pests_and_disease.md",
           "tags": [
@@ -450,6 +459,16 @@
         {
           "title": "Making Water Safe to Drink",
           "file": "making_water_safe_to_drink.md",
+          "tags": [
+            "guide",
+            "real",
+            "water",
+            "safety"
+          ]
+        },
+        {
+          "title": "Heating Water",
+          "file": "heating_water.md",
           "tags": [
             "guide",
             "real",

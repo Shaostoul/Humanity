@@ -260,14 +260,38 @@
       "id": "water_hot",
       "subject": "water",
       "title": "Heating water",
-      "summary": "Heat water for washing and cooking with the least fuel.",
-      "status": "absent",
+      "summary": "Choose a water heater and run it safely, or heat water without power, with the least energy.",
+      "status": "sourced",
+      "reading": [
+        "heating-water"
+      ],
       "skills": [
         "fire_making",
         "engineering"
       ],
+      "data": [
+        "data/machines/home_solo.ron",
+        "data/machines/home.ron"
+      ],
+      "sources": [
+        "eia",
+        "usgs",
+        "ecfr",
+        "energy-star",
+        "doe-building-science-education",
+        "epa",
+        "cpsc",
+        "cdc",
+        "osha",
+        "hud",
+        "fema",
+        "lbnl",
+        "nj-doh",
+        "portland-water-bureau",
+        "icc-building-safety-journal"
+      ],
       "locale_dependent": false,
-      "hazard": "caution"
+      "hazard": "lethal"
     },
     {
       "id": "soil_basics",
@@ -560,12 +584,36 @@
       "subject": "food_growing",
       "title": "Perennials, fruit and nuts",
       "summary": "Plant the things that feed you for decades instead of one season.",
-      "status": "absent",
+      "status": "sourced",
+      "reading": [
+        "perennials-fruit-and-nuts"
+      ],
       "skills": [
         "farming"
       ],
+      "data": [
+        "data/plants.csv",
+        "data/garden/soil_ph.ron",
+        "data/garden/yields.ron",
+        "data/garden/harvest_windows.ron",
+        "data/garden/pollination.ron"
+      ],
+      "sources": [
+        "usda-hardiness",
+        "epa",
+        "state-extension",
+        "oregon-state-extension",
+        "wsu-extension",
+        "umn-extension",
+        "iowa-state-extension",
+        "utah-state-extension",
+        "missouri-extension",
+        "uc-anr",
+        "msstate-extension",
+        "vt-extension"
+      ],
       "locale_dependent": true,
-      "hazard": "none"
+      "hazard": "caution"
     },
     {
       "id": "grow_mushrooms",

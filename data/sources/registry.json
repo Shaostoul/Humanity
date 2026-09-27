@@ -2737,6 +2737,105 @@
       "use": "facts",
       "bundle": false,
       "note": "Runkle, E., Lighting Greenhouse Vegetables, Greenhouse Product News, December 2011, hosted by MSU: some crops, tomato especially, are stressed under continuous light, so four to six hours of darkness a night is suggested. A trade-magazine column by a university specialist, not a peer-reviewed paper. Already cited by data/garden/lighting.ron."
+    },
+    {
+      "id": "lbnl",
+      "name": "Lawrence Berkeley National Laboratory technical reports (via DOE OSTI)",
+      "publisher": "Lawrence Berkeley National Laboratory, through the DOE Office of Scientific and Technical Information",
+      "url": "https://www.osti.gov/",
+      "kind": "authority",
+      "licence": "unknown",
+      "use": "facts",
+      "bundle": false,
+      "note": "Chen, Fuchs, Schein, Franco, Stratton and Dunham, Calculating Average Hot Water Mixes of Residential Plumbing Fittings, June 2020, written for the EPA WaterSense programme (https://www.osti.gov/servlets/purl/1619186): the North American studies of household hot water use, and the Residential End Uses of Water shares the homes in data/machines are built on. Like ornl-osti, a contractor-operated laboratory report is not automatically a 17 USC 105 federal work, so licence stays unknown and use facts until the report's status is checked."
+    },
+    {
+      "id": "ecfr",
+      "name": "Electronic Code of Federal Regulations",
+      "publisher": "Office of the Federal Register and the US Government Publishing Office",
+      "url": "https://www.ecfr.gov/",
+      "kind": "authority",
+      "licence": "public-domain-us-gov",
+      "use": "verbatim",
+      "bundle": true,
+      "note": "Federal regulation text, quotable. 10 CFR 430.32(d) sets the minimum uniform energy factor for residential water heaters, with a stricter table for heaters made on or after 6 May 2029. Cite the section and the date it was read, because the eCFR is updated in place."
+    },
+    {
+      "id": "doe-building-science-education",
+      "name": "Building Science Education, Energy Basics",
+      "publisher": "US Department of Energy",
+      "url": "https://bsesc.energy.gov/energy-basics",
+      "kind": "authority",
+      "licence": "public-domain-us-gov",
+      "use": "verbatim",
+      "bundle": true,
+      "note": "Short, undated pages on building equipment written for trainers and homeowners, including water heaters (gas tankless, heat pump, solar). One of the live replacements for the retired Energy Saver pages (see doe-energy-saver); prefer ENERGY STAR where it states the same thing with a number."
+    },
+    {
+      "id": "nj-doh",
+      "name": "New Jersey Department of Health",
+      "publisher": "State of New Jersey",
+      "url": "https://www.nj.gov/health/",
+      "kind": "authority",
+      "licence": "copyright-state",
+      "use": "facts",
+      "bundle": false,
+      "note": "A state agency, so restate, never quote into the bundle. Its Legionella programme publishes Guidance for Draining and Flushing Your Water Heater (September 2025): a setting of at least 120 F, mixing valves, and who should stay clear of the job."
+    },
+    {
+      "id": "portland-water-bureau",
+      "name": "Portland Water Bureau",
+      "publisher": "City of Portland, Oregon",
+      "url": "https://www.portland.gov/water",
+      "kind": "authority",
+      "licence": "copyright-all-rights-reserved",
+      "use": "facts",
+      "bundle": false,
+      "note": "A city utility. Its water heater maintenance page covers a leaking relief valve (a new valve or an expansion tank) and anti-scald devices at high settings. It also gives a 115 to 140 F setting range, lower at the bottom than CDC's 120 F floor for Legionella; cite CDC for the floor."
+    },
+    {
+      "id": "icc-building-safety-journal",
+      "name": "Building Safety Journal",
+      "publisher": "International Code Council",
+      "url": "https://www.iccsafe.org/building-safety-journal/",
+      "kind": "authority",
+      "licence": "copyright-all-rights-reserved",
+      "use": "facts",
+      "bundle": false,
+      "note": "Explanatory articles on the model codes. Clifton, C.L., Water heater safety in the International Codes, 13 May 2019: what each relief valve discharge requirement of IRC P2804.6.1 and IPC 504.6 is for. The code text itself is icc-irc and is sold, so cite the requirement, not its wording."
+    },
+    {
+      "id": "wsu-extension",
+      "name": "Washington State University Extension",
+      "publisher": "Washington State University",
+      "url": "https://extension.wsu.edu/",
+      "kind": "authority",
+      "licence": "copyright-university",
+      "use": "facts",
+      "bundle": false,
+      "note": "The land-grant extension service for the Silverdale locale. The Pacific Northwest Gardener's Handbook (chapter 8, home orchards; chapter 9, berries and small fruits), the Fruit Handbook for Western Washington (EB0937, 2008) and county Master Gardener sheets such as Black Walnut Toxicity (C032). A state university, so restate the fact, never the wording."
+    },
+    {
+      "id": "msstate-extension",
+      "name": "Mississippi State University Extension",
+      "publisher": "Mississippi State University",
+      "url": "https://extension.msstate.edu/",
+      "kind": "authority",
+      "licence": "copyright-university",
+      "use": "facts",
+      "bundle": false,
+      "note": "Stafne, Chilling Hour Requirements of Fruit Crops, Publication 3067: which winter temperatures count as chill and typical needs by crop. Its table is for crops grown in Mississippi, so scope-check it for other places. Not to be confused with msu-extension, which is Michigan State."
+    },
+    {
+      "id": "vt-extension",
+      "name": "Virginia Cooperative Extension",
+      "publisher": "Virginia Tech and Virginia State University",
+      "url": "https://www.pubs.ext.vt.edu/",
+      "kind": "authority",
+      "licence": "copyright-university",
+      "use": "facts",
+      "bundle": false,
+      "note": "Tree Fruit in the Home Garden, 426-841 (first published February 2015, last reviewed November 2025), Table 1: spacing, yield, bearing age and life expectancy of tree fruits. Written for Virginia, so scope-check it. A state university, so restate the fact, never the wording."
     }
   ]
 }
