@@ -304,13 +304,26 @@ v0.1337.0**, calibrated to physical reflectance against the Sahara in the same
 frame (thick cloud p50 199 -> 223 against sand 181). The earlier unit gain was
 matched to the Low tier, which is not a physical reference.
 
-**Found in passing, not yet worked:** the ocean sun glint seen from 55 km is
-crossed by parallel diagonal stripes about 2 km apart, a straight repeating
-pattern in the WATER that may be part of what the operator reported. Cause
-NOT yet checked; one candidate is that the ocean chop trains are axis-aligned
-by design (CLAUDE.md, the water arc), another is sub-pixel wave detail
-aliasing into a moire in the glint. Also rectangular blocks in the
-open-ocean colour at the same range. Fixture `deck-55-nadir` shows both.
+**Ocean stripes: FIXED 2026-09-27 (BUG-101, v0.1389.0).** The glint grating was the 850 m wave
+train drawn with straight crests: the crest warp's perf gate shut below ~24 px
+per wavelength while the train stays visible to 9 px. The coarse warp now runs
+wherever a train is drawn. Glint energy in one spectral bin 0.59 -> 0.05
+(`deck-55-nadir`), 0.21 -> 0.03 (new `ocean-glint-150km`, the 2 km train);
+700 m sea within the same-boot floor; no measurable cost.
+
+**Ocean blocks: diagnosed and proven, NOT fixed (next increment).** The
+rectangles are hard seams in `sea_var`, the regional hue noise in
+`ocean_shell`, along the value-noise LATTICE lines. At lattice coordinates in
+the thousands a one-ulp difference in `hash21`'s input changes its output
+completely (checked in emulated f32), so two neighbouring cells, whose corner
+arithmetic the shader compiler may round differently, disagree on their shared
+corner. Same-boot arms ruled out weather map, baked depth, radius, backstop,
+clouds and the per-object transform; hashing the corners from the INTEGER lattice point
+(`bitcast<u32>` mix) in `value_noise` removed every seam at 150 km. Not
+shipped because `value_noise` is shared (surface_detail_noise: land detail,
+sea, shore, wave warp; plus cloud and temporal call sites) and has a Rust twin
+(`clouds::value_noise`): every pattern re-rolls, so it needs its own increment
+with a look check (land detail at close range likely has the same seams).
 
 **Grey: what was measured.** Thick sunlit decks are NOT dark: forced overcast
 from orbit reads 199 to 234, in range of the review's own 215 to 225 target.
@@ -330,8 +343,13 @@ DONE 2026-09-27 as item 2's in-step light (`CLOUD_STEP_LIGHT`, branch
 rather than lit at one point, see item 2. The "1.10x at 2,000 km" row above
 was measured with multiple scattering at gain 1.8, which hid it; with
 multiple scattering off the economy costs 1.24x (cloud 114.3 against 142.2
-economy-off). Still queued: gate `reg.tint` off when multiple
-scattering is on, mirroring the existing v0.909 switch. Measure the powder term
+economy-off). **`reg.tint` gate under multiple scattering: measured
+2026-09-27, NOT shipped.** Same boot, High, gain 1.8: Cb/Cu top 0.982 (400 km)
+and 0.985 (2,000 km), 1.009 and 1.008 with the gate, but the gate also lifts a
+Cb base seen from 0.5 km by 29% (48.0 to 61.9; Cu 66.0 to 69.2), undoing the
+v0.909 storm darkness. From below the tint still carries contrast the
+multiple-scattering source does not; a tops-only gate is the option if the 2%
+top inversion ever matters (numbers in the `decklum-*-cb` descs). Measure the powder term
 before raising it with the operator: the review's replica overstated the other
 two by 3x or more.
 

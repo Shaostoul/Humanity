@@ -97,6 +97,18 @@ pub const WAVE_WARP_MULT: f32 = 3.5;
 pub const WAVE_WARP_AMP2: f32 = 0.32;
 pub const WAVE_WARP_MULT2: f32 = 1.4;
 pub const WAVE_WARP_SEED: f32 = 4.7;
+/// Mirrors `WAVE_AA_FADE_LO` / `WAVE_AA_FADE_HI` (`detail_octave_fade_aa`,
+/// v0.912): the ANIMATED wave trains' own visibility band, in projected
+/// pixels per wavelength. Later and wider than `DETAIL_FADE_*` because a
+/// moving wave at 4-12 px beats against the pixel grid as a dot grating.
+pub const WAVE_AA_FADE_LO: f32 = 9.0;
+pub const WAVE_AA_FADE_HI: f32 = 24.0;
+/// Mirrors `WAVE_WARP_FINE_GATE_LO` / `_HI`: the FINE crest warp's perf gate,
+/// as the fraction of a wavelength one pixel's ACROSS footprint may reach
+/// (full at 0.028, off at 0.042, i.e. off below ~24 px per wavelength).
+/// Only the fine warp is gated since 2026-09-27; see [`wave_warp`].
+pub const WAVE_WARP_FINE_GATE_LO: f32 = 0.028;
+pub const WAVE_WARP_FINE_GATE_HI: f32 = 0.042;
 
 /// One directional wave train (mirrors the WAVE{N}_* constants in WGSL).
 #[derive(Debug, Clone, Copy)]
@@ -189,6 +201,44 @@ pub fn wave_presence(footprint_m: f32) -> f32 {
     detail_octave_fade(WAVE_OCTAVES[0].lambda_m, footprint_m)
 }
 
+/// Mirrors `detail_octave_fade_aa`: the anti-alias fade the WGSL applies to
+/// every wave train (`wave_octave`) and to `wave_presence`. Zero at or below
+/// `WAVE_AA_FADE_LO` pixels per wavelength, one at or above `_HI`.
+pub fn detail_octave_fade_aa(lambda_m: f32, footprint_m: f32) -> f32 {
+    smoothstep(WAVE_AA_FADE_LO, WAVE_AA_FADE_HI, lambda_m / footprint_m)
+}
+
+/// Mirrors the crest domain warp inside WGSL `wave_octave`: the phase offset,
+/// in wavelengths, that bends one train's crests at sphere normal `n`
+/// (`r_m` = distance from the planet centre, `across_fp` = the pixel
+/// footprint ACROSS the sightline).
+///
+/// The COARSE warp (`WAVE_WARP_AMP` over `WAVE_WARP_MULT` wavelengths) runs
+/// wherever the train is drawn at all. Until 2026-09-27 it shared the fine
+/// warp's perf gate, which switches off below ~24 px per wavelength while the
+/// train itself stays visible down to 9 px, so every train in that window was
+/// drawn as a dead-straight grating: the parallel stripes across the sun
+/// glint from 55 km (the 850 m train) and from ~105 to 280 km (the 2 km
+/// train). Only the FINE warp keeps the gate; its local wiggle is what really
+/// does vanish below 24 px.
+pub fn wave_warp(n: [f32; 3], r_m: f32, lambda_m: f32, across_fp: f32) -> f32 {
+    let seed = WAVE_WARP_SEED + lambda_m * 0.01;
+    let mut warp = (surface_detail_noise(n, r_m / (lambda_m * WAVE_WARP_MULT), seed) - 0.5)
+        * WAVE_WARP_AMP;
+    let fine_gate = 1.0
+        - smoothstep(
+            lambda_m * WAVE_WARP_FINE_GATE_LO,
+            lambda_m * WAVE_WARP_FINE_GATE_HI,
+            across_fp,
+        );
+    if fine_gate > 0.001 {
+        warp += (surface_detail_noise(n, r_m / (lambda_m * WAVE_WARP_MULT2), seed + 19.7) - 0.5)
+            * WAVE_WARP_AMP2
+            * fine_gate;
+    }
+    warp
+}
+
 /// Mirrors `wave_octave`: one train's contribution to the tangent-plane
 /// slope gradient at planet-local point `p_m` (metres) with sphere normal
 /// `n`. The fixed 3D direction projects onto the local tangent plane; the
@@ -226,15 +276,11 @@ pub fn wave_octave(
     // (WAVE_WARP_MULT * lambda) shifts whole crests, fine (WAVE_WARP_MULT2 *
     // lambda) adds local wiggle -- each centred to +-0.5 then scaled to its
     // amplitude in wavelengths, so crests wander irregularly instead of running
-    // dead straight. Mirrors the WGSL wave_octave.
+    // dead straight. Mirrors the WGSL wave_octave; the terrain call passes no
+    // separate across footprint, so `footprint_m` gates the fine warp here.
     let r_m = len3(p_m);
-    let warp_seed = WAVE_WARP_SEED + oct.lambda_m * 0.01;
-    let warp_c = (surface_detail_noise(n, r_m / (oct.lambda_m * WAVE_WARP_MULT), warp_seed) - 0.5)
-        * WAVE_WARP_AMP;
-    let warp_f = (surface_detail_noise(n, r_m / (oct.lambda_m * WAVE_WARP_MULT2), warp_seed + 19.7)
-        - 0.5)
-        * WAVE_WARP_AMP2;
-    let cycles = dot3(p_m, oct.dir) / oct.lambda_m + warp_c + warp_f + t * oct.cps;
+    let warp = wave_warp(n, r_m, oct.lambda_m, footprint_m);
+    let cycles = dot3(p_m, oct.dir) / oct.lambda_m + warp + t * oct.cps;
     let ph = fract(cycles) * TAU;
     let s = oct.slope * fade * ph.cos();
     [tp[0] * s, tp[1] * s, tp[2] * s]
@@ -812,6 +858,82 @@ mod tests {
         assert_eq!(submerged_path_m(20.0, 4.0, 500.0, false), 0.0);
     }
 
+    /// How far one train's crests wander off a straight line: the spread
+    /// (max - min, in wavelengths) of the warp phase along a great-circle
+    /// run of 24 wavelengths (about 7 coarse-warp cells) through `base`.
+    /// Zero means dead-straight parallel crests.
+    fn crest_wander(base: [f32; 3], lambda_m: f32, warp: &dyn Fn([f32; 3]) -> f32) -> f32 {
+        // A tangent direction at `base` (any one will do: the warp is isotropic).
+        let up = if base[1].abs() > 0.9 { [1.0, 0.0, 0.0] } else { [0.0, 1.0, 0.0] };
+        let d = dot3(up, base);
+        let mut tg = [up[0] - base[0] * d, up[1] - base[1] * d, up[2] - base[2] * d];
+        let l = len3(tg);
+        tg = [tg[0] / l, tg[1] / l, tg[2] / l];
+        let (mut lo, mut hi) = (f32::INFINITY, f32::NEG_INFINITY);
+        for i in 0..=96 {
+            let a = (i as f32 / 96.0) * 24.0 * lambda_m / EARTH_R;
+            let (s, c) = a.sin_cos();
+            let n = [base[0] * c + tg[0] * s, base[1] * c + tg[1] * s, base[2] * c + tg[2] * s];
+            let w = warp(n);
+            lo = lo.min(w);
+            hi = hi.max(w);
+        }
+        hi - lo
+    }
+
+    /// THE STRAIGHT-STRIPE GATE (2026-09-27, fixture deck-55-nadir): no wave
+    /// train may be drawn with straight crests. From 55 km the 850 m train sat
+    /// at 19 px per wavelength, visible (the AA fade starts at 9 px) but past
+    /// the old warp gate (off below ~24 px), and the sun glint showed it as a
+    /// grating of parallel diagonal stripes. Checked at every footprint where
+    /// a train is drawn, from where it fades in to where the old gate let the
+    /// warp back in; the OLD law is evaluated too and must fail, so this test
+    /// is known to catch the defect it exists for.
+    #[test]
+    fn a_visible_wave_train_never_draws_straight_crests() {
+        let old_warp = |n: [f32; 3], lambda: f32, fp: f32| -> f32 {
+            let gate = 1.0 - smoothstep(lambda * 0.028, lambda * 0.042, fp);
+            if gate <= 0.001 {
+                return 0.0;
+            }
+            let seed = WAVE_WARP_SEED + lambda * 0.01;
+            let c = (surface_detail_noise(n, EARTH_R / (lambda * WAVE_WARP_MULT), seed) - 0.5)
+                * WAVE_WARP_AMP;
+            let f = (surface_detail_noise(n, EARTH_R / (lambda * WAVE_WARP_MULT2), seed + 19.7)
+                - 0.5)
+                * WAVE_WARP_AMP2;
+            (c + f) * gate
+        };
+        let bases = sample_dirs(16);
+        for oct in &WAVE_OCTAVES {
+            let lambda = oct.lambda_m;
+            for px in [9.5f32, 12.0, 16.0, 19.0, 23.0, 30.0] {
+                let fp = lambda / px;
+                assert!(
+                    detail_octave_fade_aa(lambda, fp) > 0.0,
+                    "{lambda} m at {px} px per wavelength should be drawn"
+                );
+                let mut wander: Vec<f32> = bases
+                    .iter()
+                    .map(|b| crest_wander(*b, lambda, &|n| wave_warp(n, EARTH_R, lambda, fp)))
+                    .collect();
+                wander.sort_by(|a, b| a.partial_cmp(b).unwrap());
+                let median = wander[wander.len() / 2];
+                assert!(
+                    median > 0.5 && wander[0] > 0.2,
+                    "{lambda} m train at {px} px/wavelength: crests nearly straight \
+                     (median wander {median:.3}, least {:.3} wavelengths over 24)",
+                    wander[0]
+                );
+                // The old law, where it drew the defect: exactly straight.
+                if px < 23.5 {
+                    let old = crest_wander(bases[0], lambda, &|n| old_warp(n, lambda, fp));
+                    assert_eq!(old, 0.0, "old law should have been straight at {px} px");
+                }
+            }
+        }
+    }
+
     #[test]
     fn wgsl_water_constants_stay_in_sync() {
         // Parse every constant straight out of the shipped shader source so
@@ -862,6 +984,10 @@ mod tests {
             ("WAVE_WARP_AMP2", WAVE_WARP_AMP2),
             ("WAVE_WARP_MULT2", WAVE_WARP_MULT2),
             ("WAVE_WARP_SEED", WAVE_WARP_SEED),
+            ("WAVE_AA_FADE_LO", WAVE_AA_FADE_LO),
+            ("WAVE_AA_FADE_HI", WAVE_AA_FADE_HI),
+            ("WAVE_WARP_FINE_GATE_LO", WAVE_WARP_FINE_GATE_LO),
+            ("WAVE_WARP_FINE_GATE_HI", WAVE_WARP_FINE_GATE_HI),
             ("WATER_REFRACTED_PATH_MAX", WATER_REFRACTED_PATH_MAX),
         ];
         for (name, rust_val) in scalars {

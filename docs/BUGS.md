@@ -2045,3 +2045,26 @@ shipped:
 4. Two tests were weaker than their comments: the toggle-off test promised the
    drone stays where it was with no drone in the save, and the save round trip
    never went through JSON or carried the standing order. Both now do.
+
+## BUG-101: parallel straight stripes across the ocean sun glint from 55 km (FIXED v0.1389.0)
+
+Seen at fixture `deck-55-nadir`: the glint was crossed by a grating of
+parallel diagonal stripes 18 px apart, one wavelength of the 850 m train (the
+first report guessed 2 km). Cause: every analytic wave train
+bends its crests with a domain warp, and a v0.1020 perf gate switched the
+whole warp off below about 24 px per wavelength, on the assumption that the
+anti-alias fade had already blurred the train away by then. It had not: the
+fade (`detail_octave_fade_aa`) keeps a train visible down to 9 px, so between
+9 and 36 px each train was drawn with dead-straight crests. From 55 km that is
+the 850 m train (proven by a same-boot arm with that train removed: the
+grating vanished); from about 105 to 280 km the 2 km train does the same.
+
+Fix (`20-surface-detail.wgsl` `wave_octave`): the COARSE warp now runs
+wherever a train is drawn; only the fine warp keeps the perf gate. Measured in
+one boot with `scripts/ocean-stripe-metric.mjs` (share of the glint's detail
+energy in its strongest spectral bin): 0.59 to 0.05 at 55 km, 0.21 to 0.03 at
+150 km; the 700 m sea view differs from the old shader no more than the old
+shader differs from itself a few minutes later; no measurable cost (under
+0.1 ms of `gpu.celestial_t`). Rust mirror `renderer::water::wave_warp`, test
+`a_visible_wave_train_never_draws_straight_crests`, which also evaluates the
+old law and asserts it was straight.

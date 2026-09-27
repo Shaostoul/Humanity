@@ -214,6 +214,14 @@ const WAVE_WARP_MULT: f32 = 3.5;
 const WAVE_WARP_AMP2: f32 = 0.32;
 const WAVE_WARP_MULT2: f32 = 1.4;
 const WAVE_WARP_SEED: f32 = 4.7;
+// The band the ANIMATED wave trains are drawn in (detail_octave_fade_aa, in
+// projected pixels per wavelength) and the FINE crest warp's perf gate (the
+// fraction of a wavelength one pixel's across footprint may reach). Named so
+// renderer::water can pin both; see the straight-stripe note in wave_octave.
+const WAVE_AA_FADE_LO: f32 = 9.0;
+const WAVE_AA_FADE_HI: f32 = 24.0;
+const WAVE_WARP_FINE_GATE_LO: f32 = 0.028;
+const WAVE_WARP_FINE_GATE_HI: f32 = 0.042;
 
 // Land detail octaves: multiplicative luminance variation synthesized UNDER
 // the photo albedo (no biome recoloring), +-amp per octave.
@@ -999,11 +1007,23 @@ fn wave_octave(
     // adds local wiggle. Each noise is centred to +-0.5, then scaled to its
     // amplitude in wavelengths and summed before the cos.
     let r_m = length(p_m);
-    // Warp gate (v0.1020 perf): the crest-snaking domain warp costs two
-    // value-noise evaluations PER OCTAVE per pixel, but the wiggle it adds
-    // is invisible once a wavelength spans under ~24 px on screen. Skip
-    // both noises there - the far field keeps its straight-crest look
-    // (which the AA fade is already blurring out anyway).
+    // STRAIGHT-STRIPE FIX (2026-09-27, fixture deck-55-nadir). The COARSE
+    // warp runs wherever the train is drawn at all (the fade above returned
+    // early otherwise). It used to share the v0.1020 perf gate below, whose
+    // comment assumed the AA fade had already blurred the train out by the
+    // time the gate closed. It had not: the gate closes below ~24 px per
+    // wavelength and the train stays visible down to WAVE_AA_FADE_LO (9 px),
+    // so in between every train was drawn as a dead-straight grating. From
+    // 55 km that was the 850 m train as parallel diagonal stripes across the
+    // sun glint (59% of the glint's detail energy in one spectral bin, 5%
+    // with this fix); from ~105 to 280 km the 2 km train did the same. The
+    // coarse warp's own scale is 3.5 wavelengths, so it stays far above the
+    // pixel wherever the train is visible; it costs one noise tap in that
+    // window (not measurable in the rig, under 0.1 ms of gpu.celestial_t).
+    //
+    // FINE warp gate (v0.1020 perf): the local wiggle really is invisible
+    // once a wavelength spans under ~24 px, so only the fine noise is skipped
+    // there.
     //
     // The warp gate takes the ACROSS-sightline footprint, NOT the
     // grazing-stretched one `footprint_m` now carries on water. The two
@@ -1011,7 +1031,7 @@ fn wave_octave(
     // file where they must diverge: the AA fades ask "can the sampling rate
     // carry this wavelength" (the long axis, where aliasing happens), while
     // this gate asks "is the crest wiggle big enough on screen to be worth
-    // two noise taps" - a question about apparent size, which the angular
+    // a noise tap" - a question about apparent size, which the angular
     // footprint answers. Feeding it the long axis would switch the warp off
     // across the whole grazing mid-field and hand back DEAD-STRAIGHT PARALLEL
     // CRESTS there, which is the very look the warp exists to break up (and
@@ -1021,17 +1041,17 @@ fn wave_octave(
     if (g_water_fp_across > 0.0) {
         warp_fp = g_water_fp_across;
     }
-    var warp = 0.0;
-    let warp_gate = 1.0 - smoothstep(lambda_m * 0.028, lambda_m * 0.042, warp_fp);
-    if (warp_gate > 0.001) {
-        let warp_seed = WAVE_WARP_SEED + lambda_m * 0.01;
-        let warp_c = (surface_detail_noise(n, r_m / (lambda_m * WAVE_WARP_MULT), warp_seed) - 0.5)
-            * WAVE_WARP_AMP;
-        let warp_f = (surface_detail_noise(n, r_m / (lambda_m * WAVE_WARP_MULT2), warp_seed + 19.7) - 0.5)
-            * WAVE_WARP_AMP2;
-        // Faded, not cut: a hard boundary would draw a ring where crests
-        // suddenly straighten; the phase eases to unwarped instead.
-        warp = (warp_c + warp_f) * warp_gate;
+    let warp_seed = WAVE_WARP_SEED + lambda_m * 0.01;
+    var warp = (surface_detail_noise(n, r_m / (lambda_m * WAVE_WARP_MULT), warp_seed) - 0.5)
+        * WAVE_WARP_AMP;
+    let fine_gate = 1.0
+        - smoothstep(lambda_m * WAVE_WARP_FINE_GATE_LO, lambda_m * WAVE_WARP_FINE_GATE_HI, warp_fp);
+    if (fine_gate > 0.001) {
+        // Faded, not cut: a hard boundary would draw a ring where the local
+        // wiggle suddenly stops; it eases out instead.
+        warp = warp
+            + (surface_detail_noise(n, r_m / (lambda_m * WAVE_WARP_MULT2), warp_seed + 19.7) - 0.5)
+            * WAVE_WARP_AMP2 * fine_gate;
     }
     let cycles = dot(p_m, d) / lambda_m + warp + t * cps;
     let ph = fract(cycles) * TAU;
@@ -1141,7 +1161,7 @@ fn detail_octave_fade_aa(lambda_m: f32, footprint_m: f32) -> f32 {
     // their few FIXED directions beat against the pixel grid as dot
     // gratings. Water octaves now need 9 px to start fading in and 24 px
     // to reach full strength - the shimmer band simply never renders.
-    return smoothstep(9.0, 24.0, lambda_m / footprint_m);
+    return smoothstep(WAVE_AA_FADE_LO, WAVE_AA_FADE_HI, lambda_m / footprint_m);
 }
 
 // Master water-shading blend: the fade of the LONGEST wave octave. 0 from

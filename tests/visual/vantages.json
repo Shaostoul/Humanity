@@ -12445,7 +12445,7 @@
     },
     {
       "id": "decklum-400-cb",
-      "desc": "CLOUD TYPE vs deck-top brightness. The fidelity review found radiance = radiance * reg.tint (40-clouds.wgsl) applies the from-below darkness of rain clouds (cumulonimbus 0.55, nimbostratus 0.42) to their SUNLIT TOPS, and that cumulonimbus is the commonest type on the planet (about 38 percent by area, from the type-coordinate distribution). From above, the thickest clouds are the brightest. Pair with decklum-400-eco1 / decklum-2000-eco1 (cloud_type 0.34, cumulus); this arm pins 0.5, the cumulonimbus centre. Altitude 400 km. MEASURED 2026-09-24: cumulonimbus top / cumulus top 0.97 at 400 km, 0.95 at 2000 km, against the review's predicted 0.56. The tint on sunlit tops is real but small.",
+      "desc": "CLOUD TYPE vs deck-top brightness. The fidelity review found radiance = radiance * reg.tint (40-clouds.wgsl) applies the from-below darkness of rain clouds (cumulonimbus 0.55, nimbostratus 0.42) to their SUNLIT TOPS, and that cumulonimbus is the commonest type on the planet (about 38 percent by area, from the type-coordinate distribution). From above, the thickest clouds are the brightest. Pair with decklum-400-eco1 / decklum-2000-eco1 (cloud_type 0.34, cumulus); this arm pins 0.5, the cumulonimbus centre. Altitude 400 km. MEASURED 2026-09-24: cumulonimbus top / cumulus top 0.97 at 400 km, 0.95 at 2000 km, against the review's predicted 0.56. The tint on sunlit tops is real but small. MEASURED AGAIN 2026-09-27 (one boot, High, multiple scattering on at gain 1.8, cloud_clock pinned 120, deck-top mean of low-saturation pixels): Cb/Cu 0.982 at 400 km, 0.985 at 2000 km. Gating reg.tint off under multiple scattering (the queued mirror of the v0.909 switch) lifts them to 1.009 and 1.008, but the same gate brightens a cumulonimbus BASE seen from 0.5 km looking up by 29 percent (mean 48.0 to 61.9) against 5 percent for cumulus (66.0 to 69.2), taking back most of the storm darkness the operator asked for in v0.909. Not shipped: from below the tint still carries the Cb/Cu contrast the multiple-scattering source does not produce.",
       "expect": "A cumulonimbus top from above is at least as bright as a cumulus top.",
       "regressions": [
         "panics=0"
@@ -12457,7 +12457,7 @@
     },
     {
       "id": "decklum-2000-cb",
-      "desc": "CLOUD TYPE vs deck-top brightness. The fidelity review found radiance = radiance * reg.tint (40-clouds.wgsl) applies the from-below darkness of rain clouds (cumulonimbus 0.55, nimbostratus 0.42) to their SUNLIT TOPS, and that cumulonimbus is the commonest type on the planet (about 38 percent by area, from the type-coordinate distribution). From above, the thickest clouds are the brightest. Pair with decklum-400-eco1 / decklum-2000-eco1 (cloud_type 0.34, cumulus); this arm pins 0.5, the cumulonimbus centre. Altitude 2000 km. MEASURED 2026-09-24: cumulonimbus top / cumulus top 0.97 at 400 km, 0.95 at 2000 km, against the review's predicted 0.56. The tint on sunlit tops is real but small.",
+      "desc": "CLOUD TYPE vs deck-top brightness. The fidelity review found radiance = radiance * reg.tint (40-clouds.wgsl) applies the from-below darkness of rain clouds (cumulonimbus 0.55, nimbostratus 0.42) to their SUNLIT TOPS, and that cumulonimbus is the commonest type on the planet (about 38 percent by area, from the type-coordinate distribution). From above, the thickest clouds are the brightest. Pair with decklum-400-eco1 / decklum-2000-eco1 (cloud_type 0.34, cumulus); this arm pins 0.5, the cumulonimbus centre. Altitude 2000 km. MEASURED 2026-09-24: cumulonimbus top / cumulus top 0.97 at 400 km, 0.95 at 2000 km, against the review's predicted 0.56. The tint on sunlit tops is real but small. MEASURED AGAIN 2026-09-27 (one boot, High, multiple scattering on at gain 1.8, cloud_clock pinned 120, deck-top mean of low-saturation pixels): Cb/Cu 0.982 at 400 km, 0.985 at 2000 km. Gating reg.tint off under multiple scattering (the queued mirror of the v0.909 switch) lifts them to 1.009 and 1.008, but the same gate brightens a cumulonimbus BASE seen from 0.5 km looking up by 29 percent (mean 48.0 to 61.9) against 5 percent for cumulus (66.0 to 69.2), taking back most of the storm darkness the operator asked for in v0.909. Not shipped: from below the tint still carries the Cb/Cu contrast the multiple-scattering source does not produce.",
       "expect": "A cumulonimbus top from above is at least as bright as a cumulus top.",
       "regressions": [
         "panics=0"
@@ -12481,7 +12481,7 @@
     },
     {
       "id": "deck-55-nadir",
-      "desc": "BALL PIT bisect (operator, 2026-09-25): a sunlit cumulus deck from 55 km at local noon on the HIGH tier, which he described as a ball pit with dark gaps and straight repeating shapes. The coverage and family are PINNED (cloud_cover 0.6, cloud_type 0.34 cumulus) because the unpinned field left this spot cloudless, which the first version of this fixture measured by mistake. Every arm sets every bisect switch explicitly: they are sticky across rig cells. Arms differ ONLY in the switch named. This arm: default, looking straight down.",
+      "desc": "BALL PIT bisect (operator, 2026-09-25): a sunlit cumulus deck from 55 km at local noon on the HIGH tier, which he described as a ball pit with dark gaps and straight repeating shapes. The coverage and family are PINNED (cloud_cover 0.6, cloud_type 0.34 cumulus) because the unpinned field left this spot cloudless, which the first version of this fixture measured by mistake. Every arm sets every bisect switch explicitly: they are sticky across rig cells. Arms differ ONLY in the switch named. This arm: default, looking straight down. ALSO the ocean stripe gate (BUG-101, 2026-09-27): scripts/ocean-stripe-metric.mjs --crop 1000,650 read share3 0.59 (an 18 px grating, the 850 m wave train with straight crests) before the fix and 0.05 to 0.07 after; the rectangular blocks in the open-sea colour here are value-noise lattice seams in sea_var (PRIORITIES item 2-0).",
       "expect": "A merged deck with bright crevices, no dominant puff size, and no shape recurring at a fixed spacing.",
       "regressions": [
         "panics=0"
@@ -12489,6 +12489,18 @@
       "camera": {"body":"earth","lat":20,"lon":150,"time":12.0,"altitude_km":55,"look_offset_deg":0},
       "showcase": {"clouds":"1","weather":"clear","cloud_cover":"0.6","cloud_type":"0.34","cloud_clock":"120","cloud_no_cell":"0","cloud_no_puff":"0"},
       "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "ocean-glint-150km",
+      "desc": "STRAIGHT-STRIPE GATE for the sun glint (BUG-101, 2026-09-27): the open Pacific straight down from 150 km at noon, clouds off. Here the 2 km wave train sits at about 17 px per wavelength, inside the window (9 to 36 px) where the old warp gate drew it with dead-straight crests. Score with scripts/ocean-stripe-metric.mjs on a 512 px crop inside the glint (crop 1024,600 at 2560 wide): MEASURED share3 0.21 at a 22.5 px period with the defect, 0.028 with the coarse warp ungated. deck-55-nadir is the same check for the 850 m train (crop 1000,650: 0.59 before, 0.05 after). Rectangular blocks in the open-sea colour are also visible here: see PRIORITIES item 2-0 for what is known.",
+      "expect": "A glint with no straight parallel grating: share3 well under 0.1.",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {"body":"earth","lat":20,"lon":150,"time":12.0,"altitude_km":150,"look_offset_deg":0},
+      "showcase": {"clouds":"0","weather":"clear"},
+      "settle_s": 10,
       "hold_altitude": true
     },
     {
