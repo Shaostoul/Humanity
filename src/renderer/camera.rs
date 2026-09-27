@@ -481,10 +481,20 @@ impl Camera {
     /// (AU scale), out to the outer system (tens of AU) -- is not clipped by the gameplay far
     /// (~500 m). Reverse-Z (near/far swapped) keeps far-field depth precision.
     pub fn celestial_uniforms(&self) -> CameraUniforms {
-        let proj = Mat4::perspective_rh(self.fov_degrees.to_radians(), self.aspect, 1.0e13, 1.0);
+        let proj = self.celestial_projection();
         let mut u = self.uniforms();
         u.view_proj = (proj * self.view_matrix()).to_cols_array_2d();
         u
+    }
+
+    /// The celestial pass's projection, reverse-Z with near 1 m and far 1e13 m
+    /// swapped (see `celestial_uniforms`). One definition because the fullscreen
+    /// passes that READ the celestial depth buffer (the cloud composite, the
+    /// emission pass) linearise it with this matrix's m22/m32, and a copy that
+    /// drifted from what wrote the depth would clip every ray at the wrong
+    /// distance with no error anywhere.
+    pub fn celestial_projection(&self) -> Mat4 {
+        Mat4::perspective_rh(self.fov_degrees.to_radians(), self.aspect, 1.0e13, 1.0)
     }
 
     /// Build GPU uniform data with room lights (v0.639: point OR spot, see `RoomLight`).

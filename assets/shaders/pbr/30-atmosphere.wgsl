@@ -434,13 +434,72 @@ fn aurora_emission(ro: vec3<f32>, rd: vec3<f32>, t0: f32, t1: f32, rp: f32, pix_
         var a_t = tca_a - th_hi;
         var b_t = tca_a + th_hi;
         if (d2_a < r_lo * r_lo) {
-            // The ray dips inside the layer's floor, so take the NEAR crossing
-            // only; the far one is behind the planet and occluded anyway.
-            b_t = tca_a - sqrt(r_lo * r_lo - d2_a);
+            // The ray dips inside the layer's floor, so it crosses the layer
+            // twice: INBOUND (a_t .. tca - s) and OUTBOUND (tca + s .. b_t).
+            // A camera above the floor sees the inbound crossing, and that is
+            // the one taken whenever any of it lies in front of the camera:
+            // the outbound one is behind the planet for every ray that hits
+            // it, and dropping it for the few that graze between the surface
+            // and the floor is the long-standing limb approximation, kept.
+            //
+            // A camera BELOW the floor (the ground, an aircraft) or inside the
+            // layer looking up has the inbound crossing entirely BEHIND it,
+            // and used to get nothing at all: until 2026-09-27 the aurora was
+            // invisible from anywhere under 99 km, because this branch always
+            // took the crossing behind the eye. For those rays the outbound
+            // crossing is the one in front, so take it. Rays that drew before
+            // draw exactly as before.
+            let s_lo = sqrt(r_lo * r_lo - d2_a);
+            if (tca_a - s_lo > t0) {
+                b_t = tca_a - s_lo;
+            } else {
+                a_t = tca_a + s_lo;
+            }
         }
         a_t = max(a_t, t0);
         b_t = min(b_t, t1);
         if (b_t <= a_t) {
+            continue;
+        }
+        // ── WHOLE-SEGMENT REJECTION (2026-09-27) ──
+        //
+        // Since the aurora became a fullscreen pass (95-emission-pass.wgsl),
+        // every pixel whose ray reaches the layer runs this march, for BOTH
+        // ovals, because each oval's layer is a whole spherical shell: a view
+        // of the northern oval marched the southern one sample by sample and
+        // threw every sample away, and a daylit planet did the same for both.
+        //
+        // So test the segment once, EXACTLY, before marching it. Every point of
+        // a chord lies (as seen from the planet centre) on the great-circle arc
+        // between its end points, whose length is gamma. The triangle
+        // inequality then bounds any point's angle from a fixed direction to
+        // [(a + b - gamma) / 2, (a + b + gamma) / 2], where a and b are the end
+        // points' angles. If that whole range misses the ring band, or lies in
+        // full daylight, no sample below can survive its own per-sample test,
+        // so skipping the march changes nothing but the cost. The margin covers
+        // acos near 1 in f32, and is conservative: it can only keep a segment.
+        // Measured in one boot through the shader hot reload: pixel-identical
+        // inside the frame-to-frame noise, gpu.aurora about 23 percent lower
+        // over a daylit planet, unchanged with the oval in view (there the
+        // per-sample test was already leaving early and the cost is the
+        // curtain itself).
+        let dir_a = normalize(ro + rd * a_t);
+        let dir_b = normalize(ro + rd * b_t);
+        let gamma = atan2(length(cross(dir_a, dir_b)), dot(dir_a, dir_b));
+        let seg_margin = 2.0e-3;
+        let band_mid = (inner + outer) * 0.5;
+        let band_half = max((outer - inner) * 0.5, 1.0e-5) * AURORA_DIFFUSE_SPREAD;
+        let pole_a = acos(clamp(dot(dir_a, pole), -1.0, 1.0));
+        let pole_b = acos(clamp(dot(dir_b, pole), -1.0, 1.0));
+        if ((pole_a + pole_b - gamma) * 0.5 - seg_margin >= band_mid + band_half
+            || (pole_a + pole_b + gamma) * 0.5 + seg_margin <= band_mid - band_half) {
+            continue;
+        }
+        // `night` below is zero once dot(up, sun) >= 0.12, i.e. within
+        // acos(0.12) = 1.4505 rad of the sun direction.
+        let sun_a = acos(clamp(dot(dir_a, sun), -1.0, 1.0));
+        let sun_b = acos(clamp(dot(dir_b, sun), -1.0, 1.0));
+        if ((sun_a + sun_b + gamma) * 0.5 + seg_margin <= 1.4505) {
             continue;
         }
         let dt_a = (b_t - a_t) / f32(AURORA_STEPS);
@@ -724,39 +783,19 @@ fn atmosphere_scattering(world_position: vec3<f32>, front_facing: bool, pix: vec
     // extra to plumb through the material uniforms.
     let center = obj_model()[3].xyz;
     let shell_r = length(obj_model()[0].xyz);
-    // ── THE SHELL IS DRAWN TWICE (operator, 2026-09-23) ──
-    //
-    // "The aurora is still darker over land masses." Measured: it is not the
-    // land, it is the CLOUD DECK. The deck sits at 12 km and the aurora emits
-    // between 99 and 190 km, so from above the clouds are BEHIND it, but the
-    // fullscreen cloud composite runs after this pass and paints over the
-    // emission. Cloud cover is regional, so the dimming wears a coastline.
-    // With the deck off, land and water measured 14.811 and 14.826, identical;
-    // with it on, 4.288 and 2.198.
-    //
-    // The composite cannot simply move: it must run after the dome, because the
-    // cloud march already applies aerial perspective at the cloud first-hit
-    // distance and letting the dome blend over the deck applied that same air
-    // twice and opaquely (the erased-clouds regression, 1.2 percent of the disc
-    // written with the old order against 99.9 with this one).
-    //
-    // So the shell splits. The AIR draws before the composite exactly as it
-    // always did, and a second draw of the same shell carries the EMISSION
-    // afterwards. params.w is the material emissive lane, unused here, and the
-    // CPU can read it off Material::emissive to route the two draws.
-    let aurora_only = material.params.w > 0.5;
+    // The AURORA is not drawn here. It lived in this function until 2026-09-23,
+    // then in a second draw of this shell after the cloud composite (v0.1331.18),
+    // and since 2026-09-27 in the fullscreen ADDITIVE emission pass
+    // (95-emission-pass.wgsl, renderer::emission_pass), which is the only caller
+    // of aurora_emission. This function is the air and nothing else. `pix` stays
+    // in the signature for the class entry that calls it; the air path does not
+    // dither.
     let rp = clamp(material.params.x, 0.01, 0.9999); // planet radius (shell units)
     let h = max(material.params.y, 1.0e-6);          // scale height (shell units)
 
     // Camera + ray in shell units, planet center at the origin.
     let ro = (camera.view_pos.xyz - center) / shell_r;
     let rd = normalize(world_position - camera.view_pos.xyz);
-    // Angular size of one screen pixel, in radians, taken here and ONLY here.
-    // dpdx/dpdy are defined only under uniform control flow and this function
-    // discards and returns early a few lines below, so the derivative has to be
-    // read before any of that. rd is a unit vector, so the length of its screen
-    // derivative IS the per-pixel angle.
-    let pix_ang = max(max(length(dpdx(rd)), length(dpdy(rd))), 1.0e-9);
     let cam_inside = dot(ro, ro) < 1.0;
 
     // The transparent pipeline draws BOTH faces of the shell (cull_mode:
@@ -801,39 +840,6 @@ fn atmosphere_scattering(world_position: vec3<f32>, front_facing: bool, pix: vec
     }
     if (t1 <= t0) {
         return vec4<f32>(0.0);
-    }
-
-    // ── THE EMISSION DRAW RETURNS HERE, BEFORE ANY AIR WORK (2026-09-24) ──
-    //
-    // It needs only the ray and its clipped segment, which exist from this
-    // line. It used to sit after the whole scattering integral, the sky-view
-    // LUT, the tonemap and the haze, and throw all of that away.
-    //
-    // Measured when it moved, and worth recording because the obvious guess was
-    // wrong: it saved NOTHING measurable (celestial_t 25.64 to 25.63 ms looking
-    // straight down, where the shell fills the screen; the image unchanged to
-    // 0.025 percent of pixels). The discarded scattering was never the cost of
-    // that pass, so do not look here for it. It stays here because computing
-    // work only to discard it is wrong in principle, not because it was slow.
-    if (aurora_only) {
-        let au_raw = aurora_emission(ro, rd, t0, t1, rp, pix_ang);
-        // A SHOULDER, NOT A CLIP (operator, 2026-09-24: "the harsh edges
-        // for the different shades of green/orange look weird"). This draw
-        // lands on an already tonemapped image, and the old path clamped at
-        // 1.0 per channel: a bright fold clipped its green while red and
-        // blue kept rising, so the hue jumped at the clip boundary and drew
-        // an edge. 1 - exp(-x) is linear for faint light (a dim aurora is
-        // unchanged) and rolls a bright core off smoothly toward white-green,
-        // which is also how an over-bright real curtain photographs.
-        let au = srgb_dither(vec3<f32>(1.0) - exp(-au_raw), pix);
-        let al = clamp(max(au.r, max(au.g, au.b)), 0.0, 1.0);
-        if (al <= 0.0005) {
-            discard; // no aurora on this ray: leave the clouds untouched
-        }
-        return vec4<f32>(
-            clamp(au / max(al, 1.0e-3), vec3<f32>(0.0), vec3<f32>(1.0)),
-            al,
-        );
     }
 
     // Scattering coefficients per shell radius. The vertical optical depth

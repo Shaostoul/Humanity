@@ -64,6 +64,10 @@ pub const PBR_PARTS: &[(&str, &str)] = &[
     ("50-brdf.wgsl", include_str!("../../assets/shaders/pbr/50-brdf.wgsl")),
     ("80-fragment-shared.wgsl", include_str!("../../assets/shaders/pbr/80-fragment-shared.wgsl")),
     ("90-fragment-main.wgsl", include_str!("../../assets/shaders/pbr/90-fragment-main.wgsl")),
+    // The fullscreen ADDITIVE emission pass (aurora, 2026-09-27): light that
+    // lives above the cloud deck, drawn after the composite. A pass entry
+    // (`fs_emission_pass`), not a material class; see renderer::emission_pass.
+    ("95-emission-pass.wgsl", include_str!("../../assets/shaders/pbr/95-emission-pass.wgsl")),
 ];
 
 /// Every entry point the megashader must declare: the vertex entry, the

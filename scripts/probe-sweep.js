@@ -752,7 +752,7 @@ async function main() {
       log(`discarded first pass: ${v0.id}`);
       try {
         if (v0.showcase) {
-          req("showcase_request.json", Object.assign({ map_diag: "0", cloud_top_bound: "0", cloud_uniform_step: "0", cloud_step_m: "0", wind: "auto", anim_clock: "auto" }, v0.showcase)); // diag channels + the determinism pins are sticky across cells: reset unless the cell pins one
+          req("showcase_request.json", Object.assign({ map_diag: "0", cloud_top_bound: "0", cloud_uniform_step: "0", cloud_step_m: "0", wind: "auto", anim_clock: "auto", aurora: "1" },v0.showcase)); // diag channels + the determinism pins are sticky across cells: reset unless the cell pins one
           await sleep(3500);
         }
         clearDone("camera_done.json");
@@ -782,19 +782,21 @@ async function main() {
       };
       try {
         if (v.showcase) {
-          req("showcase_request.json", Object.assign({ map_diag: "0", cloud_top_bound: "0", cloud_uniform_step: "0", cloud_step_m: "0", wind: "auto", anim_clock: "auto" }, v.showcase)); // diag channels + the determinism pins are sticky across cells: reset unless the cell pins one
+          req("showcase_request.json", Object.assign({ map_diag: "0", cloud_top_bound: "0", cloud_uniform_step: "0", cloud_step_m: "0", wind: "auto", anim_clock: "auto", aurora: "1" },v.showcase)); // diag channels + the determinism pins are sticky across cells: reset unless the cell pins one
           await sleep(3500);
-          pinsActive = "wind" in v.showcase || "anim_clock" in v.showcase;
+          // The aurora switch is a pin too: an aurora-OFF twin must never leave
+          // the next vantage dark (2026-09-27, scripts/aurora-gate.js).
+          pinsActive = "wind" in v.showcase || "anim_clock" in v.showcase || v.showcase.aurora === "0";
         } else if (pinsActive) {
           // The 8 vantages with NO showcase block would otherwise INHERIT a
           // previous cell's wind / anim_clock pin, which is how a frozen
           // canopy or a frozen sky ends up in a frame nobody asked to freeze.
           // Only sent when a pin is actually live, so an ordinary sweep pays
           // nothing for it.
-          req("showcase_request.json", { wind: "auto", anim_clock: "auto" });
+          req("showcase_request.json", { wind: "auto", anim_clock: "auto", aurora: "1" });
           await sleep(1500);
           pinsActive = false;
-          log(`  released the previous vantage's wind / anim_clock pin`);
+          log(`  released the previous vantage's wind / anim_clock / aurora pin`);
         }
         clearDone("camera_done.json");
         req("camera_request.json", v.camera);

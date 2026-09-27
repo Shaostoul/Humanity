@@ -47,12 +47,14 @@
         // the TRANSPARENT celestial pass (thousands of alpha-blended ocean
         // shell patches plus the water depth prepass; 42% of an ocean frame
         // in the 2026-09-18 measurement). gpu.sky_view: the distant-sky
-        // lookup table refreshed each frame near an atmosphere.
-        sources: ["gpu.celestial", "gpu.celestial_t", "gpu.sky_view"],
+        // lookup table refreshed each frame near an atmosphere. gpu.aurora:
+        // the fullscreen additive emission pass that adds the aurora after
+        // the cloud composite (renderer/emission_pass.rs).
+        sources: ["gpu.celestial", "gpu.celestial_t", "gpu.sky_view", "gpu.aurora"],
         locked: true,
         base_frac: 0.35,
         color: "nav_sim",
-        note: "Terrain patches, planets, sky and the ocean shells: the opaque and transparent celestial passes plus the sky-view table.",
+        note: "Terrain patches, planets, sky and the ocean shells: the opaque and transparent celestial passes, the sky-view table and the aurora pass.",
     ),
     (
         id: "clouds",

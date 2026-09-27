@@ -133,75 +133,92 @@ at.
 Still unreproduced, and genuinely open: the shores glowing at a grazing view
 when the sun is visible, and the clouds glistening at the dusk line.
 
-### 1b. THE CLOUD DECK ERASES THE AURORA. Root cause, measured 2026-09-22
+### 1b. THE CLOUD DECK ERASES THE AURORA. FIXED 2026-09-27: a fullscreen ADDITIVE emission pass
 
-The operator asked three times why the aurora looked dark, and twice why it
-differed over land and water. Both are the same defect and it is not in the
-aurora at all.
+The defect, as measured 2026-09-22: the aurora emits between 99 and 190 km,
+the deck sits near 12 km, so from above the deck is BEHIND the aurora, yet the
+fullscreen cloud composite runs after the transparent list that carried the
+emission and painted over it. Cloud cover is regional, so the dimming wore a
+coastline: the operator's "darker over land masses". `atmo_over` stays false,
+correctly, for scattered air. **Do not flip it.**
 
-The aurora emits between 99 and 190 km. The cloud deck sits at about 12 km. So
-from above, the clouds are BEHIND the aurora and cannot occlude it. They do.
+**What shipped.** `fs_emission_pass` (`assets/shaders/pbr/95-emission-pass.wgsl`,
+`src/renderer/emission_pass.rs`): a fullscreen triangle with analytic rays,
+colour blend One/One, calling the ONE `aurora_emission` in `30-atmosphere.wgsl`
+(a test pins one definition, one call site). The camera uniform and the
+`env_regions` buffer reach it through the SHARED camera bind group; the scene
+depth and a 96-byte uniform through its own group 1 (a new layout, no shared
+bind group changed shape). Each ray is clipped at the planet and at the scene
+depth. It replaces the v0.1331.18 second draw of the atmosphere shell. The pass
+runs in ONE of two places, and the split is exact because altitude along a
+straight ray has a single minimum: camera above the emitting layer's floor,
+LAST (after the composite); camera below it, BEFORE the celestial transparent
+list, so the dome attenuates it by the air in front and the deck covers it. Full
+write-up: `docs/design/environment-fields.md`, "The aurora gets its own pass".
 
-Measured at `aurora-over-land` and `aurora-over-water` (lat 67, nadir, 600 km,
-local midnight, differing ONLY in longitude), as mean green-excess per pixel,
-which is threshold free:
+**The gate** (operator settings, 2560x1387, `scripts/aurora-gate.js`; `gx` =
+mean green-excess in sRGB codes, `deliv` = the linear light the aurora adds,
+lit frame minus its aurora-OFF twin, x1e-3 green):
 
-| arm | clouds ON | clouds OFF |
-| --- | --- | --- |
-| over Siberian land | 4.288 | **14.811** |
-| over the Greenland Sea | 2.198 | **14.826** |
+| arm | HEAD gx | now gx | now deliv |
+| --- | --- | --- | --- |
+| land, clouds ON | 3.546 | 4.068 | 5.568 |
+| land, clouds OFF | 3.713 | 4.138 | 5.558 |
+| water, clouds ON | 3.421 | 3.980 | 5.584 |
+| water, clouds OFF | 3.717 | 4.143 | 5.564 |
 
-With the deck off the two are IDENTICAL to three digits, and about 3.4x
-brighter than the land arm with it on. So:
+`deliv` with the deck on equals `deliv` with it off to 0.4 percent: the deck no
+longer takes any light. `gx` ON reads 1.7 and 3.9 percent under OFF only because
+the sRGB encode compresses the same light laid over night cloud that is not
+quite black (the reason `deliv` exists). HEAD, with the shell twin, read 4.5
+and 8.0 percent under. The 2026-09-22 figures (4.288 / 2.198 against 14.8) are
+history, not a target: the curtain itself was redesigned on 2026-09-24.
 
-- The land-versus-water difference is entirely the deck. Cloud cover is
-  regional, so a cloud-cover difference wears a coastline and reads as a
-  surface effect. The operator saw something real and named it by the nearest
-  visible landmark, which is exactly what a good bug report does.
-- The aurora is being dimmed 3.4x over land and 6.7x over water. That is the
-  "kind of dark" as well, not only the land/water split.
+**Why clouds-OFF moved (+11 percent `gx`), which is a fix, not drift.** The old
+OVER blend dropped every pixel fainter than half an 8-bit step: the emission
+rode in the source alpha and the blend unit rounds it to the 8-bit target.
+Where HEAD wrote black, the new pass writes green codes 0 to 6 in 99.7 percent
+of 1.85 M pixels; where HEAD wrote anything, 7 and up, the cut falling exactly
+at 0.5/255. A magenta positive control showed the old draw DID run and compute
+an aurora there. That cut was the blotchy, speckle-edged diffuse glow.
 
-Both confounds that could have faked this were removed before believing it.
-The strand presence masks are functions of phi, so longitude changes how much
-aurora the oval carries by design; the comparison was repeated with the ring
-FLATTENED to uniform and the gap survived (4.288 against 2.198). And the first
-version of the fixture aimed at the horizon, which filled the frame with lit
-limb and let a green-dominance metric count vegetation; it now aims at nadir
-and `scripts/aurora-comb.js` refuses any frame bright enough for that mistake.
+**No-regression, each in ONE boot with `showcase {"aurora":"0"}` flipped in
+place** (the rig's heading changes between parks, so cross-boot pixel diffs are
+meaningless; in-place pairs are aligned):
+- Night side from beside (`aurora-limb-8000`): the pass adds light on 0.125
+  percent of pixels, the arc on the limb; no pixel got darker by more than one code;
+  nothing over the disc.
+- Daylit planet (`limb-400km`, `sahara-noon-ground`, and daylit versions of
+  the limb and oval views): delivered light between -0.034 and +0.035 x1e-3,
+  the frame-to-frame noise, against 5.6 where the aurora is; the pass discards.
+- From below: `aurora-under-clear` shows the curtain overhead; under the
+  near-overcast deck (`aurora-under-deck`) only 4 percent of that light gets
+  through. `aurora-ground-horizon`: the arc stops at the ground line.
+- Final release exe through the rig: world entry, 16 of 17 captured (one lost
+  to the disk filling up, not the build), panics 0.
 
-**The mechanism.** `atmo_over` in `frame_shells.rs` is ALWAYS false, so the
-fullscreen cloud composite always runs AFTER the transparent list that carries
-the atmosphere shell. That was deliberate and is right for AIR: the cloud march
-already applies this engine aerial perspective at the cloud first-hit distance,
-so letting the dome blend over the deck applied the same air twice and the
-second application was opaque ("the clouds just vanish", measured at 9,500 km:
-1.2 percent of the disc written with the old order against 99.9 with this one).
+**Cost** (`gpu.aurora`, HUMANITY_FRAME_COSTS=1, 2560x1387): 1.06 to 1.50 ms
+with the oval filling the screen at nadir, 1.7 to 1.9 ms from the ground under
+it, 0.19 to 0.59 ms oblique, 0.34 to 0.38 ms over a daylit planet, 0.06 ms at
+12,000 km. The old shell draw was never timed, so there is no before; it ran
+the same function over the same pixels through the heavier shell PSO. A
+whole-segment rejection (exact, by the triangle inequality) cut the daylit cost
+about 23 percent; proven pixel-identical in one boot through the shader hot
+reload.
 
-It is wrong for EMISSION that lives above the deck. "Clouds last" is correct
-for scattered air in front of them and incorrect for light sources behind the
-camera-facing side of them, and the aurora is the first such source the engine
-has had. Nothing was wrong when that ordering was chosen.
+**Two defects found and fixed on the way.** The aurora was INVISIBLE from
+anywhere below 99 km (`aurora_emission` took the layer crossing behind the eye);
+and with the deck switched off the region buffer was never uploaded, so a boot
+with clouds off had no aurora at all.
 
-**The fix is an increment, not a patch, which is why it is fenced here rather
-than attempted.** The aurora has to be applied AFTER the cloud composite. Two
-ways, both needing the same new plumbing (the camera uniform and the
-`env_regions` storage buffer reaching a pass that has neither today):
-
-1. Add the emission inside `cloud_composite.wgsl`, which already runs last.
-   Fewest passes, but that file is self-contained and would end up holding a
-   SECOND copy of `aurora_emission`, which this repo has been bitten by before
-   (a duplicated shader body drifts and no test compares them).
-2. A dedicated fullscreen ADDITIVE pass after the composite. One more pass,
-   but the aurora stays in one place and the pass is a natural home for any
-   future above-deck emission (airglow, lightning, city light bloom).
-
-Option 2 is preferred for exactly the reason option 1 is tempting. Whichever
-is taken, gate it on the pair above: with clouds ON the two arms must come
-within a few percent of the 14.8 that clouds-OFF already reaches.
-
-**Do not flip `atmo_over`.** It would restore the erased-clouds regression that
-the comment at `frame_shells.rs` documents, and that one cost a dozen
-investigations because the cliff sat at the chunk-activation altitude.
+**Still open, deliberately.** (1) The red cap: the layer top is now only data
+(`region_kinds.ron` params[3], above 1.0 is allowed), but raising it is a look
+change for the operator. (2) Low cloud quality from the ground: the deck is
+drawn inside the transparent list there, so a ground camera sees the aurora
+before the dome and the shell deck, which is right, but never confirmed on a
+capture at Low. (3) The cost with the oval filling the screen (about 1.3 ms) is
+the curtain shading itself; a half-resolution pass is the next lever if it
+matters.
 
 ### 2-0. Continent sheets and "grey closer" (operator, 2026-09-24). Sheets increments 1 and 2 SHIPPED (v0.1333.0, v0.1334.0)
 

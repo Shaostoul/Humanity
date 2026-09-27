@@ -427,6 +427,18 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
     if let Some(c) = grab("cloud_clock").and_then(|t| t.parse::<f32>().ok()) {
         state.gui_state.cloud_dev_clock_pin = c;
     }
+    // {"aurora":"0"} skips the fullscreen emission pass (the aurora) and
+    // nothing else; "1" restores it. A measuring instrument: a fixture and its
+    // aurora-OFF twin differ ONLY by the light the aurora delivers, which is
+    // what scripts/aurora-gate.js subtracts (in linear light) to prove the
+    // cloud deck no longer dims it (PRIORITIES 1b).
+    if let Some(t) = grab("aurora") {
+        state.renderer.emission_pass_off = t == "0";
+        log::info!(
+            "Showcase: aurora -> {}",
+            if state.renderer.emission_pass_off { "OFF (emission pass skipped)" } else { "on" }
+        );
+    }
     // {"cloud_chord_foot":"1"} restores the pre-v0.1268 chord-frozen
     // detail scale, so one run can capture both sides of that change.
     if let Some(t) = grab("cloud_chord_foot") {

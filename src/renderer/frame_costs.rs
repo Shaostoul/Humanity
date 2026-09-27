@@ -111,6 +111,9 @@ pub const GPU_IDS_WITHOUT_CPU_TWIN: &[&str] = &[
     "gpu.cloud_composite",
     "gpu.cloud_profile",
     "gpu.cloud_profile_calib",
+    // The fullscreen emission pass (the aurora above the cloud deck), also
+    // encoded inside `render_celestial_onto` with no per-pass CPU twin.
+    "gpu.aurora",
     // Dormant (nothing calls BloomPass::apply today) and twin-less.
     "gpu.bloom",
 ];

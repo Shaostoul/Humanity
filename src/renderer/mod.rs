@@ -337,6 +337,19 @@ pub struct Renderer {
     /// v0.1029 lesson). See renderer/env_regions.rs.
     env_regions_buffer: wgpu::Buffer,
     env_regions_capacity: usize,
+    /// The emitting layers' floor and top (fractions of the atmosphere shell's
+    /// thickness) across this frame's band-2 regions, recorded by
+    /// `set_env_regions`. None = nothing emits, and the emission pass does not
+    /// run. See renderer/emission_pass.rs.
+    emitting_layer: Option<(f32, f32)>,
+    /// The emission pass's uniform (`emission_pass::EmissionPassUniforms`),
+    /// rewritten each time the pass runs.
+    emission_params: wgpu::Buffer,
+    /// Dev switch: skip the emission pass entirely (`showcase {"aurora":"0"}`).
+    /// A measuring instrument, not a setting: the aurora-OFF twin of a fixture
+    /// subtracted from its lit twin in linear light is exactly the light the
+    /// aurora delivers (scripts/aurora-gate.js).
+    pub emission_pass_off: bool,
     tile_counts_buffer: wgpu::Buffer,
     tile_indices_buffer: wgpu::Buffer,
     /// Tile pixel sizes for the shadow-uniform poke (0 = tiling off).
@@ -1306,6 +1319,12 @@ impl Renderer {
         // arrayLength() over the whole thing with empty rows contributing nothing.
         let env_regions_capacity = 16_usize;
         let env_regions_buffer = env_regions::storage_buffer(&device, env_regions_capacity);
+        let emission_params = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Emission Pass Params"),
+            size: std::mem::size_of::<emission_pass::EmissionPassUniforms>() as u64,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
         // Light-tile lists (clustering L1b): fixed-size, rewritten per frame
         // by update_light_tiles when tiling is enabled.
         let tile_counts_buffer = device.create_buffer(&wgpu::BufferDescriptor {
@@ -1912,6 +1931,9 @@ impl Renderer {
             lights_buffer,
             env_regions_buffer,
             env_regions_capacity,
+            emitting_layer: None,
+            emission_params,
+            emission_pass_off: false,
             tile_counts_buffer,
             tile_indices_buffer,
             tile_px: (0.0, 0.0),
@@ -2153,10 +2175,11 @@ impl Renderer {
             .pipeline
             .recreate_pipelines(&self.device, format, &module, &batch_module);
         log::info!(
-            "[HotReload] megashader reassembled + {} PSOs rebuilt ({} megashader + {} cloud) in {:.1}s",
+            "[HotReload] megashader reassembled + {} PSOs rebuilt ({} megashader + {} cloud + {} emission) in {:.1}s",
             rebuilt.total(),
             rebuilt.megashader,
             rebuilt.cloud,
+            rebuilt.emission,
             t0.elapsed().as_secs_f32()
         );
     }
@@ -2568,6 +2591,10 @@ impl Renderer {
             0,
             bytemuck::cast_slice(&packed),
         );
+        // The emission pass needs the layer's floor (which side of the frame
+        // it runs on) and top (its cheap rejection radius) on the CPU. Read
+        // from the same rows the GPU just got, so the two cannot disagree.
+        self.emitting_layer = emission_pass::emitting_layer_fractions(regions);
     }
 
     /// Inject the live local-light state (point/spot lights + sun + fill) into a base camera

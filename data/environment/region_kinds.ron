@@ -132,12 +132,17 @@
         // border of the green, and the curtain now stands up off the surface
         // instead of lying on it.
         //
-        // KNOWN LIMIT, deliberate: the real red cap reaches 300 to 400 km and
-        // this cannot, because the emitting layer is clipped to the atmosphere
-        // shell chord and the shell mesh ends at 191 km. Raising the top means
-        // enlarging that shell, which changes rp for the whole scattering
-        // model. Noted in docs/design/environment-fields.md as its own rung
-        // rather than smuggled in under an aurora change.
+        // THE TOP IS NOW ONLY DATA (2026-09-27). The real red cap reaches 300
+        // to 400 km. Until this date the layer could not pass 191 km, because
+        // the aurora was drawn on the atmosphere shell mesh, which ends there.
+        // It is drawn by a fullscreen pass with analytic rays now
+        // (renderer/emission_pass.rs) that reads its rejection radius from the
+        // top given here, so nothing but this number caps it any more: 300 km
+        // is about 1.57, 400 km about 2.09 (one unit = the 191 km shell). Not
+        // yet rendered above 1.0, so treat the first raise as its own measured
+        // step. Left at 0.995 because raising it is a LOOK change for the
+        // operator to judge, not a passenger on a compositing fix. See
+        // docs/design/environment-fields.md.
         //
         // The real oval sits around 65 to 70 degrees magnetic latitude, so 20 to
         // 25 degrees from the pole. The BRIGHT DISCRETE ARC inside it is much

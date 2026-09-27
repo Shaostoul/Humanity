@@ -149,6 +149,17 @@ pub struct Pipeline {
     /// The calibration table, stage 2 (`fs_cloud_profile_calib_reduce`:
     /// the eight-seed mean into the mip-1 table).
     pub cloud_profile_calib_reduce_pipeline: wgpu::RenderPipeline,
+    /// The fullscreen ADDITIVE emission pass (`fs_emission_pass`, 2026-09-27):
+    /// light that lives above the cloud deck (the aurora), drawn after the
+    /// cloud composite so the deck cannot paint over it. Colour blend One/One,
+    /// alpha untouched, no depth attachment (the scene depth is READ, at group
+    /// 1, to clip each ray). Its own layout: camera group 0 + the emission
+    /// group (`emission_bind_group_layout`). See renderer::emission_pass.
+    pub emission_pass_pipeline: wgpu::RenderPipeline,
+    /// Group 1 of the emission pass ONLY: binding 1 the pass uniform, binding
+    /// 2 the scene depth. The class PSOs' group 1 is the object uniform at
+    /// binding 0; the two never meet because no class entry reads these.
+    pub emission_bind_group_layout: wgpu::BindGroupLayout,
     pub camera_bind_group_layout: wgpu::BindGroupLayout,
     pub object_bind_group_layout: wgpu::BindGroupLayout,
     /// Group-1 layout for the terrain-batch pipelines: one shared batch
@@ -182,12 +193,15 @@ pub struct RebuiltPipelines {
     /// The cloud fullscreen PSOs (`fs_cloud_*` entries), exempt from the
     /// registry because they never enter a class entry or frag_tail.
     pub cloud: usize,
+    /// The emission pass PSO (`fs_emission_pass`), registry-exempt for the
+    /// same reason.
+    pub emission: usize,
 }
 
 impl RebuiltPipelines {
     /// Every PSO the reload installed.
     pub fn total(self) -> usize {
-        self.megashader + self.cloud
+        self.megashader + self.cloud + self.emission
     }
 }
 
@@ -555,6 +569,13 @@ impl Pipeline {
                 }],
             });
 
+        // Group 1 of the EMISSION PASS (2026-09-27, the aurora above the cloud
+        // deck): the pass uniform and the scene depth it clips each ray at.
+        // A layout of its own rather than a new binding in a shared one, so no
+        // existing bind group changes shape (the v0.1029 every-site hazard does
+        // not arise). Built once here and kept on `Pipeline` because
+        // `recreate_pipelines` needs it for the hot-reload rebuild.
+        let emission_bind_group_layout = Self::create_emission_bind_group_layout(device);
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("PBR-lite Pipeline Layout"),
             bind_group_layouts: &[
@@ -565,6 +586,8 @@ impl Pipeline {
             ],
             push_constant_ranges: &[],
         });
+        let emission_pipeline_layout =
+            Self::emission_pipeline_layout(device, &camera_bind_group_layout, &emission_bind_group_layout);
         let patch_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Patch Batch Pipeline Layout"),
@@ -600,6 +623,7 @@ impl Pipeline {
             cloud_profile_mip: cloud_profile_mip_pipeline,
             cloud_profile_calib: cloud_profile_calib_pipeline,
             cloud_profile_calib_reduce: cloud_profile_calib_reduce_pipeline,
+            emission_pass: emission_pass_pipeline,
         } = Self::build_all_pipelines(
             device,
             surface_format,
@@ -607,6 +631,7 @@ impl Pipeline {
             batch_shader,
             &pipeline_layout,
             &patch_pipeline_layout,
+            &emission_pipeline_layout,
         );
 
         Self {
@@ -629,12 +654,122 @@ impl Pipeline {
             cloud_profile_mip_pipeline,
             cloud_profile_calib_pipeline,
             cloud_profile_calib_reduce_pipeline,
+            emission_pass_pipeline,
+            emission_bind_group_layout,
             camera_bind_group_layout,
             object_bind_group_layout,
             patch_bind_group_layout,
             material_bind_group_layout,
             texture_bind_group_layout,
         }
+    }
+
+    /// Group 1 of the emission pass: binding 1 = `EmissionPassUniforms`
+    /// (96 bytes, `emission_pass::EmissionPassUniforms`), binding 2 = the scene
+    /// depth as a depth texture. Fragment-only: the vertex stage is the
+    /// fullscreen triangle and reads nothing.
+    fn create_emission_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
+        device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("Emission Pass Bind Group Layout"),
+            entries: &[
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: wgpu::BufferSize::new(
+                            std::mem::size_of::<super::emission_pass::EmissionPassUniforms>() as u64,
+                        ),
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 2,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Texture {
+                        sample_type: wgpu::TextureSampleType::Depth,
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        multisampled: false,
+                    },
+                    count: None,
+                },
+            ],
+        })
+    }
+
+    /// The emission pass's pipeline layout: the SHARED camera group (so the
+    /// pass reads the same camera uniform and `env_regions` storage buffer the
+    /// megashader does, which is where the aurora's ovals live) plus its own
+    /// group 1. Two groups, well inside the four-group baseline.
+    fn emission_pipeline_layout(
+        device: &wgpu::Device,
+        camera_bind_group_layout: &wgpu::BindGroupLayout,
+        emission_bind_group_layout: &wgpu::BindGroupLayout,
+    ) -> wgpu::PipelineLayout {
+        device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("Emission Pass Pipeline Layout"),
+            bind_group_layouts: &[camera_bind_group_layout, emission_bind_group_layout],
+            push_constant_ranges: &[],
+        })
+    }
+
+    /// The fullscreen ADDITIVE emission pass (2026-09-27). Fullscreen triangle
+    /// (`vs_cloud_screen`, the same analytic-ray triangle the cloud passes use;
+    /// never a shell mesh, whose chords sag and whose top would cap the
+    /// emitting layer), fragment `fs_emission_pass`, colour blend One/One so
+    /// light ADDS to whatever is behind it instead of replacing it, alpha left
+    /// alone. No depth attachment: the fragment reads the scene depth itself
+    /// and clips each ray, the way the cloud composite does.
+    ///
+    /// Registry-EXEMPT like the cloud fullscreen PSOs, and for the same reason:
+    /// its entry is no class entry and reaches no material dispatch, so there
+    /// is no shell branch for a permutation to switch off.
+    fn build_emission_pass_pipeline(
+        device: &wgpu::Device,
+        surface_format: wgpu::TextureFormat,
+        shader: &wgpu::ShaderModule,
+        layout: &wgpu::PipelineLayout,
+    ) -> wgpu::RenderPipeline {
+        device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("Emission Pass Pipeline"),
+            layout: Some(layout),
+            vertex: wgpu::VertexState {
+                module: shader,
+                entry_point: Some("vs_cloud_screen"),
+                compilation_options: Default::default(),
+                buffers: &[],
+            },
+            fragment: Some(wgpu::FragmentState {
+                module: shader,
+                entry_point: Some("fs_emission_pass"),
+                compilation_options: Default::default(),
+                targets: &[Some(wgpu::ColorTargetState {
+                    format: surface_format,
+                    blend: Some(wgpu::BlendState {
+                        color: wgpu::BlendComponent {
+                            src_factor: wgpu::BlendFactor::One,
+                            dst_factor: wgpu::BlendFactor::One,
+                            operation: wgpu::BlendOperation::Add,
+                        },
+                        alpha: wgpu::BlendComponent {
+                            src_factor: wgpu::BlendFactor::Zero,
+                            dst_factor: wgpu::BlendFactor::One,
+                            operation: wgpu::BlendOperation::Add,
+                        },
+                    }),
+                    write_mask: wgpu::ColorWrites::COLOR,
+                })],
+            }),
+            primitive: wgpu::PrimitiveState {
+                cull_mode: None,
+                ..Default::default()
+            },
+            depth_stencil: None,
+            multisample: wgpu::MultisampleState::default(),
+            multiview: None,
+            cache: None,
+        })
     }
 
     /// One fullscreen-triangle cloud pipeline over the SHARED group
@@ -781,6 +916,11 @@ impl Pipeline {
                 ],
                 push_constant_ranges: &[],
             });
+        let emission_pipeline_layout = Self::emission_pipeline_layout(
+            device,
+            &self.camera_bind_group_layout,
+            &self.emission_bind_group_layout,
+        );
         let fresh = Self::build_all_pipelines(
             device,
             surface_format,
@@ -788,6 +928,7 @@ impl Pipeline {
             batch_shader,
             &pipeline_layout,
             &patch_pipeline_layout,
+            &emission_pipeline_layout,
         );
         // Each fresh PSO is paired with the field it replaces, and the pair
         // tables are what the returned counts are read from. The `&mut`
@@ -837,7 +978,14 @@ impl Pipeline {
         for (slot, fresh) in cloud_slots {
             *slot = fresh;
         }
-        RebuiltPipelines { megashader, cloud }
+        // The emission pass follows the same rule (new module, same layouts),
+        // so a shader edit to aurora_emission shows on the next hot reload.
+        let emission_slots = [(&mut self.emission_pass_pipeline, fresh.emission_pass)];
+        let emission = emission_slots.len();
+        for (slot, fresh) in emission_slots {
+            *slot = fresh;
+        }
+        RebuiltPipelines { megashader, cloud, emission }
     }
 
     /// One far-rung pipeline (perf increment 4): fullscreen triangle over
@@ -1095,7 +1243,8 @@ impl Pipeline {
         })
     }
 
-    /// ALL NINETEEN PSO compiles shared by `new` and hot-reload's
+    /// ALL TWENTY PSO compiles (nineteen until the emission pass joined on
+    /// 2026-09-27) shared by `new` and hot-reload's
     /// `recreate_pipelines`, in ONE thread scope (v0.1142). Measured
     /// 2026-08-15: `Pipeline::new` was 3.9 s of the 4.1 s
     /// shaders_and_pipelines boot span, because only the three PBR variants
@@ -1129,6 +1278,7 @@ impl Pipeline {
         batch_shader: &wgpu::ShaderModule,
         pipeline_layout: &wgpu::PipelineLayout,
         patch_pipeline_layout: &wgpu::PipelineLayout,
+        emission_pipeline_layout: &wgpu::PipelineLayout,
     ) -> MegashaderPsos {
         // ── Parallel PBR pipeline compile (boot-speed, 2026-07-12) ──
         // Every class PSO bakes its fragment entry into a backend PSO, which
@@ -1367,6 +1517,18 @@ impl Pipeline {
                     )
                 })
             });
+            // The emission pass (2026-09-27): a small entry, in the same scope
+            // for the same reason as the six above.
+            let emission_pass = s.spawn(|| {
+                timed("Emission Pass Pipeline", |_| {
+                    Self::build_emission_pass_pipeline(
+                        device,
+                        surface_format,
+                        shader,
+                        emission_pipeline_layout,
+                    )
+                })
+            });
             let shadow = s.spawn(|| timed("Sun Shadow Pipeline", |l| make_shadow(l)));
             let shadow_alpha = s.spawn(|| timed("Sun Shadow Alpha Pipeline", |l| make_shadow(l)));
             let patch_render = s.spawn(|| {
@@ -1399,6 +1561,7 @@ impl Pipeline {
             let cloud_profile_calib = join(cloud_profile_calib, "cloud profile calib");
             let cloud_profile_calib_reduce =
                 join(cloud_profile_calib_reduce, "cloud profile calib reduce");
+            let emission_pass = join(emission_pass, "emission pass");
             let shadow = join(shadow, "sun shadow");
             let shadow_alpha = join(shadow_alpha, "sun shadow alpha");
             let patch_render = join(patch_render, "patch render");
@@ -1422,6 +1585,7 @@ impl Pipeline {
                 cloud_profile_mip.1,
                 cloud_profile_calib.1,
                 cloud_profile_calib_reduce.1,
+                emission_pass.1,
             ];
             let psos = MegashaderPsos {
                 surface_render: surface_render.0,
@@ -1443,6 +1607,7 @@ impl Pipeline {
                 cloud_profile_mip: cloud_profile_mip.0,
                 cloud_profile_calib: cloud_profile_calib.0,
                 cloud_profile_calib_reduce: cloud_profile_calib_reduce.0,
+                emission_pass: emission_pass.0,
             };
             (psos, timings)
         });
@@ -1494,9 +1659,10 @@ fn short_pso_label(label: &str) -> &str {
 /// surface overlay's field with no error anywhere, and the sea would then
 /// draw through a pipeline whose entry has no ocean code.
 ///
-/// The first thirteen are the registry's class PSOs; the last six are the
-/// cloud fullscreen PSOs, which are registry-EXEMPT (their `fs_cloud_*`
-/// entries are no class entry) but are compiled from the same module in the
+/// The first thirteen are the registry's class PSOs; the next six are the
+/// cloud fullscreen PSOs and the last is the emission pass, all seven
+/// registry-EXEMPT (their `fs_cloud_*` / `fs_emission_pass` entries are no
+/// class entry) but compiled from the same module in the
 /// same parallel scope, because a PSO compile is a PSO compile and the
 /// scheduler does not care which list a label came from. See the boot-cost
 /// note on `build_all_pipelines` for why they stopped being serial.
@@ -1520,6 +1686,8 @@ struct MegashaderPsos {
     cloud_profile_mip: wgpu::RenderPipeline,
     cloud_profile_calib: wgpu::RenderPipeline,
     cloud_profile_calib_reduce: wgpu::RenderPipeline,
+    /// The fullscreen additive emission pass (registry-exempt, 2026-09-27).
+    emission_pass: wgpu::RenderPipeline,
 }
 
 // ── SHADER PERMUTATIONS (increment P1 of the frame-cost arc,
@@ -1571,8 +1739,11 @@ struct MegashaderPsos {
 // module, but their entries are no class entry and reach no material
 // dispatch (so no shell branch to switch off), and the cloud march is the
 // program they exist to run, so a permutation would have nothing to remove.
-// The test `every_megashader_pso_builder_asks_the_registry` lists them by
-// name and fails on any other fragment entry compiled without the
+// And the emission pass (`fs_emission_pass`, built by
+// `build_emission_pass_pipeline`, 2026-09-27): the aurora above the cloud
+// deck, a fullscreen additive pass that calls aurora_emission and no class
+// dispatch. The test `every_megashader_pso_builder_asks_the_registry` lists
+// them by name and fails on any other fragment entry compiled without the
 // registry's map.
 
 /// The three branch switches, by the exact `override` name the shader
@@ -2536,14 +2707,15 @@ mod permutation_tests {
     }
 
     /// Fragment entry points allowed to compile the megashader WITHOUT the
-    /// registry's map, by name. These are the six cloud fullscreen passes:
-    /// their entries are no class entry and reach no material dispatch (so
+    /// registry's map, by name. These are the six cloud fullscreen passes and
+    /// the emission pass: their entries are no class entry and reach no
+    /// material dispatch (so
     /// there is no shell branch to switch off), and the cloud march is the
     /// program they exist to run, so a permutation would have nothing to
     /// remove. Every other fragment entry compiled from the module must be
     /// wired to `pso_constants(label)` and `pso_fragment_entry(label)`. Add
     /// a name here ONLY for an entry that is not a class entry and cannot
-    /// reach one; the banner above PSO_REGISTRY lists the same six.
+    /// reach one; the banner above PSO_REGISTRY lists the same seven.
     pub(super) const REGISTRY_EXEMPT_FRAGMENT_ENTRIES: &[&str] = &[
         "fs_cloud_screen",
         "fs_cloud_light_bake",
@@ -2551,6 +2723,10 @@ mod permutation_tests {
         "fs_cloud_profile_mip",
         "fs_cloud_profile_calib",
         "fs_cloud_profile_calib_reduce",
+        // The fullscreen additive emission pass (2026-09-27, the aurora above
+        // the cloud deck): a pass entry, not a class entry. It calls
+        // aurora_emission and nothing in any material dispatch.
+        "fs_emission_pass",
     ];
 
     /// The one builder whose fragment entry is a PARAMETER rather than the

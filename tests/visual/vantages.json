@@ -11808,7 +11808,7 @@
     {
       "id": "aurora-over-land",
       "desc": "Separates a SURFACE-dependent aurora difference from a GEOMETRIC one. The operator reports a distinct difference between the aurora over land and over water, which survived the v0.1331.9 haze-trim fix. That fix was geometric: steep views were trimmed to 0.45 and grazing views were not, and from a single viewpoint geometry can masquerade as a surface difference because the land and the water are not at the same view angle. These two fixtures differ ONLY in longitude, so altitude, view angle, sun and clock are identical and what lies under the oval is the single free variable. If the aurora measures the same in both, the difference he sees is geometry and the surface reading is a coincidence of viewpoint. If it measures differently, there is a real surface-dependent term still to find. This one sits at longitude 100, over Siberian landmass.",
-      "expect": "REGRESSION GUARD for PRIORITIES item 1b, the cloud deck erasing the aurora. Measured 2026-09-22 as mean green-excess per pixel, which is threshold free: clouds ON gave 4.288 over land and 2.198 over water, clouds OFF gave 14.811 and 14.826. With the deck off the two arms are IDENTICAL to three digits, so the whole land-versus-water difference is cloud cover wearing a coastline, and the aurora is being dimmed 3.4x over land and 6.7x over water by a deck that sits at 12 km under emission at 99 to 190 km. Both confounds were removed before believing it: the comparison was repeated with the strand ring FLATTENED (the presence masks are functions of phi) and the gap survived, and the fixture aims at NADIR because an earlier horizon aim filled the frame with lit limb and let a green-dominance metric count vegetation. WHEN THE FIX LANDS: with clouds ON both arms must come within a few percent of the 14.8 that clouds OFF already reaches.",
+      "expect": "REGRESSION GUARD for PRIORITIES item 1b, the cloud deck erasing the aurora, FIXED 2026-09-27 by the fullscreen additive emission pass (renderer/emission_pass.rs). Read with scripts/aurora-gate.js. At operator settings, green-excess clouds ON read 4.07 over land and 3.98 over water against 4.14 and 4.14 clouds OFF; the ON arms sit 2 and 4 percent low only because the sRGB encode compresses the same light laid over night cloud that is not quite black. The threshold-free gate is the light the aurora DELIVERS in linear light (these fixtures minus their -dark twins, or showcase aurora 0 in place): 5.568 and 5.584 x1e-3 green with clouds ON against 5.558 and 5.564 with them OFF, equal to 0.4 percent. A deck painting over the aurora reads far below that; a pass blending OVER instead of adding reads low where the curtain is bright. History, not a target: on 2026-09-22, before any fix and before the curtain redesign of 2026-09-24, clouds ON read 4.288 and 2.198 against 14.811 and 14.826 OFF.",
       "regressions": [
         "panics=0"
       ],
@@ -11831,7 +11831,7 @@
     {
       "id": "aurora-over-water",
       "desc": "Separates a SURFACE-dependent aurora difference from a GEOMETRIC one. The operator reports a distinct difference between the aurora over land and over water, which survived the v0.1331.9 haze-trim fix. That fix was geometric: steep views were trimmed to 0.45 and grazing views were not, and from a single viewpoint geometry can masquerade as a surface difference because the land and the water are not at the same view angle. These two fixtures differ ONLY in longitude, so altitude, view angle, sun and clock are identical and what lies under the oval is the single free variable. If the aurora measures the same in both, the difference he sees is geometry and the surface reading is a coincidence of viewpoint. If it measures differently, there is a real surface-dependent term still to find. This one sits at longitude -30, over the North Atlantic.",
-      "expect": "REGRESSION GUARD for PRIORITIES item 1b, the cloud deck erasing the aurora. Measured 2026-09-22 as mean green-excess per pixel, which is threshold free: clouds ON gave 4.288 over land and 2.198 over water, clouds OFF gave 14.811 and 14.826. With the deck off the two arms are IDENTICAL to three digits, so the whole land-versus-water difference is cloud cover wearing a coastline, and the aurora is being dimmed 3.4x over land and 6.7x over water by a deck that sits at 12 km under emission at 99 to 190 km. Both confounds were removed before believing it: the comparison was repeated with the strand ring FLATTENED (the presence masks are functions of phi) and the gap survived, and the fixture aims at NADIR because an earlier horizon aim filled the frame with lit limb and let a green-dominance metric count vegetation. WHEN THE FIX LANDS: with clouds ON both arms must come within a few percent of the 14.8 that clouds OFF already reaches.",
+      "expect": "REGRESSION GUARD for PRIORITIES item 1b, the cloud deck erasing the aurora, FIXED 2026-09-27 by the fullscreen additive emission pass (renderer/emission_pass.rs). Read with scripts/aurora-gate.js. At operator settings, green-excess clouds ON read 4.07 over land and 3.98 over water against 4.14 and 4.14 clouds OFF; the ON arms sit 2 and 4 percent low only because the sRGB encode compresses the same light laid over night cloud that is not quite black. The threshold-free gate is the light the aurora DELIVERS in linear light (these fixtures minus their -dark twins, or showcase aurora 0 in place): 5.568 and 5.584 x1e-3 green with clouds ON against 5.558 and 5.564 with them OFF, equal to 0.4 percent. A deck painting over the aurora reads far below that; a pass blending OVER instead of adding reads low where the curtain is bright. History, not a target: on 2026-09-22, before any fix and before the curtain redesign of 2026-09-24, clouds ON read 4.288 and 2.198 against 14.811 and 14.826 OFF.",
       "regressions": [
         "panics=0"
       ],
@@ -11854,7 +11854,7 @@
     {
       "id": "aurora-land-noclouds",
       "desc": "The CLOUDS-OFF arm of the land-versus-water aurora pair. With the oval flattened to uniform the aurora still measured about twice as strong over land as over water at identical geometry and local midnight, so something surface-correlated is modulating it. The aurora sits at 99 to 190 km and the cloud deck at about 12 km, so from directly overhead the clouds are BEHIND the aurora and must not occlude it. Cloud cover is strongly regional, so if the deck is being composited over the emission the land/water difference is really a cloud-cover difference wearing a coastline. Turning the deck off and re-measuring is what separates those two. This one is at longitude 100, over Siberian arctic land.",
-      "expect": "REGRESSION GUARD for PRIORITIES item 1b, the cloud deck erasing the aurora. Measured 2026-09-22 as mean green-excess per pixel, which is threshold free: clouds ON gave 4.288 over land and 2.198 over water, clouds OFF gave 14.811 and 14.826. With the deck off the two arms are IDENTICAL to three digits, so the whole land-versus-water difference is cloud cover wearing a coastline, and the aurora is being dimmed 3.4x over land and 6.7x over water by a deck that sits at 12 km under emission at 99 to 190 km. Both confounds were removed before believing it: the comparison was repeated with the strand ring FLATTENED (the presence masks are functions of phi) and the gap survived, and the fixture aims at NADIR because an earlier horizon aim filled the frame with lit limb and let a green-dominance metric count vegetation. WHEN THE FIX LANDS: with clouds ON both arms must come within a few percent of the 14.8 that clouds OFF already reaches.",
+      "expect": "REGRESSION GUARD for PRIORITIES item 1b, the cloud deck erasing the aurora, FIXED 2026-09-27 by the fullscreen additive emission pass (renderer/emission_pass.rs). Read with scripts/aurora-gate.js. At operator settings, green-excess clouds ON read 4.07 over land and 3.98 over water against 4.14 and 4.14 clouds OFF; the ON arms sit 2 and 4 percent low only because the sRGB encode compresses the same light laid over night cloud that is not quite black. The threshold-free gate is the light the aurora DELIVERS in linear light (these fixtures minus their -dark twins, or showcase aurora 0 in place): 5.568 and 5.584 x1e-3 green with clouds ON against 5.558 and 5.564 with them OFF, equal to 0.4 percent. A deck painting over the aurora reads far below that; a pass blending OVER instead of adding reads low where the curtain is bright. History, not a target: on 2026-09-22, before any fix and before the curtain redesign of 2026-09-24, clouds ON read 4.288 and 2.198 against 14.811 and 14.826 OFF.",
       "regressions": [
         "panics=0"
       ],
@@ -11877,7 +11877,7 @@
     {
       "id": "aurora-water-noclouds",
       "desc": "The CLOUDS-OFF arm of the land-versus-water aurora pair. With the oval flattened to uniform the aurora still measured about twice as strong over land as over water at identical geometry and local midnight, so something surface-correlated is modulating it. The aurora sits at 99 to 190 km and the cloud deck at about 12 km, so from directly overhead the clouds are BEHIND the aurora and must not occlude it. Cloud cover is strongly regional, so if the deck is being composited over the emission the land/water difference is really a cloud-cover difference wearing a coastline. Turning the deck off and re-measuring is what separates those two. This one is at longitude -30, over the Greenland Sea.",
-      "expect": "REGRESSION GUARD for PRIORITIES item 1b, the cloud deck erasing the aurora. Measured 2026-09-22 as mean green-excess per pixel, which is threshold free: clouds ON gave 4.288 over land and 2.198 over water, clouds OFF gave 14.811 and 14.826. With the deck off the two arms are IDENTICAL to three digits, so the whole land-versus-water difference is cloud cover wearing a coastline, and the aurora is being dimmed 3.4x over land and 6.7x over water by a deck that sits at 12 km under emission at 99 to 190 km. Both confounds were removed before believing it: the comparison was repeated with the strand ring FLATTENED (the presence masks are functions of phi) and the gap survived, and the fixture aims at NADIR because an earlier horizon aim filled the frame with lit limb and let a green-dominance metric count vegetation. WHEN THE FIX LANDS: with clouds ON both arms must come within a few percent of the 14.8 that clouds OFF already reaches.",
+      "expect": "REGRESSION GUARD for PRIORITIES item 1b, the cloud deck erasing the aurora, FIXED 2026-09-27 by the fullscreen additive emission pass (renderer/emission_pass.rs). Read with scripts/aurora-gate.js. At operator settings, green-excess clouds ON read 4.07 over land and 3.98 over water against 4.14 and 4.14 clouds OFF; the ON arms sit 2 and 4 percent low only because the sRGB encode compresses the same light laid over night cloud that is not quite black. The threshold-free gate is the light the aurora DELIVERS in linear light (these fixtures minus their -dark twins, or showcase aurora 0 in place): 5.568 and 5.584 x1e-3 green with clouds ON against 5.558 and 5.564 with them OFF, equal to 0.4 percent. A deck painting over the aurora reads far below that; a pass blending OVER instead of adding reads low where the curtain is bright. History, not a target: on 2026-09-22, before any fix and before the curtain redesign of 2026-09-24, clouds ON read 4.288 and 2.198 against 14.811 and 14.826 OFF.",
       "regressions": [
         "panics=0"
       ],
@@ -11888,6 +11888,172 @@
         "time": 0,
         "altitude_km": 600,
         "look_offset_deg": 0
+      },
+      "showcase": {
+        "clouds": "0",
+        "weather": "clear",
+        "cloud_clock": "0"
+      },
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "aurora-over-land-dark",
+      "desc": "The AURORA-OFF twin (showcase aurora=0 skips the emission pass and nothing else). Subtracting this frame from its lit twin in LINEAR light isolates exactly the light the aurora delivers, whatever sits behind it, which is the threshold-free gate for PRIORITIES 1b: an additive pass delivers the same light over the deck as over bare ground. Read with scripts/aurora-gate.js. Twin of aurora-over-land (clouds ON, Siberia).",
+      "expect": "No aurora anywhere in the frame; otherwise the same picture as aurora-over-land.",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 67,
+        "lon": 100,
+        "time": 0,
+        "altitude_km": 600,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "clouds": "1",
+        "weather": "clear",
+        "cloud_clock": "0",
+        "aurora": "0"
+      },
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "aurora-over-water-dark",
+      "desc": "The AURORA-OFF twin (showcase aurora=0 skips the emission pass and nothing else). Subtracting this frame from its lit twin in LINEAR light isolates exactly the light the aurora delivers, whatever sits behind it, which is the threshold-free gate for PRIORITIES 1b: an additive pass delivers the same light over the deck as over bare ground. Read with scripts/aurora-gate.js. Twin of aurora-over-water (clouds ON, Greenland Sea).",
+      "expect": "No aurora anywhere in the frame; otherwise the same picture as aurora-over-water.",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 67,
+        "lon": -30,
+        "time": 0,
+        "altitude_km": 600,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "clouds": "1",
+        "weather": "clear",
+        "cloud_clock": "0",
+        "aurora": "0"
+      },
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "aurora-land-noclouds-dark",
+      "desc": "The AURORA-OFF twin (showcase aurora=0 skips the emission pass and nothing else). Subtracting this frame from its lit twin in LINEAR light isolates exactly the light the aurora delivers, whatever sits behind it, which is the threshold-free gate for PRIORITIES 1b: an additive pass delivers the same light over the deck as over bare ground. Read with scripts/aurora-gate.js. Twin of aurora-land-noclouds (clouds OFF, Siberia).",
+      "expect": "No aurora anywhere in the frame; otherwise the same picture as aurora-land-noclouds.",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 67,
+        "lon": 100,
+        "time": 0,
+        "altitude_km": 600,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "clouds": "0",
+        "weather": "clear",
+        "cloud_clock": "0",
+        "aurora": "0"
+      },
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "aurora-water-noclouds-dark",
+      "desc": "The AURORA-OFF twin (showcase aurora=0 skips the emission pass and nothing else). Subtracting this frame from its lit twin in LINEAR light isolates exactly the light the aurora delivers, whatever sits behind it, which is the threshold-free gate for PRIORITIES 1b: an additive pass delivers the same light over the deck as over bare ground. Read with scripts/aurora-gate.js. Twin of aurora-water-noclouds (clouds OFF, Greenland Sea).",
+      "expect": "No aurora anywhere in the frame; otherwise the same picture as aurora-water-noclouds.",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 67,
+        "lon": -30,
+        "time": 0,
+        "altitude_km": 600,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "clouds": "0",
+        "weather": "clear",
+        "cloud_clock": "0",
+        "aurora": "0"
+      },
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "aurora-under-deck",
+      "desc": "The aurora seen from BELOW the cloud deck, the geometry the above-deck fix could break. From 600 km the deck is behind the emission and must not dim it; from the ground the deck is IN FRONT of it and must. A pass that simply draws the aurora last and additively would shine it straight through an overcast sky. Camera 0.5 km above Siberian ground at lat 67 (directly under the oval), local midnight, looking at the zenith, with the deck pinned nearly overcast.",
+      "expect": "The overcast hides most of the aurora: at most a faint green where the deck thins. Compare with aurora-under-clear (same camera, no deck), which shows the curtain overhead. A bright curtain painted over the cloud texture is the regression.",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 67,
+        "lon": 100,
+        "time": 0,
+        "altitude_km": 0.5,
+        "look_offset_deg": 180
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.95",
+        "weather": "clear",
+        "cloud_clock": "0"
+      },
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "aurora-under-clear",
+      "desc": "The clouds-OFF control for aurora-under-deck: the same ground camera under the oval at local midnight looking at the zenith, with no deck. Shows the curtain from below, attenuated only by the air column between the ground and the emission.",
+      "expect": "The aurora overhead, clearly visible against the night sky.",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 67,
+        "lon": 100,
+        "time": 0,
+        "altitude_km": 0.5,
+        "look_offset_deg": 180
+      },
+      "showcase": {
+        "clouds": "0",
+        "weather": "clear",
+        "cloud_clock": "0"
+      },
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "aurora-ground-horizon",
+      "desc": "The ground in front of the aurora, from below its floor. From 1.2 km above southern Norway at lat 61, local midnight, looking north a few degrees above the horizon, the oval sits low over the northern horizon, 600 to 800 km away. The emission pass clips every ray at the planet and at the scene depth, so the ground in front of the curtain must hide its lower part.",
+      "expect": "A low arc over the northern horizon that stops exactly at the ground line; nothing green is drawn over the terrain below it.",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 61,
+        "lon": 8.5,
+        "time": 0,
+        "altitude_km": 1.2,
+        "look_offset_deg": 97
       },
       "showcase": {
         "clouds": "0",

@@ -1654,6 +1654,17 @@ impl Renderer {
             self.run_cloud_composite(&mut encoder, view, camera);
         }
 
+        // Light that lives above the cloud deck (the aurora). A camera BELOW
+        // the emitting layer's floor meets every cloud on a ray before the
+        // layer, so the emission goes in HERE, under the dome and the deck,
+        // which then attenuate and cover it where they are in front. A camera
+        // above the floor gets it after the cloud composite instead (below).
+        // See renderer::emission_pass for why this split is exact.
+        let emission = self.emission_frame(camera, transparent);
+        if let Some(f) = emission.as_ref().filter(|f| f.below_floor) {
+            self.run_emission_pass(&mut encoder, view, f);
+        }
+
         {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Celestial Transparent Pass"),
@@ -1733,12 +1744,10 @@ impl Renderer {
                     let mesh = match self.meshes.get(obj.mesh) { Some(m) => m, None => continue };
                     let material = match self.materials.get(obj.material) { Some(m) => m, None => continue };
                     let class = pipeline::shader_class(material.material_type);
-                    // The emission twin is not drawn here: it has to land AFTER
-                    // the cloud composite below. See renderer::emission_pass.
-                    if pipeline::shader_class(material.material_type)
-                        == pipeline::ShaderClass::Shell
-                        && material.emissive > 0.5
-                    {
+                    // The emission MARKER is never rasterised: it only tells
+                    // the fullscreen emission pass where the aurora's planet
+                    // is. See renderer::emission_pass.
+                    if super::emission_pass::is_emission_marker(material) {
                         continue;
                     }
                     let overlay = water_dw && self.water_caster_mats.contains(&obj.material);
@@ -1803,9 +1812,12 @@ impl Renderer {
             self.run_cloud_composite(&mut encoder, view, camera);
         }
 
-        // Light that lives ABOVE the cloud deck, drawn last of all so the deck
-        // cannot paint over it. See renderer::emission_pass for why.
-        self.run_emission_pass(&mut encoder, view, objects.len(), transparent);
+        // Light that lives ABOVE the cloud deck, seen from above its floor:
+        // added last of all, ADDITIVELY, so nothing below the aurora can paint
+        // over it. See renderer::emission_pass for why.
+        if let Some(f) = emission.as_ref().filter(|f| !f.below_floor) {
+            self.run_emission_pass(&mut encoder, view, f);
+        }
 
         self.queue.submit(std::iter::once(encoder.finish()));
     }
@@ -1853,13 +1865,9 @@ impl Renderer {
             self.cloud_composite_frame.as_ref(),
             self.cloud_temporal_mat.is_some(),
         ) {
-            let proj = Mat4::perspective_rh(
-                camera.fov_degrees.to_radians(),
-                camera.aspect,
-                1.0e13,
-                1.0,
-            );
-            let m = proj.to_cols_array_2d();
+            // The projection that WROTE the depth being read (one definition,
+            // shared with the emission pass).
+            let m = camera.celestial_projection().to_cols_array_2d();
             // Roll-aware basis (v0.1243, audit #19) - third of the three
             // agreeing consumers (march pads, resolve, composite).
             let vm = camera.view_matrix();
