@@ -21,6 +21,10 @@
 //! - [`bake_copy`]: one placed copy of a stage model appended to a merged
 //!   mesh, which is how a plot of hero models costs one draw, not one per
 //!   plant.
+//! - [`shelf_rack_geometry`] and [`tent_geometry`] (2026-09-27): the body a
+//!   stacked machine is drawn with, open shelving with a deck under each of
+//!   its shelf plots, and the clear fruiting tent a grow medium's
+//!   `enclosure` puts around it.
 //!
 //! Pure geometry with no engine state, so the rules are unit tested here and
 //! `home_meshes::rebuild_plant_meshes` only places meshes.
@@ -207,6 +211,114 @@ pub(crate) fn bake_copy(
     indices.extend(src_indices.iter().map(|i| base + i));
 }
 
+/// Radius of a shelving upright, metres: the 1 inch (25.4 mm) round post of
+/// the chrome wire shelving a mushroom fruiting tent is built around.
+pub(crate) const SHELF_POST_R: f32 = 0.0127;
+/// Thickness of a shelf deck, metres.
+pub(crate) const SHELF_DECK_M: f32 = 0.02;
+/// Sides of a drawn upright: eight reads as round at arm's length.
+const SHELF_POST_SIDES: u32 = 8;
+
+/// Open shelving for a stacked grow machine (a mushroom rack, 2026-09-27):
+/// a round upright at each corner, the machine's full height, and one deck
+/// under every shelf, its top at the shelf's floor, so what grows on each
+/// shelf is in plain sight. The decks are this machine's [`plot_rects`], so
+/// a deck is drawn exactly where its plants stand. In the machine's own
+/// frame, as its box was: centred on x and z, base at y = 0, `size` (width,
+/// height, depth, metres) the machine's size in data/machines/home.ron.
+pub(crate) fn shelf_rack_geometry(size: (f32, f32, f32), plots: u32) -> (Vec<Vertex>, Vec<u32>) {
+    let (w, h, d) = (size.0.max(0.05), size.1.max(0.05), size.2.max(0.05));
+    let (mut v, mut ix) = (Vec::new(), Vec::new());
+    let r = SHELF_POST_R.min(w * 0.25).min(d * 0.25);
+    for (sx, sz) in [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)] {
+        push_post(&mut v, &mut ix, [sx * (w * 0.5 - r), sz * (d * 0.5 - r)], r, h);
+    }
+    for shelf in plot_rects((w, h, d), plots, true) {
+        let top = shelf.floor;
+        push_box(&mut v, &mut ix, [-w * 0.5, (top - SHELF_DECK_M).max(0.0), -d * 0.5], [w * 0.5, top, d * 0.5]);
+    }
+    (v, ix)
+}
+
+/// A grow machine's enclosure (a mushroom rack's fruiting tent, 2026-09-27):
+/// a sheet on each of its four sides and one over the top, `size` (width,
+/// height, depth, metres; `Enclosure::size` in data/garden/grow_media.ron)
+/// centred on the machine with its hem on the floor. No floor sheet, since
+/// the tent stands on the floor. It draws through the transparent pass,
+/// which shades both sides of a sheet, so no face is doubled for the inside.
+pub(crate) fn tent_geometry(size: (f32, f32, f32)) -> (Vec<Vertex>, Vec<u32>) {
+    let (x, h, z) = (size.0.max(0.05) * 0.5, size.1.max(0.05), size.2.max(0.05) * 0.5);
+    let (mut v, mut ix) = (Vec::new(), Vec::new());
+    for (n, corners) in box_faces([-x, 0.0, -z], [x, h, z]) {
+        if n[1] < -0.5 {
+            continue; // no floor sheet
+        }
+        push_quad(&mut v, &mut ix, corners, n);
+    }
+    (v, ix)
+}
+
+/// The six faces of an axis-aligned box from `lo` to `hi`: each outward
+/// normal with its corners counter-clockwise seen from outside, the winding
+/// `Mesh::box_xyz` uses and the back-face cull keeps.
+fn box_faces(lo: [f32; 3], hi: [f32; 3]) -> [([f32; 3], [[f32; 3]; 4]); 6] {
+    let [x0, y0, z0] = lo;
+    let [x1, y1, z1] = hi;
+    [
+        ([0.0, 0.0, 1.0], [[x0, y0, z1], [x1, y0, z1], [x1, y1, z1], [x0, y1, z1]]),
+        ([0.0, 0.0, -1.0], [[x1, y0, z0], [x0, y0, z0], [x0, y1, z0], [x1, y1, z0]]),
+        ([1.0, 0.0, 0.0], [[x1, y0, z1], [x1, y0, z0], [x1, y1, z0], [x1, y1, z1]]),
+        ([-1.0, 0.0, 0.0], [[x0, y0, z0], [x0, y0, z1], [x0, y1, z1], [x0, y1, z0]]),
+        ([0.0, 1.0, 0.0], [[x0, y1, z1], [x1, y1, z1], [x1, y1, z0], [x0, y1, z0]]),
+        ([0.0, -1.0, 0.0], [[x0, y0, z0], [x1, y0, z0], [x1, y0, z1], [x0, y0, z1]]),
+    ]
+}
+
+/// One flat quad, corners counter-clockwise from its outside.
+fn push_quad(v: &mut Vec<Vertex>, ix: &mut Vec<u32>, corners: [[f32; 3]; 4], normal: [f32; 3]) {
+    let base = v.len() as u32;
+    for (p, uv) in corners.into_iter().zip([[0.0, 1.0], [1.0, 1.0], [1.0, 0.0], [0.0, 0.0]]) {
+        v.push(Vertex { position: p, normal, uv });
+    }
+    ix.extend([base, base + 1, base + 2, base + 2, base + 3, base]);
+}
+
+fn push_box(v: &mut Vec<Vertex>, ix: &mut Vec<u32>, lo: [f32; 3], hi: [f32; 3]) {
+    for (n, corners) in box_faces(lo, hi) {
+        push_quad(v, ix, corners, n);
+    }
+}
+
+/// A round upright standing on the floor at `c` (x, z), `r` in radius and
+/// `h` tall: smooth-shaded sides and a flat cap (its foot is on the floor).
+fn push_post(v: &mut Vec<Vertex>, ix: &mut Vec<u32>, c: [f32; 2], r: f32, h: f32) {
+    let n = SHELF_POST_SIDES;
+    let ring = |k: u32| {
+        let (s, co) = (k as f32 / n as f32 * std::f32::consts::TAU).sin_cos();
+        (co, s)
+    };
+    let base = v.len() as u32;
+    for k in 0..=n {
+        let (co, s) = ring(k);
+        let u = k as f32 / n as f32;
+        v.push(Vertex { position: [c[0] + co * r, 0.0, c[1] + s * r], normal: [co, 0.0, s], uv: [u, 1.0] });
+        v.push(Vertex { position: [c[0] + co * r, h, c[1] + s * r], normal: [co, 0.0, s], uv: [u, 0.0] });
+    }
+    for k in 0..n {
+        let (b0, t0, b1, t1) = (base + 2 * k, base + 2 * k + 1, base + 2 * k + 2, base + 2 * k + 3);
+        ix.extend([b0, t0, b1, b1, t0, t1]);
+    }
+    let cap = v.len() as u32;
+    v.push(Vertex { position: [c[0], h, c[1]], normal: [0.0, 1.0, 0.0], uv: [0.5, 0.5] });
+    for k in 0..n {
+        let (co, s) = ring(k);
+        v.push(Vertex { position: [c[0] + co * r, h, c[1] + s * r], normal: [0.0, 1.0, 0.0], uv: [0.5, 0.5] });
+    }
+    for k in 0..n {
+        ix.extend([cap, cap + 1 + (k + 1) % n, cap + 1 + k]);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -380,5 +492,136 @@ mod tests {
         assert!(near(verts[2].position, [5.0, 3.0, -3.0]), "height untouched");
         assert!(near(verts[3].position, [5.0, 2.0, -2.8]), "z doubled");
         assert!((Vec3::from(verts[1].normal).length() - 1.0).abs() < 1e-5, "normals stay unit");
+    }
+
+    /// Every triangle turns the way its vertices' normals say, so the
+    /// back-face cull keeps the outside of every face.
+    fn wound_outward(v: &[Vertex], ix: &[u32]) -> bool {
+        ix.chunks(3).all(|t| {
+            let p = |i: u32| Vec3::from(v[i as usize].position);
+            let facing = (p(t[1]) - p(t[0])).cross(p(t[2]) - p(t[0]));
+            let said: Vec3 = t.iter().map(|&i| Vec3::from(v[i as usize].normal)).sum();
+            facing.dot(said) > 0.0
+        })
+    }
+
+    /// The triangles that cross the height `y`, as (min x, max x, min z,
+    /// max z) of each: what a level cut through the mesh meets.
+    fn cut_at(v: &[Vertex], ix: &[u32], y: f32) -> Vec<[f32; 4]> {
+        ix.chunks(3)
+            .filter_map(|t| {
+                let ps: Vec<[f32; 3]> = t.iter().map(|&i| v[i as usize].position).collect();
+                let (lo, hi) = ps.iter().fold((f32::MAX, f32::MIN), |(a, b), p| (a.min(p[1]), b.max(p[1])));
+                if !(lo < y && y < hi) {
+                    return None;
+                }
+                let e = ps.iter().fold([f32::MAX, f32::MIN, f32::MAX, f32::MIN], |e, p| {
+                    [e[0].min(p[0]), e[1].max(p[0]), e[2].min(p[2]), e[3].max(p[2])]
+                });
+                Some(e)
+            })
+            .collect()
+    }
+
+    /// What is wrong with `(v, ix)` as open shelving of `size` in `plots`
+    /// shelves: empty when a deck with its top at each shelf's floor covers
+    /// the footprint, the space between the first two decks holds only the
+    /// corner uprights, nothing leaves the rack, and every face is turned out.
+    fn shelving_problems(v: &[Vertex], ix: &[u32], size: (f32, f32, f32), plots: u32) -> Vec<String> {
+        let (hw, h, hd) = (size.0 * 0.5, size.1, size.2 * 0.5);
+        let mut out = Vec::new();
+        if ix.is_empty() || ix.len() % 3 != 0 {
+            out.push(format!("{} indices", ix.len()));
+        }
+        if !wound_outward(v, ix) {
+            out.push("a face is turned inside out".into());
+        }
+        for p in v {
+            let [x, y, z] = p.position;
+            if x.abs() > hw + 1e-5 || z.abs() > hd + 1e-5 || !(0.0..=h + 1e-5).contains(&y) {
+                out.push(format!("outside the rack: {:?}", p.position));
+            }
+        }
+        let shelves = plot_rects(size, plots, true);
+        for shelf in &shelves {
+            for corner in [[-hw, -hd], [hw, -hd], [hw, hd], [-hw, hd]] {
+                let top = v.iter().any(|p| {
+                    (p.position[1] - shelf.floor).abs() < 1e-5
+                        && (p.position[0] - corner[0]).abs() < 1e-5
+                        && (p.position[2] - corner[1]).abs() < 1e-5
+                        && p.normal[1] > 0.99
+                });
+                if !top {
+                    out.push(format!("no deck top reaching {corner:?} at the shelf floor {} m", shelf.floor));
+                }
+            }
+        }
+        // Halfway between the first two shelves a level cut meets only the
+        // uprights: pieces no wider than a post, at a corner.
+        if shelves.len() >= 2 {
+            let y = (shelves[0].floor + shelves[1].floor - SHELF_DECK_M) * 0.5;
+            let cut = cut_at(v, ix, y);
+            if cut.is_empty() {
+                out.push("nothing holds the decks up".into());
+            }
+            for e in &cut {
+                let slim = e[1] - e[0] <= 2.0 * SHELF_POST_R + 1e-5 && e[3] - e[2] <= 2.0 * SHELF_POST_R + 1e-5;
+                let cornered = e[0].abs().max(e[1].abs()) > hw - 2.0 * SHELF_POST_R - 1e-5;
+                if !(slim && cornered) {
+                    out.push(format!("between the shelves at {y} m: {e:?}"));
+                }
+            }
+        }
+        out
+    }
+
+    /// The mushroom rack is open shelving (see `shelving_problems`), and the
+    /// check is not one that cannot fail: the solid box of the same size, the
+    /// way the rack was drawn until 2026-09-27, is rejected by it.
+    #[test]
+    fn shelf_rack_is_open_shelving_with_a_deck_under_every_shelf() {
+        let size = (1.2, 1.8, 0.6);
+        let (v, ix) = shelf_rack_geometry(size, 4);
+        let problems = shelving_problems(&v, &ix, size, 4);
+        assert!(problems.is_empty(), "{problems:#?}");
+        let (mut bv, mut bix) = (Vec::new(), Vec::new());
+        push_box(&mut bv, &mut bix, [-0.6, 0.0, -0.3], [0.6, 1.8, 0.3]);
+        let solid = shelving_problems(&bv, &bix, size, 4);
+        assert!(solid.iter().any(|p| p.starts_with("no deck top")), "{solid:#?}");
+        assert!(solid.iter().any(|p| p.starts_with("between the shelves")), "{solid:#?}");
+    }
+
+    /// What is wrong with `(v, ix)` as a tent of `size`: empty when it is
+    /// four walls and a top (no floor sheet) spanning exactly the box
+    /// centred on the machine with its hem on the floor, every sheet out.
+    fn tent_problems(v: &[Vertex], ix: &[u32], size: (f32, f32, f32)) -> Vec<String> {
+        let mut out = Vec::new();
+        if ix.len() != 5 * 6 {
+            out.push(format!("{} indices, not four walls and a top", ix.len()));
+        }
+        if !wound_outward(v, ix) {
+            out.push("a sheet is turned inside out".into());
+        }
+        let lo = v.iter().fold(Vec3::splat(f32::MAX), |a, p| a.min(Vec3::from(p.position)));
+        let hi = v.iter().fold(Vec3::splat(f32::MIN), |a, p| a.max(Vec3::from(p.position)));
+        let (want_lo, want_hi) = (Vec3::new(-size.0 * 0.5, 0.0, -size.2 * 0.5), Vec3::new(size.0 * 0.5, size.1, size.2 * 0.5));
+        if (lo - want_lo).length() > 1e-5 || (hi - want_hi).length() > 1e-5 {
+            out.push(format!("spans {lo} to {hi}, not {want_lo} to {want_hi}"));
+        }
+        if v.iter().any(|p| p.normal[1] < -0.5) {
+            out.push("a floor sheet".into());
+        }
+        out
+    }
+
+    /// The fruiting tent is the enclosure's box (see `tent_problems`), and
+    /// the check rejects a tent built with width and depth swapped.
+    #[test]
+    fn tent_is_the_enclosure_box_without_a_floor() {
+        let (v, ix) = tent_geometry((1.3, 1.9, 0.7));
+        let problems = tent_problems(&v, &ix, (1.3, 1.9, 0.7));
+        assert!(problems.is_empty(), "{problems:#?}");
+        let (sv, six) = tent_geometry((0.7, 1.9, 1.3));
+        assert!(tent_problems(&sv, &six, (1.3, 1.9, 0.7)).iter().any(|p| p.starts_with("spans")));
     }
 }

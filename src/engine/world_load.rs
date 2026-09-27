@@ -1,7 +1,7 @@
 use glam::Vec3;
 use std::time::Instant;
 use crate::ecs::components::{Controllable, Health, Name, Transform, Velocity};
-use crate::engine::home_meshes::{apply_homestead_meshes, home_lights, machine_mesh, rebuild_connection_objects, rebuild_door_panels, rebuild_hull};
+use crate::engine::home_meshes::{apply_homestead_meshes, home_lights, machine_body_mesh, rebuild_connection_objects, rebuild_door_panels, rebuild_hull};
 use crate::engine::home_spawn::{spawn_home_air_space, spawn_home_machine_entity};
 use crate::engine::net_route::reload_planet_defs;
 use crate::engine::registries::load_data_registries;
@@ -316,7 +316,16 @@ pub(crate) fn load_world(state: &mut EngineState) {
                             })
                             .ok()
                     })
-                    .unwrap_or_else(|| machine_mesh(&state.renderer.device, &def.shape, def.size));
+                    .unwrap_or_else(|| {
+                        // Open shelving for a stacked grow machine (2026-09-27).
+                        machine_body_mesh(
+                            &state.renderer.device,
+                            &state.gui_state.grow_media,
+                            &inst.machine,
+                            &def.shape,
+                            def.size,
+                        )
+                    });
                 let mesh_idx = state.renderer.add_mesh(mesh);
                 let mat = state.renderer.add_material_typed(
                     [def.color.0, def.color.1, def.color.2, 1.0],

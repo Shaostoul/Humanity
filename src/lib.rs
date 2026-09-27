@@ -1902,6 +1902,7 @@ mod native_app {
                 grow_positions: Vec::new(),
                 plant_objects: Vec::new(),
                 plant_mesh_sig: 0,
+                garden_draw: Default::default(),
                 machine_pick: Vec::new(),
                 port_pick: Vec::new(),
                 wall_colliders: Vec::new(),
@@ -7815,6 +7816,9 @@ mod native_app {
                                 material: mat_idx,
                             });
                         }
+                        // Grow enclosures (2026-09-27): each mushroom rack's
+                        // clear fruiting tent, in the transparent pass.
+                        push_grow_enclosures(state, &mut transparent_objects);
                         // Photoscanned decoration plants (v0.909): CC0 models
                         // scattered from data/entities/decorations.ron.
                         for &(mesh_idx, mat_idx, pos, yaw, scl) in &state.decoration_objects {

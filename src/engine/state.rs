@@ -464,6 +464,10 @@ pub(crate) struct EngineState {
     pub(crate) plant_objects: Vec<(usize, usize)>,
     /// Change signature of the last plant build; 0 forces a rebuild (hot reload).
     pub(crate) plant_mesh_sig: u64,
+    /// The garden's drawing between frames (2026-09-27): the plant pass's
+    /// meshes, its worker thread and upload queue, and the grow enclosures
+    /// (each mushroom rack's fruiting tent). See home_meshes.
+    pub(crate) garden_draw: crate::engine::home_meshes::GardenDraw,
     /// Port pick volumes for viewport DRAG-TO-CONNECT (v0.625): (machine id, port index, the Port,
     /// world gizmo position) for every machine's derived ports. Only the SELECTED machine's ports
     /// render + are grab-able, but building all is cheap. Drag a port onto another machine to wire

@@ -307,6 +307,29 @@ pub(crate) fn machine_mesh(device: &wgpu::Device, shape: &str, size: (f32, f32, 
     }
 }
 
+/// A placed machine's body: open shelving when its grow medium stacks its
+/// plots as shelves (a mushroom rack, `stacked` in data/garden/grow_media.ron,
+/// 2026-09-27), so the shelves and what grows on them show instead of hiding
+/// inside a solid box; otherwise [`machine_mesh`]. `machine_type` is the
+/// catalog key (`mushroom_rack`). Both machine paths draw through this: the
+/// world load and the editor's rebuild.
+pub(crate) fn machine_body_mesh(
+    device: &wgpu::Device,
+    grow_media: &[crate::systems::grow_machines::GrowMedium],
+    machine_type: &str,
+    shape: &str,
+    size: (f32, f32, f32),
+) -> Mesh {
+    // The first medium that matches, the one the farm divides it by.
+    match grow_media.iter().find(|m| m.matches(machine_type)).filter(|m| m.stacked) {
+        Some(m) => {
+            let (v, ix) = crate::engine::plant_layout::shelf_rack_geometry(size, m.plots.max(1));
+            Mesh::from_vertices(device, &v, &ix)
+        }
+        None => machine_mesh(device, shape, size),
+    }
+}
+
 /// Resolve the home's drone hangar (the "drone_hangar" catalog machine, e.g. `drone_hangar_1`
 /// in data/machines/home.ron) to its world DECK position + yaw, so the mining-drone visual
 /// (v0.639) can sit exactly where the hangar pad is drawn. Reuses the same tested
@@ -562,6 +585,14 @@ pub(crate) fn rebuild_machine_objects(state: &mut EngineState) {
     let prior = std::mem::take(&mut state.machine_objects);
     state.gui_state.machine_labels.clear();
     state.machine_pick.clear();
+    // Catalog type by instance id (placements carry no catalog key): the
+    // body mesh and the grow anchors below both need it.
+    let type_by_id: HashMap<String, String> = state
+        .gui_state
+        .home_machines
+        .as_ref()
+        .map(|home| home.all_instances().into_iter().map(|i| (i.id, i.machine)).collect())
+        .unwrap_or_default();
     let mut objs = Vec::with_capacity(placements.len());
     for (i, p) in placements.iter().enumerate() {
         // GLB model when the def declares one (v0.734): parsed fresh PER
@@ -594,7 +625,10 @@ pub(crate) fn rebuild_machine_objects(state: &mut EngineState) {
                         mesh
                     })
             })
-            .unwrap_or_else(|| machine_mesh(&state.renderer.device, &p.shape, p.size));
+            .unwrap_or_else(|| {
+                let ty = type_by_id.get(&p.id).map_or("", String::as_str);
+                machine_body_mesh(&state.renderer.device, &state.gui_state.grow_media, ty, &p.shape, p.size)
+            });
         // Shared textured material per model path, created once. NEVER
         // updated in place: instances of the same model share it.
         let textured_mat: Option<usize> = match (&model_path, model_tex) {
@@ -671,20 +705,16 @@ pub(crate) fn rebuild_machine_objects(state: &mut EngineState) {
     // (grid across the footprint at top_y). Type looked up by instance id
     // (placements carry no catalog key).
     state.grow_positions.clear();
-    if let Some(home) = state.gui_state.home_machines.as_ref() {
-        let type_by_id: HashMap<String, String> =
-            home.all_instances().into_iter().map(|i| (i.id, i.machine)).collect();
-        for p in &placements {
-            if let Some(ty) = type_by_id.get(&p.id) {
-                state.grow_positions.push(GrowSpot {
-                    ty: ty.clone(),
-                    id: p.id.clone(),
-                    pos: Vec3::new(p.pos.0, p.pos.1, p.pos.2),
-                    yaw: p.rotation,
-                    top_y: p.top_y,
-                    size: p.size,
-                });
-            }
+    for p in &placements {
+        if let Some(ty) = type_by_id.get(&p.id) {
+            state.grow_positions.push(GrowSpot {
+                ty: ty.clone(),
+                id: p.id.clone(),
+                pos: Vec3::new(p.pos.0, p.pos.1, p.pos.2),
+                yaw: p.rotation,
+                top_y: p.top_y,
+                size: p.size,
+            });
         }
     }
     publish_grow_plots(state);
@@ -714,8 +744,13 @@ pub(crate) fn publish_grow_plots(state: &mut EngineState) {
     let mut plots: Vec<GrowPlot> = Vec::new();
     let mut instances: HashMap<String, Vec<(String, u32)>> = HashMap::new();
     let mut plot_area: HashMap<String, f32> = HashMap::new();
+    // And the enclosures the garden draws around them (2026-09-27).
+    let mut tents: Vec<(Vec3, f32, (f32, f32, f32))> = Vec::new();
     for g in &state.grow_positions {
         let Some(medium) = state.gui_state.grow_media.iter().find(|m| m.matches(&g.ty)) else { continue };
+        if let Some(e) = &medium.enclosure {
+            tents.push((g.pos, g.yaw, e.size));
+        }
         let footprint = (g.size.0 * g.size.2).max(0.0);
         let tower_cfg = g.ty.strip_prefix("aeroponic_tower_").and_then(|k| tower_cfgs.iter().find(|t| t.id == k));
         plots.push(GrowPlot {
@@ -738,6 +773,7 @@ pub(crate) fn publish_grow_plots(state: &mut EngineState) {
     state.data_store.insert("grow_plots", plots);
     state.data_store.insert("grow_instances", instances);
     state.data_store.insert("grow_plot_area_m2", plot_area);
+    state.garden_draw.tents = tents;
 }
 
 /// Procedural plants (v0.862): merged world-space plant meshes built from the
@@ -758,14 +794,28 @@ pub(crate) fn publish_grow_plots(state: &mut EngineState) {
 ///   clumps is one draw, not 128. Procedural plants share one mesh per machine.
 ///
 /// Cheap change-signature gate: rebuilds only when growth actually moves, and
-/// then only the machines whose crops changed (2026-09-26; a full rebuild of
-/// the showcase's ~2,000 crops was measured at about 450 ms, a hitch every
-/// time any one crop changed stage).
+/// then only the machines whose crops changed (2026-09-26).
+///
+/// OFF THE FRAME (2026-09-27). The frame only works out which machines need
+/// new plants ([`plan_plant_groups`]); a worker thread builds their geometry
+/// (`engine::plant_pass`, the same code that used to run here) and the frame
+/// uploads what is finished a few milliseconds at a time
+/// ([`drain_plant_work`]). A machine keeps its old plants until its new ones
+/// are up, so nothing blinks. Measured on the photograph-home rig before the
+/// move (run.log's "rebuild breakdown" and "frame times" lines): entering
+/// the world built the garden in ONE frame of 1,804 ms (1,314 ms of it
+/// loading the stage models, 306 ms geometry, 184 ms upload, 3.21 million
+/// vertices); a whole-garden change took a 313 ms pass inside a 466 ms frame
+/// against 51 ms typical; and a crop changing stage every few seconds cost
+/// 36 to 166 ms frames on its own. After, same rig and garden, two runs:
+/// the world entry build took at most 5.8 and 7.4 ms of any one frame (397
+/// and 443 ms on the worker), a whole-garden change at most 4.6 ms of a
+/// frame, and in the quieter run every rebuild's worst frame was 3.3 to
+/// 6.7 ms. In the other, with other compiles sharing the machine, 6 of 26
+/// rebuilds reached 8 to 30 ms, each in one step that usually costs a few
+/// milliseconds (a 56,000-vertex upload, a plan); run.log's "slow
+/// plant-pass frame" lines name the step whenever that happens.
 pub(crate) fn rebuild_plant_meshes(state: &mut EngineState) {
-    use crate::engine::plant_layout::{bake_copy, plot_draw_cap, plot_plants, plot_rects};
-    use crate::renderer::plant_mesh::PlantMeshBuilder;
-    use crate::systems::farming::units;
-    use std::collections::HashMap;
     use std::hash::{Hash, Hasher};
     // Signature over everything that changes a plant's look.
     let mut h = std::collections::hash_map::DefaultHasher::new();
@@ -783,37 +833,63 @@ pub(crate) fn rebuild_plant_meshes(state: &mut EngineState) {
     }
     state.grow_positions.len().hash(&mut h);
     let sig = h.finish().max(1);
-    if sig == state.plant_mesh_sig {
+    let frame_ms = hitch_probe_frame();
+    let changed = sig != state.plant_mesh_sig;
+    if !changed && state.garden_draw.plants.idle() {
+        hitch_probe_pass(frame_ms, 0.0, false, 0, 0);
         return;
     }
-    state.plant_mesh_sig = sig;
-    // Rebuild cost (2026-09-26): the rebuild runs inside the frame that
-    // noticed the change, so its milliseconds are a hitch on that frame. It
-    // shows on the Performance page (cpu.plant_rebuild, in the vegetation
-    // slice) and is summarised in run.log by `note_plant_rebuild`.
+    // The pass's main-thread milliseconds show on the Performance page
+    // (cpu.plant_rebuild, in the vegetation slice); the worker's do not
+    // cost the frame and are summarised in run.log by `note_plant_rebuild`.
     let _cost = crate::renderer::frame_costs::stage("cpu.plant_rebuild");
-    let rebuild_t0 = std::time::Instant::now();
-    // Hero stage models used to draw one object per crop (v0.992,
-    // `hero_plant_objects`, removed 2026-09-26); they bake into
-    // `plant_objects` now, one draw per machine and model.
-    let mut cache = match state.data_store.get::<PlantMeshCache>(PLANT_MESH_CACHE_KEY) {
-        Some(c) => c.clone(),
-        None => {
-            // No cache yet (or it was lost): any meshes already drawn become
-            // spare slots, so nothing leaks and nothing is drawn twice.
-            let mut fresh = PlantMeshCache::default();
-            for (mi, _) in std::mem::take(&mut state.plant_objects) {
-                release_plant_slot(state, &mut fresh, mi);
-            }
-            fresh
-        }
-    };
+    let t0 = std::time::Instant::now();
+    let mut pass = std::mem::take(&mut state.garden_draw.plants);
+    if changed {
+        // A zeroed signature (world load, a plants_visual.ron hot reload) is
+        // a forced rebuild: re-read the data files whatever their stamps.
+        let forced = state.plant_mesh_sig == 0;
+        state.plant_mesh_sig = sig;
+        plan_plant_groups(state, &mut pass, forced);
+    }
+    let plan_ms = t0.elapsed().as_secs_f64() * 1000.0;
+    let (files_ms, split) = if changed { (pass.inputs_ms, pass.plan_split) } else { (0.0, [0.0; 3]) };
+    let drained = drain_plant_work(state, &mut pass, t0);
+    let (groups, verts) = (drained.groups, drained.verts);
+    let ms = t0.elapsed().as_secs_f64() * 1000.0;
+    if ms > SLOW_PLANT_FRAME_MS {
+        note_slow_plant_frame(ms, plan_ms, files_ms, split, &drained);
+    }
+    let busy = !pass.idle() || groups > 0;
+    if pass.batch.active {
+        pass.batch.main_ms += ms;
+        pass.batch.worst_ms = pass.batch.worst_ms.max(ms);
+        pass.batch.frames += 1;
+    }
+    if pass.batch.active && pass.idle() {
+        finish_plant_batch(state, &mut pass);
+    }
+    state.garden_draw.plants = pass;
+    hitch_probe_pass(frame_ms, ms as f32, busy, groups, verts);
+}
 
-    // Resolved UP FRONT into owned values (v0.992): holding the registry
-    // borrows across the crop loop would forbid the &mut state calls the
-    // hero-model loader needs. Per species its stage names; per (species,
-    // machine) the plants one plot of it holds, counted exactly as the farm
-    // counts them (the plot areas `publish_grow_plots` put in the DataStore).
+/// Work out which machines need new plants and hand them to a worker
+/// (2026-09-27; the per-machine signature is the 2026-09-26 one, unchanged).
+/// A machine whose crops, place and recipes are what its drawn plants were
+/// built from keeps them; so does one whose rebuild is already finished and
+/// waiting to upload. A job still building is replaced: whatever it had not
+/// finished is in the new one.
+fn plan_plant_groups(state: &mut EngineState, pass: &mut PlantPass, forced: bool) {
+    use crate::engine::plant_layout::plot_rects;
+    use crate::engine::plant_pass::{CropDraw, GroupJob, GroupLayout, Helix, Job, WorkerMsg};
+    use crate::systems::farming::units;
+    use std::collections::{HashMap, HashSet};
+    use std::hash::{Hash, Hasher};
+
+    // Per species its stage names; per (species, machine) the plants one
+    // plot of it holds, counted exactly as the farm counts them (the plot
+    // areas `publish_grow_plots` put in the DataStore).
+    let t0 = std::time::Instant::now();
     let (stage_map, plot_plant_count) = {
         let plant_reg = state
             .data_store
@@ -847,14 +923,14 @@ pub(crate) fn rebuild_plant_meshes(state: &mut EngineState) {
         }
         (stages, counts)
     };
-    // Visual defs: read fresh from disk each rebuild (rebuilds are rare and
-    // this is what makes live-editing plants_visual.ron work), with the
-    // committed file as the only source (no embedded fallback yet).
-    let vis_text = std::fs::read_to_string(crate::data_dir().join("plants_visual.ron"))
-        .unwrap_or_default();
-    let visuals = crate::renderer::plant_mesh::PlantVisualRegistry::from_ron(&vis_text)
-        .unwrap_or_default();
-    let tower_cfgs = crate::gui::load_tower_configs(&crate::data_dir());
+    // The visual recipes (data/plants_visual.ron, the committed file the
+    // only source, no embedded fallback yet) and the tower configs, re-read
+    // only when a file changed on disk, so live editing still works while a
+    // crop changing stage no longer opens and parses two files on the frame.
+    let inputs = pass.inputs(forced);
+    let visuals = inputs.visuals.clone();
+    let vis_hash = inputs.vis_hash;
+    let tower_cfgs = inputs.towers.clone();
     let default_stages: Vec<String> =
         crate::ecs::components::DEFAULT_GROWTH_STAGES.iter().map(|s| s.to_string()).collect();
 
@@ -867,43 +943,27 @@ pub(crate) fn rebuild_plant_meshes(state: &mut EngineState) {
         .iter()
     {
         let (Some(tid), Some(slot)) = (c.tower_id.clone(), c.tower_slot) else { continue };
-        by_tower.entry(tid).or_default().push((
-            c.crop_def_id.clone(),
-            c.growth_stage.clone(),
-            slot,
-            c.health,
-        ));
+        by_tower.entry(tid).or_default().push((c.crop_def_id.clone(), c.growth_stage.clone(), slot, c.health));
     }
     for crops in by_tower.values_mut() {
         crops.sort_by(|x, y| x.2.cmp(&y.2).then_with(|| x.0.cmp(&y.0)));
     }
+    if pass.material.is_none() {
+        // Type 20 (v0.1063): albedo comes from the packed per-face UV
+        // colors, same as type 12, but plants get their OWN type so they
+        // (a) stop inheriting type 12's planet terminator gate, which read
+        // base_color as a planet centre and switched direct sun off across
+        // half of every garden, and (b) have somewhere to grow close-range
+        // leaf/fruit detail. See assets/shaders/pbr/90-fragment-main.wgsl.
+        pass.material = Some(state.renderer.add_material_typed([1.0, 1.0, 1.0, 1.0], 0.0, 0.9, 20.0));
+    }
+    // Everything the worker has already sent is in hand before deciding
+    // what to build again.
+    pass.pull();
 
-    // A machine whose plants did not change since the last rebuild keeps its
-    // meshes (2026-09-26): a crop changing stage rebuilds its own machine,
-    // not all ~100 of them. The machine's signature covers its crops, where
-    // it stands, the visual recipes and the plants each plot holds.
-    let vis_hash = {
-        let mut vh = std::collections::hash_map::DefaultHasher::new();
-        vis_text.hash(&mut vh);
-        vh.finish()
-    };
-    let plant_material = match cache.material {
-        Some(m) => m,
-        None => {
-            // Type 20 (v0.1063): albedo comes from the packed per-face UV
-            // colors, same as type 12, but plants get their OWN type so they
-            // (a) stop inheriting type 12's planet terminator gate, which read
-            // base_color as a planet centre and switched direct sun off across
-            // half of every garden, and (b) have somewhere to grow close-range
-            // leaf/fruit detail. See assets/shaders/pbr/90-fragment-main.wgsl.
-            let m = state.renderer.add_material_typed([1.0, 1.0, 1.0, 1.0], 0.0, 0.9, 20.0);
-            cache.material = Some(m);
-            m
-        }
-    };
-    let mut groups: HashMap<String, PlantGroupMeshes> = HashMap::new();
-    let mut objs: Vec<(usize, usize)> = Vec::new();
-    let (mut machines_rebuilt, mut verts_built) = (0usize, 0usize);
+    let t_snapshot = std::time::Instant::now();
+    let mut jobs: Vec<GroupJob> = Vec::new();
+    let mut live: HashSet<String> = HashSet::new();
     for (cfg_id, crops) in &by_tower {
         // Resolve the crop group's world layout. Three key shapes:
         // - legacy tower CONFIG id ("nutrition", from the GUI Plant button):
@@ -911,12 +971,7 @@ pub(crate) fn rebuild_plant_meshes(state: &mut EngineState) {
         // - tower INSTANCE id ("ntower_5", from the showcase auto-seed):
         //   dress that exact column;
         // - bed/field/rack INSTANCE id: its plots across the machine.
-        // grid_spot is CLONED out of state (v0.992): the hero-model loader
-        // below needs &mut state mid-loop, which a live &GrowSpot borrow
-        // would forbid. GrowSpot is a few strings + floats; rebuilds are rare.
-        let (helix_cfg, base, grid_spot) = if let Some(cfg) =
-            tower_cfgs.iter().find(|t| t.id == *cfg_id)
-        {
+        let (helix_cfg, base, grid_spot) = if let Some(cfg) = tower_cfgs.iter().find(|t| t.id == *cfg_id) {
             let cat_key = format!("aeroponic_tower_{cfg_id}");
             match state.grow_positions.iter().find(|g| g.ty == cat_key) {
                 Some(g) => (Some(cfg), g.pos, None),
@@ -936,6 +991,8 @@ pub(crate) fn rebuild_plant_meshes(state: &mut EngineState) {
             continue;
         };
         let grid_spot = grid_spot.as_ref();
+        // The machine's signature covers its crops, where it stands, the
+        // visual recipes and the plants each plot holds.
         let group_sig = {
             let mut gh = std::collections::hash_map::DefaultHasher::new();
             vis_hash.hash(&mut gh);
@@ -957,270 +1014,451 @@ pub(crate) fn rebuild_plant_meshes(state: &mut EngineState) {
             }
             gh.finish()
         };
-        let mut old_slots = Vec::new();
-        if let Some(prev) = cache.groups.remove(cfg_id) {
-            if prev.sig == group_sig {
-                objs.extend_from_slice(&prev.slots);
-                groups.insert(cfg_id.clone(), prev);
-                continue;
-            }
-            old_slots = prev.slots;
+        live.insert(cfg_id.clone());
+        pass.wanted.insert(cfg_id.clone(), group_sig);
+        if pass.groups.get(cfg_id).is_some_and(|g| g.sig == group_sig) || pass.queued(cfg_id, group_sig) {
+            continue;
         }
-        let (mut drawn, mut meant) = (0usize, 0u64);
-        // A bed/tray/field's plots (data/garden/grow_media.ron): the medium's
-        // count, shelves when stacked. The farm gives every crop in the
-        // machine one plot's floor, and a crop is sown into plot `slot`.
-        let plots = grid_spot.map(|g| {
-            let (n, stacked) = state
-                .gui_state
-                .grow_media
-                .iter()
-                .find(|m| m.matches(&g.ty))
-                .map_or((1, false), |m| (m.plots.max(1), m.stacked));
-            plot_rects(g.size, n, stacked)
-        });
-        let slots = helix_cfg.map(|c| c.slots.max(1)).unwrap_or(1);
-        let radius = helix_cfg.map(|c| c.diameter_m * 0.5).unwrap_or(0.0);
-        let mut b = PlantMeshBuilder::new();
-        // This machine's stage-model meshes: model name -> (mesh, material).
-        let mut hero: HashMap<String, (PlantMeshBuilder, usize)> = HashMap::new();
-        for (def_id, stage, slot, health) in crops {
-            // v0.903 (operator: "the potato garden is just a plain slab
-            // of brown"): only 10 of ~134 crops had visual recipes, and
-            // every crop WITHOUT one silently skipped mesh generation -
-            // bare beds, empty tower net cups. Unrecipe'd crops now get
-            // a generic leafy plant (deterministically varied per
-            // species) so every garden visibly GROWS; hand-authored
-            // recipes in data/plants_visual.ron still win when present.
-            let generic;
-            let vis = match visuals.get(def_id) {
-                Some(v) => v,
-                None => {
-                    generic = crate::renderer::plant_mesh::generic_visual(def_id);
-                    &generic
-                }
-            };
-            // Stage index -> growth t (same bucketing the GUI shows).
-            let stages: &Vec<String> = stage_map.get(def_id).unwrap_or(&default_stages);
-            let dead = stage.as_str() == crate::ecs::components::STAGE_DEAD;
-            let t = if dead {
-                0.6
-            } else {
-                stages
+        let layout = match (helix_cfg, grid_spot) {
+            (Some(cfg), _) => GroupLayout::Tower {
+                helix: Helix {
+                    slots: cfg.slots.max(1),
+                    turns: cfg.helix_turns,
+                    height_m: cfg.height_m,
+                    radius_m: cfg.diameter_m * 0.5,
+                },
+                base,
+            },
+            (None, Some(g)) => {
+                // A bed/tray/field's plots (data/garden/grow_media.ron): the
+                // medium's count, shelves when stacked. The farm gives every
+                // crop in the machine one plot's floor, and a crop is sown
+                // into plot `slot`.
+                let (n, stacked) = state
+                    .gui_state
+                    .grow_media
                     .iter()
-                    .position(|s| *s == stage.as_str())
-                    .map(|i| (i as f32 + 1.0) / stages.len().max(1) as f32)
-                    .unwrap_or(0.1)
-            };
-            let wilt = if dead { 1.0 } else { (1.0 - health / 100.0).clamp(0.0, 1.0) };
-            let seed = {
-                let mut sh = std::collections::hash_map::DefaultHasher::new();
-                cfg_id.hash(&mut sh);
-                slot.hash(&mut sh);
-                sh.finish()
-            };
-            if let Some(cfg) = helix_cfg {
-                // Helix slot position up the column, plant facing outward.
-                let frac = *slot as f32 / slots as f32;
-                let ang = frac * cfg.helix_turns * std::f32::consts::TAU;
-                let y = 0.18 + frac * (cfg.height_m - 0.45);
-                let out = [ang.cos(), 0.0, ang.sin()];
-                let pos = [base.x + out[0] * radius, base.y + y, base.z + out[2] * radius];
-                // Tower plants render at reduced scale so a tree in a net cup
-                // reads as a dwarf/espalier rather than a full orchard tree.
-                let mut vis_scaled = vis.clone();
-                if vis_scaled.height_m > 0.6 {
-                    let k = 0.6 / vis_scaled.height_m;
-                    vis_scaled.height_m *= k;
-                    vis_scaled.spread_m *= k;
-                    vis_scaled.stem_radius *= k;
-                }
-                crate::renderer::plant_mesh::build_plant(&mut b, &vis_scaled, pos, out, t, wilt, seed);
-                drawn += 1;
-                meant += 1;
-                continue;
+                    .find(|m| m.matches(&g.ty))
+                    .map_or((1, false), |m| (m.plots.max(1), m.stacked));
+                GroupLayout::Plots { pos: g.pos, yaw_deg: g.yaw, rects: plot_rects(g.size, n, stacked) }
             }
-            let (Some(g), Some(rects)) = (grid_spot, plots.as_ref()) else { continue };
-            // A slot past the medium's plots (more crops than plots) shares
-            // a plot rather than standing outside the machine.
-            let rect = rects[*slot as usize % rects.len().max(1)];
-            let holds = plot_plant_count.get(&(def_id.clone(), cfg_id.clone())).copied().unwrap_or(1);
-            let turn = Quat::from_rotation_y(g.yaw.to_radians());
-            // Hero crop models (v0.992, the Quaternius growth stages): a
-            // species with a converted stage model set uses the real 3D model
-            // at the stage quartile instead of the procedural recipe. The set
-            // is the species' own lowercased id by convention, or the one
-            // `stage_models` in data/plants_visual.ron names for it. Dead
-            // crops keep the procedural wilt.
-            let model = if dead {
-                None
-            } else {
-                let q = ((t * 4.0).ceil() as u32).clamp(1, 4);
-                let name = format!("{}_{q}", visuals.stage_model_for(def_id));
-                hero_plant_model(state, &mut cache, &name).map(|m| (name, m))
-            };
-            // One plant's vertices at this stage, for the plot's vertex
-            // budget: the model's, or one procedural plant built to count.
-            let per_plant = match &model {
-                Some((_, (cpu, _))) => cpu.vertices.len(),
-                None => {
-                    let mut probe = PlantMeshBuilder::new();
-                    crate::renderer::plant_mesh::build_plant(
-                        &mut probe,
-                        vis,
-                        [0.0; 3],
-                        [0.7, 0.0, 0.7],
-                        t,
-                        wilt,
-                        seed,
-                    );
-                    probe.vertices.len()
-                }
-            };
-            let draw_cap = plot_draw_cap(visuals.plot_visual_cap, visuals.plot_vertex_budget, per_plant);
-            let layout = plot_plants(rect.size, holds, draw_cap, seed);
-            // A clump is its plants' floor wide at one plant's height.
-            let mut vis_clump = vis.clone();
-            vis_clump.spread_m *= layout.widen;
-            for (k, spot) in layout.spots.iter().enumerate() {
-                let local = Vec3::new(rect.center[0] + spot[0], rect.floor, rect.center[1] + spot[1]);
-                let at = g.pos + turn * local;
-                let plant_seed = seed ^ (k as u64 + 1).wrapping_mul(0x9E37_79B9_7F4A_7C15);
-                if let Some((name, (cpu, mat))) = &model {
-                    // Deterministic per-plant turn and a few percent of
-                    // height either way, so a stand is not a lattice of
-                    // clones; a rebuild never changes either.
-                    let yaw = (plant_seed % 3600) as f32 * (std::f32::consts::TAU / 3600.0);
-                    let tall = 0.93 + ((plant_seed >> 24) % 15) as f32 * 0.01;
-                    let (mesh, _) = hero
-                        .entry(name.clone())
-                        .or_insert_with(|| (PlantMeshBuilder::new(), *mat));
-                    bake_copy(
-                        &mut mesh.vertices,
-                        &mut mesh.indices,
-                        &cpu.vertices,
-                        &cpu.indices,
-                        at,
-                        yaw,
-                        layout.widen,
-                        tall,
-                    );
+            (None, None) => continue,
+        };
+        let crops = crops
+            .iter()
+            .map(|(def_id, stage, slot, health)| {
+                // Stage index -> growth t (same bucketing the GUI shows).
+                let stages: &Vec<String> = stage_map.get(def_id).unwrap_or(&default_stages);
+                let dead = stage.as_str() == crate::ecs::components::STAGE_DEAD;
+                let t = if dead {
+                    0.6
                 } else {
-                    crate::renderer::plant_mesh::build_plant(
-                        &mut b,
-                        &vis_clump,
-                        at.to_array(),
-                        [0.7, 0.0, 0.7],
-                        t,
-                        wilt,
-                        plant_seed,
-                    );
-                }
-                drawn += 1;
-            }
-            meant += u64::from(holds);
-        }
-        // Each finished mesh with its material: the shared procedural plant
-        // material, or a stage model's textured one.
-        let mut built: Vec<(PlantMeshBuilder, usize)> = Vec::new();
-        if !b.vertices.is_empty() {
-            built.push((b, plant_material));
-        }
-        built.extend(hero.into_values().filter(|(m, _)| !m.vertices.is_empty()));
-        // Upload into mesh slots reused in place (renderer free path): this
-        // machine's own first, then spare ones, adding only past both. A
-        // machine's mesh count moves as its plots change stage model; a slot
-        // let go waits in `spare` instead of leaking its buffers.
-        let mut slots_now = Vec::with_capacity(built.len());
-        let (mut verts, mut bytes) = (0usize, 0u64);
-        for (mesh_b, material) in built {
-            verts += mesh_b.vertices.len();
-            bytes += (std::mem::size_of_val(mesh_b.vertices.as_slice())
-                + std::mem::size_of_val(mesh_b.indices.as_slice())) as u64;
-            let mesh = crate::renderer::mesh::Mesh::from_vertices(
-                &state.renderer.device,
-                &mesh_b.vertices,
-                &mesh_b.indices,
-            );
-            let mi = match old_slots.pop().map(|(mi, _)| mi).or_else(|| cache.spare.pop()) {
-                Some(mi) => {
-                    state.renderer.replace_mesh(mi, mesh);
-                    mi
-                }
-                None => state.renderer.add_mesh(mesh),
-            };
-            slots_now.push((mi, material));
-        }
-        for (mi, _) in old_slots {
-            release_plant_slot(state, &mut cache, mi);
-        }
-        machines_rebuilt += 1;
-        verts_built += verts;
-        objs.extend_from_slice(&slots_now);
-        groups.insert(cfg_id.clone(), PlantGroupMeshes { sig: group_sig, slots: slots_now, drawn, meant, verts, bytes });
+                    stages
+                        .iter()
+                        .position(|s| *s == stage.as_str())
+                        .map(|i| (i as f32 + 1.0) / stages.len().max(1) as f32)
+                        .unwrap_or(0.1)
+                };
+                let wilt = if dead { 1.0 } else { (1.0 - health / 100.0).clamp(0.0, 1.0) };
+                let holds = plot_plant_count.get(&(def_id.clone(), cfg_id.clone())).copied().unwrap_or(1);
+                CropDraw { def_id: def_id.clone(), slot: *slot, t, wilt, dead, holds }
+            })
+            .collect();
+        jobs.push(GroupJob { key: cfg_id.clone(), sig: group_sig, layout, crops });
     }
+    let t_groups = std::time::Instant::now();
+    // Where the plan's time went, for the slow-frame line: the crop
+    // snapshot (with the data files), the per-machine signatures and jobs,
+    // and the rest (parking slots, starting the worker).
+    let ms = |a: std::time::Instant, b: std::time::Instant| (b - a).as_secs_f64() * 1000.0;
+    pass.plan_split = [ms(t0, t_snapshot), ms(t_snapshot, t_groups), 0.0];
     // Machines with no crops left give their slots to the spare list.
-    for (_, gone) in std::mem::take(&mut cache.groups) {
-        for (mi, _) in gone.slots {
-            release_plant_slot(state, &mut cache, mi);
+    let gone: Vec<String> = pass.groups.keys().filter(|k| !live.contains(k.as_str())).cloned().collect();
+    for key in gone {
+        if let Some(g) = pass.groups.remove(&key) {
+            for (mi, _) in g.slots {
+                release_plant_slot(state, pass, mi);
+            }
+            pass.objects_dirty = true;
         }
     }
-    let drawn: usize = groups.values().map(|g| g.drawn).sum();
-    let meant: u64 = groups.values().map(|g| g.meant).sum();
-    let verts_held: usize = groups.values().map(|g| g.verts).sum();
-    let bytes_held: u64 = groups.values().map(|g| g.bytes).sum();
-    let machines = groups.len();
-    let spare = cache.spare.len();
-    cache.groups = groups;
-    state.data_store.insert(PLANT_MESH_CACHE_KEY, cache);
-    state.plant_objects = objs;
+    pass.wanted.retain(|k, _| live.contains(k.as_str()));
+    if let Some((_, cancel)) = pass.in_flight.take() {
+        cancel.store(true, std::sync::atomic::Ordering::Relaxed);
+    }
+    if jobs.is_empty() {
+        pass.plan_split[2] = ms(t_groups, std::time::Instant::now());
+        return;
+    }
+    // The worker starts from every stage model already loaded or already
+    // on its way in, and every one known not to exist.
+    let mut models: HashMap<String, std::sync::Arc<crate::assets::GltfCpuMesh>> =
+        pass.models.iter().map(|(k, (m, _))| (k.clone(), m.clone())).collect();
+    let mut missing = state.hero_plant_missing.clone();
+    for msg in &pass.inbox {
+        match msg {
+            WorkerMsg::Model { name, cpu, .. } => {
+                models.insert(name.clone(), cpu.clone());
+            }
+            WorkerMsg::Missing(name) => {
+                missing.insert(name.clone());
+            }
+            _ => {}
+        }
+    }
+    if !pass.batch.active {
+        pass.batch = PlantBatch { active: true, ..PlantBatch::default() };
+    }
+    pass.generation += 1;
+    let cancel = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let job = Job {
+        generation: pass.generation,
+        groups: jobs,
+        visuals,
+        models,
+        missing,
+        data_dir: state.asset_manager.data_path(""),
+        cancel: cancel.clone(),
+        checksum: std::env::var("HUMANITY_PLANT_CHECKSUM").is_ok_and(|v| v == "1"),
+    };
+    crate::engine::plant_pass::spawn(job, pass.sender());
+    pass.plan_split[2] = ms(t_groups, std::time::Instant::now());
+    pass.in_flight = Some((pass.generation, cancel));
+}
+
+/// A frame's share of uploading the worker's plants (2026-09-27): about
+/// this many milliseconds of the frame, counting the plan before it, and
+/// never less than one message so the garden always finishes.
+const PLANT_UPLOAD_BUDGET_MS: f64 = 3.0;
+
+/// Take what the worker has finished, in order, until this frame's budget
+/// is spent: a newly loaded stage model gets its material, a model found
+/// missing is remembered, a machine whose plants are still wanted is
+/// uploaded into its own mesh slots (then spare ones), and the job's end
+/// clears the pass to go idle. Returns the machines uploaded and their
+/// vertices.
+fn drain_plant_work(state: &mut EngineState, pass: &mut PlantPass, t0: std::time::Instant) -> DrainStats {
+    use crate::engine::plant_pass::WorkerMsg;
+    pass.pull();
+    let mut out = DrainStats::default();
+    let mut spent = false;
+    while !pass.inbox.is_empty() {
+        if spent && t0.elapsed().as_secs_f64() * 1000.0 >= PLANT_UPLOAD_BUDGET_MS {
+            break;
+        }
+        let Some(msg) = pass.inbox.pop_front() else { break };
+        let m0 = std::time::Instant::now();
+        let what = match msg {
+            WorkerMsg::Model { name, cpu, texture } => {
+                let size = texture.as_ref().map_or((0, 0), |t| (t.1, t.2));
+                if !pass.models.contains_key(&name) {
+                    let material = stage_model_material(state, texture);
+                    pass.models.insert(name.clone(), (cpu, material));
+                    spent = true;
+                }
+                format!("stage model {name} ({} x {} texture)", size.0, size.1)
+            }
+            WorkerMsg::Missing(name) => {
+                let what = format!("missing model {name}");
+                state.hero_plant_missing.insert(name);
+                what
+            }
+            WorkerMsg::Group(g) => {
+                let wanted = pass.wanted.get(&g.key) == Some(&g.sig);
+                let drawn = pass.groups.get(&g.key).is_some_and(|d| d.sig == g.sig);
+                let (key, n) = (g.key.clone(), g.vertex_count());
+                if wanted && !drawn {
+                    out.verts += upload_plant_group(state, pass, g);
+                    out.groups += 1;
+                    spent = true;
+                    format!("upload of {key} ({n} vertices)")
+                } else {
+                    format!("stale {key} dropped ({n} vertices)")
+                }
+            }
+            WorkerMsg::Done { generation, worker_ms } => {
+                pass.batch.worker_ms += worker_ms;
+                if pass.in_flight.as_ref().is_some_and(|(g, _)| *g == generation) {
+                    pass.in_flight = None;
+                }
+                "end of a job".to_string()
+            }
+        };
+        out.taken += 1;
+        let ms = m0.elapsed().as_secs_f64() * 1000.0;
+        if ms > out.slowest_ms {
+            out.slowest_ms = ms;
+            out.slowest = what;
+        }
+    }
+    let r0 = std::time::Instant::now();
+    if pass.objects_dirty {
+        state.plant_objects = pass.groups.values().flat_map(|g| g.slots.iter().copied()).collect();
+        pass.objects_dirty = false;
+    }
+    out.collect_ms = r0.elapsed().as_secs_f64() * 1000.0;
+    pass.batch.machines += out.groups;
+    pass.batch.verts += out.verts;
+    out
+}
+
+/// One frame's [`drain_plant_work`]: machines uploaded and their vertices,
+/// and for the slow-frame line the messages taken and the slowest of them.
+#[derive(Default)]
+struct DrainStats {
+    groups: usize,
+    verts: usize,
+    taken: usize,
+    slowest: String,
+    slowest_ms: f64,
+    collect_ms: f64,
+}
+
+/// A plant-pass frame this slow (main thread, ms) is written to run.log
+/// with where its time went, so a hitch the pass still causes can be traced
+/// rather than guessed at (2026-09-27).
+const SLOW_PLANT_FRAME_MS: f64 = 8.0;
+
+fn note_slow_plant_frame(ms: f64, plan_ms: f64, files_ms: f64, split: [f64; 3], d: &DrainStats) {
+    static LINES: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+    // The first 40 of a session: enough to see a pattern, never a flood.
+    if LINES.fetch_add(1, std::sync::atomic::Ordering::Relaxed) >= 40 {
+        return;
+    }
+    log::info!(
+        "[Plants] slow plant-pass frame: {ms:.2} ms = plan {plan_ms:.2} ms (crop snapshot {:.2}, {files_ms:.2} of \
+         it on the data files; signatures and jobs {:.2}; the rest {:.2}) + {} message(s) taken, the slowest the \
+         {} in {:.2} ms, then {:.2} ms collecting the draw list",
+        split[0],
+        split[1],
+        split[2],
+        d.taken,
+        if d.slowest.is_empty() { "none" } else { d.slowest.as_str() },
+        d.slowest_ms,
+        d.collect_ms
+    );
+}
+
+/// Put one machine's finished plants on the GPU (2026-09-27, the upload the
+/// 2026-09-26 rebuild did inline): its meshes go into the machine's own
+/// slots first, then spare ones, adding a slot only past both, and a slot
+/// it no longer needs is parked. Returns its vertices.
+fn upload_plant_group(
+    state: &mut EngineState,
+    pass: &mut PlantPass,
+    g: crate::engine::plant_pass::BuiltGroup,
+) -> usize {
+    let Some(plant_material) = pass.material else { return 0 };
+    // Each finished mesh with its material: the shared procedural plant
+    // material, or a stage model's textured one.
+    let mut built: Vec<(&crate::renderer::plant_mesh::PlantMeshBuilder, usize)> = Vec::new();
+    if !g.procedural.vertices.is_empty() {
+        built.push((&g.procedural, plant_material));
+    }
+    for (name, m) in &g.models {
+        match pass.models.get(name) {
+            Some(&(_, material)) => built.push((m, material)),
+            None => log::warn!("[Plants] stage model {name} arrived without its material; its plants are skipped"),
+        }
+    }
+    let mut old_slots = pass.groups.remove(&g.key).map(|p| p.slots).unwrap_or_default();
+    let mut slots_now = Vec::with_capacity(built.len());
+    let (mut verts, mut bytes) = (0usize, 0u64);
+    for (mesh_b, material) in built {
+        verts += mesh_b.vertices.len();
+        bytes += (std::mem::size_of_val(mesh_b.vertices.as_slice()) + std::mem::size_of_val(mesh_b.indices.as_slice()))
+            as u64;
+        let mesh = Mesh::from_vertices(&state.renderer.device, &mesh_b.vertices, &mesh_b.indices);
+        let mi = match old_slots.pop().map(|(mi, _)| mi).or_else(|| pass.spare.pop()) {
+            Some(mi) => {
+                state.renderer.replace_mesh(mi, mesh);
+                mi
+            }
+            None => state.renderer.add_mesh(mesh),
+        };
+        slots_now.push((mi, material));
+    }
+    for (mi, _) in old_slots {
+        release_plant_slot(state, pass, mi);
+    }
+    pass.groups.insert(
+        g.key.clone(),
+        PlantGroupMeshes { sig: g.sig, slots: slots_now, drawn: g.drawn, meant: g.meant, verts, bytes, checksum: g.checksum },
+    );
+    pass.objects_dirty = true;
+    verts
+}
+
+/// The rebuild that just went idle, into run.log (`note_plant_rebuild`).
+fn finish_plant_batch(state: &EngineState, pass: &mut PlantPass) {
+    let b = std::mem::take(&mut pass.batch);
+    let checksum = pass
+        .groups
+        .values()
+        .map(|g| g.checksum)
+        .try_fold(0u64, |acc, c| c.map(|c| acc.wrapping_add(c)));
     note_plant_rebuild(PlantRebuild {
-        ms: rebuild_t0.elapsed().as_secs_f64() * 1000.0,
-        machines,
-        machines_rebuilt,
+        ms: b.main_ms,
+        worst_ms: b.worst_ms,
+        frames: b.frames,
+        worker_ms: b.worker_ms,
+        machines: pass.groups.len(),
+        machines_rebuilt: b.machines,
         draws: state.plant_objects.len(),
-        spare,
-        drawn,
-        meant,
-        verts_built,
-        verts_held,
-        bytes_held,
+        spare: pass.spare.len(),
+        drawn: pass.groups.values().map(|g| g.drawn).sum(),
+        meant: pass.groups.values().map(|g| g.meant).sum(),
+        verts_built: b.verts,
+        verts_held: pass.groups.values().map(|g| g.verts).sum(),
+        bytes_held: pass.groups.values().map(|g| g.bytes).sum(),
+        checksum: checksum.filter(|_| !pass.groups.is_empty()),
     });
 }
 
-/// Park a plant mesh slot the rebuild no longer draws (2026-09-26): its
+/// Park a plant mesh slot the pass no longer draws (2026-09-26): its
 /// buffers are swapped for a one-triangle stand-in, so the geometry is freed
 /// at once, and the slot waits in `spare` for the next mesh that needs one.
 /// Without the swap a slot let go kept its last vertices until it was reused
 /// (one rice tray plot at its last stage is about 4 MB).
-fn release_plant_slot(state: &mut EngineState, cache: &mut PlantMeshCache, mi: usize) {
+fn release_plant_slot(state: &mut EngineState, pass: &mut PlantPass, mi: usize) {
     let v = crate::renderer::mesh::Vertex { position: [0.0; 3], normal: [0.0, 1.0, 0.0], uv: [0.0; 2] };
     let stub = Mesh::from_vertices(&state.renderer.device, &[v; 3], &[0, 1, 2]);
     state.renderer.replace_mesh(mi, stub);
-    cache.spare.push(mi);
+    pass.spare.push(mi);
 }
 
-/// DataStore key of the plant pass's [`PlantMeshCache`].
-const PLANT_MESH_CACHE_KEY: &str = "plant_mesh_cache";
+/// The garden's drawing state between frames (2026-09-27): the plant pass
+/// and the grow enclosures. On `EngineState::garden_draw`.
+#[derive(Default)]
+pub(crate) struct GardenDraw {
+    /// The plant pass ([`rebuild_plant_meshes`]).
+    pub(crate) plants: PlantPass,
+    /// Every grow enclosure to draw, from [`publish_grow_plots`]: the
+    /// machine's floor position, its yaw in degrees and the enclosure's size.
+    tents: Vec<(Vec3, f32, (f32, f32, f32))>,
+    /// A tent mesh per enclosure size (one size today), and their material.
+    tent_meshes: Vec<((f32, f32, f32), usize)>,
+    tent_material: Option<usize>,
+}
 
-/// What the plant pass keeps between rebuilds (2026-09-26). It lives in the
-/// DataStore rather than on EngineState only because the state's constructor
-/// is in lib.rs; it is renderer bookkeeping, not game data.
-#[derive(Default, Clone)]
-struct PlantMeshCache {
+/// What the plant pass keeps between frames (2026-09-26 as a cache in the
+/// DataStore; on EngineState since it got a worker thread, 2026-09-27).
+#[derive(Default)]
+pub(crate) struct PlantPass {
     /// The type-20 material every procedural plant mesh draws with.
     material: Option<usize>,
-    /// Mesh slots the last rebuild did not need, reused before adding more.
+    /// Mesh slots no machine needs now, reused before adding more.
     spare: Vec<usize>,
-    /// Stage models by name ("wheat_3"): the geometry baked per plant and
-    /// the model's textured material.
+    /// Stage models by name ("wheat_3"): the geometry baked per plant (the
+    /// worker reads it) and the model's textured material.
     models: std::collections::HashMap<String, (std::sync::Arc<crate::assets::GltfCpuMesh>, usize)>,
-    /// Each machine's meshes from the last rebuild, by crop group key.
+    /// Each machine's drawn meshes, by crop group key.
     groups: std::collections::HashMap<String, PlantGroupMeshes>,
+    /// The signature each machine's plants should be built from (the last
+    /// plan); a finished build with any other is stale and dropped.
+    wanted: std::collections::HashMap<String, u64>,
+    /// The job building now: its generation and its cancel flag.
+    in_flight: Option<(u64, std::sync::Arc<std::sync::atomic::AtomicBool>)>,
+    generation: u64,
+    /// Worker to frame. One channel for the session, so a cancelled job's
+    /// last messages still arrive (its stage models are kept).
+    chan: Option<(
+        std::sync::mpsc::Sender<crate::engine::plant_pass::WorkerMsg>,
+        std::sync::mpsc::Receiver<crate::engine::plant_pass::WorkerMsg>,
+    )>,
+    /// Received, not yet taken (the upload budget ran out).
+    inbox: std::collections::VecDeque<crate::engine::plant_pass::WorkerMsg>,
+    /// `EngineState::plant_objects` needs recollecting.
+    objects_dirty: bool,
+    /// Totals of the rebuild in progress, for run.log.
+    batch: PlantBatch,
+    /// The data files a plan reads, parsed, and how long the last plan
+    /// spent re-reading them (0 when they were unchanged).
+    inputs: Option<PlanInputs>,
+    inputs_ms: f64,
+    /// The last plan's milliseconds: crop snapshot, signatures and jobs,
+    /// the rest.
+    plan_split: [f64; 3],
+}
+
+/// The data files a plan reads (2026-09-27): the visual recipes and the
+/// tower configs, parsed, with the stamps of the files they came from.
+struct PlanInputs {
+    stamps: [FileStamp; 2],
+    visuals: std::sync::Arc<crate::renderer::plant_mesh::PlantVisualRegistry>,
+    /// Hash of the recipes' text: part of every machine's signature, so an
+    /// edit to the file replants the whole garden.
+    vis_hash: u64,
+    towers: Vec<crate::gui::TowerConfig>,
+}
+
+/// A file's modified time and length: a changed file changes it, and
+/// reading it is a stat, not an open (opening a file is what a virus
+/// scanner watches, and what cost the plan milliseconds).
+type FileStamp = Option<(std::time::SystemTime, u64)>;
+
+fn file_stamp(path: &std::path::Path) -> FileStamp {
+    let m = std::fs::metadata(path).ok()?;
+    Some((m.modified().ok()?, m.len()))
+}
+
+fn read_plan_inputs(dir: &std::path::Path, stamps: [FileStamp; 2]) -> PlanInputs {
+    use std::hash::{Hash, Hasher};
+    let vis_text = std::fs::read_to_string(dir.join("plants_visual.ron")).unwrap_or_default();
+    let visuals = crate::renderer::plant_mesh::PlantVisualRegistry::from_ron(&vis_text).unwrap_or_default();
+    let mut vh = std::collections::hash_map::DefaultHasher::new();
+    vis_text.hash(&mut vh);
+    PlanInputs {
+        stamps,
+        visuals: std::sync::Arc::new(visuals),
+        vis_hash: vh.finish(),
+        towers: crate::gui::load_tower_configs(dir),
+    }
+}
+
+impl PlantPass {
+    /// The plan's data files, re-read when `forced` or when either file's
+    /// stamp moved since they were last read.
+    fn inputs(&mut self, forced: bool) -> &PlanInputs {
+        // Timed from the stamps on: `inputs_ms` is the plan's file work.
+        let t0 = std::time::Instant::now();
+        let dir = crate::data_dir();
+        let stamps = [file_stamp(&dir.join("plants_visual.ron")), file_stamp(&dir.join("towers/aeroponic_configs.ron"))];
+        if forced || self.inputs.as_ref().map_or(true, |i| i.stamps != stamps) {
+            self.inputs = Some(read_plan_inputs(&dir, stamps));
+        }
+        self.inputs_ms = t0.elapsed().as_secs_f64() * 1000.0;
+        self.inputs.get_or_insert_with(|| read_plan_inputs(&dir, stamps))
+    }
+
+    /// Nothing building and nothing waiting to upload.
+    fn idle(&self) -> bool {
+        self.in_flight.is_none() && self.inbox.is_empty()
+    }
+
+    /// A sender for a new job's worker.
+    fn sender(&mut self) -> std::sync::mpsc::Sender<crate::engine::plant_pass::WorkerMsg> {
+        self.chan.get_or_insert_with(std::sync::mpsc::channel).0.clone()
+    }
+
+    /// Move everything the worker has sent into the inbox.
+    fn pull(&mut self) {
+        if let Some((_, rx)) = &self.chan {
+            while let Ok(msg) = rx.try_recv() {
+                self.inbox.push_back(msg);
+            }
+        }
+    }
+
+    /// Is `key`'s plants at `sig` already built and waiting to upload?
+    fn queued(&self, key: &str, sig: u64) -> bool {
+        self.inbox.iter().any(|m| {
+            matches!(m, crate::engine::plant_pass::WorkerMsg::Group(g) if g.key == key && g.sig == sig)
+        })
+    }
 }
 
 /// One machine's plant meshes and what they were built from.
-#[derive(Clone)]
 struct PlantGroupMeshes {
     /// Signature of everything that shaped them; equal means reuse as is.
     sig: u64,
@@ -1232,6 +1470,24 @@ struct PlantGroupMeshes {
     /// Vertices in these meshes, and their vertex and index bytes.
     verts: usize,
     bytes: u64,
+    /// `plant_pass::geometry_checksum` of them, when asked for.
+    checksum: Option<u64>,
+}
+
+/// Totals of one rebuild, from the plan that starts it until the pass is
+/// idle again.
+#[derive(Default)]
+struct PlantBatch {
+    active: bool,
+    /// Main-thread milliseconds in all, the worst frame's, and the frames.
+    main_ms: f64,
+    worst_ms: f64,
+    frames: u32,
+    /// Worker milliseconds (every job the rebuild started).
+    worker_ms: f64,
+    /// Machines uploaded and their vertices.
+    machines: usize,
+    verts: usize,
 }
 
 /// Running totals behind the plant-rebuild line in run.log.
@@ -1246,7 +1502,13 @@ struct PlantRebuildLog {
 
 /// What one plant rebuild did, for [`note_plant_rebuild`].
 struct PlantRebuild {
+    /// Main-thread milliseconds in all, in the worst frame, and the frames
+    /// it was spread over.
     ms: f64,
+    worst_ms: f64,
+    frames: u32,
+    /// Milliseconds the worker spent building (off the frame).
+    worker_ms: f64,
     /// Planted machines (towers, beds, fields), and how many were rebuilt.
     machines: usize,
     machines_rebuilt: usize,
@@ -1263,6 +1525,10 @@ struct PlantRebuild {
     verts_held: usize,
     /// GPU bytes of the plant meshes drawn (vertex + index buffers).
     bytes_held: u64,
+    /// Sum of every drawn machine's geometry checksum, with
+    /// `HUMANITY_PLANT_CHECKSUM=1`: equal before and after a change to the
+    /// pass means it draws exactly the same garden.
+    checksum: Option<u64>,
 }
 
 /// Summarise the garden plant rebuilds in run.log (2026-09-26): the first
@@ -1283,20 +1549,23 @@ fn note_plant_rebuild(r: PlantRebuild) {
     });
     s.rebuilds += 1;
     s.sum_ms += r.ms;
-    s.max_ms = s.max_ms.max(r.ms);
+    s.max_ms = s.max_ms.max(r.worst_ms);
     let secs = s.since.elapsed().as_secs_f64();
     if first || secs >= 10.0 || (!s.built_logged && r.verts_built > 0) {
+        let checksum = r.checksum.map_or(String::new(), |c| format!(", geometry checksum {c:016x}"));
         log::info!(
-            "[Plants] {} mesh rebuild(s) in {:.1} s: last {:.2} ms ({} of {} machines, {} vertices), \
-             mean {:.2} ms, max {:.2} ms; now {} draws ({} spare slots), {} plants drawn for {} grown, \
-             {} vertices, {:.1} MB",
+            "[Plants] {} mesh rebuild(s) in {:.1} s: last {:.2} ms on the frame over {} frames (worst frame {:.2} ms) \
+             + {:.1} ms on the worker ({} of {} machines, {} vertices), worst frame of all {:.2} ms; now {} draws \
+             ({} spare slots), {} plants drawn for {} grown, {} vertices, {:.1} MB{checksum}",
             s.rebuilds,
             secs,
             r.ms,
+            r.frames,
+            r.worst_ms,
+            r.worker_ms,
             r.machines_rebuilt,
             r.machines,
             r.verts_built,
-            s.sum_ms / f64::from(s.rebuilds),
             s.max_ms,
             r.draws,
             r.spare,
@@ -1315,48 +1584,168 @@ fn note_plant_rebuild(r: PlantRebuild) {
     }
 }
 
-/// One hero crop stage model by name ("carrot_3"): its geometry on the CPU,
-/// for baking a copy per plant into a merged mesh, and its textured type-19
-/// material, both cached in the plant pass's [`PlantMeshCache`]. A model
-/// that fails to load is remembered in `hero_plant_missing`, so the ~114
-/// species without converted models cost one attempt per session, not one
-/// per growth rebuild. (v0.992; CPU geometry since 2026-09-26.)
-fn hero_plant_model(
-    state: &mut EngineState,
-    cache: &mut PlantMeshCache,
-    model: &str,
-) -> Option<(std::sync::Arc<crate::assets::GltfCpuMesh>, usize)> {
-    if let Some(hit) = cache.models.get(model) {
-        return Some(hit.clone());
-    }
-    if state.hero_plant_missing.contains(model) {
-        return None;
-    }
-    let rel = format!("assets/models/plants/{model}/{model}.gltf");
-    match state.asset_manager.parse_gltf_mesh_with_texture(&rel) {
-        Ok((cpu, tex)) => {
-            let material = match tex {
-                Some((rgba, w, h)) => state.renderer.add_textured_material(
-                    [1.0, 1.0, 1.0, 1.0],
-                    0.0,
-                    0.9,
-                    19.0,
-                    0.0,
-                    &rgba,
-                    w,
-                    h,
-                ),
-                None => state.renderer.add_material_full([0.35, 0.5, 0.3, 1.0], 0.0, 0.9, 0.0, 0.0),
-            };
-            let hit = (std::sync::Arc::new(cpu), material);
-            cache.models.insert(model.to_string(), hit.clone());
-            Some(hit)
+/// Frame times around a garden rebuild (2026-09-27). The plant pass runs
+/// once a frame (`hot_reload::poll_and_apply`), so the time between two of
+/// its calls is one whole frame. The probe keeps the last 30 of them and,
+/// from the frame the pass starts building geometry until five frames after
+/// it has none left to do, the worst and the mean frame, and the plant
+/// pass's own main-thread milliseconds. A rebuild big enough to matter (a
+/// quarter of a million vertices, or any frame over twice the typical one)
+/// is written to run.log as one line, so a hitch is a reading, not a guess.
+struct HitchProbe {
+    last: Option<std::time::Instant>,
+    recent: std::collections::VecDeque<f32>,
+    window: Option<HitchWindow>,
+}
+
+/// One rebuild's frames, for [`HitchProbe`].
+#[derive(Default)]
+struct HitchWindow {
+    /// Median frame of the 30 before the rebuild began, ms.
+    typical_ms: f32,
+    frames: u32,
+    worst_frame_ms: f32,
+    sum_frame_ms: f32,
+    /// The plant pass's main-thread time: its worst single frame and total.
+    worst_pass_ms: f32,
+    sum_pass_ms: f32,
+    /// Frames since the pass last had work.
+    quiet: u32,
+    machines: usize,
+    verts: usize,
+}
+
+static HITCH_PROBE: std::sync::Mutex<HitchProbe> =
+    std::sync::Mutex::new(HitchProbe { last: None, recent: std::collections::VecDeque::new(), window: None });
+
+/// Stamp the start of this frame's plant pass; the milliseconds since the
+/// last stamp (one whole frame) or 0 on the first call.
+fn hitch_probe_frame() -> f32 {
+    let Ok(mut p) = HITCH_PROBE.lock() else { return 0.0 };
+    let now = std::time::Instant::now();
+    let ms = p.last.map_or(0.0, |t| (now - t).as_secs_f32() * 1000.0);
+    p.last = Some(now);
+    if ms > 0.0 {
+        p.recent.push_back(ms);
+        while p.recent.len() > 30 {
+            p.recent.pop_front();
         }
-        Err(_) => {
-            // Not an error: most species simply have no converted model yet.
-            state.hero_plant_missing.insert(model.to_string());
-            None
+    }
+    ms
+}
+
+/// Record this frame's plant pass: `frame_ms` from [`hitch_probe_frame`],
+/// the pass's own main-thread `pass_ms`, whether it had work, and what it
+/// built. Opens a window on the first busy frame and closes it (logging it
+/// when it matters) five quiet frames later.
+fn hitch_probe_pass(frame_ms: f32, pass_ms: f32, busy: bool, machines: usize, verts: usize) {
+    let Ok(mut p) = HITCH_PROBE.lock() else { return };
+    let p = &mut *p;
+    if let Some(w) = p.window.as_mut() {
+        // This frame's interval is the frame that followed the previous
+        // pass, so it belongs to the window already open.
+        w.frames += 1;
+        w.worst_frame_ms = w.worst_frame_ms.max(frame_ms);
+        w.sum_frame_ms += frame_ms;
+    }
+    if busy && p.window.is_none() {
+        let mut sorted: Vec<f32> = p.recent.iter().copied().collect();
+        // The interval that ends at this frame came BEFORE the work.
+        sorted.sort_by(f32::total_cmp);
+        let typical_ms = sorted.get(sorted.len() / 2).copied().unwrap_or(0.0);
+        p.window = Some(HitchWindow { typical_ms, ..HitchWindow::default() });
+    }
+    let Some(w) = p.window.as_mut() else { return };
+    w.worst_pass_ms = w.worst_pass_ms.max(pass_ms);
+    w.sum_pass_ms += pass_ms;
+    w.machines += machines;
+    w.verts += verts;
+    if busy {
+        w.quiet = 0;
+        return;
+    }
+    w.quiet += 1;
+    if w.quiet < 5 {
+        return;
+    }
+    let w = p.window.take().unwrap_or_default();
+    if w.verts >= 250_000 || (w.typical_ms > 0.0 && w.worst_frame_ms > 2.0 * w.typical_ms) {
+        log::info!(
+            "[Plants] frame times around a garden rebuild: typical {:.1} ms before; over the {} frames \
+             it took, worst {:.1} ms, mean {:.1} ms. The plant pass on the main thread: worst {:.2} ms \
+             in one frame, {:.1} ms in all ({} machines, {} vertices)",
+            w.typical_ms,
+            w.frames,
+            w.worst_frame_ms,
+            w.sum_frame_ms / w.frames.max(1) as f32,
+            w.worst_pass_ms,
+            w.sum_pass_ms,
+            w.machines,
+            w.verts
+        );
+    }
+}
+
+/// The material a hero crop stage model draws with (v0.992): its textured
+/// type-19 material, or a plain green one when the model carries no texture.
+/// Made once per model, when the worker first sends it (2026-09-27; the
+/// model's geometry used to load right here, on the frame).
+fn stage_model_material(state: &mut EngineState, texture: Option<(Vec<u8>, u32, u32)>) -> usize {
+    match texture {
+        Some((rgba, w, h)) => state.renderer.add_textured_material([1.0, 1.0, 1.0, 1.0], 0.0, 0.9, 19.0, 0.0, &rgba, w, h),
+        None => state.renderer.add_material_full([0.35, 0.5, 0.3, 1.0], 0.0, 0.9, 0.0, 0.0),
+    }
+}
+
+/// The clear sheeting of a grow enclosure (2026-09-27): a mushroom rack's
+/// fruiting tent is clear PVC over wire shelving. Nearly colourless at
+/// `TENT_ALPHA` opacity so the shelves inside stay readable, smooth, and
+/// drawn as material type 4 (glass), whose Fresnel term brightens the sheet
+/// where it is seen edge-on: the way a tent's sides and seams catch the
+/// light while its face looks through.
+const TENT_COLOR: [f32; 3] = [0.92, 0.95, 0.97];
+const TENT_ALPHA: f32 = 0.18;
+const TENT_ROUGHNESS: f32 = 0.12;
+
+/// Draw every grow enclosure (a fruiting tent around each mushroom rack,
+/// 2026-09-27) into the transparent list: one tent mesh per enclosure size
+/// from `plant_layout::tent_geometry`, placed on its machine with the
+/// machine's yaw. The enclosures come from the grow media
+/// (`enclosure` in data/garden/grow_media.ron), recorded by
+/// [`publish_grow_plots`]; the frame draws them with the machines, so they
+/// hide with them.
+pub(crate) fn push_grow_enclosures(state: &mut EngineState, transparent: &mut Vec<RenderObject>) {
+    if state.garden_draw.tents.is_empty() {
+        return;
+    }
+    let material = match state.garden_draw.tent_material {
+        Some(m) => m,
+        None => {
+            let [r, g, b] = TENT_COLOR;
+            let m = state.renderer.add_material_full([r, g, b, TENT_ALPHA], 0.0, TENT_ROUGHNESS, 4.0, 0.0);
+            state.garden_draw.tent_material = Some(m);
+            m
         }
+    };
+    for i in 0..state.garden_draw.tents.len() {
+        let (pos, yaw, size) = state.garden_draw.tents[i];
+        let mesh = match state.garden_draw.tent_meshes.iter().find(|(s, _)| *s == size) {
+            Some(&(_, m)) => m,
+            None => {
+                let (v, ix) = crate::engine::plant_layout::tent_geometry(size);
+                let m = state.renderer.add_mesh(Mesh::from_vertices(&state.renderer.device, &v, &ix));
+                state.garden_draw.tent_meshes.push((size, m));
+                m
+            }
+        };
+        transparent.push(RenderObject {
+            fade: 0.0,
+            position: pos,
+            rotation: Quat::from_rotation_y(yaw.to_radians()),
+            scale: Vec3::ONE,
+            mesh,
+            material,
+        });
     }
 }
 

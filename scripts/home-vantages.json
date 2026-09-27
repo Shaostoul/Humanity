@@ -314,6 +314,18 @@
       "pitch": -0.06
     },
     {
+      "id": "25b-mushroom-racks",
+      "room": "Mushroom room",
+      "note": "Close on the racks: their shelves, what fruits on them, and each rack's tent",
+      "pos": [
+        6.9,
+        1.5,
+        58.6
+      ],
+      "yaw": -0.55,
+      "pitch": -0.14
+    },
+    {
       "id": "26-aquaponics",
       "room": "Aquaponics",
       "note": "The fish tanks that fertilise the towers",
