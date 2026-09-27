@@ -2246,13 +2246,16 @@ mod tests {
         let mut core = ScreenCore::new("s", "video:x", 1280, 720, &theme);
         let mut p = VideoProvider::new(DEMO);
         p.open_with(&data_dir(), core.size());
-        // Let a frame arrive, then pause with it in hand.
-        let deadline = Instant::now() + Duration::from_secs(2);
+        // Let a frame arrive, then pause with it in hand. Waits for the
+        // frame, not a fixed 2 s: the whole lib suite beside several agent
+        // builds missed 2 s once (2026-09-27, the BUG-099 class). A quiet
+        // machine still gets one in milliseconds.
+        let deadline = Instant::now() + Duration::from_secs(30);
         while Instant::now() < deadline && p.last.is_none() {
             p.advance();
             std::thread::sleep(Duration::from_millis(3));
         }
-        assert!(p.last.is_some(), "a frame must arrive within 2 s");
+        assert!(p.last.is_some(), "a frame must arrive within 30 s");
         // The surface may sit at another size from a previous draw.
         core.set_size(320, 180);
         p.on_button((0.5, 0.5), true);

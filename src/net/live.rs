@@ -502,7 +502,13 @@ mod tests {
         let mut publisher = LivePublisher::start(cfg, &seed);
 
         // Let the worker connect and authenticate before a viewer subscribes.
-        tokio::time::sleep(Duration::from_millis(400)).await;
+        // Waits for the connection, up to 30 s, rather than a fixed 400 ms:
+        // the whole lib suite beside several agent builds missed 400 ms once
+        // (2026-09-27, the BUG-099 class). A quiet machine connects at once.
+        let deadline = std::time::Instant::now() + Duration::from_secs(30);
+        while !publisher.stats().connected.load(Ordering::Relaxed) && std::time::Instant::now() < deadline {
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
         assert!(
             publisher.stats().connected.load(Ordering::Relaxed),
             "publisher failed to authenticate: {}",
@@ -528,20 +534,25 @@ mod tests {
                 pixels[i + 3] = 255;
             }
         }
-        publisher.submit_frame(RawFrame {
-            pixels,
-            width: w,
-            height: h,
-            bytes_per_row: bpr,
-            bgra: true,
-        });
-
-        // --- Receive it, and actually DECODE it.
-        let msg = tokio::time::timeout(Duration::from_secs(5), viewer.next())
-            .await
-            .expect("a frame should have arrived")
-            .unwrap()
-            .unwrap();
+        // --- Receive it, and actually DECODE it. The frame is offered again
+        // every 200 ms until the viewer has one, up to 30 s: the 150 ms
+        // settle above is a hint, not a guarantee, and a loaded machine
+        // (several agent builds, 2026-09-27) can register the viewer after a
+        // single frame has already gone out to nobody.
+        let deadline = std::time::Instant::now() + Duration::from_secs(30);
+        let msg = loop {
+            publisher.submit_frame(RawFrame {
+                pixels: pixels.clone(),
+                width: w,
+                height: h,
+                bytes_per_row: bpr,
+                bgra: true,
+            });
+            match tokio::time::timeout(Duration::from_millis(200), viewer.next()).await {
+                Ok(next) => break next.expect("the stream stays open").expect("a frame, not an error"),
+                Err(_) => assert!(std::time::Instant::now() < deadline, "a frame should have arrived within 30 s"),
+            }
+        };
         let data = msg.into_data();
 
         assert!(data.len() > 9, "frame must carry a payload, not just a header");

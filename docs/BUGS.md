@@ -2015,6 +2015,15 @@ deadline is 30 s, and that test and twelve others that wrote fixed temp paths
 (machines.rs, persistence.rs, ship/home_structure.rs) now put the process id in
 the name, so concurrent runs never share a file.
 
+Later the same day, with the suite taking twice its usual time beside several
+agent builds and a GPU session, two more failed and passed alone:
+`notices_and_the_paused_picture_lay_out_at_the_display_size` (a frame within a
+fixed 2 s) and `a_real_frame_survives_the_whole_pipeline_to_a_viewer` (the
+publisher checked for a connection after a fixed 400 ms, and one frame sent
+once after a fixed 150 ms settle, which can go out before the viewer is
+registered). Both now wait for their condition up to 30 s, and the live test
+offers the frame every 200 ms until the viewer has one (v0.1392.0).
+
 ## BUG-100: seams in the sleep and offline batch, found by review (FIXED v0.1387.0, before release)
 
 A critic review of the built beds and chests work and offline progression rung 2,
@@ -2095,7 +2104,7 @@ build; nothing stops two pieces being built in one spot; small overlaps float
 a piece; and the build pose is recomputed at the key press rather than taken
 from the ghost.
 
-## BUG-103: rectangular blocks in the open-sea colour seen from orbit (FIXED 2026-09-27)
+## BUG-103: rectangular blocks in the open-sea colour seen from orbit (FIXED v0.1392.0)
 
 Seen at fixtures `deck-55-nadir` and `ocean-glint-150km`: hard, straight-edged
 blocks in the regional sea colour. They were seams along the lattice lines of
