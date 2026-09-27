@@ -978,7 +978,7 @@ them up.
    2026-08-04: none could be cheaply proven redundant, and
    `just clean-worktrees` force-deletes branches and has destroyed
    review-approved work before. Operator-only by standing rule.
-3. **Two gameplay questions** from
+5. **Two gameplay questions** from
    `docs/design/playable-assessment-2026-09-19.md` section 7. **Crop growth speed
    is ANSWERED (2026-09-20)**: a growth multiplier separate from the world clock,
    1x / 10x / 100x plus a custom value, shipping at 10x, implemented and tested;
@@ -988,7 +988,7 @@ them up.
    anything, or is it co-operative trust until launch. NOTE that the report's
    question 2 ("do the 3D models ship with the release") is ANSWERED: they do,
    since v0.1322.0.
-4. **The two demoted lethal Library guides**
+6. **The two demoted lethal Library guides**
    (`/library#making-water-safe-to-drink`, `/library#keeping-what-you-grew`)
    stay at `sourced` until a human has read them, per the rule the operator
    chose. `curriculum-status.js` enforces it.
@@ -996,12 +996,12 @@ them up.
    `materials_fire_staff` (`/library#fire-staff-materials`, updated, plus the
    new `/library#staff-tubes`, `/library#fire-performance-fuels` and
    `/library#fire-performance-clothing`) are at `sourced` for the same reason.
-5. **GitHub branch and tag protection on `main`.** Deploy auto-pushes to the
+7. **GitHub branch and tag protection on `main`.** Deploy auto-pushes to the
    live relay with no approval gate. GitHub settings, not code.
-6. **Donations copy** needs the exact earmarked Sponsor-A-Can URL for HumanityOS
+8. **Donations copy** needs the exact earmarked Sponsor-A-Can URL for HumanityOS
    and confirmation of whether those donations are tax-deductible and earmarked,
    before the CTA and FAQ wording can be finalized.
-7. **Landing screen 2 hero shot:** click Play, frame something pretty, and tell
+9. **Landing screen 2 hero shot:** click Play, frame something pretty, and tell
    the session to capture (`debug/screenshot_request.json`); it swaps the cosmos
    stand-in for the real 3D shot.
 
