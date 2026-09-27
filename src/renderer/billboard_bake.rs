@@ -653,7 +653,7 @@ impl Renderer {
                     module: &shader,
                     entry_point: Some("fs_main"),
                     targets: &[Some(wgpu::ColorTargetState {
-                        format: self.config.format,
+                        format: self.config.format, // display-format: the tree-card bake renders into its own atlas, not the scene
                         blend: None,
                         write_mask: wgpu::ColorWrites::ALL,
                     })],
@@ -716,7 +716,7 @@ impl Renderer {
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
-            format: self.config.format,
+            format: self.config.format, // display-format: the bake target matches the atlas it is copied into
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
             view_formats: &[],
         });
@@ -927,7 +927,7 @@ impl Renderer {
         let rig = self.bake_rig();
         let targets = self.bake_targets(CLUSTER_BAKE_PX);
         let srgb = matches!(
-            self.config.format,
+            self.config.format, // display-format: the bake target readback swizzle
             wgpu::TextureFormat::Bgra8UnormSrgb | wgpu::TextureFormat::Rgba8UnormSrgb
         );
         let mut out: Vec<ClusterSpriteImage> = Vec::new();
@@ -1130,7 +1130,7 @@ impl Renderer {
         let _ = self.device.poll(wgpu::Maintain::Wait);
         let data = slice.get_mapped_range();
         let bgra = matches!(
-            self.config.format,
+            self.config.format, // display-format: the bake target readback swizzle
             wgpu::TextureFormat::Bgra8Unorm | wgpu::TextureFormat::Bgra8UnormSrgb
         );
         let mut pixels = Vec::with_capacity((w * h * 4) as usize);

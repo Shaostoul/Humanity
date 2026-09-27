@@ -58,7 +58,7 @@ pub struct GodrayPass {
 }
 
 impl GodrayPass {
-    pub fn new(device: &wgpu::Device, surface_format: wgpu::TextureFormat) -> Self {
+    pub fn new(device: &wgpu::Device, scene_format: wgpu::TextureFormat) -> Self {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Godray Shader"),
             source: wgpu::ShaderSource::Wgsl(include_str!("../../assets/shaders/godrays.wgsl").into()),
@@ -117,7 +117,7 @@ impl GodrayPass {
                 module: &shader,
                 entry_point: Some("fs_main"),
                 targets: &[Some(wgpu::ColorTargetState {
-                    format: surface_format,
+                    format: scene_format,
                     // SCREEN blend (v0.897, was plain additive): out = src *
                     // (1 - dst) + dst. Dark sky receives the full shafts;
                     // already-bright pixels (sunlit cloud decks) receive

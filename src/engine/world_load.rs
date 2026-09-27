@@ -923,7 +923,7 @@ pub(crate) fn load_world(state: &mut EngineState) {
             crate::renderer::stars::StarRenderer::new(
                 &state.renderer.device,
                 &state.renderer.queue,
-                state.renderer.surface_format(),
+                state.renderer.scene_format(),
                 catalog,
                 &state.data_dir,
                 // Ultra Milky Way glow tier (2026-07-11): built here with the

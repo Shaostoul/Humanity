@@ -25,7 +25,7 @@ pub struct SsaoPass {
 }
 
 impl SsaoPass {
-    pub fn new(device: &wgpu::Device, surface_format: wgpu::TextureFormat) -> Self {
+    pub fn new(device: &wgpu::Device, scene_format: wgpu::TextureFormat) -> Self {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("SSAO Shader"),
             source: wgpu::ShaderSource::Wgsl(include_str!("../../assets/shaders/ssao.wgsl").into()),
@@ -83,7 +83,7 @@ impl SsaoPass {
                 module: &shader,
                 entry_point: Some("fs_main"),
                 targets: &[Some(wgpu::ColorTargetState {
-                    format: surface_format,
+                    format: scene_format,
                     // Multiply: out = src * dst. The shader's grayscale AO
                     // darkens what is already there; sky outputs 1.0.
                     blend: Some(wgpu::BlendState {

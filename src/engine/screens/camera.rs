@@ -20,10 +20,12 @@
 //!   no more often than [`CAMERA_INTERVAL`]) and calls the provider's
 //!   `render_world` with an [`EngineWorld`] handle. The provider builds a
 //!   renderer `Camera` at the post's pose with the surface's aspect
-//!   ([`camera_from_pose`]) and has the world rendered STRAIGHT INTO its
-//!   surface texture, which was created in the scene's swapchain format for
-//!   exactly this (`surface_format`), through `engine::ipc::render_view_onto`,
-//!   the same function the hi-res screenshot uses.
+//!   ([`camera_from_pose`]) and has the world rendered for its surface
+//!   texture through `engine::ipc::render_view_onto`, the same function the
+//!   hi-res screenshot uses: the passes draw into a view-sized scratch in the
+//!   scene format and the present pass writes the surface, which is created
+//!   in the DISPLAY (swapchain) format for exactly that (`surface_format`;
+//!   renderer/scene_target.rs, 2026-09-27).
 //! * Ordering: the render happens inside `frame_surfaces`, which runs
 //!   before the live frame's own scene pass, so the scene pass samples THIS
 //!   frame's view; a skipped tick keeps the last image (the texture
@@ -106,6 +108,12 @@ pub(crate) struct EngineWorld<'a, 'b> {
 /// screen; a camera pointed at its own monitor shows that monitor's body
 /// with no picture on it. Pure, so a test can pin that exactly the target's
 /// quads go and every other object, including OTHER screens' quads, stays.
+///
+/// Since 2026-09-27 the scene passes draw into a scratch target and only the
+/// present pass writes the surface, so the conflict above no longer arises;
+/// the quads stay out anyway, because a camera that saw its own screen would
+/// show last frame's picture inside this one, and increment 2 of the HDR
+/// scene target had to change no pixel.
 pub fn without_own_quads(opaque: &[RenderObject], quads: &[ScreenQuad], surface: usize) -> Vec<RenderObject> {
     let own: Vec<usize> = quads.iter().filter(|q| q.surface == surface).map(|q| q.material).collect();
     opaque.iter().filter(|o| !own.contains(&o.material)).cloned().collect()
@@ -248,10 +256,10 @@ impl ScreenProvider for CameraProvider {
         })
     }
 
-    /// The world is rendered straight into this surface, so the surface
-    /// must be in the format the scene pipelines draw in.
-    fn surface_format(&self, scene_format: wgpu::TextureFormat) -> wgpu::TextureFormat {
-        scene_format
+    /// The present pass writes the rendered view into this surface, so the
+    /// surface is in the display format that pass is built for.
+    fn surface_format(&self, display_format: wgpu::TextureFormat) -> wgpu::TextureFormat {
+        display_format
     }
 
     fn world_render(&self) -> Option<WorldRenderState> {
@@ -501,18 +509,18 @@ mod tests {
     }
 
     /// The registry resolves both rung-3 schemes to their providers, and
-    /// the camera provider asks for the scene's format while the live one
-    /// keeps the default.
+    /// the camera provider asks for the display format (the present pass
+    /// writes it) while the live one keeps the default.
     #[test]
     fn provider_for_resolves_the_watch_and_camera_schemes() {
         let live = provider_for(&ScreenSource::parse("watch:shaostoul")).expect("watch: has a provider");
         assert_eq!(live.kind(), "watch");
         assert!(live.world_render().is_none(), "a live stream is not a world screen");
-        let scene = wgpu::TextureFormat::Bgra8UnormSrgb;
-        assert_eq!(live.surface_format(scene), crate::gui::screen_surface::SURFACE_FORMAT);
+        let display = wgpu::TextureFormat::Bgra8UnormSrgb;
+        assert_eq!(live.surface_format(display), crate::gui::screen_surface::SURFACE_FORMAT);
         let cam = provider_for(&ScreenSource::parse("camera:camera_post_1")).expect("camera: has a provider");
         assert_eq!(cam.kind(), "camera");
-        assert_eq!(cam.surface_format(scene), scene, "the world is rendered straight into a camera surface");
+        assert_eq!(cam.surface_format(display), display, "the present pass writes a camera surface in the display format");
         assert!(provider_for(&ScreenSource::parse("inventory")).is_none());
         // Every other wired kind resolves too; the registry is one match.
         assert_eq!(provider_for(&ScreenSource::parse("video:x.webm")).expect("video: has a provider").kind(), "video");

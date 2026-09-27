@@ -210,7 +210,7 @@ impl Pipeline {
     /// the terrain-batch variant module (same source, batch OBJECT-SOURCE).
     pub fn new(
         device: &wgpu::Device,
-        surface_format: wgpu::TextureFormat,
+        scene_format: wgpu::TextureFormat,
         shader: &wgpu::ShaderModule,
         batch_shader: &wgpu::ShaderModule,
     ) -> Self {
@@ -626,7 +626,7 @@ impl Pipeline {
             emission_pass: emission_pass_pipeline,
         } = Self::build_all_pipelines(
             device,
-            surface_format,
+            scene_format,
             shader,
             batch_shader,
             &pipeline_layout,
@@ -727,7 +727,7 @@ impl Pipeline {
     /// is no shell branch for a permutation to switch off.
     fn build_emission_pass_pipeline(
         device: &wgpu::Device,
-        surface_format: wgpu::TextureFormat,
+        scene_format: wgpu::TextureFormat,
         shader: &wgpu::ShaderModule,
         layout: &wgpu::PipelineLayout,
     ) -> wgpu::RenderPipeline {
@@ -745,7 +745,7 @@ impl Pipeline {
                 entry_point: Some("fs_emission_pass"),
                 compilation_options: Default::default(),
                 targets: &[Some(wgpu::ColorTargetState {
-                    format: surface_format,
+                    format: scene_format,
                     blend: Some(wgpu::BlendState {
                         color: wgpu::BlendComponent {
                             src_factor: wgpu::BlendFactor::One,
@@ -891,7 +891,7 @@ impl Pipeline {
     pub fn recreate_pipelines(
         &mut self,
         device: &wgpu::Device,
-        surface_format: wgpu::TextureFormat,
+        scene_format: wgpu::TextureFormat,
         shader: &wgpu::ShaderModule,
         batch_shader: &wgpu::ShaderModule,
     ) -> RebuiltPipelines {
@@ -923,7 +923,7 @@ impl Pipeline {
         );
         let fresh = Self::build_all_pipelines(
             device,
-            surface_format,
+            scene_format,
             shader,
             batch_shader,
             &pipeline_layout,
@@ -1113,7 +1113,7 @@ impl Pipeline {
     /// helper so `build_all_pipelines` can compile it on its own thread.
     fn build_patch_render(
         device: &wgpu::Device,
-        surface_format: wgpu::TextureFormat,
+        scene_format: wgpu::TextureFormat,
         batch_shader: &wgpu::ShaderModule,
         layout: &wgpu::PipelineLayout,
     ) -> wgpu::RenderPipeline {
@@ -1142,7 +1142,7 @@ impl Pipeline {
                 module: batch_shader,
                 entry_point: Some(entry),
                 targets: &[Some(wgpu::ColorTargetState {
-                    format: surface_format,
+                    format: scene_format,
                     blend: Some(wgpu::BlendState::REPLACE),
                     write_mask: wgpu::ColorWrites::ALL,
                 })],
@@ -1273,7 +1273,7 @@ impl Pipeline {
     /// underneath it almost for free.
     fn build_all_pipelines(
         device: &wgpu::Device,
-        surface_format: wgpu::TextureFormat,
+        scene_format: wgpu::TextureFormat,
         shader: &wgpu::ShaderModule,
         batch_shader: &wgpu::ShaderModule,
         pipeline_layout: &wgpu::PipelineLayout,
@@ -1321,7 +1321,7 @@ impl Pipeline {
                     module: shader,
                     entry_point: Some(entry),
                     targets: &[Some(wgpu::ColorTargetState {
-                        format: surface_format,
+                        format: scene_format,
                         blend: Some(blend),
                         write_mask: wgpu::ColorWrites::ALL,
                     })],
@@ -1523,7 +1523,7 @@ impl Pipeline {
                 timed("Emission Pass Pipeline", |_| {
                     Self::build_emission_pass_pipeline(
                         device,
-                        surface_format,
+                        scene_format,
                         shader,
                         emission_pipeline_layout,
                     )
@@ -1533,7 +1533,7 @@ impl Pipeline {
             let shadow_alpha = s.spawn(|| timed("Sun Shadow Alpha Pipeline", |l| make_shadow(l)));
             let patch_render = s.spawn(|| {
                 timed("Patch Batch Render Pipeline", |_| {
-                    Self::build_patch_render(device, surface_format, batch_shader, patch_pipeline_layout)
+                    Self::build_patch_render(device, scene_format, batch_shader, patch_pipeline_layout)
                 })
             });
             // The nineteenth compiles on THIS thread while the eighteen

@@ -1390,8 +1390,12 @@ Load .glb/.gltf models with normal and UV fallbacks. Cached by path.
 - Native: `src/assets/mod.rs`
 
 ### Instanced Rendering
-Batched drawing for objects sharing mesh and material.
-- Native: `src/renderer/mod.rs` (InstanceBatch)
+GPU instancing through the per-instance vertex stream at slot 1 (`INSTANCE_STRIDE`, `GrassInstance`): one mesh, one material, one draw, N instances (the grass strands). The old `InstanceBatch` / `render_instanced` path, a per-instance uniform loop that drew straight to the swapchain and had no callers, was deleted 2026-09-27 with the HDR scene target.
+- Native: `src/renderer/mesh.rs` (instance layout), `src/renderer/mod.rs` (grass instances)
+
+### Scene Target and Present Pass
+Every scene pass draws into a scene target; one full-screen present pass copies it to the display before egui (HDR scene target increments 1 and 2, 2026-09-27). Off-screen views (camera screens, the hi-res capture) draw into a view-sized scratch and are presented the same way. Today the scene format equals the display format, so the copy is bit-exact; it is the rung the Rgba16Float target, the one dither and the one tonemap build on.
+- Native: `src/renderer/scene_target.rs`, `assets/shaders/present.wgsl`; plan `docs/design/hdr-scene-target.md`; lint `tests/scene_format_lint.rs`
 
 ### Icosphere Planet Terrain
 Recursive subdivision from icosahedron. LOD from billboard to walkable surface.

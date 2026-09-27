@@ -49,11 +49,11 @@ pub struct BloomPass {
     half_width: u32,
     half_height: u32,
     /// Surface format for compatibility
-    surface_format: wgpu::TextureFormat,
+    scene_format: wgpu::TextureFormat,
 }
 
 impl BloomPass {
-    pub fn new(device: &wgpu::Device, width: u32, height: u32, surface_format: wgpu::TextureFormat) -> Self {
+    pub fn new(device: &wgpu::Device, width: u32, height: u32, scene_format: wgpu::TextureFormat) -> Self {
         let half_width = (width / 2).max(1);
         let half_height = (height / 2).max(1);
 
@@ -151,7 +151,7 @@ impl BloomPass {
             &[&bind_group_layout], "Bloom Blur V",
         );
         let composite_pipeline = create_fullscreen_pipeline(
-            device, &shader, "fs_composite", surface_format,
+            device, &shader, "fs_composite", scene_format,
             &[&bind_group_layout, &composite_bind_group_layout], "Bloom Composite",
         );
 
@@ -162,7 +162,7 @@ impl BloomPass {
             bind_group_layout, composite_bind_group_layout,
             threshold_pipeline, blur_h_pipeline, blur_v_pipeline, composite_pipeline,
             half_width, half_height,
-            surface_format,
+            scene_format,
         }
     }
 

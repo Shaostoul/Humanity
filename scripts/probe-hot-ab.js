@@ -16,7 +16,13 @@
 //
 // plan = { pins: {showcase pins applied to every vantage},
 //          vantages: ["id from tests/visual/vantages.json" | {id, camera, showcase, settle_s, hold_altitude}],
-//          arms: [{name, patches: [{file, find, replace, count?}]}] }
+//          arms: [{name, patches: [{file, find, replace, count?}], showcase?: {pins for this arm only}}],
+//          shot?: {width, height} }
+// An arm's `showcase` is merged LAST, so it wins over the plan and vantage
+// pins: it is how an arm flips a runtime switch instead of a shader (the
+// HDR scene target's `present_direct`, 2026-09-27). An arm with no patches
+// and a showcase needs no reload. `shot` asks every capture for a hi-res
+// off-screen render instead of the window grab.
 // Every arm starts from the ORIGINAL file text captured at start, applies its
 // patches (each `find` must occur exactly `count` (default 1) times, or the
 // arm is refused: a patch that silently did not apply is the classic null
@@ -114,11 +120,12 @@ async function applyAndReload(texts, label) {
   throw new Error(`${label}: no [HotReload] reassembled line within 120 s`);
 }
 
-async function capture(v, arm) {
+async function capture(v, arm, armShowcase) {
   const sc = Object.assign(
     { map_diag: "0", cloud_top_bound: "0", cloud_uniform_step: "0", cloud_step_m: "0", wind: "auto", anim_clock: "auto", aurora: "1" },
     plan.pins || {},
-    v.showcase || {}
+    v.showcase || {},
+    armShowcase || {}
   );
   req("showcase_request.json", sc);
   await sleep(3500);
@@ -134,7 +141,7 @@ async function capture(v, arm) {
   if (!re || re.ok !== true) throw new Error(`re-park: ${JSON.stringify(re)}`);
   await sleep(v.hold_altitude ? 900 : 6000);
   clearDone("screenshot_done.json");
-  req("screenshot_request.json", {});
+  req("screenshot_request.json", plan.shot || {});
   const shot = await waitFile("screenshot_done.json", 60000);
   if (!shot || shot.ok !== true) throw new Error(`screenshot: ${JSON.stringify(shot)}`);
   const dest = `${arm}__${v.id}.png`;
@@ -154,7 +161,7 @@ async function capture(v, arm) {
       await applyAndReload(texts[i], arm.name);
       for (const v of vantages) {
         try {
-          await capture(v, arm.name);
+          await capture(v, arm.name, arm.showcase);
           results.push({ arm: arm.name, id: v.id, ok: true });
         } catch (e) {
           log(`  FAILED ${v.id}: ${e.message}`);

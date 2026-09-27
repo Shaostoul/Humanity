@@ -1469,7 +1469,7 @@ mod native_app {
             );
             let egui_renderer = egui_wgpu::Renderer::new(
                 &renderer.device,
-                renderer.surface_format(),
+                renderer.surface_format(), // display-format: egui draws on the swapchain, after the present pass
                 None,
                 1,
                 false,
@@ -1558,7 +1558,7 @@ mod native_app {
                 let (tx, rx) = std::sync::mpsc::channel();
                 let device = renderer.device.clone();
                 let queue = renderer.queue.clone();
-                let format = renderer.surface_format();
+                let scene_format = renderer.scene_format();
                 let sky_dir = data_dir.clone();
                 let tier_setting = gui_state.settings.star_catalog_tier.clone();
                 let ultra_glow = gui_state.settings.sky_glow_tier == "ultra";
@@ -1571,7 +1571,7 @@ mod native_app {
                             crate::renderer::stars::StarRenderer::new(
                                 &device,
                                 &queue,
-                                format,
+                                scene_format,
                                 catalog,
                                 &sky_dir,
                                 ultra_glow && cap >= 2,
@@ -14808,7 +14808,10 @@ mod native_app {
                     } else {
                         // In-game: render stars first, then scene objects on top
                         match state.renderer.acquire_surface() {
-                            Ok((output, view)) => {
+                            Ok((output, swap_view)) => {
+                                // HDR scene target (renderer/scene_target.rs): every pass below draws into the
+                                // scene target, and `present_scene` copies it to the swapchain before egui.
+                                let view = state.renderer.scene_view_for(&swap_view);
                                 // DAYLIGHT GATE (v0.1059): inside an
                                 // atmosphere with the sun well up, the
                                 // stars are washed out by the sky drawn
@@ -15309,7 +15312,8 @@ mod native_app {
                                             .draw_gpu_particles_onto(&state.camera, &view);
                                     }
                                 }
-                                Ok((output, view))
+                                state.renderer.present_scene(&swap_view);
+                                Ok((output, swap_view))
                             }
                             Err(e) => Err(e),
                         }

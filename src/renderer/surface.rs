@@ -12,9 +12,10 @@
 //! configured (`set_vsync`, `apply_pending_surface_config`), resized
 //! (`resize`, which rebuilds both targets), asked about (`aspect_ratio`,
 //! `surface_format`, `surface_size`) and acquired (`acquire_surface`,
-//! `acquire_surface_cleared`). `create_scene_texture` and
-//! `create_depth_texture` are the two constructors that `resize`, `init` and
-//! `capture.rs` all share. One job, one file.
+//! `acquire_surface_cleared`). `create_depth_texture` is the constructor
+//! `resize`, `init` and `view_depth.rs` share; the scene target has its own
+//! (`SceneTarget::new`, scene_target.rs, 2026-09-27), which `resize` calls
+//! through `resize_scene_target`. One job, one file.
 //!
 //! BUG-077 LIVES HERE, and is why the present-mode change is DEFERRED rather
 //! than applied where it is asked for: reconfiguring the surface while a
@@ -31,8 +32,7 @@
 //! `Renderer`, resolved by receiver type rather than by module path, so every
 //! call site in the crate keeps working untouched. A child module also sees
 //! its parent's private items, so `surface`, `config`, `pending_present_mode`,
-//! `depth_texture`, `scene_texture` and `bloom` stay private and are reached
-//! from here.
+//! `depth_texture` and `bloom` stay private and are reached from here.
 
 use super::{frame_costs, Renderer};
 
@@ -83,11 +83,10 @@ impl Renderer {
         let (tex, view) = Self::create_depth_texture(&self.device, width, height);
         self.depth_texture = tex;
         self.depth_view = view;
-        // Resize scene texture + bloom
-        let fmt = self.config.format;
-        let (st, sv) = Self::create_scene_texture(&self.device, width, height, fmt);
-        self.scene_texture = st;
-        self.scene_view = sv;
+        // The scene target follows the window (scene_target.rs; it keeps
+        // its own format, which is not the display's from increment 3 on),
+        // and bloom with it.
+        self.resize_scene_target(width, height);
         if let Some(ref mut bloom) = self.bloom {
             bloom.resize(&self.device, width, height);
         }
@@ -98,9 +97,11 @@ impl Renderer {
         self.config.width as f32 / self.config.height as f32
     }
 
-    /// Surface texture format (needed by egui-wgpu renderer).
+    /// The DISPLAY format: the swapchain's, which egui draws in and the
+    /// present pass writes. Scene pipelines use `scene_format()` instead
+    /// (scene_target.rs; tests/scene_format_lint.rs).
     pub fn surface_format(&self) -> wgpu::TextureFormat {
-        self.config.format
+        self.config.format // display-format: this is the display format's own accessor
     }
 
     /// Current surface dimensions.
@@ -166,31 +167,6 @@ impl Renderer {
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
         Ok((output, view))
-    }
-
-    /// Create the off-screen scene texture (same format as surface, with TEXTURE_BINDING).
-    ///
-    /// `pub(super)` only because `init` (mod.rs) and the offscreen capture
-    /// targets (capture.rs) build their own: it was private while it lived
-    /// beside them in mod.rs, and this is the whole privacy delta of the move.
-    pub(super) fn create_scene_texture(
-        device: &wgpu::Device,
-        width: u32,
-        height: u32,
-        format: wgpu::TextureFormat,
-    ) -> (wgpu::Texture, wgpu::TextureView) {
-        let texture = device.create_texture(&wgpu::TextureDescriptor {
-            label: Some("Scene Texture"),
-            size: wgpu::Extent3d { width, height, depth_or_array_layers: 1 },
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format,
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_SRC,
-            view_formats: &[],
-        });
-        let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
-        (texture, view)
     }
 
     pub(super) fn create_depth_texture(

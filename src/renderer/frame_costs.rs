@@ -97,11 +97,10 @@ pub const GPU_IDS_WITHOUT_CPU_TWIN: &[&str] = &[
     "gpu.ui",
     // The star pass has a `cpu.stars` twin on the LIVE path, but these passes
     // never got one: the transparent celestial pass (ocean shells), the sun
-    // shadow depth pass, the sky-view LUT refresh, the instanced batches.
+    // shadow depth pass, the sky-view LUT refresh.
     "gpu.celestial_t",
     "gpu.shadow",
     "gpu.sky_view",
-    "gpu.instanced",
     // The whole cloud deck is encoded inside `render_celestial_onto`, under
     // `cpu.celestial`; its four (plus two calibration) passes have no
     // per-pass CPU twin.
@@ -695,6 +694,17 @@ impl SceneView {
             SceneView::Screen => ("gpu.screen_lines", "cpu.screen_lines"),
         }
     }
+
+    /// (GPU pass id, CPU stage id) for the present pass that copies the
+    /// view's scene target into its display target (scene_target.rs,
+    /// 2026-09-27): the live frame and the screenshot are `gpu.present`, a
+    /// camera screen's copy is its own number like its other passes.
+    pub fn present_ids(self) -> (&'static str, &'static str) {
+        match self {
+            SceneView::Main => ("gpu.present", "cpu.present"),
+            SceneView::Screen => ("gpu.screen_present", "cpu.screen_present"),
+        }
+    }
 }
 
 /// wgpu timestamp-query ring. One query set is enough because we resolve the
@@ -1091,7 +1101,7 @@ impl Renderer {
         set_vram("vram.meshes", mesh_bytes);
 
         // Engine-global textures and render targets.
-        let targets = texture_bytes(&self.scene_texture)
+        let targets = self.scene_target_bytes()
             + texture_bytes(&self.depth_texture)
             + texture_bytes(&self.tree_atlas_texture)
             + texture_bytes(&self.water_fft_texture)
