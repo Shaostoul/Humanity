@@ -1875,3 +1875,37 @@ oversubscription the player drops frames by design) and
 `notices_and_the_paused_picture_lay_out_at_the_display_size` (2 of 60; it
 gives the first frame 2 s to arrive). Neither failed at the normal test run's
 load: 0 in 450 screens runs and 5 whole-suite runs on 2026-09-27.
+
+## BUG-095: every boot played a looping 440 Hz tone from the workshop screen (FIXED v0.1376.0)
+
+**Symptom (operator, 2026-09-27).** "The screen that's playing the constant
+high pitch buzz. That's very distracting every single time a fresh instance
+boots up, especially when I'm watching a movie or playing some other game."
+
+**Cause.** `wall_screen_5` in the workshop (`data/machines/home.ron`) plays
+`media/demo_colour_bar.webm` on loop, and that clip's audio is a 440 Hz test
+tone (`data/media/README.md`). A video screen attached its sound on the first
+tick that had a player and an audio device, so the tone started on every
+boot. That included every instance an agent or a rig launched in the
+background, which already opened without taking focus but still made sound.
+
+**Fix, two layers.**
+- A video screen starts MUTED, the rule browsers apply to autoplaying video.
+  The strip shows Unmute on a clip with a sound track. No stream is attached
+  until the first Unmute; a Mute after that keeps the stream and sends
+  silence. The state is not saved, so every boot is quiet
+  (`engine/screens/video.rs`, `VideoProvider::sound_on`).
+- An instance launched in the background by a script opens no audio device
+  (`lib.rs`, the same `launch_focus::launch_in_background()` decision that
+  keeps it from taking focus). The operator's own launches keep their sound.
+
+**Found on the way.** `mix_moved`, the gate that keeps a still listener from
+re-sending the mix every frame, held a Mute from a quiet mix: 0.0012 to 0.0
+sat inside its 0.004 epsilon, so the silence was never sent. Going into or
+out of silence now always counts.
+
+**Verified.** New test `a_screen_starts_muted_and_unmute_turns_its_sound_on`
+clicks the real Unmute button through egui; it was seen red with the screen
+starting unmuted. The audio-device test now also checks that nothing attaches
+before Unmute and that Mute sends silence; it runs on this machine and
+passes. The 28 screen tests pass.

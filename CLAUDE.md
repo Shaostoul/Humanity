@@ -172,6 +172,13 @@ remember to request, and each left a hole (forgotten env vars, bare exes copied 
 fresh dirs, worktree target/ dirs with no marker). Full decision order and the
 FFI parent-process check: `src/engine/launch_focus.rs`.
 
+**A background instance is also SILENT (2026-09-27).** The same decision
+(`launch_in_background()`) keeps it from opening an audio device, because
+agent boots used to sound over the operator's film or game (the workshop
+screen's 440 Hz demo tone, on every boot). And every in-world video screen
+now starts muted until the player presses Unmute, so the operator's own
+boots are quiet too.
+
 What still matters in practice:
 
 ```bash

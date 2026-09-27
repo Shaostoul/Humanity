@@ -713,6 +713,16 @@ ffmpeg run.
   so the next report re-announces it), and `write_pixels` drops it for any
   provider that writes bytes. The notice paths keep their events: the run
   that draws the notice consumes them.
+- **Sound starts muted (2026-09-27).** A screen plays its picture on its own,
+  and its sound waits for the player: the strip shows Unmute on a clip with a
+  sound track, and a click turns it on (the button then reads Mute). No
+  stream is attached until the first Unmute; a Mute after that keeps the
+  stream and sends silence, so Unmute resumes in step with the picture. The
+  state is not saved, so every boot is quiet. This is the rule browsers apply
+  to autoplaying video, and it came from the operator: the workshop screen's
+  demo clip, a looping 440 Hz test tone, sounded on every boot. Separately,
+  an instance launched in the background by a script or agent opens no audio
+  device at all (`lib.rs`, `engine::launch_focus`).
 - **Sound placed at the screen.** The clip's Opus track plays through kira
   as a streaming sound (`AudioManager::play_stream`), which is a plain stereo
   stream, not an emitter in a 3D scene (the engine has no kira spatial scene

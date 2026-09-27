@@ -282,11 +282,15 @@ pub fn compose_mix(master: f64, sfx: f64, falloff: f64) -> f64 {
 /// than `MIX_EPSILON` on EITHER channel. Nothing sent yet always counts as
 /// moved. This is what keeps a listener standing still from restarting a
 /// 60 ms tween every frame: kira would hold the value at its target anyway,
-/// but every restart is a message to the audio thread.
+/// but every restart is a message to the audio thread. Going to silence, or
+/// out of it, always counts, however small the step: a Mute from a quiet
+/// mix (0.0012 at a low master) sat inside the gate and was never sent.
 pub fn mix_moved(sent: Option<(f64, f64)>, next: (f64, f64)) -> bool {
     match sent {
         None => true,
-        Some((v, p)) => (v - next.0).abs() > MIX_EPSILON || (p - next.1).abs() > MIX_EPSILON,
+        Some((v, p)) => {
+            (v == 0.0) != (next.0 == 0.0) || (v - next.0).abs() > MIX_EPSILON || (p - next.1).abs() > MIX_EPSILON
+        }
     }
 }
 
@@ -399,6 +403,10 @@ pub struct ScreenView {
     pub display_px: (u32, u32),
     pub strip: bool,
     pub paused: bool,
+    /// The clip has a sound track, so the strip offers Mute / Unmute.
+    pub has_sound: bool,
+    /// The player turned the sound on (the button reads Mute).
+    pub sound_on: bool,
     /// The file name shown on the strip.
     pub name: String,
     /// The strip's right-hand text: the time, or the conversion percentage.
@@ -419,6 +427,8 @@ pub struct ScreenActions {
     pub open: bool,
     /// The Play / Pause button.
     pub toggle: bool,
+    /// The Mute / Unmute button.
+    pub sound: bool,
     /// A position on the seek bar, in seconds, from a click or the end of a
     /// drag. Only the END of a drag: scrubbing sends one seek when the
     /// pointer is released, not one per frame, because each seek throws away
@@ -584,6 +594,14 @@ pub fn draw_screen(
                             if widgets::compact_button(ui, theme, label, ButtonVariant::Primary) {
                                 actions.toggle = true;
                             }
+                            // Sound starts off (`VideoProvider::sound_on`);
+                            // the button names what a click does.
+                            if view.has_sound {
+                                let label = if view.sound_on { "Mute" } else { "Unmute" };
+                                if widgets::compact_button(ui, theme, label, ButtonVariant::Secondary) {
+                                    actions.sound = true;
+                                }
+                            }
                             ui.add_space(theme.spacing_xs);
                             ui.label(
                                 egui::RichText::new(&view.name).size(theme.font_size_small).color(theme.text_primary()),
@@ -677,6 +695,13 @@ pub struct VideoProvider {
     /// The sound hookup's state: attached yet, and the last mix sent. The
     /// attach needs the audio manager, which arrives through `world_update`.
     sound: SoundLink,
+    /// Whether the player has turned this screen's sound on (2026-09-27).
+    /// Every screen starts MUTED, the rule browsers apply to autoplaying
+    /// video: a clip plays its picture on its own, and its sound waits for
+    /// the player to ask for it with the strip's Unmute button. Before this,
+    /// the workshop screen's demo clip (a 440 Hz test tone, looping) started
+    /// sounding on every boot. Not saved: a fresh boot is quiet again.
+    sound_on: bool,
     /// The Open picker while it is up.
     picker: Option<FilePickerState>,
     strip: StripTimer,
@@ -725,6 +750,7 @@ impl VideoProvider {
             loops: 0,
             display_px: None,
             sound: SoundLink::default(),
+            sound_on: false,
             picker: None,
             strip: StripTimer::default(),
             strip_shown: false,
@@ -1092,6 +1118,8 @@ impl VideoProvider {
             display_px: self.display_px.unwrap_or((1280, 720)),
             strip,
             paused: !self.want_playing,
+            has_sound: self.player.as_ref().map_or(false, |p| p.info().audio_codec.is_some()),
+            sound_on: self.sound_on,
             name: self.current_name(),
             right_text: self.right_text(),
             position_s: self.player.as_ref().map_or(0.0, |p| p.position_s()),
@@ -1209,6 +1237,9 @@ impl VideoProvider {
         if actions.toggle {
             self.toggle_pause();
         }
+        if actions.sound {
+            self.sound_on = !self.sound_on;
+        }
         if let Some(t) = actions.seek_to {
             if let Some(p) = self.player.as_mut() {
                 p.seek_to(t);
@@ -1323,6 +1354,7 @@ impl ScreenProvider for VideoProvider {
             "duration_s": duration_s,
             "loops": self.loops,
             "audio": audio,
+            "sound_on": self.sound_on,
             "strip": self.strip_shown,
             "picker": self.picker.is_some(),
             "error": self.error,
@@ -1385,12 +1417,19 @@ impl ScreenProvider for VideoProvider {
     fn world_update(&mut self, world: &mut ScreenWorld<'_>) {
         let Some(p) = self.player.as_mut() else { return };
         let Some(audio) = world.audio.as_deref_mut() else { return };
+        // Muted and never unmuted: no stream at all, so nothing is decoded
+        // for a sound nobody asked to hear (`sound_on`).
+        if !self.sound_on && !self.sound.attached {
+            return;
+        }
         let (falloff, pan) = audio_placement(
             Vec3::from_array(world.screen_centre),
             Vec3::from_array(world.listener_pos),
             Vec3::from_array(world.listener_right),
         );
-        let volume = compose_mix(audio.master_volume(), audio.sfx_volume(), falloff);
+        // Muted after it was on: the stream stays attached and runs at
+        // silence, so Unmute picks up in step with the picture.
+        let volume = if self.sound_on { compose_mix(audio.master_volume(), audio.sfx_volume(), falloff) } else { 0.0 };
         match self.sound.step(volume, pan) {
             SoundStep::Attach { volume, pan } => {
                 // The stream starts AT this mix; see `SoundStep::Attach` for
@@ -1480,6 +1519,30 @@ mod tests {
     /// texture is absent, so a playing clip draws its black panel) and
     /// return the drawn text plus what the run reported.
     fn run_draw(core: &mut ScreenCore, state: &mut GuiState, p: &mut VideoProvider) -> (String, ScreenActions) {
+        let (text, actions, _) = run_draw_find(core, state, p, "");
+        (text, actions)
+    }
+
+    /// Where the text `needle` was drawn, as a rect, in egui's shapes.
+    fn text_rect(shapes: &[egui::epaint::ClippedShape], needle: &str) -> Option<egui::Rect> {
+        fn walk(s: &egui::Shape, needle: &str) -> Option<egui::Rect> {
+            match s {
+                egui::Shape::Text(t) if t.galley.text() == needle => Some(t.galley.rect.translate(t.pos.to_vec2())),
+                egui::Shape::Vec(v) => v.iter().find_map(|s| walk(s, needle)),
+                _ => None,
+            }
+        }
+        shapes.iter().find_map(|c| walk(&c.shape, needle))
+    }
+
+    /// `run_draw`, plus where the text `needle` (a strip button's label)
+    /// was drawn on the last run, so a test can click the real button.
+    fn run_draw_find(
+        core: &mut ScreenCore,
+        state: &mut GuiState,
+        p: &mut VideoProvider,
+        needle: &str,
+    ) -> (String, ScreenActions, Option<egui::Rect>) {
         let theme = load_theme();
         let view = p.view();
         let mut picker = p.picker.take();
@@ -1492,12 +1555,58 @@ mod tests {
         // The events are consumed by the first run, so a click still lands
         // where it did before.
         let mut text = String::new();
+        let mut found = None;
         for _ in 0..core.runs_this_frame() {
             let out = core.run_with(state, |ctx, _| draw_screen(ctx, &theme, &view, picker.as_mut(), &mut actions));
             text = shapes_text(&out.shapes);
+            found = text_rect(&out.shapes, needle);
         }
         p.picker = picker;
-        (text, actions)
+        (text, actions, found)
+    }
+
+    /// Every screen starts MUTED, the rule browsers apply to autoplaying
+    /// video, so a boot is quiet (operator, 2026-09-27: the workshop
+    /// screen's looping 440 Hz demo tone sounded on every boot). The strip
+    /// offers Unmute; a click on the real button turns the sound on, and the
+    /// strip then offers Mute. The status says which. The device half (no
+    /// stream until unmuted, silence after a mute) is the ignored
+    /// `sound_attaches_once...` test. Seen red with `sound_on` starting
+    /// true: the first assertion fired.
+    #[test]
+    fn a_screen_starts_muted_and_unmute_turns_its_sound_on() {
+        let mut state = GuiState::default();
+        let theme = load_theme();
+        let mut core = ScreenCore::new("s", "video:x", 1280, 720, &theme);
+        let mut p = VideoProvider::new(DEMO);
+        p.open_with(&data_dir(), core.size());
+        assert!(p.error().is_none(), "{:?}", p.error());
+        assert!(!p.sound_on, "a fresh screen is muted");
+        assert_eq!(p.status()["sound_on"], serde_json::json!(false));
+
+        // A moving pointer raises the strip; the draw lays it out.
+        for i in 0..4 {
+            core.pointer_moved((0.2 + i as f32 * 0.05, 0.4));
+        }
+        let t0 = Instant::now();
+        p.plan_frame(&mut core, t0);
+        let (drawn, _, rect) = run_draw_find(&mut core, &mut state, &mut p, "Unmute");
+        let rect = rect.unwrap_or_else(|| panic!("the demo has sound, so the strip offers Unmute: {drawn:?}"));
+
+        let (w, h) = core.size();
+        let uv = (rect.center().x / w as f32, rect.center().y / h as f32);
+        core.button(uv, true);
+        core.button(uv, false);
+        p.plan_frame(&mut core, t0);
+        let (_, actions) = run_draw(&mut core, &mut state, &mut p);
+        assert!(actions.sound, "the click reached the Unmute button");
+        p.apply_actions(actions, None);
+        assert!(p.sound_on, "Unmute turned the sound on");
+        assert_eq!(p.status()["sound_on"], serde_json::json!(true));
+
+        p.plan_frame(&mut core, t0);
+        let (drawn, _, rect) = run_draw_find(&mut core, &mut state, &mut p, "Mute");
+        assert!(rect.is_some(), "with the sound on the strip offers Mute: {drawn:?}");
     }
 
     /// The registry serves `video:` with this provider and nothing else
@@ -1866,6 +1975,10 @@ mod tests {
         assert!(mix_moved(Some((0.3, 0.5)), (0.3 + over, 0.5)), "a volume move goes out");
         assert!(mix_moved(Some((0.3, 0.5)), (0.3, 0.5 - over)), "a pan move goes out");
         assert!(mix_moved(Some((0.3, 0.5)), (0.3 - over, 0.5 + over)));
+        // Into and out of silence always go out, however small the step
+        // (a Mute from a quiet mix; seen red before 2026-09-27).
+        assert!(mix_moved(Some((0.0012, 0.5)), (0.0, 0.5)), "a mute from a quiet mix goes out");
+        assert!(mix_moved(Some((0.0, 0.5)), (0.0012, 0.5)), "an unmute to a quiet mix goes out");
     }
 
     /// The link attaches once, AT the first mix it is given (the attach and
@@ -2414,6 +2527,11 @@ mod tests {
         assert_eq!(p.sound, SoundLink::default());
         p.open_with(&data_dir(), (1280, 720));
         assert!(p.error().is_none(), "{:?}", p.error());
+        // A screen starts muted: with a player and a device, still no stream.
+        p.world_update(&mut world([0.0, 1.0, 0.0], &mut audio));
+        assert_eq!(p.sound, SoundLink::default(), "muted: nothing attached");
+        assert!(!p.player.as_ref().unwrap().has_audio());
+        p.sound_on = true;
         // Tick 2: the attach, at the composed mix.
         p.world_update(&mut world([0.0, 1.0, 0.0], &mut audio));
         let expected = compose_mix(0.02, 0.1, 0.3);
@@ -2435,6 +2553,11 @@ mod tests {
         let (v2, pan2) = p.sound.sent.unwrap();
         assert!(v2 > v, "closer is louder: {v2} vs {v}");
         assert!(pan2 > 0.5, "a screen to the right pans right: {pan2}");
+        // Mute after it was on: the stream stays and goes silent.
+        p.sound_on = false;
+        p.world_update(&mut world([-20.0, 1.0, -35.0], &mut audio));
+        assert_eq!(p.sound.sent.map(|(v, _)| v), Some(0.0), "muted: silence is sent");
+        assert!(p.player.as_ref().unwrap().has_audio(), "the stream stays attached for Unmute");
         assert!(p.player.as_mut().unwrap().take_error().is_none());
         println!("provider sound: attached at volume {v:.6} pan {pan:.3}; after the move volume {v2:.6} pan {pan2:.3}");
     }
