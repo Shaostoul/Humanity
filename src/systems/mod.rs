@@ -25,6 +25,10 @@ pub mod weather_events;
 pub mod hydrology;
 pub mod atmosphere;
 pub mod body_environment;
+/// Environment Layer 1: each world's analytic climate (temperature, pressure,
+/// prevailing wind), the base field under the weather.
+/// docs/design/environment-fields.md.
+pub mod env_layer1;
 pub mod disasters;
 pub mod electrical;
 pub mod plumbing;

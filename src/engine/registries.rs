@@ -91,6 +91,16 @@ pub(crate) fn load_data_registries(store: &mut DataStore, data_dir: &std::path::
         "region_kinds",
         crate::renderer::env_regions::RegionKinds::from_bytes,
     );
+    // Environment Layer 1 (2026-09-27): each world's analytic climate, read by
+    // WeatherSystem for the air at the player. Disk first so a modder's edit
+    // wins; the embedded copy otherwise (and WeatherSystem falls back to the
+    // same embedded copy if this key is ever absent).
+    load_csv_registry(
+        store,
+        data_dir.join("environment").join("climate.ron"),
+        crate::systems::env_layer1::STORE_KEY,
+        crate::systems::env_layer1::ClimateTable::from_bytes,
+    );
     load_csv_registry(
         store,
         data_dir.join("status_effects.csv"),

@@ -21,7 +21,7 @@ pub enum Season {
 impl Season {
     /// Determine season from day count (30-day seasons, 120-day year).
     pub fn from_day(day: u32) -> Self {
-        match (day % 120) / 30 {
+        match (day % DAYS_PER_YEAR) / (DAYS_PER_YEAR / 4) {
             0 => Season::Spring,
             1 => Season::Summer,
             2 => Season::Autumn,
@@ -111,6 +111,20 @@ pub fn elapsed_now(data: &DataStore) -> f64 {
 /// 20 real minutes = 1 game day. Public so sibling systems pacing
 /// per-game-day mechanics (economy passive income, v0.747) share it.
 pub const SECONDS_PER_DAY: f64 = 1200.0;
+
+/// Days in the game year: four 30-day seasons, Spring first (Season::from_day).
+pub const DAYS_PER_YEAR: u32 = 120;
+
+impl GameTime {
+    /// How far through the game year, 0 to 1, continuously (the hour of the
+    /// day included). The seasonal clock environment Layer 1 runs on
+    /// (`systems::env_layer1`): a smooth annual cycle, where `season` is the
+    /// four-step label.
+    pub fn year_fraction(&self) -> f64 {
+        let years = self.elapsed_seconds / SECONDS_PER_DAY / f64::from(DAYS_PER_YEAR);
+        years - years.floor()
+    }
+}
 
 /// Drives the day/night cycle and writes sun parameters to DataStore.
 pub struct TimeSystem {

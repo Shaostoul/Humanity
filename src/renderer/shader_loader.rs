@@ -8,6 +8,12 @@ use notify::{Event, RecommendedWatcher, RecursiveMode, Watcher};
 use std::collections::HashMap;
 use std::path::PathBuf;
 
+/// Runs PURE shader functions on the CPU (naga IR), so a lockstep test can
+/// compare a WGSL twin's ANSWERS with its Rust twin, not just its constants.
+/// Test-only; first user: `systems::env_layer1` (2026-09-27).
+#[cfg(test)]
+pub(crate) mod wgsl_eval;
+
 /// The megashader's SOURCE PARTS (v0.973, docs/design/shader-organization.md):
 /// contiguous numbered slices of the former pbr_simple.wgsl, concatenated in
 /// name order into the ONE module every PBR pipeline compiles. The split is

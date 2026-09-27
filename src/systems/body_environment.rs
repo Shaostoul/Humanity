@@ -111,6 +111,22 @@ pub struct BodyEnvironment {
     /// negative below the nominal sphere (sea floor, deep valleys);
     /// consumers clamp where needed.
     pub altitude_m: f32,
+    /// Unit direction from the body centre to the player, in the body's own
+    /// rotating frame, f64: the input environment Layer 1 samples at
+    /// (`systems::env_layer1`). f64 end to end per the f32-at-planet-scale
+    /// rule in CLAUDE.md; `latitude_deg` above is derived from it.
+    pub up_dir: glam::DVec3,
+    /// Share of land around the player, 0 (open sea) to 1 (deep inland), from
+    /// the body's land/sea mask where it has one (Earth); 1 elsewhere. Drives
+    /// Layer 1's land versus sea seasonal contrast.
+    pub land_fraction: f32,
+}
+
+/// The unit direction at a latitude on the prime meridian, f64: the default
+/// and the constructors' `up_dir`, consistent with their `latitude_deg`.
+fn dir_at_latitude(latitude_deg: f32) -> glam::DVec3 {
+    let la = f64::from(latitude_deg).to_radians();
+    glam::DVec3::new(la.cos(), la.sin(), 0.0)
 }
 
 impl Default for BodyEnvironment {
@@ -124,6 +140,8 @@ impl Default for BodyEnvironment {
             mean_temperature_k: 288.0,
             latitude_deg: REFERENCE_LATITUDE_DEG,
             altitude_m: 0.0,
+            up_dir: dir_at_latitude(REFERENCE_LATITUDE_DEG),
+            land_fraction: 1.0,
         }
     }
 }
@@ -140,6 +158,8 @@ impl BodyEnvironment {
             mean_temperature_k,
             latitude_deg: 0.0,
             altitude_m: 0.0,
+            up_dir: dir_at_latitude(0.0),
+            land_fraction: 1.0,
         }
     }
 
@@ -155,6 +175,8 @@ impl BodyEnvironment {
             mean_temperature_k,
             latitude_deg: 0.0,
             altitude_m: 0.0,
+            up_dir: dir_at_latitude(0.0),
+            land_fraction: 1.0,
         }
     }
 
@@ -280,6 +302,11 @@ pub fn diurnal_swing_c(env: &BodyEnvironment, hour: f32) -> f32 {
 /// station's climate arctic and wrongly punished farming aboard).
 /// Exactly 0.0 for the default home environment (Earth at the
 /// reference latitude, sea level).
+///
+/// Since environment Layer 1 (2026-09-27) this generic model serves only
+/// worlds WITHOUT a row in `data/environment/climate.ron`; a world with one
+/// reads `systems::env_layer1` at the player instead (weather.rs,
+/// `air_at_player`).
 pub fn positional_temp_offset_c(env: &BodyEnvironment, season: Season, hour: f32) -> f32 {
     surface_temperature_c(env, season, hour)
         - body_baseline_temp_c(env, season)
@@ -310,16 +337,25 @@ pub fn positional_temp_offset_c(env: &BodyEnvironment, season: Season, hour: f32
 /// and 0 K is that sentinel, not a temperature: treat <= 0.0 as unknown
 /// and fall back to the same 288 K an unknown body id gets (review
 /// fix).
+///
+/// `up_dir` is the player's unit direction from the body centre in the body
+/// frame (f64); the latitude is derived from it here, so the two can never
+/// disagree. `land_fraction` is the share of land around the player
+/// (`env_layer1::land_fraction_around`), 1 where the body has no sea mask.
 pub fn environment_for_frame_lock(
     body_id: Option<&str>,
     def: Option<&PlanetDef>,
     catalog_mean_k: Option<f32>,
-    latitude_deg: f32,
+    up_dir: glam::DVec3,
     altitude_m: f32,
+    land_fraction: f32,
 ) -> BodyEnvironment {
     let Some(id) = body_id else {
         return BodyEnvironment::default();
     };
+    // Spin-invariant latitude: bodies spin about +Y.
+    let latitude_deg = up_dir.y.clamp(-1.0, 1.0).asin().to_degrees() as f32;
+    let land_fraction = land_fraction.clamp(0.0, 1.0);
     // The <= 0.0 guard is the whole FIX: without it a missing catalog
     // field reads as 0 K and drags the temperature model to absolute
     // zero instead of the honest "unknown" fallback.
@@ -334,11 +370,15 @@ pub fn environment_for_frame_lock(
             mean_temperature_k,
             latitude_deg,
             altitude_m,
+            up_dir,
+            land_fraction,
         },
         // Def-less catalog body: airless rock posture (see doc above).
         None => BodyEnvironment {
             latitude_deg,
             altitude_m,
+            up_dir,
+            land_fraction,
             ..BodyEnvironment::airless(id, mean_temperature_k)
         },
     }
@@ -540,21 +580,21 @@ mod tests {
     fn frame_lock_mapping_covers_defless_bodies_and_bad_catalog_temps() {
         // No frame lock: the Earth-home default, exactly (home farming
         // and the home sky depend on this arm staying bit-identical).
-        let home = environment_for_frame_lock(None, None, None, 12.0, 500.0);
+        let home = environment_for_frame_lock(None, None, None, dir_at_latitude(12.0), 500.0, 1.0);
         assert!(!home.locked, "home frame is not locked to a body");
         assert_eq!(home.body_id, "earth");
         assert!(home.has_atmosphere && home.has_water && home.breathable);
 
         // Locked to a catalog body with NO data/planets def (venus,
         // titan, io, ceres...): AIRLESS + waterless + unbreathable.
-        let venus = environment_for_frame_lock(Some("venus"), None, Some(737.0), -30.0, 0.0);
+        let venus = environment_for_frame_lock(Some("venus"), None, Some(737.0), dir_at_latitude(-30.0), 0.0, 1.0);
         assert_eq!(venus.body_id, "venus");
         assert!(venus.locked);
         assert!(!venus.has_atmosphere, "def-less body must not inherit Earth air");
         assert!(!venus.has_water, "def-less body must not inherit Earth water");
         assert!(!venus.breathable);
         assert_eq!(venus.mean_temperature_k, 737.0);
-        assert_eq!(venus.latitude_deg, -30.0);
+        assert!((venus.latitude_deg + 30.0).abs() < 1e-4, "latitude derived from up_dir");
         // And therefore no weather at all can be rolled there.
         assert_eq!(sanitize_condition(WeatherCondition::Rain, &venus), WeatherCondition::Clear);
 
@@ -573,19 +613,21 @@ mod tests {
         )
         .expect("minimal PlanetDef parses");
         let world =
-            environment_for_frame_lock(Some("testworld"), Some(&def), Some(300.0), 10.0, 2000.0);
+            environment_for_frame_lock(Some("testworld"), Some(&def), Some(300.0), dir_at_latitude(10.0), 2000.0, 0.25);
         assert!(world.locked && world.has_atmosphere && world.has_water && world.breathable);
         assert_eq!(world.mean_temperature_k, 300.0);
         assert_eq!(world.altitude_m, 2000.0);
+        assert_eq!(world.land_fraction, 0.25, "the land share rides through");
+        assert!((world.up_dir.y - 10f64.to_radians().sin()).abs() < 1e-12, "and the f64 direction");
 
         // The catalog's 0.0 absent-field sentinel is treated as unknown:
         // same 288 K fallback as an id the catalog does not know at all.
-        let sentinel = environment_for_frame_lock(Some("mystery_rock"), None, Some(0.0), 0.0, 0.0);
+        let sentinel = environment_for_frame_lock(Some("mystery_rock"), None, Some(0.0), dir_at_latitude(0.0), 0.0, 1.0);
         assert_eq!(sentinel.mean_temperature_k, 288.0, "0.0 sentinel must not be a temperature");
-        let missing = environment_for_frame_lock(Some("mystery_rock"), None, None, 0.0, 0.0);
+        let missing = environment_for_frame_lock(Some("mystery_rock"), None, None, dir_at_latitude(0.0), 0.0, 1.0);
         assert_eq!(missing.mean_temperature_k, 288.0);
         // A real (if extreme) catalog value passes through untouched.
-        let pluto = environment_for_frame_lock(Some("pluto"), None, Some(44.0), 0.0, 0.0);
+        let pluto = environment_for_frame_lock(Some("pluto"), None, Some(44.0), dir_at_latitude(0.0), 0.0, 1.0);
         assert_eq!(pluto.mean_temperature_k, 44.0);
     }
 

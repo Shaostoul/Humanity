@@ -410,11 +410,25 @@ pub(crate) fn godray_weather_scale(state: &EngineState) -> f32 {
 pub(crate) fn publish_body_environment(state: &mut EngineState) {
     let body_id = state.frame_lock_body.as_deref();
     let def = body_id.and_then(|id| state.planet_defs.get(id));
-    // Latitude straight from the frame-lock anchor: the anchor is the
-    // camera position in the body's rotating frame and bodies spin about
-    // +Y, so asin(y/r) is spin-invariant latitude.
+    // The player's direction from the body centre, straight from the
+    // frame-lock anchor: the anchor is the camera position in the body's
+    // rotating frame and bodies spin about +Y, so its y is spin-invariant
+    // sin(latitude). Kept f64 (environment Layer 1 samples at it); the pure
+    // function derives the latitude from it.
     let up = state.frame_lock_anchor.normalize_or_zero();
-    let latitude_deg = up.y.clamp(-1.0, 1.0).asin().to_degrees() as f32;
+    // Share of land around the player, for Layer 1's land versus sea seasons.
+    // Earth is the only body with a sea mask; elsewhere it is all land. The
+    // mask is 0.05 degree cells, so an f32 lat/lon is far finer than the data
+    // (the coarse-data boundary the f32 rule allows).
+    let land_fraction = match (body_id, state.ocean_mask.as_ref()) {
+        (Some("earth"), Some(om)) => {
+            let (lat, lon) = crate::terrain::planet_heightmap::dir_to_latlon_deg_f64(up);
+            crate::systems::env_layer1::land_fraction_around(lat, lon, |la, lo| {
+                om.is_ocean_latlon(la as f32, lo as f32)
+            })
+        }
+        _ => 1.0,
+    };
     // Altitude for the temperature lapse + breathable ceiling: height
     // above the body's NOMINAL surface radius (anchor.length() -
     // def.radius). The anchor sits on the drawn ground, so this INCLUDES
@@ -439,8 +453,9 @@ pub(crate) fn publish_body_environment(state: &mut EngineState) {
         body_id,
         def,
         catalog_mean_k,
-        latitude_deg,
+        up,
         altitude_m,
+        land_fraction,
     );
     state.data_store.insert("body_environment", env);
 }

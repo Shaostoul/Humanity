@@ -67,10 +67,21 @@ Remaining, in order:
    `45-cloud-temporal.wgsl` read the base coverage and do not apply the region
    floor, so a storm lights and self-shadows as though it were not there. A
    second-order error against a first-order fix; wants its own measurement.
-3. **Layer 1**: temperature, pressure and wind as analytic fields with locked
-   CPU and GPU twins. This is what makes the rest of the inventory in the design
-   doc (humidity, fog, snow line, outbreaks, pollution, light pollution, ocean
-   currents) reachable.
+3. **Layer 1: BUILT 2026-09-27** (design doc, "Layer 1 as built"). Air
+   temperature, pressure and prevailing wind at any place and date, per world
+   from `data/environment/climate.ron` (Earth fitted to the NCEP/NCAR 1991-2020
+   reanalysis by `scripts/climate-fit.js`, with land versus sea seasons; Mars's
+   column from the NASA fact sheet), in `systems/env_layer1.rs` and a WGSL twin
+   in `00-bindings-vertex.wgsl` that a test RUNS against the CPU copy. The body
+   heat model now feels the air where the player stands: temperature, pressure
+   and wind at the player all come from it, with the weather as the deviation.
+   Next consumers, in order: **cloud advection** (the first GPU caller:
+   `env_l1_wind_body` once per ray, `EnvClimate` as a uniform); the HUD wind
+   and the sea state reading the wind at the player; field crops and water
+   bodies sampling the climate at THEIR positions; rain versus snow from the air
+   temperature at the player; weighting the weather's deviation by its region's
+   influence at the player. Open data gaps: Mars by latitude and season, the
+   Moon (a sunlight function of local solar time).
 
 Aurora follow-ups, none urgent: the red cap is a look change for the operator
 (the layer top is data, `region_kinds.ron` params[3]); the Low cloud tier seen

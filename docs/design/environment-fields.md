@@ -144,7 +144,8 @@ are already global functions of time and orbit and are correct as they are.
    weights them by distance from the SAMPLE's ground point; `wx_fade` is
    deleted. The `stormfade-*` column going flat is the proof (BUG-080).
 4. **Layer 1 proper.** Temperature, pressure and wind as analytic fields with
-   locked CPU and GPU twins.
+   locked CPU and GPU twins. **Built 2026-09-27**: see "Layer 1 as built" at the
+   end of this document.
 
 ## Related
 
@@ -434,3 +435,125 @@ from the sun by the triangle inequality and skips segments no sample could
 survive (exact; cut the daylit cost about 23 percent). With the oval in view
 the cost is the curtain shading itself; a half-resolution pass is the next
 lever if it matters.
+
+## Layer 1 as built (2026-09-27, PRIORITIES item 1 step 3)
+
+Code: `src/systems/env_layer1.rs` (CPU, f64), `EnvClimate` and the `env_l1_*`
+functions in `assets/shaders/pbr/00-bindings-vertex.wgsl` (GPU, f32), one row
+per world in `data/environment/climate.ron`, and Earth's numbers reproducible
+with `node scripts/climate-fit.js`.
+
+**What it is.** The air at any place and date on a world with a row, as a pure
+function of the unit direction from the body centre (body frame), the altitude,
+the share of land around the place, and the fraction of the game year
+(`GameTime::year_fraction`, the 120-day year). Nothing stored, nothing about
+the camera.
+
+- **Temperature at sea level**: North, Cahalan and Coakley's form (1981, Rev.
+  Geophys. Space Phys. 19:91-121, equation 51 and Table 1): a P2 Legendre
+  profile in sin(latitude) plus a seasonal term proportional to sin(latitude),
+  which is zero at the equator and flips sign between the hemispheres, so the
+  seasons flip. Earth's coefficients are fitted to the NCEP/NCAR Reanalysis 1
+  (Kalnay et al. 1996) long-term monthly means for 1991-2020: the annual-mean
+  profile from SEA cells (the ocean surface is sea level; land carries terrain
+  height), the seasonal pair separately per hemisphere and per surface. North
+  et al.'s published fit (14.9, -28.0, and -13.2 / -8.1 seasonally) agrees to
+  within 1.6 C and sits between the fitted northern land and sea pairs, as it
+  should for a hemisphere that is about 40 percent land.
+- **Land versus sea**: the seasonal pair is blended by the share of land
+  around the player, nine samples of the Earth ocean mask on a one-degree ring
+  (`land_fraction_around`), because the reanalysis cells the pairs were fitted
+  on are 1.9 degrees across. Northern land swings about 20 C either side of its
+  mean at the pole-ward end, northern sea about 9; the Southern Ocean barely
+  has seasons, which one symmetric fit cannot say.
+- **Pressure and the lapse**: the 1976 US Standard Atmosphere's two lowest
+  layers (6.5 K per geopotential km to 11 km, then isothermal), generalised so
+  another world is a row, starting from the PLACE's sea-level temperature, so a
+  cold polar column thins faster with height than a tropical one. With a 15 C
+  sea level it is the standard atmosphere exactly (tested at 0, 1,500 and
+  5,000 m against the tabulated values).
+- **Prevailing wind**: the zonal-mean 10 m wind from the same reanalysis, annual
+  mean plus its first annual harmonic, as a 16-term sine series in colatitude
+  (area-weighted rms error 0.35 m/s east-west, 0.18 north-south). It holds the
+  trades from the east-north-east and east-south-east meeting near 5 N, the
+  westerlies at 47 N (weak, land drag) and 52 S (the strongest, the Roaring
+  Forties), and the easterlies off Antarctica. The data's Arctic zonal mean is
+  nearly calm at 10 m: the northern "polar easterlies" of the textbook picture
+  are regional, not zonal, and the model says what the data says.
+
+**Why a sine series and not a lookup table.** The GPU twin must not index an
+array at run time: a function argument's array read with a variable index is
+copied into per-invocation private memory, and that frame is charged to every
+fragment of every pipeline that can reach the function (H1,
+`docs/design/frame-cost-arc.md`). The series is read with constant indices only
+(four vec4 per coefficient set), its basis comes from the Chebyshev recurrence
+with no trigonometry (cos of the colatitude IS the direction's y), and every
+term vanishes at the poles, where a wind has no single east component.
+
+**The twin discipline.** The ocean wave twin (`terrain::ocean_waves`) compares
+the shader's constants with the CPU's. This one compares their ANSWERS:
+`env_layer1::tests::wgsl_twin_matches_the_cpu_model` parses the shipped
+megashader with naga and runs `env_l1_air`, `env_l1_wind_en` and
+`env_l1_wind_body` through a small IR interpreter
+(`renderer::shader_loader::wgsl_eval`, test-only) over about 2,000 combinations
+of latitude, longitude, altitude, land share and date, for Earth and Mars, and
+builds the shader's `EnvClimate` from `ClimateRow::pack_gpu` using the shader's
+OWN member offsets, so a lane swapped in the pack fails there too. Seen red
+three ways (a swapped WGSL term, a swapped pack lane, a CPU-only change). It
+proves the formula, not a particular GPU's rounding of `pow` or `sin`; the
+tolerances absorb that.
+
+**The weather on top.** `WeatherSystem` now ramps a temperature DEVIATION (the
+condition's offset and its random spread) rather than an absolute. The global
+`temperature` that farming and hydrology read is the body's reference climate
+(Earth's calibrated seasonal table, unchanged) plus that deviation, and it now
+follows the season the moment it turns over instead of at the next condition
+change. The at-player values are Layer 1 plus the same deviation:
+
+- `temperature_at_player`: Layer 1 at the player plus the deviation plus the
+  body-wide day/night swing (zero on Earth, whose table stood in for it).
+- `pressure_kpa_at_player`: Layer 1's column; Earth's standard column on a world
+  with air but no row; 0 in space or on an airless body. Replaces the fixed
+  barometric constant `survival_env` used to carry.
+- `wind_east_at_player`, `wind_north_at_player`: Layer 1's prevailing wind plus
+  the weather's own (whose rolled direction is read as east and north until it
+  has a geographic frame). While the F11 weather panel drives, only the panel's
+  wind: "calm" has to mean calm in the trades too.
+
+`survival_env` feeds all of them to the body heat model, so a player at the
+equator, on a mountain and at the pole feel different air; a test runs the
+whole chain from the weather export to an hour of body heat and finds the
+summit colder than the shore. The home station (no world under it) reads
+exactly what it did before.
+
+**Worlds.** Earth has a full row. Mars has its column (NASA Mars Fact Sheet,
+updated 2025-05-19: 6.36 mb at mean radius, 214 K average, molecular weight
+43.49, gravity 3.73; lapse rates from NASA Glenn's Mars atmosphere model), and
+the two agree with each other: R T / (g M) at 214 K is the fact sheet's 11.0 km
+scale height. Its latitude and seasonal terms and its winds are ZERO, not
+invented: no zonal climatology was in hand. The Moon has no row on purpose; its
+surface temperature is sunlight on regolith as a function of local solar time,
+which needs per-longitude sun geometry. Worlds without a row keep the generic
+body model in `body_environment.rs`.
+
+**What is not modelled yet**, and where it goes:
+
+- Local geography below the reanalysis scale: a rain shadow, a sea breeze, a
+  valley's cold pool. Layer 1 is zonal plus land/sea; regional detail is layer
+  2's job (or a finer climatology row).
+- The weather's deviation is still body-wide. It should be weighted by its own
+  region's influence at the player (`EnvRegion::influence`), so walking out of
+  a storm takes its chill with it. The anchor sits under the player when the
+  condition appears, so the two agree until the player travels hundreds of km.
+- Mars by latitude and season, and the Moon (above).
+
+**Next consumers**, in order: cloud advection (the first GPU caller:
+`env_l1_wind_body` at the ray's ground point, once per ray, with `EnvClimate` as
+one uniform the consumer adds: the v0.1029 every-create-site rule applies to
+that binding); the HUD wind readout and the sea state reading the wind at the
+player (both read the weather's own wind today); field crops and water bodies
+sampling Layer 1 at THEIR positions instead of the global reference (farming
+and hydrology read the global on purpose today, so a player's climb cannot chill
+a field; the right fix is the field's own position, not the player's); rain
+versus snow decided by the air temperature where it falls; fire spread, seed
+dispersal and turbines reading the wind.

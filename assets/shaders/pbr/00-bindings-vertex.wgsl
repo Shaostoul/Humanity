@@ -181,6 +181,183 @@ fn env_influence_of_kind(kind: f32, sample_dir: vec3<f32>) -> f32 {
     }
     return clamp(total, 0.0, 1.0);
 }
+
+// ENVIRONMENT LAYER 1 (2026-09-27): each world's analytic climate. The air
+// temperature, air pressure and prevailing wind at any point, a pure function
+// of the point (unit direction from the body centre in the BODY frame, metres
+// of altitude, the share of land around it) and of the year fraction. Layer 2
+// (the regions above) places weather ON this; it never replaces it.
+//
+// TWINS: the CPU copy, in f64, is src/systems/env_layer1.rs, and each world's
+// numbers are a row in data/environment/climate.ron (EnvClimate is that row,
+// packed by ClimateRow::pack_gpu). They are held together by
+// env_layer1::tests::wgsl_twin_matches_the_cpu_model, which RUNS the functions
+// below on the CPU (naga IR) over a grid of places, altitudes and dates and
+// compares the answers, and by a layout check that builds this struct from the
+// Rust pack using this struct's own member offsets. Change one twin, change
+// both.
+//
+// NO GPU CALLER YET. The first should be cloud advection: env_l1_wind_body at
+// the ray's ground point, evaluated ONCE per ray and carried into the march
+// (the region-mask trap in docs/design/environment-fields.md applies exactly),
+// with EnvClimate reaching the shader as one uniform the consumer adds. The
+// struct holds no array read with a RUN-TIME index: the wind is a sine series
+// whose four vec4 per coefficient set are read with constant indices, so
+// nothing lands in per-invocation private memory (the H1 cost in
+// docs/design/frame-cost-arc.md). f32 discipline: every input is small; no
+// planet radius is multiplied into anything here.
+struct EnvClimate {
+    // x = annual-mean sea-level temperature C, y = P2 (Legendre) coefficient C,
+    // z = year fraction of the northern winter solstice, w = unused.
+    temp: vec4<f32>,
+    // Seasonal (cos, sin) coefficients, C per unit sin(latitude):
+    // xy = north over sea, zw = north over land.
+    season_north: vec4<f32>,
+    // xy = south over sea, zw = south over land.
+    season_south: vec4<f32>,
+    // x = datum pressure kPa, y = g M / R (K per m), z = geopotential radius m,
+    // w = altitude of the lapse break m.
+    air_column: vec4<f32>,
+    // x = lapse below the break K/m, y = lapse above it K/m, zw unused.
+    lapse: vec4<f32>,
+    // Prevailing wind as a sine series in colatitude, terms 1..16 in four vec4:
+    // u toward east, v toward north; the annual mean, then the first annual
+    // harmonic's cos and sin parts.
+    u_mean: array<vec4<f32>, 4>,
+    u_cos: array<vec4<f32>, 4>,
+    u_sin: array<vec4<f32>, 4>,
+    v_mean: array<vec4<f32>, 4>,
+    v_cos: array<vec4<f32>, 4>,
+    v_sin: array<vec4<f32>, 4>,
+};
+
+// 2 pi times the years since the northern winter solstice.
+fn env_l1_season_angle(c: EnvClimate, year_fraction: f32) -> f32 {
+    return 6.2831855 * fract(year_fraction - c.temp.z);
+}
+
+// Sea-level air temperature, C. sin_lat is the direction's y (bodies spin
+// about +Y); land is the share of land around the place, 0 open sea to 1 deep
+// inland. North, Cahalan and Coakley's form: a P2 profile plus a seasonal term
+// proportional to sin(latitude), so it is exactly zero at the equator and the
+// two hemispheres' coefficient pairs meet there without a seam.
+fn env_l1_sea_level_temp_c(c: EnvClimate, sin_lat: f32, land: f32, year_fraction: f32) -> f32 {
+    let x = clamp(sin_lat, -1.0, 1.0);
+    let l = clamp(land, 0.0, 1.0);
+    let pairs = select(c.season_south, c.season_north, x >= 0.0);
+    let ab = mix(pairs.xy, pairs.zw, l);
+    let ang = env_l1_season_angle(c, year_fraction);
+    let p2 = 1.5 * x * x - 0.5;
+    return c.temp.x + c.temp.y * p2 + x * (ab.x * cos(ang) + ab.y * sin(ang));
+}
+
+// The air column: (temperature K, pressure kPa) at geometric altitude alt_m for
+// a column whose sea-level temperature is t_sea_level_k. The 1976 US Standard
+// Atmosphere's two lowest layers, generalised so another world is a data row.
+fn env_l1_column(c: EnvClimate, t_sea_level_k: f32, alt_m: f32) -> vec2<f32> {
+    let h = alt_m / (1.0 + alt_m / c.air_column.z);
+    let k = c.air_column.y;
+    let hb = c.air_column.w;
+    let l1 = c.lapse.x;
+    let l2 = c.lapse.y;
+    let ts = max(t_sea_level_k, 1.0);
+    let hl = min(h, hb);
+    let t1 = max(ts - l1 * hl, 1.0);
+    var p1: f32;
+    if (abs(l1) > 1e-9) {
+        p1 = c.air_column.x * pow(t1 / ts, k / l1);
+    } else {
+        p1 = c.air_column.x * exp(-k * hl / ts);
+    }
+    if (h <= hb) {
+        return vec2<f32>(t1, p1);
+    }
+    let hu = h - hb;
+    let t2 = max(t1 - l2 * hu, 1.0);
+    var p2: f32;
+    if (abs(l2) > 1e-9) {
+        p2 = p1 * pow(t2 / t1, k / l2);
+    } else {
+        p2 = p1 * exp(-k * hu / t1);
+    }
+    return vec2<f32>(t2, p2);
+}
+
+// Air (temperature C, pressure kPa) at a place and time.
+fn env_l1_air(c: EnvClimate, dir: vec3<f32>, alt_m: f32, land: f32, year_fraction: f32) -> vec2<f32> {
+    let ts = env_l1_sea_level_temp_c(c, dir.y, land, year_fraction) + 273.15;
+    let tp = env_l1_column(c, ts, alt_m);
+    return vec2<f32>(tp.x - 273.15, tp.y);
+}
+
+// sin(n theta), n = 1..16, theta the colatitude, from sin(latitude) alone:
+// cos(theta) = sin_lat, then sin((n+1)t) = 2 cos(t) sin(nt) - sin((n-1)t). No
+// trigonometry, and the CPU twin runs the identical recurrence.
+struct EnvSineBasis {
+    b0: vec4<f32>,
+    b1: vec4<f32>,
+    b2: vec4<f32>,
+    b3: vec4<f32>,
+};
+fn env_l1_sine_basis(sin_lat: f32) -> EnvSineBasis {
+    let y = clamp(sin_lat, -1.0, 1.0);
+    let c2 = 2.0 * y;
+    let s1 = sqrt(max(1.0 - y * y, 0.0));
+    let s2 = c2 * s1;
+    let s3 = c2 * s2 - s1;
+    let s4 = c2 * s3 - s2;
+    let s5 = c2 * s4 - s3;
+    let s6 = c2 * s5 - s4;
+    let s7 = c2 * s6 - s5;
+    let s8 = c2 * s7 - s6;
+    let s9 = c2 * s8 - s7;
+    let s10 = c2 * s9 - s8;
+    let s11 = c2 * s10 - s9;
+    let s12 = c2 * s11 - s10;
+    let s13 = c2 * s12 - s11;
+    let s14 = c2 * s13 - s12;
+    let s15 = c2 * s14 - s13;
+    let s16 = c2 * s15 - s14;
+    return EnvSineBasis(
+        vec4<f32>(s1, s2, s3, s4),
+        vec4<f32>(s5, s6, s7, s8),
+        vec4<f32>(s9, s10, s11, s12),
+        vec4<f32>(s13, s14, s15, s16),
+    );
+}
+
+// One coefficient set of the series. Constant indices only (see above).
+fn env_l1_series(b: EnvSineBasis, m: array<vec4<f32>, 4>) -> f32 {
+    return dot(b.b0, m[0]) + dot(b.b1, m[1]) + dot(b.b2, m[2]) + dot(b.b3, m[3]);
+}
+
+// Prevailing wind (toward east, toward north), m/s, at unit direction dir.
+fn env_l1_wind_en(c: EnvClimate, dir: vec3<f32>, year_fraction: f32) -> vec2<f32> {
+    let b = env_l1_sine_basis(dir.y);
+    let ang = env_l1_season_angle(c, year_fraction);
+    let ca = cos(ang);
+    let sa = sin(ang);
+    let u = env_l1_series(b, c.u_mean) + env_l1_series(b, c.u_cos) * ca + env_l1_series(b, c.u_sin) * sa;
+    let v = env_l1_series(b, c.v_mean) + env_l1_series(b, c.v_cos) * ca + env_l1_series(b, c.v_sin) * sa;
+    return vec2<f32>(u, v);
+}
+
+// The prevailing wind as a body-frame vector tangent to the surface at dir,
+// m/s: what an advecting consumer wants. East is the direction of increasing
+// longitude (terrain::planet_heightmap::latlon_to_dir's handedness); at a pole
+// east does not exist and the series is zero there anyway.
+fn env_l1_wind_body(c: EnvClimate, dir: vec3<f32>, year_fraction: f32) -> vec3<f32> {
+    let e = vec3<f32>(dir.z, 0.0, -dir.x);
+    let len = length(e);
+    if (len < 1e-6) {
+        return vec3<f32>(0.0);
+    }
+    let east = e / len;
+    let north = cross(dir, east);
+    let en = env_l1_wind_en(c, dir, year_fraction);
+    return east * en.x + north * en.y;
+}
+
 const TILE_COLS: u32 = 16u;
 const TILE_ROWS: u32 = 9u;
 const TILE_CAP: u32 = 64u;

@@ -143,9 +143,12 @@ starts the body over.
 - Inside the sealed home: the home's own air (temperature, humidity, pressure
   from its enclosed space), still, nothing falling.
 - Outside: the weather at the player's position (`temperature_at_player`,
-  humidity, the 10 m wind, rain and storms at their intensity, snow at a
-  third), Earth's barometric pressure for the altitude, or vacuum where there
-  is no air.
+  humidity, the 10 m wind at the player, rain and storms at their intensity,
+  snow at a third) and the air pressure there, or vacuum where there is no air.
+  Since 2026-09-27 the temperature, pressure and wind are environment Layer 1
+  where the player stands (latitude, altitude, land or sea, time of year, the
+  prevailing wind) with the weather's condition as the deviation on top
+  (`docs/design/environment-fields.md`, "Layer 1 as built").
 - Activity from the movement keys: standing 1.2 met, walking 2.0, sprinting
   3.8 (ASHRAE Table 4; the game's walking pace is faster than a real walk, so
   the gait is billed, not the speed); driving 1.5; asleep in a bed 0.7.
@@ -186,6 +189,7 @@ starts the body over.
 - Shivering and activity costing food energy.
 - Frostbite: in severe cold the model's mean skin goes below 0 C with no
   penalty; local cold injury is its own system.
-- Other worlds' surface pressures (a world with air takes Earth's; its air
-  supply rules it first).
+- Surface pressures of worlds with air but no climate row (they take Earth's
+  standard column; the air supply rules them first). Mars has its own since
+  2026-09-27.
 - The bed's bedding insulation while asleep.

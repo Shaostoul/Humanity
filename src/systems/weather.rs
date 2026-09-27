@@ -12,6 +12,7 @@ use serde::{Deserialize, Serialize};
 use crate::ecs::systems::System;
 use crate::hot_reload::data_store::DataStore;
 use crate::systems::body_environment::{self, BodyEnvironment};
+use crate::systems::env_layer1::{self, ClimateTable};
 use crate::systems::time::{GameTime, Season};
 
 /// Weather condition types.
@@ -48,16 +49,35 @@ pub struct Weather {
     /// station's global climate arctic and wrongly punished farming
     /// aboard. Player-local temperature lives in `temperature_at_player`.
     pub temperature: f32,
-    /// Temperature in Celsius AT THE PLAYER: `temperature` plus the
-    /// latitude + altitude delta of where the player actually stands
-    /// (walking up a mountain cools this one; the global field never
-    /// moves). Player-body consumers read THIS field: the survival
-    /// exposure path (hypothermia outside the hull, lib.rs environment
-    /// context) and the HUD thermometer. Recomputed at export time each
-    /// tick; WeatherSystem does not simulate it internally because the
-    /// positional delta must not fight the 30 s transition lerps.
+    /// Temperature in Celsius AT THE PLAYER. On a world with a climate row
+    /// (`data/environment/climate.ron`) it is environment LAYER 1's air
+    /// temperature where the player stands (latitude, altitude, land or sea,
+    /// the time of year: `systems::env_layer1`) plus the weather's DEVIATION
+    /// (the condition's offset and its random spread, the same deviation the
+    /// global field carries) plus the body-wide day/night swing. Elsewhere it
+    /// is `temperature` plus the generic body model's latitude and altitude
+    /// delta. Walking up a mountain cools this one; the global field never
+    /// moves. Player-body consumers read THIS field: the survival exposure
+    /// path (engine::survival_env, the body heat model) and the HUD
+    /// thermometer. Recomputed at export time each tick; WeatherSystem does
+    /// not simulate it internally because the positional part must not fight
+    /// the 30 s transition lerps.
     #[serde(default)]
     pub temperature_at_player: f32,
+    /// Air pressure AT THE PLAYER, kPa: Layer 1's column at the player's
+    /// altitude on a world with a climate row, Earth's standard column on a
+    /// world with air but no row, and 0 in open space or on an airless body.
+    /// The body heat model reads it (convection and sweat both depend on it).
+    #[serde(default)]
+    pub pressure_kpa_at_player: f32,
+    /// Wind AT THE PLAYER toward the east and toward the north, m/s: Layer 1's
+    /// prevailing wind (the trades, the westerlies) plus the weather's own
+    /// wind. While the F11 panel drives the weather, only the panel's wind:
+    /// "calm" has to mean calm there. See `wind_speed_at_player`.
+    #[serde(default)]
+    pub wind_east_at_player: f32,
+    #[serde(default)]
+    pub wind_north_at_player: f32,
     /// Relative humidity (0.0-1.0).
     pub humidity: f32,
     /// Visibility factor (0.0 = blind, 1.0 = clear).
@@ -75,6 +95,14 @@ pub struct Weather {
     pub event_remaining_s: f32,
 }
 
+impl Weather {
+    /// Wind speed at the player, m/s (the magnitude of the east and north
+    /// components). What the body heat model is exposed to.
+    pub fn wind_speed_at_player(&self) -> f32 {
+        self.wind_east_at_player.hypot(self.wind_north_at_player)
+    }
+}
+
 impl Default for Weather {
     fn default() -> Self {
         Self {
@@ -86,6 +114,12 @@ impl Default for Weather {
             // Matches `temperature` at rest: with no positional delta
             // published yet, the player's local reading IS the global one.
             temperature_at_player: 20.0,
+            // The default body environment is open space (the home station),
+            // so no air outside the hull until a tick says otherwise.
+            pressure_kpa_at_player: 0.0,
+            // The weather's own wind, as the export would read it.
+            wind_east_at_player: 2.0,
+            wind_north_at_player: 0.0,
             humidity: 0.4,
             visibility: 1.0,
             transition_timer: 0.0,
@@ -153,15 +187,25 @@ pub struct WeatherSystem {
     /// Previous weather values for lerping during transitions.
     prev_intensity: f32,
     prev_visibility: f32,
-    prev_temperature: f32,
+    prev_temp_dev: f32,
     prev_humidity: f32,
     prev_wind_speed: f32,
     /// Target values for the new condition.
     target_intensity: f32,
     target_visibility: f32,
-    target_temperature: f32,
+    target_temp_dev: f32,
     target_humidity: f32,
     target_wind_speed: f32,
+    /// The weather's temperature DEVIATION, C: the condition's offset (clear
+    /// +3, rain -3, a storm -5, snow forced to freezing at the reference) plus
+    /// its random spread, ramped through transitions. It is the ONE thing the
+    /// weather adds to temperature; the base under it is the body's reference
+    /// climate for the global field (farming and hydrology read that) and
+    /// environment Layer 1 at the player (the body heat model reads that).
+    /// Kept as a deviation rather than an absolute so the base can move under
+    /// it (a new season, a walk up a mountain) without waiting for the next
+    /// condition change.
+    temp_dev: f32,
     /// Countdown until the next weather change attempt.
     next_change_timer: f32,
     /// Countdown until the next extreme-event roll (v0.1035).
@@ -183,17 +227,22 @@ pub struct WeatherSystem {
 impl WeatherSystem {
     pub fn new() -> Self {
         let weather = Weather::default();
+        // The default weather's 20 C against the default body's Spring
+        // reference: the deviation that reproduces it.
+        let temp_dev = weather.temperature
+            - body_environment::body_baseline_temp_c(&BodyEnvironment::default(), Season::Spring);
         Self {
             prev_intensity: weather.intensity,
             prev_visibility: weather.visibility,
-            prev_temperature: weather.temperature,
+            prev_temp_dev: temp_dev,
             prev_humidity: weather.humidity,
             prev_wind_speed: weather.wind_speed,
             target_intensity: weather.intensity,
             target_visibility: weather.visibility,
-            target_temperature: weather.temperature,
+            target_temp_dev: temp_dev,
             target_humidity: weather.humidity,
             target_wind_speed: weather.wind_speed,
+            temp_dev,
             weather,
             next_change_timer: 60.0, // First change after 1 minute
             event_roll_timer: EVENT_ROLL_INTERVAL_S,
@@ -275,11 +324,12 @@ impl WeatherSystem {
 
     /// Compute target weather parameters for a given condition and season.
     fn compute_targets(&mut self, condition: WeatherCondition, season: Season) {
-        // Per-body temperature baseline (increment 4): Earth keeps its
-        // calibrated seasonal table, every other body starts from its
-        // catalog mean temperature. Latitude/altitude/day-night ride on
-        // top at EXPORT time (see the tick's export block) so they track
-        // the player instantly instead of waiting out a 30 s transition.
+        // The temperature target is a DEVIATION (see `temp_dev`). The base it
+        // rides on is applied every tick: the body's reference climate for
+        // the global field (Earth: the calibrated seasonal table; other
+        // bodies: the catalog mean), environment Layer 1 at the player. Only
+        // snow needs the base here, to keep its "must be freezing" meaning at
+        // the reference point where the old absolute rule applied.
         let base_temp = body_environment::body_baseline_temp_c(&self.env, season);
 
         // Add some random variance to temperature (+/- 5 degrees)
@@ -289,49 +339,53 @@ impl WeatherSystem {
             WeatherCondition::Clear => {
                 self.target_intensity = 0.0;
                 self.target_visibility = 1.0;
-                self.target_temperature = base_temp + temp_variance + 3.0; // Clear = slightly warmer
+                self.target_temp_dev = temp_variance + 3.0; // Clear = slightly warmer
                 self.target_humidity = 0.3 + self.rng.gen_range(0.0..0.1);
                 self.target_wind_speed = self.rng.gen_range(0.5..3.0);
             }
             WeatherCondition::Cloudy => {
                 self.target_intensity = self.rng.gen_range(0.2..0.5);
                 self.target_visibility = 0.8;
-                self.target_temperature = base_temp + temp_variance;
+                self.target_temp_dev = temp_variance;
                 self.target_humidity = 0.5 + self.rng.gen_range(0.0..0.2);
                 self.target_wind_speed = self.rng.gen_range(2.0..6.0);
             }
             WeatherCondition::Rain => {
                 self.target_intensity = self.rng.gen_range(0.4..0.8);
                 self.target_visibility = 0.6;
-                self.target_temperature = base_temp + temp_variance - 3.0; // Rain cools
+                self.target_temp_dev = temp_variance - 3.0; // Rain cools
                 self.target_humidity = 0.8 + self.rng.gen_range(0.0..0.2);
                 self.target_wind_speed = self.rng.gen_range(3.0..8.0);
             }
             WeatherCondition::Storm => {
                 self.target_intensity = self.rng.gen_range(0.8..1.0);
                 self.target_visibility = 0.4;
-                self.target_temperature = base_temp + temp_variance - 5.0;
+                self.target_temp_dev = temp_variance - 5.0;
                 self.target_humidity = 0.9 + self.rng.gen_range(0.0..0.1);
                 self.target_wind_speed = self.rng.gen_range(10.0..20.0);
             }
             WeatherCondition::Snow => {
                 self.target_intensity = self.rng.gen_range(0.3..0.7);
                 self.target_visibility = 0.5;
-                self.target_temperature = (base_temp + temp_variance).min(0.0); // Must be freezing
+                // Must be freezing at the reference: the deviation that puts
+                // the reference at or below 0 C. (Whether falling water is
+                // rain or snow AT THE PLAYER should come from the air there;
+                // docs/design/environment-fields.md lists it as a consumer.)
+                self.target_temp_dev = (base_temp + temp_variance).min(0.0) - base_temp;
                 self.target_humidity = 0.7 + self.rng.gen_range(0.0..0.2);
                 self.target_wind_speed = self.rng.gen_range(2.0..7.0);
             }
             WeatherCondition::Fog => {
                 self.target_intensity = self.rng.gen_range(0.5..0.9);
                 self.target_visibility = 0.2;
-                self.target_temperature = base_temp + temp_variance - 1.0;
+                self.target_temp_dev = temp_variance - 1.0;
                 self.target_humidity = 0.9 + self.rng.gen_range(0.0..0.1);
                 self.target_wind_speed = self.rng.gen_range(0.0..2.0);
             }
             WeatherCondition::Sandstorm => {
                 self.target_intensity = self.rng.gen_range(0.6..1.0);
                 self.target_visibility = 0.3;
-                self.target_temperature = base_temp + temp_variance + 5.0; // Hot
+                self.target_temp_dev = temp_variance + 5.0; // Hot
                 self.target_humidity = 0.1 + self.rng.gen_range(0.0..0.1);
                 self.target_wind_speed = self.rng.gen_range(12.0..25.0);
             }
@@ -357,7 +411,7 @@ impl WeatherSystem {
         // Snapshot current values for lerping
         self.prev_intensity = self.weather.intensity;
         self.prev_visibility = self.weather.visibility;
-        self.prev_temperature = self.weather.temperature;
+        self.prev_temp_dev = self.temp_dev;
         self.prev_humidity = self.weather.humidity;
         self.prev_wind_speed = self.weather.wind_speed;
 
@@ -381,11 +435,18 @@ impl System for WeatherSystem {
         // exports into the DataStore (behind a Mutex); fall back to Spring
         // noon if absent. The hour feeds the day/night temperature swing on
         // airless bodies (increment 4).
-        let (season, hour) = data
+        // The year fraction is Layer 1's seasonal clock (a smooth annual
+        // cycle; `season` stays the four-step label the rolls use). Its
+        // fallback is the same moment: noon of day 0.
+        let (season, hour, year_fraction) = data
             .get::<std::sync::Mutex<GameTime>>("game_time")
             .and_then(|m| m.lock().ok())
-            .map(|gt| (gt.season, gt.hour))
-            .unwrap_or((Season::Spring, 12.0));
+            .map(|gt| (gt.season, gt.hour, gt.year_fraction()))
+            .unwrap_or((
+                Season::Spring,
+                12.0,
+                0.5 / f64::from(crate::systems::time::DAYS_PER_YEAR),
+            ));
 
         // Which body's weather are we simulating? (increment 4) The main
         // loop publishes the frame-locked body's snapshot each frame;
@@ -471,10 +532,15 @@ impl System for WeatherSystem {
 
             self.weather.intensity = lerp(self.prev_intensity, self.target_intensity, t);
             self.weather.visibility = lerp(self.prev_visibility, self.target_visibility, t);
-            self.weather.temperature = lerp(self.prev_temperature, self.target_temperature, t);
+            self.temp_dev = lerp(self.prev_temp_dev, self.target_temp_dev, t);
             self.weather.humidity = lerp(self.prev_humidity, self.target_humidity, t);
             self.weather.wind_speed = lerp(self.prev_wind_speed, self.target_wind_speed, t);
         }
+        // The global reference follows its base every tick (a season turning
+        // over reaches farming now, not at the next condition change) with the
+        // weather's deviation on top. Set BEFORE the event roll below, which
+        // reads it.
+        self.weather.temperature = body_environment::body_baseline_temp_c(&self.env, season) + self.temp_dev;
 
         // The panel's wind + intensity win over the lerp, so dragging a slider
         // is immediate instead of being walked back over 30 s.
@@ -570,23 +636,126 @@ impl System for WeatherSystem {
         //    inside Earth's frame-lock envelope, and the altitude lapse
         //    would have turned its global climate arctic and punished
         //    farming aboard.
-        //  - `temperature_at_player` = global + the latitude/altitude delta
-        //    of where the player stands. The survival exposure path
-        //    (hypothermia) and the HUD thermometer read this. Riding the
-        //    export only means it tracks the player instantly while the
-        //    internal value keeps ramping through transitions; the delta is
-        //    exactly 0.0 for the default Earth home environment.
+        //  - the AT-PLAYER values (temperature, pressure, wind) come from
+        //    environment Layer 1 where the player stands, with the weather's
+        //    deviation on top: `air_at_player` below. The survival exposure
+        //    path (the body heat model) and the HUD thermometer read these.
+        //    Riding the export only means they track the player instantly
+        //    while the internal deviation keeps ramping through transitions;
+        //    the default Earth home environment (not on any world) reads the
+        //    global temperature exactly.
         if let Some(slot) = data.get::<std::sync::Mutex<Weather>>("weather") {
             if let Ok(mut w) = slot.lock() {
                 *w = self.weather.clone();
                 w.temperature = self.weather.temperature
                     + body_environment::diurnal_swing_c(&self.env, hour);
-                w.temperature_at_player = w.temperature
-                    + body_environment::positional_temp_offset_c(&self.env, season, hour);
                 w.wind_speed += self.active_gust_mps * EVENT_GUST_EXPORT;
+                // The store's table (disk first, a modder's edit wins), else
+                // the copy compiled into the binary. (A closure, not the bare
+                // fn path: the path would pin the Option to 'static.)
+                let table = data
+                    .get::<ClimateTable>(env_layer1::STORE_KEY)
+                    .or_else(|| ClimateTable::shipped());
+                let at = air_at_player(&AtPlayerInputs {
+                    env: &self.env,
+                    table,
+                    season,
+                    hour,
+                    year_fraction,
+                    global_c: w.temperature,
+                    temp_dev_c: self.temp_dev,
+                    // The weather's own wind has no geographic frame yet (its
+                    // direction is rolled at random), so its rolled direction
+                    // is read as (east, north).
+                    weather_wind: (w.wind_direction.x * w.wind_speed, w.wind_direction.z * w.wind_speed),
+                    manual_wind: manual.is_some(),
+                });
+                w.temperature_at_player = at.temp_c;
+                w.pressure_kpa_at_player = at.pressure_kpa;
+                w.wind_east_at_player = at.wind_east;
+                w.wind_north_at_player = at.wind_north;
             }
         }
     }
+}
+
+/// Sea-level temperature, K, of the column used for a world with air but no
+/// climate row: the 1976 US Standard Atmosphere's 15 C.
+const STANDARD_SEA_LEVEL_K: f64 = 288.15;
+
+/// What `air_at_player` needs: where the player is, the climate data, the
+/// clock, and what the weather itself is doing.
+pub struct AtPlayerInputs<'a> {
+    pub env: &'a BodyEnvironment,
+    pub table: Option<&'a ClimateTable>,
+    pub season: Season,
+    pub hour: f32,
+    pub year_fraction: f64,
+    /// The exported global reference, C (base + deviation + day/night swing).
+    pub global_c: f32,
+    /// The weather's temperature deviation, C.
+    pub temp_dev_c: f32,
+    /// The weather's own wind (east, north), m/s, gusts included.
+    pub weather_wind: (f32, f32),
+    /// The F11 panel is driving: its wind is the whole wind.
+    pub manual_wind: bool,
+}
+
+/// The air AT THE PLAYER, as the weather exports it.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct AtPlayer {
+    pub temp_c: f32,
+    pub pressure_kpa: f32,
+    pub wind_east: f32,
+    pub wind_north: f32,
+}
+
+/// Environment Layer 1 where the player stands, with the weather's deviation
+/// on top (docs/design/environment-fields.md, "Layer 1 as built"). Pure, so
+/// the equator, the mountain and the pole can be tested without a DataStore.
+///
+/// - Standing on a world WITH a climate row: Layer 1's air temperature at the
+///   player's direction, altitude, land share and date, plus the deviation and
+///   the body-wide day/night swing; Layer 1's pressure; Layer 1's prevailing
+///   wind plus the weather's own. No air means no pressure and no wind.
+/// - Anywhere else (open space, the home station, a world with no row): the
+///   global reference plus the generic body model's latitude and altitude
+///   delta, as before Layer 1; Earth's standard column for pressure on a
+///   world with air, 0 without; the weather's wind alone.
+pub fn air_at_player(i: &AtPlayerInputs) -> AtPlayer {
+    let env = i.env;
+    let row = if env.locked { i.table.and_then(|t| t.row(&env.body_id)) } else { None };
+    let (temp_c, pressure_kpa, prevailing) = match row {
+        Some(row) => {
+            let air = row.air_at(
+                env.up_dir,
+                f64::from(env.altitude_m),
+                f64::from(env.land_fraction),
+                i.year_fraction,
+            );
+            let temp = air.temp_c as f32 + i.temp_dev_c + body_environment::diurnal_swing_c(env, i.hour);
+            if env.has_atmosphere {
+                (temp, air.pressure_kpa as f32, (air.wind_east as f32, air.wind_north as f32))
+            } else {
+                (temp, 0.0, (0.0, 0.0))
+            }
+        }
+        None => {
+            let temp = i.global_c + body_environment::positional_temp_offset_c(env, i.season, i.hour);
+            let pressure = if env.locked && env.has_atmosphere {
+                i.table
+                    .and_then(|t| t.row("earth"))
+                    .map(|e| e.column(STANDARD_SEA_LEVEL_K, f64::from(env.altitude_m)).1 as f32)
+                    .unwrap_or(0.0)
+            } else {
+                0.0
+            };
+            (temp, pressure, (0.0, 0.0))
+        }
+    };
+    let (we, wn) = i.weather_wind;
+    let (wind_east, wind_north) = if i.manual_wind { (we, wn) } else { (prevailing.0 + we, prevailing.1 + wn) };
+    AtPlayer { temp_c, pressure_kpa, wind_east, wind_north }
 }
 
 /// Linear interpolation.
@@ -678,10 +847,14 @@ mod tests {
         let mut world = hecs::World::new();
         let mut sys = WeatherSystem::new();
         // Pin ambient conditions inside the thunderstorm window each roll
-        // (the normal condition machinery keeps mutating them).
+        // (the normal condition machinery keeps mutating them). Temperature
+        // is pinned through its DEVIATION, since the tick rebuilds the global
+        // reference from base + deviation before the roll: 20 C in Spring.
+        let pinned_dev = 20.0
+            - body_environment::body_baseline_temp_c(&BodyEnvironment::default(), Season::Spring);
         let mut fired = false;
         for _ in 0..300 {
-            sys.weather.temperature = 20.0;
+            sys.temp_dev = pinned_dev;
             sys.weather.wind_speed = 10.0;
             sys.weather.event_remaining_s = 0.0;
             sys.weather.event_id.clear();
@@ -719,6 +892,107 @@ mod tests {
         // published, the player-local reading IS the global one, so the
         // temperature split changes nothing at the home station.
         assert!((exported.temperature_at_player - exported.temperature).abs() < 1e-6);
+        // And the home default is open space: no air pressure outside.
+        assert_eq!(exported.pressure_kpa_at_player, 0.0);
+    }
+
+    /// Earth, locked, standing at `lat` degrees and `alt` metres, deep inland.
+    fn earth_env(lat: f64, alt: f32, land: f32) -> BodyEnvironment {
+        let la = lat.to_radians();
+        BodyEnvironment {
+            locked: true,
+            latitude_deg: lat as f32,
+            altitude_m: alt,
+            up_dir: glam::DVec3::new(la.cos(), la.sin(), 0.0),
+            land_fraction: land,
+            ..Default::default()
+        }
+    }
+
+    fn inputs<'a>(env: &'a BodyEnvironment, year_fraction: f64) -> AtPlayerInputs<'a> {
+        AtPlayerInputs {
+            env,
+            table: ClimateTable::shipped(),
+            season: Season::Summer,
+            hour: 12.0,
+            year_fraction,
+            global_c: 30.0,
+            temp_dev_c: 1.5,
+            weather_wind: (0.0, 0.0),
+            manual_wind: false,
+        }
+    }
+
+    /// Layer 1 at the player: at the same moment and under the same weather,
+    /// the equator, a mountain on the equator and the pole feel different air,
+    /// and the weather's deviation rides on top of every one of them. Seen red
+    /// by sampling Layer 1 at altitude 0 whatever the player's height (the
+    /// equator and 4 km up on it both read 30.3 C and 101.325 kPa), and
+    /// separately by breaking the wind basis (the trades vanished).
+    #[test]
+    fn the_equator_a_mountain_and_the_pole_feel_different_air() {
+        let summer = 0.35; // northern land peak lands near here in the game year
+        let eq = earth_env(0.0, 0.0, 1.0);
+        let peak = earth_env(0.0, 4_000.0, 1.0);
+        let pole = earth_env(85.0, 0.0, 0.0);
+        let (a, b, c) = (
+            air_at_player(&inputs(&eq, summer)),
+            air_at_player(&inputs(&peak, summer)),
+            air_at_player(&inputs(&pole, summer)),
+        );
+        assert!(a.temp_c > b.temp_c + 20.0, "equator {a:?} vs 4 km on it {b:?}");
+        assert!(a.temp_c > c.temp_c + 15.0, "equator {a:?} vs the pole {c:?}");
+        assert!(b.pressure_kpa < 0.7 * a.pressure_kpa, "thin air at 4 km: {b:?}");
+        assert!((a.pressure_kpa - 101.325).abs() < 0.01, "sea level: {a:?}");
+        // The deviation is exactly additive on Layer 1.
+        let mut warmer = inputs(&eq, summer);
+        warmer.temp_dev_c += 4.0;
+        assert!((air_at_player(&warmer).temp_c - a.temp_c - 4.0).abs() < 1e-4);
+        // Trade winds blow at the tropics even under a still weather roll.
+        let tropic = earth_env(16.0, 0.0, 0.0);
+        let t = air_at_player(&inputs(&tropic, summer));
+        assert!(t.wind_east < -0.5, "trades at 16 N: {t:?}");
+        // Away from any world (the home station): the global reference exactly,
+        // no pressure, only the weather's wind.
+        let home = BodyEnvironment::default();
+        let mut i = inputs(&home, summer);
+        i.weather_wind = (3.0, 0.0);
+        let h = air_at_player(&i);
+        assert_eq!(h.temp_c, 30.0);
+        assert_eq!(h.pressure_kpa, 0.0);
+        assert_eq!((h.wind_east, h.wind_north), (3.0, 0.0));
+    }
+
+    /// The F11 panel pins the local wind: "calm" has to mean calm even in the
+    /// trades. Without the panel the prevailing wind adds to the weather's.
+    /// Seen red by dropping the `manual_wind` branch: the panel's calm read the
+    /// trade wind, (-1.40, +0.21) m/s.
+    #[test]
+    fn the_weather_panel_pins_the_local_wind() {
+        let tropic = earth_env(16.0, 0.0, 0.0);
+        let mut i = inputs(&tropic, 0.35);
+        i.weather_wind = (0.0, 0.0);
+        let free = air_at_player(&i);
+        i.manual_wind = true;
+        let pinned = air_at_player(&i);
+        assert!(free.wind_east.hypot(free.wind_north) > 1.0);
+        assert_eq!((pinned.wind_east, pinned.wind_north), (0.0, 0.0));
+    }
+
+    /// Mars has a row: its air is Layer 1's thin CO2 column, and its
+    /// temperature carries its own body-wide day/night swing.
+    #[test]
+    fn mars_reads_its_own_column() {
+        let mut mars = BodyEnvironment::dry_atmosphere("mars", 210.0);
+        mars.altitude_m = 0.0;
+        let i = AtPlayerInputs { hour: 14.0, ..inputs(&mars, 0.2) };
+        let m = air_at_player(&i);
+        assert!((m.pressure_kpa - 0.636).abs() < 1e-4, "Mars datum pressure {m:?}");
+        assert!(m.temp_c < -20.0, "Mars is cold even at its afternoon peak: {m:?}");
+        // The Moon has no row and no air.
+        let moon = BodyEnvironment::airless("moon", 220.0);
+        let n = air_at_player(&inputs(&moon, 0.2));
+        assert_eq!(n.pressure_kpa, 0.0);
     }
 
     #[test]

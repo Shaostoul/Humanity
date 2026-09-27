@@ -14,12 +14,76 @@ use crate::ecs::components::EnvironmentContext;
 use crate::engine::state::EngineState;
 use crate::systems::body_heat;
 use crate::systems::construction::uses;
+use crate::systems::weather::Weather;
 
-/// Earth's pressure scale height, m: the isothermal barometric formula's
-/// e-folding height for the lower atmosphere (about 8.4 km).
-const EARTH_SCALE_HEIGHT_M: f32 = 8_434.0;
-/// Sea-level air pressure, kPa.
+/// Sea-level air pressure, kPa (the home air's pressure is kept in atm).
 const SEA_LEVEL_KPA: f32 = 101.325;
+
+/// The outside air where the player stands, as the weather exports it
+/// (environment Layer 1 plus the weather's deviation: `systems::weather`,
+/// `air_at_player`).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) struct ExposedAir {
+    pub temp_c: f32,
+    pub relative_humidity: f32,
+    pub wind_m_s: f32,
+    pub precipitation: f32,
+    pub pressure_kpa: f32,
+}
+
+impl ExposedAir {
+    /// No weather published yet: assume the worst (-40 C, no air).
+    const UNKNOWN: ExposedAir =
+        ExposedAir { temp_c: -40.0, relative_humidity: 0.0, wind_m_s: 0.0, precipitation: 0.0, pressure_kpa: 0.0 };
+
+    /// The PLAYER-LOCAL fields of the weather, never the body-global
+    /// `temperature` (review split): exposure is about where THIS body stands
+    /// (latitude, altitude, lunar night), while farming climate and hydrology
+    /// evaporation keep reading the global reference. See the Weather struct's
+    /// field docs for the full contract.
+    pub(crate) fn from_weather(w: &Weather) -> Self {
+        ExposedAir {
+            temp_c: w.temperature_at_player,
+            relative_humidity: w.humidity,
+            wind_m_s: w.wind_speed_at_player(),
+            precipitation: body_heat::precipitation(w.condition, w.intensity),
+            pressure_kpa: w.pressure_kpa_at_player,
+        }
+    }
+}
+
+/// The context OUTSIDE the hull: unsealed, in the live weather, under what
+/// the player has built over themselves (`uses::shelter_at`). Breathable
+/// ONLY when standing on a body whose open air supports it (Earth below the
+/// death zone); space, the Moon, and Mars keep the vacuum oxygen drain
+/// (artificial-planet increment 4). A roof keeps the rain and snow off even
+/// with walls missing; a roof on enough walls is `sheltered`, which tells the
+/// body heat model the wind does not reach the body either
+/// (`body_heat::Exposure::from_context`). The air is the weather's either
+/// way. Pure, so the body heat chain can be tested.
+pub(crate) fn outside_context(
+    air: ExposedAir,
+    breathable: bool,
+    shelter: uses::ShelterCheck,
+    activity_met: f32,
+    g_load: f32,
+) -> EnvironmentContext {
+    EnvironmentContext {
+        sealed: false,
+        oxygenated: breathable,
+        ambient_temp_c: air.temp_c,
+        relative_humidity: air.relative_humidity,
+        wind_m_s: air.wind_m_s,
+        precipitation: if shelter.roofed { 0.0 } else { air.precipitation },
+        sheltered: shelter.sheltered(),
+        radiant_temp_c: None,
+        pressure_kpa: air.pressure_kpa,
+        activity_met,
+        // The drive does not care which side of the hull you are on: a burn
+        // is felt everywhere aboard.
+        g_load,
+    }
+}
 
 /// Once per frame: publish the survival context and the body heat mode.
 pub(crate) fn publish(state: &mut EngineState) {
@@ -30,41 +94,24 @@ pub(crate) fn publish(state: &mut EngineState) {
     };
     state.data_store.insert(body_heat::MODE_KEY, mode);
 
-    // Exposed ambient temperature comes from the current weather (winter /
-    // storms make the outside deadlier); -40 fallback. PLAYER-LOCAL field, not
-    // the body-global `temperature` (review split): hypothermia is about where
-    // THIS body stands (latitude, altitude, lunar night), while farming climate
-    // and hydrology evaporation keep reading the global reference. See the
-    // Weather struct field docs for the full contract. Humidity, wind and
-    // what is falling come from the same weather.
-    let weather = state
+    // The air where the player stands: temperature, humidity, wind, what is
+    // falling and the pressure, all from the weather's at-player export
+    // (environment Layer 1 plus the weather's deviation).
+    let exposed = state
         .data_store
-        .get::<std::sync::Mutex<crate::systems::weather::Weather>>("weather")
+        .get::<std::sync::Mutex<Weather>>("weather")
         .and_then(|m| m.lock().ok())
-        .map(|w| {
-            (
-                w.temperature_at_player,
-                w.humidity,
-                w.wind_speed,
-                body_heat::precipitation(w.condition, w.intensity),
-            )
-        });
-    let (exposed_temp, exposed_rh, exposed_wind, exposed_precip) = weather.unwrap_or((-40.0, 0.0, 0.0, 0.0));
+        .map(|w| ExposedAir::from_weather(&w))
+        .unwrap_or(ExposedAir::UNKNOWN);
     // Outside the hull: breathable only when standing on a frame-locked body
     // whose air is breathable at this altitude (increment 4). Open space and
     // airless or unbreathable worlds keep the vacuum drain (the existing suit
-    // rules). The air pressure: Earth's barometric fall with height where
-    // there is air, vacuum where there is none. Other worlds' surface
-    // pressures are not in the body data yet, so a world with air takes
-    // Earth's; the air supply rules those worlds long before the pressure does.
-    let body = state
+    // rules).
+    let outside_breathable = state
         .data_store
-        .get::<crate::systems::body_environment::BodyEnvironment>("body_environment");
-    let outside_breathable = body.map(|e| e.breathable_outside()).unwrap_or(false);
-    let outside_kpa = match body {
-        Some(e) if e.locked && e.has_atmosphere => SEA_LEVEL_KPA * (-e.altitude_m.max(0.0) / EARTH_SCALE_HEIGHT_M).exp(),
-        _ => 0.0,
-    };
+        .get::<crate::systems::body_environment::BodyEnvironment>("body_environment")
+        .map(|e| e.breathable_outside())
+        .unwrap_or(false);
     // What the body is doing (ASHRAE met values, body_heat::MET_*).
     let activity = if state.driving_vehicle.is_some() {
         body_heat::MET_DRIVING
@@ -81,12 +128,12 @@ pub(crate) fn publish(state: &mut EngineState) {
     // Published for consumers outside this block (farming reads its own
     // DataStore slots, not EnvironmentContext).
     state.data_store.insert("felt_gravity", felt);
-    // Set in the outside branch below; nothing shelters inside the home or in fly mode.
-    let mut shelter = uses::ShelterCheck::default();
     // Dev fly/travel (v0.791.x) is a cheat: while fly mode is on, the
     // vacuum-outside-the-hull rule is suspended so sightseeing at Neptune
     // doesn't suffocate/freeze the operator or close-range verifies. Turning
     // fly mode off restores normal survival rules wherever you are.
+    // Set in the outside branch below; nothing shelters inside the home or in fly mode.
+    let mut shelter = uses::ShelterCheck::default();
     let env = if state.controller.fly_mode {
         // Fly mode already suspends vacuum and cold; suspend the burn too, so
         // sightseeing during a 5 g evasion does not quietly kill the operator.
@@ -122,29 +169,18 @@ pub(crate) fn publish(state: &mut EngineState) {
                 }
             }
             Some(_) => {
-                // Outside the hull: unsealed, in the live weather, under
-                // whatever the player has built over themselves (2026-09-27:
-                // a roof on three walls keeps the wind and rain off). Only
-                // while the player is in the home frame the pieces live in:
-                // off the ship the camera does not move with the player, so
-                // testing the raw position against home-frame pieces said
-                // "Sheltered" wherever one walked (review of the shelter
-                // commit; see engine/build_place.rs, which refuses to place
-                // off the ship for the same reason).
+                // Outside the hull, under whatever the player has built over
+                // themselves (2026-09-27: a roof on three walls keeps the wind
+                // and rain off). Only while the player is in the home frame the
+                // pieces live in: off the ship the camera does not move with
+                // the player, so testing the raw position against home-frame
+                // pieces said "Sheltered" wherever one walked (BUG-102; see
+                // engine/build_place.rs, which refuses to place off the ship
+                // for the same reason).
                 if state.aboard_station {
                     shelter = uses::shelter_at(&state.game_world.world, pos - glam::Vec3::Y * state.controller.eye_height());
                 }
-                let outdoors = Outdoors {
-                    temp_c: exposed_temp,
-                    relative_humidity: exposed_rh,
-                    wind_m_s: exposed_wind,
-                    precipitation: exposed_precip,
-                    breathable: outside_breathable,
-                    pressure_kpa: outside_kpa,
-                };
-                // The drive does not care which side of the hull you are on:
-                // a burn is felt everywhere aboard.
-                outside_context(&outdoors, shelter, activity, felt_g_now)
+                outside_context(exposed, outside_breathable, shelter, activity, felt_g_now)
             }
             // Homestead not generated yet: assume safe.
             None => EnvironmentContext::default(),
@@ -154,42 +190,6 @@ pub(crate) fn publish(state: &mut EngineState) {
     // The HUD's Shelter line and the Inventory page's readout.
     state.gui_state.vitals.sheltered = shelter.sheltered();
     state.gui_state.vitals.shelter_note = shelter.note();
-}
-
-/// The weather outside the hull at the player's position.
-pub(crate) struct Outdoors {
-    pub temp_c: f32,
-    pub relative_humidity: f32,
-    /// The 10 m wind, m/s.
-    pub wind_m_s: f32,
-    /// Rain or snow, 0 to 1 (`body_heat::precipitation`).
-    pub precipitation: f32,
-    /// Breathable ONLY when standing on a body whose open air supports it
-    /// (Earth below the death zone); space, the Moon and Mars keep the
-    /// vacuum oxygen drain (increment 4).
-    pub breathable: bool,
-    pub pressure_kpa: f32,
-}
-
-/// The survival context outside the hull, under what the player has built
-/// over themselves (`uses::shelter_at`). A roof keeps the rain and snow off
-/// even with walls missing; a roof on enough walls is `sheltered`, which
-/// tells the body heat model the wind does not reach the body either
-/// (`body_heat::Exposure::from_context`). The air is the weather's either way.
-pub(crate) fn outside_context(o: &Outdoors, shelter: uses::ShelterCheck, activity_met: f32, g_load: f32) -> EnvironmentContext {
-    EnvironmentContext {
-        sealed: false,
-        oxygenated: o.breathable,
-        ambient_temp_c: o.temp_c,
-        relative_humidity: o.relative_humidity,
-        wind_m_s: o.wind_m_s,
-        precipitation: if shelter.roofed { 0.0 } else { o.precipitation },
-        sheltered: shelter.sheltered(),
-        radiant_temp_c: None,
-        pressure_kpa: o.pressure_kpa,
-        activity_met,
-        g_load,
-    }
 }
 
 /// THE home's air: temperature (C), relative humidity (0 to 1) and pressure
@@ -206,9 +206,68 @@ fn home_air(world: &hecs::World) -> Option<(f32, f32, f32)> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::systems::body_heat::{BodyHeat, Exposure, BASE_OUTFIT_CLO, MET_STANDING};
-    use crate::systems::construction::{placement, BlueprintRegistry, Structure};
-    use glam::Vec3;
+    use crate::hot_reload::data_store::DataStore;
+    use crate::systems::body_environment::BodyEnvironment;
+    use crate::systems::weather::WeatherSystem;
+    use crate::ecs::systems::System;
+
+    /// The body heat INPUT at the player changes with altitude: at the same
+    /// place and moment, under the same weather, a mountain top is colder and
+    /// thinner than the shore below it, and an hour standing there cools a body
+    /// more. The whole chain: WeatherSystem's export (environment Layer 1 plus
+    /// the weather's deviation) -> ExposedAir -> the outside context -> the
+    /// body heat model. Seen red by exporting Layer 1 at altitude 0 whatever
+    /// the player's height: the summit and the shore then read the same air,
+    /// 7.45 C and 101.325 kPa.
+    #[test]
+    fn a_mountain_top_is_colder_than_the_shore_for_the_body() {
+        let mut data = DataStore::new();
+        data.insert("weather", std::sync::Mutex::new(Weather::default()));
+        let at = |alt: f32| {
+            let la = 46f64.to_radians();
+            BodyEnvironment {
+                locked: true,
+                latitude_deg: 46.0,
+                altitude_m: alt,
+                up_dir: glam::DVec3::new(la.cos(), la.sin(), 0.0),
+                land_fraction: 1.0,
+                ..Default::default()
+            }
+        };
+        let mut world = hecs::World::new();
+        let mut sys = WeatherSystem::new();
+        let mut read = |alt: f32, sys: &mut WeatherSystem| {
+            data.insert("body_environment", at(alt));
+            // dt 0: the weather itself does not move between the two reads,
+            // so the difference is Layer 1's alone.
+            sys.tick(&mut world, 0.0, &data);
+            let w = data.get::<std::sync::Mutex<Weather>>("weather").unwrap().lock().unwrap().clone();
+            ExposedAir::from_weather(&w)
+        };
+        let shore = read(0.0, &mut sys);
+        let summit = read(3_000.0, &mut sys);
+        // 6.5 K per geopotential km: 2,998.6 m of it.
+        let drop = shore.temp_c - summit.temp_c;
+        assert!((drop - 19.49).abs() < 0.05, "3 km of lapse: {drop} C (shore {shore:?}, summit {summit:?})");
+        assert!(summit.pressure_kpa < 0.72 * shore.pressure_kpa, "summit air is thin: {summit:?}");
+        assert!(shore.pressure_kpa > 100.0, "the shore is at sea level: {shore:?}");
+
+        // And the body feels it: an hour standing in each, same clothes.
+        let body_after_an_hour = |air: ExposedAir| {
+            let ctx = outside_context(air, true, uses::ShelterCheck::default(), body_heat::MET_STANDING, 1.0);
+            let ex = body_heat::Exposure::from_context(&ctx);
+            let mut b = body_heat::BodyHeat::new(body_heat::CORE_NEUTRAL_C);
+            b.step(&ex, body_heat::BASE_OUTFIT_CLO, body_heat::MET_STANDING, 3_600.0);
+            b
+        };
+        let (low, high) = (body_after_an_hour(shore), body_after_an_hour(summit));
+        assert!(
+            high.skin_c < low.skin_c - 1.0,
+            "an hour on the summit cools the skin more: shore {} C, summit {} C",
+            low.skin_c,
+            high.skin_c
+        );
+    }
 
     /// THE SHELTER REACHES THE BODY (2026-09-27). A wet, windy 5 C day (a
     /// 3.3 m/s wind and a downpour, the body-heat doc's "5 C, soaked by rain"
@@ -225,6 +284,9 @@ mod tests {
     /// assertion fails.
     #[test]
     fn a_built_shelter_keeps_a_wet_windy_5c_day_off_the_body() {
+        use crate::systems::body_heat::{BodyHeat, Exposure, BASE_OUTFIT_CLO, MET_STANDING};
+        use crate::systems::construction::{placement, BlueprintRegistry, Structure};
+        use glam::Vec3;
         let reg = BlueprintRegistry::from_ron(include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/data/blueprints/basic.ron"))).unwrap();
         let mut world = hecs::World::new();
         for (id, x, z, turns) in [("wood_wall", 0.0, -2.0, 0), ("wood_wall", -2.0, 0.0, 1), ("wood_wall", 2.0, 0.0, 1), ("roof", 0.0, 0.0, 0)] {
@@ -236,16 +298,15 @@ mod tests {
         let open = uses::shelter_at(&world, Vec3::new(8.0, 0.0, 0.0));
         assert!(under.sheltered() && !open.sheltered(), "{under:?} {open:?}");
 
-        let weather = Outdoors {
+        let weather = ExposedAir {
             temp_c: 5.0,
             relative_humidity: 0.9,
             wind_m_s: 3.3,
             precipitation: 1.0,
-            breathable: true,
             pressure_kpa: SEA_LEVEL_KPA,
         };
         let six_hours = |check: uses::ShelterCheck| {
-            let ex = Exposure::from_context(&outside_context(&weather, check, MET_STANDING, 1.0));
+            let ex = Exposure::from_context(&outside_context(weather, true, check, MET_STANDING, 1.0));
             let mut body = BodyHeat::new(37.0);
             for _ in 0..360 {
                 body.step(&ex, BASE_OUTFIT_CLO, MET_STANDING, 60.0);
@@ -268,7 +329,7 @@ mod tests {
 
         // A roof with walls missing still keeps the rain off; the wind gets in.
         let roof_only = uses::ShelterCheck { roofed: true, walled_sides: 2 };
-        let ex = Exposure::from_context(&outside_context(&weather, roof_only, MET_STANDING, 1.0));
+        let ex = Exposure::from_context(&outside_context(weather, true, roof_only, MET_STANDING, 1.0));
         assert_eq!((ex.wind_10m_m_s, ex.precipitation), (3.3, 0.0), "rain off, wind in");
     }
 }
