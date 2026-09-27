@@ -1929,3 +1929,46 @@ to the next tick, per island, so every litre that crosses lands; what a full or
 dry tank cannot take or give is still spilled or unmet. Test
 `a_trickle_reaches_a_big_tank_at_frame_rate` (an hour of 0.17 L/min at 60
 frames a second takes 10.2 L), seen red by dropping the carry.
+
+## BUG-097: seams in the v0.1377 and v0.1378 garden batch, found by review (FIXED v0.1379.0, two in progress)
+
+A critic review of the batch (911b9fc3..b20b24d7), made because systems built
+side by side disagree where they meet. It found nine; seven are fixed here.
+
+**In progress (on the mushroom-CO2 branch, which owns those files):**
+1. HIGH: the power system switched the air handlers and the CO2 scrubber off
+   whenever the grid was short, every night. A 0 W consumer (Station-supplied
+   mode, or an idle handler) always fails `remaining >= draw && draw > 0`, and
+   an unpowered unit never asks for power again. The tests never ran the power
+   system. Related: `electrical.rs` feeds consumers priority-descending, so a
+   "priority 1, shed last" load is shed first.
+2. MEDIUM: a mushroom tent breathed for all ten blocks however many shelves
+   were planted.
+
+**Fixed here:**
+3. Taking a row cover off just before harvest cancelled the whole pollination
+   penalty (`harvest_set` read the cover at harvest). A field crop with a
+   record now keeps it, and its flowers after the cover comes off count as
+   pollinated.
+4. With pests Off, a cover left on stayed invisible and unremovable but kept
+   cutting the fruit set. Pollination now ignores covers with pests Off, as
+   warming already did.
+5. A row cover on an indoor bed said it shut the bees out, but the hive still
+   pollinated it. A cover now removes hives and devices from the areas under
+   it, and the flowering notice under a cover says what works there.
+6. Taking a cover off recounted its pieces from the ground covered then, so
+   pieces appeared or vanished on the hand-planted area. The pieces laid are
+   now recorded (`AreaPests::cover_pieces`) and handed back exactly.
+7. Moving a rack in the editor left its tent, plants and published plot where
+   it had stood. The editor's fast path now moves grow anchors and replants
+   only the moved machines.
+8. Any launch not started from Explorer (Steam, a .bat, a terminal) was
+   silent with no way back. The first click into such a window now opens the
+   audio device; an agent's rig, never clicked into, stays silent.
+9. The pest notice offered a row cover on towers and racks and greenhouse
+   natural enemies on outdoor fields; it now offers only what can be used
+   there. The rack's shelves sat from 1/5 to 5/5 of its height, so the top
+   shelf's mushrooms pushed through the tent roof; shelves now start just
+   above the floor with each shelf's spacing free above it.
+
+Each code fix has a test seen red on a deliberate break.

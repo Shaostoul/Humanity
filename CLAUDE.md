@@ -177,7 +177,9 @@ FFI parent-process check: `src/engine/launch_focus.rs`.
 agent boots used to sound over the operator's film or game (the workshop
 screen's 440 Hz demo tone, on every boot). And every in-world video screen
 now starts muted until the player presses Unmute, so the operator's own
-boots are quiet too.
+boots are quiet too. A person who clicks into a script-launched window (a launcher, a
+.bat, a terminal) turns its sound on: only an instance nobody touches, an
+agent's rig, stays silent.
 
 What still matters in practice:
 

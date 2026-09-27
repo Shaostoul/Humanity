@@ -1768,27 +1768,9 @@ mod native_app {
             }
 
             self.state = Some(EngineState {
-                // An instance a script or an agent launched (a probe rig, a
-                // boot check) makes no sound at all, for the same reason it
-                // takes no focus (engine::launch_focus): the operator is
-                // watching a film or playing a game on the one machine, and
-                // every agent boot used to sound over it (operator,
-                // 2026-09-27). No device is opened, which the engine already
-                // handles as a machine without audio. The operator's own
-                // launches (`just play`, `just launch`, a double-click) are
-                // foreground and keep their sound.
-                audio: if crate::engine::launch_focus::launch_in_background() {
-                    log::info!("[Audio] off: this instance was launched in the background by a script");
-                    None
-                } else {
-                    match crate::audio::AudioManager::try_new() {
-                        Ok(a) => Some(a),
-                        Err(e) => {
-                            log::warn!("[Audio] disabled: {e}");
-                            None
-                        }
-                    }
-                },
+                // None for a background (script-launched) instance until a
+                // person clicks into it (engine::launch_focus::launch_audio).
+                audio: crate::engine::launch_focus::launch_audio(),
                 sound_catalog: crate::audio::sounds::SoundCatalog::load(std::path::Path::new(
                     "data",
                 )),
@@ -3045,6 +3027,7 @@ mod native_app {
                     // still stole focus a second in, measured at t+1s.
                     if pressed && state.background_no_cursor {
                         state.background_no_cursor = false;
+                        crate::engine::launch_focus::open_audio_on_click(&mut state.audio);
                     }
                     // In-world modal panels own clicks (v0.773 chat, v0.778 creature
                     // editor). egui still receives the click (on_window_event, above)

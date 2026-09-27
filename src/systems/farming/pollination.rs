@@ -376,7 +376,21 @@ pub struct Help {
 
 impl Help {
     /// The home's hives and devices now (the engine publishes "grow_plots").
+    /// An area under a row cover gets neither: the fabric keeps the bees out
+    /// and a fan's draught off the flowers (critic review, 2026-09-27: a
+    /// covered greenhouse bed was still pollinated by its hive).
     pub fn now(world: &hecs::World, data: &DataStore, d: &PollinationData) -> Self {
+        let mut help = Self::uncovered(world, data, d);
+        let covered = covered_fields(world, data);
+        if !covered.is_empty() {
+            help.hive_areas.retain(|a| !covered.contains(a));
+            help.devices.retain(|a, _| !covered.contains(a));
+        }
+        help
+    }
+
+    /// The hives and devices before any cover is counted.
+    fn uncovered(world: &hecs::World, data: &DataStore, d: &PollinationData) -> Self {
         let Some(plots) = data.get::<Vec<GrowPlot>>("grow_plots") else { return Self::default() };
         let working = working_hive_positions(world, d);
         let mut help = Help {
@@ -503,7 +517,7 @@ impl Pollination {
         self.told.retain(|a| flowering.contains(a));
         for (area, plants) in &waiting {
             if self.told.insert(area.clone()) {
-                super::push_notice(data, flowering_notice(data, d, area, plants));
+                super::push_notice(data, flowering_notice(data, d, area, plants, covered.contains(area)));
             }
         }
     }
@@ -518,8 +532,11 @@ impl Pollination {
         let Ok(crop) = world.get::<&CropInstance>(entity) else { return 1.0 };
         let Some(def) = d.crop(&crop.crop_def_id) else { return 1.0 };
         let covered = covered_fields(world, data);
-        let outdoors = crop.tower_id.as_deref().map_or(false, |a| open_field(a, &covered));
         let rec = world.get::<&CropPollination>(entity).ok();
+        // A field crop with a record flowered under a cover: its record
+        // decides, whether or not the cover is still on (critic review,
+        // 2026-09-27: taking it off a click before harvest reset the set).
+        let outdoors = rec.is_none() && crop.tower_id.as_deref().map_or(false, |a| open_field(a, &covered));
         fruit_set(def, rec.as_deref(), outdoors) as f32
     }
 }
@@ -530,7 +547,21 @@ impl Pollination {
 /// by hand, until the cover comes off; the University of Minnesota guides
 /// the pests data cites say to take covers off cucurbits when they flower.
 /// Bees from a hive never reach a covered field (hives serve indoor plots).
+///
+/// Named "fields" for the case that matters most, but it is every covered
+/// grow area, indoor soil beds included (a cover on a greenhouse bed shuts
+/// its hive out too, `Help::now`). With pests switched Off the covers are
+/// out of play, as they are for warming (`pests::cover_warming`): the
+/// Garden panel shows no cover then and none can be taken off, so one left
+/// on must not keep cutting the fruit set (critic review, 2026-09-27).
 fn covered_fields(world: &hecs::World, data: &DataStore) -> HashSet<String> {
+    let severity = data
+        .get::<std::sync::Mutex<f32>>("garden_pest_severity")
+        .and_then(|m| m.lock().ok().map(|v| *v))
+        .unwrap_or(super::pests::DEFAULT_PEST_SEVERITY);
+    if !(severity > 0.0) {
+        return HashSet::new();
+    }
     data.get::<super::pests::PestData>("garden_pests")
         .map(|pd| super::pests::covered_areas(world, pd))
         .unwrap_or_default()
@@ -558,18 +589,23 @@ fn step_crops(
     for (e, (crop, rec)) in world.query_mut::<(&CropInstance, Option<&mut CropPollination>)>() {
         let Some(def) = d.crop(&crop.crop_def_id) else { continue };
         let area = crop.tower_id.as_deref().unwrap_or("");
-        if !def.needs_help() || crop.growth_stage == STAGE_DEAD || open_field(area, covered) {
+        // An open field needs no record; one that flowered under a cover
+        // keeps its record, and from then on its open flowers count as
+        // pollinated (the wind and wild insects), so taking the cover off
+        // just before the harvest cannot erase what it cost.
+        let open = open_field(area, covered);
+        if !def.needs_help() || crop.growth_stage == STAGE_DEAD || (open && rec.is_none()) {
             continue;
         }
         let flowering = def.is_flowering(&crop.growth_stage);
-        let helped = help.for_crop(d, def, area);
+        let helped = if open { 1.0 } else { help.for_crop(d, def, area) };
         let mut new = CropPollination::default();
         let had_record = rec.is_some();
         let r = match rec {
             Some(r) => r,
             None => &mut new,
         };
-        if flowering {
+        if flowering && !open {
             in_flower.insert(area.to_string());
             if helped <= 0.0 && r.hand_days_left <= 0.0 {
                 waiting.entry(area.to_string()).or_default().insert(crop.crop_def_id.clone());
@@ -779,7 +815,7 @@ fn share_words(share: f64) -> String {
 
 /// The one line said when an indoor area's crops start flowering with
 /// nothing to pollinate them: what they set left alone, and what to do.
-pub fn flowering_notice(data: &DataStore, d: &PollinationData, area: &str, plants: &BTreeSet<String>) -> String {
+pub fn flowering_notice(data: &DataStore, d: &PollinationData, area: &str, plants: &BTreeSet<String>, covered: bool) -> String {
     let defs: Vec<&CropPollinationDef> = plants.iter().filter_map(|p| d.crop(p)).collect();
     let names: Vec<String> = defs.iter().map(|c| plant_name(data, &c.id)).collect();
     let alone: Vec<String> = defs
@@ -791,6 +827,19 @@ pub fn flowering_notice(data: &DataStore, d: &PollinationData, area: &str, plant
         .map(|c| format!("{}: {}, every {}", plant_name(data, &c.id), c.how, days_words(c.hand_every_days)))
         .collect();
     let where_ = if area.is_empty() { "your hand-planted crops".to_string() } else { area.replace('_', " ") };
+    // Under a row cover the fabric keeps the insects, the wind, a hive's bees
+    // and a fan's draught off the flowers, so only two things help: taking
+    // the cover off, or pollinating by hand.
+    if covered {
+        return format!(
+            "The {} plants in {where_} are flowering under a row cover, which keeps insects and the wind off \
+             them. Left alone, {}. Take the cover off, or hand-pollinate them from the Garden panel while they \
+             flower ({}).",
+            names.join(" and "),
+            alone.join("; "),
+            how.join("; ")
+        );
+    }
     let mut s = format!(
         "The {} plants in {where_} are flowering, and indoors nothing carries their pollen. Left alone, {}. \
          Hand-pollinate them from the Garden panel while they flower ({})",
@@ -953,7 +1002,7 @@ impl GuiView {
                 let opens = stages.iter().position(|s| def.is_flowering(s));
                 if matches!((at, opens), (Some(a), Some(o)) if a < o) { Phase::Before } else { Phase::After }
             };
-            let outdoors = open_field(area, &covered);
+            let outdoors = rec.is_none() && open_field(area, &covered);
             let hive_here = help.hive(area);
             let device = help.device(d, def, area);
             let sets = device.map(|(dv, _)| (dv.name.as_str(), dv.sets.get(&def.id).copied().unwrap_or(0.0)));
@@ -1294,9 +1343,14 @@ mod tests {
     /// A field under a floating row cover (farming::pests) is shut to wild
     /// insects, so a crop there that needs them records its flowering days
     /// like an indoor one, sets less fruit unhelped, and can be
-    /// hand-pollinated; with the cover off the field is open again. Found by
-    /// the pests work (2026-09-27): a covered zucchini field set a full crop.
-    /// Seen red with `open_field` ignoring the cover: no record was made.
+    /// hand-pollinated. Taking the cover off does not erase what the covered
+    /// flowering cost: the record decides at harvest, and the flowers that
+    /// open after it are pollinated by the wind and wild insects. Found by the
+    /// pests work (2026-09-27): a covered zucchini field set a full crop; then
+    /// by the critic review: removing the cover a click before harvest reset
+    /// the set to 100%. Seen red with `open_field` ignoring the cover (no
+    /// record was made), and with `harvest_set` reading the cover at harvest
+    /// again (the set jumped to 1.0 when the cover came off).
     #[test]
     fn a_covered_field_is_pollinated_like_an_indoor_area() {
         let mut data = store(100.0, true);
@@ -1330,8 +1384,74 @@ mod tests {
         );
         assert!(rec(&world, field).hand_days_left > 0.0, "the hand pollination took");
 
+        // Hand pollination aside, what the covered flowering cost stays.
+        world.get::<&mut CropPollination>(field).unwrap().hand_days_left = 0.0;
+        let before = p.harvest_set(&world, &data, field);
         world.get::<&mut SoilMemory>(m).unwrap().pests.get_mut("grain_field_1").unwrap().releases.clear();
-        assert_eq!(p.harvest_set(&world, &data, field), 1.0, "cover off: open to the wind and wild insects");
+        assert!(
+            (p.harvest_set(&world, &data, field) - before).abs() < 1e-6,
+            "taking the cover off does not reset the set: {before}"
+        );
+        // Open again, its later flowers are pollinated.
+        let r0 = rec(&world, field);
+        step(&mut p, &mut world, &data, 2.0);
+        let r1 = rec(&world, field);
+        assert!(
+            r1.flowering_days > r0.flowering_days && r1.pollinated_days - r0.pollinated_days > 1.99,
+            "uncovered flowers count as pollinated: {r0:?} then {r1:?}"
+        );
+        assert!(p.harvest_set(&world, &data, field) > before, "so the set rises");
+    }
+
+    /// With pests switched Off the covers are out of play, as they are for
+    /// warming: the panel shows none and none can be taken off, so a cover
+    /// left on must not cut the fruit set (critic review, 2026-09-27). Seen
+    /// red with `covered_fields` ignoring the pest setting: the field kept a
+    /// record and set less.
+    #[test]
+    fn with_pests_off_a_cover_left_on_does_not_cut_the_set() {
+        let mut data = store(100.0, true);
+        data.insert("garden_pests", crate::systems::farming::pests::PestData::load());
+        data.insert("garden_pest_severity", std::sync::Mutex::new(0.0_f32));
+        let mut sys = FarmingSystem::new();
+        let mut world = hecs::World::new();
+        let field = world.spawn((crop("zucchini", "grain_field_1", "flower"),));
+        let m = crate::systems::farming::soil::soil_memory_entity(&mut world);
+        world.get::<&mut SoilMemory>(m).unwrap().pests.entry("grain_field_1".to_string()).or_default().releases.insert("row_cover".to_string(), 300.0);
+        for _ in 0..24 {
+            sys.tick(&mut world, 1.0, &data);
+        }
+        assert!(world.get::<&CropPollination>(field).is_err(), "no record: the field is open with pests off");
+        assert_eq!(Pollination::new().harvest_set(&world, &data, field), 1.0);
+    }
+
+    /// A row cover on an indoor bed shuts its hive out: the fabric keeps the
+    /// bees off the flowers (critic review, 2026-09-27: a covered greenhouse
+    /// bed was still pollinated fully). Seen red with `Help::now` not
+    /// removing covered areas: the covered tomatoes were pollinated.
+    #[test]
+    fn a_covered_indoor_bed_is_not_reached_by_its_hive() {
+        let mut data = store(100.0, true);
+        data.insert(DATA_KEY, shipped());
+        data.insert("garden_pests", crate::systems::farming::pests::PestData::load());
+        data.insert("grow_plots", vec![GrowPlot { id: "bed_1".into(), footprint_m2: 2.0, ..Default::default() }]);
+        let mut sys = FarmingSystem::new();
+        let mut world = hecs::World::new();
+        hive(&mut world, "hive_1", [1.0, 0.0, 0.0], Some(0.0));
+        let open = world.spawn((crop("tomato", "bed_1", "flower"),));
+        for _ in 0..24 {
+            sys.tick(&mut world, 1.0, &data);
+        }
+        let r = rec(&world, open);
+        assert!(r.pollinated_days > 0.0 && (r.pollinated_days - r.flowering_days).abs() < 1e-9, "uncovered, the hive works it: {r:?}");
+        let m = crate::systems::farming::soil::soil_memory_entity(&mut world);
+        world.get::<&mut SoilMemory>(m).unwrap().pests.entry("bed_1".to_string()).or_default().releases.insert("row_cover".to_string(), 300.0);
+        for _ in 0..24 {
+            sys.tick(&mut world, 1.0, &data);
+        }
+        let r2 = rec(&world, open);
+        assert!(r2.flowering_days > r.flowering_days, "it kept flowering: {r2:?}");
+        assert!((r2.pollinated_days - r.pollinated_days).abs() < 1e-9, "covered, the hive no longer reaches it: {r:?} then {r2:?}");
     }
 
     /// Lettuce is harvested as leaves, so pollination does not touch it: no

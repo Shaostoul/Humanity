@@ -571,6 +571,28 @@ pub(crate) fn rebuild_machine_objects(state: &mut EngineState) {
                 half_h.max(half_w) + 0.35,
             );
         }
+        // Grow machines follow a move too (2026-09-27, critic review: a moved
+        // rack's tent, plants and published plot stayed where it had stood
+        // until the next world entry). Only when one actually moved, and the
+        // plant pass then rebuilds just the moved machines, because its
+        // per-machine signature covers where each stands.
+        let mut grow_moved = false;
+        for p in &placements {
+            if let Some(g) = state.grow_positions.iter_mut().find(|g| g.id == p.id) {
+                let pos = Vec3::new(p.pos.0, p.pos.1, p.pos.2);
+                if g.pos != pos || g.yaw != p.rotation || g.top_y != p.top_y || g.size != p.size {
+                    g.pos = pos;
+                    g.yaw = p.rotation;
+                    g.top_y = p.top_y;
+                    g.size = p.size;
+                    grow_moved = true;
+                }
+            }
+        }
+        if grow_moved {
+            publish_grow_plots(state);
+            state.plant_mesh_sig = 0;
+        }
         // In-world screens follow their bodies on a move: geometry only, no
         // surface or renderer slot is touched (a drag must not recreate the
         // page's context and lose its scroll state).

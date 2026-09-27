@@ -34,6 +34,45 @@
 
 use std::sync::OnceLock;
 
+/// The audio device this launch opens (2026-09-27). An instance a script
+/// launched (a probe rig, a boot check) opens none, for the same reason it
+/// takes no focus: the operator is watching a film or playing a game on the
+/// one machine, and every agent boot used to sound over it (BUG-095). The
+/// engine already runs a machine without audio. The operator's own launches
+/// (`just play`, `just launch`, a double-click) are foreground and keep
+/// their sound, and a person who clicks into a background window gets it
+/// then (`open_audio_on_click`).
+pub fn launch_audio() -> Option<crate::audio::AudioManager> {
+    if launch_in_background() {
+        log::info!("[Audio] off: this instance was launched in the background by a script (a click into its window turns sound on)");
+        return None;
+    }
+    open_audio()
+}
+
+/// A person clicked into a window a script opened (a launcher, a .bat, a
+/// terminal, not only an agent), so it is theirs now: open the audio device
+/// it skipped at launch (BUG-097, critic review). An agent's rig is never
+/// clicked into and stays silent. Called on that first click only.
+pub fn open_audio_on_click(audio: &mut Option<crate::audio::AudioManager>) {
+    if audio.is_none() && launch_in_background() {
+        *audio = open_audio();
+        if audio.is_some() {
+            log::info!("[Audio] on: a person clicked into this background instance");
+        }
+    }
+}
+
+fn open_audio() -> Option<crate::audio::AudioManager> {
+    match crate::audio::AudioManager::try_new() {
+        Ok(a) => Some(a),
+        Err(e) => {
+            log::warn!("[Audio] disabled: {e}");
+            None
+        }
+    }
+}
+
 /// True when this instance must open BEHIND the current foreground window
 /// and never grab the cursor. Cached: the answer cannot change mid-run and
 /// both call sites (window creation, cursor policy) must agree.

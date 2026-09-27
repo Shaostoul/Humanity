@@ -140,3 +140,9 @@ what we will say about it.
   from Purdue, Cornell, Michigan State, NASA and peer-reviewed horticulture;
   27 sourced, 35 not found (listed), fungi not applicable. The data basis for
   each crop's own light need in the game.
+- [`2026-09-27-wifi-and-plants.md`](2026-09-27-wifi-and-plants.md),
+  whether a household Wi-Fi router harms plants: the peer-reviewed studies
+  (positive and null), their exposures against a real router's in the same
+  units, the quality grading of the field, and the 2013 Danish cress project.
+  The evidence base for deciding the game's v0.620 Wi-Fi crop harm; the
+  options are set out and not chosen.

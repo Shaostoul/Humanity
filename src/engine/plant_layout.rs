@@ -49,15 +49,21 @@ pub(crate) struct PlotRect {
 /// data/machines/home.ron) into `plots` plots (0 is read as 1). Flat plots
 /// tile the footprint on the most nearly square grid whose cell count is
 /// exactly `plots`, all at the machine's top; plot `u` is column `u % across`,
-/// row `u / across`. Stacked plots are shelves: each the whole footprint, the
-/// shelf of plot `k` at `(k + 1) / plots` of the height, so the top shelf is
-/// the machine's top.
+/// row `u / across`. Stacked plots are shelves: each the whole footprint,
+/// spaced evenly up the height, the bottom one just clear of the floor (a
+/// quarter of the spacing, at most 10 cm) and every one with its whole
+/// spacing free above it, so what grows on the top shelf stays under the
+/// frame. (Until 2026-09-27 the top shelf WAS the machine's top and the
+/// bottom spacing stood empty: the oysters on a rack's top shelf reached
+/// 1.96 m, through the roof of its 1.9 m tent.)
 pub(crate) fn plot_rects(size: (f32, f32, f32), plots: u32, stacked: bool) -> Vec<PlotRect> {
     let n = plots.max(1);
     let (w, h, d) = (size.0.max(0.0), size.1.max(0.0), size.2.max(0.0));
     if stacked {
+        let step = h / n as f32;
+        let base = (step * 0.25).min(0.1);
         return (0..n)
-            .map(|k| PlotRect { center: [0.0, 0.0], size: [w, d], floor: h * (k + 1) as f32 / n as f32 })
+            .map(|k| PlotRect { center: [0.0, 0.0], size: [w, d], floor: base + step * k as f32 })
             .collect();
     }
     let (across, deep) = plot_grid(w, d, n);
@@ -467,9 +473,11 @@ mod tests {
                 assert!(c - s * 0.5 >= -full * 0.5 - 1e-5 && c + s * 0.5 <= full * 0.5 + 1e-5);
             }
         }
-        // A 1.8 m rack of four shelves: whole footprint each, 0.45 m apart.
+        // A 1.8 m rack of four shelves: whole footprint each, 0.45 m apart,
+        // the bottom one 10 cm off the floor, the top one 0.35 m under the
+        // frame's top with its whole spacing free above it.
         let rack = plot_rects((1.2, 1.8, 0.6), 4, true);
-        for (p, want) in rack.iter().zip([0.45, 0.9, 1.35, 1.8]) {
+        for (p, want) in rack.iter().zip([0.1, 0.55, 1.0, 1.45]) {
             assert!((p.floor - want).abs() < 1e-5, "shelf at {} m, want {want}", p.floor);
         }
         assert_eq!(rack.len(), 4);

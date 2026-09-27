@@ -696,6 +696,12 @@ pub struct AreaPests {
     /// prey is gone or a soap spray kills it.
     #[serde(default)]
     pub releases: std::collections::HashMap<String, f64>,
+    /// Pieces of fabric each row cover laid here took (control id ->
+    /// pieces), so taking it off hands back exactly those (2026-09-27).
+    /// Recounting from the ground covered at take-off let pieces appear or
+    /// vanish when the crops under a hand-planted cover changed.
+    #[serde(default)]
+    pub cover_pieces: std::collections::HashMap<String, u32>,
 }
 
 /// How bad one pest is in one grow area (2026-09-26): 0 is none, 1 is as bad

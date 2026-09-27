@@ -2069,7 +2069,9 @@ impl System for FarmingSystem {
             }
             for (pest_id, list) in appeared {
                 if let Some(pest) = pest_data.pest(&pest_id) {
-                    push_notice(data, pests::appeared_notice(pest_data, pest, &list));
+                    let soil = list.iter().any(|a| pests::has_soil(data, a));
+                    let indoors = list.iter().any(|a| !is_field_area(a));
+                    push_notice(data, pests::appeared_notice(pest_data, pest, &list, soil, indoors));
                 }
             }
         }

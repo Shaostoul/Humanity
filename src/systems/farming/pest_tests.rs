@@ -908,3 +908,54 @@ fn the_garden_panel_offers_the_cover_on_soil_and_warns_when_bees_are_shut_out() 
     off.insert("garden_soil_ph", super::soil_ph::SoilPhData::parse(super::soil_ph::SOIL_PH_RON).unwrap());
     assert!(pests::cover_rows(&world, &off, &d).is_empty(), "pests off: no rows");
 }
+
+/// Taking a row cover off hands back exactly the pieces it took, however the
+/// crops under it changed (critic review, 2026-09-27). On the hand-planted
+/// area the cover's ground is counted from the living crops, so a recount at
+/// take-off made pieces when more were planted and lost them after a
+/// harvest. Seen red by recounting at take-off again: more pieces came back
+/// than were laid.
+#[test]
+fn a_row_cover_gives_back_the_pieces_it_took() {
+    let data = store(1.0, 1.0);
+    let mut sys = FarmingSystem::new();
+    let mut world = hecs::World::new();
+    world.spawn((Irrigator,));
+    let mut inv = Inventory::new(16);
+    inv.add_item("floating_row_cover_0", 10, 10);
+    let player = world.spawn((inv, Controllable));
+    world.spawn((crop(&data, "squash", "", 0),));
+    notices(&data);
+    request(&data, "", "row_cover");
+    sys.tick(&mut world, 0.016, &data);
+    assert!(cover_on(&world, ""), "it is on: {:?}", notices(&data));
+    let laid = 10 - count(&world, player, "floating_row_cover_0");
+    assert!(laid >= 1, "it took fabric");
+    for slot in 1..60 {
+        world.spawn((crop(&data, "squash", "", slot),));
+    }
+    request(&data, "", "row_cover_off");
+    sys.tick(&mut world, 0.016, &data);
+    assert!(!cover_on(&world, ""), "it is off");
+    assert_eq!(count(&world, player, "floating_row_cover_0"), 10, "exactly the {laid} it took came back");
+}
+
+/// The pest notice offers only controls that can be used where the pest is:
+/// no row cover on a tower (nothing to lie on) and no greenhouse natural
+/// enemy on an outdoor field (critic review, 2026-09-27: the aphid notice
+/// on a tower listed the row cover first). Seen red by dropping the filter:
+/// the tower's notice named the row cover.
+#[test]
+fn the_pest_notice_offers_only_controls_usable_there() {
+    let d = shipped();
+    let aphid = d.pest("aphid").expect("aphids are shipped");
+    let tower = pests::appeared_notice(&d, aphid, &["ntower_1".to_string()], false, true);
+    assert!(!tower.contains("Row cover"), "{tower}");
+    let bed = pests::appeared_notice(&d, aphid, &["bed_1".to_string()], true, true);
+    assert!(bed.contains("Row cover"), "a bed has soil: {bed}");
+    let whitefly = d.pest("whitefly").expect("whitefly is shipped");
+    let field = pests::appeared_notice(&d, whitefly, &["veg_field_1".to_string()], true, false);
+    assert!(!field.contains("Encarsia"), "Encarsia is for greenhouses: {field}");
+    let house = pests::appeared_notice(&d, whitefly, &["bed_1".to_string()], true, true);
+    assert!(house.contains("Encarsia"), "{house}");
+}

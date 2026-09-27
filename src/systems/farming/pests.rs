@@ -618,14 +618,25 @@ fn pct(level: f64) -> String {
 
 /// The one line said when `pest` first becomes noticeable in `areas`: where,
 /// what favours it (its advice), and its controls, gentlest first.
-pub fn appeared_notice(data: &PestData, pest: &PestDef, areas: &[String]) -> String {
+///
+/// `soil` and `indoors` say whether any of `areas` grows in soil and
+/// whether any is indoors, so the list offers only controls that can be used
+/// there: a row cover needs soil, and the greenhouse natural enemies need a
+/// greenhouse (critic review, 2026-09-27: the notice suggested a row cover
+/// first for aphids on a tower, where laying one is refused).
+pub fn appeared_notice(data: &PestData, pest: &PestDef, areas: &[String], soil: bool, indoors: bool) -> String {
     // "Aphids have", but "Gray mold has".
     let verb = if pest.disease { "has" } else { "have" };
     let wherever = match areas {
         [one] => format!("{} {verb} appeared on {}.", pest.name, place(one)),
         many => format!("{} {verb} appeared in {} grow areas.", pest.name, many.len()),
     };
-    let controls: Vec<&str> = data.controls_for(&pest.id).iter().map(|c| c.name.as_str()).collect();
+    let controls: Vec<&str> = data
+        .controls_for(&pest.id)
+        .iter()
+        .filter(|c| (soil || !c.needs_soil) && (indoors || !c.indoors_only))
+        .map(|c| c.name.as_str())
+        .collect();
     let ladder = if controls.is_empty() {
         String::new()
     } else {
@@ -854,6 +865,9 @@ pub(super) fn handle_request(
     let (out, state) = match world.get::<&mut crate::ecs::components::SoilMemory>(memory) {
         Ok(mut mem) => {
             let st = mem.pests.entry(area.to_string()).or_default();
+            if control.is_cover() {
+                st.cover_pieces.insert(control.id.clone(), if creative { 0 } else { need });
+            }
             let out = apply_control(st, pests, control);
             (out, st.clone())
         }
@@ -874,7 +888,7 @@ pub(super) fn handle_request(
 /// Does `area` grow in soil (data/garden/soil_ph.ron: a bed, tray or field,
 /// or the hand-planted crops), rather than a tower's mist or a rack's
 /// substrate? The loaded copy from the DataStore, else the file.
-fn has_soil(data: &crate::hot_reload::data_store::DataStore, area: &str) -> bool {
+pub fn has_soil(data: &crate::hot_reload::data_store::DataStore, area: &str) -> bool {
     match data.get::<super::soil_ph::SoilPhData>("garden_soil_ph") {
         Some(d) => d.soil_for(area).is_some(),
         None => super::soil_ph::SoilPhData::load().soil_for(area).is_some(),
@@ -1037,7 +1051,14 @@ fn take_off_cover(
         super::push_notice(data, format!("There is no {} over {}.", cover.name.to_lowercase(), place(area)));
         return;
     }
-    let pieces = cover.items_for_ground(cover_ground_m2(world, data, area));
+    // The pieces this cover took when it was laid, not a recount of the
+    // ground under it now: the crops under a hand-planted cover can change.
+    let memory = super::soil::soil_memory_entity(world);
+    let pieces = world
+        .get::<&crate::ecs::components::SoilMemory>(memory)
+        .ok()
+        .and_then(|m| m.pests.get(area).and_then(|a| a.cover_pieces.get(&cover.id).copied()))
+        .unwrap_or(0);
     let items = data.get::<crate::systems::inventory::ItemRegistry>("item_registry");
     let item_name = items.and_then(|r| r.items.get(&cover.item).map(|d| d.name.clone())).unwrap_or_else(|| cover.item.clone());
     let mut back = String::new();
@@ -1066,6 +1087,7 @@ fn take_off_cover(
     if let Ok(mut mem) = world.get::<&mut crate::ecs::components::SoilMemory>(memory) {
         if let Some(a) = mem.pests.get_mut(area) {
             a.releases.remove(&cover.id);
+            a.cover_pieces.remove(&cover.id);
         }
     }
     log::info!("[Farming] {} off {area}: {pieces} pieces back", cover.id);
