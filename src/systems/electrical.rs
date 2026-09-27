@@ -128,6 +128,16 @@ impl System for ElectricalSystem {
         use crate::ecs::components::{Battery, PowerCircuit};
         use std::collections::HashMap;
 
+        // Energy moves on the GAME clock (2026-09-27, the review of the sleep
+        // and offline batch): fuel burned and battery charge follow
+        // `scaled_dt`, the way crafting, mining and manufacturing already did
+        // (time.rs, v0.663). On raw dt a night slept at 120x cost the batteries
+        // and the genset 1/120 of the night while the crafts it powered ran the
+        // whole night, so sleeping erased the night's power deficit. At normal
+        // speed (time_scale 1) nothing changes. The log cooldown stays on raw dt.
+        let raw_dt = dt;
+        let dt = crate::systems::time::scaled_dt(dt, data);
+
         // Power flows PER ISLAND (v0.607): generation, loads, and batteries are grouped by their
         // PowerCircuit.island, so a generator only feeds loads on its own wired circuit -- no magic
         // transmission across unconnected wiring. Entities WITHOUT a PowerCircuit (legacy/test spawns)
@@ -370,7 +380,7 @@ impl System for ElectricalSystem {
         }
 
         // Throttle log output (whole-home aggregate).
-        self.log_cooldown -= dt;
+        self.log_cooldown -= raw_dt;
         if self.log_cooldown <= 0.0 {
             self.log_cooldown = 5.0;
             if demand_all > total_gen_all && total_gen_all > 0.0 {
@@ -654,6 +664,32 @@ mod tests {
     /// load used; an empty bank cannot, and the load is shed. Seen red with
     /// the old rule (the shed decided on generation alone): the load was shed
     /// with a full battery.
+    #[test]
+    fn a_fast_clock_drains_the_bank_by_game_time() {
+        // Energy moves on the game clock (2026-09-27): at 120x, as while the
+        // player sleeps, ten real seconds of a 500 W load are 1,200 game
+        // seconds, about 166.7 Wh. Seen red with the tick back on raw dt: the
+        // bank lost 1.4 Wh, so a slept night cost the batteries 1/120 of it.
+        use super::{ElectricalSystem, PowerStatus};
+        use crate::ecs::components::{Battery, PowerConsumer};
+        use crate::ecs::systems::System;
+        use crate::hot_reload::data_store::DataStore;
+        let mut data = DataStore::new();
+        data.insert("power_status", std::sync::Mutex::new(PowerStatus::default()));
+        let mut gt = crate::systems::time::GameTime::default();
+        gt.time_scale = 120.0;
+        data.insert("game_time", std::sync::Mutex::new(gt));
+        let mut world = hecs::World::new();
+        world.spawn((PowerConsumer { draw_watts: 500.0, priority: 2, enabled: true },));
+        let bank = world.spawn((Battery { charge_wh: 10_000.0, capacity_wh: 13_500.0, max_charge_w: 5_000.0, max_discharge_w: 5_000.0 },));
+        let mut sys = ElectricalSystem::new(std::path::Path::new("data"));
+        for _ in 0..100 {
+            sys.tick(&mut world, 0.1, &data);
+        }
+        let used = 10_000.0 - world.get::<&Battery>(bank).unwrap().charge_wh;
+        assert!((used - 500.0 * 1200.0 / 3600.0).abs() < 1.0, "the bank paid for 1,200 game seconds: {used} Wh");
+    }
+
     #[test]
     fn batteries_carry_the_night_load() {
         use super::{ElectricalSystem, PowerStatus};

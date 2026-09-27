@@ -1123,17 +1123,10 @@ mod native_app {
                 "time_set_scale_request",
                 std::sync::Mutex::new(Option::<f32>::None),
             );
-            // Craft batches in flight, both ways (2026-09-25): the
-            // CraftingSystem publishes its list for the save, and takes
-            // batches restored from a save. See systems::crafting::CraftSave.
-            data_store.insert(
-                "active_crafts_export",
-                std::sync::Mutex::new(Vec::<crate::systems::crafting::CraftSave>::new()),
-            );
-            data_store.insert(
-                "restore_active_crafts",
-                std::sync::Mutex::new(Option::<Vec<crate::systems::crafting::CraftSave>>::None),
-            );
+            // Craft batches in flight both ways, and the time away handed to
+            // the automated machines (systems::crafting::register).
+            crate::systems::crafting::register(&mut data_store);
+            crate::systems::livestock::register(&mut data_store); // the herd's saved timers until world entry
             // Absolute clock restore from a save (2026-09-25, offline
             // progression): see systems::time::request_restore_elapsed.
             data_store.insert(
@@ -1265,6 +1258,7 @@ mod native_app {
             data_store.insert("abort_active_crafts", std::sync::Mutex::new(false));
             // Survival: rest to refill energy (FoodSystem drains it).
             data_store.insert("rest_request", std::sync::Mutex::new(false));
+            data_store.insert(crate::systems::sleep::REQUEST_SLOT, std::sync::Mutex::new(None::<String>));
             // Sanitation: compost accumulated waste -> fertilizer (FoodSystem);
             // fertilize a crop by entity bits (FarmingSystem).
             data_store.insert("compost_request", std::sync::Mutex::new(false));
@@ -1698,9 +1692,6 @@ mod native_app {
                     );
                 } else {
                     crate::save_load::apply_save_to_world(&mut game_world.world, save);
-                    if !save.placed_items.is_empty() {
-                        gui_state.placed_items = save.placed_items.clone();
-                    }
                     log::info!(
                         "Loaded offline home: {} item stacks, {} skills",
                         save.inventory.len(),
@@ -1711,10 +1702,10 @@ mod native_app {
                         &data_store,
                         save,
                         gui_state.settings.offline_progression,
+                        gui_state.home_machines.as_ref(),
                     );
-                    if let Some(msg) = crate::save_load::away_notice(&resumed) {
-                        gui_state.pending_notices.push(msg);
-                    }
+                    // Home storage, the notice, the Keep mining switch.
+                    crate::save_load::after_resume(&mut gui_state, save, &resumed);
                 }
             }
             // Bring the self-hosted relay node back up if it was running at
@@ -2735,6 +2726,8 @@ mod native_app {
                                     } else {
                                         Some(t)
                                     };
+                            } else if crate::engine::built_uses::activate(state) {
+                                // A built bed (sleep) or chest (open): engine/built_uses.rs.
                             } else if state.gui_state.selected_machine.is_some() {
                                 // Not looking at any machine but a card is pinned: E closes it
                                 // (so "[E] close" works from anywhere, not just at the machine).
@@ -5764,6 +5757,8 @@ mod native_app {
                             None => String::new(),
                         };
                     }
+                    // Built beds and chests: prompt + chests in the places tree (2026-09-27).
+                    crate::engine::built_uses::frame(state);
 
                     // Per-body environment snapshot (artificial-planet
                     // increment 4): publish which world the player is on so
@@ -5773,101 +5768,9 @@ mod native_app {
                     crate::engine::frame_lock::publish_body_environment(state);
                     crate::engine::frame_lock::publish_planet_tuner_readout(state);
 
-                    // Survival environment context: is the player inside the sealed
-                    // homestead volume (oxygenated/heated) or exposed (vacuum/cold)?
-                    // FoodSystem reads this to drive oxygen + body temperature.
-                    {
-                        // Exposed ambient temperature comes from the current weather
-                        // (winter / storms make the outside deadlier); -40 fallback.
-                        // PLAYER-LOCAL field, not the body-global `temperature`
-                        // (review split): hypothermia is about where THIS body
-                        // stands (latitude, altitude, lunar night), while
-                        // farming climate and hydrology evaporation keep
-                        // reading the global reference. See the Weather struct
-                        // field docs for the full contract.
-                        let exposed_temp = state
-                            .data_store
-                            .get::<std::sync::Mutex<Weather>>("weather")
-                            .and_then(|m| m.lock().ok())
-                            .map(|w| w.temperature_at_player)
-                            .unwrap_or(-40.0);
-                        // Outside the hull: breathable only when standing on a
-                        // frame-locked body whose air is breathable at this
-                        // altitude (increment 4). Open space and airless or
-                        // unbreathable worlds keep the vacuum drain (the
-                        // existing suit rules).
-                        let outside_breathable = state
-                            .data_store
-                            .get::<crate::systems::body_environment::BodyEnvironment>(
-                                "body_environment",
-                            )
-                            .map(|e| e.breathable_outside())
-                            .unwrap_or(false);
-                        let pos = state.camera.position;
-                        // Dev fly/travel (v0.791.x) is a cheat: while fly mode
-                        // is on, the vacuum-outside-the-hull rule is suspended
-                        // so sightseeing at Neptune doesn't suffocate/freeze
-                        // steerable for the operator and close-range verifies. Turning fly mode off restores normal
-                        // survival rules wherever you are.
-                        // What the drive + any spin are doing to a body right
-                        // now, after the dampeners take their cut. Computed ONCE
-                        // here so every branch below reports the same number:
-                        // a burn is felt on both sides of the hull.
-                        let felt = crate::systems::flight::felt_gravity(
-                            &state.flight,
-                            &state.flight_data.dampener,
-                        );
-                        let felt_g_now = felt.felt_g;
-                        // Published for consumers outside this block (farming
-                        // reads its own DataStore slots, not EnvironmentContext).
-                        state.data_store.insert("felt_gravity", felt);
-                        let env = if state.controller.fly_mode {
-                            // Fly mode already suspends vacuum and cold; suspend
-                            // the burn too, so sightseeing during a 5 g evasion
-                            // does not quietly kill the operator.
-                            crate::ecs::components::EnvironmentContext::default()
-                        } else { match state.homestead_bounds {
-                            Some((mn, mx))
-                                if pos.x >= mn.x && pos.x <= mx.x
-                                    && pos.y >= mn.y && pos.y <= mx.y
-                                    && pos.z >= mn.z && pos.z <= mx.z =>
-                            {
-                                // Inside the homestead -- sealed + comfortable, but OXYGENATED only while
-                                // the life-support air is breathable (v0.618). Since 2026-09-26 that air is
-                                // ship life support's real balance (systems::life_support): the household
-                                // uses about 2 kg of oxygen a day out of tonnes, so losing the air machines
-                                // costs months, not the minutes the old stand-in drained it in.
-                                let breathable = state
-                                    .data_store
-                                    .get::<std::sync::Mutex<crate::systems::atmosphere::AirStatus>>("air_status")
-                                    .and_then(|m| m.lock().ok())
-                                    .map(|a| a.breathable)
-                                    .unwrap_or(true);
-                                crate::ecs::components::EnvironmentContext {
-                                    oxygenated: breathable,
-                                    // A sealed hull stops vacuum, not acceleration.
-                                    g_load: felt_g_now,
-                                    ..Default::default()
-                                }
-                            }
-                            Some(_) => crate::ecs::components::EnvironmentContext {
-                                // Outside the hull: unsealed, at the live weather's
-                                // ambient temperature. Breathable ONLY when standing
-                                // on a body whose open air supports it (Earth below
-                                // the death zone); space, the Moon, and Mars keep
-                                // the vacuum oxygen drain (increment 4).
-                                sealed: false,
-                                oxygenated: outside_breathable,
-                                ambient_temp_c: exposed_temp,
-                                // The drive does not care which side of the hull
-                                // you are on: a burn is felt everywhere aboard.
-                                g_load: felt_g_now,
-                            },
-                            // Homestead not generated yet → assume safe.
-                            None => crate::ecs::components::EnvironmentContext::default(),
-                        } };
-                        state.data_store.insert("environment_context", env);
-                    }
+                    // Survival environment context (sealed home or the weather) and the
+                    // body heat mode: engine::survival_env (moved out of lib.rs 2026-09-27).
+                    crate::engine::survival_env::publish(state);
 
                     // Bridge GUI craft/dev commands into the DataStore so the ECS
                     // CraftingSystem (which only gets &DataStore in tick) acts on them
@@ -14807,10 +14710,9 @@ mod native_app {
                                                     &state.data_store,
                                                     &save,
                                                     state.gui_state.settings.offline_progression,
+                                                    state.gui_state.home_machines.as_ref(),
                                                 );
-                                                if let Some(msg) = crate::save_load::away_notice(&resumed) {
-                                                    state.gui_state.pending_notices.push(msg);
-                                                }
+                                                crate::save_load::after_resume(&mut state.gui_state, &save, &resumed);
                                             }
                                             // The world just REWOUND to the save:
                                             // drop in-flight craft batches or their

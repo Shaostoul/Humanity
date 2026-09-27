@@ -953,6 +953,14 @@ impl CameraController {
         self.climb_zone.is_some()
     }
 
+    /// The walking gait (2026-09-27): whether a walk key is held, and whether
+    /// Shift (sprint on foot) is held with it. The body heat model bills a
+    /// standing, walking or sprinting body by it (`engine::survival_env`).
+    pub fn gait(&self) -> (bool, bool) {
+        let moving = self.forward || self.backward || self.left || self.right;
+        (moving, moving && self.descend)
+    }
+
     /// Dev fly mode wish direction (v0.791.x): the normalized movement intent
     /// from the held keys, in full 3D -- forward/backward along the camera's
     /// real look direction (pitch included), left/right strafe, Space +Y,

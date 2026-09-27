@@ -2189,7 +2189,7 @@ mod tests {
             .join("machines")
             .join("home.ron");
         let home = MachineHome::load(&path).expect("home.ron parses");
-        let tmp = std::env::temp_dir().join("humanity_home_roundtrip.ron");
+        let tmp = std::env::temp_dir().join(format!("humanity_home_roundtrip_{}.ron", std::process::id()));
         home.save(&tmp).expect("save");
         let back = MachineHome::load(&tmp).expect("reload saved home");
         assert_eq!(back.catalog.len(), home.catalog.len(), "catalog round-trips");
@@ -2229,7 +2229,7 @@ mod tests {
             zone: "home".to_string(),
             screen_source: None,
         });
-        let tmp = std::env::temp_dir().join("humanity_home_add.ron");
+        let tmp = std::env::temp_dir().join(format!("humanity_home_add_{}.ron", std::process::id()));
         home.save(&tmp).expect("save");
         let back = MachineHome::load(&tmp).expect("reload");
         let found = back.instances.iter().find(|i| i.id == id).expect("added machine persisted");
@@ -3617,8 +3617,8 @@ mod tests {
             .join("machines")
             .join("home.ron");
         let home = MachineHome::load(&path).expect("home.ron parses");
-        let a = std::env::temp_dir().join("humanity_home_det_a.ron");
-        let b = std::env::temp_dir().join("humanity_home_det_b.ron");
+        let a = std::env::temp_dir().join(format!("humanity_home_det_a_{}.ron", std::process::id()));
+        let b = std::env::temp_dir().join(format!("humanity_home_det_b_{}.ron", std::process::id()));
         home.save(&a).expect("save a");
         home.save(&b).expect("save b");
         let ta = std::fs::read_to_string(&a).unwrap();
@@ -3626,7 +3626,7 @@ mod tests {
         assert_eq!(ta, tb, "two saves of the same home must be byte-identical");
         // And a reload then re-save is identical too (round-trip stability).
         let reloaded = MachineHome::load(&a).expect("reload");
-        let c = std::env::temp_dir().join("humanity_home_det_c.ron");
+        let c = std::env::temp_dir().join(format!("humanity_home_det_c_{}.ron", std::process::id()));
         reloaded.save(&c).expect("save c");
         assert_eq!(ta, std::fs::read_to_string(&c).unwrap(), "reload+save round-trips byte-identically");
         let _ = std::fs::remove_file(&a);
@@ -3644,7 +3644,7 @@ mod tests {
             .join("machines")
             .join("home.ron");
         let home = MachineHome::load(&path).expect("home.ron parses");
-        let tmp = std::env::temp_dir().join("humanity_home_header.ron");
+        let tmp = std::env::temp_dir().join(format!("humanity_home_header_{}.ron", std::process::id()));
         home.save(&tmp).expect("first save");
         // Prepend a sentinel design note to the leading comment block, then reload + re-save.
         let with_note = format!("// SENTINEL_KEEP_ME design note\n{}", std::fs::read_to_string(&tmp).unwrap());

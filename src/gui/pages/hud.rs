@@ -626,6 +626,18 @@ pub fn draw(
                     }
                 }
             }
+            // Built bed / chest prompt (2026-09-27, engine/built_uses.rs): set
+            // only when nothing the E chain tries first is targeted.
+            if !state.structure_prompt.is_empty() && state.npc_prompt.is_empty() {
+                text_shadowed(
+                    painter,
+                    Pos2::new(center.x, center.y + 22.0),
+                    Align2::CENTER_TOP,
+                    &state.structure_prompt,
+                    13.0,
+                    theme.accent(),
+                );
+            }
             // Door control panel prompt at the crosshair (v0.567): looking at a panel within reach
             // shows [E] open/close (or "locked"). Precomputed in the walk-up block in lib.rs.
             if !state.control_panel_prompt.is_empty() && state.npc_prompt.is_empty() {
@@ -1001,10 +1013,12 @@ pub(crate) struct VitalRow {
 }
 
 /// Normal core body temperature, degrees C. Outside it the row shows in
-/// every mode but Off; outside the outer pair it reads as danger (mild
-/// hypothermia starts at 35 C, a fever past 39 C needs attention).
+/// every mode but Off; outside the outer pair it reads as danger: the same
+/// thresholds the body heat model sets its conditions at (hypothermia below
+/// 35 C, heat exhaustion above 39 C; `systems::body_heat`).
 const BODY_TEMP_OK: (f32, f32) = (36.0, 37.8);
-const BODY_TEMP_DANGER: (f32, f32) = (35.0, 39.0);
+const BODY_TEMP_DANGER: (f32, f32) =
+    (crate::systems::body_heat::HYPOTHERMIA_C, crate::systems::body_heat::HEAT_EXHAUSTION_C);
 
 /// Which survival rows the HUD draws for these vitals in this mode. Pure, so
 /// the choice is tested without a painter. Fill needs (food, water, energy)

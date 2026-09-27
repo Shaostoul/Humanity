@@ -300,6 +300,15 @@
           ]
         },
         {
+          "title": "Testing and Correcting Soil",
+          "file": "testing_and_correcting_soil.md",
+          "tags": [
+            "guide",
+            "real",
+            "food"
+          ]
+        },
+        {
           "title": "The Growing Calendar",
           "file": "the_growing_calendar.md",
           "tags": [
@@ -314,6 +323,15 @@
           "tags": [
             "guide",
             "real"
+          ]
+        },
+        {
+          "title": "Growing Mushrooms",
+          "file": "growing_mushrooms.md",
+          "tags": [
+            "guide",
+            "real",
+            "food"
           ]
         }
       ],

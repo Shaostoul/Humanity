@@ -1489,12 +1489,23 @@ Mod manifest format, directory scanning, load order, path override resolution.
 Save and load game world state (entities, terrain, player progress).
 - Native: `src/persistence.rs`, `src/save_load.rs` (the offline home: inventory,
   skills, wallet, quests, vehicles, crops, builds and scaffolds, craft batches in
-  flight, the world clock)
+  flight, the world clock; since 2026-09-27 also the asteroids as mined down,
+  the drone in flight with its cargo, the "Keep mining" standing order and the
+  herd's yield timers)
 - **Offline progression (2026-09-25):** crops, scaffolds under construction and
   craft batches catch up by the real time away when the game loads, with a
   notice. Settings >
   Gameplay > "Keep growing while away". `save_load::catch_up_world`;
   `docs/design/offline-progression.md`.
+- **Offline progression, the rest of single player (2026-09-27):** the
+  automated machines run the time away through moment by moment on the inputs
+  really on hand and the power the home could spare, resting at their keep
+  targets and feeding each other (`src/systems/crafting/away.rs`); the drone
+  finishes its trip and keeps flying a standing order out of the asteroid's
+  real ore (`mining::advance_away`); each animal's egg, milk or wool timer
+  moves on to one yield waiting (`livestock::timers_after_away`). Nothing
+  dies or is used up without the player's say. A character select now
+  restores the Barn with the save (`save_load::after_resume`).
 
 ### Data-Driven Tools (v0.90.7)
 tools.rs loads tool catalog from external JSON instead of hardcoded data.
@@ -1803,8 +1814,59 @@ so nothing could be built). Finished structures and scaffolds persist in the sav
 workstation** when its blueprint lists `stations` (a Furnace works as a smelter and a kiln, a Crafting Table as
 a workbench), feeding the same recipe station gate the home's machines do; the Crafting page says "or build a
 Furnace" when a station is missing.
-- Native: `src/systems/construction/mod.rs`
+
+**A built bed and chest do something (2026-09-27).** Looking at a finished structure within 5 m shows an
+[E] prompt when its blueprint's `provides` names a use (`systems/construction/uses.rs`; any blueprint can opt
+in by data, no ids in code; the first structure the look ray meets wins, so a wall hides what is behind it):
+- `provides: "rest"` (the Bed): E lies down and sleeps 8 game hours. The clock runs 120 times faster through
+  the night (the time scrubber's channel, so crops, crafts and the sun live the night by their own rules;
+  never a clock jump), then the player wakes with full energy, no `fatigued`, the `rested` buff, the clock back
+  at its old speed, and a notice saying when. Dying asleep restores nothing. `src/systems/sleep.rs`, run by
+  FoodSystem. The Inventory page's button is a **Short rest** since 2026-09-27: a ten-minute nap (Brooks and
+  Lack 2006, Sleep 29(6)) that repays ten minutes of sleep (1.6 energy points) and lifts the `fatigued` slowdown
+  for 155 minutes (the `refreshed` buff) for a tired person, not an exhausted one (energy below 10); a second
+  nap inside the window adds nothing. Only the bed restores energy (`sleep::short_rest`).
+- `provides: "storage"` (the Storage Chest): every finished one is a container in the Inventory page's "You &
+  your places" tree (a keyed node, `gui/organize.rs` `sync_built_stores`), so drag onto its header, right-click
+  Stash to / Take to backpack / Move to all work on it, and its contents count as home storage for crafting and
+  building. Its items are placed items filed under `built:<uid>`; `Structure.uid` is saved with the structure,
+  so the chest comes back at the same address and its contents with it. E on the chest opens the Inventory
+  page. No volume limit yet: no places container has one.
+- `provides: "shelter"` (walls, roof) is NOT wired yet. The heat-balance body it needed now exists (Body heat,
+  below, 2026-09-27) and takes a `sheltered` input (still air, no rain) that nothing sets yet. What is left: a
+  covered-and-enclosed test over built pieces (the ray test in `uses.rs` is the start of one), and placement
+  that can put a roof on walls (the build menu places everything at floor level with no rotation, so a roof
+  cannot go overhead and walls only run east-west).
+- Native: `src/systems/construction/mod.rs`, `src/systems/construction/uses.rs`, `src/systems/sleep.rs`,
+  `src/engine/built_uses.rs` (prompt, E press, chest sync), `src/gui/organize.rs` (`place_path`,
+  `sync_built_stores`), `src/gui/pages/hud.rs` (the prompt)
 - Data: `data/blueprints/basic.ron`
+
+### Body heat (2026-09-27)
+The core temperature is a heat balance, not a drift toward the air. Before this, the core moved toward the air
+temperature at 0.5 C a second, so stepping outside on a 15 C day was hypothermia in 4.5 s and death about 47 s
+later. Now it is the **Gagge two-node model** (Gagge, Stolwijk and Nishi 1971; the 1986 form ASHRAE 55 and
+ASHRAE Fundamentals ch. 9 use, coefficients from pythermalcomfort's `two_nodes_gagge`): metabolic heat from
+what the player is doing (ASHRAE met: standing 1.2, walking 2.0, sprinting 3.8, driving 1.5, asleep 0.7),
+clothing insulation in clo (the everyday outfit is 0.61; worn gear adds its `clo` from `data/equipment.csv`),
+convection with the weather's wind (two thirds of the 10 m wind reaches a person), radiation, sweat
+evaporation, breathing, and the body's answers: skin blood flow, sweating, and shivering (capped, fading at 30
+to 32 C, tiring after hours: Eyolfson et al. 2001, Tikuisis et al. 2002). Rain soaks clothing, which loses
+about 30 percent of its insulation and cools the body as it dries (Zhao et al. 2025; Havenith et al. 2013).
+Inside the sealed home it is the home's own air, still. In everyday clothes 15 to 25 C is comfortable
+indefinitely; standing in a 5 m/s wind at 0 C reaches 35 C after about 10 h; walking holds it off; heavy work
+at 35 C reaches heatstroke in about 2 h. Calibrated against the Cold Exposure Survival Model (Tikuisis 1995)
+and measured human trials (Helland et al. 2025; Thompson and Hayward 1996).
+- Conditions: `hypothermia` below 35 C, `heat_exhaustion` above 39, `heat_stroke` above 40, `shivering` while
+  the body shivers. Lasting harm only below 32 C (moderate hypothermia) and above 40 C (heatstroke).
+- **Two modes** (Settings > Gameplay > Body heat): **Forgiving** (the default: the same physics, the core swings
+  half as far from normal and harm comes at half the rate, so it can never kill sooner) and **Realistic**.
+- Inputs: `EnvironmentContext` (air, humidity, wind, precipitation, pressure, activity, and a `sheltered` flag
+  nothing sets yet: the built structures' `shelter` provision will), published by `engine::survival_env`.
+- Native: `src/systems/body_heat.rs` (model, tests in `body_heat_tests.rs`), `src/systems/food.rs` (the vitals
+  pass), `src/engine/survival_env.rs` (inputs), `src/gui/pages/settings.rs` (mode)
+- Data: `data/equipment.csv` (`clo`), `data/status_effects.csv` (the four conditions)
+- Design: `docs/design/body-heat.md`
 
 ### Skills/Progression
 20 skills across 5 categories, XP curves, level-up notifications. **Registered, ticks live** (`SkillSystem` is NOT in `DEFERRED_SYSTEMS` -- this "NOT registered" note was stale, corrected 2026-07-01). Note: `src/systems/skills/learning.rs`'s `Skill`/`add_practice` is a SEPARATE, unused struct with its own unresolved TODO (learning-curve level thresholds) -- it has zero callers anywhere in the tree and is not what the live, registered `SkillSystem` actually uses; treat it as dead/superseded code, not a gap in the live skill system.

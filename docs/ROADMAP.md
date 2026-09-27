@@ -50,13 +50,20 @@ Tactical, per-iteration detail lives in `docs/PRIORITIES.md` and
    depth-baked shorelines, synthesized Moon/Mars/Pluto terrain, geomorph LOD crossfades,
    a sky-view LUT); then the cloud arc, where the rosette and then the orbital "TV
    static" were each root-caused and fixed (v0.1326.0): cloud edges now widen with the
-   sample footprint, so an edge seen from orbit stops being a per-pixel coin flip.
-   NEXT, in order: the residual speckle at 2000 km near the limb and on some coasts;
-   the night-side coast glow (water mirrors a sky table rendered for the camera's
-   position, so a night-side sea reflects the day side's sky, and the fix is written but
-   held back until a vantage exists to verify it on); then the far-rung gates, the deeper
-   cloud work that is merged but not yet switched on. After those, from the frame-cost
-   arc: a pipeline cache, a near-tree level-of-detail ladder, and light clustering.
+   sample footprint, so an edge seen from orbit stops being a per-pixel coin flip. Since
+   then: weather is a place with a position and a radius rather than one global setting
+   (v0.1330); the night-side coast glow was traced to one frame-wide number and fixed
+   (v0.1331); continent-sized cloud sheets now break into fronts and storm arcs (v0.1333
+   to v0.1337); the aurora has its own light pass drawn after the clouds, so the cloud
+   deck no longer erases it (v0.1382); and daylit clouds are lit through each step of the
+   march, so they read white instead of greyer than the desert below (v0.1384).
+   NEXT, in order: the rest of weather-as-a-place (disasters you can see, then
+   temperature, pressure and wind as fields); cloud structure (a baked weather field and
+   a realistic mix of cloud types); cloud grain at the dusk line; a high-dynamic-range
+   scene target to end the banding in dark gradients; light in the ship's rooms (bounce
+   light, and the home casting sun shadows); then the far-rung gates, the deeper cloud
+   work that is merged but not yet switched on. After those, from the frame-cost arc: a
+   pipeline cache, a near-tree level-of-detail ladder, and light clustering.
 2. `[building]` **In-world screens: the app's pages as touchscreens in the 3D world.**
    SHIPPED (v0.1313 to v0.1325): a wall screen draws the real inventory or tasks page
    (the same page, the same data, not a picture of it) and takes look-and-click, scroll
@@ -68,13 +75,16 @@ Tactical, per-iteration detail lives in `docs/PRIORITIES.md` and
    whose terms forbid it is never shown, an unreviewed one says so). NEXT: playback
    synchronised between players, and subtitles. Design in
    `docs/design/in-world-screens.md`, `readable-web.md`, `media-player.md`.
-3. `[next]` **Make the game legible and durable.** An honest assessment against the code
-   (`docs/design/playable-assessment-2026-09-19.md`) found eleven loops that close end to
-   end, and that what is missing is the layer between the simulation and the person:
-   nothing tells a player what exists, built structures are discarded when you leave, and
-   the fastest crop takes nearly five real hours. In order: persist what you built, put
-   the simulation on the HUD, settle crop pacing, a scripted first run, and make a built
-   thing actually do something. Then the construction tool, because the four code
+3. `[building]` **Make the game legible and durable.** An honest assessment against the
+   code (`docs/design/playable-assessment-2026-09-19.md`) found eleven loops that close
+   end to end, and that what was missing is the layer between the simulation and the
+   person. Done since: what you build is saved, and crops, crafts, machines, the mining
+   drone and animals catch up by the time you were away; food, water, energy, air and
+   body temperature are on the HUD; crop speed is a setting; and built things work (a
+   furnace smelts, a bed sleeps the night, a chest holds items). Alongside it, with the
+   spaceship chosen first, the ship's life support became real closed loops and the
+   body keeps itself warm by a real heat balance. Remaining: a scripted first run, and a
+   roof overhead that shelters you; then the construction tool, because the four code
    blockers stopping a second storey are the same four stopping the editor.
 4. `[planned]` **Populate the ship, and seat a dozen players.** Simple AI inhabitants who
    live their lives in a mothership sector (aggregate population, a derived roster, an
@@ -119,9 +129,33 @@ automating the real thing.
   (v0.379 to v0.380).
 - `[done]` Save and load: offline progress (inventory and skills) now persists between
   sessions (v0.381).
-- `[next]` Garden plot-types registry: generalize "tower" into a data-driven growing
-  method (aeroponic / soil / sand / pot / raised-bed / direct-sow / trays), each
-  moddable, none hardcoded.
+- `[done]` Garden plot-types registry: each way of growing is a data entry
+  (`data/garden/grow_media.ron`: aeroponic towers, grain trays, soil and oilseed beds,
+  mushroom racks, aquaponic tanks, and legume, tuber and oilseed fields), moddable with
+  no code change (v0.508, extended through v0.1367).
+- `[done]` Gardening depth: yield follows season health, light and grow lights, N-P-K
+  and a nitrogen loop, pests with integrated pest management, per-crop nutrient
+  removal, soil pH, pollination, weeds, humidity and fungal disease, and plants drawn
+  at their real spacing, from cited extension and USDA sources (v0.1350 to v0.1378).
+- `[building]` Ship life support: air handlers return the water the crops breathe out
+  to the tanks, carbon dioxide and oxygen are a mass balance with a scrubber modelled
+  on the ISS's, the mushroom tents' own carbon dioxide counts, and there are two modes
+  (Station-supplied and Realistic). The energy meter is honest (solar and wind counted
+  at the home's real site, the generator shown apart as a backstop) and batteries carry
+  the night. Not closed yet: neither home's energy budget balances in either mode and
+  neither grows all its food; how to close them is the operator's call (v0.1377 to
+  v0.1384).
+- `[done]` Beds, chests and time away: a built bed sleeps the night, a built chest
+  holds items across restarts, and the Barn's automated machines, the mining drone and
+  livestock catch up by the time you were away, in single player; the multiplayer
+  server clock is still to come (v0.1387).
+- `[done]` Body heat: the Gagge two-node heat balance (body heat, clothing, wind,
+  humidity, wet clothes, sweating and shivering), in a Forgiving default mode and a
+  Realistic one. Rest is a short nap; only a bed restores energy (v0.1388).
+- `[building]` The Library curriculum: plain-language guides to real skills, tied to
+  their sources. The newest, Growing Mushrooms and Testing and Correcting Soil, were
+  also checked claim by claim by an independent pass; more are being written. About
+  90 of 143 topics still have no guide.
 - `[planned]` First Playable arc: persistence depth, a 3D vitals HUD, walk-up
   stations, death and respawn, and a guided first day.
 - `[future]` Real-hardware control layer: bind a home to real monitoring and
@@ -444,9 +478,32 @@ Every operator gets the same sovereignty tools, not just the original.
 
 ## Recently shipped
 
-Newest first. This lists milestones, not every release (the project is past v0.1326
+Newest first. This lists milestones, not every release (the project is past v0.1388
 with more than 1,300 tagged releases); for the granular per-release history see
 `docs/history/`, the release notes, and `git log`.
+
+- `v0.1388.0` Your body keeps itself warm: a real heat balance (the Gagge two-node
+  model) with clothing, wind, humidity, wet clothes, sweating and shivering, in
+  Forgiving and Realistic modes. Before it, stepping outside at 15 C made you
+  hypothermic in 4.5 seconds.
+- `v0.1387.0` Built beds sleep the night and built chests hold items; the Barn's
+  machines, the mining drone and livestock catch up while you are away; two new
+  Library guides, Growing Mushrooms and Testing and Correcting Soil, each checked claim
+  by claim by an independent pass.
+- `v0.1384.0` Clouds lit through each step of the march, so a daylit deck reads white
+  again; batteries carry the home through the night; solar and wind counted at the
+  home's real site.
+- `v0.1382.0` The aurora gets its own light pass after the clouds, so the cloud deck no
+  longer erases it; and 14 app pages that rendered wrong in their snapshots were fixed
+  (sliders with no rail, near-black bold labels, a cut-off Send button, overlaps).
+- `v0.1377.0` The ship's closed loops: air handlers return the crops' water to the
+  tanks, and carbon dioxide and oxygen are a mass balance, in Station-supplied and
+  Realistic modes; mushroom yields sourced (the old figure was about seven times high).
+- `v0.1376.0` Video screens start muted, with an Unmute button, and an instance a
+  script launches opens no audio device (a 440 Hz demo tone had played on every boot).
+- `v0.1374.0` An over-wide borrow between threads in the AV1 decoder (rav1d 1.1.0),
+  undefined behaviour even though no pixel was ever wrong, fixed in a vendored copy; it
+  had been aborting the test run now and then.
 
 - `v0.1326.0` The orbital cloud static is fixed: cloud edges now widen with the sample
   footprint, so an edge seen from orbit stops being a per-pixel coin flip. Verified

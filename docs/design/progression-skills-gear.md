@@ -144,6 +144,10 @@ exo_frame_0,back,0.10,0,0.05,0,0,0,,,carry_capacity:25:add,2
   consumed stats: speed (already consumed today), carry_capacity (weight
   cap), cold_resist/heat_resist (feed the FoodSystem temperature damage
   gate), mine_speed/craft_speed (their systems' tick multipliers).
+  (2026-09-27: cold_resist/heat_resist are retired. A coat that only
+  scaled freezing damage kept nobody warm; clothing warmth is now the
+  `clo` column of data/equipment.csv, the garment insulation the body heat
+  model sums with the everyday outfit. See docs/design/body-heat.md.)
 - `damage`/`damage_type`/`range_m`: the held-tool columns CombatSystem's
   DamageEvent needs; also how the pickaxe eventually differentiates mining.
 - `hardpoint_slots`: count of mount points, consuming the orphaned

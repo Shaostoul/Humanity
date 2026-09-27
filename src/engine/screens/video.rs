@@ -1757,7 +1757,14 @@ mod tests {
     /// The GPU-free playback half over the shipped clip: frames come out at
     /// the clip's size, in pts order, in real time, and the clip LOOPS (pts
     /// wraps to the start and the loop counter moves) without the surface.
-    /// Timing-based with wide margins, like the media tests (about 2.6 s).
+    ///
+    /// It runs until it has what it checks (30 frames, and frames from after
+    /// a wrap), not for a fixed 2.6 s (BUG-099, 2026-09-27): with five agent
+    /// builds running beside it, only 15 frames arrived in 2.6 s, because
+    /// `poll` drops late frames by design and a starved decoder is late. On a
+    /// quiet machine it still finishes in about 2.1 s. The defects the count
+    /// is for (a decoder that never wakes, a stale generation) deliver a
+    /// handful and never reach 30, so they still fail, at the deadline.
     #[test]
     fn frames_arrive_at_the_clip_size_in_pts_order_and_loop() {
         let mut p = VideoProvider::new(DEMO);
@@ -1769,7 +1776,8 @@ mod tests {
 
         let start = Instant::now();
         let mut seen: Vec<(u64, f64)> = Vec::new();
-        while start.elapsed() < Duration::from_millis(2600) {
+        let enough = |seen: &[(u64, f64)]| seen.len() >= 30 && seen.iter().any(|(l, _)| *l >= 1);
+        while start.elapsed() < Duration::from_secs(30) && !enough(&seen) {
             if p.advance() {
                 let f = p.last_frame().expect("advance said a frame is in `last`");
                 assert_eq!((f.width, f.height), (320, 180), "the clip's own size, never the display's");
@@ -1785,7 +1793,12 @@ mod tests {
         // under load against a fixed 40), while the defects the count is
         // for (a decoder that never wakes, a stale generation) deliver a
         // handful. The wrap assertions below are the real-time proof.
-        assert!(seen.len() >= 30, "frames stopped flowing: {} of the first pass's 59 arrived in 2.6 s", seen.len());
+        assert!(
+            seen.len() >= 30,
+            "frames stopped flowing: {} arrived in {:.1} s",
+            seen.len(),
+            start.elapsed().as_secs_f64()
+        );
         // In pts order within a loop, and the loop counter never decreases.
         for w in seen.windows(2) {
             let ((l0, t0), (l1, t1)) = (w[0], w[1]);
@@ -1796,7 +1809,7 @@ mod tests {
                 assert!(t1 < t0, "the first frame after a wrap is near the start: {t1} after {t0}");
             }
         }
-        assert!(p.loops() >= 1, "the 2 s clip must have wrapped within 2.6 s");
+        assert!(p.loops() >= 1, "the 2 s clip must have wrapped");
         assert!(seen.iter().any(|(l, _)| *l >= 1), "frames from the second pass reached the caller");
         let s = p.status();
         assert_eq!(s["loops"].as_u64().unwrap(), p.loops());

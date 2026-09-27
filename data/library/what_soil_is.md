@@ -271,7 +271,8 @@ over limestone starts with a large reserve of calcium carbonate.
 
 Raising pH means adding lime, lowering it usually means adding
 elemental sulfur, and both are slow and easy to overdo. That belongs
-to Testing and Correcting Soil, not here. The point of this section is
+to [Testing and Correcting Soil](/library#testing-and-correcting-soil), not
+here. The point of this section is
 that you should know your number before you buy anything.
 
 ### A regional note: the Pacific Northwest leans acid
@@ -448,7 +449,7 @@ the texture is the one thing you were never going to change anyway.
 You now know what to call what you have, why it behaves as it does, and
 which of its properties you can move. The next step is to measure the
 things you cannot judge by hand, which is pH and nutrients, and that is
-Testing and Correcting Soil.
+[Testing and Correcting Soil](/library#testing-and-correcting-soil).
 
 ## Sources
 

@@ -169,6 +169,7 @@ pub fn extract_world_save(world: &hecs::World) -> WorldSave {
             max_health: s.max_health,
             provides: s.provides.clone(),
             building: None,
+            uid: s.uid,
         });
     }
     for (_e, (c, t)) in world.query::<(&Construction, &crate::ecs::components::Transform)>().iter() {
@@ -182,8 +183,26 @@ pub fn extract_world_save(world: &hecs::World) -> WorldSave {
             max_health: 0.0,
             provides: None,
             building: Some((c.progress, c.build_time)),
+            uid: 0,
         });
     }
+    // The herd's yield timers, the asteroids as mined down, and the drone in
+    // flight with its cargo (2026-09-27, offline progression). Each was
+    // rebuilt fresh at every launch: every animal ready again, every asteroid
+    // full again, and the ore in a flying drone's hold gone.
+    save.herd = crate::systems::livestock::herd_timers(world);
+    save.asteroids = Some(
+        world
+            .query::<&crate::ecs::components::AsteroidBody>()
+            .iter()
+            .map(|(_e, a)| a.clone())
+            .collect(),
+    );
+    save.drone = world
+        .query::<&crate::ecs::components::Drone>()
+        .iter()
+        .next()
+        .map(|(_e, d)| d.clone());
     save
 }
 
@@ -362,9 +381,39 @@ pub fn apply_save_to_world(world: &mut hecs::World, save: &WorldSave) {
                         health: b.health,
                         max_health: b.max_health,
                         provides: b.provides.clone(),
+                        uid: b.uid,
                     },
                 ));
             }
+        }
+    }
+    // Asteroids (2026-09-27): authoritative once recorded, so what was mined
+    // stays mined and a mined-out asteroid stays gone. None (a save from
+    // before) keeps the fresh set.
+    use crate::ecs::components::{AsteroidBody, Drone};
+    if let Some(saved) = &save.asteroids {
+        let existing: Vec<hecs::Entity> = world.query_mut::<&AsteroidBody>().into_iter().map(|(e, _)| e).collect();
+        for e in existing {
+            let _ = world.despawn(e);
+        }
+        for a in saved {
+            world.spawn((a.clone(),));
+        }
+    }
+    // The drone in flight (2026-09-27): authoritative like the vehicles, and
+    // its home is this player's entity now, not the one it was saved with.
+    let existing: Vec<hecs::Entity> = world.query_mut::<&Drone>().into_iter().map(|(e, _)| e).collect();
+    for e in existing {
+        let _ = world.despawn(e);
+    }
+    if let Some(d) = &save.drone {
+        let home = world
+            .query_mut::<(&Inventory, &Controllable)>()
+            .into_iter()
+            .next()
+            .map(|(e, _)| e.to_bits().get());
+        if let Some(home) = home {
+            world.spawn((Drone { home, ..d.clone() },));
         }
     }
 }
@@ -445,7 +494,7 @@ pub fn save_active_home(
         return;
     }
     let mut save = extract_world_save(world);
-    save.placed_items = placed.to_vec();
+    save.placed_items = Some(placed.to_vec());
     // The world clock, from the TimeSystem's DataStore export. Crop
     // planted_at values are only meaningful against it.
     save.game_time = crate::systems::time::elapsed_now(data);
@@ -456,6 +505,13 @@ pub fn save_active_home(
         .get::<std::sync::Mutex<Vec<crate::systems::crafting::CraftSave>>>("active_crafts_export")
         .and_then(|m| m.lock().ok().map(|v| v.clone()))
         .unwrap_or_default();
+    // The drone's standing order lives in the DataStore (2026-09-27).
+    save.mining_order = crate::systems::mining::standing_order(data);
+    // Before world entry the herd is not spawned yet and its saved timers
+    // are still waiting for it: keep those rather than forget them.
+    if save.herd.is_empty() {
+        save.herd = crate::systems::livestock::pending_herd(data).unwrap_or_default();
+    }
     let path = active_home_path();
     if let Err(e) = persistence::save_world(&path, &save) {
         log::error!("save_active_home failed: {e}");
@@ -493,7 +549,7 @@ pub fn maybe_periodic_save(
 }
 
 /// What `resume_home` did, for the log and the "while you were away" notice.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub struct Resumed {
     /// The game clock the world resumes at, in game seconds.
     pub clock: f64,
@@ -505,6 +561,11 @@ pub struct Resumed {
     pub builds_advanced: usize,
     /// Craft batches in flight that were advanced by `away_secs`.
     pub crafts_advanced: usize,
+    /// Homestead animals still regrowing their yield at the save that are
+    /// ready to collect from again after `away_secs` (2026-09-27).
+    pub animals_ready: usize,
+    /// Hauls the drone brought home during `away_secs` (2026-09-27).
+    pub drone_hauls: usize,
 }
 
 /// Offline progression (operator, 2026-09-21; docs/design/offline-progression.md).
@@ -532,6 +593,15 @@ pub struct Resumed {
 ///   still reacting keep reacting. `resume_home` hands the time away to the
 ///   farming tick (`farming::soil_ph::hand_away_secs`), which steps it at the
 ///   player's growth speed.
+/// - THE DRONE (2026-09-27, in `resume_home`): the trip in flight finishes and
+///   a standing order keeps flying, bounded by the asteroid's real ore
+///   (`mining::advance_away`).
+/// - AUTOMATED MACHINES (2026-09-27): handed the time away, they run it
+///   through on the inputs really on hand and the power the home could spare,
+///   once they exist (`crafting::away`).
+/// - LIVESTOCK (2026-09-27, in `resume_home`): each animal's yield timer
+///   moves on by the time away, to one yield waiting, as when you are home
+///   and do not collect (`livestock::timers_after_away`).
 ///
 /// Deliberately not advanced: vitals (not persisted; you wake rested), and
 /// anything that consumes or destroys. That includes garden PESTS
@@ -593,7 +663,7 @@ pub fn catch_up_world(
         }
     }
     let crafts_advanced = if away_secs > 0.0 { save.crafts.len() } else { 0 };
-    Resumed { clock, away_secs, crops_aged, builds_advanced, crafts_advanced }
+    Resumed { clock, away_secs, crops_aged, builds_advanced, crafts_advanced, ..Default::default() }
 }
 
 /// The craft batches a save resumes with, each counted down by the time away
@@ -616,7 +686,7 @@ pub fn restored_crafts(save: &WorldSave, away_secs: f64) -> Vec<crate::systems::
 /// catch-up must never be silent: a garden that jumped forward with no word
 /// reads as a bug, not as the character having lived the hours.
 pub fn away_notice(r: &Resumed) -> Option<String> {
-    if r.away_secs < 60.0 || (r.crops_aged == 0 && r.builds_advanced == 0 && r.crafts_advanced == 0) {
+    if r.away_secs < 60.0 {
         return None;
     }
     let mins = (r.away_secs / 60.0) as u64;
@@ -640,32 +710,93 @@ pub fn away_notice(r: &Resumed) -> Option<String> {
     if r.crafts_advanced > 0 {
         parts.push(format!("{} kept working", count(r.crafts_advanced, "craft", "crafts")));
     }
-    let list = match parts.len() {
-        1 => parts[0].clone(),
-        2 => format!("{} and {}", parts[0], parts[1]),
-        _ => format!("{}, {} and {}", parts[0], parts[1], parts[2]),
-    };
+    if r.animals_ready > 0 {
+        parts.push(format!("{} ready to collect from again", count(r.animals_ready, "animal was", "animals were")));
+    }
+    if r.drone_hauls > 0 {
+        parts.push(format!("the drone brought home {}", count(r.drone_hauls, "haul", "hauls")));
+    }
+    if parts.is_empty() {
+        return None;
+    }
+    let list = crate::systems::crafting::away::join_list(&parts);
     Some(format!("While you were away ({span}), {list}."))
+}
+
+/// The GUI half of applying a save (lib.rs, at startup and on character
+/// select, right after `resume_home`): the home's storage comes back with the
+/// save (a character select used to keep the previous home's Barn, which let
+/// the rewound backpack and the kept Barn both hold the same goods), the
+/// "while you were away" notice, and the Mining panel's "Keep mining" switch
+/// set to the standing order the save carried (the frame bridge ends the
+/// order while the switch is off). A save that never wrote a pool (None, a
+/// fresh character) keeps the seeded default, as at startup; a pool saved
+/// empty comes back empty.
+pub fn after_resume(gui: &mut crate::gui::GuiState, save: &WorldSave, r: &Resumed) {
+    if let Some(pool) = &save.placed_items {
+        gui.placed_items = pool.clone();
+    }
+    if let Some(msg) = away_notice(r) {
+        gui.pending_notices.push(msg);
+    }
+    gui.auto_mine_enabled = save.mining_order.is_some();
+    gui.prev_auto_mine_enabled = gui.auto_mine_enabled;
+    if save.mining_order.is_some() {
+        gui.last_drone_order = save.mining_order.clone();
+    }
 }
 
 /// Put the world clock back where `save` left it and apply the offline
 /// catch-up. Call right after `apply_save_to_world` with the same save, at
 /// startup and on character select, and after the config is loaded (the
 /// toggle lives there). Idempotent per save: both inputs come from disk, so
-/// re-applying the same save lands in the same place.
+/// re-applying the same save lands in the same place (`after_resume` puts
+/// the home's storage back with it for the same reason). `home` is the
+/// placed machine layout, whose Usage meter bounds the power the automated
+/// machines may draw while away (`crafting::away::day_power_balance`).
 pub fn resume_home(
     world: &mut hecs::World,
     data: &crate::hot_reload::data_store::DataStore,
     save: &WorldSave,
     offline_progression: bool,
+    home: Option<&crate::machines::MachineHome>,
 ) -> Resumed {
-    let r = catch_up_world(world, save, offline_progression, now_secs());
+    let mut r = catch_up_world(world, save, offline_progression, now_secs());
     crate::systems::time::request_restore_elapsed(data, r.clock);
     // SOIL pH: what was still reacting when the player left kept reacting.
     // Handed over, not stepped here: the farming tick applies it at the
     // player's own growth speed and Soil pH switch, which reach the
     // DataStore only after this runs (farming::soil_ph::hand_away_secs).
     crate::systems::farming::soil_ph::hand_away_secs(data, r.away_secs);
+    // THE DRONE: its standing order is the player's own setting, so it comes
+    // back whether or not the time away counts; then the trip in flight and
+    // any the order sends finish in the time away, out of the asteroid's real
+    // ore, and each haul lands in the backpack as it would have.
+    crate::systems::mining::set_standing_order(data, save.mining_order.clone());
+    let hauls = crate::systems::mining::advance_away(world, data, r.away_secs);
+    r.drone_hauls = hauls.len();
+    // LIVESTOCK: each animal's timer as saved, moved on by the time away (by
+    // nothing when it does not count), onto the herd now or at world entry.
+    r.animals_ready = data
+        .get::<crate::systems::livestock::CreatureRegistry>("creature_registry")
+        .map_or(0, |reg| crate::systems::livestock::readied_by_away(&save.herd, r.away_secs, reg));
+    let timers = crate::systems::livestock::timers_after_away(&save.herd, r.away_secs);
+    crate::systems::livestock::restore_herd(world, data, timers);
+    // AUTOMATED MACHINES: handed the time away with what each was busy with
+    // at the save, the home's spare power and the drone's hauls; the
+    // CraftingSystem runs them through it once they exist (crafting::away).
+    let work = (r.away_secs > 0.0).then(|| crate::systems::crafting::away::AwayWork {
+        secs: r.away_secs,
+        busy: save
+            .crafts
+            .iter()
+            .filter(|c| c.auto)
+            .filter_map(|c| c.machine_id.clone().map(|id| (id, f64::from(c.time_remaining))))
+            .collect(),
+        power_balance_w: home.map_or([0.0; 2], crate::systems::crafting::away::day_power_balance),
+        hauls,
+    });
+    crate::systems::crafting::away::hand_over(data, work);
     // Craft batches go through the CraftingSystem's restore channel, which
     // it consumes after its rewind drop, so a character select replaces the
     // live batches with the saved ones instead of losing both.
@@ -677,13 +808,15 @@ pub fn resume_home(
         }
     }
     log::info!(
-        "Resumed home clock at game second {:.0}; offline catch-up {} ({:.0} s away, {} crops aged, {} builds and {} crafts advanced)",
+        "Resumed home clock at game second {:.0}; offline catch-up {} ({:.0} s away, {} crops aged, {} builds and {} crafts advanced, {} animals ready again, {} drone hauls)",
         r.clock,
         if offline_progression { "on" } else { "off" },
         r.away_secs,
         r.crops_aged,
         r.builds_advanced,
-        r.crafts_advanced
+        r.crafts_advanced,
+        r.animals_ready,
+        r.drone_hauls
     );
     r
 }
@@ -1222,12 +1355,40 @@ mod tests {
         assert_eq!(older.query::<&CropPicking>().iter().count(), 0);
     }
 
-    /// pre-v0.517 save (no `placed_items` field) loads with an empty pool (serde
-    /// default) so it then re-seeds from the places spine.
+    /// A pool saved EMPTY comes back empty, and a save that never wrote a
+    /// pool keeps the live one (2026-09-27, review of the sleep and offline
+    /// batch). Seen red with the old `is_empty` check on a Vec: the planks
+    /// stashed after the empty save stayed beside the rewound backpack.
+    #[test]
+    fn a_pool_saved_empty_comes_back_empty() {
+        let plank = crate::gui::PlacedItem {
+            key: "wood_plank_0".into(),
+            name: "Wood Plank".into(),
+            qty: 5,
+            container: "2/0".into(),
+            wear: 0,
+            quality: 0,
+        };
+        let mut gui = crate::gui::GuiState::default();
+        gui.placed_items = vec![plank.clone()];
+        let mut save = WorldSave::new_offline("Test", "fibonacci");
+        save.placed_items = Some(Vec::new());
+        let save: WorldSave = serde_json::from_str(&serde_json::to_string(&save).unwrap()).unwrap();
+        after_resume(&mut gui, &save, &Resumed::default());
+        assert!(gui.placed_items.is_empty(), "the empty pool came back empty: {:?}", gui.placed_items);
+
+        gui.placed_items = vec![plank];
+        let fresh = WorldSave::new_offline("Test", "fibonacci");
+        after_resume(&mut gui, &fresh, &Resumed::default());
+        assert_eq!(gui.placed_items.len(), 1, "a save with no pool keeps the live one");
+    }
+
+    /// A save with no `placed_items` field loads with no pool (serde default),
+    /// so the places spine's seed stays.
     #[test]
     fn placed_items_persist_and_old_saves_default_empty() {
         let mut save = WorldSave::new_offline("Test", "fibonacci");
-        save.placed_items = vec![
+        save.placed_items = Some(vec![
             crate::gui::PlacedItem {
                 key: "ice_axe_0".into(),
                 name: "Ice Axe".into(),
@@ -1244,13 +1405,14 @@ mod tests {
                 wear: 0,
                 quality: 0,
             },
-        ];
+        ]);
         let json = serde_json::to_string(&save).expect("serialize");
         let back: WorldSave = serde_json::from_str(&json).expect("deserialize");
-        assert_eq!(back.placed_items.len(), 2);
-        assert_eq!(back.placed_items[0].key, "ice_axe_0");
-        assert_eq!(back.placed_items[1].qty, 5);
-        assert_eq!(back.placed_items[1].container, "2/0");
+        let pool = back.placed_items.as_ref().expect("the pool came back");
+        assert_eq!(pool.len(), 2);
+        assert_eq!(pool[0].key, "ice_axe_0");
+        assert_eq!(pool[1].qty, 5);
+        assert_eq!(pool[1].container, "2/0");
 
         // A pre-v0.517 save JSON that lacks the field -> empty pool, no error.
         let old_json = r#"{"name":"Old","timestamp":0,"game_time":0.0,
@@ -1258,7 +1420,7 @@ mod tests {
             "player_health":100.0,"inventory":[],"skills":{},"constructions":[],
             "weather_state":"clear"}"#;
         let old: WorldSave = serde_json::from_str(old_json).expect("old save loads");
-        assert!(old.placed_items.is_empty(), "old save defaults to an empty pool");
+        assert!(old.placed_items.is_none(), "a save without the field has no pool");
     }
 
     fn crop(planted_at: f64, stage: &str) -> crate::ecs::components::CropInstance {
@@ -1288,7 +1450,7 @@ mod tests {
         let mut world = hecs::World::new();
         apply_save_to_world(&mut world, &save);
         let r = catch_up_world(&mut world, &save, true, now);
-        assert_eq!(r, Resumed { clock: 6000.0, away_secs: 3600.0, crops_aged: 1, builds_advanced: 0, crafts_advanced: 0 });
+        assert_eq!(r, Resumed { clock: 6000.0, away_secs: 3600.0, crops_aged: 1, ..Default::default() });
         let mut got: Vec<(f64, f32, f32)> = world
             .query_mut::<&crate::ecs::components::CropInstance>()
             .into_iter()
@@ -1300,7 +1462,7 @@ mod tests {
         let mut world = hecs::World::new();
         apply_save_to_world(&mut world, &save);
         let r = catch_up_world(&mut world, &save, false, now);
-        assert_eq!(r, Resumed { clock: 6000.0, away_secs: 0.0, crops_aged: 0, builds_advanced: 0, crafts_advanced: 0 });
+        assert_eq!(r, Resumed { clock: 6000.0, ..Default::default() });
     }
 
     /// A crop cannot have been planted in the future, so the clock never
@@ -1351,6 +1513,7 @@ mod tests {
                 health: 80.0,
                 max_health: 100.0,
                 provides: Some("shelter".to_string()),
+                uid: 4,
             },
         ));
         world.spawn((
@@ -1389,6 +1552,63 @@ mod tests {
         assert_eq!(back.constructions, save.constructions);
     }
 
+    /// A built chest and what is in it survive a restart (2026-09-27): the
+    /// chest comes back with the SAME uid, so its places-tree node comes back
+    /// at the same path, and the item filed there is in it again. Red check:
+    /// with `apply_save_to_world` restoring uid 0 instead of the saved one,
+    /// the restored chest is no store until the ConstructionSystem numbers
+    /// it afresh, and the first assertion after the restart fails.
+    #[test]
+    fn a_built_chest_keeps_its_contents_through_a_restart() {
+        use crate::systems::construction::{uses, BlueprintRegistry, Structure};
+        let reg = BlueprintRegistry::from_ron(include_bytes!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/data/blueprints/basic.ron"
+        )))
+        .unwrap();
+        let chest = reg.get("storage_chest").unwrap();
+        let mut world = hecs::World::new();
+        world.spawn((
+            crate::ecs::components::Transform {
+                position: glam::Vec3::new(2.0, 0.0, -4.0),
+                rotation: glam::Quat::IDENTITY,
+                scale: glam::Vec3::from_array(chest.size),
+            },
+            Structure {
+                blueprint_id: chest.id.clone(),
+                health: chest.health,
+                max_health: chest.health,
+                provides: chest.provides.clone(),
+                uid: 3,
+            },
+        ));
+        // The player stashes planks in it (the Inventory page files them
+        // under the chest's path), then the home is saved as on exit.
+        let path = uses::built_stores(&world, Some(&reg))[0].0.clone();
+        let mut save = extract_world_save(&world);
+        save.placed_items = Some(vec![crate::gui::PlacedItem {
+            key: "wood_plank_0".into(),
+            name: "Wood Plank".into(),
+            qty: 5,
+            container: path.clone(),
+            wear: 0,
+            quality: 0,
+        }]);
+        let back: WorldSave = serde_json::from_str(&serde_json::to_string(&save).unwrap()).unwrap();
+
+        // Next launch: the world comes back, the tree is rebuilt from it.
+        let mut fresh = hecs::World::new();
+        apply_save_to_world(&mut fresh, &back);
+        let stores = uses::built_stores(&fresh, Some(&reg));
+        assert_eq!(stores, vec![(path.clone(), "Storage Chest".to_string())]);
+        let mut places = crate::gui::load_places(std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/data")));
+        crate::gui::sync_built_stores(&mut places, &stores);
+        assert!(crate::gui::collect_containers(&places).iter().any(|(p, l)| *p == path && l == "Storage Chest"));
+        let inside: Vec<_> = back.placed_items.iter().flatten().filter(|p| p.container == path).collect();
+        assert_eq!(inside.len(), 1);
+        assert_eq!((inside[0].key.as_str(), inside[0].qty), ("wood_plank_0", 5));
+    }
+
     /// A scaffold's materials were spent when it started, so time away may
     /// finish it; progress is capped at build_time so the ConstructionSystem's
     /// own tick does the completion (quest event, XP) rather than this pass.
@@ -1406,6 +1626,7 @@ mod tests {
             max_health: 0.0,
             provides: None,
             building: Some((4.0, 10.0)),
+            uid: 0,
         }];
         let mut world = hecs::World::new();
         apply_save_to_world(&mut world, &save);
@@ -1491,18 +1712,185 @@ mod tests {
         }
     }
 
+    fn rock(iron: f32) -> crate::ecs::components::AsteroidBody {
+        crate::ecs::components::AsteroidBody {
+            id: "rock".into(),
+            name: "Rock".into(),
+            classification: "M".into(),
+            ores: vec![("iron_ore_0".into(), iron)],
+            position: [0.0, 0.0, 0.0],
+        }
+    }
+
+    /// The asteroids as mined down, the drone in flight with its cargo, the
+    /// herd's timers and the standing order all survive a save (2026-09-27:
+    /// every one of them was rebuilt fresh at each launch, and the ore in a
+    /// flying drone's hold was lost). Re-applying replaces, and the drone's
+    /// home becomes the new player entity. Seen red with the saved asteroids
+    /// not spawned by `apply_save_to_world` (none left at all).
+    #[test]
+    fn the_asteroids_the_drone_and_the_herd_survive_a_save() {
+        use crate::ecs::components::{AsteroidBody, Drone, DronePhase};
+        let mut world = hecs::World::new();
+        world.spawn((Inventory::new(16), Controllable));
+        world.spawn((rock(12.0),));
+        world.spawn((Drone {
+            home: 1,
+            target: "rock".into(),
+            manifest: vec![("iron_ore_0".into(), 4)],
+            phase: DronePhase::Returning,
+            phase_time: 1.0,
+            cargo: vec![("iron_ore_0".into(), 4)],
+            home_pos: [0.0; 3],
+            target_pos: [0.0; 3],
+        },));
+        world.spawn((
+            crate::systems::livestock::HerdSlot("chicken#0".into()),
+            crate::ecs::components::Harvestable { resource: "egg_0".into(), amount: 1.0, regrow_time: 300.0, time_since_harvest: 40.0 },
+        ));
+        let mut save = extract_world_save(&world);
+        assert_eq!(save.herd, vec![("chicken#0".to_string(), 40.0)]);
+        // Through JSON, as on disk (2026-09-27 review: this test once
+        // extracted and applied in memory only), with the standing order,
+        // which the home save writes beside the world.
+        save.mining_order = Some(("rock".into(), vec![("iron_ore_0".into(), 2)]));
+        let save: WorldSave = serde_json::from_str(&serde_json::to_string(&save).unwrap()).unwrap();
+        assert_eq!(save.mining_order, Some(("rock".to_string(), vec![("iron_ore_0".to_string(), 2)])));
+        assert_eq!(save.herd, vec![("chicken#0".to_string(), 40.0)]);
+
+        // The next launch: a fresh player and the fresh, full asteroid.
+        let mut world = hecs::World::new();
+        let player = world.spawn((Inventory::new(16), Controllable));
+        world.spawn((rock(120.0),));
+        apply_save_to_world(&mut world, &save);
+        apply_save_to_world(&mut world, &save);
+        let ores: Vec<f32> = world.query::<&AsteroidBody>().iter().map(|(_, a)| a.ores[0].1).collect();
+        assert_eq!(ores, vec![12.0], "mined down, and one of it");
+        let drones: Vec<Drone> = world.query::<&Drone>().iter().map(|(_, d)| d.clone()).collect();
+        assert_eq!(drones.len(), 1);
+        assert_eq!(drones[0].cargo, vec![("iron_ore_0".to_string(), 4)], "the ore in its hold");
+        assert_eq!(drones[0].home, player.to_bits().get(), "home is this player now");
+    }
+
+    /// A return runs the home through the time away, end to end: the drone's
+    /// standing order mines the asteroid out (three hauls of 2), the smelter
+    /// smelts each haul from the moment it landed (three ingots, one coal
+    /// each), and the hen's timer waits for the herd with the hour added.
+    /// Seen red with `mining::advance_away` returning at once (no hauls, so no
+    /// ore and no ingots).
+    #[test]
+    fn a_return_runs_the_drone_the_machines_and_the_herd_through_the_time_away() {
+        use crate::ecs::components::{AutoRefine, MachineInstanceId};
+        use crate::hot_reload::data_store::DataStore;
+        use std::sync::Mutex;
+        let mut data = DataStore::new();
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let read = |f: &str| std::fs::read(root.join(f)).unwrap();
+        data.insert("recipe_registry", crate::systems::crafting::RecipeRegistry::from_csv(&read("recipes.csv")).unwrap());
+        data.insert("item_registry", crate::systems::inventory::ItemRegistry::from_csv(&read("items.csv")).unwrap());
+        data.insert("creature_registry", crate::systems::livestock::CreatureRegistry::from_csv(&read("creatures.csv")).unwrap());
+        data.insert("auto_mine_order", Mutex::new(Option::<(String, Vec<(String, u32)>)>::None));
+        data.insert("player_notices", Mutex::new(Vec::<String>::new()));
+        data.insert("home_stock", Mutex::new(std::collections::HashMap::<String, u32>::new()));
+        data.insert("home_stock_outputs", Mutex::new(Vec::<(String, u32)>::new()));
+        crate::systems::crafting::register(&mut data);
+        crate::systems::livestock::register(&mut data);
+
+        let mut save = WorldSave::new_offline("t", "fibonacci");
+        save.timestamp = now_secs() - 3600;
+        save.asteroids = Some(vec![rock(6.0)]);
+        save.mining_order = Some(("rock".into(), vec![("iron_ore_0".into(), 2)]));
+        save.herd = vec![("chicken#0".into(), 100.0)];
+
+        let mut world = hecs::World::new();
+        let mut inv = Inventory::new(16);
+        inv.add_item("coal_0", 3, 99);
+        let player = world.spawn((inv, Controllable));
+        world.spawn((AutoRefine { recipe_id: "smelt_iron".into(), keep: None }, MachineInstanceId("smelter_1".into())));
+        apply_save_to_world(&mut world, &save);
+        let r = resume_home(&mut world, &data, &save, true, None);
+        assert_eq!((r.drone_hauls, r.animals_ready), (3, 1));
+        assert!((r.away_secs - 3600.0).abs() <= 2.0, "{}", r.away_secs);
+        let pending = crate::systems::livestock::pending_herd(&data).expect("waits for the herd");
+        assert!(pending[0].1 >= 3700.0, "{pending:?}");
+
+        crate::ecs::systems::System::tick(&mut crate::systems::crafting::CraftingSystem::new(), &mut world, 0.0, &data);
+        let ingots: u32 = data
+            .get::<Mutex<Vec<(String, u32)>>>("home_stock_outputs")
+            .unwrap()
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|(id, _)| id == "iron_ingot_0")
+            .map(|(_, q)| *q)
+            .sum();
+        assert_eq!(ingots, 3);
+        let inv = world.get::<&Inventory>(player).unwrap();
+        assert_eq!((inv.count_item("iron_ore_0"), inv.count_item("coal_0")), (0, 0));
+        assert_eq!(
+            away_notice(&r).unwrap(),
+            "While you were away (1 h 0 min), 1 animal was ready to collect from again and the drone brought home 3 hauls."
+        );
+    }
+
+    /// With the toggle off nothing moves on, but what was saved comes back as
+    /// saved: the drone stays where it was and the hen's timer is unchanged.
+    #[test]
+    fn with_offline_progression_off_the_state_comes_back_as_saved() {
+        use crate::hot_reload::data_store::DataStore;
+        let mut data = DataStore::new();
+        data.insert("auto_mine_order", std::sync::Mutex::new(Option::<(String, Vec<(String, u32)>)>::None));
+        crate::systems::crafting::register(&mut data);
+        crate::systems::livestock::register(&mut data);
+        let mut save = WorldSave::new_offline("t", "fibonacci");
+        save.timestamp = now_secs() - 3600;
+        save.asteroids = Some(vec![rock(6.0)]);
+        save.mining_order = Some(("rock".into(), vec![("iron_ore_0".into(), 2)]));
+        save.herd = vec![("chicken#0".into(), 100.0)];
+        // A drone in flight at the save (2026-09-27 review: the doc promised
+        // the drone stays where it was, and the save held none).
+        let flying = crate::ecs::components::Drone {
+            home: 1,
+            target: "rock".into(),
+            manifest: vec![("iron_ore_0".into(), 2)],
+            phase: crate::ecs::components::DronePhase::Returning,
+            phase_time: 1.0,
+            cargo: vec![("iron_ore_0".into(), 2)],
+            home_pos: [0.0; 3],
+            target_pos: [0.0; 3],
+        };
+        save.drone = Some(flying.clone());
+        let mut world = hecs::World::new();
+        world.spawn((Inventory::new(16), Controllable));
+        apply_save_to_world(&mut world, &save);
+        let r = resume_home(&mut world, &data, &save, false, None);
+        assert_eq!((r.away_secs, r.drone_hauls, r.animals_ready), (0.0, 0, 0));
+        let drones: Vec<crate::ecs::components::Drone> =
+            world.query::<&crate::ecs::components::Drone>().iter().map(|(_, d)| d.clone()).collect();
+        assert_eq!(drones.len(), 1, "the drone is still out");
+        assert_eq!((drones[0].phase_time, drones[0].cargo.clone()), (1.0, flying.cargo.clone()), "where it was, hold and all");
+        assert_eq!(crate::systems::livestock::pending_herd(&data), Some(vec![("chicken#0".to_string(), 100.0)]));
+        assert_eq!(crate::systems::mining::standing_order(&data), save.mining_order, "the order is the player's own setting");
+        assert!(crate::systems::crafting::away::take(&data).is_none(), "nothing handed to the machines");
+    }
+
     #[test]
     fn away_notice_says_how_long_and_how_many() {
-        let r = |away_secs, crops_aged| Resumed { clock: 0.0, away_secs, crops_aged, builds_advanced: 0, crafts_advanced: 0 };
+        let r = |away_secs, crops_aged| Resumed { away_secs, crops_aged, ..Default::default() };
         assert_eq!(away_notice(&r(30.0, 5)), None, "under a minute is not worth a word");
         assert_eq!(away_notice(&r(7200.0, 0)), None, "nothing grew");
         assert_eq!(away_notice(&r(600.0, 1)).unwrap(), "While you were away (10 min), 1 plant kept growing.");
         assert_eq!(away_notice(&r(29_520.0, 12)).unwrap(), "While you were away (8 h 12 min), 12 plants kept growing.");
         assert_eq!(away_notice(&r(3.0 * 86_400.0, 2)).unwrap(), "While you were away (3 days), 2 plants kept growing.");
-        let both = Resumed { clock: 0.0, away_secs: 600.0, crops_aged: 3, builds_advanced: 1, crafts_advanced: 0 };
+        let both = Resumed { away_secs: 600.0, crops_aged: 3, builds_advanced: 1, ..Default::default() };
         assert_eq!(
             away_notice(&both).unwrap(),
             "While you were away (10 min), 3 plants kept growing and 1 build kept going up."
+        );
+        let all = Resumed { away_secs: 600.0, crops_aged: 2, crafts_advanced: 1, animals_ready: 3, drone_hauls: 1, ..Default::default() };
+        assert_eq!(
+            away_notice(&all).unwrap(),
+            "While you were away (10 min), 2 plants kept growing, 1 craft kept working, 3 animals were ready to collect from again and the drone brought home 1 haul."
         );
     }
 }

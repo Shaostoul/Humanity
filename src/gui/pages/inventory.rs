@@ -1507,7 +1507,8 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             if has_vitals {
                 // Body temperature + seal status as a readout line under the grid.
                 let temp = state.vitals.body_temp_c;
-                let temp_col = if temp < 35.0 || temp > 39.0 {
+                use crate::systems::body_heat::{HEAT_EXHAUSTION_C, HYPOTHERMIA_C};
+                let temp_col = if temp < HYPOTHERMIA_C || temp > HEAT_EXHAUSTION_C {
                     theme.danger()
                 } else if temp < 36.0 || temp > 38.0 {
                     theme.warning()
@@ -1523,10 +1524,12 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             .strong(),
                     );
                     ui.add_space(theme.spacing_md);
+                    // Outside is not airless on Earth: the Air bar says
+                    // whether there is air, this only says where you are.
                     if state.vitals.sealed {
                         ui.label(RichText::new("Sealed").size(theme.font_size_small).color(theme.accent()));
                     } else {
-                        ui.label(RichText::new("EXPOSED, no air!").size(theme.font_size_small).color(theme.danger()));
+                        ui.label(RichText::new("Outside").size(theme.font_size_small).color(theme.warning()));
                     }
                 });
             }
@@ -1534,7 +1537,9 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             // Survival actions.
             ui.add_space(theme.spacing_sm);
             ui.horizontal(|ui| {
-                if widgets::secondary_button(ui, theme, "Rest") {
+                // A ten-minute nap (2026-09-27, systems::sleep::short_rest);
+                // a night in a built bed is what restores energy.
+                if widgets::secondary_button(ui, theme, "Short rest") {
                     action_rest = true;
                 }
                 // Compost also draws off the stored urine as fertilizer (2026-09-26).
@@ -1673,7 +1678,10 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             place,
                             &state.inventory_items,
                             &state.placed_items,
-                            &i.to_string(),
+                            // A built chest is addressed by its id, not its
+                            // index (crate::gui::place_path), so its contents
+                            // stay put as other things are built.
+                            &crate::gui::place_path(i, place),
                             state.selected_slot,
                             placed_sel,
                             &tree_containers,
@@ -2824,7 +2832,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     }
     // (The drone manifest is now built + launched in the per-asteroid mining modal,
     // which sets pending_drone_manifest = (asteroid id, manifest) directly.)
-    // Bridge the Rest button to FoodSystem (refills energy).
+    // Bridge the Short rest button to FoodSystem (a ten-minute nap).
     if action_rest {
         state.pending_rest = true;
     }

@@ -3,7 +3,57 @@
 //! storage when a backpack cannot take them, and the Garden panel's groups
 //! for crops planted into a specific machine.
 
-use super::{GardenArea, PlacedItem};
+use super::{GardenArea, Place, PlacedItem};
+
+/// The container path of a TOP-LEVEL place: its index in the list, or its
+/// `id` when it is `keyed` (a built chest, 2026-09-27). Everything that walks
+/// the tree from the top (the Inventory page, `flatten_placed_items`,
+/// `collect_containers`) goes through this, so all of them agree on where a
+/// chest's items live.
+pub fn place_path(i: usize, place: &Place) -> String {
+    if place.keyed && !place.id.is_empty() {
+        place.id.clone()
+    } else {
+        i.to_string()
+    }
+}
+
+/// The places-tree node for a built store (2026-09-27): a keyed top-level
+/// container with nothing seeded in it. What it holds is the placed items
+/// filed under `path`, which the save already keeps.
+pub fn built_store_place(path: &str, label: &str) -> Place {
+    Place {
+        id: path.to_string(),
+        label: label.to_string(),
+        kind: "chest".to_string(),
+        location: Some("you built it".to_string()),
+        coordinate: None,
+        items: Vec::new(),
+        children: Vec::new(),
+        item: None,
+        qty: None,
+        keyed: true,
+    }
+}
+
+/// Make the places tree's keyed nodes match the built stores, given as
+/// (container path, label) in the order to show them, after the seeded
+/// places. Returns true when anything changed. Placed items are not touched:
+/// a store's contents are addressed by its path, so they show under it
+/// whenever it is in the tree.
+pub fn sync_built_stores(places: &mut Vec<Place>, stores: &[(String, String)]) -> bool {
+    let unchanged = {
+        let have: Vec<&Place> = places.iter().filter(|p| p.keyed).collect();
+        have.len() == stores.len()
+            && have.iter().zip(stores).all(|(p, (path, label))| p.id == *path && p.label == *label)
+    };
+    if unchanged {
+        return false;
+    }
+    places.retain(|p| !p.keyed);
+    places.extend(stores.iter().map(|(path, label)| built_store_place(path, label)));
+    true
+}
 
 /// Garden panel groups for crops planted into a specific MACHINE (2026-09-25).
 /// The showcase garden tags each crop with the physical tower or bed it sits
@@ -115,6 +165,42 @@ mod return_to_storage_tests {
                 ("ntower_10", "Nutrition Tower 11"),
             ]
         );
+    }
+
+    /// A built chest joins the places tree as a container addressed by its
+    /// uid path, so the Stash to menus offer it, and what is filed in it
+    /// stays in it when another chest lands before it in the list. Red check:
+    /// with `place_path` ignoring `keyed`, the chest's path is its index "2"
+    /// and the collect_containers assertion fails.
+    #[test]
+    fn a_built_chest_is_a_container_at_a_stable_path() {
+        let seed: Vec<Place> = serde_json::from_str(
+            r#"[
+                {"id":"you","label":"You","kind":"person","children":[{"id":"bp","label":"Backpack","kind":"backpack"}]},
+                {"id":"home","label":"Home","kind":"building","children":[{"label":"Garage","kind":"room"}]}
+            ]"#,
+        )
+        .unwrap();
+        let mut places = seed.clone();
+        let one = [("built:3".to_string(), "Storage Chest".to_string())];
+        assert!(sync_built_stores(&mut places, &one));
+        assert!(!sync_built_stores(&mut places, &one), "no churn when nothing changed");
+        let containers = crate::gui::collect_containers(&places);
+        assert!(containers.contains(&("built:3".to_string(), "Storage Chest".to_string())), "{containers:?}");
+
+        // A second chest with a lower uid is listed first; the first keeps its path.
+        let two = [
+            ("built:1".to_string(), "Storage Chest 1".to_string()),
+            ("built:3".to_string(), "Storage Chest 2".to_string()),
+        ];
+        assert!(sync_built_stores(&mut places, &two));
+        assert_eq!(places.len(), 4);
+        assert_eq!(place_path(3, &places[3]), "built:3");
+        assert_eq!(place_path(1, &places[1]), "1", "seeded places keep their index paths");
+
+        // Gone from the world, gone from the tree; the seeded places stay.
+        assert!(sync_built_stores(&mut places, &[]));
+        assert_eq!(places.len(), seed.len());
     }
 
     /// Overflow goes back into the stack it came from when that stack is

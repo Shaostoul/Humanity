@@ -6,6 +6,7 @@
 pub mod structural;
 pub mod routing;
 pub mod solver;
+pub mod uses;
 
 use crate::ecs::components::Transform;
 use crate::ecs::systems::System;
@@ -154,6 +155,12 @@ pub struct Structure {
     pub health: f32,
     pub max_health: f32,
     pub provides: Option<String>,
+    /// Stable identity within this home (2026-09-27), saved with the
+    /// structure, so what refers to it outlives a restart: a built chest's
+    /// contents are filed under `uses::storage_path(uid)`. 0 = not assigned
+    /// yet; `uses::assign_uids` gives it the next free number on the
+    /// ConstructionSystem's tick.
+    pub uid: u32,
 }
 
 /// Construction system processes active builds each frame.
@@ -310,6 +317,7 @@ impl System for ConstructionSystem {
                     health,
                     max_health: health,
                     provides,
+                    uid: 0,
                 },
             );
             // Completion is PROGRESS (v0.746): the construction quest chain's
@@ -324,6 +332,10 @@ impl System for ConstructionSystem {
             );
             status = Some(format!("{name} complete"));
         }
+
+        // Every finished structure gets its stable uid: one just completed,
+        // or one restored from a save written before uids existed.
+        uses::assign_uids(world);
 
         // Built electric stations join the home's power (2026-09-26).
         if let Some(reg) = registry.as_ref() {
@@ -416,7 +428,7 @@ mod tests {
         },));
         assert!(built_station_types(&world, &reg).is_empty(), "a scaffold is not a smelter yet");
         for id in ["furnace", "crafting_table", "wood_wall"] {
-            world.spawn((Structure { blueprint_id: id.into(), health: 1.0, max_health: 1.0, provides: None },));
+            world.spawn((Structure { blueprint_id: id.into(), health: 1.0, max_health: 1.0, provides: None, uid: 0 },));
         }
         let got = built_station_types(&world, &reg);
         assert!(got.contains("smelter") && got.contains("workbench"), "{got:?}");
@@ -434,8 +446,8 @@ mod tests {
         let mut world = hecs::World::new();
         world.spawn((PowerGenerator { output_watts: 50.0, fuel_per_second: 0.0, active: true }, PowerCircuit { island: 1 }));
         world.spawn((PowerGenerator { output_watts: 3000.0, fuel_per_second: 0.0, active: true }, PowerCircuit { island: 2 }));
-        let stove = world.spawn((Structure { blueprint_id: "stove".into(), health: 1.0, max_health: 1.0, provides: None },));
-        let bench = world.spawn((Structure { blueprint_id: "crafting_table".into(), health: 1.0, max_health: 1.0, provides: None },));
+        let stove = world.spawn((Structure { blueprint_id: "stove".into(), health: 1.0, max_health: 1.0, provides: None, uid: 0 },));
+        let bench = world.spawn((Structure { blueprint_id: "crafting_table".into(), health: 1.0, max_health: 1.0, provides: None, uid: 0 },));
         wire_built_stations(&mut world, &reg);
         assert_eq!(world.get::<&MachineType>(stove).unwrap().0, "stove");
         assert_eq!(world.get::<&PowerCircuit>(stove).unwrap().island, 2, "the island with the most generation");

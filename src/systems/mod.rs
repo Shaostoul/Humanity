@@ -35,6 +35,10 @@ pub mod medical;
 pub mod status_effects;
 pub mod flight;
 pub mod food;
+/// Body heat: the Gagge two-node heat balance behind the core temperature (2026-09-27).
+pub mod body_heat;
+/// Sleeping in a bed: the night runs fast and the body wakes rested (2026-09-27).
+pub mod sleep;
 /// Fluids are litres: tap water for recipes, vessels filled at a tank.
 pub mod fluids;
 pub mod mining;
