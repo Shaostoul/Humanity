@@ -1498,7 +1498,7 @@ pub struct GuiState {
     pub pending_consume_item: Option<String>,
     /// Item id the player clicked "Drink" on this frame → FoodSystem (restores hydration).
     pub pending_drink_item: Option<String>,
-    /// True for the frame the player clicked "Rest" → refills energy via FoodSystem.
+    /// True for the frame the player clicked "Short rest" → a ten-minute nap via FoodSystem (systems::sleep::short_rest).
     pub pending_rest: bool,
     /// True for the frame the player clicked "Compost" → waste→fertilizer via FoodSystem.
     pub pending_compost: bool,
@@ -4599,6 +4599,11 @@ pub struct SettingsState {
     /// Survival-needs speed: scales hunger/thirst/energy decay in the food
     /// system (1.0 = normal, 0 = paused). v0.791, with slowed base rates.
     pub vitals_drain: f32,
+    /// Body heat mode (2026-09-27, systems::body_heat): false is Forgiving
+    /// (the default: the same physics, the core swings half as far and harm
+    /// comes at half the rate), true is Realistic. Saved as
+    /// AppConfig::body_heat_realistic; published by engine::survival_env.
+    pub body_heat_realistic: bool,
     /// Which survival bars the HUD draws (2026-09-25). See HudVitals.
     pub hud_vitals: crate::config::HudVitals,
     /// Play mode (task #50): Normal | Creative | Dev -- one ladder for every
@@ -4708,6 +4713,7 @@ impl Default for SettingsState {
             home_variant: "home".to_string(),
             hostile_wildlife: false,
             vitals_drain: 1.0,
+            body_heat_realistic: false,
             hud_vitals: crate::config::HudVitals::default(),
             play_mode: crate::config::PlayMode::default(),
             profile_visible: true,

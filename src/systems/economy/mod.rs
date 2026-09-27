@@ -79,6 +79,11 @@ impl TradeGoodsRegistry {
 pub struct EquipmentDef {
     pub id: String,
     pub slot: String,
+    /// Thermal insulation in clo (2026-09-27), added to the everyday outfit
+    /// by the body heat model (`systems::body_heat`). Sources per row in the
+    /// csv header.
+    #[serde(default)]
+    pub clo: f32,
     #[serde(default)]
     pub armor_kinetic: f32,
     #[serde(default)]
@@ -182,6 +187,13 @@ impl EquipmentRegistry {
             *v = v.min(0.85);
         }
         map
+    }
+
+    /// The insulation worn items add, clo (2026-09-27): garment values
+    /// summed, the method the ASHRAE and ISO garment tables are built for.
+    /// Items with no row add nothing.
+    pub fn clo_total<'a>(&self, worn: impl IntoIterator<Item = &'a str>) -> f32 {
+        worn.into_iter().filter_map(|id| self.get(id)).map(|d| d.clo.max(0.0)).sum()
     }
 
     /// Sum a stat's `add` values across worn items as an ABSOLUTE bonus
@@ -476,10 +488,12 @@ mod tests {
         let coat = reg.get("coat_winter_0").expect("winter coat is gear");
         assert_eq!(coat.slot, "chest");
 
-        // Winter kit: coat (0.6 cold) + beanie (0.1) + winter gloves (0.1).
-        let worn = ["coat_winter_0", "hat_beanie_0", "gloves_winter_0"];
-        let cold = reg.stat_add_total(worn.iter().copied(), "cold_resist");
-        assert!((cold - 0.8).abs() < 1e-4, "kit totals 0.8 cold resist, got {cold}");
+        // Winter kit (2026-09-27, the body heat model's clo): parka 0.70 +
+        // knit hat 0.03 + winter gloves 0.05 + boots 0.08 = 0.86 clo over the
+        // everyday outfit; a pickaxe insulates nothing.
+        let worn = ["coat_winter_0", "hat_beanie_0", "gloves_winter_0", "boots_work_0", "pickaxe_0"];
+        let clo = reg.clo_total(worn.iter().copied());
+        assert!((clo - 0.86).abs() < 1e-4, "kit totals 0.86 clo, got {clo}");
 
         // Hiking boots multiply speed.
         let speed = reg.net_stat_multiplier(["boots_hiking_0"].iter().copied(), "speed");

@@ -68,7 +68,62 @@ fn set_clock_scale(data: &DataStore, scale: f32) {
     }
 }
 
-fn notice(data: &DataStore, msg: String) {
+// -- The short rest (the Inventory page's Rest button, 2026-09-27) --------------------
+//
+// Until the built bed existed the Rest button refilled energy completely,
+// anywhere, for free, which the bed would have been pointless beside. It is
+// now what a sit-down break really is: a ten-minute nap. Brooks and Lack 2006,
+// "A brief afternoon nap following nocturnal sleep restriction: which nap
+// duration is most recuperative?", Sleep 29(6):831-840, compared naps of 5,
+// 10, 20 and 30 minutes: the 10-minute nap was the most effective, with
+// "immediate improvements in all outcome measures (including sleep latency,
+// subjective sleepiness, fatigue, vigor, and cognitive performance), with some
+// of these benefits maintained for as long as 155 minutes." So the nap lifts
+// the fatigue slowdown for 155 minutes, and it repays only the sleep it is:
+// ten minutes at a night's rate. A nap does not pay back a night, so it does
+// nothing for someone past exhausted, and a second nap inside the first one's
+// window adds nothing.
+
+/// The status effect a short rest gives (data/status_effects.csv).
+pub const REFRESHED: &str = "refreshed";
+/// How long the nap is, seconds (Brooks and Lack 2006: 10 minutes).
+pub const NAP_S: f32 = 10.0 * 60.0;
+/// How long its lift lasts, seconds (Brooks and Lack 2006: up to 155 minutes).
+pub const NAP_BENEFIT_S: f32 = 155.0 * 60.0;
+/// A GAME CHOICE: below this energy a person is exhausted and a nap does not
+/// lift the fatigue slowdown; only a bed does.
+pub const NAP_FLOOR_ENERGY: f32 = 10.0;
+
+/// The Rest button. Returns the notice to show.
+pub fn short_rest(vitals: &mut Vitals, effects: &mut StatusEffects, energy_decay_per_waking_s: f32) -> String {
+    if effects.has(REFRESHED) {
+        return "You rested a little while ago. A nap's lift lasts about two and a half hours; \
+                only a night in a bed puts the sleep back."
+            .to_string();
+    }
+    // A night of SLEEP_HOURS repays the waking day around it, so each second
+    // asleep repays (24 - SLEEP_HOURS) / SLEEP_HOURS seconds awake.
+    let waking_per_sleeping = ((24.0 - SLEEP_HOURS) / SLEEP_HOURS) as f32;
+    let gain = NAP_S * waking_per_sleeping * energy_decay_per_waking_s;
+    vitals.energy = (vitals.energy + gain).min(vitals.energy_max);
+    effects.apply(REFRESHED, NAP_BENEFIT_S);
+    if vitals.energy < NAP_FLOOR_ENERGY {
+        "You doze for ten minutes, but you are too exhausted for a nap to help. You need a night in a bed.".to_string()
+    } else {
+        "You sit down and doze for ten minutes: refreshed for about two and a half hours. \
+         Only a night in a bed restores your energy."
+            .to_string()
+    }
+}
+
+/// Is a short rest still holding off the fatigue slowdown? Only for a tired
+/// person, not an exhausted one.
+pub fn nap_holds_off_fatigue(energy: f32, effects: &StatusEffects) -> bool {
+    effects.has(REFRESHED) && energy >= NAP_FLOOR_ENERGY
+}
+
+/// Show the player a one-line notice (the "player_notices" channel).
+pub fn notice(data: &DataStore, msg: String) {
     if let Some(slot) = data.get::<Mutex<Vec<String>>>("player_notices") {
         if let Ok(mut n) = slot.lock() {
             n.push(msg);
@@ -236,6 +291,37 @@ mod tests {
             assert_eq!(scale_asked(&data), Some(1.0), "clock at {jump_to}: speed put back");
             assert_eq!(world.get::<&Vitals>(p).unwrap().energy, 10.0, "clock at {jump_to}: nobody refilled");
         }
+    }
+
+    /// The Rest button is a ten-minute nap, not a night (Brooks and Lack 2006):
+    /// it repays ten minutes of sleep (1.6 energy points, where the old button
+    /// gave all 90 back), lifts the fatigue slowdown for 155 minutes for a
+    /// tired person but not an exhausted one, and a second nap inside that
+    /// window adds nothing. Red check: make `short_rest` set energy to
+    /// `energy_max`, as the old Rest button did, and `energy < 15` fails.
+    #[test]
+    fn a_short_rest_is_a_nap_not_a_night() {
+        // The food system's waking energy drain: 75 points over 16 hours.
+        let decay = 75.0 / 57_600.0;
+        let mut v = Vitals::default();
+        v.energy = 12.0;
+        let mut fx = StatusEffects::default();
+        let msg = short_rest(&mut v, &mut fx, decay);
+        let gain = v.energy - 12.0;
+        assert!((gain - 600.0 * 2.0 * decay).abs() < 1e-4, "ten minutes of sleep at a night's rate: {gain}");
+        assert!(v.energy < 15.0, "a nap is not a night: {}", v.energy);
+        assert!(msg.contains("ten minutes"), "{msg}");
+        assert!(fx.has(REFRESHED));
+        assert!(nap_holds_off_fatigue(v.energy, &fx), "a tired person is kept alert");
+        assert!(!nap_holds_off_fatigue(5.0, &fx), "an exhausted one is not");
+        // A second nap inside the window adds nothing.
+        let before = v.energy;
+        let again = short_rest(&mut v, &mut fx, decay);
+        assert_eq!(v.energy, before);
+        assert!(again.contains("a little while ago"), "{again}");
+        // The lift wears off after 155 minutes.
+        fx.tick(NAP_BENEFIT_S + 1.0);
+        assert!(!fx.has(REFRESHED) && !nap_holds_off_fatigue(v.energy, &fx));
     }
 
     /// A player who dies in their sleep is not woken rested, and the clock

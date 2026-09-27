@@ -52,6 +52,9 @@ pub mod bg_connections;
 /// Built beds and chests in use: the crosshair prompt, the E press, and
 /// built chests as containers in the places tree (2026-09-27).
 pub mod built_uses;
+/// The survival environment context (the home's air or the weather) and the
+/// body heat mode, published once a frame (moved out of lib.rs 2026-09-27).
+pub mod survival_env;
 pub mod net_route;
 pub mod registries;
 /// In-world screens: native pages on flat displays placed in the 3D world

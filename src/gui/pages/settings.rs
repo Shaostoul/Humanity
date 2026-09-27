@@ -3422,8 +3422,33 @@ pub(crate) fn draw_gameplay_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
             ui,
             theme,
             hint,
-            "How fast hunger, thirst, and energy fall. 1.0 = normal (about \
-             half an hour from full to empty), 0 = survival needs paused.",
+            "How fast hunger, thirst, and energy fall. 1.0 = real time (thirst \
+             in about two days, hunger in about a week), 0 = survival needs paused.",
+        );
+        // Body heat (2026-09-27, systems::body_heat; the dual-mode house rule).
+        ui.add_space(theme.spacing_sm);
+        ui.label(RichText::new("Body heat").color(theme.text_secondary()));
+        ui.horizontal(|ui| {
+            for (realistic, label) in [(false, "Forgiving"), (true, "Realistic")] {
+                let selected = state.settings.body_heat_realistic == realistic;
+                if ui.radio(selected, RichText::new(label).color(theme.text_primary())).clicked() && !selected {
+                    state.settings.body_heat_realistic = realistic;
+                    state.settings_dirty = true;
+                }
+            }
+        });
+        widgets::setting_hint(
+            ui,
+            theme,
+            hint,
+            "Your body makes heat and the weather takes it away: walking warms you, \
+             clothes and shelter keep the heat in, and wind, rain and wet clothes \
+             pull it out. Ordinary clothes are fine all day at 15 to 25 C. \
+             Realistic is the real heat balance: hours standing still in the cold \
+             wind, or hard work in the heat, can make you hypothermic or give you \
+             heatstroke. Forgiving uses the same weather, clothes and shelter, but \
+             your temperature swings half as far from normal and cold or heat harm \
+             you half as fast.",
         );
         // Survival bars on the HUD (2026-09-25): the simple and full modes of
         // the same readout, plus the default that shows a need when it matters.

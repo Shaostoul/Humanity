@@ -178,12 +178,8 @@ const OXYGEN_RECOVER_PER_SEC: f32 = 12.0;
 /// Below this oxygen the `hypoxia` debuff applies; at 0 it's `suffocation` + damage.
 const HYPOXIA_THRESHOLD: f32 = 50.0;
 const SUFFOCATION_DAMAGE_PER_SEC: f32 = 8.0;
-/// Body temperature moves this many °C/sec toward its target (37 sealed, else ambient).
-const BODY_TEMP_RATE: f32 = 0.5;
-/// Core temp below this = hypothermia; above HEAT_EXHAUSTION_C = heat exhaustion.
-const HYPOTHERMIA_C: f32 = 35.0;
-const HEAT_EXHAUSTION_C: f32 = 39.0;
-const TEMP_DAMAGE_PER_SEC: f32 = 2.0;
+// Body temperature is `systems::body_heat` (2026-09-27): a heat balance of
+// the body, its clothes and the weather, not a drift toward the air.
 // ── Sanitation (organic waste → compost → fertilizer). ──
 /// Waste accrued per real second while living, + per meal eaten (real
 /// scale, v0.1005: background rise fills over ~3 days; meals dominate).
@@ -279,6 +275,9 @@ pub struct FoodSystem {
     urine_person_days: f64,
     /// A night's sleep in a bed while it runs (2026-09-27, `systems::sleep`).
     asleep: Option<crate::systems::sleep::Asleep>,
+    /// Each living body's heat state (2026-09-27, `systems::body_heat`). Only
+    /// the core temperature is saved (in `Vitals`); the rest restarts from it.
+    body_heat: HashMap<hecs::Entity, crate::systems::body_heat::Tracked>,
 }
 
 impl FoodSystem {
@@ -314,7 +313,15 @@ impl FoodSystem {
             }
         }
         log::info!("Loaded {} edible items from {}", item_profile.len(), ItemProfiles::FILE);
-        Self { data, item_profile, spoilage: HashMap::new(), log_cooldown: 0.0, urine_person_days: 0.0, asleep: None }
+        Self {
+            data,
+            item_profile,
+            spoilage: HashMap::new(),
+            log_cooldown: 0.0,
+            urine_person_days: 0.0,
+            asleep: None,
+            body_heat: HashMap::new(),
+        }
     }
 
     /// The nutrition profile of an item, or None when it is not food.
@@ -485,22 +492,18 @@ impl System for FoodSystem {
             }
         }
 
-        // ── 1b. REST: drain the rest_request channel (the Rest button) -> refill the
-        //    player's energy, clear fatigue, grant the `rested` buff.
+        // ── 1b. REST: drain the rest_request channel (the Rest button): a short
+        //    rest, a ten-minute nap (systems::sleep::short_rest). It takes the
+        //    edge off; only a night in a bed refills energy (2026-09-27).
         let do_rest = data
             .get::<std::sync::Mutex<bool>>("rest_request")
             .and_then(|m| m.lock().ok().map(|mut s| std::mem::replace(&mut *s, false)))
             .unwrap_or(false);
         if do_rest {
-            let rested_dur = registry
-                .map(|r| r.duration("rested"))
-                .filter(|d| *d > 0.0)
-                .unwrap_or(FALLBACK_RESTED_S);
             for (_e, (vitals, effects)) in world.query_mut::<(&mut Vitals, &mut StatusEffects)>() {
-                vitals.energy = vitals.energy_max;
-                effects.remove("fatigued");
-                effects.apply("rested", rested_dur);
-                log::info!("[Survival] player rested -> energy restored to full");
+                let msg = crate::systems::sleep::short_rest(vitals, effects, ENERGY_DECAY_PER_SEC);
+                log::info!("[Survival] short rest: {msg}");
+                crate::systems::sleep::notice(data, msg);
                 break; // first player only
             }
         }
@@ -512,13 +515,20 @@ impl System for FoodSystem {
             .unwrap_or(FALLBACK_RESTED_S);
         crate::systems::sleep::tick(&mut self.asleep, world, data, rested_s);
 
-        // Player environment context (sealed / oxygenated / ambient temp) for the
-        // oxygen + body-temperature vitals — computed in the main loop from the
-        // player's position vs the sealed homestead volume. Absent = safe defaults.
-        let (env_sealed, env_oxygenated, env_ambient_c, env_g_load) = data
+        // Player environment context (sealed / oxygenated, the air, the wind,
+        // what the player is doing) for the oxygen + body heat vitals, computed
+        // in the main loop (engine::survival_env). Absent = safe defaults: a
+        // sealed, comfortable room.
+        let env = data
             .get::<crate::ecs::components::EnvironmentContext>("environment_context")
-            .map(|e| (e.sealed, e.oxygenated, e.ambient_temp_c, e.g_load))
-            .unwrap_or((true, true, 21.0, 1.0));
+            .cloned()
+            .unwrap_or_default();
+        let (env_oxygenated, env_g_load) = (env.oxygenated, env.g_load);
+        let exposure = crate::systems::body_heat::Exposure::from_context(&env);
+        let heat_mode = crate::systems::body_heat::Mode::from_store(data);
+        // Asleep in a bed the body makes the least heat (ASHRAE: 0.7 met).
+        let activity_met =
+            if self.asleep.is_some() { crate::systems::body_heat::MET_SLEEPING } else { env.activity_met };
         // The crew g-tolerance row, if flight data loaded at all. Absent = the
         // drive is not modelled here, so nobody is crushed by a missing file.
         let g_tolerance = data
@@ -587,11 +597,13 @@ impl System for FoodSystem {
         //    after the pass and the cause is published to the "player_death" slot
         //    for the death screen.
         let mut player_died: Option<(hecs::Entity, String)> = None;
-        // Gear temperature resists (v0.750, ladder rung 8): worn equipment's
-        // cold_resist/heat_resist scale the temperature health drain — an
-        // insulated coat halves freezing damage. Same stat grammar as buffs.
+        // Worn gear's insulation (2026-09-27): each item's `clo` in
+        // data/equipment.csv, added to the everyday outfit, feeds the body
+        // heat model. (Until then a `cold_resist` stat scaled the freezing
+        // damage, which did nothing to keep anyone warm.)
         let equipment = data
             .get::<crate::systems::economy::EquipmentRegistry>("equipment_registry");
+        let mut heat_seen: Vec<hecs::Entity> = Vec::new();
         // Settings > Gameplay "Vitals drain" slider (v0.791): scales how fast
         // hunger/thirst/energy fall. 1.0 = normal, 0.0 = paused survival needs.
         // Written every frame by lib.rs from the persisted setting.
@@ -608,15 +620,12 @@ impl System for FoodSystem {
             Option<&crate::ecs::components::Dead>,
             Option<&crate::ecs::components::Outfit>,
         )>() {
-            let (cold_resist, heat_resist) = match (equipment, outfit) {
-                (Some(reg), Some(o)) => (
-                    reg.stat_add_total(o.equipped.values().map(|s| s.as_str()), "cold_resist")
-                        .clamp(0.0, 0.9),
-                    reg.stat_add_total(o.equipped.values().map(|s| s.as_str()), "heat_resist")
-                        .clamp(0.0, 0.9),
-                ),
-                _ => (0.0, 0.0),
-            };
+            heat_seen.push(e);
+            let clo = crate::systems::body_heat::BASE_OUTFIT_CLO
+                + match (equipment, outfit) {
+                    (Some(reg), Some(o)) => reg.clo_total(o.equipped.values().map(|s| s.as_str())),
+                    _ => 0.0,
+                };
             // The dead do not hunger: vitals freeze until respawn so the death
             // screen is stable (no double-death, no draining while paused).
             if dead.is_some() {
@@ -656,9 +665,11 @@ impl System for FoodSystem {
                 }
             }
 
-            // Energy drains while awake; low energy -> fatigued (speed debuff, #3b).
+            // Energy drains while awake; low energy -> fatigued (speed debuff, #3b),
+            // unless a short rest is still keeping a tired (not exhausted)
+            // person alert (systems::sleep::short_rest, 2026-09-27).
             vitals.energy = (vitals.energy - ENERGY_DECAY_PER_SEC * drain_scale * dt).max(0.0);
-            if vitals.energy < FATIGUED_THRESHOLD {
+            if vitals.energy < FATIGUED_THRESHOLD && !crate::systems::sleep::nap_holds_off_fatigue(vitals.energy, effects) {
                 effects.apply("fatigued", CONDITION_LINGER);
             } else {
                 effects.remove("fatigued");
@@ -687,31 +698,31 @@ impl System for FoodSystem {
                 effects.remove("suffocation");
             }
 
-            // Body temperature drifts toward 37 °C when sealed, toward ambient when
-            // exposed; far from baseline -> hypothermia / heat exhaustion + damage.
-            let temp_target = if env_sealed { 37.0 } else { env_ambient_c };
-            let diff = temp_target - vitals.body_temp_c;
-            let step = (BODY_TEMP_RATE * dt).min(diff.abs());
-            vitals.body_temp_c += step * diff.signum();
-            if vitals.body_temp_c < HYPOTHERMIA_C {
-                effects.remove("heat_exhaustion");
-                effects.apply("hypothermia", CONDITION_LINGER);
-                let amt = TEMP_DAMAGE_PER_SEC * (1.0 - cold_resist) * dt;
-                health_drain += amt;
-                if amt > worst.1 {
-                    worst = ("freezing", amt);
+            // Body heat (2026-09-27, systems::body_heat): the core temperature
+            // is a heat balance of the body's own heat, its clothes, and the
+            // air, wind, wet and shelter around it (the Gagge two-node model),
+            // shown and harmful per the Settings mode. It used to drift straight
+            // to the air temperature, which made 15 C hypothermic in 4.5 s.
+            let tracked = self
+                .body_heat
+                .entry(e)
+                .or_insert_with(|| crate::systems::body_heat::Tracked::new(vitals.body_temp_c, heat_mode));
+            let heat = crate::systems::body_heat::vitals_tick(
+                tracked,
+                &mut vitals.body_temp_c,
+                effects,
+                &exposure,
+                clo,
+                activity_met,
+                heat_mode,
+                dt,
+                CONDITION_LINGER,
+            );
+            if heat.harm > 0.0 {
+                health_drain += heat.harm;
+                if heat.harm > worst.1 {
+                    worst = (heat.cause, heat.harm);
                 }
-            } else if vitals.body_temp_c > HEAT_EXHAUSTION_C {
-                effects.remove("hypothermia");
-                effects.apply("heat_exhaustion", CONDITION_LINGER);
-                let amt = TEMP_DAMAGE_PER_SEC * (1.0 - heat_resist) * dt;
-                health_drain += amt;
-                if amt > worst.1 {
-                    worst = ("heat exhaustion", amt);
-                }
-            } else {
-                effects.remove("hypothermia");
-                effects.remove("heat_exhaustion");
             }
 
             // ── SUSTAINED ACCELERATION ──
@@ -791,6 +802,8 @@ impl System for FoodSystem {
             // Expire timed effects (conditions were just refreshed, so they survive dt).
             effects.tick(dt);
         }
+        // Forget the heat state of bodies that are gone.
+        self.body_heat.retain(|e, _| heat_seen.contains(e));
 
         // Death (v0.745): mark the player Dead + publish the cause for the death
         // screen (the "player_death" DataStore slot; lib.rs surfaces it). Done
@@ -965,12 +978,18 @@ mod nutrition_tests {
         assert!((v.satiation - (50.0 - SATIATION_DECAY_PER_SEC * 2.0 * 10.0)).abs() < 1e-3);
     }
 
-    /// v0.750 GEAR RESISTS (ladder rung 8): a winter coat (cold_resist 0.6)
-    /// takes 60 percent off the freezing health drain — clothing is survival
-    /// equipment now, not a cosmetic.
+    /// Clothing keeps a body warm (2026-09-27): the winter coat's 0.70 clo
+    /// (data/equipment.csv, ISO 7730's parka) goes on top of the everyday
+    /// outfit, so at -20 C in a 5 m/s wind, standing, the coated person's core
+    /// is still near 36.6 C after 3 hours while the one in everyday clothes has
+    /// cooled to about 35.1 C, shivering tiring. (Until 2026-09-27 a coat only scaled the
+    /// freezing damage, and this test's environment was inserted as the wrong
+    /// type, so it ran in a warm room and passed whatever the coat did.)
+    /// Red check: drop the Outfit's `clo_total` from the food system's
+    /// clothing and the two cores are the same.
     #[test]
-    fn winter_coat_reduces_freezing_damage() {
-        use crate::ecs::components::Outfit;
+    fn a_winter_coat_keeps_the_core_warm() {
+        use crate::ecs::components::{EnvironmentContext, Outfit};
         let mut sys = FoodSystem::new(data_dir());
         let mut data = make_store();
         let equip = crate::systems::economy::EquipmentRegistry::from_csv(include_bytes!(
@@ -978,34 +997,36 @@ mod nutrition_tests {
         ))
         .expect("equipment.csv");
         data.insert("equipment_registry", equip);
-        // Exposed to hard cold: unsealed environment at -20 C.
         data.insert(
             "environment_context",
-            std::sync::Mutex::new(crate::ecs::components::EnvironmentContext {
+            EnvironmentContext {
                 sealed: false,
                 oxygenated: true,
                 ambient_temp_c: -20.0,
+                relative_humidity: 0.7,
+                wind_m_s: 5.0,
                 ..Default::default()
-            }),
+            },
         );
 
         let mut world = hecs::World::new();
-        let mut frozen = vitals(80.0, 80.0);
-        frozen.body_temp_c = 20.0; // already hypothermic
-        let bare = world.spawn((Inventory::new(4), frozen.clone(), StatusEffects::default(), Health::default()));
+        let bare = world.spawn((Inventory::new(4), vitals(80.0, 80.0), StatusEffects::default(), Health::default()));
         let mut coat_outfit = Outfit::default();
         coat_outfit.equipped.insert("chest".to_string(), "coat_winter_0".to_string());
-        let coated = world.spawn((Inventory::new(4), frozen, StatusEffects::default(), Health::default(), coat_outfit));
+        let coated =
+            world.spawn((Inventory::new(4), vitals(80.0, 80.0), StatusEffects::default(), Health::default(), coat_outfit));
 
-        for _ in 0..10 {
-            sys.tick(&mut world, 1.0, &data);
+        for _ in 0..(3 * 60) {
+            sys.tick(&mut world, 60.0, &data);
         }
-        let bare_hp = world.get::<&Health>(bare).unwrap().current;
-        let coated_hp = world.get::<&Health>(coated).unwrap().current;
-        assert!(
-            coated_hp > bare_hp + 5.0,
-            "the coat blunted the cold: bare {bare_hp}, coated {coated_hp}"
-        );
+        let bare_c = world.get::<&Vitals>(bare).unwrap().body_temp_c;
+        let coated_c = world.get::<&Vitals>(coated).unwrap().body_temp_c;
+        assert!(coated_c > 36.0, "the coat held the core: {coated_c}");
+        assert!(coated_c > bare_c + 0.5, "coated {coated_c}, everyday clothes {bare_c}");
+        // Conditions linger 3 s past their trigger, so a minute-long tick
+        // expires them inside itself; look after a frame-sized one.
+        sys.tick(&mut world, 1.0, &data);
+        assert!(world.get::<&StatusEffects>(bare).unwrap().has("shivering"), "the cold body shivers");
     }
 
     /// v0.745 EFFECT TICK (loop-map rung 1): damage/healing-over-time rows in
@@ -1259,32 +1280,20 @@ mod nutrition_tests {
         assert!(after < before, "starvation drains health ({before} -> {after})");
     }
 
-    /// Low energy applies the `fatigued` speed debuff; the Rest action (rest_request)
-    /// refills energy to full and clears fatigue.
+    /// Low energy applies the `fatigued` speed debuff. The Rest button is a
+    /// short rest now (2026-09-27, systems::sleep::short_rest): a ten-minute
+    /// nap that lifts the fatigue slowdown for a while but gives back only
+    /// ten minutes of sleep, so a night in a bed is still what restores energy.
+    /// Red check: the old Rest set energy to full, which `energy < 25` catches.
     #[test]
-    fn low_energy_fatigues_and_rest_restores() {
+    fn low_energy_fatigues_and_a_short_rest_takes_the_edge_off() {
         let mut sys = FoodSystem::new(data_dir());
         let data = make_store();
 
         let mut world = hecs::World::new();
-        let player = world.spawn((
-            Inventory::new(4),
-            Vitals {
-                satiation: 80.0,
-                hydration: 80.0,
-                energy: 10.0,
-                oxygen: 100.0,
-                body_temp_c: 37.0,
-                waste: 0.0,
-                satiation_max: 100.0,
-                hydration_max: 100.0,
-                energy_max: 100.0,
-                oxygen_max: 100.0,
-                waste_max: 100.0,
-            },
-            StatusEffects::default(),
-            Health::default(),
-        ));
+        let mut tired = vitals(80.0, 80.0);
+        tired.energy = 20.0;
+        let player = world.spawn((Inventory::new(4), tired, StatusEffects::default(), Health::default()));
 
         // Low energy -> fatigued after a tick.
         sys.tick(&mut world, 1.0, &data);
@@ -1293,7 +1302,7 @@ mod nutrition_tests {
             "low energy applies the fatigued speed debuff"
         );
 
-        // Rest -> energy refilled to (near) full + fatigue cleared.
+        // Rest -> a nap: fatigue lifted, energy barely moved.
         *data
             .get::<std::sync::Mutex<bool>>("rest_request")
             .unwrap()
@@ -1301,17 +1310,20 @@ mod nutrition_tests {
             .unwrap() = true;
         sys.tick(&mut world, 1.0, &data);
         let energy = world.get::<&Vitals>(player).unwrap().energy;
-        assert!(energy > 90.0, "rest restored energy (got {energy})");
-        assert!(
-            !world.get::<&StatusEffects>(player).unwrap().has("fatigued"),
-            "rest cleared fatigue"
-        );
+        assert!(energy > 20.0 && energy < 25.0, "a nap, not a night (got {energy})");
+        let fx = world.get::<&StatusEffects>(player).unwrap();
+        assert!(fx.has("refreshed"), "the nap refreshed the player");
+        assert!(!fx.has("fatigued"), "and lifted the fatigue slowdown");
     }
 
-    /// Exposure to vacuum/cold (an exposed EnvironmentContext) drains oxygen + chills
-    /// the body → hypoxia/hypothermia + health loss; re-sealing recovers oxygen.
+    /// Exposure to vacuum (an exposed, airless EnvironmentContext) drains
+    /// oxygen: hypoxia, then suffocation and health loss within a minute;
+    /// re-sealing recovers the oxygen. The body does NOT freeze in that minute:
+    /// a person's core takes hours to cool (systems::body_heat), and the old
+    /// drift model's "below 35 C within 30 s at -40 C" is the defect this
+    /// test used to assert.
     #[test]
-    fn exposure_drains_oxygen_and_chills_then_recovers_when_sealed() {
+    fn exposure_drains_oxygen_and_recovers_when_sealed() {
         use crate::ecs::components::EnvironmentContext;
         let mut sys = FoodSystem::new(data_dir());
         let mut data = make_store();
@@ -1321,6 +1333,7 @@ mod nutrition_tests {
                 sealed: false,
                 oxygenated: false,
                 ambient_temp_c: -40.0,
+                pressure_kpa: 0.0,
                 ..Default::default()
             },
         );
@@ -1333,20 +1346,20 @@ mod nutrition_tests {
             Health::default(),
         ));
 
-        for _ in 0..30 {
+        for _ in 0..50 {
             sys.tick(&mut world, 1.0, &data);
         }
         {
             let v = world.get::<&Vitals>(player).unwrap();
             assert!(v.oxygen < 50.0, "oxygen drained while exposed (got {})", v.oxygen);
-            assert!(v.body_temp_c < 35.0, "body chilled while exposed (got {})", v.body_temp_c);
+            assert!(v.body_temp_c > 36.5, "a minute does not freeze a body (got {})", v.body_temp_c);
             let fx = world.get::<&StatusEffects>(player).unwrap();
             assert!(fx.has("hypoxia") || fx.has("suffocation"), "an oxygen condition applied");
-            assert!(fx.has("hypothermia"), "hypothermia applied");
+            assert!(!fx.has("hypothermia"), "no hypothermia in a minute");
         }
         assert!(
             world.get::<&Health>(player).unwrap().current < 100.0,
-            "exposure damaged health"
+            "suffocation damaged health"
         );
 
         // Re-seal the environment → oxygen recovers, oxygen conditions clear.
@@ -1361,6 +1374,46 @@ mod nutrition_tests {
             !fx.has("hypoxia") && !fx.has("suffocation"),
             "oxygen conditions cleared when sealed"
         );
+    }
+
+    /// THE DEFECT (2026-09-27): outside at 15 C in still air, in everyday
+    /// clothes, walking, a person is comfortable all day. Through the food
+    /// system in both modes: the core stays between 36.5 and 37.5 C for 8 h,
+    /// nothing is hypothermic, and no health is lost. SEEN RED on 2026-09-27:
+    /// the same run on the old drift model (the core moved toward the air at
+    /// 0.5 C a second) failed with "hypothermia at 15 C after 4.5 s", and the
+    /// constants it ran on would have killed the player about 47 s later.
+    #[test]
+    fn outside_at_15c_a_walking_person_lasts_hours() {
+        use crate::ecs::components::EnvironmentContext;
+        use crate::systems::body_heat;
+        for mode in [body_heat::Mode::Realistic, body_heat::Mode::Forgiving] {
+            let mut sys = FoodSystem::new(data_dir());
+            let mut data = make_store();
+            data.insert(body_heat::MODE_KEY, mode);
+            data.insert(
+                "environment_context",
+                EnvironmentContext {
+                    sealed: false,
+                    oxygenated: true,
+                    ambient_temp_c: 15.0,
+                    relative_humidity: 0.6,
+                    wind_m_s: 0.0,
+                    activity_met: body_heat::MET_WALKING,
+                    ..Default::default()
+                },
+            );
+            let mut world = hecs::World::new();
+            let p = world.spawn((Inventory::new(4), vitals(80.0, 80.0), StatusEffects::default(), Health::default()));
+            for tick in 0..(8 * 360) {
+                sys.tick(&mut world, 10.0, &data);
+                let c = world.get::<&Vitals>(p).unwrap().body_temp_c;
+                assert!((36.5..37.5).contains(&c), "{mode:?}: core {c} after {} s", (tick + 1) * 10);
+            }
+            let fx = world.get::<&StatusEffects>(p).unwrap();
+            assert!(!fx.has("hypothermia") && !fx.has("shivering"), "{mode:?}: comfortable");
+            assert_eq!(world.get::<&Health>(p).unwrap().current, 100.0, "{mode:?}: unharmed");
+        }
     }
 
     /// Waste accrues → the `unsanitary` debuff; Compost turns it into fertilizer and

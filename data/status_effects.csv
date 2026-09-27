@@ -33,6 +33,7 @@ lucky,Lucky,buff,600,false,1,0,crit_chance:1.5:multiply,0,none,0,magic,fortune|r
 well_fed,Well Fed,buff,1800,false,1,0,stamina_regen:1.5:multiply,0,none,1,rest,food|sustain,Increases stamina regeneration by 50% and slowly heals
 well_nourished,Well Nourished,buff,1800,false,1,0,speed:1.1:multiply,0,none,0,rest,food|sustain,A balanced full belly quickens your step (+10% movement speed)
 rested,Rested,buff,3600,false,1,0,xp_gain:1.25:multiply,0,none,0,rest,rest|experience,Increases experience gained by 25% after sleeping
+refreshed,Refreshed,buff,9300,false,1,0,none:0:none,0,none,0,rest,rest|fatigue,A ten-minute nap: the fatigue slowdown lifts for about two and a half hours unless you are exhausted. Only a night in a bed restores energy
 inspired,Inspired,buff,900,false,1,0,craft_speed:1.5:multiply,0,none,0,rest,crafting|creativity,Increases crafting speed by 50% and improves quality
 weakness,Weakness,debuff,120,true,3,0,strength:0.75:multiply,0,none,0,medicine,combat|physical,Reduces physical strength by 25% per stack
 slow,Slow,debuff,90,true,3,0,speed:0.6:multiply,0,none,0,magic,movement|hindering,Reduces movement speed by 40% per stack
@@ -52,7 +53,7 @@ vulnerable,Vulnerable,debuff,90,false,1,0,armor:-20:add,0,none,0,magic,defense|w
 hungry,Hungry,condition,0,false,1,0,speed:0.9:multiply,0,none,0,item,survival|food,Hunger slows your movement 10%; health only drains once satiation is fully empty
 thirsty,Thirsty,condition,0,false,1,0,speed:0.8:multiply,0,none,0,item,survival|water,Reduces speed by 20%; health only drains once hydration is fully empty
 overheated,Overheated,condition,0,false,1,30,stamina_regen:0.5:multiply,3,heat,0,item,temperature|heat,Halves stamina regen and deals heat damage from high temperatures
-hypothermia,Hypothermia,condition,0,false,1,30,speed:0.5:multiply,4,cold,0,item,temperature|cold,Halves movement speed and deals cold damage from low temperatures
+hypothermia,Hypothermia,condition,0,false,1,0,speed:0.5:multiply,0,cold,0,item,temperature|cold,Core below 35 C: stumbling and fumbling halve your movement. Below 32 C the cold does lasting harm. Get out of the wind and the wet and into dry clothes
 oxygen_depleted,Oxygen Depleted,condition,0,false,1,5,none:0:none,15,suffocation,0,item,survival|critical,Rapidly drains health when no breathable air is available
 radiation_exposure,Radiation Exposure,condition,0,true,10,10,max_hp:-5:add,3,radiation,0,medicine,radiation|hazard,Reduces max HP by 5 per stack and deals radiation damage
 broken_bone,Broken Bone,condition,0,false,1,0,speed:0.4:multiply,0,none,0,medicine,injury|severe,Reduces speed by 60% and prevents sprinting until healed
@@ -62,7 +63,9 @@ sleep_deprived,Sleep Deprived,condition,0,false,1,0,xp_gain:0.5:multiply,0,none,
 fatigued,Fatigued,condition,0,false,1,0,speed:0.85:multiply,0,physical,0,rest,survival|fatigue,Low energy slows your movement by 15% until you rest
 hypoxia,Hypoxia,condition,0,false,1,0,speed:0.7:multiply,0,none,0,rest,survival|oxygen,Low blood oxygen; movement slowed 30% until you reach breathable air
 suffocation,Suffocation,condition,0,false,1,0,speed:0.5:multiply,0,none,0,rest,survival|oxygen,No oxygen; severe health loss until you reach breathable air
-heat_exhaustion,Heat Exhaustion,condition,0,false,1,0,speed:0.8:multiply,0,none,0,rest,survival|temperature,Overheating; movement slowed and health draining
+heat_exhaustion,Heat Exhaustion,condition,0,false,1,0,speed:0.8:multiply,0,none,0,rest,survival|temperature,Core above 39 C: overheating slows you. Above 40 C it is heatstroke. Stop working and get into shade and cooler air
+heat_stroke,Heatstroke,condition,0,false,1,0,speed:0.5:multiply,0,none,0,rest,survival|temperature|heat,Core above 40 C: heatstroke does lasting harm for as long as it lasts. Cool down now
+shivering,Shivering,condition,0,false,1,0,none:0:none,0,none,0,rest,survival|temperature|cold,Your body is burning extra energy to stay warm. Shivering tires after hours. Get out of the wind and the wet
 unsanitary,Unsanitary,condition,0,false,1,0,speed:0.95:multiply,0,none,0,rest,survival|sanitation,Accumulated waste; compost it into fertilizer to clean up
 common_cold,Common Cold,disease,7200,false,1,30,stamina_regen:0.85:multiply,1,disease,0,medicine,illness|minor,Mildly reduces stamina regen and causes occasional sneezing
 flu,Flu,disease,14400,false,1,20,speed:0.8:multiply,2,disease,0,medicine,illness|moderate,Reduces speed and stamina with periodic fever spikes

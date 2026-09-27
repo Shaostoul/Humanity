@@ -149,8 +149,30 @@ pub struct EnvironmentContext {
     pub sealed: bool,
     /// True if breathable oxygen is available at the player's location.
     pub oxygenated: bool,
-    /// Ambient temperature (Celsius) the body drifts toward when exposed.
+    /// Air temperature (Celsius) around the player: the home's air inside,
+    /// the weather at the player's position outside. The body heat model
+    /// (`systems::body_heat`) reads it with everything below.
     pub ambient_temp_c: f32,
+    /// Relative humidity of that air, 0 to 1.
+    pub relative_humidity: f32,
+    /// Wind, m/s, as the weather reports it (at 10 m). Ignored when sealed or
+    /// sheltered (still air).
+    pub wind_m_s: f32,
+    /// Rain or snow landing on the player, 0 to 1 (`body_heat::precipitation`).
+    pub precipitation: f32,
+    /// Under a roof, out of the wind and the rain, while not in a sealed
+    /// space. NOTHING SETS IT YET (2026-09-27): it is the input the built
+    /// structures' `shelter` provision will drive (docs/design/body-heat.md).
+    pub sheltered: bool,
+    /// Mean radiant temperature (Celsius) of the surroundings: a fire, the
+    /// sun, a cold sky. None = the air temperature, which is all that is
+    /// known today.
+    pub radiant_temp_c: Option<f32>,
+    /// Air pressure, kPa (101.325 at sea level; about 0 in vacuum).
+    pub pressure_kpa: f32,
+    /// What the player is doing, in met (`body_heat::MET_*`): standing,
+    /// walking, sprinting. The heat a body makes.
+    pub activity_met: f32,
     /// Felt gravity in g, AFTER inertial dampening (see `systems::flight`).
     /// This is the acceleration the occupant's body actually experiences: the
     /// hypotenuse of the drive's thrust and any rotating section's spin, minus
@@ -168,6 +190,14 @@ impl Default for EnvironmentContext {
             sealed: true,
             oxygenated: true,
             ambient_temp_c: 21.0,
+            // The home's air default (atmosphere.rs `Atmosphere::default`).
+            relative_humidity: 0.4,
+            wind_m_s: 0.0,
+            precipitation: 0.0,
+            sheltered: false,
+            radiant_temp_c: None,
+            pressure_kpa: 101.325,
+            activity_met: crate::systems::body_heat::MET_STANDING,
             g_load: 1.0,
         }
     }
