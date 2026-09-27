@@ -87,8 +87,12 @@
             match_exact: Some("mushroom_rack"),
             label: "Mushroom rack - no light needed",
             note: "Uses the dark vertical space the canopy cannot. Substrate + humidity, no sun.",
-            // Four shelves in a 1.8 m rack (a layout choice).
-            plots: 4,
+            // Five shelves in a 1.8 m rack, 36 cm apart, two fruiting blocks on
+            // each: the ten blocks its tent holds (2026-09-27; was four shelves).
+            // oyster_mushroom's area_per_plant_m2 of 0.36 m2 is half a shelf, so
+            // the model's plants per shelf are the tent's blocks. A layout
+            // choice; data/garden/yields.ron (MUSHROOMS, THE RACK) says why.
+            plots: 5,
             stacked: true,
             // Each rack fruits inside its own tent (2026-09-26): the rack's
             // 1.2 x 1.8 x 0.6 m shelving wrapped in clear plastic, 5 cm clear

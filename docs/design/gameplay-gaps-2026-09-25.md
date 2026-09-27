@@ -722,6 +722,47 @@ date; re-check before trusting one. The container data basis is
   full needs its air moved for CO2, which the model does not yet do. The tent
   is not drawn in the world yet, and the T3's own 4.5 L reservoir is not
   modelled.
+- **Mushroom yields are sourced, and every harvest counts only what is eaten:
+  DONE 2026-09-27.** A mushroom's "plant" is now the unit growers count by:
+  one 5 lb fruiting block for oyster and shiitake, one square foot of cased
+  compost bed for button (`data/garden/yields.ron`, MUSHROOMS). Oyster: about
+  20% of the wet substrate over three or four flushes (Agrodok 40), 1 lb a
+  block, first flush 25 days after spawning (Penn State), four flushes a week
+  apart. Shiitake: 75 to 125% biological efficiency on supplemented sawdust
+  (Penn State), 0.68 to 1.13 kg a block, first flush at 56 days, three flushes
+  18 days apart. Button: USDA NASS's 5.10 to 5.89 lb per square foot a crop,
+  first flush at 36 days, five breaks 8 days apart. The rack is now five
+  shelves of two blocks, the ten its tent holds, so a block's
+  `area_per_plant_m2` (0.36 m2) is the tent's loading, not the room a block
+  needs (a Martha tent packs one into 0.12 to 0.22 m2). A rack went from about
+  198 kcal a day, an unsourced placeholder, to 28. Harvest items now match
+  the form of the crop: runner beans give green pods (a new
+  `vegetable_runner_bean_0`, not dry beans), cinnamon dried quills, vanilla
+  cured beans, cacao fermented dry beans (its yield per tree now sourced,
+  0.8 to 1.0 kg), and saffron stays fresh stigmas with its calories on that
+  basis. Peanut, sunflower, safflower, paddy rice, chestnut, hazelnut, walnut
+  and coconut had kernel calories on items weighed with the shell or hull;
+  each is now per 100 g as harvested (USDA's own refuse for the food row, or
+  AFCM's peanut shelling percentage, IRRI's rice hull and Feedipedia's
+  oil-type sunflower hull). THE TOTALS: the family home grows about 6,020 kcal
+  a day (was 7,350) and its Food loop NO LONGER CLOSES (91% of 6,600); the
+  one-person home about 1,780 (was 2,154), 81% of 2,200. Found, left alone:
+  (1) three src tests follow the data and need a small change each:
+  `farming::unit_tests` still lists oyster_mushroom as not sourced;
+  `farming::soil`'s removal check (N against protein at a flat 6.25) reads
+  1.45 for paddy rice and 1.43 for hulled sunflower now that both are on the
+  harvest's basis; and the humidity tent save round-trip compares floats
+  exactly, which the new 0.12 L of a block's water misses by one unit in the
+  last place because serde_json parses floats best-effort unless its
+  `float_roundtrip` feature is on. (2) The mushroom
+  water column is still the old 0.3 L a shelf, spread so the tents' air is
+  unchanged; sizing it from the harvest's water is left to the humidity
+  model. (3) Oyster mushrooms need dim light to form caps (Agrodok, Penn
+  State), which `needs_light` does not model, and the rack still reads "no
+  light needed". (4) A harvest returns two spawn items as seed. (5) A perennial
+  like cacao counts one harvest per `growth_days` (five years), not one a year.
+  (6) data/home_outline.json and homestead-solo-design.md still plan 50 kcal
+  a rack.
 - **The ship's air and the garden's water are closed loops: DONE
   2026-09-26** (ship life support; the operator chose the spaceship first,
   2026-09-27; design and every balance in

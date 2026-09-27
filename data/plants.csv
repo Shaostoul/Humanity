@@ -11,6 +11,14 @@
 #                           NOTE: oyster_mushroom, shiitake and button_mushroom are typed
 #                           vegetable and are fungi. Several columns mean something different
 #                           for them, since a mushroom has no roots drawing a soil solution.
+#                           Their "plant" (2026-09-27) is one 5 lb fruiting block for oyster and
+#                           shiitake and one square foot of cased compost bed for button: the yield
+#                           is per block or per square foot over all its flushes, growth_days runs
+#                           from spawning to the first flush, area_per_plant_m2 is the shelf the
+#                           block or the square foot takes, and water_liters_per_day is the old
+#                           unsourced 0.3 L a rack shelf spread over what the shelf now holds (so
+#                           a rack's tent air is unchanged). Sources: data/garden/yields.ron,
+#                           MUSHROOMS.
 #   growth_days           - Total days from planting to harvest (real-world basis, game may scale). For a
 #                           crop picked or cut over a season this is days to the FIRST pick, while the
 #                           yield columns are the whole season: see yield_min below.
@@ -38,7 +46,8 @@
 #                           harvest, sourced crop by crop in data/garden/yields.ron; for a crop picked or
 #                           cut over a season it is the whole season's pick. A grow unit harvests this
 #                           times the plants in it (see area_per_plant_m2). Rows without an area still
-#                           carry the older unsourced figures.
+#                           carry the older unsourced figures, except cacao (dry beans a tree a year,
+#                           sourced 2026-09-27 in data/garden/yields.ron).
 #   yield_max             - Maximum harvest per plant, same basis. The harvest rolls between the two.
 #   growth_stages         - Colon-separated growth stage names
 #   seasons               - Preferred growing seasons (colon-separated)
@@ -92,11 +101,12 @@
 #                           recommended established plants per m2). A bed, tray or field plot holds
 #                           floor(plot area / this) plants, at least 1; a tower cup and a hand-planted
 #                           crop hold one. Blank = one plant per unit whatever its size (the behaviour
-#                           before 2026-09-26), which is what an unsourced row gets. Filled 2026-09-26 for
-#                           52 crops, every one cited with its yield in data/garden/yields.ron. Blank on
-#                           purpose: mint (planted as runners, no per-plant spacing), rosemary, aloe_vera
-#                           and st_johns_wort (no primary yield figure found yet), the mushrooms (a
-#                           substrate block, not floor area, sets their yield).
+#                           before 2026-09-26), which is what an unsourced row gets. Filled for 55 crops
+#                           (52 on 2026-09-26 and the three mushrooms on 2026-09-27, whose "plant" is a
+#                           fruiting block or a square foot of bed: see the type NOTE above), every one
+#                           cited with its yield in data/garden/yields.ron. Blank on purpose: mint
+#                           (planted as runners, no per-plant spacing), rosemary, aloe_vera and
+#                           st_johns_wort (no primary yield figure found yet).
 #   dli_min / dli_target / dli_saturation - The daily light integral the crop needs, mol of
 #                           photons per m2 a day (2026-09-26): the least it still grows
 #                           acceptably on, the level recommended for good yield and quality,
@@ -235,9 +245,9 @@ soybean,Soybean,High-protein nitrogen-fixing legume for oil and feed,legume,100,
 lentil,Lentil,Cool-season pulse producing protein-dense flat seeds - heat above thirty Celsius during pod fill stunts the crop,legume,100,0.0178,0.02,0.03,0.06,6.0,7.5,8,25,0.30,0.60,0.003286,0.003873,seed:sprout:vegetative:flower:pod_fill:mature,spring:fall,3,12,2,store:trade,cucumber:potato,garlic:onion,legume_lentil_0,true,54,39.4,6.43,8.12,0.00715,,,
 chickpea,Chickpea,Drought-tolerant pulse with nutty round seeds,legume,90,0.0387,0.02,0.03,0.06,6.0,7.5,15,30,0.30,0.60,0.01022,0.0114,seed:sprout:vegetative:flower:pod_fill:mature,spring:summer,4,14,2,store:trade,,fennel,legume_chickpea_0,true,52,32.8,10,12,0.0186,,35.6,
 peanut,Peanut,Legume producing underground pods rich in oil and protein,legume,120,0.8,0.02,0.04,0.08,5.8,6.8,20,32,0.40,0.70,8,20,seed:sprout:vegetative:flower:peg:pod_fill:mature,summer,4,16,2,store:trade,corn,,legume_peanut_0,true,,36,3.89,6,,,,
-oyster_mushroom,Oyster Mushroom,Fast-growing edible fungus fruiting on straw or sawdust substrate in total darkness,vegetable,14,0.3,0.01,0.01,0.02,6.0,7.0,10,24,0.85,0.95,4,10,spore:mycelium:pinning:fruiting:mature,spring:summer:fall:winter,3,10,1,store:trade,,,vegetable_oyster_mushroom_0,false,,,,,,,,
-shiitake,Shiitake,Woodland fungus cultivated on hardwood sawdust blocks for a dense meaty harvest,vegetable,60,0.3,0.01,0.01,0.02,5.0,6.0,10,24,0.80,0.90,3,8,spore:mycelium:pinning:fruiting:mature,spring:summer:fall:winter,4,14,2,store:trade,,,vegetable_shiitake_0,false,,,,,,,,
-button_mushroom,Button Mushroom,Compost-grown fungus and the most widely cultivated edible mushroom in the world,vegetable,25,0.3,0.01,0.01,0.02,6.5,7.5,15,20,0.85,0.95,4,12,spore:mycelium:pinning:fruiting:mature,spring:summer:fall:winter,2,8,1,store:trade,,,vegetable_button_mushroom_0,false,,,,,,,,
+oyster_mushroom,Oyster Mushroom,Fast-growing edible fungus fruiting from straw or sawdust blocks - it needs fresh air and dim light to form caps,vegetable,25,0.12,0.01,0.01,0.02,6.0,7.0,10,24,0.85,0.95,1.512,1.512,spore:mycelium:pinning:fruiting:mature,spring:summer:fall:winter,3,10,1,store:trade,,,vegetable_oyster_mushroom_0,false,,,,,0.36,,,
+shiitake,Shiitake,Woodland fungus cultivated on hardwood sawdust blocks for a dense meaty harvest,vegetable,56,0.12,0.01,0.01,0.02,5.0,6.0,10,24,0.80,0.90,2.268,3.78,spore:mycelium:pinning:fruiting:mature,spring:summer:fall:winter,4,14,2,store:trade,,,vegetable_shiitake_0,false,,,,,0.36,,,
+button_mushroom,Button Mushroom,Compost-grown fungus sold as white button and cremini - it fruits through a peat casing laid over pasteurized compost,vegetable,36,0.0343,0.01,0.01,0.02,6.5,7.5,15,20,0.85,0.95,7.711,8.906,spore:mycelium:pinning:fruiting:mature,spring:summer:fall:winter,2,8,1,store:trade,,,vegetable_button_mushroom_0,false,,,,,0.0929,,,
 luminous_fern,Luminous Fern,Bioluminescent alien fern emitting soft blue-green glow,alien,45,1.5,0.08,0.03,0.06,5.0,7.0,10,30,0.60,0.90,3,8,spore:sprout:frond_growth:luminescence:mature,spring:summer:fall:winter,20,50,3,alien_vendor,crystal_moss:void_orchid,ember_reed,produce_luminous_fern_0,true,,,,,,,,
 void_orchid,Void Orchid,Extraterrestrial orchid absorbing ambient light to bloom,alien,180,0.5,0.04,0.02,0.04,4.5,6.5,5,25,0.50,0.80,1,2,seed:sprout:root_web:spike:dark_bloom:mature,spring:fall,40,120,5,alien_vendor,luminous_fern:shadow_fungi,gravity_bloom,produce_void_orchid_0,true,,,,,,,,
 crystal_moss,Crystal Moss,Silicate-based ground cover forming translucent mineral carpets,alien,30,0.8,0.02,0.01,0.02,4.0,6.0,0,20,0.50,0.90,5,15,fragment:sprout:mat_growth:crystallize:mature,spring:summer:fall:winter,15,35,2,alien_vendor,luminous_fern:frost_blossom,ember_reed:plasma_vine,produce_crystal_moss_0,true,,,,,,,,
@@ -254,7 +264,7 @@ saffron,Saffron,Precious crocus harvested for its rare crimson stigma threads,he
 vanilla,Vanilla,Tropical climbing orchid yielding aromatic cured pods,herb,1095,1.5,0.06,0.03,0.06,6.0,7.0,20,32,0.70,0.90,1,3,cutting:sprout:vine:flower:hand_pollinate:pod_fill:cure:mature,summer,20,80,5,specialty_vendor,,,herb_vanilla_0,true,,,,,,,,
 hop,Hop,Vigorous climbing vine producing bitter aromatic cones,herb,150,11.3,0.12,0.05,0.10,6.0,7.5,10,28,0.40,0.70,30.02,75.04,rhizome:sprout:vine:flower:cone_fill:mature,spring:summer,6,20,3,specialty_vendor,,,herb_hop_0,true,,,,,5.06,,,
 coffee,Coffee,Tropical evergreen shrub producing stimulant-rich beans,fruit,1460,2.0,0.10,0.04,0.10,6.0,6.5,18,30,0.60,0.90,2,6,seed:seedling:sapling:flower:cherry:ripe,spring:summer,15,50,4,specialty_vendor,banana,,fruit_coffee_0,true,,,,,,,,
-cacao,Cacao,Understory tropical tree yielding chocolate-producing pods,fruit,1825,3.0,0.12,0.05,0.12,6.0,7.0,20,35,0.70,0.90,10,30,seed:seedling:sapling:flower:pod_fill:ripe,summer,15,55,5,specialty_vendor,banana:coconut,,fruit_cacao_0,true,,,,,,,,
+cacao,Cacao,Understory tropical tree yielding chocolate-producing pods,fruit,1825,3.0,0.12,0.05,0.12,6.0,7.0,20,35,0.70,0.90,2.667,3.333,seed:seedling:sapling:flower:pod_fill:ripe,summer,15,55,5,specialty_vendor,banana:coconut,,fruit_cacao_0,true,,,,,,,,
 tea,Tea,Evergreen shrub yielding leaves for the world's most consumed beverage,herb,1095,2.0,0.08,0.04,0.08,4.5,6.5,12,30,0.60,0.90,3,10,seed:seedling:bush_growth:flush:pluck:regrowth,spring:summer:fall,12,40,3,specialty_vendor,,,herb_tea_0,true,,,,,,,,
 amaranth,Amaranth,Tall ancient grain with edible leaves and a deep red seed plume - leaves pick from a month on but the seed head needs a long warm season,grain,110,0.9,0.10,0.05,0.08,6.0,7.5,18,32,0.30,0.60,3,10,seed:sprout:vegetative:plume:seed_fill:mature,spring:summer,4,12,1,seed_library,corn:bean:squash,,grain_amaranth_0,true,,,,,,,,
 dandelion,Dandelion,Hardy edible rosette - every part is usable and pollinators love the early flowers,herb,50,0.5,0.05,0.03,0.06,5.5,7.5,5,28,0.30,0.85,2,6,seed:sprout:rosette:flower:puffball:mature,spring:summer:fall,1,4,0,wild_forage,,,herb_dandelion_0,true,,,,,,,,
@@ -292,7 +302,7 @@ kidney_bean,Kidney Bean,Large red dry bean of the common bean family - bush habi
 pinto_bean,Pinto Bean,Speckled dry bean of the common bean family - half-runner habit and the workhorse field bean of the dry Southwest,legume,105,0.6,0.02,0.04,0.08,6.0,7.5,18,32,0.20,0.60,3,9,seed:sprout:vegetative:flower:pod_fill:mature,summer,4,15,1,store:trade,corn:squash,,legume_bean_0,true,26,31.3,12,16,,,,
 navy_bean,Navy Bean,Small white dry bean of the common bean family - the earliest bush type and the one that ripens in a short northern summer,legume,90,0.6,0.02,0.04,0.08,6.0,7.0,16,29,0.30,0.70,3,8,seed:sprout:vegetative:flower:pod_fill:mature,summer,4,15,1,store:trade,corn:squash,,legume_bean_0,true,26,31.3,12,16,,,,
 lima_bean,Lima Bean,Butter bean wanting warmer soil than common beans - pods stop setting when nights stay above twenty-four Celsius,legume,85,0.7,0.02,0.04,0.10,6.0,7.0,20,32,0.40,0.80,3,8,seed:sprout:vegetative:flower:pod_fill:mature,summer,4,15,1,store:trade,corn:squash,,legume_bean_0,true,,,,,,,,
-runner_bean,Runner Bean,Climbing scarlet runner that keeps setting pods in cool summers where common beans stall - regrows from tubers where winters are mild,legume,80,0.9,0.02,0.04,0.08,6.0,7.0,10,27,0.40,0.85,5,14,seed:sprout:vegetative:flower:pod_fill:mature,spring:summer,4,15,1,store:trade,corn:squash,,legume_bean_0,true,,,,,,,,
+runner_bean,Runner Bean,Climbing scarlet runner that keeps setting pods in cool summers where common beans stall - regrows from tubers where winters are mild,legume,80,0.9,0.02,0.04,0.08,6.0,7.0,10,27,0.40,0.85,5,14,seed:sprout:vegetative:flower:pod_fill:mature,spring:summer,4,15,1,store:trade,corn:squash,,vegetable_runner_bean_0,true,,,,,,,,
 tepary_bean,Tepary Bean,Sonoran desert pulse and the most drought hardy bean known - makes a dry crop on one deep soaking and resents heavy irrigation,legume,80,0.15,0.02,0.03,0.06,6.5,8.5,20,45,0.05,0.45,2,6,seed:sprout:vegetative:flower:pod_fill:mature,summer,5,18,2,specialty_vendor,corn:squash,,legume_bean_0,true,,,,,,,,
 raspberry,Raspberry,Suckering bramble whose second-year canes carry the summer crop - cut the spent canes to the ground after picking,fruit,365,1.2,0.08,0.03,0.10,5.5,7.0,2,30,0.40,0.80,6,18,cutting:sprout:bush_growth:flower:fruit:ripe,spring:summer,10,28,2,specialty_vendor,,,fruit_berries_0,true,,,,,,,,
 blackcurrant,Blackcurrant,Cold-hardy Ribes bush carrying several times the vitamin C of citrus - fruits on one-year wood so cut out a third of the bush each winter,fruit,730,1.2,0.08,0.03,0.10,5.5,7.0,0,28,0.40,0.85,8,24,cutting:sprout:bush_growth:flower:fruit:ripe,spring:summer,10,30,2,specialty_vendor,,,fruit_berries_0,true,,,,,,,,

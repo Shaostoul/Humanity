@@ -239,14 +239,34 @@
         (plant: "saffron", harvest: Once),
         (plant: "echinacea", harvest: Once),
         (plant: "valerian", harvest: Once),
-        // No yield sourced yet (yields.ron "Not sourced yet"): mint, rosemary, aloe vera, St.
-        //     John's wort and the oyster mushroom stay harvested once until a yield with its
-        //     cutting or flush schedule is found. All five are really cut or flush repeatedly.
+        // No yield sourced yet (yields.ron "Not sourced yet"): mint, rosemary, aloe vera and St.
+        //     John's wort stay harvested once until a yield with its cutting schedule is found.
+        //     All four are really cut repeatedly.
         (plant: "mint", harvest: Once),
         (plant: "rosemary", harvest: Once),
         (plant: "aloe_vera", harvest: Once),
         (plant: "st_johns_wort", harvest: Once),
-        (plant: "oyster_mushroom", harvest: Once),
+        // -- Picked: mushroom flushes (2026-09-27) ----------------------------------------
+        // A fruiting block or bed crops in flushes. yields.ron's mushroom yields are a block's or a
+        // square foot's whole crop, so each flush is a pick of an equal share (a real first flush
+        // is the biggest). Sources as yields.ron, MUSHROOMS (read 2026-09-26).
+        // oyster_mushroom: Agrodok 40, 5.7: "It will take another five to nine days for the second
+        //     flush" and "In total, three or four flushes can be harvested": four flushes 7 days
+        //     apart. Four, not three, because Agrodok's yield is the whole crop and the longer
+        //     window is the lower daily figure. A block is on its shelf 25 + 28 = 53 days.
+        (plant: "oyster_mushroom", harvest: Picked(window_days: 28.0, every_days: 7.0)),
+        // shiitake: Penn State's shiitake guide: "The average time from the peak harvest of one
+        //     flush to the peak of the next flush is about 16 to 20 days", and "The production cycle
+        //     for a synthetic-medium cultivation lasts approximately 3 to 4 months from inoculation
+        //     to cleanup": three flushes 18 days apart, 56 + 54 = 110 days on the shelf.
+        (plant: "shiitake", harvest: Picked(window_days: 54.0, every_days: 18.0)),
+        // button_mushroom: Six Steps: "Most mushroom farmers harvest for 35 to 42 days", and Penn
+        //     State Extension's "Basic Procedures for Agaricus Mushroom Growing" (prepared by David M.
+        //     Beyer; updated 20 May 2024; read 2026-09-27,
+        //     https://extension.psu.edu/basic-procedures-for-agaricus-mushroom-growing): "Mushrooms
+        //     are harvested over a 2–4-day period in a 7–10-day cycle called flushes or breaks": five
+        //     breaks 8 days apart, 40 days.
+        (plant: "button_mushroom", harvest: Picked(window_days: 40.0, every_days: 8.0)),
         // -- Tapped (2026-09-26) --
         // rubber_tree: tapped, not felled. "Rubber trees are tapped about once every two
         //     days, yielding a cupful of latex, containing approximately 50 grams (1.7

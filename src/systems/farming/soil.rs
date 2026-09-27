@@ -997,13 +997,15 @@ mod tests {
     ///   and soybean 23.3 g K2O) with room either side. They catch a value
     ///   typed straight from lb per cwt, lb per bushel or lb per lb.
     /// - N against the crop's own protein (data/food/crop_nutrition.ron, from
-    ///   USDA FoodData Central): USDA derives protein as measured N times a
-    ///   factor of 5.3 to 6.25, so for the same food N over protein / 6.25 is
-    ///   1.0 to 1.18. The removal tables weigh a slightly different product
-    ///   (whole oats with the hull against groats: 0.72; paddy rice against
-    ///   milled: 1.32), so 0.65 to 1.4 holds every shipped crop, and a lb per
-    ///   ton figure typed as g per kg, which doubles it, lands above 1.4 for
-    ///   all of them. (kg per tonne IS g per kg, so it is no slip.)
+    ///   USDA FoodData Central): USDA derives protein as measured N times the
+    ///   food's own factor (`protein_factor`: 6.25 unless the food's SR28 row
+    ///   says otherwise), so for the same food N over protein / factor is
+    ///   1.0. The removal tables weigh a slightly different product (whole
+    ///   oats with the hull against groats: 0.72; paddy rice: 1.38 since the
+    ///   protein went on the as-harvested basis, 2026-09-27), so 0.65 to 1.4
+    ///   holds every shipped crop, and a lb per ton figure typed as g per kg,
+    ///   which doubles it, lands above 1.4 for all of them. (kg per tonne IS
+    ///   g per kg, so it is no slip.)
     /// - P2O5 and K2O against N: 0.08 to 1.8 and 0.1 to 6 (shipped: 0.11 to
     ///   1.5 and 0.17 to 4.5), so a grain's P or K typed per bushel, which is
     ///   dozens of times too small, fails. A doubled P or K value can pass:
@@ -1014,6 +1016,21 @@ mod tests {
     /// lb per cwt typed raw; failed the range and the P2O5 to N band), and a
     /// cell set to "x" (not a number; the loader would have read it as blank
     /// and quietly fallen back to the index).
+    /// USDA's nitrogen-to-protein factor for a crop's food, where its SR28
+    /// row does not use the default 6.25 (the crops the removal check meets;
+    /// quoted by the harvest-forms pass, 2026-09-27). With protein counted on
+    /// the harvest as picked, the default factor put rice at 1.45 and
+    /// sunflower at 1.43 x the N in their protein, over the band; their own
+    /// factors give 1.38 and 1.21.
+    fn protein_factor(id: &str) -> f64 {
+        match id {
+            "rice" => 5.95,
+            "peanut" => 5.46,
+            "sunflower" => 5.30,
+            _ => 6.25,
+        }
+    }
+
     #[test]
     fn shipped_removal_columns_are_read_and_plausible() {
         let csv = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/data/plants.csv"));
@@ -1071,7 +1088,7 @@ mod tests {
             }
             if let Some(n) = v[0] {
                 if let Some(p) = protein.get(id).copied().filter(|p| *p > 0.0) {
-                    let ratio = n / (p * 10.0 / 6.25);
+                    let ratio = n / (p * 10.0 / protein_factor(id));
                     if !(0.65..=1.4).contains(&ratio) {
                         bad.push(format!("{id} N {n} is {ratio:.2} x the N in its protein ({p} g/100 g)"));
                     }

@@ -120,8 +120,25 @@
 //     "20-25 t/ha" of fresh herb from three cuttings, which is a per-area figure
 //     waiting for a per-cup canopy area). rosemary, aloe_vera, st_johns_wort: no
 //     primary per-plant or per-area yield found in this pass (commercial wiki
-//     figures only). oyster_mushroom: a substrate block, not floor area, sets a
-//     mushroom's yield, which is its own model.
+//     figures only). (oyster_mushroom was listed here until 2026-09-27; it is sourced
+//     now, per fruiting block, with shiitake and button_mushroom: see MUSHROOMS below.)
+//
+// -- A yield sourced per plant with no spacing (2026-09-27) -----------------------
+//
+//   cacao: its harvest item is now the fermented, dried bean (data/food/crop_nutrition.ron,
+//     ITEM FORM), so plants.csv's yield is dry beans a tree a year. Hebbar, P.,
+//     Bittenbender, H.C. and O'Doherty, D., "Farm and Forestry Production and Marketing
+//     Profile for Cacao (Theobroma cacao)", Specialty Crops for Pacific Island
+//     Agroforestry, 2011 (revised), https://agroforestry.org/images/pdfs/
+//     Cacao_specialty_crop.pdf, read 2026-09-27: "An average yield per tree is 25 pods per
+//     year. If well maintained (e.g., appropriate IPM, fertilization), approximately 1,000
+//     trees/ha (400 trees/ac) yields up to 800–1,000 kg dry beans/ha", and on a farm in
+//     Hawaii "The annual yield of dry beans per tree is 800–900 g": 0.8 to 1.0 kg, 2.667 to
+//     3.333 items of 0.3 kg (it was 10 to 30 items of a 0.3 kg pod). No area_per_plant_m2
+//     yet: the profile gives 750 to 1,500 trees a hectare, and 10 m2 a tree would also set
+//     its water by FAO-56, which was not done in this pass. A tree bears every year for
+//     decades while the game counts one harvest per growth_days (1825), so the food model
+//     counts a mature tree at about a fifth of its real yearly harvest.
 //
 // -- The band the test holds each basis to (kg of harvest per m2 per planting) ---
 //
@@ -129,7 +146,12 @@
 // below with room of about 2x either side, so a slip fails it:
 //   DrySeed    0.05 to 1.5  shipped 0.14 (lentil) to 0.87 (rice, NASS US average).
 //   FreshVeg   0.2 to 15    shipped 0.36 (green peas) to 10.4 (kale, UMN).
-//   FreshFruit 0.5 to 40    shipped 1.4 (okra) to 24.4 (high-tunnel cucumber, UMN).
+//   FreshFruit 0.5 to 40    shipped 1.26 (an oyster mushroom block on its rack shelf) to
+//                           28.8 (a button mushroom bed); among green crops 1.4 (okra) to 24.4
+//                           (high-tunnel cucumber, UMN). The three mushrooms sit in this band
+//                           (2026-09-27): a mushroom is its fungus's fruiting body, and a
+//                           mushroom bed's 25 to 29 kg/m2 is past FreshVeg's 15. The button bed
+//                           has only about 1.4x of room under the top of the band.
 //   FreshHerb  0.1 to 20    shipped 0.15 (lavender) to 16.4 (tower basil, Stapleton).
 //   Spice      0.0005 to 0.05  saffron 0.0013 to 0.0105 fresh.
 //   Fiber      0.05 to 0.5  flax fiber 0.20.
@@ -206,6 +228,81 @@
 //   hop: 1.5 -> 11.3 L/day (FAO-56, Kc 0.74, 5.06 m2)
 //   valerian: 0.8 -> 0.253 L/day (estimate (3.2x off), Kc 0.91, 0.0929 m2)
 //   comfrey: 0.8 -> 2.65 L/day (estimate (0.3x off), Kc 0.91, 0.975 m2)
+//   The three mushrooms are not in FAO-56 and are not crop ET: see MUSHROOMS.
+//
+// -- MUSHROOMS: a block or a square foot of bed, not a plant (2026-09-27) ---------
+//
+// A mushroom's yield is set by its substrate, not by floor area, so for the three
+// fungi a "plant" is the unit of substrate growers count by, and area_per_plant_m2
+// is the shelf one such unit takes:
+//   oyster_mushroom, shiitake: one 5 lb (2.268 kg) fruiting block, the block the
+//     rack's tent is loaded with (data/garden/humidity.ron, THE FRUITING TENT).
+//   button_mushroom: one square foot (0.0929 m2) of cased compost bed, the unit
+//     USDA NASS reports Agaricus yield in.
+// yield_min/yield_max are the block's or the square foot's whole crop, every
+// flush. growth_days runs from spawning to the first flush, and the flushes are
+// the crop's picking window in data/garden/harvest_windows.ron.
+//
+// THE RACK. The tent round each mushroom_rack holds ten blocks, so the rack is
+// five shelves (data/garden/grow_media.ron, plots: 5, stacked) of two blocks each,
+// and a block's area_per_plant_m2 is half a 1.2 x 0.6 m shelf, 0.36 m2. That is
+// the tent's loading, not the room a block needs. Nature Lion (Langevin, "Best
+// Grow Tents for Mushroom Fruiting: Martha Tent to 4x8, Sized by Block Count",
+// 11 April 2026, updated 15 September 2026,
+// https://naturelion.ca/blog/best-grow-tent-mushroom-fruiting, read 2026-09-27):
+// Martha tents "max out around 8-12 fruiting blocks depending on the model", on
+// "at least 4-5 shelves" of a tent "roughly 65" x 27.5" x 20"", which is 0.12 to
+// 0.22 m2 a block, so the rack's 3.6 m2 of shelf could hold 16 to 30. Loading it
+// that way means raising the tent's substrate_kg with it, and with it the fresh
+// air and the humidifier sized from that (humidity.ron). The shelf pitch fits five:
+// 1.8 m over five is 36 cm, a 6 in North Spore block ("6in H x 9in W x 6in D",
+// humidity.ron's source) plus "Six to eight inches of clearance per shelf",
+// Nature Lion's minimum for oysters.
+//
+// Sources (read 2026-09-26 unless marked):
+//   Agrodok 40  Oei, P., with van Nieuwenhuijzen, B., "Small-scale mushroom
+//               cultivation: oyster, shiitake and wood ear mushrooms", Agrodok 40,
+//               Agromisa Foundation and CTA, Wageningen, 2005,
+//               https://www.agromisa.org/wp-content/uploads/Agrodok-40-Small-scale-mushroom-cultivation.pdf
+//   PSU oyster  Royse, D.J., "Cultivation of Oyster Mushrooms", Penn State College
+//               of Agricultural Sciences, 2003 (UL207),
+//               https://www.mushroomcompany.com/resources/oyster/paoyster.pdf
+//   PSU shiitake  Royse, D.J., "Cultivation of Shiitake on Natural and Synthetic
+//               Logs", Penn State College of Agricultural Sciences, 2009 (XL0083),
+//               https://www.americanmushroom.org/clientuploads/Consumers/cutlivation_of_shiitake.pdf
+//   PSU Six Steps  Royse, D.J. and Beelman, R.B., "Six Steps to Mushroom Farming",
+//               2nd edition, Penn State College of Agricultural Sciences (undated;
+//               it quotes the 2006 national average),
+//               https://mushroomcompany.com/resources/agaricus/SixSteps.pdf
+//   NASS Mushrooms  USDA NASS, "Mushrooms", released 21 August 2025,
+//               https://esmis.nal.usda.gov/sites/default/release-files/r781wg03d/cn69p2568/x633h081v/mush0825.txt
+//
+// Where the mushroom numbers are weak:
+//   - The OYSTER yield is Agrodok's single commercial figure, about 20% of the wet
+//     substrate. A supplemented sawdust block can do better (growers and block
+//     sellers quote 1 to 2 lb from a 5 lb block, and Penn State gives shiitake on
+//     supplemented sawdust 75 to 125% biological efficiency), but no primary
+//     source for an oyster block was found, so the conservative figure stands.
+//     Penn State's oyster guide charts yield "per 30 lb substrate" with no unit on
+//     the axis, so it is used here only for the days to production.
+//   - A block colonises on its shelf: growth_days includes the spawn run. A grower
+//     who incubates blocks elsewhere and brings them to the tent only to fruit
+//     turns a rack over about 1.4 times as fast (37 days a block, not 53).
+//   - harvest_windows.ron hands the flushes out in equal shares; a real first
+//     flush is the biggest and later ones fall off.
+//   - water_liters_per_day for the fungi is not sourced. It is the old unsourced
+//     0.3 L a rack shelf spread over what a shelf now holds (0.12 L a block, 0.0343
+//     L a square foot of button bed), so a rack still breathes 1.2 L a day into its
+//     tent and humidity.ron's tent figures stand. Six Steps gives a way to size it:
+//     "90 percent of the mushroom is water", and that is "what must be replaced"
+//     after each flush, which is about 0.008 L a day a block of oyster, 0.007 of
+//     shiitake and 0.03 a square foot of button, all of it leaving in the harvest,
+//     not the air. Left for the humidity model to take up.
+//   - A button crop in a rack is 35 square feet of bed, about 110 kg of dry
+//     compost at Six Steps' "6 to 8 lb of dry compost per square foot of bed or
+//     tray surface" (about 370 kg wet at its "between 68 and 72 percent"
+//     moisture), where the tent's CO2 and humidity are sized for 22.7 kg of
+//     substrate.
 //
 // -- The crops -------------------------------------------------------------------
 //
@@ -426,5 +523,30 @@
         //     for four or five cuttings in Minnesota. 3 x 3.5 ft; the 3 ft in the row is a game ESTIMATE (the
         //     checkerboard's in-row distance is not stated).
         (plant: "comfrey", basis: FreshHerb, per_plant_kg: (2.841, 13.33)),
+        // -- Mushrooms (2026-09-27; see MUSHROOMS above for the unit, the rack and the sources) --
+        // oyster_mushroom: per 5 lb (2.268 kg) fruiting block. Yield: Agrodok 40, section 5.7: "The yield
+        //     from commercial production is about 20% of the weight of the wet substrate of fresh oyster
+        //     mushrooms", from "three or four flushes": 0.4536 kg (1 lb) a block. First flush: PSU oyster,
+        //     bags incubated "for 12 to 14 days" and "harvested from the substrate approximately 3 to 4
+        //     weeks after spawning", its chart of days to production running 22.2 to 29.5 by spawn rate;
+        //     Agrodok agrees (spawn run "in two or three weeks", primordia "three to four days after opening
+        //     the bags", mushrooms "ready for harvesting in five days"): growth_days 25. 1.26 kg/m2 of shelf.
+        (plant: "oyster_mushroom", basis: FreshFruit, per_plant_kg: (0.4536, 0.4536)),
+        // shiitake: per 5 lb block. PSU shiitake, synthetic logs of supplemented sawdust mixed to "about 60
+        //     percent" moisture: "Biological efficiency for this method averages from 75 to 125 percent"
+        //     (fresh mushrooms over dry substrate), and a 5 lb block holds 0.907 kg of dry substrate: 0.680
+        //     to 1.134 kg. Agrodok 40 is lower: "Normal yields are 15 to 35% of the wet substrate weight"
+        //     (0.34 to 0.79 kg). First flush: a "17- to 22-day spawn run", a browning period "about 4 weeks
+        //     long", and "Approximately 7 to 11 days after soaking, mushrooms are ready for harvesting":
+        //     growth_days 56. 1.9 to 3.2 kg/m2 of shelf.
+        (plant: "shiitake", basis: FreshFruit, per_plant_kg: (0.6804, 1.134)),
+        // button_mushroom: per square foot of cased compost bed. NASS Mushrooms (21 August 2025), Agaricus
+        //     "Yield per square foot", United States: 5.89 lb (2022-2023), 5.10 (2023-2024) and 5.15
+        //     (2024-2025), production over total fillings, so one crop: 2.313 to 2.672 kg, 24.9 to 28.8
+        //     kg/m2. PSU Six Steps agrees: "anywhere from 0 to 8 lb per ft2; the national average for 2006
+        //     was 5.92 lb per square foot". First flush: "Complete spawn run usually requires 13 to 20 days"
+        //     and "Harvestable mushrooms appear 18 to 21 days after casing": growth_days 36. A 1.2 x 0.6 m
+        //     shelf holds seven square feet.
+        (plant: "button_mushroom", basis: FreshFruit, per_plant_kg: (2.313, 2.672)),
     ],
 )

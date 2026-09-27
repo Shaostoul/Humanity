@@ -175,6 +175,7 @@
         ("vegetable_oyster_mushroom_0", "raw_vegetables"),
         ("vegetable_shiitake_0", "raw_vegetables"),
         ("vegetable_button_mushroom_0", "raw_vegetables"),
+        ("vegetable_runner_bean_0", "raw_vegetables"), // green pods, 31 kcal (FDC 169961): nearer 25 here than fresh peas' 81
 
         // --- Roots and bulbs (keep for weeks) ---
         ("vegetable_carrot_0", "root_vegetables"),
@@ -224,12 +225,12 @@
         // --- Seasonings and brewing crops: used to flavour other food, not eaten ---
         ("salt_food_0", "table salt: a seasoning with no food energy, never eaten on its own"),
         ("spice_mix_0", "a seasoning blend used by the pinch in cooking"),
-        ("herb_cinnamon_0", "cinnamon bark: a spice used by the pinch"),
-        ("herb_saffron_0", "saffron threads: a spice used by the pinch"),
-        ("herb_vanilla_0", "green vanilla pods have to be cured for months before they flavour anything, and are used by the pinch even then"),
+        ("herb_cinnamon_0", "dried cinnamon quills: a spice used by the pinch"),
+        ("herb_saffron_0", "fresh saffron stigmas are dried into threads and used by the pinch"),
+        ("herb_vanilla_0", "cured vanilla beans flavour food by the pinch; they are not eaten as food"),
         ("herb_hop_0", "hop cones flavour beer; they are not eaten"),
         ("fruit_coffee_0", "coffee cherries are grown for the bean, which is roasted and brewed (the cook_coffee recipe); the cherry is not a food"),
-        ("fruit_cacao_0", "cacao pods are grown for the beans, which are fermented, dried and roasted before they become chocolate"),
+        ("fruit_cacao_0", "fermented, dried cocoa beans are roasted and winnowed into nibs before they are eaten or made into chocolate; roasting is not modelled yet"),
         ("fruit_olive_0", "olives straight from the tree are too bitter to eat; they are cured in brine or pressed for oil first (pressing exists: press_oil_olive; curing does not yet)"),
         ("whey_0", "the liquid left from cheese making; used here in baking (cook_bread_whey), drinking it is not modelled yet"),
         ("apple_pomace_0", "the pressed skins, cores and pulp left from juicing; composted here (compost_apple_pomace), not eaten"),

@@ -248,7 +248,7 @@ impl Basis {
 /// Crops the home plants that have no sourced spacing yet, each with its
 /// reason in data/garden/yields.ron ("Not sourced yet"). A crop leaves this
 /// list by gaining a row there.
-const NOT_SOURCED_YET: [&str; 5] = ["mint", "rosemary", "aloe_vera", "st_johns_wort", "oyster_mushroom"];
+const NOT_SOURCED_YET: [&str; 4] = ["mint", "rosemary", "aloe_vera", "st_johns_wort"];
 
 /// The shipped spacing and yields, as data. For every plants.csv row with an
 /// area_per_plant_m2:
