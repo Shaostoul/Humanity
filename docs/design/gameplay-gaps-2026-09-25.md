@@ -991,6 +991,55 @@ date; re-check before trusting one. The container data basis is
   whole oats to dehull, not food, and whole oats and spelt in the hull are
   bulkier than the 0.93 L a bag they keep (NRCS 32 lb and AFCM 28 lb a bushel).
   (7) Groats are not yet cooked into porridge (the porridge simmers rice).
+- **The meter's supply side is honest, the fish tanks' air pumps are metered,
+  the household's hot water adds up, and the tower timer agrees with its
+  maker: DONE 2026-09-27** (items 1 to 4 of the list above). Every figure and
+  its quotation, with the date read, sit beside the machine in
+  `data/machines/home.ron`; docs/design/ship-life-support.md section 7 has the
+  before and after. SUPPLY (`MachineDef::average_supply_watts`): a 400 W panel
+  counts NREL PVWatts' 440.68 kWh a year at Silverdale, WA less Tesla's 90%
+  battery round trip, 45.3 W averaged (1.09 kWh a day, 0.51 in January; the
+  meter counted 1.8 and the loops 1.44); the wind turbine is a Primus AIR 40 in
+  the Bremerton airport's measured 2.37 m/s wind, 4.4 W averaged by the
+  Rayleigh method AWEA 9.1-2009 rates small turbines with, a 2.8% capacity
+  factor (the meter counted 150 W for 24 hours, the loops an unsourced 19%);
+  the backstop generator is a Honda EU2200i class set (1.8 kW, 1.125 L of fuel
+  an hour), shown apart with the hours and fuel it would take, never as supply
+  (the solo home's had no power role; it has one now). The family meter went
+  from "makes 69.6 kWh/day, fully self-sufficient" to makes 11.0, uses 24.0
+  Station-supplied and 61.8 Realistic; the solo from 10.8 to 4.45 against 8.6
+  and 32.8. Neither home closes in either mode (12 and 4 more panels
+  Station-supplied on the year's average, 47 and 27 Realistic), and both
+  Energy loops say so, held to the meter by a test. The Buildability energy
+  balance now charges what the Usage meter charges (it left out the towers'
+  pumps and the freezer, 5.7 kWh a day in the family home) and warns when a
+  home balances only on the generator's fuel. AIR PUMPS: each fish tank's is a
+  HIBLOW HP-20, 17 W for 20 L of air a minute, inside FAO 589's 5 to 8 L a
+  minute per cubic metre of its 2.56 m3, powered and wired (priority 1).
+  PLUMBING: the family household is three of the outline's one-person fixture
+  list, 255 L a day (its 240 L tap drew on top of fixtures drawing about 1,270
+  more); each fixture's hot feed is its measured hot share (Residential End
+  Uses of Water 2016 via LBNL 2020: showers 66.2%, faucets 57.0%, clothes
+  washers 20.0%), 110 L a day for three and 37 for one, exactly what each
+  water heater makes; both washers have a hot and a cold feed. TIMER:
+  `data/towers/aeroponic_configs.ron` says Tower Garden's "5 min on, 45 min
+  off" indoors. `data/self_sufficiency/component_outputs.ron` and
+  `data/home_outline.json` carry the same wind, pump and generator figures
+  (the outline's storage rises from 3 banks to 4 at its 4.0 kWh/day design
+  load, and its sealed case from 45 panels to 47). Tests, each seen red:
+  `the_meter_shows_a_backstop_apart_from_what_the_home_makes`,
+  `the_power_sources_make_their_sourced_daily_energy`,
+  `the_household_hot_water_is_each_fixtures_measured_share`, the household
+  energy test extended (src/machines.rs), and
+  `household_energy_supply_sums_kwh_per_day_components`
+  (src/systems/self_sufficiency.rs). Found, left alone: (1) the live sim still
+  gives each panel 400 W on the game's twelve-hour sine, 2.8 times the site's
+  yield, and with the batteries not yet carrying load at night the wind's real
+  4.4 W now carries almost nothing after sunset; (2) the water heaters' RECS
+  figures are about twice (family) and two and a half times (solo) the heat in
+  the homes' own hot water; (3) the fish tanks' water circulation pumps (FAO:
+  25 to 50 W for a 1,000 L unit), lighting and small appliances are still
+  unmetered.
 
 ## Defects found (things that are wrong, not merely missing)
 

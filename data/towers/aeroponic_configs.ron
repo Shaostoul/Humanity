@@ -19,6 +19,13 @@
 // bridge (north star: every in-game system maps to a real buildable thing). It is
 // a STARTING list to refine for your own build, not a fixed spec.
 //
+// The pump timer (2026-09-27; the nutrition tower's note suggested "15 min on / 15 off", three
+// times the maker's indoor duty): Tower Garden's own timer page
+// (https://us.towergarden.com/products/tower-garden-timer, read 2026-09-27): "Select I for Indoor
+// use (5 min on, 45 min off)", "Select O for Outdoor use (3 min on, 12 min off)". The homes'
+// towers are indoors, and data/machines/home.ron and home_solo.ron charge their pumps on the
+// indoor setting; src/machines.rs holds these notes to it.
+//
 // The medicinal notes are CULINARY and TRADITIONAL/folk uses, not medical advice.
 // No em-dashes (the strings render in-app, where em-dashes are banned).
 
@@ -98,7 +105,7 @@
                 (name: "Reservoir tank, food-grade (~80 L)", qty: "1", source: "scavenge", note: "A clean food barrel or tote. A bigger reservoir holds nutrients steadier."),
                 (name: "Submersible pump (lift over 2.5 m)", qty: "1", source: "buy", note: "Must raise water to the top of this tall, wide tower."),
                 (name: "Riser tube + top distribution cap", qty: "1 set", source: "3d_print", note: "Carries water up; the cap cascades it down over the roots."),
-                (name: "Repeat cycle timer", qty: "1", source: "buy", note: "Pulses the pump (for example 15 min on / 15 off) to aerate the roots."),
+                (name: "Repeat cycle timer", qty: "1", source: "buy", note: "Pulses the pump to wet and aerate the roots: 5 min on, 45 min off indoors, 3 on and 12 off outdoors (Tower Garden's own settings)."),
                 (name: "Net-cup medium, clay pebbles", qty: "~12 L", source: "buy", note: "Cradles the seedlings; rinse and reuse between crops."),
                 (name: "Hydroponic nutrients (A + B)", qty: "per reservoir", source: "diy", note: "Mineral salts. Mix from bulk salts once you learn the recipe."),
                 (name: "pH test kit + pH up/down", qty: "1", source: "buy", note: "Keep the shared reservoir inside the plants' common pH window."),
@@ -159,7 +166,7 @@
                 (name: "Reservoir tank, food-grade (~40 L)", qty: "1", source: "scavenge", note: "The slim column needs less reservoir."),
                 (name: "Submersible pump (lift over 2 m)", qty: "1", source: "buy", note: "Raises water to the top of this shorter tower."),
                 (name: "Riser tube + top distribution cap", qty: "1 set", source: "3d_print", note: "Water up, cascade down over the roots."),
-                (name: "Repeat cycle timer", qty: "1", source: "buy", note: "Pulses the pump to aerate the roots."),
+                (name: "Repeat cycle timer", qty: "1", source: "buy", note: "Pulses the pump: 5 min on, 45 min off indoors, 3 on and 12 off outdoors (Tower Garden's own settings)."),
                 (name: "Net-cup medium, clay pebbles", qty: "~10 L", source: "buy", note: "Rinse and reuse between crops."),
                 (name: "Hydroponic nutrients (A + B)", qty: "per reservoir", source: "diy", note: "Many herbs prefer a slightly leaner mix than heavy feeders."),
                 (name: "pH test kit + pH up/down", qty: "1", source: "buy", note: "Hold the shared reservoir inside the herbs' common pH window."),

@@ -281,11 +281,27 @@
                 ),
                 (
                     kind: "power",
-                    value: "-50 W air pump",
+                    value: "-17 W air pump, all day: 0.41 kWh/d",
                     status: "ok",
                 ),
             ],
-            power: None,
+            // Its air pump (2026-09-27; the stat said 50 W, which no source backed, and it had no
+            // power, so the meter charged nothing). How much air: FAO's Small-scale aquaponic food
+            // production (Somerville et al. 2014, FAO Fisheries and Aquaculture Technical Paper
+            // 589, https://www.fao.org/4/i4021e/i4021e.pdf, read 2026-09-27), section 7.3: "The
+            // suggested rate is 5–8 litres of air per minute for each cubic metre of water,
+            // coming from at least 2 air stones in different locations in the fish tank", so this
+            // 1.6 x 1.0 x 1.6 m tank, 2.56 m3, wants 12.8 to 20.5 L a minute at the bottom of about
+            // a metre of water. The pump: a HIBLOW HP-20 linear air pump, whose spec sheet
+            // (https://www.hiblow-usa.com/wp-content/uploads/2017/02/HP-20-40_170119.pdf, read
+            // 2026-09-27) gives "Rated Loading Pressure kPa 9.8" (a metre of water), "Airflow
+            // Volume" 20 L/min at 60 Hz and "Power Consumption W 17": the top of FAO's range, for
+            // 17 W. FAO wants the aeration on around the clock ("simple battery backups for air
+            // pumps have saved countless fish"), so it is a steady load, priority 1, shed last.
+            power: Some(Consumer(
+                watts: 17.0,
+                priority: 1,
+            )),
             ports: [],
             storage: [],
             rf_emission: 0.0,
@@ -821,13 +837,24 @@
                 ),
                 (
                     kind: "power",
-                    value: "backup 2 kW",
+                    value: "backstop 1.8 kW while it runs, 1.1 L of fuel an hour",
                     status: "off",
                 ),
             ],
+            // A backstop, not a supply (2026-09-27): the meter counted its 2 kW for 24 hours, 48
+            // kWh a day, as though the home made it. Now the meter shows it apart, as what it CAN
+            // add while fuel is burned for it. The machine: a Honda EU2200i class inverter
+            // generator. Its owner's manual (https://cdn.powerequipment.honda.com/pe/pdf/manuals/
+            // 00X31Z446010.pdf, read 2026-09-27): "Rated output" "1.8 kVA", "Maximum output"
+            // "2.2 kVA", "Fuel tank capacity 0.95 US gal (3.6 L)"; a Honda dealer's listing
+            // (https://hondapowertools.com/product/eu2200i-generator/, read 2026-09-27): "3.2hr @
+            // rated load", "8.1 hrs @ 1/4 load". So 1,800 W while it runs, on 3.6 L / 3.2 h =
+            // 1.125 L an hour at that load, 0.63 L a kWh (at a quarter load it is 0.44 L an hour,
+            // about 1.0 L a kWh, which is why a backstop charges the batteries flat out). It was
+            // 2,000 W on 1.5 L an hour from no source. It burns what is in its 200 L drum.
             power: Some(Generator(
-                watts: 2000.0,
-                fuel_lph: 1.5,
+                watts: 1800.0,
+                fuel_lph: 1.125,
             )),
             ports: [],
             storage: [],
@@ -988,16 +1015,36 @@
             container_type: None,
             model: None,
         ),
+        // THE HOUSEHOLD'S WATER (2026-09-27). Three people at data/home_outline.json's one-person
+        // fixture list (drinking and cooking 5, kitchen sink 15, bathroom sink 5, shower 35,
+        // toilet 14, laundry 11 L a day; home_solo.ron carries the same list for one), 255 L a
+        // day. Until this the household tap drew 245 L a day on top of fixtures whose ports drew
+        // about 1,270 more, and the hot ports added to 403 L a day. Each fixture's hot share is
+        // the measured share of that fixture's water that is hot, from the Water Research
+        // Foundation's Residential End Uses of Water, Version 2 (DeOreo et al. 2016, 94 homes in
+        // Arizona, Colorado, Florida, Georgia, Texas, Washington and Ontario), as tabled by Lawrence Berkeley
+        // National Laboratory for the EPA's WaterSense programme (Chen et al., "Calculating
+        // Average Hot Water Mixes of Residential Plumbing Fittings", June 2020, Table 2,
+        // https://www.osti.gov/servlets/purl/1619186, read 2026-09-27): "Showers ... 66.2",
+        // "Faucets ... 57.0", "Clothes washers ... 20.0" percent. So the kitchen sink 45 L (25.7
+        // hot), the bathroom sink 15 (8.6 hot), the shower 105 (69.5 hot) and the washer 33
+        // (6.6 hot): 110.3 L of hot water a day, 43% of the household's water. Two checks: the
+        // same table's ten Seattle homes (DeOreo and Mayer 2000) found "an overall hot water
+        // usage of 39.6 percent of total indoor water use", and the Energy Saving Trust's
+        // measured UK homes ("Measurement of Domestic Hot Water Consumption in Dwellings", 2008,
+        // https://assets.publishing.service.gov.uk/media/5a75a29ced915d6faf2b4829/3147-measure-domestic-hot-water-consump.pdf,
+        // read 2026-09-27) fit "40 + 28 N" litres a day for N people, 124 for three. The water
+        // heater makes exactly the 110.3 L the fixtures draw.
         "home_water_use": (
             shape: "box",
             size: (0.3, 0.3, 0.3),
             color: (0.4, 0.6, 0.78),
-            label: "Household water (taps + showers)",
+            label: "Drinking water",
             category: "Water",
             stats: [
                 (
                     kind: "water",
-                    value: "-240 L/d (drink/wash)",
+                    value: "-15 L/d (drinking and cooking)",
                     status: "ok",
                 ),
             ],
@@ -1008,7 +1055,7 @@
                     dir: In,
                     label: "taps",
                     watts: 0.0,
-                    flow_lpm: 0.17,
+                    flow_lpm: 0.01042,
                     mbps: 0.0,
                     anchor: (0.0, 0.0, 0.0),
                 ),
@@ -1028,7 +1075,7 @@
             stats: [
                 (
                     kind: "water",
-                    value: "-25 L/d (cooking + dishes)",
+                    value: "-45 L/d (dishes and washing up), 57% of it hot",
                     status: "ok",
                 ),
             ],
@@ -1039,7 +1086,7 @@
                     dir: In,
                     label: "cold feed",
                     watts: 0.0,
-                    flow_lpm: 0.10,
+                    flow_lpm: 0.01344,
                     mbps: 0.0,
                     anchor: (0.0, 0.0, 0.0),
                 ),
@@ -1048,7 +1095,7 @@
                     dir: In,
                     label: "hot feed",
                     watts: 0.0,
-                    flow_lpm: 0.05,
+                    flow_lpm: 0.01781,
                     mbps: 0.0,
                     anchor: (0.0, 0.0, 0.0),
                 ),
@@ -1068,7 +1115,7 @@
             stats: [
                 (
                     kind: "water",
-                    value: "-10 L/d",
+                    value: "-15 L/d, 57% of it hot",
                     status: "ok",
                 ),
             ],
@@ -1079,7 +1126,7 @@
                     dir: In,
                     label: "cold feed",
                     watts: 0.0,
-                    flow_lpm: 0.05,
+                    flow_lpm: 0.00448,
                     mbps: 0.0,
                     anchor: (0.0, 0.0, 0.0),
                 ),
@@ -1088,7 +1135,7 @@
                     dir: In,
                     label: "hot feed",
                     watts: 0.0,
-                    flow_lpm: 0.03,
+                    flow_lpm: 0.00594,
                     mbps: 0.0,
                     anchor: (0.0, 0.0, 0.0),
                 ),
@@ -1108,7 +1155,7 @@
             stats: [
                 (
                     kind: "water",
-                    value: "-40 L/d (the big hot draw)",
+                    value: "-105 L/d, 66% of it hot (the big hot draw)",
                     status: "ok",
                 ),
             ],
@@ -1119,7 +1166,7 @@
                     dir: In,
                     label: "cold feed",
                     watts: 0.0,
-                    flow_lpm: 0.20,
+                    flow_lpm: 0.02465,
                     mbps: 0.0,
                     anchor: (0.0, 0.0, 0.0),
                 ),
@@ -1128,7 +1175,7 @@
                     dir: In,
                     label: "hot feed",
                     watts: 0.0,
-                    flow_lpm: 0.20,
+                    flow_lpm: 0.04827,
                     mbps: 0.0,
                     anchor: (0.0, 0.0, 0.0),
                 ),
@@ -1148,7 +1195,7 @@
             stats: [
                 (
                     kind: "water",
-                    value: "-20 L/d flush",
+                    value: "-42 L/d flush",
                     status: "ok",
                 ),
             ],
@@ -1159,7 +1206,7 @@
                     dir: In,
                     label: "tank fill",
                     watts: 0.0,
-                    flow_lpm: 0.10,
+                    flow_lpm: 0.02917,
                     mbps: 0.0,
                     anchor: (0.0, 0.0, 0.0),
                 ),
@@ -1168,7 +1215,7 @@
                     dir: Out,
                     label: "black water",
                     watts: 0.0,
-                    flow_lpm: 0.10,
+                    flow_lpm: 0.02917,
                     mbps: 0.0,
                     anchor: (0.0, 0.0, 0.0),
                 ),
@@ -1188,7 +1235,7 @@
             stats: [
                 (
                     kind: "water",
-                    value: "-30 L/load",
+                    value: "-33 L/d averaged, 20% of it hot",
                     status: "ok",
                 ),
                 (
@@ -1214,6 +1261,10 @@
             // `watts` is what the electrical sim draws around the clock (it has no model of a
             // wash cycle), so it carries the same 8.8 W average; the port keeps the 500 W motor,
             // which sizes the cable. The home_solo.ron washer is the same machine for one person.
+            // Its water (2026-09-27; it had only a cold feed): a machine sold in North America
+            // takes a hot and a cold hose and mixes them for a warm wash, and the measured homes
+            // above draw "Clothes washers ... 20.0" percent of its water hot. 33 L a day (11 a
+            // person), 6.6 of it hot from the water heater.
             power: Some(Consumer(
                 watts: 8.8,
                 priority: 4,
@@ -1225,7 +1276,16 @@
                     dir: In,
                     label: "cold feed",
                     watts: 0.0,
-                    flow_lpm: 0.15,
+                    flow_lpm: 0.01833,
+                    mbps: 0.0,
+                    anchor: (0.0, 0.0, 0.0),
+                ),
+                (
+                    utility: HotWater,
+                    dir: In,
+                    label: "hot feed",
+                    watts: 0.0,
+                    flow_lpm: 0.00458,
                     mbps: 0.0,
                     anchor: (0.0, 0.0, 0.0),
                 ),
@@ -1254,7 +1314,7 @@
             stats: [
                 (
                     kind: "water",
-                    value: "hot water for 3 fixtures",
+                    value: "110 L/d hot to 4 fixtures",
                     status: "ok",
                 ),
                 (
@@ -1273,7 +1333,11 @@
             // of electric heaters. `watts` is what the electrical sim draws around the clock (it
             // has no thermostat), so it carries the same 397.5 W; before this it drew the 2 kW
             // element all day and night in play. The element's 2 kW stays on the port, which sizes
-            // the cable (its 30 A circuit, cu_awg10).
+            // the cable (its 30 A circuit, cu_awg10). Its water (2026-09-27): it heats the 110.3 L a
+            // day the fixtures above draw hot (it passed 432). Warming that from the national
+            // 60.5 F inlet to the 125 F setpoint of the LBNL report above (a 35.8 C rise) is 4.6
+            // kWh of heat a day, about half the RECS figure: the rest is the tank's standby loss
+            // and a US household's larger draw, and this file charges RECS's measured average.
             power: Some(Consumer(
                 watts: 397.5,
                 priority: 4,
@@ -1294,7 +1358,7 @@
                     dir: In,
                     label: "cold in",
                     watts: 0.0,
-                    flow_lpm: 0.30,
+                    flow_lpm: 0.0766,
                     mbps: 0.0,
                     anchor: (0.0, 0.0, 0.0),
                 ),
@@ -1303,7 +1367,7 @@
                     dir: Out,
                     label: "hot out",
                     watts: 0.0,
-                    flow_lpm: 0.30,
+                    flow_lpm: 0.0766,
                     mbps: 0.0,
                     anchor: (0.0, 0.0, 0.0),
                 ),
@@ -1334,7 +1398,7 @@
                     dir: In,
                     label: "from the toilet",
                     watts: 0.0,
-                    flow_lpm: 0.10,
+                    flow_lpm: 0.02917,
                     mbps: 0.0,
                     anchor: (0.0, 0.0, 0.0),
                 ),
@@ -2088,12 +2152,30 @@
             stats: [
                 (
                     kind: "power",
-                    value: "+1.4 kWh/d",
+                    value: "+1.1 kWh/d a year's average here, 0.5 in January",
                     status: "ok",
                 ),
             ],
+            // What a panel makes at the home's site (2026-09-27; the meter counted 400 W x 4.5
+            // sun-hours with no losses, 1.8 kWh a day, and the Energy loop 1.44 at a generic 4.5
+            // sun-hours x 0.80). The site is data/self_sufficiency/location.ron's Silverdale, WA.
+            // NREL's PVWatts calculator (version 8.5.0, now served by the National Laboratory of
+            // the Rockies, https://developer.nlr.gov/api/pvwatts/v8.json, queried 2026-09-27) for
+            // lat 47.645, lon -122.695, one 0.4 kW panel, fixed open rack, tilt 40 degrees facing
+            // south (a game choice, near the latitude, which favours winter), PVWatts' default
+            // 14.08% system losses, weather "NSRDB PSM V3 GOES tmy-2020": "ac_annual" 440.6776
+            // kWh a year at the inverter, "solrad_annual" 3.9062 kWh/m2/day on the panel,
+            // "capacity_factor" 12.576 (per cent); the worst month is January, whose "ac_monthly"
+            // is 17.600 kWh (0.568 a day; December 18.983). An
+            // off-grid home time-shifts most of it through its batteries: Tesla's Powerwall 2
+            // datasheet gives "Round Trip Efficiency 90%" ("AC to battery to AC, at beginning of
+            // life", read 2026-09-27), taken on all of it as data/home_outline.json does (the share
+            // used while the sun is up skips the battery, so this is the cautious end). So
+            // 440.68 kWh x 0.90 / 8,760 h = 45.3 W averaged, 1.09 kWh a day, 0.51 in January. The
+            // live sim still follows the game's own sun with the 400 W peak.
             power: Some(Solar(
                 peak_watts: 400.0,
+                average_watts: Some(45.3),
             )),
             ports: [],
             storage: [],
@@ -2391,7 +2473,7 @@
             stats: [
                 (
                     kind: "storage",
-                    value: "33 days",
+                    value: "23 days (dry season, net draw ~346 L/d)",
                     status: "ok",
                 ),
                 (
@@ -2480,15 +2562,53 @@
             stats: [
                 (
                     kind: "power",
-                    value: "+0.7 kWh/d",
+                    value: "+0.11 kWh/d here: the wind averages 2.4 m/s, under the 3.1 it starts at",
                     status: "warn",
                 ),
             ],
+            // What the turbine makes at the home's site (2026-09-27; the meter counted its 150 W
+            // for 24 hours, 3.6 kWh a day, and the Energy loop +0.7 at an unsourced 19% capacity
+            // factor). The machine: Primus Wind Power's AIR 40, whose owner's manual (page 5,
+            // https://www.manualslib.com/manual/2040471/Primus-Wind-Power-Air-40.html, read
+            // 2026-09-27) gives "Rated Power: 160 watts @ 28 mph (12.5 m/s)", "Start Up Wind
+            // Speed: 7 mph (3.13 m/s)", "Rotor Diameter: 46 in / 1.17 m" and "Kilowatt
+            // Hours/month: 40 kWh/month @ 12 mph (5.5 m/s)". The site's wind: the Western
+            // Regional Climate Center's "Average Wind Speeds - MPH", "based on the hourly data
+            // from 1996-2006 from automated stations at reporting airports"
+            // (https://wrcc-archive.dri.edu/Climate/comp_table_show.php?stype=wind_speed_avg,
+            // read 2026-09-27), "BREMERTON AIRPORT AWOS |KPWT|1996-2006|" annual "5.3" mph, 2.37
+            // m/s (August 4.6, March 6.3), the nearest station, about 18 km from Silverdale; the
+            // turbine is taken at the station's wind-sensor height (10 m, the standard). The
+            // method is the one small turbines are rated by: the AWEA Small Wind Turbine
+            // Performance and Safety Standard 9.1-2009's Rated Annual Energy is computed
+            // "assuming a Rayleigh wind speed distribution"
+            // (https://cleanpower.org/wp-content/uploads/2021/12/AWEA_2009_Small_Turbine_Standard.pdf,
+            // read 2026-09-27). The turbine's power taken as a cube law from its 3.13 m/s start,
+            // capped at 160 W, and fitted to the manual's own 40 kWh a month at 5.5 m/s (that
+            // implies a power coefficient of 0.36, generous for a 1.17 m rotor), a Rayleigh wind
+            // averaging 2.37 m/s gives 4.4 W: 0.11 kWh a day, a 2.8% capacity factor. The same
+            // curve on the twelve monthly means gives 4.7 W, and a power coefficient of 0.30 gives
+            // 3.7: range 3.7 to 4.7, point 4.4 (src/machines.rs recomputes it). For scale, PNNL's
+            // Distributed Wind Market Report 2024 edition: "The average net capacity factor in 2023
+            // for a sample of 100 small wind projects was 13%" (read 2026-09-27), turbines sited
+            // where the wind is. `watts` is what the electrical sim makes around the clock (it has
+            // no wind model) and what the meter counts, so it is the day's average; the port keeps
+            // the 160 W nameplate, which sizes the cable.
             power: Some(Generator(
-                watts: 150.0,
+                watts: 4.4,
                 fuel_lph: 0.0,
             )),
-            ports: [],
+            ports: [
+                (
+                    utility: Electricity,
+                    dir: Out,
+                    label: "160 W at 12.5 m/s",
+                    watts: 160.0,
+                    flow_lpm: 0.0,
+                    mbps: 0.0,
+                    anchor: (0.0, 0.0, 0.0),
+                ),
+            ],
             storage: [],
             rf_emission: 0.0,
             auto_recipe: None,
@@ -4325,6 +4445,10 @@
         (from: "battery_7", to: "mushfan_5", kind: "power", spec: None),
         (from: "battery_7", to: "mushfan_c1", kind: "power", spec: None),
         (from: "battery_7", to: "mushroom_fan_1", kind: "power", spec: None),
+        // The fish tanks' air pumps (2026-09-27), on the same bank.
+        (from: "battery_7", to: "aqua_1", kind: "power", spec: None),
+        (from: "battery_7", to: "aqua_2", kind: "power", spec: None),
+        (from: "battery_7", to: "aqua_c1", kind: "power", spec: None),
         (
             from: "battery_8",
             to: "turret_1",
@@ -4545,6 +4669,13 @@
             kind: "water",
             spec: Some("pex_half"),
         ),
+        // The washer's hot hose (2026-09-27; it had only the cold feed).
+        (
+            from: "water_heater_1",
+            to: "washer_1",
+            kind: "water",
+            spec: Some("pex_half"),
+        ),
         (
             from: "battery_1",
             to: "water_heater_1",
@@ -4584,19 +4715,19 @@
     loops: [
         (
             name: "Energy",
-            demand: "~60.5 kWh/day in the Realistic mode (the home and its machines ~22.8, the air handlers ~37.8); ~22.8 kWh/day Station-supplied (water heater ~9.5, tower pumps ~4.1, mushroom tent humidifiers ~3.4, freezer ~1.5, the mushrooms' CO2 fans ~1.5, the rest ~2.6); cooking and crafting on top, by the hour",
-            supply: "~15.1 kWh/day: 10 solar panels + wind; 8 batteries; generator backstop",
+            demand: "~61.8 kWh/day in the Realistic mode (the home and its machines ~24.0, the air handlers ~37.8); ~24.0 kWh/day Station-supplied (water heater ~9.5, tower pumps ~4.1, mushroom tent humidifiers ~3.4, freezer ~1.5, the mushrooms' CO2 fans ~1.5, the fish tanks' air pumps ~1.2, the rest ~2.6); cooking and crafting on top, by the hour",
+            supply: "~11.0 kWh/day: 10 solar panels ~10.9 (their yield at the home's site after the batteries' round trip; ~5.1 in January) + wind ~0.1; 8 batteries; the backstop generator (1.8 kW while it runs) counted apart",
             closes: false,
             weakest: true,
-            note: "Does NOT close in either mode. THE METER (2026-09-27): these figures are the Construction page's power meter, which now charges every machine its real daily energy, and a test (the_household_machines_charge_their_sourced_daily_energy in src/machines.rs) holds this loop to it. Until then the meter charged the water heater's 2 kW element for 24 hours (48 kWh a day), the washer's 500 W (12) and the towers' 15 W ports (11.9), and the freezer nothing, while this loop's hand count said about 11.4 for the whole home. The real household, from EIA's 2020 Residential Energy Consumption Survey averages for a three-person household (Tables CE5.3a and CE5.3b): the water heater is the home's largest load, 9.5 kWh a day (3,482 kWh a year for a home that heats its water with electricity, standby losses and the laundry's hot water included); the freezer 1.5 (559 kWh a year); the washer's motor 0.21 (77 kWh a year, about 0.3 kWh a load at about 4.8 loads a week); and the towers' pumps 4.1 (Tower Garden's 48 W and 35 W pumps on the maker's indoor timer, 5 minutes on in every 50; the apothecary towers had no pump at all). In the Station-supplied mode, the default, the station's own plant powers the air handlers and the scrubber, and the home draws about 22.8 kWh a day against 15.1: the water heater 9.5, the tower pumps 4.1, the mushroom tent humidifiers 3.4, the freezer 1.5, the mushrooms' CO2 fans 1.5 (the room's 1.2, the tents' 0.3) and the rest 2.6 (the home server, the defense turret, the water purifier and pump, the network, the irrigation, the washer, and the work stations at idle). It does NOT close, by about 7.7 kWh a day, about five more panels. Cooking and crafting come on top, by the hour: the work stations draw 3.6 kW more while a craft runs at all of them, and a real three-person household's cooking averages 0.89 kWh a day (RECS Table CE5.3b, 325 kWh a year). Not counted yet, because no data carries them: the three aquaponic tanks' air pumps (their stat says 50 W, which no source backs), lighting, and small appliances. In the Realistic mode the air handlers' 37.8 kWh a day come onto the home's grid as well, about 60.5 kWh a day, about 26 more panels. The cheapest lever in the house is the water heater (a heat pump water heater moves heat instead of making it; not placed or sourced here yet). Aboard a sealed station every litre the crops breathe out has to be condensed back out of the air, because there is no outside to vent it to; until this the model held the home's air at 40% for nothing. The home now carries seven air handlers (Carrier 42CT size 14 fan coils on the station's cooling loop: 1,842 m3/h, 325 W flat out, data/life_support.ron): two in the greenhouse and one in the court, holding them at 75% (the greenhouse's crops breathe out about 541 L a day, the court's towers 106 L), and four in the plant room, holding the home's own air at 50%. Measured over a day and a night at full planting (src/systems/farming/life_support_tests.rs) they average about 1,570 W, 37.8 kWh a day. Most of it is the home's four: the greenhouse and the court leak 0.5 air changes an hour into the drier home air, about 215 L of their water a day, and every litre condensed there costs about 105 Wh of fan power against 27 Wh in the greenhouse. The exhaust fan now idles (the handlers hold the greenhouse under its 80%), and the CO2 scrubber that replaced the 25 W air recycler idles too (the crops keep the carbon dioxide far under its 2,636 ppm). Since 2026-09-27 each mushroom tent has a CO2 fan (an AC Infinity CLOUDLINE S4, 28 W, switched at 900 ppm by a CO2 controller) and the mushroom room one of its own (a CLOUDLINE S6, 70 W, at 600 ppm): about 61 W together (the room fan 51, on about 72% of the time), 1.5 kWh a day, and the fresh air they bring in makes the tent humidifiers work harder, 3.4 kWh a day at the average the catalog carries (was 0.6). The cheaper levers are design calls: holding the home's air at 60% instead of 50% (the EPA's line; the handlers then average about 920 W, 22 kWh a day, measured), sealing the greenhouse and the court from the home more tightly than an Earth greenhouse's 0.5 air changes an hour, or fan coils with EC motors (the catalogue's are permanent split capacitor motors, the least efficient kind, and its EC option publishes no figures to model). The coils' heat, about 19 kW of it latent (666 L a day at 2.45 MJ a litre, FAO-56), goes to the station's radiators, which the game does not model yet: the Climate loop. Energy is Wh/day, not nameplate watts: ten 400 W panels make ~14.4 kWh/d at 4.5 sun-hours, eight battery banks ride a ~3-day no-sun stretch at the old demand, and the generator covers the deeper tail. Grow-lights to feed 3 people indoors would draw 30 to 150+ kWh/d, so the garden uses the sun, not LEDs.",
+            note: "Does NOT close in either mode, on the year's average or in winter. THE METER (2026-09-27): these figures are the Construction page's power meter, which charges every machine its real daily energy and credits every source what it makes at the home's site (Silverdale, WA, data/self_sufficiency/location.ron), and a test (the_household_machines_charge_their_sourced_daily_energy in src/machines.rs) holds this loop to it. SUPPLY: a 400 W panel makes 1.09 kWh a day there averaged over the year and 0.51 in January, the worst month (NREL's PVWatts: 440.7 kWh a year at the inverter for a panel tilted 40 degrees to the south, less the batteries' 90% round trip, Tesla Powerwall 2), and the wind turbine (a Primus AIR 40, 160 W at 12.5 m/s) makes 0.11 kWh a day, because the nearest measured wind, the Bremerton airport's, averages 2.4 m/s (5.3 mph) and the turbine needs 3.1 to start. So the home makes about 11.0 kWh a day on its own, about 5.2 in January. The backstop generator (a 1.8 kW inverter set, 1.1 L of fuel an hour) is not counted as supply: the meter shows what it can add while it runs. Until this the meter counted the generator's 2 kW and the turbine's 150 W for 24 hours and each panel's 400 W for 4.5 sun-hours with nothing lost, 69.6 kWh a day and 'fully self-sufficient', and this loop's 15.1 rested on a generic 4.5 sun-hours and an unsourced 0.7 kWh a day of wind. DEMAND: the household's machines are EIA's 2020 Residential Energy Consumption Survey averages for a three-person household (Tables CE5.3a and CE5.3b): the water heater is the home's largest load, 9.5 kWh a day (3,482 kWh a year for a home that heats its water with electricity, standby losses and the laundry's hot water included); the freezer 1.5 (559 kWh a year); the washer's motor 0.21 (77 kWh a year). The towers' pumps are 4.1 (Tower Garden's 48 W and 35 W pumps on the maker's indoor timer, 5 minutes on in every 50), and the three fish tanks' air pumps 1.2 (a 17 W HIBLOW HP-20 each, all day, the top of FAO's 5 to 8 L of air a minute for each cubic metre of water). In the Station-supplied mode, the default, the station's own plant powers the air handlers and the scrubber, and the home draws about 24.0 kWh a day against the 11.0 it makes: the water heater 9.5, the tower pumps 4.1, the mushroom tent humidifiers 3.4, the freezer 1.5, the mushrooms' CO2 fans 1.5 (the room's 1.2, the tents' 0.3), the fish tanks' air pumps 1.2 and the rest 2.6 (the home server, the defense turret, the water purifier and pump, the network, the irrigation, the washer, and the work stations at idle). It does NOT close: 13.0 kWh a day short, about 12 more panels on the year's average and about 37 more for January; the backstop would have to run about 7.2 hours a day on 8.1 L of fuel to cover it. Cooking and crafting come on top, by the hour: the work stations draw 3.6 kW more while a craft runs at all of them, and a real three-person household's cooking averages 0.89 kWh a day (RECS Table CE5.3b, 325 kWh a year). Not counted yet, because no data carries them: lighting, small appliances, and the fish tanks' water pumps (FAO sizes 25 to 50 W for a 1,000 L unit; how these tanks' water reaches the towers is not modelled). In the Realistic mode the air handlers' 37.8 kWh a day come onto the home's grid as well, about 61.8 kWh a day against 11.0: it does NOT close, about 47 more panels on the year's average, and even the backstop running all day (43.2 kWh on 27 L of fuel) would leave it 7.6 kWh short. The cheapest lever in the house is the water heater (a heat pump water heater moves heat instead of making it; not placed or sourced here yet), and its RECS figure is about twice the heat in this home's own 110 L of hot water a day (the Water loop): the average US household it comes from draws more. Aboard a sealed station every litre the crops breathe out has to be condensed back out of the air, because there is no outside to vent it to; until this the model held the home's air at 40% for nothing. The home now carries seven air handlers (Carrier 42CT size 14 fan coils on the station's cooling loop: 1,842 m3/h, 325 W flat out, data/life_support.ron): two in the greenhouse and one in the court, holding them at 75% (the greenhouse's crops breathe out about 541 L a day, the court's towers 106 L), and four in the plant room, holding the home's own air at 50%. Measured over a day and a night at full planting (src/systems/farming/life_support_tests.rs) they average about 1,570 W, 37.8 kWh a day. Most of it is the home's four: the greenhouse and the court leak 0.5 air changes an hour into the drier home air, about 215 L of their water a day, and every litre condensed there costs about 105 Wh of fan power against 27 Wh in the greenhouse. The exhaust fan now idles (the handlers hold the greenhouse under its 80%), and the CO2 scrubber that replaced the 25 W air recycler idles too (the crops keep the carbon dioxide far under its 2,636 ppm). Since 2026-09-27 each mushroom tent has a CO2 fan (an AC Infinity CLOUDLINE S4, 28 W, switched at 900 ppm by a CO2 controller) and the mushroom room one of its own (a CLOUDLINE S6, 70 W, at 600 ppm): about 61 W together (the room fan 51, on about 72% of the time), 1.5 kWh a day, and the fresh air they bring in makes the tent humidifiers work harder, 3.4 kWh a day at the average the catalog carries (was 0.6). The cheaper levers are design calls: holding the home's air at 60% instead of 50% (the EPA's line; the handlers then average about 920 W, 22 kWh a day, measured), sealing the greenhouse and the court from the home more tightly than an Earth greenhouse's 0.5 air changes an hour, or fan coils with EC motors (the catalogue's are permanent split capacitor motors, the least efficient kind, and its EC option publishes no figures to model). The coils' heat, about 19 kW of it latent (666 L a day at 2.45 MJ a litre, FAO-56), goes to the station's radiators, which the game does not model yet: the Climate loop. Grow-lights to feed 3 people indoors would draw 30 to 150+ kWh/d, so the garden uses the sun, not LEDs.",
         ),
         (
             name: "Water",
-            demand: "~331 L/day net (household ~240 + the garden's net ~91)",
+            demand: "~346 L/day net (household ~255, 110 of it hot + the garden's net ~91)",
             supply: "rain + well + ~155 L/day greywater recycling; the air handlers hand ~689 L/day back to the tanks; 8000 L cistern = ~24 days",
             closes: true,
             weakest: false,
-            note: "Closes, and the garden's water is now a real loop (2026-09-26, ship life support). The irrigation draws what the crops breathe out plus what their tissue keeps (NASA's measured share, 2 to 10% by crop, data/life_support.ron), about 780 L a day at full planting, and the seven air handlers condense what the air carries and pipe it back to the cistern: about 689 L a day, every litre the indoor crops (647), the mushroom tents (7 breathed, 29 humidified, up from 6 since their CO2 fans bring in drier air) and the household (5) put into the air, to within 1% (src/systems/farming/life_support_tests.rs). The garden's net draw is therefore about 91 L a day: the water its crops keep (~40 L, which leaves in the harvest), what the outdoor fields breathe into the weather (~57 L), less the household's breath the coils catch (~5 L). Net demand is the household plus that, about 331 L a day, and the cistern's dry-season reach is about 24 days (it was quoted at 32 when the garden's water was billed at a fraction of its real rate and its vapour vanished into the home's air). The air runs on game hours and the tanks on real minutes, which is still the operator's open question; the flows cross as litres a day on both sides, so a day's water balances on either clock. If the air handlers lose power, the greenhouse's water stays in the air and the tanks stop getting it back.",
+            note: "Closes, and the garden's water is now a real loop (2026-09-26, ship life support). The irrigation draws what the crops breathe out plus what their tissue keeps (NASA's measured share, 2 to 10% by crop, data/life_support.ron), about 780 L a day at full planting, and the seven air handlers condense what the air carries and pipe it back to the cistern: about 689 L a day, every litre the indoor crops (647), the mushroom tents (7 breathed, 29 humidified, up from 6 since their CO2 fans bring in drier air) and the household (5) put into the air, to within 1% (src/systems/farming/life_support_tests.rs). The garden's net draw is therefore about 91 L a day: the water its crops keep (~40 L, which leaves in the harvest), what the outdoor fields breathe into the weather (~57 L), less the household's breath the coils catch (~5 L). Net demand is the household plus that, about 346 L a day, and the cistern's dry-season reach is about 23 days (it was quoted at 32 when the garden's water was billed at a fraction of its real rate and its vapour vanished into the home's air, and at 24 against a 240 L household). THE HOUSEHOLD (2026-09-27): three people at data/home_outline.json's one-person fixture list, 255 L a day (drinking and cooking 15, the kitchen sink 45, the bathroom sink 15, the shower 105, the toilet 42, the laundry 33); until then a 240 L household tap drew on top of fixtures whose ports drew about 1,270 L a day more, and whose hot ports added to 403 L a day against the heater's 432. Each fixture's hot water is its measured share (the Water Research Foundation's Residential End Uses of Water, 94 homes: showers 66.2%, faucets 57.0%, clothes washers 20.0%), 110 L a day, 43% of the household's water, and the water heater makes exactly that; the washer now has the hot and cold hoses a real one has (data/machines/home.ron quotes the sources). The air runs on game hours and the tanks on real minutes, which is still the operator's open question; the flows cross as litres a day on both sides, so a day's water balances on either clock. If the air handlers lose power, the greenhouse's water stays in the air and the tanks stop getting it back.",
         ),
         (
             name: "Air",

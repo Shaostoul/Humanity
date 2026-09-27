@@ -19,6 +19,7 @@ Where things live:
 | The machines | `air_handler` and `air_recycler` (now the CO2 scrubber) in `data/machines/home.ron` and `home_solo.ron` |
 | The mushrooms' air (2026-09-27): what stale air costs them, what each fungus breathes, the CO2 fans' controller | `data/garden/humidity.ron` (STALE AIR, THE FUNGI'S BREATH, THE CO2 FANS); `tent_co2_fan` and `room_co2_fan` in both home files |
 | What the static power meter charges a day (2026-09-27) | `MachineDef::average_load_watts` in `src/machines.rs`; `average_watts` on the air machines in both home files |
+| What it credits a day, and the backstop apart (2026-09-27) | `MachineDef::average_supply_watts` and `backstop_watts` in `src/machines.rs`; the solar panel's `average_watts`, the wind turbine's day-average `watts` and the generator in both home files (section 7) |
 | Who the electrical sim feeds first on a short island (2026-09-27) | `src/systems/electrical.rs` |
 
 ## 1. What was wrong before
@@ -147,7 +148,18 @@ ship life support machine nothing in the Station-supplied mode and its measured
 `average_watts` in the Realistic one; a controller-driven machine its measured
 `average_watts` (the shipped-homes test holds each figure to the measured draw);
 a work station its idle draw, with its working draw named in the summary instead
-of charged for the day; a grow light its timer's 6 hours.
+of charged for the day; a grow light its timer's 6 hours; every household machine
+its sourced daily energy (the water heater, the washer and the freezer EIA's 2020
+RECS averages for the household's size, the towers' pumps their maker's rating on
+its indoor timer, the fish tanks' air pumps a 17 W HIBLOW HP-20 all day). The
+supply side is honest the same way (2026-09-27, `MachineDef::average_supply_watts`):
+a panel counts its PVWatts yield at the home's site less the batteries' round trip
+(45.3 W averaged, 1.09 kWh a day), the wind turbine its average in the site's
+measured wind (4.4 W), and the backstop generator nothing: the meter shows what it
+can add while it runs, and the hours and fuel it would take to cover the day. The
+Buildability energy balance charges what the Usage meter charges and warns when a
+home balances only on the generator's fuel. The figures, sources and tests are in
+section 7.
 
 **Cost**: one pass over the airs per tick (a few dozen rooms and tents, a few
 machines each, a few `exp()` each); gameplay state only, nothing drawn or
@@ -244,13 +256,14 @@ mushrooms' CO2 fans (section 7); a figure that moved shows what it was.
 
 ## 5. What does not balance
 
-- **Energy, both homes, by a lot** (Realistic mode). The air handlers add about
-  38 kWh a day to the family home's 12 and about 24 to the solo home's 3.4,
-  against 15.1 and 5.76 of supply: about 27 and 16 more panels (with the
-  mushrooms' CO2 fans and the harder-working tent humidifiers, 2026-09-27). In
-  the Station-supplied mode the solo home closes (about 4.3 kWh a day) and the
-  family home no longer does (about 15.8 against 15.1: the mushrooms' fresh air
-  costs it about 3.8 kWh a day more than before; one more panel). The cause is
+- **Energy, both homes, by a lot, in both modes** (re-measured 2026-09-27 on
+  the honest meter, section 7). The family home makes about 11.0 kWh a day and
+  uses 24.0 Station-supplied and 61.8 Realistic; the solo home makes 4.45 and
+  uses 8.6 and 32.8. Neither closes in either mode: about 12 and 4 more panels
+  Station-supplied, 47 and 27 Realistic, on the year's average. The Realistic
+  gap is the air handlers, about 38 kWh a day in the family home and 24 in the
+  solo one (with the mushrooms' CO2 fans and the harder-working tent
+  humidifiers). The cause is
   mostly one number: the greenhouse and the court leak 0.5 air changes an hour
   (an Earth greenhouse's, UGA B792) into the drier home air, about 215 L of
   water a day, and condensing a litre out of 50% air costs about 105 Wh of fan
@@ -385,15 +398,81 @@ greenhouse, where the crops want it), fewer racks, bigger tent humidifiers
 ### The static power meter
 
 `the_static_meters_charge_what_the_machines_draw`. The family home's Usage
-meter now reads 79.2 kWh a day Station-supplied and 117.0 Realistic; the old
-one read 253.4 in either mode, much of it the work stations' nameplates (the
-stove 1.2 kW, the oven 2.2 kW) and the air handlers' (325 W each) for 24 hours.
-What is left over the Energy loop's hand-worked 15.8 is the same defect in
-machines outside this rung: the family water heater's 2 kW element for 24 hours
-(48.0 kWh a day, where the solo home's carries a continuous-equivalent 50 W for
-its 1.2 kWh), the washer's 500 W (12.0, where the solo home's carries 12 W for
-0.3 kWh a day), and the 33 towers' 15 W pump and light ports (11.9). Each needs
-a sourced daily draw (`average_watts`) before the meter and the loop agree.
+meter read 253.4 kWh a day in either mode, much of it the work stations'
+nameplates (the stove 1.2 kW, the oven 2.2 kW) and the air handlers' (325 W
+each) for 24 hours; the first pass took it to 79.2 Station-supplied and 117.0
+Realistic. The household machines then got their sourced daily energy (EIA's
+2020 RECS averages for the water heater, the washer and the freezer; Tower
+Garden's pumps on the maker's indoor timer), which brought the demand to the
+loops' own figures, and the rest of this subsection is the second half of the
+same job, done the same day.
+
+**The supply side** (`MachineDef::average_supply_watts`, `backstop_watts`). The
+meter counted every generator's `watts` for 24 hours, the backstop genset
+included, and every panel's 400 W for the sun-hours it was given with nothing
+lost, so the family meter said it made 69.6 kWh a day, "fully self-sufficient",
+against its own Energy loop's 15.1. Each source now counts what it makes at the
+home's site (data/self_sufficiency/location.ron: Silverdale, WA), with the
+quotation and the date read beside it in `data/machines/home.ron`:
+
+- **A 400 W panel: 45.3 W averaged, 1.09 kWh a day, 0.51 in January.** NREL's
+  PVWatts 8.5.0 (queried 2026-09-27, 47.645 N 122.695 W, fixed open rack, tilted
+  40 degrees south, the default 14.08% losses, NSRDB tmy-2020): "ac_annual"
+  440.68 kWh, less Tesla's Powerwall 2 "Round Trip Efficiency 90%" on all of it.
+  It was 1.44 a day in the loops (a generic 4.5 sun-hours x 0.80) and 1.8 on the
+  meter.
+- **The wind turbine: 4.4 W averaged, 0.11 kWh a day, a 2.8% capacity factor.**
+  A Primus AIR 40 (its manual: "Rated Power: 160 watts @ 28 mph (12.5 m/s)",
+  "40 kWh/month @ 12 mph (5.5 m/s)", start-up 3.13 m/s) in the nearest measured
+  wind, the Bremerton airport's 5.3 mph (2.37 m/s, WRCC 1996-2006), over the
+  Rayleigh distribution AWEA 9.1-2009 rates small turbines by. The test
+  recomputes it from those figures. It was 0.7 a day in the loops (an unsourced
+  19%) and 3.6 on the meter. Its `watts` is the average, since the electrical sim
+  has no wind model; its port keeps the 160 W that sizes the cable.
+- **The backstop generator: not supply.** A Honda EU2200i class set, "Rated
+  output" 1.8 kVA, a 3.6 L tank lasting "3.2hr @ rated load": 1.8 kWh for 1.125 L
+  of fuel an hour. The meter shows it apart ("not counted: a backstop generator
+  that can add 1.8 kW while it runs") with the hours and litres it would take to
+  cover the day. The solo home's generator had no power role at all; it has this
+  one now, with a 200 L drum and no refinery to fill it.
+
+**The fish tanks' air pumps** (they had a 50 W stat and no power) are HIBLOW
+HP-20s, 17 W for 20 L of air a minute at 9.8 kPa, the top of FAO 589's "5–8
+litres of air per minute for each cubic metre of water" for the 2.56 m3 tank:
+0.41 kWh a day each, all day, priority 1. And the Buildability energy balance
+now charges what the Usage meter charges: it counted only machines with a power
+role, 18.3 kWh a day in the family home against the meter's 24.0 (the towers'
+pumps and the freezer carry their draw on their ports).
+
+| kWh a day | Family: before | Family: after | Solo: before | Solo: after |
+|---|---|---|---|---|
+| Makes on its own (meter) | 69.6 (panels 18.0, wind 3.6, generator 48.0) | 11.0 (panels 10.9, wind 0.11) | 10.8 (panels 7.2, wind 3.6) | 4.45 (panels 4.35, wind 0.11) |
+| The Energy loop's supply | 15.1 | 11.0 | 5.76 | 4.45 |
+| In January (panels at 0.51) | | about 5.2 | | about 2.1 |
+| Backstop, shown apart | counted as supply | 1.8 kW, 1.1 L an hour | none | 1.8 kW, 1.1 L an hour |
+| Uses, Station-supplied | 22.8 | 24.0 | 8.2 | 8.6 |
+| Uses, Realistic | 60.5 | 61.8 | 32.4 | 32.8 |
+| Closes, Station-supplied | the meter said yes | no: 13.0 short, 12 more panels (37 for January), or the generator 7.2 h a day on 8.1 L | the meter said yes | no: 4.2 short, 4 more panels (13 for January), or the generator 2.3 h a day on 2.6 L |
+| Closes, Realistic | the meter said yes | no: 50.8 short, 47 more panels; the generator all day leaves 7.6 short | no | no: 28.3 short, 27 more panels, or the generator 15.7 h a day on 17.7 L |
+
+The "after" demand includes the fish tanks' air pumps (1.2 and 0.4 kWh a day).
+Still not counted, because no data carries them: lighting, small appliances,
+cooking in the solo home, and the fish tanks' water pumps (FAO sizes 25 to 50 W
+for a 1,000 L unit).
+
+**Found, not changed:**
+
+- The live electrical sim still gives each panel its 400 W at noon on the game's
+  twelve-hour sine, 7.6 peak-sun-hours, 3.1 kWh a day: 2.8 times the site's
+  PVWatts yield. Making the live home as short of power as the meter now says
+  would brown it out every day, and at night the batteries still do not carry
+  load (`electrical.rs`: "Discharge tracks state; it does not yet prevent the
+  shed above"), so with the wind now at its real 4.4 W every load over it is shed
+  after sunset. Both are code changes, and the first is a play-feel call.
+- The water heater's RECS figure (9.5 kWh a day for three people) is about twice
+  the heat in the family home's own 110 L of hot water a day (4.6 kWh at a 35.8 C
+  rise), and 3.9 for one person about two and a half times the 1.5 in 37 L: the
+  rest is the tank's standby loss and a US household's larger draw.
 
 ### Tests (2026-09-27), each seen red on a deliberate break
 
@@ -416,3 +495,19 @@ handler's `average_watts` at its nameplate). In `src/systems/electrical.rs`:
 `a_load_drawing_nothing_is_never_shed`. In `src/machines.rs`:
 `the_static_meters_charge_what_the_machines_draw` and
 `every_shipped_mushroom_rack_has_a_wired_co2_fan`.
+
+The meter's supply side, the fish tanks' pumps and the household's hot water
+(2026-09-27), in `src/machines.rs`:
+`the_meter_shows_a_backstop_apart_from_what_the_home_makes` (red counting a
+fueled genset's `watts` for the day: the test home "made" 44.4 kWh a day),
+`the_power_sources_make_their_sourced_daily_energy` (red with the solo
+generator's power role removed, the family turbine back at 150 W, and the
+backstop counted as supply), `the_household_hot_water_is_each_fixtures_measured_share`
+(red with the family shower's hot feed back at 0.20 L/min, the solo washer
+without its hot fill, and the family household tap back at 0.17 L/min), and
+`the_household_machines_charge_their_sourced_daily_energy` extended (red with
+the solo fish tank unpowered, the family loop's supply left at 15.1, the tower
+timer note back at "15 min on / 15 off", and the energy balance counting only
+machines with a power role). In `src/systems/self_sufficiency.rs`:
+`household_energy_supply_sums_kwh_per_day_components` now holds the component
+table to the catalog (red with the table's panel left at 1.44).

@@ -18,37 +18,35 @@
 //                  energy score; a water/nutrient/air score sums its own unit the same way.
 //   assumptions  - the editable, human-readable derivation the operator can tune.
 //
-// AGREEMENT with home.ron / homestead-solo-design.md: every value below was cross-checked
-// against the catalog stat strings + design math and AGREES internally (e.g. solar 400 W x
-// 4.5 sun-h x 0.80 = 1.44 kWh/day, which the catalog rounds to "+1.4 kWh/d"; 8 x 1.44 + 0.7
-// wind = 12.2 kWh/day, the home.ron Energy-loop supply line).
+// AGREEMENT with home.ron (2026-09-27): the generation rows below are the catalog's own figures
+// at the home's site, the same numbers the Construction page's power meter credits
+// (data/machines/home.ron quotes every source beside the machine): the solar panel's PVWatts
+// yield at location.ron's Silverdale, WA, less a battery round trip, and the wind turbine's
+// average in the site's measured wind. `household_energy_supply_sums_kwh_per_day_components` in
+// src/systems/self_sufficiency.rs holds them to the catalog.
 //
-// DISAGREEMENT FOUND 2026-07-30 (life-support balance pass, see data/home_outline.json):
-// the solar figure below agrees with the DESIGN DOC but NOT with location.ron sitting in this
-// same folder. The 4.5 sun-hours is a generic "temperate" assumption with no place attached;
-// location.ron names Silverdale, WA, where NREL's NSRDB gives 3.9 peak sun-hours annual
-// average and about 1.3 in December. At that site the honest figures are 1.17 kWh/day annual
-// and 0.39 kWh/day in December, and an off-grid array is sized on December, not the average.
-// The values below are LEFT AS THEY ARE on purpose: `household_energy_supply_sums_kwh_per_day_
-// components` in src/systems/self_sufficiency.rs pins 4 panels to 5.76 +/- 0.5 kWh/day, so
-// correcting the number needs a code change alongside it, not a lone data edit. Do not treat
-// 1.44 as location-honest until that test moves with it.
+// HISTORY: until 2026-09-27 the panel read 1.44 kWh/day (400 W x a generic 4.5 sun-hours x
+// 0.80, no place attached) and the turbine 0.7 (an unsourced 19% capacity factor). The
+// 2026-07-30 life-support balance pass had already found the panel disagreeing with
+// location.ron (3.9 sun-hours a year's average and about 1.3 in December at Silverdale, 1.17
+// kWh/day with a 0.75 derate), and a pinned test (4 panels = 5.76 +/- 0.5) kept it there.
+// PVWatts' own answer for a 40 degree tilt, 1.09 after the batteries, sits between them.
 (
     components: [
         // ── Energy GENERATION (kWh/day, so household_energy_balance() sums these) ──
         (
-            id: "solar_panel", output_value: 1.44, unit: "kWh/day",
-            assumptions: "400 W peak x 4.5 sun-hours/day (generic temperate, NO location) x 0.80 system losses (inverter + wiring + charge). Catalog rounds to +1.4 kWh/d. CONTESTED: at location.ron's own site (Silverdale, WA) NREL gives 3.9 sun-hours annual and 1.3 in December, and 0.80 omits battery round-trip, so the honest derate is 0.75, giving 1.17 kWh/day annual and 0.39 kWh/day in December. Correcting this value fails a pinned unit test; see the file header.",
+            id: "solar_panel", output_value: 1.09, unit: "kWh/day",
+            assumptions: "One 400 W panel at location.ron's Silverdale, WA: NREL PVWatts 8.5.0 (queried 2026-09-27; fixed open rack, 40 degree tilt facing south, the default 14.08% system losses, NSRDB PSM V3 tmy-2020 weather) gives 440.68 kWh a year at the inverter, 3.906 kWh/m2/day on the panel and a 12.58% capacity factor; x 0.90 for the battery round trip (Tesla Powerwall 2 datasheet, 'Round Trip Efficiency 90%'), taken on all of it = 45.3 W averaged, 1.09 kWh/day a year's average and 0.51 in January, the worst month. It read 1.44 (a generic 4.5 sun-hours x 0.80, no place attached).",
         ),
         (
-            id: "wind_turbine_small", output_value: 0.7, unit: "kWh/day",
-            assumptions: "150 W rated x ~19% capacity factor (low-wind inland site) ~= 0.7 kWh/day. Matches the catalog +0.7 kWh/d.",
+            id: "wind_turbine_small", output_value: 0.11, unit: "kWh/day",
+            assumptions: "Primus Wind Power AIR 40 ('Rated Power: 160 watts @ 28 mph (12.5 m/s)', start up 3.13 m/s, '40 kWh/month @ 12 mph (5.5 m/s)', its owner's manual) in the site's wind: the Bremerton airport averages 5.3 mph, 2.37 m/s (Western Regional Climate Center, 1996-2006). Its power as a cube law from its start-up speed, capped at 160 W and fitted to the manual's 40 kWh a month, over a Rayleigh distribution (how AWEA 9.1-2009 rates small turbines) = 4.4 W averaged, 0.11 kWh/day, a 2.8% capacity factor (range 3.7 to 4.7 W). It read 0.7, an unsourced 19% capacity factor; PNNL's 2024 Distributed Wind Market Report finds 13% for small wind projects sited where the wind is.",
         ),
         // ── Backup generation (rated power, NOT a daily energy -- unit differs on purpose;
         //    excluded from the daily kWh/day supply sum until runtime hours are modeled) ──
         (
-            id: "generator_portable", output_value: 2.0, unit: "kW",
-            assumptions: "2 kW fuel-burning backup. Rated power, not a daily figure -- daily kWh depends on run-hours, so it is NOT summed into the passive kWh/day supply. Covers the deep no-sun-no-wind tail.",
+            id: "generator_portable", output_value: 1.8, unit: "kW",
+            assumptions: "A Honda EU2200i class inverter generator: 'Rated output' 1.8 kVA and a 3.6 L tank that lasts '3.2hr @ rated load' (its owner's manual and a Honda dealer's listing, read 2026-09-27), so 1.8 kWh for 1.125 L of fuel each hour it runs. Rated power, not a daily figure: what it makes depends on the hours it is run, so it is NOT summed into the passive kWh/day supply, and the power meter shows it apart. It read 2 kW. Covers the deep no-sun tail.",
         ),
         // ── Water COLLECTION / treatment (L/day) ──
         (
@@ -66,7 +64,7 @@
         // ── Nutrient / waste RECYCLING (kg/day nutrient; also +greywater) ──
         (
             id: "composter", output_value: 1.2, unit: "kg/day",
-            assumptions: "+1.2 kg/day of FINISHED COMPOST (not of nutrient: the actual N+P+K in 1.2 kg of compost is about 18 g N, 6 g P, 12 g K, roughly 70x smaller) from food + crop + human waste, plus greywater back to irrigation (home.ron stats). NOTE the scale: home.ron is the 3-PERSON home, so its +155 L/day greywater goes with a 240 L/day household, a plausible 65% recovery. For ONE person the household is 85 L/day and greywater is about 59 L/day; the 155 figure must never be copied into a solo design, where it would imply 194% recovery. One person makes about 4.3 kg/day of wet organic material once crop residue is counted, not 1.5 kg/day (that figure is excreta only).",
+            assumptions: "+1.2 kg/day of FINISHED COMPOST (not of nutrient: the actual N+P+K in 1.2 kg of compost is about 18 g N, 6 g P, 12 g K, roughly 70x smaller) from food + crop + human waste, plus greywater back to irrigation (home.ron stats). NOTE the scale: home.ron is the 3-PERSON home, so its +155 L/day greywater goes with a 255 L/day household (three of the one-person fixture list, since 2026-09-27), a plausible 61% recovery. For ONE person the household is 85 L/day and greywater is about 59 L/day; the 155 figure must never be copied into a solo design, where it would imply 194% recovery. One person makes about 4.3 kg/day of wet organic material once crop residue is counted, not 1.5 kg/day (that figure is excreta only).",
         ),
         // ── Air / life support (2026-09-26: ship life support, systems::life_support) ──
         (

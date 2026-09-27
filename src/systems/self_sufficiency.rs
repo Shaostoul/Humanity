@@ -362,17 +362,25 @@ mod tests {
         assert_eq!(kcal, 0.0);
     }
 
-    /// The energy-balance helper sums only the kWh/day generation rows. 4 solar panels at 1.44
-    /// kWh/day each = 5.76 kWh/day (the solo design's supply figure), and the kW-rated backup
-    /// generator does NOT inflate the passive supply.
+    /// The energy-balance helper sums only the kWh/day generation rows, and the kW-rated backup
+    /// generator does NOT inflate the passive supply. Since 2026-09-27 the table's panel and wind
+    /// turbine are the catalog's own site figures (what the static power meter credits: the
+    /// panel's PVWatts `average_watts`, the turbine's day-average `watts`), so 4 panels and a
+    /// turbine are the solo home's supply, about 4.46 kWh/day. It pinned 4 panels to 5.76 +/- 0.5
+    /// (1.44 each at an unsourced 4.5 sun-hours x 0.80); seen red with the table's panel left at
+    /// 1.44 (the table said 5.87 kWh/day, the catalog 4.45).
     #[test]
     fn household_energy_supply_sums_kwh_per_day_components() {
         let outputs = load_outputs();
         let (supply, demand) = household_energy_balance(
-            &[("solar_panel".to_string(), 4), ("generator_portable".to_string(), 1)],
+            &[("solar_panel".to_string(), 4), ("wind_turbine_small".to_string(), 1), ("generator_portable".to_string(), 1)],
             &outputs,
         );
-        assert!((supply - 5.76).abs() < 0.5, "4 solar panels ~ 5.76 kWh/day, got {supply}");
+        let solo = crate::machines::MachineHome::load(&data_dir().join("machines").join("home_solo.ron")).expect("home_solo.ron parses");
+        let day_kwh = |id: &str| solo.catalog[id].average_supply_watts(4.5) * 24.0 / 1000.0;
+        let catalog = 4.0 * day_kwh("solar_panel") + day_kwh("wind_turbine_small");
+        assert!((supply - catalog).abs() < 0.05, "4 panels and a turbine: the table says {supply} kWh/day, the catalog {catalog}");
+        assert!(day_kwh("generator_portable") == 0.0, "a backstop genset is not passive supply");
         assert_eq!(demand, 0.0, "demand is a documented placeholder for now");
     }
 }

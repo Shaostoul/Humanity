@@ -70,6 +70,17 @@ Trim the always-on internet stack (server + uplink = 864 Wh, a *want* not a
 survival *need*) and one person lands at a **~3.7–4.0 kWh/day survival
 floor**, ~4.6 kWh/day with comforts. Design target: **4.0 kWh/day**.
 
+> **Superseded figures (2026-09-27).** The derivation below is the original
+> sizing, kept as history. At the home's named site (Silverdale, WA) the sourced
+> figures are: a 400 W panel 1.09 kWh a day over the year and 0.51 in January
+> (NREL PVWatts less a 90% battery round trip), the wind turbine 0.11 kWh a day
+> (a Primus AIR 40 in the Bremerton airport's 2.37 m/s mean wind), the fish
+> tank's air pump 17 W, 0.41 kWh a day (a HIBLOW HP-20, sized to FAO 589), and
+> the generator a 1.8 kW backstop that is not supply. The live balance is
+> `data/machines/home_solo.ron`'s Energy loop, held to the Construction page's
+> power meter by a test; docs/design/ship-life-support.md section 7 has the
+> sources, and data/home_outline.json the site-sized ideal.
+
 ### Supply: solar sizing (the honest Wh/day calc)
 - `solar_panel` in both `home.ron` catalog and `electrical.ron`:
   **peak_watts = 400 W**, efficiency 0.22.

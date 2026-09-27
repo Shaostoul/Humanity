@@ -109,7 +109,7 @@ pub(crate) fn spawn_home_machine_entity(
     if let Some(power) = &def.power {
         let _ = world.insert_one(e, PowerCircuit { island: power_islands.get(&inst.id).copied().unwrap_or(0) });
         match power {
-            MachinePower::Solar { peak_watts } => {
+            MachinePower::Solar { peak_watts, .. } => {
                 let _ = world.insert(
                     e,
                     (
