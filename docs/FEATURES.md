@@ -1871,14 +1871,17 @@ frame; pieces within 1 km of a site join it and its grid. The ghost meets the dr
 crosshair (`placement::aim_point_on_ground`, the surface the player's feet stand on), the shelter test and
 the bed and chest look ray run in the site, and the save carries the site. Site pieces draw with the
 terrain's own transform in the celestial pass (hidden by hills, casting the sun's shadow), plus a scene-pass
-copy within 3 m of the eye (`engine/planet_build.rs`). Building refuses, with a plain hint, in open space, in
+copy within 2 m of the eye, where the celestial pass's 1 m near plane would cut a wall open
+(`engine/planet_build.rs`). Building refuses, with a plain hint, in open space, in
 a vehicle, while flying and on water. Dev: showcase `{"build":"id@dx,dz,turns;...","build_at":"lat,lon"}`
 stands pieces up finished (the rig's `planet-built-shelter` vantage uses it through `post_showcase`).
 Still missing: a door or window set INTO a wall (they sit on the floor); a second storey (nothing stands on a
 roof yet); collision for built pieces (you walk through walls); the one canonical layout schema (built
 pieces, the home editor's `InteriorWall`s and the ship structure pieces are three different shapes); pieces
 on a planet stand at the drawn ground's height where they were built, so far off, where the terrain draws at
-a coarser level, they can sit a little high or low.
+a coarser level, they can sit a little high or low; a planet piece's face turned from the sun reads near
+black, and within 2 m (the scene-pass copy, which lights everything as if indoors) fully black: one lighting
+for planet pieces in both passes, with the roof's shade inside a hut, is the follow-up.
 - Native: `src/systems/construction/mod.rs`, `src/systems/construction/placement.rs`,
   `src/systems/construction/site.rs` (build sites), `src/systems/construction/uses.rs`,
   `src/systems/sleep.rs`, `src/engine/built_uses.rs` (prompt, E press, chest sync),

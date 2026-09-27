@@ -23,7 +23,7 @@
 //!   into the home-frame list as before; site pieces at `render_off + rot *
 //!   p` in the CELESTIAL list with the terrain, the near trees and the OSM
 //!   buildings, so the ground hides them behind a hill and they cast the
-//!   sun's shadow; and a second copy of any piece within a few metres of the
+//!   sun's shadow; and a second copy of any piece within 2 m of the
 //!   eye in the scene list, whose near plane (unlike the celestial pass's
 //!   1 m) does not cut into a wall you stand beside.
 //!
@@ -46,8 +46,17 @@ use glam::{DQuat, DVec3, Quat, Vec3};
 const MAX_EYE_OVER_GROUND_M: f64 = 4.5;
 /// A site piece whose box comes within this of the eye is also drawn in the
 /// scene pass: the celestial pass's near plane is 1 m, and its frustum
-/// corners reach about 1.5 m, so a wall closer than that would be cut open.
-const NEAR_COPY_M: f32 = 3.0;
+/// corners reach about 1.8 m at a wide window, so a wall closer than that
+/// would be cut open and show the outside through it. Kept this tight on
+/// purpose: the scene pass lights everything as if indoors (its uniforms
+/// carry no local up, so there is no sky ambient, `sky_ambient` in the
+/// shader), so the copy of a face turned from the sun reads black where the
+/// celestial draw reads dark (measured at the planet-built-shelter hut,
+/// 2026-09-27). Inside a roofed hut that is closer to the truth than the
+/// sky light the celestial pass would give it; outside, it is a small step
+/// in shade within arm's reach. Giving planet pieces one lighting in both
+/// passes is the follow-up (docs/FEATURES.md, "Building on a planet").
+const NEAR_COPY_M: f32 = 2.0;
 /// Site pieces farther than this from the eye are not drawn (sub-pixel).
 const DRAW_RANGE_M: f32 = 30_000.0;
 /// Ground over connected ocean deeper than this under the sea's surface is

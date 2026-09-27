@@ -2110,7 +2110,7 @@ crosshair (`placement::aim_point_on_ground`, sampling the same surface the
 walk clamp stands the player on). Each frame a site piece is drawn at
 `render_off + rot * p` with the body's placement recorded inside the celestial
 loop, the terrain's own transform, in the celestial list (so a hill hides it
-and it casts the sun's shadow), plus a scene-pass copy within 3 m of the eye,
+and it casts the sun's shadow), plus a scene-pass copy within 2 m of the eye,
 where the celestial pass's 1 m near plane would cut into a wall. The save
 carries the site. The v0.1390.0 gate is gone; building still refuses, with a
 plain hint, in open space, in a vehicle, while flying, and on water. The
