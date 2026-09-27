@@ -197,9 +197,12 @@ pub(crate) fn load_world(state: &mut EngineState) {
     // Rudimentary primitives for the homestead machines + pipes/tubes for the
     // connections between them (data/machines/home.ron). Falls back silently if the
     // file is absent (distributed builds); the tower placeholders above still show.
+    // The household's food energy is kept for its air space below (ship life support).
+    let mut home_kcal = 0.0f32;
     {
         let path = crate::machines::home_ron_path(&state.data_dir);
         if let Some(home) = crate::machines::MachineHome::load(&path) {
+            home_kcal = crate::engine::home_spawn::home_metabolic_kcal(&home);
             use std::collections::HashMap;
             // room id -> (center, floor_y, ceiling_y).
             let rooms: HashMap<&str, (Vec3, f32, f32)> = room_info
@@ -714,7 +717,7 @@ pub(crate) fn load_world(state: &mut EngineState) {
     }
 
     // The home's sealed air space for the live AtmosphereSystem readout (v0.617).
-    spawn_home_air_space(&mut state.game_world.world);
+    spawn_home_air_space(&mut state.game_world.world, home_kcal);
     // Build the live connection cylinders (replaces the old static routed pipes). (v0.530)
     rebuild_connection_objects(state);
     // Build the door/window panels from the home structure's openings. (v0.537)

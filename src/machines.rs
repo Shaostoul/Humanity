@@ -158,6 +158,22 @@ pub struct MachineDef {
     /// 0 = not a humidifier. Spawns a `Humidifier`; needs a `Consumer` role.
     #[serde(default)]
     pub humidifies_l_h: f32,
+    /// This machine is an air handler (2026-09-26, ship life support): while
+    /// it is powered its fan pushes up to this many m3 an hour of the air it
+    /// stands in (a grow room's, or the home's own) over a cold coil, which
+    /// condenses the water out of it and sends it back to the tanks through
+    /// its plumbing island (systems::life_support, data/life_support.ron).
+    /// 0 = not an air handler. Spawns an `AirHandler`; needs a `Consumer` role
+    /// and a water connection to the tanks.
+    #[serde(default)]
+    pub dehumidifies_m3_h: f32,
+    /// This machine is a CO2 scrubber (2026-09-26, ship life support): while it
+    /// is powered it takes carbon dioxide out of the air it stands in, up to
+    /// this many kg a day at its rated inlet concentration (data/life_support.ron)
+    /// and less in thinner air, and vents it overboard. 0 = not a scrubber.
+    /// Spawns a `Co2Scrubber`; needs a `Consumer` role.
+    #[serde(default)]
+    pub scrubs_co2_kg_day: f32,
     /// Typed-container archetype id from `data/containers/types.csv` (v0.728,
     /// "containers show contents"): a grain silo IS a `grain_silo_bin`, the
     /// fuel refinery a `steel_fuel_drum`. Spawns a `Container` ECS component
@@ -2018,6 +2034,8 @@ mod tests {
             pollinates_crops: false,
             ventilation_m3_h: 0.0,
             humidifies_l_h: 0.0,
+            dehumidifies_m3_h: 0.0,
+            scrubs_co2_kg_day: 0.0,
             level_gauge: false,
             container_type: None,
             model: None,
@@ -2588,6 +2606,46 @@ mod tests {
                     "{file}: {} cabled to a battery",
                     hum.id
                 );
+            }
+        }
+    }
+
+    /// Ship life support (2026-09-26): both shipped catalogs carry the air
+    /// handler (Carrier 42CT size 14: 1,842 m3/h, a 325 W Consumer) and the CO2
+    /// scrubber (the ISS CDRA: 4.74 kg a day, an 860 W Consumer shed last), and
+    /// nothing else dehumidifies or scrubs. Each home places air handlers in its
+    /// greenhouse and in its own air, and every one is cabled to a battery and
+    /// piped onto the cistern's water island, so its condensate has a way back to
+    /// the tanks. Seen red by deleting home.ron's line from air_handler_h1 to the
+    /// cistern (it then stood on an island of its own).
+    #[test]
+    fn every_shipped_air_handler_is_cabled_and_piped_back_to_the_cistern() {
+        for file in ["home.ron", "home_solo.ron"] {
+            let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("machines").join(file);
+            let home = MachineHome::load(&path).unwrap_or_else(|| panic!("{file} parses"));
+            for (id, def) in &home.catalog {
+                assert_eq!(def.dehumidifies_m3_h > 0.0, id == "air_handler", "{file}: `{id}` dehumidifies only if it is the air handler");
+                assert_eq!(def.scrubs_co2_kg_day > 0.0, id == "air_recycler", "{file}: `{id}` scrubs only if it is the CO2 scrubber");
+            }
+            let ah = &home.catalog["air_handler"];
+            assert!((ah.dehumidifies_m3_h - 1842.0).abs() < 1.0, "{file}: 1084 CFM");
+            assert!(matches!(ah.power, Some(MachinePower::Consumer { watts, .. }) if (watts - 325.0).abs() < 1e-3), "{file}: 325 W");
+            let sc = &home.catalog["air_recycler"];
+            assert!((sc.scrubs_co2_kg_day - 4.74).abs() < 1e-6, "{file}: 4.74 kg a day");
+            assert!(matches!(sc.power, Some(MachinePower::Consumer { watts, priority: 1, .. }) if (watts - 860.0).abs() < 1e-3), "{file}: 860 W, shed last");
+            let all = home.all_instances();
+            let handlers: Vec<&MachineInstance> = all.iter().filter(|i| i.machine == "air_handler").collect();
+            assert!(handlers.iter().any(|h| h.room == "room-greenhouse"), "{file}: one in the greenhouse");
+            assert!(handlers.iter().any(|h| h.room != "room-greenhouse"), "{file}: one in the home's own air");
+            let islands = home.water_islands(&all);
+            let cistern = islands.get("cistern_1").copied().unwrap_or_else(|| panic!("{file}: the cistern is on an island"));
+            for h in handlers {
+                assert!(
+                    home.connections.iter().any(|c| c.kind == "power" && c.to == h.id && c.from.starts_with("battery_")),
+                    "{file}: {} cabled to a battery",
+                    h.id
+                );
+                assert_eq!(islands.get(&h.id), Some(&cistern), "{file}: {} piped onto the cistern's island", h.id);
             }
         }
     }

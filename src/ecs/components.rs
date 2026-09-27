@@ -497,6 +497,12 @@ pub struct SoilMemory {
     /// loads with none, and each soil area then starts from its seed bank.
     #[serde(default)]
     pub weeds: std::collections::HashMap<String, AreaWeeds>,
+    /// The home's own air and its water and carbon loops (2026-09-26, ship
+    /// life support, `systems::life_support`). Saved like `rooms`; a save from
+    /// before it loads with none, and the home's air then starts from its
+    /// `EnclosedSpace`.
+    #[serde(default)]
+    pub home_air: HomeAirState,
 }
 
 /// One soil grow area's weeds (2026-09-26, `farming::weeds`,
@@ -552,6 +558,95 @@ pub struct RoomAir {
     /// or the garden's irrigation off), for the Garden panel.
     #[serde(default)]
     pub humidifier_dry: bool,
+    /// Its carbon dioxide, g per m3 of air (2026-09-26, ship life support). 0
+    /// is "not known yet": the room then starts at the air around it.
+    #[serde(default)]
+    pub co2_g_m3: f64,
+    /// Its air handlers' share of full airflow, 0..1, as their controller last
+    /// set it, and the litres a day their coils were condensing (and sending
+    /// back to the tanks) at the last step.
+    #[serde(default)]
+    pub air_handler: f64,
+    #[serde(default)]
+    pub condensate_l_day: f64,
+    /// Its CO2 scrubbers' share of the time they run, 0..1.
+    #[serde(default)]
+    pub scrubber: f64,
+    /// Grams of carbon dioxide a day its crops were taking up, and its
+    /// fruiting substrate breathing out, at the last step (the Garden panel).
+    #[serde(default)]
+    pub co2_uptake_g_day: f64,
+    #[serde(default)]
+    pub co2_out_g_day: f64,
+}
+
+/// Litres the home's air side has moved since the save began, each on the
+/// air's own clock (2026-09-26, `systems::life_support`): what went into the
+/// air as vapour and what left it. Nothing is created or lost inside the air:
+/// in minus out is exactly what the air still holds, which a test checks. The
+/// tanks settle these flows on their own clock, as litres a day.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Serialize, Deserialize)]
+pub struct AirWaterLedger {
+    /// In: the crops' transpiration, the humidifiers' mist, the people's breath
+    /// and sweat.
+    #[serde(default)]
+    pub breathed_l: f64,
+    #[serde(default)]
+    pub humidified_l: f64,
+    #[serde(default)]
+    pub people_l: f64,
+    /// Out: condensed by the air handlers (back to the tanks), condensed on the
+    /// walls and glazing of a saturated room (lost to the tanks), leaked
+    /// overboard with the air.
+    #[serde(default)]
+    pub condensed_l: f64,
+    #[serde(default)]
+    pub surface_l: f64,
+    #[serde(default)]
+    pub leaked_l: f64,
+}
+
+/// The home's own air (2026-09-26, `systems::life_support`): the part of the
+/// sealed home that no grow room keeps separately, and the loops through it.
+/// Saved in `SoilMemory` with the grow rooms' air. Zeros are "not known yet":
+/// the first step starts it from the home's `EnclosedSpace`.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct HomeAirState {
+    /// Water vapour, carbon dioxide and oxygen, g per m3.
+    #[serde(default)]
+    pub vapour_g_m3: f64,
+    #[serde(default)]
+    pub co2_g_m3: f64,
+    #[serde(default)]
+    pub o2_g_m3: f64,
+    /// Its own air handlers' share of full airflow and the litres a day they
+    /// return to the tanks; its scrubbers' share and the carbon dioxide they
+    /// vent, kg a day; all at the last step.
+    #[serde(default)]
+    pub air_handler: f64,
+    #[serde(default)]
+    pub condensate_l_day: f64,
+    #[serde(default)]
+    pub scrubber: f64,
+    #[serde(default)]
+    pub scrubbed_kg_day: f64,
+    /// The loops at the last step, per day: carbon dioxide breathed out by the
+    /// people and the mushrooms and taken up by the crops (kg), oxygen the
+    /// crops gave out and the people and mushrooms took in (kg), air leaked
+    /// overboard (kg).
+    #[serde(default)]
+    pub co2_out_kg_day: f64,
+    #[serde(default)]
+    pub co2_uptake_kg_day: f64,
+    #[serde(default)]
+    pub o2_made_kg_day: f64,
+    #[serde(default)]
+    pub o2_used_kg_day: f64,
+    #[serde(default)]
+    pub leak_kg_day: f64,
+    /// The water ledger of the whole air (the grow rooms and this).
+    #[serde(default)]
+    pub ledger: AirWaterLedger,
 }
 
 /// One soil unit's pH (2026-09-26): what it is now, and what is still
@@ -1051,6 +1146,32 @@ pub struct Ventilator {
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
 pub struct Humidifier {
     pub output_l_h: f32,
+    pub watts: f32,
+}
+
+/// An air handler (2026-09-26, `MachineDef::dehumidifies_m3_h`, ship life
+/// support): a fan pushing the air of the room its `Transform` stands in (the
+/// home's own air when that is no grow room) over a cold coil on the station's
+/// cooling loop. The water the coil condenses goes back to the tanks through
+/// the plumbing sim (its `WaterProducer`, whose litres a minute the farming tick
+/// sets). Its controller holds the air at its setpoint (`systems::life_support`),
+/// moving up to `airflow_m3_h` and drawing up to `watts` along its fan's
+/// published speed curve.
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
+pub struct AirHandler {
+    pub airflow_m3_h: f32,
+    pub watts: f32,
+}
+
+/// A CO2 scrubber (2026-09-26, `MachineDef::scrubs_co2_kg_day`, ship life
+/// support): takes carbon dioxide out of the air of the room it stands in (the
+/// home's own air when that is no grow room) and vents it overboard, up to
+/// `rated_kg_day` at its rated inlet concentration and proportionally less in
+/// thinner air. Its controller runs it only above its setpoint
+/// (`systems::life_support`), drawing `watts` for the share of time it runs.
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
+pub struct Co2Scrubber {
+    pub rated_kg_day: f32,
     pub watts: f32,
 }
 

@@ -672,18 +672,25 @@ fn shipped_tent() -> crate::systems::grow_machines::Enclosure {
     m.enclosure.clone().expect("the mushroom rack fruits in a tent")
 }
 
+/// A rack's shelf floor, m2: the shipped rack's 1.2 x 0.6 m footprint, which
+/// every one of its stacked shelves has whole (grow_media.ron `stacked`), so a
+/// shelf holds two 5 lb oyster blocks at plants.csv's 0.36 m2 a block.
+const RACK_SHELF_M2: f32 = 1.2 * 0.6;
+
 /// A 300 m3 room (the Greenhouse, room-a, at the shipped half air change an
-/// hour) with one mushroom rack of four oysters: in its tent (`tent`) with a
-/// T3 on its bottom shelf, or bare with a T7 in the room. Returns the world
-/// and store after two game days, and the humidifier.
+/// hour) with one mushroom rack of oysters on its five shelves, two blocks a
+/// shelf (grow_media.ron `plots: 5`): in its tent (`tent`) with a T3 on its
+/// bottom shelf, or bare with a T7 in the room. Returns the world and store
+/// after two game days, and the humidifier.
 fn one_rack(tent: bool) -> (DataStore, hecs::World, hecs::Entity) {
     let mut data = store(0.5, 1.0, 0.0);
     let enclosure = tent.then(shipped_tent);
     data.insert("grow_plots", vec![GrowPlot { id: "mush_0".into(), pos: [3.0, 0.0, 5.0], enclosure, ..Default::default() }]);
+    data.insert(units::PLOT_AREA_KEY, HashMap::from([("mush_0".to_string(), RACK_SHELF_M2)]));
     let mut sys = FarmingSystem::new();
     let mut world = hecs::World::new();
     world.spawn((Irrigator,));
-    for shelf in 0..4 {
+    for shelf in 0..5 {
         world.spawn((crop(&data, "oyster_mushroom", "mush_0", shelf),));
     }
     let (l_h, watts, at) = if tent { (0.24, 24.0, [3.0, 0.0, 5.0]) } else { (1.3, 100.0, [8.5, 0.0, 9.0]) };
@@ -770,12 +777,19 @@ fn a_tent_starts_from_its_rooms_air_and_saves_like_a_room() {
     assert!((tent - wet).abs() < 0.05, "the tent starts from the room's 90%: {}", d.rh_of(tent, d.room_temp_c));
     let text = serde_json::to_string(&memory(&world)).unwrap();
     let back: SoilMemory = serde_json::from_str(&text).unwrap();
-    assert_eq!(back.rooms.get("tent:mush_0"), memory(&world).rooms.get("tent:mush_0"), "the tent's air round-trips");
+    // JSON carries a float to within its last place, so compare as numbers.
+    let (a, b) = (back.rooms["tent:mush_0"], memory(&world).rooms["tent:mush_0"]);
+    let near = |x: f64, y: f64| (x - y).abs() <= 1e-12 * x.abs().max(1.0);
+    assert!(
+        near(a.vapour_g_m3, b.vapour_g_m3) && near(a.breathed_l_day, b.breathed_l_day) && near(a.co2_g_m3, b.co2_g_m3)
+            && near(a.humidifier_l_day, b.humidifier_l_day) && a.told == b.told,
+        "the tent's air round-trips: {a:?} vs {b:?}"
+    );
 }
 
 /// The shipped homes keep every rack's tent in range at full planting. Each
-/// home's mushroom racks (the showcase sows oyster mushrooms on all four
-/// shelves) stand in the blueprint's 10 x 3 x 10 m mushroom room (the
+/// home's mushroom racks (the showcase sows oyster mushrooms on all five
+/// shelves, two blocks a shelf) stand in the blueprint's 10 x 3 x 10 m mushroom room (the
 /// commons rack in the home's air), each in the shipped tent with the tent
 /// humidifier placed on its bottom shelf, built from the catalog def. After
 /// two game days every tent is inside the oyster's 85 to 95% window and no
@@ -807,8 +821,9 @@ fn the_shipped_homes_keep_every_racks_tent_in_range() {
         let mut sys = FarmingSystem::new();
         let mut world = hecs::World::new();
         world.spawn((Irrigator,));
+        data.insert(units::PLOT_AREA_KEY, racks.iter().map(|r| (r.id.clone(), RACK_SHELF_M2)).collect::<HashMap<String, f32>>());
         for r in &racks {
-            for shelf in 0..4 {
+            for shelf in 0..5 {
                 world.spawn((crop(&data, "oyster_mushroom", &r.id, shelf),));
             }
         }

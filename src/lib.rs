@@ -1183,6 +1183,7 @@ mod native_app {
             crate::systems::farming::pollination::register(&mut data_store); // pollination data, Settings mode, Hand-pollinate
             crate::systems::farming::picking::register(&mut data_store); // harvest windows, Settings picking mode, Clear
             crate::systems::farming::humidity::register(&mut data_store); // greenhouse air: its data and the home's room boxes
+            crate::systems::life_support::register(&mut data_store); // ship life support: the home's air and water loops
             crate::systems::farming::weeds::register(&mut data_store); // weeds: their data and the Hoe / Mulch request
             // Backpack <-> container transfers (organize-layer inventory): the GUI pushes
             // (item_id, qty, is_add) ops; InventorySystem applies them to the player's
@@ -5848,9 +5849,10 @@ mod native_app {
                                     && pos.z >= mn.z && pos.z <= mx.z =>
                             {
                                 // Inside the homestead -- sealed + comfortable, but OXYGENATED only while
-                                // the life-support air is breathable (v0.618): a power loss that sheds the
-                                // scrubbers lets occupancy drain O2 until it suffocates (power -> air ->
-                                // Vitals). Earth-like home air = breathable = normal.
+                                // the life-support air is breathable (v0.618). Since 2026-09-26 that air is
+                                // ship life support's real balance (systems::life_support): the household
+                                // uses about 2 kg of oxygen a day out of tonnes, so losing the air machines
+                                // costs months, not the minutes the old stand-in drained it in.
                                 let breathable = state
                                     .data_store
                                     .get::<std::sync::Mutex<crate::systems::atmosphere::AirStatus>>("air_status")
@@ -6630,6 +6632,7 @@ mod native_app {
                     let gp = &mut state.gui_state.garden_pests; // pollination: Settings mode + Hand-pollinate -> sim
                     crate::systems::farming::pollination::publish(&state.data_store, !gp.pollination_off, gp.pollinate_pending.take());
                     crate::systems::farming::picking::publish(&state.data_store, gp.picking_realistic, gp.clear_pending.take());
+                    crate::systems::life_support::publish(&state.data_store, gp.life_support_realistic); // ship life support: who powers the air machines
                     crate::systems::farming::weeds::publish(&state.data_store, gp.weed_pending.take()); // Hoe / Mulch -> sim
                     if let Some(req) = state.gui_state.garden_pests.pending.take() {
                         if let Some(m) = state.data_store.get::<std::sync::Mutex<Option<(String, String)>>>("pest_control_request") {
@@ -12894,6 +12897,7 @@ mod native_app {
                         }
                         state.gui_state.garden_pests.weeds = weed_view.areas;
                         state.gui_state.garden_pests.pollinate_areas = pollination.areas;
+                        state.gui_state.garden_pests.home_air = air_view.home; // ship life support: the home's air
                         state.gui_state.garden_pests.air = air_view.areas;
                         // Pests per grow area for the Garden panel (2026-09-26).
                         if let Some(pd) = state.data_store.get::<crate::systems::farming::pests::PestData>("garden_pests") {

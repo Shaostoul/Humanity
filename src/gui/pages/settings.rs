@@ -3494,6 +3494,20 @@ pub(crate) fn draw_gameplay_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
                 }
             }
         });
+        // Ship life support (2026-09-26, systems::life_support; the dual-mode house rule).
+        ui.add_space(theme.spacing_lg);
+        ui.label(RichText::new("Ship life support").color(theme.text_secondary()).strong());
+        ui.add_space(theme.spacing_xs);
+        widgets::setting_hint(ui, theme, hint, "Aboard the station every litre the crops breathe out is condensed back out of the air by the air handlers and returned to the tanks, and the crops, the people and the mushrooms trade carbon dioxide and oxygen through the home's air. That happens either way. Station-supplied has the station's own plant power the air handlers and the CO2 scrubber; Realistic puts their draw on your home's grid, which at full planting is more than the rest of the home uses.");
+        ui.horizontal(|ui| {
+            for (realistic, label) in [(false, "Station-supplied"), (true, "Realistic")] {
+                let selected = state.garden_pests.life_support_realistic == realistic;
+                if ui.radio(selected, RichText::new(label).color(theme.text_primary())).clicked() && !selected {
+                    state.garden_pests.life_support_realistic = realistic;
+                    state.settings_dirty = true;
+                }
+            }
+        });
         ui.add_space(theme.spacing_lg);
         // Soil pH (2026-09-26, farming::soil_ph; the dual-mode house rule).
         ui.label(RichText::new("Soil pH").color(theme.text_secondary()).strong());

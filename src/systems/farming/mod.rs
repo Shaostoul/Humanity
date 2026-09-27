@@ -18,6 +18,8 @@ pub mod humidity;
 #[cfg(test)]
 mod humidity_tests;
 #[cfg(test)]
+mod life_support_tests;
+#[cfg(test)]
 mod nutrient_tests;
 #[cfg(test)]
 mod picking_tests;
@@ -1212,6 +1214,13 @@ impl System for FarmingSystem {
         let air_data: &humidity::HumidityData =
             data.get::<humidity::HumidityData>(humidity::DATA_KEY).or(self.humidity.as_ref()).expect("loaded above");
         let air_map = humidity::AirMap::new(world, data, air_data);
+        // SHIP LIFE SUPPORT (2026-09-26, systems::life_support; every number
+        // in data/life_support.ron): the crops' carbon dioxide and oxygen, the
+        // water their tissue keeps, the home's own air and its machines.
+        // Absent (headless tests that do not register it) = the grow rooms'
+        // water only, as before.
+        let life = data.get::<crate::systems::life_support::LifeSupportData>(crate::systems::life_support::DATA_KEY);
+        let mut air_step = humidity::AirStep::default();
 
         // A unit's season need (soil::season_need): one plant's, cached by
         // plant id for the tick (a garden is a few dozen species and a few
@@ -2223,12 +2232,17 @@ impl System for FarmingSystem {
                     // litres per plant times the plants it holds (2026-09-26;
                     // a 666-plant wheat tray drinks 666 wheat plants' water,
                     // not one), counts toward what the irrigation draws.
+                    // And, with ship life support (2026-09-26), the water its
+                    // tissue keeps on top of what it breathes out
+                    // (life_support.ron, WHAT A CROP KEEPS).
                     if target > 0.0 {
+                        let kept = life.map_or(0.0, |l| l.exchange_for(&crop.crop_def_id).kept_l_per_l) as f32;
                         irrigation_l_per_day += plant_registry
                             .as_ref()
                             .and_then(|r| r.get(&crop.crop_def_id))
                             .map_or(0.0, |d| d.water_per_day)
-                            * plants_here as f32;
+                            * plants_here as f32
+                            * (1.0 + kept);
                     }
                 }
             }
@@ -2269,8 +2283,28 @@ impl System for FarmingSystem {
                 .known_rh(air_data, area, &room_air)
                 .map_or(100.0, |rh| humidity::health_ceiling(air_data, def, rh));
             if crop.water_level >= WATER_STRESS_THRESHOLD {
-                *breathed.entry(area.to_string()).or_insert(0.0) +=
-                    def.map_or(0.0, |d| f64::from(d.water_per_day)) * f64::from(plants_here);
+                let litres = def.map_or(0.0, |d| f64::from(d.water_per_day)) * f64::from(plants_here);
+                *breathed.entry(area.to_string()).or_insert(0.0) += litres;
+                // Ship life support (2026-09-26): through the same pores a
+                // green crop takes in carbon dioxide and gives out oxygen, in
+                // proportion to the water it breathes out (NASA's measured
+                // ratio per litre, life_support.ron), in its lit hours at its
+                // light rate and in proportion to its health: the two things
+                // its growth follows. A fungus instead has its tent's substrate
+                // breathe (humidity::step_rooms).
+                if let (Some(l), Some(dd)) = (life, def) {
+                    if dd.needs_light {
+                        let cover = lamp_cover.get(area).copied().unwrap_or(0.0);
+                        let lit = light_growth_rate(true, is_field_area(area), sun_up, cover);
+                        let health = f64::from((crop.health / 100.0).max(0.1));
+                        let x = l.exchange_for(&crop.crop_def_id);
+                        let e = air_step.photo.entry(area.to_string()).or_insert((0.0, 0.0));
+                        e.0 += litres * x.co2_g_per_l * lit * health;
+                        e.1 += litres * x.o2_g_per_l * lit * health;
+                    } else {
+                        air_step.fungi.insert(area.to_string());
+                    }
+                }
             }
             let ceiling = nutrient_ceiling.min(pest_ceiling).min(ph_ceiling).min(air_ceiling).min(weed_ceiling);
 
@@ -2460,14 +2494,44 @@ impl System for FarmingSystem {
         // it to the home's air through leakage and fans, on the game clock
         // (humidity.rs; its fans' draw is set here too). Its humidifiers run
         // on the crops' water gate, and their litres are drawn with the crops'.
+        // With ship life support (2026-09-26) the step also runs each room's
+        // carbon dioxide, the air handlers and scrubbers, and the home's own
+        // air, whose state is taken out of the soil memory the same way.
         let air_hours = game_dt / SECONDS_PER_DAY * 24.0;
-        let water_ok = water_available && irrigation_on;
-        let (air_notices, humidifier_l_day) =
-            humidity::step_rooms(world, air_data, pest_data, &air_map, &mut room_air, &breathed, water_ok, air_hours);
-        for n in air_notices {
+        air_step.water_ok = water_available && irrigation_on;
+        air_step.realistic = crate::systems::life_support::is_realistic(data);
+        air_step.hours = air_hours;
+        air_step.breathed = breathed;
+        let mut home_air = world
+            .get::<&mut crate::ecs::components::SoilMemory>(memory)
+            .map(|mut m| std::mem::take(&mut m.home_air))
+            .unwrap_or_default();
+        let air_out = humidity::step_rooms(world, air_data, life, pest_data, &air_map, &mut room_air, &mut home_air, &air_step);
+        for n in air_out.notices {
             push_notice(data, n);
         }
-        irrigation_l_per_day += humidifier_l_day as f32;
+        irrigation_l_per_day += air_out.humidifier_l_day as f32;
+        // THE BOUNDARY WITH THE TANKS (systems::life_support): each air
+        // handler hands its coil's litres a day to its plumbing island as a
+        // producer, which the plumbing sim applies on its own clock, the same
+        // way it applies the irrigation's litres a day. A handler the air step
+        // did not run (no power, or no life-support data) returns nothing.
+        for (e, (_h, p)) in world.query_mut::<(&crate::ecs::components::AirHandler, &mut crate::ecs::components::WaterProducer)>() {
+            p.lpm = (air_out.condensate_by_entity.get(&e).copied().unwrap_or(0.0) / 1440.0) as f32;
+        }
+        // The home's own air goes into its air space, where the atmosphere
+        // system judges it (breathable, toxic) and the Air readout shows it.
+        if let (Some(l), true) = (life, air_map.home_known) {
+            let t_c = air_map.home_temp_c;
+            let rh = air_data.rh_of(home_air.vapour_g_m3, t_c).clamp(0.0, 1.0);
+            let o2 = home_air.o2_g_m3 / crate::systems::life_support::pure_g_m3(air_data, l.o2_molar_mass, t_c).max(1e-9) * 100.0;
+            let co2 = crate::systems::life_support::co2_ppm(air_data, home_air.co2_g_m3, t_c) / 1e4;
+            for (_, (_h, sp)) in world.query_mut::<(&crate::systems::atmosphere::HomeAir, &mut crate::systems::atmosphere::EnclosedSpace)>() {
+                sp.atmosphere.humidity = rh as f32;
+                sp.atmosphere.composition.insert("O2".to_string(), o2 as f32);
+                sp.atmosphere.composition.insert("CO2".to_string(), co2 as f32);
+            }
+        }
         // The banked organic N, the pests and the air go back where they live.
         if let Ok(mut m) = world.get::<&mut crate::ecs::components::SoilMemory>(memory) {
             m.organic = organic;
@@ -2475,6 +2539,7 @@ impl System for FarmingSystem {
             m.ph = ph_units;
             m.rooms = room_air;
             m.weeds = area_weeds;
+            m.home_air = home_air;
         }
         self.ph_rt.tell(data, ph_data, &ph_out);
 

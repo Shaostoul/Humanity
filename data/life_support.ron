@@ -1,0 +1,296 @@
+// Ship life support (2026-09-26): the home's AIR and the garden's WATER as
+// closed loops. Read by src/systems/life_support.rs, which carries the model;
+// the design, with every mass balance worked, is docs/design/ship-life-support.md.
+// This file carries the numbers and where each one came from. Every source
+// below was read on 2026-09-26.
+//
+// WHAT THE GAME TEACHES. On Earth a greenhouse opens a vent and a house opens a
+// window: the planet's air takes the water, the carbon dioxide and the stale air
+// away for free. The home is a station, and there is no outside to vent to. Every
+// litre the crops breathe out has to be condensed back out of the air and returned
+// to the tanks, every kilogram of carbon dioxide the people and the mushrooms
+// breathe out has to be taken up by the crops or pulled out by a machine, and the
+// oxygen the people breathe comes only from the crops. This file sizes those
+// machines from real ones, and the Garden panel shows the loops balancing.
+//
+// SOURCES (cited by short name in the entries):
+//   Hanford 2004  Hanford, A.J. (ed.), "Advanced Life Support Baseline Values and
+//                 Assumptions Document", NASA/CR-2004-208941 (JSC 47804, CTSD-ADV-484 A),
+//                 NASA Johnson Space Center, 16 August 2004. Copy read at
+//                 http://www.marsjournal.org/contents/2006/0005/files/Hanford2004B.pdf
+//                 (also on the NASA Technical Reports Server). Table 3.3.6 (the crew
+//                 member), Tables 7.3.2 and 7.3.3 (ISS hardware power).
+//   BVAD 2022     Anderson, M.S., Ewert, M.K. and Keener, J.F. (eds.), "Life Support
+//                 Baseline Values and Assumptions Document", NASA/TP-2015-218570/REV2,
+//                 February 2022, https://ntrs.nasa.gov/api/citations/20210024855/downloads/BVAD_2.15.22-final.pdf
+//                 Tables 4-1, 4-90 and 4-91.
+//   Wheeler 2020  Wheeler, R.M., "NASA's Contributions to Vertical Farming",
+//                 NASA/TM-20205008832, October 2020,
+//                 https://ntrs.nasa.gov/api/citations/20205008832/downloads/NASA%20TM-2020-5008832%20NASA's%20Contributions%20to%20Vertical%20Farming.pdf
+//   Kimball 1983  Kimball, B.A., "Carbon Dioxide and Agricultural Yield: An Assemblage
+//                 and Analysis of 430 Prior Observations", Agronomy Journal 75(5):
+//                 779-788, September 1983, doi:10.2134/agronj1983.00021962007500050014x
+//                 (abstract read through Crossref, api.crossref.org).
+//   Peters 2017   Peters, W.T. and Knox, J.C., "CDRA-4EU Testing to Assess Increased
+//                 Number of ISS Crew", ICES-2017-241, 47th International Conference on
+//                 Environmental Systems, July 2017,
+//                 https://ntrs.nasa.gov/api/citations/20170008959/downloads/20170008959.pdf
+//   Raatschen 2001  Raatschen, W., "Ventilation and Air Revitalization on the
+//                 International Space Station (ISS)", 22nd AIVC Conference, Bath, 11-14
+//                 September 2001,
+//                 https://www.aivc.org/sites/default/files/members_area/medias/pdf/Conf/2001/Raatschen%20Ventilation%20on%20the%20ISS.pdf
+//   Carrier 42CT  Carrier International Sdn. Bhd., "42CT/CTL [300 to 1400 CFM] Ducted
+//                 Chilled Water Fan Coil Unit", catalog 42CT-&CTL/EUROVENT-K20-1PD,
+//                 November 2020,
+//                 https://www.carrier.com/commercial/en/bd/media/42CT_CTL_Series_(Eurovent)_Catalog_tcm889-147231.pdf
+//   EPA mold      U.S. EPA, "A Brief Guide to Mold, Moisture, and Your Home", last
+//                 updated 18 February 2026,
+//                 https://www.epa.gov/mold/brief-guide-mold-moisture-and-your-home
+//   FAO-56        as in data/garden/humidity.ron (the psychrometric formulas, and dry
+//                 air's gas constant, which gives the air's density for the leakage).
+(
+    // -- THE PEOPLE -----------------------------------------------------------------
+    //
+    // What one person breathes in and out a day, Hanford 2004 Table 3.3.6, "Summary of
+    // Nominal Human Metabolic Interface Values", "for a standard 70 kg crewmember with a
+    // respiratory quotient of 0.869 during intravehicular activities": "Carbon Dioxide
+    // Load" 0.998 kg/CM-d, "Oxygen Consumed" 0.835 kg/CM-d, "Food Consumed; Energy
+    // Content" 11.82 MJ/CM-d, "Respiration and Perspiration Water" 2.277 kg/CM-d. These
+    // are the "NASA's standard crew figures ... 0.84 kg of oxygen and 1.00 kg of carbon
+    // dioxide per person per day at 136.7 W" that data/home_outline.json's air loop uses.
+    //
+    // HOW THEY SCALE (the home_outline.json method): a person breathes in proportion to
+    // the food energy they burn, so each figure is taken at the household's food energy
+    // over the reference 11.82 MJ. The household's food energy is its Food loop's
+    // `food_demand_kcal` (data/machines/home.ron 6,600 kcal a day for three, home_solo.ron
+    // 2,200 for one): a body at steady weight burns what it eats (BVAD 2022 section
+    // 3.3.5: "to maintain constant body mass the food energy consumed was set to the same
+    // value"). At 2,200 kcal (9.20 MJ) one person uses 0.650 kg of oxygen and breathes out
+    // 0.777 kg of carbon dioxide and 1.773 kg of water a day; at home_outline.json's own
+    // 2,600 kcal the same scaling gives 0.768 and 0.918, which agree with its 0.77 and
+    // 0.92. Scaling the water with the energy is a GAME CHOICE: it holds the latent share
+    // of the body's heat constant (the water is that latent heat, Hanford 2004 footnote
+    // 45: "The respiration and perspiration water corresponds to the latent metabolic heat
+    // load above").
+    //
+    // The people breathe on the home air's clock (game hours), the same clock the rooms
+    // run on: their daily figures are applied per game day. The body's own clock (Vitals)
+    // is real seconds; which one is right is the open clock question
+    // (docs/PRIORITIES.md, blocked 3), and the balance holds per day on either.
+    reference_mj_per_day: 11.82,
+    reference_o2_kg: 0.835,
+    reference_co2_kg: 0.998,
+    reference_water_kg: 2.277,
+    kj_per_kcal: 4.184,
+
+    // -- THE CROPS: WHAT THEY TAKE UP AND GIVE OUT PER LITRE THEY BREATHE -------------
+    //
+    // A leaf takes in carbon dioxide and loses water through the same pores, so the
+    // model ties each crop's gas exchange to the water it breathes out (plants.csv
+    // water_liters_per_day, the litres the humidity model already counts). NASA measured
+    // both, per square metre of crop a day, in the Biomass Production Chamber: BVAD 2022
+    // Table 4-91, "Nominal and Highest Biomass Production, Composition, and Metabolic
+    // Products", columns "Oxygen (O2) Production [g/m2 d]", "Carbon Dioxide (CO2) Uptake
+    // [g/m2 d]" and "Average Water (H2O) Uptake / Transpiration [kg/m2 d]". Their ratio is
+    // grams of carbon dioxide fixed per litre breathed out: lettuce 5.1, wheat 6.5, potato
+    // 11.3, tomato 13.1, dry bean 16.7. The table's oxygen is 32/44 of its carbon dioxide on every row
+    // but white potato's (32.23 g against the 32.89 that ratio gives): one molecule of oxygen
+    // out for each of carbon dioxide in. The model reads each row's own oxygen.
+    //
+    // WHAT A CROP KEEPS: the water in its own tissue, which leaves the water loop in the
+    // harvest and the trimmings rather than as vapour. BVAD 2022 Table 4-90, "Overall
+    // Physical Properties at Maturity for Nominal Crops", gives each crop's edible and
+    // inedible biomass a day (fresh basis, g fw/m2 d) and each one's "Fresh Basis Water
+    // Content [%]". Their water over the transpiration is what the plant keeps per litre it
+    // breathes out: wheat 2.3%, lettuce 6.3%, tomato 10.0%. The irrigation draws it on top
+    // of the transpiration (FAO-56's "only a tiny fraction is used within the plant" is
+    // this). Mushrooms are not in either table and do not photosynthesise: the fruiting
+    // tents' respiration is below.
+    //
+    // A crop not listed takes the median of the listed rows, computed by the model
+    // (life_support.rs, `LifeSupportData::default_exchange`), not typed here.
+    //
+    // WHEN: only a growing, watered crop exchanges gas (the same crops that breathe out
+    // water), and only while it is lit: the day's uptake happens in its lit hours, at the
+    // crop's light rate (farming::light_growth_rate), the same rule its growth follows.
+    // Like its water, it runs on the air's game clock, not the growth speed, so the carbon
+    // dioxide a room settles at is the physical one whatever the growth speed.
+    //
+    // Rows: `plants` are the plants.csv ids each measured crop stands for. "Dry Bean" (the
+    // common bean) stands for plants.csv's common beans harvested dry (`bean`, which
+    // harvests legume_bean_0, and the kidney, pinto and navy beans, "of the common bean
+    // family"); the runner, tepary and lima beans are other species and take the median.
+    // "Red Beet" stands for beet and "White Potato" for potato. Table 4-91's green onion and
+    // snap bean have no plants.csv crop (no crop is harvested green there) and are left out.
+    crops: [
+        (name: "Cabbage", plants: ["cabbage"], co2_g_m2_d: 9.88, o2_g_m2_d: 7.19, water_kg_m2_d: 1.77,
+            edible_fw_g_m2_d: 75.78, edible_water_pct: 92.0, inedible_fw_g_m2_d: 6.74, inedible_water_pct: 90.0),
+        (name: "Carrot", plants: ["carrot"], co2_g_m2_d: 22.50, o2_g_m2_d: 16.36, water_kg_m2_d: 1.77,
+            edible_fw_g_m2_d: 74.83, edible_water_pct: 88.0, inedible_fw_g_m2_d: 59.87, inedible_water_pct: 90.0),
+        (name: "Chard", plants: ["chard"], co2_g_m2_d: 15.79, o2_g_m2_d: 11.49, water_kg_m2_d: 1.77,
+            edible_fw_g_m2_d: 87.50, edible_water_pct: 92.0, inedible_fw_g_m2_d: 37.69, inedible_water_pct: 90.0),
+        (name: "Celery", plants: ["celery"], co2_g_m2_d: 16.83, o2_g_m2_d: 12.24, water_kg_m2_d: 1.24,
+            edible_fw_g_m2_d: 103.27, edible_water_pct: 90.0, inedible_fw_g_m2_d: 11.47, inedible_water_pct: 90.0),
+        (name: "Dry Bean", plants: ["bean", "kidney_bean", "pinto_bean", "navy_bean"], co2_g_m2_d: 42.17, o2_g_m2_d: 30.67, water_kg_m2_d: 2.53,
+            edible_fw_g_m2_d: 11.11, edible_water_pct: 10.0, inedible_fw_g_m2_d: 150.00, inedible_water_pct: 90.0),
+        (name: "Lettuce", plants: ["lettuce"], co2_g_m2_d: 10.70, o2_g_m2_d: 7.78, water_kg_m2_d: 2.10,
+            edible_fw_g_m2_d: 131.35, edible_water_pct: 95.0, inedible_fw_g_m2_d: 7.30, inedible_water_pct: 90.0),
+        (name: "Onion", plants: ["onion"], co2_g_m2_d: 16.50, o2_g_m2_d: 12.00, water_kg_m2_d: 1.74,
+            edible_fw_g_m2_d: 81.82, edible_water_pct: 89.0, inedible_fw_g_m2_d: 22.50, inedible_water_pct: 90.0),
+        (name: "Pea", plants: ["pea"], co2_g_m2_d: 45.26, o2_g_m2_d: 32.92, water_kg_m2_d: 2.46,
+            edible_fw_g_m2_d: 12.20, edible_water_pct: 12.0, inedible_fw_g_m2_d: 161.00, inedible_water_pct: 90.0),
+        (name: "Peanut", plants: ["peanut"], co2_g_m2_d: 49.28, o2_g_m2_d: 35.84, water_kg_m2_d: 2.77,
+            edible_fw_g_m2_d: 5.96, edible_water_pct: 5.6, inedible_fw_g_m2_d: 168.75, inedible_water_pct: 90.0),
+        (name: "Pepper", plants: ["pepper"], co2_g_m2_d: 33.98, o2_g_m2_d: 24.71, water_kg_m2_d: 2.77,
+            edible_fw_g_m2_d: 148.94, edible_water_pct: 93.0, inedible_fw_g_m2_d: 127.43, inedible_water_pct: 90.0),
+        (name: "Radish", plants: ["radish"], co2_g_m2_d: 16.31, o2_g_m2_d: 11.86, water_kg_m2_d: 1.77,
+            edible_fw_g_m2_d: 91.67, edible_water_pct: 94.0, inedible_fw_g_m2_d: 55.00, inedible_water_pct: 90.0),
+        (name: "Red Beet", plants: ["beet"], co2_g_m2_d: 9.77, o2_g_m2_d: 7.11, water_kg_m2_d: 1.77,
+            edible_fw_g_m2_d: 32.50, edible_water_pct: 80.0, inedible_fw_g_m2_d: 35.00, inedible_water_pct: 90.0),
+        (name: "Rice", plants: ["rice"], co2_g_m2_d: 50.26, o2_g_m2_d: 36.55, water_kg_m2_d: 3.43,
+            edible_fw_g_m2_d: 10.30, edible_water_pct: 12.0, inedible_fw_g_m2_d: 211.58, inedible_water_pct: 90.0),
+        (name: "Soybean", plants: ["soybean"], co2_g_m2_d: 19.13, o2_g_m2_d: 13.91, water_kg_m2_d: 4.70,
+            edible_fw_g_m2_d: 5.04, edible_water_pct: 10.0, inedible_fw_g_m2_d: 68.04, inedible_water_pct: 90.0),
+        (name: "Spinach", plants: ["spinach"], co2_g_m2_d: 10.70, o2_g_m2_d: 7.78, water_kg_m2_d: 1.77,
+            edible_fw_g_m2_d: 72.97, edible_water_pct: 91.0, inedible_fw_g_m2_d: 7.30, inedible_water_pct: 90.0),
+        (name: "Strawberry", plants: ["strawberry"], co2_g_m2_d: 34.82, o2_g_m2_d: 25.32, water_kg_m2_d: 2.22,
+            edible_fw_g_m2_d: 77.88, edible_water_pct: 90.0, inedible_fw_g_m2_d: 144.46, inedible_water_pct: 90.0),
+        (name: "Sweet Potato", plants: ["sweet_potato"], co2_g_m2_d: 56.54, o2_g_m2_d: 41.12, water_kg_m2_d: 2.88,
+            edible_fw_g_m2_d: 51.72, edible_water_pct: 71.0, inedible_fw_g_m2_d: 225.00, inedible_water_pct: 90.0),
+        (name: "Tomato", plants: ["tomato"], co2_g_m2_d: 36.24, o2_g_m2_d: 26.36, water_kg_m2_d: 2.77,
+            edible_fw_g_m2_d: 173.76, edible_water_pct: 94.0, inedible_fw_g_m2_d: 127.43, inedible_water_pct: 90.0),
+        (name: "Wheat", plants: ["wheat"], co2_g_m2_d: 77.00, o2_g_m2_d: 56.00, water_kg_m2_d: 11.79,
+            edible_fw_g_m2_d: 22.73, edible_water_pct: 12.0, inedible_fw_g_m2_d: 300.00, inedible_water_pct: 90.0),
+        (name: "White Potato", plants: ["potato"], co2_g_m2_d: 45.23, o2_g_m2_d: 32.23, water_kg_m2_d: 4.00,
+            edible_fw_g_m2_d: 105.30, edible_water_pct: 80.0, inedible_fw_g_m2_d: 90.25, inedible_water_pct: 90.0),
+    ],
+
+    // HOW MUCH CARBON DIOXIDE THE CROPS HAVE TO WORK WITH. The table's rates were measured
+    // in enriched air. Wheeler 2020, on the Biomass Production Chamber: "Carbon dioxide
+    // (CO2) was controlled at 1000 or 1200 ppm (0.10 or 0.12 kPa) during the light cycles",
+    // so co2_reference_ppm 1100, the middle. BVAD 2022 says the table's rates are the
+    // ceiling: "the optimum partial pressure of carbon dioxide for plant growth is roughly
+    // 0.10 to 0.20 kPa (Wheeler, et al., 1993); below this, productivities decrease."
+    //
+    // Below it the model takes the one measured response it has, Kimball 1983: "yields
+    // probably will increase by 33% (with a 99.9% confidence interval from 24 to 43%) with a
+    // doubling of atmospheric CO2 concentration", read as the logarithmic law such a
+    // constant gain per doubling implies, uptake proportional to 1 + b ln(C / 330) with
+    // b = 0.33 / ln 2 = 0.476, normalised to 1 at the reference and never above it. Two
+    // GAME CHOICES: the doubling is measured from 330 ppm (co2_doubling_base_ppm), about
+    // the outdoor air of the studies Kimball assembled; and a yield gain is read as the
+    // same gain in the carbon a crop fixes. The law then reaches zero at 40 ppm, about
+    // where a C3 leaf stops fixing carbon, and gives 69% of the reference rate at 400 ppm.
+    // So a greenhouse that pulls its own air down slows itself, which is what stops the
+    // crops from emptying the home of carbon dioxide.
+    co2_reference_ppm: 1100.0,
+    co2_gain_per_doubling: 0.33,
+    co2_doubling_base_ppm: 330.0,
+
+    // THE MUSHROOMS breathe out the fruiting tent's substrate CO2 (data/garden/humidity.ron:
+    // Pavlik 2020's 1.09 g of CO2 per kg of substrate an hour) and take in oxygen for it.
+    // fungi_respiratory_quotient 1.0: one molecule of oxygen in for each of carbon dioxide
+    // out, the quotient of a carbohydrate burned (the straw and sawdust substrate is
+    // cellulose). A GAME CHOICE: Pavlik 2020 measured the carbon dioxide, not the oxygen.
+    fungi_respiratory_quotient: 1.0,
+
+    // Oxygen's molar mass, g/mol (NIST, "Molecular weight: 31.9988",
+    // https://webbook.nist.gov/cgi/cbook.cgi?ID=C7782447). Carbon dioxide's, the molar gas
+    // constant and the air pressure are data/garden/humidity.ron's.
+    o2_molar_mass: 31.9988,
+
+    // -- THE AIR HANDLER: WHERE THE WATER COMES BACK -----------------------------------
+    //
+    // A closed habitat condenses its air's water on a cold coil and sends it to the water
+    // system. Raatschen 2001 on the ISS Columbus module: "The air flowing through the active
+    // core is cooled down close to coolant water temperature. Consequently part of the
+    // humidity contained in the air flow is condensed", "the condensate is separated from
+    // the air and fed into the condensate system of the ISS", on a coolant at "5 C +/- 1 C"
+    // (its Table 1). NASA grew crops the same way: Wheeler 2020, "Transpired water
+    // (humidity) condensed by cooling coils was passed through ion exchange columns, and then
+    // recycled back to the nutrient solution reservoirs."
+    //
+    // THE COIL. coil_dewpoint_c 5.9: the air leaves the coil holding the water saturated air
+    // holds at 5.9 C, Peters 2017's air leaving an ISS condensing heat exchanger: "The inlet
+    // air dry-bulb temperature (10.2 C) and dewpoint temperature (5.9 C) were chosen to
+    // simulate conditioned air exiting the condensing heat exchanger at the CDRA location."
+    // Any air wetter than that loses the difference to the coil; the model counts it at the
+    // room's temperature (humidity.ron's psychrometric formula).
+    //
+    // THE UNIT (the "air_handler" machine in data/machines/home.ron and home_solo.ron) is a
+    // commercial ducted chilled-water fan coil, Carrier 42CT size 14, its fan and cabinet
+    // taken from its catalogue: at "50" Pa of external static pressure its "High" speed moves
+    // "1084" CFM (1,842 m3/h), "Medium" "912", "Low" "713", and its two motors' "Power Input
+    // (W)" is "325", "266" and "226" (230 V, one phase). A GAME CHOICE joins the two: the
+    // catalogue rates the coil on 7 C water, where its air leaves at "13.1" C dry bulb and
+    // "12.4" C wet bulb (an 11.9 C dew point by FAO-56's psychrometric equation), which would
+    // hold a 20 C home no drier than about 60%. The station's cooling loop is taken to be the
+    // ISS's colder one, and the coil to leave its air at the ISS exchanger's dew point.
+    //
+    // ITS FAN. air_handler_speeds: (share of full airflow, share of full power) at the
+    // catalogue's three speeds, (1.0, 1.0) High, (0.841, 0.818) Medium, (0.658, 0.695) Low.
+    // Its motors are permanent split capacitor motors, which slow down without saving much
+    // power, so the draw is read from these points and not from the fan laws. Between two
+    // speeds the unit is taken to switch between them; below Low it cycles on Low, so its
+    // draw falls in proportion (a GAME CHOICE for the controller the catalogue leaves to the
+    // installer).
+    //
+    // THE SETPOINTS its controller holds, like the exhaust fans' (humidity.ron):
+    //   grow_room_setpoint_rh 0.75, in a grow room: BVAD 2022, "plants require higher relative
+    //     humidity", "about 75%", "to avoid water stress and minimize nutrient solution
+    //     usage"; Wheeler 2020's chamber kept "Relative humidity levels ... near 65%-75% for
+    //     all studies". Five points under the exhaust fans' 80%, so the fan is the backup, and
+    //     ten under the gray mold line.
+    //   home_setpoint_rh 0.50, in the home's own air: EPA mold, "If possible, keep indoor
+    //     humidity below 60 percent (ideally between 30 and 50 percent) relative humidity";
+    //     BVAD 2022 Table 4-1 gives a crew cabin 25% to 75%, nominal 40%. 40% is out of this
+    //     coil's reach at the home's 20 C (its air leaves at about 40% there); 50% is the top of
+    //     the EPA's ideal and costs fan power the balance shows: every point drier pulls more
+    //     of the greenhouse's water into the home through its leakage.
+    // In a room a humidifier holds (a fruiting tent), the air handler works
+    // humidity.ron's `humidified_fan_margin_rh` above the humidifier's setpoint, as the fans do.
+    //
+    // WHERE ITS HEAT GOES: condensing water releases its latent heat into the coil, about
+    // 2.45 MJ a litre, which the station's cooling loop carries to its radiators. The rooms
+    // sit at a fixed 21 C and the Climate loop is not modelled yet: that heat, and the
+    // sunlight the greenhouse absorbs, are the next rung (docs/design/ship-life-support.md).
+    coil_dewpoint_c: 5.9,
+    grow_room_setpoint_rh: 0.75,
+    home_setpoint_rh: 0.50,
+    air_handler_speeds: [(0.658, 0.695), (0.841, 0.818), (1.0, 1.0)],
+
+    // -- THE CO2 SCRUBBER: WHAT TAKES CARBON DIOXIDE OUT WHEN THE CROPS CANNOT ----------
+    //
+    // The ISS's Carbon Dioxide Removal Assembly (CDRA), a four-bed molecular sieve that vents
+    // what it catches overboard. Its power, Hanford 2004 Table 7.3.2, "International Space
+    // Station Atmosphere Revitalization Subsystem": "Carbon Dioxide Removal Assembly" peak
+    // "1,487" W, operational average "860" W (the "co2_scrubber" machine, 860 W; its heaters
+    // regenerate the beds on a fixed cycle, so it is taken to draw its average whenever it
+    // runs and to cycle on and off to hold its setpoint). Its capacity, Peters 2017: "At these
+    // inlet conditions and a constant process airflow of 801 SLPM (28 SCFM), the system CO2
+    // removal rate averaged 4.74 kg/day. This removal rate exceeds the value required for 4
+    // ISS crewmembers", at an inlet of "267 Pa (2.0 torr)". It takes a fixed share of the
+    // carbon dioxide in the air it draws, so in thinner air it removes proportionally less:
+    // 4.74 kg a day at scrubber_rated_ppm (267 Pa is 2,636 ppm at 101.3 kPa).
+    //
+    // scrubber_setpoint_ppm 2636: it runs only above 0.267 kPa. BVAD 2022 Table 4-1 gives a
+    // crew's p[CO2] as 0.267 kPa lower, 0.507 nominal and 1.01 upper, with a footnote on the
+    // nominal: "May be reduced to 0.267 kPa nominal 24-hour average in future NASA-STD-3001
+    // document updates". So the home holds the stricter coming limit, and below it the crops
+    // are left to take the carbon dioxide up (at 2,636 ppm they are well above their 1,100
+    // reference, so it costs them nothing).
+    scrubber_setpoint_ppm: 2636.0,
+    scrubber_rated_ppm: 2636.0,
+
+    // -- LEAKAGE: WHAT A SEALED HOME LOSES ANYWAY --------------------------------------
+    //
+    // BVAD 2022, section 4.1: "Realistic atmospheric pressure leakage values of 0.01
+    // kg/day/module have been determined during ground testing ... However, the nominal value
+    // used here for atmospheric leakage is twice that (i.e., 0.02 kg/day/module) to account
+    // for uncertainty and variability." A GAME CHOICE counts each of the home's rooms as a
+    // module (the rooms the engine publishes). The air lost carries its water, carbon dioxide
+    // and oxygen out in proportion; the nitrogen is made up from stored gas, which a station
+    // has to bring in (data/self_sufficiency/cannot_close.ron, raw chemistry inputs). The
+    // air's density is FAO-56's P / (R T) with dry air's 287 J/(kg K).
+    leak_kg_per_day_per_module: 0.02,
+)

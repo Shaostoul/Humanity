@@ -43,11 +43,20 @@ pub struct PlumbingSystem {
     pub status: WaterStatus,
     /// Throttle log spam (seconds since last log).
     log_cooldown: f32,
+    /// Litres each island's tanks were owed but could not show (2026-09-26,
+    /// ship life support): a tank's level is an f32, whose step at 8,000 L is
+    /// about 0.0005 L, and a frame's net flow is often smaller than half of
+    /// that (0.17 L/min at 60 frames a second is 0.00005 L), so it rounded
+    /// away and the water was lost or made. What rounding keeps out of the
+    /// tanks is carried to the next tick instead, so over time every litre
+    /// that crosses lands. What they cannot hold or give (full or dry) is
+    /// still spilled or unmet, as before.
+    carry: std::collections::HashMap<Option<u32>, f64>,
 }
 
 impl PlumbingSystem {
     pub fn new() -> Self {
-        Self { status: WaterStatus::default(), log_cooldown: 0.0 }
+        Self { status: WaterStatus::default(), log_cooldown: 0.0, carry: std::collections::HashMap::new() }
     }
 }
 
@@ -144,23 +153,30 @@ impl System for PlumbingSystem {
             let dem = dem_by.get(&key).copied().unwrap_or(0.0);
             prod_all += prod;
             dem_all += dem;
-            let mut delta_l = (prod - dem) * dt_min; // +fills, -drains
+            // +fills, -drains; in f64, with what rounding held back last tick.
+            let want = f64::from(prod - dem) * f64::from(dt_min) + self.carry.get(&key).copied().unwrap_or(0.0);
+            let mut delta_l = want;
+            let mut applied = 0.0f64;
             if let Some(tanks) = tanks_by.get(&key) {
                 for e in tanks {
                     if let Ok(mut t) = world.get::<&mut WaterTank>(*e) {
+                        let before = f64::from(t.liters);
                         if delta_l >= 0.0 {
-                            let add = delta_l.min((t.capacity_l - t.liters).max(0.0));
-                            t.liters += add;
+                            let add = delta_l.min((f64::from(t.capacity_l) - before).max(0.0));
+                            t.liters = (before + add) as f32;
                             delta_l -= add;
                         } else {
-                            let take = (-delta_l).min(t.liters.max(0.0));
-                            t.liters -= take;
+                            let take = (-delta_l).min(before.max(0.0));
+                            t.liters = (before - take) as f32;
                             delta_l += take;
                         }
+                        applied += f64::from(t.liters) - before;
                         stored_all += t.liters;
                         cap_all += t.capacity_l;
                     }
                 }
+                // The tanks took `want - delta_l`; what rounding kept out of them waits.
+                self.carry.insert(key, (want - delta_l) - applied);
             }
         }
 
@@ -302,6 +318,27 @@ mod tests {
         let s = status(&data);
         assert!(s.balance_lpm < 0.0, "power-cut balance is negative (draining): {}", s.balance_lpm);
         assert!(s.days_autonomy > 0.0 && s.days_autonomy.is_finite(), "finite days of water left: {}", s.days_autonomy);
+    }
+
+    /// A trickle reaches a big tank at frame rate (2026-09-26, ship life support). A household
+    /// tap's 0.17 L/min at 60 frames a second is 0.00005 L a frame, under half the f32 step of a
+    /// tank holding 7,000 L (about 0.0005 L), so every frame rounded it away and an hour of it
+    /// never left the cistern. The rounding residue is now carried, so an hour takes its 10.2 L,
+    /// and a producer's trickle comes in the same way. Seen red by dropping the carry (the
+    /// hour's 10.2 L then never left the tank).
+    #[test]
+    fn a_trickle_reaches_a_big_tank_at_frame_rate() {
+        let mut data = DataStore::new();
+        data.insert("water_status", std::sync::Mutex::new(WaterStatus::default()));
+        let mut world = hecs::World::new();
+        world.spawn((WaterConsumer { lpm: 0.17, needs_power: false }, PlumbingCircuit { island: 0 }));
+        let tank = world.spawn((WaterTank { liters: 7000.0, capacity_l: 8000.0 }, PlumbingCircuit { island: 0 }));
+        let mut sys = PlumbingSystem::new();
+        for _ in 0..3600 * 60 {
+            sys.tick(&mut world, 1.0 / 60.0, &data);
+        }
+        let left = world.get::<&WaterTank>(tank).unwrap().liters;
+        assert!((7000.0 - left - 10.2).abs() < 0.01, "an hour at 0.17 L/min takes 10.2 L: {left}");
     }
 
     /// A tank never overfills or drains below zero.

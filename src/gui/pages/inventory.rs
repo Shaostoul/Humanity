@@ -1928,6 +1928,13 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             .size(theme.font_size_small)
                             .color(theme.text_muted()),
                     );
+                    // The home's own air and its loops (2026-09-26, ship life
+                    // support): the air the whole garden breathes into, and the
+                    // day's carbon, oxygen and water between it and the tanks.
+                    for (line, level) in &state.garden_pests.home_air {
+                        let col = match level { 2 => theme.danger(), 1 => theme.warning(), _ => theme.text_secondary() };
+                        ui.label(RichText::new(line).size(theme.font_size_small).color(col));
+                    }
                     ui.add_space(theme.spacing_xs);
                     let gcols = 4usize;
                     ui.columns(gcols, |cols| {

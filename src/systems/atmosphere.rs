@@ -8,7 +8,7 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
-use crate::ecs::components::{Health, PowerConsumer, Transform};
+use crate::ecs::components::{Health, Transform};
 use crate::ecs::systems::System;
 use crate::hot_reload::data_store::DataStore;
 
@@ -152,26 +152,19 @@ pub struct IgnitionSource;
 
 /// Marks THE home's enclosed space (v0.617): the one whose atmosphere the live "Air" readout reflects.
 /// Spawned with the home (alongside the HomeMachine marker so re-entering the world re-spawns it once).
-#[derive(Debug, Clone, Copy)]
-pub struct HomeAir;
-
-/// An air handler on the home's life support (v0.618): while POWERED it regenerates O2 + scrubs CO2 in
-/// the home space. `needs_power` gates it on the SAME entity's PowerConsumer -- cut the grid and the
-/// scrubber stops, so occupancy slowly makes the air unbreathable (the power -> air -> Vitals chain).
-/// Rates are percentage-points per second.
-#[derive(Debug, Clone, Copy)]
-pub struct AirScrubber {
-    pub o2_regen_per_s: f32,
-    pub co2_scrub_per_s: f32,
-    pub needs_power: bool,
+///
+/// Its air is run by ship life support (2026-09-26, `systems::life_support`, stepped in the farming
+/// tick with the grow rooms): the household breathes in oxygen and out carbon dioxide and water in
+/// proportion to `metabolic_kcal_per_day`, the food energy it eats (the home's Food loop demand),
+/// the crops and the air handlers and scrubbers answer, and the result is written back into this
+/// space's atmosphere, which this system then judges (breathable, toxic) and publishes. It replaced
+/// a v0.618 stand-in that drained 0.012 percentage points of oxygen a second for three people and
+/// made it back with a 25 W "recycler": a household really uses about 2 kg of oxygen a day out of the
+/// several tonnes a sealed home holds, so a power cut costs days, not minutes.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct HomeAir {
+    pub metabolic_kcal_per_day: f32,
 }
-
-/// Home life-support tuning (v0.618). Occupancy (a household of ~3) steadily consumes O2 + emits CO2;
-/// powered scrubbers offset it. Picked so one recycler covers the household with margin, and a full
-/// power loss drains 21% -> ~19.5% (unbreathable) over a couple of minutes -- visible, not instant.
-pub const HOME_OCCUPANTS: f32 = 3.0;
-pub const O2_DRAIN_PER_PERSON_PER_S: f32 = 0.004;
-pub const CO2_RISE_PER_PERSON_PER_S: f32 = 0.0008;
 
 /// Live air readout, published to the DataStore each tick (key `air_status`) so the GUI can show the
 /// home's running life-support state -- mirrors PowerStatus / WaterStatus. (v0.617)
@@ -404,29 +397,9 @@ impl System for AtmosphereSystem {
             }
         }
 
-        // Phase 1b -- HOME LIFE SUPPORT (v0.618): occupancy drains O2 + raises CO2 in the home space;
-        // POWERED scrubbers offset it. Cut the grid -> scrubbers shed -> O2 falls -> unbreathable ->
-        // (the inside-homestead EnvironmentContext flips oxygenated off -> FoodSystem drains blood O2).
-        let (mut o2_regen, mut co2_scrub) = (0.0f32, 0.0f32);
-        for (_, (sc, power)) in world.query::<(&AirScrubber, Option<&PowerConsumer>)>().iter() {
-            let powered = !sc.needs_power || power.map(|c| c.enabled).unwrap_or(false);
-            if powered {
-                o2_regen += sc.o2_regen_per_s;
-                co2_scrub += sc.co2_scrub_per_s;
-            }
-        }
-        let home_space = world.query::<(&HomeAir, &EnclosedSpace)>().iter().next().map(|(e, _)| e);
-        if let Some(e) = home_space {
-            if let Ok(mut sp) = world.get::<&mut EnclosedSpace>(e) {
-                let o2 = sp.atmosphere.gas_percent("O2");
-                let new_o2 = (o2 - HOME_OCCUPANTS * O2_DRAIN_PER_PERSON_PER_S * step_dt + o2_regen * step_dt).clamp(0.0, 21.0);
-                sp.atmosphere.composition.insert("O2".to_string(), new_o2);
-                let co2 = sp.atmosphere.gas_percent("CO2");
-                let new_co2 = (co2 + HOME_OCCUPANTS * CO2_RISE_PER_PERSON_PER_S * step_dt - co2_scrub * step_dt).max(0.04);
-                sp.atmosphere.composition.insert("CO2".to_string(), new_co2);
-                Self::evaluate_atmosphere(&mut sp.atmosphere);
-            }
-        }
+        // (Phase 1b, the v0.618 home occupancy stand-in, is gone: ship life support runs the home's air
+        // in the farming tick, `systems::life_support`, and writes it into the HomeAir space, judged
+        // in Phase 1 above and published below.)
 
         // Phase 2: Apply atmospheric effects to entities.
         // Collect entities with health that are in enclosed spaces.
@@ -557,7 +530,7 @@ mod tests {
         let mut data = DataStore::new();
         data.insert("air_status", std::sync::Mutex::new(AirStatus::default()));
         let mut world = hecs::World::new();
-        world.spawn((HomeAir, EnclosedSpace::new_sealed(14_000.0)));
+        world.spawn((HomeAir::default(), EnclosedSpace::new_sealed(14_000.0)));
         let mut sys = AtmosphereSystem::new();
         sys.tick(&mut world, 1.0, &data); // dt >= tick_interval so the step runs
         let s = *data.get::<std::sync::Mutex<AirStatus>>("air_status").unwrap().lock().unwrap();
@@ -566,35 +539,9 @@ mod tests {
         assert!(s.breathable, "Earth-like home air is breathable");
     }
 
-    /// v0.618: a POWERED air scrubber holds the home's O2 against occupancy; cut its power and occupancy
-    /// drains it -- the power -> air consequence.
-    #[test]
-    fn powered_scrubber_holds_air_then_power_loss_drains_it() {
-        use crate::ecs::components::PowerConsumer;
-        use crate::ecs::systems::System;
-        use crate::hot_reload::data_store::DataStore;
-        let mut data = DataStore::new();
-        data.insert("air_status", std::sync::Mutex::new(AirStatus::default()));
-        let mut world = hecs::World::new();
-        world.spawn((HomeAir, EnclosedSpace::new_sealed(14_000.0)));
-        let scrubber = world.spawn((
-            AirScrubber { o2_regen_per_s: 0.02, co2_scrub_per_s: 0.006, needs_power: true },
-            PowerConsumer { draw_watts: 25.0, priority: 1, enabled: true },
-        ));
-        let mut sys = AtmosphereSystem::new();
-        let o2 = |d: &DataStore| d.get::<std::sync::Mutex<AirStatus>>("air_status").unwrap().lock().unwrap().o2_pct;
-
-        // Powered: regen >= occupancy drain, so O2 stays ~21%.
-        for _ in 0..5 { sys.tick(&mut world, 1.0, &data); }
-        let powered = o2(&data);
-        assert!(powered > 20.9, "powered scrubber holds O2, got {powered}");
-
-        // Cut power: occupancy keeps consuming with no regen -> O2 falls.
-        world.get::<&mut PowerConsumer>(scrubber).unwrap().enabled = false;
-        for _ in 0..30 { sys.tick(&mut world, 1.0, &data); }
-        let cut = o2(&data);
-        assert!(cut < powered - 0.2, "power loss drains the home air ({powered} -> {cut})");
-    }
+    // (The v0.618 test that a 25 W scrubber held three people's oxygen, and that cutting its power
+    // drained it in seconds, went with that stand-in. The home's air is ship life support's now, and
+    // its tests are in src/systems/farming/life_support_tests.rs.)
 
     #[test]
     fn test_equalization() {

@@ -13,7 +13,7 @@
 //   output_value - the machine's per-unit output in `unit`.
 //   unit         - the output's unit. NOTE the unit is HETEROGENEOUS across rows (kWh/day for
 //                  energy generation, L/day for water collection, kg/day for nutrient
-//                  recycling, kW for a runtime-gated backup, L/day-air for life support). The
+//                  recycling, kW for a runtime-gated backup, kg/day-CO2 and m3/h-air for life support). The
 //                  loader's household_energy_balance() sums only the "kWh/day" rows for the
 //                  energy score; a water/nutrient/air score sums its own unit the same way.
 //   assumptions  - the editable, human-readable derivation the operator can tune.
@@ -68,10 +68,14 @@
             id: "composter", output_value: 1.2, unit: "kg/day",
             assumptions: "+1.2 kg/day of FINISHED COMPOST (not of nutrient: the actual N+P+K in 1.2 kg of compost is about 18 g N, 6 g P, 12 g K, roughly 70x smaller) from food + crop + human waste, plus greywater back to irrigation (home.ron stats). NOTE the scale: home.ron is the 3-PERSON home, so its +155 L/day greywater goes with a 240 L/day household, a plausible 65% recovery. For ONE person the household is 85 L/day and greywater is about 59 L/day; the 155 figure must never be copied into a solo design, where it would imply 194% recovery. One person makes about 4.3 kg/day of wet organic material once crop residue is counted, not 1.5 kg/day (that figure is excreta only).",
         ),
-        // ── Air GENERATION / life support (L/day of scrubbed fresh air) ──
+        // ── Air / life support (2026-09-26: ship life support, systems::life_support) ──
         (
-            id: "air_recycler", output_value: 28800.0, unit: "L/day-air",
-            assumptions: "20 L/min O2-making / CO2-scrubbing blower (home.ron Air OUT port) = 28800 L/day. Sized for a ~3-person sealed household with margin; priority-1 (shed last). CONTESTED (2026-07-30): this is an AIR THROUGHPUT figure, and the machine's 25 W draw is about an order of magnitude below what actually MAKING oxygen costs. One person at 2,600 kcal/day consumes 0.77 kg O2/day; electrolysis runs about 6.5 kWh per kg of O2, so 5.0 kWh/day, plus about 0.6 for CO2 removal and 0.2 for trace contaminants. That 5.8 kWh/day is 145% of the whole solo home's 4.0 kWh/day budget. 25 W (0.6 kWh/day) is right for a blower that MOVES air, not for one that regenerates it.",
+            id: "air_recycler", output_value: 4.74, unit: "kg/day-CO2",
+            assumptions: "Now the CO2 scrubber: the ISS Carbon Dioxide Removal Assembly, a four-bed molecular sieve that vents what it catches overboard. 4.74 kg of CO2 a day at a 267 Pa (2.0 torr) inlet (Peters and Knox, ICES-2017-241), 860 W operational average and 1,487 W peak (Hanford 2004, NASA/CR-2004-208941 Table 7.3.2). It runs only above 2,636 ppm (BVAD 2022's coming 0.267 kPa crew limit) and removes proportionally less in thinner air. It no longer makes oxygen: the 25 W air recycler this entry described until 2026-09-26 was an air throughput figure, and aboard only the crops make oxygen (data/life_support.ron). In both shipped homes the crops take up the carbon dioxide and the scrubber idles.",
+        ),
+        (
+            id: "air_handler", output_value: 1842.0, unit: "m3/h-air",
+            assumptions: "A ducted chilled-water fan coil (Carrier 42CT size 14: 1,084 CFM at 50 Pa on 325 W of power input) on the station's cooling loop, its air leaving at the ISS condensing heat exchanger's 5.9 C dew point. What it returns to the tanks is not a fixed figure: it condenses the air it moves down to that dew point, so each litre costs about 27 Wh of fan power in a greenhouse held at 75% and about 105 Wh in the home's own air held at 50% (docs/design/ship-life-support.md).",
         ),
     ],
 )

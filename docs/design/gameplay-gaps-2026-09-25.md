@@ -722,6 +722,62 @@ date; re-check before trusting one. The container data basis is
   full needs its air moved for CO2, which the model does not yet do. The tent
   is not drawn in the world yet, and the T3's own 4.5 L reservoir is not
   modelled.
+- **The ship's air and the garden's water are closed loops: DONE
+  2026-09-26** (ship life support; the operator chose the spaceship first,
+  2026-09-27; design and every balance in
+  [ship-life-support.md](ship-life-support.md), every number in
+  `data/life_support.ron` with its quoted, dated source). The home's own air
+  was held at 40% for nothing and swallowed the greenhouse's 541 L a day; it
+  now keeps its own vapour, carbon dioxide and oxygen (`HomeAirState`, saved
+  in the soil memory) and so does every grow room and tent, solved exactly
+  per tick (`life_support::relax`: the air's water ledger closes to the gram).
+  WATER: a new `air_handler` machine, a ducted chilled-water fan coil
+  (Carrier 42CT size 14: 1,842 m3/h, 325 W) whose coil leaves the air at the
+  ISS condensing heat exchanger's 5.9 C dew point, holds a grow room at 75%
+  (BVAD 2022's "about 75%" for plants) or the home's own air at 50% (the top
+  of the EPA's ideal), and pipes its condensate back to the cistern through
+  its plumbing island. The irrigation now also draws the water a crop's tissue
+  keeps (BVAD 2022 Table 4-90: 2 to 10% by crop). THE CLOCKS (BUG-092 item 7,
+  not resolved): the air runs on game hours, the tanks on real minutes, and
+  every flow crosses as litres a day on both sides from one physical state, so
+  a day's water balances on each clock; a test proves it (drawn 108.79 L =
+  returned 102.39 + kept 6.40 + lost 0.0001 a day, the same at 1x and 2x).
+  Found on the way and fixed: the tanks' f32 level dropped every per-frame
+  change under half a float step, so at 60 frames a second a household tap's
+  0.17 L/min never left the cistern; the rounding is now carried. AIR: people
+  breathe in proportion to their food (Hanford 2004's crew member, scaled the
+  way data/home_outline.json does); crops take up carbon dioxide and give out
+  oxygen at NASA's measured grams per litre they breathe out (BVAD 2022 Table
+  4-91), in their lit hours, less in thin air (Kimball 1983's 33% per
+  doubling); the mushroom tents breathe out their substrate's CO2; the 25 W
+  "air recycler" that made oxygen is now the ISS CDRA scrubber (4.74 kg a day,
+  860 W), idle below 2,636 ppm; the air leaks 0.02 kg a day per room (BVAD).
+  The old stand-in that suffocated the household minutes after a power cut is
+  gone. A Settings > Gameplay "Ship life support" switch (Station-supplied by
+  default, or Realistic) decides who powers the air machines; nothing else
+  changes between the modes. THE BALANCE at full planting: the family home's
+  seven handlers (greenhouse 2, court 1, home 4) return all 666 L a day put in
+  the air, the garden's net draw is 91 L a day (tissue 40, outdoor fields 57,
+  less the household's breath), and the crops hold the home's carbon dioxide
+  at 440 to 500 ppm, rising toward about 800; the solo home's five return all
+  250 L, net draw 43 L. Both Water loops close; the cistern reaches about 24
+  and 65 days. FOUND, written into the homes' loops: (1) the Energy loops no
+  longer close in the Realistic mode: the handlers average about 1.5 kW (36
+  kWh a day) and 1.0 kW (24 kWh), because the greenhouse and the court leak
+  about 215 L a day into the drier home air, where condensing costs four times
+  the fan power a litre it does in the greenhouse; a home at 60% halves it
+  (measured), and tighter bulkheads or EC fans would cut it too. (2) The Air
+  loops do not quite close: the crops give out one oxygen per carbon dioxide
+  they fix, but people burning fat and protein use more (respiratory quotient
+  0.87), so the homes lose about 0.4 and 0.2 kg of oxygen a day, years before
+  it matters; no electrolyser is placed. (3) The mushroom tents run at 1,200
+  to 1,640 ppm, over the 1,000 their oysters fruit under, because their room
+  sits about 540 ppm over the home's, as this doc estimated; no fan answers
+  CO2. (4) The court's towers breathe out 106 L a day and had no air handler:
+  its air saturated and 45 L a day condensed on its walls, until one was
+  placed. Left: the latent heat (about 19 and 7 kW) and the Climate loop,
+  trace contaminants, the station's well and rain, and the "outdoor" fields
+  that breathe into a sky the station does not have.
 
 ## Defects found (things that are wrong, not merely missing)
 

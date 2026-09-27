@@ -646,17 +646,49 @@
             camera: Some((0.0, -8.0, 70.0)),
             camera_px: (640, 360),
         ),
-        "air_recycler": (
-            shape: "box", size: (0.5, 0.8, 0.4), color: (0.55, 0.78, 0.82),
-            label: "Air recycler (O2/CO2)",
-            category: "Power",
-            stats: [(kind: "power", value: "-0.6 kWh/d", status: "ok"), (kind: "air", value: "scrubs CO2, makes O2", status: "ok")],
-            // Sized for 3 with margin, so one unit vastly over-serves one person -- kept as
-            // the priority-1 shed-last teaching point (cut power -> air suffocates).
-            power: Some(Consumer(watts: 25.0, priority: 1)),
+        "air_handler": (
+            shape: "box", size: (1.831, 0.242, 0.56), color: (0.78, 0.8, 0.82),
+            label: "Air handler (condensing coil)",
+            category: "Life support",
+            // A ducted chilled-water fan coil (Carrier 42CT size 14: at 50 Pa of
+            // static pressure its "High" speed moves "1084" CFM, 1,842 m3/h, on
+            // "325" W of "Power Input"; its cabinet is 1,831 x 560 x 242 mm), hung
+            // under the ceiling with its coil on the station's cooling loop. While
+            // powered it holds the air it stands in, a grow room's at 75% humidity
+            // or the home's own at 50%, by condensing the water out of it on the
+            // cold coil, and sends every litre back to the tanks through its water
+            // line: the loop a closed habitat closes (data/life_support.ron has the
+            // numbers and sources, docs/design/ship-life-support.md the balance).
+            // The heat its coil takes goes to the station's radiators, which the
+            // game does not model yet.
+            dehumidifies_m3_h: 1842.0,
+            stats: [(kind: "power", value: "325 W flat out, about 0.19 W per m3/h on its Low speed", status: "ok"), (kind: "water", value: "condensate back to the tanks", status: "ok"), (kind: "air", value: "holds a grow room at 75% humidity, the home's air at 50%", status: "ok")],
+            power: Some(Consumer(watts: 325.0, priority: 2)),
             ports: [
-                (utility: Electricity, dir: In, label: "blower", watts: 25.0),
-                (utility: Air, dir: Out, label: "fresh air", flow_lpm: 20.0),
+                (utility: Electricity, dir: In, label: "fan", watts: 325.0),
+                (utility: Water, dir: Out, label: "condensate"),
+            ],
+        ),
+        "air_recycler": (
+            shape: "box", size: (0.8, 1.2, 0.4), color: (0.55, 0.78, 0.82),
+            label: "CO2 scrubber (molecular sieve)",
+            category: "Life support",
+            // The ISS's Carbon Dioxide Removal Assembly: a four-bed molecular sieve
+            // that takes carbon dioxide out of the air and vents it overboard
+            // (Hanford 2004, Table 7.3.2: peak "1,487" W, operational average "860"
+            // W; Peters 2017: it removed "4.74 kg/day" of CO2 at a "267 Pa (2.0
+            // torr)" inlet, more than 4 crew breathe out). It runs only above 2,636
+            // ppm, BVAD 2022's coming 24-hour limit for a crew, cycling to hold it,
+            // and takes a fixed share of the carbon dioxide in the air it draws
+            // (data/life_support.ron). Below that the crops take the carbon dioxide
+            // up. Until 2026-09-26 this was a 25 W "air recycler" that also made
+            // oxygen; aboard, only the crops make oxygen (the Air loop below). Its
+            // id is kept so its wiring stands.
+            scrubs_co2_kg_day: 4.74,
+            stats: [(kind: "power", value: "860 W while it runs, idle below 2,636 ppm of CO2", status: "warn"), (kind: "air", value: "takes CO2 overboard, up to 4.74 kg a day", status: "ok")],
+            power: Some(Consumer(watts: 860.0, priority: 1)),
+            ports: [
+                (utility: Electricity, dir: In, label: "bed heaters + blower", watts: 860.0),
             ],
         ),
         "composter": (
@@ -851,6 +883,54 @@
             rotation: 0.0,
             zone: "home",
         ),
+        // SHIP LIFE SUPPORT (2026-09-26) placements: the air handlers, hung under
+        // the ceiling. Those in the greenhouse and the court condense their crops'
+        // water where the air is wettest (they hold 75%); the plant room's stand in
+        // the home's own air (they hold 50%). Every coil's water runs back to the
+        // cistern. The counts are what the shipped-homes balance test needs to hold
+        // every setpoint with no water condensing on a wall
+        // (docs/design/ship-life-support.md).
+        (
+            id: "air_handler_g1",
+            machine: "air_handler",
+            room: "room-greenhouse",
+            offset: (32.0, 2.7, 52.4),
+            rotation: 0.0,
+            zone: "home",
+        ),
+        (
+            id: "air_handler_c1",
+            machine: "air_handler",
+            room: "room-court",
+            offset: (44.5, 2.7, 26.0),
+            rotation: 0.0,
+            zone: "home",
+        ),
+        (
+            id: "air_handler_h1",
+            machine: "air_handler",
+            room: "room-plant",
+            offset: (9.0, 2.7, 40.0),
+            rotation: 0.0,
+            zone: "home",
+        ),
+        (
+            id: "air_handler_h2",
+            machine: "air_handler",
+            room: "room-plant",
+            offset: (9.0, 2.7, 43.0),
+            rotation: 0.0,
+            zone: "home",
+        ),
+        (
+            id: "air_handler_h3",
+            machine: "air_handler",
+            room: "room-plant",
+            offset: (9.0, 2.7, 46.0),
+            rotation: 0.0,
+            zone: "home",
+        ),
+        // end ship life support placements
         (
             id: "water_heater_1",
             machine: "water_heater",
@@ -1438,26 +1518,48 @@
 
         // Food: the field crop banks into the silo (the winter/preservation buffer).
         (from: "grain_field_1", to: "silo_1", kind: "food"),
+        // SHIP LIFE SUPPORT (2026-09-26) wiring: each air handler's fan to a
+        // battery bank, its condensate line to the cistern.
+        (from: "battery_2", to: "air_handler_g1", kind: "power"),
+        (from: "air_handler_g1", to: "cistern_1", kind: "water"),
+        (from: "battery_2", to: "air_handler_c1", kind: "power"),
+        (from: "air_handler_c1", to: "cistern_1", kind: "water"),
+        (from: "battery_2", to: "air_handler_h1", kind: "power"),
+        (from: "air_handler_h1", to: "cistern_1", kind: "water"),
+        (from: "battery_2", to: "air_handler_h2", kind: "power"),
+        (from: "air_handler_h2", to: "cistern_1", kind: "water"),
+        (from: "battery_2", to: "air_handler_h3", kind: "power"),
+        (from: "air_handler_h3", to: "cistern_1", kind: "water"),
+        // end ship life support wiring
     ],
 
-    // The four coupled loops for ONE person -- see homestead-solo-design.md for the full
-    // sizing derivation behind every figure here.
+    // The coupled loops for ONE person -- see homestead-solo-design.md for the full
+    // sizing derivation behind the first figures here, and ship-life-support.md for
+    // the air and the garden's water aboard (2026-09-26).
     loops: [
         (
             name: "Energy",
-            demand: "~4.6 kWh/day (one person, off-grid frugal, + mushroom tent humidifiers)",
-            supply: "~5.76 kWh/day: 4 solar panels + wind; 2 batteries = 2 days autonomy; generator backstop",
-            closes: true,
-            weakest: false,
-            note: "Closes (2026-09-26). The two mushroom racks fruit in tents, each held at 90% for its oyster mushrooms by a small humidifier (farming::humidity; the racks' room sits near 41% on its own, where the pins dry out): about 23 W together, 0.56 kWh a day and about 5.6 L of the tanks' water. Humidifying the whole 300 m3 room instead took 100 W flat out, 2.4 kWh and 31 L a day, which tipped this loop open; the tents keep it about 25% under the panels. 4x400 W panels at ~4.5 sun-hours make ~5.76 kWh/d gross, 44% headroom over the 4.0 kWh/day target and 25% over it with the tents -- room for cloudy days and a winter derate to ~3.2 kWh/d, which the 2 battery banks (8 kWh, 2 days autonomy) and the backup generator cover. The indoor garden stays sun-lit, not grow-lit: artificial lights to feed one person indoors would cost 10-50 kWh/d, several times this whole budget.",
+            demand: "~28 kWh/day (one person, off-grid frugal ~3.4, air handlers ~24, mushroom tent humidifiers ~0.4)",
+            supply: "~5.76 kWh/day: 4 solar panels + wind; 2 batteries; generator backstop",
+            closes: false,
+            weakest: true,
+            note: "Does NOT close (2026-09-26, ship life support). Aboard a sealed station every litre the crops breathe out has to be condensed back out of the air, because there is no outside to vent it to; until this the model held the home's air at 40% for nothing. The home now carries five air handlers (Carrier 42CT size 14 fan coils on the station's cooling loop: 1,842 m3/h, 325 W flat out, data/life_support.ron): one in the greenhouse and one in the court, holding them at 75% (the greenhouse's crops breathe out about 199 L a day, the court's towers 43 L), and three in the plant room, holding the home's own air at 50%. Measured over a day and a night at full planting (src/systems/farming/life_support_tests.rs) they average about 1,000 W, 24 kWh a day. Nearly all of it is the home's three: the greenhouse is the same 2,970 m3 room the family home has, and it and the court leak 0.5 air changes an hour into the drier home air, about 215 L of their water a day, where every litre costs about 105 Wh of fan power against 27 Wh in the greenhouse. The mushroom tents need less (about 18 W, 0.4 kWh a day), and the CO2 scrubber that replaced the 25 W air recycler idles (the crops keep the carbon dioxide near 470 ppm). So demand is about 4.6 - 0.56 (tents) - 0.6 (recycler) + 0.42 + 24 = about 28 kWh a day against 5.76: about 16 more panels would close it. The cheaper levers are design calls: holding the home's air at 60% instead of 50% (the EPA's line; the handlers then average about 450 W, 11 kWh a day, measured), sealing the greenhouse and the court from the home more tightly than an Earth greenhouse's 0.5 air changes an hour, a smaller greenhouse for one person, or fan coils with EC motors (the catalogue's are permanent split capacitor motors, the least efficient kind, and its EC option publishes no figures to model). The coils' heat, about 7 kW of it latent (250 L a day at 2.45 MJ a litre, FAO-56), goes to the station's radiators, which the game does not model yet: the Climate loop. 4x400 W panels at ~4.5 sun-hours make ~5.76 kWh/d; the 2 battery banks (8 kWh) and the generator covered the old 4.6 kWh/day. The indoor garden stays sun-lit, not grow-lit: artificial lights to feed one person indoors would cost 10-50 kWh/d.",
         ),
         (
             name: "Water",
-            demand: "~86 L/day net (household ~80 + mushroom tent humidifiers ~6)",
-            supply: "rain + well + ~52 L/day greywater recycling; 8000 L cistern = 93 days",
+            demand: "~123 L/day net (household ~80 + the garden's net ~43)",
+            supply: "rain + well + ~52 L/day greywater recycling; the air handlers hand ~250 L/day back to the tanks; 8000 L cistern = ~65 days",
             closes: true,
             weakest: false,
-            note: "The same 8000 L cistern the 3-person home rides for about 32 days gives ONE person about 93 days -- over-provisioned on purpose (self-sufficiency.md: dry-season storage, not annual rainfall, is the binding constraint). Greywater recycling covers all irrigation, so net demand is the household tap plus the mushroom racks' tent humidifiers (2026-09-26): about 5.6 L a day they turn to vapour to hold the two fruiting tents at 90%, water that leaves in the air and does not come back as greywater.",
+            note: "Closes, and the garden's water is now a real loop (2026-09-26, ship life support). The irrigation draws what the crops breathe out plus what their tissue keeps (NASA's measured share, 2 to 10% by crop, data/life_support.ron), about 293 L a day at full planting, and the five air handlers condense what the air carries and pipe it back to the cistern: about 250 L a day, every litre the indoor crops (242), the mushroom tents (2 breathed, 4 humidified) and the resident (2) put into the air, to within 1% (src/systems/farming/life_support_tests.rs). The garden's net draw is therefore about 43 L a day: the water its crops keep (~15 L, which leaves in the harvest), what the outdoor fields breathe into the weather (~29 L), less the resident's breath the coils catch (~2 L). Net demand is the household plus that, about 123 L a day, and the same 8000 L cistern reaches about 65 days (it was quoted at 93 when the garden's water was billed at a fraction of its real rate and its vapour vanished into the home's air). The air runs on game hours and the tanks on real minutes, which is still the operator's open question; the flows cross as litres a day on both sides, so a day's water balances on either clock.",
+        ),
+        (
+            name: "Air",
+            demand: "~2.0 kg/day of carbon dioxide breathed out (the resident ~0.8, two mushroom tents ~1.2) and ~1.5 kg/day of oxygen breathed in",
+            supply: "the crops' photosynthesis (they take up the carbon dioxide and give out ~0.72 kg of oxygen per kg of it); CO2 scrubber (ISS CDRA, 860 W) above 2,636 ppm; five air handlers for the water",
+            closes: false,
+            weakest: false,
+            note: "The carbon closes on the crops; the oxygen does not quite (2026-09-26, ship life support, data/life_support.ron). The resident breathes in proportion to the food they burn (NASA's crew figures, 0.835 kg of oxygen in and 0.998 kg of carbon dioxide out at 11.82 MJ, scaled to the Food loop's 2,200 kcal: 0.65 and 0.78 kg), and the tents' substrate breathes out 1.09 g of carbon dioxide per kg an hour, more than the resident does. The crops take it up through the pores they breathe water out of, at NASA's measured grams per litre, in their lit hours, and less in thin air (Kimball: 33% more per doubling). Over a measured day and night at full planting they took up about 1.85 of the 1.96 kg with the home's air near 400 to 425 ppm, and the model's law settles it near 470 ppm, so the scrubber idles. Oxygen falls short: the crops give out one molecule of oxygen for each of carbon dioxide they fix, but a person burning fat and protein takes in more oxygen than the carbon dioxide they breathe out (respiratory quotient 0.87), so once the carbon settles the home still loses about 0.1 kg of oxygen a day, plus about 0.1 kg in the 0.46 kg of air a day that leaks overboard (BVAD's 0.02 kg a day per module, each of the home's 23 rooms counted as one). That is years before it matters out of the ~2,900 kg in the home's air, but it is not closed: an electrolyser splitting water would make it back for about 6.5 kWh per kg of oxygen (data/home_outline.json), about 1.3 kWh a day, and the home does not carry one yet. The leaked nitrogen has to be brought in. And the two mushroom tents run about 1,200 ppm, over the 1,000 their oysters fruit under, because their room sits over the home's: its air needs moving for its carbon dioxide, which no controller here does yet.",
         ),
         (
             name: "Food",

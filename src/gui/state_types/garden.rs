@@ -44,12 +44,22 @@ pub struct GardenPests {
     /// "Realistic" (saved as AppConfig::picking_realistic; Forgiving is the
     /// default), and the crop the player chose to clear from its plot.
     pub picking_realistic: bool,
+    /// Ship life support (2026-09-26, systems::life_support): Settings
+    /// "Realistic" (the home's grid powers the air handlers and the CO2
+    /// scrubber; saved as AppConfig::life_support_realistic) or
+    /// "Station-supplied", the default (the station's plant does).
+    pub life_support_realistic: bool,
     pub clear_pending: Option<u64>,
     /// The air each grow area grows in (2026-09-26, farming::humidity): (area
     /// tag, its line for the panel, how humid: 0 fine, 1 above the fans'
     /// setpoint, 2 at the damp diseases' line). The line names the grow room
     /// and what its exhaust fans are doing.
     pub air: Vec<(String, String, u8)>,
+    /// The home's own air and its loops (2026-09-26, ship life support,
+    /// farming::humidity::GuiView::home): a few lines for the top of the
+    /// Garden panel, each with how it stands (0 fine, 1 a machine cannot keep
+    /// up or has no power, 2 past a limit).
+    pub home_air: Vec<(String, u8)>,
     /// Weeds (2026-09-26, farming::weeds): a row per soil area with its cover,
     /// mulch and seed bank and the Hoe / Mulch buttons, and the control the
     /// player just chose as (area, control id), carried next frame.

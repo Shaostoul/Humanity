@@ -52,6 +52,8 @@ pub mod transportation;
 pub mod offline;
 pub mod self_sufficiency;
 pub mod grow_machines;
+/// Ship life support: the home's air and the garden's water as closed loops (2026-09-26).
+pub mod life_support;
 
 /// Push a one-shot SFX request onto the shared `"sfx_events"` DataStore
 /// channel (v0.985): ECS systems (construction, crafting) have no engine

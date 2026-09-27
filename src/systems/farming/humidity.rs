@@ -58,6 +58,15 @@
 //! the fans work `humidified_fan_margin_rh` above its setpoint so the two
 //! never fight, and the damp-disease notice is not given: the damp is meant.
 //!
+//! SHIP LIFE SUPPORT (2026-09-26, systems::life_support, data/life_support.ron):
+//! with that data registered, the same step also runs each room's carbon
+//! dioxide (its crops' uptake, its tents' substrate, its scrubbers), its air
+//! handlers (a cold coil that condenses the room's water and hands it back to
+//! the tanks), and after the rooms the home's own air, whose vapour and carbon
+//! dioxide the rooms exchange with. Every exchange is solved exactly
+//! (`life_support::relax`), so the air's water ledger (`HomeAirState::ledger`)
+//! closes to the gram.
+//!
 //! WHAT IT DRIVES: the diseases' Humidity condition (pests.rs) and a health
 //! cap on a crop outside its plants.csv humidity window (`health_ceiling`),
 //! never below the house floor: gentle for a green crop, steep for a fungus
@@ -69,9 +78,10 @@ use std::sync::Mutex;
 use serde::Deserialize;
 
 use crate::ecs::components::{
-    CropInstance, Humidifier, PowerConsumer, RoomAir, SoilMemory, Transform, Ventilator, STAGE_DEAD,
+    CropInstance, HomeAirState, Humidifier, PowerConsumer, RoomAir, SoilMemory, Transform, Ventilator, STAGE_DEAD,
 };
 use crate::hot_reload::data_store::DataStore;
+use crate::systems::life_support::{self, LifeSupportData};
 
 use super::lighting::GrowPlot;
 use super::pests::{Condition, PestData};
@@ -298,6 +308,9 @@ pub struct GrowRoom {
     /// air over its volume. None = a room, which leaks at
     /// `base_air_changes_per_hour`.
     pub air_changes_per_hour: Option<f64>,
+    /// The fruiting substrate a tent holds, kg (0 for a room): it breathes out
+    /// `HumidityData::substrate_co2_g_kg_h` while its mushrooms grow.
+    pub substrate_kg: f64,
 }
 
 impl GrowRoom {
@@ -336,7 +349,7 @@ where
         && v.iter().zip(rooms.clone()).all(|(a, (id, name, min, max))| a.id == id && a.name == room_name(id, name) && a.min == min && a.max == max);
     if !same {
         *v = rooms
-            .map(|(id, name, min, max)| GrowRoom { id: id.to_string(), name: room_name(id, name), min, max, air_changes_per_hour: None })
+            .map(|(id, name, min, max)| GrowRoom { id: id.to_string(), name: room_name(id, name), min, max, air_changes_per_hour: None, substrate_kg: 0.0 })
             .collect();
     }
 }
@@ -378,6 +391,18 @@ pub struct AirMap {
     pub home_known: bool,
     /// The weather's relative humidity, for outdoor fields (None: no weather).
     pub outdoor_rh: Option<f64>,
+    /// The home's own air (2026-09-26, ship life support): its carbon dioxide
+    /// (g/m3), its temperature (C), its volume (the sealed home less the grow
+    /// rooms that keep their own air, m3), the household's food energy (kcal a
+    /// day: what they breathe) and the home's rooms, counted as modules for the
+    /// leak. Earth-like defaults and no volume when there is no home air space.
+    pub home_co2: f64,
+    /// Its oxygen, g/m3 (with the life-support data; 0 without).
+    pub home_o2: f64,
+    pub home_temp_c: f64,
+    pub home_volume_m3: f64,
+    pub home_kcal: f64,
+    pub modules: f64,
 }
 
 impl AirMap {
@@ -416,14 +441,43 @@ impl AirMap {
             .query::<(&HomeAir, &EnclosedSpace)>()
             .iter()
             .next()
-            .map(|(_, (_, s))| (s.atmosphere.humidity, s.atmosphere.temperature_k));
+            .map(|(_, (h, s))| (s.atmosphere.clone(), s.volume_m3, h.metabolic_kcal_per_day));
         map.home_known = home.is_some();
-        let (rh, t_c) = home.unwrap_or_else(|| {
-            let a = Atmosphere::default();
-            (a.humidity, a.temperature_k)
-        });
-        map.home_rh = f64::from(rh).clamp(0.0, 1.0);
-        map.home_vapour = d.vapour_at(map.home_rh, f64::from(t_c) - 273.15);
+        let (atmo, volume, kcal) = home.unwrap_or_else(|| (Atmosphere::default(), 0.0, 0.0));
+        map.home_temp_c = f64::from(atmo.temperature_k) - 273.15;
+        map.home_rh = f64::from(atmo.humidity).clamp(0.0, 1.0);
+        map.home_vapour = d.vapour_at(map.home_rh, map.home_temp_c);
+        map.home_co2 = f64::from(atmo.gas_percent("CO2")).max(0.0) / 100.0
+            * crate::systems::life_support::pure_g_m3(d, d.co2_molar_mass, map.home_temp_c);
+        map.home_kcal = f64::from(kcal).max(0.0);
+        if let Some(ld) = data.get::<LifeSupportData>(life_support::DATA_KEY) {
+            map.home_o2 = f64::from(atmo.gas_percent("O2")).max(0.0) / 100.0
+                * life_support::pure_g_m3(d, ld.o2_molar_mass, map.home_temp_c);
+        }
+        // The home's own air as the life-support model last left it (it is
+        // written back to the home space each tick, but a loaded save's space
+        // starts fresh, so the saved state is the one to trust).
+        if map.home_known {
+            if let Some(h) = world.query::<&SoilMemory>().iter().next().map(|(_, m)| m.home_air.clone()) {
+                if h.vapour_g_m3 > 0.0 {
+                    map.home_vapour = h.vapour_g_m3;
+                    map.home_rh = d.rh_of(h.vapour_g_m3, map.home_temp_c).min(1.0);
+                }
+                if h.co2_g_m3 > 0.0 {
+                    map.home_co2 = h.co2_g_m3;
+                }
+                if h.o2_g_m3 > 0.0 {
+                    map.home_o2 = h.o2_g_m3;
+                }
+            }
+        }
+        // Its own volume: the sealed home less the grow rooms that keep their
+        // own air (tents stand inside rooms and are not subtracted), never
+        // below a tenth of it. Its rooms count as modules for the leak.
+        let grow: f64 = (0..map.rooms.len()).filter(|i| map.parent[*i].is_none()).map(|i| map.rooms[i].volume_m3()).sum();
+        let whole = f64::from(volume).max(0.0);
+        map.home_volume_m3 = (whole - grow).max(whole * 0.1);
+        map.modules = (boxes.len() as f64).max(1.0);
         map.outdoor_rh = data
             .get::<Mutex<crate::systems::weather::Weather>>("weather")
             .and_then(|m| m.lock().ok().map(|w| f64::from(w.humidity).clamp(0.0, 1.0)));
@@ -450,6 +504,29 @@ impl AirMap {
             .flatten()
             .and_then(|p| state.get(&self.rooms[p].id))
             .map_or(self.home_vapour, |a| a.vapour_g_m3)
+    }
+
+    /// The carbon dioxide, g/m3, of the air room `i` exchanges with: its
+    /// parent room's (once known), or the home's.
+    fn outside_co2(&self, i: usize, state: &HashMap<String, RoomAir>) -> f64 {
+        self.parent
+            .get(i)
+            .copied()
+            .flatten()
+            .and_then(|p| state.get(&self.rooms[p].id))
+            .map(|a| a.co2_g_m3)
+            .filter(|c| *c > 0.0)
+            .unwrap_or(self.home_co2)
+    }
+
+    /// Is room `i` a room of the home (not a tent inside one)?
+    pub fn is_root(&self, i: usize) -> bool {
+        self.parent.get(i).map_or(false, |p| p.is_none())
+    }
+
+    /// The room index grow area `area` belongs to, if any.
+    pub fn room_index(&self, area: &str) -> Option<usize> {
+        self.area_room.get(area).copied()
     }
 
     /// The grow room `area`'s machine stands in, if any.
@@ -508,6 +585,7 @@ fn tent_box(d: &HumidityData, p: &GrowPlot, e: &crate::systems::grow_machines::E
         min: [p.pos[0] - w / 2.0, p.pos[1], p.pos[2] - dz / 2.0],
         max: [p.pos[0] + w / 2.0, p.pos[1] + h, p.pos[2] + dz / 2.0],
         air_changes_per_hour: None,
+        substrate_kg: f64::from(e.substrate_kg.max(0.0)),
     };
     room.air_changes_per_hour = Some(d.tent_fresh_air_m3_h(f64::from(e.substrate_kg)) / room.volume_m3().max(1e-6));
     room
@@ -539,6 +617,37 @@ fn room_humidifiers(world: &hecs::World, map: &AirMap) -> Vec<(hecs::Entity, usi
         .collect()
 }
 
+/// The air handlers and the CO2 scrubbers (2026-09-26, ship life support), by
+/// the air they stand in: a grow room's (the smallest box they stand in), or
+/// None for the home's own air. Each unit's capacity is its full airflow (m3
+/// an hour) or its rated carbon dioxide (kg a day).
+fn life_units(world: &hecs::World, map: &AirMap) -> (Vec<life_support::Unit>, Vec<life_support::Unit>) {
+    use crate::ecs::components::{AirHandler, Co2Scrubber};
+    let handlers = world
+        .query::<(&AirHandler, &Transform, Option<&PowerConsumer>)>()
+        .iter()
+        .map(|(e, (a, t, pc))| life_support::Unit {
+            entity: e,
+            room: map.room_at(t.position.to_array()),
+            capacity: f64::from(a.airflow_m3_h),
+            watts: f64::from(a.watts),
+            powered: pc.map_or(false, |p| p.enabled),
+        })
+        .collect();
+    let scrubbers = world
+        .query::<(&Co2Scrubber, &Transform, Option<&PowerConsumer>)>()
+        .iter()
+        .map(|(e, (s, t, pc))| life_support::Unit {
+            entity: e,
+            room: map.room_at(t.position.to_array()),
+            capacity: f64::from(s.rated_kg_day),
+            watts: f64::from(s.watts),
+            powered: pc.map_or(false, |p| p.enabled),
+        })
+        .collect();
+    (handlers, scrubbers)
+}
+
 /// The vapour the fans of a room hold it under, g/m3: `fan_setpoint_rh`, or,
 /// in a room a humidifier holds, `humidified_fan_margin_rh` above the
 /// humidifier's setpoint, so the two never work against each other.
@@ -566,108 +675,301 @@ fn humid_diseases(pests: &PestData, rh: f64) -> Vec<String> {
         .collect()
 }
 
-/// Step every grow room's air `hours` game hours: the vapour the crops of its
-/// grow areas breathe out (`breathed`, L a day by area tag) and its
-/// humidifiers put in, exchanged with the home's air by its leakage and its
-/// fans; this sets the fans' speed, the humidifiers' output and the draw of
-/// both. The humidifiers run only while `water_ok` (the home has water for the
-/// garden). Rooms the map no longer knows are forgotten. Returns the notices
-/// to say (a room that has just become humid enough for the damp diseases)
-/// and the litres a day the humidifiers are turning into vapour, which the
-/// caller bills to the home's tanks with the irrigation.
+/// What one air step needs besides the rooms' own state (2026-09-26): each
+/// grow area's crops' breath and gas exchange, which areas hold growing
+/// mushrooms, the garden's water gate and the game hours to step. The farming
+/// tick tallies the crops into it.
+#[derive(Debug, Clone, Default)]
+pub struct AirStep {
+    /// Litres a day each area's growing, watered crops breathe out.
+    pub breathed: HashMap<String, f64>,
+    /// Grams a day of carbon dioxide each area's crops would take up, and of
+    /// oxygen they would give out, at the reference CO2 and their light
+    /// (life_support.rs, `Exchange`).
+    pub photo: HashMap<String, (f64, f64)>,
+    /// The areas holding a growing fungus crop: their tent's substrate breathes.
+    pub fungi: std::collections::HashSet<String>,
+    /// The home has water for the garden (the humidifiers may run).
+    pub water_ok: bool,
+    pub hours: f64,
+    /// The home's grid powers the air handlers and scrubbers (Settings: Ship
+    /// life support, Realistic); false has the station's plant do it, and
+    /// their draw on the home is 0 (`life_support::is_realistic`).
+    pub realistic: bool,
+}
+
+/// What one air step did, for the caller to bill and to say.
+#[derive(Debug, Clone, Default)]
+pub struct AirOut {
+    /// Notices to give (a room just became humid enough for the damp diseases).
+    pub notices: Vec<String>,
+    /// Litres a day the humidifiers are turning into vapour: drawn from the
+    /// tanks with the irrigation.
+    pub humidifier_l_day: f64,
+    /// Litres a day each air handler's coil is condensing: handed back to the
+    /// tanks through its plumbing island.
+    pub condensate_by_entity: HashMap<hecs::Entity, f64>,
+}
+
+/// Step every air of the home `step.hours` game hours: each grow room's and
+/// tent's, then the home's own (2026-09-26, ship life support, when
+/// `life` is given and the home has an air space). In each room: the water its
+/// crops breathe out and its humidifiers put in, exchanged with the air around
+/// it by its leakage and fans and condensed by its air handlers; and, with
+/// `life`, its carbon dioxide (its crops' uptake at their light and the room's
+/// CO2, its mushrooms' breath, its scrubbers). Everything a room passes to the
+/// air around it is that air's source, so nothing is created or lost between
+/// them (`life_support::relax` is exact). The step sets every fan's,
+/// humidifier's, air handler's and scrubber's share and draw, and records the
+/// air's water in `home.ledger`. A long step (a catch-up) is cut into slices of
+/// `life_support::MAX_SLICE_H`. Rooms the map no longer knows are forgotten.
 #[allow(clippy::too_many_arguments)]
 pub fn step_rooms(
     world: &mut hecs::World,
     d: &HumidityData,
+    life: Option<&LifeSupportData>,
     pests: &PestData,
     map: &AirMap,
     state: &mut HashMap<String, RoomAir>,
-    breathed: &HashMap<String, f64>,
-    water_ok: bool,
-    hours: f64,
-) -> (Vec<String>, f64) {
-    let mut notices = Vec::new();
+    home: &mut HomeAirState,
+    step: &AirStep,
+) -> AirOut {
+    use life_support::{relax, Relaxed};
+    let mut out = AirOut::default();
     // A room the home no longer has is forgotten, but only once the engine
     // has published the rooms at all: until then (early boot, before the
     // world is entered) a loaded save's rooms are kept as they were.
     if !map.rooms.is_empty() {
         state.retain(|id, _| map.rooms.iter().any(|r| r.id == *id));
     }
-    let mut litres = vec![0.0f64; map.rooms.len()];
-    for (area, l) in breathed {
-        if let Some(i) = map.area_room.get(area) {
-            litres[*i] += l.max(0.0);
+    let n_rooms = map.rooms.len();
+    // Each room's crops' breath and gas exchange; crops standing in no grow
+    // room breathe into the home's own air (outdoor fields into the weather).
+    let mut litres = vec![0.0f64; n_rooms];
+    let mut photo = vec![(0.0f64, 0.0f64); n_rooms];
+    let (mut home_litres, mut home_photo) = (0.0f64, (0.0f64, 0.0f64));
+    for (area, l) in &step.breathed {
+        match map.area_room.get(area) {
+            Some(i) => litres[*i] += l.max(0.0),
+            None if !super::is_field_area(area) => home_litres += l.max(0.0),
+            None => {}
         }
     }
+    for (area, (c, o)) in &step.photo {
+        match map.area_room.get(area) {
+            Some(i) => {
+                photo[*i].0 += c.max(0.0);
+                photo[*i].1 += o.max(0.0);
+            }
+            None if !super::is_field_area(area) => {
+                home_photo.0 += c.max(0.0);
+                home_photo.1 += o.max(0.0);
+            }
+            None => {}
+        }
+    }
+    // Which tents hold growing mushrooms (their substrate breathes).
+    let fungi_room: Vec<bool> = (0..n_rooms)
+        .map(|i| map.rooms[i].substrate_kg > 0.0 && step.fungi.iter().any(|a| map.area_room.get(a) == Some(&i)))
+        .collect();
     let fans = room_fans(world, map);
     let hums = room_humidifiers(world, map);
+    let (handlers, scrubbers) = life_units(world, map);
     let sat = d.room_saturation();
+    let t_room = d.room_temp_c;
     let hum_set = d.humidifier_setpoint_rh.clamp(0.0, 1.0) * sat;
-    let mut speed = vec![0.0f64; map.rooms.len()];
-    let mut share = vec![0.0f64; map.rooms.len()];
-    let mut hum_l_day = 0.0f64;
-    // An enclosure (a fruiting tent) first: what it vents is a source of
-    // vapour for the room it stands in, g an hour, stepped after it.
-    let mut vented = vec![0.0f64; map.rooms.len()];
-    let order: Vec<usize> = (0..map.rooms.len())
+    // The home's own air: its live state when the model runs it, else the
+    // map's (an Earth-like default without a home air space).
+    let runs_home = life.is_some() && map.home_known;
+    if runs_home {
+        if home.vapour_g_m3 <= 0.0 {
+            home.vapour_g_m3 = map.home_vapour;
+        }
+        if home.co2_g_m3 <= 0.0 {
+            home.co2_g_m3 = map.home_co2;
+        }
+        if home.o2_g_m3 <= 0.0 {
+            home.o2_g_m3 = map.home_o2;
+        }
+    }
+    let (home_handlers, home_scrubbers): (Vec<_>, Vec<_>) = (
+        handlers.iter().filter(|u| u.room.is_none()).copied().collect(),
+        scrubbers.iter().filter(|u| u.room.is_none()).copied().collect(),
+    );
+    // Tents first: what a tent vents is a source for the room it stands in.
+    let order: Vec<usize> = (0..n_rooms)
         .filter(|i| map.parent[*i].is_some())
-        .chain((0..map.rooms.len()).filter(|i| map.parent[*i].is_none()))
+        .chain((0..n_rooms).filter(|i| map.parent[*i].is_none()))
         .collect();
-    for i in order {
-        let room = &map.rooms[i];
-        let volume = room.volume_m3().max(0.01);
-        let source = (litres[i] * d.vapour_share.max(0.0) * 1000.0 / 24.0 + vented[i]) / volume;
-        let outside = map.outside(i, state);
-        let fan_max: f64 = fans.iter().filter(|f| f.1 == i && f.4).map(|f| f.2).sum::<f64>() / volume;
-        let humidified = hums.iter().any(|h| h.1 == i);
-        let powered_l_h: f64 = hums.iter().filter(|h| h.1 == i && h.4).map(|h| h.2).sum();
-        // What the humidifiers can put in, g/m3 an hour: none without water.
-        // (Tested with `>`: an empty float sum is -0.0, which would print.)
-        let hum_max = if water_ok && powered_l_h > 0.0 { powered_l_h * 1000.0 / volume } else { 0.0 };
-        let st = state.entry(room.id.clone()).or_insert(RoomAir { vapour_g_m3: outside, ..Default::default() });
-        let base = room.air_changes_per_hour.unwrap_or(d.base_air_changes_per_hour).max(0.0);
-        let s = fan_speed(st.vapour_g_m3, source, base, fan_max, outside, fan_set(d, humidified));
-        let n = base + s * fan_max;
-        let v0 = st.vapour_g_m3;
-        let mut h = humidifier_share(v0, source, n, hum_max, outside, hum_set);
-        st.vapour_g_m3 = step_vapour(v0, source + h * hum_max, n, outside, hours, sat);
-        // Flat out, it reached the setpoint within the tick and held it from
-        // there: the tick ends on the setpoint, not past it, however long it
-        // was, and the output is the one that holds it.
-        if h >= 1.0 && v0 < hum_set && st.vapour_g_m3 > hum_set {
-            st.vapour_g_m3 = hum_set;
-            h = humidifier_share(hum_set, source, n, hum_max, outside, hum_set);
+    let slices = if step.hours > 0.0 { (step.hours / life_support::MAX_SLICE_H).ceil().clamp(1.0, 10_000.0) as usize } else { 1 };
+    let sh = step.hours.max(0.0) / slices as f64;
+    let mut speed = vec![0.0f64; n_rooms];
+    let mut share = vec![0.0f64; n_rooms];
+    let mut handler_share = vec![0.0f64; n_rooms];
+    let mut scrubber_share = vec![0.0f64; n_rooms];
+    for slice in 0..slices {
+        let last = slice + 1 == slices;
+        let (home_v, home_c) = if runs_home { (home.vapour_g_m3, home.co2_g_m3) } else { (map.home_vapour, map.home_co2) };
+        let mut vented_v = vec![0.0f64; n_rooms];
+        let mut vented_c = vec![0.0f64; n_rooms];
+        let mut home_in = life_support::HomeInputs::default();
+        for &i in &order {
+            let room = &map.rooms[i];
+            let volume = room.volume_m3().max(0.01);
+            let parent_air = map.parent[i].and_then(|p| state.get(&map.rooms[p].id).copied());
+            let outside = parent_air.map_or(home_v, |a| a.vapour_g_m3);
+            let outside_c = parent_air.map(|a| a.co2_g_m3).filter(|c| *c > 0.0).unwrap_or(home_c);
+            let breath_g_h = litres[i] * d.vapour_share.max(0.0) * 1000.0 / 24.0;
+            let source = (breath_g_h + if sh > 0.0 { vented_v[i] / sh } else { 0.0 }) / volume;
+            let fan_max: f64 = fans.iter().filter(|f| f.1 == i && f.4).map(|f| f.2).sum::<f64>() / volume;
+            let humidified = hums.iter().any(|h| h.1 == i);
+            let powered_l_h: f64 = hums.iter().filter(|h| h.1 == i && h.4).map(|h| h.2).sum();
+            // What the humidifiers can put in, g/m3 an hour: none without water.
+            // (Tested with `>`: an empty float sum is -0.0, which would print.)
+            let hum_max = if step.water_ok && powered_l_h > 0.0 { powered_l_h * 1000.0 / volume } else { 0.0 };
+            let st = state
+                .entry(room.id.clone())
+                .or_insert(RoomAir { vapour_g_m3: outside, co2_g_m3: outside_c, ..Default::default() });
+            if st.co2_g_m3 <= 0.0 {
+                st.co2_g_m3 = outside_c;
+            }
+            let base = room.air_changes_per_hour.unwrap_or(d.base_air_changes_per_hour).max(0.0);
+            let s = fan_speed(st.vapour_g_m3, source, base, fan_max, outside, fan_set(d, humidified));
+            let n = base + s * fan_max;
+            // Its air handlers: their coil, the setpoint they hold (above a
+            // humidifier's, like the fans, where one holds the room), their pull.
+            let (v_coil, set_a, a_max) = match life {
+                Some(ld) => {
+                    let hq: f64 = handlers.iter().filter(|u| u.room == Some(i) && u.powered).map(|u| u.capacity).sum();
+                    let rh = if humidified {
+                        ld.grow_room_setpoint_rh.max(d.humidifier_setpoint_rh + d.humidified_fan_margin_rh)
+                    } else {
+                        ld.grow_room_setpoint_rh
+                    };
+                    (life_support::coil_vapour(d, ld, t_room), rh.clamp(0.0, 1.0) * sat, hq / volume)
+                }
+                None => (0.0, sat, 0.0),
+            };
+            let v0 = st.vapour_g_m3;
+            let mut h = humidifier_share(v0, source, n, hum_max, outside, hum_set);
+            let ash = life_support::pull_share(v0, set_a, a_max, v_coil, source + h * hum_max + n * (outside - set_a));
+            let a = ash * a_max;
+            let sinks = [(n, outside), (a, v_coil)];
+            // The humidifiers' output held at its setpoint, the coil counted.
+            let hold = || humidifier_share(hum_set, source - a * (hum_set - v_coil), n, hum_max, outside, hum_set);
+            // Flat out, a humidifier that reaches its setpoint within the
+            // slice holds it from then on: the slice is solved in two parts,
+            // so the water it did not put in is not counted.
+            let (rv, hum_g_m3): (Relaxed, f64) = if h >= 1.0 && v0 < hum_set && hum_max > 0.0 {
+                match life_support::time_to(v0, source + hum_max, &sinks, hum_set).filter(|t| *t < sh) {
+                    Some(t1) => {
+                        let q1 = relax(v0, source + hum_max, &sinks, t1, sat);
+                        h = hold();
+                        let q2 = relax(q1.x, source + h * hum_max, &sinks, sh - t1, sat);
+                        let both = Relaxed { x: q2.x, integral: q1.integral + q2.integral, over: q1.over + q2.over, short: q1.short + q2.short };
+                        (both, hum_max * (t1 + h * (sh - t1)))
+                    }
+                    None => (relax(v0, source + hum_max, &sinks, sh, sat), hum_max * sh),
+                }
+            } else {
+                (relax(v0, source + h * hum_max, &sinks, sh, sat), h * hum_max * sh)
+            };
+            st.vapour_g_m3 = rv.x;
+            // What it passed to the air around it, and what its coils took.
+            let vent_v = rv.to_sink(n, outside, sh) * volume;
+            match map.parent[i] {
+                Some(p) => vented_v[p] += vent_v,
+                None => home_in.vapour_in_g += vent_v,
+            }
+            let condensed_g = rv.to_sink(a, v_coil, sh) * volume;
+            home.ledger.breathed_l += breath_g_h * sh / 1000.0 + rv.short * volume / 1000.0;
+            home.ledger.humidified_l += hum_g_m3 * volume / 1000.0;
+            home.ledger.condensed_l += condensed_g / 1000.0;
+            home.ledger.surface_l += rv.over * volume / 1000.0;
+            st.fan_speed = s;
+            st.breathed_l_day = litres[i];
+            st.humidifier = h;
+            st.humidifier_l_day = h * hum_max * volume / 1000.0 * 24.0;
+            // Powered, and stopped for want of water: dry tanks or the irrigation off.
+            st.humidifier_dry = !step.water_ok && powered_l_h > 0.0;
+            st.air_handler = ash;
+            st.condensate_l_day = a * (rv.x - v_coil).max(0.0) * volume * 24.0 / 1000.0;
+            speed[i] = s;
+            share[i] = h;
+            handler_share[i] = ash;
+            // Its carbon dioxide (with the life-support data).
+            if let Some(ld) = life {
+                let c0 = st.co2_g_m3;
+                let f = ld.co2_factor(life_support::co2_ppm(d, c0, t_room));
+                let uptake_g_h = photo[i].0 / 24.0 * f;
+                let fungi_g_h = if fungi_room[i] { room.substrate_kg * d.substrate_co2_g_kg_h.max(0.0) } else { 0.0 };
+                let s_c = ((if sh > 0.0 { vented_c[i] / sh } else { 0.0 }) + fungi_g_h - uptake_g_h) / volume;
+                let rated = life_support::co2_g_m3(d, ld.scrubber_rated_ppm, t_room).max(1e-9);
+                let sc_g_h: f64 = scrubbers.iter().filter(|u| u.room == Some(i) && u.powered).map(|u| u.capacity * 1000.0 / 24.0).sum();
+                let b_max = sc_g_h / rated / volume;
+                let set_c = life_support::co2_g_m3(d, ld.scrubber_setpoint_ppm, t_room);
+                let csh = life_support::pull_share(c0, set_c, b_max, 0.0, s_c + n * (outside_c - set_c));
+                let b = csh * b_max;
+                let rc = relax(c0, s_c, &[(n, outside_c), (b, 0.0)], sh, f64::INFINITY);
+                st.co2_g_m3 = rc.x;
+                let vent_c = rc.to_sink(n, outside_c, sh) * volume;
+                match map.parent[i] {
+                    Some(p) => vented_c[p] += vent_c,
+                    None => home_in.co2_in_g += vent_c,
+                }
+                // The uptake the air could give (a room drawn to nothing gives
+                // no more), and the oxygen for it; the mushrooms' breath.
+                let want = uptake_g_h * sh;
+                let taken = (want - rc.short * volume).clamp(0.0, want.max(0.0));
+                let frac = if want > 0.0 { taken / want } else { 0.0 };
+                home_in.o2_made_g += photo[i].1 / 24.0 * f * sh * frac;
+                home_in.o2_used_g += fungi_g_h * sh * ld.o2_molar_mass / d.co2_molar_mass / ld.fungi_respiratory_quotient.max(1e-9);
+                home_in.co2_out_rooms_g += fungi_g_h * sh;
+                home_in.co2_uptake_rooms_g += taken;
+                st.co2_uptake_g_day = if sh > 0.0 { taken / sh * 24.0 } else { uptake_g_h * 24.0 };
+                st.co2_out_g_day = fungi_g_h * 24.0;
+                st.scrubber = csh;
+                scrubber_share[i] = csh;
+            }
+            if last {
+                out.humidifier_l_day += st.humidifier_l_day;
+                let hq: f64 = handlers.iter().filter(|u| u.room == Some(i) && u.powered).map(|u| u.capacity).sum();
+                for u in handlers.iter().filter(|u| u.room == Some(i) && u.powered) {
+                    out.condensate_by_entity.insert(u.entity, if hq > 0.0 { st.condensate_l_day * u.capacity / hq } else { 0.0 });
+                }
+                let rh = d.rh_of(st.vapour_g_m3, d.room_temp_c);
+                if humidified {
+                    // The damp is meant here (a mushroom room): no disease notice.
+                } else if rh >= d.notice_above_rh && !st.told {
+                    st.told = true;
+                    let names = humid_diseases(pests, rh.min(1.0));
+                    let spread = if names.is_empty() { String::new() } else { format!(", where {} spread", names.join(", ")) };
+                    out.notices.push(format!(
+                        "The {} air is at {:.0}% humidity{spread}: its crops breathe out {:.0} L of water a day. \
+                         Ventilate it from the Garden panel, or run an exhaust fan or an air handler there.",
+                        room.name,
+                        (rh * 100.0).min(100.0),
+                        litres[i]
+                    ));
+                } else if rh < d.notice_above_rh - 0.05 {
+                    st.told = false;
+                }
+            }
         }
-        // What it vents into the room around it: its air changes times its
-        // excess over that room's air, at the vapour it ends the tick on.
-        if let Some(p) = map.parent[i] {
-            vented[p] += n * volume * (st.vapour_g_m3 - outside);
-        }
-        st.fan_speed = s;
-        st.breathed_l_day = litres[i];
-        st.humidifier = h;
-        st.humidifier_l_day = h * hum_max * volume / 1000.0 * 24.0;
-        // Powered, and stopped for want of water: dry tanks or the irrigation off.
-        st.humidifier_dry = !water_ok && powered_l_h > 0.0;
-        hum_l_day += st.humidifier_l_day;
-        speed[i] = s;
-        share[i] = h;
-        let rh = d.rh_of(st.vapour_g_m3, d.room_temp_c);
-        if humidified {
-            // The damp is meant here (a mushroom room): no disease notice.
-        } else if rh >= d.notice_above_rh && !st.told {
-            st.told = true;
-            let names = humid_diseases(pests, rh.min(1.0));
-            let spread = if names.is_empty() { String::new() } else { format!(", where {} spread", names.join(", ")) };
-            notices.push(format!(
-                "The {} air is at {:.0}% humidity{spread}: its crops breathe out {:.0} L of water a day. \
-                 Ventilate it from the Garden panel, or run an exhaust fan there.",
-                room.name,
-                (rh * 100.0).min(100.0),
-                litres[i]
-            ));
-        } else if rh < d.notice_above_rh - 0.05 {
-            st.told = false;
+        // The home's own air takes in what the rooms passed it and steps.
+        if let (Some(ld), true) = (life, runs_home) {
+            home_in.volume_m3 = map.home_volume_m3;
+            home_in.temp_c = map.home_temp_c;
+            home_in.kcal_per_day = map.home_kcal;
+            home_in.modules = map.modules;
+            home_in.breathed_l_day = home_litres;
+            home_in.photo_co2_g_day = home_photo.0;
+            home_in.photo_o2_g_day = home_photo.1;
+            home_in.realistic = step.realistic;
+            let ho = life_support::step_home(world, d, ld, home, &home_in, &home_handlers, &home_scrubbers, sh);
+            if last {
+                out.condensate_by_entity.extend(ho.condensate_by_entity);
+            }
         }
     }
     // Each fan draws its watts at the cube of its speed (the fan laws); a
@@ -690,7 +992,23 @@ pub fn step_rooms(
             pc.draw_watts = (watts * share[room]) as f32;
         }
     }
-    (notices, hum_l_day)
+    // Each room's air handlers along their fan's curve, its scrubbers for
+    // the share of time they run (life_support.ron), on the home's grid only
+    // in the Realistic mode; the home's own are set by its step.
+    if let Some(ld) = life {
+        let on_grid = if step.realistic { 1.0 } else { 0.0 };
+        for u in handlers.iter().filter(|u| u.powered) {
+            if let (Some(i), Ok(mut pc)) = (u.room, world.get::<&mut PowerConsumer>(u.entity)) {
+                pc.draw_watts = (u.watts * ld.fan_power_share(handler_share[i]) * on_grid) as f32;
+            }
+        }
+        for u in scrubbers.iter().filter(|u| u.powered) {
+            if let (Some(i), Ok(mut pc)) = (u.room, world.get::<&mut PowerConsumer>(u.entity)) {
+                pc.draw_watts = (u.watts * scrubber_share[i] * on_grid) as f32;
+            }
+        }
+    }
+    out
 }
 
 /// The Ventilate control on `area` (pests.ron `ventilate`): a heat-and-vent
@@ -757,6 +1075,117 @@ fn hours_word(h: f64) -> String {
 
 // -- What the Garden panel shows ------------------------------------------------------
 
+/// A whole number with thousands separated: "1,240".
+fn thousands(x: f64) -> String {
+    let digits = (x.max(0.0).round() as u64).to_string();
+    let mut out = String::new();
+    for (i, c) in digits.chars().enumerate() {
+        if i > 0 && (digits.len() - i) % 3 == 0 {
+            out.push(',');
+        }
+        out.push(c);
+    }
+    out
+}
+
+/// The home's own air and its loops, for the top of the Garden panel
+/// (2026-09-26, ship life support): the air and its machines, then the day's
+/// carbon and oxygen, then the day's water between the garden and the tanks.
+/// Empty until the air step has run once.
+fn home_lines(
+    world: &hecs::World,
+    data: &DataStore,
+    d: &HumidityData,
+    ld: &LifeSupportData,
+    map: &AirMap,
+    handlers: &[life_support::Unit],
+    scrubbers: &[life_support::Unit],
+    on_grid: bool,
+) -> Vec<(String, u8)> {
+    let watts_word = |w: f64| if on_grid { format!("{w:.0} W") } else { "on the station's plant".to_string() };
+    let Some((h, rooms)) = world.query::<&SoilMemory>().iter().next().map(|(_, m)| (m.home_air.clone(), m.rooms.clone())) else {
+        return Vec::new();
+    };
+    if !(h.vapour_g_m3 > 0.0) {
+        return Vec::new();
+    }
+    let t = map.home_temp_c;
+    let rh = d.rh_of(h.vapour_g_m3, t).min(1.0);
+    let ppm = life_support::co2_ppm(d, h.co2_g_m3, t);
+    let o2 = h.o2_g_m3 / life_support::pure_g_m3(d, ld.o2_molar_mass, t).max(1e-9) * 100.0;
+    let own_h: Vec<_> = handlers.iter().filter(|u| u.room.is_none()).collect();
+    let own_s: Vec<_> = scrubbers.iter().filter(|u| u.room.is_none()).collect();
+    let mut parts = Vec::new();
+    let mut level = 0u8;
+    if own_h.is_empty() {
+        parts.push("no air handler in it".to_string());
+    } else if !own_h.iter().any(|u| u.powered) {
+        parts.push("air handler off (no power)".to_string());
+        level = 1;
+    } else if h.air_handler <= 0.0 {
+        parts.push("air handler idle".to_string());
+    } else {
+        let w: f64 = own_h.iter().filter(|u| u.powered).map(|u| u.watts * ld.fan_power_share(h.air_handler)).sum();
+        parts.push(format!(
+            "air handler{} at {:.0}%, {}, {:.0} L of water a day back to the tanks",
+            if own_h.len() > 1 { "s" } else { "" },
+            h.air_handler * 100.0,
+            watts_word(w),
+            h.condensate_l_day
+        ));
+    }
+    if own_s.is_empty() {
+        parts.push("no CO2 scrubber".to_string());
+    } else if !own_s.iter().any(|u| u.powered) {
+        parts.push("CO2 scrubber off (no power)".to_string());
+        level = 1;
+    } else if h.scrubber <= 0.0 {
+        parts.push(format!("CO2 scrubber idle (it runs above {} ppm)", thousands(ld.scrubber_setpoint_ppm)));
+    } else {
+        let w: f64 = own_s.iter().filter(|u| u.powered).map(|u| u.watts * h.scrubber).sum();
+        parts.push(format!("CO2 scrubber at {:.0}%, {}, {:.1} kg of CO2 a day overboard", h.scrubber * 100.0, watts_word(w), h.scrubbed_kg_day));
+    }
+    if rh > ld.home_setpoint_rh + 0.05 || ppm > ld.scrubber_setpoint_ppm * 1.02 {
+        level = 1;
+    }
+    let mut lines = vec![(
+        format!(
+            "Home air {:.0}% humidity, {} ppm CO2, {:.2}% oxygen: {}",
+            (rh * 100.0).clamp(0.0, 100.0),
+            thousands(ppm),
+            o2,
+            parts.join("; ")
+        ),
+        level,
+    )];
+    let net_o2 = h.o2_made_kg_day - h.o2_used_kg_day;
+    lines.push((
+        format!(
+            "A day: the household and the mushrooms breathe out {:.1} kg of CO2 and the crops take up {:.1} kg; the crops give out {:.1} kg of oxygen and {:.1} kg is breathed in, so the home's oxygen {} {:.2} kg a day",
+            h.co2_out_kg_day,
+            h.co2_uptake_kg_day,
+            h.o2_made_kg_day,
+            h.o2_used_kg_day,
+            if net_o2 >= 0.0 { "gains" } else { "loses" },
+            net_o2.abs()
+        ),
+        0,
+    ));
+    let drawn = data
+        .get::<Mutex<f32>>("irrigation_demand_lpm")
+        .and_then(|m| m.lock().ok().map(|v| f64::from(*v) * 1440.0))
+        .unwrap_or(0.0);
+    let returned = h.condensate_l_day + rooms.values().map(|a| a.condensate_l_day).sum::<f64>();
+    lines.push((
+        format!(
+            "Water a day: the garden draws {:.0} L from the tanks (its crops' breath and tissue, the humidifiers) and the air handlers give {:.0} L back; the air leaks {:.1} kg overboard",
+            drawn, returned, h.leak_kg_day
+        ),
+        0,
+    ));
+    lines
+}
+
 /// The Garden panel's humidity (built once a frame in lib.rs): a line per
 /// grow area, and the crop card's "Humidity" row.
 #[derive(Debug, Clone, Default)]
@@ -769,6 +1198,11 @@ pub struct GuiView {
     /// a humidified room, 1 means its humidifier cannot run (no power or no
     /// water) or the air is past its fans' raised setpoint, and there is no 2.
     pub areas: Vec<(String, String, u8)>,
+    /// The home's own air and its loops (2026-09-26, ship life support): a
+    /// few lines for the top of the Garden panel, each with how it stands (0
+    /// fine, 1 a machine cannot keep up or has no power, 2 the air is past a
+    /// limit). Empty without a home air space or the life-support data.
+    pub home: Vec<(String, u8)>,
 }
 
 impl GuiView {
@@ -783,6 +1217,11 @@ impl GuiView {
             .unwrap_or_default();
         let fans = room_fans(world, &map);
         let hums = room_humidifiers(world, &map);
+        let life = data.get::<LifeSupportData>(life_support::DATA_KEY);
+        let (handlers, scrubbers) = life_units(world, &map);
+        // Who powers the air machines (Settings: Ship life support).
+        let on_grid = life_support::is_realistic(data);
+        let watts_word = |w: f64| if on_grid { format!("{w:.0} W") } else { "on the station's plant".to_string() };
         let mut tags: Vec<String> = world
             .query::<&CropInstance>()
             .iter()
@@ -843,6 +1282,37 @@ impl GuiView {
                         });
                         humidified = Some(running);
                     }
+                    // Ship life support (2026-09-26): its air handlers and its
+                    // carbon dioxide.
+                    if let Some(ld) = life {
+                        let here: Vec<_> = handlers.iter().filter(|u| u.room == Some(i)).collect();
+                        if !here.is_empty() {
+                            parts.push(if !here.iter().any(|u| u.powered) {
+                                "air handler off (no power)".to_string()
+                            } else if st.air_handler <= 0.0 {
+                                "air handler idle".to_string()
+                            } else {
+                                let w: f64 = here.iter().filter(|u| u.powered).map(|u| u.watts * ld.fan_power_share(st.air_handler)).sum();
+                                format!(
+                                    "air handler{} at {:.0}%, {}, {:.0} L of water a day back to the tanks",
+                                    if here.len() > 1 { "s" } else { "" },
+                                    st.air_handler * 100.0,
+                                    watts_word(w),
+                                    st.condensate_l_day
+                                )
+                            });
+                        }
+                        if st.co2_g_m3 > 0.0 {
+                            let ppm = life_support::co2_ppm(d, st.co2_g_m3, d.room_temp_c);
+                            let mut co2 = format!("CO2 {} ppm", thousands(ppm));
+                            if room.substrate_kg > 0.0 && ppm > d.fruiting_co2_limit_ppm {
+                                co2.push_str(&format!(", over the {} the mushrooms fruit under", thousands(d.fruiting_co2_limit_ppm)));
+                            } else if st.co2_uptake_g_day > 0.0 {
+                                co2.push_str(&format!(", its crops take up {:.1} kg a day", st.co2_uptake_g_day / 1000.0));
+                            }
+                            parts.push(co2);
+                        }
+                    }
                     format!(
                         "Air {} humidity in the {} ({:.0} L a day breathed out): {}",
                         pct(rh),
@@ -864,7 +1334,11 @@ impl GuiView {
                 (area, line, level)
             })
             .collect();
-        Self { data: Some(d.clone()), map, state, areas }
+        let home = match (life, map.home_known) {
+            (Some(ld), true) => home_lines(world, data, d, ld, &map, &handlers, &scrubbers, on_grid),
+            _ => Vec::new(),
+        };
+        Self { data: Some(d.clone()), map, state, areas, home }
     }
 
     /// The crop card's "Humidity" row: the air it grows in against its

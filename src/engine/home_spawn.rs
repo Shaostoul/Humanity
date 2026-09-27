@@ -20,20 +20,28 @@ pub(crate) fn spawn_home_power_entities(world: &mut hecs::World, data_dir: &std:
         };
         spawn_home_machine_entity(world, inst, def, &power_islands, &water_islands, None, None);
     }
-    spawn_home_air_space(world);
+    spawn_home_air_space(world, home_metabolic_kcal(&home));
+}
+
+/// The household's food energy, kcal a day: its Food loop's demand (the home breathes what it eats,
+/// systems::life_support). 0 for a home with no Food loop.
+pub(crate) fn home_metabolic_kcal(home: &crate::machines::MachineHome) -> f32 {
+    home.loops.iter().find_map(|l| l.food_demand_kcal).unwrap_or(0.0).max(0.0)
 }
 
 /// Spawn the home's sealed AIR space (v0.617) if one doesn't already exist: a HomeMachine + HomeAir
 /// tagged `EnclosedSpace` with an Earth-like atmosphere. The AtmosphereSystem ticks it + publishes the
 /// live AirStatus. Sealed (a habitat/ship hull), so it doesn't equalize with the outside (space). The
 /// HomeMachine tag means load_world's despawn-on-reenter clears it, then this re-creates it once.
-pub(crate) fn spawn_home_air_space(world: &mut hecs::World) {
+/// `metabolic_kcal_per_day` is the household's food energy, what it breathes (2026-09-26, ship life
+/// support: `home_metabolic_kcal`).
+pub(crate) fn spawn_home_air_space(world: &mut hecs::World, metabolic_kcal_per_day: f32) {
     use crate::ecs::components::HomeMachine;
     use crate::systems::atmosphere::{EnclosedSpace, HomeAir};
     if world.query::<&HomeAir>().iter().next().is_some() {
         return; // already present
     }
-    world.spawn((HomeMachine, HomeAir, EnclosedSpace::new_sealed(14_000.0)));
+    world.spawn((HomeMachine, HomeAir { metabolic_kcal_per_day }, EnclosedSpace::new_sealed(14_000.0)));
 }
 
 /// Spawn ONE ECS entity for a placed home machine, attaching its power role + electrical island AND
@@ -64,22 +72,16 @@ pub(crate) fn spawn_home_machine_entity(
     };
     use crate::machines::MachinePower;
     let is_water = def.is_water_machine();
-    // Air OUT capacity (L/min) -- a scrubber/recycler that cleans the home air. (v0.618)
-    let air_out: f32 = def
-        .derive_ports()
-        .iter()
-        .filter(|p| p.utility == crate::utilities::Utility::Air && p.dir == crate::utilities::PortDir::Out)
-        .map(|p| p.flow_lpm)
-        .sum();
     if def.power.is_none()
         && !is_water
-        && air_out <= 0.0
         && def.rf_emission <= 0.0
         && def.auto_recipe.is_none()
         && def.container_type.is_none()
         && !def.pollinates_crops
         && def.ventilation_m3_h <= 0.0
         && def.humidifies_l_h <= 0.0
+        && def.dehumidifies_m3_h <= 0.0
+        && def.scrubs_co2_kg_day <= 0.0
     {
         return;
     }
@@ -214,16 +216,30 @@ pub(crate) fn spawn_home_machine_entity(
         };
         let _ = world.insert_one(e, crate::ecs::components::Humidifier { output_l_h: def.humidifies_l_h, watts });
     }
-    // AIR handler (v0.618): a machine with an Air OUT port scrubs the home air while powered.
-    if air_out > 0.0 {
-        let _ = world.insert_one(
-            e,
-            crate::systems::atmosphere::AirScrubber {
-                o2_regen_per_s: air_out * 0.001,
-                co2_scrub_per_s: air_out * 0.0003,
-                needs_power: matches!(&def.power, Some(MachinePower::Consumer { .. })),
-            },
-        );
+    // Air handler (2026-09-26, ship life support): FarmingSystem runs it to hold the humidity of the
+    // air around this entity's Transform (a grow room's, or the home's own), condensing the water on a
+    // cold coil and sending it back to the tanks through this entity's WaterProducer, whose litres a
+    // minute the air step sets (systems::life_support). Its full draw is its Consumer watts.
+    if def.dehumidifies_m3_h > 0.0 {
+        let watts = match &def.power {
+            Some(MachinePower::Consumer { watts, .. }) => *watts,
+            _ => 0.0,
+        };
+        let _ = world.insert_one(e, crate::ecs::components::AirHandler { airflow_m3_h: def.dehumidifies_m3_h, watts });
+        // Its condensate line: a producer on its plumbing island (its water
+        // port puts it on one), starting dry. Without a water connection it
+        // has no island and its water goes nowhere, which the data tests forbid.
+        let _ = world.insert_one(e, WaterProducer { lpm: 0.0, needs_power: true });
+    }
+    // CO2 scrubber (2026-09-26, ship life support): FarmingSystem runs it to hold the carbon dioxide
+    // of the air around this entity's Transform under its setpoint, drawing its watts for the share
+    // of time it runs (systems::life_support).
+    if def.scrubs_co2_kg_day > 0.0 {
+        let watts = match &def.power {
+            Some(MachinePower::Consumer { watts, .. }) => *watts,
+            _ => 0.0,
+        };
+        let _ = world.insert_one(e, crate::ecs::components::Co2Scrubber { rated_kg_day: def.scrubs_co2_kg_day, watts });
     }
     // RF emitter (v0.620): a wireless device (WiFi router) bathes the home in RF while powered.
     if def.rf_emission > 0.0 {
@@ -272,6 +288,46 @@ pub(crate) fn spawn_home_machine_entity(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Ship life support (2026-09-26): from either shipped catalog the air
+    /// handler spawns as an AirHandler (1,842 m3/h, 325 W) with a dry condensate
+    /// producer on its plumbing island, which the air step fills, and the CO2
+    /// scrubber as a Co2Scrubber (4.74 kg a day, 860 W): the pairs the air step
+    /// and the plumbing read. Seen red by not inserting the producer (the
+    /// handler's water then had nowhere to go).
+    #[test]
+    fn shipped_air_handler_and_scrubber_spawn_what_the_air_step_reads() {
+        use crate::ecs::components::{AirHandler, Co2Scrubber, PlumbingCircuit, PowerConsumer, WaterProducer};
+        for file in ["home.ron", "home_solo.ron"] {
+            let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("machines").join(file);
+            let home = crate::machines::MachineHome::load(&path).unwrap_or_else(|| panic!("{file} parses"));
+            let mut world = hecs::World::new();
+            let empty = std::collections::HashMap::new();
+            let mut spawned = Vec::new();
+            for machine in ["air_handler", "air_recycler"] {
+                let inst = crate::machines::MachineInstance {
+                    id: format!("{machine}_t"),
+                    machine: machine.to_string(),
+                    room: "room-plant".to_string(),
+                    offset: (0.0, 0.0, 0.0),
+                    rotation: 0.0,
+                    zone: "home".to_string(),
+                    screen_source: None,
+                };
+                spawn_home_machine_entity(&mut world, &inst, &home.catalog[machine], &empty, &empty, None, None);
+                spawned.push(machine);
+            }
+            let handlers: Vec<_> = world
+                .query::<(&AirHandler, &WaterProducer, &PlumbingCircuit, &PowerConsumer)>()
+                .iter()
+                .map(|(_, (a, p, _, pc))| (a.airflow_m3_h, a.watts, p.lpm, p.needs_power, pc.draw_watts))
+                .collect();
+            assert_eq!(handlers, vec![(1842.0, 325.0, 0.0, true, 325.0)], "{file}");
+            let scrubbers: Vec<_> = world.query::<(&Co2Scrubber, &PowerConsumer)>().iter().map(|(_, (s, pc))| (s.rated_kg_day, s.watts, pc.priority)).collect();
+            assert_eq!(scrubbers, vec![(4.74, 860.0, 1)], "{file}");
+            assert_eq!(spawned.len(), 2);
+        }
+    }
 
     /// Gardening depth, rung 2 (2026-09-26): a grow light placed from either
     /// shipped catalog spawns as a GrowLight with a PowerConsumer, which is

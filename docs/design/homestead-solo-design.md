@@ -226,6 +226,14 @@ buffer" term self-sufficiency.md requires.
 
 ## 4. AIR — sealed-habitat life support, one person
 
+> **Superseded 2026-09-26 by [ship-life-support.md](ship-life-support.md).** The
+> 25 W `air_recycler` below no longer makes oxygen: it is now the ISS CO2
+> scrubber (860 W while it runs, idle in both homes because the crops take the
+> carbon dioxide up), the crops are the only oxygen source, and five air
+> handlers return the garden's water to the tanks at about 24 kWh a day of fan
+> power (Realistic mode). The figures below are the 2026-07-01 plan, kept as
+> history.
+
 The home is modeled as a **sealed** habitat (space/mothership context), so
 air is a hard closed loop per self-sufficiency.md §5.
 - `air_recycler` catalog: Consumer 25 W (priority 1), Air OUT 20 L/min —

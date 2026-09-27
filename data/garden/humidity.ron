@@ -30,9 +30,14 @@
 // crops' litres a day and the air changes an hour are both read on it, so
 // the humidity a room settles at is the physical one whatever the growth
 // speed, and a heat-and-vent wears off over game hours, the way it does over
-// an evening. The irrigation bills the home's tanks per real day instead
-// (farming::mod, irrigation_demand_lpm): the water supply's clock, a
-// separate question.
+// an evening. The tanks run on the plumbing sim's own clock, real minutes,
+// and which of the two clocks is right is the operator's open question
+// (docs/PRIORITIES.md, blocked 3). Since 2026-09-26 (ship life support,
+// data/life_support.ron) the water crosses between them as litres a day on
+// both sides: the irrigation draws the crops' litres a day (and the
+// humidifiers'), the air handlers hand back the litres a day their coils
+// condense, and each side applies them on its own clock, so a day's water
+// balances on each (src/systems/farming/life_support_tests.rs proves it).
 //
 // SOURCES (cited by short name in the entries):
 //   FAO-56     Allen, R.G., Pereira, L.S., Raes, D. and Smith, M., "Crop
@@ -229,7 +234,9 @@
     // 2.1 kWh and 27 L of water a day. The one-person home's two racks: the
     // T7 runs flat out and the room settles near 88%, inside oyster's window
     // but short of the setpoint, at 100 W, 2.4 kWh and 31 L a day. A whole
-    // room is a costly thing to humidify for 100 kcal of mushrooms a day,
+    // room is a costly thing to humidify for the mushrooms a rack grows (about
+    // 28 kcal a day since 2026-09-27, computed from its ten blocks by
+    // systems::grow_machines: the two racks about 56 kcal, six about 170),
     // which is why growers of this size fruit in a tent around the racks.
     //
     // humidifier_setpoint_rh 0.90: UF/IFAS SS662's fruiting chamber, "90%
@@ -349,9 +356,14 @@
     //   fruiting_co2_limit_ppm 1000: Lin et al. 2022, on P. ostreatus: "when
     //     the CO2 concentration reaches more than 0.1%, it produces a toxic
     //     effect", deforming the caps.
-    //   intake_co2_ppm 400: the home air the tent draws, at the life-support
-    //     model's floor of 0.04% CO2 (src/systems/atmosphere.rs), a GAME
-    //     CHOICE that ignores the CO2 the tents add to their own room.
+    //   intake_co2_ppm 400: the air the tent is SIZED for, outdoor air's 0.04%
+    //     CO2, a GAME CHOICE. Since 2026-09-26 ship life support tracks every
+    //     room's carbon dioxide (data/life_support.ron), so a tent really draws
+    //     its room's air: six racks' tents lift a 300 m3 mushroom room about
+    //     540 ppm over the home's, and each tent then sits about 600 ppm over
+    //     that, past the 1,000 limit below. The Garden panel says so; the fix
+    //     (a fan for the mushroom room, or tents sized to their room's real air)
+    //     is the next rung (docs/design/ship-life-support.md).
     //   The CO2 each cubic metre of intake air can take up is (1000 - 400)
     //   ppm of CO2's density at the rooms' 21 °C, P M / (R T) with FAO-56's
     //   sea-level P = 101.3 kPa (its equation 7 at z = 0), NIST's CO2

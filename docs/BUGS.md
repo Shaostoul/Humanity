@@ -1744,7 +1744,11 @@ drove the shipped crate from a scratch test package) found:
    humidity balance (and the crops' breathing) runs on game hours; the tanks
    are billed per real day (irrigation, humidifiers). Mass is not conserved.
    This is the same question as the body clock against the garden clock and
-   waits on the operator's decision (docs/PRIORITIES.md).
+   waits on the operator's decision (docs/PRIORITIES.md). **Mass half fixed
+   2026-09-26 (ship life support):** the air now condenses the water back and
+   every flow crosses between the clocks as litres a day on both sides, so a
+   day's water balances on each clock (`the_gardens_water_balances_across_the_two_clocks`).
+   Which clock is right, and so how long a garden day lasts, is still open.
 8. **Later picks are rescaled by season health at each pick,** though the code
    comment said they were not. The behaviour is kept (a drought during the
    window lowers the picks after it) and the comment corrected.
@@ -1909,3 +1913,19 @@ clicks the real Unmute button through egui; it was seen red with the screen
 starting unmuted. The audio-device test now also checks that nothing attaches
 before Unmute and that Mute sends silence; it runs on this machine and
 passes. The 28 screen tests pass.
+
+## BUG-096: the water tanks lost every small flow at frame rate (FIXED, ship life support, 2026-09-26)
+
+Found by the clock-boundary balance test while building ship life support
+(docs/design/ship-life-support.md). `PlumbingSystem` integrated each island's net
+flow into its tanks in f32, one frame at a time. A tank's level near 8,000 L has
+a float step of about 0.0005 L, and any change smaller than half of that rounds
+to nothing. At 60 frames a second that is any net flow under about 0.9 L/min: a
+household tap's 0.17 L/min (0.00005 L a frame) never left the cistern, and a
+garden whose draw and return nearly cancel left the level frozen. The "days of
+water left" the home showed drained far slower than its flows said. Fix:
+`plumbing.rs` integrates in f64 and carries what rounding keeps out of the tanks
+to the next tick, per island, so every litre that crosses lands; what a full or
+dry tank cannot take or give is still spilled or unmet. Test
+`a_trickle_reaches_a_big_tank_at_frame_rate` (an hour of 0.17 L/min at 60
+frames a second takes 10.2 L), seen red by dropping the carry.

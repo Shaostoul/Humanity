@@ -571,6 +571,14 @@ pub struct AppConfig {
     /// Held in GuiState as `garden_pests.picking_realistic`.
     #[serde(default)]
     pub picking_realistic: bool,
+    /// Ship life support (2026-09-26, systems::life_support): false is
+    /// Station-supplied (the air handlers and the CO2 scrubber run, the water
+    /// comes back and the air is real, but the station's own plant powers
+    /// them), true is Realistic (the home's grid pays their draw). The
+    /// simplified mode by default, the house rule for deep systems. Held in
+    /// GuiState as `garden_pests.life_support_realistic`.
+    #[serde(default)]
+    pub life_support_realistic: bool,
     /// Offline progression (2026-09-25): crops keep growing while the game is
     /// closed. On by default; see save_load::catch_up_world.
     #[serde(default = "default_true")]
@@ -1350,6 +1358,7 @@ impl AppConfig {
             soil_ph: !state.garden_pests.soil_ph_off,
             pollination: !state.garden_pests.pollination_off,
             picking_realistic: state.garden_pests.picking_realistic,
+            life_support_realistic: state.garden_pests.life_support_realistic,
             offline_progression: state.settings.offline_progression,
             fresh_world_each_launch: state.settings.fresh_world_each_launch,
             godray_intensity: state.settings.godray_intensity,
@@ -1584,6 +1593,7 @@ impl AppConfig {
         state.garden_pests.soil_ph_off = !self.soil_ph;
         state.garden_pests.pollination_off = !self.pollination;
         state.garden_pests.picking_realistic = self.picking_realistic;
+        state.garden_pests.life_support_realistic = self.life_support_realistic;
         state.settings.offline_progression = self.offline_progression;
         state.settings.fresh_world_each_launch = self.fresh_world_each_launch;
         state.settings.godray_intensity = self.godray_intensity.clamp(0.0, 1.5);

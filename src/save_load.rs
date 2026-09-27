@@ -1083,6 +1083,12 @@ mod tests {
             humidifier: 0.88,
             humidifier_l_day: 27.5,
             humidifier_dry: true,
+            // Ship life support (2026-09-26): its carbon dioxide and its air
+            // handlers come back too.
+            co2_g_m3: 1.9,
+            air_handler: 0.6,
+            condensate_l_day: 360.0,
+            ..Default::default()
         };
         memory.rooms.insert("room-greenhouse".into(), air);
         world.spawn((memory,));
