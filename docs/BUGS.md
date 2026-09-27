@@ -2094,3 +2094,57 @@ lower storey; the machine and door "[E]" prompts still show while E would
 build; nothing stops two pieces being built in one spot; small overlaps float
 a piece; and the build pose is recomputed at the key press rather than taken
 from the ghost.
+
+## BUG-103: rectangular blocks in the open-sea colour seen from orbit (FIXED 2026-09-27)
+
+Seen at fixtures `deck-55-nadir` and `ocean-glint-150km`: hard, straight-edged
+blocks in the regional sea colour. They were seams along the lattice lines of
+`value_noise`, which `sea_var` in `ocean_shell` sums over three octaves. The
+old `value_noise` hashed its corners with the FLOAT `hash21` of
+`i + vec2(1.0, 0.0)` and so on. Two neighbouring cells share a corner, and the
+shader compiler is free to round the two routes to it differently (for
+example by folding the `+ 1.0` into hash21's first multiply for one cell). At
+lattice coordinates in the thousands, which every planet-scale caller reaches
+(sea colour 700 to 3,500, shore 70,000, the finest land octave 800,000), one
+ulp is enough for the float hash to return a different number, so the cells
+disagreed about the corner they share and the field stepped at every line.
+
+Proven three ways. (1) On the real GPU, in a compute test that runs the
+shipped WGSL (`lattice_noise::device_tests`, DXC and FXC alike): the old
+`value_noise` stepped at 12,203 of 32,768 lattice-line crossings, worst step
+0.98. (2) In one boot through the shader hot reload, with a debug arm that
+paints `sea_var` (red) and a lattice-cell ID (green), scored by the new
+`scripts/lattice-seam-metric.mjs` (mean step across a lattice line over the
+mean step elsewhere; a smooth field reads under 1): 3.34 at 55 km and 1.68 at
+150 km, the repeated old arm 3.36 and 1.68. (3) Integer corners feeding the
+SAME float hash also read 0.83 and 0.81, so the mechanism is the corner route,
+not the hash.
+
+Fix (`10-lighting-patterns.wgsl`): `lattice_hash(vec2<i32>)`, pure integer (an
+odd-constant combine and the lowbias32 finaliser, an exact 24-bit conversion),
+and `value_noise` floors once, converts to `i32` and names every corner by an
+integer add. Measured after: 0.83 (99th-percentile step across a line 12
+levels before, 1 after) at 55 km and 0.815 (14 to 3) at 150 km; on the real
+render at 150 km, scored on the same lines, luma 1.59 to 0.86 and hue 1.52 to
+0.85. No measurable cost (`gpu.celestial` and `gpu.celestial_t` within the
+same-boot spread at `ocean-700m`, `ocean-glint-150km` and
+`sahara-noon-ground`). The CPU twin moved from `clouds` to
+`renderer::lattice_noise`: 0 bit mismatches against the GPU over 24,576
+probes up to 8,000,000, where the float `hash21` mismatches the GPU on 25% of
+integer inputs, so no float-hash twin could ever be exact. Tests: the
+shared-corner property to 8,000,000, the red check
+`the_old_float_hash_fails_the_shared_corner_test`, known answers, the WGSL
+text pin, statistics at every magnitude, and the repeat vector (52,932 cells).
+
+Patterns: everything built on `value_noise` re-rolled with the same
+statistics: sea colour, shore depth noise and surf, the wave-crest warp, land
+detail, the gas giant band wobble and the material textures that use
+`value_noise` or `fbm`. The same float corner route existed in `voronoi`,
+`voronoi_edge`, `cloud_noise` (hash13) and `micro_noise` (a sin hash); those
+now take integer corners converted to the identical float values, so their
+patterns did not change (cloud pixels in the same boot differ from the old
+shader no more than the old shader differs from itself). Look checks, old
+against new in one boot: the 55 km glint stripe gate did not move (share3 0.083
+against 0.078 to 0.088 on the old shader), sand and ocean from 700 m kept their
+character, and a straight seam across the Bahama Bank shallows (a custom
+`bahamas-bank-shore` camera, 0.6 km) is gone.
