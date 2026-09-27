@@ -89,10 +89,12 @@ pub const ROOM_PICK_MARGIN_M: f32 = 0.25;
 /// Atlas width in texels: a multiple of both tile sizes (10 and 18), under the
 /// 8192 texture-dimension floor `wgpu::Limits::default()` guarantees.
 pub const ATLAS_WIDTH: u32 = 8100;
-/// Upper bound on probes across the whole ship. The default acre holds about
-/// 19k at 1 m; past this the spacing grows until the lattice fits, so the
-/// atlas stays under about 110 MB.
+/// Upper bound on probes across the whole ship: the default ship holds 31,874
+/// (the acre about 22k at 1 m, the commons the rest); past this every room's
+/// spacing grows until the lattice fits, so the atlas stays under about 110 MB.
 pub const MAX_TOTAL_PROBES: u32 = 32_768;
+/// Upper bound on one room's probes; a bigger room coarsens alone.
+pub const MAX_PROBES_PER_ROOM: u32 = 8_192;
 /// The six faces of a room box, in the order every per-face array uses.
 pub const FACE_NEG_X: usize = 0;
 pub const FACE_POS_X: usize = 1;
@@ -164,17 +166,34 @@ pub fn probe_grid(counts: [u32; 3], local: u32) -> [u32; 3] {
     [local % counts[0], (local / counts[0]) % counts[1], local / (counts[0] * counts[1])]
 }
 
-/// Probe counts for every room at one spacing, grown until the whole ship fits
-/// under `MAX_TOTAL_PROBES`. Returns (spacing actually used, counts per room).
+/// Probe counts for every room. Each room starts at `PROBE_SPACING_M`; a room
+/// that alone would hold more than `MAX_PROBES_PER_ROOM` (the 8 m tall commons
+/// hall, 17,640 at 1 m) coarsens by itself, so one hall cannot coarsen every
+/// bedroom; then, only if the ship still does not fit `MAX_TOTAL_PROBES`,
+/// every room coarsens together. Returns (the finest spacing used, counts per
+/// room).
 pub fn lattice_for(rooms: &[RoomBox]) -> (f32, Vec<[u32; 3]>) {
-    let mut spacing = PROBE_SPACING_M;
+    let n = |c: [u32; 3]| c[0] as u64 * c[1] as u64 * c[2] as u64;
+    let mut spacing: Vec<f32> = rooms
+        .iter()
+        .map(|r| {
+            let mut s = PROBE_SPACING_M;
+            while n(probe_counts(r.size(), s)) > MAX_PROBES_PER_ROOM as u64 && s < 64.0 {
+                s *= 1.1;
+            }
+            s
+        })
+        .collect();
     loop {
-        let counts: Vec<[u32; 3]> = rooms.iter().map(|r| probe_counts(r.size(), spacing)).collect();
-        let total: u64 = counts.iter().map(|c| c[0] as u64 * c[1] as u64 * c[2] as u64).sum();
-        if total <= MAX_TOTAL_PROBES as u64 || spacing > 64.0 {
-            return (spacing, counts);
+        let counts: Vec<[u32; 3]> = rooms.iter().zip(&spacing).map(|(r, s)| probe_counts(r.size(), *s)).collect();
+        let total: u64 = counts.iter().map(|c| n(*c)).sum();
+        let finest = spacing.iter().copied().fold(f32::INFINITY, f32::min);
+        if total <= MAX_TOTAL_PROBES as u64 || finest > 64.0 {
+            return (if finest.is_finite() { finest } else { PROBE_SPACING_M }, counts);
         }
-        spacing *= 1.1;
+        for s in &mut spacing {
+            *s *= 1.1;
+        }
     }
 }
 
@@ -433,24 +452,35 @@ pub fn sun_path(room: &RoomBox, h: Vec3, n: Vec3, sun_dir: Vec3) -> f32 {
 }
 
 /// Which room a surface at `p` with normal `n` samples, or None. Decided at
-/// the pick point half a metre along the normal; the nearest room box within
-/// the pick margin wins, and among boxes that all contain the point the
-/// smallest does (the flood-filled rooms are AABBs, so an L-shaped room's box
-/// can overlap a neighbour's, and the smaller box is the more specific room).
+/// the pick point half a metre along the normal. `rooms` is in PICK ORDER
+/// (`pick_order`): the first box that contains the point wins; a point in no
+/// box takes the nearest one within the pick margin.
 pub fn pick_room(rooms: &[RoomBox], p: Vec3, n: Vec3) -> Option<usize> {
     let q = p + n * ROOM_PICK_OFFSET_M;
     let mut best: Option<usize> = None;
-    let (mut best_d, mut best_v) = (ROOM_PICK_MARGIN_M + 1.0e-3, f32::INFINITY);
+    let mut best_d = ROOM_PICK_MARGIN_M + 1.0e-3;
     for (i, r) in rooms.iter().enumerate() {
         let d = r.outside_distance(q);
-        let v = r.volume();
-        if d < best_d - 1.0e-4 || (d <= best_d + 1.0e-4 && v < best_v) {
+        if d <= 0.0 {
+            return Some(i);
+        }
+        if d < best_d {
             best = Some(i);
             best_d = d;
-            best_v = v;
         }
     }
     best
+}
+
+/// The order the room table is written in each frame, which is the order the
+/// pick walks it: the camera's room first (most of the screen is in it, so
+/// most fragments stop at the first box), then the rest by volume, smallest
+/// first, so where two boxes overlap (an L-shaped room is its bounding box)
+/// the smaller, more specific one wins.
+pub fn pick_order(rooms: &[RoomBox], cam_room: Option<usize>) -> Vec<usize> {
+    let mut rest: Vec<usize> = (0..rooms.len()).filter(|&i| Some(i) != cam_room).collect();
+    rest.sort_by(|&a, &b| rooms[a].volume().total_cmp(&rooms[b].volume()));
+    cam_room.into_iter().chain(rest).collect()
 }
 
 /// The weight the NEW estimate gets in the blend (1 - hysteresis), given how
@@ -528,8 +558,23 @@ pub const SKY_LIGHTING_EXPOSURE: f32 = 15.0 * 0.24;
 pub const HEADER_BYTES: u64 = std::mem::size_of::<GiHeaderGpu>() as u64;
 pub const ROOM_BYTES: u64 = std::mem::size_of::<GiRoomGpu>() as u64;
 
+/// Room flag in `GiRoomGpu::lights[2]` (WGSL `GI_ROOM_VISIBILITY`): this
+/// room's fragments run DDGI's Chebyshev visibility test. Off for a room whose
+/// probes trace only its own box, where the test is an identity
+/// (`visibility_is_an_identity_inside_a_box`); rung 2 sets it for the rooms
+/// whose contents it traces, and the dev switch `{"room_gi_vis":"1"}` sets it
+/// everywhere.
+pub const ROOM_FLAG_VISIBILITY: u32 = 1;
+
 /// Pack one room for the GPU.
-pub fn pack_room(r: &RoomBox, counts: [u32; 3], first_probe: u32, first_light: u32, light_count: u32) -> GiRoomGpu {
+pub fn pack_room(
+    r: &RoomBox,
+    counts: [u32; 3],
+    first_probe: u32,
+    first_light: u32,
+    light_count: u32,
+    visibility: bool,
+) -> GiRoomGpu {
     let mut refl = [[0.0f32; 4]; 6];
     for (dst, src) in refl.iter_mut().zip(r.refl.iter()) {
         *dst = [src[0], src[1], src[2], 0.0];
@@ -538,7 +583,7 @@ pub fn pack_room(r: &RoomBox, counts: [u32; 3], first_probe: u32, first_light: u
         bmin: [r.min.x, r.min.y, r.min.z, 0.0],
         bmax: [r.max.x, r.max.y, r.max.z, r.lid_transmittance],
         counts: [counts[0], counts[1], counts[2], first_probe],
-        lights: [first_light, light_count, 0, 0],
+        lights: [first_light, light_count, if visibility { ROOM_FLAG_VISIBILITY } else { 0 }, 0],
         refl,
     }
 }
@@ -563,6 +608,8 @@ pub struct TwinRoom {
     pub counts: [u32; 3],
     pub first_probe: u32,
     pub direct: DirectSource,
+    /// The room's `ROOM_FLAG_VISIBILITY`: false for a box-only room (rung 1).
+    pub visibility: bool,
 }
 
 impl TwinRoom {
@@ -592,7 +639,7 @@ impl Twin {
             .into_iter()
             .map(|(room, direct)| {
                 let counts = probe_counts(room.size(), PROBE_SPACING_M);
-                let r = TwinRoom { room, counts, first_probe: first, direct };
+                let r = TwinRoom { room, counts, first_probe: first, direct, visibility: false };
                 first += r.probe_count();
                 r
             })
@@ -631,10 +678,18 @@ impl Twin {
     /// The cosine-weighted mean radiance room `ri`'s probes give a surface at
     /// `p` facing `n`: DDGI's 8-probe sample with the backface weight, the
     /// Chebyshev (moment) visibility test, the weight crush, trilinear weights
-    /// and the square-root blend. Mirrors `gi_sample_room` in 85-room-gi.wgsl.
+    /// and the square-root blend. Mirrors `gi_sample_room` in 85-room-gi.wgsl,
+    /// running the visibility test when the room is flagged for it, as the
+    /// GPU does.
     pub fn sample(&self, ri: usize, p: Vec3, n: Vec3) -> Vec3 {
+        self.sample_with(ri, p, n, self.rooms[ri].visibility)
+    }
+
+    /// `sample` with the Chebyshev visibility test on or off (the GPU runs it
+    /// only in rooms flagged `ROOM_FLAG_VISIBILITY`).
+    pub fn sample_with(&self, ri: usize, p: Vec3, n: Vec3, visibility: bool) -> Vec3 {
         let r = &self.rooms[ri];
-        sample_grid(&r.room, r.counts, r.first_probe, &self.layout, |c| self.bilinear(c), p, n)
+        sample_grid(&r.room, r.counts, r.first_probe, &self.layout, |c| self.bilinear(c), p, n, visibility)
     }
 
     /// One update of EVERY probe from the current atlas (the GPU reads the
@@ -794,6 +849,7 @@ pub fn sample_grid(
     fetch: impl Fn(Vec2) -> [f32; 4],
     p: Vec3,
     n: Vec3,
+    visibility: bool,
 ) -> Vec3 {
     let cf = Vec3::new(counts[0] as f32, counts[1] as f32, counts[2] as f32);
     let cell = room.size() / cf;
@@ -811,20 +867,27 @@ pub fn sample_grid(
         // WGSL `mix(1 - alpha, alpha, off)`, per component.
         let tri3 = (Vec3::ONE - alpha) * (Vec3::ONE - off) + alpha * off;
         let tri = tri3.x * tri3.y * tri3.z;
+        // No trilinear weight, no contribution: skipped (the WGSL skips its
+        // two fetches the same way).
+        if tri <= 0.0 {
+            continue;
+        }
         // Smooth backface weight: a probe behind the surface counts for little.
         let to_probe = (ppos - p).normalize_or_zero();
         let bf = (to_probe.dot(n) + 1.0) * 0.5;
         let mut w = bf * bf + 0.2;
         // Chebyshev visibility from the stored depth moments.
-        let p2pt = ps - ppos;
-        let dist = p2pt.length();
-        let dir = if dist > 1e-4 { p2pt / dist } else { n };
-        let m = fetch(tile_coord(layout.depth_origin(probe), DEPTH_N, dir));
-        if dist > m[0] {
-            let variance = (m[1] - m[0] * m[0]).abs();
-            let excess = dist - m[0];
-            let cheb = variance / (variance + excess * excess).max(1e-9);
-            w *= (cheb * cheb * cheb).max(0.0);
+        if visibility {
+            let p2pt = ps - ppos;
+            let dist = p2pt.length();
+            let dir = if dist > 1e-4 { p2pt / dist } else { n };
+            let m = fetch(tile_coord(layout.depth_origin(probe), DEPTH_N, dir));
+            if dist > m[0] {
+                let variance = (m[1] - m[0] * m[0]).abs();
+                let excess = dist - m[0];
+                let cheb = variance / (variance + excess * excess).max(1e-9);
+                w *= (cheb * cheb * cheb).max(0.0);
+            }
         }
         w = w.max(1e-6);
         if w < CRUSH_THRESHOLD {
@@ -1054,6 +1117,49 @@ mod tests {
         assert_eq!(twin.sample(1, Vec3::new(3.1, 1.0, 1.5), Vec3::X), Vec3::ZERO);
     }
 
+    /// WHY RUNG 1 SKIPS THE VISIBILITY TEST. Inside a room whose probes trace
+    /// only its box, DDGI's Chebyshev test changes nothing: the box is convex,
+    /// so the stored mean depth toward any point inside it is never short of
+    /// that point's distance. Checked on every face (the surfaces fragments
+    /// actually sit on, with their inward normals) and through the interior,
+    /// against the same converged probes sampled with and without the test.
+    /// Measured 2026-09-27: no sample moved by as much as 0.05%. Seen fail
+    /// first by storing the depth moments at half the hit distance (`t * 0.5`
+    /// in `update_probe`): the test then moved a sample by 100%. (At 20% short
+    /// it still passed: a surface point sits nearer its probes than the wall
+    /// behind it, by the bias and half a cell.)
+    #[test]
+    fn visibility_is_an_identity_inside_a_box() {
+        let room = grey_box(Vec3::ZERO, Vec3::new(4.0, 3.0, 5.0), 0.5);
+        let lamp = RoomLight::point(Vec3::new(1.0, 2.8, 1.2), [1.0, 0.9, 0.8], 10.0, 12.0);
+        let mut twin = Twin::new(vec![(room, DirectSource::Scene { lights: vec![lamp], sun: None })]);
+        twin.hysteresis = 0.9;
+        for _ in 0..40 {
+            twin.update_all();
+        }
+        let mut worst = 0.0f32;
+        let mut check = |p: Vec3, n: Vec3| {
+            let with = twin.sample_with(0, p, n, true);
+            let without = twin.sample_with(0, p, n, false);
+            let rel = (with - without).abs().max_element() / without.max_element().max(1e-6);
+            worst = worst.max(rel);
+        };
+        let size = Vec3::new(4.0, 3.0, 5.0);
+        for i in 0..9 {
+            for j in 0..9 {
+                let (u, v) = ((i as f32 + 0.5) / 9.0, (j as f32 + 0.5) / 9.0);
+                check(Vec3::new(u * size.x, 0.0, v * size.z), Vec3::Y);
+                check(Vec3::new(u * size.x, size.y, v * size.z), Vec3::NEG_Y);
+                check(Vec3::new(0.0, u * size.y, v * size.z), Vec3::X);
+                check(Vec3::new(size.x, u * size.y, v * size.z), Vec3::NEG_X);
+                check(Vec3::new(u * size.x, v * size.y, 0.0), Vec3::Z);
+                check(Vec3::new(u * size.x, v * size.y, size.z), Vec3::NEG_Z);
+                check(Vec3::new(u * size.x, 1.2, v * size.z), fibonacci_ray(i * 9 + j, 81));
+            }
+        }
+        assert!(worst < 0.02, "the visibility test moved a sample inside the box by {:.1}%", worst * 100.0);
+    }
+
     /// The sun reaches a surface only through a glass lid, and only when the
     /// box does not put a wall in the way.
     #[test]
@@ -1084,10 +1190,20 @@ mod tests {
         assert!(last.1 + IRR_TILE <= l.depth_y0);
         let big = AtlasLayout::for_probes(MAX_TOTAL_PROBES);
         assert!(big.height <= 8192, "the probe cap must fit the texture limit ({})", big.height);
-        // A ship too big for the cap coarsens instead of overflowing.
-        let huge = vec![grey_box(Vec3::ZERO, Vec3::new(200.0, 3.0, 200.0), 0.5)];
-        let (spacing, counts) = lattice_for(&huge);
-        let total: u32 = counts.iter().map(|c| c[0] * c[1] * c[2]).sum();
+        // A room too big for the per-room cap coarsens ALONE: the bedroom
+        // beside it keeps its 1 m lattice.
+        let huge = vec![
+            grey_box(Vec3::ZERO, Vec3::new(200.0, 3.0, 200.0), 0.5),
+            grey_box(Vec3::ZERO, Vec3::new(10.0, 3.0, 10.0), 0.5),
+        ];
+        let (_, counts) = lattice_for(&huge);
+        let n = |c: [u32; 3]| c[0] * c[1] * c[2];
+        assert!(n(counts[0]) <= MAX_PROBES_PER_ROOM, "the hall holds {}", n(counts[0]));
+        assert_eq!(counts[1], [11, 4, 11], "the small room keeps 1 m");
+        // A ship too big for the total cap coarsens everywhere instead of overflowing.
+        let many: Vec<RoomBox> = (0..8).map(|i| grey_box(Vec3::new(i as f32 * 50.0, 0.0, 0.0), Vec3::new(i as f32 * 50.0 + 40.0, 3.0, 40.0), 0.5)).collect();
+        let (spacing, counts) = lattice_for(&many);
+        let total: u32 = counts.iter().map(|c| n(*c)).sum();
         assert!(spacing > 1.0 && total <= MAX_TOTAL_PROBES, "spacing {spacing}, {total} probes");
     }
 

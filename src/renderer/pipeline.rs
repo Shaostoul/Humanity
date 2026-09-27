@@ -2497,7 +2497,7 @@ mod permutation_tests {
     #[test]
     fn the_room_gi_sample_is_guarded_by_its_switch_in_the_tail() {
         let main = code_only(class_entries_side());
-        let guard = format!("if ({FEATURE_ROOM_GI} && !under_sky) {{");
+        let guard = format!("if ({FEATURE_ROOM_GI} && !under_sky && !screen_emitter) {{");
         let sites: Vec<usize> = main.match_indices(&guard).map(|(p, _)| p).collect();
         assert_eq!(sites.len(), 1, "exactly one {guard:?}, found {}", sites.len());
         let (start, end) = function_body(&main, "frag_tail");

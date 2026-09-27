@@ -27,7 +27,7 @@ use glam::Vec3;
 
 use super::light::gpu_packed;
 use super::room_probes::{
-    assign_lights, lattice_for, pack_room, ray_rotation, AtlasLayout, GiHeaderGpu, GiParamsGpu, GiRoomGpu, RoomBox,
+    assign_lights, lattice_for, pack_room, pick_order, ray_rotation, AtlasLayout, GiHeaderGpu, GiParamsGpu, GiRoomGpu, RoomBox,
     HEADER_BYTES, HYSTERESIS, NORMAL_BIAS_M, ROOM_BYTES, SKY_LIGHTING_EXPOSURE,
 };
 use super::{pipeline, Renderer};
@@ -53,6 +53,11 @@ pub struct RoomGi {
     /// every fragment keeps the old ambient floor, and nothing is dispatched,
     /// so a same-boot A/B measures exactly what room GI costs and adds.
     pub off: bool,
+    /// The second dev switch (showcase `{"room_gi_vis":"1"}`): every room runs
+    /// DDGI's Chebyshev visibility test in its fragments and its update, which
+    /// rung 1 skips because inside a box it is an identity. For A/B of the
+    /// test's cost and proof that it changes nothing yet.
+    pub force_visibility: bool,
     /// The rooms in the HOME frame (render space adds the station offset each
     /// frame), their lattices and where each room's probes start.
     rooms: Vec<RoomBox>,
@@ -81,6 +86,8 @@ pub struct RoomGi {
     clear: wgpu::ComputePipeline,
     /// Round-robin position over every probe of the ship.
     cursor: u32,
+    /// Where the window through a camera room bigger than the budget stands.
+    cam_cursor: u32,
     /// Updates run so far: seeds each update's ray rotation.
     frame: u32,
     /// The rooms changed: zero the atlas before the next trace (every probe
@@ -92,6 +99,8 @@ pub struct RoomGi {
     pub(super) rebind: bool,
     /// Probes traced in the last update (the F2 overlay and the log read it).
     pub last_updated: u32,
+    /// The update's bind groups (`make_bind_groups`); None = build them.
+    bind_groups: Option<(wgpu::BindGroup, wgpu::BindGroup)>,
 }
 
 fn atlas_texture(device: &wgpu::Device, layout: &AtlasLayout, label: &str) -> (wgpu::Texture, wgpu::TextureView) {
@@ -215,6 +224,7 @@ impl RoomGi {
         });
         Self {
             off: false,
+            force_visibility: false,
             rooms: Vec::new(),
             counts: Vec::new(),
             first: Vec::new(),
@@ -239,16 +249,28 @@ impl RoomGi {
             resolve,
             clear,
             cursor: 0,
+            cam_cursor: 0,
             frame: 0,
             needs_clear: false,
             rebind: false,
             last_updated: 0,
+            bind_groups: None,
         }
     }
 
     /// Probes in the ship.
     pub fn probe_count(&self) -> u32 {
         self.total
+    }
+
+    /// GPU memory room GI holds: the atlas and the scratch (8 bytes a texel)
+    /// and its buffers. The Performance page counts it with the render targets.
+    pub fn vram_bytes(&self) -> u64 {
+        (self.layout.texel_count() + self.scratch_layout.texel_count()) as u64 * 8
+            + self.rooms_buf.size()
+            + self.lights_buf.size()
+            + self.updates_buf.size()
+            + self.params_buf.size()
     }
 
     /// New rooms (home frame). Recomputes the lattice, grows the atlas and the
@@ -275,6 +297,7 @@ impl RoomGi {
             self._atlas = tex;
             self.atlas_view = view;
             self.rebind = true;
+            self.bind_groups = None;
             log::info!(
                 "[RoomGI] atlas {}x{} for {} probes ({:.1} MB)",
                 self.layout.width,
@@ -291,6 +314,7 @@ impl RoomGi {
             self.rooms_cap = cap;
             self.rooms_buf = rooms_buffer(device, cap);
             self.rebind = true;
+            self.bind_groups = None;
         }
         log::info!(
             "[RoomGI] {} rooms, {} probes at {:.2} m spacing",
@@ -304,7 +328,41 @@ impl RoomGi {
         self.total = total;
         self.spacing = spacing;
         self.cursor = 0;
+        self.cam_cursor = 0;
         self.needs_clear = true;
+    }
+
+    /// The update's two bind groups. Cached (`bind_groups`) and rebuilt only
+    /// when a resource they hold is replaced: the atlas, the room table or
+    /// the light list.
+    fn make_bind_groups(&self, device: &wgpu::Device, sky: &wgpu::TextureView) -> (wgpu::BindGroup, wgpu::BindGroup) {
+        let trace = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("Room Probe Trace BG"),
+            layout: &self.trace_bgl,
+            entries: &[
+                wgpu::BindGroupEntry { binding: 0, resource: self.params_buf.as_entire_binding() },
+                wgpu::BindGroupEntry { binding: 1, resource: self.rooms_buf.as_entire_binding() },
+                wgpu::BindGroupEntry { binding: 2, resource: self.lights_buf.as_entire_binding() },
+                wgpu::BindGroupEntry { binding: 3, resource: self.updates_buf.as_entire_binding() },
+                wgpu::BindGroupEntry { binding: 4, resource: wgpu::BindingResource::TextureView(&self.atlas_view) },
+                wgpu::BindGroupEntry { binding: 5, resource: wgpu::BindingResource::Sampler(&self.sampler) },
+                wgpu::BindGroupEntry { binding: 6, resource: wgpu::BindingResource::TextureView(&self.scratch_view) },
+                wgpu::BindGroupEntry { binding: 7, resource: wgpu::BindingResource::TextureView(sky) },
+                wgpu::BindGroupEntry { binding: 8, resource: wgpu::BindingResource::Sampler(&self.sampler) },
+            ],
+        });
+        let resolve = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("Room Probe Resolve BG"),
+            layout: &self.resolve_bgl,
+            entries: &[
+                wgpu::BindGroupEntry { binding: 0, resource: self.params_buf.as_entire_binding() },
+                wgpu::BindGroupEntry { binding: 1, resource: self.rooms_buf.as_entire_binding() },
+                wgpu::BindGroupEntry { binding: 3, resource: self.updates_buf.as_entire_binding() },
+                wgpu::BindGroupEntry { binding: 10, resource: wgpu::BindingResource::TextureView(&self.scratch_view) },
+                wgpu::BindGroupEntry { binding: 11, resource: wgpu::BindingResource::TextureView(&self.atlas_view) },
+            ],
+        });
+        (trace, resolve)
     }
 
     /// Which room a global probe index belongs to.
@@ -312,7 +370,9 @@ impl RoomGi {
         (self.first.partition_point(|&f| f <= probe) - 1) as u32
     }
 
-    /// This frame's update list: the camera's room first, then round-robin.
+    /// This frame's update list: the camera's room first (all of it, or for a
+    /// room bigger than the budget three quarters of the budget, walking
+    /// through the room frame by frame), then the rest of the ship round-robin.
     fn build_updates(&mut self, cam_room: Option<usize>) -> Vec<[u32; 2]> {
         let budget = MAX_UPDATES_PER_FRAME.min(self.total) as usize;
         let mut list: Vec<[u32; 2]> = Vec::with_capacity(budget);
@@ -320,10 +380,16 @@ impl RoomGi {
         if let Some(ci) = cam_room {
             let c = self.counts[ci];
             let n = c[0] * c[1] * c[2];
+            let f = self.first[ci];
             if n as usize <= budget {
-                let f = self.first[ci];
                 list.extend((f..f + n).map(|p| [p, ci as u32]));
                 skip = f..f + n;
+            } else {
+                let take = (budget * 3 / 4) as u32;
+                for k in 0..take {
+                    list.push([f + (self.cam_cursor + k) % n, ci as u32]);
+                }
+                self.cam_cursor = (self.cam_cursor + take) % n;
             }
         }
         let mut guard = 0u32;
@@ -394,14 +460,31 @@ impl Renderer {
             (a.min(r.min), b.max(r.max))
         });
         let on = !gi.off && gi.total > 0;
-        // The room table: the header, then every room with its light range.
+        // The camera's room: the smallest box holding the eye.
+        let cam_room = render_rooms
+            .iter()
+            .enumerate()
+            .filter(|(_, r)| r.contains(eye, 0.3))
+            .min_by(|a, b| a.1.volume().total_cmp(&b.1.volume()))
+            .map(|(i, _)| i);
+        // The room table, in PICK ORDER (room_probes::pick_order): the header,
+        // then every room with its light range. `slot_of[i]` is room i's row.
+        let order = pick_order(&render_rooms, cam_room);
+        let mut slot_of = vec![0u32; render_rooms.len()];
+        for (slot, &i) in order.iter().enumerate() {
+            slot_of[i] = slot as u32;
+        }
         let owned = assign_lights(&render_rooms, &self.cur_lights);
         let mut packed_lights: Vec<[f32; 16]> = Vec::new();
         let mut table: Vec<GiRoomGpu> = Vec::with_capacity(render_rooms.len().max(1));
-        for (i, r) in render_rooms.iter().enumerate() {
+        for &i in &order {
             let first_light = packed_lights.len() as u32;
             packed_lights.extend(owned[i].iter().map(|&k| gpu_packed(&self.cur_lights[k])));
-            table.push(pack_room(r, gi.counts[i], gi.first[i], first_light, owned[i].len() as u32));
+            // Rung 1 traces only each room's box, where DDGI's visibility test
+            // is an identity, so no room asks for it unless the dev switch
+            // forces it (room_probes::ROOM_FLAG_VISIBILITY).
+            let vis = gi.force_visibility;
+            table.push(pack_room(&render_rooms[i], gi.counts[i], gi.first[i], first_light, owned[i].len() as u32, vis));
         }
         if table.is_empty() {
             table.push(GiRoomGpu::default());
@@ -427,16 +510,14 @@ impl Renderer {
                 gi.lights_cap *= 2;
             }
             gi.lights_buf = storage_buffer(&self.device, "Room GI Lights", 64 * gi.lights_cap as u64);
+            gi.bind_groups = None;
         }
         self.queue.write_buffer(&gi.lights_buf, 0, bytemuck::cast_slice(&packed_lights));
-        // The camera's room: the smallest box holding the eye.
-        let cam_room = render_rooms
-            .iter()
-            .enumerate()
-            .filter(|(_, r)| r.contains(eye, 0.3))
-            .min_by(|a, b| a.1.volume().total_cmp(&b.1.volume()))
-            .map(|(i, _)| i);
-        let updates = gi.build_updates(cam_room);
+        let mut updates = gi.build_updates(cam_room);
+        // The shader indexes the table, so each entry carries its room's ROW.
+        for u in &mut updates {
+            u[1] = slot_of[u[1] as usize];
+        }
         let n = updates.len() as u32;
         gi.last_updated = n;
         if n == 0 {
@@ -461,33 +542,14 @@ impl Renderer {
         if gi.rebind {
             self.rebuild_camera_bind_groups();
         }
+        if self.room_gi.bind_groups.is_none() {
+            let bgs = self.room_gi.make_bind_groups(&self.device, &self.sky_view.target_view);
+            self.room_gi.bind_groups = Some(bgs);
+        }
         let gi = &self.room_gi;
-        let trace_bg = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("Room Probe Trace BG"),
-            layout: &gi.trace_bgl,
-            entries: &[
-                wgpu::BindGroupEntry { binding: 0, resource: gi.params_buf.as_entire_binding() },
-                wgpu::BindGroupEntry { binding: 1, resource: gi.rooms_buf.as_entire_binding() },
-                wgpu::BindGroupEntry { binding: 2, resource: gi.lights_buf.as_entire_binding() },
-                wgpu::BindGroupEntry { binding: 3, resource: gi.updates_buf.as_entire_binding() },
-                wgpu::BindGroupEntry { binding: 4, resource: wgpu::BindingResource::TextureView(&gi.atlas_view) },
-                wgpu::BindGroupEntry { binding: 5, resource: wgpu::BindingResource::Sampler(&gi.sampler) },
-                wgpu::BindGroupEntry { binding: 6, resource: wgpu::BindingResource::TextureView(&gi.scratch_view) },
-                wgpu::BindGroupEntry { binding: 7, resource: wgpu::BindingResource::TextureView(&self.sky_view.target_view) },
-                wgpu::BindGroupEntry { binding: 8, resource: wgpu::BindingResource::Sampler(&gi.sampler) },
-            ],
-        });
-        let resolve_bg = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("Room Probe Resolve BG"),
-            layout: &gi.resolve_bgl,
-            entries: &[
-                wgpu::BindGroupEntry { binding: 0, resource: gi.params_buf.as_entire_binding() },
-                wgpu::BindGroupEntry { binding: 1, resource: gi.rooms_buf.as_entire_binding() },
-                wgpu::BindGroupEntry { binding: 3, resource: gi.updates_buf.as_entire_binding() },
-                wgpu::BindGroupEntry { binding: 10, resource: wgpu::BindingResource::TextureView(&gi.scratch_view) },
-                wgpu::BindGroupEntry { binding: 11, resource: wgpu::BindingResource::TextureView(&gi.atlas_view) },
-            ],
-        });
+        let Some((trace_bg, resolve_bg)) = gi.bind_groups.as_ref() else {
+            return;
+        };
         let mut enc = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
             label: Some("Room Probe Encoder"),
         });
@@ -500,14 +562,14 @@ impl Renderer {
             });
             if clear {
                 pass.set_pipeline(&gi.clear);
-                pass.set_bind_group(0, &resolve_bg, &[]);
+                pass.set_bind_group(0, resolve_bg, &[]);
                 pass.dispatch_workgroups(gi.layout.width.div_ceil(8), gi.layout.height.div_ceil(8), 1);
             }
             pass.set_pipeline(&gi.trace);
-            pass.set_bind_group(0, &trace_bg, &[]);
+            pass.set_bind_group(0, trace_bg, &[]);
             pass.dispatch_workgroups(n, 1, 1);
             pass.set_pipeline(&gi.resolve);
-            pass.set_bind_group(0, &resolve_bg, &[]);
+            pass.set_bind_group(0, resolve_bg, &[]);
             pass.dispatch_workgroups(n, 1, 1);
         }
         self.queue.submit(std::iter::once(enc.finish()));
@@ -556,6 +618,21 @@ mod tests {
         assert_eq!(size_of("GiRoom") as u64, ROOM_BYTES);
         assert_eq!(size_of("GiParams") as usize, std::mem::size_of::<GiParamsGpu>());
         assert_eq!(size_of("GiLight"), 64, "one light is the renderer's 64-byte GpuLight");
+    }
+
+    /// The WGSL divides probe indices by CONSTANT tiles-per-row (a multiply
+    /// and a shift instead of an integer division per probe), so those
+    /// constants must be what `AtlasLayout` lays the atlas out with, for the
+    /// atlas and the scratch alike.
+    #[test]
+    fn the_shader_tile_rows_match_the_atlas_layout() {
+        for probes in [1, 484, MAX_UPDATES_PER_FRAME, super::super::room_probes::MAX_TOTAL_PROBES] {
+            let l = AtlasLayout::for_probes(probes);
+            let irr = format!("const GI_IRR_PER_ROW: u32 = {}u;", l.irr_per_row);
+            let depth = format!("const GI_DEPTH_PER_ROW: u32 = {}u;", l.depth_per_row);
+            assert!(UPDATE_SHADER.contains(&irr), "85-room-gi.wgsl must declare {irr}");
+            assert!(UPDATE_SHADER.contains(&depth), "85-room-gi.wgsl must declare {depth}");
+        }
     }
 
     /// The scratch holds one update's worth of tiles, and fits the texture limit.

@@ -109,11 +109,14 @@
         id: "interior_scene",
         display: "Homestead + props",
         category: "gpu",
-        sources: ["gpu.scene", "gpu.transparent", "gpu.overlay", "gpu.instanced"],
+        // gpu.room_probes: room GI's probe update, the compute pass that
+        // relights the rooms' irradiance probes each frame before the scene
+        // pass (renderer/room_probes_gpu.rs, 2026-09-27).
+        sources: ["gpu.scene", "gpu.transparent", "gpu.overlay", "gpu.instanced", "gpu.room_probes"],
         locked: true,
         base_frac: 0.15,
         color: "nav_reality",
-        note: "Ship and homestead geometry: opaque, glass, and overlay draws.",
+        note: "Ship and homestead geometry: opaque, glass, and overlay draws, and the room light probes they read.",
     ),
     (
         id: "particles",
@@ -246,7 +249,7 @@
         sources: [
             "cpu.patch_upload", "cpu.grass_upload", "cpu.water_upload",
             "cpu.weather_upload", "cpu.atmo_luts", "cpu.lights",
-            "cpu.light_tiles",
+            "cpu.light_tiles", "cpu.room_probes",
         ],
         locked: false,
         base_frac: 0.15,

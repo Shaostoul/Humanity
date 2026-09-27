@@ -42,6 +42,7 @@
 //
 // Usage:
 //   node scripts/photograph-home.js [--exe PATH] [--only id,id] [--width N] [--height N] [--ab KEY]
+//                                   [--vantages PATH]
 // Exit 0 = every vantage captured. 1 = refused. 2 = one or more captures failed.
 
 const fs = require("fs");
@@ -65,7 +66,9 @@ const AB = opt("--ab", null);
 const RIG = path.join(REPO, ".probe-rig", "home-photos");
 const DEBUG = path.join(RIG, "debug");
 const LOG = path.join(RIG, "logs", "run.log");
-const VANTAGES = path.join(__dirname, "home-vantages.json");
+// --vantages PATH reads another pose list of the same shape (trying out new
+// poses without touching the shipped list).
+const VANTAGES = path.resolve(opt("--vantages", path.join(__dirname, "home-vantages.json")));
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const log = (m) => console.log(`[photos] ${m}`);

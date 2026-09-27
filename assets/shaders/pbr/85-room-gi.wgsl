@@ -97,13 +97,18 @@ fn gi_oct_decode(p: vec2<f32>) -> vec3<f32> {
 }
 
 // Top-left border texel of probe `probe`'s irradiance and depth tiles.
+// Tiles per atlas row are CONSTANTS (the atlas is always ATLAS_WIDTH = 8100
+// texels wide, room_probes.rs), so the divide and modulo below compile to a
+// multiply and a shift instead of a slow integer division per probe. The
+// header carries the same numbers (info.z, info.w) for the CPU side to check.
+const GI_IRR_PER_ROW: u32 = 810u;
+const GI_DEPTH_PER_ROW: u32 = 450u;
 fn gi_irr_origin(probe: u32) -> vec2<u32> {
-    let per = room_gi.header.info.z;
-    return vec2<u32>(probe % per, probe / per) * GI_IRR_TILE;
+    return vec2<u32>(probe % GI_IRR_PER_ROW, probe / GI_IRR_PER_ROW) * GI_IRR_TILE;
 }
 fn gi_depth_origin(probe: u32) -> vec2<u32> {
-    let per = room_gi.header.info.w;
-    return vec2<u32>(probe % per, probe / per) * GI_DEPTH_TILE + vec2<u32>(0u, room_gi.header.atlas.z);
+    return vec2<u32>(probe % GI_DEPTH_PER_ROW, probe / GI_DEPTH_PER_ROW) * GI_DEPTH_TILE
+        + vec2<u32>(0u, room_gi.header.atlas.z);
 }
 
 // Atlas UV of direction d inside an n x n tile whose border starts at `origin`
@@ -118,7 +123,25 @@ fn gi_atlas_uv(origin: vec2<u32>, n: f32, d: vec3<f32>) -> vec2<f32> {
 // the 8 probes of the cell around p + n * bias, each weighted by a smooth
 // backface term, a Chebyshev visibility test on its depth moments, the weight
 // crush and its trilinear weight, blended in square-root space.
-fn gi_sample_room(ri: u32, p: vec3<f32>, n: vec3<f32>) -> vec3<f32> {
+//
+// WHEN THE VISIBILITY TEST RUNS. The Chebyshev test and its depth fetch are
+// half of this function's cost (measured 2026-09-27, docs/design/room-gi.md),
+// so they run only where they can change the answer:
+// - the ROOM must ask for it (bit 0 of `lights.z`, GI_ROOM_VISIBILITY). A room
+//   whose probes trace only its own box (rung 1) never does, because there the
+//   test is an identity: the box is convex, so a probe's ray toward any point
+//   inside it leaves the box no nearer than that point, the stored mean depth
+//   is never short of the point's distance, and the weight is 1. The twin
+//   proves it (`room_probes::tests::visibility_is_an_identity_inside_a_box`).
+//   Rung 2, which traces a room's contents, sets the bit for its rooms, and the
+//   dev switch showcase {"room_gi_vis":"1"} sets it everywhere for A/B.
+// - the CALLER must ask for it (`visibility`): the fragment path passes false
+//   for a see-through surface (a tent's film, a pane), whose own diffuse is a
+//   small share of what shows through it and whose overdraw made the depth
+//   fetch the largest single cost of room GI in the mushroom room.
+const GI_ROOM_VISIBILITY: u32 = 1u;
+fn gi_sample_room(ri: u32, p: vec3<f32>, n: vec3<f32>, visibility: bool) -> vec3<f32> {
+    let vis = visibility && (room_gi.rooms[ri].lights.z & GI_ROOM_VISIBILITY) != 0u;
     let bmin = room_gi.rooms[ri].bmin.xyz;
     let bmax = room_gi.rooms[ri].bmax.xyz;
     let counts = room_gi.rooms[ri].counts;
@@ -129,6 +152,10 @@ fn gi_sample_room(ri: u32, p: vec3<f32>, n: vec3<f32>) -> vec3<f32> {
     let base = clamp(floor(g), vec3<f32>(0.0), cf - vec3<f32>(2.0));
     let alpha = clamp(g - base, vec3<f32>(0.0), vec3<f32>(1.0));
     let base_u = vec3<u32>(base);
+    // Loop invariants: the atlas's texel-to-uv scale, and where the normal
+    // lands inside an irradiance tile (the same for all eight probes).
+    let inv_size = vec2<f32>(1.0) / vec2<f32>(f32(room_gi.header.atlas.x), f32(room_gi.header.atlas.y));
+    let n_tile = (gi_oct_encode(n) * 0.5 + vec2<f32>(0.5)) * GI_IRR_N + vec2<f32>(1.0);
     var sum = vec3<f32>(0.0);
     var wsum = 0.0;
     for (var i = 0u; i < 8u; i = i + 1u) {
@@ -139,6 +166,14 @@ fn gi_sample_room(ri: u32, p: vec3<f32>, n: vec3<f32>) -> vec3<f32> {
         let offf = vec3<f32>(off);
         let tri3 = (vec3<f32>(1.0) - alpha) * (vec3<f32>(1.0) - offf) + alpha * offf;
         let tri = tri3.x * tri3.y * tri3.z;
+        // A probe with no trilinear weight contributes nothing whatever its
+        // other weights are, so skip its two fetches. This is most of them
+        // on a room's own surfaces: probes sit at cell centres, so a floor,
+        // wall or ceiling point is clamped to the outermost layer on that
+        // axis and four of the eight probes weigh exactly zero.
+        if (tri <= 0.0) {
+            continue;
+        }
         // Smooth backface weight: a probe behind the surface counts for little.
         let to_probe = ppos - p;
         let tp_len = length(to_probe);
@@ -148,25 +183,27 @@ fn gi_sample_room(ri: u32, p: vec3<f32>, n: vec3<f32>) -> vec3<f32> {
         }
         var w = bf * bf + 0.2;
         // Chebyshev visibility from the probe's depth moments.
-        let p2pt = ps - ppos;
-        let dist = length(p2pt);
-        var dir = n;
-        if (dist > 1.0e-4) {
-            dir = p2pt / dist;
-        }
-        let m = textureSampleLevel(room_gi_atlas, room_gi_samp, gi_atlas_uv(gi_depth_origin(probe), GI_DEPTH_N, dir), 0.0).xy;
-        if (dist > m.x) {
-            let variance = abs(m.y - m.x * m.x);
-            let excess = dist - m.x;
-            let cheb = variance / max(variance + excess * excess, 1.0e-9);
-            w = w * max(cheb * cheb * cheb, 0.0);
+        if (vis) {
+            let p2pt = ps - ppos;
+            let dist = length(p2pt);
+            var dir = n;
+            if (dist > 1.0e-4) {
+                dir = p2pt / dist;
+            }
+            let m = textureSampleLevel(room_gi_atlas, room_gi_samp, gi_atlas_uv(gi_depth_origin(probe), GI_DEPTH_N, dir), 0.0).xy;
+            if (dist > m.x) {
+                let variance = abs(m.y - m.x * m.x);
+                let excess = dist - m.x;
+                let cheb = variance / max(variance + excess * excess, 1.0e-9);
+                w = w * max(cheb * cheb * cheb, 0.0);
+            }
         }
         w = max(w, 1.0e-6);
         if (w < GI_CRUSH) {
             w = w * w * w / (GI_CRUSH * GI_CRUSH);
         }
         w = w * tri;
-        let irr = textureSampleLevel(room_gi_atlas, room_gi_samp, gi_atlas_uv(gi_irr_origin(probe), GI_IRR_N, n), 0.0).rgb;
+        let irr = textureSampleLevel(room_gi_atlas, room_gi_samp, (vec2<f32>(gi_irr_origin(probe)) + n_tile) * inv_size, 0.0).rgb;
         sum = sum + sqrt(max(irr, vec3<f32>(0.0))) * w;
         wsum = wsum + w;
     }
@@ -186,19 +223,24 @@ fn gi_pick_room(p: vec3<f32>, n: vec3<f32>) -> i32 {
     if (any(q < h.gmin.xyz - slack) || any(q > h.gmax.xyz + slack)) {
         return -1;
     }
+    // The table is ordered for this walk (room_probes_gpu, every frame): the
+    // camera's room first, because most of the screen is in it, then the rest
+    // by volume, smallest first. So the FIRST box that contains the point is
+    // the answer and the walk stops there, usually on its first step; only a
+    // point outside every box (a doorway, a wall's thickness) walks them all
+    // for the nearest one within the margin.
     var best = -1;
     var best_d = GI_PICK_MARGIN + 1.0e-3;
-    var best_v = 3.4e38;
     for (var i = 0u; i < h.info.x; i = i + 1u) {
         let bmin = room_gi.rooms[i].bmin.xyz;
         let bmax = room_gi.rooms[i].bmax.xyz;
         let d = length(max(max(bmin - q, q - bmax), vec3<f32>(0.0)));
-        let e = bmax - bmin;
-        let v = e.x * e.y * e.z;
-        if (d < best_d - 1.0e-4 || (d <= best_d + 1.0e-4 && v < best_v)) {
+        if (d <= 0.0) {
+            return i32(i);
+        }
+        if (d < best_d) {
             best = i32(i);
             best_d = d;
-            best_v = v;
         }
     }
     return best;
@@ -206,10 +248,11 @@ fn gi_pick_room(p: vec3<f32>, n: vec3<f32>) -> i32 {
 
 // frag_tail's entry point into room GI: rgb = the room's indirect light for
 // this fragment, a = 1 if the fragment is in a room (0 = keep the old floor).
-fn room_gi_irradiance(p: vec3<f32>, n: vec3<f32>) -> vec4<f32> {
+// `visibility`: see gi_sample_room.
+fn room_gi_irradiance(p: vec3<f32>, n: vec3<f32>, visibility: bool) -> vec4<f32> {
     let ri = gi_pick_room(p, n);
     if (ri < 0) {
         return vec4<f32>(0.0);
     }
-    return vec4<f32>(gi_sample_room(u32(ri), p, n), 1.0);
+    return vec4<f32>(gi_sample_room(u32(ri), p, n, visibility), 1.0);
 }

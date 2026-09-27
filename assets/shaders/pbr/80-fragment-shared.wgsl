@@ -399,8 +399,11 @@ fn frag_tail(in: VertexOutput, s: FragSetup) -> vec4<f32> {
     // outside, room GI switched off) the floor above stands, bit for bit.
     // HAS_ROOM_GI is live in the surface and vegetation PSOs only; everywhere
     // else this block folds away (pipeline.rs, ShaderClass::live_features).
-    if (HAS_ROOM_GI && !under_sky) {
-        let room_light = room_gi_irradiance(in.world_position, normal);
+    // A screen's colour replaces the lit result below, so it never pays for
+    // the sample; a see-through surface samples without the visibility test
+    // (see gi_sample_room in 85-room-gi.wgsl).
+    if (HAS_ROOM_GI && !under_sky && !screen_emitter) {
+        let room_light = room_gi_irradiance(in.world_position, normal, out_alpha >= 0.999);
         if (room_light.a > 0.5) {
             indirect = max(room_light.rgb, AMBIENT_FLOOR);
         }

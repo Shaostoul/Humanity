@@ -454,6 +454,14 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
             state.renderer.room_gi.probe_count()
         );
     }
+    // {"room_gi_vis":"1"} makes every room run DDGI's Chebyshev visibility
+    // test, which rung 1 skips because inside a room's own box it is an
+    // identity; "0" restores the default. For measuring what the test costs,
+    // and for seeing that it changes nothing until rung 2 traces contents.
+    if let Some(t) = grab("room_gi_vis") {
+        state.renderer.room_gi.force_visibility = t == "1";
+        log::info!("Showcase: room_gi_vis -> {}", state.renderer.room_gi.force_visibility);
+    }
     // {"cloud_chord_foot":"1"} restores the pre-v0.1268 chord-frozen
     // detail scale, so one run can capture both sides of that change.
     if let Some(t) = grab("cloud_chord_foot") {

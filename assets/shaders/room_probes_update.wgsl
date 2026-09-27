@@ -260,7 +260,7 @@ fn cs_trace(@builtin(workgroup_id) wg: vec3<u32>, @builtin(local_invocation_inde
     var e = gi_lights_irradiance(ri, h, nrm);
     e = e + gi_params.sun_color.rgb * gi_params.sun_dir.w * max(dot(nrm, gi_params.sun_dir.xyz), 0.0)
         * gi_sun_path(ri, h, nrm);
-    var rad = refl / GI_PI * e + refl * gi_sample_room(ri, h, nrm);
+    var rad = refl / GI_PI * e + refl * gi_sample_room(ri, h, nrm, true);
     // A ray that meets a glass lid also brings back the sky through it.
     if (face == 3u) {
         rad = rad + room_gi.rooms[ri].bmax.w * gi_sky(d);

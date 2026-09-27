@@ -326,6 +326,18 @@
       "pitch": -0.14
     },
     {
+      "id": "25c-oyster-rack-close",
+      "room": "Mushroom room",
+      "note": "An arm's length from an oyster rack, under a shelf: the underside of the shelf above across the top of the frame, the cut oyster blocks below it. The room GI gate reads the shelf underside at (600,20)-(1100,60) and a block front at (600,250)-(720,320).",
+      "pos": [
+        4.5,
+        1.15,
+        58.2
+      ],
+      "yaw": 0,
+      "pitch": -0.12
+    },
+    {
       "id": "26-aquaponics",
       "room": "Aquaponics",
       "note": "The fish tanks that fertilise the towers",
