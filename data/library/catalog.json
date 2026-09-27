@@ -17,6 +17,16 @@
           ]
         },
         {
+          "title": "Why Seasons Happen",
+          "src": "docs/user/skills/why_seasons_happen.md",
+          "tags": [
+            "guide",
+            "real",
+            "food",
+            "beginner"
+          ]
+        },
+        {
           "title": "The Climate Where You Live",
           "src": "docs/user/skills/the_climate_where_you_live.md",
           "tags": [
@@ -399,6 +409,16 @@
         {
           "title": "Your First Solar Power",
           "src": "docs/user/skills/first_solar_power.md",
+          "tags": [
+            "guide",
+            "real",
+            "power",
+            "safety"
+          ]
+        },
+        {
+          "title": "Batteries and Storage",
+          "src": "docs/user/skills/batteries_and_storage.md",
           "tags": [
             "guide",
             "real",

@@ -132,6 +132,16 @@
           ]
         },
         {
+          "title": "Why Seasons Happen",
+          "file": "why_seasons_happen.md",
+          "tags": [
+            "guide",
+            "real",
+            "food",
+            "beginner"
+          ]
+        },
+        {
           "title": "The Climate Where You Live",
           "file": "the_climate_where_you_live.md",
           "tags": [
@@ -514,6 +524,16 @@
         {
           "title": "Your First Solar Power",
           "file": "first_solar_power.md",
+          "tags": [
+            "guide",
+            "real",
+            "power",
+            "safety"
+          ]
+        },
+        {
+          "title": "Batteries and Storage",
+          "file": "batteries_and_storage.md",
           "tags": [
             "guide",
             "real",

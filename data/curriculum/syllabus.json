@@ -1306,13 +1306,30 @@
       "subject": "energy",
       "title": "Batteries and storage",
       "summary": "Choose, charge and store batteries without starting a fire.",
-      "status": "absent",
+      "status": "sourced",
+      "reading": [
+        "batteries-and-storage"
+      ],
       "skills": [
         "engineering"
       ],
+      "data": [
+        "data/machines/home.ron",
+        "data/machines/home_solo.ron"
+      ],
       "sources": [
         "usfa",
-        "doe"
+        "doe",
+        "eia",
+        "osha",
+        "epa",
+        "cdc",
+        "pnnl",
+        "nlr",
+        "nfpa",
+        "ul-solutions",
+        "tesla-energy",
+        "simpliphi-power"
       ],
       "locale_dependent": false,
       "hazard": "serious"
@@ -2508,10 +2525,27 @@
       "subject": "earth",
       "title": "Why seasons happen",
       "summary": "Understand axial tilt, day length and how they drive everything living.",
-      "status": "absent",
+      "status": "sourced",
+      "reading": [
+        "why-seasons-happen"
+      ],
       "skills": [
         "navigation",
         "farming"
+      ],
+      "data": [
+        "data/environment/climate.ron"
+      ],
+      "sources": [
+        "nasa-nssdca",
+        "nasa-space-place",
+        "usno",
+        "nws",
+        "noaa",
+        "noaa-ncei",
+        "usgs",
+        "nlr",
+        "umd-extension"
       ],
       "locale_dependent": false,
       "hazard": "none"
