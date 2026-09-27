@@ -232,6 +232,11 @@ pub(crate) struct EngineState {
     /// Aboard flag for gating home-local physics (walls, floors,
     /// elevators) - false when the home is far away in orbit.
     pub(crate) aboard_station: bool,
+    /// Where the celestial loop placed the locked body this frame (its
+    /// render-space centre and orientation), for drawing the pieces built on
+    /// it (2026-09-27, BUG-102; engine::planet_build). Set by `note_body`,
+    /// taken by the structure draw later in the same frame.
+    pub(crate) planet_body_frame: Option<crate::engine::planet_build::BodyFrame>,
     /// Drives, dampener rating and g-tolerance rows from `data/ship/flight.ron`.
     /// Loaded once at boot; degrades to empty (and therefore harmless) when the
     /// file is missing or malformed, so a typo cannot silently start hurting

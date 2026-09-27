@@ -160,8 +160,13 @@ starts the body over.
   as the weather; it stops the wind and the wet). SET SINCE 2026-09-27 by the
   built pieces: outside the home, `construction::uses::shelter_at` finds a
   finished `shelter` piece straight overhead (the roof) and finished `shelter`
-  pieces on at least three of the four sides within half a metre of the
-  roof's edge, and `engine::survival_env::outside_context` passes that on.
+  pieces on at least three of the four sides within half a metre of the edge
+  of the covered area (the roof overhead and every roof touching it, so a
+  hall under several roof tiles counts), and
+  `engine::survival_env::outside_context` passes that on. It works on a
+  planet's ground as well as aboard: the test runs in the build site the
+  player stands in (`construction::site`, `engine::planet_build`), which is
+  where the weather is.
   `Exposure::from_context` then zeroes the wind and the precipitation, so the
   air at the body is still and the clothes stay dry. A roof with fewer walls
   is not `sheltered`, but `outside_context` still zeroes the precipitation

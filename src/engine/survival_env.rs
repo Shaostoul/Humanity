@@ -140,8 +140,17 @@ pub(crate) fn publish(state: &mut EngineState) {
         EnvironmentContext::default()
     } else {
         match state.homestead_bounds {
+            // Inside the home only while in the home frame: on a planet the
+            // parked camera's local position can sit inside the home's box by
+            // coincidence (the same frame confusion as BUG-102).
             Some((mn, mx))
-                if pos.x >= mn.x && pos.x <= mx.x && pos.y >= mn.y && pos.y <= mx.y && pos.z >= mn.z && pos.z <= mx.z =>
+                if state.aboard_station
+                    && pos.x >= mn.x
+                    && pos.x <= mx.x
+                    && pos.y >= mn.y
+                    && pos.y <= mx.y
+                    && pos.z >= mn.z
+                    && pos.z <= mx.z =>
             {
                 // Inside the homestead: sealed, still air at the home's own
                 // temperature and humidity, and OXYGENATED only while the
@@ -171,14 +180,13 @@ pub(crate) fn publish(state: &mut EngineState) {
             Some(_) => {
                 // Outside the hull, under whatever the player has built over
                 // themselves (2026-09-27: a roof on three walls keeps the wind
-                // and rain off). Only while the player is in the home frame the
-                // pieces live in: off the ship the camera does not move with
-                // the player, so testing the raw position against home-frame
-                // pieces said "Sheltered" wherever one walked (BUG-102; see
-                // engine/build_place.rs, which refuses to place off the ship
-                // for the same reason).
-                if state.aboard_station {
-                    shelter = uses::shelter_at(&state.game_world.world, pos - glam::Vec3::Y * state.controller.eye_height());
+                // and rain off), tested in the frame the player is in: the
+                // home aboard, or on a planet the build site they stand in,
+                // their feet taken from the frame lock's anchor (BUG-102:
+                // testing the raw camera position said "Sheltered" wherever
+                // one walked, because on a planet the camera does not move).
+                if let Some(f) = crate::engine::planet_build::player_frame(state) {
+                    shelter = uses::shelter_at(&state.game_world.world, f.feet, f.site.as_ref());
                 }
                 outside_context(exposed, outside_breathable, shelter, activity, felt_g_now)
             }
@@ -291,11 +299,11 @@ mod tests {
         let mut world = hecs::World::new();
         for (id, x, z, turns) in [("wood_wall", 0.0, -2.0, 0), ("wood_wall", -2.0, 0.0, 1), ("wood_wall", 2.0, 0.0, 1), ("roof", 0.0, 0.0, 0)] {
             let bp = reg.get(id).unwrap();
-            let tf = placement::placement_pose(bp, Vec3::new(x, 0.0, z), turns, &world, &reg);
+            let tf = placement::placement_pose(bp, Vec3::new(x, 0.0, z), turns, &world, &reg, None);
             world.spawn((tf, Structure { blueprint_id: id.into(), health: bp.health, max_health: bp.health, provides: bp.provides.clone(), uid: 0 }));
         }
-        let under = uses::shelter_at(&world, Vec3::new(0.0, 0.0, 0.5));
-        let open = uses::shelter_at(&world, Vec3::new(8.0, 0.0, 0.0));
+        let under = uses::shelter_at(&world, Vec3::new(0.0, 0.0, 0.5), None);
+        let open = uses::shelter_at(&world, Vec3::new(8.0, 0.0, 0.0), None);
         assert!(under.sheltered() && !open.sheltered(), "{under:?} {open:?}");
 
         let weather = ExposedAir {

@@ -509,10 +509,14 @@ between the simulation and the person. Its tier ladder is the build order.
   hand with a ghost at the crosshair, R turns it, E builds it there
   (`engine/build_place.rs`), a roof (`mount: OnTop`) rests on the walls it
   covers, and a roof on three walls over the player keeps wind and rain off the
-  body heat model (a roof alone keeps the rain off), shown on the HUD.
-  Remaining: a scripted first-run sequence in the world; the server clock for
-  offline progression in multiplayer; for shelter, wind direction against the
-  open side and the walls' radiant warmth.
+  body heat model (a roof alone keeps the rain off), shown on the HUD. Since
+  the BUG-102 fix (2026-09-27) this works on a planet's ground, where the
+  weather is: pieces stand in planet build sites (`construction/site.rs`,
+  `engine/planet_build.rs`), the aim meets the ground under the crosshair, a
+  hall under several touching roof tiles shelters, and the review's other
+  findings are closed. Remaining: a scripted first-run sequence in the world;
+  the server clock for offline progression in multiplayer; for shelter, wind
+  direction against the open side and the walls' radiant warmth.
 - **Tier B (make the construction tool good enough to build a city).** Pick one
   canonical layout schema of the three that exist; the four multi-storey
   blockers in order, starting with a base Y on `InteriorWall`; collision for
@@ -520,11 +524,13 @@ between the simulation and the person. Its tier ladder is the build order.
   tool over hand-authoring on evidence: the four code blockers stopping a second
   storey are the same four stopping the editor. Built blueprint pieces got
   their first rung of this on 2026-09-27 (quarter turns, a roof resting on the
-  walls, walls on a foundation, one placement function for ghost and build),
-  and share the rest of the list: nothing stands on a roof yet (no second
-  storey), doors and windows cannot be set into a wall, built pieces have no
-  collision (you walk through them), and they are a third shape beside the
-  home editor's `InteriorWall` and the ship structure pieces.
+  walls, walls on a foundation, one placement function for ghost and build,
+  then building on a planet's ground in f64-anchored build sites, one storey
+  at a time, no double builds), and share the rest of the list: nothing stands
+  on a roof yet (no second storey), doors and windows cannot be set into a
+  wall, built pieces have no collision (you walk through them), and they are a
+  third shape beside the home editor's `InteriorWall` and the ship structure
+  pieces.
 - **Tier C (make the world look right).** Un-gate hero plant models for towers;
   the conduit render pass; models for the machines a player stands in front of
   daily; read `mesh_kind` in `zone_filler.ron`.

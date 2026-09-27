@@ -817,6 +817,16 @@ async function main() {
         // from the park to the capture (the hour was just set by the park).
         req("showcase_request.json", { time_scale: "0" });
         await sleep((v.settle_s ?? 8) * 1000);
+        // POST-PARK SHOWCASE (2026-09-27): a request that needs the camera
+        // parked and the ground streamed in first. The dev build verb stands
+        // pieces on the drawn terrain at a lat/lon (planet-built-shelter),
+        // which read before the park would sample coarse, tile-less ground
+        // and float or bury them. Sent after the settle, before the re-park.
+        if (v.post_showcase) {
+          req("showcase_request.json", v.post_showcase);
+          await sleep((v.post_settle_s ?? 3) * 1000);
+          log(`  post-park showcase sent: ${JSON.stringify(v.post_showcase)}`);
+        }
         // RE-PARK, now UNCONDITIONAL (2026-08-21; was hold_altitude-only,
         // v0.1049 - that original reason still applies: gravity sinks a
         // low park during the settle). The new reason it runs for EVERY
