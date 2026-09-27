@@ -584,7 +584,7 @@
       "subject": "food_growing",
       "title": "Perennials, fruit and nuts",
       "summary": "Plant the things that feed you for decades instead of one season.",
-      "status": "sourced",
+      "status": "verified",
       "reading": [
         "perennials-fruit-and-nuts"
       ],
@@ -1306,7 +1306,7 @@
       "subject": "energy",
       "title": "Batteries and storage",
       "summary": "Choose, charge and store batteries without starting a fire.",
-      "status": "sourced",
+      "status": "verified",
       "reading": [
         "batteries-and-storage"
       ],
@@ -2525,7 +2525,7 @@
       "subject": "earth",
       "title": "Why seasons happen",
       "summary": "Understand axial tilt, day length and how they drive everything living.",
-      "status": "sourced",
+      "status": "verified",
       "reading": [
         "why-seasons-happen"
       ],
