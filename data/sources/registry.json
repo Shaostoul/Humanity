@@ -2628,6 +2628,115 @@
       "use": "facts",
       "bundle": false,
       "note": "A state agency; Washington does not waive copyright in state works by statute (see schemas/source.toml), so facts only. Runs the Tacoma Smelter Plume cleanup and the Dirt Alert map of arsenic and lead in Puget Sound soils."
+    },
+    {
+      "id": "fao",
+      "name": "Food and Agriculture Organization of the United Nations",
+      "url": "https://www.fao.org/",
+      "kind": "authority",
+      "licence": "copyright-all-rights-reserved",
+      "use": "facts",
+      "bundle": false,
+      "note": "Irrigation and Drainage Paper 56 (Allen, Pereira, Raes and Smith, Crop evapotranspiration, 1998) is the standard method for crop water use: reference evapotranspiration times a crop coefficient. Its front matter reserves all rights (copyright FAO, 1998), so facts only, although FAO puts the full text online (https://www.fao.org/4/x0490e/x0490e00.htm). Irrigation Water Management Training Manual 4, Irrigation Scheduling (1989), Annex I, gives indicative field application efficiencies. Newer FAO works may carry a CC BY-NC-SA 3.0 IGO licence instead: check each one."
+    },
+    {
+      "id": "kstate-extension",
+      "name": "Kansas State University Research and Extension",
+      "publisher": "Kansas State University",
+      "url": "https://www.ksre.k-state.edu/",
+      "kind": "authority",
+      "licence": "copyright-all-rights-reserved",
+      "use": "facts",
+      "bundle": false,
+      "note": "Alam and Rogers, Tensiometer Use in Scheduling Irrigation, L-796: what tensiometer readings mean for each soil texture and when to start irrigating. A copy is hosted by Washington State University Extension."
+    },
+    {
+      "id": "nebraska-extension",
+      "name": "Nebraska Extension",
+      "publisher": "University of Nebraska-Lincoln",
+      "url": "https://extension.unl.edu/",
+      "kind": "authority",
+      "licence": "copyright-all-rights-reserved",
+      "use": "facts",
+      "bundle": false,
+      "note": "Rain barrel guide G2220, which recommends against using rain barrel water on fruit and vegetable gardens (other extension services disagree; see rutgers-njaes)."
+    },
+    {
+      "id": "rutgers-njaes",
+      "name": "Rutgers Cooperative Extension, New Jersey Agricultural Experiment Station",
+      "publisher": "Rutgers, The State University of New Jersey",
+      "url": "https://njaes.rutgers.edu/",
+      "kind": "authority",
+      "licence": "copyright-all-rights-reserved",
+      "use": "facts",
+      "bundle": false,
+      "note": "Fact sheet FS1218, Rain Barrels Part IV: a New Jersey study of rain barrel water quality and how to use harvested water on a vegetable garden. Separate from the Rutgers Water Resources Program (rutgers-water), although both are Rutgers."
+    },
+    {
+      "id": "lake-champlain-sea-grant",
+      "name": "Lake Champlain Sea Grant",
+      "publisher": "University of Vermont and SUNY Plattsburgh, supported by the NOAA National Sea Grant College Program",
+      "url": "https://www.uvm.edu/seagrant",
+      "kind": "authority",
+      "licence": "copyright-all-rights-reserved",
+      "use": "facts",
+      "bundle": false,
+      "note": "Rain Barrel Water Reuse: Summary of Research and Recommendations (McKean and Sarazen, January 2026), a review of the research and extension guidance on using harvested rainwater. Federally funded but published by the universities, so not a work of the US government: facts only."
+    },
+    {
+      "id": "umd-extension",
+      "name": "University of Maryland Extension",
+      "publisher": "University of Maryland",
+      "url": "https://extension.umd.edu/",
+      "kind": "authority",
+      "licence": "copyright-all-rights-reserved",
+      "use": "facts",
+      "bundle": false,
+      "note": "Its Home and Garden Information Center page on row covers gives each weight of row cover its light transmission and frost protection, and describes low tunnels. Already cited by data/garden/pests.ron and pollination.ron."
+    },
+    {
+      "id": "umass-extension",
+      "name": "UMass Extension Greenhouse Crops and Floriculture Program",
+      "publisher": "University of Massachusetts Amherst, Center for Agriculture, Food, and the Environment",
+      "url": "https://www.umass.edu/agriculture-food-environment/greenhouse-floriculture",
+      "kind": "authority",
+      "licence": "copyright-all-rights-reserved",
+      "use": "facts",
+      "bundle": false,
+      "note": "Fact sheets on Botrytis blight (the 85 percent humidity line and the heat-and-vent method, already cited by data/garden/humidity.ron) and on the problems with unvented greenhouse heaters."
+    },
+    {
+      "id": "unh-extension",
+      "name": "University of New Hampshire Cooperative Extension",
+      "publisher": "University of New Hampshire",
+      "url": "https://extension.unh.edu/",
+      "kind": "authority",
+      "licence": "copyright-all-rights-reserved",
+      "use": "facts",
+      "bundle": false,
+      "note": "Growing Seedlings Under Lights (2020): daily light integral, intensity and day length explained for home growers, with measured run times for real fixtures."
+    },
+    {
+      "id": "cornell-cea",
+      "name": "Cornell University Controlled Environment Agriculture Program",
+      "publisher": "Cornell University",
+      "url": "https://cpb-us-e1.wpmucdn.com/blogs.cornell.edu/dist/8/8824/files/2019/06/Cornell-CEA-Lettuce-Handbook-.pdf",
+      "kind": "authority",
+      "licence": "copyright-all-rights-reserved",
+      "use": "facts",
+      "bundle": false,
+      "note": "The Hydroponic Lettuce Handbook: a daily light integral of 17 mol per square metre a day for one cultivar of Boston bibb lettuce, and tipburn at higher light without enough air movement. Already cited by data/garden/lighting.ron."
+    },
+    {
+      "id": "msu-extension",
+      "name": "Michigan State University Extension",
+      "publisher": "Michigan State University",
+      "url": "https://www.canr.msu.edu/uploads/resources/pdfs/lightingvegetables.pdf",
+      "kind": "authority",
+      "licence": "copyright-all-rights-reserved",
+      "use": "facts",
+      "bundle": false,
+      "note": "Runkle, E., Lighting Greenhouse Vegetables, Greenhouse Product News, December 2011, hosted by MSU: some crops, tomato especially, are stressed under continuous light, so four to six hours of darkness a night is suggested. A trade-magazine column by a university specialist, not a peer-reviewed paper. Already cited by data/garden/lighting.ron."
     }
   ]
 }

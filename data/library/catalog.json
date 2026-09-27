@@ -194,8 +194,26 @@
           ]
         },
         {
+          "title": "Watering and Irrigation",
+          "src": "docs/user/skills/watering_and_irrigation.md",
+          "tags": [
+            "guide",
+            "real",
+            "food"
+          ]
+        },
+        {
           "title": "The Growing Calendar",
           "src": "docs/user/skills/the_growing_calendar.md",
+          "tags": [
+            "guide",
+            "real",
+            "food"
+          ]
+        },
+        {
+          "title": "Extending the Season",
+          "src": "docs/user/skills/extending_the_season.md",
           "tags": [
             "guide",
             "real",

@@ -309,8 +309,26 @@
           ]
         },
         {
+          "title": "Watering and Irrigation",
+          "file": "watering_and_irrigation.md",
+          "tags": [
+            "guide",
+            "real",
+            "food"
+          ]
+        },
+        {
           "title": "The Growing Calendar",
           "file": "the_growing_calendar.md",
+          "tags": [
+            "guide",
+            "real",
+            "food"
+          ]
+        },
+        {
+          "title": "Extending the Season",
+          "file": "extending_the_season.md",
           "tags": [
             "guide",
             "real",

@@ -371,7 +371,8 @@ What none of them can do is add daylight. A covered bed in December is
 a warmer bed in December, not a growing one, which is why winter
 growing is about holding crops that are already full-sized rather than
 growing new ones. Build the calendar first; add cover to stretch it.
-Cover is a separate skill and a separate guide.
+Cover is a separate skill, and [Extending the Season](extending_the_season.md)
+is its guide.
 
 ## How to find YOUR dates
 

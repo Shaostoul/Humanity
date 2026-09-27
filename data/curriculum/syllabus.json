@@ -458,13 +458,37 @@
       "subject": "food_growing",
       "title": "Watering and irrigation",
       "summary": "Give plants the right water at the right time without wasting it.",
-      "status": "absent",
+      "status": "sourced",
+      "reading": [
+        "watering-and-irrigation"
+      ],
       "skills": [
         "farming",
         "engineering"
       ],
+      "data": [
+        "data/plants.csv",
+        "data/garden/yields.ron",
+        "data/life_support.ron"
+      ],
+      "sources": [
+        "fao",
+        "usda-nrcs",
+        "epa",
+        "wa-doh",
+        "state-extension",
+        "iowa-state-extension",
+        "colorado-state-extension",
+        "utah-state-extension",
+        "nc-state-extension",
+        "kstate-extension",
+        "umn-extension",
+        "rutgers-njaes",
+        "nebraska-extension",
+        "lake-champlain-sea-grant"
+      ],
       "locale_dependent": true,
-      "hazard": "none"
+      "hazard": "caution"
     },
     {
       "id": "grow_pests",
@@ -497,13 +521,38 @@
       "subject": "food_growing",
       "title": "Extending the season",
       "summary": "Use cold frames, cloches and greenhouses to grow outside the window.",
-      "status": "absent",
+      "status": "sourced",
+      "reading": [
+        "extending-the-season"
+      ],
       "skills": [
         "farming",
         "woodworking"
       ],
+      "data": [
+        "data/garden/pests.ron",
+        "data/garden/humidity.ron",
+        "data/garden/lighting.ron"
+      ],
+      "sources": [
+        "noaa-ncei",
+        "cdc",
+        "state-extension",
+        "umd-extension",
+        "uw-madison-extension",
+        "iowa-state-extension",
+        "purdue-extension",
+        "utah-state-extension",
+        "uvm-extension",
+        "uga-extension",
+        "umass-extension",
+        "sdsu-extension",
+        "unh-extension",
+        "cornell-cea",
+        "msu-extension"
+      ],
       "locale_dependent": true,
-      "hazard": "none"
+      "hazard": "caution"
     },
     {
       "id": "grow_perennials",
