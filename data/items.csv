@@ -620,7 +620,17 @@ grain_wheat_0,Wheat Grain,food,grain,plant_fiber,0.5,20,0,Threshed wheat kernels
 grain_corn_0,Corn Grain,food,grain,plant_fiber,0.5,20,0,Shelled maize kernels 500g,dry_goods,0.93
 grain_rice_0,Paddy Rice,food,grain,plant_fiber,0.5,20,0,Threshed paddy rice still in its hull 500g; mill it into white rice before cooking,dry_goods,0.93
 grain_barley_0,Covered Barley,food,grain,plant_fiber,0.5,20,0,Threshed covered barley 500g: the grain with its husk still on; dehull it (dehull_barley) before cooking or milling,dry_goods,0.93
-grain_oat_0,Whole Oats,food,grain,plant_fiber,0.5,20,0,Threshed oats 500g: the groat still in its hull as oats come off the thresher; dehull them into groats (dehull_oats) before cooking,dry_goods,0.93
+# Whole oats (2026-09-27): volume_l is the bag at a measured oat bulk density, not the generic grain
+# figure, because oats in the hull pack loose. NDSU Extension A1049-24, "North Dakota Barley, Oat and Rye
+# Variety Trial Results for 2024 and Selection Guide" (Keene, Horsley et al., January 2025,
+# https://www.ndsu.edu/agriculture/sites/default/files/2025-01/a1049-24.pdf, read 2026-09-27), Tables 7 and
+# 8: oat test weight averaged 34.7 lb/bu in eastern and 35.7 in western North Dakota in 2024. 35.2 lb in a
+# 35.239 L bushel is 0.453 kg/L, so 0.5 kg is 1.10 L. USDA AH-697 (June 1992, Table 30) brackets it: "A
+# 32-pound bushel is the standard test weight for oats and has been unchanged for many years. However,
+# premiums and discounts are routinely paid above and below 38 pounds per bushel" (1.21 L and 1.02 L). The
+# Barn's 200 bags (data/places/seed.json) are 220 L at this figure, not 186: its dry stock draws 29 of its
+# 40 L sacks instead of 28, on racks with room for over 200 (src/engine/stock_piles.rs).
+grain_oat_0,Whole Oats,food,grain,plant_fiber,0.5,20,0,Threshed oats 500g: the groat still in its hull as oats come off the thresher; dehull them into groats (dehull_oats) before cooking,dry_goods,1.10
 grain_rye_0,Rye Grain,food,grain,plant_fiber,0.5,20,0,Threshed rye kernels 500g,dry_goods,0.93
 grain_sorghum_0,Sorghum Grain,food,grain,plant_fiber,0.5,20,0,Threshed sorghum kernels 500g,dry_goods,0.93
 grain_millet_0,Millet Grain,food,grain,plant_fiber,0.5,20,0,Threshed millet kernels 500g,dry_goods,0.93
@@ -1039,7 +1049,18 @@ grain_sesame_0,Sesame Seed,food,grain,plant_fiber,0.5,20,0,Threshed sesame seed 
 grain_rapeseed_0,Rapeseed,food,grain,plant_fiber,0.5,20,0,Threshed rapeseed for oil pressing 500g,dry_goods,0.93
 fruit_olive_0,Olive,food,fruit,plant_fiber,0.3,20,0,Fresh harvested olive,solid,0.45
 fruit_date_palm_0,Dates,food,fruit,plant_fiber,0.3,20,0,Fresh harvested dates,solid,0.45
-grain_spelt_0,Spelt in the Hull,food,grain,plant_fiber,0.5,20,0,Threshed spelt 500g: the kernels still in their hulls as spelt comes off the thresher; dehull it (dehull_spelt) before milling or cooking,dry_goods,0.93
+# Spelt in the hull (2026-09-27): volume_l is the bag at spelt's bulk density in the hull, lighter than
+# any other grain here. Baker, B., "Dehulling Ancient Grains: Economic Considerations and Equipment",
+# eOrganic, 14 October 2015 (https://eorganic.org/pages/73240/dehulling-ancient-grains:-economic-
+# considerations-and-equipment, read 2026-09-27), Table 2: "Density of hulled spelt" 30 lb/bu against
+# "Density of dehulled spelt" 56 (the article's "hulled" is spelt still in the hull). 30 lb in a 35.239 L
+# bushel is 0.386 kg/L, so 0.5 kg is 1.29 L. The spread around it: the same table budgets a "Spelt test
+# weight (with hulls)" of 36.7 lb/bu, and the Alternative Field Crops Manual, "Spelt" (Oplinger et al.,
+# May 1990, https://hort.purdue.edu/newcrop/afcm/spelt.html, read 2026-09-27) says "No official test
+# weight has been established for spelt, but recent tests show that unhulled it averaged 28 lb/bu" and
+# "The test weight of spelt is often less than that of oats". USDA AH-697 (June 1992, Table 6) lists a
+# spelt bushel at 40 lb, a trade weight heavier than any of these measurements, so it is not used.
+grain_spelt_0,Spelt in the Hull,food,grain,plant_fiber,0.5,20,0,Threshed spelt 500g: the kernels still in their hulls as spelt comes off the thresher; dehull it (dehull_spelt) before milling or cooking,dry_goods,1.29
 grain_finger_millet_0,Finger Millet Grain,food,grain,plant_fiber,0.5,20,0,Threshed finger millet seed 500g,dry_goods,0.93
 grain_camelina_0,Camelina Seed,food,grain,plant_fiber,0.5,20,0,Threshed camelina seed for oil pressing 500g,dry_goods,0.93
 grain_safflower_0,Safflower Seed,food,grain,plant_fiber,0.5,20,0,Threshed safflower seed for oil pressing 500g,dry_goods,0.93

@@ -140,8 +140,11 @@
 //     For the pea FDC is used, for sunflower K2O NRCS (1.11% K). Asparagus,
 //     buckwheat and triticale, which would need those rows too, are left blank
 //     rather than guessed.
-//   - oat: the item says groats, the tables weigh whole oats with the hull. Per
-//     kg of groats the removal would be about a quarter higher.
+//   - oat: the tables weigh whole oats with the hull, and so does the game: since
+//     2026-09-27 the harvest item (grain_oat_0) is whole oats, and the grain mill
+//     dehulls them into groats (dehull_oats). FDC's oats row weighs groats, so the
+//     protein check reads crop_nutrition.ron's whole-oat row (FDC 169705 x 0.75).
+//     Per kg of groats the removal would be about a quarter higher.
 // Blank on purpose: flax (its harvest item is a fiber bundle, not seed or straw,
 // and no table weighs that) and the mushrooms (they feed on their substrate,
 // straw or sawdust with bran, which is replaced with each block rather than
@@ -154,10 +157,12 @@
 // its nitrogen factor):
 //   wheat 20.8 / 8.33 / 5.83: grain at 13.5% moisture. N: NRCS wheat 2.08%. P2O5: A2809
 //       wheat grain 0.5 lb/bu of 60 lb. K2O: A2809 0.35 lb/bu.
-//   barley 18.2 / 8.33 / 7.29: grain at 14.5% moisture. N: NRCS barley 1.82%. P2O5: A2809
-//       barley grain 0.4 lb/bu of 48 lb. K2O: A2809 0.35 lb/bu.
-//   oat 19.5 / 9.06 / 5.94: whole grain at 14% moisture (the item says groats). N: NRCS
-//       oats 1.95%. P2O5: A2809 oat grain 0.29 lb/bu of 32 lb. K2O: A2809 0.19 lb/bu.
+//   barley 18.2 / 8.33 / 7.29: covered grain, husk on, at 14.5% moisture (the harvest item,
+//       grain_barley_0). N: NRCS barley 1.82%. P2O5: A2809 barley grain 0.4 lb/bu of 48 lb.
+//       K2O: A2809 0.35 lb/bu.
+//   oat 19.5 / 9.06 / 5.94: whole oats, hull on, at 14% moisture (the harvest item,
+//       grain_oat_0). N: NRCS oats 1.95%. P2O5: A2809 oat grain 0.29 lb/bu of 32 lb. K2O:
+//       A2809 0.19 lb/bu.
 //   rye 20.8 / 7.32 / 5.54: grain at 14% moisture. N: NRCS rye 2.08%. P2O5: A2809 rye grain
 //       0.41 lb/bu of 56 lb. K2O: A2809 0.31 lb/bu.
 //   sorghum 16.7 / 7.14 / 7.14: grain at 14% moisture. N: NRCS sorghum 1.67%. P2O5: A2809

@@ -109,7 +109,10 @@
 //     Their per-m2 harvest is the cited one; the per-plant split leans on the
 //     spacing source.
 //   - ESTIMATES, labelled on their rows: echinacea's row spacing, calendula's and
-//     comfrey's in-row spacing, and every use of DRY_TO_FRESH.
+//     comfrey's in-row spacing, every use of DRY_TO_FRESH, and spelt's live seeds
+//     taken as plants (2026-09-27).
+//   - Spelt's yield is read as weighed in the hull from the order of its trial
+//     reports' methods; they never say it in words (see its row).
 //   - Rice and chive yields were read through a search engine's excerpt of the
 //     source (the pages would not load); the rest were read on the page.
 //
@@ -186,6 +189,17 @@
 // recirculating mist loses less to evaporation than soil does; neither is
 // modelled. Old and new values:
 //   wheat: 0.6 -> 0.00768 L/day (FAO-56, Kc 0.85, 0.003 m2)
+//   barley: 0.6 -> 0.00812 L/day (FAO-56, Kc 0.85, 0.0032 m2; 2026-09-27)
+//   oat: 0.6 -> 0.00812 L/day (FAO-56, Kc 0.85, 0.0032 m2; 2026-09-27)
+//   spelt: 0.5 -> 0.00732 L/day (FAO-56 winter wheat, Kc 0.85, 0.002857 m2; 2026-09-27)
+//     Barley and oats (FAO-56 Table 12 rows "Barley" and "Oats", 1.15 and 0.25, Kc ini from the cereals
+//     group row, 0.3) over Table 11's "Barley/Oats/Wheat" stages for 35-45 degrees latitude sown in
+//     March or April, 20 / 25 / 60 / 30 days. Spelt has no row of its own; it is a wheat, and the row
+//     overwinters, so it takes Table 12's "Winter Wheat - with non-frozen soils" (0.7, 1.15, and 0.325,
+//     the middle of 0.25-0.4) over Table 11's winter wheat stages for October sowing in Idaho, 160 / 75
+//     / 75 / 25 days: 0.854, the same as spring wheat's 0.854 to three places. The constant 3 mm/day
+//     ET0 overstates a winter crop's winter months, when real ET0 is far lower (read 2026-09-27 at
+//     https://www.fao.org/4/x0490e/x0490e0b.htm).
 //   rice: 3 -> 0.0999 L/day (FAO-56, Kc 1.11, 0.03 m2)
 //   bean: 0.8 -> 0.115 L/day (FAO-56, Kc 0.85, 0.045 m2)
 //   sunflower: 1.5 -> 0.445 L/day (FAO-56, Kc 0.77, 0.193 m2)
@@ -317,6 +331,58 @@
         //     2024, at 60 lb a bushel: 0.309 to 0.353 kg/m2. Field grain, the tray under glass assumed the
         //     same.
         (plant: "wheat", basis: DrySeed, per_plant_kg: (0.0009281, 0.001059)),
+        // -- The hulled grains (2026-09-27). Each harvest item is the grain AS THRESHED, hull on (covered
+        //     barley, whole oats, spelt in the hull; data/food/crop_nutrition.ron and the dehull_ recipes
+        //     in data/recipes.csv carry the hull shares), so every yield below is on that basis. None of
+        //     the sources weighs dehulled grain, so no hull share was needed to convert them. --
+        // barley: Covered barley, the harvest item (grain_barley_0) and the grain its removal columns
+        //     weigh. Spacing: University of Minnesota Extension, "Seeding rate for small grains" (Wiersma,
+        //     Ransom and Hofman, reviewed 2018, https://extension.umn.edu/planting-small-grains/seeding-
+        //     rate-small-grains, read 2026-09-27), desired stand for barley "28 to 30" plants per square
+        //     foot; 29 per ft2 is 312 per m2, 0.0032 m2 a plant. Yield: USDA NASS, Small Grains 2024
+        //     Summary (September 2024, https://esmis.nal.usda.gov/sites/default/release-files/5t34sj573/
+        //     w08944064/2b88s7399/smgr0924.txt, read 2026-09-27): "The United States average yield, at
+        //     76.7 bushels per acre, was up 4.4 bushels from the previous year" (72.3 in 2023). NASS counts
+        //     barley in 48 lb bushels (USDA Agricultural Handbook 697, June 1992, Table 5: "48-pound bushel
+        //     of barley"; the report's own metric table gives 3.89 and 4.13 t/ha), the grain as threshed,
+        //     husk on: 0.389 to 0.413 kg/m2. Spring barley, field grain.
+        (plant: "barley", basis: DrySeed, per_plant_kg: (0.001245, 0.00132)),
+        // oat: Whole oats, the harvest item (grain_oat_0) and the grain its removal columns weigh. Spacing:
+        //     UMN "Seeding rate for small grains" (as barley): oats "28 to 30" plants per square foot, 0.0032
+        //     m2 a plant. Yield: NASS Small Grains 2024 Summary (as barley): "Yield was estimated at a record
+        //     high 76.5 bushels per acre, up 7.9 bushels from the previous year" (68.6 in 2023), in 32 lb
+        //     bushels (AH-697 Table 5: "32-pound bushel of oats"; NASS metric 2.46 and 2.74 t/ha), the oats
+        //     as threshed, hull on: 0.246 to 0.274 kg/m2. The top is a national record, as wheat's is, but a
+        //     national average rather than a plot. Spring oats.
+        (plant: "oat", basis: DrySeed, per_plant_kg: (0.0007874, 0.000878)),
+        // spelt: Winter spelt in the hull, the harvest item (grain_spelt_0). No USDA survey counts spelt, so
+        //     both numbers are University of Vermont Extension's winter spelt variety trials at Alburgh,
+        //     Vermont (Darby et al., Northwest Crops and Soils Program): "2023 Spelt Variety Trial" (January
+        //     2024, https://www.uvm.edu/d10-files/documents/2024-08/2023_Spelt_Variety_Trial_Final.pdf) and
+        //     "2025 Spelt Variety Trial" (March 2026, https://www.uvm.edu/d10-files/documents/2026-05/
+        //     2025-Spelt-Report.pdf), both read 2026-09-27. Spacing: "a seeding rate of 350 live seeds m-2"
+        //     in 6 in rows, 0.002857 m2 a seed. Seeds are taken as plants, an ESTIMATE: not every live seed
+        //     makes a plant, so a real plant's share is a little larger; the per-m2 harvest is the cited one.
+        //     Yield: the trial means of eleven heirloom varieties, 4,010 lb/ac "@13.5% moisture" in 2025 and
+        //     2,687 lb/ac at the 15.5% harvest moisture in 2023, a flood year ("considerably wetter than the
+        //     30-year average"), which is 2,687 x 0.845 / 0.865 = 2,625 at 13.5%: 0.294 to 0.449 kg/m2. The
+        //     2022 trial mean, 4,910 lb/ac at 17.2% moisture ("2022 Spelt Variety Trial",
+        //     https://www.uvm.edu/d10-files/documents/2024-08/2022_Spelt_Variety_Trial_Final.pdf, read
+        //     2026-09-27: "the highest trial mean yield" against UVM's 2018 and 2020 trials), is left out as
+        //     a record. BASIS, read and not stated: each report says "Grain yield and moisture were
+        //     determined at harvest" and only then that the grain "was dehulled with a Trumpet Abrasion
+        //     Dehuller", so the yield is spelt in the hull as the combine leaves it. (The reports' "hulled
+        //     grain" means grain that HAS been hulled, and their test weights mix the two states, so none
+        //     is used here.) Two cross-checks sit inside the range:
+        //     the Alternative Field Crops Manual, "Spelt" (Oplinger et al., May 1990, cited at dehull_spelt
+        //     in data/recipes.csv, read 2026-09-27), Ohio plot trials where "Champ produced an average of
+        //     3,009 lb/acre and common spelt produced an average of 2,442 lb/acre" (0.274 to 0.337 kg/m2),
+        //     and eOrganic's dehulling budget (Baker 2015, cited at grain_spelt_0 in data/items.csv), which
+        //     assumes a "Spelt annual yield" of 2,754 lb/A. SEASON: growth_days is 300 (it was 130, a
+        //     spring-grain figure on a row that overwinters, like rye's 280 and triticale's 290). UVM sowed
+        //     on 23 September 2021 and harvested on 20 July 2022 (300 days, the 2022 report), and sowed on 24
+        //     September 2024 and harvested on 22 July 2025 (301, the 2025 report).
+        (plant: "spelt", basis: DrySeed, per_plant_kg: (0.0008405, 0.001284)),
         // rice: Spacing: IRRI and partners, Rice Knowledge Bank Odisha fact sheet "Manual transplanting of rice"
         //     (https://rkb-odisha.in/wp-content/uploads/2024/09/manual-transplanting-of-rice-english.pdf):
         //     "Transplant 2-3 seedlings per hill at shallow depth at optimum spacing (20cm x 15cm - long / 15cm
