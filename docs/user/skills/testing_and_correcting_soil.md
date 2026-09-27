@@ -114,9 +114,11 @@ particles. A reserve of it is held by the clay and organic matter, and it
 comes out to replace whatever acidity you neutralise, so adding lime moves
 the pH far less than the acidity in the soil water alone would suggest
 (the University of Delaware's methods chapter explains the chemistry).
-So two soils at the same pH can need very different amounts of lime. The lab mixes your soil with a weak alkaline solution that starts
-at a known pH, about 8 (Clemson), and measures how far the soil's reserve
-acidity pulls it down. Cornell's lime guide puts the roles in one line:
+So two soils at the same pH can need very different amounts of lime.
+The lab mixes your soil with a buffer solution that starts at a known pH
+(pH 8 at Clemson's lab; the buffers other labs use start lower, as the
+Delaware chapter shows) and measures how far the soil's reserve acidity
+pulls it down. Cornell's lime guide puts the roles in one line:
 soil pH tells you whether lime is needed, and buffer pH tells you how
 much. The lower the buffer pH, the more lime. In Cornell's table for
 reaching pH 6.5 (for the buffer its lab uses), a buffer pH of 5.5 calls
@@ -222,15 +224,15 @@ loam one full pH unit takes nearly 8 pounds of limestone per 100 square
 feet.
 
 **How to apply it.** Spread it evenly and mix it into the root zone. UC
-says to till it into the top 7 inches, because limestone moves downward
-very slowly, taking years to travel a few inches. It follows that lime
+says to till it into the top 7 inches, and notes that limestone moves
+downward very slowly, taking years to travel a few inches. It follows that lime
 spread on the surface of an established bed or lawn acts mainly near the
 surface.
 
 **When.** Clemson advises applying lime two to three months before
 planting to give it time to react. Penn State says even finely ground
-lime needs several months, and that lime meeting its fineness standard
-reacts completely within three years. Lime in the fall, plant in the
+lime needs several months, and that agricultural lime should generally
+react completely within three years. Lime in the fall, plant in the
 spring, retest in two or three years.
 
 **Do not overshoot.** Raising pH above what your crop wants is easy with
@@ -249,15 +251,18 @@ retest on a schedule.
 Ash from a wood stove or fire raises pH and adds potassium. Iowa State
 Extension's guidance:
 
-- It is about half as strong as lime. Its calcium carbonate equivalent
-  varies from 25 to 59 percent; when you do not know, assume 50.
+- It is weaker than lime. Its calcium carbonate equivalent varies from 25
+  to 59 percent (when you do not know, assume 50), against 90 to 95
+  percent for lime, so you may need 2 to 4 times as much ash to match
+  lime's effect.
 - Its fertilizer value is roughly 0-1-3: no nitrogen, a little
   phosphorus, some potash.
 - Put on no more than 20 pounds per 1,000 square feet a year, about one
   five-gallon bucket, sprinkled over the ground in winter or early spring.
 - Do not use it if your soil test shows pH above 7.0, around acid-loving
-  plants such as blueberries, azaleas and rhododendrons, or heavily where
-  you grow potatoes, since scab on potatoes is worse in higher pH soil.
+  plants such as blueberries, azaleas and rhododendrons, or heavily around
+  vegetables, most of which prefer slightly acid soil; potato scab in
+  particular is much worse in higher pH soil.
 - Never use ash from treated or painted wood.
 - It is caustic. Wear gloves, long sleeves, eye protection and a mask when
   spreading it.
@@ -305,7 +310,8 @@ clayey soil. It recommends two small applications a year apart over one
 large one, checking pH every year at the same time of year, and says
 plainly not to hurry the process by adding more than recommended: too
 much sulfur can drive the pH so low that some elements in the soil become
-toxic to plants. Purdue gives the same warning. As an example of real
+toxic to plants. Purdue also warns against adding too much, which can
+push the pH below the range your plants need. As an example of real
 pace, Oregon State describes a loam at pH 5.7 given one application of
 45 pounds of sulfur per 1,000 square feet, which came down to pH 5.1 and
 settled there after two years.
@@ -335,9 +341,10 @@ spread about 1 pound of product per 100 square feet, since 1 pound times
 21 percent is 0.21 pound of nitrogen.
 
 **Nitrogen** is recommended by crop, not by test (Penn State). Organic
-sources such as manure and compost release theirs slowly, over weeks to
-months (Colorado State); [Your First Compost](your_first_compost.md)
-covers making your own.
+sources such as manure and blood meal release theirs slowly, over weeks
+to months (Colorado State). Compost is mainly a way to build organic
+matter; [Your First Compost](your_first_compost.md) covers making your
+own.
 
 **Phosphorus and potassium**: add them only where the test rates them
 below optimum, and only as much as the report recommends. See the
@@ -397,11 +404,12 @@ read your result against several reference points:
   department about a blood lead test.
 - EPA's 2011 guide to gardening in urban soils states that EPA has no soil
   screening levels for gardening. The number EPA does use for homes
-  belongs to its cleanup programmes: since an October 2025 directive, a
-  screening level of 200 ppm for lead in residential soil, which replaced
-  its January 2024 guidance. That is the point at which EPA looks further
-  at a property on a contaminated site, not a line below which a garden is
-  declared safe.
+  belongs to its cleanup programmes: since a directive of 16 October 2025,
+  a single screening level of 200 ppm for lead in residential soil, which
+  replaced its January 2024 guidance (that guidance had added a lower 100
+  ppm level where there were other sources of lead; the directive dropped
+  it). That is the point at which EPA looks further at a property on a
+  contaminated site, not a line below which a garden is declared safe.
 - Your state may set its own numbers. Ask your extension office or state
   environmental agency what they use.
 
@@ -469,8 +477,10 @@ come from the same sources (`data/garden/soil_ph.ron`,
   wood ash fastest. The exact speeds are game estimates anchored on the
   months-long timings in this guide, because no source gives a simple rate.
 - Sulfur and wood ash are capped per application at 20 pounds per 1,000
-  square feet (97.6 grams per square metre), the limits from Oregon State
-  and Iowa State. Wood ash also adds potash to the bed.
+  square feet (97.6 grams per square metre). For sulfur that is the top
+  of Oregon State's rate for sandy soil; for wood ash it is Iowa State's
+  yearly limit, but the game caps each application and leaves the
+  once-a-year part to you. Wood ash also adds potash to the bed.
 - Nitrogen fertilizer slowly acidifies a bed. Stored urine is counted like
   urea, at the lower of the published rates for a crop that takes up the
   nitrogen it is fed.
@@ -566,7 +576,8 @@ taken from them is restated here in our own words.
   https://yardandgarden.extension.iastate.edu/how-to/how-interpret-soil-test-results
 - Steil, A. and Naeve, L. Using Wood Ashes in the Home Garden. Iowa State
   University Extension and Outreach, reviewed February 2025 (strength,
-  analysis, yearly limit, where not to use it, safety).
+  strength against lime, analysis, yearly limit, where not to use it,
+  safety).
   https://yardandgarden.extension.iastate.edu/how-to/using-wood-ashes-home-garden
 - Hoidal, N., Hansen, E., Wilcox, J. and McDivitt, P. Soil Testing for
   Lawns and Gardens. University of Minnesota Extension, reviewed 2023
@@ -579,8 +590,9 @@ taken from them is restated here in our own words.
   pH and organic matter, washing produce, blood lead testing, sampling
   depth).
   https://soiltest.cfans.umn.edu/sites/soiltest.cfans.umn.edu/files/files/media/lead_in_the_home_garden_and_urban_soil_environment.pdf
-- Kluepfel, M. and Lippert, B., revised by Williamson, J. Changing the pH
-  of Your Soil. Clemson Cooperative Extension, HGIC 1650 (fall sampling,
+- Kluepfel, M. and Lippert, B., revised by Williamson, J. How to Change
+  Soil pH in South Carolina. Clemson Cooperative Extension, HGIC 1650,
+  first published June 1999, reviewed 13 May 2026 (fall sampling,
   lime two to three months ahead, sulfur rates and speed, aluminum
   sulfate, wood ash on sandy soil).
   https://hgic.clemson.edu/factsheet/changing-the-ph-of-your-soil/

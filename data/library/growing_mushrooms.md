@@ -45,14 +45,16 @@ guide teaches it.
 
 **Give the fruiting space fresh air, for your lungs as well as the
 crop's.** Penn State puts the spore output of a single mushroom at up to
-4 million spores an hour as it matures, and reports that inhaled spores
+4 million spores an hour, and reports that inhaled spores can
 cause an allergic reaction in some workers, with flu-like symptoms in
 people who have become sensitised, which is why farm pickers wear masks
-and why farms blow in
-extra fresh air an hour or two before harvest. The medical literature
-records oyster mushroom growers developing a lung inflammation
-(hypersensitivity pneumonitis, also called mushroom worker's lung) from
-the spores of indoor crops. Those reports come from farms, not kitchens,
+and why farms blow in extra fresh air an hour or two before harvest. The
+medical literature records the same thing going further: a published
+case report describes two workers growing oyster mushrooms indoors who
+developed an allergic lung inflammation (extrinsic allergic alveolitis,
+also called hypersensitivity pneumonitis; in mushroom workers it is
+known as mushroom worker's lung), traced to the mushroom's spores
+(Mori and colleagues, 1998). Those reports come from farms, not kitchens,
 and a single block is a far smaller spore load. The home version of the
 same advice, which is our reading rather than a published rule: do not
 fruit oysters in a closed bedroom or a small unventilated room you spend
@@ -171,10 +173,10 @@ shiitake on sterilised substrate triggers fruiting at 50 to 68 F (10 to
 20 C), with light and 85 to 95 percent humidity, and then lets the block
 rest drier and warmer between flushes. It also notes that a short dry
 spell after each harvest keeps contaminants from taking hold where the
-mushrooms were picked. Cool, fairly dry air (60 to 70 percent) makes
-shiitake caps crack into a pattern; that is not a defect, and Agromisa
-notes the cracked "flower" mushroom is the most expensive grade in East
-Asia.
+mushrooms were picked. With a suitable strain, cool and fairly dry air
+(60 to 70 percent) can make shiitake caps crack into a pattern; that is
+not a defect, and Agromisa notes the cracked "flower" mushroom is the
+most expensive grade in East Asia.
 
 Pick shiitake while the edge of the cap is still slightly curled under,
 before it flattens out (Cornell and the University of Vermont), and twist
@@ -195,15 +197,18 @@ level favours mycelial growth but not cropping. The same condition that
 helps in the first stage ruins the second. Second, the conditions that
 make a mushroom fruit are the ones that make mycelium grow worse, which
 is why Agromisa says to change them only after the substrate is fully
-colonised. Changing them early risks a poor or misshapen first flush
-(Agromisa, on shiitake), and substrate the mycelium has not yet claimed
-is open to moulds and bacteria (Penn State).
+colonised. Substrate the mycelium has not yet claimed is open to moulds
+and bacteria (Penn State). Even stale air has its limit, though: for
+shiitake, Agromisa reads misshapen mushrooms in the first flush as a sign
+that the spawn run was too short or the carbon dioxide too high during
+it.
 
-How much light is enough? Agromisa's rule of thumb is enough to read a
-newspaper anywhere in the growing space, and Cornell's is enough to read a
-book comfortably. Penn State's commercial oyster rooms use 50 to 300 lux
-for about four hours a day, which is the light of a dim room rather than
-a grow lamp. Keep blocks out of direct sun, for the reason log growers
+How much light is enough? A rule of thumb some growers use, Agromisa
+reports, is enough to read a newspaper anywhere in the growing space, and
+Cornell's is enough to read a book comfortably. In Penn State's
+commercial oyster rooms, from the end of the spawn run, 4 hours of light
+a day at 50 to 300 lux may be given, which is the light of a dim room
+rather than a grow lamp. Keep blocks out of direct sun, for the reason log growers
 keep their logs in shade: sun and wind dry the substrate out (Cornell and
 the University of Vermont).
 
@@ -272,7 +277,8 @@ oysters, and the method is simple enough to do in a kitchen.
    to 5 percent of the wet weight, gives higher yields and a faster spawn
    run, because every grain of spawn is a starting point and the faster
    the straw is claimed, the less time moulds have to get in.
-5. **Bag it.** Pack it into clear or black plastic bags and punch holes
+5. **Bag it.** Pack it into plastic bags (Penn State's farms use clear or
+   black ones) and punch holes
    every few inches for air.
 6. **Colonise it.** Keep it dark and warm, 75 to 77 F (24 to 25 C), for two
    to three weeks until the whole bag is white (University of Florida).
@@ -309,7 +315,8 @@ States is the source for this section unless another is named.
 - **Inoculating.** Drill holes 7/16 inch across and 1 1/4 inches deep, 3
   inches apart along the log, with rows 3 to 4 inches apart, and fill each
   with sawdust or plug spawn. Seal each hole with hot food-grade wax.
-  Growers heat the wax until it just smokes, around 350 to 400 F, and the
+  Growers heat the wax until it just smokes, around 350 to 400 F (177 to
+  204 C), and the
   guide warns that hot wax has a low flash point and can catch fire in
   very dry conditions or near sparks, so heat it only as hot as it needs
   to be.
@@ -339,9 +346,9 @@ Button mushrooms do not eat wood. They eat compost made from straw-bedded
 horse manure or from hay and straw, and the compost is the hard part.
 Penn State's guide to commercial growing describes it in two phases.
 First the pile is wetted and turned for one to two weeks, reaching 155 F
-and above and 170 to 180 F at its hottest, with a strong smell of
-ammonia. Then it is pasteurised to kill pests and conditioned at 125 to
-130 F until the ammonia is gone, because ammonia above about 0.07
+(68 C) and above and 170 to 180 F (77 to 82 C) at its hottest, with a
+strong smell of ammonia. Then it is pasteurised to kill pests and
+conditioned at 125 to 130 F (52 to 54 C) until the ammonia is gone, because ammonia above about 0.07
 percent of the compost holds the spawn back. A home compost pile is not
 made that way (see [Your First Compost](/library#your-first-compost) for what
 one is), so at home, start from a kit of compost that has already been
@@ -421,19 +428,24 @@ What to do:
   logs outdoors, and that shiitake can coexist with them and a log will
   usually still fruit.
 - **A small spot on a block that is otherwise white and firm**: watch it.
-  If it spreads, the block goes. That is our reading; the sources below
-  deal with contamination by throwing out what is badly affected.
+  If it spreads, the block goes. The sources allow some room here. The
+  University of Florida's guide says contaminated bags are best removed
+  and discarded, especially highly contaminated ones, but that a partly
+  contaminated bag may still give at least one flush. For green mould on
+  shiitake blocks, Agromisa's advice is to wash it off with a strong spray
+  of water after the harvest and keep the block drier between flushes.
 - **A heavily contaminated block or bag**: throw it out. The University of
-  Florida's advice is that badly contaminated bags are best removed and
-  discarded. Agromisa's is to take contaminated bags and spent substrate
-  out of the growing space immediately and put them well away, because
-  the moulds and the flies they attract spread to fresh substrate. Take
+  Florida's advice is that contaminated bags, especially highly
+  contaminated ones, are best removed and discarded. Agromisa's is to take
+  contaminated bags and spent substrate out of the growing space
+  immediately and put them well away, because the moulds and the flies
+  they attract spread to fresh substrate. Take
   it out whole, in its bag, rather than breaking it open indoors: the
   colour of a mould is usually its spores (Cornell and the University of
   Vermont make this point about green mould).
-- **Mushrooms from a badly contaminated block**: none of the sources here
-  advises harvesting around contamination; they say to discard it, and
-  that is the rule this guide follows.
+- **Mushrooms from a badly contaminated block**: do not pick from it. None
+  of the sources here suggests harvesting from a heavily contaminated bag;
+  they discard it, and that is the rule this guide follows.
 - **Prevention** is almost all of it: clean hands and tools, full
   pasteurisation of straw, spawning only after the substrate has cooled,
   plenty of spawn so the mycelium claims the food fast, and keeping blocks
@@ -454,8 +466,8 @@ not find the next crop. See [Your First Compost](/library#your-first-compost).
 - **Coral-like stalks and no caps**: no light at all.
 - **Pins form, then dry out and shrivel**: the air is too dry. Raise the
   humidity.
-- **Cracked caps on shiitake**: cool air at 60 to 70 percent humidity.
-  Harmless, and prized in some markets; raise the humidity if you would
+- **Cracked caps on shiitake**: cool air at 60 to 70 percent humidity,
+  with a strain that does it. Harmless, and prized in some markets; raise the humidity if you would
   rather have smooth caps.
 - **Nothing happens after a block is opened**: the usual causes are the
   missing triggers from the stage table: too little light, too little
