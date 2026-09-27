@@ -522,9 +522,15 @@ lints:
 # builder's instance arrived mid-sweep and its 9 ms of stolen GPU sat in a
 # comparison table as data (docs/design/frame-cost-arc.md, "V1 outcome"), and a
 # concurrent cargo/rustc build read 6.6 fps at the limb against a 15 ms GPU sum.
+# And the cloud grain measure (scripts/terminator-grain.js): on 2026-09-22 the
+# old grain metric ranked a 3x3 box blur as the best fix at the dusk line, so
+# its test proves on synthetic captures that a blur is judged "same", that
+# averaging independent noise is judged BETTER, and that each of the measure's
+# two locks goes red when the other is switched off. That one takes a few
+# seconds (it blurs and re-scores six controls per run), not under one.
 # Add a file here whenever a rig script grows a judgement of its own.
 rig-tests:
-    node --test scripts/tests/machine-guard.test.js scripts/tests/perf-report.test.js
+    node --test scripts/tests/machine-guard.test.js scripts/tests/perf-report.test.js scripts/tests/terminator-grain.test.js
 
 # Render all 63 native UI snapshots to PNGs in tests/snapshots/ for review.
 # NEEDS A GPU: without an adapter every page is SKIPPED with a printed note and the
@@ -1022,6 +1028,19 @@ snapshot-check:
 # Tour every canonical 3D vantage and capture a screenshot + fps at each.
 probe-sweep *ARGS:
     node scripts/probe-sweep.js {{ARGS}}
+
+# Score cloud GRAIN on captures of one vantage, band by band across the
+# terminator, with a measure a blur cannot win: noise over real cloud detail at
+# ~15 px, credited only when the real detail is kept. First file = reference;
+# arms after it; a <name>-b.png beside a capture adds the fizz between the two.
+#   just terminator-grain base.png arm.png --band 5 --controls
+# --controls blurs every capture and exits 1 if any blur is judged BETTER. The
+# old 4-neighbour number is still printed as "speckle (old)" for comparison
+# with pre-2026-09-27 figures; a 3x3 blur wins it, so never rank arms by it.
+# Capture the pair with:
+#   just probe-sweep --only orbit-terminator-3000km,orbit-terminator-3000km-b --operator-config
+terminator-grain *ARGS:
+    node scripts/terminator-grain.js {{ARGS}}
 
 # Capture + print the fps/frame-time table across every canonical vantage,
 # flagging any stop below its advisory floor. Exit 2 if any is below floor or
