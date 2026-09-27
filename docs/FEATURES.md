@@ -1615,6 +1615,12 @@ crops (`systems/grow_machines.rs`), the same figure the Home page's food loop su
 Each bed, tray or field plot is drawn with the plants it holds at the crop's spacing, up
 to 128 per plot and then as wider clumps, within a per-plot vertex budget
 (`engine/plant_layout.rs`, `data/plants_visual.ron`; only changed machines rebuild).
+Mushroom crops are drawn as the substrate they grow from (2026-09-27): oyster and shiitake
+as 5 lb fruiting blocks of the supplier's size, two to a rack shelf, colonising white in
+their filter-patch bags (shiitake browning and fruiting bare), button as a cased compost
+bed across the shelf; the fruit follows the stage, pins then full flushes (oyster clusters
+from the bag's X cut, single shiitake caps, white buttons through the casing), drawn rigid
+so nothing sways in the tent (`engine/fungus_mesh.rs`, `data/plants_visual.ron` `fungi`).
 Greenhouse air (v0.1370.0): each grow room gains the water its crops breathe out and
 loses it to leakage and an exhaust fan (`exhaust_fan_1`, humidity-triggered, cube-law
 power), relative humidity from the FAO-56 formula; gray mold, powdery mildew and downy

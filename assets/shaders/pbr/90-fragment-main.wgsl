@@ -1873,6 +1873,9 @@ fn fs_vegetation(in: VertexOutput) -> @location(0) vec4<f32> {
         // Organ tag from spare UV bits (keep in sync with plant_mesh.rs).
         let is_leaf = (packed & 524288u) != 0u;
         let is_fruit = (packed & 1048576u) != 0u;
+        // Plain matte tissue that is not bark (2026-09-27): dry mushroom caps,
+        // substrate, compost, a paper patch (plant_mesh::Organ::Plain).
+        let is_plain = (packed & 2097152u) != 0u;
 
         let plant_dist = length(camera.view_pos.xyz - in.world_position);
         // Coarse detail out to 12 m; past that a leaf is a few pixels wide and
@@ -1959,6 +1962,30 @@ fn fs_vegetation(in: VertexOutput) -> @location(0) vec4<f32> {
             // (Subsurface transmission used to live here, scaled by `detail`.
             //  It is a MATERIAL property, not a detail term, so it moved out of
             //  this gate - see the block after this if/else chain, v0.1081.)
+        } else if (is_plain && detail > 0.001) {
+            // ── PLAIN MATTE TISSUE (2026-09-27) ──
+            // A dry cap, bare substrate, compost: matte and gently uneven at
+            // the scale of the object itself, never the bark branch's cracks,
+            // whose cells are tens of centimetres across and put a whole
+            // 5 cm cap inside or outside one. The mesh's own vertex colour
+            // carries the larger pattern (mycelium patches, a cap's tone), so
+            // this adds only a fine mottle and a little relief.
+            let mp = triplanar_uv(obj_p, obj_n);
+            let mottle = fbm(mp * 160.0);
+            albedo = albedo * (1.0 + (mottle - 0.5) * 0.16 * detail);
+            if (micro > 0.001) {
+                let ref_a = select(
+                    vec3<f32>(0.0, 1.0, 0.0),
+                    vec3<f32>(1.0, 0.0, 0.0),
+                    abs(normal.y) > 0.9,
+                );
+                let t1 = normalize(cross(normal, ref_a));
+                let t2 = cross(normal, t1);
+                let mx = fbm(mp * 420.0) - 0.5;
+                let my = fbm(mp * 420.0 + vec2<f32>(29.0, 11.0)) - 0.5;
+                normal = normalize(normal + (t1 * mx + t2 * my) * 0.25 * micro);
+            }
+            roughness = mix(0.9, 0.8, detail);
         } else if (!is_leaf && !is_fruit && detail > 0.001) {
             // ── BARK (v0.1067) ──
             // Stems previously got NO treatment: one flat colour per face, on a

@@ -131,6 +131,134 @@ pub struct PlantVisualRegistry {
     /// absent, leaves only the plant cap.
     #[serde(default)]
     pub plot_vertex_budget: u32,
+    /// Mushroom crops (2026-09-27): plant id -> how its substrate and the
+    /// mushrooms on it are drawn. A species listed here is drawn by
+    /// `engine::fungus_mesh`, never from a plant recipe or a stage model:
+    /// what a fruiting room shows is the block or the bed the crop grows
+    /// from, and from the pinning stage on, its fruit.
+    #[serde(default)]
+    pub fungi: HashMap<String, FungusVisualDef>,
+}
+
+// ── Fungi (data/plants_visual.ron, `fungi`, 2026-09-27) ─────────────────
+
+/// The emissive slot (`params.w`) of a RIGID plant material (2026-09-27). A
+/// type-20 mesh drawn with it does not sway in the wind (the wind class block
+/// in `assets/shaders/pbr/00-bindings-vertex.wgsl`): mushroom blocks, beds and
+/// the mushrooms on them stand in the still air of a fruiting tent, and a
+/// block sliding back and forth on its shelf reads as broken. The type-20
+/// fragment branch zeroes emissive, so the slot carries nothing else.
+pub const PLANT_RIGID_FLAG: f32 = -1.0;
+
+/// How a mushroom crop is drawn: the unit of substrate its "plant" is (one
+/// fruiting block, or one square foot of cased bed: data/garden/yields.ron,
+/// MUSHROOMS) and the fruit bodies that grow from it. The numbers and their
+/// sources are beside each entry in data/plants_visual.ron.
+#[derive(Debug, Clone, Deserialize)]
+pub struct FungusVisualDef {
+    pub substrate: FungusSubstrate,
+    pub fruit: FungusFruit,
+}
+
+/// The unit of substrate one "plant" of a mushroom crop is.
+#[derive(Debug, Clone, Deserialize)]
+pub enum FungusSubstrate {
+    /// A fruiting block: colonised substrate in a filter-patch grow bag, one
+    /// per plant, set on its shelf where `engine::plant_layout` puts plants.
+    Block {
+        /// Width (x, along the shelf), height (y) and depth (z), metres.
+        size_m: [f32; 3],
+        /// How far the surface rises and sinks around its mean, metres.
+        lump_m: f32,
+        /// The substrate when it is spawned, and the mycelium once it has
+        /// grown through it (linear RGB).
+        substrate_color: [f32; 3],
+        mycelium_color: [f32; 3],
+        /// Growth (0 to 1) by which the mycelium has grown through.
+        colonised_at: f32,
+        /// The coat a block grows before it fruits (a shiitake block browns
+        /// like bark), complete at `coat_at`. None: the block stays white.
+        #[serde(default)]
+        coat_color: Option<[f32; 3]>,
+        #[serde(default)]
+        coat_at: f32,
+        /// The bag's film seen over the substrate, and its filter patch.
+        bag_color: [f32; 3],
+        filter_patch_color: [f32; 3],
+        /// Growth at which the grower takes the bag off (a shiitake block
+        /// fruits bare). Above 1 it stays on.
+        bag_off_at: f32,
+        /// Where the bag is cut, once the block is colonised, for the fruit
+        /// to come through.
+        cut: BagCut,
+    },
+    /// A tray of compost under a layer of casing, laid across its shelf: the
+    /// units are square feet of it, and the bed is as large as the units its
+    /// plot holds.
+    Bed {
+        /// The side of one unit, metres (a square foot).
+        unit_side_m: f32,
+        compost_depth_m: f32,
+        casing_depth_m: f32,
+        compost_color: [f32; 3],
+        mycelium_color: [f32; 3],
+        casing_color: [f32; 3],
+        tray_color: [f32; 3],
+        /// Growth by which the spawn has run through the compost, and at
+        /// which the casing goes on.
+        colonised_at: f32,
+        cased_at: f32,
+    },
+}
+
+/// Where a fruiting block's bag is cut.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+pub enum BagCut {
+    /// An X in the bag's front face (+z, toward the shelf's front edge).
+    FrontX,
+    /// An X in the top of the bag.
+    TopX,
+    /// No cut: the fruit grows on the bare block once the bag is off.
+    Removed,
+}
+
+/// The mushrooms a unit of substrate carries.
+#[derive(Debug, Clone, Deserialize)]
+pub struct FungusFruit {
+    pub habit: FruitHabit,
+    /// Growth at which the first pins show; they are full grown at 1.
+    pub pin_at: f32,
+    /// Mushrooms one unit carries in a flush at harvest.
+    pub per_unit: u32,
+    /// Cap diameter at harvest, metres: the smallest and the largest.
+    pub cap_diameter_m: [f32; 2],
+    /// A pin's cap, and a cap at harvest (linear RGB).
+    pub cap_young_color: [f32; 3],
+    pub cap_color: [f32; 3],
+    pub gill_color: [f32; 3],
+    pub stipe_color: [f32; 3],
+    /// The stipe (stem) at harvest, metres.
+    pub stipe_length_m: f32,
+    pub stipe_diameter_m: f32,
+    /// The cap's surface: true for a moist or smooth one (the plant
+    /// shading's glossy fruit skin), false for a dry, matte one (its grained
+    /// stem shading).
+    #[serde(default)]
+    pub cap_sheen: bool,
+}
+
+/// How a species' mushrooms grow from their substrate.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+pub enum FruitHabit {
+    /// Overlapping fan-shaped caps on short side stems, bursting in one
+    /// cluster from where the bag is cut (oyster).
+    ShelfCluster,
+    /// Single umbrella caps on central stems, standing out of the bare
+    /// block's top and sides (shiitake).
+    Scattered,
+    /// Round caps on short thick stems, coming up through the casing
+    /// (button).
+    Buttons,
 }
 
 impl PlantVisualRegistry {
@@ -140,6 +268,10 @@ impl PlantVisualRegistry {
     }
     pub fn get(&self, id: &str) -> Option<&PlantVisualDef> {
         self.plants.get(id)
+    }
+    /// How a mushroom crop is drawn, when `id` is one (2026-09-27).
+    pub fn fungus(&self, id: &str) -> Option<&FungusVisualDef> {
+        self.fungi.get(id)
     }
     /// The stage-model set name for a species: its `stage_models` entry, or
     /// else its own id lowercased (the folder naming convention). Whether
@@ -183,18 +315,27 @@ impl Rng {
 /// Bits 0..18 of `uv.x` are already spoken for by
 /// `terrain::planet_surface::pack_color_to_uv*`: 0..7 green, 8..15 red,
 /// 16 water, 17 tree card, 18 grass card. Bits 19..23 are free below f32's
-/// 2^24 exact-integer ceiling, and this takes two of them. Keep these in sync
+/// 2^24 exact-integer ceiling, and this takes three of them. Keep these in sync
 /// with the type-20 decode in `assets/shaders/pbr/90-fragment-main.wgsl`.
 const ORGAN_BIT_LEAF: f32 = 524_288.0; // bit 19: leaf / petal blade
 const ORGAN_BIT_FRUIT: f32 = 1_048_576.0; // bit 20: fruit skin
+const ORGAN_BIT_PLAIN: f32 = 2_097_152.0; // bit 21: plain matte tissue, not bark
 
 /// Which organ the builder is currently emitting faces for.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Organ {
-    /// Stems, branches, roots. No extra bit; plain matte shading.
+    /// Stems, branches, roots. No extra bit; the shader draws BARK on it
+    /// (vertical fissures tens of centimetres across), so only woody tissue
+    /// belongs here.
     Stem,
     Leaf,
     Fruit,
+    /// Matte tissue that is not bark (2026-09-27): a dry mushroom cap and its
+    /// stem, a block's bare substrate, a bed's compost and casing, a paper
+    /// filter patch. The bark branch used to take these, and its fissure
+    /// cells, tens of centimetres wide, put a whole 5 cm cap inside or
+    /// outside one crack, so single caps drew at 0.4 of their colour.
+    Plain,
 }
 
 impl Organ {
@@ -203,6 +344,7 @@ impl Organ {
             Organ::Stem => 0.0,
             Organ::Leaf => ORGAN_BIT_LEAF,
             Organ::Fruit => ORGAN_BIT_FRUIT,
+            Organ::Plain => ORGAN_BIT_PLAIN,
         }
     }
 }
@@ -912,6 +1054,25 @@ mod tests {
         assert!(stems > 0, "tagged no stem faces");
     }
 
+    /// The Plain organ (2026-09-27, bit 21) reaches the packed UV on its own,
+    /// never alongside the leaf or fruit bit, and the color the same integer
+    /// carries still decodes.
+    #[test]
+    fn plain_organ_bit_rides_alone_and_keeps_the_color() {
+        let mut b = PlantMeshBuilder::new();
+        b.set_organ(Organ::Plain);
+        b.tube([0.0; 3], [0.0, 0.1, 0.0], 0.02, 0.02, 6, [0.8, 0.7, 0.6]);
+        assert!(!b.indices.is_empty());
+        for f in b.indices.chunks(3) {
+            let uv = b.vertices[f[0] as usize].uv;
+            let packed = uv[0].round().max(0.0) as u32;
+            assert_eq!(packed & 0x38_0000, 0x20_0000, "only the plain bit is set");
+            let (c, water) = crate::terrain::planet_surface::unpack_uv_to_color(uv);
+            assert!(!water);
+            assert!((c[0] - 0.8).abs() < 0.01 && (c[1] - 0.7).abs() < 0.01, "color survived: {c:?}");
+        }
+    }
+
     #[test]
     fn registry_parses_the_shipped_ron() {
         let text = std::fs::read_to_string(
@@ -929,6 +1090,41 @@ mod tests {
         // by one; the shipped file must set one (2026-09-26).
         assert!(reg.plot_visual_cap > 0, "plants_visual.ron sets no plot_visual_cap");
         assert!(reg.plot_vertex_budget > 0, "plants_visual.ron sets no plot_vertex_budget");
+    }
+
+    /// The three mushroom crops are drawn as fungi (2026-09-27), each is a
+    /// plant in data/plants.csv, none also has a plant recipe (which would
+    /// never be used), and the substrate unit agrees with the unit the farm
+    /// counts: a bed unit's area is the crop's `area_per_plant_m2` (a square
+    /// foot for button), and a block fits the half shelf a block is given.
+    #[test]
+    fn fungi_in_the_shipped_ron_match_the_crops_they_draw() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let text = std::fs::read_to_string(root.join("data/plants_visual.ron")).expect("plants_visual.ron");
+        let reg = PlantVisualRegistry::from_ron(&text).expect("plants_visual.ron parses");
+        let csv = std::fs::read(root.join("data/plants.csv")).expect("data/plants.csv exists");
+        let plants = crate::systems::farming::PlantRegistry::from_csv(&csv).expect("plants.csv parses");
+        for id in ["oyster_mushroom", "shiitake", "button_mushroom"] {
+            assert!(reg.fungus(id).is_some(), "{id} is not drawn as a fungus");
+        }
+        for (id, f) in &reg.fungi {
+            let def = plants.get(id).unwrap_or_else(|| panic!("fungi names '{id}', not a plant in plants.csv"));
+            assert!(reg.get(id).is_none(), "{id} has a plant recipe as well, which is never drawn");
+            let each = def.area_per_plant_m2.unwrap_or_else(|| panic!("{id} has no area_per_plant_m2"));
+            let fr = &f.fruit;
+            assert!(fr.cap_diameter_m[0] > 0.0 && fr.cap_diameter_m[0] <= fr.cap_diameter_m[1], "{id}: cap sizes");
+            assert!((0.0..1.0).contains(&fr.pin_at) && fr.per_unit > 0, "{id}: pins and caps");
+            match &f.substrate {
+                FungusSubstrate::Bed { unit_side_m, .. } => {
+                    let area = unit_side_m * unit_side_m;
+                    assert!((area / each - 1.0).abs() < 0.01, "{id}: a bed unit of {area} m2, the farm counts {each}");
+                }
+                FungusSubstrate::Block { size_m, colonised_at, .. } => {
+                    assert!(size_m[0] * size_m[2] <= each, "{id}: a block wider than the shelf it is given");
+                    assert!(*colonised_at < fr.pin_at, "{id}: pins before the block is colonised");
+                }
+            }
+        }
     }
 
     /// A species' stage-model set is its `stage_models` entry, else its own

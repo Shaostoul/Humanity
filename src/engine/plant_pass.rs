@@ -21,6 +21,7 @@ use std::sync::{mpsc, Arc};
 use glam::{Quat, Vec3};
 
 use crate::assets::GltfCpuMesh;
+use crate::engine::fungus_mesh::{self, Growth};
 use crate::engine::plant_layout::{bake_copy, plot_draw_cap, plot_plants, PlotRect};
 use crate::renderer::plant_mesh::{build_plant, generic_visual, PlantMeshBuilder, PlantVisualRegistry};
 
@@ -75,6 +76,10 @@ pub(crate) struct BuiltGroup {
     pub sig: u64,
     /// The procedural plants (the type-20 plant material). May be empty.
     pub procedural: PlantMeshBuilder,
+    /// Procedural geometry that must not sway (2026-09-27): mushroom crops'
+    /// blocks, beds and fruit (`engine::fungus_mesh`), drawn with the rigid
+    /// plant material. May be empty.
+    pub rigid: PlantMeshBuilder,
     /// One merged mesh per stage model it uses, by model name, sorted.
     pub models: Vec<(String, PlantMeshBuilder)>,
     /// Plants and clumps drawn, and the plants the crops really hold.
@@ -87,7 +92,19 @@ pub(crate) struct BuiltGroup {
 impl BuiltGroup {
     /// Vertices in all of this machine's meshes.
     pub fn vertex_count(&self) -> usize {
-        self.procedural.vertices.len() + self.models.iter().map(|(_, m)| m.vertices.len()).sum::<usize>()
+        self.procedural.vertices.len()
+            + self.rigid.vertices.len()
+            + self.models.iter().map(|(_, m)| m.vertices.len()).sum::<usize>()
+    }
+
+    /// Its meshes for [`geometry_checksum`]: procedural, rigid, then models.
+    /// An empty rigid mesh is left out, so a machine with no mushrooms has
+    /// the checksum it had before the rigid mesh existed.
+    pub fn meshes(&self) -> Vec<&PlantMeshBuilder> {
+        std::iter::once(&self.procedural)
+            .chain((!self.rigid.vertices.is_empty()).then_some(&self.rigid))
+            .chain(self.models.iter().map(|(_, m)| m))
+            .collect()
     }
 }
 
@@ -178,9 +195,7 @@ fn run_job(job: Job, tx: &mpsc::Sender<WorkerMsg>) {
         }
         let mut built = build_group(g, &job.visuals, &mut lookup);
         if job.checksum {
-            let meshes: Vec<&PlantMeshBuilder> =
-                std::iter::once(&built.procedural).chain(built.models.iter().map(|(_, m)| m)).collect();
-            built.checksum = Some(geometry_checksum(&meshes));
+            built.checksum = Some(geometry_checksum(&built.meshes()));
         }
         if tx.send(WorkerMsg::Group(built)).is_err() {
             return; // the engine is gone
@@ -200,9 +215,55 @@ pub(crate) fn build_group(
 ) -> BuiltGroup {
     use std::hash::{Hash, Hasher};
     let mut b = PlantMeshBuilder::new();
+    let mut rigid = PlantMeshBuilder::new();
     let mut hero: HashMap<String, PlantMeshBuilder> = HashMap::new();
     let (mut drawn, mut meant) = (0usize, 0u64);
     for c in &job.crops {
+        // A mushroom crop (2026-09-27) is its substrate and the fruit on it,
+        // drawn by `fungus_mesh` into the rigid mesh; never a plant recipe
+        // or a stage model, so no model is asked for.
+        if let Some(f) = visuals.fungus(&c.def_id) {
+            let seed = {
+                let mut sh = std::collections::hash_map::DefaultHasher::new();
+                job.key.hash(&mut sh);
+                c.slot.hash(&mut sh);
+                sh.finish()
+            };
+            let g = Growth { t: c.t, wilt: c.wilt, dead: c.dead };
+            let (at, yaw, size, holds) = match &job.layout {
+                GroupLayout::Plots { pos, yaw_deg, rects } if !rects.is_empty() => {
+                    let rect = rects[c.slot as usize % rects.len()];
+                    let yaw = yaw_deg.to_radians();
+                    let at = *pos + Quat::from_rotation_y(yaw) * Vec3::new(rect.center[0], rect.floor, rect.center[1]);
+                    (at, yaw, rect.size, c.holds)
+                }
+                GroupLayout::Plots { .. } => continue,
+                // A net cup holds one unit, at the cup.
+                GroupLayout::Tower { helix, base } => {
+                    let frac = c.slot as f32 / helix.slots.max(1) as f32;
+                    let ang = frac * helix.turns * std::f32::consts::TAU;
+                    let y = 0.18 + frac * (helix.height_m - 0.45);
+                    let at = *base + Vec3::new(ang.cos() * helix.radius_m, y, ang.sin() * helix.radius_m);
+                    // Turned so its front (+z) faces out from the column.
+                    (at, std::f32::consts::FRAC_PI_2 - ang, fungus_mesh::unit_footprint(f), 1)
+                }
+            };
+            let d = fungus_mesh::build_plot(
+                &mut rigid,
+                f,
+                at,
+                yaw,
+                size,
+                holds,
+                g,
+                seed,
+                visuals.plot_visual_cap,
+                visuals.plot_vertex_budget,
+            );
+            drawn += d.units as usize;
+            meant += u64::from(holds);
+            continue;
+        }
         // v0.903 (operator: "the potato garden is just a plain slab of
         // brown"): only 10 of ~134 crops had visual recipes, and every crop
         // WITHOUT one silently skipped mesh generation, leaving bare beds
@@ -306,7 +367,7 @@ pub(crate) fn build_group(
     let mut models: Vec<(String, PlantMeshBuilder)> =
         hero.into_iter().filter(|(_, m)| !m.vertices.is_empty()).collect();
     models.sort_by(|x, y| x.0.cmp(&y.0));
-    BuiltGroup { key: job.key.clone(), sig: job.sig, procedural: b, models, drawn, meant, checksum: None }
+    BuiltGroup { key: job.key.clone(), sig: job.sig, procedural: b, rigid, models, drawn, meant, checksum: None }
 }
 
 /// An order-free checksum of a machine's geometry (the bits of every vertex
@@ -385,9 +446,7 @@ mod tests {
     }
 
     fn checksum_of(g: &BuiltGroup) -> u64 {
-        let meshes: Vec<&PlantMeshBuilder> =
-            std::iter::once(&g.procedural).chain(g.models.iter().map(|(_, m)| m)).collect();
-        geometry_checksum(&meshes)
+        geometry_checksum(&g.meshes())
     }
 
     /// A tower draws one plant per crop (one per net cup), all procedural.
@@ -424,6 +483,55 @@ mod tests {
             let [x, y, z] = v.position;
             assert!((3.4..=4.6).contains(&x) && (4.9..=7.1).contains(&z), "outside the bed: {x} {z}");
             assert!(y >= 0.4 - 1e-4, "below the bed top: {y}");
+        }
+    }
+
+    /// A mushroom rack's crops are drawn into the rigid mesh (2026-09-27):
+    /// no procedural plant, no stage model asked for, one unit per block or
+    /// square foot of bed its shelf holds, and all of it on the rack's shelves
+    /// inside its tent (1.3 x 0.7 m round the rack at x 2, z 53).
+    ///
+    /// Seen red on 2026-09-27 by skipping the fungus branch (`.filter(|_|
+    /// false)` on the lookup): the crops asked for the "oyster_mushroom_2",
+    /// "oyster_mushroom_4", "shiitake_4" and "button_mushroom_4" stage models,
+    /// the way they did before `fungus_mesh`.
+    #[test]
+    fn plant_pass_mushroom_crops_draw_rigid_substrate_and_ask_for_no_model() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let text = std::fs::read_to_string(root.join("data/plants_visual.ron")).expect("plants_visual.ron");
+        let vis = PlantVisualRegistry::from_ron(&text).expect("plants_visual.ron parses");
+        let rack = GroupJob {
+            key: "mush_0".into(),
+            sig: 5,
+            layout: GroupLayout::Plots {
+                pos: Vec3::new(2.0, 0.0, 53.0),
+                yaw_deg: 0.0,
+                rects: plot_rects((1.2, 1.8, 0.6), 5, true),
+            },
+            crops: vec![
+                crop("oyster_mushroom", 0, 0.4, 2),
+                crop("oyster_mushroom", 1, 1.0, 2),
+                crop("shiitake", 2, 1.0, 2),
+                crop("button_mushroom", 3, 1.0, 7),
+            ],
+        };
+        let mut asked = Vec::new();
+        let got = build_group(&rack, &vis, &mut |name| {
+            asked.push(name.to_string());
+            None
+        });
+        assert!(asked.is_empty(), "a mushroom crop asked for stage models: {asked:?}");
+        assert!(got.procedural.vertices.is_empty(), "a mushroom crop drew a plant recipe");
+        assert!(!got.rigid.vertices.is_empty(), "nothing drawn into the rigid mesh");
+        assert_eq!((got.drawn, got.meant), (2 + 2 + 2 + 7, 2 + 2 + 2 + 7));
+        assert_eq!(got.rigid.indices.len() % 3, 0);
+        assert!(got.rigid.indices.iter().all(|&i| (i as usize) < got.rigid.vertices.len()));
+        let shelves = plot_rects((1.2, 1.8, 0.6), 5, true);
+        let (bottom, top) = (shelves[0].floor, shelves[4].floor);
+        for v in &got.rigid.vertices {
+            let [x, y, z] = v.position;
+            assert!((1.35..=2.65).contains(&x) && (52.65..=53.35).contains(&z), "outside the tent: {x} {z}");
+            assert!((bottom - 1e-4..=top).contains(&y), "off the shelves the crops stand on: {y}");
         }
     }
 

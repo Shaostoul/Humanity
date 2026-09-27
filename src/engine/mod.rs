@@ -22,6 +22,9 @@ pub mod ipc_parse;
 /// The Settings > Controls key-capture step (rebindable keybinds, 2026-08-12).
 pub mod keybind_capture;
 pub mod launch_focus;
+/// How a mushroom crop is drawn: its fruiting blocks or cased bed, and the
+/// mushrooms on them by stage (2026-09-27).
+pub mod fungus_mesh;
 /// Where a garden plot's plants stand: plots of a machine, the crop's rows at
 /// its real spacing, and the clump rule above the visual cap (2026-09-26).
 pub mod plant_layout;
