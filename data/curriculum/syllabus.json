@@ -295,7 +295,7 @@
       "subject": "food_growing",
       "title": "Testing and correcting soil",
       "summary": "Measure pH and nutrients, then change them deliberately.",
-      "status": "sourced",
+      "status": "verified",
       "reading": [
         "testing-and-correcting-soil"
       ],
@@ -458,7 +458,7 @@
       "subject": "food_growing",
       "title": "Watering and irrigation",
       "summary": "Give plants the right water at the right time without wasting it.",
-      "status": "sourced",
+      "status": "verified",
       "reading": [
         "watering-and-irrigation"
       ],
@@ -522,7 +522,7 @@
       "subject": "food_growing",
       "title": "Extending the season",
       "summary": "Use cold frames, cloches and greenhouses to grow outside the window.",
-      "status": "sourced",
+      "status": "verified",
       "reading": [
         "extending-the-season"
       ],
@@ -572,7 +572,7 @@
       "subject": "food_growing",
       "title": "Growing mushrooms",
       "summary": "Cultivate fungi on logs and substrate.",
-      "status": "sourced",
+      "status": "verified",
       "reading": [
         "growing-mushrooms"
       ],
