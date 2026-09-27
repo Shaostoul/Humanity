@@ -71,8 +71,9 @@ offers for orientation rather than for direct use:
   passes 30 C (86 F).
 - In a temperate climate that is arid or semi-arid, more: 1 to 3, 4 to 7
   and 6 to 9 mm a day for the same three temperatures.
-- The tropics and subtropics run higher in cool weather: 2 to 3 mm a day
-  where humid, 2 to 4 where dry.
+- In the tropics and subtropics: 2 to 3, 3 to 5 and 5 to 7 mm a day for
+  the same three temperatures where it is humid, and 2 to 4, 4 to 6 and 6
+  to 8 where it is dry.
 
 Note that these are mean daily temperatures, day and night averaged, not
 the afternoon high.
@@ -296,7 +297,7 @@ It is still far better than looking at the surface.
 farmers' check of pushing a stick or screwdriver into the ground, and
 warns that it depends on the soil: a compacted clay resists even when
 moist, and a sand lets the screwdriver in wet or dry. It also warns that
-cheap soil moisture meters are somewhat inaccurate, reading wet in fertile
+cheap soil moisture meters are slightly inaccurate, reading wet in fertile
 soil and dry in poor soil, so each has to be learned against your own
 ground.
 
@@ -309,7 +310,7 @@ Extension's reading guide:
 
 | Reading, centibars | What it means |
 |---|---|
-| 0 | Saturated. If it stays there, suspect waterlogging, poor drainage, or a broken tensiometer |
+| 0 | Saturated. If it stays there, suspect waterlogging, poor drainage, or a break in the water column inside the tube |
 | 5 to 10 | More water than plants need; still draining |
 | 10 to 20 | Field capacity |
 | 20 to 40 | Plenty of water for medium and fine soils. Coarse sands may already need water at 20 to 30, finer sands at 30 to 40 |
@@ -457,14 +458,27 @@ the sources disagree:
   shingle roofs from July to October 2011, sampling 3 to 7 days after rain.
   Lead and zinc were well under the federal guidelines for irrigating
   crops with reclaimed water, and no polycyclic aromatic hydrocarbons were
-  found. E. coli, a sign of droppings from birds and animals, broke the US
-  Food and Drug Administration's proposed standard for water used on
-  produce in 9 percent of samples, and New Jersey's drinking water
-  standard in 66 percent. Rutgers concluded barrel water can be used on a
-  vegetable garden if it is treated and used with care: disinfect the barrel regularly (its fact sheet gives
-  the method), put the water on the soil only, never on the plants, water
-  in the morning, and do not harvest right after watering, so that sun and
-  drying can work on anything that splashed.
+  found. E. coli, a sign of droppings from birds and animals, was over
+  the single-sample limit (235 per 100 mL) of the US Food and Drug
+  Administration's proposed standard for produce irrigation water in 9
+  percent of 47 samples, and failed New Jersey's drinking water standard
+  in 66 percent. (That limit was only a proposal, which Rutgers used as a
+  yardstick. FDA's final rule of 2015 set a different test for water used
+  while growing produce, a geometric mean of no more than 126 and a
+  statistical threshold of no more than 410 generic E. coli per 100 mL,
+  and in 2024 FDA replaced that numeric testing with farm assessments of
+  the water. Checked 27 September 2026.) Rutgers concluded barrel water
+  can be used on a vegetable garden if it is treated and used with care.
+  Its method: clean the barrel with a 3 percent bleach solution before
+  collecting; then each month add unscented household bleach (5 to 6
+  percent) at 1/8 teaspoon, about 8 drops, per US gallon of water, which is
+  about one ounce for a 55 gallon barrel, more often in rainy spells, and
+  wait about 24 hours before using the water; put the water on the soil
+  only, never on the plants; water in the morning only; and do not harvest
+  right after watering, so that sun and drying can work on anything that
+  splashed. Rutgers also judged testing often enough to mean anything
+  impractical and too costly for a home garden, and recommends treating the
+  water routinely instead.
 - A 2026 review of the research and extension guidance by Lake Champlain
   Sea Grant found the same consensus: never drink it, water edible crops
   only at soil level, not onto the plants, and wash your hands after
@@ -480,14 +494,16 @@ Washington State the rule is chapter 246-274 of the Washington
 Administrative Code, and its general requirements (WAC 246-274-011) are a
 good picture of the concerns everywhere:
 
-- It may be used only for irrigation below the surface of the ground, and
-  it must never surface, pond or run off where people or animals can touch
-  it.
+- It may be used only for irrigation below the surface of the ground. It
+  must not surface in any way, by ponding or by running off: it has to stay
+  underground so that people and animals do not come into contact with it.
 - It may water plants that produce food, but it must never touch the part
   you eat.
 - It may not contain water from washing diapers or similarly soiled or
   infectious material, or waste from a water softener, cleaning car parts,
-  washing greasy or oily rags, rinsing paint brushes, or home photo labs.
+  washing greasy or oily rags or clothing, rinsing paint brushes, or home
+  photo labs.
+- The system may be used only during the growing season.
 - It may not be put on faster than the evapotranspiration of the ground it
   irrigates. That is this guide's ETc, written into law: greywater may
   replace only what the plants and soil use, and never be enough to drain
@@ -593,6 +609,15 @@ taken from them is restated here in our own words.
 - United States Environmental Protection Agency, WaterSense. Microirrigation
   (20 to 50 percent less water than conventional sprinkler systems).
   https://www.epa.gov/watersense/microirrigation
+- US Food and Drug Administration. How Did FDA Establish Requirements for
+  Water Quality and Testing of Irrigation Water under the FSMA Final Rule
+  for Produce Safety, content current as of 20 November 2017 (the 2015
+  criteria: geometric mean 126, statistical threshold 410 generic E. coli
+  per 100 mL), https://www.fda.gov/food/food-safety-modernization-act-fsma/how-did-fda-establish-requirements-water-quality-and-testing-irrigation-water-under-fsma-final-rule ;
+  and FSMA Final Rule on Pre-Harvest Agricultural Water, content current as
+  of 30 September 2025 (the 2024 rule replacing those criteria for water
+  used before harvest with assessments),
+  https://www.fda.gov/food/food-safety-modernization-act-fsma/fsma-final-rule-pre-harvest-agricultural-water
 
 ### International (copyrighted; cited as the authority, restated here in our own words)
 
@@ -602,6 +627,8 @@ taken from them is restated here in our own words.
   Rome, 1998. Chapter 1 (evaporation and transpiration, a millimetre as a
   depth of water, the four weather factors, the reference surface, Table 2's
   typical ETo ranges), https://www.fao.org/4/x0490e/x0490e04.htm ;
+  Chapter 2 (the reference grass 0.12 m tall, actively growing and
+  completely shading the ground), https://www.fao.org/4/x0490e/x0490e06.htm ;
   Chapter 5 (the four growth stages and what sets Kc in each),
   https://www.fao.org/4/x0490e/x0490e0a.htm ; Chapter 6 (Table 12, single
   crop coefficients), https://www.fao.org/4/x0490e/x0490e0b.htm ; Chapter 8
@@ -617,10 +644,11 @@ taken from them is restated here in our own words.
 
 ### State law (copyrighted; cited as the authority, restated here in our own words)
 
-- Washington Administrative Code 246-274-011, Greywater reuse for subsurface
-  irrigation, general requirements (subsurface use only, no contact with
-  edible portions, the excluded waters, no surfacing, irrigation no faster
-  than evapotranspiration), as filed 9 March 2022.
+- Washington Administrative Code 246-274-011, Greywater irrigation
+  systems, general requirements, in chapter 246-274 WAC (subsurface use
+  only, no contact with edible portions, the excluded waters, no surfacing,
+  growing season only, irrigation no faster than evapotranspiration), as
+  filed 9 March 2022, effective 9 April 2022; read 27 September 2026.
   https://app.leg.wa.gov/WAC/default.aspx?cite=246-274-011
 
 ### University extension (copyrighted; cited as the authority, restated here in our own words)
@@ -658,15 +686,16 @@ taken from them is restated here in our own words.
   https://extension.umn.edu/irrigation/estimating-soil-moisture-feel-and-appearance-method
 - Bakacs, M., Haberland, M. and Yergeau, S. Rain Barrels Part IV: Testing
   and Applying Harvested Water to Irrigate a Vegetable Garden. Rutgers
-  Cooperative Extension, FS1218 (the New Jersey barrel study and its
-  recommendations). https://njaes.rutgers.edu/fs1218/
+  Cooperative Extension, FS1218, December 2013 (the New Jersey barrel study,
+  the bleach treatment and its recommendations).
+  https://njaes.rutgers.edu/fs1218/
 - Feehan, K.A., Pekarek, K.A., Shelton, D.P., Rodie, S.N. and Franti, T.G.
   Stormwater Management: Rainwater Harvesting with Rain Barrels. Nebraska
   Extension, NebGuide G2220, issued January 2014 (rain barrel water not
   recommended for fruit and vegetable gardens, nor for drinking or washing
   produce).
   https://extensionpubs.unl.edu/publication/g2220/na/html/view
-- McKean, M. and Sarazen, J. Rain Barrel Water Reuse: Summary of Research
+- Mckean, M. and Sarazen, J. Rain Barrel Water Reuse: Summary of Research
   and Recommendations. Lake Champlain Sea Grant, January 2026 (non-potable
   use only, soil-level watering of edible crops, hygiene, first-flush
   diversion).

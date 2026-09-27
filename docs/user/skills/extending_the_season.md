@@ -179,8 +179,8 @@ The University of Wisconsin puts hoop houses, the larger version, at six to
 eight extra weeks of season, and says they must be vented on warm days by
 lifting the plastic at the ends or opening it along the sides or top. Small
 tunnels swing hardest: Purdue photographed spinach in a low tunnel that
-reached 80 F (27 C) the day after a night low near 20 F (-7 C), with
-bleached, cupped leaves from the heat.
+reached 80 F (27 C) the day after a night low near 20 F (-7 C), its leaves
+bleached and badly cupped, which Purdue says could be heat injury.
 
 ## High tunnels
 
@@ -244,8 +244,11 @@ failure or a power cut.
 **Which heater.** Georgia accepts any heating system that holds an even
 temperature without releasing anything harmful to the plants: natural gas,
 propane, fuel oil, wood or electricity. The catch is in "without
-releasing". UMass warns against **unvented** heaters, which have no flue
-and send all their exhaust into the greenhouse:
+releasing". A UMass fact sheet sets out the problems with **unvented**
+heaters, which have no flue and send all their exhaust into the greenhouse.
+The fuels are sold as clean-burning, and UMass says that holds only while
+the burner is clean and well adjusted; a heater serviced in autumn will
+probably not be burning at its best by spring. What comes out:
 
 - The exhaust carries carbon monoxide and nitrogen dioxide, and sulfur
   dioxide, a major pollutant from kerosene that every fuel gives off in
@@ -262,18 +265,29 @@ and send all their exhaust into the greenhouse:
   1,000 Btu an hour of heater input (about 6.5 square centimetres per 290
   watts).
 
-UMass notes that these pollutants can affect the people working in the
-greenhouse as well as the plants. The CDC describes carbon monoxide as a
-gas with no colour and no smell that can kill without warning; it lists
-headache, dizziness, weakness, upset stomach, vomiting, chest pain and
-confusion as its common symptoms, and its rule for homes is never to burn
-anything in a stove or fireplace that is not vented. A closed greenhouse traps the gas the same way a closed room does.
-The safe course that follows from both: heat with a vented heater or with
-electricity; keep a carbon monoxide alarm where people work; and if a
-tunnel ever has to be saved on a frost night with a portable fuel heater
-(Utah State lists clean-burning propane heaters among the ways to do it),
-air it out before anyone stays inside. [Firewood](firewood.md) has the full
-treatment of carbon monoxide.
+UMass's advice, if you do install one, is plenty of makeup air, frequent
+maintenance, and indicator plants (tomatoes and white petunias can show
+sulfur dioxide injury in as little as an hour) or indicator tubes near the
+heater. It also notes that a badly burning heater puts out pollutants that
+can affect the people working in the greenhouse as well as the plants.
+
+The CDC describes carbon monoxide as a gas with no colour and no smell
+that can kill without warning; it lists headache, dizziness, weakness,
+upset stomach, vomiting, chest pain and confusion as its common symptoms.
+Its rules for homes include never burning anything in a stove or
+fireplace that is not vented, and a battery-powered or battery-backed
+carbon monoxide detector near every sleeping area. A closed greenhouse
+traps the gas the same way a closed room does. The safe course that
+follows from both (this guide's reading, not a rule either source states
+for greenhouses): heat with a vented heater or with electricity; keep a
+carbon monoxide alarm where people work; and if a tunnel ever has to be
+saved on a frost night with a portable fuel heater (Utah State lists
+clean-burning propane heaters among the ways to do it), do not work or
+stay inside while it burns, and air the tunnel out before going back in.
+If the alarm sounds, or someone feels those symptoms in a heated
+greenhouse, get everyone out into fresh air first and call emergency
+services from outside, as [Firewood](firewood.md) advises for a home; that
+guide has the full treatment of carbon monoxide.
 
 **Cooling.** Ventilation removes heat, brings in carbon dioxide for the
 plants, and carries out damp air. Georgia's figures for fan ventilation: one
@@ -472,9 +486,11 @@ its numbers come from them.
   change of air, which clears about two thirds of the extra damp. Gray mold
   and the mildews follow damp rooms (`data/garden/pests.ron`).
 - **Grow lights** (`data/garden/lighting.ron`). A light's output is its watts
-  times 2.30 micromoles per joule, the minimum efficiency a listed LED
-  horticultural fixture must reach. It covers as much bed as it can light
-  to each crop's own daily light need, measured against Cornell's 17 moles
+  times 2.30 micromoles per joule, the minimum efficiency an LED grow light
+  must reach to be listed by the DesignLights Consortium (its horticultural
+  requirements, version 3.0, in effect since 31 March 2023). It covers as
+  much bed as it can light to each crop's own daily light need, measured
+  against Cornell's 17 moles
   for lettuce, and it runs on a timer from sunset that leaves six hours of
   darkness, after Runkle. The mushrooms need no light at all.
 
@@ -497,7 +513,7 @@ taken from them is restated here in our own words.
 - Centers for Disease Control and Prevention. Carbon Monoxide Poisoning
   Basics, last reviewed 12 January 2026 (a gas with no colour or smell,
   its common symptoms, never burning anything in a stove or fireplace that
-  is not vented, alarms).
+  is not vented, detectors near every sleeping area).
   https://www.cdc.gov/carbon-monoxide/about/index.html
 - NOAA National Centers for Environmental Information, US Climate Normals,
   for frost dates, as used in [The Growing Calendar](the_growing_calendar.md)
@@ -547,12 +563,15 @@ taken from them is restated here in our own words.
   shading).
   https://fieldreport.caes.uga.edu/publications/B792/greenhouses-heating-ventilation-and-cooling/
 - Wick, R.L., revised by Madeiras, A. Botrytis Blight of Greenhouse Crops.
-  UMass Extension Greenhouse Crops and Floriculture Program (infection
-  conditions, the evening heat-and-vent, air movement, sanitation).
+  UMass Extension Greenhouse Crops and Floriculture Program, last updated
+  5 June 2019 (infection conditions, the evening heat-and-vent, air
+  movement, sanitation).
   https://www.umass.edu/agriculture-food-environment/greenhouse-floriculture/fact-sheets/botrytis-blight-of-greenhouse-crops
-- UMass Extension Greenhouse Crops and Floriculture Program. Problems With
-  Using Unvented Greenhouse Heaters (the pollutants, ethylene, water added,
-  makeup air, effects on plants and people).
+- Bartok, J.W., Jr. (University of Connecticut). Problems With Using
+  Unvented Greenhouse Heaters. UMass Extension Greenhouse Crops and
+  Floriculture Program, undated, resources added 2016 (the pollutants,
+  ethylene, water added, makeup air, maintenance, indicator plants,
+  effects on plants and people).
   https://www.umass.edu/agriculture-food-environment/greenhouse-floriculture/fact-sheets/problems-with-using-unvented-greenhouse-heaters
 - Burrows, R. Fall Frost Tolerance of Common Vegetables. South Dakota State
   University Extension, updated 7 September 2023 (the tolerance groups).
@@ -577,7 +596,10 @@ taken from them is restated here in our own words.
   the gray mold and mildews that follow damp.
 - `data/garden/humidity.ron`: the grow rooms' air, the fan and the
   Ventilate control.
-- `data/garden/lighting.ron`: the grow lights and their timer.
+- `data/garden/lighting.ron`: the grow lights and their timer, with its
+  citation of the DesignLights Consortium's Horticultural Technical
+  Requirements V3.0 for the 2.30 micromoles per joule minimum,
+  https://designlights.org/our-work/horticultural-lighting/technical-requirements/hort-v3-0/
 - [The Growing Calendar](the_growing_calendar.md) for frost dates and day
   length, [Starting Seeds](starting_seeds.md) for raising transplants,
   [Watering and Irrigation](watering_and_irrigation.md) for water under
