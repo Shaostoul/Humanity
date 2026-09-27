@@ -81,8 +81,8 @@ capacity. To turn it into energy, multiply by the battery's voltage:
 **Wh = Ah x volts.**
 
 SimpliPhi's installation manual for its PHI 3.8 lithium iron phosphate
-battery gives a worked example of its own: the 48 volt model is rated 75 Ah
-at a nominal 51.2 volts, and 51.2 x 75 = 3,840 Wh, the 3.8 kWh in its name.
+battery lists the 48 volt model at 75 Ah and a nominal 51.2 volts, and rates
+it at 3.8 kWh: 51.2 x 75 = 3,840 Wh, the 3.8 kWh in its name (worked here).
 A 12 volt, 100 Ah battery holds 1,200 Wh, or 1.2 kWh (worked here).
 
 There is a catch with lead-acid. Pacific Northwest National Laboratory
@@ -100,9 +100,10 @@ before charging it again: draining a 10 kWh bank to 7 kWh left is a 30
 percent depth of discharge. It matters because how deeply a battery is
 cycled decides how long it lasts, and because makers often keep some capacity
 back that you never see. The Powerwall 2 datasheet lists a total energy of 14
-kWh, a usable energy of 13.5 kWh, and a depth of discharge of 100 percent:
-100 percent of the usable part. The other half kilowatt hour is never offered
-to you. When you compare batteries, compare usable energy.
+kWh, a usable energy of 13.5 kWh, and a depth of discharge of 100 percent;
+read together, that is 100 percent of the usable part, and the other half
+kilowatt hour is never offered to you. When you compare batteries, compare
+usable energy.
 
 ### Round-trip efficiency
 
@@ -167,9 +168,9 @@ either with the acid soaked into a glass mat (AGM) or set as a gel. DOE calls
 lead-acid one of the oldest and safest battery technologies, easy to install,
 and more than 98 percent recyclable. Its two weaknesses, as DOE puts them,
 are its weight and footprint, and its need to be fully recharged regularly
-when it is used for daily partial charging and discharging. DOE gives the
-ideal working range for lead-acid in daily cycling as 10 to 50 percent depth
-of discharge.
+when it is used for partial charging and discharging. DOE gives the ideal
+working range for lead-acid that is cycled as 10 to 50 percent depth of
+discharge.
 PNNL adds that lead-acid degrades faster when it sits for a long time at a
 low state of charge (the plates sulfate), and caps its own planning at 80
 percent depth of discharge so the battery never stays below 20 percent.
@@ -249,8 +250,8 @@ allow.
 **Step 4: days without sun.** DOE's small wind guidebook says battery banks
 are typically sized to supply the load for 1 to 3 days. Three dark days of the
 whole 4.0 kWh load is 12.0 kWh at the appliances, 12.0 / 0.96 = 12.5 kWh from
-the bank, and at 80 percent, the deepest either chemistry should go (PNNL's
-cap for lead-acid, the cycle-life figure for LFP):
+the bank, and at 80 percent (PNNL's cap for lead-acid, and the depth its LFP
+cycle-life figure assumes):
 
 12.5 / 0.80 = **about 15.6 kWh**.
 
@@ -281,9 +282,9 @@ can take days. At this project's home site in Silverdale, Washington, NLR's
 PVWatts calculator (version 8.5.0, queried 27 September 2026, a 400 W panel
 tilted 40 degrees to the south) gives 440.7 kWh a year at the inverter, about
 1.21 kWh a day on average, but only 17.6 kWh in January, about 0.57 a day, a
-third of August's 52.5 kWh month (the figures `data/machines/home.ron` also
-records). This is why off-grid homes keep a generator as a backstop, which is
-the next section.
+third of August's 52.5 kWh month (`data/machines/home.ron` records the same
+query's yearly and January figures). This is why off-grid homes keep a
+generator as a backstop, which is the next section.
 
 ## Charge controllers and inverters, in plain words
 
@@ -306,8 +307,8 @@ Two kinds are common:
 A controller has to be set for the battery's chemistry. DOE's safety plan
 names temperature compensation of the charger's output as one of the measures
 that made thermal runaway less likely in sealed lead-acid batteries, and
-SimpliPhi's manual tells owners to use only a charger approved for its lithium
-batteries.
+SimpliPhi's manual says that when its lithium batteries need charging from a
+separate charger, it must be one SimpliPhi has approved.
 
 **The battery management system (BMS)** is built into a lithium battery. DOE's
 safety plan says it must limit charging currents to safe levels, and it is
@@ -519,8 +520,10 @@ the company that installed it.
   is smoking, hissing or popping, get everyone out and call the fire
   department from a safe distance. Do not open its cabinet (DOE).
 - **A lithium battery is about to be charged somewhere below 32 F (0 C).** Do
-  not, unless its maker says it is protected against charging in the cold (US
-  Fire Administration, SimpliPhi).
+  not (US Fire Administration). If its maker's manual allows it at all, follow
+  the manual exactly: SimpliPhi's says not to, warns that it can harm the
+  battery's health and voids the warranty, and allows it only at a slow C/20
+  rate when it cannot be avoided.
 - **A flooded lead-acid battery's space has no outside vent or airflow, or its
   vents are blocked.** Do not charge there, and keep every flame, spark and
   cigarette away (OSHA). Hydrogen has no smell, so a room that smells fine
@@ -654,9 +657,9 @@ taken from them is restated here in our own words.
   2026, https://www.epa.gov/recycle/used-lithium-ion-batteries
 - Centers for Disease Control and Prevention. Carbon Monoxide Poisoning
   Basics (a generator only outside, more than 20 feet from windows, doors and
-  vents), reviewed 12 January 2026. The CDC server refused a direct download
-  on the day of reading, so the sentence was read through a web fetch and
-  matched against the independently checked [Heating Water](/library#heating-water).
+  vents), reviewed 12 January 2026. The CDC server refuses scripted downloads,
+  so the sentence was read in the Internet Archive's copy of the page taken on
+  20 September 2026, which carries the same review date.
   https://www.cdc.gov/carbon-monoxide/about/index.html
 
 ### US national laboratories (licence unconfirmed; cited as the authority, restated here in our own words)

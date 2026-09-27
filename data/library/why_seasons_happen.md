@@ -166,18 +166,21 @@ night", but the Naval Observatory explains why it is not quite true. Sunrise
 is counted from the moment the Sun's top edge appears and sunset until its top
 edge disappears, and the air bends sunlight so that the Sun looks higher than
 it is. Its tables are worked out for a Sun whose centre is 50 minutes of arc
-(a little under one degree) below the horizon at sunrise and sunset. So on an
-equinox the day is about 7 minutes longer than the night up to about 25
-degrees of latitude, and 10 minutes or more at 50 degrees, which is what the
-table above shows. The dates of truly equal day and night fall a few days
-away from the equinoxes: about 17 March and 26 September at 40 degrees north.
+(a little under one degree) below the horizon at sunrise and sunset. Its
+summary puts the day on an equinox about 7 minutes longer than the night up
+to about 25 degrees of latitude, and 10 minutes or more at 50 degrees. Its own
+times in the table above show those as the amount the day runs over 12 hours
+(12 h 07 m near the equator, 12 h 10 m at 50 degrees in March), so the day
+beats the night by about twice that (worked here). The dates of truly equal
+day and night fall a few days away from the equinoxes: about 17 March and 26
+September at 40 degrees north.
 
 **The longest day is not the only record.** The Naval Observatory tabulates
 the longest and shortest days by latitude: at 45 degrees north, 15 hours 38
 minutes and 8 hours 46 minutes. The National Weather Service adds that the
-earliest sunset and the latest sunrise do not fall on the shortest day: in the
-Quad Cities of Iowa and Illinois, the earliest sunset comes around 8 December
-and the latest sunrise near 5 January.
+earliest sunset and the latest sunrise do not fall on the shortest day: its
+Quad Cities office, on the Iowa and Illinois border, puts the earliest sunset
+around 8 December and the latest sunrise near 5 January.
 
 **The seasons are not the same length.** NOAA's National Centers for
 Environmental Information (NCEI) say the astronomical seasons vary between 89
@@ -185,7 +188,7 @@ and 93 days because the orbit is not a circle. From the Naval Observatory's
 times (worked here), the northern spring of 2026 lasts 92.7 days, the summer
 93.7, the autumn 89.9 and the winter 89.0; the northern summer half of the
 year, from the March equinox to the September one, is 186.4 days, and the
-winter half 178.9. The longest season is the one that contains aphelion, in
+winter half 178.8. The longest season is the one that contains aphelion, in
 July.
 
 **Astronomical and meteorological seasons.** NCEI explains that
