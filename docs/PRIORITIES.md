@@ -438,54 +438,147 @@ mathematics says the sensitivity peaks. That is a strong hint that the fix
 belongs in how `tau_sun` is sampled at grazing angles rather than in any
 downstream filter.
 
-### 2a-ii. THE FULL CANDIDATE TABLE at the terminator, and a flaw in the metric
+### 2a-ii. THE FULL CANDIDATE TABLE at the terminator, re-measured with a grain number a blur cannot win (2026-09-27)
 
-Every grain candidate, measured at `orbit-terminator-3000km` band 5 (the dusk
-line, where the defect is 73x its noon value), with fizz from differencing two
-settled captures in one boot:
+The first version of this table ranked grain as the mean absolute deviation
+from the four-neighbour mean, and forcing the spatial filter to full
+(`cur_s = mu`) replaces every pixel WITH the neighbourhood mean: a 3x3 box
+blur, which minimises that metric by construction. It scored 6.07 against 8.68
+for the animated jitter. That metric is replaced, and the flaw is now closed
+mechanically rather than by a caveat in this file.
 
-| arm | grain at band 5 | fizz |
-| --- | --- | --- |
-| shipped baseline | 40.38% | 0.34% |
-| sun ladder on the unjittered grid | 40.22% | - |
-| spatial strength 0.35 to 0.85, gate untouched | 40.22% | - |
-| spatial gate widened, strength untouched | 37.54% | 0.27% |
-| **animated depth jitter** | **8.68%** | 2.09% |
-| spatial filter forced to full (`cur_s = mu`) | 6.07% | 0.12% |
+**The measure** (`scripts/terminator-grain.js`, `just terminator-grain`; its
+header carries the full reasoning). GRAIN is the noise in flat cloud
+interiors divided by the real detail on cloud edges, both measured at ONE
+spatial scale, a squared difference of Gaussians (sigma 2.83 to 4 px) that
+peaks at a period of about 15 px, each relative to its own mean level.
+Interior pixels are kept 12 px away from every edge, so an outline's own
+response is never counted as noise. Two locks stop a blur from winning:
 
-**READ THE LAST ROW WITH CARE, because the metric flatters it.** Grain here is
-the mean absolute deviation from the four-neighbour mean, and forcing the
-spatial filter to full replaces every pixel WITH the neighbourhood mean. That
-is a 3x3 box blur, and a box blur minimises exactly this metric by
-construction. Some of that 6.07 is the measurement rewarding blur rather than a
-better picture, and how much is not known.
+1. **The scale lock.** At any one spatial frequency a blur multiplies the
+   noise and the real detail by the same factor, so their ratio cannot change.
+   A finite band can still tilt, which is why the band is squared (its
+   low-frequency tail falls as the fourth power) and why it sits at 15 px:
+   measured on the baseline with the ratio alone, at ~9 px a 5x5 box already
+   takes 18% off it and a sigma-3 Gaussian 33%; at ~15 px none of 54 blurs of
+   the nine real captures lowered GRAIN by more than 3.2%.
+2. **The sharpness lock.** Lower GRAIN only counts as BETTER when at least 90%
+   of the real edge detail is kept at ~9 px AND at ~15 px. Less grain with lost
+   detail is reported as "blurred". A blur wide enough to tilt the 15 px band
+   always pays at 9 px first (sigma 3 keeps 27% of it).
 
-The animated-jitter row does not have that problem: temporal averaging removes
-noise without blurring, so 8.68 is an honest number and is the best HONEST
-result on the table.
+Why 15 px and not the pixel scale the old metric weighed: at this range the
+genuine cloud edges carry NO detail finer than about a 9 px period (their edge
+profile is a ramp about 20 px wide), so at the pixel scale everything in the
+frame is noise and there is nothing to measure it against. Frozen-jitter noise
+is white, so it is present at 15 px too, where a 3x3 blur cannot reach it; a
+blur removes the pixel-scale sparkle and leaves the mottle, which is exactly
+what the forced-filter capture looks like zoomed. And 15 px on the operator's
+2560 px monitor is about 3 cycles per degree, near the peak of human contrast
+sensitivity. The old number is still printed as "speckle (old)" so every
+figure before this date stays comparable.
 
-**What the table proves regardless of that caveat.** Neither the gate nor the
-strength alone gets anywhere: 37.54 and 40.22 against a 40.38 baseline. Only
-the forced arm, which bypasses `noise_w` entirely AND uses strength 1.0, moves
-the number, so both are binding together and neither is a one-constant fix.
-This CORRECTS the v0.1331.14 note, which inferred from noon data that the
-strength cap was the binding constraint; at the terminator it is not.
+**The three controls, on real captures (the 2026-09-22 terminator sweeps).**
+
+- **(a) A pure blur is not an improvement.** A 3x3 box blur of the baseline
+  capture, written to PNG and scored like any capture: old speckle 40.38 to
+  5.98 (the old metric ranks it first), GRAIN 13.9 to 13.9, verdict "same".
+  `--controls` then blurred all nine real captures six ways each (3x3 and 5x5
+  box, Gaussian sigma 0.5, 1, 2, 3): the old speckle fell 35 to 99% for every
+  one, GRAIN moved between 0.968x and 1.208x, and none was judged BETTER.
+- **(b) Temporal averaging is still the improvement it is.** Animated depth
+  jitter: GRAIN 13.9 to 7.0, 2.00x, verdict BETTER, with 53% of the 15 px noise
+  removed and 97% / 94% of the real detail kept at 9 / 15 px.
+- **(c) The baseline scores as grainy.** 13.9 at the dusk line against 1.0 in
+  the same frame's full-daylight band (where the old speckle read 0.55), and
+  2x the animated arm.
+
+**It can fail, and that was checked.** Switch the sharpness lock off and move
+the scale to the pixel scale (`--no-sharpness-lock --scale 0.71,1.41`) and the
+same controls go red on the real baseline: a 3x3 box "wins" by 36%, a sigma-3
+Gaussian by 83%, exit 1. `scripts/tests/terminator-grain.test.js`, now part of
+`just rig-tests` and so of `just verify`, proves on synthetic captures that a
+box blur is "same", that averaging nine independent noise draws is BETTER, that
+a noise-free frame reads near 0, and that each lock goes red when the other is
+switched off.
+
+**The table.** `orbit-terminator-3000km`, band 5 (the dusk line). Fizz is mean
+|a - b| over the mean level between two settled captures in one boot (the
+`-b` twin), over the whole 0.30-0.70 by 0.25-0.75 region as before.
+
+Re-scored on the SAME PIXELS the old numbers came from (the 2026-09-22
+captures, reference `20260922-221739`):
+
+| arm | old grain | GRAIN (new) | vs baseline | verdict | fizz |
+| --- | --- | --- | --- | --- | --- |
+| shipped baseline (frozen jitter) | 40.38% | 13.9% | 1.00x | - | 0.34% |
+| sun ladder on the unjittered grid | 40.22% | 13.9% | 1.00x | same | - |
+| spatial strength 0.35 to 0.85, gate untouched | 40.22% | 14.1% | 0.99x | same | - |
+| spatial gate widened, strength untouched | 37.54% | 14.2% | 0.98x | same | 0.27% |
+| **animated depth jitter** | 8.68% | **7.0%** | **2.00x** | **BETTER** | 2.09% |
+| spatial filter forced to full (`cur_s = mu`) | 6.07% | 14.1% | 0.98x | same | 0.11% |
+| control: 3x3 box blur of the baseline | 5.98% | 13.9% | 1.00x | same | - |
+
+**The profile across the terminator changes shape too.** By the new measure
+the baseline reads 1.0, 5.1, 12.6, 20.4, 21.1, **13.9** (band 5), 23.4 from
+full daylight to the first night band. So the visible grain spans the whole
+twilight zone, bands 2 to 6, rather than peaking at band 5: band 5 has the
+loudest 15 px noise of any band (0.49%) but also the strongest cloud edges,
+which lowers its ratio. The animated arm is BETTER at bands 3 and 4 as well
+(2.50x and 1.83x) and the forced arm "same" at both. Band 6 reads 23.4% for
+every arm alike, so what it holds is dim cloud structure, not jitter noise.
+Rank future candidates across bands 3 to 5, not at band 5 alone.
+
+**What the table now says.** The forced filter's "win" was the metric. It
+removed 85% of the pixel-scale sparkle, which is real, and 5% of the noise at
+the scale the eye weighs most, while costing 7% of the edge detail; by eye on a
+zoom its silhouettes are intact and its interiors are mottled rather than
+clean. Every spatial arm, including both constraints lifted together, reads
+"same". The only candidate that lowers grain where it is visible is the
+animated jitter.
+
+**The gate and the strength, restated under the new measure.** Neither the
+gate nor the strength alone gets anywhere, as before (14.2 and 14.1 against
+13.9). What changed is the forced arm: it bypasses `noise_w` entirely AND uses
+strength 1.0, and it ALSO gets nowhere at 15 px. So "both are binding together"
+was the old metric's reading; the new one is that no setting of this filter
+lowers the visible grain at the dusk line, because a single-frame 3x3 mean
+cannot remove 15 px mottle without taking 15 px detail with it. The
+v0.1331.14 note (strength cap as the binding constraint, inferred from noon
+data) stays corrected.
 
 **Why the gate stays shut in the dark.** Its absolute arm is
 `smoothstep(0.10, 0.30, sig)` in raw march-buffer units, and `sig` measured
 0.0185 at NOON against that 0.25 threshold. The terminator is darker, so `sig`
 is smaller still: the gate closes hardest exactly where the relative grain is
-worst. Widening it to 0.02-0.10 was tried and bought only 40.38 to 37.54, so
-the threshold units are part of the story but not all of it.
+worst. Widening it to 0.02-0.10 was tried and bought only 40.38 to 37.54 on the
+old metric, and nothing (13.9 to 14.2) on the new one.
 
-**Before the next attempt, fix the metric.** A grain number that a blur can
-win is not a grain number. Judge spatial arms on a measure a blur cannot game,
-for example the high-frequency energy retained in genuine cloud EDGES alongside
-the noise reduction, or an explicit sharpness term, and keep the by-eye check
-that the silhouettes and the terrain survive. Until that exists, prefer the
-temporal arm, whose number is not gameable in this way.
+**What this says about 2a-i (the decision stays the operator's).** Two of the
+numbers he was given change. The grain side of the trade is 2.0x at the scale
+the eye weighs most, not the 4.6x the old metric reported (4.6x counted the
+pixel-scale sparkle, where the animated arm removes 79%). And the fallback the
+2a-i text offers for a "no" ("item 2b's spatial filter becomes the lever") does
+not hold at the dusk line: the strongest setting of that filter reads "same".
+The fizz side is unchanged: 0.34% to 2.09% over the region, and 1.73% to 10.1%
+at band 5 alone. Note also that the shipped shader has animated the depth
+jitter since v0.1331.18 (2026-09-23, `45-cloud-temporal.wgsl`, "UN-FROZEN
+AGAIN"), so the live question is keep or revert; the comment there names the
+line to revert.
+
+**What the measure does not cover.** It judges a STILL. It says nothing about
+how the grain moves (fizz does that) or about flight, where the temporal filter
+cannot converge and item 2b-0 says the operator's "boiling" lives. And its
+15 px interior noise includes a little real cloud texture, so no arm reaches 0.
 
 ### 2a-i. THE OPERATOR DECISION: frozen jitter costs 4.6x more grain at the dusk line
+
+> **Re-measured 2026-09-27, see 2a-ii.** The 4.6x below comes from the old
+> grain metric, which a blur can win and which mostly counts pixel-scale
+> sparkle. On the blur-proof measure the same two captures read 13.9% (frozen)
+> against 7.0% (animated): 2.0x less grain at the ~15 px scale the eye weighs
+> most, with the real detail kept. The fizz figures are unchanged. The choice
+> below is still his.
 
 This is his call, not the AI’s, because he ran the original experiment himself
 and chose the current setting. What is new is the price tag, which nobody had
