@@ -146,13 +146,21 @@ const sameExe = (a, b) =>
 ///
 /// A BUILD process is never "ours": the rig never compiles. If that ever
 /// changes, exclude it by pid here rather than by dropping it from WATCHED.
+///
+/// `own.gameOnly` - builds do not count, only other game instances (the ONE
+///               GPU rule). For a boot check whose only question is "does it
+///               enter the world with no panic" (2026-09-27: four worktree
+///               agents compiling kept a panics-only check waiting past its
+///               own timeout). Timings from such a run are not readings, so
+///               the sweep still marks every capture beside a build as
+///               contaminated.
 function foreignProcs(own = {}) {
   const pids = new Set((own.pids || []).map(Number));
   const exe = own.exe || "";
   return listProcs().filter((p) => {
     if (pids.has(p.pid)) return false;
     if (sameName(p.name, GAME) || !p.name) return !sameExe(p.exe, exe);
-    return true; // a build: always a contender
+    return !own.gameOnly; // a build: a contender unless only games count
   });
 }
 

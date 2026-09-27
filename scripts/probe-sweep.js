@@ -14,8 +14,14 @@
 // Usage:
 //   node scripts/probe-sweep.js [--rig DIR] [--exe PATH] [--out DIR]
 //                               [--only id1,id2] [--keep-open] [--no-refresh]
-//                               [--width PX] [--shipped-assets]
+//                               [--width PX] [--shipped-assets] [--game-only]
 //                               [--operator-config [--operator-config-path F]]
+//
+// --game-only: before booting, wait only for other HumanityOS instances (the
+//   one-GPU rule), not for builds. For a boot check whose only question is
+//   "does it enter the world with no panic" while agents are compiling.
+//   Captures beside a build are still marked contaminated, so no timing from
+//   such a run is ever graded as a reading.
 // Defaults: rig = .probe-rig, exe = target/release/HumanityOS.exe,
 //           out = .probe-rig/sweeps/<timestamp>/, width = 2560
 // Writes <out>/manifest.json  [{id, desc, screenshot, fps, frame_ms, expect,
@@ -518,8 +524,11 @@ async function main() {
   // sweep that sat waiting 150 s ran NEXT TO somebody, which is worth knowing
   // when its numbers are compared with one that did not.
   const rigExePath = path.join(RIG, "HumanityOS.exe");
+  // --game-only: wait for other game instances only, not builds (a panics-
+  // only boot check; lib/machine-guard.js `gameOnly`). Captures beside a
+  // build are still marked contaminated below, so no timing is graded.
   const preBoot = MG.waitForFree({
-    own: { exe: rigExePath },
+    own: { exe: rigExePath, gameOnly: args.includes("--game-only") },
     label: "pre-boot",
     log: (m) => console.log(m),
   });
