@@ -469,7 +469,7 @@ impl Renderer {
             .map(|(i, _)| i);
         // The room table, in PICK ORDER (room_probes::pick_order): the header,
         // then every room with its light range. `slot_of[i]` is room i's row.
-        let order = pick_order(&render_rooms, cam_room);
+        let order = pick_order(&render_rooms, eye);
         let mut slot_of = vec![0u32; render_rooms.len()];
         for (slot, &i) in order.iter().enumerate() {
             slot_of[i] = slot as u32;

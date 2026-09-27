@@ -219,12 +219,12 @@ fn gi_pick_room(p: vec3<f32>, n: vec3<f32>) -> i32 {
     if (any(q < h.gmin.xyz - slack) || any(q > h.gmax.xyz + slack)) {
         return -1;
     }
-    // The table is ordered for this walk (room_probes_gpu, every frame): the
-    // camera's room first, because most of the screen is in it, then the rest
-    // by volume, smallest first. So the FIRST box that contains the point is
-    // the answer and the walk stops there, usually on its first step; only a
-    // point outside every box (a doorway, a wall's thickness) walks them all
-    // for the nearest one within the margin.
+    // The table is ordered for this walk every frame (room_probes::pick_order):
+    // nearest the eye first, so what is on screen usually stops within a step
+    // or two, and every room ahead of any room whose box contains it. So the
+    // FIRST box that contains the point is the answer; only a point outside
+    // every box (a doorway, a wall's thickness) walks them all for the nearest
+    // one within the margin.
     var best = -1;
     var best_d = GI_PICK_MARGIN + 1.0e-3;
     for (var i = 0u; i < h.info.x; i = i + 1u) {

@@ -109,18 +109,28 @@ keep what they have.
 megashader and the update shader). The room is picked half a metre along the
 normal and accepted within 0.25 m of a box: an inside wall face picks the room
 it faces, and the outside of the hull picks nothing. The room table is written
-in pick order every frame (the camera's room first, then the rest smallest
-first), so the first box containing the point wins and most fragments stop at
-the first step. Then DDGI's sample: the 8 probes of the cell around the point
+in pick order every frame (`room_probes::pick_order`): nearest the eye first,
+so what is on screen stops within a step or two (ordering by size alone put the
+greenhouse, seen through the great room's glass wall, behind thirty smaller
+rooms), and every room ahead of any room whose box contains it (the commons
+hall's box contains nine small rooms). The first box containing the point wins. Then DDGI's sample: the 8 probes of the cell around the point
 offset 0.1 m along the normal, each weighted by the smooth backface term, the
 Chebyshev test on its depth moments, the weight crush at 0.2 and its trilinear
 weight, blended in square-root space. A probe with no trilinear weight is
 skipped with its fetches, which is four of the eight on any floor, wall or
 ceiling. In `frag_tail`:
 
-    if (HAS_ROOM_GI && !under_sky && !screen_emitter) { ... indirect = max(room_light, AMBIENT_FLOOR) }
+    if (HAS_ROOM_GI && !under_sky && !screen_emitter && out_alpha >= 0.999) {
+        ... indirect = max(room_light, AMBIENT_FLOOR)
+    }
 
-(a screen's colour replaces the lit result, so it never pays for the sample).
+Two kinds of fragment keep the old floor. A screen, whose colour replaces the
+lit result, so the sample would be thrown away. And a see-through surface (a
+pane, a tent's film): its colour in this renderer is the tint of an alpha blend,
+not a diffuse reflectance (clear glass and film reflect almost nothing
+diffusely; what shows on them is what is behind them and the specular), and in
+the tent overdraw of the mushroom room its sample was a third of the sampling
+cost.
 
 **The visibility test runs only where it can change the answer.** Inside a room
 whose probes trace only its box, DDGI's Chebyshev test is an identity: the box is
@@ -132,9 +142,7 @@ and its depth fetch were also half the sampling cost, so a per-room flag
 (`ROOM_FLAG_VISIBILITY`, WGSL `GI_ROOM_VISIBILITY`) decides whether a room runs
 it: rung 1 leaves it off everywhere, rung 2 sets it for the rooms whose contents
 it traces, and `showcase {"room_gi_vis":"1"}` forces it on for A/B. The depth
-moments are written every update regardless, so rung 2 finds them converged. A
-see-through surface (a tent's film, a pane) never runs it either; in the
-mushroom room's tent overdraw it was the largest single cost.
+moments are written every update regardless, so rung 2 finds them converged.
 
 `HAS_ROOM_GI` is a FEATURE switch, a second kind beside the three shell
 switches: it guards a block in the shared tail and is live in more than one
@@ -202,7 +210,57 @@ seen failing first against a deliberate mutation, recorded in its comment):
 
 ## 4. Measured
 
-MEASURED_PLACEHOLDER
+All same-boot A/B with the dev switch, 2026-09-27. Pictures at 1600x900
+(photograph-home); costs from the rig's live 2560x1387 window with
+`HUMANITY_FRAME_COSTS=1`. The rig does not pin the clock, so the sun differs a
+little between boots (the off floor read 146 in the baseline boot, 140 here).
+The earlier boot of the same build read 153.9 / 48.0 / 77.0 / 110.9.
+
+| Where | Box | Room GI off | Room GI on | Target |
+| --- | --- | --- | --- | --- |
+| `25b-mushroom-racks` | floor (900,700)-(1300,850) | 139.5 | 153.5 | 147 to 175 |
+| `25b-mushroom-racks` | wall (1000,350)-(1300,480) | 4.0 | 46.3 | 38 to 84 |
+| `25b-mushroom-racks` | wall / floor, before the tone map | 0.024 | 0.17 | 0.15 to 0.40 |
+| `25c-oyster-rack-close` | shelf underside (600,20)-(1100,60) | 2.3 | 76.2 | at least 25 |
+| `25c-oyster-rack-close` | oyster block front (600,250)-(720,320) | 43.1 | 110.4 | at least 25 |
+
+The wall/floor ratio of 0.17 sits under the integrating-sphere estimate of 0.24
+to 0.31 for two reasons that are the rung's known limits: the probes see the
+sun through the glass lid at the lid's 0.65 transmittance and only where the
+box's walls let it in, while the floor on screen takes the full sun with no
+wall shadow at all (section 5); and the glass lid returns space, which is black.
+
+Cost at `console-face-6` (the acceptance fixture; three runs of six on/off
+cycles each): the probe update `gpu.room_probes` 0.21 ms; the sampling (the
+`gpu.scene` difference; `gpu.transparent` moves by less than 0.02 ms) 0.38 to
+0.44 ms; together 0.58 to 0.65 ms. Looking down the console room to the
+greenhouse glass (`09-console-room`) 0.80 ms, and through the great room's
+glass wall into the greenhouse (`06-great-room-south`) 0.67 ms, both after the
+pick order change below. The development path, for the record:
+
+| Step | Update | Sampling | Total |
+| --- | --- | --- | --- |
+| first cut (25b, 25c-like poses) | 0.30 to 0.33 | 2.1 to 3.2 | 2.4 to 3.5 |
+| skip probes with no trilinear weight, pick walk stops at the first box | 0.22 | 0.6 to 1.5 | 1.3 to 1.8 |
+| screens skip the sample, see-through surfaces sample without visibility | 0.23 | 0.76 (console-face-6) | 1.00 |
+| visibility test only in flagged rooms, constant tile rows | 0.25 | 0.61 | 0.86 |
+| see-through surfaces keep the floor | 0.21 | 0.38 to 0.44 | 0.58 to 0.65 |
+| pick order nearest-first with containment (final) | 0.21 | 0.38 | 0.59 |
+
+Forcing the visibility test on everywhere (`room_gi_vis`) costs 0.05 ms more in
+the update and 0.14 ms more in the sampling at `console-face-6`, and moves the
+picture by 0.9 sRGB codes on average (two default captures a minute apart differ
+by 0.2; room GI itself moves it by 17), which is the convexity argument holding
+on the GPU to within the probes' own frame-to-frame noise.
+
+CPU: `cpu.room_probes` (building the table and the update list, the uploads and
+the submit) reads 0.3 to 0.6 ms a frame. It is not in the GPU budget above;
+the obvious cuts are writing the table only when the lights or the pick order
+change and folding the dispatch into the scene pass's encoder.
+
+World entry: `probe-sweep --only blue-marble-12000km,console-face-6,console-face-6-room-gi-off`
+captured 3/3 with panics=0, and every photograph-home run above entered the
+world with 0 panics.
 
 ## 5. Known limits of rung 1
 
@@ -219,8 +277,12 @@ MEASURED_PLACEHOLDER
   `alpha * colour` and passes nothing to the room behind it; light through
   glass walls and open doorways between rooms is a portal problem for a later
   rung.
-- **Rooms are boxes.** An L-shaped room is its bounding box; where that box
-  overlaps a neighbour, the smaller box wins the pick.
+- **Rooms are boxes.** An L-shaped room is its bounding box. A room wholly
+  inside another's box wins the pick (the commons hall contains nine); where
+  two boxes only partly overlap, the one nearer the eye does.
+- **See-through surfaces keep the floor.** Panes and tent film take no room
+  light (section 3). If a translucent material that genuinely scatters (frosted
+  glass, fabric) arrives, it wants the sample back, flagged per material.
 - **No fill light.** The fixed fill light was retired in v0.1104; the probes do
   not model it.
 - **The CPU twin has no sky term.** The GPU adds the sky through a glass lid

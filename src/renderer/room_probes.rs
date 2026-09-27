@@ -473,14 +473,46 @@ pub fn pick_room(rooms: &[RoomBox], p: Vec3, n: Vec3) -> Option<usize> {
 }
 
 /// The order the room table is written in each frame, which is the order the
-/// pick walks it: the camera's room first (most of the screen is in it, so
-/// most fragments stop at the first box), then the rest by volume, smallest
-/// first, so where two boxes overlap (an L-shaped room is its bounding box)
-/// the smaller, more specific one wins.
-pub fn pick_order(rooms: &[RoomBox], cam_room: Option<usize>) -> Vec<usize> {
-    let mut rest: Vec<usize> = (0..rooms.len()).filter(|&i| Some(i) != cam_room).collect();
-    rest.sort_by(|&a, &b| rooms[a].volume().total_cmp(&rooms[b].volume()));
-    cam_room.into_iter().chain(rest).collect()
+/// pick walks it (the first box containing the point wins). Two rules:
+/// - COST: nearest the eye first (the rooms holding the eye at distance 0,
+///   smallest first), because what is on screen is mostly the room you stand
+///   in and the ones you see into, so most fragments stop within a step or two.
+///   Ordering by size alone put the greenhouse, seen through the great room's
+///   glass wall, behind thirty smaller rooms.
+/// - CORRECTNESS: a room whose box lies inside another's comes BEFORE it. The
+///   commons hall's box (a ring of corridor around the small rooms) contains
+///   nine of them; a fragment in one of those must not pick the hall just
+///   because the eye stands in the hall.
+pub fn pick_order(rooms: &[RoomBox], eye: Vec3) -> Vec<usize> {
+    let mut order: Vec<usize> = (0..rooms.len()).collect();
+    order.sort_by(|&a, &b| {
+        let (da, db) = (rooms[a].outside_distance(eye), rooms[b].outside_distance(eye));
+        da.total_cmp(&db).then(rooms[a].volume().total_cmp(&rooms[b].volume()))
+    });
+    let inside = |inner: &RoomBox, outer: &RoomBox| {
+        inner.min.cmpge(outer.min - Vec3::splat(1e-3)).all() && inner.max.cmple(outer.max + Vec3::splat(1e-3)).all()
+    };
+    // Move every contained room ahead of its container. Bounded: each move
+    // puts a room strictly earlier, and containment is acyclic up to equal
+    // boxes, which the volume tie-break already ordered.
+    let mut moved = true;
+    let mut guard = 0;
+    while moved && guard < rooms.len() * rooms.len() + 1 {
+        moved = false;
+        guard += 1;
+        'scan: for i in 0..order.len() {
+            for j in i + 1..order.len() {
+                let (a, b) = (order[i], order[j]);
+                if a != b && inside(&rooms[b], &rooms[a]) && rooms[b].volume() < rooms[a].volume() {
+                    let r = order.remove(j);
+                    order.insert(i, r);
+                    moved = true;
+                    break 'scan;
+                }
+            }
+        }
+    }
+    order
 }
 
 /// The weight the NEW estimate gets in the blend (1 - hysteresis), given how
@@ -1158,6 +1190,30 @@ mod tests {
             }
         }
         assert!(worst < 0.02, "the visibility test moved a sample inside the box by {:.1}%", worst * 100.0);
+    }
+
+    /// The pick order: nearest the eye first, but a room inside another
+    /// room's box always ahead of it. The commons hall's box contains nine
+    /// small rooms; standing in the hall, a fragment in one of them must
+    /// still pick that room. Seen fail first with the containment step
+    /// switched off (nearest first alone, which is what the first cut's
+    /// "camera's room first" amounted to): the hall came first, [1, 2, 0].
+    #[test]
+    fn a_room_inside_another_rooms_box_is_picked_first() {
+        let hall = grey_box(Vec3::ZERO, Vec3::new(30.0, 8.0, 30.0), 0.5);
+        let cell = grey_box(Vec3::new(10.0, 0.0, 10.0), Vec3::new(14.0, 8.0, 14.0), 0.5);
+        let far = grey_box(Vec3::new(40.0, 0.0, 0.0), Vec3::new(50.0, 3.0, 10.0), 0.5);
+        let rooms = vec![far.clone(), hall.clone(), cell.clone()];
+        let eye = Vec3::new(2.0, 1.7, 2.0); // in the hall, outside the cell
+        let order = pick_order(&rooms, eye);
+        let pos = |i: usize| order.iter().position(|&o| o == i).unwrap();
+        assert!(pos(2) < pos(1), "the cell comes before the hall that contains it: {order:?}");
+        assert!(pos(1) < pos(0), "the hall (holding the eye) before the far room: {order:?}");
+        let table: Vec<RoomBox> = order.iter().map(|&i| rooms[i].clone()).collect();
+        let picked = pick_room(&table, Vec3::new(12.0, 0.0, 12.0), Vec3::Y).map(|t| order[t]);
+        assert_eq!(picked, Some(2), "a floor point in the cell picks the cell");
+        let picked = pick_room(&table, Vec3::new(5.0, 0.0, 5.0), Vec3::Y).map(|t| order[t]);
+        assert_eq!(picked, Some(1), "a floor point in the hall picks the hall");
     }
 
     /// The sun reaches a surface only through a glass lid, and only when the
