@@ -1150,6 +1150,12 @@ bloom, godrays, SSAO, the cloud composite, the celestial passes) and every
 shader that tonemaps inline, so it is an arc, not an increment. Until then,
 `srgb_dither` is the stopgap to reach for on any surface that gets reported.
 
+**Planned 2026-09-27:** `docs/design/hdr-scene-target.md` is the build order
+(every writer of the scene with its blend and range, every inline tonemap and
+what it becomes, the capture paths, and six bootable increments; increment 4,
+one dither in a final pass, closes the banding report). Estimated cost 0.2 to
+0.4 ms at 1600x900.
+
 ### 4. The far-rung gates, G0(d) and G1 to G7
 
 Unchanged, and still the plan for the deeper cloud work. The increment is merged
