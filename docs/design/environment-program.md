@@ -293,6 +293,54 @@ The coupling-lesson increment, on the SHARED cloud_march_core so the DEFAULT sky
   overall coverage curve (still sheet-heavy at natural weather) is
   increment 11's mandate, not re-litigated here.
 
+**10c, THE IN-STEP LIGHT (2026-09-27, PRIORITIES item 2; `CLOUD_STEP_LIGHT`
+in 40-clouds.wgsl, Rust mirrors in renderer/clouds.rs):**
+- THE DEFECT THE MFP INTERIOR USED TO HIDE: increment 10 lights each step
+  by its sample (Hillaire's form assumes the source is constant across the
+  step), which holds while interior steps stay under about 0.75 optical
+  depths. The v0.1288 step economy floors the interior step at half the
+  pixel footprint; at 2,000 km that is the 928 m vertical ceiling, about 40
+  optical depths at 45/km. So the ONLY lit sample of a nadir ray sat about
+  0.9 km inside the deck (map_diag 6 white almost everywhere) and was shaded
+  as buried interior (map_diag 8 white everywhere): the sunlit skin the eye
+  actually sees was never shaded. Multiple scattering (on 09-22, gain 1.8 on
+  09-25) brightened that buried sample, which is why the deck came back and
+  why the brightness then depended on a gain nothing physical set.
+- THE FIX: the direct octaves are integrated across the step in closed form,
+  the sun depth ramping linearly in view optical depth (exact for a
+  horizontally stratified step, since sun and view depth accumulate through
+  the same density), with the powder factor inside the integral as the
+  (a + 2) exponential. The near end is MEASURED: the previous sample's
+  ladder, or after an entry one ladder at the bisection's last clear tap
+  (`lo`), so a sunlit top reads about 0 and a top in a neighbour's shadow
+  reads that shadow. A step thicker than 2 optical depths is shaded as two
+  segments, skin and interior, each with its own mean scattering point, so
+  burial and relief are read where the light is received; the relief rides
+  the bisection's inside tap, which already computed it. The entry ladder is
+  budgeted (`CLOUD_STEP_NEAR_TAU`): only a visible (trans > 0.5) step of at
+  least 1 optical depth pays for it.
+- THE TWIN: `CLOUD_STEP_LIGHT = false` is the point law. Measured on all 32
+  cloudlum fixtures against the pre-change build: signed mean dL within
+  +-0.06, the same noise floor as the Low tier that the change never touches.
+- PINNED: `step_avg_matches_quadrature` (12 cases including the 1 + a k = 0
+  limit and a slope that climbs toward the sun), `a_thick_sunlit_step_is_lit_at_its_top`,
+  `skin_split_partitions_the_step`, `step_light_is_on_in_the_shader`.
+- RESIDUAL, MEASURED AND NOT EXPLAINED: against the fine march (economy off)
+  in the same sweep, the economy-on deck now reads about 5% brighter in
+  frame mean L (with multiple scattering off it was 20% darker). Ruled out:
+  the far-end slope (measured at least twice the plane-parallel slope, which
+  darkens; forcing the geometric slope brightened further), relief placement
+  (read at the skin now, about 2 L), burial placement (the skin split, about
+  1 L), the entry bracket (a 3 m bracket moved nothing; the apparent move
+  was a sweep-order artifact of `cloudlum-2000-high-noms-eco0`). Suspects
+  left: the trapezoid view depth on a step from the thin skirt into the core
+  (dtau underestimated, the ramp read against it) and the ambient's weight
+  across the step.
+- LESSON: a step law that is safe at one range can quietly change the
+  LIGHTING at another. Any change to the step law gets the economy-off twin
+  (`cloudlum-*-eco0`) at the same frame, in the same sweep, measured on
+  brightness and not only on grain.
+
 ### 11. Far-field truth: fades deleted + coverage law, one look increment
 
 NOT a pure deletion - four coupled pieces in ONE increment or it reads as the next regression: (1) delete the detail/puff/cell distance fades (the concentric rings at 30-60 / 51-289 / 193-4495 km). (2) Re-center coverage for the now-always-on cell-split threshold raise (40-clouds.wgsl:1400-1408, currently distance-gated off at orbit - deleting the gate shifts global mean coverage). (3) Mip the 1440x720 weather map (mip_level_count:1 today, point-sampled through a steep smoothstep) and sample at footprint lod. (4) G2 de-binarization: the envelope smoothstep(0.35,0.9) turns a 27.8 km texel saying '40% cloudy' into keep/kill stipple - replace it so the rendered areal fraction inside a texel EQUALS the texel's fractional coverage at wide footprints (the soft-carve statistics-preserving principle applied at placement level; mipping alone is necessary but NOT sufficient). Plus: 8-px disc cutoff -> the existing per-object fade. Coverage/threshold shares machinery with R9's carve - land coherently, never double-correct.

@@ -3664,6 +3664,198 @@ fn cloud_scatter_energy(tau: f32, cos_vs: f32, tau_diff: f32) -> f32 {
     return e + CLOUD_MS_DIFFUSE * t_diff * (1.0 + 0.13 * cos_vs) * (1.0 - g_ms_on);
 }
 
+// ── IN-STEP LIGHT INTEGRATION (2026-09-27, PRIORITIES item 2) ──
+//
+// THE DEFECT. A march step was lit by ONE point, the sample at its far end,
+// and the step's whole opacity a_i = 1 - exp(-dtau) was applied to that
+// point's source. That is exact only while the source is constant across
+// the step, and the direct-sun source is not: it is exp(-a * tau_sun) per
+// octave, and tau_sun grows along a down-looking ray by about dtau / mu_s.
+// So a step several optical depths thick was lit by the source at its
+// BOTTOM while the eye sees its TOP. The step economy (v0.1288) floors the
+// interior step at half the pixel footprint, which at orbit range is the
+// whole 928 m vertical ceiling, about 40 optical depths at 45/km: the only
+// lit sample at 2000 km sat almost a kilometre inside the cloud, where
+// exp(-tau_sun) is ~0, and the sunlit skin that makes a cloud top white was
+// never shaded. That is the energy the High tier was missing (PRIORITIES
+// item 2: cloud at 0.69 of the desert, where Low, which shades the top
+// surface directly, read 1.08). Turning multiple scattering on (2026-09-22)
+// and raising its gain to 1.8 (09-25) brightened the deep sample instead,
+// which is why the deck came back, but only at a gain nothing physical set.
+//
+// THE FIX. Integrate the source across the step. With u the view optical
+// depth from the step's near end and the sun depth ramping linearly from
+// tau_n at the near end to tau_f at the far end (the sample) over dtau:
+//   integral_0^dtau exp(-a tau_s(u)) exp(-u) du
+//     = (exp(-a tau_n) - exp(-(a tau_f + dtau))) / (1 + a k),
+//   k = (tau_f - tau_n) / dtau,
+// with the 1 + a k -> 0 limit dtau * exp(-a tau_n). Divided by the step
+// opacity 1 - exp(-dtau), it is the value the caller's trans * a_i weight
+// expects in place of the point value exp(-a tau_f). Both exponents are
+// <= 0 for non-negative depths, so the form is stable for either slope sign
+// (a ray climbing toward the sun has k < 0). It is exact for a homogeneous
+// step and tends to the point value as the step thins, so near-field steps
+// of a fraction of an optical depth barely move. The near-end depth is
+// MEASURED, never assumed: the previous lit sample's own ladder value inside
+// a cloud, or one extra ladder at the step's near end after the ray enters
+// one (cloud_march_core), so a sunlit top and a top in a neighbour's shadow
+// both keep their real sun depth. The burial terms (the in-cloud source,
+// the ambient, the powder release) are read at the step's mean scattering
+// depth for the same reason.
+//
+// false = the point law, bit-identical to v0.1378 (the A/B twin): flip it
+// and the shader hot reload shows both in one boot.
+const CLOUD_STEP_LIGHT: bool = true;
+
+// THE SKIN SPLIT. One analytic integral is exact for the direct octaves,
+// which are exponentials of the ramp, but the step's other terms are not:
+// burial (which engages the in-cloud source and fades the sky ambient
+// from 1 to 4 optical depths down) and the relief read at the step's
+// mean point. A 40-optical-depth step read at ONE point, about one
+// optical depth below its top, shades everything the eye sees as
+// unburied skin. So a step thicker than this is integrated as two
+// segments, the skin [0, 2] and the interior [2, dtau], each with its
+// own ramp and its own mean scattering point, weighted by the share of
+// the step's opacity each holds (1 - e^-2 = 86% and the rest). A step
+// no thicker than the skin is one segment, exactly as before. Measured
+// against the fine march (economy off, 3 m entry bracket) at the noon
+// Sahara frame: see PRIORITIES item 2.
+const CLOUD_STEP_SKIN_TAU: f32 = 2.0;
+
+// THE NEAR-END LADDER BUDGET. A step whose near end has no measured sun
+// depth (the ray has just entered a cloud) pays one extra sun ladder for
+// it. Measured, the budget below took that cost off the thin-step and
+// in-atmosphere marches (economy-off twin +1.25 -> +0.66 ms, the view from
+// below the deck +0.49 -> +0.28 ms). The ramp only matters on a step thick enough for
+// the sun depth to change across it, and only where the eye still sees
+// through to it, the same first-entry logic the bisection budget uses.
+// So the ladder runs on a step of at least this many optical depths
+// seen at eye transmittance above 0.5; any other step with no chained
+// depth lights flat at its sample's own depth, which is the point law.
+const CLOUD_STEP_NEAR_TAU: f32 = 1.0;
+
+// THE THIN-STEP FADE. On a march of thin steps (Ultra's quarter-rind
+// refinement, the economy-off twin) the in-step law changes nothing
+// measurable (both frames within 0.5 L) but still evaluates eleven step
+// integrals per sample where the point law takes five exponentials. So
+// the step depth the lighting sees fades to 0 over [this, 1] optical
+// depths: below a quarter optical depth a step is lit by the point law
+// on its cheap path, at 1 and above by the exact integral, continuous
+// between (a hard switch would draw a contour at every cloud edge where
+// the step depth crosses the threshold). Opacity is never faded.
+const CLOUD_STEP_THIN_TAU: f32 = 0.25;
+
+// The step-averaged exp(-a * tau_sun), see the block above.
+fn cloud_step_avg(a: f32, tau_n: f32, tau_f: f32, dtau: f32) -> f32 {
+    if (dtau < 1.0e-3) {
+        return exp(-a * tau_f);
+    }
+    let e_n = exp(-a * tau_n);
+    // dtau * (1 + a k): the in-step decay rate times the step.
+    let x = dtau + a * (tau_f - tau_n);
+    var g = dtau * e_n;
+    if (abs(x) > 1.0e-3 * dtau) {
+        g = (e_n - exp(-(a * tau_f + dtau))) * dtau / x;
+    }
+    return g / (1.0 - exp(-dtau));
+}
+
+// The mean scattering depth of a step as a FRACTION of the step measured
+// back from its far end: the eye receives a step's light at the mean of u
+// under exp(-u) on [0, dtau], which is dtau / 2 for a thin step and one
+// optical depth below its near end for a thick one.
+fn cloud_step_back_frac(dtau: f32) -> f32 {
+    if (!CLOUD_STEP_LIGHT || dtau < 1.0e-3) {
+        return 0.0;
+    }
+    let e_d = exp(-dtau);
+    let u_mean = (1.0 - (1.0 + dtau) * e_d) / max(1.0 - e_d, 1.0e-6);
+    return clamp(1.0 - u_mean / dtau, 0.0, 1.0);
+}
+
+// cloud_scatter_energy integrated across the march step: every
+// exp(-a tau) becomes cloud_step_avg, and the powder factor
+// 1 - pk exp(-2 tau), which the point law applies to the whole sum from
+// outside, moves inside the integral as the (a + 2) exponential, because a
+// product of two exponentials of one ramp is a third. pk is the powder
+// strength left after the path, the powder gate and the burial release.
+// At dtau -> 0 every term is the point law exactly: max(e, floor) * pw.
+fn cloud_scatter_energy_step(
+    tau_n: f32, tau_f: f32, dtau: f32, cos_vs: f32, tau_diff: f32, pk: f32,
+) -> f32 {
+    var e = 0.0;
+    var c_n = 1.0;
+    var a_n = 1.0;
+    var g_n = 1.0;
+    for (var n = 0; n < 4; n = n + 1) {
+        let ph_dir = mix(
+            cloud_hg(cos_vs, CLOUD_HG_BACK * g_n),
+            cloud_hg(cos_vs, CLOUD_HG_FWD * g_n),
+            CLOUD_HG_FWD_WEIGHT,
+        );
+        let ph = mix(ph_dir, 1.0, g_ms_prof * g_ms_on);
+        e = e + c_n * ph * (cloud_step_avg(a_n, tau_n, tau_f, dtau)
+            - pk * cloud_step_avg(a_n + 2.0, tau_n, tau_f, dtau));
+        c_n = c_n * 0.5;
+        a_n = a_n * 0.5;
+        g_n = g_n * 0.5;
+    }
+    let ph_wide = mix(
+        cloud_hg(cos_vs, CLOUD_HG_BACK * 0.25),
+        cloud_hg(cos_vs, CLOUD_HG_FWD * 0.25),
+        CLOUD_HG_FWD_WEIGHT,
+    );
+    e = max(e, CLOUD_SUN_RELAX * ph_wide * (cloud_step_avg(0.25, tau_n, tau_f, dtau)
+        - pk * cloud_step_avg(2.25, tau_n, tau_f, dtau)));
+    let t_diff = 1.0 / (1.0 + 0.75 * (1.0 - CLOUD_HG_FWD) * tau_diff);
+    return e + CLOUD_MS_DIFFUSE * t_diff * (1.0 + 0.13 * cos_vs) * (1.0 - g_ms_on)
+        * (1.0 - pk * cloud_step_avg(2.0, tau_n, tau_f, dtau));
+}
+
+// Arm A's burial terms read at a point p_m on the march step (a
+// segment's mean scattering point), by the same laws the march applies
+// at its sample p: the envelope column up to the cloud's own top and down
+// to the band base (blended toward the built body's interior column by
+// sat_a1), the built-body depth (less the distance back along the ray),
+// the envelope column the ambient and diffusion floor read, and the slab
+// height. At p_m = p every field is bit-equal to the sample's own. The
+// column top, the body's vertical position and top, and its interior
+// density arrive as the caller's SNAPSHOTS of the sample's globals: the
+// sun ladder's density taps overwrite all four, so the segment work can
+// run after the ladder without depending on the order of global writes.
+// (Measured: moving it there did not change the cloud pass cost; the
+// law compiled but never executed costs about 0.3 ms by its presence.)
+struct CloudStepBurial {
+    tau_above: f32,
+    tau_below: f32,
+    tau_built: f32,
+    tau_vert_env: f32,
+    h: f32,
+}
+
+fn cloud_step_burial(
+    p_m: vec3<f32>, p: vec3<f32>, back_len: f32, h_lo: f32, sigma_v: f32,
+    s_carve: f32, s_btop: f32, sat_a1: f32, tau_built: f32,
+    coltop: f32, up_b: f32, top_b: f32, int_dens: f32,
+) -> CloudStepBurial {
+    let slab = g_cloud_rt - g_cloud_rb;
+    let h_m = clamp((length(p_m) - g_cloud_rb) / slab, 0.0, 1.0);
+    let col_above = max(coltop - h_m, 0.0) * slab;
+    let col_below = max(h_m - h_lo, 0.0) * slab;
+    let up_m = up_b + (length(p_m) - length(p)) / max(0.001 * g_cloud_upkm, 1.0e-12);
+    let col_above_b = max(top_b - up_m, 0.0) * 0.001 * g_cloud_upkm;
+    let col_below_b = max(up_m, 0.0) * 0.001 * g_cloud_upkm;
+    var o: CloudStepBurial;
+    o.tau_above = sigma_v * mix(s_carve * col_above,
+        max(s_carve * col_above, int_dens * col_above_b), sat_a1);
+    o.tau_below = sigma_v * mix(s_carve * col_below,
+        max(s_carve * col_below, int_dens * col_below_b), sat_a1);
+    o.tau_built = max(tau_built - sigma_v * back_len, 0.0);
+    o.tau_vert_env = sigma_v * s_carve * max(s_btop - h_m, 0.0) * slab;
+    o.h = h_m;
+    return o;
+}
+
 // ── INCREMENT A3: THE IN-SCATTERED SOURCE (v0.1280) ──
 // Eddington two-stream, conservative (omega0 = 1: a droplet is a near-perfect
 // scatterer, so more extinction means MORE light returned, never less - the
@@ -4565,7 +4757,13 @@ fn cloud_fr_t_pf(w_pf: f32, f: f32, D_in: f32, sigma_v: f32, l_h: f32, l_v: f32,
 // cloud_ms_source per band sample. Publishes g_ms_prof for the arm's own
 // cloud_scatter_energy call (the octaves go isotropic with burial).
 struct FrShadeIn {
-    tau: f32,           // sun optical depth of this arm
+    tau: f32,           // sun optical depth of this arm (at the sample)
+    // In-step light (CLOUD_STEP_LIGHT): the sun depth at the step's NEAR end
+    // and the step's view optical depth. dtau = 0 is the point law.
+    tau_n: f32,
+    dtau: f32,
+    // Burial terms below are read at the step's mean scattering depth
+    // (the caller moves them there; equal to the sample's at dtau = 0).
     tau_above: f32,     // column above (burial, e_ms, the A-form tau_vert)
     tau_below: f32,     // column below (burial, e_ms)
     tau_built: f32,     // signed depth inside a built body (arm A only)
@@ -4641,7 +4839,18 @@ fn cloud_fr_shade(a: FrShadeIn) -> FrShade {
     // this sample (light travelling up), mu_s the sun cosine.
     let ms_gain = select(1.0, camera.light5_color.z, camera.light5_color.z > 0.0);
     let e_ms = cloud_ms_source(a.tau_above, a.tau_below, dot(-a.rd, a.dirp), a.ndl, prof) * ms_gain;
-    let direct = cloud_scatter_energy(a.tau, a.cos_vs, tau_vert) * pw_a + e_ms;
+    // In-step light: the sun octaves integrated across the step, the powder
+    // factor inside the integral (pk = what pw_a takes away at tau 0: the
+    // path's strength, eased by the gate and released by burial, exactly
+    // the factors pw and pw_a apply above). The else arm is the point law.
+    var direct = 0.0;
+    if (CLOUD_STEP_LIGHT) {
+        let pk = select(CLOUD_POWDER_STRENGTH, 0.0, material.params.y >= 2.5)
+            * (1.0 - a.powder_gate) * (1.0 - prof);
+        direct = cloud_scatter_energy_step(a.tau_n, a.tau, a.dtau, a.cos_vs, tau_vert, pk) + e_ms;
+    } else {
+        direct = cloud_scatter_energy(a.tau, a.cos_vs, tau_vert) * pw_a + e_ms;
+    }
 
     // Ambient skylight (clouds depth increment): height across the slab
     // picks the base value (tops see the sky dome), then the VERTICAL
@@ -5288,6 +5497,35 @@ fn cloud_march_core(
     // integrates from it) and the last CLEAR sample (the entry depth).
     var t_last = m0;
     var t_last_clear = m0;
+    // In-step light (CLOUD_STEP_LIGHT): the last arm-A sun depth the ladder
+    // measured and the march position it belongs to. It is the next step's
+    // near-end depth only if that step starts exactly there; any skipped
+    // sample, entry bisection or gap moves the near end and invalidates it
+    // by construction, and the step's near end then gets a ladder of its own.
+    var sun_prev = 0.0;
+    var sun_prev_t = -1.0;
+    // After an entry bisection the step restarts from `hi`, the first tap
+    // INSIDE the cloud, up to 30 m below the true top: 1.35 optical depths
+    // at 45/km, and at a grazing sun up to 9 of sun depth. A near-end ladder
+    // there would light the step from below its own sunlit skin, by an
+    // amount that is a per-pixel coin flip of the bracket. The ladder is
+    // taken at `lo`, the last CLEAR tap, instead, which carries only what
+    // shadows the top from outside (another cloud), and the ramp then treats
+    // the top as lying at `hi`: the brightness of the skin is kept, its
+    // position moves by at most the 30 m bracket. light_near_for names the
+    // step start this applies to, so it can never leak to a later step.
+    var light_near_t = -1.0;
+    var light_near_for = -1.0;
+    // The step's near-end relief (puff cavity, crown), the twin of
+    // sun_prev: the previous sample's, or the entry bisection's inside tap
+    // (which computes both and used to keep only the density). A thick
+    // step is lit from its skin, so it takes the skin's relief; the
+    // sample's own, hundreds of metres down, reads an empty cavity field
+    // and valley shade. Measured: relief read at the sample left the
+    // economy-on deck 6.4 L brighter against the fine march than the same
+    // two with relief neutral (the fix's first cut).
+    var rel_prev = vec2<f32>(0.0, 1.0);
+    var rel_prev_t = -1.0;
     g_march_first_depth_m = 0.0;
     if (est && m0 <= 1.0e-6) {
         // The eye is inside the slab: one tap AT the eye primes the state so
@@ -5495,6 +5733,9 @@ fn cloud_march_core(
             t_cur = t_cur + dt;
         }
         let seg_len = tm - t_last;
+        // The step's near end (in-step light): the previous sample, or the
+        // entry crossing a bisection restarted from.
+        let t_near = t_last;
         t_last = tm;
 
         let p = ro + rd * tm;
@@ -5783,6 +6024,7 @@ fn cloud_march_core(
             var lo = t_last_clear;
             var hi = tm;
             var dens_hi = dens;
+            var rel_hi = dc.yz;
             // Five bisections (v0.1276; was two). Two left the crossing within
             // seg_len/4 - 175-350 m at 26 km - and on a flat cloud top that
             // error, taken modulo the step comb, printed CONCENTRIC CONTOUR
@@ -5803,17 +6045,25 @@ fn cloud_march_core(
                 }
                 let mid = 0.5 * (lo + hi);
                 let pm = ro + rd * mid;
-                let dm = cloud_density_hi(
-                    pm, t, seed, weather_a, reg, detail_amt, puff_amt, cell_amt, lodb).x;
+                let dmv = cloud_density_hi(
+                    pm, t, seed, weather_a, reg, detail_amt, puff_amt, cell_amt, lodb);
+                let dm = dmv.x;
                 if (dm > CLOUD_STEP_INTERIOR_GATE) {
                     hi = mid;
                     dens_hi = dm;
+                    rel_hi = dmv.yz;
                 } else {
                     lo = mid;
                 }
             }
             t_cur = hi;
             t_last = hi;
+            // In-step light: the next step's sun ladder goes at the last
+            // clear tap (see light_near_t).
+            light_near_for = hi;
+            light_near_t = lo;
+            rel_prev = rel_hi;
+            rel_prev_t = hi;
             dens_prev = dens_hi;
             sdf_prev = g_v2_sdf_m;
             top_prev = g_v2_top_m;    // D3 (b): the last bisection tap's winner, same lag as sdf_prev
@@ -5952,6 +6202,24 @@ fn cloud_march_core(
         let tau_below = sigma_v * mix(s_carve * col_below,
             max(s_carve * col_below, g_v2_int_dens * col_below_b), sat_a1);
         let tau_built = sigma_v * max(-g_v2_sdf_m, 0.0) * 0.001 * g_cloud_upkm;
+        // ── IN-STEP LIGHT (CLOUD_STEP_LIGHT, see cloud_step_avg) ── this
+        // step's view optical depth on the field's share (arm A), and the
+        // point inside it where the eye receives its light: back along the
+        // ray from the sample by the step's mean scattering depth. The
+        // burial columns above are the SAMPLE's (the sun ladder's buried
+        // fallback wants them there); cloud_step_burial reads the same laws
+        // at each segment's mean point, which is what the shading uses.
+        // dtau_a = 0 (the twin off, est off, or a profile-only sample)
+        // leaves every segment value bit-equal to its sample twin.
+        let dtau_raw = sigma_v * dens_i * seg_used * (1.0 - w_pf);
+        let dtau_a = select(0.0, dtau_raw * smoothstep(CLOUD_STEP_THIN_TAU, 1.0, dtau_raw),
+            CLOUD_STEP_LIGHT && est && full);
+        // The burial inputs the sun ladder below overwrites, snapshotted
+        // here so the segment burials are read after it (cloud_step_burial).
+        let b_coltop = g_cloud_coltop;
+        let b_up = g_v2_up_m;
+        let b_top = g_v2_top_m;
+        let b_int = g_v2_int_dens;
         // E2 hygiene: g_sun_tau_col is the FIELD's own column (arm A), never
         // a mixed value. The shipped mix assigned it AFTER mixing the
         // profile's in-cloud column into tau_above, and it re-entered the
@@ -5972,11 +6240,43 @@ fn cloud_march_core(
         // two are never mixed; each arm is shaded on its own and the
         // radiance is blended.
         var tau = 0.0;
+        // In-step light: the sun depth at this step's near end. -1 = not
+        // measured: the ramp is then flat at the sample's own depth (set
+        // after the main ladder below).
+        var tau_n_a = -1.0;
         if (full) {
             g_deep_sample = select(0.0, 1.0, trans < 0.5);
+            if (dtau_a >= 1.0e-3) {
+                if (sun_prev_t == t_near) {
+                    tau_n_a = sun_prev;
+                } else if (dtau_a >= CLOUD_STEP_NEAR_TAU && trans > 0.5) {
+                    // The near end carries no measured depth: the ray has
+                    // just entered this cloud. One ladder at the last clear
+                    // point before it (the bisection's `lo`, or the clear
+                    // sample the step starts from), so a sunlit top reads ~0
+                    // and a top in a neighbour's shadow reads that shadow;
+                    // its buried fallback takes that point's own column (the
+                    // sample's, less the rise). Runs once per entry; the
+                    // restore below also undoes the body globals this ladder
+                    // overwrites.
+                    let t_ln = select(t_near, light_near_t, light_near_for == t_near);
+                    let p_n = ro + rd * t_ln;
+                    let dz_n = length(p_n) - length(p);
+                    g_sun_tau_col = max(tau_above - sigma_v * s_carve * dz_n, 0.0) / max(ndl, 0.15);
+                    tau_n_a = cloud_sun_tau(
+                        p_n, sun_local, t, seed, weather_a, reg, detail_amt, puff_amt,
+                        cell_amt, lodb);
+                    g_sun_tau_col = tau_above / max(ndl, 0.15);
+                }
+            }
             tau = cloud_sun_tau(
                 p, sun_local, t, seed, weather_a, reg, detail_amt, puff_amt, cell_amt,
                 lodb);
+            if (tau_n_a < 0.0) {
+                tau_n_a = tau;
+            }
+            sun_prev = tau;
+            sun_prev_t = tm;
             g_v2_warp_m = s_warp;
             g_v2_sdf_m = s_sdf;
             // D3 (b): restore the eye value after the ladder, the invariant
@@ -6037,15 +6337,72 @@ fn cloud_march_core(
         // w_l = 0, arm A alone, the shipped expressions. Cost: the second
         // arm only inside the band.
         var sh = FrShade(vec3<f32>(0.0), 0.0, 0.0, 0.0);
+        // In-step light: arm A takes its measured near-end sun depth, the
+        // step's optical depth and the mean-point burial; arm B (the far
+        // rung's profile, off by default) keeps the point law (dtau 0). If
+        // the far rung is ever enabled, give it the same form: its near end
+        // is the plane-parallel column tau_above_in - c * dtau.
+        // Two segments on a thick step (the skin split): the ramp is cut at
+        // d_sk (the sun depth there interpolated along it), each segment
+        // takes its own mean-point burial and its relief interpolated
+        // between the sample's and the near end's, and the two radiances
+        // blend by the share of the step's opacity each holds.
         if (w_l < 1.0) {
+            // The skin split (CLOUD_STEP_SKIN_TAU): the skin [0, d_sk] and, on
+            // a thicker step, the interior [d_sk, dtau_a]. back_* is where each
+            // segment's mean scattering point sits, as a share of the step
+            // back from the sample; one segment gives the single-step value,
+            // and dtau_a = 0 gives 0 (p itself: the twin).
+            let d_sk = min(dtau_a, CLOUD_STEP_SKIN_TAU);
+            let d_in = dtau_a - d_sk;
+            let two_seg = d_in >= 1.0e-3;
+            let u_sk = d_sk * (1.0 - cloud_step_back_frac(d_sk));
+            let u_in = d_sk + d_in * (1.0 - cloud_step_back_frac(d_in));
+            let back_sk = select(cloud_step_back_frac(d_sk),
+                1.0 - u_sk / max(dtau_a, 1.0e-6), two_seg);
+            let back_in = select(0.0, 1.0 - u_in / max(dtau_a, 1.0e-6), two_seg);
+            let bur_sk = cloud_step_burial(
+                p - rd * (seg_used * back_sk), p, seg_used * back_sk, reg.h_lo, sigma_v,
+                s_carve, s_btop, sat_a1, tau_built, b_coltop, b_up, b_top, b_int);
+            // The near end's relief (see rel_prev).
+            let rel_near = select(dc.yz, rel_prev, rel_prev_t == t_near);
+            let tau_split = select(tau, mix(tau_n_a, tau, d_sk / max(dtau_a, 1.0e-6)), two_seg);
+            let rel_sk = mix(dc.yz, rel_near, back_sk);
+            let vb_sk = clamp(
+                1.0 - (bur_sk.h - reg.h_lo) / max(s_btop - reg.h_lo, 1.0e-4), 0.0, 1.0);
             sh = cloud_fr_shade(FrShadeIn(
-                tau, tau_above, tau_below, tau_built, tau_vert_env,
-                crown_shade, pouch_shade, dc.y, s_v2_w,
-                h, ndl, day, cos_vs, powder_gate, trans, rd, dirp, sun_energy));
+                tau_split, tau_n_a, d_sk, bur_sk.tau_above, bur_sk.tau_below, bur_sk.tau_built,
+                bur_sk.tau_vert_env,
+                mix(crown_floor, 1.12, rel_sk.y), mix(1.0, 0.72, s_pouch * vb_sk * vb_sk),
+                rel_sk.x, s_v2_w,
+                bur_sk.h, ndl, day, cos_vs, powder_gate, trans, rd, dirp, sun_energy));
+            if (two_seg) {
+                let bur_in = cloud_step_burial(
+                    p - rd * (seg_used * back_in), p, seg_used * back_in, reg.h_lo, sigma_v,
+                    s_carve, s_btop, sat_a1, tau_built, b_coltop, b_up, b_top, b_int);
+                let rel_in = mix(dc.yz, rel_near, back_in);
+                let vb_in = clamp(
+                    1.0 - (bur_in.h - reg.h_lo) / max(s_btop - reg.h_lo, 1.0e-4), 0.0, 1.0);
+                let sh_in = cloud_fr_shade(FrShadeIn(
+                    tau, tau_split, d_in, bur_in.tau_above, bur_in.tau_below, bur_in.tau_built,
+                    bur_in.tau_vert_env,
+                    mix(crown_floor, 1.12, rel_in.y), mix(1.0, 0.72, s_pouch * vb_in * vb_in),
+                    rel_in.x, s_v2_w,
+                    bur_in.h, ndl, day, cos_vs, powder_gate, trans * exp(-d_sk), rd, dirp,
+                    sun_energy));
+                let w_sk = 1.0 - exp(-d_sk);
+                let w_in = exp(-d_sk) * (1.0 - exp(-d_in));
+                let k_in = w_in / max(w_sk + w_in, 1.0e-6);
+                sh = FrShade(
+                    mix(sh.c, sh_in.c, k_in),
+                    mix(sh.sun_l, sh_in.sun_l, k_in),
+                    mix(sh.amb_l, sh_in.amb_l, k_in),
+                    mix(sh.prof, sh_in.prof, k_in));
+            }
         }
         if (w_l > 0.0) {
             let shb = cloud_fr_shade(FrShadeIn(
-                tau_pf, tau_above_in, tau_below_in, 0.0, tau_above_in,
+                tau_pf, tau_pf, 0.0, tau_above_in, tau_below_in, 0.0, tau_above_in,
                 1.0, 1.0, 0.0, 0.0,
                 h, ndl, day, cos_vs, powder_gate, trans, rd, dirp, sun_energy));
             if (w_l >= 1.0) {
@@ -6057,6 +6414,11 @@ fn cloud_march_core(
                     mix(sh.amb_l, shb.amb_l, w_l),
                     mix(sh.prof, shb.prof, w_l));
             }
+        }
+        // This sample is the next step's near end (relief, see rel_prev).
+        if (full) {
+            rel_prev = dc.yz;
+            rel_prev_t = tm;
         }
         let c_i = sh.c;
         acc = acc + c_i * (trans * a_i);

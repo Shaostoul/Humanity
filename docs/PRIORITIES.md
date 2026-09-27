@@ -336,6 +336,40 @@ Fixtures: `cloudgrey-*` (the broken-coverage ladder), `decklum-*-eco0/1` and
 
 ### 2. THE CLOUDS ARE TOO DARK. The static is its symptom, not the defect
 
+**STATUS 2026-09-27: cause found, fix on branch `worktree-agent-a9b14a7ffce488f62`
+(`CLOUD_STEP_LIGHT` in 40-clouds.wgsl), still being finished.** Fixture set
+`cloudlum-*` (33, each `desc` carries its reading).
+
+- **Which candidate.** Not 1: the profile knob ships at 0, so arm B never runs
+  and there is no blend to lose energy in. Not 2 as posed: the sun ladder is
+  not over-shadowing anything; the SAMPLE it is asked about is in the wrong
+  place. The step economy (v0.1288) floors the interior step at half the pixel
+  footprint, which at 2,000 km is the whole 928 m vertical ceiling, about 40
+  optical depths. So the only lit sample of a nadir ray sits about 0.9 km
+  inside the deck (entry-depth channel white almost everywhere) and the whole
+  visible deck was shaded as buried interior (burial channel white
+  everywhere); the sunlit skin the eye sees was never lit. Candidate 3 was
+  already ON (2026-09-22) and its gain raised to 1.8 (2026-09-25); it
+  brightened that buried sample, which is why the ratio was already 1.12 on
+  High before this work: compensation, not a cure. With multiple scattering
+  off the defect is plain: ratio 0.66, against 0.82 with the economy off.
+- **The fix** integrates the direct light across each step in closed form
+  from its measured near end (the skin), shades thick steps as skin plus
+  interior, and reads relief at the skin. Twin OFF reproduces the old frame on
+  all 32 fixtures (signed mean dL within 0.06). Measured at the noon Sahara
+  frame, High: ratio 1.12 -> 1.17 at the shipped settings, 0.66 -> 0.92 with
+  multiple scattering off, 0.78 -> 1.13 with its source zeroed (the gain now
+  barely matters at orbit); low sun 0.80 -> 0.93; terminator mean 84.7 ->
+  100.5. Low is unchanged everywhere.
+- **Open.** (a) Cost: the cloud pass +0.8 ms on High at 2,000 km (2.2 -> 3.0),
+  and about +2 ms on Ultra for no visible change; being cut. (b) A +5%
+  residual against the economy-off fine march in the same sweep, not yet
+  explained (slope, relief, burial placement and the entry bracket are ruled
+  out). (c) Grain is essentially unchanged at noon (0.63% -> 0.64%), so the
+  missing energy was not the grain's main carrier; 2a-i is untouched. (d)
+  The multiple-scattering gain default (1.8) is left alone; re-derive it at
+  the in-atmosphere vantages now that it no longer carries the orbit deck.
+
 **Rewritten 2026-09-22 after measuring the thing nobody had measured.** Seven
 hypotheses had been refuted, all of them about NOISE. The framing was wrong.
 Read this before spending anything on the grain.

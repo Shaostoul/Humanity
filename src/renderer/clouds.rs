@@ -764,6 +764,67 @@ pub fn cloud_scatter_energy(tau: f32, cos_vs: f32) -> f32 {
     e + CLOUD_MS_DIFFUSE * t_diff
 }
 
+/// Mirrors `cloud_step_avg` (40-clouds.wgsl, the in-step light integration,
+/// 2026-09-27, PRIORITIES item 2): the mean of `exp(-a * tau_sun)` over one
+/// march step, weighted by the eye transmittance inside the step and
+/// normalised by the step's opacity, with the sun depth ramping linearly from
+/// `tau_n` at the step's near end to `tau_f` at its far end (the sample) over
+/// the step's view optical depth `dtau`. It replaces the point value
+/// `exp(-a * tau_f)` that lit a whole step by its far end: at orbit range the
+/// step economy makes that far end about 40 optical depths below the cloud
+/// top, so the sunlit skin a real cloud top is white from was never shaded.
+/// Keep identical with the WGSL.
+pub fn cloud_step_avg(a: f32, tau_n: f32, tau_f: f32, dtau: f32) -> f32 {
+    if dtau < 1.0e-3 {
+        return (-a * tau_f).exp();
+    }
+    let e_n = (-a * tau_n).exp();
+    // dtau * (1 + a k), k = (tau_f - tau_n) / dtau.
+    let x = dtau + a * (tau_f - tau_n);
+    let mut g = dtau * e_n;
+    if x.abs() > 1.0e-3 * dtau {
+        g = (e_n - (-(a * tau_f + dtau)).exp()) * dtau / x;
+    }
+    g / (1.0 - (-dtau).exp())
+}
+
+/// Mirrors `CLOUD_STEP_SKIN_TAU` (40-clouds.wgsl): a march step thicker than
+/// this many view optical depths is shaded as two segments, the skin
+/// [0, 2] and the interior beyond it, each with its own ramp and mean
+/// scattering point. The direct octaves integrate exactly either way
+/// (`skin_split_partitions_the_step`); the split exists for the terms that
+/// are not exponentials of the ramp (burial, relief).
+pub const CLOUD_STEP_SKIN_TAU: f32 = 2.0;
+
+/// Mirrors `CLOUD_STEP_NEAR_TAU` (40-clouds.wgsl): the near-end sun ladder
+/// (one extra ladder per cloud entry) runs only on a step at least this
+/// many optical depths thick that the eye still sees through to
+/// (transmittance above 0.5). Thinner or hidden steps light flat at their
+/// sample's own depth, the point law.
+pub const CLOUD_STEP_NEAR_TAU: f32 = 1.0;
+
+/// Mirrors `CLOUD_STEP_THIN_TAU` (40-clouds.wgsl): the step depth the
+/// lighting sees is `dtau * smoothstep(CLOUD_STEP_THIN_TAU, 1, dtau)`, so a
+/// step under a quarter optical depth takes the point law's cheap path and
+/// one of 1 or more the exact integral, continuous between. Opacity is
+/// never faded. On thin-step marches (Ultra, the economy-off twin) the
+/// integral changed nothing measurable but cost per-sample arithmetic.
+pub const CLOUD_STEP_THIN_TAU: f32 = 0.25;
+
+/// Mirrors `cloud_step_back_frac` (40-clouds.wgsl): where inside a step the
+/// eye receives its light, as a fraction of the step back from its far end.
+/// The mean of u under exp(-u) on [0, dtau] is dtau / 2 for a thin step and
+/// one optical depth below the near end for a thick one. (The WGSL also
+/// returns 0 when the in-step twin is switched off.)
+pub fn cloud_step_back_frac(dtau: f32) -> f32 {
+    if dtau < 1.0e-3 {
+        return 0.0;
+    }
+    let e_d = (-dtau).exp();
+    let u_mean = (1.0 - (1.0 + dtau) * e_d) / (1.0 - e_d).max(1.0e-6);
+    (1.0 - u_mean / dtau).clamp(0.0, 1.0)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1043,6 +1104,9 @@ mod tests {
             ("CLOUD_AMB_BASE", CLOUD_AMB_BASE),
             ("CLOUD_AMB_TOP", CLOUD_AMB_TOP),
             ("CLOUD_AMB_BOUNCE", CLOUD_AMB_BOUNCE),
+            ("CLOUD_STEP_SKIN_TAU", CLOUD_STEP_SKIN_TAU),
+            ("CLOUD_STEP_NEAR_TAU", CLOUD_STEP_NEAR_TAU),
+            ("CLOUD_STEP_THIN_TAU", CLOUD_STEP_THIN_TAU),
         ];
         for (name, rust_val) in expect {
             let needle = format!("const {name}: f32 = ");
@@ -1486,6 +1550,118 @@ mod tests {
             rim > side * 5.0,
             "forward lobe too weak for a silver lining: rim {rim} side {side}"
         );
+    }
+
+    /// The in-step light integral against brute-force quadrature, over both
+    /// slope signs, the 1 + a k -> 0 limit and steps from a fraction of an
+    /// optical depth to the 40 an orbit-range step spans.
+    #[test]
+    fn step_avg_matches_quadrature() {
+        let quad = |a: f64, tn: f64, tf: f64, d: f64| -> f64 {
+            let n = 200_000;
+            let h = d / n as f64;
+            let mut s = 0.0;
+            for i in 0..n {
+                let u = (i as f64 + 0.5) * h;
+                let ts = tn + (tf - tn) * u / d;
+                s += (-a * ts - u).exp() * h;
+            }
+            s / (1.0 - (-d).exp())
+        };
+        let cases: [(f32, f32, f32, f32); 12] = [
+            (1.0, 0.0, 1.0, 1.0),     // one optical depth, noon nadir
+            (1.0, 0.0, 40.0, 40.0),   // the orbit step from a sunlit top
+            (0.125, 0.0, 40.0, 40.0), // the slowest octave, same step
+            (2.25, 0.0, 6.0, 6.0),    // a powder exponential
+            (1.0, 3.0, 9.0, 2.0),     // a step already in shadow
+            (1.0, 8.0, 2.0, 3.0),     // climbing toward the sun (k < 0)
+            (0.25, 20.0, 0.0, 5.0),   // k = -4: 1 + a k = 0 exactly
+            (0.25, 20.0, 0.4, 5.0),   // just off that limit
+            (0.5, 0.0, 268.0, 40.0),  // grazing sun: k = 6.7
+            (1.0, 0.5, 0.5, 0.3),     // flat sun depth, thin step
+            (0.125, 1.0, 2.0, 0.01),  // barely thicker than the cutoff
+            (1.0, 0.0, 0.2, 0.2),     // a near-field step
+        ];
+        for (a, tn, tf, d) in cases {
+            let got = cloud_step_avg(a, tn, tf, d) as f64;
+            let want = quad(a as f64, tn as f64, tf as f64, d as f64);
+            let err = (got - want).abs() / want.abs().max(1.0e-12);
+            assert!(err < 2.0e-3, "a {a} tau_n {tn} tau_f {tf} dtau {d}: {got} vs {want}");
+        }
+    }
+
+    /// The defect item 2 measured, in one number. The orbit-range step spans
+    /// about 40 optical depths below a sunlit top at noon (sun depth 0 at
+    /// the near end, 40 at the sample). The point law lit it by its far end,
+    /// exp(-40), which is black; the integral lights it by the skin the eye
+    /// sees, 1 / (1 + a k) = 1/2 on the first octave. A thin step must be
+    /// the point law exactly, so the near field does not move.
+    #[test]
+    fn a_thick_sunlit_step_is_lit_at_its_top() {
+        let point = (-40.0f32).exp();
+        let stepped = cloud_step_avg(1.0, 0.0, 40.0, 40.0);
+        assert!(point < 1.0e-15, "point law {point}");
+        assert!((stepped - 0.5).abs() < 1.0e-3, "in-step {stepped}");
+        assert_eq!(cloud_step_avg(1.0, 0.3, 0.7, 5.0e-4), (-0.7f32).exp());
+        // Where the eye receives the light: mid-step for a thin step, one
+        // optical depth below the near end for a thick one.
+        assert!((cloud_step_back_frac(0.01) - 0.5).abs() < 0.01);
+        assert!((cloud_step_back_frac(40.0) - (1.0 - 1.0 / 40.0)).abs() < 1.0e-3);
+        assert_eq!(cloud_step_back_frac(0.0), 0.0);
+    }
+
+    /// The shader ships the in-step law (the twin constant ON) and the
+    /// march shades through it, and its closed form is this file's.
+    #[test]
+    fn step_light_is_on_in_the_shader() {
+        let src = crate::renderer::shader_loader::assembled_pbr_source();
+        assert!(src.contains("const CLOUD_STEP_LIGHT: bool = true;"), "twin switched off");
+        assert!(src.contains("fn cloud_step_avg(a: f32, tau_n: f32, tau_f: f32, dtau: f32) -> f32"));
+        assert!(src.contains("g = (e_n - exp(-(a * tau_f + dtau))) * dtau / x;"), "closed form drifted");
+        assert!(src.contains("cloud_scatter_energy_step(a.tau_n, a.tau, a.dtau"), "march not wired");
+        // The skin split: the skin segment ends at the interpolated split
+        // depth, the interior segment runs from it to the sample, and the
+        // near end's relief rides the bisection's inside tap.
+        assert!(src.contains("tau_split, tau_n_a, d_sk,"), "skin segment not wired");
+        assert!(src.contains("tau, tau_split, d_in,"), "interior segment not wired");
+        assert!(src.contains("rel_hi = dmv.yz;"), "skin relief not kept at the bisection");
+        // The budgets: the thin-step fade (continuous, never a hard switch)
+        // and the entry ladder only on a visible, optically thick step.
+        assert!(
+            src.contains("dtau_raw * smoothstep(CLOUD_STEP_THIN_TAU, 1.0, dtau_raw)"),
+            "thin-step fade missing or turned into a hard switch"
+        );
+        assert!(
+            src.contains("dtau_a >= CLOUD_STEP_NEAR_TAU && trans > 0.5"),
+            "entry ladder budget missing"
+        );
+    }
+
+    /// The skin split cannot change the direct term: the integral over the
+    /// whole step equals the skin's plus the interior's, each weighted by
+    /// the opacity it holds, with the ramp cut at the split. So any change
+    /// the split makes on the rig is the burial and relief it re-reads,
+    /// never the exponentials.
+    #[test]
+    fn skin_split_partitions_the_step() {
+        let cases: [(f32, f32, f32, f32); 6] = [
+            (1.0, 0.0, 40.0, 40.0),   // the orbit step from a sunlit top
+            (0.125, 0.0, 40.0, 40.0), // the slowest octave
+            (3.0, 0.0, 88.0, 40.0),   // a powder exponential, steep ramp
+            (1.0, 2.0, 9.0, 5.0),     // a step starting in shadow
+            (0.5, 12.0, 3.0, 6.0),    // climbing toward the sun
+            (1.0, 0.0, 2.5, 2.5),     // barely thicker than the skin
+        ];
+        for (a, tn, tf, d) in cases {
+            let d_sk = d.min(CLOUD_STEP_SKIN_TAU);
+            let d_in = d - d_sk;
+            let ts = tn + (tf - tn) * d_sk / d;
+            let whole = (1.0 - (-d).exp()) * cloud_step_avg(a, tn, tf, d);
+            let parts = (1.0 - (-d_sk).exp()) * cloud_step_avg(a, tn, ts, d_sk)
+                + (-d_sk).exp() * (1.0 - (-d_in).exp()) * cloud_step_avg(a, ts, tf, d_in);
+            let err = (whole - parts).abs() / whole.abs().max(1.0e-12);
+            assert!(err < 1.0e-4, "a {a} tau_n {tn} tau_f {tf} dtau {d}: {whole} vs {parts}");
+        }
     }
 
     #[test]

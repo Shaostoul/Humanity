@@ -12634,6 +12634,462 @@
       "showcase": {"clouds":"1","weather":"clear","cloud_cover":"0.6","cloud_type":"0.34","cloud_clock":"120","cloud_no_cell":"0","cloud_no_puff":"0","cloud_ms":"1","cloud_ms_gain":"1.8"},
       "settle_s": 12,
       "hold_altitude": true
+    },
+    {
+      "id": "cloudlum-2000-high",
+      "desc": "CLOUDS TOO DARK (PRIORITIES item 2), the noon Sahara frame on High with every lighting knob pinned so arms compare across boots: shipped multiple scattering (on, gain 1.8), profile off, clock frozen. Score with scripts/cloud-brightness.js (cloud against warm terrain in the same frame). Measured 2026-09-27, in-step light (CLOUD_STEP_LIGHT): cloud mean 195.2 -> 205.5, p50 216 -> 230, ratio 1.12 -> 1.17; the twin OFF reproduces the old frame (mean dL 0.00).",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {"body":"earth","lat":23,"lon":13,"altitude_km":2000,"time":12.02},
+      "showcase": {"cloud_quality":"high","clouds":"1","cloud_cover":"0.4","weather":"clear","cloud_clock":"120","cloud_profile":"0","cloud_ms":"1","cloud_ms_gain":"1.8","cloud_step_eco":"1"},
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "cloudlum-2000-low",
+      "desc": "The Low twin of cloudlum-2000-high: the shell path, which shades the top surface directly. The reference the item-2 ratio was first measured against.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {"body":"earth","lat":23,"lon":13,"altitude_km":2000,"time":12.02},
+      "showcase": {"cloud_quality":"low","clouds":"1","cloud_cover":"0.4","weather":"clear","cloud_clock":"120","cloud_profile":"0","cloud_ms":"1","cloud_ms_gain":"1.8","cloud_step_eco":"1"},
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "cloudlum-2000-high-noms",
+      "desc": "cloudlum-2000-high with the in-cloud light OFF (cloud_ms 0): the state item 2 was measured in (ratio 0.69). Measured 2026-09-27: 114.3 -> 159.7 with the in-step light (ratio 0.66 -> 0.92): with no multiple-scattering gain to hide it, this arm is where the economy's deep sample showed.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {"body":"earth","lat":23,"lon":13,"altitude_km":2000,"time":12.02},
+      "showcase": {"cloud_quality":"high","clouds":"1","cloud_cover":"0.4","weather":"clear","cloud_clock":"120","cloud_profile":"0","cloud_ms":"0","cloud_ms_gain":"1.8","cloud_step_eco":"1"},
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "cloudlum-2000-high-ms10",
+      "desc": "cloudlum-2000-high at multiple-scattering gain 1.0 (unit, the physical scale of cloud_ms_source).",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {"body":"earth","lat":23,"lon":13,"altitude_km":2000,"time":12.02},
+      "showcase": {"cloud_quality":"high","clouds":"1","cloud_cover":"0.4","weather":"clear","cloud_clock":"120","cloud_profile":"0","cloud_ms":"1","cloud_ms_gain":"1.0","cloud_step_eco":"1"},
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "cloudlum-2000-high-ms0",
+      "desc": "cloudlum-2000-high with the multiple-scattering SOURCE zeroed (gain 0.001) but the bit on, so only the source term moves.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {"body":"earth","lat":23,"lon":13,"altitude_km":2000,"time":12.02},
+      "showcase": {"cloud_quality":"high","clouds":"1","cloud_cover":"0.4","weather":"clear","cloud_clock":"120","cloud_profile":"0","cloud_ms":"1","cloud_ms_gain":"0.001","cloud_step_eco":"1"},
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "cloudlum-2000-high-eco0",
+      "desc": "cloudlum-2000-high with the step economy OFF: finer interior steps at orbit range, so the lit sample sits closer to the cloud top.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {"body":"earth","lat":23,"lon":13,"altitude_km":2000,"time":12.02},
+      "showcase": {"cloud_quality":"high","clouds":"1","cloud_cover":"0.4","weather":"clear","cloud_clock":"120","cloud_profile":"0","cloud_ms":"1","cloud_ms_gain":"1.8","cloud_step_eco":"0"},
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "cloudlum-2000-high-sun",
+      "desc": "cloudlum-2000-high, map_diag 2: the accumulated DIRECT-sun luminance as grey.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {"body":"earth","lat":23,"lon":13,"altitude_km":2000,"time":12.02},
+      "showcase": {"cloud_quality":"high","clouds":"1","cloud_cover":"0.4","weather":"clear","cloud_clock":"120","cloud_profile":"0","cloud_ms":"1","cloud_ms_gain":"1.8","cloud_step_eco":"1","map_diag":"2"},
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "cloudlum-2000-high-prof",
+      "desc": "cloudlum-2000-high, map_diag 8: the burial profile the pixel sees (white = the lit sample is buried, the in-cloud source engaged).",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {"body":"earth","lat":23,"lon":13,"altitude_km":2000,"time":12.02},
+      "showcase": {"cloud_quality":"high","clouds":"1","cloud_cover":"0.4","weather":"clear","cloud_clock":"120","cloud_profile":"0","cloud_ms":"1","cloud_ms_gain":"1.8","cloud_step_eco":"1","map_diag":"8"},
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "cloudlum-2000-high-depth",
+      "desc": "cloudlum-2000-high, map_diag 6: entry depth of the first lit sample below the last clear one, 0-600 m black to white. At 2,000 km almost every cloud pixel is white: the first lit sample sits 600 m or more inside the top, the step economy's floor (the cause of item 2).",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {"body":"earth","lat":23,"lon":13,"altitude_km":2000,"time":12.02},
+      "showcase": {"cloud_quality":"high","clouds":"1","cloud_cover":"0.4","weather":"clear","cloud_clock":"120","cloud_profile":"0","cloud_ms":"1","cloud_ms_gain":"1.8","cloud_step_eco":"1","map_diag":"6"},
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "cloudlum-2000-high-noms-depth",
+      "desc": "cloudlum-2000-high-depth with the in-cloud light OFF (cloud_ms 0), so the entry-depth channel can be read on the path item 2 was measured on.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {"body":"earth","lat":23,"lon":13,"altitude_km":2000,"time":12.02},
+      "showcase": {"cloud_quality":"high","clouds":"1","cloud_cover":"0.4","weather":"clear","cloud_clock":"120","cloud_profile":"0","cloud_ms":"0","cloud_ms_gain":"1.8","cloud_step_eco":"1","map_diag":"6"},
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "cloudlum-400-high",
+      "desc": "The noon Sahara column at 400 km on High, pinned like cloudlum-2000-high: the range-consistency rung (a fix at 2000 km must not move a nearer view the wrong way).",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {"body":"earth","lat":23,"lon":13,"altitude_km":400,"time":12.02},
+      "showcase": {"cloud_quality":"high","clouds":"1","cloud_cover":"0.4","weather":"clear","cloud_clock":"120","cloud_profile":"0","cloud_ms":"1","cloud_ms_gain":"1.8","cloud_step_eco":"1"},
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "cloudlum-55-high",
+      "desc": "The noon Sahara column at 55 km, 35 degrees below the horizon, on High: the near rung, where steps already resolve the sunlit skin.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {"body":"earth","lat":23,"lon":13,"altitude_km":55,"time":12.02,"look_offset_deg":55},
+      "showcase": {"cloud_quality":"high","clouds":"1","cloud_cover":"0.4","weather":"clear","cloud_clock":"120","cloud_profile":"0","cloud_ms":"1","cloud_ms_gain":"1.8","cloud_step_eco":"1"},
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "cloudlum-12km-high",
+      "desc": "IN THE ATMOSPHERE: 12 km over the Sahara at noon, 30 degrees below the horizon, on High, so cloud tops and desert share the frame.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {"body":"earth","lat":23,"lon":13,"altitude_km":12,"time":12.02,"look_offset_deg":60},
+      "showcase": {"cloud_quality":"high","clouds":"1","cloud_cover":"0.4","weather":"clear","cloud_clock":"120","cloud_profile":"0","cloud_ms":"1","cloud_ms_gain":"1.8","cloud_step_eco":"1"},
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "cloudlum-12km-low",
+      "desc": "The Low twin of cloudlum-12km-high.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {"body":"earth","lat":23,"lon":13,"altitude_km":12,"time":12.02,"look_offset_deg":60},
+      "showcase": {"cloud_quality":"low","clouds":"1","cloud_cover":"0.4","weather":"clear","cloud_clock":"120","cloud_profile":"0","cloud_ms":"1","cloud_ms_gain":"1.8","cloud_step_eco":"1"},
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "cloudlum-2000-t17-high",
+      "desc": "LOW SUN: the Sahara frame at local 17:00 (sun about 13 degrees up) on High.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {"body":"earth","lat":23,"lon":13,"altitude_km":2000,"time":17},
+      "showcase": {"cloud_quality":"high","clouds":"1","cloud_cover":"0.4","weather":"clear","cloud_clock":"120","cloud_profile":"0","cloud_ms":"1","cloud_ms_gain":"1.8","cloud_step_eco":"1"},
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "cloudlum-2000-t17-low",
+      "desc": "The Low twin of cloudlum-2000-t17-high.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {"body":"earth","lat":23,"lon":13,"altitude_km":2000,"time":17},
+      "showcase": {"cloud_quality":"low","clouds":"1","cloud_cover":"0.4","weather":"clear","cloud_clock":"120","cloud_profile":"0","cloud_ms":"1","cloud_ms_gain":"1.8","cloud_step_eco":"1"},
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "cloudlum-term-high",
+      "desc": "THE TERMINATOR on High (orbit-terminator-3000km is Ultra): lat 15, lon 0, 18:00, 3000 km. Score band by band with scripts/terminator-grain.js; the lit bands carry the brightness, band 5 the dusk-line grain.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {"body":"earth","lat":15,"lon":0,"time":18,"altitude_km":3000,"look_offset_deg":0},
+      "showcase": {"cloud_quality":"high","clouds":"1","cloud_cover":"0.5","cloud_type":"0.34","weather":"clear","cloud_clock":"120","cloud_profile":"0","cloud_ms":"1","cloud_ms_gain":"1.8","cloud_step_eco":"1"},
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "cloudlum-term-low",
+      "desc": "The Low twin of cloudlum-term-high.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {"body":"earth","lat":15,"lon":0,"time":18,"altitude_km":3000,"look_offset_deg":0},
+      "showcase": {"cloud_quality":"low","clouds":"1","cloud_cover":"0.5","cloud_type":"0.34","weather":"clear","cloud_clock":"120","cloud_profile":"0","cloud_ms":"1","cloud_ms_gain":"1.8","cloud_step_eco":"1"},
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "cloudlum-2p6-high",
+      "desc": "IN THE ATMOSPHERE, inside the deck's altitude: 2.6 km over the Sahara under a 0.95 cover, 28 degrees below the horizon, on High (overcast-fill-ultra's camera).",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {"body":"earth","lat":24,"lon":14,"altitude_km":2.6,"look_offset_deg":62,"time":10.5},
+      "showcase": {"cloud_quality":"high","clouds":"1","cloud_cover":"0.95","cloud_type":"0.46","weather":"clear","cloud_clock":"120","cloud_profile":"0","cloud_ms":"1","cloud_ms_gain":"1.8","cloud_step_eco":"1"},
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "cloudlum-2000-high-eco0-ms10",
+      "desc": "cloudlum-2000-high with the step economy OFF and multiple-scattering gain 1.0: the sunlit skin resolved by fine steps, at the unit (physical) source scale.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {"body":"earth","lat":23,"lon":13,"altitude_km":2000,"time":12.02},
+      "showcase": {"cloud_quality":"high","clouds":"1","cloud_cover":"0.4","weather":"clear","cloud_clock":"120","cloud_profile":"0","cloud_ms":"1","cloud_ms_gain":"1.0","cloud_step_eco":"0"},
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "cloudlum-2000-high-noms-eco0",
+      "desc": "cloudlum-2000-high with the in-cloud light OFF AND the step economy OFF: separates the two candidates. If this is bright, the energy item 2 found missing was the sunlit skin the coarse orbit step skips, not multiple scattering. It was (142.2 against 114.3 economy-on, 2026-09-27). ORDER-SENSITIVE: in the full cloudlum sweep order it reads 142.2 (467k cloud px); run last in a 4-6 fixture sweep it reads 150.3 (500k px) on the SAME shader. Compare it only within one sweep, in one order.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {"body":"earth","lat":23,"lon":13,"altitude_km":2000,"time":12.02},
+      "showcase": {"cloud_quality":"high","clouds":"1","cloud_cover":"0.4","weather":"clear","cloud_clock":"120","cloud_profile":"0","cloud_ms":"0","cloud_ms_gain":"1.8","cloud_step_eco":"0"},
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "cloudlum-2000-high-eco0-sun",
+      "desc": "cloudlum-2000-high-eco0, map_diag 2: the direct-sun channel with the sunlit skin resolved. Compare with cloudlum-2000-high-sun (economy on).",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {"body":"earth","lat":23,"lon":13,"altitude_km":2000,"time":12.02},
+      "showcase": {"cloud_quality":"high","clouds":"1","cloud_cover":"0.4","weather":"clear","cloud_clock":"120","cloud_profile":"0","cloud_ms":"1","cloud_ms_gain":"1.8","cloud_step_eco":"0","map_diag":"2"},
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "cloudlum-term-high-eco0",
+      "desc": "cloudlum-term-high with the step economy OFF: the terminator with the sunlit skin resolved.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {"body":"earth","lat":15,"lon":0,"time":18,"altitude_km":3000,"look_offset_deg":0},
+      "showcase": {"cloud_quality":"high","clouds":"1","cloud_cover":"0.5","cloud_type":"0.34","weather":"clear","cloud_clock":"120","cloud_profile":"0","cloud_ms":"1","cloud_ms_gain":"1.8","cloud_step_eco":"0"},
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "cloudlum-400-high-ms10",
+      "desc": "cloudlum-400-high at multiple-scattering gain 1.0.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {"body":"earth","lat":23,"lon":13,"altitude_km":400,"time":12.02},
+      "showcase": {"cloud_quality":"high","clouds":"1","cloud_cover":"0.4","weather":"clear","cloud_clock":"120","cloud_profile":"0","cloud_ms":"1","cloud_ms_gain":"1.0","cloud_step_eco":"1"},
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "cloudlum-55-high-ms10",
+      "desc": "cloudlum-55-high at multiple-scattering gain 1.0.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {"body":"earth","lat":23,"lon":13,"altitude_km":55,"time":12.02,"look_offset_deg":55},
+      "showcase": {"cloud_quality":"high","clouds":"1","cloud_cover":"0.4","weather":"clear","cloud_clock":"120","cloud_profile":"0","cloud_ms":"1","cloud_ms_gain":"1.0","cloud_step_eco":"1"},
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "cloudlum-12km-high-ms10",
+      "desc": "cloudlum-12km-high at multiple-scattering gain 1.0.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {"body":"earth","lat":23,"lon":13,"altitude_km":12,"time":12.02,"look_offset_deg":60},
+      "showcase": {"cloud_quality":"high","clouds":"1","cloud_cover":"0.4","weather":"clear","cloud_clock":"120","cloud_profile":"0","cloud_ms":"1","cloud_ms_gain":"1.0","cloud_step_eco":"1"},
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "cloudlum-2p6-high-ms10",
+      "desc": "cloudlum-2p6-high at multiple-scattering gain 1.0.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {"body":"earth","lat":24,"lon":14,"altitude_km":2.6,"look_offset_deg":62,"time":10.5},
+      "showcase": {"cloud_quality":"high","clouds":"1","cloud_cover":"0.95","cloud_type":"0.46","weather":"clear","cloud_clock":"120","cloud_profile":"0","cloud_ms":"1","cloud_ms_gain":"1.0","cloud_step_eco":"1"},
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "cloudlum-term-high-ms10",
+      "desc": "cloudlum-term-high at multiple-scattering gain 1.0.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {"body":"earth","lat":15,"lon":0,"time":18,"altitude_km":3000,"look_offset_deg":0},
+      "showcase": {"cloud_quality":"high","clouds":"1","cloud_cover":"0.5","cloud_type":"0.34","weather":"clear","cloud_clock":"120","cloud_profile":"0","cloud_ms":"1","cloud_ms_gain":"1.0","cloud_step_eco":"1"},
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "cloudlum-2000-t17-high-ms10",
+      "desc": "cloudlum-2000-t17-high at multiple-scattering gain 1.0.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {"body":"earth","lat":23,"lon":13,"altitude_km":2000,"time":17},
+      "showcase": {"cloud_quality":"high","clouds":"1","cloud_cover":"0.4","weather":"clear","cloud_clock":"120","cloud_profile":"0","cloud_ms":"1","cloud_ms_gain":"1.0","cloud_step_eco":"1"},
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "cloudlum-under-high",
+      "desc": "UNDER THE DECK on High: 0.5 km, 60 degrees above the horizon, 0.95 cover at noon (under-deck-lookup's camera). Cloud bases lit from below and by the diffuse field; the in-step light must not brighten them past what the skin above allows.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {"body":"earth","lat":47.645,"lon":-122.6925,"time":12.02,"altitude_km":0.5,"look_offset_deg":150},
+      "showcase": {"cloud_quality":"high","clouds":"1","cloud_cover":"0.95","weather":"cloudy","sea":"0.3","cloud_clock":"120","cloud_profile":"0","cloud_ms":"1","cloud_ms_gain":"1.8","cloud_step_eco":"1"},
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "cloudlum-under-high-ms10",
+      "desc": "cloudlum-under-high at multiple-scattering gain 1.0.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {"body":"earth","lat":47.645,"lon":-122.6925,"time":12.02,"altitude_km":0.5,"look_offset_deg":150},
+      "showcase": {"cloud_quality":"high","clouds":"1","cloud_cover":"0.95","weather":"cloudy","sea":"0.3","cloud_clock":"120","cloud_profile":"0","cloud_ms":"1","cloud_ms_gain":"1.0","cloud_step_eco":"1"},
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "cloudlum-term-ultra",
+      "desc": "THE TERMINATOR on Ultra, pinned like cloudlum-term-high (the built-body path takes the same in-step light).",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {"body":"earth","lat":15,"lon":0,"time":18,"altitude_km":3000,"look_offset_deg":0},
+      "showcase": {"cloud_quality":"ultra","clouds":"1","cloud_cover":"0.5","cloud_type":"0.34","weather":"clear","cloud_clock":"120","cloud_profile":"0","cloud_ms":"1","cloud_ms_gain":"1.8","cloud_step_eco":"1"},
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "cloudlum-2000-ultra",
+      "desc": "The noon Sahara frame on Ultra, pinned like cloudlum-2000-high.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {"body":"earth","lat":23,"lon":13,"altitude_km":2000,"time":12.02},
+      "showcase": {"cloud_quality":"ultra","clouds":"1","cloud_cover":"0.4","weather":"clear","cloud_clock":"120","cloud_profile":"0","cloud_ms":"1","cloud_ms_gain":"1.8","cloud_step_eco":"1"},
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "cloudlum-cu-high",
+      "desc": "IN THE ATMOSPHERE with cloud and desert in one frame: 2.6 km over the Sahara at 10:30, 28 degrees below the horizon, cumulus at cover 0.55 (cumulus-closeup-high's camera), pinned like the other cloudlum arms. The in-atmosphere brightness check for PRIORITIES item 2.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {"body":"earth","lat":24,"lon":14,"altitude_km":2.6,"look_offset_deg":62,"time":10.5},
+      "showcase": {"cloud_quality":"high","clouds":"1","cloud_cover":"0.55","cloud_type":"0.46","weather":"clear","cloud_clock":"120","cloud_profile":"0","cloud_ms":"1","cloud_ms_gain":"1.8","cloud_step_eco":"1"},
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "cloudlum-cu-high-ms10",
+      "desc": "cloudlum-cu-high at multiple-scattering gain 1.0.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {"body":"earth","lat":24,"lon":14,"altitude_km":2.6,"look_offset_deg":62,"time":10.5},
+      "showcase": {"cloud_quality":"high","clouds":"1","cloud_cover":"0.55","cloud_type":"0.46","weather":"clear","cloud_clock":"120","cloud_profile":"0","cloud_ms":"1","cloud_ms_gain":"1.0","cloud_step_eco":"1"},
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "cloudlum-cu-low",
+      "desc": "The Low twin of cloudlum-cu-high.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {"body":"earth","lat":24,"lon":14,"altitude_km":2.6,"look_offset_deg":62,"time":10.5},
+      "showcase": {"cloud_quality":"low","clouds":"1","cloud_cover":"0.55","cloud_type":"0.46","weather":"clear","cloud_clock":"120","cloud_profile":"0","cloud_ms":"1","cloud_ms_gain":"1.8","cloud_step_eco":"1"},
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "cloudlum-deck55-high",
+      "desc": "The 55 km oblique deck over the Pacific (deck-55-oblique's camera, cumulus at cover 0.6), pinned like the other cloudlum arms: where the cauliflower surface texture is judged, so a brighter skin must not wash it out.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {"body":"earth","lat":20,"lon":150,"time":12,"altitude_km":55,"look_offset_deg":55},
+      "showcase": {"cloud_quality":"high","clouds":"1","cloud_cover":"0.6","cloud_type":"0.34","weather":"clear","cloud_clock":"120","cloud_profile":"0","cloud_ms":"1","cloud_ms_gain":"1.8","cloud_step_eco":"1"},
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "cloudlum-deck55-high-ms10",
+      "desc": "cloudlum-deck55-high at multiple-scattering gain 1.0.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {"body":"earth","lat":20,"lon":150,"time":12,"altitude_km":55,"look_offset_deg":55},
+      "showcase": {"cloud_quality":"high","clouds":"1","cloud_cover":"0.6","cloud_type":"0.34","weather":"clear","cloud_clock":"120","cloud_profile":"0","cloud_ms":"1","cloud_ms_gain":"1.0","cloud_step_eco":"1"},
+      "settle_s": 12,
+      "hold_altitude": true
     }
   ],
   "ladder": {
