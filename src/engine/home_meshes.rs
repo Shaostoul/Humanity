@@ -979,6 +979,18 @@ fn plan_plant_groups(state: &mut EngineState, pass: &mut PlantPass, forced: bool
         // leaf/fruit detail. See assets/shaders/pbr/90-fragment-main.wgsl.
         pass.material = Some(state.renderer.add_material_typed([1.0, 1.0, 1.0, 1.0], 0.0, 0.9, 20.0));
     }
+    if pass.rigid_material.is_none() {
+        // The same type-20 look, flagged RIGID (2026-09-27): a mushroom
+        // rack's blocks, beds and fruit stand in the still air of their
+        // tent and must not sway with the wind the way leaves do.
+        pass.rigid_material = Some(state.renderer.add_material_full(
+            [1.0, 1.0, 1.0, 1.0],
+            0.0,
+            0.9,
+            20.0,
+            crate::renderer::plant_mesh::PLANT_RIGID_FLAG,
+        ));
+    }
     // Everything the worker has already sent is in hand before deciding
     // what to build again.
     pass.pull();
@@ -1277,6 +1289,9 @@ fn upload_plant_group(
     if !g.procedural.vertices.is_empty() {
         built.push((&g.procedural, plant_material));
     }
+    if !g.rigid.vertices.is_empty() {
+        built.push((&g.rigid, pass.rigid_material.unwrap_or(plant_material)));
+    }
     for (name, m) in &g.models {
         match pass.models.get(name) {
             Some(&(_, material)) => built.push((m, material)),
@@ -1369,6 +1384,9 @@ pub(crate) struct GardenDraw {
 pub(crate) struct PlantPass {
     /// The type-20 material every procedural plant mesh draws with.
     material: Option<usize>,
+    /// The same material flagged rigid (`plant_mesh::PLANT_RIGID_FLAG`), for
+    /// geometry that must not sway: mushroom blocks, beds and their fruit.
+    rigid_material: Option<usize>,
     /// Mesh slots no machine needs now, reused before adding more.
     spare: Vec<usize>,
     /// Stage models by name ("wheat_3"): the geometry baked per plant (the

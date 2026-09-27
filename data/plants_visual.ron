@@ -233,16 +233,202 @@
             fruit_color_unripe: (0.5, 0.6, 0.3), fruit_color_ripe: (0.5, 0.6, 0.3),
             show_roots: true,
         ),
-        // Oyster mushroom: pale clustered caps on a short base.
+        // (oyster_mushroom had a "bulb" recipe here until 2026-09-27: a speck
+        // of caps floating on the shelf. The mushrooms are drawn from `fungi`
+        // below now, as the blocks and beds they grow from.)
+    },
+    // Mushroom crops (2026-09-27), drawn by src/engine/fungus_mesh.rs. A
+    // mushroom's "plant" is its unit of substrate (data/garden/yields.ron,
+    // MUSHROOMS): one 5 lb fruiting block for oyster and shiitake, one square
+    // foot of cased compost bed for button. What a fruiting room shows is that
+    // substrate, and from the pinning stage on the mushrooms on it, so that is
+    // what is drawn: nothing fruits while the substrate colonises, pins show at
+    // `pin_at`, and each mushroom grows to its size at harvest by the crop's
+    // last stage (growth is 0.2, 0.4, 0.6, 0.8, 1.0 through the five stages
+    // spore, mycelium, pinning, fruiting, mature). They are drawn rigid: no
+    // wind sways a block in the still air of its tent.
+    //
+    // Substrate: Block(...) is a block in its filter-patch bag, set on the
+    // shelf where the plot's plants stand (two to a shelf of the rack); Bed(...)
+    // is a wooden tray of compost across the shelf, as many square feet as the
+    // plot holds. Fruit: `habit` is ShelfCluster (fan-shaped caps on side
+    // stems, overlapping, from where the bag is cut), Scattered (single
+    // umbrella caps on the bare block) or Buttons (round caps through the
+    // casing); `per_unit` is the mushrooms one unit shows at harvest;
+    // `cap_sheen` is true for a moist or smooth cap (glossy shading) and false
+    // for a dry one (matte). Colours are linear RGB, sizes metres.
+    //
+    // Sources (all read 2026-09-27):
+    //   North Spore blocks  North Spore's fruiting blocks as listed by
+    //       BetterGrow Hydro (no page dates): Organic Blue Oyster,
+    //       https://www.bghydro.com/mushrooms/north-spore-organic-blue-oyster-mushroom-grow-kit-fruiting-block.html,
+    //       and Organic Shiitake,
+    //       https://www.bghydro.com/products/north-spore-organic-shiitake-mushroom-grow-kit-fruiting-block.
+    //       Both: "Kit dimensions 6in H x 9in W x 6in D" and "Kit weight 5 lbs",
+    //       the 5 lb block yields.ron counts (humidity.ron cites the same
+    //       listing for the tent's load).
+    //   Kuo oyster  Kuo, M., "Pleurotus ostreatus", MushroomExpert.com,
+    //       December 2017, https://www.mushroomexpert.com/pleurotus_ostreatus.html
+    //   Kuo button  Kuo, M., "Agaricus bisporus", MushroomExpert.com, March
+    //       2018, https://www.mushroomexpert.com/agaricus_bisporus.html
+    //   CFC shiitake  Catalogue of Fungi of Colombia, "Lentinula edodes",
+    //       description via Royal Botanic Gardens Kew's ColFungi (no page
+    //       date), https://colfungi.org/taxon/urn:lsid:indexfungorum.org:names:316467/general-information
+    //   PSU oyster, PSU shiitake, PSU Six Steps, Agrodok 40: the Penn State
+    //       and Agromisa guides yields.ron's MUSHROOMS section lists, with
+    //       their links.
+    fungi: {
+        // Oyster (Pleurotus ostreatus): the rack's tent is loaded with North
+        // Spore Blue Oyster blocks (humidity.ron, THE FRUITING TENT).
+        //   Block: 9 in W x 6 in H x 6 in D (North Spore), 0.2286 x 0.1524 x
+        //     0.1524 m. Supplemented sawdust, tan at spawning, white once the
+        //     mycelium is through. The bag stays on: North Spore, "Tightly fold
+        //     excess plastic back and place the block face up", then "Slice bag
+        //     with a single diagonal line or with an X. Blue oyster mushrooms
+        //     can be top or side fruited"; Agrodok 40, "Open the bags as soon as
+        //     the mycelium has covered the substrate completely", and "holes or
+        //     cuts are made in the bags in order to provide aeration for the
+        //     fruiting bodies to develop". Cut in its front face, toward the
+        //     tent's air.
+        //   Fruit: PSU oyster, "Mushrooms then begin to form around the edges
+        //     of bag perforations"; Agrodok 40, "When the fruiting bodies have
+        //     developed in mushroom clusters they are ready for harvesting";
+        //     Kuo, "growing in shelf-like clusters", cap "3–15 cm across;
+        //     broadly convex, becoming flat or shallowly depressed; kidney-shaped
+        //     to fan-shaped in outline", gills "whitish or with a gray tinge",
+        //     stem "Usually rudimentary and lateral (or nearly absent)", "1–7 x
+        //     1–3 cm; whitish". North Spore's strain: "clusters of mushrooms
+        //     with bluish-gray to brownish-gray caps", so a pin is dark blue-grey
+        //     and a harvested cap grey-brown. Caps 5 to 10 cm, a picked flush.
+        //   per_unit 9, a GAME ESTIMATE: a flush is a quarter of the block's
+        //     0.454 kg (yields.ron, four flushes), 113 g, and a 5 to 10 cm cap
+        //     with its stem is taken at about 12 g (no source found for a
+        //     cap's weight).
         "oyster_mushroom": (
-            form: "bulb", height_m: 0.16, spread_m: 0.22, stem_radius: 0.02,
-            stem_color: (0.82, 0.8, 0.72),
-            leaf_count: 5, leaf_color: (0.78, 0.74, 0.66), leaf_droop_deg: 55.0,
-            petal_count: 0, flower_color: (0.85, 0.82, 0.75), flower_center_color: (0.85, 0.82, 0.75),
-            flower_at: 0.99, fruit_at: 0.4,
-            fruit_kind: "sphere", fruit_size: 0.05, fruit_count: 4,
-            fruit_color_unripe: (0.8, 0.77, 0.7), fruit_color_ripe: (0.86, 0.82, 0.74),
-            show_roots: false,
+            substrate: Block(
+                size_m: (0.2286, 0.1524, 0.1524),
+                lump_m: 0.004,
+                substrate_color: (0.52, 0.40, 0.26),
+                mycelium_color: (0.90, 0.89, 0.85),
+                colonised_at: 0.45,
+                bag_color: (0.93, 0.94, 0.95),
+                filter_patch_color: (0.96, 0.96, 0.95),
+                bag_off_at: 2.0,
+                cut: FrontX,
+            ),
+            fruit: (
+                habit: ShelfCluster,
+                pin_at: 0.55,
+                per_unit: 9,
+                cap_diameter_m: (0.05, 0.10),
+                cap_young_color: (0.17, 0.20, 0.26),
+                cap_color: (0.46, 0.44, 0.41),
+                gill_color: (0.86, 0.85, 0.80),
+                stipe_color: (0.88, 0.87, 0.82),
+                stipe_length_m: 0.02,
+                stipe_diameter_m: 0.015,
+                // Kuo: "somewhat greasy when young and fresh": the glossy shading.
+                cap_sheen: true,
+            ),
+        ),
+        // Shiitake (Lentinula edodes), a North Spore Shiitake block.
+        //   Block: the same 9 x 6 x 6 in, 5 lb (North Spore). It browns before
+        //     it fruits, and it fruits bare: North Spore, "Your shiitake block
+        //     should be given time to brown in its bag", then "remove the block
+        //     from the bag", "DO NOT place back into the bag, as shiitake blocks
+        //     grow without a bag"; PSU shiitake, "browning of the exterior log
+        //     surfaces"; Agrodok 40, the mycelium "will turn reddish-brown" and
+        //     "The brown hard skin acts like the bark in wood log production".
+        //     A GAME CHOICE on timing: PSU's spawn run (17 to 22 days) and
+        //     browning (about four weeks) come before the pins, so here the
+        //     block is white by 0.3, brown by 0.5 and out of its bag at 0.5,
+        //     so the pinning stage shows pins on a browned block.
+        //   Fruit: PSU shiitake, the mushrooms "are twisted from the substrate
+        //     surface"; CFC, "Pileus: 5–15 cm diam., convex to plane",
+        //     "ochraceous-buff to tawny to dark vinaceous brown, darker at the
+        //     center; margin at first incurved, bearing remnants of the veil", gills
+        //     "whitish", "Stipe: 3–7 cm long, central to excentric", "pale reddish
+        //     brown or concolorous but paler than the pileus". North Spore:
+        //     "light brown, medium-to-large, umbrella-shaped caps", "Harvest your
+        //     shiitake block just before the caps flatten". Caps 5 to 9 cm.
+        //   per_unit 8, a GAME ESTIMATE: a flush is a third of the block's
+        //     0.68 to 1.13 kg (three flushes), 227 to 378 g, at about 35 g a
+        //     mushroom.
+        "shiitake": (
+            substrate: Block(
+                size_m: (0.2286, 0.1524, 0.1524),
+                lump_m: 0.006,
+                substrate_color: (0.52, 0.40, 0.26),
+                mycelium_color: (0.91, 0.89, 0.84),
+                colonised_at: 0.3,
+                coat_color: Some((0.40, 0.23, 0.12)),
+                coat_at: 0.5,
+                bag_color: (0.93, 0.94, 0.95),
+                filter_patch_color: (0.96, 0.96, 0.95),
+                bag_off_at: 0.5,
+                cut: Removed,
+            ),
+            fruit: (
+                habit: Scattered,
+                pin_at: 0.55,
+                per_unit: 8,
+                cap_diameter_m: (0.05, 0.09),
+                cap_young_color: (0.30, 0.17, 0.10),
+                cap_color: (0.50, 0.33, 0.20),
+                gill_color: (0.88, 0.86, 0.80),
+                stipe_color: (0.66, 0.53, 0.42),
+                stipe_length_m: 0.04,
+                stipe_diameter_m: 0.012,
+                // CFC: "surface dry": the matte shading.
+                cap_sheen: false,
+            ),
+        ),
+        // Button (Agaricus bisporus), grown the Penn State way.
+        //   Bed: a square foot is the unit (0.3048 m). PSU Six Steps: "compost
+        //     is packed into wooden trays" or, "With a bed or shelf system, the
+        //     compost is placed directly in the beds"; the compost 8 in deep
+        //     (its ventilation rule of thumb is for "when the compost is 8
+        //     inches deep"), and casing, "A mixture of peat moss with ground
+        //     limestone", at "about 2 inches depth", peat that ranges "from
+        //     brown" to "black". The spawn "appears as a white to blue-white mass
+        //     throughout the compost"; "Complete spawn run usually requires 13
+        //     to 20 days" of the crop's 36, so colonised by 0.4 and cased at
+        //     0.45.
+        //   Fruit: Six Steps, "Pins continue to expand and grow larger through
+        //     the button stage", the white hybrid's "cap smooth, cap and stalk
+        //     white"; Kuo, cap "2.5–14 cm, convex to nearly round at first",
+        //     stem "2–7 cm long; 1–2.5 cm thick". Picked as buttons, 2.5 to 4.5
+        //     cm, the veil still closed over the gills.
+        //   per_unit 16, a GAME ESTIMATE: a break is a fifth of the square
+        //     foot's 2.3 to 2.7 kg (five breaks), 460 to 530 g, picked over
+        //     "a 2–4-day period" (harvest_windows.ron), so about half of it,
+        //     16 buttons of about 15 g, stands on the bed at once.
+        "button_mushroom": (
+            substrate: Bed(
+                unit_side_m: 0.3048,
+                compost_depth_m: 0.2032,
+                casing_depth_m: 0.0508,
+                compost_color: (0.24, 0.16, 0.10),
+                mycelium_color: (0.84, 0.86, 0.90),
+                casing_color: (0.14, 0.11, 0.08),
+                tray_color: (0.50, 0.38, 0.25),
+                colonised_at: 0.4,
+                cased_at: 0.45,
+            ),
+            fruit: (
+                habit: Buttons,
+                pin_at: 0.55,
+                per_unit: 16,
+                cap_diameter_m: (0.025, 0.045),
+                cap_young_color: (0.93, 0.92, 0.89),
+                cap_color: (0.92, 0.90, 0.85),
+                gill_color: (0.90, 0.87, 0.82),
+                stipe_color: (0.92, 0.90, 0.86),
+                stipe_length_m: 0.02,
+                stipe_diameter_m: 0.015,
+                // Kuo: cap "dry; bald or with pressed-down fibers": the matte shading.
+                cap_sheen: false,
+            ),
         ),
     },
     // Growth-stage MODELS for beds and fields (2026-09-26): plant id -> model

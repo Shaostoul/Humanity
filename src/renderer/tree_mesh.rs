@@ -4949,17 +4949,23 @@ mod tests {
             let want = format!("wind_mt >= {lo} && wind_mt < {hi}");
             assert!(block.contains(&want), "the wind class block does not gate `{want}`");
         }
-        // Exactly one arm may read params.w, and it is the type-19 arm.
+        // Exactly one arm may opt INTO wind through params.w, and it is the
+        // type-19 arm. The type-20 arm reads it too (2026-09-27), but only to
+        // opt OUT: a rigid plant mesh (mushroom blocks) is class 0 when the
+        // slot is negative, and the arm can select nothing but 2 or 0.
         assert_eq!(
             block.matches("material.params.w").count(),
-            1,
-            "more than one material type opts into wind through params.w"
+            2,
+            "a material type other than 19 (opt-in) and 20 (rigid opt-out) reads params.w"
         );
-        let pw = block.find("material.params.w").expect("checked above");
-        let arm = block[..pw].rfind("wind_mt >=").expect("an arm precedes it");
+        for (k, (pw, _)) in block.match_indices("material.params.w").enumerate() {
+            let arm = block[..pw].rfind("wind_mt >=").expect("an arm precedes it");
+            let want = ["wind_mt >= 19.5 && wind_mt < 20.5", "wind_mt >= 18.5 && wind_mt < 19.5"][k];
+            assert!(block[arm..].starts_with(want), "params.w read #{k} is not in the `{want}` arm");
+        }
         assert!(
-            block[arm..].starts_with("wind_mt >= 18.5 && wind_mt < 19.5"),
-            "params.w is read by a material type other than 19 - furniture would sway"
+            block.contains("wind_class = select(2.0, 0.0, material.params.w < -0.5);"),
+            "the type-20 arm's params.w read is not the rigid opt-out"
         );
         // And the displacement must be normalised by the instance scale, or a
         // photoscan (0.70-1.27 model units for a 16-22 m tree) leans ~11% of

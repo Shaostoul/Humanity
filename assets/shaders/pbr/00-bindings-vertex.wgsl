@@ -962,7 +962,12 @@ fn vs_main(vertex: VertexInput) -> VertexOutput {
     var wind_class = 0.0;
     let wind_mt = material.params.z;
     if (wind_mt >= 19.5 && wind_mt < 20.5) {
-        wind_class = 2.0; // type 20: procedural plant mesh (leaves + stems)
+        // type 20: procedural plant mesh (leaves + stems). A NEGATIVE params.w
+        // marks a RIGID one (2026-09-27, plant_mesh::PLANT_RIGID_FLAG): a
+        // mushroom rack's blocks, beds and fruit, which stand in the still
+        // air of a tent. It can only turn the wind OFF, never on. The type-20
+        // fragment branch zeroes emissive, so the slot carries nothing else.
+        wind_class = select(2.0, 0.0, material.params.w < -0.5);
     } else if (wind_mt >= 20.5 && wind_mt < 21.5) {
         wind_class = 2.0; // type 21: foliage cluster card
     } else if (wind_mt >= 21.5 && wind_mt < 22.5) {
