@@ -1603,7 +1603,10 @@ GameTime with seasons, sun direction/color computation. 20 real minutes = 1 game
 
 ### Weather System
 7 conditions (clear, cloudy, rain, storm, snow, fog, sandstorm). Seasonal transitions. **Registered, ticks live** (`WeatherSystem` is NOT in `tests/engine_wiring_lint.rs::DEFERRED_SYSTEMS` -- this "NOT registered" note was stale, corrected 2026-07-01 during the overnight loop's registration-status sweep).
-- Native: `src/systems/weather.rs`
+- **Rain or snow decided by the air (2026-09-27).** The condition says whether water falls and how hard; the air where it falls says rain or snow, by Jennings et al. 2018's rain-snow model (air temperature, humidity and pressure, a smooth band about 3 C wide centred near 1 C in wet air): a Rain roll at the winter pole snows, a Snow roll at the equator rains, a mountain climb crosses the snow line, and nothing falls where there is no air. The body heat input, clothing wetness, the HUD, the weather fog, the rain and snow particles, rain watering fields and the water bodies all read the one answer.
+- **The HUD weather line reads the air the player stands in (2026-09-27):** the condition as it falls there ("Rain and snow" inside the band), the temperature at the player, and the wind at the player (environment Layer 1's prevailing wind plus the weather's own) with the compass point it blows from. The F11 panel repeats it as "At the player".
+- Native: `src/systems/weather.rs`, `src/systems/precipitation.rs` (phase), `src/gui/pages/hud.rs` (`weather_line`)
+- Design: `docs/design/environment-fields.md`, "Rain or snow, decided by the air"
 
 ### Hydrological System
 Rain cycle, rivers, aquifers, contamination tracking, water table simulation. **⚠️ NOT registered, never ticks (see the lint).**
@@ -1912,7 +1915,8 @@ and measured human trials (Helland et al. 2025; Thompson and Hayward 1996).
 - Inputs: `EnvironmentContext` (air, humidity, wind, precipitation, pressure, activity, and `sheltered`, set
   since 2026-09-27 when a built roof on three walls is over the player aboard: Construction, above), published
   by `engine::survival_env`. Outside, the air temperature, pressure and wind are the weather's at-player values:
-  environment Layer 1 where the player stands plus the weather's deviation (2026-09-27).
+  environment Layer 1 where the player stands plus the weather's deviation (2026-09-27), and what falls is rain
+  or snow as the air there decides (`systems::precipitation`; snow wets clothing at a third of rain, a game choice).
 - Native: `src/systems/body_heat.rs` (model, tests in `body_heat_tests.rs`), `src/systems/food.rs` (the vitals
   pass), `src/engine/survival_env.rs` (inputs), `src/gui/pages/settings.rs` (mode)
 - Data: `data/equipment.csv` (`clo`), `data/status_effects.csv` (the four conditions)

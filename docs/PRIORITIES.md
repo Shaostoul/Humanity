@@ -75,12 +75,15 @@ Remaining, in order:
    in `00-bindings-vertex.wgsl` that a test RUNS against the CPU copy. The body
    heat model now feels the air where the player stands: temperature, pressure
    and wind at the player all come from it, with the weather as the deviation.
+   Rain versus snow and the HUD readout are BUILT (2026-09-27, design doc
+   "Rain or snow, decided by the air": the air where it falls picks the phase by
+   Jennings et al. 2018's model, every precipitation reader shares it, and the
+   HUD prints the temperature, wind and phase at the player).
    Next consumers, in order: **cloud advection** (the first GPU caller:
-   `env_l1_wind_body` once per ray, `EnvClimate` as a uniform); the HUD wind
-   and the sea state reading the wind at the player; field crops and water
-   bodies sampling the climate at THEIR positions; rain versus snow from the air
-   temperature at the player; weighting the weather's deviation by its region's
-   influence at the player. Open data gaps: Mars by latitude and season, the
+   `env_l1_wind_body` once per ray, `EnvClimate` as a uniform); the sea state
+   reading the wind at the player; field crops and water bodies sampling the
+   climate at THEIR positions; weighting the weather's deviation by its
+   region's influence at the player. Open data gaps: Mars by latitude and season, the
    Moon (a sunlight function of local solar time).
 
 Aurora follow-ups, none urgent: the red cap is a look change for the operator

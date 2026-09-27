@@ -4028,7 +4028,7 @@ mod native_app {
                                 .and_then(|m| m.lock().ok())
                                 .map(|w| {
                                     (
-                                        w.condition,
+                                        (w.condition, w.falling_at_player()),
                                         w.intensity,
                                         w.wind_speed,
                                         w.wind_direction,
@@ -4043,7 +4043,7 @@ mod native_app {
                                 // followed the camera all the way out. Rain and
                                 // snow live under the cloud deck; above a few km
                                 // there is nothing to fall past you.
-                                Some((cond, inten, wind, wdir, ev))
+                                Some(((cond, fall), inten, wind, wdir, ev))
                                     if state.camera.surface_mode
                                         // map_or(false, ..), NOT unwrap_or(0.0):
                                         // the altitude readout is None whenever no
@@ -4062,12 +4062,8 @@ mod native_app {
                                             .map_or(false, |a| a < 4000.0) =>
                                 {
                                     use crate::systems::weather::WeatherCondition as WC;
-                                    let (r, s) = match cond {
-                                        WC::Rain => (true, false),
-                                        WC::Storm => (true, false),
-                                        WC::Snow => (false, true),
-                                        _ => (false, false),
-                                    };
+                                    // Rain or snow: the air at the player decides (systems::precipitation).
+                                    let (r, s) = fall.emitters();
                                     let storm_boost =
                                         if matches!(cond, WC::Storm) { 1.6 } else { 1.0 };
                                     let up = state.camera.up;
@@ -13208,7 +13204,7 @@ mod native_app {
                     {
                         state.gui_state.weather = Some(GuiWeather {
                             intensity: w.intensity,
-                            condition: format!("{:?}", w.condition),
+                            condition: format!("{:?}", w.condition_at_player()), // rain or snow as it falls HERE
                             // The HUD thermometer shows the temperature AT THE
                             // PLAYER (the same value the survival exposure path
                             // uses), not the body-global simulation reference:
@@ -13217,6 +13213,7 @@ mod native_app {
                             // hydrology keep reading the global w.temperature.
                             temperature: w.temperature_at_player,
                             wind_speed: w.wind_speed,
+                            wind_at_player: (w.wind_east_at_player, w.wind_north_at_player), falling: w.falling_at_player(),
                             event: w.event_name.clone(),
                             warning: String::new(),
                         });

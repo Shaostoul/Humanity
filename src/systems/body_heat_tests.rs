@@ -232,14 +232,17 @@ fn harm_starts_at_moderate_hypothermia_and_heatstroke() {
     assert_eq!(Mode::Realistic.shown(33.0), 33.0);
 }
 
-/// Rain and storms wet a person at their intensity, snow at a third, the rest not at all.
+/// Rain wets a person at its rate, snow at a third, nothing falling not at
+/// all, and a mix by its parts (the phase comes from the air where it falls:
+/// `systems::precipitation`).
 #[test]
 fn precipitation_from_the_weather() {
-    assert_eq!(precipitation(WeatherCondition::Rain, 0.6), 0.6);
-    assert_eq!(precipitation(WeatherCondition::Storm, 1.4), 1.0);
-    assert!((precipitation(WeatherCondition::Snow, 0.6) - 0.2).abs() < 1e-6);
-    assert_eq!(precipitation(WeatherCondition::Fog, 0.9), 0.0);
-    assert_eq!(precipitation(WeatherCondition::Clear, 1.0), 0.0);
+    use crate::systems::precipitation::Falling;
+    assert_eq!(precipitation(Falling { rain: 0.6, snow: 0.0 }), 0.6);
+    assert_eq!(precipitation(Falling { rain: 1.4, snow: 0.0 }), 1.0);
+    assert!((precipitation(Falling { rain: 0.0, snow: 0.6 }) - 0.2).abs() < 1e-6);
+    assert!((precipitation(Falling { rain: 0.3, snow: 0.3 }) - 0.4).abs() < 1e-6);
+    assert_eq!(precipitation(Falling::NONE), 0.0);
 }
 
 /// The figures docs/design/body-heat.md quotes, printed (run with

@@ -583,6 +583,14 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) -> bool {
                     .size(theme.font_size_small)
                     .color(theme.text_primary()),
                 );
+                // What the player feels, as the HUD says it: the phase the air
+                // HERE decides (a Snow pick over the tropics rains) and the
+                // prevailing wind added to the panel's.
+                ui.label(
+                    RichText::new(format!("At the player: {}", crate::gui::pages::hud::weather_line(w)))
+                        .size(theme.font_size_small)
+                        .color(theme.text_secondary()),
+                );
                 if !w.event.is_empty() {
                     ui.label(
                         RichText::new(format!("event: {}", w.event))

@@ -73,7 +73,7 @@
 
 use crate::ecs::components::EnvironmentContext;
 use crate::hot_reload::data_store::DataStore;
-use crate::systems::weather::WeatherCondition;
+use crate::systems::precipitation::Falling;
 
 // -- Medical thresholds (the core temperature, C) ------------------------------------
 //
@@ -357,16 +357,19 @@ impl Exposure {
     }
 }
 
-/// How hard rain or snow lands on an unsheltered person, 0 to 1, from the
-/// weather. Rain and storms at their intensity. Snow at a third of it: A GAME
-/// CHOICE, since snow mostly sheds and melts slowly into clothes.
-pub fn precipitation(condition: WeatherCondition, intensity: f32) -> f32 {
-    let i = intensity.clamp(0.0, 1.0);
-    match condition {
-        WeatherCondition::Rain | WeatherCondition::Storm => i,
-        WeatherCondition::Snow => i / 3.0,
-        _ => 0.0,
-    }
+/// How much falling snow wets clothing, against rain at the same rate: A GAME
+/// CHOICE, unsourced. Dry snow mostly sheds off clothing and melts into it
+/// slowly while it stays frozen. Wet snow near 0 C soaks more, which this one
+/// number does not follow; the phase share moves part of the way there,
+/// because inside the rain-snow band part of what falls is rain.
+pub const SNOW_WETTING_SHARE: f32 = 1.0 / 3.0;
+
+/// How hard rain or snow lands on an unsheltered person, 0 to 1, from what the
+/// weather says falls there (`systems::precipitation`: the condition decides
+/// how hard, the air where it falls decides rain or snow). Rain at full
+/// weight, snow at `SNOW_WETTING_SHARE`.
+pub fn precipitation(falling: Falling) -> f32 {
+    (falling.rain + falling.snow * SNOW_WETTING_SHARE).clamp(0.0, 1.0)
 }
 
 /// Saturated water vapour pressure over water, mmHg (the model's own

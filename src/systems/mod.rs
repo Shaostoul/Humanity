@@ -29,6 +29,9 @@ pub mod body_environment;
 /// prevailing wind), the base field under the weather.
 /// docs/design/environment-fields.md.
 pub mod env_layer1;
+/// What falls, and whether as rain or snow: the air where it falls decides
+/// (2026-09-27, Jennings et al. 2018). Every precipitation reader goes here.
+pub mod precipitation;
 pub mod disasters;
 pub mod electrical;
 pub mod plumbing;

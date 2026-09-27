@@ -40,13 +40,15 @@ impl ExposedAir {
     /// `temperature` (review split): exposure is about where THIS body stands
     /// (latitude, altitude, lunar night), while farming climate and hydrology
     /// evaporation keep reading the global reference. See the Weather struct's
-    /// field docs for the full contract.
+    /// field docs for the full contract. What falls is the phase the air at the
+    /// player decides (`Weather::falling_at_player`: a Rain roll in freezing air
+    /// lands as snow, and nothing lands where there is no air).
     pub(crate) fn from_weather(w: &Weather) -> Self {
         ExposedAir {
             temp_c: w.temperature_at_player,
             relative_humidity: w.humidity,
             wind_m_s: w.wind_speed_at_player(),
-            precipitation: body_heat::precipitation(w.condition, w.intensity),
+            precipitation: body_heat::precipitation(w.falling_at_player()),
             pressure_kpa: w.pressure_kpa_at_player,
         }
     }
@@ -275,6 +277,65 @@ mod tests {
             low.skin_c,
             high.skin_c
         );
+    }
+
+    /// THE BODY FEELS THE PHASE THE WEATHER DECIDED (2026-09-27). One Rain
+    /// condition, pinned from the F11 panel at 0.9, at 70 N inland on the
+    /// northern winter solstice and at the equator the same day. The whole
+    /// chain runs (WeatherSystem's export, `ExposedAir::from_weather`, the body
+    /// heat input): the arctic body gets snow, which wets at a third, and the
+    /// tropical body gets the rain at its full 0.9, and the input is exactly
+    /// what the export's own `falling_at_player` says. Red check, run:
+    /// `from_weather` reading the condition as before (Rain means rain) puts
+    /// 0.9 on the arctic body and the first precipitation assertion fails.
+    #[test]
+    fn the_body_heat_input_gets_the_phase_the_weather_decided() {
+        use crate::systems::time::{GameTime, DAYS_PER_YEAR, SECONDS_PER_DAY};
+        use crate::systems::weather::{ManualWeather, WeatherCondition, WeatherControl};
+        let mut data = DataStore::new();
+        data.insert("weather", std::sync::Mutex::new(Weather::default()));
+        let mut clock = GameTime {
+            elapsed_seconds: 0.75 * f64::from(DAYS_PER_YEAR) * SECONDS_PER_DAY,
+            ..Default::default()
+        };
+        clock.recompute_derived();
+        data.insert("game_time", std::sync::Mutex::new(clock));
+        data.insert(
+            "weather_control",
+            std::sync::Mutex::new(WeatherControl {
+                manual: Some(ManualWeather { condition: WeatherCondition::Rain, intensity: 0.9, wind_speed: 2.0 }),
+                retrigger: true,
+            }),
+        );
+        let at = |lat: f64| {
+            let la = lat.to_radians();
+            BodyEnvironment {
+                locked: true,
+                latitude_deg: lat as f32,
+                altitude_m: 0.0,
+                up_dir: glam::DVec3::new(la.cos(), la.sin(), 0.0),
+                land_fraction: 1.0,
+                ..Default::default()
+            }
+        };
+        let mut world = hecs::World::new();
+        let mut sys = WeatherSystem::new();
+        let mut read = |lat: f64, sys: &mut WeatherSystem| {
+            data.insert("body_environment", at(lat));
+            sys.tick(&mut world, 0.0, &data);
+            data.get::<std::sync::Mutex<Weather>>("weather").unwrap().lock().unwrap().clone()
+        };
+        let arctic = read(70.0, &mut sys);
+        let tropic = read(0.0, &mut sys);
+        assert_eq!((arctic.condition, tropic.condition), (WeatherCondition::Rain, WeatherCondition::Rain));
+        assert!(arctic.temperature_at_player < -5.0, "Layer 1 freezes 70 N in winter: {}", arctic.temperature_at_player);
+        assert!(tropic.temperature_at_player > 15.0, "and not the equator: {}", tropic.temperature_at_player);
+        let (a, t) = (ExposedAir::from_weather(&arctic), ExposedAir::from_weather(&tropic));
+        assert!((a.precipitation - 0.3).abs() < 0.01, "snow on the arctic body, wetting at a third: {a:?}");
+        assert!((t.precipitation - 0.9).abs() < 0.01, "rain on the tropical body: {t:?}");
+        assert_eq!(a.precipitation, body_heat::precipitation(arctic.falling_at_player()));
+        assert_eq!(arctic.condition_at_player(), WeatherCondition::Snow, "the HUD says snow");
+        assert_eq!(tropic.condition_at_player(), WeatherCondition::Rain);
     }
 
     /// THE SHELTER REACHES THE BODY (2026-09-27). A wet, windy 5 C day (a
