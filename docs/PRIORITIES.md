@@ -962,12 +962,16 @@ them up.
    rule, CLAUDE.md "Release signing is the operator's to raise, never yours".
    He signs when he decides to; `docs/admin/release-signing.md` is there if he
    asks.
-2. **Ground or orbit, for the garden's seasons (asked 2026-09-26).** The data
-   sizes the home as a ground site at Silverdale 47.6 N (data/home_outline.json);
-   the engine runs an equatorial GEO station (data/stations/home.ron), where the
-   sun is up about 12 h every day and there are no seasons. Seasonal daylight
-   and sun strength for the crops, and the fix for BUG-090 (the gameplay sun and
-   the drawn sun disagree aboard by up to 12 h), wait on this.
+2. **ANSWERED 2026-09-27: the spaceship first, planets after.** Operator: "We
+   should focus on the space ship first but, we do need to get farming working
+   on the planet too. I imagine the spaceship gardens are a great way to figure
+   out all the physics, like the gasses, liquids, etc. to properly account for
+   things. Then going to Earth or some other planet might simplify some things
+   and complicate others." So the next garden work is the ship's closed loops:
+   greenhouse moisture condensed back to the tanks, CO2 from people and
+   mushrooms and O2 from plants through the ship's air, and crop light from the
+   ship's real sun direction (which is also the BUG-090 fix). Seasons and
+   ground farming (Silverdale in data/home_outline.json) come after.
 3. **One clock or two, for the body and the garden (asked 2026-09-26).** The body
    runs on real seconds, the garden on 20-minute game days at 10x growth, so
    urine is a fraction of a percent of the garden's nitrogen in play, and room

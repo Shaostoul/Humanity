@@ -944,6 +944,11 @@
    "date": "2026-09-26",
    "decision": "v0.1373.0: fixed the independent review of v0.1363-v0.1372.1 (BUG-092): crops ripen at growth_days (stage_from_progress last stage at 1.0; uptake follows), pest controls per plant, grow-light power follows the timer (GrowLight{watts}, meter 6 h), emptied beds can be weeded and are listed, showcase/tower stagger on the growth clock, hand-planted crops not pH-modelled, rubber tree tapped 20 years (harvest_windows + plants.csv yield 450-650), legume/tuber/oilseed fields sow their own crop, dead mushroom humidity slider removed, picking comment corrected. Room air vs tank water clocks left OPEN (operator clock decision).",
    "why": "Second review of the day found nine real defects, seven reproduced; the ripening one was older than today but today's food cards and conclusions depended on it. Pattern again: parallel agents built systems that each passed their own tests while disagreeing at the seams (plant counts, clocks, keys)."
+  },
+  {
+   "date": "2026-09-27",
+   "decision": "OPERATOR DECISION: the spaceship first, planets after (verbatim in PRIORITIES Blocked #2). Garden work order: the ship's closed loops (condensate back to the tanks, CO2/O2 through the ship's air, crop light from the ship's real sun direction = the BUG-090 fix), then ground farming and seasons.",
+   "why": "Operator: the ship gardens are the place to get the physics of gases and liquids right; a planet will simplify some things and complicate others. The clock question (body on real time vs garden on the game clock) is still open; recommended keeping crops fast and sizing the ship's pumps and tanks to the garden's clock so mass balances."
   }
  ],
  "active_scopes_to_avoid": [
