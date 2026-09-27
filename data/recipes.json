@@ -1,5 +1,5 @@
 {
-  "count": 378,
+  "count": 383,
   "categories": [
     "assembly",
     "chemistry",
@@ -660,6 +660,96 @@
       "skill": "",
       "skill_level": 1,
       "description": "Hull paddy rice and polish it white and keep the hulls and the bran",
+      "tools": []
+    },
+    {
+      "id": "dehull_barley",
+      "name": "Dehull Barley",
+      "category": "refining",
+      "inputs": [
+        {
+          "id": "grain_barley_0",
+          "label": "Grain Barley",
+          "qty": 8
+        }
+      ],
+      "outputs": [
+        {
+          "id": "barley_dehulled_0",
+          "label": "Barley Dehulled",
+          "qty": 7
+        },
+        {
+          "id": "cereal_hulls_0",
+          "label": "Cereal Hulls",
+          "qty": 1
+        }
+      ],
+      "craft_time_sec": 16,
+      "station": "Grain Mill",
+      "skill": "",
+      "skill_level": 1,
+      "description": "Rub the husk off covered barley and keep the hulls",
+      "tools": []
+    },
+    {
+      "id": "dehull_oats",
+      "name": "Dehull Oats",
+      "category": "refining",
+      "inputs": [
+        {
+          "id": "grain_oat_0",
+          "label": "Grain Oat",
+          "qty": 4
+        }
+      ],
+      "outputs": [
+        {
+          "id": "oat_groats_0",
+          "label": "Oat Groats",
+          "qty": 3
+        },
+        {
+          "id": "cereal_hulls_0",
+          "label": "Cereal Hulls",
+          "qty": 1
+        }
+      ],
+      "craft_time_sec": 8,
+      "station": "Grain Mill",
+      "skill": "",
+      "skill_level": 1,
+      "description": "Rub the hulls off whole oats for groats and keep the hulls",
+      "tools": []
+    },
+    {
+      "id": "dehull_spelt",
+      "name": "Dehull Spelt",
+      "category": "refining",
+      "inputs": [
+        {
+          "id": "grain_spelt_0",
+          "label": "Grain Spelt",
+          "qty": 4
+        }
+      ],
+      "outputs": [
+        {
+          "id": "spelt_dehulled_0",
+          "label": "Spelt Dehulled",
+          "qty": 3
+        },
+        {
+          "id": "cereal_hulls_0",
+          "label": "Cereal Hulls",
+          "qty": 1
+        }
+      ],
+      "craft_time_sec": 8,
+      "station": "Grain Mill",
+      "skill": "",
+      "skill_level": 1,
+      "description": "Rub the hulls off spelt kernels and keep the hulls",
       "tools": []
     },
     {
@@ -8227,6 +8317,41 @@
       "tools": []
     },
     {
+      "id": "compost_cereal_hulls",
+      "name": "Compost Cereal Hulls",
+      "category": "chemistry",
+      "inputs": [
+        {
+          "id": "cereal_hulls_0",
+          "label": "Cereal Hulls",
+          "qty": 4
+        },
+        {
+          "id": "press_cake_0",
+          "label": "Press Cake",
+          "qty": 1
+        },
+        {
+          "id": "water_purified_0",
+          "label": "Water Purified",
+          "qty": 2
+        }
+      ],
+      "outputs": [
+        {
+          "id": "fertilizer_0",
+          "label": "Fertilizer",
+          "qty": 1
+        }
+      ],
+      "craft_time_sec": 20,
+      "station": "Composter",
+      "skill": "Farming",
+      "skill_level": 1,
+      "description": "Compost barley or oat or spelt hulls with seed press cake into plant food",
+      "tools": []
+    },
+    {
       "id": "craft_compass",
       "name": "Craft Compass",
       "category": "crafting",
@@ -12706,6 +12831,36 @@
       "skill": "Cooking",
       "skill_level": 1,
       "description": "Simmer milled rice in milk",
+      "tools": []
+    },
+    {
+      "id": "cook_rice",
+      "name": "Cook Rice",
+      "category": "cooking",
+      "inputs": [
+        {
+          "id": "rice_0",
+          "label": "Rice",
+          "qty": 1
+        },
+        {
+          "id": "water_purified_0",
+          "label": "Water Purified",
+          "qty": 1
+        }
+      ],
+      "outputs": [
+        {
+          "id": "cooked_rice_0",
+          "label": "Cooked Rice",
+          "qty": 4
+        }
+      ],
+      "craft_time_sec": 15,
+      "station": "Stove",
+      "skill": "Cooking",
+      "skill_level": 1,
+      "description": "Boil milled white rice until it soaks up its water",
       "tools": []
     },
     {

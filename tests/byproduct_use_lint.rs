@@ -27,7 +27,10 @@
 //!      FAO ash share of the charcoal, and an ore smelt does not (its ash goes
 //!      into the slag); paddy rice is milled at IRRI's split before anything
 //!      cooks it and is not food as it is; the sunflower press gives no more
-//!      oil than the seed holds and leaves the cake at its cited oil content.
+//!      oil than the seed holds and leaves the cake at its cited oil content;
+//!      covered barley, oats and spelt are dehulled at their sourced splits
+//!      before they are eaten, their hulls compost inside NRAES-54's window,
+//!      and cooked rice takes up water at USDA's raw-to-cooked ratio.
 //!
 //! The ratios themselves, and their sources, are in the `#` comments next to
 //! each recipe in data/recipes.csv.
@@ -58,7 +61,43 @@ const BYPRODUCTS: &[(&str, &str)] = &[
     ("rice_hulls_0", "milling paddy into white rice (mill_rice)"),
     ("rice_bran_0", "milling paddy into white rice (mill_rice)"),
     ("wood_ash_0", "burning charcoal as fuel in the kiln, the forge and the smelter's melts"),
+    ("cereal_hulls_0", "dehulling covered barley, oats and spelt (dehull_barley, dehull_oats, dehull_spelt)"),
 ];
+
+/// Hulled grains (2026-09-27): (the harvest, still in its hull; the dehulling
+/// recipe; the dehulled grain; the plants.csv crop; the hull's share of the
+/// harvest's mass, low and high, from the sources data/recipes.csv quotes at
+/// dehull_barley). Barley: Sinkovič et al. 2023, "the proportion of barley
+/// husks is 10–20%" (Lukinac and Jukić 2022: "an average of 13%"). Oats:
+/// Sinkovič et al., "25–30% of the dry weight of the grain" (Feedipedia: "up to
+/// 25%"). Spelt: the Alternative Field Crops Manual, "20% to 30% of the grain
+/// weight".
+const HULLED_GRAINS: &[(&str, &str, &str, &str, f64, f64)] = &[
+    ("grain_barley_0", "dehull_barley", "barley_dehulled_0", "barley", 0.10, 0.20),
+    ("grain_oat_0", "dehull_oats", "oat_groats_0", "oat", 0.25, 0.30),
+    ("grain_spelt_0", "dehull_spelt", "spelt_dehulled_0", "spelt", 0.20, 0.30),
+];
+
+/// The cereal hull compost (compost_cereal_hulls; data/recipes.csv quotes each
+/// figure). Hull: dry matter 90.3% (Feedipedia's oat hulls), nitrogen 0.363 to
+/// 0.556% of it (Sinkovič et al. 2023 Table 2: husk protein 22.69 to 34.72 mg
+/// a g over 6.25), carbon 45% of it (a stated game estimate, as for the brans).
+/// Press cake: 33.7% protein (Feedipedia expeller rapeseed meal), carbon 50%,
+/// dry matter taken at 90%. NRAES-54: a pile composts at C:N 20 to 40 and 40 to
+/// 65% moisture.
+const HULL_DM: f64 = 0.903;
+const HULL_N_OF_DM: (f64, f64) = (22.69 / 6.25 / 1000.0, 34.72 / 6.25 / 1000.0);
+const HULL_C_OF_DM: f64 = 0.45;
+const CAKE_DM: f64 = 0.90;
+const CAKE_N_OF_DM: f64 = 0.337 / 6.25;
+const CAKE_C_OF_DM: f64 = 0.50;
+const COMPOST_C_TO_N: (f64, f64) = (20.0, 40.0);
+const COMPOST_MOISTURE: (f64, f64) = (0.40, 0.65);
+
+/// Cooked rice's weight over the raw rice's: USDA FoodData Central SR Legacy,
+/// NDB 20444 (raw, 11.62 g water per 100 g) and NDB 20445 (cooked, 68.44 g),
+/// the dry matter conserved: (100 - 11.62) / (100 - 68.44).
+const RICE_COOKED_PER_RAW: f64 = (100.0 - 11.62) / (100.0 - 68.44);
 
 /// The ash share of charcoal: "Good quality lump charcoal typically has ash
 /// content of about 3%" (FAO Forestry Paper 41, "Simple technologies for
@@ -441,6 +480,108 @@ fn paddy_is_milled_at_irris_split_before_it_is_eaten() {
     assert!(food.len() > 100 && not_food.len() > 5, "item_profiles.ron read: {} and {}", food.len(), not_food.len());
     assert!(not_food.contains("grain_rice_0") && !food.contains("grain_rice_0"), "paddy is not eaten as it is");
     assert!(food.contains("rice_0"), "white rice is food");
+}
+
+/// Covered barley, oats and spelt come off the thresher in their hulls (2026-09-27):
+/// each is dehulled at the grain mill at its source's split before it is eaten,
+/// no cooking recipe takes it hull and all, item_profiles.ron files the harvest
+/// as not food and the dehulled grain as food, and data/food/crop_nutrition.ron
+/// weighs each harvest's calories on the same basis (its "// FDC <id> x <share>"
+/// kernel share inside the source's range). Seen red three ways: dehull_oats
+/// made 7 groats and 1 hull of 8 whole oats (12.5% hull, under the 25%); the oat
+/// row's share set back to "FDC 169705" with no share (the old groats basis);
+/// and grain_spelt_0 moved back into item_profiles.ron's food list.
+#[test]
+fn hulled_grains_are_dehulled_at_their_sourced_split_before_they_are_eaten() {
+    let d = load();
+    let (food, not_food) = (profile_block("items"), profile_block("not_food"));
+    let nutrition = read("data/food/crop_nutrition.ron");
+    for (harvest, recipe, dehulled, crop, lo, hi) in HULLED_GRAINS {
+        let r = d.recipe(recipe);
+        assert_eq!(r.inputs.len(), 1, "{recipe} takes only {harvest}: {:?}", r.inputs);
+        assert_eq!(r.inputs[0].0, *harvest);
+        let whole = d.mass(&r.inputs);
+        assert!((d.mass(&r.outputs) - whole).abs() < 1e-9, "{recipe} neither makes nor loses mass");
+        let hull = d.weight("cereal_hulls_0") * f64::from(qty(&r.outputs, "cereal_hulls_0")) / whole;
+        assert!(
+            (lo - 1e-9..=hi + 1e-9).contains(&hull),
+            "{recipe} leaves {hull:.3} of the harvest as hull; the sources give {lo} to {hi}"
+        );
+        assert!(qty(&r.outputs, dehulled) > 0, "{recipe} makes {dehulled}");
+        let cooks: Vec<&str> =
+            d.recipes.iter().filter(|r| r.category == "cooking" && has(&r.inputs, harvest)).map(|r| r.id.as_str()).collect();
+        assert!(cooks.is_empty(), "these cook {harvest} hull and all: {cooks:?}");
+        assert!(not_food.contains(*harvest) && !food.contains(*harvest), "{harvest} is not eaten in its hull");
+        assert!(food.contains(*dehulled), "{dehulled} is food");
+        // The crop row's kernel share: the number after " x " on the row's FDC comment.
+        let row = nutrition
+            .lines()
+            .find(|l| l.contains(&format!("plant_id: \"{crop}\"")))
+            .unwrap_or_else(|| panic!("crop_nutrition.ron has no {crop} row"));
+        let share: f64 = row
+            .rsplit(" x ")
+            .next()
+            .filter(|_| row.contains(" x "))
+            .and_then(|s| s.trim().parse().ok())
+            .unwrap_or_else(|| panic!("the {crop} row names no kernel share (\"// FDC <id> x <share>\"): {row}"));
+        assert!(
+            (1.0 - hi - 1e-9..=1.0 - lo + 1e-9).contains(&share),
+            "crop_nutrition.ron weighs {crop} at a {share} kernel share; its hull is {lo} to {hi}"
+        );
+    }
+    assert!(food.contains("rice_0"), "the profile scan read the food list");
+}
+
+/// The cereal hull compost lands inside NRAES-54's window for every hull it
+/// can be made of: C:N 20 to 40 at the leanest (oat) and richest (barley) hull
+/// Sinkovič et al. measured, and 40 to 65% moisture. Seen red by making it 8
+/// hulls and 1 cake (C:N 42 to 50, too lean to rot).
+#[test]
+fn the_cereal_hull_compost_is_balanced() {
+    let d = load();
+    let r = d.recipe("compost_cereal_hulls");
+    let kg = |id: &str| d.weight(id) * f64::from(qty(&r.inputs, id));
+    let (hulls, cake, water) = (kg("cereal_hulls_0"), kg("press_cake_0"), kg("water_purified_0"));
+    assert!(hulls > 0.0 && cake > 0.0, "the compost is hulls and cake: {:?}", r.inputs);
+    let carbon = hulls * HULL_DM * HULL_C_OF_DM + cake * CAKE_DM * CAKE_C_OF_DM;
+    for hull_n in [HULL_N_OF_DM.0, HULL_N_OF_DM.1] {
+        let nitrogen = hulls * HULL_DM * hull_n + cake * CAKE_DM * CAKE_N_OF_DM;
+        let c_to_n = carbon / nitrogen;
+        assert!(
+            (COMPOST_C_TO_N.0..=COMPOST_C_TO_N.1).contains(&c_to_n),
+            "compost_cereal_hulls at C:N {c_to_n:.1} for hulls of {:.2}% N; NRAES-54 wants {} to {}",
+            hull_n * 100.0,
+            COMPOST_C_TO_N.0,
+            COMPOST_C_TO_N.1
+        );
+    }
+    let wet = hulls * (1.0 - HULL_DM) + cake * (1.0 - CAKE_DM) + water;
+    let moisture = wet / d.mass(&r.inputs);
+    assert!((COMPOST_MOISTURE.0..=COMPOST_MOISTURE.1).contains(&moisture), "the pile is {:.0}% water", moisture * 100.0);
+    assert!(d.mass(&r.outputs) < d.mass(&r.inputs), "a pile loses mass as it rots");
+}
+
+/// Cooked rice is milled rice that has taken up water at USDA's ratio: the
+/// bowls weigh 2.80 times the raw rice (the raw and cooked rows' dry matter),
+/// the jug supplies at least the water taken up, nothing is created, and the
+/// bowls are food with the cooked_rice profile, which food_system.ron defines.
+/// Seen red by making it 5 bowls (1.75 kg from a 500 g bag, 3.5 times).
+#[test]
+fn cooked_rice_takes_up_water_at_usdas_ratio() {
+    let d = load();
+    let r = d.recipe("cook_rice");
+    let rice = d.weight("rice_0") * f64::from(qty(&r.inputs, "rice_0"));
+    let water = d.weight("water_purified_0") * f64::from(qty(&r.inputs, "water_purified_0"));
+    let cooked = d.weight("cooked_rice_0") * f64::from(qty(&r.outputs, "cooked_rice_0"));
+    assert!(rice > 0.0 && cooked > 0.0, "cook_rice boils rice_0 into cooked_rice_0: {:?} -> {:?}", r.inputs, r.outputs);
+    let ratio = cooked / rice;
+    assert!((ratio - RICE_COOKED_PER_RAW).abs() < 0.02, "cooked rice weighs {ratio:.3} times the raw; USDA's rows give {RICE_COOKED_PER_RAW:.3}");
+    assert!(water + 1e-9 >= cooked - rice, "the pot takes up {:.2} kg of water and is given {water}", cooked - rice);
+    assert!(cooked <= rice + water + 1e-9, "cooking creates no mass");
+    assert!(profile_block("items").contains("cooked_rice_0"), "cooked rice is food");
+    let profiles = read("data/food/item_profiles.ron");
+    assert!(profiles.contains("(\"cooked_rice_0\", \"cooked_rice\")"), "cooked rice uses the cooked_rice profile");
+    assert!(read("data/food_system.ron").contains("id: \"cooked_rice\""), "food_system.ron defines the cooked_rice profile");
 }
 
 /// The sunflower press takes no more oil out than the seed holds, and leaves

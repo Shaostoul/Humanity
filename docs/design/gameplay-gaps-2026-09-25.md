@@ -927,6 +927,70 @@ date; re-check before trusting one. The container data basis is
   24). The family Energy loop no longer closes even Station-supplied (about 15.8
   against 15.1 kWh a day: the fans and the humidifiers they work harder); one
   more panel would close it.
+- **The meter charges the household its real energy, hulled grains are
+  dehulled, and rice can be cooked: DONE 2026-09-27.** Every number and its
+  quote sit beside it in `data/machines/*.ron`, `data/recipes.csv`,
+  `data/food/crop_nutrition.ron` and `data/food_system.ron`. THE METER: three
+  family machines charged their nameplate for 24 hours and the freezer charged
+  nothing. Now each is EIA's 2020 Residential Energy Consumption Survey average
+  for a household of the home's size (Tables CE5.3a and CE5.3b, kWh a year per
+  household using the end use): the family water heater 48.0 to 9.54 kWh a day
+  (3,482 kWh a year for three people), the washer 12.0 to 0.21 (77; RECS counts
+  the wash water under water heating, and its HC3.4 puts most three-person homes
+  at 1 to 4 loads a week), the freezer 0 to 1.53 (559); the one-person home's
+  water heater 1.2 to 3.91 (1,427), washer 0.29 to 0.13 (46), freezer 0 to 1.48
+  (539). The towers' "pump + light" ports (15 W for 24 hours; the towers are
+  sun-lit) are Tower Garden's pumps on the maker's indoor timer, "5 min on, 45
+  min off": the variety tower's high capacity pump (48 W, a game choice for a
+  2.4 m tower) and the apothecary tower's standard one (35 W; it had no pump),
+  33 + 4 towers 11.9 to 4.14 kWh a day in the family home, 9 + 1 towers 3.24 to
+  1.12 in the solo. The water heater's and washer's `watts`, which the
+  electrical sim draws around the clock, are now those averages too: in play the
+  family heater drew its 2 kW element day and night. Its nameplate stays on the
+  port that sizes the cable. THE LOOPS, reconciled with the meter (a test now
+  holds the loop text to it): the family home, Station-supplied 79.2 to 22.8 kWh
+  a day (the loop had said 15.8) and Realistic 117.0 to 60.5 (had said 54),
+  against 15.1 of supply: it does not close in either mode, five more panels
+  short Station-supplied. The one-person home, Station-supplied 6.3 to 8.2 (had
+  said 4.3) and Realistic 30.5 to 32.4 (had said 28), against 5.76: it NO
+  LONGER CLOSES Station-supplied, about two panels short, the water heater alone
+  taking two thirds of the supply; nor Realistic. HULLED GRAINS: the harvests of
+  covered barley (`grain_barley_0`), whole oats (`grain_oat_0`, which said
+  groats) and spelt in the hull (`grain_spelt_0`, which said dehulled) are the
+  grain as the thresher leaves it, not food as it is, and the grain mill rubs
+  the hulls off, the way a stone mill does with its stones set close (Sinkovič
+  et al. 2023): `dehull_barley` 8 into 7 and a bag of hulls, 12.5% ("the husk
+  accounts for an average of 13%", Lukinac and Jukić 2022; "10–20%",
+  Sinkovič), `dehull_oats` and `dehull_spelt` 4 into 3 and a bag, 25% (oats:
+  "up to 25%", Feedipedia; "25–30%", Sinkovič; spelt: "20% to 30% of the grain
+  weight", the Alternative Field Crops Manual). The oat and spelt crop rows are
+  now per 100 g as harvested (FDC x 0.75), so the oat's removal columns, which
+  weigh whole oats, and its calories agree. The hulls (`cereal_hulls_0`, 0.36
+  to 0.56% N, Sinkovič's Table 2) compost with seed press cake at C:N 30 to 34
+  (`compost_cereal_hulls`). COOKED RICE: `cook_rice` boils a 500 g bag with a
+  litre of water into four 350 g bowls, 2.80 times the raw weight, the ratio of
+  the dry matter in USDA's raw and cooked long-grain rows (NDB 20444 and
+  20445); the `cooked_rice` profile is the cooked row, 130 kcal, kept four days
+  (FoodKeeper "Cooked rice", 4-6 days refrigerated). Tests, each seen red:
+  `the_household_machines_charge_their_sourced_daily_energy` (src/machines.rs),
+  `hulled_grains_are_dehulled_at_their_sourced_split_before_they_are_eaten`,
+  `the_cereal_hull_compost_is_balanced` and
+  `cooked_rice_takes_up_water_at_usdas_ratio` (tests/byproduct_use_lint.rs).
+  Found, left alone: (1) the meter's generation side counts the backstop
+  genset and the wind turbine at their nameplates for 24 hours, so the family
+  meter says "makes 69.6 kWh/day, fully self-sufficient" against its loop's
+  15.1. (2) Not metered because no data carries them: the aquaponic tanks' air
+  pumps (a 50 W stat no source backs), lighting, small appliances; cooking is
+  charged by the hour it runs (a real three-person household's averages 0.89
+  kWh a day, RECS). (3) The family fixtures' hot water ports add to 0.28 L a
+  minute, 403 L a day, against the 240 L household, and the washer has only a
+  cold feed. (4) `data/towers/aeroponic_configs.ron` suggests a "15 min on / 15
+  off" timer; the maker's indoor setting is 5 on, 45 off. (5) Barley, oat and
+  spelt yields are still unsourced placeholders, and `data/garden/nutrients.ron`
+  still says the oat item is groats. (6) The Barn's 200 `grain_oat_0` are now
+  whole oats to dehull, not food, and whole oats and spelt in the hull are
+  bulkier than the 0.93 L a bag they keep (NRCS 32 lb and AFCM 28 lb a bushel).
+  (7) Groats are not yet cooked into porridge (the porridge simmers rice).
 
 ## Defects found (things that are wrong, not merely missing)
 

@@ -86,6 +86,32 @@ grind_flour,Grind Flour,refining,grain_wheat_0:4,flour_0:3|bran_0:1,8,grain_mill
 # low milling recovery and high grain breakage". The hulls and bran compost together (compost_rice_hulls);
 # IRRI's by-product pages name them as fuel, feed and bran oil too, which the game does not model yet.
 mill_rice,Mill Rice,refining,grain_rice_0:10,rice_0:7|rice_hulls_0:1|rice_bran_0:1,20,grain_mill_0,,0,Hull paddy rice and polish it white and keep the hulls and the bran
+# Dehulling covered barley, oats and spelt (2026-09-27). The garden harvests all three in the hull, as a
+# thresher leaves them, and nothing took the hull off: covered barley was eaten hull and all from the pack,
+# spelt's harvest skipped the step, and the oat harvest was called groats. The grain mill rubs the hulls off
+# the way a stone mill does with its stones set close: "For barley and oats, husks can be removed by
+# gradually pressing the millstones, which gently brushes/polishes them out" (Sinkovič et al., "Influence of
+# Hulling, Cleaning and Brushing/Polishing of (Pseudo)Cereal Grains on Compositional Characteristics", Foods
+# 12(13):2452, 22 June 2023, https://pmc.ncbi.nlm.nih.gov/articles/PMC10340665/, read 2026-09-27). The
+# splits, in whole 500 g bags; data/food/crop_nutrition.ron carries each harvest's calories on the same basis:
+#   Barley: 8 covered barley (4.0 kg) -> 7 dehulled (3.5 kg) + 1 hulls (0.5 kg), 12.5% hull. "Depending on
+#   the barley variety and growing conditions, the husk accounts for an average of 13%" (Lukinac and Jukić,
+#   "Barley in the Production of Cereal-Based Products", Plants 11(24):3519, 14 December 2022,
+#   https://doi.org/10.3390/plants11243519, read 2026-09-27); Sinkovič et al.: "the proportion of barley
+#   husks is 10–20%".
+#   Oats: 4 whole oats (2.0 kg) -> 3 groats (1.5 kg) + 1 hulls (0.5 kg), 25% hull. Oat hulls "represent up to
+#   25% of the weight of the grain" (Heuzé et al., "Oat hulls and oat mill feed", Feedipedia, updated 20 July
+#   2016, https://www.feedipedia.org/node/707, read 2026-09-27); Sinkovič et al.: "The percentage of oat
+#   husks is usually higher than barley and is 25–30% of the dry weight of the grain".
+#   Spelt: 4 spelt in the hull (2.0 kg) -> 3 dehulled (1.5 kg) + 1 hulls (0.5 kg), 25% hull. "As with oats,
+#   the hulls remain on the grain in threshing and comprise 20% to 30% of the grain weight" (Oplinger et al.,
+#   "Spelt", Alternative Field Crops Manual, University of Wisconsin-Madison and University of Minnesota, May
+#   1990, https://hort.purdue.edu/newcrop/afcm/spelt.html, read 2026-09-27).
+# The three hulls are one item, cereal_hulls_0, composted with seed press cake (compost_cereal_hulls).
+# tests/byproduct_use_lint.rs holds each split to its source's range.
+dehull_barley,Dehull Barley,refining,grain_barley_0:8,barley_dehulled_0:7|cereal_hulls_0:1,16,grain_mill_0,,0,Rub the husk off covered barley and keep the hulls
+dehull_oats,Dehull Oats,refining,grain_oat_0:4,oat_groats_0:3|cereal_hulls_0:1,8,grain_mill_0,,0,Rub the hulls off whole oats for groats and keep the hulls
+dehull_spelt,Dehull Spelt,refining,grain_spelt_0:4,spelt_dehulled_0:3|cereal_hulls_0:1,8,grain_mill_0,,0,Rub the hulls off spelt kernels and keep the hulls
 purify_water,Purify Water,refining,water_bottle_0:2,water_purified_0:2,5,water_purifier_0,,0,Filter and sterilize drinking water
 make_charcoal,Make Charcoal,refining,wood_log_0:3,coal_0:4,20,kiln_0,,0,Carbonize wood into charcoal
 make_charcoal_slabs,Make Charcoal from Slabs,refining,wood_slab_0:8,coal_0:2,20,kiln_0,,0,Carbonize sawmill slabs into charcoal at the same yield as logs
@@ -401,6 +427,17 @@ compost_apple_pomace,Compost Apple Pomace,chemistry,apple_pomace_0:10,fertilizer
 # for milling", "Milling"), a game estimate. 3 hulls + 2 bran + 4 water = 8 kg at C:N 34 and 56% water, in
 # NRAES-54's 20-40 and 40-65% -> 4 kg, 2 bags, losing half the mass as the other piles do.
 compost_rice_hulls,Compost Rice Hulls and Bran,chemistry,rice_hulls_0:3|rice_bran_0:2|water_purified_0:4,fertilizer_0:2,20,composter_0,farming,1,Compost rice hulls with rice bran into plant food
+# Cereal hulls with seed press cake (2026-09-27), the leftover of dehull_barley, dehull_oats and dehull_spelt.
+# The hulls are chaff low in nitrogen: Sinkovič et al. 2023 (cited at dehull_barley) measured 22.69 (oat),
+# 24.92 (spelt) and 34.72 (barley) mg of protein per g of dry husk (their Table 2, Kjeldahl, factor 6.25),
+# 0.36 to 0.56% N. Their dry matter is taken at Feedipedia's 90.3% for oat hulls (node/707, as at
+# dehull_oats) and their carbon at 45% of it, as for the brans above (a game estimate: hulls are cellulose,
+# hemicellulose and lignin), so alone they sit at C:N 81 to 124, far too lean to rot. The press cake brings
+# the nitrogen as in craft_fertilizer (expeller rapeseed meal 33.7% protein, carbon 50% of its dry matter,
+# which is taken at 90%: C:N about 9). 4 hulls + 1 cake + 2 water = 4.5 kg at C:N 30 (barley) to 34 (oat)
+# and 50% water, inside NRAES-54's 20-40 and 40-65% -> one 2 kg bag, losing a little over half the mass as
+# a turned pile does (Tiquia, Richard and Honeyman 2002: 47-57%).
+compost_cereal_hulls,Compost Cereal Hulls,chemistry,cereal_hulls_0:4|press_cake_0:1|water_purified_0:2,fertilizer_0:1,20,composter_0,farming,1,Compost barley or oat or spelt hulls with seed press cake into plant food
 #
 # === MISCELLANEOUS ===
 craft_compass,Craft Compass,crafting,iron_ingot_0:1|glass_pane_0:1,compass_0:1,10,workbench_0,woodworking,1,Magnetize a needle in a glass housing
@@ -539,6 +576,16 @@ cook_pasta,Cook Pasta,cooking,flour_0:1|egg_0:1|salt_food_0:1|water_purified_0:1
 cook_pizza,Bake Pizza,cooking,flour_0:1|cheese_0:1|vegetable_tomato_0:1,pizza_slice_0:4,25,oven_0,cooking,3,Bake topped flatbread into pizza
 cook_omelette,Cook Omelette,cooking,egg_0:3|cheese_0:1|butter_0:1,omelette_0:1,8,stove_0,cooking,1,Fold eggs and filling in a pan
 cook_porridge,Cook Porridge,cooking,rice_0:1|milk_0:1|sugar_0:1,porridge_0:1,15,stove_0,cooking,1,Simmer milled rice in milk
+# Cooked rice (2026-09-27): the porridge was the only rice dish. White rice soaks up water as it boils, and
+# the weight it gains is the ratio of its dry matter raw to cooked. USDA FoodData Central, SR Legacy (read
+# 2026-09-27): NDB 20444 "Rice, white, long-grain, regular, raw, unenriched" is 11.62 g water per 100 g and
+# NDB 20445 "Rice, white, long-grain, regular, unenriched, cooked without salt" 68.44 g, so 100 g of raw rice
+# (88.38 g of solids) cooks to 88.38 / 31.56 = 2.80 times its weight; the energy agrees, 365 against 130 kcal
+# per 100 g (2.81). A 500 g bag (rice_0) takes up 900 g of water and weighs 1.40 kg cooked: four 350 g bowls.
+# The recipe takes a whole 1 L jug, so the last 100 g leaves the pot as steam (a game allowance: how much
+# more water than the rice absorbs a real pot needs was not sourced). data/food_system.ron's cooked_rice
+# profile is the cooked row.
+cook_rice,Cook Rice,cooking,rice_0:1|water_purified_0:1,cooked_rice_0:4,15,stove_0,cooking,1,Boil milled white rice until it soaks up its water
 bake_cake,Bake Cake,cooking,flour_0:2|sugar_0:1|egg_0:2|butter_0:1|milk_0:1,cake_0:1,45,oven_0,cooking,3,Bake a sweet layered dessert
 bake_pie,Bake Pie,cooking,flour_0:2|butter_0:1|fruit_apple_0:3|sugar_0:1,pie_0:1,40,oven_0,cooking,3,Bake a fruit-filled pastry
 bake_cookies,Bake Cookies,cooking,flour_0:1|sugar_0:1|butter_0:1|egg_0:1,cookies_batch_0:1,20,oven_0,cooking,2,Bake sweet dough discs

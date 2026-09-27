@@ -2562,6 +2562,87 @@ mod tests {
         assert!((r - s - handlers * avg * 24.0 / 1000.0).abs() < 0.01, "{r} - {s} is the {handlers} handlers' {avg} W");
     }
 
+    /// The household machines charge the meter their real daily energy (2026-09-27), and each
+    /// home's Energy loop says what the meter says. Before, the family water heater charged its
+    /// 2 kW element for 24 hours (48.0 kWh a day), the washer its 500 W (12.0) and the 33 towers
+    /// their 15 W ports (11.9), and the freezer charged nothing. Now: water heating, the washer's
+    /// motor and the freezer are EIA's 2020 RECS averages for a household of the home's size
+    /// (Tables CE5.3a and CE5.3b, kWh a year per household using the end use), and a tower's
+    /// pump is its maker's rating on the maker's indoor timer
+    /// (Tower Garden: 48 W or 35 W, 5 minutes on in every 50). The sources are quoted beside each
+    /// machine in data/machines/*.ron. The electrical sim has no thermostat or wash-cycle model,
+    /// so the water heater's and washer's runtime draw (`watts`) must be the same average, or
+    /// the game drains the batteries at the nameplate while the meter says otherwise.
+    ///
+    /// Seen red three ways: home.ron's water heater `average_watts` removed (the meter read its
+    /// 2 kW port, 48.0 kWh a day); the variety tower's port put back to 15 W (the tower check
+    /// named it); and the family Energy loop's Station-supplied figure left at the old 15.8
+    /// (the loop check named it against the meter's figure).
+    #[test]
+    fn the_household_machines_charge_their_sourced_daily_energy() {
+        // EIA RECS 2020 Table CE5.3a, kWh a year per household using the end use.
+        const WATER_HEATING_KWH_YR: [(usize, f32); 2] = [(1, 1427.0), (3, 3482.0)];
+        const CLOTHES_WASHER_KWH_YR: [(usize, f32); 2] = [(1, 46.0), (3, 77.0)];
+        // And Table CE5.3b, separate freezers (the freezer had no power data at all).
+        const FREEZER_KWH_YR: [(usize, f32); 2] = [(1, 539.0), (3, 559.0)];
+        // Tower Garden pumps (W) and the maker's indoor timer, "5 min on, 45 min off".
+        const PUMPS: [(&str, f32); 2] = [("aeroponic_tower_nutrition", 48.0), ("aeroponic_tower_apothecary", 35.0)];
+        const INDOOR_DUTY: f32 = 5.0 / 50.0;
+        let per_year = |kwh: f32| kwh * 1000.0 / 8760.0;
+        let recs = |table: &[(usize, f32)], people: usize| table.iter().find(|(n, _)| *n == people).map(|(_, k)| per_year(*k)).unwrap();
+        // The figure the loop text states just before `tail` ("~21.2 kWh/day Station-supplied").
+        let stated = |text: &str, tail: &str| -> f32 {
+            let end = text.find(tail).unwrap_or_else(|| panic!("the Energy loop's demand has no `{tail}`: {text}"));
+            let start = text[..end].rfind('~').expect("a ~figure before it");
+            text[start + 1..end].trim().parse::<f32>().unwrap_or_else(|e| panic!("`{}`: {e}", &text[start + 1..end]))
+        };
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("machines");
+        for (file, people) in [("home.ron", 3usize), ("home_solo.ron", 1usize)] {
+            let home = MachineHome::load(&root.join(file)).unwrap_or_else(|| panic!("{file} parses"));
+            let charged = |id: &str| home.catalog[id].average_load_watts(MeterBasis::default(), false);
+            let runtime = |id: &str| match home.catalog[id].power {
+                Some(MachinePower::Consumer { watts, .. }) => watts,
+                _ => panic!("{file}: {id} is a Consumer"),
+            };
+            for (id, want) in [("water_heater", recs(&WATER_HEATING_KWH_YR, people)), ("washer", recs(&CLOTHES_WASHER_KWH_YR, people))] {
+                assert!((charged(id) - want).abs() < 0.1, "{file}: the meter charges {id} {} W, RECS gives {want:.2} W for {people}", charged(id));
+                assert!((runtime(id) - want).abs() < 0.1, "{file}: {id} draws {} W in play, its daily average is {want:.2} W", runtime(id));
+            }
+            let freezer = recs(&FREEZER_KWH_YR, people);
+            assert!((charged("freezer") - freezer).abs() < 0.1, "{file}: the meter charges the freezer {} W, RECS gives {freezer:.2} W for {people}", charged("freezer"));
+            for (id, pump) in PUMPS {
+                assert!((charged(id) - pump * INDOOR_DUTY).abs() < 1e-3, "{file}: the meter charges {id} {} W; its {pump} W pump on the indoor timer averages {}", charged(id), pump * INDOOR_DUTY);
+            }
+
+            // The Energy loop states the meter's two figures, and whether they close against its supply.
+            let kwh = |basis: MeterBasis| home.utility_meters(4.5, basis).into_iter().find(|m| m.utility == "power").expect("a power meter").demand;
+            let (station, realistic) = (kwh(MeterBasis { life_support_on_grid: false }), kwh(MeterBasis { life_support_on_grid: true }));
+            let energy = home.loops.iter().find(|l| l.name == "Energy").expect("an Energy loop");
+            let (said_station, said_realistic) = (stated(&energy.demand, " kWh/day Station-supplied"), stated(&energy.demand, " kWh/day in the Realistic mode"));
+            let supply = stated(&energy.supply, " kWh/day:");
+            println!("{file}: meter {station:.2} kWh/day Station-supplied, {realistic:.2} Realistic; the loop says {said_station} and {said_realistic} against {supply}");
+            if let Some(m) = home.utility_meters(4.5, MeterBasis::default()).into_iter().find(|m| m.utility == "power") {
+                println!("  summary: {}", m.summary);
+            }
+            let mut by_type: BTreeMap<String, (usize, f32)> = BTreeMap::new();
+            for i in home.all_instances() {
+                if let Some(d) = home.catalog.get(&i.machine) {
+                    let e = by_type.entry(i.machine.clone()).or_insert((0, 0.0));
+                    e.0 += 1;
+                    e.1 += d.average_load_watts(MeterBasis::default(), is_grow_light(&i.machine)) * 24.0 / 1000.0;
+                }
+            }
+            let mut rows: Vec<_> = by_type.into_iter().filter(|(_, (_, k))| *k > 0.0).collect();
+            rows.sort_by(|a, b| b.1 .1.total_cmp(&a.1 .1));
+            for (id, (n, k)) in &rows {
+                println!("  {id}: {n} placed, {k:.3} kWh/day");
+            }
+            assert!((said_station - station).abs() <= 0.05, "{file}: the Energy loop says ~{said_station} kWh/day Station-supplied, the meter {station:.2}");
+            assert!((said_realistic - realistic).abs() <= 0.05, "{file}: the Energy loop says ~{said_realistic} kWh/day Realistic, the meter {realistic:.2}");
+            assert_eq!(energy.closes, station <= supply && realistic <= supply, "{file}: the Energy loop's `closes` against {supply} kWh/day");
+        }
+    }
+
     /// v0.664: a battery bank is STORAGE, not demand -- its inferred bidirectional bus terminal
     /// (a cable rating) must not inflate the power meter's kWh/day demand. Pre-fix, each shipped
     /// bank added max_discharge_w x 24 h (48 kWh/day of phantom demand per bank).

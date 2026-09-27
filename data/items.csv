@@ -169,6 +169,12 @@ vegetable_corn_0,Corn,food,vegetable,plant_fiber,0.25,20,0,Sweet corn ear,solid,
 vegetable_lettuce_0,Lettuce,food,vegetable,plant_fiber,0.3,20,0,Leafy green head,solid,0.56
 vegetable_cabbage_0,Cabbage,food,vegetable,plant_fiber,0.8,10,0,Dense leafy head,solid,1.48
 rice_0,Rice,food,grain,plant_fiber,0.5,20,0,Milled white rice 500g bag: paddy with its hull and bran taken off (mill_rice),dry_goods,0.93
+# Dehulled grain (2026-09-27): what the grain mill rubs out of covered barley, oats and spelt, which
+# the garden harvests in the hull (dehull_barley, dehull_oats and dehull_spelt in data/recipes.csv
+# carry each split and its source; data/food/item_profiles.ron files the hulled harvests as not food).
+barley_dehulled_0,Dehulled Barley,food,grain,plant_fiber,0.5,20,0,Whole-grain barley 500g bag with its husk rubbed off (dehull_barley); USDA calls this hulled barley,dry_goods,0.93
+oat_groats_0,Oat Groats,food,grain,plant_fiber,0.5,20,0,Whole oat kernels 500g bag with the hull taken off (dehull_oats),dry_goods,0.93
+spelt_dehulled_0,Dehulled Spelt,food,grain,plant_fiber,0.5,20,0,Spelt kernels 500g bag with the hull taken off (dehull_spelt); cook them or mill them,dry_goods,0.93
 flour_0,Flour,food,grain,plant_fiber,0.5,20,0,Ground wheat flour 500g bag,dry_goods,0.93
 sugar_0,Sugar,food,seasoning,plant_fiber,0.5,20,0,Granulated cane sugar 500g,dry_goods,0.93
 salt_food_0,Salt,food,seasoning,salt,0.5,20,0,Table salt 500g container,dry_goods,0.51
@@ -286,6 +292,13 @@ whey_0,Whey,food,dairy,plant_fiber,1.0,5,0,The liquid left when milk becomes che
 # volume follows scripts/gen-item-volumes.js.
 rice_hulls_0,Rice Hulls,material,byproduct,plant_fiber,1.0,20,0,The husks milled off paddy rice; light and slow to rot. They burn as fuel and compost with something richer,dry_goods,10.0
 rice_bran_0,Rice Bran,material,byproduct,plant_fiber,0.5,20,0,Bran and germ polished off brown rice 500g bag; oily and rich in protein,dry_goods,0.69
+# Cereal hulls (2026-09-27): the husks the grain mill rubs off covered barley, oats and spelt
+# (dehull_barley, dehull_oats and dehull_spelt in data/recipes.csv carry each split and its source).
+# One item for the three: fibrous chaff low in nitrogen, composted with seed press cake
+# (compost_cereal_hulls). A 500 g bag. Its volume is a GAME ESTIMATE: no bulk density for these hulls
+# was read, so it takes IRRI's for rice husk, the nearest measured chaff, "about 100 kg/m3" (see
+# rice_hulls_0 above): 5 L.
+cereal_hulls_0,Cereal Hulls,material,byproduct,plant_fiber,0.5,20,0,The husks rubbed off barley or oats or spelt 500g bag; light and slow to rot. They compost with something richer,dry_goods,5.0
 # Wood ash (2026-09-27): what a charcoal fire leaves. coal_0 is a 1.3 kg lump of charcoal, and "Good
 # quality lump charcoal typically has ash content of about 3%" (FAO Forestry Paper 41, "Simple technologies
 # for charcoal making", 1987, section 10.1.4, https://www.fao.org/4/x5328e/x5328e0b.htm, read 2026-09-27),
@@ -517,6 +530,10 @@ roast_chicken_0,Roast Chicken,food,cooked,plant_fiber,1.5,5,0,Whole oven-roasted
 fish_grilled_0,Grilled Fish,food,cooked,plant_fiber,0.4,10,0,Open-flame cooked fish fillet,solid,0.74
 omelette_0,Omelette,food,cooked,plant_fiber,0.3,10,0,Folded egg and filling pan dish,solid,0.56
 porridge_0,Porridge,food,cooked,plant_fiber,0.4,10,0,Hot oat or grain breakfast bowl,solid,0.74
+# Cooked rice (2026-09-27): one bowl is a quarter of cook_rice's pot (data/recipes.csv has the ratio and
+# its source), 350 g, about two cups (USDA FoodData Central gives a cup of cooked long-grain white rice as
+# 158 g).
+cooked_rice_0,Cooked Rice,food,cooked,plant_fiber,0.35,10,0,A bowl of plain boiled white rice (cook_rice),solid,0.65
 salad_0,Salad,food,cooked,plant_fiber,0.4,10,0,Mixed raw vegetable bowl,solid,0.74
 cake_0,Cake,food,baked,plant_fiber,1.0,5,0,Sweet layered baked dessert,solid,1.85
 pie_0,Pie,food,baked,plant_fiber,0.8,5,0,Filled pastry-crust baked dish,solid,1.48
@@ -602,8 +619,8 @@ seed_zucchini_0,Zucchini Seeds,material,seed,plant_fiber,0.05,50,0,Planting zucc
 grain_wheat_0,Wheat Grain,food,grain,plant_fiber,0.5,20,0,Threshed wheat kernels 500g,dry_goods,0.93
 grain_corn_0,Corn Grain,food,grain,plant_fiber,0.5,20,0,Shelled maize kernels 500g,dry_goods,0.93
 grain_rice_0,Paddy Rice,food,grain,plant_fiber,0.5,20,0,Threshed paddy rice still in its hull 500g; mill it into white rice before cooking,dry_goods,0.93
-grain_barley_0,Barley Grain,food,grain,plant_fiber,0.5,20,0,Threshed covered barley 500g: the grain with its hull still on,dry_goods,0.93
-grain_oat_0,Oat Grain,food,grain,plant_fiber,0.5,20,0,Threshed oat groats 500g,dry_goods,0.93
+grain_barley_0,Covered Barley,food,grain,plant_fiber,0.5,20,0,Threshed covered barley 500g: the grain with its husk still on; dehull it (dehull_barley) before cooking or milling,dry_goods,0.93
+grain_oat_0,Whole Oats,food,grain,plant_fiber,0.5,20,0,Threshed oats 500g: the groat still in its hull as oats come off the thresher; dehull them into groats (dehull_oats) before cooking,dry_goods,0.93
 grain_rye_0,Rye Grain,food,grain,plant_fiber,0.5,20,0,Threshed rye kernels 500g,dry_goods,0.93
 grain_sorghum_0,Sorghum Grain,food,grain,plant_fiber,0.5,20,0,Threshed sorghum kernels 500g,dry_goods,0.93
 grain_millet_0,Millet Grain,food,grain,plant_fiber,0.5,20,0,Threshed millet kernels 500g,dry_goods,0.93
@@ -1022,7 +1039,7 @@ grain_sesame_0,Sesame Seed,food,grain,plant_fiber,0.5,20,0,Threshed sesame seed 
 grain_rapeseed_0,Rapeseed,food,grain,plant_fiber,0.5,20,0,Threshed rapeseed for oil pressing 500g,dry_goods,0.93
 fruit_olive_0,Olive,food,fruit,plant_fiber,0.3,20,0,Fresh harvested olive,solid,0.45
 fruit_date_palm_0,Dates,food,fruit,plant_fiber,0.3,20,0,Fresh harvested dates,solid,0.45
-grain_spelt_0,Spelt Grain,food,grain,plant_fiber,0.5,20,0,Dehulled spelt kernels 500g,dry_goods,0.93
+grain_spelt_0,Spelt in the Hull,food,grain,plant_fiber,0.5,20,0,Threshed spelt 500g: the kernels still in their hulls as spelt comes off the thresher; dehull it (dehull_spelt) before milling or cooking,dry_goods,0.93
 grain_finger_millet_0,Finger Millet Grain,food,grain,plant_fiber,0.5,20,0,Threshed finger millet seed 500g,dry_goods,0.93
 grain_camelina_0,Camelina Seed,food,grain,plant_fiber,0.5,20,0,Threshed camelina seed for oil pressing 500g,dry_goods,0.93
 grain_safflower_0,Safflower Seed,food,grain,plant_fiber,0.5,20,0,Threshed safflower seed for oil pressing 500g,dry_goods,0.93

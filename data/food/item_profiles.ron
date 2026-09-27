@@ -78,6 +78,7 @@
         ("pizza_slice_0", "pizza"),
         ("omelette_0", "omelette"),
         ("porridge_0", "porridge"),
+        ("cooked_rice_0", "cooked_rice"),     // milled rice boiled in water (cook_rice)
         ("salad_0", "raw_vegetables"),        // raw lettuce, tomato and carrot, no dressing
 
         // --- Grains and flour (dry, keep for a year) ---
@@ -85,8 +86,9 @@
         ("flour_0", "grains"),
         ("grain_wheat_0", "grains"),
         ("grain_corn_0", "grains"),
-        ("grain_barley_0", "grains"),         // covered barley, hull on; no pearling step yet (see crop_nutrition.ron)
-        ("grain_oat_0", "grains"),
+        ("barley_dehulled_0", "grains"),      // the covered barley harvest dehulled (dehull_barley); the harvest is under not_food
+        ("oat_groats_0", "grains"),           // whole oats dehulled (dehull_oats)
+        ("spelt_dehulled_0", "grains"),       // spelt in the hull dehulled (dehull_spelt)
         ("grain_rye_0", "grains"),
         ("grain_sorghum_0", "grains"),
         ("grain_millet_0", "grains"),
@@ -94,7 +96,6 @@
         ("grain_quinoa_0", "grains"),
         ("grain_buckwheat_0", "grains"),
         ("grain_teff_0", "grains"),
-        ("grain_spelt_0", "grains"),
         ("grain_finger_millet_0", "grains"),
         ("grain_triticale_0", "grains"),
 
@@ -234,8 +235,11 @@
         ("whey_0", "the liquid left from cheese making; used here in baking (cook_bread_whey), drinking it is not modelled yet"),
         ("apple_pomace_0", "the pressed skins, cores and pulp left from juicing; composted here (compost_apple_pomace), not eaten"),
 
-        // --- Grain that must be milled first ---
+        // --- Grain that must be milled or dehulled first ---
         ("grain_rice_0", "paddy rice is still in its hull, which is not eaten; mill it into white rice (mill_rice) and cook that"),
+        ("grain_barley_0", "covered barley still has its fibrous husk, which is not eaten; dehull it (dehull_barley) and eat the grain"),
+        ("grain_oat_0", "whole oats are still in their hulls, which are not eaten; dehull them into groats (dehull_oats)"),
+        ("grain_spelt_0", "spelt comes off the thresher in its hull, which is not eaten; dehull it (dehull_spelt) before milling or cooking"),
 
         // --- Oilseeds grown for pressing ---
         ("grain_rapeseed_0", "grown to be pressed for oil; the seed is not eaten as it is"),

@@ -114,9 +114,11 @@
 // safflower), else the AFCM peanut shelling percentage, IRRI's paddy hull and Feedipedia's
 // oil-type sunflower hull. The trailing "// FDC <id> x <share>" says which. Checked
 // 2026-09-27 for the two left over: barley DID carry the gap (its harvest is threshed covered
-// barley, hull on, and its row was the dehulled grain) and is now on the harvest's basis;
-// spelt did not (its harvest item is dehulled kernels, as its FDC row is), though the
-// threshing that really gives spelt in its hull is skipped. See the two rows.
+// barley, hull on, and its row was the dehulled grain) and is now on the harvest's basis.
+// Later the same day oat and spelt joined it: oat's item said groats while its removal columns
+// weighed whole oats, and spelt's harvest skipped the hull it really comes off the thresher in.
+// All three harvests are now the grain in its hull, not food as it is, and the grain mill
+// dehulls them (dehull_barley, dehull_oats, dehull_spelt in data/recipes.csv). See the rows.
 //   * plantain uses USDA "Plantains, GREEN, raw" (152 kcal) not the ripe/general row
 //     (122 kcal), because the crop is harvested green and cooked as a starch. This is the
 //     banana calibration anchor: 152 vs banana 89 is the real starch difference.
@@ -309,20 +311,38 @@
         // and Jukić, "Barley in the Production of Cereal-Based Products", Plants 11(24):3519,
         // 14 December 2022, https://doi.org/10.3390/plants11243519 (read 2026-09-27): "Depending
         // on the barley variety and growing conditions, the husk accounts for an average of 13%".
+        // The grain mill dehulls it (dehull_barley, 2026-09-27) at 12.5%, the nearest whole-bag split
+        // to this 13%, inside Sinkovič et al. 2023's reading of the literature, "the proportion of
+        // barley husks is 10–20%" (the paper is cited on the spelt row).
         (plant_id: "barley",          calories_per_100g: 308.0, protein_g: 10.9, fat_g: 2.0,  carbs_g: 63.9),  // FDC 170283 x 0.87
-        (plant_id: "oat",             calories_per_100g: 389.0, protein_g: 16.9, fat_g: 6.9,  carbs_g: 66.3),  // FDC 169705
+        // oat: IN THE HULL (2026-09-27), per 100 g of threshed whole oats, the harvest item
+        // (grain_oat_0, "Whole Oats"; the removal columns in plants.csv weigh the same grain, NRCS oats
+        // at a 32 lb bushel). The item said groats and this row carried the groats' FDC 169705 "Oats"
+        // (389/16.9/6.9/66.3), so a harvest weighed whole counted its hull as food. Now x 0.75, the
+        // groat share: Feedipedia, "Oat hulls and oat mill feed" (Heuzé, Tran, Chapoutot, Lessire and
+        // Lebas; INRAE, CIRAD, AFZ and FAO; updated 20 July 2016; https://www.feedipedia.org/node/707,
+        // read 2026-09-27): oat hulls "represent up to 25% of the weight of the grain"; Sinkovič et
+        // al. 2023 (see the spelt row): "The percentage of oat husks is usually higher than barley and
+        // is 25–30% of the dry weight of the grain". The grain mill dehulls at the same 25%
+        // (dehull_oats), and the groats it makes are eaten as the FDC row.
+        (plant_id: "oat",             calories_per_100g: 291.8, protein_g: 12.7, fat_g: 5.2,  carbs_g: 49.7),  // FDC 169705 x 0.75
         (plant_id: "rye",             calories_per_100g: 338.0, protein_g: 10.3, fat_g: 1.6,  carbs_g: 75.9),  // FDC 168884
         (plant_id: "millet",          calories_per_100g: 378.0, protein_g: 11.0, fat_g: 4.2,  carbs_g: 72.8),  // FDC 169702
         // triticale: FDC 169718 "Triticale" read 2026-09-26; fat was 1.8.
         (plant_id: "triticale",       calories_per_100g: 336.0, protein_g: 13.1, fat_g: 2.1,  carbs_g: 72.1),  // FDC 169718
-        // spelt: checked 2026-09-27 and left as it is. Its harvest item (grain_spelt_0) is
-        // "Dehulled spelt kernels", and FDC 169745 "Spelt, uncooked" is the dehulled kernel, so
-        // the calories and the weight they multiply agree. What is not real is the harvest
-        // itself: spelt is harvested in its hull (Sinkovič et al., Foods 12(13):2452, 22 June
-        // 2023, https://doi.org/10.3390/foods12132452, read 2026-09-27: "the need to hull the
-        // grains after harvest"), and its yield is still the old unsourced placeholder, so the
-        // hull share waits for a dehulling step and a sourced yield.
-        (plant_id: "spelt",           calories_per_100g: 338.0, protein_g: 14.6, fat_g: 2.4,  carbs_g: 70.2),  // FDC 169745
+        // spelt: IN THE HULL (2026-09-27). Spelt is harvested in its hull (Sinkovič et al., Foods
+        // 12(13):2452, 22 June 2023, https://doi.org/10.3390/foods12132452, read on PMC as
+        // PMC10340665 2026-09-27: "the need to hull the grains after harvest"), so the harvest item
+        // (grain_spelt_0) is now "Spelt
+        // in the Hull" and the grain mill dehulls it (dehull_spelt). Per 100 g as harvested: FDC
+        // 169745 "Spelt, uncooked", the dehulled kernel (338/14.6/2.4/70.2), x 0.75: the Alternative
+        // Field Crops Manual, "Spelt" (Oplinger, Oelke, Kaminski, Kelling, Doll, Durgan and Schuler,
+        // University of Wisconsin-Madison and University of Minnesota, May 1990,
+        // https://hort.purdue.edu/newcrop/afcm/spelt.html, read 2026-09-27): "As with oats, the hulls
+        // remain on the grain in threshing and comprise 20% to 30% of the grain weight". The middle,
+        // 25%, which the mill also uses. (Sinkovič's own stone-mill run lost 38% of its spelt as
+        // husk, polishing losses included.) Its yield is still the old unsourced placeholder.
+        (plant_id: "spelt",           calories_per_100g: 253.5, protein_g: 10.9, fat_g: 1.8,  carbs_g: 52.6),  // FDC 169745 x 0.75
         (plant_id: "amaranth",        calories_per_100g: 371.0, protein_g: 13.6, fat_g: 7.0,  carbs_g: 65.3),  // FDC 170682
         (plant_id: "quinoa",          calories_per_100g: 368.0, protein_g: 14.1, fat_g: 6.1,  carbs_g: 64.2),  // FDC 168874
         (plant_id: "buckwheat",       calories_per_100g: 343.0, protein_g: 13.3, fat_g: 3.4,  carbs_g: 71.5),  // FDC 170286

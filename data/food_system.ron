@@ -839,6 +839,30 @@
             description: "Grain simmered soft in milk. A warm, easy breakfast.",
         ),
 
+        // Base (2026-09-27): USDA SR Legacy NDB 20445 "Rice, white, long-grain,
+        // regular, unenriched, cooked without salt" (FDC 169757, read 2026-09-27):
+        // home-milled rice is not enriched. Vitamins as fractions of the FDA Daily
+        // Values as the rows above (B: thiamin 0.02, riboflavin 0.013, niacin 0.4,
+        // B6 0.093 mg, folate 3 ug DFE, B12 0; E 0.04 mg rounds to 0). The recipe
+        // (cook_rice) boils a 500 g bag into 1.40 kg, the 2.80 weight ratio of this
+        // row's dry matter to the raw row's (NDB 20444). Keeps: FoodKeeper "Cooked
+        // rice", 4-6 days refrigerated; the lower bound, as for every row.
+        (
+            id: "cooked_rice",
+            name: "Cooked Rice",
+            category: "staple",
+            calories_per_100g: 130,
+            protein_g: 2.69,
+            carbs_g: 28.17,
+            fat_g: 0.28,
+            fiber_g: 0.4,
+            vitamins: (A: 0.0, B: 0.02, C: 0.0, D: 0.0, E: 0.0, K: 0.0),
+            minerals: (iron: 0.2, calcium: 10.0, zinc: 0.49, potassium: 35.0),
+            spoilage_rate_hours: 96.0,
+            raw_consumption_risk: 0.0,
+            description: "White rice boiled until it has soaked up nearly twice its weight in water. Plain, soft and filling.",
+        ),
+
         // Base: USDA SR Legacy NDB 15016 "Fish, cod, Atlantic, cooked, dry heat".
         (
             id: "cooked_fish",

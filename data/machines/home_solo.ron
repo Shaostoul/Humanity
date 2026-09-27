@@ -362,24 +362,44 @@
             shape: "box", size: (0.6, 0.85, 0.6), color: (0.82, 0.82, 0.86),
             label: "Washing machine",
             category: "Water",
-            stats: [(kind: "water", value: "-11 L/d avg", status: "ok"), (kind: "power", value: "-0.3 kWh/d", status: "ok")],
-            power: Some(Consumer(watts: 12.0, priority: 4)),
+            stats: [(kind: "water", value: "-11 L/d avg", status: "ok"), (kind: "power", value: "-0.13 kWh/d (US survey average, one person)", status: "ok")],
+            // Energy (2026-09-27; it was a 12 W continuous-equivalent, 0.29 kWh a day, from no
+            // source). EIA, 2020 Residential Energy Consumption Survey, Table CE5.3a (released June
+            // 2023, revised March 2024, https://www.eia.gov/consumption/residential/data/2020/c&e/xls/ce5.3a.xlsx,
+            // read 2026-09-27): clothes washers, "1 member", 46 kWh a year per household using
+            // one, 5.25 W averaged: the motor only, as RECS counts the wash water under water
+            // heating (home.ron's washer has the definitions). RECS Table HC3.4 (final release
+            // March 2023, read 2026-09-27) finds 21.04 million one-person homes washing "1 to 4
+            // loads per week" and 2.45 million more; at the bins' midpoints (a game estimate)
+            // about 3 loads a week, so about 0.3 kWh a load. This file's convention: the Consumer
+            // and its port both carry the continuous-equivalent the electrical sim draws around
+            // the clock; `average_watts` states it for the static meter as home.ron's does.
+            power: Some(Consumer(watts: 5.25, priority: 4, average_watts: Some(5.25))),
             ports: [
                 (utility: Water, dir: In, label: "fill", flow_lpm: 0.0076),
-                (utility: Electricity, dir: In, label: "motor", watts: 12.0),
+                (utility: Electricity, dir: In, label: "motor (5.25 W averaged)", watts: 5.25),
             ],
         ),
         "water_heater": (
             shape: "cylinder", size: (0.55, 1.5, 0.55), color: (0.88, 0.84, 0.70),
             label: "Water heater (150 L)",
             category: "Water",
-            // ~1.2 kWh/day for one person's hot draws, expressed as a
-            // continuous-equivalent 50 W load (the sim's Consumer model).
-            stats: [(kind: "power", value: "-1.2 kWh/d", status: "warn"), (kind: "water", value: "hot 26 L/d", status: "ok")],
-            power: Some(Consumer(watts: 50.0, priority: 3)),
+            // Energy (2026-09-27). It was ~1.2 kWh/day, a continuous-equivalent 50 W: the heat in
+            // 26 L warmed about 40 C with nothing lost, which leaves out the tank's standby loss.
+            // Now the real figure: EIA, 2020 Residential Energy Consumption Survey, Table CE5.3a
+            // "Detailed household site electricity end-use consumption, part 1 - averages"
+            // (released June 2023, revised March 2024,
+            // https://www.eia.gov/consumption/residential/data/2020/c&e/xls/ce5.3a.xlsx, read
+            // 2026-09-27): water heating, "1 member", 1,427 kWh a year per household that heats
+            // its water with electricity, 3.91 kWh a day, 162.9 W averaged. This file's convention:
+            // the Consumer and its port both carry the continuous-equivalent the electrical sim
+            // draws around the clock (it has no thermostat); `average_watts` states it for the
+            // static meter as home.ron's does.
+            stats: [(kind: "power", value: "-3.9 kWh/d (US survey average, one person)", status: "warn"), (kind: "water", value: "hot 26 L/d", status: "ok")],
+            power: Some(Consumer(watts: 162.9, priority: 3, average_watts: Some(162.9))),
             storage: [(utility: HotWater, capacity: 150.0)],
             ports: [
-                (utility: Electricity, dir: In, label: "element", watts: 50.0),
+                (utility: Electricity, dir: In, label: "element (162.9 W averaged)", watts: 162.9),
                 (utility: Water, dir: In, label: "cold feed", flow_lpm: 0.0188),
                 (utility: HotWater, dir: Out, label: "hot supply", flow_lpm: 0.0188),
             ],
@@ -701,9 +721,20 @@
                     value: "frozen food",
                     status: "ok",
                 ),
+                (
+                    kind: "power",
+                    value: "1.5 kWh a day for one person (US survey average)",
+                    status: "ok",
+                ),
             ],
+            // Its power (2026-09-27; it had none). EIA, 2020 Residential Energy Consumption Survey,
+            // Table CE5.3b (released June 2023, revised March 2024,
+            // https://www.eia.gov/consumption/residential/data/2020/c&e/xls/ce5.3b.xlsx, read
+            // 2026-09-27): separate freezers, "1 member", 539 kWh a year per household using one,
+            // 61.5 W averaged. No power role, so its port carries that continuous-equivalent for
+            // the meter, as home.ron's freezer does.
             power: None,
-            ports: [],
+            ports: [(utility: Electricity, dir: In, label: "compressor (61.5 W averaged)", watts: 61.5)],
             storage: [],
             rf_emission: 0.0,
             auto_recipe: None,
@@ -854,16 +885,31 @@
             shape: "cylinder", size: (0.3, 2.4, 0.3), color: (0.30, 0.65, 0.38),
             label: "Variety tower",
             category: "Food",
-            stats: [(kind: "nutrient", value: "vitamins + protein", status: "ok"), (kind: "power", value: "sun-lit, -15 W", status: "ok")],
+            stats: [(kind: "nutrient", value: "vitamins + protein", status: "ok"), (kind: "power", value: "sun-lit; a 48 W pump on 5 minutes in every 50: 4.8 W averaged", status: "ok")],
+            // Its pump (2026-09-27; the port was 15 W of "pump + light" for 24 hours, and the tower
+            // has no light). Tower Garden's high capacity pump, "rated at 714 GPH, 0.43 amps, 48
+            // watts" (https://us.towergarden.com/products/pump-model-3-0, read 2026-09-27; which
+            // pump is a game choice, reasoned on home.ron's tower), on the maker's indoor timer,
+            // "5 min on, 45 min off" (https://us.towergarden.com/products/tower-garden-timer, read
+            // 2026-09-27): 4.8 W averaged. No power role, so the port is what the meter charges
+            // and carries that continuous-equivalent.
             ports: [
-                (utility: Electricity, dir: In, label: "pump + light", watts: 15.0),
+                (utility: Electricity, dir: In, label: "pump (48 W, on 5 min in 50: 4.8 W averaged)", watts: 4.8),
             ],
         ),
         "aeroponic_tower_apothecary": (
             shape: "cylinder", size: (0.16, 1.9, 0.16), color: (0.45, 0.55, 0.30),
             label: "Apothecary tower",
             category: "Food",
-            stats: [(kind: "nutrient", value: "herbs + teas", status: "ok"), (kind: "power", value: "sun-lit, -12 W", status: "ok")],
+            stats: [(kind: "nutrient", value: "herbs + teas", status: "ok"), (kind: "power", value: "sun-lit; a 35 W pump on 5 minutes in every 50: 3.5 W averaged", status: "ok")],
+            // Its pump (2026-09-27; it had none, so the meter charged it nothing while its stat said
+            // -12 W). Tower Garden's standard pump, "rated at 357 US GPH, 0.65 amps, 35 watts"
+            // (https://us.towergarden.com/products/pump, read 2026-09-27), on the maker's indoor
+            // timer, "5 min on, 45 min off": 3.5 W averaged, carried by the port as on the variety
+            // tower above.
+            ports: [
+                (utility: Electricity, dir: In, label: "pump (35 W, on 5 min in 50: 3.5 W averaged)", watts: 3.5),
+            ],
         ),
         "potato_grow_bed": (
             shape: "box", size: (2.0, 0.4, 1.0), color: (0.55, 0.42, 0.25),
@@ -1695,11 +1741,11 @@
     loops: [
         (
             name: "Energy",
-            demand: "~28 kWh/day in the Realistic mode (one person, off-grid frugal ~3.4, air handlers ~24.1, mushroom tent humidifiers ~0.8, their CO2 fans ~0.1); ~4.3 kWh/day Station-supplied",
+            demand: "~32.4 kWh/day in the Realistic mode (the home and its machines ~8.2, the air handlers ~24.1); ~8.2 kWh/day Station-supplied (water heater ~3.9, freezer ~1.5, tower pumps ~1.1, mushroom tent humidifiers ~0.8, the tents' CO2 fans ~0.1, the rest ~0.9)",
             supply: "~5.76 kWh/day: 4 solar panels + wind; 2 batteries; generator backstop",
             closes: false,
             weakest: true,
-            note: "Does NOT close (2026-09-26, ship life support). Aboard a sealed station every litre the crops breathe out has to be condensed back out of the air, because there is no outside to vent it to; until this the model held the home's air at 40% for nothing. The home now carries five air handlers (Carrier 42CT size 14 fan coils on the station's cooling loop: 1,842 m3/h, 325 W flat out, data/life_support.ron): one in the greenhouse and one in the court, holding them at 75% (the greenhouse's crops breathe out about 199 L a day, the court's towers 43 L), and three in the plant room, holding the home's own air at 50%. Measured over a day and a night at full planting (src/systems/farming/life_support_tests.rs) they average about 1,005 W, 24.1 kWh a day. Nearly all of it is the home's three: the greenhouse is the same 2,970 m3 room the family home has, and it and the court leak 0.5 air changes an hour into the drier home air, about 215 L of their water a day, where every litre costs about 105 Wh of fan power against 27 Wh in the greenhouse. Each mushroom tent has a CO2 fan since 2026-09-27 (an AC Infinity CLOUDLINE S4, 28 W, switched at 900 ppm by a CO2 controller) and the mushroom room one of its own (a CLOUDLINE S6, 70 W, at 600 ppm): the tent fans run about 5.5% of the time, about 3 W together, and the room fan idles while two racks leave the room under 600. The fresh air they bring in makes the tent humidifiers work harder, about 34 W (0.81 kWh a day, was 0.42). The CO2 scrubber that replaced the 25 W air recycler idles (the crops keep the carbon dioxide near 465 ppm once it settles). So demand is about 4.6 - 0.56 (the old tents) - 0.6 (recycler) + 0.81 + 0.07 + 24.1 = about 28 kWh a day against 5.76: about 16 more panels would close it. In the Station-supplied mode, the default, the station's own plant powers the air handlers and the scrubber, and the home draws about 4.6 - 0.56 - 0.6 + 0.81 + 0.07 = 4.3 kWh a day against 5.76: the loop CLOSES there. The cheaper levers are design calls: holding the home's air at 60% instead of 50% (the EPA's line; the handlers then average about 450 W, 11 kWh a day, measured), sealing the greenhouse and the court from the home more tightly than an Earth greenhouse's 0.5 air changes an hour, a smaller greenhouse for one person, or fan coils with EC motors (the catalogue's are permanent split capacitor motors, the least efficient kind, and its EC option publishes no figures to model). The coils' heat, about 7 kW of it latent (250 L a day at 2.45 MJ a litre, FAO-56), goes to the station's radiators, which the game does not model yet: the Climate loop. 4x400 W panels at ~4.5 sun-hours make ~5.76 kWh/d; the 2 battery banks (8 kWh) and the generator covered the old 4.6 kWh/day. The indoor garden stays sun-lit, not grow-lit: artificial lights to feed one person indoors would cost 10-50 kWh/d.",
+            note: "Does NOT close in either mode. THE METER (2026-09-27): these figures are the Construction page's power meter, which now charges every machine its real daily energy, and a test (the_household_machines_charge_their_sourced_daily_energy in src/machines.rs) holds this loop to it. The household is no longer the frugal hand count's: from EIA's 2020 Residential Energy Consumption Survey averages for a one-person household (Tables CE5.3a and CE5.3b), the water heater is 3.9 kWh a day (1,427 kWh a year for a home that heats its water with electricity; it was a continuous 50 W, 1.2 kWh, the heat in its 26 L a day with nothing lost, standby loss left out), the freezer 1.5 (539 kWh a year; it had no power data), the washer's motor 0.13 (46 kWh a year; it was 12 W, 0.29), and the towers' pumps 1.1 (Tower Garden's 48 W and 35 W pumps on the maker's indoor timer, 5 minutes on in every 50; the port was 15 W for 24 hours and the apothecary tower had no pump). In the Station-supplied mode, the default, the station's own plant powers the air handlers and the scrubber, and the home draws about 8.2 kWh a day against 5.76: the water heater 3.9, the freezer 1.5, the tower pumps 1.1, the mushroom tent humidifiers 0.8, the tents' CO2 fans 0.1 and the rest 0.9 (the water purifier and pump, the irrigation and the washer). It NO LONGER CLOSES there, by about 2.5 kWh a day, about two more panels; the water heater alone takes two thirds of the whole supply. Not counted yet, because no data carries them: the aquaponic tank's air pump (its stat says 50 W, which no source backs), lighting, cooking and small appliances. In the Realistic mode the air handlers' 24.1 kWh a day come onto the home's grid as well, about 32.4 kWh a day, about 15 more panels. Aboard a sealed station every litre the crops breathe out has to be condensed back out of the air, because there is no outside to vent it to; until this the model held the home's air at 40% for nothing. The home now carries five air handlers (Carrier 42CT size 14 fan coils on the station's cooling loop: 1,842 m3/h, 325 W flat out, data/life_support.ron): one in the greenhouse and one in the court, holding them at 75% (the greenhouse's crops breathe out about 199 L a day, the court's towers 43 L), and three in the plant room, holding the home's own air at 50%. Measured over a day and a night at full planting (src/systems/farming/life_support_tests.rs) they average about 1,005 W, 24.1 kWh a day. Nearly all of it is the home's three: the greenhouse is the same 2,970 m3 room the family home has, and it and the court leak 0.5 air changes an hour into the drier home air, about 215 L of their water a day, where every litre costs about 105 Wh of fan power against 27 Wh in the greenhouse. Each mushroom tent has a CO2 fan since 2026-09-27 (an AC Infinity CLOUDLINE S4, 28 W, switched at 900 ppm by a CO2 controller) and the mushroom room one of its own (a CLOUDLINE S6, 70 W, at 600 ppm): the tent fans run about 5.5% of the time, about 3 W together, and the room fan idles while two racks leave the room under 600. The fresh air they bring in makes the tent humidifiers work harder, about 34 W (0.81 kWh a day, was 0.42). The CO2 scrubber that replaced the 25 W air recycler idles (the crops keep the carbon dioxide near 465 ppm once it settles). The cheaper levers are design calls: holding the home's air at 60% instead of 50% (the EPA's line; the handlers then average about 450 W, 11 kWh a day, measured), sealing the greenhouse and the court from the home more tightly than an Earth greenhouse's 0.5 air changes an hour, a smaller greenhouse for one person, or fan coils with EC motors (the catalogue's are permanent split capacitor motors, the least efficient kind, and its EC option publishes no figures to model). The coils' heat, about 7 kW of it latent (250 L a day at 2.45 MJ a litre, FAO-56), goes to the station's radiators, which the game does not model yet: the Climate loop. 4x400 W panels at ~4.5 sun-hours make ~5.76 kWh/d; the 2 battery banks (8 kWh) and the generator covered the old 4.6 kWh/day. The indoor garden stays sun-lit, not grow-lit: artificial lights to feed one person indoors would cost 10-50 kWh/d.",
         ),
         (
             name: "Water",
