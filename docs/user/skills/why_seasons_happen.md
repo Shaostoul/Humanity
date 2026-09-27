@@ -403,9 +403,11 @@ which.
   - The lag scales with the game year: 8.5 of 120 game days is the same share
     of a year as about 26 real days, which puts the inland peak in mid July,
     where Sacramento's is.
-- **What you feel.** The temperature at the player is Layer 1 at the player's
-  place, plus the weather's own deviation, plus a day and night swing, and it
-  feeds the body's heat balance.
+- **What you feel.** Standing on Earth, the temperature at the player is
+  Layer 1 at the player's place and altitude, plus the weather's own
+  deviation, and it feeds the body's heat balance. Earth has no day and night
+  swing yet. Aboard the home station, which is not on any world, you feel the
+  same four-step table the crops do.
 - **What crops feel is simpler.** Fields and water bodies read one reference
   temperature for the whole planet, not Layer 1 at their own position: Earth's
   four-step seasonal table, 15 C in Spring, 30 C in Summer, 12 C in Autumn and
@@ -423,15 +425,17 @@ What the game simplifies, so you do not learn it from the game:
   sun's curve by a test). There is no midnight sun and no polar night.
 - **The sun's height never changes with the season.** The home's solar panels
   make the same power at noon in Winter as in Summer. The Construction page's
-  power meter credits each panel with the site's real yearly average from
-  PVWatts; the live simulation does not use it.
+  power meter credits each panel with the site's yearly average from NREL's
+  PVWatts, less the batteries' round trip; the live simulation does not use it.
 - **Plants do not read day length.** No crop bulbs, flowers or bolts on a day
-  length signal; grow lights run on a fixed 18 hour timer
-  (`data/garden/lighting.ron`).
+  length signal; grow lights run on a fixed timer to an 18 hour photoperiod:
+  on at sunset (18:00), off at midnight (`data/garden/lighting.ron`).
 - **Crops do not feel the seasonal lag or the coast**, as the list above says.
-- **The Sun drawn in the sky follows the real date and time**, not the game's
-  20 minute day, so the sky and the gameplay sun can disagree; Brief 6 records
-  this.
+- **The Sun drawn in the sky** also crosses it once per 20 minute game day,
+  but where it sits along Earth's orbit comes from the real date. The drawn
+  world has no axial tilt, so the drawn Sun has no seasons either. Aboard the
+  home, that real-date term moves the deck's drawn noon away from the gameplay
+  noon, by an amount that drifts through a full day each real year (BUG-090).
 - **Other worlds.** Mars is tilted 25.19 degrees, according to NASA's Mars fact
   sheet, so the real Mars has seasons. The game's Mars row carries no seasonal
   or latitude term yet, because no Mars climatology was in hand, and the file
