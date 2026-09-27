@@ -315,18 +315,27 @@ impl Rng {
 /// Bits 0..18 of `uv.x` are already spoken for by
 /// `terrain::planet_surface::pack_color_to_uv*`: 0..7 green, 8..15 red,
 /// 16 water, 17 tree card, 18 grass card. Bits 19..23 are free below f32's
-/// 2^24 exact-integer ceiling, and this takes two of them. Keep these in sync
+/// 2^24 exact-integer ceiling, and this takes three of them. Keep these in sync
 /// with the type-20 decode in `assets/shaders/pbr/90-fragment-main.wgsl`.
 const ORGAN_BIT_LEAF: f32 = 524_288.0; // bit 19: leaf / petal blade
 const ORGAN_BIT_FRUIT: f32 = 1_048_576.0; // bit 20: fruit skin
+const ORGAN_BIT_PLAIN: f32 = 2_097_152.0; // bit 21: plain matte tissue, not bark
 
 /// Which organ the builder is currently emitting faces for.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Organ {
-    /// Stems, branches, roots. No extra bit; plain matte shading.
+    /// Stems, branches, roots. No extra bit; the shader draws BARK on it
+    /// (vertical fissures tens of centimetres across), so only woody tissue
+    /// belongs here.
     Stem,
     Leaf,
     Fruit,
+    /// Matte tissue that is not bark (2026-09-27): a dry mushroom cap and its
+    /// stem, a block's bare substrate, a bed's compost and casing, a paper
+    /// filter patch. The bark branch used to take these, and its fissure
+    /// cells, tens of centimetres wide, put a whole 5 cm cap inside or
+    /// outside one crack, so single caps drew at 0.4 of their colour.
+    Plain,
 }
 
 impl Organ {
@@ -335,6 +344,7 @@ impl Organ {
             Organ::Stem => 0.0,
             Organ::Leaf => ORGAN_BIT_LEAF,
             Organ::Fruit => ORGAN_BIT_FRUIT,
+            Organ::Plain => ORGAN_BIT_PLAIN,
         }
     }
 }
@@ -1042,6 +1052,25 @@ mod tests {
         assert!(leaves > 0, "tagged no leaf faces");
         assert!(fruits > 0, "tagged no fruit faces");
         assert!(stems > 0, "tagged no stem faces");
+    }
+
+    /// The Plain organ (2026-09-27, bit 21) reaches the packed UV on its own,
+    /// never alongside the leaf or fruit bit, and the color the same integer
+    /// carries still decodes.
+    #[test]
+    fn plain_organ_bit_rides_alone_and_keeps_the_color() {
+        let mut b = PlantMeshBuilder::new();
+        b.set_organ(Organ::Plain);
+        b.tube([0.0; 3], [0.0, 0.1, 0.0], 0.02, 0.02, 6, [0.8, 0.7, 0.6]);
+        assert!(!b.indices.is_empty());
+        for f in b.indices.chunks(3) {
+            let uv = b.vertices[f[0] as usize].uv;
+            let packed = uv[0].round().max(0.0) as u32;
+            assert_eq!(packed & 0x38_0000, 0x20_0000, "only the plain bit is set");
+            let (c, water) = crate::terrain::planet_surface::unpack_uv_to_color(uv);
+            assert!(!water);
+            assert!((c[0] - 0.8).abs() < 0.01 && (c[1] - 0.7).abs() < 0.01, "color survived: {c:?}");
+        }
     }
 
     #[test]

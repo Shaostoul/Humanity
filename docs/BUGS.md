@@ -1976,3 +1976,19 @@ The two defects as found:
    above the floor with each shelf's spacing free above it.
 
 Each code fix has a test seen red on a deliberate break.
+
+## BUG-098: dry mushroom caps drew as tree bark (FIXED v0.1386.0)
+
+Found by a read-only lighting review on 2026-09-27. The procedural plant mesh
+tags each face with an organ in spare UV bits, and a face with no bit takes
+the shader's bark branch. The mushroom blocks (v0.1385.0) put every dry cap
+(shiitake, button) and its stem, the bare shiitake block, the bed's compost and
+casing, the X-cut and the filter patch on that untagged `Stem` organ. Bark
+fissure cells are tens of centimetres across, so a whole 5 cm cap landed inside
+or outside one crack and single caps drew at about 0.4 of their colour, one
+darker than its neighbour for no reason. Fix: a fourth organ, `Organ::Plain`
+(bit 21), matte with a fine mottle at the object's own scale
+(`90-fragment-main.wgsl`, the PLAIN MATTE TISSUE branch), used for all of
+those; only the bed's wooden tray keeps the grained wood look. Tests
+`fungus_nothing_but_the_tray_is_shaded_as_bark` (seen red with dry caps back
+on `Stem`) and `plain_organ_bit_rides_alone_and_keeps_the_color`.

@@ -341,7 +341,7 @@ fn draw_block(
         }
         wither(col, g.wilt * 0.6)
     };
-    b.set_organ(if bagged { Organ::Fruit } else { Organ::Stem });
+    b.set_organ(if bagged { Organ::Fruit } else { Organ::Plain });
     for &(axis, sign) in BLOCK_FACES.iter() {
         let (ua, va) = tangents(axis);
         let su = stations(half[ua], shape.r, BLOCK_CELL_M);
@@ -376,7 +376,7 @@ fn draw_block(
         quad(b, [v(-x, skirt, z0), v(x, skirt, z0), v(x, top, z0), v(-x, top, z0)], rot * -Vec3::Z, film);
         quad(b, [v(x, skirt, z0), v(x, skirt, z1), v(x, top, z1), v(x, top, z0)], rot * Vec3::X, film);
         quad(b, [v(-x, skirt, z0), v(-x, skirt, z1), v(-x, top, z1), v(-x, top, z0)], rot * -Vec3::X, film);
-        b.set_organ(Organ::Stem);
+        b.set_organ(Organ::Plain);
         let (pz, py) = (z0 + 0.012, top + 0.001);
         let patch = wither(s.patch, g.wilt * 0.4);
         quad(b, [v(-0.025, py, pz), v(0.025, py, pz), v(0.025, py, pz + 0.035), v(-0.025, py, pz + 0.035)], rot * Vec3::Y, patch);
@@ -399,7 +399,7 @@ fn draw_block(
     if cut_open {
         // The X: two strips riding the lumpy surface, a shade darker where
         // the film is parted and the substrate shows.
-        b.set_organ(Organ::Stem);
+        b.set_organ(Organ::Plain);
         let arm = CUT_ARM_M.min(half[tangents(site_axis).0].min(half[tangents(site_axis).1]) * 0.8);
         let slit = wither(scale3(s.mycelium, 0.45), g.wilt * 0.6);
         for (k, diag) in [[1.0f32, 1.0], [1.0, -1.0]].iter().enumerate() {
@@ -500,12 +500,13 @@ impl BlockFrame {
 
 /// The surface shading a species' mushrooms get, from the data's
 /// `cap_sheen`: a moist or smooth cap takes the glossy `Fruit` skin shading,
-/// a dry one the matte, grained `Stem` shading.
+/// a dry one the matte `Plain` shading. Never `Stem`: that is bark, and its
+/// fissure cells are larger than a whole cap.
 fn cap_tissue(fr: &FungusFruit) -> Organ {
     if fr.cap_sheen {
         Organ::Fruit
     } else {
-        Organ::Stem
+        Organ::Plain
     }
 }
 
@@ -886,7 +887,9 @@ fn draw_bed(
 
     // The surface: compost the spawn runs through in white patches, then
     // the casing, crumbly and dark, with the mycelium showing through it in
-    // patches as the pins come.
+    // patches as the pins come. Plain, not the tray's grained wood: bark
+    // fissures do not belong on a bed of peat.
+    b.set_organ(Organ::Plain);
     let (iw, id) = (hw - tw, hd - tw);
     let cols = ((2.0 * iw / BED_CELL_M).ceil() as usize).max(1) + 1;
     let rows = ((2.0 * id / BED_CELL_M).ceil() as usize).max(1) + 1;
@@ -1391,6 +1394,36 @@ mod tests {
         for p in &local(&ripe, bare.vertices.len(), Vec3::ZERO, 0.0) {
             assert!(p.x.abs() < bw * 0.5 && p.z.abs() < bd * 0.5, "a button outside its tray: {p}");
             assert!(p.y > surface - 0.012, "a button below the casing: {p}");
+        }
+    }
+
+    /// Nothing fungal is shaded as bark (2026-09-27). A face with no organ
+    /// bit takes the shader's bark branch, whose fissure cells are tens of
+    /// centimetres wide, so a whole 5 cm cap landed inside or outside one
+    /// crack and single caps drew at 0.4 of their colour. At every stage the
+    /// blocks carry no bark face at all, and a bed's only bark faces are its
+    /// tray's four wooden boards (five faces of two triangles each).
+    ///
+    /// Seen red on 2026-09-27 by putting `cap_tissue`'s dry caps back on
+    /// `Stem`, as shipped in v0.1385.0: "shiitake at 0.6: faces shaded as
+    /// bark", the first stage with pins on the block.
+    #[test]
+    fn fungus_nothing_but_the_tray_is_shaded_as_bark() {
+        let bark = |b: &PlantMeshBuilder| {
+            b.indices
+                .chunks(3)
+                .filter(|t| (b.vertices[t[0] as usize].uv[0].round().max(0.0) as u32) & 0x38_0000 == 0)
+                .count()
+        };
+        for id in ["oyster_mushroom", "shiitake"] {
+            for t in [0.2, 0.6, 1.0] {
+                let (b, _) = unit(id, t, Vec3::ZERO, 0.0, 5);
+                assert_eq!(bark(&b), 0, "{id} at {t}: faces shaded as bark");
+            }
+        }
+        for t in [0.2, 0.6, 1.0] {
+            let (b, _) = unit("button_mushroom", t, Vec3::ZERO, 0.0, 5);
+            assert_eq!(bark(&b), 40, "button bed at {t}: bark beyond the tray's four boards");
         }
     }
 
