@@ -110,6 +110,20 @@ pub(crate) fn frame(state: &mut EngineState) {
         return;
     }
     let Some(p) = state.gui_state.build_placing.as_ref() else { return };
+    // Built pieces live in the HOME frame, so they can only be placed while
+    // the player is in it (2026-09-27, review of the shelter commit). On a
+    // planet the camera stays put and the ship frame moves instead, so a
+    // piece placed from the surface landed at the station, hundreds of km
+    // up, and the shelter test then followed the player through the rain.
+    // Anchoring pieces to a planet is its own increment (PRIORITIES, arc C).
+    if !state.aboard_station {
+        let name = p.name.clone();
+        if let Some(p) = state.gui_state.build_placing.as_mut() {
+            p.ghost = None;
+            p.hint = off_ship_hint(&name);
+        }
+        return;
+    }
     let can_place = state.camera.mode == crate::renderer::camera::CameraMode::FirstPerson && state.driving_vehicle.is_none();
     let ghost = if can_place { ghost_pose(state, p) } else { None };
     let floor = floor_y(state);
@@ -125,6 +139,11 @@ pub(crate) fn frame(state: &mut EngineState) {
         p.ghost = ghost;
         p.hint = hint;
     }
+}
+
+/// The line under the crosshair while holding a piece away from the ship.
+pub(crate) fn off_ship_hint(name: &str) -> String {
+    format!("Placing {name}: pieces can be built aboard the ship for now; building on a planet's surface comes next   [Esc] done")
 }
 
 /// The line under the crosshair while placing. `above_floor` is how high the

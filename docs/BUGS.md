@@ -2068,3 +2068,29 @@ shader differs from itself a few minutes later; no measurable cost (under
 0.1 ms of `gpu.celestial_t`). Rust mirror `renderer::water::wave_warp`, test
 `a_visible_wave_train_never_draws_straight_crests`, which also evaluates the
 old law and asserts it was straight.
+
+## BUG-102: built pieces and the shelter test used the wrong frame off the ship (GATED v0.1390.0; the real fix is planet-anchored pieces)
+
+Found by a critic review of the shelter commit (961745f7) on 2026-09-27, before
+it shipped. Built pieces live in the HOME frame and are drawn at the station
+offset, but placement (`engine/build_place.rs`) and the shelter test
+(`engine/survival_env.rs`) used the raw camera position. Aboard, where the two
+frames agree, that is right, but aboard there is no weather: outside the home
+is vacuum. On a planet, where the weather is, walking moves the ship frame and
+not the camera, so a piece placed from the surface was drawn at the station
+hundreds of km up, and the HUD said "Sheltered" wherever the player walked in
+the rain. The root is older than the shelter commit (the old build path and
+the bed and chest use test took the raw camera position too), and the
+commit's tests could not see it: every one runs in a flat Y-up world.
+
+Gated in v0.1390.0: a piece in hand places only while `aboard_station` (the
+flag that already gates the home's walls, floors and elevators), with a plain
+hint off the ship, and the shelter test runs only aboard, so nothing claims
+shelter where it cannot be true. The real fix, pieces anchored to the planet
+they stand on, is its own increment, with the review's other findings: a
+building bigger than one roof tile never counts as sheltered (the wall search
+reaches only 0.5 m past the one roof overhead); `OnTop` pieces can land on a
+lower storey; the machine and door "[E]" prompts still show while E would
+build; nothing stops two pieces being built in one spot; small overlaps float
+a piece; and the build pose is recomputed at the key press rather than taken
+from the ghost.

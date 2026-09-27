@@ -124,8 +124,16 @@ pub(crate) fn publish(state: &mut EngineState) {
             Some(_) => {
                 // Outside the hull: unsealed, in the live weather, under
                 // whatever the player has built over themselves (2026-09-27:
-                // a roof on three walls keeps the wind and rain off).
-                shelter = uses::shelter_at(&state.game_world.world, pos - glam::Vec3::Y * state.controller.eye_height());
+                // a roof on three walls keeps the wind and rain off). Only
+                // while the player is in the home frame the pieces live in:
+                // off the ship the camera does not move with the player, so
+                // testing the raw position against home-frame pieces said
+                // "Sheltered" wherever one walked (review of the shelter
+                // commit; see engine/build_place.rs, which refuses to place
+                // off the ship for the same reason).
+                if state.aboard_station {
+                    shelter = uses::shelter_at(&state.game_world.world, pos - glam::Vec3::Y * state.controller.eye_height());
+                }
                 let outdoors = Outdoors {
                     temp_c: exposed_temp,
                     relative_humidity: exposed_rh,

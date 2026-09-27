@@ -49,7 +49,6 @@ const DEFERRED_SYSTEMS: &[(&str, &str)] = &[
     // BlueprintRegistry now actually loads data/blueprints/basic.ron -- nothing calls
     // queue_build() yet (no GUI/economy-automation caller wired), so it's a live,
     // correct no-op today, not deferred.
-    ("PlacementSystem", "paired with ConstructionSystem; same build-mode gating"),
     // EconomySystem entry removed 2026-07-07 (v0.747, closure ladder rung 3):
     // REGISTERED in src/lib.rs — passive income pays real credits into the
     // player's Wallet component; vendor trade runs via the frame bridge.
