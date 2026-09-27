@@ -191,6 +191,54 @@ pub fn aurora_material(
     m
 }
 
+/// The emission pass's own state on the renderer.
+pub struct EmissionState {
+    /// The emitting layers' floor and top (fractions of the atmosphere
+    /// shell's thickness) across this frame's band-2 regions, recorded by
+    /// `Renderer::set_env_regions` from the same rows the GPU gets: the floor
+    /// decides which side of the frame the pass runs on, the top is its cheap
+    /// rejection radius. None = nothing emits, and the pass does not run.
+    pub layer: Option<(f32, f32)>,
+    /// The pass's uniform (`EmissionPassUniforms`), rewritten each run.
+    pub params: wgpu::Buffer,
+    /// Dev switch: skip the pass entirely (`showcase {"aurora":"0"}`). A
+    /// measuring instrument, not a setting: the aurora-OFF twin of a fixture
+    /// subtracted from its lit twin in linear light is exactly the light the
+    /// aurora delivers (scripts/aurora-gate.js).
+    pub off: bool,
+}
+
+impl EmissionState {
+    pub fn new(device: &wgpu::Device) -> Self {
+        let params = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Emission Pass Params"),
+            size: std::mem::size_of::<EmissionPassUniforms>() as u64,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        Self { layer: None, params, off: false }
+    }
+}
+
+/// Upload a body's auroral ovals on their own, when its cloud deck is off,
+/// and say whether it carries an emitting layer (so it gets the emission
+/// marker). THE AURORA DOES NOT BELONG TO THE CLOUD DECK (2026-09-27): the
+/// region upload in frame_shells runs only while the deck is on, so with
+/// clouds switched off the buffer kept whatever the last deck frame left in
+/// it. A boot with clouds off had no aurora at all, and one switched off
+/// mid-session kept a stale weather system too.
+pub fn upload_ovals_alone(
+    renderer: &mut Renderer,
+    kinds: Option<&super::env_regions::RegionKinds>,
+    radius_km: f32,
+) -> bool {
+    let mut regions: Vec<super::env_regions::EnvRegion> = Vec::new();
+    super::env_regions::push_auroral_ovals(&mut regions, kinds, radius_km);
+    let here = emitting_layer_fractions(&regions).is_some();
+    renderer.set_env_regions(&regions);
+    here
+}
+
 impl Renderer {
     /// Decide this frame's emission pass, or None when there is nothing to
     /// draw: no emitting region uploaded, no marker in the list (no body with
@@ -200,10 +248,10 @@ impl Renderer {
         camera: &super::Camera,
         transparent: &[RenderObject],
     ) -> Option<EmissionFrame> {
-        if self.emission_pass_off {
+        if self.emission.off {
             return None;
         }
-        let (floor_frac, top_frac) = self.emitting_layer?;
+        let (floor_frac, top_frac) = self.emission.layer?;
         let marker = transparent.iter().find(|o| {
             self.materials
                 .get(o.material)
@@ -250,7 +298,7 @@ impl Renderer {
         frame: &EmissionFrame,
     ) {
         self.queue.write_buffer(
-            &self.emission_params,
+            &self.emission.params,
             0,
             bytemuck::bytes_of(&frame.uniforms),
         );
@@ -260,7 +308,7 @@ impl Renderer {
             entries: &[
                 wgpu::BindGroupEntry {
                     binding: 1,
-                    resource: self.emission_params.as_entire_binding(),
+                    resource: self.emission.params.as_entire_binding(),
                 },
                 wgpu::BindGroupEntry {
                     binding: 2,

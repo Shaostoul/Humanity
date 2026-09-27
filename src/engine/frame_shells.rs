@@ -184,10 +184,8 @@ pub(crate) fn push_planet_shells(
 // haze. Order is view-dependent now.
 let mut cloud_shell_obj: Option<RenderObject> = None;
 let mut atmo_shell_obj: Option<RenderObject> = None;
-// Whether THIS body's environment regions (uploaded below) carry an emitting
-// layer: only then does it get the emission marker. The regions buffer holds
-// one body's ovals per frame, and a marker on any other body would draw those
-// ovals around the wrong planet.
+// Only the body whose regions carry an emitting layer gets the emission marker:
+// the buffer holds one body's ovals, so a marker elsewhere draws the wrong planet.
 let mut aurora_here = false;
 let clouds_on = state.gui_state.settings.planet_clouds;
 if let Some(cov) = d.cloud_coverage.filter(|c| *c > 0.0 && clouds_on) {
@@ -431,8 +429,7 @@ if let Some(cov) = d.cloud_coverage.filter(|c| *c > 0.0 && clouds_on) {
             [cam_local.x, cam_local.y, cam_local.z],
             state.start_time.elapsed().as_secs_f32(),
         );
-        // This body's regions are the ones the emission pass will evaluate,
-        // so it is the body that gets the emission marker below.
+        // This body's regions are the ones the emission pass evaluates.
         aurora_here = crate::renderer::emission_pass::emitting_layer_fractions(&regions).is_some();
         state.renderer.set_env_regions(&regions);
     }
@@ -1111,21 +1108,9 @@ if let Some(cov) = d.cloud_coverage.filter(|c| *c > 0.0 && clouds_on) {
         rotation.x, rotation.y, rotation.z, rotation.w,
     ));
 } else if d.cloud_coverage.is_some_and(|c| c > 0.0) {
-    // THE AURORA DOES NOT BELONG TO THE CLOUD DECK (2026-09-27). The region
-    // upload above runs only while the deck is on, so with clouds switched off
-    // the buffer simply kept whatever the last deck frame left in it: a boot
-    // with clouds off had no aurora at all, and one switched off mid-session
-    // kept a stale weather system too. The ovals are uploaded here on their
-    // own, for the same body the deck branch would have uploaded them for.
-    use crate::renderer::env_regions::{EnvRegion, RegionKinds};
-    let mut regions: Vec<EnvRegion> = Vec::new();
-    crate::renderer::env_regions::push_auroral_ovals(
-        &mut regions,
-        state.data_store.get::<RegionKinds>("region_kinds"),
-        (d.radius / 1000.0) as f32,
-    );
-    aurora_here = crate::renderer::emission_pass::emitting_layer_fractions(&regions).is_some();
-    state.renderer.set_env_regions(&regions);
+    // Clouds off: the ovals go up on their own (emission_pass::upload_ovals_alone).
+    let kinds = state.data_store.get::<crate::renderer::env_regions::RegionKinds>("region_kinds");
+    aurora_here = crate::renderer::emission_pass::upload_ovals_alone(state.renderer, kinds, (d.radius / 1000.0) as f32);
 }
 if let Some(ac) = d.atmosphere_color {
     if ac[3] > 0.0 && d.atmosphere_scale > 0.0 {
@@ -1291,15 +1276,11 @@ if let Some(f) =
 // Light that lives ABOVE the deck: this body's emission MARKER, which tells the
 // fullscreen emission pass where the aurora's planet is. Never rasterised; see
 // renderer::emission_pass for the pass and for why a marker rides this list.
-let aurora_marker = if aurora_here {
-    crate::renderer::emission_pass::aurora_marker(
-        state.renderer, state.planet_atmo_materials, atmo_shell_obj.as_ref(),
-        &b.id, state.gui_state.settings.planet_atmo_scatter,
-        d.atmosphere_color.unwrap_or([0.0; 4]), d,
-    )
-} else {
-    None
-};
+let aurora_marker = if !aurora_here { None } else { crate::renderer::emission_pass::aurora_marker(
+    state.renderer, state.planet_atmo_materials, atmo_shell_obj.as_ref(),
+    &b.id, state.gui_state.settings.planet_atmo_scatter,
+    d.atmosphere_color.unwrap_or([0.0; 4]), d,
+) };
 match (cloud_shell_obj, atmo_shell_obj) {
     (Some(c), Some(a)) if inside_atmo => {
         celestial_transparent.push(a);

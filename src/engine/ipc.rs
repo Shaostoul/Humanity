@@ -433,10 +433,10 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
     // what scripts/aurora-gate.js subtracts (in linear light) to prove the
     // cloud deck no longer dims it (PRIORITIES 1b).
     if let Some(t) = grab("aurora") {
-        state.renderer.emission_pass_off = t == "0";
+        state.renderer.emission.off = t == "0";
         log::info!(
             "Showcase: aurora -> {}",
-            if state.renderer.emission_pass_off { "OFF (emission pass skipped)" } else { "on" }
+            if state.renderer.emission.off { "OFF (emission pass skipped)" } else { "on" }
         );
     }
     // {"cloud_chord_foot":"1"} restores the pre-v0.1268 chord-frozen
