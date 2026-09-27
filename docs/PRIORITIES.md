@@ -1058,6 +1058,30 @@ them up.
    full-realism and simplified modes.
    **Laid out as one question with a recommendation on 2026-09-27:**
    docs/design/decision-briefs.md Brief 6 ("How long is a day?").
+3b. **Ship and garden decisions raised overnight 2026-09-27** (each with its
+   evidence in the doc named; none blocks other work):
+   - How to close the Realistic-mode Energy loop (family about 54 kWh a day
+     against 15.1): the home's air at 60%, tighter bulkheads between the grow
+     rooms and the home, more panels, or leave it to Station-supplied
+     (docs/design/ship-life-support.md).
+   - Whether the homes carry an oxygen electrolyser (about 2.6 kWh a day
+     family, 1.3 solo) to close the oxygen shortfall.
+   - The family home's mushrooms once its air settles near 675 ppm: a loop
+     of their own that hands their CO2 to the greenhouse, fewer racks,
+     bigger tent humidifiers, or accept up to about 9% loss
+     (ship-life-support.md section 7).
+   - The family Energy loop now falls 0.7 kWh a day short even in
+     Station-supplied mode (the mushroom tents' fresh air): one more panel?
+   - Whether the stale-air harm to mushrooms follows the garden's Off /
+     Gentle / Realistic setting (as built) or the Ship life support mode, and
+     whether a 900 ppm tent setpoint (the humidifiers cannot hold 90% at
+     Cornell's 800 in the family home) is acceptable.
+   - How to close the Food loops (91% family, 81% solo, since the mushroom
+     yields were sourced): more beds, or more blocks per tent.
+   - The v0.620 Wi-Fi crop harm: keep, scale to the evidence, make it a
+     setting, or remove (docs/reference/findings/2026-09-27-wifi-and-plants.md;
+     no source shows a household router harming a garden at the distances
+     plants sit from one).
 4. **Clear the old agent worktrees** under `.claude/worktrees/`. Audited
    2026-08-04: none could be cheaply proven redundant, and
    `just clean-worktrees` force-deletes branches and has destroyed

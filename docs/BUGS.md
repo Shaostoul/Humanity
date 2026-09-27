@@ -1930,12 +1930,16 @@ dry tank cannot take or give is still spilled or unmet. Test
 `a_trickle_reaches_a_big_tank_at_frame_rate` (an hour of 0.17 L/min at 60
 frames a second takes 10.2 L), seen red by dropping the carry.
 
-## BUG-097: seams in the v0.1377 and v0.1378 garden batch, found by review (FIXED v0.1379.0, two in progress)
+## BUG-097: seams in the v0.1377 and v0.1378 garden batch, found by review (FIXED v0.1379.0 and v0.1381.0)
 
 A critic review of the batch (911b9fc3..b20b24d7), made because systems built
 side by side disagree where they meet. It found nine; seven are fixed here.
 
-**In progress (on the mushroom-CO2 branch, which owns those files):**
+**Fixed in v0.1381.0 (on the mushroom-CO2 branch, which owned those files).**
+Loads are now fed critical first, a load drawing nothing is never shed, and
+every air machine writes the draw it would take each step, so a shed one
+comes back; a tent breathes only the blocks planted, at each species' rate.
+The two defects as found:
 1. HIGH: the power system switched the air handlers and the CO2 scrubber off
    whenever the grid was short, every night. A 0 W consumer (Station-supplied
    mode, or an idle handler) always fails `remaining >= draw && draw > 0`, and
