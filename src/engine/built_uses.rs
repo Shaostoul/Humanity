@@ -49,8 +49,12 @@ fn target(state: &EngineState) -> Option<(uses::StructureUse, String)> {
     if busy {
         return None;
     }
+    // In the frame the player is in (2026-09-27, BUG-102): the home aboard,
+    // or the build site they stand in on a planet, eye and look converted
+    // into it. It used to be the raw camera against every piece.
     let world = &state.game_world.world;
-    let (e, u) = uses::looked_at(world, state.camera.position, state.camera.forward(), REACH_M)?;
+    let f = crate::engine::planet_build::player_frame(state)?;
+    let (e, u) = uses::looked_at(world, f.eye, f.forward, REACH_M, f.site.as_ref())?;
     let s = world.get::<&Structure>(e).ok()?;
     let name = uses::display_name(&s, state.data_store.get::<BlueprintRegistry>("blueprint_registry"));
     Some((u, name))

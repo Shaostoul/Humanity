@@ -58,6 +58,10 @@ pub mod built_uses;
 /// Placing a built piece: the ghost that follows the crosshair, R to turn
 /// it, E to build it there, Esc to stop (2026-09-27).
 pub mod build_place;
+/// Building on a planet's ground as well as aboard (2026-09-27, BUG-102):
+/// the frame the player builds, shelters and looks in, the ground under the
+/// crosshair, and drawing built pieces where they stand.
+pub mod planet_build;
 /// The survival environment context (the home's air or the weather) and the
 /// body heat mode, published once a frame (moved out of lib.rs 2026-09-27).
 pub mod survival_env;

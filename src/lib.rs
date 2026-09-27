@@ -1827,6 +1827,7 @@ mod native_app {
                 station_spawn_snap: false,
                 station_off: Vec3::ZERO,
                 aboard_station: false,
+                planet_body_frame: None,
                 flight_data: crate::systems::flight::FlightData::load(&data_dir),
                 flight: crate::systems::flight::FlightState::default(),
                 surface_walk_band: false,
@@ -9387,6 +9388,7 @@ mod native_app {
                                 state.station_world_rot,
                                 rel_earth_m - state.ship_world_pos,
                             );
+                            crate::engine::planet_build::note_body(state, &b.id, render_off); // pieces built on it draw here
                             // Distance from the CAMERA, not the frame origin
                             // (v0.1238 starburst-far forensics). This was
                             // render_off.length(): the body's distance from
@@ -13065,89 +13067,13 @@ mod native_app {
                         crate::engine::stock_piles::push_render_objects(state, &mut all_objects);
                     }
 
-                    // ── Blueprint structures render (v0.746, ladder rung 2) ──
-                    // A Construction shows as an amber scaffold box that RISES
-                    // with build progress; a finished Structure is a solid box
-                    // tinted by its blueprint category. Same lazy build-once
-                    // mesh/material pattern as the vehicles above.
-                    {
-                        if state.structure_mesh.is_none() {
-                            state.structure_mesh = Some(
-                                state
-                                    .renderer
-                                    .add_mesh(Mesh::box_xyz(&state.renderer.device, 1.0, 1.0, 1.0)),
-                            );
-                        }
-                        if state.structure_mats.is_none() {
-                            // theme-exempt: world-object placeholder palette (scaffold amber, wood, stone, metal).
-                            let scaffold = state.renderer.add_material_typed([0.85, 0.62, 0.25, 1.0], 0.0, 0.85, 0.0);
-                            let wood = state.renderer.add_material_typed([0.48, 0.33, 0.20, 1.0], 0.0, 0.8, 0.0);
-                            let stone = state.renderer.add_material_typed([0.55, 0.55, 0.58, 1.0], 0.05, 0.9, 0.0);
-                            let metal = state.renderer.add_material_typed([0.45, 0.30, 0.25, 1.0], 0.6, 0.45, 0.0);
-                            state.structure_mats = Some([scaffold, wood, stone, metal]);
-                        }
-                        let unit_box = state.structure_mesh.unwrap();
-                        let [scaffold_mat, wood_mat, stone_mat, metal_mat] =
-                            state.structure_mats.unwrap();
-                        let bp_registry = state
-                            .data_store
-                            .get::<crate::systems::construction::BlueprintRegistry>(
-                                "blueprint_registry",
-                            );
-                        let mat_for = |bp_id: &str| -> usize {
-                            let category = bp_registry
-                                .as_ref()
-                                .and_then(|r| r.get(bp_id))
-                                .map(|bp| bp.category.as_str())
-                                .unwrap_or("");
-                            match category {
-                                "foundation" => stone_mat,
-                                "wall" | "roof" | "door" | "window" | "furniture" => wood_mat,
-                                _ => metal_mat,
-                            }
-                        };
-                        for (_e, (c, tf)) in state
-                            .game_world
-                            .world
-                            .query::<(
-                                &crate::systems::construction::Construction,
-                                &crate::ecs::components::Transform,
-                            )>()
-                            .iter()
-                        {
-                            // Scaffold rises from 15% to full height with progress.
-                            let frac =
-                                (c.progress / c.build_time.max(0.01)).clamp(0.0, 1.0) * 0.85 + 0.15;
-                            all_objects.push(RenderObject { fade: 0.0,
-                                position: tf.position,
-                                rotation: tf.rotation,
-                                scale: Vec3::new(tf.scale.x, tf.scale.y * frac, tf.scale.z),
-                                mesh: unit_box,
-                                material: scaffold_mat,
-                            });
-                        }
-                        for (_e, (s, tf)) in state
-                            .game_world
-                            .world
-                            .query::<(
-                                &crate::systems::construction::Structure,
-                                &crate::ecs::components::Transform,
-                            )>()
-                            .iter()
-                        {
-                            all_objects.push(RenderObject { fade: 0.0,
-                                position: tf.position,
-                                rotation: tf.rotation,
-                                scale: tf.scale,
-                                mesh: unit_box,
-                                material: mat_for(&s.blueprint_id),
-                            });
-                        }
-                        // The piece in hand (engine/build_place.rs): a half-dithered scaffold where it would go.
-                        if let Some(g) = state.gui_state.build_placing.as_ref().and_then(|p| p.ghost.as_ref()) {
-                            all_objects.push(RenderObject { fade: 0.5, position: g.position, rotation: g.rotation, scale: g.scale, mesh: unit_box, material: scaffold_mat });
-                        }
-                    }
+                    // ── Built pieces (v0.746; planet sites 2026-09-27, BUG-102) ── scaffolds
+                    // and finished pieces: home pieces in the home frame here, pieces on a
+                    // planet where they stand (engine/planet_build.rs). `planet_near` is
+                    // already in render space, so it joins the scene list AFTER the
+                    // station shift below.
+                    let mut planet_near: Vec<RenderObject> = Vec::new();
+                    crate::engine::planet_build::push_render_objects(state, &mut all_objects, &mut celestial_objects, &mut planet_near);
 
                     // ── Livestock render (v0.751, ladder rung 7) ── placeholder
                     // block bodies until real models: body + head + 4 legs from
@@ -15270,6 +15196,8 @@ mod native_app {
                                         o.position += so;
                                     }
                                 }
+                                // Pieces built on a planet near the eye: already in render space (engine/planet_build.rs).
+                                all_objects.append(&mut planet_near);
                                 // `SceneView::Main`: these four are the live frame's
                                 // `gpu.scene` / `gpu.transparent` / `gpu.overlay` /
                                 // `gpu.lines`; a camera screen's re-render of the same

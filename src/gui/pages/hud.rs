@@ -594,12 +594,18 @@ pub fn draw(
                     text_shadowed(painter, sp + Vec2::new(0.0, 2.0), Align2::CENTER_TOP, &act, 10.0, col);
                 }
             }
+            // A built piece in hand with its ghost standing: E BUILDS it
+            // (engine/build_place.rs runs ahead of the whole E chain), so no
+            // other "[E] ..." prompt may show (review of the shelter commit:
+            // the machine, door and talk prompts kept promising what E would
+            // not do). The placing hint below says what E does instead.
+            let e_builds = state.build_placing.as_ref().is_some_and(|p| p.ghost.is_some());
             // Crew NPC talk prompt (v0.797): looking at a crew member within
             // talk range shows "[E] Talk to X". Owns the +22 crosshair slot
             // while set -- the machine/door prompts below yield to it, which
             // matches the E chain in lib.rs (a faced person outranks the
             // machine behind them).
-            if !state.npc_prompt.is_empty() {
+            if !state.npc_prompt.is_empty() && !e_builds {
                 text_shadowed(
                     painter,
                     Pos2::new(center.x, center.y + 22.0),
@@ -611,7 +617,7 @@ pub fn draw(
             }
             // Walk-up interaction prompt at the crosshair (v0.431): looking at a machine
             // within reach shows [E] open/close.
-            if state.npc_prompt.is_empty() {
+            if state.npc_prompt.is_empty() && !e_builds {
                 if let Some(i) = state.targeted_machine {
                     if let Some(label) = state.machine_labels.get(i) {
                         let verb = if state.selected_machine == Some(i) { "close" } else { "open" };
@@ -646,7 +652,7 @@ pub fn draw(
             }
             // Door control panel prompt at the crosshair (v0.567): looking at a panel within reach
             // shows [E] open/close (or "locked"). Precomputed in the walk-up block in lib.rs.
-            if !state.control_panel_prompt.is_empty() && state.npc_prompt.is_empty() {
+            if !state.control_panel_prompt.is_empty() && state.npc_prompt.is_empty() && !e_builds {
                 text_shadowed(
                     painter,
                     Pos2::new(center.x, center.y + 22.0),
@@ -658,7 +664,7 @@ pub fn draw(
             }
             // Vehicle prompt (Stage 3 take-over, v0.690): "[E] drive X" at the
             // crosshair, or "[E] exit vehicle" while driving.
-            if !state.vehicle_prompt.is_empty() {
+            if !state.vehicle_prompt.is_empty() && !e_builds {
                 text_shadowed(
                     painter,
                     Pos2::new(center.x, center.y + 38.0),
@@ -670,7 +676,7 @@ pub fn draw(
             }
             // Livestock prompt (v0.751): "[E] collect Egg (Chicken)" when the
             // faced animal is ready, or the regrow countdown while it is not.
-            if !state.livestock_prompt.is_empty() {
+            if !state.livestock_prompt.is_empty() && !e_builds {
                 let ready = state.livestock_prompt.starts_with("[E]");
                 text_shadowed(
                     painter,

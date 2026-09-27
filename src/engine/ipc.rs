@@ -320,6 +320,17 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
             }
         }
     }
+    // {"build":"wood_wall@0,-2;roof@0,0","build_at":"23.0005,14"} (2026-09-27,
+    // BUG-102): stand built pieces up finished around a ground point (the
+    // lat, lon on the body the camera is locked to, or the crosshair), in the
+    // real build site and with the real placement, so a rig capture can see
+    // pieces built on a planet. `id@dx,dz,turns` items, `;`-joined; see
+    // engine::planet_build::dev_build. Pair it with a vantage's
+    // `post_showcase` (probe-sweep.js): the ground must have streamed in.
+    if let Some(spec) = grab("build") {
+        let note = crate::engine::planet_build::dev_build(state, &spec, grab("build_at").as_deref());
+        log::info!("Showcase: build -> {note}");
+    }
     // Optional "time":"9.5" sets the game clock to that hour of the
     // current day (dev/screenshot control: dawn shots without waiting
     // out the night). Routed through the TimeSystem's request channel -

@@ -2069,7 +2069,7 @@ shader differs from itself a few minutes later; no measurable cost (under
 `a_visible_wave_train_never_draws_straight_crests`, which also evaluates the
 old law and asserts it was straight.
 
-## BUG-102: built pieces and the shelter test used the wrong frame off the ship (GATED v0.1390.0; the real fix is planet-anchored pieces)
+## BUG-102: built pieces and the shelter test used the wrong frame off the ship (GATED v0.1390.0; FIXED 2026-09-27 with planet build sites)
 
 Found by a critic review of the shelter commit (961745f7) on 2026-09-27, before
 it shipped. Built pieces live in the HOME frame and are drawn at the station
@@ -2094,3 +2094,37 @@ lower storey; the machine and door "[E]" prompts still show while E would
 build; nothing stops two pieces being built in one spot; small overlaps float
 a piece; and the build pose is recomputed at the key press rather than taken
 from the ghost.
+
+**Fixed 2026-09-27: planet build sites.** A piece placed on a planet now
+stands in a BUILD SITE (`systems/construction/site.rs`): the body it stands
+on and an origin in that body's unrotated frame, in f64, with a flat tangent
+frame (Y the local up) that follows from the origin alone. The piece's
+Transform is site-local and it carries a `PlanetSite` component; a home piece
+has none. Pieces within 1 km of a site join it and its metre grid. Every query
+that compares pieces (what a piece rests on, the shelter, the look ray, a
+duplicate) runs in one frame only. The ghost, the build pose, the shelter test
+and the bed and chest look ray all convert the player into that frame from the
+frame lock's anchor (the eye in the body's frame) and the camera's look
+(`engine/planet_build.rs`), and the aim meets the drawn ground under the
+crosshair (`placement::aim_point_on_ground`, sampling the same surface the
+walk clamp stands the player on). Each frame a site piece is drawn at
+`render_off + rot * p` with the body's placement recorded inside the celestial
+loop, the terrain's own transform, in the celestial list (so a hill hides it
+and it casts the sun's shadow), plus a scene-pass copy within 3 m of the eye,
+where the celestial pass's 1 m near plane would cut into a wall. The save
+carries the site. The v0.1390.0 gate is gone; building still refuses, with a
+plain hint, in open space, in a vehicle, while flying, and on water. The
+review's other findings, fixed with it: roofs that touch are one covered area
+(`uses::covered_run`), so an 8 x 8 m hall under four tiles shelters every
+point inside; OnTop rests only on pieces standing on the player's own storey
+(`placement::STOREY_STEP_M`); the machine, door, talk, vehicle and livestock
+"[E]" prompts hide while E would build; a second build of the same box, or of
+one still going up, is refused before anything is spent; overlaps under 5 cm
+no longer lift a piece; and E builds the ghost's pose, carried on the build
+request. The survival context's "inside the home" test also now requires the
+home frame, since on a planet the parked camera's local position could sit
+inside the home's box. Tests (each seen red by a mutation that was run): the
+planet-fixed draw while the ship frame moves, the planet shelter following the
+player, the site round-tripping a save, the 8 x 8 hall, the storey filter, the
+duplicate, the ghost's exact pose, the site frame's f64 exactness, the ground
+aim, the 5 cm overlap, the frame filter.

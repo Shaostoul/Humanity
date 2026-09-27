@@ -224,6 +224,12 @@ pub struct ConstructionSave {
     /// the same number. 0 for a scaffold, which has none yet.
     #[serde(default)]
     pub uid: u32,
+    /// The planet build site the piece stands in (2026-09-27, BUG-102): its
+    /// body and the site origin in the body's frame, in f64, and then
+    /// `position`/`rotation` are site-local. None (and absent from saves
+    /// written before sites existed) = the home frame, aboard.
+    #[serde(default)]
+    pub site: Option<crate::systems::construction::PlanetSite>,
 }
 
 fn default_true_save() -> bool {
@@ -387,6 +393,7 @@ mod tests {
                     provides: None,
                     building: None,
                     uid: 1,
+                    site: None,
                 },
             ],
             crafts: Vec::new(),

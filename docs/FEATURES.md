@@ -1840,8 +1840,10 @@ in by data, no ids in code; the first structure the look ray meets wins, so a wa
   page. No volume limit yet: no places container has one.
 - `provides: "shelter"` (walls, roof) **shelters (2026-09-27).** Standing outside under a finished shelter
   piece overhead (the roof: whichever shelter piece is straight above the head, not an id or category) with
-  finished shelter pieces on at least THREE of the four sides within half a metre of the roof's edge
-  (`uses::shelter_at`, level rays at chest height) sets `EnvironmentContext::sheltered`, so the body heat
+  finished shelter pieces on at least THREE of the four sides within half a metre of the edge of the COVERED
+  AREA (the roof overhead and every roof touching it, so a hall under several roof tiles counts:
+  `uses::covered_run`) (`uses::shelter_at`, level rays at chest height) sets `EnvironmentContext::sheltered`,
+  on a planet's ground as well as aboard (the test runs in the player's build site), so the body heat
   model gets still air and nothing falling at the outside temperature. The fourth side is left open as the way
   in (doors cannot be set into walls yet), like a lean-to. On a wet, windy 5 C day the everyday outfit holds
   36.66 C after 6 h under it, against 36.28 C soaked in the open. A roof with walls missing keeps the rain and
@@ -1856,16 +1858,33 @@ under the crosshair says so with the player's own keys. Where it lands is one fu
 `construction::placement::placement_pose`, used by the ghost and the ConstructionSystem alike: x and z on the
 metre grid, the turn saved in the Structure's rotation, and y on the floor or, for a blueprint with
 `mount: OnTop`, on top of the tallest finished `snap_to` piece its footprint covers (a roof on the walls at 3 m,
-walls on a foundation at 0.2 m). Before this every piece went 4 m ahead at world y 0, unturned (and mirrored
-left-right off the look direction by a sign slip in the old bridge). Still missing: a door or window set INTO
-a wall (they sit on the floor); a second storey (nothing stands on a roof yet); collision for built pieces (you
-walk through walls); the one canonical layout schema (built pieces, the home editor's `InteriorWall`s and the
-ship structure pieces are three different shapes).
+walls on a foundation at 0.2 m), resting only on pieces standing on the player's own storey and never on a
+few centimetres of overlap. The ghost's pose is kept every frame and E builds exactly that pose; a second
+build of a box that already stands (or is still going up) is refused before anything is spent, and the hint
+says "already built here". While a ghost stands, the machine, door, talk, vehicle and livestock "[E]" prompts
+hide, since E builds. Before this every piece went 4 m ahead at world y 0, unturned (and mirrored
+left-right off the look direction by a sign slip in the old bridge).
+
+**Building on a planet (2026-09-27, BUG-102 fixed).** On a planet's ground a piece goes into a BUILD SITE
+(`construction/site.rs`): the body and an origin in its unrotated frame in f64, with a flat Y-up tangent
+frame; pieces within 1 km of a site join it and its grid. The ghost meets the drawn ground under the
+crosshair (`placement::aim_point_on_ground`, the surface the player's feet stand on), the shelter test and
+the bed and chest look ray run in the site, and the save carries the site. Site pieces draw with the
+terrain's own transform in the celestial pass (hidden by hills, casting the sun's shadow), plus a scene-pass
+copy within 3 m of the eye (`engine/planet_build.rs`). Building refuses, with a plain hint, in open space, in
+a vehicle, while flying and on water. Dev: showcase `{"build":"id@dx,dz,turns;...","build_at":"lat,lon"}`
+stands pieces up finished (the rig's `planet-built-shelter` vantage uses it through `post_showcase`).
+Still missing: a door or window set INTO a wall (they sit on the floor); a second storey (nothing stands on a
+roof yet); collision for built pieces (you walk through walls); the one canonical layout schema (built
+pieces, the home editor's `InteriorWall`s and the ship structure pieces are three different shapes); pieces
+on a planet stand at the drawn ground's height where they were built, so far off, where the terrain draws at
+a coarser level, they can sit a little high or low.
 - Native: `src/systems/construction/mod.rs`, `src/systems/construction/placement.rs`,
-  `src/systems/construction/uses.rs`, `src/systems/sleep.rs`, `src/engine/built_uses.rs` (prompt, E press,
-  chest sync), `src/engine/build_place.rs` (the piece in hand), `src/engine/survival_env.rs` (shelter to the
-  body), `src/gui/organize.rs` (`place_path`, `sync_built_stores`), `src/gui/pages/hud.rs` (the prompts and
-  the Shelter row)
+  `src/systems/construction/site.rs` (build sites), `src/systems/construction/uses.rs`,
+  `src/systems/sleep.rs`, `src/engine/built_uses.rs` (prompt, E press, chest sync),
+  `src/engine/build_place.rs` (the piece in hand), `src/engine/planet_build.rs` (the frame, the ground, the
+  draw, the dev build verb), `src/engine/survival_env.rs` (shelter to the body), `src/gui/organize.rs`
+  (`place_path`, `sync_built_stores`), `src/gui/pages/hud.rs` (the prompts and the Shelter row)
 - Data: `data/blueprints/basic.ron` (`mount`, `provides`, `snap_to`)
 
 ### Body heat (2026-09-27)

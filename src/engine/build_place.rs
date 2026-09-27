@@ -7,10 +7,18 @@
 //! a see-through scaffold (the ghost) follows the crosshair, the Toggle roof
 //! key (R by default) turns it a quarter, Interact (E) builds it where the
 //! ghost stands and keeps the piece in hand for the next one, and Esc puts
-//! it down. Where it lands is `construction::placement::placement_pose`, the
-//! same function the ConstructionSystem builds with, so the ghost is where
-//! the piece goes: x and z on the metre grid, y on the floor, or on top of
-//! the walls for a roof (`mount: OnTop` in the blueprint data).
+//! it down. Where it lands is `construction::placement::placement_pose`: x
+//! and z on the metre grid, y on the floor, or on top of the walls for a
+//! roof (`mount: OnTop` in the blueprint data). The ghost's pose is kept on
+//! the placing state every frame and E builds exactly that pose, so the
+//! piece goes where the ghost stood.
+//!
+//! WHERE (2026-09-27, the real fix for BUG-102): aboard, in the home frame,
+//! on the deck; on a planet's ground, in the build site the player stands
+//! in, on the ground under the crosshair (`engine::planet_build::ghost`).
+//! Where a piece cannot go (open space, a vehicle, flying, the sea) the hint
+//! says so. A piece whose box already stands there is shown but not built
+//! again (no double spend).
 //!
 //! R is the roof toggle when nothing is in hand; while placing it turns the
 //! piece (the Controls page says so), because one key holds one action and R
@@ -18,11 +26,11 @@
 //! frame and `key` from its key handler, ahead of the E chain and the menu
 //! Escape.
 
-use crate::ecs::components::Transform;
+use crate::engine::planet_build;
 use crate::engine::state::EngineState;
 use crate::gui::{BuildPlacing, GuiPage, GuiState};
 use crate::input::bindings::{pretty_key_name, GameAction};
-use crate::systems::construction::{placement, BlueprintRegistry, BuildRequest};
+use crate::systems::construction::{BlueprintRegistry, BuildRequest};
 
 /// What a key press does to the piece in hand.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -70,13 +78,14 @@ pub(crate) fn key(state: &mut EngineState, key_name: &str, escape: bool, repeat:
             }
         }
         PlaceKey::Build => {
-            // Only where a ghost stands: in first person, not driving.
-            let Some(p) = state.gui_state.build_placing.as_ref().filter(|p| p.ghost.is_some()) else { return false };
-            let request = BuildRequest {
-                blueprint_id: p.blueprint_id.clone(),
-                at: aim(state),
-                quarter_turns: p.quarter_turns,
-            };
+            // Only where a ghost stands (first person, on foot, aboard or on
+            // a planet's ground), and never twice in one spot.
+            let Some(p) = state.gui_state.build_placing.as_ref() else { return false };
+            let Some(pose) = p.ghost.clone() else { return false };
+            if p.occupied {
+                return true;
+            }
+            let request = BuildRequest::new(p.blueprint_id.clone(), pose).on(p.site.clone());
             if let Some(chan) = state.data_store.get::<std::sync::Mutex<Vec<BuildRequest>>>("build_request") {
                 if let Ok(mut c) = chan.lock() {
                     c.push(request);
@@ -100,8 +109,15 @@ pub(crate) fn frame(state: &mut EngineState) {
         // Picking up another piece keeps the turn: the next wall of a room
         // usually runs the way the last one did.
         let quarter_turns = state.gui_state.build_placing.as_ref().map_or(0, |p| p.quarter_turns);
-        state.gui_state.build_placing =
-            Some(BuildPlacing { blueprint_id: id, name, quarter_turns, ghost: None, hint: String::new() });
+        state.gui_state.build_placing = Some(BuildPlacing {
+            blueprint_id: id,
+            name,
+            quarter_turns,
+            ghost: None,
+            site: None,
+            occupied: false,
+            hint: String::new(),
+        });
         state.gui_state.active_page = GuiPage::None;
     }
     let g = &state.gui_state;
@@ -110,78 +126,52 @@ pub(crate) fn frame(state: &mut EngineState) {
         return;
     }
     let Some(p) = state.gui_state.build_placing.as_ref() else { return };
-    // Built pieces live in the HOME frame, so they can only be placed while
-    // the player is in it (2026-09-27, review of the shelter commit). On a
-    // planet the camera stays put and the ship frame moves instead, so a
-    // piece placed from the surface landed at the station, hundreds of km
-    // up, and the shelter test then followed the player through the rain.
-    // Anchoring pieces to a planet is its own increment (PRIORITIES, arc C).
-    if !state.aboard_station {
-        let name = p.name.clone();
-        if let Some(p) = state.gui_state.build_placing.as_mut() {
-            p.ghost = None;
-            p.hint = off_ship_hint(&name);
-        }
-        return;
-    }
-    let can_place = state.camera.mode == crate::renderer::camera::CameraMode::FirstPerson && state.driving_vehicle.is_none();
-    let ghost = if can_place { ghost_pose(state, p) } else { None };
-    let floor = floor_y(state);
+    // Where the piece would go, in the frame the player is in: the home
+    // aboard, the build site they stand in on a planet (planet_build).
+    let (name, turns) = (p.name.clone(), p.quarter_turns);
+    let placed = planet_build::ghost(state, &p.blueprint_id, turns);
     let keys = &state.gui_state.keybinds;
-    let hint = placing_hint(
-        &p.name,
-        p.quarter_turns,
-        ghost.as_ref().map(|g| g.position.y - floor),
-        &pretty_key_name(keys.pair(GameAction::Interact).0),
-        &pretty_key_name(keys.pair(GameAction::ToggleRoof).0),
-    );
+    let hint = match &placed {
+        Ok(g) => placing_hint(
+            &name,
+            turns,
+            g.above_floor,
+            g.occupied,
+            &pretty_key_name(keys.pair(GameAction::Interact).0),
+            &pretty_key_name(keys.pair(GameAction::ToggleRoof).0),
+        ),
+        Err(why) => planet_build::cannot_build_hint(&name, *why),
+    };
     if let Some(p) = state.gui_state.build_placing.as_mut() {
-        p.ghost = ghost;
         p.hint = hint;
+        match placed {
+            Ok(g) => {
+                p.ghost = Some(g.pose);
+                p.site = g.site;
+                p.occupied = g.occupied;
+            }
+            Err(_) => {
+                p.ghost = None;
+                p.site = None;
+                p.occupied = false;
+            }
+        }
     }
-}
-
-/// The line under the crosshair while holding a piece away from the ship.
-pub(crate) fn off_ship_hint(name: &str) -> String {
-    format!("Placing {name}: pieces can be built aboard the ship for now; building on a planet's surface comes next   [Esc] done")
 }
 
 /// The line under the crosshair while placing. `above_floor` is how high the
-/// ghost rests above the floor (a roof on walls), None when there is no
-/// ghost because the player cannot place from here.
-pub(crate) fn placing_hint(name: &str, quarter_turns: u8, above_floor: Option<f32>, build_key: &str, turn_key: &str) -> String {
-    let Some(up) = above_floor else {
-        return format!("Placing {name}: go to first person, on foot, to place it   [Esc] done");
-    };
+/// ghost rests above the floor it is aimed at (a roof on walls); `occupied`
+/// says the same piece already stands there, so E will not build it again.
+pub(crate) fn placing_hint(name: &str, quarter_turns: u8, above_floor: f32, occupied: bool, build_key: &str, turn_key: &str) -> String {
     let turned = match quarter_turns % 4 {
         0 => String::new(),
         q => format!(", turned {} degrees", u32::from(q) * 90),
     };
-    let on_top = if up > 0.01 { format!(", on top at {up:.1} m") } else { String::new() };
-    format!("Placing {name}{turned}{on_top}   [{build_key}] build here   [{turn_key}] turn   [Esc] done")
-}
-
-/// Where the piece in hand would be built this frame.
-fn ghost_pose(state: &EngineState, p: &BuildPlacing) -> Option<Transform> {
-    let reg = state.data_store.get::<BlueprintRegistry>("blueprint_registry")?;
-    let bp = reg.get(&p.blueprint_id)?;
-    Some(placement::placement_pose(bp, aim(state), p.quarter_turns, &state.game_world.world, reg))
-}
-
-/// The floor point the crosshair is on.
-fn aim(state: &EngineState) -> glam::Vec3 {
-    placement::aim_point(state.camera.position, state.camera.forward(), floor_y(state))
-}
-
-/// The floor under the player: the room floor the controller rests on while
-/// aboard (the old build placed at world y 0, which is that floor in the
-/// home), else the feet.
-fn floor_y(state: &EngineState) -> f32 {
-    if state.aboard_station {
-        state.controller.ground_floor()
-    } else {
-        state.camera.position.y - state.controller.eye_height()
+    let on_top = if above_floor > 0.01 { format!(", on top at {above_floor:.1} m") } else { String::new() };
+    if occupied {
+        return format!("Placing {name}{turned}{on_top}: already built here   [{turn_key}] turn   [Esc] done");
     }
+    format!("Placing {name}{turned}{on_top}   [{build_key}] build here   [{turn_key}] turn   [Esc] done")
 }
 
 #[cfg(test)]
@@ -196,6 +186,8 @@ mod tests {
             name: "Wood Wall".into(),
             quarter_turns: 0,
             ghost: None,
+            site: None,
+            occupied: false,
             hint: String::new(),
         });
         g
@@ -224,17 +216,25 @@ mod tests {
     }
 
     /// The hint names the piece, its turn, whether it rests on top, and the
-    /// live keys.
+    /// live keys; over a piece already built it says so and offers no build
+    /// key; and each place a piece cannot go has its own plain reason.
     #[test]
     fn the_hint_says_the_turn_and_the_keys() {
         assert_eq!(
-            placing_hint("Wood Wall", 1, Some(0.0), "E", "R"),
+            placing_hint("Wood Wall", 1, 0.0, false, "E", "R"),
             "Placing Wood Wall, turned 90 degrees   [E] build here   [R] turn   [Esc] done"
         );
         assert_eq!(
-            placing_hint("Wood Roof", 4, Some(3.0), "E", "T"),
+            placing_hint("Wood Roof", 4, 3.0, false, "E", "T"),
             "Placing Wood Roof, on top at 3.0 m   [E] build here   [T] turn   [Esc] done"
         );
-        assert!(placing_hint("Bed", 0, None, "E", "R").contains("first person"));
+        let twice = placing_hint("Wood Wall", 0, 0.0, true, "E", "R");
+        assert!(twice.contains("already built here") && !twice.contains("[E]"), "{twice}");
+        use planet_build::{cannot_build_hint, CannotBuild};
+        assert!(cannot_build_hint("Bed", CannotBuild::NotFirstPerson).contains("first person"));
+        assert!(cannot_build_hint("Bed", CannotBuild::Driving).contains("vehicle"));
+        assert!(cannot_build_hint("Bed", CannotBuild::OpenSpace).contains("open space"));
+        assert!(cannot_build_hint("Bed", CannotBuild::NotOnGround).contains("stand on the ground"));
+        assert!(cannot_build_hint("Bed", CannotBuild::OnWater).contains("water"));
     }
 }

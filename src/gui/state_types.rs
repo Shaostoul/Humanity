@@ -736,8 +736,15 @@ pub struct BuildPlacing {
     /// Quarter turns about the vertical, 0 to 3.
     pub quarter_turns: u8,
     /// Where it would be built this frame, None when it cannot be placed
-    /// from here (not in first person, or driving).
+    /// from here (not in first person, driving, open space, flying). E
+    /// builds exactly this pose (the build request carries it).
     pub ghost: Option<crate::ecs::components::Transform>,
+    /// The frame `ghost` is in: None aboard (the home frame), else the build
+    /// site on a planet's ground (2026-09-27, BUG-102).
+    pub site: Option<crate::systems::construction::PlanetSite>,
+    /// The ghost's box is already built there: E would spend the materials
+    /// twice, so it does nothing and the hint says why.
+    pub occupied: bool,
     /// The line under the crosshair: what is in hand and its keys.
     pub hint: String,
 }

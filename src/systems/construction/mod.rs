@@ -7,7 +7,10 @@ pub mod structural;
 pub mod routing;
 pub mod solver;
 pub mod placement;
+pub mod site;
 pub mod uses;
+
+pub use site::PlanetSite;
 
 use crate::ecs::components::Transform;
 use crate::ecs::systems::System;
@@ -70,24 +73,33 @@ pub enum Mount {
     OnTop,
 }
 
-/// One build the player asked for (2026-09-27): the blueprint, the floor
-/// point they aimed at, and how far they turned it. The ConstructionSystem
-/// turns it into a pose with `placement::placement_pose`, the same function
-/// the ghost preview uses, so the piece is built where the ghost stood.
-#[derive(Debug, Clone, PartialEq)]
+/// One build the player asked for (2026-09-27): the blueprint, the pose the
+/// ghost preview stood at when E was pressed (`placement::placement_pose`,
+/// computed by `engine::build_place` every frame and kept on the placing
+/// state), and the frame that pose is in. The ConstructionSystem builds
+/// exactly that pose; it used to recompute it from the camera at the key
+/// press, which is not the ghost the player saw (review of the shelter
+/// commit).
+#[derive(Debug, Clone)]
 pub struct BuildRequest {
     pub blueprint_id: String,
-    /// The floor point aimed at. x and z snap to the metre grid; y is the
-    /// floor the piece is placed from.
-    pub at: Vec3,
-    /// Quarter turns about the vertical, 0 to 3 (R while placing).
-    pub quarter_turns: u8,
+    /// Where the piece goes, in `site`'s frame.
+    pub pose: Transform,
+    /// The build site on a planet the pose is in, or None for the home frame
+    /// (aboard). See `site`.
+    pub site: Option<PlanetSite>,
 }
 
 impl BuildRequest {
-    /// A request with no turn.
-    pub fn new(blueprint_id: impl Into<String>, at: Vec3) -> Self {
-        Self { blueprint_id: blueprint_id.into(), at, quarter_turns: 0 }
+    /// A request for a piece at `pose` in the home frame.
+    pub fn new(blueprint_id: impl Into<String>, pose: Transform) -> Self {
+        Self { blueprint_id: blueprint_id.into(), pose, site: None }
+    }
+
+    /// The same request in a planet build site's frame.
+    pub fn on(mut self, site: Option<PlanetSite>) -> Self {
+        self.site = site;
+        self
     }
 }
 
@@ -243,13 +255,21 @@ impl System for ConstructionSystem {
         let mut status: Option<String> = None;
 
         for req in builds {
-            let (reg, bp) = match registry.and_then(|r| r.get(&req.blueprint_id).map(|bp| (r, bp.clone()))) {
+            let bp = match registry.and_then(|r| r.get(&req.blueprint_id).cloned()) {
                 Some(found) => found,
                 None => {
                     status = Some(format!("Unknown blueprint '{}'", req.blueprint_id));
                     continue;
                 }
             };
+            // ONE PIECE PER SPOT (review of the shelter commit): a piece, or a
+            // scaffold still going up, with this exact box already stands
+            // here, so a second press would spend the materials twice for
+            // what looks like one wall. Refused before anything is taken.
+            if placement::occupied(world, &req.pose, req.site.as_ref()) {
+                status = Some(format!("{} not built: one already stands there", bp.name));
+                continue;
+            }
 
             // MATERIALS ARE REAL (v0.746): the doc header always said "consumes
             // inventory materials" but nothing ever did. Count backpack + home
@@ -310,13 +330,12 @@ impl System for ConstructionSystem {
                 }
             }
 
-            // Where it goes: x and z on the metre grid, turned as the player
-            // turned it, on the floor or on top of what it rests on
-            // (2026-09-27; it used to be the floor, unturned, always).
-            let pose = placement::placement_pose(&bp, req.at, req.quarter_turns, world, reg);
+            // Where it goes: the ghost's pose, as the player saw it (x and z
+            // on the metre grid, turned, on the floor or on top of what it
+            // rests on), in its frame: the home, or a site on a planet.
             status = Some(format!("Building {}...", bp.name));
-            world.spawn((
-                pose,
+            let scaffold = world.spawn((
+                req.pose,
                 Construction {
                     blueprint_id: bp.id.clone(),
                     progress: 0.0,
@@ -324,6 +343,9 @@ impl System for ConstructionSystem {
                     builder_key: None,
                 },
             ));
+            if let Some(site) = req.site {
+                let _ = world.insert_one(scaffold, site);
+            }
         }
 
         // Advance active constructions
@@ -529,10 +551,8 @@ mod tests {
 
         let reg = shipped_registry();
         let wall = reg.get("wood_wall").unwrap().clone();
-        let data = build_store(
-            reg,
-            vec![BuildRequest::new("wood_wall", Vec3::new(1.2, 0.0, 3.7))],
-        );
+        let ghost = placement::placement_pose(&wall, Vec3::new(1.2, 0.0, 3.7), 0, &hecs::World::new(), &reg, None);
+        let data = build_store(reg, vec![BuildRequest::new("wood_wall", ghost)]);
         let mut world = hecs::World::new();
         let mut inv = Inventory::new(16);
         for (id, qty) in &wall.materials {
@@ -580,7 +600,7 @@ mod tests {
 
         let data = build_store(
             shipped_registry(),
-            vec![BuildRequest::new("wood_wall", Vec3::ZERO)],
+            vec![BuildRequest::new("wood_wall", Transform::default())],
         );
         let mut world = hecs::World::new();
         world.spawn((Inventory::new(8), Controllable));
@@ -596,5 +616,84 @@ mod tests {
             .unwrap()
             .clone();
         assert!(status.contains("need"), "status explains the shortage: {status}");
+    }
+
+    /// A player stocked for THREE walls presses E twice at one spot and once
+    /// beside it (review of the shelter commit: nothing stopped two pieces
+    /// being built in one spot, spending the materials twice). The second
+    /// press at the same spot is refused, while the first is still a
+    /// scaffold, and after it is finished; nothing is taken for it; the
+    /// press beside it builds. Red check, run: removing the `occupied` guard
+    /// from the ConstructionSystem builds the double and spends a second
+    /// wall's planks, and the scaffold-count assertion fails.
+    #[test]
+    fn a_duplicate_build_is_refused_and_costs_nothing() {
+        use crate::ecs::components::Controllable;
+        use crate::systems::inventory::Inventory;
+        let reg = shipped_registry();
+        let wall = reg.get("wood_wall").unwrap().clone();
+        let empty = hecs::World::new();
+        let here = placement::placement_pose(&wall, Vec3::new(0.0, 0.0, 2.0), 0, &empty, &reg, None);
+        let beside = placement::placement_pose(&wall, Vec3::new(4.0, 0.0, 2.0), 0, &empty, &reg, None);
+        let data = build_store(reg, vec![BuildRequest::new("wood_wall", here.clone()), BuildRequest::new("wood_wall", here.clone())]);
+        let mut world = hecs::World::new();
+        let mut inv = Inventory::new(16);
+        let (plank, per_wall) = wall.materials[0].clone();
+        inv.add_item(&plank, per_wall * 3, 999);
+        let player = world.spawn((inv, Controllable));
+        let mut sys = ConstructionSystem::new();
+        sys.tick(&mut world, 0.05, &data);
+        assert_eq!(world.query::<&Construction>().iter().count(), 1, "one scaffold, not two");
+        assert_eq!(world.get::<&Inventory>(player).unwrap().count_item(&plank), per_wall * 2, "one wall's planks spent");
+        let status = data.get::<std::sync::Mutex<String>>("build_status").unwrap().lock().unwrap().clone();
+        assert!(status.contains("already stands"), "the status says why: {status}");
+
+        // Finished, it still refuses the same spot; the spot beside it builds.
+        sys.tick(&mut world, wall.build_time + 1.0, &data);
+        {
+            let chan = data.get::<std::sync::Mutex<Vec<BuildRequest>>>("build_request").unwrap();
+            let mut c = chan.lock().unwrap();
+            c.push(BuildRequest::new("wood_wall", here.clone()));
+            c.push(BuildRequest::new("wood_wall", beside));
+        }
+        sys.tick(&mut world, 0.05, &data);
+        assert_eq!(world.query::<&Structure>().iter().count(), 1);
+        assert_eq!(world.query::<&Construction>().iter().count(), 1, "only the wall beside it");
+        assert_eq!(world.get::<&Inventory>(player).unwrap().count_item(&plank), per_wall, "two walls' planks spent in all");
+    }
+
+    /// The build lands exactly at the ghost's pose, in the ghost's frame: a
+    /// request carrying a pose off the metre grid, turned by an angle no
+    /// quarter turn makes, at a height no floor has, in a planet build site,
+    /// is built at that pose to the bit and carries its site. Red check,
+    /// run: recomputing the pose at the key press from the aimed point
+    /// (what the ConstructionSystem did before) snaps it back onto the grid,
+    /// and the position assertion fails.
+    #[test]
+    fn the_build_lands_exactly_at_the_ghosts_pose() {
+        use crate::ecs::components::Controllable;
+        use crate::systems::inventory::Inventory;
+        let reg = shipped_registry();
+        let wall = reg.get("wood_wall").unwrap().clone();
+        let site = PlanetSite { body: "earth".into(), origin: glam::DVec3::new(1_000.0, 6_370_000.0, -2_000.0) };
+        let ghost = Transform {
+            position: Vec3::new(3.37, 0.42, -1.19),
+            rotation: glam::Quat::from_rotation_y(0.3),
+            scale: Vec3::from_array(wall.size),
+        };
+        let data = build_store(reg, vec![BuildRequest::new("wood_wall", ghost.clone()).on(Some(site.clone()))]);
+        let mut world = hecs::World::new();
+        let mut inv = Inventory::new(16);
+        for (id, qty) in &wall.materials {
+            inv.add_item(id, *qty, 99);
+        }
+        world.spawn((inv, Controllable));
+        ConstructionSystem::new().tick(&mut world, 0.05, &data);
+        let mut q = world.query::<(&Construction, &Transform, &PlanetSite)>();
+        let (_e, (_c, tf, s)) = q.iter().next().expect("a scaffold in the site");
+        assert_eq!(tf.position, ghost.position, "built where the ghost stood");
+        assert_eq!(tf.rotation, ghost.rotation);
+        assert_eq!(tf.scale, ghost.scale);
+        assert_eq!(*s, site, "in the ghost's frame");
     }
 }

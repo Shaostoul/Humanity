@@ -154,11 +154,16 @@ pub fn extract_world_save(world: &hecs::World) -> WorldSave {
     // Builds (2026-09-25): finished structures AND scaffolds still going up.
     // Until now nothing wrote this field, so everything the player built was
     // gone after a restart even though its materials had been consumed.
-    use crate::systems::construction::{Construction, Structure};
+    // A piece built on a planet carries its build site (2026-09-27): the
+    // pose is then site-local, and the site says which body and where.
+    use crate::systems::construction::{Construction, PlanetSite, Structure};
     let pose = |t: &crate::ecs::components::Transform| {
         (t.position.to_array(), t.rotation.to_array(), t.scale.to_array())
     };
-    for (_e, (s, t)) in world.query::<(&Structure, &crate::ecs::components::Transform)>().iter() {
+    for (_e, (s, t, site)) in world
+        .query::<(&Structure, &crate::ecs::components::Transform, Option<&PlanetSite>)>()
+        .iter()
+    {
         let (position, rotation, scale) = pose(t);
         save.constructions.push(crate::persistence::ConstructionSave {
             blueprint_id: s.blueprint_id.clone(),
@@ -170,9 +175,13 @@ pub fn extract_world_save(world: &hecs::World) -> WorldSave {
             provides: s.provides.clone(),
             building: None,
             uid: s.uid,
+            site: site.cloned(),
         });
     }
-    for (_e, (c, t)) in world.query::<(&Construction, &crate::ecs::components::Transform)>().iter() {
+    for (_e, (c, t, site)) in world
+        .query::<(&Construction, &crate::ecs::components::Transform, Option<&PlanetSite>)>()
+        .iter()
+    {
         let (position, rotation, scale) = pose(t);
         save.constructions.push(crate::persistence::ConstructionSave {
             blueprint_id: c.blueprint_id.clone(),
@@ -184,6 +193,7 @@ pub fn extract_world_save(world: &hecs::World) -> WorldSave {
             provides: None,
             building: Some((c.progress, c.build_time)),
             uid: 0,
+            site: site.cloned(),
         });
     }
     // The herd's yield timers, the asteroids as mined down, and the drone in
@@ -361,30 +371,30 @@ pub fn apply_save_to_world(world: &mut hecs::World, save: &WorldSave) {
             rotation: glam::Quat::from_array(b.rotation),
             scale: glam::Vec3::from_array(b.scale),
         };
-        match b.building {
-            Some((progress, build_time)) => {
-                world.spawn((
-                    transform,
-                    Construction {
-                        blueprint_id: b.blueprint_id.clone(),
-                        progress,
-                        build_time,
-                        builder_key: None,
-                    },
-                ));
-            }
-            None => {
-                world.spawn((
-                    transform,
-                    Structure {
-                        blueprint_id: b.blueprint_id.clone(),
-                        health: b.health,
-                        max_health: b.max_health,
-                        provides: b.provides.clone(),
-                        uid: b.uid,
-                    },
-                ));
-            }
+        let piece = match b.building {
+            Some((progress, build_time)) => world.spawn((
+                transform,
+                Construction {
+                    blueprint_id: b.blueprint_id.clone(),
+                    progress,
+                    build_time,
+                    builder_key: None,
+                },
+            )),
+            None => world.spawn((
+                transform,
+                Structure {
+                    blueprint_id: b.blueprint_id.clone(),
+                    health: b.health,
+                    max_health: b.max_health,
+                    provides: b.provides.clone(),
+                    uid: b.uid,
+                },
+            )),
+        };
+        // Back into its planet build site, when it was built on a planet.
+        if let Some(site) = &b.site {
+            let _ = world.insert_one(piece, site.clone());
         }
     }
     // Asteroids (2026-09-27): authoritative once recorded, so what was mined
@@ -1569,7 +1579,8 @@ mod tests {
         let wall = reg.get("wood_wall").unwrap().clone();
         let mut data = crate::hot_reload::data_store::DataStore::new();
         data.insert("blueprint_registry", reg);
-        let request = BuildRequest { blueprint_id: "wood_wall".into(), at: glam::Vec3::new(2.0, 0.0, 0.0), quarter_turns: 1 };
+        let ghost = placement::placement_pose(&wall, glam::Vec3::new(2.0, 0.0, 0.0), 1, &hecs::World::new(), data.get::<BlueprintRegistry>("blueprint_registry").unwrap(), None);
+        let request = BuildRequest::new("wood_wall", ghost);
         data.insert("build_request", std::sync::Mutex::new(vec![request]));
         data.insert("build_status", std::sync::Mutex::new(String::new()));
         data.insert("quest_events", std::sync::Mutex::new(Vec::<String>::new()));
@@ -1599,6 +1610,67 @@ mod tests {
         assert!(same(restored[0].rotation), "restored turned: {:?}", restored[0].rotation);
         let (lo, hi) = placement::world_aabb(&restored[0]);
         assert!((hi.z - lo.z - 4.0).abs() < 1e-3, "still runs north-south: {lo} {hi}");
+    }
+
+    /// A piece built on a planet comes back on the planet, in the same build
+    /// site, to the same place (2026-09-27, BUG-102): the site's body and its
+    /// f64 origin go through the save as written on exit, JSON, and the
+    /// restore, beside the site-local pose, for a finished piece and a
+    /// scaffold alike; a home piece in the same save stays in the home frame.
+    /// Red check, run: leaving `site` out of the extracted save (the
+    /// `site.cloned()` lines as None) restores the wall with no site, drawn
+    /// in the home frame at the station, and the first assertion fails.
+    #[test]
+    fn a_planet_pieces_site_round_trips_a_save() {
+        use crate::ecs::components::Transform;
+        use crate::systems::construction::{Construction, PlanetSite, Structure};
+        // A site in Silverdale, WA: an origin 6,366 km from Earth's centre
+        // with metre-scale detail the f64 must keep exactly.
+        let site = PlanetSite {
+            body: "earth".into(),
+            origin: glam::DVec3::new(-2_297_531.123_456, 4_718_021.654_321, 3_607_714.987_654),
+        };
+        let pose = Transform {
+            position: glam::Vec3::new(2.0, 0.37, -2.0),
+            rotation: glam::Quat::from_rotation_y(std::f32::consts::FRAC_PI_2),
+            scale: glam::Vec3::new(4.0, 3.0, 0.2),
+        };
+        let mut world = hecs::World::new();
+        world.spawn((
+            pose.clone(),
+            Structure { blueprint_id: "wood_wall".into(), health: 150.0, max_health: 150.0, provides: Some("shelter".into()), uid: 3 },
+            site.clone(),
+        ));
+        world.spawn((
+            pose.clone(),
+            Construction { blueprint_id: "roof".into(), progress: 2.0, build_time: 6.0, builder_key: None },
+            site.clone(),
+        ));
+        world.spawn((
+            Transform::default(),
+            Structure { blueprint_id: "bed".into(), health: 60.0, max_health: 60.0, provides: Some("rest".into()), uid: 4 },
+        ));
+        let save = extract_world_save(&world);
+        let back: WorldSave = serde_json::from_str(&serde_json::to_string(&save).unwrap()).unwrap();
+        let mut fresh = hecs::World::new();
+        apply_save_to_world(&mut fresh, &back);
+        let walls: Vec<(Transform, PlanetSite)> = fresh
+            .query::<(&Structure, &Transform, &PlanetSite)>()
+            .iter()
+            .map(|(_e, (_, t, s))| (t.clone(), s.clone()))
+            .collect();
+        assert_eq!(walls.len(), 1, "the wall comes back in its site");
+        assert_eq!(walls[0].1.body, "earth");
+        assert!((walls[0].1.origin - site.origin).length() < 1e-6, "origin to a micrometre: {}", walls[0].1.origin);
+        assert_eq!(walls[0].0.position, pose.position);
+        assert_eq!(walls[0].0.rotation, pose.rotation);
+        assert_eq!(fresh.query::<(&Construction, &PlanetSite)>().iter().count(), 1, "the scaffold too");
+        let home: Vec<String> = fresh
+            .query::<hecs::Without<&Structure, &PlanetSite>>()
+            .iter()
+            .map(|(_e, s)| s.blueprint_id.clone())
+            .collect();
+        assert_eq!(home, vec!["bed".to_string()], "a home piece stays in the home frame");
     }
 
     /// A built chest and what is in it survive a restart (2026-09-27): the
@@ -1676,6 +1748,7 @@ mod tests {
             provides: None,
             building: Some((4.0, 10.0)),
             uid: 0,
+            site: None,
         }];
         let mut world = hecs::World::new();
         apply_save_to_world(&mut world, &save);
