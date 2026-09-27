@@ -34,12 +34,14 @@ pub struct GardenPests {
     pub ph_amendments: Vec<(String, String)>,
     pub ph_pending: Option<(String, String)>,
     /// Pollination (2026-09-26, farming::pollination): Settings "Off" (the
-    /// config's `pollination` inverted, so the derived default is On), the
-    /// indoor areas whose flowers wait for a pollinator, and the area the
-    /// player just chose to hand-pollinate.
+    /// config's `pollination` inverted, so the derived default is On), each
+    /// indoor area's pollination line (flowers waiting for a pollinator, and
+    /// the bumblebee hives that reach it with their colonies, 2026-09-27),
+    /// and what the player just chose: hand-pollinate an area, or introduce
+    /// a colony in a hive.
     pub pollination_off: bool,
-    pub pollinate_areas: Vec<String>,
-    pub pollinate_pending: Option<String>,
+    pub pollinate_areas: Vec<crate::systems::farming::pollination::AreaRow>,
+    pub pollinate_pending: Option<crate::systems::farming::pollination::Request>,
     /// Picking over a season (2026-09-26, farming::picking): Settings
     /// "Realistic" (saved as AppConfig::picking_realistic; Forgiving is the
     /// default), and the crop the player chose to clear from its plot.
@@ -126,8 +128,11 @@ pub struct GuiCrop {
     /// Its "Pollination" card row (farming::pollination::GuiView); "" = none.
     pub pollination: String,
     /// Its "Picking" card row (farming::picking::GuiView, 2026-09-26): how a
-    /// crop picked over a season stands; "" for a crop harvested once.
-    pub picking: String,
+    /// crop picked over a season stands (empty for a crop harvested once),
+    /// and for a ripe plant between picks when its next pick comes, which
+    /// its slot tile shows instead of "ripe" (2026-09-27,
+    /// `picking::stage_word`).
+    pub picking: crate::systems::farming::picking::PickRow,
     /// Its "Humidity" card row: the air it grows in against its plants.csv
     /// window, and the cap outside it (farming::humidity::GuiView); "" = none.
     pub humidity: String,

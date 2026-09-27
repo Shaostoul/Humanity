@@ -401,6 +401,17 @@
     (id: "encarsia_formosa_0", name: "Encarsia Wasps",   category: "agricultural",     base_value: 120,  weight_kg: 0.02,  description: "Live parasitic wasps for greenhouse whitefly"),
     (id: "cucumeris_mites_0", name: "Cucumeris Mite Sachets", category: "agricultural", base_value: 120, weight_kg: 0.2,   description: "Slow-release predatory mites for thrips"),
 
+    // BUMBLEBEE COLONY (2026-09-27; data/garden/pollination.ron). Bought, as a grower buys one, to introduce
+    // in a placed bumblebee hive, where it works 70 garden days. base_value 2483 is a real price in this
+    // file's scale: Arbico Organics sells Koppert's Natupol Excel hive at "$300.00", with "Flat Rate Shipping
+    // $100 per Hive" (https://www.arbico-organics.com/product/natupol-bumblebee-hives/pollination-aids, read
+    // 2026-09-27), and one credit is a minute of unskilled labour: at the US federal minimum wage, "The federal
+    // minimum wage is $7.25 per hour effective July 24, 2009" (US Department of Labor,
+    // https://www.dol.gov/agencies/whd/minimum-wage, read 2026-09-27), $300 is 41.4 hours, 2,483 minutes.
+    // The vendor's 25% markup (3,104 credits, about $375) stands in for most of the $100 shipping. UF/IFAS's
+    // older handbook (HS788) put hives at "$100 to $150 each"; the retail price is the one a home grower pays.
+    (id: "bumblebee_colony_0", name: "Bumblebee Colony", category: "agricultural", base_value: 2483, weight_kg: 3.0, description: "A live commercial colony for a greenhouse bumblebee hive"),
+
     // =========================================================================
     // SOIL pH AMENDMENTS (2026-09-26; data/garden/soil_ph.ron). Bought, as a gardener buys them. Values are
     // game estimates in the file's scale (1 CR ~ 1 minute of unskilled labour): a 5 kg bag of garden lime

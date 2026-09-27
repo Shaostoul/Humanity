@@ -554,12 +554,58 @@ pub fn card_row(plan: &Plan, rec: Option<&CropPicking>, ripe: bool, realistic: b
     s
 }
 
+/// What the Garden panel knows of one crop's picking (`GuiView::row`): its
+/// card's "Picking" row, and for a ripe picked plant with nothing to pick
+/// yet, when its next pick comes. Carried on `GuiCrop::picking`.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct PickRow {
+    /// The crop card's "Picking" row; "" for a crop harvested once.
+    pub card: String,
+    /// A ripe picked plant between picks: garden days until its next pick
+    /// comes ripe. None for anything else (not ripe yet, a pick ready now,
+    /// or a crop harvested once).
+    pub bearing_next_in: Option<f64>,
+}
+
+impl PickRow {
+    /// No picking row: a crop harvested once.
+    pub fn is_empty(&self) -> bool {
+        self.card.is_empty()
+    }
+}
+
+/// The word a crop's slot tile shows under it, and (`long`) its card's
+/// "Stage" row: "dead"; "ready" when there is something to harvest now
+/// (`ready`, which for a picked crop means a pick is ready); "bearing" and
+/// when the next pick comes for a ripe picked plant between picks (its
+/// growth stage is its last, "ripe", but nothing on it can be harvested
+/// yet); else its growth stage. The tile's form is two short lines ("bearing"
+/// over "next 1.5d"); the card's is a phrase.
+pub fn stage_word(dead: bool, ready: bool, stage: &str, row: &PickRow, long: bool) -> String {
+    if dead {
+        "dead".to_string()
+    } else if ready {
+        "ready".to_string()
+    } else if let Some(days) = row.bearing_next_in {
+        if long {
+            format!("bearing, next pick in {}", days_words(days))
+        } else if days < 0.95 {
+            "bearing\nnext <1d".to_string()
+        } else {
+            let s = format!("{days:.1}");
+            format!("bearing\nnext {}d", s.strip_suffix(".0").unwrap_or(&s))
+        }
+    } else {
+        stage.to_string()
+    }
+}
+
 /// The Garden panel's view, built once a frame by the main loop's crop
 /// bridge: each picked crop's card row, and whether a pick is ready (which is
 /// what "ready" and the bulk "Harvest N ready" button mean for a picked crop).
 #[derive(Debug, Default)]
 pub struct GuiView {
-    rows: HashMap<hecs::Entity, (String, Option<bool>)>,
+    rows: HashMap<hecs::Entity, (PickRow, Option<bool>)>,
 }
 
 impl GuiView {
@@ -576,13 +622,16 @@ impl GuiView {
             let is_ripe = ripe(crop, plants);
             let fresh = CropPicking::default();
             let now = is_ripe.then(|| ready(rec.unwrap_or(&fresh), &plan, realistic) > 0);
-            v.rows.insert(e, (card_row(&plan, rec, is_ripe, realistic), now));
+            // Ripe with nothing to pick yet: bearing, the next pick this far off.
+            let bearing_next_in = (now == Some(false)).then(|| next_in(rec.unwrap_or(&fresh), &plan, realistic));
+            let row = PickRow { card: card_row(&plan, rec, is_ripe, realistic), bearing_next_in };
+            v.rows.insert(e, (row, now));
         }
         v
     }
 
-    /// This crop's "Picking" row ("" for a crop harvested once).
-    pub fn row(&self, e: hecs::Entity) -> String {
+    /// This crop's picking row (empty for a crop harvested once).
+    pub fn row(&self, e: hecs::Entity) -> PickRow {
         self.rows.get(&e).map(|(r, _)| r.clone()).unwrap_or_default()
     }
 

@@ -55,15 +55,58 @@
 //   667 to 1,429 m2 (7,200 to 15,400 ft2); 1,000 m2 (10,800 ft2) is ten per
 //   hectare, inside that range. Seeds of Diversity Canada's pepper page gives
 //   more: "A single hive of bumble bees can pollinate 3000 square meters of
-//   greenhouse sweet peppers." A colony does not last: "In commercially
-//   managed hives, colonies generally last 10-14 weeks in a greenhouse or
-//   field setting" (Runnion). The game does not age a hive yet. And a small
-//   garden is not what the bees are sold for: LSU (Hanna, below) warns "In
-//   smaller operations, however, bumblebee pollination is not a good choice.
-//   At any given time, opened flowers are too few in number to supply enough
-//   pollen for the foraging bees. As a result, bees visit opened flowers
-//   repeatedly, destroying the protective anther tube". The game does not
-//   model that harm either; both are said on the hive's card.
+//   greenhouse sweet peppers." A colony does not last (colony_life_days,
+//   below). And a small garden is not what the bees are sold for: LSU
+//   (Hanna, below) warns "In smaller operations, however, bumblebee
+//   pollination is not a good choice. At any given time, opened flowers are
+//   too few in number to supply enough pollen for the foraging bees. As a
+//   result, bees visit opened flowers repeatedly, destroying the protective
+//   anther tube". The game does not model that harm; it is said on the
+//   hive's card.
+//
+// colony_life_days: 70, the garden days one colony works after it is
+//   introduced; then it is spent, its bees stop pollinating, the player is
+//   told, and the hive does nothing until a new colony is introduced (the
+//   Garden panel's Introduce colony button, which takes one colony_item). A
+//   placed hive starts with no colony: the colony is what is bought, as a
+//   grower buys it, and the hive box it comes in is the machine. 70 is ten
+//   weeks, Koppert's instruction for every Natupol hive, including Natupol
+//   Smart, the one for "small greenhouses up to 1000 m²" (the floor
+//   hive_cover_m2 gives a hive here): "Remove bumblebee hives the latest 10
+//   weeks after introduction". It sits at the short end of what the
+//   extension and retail sources give: Runnion, "In commercially managed
+//   hives, colonies generally last 10-14 weeks in a greenhouse or field
+//   setting"; UF/IFAS (Hochmuth, below), "Hives are usually active for 6 to
+//   10 weeks, and then must be replaced"; Arbico, of Koppert's Natupol
+//   Excel, "lasts for about 9 weeks, but can go longer". Koppert also says
+//   how it ends: "After some weeks the colony will reach its maximum size and
+//   starts declining in size and pollination activity." The game does not
+//   model that decline (no source gives its shape): a colony works fully for
+//   its 70 days and then not at all.
+//   THE CLOCK: garden days, the clock this file's flowering days and
+//   hand_every_days already run on (the farming tick's days times the crop
+//   growth speed), not world days. What a colony is worth is how much of a
+//   crop's flowering it covers, and on the garden clock that share is the
+//   same at every growth speed: ten weeks of the crops' own time, at 1x,
+//   10x or 100x. Aged on the world clock, a colony at 100x growth would
+//   outlive a hundred times as many crop seasons as a real one, and at 10x
+//   ten times as many. (Which clock the body and the garden share is an
+//   open question for the operator, docs/PRIORITIES.md, "Blocked on the
+//   operator", item 3; this follows the garden's.) It ages only while the
+//   game runs, like the rest of this file: the offline catch-up does not
+//   age it, as it does not charge crops for flowers nobody pollinated while
+//   the game was closed.
+// colony_item: the bought item one colony is (data/items.csv, sold by the
+//   vendor in data/trade_goods.ron, where its price and source are).
+//
+// devices: machines whose presence at a grow machine pollinates some of its
+//   crops, as a hand or a bee would, by the share of a full crop each crop
+//   sets under it (`sets`, 0 to 1; a crop not listed is not helped). A placed
+//   device (a catalog machine of that `machine` key) serves the indoor grow
+//   machine nearest it, and only while it is powered. See the entry.
+//
+// The sources for colony_life_days and devices, above, were read on
+// 2026-09-27.
 //
 // SOURCES (cited by short name in the entries; the date after each is the
 // source's own date):
@@ -118,8 +161,64 @@
 //     Factors Affecting Seed Set", Bhartiya Krishi Anushandhan Patrika,
 //     accepted June 2021,
 //     https://arccarticles.s3.amazonaws.com/arcc/Attachment-at-accept-article-BKAP275.pdf
+//   Koppert: Koppert, "Natupol Smart" product page (no date shown),
+//     https://www.koppert.com/natupol-smart/; the same "Hygiene" line is on
+//     "Natupol" (https://www.koppert.com/natupol/) and "Natupol Excel"
+//     (https://www.koppert.com/natupol-excel/). Read 2026-09-27.
+//   Arbico: Arbico Organics, "Natupol Bumblebee Hives" product page (no date
+//     shown), https://www.arbico-organics.com/product/natupol-bumblebee-hives/pollination-aids.
+//     Read 2026-09-27.
+//   Hochmuth: Hochmuth, G.J. and Hochmuth, R.C., "Production of Greenhouse
+//     Tomatoes - Florida Greenhouse Vegetable Production Handbook, Vol 3",
+//     HS788, University of Florida IFAS Extension, an archival copy (EDIS
+//     record dated 1 January 2012), https://doi.org/10.32473/edis-cv266-1990.
+//     Read 2026-09-27.
+//   Hanna 2004: Hanna, H.Y., "Air Blowers Are Less Effective Pollinators of
+//     Greenhouse Tomatoes than Electric Vibrators but Cost Less to Operate",
+//     HortTechnology 14(1): 104-107, January 2004,
+//     https://doi.org/10.21273/HORTTECH.14.1.0104 (the abstract, read
+//     2026-09-27)
 (
     hive_cover_m2: 1000.0,
+    colony_life_days: 70.0,
+    colony_item: "bumblebee_colony_0",
+    // THE CIRCULATING FAN. What real indoor growers do at high growth
+    // speeds, where hand pollination every garden day is impractical, was
+    // looked for crop by crop (2026-09-27); only one fan result is
+    // measured.
+    //   STRAWBERRY: sets 0.79. McGregor (strawberry chapter), Allen and Gaede
+    //   (1963) in the greenhouse: plants "uncaged and undisturbed set 20
+    //   percent; those uncaged but receiving wind from a fan over them set 77
+    //   percent; whereas those that were caged, but brush pollinated daily,
+    //   set 97 percent of the flowers"; 77 / 97 = 0.79 of the brushed set
+    //   (strawberry's no_help, below, is the same study's 20 / 97).
+    //   TOMATO, PEPPER, EGGPLANT: not helped; no source measures a fan on
+    //   them indoors, and the sources that speak to it say a room's air is
+    //   not enough. Hochmuth: "Outdoors, wind assists in pollen dehiscence,
+    //   but in the greenhouse, the flowers must be vibrated." What works for
+    //   tomato is air aimed at the flower clusters, by hand, and less well
+    //   than a vibrator (Hanna 2004: "Vibrator-pollinated plants of each
+    //   cultivar produced greater marketable yield than did blower-pollinated
+    //   plants"): that is the Hand-pollinate action, not a fan. The labour-
+    //   free answer growers built for tomato is an automatic vibrator on the
+    //   trellis cable (Hochmuth: "These problems have caused some growers to
+    //   devise automatic vibrating systems in the house that vibrate the whole
+    //   trellis system", "operated by a time clock. Vibration can be set for a
+    //   few seconds (5 to 10) daily"); the home's tomatoes grow in tower cups,
+    //   not on a trellis, and no power draw for such a vibrator was found, so
+    //   it is not in the game yet. For eggplant McGregor (eggplant chapter) is
+    //   plain: "Wind is not a factor in eggplant pollination, and vibration of
+    //   the blossom will not cause a sufficient deposit of pollen on the
+    //   stigma." For all three, the bumblebee colony is the sourced answer.
+    // The fan itself (its size and draw) is the catalog's "circulation_fan"
+    // in data/machines/home.ron.
+    devices: [
+        (
+            machine: "circulation_fan",
+            name: "circulating fan",
+            sets: { "strawberry": 0.79 },
+        ),
+    ],
     crops: [
         // TOMATO. McGregor (tomato chapter): "Various tests in greenhouses
         // have proven that the tomato flower is not self-pollinating. However,

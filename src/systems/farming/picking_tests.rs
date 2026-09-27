@@ -336,8 +336,8 @@ fn the_bulk_harvest_picks_ready_picked_crops() {
     let view = picking::GuiView::new(&world, &data);
     assert!(view.ready(fresh, true) && view.ready(due, true) && view.ready(lettuce, true));
     assert!(!view.ready(waiting, true), "between picks: not ready");
-    assert!(view.row(waiting).contains("next in"), "{}", view.row(waiting));
-    assert_eq!(view.row(lettuce), "", "a once crop has no picking row");
+    assert!(view.row(waiting).card.contains("next in"), "{}", view.row(waiting).card);
+    assert!(view.row(lettuce).is_empty(), "a once crop has no picking row");
     let ready: Vec<u64> =
         [fresh, waiting, due, lettuce].into_iter().filter(|e| view.ready(*e, true)).map(|e| e.to_bits().into()).collect();
     *data.get::<Mutex<Vec<u64>>>("harvest_many_request").unwrap().lock().unwrap() = ready;
@@ -347,6 +347,63 @@ fn the_bulk_harvest_picks_ready_picked_crops() {
     assert_eq!(rec(&world, waiting).taken, 1, "the waiting one untouched");
     assert!(world.get::<&CropInstance>(lettuce).is_err(), "the lettuce harvested whole");
     assert!(count(&world, who, "vegetable_tomato_0") > 0);
+}
+
+/// A plant between picks says it is bearing and when its next pick comes, not
+/// "ripe" (2026-09-27). The Garden panel's slot tile and the card's Stage row
+/// read `picking::stage_word` with what the crop bridge passes it (dead, the
+/// view's `ready`, the stage, the view's row), done here the same way: a
+/// tomato picked 0.25 garden days ago (the interval is 1.75) reads "bearing"
+/// with its next pick 1.5 garden days off, in Forgiving and Realistic mode
+/// alike; one with a pick due reads "ready"; a ripe lettuce (harvested once)
+/// reads "ready"; a tomato still flowering reads its stage; a dead one
+/// "dead". Before the fix the plant between picks read its growth stage,
+/// "ripe", though nothing on it could be harvested. Seen red on the code
+/// before the fix (`stage_word` without its bearing branch: "ripe"), and
+/// again by leaving `bearing_next_in` unset in `GuiView::new`.
+#[test]
+fn a_plant_between_picks_reads_bearing_not_ripe() {
+    for realistic in [false, true] {
+        let mut data = store();
+        set_realistic(&mut data, realistic);
+        let mut world = hecs::World::new();
+        let ripe = last_stage(&data, "tomato");
+        assert_eq!(ripe, "ripe", "the tomato's last plants.csv stage is the word the tile used to show");
+        let waiting = world.spawn((
+            crop("tomato", Some("tomato_bed"), &ripe),
+            CropPicking { days_ripe: 0.25, next_pick: 1, taken: 1, roll: Some(0.5), carry: 0.0 },
+        ));
+        let due = world.spawn((
+            crop("tomato", Some("tomato_bed"), &ripe),
+            CropPicking { days_ripe: 1.8, next_pick: 1, taken: 1, roll: Some(0.5), carry: 0.0 },
+        ));
+        let flowering = world.spawn((crop("tomato", Some("tomato_bed"), "flower"),));
+        let lettuce = world.spawn((crop("lettuce", Some("lettuce_bed"), &last_stage(&data, "lettuce")),));
+        let dead = world.spawn((crop("tomato", Some("tomato_bed"), crate::ecs::components::STAGE_DEAD),));
+        let view = picking::GuiView::new(&world, &data);
+        // What the crop bridge passes: `mature` is "at its last stage and alive".
+        let word = |e: hecs::Entity, long: bool| {
+            let c = world.get::<&CropInstance>(e).unwrap();
+            let is_dead = c.growth_stage == crate::ecs::components::STAGE_DEAD;
+            let mature = !is_dead && c.growth_stage == last_stage(&data, &c.crop_def_id);
+            picking::stage_word(is_dead, view.ready(e, mature), &c.growth_stage, &view.row(e), long)
+        };
+        let tile = word(waiting, false);
+        assert!(!tile.contains("ripe") && !tile.contains("ready"), "realistic {realistic}: between picks is not ripe: {tile:?}");
+        assert_eq!(tile, "bearing\nnext 1.5d", "realistic {realistic}");
+        assert_eq!(word(waiting, true), "bearing, next pick in 1.5 garden days", "realistic {realistic}");
+        assert_eq!(view.row(waiting).bearing_next_in, Some(1.5), "realistic {realistic}");
+        assert_eq!(word(due, false), "ready", "realistic {realistic}: a pick is due");
+        assert_eq!(view.row(due).bearing_next_in, None);
+        assert_eq!(word(lettuce, false), "ready", "a ripe once crop");
+        assert_eq!(word(flowering, false), "flower", "not ripe yet: its stage");
+        assert_eq!(view.row(flowering).bearing_next_in, None);
+        assert_eq!(word(dead, false), "dead");
+    }
+    // Under a garden day to go: the tile still fits.
+    let row = picking::PickRow { card: String::new(), bearing_next_in: Some(0.4) };
+    assert_eq!(picking::stage_word(false, false, "ripe", &row, false), "bearing\nnext <1d");
+    assert_eq!(picking::stage_word(false, false, "ripe", &row, true), "bearing, next pick in less than a garden day");
 }
 
 /// Realistic mode, through the pure functions: a share not picked before the

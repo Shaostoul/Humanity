@@ -14,11 +14,14 @@
 //!    spent in its flowering stages and how many of them its flowers were
 //!    pollinated (`record_step`). An outdoor field (`farming::is_field_area`)
 //!    needs none: the wind and wild insects pollinate it.
-//! 2. Indoors a flower is pollinated while a bumblebee hive reaches its grow
-//!    area (`hive_cover`; bees do nothing for a wind-pollinated crop) or while
-//!    the player's last hand pollination of that area still covers it: the
-//!    "pollinate_request" channel (the Garden panel's Hand-pollinate button)
-//!    gives every crop there that needs help its `hand_every_days`.
+//! 2. Indoors a flower is pollinated while a bumblebee hive WITH A WORKING
+//!    COLONY reaches its grow area (`hive_cover`; bees do nothing for a
+//!    wind-pollinated crop), or while the player's last hand pollination of
+//!    that area still covers it: the "pollinate_request" channel (the Garden
+//!    panel's Hand-pollinate button, `Request::Hand`) gives every crop there
+//!    that needs help its `hand_every_days`. A pollination device (a powered
+//!    circulating fan, pollination.ron `devices`) at the grow machine
+//!    pollinates the crops it serves by their cited share (`Help`).
 //! 3. The player is told once, when an indoor area's crops start flowering
 //!    with nothing to pollinate them, what they will set left alone and how
 //!    to pollinate them by hand (`flowering_notice`).
@@ -26,16 +29,26 @@
 //!    yield (`Pollination::harvest_set`, the single hook in the harvest path):
 //!    its unhelped share plus the rest in proportion to the pollinated days.
 //!
+//! THE COLONY (2026-09-27). A placed hive holds no colony until the player
+//! introduces one (the Garden panel's Introduce colony button,
+//! `Request::Colony`, taking one bought `colony_item`). The colony works for
+//! `colony_life_days` garden days, on the same garden clock as the flowering
+//! days, and is then spent: its bees stop pollinating and the player is told
+//! once. Each hive's colony is kept in `SoilMemory::hives` by the hive's
+//! machine instance id, so it is saved, and a hive taken away and placed again
+//! keeps the colony its id had (a new id has none).
+//!
 //! TWO MODES (the house rule for a deep system): the "garden_pollination_on"
 //! channel, from Settings. Off, every crop sets fully and nothing is shown or
-//! said; On (the default, and the absent case) is the cited model.
+//! said, and no colony ages; On (the default, and the absent case) is the
+//! cited model.
 
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
 use serde::Deserialize;
 
 use super::lighting::GrowPlot;
-use crate::ecs::components::{CropInstance, CropPollination, STAGE_DEAD};
+use crate::ecs::components::{CropInstance, CropPollination, HiveColony, SoilMemory, STAGE_DEAD};
 use crate::hot_reload::data_store::DataStore;
 
 /// The shipped copy, so a bare exe with no data folder still has it.
@@ -45,9 +58,20 @@ pub const POLLINATION_RON: &str = include_str!("../../../data/garden/pollination
 pub const DATA_KEY: &str = "garden_pollination";
 /// DataStore key of the mode, a `Mutex<bool>`: true is On. Absent = On.
 pub const MODE_KEY: &str = "garden_pollination_on";
-/// DataStore key of the Hand-pollinate request, a `Mutex<Option<String>>`
-/// holding a grow-area tag (a crop's `tower_id`; "" is the hand-planted crops).
+/// DataStore key of the Garden panel's pollination request, a
+/// `Mutex<Option<Request>>`.
 pub const REQUEST_KEY: &str = "pollinate_request";
+
+/// What the player asked of pollination in the Garden panel.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Request {
+    /// Hand-pollinate a grow area: a crop's `tower_id` ("" is the
+    /// hand-planted crops).
+    Hand(String),
+    /// Introduce a new bumblebee colony in a hive, by the hive's machine
+    /// instance id.
+    Colony(String),
+}
 
 // -- Data: data/garden/pollination.ron ----------------------------------------------
 
@@ -101,11 +125,47 @@ impl CropPollinationDef {
     }
 }
 
+/// A pollination device (pollination.ron `devices`): a catalog machine that,
+/// placed at a grow machine and powered, pollinates some of its crops.
+#[derive(Debug, Clone, Deserialize)]
+pub struct DeviceDef {
+    /// Its data/machines catalog key; a placed one carries it as its
+    /// `MachineType`.
+    pub machine: String,
+    /// What to call it, for the player ("circulating fan").
+    pub name: String,
+    /// The share of a full crop each crop it serves sets under it, 0..1, by
+    /// plants.csv id. A crop not listed is not helped by it.
+    pub sets: HashMap<String, f64>,
+}
+
+impl DeviceDef {
+    /// How much of a pollinated day one flowering day under it is for this
+    /// crop, 0..1: the part of what the crop cannot set alone that the device
+    /// sets, so a day under it gives exactly its `sets` (0 for a crop it does
+    /// not serve).
+    pub fn help_for(&self, crop: &CropPollinationDef) -> f64 {
+        let Some(sets) = self.sets.get(&crop.id) else { return 0.0 };
+        let unhelped = crop.no_help.clamp(0.0, 1.0);
+        if unhelped >= 1.0 {
+            return 1.0;
+        }
+        ((sets - unhelped) / (1.0 - unhelped)).clamp(0.0, 1.0)
+    }
+}
+
 /// What data/garden/pollination.ron holds. Its comments carry every source.
 #[derive(Debug, Clone, Deserialize)]
 pub struct PollinationData {
     /// The floor one bumblebee colony serves, m2.
     pub hive_cover_m2: f64,
+    /// Garden days one colony works after it is introduced.
+    pub colony_life_days: f64,
+    /// The bought item (data/items.csv) one colony is.
+    pub colony_item: String,
+    /// Pollination devices.
+    #[serde(default)]
+    pub devices: Vec<DeviceDef>,
     pub crops: Vec<CropPollinationDef>,
     /// `crops` by id, built by `parse` (the tick looks every crop up).
     #[serde(skip)]
@@ -118,6 +178,12 @@ impl PollinationData {
         if !(d.hive_cover_m2.is_finite() && d.hive_cover_m2 > 0.0) {
             return Err("hive_cover_m2 must be positive".to_string());
         }
+        if !(d.colony_life_days.is_finite() && d.colony_life_days > 0.0) {
+            return Err("colony_life_days must be positive".to_string());
+        }
+        if d.colony_item.trim().is_empty() {
+            return Err("colony_item names the bought colony item".to_string());
+        }
         for (i, c) in d.crops.iter().enumerate() {
             if !(0.0..=1.0).contains(&c.no_help) {
                 return Err(format!("{}: no_help must be 0 to 1", c.id));
@@ -129,7 +195,26 @@ impl PollinationData {
                 return Err(format!("{} is listed twice", c.id));
             }
         }
+        for dev in &d.devices {
+            if dev.machine.trim().is_empty() || dev.name.trim().is_empty() {
+                return Err("a device names its catalog machine and what to call it".to_string());
+            }
+            for (crop, sets) in &dev.sets {
+                if !(0.0..=1.0).contains(sets) {
+                    return Err(format!("{}: sets for {crop} must be 0 to 1", dev.machine));
+                }
+                match d.index.get(crop).map(|i| &d.crops[*i]) {
+                    Some(c) if c.needs_help() => {}
+                    _ => return Err(format!("{}: {crop} is not a crop here that needs help", dev.machine)),
+                }
+            }
+        }
         Ok(d)
+    }
+
+    /// The device placed as this catalog machine, if it is one.
+    pub fn device(&self, machine: &str) -> Option<(usize, &DeviceDef)> {
+        self.devices.iter().enumerate().find(|(_, dv)| dv.machine == machine)
     }
 
     /// The data folder's copy first (so it can be modded), the shipped copy
@@ -160,16 +245,19 @@ impl PollinationData {
 // -- The model ---------------------------------------------------------------------
 
 /// Step one crop's record `days` garden days: while it flowers, every day
-/// counts as a flowering day, and as a pollinated one while a hive reaches
-/// it (`hive`) or a hand pollination still covers it. The hand pollination
-/// wears off either way (flowers opened after it need their own).
-pub fn record_step(rec: &mut CropPollination, flowering: bool, hive: bool, days: f64) {
+/// counts as a flowering day, and as a pollinated one while a hand
+/// pollination still covers it; the days it does not cover count as `help`
+/// of a pollinated day (1 under a working hive, a device's share under a
+/// device, 0 with nothing). The hand pollination wears off either way
+/// (flowers opened after it need their own).
+pub fn record_step(rec: &mut CropPollination, flowering: bool, help: f64, days: f64) {
     if !(days > 0.0) {
         return;
     }
     if flowering {
         rec.flowering_days += days;
-        rec.pollinated_days += if hive { days } else { rec.hand_days_left.clamp(0.0, days) };
+        let hand = rec.hand_days_left.clamp(0.0, days);
+        rec.pollinated_days += hand + (days - hand) * help.clamp(0.0, 1.0);
     }
     rec.hand_days_left = (rec.hand_days_left - days).max(0.0);
 }
@@ -194,12 +282,57 @@ pub fn fruit_set(def: &CropPollinationDef, rec: Option<&CropPollination>, outdoo
     }
 }
 
-/// Where the bumblebee hives stand: every `PollinatorHive` at its `Transform`.
-pub fn hive_positions(world: &hecs::World) -> Vec<[f32; 3]> {
-    world
-        .query::<(&crate::ecs::components::PollinatorHive, &crate::ecs::components::Transform)>()
+/// Every bumblebee hive: its machine instance id ("" for one without) and
+/// where it stands, sorted by id.
+pub fn hives(world: &hecs::World) -> Vec<(String, [f32; 3])> {
+    use crate::ecs::components::{MachineInstanceId, PollinatorHive, Transform};
+    let mut v: Vec<(String, [f32; 3])> = world
+        .query::<(&PollinatorHive, &Transform, Option<&MachineInstanceId>)>()
         .iter()
-        .map(|(_, (_, t))| t.position.to_array())
+        .map(|(_, (_, t, id))| (id.map(|i| i.0.clone()).unwrap_or_default(), t.position.to_array()))
+        .collect();
+    v.sort_by(|a, b| a.0.cmp(&b.0));
+    v
+}
+
+/// A hive's colony, as the Garden panel and the tick see it.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Colony {
+    /// No colony was ever introduced in it.
+    None,
+    /// Working, with this many garden days left.
+    Working { left_days: f64 },
+    /// Past its working life: it pollinates nothing.
+    Spent,
+}
+
+impl Colony {
+    pub fn of(rec: Option<&HiveColony>, life_days: f64) -> Self {
+        match rec {
+            None => Colony::None,
+            Some(c) if c.age_days < life_days => Colony::Working { left_days: life_days - c.age_days },
+            Some(_) => Colony::Spent,
+        }
+    }
+
+    pub fn working(self) -> bool {
+        matches!(self, Colony::Working { .. })
+    }
+}
+
+/// The colonies kept for the hives, by hive id (empty before any was
+/// introduced).
+fn colonies(world: &hecs::World) -> HashMap<String, HiveColony> {
+    world.query::<&SoilMemory>().iter().next().map(|(_, m)| m.hives.clone()).unwrap_or_default()
+}
+
+/// Where the hives with a working colony stand.
+fn working_hive_positions(world: &hecs::World, d: &PollinationData) -> Vec<[f32; 3]> {
+    let kept = colonies(world);
+    hives(world)
+        .into_iter()
+        .filter(|(id, _)| Colony::of(kept.get(id), d.colony_life_days).working())
+        .map(|(_, p)| p)
         .collect()
 }
 
@@ -222,12 +355,81 @@ pub fn hive_cover(hives: &[[f32; 3]], plots: &[GrowPlot], reach_m: f64) -> HashS
     out
 }
 
-/// The areas the home's hives reach now (the engine publishes "grow_plots").
-fn covered_now(world: &hecs::World, data: &DataStore, d: &PollinationData) -> HashSet<String> {
-    let hives = hive_positions(world);
-    match data.get::<Vec<GrowPlot>>("grow_plots") {
-        Some(plots) if !hives.is_empty() => hive_cover(&hives, plots, d.hive_reach_m()),
-        _ => HashSet::new(),
+/// The indoor grow machine nearest `pos` across the floor, by its id and
+/// aliases: the one a device standing there serves.
+pub fn nearest_plot(pos: [f32; 3], plots: &[GrowPlot]) -> Option<&GrowPlot> {
+    plots.iter().filter(|p| !p.outdoors).min_by(|a, b| {
+        let da = (a.pos[0] - pos[0]).powi(2) + (a.pos[2] - pos[2]).powi(2);
+        let db = (b.pos[0] - pos[0]).powi(2) + (b.pos[2] - pos[2]).powi(2);
+        da.total_cmp(&db)
+    })
+}
+
+/// What pollinates each indoor grow area now: the areas a hive with a
+/// working colony reaches, and the powered devices at each grow machine.
+#[derive(Debug, Default)]
+pub struct Help {
+    hive_areas: HashSet<String>,
+    /// Grow-area tag -> indexes into `PollinationData::devices`.
+    devices: HashMap<String, Vec<usize>>,
+}
+
+impl Help {
+    /// The home's hives and devices now (the engine publishes "grow_plots").
+    pub fn now(world: &hecs::World, data: &DataStore, d: &PollinationData) -> Self {
+        let Some(plots) = data.get::<Vec<GrowPlot>>("grow_plots") else { return Self::default() };
+        let working = working_hive_positions(world, d);
+        let mut help = Help {
+            hive_areas: if working.is_empty() { HashSet::new() } else { hive_cover(&working, plots, d.hive_reach_m()) },
+            devices: HashMap::new(),
+        };
+        if d.devices.is_empty() {
+            return help;
+        }
+        use crate::ecs::components::{MachineType, PowerConsumer, Transform};
+        for (_, (kind, t, power)) in world.query::<(&MachineType, &Transform, Option<&PowerConsumer>)>().iter() {
+            let Some((i, _)) = d.device(&kind.0) else { continue };
+            // A device works only while it has power: one the electrical sim
+            // sheds, or the player switches off, does nothing.
+            if !power.map_or(false, |p| p.enabled) {
+                continue;
+            }
+            let Some(plot) = nearest_plot(t.position.to_array(), plots) else { continue };
+            for tag in std::iter::once(&plot.id).chain(plot.aliases.iter()) {
+                let v = help.devices.entry(tag.clone()).or_default();
+                if !v.contains(&i) {
+                    v.push(i);
+                }
+            }
+        }
+        help
+    }
+
+    /// Does a hive with a working colony reach this area?
+    pub fn hive(&self, area: &str) -> bool {
+        self.hive_areas.contains(area)
+    }
+
+    /// The device at this area that helps this crop most, and its help
+    /// (`DeviceDef::help_for`); None when no device there serves it.
+    pub fn device<'a>(&self, d: &'a PollinationData, def: &CropPollinationDef, area: &str) -> Option<(&'a DeviceDef, f64)> {
+        self.devices
+            .get(area)?
+            .iter()
+            .filter_map(|i| d.devices.get(*i))
+            .map(|dv| (dv, dv.help_for(def)))
+            .filter(|(_, h)| *h > 0.0)
+            .max_by(|a, b| a.1.total_cmp(&b.1))
+    }
+
+    /// How much of a pollinated day each flowering day here is for this crop
+    /// without a hand: 1 under a working hive (for a crop bees serve), a
+    /// device's share, else 0.
+    pub fn for_crop(&self, d: &PollinationData, def: &CropPollinationDef, area: &str) -> f64 {
+        if def.by.hive_helps() && self.hive(area) {
+            return 1.0;
+        }
+        self.device(d, def, area).map_or(0.0, |(_, h)| h)
     }
 }
 
@@ -240,18 +442,18 @@ pub fn mode_on(data: &DataStore) -> bool {
 pub fn register(data_store: &mut DataStore) {
     data_store.insert(DATA_KEY, PollinationData::load());
     data_store.insert(MODE_KEY, std::sync::Mutex::new(true));
-    data_store.insert(REQUEST_KEY, std::sync::Mutex::new(Option::<String>::None));
+    data_store.insert(REQUEST_KEY, std::sync::Mutex::new(Option::<Request>::None));
 }
 
 /// The Garden panel's side, for the main loop each frame: the Settings mode
-/// and the area the player chose to hand-pollinate.
-pub fn publish(data: &DataStore, on: bool, pending: Option<String>) {
+/// and what the player asked (hand-pollinate an area, introduce a colony).
+pub fn publish(data: &DataStore, on: bool, pending: Option<Request>) {
     if let Some(Ok(mut v)) = data.get::<std::sync::Mutex<bool>>(MODE_KEY).map(|m| m.lock()) {
         *v = on;
     }
-    if let (Some(area), Some(m)) = (pending, data.get::<std::sync::Mutex<Option<String>>>(REQUEST_KEY)) {
+    if let (Some(req), Some(m)) = (pending, data.get::<std::sync::Mutex<Option<Request>>>(REQUEST_KEY)) {
         if let Ok(mut v) = m.lock() {
-            *v = Some(area);
+            *v = Some(req);
         }
     }
 }
@@ -272,11 +474,12 @@ impl Pollination {
         Self::default()
     }
 
-    /// One farming tick of `days` garden days: the Hand-pollinate request,
-    /// then every indoor crop's record, then the notices.
+    /// One farming tick of `days` garden days: the Garden panel's request
+    /// (Hand-pollinate, or Introduce colony), the hives' colonies, then every
+    /// indoor crop's record, then the notices.
     pub fn tick(&mut self, world: &mut hecs::World, data: &DataStore, days: f64) {
         let request = data
-            .get::<std::sync::Mutex<Option<String>>>(REQUEST_KEY)
+            .get::<std::sync::Mutex<Option<Request>>>(REQUEST_KEY)
             .and_then(|m| m.lock().ok().and_then(|mut s| s.take()));
         if !mode_on(data) {
             self.told.clear();
@@ -286,11 +489,14 @@ impl Pollination {
             self.data = Some(PollinationData::load());
         }
         let Some(d) = data.get::<PollinationData>(DATA_KEY).or(self.data.as_ref()) else { return };
-        if let Some(area) = request {
-            hand_pollinate(world, data, d, &area);
+        match request {
+            Some(Request::Hand(area)) => hand_pollinate(world, data, d, &area),
+            Some(Request::Colony(hive)) => introduce_colony(world, data, d, &hive),
+            None => {}
         }
-        let covered = covered_now(world, data, d);
-        let (waiting, flowering) = step_crops(world, d, &covered, days);
+        age_colonies(world, data, d, days);
+        let help = Help::now(world, data, d);
+        let (waiting, flowering) = step_crops(world, d, &help, days);
         // Told once per area while it flowers: a hand pollination wearing
         // off is not news, the Garden panel's button says it.
         self.told.retain(|a| flowering.contains(a));
@@ -322,7 +528,7 @@ impl Pollination {
 fn step_crops(
     world: &mut hecs::World,
     d: &PollinationData,
-    covered: &HashSet<String>,
+    help: &Help,
     days: f64,
 ) -> (BTreeMap<String, BTreeSet<String>>, HashSet<String>) {
     let mut waiting: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
@@ -335,7 +541,7 @@ fn step_crops(
             continue;
         }
         let flowering = def.is_flowering(&crop.growth_stage);
-        let hive = def.by.hive_helps() && covered.contains(area);
+        let helped = help.for_crop(d, def, area);
         let mut new = CropPollination::default();
         let had_record = rec.is_some();
         let r = match rec {
@@ -344,11 +550,11 @@ fn step_crops(
         };
         if flowering {
             in_flower.insert(area.to_string());
-            if !hive && r.hand_days_left <= 0.0 {
+            if helped <= 0.0 && r.hand_days_left <= 0.0 {
                 waiting.entry(area.to_string()).or_default().insert(crop.crop_def_id.clone());
             }
         }
-        record_step(r, flowering, hive, days);
+        record_step(r, flowering, helped, days);
         if !had_record {
             fresh.push((e, new));
         }
@@ -399,6 +605,125 @@ fn hand_pollinate(world: &mut hecs::World, data: &DataStore, d: &PollinationData
         s.push_str(" Nothing there is in flower yet, so this does nothing until it is.");
     }
     super::push_notice(data, s);
+}
+
+/// What to call a hive in a notice or a row: "bumblebee hive 1" for
+/// "bumblebee_hive_1".
+fn hive_name(id: &str) -> String {
+    if id.is_empty() {
+        "the bumblebee hive".to_string()
+    } else {
+        id.replace('_', " ")
+    }
+}
+
+/// Age every placed hive's colony `days` garden days, and tell the player
+/// once when one is spent. A hive with no colony has nothing to age.
+fn age_colonies(world: &mut hecs::World, data: &DataStore, d: &PollinationData, days: f64) {
+    let ids: Vec<String> = hives(world).into_iter().map(|(id, _)| id).collect();
+    if ids.is_empty() {
+        return;
+    }
+    let mut spent: Vec<String> = Vec::new();
+    for (_, mem) in world.query_mut::<&mut SoilMemory>() {
+        for id in &ids {
+            let Some(c) = mem.hives.get_mut(id) else { continue };
+            if days > 0.0 {
+                c.age_days += days;
+            }
+            if c.age_days >= d.colony_life_days && !c.told {
+                c.told = true;
+                spent.push(id.clone());
+            }
+        }
+        break;
+    }
+    for id in spent {
+        super::push_notice(
+            data,
+            format!(
+                "The bumblebee colony in {} has come to the end of its working life after {}: its bees no longer \
+                 pollinate. Koppert: \"Remove bumblebee hives the latest 10 weeks after introduction\". Introduce \
+                 a new colony from the Garden panel (a {} from the vendor), or pollinate by hand.",
+                hive_name(&id),
+                days_words(d.colony_life_days),
+                item_name(data, &d.colony_item).to_lowercase()
+            ),
+        );
+    }
+}
+
+/// A bought item's display name ("Bumblebee Colony"), from items.csv.
+fn item_name(data: &DataStore, id: &str) -> String {
+    data.get::<crate::systems::inventory::ItemRegistry>("item_registry")
+        .and_then(|r| r.items.get(id).map(|i| i.name.clone()))
+        .unwrap_or_else(|| id.trim_end_matches("_0").replace('_', " "))
+}
+
+/// The Introduce colony action on one hive: a new colony takes one bought
+/// `colony_item` from the player's pack (nothing in creative mode) and works
+/// for `colony_life_days`. Refused while the hive's colony is still working,
+/// which a new one would waste.
+fn introduce_colony(world: &mut hecs::World, data: &DataStore, d: &PollinationData, hive: &str) {
+    if !hives(world).iter().any(|(id, _)| id == hive) {
+        super::push_notice(data, format!("There is no bumblebee hive called {} in the home.", hive_name(hive)));
+        return;
+    }
+    let kept = colonies(world);
+    if let Colony::Working { left_days } = Colony::of(kept.get(hive), d.colony_life_days) {
+        super::push_notice(
+            data,
+            format!(
+                "The colony in {} is still working, with {} left; a new one now would waste it.",
+                hive_name(hive),
+                days_words(left_days)
+            ),
+        );
+        return;
+    }
+    let creative = data
+        .get::<std::sync::Mutex<bool>>("creative_mode")
+        .and_then(|m| m.lock().ok().map(|g| *g))
+        .unwrap_or(false);
+    let name = item_name(data, &d.colony_item);
+    if !creative {
+        let mut took = false;
+        for (_e, (inv, _ctrl)) in world
+            .query_mut::<(&mut crate::systems::inventory::Inventory, &crate::ecs::components::Controllable)>()
+        {
+            if inv.count_item(&d.colony_item) >= 1 {
+                inv.remove_item(&d.colony_item, 1);
+                took = true;
+            }
+            break;
+        }
+        if !took {
+            super::push_notice(
+                data,
+                format!(
+                    "Introducing a colony in {} takes a {} (bought from the vendor), and you have none.",
+                    hive_name(hive),
+                    name.to_lowercase()
+                ),
+            );
+            return;
+        }
+    }
+    let e = super::soil::soil_memory_entity(world);
+    if let Ok(mut mem) = world.get::<&mut SoilMemory>(e) {
+        mem.hives.insert(hive.to_string(), HiveColony::default());
+    }
+    super::push_notice(
+        data,
+        format!(
+            "You introduced a {} in {}. Its bees work the flowers of the indoor crops within {:.0} m for {}, and \
+             then the colony is spent and must be replaced.",
+            name.to_lowercase(),
+            hive_name(hive),
+            d.hive_reach_m(),
+            days_words(d.colony_life_days)
+        ),
+    );
 }
 
 /// "2.5 garden days", "1 garden day".
@@ -453,10 +778,19 @@ pub fn flowering_notice(data: &DataStore, d: &PollinationData, area: &str, plant
         how.join("; ")
     );
     if defs.iter().any(|c| c.by.hive_helps()) {
-        s.push_str(", or place a bumblebee hive near them.");
-    } else {
-        s.push('.');
+        s.push_str(", or keep a bumblebee colony in a hive near them");
     }
+    // A device that serves any of them (pollination.ron `devices`).
+    for dv in &d.devices {
+        let served: Vec<String> = defs
+            .iter()
+            .filter_map(|c| dv.sets.get(&c.id).map(|v| format!("{} sets {}", plant_name(data, &c.id), share_words(*v))))
+            .collect();
+        if !served.is_empty() {
+            s.push_str(&format!(", or run a {} over them ({} under one)", dv.name, served.join("; ")));
+        }
+    }
+    s.push('.');
     s
 }
 
@@ -470,8 +804,17 @@ pub enum Phase {
     After,
 }
 
-/// The crop card's "Pollination" row.
-pub fn card_row(def: &CropPollinationDef, rec: Option<&CropPollination>, outdoors: bool, hive_here: bool, phase: Phase) -> String {
+/// The crop card's "Pollination" row. `hive_here`: a hive with a working
+/// colony reaches it. `device`: the device at its grow machine that serves it
+/// best, as (its name, the share of a full crop it sets there).
+pub fn card_row(
+    def: &CropPollinationDef,
+    rec: Option<&CropPollination>,
+    outdoors: bool,
+    hive_here: bool,
+    device: Option<(&str, f64)>,
+    phase: Phase,
+) -> String {
     if !def.needs_help() {
         return "pollinates itself: needs no help".to_string();
     }
@@ -483,31 +826,86 @@ pub fn card_row(def: &CropPollinationDef, rec: Option<&CropPollination>, outdoor
     let hand = rec.map_or(0.0, |r| r.hand_days_left);
     match phase {
         Phase::Before if hive => "the bumblebee hive will pollinate it when it flowers".to_string(),
-        Phase::Before => {
-            let who = if def.by.hive_helps() { "a hand or a bumblebee hive" } else { "a hand" };
-            format!("indoors: will need {who} when it flowers ({} without)", share_words(def.no_help))
-        }
+        Phase::Before => match device {
+            Some((name, sets)) => format!("the {name} will pollinate it when it flowers ({})", share_words(sets)),
+            None => {
+                let who = if def.by.hive_helps() { "a hand or a bumblebee hive" } else { "a hand" };
+                format!("indoors: will need {who} when it flowers ({} without)", share_words(def.no_help))
+            }
+        },
         Phase::Flowering if hive => "a bumblebee hive is working the flowers".to_string(),
         Phase::Flowering if hand > 0.0 => format!("hand-pollinated, {} left", days_words(hand)),
-        Phase::Flowering => {
-            let expect = match rec {
-                Some(r) if r.flowering_days > 0.0 => fruit_set(def, rec, false),
-                _ => def.no_help,
-            };
-            format!("not pollinated: expect {}", share_words(expect))
-        }
+        Phase::Flowering => match device {
+            Some((name, sets)) => format!("a {name} is working the flowers: {} under it", share_words(sets)),
+            None => {
+                let expect = match rec {
+                    Some(r) if r.flowering_days > 0.0 => fruit_set(def, rec, false),
+                    _ => def.no_help,
+                };
+                format!("not pollinated: expect {}", share_words(expect))
+            }
+        },
         Phase::After => format!("set {}", share_words(fruit_set(def, rec, false))),
     }
 }
 
-/// Every crop's "Pollination" row and the indoor areas with flowers waiting
-/// for a pollinator (where the Garden panel shows its Hand-pollinate
-/// button), built once a frame by the main loop's crop bridge. Empty with
-/// the mode Off.
+/// One bumblebee hive, as the Garden panel shows it under a grow area it
+/// reaches.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct HiveRow {
+    /// The hive's machine instance id (what `Request::Colony` names).
+    pub id: String,
+    /// Its colony: "bumblebee hive 1: colony working, 52 of 70 garden days
+    /// left", "...: no colony ...", "...: colony spent ...".
+    pub line: String,
+    /// It has no working colony: the Introduce colony button shows.
+    pub needs_colony: bool,
+}
+
+/// One indoor grow area's pollination, for the Garden panel: whether flowers
+/// there are short of a pollinator (the Hand-pollinate button shows under
+/// `waiting`) and the hives that reach it.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct AreaRow {
+    /// The grow area's tag (a crop's `tower_id`; "" for hand-planted crops).
+    pub area: String,
+    /// "Flowering, nothing to pollinate it", or "Flowering, only partly
+    /// pollinated" when a device sets some of it; "" when every flower there
+    /// is pollinated (or none is open).
+    pub waiting: String,
+    /// The hives that reach it, when it grows a crop bees pollinate.
+    pub hives: Vec<HiveRow>,
+}
+
+/// The line for a hive with this colony.
+pub fn hive_line(id: &str, colony: Colony, d: &PollinationData, item: &str) -> String {
+    let name = hive_name(id);
+    let mut name_cap: String = name.chars().take(1).flat_map(char::to_uppercase).collect();
+    name_cap.push_str(&name.chars().skip(1).collect::<String>());
+    match colony {
+        Colony::None => format!(
+            "{name_cap}: no colony (a {} is bought, and works {})",
+            item.to_lowercase(),
+            days_words(d.colony_life_days)
+        ),
+        Colony::Working { left_days } => format!(
+            "{name_cap}: colony working, {} of {} left",
+            trim(left_days),
+            days_words(d.colony_life_days)
+        ),
+        Colony::Spent => format!("{name_cap}: colony spent after {}; its bees no longer pollinate", days_words(d.colony_life_days)),
+    }
+}
+
+/// Every crop's "Pollination" row and each indoor grow area's pollination
+/// line (`AreaRow`: flowers waiting for a pollinator, where the Garden panel
+/// shows its Hand-pollinate button, and the hives reaching it, with their
+/// Introduce colony buttons), built once a frame by the main loop's crop
+/// bridge. Empty with the mode Off.
 #[derive(Debug, Default)]
 pub struct GuiView {
     rows: HashMap<hecs::Entity, String>,
-    pub areas: Vec<String>,
+    pub areas: Vec<AreaRow>,
 }
 
 impl GuiView {
@@ -515,8 +913,10 @@ impl GuiView {
         let mut v = Self::default();
         let Some(d) = data.get::<PollinationData>(DATA_KEY).filter(|_| mode_on(data)) else { return v };
         let plants = data.get::<super::PlantRegistry>("plant_registry");
-        let covered = covered_now(world, data, d);
-        let mut areas = BTreeSet::new();
+        let help = Help::now(world, data, d);
+        // Per area: (flowers with no help at all, flowers only partly helped,
+        // grows a crop bees pollinate).
+        let mut areas: BTreeMap<String, (bool, bool, bool)> = BTreeMap::new();
         for (e, (crop, rec)) in world.query::<(&CropInstance, Option<&CropPollination>)>().iter() {
             let Some(def) = d.crop(&crop.crop_def_id) else { continue };
             if crop.growth_stage == STAGE_DEAD {
@@ -532,20 +932,66 @@ impl GuiView {
                 if matches!((at, opens), (Some(a), Some(o)) if a < o) { Phase::Before } else { Phase::After }
             };
             let outdoors = super::is_field_area(area);
-            let hive_here = covered.contains(area);
-            let row = card_row(def, rec, outdoors, hive_here, phase);
-            if phase == Phase::Flowering && !outdoors && def.needs_help() && !(hive_here && def.by.hive_helps()) && rec.map_or(0.0, |r| r.hand_days_left) <= 0.0 {
-                areas.insert(area.to_string());
+            let hive_here = help.hive(area);
+            let device = help.device(d, def, area);
+            let sets = device.map(|(dv, _)| (dv.name.as_str(), dv.sets.get(&def.id).copied().unwrap_or(0.0)));
+            let row = card_row(def, rec, outdoors, hive_here, sets, phase);
+            if !outdoors && def.needs_help() {
+                let entry = areas.entry(area.to_string()).or_default();
+                entry.2 |= def.by.hive_helps();
+                let helped = help.for_crop(d, def, area);
+                if phase == Phase::Flowering && rec.map_or(0.0, |r| r.hand_days_left) <= 0.0 && helped < 1.0 {
+                    if helped <= 0.0 {
+                        entry.0 = true;
+                    } else {
+                        entry.1 = true;
+                    }
+                }
             }
             v.rows.insert(e, row);
         }
-        v.areas = areas.into_iter().collect();
+        // The hives, under each area they reach that grows a crop bees serve.
+        let kept = colonies(world);
+        let item = item_name(data, &d.colony_item);
+        let reach: Vec<(String, HashSet<String>)> = match data.get::<Vec<GrowPlot>>("grow_plots") {
+            Some(plots) => hives(world).into_iter().map(|(id, p)| (id, hive_cover(&[p], plots, d.hive_reach_m()))).collect(),
+            None => Vec::new(),
+        };
+        for (area, (none, partly, bees)) in areas {
+            let waiting = if none {
+                "Flowering, nothing to pollinate it".to_string()
+            } else if partly {
+                "Flowering, only partly pollinated".to_string()
+            } else {
+                String::new()
+            };
+            let hives: Vec<HiveRow> = if bees {
+                reach
+                    .iter()
+                    .filter(|(_, cover)| cover.contains(&area))
+                    .map(|(id, _)| {
+                        let colony = Colony::of(kept.get(id), d.colony_life_days);
+                        HiveRow { id: id.clone(), line: hive_line(id, colony, d, &item), needs_colony: !colony.working() }
+                    })
+                    .collect()
+            } else {
+                Vec::new()
+            };
+            if !waiting.is_empty() || !hives.is_empty() {
+                v.areas.push(AreaRow { area, waiting, hives });
+            }
+        }
         v
     }
 
     /// This crop's row ("" for none: a crop the data does not list).
     pub fn row(&self, e: hecs::Entity) -> String {
         self.rows.get(&e).cloned().unwrap_or_default()
+    }
+
+    /// The pollination line of one grow area, if it has one.
+    pub fn area(&self, area: &str) -> Option<&AreaRow> {
+        self.areas.iter().find(|a| a.area == area)
     }
 }
 
@@ -568,7 +1014,7 @@ mod tests {
         let mut data = make_store();
         data.insert("crop_growth_speed", std::sync::Mutex::new(speed));
         data.insert("player_notices", std::sync::Mutex::new(Vec::<String>::new()));
-        data.insert(REQUEST_KEY, std::sync::Mutex::new(Option::<String>::None));
+        data.insert(REQUEST_KEY, std::sync::Mutex::new(Option::<Request>::None));
         data.insert(MODE_KEY, std::sync::Mutex::new(on));
         data
     }
@@ -588,6 +1034,25 @@ mod tests {
         }
     }
 
+    /// A placed bumblebee hive `id` at `pos`, as home_spawn spawns one, with a
+    /// colony of `colony` garden days' age kept for it (None: no colony).
+    fn hive(world: &mut hecs::World, id: &str, pos: [f32; 3], colony: Option<f64>) -> hecs::Entity {
+        let e = world.spawn((
+            PollinatorHive,
+            Transform { position: glam::Vec3::from_array(pos), ..Default::default() },
+            crate::ecs::components::MachineInstanceId(id.to_string()),
+        ));
+        if let Some(age_days) = colony {
+            let m = crate::systems::farming::soil::soil_memory_entity(world);
+            world.get::<&mut SoilMemory>(m).unwrap().hives.insert(id.to_string(), HiveColony { age_days, told: false });
+        }
+        e
+    }
+
+    fn colony(world: &hecs::World, id: &str) -> Option<HiveColony> {
+        world.query::<&SoilMemory>().iter().next().and_then(|(_, m)| m.hives.get(id).cloned())
+    }
+
     fn rec(world: &hecs::World, e: hecs::Entity) -> CropPollination {
         world.get::<&CropPollination>(e).map(|r| (*r).clone()).unwrap_or_default()
     }
@@ -597,7 +1062,7 @@ mod tests {
     }
 
     fn request(data: &DataStore, area: &str) {
-        *data.get::<std::sync::Mutex<Option<String>>>(REQUEST_KEY).unwrap().lock().unwrap() = Some(area.to_string());
+        *data.get::<std::sync::Mutex<Option<Request>>>(REQUEST_KEY).unwrap().lock().unwrap() = Some(Request::Hand(area.to_string()));
     }
 
     /// The Pollination part of the tick alone, `days` garden days.
@@ -647,10 +1112,10 @@ mod tests {
         let d = shipped();
         let tomato = d.crop("tomato").unwrap();
         let mut a = CropPollination { hand_days_left: 2.5, ..Default::default() };
-        record_step(&mut a, true, false, 10.0);
+        record_step(&mut a, true, 0.0, 10.0);
         let mut b = CropPollination { hand_days_left: 2.5, ..Default::default() };
         for _ in 0..1000 {
-            record_step(&mut b, true, false, 0.01);
+            record_step(&mut b, true, 0.0, 0.01);
         }
         assert!((a.pollinated_days - 2.5).abs() < 1e-9 && (b.pollinated_days - 2.5).abs() < 1e-6, "{a:?} {b:?}");
         assert!((a.flowering_days - 10.0).abs() < 1e-9 && (b.flowering_days - 10.0).abs() < 1e-6);
@@ -659,7 +1124,7 @@ mod tests {
         assert!((fruit_set(tomato, Some(&a), false) - (0.49 + 0.51 * 0.25)).abs() < 1e-9);
         // Not in flower: the cover wears off, nothing is counted.
         let mut c = CropPollination { hand_days_left: 2.5, ..Default::default() };
-        record_step(&mut c, false, true, 1.0);
+        record_step(&mut c, false, 1.0, 1.0);
         assert_eq!((c.flowering_days, c.pollinated_days, c.hand_days_left), (0.0, 0.0, 1.5));
         assert_eq!(fruit_set(tomato, Some(&c), false), 1.0, "never flowered: not charged");
         assert_eq!(fruit_set(tomato, None, false), 1.0);
@@ -801,7 +1266,7 @@ mod tests {
         step(&mut p, &mut world, &data, 0.0);
         assert_eq!(p.harvest_set(&world, &data, field), 1.0);
         assert!(!notices(&data).iter().any(|n| n.contains("nothing carries")), "no flowering notice outdoors");
-        assert_eq!(card_row(d.crop("corn").unwrap(), None, true, false, Phase::Flowering), "outdoors: the wind");
+        assert_eq!(card_row(d.crop("corn").unwrap(), None, true, false, None, Phase::Flowering), "outdoors: the wind");
     }
 
     /// Lettuce is harvested as leaves, so pollination does not touch it: no
@@ -841,6 +1306,9 @@ mod tests {
     /// hive spawns the marker the tick looks for (home_spawn's test). Seen
     /// red by making `hive_cover` ignore the reach (the far tower was then
     /// covered too).
+    ///
+    /// CHANGED 2026-09-27: a hive pollinates only with a working colony, so
+    /// this one has its machine id and a colony introduced just before.
     #[test]
     fn a_hive_covers_the_areas_it_reaches() {
         let mut data = store(100.0, true);
@@ -854,7 +1322,7 @@ mod tests {
         );
         let mut sys = FarmingSystem::new();
         let mut world = hecs::World::new();
-        world.spawn((PollinatorHive, Transform { position: glam::Vec3::new(1.0, 0.0, 0.0), ..Default::default() }));
+        hive(&mut world, "hive_1", [1.0, 0.0, 0.0], Some(0.0));
         let near = world.spawn((crop("tomato", "ntower_3", "flower"),));
         let far = world.spawn((crop("tomato", "ntower_9", "flower"),));
         let near_corn = world.spawn((crop("corn", "ntower_3", "silk"),));
@@ -871,7 +1339,12 @@ mod tests {
         let view = GuiView::new(&world, &data);
         assert_eq!(view.row(near), "a bumblebee hive is working the flowers");
         assert!(view.row(far).starts_with("not pollinated: expect about 49%"), "{}", view.row(far));
-        assert_eq!(view.areas, vec!["ntower_3".to_string(), "ntower_9".to_string()], "the corn still waits beside the hive");
+        let waiting: Vec<&str> = view.areas.iter().filter(|a| !a.waiting.is_empty()).map(|a| a.area.as_str()).collect();
+        assert_eq!(waiting, vec!["ntower_3", "ntower_9"], "the corn still waits beside the hive");
+        let near_hives = &view.area("ntower_3").unwrap().hives;
+        assert_eq!(near_hives.len(), 1, "the hive is listed where it reaches");
+        assert!(!near_hives[0].needs_colony && near_hives[0].line.starts_with("Hive 1: colony working"), "{:?}", near_hives[0]);
+        assert!(view.area("ntower_9").unwrap().hives.is_empty(), "and not where it does not");
     }
 
     /// Off mode: every crop sets fully, nothing is recorded, nothing is
@@ -915,14 +1388,234 @@ mod tests {
         let cuke = d.crop("cucumber").unwrap();
         let corn = d.crop("corn").unwrap();
         let hand = CropPollination { flowering_days: 1.0, pollinated_days: 1.0, hand_days_left: 1.5 };
-        assert_eq!(card_row(tomato, Some(&hand), false, false, Phase::Flowering), "hand-pollinated, 1.5 garden days left");
-        assert_eq!(card_row(cuke, None, false, false, Phase::Flowering), "not pollinated: expect no fruit");
+        assert_eq!(card_row(tomato, Some(&hand), false, false, None, Phase::Flowering), "hand-pollinated, 1.5 garden days left");
+        assert_eq!(card_row(cuke, None, false, false, None, Phase::Flowering), "not pollinated: expect no fruit");
         assert_eq!(
-            card_row(tomato, None, false, false, Phase::Before),
+            card_row(tomato, None, false, false, None, Phase::Before),
             "indoors: will need a hand or a bumblebee hive when it flowers (about 49% of a full crop without)"
         );
-        assert_eq!(card_row(corn, None, false, true, Phase::Before), "indoors: will need a hand when it flowers (about 50% of a full crop without)");
+        assert_eq!(card_row(corn, None, false, true, None, Phase::Before), "indoors: will need a hand when it flowers (about 50% of a full crop without)");
         let half = CropPollination { flowering_days: 4.0, pollinated_days: 2.0, hand_days_left: 0.0 };
-        assert_eq!(card_row(cuke, Some(&half), false, false, Phase::After), "set about 50% of a full crop");
+        assert_eq!(card_row(cuke, Some(&half), false, false, None, Phase::After), "set about 50% of a full crop");
+    }
+
+    // -- The colony's life and the devices (2026-09-27) --------------------------
+
+    /// The player's pack, holding `colonies` bought colonies.
+    fn player_with(world: &mut hecs::World, colonies: u32) -> hecs::Entity {
+        let mut inv = Inventory::new(16);
+        inv.volume_capacity_l = 1.0e9;
+        if colonies > 0 {
+            inv.add_item("bumblebee_colony_0", colonies, 10);
+        }
+        world.spawn((inv, Controllable))
+    }
+
+    fn colonies_held(world: &hecs::World, who: hecs::Entity) -> u32 {
+        world.get::<&Inventory>(who).unwrap().count_item("bumblebee_colony_0")
+    }
+
+    fn ask(data: &DataStore, r: Request) {
+        *data.get::<std::sync::Mutex<Option<Request>>>(REQUEST_KEY).unwrap().lock().unwrap() = Some(r);
+    }
+
+    /// The shipped colony and device data point at real things: a colony
+    /// works Koppert's 70 garden days (10 weeks); the colony is a real
+    /// items.csv item the vendor sells (the rule tests/recipe_sources_lint.rs
+    /// holds recipe inputs to: whatever the player must spend has a source),
+    /// at the Arbico price in trade_goods.ron's scale; and every device is a
+    /// machine in both shipped home catalogs with a Consumer power role (so
+    /// it is spawned, and works only while powered) and serves crops that
+    /// need help. Seen red by renaming the colony's trade_goods.ron row to
+    /// another id (the vendor then sold nothing to introduce).
+    #[test]
+    fn the_colony_and_the_devices_are_real_things_to_buy_and_place() {
+        let d = shipped();
+        assert_eq!(d.colony_life_days, 70.0, "Koppert: remove hives the latest 10 weeks after introduction");
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let items = crate::systems::inventory::ItemRegistry::from_csv(&std::fs::read(root.join("data/items.csv")).unwrap()).unwrap();
+        assert!(items.items.contains_key(&d.colony_item), "{} is an items.csv item", d.colony_item);
+        let goods = crate::systems::economy::TradeGoodsRegistry::from_ron(&std::fs::read(root.join("data/trade_goods.ron")).unwrap()).unwrap();
+        let good = goods.get(&d.colony_item).unwrap_or_else(|| panic!("the vendor sells {}", d.colony_item));
+        assert_eq!(good.base_value, 2483, "Arbico's $300 at the $7.25 federal minimum wage, a credit a minute");
+        assert!(goods.vendor_sell_price(&d.colony_item).is_some());
+        assert!(!d.devices.is_empty(), "a device is listed");
+        for file in ["home.ron", "home_solo.ron"] {
+            let home = crate::machines::MachineHome::load(&root.join("data/machines").join(file)).unwrap();
+            for dv in &d.devices {
+                let def = home.catalog.get(&dv.machine).unwrap_or_else(|| panic!("{file}: no catalog machine '{}'", dv.machine));
+                assert!(
+                    matches!(def.power, Some(crate::machines::MachinePower::Consumer { .. })),
+                    "{file}: {} has a Consumer power role",
+                    dv.machine
+                );
+                assert!(!def.pollinates_crops, "{file}: a device is not a hive");
+            }
+        }
+        let fan = d.device("circulation_fan").expect("the circulating fan").1;
+        assert_eq!(fan.sets.get("strawberry"), Some(&0.79), "Allen and Gaede: 77 of the 97 a daily brush sets");
+        assert!(fan.sets.get("tomato").is_none(), "no source has a fan pollinate tomatoes indoors");
+    }
+
+    /// A colony works its 70 garden days and is then spent. A hive whose
+    /// colony was just introduced pollinates a flowering tomato beside it
+    /// fully; once the colony passes 70 garden days its bees stop, the tomato
+    /// is pollinated no more, the player is told once, and the Garden panel
+    /// lists the hive as spent with the Introduce colony button. A hive
+    /// placed with no colony never pollinates. Seen red by never ageing a
+    /// colony (`age_colonies` not called from the tick): after 69 garden
+    /// days of work the hive still read "70 of 70 garden days left".
+    #[test]
+    fn a_colony_works_its_life_then_is_spent() {
+        let mut data = store(100.0, true);
+        data.insert(DATA_KEY, shipped());
+        let mut world = hecs::World::new();
+        hive(&mut world, "hive_1", [1.0, 0.0, 0.0], Some(0.0));
+        let t = world.spawn((crop("tomato", "ntower_3", "flower"),));
+        let mut p = Pollination::new();
+        step(&mut p, &mut world, &data, 60.0);
+        step(&mut p, &mut world, &data, 9.0);
+        let r = rec(&world, t);
+        assert_eq!((r.flowering_days, r.pollinated_days), (69.0, 69.0), "working: every flowering day pollinated");
+        assert!(!notices(&data).iter().any(|n| n.contains("end of its working life")), "not spent yet");
+        let view = GuiView::new(&world, &data);
+        let row = &view.area("ntower_3").unwrap().hives[0];
+        assert_eq!(row.line, "Hive 1: colony working, 1 of 70 garden days left");
+        assert!(!row.needs_colony);
+        // Past 70: spent.
+        step(&mut p, &mut world, &data, 2.0);
+        step(&mut p, &mut world, &data, 5.0);
+        let r = rec(&world, t);
+        assert_eq!((r.flowering_days, r.pollinated_days), (76.0, 69.0), "spent: no more pollination");
+        let said = notices(&data);
+        let told: Vec<&String> = said.iter().filter(|n| n.contains("end of its working life")).collect();
+        assert_eq!(told.len(), 1, "told once: {said:?}");
+        assert!(told[0].contains("hive 1") && told[0].contains("70 garden days") && told[0].contains("bumblebee colony"), "{}", told[0]);
+        assert!(colony(&world, "hive_1").unwrap().told);
+        let view = GuiView::new(&world, &data);
+        let row = &view.area("ntower_3").unwrap().hives[0];
+        assert!(row.needs_colony && row.line.contains("colony spent"), "{row:?}");
+        assert!(view.row(t).starts_with("not pollinated"), "{}", view.row(t));
+        // A hive with no colony pollinates nothing and says so.
+        let mut world = hecs::World::new();
+        hive(&mut world, "hive_2", [1.0, 0.0, 0.0], None);
+        let t = world.spawn((crop("tomato", "ntower_3", "flower"),));
+        step(&mut p, &mut world, &data, 3.0);
+        assert_eq!(rec(&world, t).pollinated_days, 0.0, "no colony, no bees");
+        let view = GuiView::new(&world, &data);
+        let row = &view.area("ntower_3").unwrap().hives[0];
+        assert!(row.needs_colony && row.line.starts_with("Hive 2: no colony (a bumblebee colony is bought"), "{row:?}");
+    }
+
+    /// Introducing a colony is a real action with a real cost: it takes one
+    /// bought colony from the pack, refused when the pack has none; it is
+    /// refused while the hive's colony still works (a new one would waste
+    /// it, and nothing is taken); a spent colony is replaced for another
+    /// bought one; in creative mode nothing is taken. The colony is kept in
+    /// the saved SoilMemory: it survives a serde round trip, and a save from
+    /// before it loads with none. Seen red by skipping the pack check (the
+    /// first request, with no colony in the pack, introduced one anyway).
+    #[test]
+    fn introducing_a_colony_takes_a_bought_one() {
+        let mut data = store(100.0, true);
+        data.insert(DATA_KEY, shipped());
+        let mut world = hecs::World::new();
+        hive(&mut world, "hive_1", [1.0, 0.0, 0.0], None);
+        let who = player_with(&mut world, 0);
+        let mut p = Pollination::new();
+        ask(&data, Request::Colony("hive_1".into()));
+        step(&mut p, &mut world, &data, 0.0);
+        assert!(colony(&world, "hive_1").is_none(), "none in the pack: no colony");
+        assert!(notices(&data).iter().any(|n| n.contains("takes a bumblebee colony") && n.contains("you have none")));
+        // Two bought: one goes in.
+        world.get::<&mut Inventory>(who).unwrap().add_item("bumblebee_colony_0", 2, 10);
+        ask(&data, Request::Colony("hive_1".into()));
+        step(&mut p, &mut world, &data, 0.0);
+        assert_eq!(colony(&world, "hive_1"), Some(HiveColony::default()), "a new colony");
+        assert_eq!(colonies_held(&world, who), 1, "one taken");
+        assert!(notices(&data).iter().any(|n| n.contains("You introduced a bumblebee colony in hive 1") && n.contains("70 garden days")));
+        // Working: refused, nothing taken.
+        step(&mut p, &mut world, &data, 30.0);
+        ask(&data, Request::Colony("hive_1".into()));
+        step(&mut p, &mut world, &data, 0.0);
+        assert_eq!(colony(&world, "hive_1").unwrap().age_days, 30.0, "the working colony stays");
+        assert_eq!(colonies_held(&world, who), 1, "nothing taken");
+        assert!(notices(&data).iter().any(|n| n.contains("still working, with 40 garden days left")));
+        // Spent: replaced.
+        step(&mut p, &mut world, &data, 45.0);
+        ask(&data, Request::Colony("hive_1".into()));
+        step(&mut p, &mut world, &data, 0.0);
+        assert_eq!(colony(&world, "hive_1"), Some(HiveColony::default()), "replaced");
+        assert_eq!(colonies_held(&world, who), 0);
+        // Creative: nothing needed.
+        data.insert("creative_mode", std::sync::Mutex::new(true));
+        hive(&mut world, "hive_2", [40.0, 0.0, 0.0], None);
+        ask(&data, Request::Colony("hive_2".into()));
+        step(&mut p, &mut world, &data, 0.0);
+        assert!(colony(&world, "hive_2").is_some(), "creative: introduced with none in the pack");
+        // Saved with SoilMemory, and an older save has none.
+        let mem = world.query::<&SoilMemory>().iter().next().map(|(_, m)| m.clone()).unwrap();
+        let back: SoilMemory = serde_json::from_str(&serde_json::to_string(&mem).unwrap()).unwrap();
+        assert_eq!(back.hives, mem.hives);
+        let older: SoilMemory = serde_json::from_str("{}").unwrap();
+        assert!(older.hives.is_empty());
+    }
+
+    /// A powered circulating fan over strawberries sets them the cited 79%
+    /// (Allen and Gaede via McGregor: 77 of the 97 a daily brush sets), with
+    /// no clicking at any growth speed. It serves the grow machine nearest
+    /// it and no other, does nothing for a tomato (no source), and nothing
+    /// unpowered. The card, the Garden panel line and the flowering notice
+    /// say so. Seen red by leaving the devices out of `Help::now` (the
+    /// strawberries under the fan then set 21%).
+    #[test]
+    fn a_fan_over_strawberries_sets_their_cited_share() {
+        let mut data = store(100.0, true);
+        data.insert(DATA_KEY, shipped());
+        data.insert(
+            "grow_plots",
+            vec![
+                GrowPlot { id: "ntower_0".into(), cups: 12, ..Default::default() },
+                GrowPlot { id: "ntower_5".into(), cups: 12, pos: [6.0, 0.0, 0.0], ..Default::default() },
+            ],
+        );
+        let mut world = hecs::World::new();
+        let fan = world.spawn((
+            crate::ecs::components::MachineType("circulation_fan".into()),
+            Transform { position: glam::Vec3::new(0.5, 0.0, 0.0), ..Default::default() },
+            crate::ecs::components::PowerConsumer { draw_watts: 11.0, priority: 4, enabled: true },
+        ));
+        let under = world.spawn((crop("strawberry", "ntower_0", "flower"),));
+        let beyond = world.spawn((crop("strawberry", "ntower_5", "flower"),));
+        let tomato = world.spawn((crop("tomato", "ntower_0", "flower"),));
+        let mut p = Pollination::new();
+        step(&mut p, &mut world, &data, 10.0);
+        assert!((p.harvest_set(&world, &data, under) - 0.79).abs() < 1e-6, "{}", p.harvest_set(&world, &data, under));
+        assert!((p.harvest_set(&world, &data, beyond) - 0.21).abs() < 1e-6, "the next machine is not under it");
+        assert!((p.harvest_set(&world, &data, tomato) - 0.49).abs() < 1e-6, "a fan does not pollinate a tomato");
+        let view = GuiView::new(&world, &data);
+        assert_eq!(view.row(under), "a circulating fan is working the flowers: about 79% of a full crop under it");
+        assert_eq!(view.area("ntower_0").unwrap().waiting, "Flowering, nothing to pollinate it", "the tomato has nothing");
+        let said = notices(&data);
+        assert!(
+            said.iter().any(|n| n.contains("ntower 5") && n.contains("run a circulating fan over them (strawberry sets about 79% of a full crop under one)")),
+            "{said:?}"
+        );
+        // Unpowered: nothing. Ten more days at no help halve what it set.
+        world.get::<&mut crate::ecs::components::PowerConsumer>(fan).unwrap().enabled = false;
+        step(&mut p, &mut world, &data, 10.0);
+        let half = 0.21 + 0.79 * ((0.79 - 0.21) / 0.79) / 2.0;
+        assert!((p.harvest_set(&world, &data, under) - half).abs() < 1e-6, "{}", p.harvest_set(&world, &data, under));
+        // Only strawberries in the area: partly pollinated, the Hand-pollinate
+        // button still offered for the rest.
+        world.despawn(tomato).unwrap();
+        world.get::<&mut crate::ecs::components::PowerConsumer>(fan).unwrap().enabled = true;
+        let view = GuiView::new(&world, &data);
+        assert_eq!(view.area("ntower_0").unwrap().waiting, "Flowering, only partly pollinated");
+        let d = shipped();
+        assert_eq!(
+            card_row(d.crop("strawberry").unwrap(), None, false, false, Some(("circulating fan", 0.79)), Phase::Before),
+            "the circulating fan will pollinate it when it flowers (about 79% of a full crop)"
+        );
     }
 }

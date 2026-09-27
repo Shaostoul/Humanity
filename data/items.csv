@@ -1068,6 +1068,16 @@ blue_sticky_cards_0,Blue Sticky Cards,material,agricultural,plastic,0.1,10,0,A p
 encarsia_formosa_0,Encarsia Wasps,material,agricultural,plant_fiber,0.02,10,0,Paper cards of 1000 parasitized whitefly pupae: tiny wasps hatch and lay their eggs in whitefly nymphs,solid,0.1
 cucumeris_mites_0,Cucumeris Mite Sachets,material,agricultural,plant_fiber,0.2,10,0,Slow-release sachets of Neoseiulus cucumeris mites on bran: they eat young thrips larvae for weeks,solid,0.5
 #
+# Bumblebee colony (2026-09-27, garden pollination; data/garden/pollination.ron carries its working life and
+# its sources). bumblebee_colony_0 is one commercial colony in its hive box, bought (data/trade_goods.ron, where
+# its price and source are). Koppert's Natupol Smart is "One small colony of bumblebees including a queen,
+# workers, brood and sugar water" (koppert.com, read 2026-09-27). The Garden panel's Introduce colony button puts
+# one in a placed bumblebee hive, where it works 70 garden days and is then spent. volume_l 27.4 is the catalog
+# hive's box (0.35 x 0.28 x 0.28 m, data/machines/home.ron); the 3.0 kg and the stack of 5 are game estimates.
+# Koppert: "start using the hive on the day of arrival. If necessary hives can be stored for maximum 1 day"; the
+# game does not age a colony in the pack. The box is plastic, as Koppert's "plastic liner" and hive are.
+bumblebee_colony_0,Bumblebee Colony,material,agricultural,plastic,3.0,5,0,A commercial bumblebee colony in its hive box: a queen with workers and brood and sugar water. Introduce it in a hive the day it arrives,solid,27.4
+#
 # Soil pH amendments (2026-09-26, gardening depth: soil pH; data/garden/soil_ph.ron carries the rates and
 # their sources). garden_lime_0 is a 5 kg bag of finely ground limestone: calcium carbonate at 100% CaCO3
 # equivalent (UC Cooperative Extension, Changing pH in Soil, Table 2). garden_sulfur_0 is a 2 kg bag of 90%

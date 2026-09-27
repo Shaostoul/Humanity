@@ -490,6 +490,13 @@ pub struct SoilMemory {
     /// starts at the home's air.
     #[serde(default)]
     pub rooms: std::collections::HashMap<String, RoomAir>,
+    /// Each bumblebee hive's colony, keyed by the hive's machine instance id
+    /// (2026-09-27, `farming::pollination`). A colony belongs to the hive,
+    /// not to a crop, and is saved with no save-format change, like `rooms`;
+    /// a hive with no entry has no colony, so it pollinates nothing until
+    /// the player introduces one (a bought `bumblebee_colony_0`).
+    #[serde(default)]
+    pub hives: std::collections::HashMap<String, HiveColony>,
     /// The weeds in each SOIL grow area, keyed by grow-area tag (2026-09-26,
     /// gardening depth: weeds, `farming::weeds`). Like `pests`, they belong to
     /// the place: the weeds and the seed bank stay in the soil while crops
@@ -503,6 +510,21 @@ pub struct SoilMemory {
     /// `EnclosedSpace`.
     #[serde(default)]
     pub home_air: HomeAirState,
+}
+
+/// One bumblebee hive's colony (2026-09-27, `farming::pollination`,
+/// data/garden/pollination.ron `colony_life_days`): the garden days since the
+/// player introduced it. It works the flowers until it reaches its working
+/// life and is then spent: its bees no longer pollinate and the player must
+/// introduce a new colony. Kept in `SoilMemory::hives`.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct HiveColony {
+    /// Garden days since it was introduced.
+    #[serde(default)]
+    pub age_days: f64,
+    /// True once the player has been told it is spent.
+    #[serde(default)]
+    pub told: bool,
 }
 
 /// One soil grow area's weeds (2026-09-26, `farming::weeds`,

@@ -716,10 +716,28 @@
             label: "Bumblebee hive",
             category: "Food",
             pollinates_crops: true, // pollinates the indoor grow areas within ~18 m (data/garden/pollination.ron); corn still needs a hand
-            stats: [(kind: "food", value: "pollinates flowers within ~18 m", status: "ok"), (kind: "progress", value: "a colony lasts 10-14 weeks", status: "warn")],
+            stats: [(kind: "food", value: "pollinates flowers within ~18 m", status: "ok"), (kind: "progress", value: "needs a bought colony; it works 10 weeks", status: "warn")],
             // Not placed in the seed design: the solo garden is hand-pollinated until the player
-            // chooses bees. A real colony lasts 10-14 weeks and can over-work the few flowers of a
-            // small garden (both cited in pollination.ron; neither is modelled yet).
+            // chooses bees. The hive holds no colony until the player introduces a bought one
+            // (Garden panel, Introduce colony); it works 70 garden days, Koppert's "Remove
+            // bumblebee hives the latest 10 weeks after introduction", and is then spent
+            // (2026-09-27, cited in pollination.ron). A colony can also over-work the few flowers
+            // of a small garden (LSU, cited there); that is not modelled.
+        ),
+        "circulation_fan": (
+            shape: "box", size: (0.247, 0.30, 0.20), color: (0.20, 0.22, 0.24),
+            label: "Circulating fan (clip-on)",
+            category: "Food",
+            // A 6 inch clip-on grow fan (AC Infinity CLOUDRAY S6, read 2026-09-27:
+            // "Maximum Airflow 325 CFM", "Power 11 W", "Total Dimensions 9.73 x 11.82 in.
+            // (24.7 x 30.0 cm)"; the 0.20 m depth is a game estimate). Clipped over a grow
+            // machine and powered, its wind pollinates the strawberries there to about 79% of a
+            // full crop (Allen and Gaede via McGregor: 77% of flowers set under a fan, 97% brushed
+            // daily; data/garden/pollination.ron `devices`). No source has a fan pollinate
+            // tomatoes, peppers or eggplants indoors. Serves the grow machine nearest it. Not
+            // placed in the seed design.
+            stats: [(kind: "air", value: "wind over one grow machine", status: "ok"), (kind: "food", value: "strawberries set ~79%; not tomatoes", status: "ok")],
+            power: Some(Consumer(watts: 11.0, priority: 4)),
         ),
         "aeroponic_tower_nutrition": (
             shape: "cylinder", size: (0.3, 2.4, 0.3), color: (0.30, 0.65, 0.38),

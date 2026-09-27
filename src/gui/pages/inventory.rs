@@ -1334,7 +1334,8 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     let mut action_weed: Option<(String, String)> = None; // Hoe / Mulch (farming::weeds)
     // Soil pH amendment (farming::soil_ph): (area, amendment id).
     let mut action_soil_ph: Option<(String, String)> = None;
-    let mut action_pollinate: Option<String> = None;
+    // Hand-pollinate an area, or introduce a colony in a hive (farming::pollination).
+    let mut action_pollinate: Option<crate::systems::farming::pollination::Request> = None;
     // Clear a ripe picked plant from its plot (farming::picking).
     let mut action_clear_crop: Option<u64> = None;
     // Summon a world vehicle to drive itself to the player (Stage 3, v0.680),
@@ -2095,7 +2096,14 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                         } else if crops.is_empty() {
                             format!("{} slots · not planted", slot_count)
                         } else {
-                            format!("{}/{} ready · {} slots", ready, crops.len(), slot_count)
+                            // Picked plants between picks (farming::picking): bearing,
+                            // not ready, so counted apart from the ready ones.
+                            let bearing = crops.iter().filter(|c| !c.dead && !c.mature && c.picking.bearing_next_in.is_some()).count();
+                            if bearing > 0 {
+                                format!("{}/{} ready · {} bearing · {} slots", ready, crops.len(), bearing, slot_count)
+                            } else {
+                                format!("{}/{} ready · {} slots", ready, crops.len(), slot_count)
+                            }
                         };
                         // Make/model/version subtitle for the tower title row (operator
                         // 2026-06-08: "aeroponic tower make model version"). Data-driven.
@@ -2137,7 +2145,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             .filter_map(|c| c.ph)
                             .collect();
                         let ph_amendments = state.garden_pests.ph_amendments.clone();
-                        let pollinate_here = state.garden_pests.pollinate_areas.iter().any(|a| *a == area_tag);
+                        let pollinate_here = state.garden_pests.pollinate_areas.iter().find(|a| a.area == area_tag).cloned();
                         let air_here = state.garden_pests.air.iter().find(|a| a.0 == area_tag).cloned();
                         let weeds_here = state.garden_pests.weeds.iter().find(|w| w.area == area_tag).cloned();
                         let cover_here = state.garden_pests.covers.iter().find(|c| c.area == area_tag).cloned();
@@ -2194,14 +2202,28 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                     });
                                 }
                                 // Flowers waiting for a pollinator (2026-09-26,
-                                // farming::pollination): indoors only a hand or bees do it.
-                                if pollinate_here {
-                                    ui.horizontal_wrapped(|ui| {
-                                        ui.label(RichText::new("Flowering, nothing to pollinate it").size(theme.font_size_small).color(theme.warning()));
-                                        if widgets::compact_button(ui, theme, "Hand-pollinate", widgets::ButtonVariant::Secondary) {
-                                            action_pollinate = Some(area_tag.clone());
-                                        }
-                                    });
+                                // farming::pollination): indoors only a hand, bees or
+                                // a device do it. Then the hives reaching this area,
+                                // each with its colony and, when it has no working
+                                // one, the button that introduces a bought colony.
+                                if let Some(p) = &pollinate_here {
+                                    if !p.waiting.is_empty() {
+                                        ui.horizontal_wrapped(|ui| {
+                                            ui.label(RichText::new(&p.waiting).size(theme.font_size_small).color(theme.warning()));
+                                            if widgets::compact_button(ui, theme, "Hand-pollinate", widgets::ButtonVariant::Secondary) {
+                                                action_pollinate = Some(crate::systems::farming::pollination::Request::Hand(area_tag.clone()));
+                                            }
+                                        });
+                                    }
+                                    for h in &p.hives {
+                                        ui.horizontal_wrapped(|ui| {
+                                            let col = if h.needs_colony { theme.warning() } else { theme.text_secondary() };
+                                            ui.label(RichText::new(&h.line).size(theme.font_size_small).color(col));
+                                            if h.needs_colony && widgets::compact_button(ui, theme, "Introduce colony", widgets::ButtonVariant::Secondary) {
+                                                action_pollinate = Some(crate::systems::farming::pollination::Request::Colony(h.id.clone()));
+                                            }
+                                        });
+                                    }
                                 }
                                 // The air here (2026-09-26, farming::humidity): its
                                 // humidity and what the room's exhaust fans are
@@ -2330,10 +2352,15 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                     ui.horizontal(|ui| {
                                         for s in (r * per_row)..((r + 1) * per_row).min(slot_count) {
                                             let (_, crop, plant_id, name) = slot_data(s);
+                                            // "ready" only when there is something to harvest;
+                                            // a picked plant between picks reads "bearing" and
+                                            // when its next pick comes (farming::picking).
                                             let (status, scol) = match crop {
-                                                Some(c) if c.dead => ("dead".to_string(), theme.danger()),
-                                                Some(c) if c.mature => ("ready".to_string(), theme.accent()),
-                                                Some(c) => (c.stage.clone(), theme.text_secondary()),
+                                                Some(c) => {
+                                                    let word = crate::systems::farming::picking::stage_word(c.dead, c.mature, &c.stage, &c.picking, false);
+                                                    let col = if c.dead { theme.danger() } else if c.mature { theme.accent() } else { theme.text_secondary() };
+                                                    (word, col)
+                                                }
                                                 None => ("planned".to_string(), theme.text_muted()),
                                             };
                                             let selected = sel == Some(s);
@@ -2376,10 +2403,16 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                                         }
                                                     });
                                                 });
+                                            // A plant between picks: the tile's short "next 1.5d"
+                                            // in full on hover.
+                                            let hover = match crop.filter(|c| !c.dead && !c.mature && c.picking.bearing_next_in.is_some()) {
+                                                Some(c) => format!("Slot {} · {name} · {}", s + 1, crate::systems::farming::picking::stage_word(false, false, &c.stage, &c.picking, true)),
+                                                None => format!("Slot {} · {name}", s + 1),
+                                            };
                                             let resp = inner
                                                 .response
                                                 .interact(egui::Sense::click())
-                                                .on_hover_text(format!("Slot {} · {name}", s + 1));
+                                                .on_hover_text(hover);
                                             if resp.hovered() {
                                                 ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
                                             }
@@ -2453,13 +2486,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                                                     );
                                                                     ui.end_row();
                                                                 };
-                                                            let stage = if c.dead {
-                                                                "dead".to_string()
-                                                            } else if c.mature {
-                                                                "ready".to_string()
-                                                            } else {
-                                                                c.stage.clone()
-                                                            };
+                                                            let stage = crate::systems::farming::picking::stage_word(c.dead, c.mature, &c.stage, &c.picking, true);
                                                             stat(ui, "Stage", stage);
                                                             stat(ui, "Plants", c.plants.to_string());
                                                             stat(ui, "Growth", format!("{:.0}%", c.progress * 100.0));
@@ -2492,7 +2519,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                                             }
                                                             // Picked over a season (farming::picking).
                                                             if !c.picking.is_empty() {
-                                                                stat(ui, "Picking", c.picking.clone());
+                                                                stat(ui, "Picking", c.picking.card.clone());
                                                             }
                                                             // The air it grows in against its window (farming::humidity).
                                                             if !c.humidity.is_empty() {
@@ -2786,8 +2813,8 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     if let Some(c) = action_soil_ph {
         state.garden_pests.ph_pending = Some(c);
     }
-    if let Some(area) = action_pollinate {
-        state.garden_pests.pollinate_pending = Some(area);
+    if let Some(req) = action_pollinate {
+        state.garden_pests.pollinate_pending = Some(req);
     }
     if let Some(bits) = action_clear_crop {
         state.garden_pests.clear_pending = Some(bits);
