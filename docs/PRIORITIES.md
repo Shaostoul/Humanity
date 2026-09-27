@@ -519,52 +519,104 @@ captures, reference `20260922-221739`):
 | spatial filter forced to full (`cur_s = mu`) | 6.07% | 14.1% | 0.98x | same | 0.11% |
 | control: 3x3 box blur of the baseline | 5.98% | 13.9% | 1.00x | same | - |
 
-**The profile across the terminator changes shape too.** By the new measure
-the baseline reads 1.0, 5.1, 12.6, 20.4, 21.1, **13.9** (band 5), 23.4 from
-full daylight to the first night band. So the visible grain spans the whole
-twilight zone, bands 2 to 6, rather than peaking at band 5: band 5 has the
-loudest 15 px noise of any band (0.49%) but also the strongest cloud edges,
-which lowers its ratio. The animated arm is BETTER at bands 3 and 4 as well
-(2.50x and 1.83x) and the forced arm "same" at both. Band 6 reads 23.4% for
-every arm alike, so what it holds is dim cloud structure, not jitter noise.
-Rank future candidates across bands 3 to 5, not at band 5 alone.
+Captured FRESH on 2026-09-27 (the v0.1378.0 tree, same vantage, same
+operator-mirrored graphics, one boot per arm, the rig's usual discarded first
+pass, 12 s settle, `-b` twin in the same boot). The shipped shader now animates
+the jitter, so the frozen arm and every arm built on it were made by a
+temporary local edit to `45-cloud-temporal.wgsl` loaded through
+`--reload-shaders`; the spatial arms are temporary builds of
+`cloud_resolve.wgsl`; the sun-ladder arm hands `cloud_sun_tau` the step centre
+`t_cur + dt * 0.5` instead of the jittered sample. All reverted; no default
+changed. The scene differs from 2026-09-22 (the cloud masses were reworked in
+v0.1333.0), so compare within a table, not across the two. Captures are in
+the worktree rig, `.probe-rig/sweeps/20260927-grain-<arm>/`.
 
-**What the table now says.** The forced filter's "win" was the metric. It
-removed 85% of the pixel-scale sparkle, which is real, and 5% of the noise at
-the scale the eye weighs most, while costing 7% of the edge detail; by eye on a
-zoom its silhouettes are intact and its interiors are mottled rather than
-clean. Every spatial arm, including both constraints lifted together, reads
-"same". The only candidate that lowers grain where it is visible is the
-animated jitter.
+| arm | old grain | GRAIN (new) | vs frozen | verdict | fizz (region / band 5) |
+| --- | --- | --- | --- | --- | --- |
+| frozen jitter (the table's baseline) | 39.44% | 15.7% | 1.00x | - | 0.33% / 1.49% |
+| frozen jitter, a second boot | 41.23% | 15.5% | 1.01x | same | 0.10% / 0.15% |
+| sun ladder on the unjittered grid | 39.15% | 15.7% | 1.00x | same | 0.38% / 1.75% |
+| spatial strength 0.35 to 0.85, gate untouched | 39.01% | 15.7% | 0.99x | same | 0.34% / 1.75% |
+| spatial gate widened, strength untouched | 37.01% | 16.0% | 0.98x | same | 0.21% / 1.34% |
+| **animated depth jitter (shipped since v0.1331.18)** | 8.32% | **6.3%** | **2.47x** | **BETTER** | 2.40% / 9.93% |
+| spatial filter forced to full (`cur_s = mu`) | 5.74% | 16.2% | 0.96x | same | 0.07% / 0.23% |
+
+The strength row is a re-take: its first capture had another agent's rig boot
+on the GPU mid-capture, so it was kept aside as
+`20260927-grain-strength-contended` (it read 15.6%, "same", so the contention
+changed nothing measurable) and the arm was captured again on a clean machine.
+
+The two frozen boots show what a repeat costs: the old metric moved 4.5%
+between them (39.44 to 41.23) and GRAIN 1.3% (15.7 to 15.5). The blur controls
+passed on all seven fresh captures too (42 blurs, none BETTER; the largest drop,
+8% from a sigma-3 Gaussian that keeps only 26% of the 9 px detail, still reads
+"same"). By eye on a zoom of band 5 the ranking is the same as the numbers: the
+frozen capture is sparkle, the forced filter has turned it into a coarser
+mottle of 3-6 px blobs, and the animated jitter is smooth with a faint fine
+grain; silhouettes and terrain survive in all three.
+
+**The profile across the terminator changes shape too.** By the new measure
+the 2026-09-22 baseline reads 1.0, 5.1, 12.6, 20.4, 21.1, **13.9** (band 5),
+23.4 from full daylight to the first night band. So the visible grain spans
+the whole twilight zone, bands 2 to 6, rather than peaking at band 5: band 5
+has the loudest 15 px noise of any judgeable band (0.49%) but also the
+strongest cloud edges, which lowers its ratio. On those captures the animated
+arm is BETTER at bands 3 and 4 as well (2.50x and 1.83x) and the forced arm
+"same" at both. Band 6 reads 23.4% for
+every arm alike, so what it holds is dim cloud structure, not jitter noise.
+On the fresh 2026-09-27 captures bands 3 and 4 read 41.8% and 42.4% for the
+frozen arm, and there the animated jitter reaches 3.60x and 3.87x while the
+forced filter reads 1.11x and 1.12x, the second just past the 10% bar. That is
+NOT the measure leaking: a plain 3x3 box of the same frozen capture reads only
+1.03x and 1.02x in those bands, and all six controls pass there. So at those
+two bands the forced filter does slightly more than a screen blur (it averages
+in linear light, at march resolution, before the tonemap), and it is still a
+third of what the temporal fix does. At GRAIN near 40% the detail figures are
+rough, because the reference's own detail is noise-limited (the tool's header,
+point 7). Rank future candidates across bands 3 to 5, not at band 5 alone.
+
+**What the tables now say.** The forced filter's "win" was the metric. It
+removes 85% of the pixel-scale sparkle, which is real, and 4-5% of the noise at
+the scale the eye weighs most, while costing 7-8% of the edge detail; by eye
+its silhouettes are intact and its interiors are mottled rather than clean.
+At the dusk line every spatial arm, including both constraints lifted
+together, reads "same" in both tables. The only candidate that lowers grain
+where it is visible, by a margin anyone would see, is the animated jitter
+(2.00x on the 2026-09-22 pixels, 2.47x on the fresh ones).
 
 **The gate and the strength, restated under the new measure.** Neither the
 gate nor the strength alone gets anywhere, as before (14.2 and 14.1 against
-13.9). What changed is the forced arm: it bypasses `noise_w` entirely AND uses
-strength 1.0, and it ALSO gets nowhere at 15 px. So "both are binding together"
-was the old metric's reading; the new one is that no setting of this filter
-lowers the visible grain at the dusk line, because a single-frame 3x3 mean
-cannot remove 15 px mottle without taking 15 px detail with it. The
-v0.1331.14 note (strength cap as the binding constraint, inferred from noon
-data) stays corrected.
+13.9; fresh, 16.0 and 15.7 against 15.7). What changed is the forced
+arm: it bypasses `noise_w` entirely AND uses strength 1.0, and at the dusk
+line it ALSO gets nowhere at 15 px (0.98x and 0.96x). So "both are binding
+together" was the old metric's reading; the new one is that no setting of this
+filter lowers the visible grain at the dusk line, and the best any tested
+setting did in bands 3 to 5 is the forced arm's 1.12x at band 4 of the fresh
+scene (the animated jitter: 3.87x there), because a single-frame 3x3 mean cannot
+remove 15 px mottle without taking 15 px detail with it. The v0.1331.14 note
+(strength cap as the binding constraint, inferred from noon data) stays
+corrected.
 
 **Why the gate stays shut in the dark.** Its absolute arm is
 `smoothstep(0.10, 0.30, sig)` in raw march-buffer units, and `sig` measured
 0.0185 at NOON against that 0.25 threshold. The terminator is darker, so `sig`
 is smaller still: the gate closes hardest exactly where the relative grain is
 worst. Widening it to 0.02-0.10 was tried and bought only 40.38 to 37.54 on the
-old metric, and nothing (13.9 to 14.2) on the new one.
+old metric, and nothing (13.9 to 14.2; fresh, 15.7 to 16.0) on the new one.
 
 **What this says about 2a-i (the decision stays the operator's).** Two of the
-numbers he was given change. The grain side of the trade is 2.0x at the scale
-the eye weighs most, not the 4.6x the old metric reported (4.6x counted the
-pixel-scale sparkle, where the animated arm removes 79%). And the fallback the
-2a-i text offers for a "no" ("item 2b's spatial filter becomes the lever") does
-not hold at the dusk line: the strongest setting of that filter reads "same".
-The fizz side is unchanged: 0.34% to 2.09% over the region, and 1.73% to 10.1%
-at band 5 alone. Note also that the shipped shader has animated the depth
-jitter since v0.1331.18 (2026-09-23, `45-cloud-temporal.wgsl`, "UN-FROZEN
-AGAIN"), so the live question is keep or revert; the comment there names the
-line to revert.
+numbers he was given change. The grain side of the trade is 2.0x (2.47x on
+today's scene) at the scale the eye weighs most, not the 4.6x the old metric
+reported (4.6x counted the pixel-scale sparkle, where the animated arm removes
+79%). And the fallback the 2a-i text offers for a "no" ("item 2b's spatial
+filter becomes the lever") does not hold at the dusk line: the strongest
+setting of that filter reads "same" there, and at most 1.12x anywhere. The
+fizz side is unchanged: 0.34% to 2.09% over the region on 2026-09-22 (0.33% to
+2.40% fresh), and 1.73% to 10.1% at band 5 alone (1.49% to 9.93% fresh). A
+frozen pair's fizz also varies by boot (0.33% and 0.10% on two fresh boots).
+Note also that the shipped shader has animated the depth jitter since
+v0.1331.18 (2026-09-23, `45-cloud-temporal.wgsl`, "UN-FROZEN AGAIN"), so the
+live question is keep or revert; the comment there names the line to revert.
 
 **What the measure does not cover.** It judges a STILL. It says nothing about
 how the grain moves (fizz does that) or about flight, where the temporal filter
@@ -577,8 +629,8 @@ cannot converge and item 2b-0 says the operator's "boiling" lives. And its
 > grain metric, which a blur can win and which mostly counts pixel-scale
 > sparkle. On the blur-proof measure the same two captures read 13.9% (frozen)
 > against 7.0% (animated): 2.0x less grain at the ~15 px scale the eye weighs
-> most, with the real detail kept. The fizz figures are unchanged. The choice
-> below is still his.
+> most, with the real detail kept (2.47x on fresh captures of today's scene).
+> The fizz figures are unchanged. The choice below is still his.
 
 This is his call, not the AI’s, because he ran the original experiment himself
 and chose the current setting. What is new is the price tag, which nobody had

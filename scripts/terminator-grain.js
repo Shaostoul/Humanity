@@ -123,7 +123,14 @@
 //    tonemapped 8-bit pixels, so an arm that changes the noise level also
 //    shifts edge contrast a few percent through the display curve (averaging
 //    before the tonemap is not the same as after); the animated arm keeps
-//    94-97%, inside the 90% lock. And the whole measure is a STILL: it says
+//    93-97% (both tables in PRIORITIES 2a-ii), inside the 90% lock. Where the
+//    reference's detail is not well
+//    above its noise (GRAIN around 40%, as bands 3-4 of the 2026-09-27
+//    terminator capture read), the reference's noise-corrected detail is
+//    itself noise-limited, so a DENOISING arm can read "detail kept" above
+//    100% (155% at band 3 for the animated jitter). That inflates no verdict
+//    (the lock is a floor), but read those bands' detail figures as rough.
+//    And the whole measure is a STILL: it says
 //    nothing about how the grain moves, which is what fizz is for, and nothing
 //    about motion, where the temporal filter cannot converge (PRIORITIES 2b-0).
 //
