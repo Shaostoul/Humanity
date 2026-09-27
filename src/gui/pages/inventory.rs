@@ -1999,6 +1999,8 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             .iter()
                             .filter_map(|c| c.tower_id.as_deref())
                             .chain(state.garden_pests.weeds.iter().map(|w| w.area.as_str()))
+                            // And an emptied bed with a row cover still on, so it can come off.
+                            .chain(state.garden_pests.covers.iter().map(|c| c.area.as_str()))
                             .collect();
                         for (id, title) in crate::gui::machine_crop_groups(&crop_areas, &known, &type_of, &state.garden_areas) {
                             groups.push((Some(id), title));
@@ -2138,6 +2140,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                         let pollinate_here = state.garden_pests.pollinate_areas.iter().any(|a| *a == area_tag);
                         let air_here = state.garden_pests.air.iter().find(|a| a.0 == area_tag).cloned();
                         let weeds_here = state.garden_pests.weeds.iter().find(|w| w.area == area_tag).cloned();
+                        let cover_here = state.garden_pests.covers.iter().find(|c| c.area == area_tag).cloned();
                         widgets::expandable_row(
                             ui,
                             ("garden_grp", gi),
@@ -2216,6 +2219,19 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                         for (cid, cname, _note) in &w.controls {
                                             if widgets::compact_button(ui, theme, cname, widgets::ButtonVariant::Secondary) {
                                                 action_weed = Some((w.area.clone(), cid.clone()));
+                                            }
+                                        }
+                                    });
+                                }
+                                // Row cover here (2026-09-27, farming::pests): on or off,
+                                // warned when a crop that needs bees flowers under it.
+                                if let Some(cv) = &cover_here {
+                                    ui.horizontal_wrapped(|ui| {
+                                        let col = if cv.warn { theme.warning() } else { theme.text_secondary() };
+                                        ui.label(RichText::new(&cv.line).size(theme.font_size_small).color(col));
+                                        for (cid, cname, _note) in &cv.controls {
+                                            if widgets::compact_button(ui, theme, cname, widgets::ButtonVariant::Secondary) {
+                                                action_pest_control = Some((cv.area.clone(), cid.clone()));
                                             }
                                         }
                                     });

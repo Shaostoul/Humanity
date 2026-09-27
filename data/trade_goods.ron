@@ -392,6 +392,14 @@
     (id: "bt_kurstaki_0",     name: "Bt Spray (kurstaki)", category: "agricultural",   base_value: 60,   weight_kg: 1.0,   description: "Ready-to-use Bacillus thuringiensis for caterpillars"),
     (id: "predatory_mites_0", name: "Predatory Mites",    category: "agricultural",    base_value: 120,  weight_kg: 0.1,   description: "Live Phytoseiulus persimilis that eat spider mites"),
     (id: "iron_phosphate_bait_0", name: "Iron Phosphate Slug Bait", category: "agricultural", base_value: 60, weight_kg: 1.0, description: "Slug pellets, safe around children, pets and wildlife"),
+    // Row cover, traps and greenhouse natural enemies (2026-09-27; data/garden/pests.ron). Values are game
+    // estimates in the file's scale: a piece of row cover or a pack of sticky cards for well under an
+    // hour's work (the cover is reused crop after crop), live wasps or mite sachets for two hours.
+    (id: "floating_row_cover_0", name: "Floating Row Cover", category: "agricultural",  base_value: 40,   weight_kg: 0.25,  description: "Light insect-barrier fabric for about 12 m2 of bed"),
+    (id: "yellow_sticky_cards_0", name: "Yellow Sticky Cards", category: "agricultural", base_value: 20,   weight_kg: 0.1,   description: "Ten glue cards that catch whiteflies"),
+    (id: "blue_sticky_cards_0", name: "Blue Sticky Cards", category: "agricultural",   base_value: 20,   weight_kg: 0.1,   description: "Ten glue cards that catch thrips"),
+    (id: "encarsia_formosa_0", name: "Encarsia Wasps",   category: "agricultural",     base_value: 120,  weight_kg: 0.02,  description: "Live parasitic wasps for greenhouse whitefly"),
+    (id: "cucumeris_mites_0", name: "Cucumeris Mite Sachets", category: "agricultural", base_value: 120, weight_kg: 0.2,   description: "Slow-release predatory mites for thrips"),
 
     // =========================================================================
     // SOIL pH AMENDMENTS (2026-09-26; data/garden/soil_ph.ron). Bought, as a gardener buys them. Values are

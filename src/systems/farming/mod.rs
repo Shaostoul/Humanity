@@ -2030,7 +2030,9 @@ impl System for FarmingSystem {
                 let need_n = need_for(&c.crop_def_id, unit_plants(c)).n;
                 let cond = pests::CropConditions {
                     outdoors,
-                    temp_c: if outdoors { f64::from(weather_temp) } else { pest_data.indoor_temp_c },
+                    // Warmer under a row cover (pests::cover_warming, 2026-09-27).
+                    temp_c: (if outdoors { f64::from(weather_temp) } else { pest_data.indoor_temp_c })
+                        + pests::cover_warming(pest_data, area_pests.get(area), outdoors && sun_up, pest_severity),
                     water_stressed: c.water_level < WATER_STRESS_THRESHOLD,
                     excess_n: s.map_or(false, |s| need_n > 0.0 && s.store.n > pest_data.excess_n_seasons * need_n),
                     damp: outdoors && (damp_weather || !sun_up),
@@ -2409,6 +2411,11 @@ impl System for FarmingSystem {
                         // the plant's window slows growth toward a 20% floor
                         // (5% per degree) — slow, not lethal (death stays
                         // water/RF-driven).
+                        // A row cover warms the field under it (pests::
+                        // cover_warming, 2026-09-27): growth in the cool,
+                        // heat stress in summer.
+                        let weather_temp = weather_temp
+                            + pests::cover_warming(pest_data, area_pests.get(crop.tower_id.as_deref().unwrap_or("")), sun_up, pest_severity) as f32;
                         let climate_factor = if crop
                             .tower_id
                             .as_deref()

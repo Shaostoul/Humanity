@@ -4,7 +4,10 @@
 // each one came from. Sources were read on 2026-09-26. The same day the
 // greenhouse air became real (data/garden/humidity.ron) and three diseases
 // joined the pests as rows of this model: gray mold, powdery mildew and downy
-// mildew, which humid air brings on.
+// mildew, which humid air brings on. On 2026-09-27 the two commonest
+// greenhouse pests joined them, greenhouse whitefly and western flower thrips,
+// with their traps and greenhouse natural enemies, and the floating row cover,
+// which keeps newcomers off a bed; those sources were read that day.
 //
 // WHAT THE GAME TEACHES. Integrated pest management (IPM), the order every
 // extension service teaches: prevent (grow in conditions the pest does not
@@ -106,6 +109,20 @@
 //                       them, though it removes none)
 //   not_on            - plants.csv ids it must not be used on: refused where
 //                       one grows
+//   excludes          - share of each pest's ARRIVALS it keeps out while it is
+//                       on (a row cover, 2026-09-27): not of the pests already
+//                       under it, which go on breeding there
+//   warms_day_c, warms_night_c - degrees C it warms the crops under it while
+//                       it is on, in sun and otherwise (night, and indoors):
+//                       the crop climate and the pests' Temperature read it
+//   m2_per_item       - square metres of ground one item covers (a row cover
+//                       is sized by the bed, not the plants; 0: plants_per_item)
+//   needs_soil        - it lies over soil: refused on a tower or a rack
+//   indoors_only      - for greenhouses: refused on an outdoor field
+//   stays_without_prey - a lasting release that keeps working when its prey
+//                       is gone (sticky cards; predators with their own food)
+//   takes_off         - the cover (a control id) it takes off, giving its
+//                       items back to the pack
 //   note              - what it does and does not work on, told to the player
 //
 // SOURCES (cited by short name in the entries):
@@ -184,6 +201,49 @@
 //   Hi-Yield Sulfur: "Hi-Yield Dusting Wettable Sulfur", label text on the
 //     DoMyOwn product page (no date on the page),
 //     https://www.domyown.com/hiyield-dusting-wettable-sulfur-p-1567.html
+//   The whitefly, thrips and row cover sources (added 2026-09-27, every one
+//   read that day):
+//   UC IPM Whiteflies: Flint, M.L., "Pest Notes: Whiteflies", UC ANR
+//     Publication 7401, updated 09/2015,
+//     https://ipm.ucanr.edu/PMG/PESTNOTES/pn7401.html
+//   UC IPM Floriculture: "Whiteflies", UC IPM Pest Management Guidelines:
+//     Floriculture and Ornamental Nurseries, text updated 01/22,
+//     https://ipm.ucanr.edu/agriculture/floriculture-and-ornamental-nurseries/whiteflies/
+//   CSU Whitefly: Cranshaw, W.S., "Greenhouse Whitefly", Colorado State
+//     University Extension fact sheet 5.587, published February 1999,
+//     reviewed August 2025, https://extension.colostate.edu/resource/greenhouse-whitefly/
+//   UNH Whitefly: Eaton, A., "Greenhouse Whitefly [fact sheet]", University of
+//     New Hampshire Extension (no date on the page),
+//     https://extension.unh.edu/resource/greenhouse-whitefly-fact-sheet
+//   UMass Whiteflies: Smith, T., "Whiteflies on Greenhouse Crops", UMass
+//     Amherst Extension Greenhouse Crops and Floriculture Program, 2012,
+//     https://www.umass.edu/agriculture-food-environment/greenhouse-floriculture/fact-sheets/whiteflies-on-greenhouse-crops
+//   UMass Biocontrol: Smith, T., "Biological Control: Greenhouse Pests and
+//     their Natural Enemies", UMass Amherst Extension, revised 2015, last
+//     updated 16 June 2026,
+//     https://www.umass.edu/agriculture-food-environment/greenhouse-floriculture/fact-sheets/biological-control-greenhouse-pests-their-natural-enemies
+//   Cornell Encarsia: Hoddle, M., "Encarsia formosa", Biological Control: A
+//     Guide to Natural Enemies in North America, Cornell University (no date
+//     on the page), https://biocontrol.entomology.cornell.edu/parasitoids/encarsia.php
+//   NCSU Encarsia: Baker, J., "Encarsia formosa", NC State Extension,
+//     published 8 March 2017, reviewed 21 December 2021,
+//     https://content.ces.ncsu.edu/iencarsia-formosai
+//   UC IPM Thrips: Bethke, J.A., Dreistadt, S.H. and Varela, L.G., "Pest
+//     Notes: Thrips", UC ANR Publication 7429, updated 05/2014,
+//     https://ipm.ucanr.edu/PMG/PESTNOTES/pn7429.html
+//   UMass WFT: Smith, T., "Western Flower Thrips, Management and
+//     Tospoviruses", UMass Amherst Extension, last updated 16 June 2026,
+//     https://www.umass.edu/agriculture-food-environment/greenhouse-floriculture/fact-sheets/western-flower-thrips-management-tospoviruses
+//   UMD Row Cover: Traunfeld, J., "Vegetable Garden Weather and Pest
+//     Protection" (its section "Using row cover to protect plants"),
+//     University of Maryland Extension Home and Garden Information Center,
+//     March 2026, updated 25 August 2026, https://extension.umd.edu/resource/row-covers
+//   UMN Cucumber Beetles: Schuh, M., Hahn, J. and Wold-Burkness, S.,
+//     "Cucumber beetles", University of Minnesota Extension, reviewed 2026,
+//     https://extension.umn.edu/yard-and-garden-insects/cucumber-beetles
+//   UMN Flea Beetles: Schuh, M., Wold-Burkness, S., Hutchison, B., Hahn, J.
+//     and Hines, R., "Flea beetles", University of Minnesota Extension,
+//     reviewed 2022, https://extension.umn.edu/yard-and-garden-insects/flea-beetles
 (
     unfavoured_rate: 0.25,
     detect_at: 0.05,
@@ -379,6 +439,131 @@
             max_health_loss: 0.5,
             advice: "They spend the winter in the soil where potatoes grew: plant something else there next (rotate) and they come up to nothing to eat.",
         ),
+        // GREENHOUSE WHITEFLY (Trialeurodes vaporariorum; added 2026-09-27,
+        // sources read that day). UMass Whiteflies: "There are two primary
+        // species of whiteflies in greenhouses, the greenhouse whitefly
+        // (Trialeurodes vaporariorum) and sweet potato whitefly". Indoors all
+        // year and outdoors in the warm months: CSU Whitefly, "In summer, they
+        // can quickly become established in the garden", but "It does not
+        // survive outdoors in areas of freezing winters".
+        // Hosts: UC IPM Whiteflies, "Very broad including most vegetables and
+        // herbaceous ornamentals". Named: CSU Whitefly, "tomato, cucumber
+        // lettuce, beans", "calendula, cucumber, lantana, tomato, grape,
+        // ageratum, bean", its photo of an "Infestation of greenhouse
+        // whiteflies on zucchini leaf", and outdoors "notably tomato, pepper,
+        // and cucumber"; UNH Whitefly, "cucumber, tomato, lettuce"; Cornell
+        // Encarsia, the crops the wasp is used on, "eggplant ... marigolds ...
+        // and strawberry". The Phaseolus beans stand for "beans".
+        // Favoured: warmth. UMass Whiteflies, "Greenhouse whitefly eggs hatch
+        // in four days ... at temperatures between 65-75F" and the adults "are
+        // more active at temperatures of 75F"; UC IPM Floriculture,
+        // "Development from egg to adult takes about 21 to 26 days at 81°F".
+        // The window is 65 F (18.3 C) to 81 F (27.2 C), the span those figures
+        // are given for. Outside it the sources give no fast development, so
+        // the game treats it as unfavoured (a game choice, said as such).
+        // Growth: UNH Whitefly, "Females lay 150 or more eggs on the underside
+        // of leaves, at a rate of about 25 per day"; UMass Whiteflies, "can
+        // produce up to 200 eggs"; CSU, "400 eggs over a period of up to two
+        // months". The lowest, 150, is taken. Whiteflies have males and
+        // females (CSU: "Ratios of male to female whiteflies vary"), so only
+        // the daughters carry the next generation: half, 75 (a game estimate
+        // for an even split). The generation is 29 days: 23.5 from egg to
+        // adult (the middle of UC IPM Floriculture's 21 to 26), 2.5 before
+        // laying (UMass: "Adult females begin to lay eggs 2-3 days after
+        // emergence") and 3, half the six days UNH's 150 eggs take at 25 a
+        // day. That sits inside CSU's "a generation of the greenhouse whitefly
+        // takes three to four weeks". r = ln 75 / 29 = 0.149 a day.
+        // Arrivals: CSU, "Since infestations originate only from infested
+        // plant materials, inspection and quarantine of new plants is
+        // recommended". 0.0005 a garden day is a game estimate, half the
+        // spider mites' figure, because a closed home gets them only on new
+        // plants.
+        // No host: UC IPM Whiteflies, "removing all host plants from the
+        // greenhouse for at least 2 weeks (and assuring that no whiteflies can
+        // enter from outside) may eliminate problems"; CSU, "a host-free
+        // period can starve them. This might mean removing all host plants for
+        // 2-3 weeks." A half-life of 2 garden days leaves under 1% after two
+        // weeks (a game reading of "may eliminate").
+        // Damage: UC IPM Whiteflies, "Large populations can cause leaves to
+        // turn yellow, appear dry, or fall off plants" and "Nymphs cause most
+        // of the damage"; CSU, "Stunting, yellowing of foliage and premature
+        // leaf drop are among the symptoms of injury". No source gives a yield
+        // figure. UC IPM Floriculture: "Similar to aphids and psyllids,
+        // whitefly adults and nymphs suck phloem sap and excrete sticky
+        // honeydew", so it takes the aphids' 0.3 (a game estimate).
+        (
+            id: "whitefly",
+            name: "Whiteflies",
+            indoors: true,
+            outdoors: true,
+            hosts: [
+                "tomato", "cucumber", "lettuce", "pepper", "eggplant", "zucchini", "grape",
+                "strawberry", "calendula", "marigold",
+                "bean", "kidney_bean", "pinto_bean", "navy_bean", "lima_bean", "runner_bean",
+            ],
+            favoured_by: [Temperature(min_c: 18.3, max_c: 27.2)],
+            fold: 75.0,
+            fold_days: 29.0,
+            arrival_per_day: 0.0005,
+            no_host_half_life_days: 2.0,
+            max_health_loss: 0.3,
+            advice: "Whiteflies come in on new plants and breed all year indoors: check the undersides of new plants' leaves before they join the others. Two weeks with no host plants starves them out.",
+        ),
+        // WESTERN FLOWER THRIPS (Frankliniella occidentalis; added 2026-09-27,
+        // sources read that day). UMass WFT: "WFT is the most prevalent species
+        // of thrips in Massachusetts greenhouses". Indoors all year, and
+        // outdoors: UC IPM Thrips, "Greenhouse thrips and western flower thrips
+        // are two common pest species in landscapes".
+        // Hosts: UC IPM Thrips, Table 1, "many herbaceous ornamentals
+        // (impatiens, petunia); vegetables (cucurbits, pepper); fruits (grape,
+        // strawberry); some shrubs and trees (rose, stone fruit)"; UMass WFT,
+        // "marigolds", "Fava bean plants can also be used as an indicator
+        // plant", and the tomato spotted wilt virus it carries "is a problem
+        // mostly on vegetable plants such as tomatoes and peppers". The
+        // cucurbits are cucumber, squash, zucchini, pumpkin and watermelon; the
+        // stone fruit peach, plum and cherry.
+        // Favoured: UC IPM Thrips, "avoid excessive applications of nitrogen
+        // fertilizer, which may promote higher populations of thrips". (UMass
+        // WFT also has "Thrips populations will be highest when plants are
+        // flowering"; the model has no flowering condition yet, so that is
+        // left out.)
+        // Growth: UMass WFT, "WFT females lay 150-300 eggs during their
+        // lifetime": the low end, halved for the daughters as for the
+        // whitefly, 75. "The life cycle is completed in two to four weeks": 21
+        // days, the middle (UC IPM Thrips: "When the weather is warm, the life
+        // cycle from egg to adult may be completed in as short a time as 2
+        // weeks"). r = ln 75 / 21 = 0.206 a day.
+        // Arrivals: UC IPM Thrips, "Thrips can readily move long distances
+        // floating with the wind or transported on infested plants". 0.001 a
+        // garden day is a game estimate (the spider mites' figure).
+        // No host: UMass WFT, "keep the house heated and empty for a week or
+        // more between crops. Note that one week may not be enough time." A
+        // half-life of 2 garden days leaves about a tenth after a week and
+        // under 1% after two (a game reading).
+        // Damage: UC IPM Thrips, "Thrips feeding can stunt plant growth and
+        // cause damaged leaves to become papery and distorted, develop tiny
+        // pale spots (stippling), and drop prematurely", and "Herbaceous
+        // ornamentals, and certain vegetable crops, are more susceptible to
+        // serious injury from thrips feeding and thrips-vectored viruses,
+        // especially when plants are young". No source gives a yield figure;
+        // 0.3 is a game estimate. The viruses they carry are not modelled.
+        (
+            id: "thrips",
+            name: "Western flower thrips",
+            indoors: true,
+            outdoors: true,
+            hosts: [
+                "cucumber", "squash", "zucchini", "pumpkin", "watermelon", "pepper", "tomato",
+                "grape", "strawberry", "rose", "peach", "plum", "cherry", "marigold", "fava_bean",
+            ],
+            favoured_by: [ExcessNitrogen],
+            fold: 75.0,
+            fold_days: 21.0,
+            arrival_per_day: 0.001,
+            no_host_half_life_days: 2.0,
+            max_health_loss: 0.3,
+            advice: "Thrips hide in flowers and buds and drop to the soil to pupate, so sprays reach few of them: check new plants, do not over-feed nitrogen, and release their predatory mites early.",
+        ),
 
         // -- DISEASES (2026-09-26, greenhouse humidity) ------------------------
         // Rows in the same model as the pests: a pressure per grow area that
@@ -522,13 +707,17 @@
         // and 0.4 of the mites per hosing are game estimates (mite eggs stay
         // stuck to the leaves). 0.5 L a plant is a game estimate: a few
         // seconds of a spray nozzle, drawn from the home tanks.
+        // Whiteflies (2026-09-27): UC IPM Whiteflies, "Hose adults off plants
+        // with a strong stream of water". Only the adults come off: "Later
+        // nymphal stages are immobile, oval, and flattened", and "Nymphs cause
+        // most of the damage". 0.3 is a game estimate.
         (
             id: "hose_off",
             name: "Hose off",
             kind: Mechanical,
             water_l_per_plant: 0.5,
-            removes: {"aphid": 0.5, "spider_mite": 0.4},
-            note: "A strong spray of water knocks aphids and spider mites off; most cannot climb back. It does nothing to caterpillars, beetles or slugs.",
+            removes: {"aphid": 0.5, "spider_mite": 0.4, "whitefly": 0.3},
+            note: "A strong spray of water knocks aphids, spider mites and adult whiteflies off; most cannot climb back. The whitefly nymphs stay stuck to the leaves, and it does nothing to caterpillars, beetles or slugs.",
         ),
         // HAND-PICKING (mechanical). UC IPM Snails and Slugs: "Hand-picking can
         // be very effective if done thoroughly on a regular basis. At first you
@@ -596,16 +785,31 @@
         // 2024 (Insects 15: 556) found a 0.5% laundry soap no better than
         // water on the same aphid.
         // It kills the predatory mites: CSU Soaps, "Both beneficial and pest
-        // mites are affected."
+        // mites are affected." That is the thrips' cucumeris mites as well as
+        // the spider mites' Phytoseiulus (2026-09-27).
+        // Whiteflies (2026-09-27): UC IPM Whiteflies, "Most less-toxic products
+        // such as insecticidal soaps, neem oil, or petroleum-based oils control
+        // only those whiteflies that are directly sprayed" and "Be sure to
+        // cover undersides of all infested leaves; usually these are the
+        // lowest leaves and the most difficult to reach". 0.5 is a game
+        // estimate. It spares the Encarsia wasps: NCSU Encarsia, "insecticidal
+        // soap can be applied without killing immature Encarsia formosa inside
+        // the parasitized whitefly nymphs".
+        // Western flower thrips: UC IPM Thrips, soaps "can provide temporary
+        // control, especially for greenhouse thrips", but "Most pest thrips
+        // feed while hidden, often in buds and shoot tips"; UMass WFT, "The
+        // eggs of WFT are well protected and in general, pesticide sprays are
+        // ineffective against them", and the pupae are in the soil. 0.3 is a
+        // game estimate.
         (
             id: "soap_spray",
             name: "Insecticidal soap",
             kind: LeastToxic,
             item: "insecticidal_soap_0",
             plants_per_item: 20,
-            removes: {"aphid": 0.8, "spider_mite": 0.6},
-            ends: ["predatory_mites"],
-            note: "Soap kills only the soft-bodied pests it wets (aphids and mites), with nothing left on the leaf afterwards, so repeat it in four to seven days. Caterpillars, beetles and slugs are immune, and it kills predatory mites too.",
+            removes: {"aphid": 0.8, "spider_mite": 0.6, "whitefly": 0.5, "thrips": 0.3},
+            ends: ["predatory_mites", "cucumeris_mites"],
+            note: "Soap kills only the soft-bodied pests it wets (aphids, mites, whiteflies and the few thrips not hidden in the flowers), with nothing left on the leaf afterwards, so repeat it in four to seven days. Caterpillars, beetles and slugs are immune. It kills predatory mites too, but spares the Encarsia wasps inside the whitefly nymphs.",
         ),
         // IRON PHOSPHATE SLUG BAIT (least toxic). UC IPM Snails and Slugs:
         // "Iron phosphate baits ... have the advantage of being safer for use
@@ -619,6 +823,198 @@
             plants_per_item: 50,
             removes: {"slug": 0.6},
             note: "Iron phosphate pellets kill the slugs that eat them and are the safest bait around children, pets and wildlife. They do nothing to insects.",
+        ),
+
+        // -- ROW COVER, TRAPS AND GREENHOUSE NATURAL ENEMIES (2026-09-27) -----
+        //
+        // ROW COVER (cultural: exclusion). A floating row cover: UMD Row Cover,
+        // "a white, lightweight, non-woven fabric made from spun-bonded
+        // polyester or polypropylene. It has a gauzy appearance and allows air,
+        // sunlight, and water to easily penetrate", draped on the crop without
+        // a frame (a "floating" cover). UC IPM Floriculture files it under cultural
+        // control: "Exclude adult whiteflies by growing field crops beneath
+        // floating row covers". It lies over soil (a bed, tray or field), never
+        // a tower or a mushroom rack.
+        // What it keeps out (`excludes`, a share of each pest's ARRIVALS):
+        // UMD, "Animal exclusion protects against significant feeding damage
+        // from pest insects, mites, rabbits, deer, birds, and groundhogs"; UC
+        // IPM Aphids, "Protect seedlings with covers"; UMN Cole Crops,
+        // "Floating row covers made up of lightweight all-purpose garden fabric
+        // keep the adult moths from laying eggs on plants"; UMN CPB, "Row
+        // covers can be placed over your potato rows to prevent Colorado potato
+        // beetle from feeding and laying eggs on plants"; UC IPM Thrips, "Row
+        // covers, hot caps, and other types of cages with a fine mesh can
+        // exclude thrips and other insects". 0.9 of the newcomers, and 0.8 of
+        // the thrips, which only the finest mesh stops (UMD, of insect netting:
+        // "Mesh sizes vary, with the smallest size excluding thrips"), are game
+        // estimates: never all, because pests "may enter through gaps or tears
+        // in the fabric" (UMD) and "flea beetles may get under the cover
+        // whenever it is lifted" (UMN Flea Beetles). Slugs live in the soil
+        // under it and the diseases come with the air, so neither is listed.
+        // What it cannot do is shut out what is already there, so the growth
+        // in place goes on under it. UMD: pests "were already present,
+        // unnoticed on plants before the row cover was applied. Some pests
+        // overwinter in the soil near host plants, emerging the following
+        // spring under a cover. (Examples include the adult flies of root
+        // maggots, flea beetles, and Colorado potato beetles.)" UMN CPB: "Put
+        // row covers in place before you see any beetles, and make sure you are
+        // rotating."
+        // It warms the crops under it: UMD, "In summer, temperatures under a
+        // row cover can be 5 to 15°F higher than outside temperatures, leading
+        // to heat stress", and the lightweight grade "gives 2°F of frost
+        // protection". warms_day_c 5.6 is 10 F, the middle of 5 to 15, in sun;
+        // warms_night_c 1.1 is the 2 F, at night and indoors, where no sun
+        // falls on the fabric. Both the crop climate of a field and the pests'
+        // Temperature conditions read it.
+        // Bees cannot reach the flowers under it: UMN Cucumber Beetles, "Remove
+        // it when plants start flowering. Most plants in the cucurbit family
+        // require insect pollination, and row covers prevent pollinators from
+        // reaching the flowers"; UMD, "Crops that don't need their flowers
+        // pollinated by insects, like spring leafy greens and green beans, can
+        // be kept covered until harvest." The player is told when it goes on
+        // over a crop that needs bees (data/garden/pollination.ron, by:
+        // Insects), and the Garden panel flags one flowering under it.
+        // The fabric: UMD, "can be easily cut to size with scissors and reused
+        // for 2 to 3 years", and "The useful life of row cover material is
+        // typically 1 to 3 years, depending on the weight/grade, use, and
+        // weather conditions ... Lightweight row covers degrade more easily
+        // than heavyweight row covers". lasts_days 365 is the low end, for the
+        // lightweight grade, counted in the weather: on the bed for that long
+        // it is worn out. Taken off sooner, it goes back in the pack whole.
+        // m2_per_item 12 is a game estimate: a piece cut 7.6 m long from a
+        // 2.1 m ("7-foot wide", UMD) bolt is 16 m2 of fabric, about 12 m2 of
+        // ground once the slack the crop lifts and the edges held down with
+        // soil are allowed for.
+        (
+            id: "row_cover",
+            name: "Row cover",
+            kind: Cultural,
+            item: "floating_row_cover_0",
+            m2_per_item: 12.0,
+            excludes: {"aphid": 0.9, "spider_mite": 0.9, "cabbage_caterpillar": 0.9, "colorado_potato_beetle": 0.9, "whitefly": 0.9, "thrips": 0.8},
+            warms_day_c: 5.6,
+            warms_night_c: 1.1,
+            lasts_days: 365.0,
+            needs_soil: true,
+            note: "A light fabric laid over the bed and held down at the edges keeps most flying and crawling pests off: aphids, mites, whiteflies, thrips, the moths of the cabbage caterpillars and potato beetles. Lay it before they come. It shuts in any already there, and beetles that wintered in the soil come up under it, so rotate first. It warms the crops, about 6 C in summer sun, and bees cannot get under it: take it off when squash, cucumbers, melons or strawberries flower.",
+        ),
+        // TAKE OFF ROW COVER. UMN Cucumber Beetles: "Remove row covers when
+        // plants begin to flower so pollination can occur"; UC IPM Thrips:
+        // "Once plants become larger or temperatures get warmer, remove covers
+        // to provide enough growing space and to prevent overheating"; UMN
+        // Cole Crops: "Remove row covers after harvesting the crop". The
+        // pieces go back in the pack.
+        (
+            id: "row_cover_off",
+            name: "Take off row cover",
+            kind: Cultural,
+            takes_off: "row_cover",
+            note: "Fold the row cover away when crops that need bees start to flower, when summer heat builds under it, or after the harvest. It goes back in your pack for the next crop.",
+        ),
+        // YELLOW STICKY CARDS (mechanical: trapping). UC IPM Whiteflies: "Hang
+        // sticky-coated yellow traps. Use one trap for every medium-size
+        // vegetable plant", and "Such traps won't eliminate damaging
+        // populations but may reduce them somewhat"; CSU Whitefly: "Yellow
+        // sticky traps can be used both to monitor adult whitefly populations
+        // and to help suppress populations", and they "should be placed 1 per
+        // 1000ft2 and replaced weekly". They catch some thrips too: UMass WFT,
+        // "Blue sticky cards are more effective in detecting thrips than yellow
+        // sticky cards". So a card a plant from a pack of 10 (the pack is a
+        // game estimate), working for 7 garden days (replaced weekly) whether
+        // or not anything is flying, and taking 0.05 of the whiteflies and
+        // 0.02 of the thrips a day (game estimates for "somewhat"). They catch
+        // the Encarsia wasps as well, so releasing the wasps takes them down.
+        (
+            id: "yellow_sticky_cards",
+            name: "Yellow sticky cards",
+            kind: Mechanical,
+            item: "yellow_sticky_cards_0",
+            plants_per_item: 10,
+            removes_per_day: {"whitefly": 0.05, "thrips": 0.02},
+            lasts_days: 7.0,
+            stays_without_prey: true,
+            note: "Adult whiteflies fly to yellow and stick. A card a plant catches some every day for a week: they are for seeing how many there are more than for control, and they catch the Encarsia wasps too.",
+        ),
+        // BLUE STICKY CARDS (mechanical). UMass WFT: "Blue sticky cards are more
+        // effective in detecting thrips than yellow sticky cards. Therefore,
+        // blue cards are best used in thrips-sensitive crops"; UC IPM Thrips:
+        // "Hang blue or bright yellow sticky traps to detect flying thrips." As
+        // the yellow cards: a card a plant from a pack of 10, a week, and 0.05
+        // of the thrips a day (game estimates).
+        (
+            id: "blue_sticky_cards",
+            name: "Blue sticky cards",
+            kind: Mechanical,
+            item: "blue_sticky_cards_0",
+            plants_per_item: 10,
+            removes_per_day: {"thrips": 0.05},
+            lasts_days: 7.0,
+            stays_without_prey: true,
+            note: "Thrips are drawn to blue more than to any other colour. A card a plant catches some adults every day for a week; the larvae hidden in the flowers and the pupae in the soil are out of reach.",
+        ),
+        // ENCARSIA WASPS (biological), Encarsia formosa. UC IPM Floriculture:
+        // "Encarsia formosa ... is highly effective for controlling greenhouse
+        // whitefly. Begin any releases when greenhouse whiteflies are first
+        // observed or even before and in any case before populations are high
+        // ... release 2 to 5 adult parasites per plant per week". Greenhouses
+        // only: UC IPM Whiteflies, "Encarsia spp. parasites are commercially
+        // available for release in greenhouse situations; however, they are not
+        // generally recommended for outdoor use because they are not well
+        // adapted for survival in temperate zones", so it is refused on an
+        // outdoor field. Slow: Cornell Encarsia, a wasp will "kill on average a
+        // total of 95 nymphs over a 12 day life expectancy", and "At 21°C ...
+        // the time from oviposition to adult emergence is 25 days"; UMass
+        // Whiteflies, parasitized pupae "typically appear within four weeks of
+        // the first release". So 0.2 of the whiteflies a day for up to 28
+        // garden days (game estimates), ending early when there are none left
+        // (NCSU Encarsia: "there must be a resident population of whiteflies,
+        // otherwise these parasites disperse or die"). A pack of cards carrying
+        // 1,000 (a game estimate) at UC's top rate of 5 a plant is 200 plants.
+        // The yellow cards come down first: UMass Biocontrol, "It has been
+        // advised not to use yellow sticky cards for 3-4 days following
+        // release to avoid capturing adults". Soap spares them (above).
+        (
+            id: "encarsia",
+            name: "Release Encarsia wasps",
+            kind: Biological,
+            item: "encarsia_formosa_0",
+            plants_per_item: 200,
+            removes_per_day: {"whitefly": 0.2},
+            lasts_days: 28.0,
+            indoors_only: true,
+            ends: ["yellow_sticky_cards"],
+            note: "Tiny wasps lay their eggs in whitefly nymphs, which turn black and die. They work slowly, over weeks, so release them when the first whiteflies appear. They are for greenhouses: outdoors they do not survive. Take the yellow cards down first, or they catch the wasps.",
+        ),
+        // CUCUMERIS MITES (biological), Neoseiulus (Amblyseius) cucumeris, in
+        // slow-release sachets. UMass Biocontrol: "Western flower thrips and
+        // many other thrips species may be suppressed on greenhouse crop by
+        // releasing (Amblyseius (Neoseiulus) cucumeris)", but "A. cucumeris
+        // feed only on the first instar nymphs so must be released early in
+        // the crop cycle before thrips populations are high", and "Predatory
+        // mites in sachets or small bags contain food and are intended to
+        // release over several weeks". UMass WFT: they "use pollen as a food
+        // source so when plants begin to flower, this can be supplemental food
+        // for these mites, especially if thrips levels are low". So a release
+        // works for 28 garden days (a game reading of "several weeks") whether
+        // or not there are thrips (stays_without_prey), taking 0.15 of the
+        // thrips a day: a game estimate, lower than the spider mites'
+        // predators because these eat only the youngest larvae. Greenhouses
+        // only: UC IPM Thrips, of gardens, "Releasing purchased natural
+        // enemies, in most situations, is unlikely to provide satisfactory
+        // thrips control". A pack of sachets to 50 plants is a game estimate.
+        // Soap kills them (CSU Soaps: "Both beneficial and pest mites are
+        // affected").
+        (
+            id: "cucumeris_mites",
+            name: "Release cucumeris mites",
+            kind: Biological,
+            item: "cucumeris_mites_0",
+            plants_per_item: 50,
+            removes_per_day: {"thrips": 0.15},
+            lasts_days: 28.0,
+            indoors_only: true,
+            stays_without_prey: true,
+            note: "Sachets of predatory mites that eat young thrips larvae for weeks, living on the bran in the sachet and on pollen while there are none. They cannot kill adult thrips, so hang them early, before the thrips build up. They are for greenhouses, and a soap spray kills them.",
         ),
 
         // -- DISEASE CONTROLS (2026-09-26), in the IPM order -----------------

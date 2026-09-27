@@ -1054,6 +1054,20 @@ bt_kurstaki_0,Bt Spray (kurstaki),material,agricultural,hdpe,1.0,10,0,1 L ready-
 predatory_mites_0,Predatory Mites,material,agricultural,hdpe,0.1,10,0,A shaker bottle of Phytoseiulus persimilis mites that eat spider mites and their eggs,solid,0.25
 iron_phosphate_bait_0,Iron Phosphate Slug Bait,material,agricultural,hdpe,1.0,10,0,1 kg of pellets that kill the slugs that eat them: the safest slug bait around children and pets and wildlife,dry_goods,1.2
 #
+# Row cover, traps and greenhouse natural enemies (2026-09-27; data/garden/pests.ron carries the controls and
+# their sources). All five are bought (data/trade_goods.ron). floating_row_cover_0 is one piece of the
+# lightweight insect-barrier grade: 0.45 oz per square yard (15.3 g/m2, University of Maryland Extension,
+# Using row cover to protect plants) cut 7.6 m from a 2.1 m bolt, 16 m2 of fabric and so 0.25 kg; it is
+# reused, not used up (pests.ron row_cover_off gives it back), and its folded volume of 1 L is a game estimate.
+# The sticky cards come ten to a pack; Encarsia formosa as 1,000 parasitized whitefly pupae glued to paper
+# cards; Neoseiulus cucumeris as slow-release paper sachets of mites on bran. Pack sizes, masses and volumes
+# are game estimates.
+floating_row_cover_0,Floating Row Cover,material,agricultural,plastic,0.25,10,0,A piece of light spun-bonded fabric that covers about 12 m2 of bed: keeps flying pests off and warms the crops under it,solid,1.0
+yellow_sticky_cards_0,Yellow Sticky Cards,material,agricultural,plastic,0.1,10,0,A pack of 10 glue-coated yellow cards: adult whiteflies fly to the colour and stick,solid,0.2
+blue_sticky_cards_0,Blue Sticky Cards,material,agricultural,plastic,0.1,10,0,A pack of 10 glue-coated blue cards: thrips are drawn to blue more than to any other colour,solid,0.2
+encarsia_formosa_0,Encarsia Wasps,material,agricultural,plant_fiber,0.02,10,0,Paper cards of 1000 parasitized whitefly pupae: tiny wasps hatch and lay their eggs in whitefly nymphs,solid,0.1
+cucumeris_mites_0,Cucumeris Mite Sachets,material,agricultural,plant_fiber,0.2,10,0,Slow-release sachets of Neoseiulus cucumeris mites on bran: they eat young thrips larvae for weeks,solid,0.5
+#
 # Soil pH amendments (2026-09-26, gardening depth: soil pH; data/garden/soil_ph.ron carries the rates and
 # their sources). garden_lime_0 is a 5 kg bag of finely ground limestone: calcium carbonate at 100% CaCO3
 # equivalent (UC Cooperative Extension, Changing pH in Soil, Table 2). garden_sulfur_0 is a 2 kg bag of 90%

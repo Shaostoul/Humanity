@@ -65,6 +65,10 @@ pub struct GardenPests {
     /// player just chose as (area, control id), carried next frame.
     pub weeds: Vec<crate::systems::farming::weeds::WeedAreaRow>,
     pub weed_pending: Option<(String, String)>,
+    /// Row covers (2026-09-27, farming::pests::cover_rows): a row per soil
+    /// area saying whether a cover is on, with its Row cover / Take off
+    /// button. The button goes through `pending`, like the pest controls.
+    pub covers: Vec<crate::systems::farming::pests::CoverRow>,
 }
 
 /// A growing crop for GUI display (synced from the ECS each frame).
