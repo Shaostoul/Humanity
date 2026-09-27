@@ -939,6 +939,11 @@
    "date": "2026-09-26",
    "decision": "v0.1372.1: two more solar panels in the family home (solar_9 at (11,0,17) and solar_10 at (11,0,19) on the power terrace, to battery_1 and battery_2); Energy loop supply ~15.1 kWh/day vs demand ~14.0, closes: true.",
    "why": "The home design is AI-authored data meant to close its loops; realism added real loads (greenhouse fan, tent humidifiers), so the design adapts the way a real homesteader would size up the array. Placed clear of the wind turbine at x 14."
+  },
+  {
+   "date": "2026-09-26",
+   "decision": "v0.1373.0: fixed the independent review of v0.1363-v0.1372.1 (BUG-092): crops ripen at growth_days (stage_from_progress last stage at 1.0; uptake follows), pest controls per plant, grow-light power follows the timer (GrowLight{watts}, meter 6 h), emptied beds can be weeded and are listed, showcase/tower stagger on the growth clock, hand-planted crops not pH-modelled, rubber tree tapped 20 years (harvest_windows + plants.csv yield 450-650), legume/tuber/oilseed fields sow their own crop, dead mushroom humidity slider removed, picking comment corrected. Room air vs tank water clocks left OPEN (operator clock decision).",
+   "why": "Second review of the day found nine real defects, seven reproduced; the ripening one was older than today but today's food cards and conclusions depended on it. Pattern again: parallel agents built systems that each passed their own tests while disagreeing at the seams (plant counts, clocks, keys)."
   }
  ],
  "active_scopes_to_avoid": [
