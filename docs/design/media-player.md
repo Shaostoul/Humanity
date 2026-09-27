@@ -468,6 +468,18 @@ the no-toolchain build is worth keeping simple.
 
 ## Known limits
 
+- **FIXED 2026-09-27 (BUG-093): the abort below was a real over-wide borrow
+  in rav1d's CDEF, not only its instrumentation.** `padding` in rav1d 1.1.0's
+  `src/cdef.rs` borrowed two line-buffer columns left of a block at the
+  frame's left edge that it never reads, and another postfilter thread could
+  hold a mutable borrow of them (the previous row's end, `backup2lines`). The
+  build now uses `vendor/rav1d`, the published crate with that borrow
+  narrowed to the columns read (vendor/README.md). Measured: the new
+  `media::tests::rav1d_threaded_decode_stress` aborted 8 of 20 runs on the
+  published crate and 0 of 20 on the patched one, and the decoded fixture is
+  byte-identical either way. The rest of this entry is the 2026-09-17 account,
+  kept for the history; its conclusion that the code was sound and release
+  unaffected was wrong: release kept the overlapping borrow unchecked.
 - **rav1d's own debug-only borrow checker can abort a debug test run.**
   rav1d guards its threaded frame buffers with `DisjointMut`, whose
   disjointness is checked at runtime only under `debug_assertions` (its

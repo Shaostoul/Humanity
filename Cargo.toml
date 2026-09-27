@@ -1,6 +1,6 @@
 [package]
 name = "humanity-engine"
-version = "0.1373.0"
+version = "0.1374.0"
 edition = "2021"
 
 [[bin]]
@@ -246,6 +246,14 @@ winres = "0.1"
 # longer compile of that crate; the rest of a dev build stays unoptimised.
 [profile.dev.package.rav1d]
 opt-level = 3
+
+# rav1d is built from vendor/rav1d: the published 1.1.0 with one fix to its CDEF
+# padding, which borrowed two columns more than it reads at the frame's left
+# edge and so overlapped another decode thread's write (BUG-093; the debug
+# check aborted whole test runs, release kept the overlapping borrow).
+# vendor/README.md says what changed and how to return to crates.io.
+[patch.crates-io]
+rav1d = { path = "vendor/rav1d" }
 
 # NOTE: a UI-snapshot harness (render egui pages to PNGs for review/regression,
 # v0.495) lives in src/gui/ui_snapshots.rs. It uses the app's OWN egui + egui-wgpu

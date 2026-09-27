@@ -109,6 +109,63 @@ fn bar_left_edge(f: &VideoFrame) -> Option<usize> {
     })
 }
 
+/// rav1d's threads change how the work is split, never the picture: the
+/// fixture decoded with rav1d's automatic thread count (the product's
+/// setting) is byte-for-byte the frames one thread gives. A race in the
+/// threaded path that touched a pixel would show here as a difference; the
+/// printed hash (with --nocapture) also shows a change to vendor/rav1d left
+/// the decoded pictures exactly as they were (BUG-093).
+#[test]
+fn threaded_decode_is_bit_identical_to_single_threaded() {
+    let decode = |threads: i32| {
+        let mut frames: Vec<Vec<u8>> = Vec::new();
+        decode_video(&fixture(BAR), threads, |f| frames.push(f.rgba)).expect("decode");
+        frames
+    };
+    let single = decode(1);
+    let threaded = decode(0);
+    assert_eq!(single.len(), BAR_FRAMES);
+    assert_eq!(threaded.len(), single.len(), "the same frame count");
+    for (i, (a, b)) in single.iter().zip(&threaded).enumerate() {
+        assert!(a == b, "frame {i} differs between one thread and rav1d's automatic threads");
+    }
+    // FNV-1a over every frame, for comparing builds by eye.
+    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
+    for byte in single.iter().flatten() {
+        h = (h ^ u64::from(*byte)).wrapping_mul(0x0100_0000_01b3);
+    }
+    println!("fixture decode hash: {h:016x}");
+}
+/// Stress for rav1d's threaded decode (BUG-093): six decoders at once, each
+/// with rav1d's automatic thread count (the product's setting), decoding the
+/// fixture 40 times over. rav1d 1.1.0 as published borrowed two columns more
+/// than it reads at the frame's left edge in CDEF, which overlapped another
+/// postfilter thread's line-buffer write; the debug build's DisjointMut check
+/// then panicked a rav1d worker inside a non-unwinding function and ABORTED
+/// the whole test process (STATUS_STACK_BUFFER_OVERRUN). A run of this test
+/// that finishes at all is the pass. Ignored because it is a stress run, not a
+/// unit check: run it in a debug build (the check is compiled out of release)
+/// after any rav1d upgrade or a change to vendor/rav1d:
+///   cargo test --features native --lib media::tests::rav1d_threaded_decode_stress -- --ignored
+/// Rounds per decoder: HUMANITY_RAV1D_STRESS_ROUNDS (default 40).
+#[test]
+#[ignore = "stress run for rav1d threading (BUG-093); see its doc comment"]
+fn rav1d_threaded_decode_stress() {
+    let rounds: usize = std::env::var("HUMANITY_RAV1D_STRESS_ROUNDS").ok().and_then(|v| v.parse().ok()).unwrap_or(40);
+    let decoders: Vec<_> = (0..6)
+        .map(|_| {
+            std::thread::spawn(move || {
+                for _ in 0..rounds {
+                    let n = decode_video(&fixture(BAR), 0, |_| {}).expect("decode");
+                    assert_eq!(n, BAR_FRAMES, "every frame decoded");
+                }
+            })
+        })
+        .collect();
+    for d in decoders {
+        d.join().expect("a decoder thread panicked");
+    }
+}
 #[test]
 fn decodes_every_frame_in_order_at_the_right_size_with_the_bar_moving() {
     let mut frames = Vec::new();
@@ -439,14 +496,12 @@ fn audio_led_clock_follows_kira_when_a_device_exists() {
 /// can tell the difference: the same clip attached WITHOUT looping reads a
 /// state other than `Playing` once it has run off its end.
 ///
-/// Run it in RELEASE mode: rav1d's own debug-only `DisjointMut` borrow
-/// checker can panic on one of rav1d's worker threads under a debug build
-/// with several decoders running (observed once in 16 debug runs of the
-/// suite, 2026-09-17; it aborts the whole test process), and this test keeps
-/// a decoder alive for two full passes. See "Known limits" in
-/// docs/design/media-player.md. A debug run that completes is still valid.
+/// Runs in a debug or a release build. (It used to say release only: rav1d's
+/// debug-only `DisjointMut` check could abort a debug run with several
+/// decoders going. That was a real over-wide borrow in rav1d's CDEF, fixed in
+/// vendor/rav1d, BUG-093.)
 #[test]
-#[ignore = "needs an audio output device; run: cargo test --release --features native --lib -- --ignored --nocapture media::tests::looping_audio (release: rav1d's debug-only borrow checker can abort a debug run, see docs/design/media-player.md Known limits)"]
+#[ignore = "needs an audio output device; run: cargo test --features native --lib -- --ignored --nocapture media::tests::looping_audio"]
 fn looping_audio_keeps_playing_past_the_end_when_a_device_exists() {
     let mut audio = match crate::audio::AudioManager::try_new() {
         Ok(a) => a,

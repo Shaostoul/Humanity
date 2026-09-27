@@ -2729,7 +2729,7 @@ checksum = "df3b46402a9d5adb4c86a0cf463f42e19994e3ee891101b1841f30a545cb49a9"
 
 [[package]]
 name = "humanity-engine"
-version = "0.1373.0"
+version = "0.1374.0"
 dependencies = [
  "aes-gcm",
  "arboard",
@@ -5334,8 +5334,6 @@ dependencies = [
 [[package]]
 name = "rav1d"
 version = "1.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1932f060d5e7bd49dc9f8b272c1dc5e9ce0ffe141c28be900265d3989b36c9ed"
 dependencies = [
  "assert_matches",
  "atomig",

@@ -1153,15 +1153,19 @@ humidifier per tent, 0.56 to 1.3 kWh a day instead of 2.1 to 2.4; the solo
 home's energy loop closes again; the family home closes with two more
 panels, ten in all, about 15.1 of 14.0 kWh a day, v0.1372.1), and weeds compete in
 soil beds and fields, hoed with the hoe and mulched with the sawmill's bark
-and sawdust (v0.1371.0). Next: the rubber tree yields latex (it harvests a fiber
-bundle) and vulcanizing uses sulfur (both DONE v0.1368.0); greenhouse
-humidity and fungal disease (in flight). OPERATOR DECISION NEEDED before the
-sun side of light (seasons and day length): is the homestead a GROUND site at
-Silverdale 47.6 N (what data/home_outline.json and the garden figures assume)
-or the equatorial GEO station the engine runs (about 12 h of sun all year, no
-seasons)? The gameplay sun (a fixed 6 to 18 arc) and the drawn sun (the real
-ephemeris on the wall clock) also disagree aboard by up to 12 h (BUG-090). Containers as items (3c) waits on the unified placement
-schema. Progress and open items live at the top of the gap doc.
+and sawdust (v0.1371.0). An independent review's nine findings are fixed but
+one (BUG-092, v0.1373.0). The lib test run no longer aborts on threaded AV1
+decode (BUG-093, v0.1374.0: a real over-wide borrow in rav1d 1.1.0's CDEF,
+fixed in vendor/rav1d). The operator chose the SPACESHIP FIRST (Blocked #2,
+2026-09-27), so next on the garden: the ship's closed loops (greenhouse
+moisture condensed back to the tanks, CO2 and O2 through the ship's air) and
+crop light from the ship's real sun direction (the BUG-090 fix); the clock
+question (Blocked #3) is still open. Next on tests: the flaky
+`engine::screens::video` test
+`a_looked_at_or_paused_clip_draws_and_keeps_input_while_an_unwatched_one_drops_it`
+(4 failures in 150 runs under load). Containers as items (3c) waits on the
+unified placement schema. Progress and open items live at the top of the gap
+doc.
 
 **Gameplay gap survey (2026-09-25):** `docs/design/gameplay-gaps-2026-09-25.md`
 lists seven defects (items lost when the backpack is full, the showcase garden

@@ -949,6 +949,11 @@
    "date": "2026-09-27",
    "decision": "OPERATOR DECISION: the spaceship first, planets after (verbatim in PRIORITIES Blocked #2). Garden work order: the ship's closed loops (condensate back to the tanks, CO2/O2 through the ship's air, crop light from the ship's real sun direction = the BUG-090 fix), then ground farming and seasons.",
    "why": "Operator: the ship gardens are the place to get the physics of gases and liquids right; a planet will simplify some things and complicate others. The clock question (body on real time vs garden on the game clock) is still open; recommended keeping crops fast and sizing the ship's pumps and tanks to the garden's clock so mass balances."
+  },
+  {
+   "date": "2026-09-27",
+   "decision": "v0.1374.0: BUG-093 fixed. The intermittent lib-test abort (a rav1d worker panicking in DisjointMut, STATUS_STACK_BUFFER_OVERRUN) was a real over-wide borrow in rav1d 1.1.0 src/cdef.rs padding: columns 0..x_end borrowed at the frame's left edge where only 2..x_end are read, overlapping another postfilter thread's backup2lines write. Vendored the published crate minus its assembly as vendor/rav1d with the borrow narrowed, via [patch.crates-io]; vendor/README.md has provenance and the way back. Stress 8/20 aborts -> 0/20; screens 1/150 -> 0/150; full lib suite 0/5; decode byte-identical (hash bc2eee527943655c). New tests: rav1d_threaded_decode_stress (ignored) and threaded_decode_is_bit_identical_to_single_threaded.",
+   "why": "The 2026-09-17 note had called it instrumentation only and release unaffected; release kept the overlapping borrow (undefined behaviour) with the checker compiled out. Single-threaded tests would have hidden it, and the product needs threads for 1080p (69 against 28 fps). rav1d main still has the code; reporting upstream is a public post, left to the operator. A scratch git worktree remains in the session scratchpad (rav1d/wt): not removed, because removing it needs a forced (destructive) git command and the operator asked for none. Found alongside: a flaky screens test (4 in 150 under load), queued next."
   }
  ],
  "active_scopes_to_avoid": [

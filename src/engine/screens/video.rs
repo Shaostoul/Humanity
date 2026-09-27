@@ -2359,14 +2359,12 @@ mod tests {
     /// distinguishable from "silent" while staying inaudible (amplitude
     /// 0.0006 of a tone whose RMS is about 0.3).
     ///
-    /// Run it in RELEASE mode: rav1d's own debug-only `DisjointMut` borrow
-    /// checker can panic on one of rav1d's worker threads under a debug
-    /// build with several decoders running (observed once in 16 debug runs
-    /// of the suite, 2026-09-17; it aborts the whole test process). See
-    /// "Known limits" in docs/design/media-player.md. A debug run that
-    /// completes is still valid.
+    /// Runs in a debug or a release build. (It used to say release only:
+    /// rav1d's debug-only `DisjointMut` check could abort a debug run with
+    /// several decoders going. That was a real over-wide borrow in rav1d's
+    /// CDEF, fixed in vendor/rav1d, BUG-093.)
     #[test]
-    #[ignore = "needs an audio output device; run: cargo test --release --features native --lib -- --ignored --nocapture engine::screens::video::tests::sound_attaches (release: rav1d's debug-only borrow checker can abort a debug run, see docs/design/media-player.md Known limits)"]
+    #[ignore = "needs an audio output device; run: cargo test --features native --lib -- --ignored --nocapture engine::screens::video::tests::sound_attaches"]
     fn sound_attaches_once_at_the_listener_mix_when_a_device_exists() {
         let mut audio = match crate::audio::AudioManager::try_new() {
             Ok(a) => a,

@@ -1755,3 +1755,77 @@ Also: the legume, tuber and oilseed fields sowed wheat from the Plant button
 (own grow media now), and the mushroom rack's Humidity slider did nothing (the
 tent humidifier holds the air; the slider is gone). Each test was run red by
 undoing its fix first.
+
+## BUG-093: threaded AV1 decode aborted the lib test run; rav1d over-borrowed at the frame's left edge (FIXED v0.1374.0)
+
+**Symptom.** `just verify` intermittently aborted the whole lib test process
+(1 in 5 full runs on 2026-09-25), hiding every other result:
+`thread 'rav1d-worker-6' panicked at ...\rav1d-1.1.0\src\disjoint_mut.rs:837:13:
+overlapping DisjointMut: current: & _[1566..1578] ... cdef.rs:207:28, existing:
+&mut _[800..1568] ... cdef_apply.rs:56:22`, then "panic in a function that
+cannot unwind" and exit 0xc0000409 (STATUS_STACK_BUFFER_OVERRUN).
+
+**Which tests.** The only non-ignored tests that decode AV1 with rav1d's
+worker threads are the `engine::screens::video` tests: the screen opens its
+player with `VideoPlayer::open`, which asks rav1d for its automatic thread
+count (one per logical processor, 12 here), and cargo runs several of them at
+once. The `media::tests` pin one thread.
+
+**Reproduction (2026-09-27, debug test build).** `engine::screens::video`
+at 12 test threads: 1 abort in 150 runs, the exact signature above. A new
+ignored stress, `media::tests::rav1d_threaded_decode_stress` (six decoders at
+once, automatic threads, 40 decodes each): 8 aborts in 20 runs, every one the
+same two-element overlap (e.g. `& _[3102..3114]` against `&mut _[2336..3104]`).
+
+**What was actually wrong: rav1d 1.1.0, not our use of it.** Our wrapper
+(`src/media/video.rs`) drives each context from one thread, releases every
+picture before returning and unrefs every packet. The overlap is inside rav1d:
+`padding` in `src/cdef.rs` copies the two rows above a block from the CDEF
+line buffer by borrowing columns `0..x_end`, starting two pixels left of the
+block. At the frame's left edge (`HAVE_LEFT` is cleared for every block at
+`bx = 0`, `cdef_apply.rs`) it reads only columns `2..x_end`, but it still
+borrowed the two before, which in the line buffer are the last two elements of
+the previous superblock row's region; with postfilter threading another worker
+can be writing that region at the same time (`backup2lines`, cdef_apply.rs:56,
+the `&mut [800..1568]` whose end is the reader's row start at 1568). The same
+over-borrow was in the bottom-row copy. So no pixel was read while written (the
+decode is byte-identical threaded and single-threaded), but a shared borrow of
+memory another thread holds mutably is undefined behaviour in Rust, and a
+release build keeps it: the checker is compiled out, not the overlap. rav1d
+1.1.0 is the latest release; `main` had the same code and the issue tracker no
+report of it on 2026-09-27. The 2026-09-17 note in docs/design/media-player.md
+had called it "rav1d's instrumentation, not this code" and the release build
+unaffected; the first half was right, the second was not.
+
+**Why not single-threaded tests or a single-threaded product.** Tests on one
+thread would hide it while the shipped build kept the overlapping borrow, and
+the product cannot drop rav1d's threads: 1080p decodes at 28.4 fps on one
+thread against 69 with them (docs/design/media-player.md).
+
+**Fix.** `vendor/rav1d`: the published 1.1.0 (minus the assembly our build
+never compiles) with `padding` borrowing exactly the columns it reads,
+`x_start..x_end`, for the top and bottom rows; wired through
+`[patch.crates-io]` in Cargo.toml. vendor/README.md records the change and how
+to return to crates.io once upstream fixes it. Upstream not yet told (a report
+is a public post; the operator's call).
+
+**Verified (2026-09-27, the vendored crate in this checkout).**
+
+| Run | Runs | Aborts | "overlapping DisjointMut" |
+|---|---|---|---|
+| `engine::screens::video`, 12 test threads | 150 | 0 (published crate: 1) | 0 |
+| `rav1d_threaded_decode_stress` | 20 | 0 (published crate: 8) | 0 |
+| the whole lib suite | 5 | 0 | 0 |
+
+At the published crate's stress rate, twenty clean runs would happen by chance
+about 4 times in 100,000. New test `threaded_decode_is_bit_identical_to_single_threaded`
+(not ignored): the fixture decoded with automatic threads is byte-for-byte the
+single-threaded decode, hash `bc2eee527943655c` with the published crate and
+with the patched one. The two "run it in release" notes on the audio-device
+tests are gone.
+
+**Found alongside, not this bug (OPEN).** In the 150 screens runs, 4 failed
+normally (no abort), all in
+`engine::screens::video::tests::a_looked_at_or_paused_clip_draws_and_keeps_input_while_an_unwatched_one_drops_it`;
+the 150 runs on the published crate had 2 such failures. A timing-sensitive
+test under load, to be looked at next (docs/PRIORITIES.md).
