@@ -80,7 +80,8 @@ pub enum GameAction {
     // World / build
     /// B: open / close the construction editor.
     BuildEditor,
-    /// R: show / hide the home roof.
+    /// R: show / hide the home roof. While a built piece is in hand
+    /// (engine/build_place.rs) it turns the piece a quarter instead.
     ToggleRoof,
     /// H: show / hide the ship hull wrap.
     ToggleHull,
@@ -126,7 +127,7 @@ pub const ACTIONS: &[ActionInfo] = &[
     ActionInfo { action: GameAction::ToggleOrtho, id: "toggle_ortho", label: "Ortho view (orbit cam)", category: "Camera", default_primary: "KeyO", default_secondary: "" },
     ActionInfo { action: GameAction::ShoulderSwap, id: "shoulder_swap", label: "Shoulder swap / roll", category: "Camera", default_primary: "KeyQ", default_secondary: "" },
     ActionInfo { action: GameAction::BuildEditor, id: "build_editor", label: "Construction editor", category: "World", default_primary: "KeyB", default_secondary: "" },
-    ActionInfo { action: GameAction::ToggleRoof, id: "toggle_roof", label: "Toggle roof", category: "World", default_primary: "KeyR", default_secondary: "" },
+    ActionInfo { action: GameAction::ToggleRoof, id: "toggle_roof", label: "Toggle roof / turn a piece being placed", category: "World", default_primary: "KeyR", default_secondary: "" },
     ActionInfo { action: GameAction::ToggleHull, id: "toggle_hull", label: "Toggle hull", category: "World", default_primary: "KeyH", default_secondary: "" },
     ActionInfo { action: GameAction::CreatureEditor, id: "creature_editor", label: "Creature editor (dev)", category: "World", default_primary: "KeyG", default_secondary: "" },
 ];

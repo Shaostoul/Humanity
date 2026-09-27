@@ -153,10 +153,26 @@ starts the body over.
   long-sleeve shirt") plus each worn item's `clo` (data/equipment.csv, sources
   in its header). Garment values are summed.
 - **`sheltered`**: under a roof and out of the wind, still air and nothing
-  falling. NOTHING SETS IT YET. It is the input the built structures'
-  `shelter` provision will drive once there is a covered-and-enclosed test
-  over built pieces and a roof can go on walls (docs/FEATURES.md, built beds
-  and chests).
+  falling, at the outside air temperature (a shelter with no fire is as cold
+  as the weather; it stops the wind and the wet). SET SINCE 2026-09-27 by the
+  built pieces: outside the home, `construction::uses::shelter_at` finds a
+  finished `shelter` piece straight overhead (the roof) and finished `shelter`
+  pieces on at least three of the four sides within half a metre of the
+  roof's edge, and `engine::survival_env::outside_context` passes that on.
+  `Exposure::from_context` then zeroes the wind and the precipitation, so the
+  air at the body is still and the clothes stay dry. A roof with fewer walls
+  is not `sheltered`, but `outside_context` still zeroes the precipitation
+  under it: rain off, wind in. Three sides, not four, is
+  a game choice: the open side is the way in (doors cannot be set into walls
+  yet), as in a lean-to. On the wet, windy 5 C case above, standing in the
+  everyday outfit, the core is 36.66 C after 6 h under a roof on three walls
+  and 36.28 C soaked in the open
+  (`a_built_shelter_keeps_a_wet_windy_5c_day_off_the_body`). What it does not
+  know yet: which way the wind blows (the weather has a direction, so an open
+  side facing into the wind could count against it, and a wall on the lee
+  side matters less than one on the windward side), a shelter's own radiant
+  warmth (walls around a person are warmer than a clear night sky: the
+  `radiant_temp_c` input below), and rain driven sideways under the eaves.
 - `radiant_temp_c`: the surroundings' radiant temperature. None means the air
   temperature, which is all that is known today.
 

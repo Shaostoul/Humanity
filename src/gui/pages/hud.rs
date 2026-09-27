@@ -626,6 +626,12 @@ pub fn draw(
                     }
                 }
             }
+            // A built piece in hand (2026-09-27, engine/build_place.rs): what
+            // it is, how it is turned, and its keys. Placing owns E, so the
+            // bed / chest prompt below is empty meanwhile.
+            if let Some(hint) = state.build_placing.as_ref().map(|p| &p.hint).filter(|h| !h.is_empty()) {
+                text_shadowed(painter, Pos2::new(center.x, center.y + 22.0), Align2::CENTER_TOP, hint, 13.0, theme.accent());
+            }
             // Built bed / chest prompt (2026-09-27, engine/built_uses.rs): set
             // only when nothing the E chain tries first is targeted.
             if !state.structure_prompt.is_empty() && state.npc_prompt.is_empty() {
@@ -1053,6 +1059,12 @@ pub(crate) fn vital_rows(v: &crate::gui::GuiVitals, mode: crate::config::HudVita
     if always || t_out {
         let severity = if t < BODY_TEMP_DANGER.0 || t > BODY_TEMP_DANGER.1 { 2 } else if t_out { 1 } else { 0 };
         rows.push(VitalRow { label: "Body", frac: None, text: format!("{t:.1} °C"), severity });
+    }
+    // Shelter (2026-09-27): outside, under a built roof, say whether the
+    // walls keep the wind off too, or how many are still missing. In the
+    // open (no roof) and indoors there is nothing to say.
+    if !v.sealed && !v.shelter_note.is_empty() {
+        rows.push(VitalRow { label: "Shelter", frac: None, text: v.shelter_note.clone(), severity: if v.sheltered { 0 } else { 1 } });
     }
     let waste = if v.waste_max > 0.0 { (v.waste / v.waste_max).clamp(0.0, 1.0) } else { 0.0 };
     if always || waste > 0.5 {
@@ -1651,6 +1663,8 @@ mod crew_label_tests {
             oxygen_max: 100.0,
             waste_max: 100.0,
             sealed,
+            sheltered: false,
+            shelter_note: String::new(),
             effects: Vec::new(),
         }
     }
@@ -1688,6 +1702,31 @@ mod crew_label_tests {
 
         let unsynced = crate::gui::GuiVitals::default();
         assert!(vital_rows(&unsynced, HudVitals::Always).is_empty(), "no vitals yet, no rows");
+    }
+
+    /// The HUD says "Sheltered" outside under a built shelter (2026-09-27),
+    /// and what is missing under a roof with too few walls; nothing in the
+    /// open, nothing indoors, nothing in Off. Red check, run: without the
+    /// Shelter row in `vital_rows` the first assertion fails.
+    #[test]
+    fn the_hud_says_sheltered_under_a_built_shelter() {
+        use crate::config::HudVitals;
+        let mut v = vitals(90.0, 90.0, 90.0, 100.0, false, 36.8, 10.0);
+        v.sheltered = true;
+        v.shelter_note = "Sheltered".into();
+        let rows = vital_rows(&v, HudVitals::WhenLow);
+        let row = rows.iter().find(|r| r.label == "Shelter").expect("a Shelter row outside under a roof");
+        assert_eq!((row.text.as_str(), row.severity), ("Sheltered", 0));
+        v.sheltered = false;
+        v.shelter_note = "Out of the rain, 2 of 3 walls".into();
+        let rows = vital_rows(&v, HudVitals::WhenLow);
+        assert_eq!(rows.iter().find(|r| r.label == "Shelter").map(|r| r.severity), Some(1), "missing walls need attention");
+        v.shelter_note.clear();
+        assert!(!labels(&vital_rows(&v, HudVitals::Always)).contains(&"Shelter"), "the open: no line");
+        let mut home = vitals(90.0, 90.0, 90.0, 100.0, true, 36.8, 10.0);
+        home.shelter_note = "Sheltered".into();
+        assert!(!labels(&vital_rows(&home, HudVitals::Always)).contains(&"Shelter"), "sealed indoors says Sealed elsewhere");
+        assert!(vital_rows(&v, HudVitals::Off).is_empty());
     }
 
     #[test]

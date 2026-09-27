@@ -486,17 +486,26 @@ between the simulation and the person. Its tier ladder is the build order.
   setting); and built things that work (a Furnace is a smelter and kiln, a Crafting
   Table is a workbench, a bed sleeps the night, a chest holds items across
   restarts: `construction/uses.rs`, `systems/sleep.rs`,
-  `engine/built_uses.rs`). Remaining: a scripted first-run sequence in the
-  world; the server clock for offline progression in multiplayer; and
-  `shelter`, whose input in the body model shipped with the heat balance
-  (v0.1388.0) and which now waits only on placement: nothing can put a roof
-  overhead yet (FEATURES.md Construction says what it needs).
+  `engine/built_uses.rs`); and `shelter` (2026-09-27): Build puts the piece in
+  hand with a ghost at the crosshair, R turns it, E builds it there
+  (`engine/build_place.rs`), a roof (`mount: OnTop`) rests on the walls it
+  covers, and a roof on three walls over the player keeps wind and rain off the
+  body heat model (a roof alone keeps the rain off), shown on the HUD.
+  Remaining: a scripted first-run sequence in the world; the server clock for
+  offline progression in multiplayer; for shelter, wind direction against the
+  open side and the walls' radiant warmth.
 - **Tier B (make the construction tool good enough to build a city).** Pick one
   canonical layout schema of the three that exist; the four multi-storey
   blockers in order, starting with a base Y on `InteriorWall`; collision for
   generated geometry; then author the acre with the tool. The report argues the
   tool over hand-authoring on evidence: the four code blockers stopping a second
-  storey are the same four stopping the editor.
+  storey are the same four stopping the editor. Built blueprint pieces got
+  their first rung of this on 2026-09-27 (quarter turns, a roof resting on the
+  walls, walls on a foundation, one placement function for ghost and build),
+  and share the rest of the list: nothing stands on a roof yet (no second
+  storey), doors and windows cannot be set into a wall, built pieces have no
+  collision (you walk through them), and they are a third shape beside the
+  home editor's `InteriorWall` and the ship structure pieces.
 - **Tier C (make the world look right).** Un-gate hero plant models for towers;
   the conduit render pass; models for the machines a player stands in front of
   daily; read `mesh_kind` in `zone_filler.ron`.

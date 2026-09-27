@@ -33,6 +33,7 @@
         (action: "Hotbar abilities", keys: "1 - 9"),
         (action: "Construction editor", keys: "B"),
         (action: "Toggle roof", keys: "R"),
+        (action: "Placing a built piece (Build on the Crafting page): build it / turn it / done", keys: "E / R / Esc"),
         (action: "Toggle hull", keys: "H"),
         (action: "First / third person", keys: "V"),
         (action: "Orbit camera", keys: "M"),

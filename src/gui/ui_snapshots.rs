@@ -118,6 +118,8 @@ fn demo_state() -> GuiState {
         oxygen_max: 100.0,
         waste_max: 100.0,
         sealed: true,
+        sheltered: false,
+        shelter_note: String::new(),
         effects: vec![("Well-fed".into(), 180.0), ("Rested".into(), 90.0)],
     };
     let mut items = vec![
@@ -901,6 +903,8 @@ fn settings_panel(
             oxygen_max: 100.0,
             waste_max: 100.0,
             sealed: false,
+            sheltered: false,
+            shelter_note: "Out of the rain, 2 of 3 walls".into(),
             effects: Vec::new(),
         };
         state.quests = vec![crate::gui::GuiQuest {

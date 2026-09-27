@@ -725,6 +725,23 @@ pub struct GuiBlueprint {
     pub stations: Vec<String>,
 }
 
+/// A blueprint picked up for placement (2026-09-27, `engine::build_place`):
+/// Build on the Crafting page puts it in hand, a see-through ghost follows
+/// the crosshair, R turns it, E builds it there, Esc puts it down.
+#[cfg(feature = "native")]
+#[derive(Debug, Clone)]
+pub struct BuildPlacing {
+    pub blueprint_id: String,
+    pub name: String,
+    /// Quarter turns about the vertical, 0 to 3.
+    pub quarter_turns: u8,
+    /// Where it would be built this frame, None when it cannot be placed
+    /// from here (not in first person, or driving).
+    pub ghost: Option<crate::ecs::components::Transform>,
+    /// The line under the crosshair: what is in hand and its keys.
+    pub hint: String,
+}
+
 /// Player survival vitals for GUI display (synced from the ECS each frame).
 #[cfg(feature = "native")]
 #[derive(Debug, Clone, Default)]
@@ -742,6 +759,12 @@ pub struct GuiVitals {
     pub waste_max: f32,
     /// True if the player is in a sealed/oxygenated space (else exposed/vacuum).
     pub sealed: bool,
+    /// Outside, under a built roof with enough walls (2026-09-27,
+    /// `construction::uses::shelter_at`): the wind and rain do not reach them.
+    pub sheltered: bool,
+    /// The HUD's Shelter line: "Sheltered", what is missing under a roof
+    /// ("Out of the rain, 2 of 3 walls"), or empty in the open or indoors.
+    pub shelter_note: String,
     /// Active status effects: (display name, seconds remaining).
     pub effects: Vec<(String, f32)>,
 }

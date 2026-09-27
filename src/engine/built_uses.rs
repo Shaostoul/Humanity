@@ -30,11 +30,14 @@ pub(crate) fn frame(state: &mut EngineState) {
 /// The usable built structure under the crosshair, when nothing else is
 /// claiming the E key: a page, the build editor, a vehicle, an animal, a
 /// person, a door panel or a home machine all come first, in the same order
-/// the E chain in lib.rs tries them.
+/// the E chain in lib.rs tries them. A built piece in hand comes before all
+/// of them (lib.rs asks `build_place::key` first).
 fn target(state: &EngineState) -> Option<(uses::StructureUse, String)> {
     let g = &state.gui_state;
     let busy = g.active_page != crate::gui::GuiPage::None
         || g.construction_active
+        // A piece in hand: E builds it (engine/build_place.rs).
+        || g.build_placing.is_some()
         || g.showroom_active
         || state.camera.mode != crate::renderer::camera::CameraMode::FirstPerson
         || state.driving_vehicle.is_some()

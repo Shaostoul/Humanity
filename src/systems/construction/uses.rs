@@ -19,11 +19,15 @@
 //! is data. Any blueprint that says `provides: Some("rest")` is somewhere to
 //! sleep, whatever its id, so a bunk or a hammock is a data edit.
 //!
-//! `shelter` (walls, roofs) is deliberately not here: what a shelter keeps
-//! off you (wind, rain, the night sky) does not exist in the body model yet.
-//! docs/FEATURES.md says what it needs.
+//! `shelter` (walls, roofs) is not an E use: it works by standing in it
+//! (2026-09-27). [`shelter_at`] says whether the player is under a built roof
+//! with walls around them, and `engine::survival_env` feeds that to the body
+//! heat model as `EnvironmentContext::sheltered`: still air and nothing
+//! falling. Like `rest` and `storage`, which pieces shelter is data (any
+//! blueprint with `provides: Some("shelter")`), and which of them is the roof
+//! is where it stands (overhead), not its id or category.
 
-use super::{BlueprintRegistry, Structure};
+use super::{placement, BlueprintRegistry, Structure};
 use crate::ecs::components::Transform;
 use glam::Vec3;
 
@@ -179,6 +183,106 @@ pub fn built_stores(world: &hecs::World, registry: Option<&BlueprintRegistry>) -
         .collect()
 }
 
+// -- Shelter ---------------------------------------------------------------------
+
+/// The `provides` a built piece carries when it keeps weather off (walls, roofs).
+pub const SHELTER: &str = "shelter";
+/// Walled sides needed, with a roof overhead, to count as sheltered: three of
+/// the four. A roof alone keeps the rain off but not the wind; walls on three
+/// sides stop the wind from most of the compass and leave the fourth open as
+/// a way in, which is how a lean-to or a three-sided field shelter is built
+/// (doors cannot be set into a wall yet, so a fully closed room would have no
+/// door). A GAME CHOICE: the weather's wind has a direction, and a later rule
+/// could ask whether the open side faces into it.
+pub const SHELTER_MIN_WALLS: u8 = 3;
+/// Where the side rays run from, metres above the feet: chest height, so a
+/// wall counts when it stands between the wind and the body.
+const SHELTER_CHEST_M: f32 = 1.0;
+/// A roof's underside must clear the head: at least this far above the chest
+/// (1.8 m above the feet)...
+const SHELTER_HEADROOM_M: f32 = 0.8;
+/// ...and no farther above it than this.
+const SHELTER_ROOF_REACH_M: f32 = 8.0;
+/// A wall counts for a side when it stands inside the roof's footprint or no
+/// more than this far outside its edge (a wall just outside the roof line
+/// still keeps the wind off what is under it).
+const SHELTER_EAVE_M: f32 = 0.5;
+
+/// What the built pieces around a spot do against the weather.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct ShelterCheck {
+    /// A finished shelter piece is overhead.
+    pub roofed: bool,
+    /// How many of the four sides (east, west, north, south) have a finished
+    /// shelter piece within the roof's reach. 0 without a roof.
+    pub walled_sides: u8,
+}
+
+impl ShelterCheck {
+    /// Under a roof with enough walls: the wind and the rain do not reach
+    /// the body.
+    pub fn sheltered(&self) -> bool {
+        self.roofed && self.walled_sides >= SHELTER_MIN_WALLS
+    }
+
+    /// One line for the HUD: "Sheltered", or under a roof with walls missing
+    /// that the rain is off and how many walls there are, or empty in the
+    /// open.
+    pub fn note(&self) -> String {
+        if self.sheltered() {
+            "Sheltered".to_string()
+        } else if self.roofed {
+            format!("Out of the rain, {} of {} walls", self.walled_sides, SHELTER_MIN_WALLS)
+        } else {
+            String::new()
+        }
+    }
+}
+
+/// Is a person standing with their feet at `feet` under a finished roof with
+/// walls around them? The roof is the nearest finished shelter piece
+/// straight overhead (clearing the head, within 8 m). Each side is walled
+/// when a level ray at chest height, east, west, north or south, meets
+/// another finished shelter piece before it is more than half a metre past
+/// the roof's edge. Scaffolds shelter nothing. The boxes are the ones the
+/// renderer draws (`ray_hits_box`).
+pub fn shelter_at(world: &hecs::World, feet: Vec3) -> ShelterCheck {
+    let chest = feet + Vec3::Y * SHELTER_CHEST_M;
+    let pieces: Vec<(hecs::Entity, Transform)> = world
+        .query::<(&Structure, &Transform)>()
+        .iter()
+        .filter(|(_e, (s, _))| s.provides.as_deref() == Some(SHELTER))
+        .map(|(e, (_, tf))| (e, tf.clone()))
+        .collect();
+    let roof = pieces
+        .iter()
+        .filter_map(|(e, tf)| {
+            let t = ray_hits_box(chest, Vec3::Y, tf)?;
+            (SHELTER_HEADROOM_M..=SHELTER_ROOF_REACH_M).contains(&t).then_some((*e, tf, t))
+        })
+        .min_by(|a, b| a.2.total_cmp(&b.2));
+    let Some((roof_e, roof_tf, _)) = roof else { return ShelterCheck::default() };
+    let (lo, hi) = placement::world_aabb(roof_tf);
+    let sides = [
+        (Vec3::X, hi.x - chest.x),
+        (Vec3::NEG_X, chest.x - lo.x),
+        (Vec3::Z, hi.z - chest.z),
+        (Vec3::NEG_Z, chest.z - lo.z),
+    ];
+    let walled = sides
+        .iter()
+        .filter(|(dir, to_edge)| {
+            let reach = to_edge.max(0.0) + SHELTER_EAVE_M;
+            // A hit at 0 is a wall the person is standing inside (nothing
+            // stops walking through built pieces yet): it shelters no side.
+            pieces
+                .iter()
+                .any(|(e, tf)| *e != roof_e && ray_hits_box(chest, *dir, tf).is_some_and(|t| t > 1e-4 && t <= reach))
+        })
+        .count() as u8;
+    ShelterCheck { roofed: true, walled_sides: walled }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -295,5 +399,80 @@ mod tests {
                 ("built:7".to_string(), "Storage Chest 2".to_string()),
             ]
         );
+    }
+
+    /// Place a finished piece the way the ConstructionSystem does
+    /// (`placement::placement_pose`), so a roof lands on the walls.
+    fn place(world: &mut hecs::World, reg: &BlueprintRegistry, id: &str, x: f32, z: f32, turns: u8) {
+        let bp = reg.get(id).unwrap_or_else(|| panic!("{id} in basic.ron"));
+        let tf = placement::placement_pose(bp, Vec3::new(x, 0.0, z), turns, world, reg);
+        world.spawn((tf, Structure { blueprint_id: id.into(), health: bp.health, max_health: bp.health, provides: bp.provides.clone(), uid: 0 }));
+    }
+
+    /// THE SHELTER RULE (2026-09-27). Under a roof on three walls you are
+    /// sheltered, and under four; under a roof on two walls you are not (the
+    /// note says what is missing), nor under a roof alone, nor in a roofless
+    /// room, nor in the open, nor just outside the shelter, nor under a roof
+    /// still going up, nor with a wall so far past the roof's edge that it
+    /// keeps nothing off you. Red check, run: making `sheltered()` true under
+    /// any roof (`self.roofed || ...`) fails the two-walls assertion.
+    #[test]
+    fn a_roof_on_three_walls_shelters_and_a_roof_alone_does_not() {
+        let reg = shipped();
+        let feet = Vec3::new(0.0, 0.0, 0.5);
+        assert_eq!(shelter_at(&hecs::World::new(), feet), ShelterCheck::default(), "the open");
+
+        // North and west walls, then the roof over them: two sides.
+        let mut world = hecs::World::new();
+        place(&mut world, &reg, "wood_wall", 0.0, -2.0, 0);
+        place(&mut world, &reg, "wood_wall", -2.0, 0.0, 1);
+        let mut roofless = hecs::World::new();
+        place(&mut roofless, &reg, "wood_wall", 0.0, -2.0, 0);
+        place(&mut roofless, &reg, "wood_wall", -2.0, 0.0, 1);
+        place(&mut roofless, &reg, "wood_wall", 2.0, 0.0, 1);
+        place(&mut roofless, &reg, "wood_wall", 0.0, 2.0, 0);
+        assert!(!shelter_at(&roofless, feet).roofed, "four walls and no roof is open to the rain");
+        place(&mut world, &reg, "roof", 0.0, 0.0, 0);
+        let two = shelter_at(&world, feet);
+        assert_eq!(two, ShelterCheck { roofed: true, walled_sides: 2 });
+        assert!(!two.sheltered(), "two walls leave the wind in");
+        assert_eq!(two.note(), "Out of the rain, 2 of 3 walls");
+
+        // The east wall: three sides, sheltered. The south wall: four.
+        place(&mut world, &reg, "wood_wall", 2.0, 0.0, 1);
+        let three = shelter_at(&world, feet);
+        assert!(three.sheltered() && three.walled_sides == 3, "{three:?}");
+        assert_eq!(three.note(), "Sheltered");
+        place(&mut world, &reg, "wood_wall", 0.0, 2.0, 0);
+        assert_eq!(shelter_at(&world, feet).walled_sides, 4);
+        // Anywhere under it, and not a step outside it.
+        assert!(shelter_at(&world, Vec3::new(1.5, 0.0, -1.5)).sheltered());
+        assert_eq!(shelter_at(&world, Vec3::new(5.0, 0.0, 0.0)), ShelterCheck::default(), "outside the east wall");
+
+        // A roof alone (on posts nothing here builds): rain off, wind in.
+        let mut alone = hecs::World::new();
+        let roof = reg.get("roof").unwrap();
+        alone.spawn((
+            Transform { position: Vec3::new(0.0, 3.0, 0.0), rotation: Quat::IDENTITY, scale: Vec3::from_array(roof.size) },
+            Structure { blueprint_id: "roof".into(), health: 1.0, max_health: 1.0, provides: roof.provides.clone(), uid: 0 },
+        ));
+        let a = shelter_at(&alone, feet);
+        assert!(a.roofed && a.walled_sides == 0 && !a.sheltered(), "{a:?}");
+        // Walls well beyond the roof's edge keep nothing off the person under it.
+        for (x, z, t) in [(0.0, -6.0, 0), (-6.0, 0.0, 1), (6.0, 0.0, 1)] {
+            place(&mut alone, &reg, "wood_wall", x, z, t);
+        }
+        assert_eq!(shelter_at(&alone, feet).walled_sides, 0, "walls 4 m past the eaves");
+
+        // A roof still going up keeps nothing off.
+        let mut scaffold = hecs::World::new();
+        for (x, z, t) in [(0.0, -2.0, 0), (-2.0, 0.0, 1), (2.0, 0.0, 1)] {
+            place(&mut scaffold, &reg, "wood_wall", x, z, t);
+        }
+        scaffold.spawn((
+            Transform { position: Vec3::new(0.0, 3.0, 0.0), rotation: Quat::IDENTITY, scale: Vec3::from_array(roof.size) },
+            Construction { blueprint_id: "roof".into(), progress: 1.0, build_time: 6.0, builder_key: None },
+        ));
+        assert!(!shelter_at(&scaffold, feet).roofed, "a scaffold is not a roof yet");
     }
 }

@@ -1247,9 +1247,9 @@ mod native_app {
             // bridge surfaces it as the death screen.
             data_store.insert("player_death", std::sync::Mutex::new(Option::<String>::None));
             // Blueprint building (v0.746, ladder rung 2): the Crafting page's
-            // Structures section queues (blueprint id, world position) builds;
+            // Structures section queues builds (engine/build_place.rs, E while placing);
             // ConstructionSystem drains them + reports one honest status line.
-            data_store.insert("build_request", std::sync::Mutex::new(Vec::<(String, Vec3)>::new()));
+            data_store.insert("build_request", std::sync::Mutex::new(Vec::<crate::systems::construction::BuildRequest>::new()));
             data_store.insert("build_status", std::sync::Mutex::new(String::new()));
             // World rewind signal (v0.679 review fix): raised right after
             // apply_save_to_world rewinds the live world (launcher character
@@ -2274,6 +2274,10 @@ mod native_app {
                             }
                         }
 
+                        // A built piece in hand (engine/build_place.rs): E builds, R turns, Esc stops.
+                        if pressed && crate::engine::build_place::key(state, &key_name, key == KeyCode::Escape, event.repeat) {
+                            return;
+                        }
                         // Undo/redo in the construction editor (v0.575): Ctrl+Z undo, Ctrl+Shift+Z (or
                         // Ctrl+Y) redo. Gated to build mode so it never fights the chat Ctrl+V path.
                         if pressed && state.ctrl_held && state.gui_state.construction_active {
@@ -12018,26 +12022,9 @@ mod native_app {
                     }
 
                     // ── Blueprint building bridges (v0.746, ladder rung 2) ──
-                    // Build clicked: place 4 m in front of the camera at floor
-                    // level; ConstructionSystem snaps to the metre grid, checks
-                    // + consumes materials, and runs the timed build.
-                    if let Some(bp_id) = state.gui_state.pending_build.take() {
-                        let (sin_yaw, cos_yaw) = state.camera.yaw.sin_cos();
-                        let forward = Vec3::new(-sin_yaw, 0.0, -cos_yaw);
-                        let pos = Vec3::new(
-                            state.camera.position.x + forward.x * 4.0,
-                            0.0,
-                            state.camera.position.z + forward.z * 4.0,
-                        );
-                        if let Some(chan) = state
-                            .data_store
-                            .get::<std::sync::Mutex<Vec<(String, Vec3)>>>("build_request")
-                        {
-                            if let Ok(mut c) = chan.lock() {
-                                c.push((bp_id, pos));
-                            }
-                        }
-                    }
+                    // Build clicked puts the piece in hand; the ghost, R to turn
+                    // and E to build it there live in engine/build_place.rs.
+                    crate::engine::build_place::frame(state);
                     // Status line + the blueprint catalog (bridged once).
                     if let Some(slot) =
                         state.data_store.get::<std::sync::Mutex<String>>("build_status")
@@ -13155,6 +13142,10 @@ mod native_app {
                                 mesh: unit_box,
                                 material: mat_for(&s.blueprint_id),
                             });
+                        }
+                        // The piece in hand (engine/build_place.rs): a half-dithered scaffold where it would go.
+                        if let Some(g) = state.gui_state.build_placing.as_ref().and_then(|p| p.ghost.as_ref()) {
+                            all_objects.push(RenderObject { fade: 0.5, position: g.position, rotation: g.rotation, scale: g.scale, mesh: unit_box, material: scaffold_mat });
                         }
                     }
 

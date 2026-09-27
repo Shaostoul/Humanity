@@ -1552,6 +1552,55 @@ mod tests {
         assert_eq!(back.constructions, save.constructions);
     }
 
+    /// A wall the player turned is built turned, saved turned, and comes back
+    /// turned (2026-09-27). The whole path: a build request with a quarter
+    /// turn through the ConstructionSystem (materials, the timed build,
+    /// completion), the save as written on exit, JSON, and the restore. Red
+    /// check, run: the ConstructionSystem spawning with `Quat::IDENTITY`, as
+    /// it did before placement could turn anything, fails the first
+    /// assertion.
+    #[test]
+    fn a_turned_wall_is_saved_turned_and_comes_back_turned() {
+        use crate::ecs::components::{Controllable, Transform};
+        use crate::systems::construction::{placement, BlueprintRegistry, BuildRequest, ConstructionSystem, Structure};
+        use crate::systems::inventory::Inventory;
+        use crate::ecs::systems::System;
+        let reg = BlueprintRegistry::from_ron(include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/data/blueprints/basic.ron"))).unwrap();
+        let wall = reg.get("wood_wall").unwrap().clone();
+        let mut data = crate::hot_reload::data_store::DataStore::new();
+        data.insert("blueprint_registry", reg);
+        let request = BuildRequest { blueprint_id: "wood_wall".into(), at: glam::Vec3::new(2.0, 0.0, 0.0), quarter_turns: 1 };
+        data.insert("build_request", std::sync::Mutex::new(vec![request]));
+        data.insert("build_status", std::sync::Mutex::new(String::new()));
+        data.insert("quest_events", std::sync::Mutex::new(Vec::<String>::new()));
+        let mut world = hecs::World::new();
+        let mut inv = Inventory::new(16);
+        for (id, qty) in &wall.materials {
+            inv.add_item(id, *qty, 99);
+        }
+        world.spawn((inv, Controllable));
+        let mut sys = ConstructionSystem::new();
+        sys.tick(&mut world, 0.05, &data);
+        sys.tick(&mut world, wall.build_time + 1.0, &data);
+        let turned = placement::quarter_turn(1);
+        let built: Vec<glam::Quat> = world.query::<(&Structure, &Transform)>().iter().map(|(_, (_, t))| t.rotation).collect();
+        assert_eq!(built.len(), 1);
+        // Same rotation: |q1 . q2| is 1 (acos-based angle_between is too
+        // coarse in f32 to tell an exact match from a 0.02 degree miss).
+        let same = |q: glam::Quat| q.dot(turned).abs() > 1.0 - 1e-6;
+        assert!(same(built[0]), "built turned: {:?}", built[0]);
+
+        let save = extract_world_save(&world);
+        let back: WorldSave = serde_json::from_str(&serde_json::to_string(&save).unwrap()).unwrap();
+        let mut fresh = hecs::World::new();
+        apply_save_to_world(&mut fresh, &back);
+        let restored: Vec<Transform> = fresh.query::<(&Structure, &Transform)>().iter().map(|(_, (_, t))| t.clone()).collect();
+        assert_eq!(restored.len(), 1);
+        assert!(same(restored[0].rotation), "restored turned: {:?}", restored[0].rotation);
+        let (lo, hi) = placement::world_aabb(&restored[0]);
+        assert!((hi.z - lo.z - 4.0).abs() < 1e-3, "still runs north-south: {lo} {hi}");
+    }
+
     /// A built chest and what is in it survive a restart (2026-09-27): the
     /// chest comes back with the SAME uid, so its places-tree node comes back
     /// at the same path, and the item filed there is in it again. Red check:

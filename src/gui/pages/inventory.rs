@@ -1528,6 +1528,10 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                     // whether there is air, this only says where you are.
                     if state.vitals.sealed {
                         ui.label(RichText::new("Sealed").size(theme.font_size_small).color(theme.accent()));
+                    } else if state.vitals.sheltered {
+                        // Under a built roof on enough walls (2026-09-27): out
+                        // of the wind and rain, at the outside temperature.
+                        ui.label(RichText::new("Sheltered").size(theme.font_size_small).color(theme.accent()));
                     } else {
                         ui.label(RichText::new("Outside").size(theme.font_size_small).color(theme.warning()));
                     }

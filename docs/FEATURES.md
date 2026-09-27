@@ -1826,15 +1826,35 @@ in by data, no ids in code; the first structure the look ray meets wins, so a wa
   building. Its items are placed items filed under `built:<uid>`; `Structure.uid` is saved with the structure,
   so the chest comes back at the same address and its contents with it. E on the chest opens the Inventory
   page. No volume limit yet: no places container has one.
-- `provides: "shelter"` (walls, roof) is NOT wired yet. The heat-balance body it needed now exists (Body heat,
-  below, 2026-09-27) and takes a `sheltered` input (still air, no rain) that nothing sets yet. What is left: a
-  covered-and-enclosed test over built pieces (the ray test in `uses.rs` is the start of one), and placement
-  that can put a roof on walls (the build menu places everything at floor level with no rotation, so a roof
-  cannot go overhead and walls only run east-west).
-- Native: `src/systems/construction/mod.rs`, `src/systems/construction/uses.rs`, `src/systems/sleep.rs`,
-  `src/engine/built_uses.rs` (prompt, E press, chest sync), `src/gui/organize.rs` (`place_path`,
-  `sync_built_stores`), `src/gui/pages/hud.rs` (the prompt)
-- Data: `data/blueprints/basic.ron`
+- `provides: "shelter"` (walls, roof) **shelters (2026-09-27).** Standing outside under a finished shelter
+  piece overhead (the roof: whichever shelter piece is straight above the head, not an id or category) with
+  finished shelter pieces on at least THREE of the four sides within half a metre of the roof's edge
+  (`uses::shelter_at`, level rays at chest height) sets `EnvironmentContext::sheltered`, so the body heat
+  model gets still air and nothing falling at the outside temperature. The fourth side is left open as the way
+  in (doors cannot be set into walls yet), like a lean-to. On a wet, windy 5 C day the everyday outfit holds
+  36.66 C after 6 h under it, against 36.28 C soaked in the open. A roof with walls missing keeps the rain and
+  snow off but not the wind. The HUD's survival rows say "Sheltered" (or "Out of the rain, 2 of 3 walls"), and
+  the Inventory page's readout says Sealed / Sheltered / Outside.
+
+**Placing a built piece (2026-09-27).** Build on the Crafting page's Structures now puts the piece IN HAND
+(`engine/build_place.rs`): the page closes and a half-dithered scaffold ghost follows the crosshair, on the floor
+point the look ray meets (1.5 to 8 m ahead, 4 m when looking level). The Toggle roof key (R) turns it a quarter,
+Interact (E) builds it where the ghost stands and keeps it in hand for the next one, Esc puts it down; the hint
+under the crosshair says so with the player's own keys. Where it lands is one function,
+`construction::placement::placement_pose`, used by the ghost and the ConstructionSystem alike: x and z on the
+metre grid, the turn saved in the Structure's rotation, and y on the floor or, for a blueprint with
+`mount: OnTop`, on top of the tallest finished `snap_to` piece its footprint covers (a roof on the walls at 3 m,
+walls on a foundation at 0.2 m). Before this every piece went 4 m ahead at world y 0, unturned (and mirrored
+left-right off the look direction by a sign slip in the old bridge). Still missing: a door or window set INTO
+a wall (they sit on the floor); a second storey (nothing stands on a roof yet); collision for built pieces (you
+walk through walls); the one canonical layout schema (built pieces, the home editor's `InteriorWall`s and the
+ship structure pieces are three different shapes).
+- Native: `src/systems/construction/mod.rs`, `src/systems/construction/placement.rs`,
+  `src/systems/construction/uses.rs`, `src/systems/sleep.rs`, `src/engine/built_uses.rs` (prompt, E press,
+  chest sync), `src/engine/build_place.rs` (the piece in hand), `src/engine/survival_env.rs` (shelter to the
+  body), `src/gui/organize.rs` (`place_path`, `sync_built_stores`), `src/gui/pages/hud.rs` (the prompts and
+  the Shelter row)
+- Data: `data/blueprints/basic.ron` (`mount`, `provides`, `snap_to`)
 
 ### Body heat (2026-09-27)
 The core temperature is a heat balance, not a drift toward the air. Before this, the core moved toward the air
@@ -1855,8 +1875,9 @@ and measured human trials (Helland et al. 2025; Thompson and Hayward 1996).
   the body shivers. Lasting harm only below 32 C (moderate hypothermia) and above 40 C (heatstroke).
 - **Two modes** (Settings > Gameplay > Body heat): **Forgiving** (the default: the same physics, the core swings
   half as far from normal and harm comes at half the rate, so it can never kill sooner) and **Realistic**.
-- Inputs: `EnvironmentContext` (air, humidity, wind, precipitation, pressure, activity, and a `sheltered` flag
-  nothing sets yet: the built structures' `shelter` provision will), published by `engine::survival_env`.
+- Inputs: `EnvironmentContext` (air, humidity, wind, precipitation, pressure, activity, and `sheltered`, set
+  since 2026-09-27 when a built roof on three walls is over the player: Construction, above), published by
+  `engine::survival_env`.
 - Native: `src/systems/body_heat.rs` (model, tests in `body_heat_tests.rs`), `src/systems/food.rs` (the vitals
   pass), `src/engine/survival_env.rs` (inputs), `src/gui/pages/settings.rs` (mode)
 - Data: `data/equipment.csv` (`clo`), `data/status_effects.csv` (the four conditions)

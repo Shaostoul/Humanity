@@ -1479,9 +1479,11 @@ pub struct GuiState {
     /// blueprint_registry for the Crafting page's Structures section
     /// (v0.746, closure ladder rung 2).
     pub blueprints: Vec<GuiBlueprint>,
-    /// Blueprint id the player clicked Build on this frame; lib.rs turns it
-    /// into a "build_request" at a spot in front of the camera.
+    /// Blueprint id the player clicked Build on this frame; engine/build_place.rs
+    /// puts it in hand (`build_placing`) for placing in the world.
     pub pending_build: Option<String>,
+    /// The blueprint in hand while placing (2026-09-27), None otherwise.
+    pub build_placing: Option<BuildPlacing>,
     /// ConstructionSystem's honest status line ("need 4x wood_plank to build
     /// Wooden Wall", "Building...", "... complete"), synced each frame.
     pub build_status: String,
@@ -3626,6 +3628,7 @@ impl Default for GuiState {
             craft_status: String::new(),
             blueprints: Vec::new(),
             pending_build: None,
+            build_placing: None,
             build_status: String::new(),
             pending_consume_item: None,
             pending_drink_item: None,

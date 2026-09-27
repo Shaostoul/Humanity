@@ -6,6 +6,7 @@
 pub mod structural;
 pub mod routing;
 pub mod solver;
+pub mod placement;
 pub mod uses;
 
 use crate::ecs::components::Transform;
@@ -25,6 +26,11 @@ pub struct Blueprint {
     pub build_time: f32,
     pub size: [f32; 3],
     pub snap_to: Vec<String>,
+    /// Where the placed piece sits (2026-09-27): on the floor, or on top of
+    /// the `snap_to` pieces its footprint covers (a roof on walls). See
+    /// `Mount` and `placement::placement_pose`.
+    #[serde(default)]
+    pub mount: Mount,
     pub health: f32,
     pub provides: Option<String>,
     /// Machine types this structure serves as once BUILT (2026-09-25): a
@@ -47,6 +53,42 @@ pub struct Blueprint {
     /// Shed priority (1 critical .. 5 optional), as the machines use.
     #[serde(default)]
     pub power_priority: u8,
+}
+
+/// Where a placed piece sits (2026-09-27). Data, not code: a blueprint says
+/// `mount: OnTop` and the placement reads it, so any new piece that goes on
+/// top of others (a second roof, a shelf on a bench) is a data edit.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize)]
+pub enum Mount {
+    /// On the floor where it is placed (the default).
+    #[default]
+    Floor,
+    /// On top of the `snap_to` pieces its footprint covers, at the height of
+    /// the tallest of them; on the floor where there are none. A roof over
+    /// walls rests at the walls' height, a wall on a foundation on the
+    /// foundation.
+    OnTop,
+}
+
+/// One build the player asked for (2026-09-27): the blueprint, the floor
+/// point they aimed at, and how far they turned it. The ConstructionSystem
+/// turns it into a pose with `placement::placement_pose`, the same function
+/// the ghost preview uses, so the piece is built where the ghost stood.
+#[derive(Debug, Clone, PartialEq)]
+pub struct BuildRequest {
+    pub blueprint_id: String,
+    /// The floor point aimed at. x and z snap to the metre grid; y is the
+    /// floor the piece is placed from.
+    pub at: Vec3,
+    /// Quarter turns about the vertical, 0 to 3 (R while placing).
+    pub quarter_turns: u8,
+}
+
+impl BuildRequest {
+    /// A request with no turn.
+    pub fn new(blueprint_id: impl Into<String>, at: Vec3) -> Self {
+        Self { blueprint_id: blueprint_id.into(), at, quarter_turns: 0 }
+    }
 }
 
 /// Give every finished structure whose blueprint draws power the components
@@ -165,8 +207,8 @@ pub struct Structure {
 
 /// Construction system processes active builds each frame.
 pub struct ConstructionSystem {
-    /// Pending build commands (blueprint_id, position).
-    pending_builds: Vec<(String, Vec3)>,
+    /// Pending build commands.
+    pending_builds: Vec<BuildRequest>,
 }
 
 impl ConstructionSystem {
@@ -177,13 +219,8 @@ impl ConstructionSystem {
     }
 
     /// Queue a build command.
-    pub fn queue_build(&mut self, blueprint_id: String, position: Vec3) {
-        self.pending_builds.push((blueprint_id, position));
-    }
-
-    /// Snap a position to the 1m grid.
-    fn snap_to_grid(pos: Vec3) -> Vec3 {
-        Vec3::new(pos.x.round(), pos.y.round(), pos.z.round())
+    pub fn queue_build(&mut self, request: BuildRequest) {
+        self.pending_builds.push(request);
     }
 }
 
@@ -196,8 +233,8 @@ impl System for ConstructionSystem {
         // Process pending build commands: the internal queue (tests/API) PLUS the
         // "build_request" DataStore channel the GUI writes (v0.746, closure ladder
         // rung 2 — queue_build had zero callers before this channel existed).
-        let mut builds: Vec<(String, Vec3)> = self.pending_builds.drain(..).collect();
-        if let Some(chan) = data.get::<std::sync::Mutex<Vec<(String, Vec3)>>>("build_request") {
+        let mut builds: Vec<BuildRequest> = self.pending_builds.drain(..).collect();
+        if let Some(chan) = data.get::<std::sync::Mutex<Vec<BuildRequest>>>("build_request") {
             if let Ok(mut c) = chan.lock() {
                 builds.append(&mut c);
             }
@@ -205,11 +242,11 @@ impl System for ConstructionSystem {
         let registry = data.get::<BlueprintRegistry>("blueprint_registry");
         let mut status: Option<String> = None;
 
-        for (bp_id, pos) in builds {
-            let bp = match registry.as_ref().and_then(|r| r.get(&bp_id)) {
-                Some(bp) => bp.clone(),
+        for req in builds {
+            let (reg, bp) = match registry.and_then(|r| r.get(&req.blueprint_id).map(|bp| (r, bp.clone()))) {
+                Some(found) => found,
                 None => {
-                    status = Some(format!("Unknown blueprint '{bp_id}'"));
+                    status = Some(format!("Unknown blueprint '{}'", req.blueprint_id));
                     continue;
                 }
             };
@@ -273,14 +310,13 @@ impl System for ConstructionSystem {
                 }
             }
 
-            let snapped = Self::snap_to_grid(pos);
+            // Where it goes: x and z on the metre grid, turned as the player
+            // turned it, on the floor or on top of what it rests on
+            // (2026-09-27; it used to be the floor, unturned, always).
+            let pose = placement::placement_pose(&bp, req.at, req.quarter_turns, world, reg);
             status = Some(format!("Building {}...", bp.name));
             world.spawn((
-                Transform {
-                    position: snapped,
-                    rotation: glam::Quat::IDENTITY,
-                    scale: Vec3::from_array(bp.size),
-                },
+                pose,
                 Construction {
                     blueprint_id: bp.id.clone(),
                     progress: 0.0,
@@ -473,7 +509,7 @@ mod tests {
         BlueprintRegistry::from_ron(&std::fs::read(path).unwrap()).unwrap()
     }
 
-    fn build_store(reg: BlueprintRegistry, request: Vec<(String, Vec3)>) -> DataStore {
+    fn build_store(reg: BlueprintRegistry, request: Vec<BuildRequest>) -> DataStore {
         let mut data = DataStore::new();
         data.insert("blueprint_registry", reg);
         data.insert("build_request", std::sync::Mutex::new(request));
@@ -495,7 +531,7 @@ mod tests {
         let wall = reg.get("wood_wall").unwrap().clone();
         let data = build_store(
             reg,
-            vec![("wood_wall".to_string(), Vec3::new(1.2, 0.0, 3.7))],
+            vec![BuildRequest::new("wood_wall", Vec3::new(1.2, 0.0, 3.7))],
         );
         let mut world = hecs::World::new();
         let mut inv = Inventory::new(16);
@@ -544,7 +580,7 @@ mod tests {
 
         let data = build_store(
             shipped_registry(),
-            vec![("wood_wall".to_string(), Vec3::ZERO)],
+            vec![BuildRequest::new("wood_wall", Vec3::ZERO)],
         );
         let mut world = hecs::World::new();
         world.spawn((Inventory::new(8), Controllable));

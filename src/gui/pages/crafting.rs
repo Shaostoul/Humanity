@@ -315,9 +315,24 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             // ── Structures (v0.746, ladder rung 2): the blueprint-building
             // branch. Each blueprint lists its material cost (backpack have/
             // need; home storage also counts at build time) and a Build button
-            // that places the construction 4 m in front of the player, snapped
-            // to the metre grid. ConstructionSystem's status line shows above.
+            // that puts the piece in hand for placing in the world (2026-09-27,
+            // engine/build_place.rs). ConstructionSystem's status line shows above.
             if filter_cat.as_deref() == Some(STRUCTURES_CATEGORY) {
+                // How placing works (2026-09-27, engine/build_place.rs), with
+                // the player's own keys.
+                let key = |a| crate::input::bindings::pretty_key_name(state.keybinds.pair(a).0);
+                ui.label(
+                    RichText::new(format!(
+                        "Build puts the piece in your hands: aim at the floor, [{}] turns it, [{}] builds it there, \
+                         [Esc] when done. A roof rests on top of the walls it covers; three walls and a roof keep \
+                         out the wind and rain.",
+                        key(crate::input::bindings::GameAction::ToggleRoof),
+                        key(crate::input::bindings::GameAction::Interact),
+                    ))
+                    .size(theme.font_size_small)
+                    .color(theme.text_secondary()),
+                );
+                ui.add_space(theme.spacing_xs);
                 if !state.build_status.is_empty() {
                     ui.label(
                         RichText::new(&state.build_status)
