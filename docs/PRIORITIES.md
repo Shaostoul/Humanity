@@ -1156,6 +1156,22 @@ what it becomes, the capture paths, and six bootable increments; increment 4,
 one dither in a final pass, closes the banding report). Estimated cost 0.2 to
 0.4 ms at 1600x900.
 
+### 3c. The ship's rooms: no bounce light, and the sun shines through shelves (2026-09-27)
+
+A read-only lighting review measured it at 25b-mushroom-racks: interiors get
+NO indirect light (the whole term is the 0.005 silhouette floor), so walls sit
+at 2.5% of the floor where interreflection predicts about 25 to 30%; and the
+home never casts into the sun shadow map, so the lowest shelf under three
+others reads 130 against the open floor's 133. Two arcs, in this order:
+1. **Room GI**: per-room DDGI irradiance probes. Rung 1 (probes traced against
+   the room's own box) is with an agent; design in `docs/design/room-gi.md`
+   when it lands.
+2. **Near sun cascades** with the home as a caster:
+   `docs/design/sun-cascades.md` (camera-centred clipmap cascades C0 to C3 in
+   an atlas beside the existing far map, no bind group layout change; five
+   increments). Starts after room GI lands, since both touch
+   80-fragment-shared.wgsl and the frame order.
+
 ### 4. The far-rung gates, G0(d) and G1 to G7
 
 Unchanged, and still the plan for the deeper cloud work. The increment is merged
