@@ -399,11 +399,16 @@ fn frag_tail(in: VertexOutput, s: FragSetup) -> vec4<f32> {
     // outside, room GI switched off) the floor above stands, bit for bit.
     // HAS_ROOM_GI is live in the surface and vegetation PSOs only; everywhere
     // else this block folds away (pipeline.rs, ShaderClass::live_features).
-    // A screen's colour replaces the lit result below, so it never pays for
-    // the sample; a see-through surface samples without the visibility test
-    // (see gi_sample_room in 85-room-gi.wgsl).
-    if (HAS_ROOM_GI && !under_sky && !screen_emitter) {
-        let room_light = room_gi_irradiance(in.world_position, normal, out_alpha >= 0.999);
+    // Two kinds of fragment keep the floor. A SCREEN, whose colour replaces
+    // the lit result below, so the sample would be thrown away. And a
+    // SEE-THROUGH surface (a pane, a tent's film): its colour here is the tint
+    // of an alpha blend, not a diffuse reflectance (clear glass and film
+    // reflect almost nothing diffusely; what shows on them is what is behind
+    // and the specular), and in the mushroom room's tent overdraw it was a
+    // third of room GI's sampling cost (0.20 of 0.66 ms at console-face-6,
+    // docs/design/room-gi.md).
+    if (HAS_ROOM_GI && !under_sky && !screen_emitter && out_alpha >= 0.999) {
+        let room_light = room_gi_irradiance(in.world_position, normal);
         if (room_light.a > 0.5) {
             indirect = max(room_light.rgb, AMBIENT_FLOOR);
         }

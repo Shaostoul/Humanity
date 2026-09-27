@@ -126,22 +126,18 @@ fn gi_atlas_uv(origin: vec2<u32>, n: f32, d: vec3<f32>) -> vec2<f32> {
 //
 // WHEN THE VISIBILITY TEST RUNS. The Chebyshev test and its depth fetch are
 // half of this function's cost (measured 2026-09-27, docs/design/room-gi.md),
-// so they run only where they can change the answer:
-// - the ROOM must ask for it (bit 0 of `lights.z`, GI_ROOM_VISIBILITY). A room
-//   whose probes trace only its own box (rung 1) never does, because there the
-//   test is an identity: the box is convex, so a probe's ray toward any point
-//   inside it leaves the box no nearer than that point, the stored mean depth
-//   is never short of the point's distance, and the weight is 1. The twin
-//   proves it (`room_probes::tests::visibility_is_an_identity_inside_a_box`).
-//   Rung 2, which traces a room's contents, sets the bit for its rooms, and the
-//   dev switch showcase {"room_gi_vis":"1"} sets it everywhere for A/B.
-// - the CALLER must ask for it (`visibility`): the fragment path passes false
-//   for a see-through surface (a tent's film, a pane), whose own diffuse is a
-//   small share of what shows through it and whose overdraw made the depth
-//   fetch the largest single cost of room GI in the mushroom room.
+// so they run only in a room that asks for them (bit 0 of `lights.z`,
+// GI_ROOM_VISIBILITY). A room whose probes trace only its own box (rung 1)
+// never does, because there the test is an identity: the box is convex, so a
+// probe's ray toward any point inside it leaves the box no nearer than that
+// point, the stored mean depth is never short of the point's distance, and the
+// weight is 1. The twin proves it
+// (`room_probes::tests::visibility_is_an_identity_inside_a_box`). Rung 2, which
+// traces a room's contents, sets the bit for its rooms; the dev switch
+// showcase {"room_gi_vis":"1"} sets it everywhere for A/B.
 const GI_ROOM_VISIBILITY: u32 = 1u;
-fn gi_sample_room(ri: u32, p: vec3<f32>, n: vec3<f32>, visibility: bool) -> vec3<f32> {
-    let vis = visibility && (room_gi.rooms[ri].lights.z & GI_ROOM_VISIBILITY) != 0u;
+fn gi_sample_room(ri: u32, p: vec3<f32>, n: vec3<f32>) -> vec3<f32> {
+    let vis = (room_gi.rooms[ri].lights.z & GI_ROOM_VISIBILITY) != 0u;
     let bmin = room_gi.rooms[ri].bmin.xyz;
     let bmax = room_gi.rooms[ri].bmax.xyz;
     let counts = room_gi.rooms[ri].counts;
@@ -248,11 +244,10 @@ fn gi_pick_room(p: vec3<f32>, n: vec3<f32>) -> i32 {
 
 // frag_tail's entry point into room GI: rgb = the room's indirect light for
 // this fragment, a = 1 if the fragment is in a room (0 = keep the old floor).
-// `visibility`: see gi_sample_room.
-fn room_gi_irradiance(p: vec3<f32>, n: vec3<f32>, visibility: bool) -> vec4<f32> {
+fn room_gi_irradiance(p: vec3<f32>, n: vec3<f32>) -> vec4<f32> {
     let ri = gi_pick_room(p, n);
     if (ri < 0) {
         return vec4<f32>(0.0);
     }
-    return vec4<f32>(gi_sample_room(u32(ri), p, n, visibility), 1.0);
+    return vec4<f32>(gi_sample_room(u32(ri), p, n), 1.0);
 }
