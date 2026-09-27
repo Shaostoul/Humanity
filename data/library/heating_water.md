@@ -150,12 +150,13 @@ ENERGY STAR figures are the bar for its label.
 
 (For storage tanks the federal minimum is a formula of the tank's volume: an
 electric tank of 20 to 55 gallons must reach 0.9307 minus 0.0002 times its
-gallons, and a gas tank 0.6483 minus 0.0017 times its gallons.)
+gallons, and a gas tank of 20 to 55 gallons 0.6483 minus 0.0017 times its
+gallons. Bigger tanks have formulas of their own.)
 
 **What changes in 2029.** For heaters made on or after 6 May 2029, the same
 regulation raises the minimum for an electric storage heater of 20 to 55
 gallons (other than a separate class of small ones up to 35 gallons) to a
-UEF of 2.30, and above 55 gallons to 2.50. A resistance element cannot reach
+UEF of 2.30, and for one of more than 55 and up to 120 gallons to 2.50. A resistance element cannot reach
 those numbers, so in practice a new full-size electric tank will be a heat
 pump.
 
@@ -216,9 +217,9 @@ ENERGY STAR makes before buying:
   with little use can get very hot, and ENERGY STAR names a tempering valve,
   which mixes in cold water before it reaches the tap, as your protection
   from scalding.
-- **Size.** A flat-plate collector typically holds about 40 gallons (151
-  litres), and ENERGY STAR says two of them provide roughly half the hot
-  water a family of four needs.
+- **Size.** ENERGY STAR says flat-plate collectors are typically sized for
+  40 gallons (151 litres) of water, and that two of them provide roughly
+  half the hot water a family of four needs.
 - **Evacuated tube collectors** are the most efficient kind, work in
   overcast weather and down to minus 40 F, and cost about twice as much per
   square foot as flat plates.
@@ -240,7 +241,8 @@ Four rules come before convenience:
 - **Burn fuel only where it is meant to burn.** The Centers for Disease
   Control and Prevention is plain: never use a portable gas camp stove
   indoors, never burn charcoal indoors, never heat your house with a gas
-  oven, and run a generator only outside, more than 20 feet (6 metres) from
+  oven, do not cook or burn anything on a stove or in a fireplace that is not
+  vented, and run a generator only outside, more than 20 feet (6 metres) from
   windows, doors and vents. All of them make carbon monoxide.
   [Firewood](/library#firewood) covers stoves and fires, and carbon monoxide, in
   full.
@@ -252,7 +254,8 @@ Four rules come before convenience:
   day it can get hot enough to scald. Test it before it touches skin.
 - **Never heat water in anything closed.** A pipe, coil or tank run through a
   fire, with no way for steam to escape, can explode. The Consumer Product
-  Safety Commission warned in 1982 about water heaters built into fireplaces:
+  Safety Commission warned in 1982 about fireplace-powered water heaters,
+  steel grates or liners plumbed into a home's hot water heating system:
   if the water stops flowing through them (a pump or power failure, or
   frozen pipes), it can boil into steam, and without an adequate, properly
   installed pressure relief device the pressure can cause an explosion. It
@@ -274,6 +277,11 @@ in most adults:
 | 140 F (60 C) | 6 seconds |
 | 130 F (54 C) | 30 seconds |
 | 120 F (49 C) | 5 minutes |
+
+At 120 F CPSC's wording is that five minutes "could result in" third degree
+burns, so the setting it recommends lowers the risk rather than removing
+it, which is why its advice below still includes testing the water and
+never leaving a child alone in the bathroom.
 
 CPSC says most tap water scald injuries and deaths are to the elderly and to
 children under five, urges everyone to set water heaters to 120 F (49 C),
@@ -331,7 +339,12 @@ install anti-scald devices.
 
 Check your setting rather than trusting the dial. CPSC's method: first thing
 in the morning, or at least two hours after hot water was last used, hold a
-candy or meat thermometer under the running tap.
+candy or meat thermometer under the running tap. To change the setting,
+follow the heater's own instructions. On an electric heater the thermostats
+sit behind access panels, usually two of them that must be set alike, and
+CPSC's instruction is to switch off the power to the heater at the circuit
+breaker or fuse first; for a gas heater it suggests asking the gas company
+how, because thermostats differ.
 
 ## The temperature and pressure relief valve
 
@@ -398,7 +411,9 @@ breathing problems are more likely to get sick from it.
 What CDC asks of every home:
 
 - Install battery-powered or battery-backup CO detectors near every sleeping
-  area.
+  area. (The Consumer Product Safety Commission adds one on every level of
+  the home, and says interconnected alarms, which all sound when one does,
+  are best.)
 - Check their batteries each spring and fall when the clocks change, and
   replace the detector following the maker's instructions or every 5 years.
 - Have the heating system, the water heater and any other gas, oil or coal
@@ -417,9 +432,10 @@ exhaust back down a water heater's flue.
 
 **Keep flammable liquids away.** CPSC reported in 2003 that gas water heaters
 igniting flammable vapours were involved in nearly 800 home fires a year,
-with an average of five deaths and 130 injuries, and that tank-type gas
-water heaters made after 1 July 2003 must carry technology to stop the
-burner from lighting vapours in the room. Its advice applies to every
+with an average of five deaths and 130 injuries, and that a voluntary
+industry standard calls for tank-type gas water heaters made after 1 July
+2003 to carry technology (a flame arrestor) that stops the burner from
+lighting vapours in the room. Its advice applies to every
 heater, new or old: gasoline should never be stored or used indoors, in a
 basement or a garage, where its vapours can ignite.
 
@@ -466,7 +482,8 @@ method, and what each one does and does not remove.
 - **A smell of exhaust near the heater, or a flue pipe with a hole, a gap or
   a disconnected joint.** Stop using the heater and have it inspected.
 - **A thermometer reading over 120 F at the tap without a mixing valve.**
-  Turn the thermostat down and check again after two hours (CPSC).
+  Turn the thermostat down, with the power off first on an electric heater,
+  and check again after two hours (CPSC).
 - **Sediment in the hot water.** New Jersey's health department says
   sediment at the bottom of the tank makes the heater work harder and can
   help bacteria grow, and recommends a plumber for draining and flushing it.
@@ -559,10 +576,14 @@ taken from them is restated here in our own words.
   minute standard, 2.0 for the label), last updated 3 March 2026.
   https://www.epa.gov/watersense/showerheads
 - Consumer Product Safety Commission. Avoiding Tap Water Scalds, Publication
-  5098 (dated March 2012 in its print code).
+  5098 (dated March 2012 in its print code; scald times, the 120 F setting,
+  measuring the tap temperature, and switching an electric heater off before
+  adjusting its thermostats).
   https://www.cpsc.gov/s3fs-public/5098-Tap-Water-Scalds.pdf
 - Consumer Product Safety Commission. New Technology in Gas Water Heaters
-  Can Save Lives, news release, 8 July 2003.
+  Can Save Lives, news release, 8 July 2003 (the voluntary standard, ANSI
+  Z21.10.1a, for flammable-vapour-resistant tank heaters made after 1 July
+  2003; the fire figures; gasoline never stored or used indoors).
   https://www.cpsc.gov/Newsroom/News-Releases/2003/New-Technology-In-Gas-Water-Heaters-Can-Save-LivesCPSC-GAMA-Say-New-Heaters-Will-Prevent-Fires-from-Flammable-Vapors
 - Consumer Product Safety Commission. CPSC Warns of Explosion Hazard with
   Fireplace-Powered Water Heaters, release 82-049, 18 November 1982 (water
@@ -570,7 +591,8 @@ taken from them is restated here in our own words.
   the valve, checking it with caution).
   https://www.cpsc.gov/Recalls/1982/cpsc-warns-of-explosion-hazard-with-fireplace-powered-water-heaters
 - Consumer Product Safety Commission. Carbon Monoxide information centre
-  (get outside to fresh air, then call 911). Undated; read 27 September 2026.
+  (alarms on every level and outside sleeping areas, interconnected best;
+  get outside to fresh air, then call 911). Undated; read 27 September 2026.
   https://www.cpsc.gov/Safety-Education/Safety-Education-Centers/Carbon-Monoxide-Information-Center
 - Federal Emergency Management Agency. Earthquake Safety Checklist, FEMA
   B-526, October 2023 (water heaters that could pull away from their pipes
@@ -587,7 +609,8 @@ taken from them is restated here in our own words.
   https://www.cdc.gov/control-legionella/php/toolkit/potable-water-systems-module.html
 - Centers for Disease Control and Prevention. Carbon Monoxide Poisoning
   Basics, reviewed 12 January 2026 (symptoms, who is at risk, detectors,
-  yearly servicing, vents, camp stoves, charcoal, generators).
+  yearly servicing, vents, unvented stoves and fireplaces, camp stoves,
+  charcoal, generators).
   https://www.cdc.gov/carbon-monoxide/about/index.html
 - Centers for Disease Control and Prevention. How to Make Water Safe in an
   Emergency, reviewed 19 September 2024 (rolling boil 1 minute, 3 above

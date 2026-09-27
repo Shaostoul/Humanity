@@ -41,7 +41,7 @@ November 2025), written for Virginia. The others name their source.
 | Peach and nectarine | 4 to 5 | 15 to 20 years (peach) |
 | Plum and prune | 3 to 5 | 15 to 20 years (plum) |
 | Blueberry | first fruit 1 or 2 years after planting, mature after year 7 (OSU EC 1304) | can bear for more than 50 years (OSU) |
-| Raspberry | summer-bearing canes fruit in their second year (Washington State University) | a planting can live more than 30 years in well-drained soil (WSU) |
+| Raspberry | summer-bearing canes fruit in their second year (Washington State University) | a planting can live more than 30 years in well-drained soil (WSU); productive for 5 to 15 years, depending on type, soil and pests (OSU EC 1306) |
 | Strawberry, June-bearing | the year after planting, once the first year's blossoms are removed (WSU) | about 4 to 5 years (WSU) |
 | Asparagus | a short first harvest in the third growing season, the second spring after planting crowns (see below) | 15 years (Minnesota); 10 to 15 (Utah State) |
 | Rhubarb | the second season (Minnesota) or the third (Iowa State) | 15 years or more (Minnesota) |
@@ -157,7 +157,7 @@ Oregon State's table for apples (EC 819, Table 2):
 
 | Apple rootstock type | Spread | Height | Years to first bearing | Yield per tree | Rootstocks |
 |---|---|---|---|---|---|
-| Vigorous | 30 to 40 ft (9 to 12 m) | 25 to 60 ft (7.6 to 18 m) | 7 to 10 | 300 to 400 lb (136 to 181 kg) | seedling |
+| Vigorous | 30 to 40 ft (9 to 12 m) | 25 to 60 ft (7.6 to 18 m) | 7 to 10 | 300 to 400 lb (136 to 181 kg) | none named (usually a seedling, WSU) |
 | Semidwarf | 15 to 25 ft (4.6 to 7.6 m) | 15 to 25 ft | 5 to 7 | 180 to 300 lb (82 to 136 kg) | MM-106, MM-111, M-7 |
 | Dwarf | 5 to 10 ft (1.5 to 3 m) | 6 to 15 ft (1.8 to 4.6 m) | 3 to 5 | 50 to 150 lb (23 to 68 kg) | M-9, M-26, Bud 9 |
 | More dwarf | 4 to 6 ft (1.2 to 1.8 m) | 5 to 7 ft (1.5 to 2.1 m) | 3 to 5 | 25 to 50 lb (11 to 23 kg) | M-27 |
@@ -203,9 +203,11 @@ compatible pollen. Bees do the carrying.
   Lambert and Royal Ann, will not pollinate one another. Self-fruitful sweet
   cherries do exist: Oregon State names Stella, Sweetheart and Lapins, and
   WSU names Lapins, Benton, Skeena, Sweetheart and Sandra Rose.
-- **Some plums** (Oregon State's table: "some varieties").
+- **Some plums** (Oregon State's table: "Some varieties").
 - **Hazelnuts and chestnuts** (Oregon State): every hazelnut variety needs
-  another variety.
+  another variety. Oregon State's table marks chestnuts as needing a partner
+  too, and its text adds that Chinese chestnuts bear some nuts on their own
+  pollen but often more and bigger ones with a second tree.
 
 **Which usually do not** (WSU and Oregon State): sour (pie) cherries, most
 peaches and nectarines, most European plums, and, among nuts, black and
@@ -272,7 +274,12 @@ during the first growing season and the year after, and calls this critical
 for apples, pears, peaches, plums, cherries, grapes and blueberries; allow a
 light crop in the third season, then adjust the crop each year. WSU gives
 the same advice for blueberries (no fruit for the first two years) and for
-new June-bearing strawberries (remove the blossoms the first year).
+new June-bearing strawberries (remove the blossoms the first year). Oregon
+State's newer blueberry guide (EC 1304, May 2025) is a little less strict:
+prune off every flower bud at planting so there is no fruit the first
+season, then prune so a small first crop comes in the second growing
+season. The sources agree on the part that matters, which is no fruit in
+the planting year.
 
 ## Pruning and thinning
 
@@ -367,8 +374,8 @@ northern highbush varieties.
 - **Yield:** Oregon State (EC 1306, revised June 2021) expects 18 to 27
   pounds (8 to 12 kg) for every 10 feet (3 m) of row from mature
   summer-bearing red or yellow raspberries, depending on the region, and
-  less from everbearing and black raspberries. WSU gives 15 to 30 pounds (7
-  to 14 kg) per 10 feet in its passage on the fall-bearing types.
+  slightly less from everbearing and black raspberries. WSU gives 15 to 30
+  pounds (7 to 14 kg) per 10 feet of row, without saying which type.
 
 ### Strawberries
 
@@ -448,8 +455,9 @@ avoid foods high in oxalic acid and should ask their doctor about rhubarb.
   Never take more than half the grown stalks from a plant at once (Iowa
   State). Stop by late June so the leaves can rebuild the plant.
 - **Care:** cut off flower stalks as soon as they appear; give each plant a
-  space about 3 feet (0.9 m) square; divide crowded crowns every few years.
-  Minnesota says one plant is usually enough for a family, and a plant can
+  space about 3 feet (0.9 m) square; divide a crown in early spring once it
+  is crowded and making many thin stalks, which Iowa State says often
+  happens after eight to ten years. Minnesota says one plant is usually enough for a family, and a plant can
   live 15 years or more.
 
 ## Nut trees
@@ -550,8 +558,8 @@ arithmetic is worked here, not quoted from anyone.
   m) apart, each staked. First fruit in about 3 to 5 years; at full bearing,
   100 to 300 lb (45 to 136 kg) between them, which is a lot of apples to
   store, sauce or share.
-- **Four blueberry bushes** of at least two varieties, in a bed acidified
-  with sulfur the autumn before. Blossoms off for two years; mature after
+- **Four blueberry bushes** of at least two varieties, in a bed tested and
+  acidified with sulfur a year before planting. Blossoms off for two years; mature after
   about seven; then 36 to 60 lb (16 to 27 kg) a year at Oregon State's 9 to
   15 lb a bush.
 - **Twenty feet (6 m) of summer-bearing raspberries** on a well-drained
@@ -564,8 +572,9 @@ arithmetic is worked here, not quoted from anyone.
 
 Peaches are left out on purpose: in a cool, wet climate they need leaf curl
 resistant varieties and regular spraying to survive. A pair of hazelnut
-trees of different, blight-resistant varieties would add 30 to 40 lb (14 to
-18 kg) of nuts after five or six years, for about 20 feet of space each.
+trees of different, blight-resistant varieties would begin bearing after
+five or six years and, once mature, add 30 to 40 lb (14 to 18 kg) of dried
+nuts a year, for about 20 feet of space each.
 
 ## How the game models it
 
@@ -583,8 +592,9 @@ what this guide teaches, and the gaps are worth knowing.
   an untreated bed has its health capped (at 70 percent, one pH unit
   outside its window at 30 percent a unit). Garden sulfur lowers the pH over
   months as it reacts, with a limit on how much one application may use,
-  after Oregon State's advice that two small applications a year apart beat
-  one large one; lime and wood ash raise it.
+  after Oregon State's advice (its EC 1560, quoted in that file) that two
+  small applications a year apart beat one large one; lime and wood ash
+  raise it.
 - **Strawberries are picked through a season.** A strawberry plant is picked
   daily over a 112 day window and yields a pound (0.45 kg) a plant, the
   University of Minnesota's figure for day-neutral plants in a high tunnel
@@ -638,7 +648,7 @@ taken from them is restated here in our own words.
 - Olsen, J.L. Growing tree fruits and nuts at home. Oregon State University
   Extension, EC 819, revised January 2025 (Table 1: space, pollenizers and
   years to bearing; Table 2: apple rootstocks, size, years and yield; sweet
-  cherry pollination; peaches in wet climates; hazelnut yield and eastern
+  cherry and Chinese chestnut pollination; peaches in wet climates; hazelnut yield and eastern
   filbert blight; walnuts and chestnuts as shade trees; 3 feet of rooting
   depth). https://extension.oregonstate.edu/catalog/ec-819-growing-tree-fruits-nuts-home
 - Olsen, J.L. and Bell, N. Training and pruning your home orchard. Pacific
@@ -653,12 +663,14 @@ taken from them is restated here in our own words.
 - Strik, B., Detweiler, A.J., Sanchez, N. and Dixon, E. Growing Raspberries
   in Your Home Garden. Oregon State University Extension, EC 1306, revised
   June 2021, reviewed 2023 (18 to 27 pounds per 10 feet of row for mature
-  summer-bearing red or yellow raspberries; less from everbearing and black).
+  summer-bearing red or yellow raspberries; slightly less from everbearing
+  and black; plantings productive for 5 to 15 years).
   https://extension.oregonstate.edu/catalog/ec-1306-growing-raspberries-your-home-garden
 - Lukas, S., Davis, A., Dixon, E., Detweiler, A.J. and Sanchez, N. Growing
   blueberries in your home garden. Oregon State University Extension, EC
-  1304, revised May 2025 (first fruit, maturity after year 7, more than 50
-  years, 9 to 15 pounds, lime for soils below pH 4.5).
+  1304, revised May 2025 (first fruit, flower buds removed at planting,
+  maturity after year 7, more than 50 years, 9 to 15 pounds, lime for soils
+  below pH 4.5).
   https://extension.oregonstate.edu/catalog/ec-1304-growing-blueberries-your-home-garden
 - Sallato, B. and DuPont, T. Chapter 8: Home Orchards. The Pacific Northwest
   Gardener's Handbook: Growing for the Future, Washington State University
@@ -698,7 +710,7 @@ taken from them is restated here in our own words.
 - Jauron, R. and Steil, A. Growing Rhubarb in Iowa. Iowa State University
   Extension and Outreach, last reviewed April 2025 (oxalic acid higher in
   the leaves, leaves safe to compost, harvest by year, half the stalks at
-  most), https://yardandgarden.extension.iastate.edu/how-to/growing-rhubarb-iowa ;
+  most, crowns crowded after eight to ten years), https://yardandgarden.extension.iastate.edu/how-to/growing-rhubarb-iowa ;
   and Is Rhubarb Safe to Eat After Freezing Temperatures?, last updated 3
   December 2024, https://hortnews.extension.iastate.edu/faq/it-safe-eat-rhubarb-after-plants-have-been-exposed-freezing-temperatures
 - Drost, D. How to Grow Asparagus in Your Garden. Utah State University
