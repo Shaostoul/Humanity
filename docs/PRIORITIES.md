@@ -1343,7 +1343,7 @@ them up.
      load at night, 2026-09-27, but the homes would still brown out); the water
      heater at the US survey average or at the home's own hot water plus standby
      loss; the outline's conservative December solar; and whether to keep a wind
-     turbine that makes 0.11 kWh a day at this site.
+     turbine that makes 0.11 kWh a day at this site.
 4. **Clear the old agent worktrees** under `.claude/worktrees/`. Audited
    2026-08-04: none could be cheaply proven redundant, and
    `just clean-worktrees` force-deletes branches and has destroyed
