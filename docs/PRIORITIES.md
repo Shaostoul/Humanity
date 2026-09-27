@@ -1254,8 +1254,12 @@ them up.
      of their own that hands their CO2 to the greenhouse, fewer racks,
      bigger tent humidifiers, or accept up to about 9% loss
      (ship-life-support.md section 7).
-   - The family Energy loop now falls 0.7 kWh a day short even in
-     Station-supplied mode (the mushroom tents' fresh air): one more panel?
+   - Neither home's Energy loop closes even in Station-supplied mode, now
+     that the water heater, washer and tower pumps charge their real daily
+     energy (EIA RECS 2020): family about 22.8 kWh a day against 15.1 (about
+     five more panels), solo about 8.2 against 5.76 (the water heater alone
+     takes two-thirds of its supply). More panels, a heat-pump water heater, or
+     accept it?
    - Whether the stale-air harm to mushrooms follows the garden's Off /
      Gentle / Realistic setting (as built) or the Ship life support mode, and
      whether a 900 ppm tent setpoint (the humidifiers cannot hold 90% at
