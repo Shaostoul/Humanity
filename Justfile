@@ -526,7 +526,7 @@ lints:
 rig-tests:
     node --test scripts/tests/machine-guard.test.js scripts/tests/perf-report.test.js
 
-# Render all 62 native UI snapshots to PNGs in tests/snapshots/ for review.
+# Render all 63 native UI snapshots to PNGs in tests/snapshots/ for review.
 # NEEDS A GPU: without an adapter every page is SKIPPED with a printed note and the
 # run still exits 0, so a green line here is not evidence that anything rendered -
 # read the output. Open the PNGs after. For ONE page use `just snapshot <name>`.
@@ -535,7 +535,7 @@ snapshots:
     @echo "UI snapshots written to tests/snapshots/, open them to review."
 
 # Render ONE named page to tests/snapshots/<name>.png. Names are the test suffix in
-# src/gui/ui_snapshots.rs. 62 exist; `just snapshot <a bad name>` prints all of them.
+# src/gui/ui_snapshots.rs. 63 exist; `just snapshot <a bad name>` prints all of them.
 # A page missing from that list has no snapshot test yet - docs/PAGES.md is the full
 # page registry.
 #

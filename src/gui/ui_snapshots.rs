@@ -95,6 +95,9 @@ fn demo_state() -> GuiState {
     s.garden_areas = crate::gui::load_garden_areas(data);
     s.grow_media = crate::gui::load_grow_media(data);
     s.onboarding_quest_chains = crate::gui::pages::onboarding::load_quest_chains(data);
+    // The app loads the donate FAQ at startup (lib.rs); without it the Donate
+    // snapshot ended on a "Frequently Asked Questions" heading over nothing.
+    s.donate_faq = crate::gui::load_donate_faq(data);
     s.creative_mode = true;
     // Returning-user state so the main menu shows the loaded hub, not first-run onboarding.
     s.onboarding_complete = true;
@@ -354,6 +357,15 @@ fn render_page_png(name: &str, w: u32, h: u32, frame: impl Fn(&egui::Context, &m
         let ctx = snapshot_ctx();
         let mut theme = load_theme();
         theme.apply_to_egui(&ctx);
+        // A snapshot is a still of the SETTLED page. egui fades every Window and
+        // Area in over `animation_time` (1/12 s), and this harness captures its
+        // second frame at about t = 1/60 s, so every Window-based page (the main
+        // menu, onboarding, the inventory modals, the help overlay, the profile
+        // modal) was photographed at roughly half opacity with the page behind
+        // it showing through. Zero animation time is what a person sees a moment
+        // after opening the thing. `apply_to_egui` clones the current style, so
+        // pages that re-apply the theme inside the frame keep this setting.
+        ctx.all_styles_mut(|s| s.animation_time = 0.0);
         let mut state = demo_state();
         let ppp = 1.0_f32;
         let raw_input = egui::RawInput {
@@ -1300,7 +1312,11 @@ fn snapshot_inventory() {
 #[test]
 #[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
 fn snapshot_inventory_transfer() {
-    render_page_png("inventory_transfer", 1280, 1700, |ctx, theme, state| {
+    // 2600 tall (2026-09-27): the inspect + "Move to" card this snapshot exists
+    // to show sits BELOW every place tree, and the Home place grew a Barn, which
+    // pushed the card past the old 1700 px canvas. The capture then came out
+    // byte-identical to snapshot_inventory and guarded nothing.
+    render_page_png("inventory_transfer", 1280, 2600, |ctx, theme, state| {
         crate::gui::pages::inventory::test_close_garden_edit();
         crate::gui::pages::inventory::test_close_mining_edit();
         // Select the first placed item so the inspect + "Move to" transfer card shows.
@@ -1641,6 +1657,27 @@ fn snapshot_showroom_picker() {
     render_page_png("showroom_picker", 1280, 900, |ctx, theme, state| {
         state.showroom_mode = 0;
         state.launcher_open_select = true;
+        // Seed the WHERE column instead of letting the page rescan the saves
+        // directory. Left to itself it read the saves of whatever machine ran
+        // the test (the operator's own "My Homestead", "1 days ago"), so the
+        // picture changed with the day and with the machine. One home, played
+        // 26 hours ago, selected the way `preselect` would select it.
+        if !state.launcher_homes_loaded {
+            let now = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_secs())
+                .unwrap_or(0);
+            state.launcher_homes = vec![crate::gui::LauncherHome {
+                world: "My Homestead".into(),
+                character: "Wanderer".into(),
+                design: "fibonacci".into(),
+                timestamp: now.saturating_sub(26 * 3600),
+            }];
+            state.launcher_homes_loaded = true;
+            state.launcher_who = "My Homestead".into();
+            state.launcher_where_kind = crate::gui::LauncherWhere::Home;
+            state.launcher_selected_world = "My Homestead".into();
+        }
         crate::gui::pages::showroom::draw(ctx, theme, state);
     });
 }

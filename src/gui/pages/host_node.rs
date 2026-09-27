@@ -972,6 +972,11 @@ pub(crate) fn force_running_for_snapshot(port: u16, name: &str, db: &str, lan: O
     // Windows); shortly after a reboot a plain subtraction would panic.
     let now = Instant::now();
     n.started_at = Some(now.checked_sub(Duration::from_secs(312)).unwrap_or(now));
+    // A serving node always has its server key by now (the worker sends
+    // NodeEvent::ServerKey during start). Without one the snapshot drew the
+    // "Copy the Federation key above" advice with no key row above it, a
+    // state no player ever sees. Any 64 hex characters will do.
+    n.server_pubkey = "3f9a1c07be52d4e8a6017c93f2b5d8e04a6c19f7b3e2d05c8a41f6e97b2d0c35".to_string();
     n.events = None;
     n.stop_tx = None;
 }
