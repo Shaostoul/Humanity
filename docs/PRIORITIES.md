@@ -1596,7 +1596,14 @@ between the simulation and the person. Its tier ladder is the build order.
   (2026-09-25):** a built Furnace is a smelter and kiln, a Crafting Table a
   workbench, through `Blueprint::stations` into the station gate; and the build
   menu works at all now (BUG-082: every blueprint named items that did not
-  exist). Still unconsumed: `rest` (bed), `storage` (chest), `shelter`.
+  exist). **`rest` and `storage` DONE 2026-09-27:** E on a built bed sleeps the
+  night (the clock runs fast, you wake rested), and a built chest is a container
+  in the Inventory places tree whose contents survive a restart
+  (`construction/uses.rs`, `systems/sleep.rs`, `engine/built_uses.rs`). Still
+  unconsumed: `shelter`, which is blocked on the body model (temperature drifts
+  to the air temperature with no metabolic heat, wind or wet to be sheltered
+  from) and on placement (nothing can put a roof overhead); FEATURES.md
+  Construction says what it needs.
 - **Tier B (make the construction tool good enough to build a city).** Pick one
   canonical layout schema of the three that exist; the four multi-storey
   blockers in order, starting with a base Y on `InteriorWall`; collision for

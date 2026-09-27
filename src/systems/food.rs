@@ -277,6 +277,8 @@ pub struct FoodSystem {
     /// as `URINE_ITEM` by the Compost action (2026-09-26). Not saved, like
     /// the waste meter it rides beside.
     urine_person_days: f64,
+    /// A night's sleep in a bed while it runs (2026-09-27, `systems::sleep`).
+    asleep: Option<crate::systems::sleep::Asleep>,
 }
 
 impl FoodSystem {
@@ -312,7 +314,7 @@ impl FoodSystem {
             }
         }
         log::info!("Loaded {} edible items from {}", item_profile.len(), ItemProfiles::FILE);
-        Self { data, item_profile, spoilage: HashMap::new(), log_cooldown: 0.0, urine_person_days: 0.0 }
+        Self { data, item_profile, spoilage: HashMap::new(), log_cooldown: 0.0, urine_person_days: 0.0, asleep: None }
     }
 
     /// The nutrition profile of an item, or None when it is not food.
@@ -502,6 +504,13 @@ impl System for FoodSystem {
                 break; // first player only
             }
         }
+        // ── 1b'. SLEEP (2026-09-27): a night in a built bed. The clock runs
+        //    fast through it and the player wakes rested (systems::sleep).
+        let rested_s = registry
+            .map(|r| r.duration("rested"))
+            .filter(|d| *d > 0.0)
+            .unwrap_or(FALLBACK_RESTED_S);
+        crate::systems::sleep::tick(&mut self.asleep, world, data, rested_s);
 
         // Player environment context (sealed / oxygenated / ambient temp) for the
         // oxygen + body-temperature vitals — computed in the main loop from the

@@ -1797,7 +1797,31 @@ so nothing could be built). Finished structures and scaffolds persist in the sav
 workstation** when its blueprint lists `stations` (a Furnace works as a smelter and a kiln, a Crafting Table as
 a workbench), feeding the same recipe station gate the home's machines do; the Crafting page says "or build a
 Furnace" when a station is missing.
-- Native: `src/systems/construction/mod.rs`
+
+**A built bed and chest do something (2026-09-27).** Looking at a finished structure within 5 m shows an
+[E] prompt when its blueprint's `provides` names a use (`systems/construction/uses.rs`; any blueprint can opt
+in by data, no ids in code; the first structure the look ray meets wins, so a wall hides what is behind it):
+- `provides: "rest"` (the Bed): E lies down and sleeps 8 game hours. The clock runs 120 times faster through
+  the night (the time scrubber's channel, so crops, crafts and the sun live the night by their own rules;
+  never a clock jump), then the player wakes with full energy, no `fatigued`, the `rested` buff, the clock back
+  at its old speed, and a notice saying when. Dying asleep restores nothing. `src/systems/sleep.rs`, run by
+  FoodSystem. The free Rest button on the Inventory page still refills energy anywhere.
+- `provides: "storage"` (the Storage Chest): every finished one is a container in the Inventory page's "You &
+  your places" tree (a keyed node, `gui/organize.rs` `sync_built_stores`), so drag onto its header, right-click
+  Stash to / Take to backpack / Move to all work on it, and its contents count as home storage for crafting and
+  building. Its items are placed items filed under `built:<uid>`; `Structure.uid` is saved with the structure,
+  so the chest comes back at the same address and its contents with it. E on the chest opens the Inventory
+  page. No volume limit yet: no places container has one.
+- `provides: "shelter"` (walls, roof) is NOT wired, on purpose. What a shelter keeps off you does not exist in
+  the body model: exposure drifts body temperature toward the air temperature with no metabolic heat, wind
+  chill, wetness or sky radiation (`systems/food.rs`), and the build menu places everything at floor level
+  with no rotation, so a roof cannot go overhead and walls only run east-west. It needs a heat-balance body
+  (metabolic heat against convective, radiative and evaporative loss, clothing insulation), then a covered-and-
+  enclosed test over built pieces (the ray test in `uses.rs` is the start of one), then placement that can put
+  a roof on walls.
+- Native: `src/systems/construction/mod.rs`, `src/systems/construction/uses.rs`, `src/systems/sleep.rs`,
+  `src/engine/built_uses.rs` (prompt, E press, chest sync), `src/gui/organize.rs` (`place_path`,
+  `sync_built_stores`), `src/gui/pages/hud.rs` (the prompt)
 - Data: `data/blueprints/basic.ron`
 
 ### Skills/Progression

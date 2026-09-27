@@ -169,6 +169,7 @@ pub fn extract_world_save(world: &hecs::World) -> WorldSave {
             max_health: s.max_health,
             provides: s.provides.clone(),
             building: None,
+            uid: s.uid,
         });
     }
     for (_e, (c, t)) in world.query::<(&Construction, &crate::ecs::components::Transform)>().iter() {
@@ -182,6 +183,7 @@ pub fn extract_world_save(world: &hecs::World) -> WorldSave {
             max_health: 0.0,
             provides: None,
             building: Some((c.progress, c.build_time)),
+            uid: 0,
         });
     }
     save
@@ -362,6 +364,7 @@ pub fn apply_save_to_world(world: &mut hecs::World, save: &WorldSave) {
                         health: b.health,
                         max_health: b.max_health,
                         provides: b.provides.clone(),
+                        uid: b.uid,
                     },
                 ));
             }
@@ -1351,6 +1354,7 @@ mod tests {
                 health: 80.0,
                 max_health: 100.0,
                 provides: Some("shelter".to_string()),
+                uid: 4,
             },
         ));
         world.spawn((
@@ -1389,6 +1393,63 @@ mod tests {
         assert_eq!(back.constructions, save.constructions);
     }
 
+    /// A built chest and what is in it survive a restart (2026-09-27): the
+    /// chest comes back with the SAME uid, so its places-tree node comes back
+    /// at the same path, and the item filed there is in it again. Red check:
+    /// with `apply_save_to_world` restoring uid 0 instead of the saved one,
+    /// the restored chest is no store until the ConstructionSystem numbers
+    /// it afresh, and the first assertion after the restart fails.
+    #[test]
+    fn a_built_chest_keeps_its_contents_through_a_restart() {
+        use crate::systems::construction::{uses, BlueprintRegistry, Structure};
+        let reg = BlueprintRegistry::from_ron(include_bytes!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/data/blueprints/basic.ron"
+        )))
+        .unwrap();
+        let chest = reg.get("storage_chest").unwrap();
+        let mut world = hecs::World::new();
+        world.spawn((
+            crate::ecs::components::Transform {
+                position: glam::Vec3::new(2.0, 0.0, -4.0),
+                rotation: glam::Quat::IDENTITY,
+                scale: glam::Vec3::from_array(chest.size),
+            },
+            Structure {
+                blueprint_id: chest.id.clone(),
+                health: chest.health,
+                max_health: chest.health,
+                provides: chest.provides.clone(),
+                uid: 3,
+            },
+        ));
+        // The player stashes planks in it (the Inventory page files them
+        // under the chest's path), then the home is saved as on exit.
+        let path = uses::built_stores(&world, Some(&reg))[0].0.clone();
+        let mut save = extract_world_save(&world);
+        save.placed_items = vec![crate::gui::PlacedItem {
+            key: "wood_plank_0".into(),
+            name: "Wood Plank".into(),
+            qty: 5,
+            container: path.clone(),
+            wear: 0,
+            quality: 0,
+        }];
+        let back: WorldSave = serde_json::from_str(&serde_json::to_string(&save).unwrap()).unwrap();
+
+        // Next launch: the world comes back, the tree is rebuilt from it.
+        let mut fresh = hecs::World::new();
+        apply_save_to_world(&mut fresh, &back);
+        let stores = uses::built_stores(&fresh, Some(&reg));
+        assert_eq!(stores, vec![(path.clone(), "Storage Chest".to_string())]);
+        let mut places = crate::gui::load_places(std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/data")));
+        crate::gui::sync_built_stores(&mut places, &stores);
+        assert!(crate::gui::collect_containers(&places).iter().any(|(p, l)| *p == path && l == "Storage Chest"));
+        let inside: Vec<_> = back.placed_items.iter().filter(|p| p.container == path).collect();
+        assert_eq!(inside.len(), 1);
+        assert_eq!((inside[0].key.as_str(), inside[0].qty), ("wood_plank_0", 5));
+    }
+
     /// A scaffold's materials were spent when it started, so time away may
     /// finish it; progress is capped at build_time so the ConstructionSystem's
     /// own tick does the completion (quest event, XP) rather than this pass.
@@ -1406,6 +1467,7 @@ mod tests {
             max_health: 0.0,
             provides: None,
             building: Some((4.0, 10.0)),
+            uid: 0,
         }];
         let mut world = hecs::World::new();
         apply_save_to_world(&mut world, &save);

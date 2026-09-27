@@ -626,6 +626,18 @@ pub fn draw(
                     }
                 }
             }
+            // Built bed / chest prompt (2026-09-27, engine/built_uses.rs): set
+            // only when nothing the E chain tries first is targeted.
+            if !state.structure_prompt.is_empty() && state.npc_prompt.is_empty() {
+                text_shadowed(
+                    painter,
+                    Pos2::new(center.x, center.y + 22.0),
+                    Align2::CENTER_TOP,
+                    &state.structure_prompt,
+                    13.0,
+                    theme.accent(),
+                );
+            }
             // Door control panel prompt at the crosshair (v0.567): looking at a panel within reach
             // shows [E] open/close (or "locked"). Precomputed in the walk-up block in lib.rs.
             if !state.control_panel_prompt.is_empty() && state.npc_prompt.is_empty() {

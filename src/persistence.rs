@@ -193,6 +193,11 @@ pub struct ConstructionSave {
     /// construction; None once it is a finished Structure.
     #[serde(default)]
     pub building: Option<(f32, f32)>,
+    /// The finished structure's stable uid (Structure.uid, 2026-09-27): a
+    /// built chest's contents are filed under it, so it must come back as
+    /// the same number. 0 for a scaffold, which has none yet.
+    #[serde(default)]
+    pub uid: u32,
 }
 
 fn default_true_save() -> bool {
@@ -355,6 +360,7 @@ mod tests {
                     max_health: 100.0,
                     provides: None,
                     building: None,
+                    uid: 1,
                 },
             ],
             crafts: Vec::new(),

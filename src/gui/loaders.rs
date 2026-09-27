@@ -307,6 +307,11 @@ pub struct Place {
     /// For a `kind: "item"` leaf: how many (default 1).
     #[serde(default)]
     pub qty: Option<u32>,
+    /// A top-level place addressed by its `id` instead of its position in
+    /// the list (2026-09-27): a built chest, whose position shifts as other
+    /// things are built. See `place_path`.
+    #[serde(default)]
+    pub keyed: bool,
 }
 
 /// Load the seeded entities from `data/places/seed.json` — top-level entries
@@ -373,7 +378,7 @@ pub fn flatten_placed_items(places: &[Place]) -> Vec<PlacedItem> {
     }
     let mut out = Vec::new();
     for (i, p) in places.iter().enumerate() {
-        walk(p, &i.to_string(), &mut out);
+        walk(p, &super::place_path(i, p), &mut out);
     }
     out
 }
@@ -394,7 +399,7 @@ pub fn collect_containers(places: &[Place]) -> Vec<(String, String)> {
     }
     let mut out = Vec::new();
     for (i, p) in places.iter().enumerate() {
-        walk(p, &i.to_string(), &mut out);
+        walk(p, &super::place_path(i, p), &mut out);
     }
     out
 }
@@ -1562,5 +1567,34 @@ pub fn load_default_player_skills(data_dir: &std::path::Path) -> Vec<(String, f3
     read_data_json::<File>(data_dir, "skills/default_profile.json")
         .map(|f| f.skills.into_iter().map(|s| (s.name, s.xp)).collect())
         .unwrap_or_default()
+}
+
+// Moved here from gui/mod.rs (2026-09-27), beside the function it tests.
+#[cfg(all(test, feature = "native"))]
+mod map_planet_tests {
+    // The Maps page planet list rendered EMPTY for months because
+    // load_planets read a bodies.json that stopped shipping and the error
+    // only went to stderr. This asserts the OUTCOME (a populated list with
+    // believable facts), so a broken data path can never again pass silently.
+    #[test]
+    fn maps_page_planet_list_is_populated_from_the_catalog() {
+        let planets = super::load_planets();
+        assert!(
+            planets.len() >= 8,
+            "expected at least the 8 major planets, got {}",
+            planets.len()
+        );
+        let earth = planets
+            .iter()
+            .find(|p| p.name == "Earth")
+            .expect("Earth present in the Maps planet list");
+        assert!((earth.gravity - 9.81).abs() < 0.2, "Earth gravity ~9.81");
+        assert!(earth.moons >= 1, "Earth should list at least the Moon");
+        assert!(
+            (earth.orbit_radius_au - 1.0).abs() < 0.05,
+            "Earth orbits at ~1 AU"
+        );
+        assert!(!earth.atmosphere.is_empty() && earth.atmosphere != "None");
+    }
 }
 

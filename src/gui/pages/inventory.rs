@@ -1673,7 +1673,10 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             place,
                             &state.inventory_items,
                             &state.placed_items,
-                            &i.to_string(),
+                            // A built chest is addressed by its id, not its
+                            // index (crate::gui::place_path), so its contents
+                            // stay put as other things are built.
+                            &crate::gui::place_path(i, place),
                             state.selected_slot,
                             placed_sel,
                             &tree_containers,

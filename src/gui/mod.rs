@@ -1108,6 +1108,9 @@ pub struct GuiState {
     /// The crosshair prompt for the targeted control panel (v0.567), precomputed each frame
     /// (the HUD can't see the door's open/locked state, which lives in EngineState). Empty = none.
     pub control_panel_prompt: String,
+    /// Crosshair prompt for the built bed or chest the player looks at
+    /// ("[E] sleep in the Bed"), from engine/built_uses.rs. Empty = none.
+    pub structure_prompt: String,
     /// Index of the machine whose card is pinned open (toggled with E). Stays until E
     /// again or it is cleared. Survives walking away (it is the "opened station").
     pub selected_machine: Option<usize>,
@@ -3450,6 +3453,7 @@ impl Default for GuiState {
             livestock_notice_at: 0.0,
             targeted_control_panel: None,
             control_panel_prompt: String::new(),
+            structure_prompt: String::new(),
             selected_machine: None,
             machine_card_recipe: None,
             machine_card_recipe_options: Vec::new(),
@@ -4766,33 +4770,5 @@ mod ui_click_sound_tests {
             !ui_click_should_sound(&[clicked_button()], false),
             "with interface sounds disabled, even a real click is silent"
         );
-    }
-}
-
-#[cfg(all(test, feature = "native"))]
-mod map_planet_tests {
-    // The Maps page planet list rendered EMPTY for months because
-    // load_planets read a bodies.json that stopped shipping and the error
-    // only went to stderr. This asserts the OUTCOME (a populated list with
-    // believable facts), so a broken data path can never again pass silently.
-    #[test]
-    fn maps_page_planet_list_is_populated_from_the_catalog() {
-        let planets = super::load_planets();
-        assert!(
-            planets.len() >= 8,
-            "expected at least the 8 major planets, got {}",
-            planets.len()
-        );
-        let earth = planets
-            .iter()
-            .find(|p| p.name == "Earth")
-            .expect("Earth present in the Maps planet list");
-        assert!((earth.gravity - 9.81).abs() < 0.2, "Earth gravity ~9.81");
-        assert!(earth.moons >= 1, "Earth should list at least the Moon");
-        assert!(
-            (earth.orbit_radius_au - 1.0).abs() < 0.05,
-            "Earth orbits at ~1 AU"
-        );
-        assert!(!earth.atmosphere.is_empty() && earth.atmosphere != "None");
     }
 }

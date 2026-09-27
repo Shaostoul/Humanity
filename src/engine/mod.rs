@@ -49,6 +49,9 @@ pub mod region_meshes;
 /// Background relay connections: dial + keep-alive + compact router for
 /// every saved server that is not the active one (multi-connection).
 pub mod bg_connections;
+/// Built beds and chests in use: the crosshair prompt, the E press, and
+/// built chests as containers in the places tree (2026-09-27).
+pub mod built_uses;
 pub mod net_route;
 pub mod registries;
 /// In-world screens: native pages on flat displays placed in the 3D world

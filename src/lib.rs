@@ -1265,6 +1265,7 @@ mod native_app {
             data_store.insert("abort_active_crafts", std::sync::Mutex::new(false));
             // Survival: rest to refill energy (FoodSystem drains it).
             data_store.insert("rest_request", std::sync::Mutex::new(false));
+            data_store.insert(crate::systems::sleep::REQUEST_SLOT, std::sync::Mutex::new(None::<String>));
             // Sanitation: compost accumulated waste -> fertilizer (FoodSystem);
             // fertilize a crop by entity bits (FarmingSystem).
             data_store.insert("compost_request", std::sync::Mutex::new(false));
@@ -2735,6 +2736,8 @@ mod native_app {
                                     } else {
                                         Some(t)
                                     };
+                            } else if crate::engine::built_uses::activate(state) {
+                                // A built bed (sleep) or chest (open): engine/built_uses.rs.
                             } else if state.gui_state.selected_machine.is_some() {
                                 // Not looking at any machine but a card is pinned: E closes it
                                 // (so "[E] close" works from anywhere, not just at the machine).
@@ -5764,6 +5767,8 @@ mod native_app {
                             None => String::new(),
                         };
                     }
+                    // Built beds and chests: prompt + chests in the places tree (2026-09-27).
+                    crate::engine::built_uses::frame(state);
 
                     // Per-body environment snapshot (artificial-planet
                     // increment 4): publish which world the player is on so
