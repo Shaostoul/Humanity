@@ -660,11 +660,11 @@ fn make_utility_meter(utility: &str, generation: f32, demand: f32, unit: &str) -
 }
 
 /// Hours/day a grow light runs -- the duty-cycle assumption behind the grow-light power meter.
-/// Real crops need ~12-16 h of light/day (leafy greens the low end, fruiting crops the high end);
-/// 14 h is the mid-range a real grow-room timer gets set to, so that is what the meter charges:
-/// kWh/day = fixture watts x 14 h / 1000. Documented as a constant so the math is auditable and
-/// the GUI can quote the same number. (v0.664, homestead-solo-design.md gap #5)
-pub const GROW_LIGHT_DUTY_HOURS: f32 = 14.0;
+/// The garden's timer (data/garden/lighting.ron `lamp_photoperiod_h`, 18 h of light a day with
+/// the sun's 12) runs a light from sunset to midnight, 6 h, and FarmingSystem draws its power only
+/// then; the meter charges the same: kWh/day = fixture watts x 6 h / 1000. (It was 14 h, v0.664,
+/// until the timer existed; a test in farming::lighting keeps the two equal.)
+pub const GROW_LIGHT_DUTY_HOURS: f32 = 6.0;
 
 /// Verdict of the grow-light power meter (v0.664): where the placed LED grow lights sit against
 /// the home's real energy budget. docs/design/self-sufficiency.md calls this meter "the single
@@ -1182,8 +1182,8 @@ impl MachineHome {
     /// `grow_light_` (data-driven: add wattage variants to the catalog, no code change).
     ///
     /// The math, all in kWh/day like `utility_meters`:
-    /// - lights draw = fixture watts x `GROW_LIGHT_DUTY_HOURS` (14 h -- crops need ~12-16 h of
-    ///   light/day; lights run on a timer, unlike the 24 h worst-case the generic meter charges
+    /// - lights draw = fixture watts x `GROW_LIGHT_DUTY_HOURS` (6 h: the garden timer runs them
+    ///   from sunset to its 18 h photoperiod, unlike the 24 h worst-case the generic meter charges
     ///   every consumer).
     /// - free headroom = generation - every NON-grow-light demand (at 24 h, matching
     ///   `utility_meters`); batteries are storage, never demand.
@@ -2410,7 +2410,7 @@ mod tests {
     /// home eats battery reserves daily); enough lights that the draw ALONE exceeds the whole
     /// home's generation is RED. Exact thresholds asserted: a 1000 W panel at 4.5 sun-hours makes
     /// 4.5 kWh/day; the 100 W base load uses 2.4 (24 h) -> 2.1 kWh/day free headroom; each 100 W
-    /// grow light draws 100 x 14 h = 1.4 kWh/day.
+    /// grow light draws 100 x 6 h = 0.6 kWh/day (the timer's hours).
     #[test]
     fn grow_light_meter_green_amber_red_thresholds() {
         let mut catalog = BTreeMap::new();
@@ -2431,30 +2431,35 @@ mod tests {
         // Zero grow lights -> no report (the meter row only appears once one is placed).
         assert!(home.grow_light_report(4.5).is_none(), "no lights -> no report");
 
-        // 1 light: 1.4 kWh/day <= 2.1 headroom -> GREEN.
+        // (CHANGED 2026-09-26: a light runs the timer's 6 h a day, not 14, so
+        // each is 0.6 kWh; the thresholds are the same, the light counts are
+        // higher.) 1 light: 0.6 kWh/day <= 2.1 headroom -> GREEN.
         home.instances.push(inst("gl1", "grow_light"));
         let r = home.grow_light_report(4.5).expect("one light -> a report");
         assert_eq!(r.count, 1);
         assert!((r.watts - 100.0).abs() < 1e-3, "watts {}", r.watts);
-        assert!((r.draw_kwh_day - 1.4).abs() < 1e-3, "draw {}", r.draw_kwh_day);
+        assert!((r.draw_kwh_day - 0.6).abs() < 1e-3, "draw {}", r.draw_kwh_day);
         assert!((r.headroom_kwh_day - 2.1).abs() < 1e-3, "headroom {}", r.headroom_kwh_day);
         assert!((r.generation_kwh_day - 4.5).abs() < 1e-3, "gen {}", r.generation_kwh_day);
         assert_eq!(r.verdict, GrowLightVerdict::WithinHeadroom);
         assert!(r.summary.contains("inside"), "{}", r.summary);
 
-        // 2 lights: 2.8 > 2.1 headroom but <= 4.5 generated -> AMBER (daily reserve deficit).
-        home.instances.push(inst("gl2", "grow_light"));
+        // 4 lights: 2.4 > 2.1 headroom but <= 4.5 generated -> AMBER (daily reserve deficit).
+        for id in ["gl2", "gl3", "gl4"] {
+            home.instances.push(inst(id, "grow_light"));
+        }
         let r = home.grow_light_report(4.5).expect("a report");
-        assert_eq!(r.count, 2);
+        assert_eq!(r.count, 4);
         assert_eq!(r.verdict, GrowLightVerdict::EatingReserves);
         assert!(r.summary.contains("battery reserves"), "{}", r.summary);
 
-        // 4 lights: 5.6 kWh/day > the whole home's 4.5 generated -> RED.
-        home.instances.push(inst("gl3", "grow_light"));
-        home.instances.push(inst("gl4", "grow_light"));
+        // 8 lights: 4.8 kWh/day > the whole home's 4.5 generated -> RED.
+        for id in ["gl5", "gl6", "gl7", "gl8"] {
+            home.instances.push(inst(id, "grow_light"));
+        }
         let r = home.grow_light_report(4.5).expect("a report");
-        assert_eq!(r.count, 4);
-        assert!((r.draw_kwh_day - 5.6).abs() < 1e-3, "draw {}", r.draw_kwh_day);
+        assert_eq!(r.count, 8);
+        assert!((r.draw_kwh_day - 4.8).abs() < 1e-3, "draw {}", r.draw_kwh_day);
         assert_eq!(r.verdict, GrowLightVerdict::ExceedsGeneration);
         assert!(r.summary.contains("more than the whole home generates"), "{}", r.summary);
     }

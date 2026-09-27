@@ -247,5 +247,18 @@
         (plant: "aloe_vera", harvest: Once),
         (plant: "st_johns_wort", harvest: Once),
         (plant: "oyster_mushroom", harvest: Once),
+        // -- Tapped (2026-09-26) --
+        // rubber_tree: tapped, not felled. "Rubber trees are tapped about once every two
+        //     days, yielding a cupful of latex, containing approximately 50 grams (1.7
+        //     ounces) of solid rubber, each time"; "production commences when a tree is 5
+        //     or 6 years old; with care, the tree's useful life may extend to more than 20
+        //     years" (Encyclopaedia Britannica, "Rubber: Tapping and coagulation", read
+        //     2026-09-26 as a search-result excerpt; the page itself refused automated
+        //     access). So from tapping age (plants.csv growth_days 2190, six years) it
+        //     bears for 20 years, 7300 garden days, tapped every 2 days: 3650 tappings.
+        //     At 50 g of rubber a tapping and latex 28 to 35% rubber (recipes.csv, Wattana
+        //     et al. 2025), that is 0.14 to 0.18 kg of latex a tapping, 520 to 650 kg over
+        //     its life: plants.csv yield 450 to 650 latex_0 (1 kg each).
+        (plant: "rubber_tree", harvest: Picked(window_days: 7300.0, every_days: 2.0)),
     ],
 )

@@ -1013,9 +1013,16 @@ pub struct Irrigator;
 /// `Transform`, as much canopy as its watts can serve (about 0.58 m2 per
 /// 100 W, `farming::lighting`), so green crops there keep growing after the
 /// sun sets; shed or switched off, it gives no light and they pause until
-/// sunrise.
+/// sunrise. It runs on the garden's timer (lighting.ron `lamp_photoperiod_h`):
+/// FarmingSystem sets its PowerConsumer's draw to `watts` while the timer has
+/// it on and to 0 otherwise, by day included (2026-09-26 review: the timer
+/// gated the light but the light drew its 100 W around the clock).
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
-pub struct GrowLight;
+pub struct GrowLight {
+    /// Its rated draw while lit, W (the machine's Consumer watts).
+    #[serde(default)]
+    pub watts: f32,
+}
 
 /// A bumblebee hive (2026-09-26, `MachineDef::pollinates_crops`): its bees
 /// pollinate the flowers of the indoor grow areas around its `Transform`

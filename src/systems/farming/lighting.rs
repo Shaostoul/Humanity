@@ -145,8 +145,8 @@ pub fn powered_lights(world: &hecs::World) -> Vec<([f32; 3], f64)> {
             &crate::ecs::components::Transform,
         )>()
         .iter()
-        .filter(|(_, (_, pc, _))| pc.enabled && pc.draw_watts > 0.0)
-        .map(|(_, (_, pc, t))| (t.position.to_array(), f64::from(pc.draw_watts)))
+        .filter(|(_, (gl, pc, _))| pc.enabled && gl.watts > 0.0)
+        .map(|(_, (gl, _, t))| (t.position.to_array(), f64::from(gl.watts)))
         .collect();
     // A fixed order, so two lights sharing a plot always share it the same way.
     lights.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
@@ -417,6 +417,16 @@ mod tests {
         let sunset = (SUNRISE_H + 24.0 * super::super::DAYLIGHT_FRACTION) as f32;
         assert!(crate::systems::solar::sun_factor(sunset - 0.05) > 0.0);
         assert_eq!(crate::systems::solar::sun_factor(sunset + 0.05), 0.0);
+    }
+
+    /// The construction editor's power meter charges a grow light for the
+    /// hours the garden's timer runs it (review 2026-09-26: the meter said 14
+    /// h, the sim drew 24, the timer lit 6).
+    #[test]
+    fn the_power_meter_charges_the_timer_hours() {
+        let d = shipped();
+        let lamp_h = d.lamp_photoperiod_h - 24.0 * super::super::DAYLIGHT_FRACTION;
+        assert_eq!(lamp_h as f32, crate::machines::GROW_LIGHT_DUTY_HOURS);
     }
 
     /// The card's light need: a sourced crop gives its target and range, an

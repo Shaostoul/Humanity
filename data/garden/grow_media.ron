@@ -96,9 +96,11 @@
             // data/garden/humidity.ron (THE FRUITING TENT) has the sources and
             // the fresh air this much substrate needs.
             enclosure: Some((size: (1.3, 1.9, 0.7), substrate_kg: 22.7)),
+            // No humidity slider: the tent's humidifier holds the air at its
+            // setpoint (farming::humidity), so a slider here would do nothing
+            // (2026-09-26 review found it read by nothing).
             controls: [
                 Crop(label: "Species", hint: "e.g. oyster"),
-                Slider(key: "humidity", label: "Humidity"),
             ],
         ),
         (
@@ -109,6 +111,46 @@
             controls: [
                 Crop(label: "Fish", hint: "e.g. tilapia"),
                 Slider(key: "nutrient", label: "Feed rate"),
+            ],
+        ),
+        // The legume, tuber and oilseed fields sow their own crop (2026-09-26
+        // review: every field matched the generic entry below and its Plant
+        // button sowed wheat, while its card counted bean, potato or
+        // sunflower). They come first because the first matching entry wins.
+        (
+            id: "legume_field",
+            match_exact: Some("legume_field"),
+            label: "Legume field - outdoor pulses, fixes its own nitrogen",
+            note: "Carries the bulk calories no indoor canopy can. The silo buffers the winter.",
+            default_crop: Some("bean"),
+            plots: 4,
+            controls: [
+                Crop(label: "Crop", hint: "e.g. bean"),
+                Slider(key: "water", label: "Irrigation"),
+            ],
+        ),
+        (
+            id: "tuber_field",
+            match_exact: Some("tuber_field"),
+            label: "Tuber field - outdoor potatoes and roots",
+            note: "Carries the bulk calories no indoor canopy can. The silo buffers the winter.",
+            default_crop: Some("potato"),
+            plots: 4,
+            controls: [
+                Crop(label: "Crop", hint: "e.g. potato"),
+                Slider(key: "water", label: "Irrigation"),
+            ],
+        ),
+        (
+            id: "oilseed_field",
+            match_exact: Some("oilseed_field"),
+            label: "Oilseed field - outdoor oil crops",
+            note: "Carries the bulk calories no indoor canopy can. The silo buffers the winter.",
+            default_crop: Some("sunflower"),
+            plots: 4,
+            controls: [
+                Crop(label: "Crop", hint: "e.g. sunflower"),
+                Slider(key: "water", label: "Irrigation"),
             ],
         ),
         (

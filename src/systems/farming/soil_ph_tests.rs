@@ -563,3 +563,19 @@ fn a_placed_plot_buffers_over_its_real_floor_area() {
     assert_eq!(soil_ph::plot_area(&store, "graintray_0"), Some(1.0));
     assert_eq!(soil_ph::plot_area(&store, "ntower_3"), None, "a tower has no plot floor");
 }
+
+/// A hand-planted crop (no grow area, no slot) is not held to a pH it cannot
+/// be given: a blueberry (window 4.5 to 5.5) in a pot is not capped at the
+/// soil start of 6.5 and has no pH to show, where the same blueberry in a
+/// bed slot is. Seen red by removing the no-slot check in crop_ph (the pot
+/// was capped at 70 with a Sulfur notice it could not act on).
+#[test]
+fn a_hand_planted_crop_is_not_held_to_soil_ph() {
+    let ph = shipped();
+    let plants = PlantRegistry::from_csv(include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/data/plants.csv")).as_slice()).unwrap();
+    let blueberry = plants.get("blueberry").cloned();
+    let units = soil_ph::PhUnits::default();
+    assert_eq!(soil_ph::crop_ph(&units, &ph, "", None), None, "no unit, no pH");
+    assert_eq!(soil_ph::crop_ceiling(&units, &ph, true, "", None, blueberry.as_ref()), 100.0);
+    assert!(soil_ph::crop_ceiling(&units, &ph, true, "bed_1", Some(0), blueberry.as_ref()) < 100.0, "in a bed it is held");
+}

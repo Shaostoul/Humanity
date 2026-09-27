@@ -1714,3 +1714,44 @@ back to TYPE-tagged units. Every unit test inserted its own maps, so none could 
 the plot-drawing work (2026-09-26) when its first after-photo showed no change. Fix:
 `world_load` publishes the plots as soon as it records the grow anchors.
 
+## BUG-092: nine defects in the day's garden releases, found by review (FIXED v0.1373.0, one left open)
+
+An independent review of v0.1363.0 to v0.1372.1 (a read-only critic agent that
+drove the shipped crate from a scratch test package) found:
+
+1. **Every crop ripened at (n-1)/n of its growth_days,** 17% early for a
+   six-stage tomato, against plants.csv ("days from planting to harvest"), the
+   light model's doc and the food model. `stage_from_progress` now reaches the
+   last stage at progress 1.0 and the soil uptake follows. Test
+   `a_crop_ripens_at_its_growth_days_and_not_before`.
+2. **Pest controls charged per crop entity,** not per plant: a 128-plant bean
+   field was hosed with 2 L and sprayed with one bottle. Now per plant. Test
+   `a_control_is_charged_for_every_plant_in_the_plots`.
+3. **The grow-light timer lit the plots but the light drew 100 W around the
+   clock;** the editor's meter assumed 14 h. `GrowLight` carries its watts and
+   the tick sets the draw from the timer; the meter charges the timer's 6 h.
+   Tests `a_grow_light_draws_power_only_while_its_timer_has_it_on`,
+   `the_power_meter_charges_the_timer_hours`.
+4. **Weeds on an emptied bed** prompted "hoe them", then the hoe was refused
+   and no row showed. An empty bed can be hoed or mulched bare and is listed.
+   Test `an_emptied_bed_can_be_hoed_and_is_shown`.
+5. **The showcase stagger ignored the 10x growth speed,** so nearly every
+   staggered crop spawned ripe. Ages now run on the growth clock.
+6. **Hand-planted crops were held to a soil pH no one could change.** A crop
+   with no grow unit is not pH-modelled. Test
+   `a_hand_planted_crop_is_not_held_to_soil_ph`.
+7. **OPEN: room air and the water tanks run on clocks 72x apart.** The
+   humidity balance (and the crops' breathing) runs on game hours; the tanks
+   are billed per real day (irrigation, humidifiers). Mass is not conserved.
+   This is the same question as the body clock against the garden clock and
+   waits on the operator's decision (docs/PRIORITIES.md).
+8. **Later picks are rescaled by season health at each pick,** though the code
+   comment said they were not. The behaviour is kept (a drought during the
+   window lowers the picks after it) and the comment corrected.
+9. **The rubber tree was felled at its only harvest** after six years. It is
+   now tapped every two days for 20 years (harvest_windows.ron, Britannica).
+
+Also: the legume, tuber and oilseed fields sowed wheat from the Plant button
+(own grow media now), and the mushroom rack's Humidity slider did nothing (the
+tent humidifier holds the air; the slider is gone). Each test was run red by
+undoing its fix first.

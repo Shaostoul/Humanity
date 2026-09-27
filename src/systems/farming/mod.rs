@@ -629,16 +629,22 @@ const RF_HEALTH_PENALTY: f32 = 1.5;
 const SECONDS_PER_DAY: f64 = 1200.0;
 
 /// Determine growth stage from progress fraction (0.0 to 1.0+) using
-/// a data-driven stage list. Stages are evenly distributed across the
-/// 0.0-1.0 range unless custom thresholds are added later.
-fn stage_from_progress<'a>(progress: f32, stages: &'a [&'a str]) -> &'a str {
+/// a data-driven stage list. The LAST stage (ripe, harvestable) is reached at
+/// progress 1.0, exactly the plants.csv `growth_days` ("days from planting
+/// to harvest"); the stages before it share the time before evenly: stage i
+/// runs from i/(n-1) to (i+1)/(n-1). (Until 2026-09-26 every stage took 1/n,
+/// so a crop ripened at (n-1)/n of its growth_days, 17% early for a 6-stage
+/// tomato, against its own data and the food model; an independent review
+/// measured it.)
+pub fn stage_from_progress<'a>(progress: f32, stages: &'a [&'a str]) -> &'a str {
     if stages.is_empty() {
         return DEFAULT_GROWTH_STAGES[0];
     }
     let n = stages.len();
-    // Each stage occupies an equal fraction of the 0.0-1.0 range.
-    // stage[i] starts at i/n and runs until (i+1)/n.
-    let idx = ((progress * n as f32).floor() as usize).min(n - 1);
+    if n == 1 || progress >= 1.0 {
+        return stages[n - 1];
+    }
+    let idx = ((progress.max(0.0) * (n - 1) as f32).floor() as usize).min(n - 2);
     stages[idx]
 }
 
@@ -1076,6 +1082,11 @@ impl System for FarmingSystem {
         let lit_now = lighting::light_at(world, data, hour);
         let sun_up = lit_now.sun_up;
         let lamp_cover = lit_now.cover;
+        // The timer drives the lights' power too: full draw while on, none
+        // by day or after it switches them off (2026-09-26 review).
+        for (_e, (gl, pc)) in world.query_mut::<(&crate::ecs::components::GrowLight, &mut crate::ecs::components::PowerConsumer)>() {
+            pc.draw_watts = if lit_now.lamps_on { gl.watts } else { 0.0 };
+        }
         // Game seconds this tick, computed the way TimeSystem advances the
         // clock, so holding a crop in the dark holds it by exactly what
         // passed. A clock jump (the dev hour set, a save restore) is not a
@@ -1370,11 +1381,13 @@ impl System for FarmingSystem {
                 let n_stages = stages.len().max(1);
                 for slot in 0..slots {
                     let frac = slot as f32 / (slots - 1) as f32;
-                    let stage_i = ((frac * n_stages as f32).floor() as usize).min(n_stages - 1);
+                    let _ = n_stages;
                     world.spawn((CropInstance {
                         crop_def_id: plant_id.clone(),
-                        growth_stage: stages[stage_i].to_string(),
-                        planted_at: elapsed_seconds - growth_seconds * frac as f64,
+                        growth_stage: stage_from_progress(frac, &stages).to_string(),
+                        // Its age on the growth clock, which runs at the
+                        // growth-speed setting (10x by default).
+                        planted_at: elapsed_seconds - growth_seconds * frac as f64 / f64::from(growth_speed.max(0.01)),
                         water_level: 1.0,
                         health: 100.0,
                         tower_id: Some(tower_id.clone()),
@@ -2297,8 +2310,10 @@ impl System for FarmingSystem {
             // crop with. Mature crops never reach this line (skipped above),
             // so the record covers the growing season and nothing after it,
             // except a plant bearing through its picking window: its record
-            // keeps running, so a drought shows in its health and can kill it,
-            // though its picks were rolled at the first one (picking.rs).
+            // keeps running, so a drought shows in its health, can kill it,
+            // and lowers the picks after it: each pick is scaled by the season
+            // health and fruit set at that pick (the harvest path; the season's
+            // place in the yield range is the one thing rolled once, picking.rs).
             crop.health_seconds += f64::from((crop.health / 100.0).clamp(0.0, 1.0)) * f64::from(dt);
             crop.growing_seconds += f64::from(dt);
 
@@ -2748,6 +2763,54 @@ mod gardening_tests {
         assert!((3..=6).contains(&filed), "the harvest went to home storage, not away: {filed}");
     }
 
+    /// A grow light draws its power only while the timer has it on: 100 W at
+    /// 20:00, nothing at 03:00 (after the 18 h photoperiod) and nothing at
+    /// noon (the sun is up). Seen red by leaving the draw alone in the tick
+    /// (it drew 100 W at 03:00 and at noon, 2.4 kWh a day).
+    #[test]
+    fn a_grow_light_draws_power_only_while_its_timer_has_it_on() {
+        let data = make_store();
+        let mut sys = FarmingSystem::new();
+        let mut world = hecs::World::new();
+        let light = world.spawn(grow_light(true));
+        for (hour, watts) in [(20.0, 100.0_f32), (3.0, 0.0), (12.0, 0.0)] {
+            set_clock(&data, 0, hour);
+            sys.tick(&mut world, 0.001, &data);
+            let draw = world.get::<&crate::ecs::components::PowerConsumer>(light).unwrap().draw_watts;
+            assert_eq!(draw, watts, "at {hour}:00 the light draws {draw} W");
+        }
+    }
+    /// A crop ripens at its plants.csv growth_days ("days from planting to
+    /// harvest"), not before (2026-09-26 review: every crop ripened at
+    /// (n - 1) / n of it, a 6-stage tomato 17% early). The stages before the
+    /// last share the time before evenly. Seen red with the old 1/n mapping
+    /// (a tomato at 90% of its days was already ripe).
+    #[test]
+    fn a_crop_ripens_at_its_growth_days_and_not_before() {
+        let stages = ["seed", "sprout", "vegetative", "flower", "fruit", "ripe"];
+        assert_eq!(stage_from_progress(0.0, &stages), "seed");
+        assert_eq!(stage_from_progress(0.2, &stages), "sprout");
+        assert_eq!(stage_from_progress(0.99, &stages), "fruit", "one day short is not ripe");
+        assert_eq!(stage_from_progress(1.0, &stages), "ripe");
+        assert_eq!(stage_from_progress(3.0, &stages), "ripe");
+        assert_eq!(stage_from_progress(0.5, &["only"]), "only");
+        // Through the real tick, at noon so light does not pause it.
+        let data = make_store();
+        let mut sys = FarmingSystem::new();
+        let tomato_days = data.get::<PlantRegistry>("plant_registry").unwrap().get("tomato").unwrap().growth_days as f64;
+        for (share, ripe) in [(0.9_f64, false), (1.001, true)] {
+            let mut world = hecs::World::new();
+            set_clock(&data, 400, 12.0);
+            let now = crate::systems::time::elapsed_now(&data);
+            let mut c = fresh_crop(&data, "tomato", Some("ntower_3"));
+            c.planted_at = now - tomato_days * SECONDS_PER_DAY * share / f64::from(DEFAULT_CROP_GROWTH_SPEED);
+            let e = world.spawn((c,));
+            sys.tick(&mut world, 0.001, &data);
+            let last = data.get::<PlantRegistry>("plant_registry").unwrap().get("tomato").unwrap().last_stage().to_string();
+            let stage = world.get::<&CropInstance>(e).unwrap().growth_stage.clone();
+            assert_eq!(stage == last, ripe, "at {share} of its growth days the tomato is at {stage}");
+        }
+    }
     /// A plant picked over a season keeps living through its window
     /// (2026-09-26): a ripe tomato left without water loses health like a
     /// growing one, while a ripe lettuce, harvested once, sits frozen until
@@ -3730,7 +3793,7 @@ mod gardening_tests {
         powered: bool,
     ) -> (crate::ecs::components::GrowLight, crate::ecs::components::PowerConsumer, crate::ecs::components::Transform) {
         (
-            crate::ecs::components::GrowLight,
+            crate::ecs::components::GrowLight { watts: 100.0 },
             crate::ecs::components::PowerConsumer { draw_watts: 100.0, priority: 5, enabled: powered },
             crate::ecs::components::Transform {
                 position: glam::Vec3::new(0.0, 2.0, 0.0),

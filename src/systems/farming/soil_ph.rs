@@ -391,6 +391,10 @@ pub fn health_ceiling(data: &SoilPhData, ph: f64, lo: f64, hi: f64) -> f32 {
 /// unit's remembered pH, or the soil's starting pH when nothing is remembered
 /// (and always for a hand-planted crop, which has no unit to remember it).
 pub fn crop_ph(units: &PhUnits, data: &SoilPhData, area: &str, slot: Option<u32>) -> Option<(f64, bool)> {
+    // A hand-planted crop has no unit (no slot): a pot the player fills, with
+    // nothing to lime or sulfur, so its pH is not modelled rather than held
+    // at the start value under a cap nobody can lift (2026-09-26 review).
+    slot?;
     let medium = data.medium_for(area)?;
     if let Some(held) = medium.held_ph {
         return Some((held, true));

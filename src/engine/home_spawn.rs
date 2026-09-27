@@ -182,7 +182,11 @@ pub(crate) fn spawn_home_machine_entity(
     // block above because a light has no water role; it always has a power
     // role (the machines.rs data test insists), so this entity exists.
     if def.lights_crops {
-        let _ = world.insert_one(e, crate::ecs::components::GrowLight);
+        let watts = match &def.power {
+            Some(MachinePower::Consumer { watts, .. }) => *watts,
+            _ => 0.0,
+        };
+        let _ = world.insert_one(e, crate::ecs::components::GrowLight { watts });
     }
     // Bumblebee hive (2026-09-26): FarmingSystem pollinates the indoor grow
     // areas around this entity's Transform (farming::pollination).

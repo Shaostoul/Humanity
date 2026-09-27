@@ -196,6 +196,11 @@ pub(crate) fn auto_seed_showcase(state: &mut EngineState) {
 
     // Collect the spawn list first (no world borrow while iterating data).
     let mut to_spawn: Vec<crate::ecs::components::CropInstance> = Vec::new();
+    let speed = state
+        .data_store
+        .get::<std::sync::Mutex<f32>>("crop_growth_speed")
+        .and_then(|m| m.lock().ok().map(|v| *v))
+        .unwrap_or(crate::systems::farming::DEFAULT_CROP_GROWTH_SPEED);
     let mut stagger = |list: &mut Vec<crate::ecs::components::CropInstance>,
                        plant_id: &str,
                        grow_id: &str,
@@ -203,12 +208,13 @@ pub(crate) fn auto_seed_showcase(state: &mut EngineState) {
                        frac: f32| {
         let Some(def) = reg.get(plant_id) else { return };
         let stages = def.stages();
-        let n = stages.len().max(1);
-        let stage_i = ((frac * n as f32).floor() as usize).min(n - 1);
+        // Its stage and its age on the GROWTH clock, which runs at the
+        // growth-speed setting (10x by default): at 1x ages every stagger
+        // above the first came out ripe (2026-09-26 review).
         list.push(crate::ecs::components::CropInstance {
             crop_def_id: plant_id.to_string(),
-            growth_stage: stages[stage_i].to_string(),
-            planted_at: elapsed - def.growth_days as f64 * DAY * frac as f64 * 0.98,
+            growth_stage: crate::systems::farming::stage_from_progress(frac, &stages).to_string(),
+            planted_at: elapsed - def.growth_days as f64 * DAY * frac as f64 / f64::from(speed.max(0.01)),
             water_level: 1.0,
             health: 100.0,
             tower_id: Some(grow_id.to_string()),

@@ -477,14 +477,11 @@ pub fn feed_dose_for(store: &Npk, target: &Npk, per_item: &Npk, dose_for: [bool;
 
 // -- Garden time -------------------------------------------------------------------
 
-/// The share of a crop's growth clock at which it ripens: it matures on
-/// entering its LAST stage, (n - 1) / n of the way (see `uptake_fraction`).
-fn mature_at(n_stages: usize) -> f64 {
-    if n_stages <= 1 {
-        1.0
-    } else {
-        (n_stages - 1) as f64 / n_stages as f64
-    }
+/// The share of a crop's growth clock at which it ripens: all of it. A crop
+/// enters its LAST stage at progress 1.0, its plants.csv growth_days
+/// (`farming::stage_from_progress`, 2026-09-26; it used to be (n - 1) / n).
+fn mature_at(_n_stages: usize) -> f64 {
+    1.0
 }
 
 /// Garden days a crop's unit lived through while its uptake share rose by
@@ -643,17 +640,14 @@ pub fn legume_credit_n(removal_n: f64, fixed_share: f64, harvest_n_share: f64) -
 /// growth days, times the growth-speed setting and the outdoor climate
 /// factor, but NOT its health (so a stunted crop still wants feeding, and
 /// fertilizing it is never waiting on its own recovery). A crop matures when
-/// it enters its LAST stage, at (n - 1) / n of the way, so the whole season's
-/// need is drawn by then.
+/// it enters its LAST stage, at the end of its growth clock (progress 1.0),
+/// so the whole season's need is drawn by then.
 pub fn uptake_fraction(clock_progress: f32, n_stages: usize) -> f32 {
     if !clock_progress.is_finite() {
         return 0.0;
     }
-    if n_stages <= 1 {
-        return clock_progress.clamp(0.0, 1.0);
-    }
-    let mature_at = (n_stages - 1) as f32 / n_stages as f32;
-    (clock_progress / mature_at).clamp(0.0, 1.0)
+    let _ = n_stages;
+    clock_progress.clamp(0.0, 1.0)
 }
 
 /// Take `want` out of `store`, as much of each nutrient as it has, and
@@ -1135,13 +1129,16 @@ mod tests {
     }
 
     /// The whole season's need is drawn by the time the crop enters its last
-    /// stage, and a draw never takes more than the unit holds. Seen red by
-    /// dropping the maturity point (drawing on the raw clock).
+    /// stage, which since 2026-09-26 is the end of its growth clock (progress
+    /// 1.0, its plants.csv growth_days; it was (n - 1) / n), and a draw never
+    /// takes more than the unit holds. CHANGED 2026-09-26 with the ripening
+    /// point: half way is now progress 0.5, all drawn at 1.0.
     #[test]
     fn uptake_follows_the_clock_to_maturity_and_draw_takes_what_is_there() {
         assert_eq!(uptake_fraction(0.0, 6), 0.0);
-        assert!((uptake_fraction(5.0 / 12.0, 6) - 0.5).abs() < 1e-6, "half way to the last stage");
-        assert_eq!(uptake_fraction(5.0 / 6.0, 6), 1.0, "all drawn on entering the last stage");
+        assert!((uptake_fraction(0.5, 6) - 0.5).abs() < 1e-6, "half way to the last stage");
+        assert!(uptake_fraction(5.0 / 6.0, 6) < 1.0, "not all drawn before it ripens");
+        assert_eq!(uptake_fraction(1.0, 6), 1.0, "all drawn on entering the last stage");
         assert_eq!(uptake_fraction(3.0, 6), 1.0);
         assert_eq!(uptake_fraction(f32::NAN, 6), 0.0);
         let mut store = Npk::new(1.0, 0.1, 2.0);
