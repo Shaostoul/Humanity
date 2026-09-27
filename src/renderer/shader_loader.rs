@@ -63,6 +63,10 @@ pub const PBR_PARTS: &[(&str, &str)] = &[
     ("45-cloud-temporal.wgsl", include_str!("../../assets/shaders/pbr/45-cloud-temporal.wgsl")),
     ("50-brdf.wgsl", include_str!("../../assets/shaders/pbr/50-brdf.wgsl")),
     ("80-fragment-shared.wgsl", include_str!("../../assets/shaders/pbr/80-fragment-shared.wgsl")),
+    // Room GI rung 1 (2026-09-27): the per-room probe sample frag_tail reads
+    // behind HAS_ROOM_GI. SHARED TEXT: the probe update compute shader
+    // compiles this same file (renderer::room_probes_gpu::UPDATE_SHADER).
+    ("85-room-gi.wgsl", include_str!("../../assets/shaders/pbr/85-room-gi.wgsl")),
     ("90-fragment-main.wgsl", include_str!("../../assets/shaders/pbr/90-fragment-main.wgsl")),
     // The fullscreen ADDITIVE emission pass (aurora, 2026-09-27): light that
     // lives above the cloud deck, drawn after the composite. A pass entry
@@ -335,7 +339,10 @@ pub fn validate_wgsl(source: &str) -> Result<(), String> {
 /// relies on that default to keep its branch).
 fn check_permutation_switches(module: &wgpu::naga::Module) -> Result<(), String> {
     use wgpu::naga::{Expression, Literal, Scalar, ScalarKind, TypeInner};
-    for name in super::pipeline::ALL_BRANCH_SWITCHES {
+    // Every switch, the shell trio AND the feature switches (room GI's
+    // HAS_ROOM_GI, 2026-09-27): a stale tree without HAS_ROOM_GI would hand
+    // the terrain pass the room lookup, silently, exactly as the shells did.
+    for name in super::pipeline::ALL_SWITCHES {
         let Some((_, switch)) = module
             .overrides
             .iter()
@@ -656,9 +663,17 @@ mod tests {
     /// declared but defaulting to `false`.
     #[test]
     fn validate_wgsl_refuses_a_megashader_missing_a_permutation_switch() {
-        use super::super::pipeline::{ALL_BRANCH_SWITCHES, BRANCH_CLOUD};
+        use super::super::pipeline::{ALL_SWITCHES, BRANCH_CLOUD, FEATURE_ROOM_GI};
         let intact = super::assembled_pbr_source();
         super::validate_wgsl(intact).expect("the embedded megashader passes the gate");
+
+        // Room GI's feature switch is held to the same rule (2026-09-27).
+        // Seen fail first with check_permutation_switches still walking only
+        // the three shell switches: this source was accepted.
+        let gi_gone = without_switch(intact, FEATURE_ROOM_GI);
+        assert!(naga_alone_accepts(&gi_gone), "a megashader without HAS_ROOM_GI is valid WGSL");
+        let err = super::validate_wgsl(&gi_gone).expect_err("a megashader without HAS_ROOM_GI must be refused");
+        assert!(err.contains(FEATURE_ROOM_GI), "the refusal must name HAS_ROOM_GI: {err}");
 
         // One switch gone: naga alone accepts it; the gate refuses it and
         // names the switch.
@@ -677,10 +692,10 @@ mod tests {
 
         // All three gone (the stale-tree case): naga accepts, the gate refuses.
         let mut all_gone = intact.to_string();
-        for name in ALL_BRANCH_SWITCHES {
+        for name in ALL_SWITCHES {
             all_gone = without_switch(&all_gone, name);
         }
-        for name in ALL_BRANCH_SWITCHES {
+        for name in ALL_SWITCHES {
             // (The names survive in comments, which is fine; only the
             // declaration and the guard use matter to naga.)
             assert!(
@@ -719,7 +734,7 @@ mod tests {
 #[cfg(test)]
 mod test_support {
     pub fn switch_declarations() -> String {
-        super::super::pipeline::ALL_BRANCH_SWITCHES
+        super::super::pipeline::ALL_SWITCHES
             .iter()
             .map(|name| format!("override {name}: bool = true;\n"))
             .collect()

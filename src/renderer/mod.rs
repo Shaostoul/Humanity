@@ -93,6 +93,10 @@ pub mod tree_mesh;
 pub mod particles;
 pub mod particles_gpu;
 pub mod pipeline;
+/// Room GI rung 1 (2026-09-27): per-room DDGI irradiance probes. The layout,
+/// the math and the CPU twin, then the atlas, the room table and the update.
+pub mod room_probes;
+pub mod room_probes_gpu;
 /// The near-world draw loops: opaque, transparent, overlay, god rays, SSAO,
 /// and the whole-frame wrappers around them. Extracted from mod.rs in
 /// v0.1319 - see the file's header for why this cluster.
@@ -339,6 +343,8 @@ pub struct Renderer {
     env_regions_capacity: usize,
     /// The emission pass's state (renderer/emission_pass.rs).
     pub emission: emission_pass::EmissionState,
+    /// Room GI probes, bound at group 0 bindings 5-7 (renderer/room_probes_gpu.rs).
+    pub room_gi: room_probes_gpu::RoomGi,
     tile_counts_buffer: wgpu::Buffer,
     tile_indices_buffer: wgpu::Buffer,
     /// Tile pixel sizes for the shadow-uniform poke (0 = tiling off).
@@ -1309,6 +1315,7 @@ impl Renderer {
         let env_regions_capacity = 16_usize;
         let env_regions_buffer = env_regions::storage_buffer(&device, env_regions_capacity);
         let emission = emission_pass::EmissionState::new(&device);
+        let room_gi = room_probes_gpu::RoomGi::new(&device);
         // Light-tile lists (clustering L1b): fixed-size, rewritten per frame
         // by update_light_tiles when tiling is enabled.
         let tile_counts_buffer = device.create_buffer(&wgpu::BufferDescriptor {
@@ -1333,6 +1340,7 @@ impl Renderer {
             &tile_counts_buffer,
             &tile_indices_buffer,
             &env_regions_buffer,
+            &room_gi,
         );
 
         // Dynamic object uniform buffer — holds up to MAX_OBJECTS entries (module const).
@@ -1729,6 +1737,7 @@ impl Renderer {
             &tile_counts_buffer,
             &tile_indices_buffer,
             &env_regions_buffer,
+            &room_gi,
         );
 
         // 1x1 dummy depth for the shadow pass's own group 3 (see field doc).
@@ -1916,6 +1925,7 @@ impl Renderer {
             env_regions_buffer,
             env_regions_capacity,
             emission,
+            room_gi,
             tile_counts_buffer,
             tile_indices_buffer,
             tile_px: (0.0, 0.0),
@@ -2492,31 +2502,12 @@ impl Renderer {
                 usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
                 mapped_at_creation: false,
             });
-            self.camera_bind_group = pipeline::camera_bind_group(
-                &self.device,
-                &self.pipeline.camera_bind_group_layout,
-                "Camera Bind Group",
-                &self.camera_buffer,
-                &self.lights_buffer,
-                &self.tile_counts_buffer,
-                &self.tile_indices_buffer,
-                &self.env_regions_buffer,
-            );
+            self.rebuild_camera_bind_groups();
         }
-        // Pack ALL lights: [pos.xyz, intensity][color.rgb, range][spot dir.xyz,
-        // cos_outer][cos_inner, 0, 0, 0] — matches the WGSL GpuLight struct.
+        // Pack ALL lights in the WGSL GpuLight layout (light::gpu_packed, which
+        // the room GI probe update packs with too).
         if !lights.is_empty() {
-            let packed: Vec<[f32; 16]> = lights
-                .iter()
-                .map(|l| {
-                    [
-                        l.pos.x, l.pos.y, l.pos.z, l.intensity,
-                        l.color[0], l.color[1], l.color[2], l.range,
-                        l.dir.x, l.dir.y, l.dir.z, l.cos_outer,
-                        l.cos_inner, 0.0, 0.0, 0.0,
-                    ]
-                })
-                .collect();
+            let packed: Vec<[f32; 16]> = lights.iter().map(light::gpu_packed).collect();
             self.queue
                 .write_buffer(&self.lights_buffer, 0, bytemuck::cast_slice(&packed));
         }
@@ -2556,16 +2547,7 @@ impl Renderer {
             }
             self.env_regions_capacity = cap;
             self.env_regions_buffer = env_regions::storage_buffer(&self.device, cap);
-            self.camera_bind_group = pipeline::camera_bind_group(
-                &self.device,
-                &self.pipeline.camera_bind_group_layout,
-                "Camera Bind Group",
-                &self.camera_buffer,
-                &self.lights_buffer,
-                &self.tile_counts_buffer,
-                &self.tile_indices_buffer,
-                &self.env_regions_buffer,
-            );
+            self.rebuild_camera_bind_groups();
         }
         let packed = env_regions::pack_all(regions, self.env_regions_capacity);
         self.queue.write_buffer(

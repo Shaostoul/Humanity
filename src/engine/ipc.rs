@@ -439,6 +439,21 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
             if state.renderer.emission.off { "OFF (emission pass skipped)" } else { "on" }
         );
     }
+    // {"room_gi":"0"} switches room GI off (2026-09-27, docs/design/room-gi.md):
+    // the room table says "off", every interior fragment keeps the old 0.005
+    // ambient floor, and the probe update is not dispatched. "1" turns it back
+    // on (the probes resume from where they stood). The same-boot A/B for both
+    // the look and the cost: a capture and its room-GI-off twin differ ONLY by
+    // the indirect light the probes add, and gpu.room_probes plus the sampling
+    // share of gpu.scene is what it costs.
+    if let Some(t) = grab("room_gi") {
+        state.renderer.room_gi.off = t == "0";
+        log::info!(
+            "Showcase: room_gi -> {} ({} probes)",
+            if state.renderer.room_gi.off { "OFF (the old ambient floor)" } else { "on" },
+            state.renderer.room_gi.probe_count()
+        );
+    }
     // {"cloud_chord_foot":"1"} restores the pre-v0.1268 chord-frozen
     // detail scale, so one run can capture both sides of that change.
     if let Some(t) = grab("cloud_chord_foot") {

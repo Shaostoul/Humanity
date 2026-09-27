@@ -389,7 +389,22 @@ fn frag_tail(in: VertexOutput, s: FragSetup) -> vec4<f32> {
     // no sky at all (measured 2026-09-21: that version changed nothing).
     let sky = sky_ambient(normal, frag_up);
     let under_sky = dot(frag_up, frag_up) >= 0.5;
-    let indirect = select(max(sky, AMBIENT_FLOOR), sky, under_sky);
+    var indirect = select(max(sky, AMBIENT_FLOOR), sky, under_sky);
+    // ── ROOM GI, RUNG 1 (2026-09-27, docs/design/room-gi.md) ──
+    // Not under a sky means inside something. If that something is one of the
+    // ship's rooms, its own irradiance probes say what the room's surfaces
+    // bounce onto this fragment: the light the old floor stood in for. Only
+    // the fragment's own room is read (85-room-gi.wgsl), so a lamp behind a
+    // wall cannot leak through it. Outside every room (space, the hull's
+    // outside, room GI switched off) the floor above stands, bit for bit.
+    // HAS_ROOM_GI is live in the surface and vegetation PSOs only; everywhere
+    // else this block folds away (pipeline.rs, ShaderClass::live_features).
+    if (HAS_ROOM_GI && !under_sky) {
+        let room_light = room_gi_irradiance(in.world_position, normal);
+        if (room_light.a > 0.5) {
+            indirect = max(room_light.rgb, AMBIENT_FLOOR);
+        }
+    }
     let ambient = albedo * indirect * ao;
 
     var color = ambient + lo;

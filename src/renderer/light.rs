@@ -232,6 +232,20 @@ pub fn strip_emission_segments(points: &[Vec3], subdivision: u32) -> Vec<(Vec3, 
         .collect()
 }
 
+/// One light in the GPU's 64-byte `GpuLight` packing: [pos.xyz, intensity],
+/// [color.rgb, range], [spot dir.xyz (or a line light's end B), cos_outer],
+/// [cos_inner, 0, 0, 0]. The ONE packer: the scene light buffer
+/// (`Renderer::set_point_lights`) and the room GI probe update both use it,
+/// so the fragment loop and the probes can never read a light differently.
+pub fn gpu_packed(l: &RoomLight) -> [f32; 16] {
+    [
+        l.pos.x, l.pos.y, l.pos.z, l.intensity,
+        l.color[0], l.color[1], l.color[2], l.range,
+        l.dir.x, l.dir.y, l.dir.z, l.cos_outer,
+        l.cos_inner, 0.0, 0.0, 0.0,
+    ]
+}
+
 /// The point on segment `a`..`b` closest to `fragment` (v0.786) -- the LINE
 /// light's representative emission point. Pure-Rust mirror of the WGSL clamp
 /// in `pbr_simple.wgsl`'s light loop, kept in lockstep so it is unit-testable

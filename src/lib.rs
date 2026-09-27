@@ -15382,6 +15382,7 @@ mod native_app {
                                 // `gpu.lines`; a camera screen's re-render of the same
                                 // lists is keyed `gpu.screen_*` (`render_view_onto`).
                                 let main_view = crate::renderer::frame_costs::SceneView::Main;
+                                crate::engine::room_gi::before_scene(state); // room GI probe update (engine/room_gi.rs)
                                 state.renderer.render_scene_onto(&state.camera, &all_objects, &view, main_view);
                                 // Pass 2.5: transparent surfaces (glass windows) blended over
                                 // the opaque scene so you can see through them. (v0.456)
