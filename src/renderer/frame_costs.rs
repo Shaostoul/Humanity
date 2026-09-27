@@ -1097,7 +1097,9 @@ impl Renderer {
             + texture_bytes(&self.water_fft_texture)
             + texture_bytes(&self.weather_map_tex)
             + texture_bytes(&self.atmo_trans_tex)
-            + texture_bytes(&self.atmo_ms_tex);
+            + texture_bytes(&self.atmo_ms_tex)
+            // Room GI's probe atlas, its scratch and its buffers (2026-09-27).
+            + self.room_gi.vram_bytes();
         set_vram("vram.render_targets", targets);
 
         // Particles: the two billboard vertex pools plus the GPU-simulated

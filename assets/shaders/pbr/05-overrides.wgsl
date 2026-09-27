@@ -52,3 +52,16 @@ override HAS_ATMOSPHERE_BRANCH: bool = true;
 override HAS_CLOUD_BRANCH: bool = true;
 override HAS_OCEAN_BRANCH: bool = true;
 
+// FEATURE SWITCHES (2026-09-27): a second kind. A feature switch guards a
+// block in the SHARED tail (80-fragment-shared.wgsl) rather than a dispatch in
+// one class entry, so it may be live in several classes; pipeline.rs
+// (`ShaderClass::live_features`) says which, and every other PSO compiles the
+// block out. Same rules otherwise: bool, `= true`, the FIRST operand of its
+// guard, refused by validate_wgsl if missing.
+//
+// HAS_ROOM_GI: the per-room irradiance probe sample in frag_tail's indirect
+// term (85-room-gi.wgsl, docs/design/room-gi.md). Live in the surface and
+// vegetation PSOs, the classes that draw the inside of a room; off in the
+// terrain, water, shell and cloud PSOs, which never draw a fragment in one.
+override HAS_ROOM_GI: bool = true;
+

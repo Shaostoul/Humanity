@@ -46,6 +46,9 @@ pub mod frame_near_trees;
 /// the two composite in (extracted from lib.rs, v0.1320).
 pub mod frame_shells;
 pub mod region_meshes;
+/// Room GI rung 1 (2026-09-27): the ship's rooms into probe boxes, and the
+/// per-frame hook before the scene pass. The probes live in renderer::room_probes*.
+pub mod room_gi;
 /// Background relay connections: dial + keep-alive + compact router for
 /// every saved server that is not the active one (multi-connection).
 pub mod bg_connections;

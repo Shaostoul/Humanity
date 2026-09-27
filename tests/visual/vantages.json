@@ -881,6 +881,29 @@
       "_camera_note": "station+screen+distance_m is the camera_request form scripts/verify-screens.js uses to park; time pinned so the sun through the deck glass does not vary between captures."
     },
     {
+      "id": "console-face-6-room-gi-off",
+      "desc": "The ROOM-GI-OFF twin of console-face-6 (showcase room_gi=0: the room table says off, every interior fragment keeps the old 0.005 ambient floor, and the probe update is not dispatched). The pair is the same-boot A/B for room GI rung 1 (docs/design/room-gi.md): the image difference is exactly the indirect light the probes add, and gpu.room_probes plus the gpu.scene difference is exactly what they cost.",
+      "expect": "The console room as console-face-6 shows it, with the walls and the underside of every surface falling back to near black where no lamp or sun reaches them directly.",
+      "_why": "Room GI rung 1 acceptance (2026-09-27): at most 1.0 ms total at console-face-6, the probe update at most about 0.3 ms and the sampling at most about 0.5 ms. Measured as this twin against console-face-6 in one boot.",
+      "regressions": [
+        "room_gi=0 is released by the next vantage (probe-sweep resets it with the other sticky pins)"
+      ],
+      "camera": {
+        "station": "home",
+        "screen": "wall_screen_6",
+        "distance_m": 2.2,
+        "time": 14.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear",
+        "room_gi": "0"
+      },
+      "settle_s": 10,
+      "perf_floor_fps": 10
+    },
+    {
       "id": "console-face-3",
       "desc": "The console room, 2.2 m from the west wall, facing wall_screen_3 (the garden camera feed). The camera wall.",
       "expect": "The camera feed (a live 10 Hz re-render of the garden post) above the inventory screen on the west wall; the feed shows the garden, not a frozen frame or a black quad.",

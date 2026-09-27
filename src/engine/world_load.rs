@@ -121,6 +121,8 @@ pub(crate) fn load_world(state: &mut EngineState) {
         None => Vec::new(),
     };
     apply_homestead_meshes(state, homestead);
+    // Room GI: each room's irradiance probes (engine/room_gi.rs).
+    crate::engine::room_gi::rooms_changed(state, &room_info);
     // The hull wrap (ship-superstructure increment D): the exterior shell around the zone
     // cluster, generated from data/blueprints/hull_profile.ron. Ships with the world load;
     // rebuild_homestead regrows it on every structure edit.

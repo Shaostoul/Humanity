@@ -32,8 +32,17 @@
 // picture as <id>.costs.json, with frame_ms in the manifest, so a before and
 // after of a room is two runs and a diff instead of a guess.
 //
+// Same-boot A/B (2026-09-27): `--ab KEY` photographs every vantage twice, once
+// as it stands and once with the showcase switch KEY set to "0", then sets it
+// back to "1" before the next pose. The pictures are <id>.png and
+// <id>.KEY-off.png (each with its .costs.json when frame costs are on), so a
+// dev switch like room GI's (`--ab room_gi`) or the aurora's is judged on two
+// frames of one boot that differ by that switch and nothing else, and its cost
+// is the difference of two costs files taken seconds apart.
+//
 // Usage:
-//   node scripts/photograph-home.js [--exe PATH] [--only id,id] [--width N] [--height N]
+//   node scripts/photograph-home.js [--exe PATH] [--only id,id] [--width N] [--height N] [--ab KEY]
+//                                   [--vantages PATH]
 // Exit 0 = every vantage captured. 1 = refused. 2 = one or more captures failed.
 
 const fs = require("fs");
@@ -52,11 +61,14 @@ const ONLY = opt("--only", null);
 const WIDTH = Number(opt("--width", "1600"));
 const HEIGHT = Number(opt("--height", "900"));
 const KEEP_OPEN = args.includes("--keep-open");
+const AB = opt("--ab", null);
 
 const RIG = path.join(REPO, ".probe-rig", "home-photos");
 const DEBUG = path.join(RIG, "debug");
 const LOG = path.join(RIG, "logs", "run.log");
-const VANTAGES = path.join(__dirname, "home-vantages.json");
+// --vantages PATH reads another pose list of the same shape (trying out new
+// poses without touching the shipped list).
+const VANTAGES = path.resolve(opt("--vantages", path.join(__dirname, "home-vantages.json")));
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const log = (m) => console.log(`[photos] ${m}`);
@@ -296,6 +308,30 @@ async function main() {
       if (costs) {
         fs.writeFileSync(path.join(OUT, `${v.id}.costs.json`), JSON.stringify(costs, null, 2));
         shot.frame_ms = costs.frame_ms;
+      }
+      // The A/B twin: the same pose with the switch off, then the switch
+      // back on so the next vantage starts from the normal state.
+      if (AB) {
+        req("showcase_request.json", { [AB]: "0" });
+        await sleep(1500);
+        clearDone("screenshot_done.json");
+        req("screenshot_request.json", { width: WIDTH, height: HEIGHT });
+        const d = await waitFile("screenshot_done.json", 30000);
+        const offName = `${v.id}.${AB}-off.png`;
+        if (d && d.ok === true && fs.existsSync(path.join(RIG, d.path))) {
+          fs.copyFileSync(path.join(RIG, d.path), path.join(OUT, offName));
+          shot.off_file = offName;
+          const offCosts = await freshCosts();
+          if (offCosts) {
+            fs.writeFileSync(path.join(OUT, `${v.id}.${AB}-off.costs.json`), JSON.stringify(offCosts, null, 2));
+            shot.off_frame_ms = offCosts.frame_ms;
+          }
+        } else {
+          log(`FAIL ${v.id} (${AB} off): ${d ? d.error : "no screenshot_done.json"}`);
+          failed++;
+        }
+        req("showcase_request.json", { [AB]: "1" });
+        await sleep(300);
       }
       manifest.shots.push(shot);
       save();

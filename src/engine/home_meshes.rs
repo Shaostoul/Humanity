@@ -246,6 +246,8 @@ pub(crate) fn rebuild_homestead(state: &mut EngineState) {
         None => Vec::new(),
     };
     apply_homestead_meshes(state, homestead);
+    // Room GI follows the rooms (engine/room_gi.rs; a no-op when they did not change).
+    crate::engine::room_gi::rooms_changed(state, &room_info);
     // The hull wrap follows the structure (increment D): a zone add/move/resize or a roof
     // material change regrows the exterior shell in the same rebuild.
     rebuild_hull(state);

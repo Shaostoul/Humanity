@@ -128,6 +128,16 @@ struct EnvRegion {
 };
 @group(0) @binding(4) var<storage, read> env_regions: array<EnvRegion>;
 
+// ROOM GI, RUNG 1 (2026-09-27, docs/design/room-gi.md): each room's DDGI
+// irradiance probes. The atlas holds every probe's 8x8 octahedral irradiance
+// tile and 16x16 depth-moment tile; the room table (GiRooms, declared with the
+// sampling code in 85-room-gi.wgsl) holds each room's box, lattice and place in
+// the atlas. Written only by the probe update's compute pass
+// (renderer/room_probes_gpu.rs); read by frag_tail behind HAS_ROOM_GI.
+@group(0) @binding(5) var room_gi_atlas: texture_2d<f32>;
+@group(0) @binding(6) var room_gi_samp: sampler;
+@group(0) @binding(7) var<storage, read> room_gi: GiRooms;
+
 // Influence of ONE region at the ground point under sample_dir (expected unit).
 // The CPU twin is EnvRegion::influence; the contract both owe is pinned by
 // env_influence_matches_the_shader_contract in src/renderer/env_regions.rs:

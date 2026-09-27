@@ -223,9 +223,16 @@ NO indirect light (the whole term is the 0.005 silhouette floor), so walls sit
 at 2.5% of the floor where interreflection predicts about 25 to 30%; and the
 home never casts into the sun shadow map, so the lowest shelf under three
 others reads 130 against the open floor's 133. Two arcs, in this order:
-1. **Room GI**: per-room DDGI irradiance probes. Rung 1 (probes traced against
-   the room's own box) is with an agent; design in `docs/design/room-gi.md`
-   when it lands.
+1. **Room GI**: per-room DDGI irradiance probes. **Rung 1 BUILT 2026-09-27**
+   (branch of the room-GI agent, not yet merged): probes traced against each
+   room's own box, `docs/design/room-gi.md`. At 25b the wall goes from 4 to 46
+   sRGB (wall/floor 0.17 before the tone map, target 0.15 to 0.40); at the new
+   `25c-oyster-rack-close` the shelf underside goes from 2 to 76 and the oyster
+   block front from 43 to 110; cost at console-face-6 about 0.6 ms (update
+   0.21, sampling about 0.4), panics 0. Dev switch `showcase {"room_gi":"0"}`.
+   NEXT after the cascades: rung 2, tracing each room's contents (a voxel
+   volume per room, DDGI relocation and classification, the per-room
+   visibility flag on), then portals for glass walls and doorways.
 2. **Near sun cascades** with the home as a caster:
    `docs/design/sun-cascades.md` (camera-centred clipmap cascades C0 to C3 in
    an atlas beside the existing far map, no bind group layout change; five

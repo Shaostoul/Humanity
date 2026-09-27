@@ -295,6 +295,43 @@ impl Pipeline {
                         },
                         count: None,
                     },
+                    // Bindings 5-7: ROOM GI rung 1 (2026-09-27, docs/design/room-gi.md).
+                    // The probe atlas (Rgba16Float: per-probe octahedral irradiance
+                    // and depth-moment tiles), a bilinear clamp sampler, and the room
+                    // table (a 64-byte header, then 160 bytes per room). Read by
+                    // frag_tail's indirect term behind HAS_ROOM_GI; written only by
+                    // the probe update's own compute pass. Built by
+                    // `camera_bind_group` below, the one constructor, so no site can
+                    // miss them.
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 5,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Texture {
+                            sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                            view_dimension: wgpu::TextureViewDimension::D2,
+                            multisampled: false,
+                        },
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 6,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 7,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Storage { read_only: true },
+                            has_dynamic_offset: false,
+                            // The header and one room: the smallest valid table.
+                            min_binding_size: wgpu::BufferSize::new(
+                                super::room_probes::HEADER_BYTES + super::room_probes::ROOM_BYTES,
+                            ),
+                        },
+                        count: None,
+                    },
                 ],
             });
 
@@ -1753,10 +1790,28 @@ pub const BRANCH_ATMOSPHERE: &str = "HAS_ATMOSPHERE_BRANCH";
 pub const BRANCH_CLOUD: &str = "HAS_CLOUD_BRANCH";
 pub const BRANCH_OCEAN: &str = "HAS_OCEAN_BRANCH";
 
-/// Every switch the megashader declares, in declaration order. The
-/// permutation test requires each one to exist with a `= true` default, so
-/// every pipeline that does NOT name a switch keeps that branch compiled in.
+/// The three SHELL switches, in declaration order. Each guards one shell
+/// dispatch inside one class entry and is live in exactly one class.
 pub const ALL_BRANCH_SWITCHES: &[&str] = &[BRANCH_ATMOSPHERE, BRANCH_CLOUD, BRANCH_OCEAN];
+
+/// Room GI (rung 1, 2026-09-27, docs/design/room-gi.md): the per-room probe
+/// sample in frag_tail's indirect term. A FEATURE switch, a second kind: it
+/// guards a block in the SHARED tail rather than a dispatch in one class
+/// entry, so it can be live in more than one class. It is live in exactly the
+/// classes that draw the insides of rooms (surface: walls, floors, props,
+/// machines, glass; vegetation: the garden's plants) and compiled out of the
+/// terrain, water, shell and cloud pipelines, which never draw a fragment in a
+/// room. The guard is `if (HAS_ROOM_GI && ...)`, switch first, like every other.
+pub const FEATURE_ROOM_GI: &str = "HAS_ROOM_GI";
+
+/// Every feature switch (see `FEATURE_ROOM_GI`).
+pub const ALL_FEATURE_SWITCHES: &[&str] = &[FEATURE_ROOM_GI];
+
+/// Every switch the megashader declares, in declaration order: the shell
+/// switches, then the feature switches. The permutation tests and
+/// `shader_loader::validate_wgsl` require each one to exist with a `= true`
+/// default, so every pipeline that does NOT name a switch keeps its code.
+pub const ALL_SWITCHES: &[&str] = &[BRANCH_ATMOSPHERE, BRANCH_CLOUD, BRANCH_OCEAN, FEATURE_ROOM_GI];
 
 /// The fragment entry of the two alpha-cutout sun-shadow PSOs: ONE union
 /// twin of the class entries' cutout discards (pinned to them by
@@ -1863,16 +1918,28 @@ impl ShaderClass {
         }
     }
 
-    /// The complement of `live_branches` over `ALL_BRANCH_SWITCHES`: what
-    /// `pso_constants` switches OFF for a pipeline of this class. Spelled
-    /// out per class (rather than computed) so it can be a `const` the
-    /// registry table below reads at compile time.
+    /// The FEATURE switches this class's pipelines keep ON (frag_tail reads
+    /// them, so every class compiles the guard and each class's permutation
+    /// decides whether it folds away). Room GI lives in the classes that draw
+    /// room interiors.
+    pub const fn live_features(self) -> &'static [&'static str] {
+        match self {
+            ShaderClass::Surface | ShaderClass::Vegetation => ALL_FEATURE_SWITCHES,
+            ShaderClass::Terrain | ShaderClass::Water | ShaderClass::Shell | ShaderClass::Cloud => &[],
+        }
+    }
+
+    /// The complement of `live_branches` + `live_features` over
+    /// `ALL_SWITCHES`: what `pso_constants` switches OFF for a pipeline of
+    /// this class. Spelled out per class (rather than computed) so it can be
+    /// a `const` the registry table below reads at compile time.
     pub const fn dead_branches(self) -> &'static [&'static str] {
         match self {
-            ShaderClass::Surface | ShaderClass::Terrain | ShaderClass::Vegetation => ALL_BRANCH_SWITCHES,
-            ShaderClass::Water => &[BRANCH_ATMOSPHERE, BRANCH_CLOUD],
-            ShaderClass::Shell => &[BRANCH_CLOUD, BRANCH_OCEAN],
-            ShaderClass::Cloud => &[BRANCH_ATMOSPHERE, BRANCH_OCEAN],
+            ShaderClass::Surface | ShaderClass::Vegetation => ALL_BRANCH_SWITCHES,
+            ShaderClass::Terrain => &[BRANCH_ATMOSPHERE, BRANCH_CLOUD, BRANCH_OCEAN, FEATURE_ROOM_GI],
+            ShaderClass::Water => &[BRANCH_ATMOSPHERE, BRANCH_CLOUD, FEATURE_ROOM_GI],
+            ShaderClass::Shell => &[BRANCH_CLOUD, BRANCH_OCEAN, FEATURE_ROOM_GI],
+            ShaderClass::Cloud => &[BRANCH_ATMOSPHERE, BRANCH_OCEAN, FEATURE_ROOM_GI],
         }
     }
 
@@ -1938,7 +2005,7 @@ const fn class_row(label: &'static str, class: ShaderClass) -> PsoRow {
 /// union `fs_shadow` entry or none, every switch off (a no-op the row
 /// states explicitly rather than leaving to a default).
 const fn shadow_row(label: &'static str, fragment: Option<&'static str>) -> PsoRow {
-    PsoRow { label, class: None, fragment, dead: ALL_BRANCH_SWITCHES }
+    PsoRow { label, class: None, fragment, dead: ALL_SWITCHES }
 }
 
 /// THE REGISTRY: every PSO `build_all_pipelines` compiles from the
@@ -2273,7 +2340,7 @@ mod permutation_tests {
         // returns early on a module with no overrides), which would re-enable
         // the branch with no error anywhere.
         for (which, src) in [("classic", assembled_pbr_source()), ("batch", assembled_pbr_batch_source())] {
-            for name in ALL_BRANCH_SWITCHES {
+            for name in ALL_SWITCHES {
                 let decl = format!("override {name}: bool = true;");
                 assert!(
                     src.contains(&decl),
@@ -2407,9 +2474,50 @@ mod permutation_tests {
                  the registry and the entry must agree"
             );
         }
-        for shared in ["frag_prologue", "frag_tail"] {
-            let read = switches_read_by(&code, shared);
-            assert!(read.is_empty(), "{shared} is compiled into every class and must read no switch, reads {read:?}");
+        let read = switches_read_by(&code, "frag_prologue");
+        assert!(read.is_empty(), "frag_prologue is compiled into every class and must read no switch, reads {read:?}");
+        // The shared TAIL reads exactly the FEATURE switches (room GI's
+        // indirect term, 2026-09-27) and never a shell switch: a shell
+        // dispatch in the tail would compile the shell into every class.
+        let mut read = switches_read_by(&code, "frag_tail");
+        read.sort();
+        let mut features: Vec<String> = ALL_FEATURE_SWITCHES.iter().map(|s| s.to_string()).collect();
+        features.sort();
+        assert_eq!(read, features, "frag_tail must read exactly the feature switches");
+    }
+
+    /// ROOM GI's switch (2026-09-27). The guard sits in frag_tail with the
+    /// switch as its FIRST operand, the sampling entry point
+    /// `room_gi_irradiance` is used exactly once before fs_shadow (the call on
+    /// the guard's next line), and the switch is live in exactly the classes
+    /// that draw room interiors (surface and vegetation) and compiled out of
+    /// every other PSO. Seen fail first by writing the guard as
+    /// `if (!under_sky && HAS_ROOM_GI)` (the guard search named the missing
+    /// shape), then restored.
+    #[test]
+    fn the_room_gi_sample_is_guarded_by_its_switch_in_the_tail() {
+        let main = code_only(class_entries_side());
+        let guard = format!("if ({FEATURE_ROOM_GI} && !under_sky && !screen_emitter && out_alpha >= 0.999) {{");
+        let sites: Vec<usize> = main.match_indices(&guard).map(|(p, _)| p).collect();
+        assert_eq!(sites.len(), 1, "exactly one {guard:?}, found {}", sites.len());
+        let (start, end) = function_body(&main, "frag_tail");
+        assert!(sites[0] > start && sites[0] < end, "the room GI guard must be inside frag_tail");
+        let next_line = main[sites[0] + guard.len()..].lines().nth(1).unwrap_or("").trim();
+        assert!(
+            next_line.contains("room_gi_irradiance("),
+            "the line after the guard must call room_gi_irradiance, found {next_line:?}"
+        );
+        let uses: Vec<usize> = identifier_sites(&main, "room_gi_irradiance")
+            .into_iter()
+            .filter(|&p| !main[..p].ends_with("fn "))
+            .collect();
+        assert_eq!(uses.len(), 1, "room_gi_irradiance must be called in exactly one place (the guarded one)");
+        let owners: Vec<ShaderClass> =
+            ShaderClass::ALL.iter().copied().filter(|c| c.live_features().contains(&FEATURE_ROOM_GI)).collect();
+        assert_eq!(owners, vec![ShaderClass::Surface, ShaderClass::Vegetation]);
+        for row in PSO_REGISTRY {
+            let live = row.class.is_some_and(|c| owners.contains(&c));
+            assert_eq!(!row.dead.contains(&FEATURE_ROOM_GI), live, "{}: room GI live = {live}", row.label);
         }
     }
 
@@ -2442,15 +2550,15 @@ mod permutation_tests {
             assert_eq!(row.class, *class, "{label}: class");
             assert_eq!(row.fragment, *entry, "{label}: fragment entry");
             assert_eq!(pso_fragment_entry(label), *entry, "{label}: pso_fragment_entry");
-            let dead_expected = class.map_or(ALL_BRANCH_SWITCHES, |c| c.dead_branches());
+            let dead_expected = class.map_or(ALL_SWITCHES, |c| c.dead_branches());
             assert_eq!(row.dead, dead_expected, "{label}: dead set must be its class's (or all, for a shadow PSO)");
             if let Some(class) = class {
                 // A class row compiles its class's entry, and its dead and
                 // live sets partition the switch list: nothing is both,
                 // nothing is neither.
                 assert_eq!(row.fragment, Some(class.fragment_entry()), "{label}: entry must be the class's");
-                for name in ALL_BRANCH_SWITCHES {
-                    let live = class.live_branches().contains(name);
+                for name in ALL_SWITCHES {
+                    let live = class.live_branches().contains(name) || class.live_features().contains(name);
                     let is_dead = row.dead.contains(name);
                     assert!(
                         live != is_dead,
@@ -2464,19 +2572,22 @@ mod permutation_tests {
             let map = pso_constants(label);
             assert_eq!(map.len(), row.dead.len(), "{label}: one constant per dead branch");
             for name in row.dead {
-                assert!(ALL_BRANCH_SWITCHES.contains(name), "{label}: {name} is not a declared switch");
+                assert!(ALL_SWITCHES.contains(name), "{label}: {name} is not a declared switch");
                 assert_eq!(map.get(*name), Some(&0.0), "{label}: {name} must be switched OFF (0.0)");
             }
         }
-        // The three opaque classes carry the SAME permutation (all off): an
-        // opaque fragment never enters a shell.
-        for label in [
-            "PBR-lite Surface Render Pipeline",
-            "PBR-lite Terrain Render Pipeline",
-            "PBR-lite Vegetation Render Pipeline",
-            "Patch Batch Render Pipeline",
+        // The opaque classes all compile every SHELL branch out: an opaque
+        // fragment never enters a shell. The two that draw room interiors
+        // keep room GI; the terrain PSOs switch it off as well.
+        for (label, dead) in [
+            ("PBR-lite Surface Render Pipeline", ALL_BRANCH_SWITCHES),
+            ("PBR-lite Terrain Render Pipeline", ALL_SWITCHES),
+            ("PBR-lite Vegetation Render Pipeline", ALL_BRANCH_SWITCHES),
+            ("Patch Batch Render Pipeline", ALL_SWITCHES),
         ] {
-            assert_eq!(pso_constants(label).len(), ALL_BRANCH_SWITCHES.len(), "{label}: all three off");
+            let map = pso_constants(label);
+            assert_eq!(map.len(), dead.len(), "{label}: {dead:?} off");
+            assert!(dead.iter().all(|d| map.contains_key(*d)), "{label}: {dead:?} off");
         }
         // Every class that draws opaque has an opaque row and vice versa.
         for class in ShaderClass::ALL {
@@ -3003,6 +3114,7 @@ pub fn camera_bind_group(
     tile_counts: &wgpu::Buffer,
     tile_indices: &wgpu::Buffer,
     env_regions: &wgpu::Buffer,
+    room_gi: &super::room_probes_gpu::RoomGi,
 ) -> wgpu::BindGroup {
     device.create_bind_group(&wgpu::BindGroupDescriptor {
         label: Some(label),
@@ -3013,6 +3125,11 @@ pub fn camera_bind_group(
             wgpu::BindGroupEntry { binding: 2, resource: tile_counts.as_entire_binding() },
             wgpu::BindGroupEntry { binding: 3, resource: tile_indices.as_entire_binding() },
             wgpu::BindGroupEntry { binding: 4, resource: env_regions.as_entire_binding() },
+            // Room GI rung 1 (2026-09-27): the probe atlas, its sampler and
+            // the room table (renderer/room_probes_gpu.rs).
+            wgpu::BindGroupEntry { binding: 5, resource: wgpu::BindingResource::TextureView(&room_gi.atlas_view) },
+            wgpu::BindGroupEntry { binding: 6, resource: wgpu::BindingResource::Sampler(&room_gi.sampler) },
+            wgpu::BindGroupEntry { binding: 7, resource: room_gi.rooms_buf.as_entire_binding() },
         ],
     })
 }
