@@ -397,7 +397,12 @@ pub(crate) fn load_world(state: &mut EngineState) {
             // against creatures.csv species. Spawned READY to collect so a
             // fresh homestead demonstrates the loop immediately. Idempotent
             // across world reloads (previous herd despawns first).
+            // Each animal carries its HerdSlot, and a saved yield timer comes
+            // back onto it (2026-09-27): the save's, held since startup, else
+            // the previous herd's, else ready (livestock::HerdSlot).
             {
+                let saved_timers = crate::systems::livestock::take_pending_herd(&state.data_store)
+                    .unwrap_or_else(|| crate::systems::livestock::herd_timers(&state.game_world.world));
                 let old: Vec<hecs::Entity> = state
                     .game_world
                     .world
@@ -418,6 +423,7 @@ pub(crate) fn load_world(state: &mut EngineState) {
                         .get::<crate::systems::livestock::LivestockSpawnList>("livestock_spawn_list"),
                 ) {
                     let items = state.data_store.get::<ItemRegistry>("item_registry");
+                    let mut per_species: std::collections::HashMap<&str, u32> = std::collections::HashMap::new();
                     for (pi, p) in list.animals.iter().enumerate() {
                         let Some(def) = reg.get(&p.creature) else {
                             log::warn!("livestock.ron: unknown creature {}", p.creature);
@@ -436,6 +442,13 @@ pub(crate) fn load_world(state: &mut EngineState) {
                             let a = i as f32 * 2.399_963 + pi as f32 * 1.7;
                             let r = p.spread * (0.45 + 0.55 * (i as f32 + 1.0) / p.count as f32);
                             let pos = anchor + Vec3::new(a.cos() * r, 0.0, a.sin() * r);
+                            let n = per_species.entry(def.id.as_str()).or_insert(0);
+                            let slot = crate::systems::livestock::herd_slot(&def.id, *n);
+                            *n += 1;
+                            let since = saved_timers
+                                .iter()
+                                .find(|(s, _)| *s == slot)
+                                .map_or(product.regrow_s, |(_, t)| t.clamp(0.0, product.regrow_s));
                             bundles.push((
                                 crate::ecs::components::Creature {
                                     def_id: def.id.clone(),
@@ -455,8 +468,9 @@ pub(crate) fn load_world(state: &mut EngineState) {
                                     resource: product.item.clone(),
                                     amount: product.amount as f32,
                                     regrow_time: product.regrow_s,
-                                    time_since_harvest: product.regrow_s, // ready on arrival
+                                    time_since_harvest: since, // ready on arrival unless saved
                                 },
+                                crate::systems::livestock::HerdSlot(slot),
                                 // Combat arc (v0.760): animals are living
                                 // entities - real health from the species
                                 // + a resolved loot table for the kill.

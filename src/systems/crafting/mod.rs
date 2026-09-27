@@ -3,6 +3,9 @@
 //! Recipes loaded from `data/recipes.csv`.
 //! Inputs/outputs use pipe-separated `item_id:quantity` format.
 
+pub mod away;
+#[cfg(test)]
+mod away_tests;
 pub mod quality;
 pub mod tools;
 pub mod workstations;
@@ -375,6 +378,16 @@ pub struct CraftSave {
     pub pad: Option<([f32; 3], [f32; 4])>,
 }
 
+/// Put the save channels in the DataStore (lib.rs, at boot): craft batches
+/// in flight both ways (2026-09-25; the CraftingSystem publishes its list
+/// for the save and takes batches restored from one), and the time away
+/// handed to the automated machines (2026-09-27, `away`).
+pub fn register(store: &mut DataStore) {
+    store.insert("active_crafts_export", std::sync::Mutex::new(Vec::<CraftSave>::new()));
+    store.insert("restore_active_crafts", std::sync::Mutex::new(Option::<Vec<CraftSave>>::None));
+    store.insert(away::AWAY_WORK, std::sync::Mutex::new(Option::<away::AwayWork>::None));
+}
+
 /// A craft in progress, tracked per-entity.
 #[derive(Debug, Clone)]
 pub struct ActiveCraft {
@@ -643,12 +656,19 @@ impl CraftingSystem {
     /// emit a quest-progress event (#8c) for any Craft objective tracking this
     /// recipe. Both no-op cleanly if their channel/skill is absent.
     fn on_craft_complete(data: &DataStore, recipe: &Recipe) {
+        Self::credit_craft(data, recipe);
+        // Craft-complete thunk (v0.985): the workbench hammer lands.
+        crate::systems::push_sfx_event(data, "sfx.hammer", "audio/sfx/hammer.ogg");
+    }
+
+    /// The skill XP and quest event a completed craft earns, without the
+    /// sound: a batch finished while the player was away (crafting::away)
+    /// counts the same, but nobody was there to hear it.
+    fn credit_craft(data: &DataStore, recipe: &Recipe) {
         if let Some(skill) = &recipe.skill_required {
             crate::systems::skills::award_skill_xp(data, skill, 10 + recipe.skill_level * 5);
         }
         crate::systems::quests::push_quest_event(data, format!("craft_{}", recipe.id));
-        // Craft-complete thunk (v0.985): the workbench hammer lands.
-        crate::systems::push_sfx_event(data, "sfx.hammer", "audio/sfx/hammer.ogg");
     }
 
     /// Tech-unlock gate: does the crafter meet the recipe's `skill_level`?
@@ -829,6 +849,25 @@ impl System for CraftingSystem {
             }
         }
 
+        // The time away (offline progression, 2026-09-27): what the automated
+        // machines made while the player was out, run once, as soon as the
+        // home's machines exist, BEFORE this tick starts any batch of its own
+        // (crafting::away). Needs home storage to file into, as a session does.
+        // What it made is filed in home storage only after this tick, so the
+        // machines start nothing more this tick: a keep target would not yet
+        // see it.
+        let mut ran_away = false;
+        if to_storage {
+            if let (Some(recipes), Some(p)) = (recipe_registry, player) {
+                if away::machines_present(world) {
+                    if let Some(work) = away::take(data) {
+                        self.run_away(world, data, &work, p, recipes, item_registry, vehicle_kits, fluids);
+                        ran_away = true;
+                    }
+                }
+            }
+        }
+
         // Craft request from the GUI: queue it for the player entity (the
         // pending-request loop below processes it this same tick).
         if let (Some(recipe_id), Some(entity)) = (requested, player) {
@@ -864,7 +903,7 @@ impl System for CraftingSystem {
         // no percentage or reason is useless): one honest line per auto machine,
         // published to the "auto_craft_status" channel for the GUI.
         let mut statuses: Vec<String> = Vec::new();
-        if let (Some(recipes), Some(player_e)) = (recipe_registry, player) {
+        if let (Some(recipes), Some(player_e), false) = (recipe_registry, player, ran_away) {
             // Home-storage stock (v0.737, operator field report: "there IS
             // iron in my inventory and/or garage"): auto machines also draw
             // from the home's organize-layer containers (garage bags, trunks,
@@ -1510,6 +1549,23 @@ impl CraftingSystem {
         // the "home_stock_outputs" channel instead of the backpack.
         to_storage: bool,
     ) {
+        Self::deliver_goods(world, data, recipe, target, pad, item_registry, vehicle_kits, crafter_vessel, to_storage);
+        Self::on_craft_complete(data, recipe);
+    }
+
+    /// `deliver_outputs` without the completion hooks: the goods only.
+    #[allow(clippy::too_many_arguments)]
+    fn deliver_goods(
+        world: &mut hecs::World,
+        data: &DataStore,
+        recipe: &Recipe,
+        target: hecs::Entity,
+        pad: Option<(glam::Vec3, glam::Quat)>,
+        item_registry: Option<&crate::systems::inventory::ItemRegistry>,
+        vehicle_kits: Option<&crate::systems::vehicles::VehicleKitRegistry>,
+        crafter_vessel: Option<hecs::Entity>,
+        to_storage: bool,
+    ) {
         // Split out the vehicle-class outputs (usually none).
         let vehicle_outputs: Vec<(String, u32)> = match vehicle_kits {
             Some(kits) => recipe
@@ -1621,8 +1677,9 @@ impl CraftingSystem {
                 }
             }
             // (No early return when the vessel took everything: that used to
-            // skip on_craft_complete below, so the craft gave no XP and no
-            // quest event. 2026-09-25.)
+            // skip on_craft_complete, so the craft gave no XP and no quest
+            // event. 2026-09-25. The hooks now run in deliver_outputs, after
+            // this returns.)
             if !inv_recipe.outputs.is_empty() && to_storage {
                 if let Some(slot) = data.get::<std::sync::Mutex<Vec<(String, u32)>>>("home_stock_outputs") {
                     if let Ok(mut out) = slot.lock() {
@@ -1640,8 +1697,6 @@ impl CraftingSystem {
                 }
             }
         }
-
-        Self::on_craft_complete(data, recipe);
     }
 }
 

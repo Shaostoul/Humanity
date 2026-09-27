@@ -1586,8 +1586,9 @@ between the simulation and the person. Its tier ladder is the build order.
   the world clock is saved (every restart used to rewind the garden), and crops
   plus scaffolds plus craft batches (now saved too; a restart used to destroy
   whatever was mid-smelt) catch up by the time away behind a Settings toggle.
-  Offline remaining: drone and manufacturing timers, livestock, then the server
-  clock for multiplayer. **Simulation on the HUD DONE 2026-09-25:** food,
+  Offline rung 2 DONE 2026-09-27: the automated machines (on real inputs and
+  spare power), the drone and livestock catch up too. Offline remaining: the
+  server clock for multiplayer. **Simulation on the HUD DONE 2026-09-25:** food,
   water, energy, air, body temperature and waste under the health bar, and the
   active quest objective, with a Settings choice of Always / When low (default)
   / Off (health only). **Crop pacing DONE** (the growth-speed setting of

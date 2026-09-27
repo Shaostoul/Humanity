@@ -89,52 +89,7 @@ impl System for DroneSystem {
                 // Only launch if the TARGET asteroid still exists — a depleted/stale id
                 // shouldn't burn the player's single drone slot on a dud trip. Its
                 // position scales the travel time + the map dot.
-                let target_pos = world
-                    .query::<&AsteroidBody>()
-                    .iter()
-                    .find(|(_, a)| a.id == target)
-                    .map(|(_, a)| a.position);
-                let home: Option<u64> = world
-                    .query::<(&Inventory, &Controllable)>()
-                    .iter()
-                    .next()
-                    .map(|(e, _)| e.to_bits().into());
-                match (target_pos, home) {
-                    (Some(target_pos), Some(home)) => {
-                        world.spawn((Drone {
-                            home,
-                            target: target.clone(),
-                            manifest: manifest.clone(),
-                            phase: DronePhase::Outbound,
-                            phase_time: 0.0,
-                            cargo: Vec::new(),
-                            home_pos: [0.0, 0.0, 0.0],
-                            target_pos,
-                        },));
-                        log::info!("[Mining] commissioned a drone for {target}: {manifest:?}");
-                    }
-                    (None, _) => {
-                        log::info!("[Mining] target asteroid '{target}' not found; not launching");
-                        // A standing order aimed at a now-gone asteroid (mined
-                        // out and deleted) would refire this dead commission
-                        // every trip forever -- end the loop here (v0.663).
-                        if let Some(slot) = data
-                            .get::<std::sync::Mutex<Option<(String, Vec<(String, u32)>)>>>(
-                                "auto_mine_order",
-                            )
-                        {
-                            if let Ok(mut s) = slot.lock() {
-                                if s.as_ref().map_or(false, |(t, _)| *t == target) {
-                                    log::info!(
-                                        "[Mining] standing order for '{target}' ended (target gone)"
-                                    );
-                                    *s = None;
-                                }
-                            }
-                        }
-                    }
-                    _ => {}
-                }
+                launch(world, data, &target, &manifest);
             }
         }
 
@@ -209,70 +164,13 @@ impl System for DroneSystem {
         for intent in intents {
             match intent {
                 DroneIntent::Mine { drone, target, manifest } => {
-                    // Pull each requested ore from the ONE target asteroid, bounded by
-                    // what it holds. No spillover to other asteroids — one run mines one
-                    // asteroid, so the haul is capped by that asteroid's stock.
-                    let target_e = world
-                        .query::<&AsteroidBody>()
-                        .iter()
-                        .find(|(_, a)| a.id == target)
-                        .map(|(e, _)| e);
-                    let mut collected: Vec<(String, u32)> = Vec::new();
-                    if let Some(aid) = target_e {
-                        for (ore, units) in &manifest {
-                            if let Ok(mut body) = world.get::<&mut AsteroidBody>(aid) {
-                                let took = body.take(ore, *units as f32);
-                                if took > 0 {
-                                    collected.push((ore.clone(), took));
-                                }
-                            }
-                        }
-                    }
-                    log::info!("[Mining] drone extracted {collected:?} from {target}");
+                    let collected = mine(world, &target, &manifest);
                     if let Ok(mut d) = world.get::<&mut Drone>(drone) {
                         d.cargo = collected;
                     }
                 }
                 DroneIntent::Deliver { drone, home, cargo } => {
-                    if let Some(home_e) = hecs::Entity::from_bits(home) {
-                        let mut total = 0u32;
-                        for (ore, qty) in &cargo {
-                            if *qty == 0 {
-                                continue;
-                            }
-                            let max_stack =
-                                item_registry.map(|r| r.max_stack_for(ore)).unwrap_or(99);
-                            if let Ok(mut inv) = world.get::<&mut Inventory>(home_e) {
-                                // Deliberately NOT volume-gated (Stage A slice 2):
-                                // the operator ruling below (never vanish a haul)
-                                // predates and outranks the volume gate here — the
-                                // home stock behaves as base storage. Revisit when
-                                // home storage gets its own Container volumes.
-                                let overflow = inv.add_item(ore, *qty, max_stack);
-                                if overflow > 0 {
-                                    // A hauled load must NEVER vanish because the
-                                    // backpack is packed (operator field report
-                                    // 2026-07-04: a 36/36 seed-filled backpack
-                                    // silently ate an entire iron haul, starving
-                                    // the smelter). Grow the home stock -- the
-                                    // same ensure_slots the dev-stock path uses --
-                                    // and land the remainder.
-                                    let occupied =
-                                        inv.slots.iter().filter(|s| s.is_some()).count();
-                                    let extra =
-                                        (overflow as usize).div_ceil(max_stack.max(1) as usize);
-                                    inv.ensure_slots(occupied + extra);
-                                    inv.add_item(ore, overflow, max_stack);
-                                }
-                                total += *qty;
-                            }
-                        }
-                        if total > 0 {
-                            log::info!("[Mining] drone delivered {total} units home");
-                            // A delivered haul trains Mining (1 XP per ore unit).
-                            crate::systems::skills::award_skill_xp(data, "mining", total);
-                        }
-                    }
+                    deliver_haul(world, data, item_registry, home, &cargo);
                     let _ = world.despawn(drone);
                     // (Standing-order relaunch happens at TICK level above, not
                     // here -- see the refire block after the commission drain.)
@@ -280,18 +178,250 @@ impl System for DroneSystem {
             }
         }
 
-        // ── DELETE fully-consumed asteroids (the operator's "deleted when consumed").
-        let depleted: Vec<hecs::Entity> = world
-            .query::<&AsteroidBody>()
-            .iter()
-            .filter(|(_, a)| a.total_remaining() < 1.0)
-            .map(|(e, _)| e)
-            .collect();
-        for e in depleted {
-            let _ = world.despawn(e);
-            log::info!("[Mining] asteroid depleted and removed");
+        remove_mined_out(world);
+    }
+}
+
+/// Launch the drone at `target` with `manifest`, home = the player, when that
+/// asteroid still exists. A standing order aimed at an asteroid that is gone
+/// (mined out and deleted) is ended here, or it would refire a dead
+/// commission every trip forever (v0.663). Shared by the tick's commission
+/// and the time away (`advance_away`). Returns whether a drone launched.
+fn launch(world: &mut hecs::World, data: &DataStore, target: &str, manifest: &[(String, u32)]) -> bool {
+    // Only launch if the TARGET asteroid still exists: a depleted or stale id
+    // shouldn't burn the player's single drone slot on a dud trip. Its
+    // position scales the travel time + the map dot.
+    let target_pos = world
+        .query::<&AsteroidBody>()
+        .iter()
+        .find(|(_, a)| a.id == target)
+        .map(|(_, a)| a.position);
+    let home: Option<u64> = world
+        .query::<(&Inventory, &Controllable)>()
+        .iter()
+        .next()
+        .map(|(e, _)| e.to_bits().into());
+    match (target_pos, home) {
+        (Some(target_pos), Some(home)) => {
+            world.spawn((Drone {
+                home,
+                target: target.to_string(),
+                manifest: manifest.to_vec(),
+                phase: DronePhase::Outbound,
+                phase_time: 0.0,
+                cargo: Vec::new(),
+                home_pos: [0.0, 0.0, 0.0],
+                target_pos,
+            },));
+            log::info!("[Mining] commissioned a drone for {target}: {manifest:?}");
+            true
+        }
+        (None, _) => {
+            log::info!("[Mining] target asteroid '{target}' not found; not launching");
+            if let Some(slot) =
+                data.get::<std::sync::Mutex<Option<(String, Vec<(String, u32)>)>>>("auto_mine_order")
+            {
+                if let Ok(mut s) = slot.lock() {
+                    if s.as_ref().map_or(false, |(t, _)| *t == target) {
+                        log::info!("[Mining] standing order for '{target}' ended (target gone)");
+                        *s = None;
+                    }
+                }
+            }
+            false
+        }
+        _ => false,
+    }
+}
+
+/// Pull each requested ore from the ONE target asteroid, bounded by what it
+/// holds. No spillover to other asteroids: one run mines one asteroid, so the
+/// haul is capped by that asteroid's stock.
+fn mine(world: &mut hecs::World, target: &str, manifest: &[(String, u32)]) -> Vec<(String, u32)> {
+    let target_e = world
+        .query::<&AsteroidBody>()
+        .iter()
+        .find(|(_, a)| a.id == target)
+        .map(|(e, _)| e);
+    let mut collected: Vec<(String, u32)> = Vec::new();
+    if let Some(aid) = target_e {
+        for (ore, units) in manifest {
+            if let Ok(mut body) = world.get::<&mut AsteroidBody>(aid) {
+                let took = body.take(ore, *units as f32);
+                if took > 0 {
+                    collected.push((ore.clone(), took));
+                }
+            }
         }
     }
+    log::info!("[Mining] drone extracted {collected:?} from {target}");
+    collected
+}
+
+/// Land a haul in the home inventory (`home` = the player's entity bits) and
+/// train Mining for it. Returns the units delivered.
+fn deliver_haul(
+    world: &mut hecs::World,
+    data: &DataStore,
+    item_registry: Option<&ItemRegistry>,
+    home: u64,
+    cargo: &[(String, u32)],
+) -> u32 {
+    let Some(home_e) = hecs::Entity::from_bits(home) else { return 0 };
+    let mut total = 0u32;
+    for (ore, qty) in cargo {
+        if *qty == 0 {
+            continue;
+        }
+        let max_stack = item_registry.map(|r| r.max_stack_for(ore)).unwrap_or(99);
+        if let Ok(mut inv) = world.get::<&mut Inventory>(home_e) {
+            // Deliberately NOT volume-gated (Stage A slice 2): the operator
+            // ruling below (never vanish a haul) predates and outranks the
+            // volume gate here; the home stock behaves as base storage.
+            // Revisit when home storage gets its own Container volumes.
+            let overflow = inv.add_item(ore, *qty, max_stack);
+            if overflow > 0 {
+                // A hauled load must NEVER vanish because the backpack is
+                // packed (operator field report 2026-07-04: a 36/36
+                // seed-filled backpack silently ate an entire iron haul,
+                // starving the smelter). Grow the home stock -- the same
+                // ensure_slots the dev-stock path uses -- and land the rest.
+                let occupied = inv.slots.iter().filter(|s| s.is_some()).count();
+                let extra = (overflow as usize).div_ceil(max_stack.max(1) as usize);
+                inv.ensure_slots(occupied + extra);
+                inv.add_item(ore, overflow, max_stack);
+            }
+            total += *qty;
+        }
+    }
+    if total > 0 {
+        log::info!("[Mining] drone delivered {total} units home");
+        // A delivered haul trains Mining (1 XP per ore unit).
+        crate::systems::skills::award_skill_xp(data, "mining", total);
+    }
+    total
+}
+
+/// DELETE fully-consumed asteroids (the operator's "deleted when consumed").
+fn remove_mined_out(world: &mut hecs::World) {
+    let depleted: Vec<hecs::Entity> = world
+        .query::<&AsteroidBody>()
+        .iter()
+        .filter(|(_, a)| a.total_remaining() < 1.0)
+        .map(|(e, _)| e)
+        .collect();
+    for e in depleted {
+        let _ = world.despawn(e);
+        log::info!("[Mining] asteroid depleted and removed");
+    }
+}
+
+// ── The time away (offline progression, 2026-09-27) ─────────────────
+
+/// The drone's standing order ("Keep mining"), as the save stores it.
+pub fn standing_order(data: &DataStore) -> Option<(String, Vec<(String, u32)>)> {
+    data.get::<std::sync::Mutex<Option<(String, Vec<(String, u32)>)>>>("auto_mine_order")
+        .and_then(|m| m.lock().ok().and_then(|s| s.clone()))
+}
+
+/// Put back the standing order a save carried (save_load::resume_home). It is
+/// the player's own setting, like a craft batch they started, so it returns
+/// whether or not the time away counts.
+pub fn set_standing_order(data: &DataStore, order: Option<(String, Vec<(String, u32)>)>) {
+    if let Some(slot) = data.get::<std::sync::Mutex<Option<(String, Vec<(String, u32)>)>>>("auto_mine_order") {
+        if let Ok(mut s) = slot.lock() {
+            *s = order;
+        }
+    }
+}
+
+/// Most trips one return may catch up. A trip is at least nine seconds and
+/// every one that brings ore home takes it from a finite asteroid, so a real
+/// home never comes near this; it only bounds a pathological save.
+const MAX_AWAY_TRIPS: usize = 100_000;
+
+/// Fly the drone through `secs` of time the player was away (offline
+/// progression, docs/design/offline-progression.md), with exactly the
+/// session's rules: the trip in flight finishes, and while a standing order
+/// is set it keeps flying the same trip until its asteroid is mined out. Ore
+/// comes only out of the asteroid, so a haul is bounded by what is really
+/// there, and it lands in the home inventory the way a session haul does.
+/// A trip still in the air when the time runs out is left mid-flight, where
+/// the player finds it.
+///
+/// Returns each haul as (seconds into the time away, cargo), so the
+/// automated machines, which run through the same hours afterwards
+/// (crafting::away), use ore only from the moment it arrived.
+///
+/// Nothing here can destroy anything: a drone has no fuel or wear, so the
+/// doc's "must not advance" class does not reach it.
+pub fn advance_away(world: &mut hecs::World, data: &DataStore, secs: f64) -> Vec<(f64, Vec<(String, u32)>)> {
+    let mut hauls = Vec::new();
+    if secs <= 0.0 {
+        return hauls;
+    }
+    let item_registry = data.get::<ItemRegistry>("item_registry");
+    let mut t = 0.0_f64;
+    let first_drone = |world: &hecs::World| world.query::<&Drone>().iter().next().map(|(e, _)| e);
+    for _ in 0..MAX_AWAY_TRIPS {
+        let in_flight = first_drone(world);
+        let drone_e = match in_flight {
+            Some(e) => e,
+            None => {
+                // In a session the standing order relaunches the trip on the
+                // next frame; here, at once.
+                let Some((target, manifest)) = standing_order(data) else { break };
+                if !launch(world, data, &target, &manifest) {
+                    break;
+                }
+                match first_drone(world) {
+                    Some(e) => e,
+                    None => break,
+                }
+            }
+        };
+        // Step this drone phase by phase until it is home or the time is up.
+        let delivered = loop {
+            let Ok(d) = world.get::<&Drone>(drone_e).map(|d| (*d).clone()) else { break None };
+            let left = f64::from((d.phase_duration(d.phase) - d.phase_time).max(0.0));
+            if t + left > secs {
+                if let Ok(mut live) = world.get::<&mut Drone>(drone_e) {
+                    live.phase_time += (secs - t) as f32;
+                }
+                return hauls;
+            }
+            t += left;
+            match d.phase {
+                DronePhase::Outbound => {
+                    let cargo = mine(world, &d.target, &d.manifest);
+                    if let Ok(mut live) = world.get::<&mut Drone>(drone_e) {
+                        live.phase = DronePhase::Mining;
+                        live.phase_time = 0.0;
+                        live.cargo = cargo;
+                    }
+                }
+                DronePhase::Mining => {
+                    if let Ok(mut live) = world.get::<&mut Drone>(drone_e) {
+                        live.phase = DronePhase::Returning;
+                        live.phase_time = 0.0;
+                    }
+                }
+                DronePhase::Returning | DronePhase::Done => {
+                    deliver_haul(world, data, item_registry, d.home, &d.cargo);
+                    let _ = world.despawn(drone_e);
+                    break Some(d.cargo.clone());
+                }
+            }
+        };
+        remove_mined_out(world);
+        match delivered {
+            Some(cargo) if cargo.iter().any(|(_, q)| *q > 0) => hauls.push((t, cargo)),
+            // An empty trip: the asteroid holds none of what the order asks
+            // for, so every further trip would come home empty too.
+            _ => break,
+        }
+    }
+    hauls
 }
 
 #[cfg(test)]
@@ -596,4 +726,77 @@ mod drone_tests {
         );
     }
 
+    fn set_order(data: &mut DataStore, order: Option<(&str, Vec<(&str, u32)>)>) {
+        data.insert(
+            "auto_mine_order",
+            std::sync::Mutex::new(order.map(|(t, m)| {
+                (t.to_string(), m.into_iter().map(|(o, u)| (o.to_string(), u)).collect::<Vec<_>>())
+            })),
+        );
+    }
+
+    /// While the player is away the standing order keeps the drone flying,
+    /// out of the asteroid's real ore and no more: 25 iron comes home as
+    /// 10, 10 and 5, the mined-out asteroid is deleted and the order ends,
+    /// all as a session would. Each haul carries the moment it landed. Seen
+    /// red with `advance_away` returning at once (no hauls, no ore).
+    #[test]
+    fn a_standing_order_keeps_mining_while_away_until_the_asteroid_is_empty() {
+        let mut data = make_store();
+        set_order(&mut data, Some(("rock", vec![("iron_ore_0", 10)])));
+        let mut world = hecs::World::new();
+        let player = world.spawn((Inventory::new(16), Controllable));
+        world.spawn((asteroid("rock", vec![("iron_ore_0", 25.0)]),));
+
+        let hauls = advance_away(&mut world, &data, 8.0 * 3600.0);
+
+        let got: Vec<u32> = hauls.iter().map(|(_, c)| c.iter().map(|(_, q)| q).sum()).collect();
+        assert_eq!(got, vec![10, 10, 5]);
+        // A trip at the origin is 2 s out, 5 s mining, 2 s back.
+        let times: Vec<f64> = hauls.iter().map(|(t, _)| *t).collect();
+        assert_eq!(times, vec![9.0, 18.0, 27.0]);
+        assert_eq!(world.get::<&Inventory>(player).unwrap().count_item("iron_ore_0"), 25);
+        assert_eq!(world.query::<&AsteroidBody>().iter().count(), 0, "mined out and deleted");
+        assert_eq!(standing_order(&data), None, "the order ended with its asteroid");
+        assert_eq!(world.query::<&Drone>().iter().count(), 0);
+    }
+
+    /// Without a standing order only the trip in flight comes home; a short
+    /// absence leaves the next one in the air where the player finds it.
+    /// Seen red with `advance_away` returning at once (no haul).
+    #[test]
+    fn the_trip_in_flight_finishes_and_the_next_is_left_in_the_air() {
+        let mut data = make_store();
+        set_order(&mut data, None);
+        let mut world = hecs::World::new();
+        let player = world.spawn((Inventory::new(16), Controllable));
+        world.spawn((asteroid("rock", vec![("iron_ore_0", 50.0)]),));
+        commission(&data, "rock", vec![("iron_ore_0", 4)]);
+        DroneSystem::new().tick(&mut world, 0.0, &data); // launched, 0 s into the trip
+
+        let hauls = advance_away(&mut world, &data, 3600.0);
+        assert_eq!(hauls.len(), 1, "one trip, no order to send another");
+        assert_eq!(world.get::<&Inventory>(player).unwrap().count_item("iron_ore_0"), 4);
+
+        // With the order, 12 s away: one trip home (9 s), the next 3 s out.
+        set_order(&mut data, Some(("rock", vec![("iron_ore_0", 4)])));
+        let hauls = advance_away(&mut world, &data, 12.0);
+        assert_eq!(hauls.len(), 1);
+        let (_, d) = world.query::<&Drone>().iter().next().map(|(e, d)| (e, d.clone())).expect("in the air");
+        assert_eq!((d.phase, d.phase_time), (DronePhase::Mining, 1.0), "2 s out, then 1 s of mining");
+        assert_eq!(d.cargo, vec![("iron_ore_0".to_string(), 4)], "its hold already filled");
+    }
+
+    /// A drone asking for an ore its asteroid does not hold comes home empty,
+    /// and so would every trip after: the catch-up stops there rather than
+    /// flying empty trips for the whole absence.
+    #[test]
+    fn an_empty_trip_ends_the_catch_up() {
+        let mut data = make_store();
+        set_order(&mut data, Some(("rock", vec![("gold_ore_0", 4)])));
+        let mut world = hecs::World::new();
+        world.spawn((Inventory::new(16), Controllable));
+        world.spawn((asteroid("rock", vec![("iron_ore_0", 50.0)]),));
+        assert!(advance_away(&mut world, &data, 30.0 * 86_400.0).is_empty());
+    }
 }

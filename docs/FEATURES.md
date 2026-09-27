@@ -1483,12 +1483,23 @@ Mod manifest format, directory scanning, load order, path override resolution.
 Save and load game world state (entities, terrain, player progress).
 - Native: `src/persistence.rs`, `src/save_load.rs` (the offline home: inventory,
   skills, wallet, quests, vehicles, crops, builds and scaffolds, craft batches in
-  flight, the world clock)
+  flight, the world clock; since 2026-09-27 also the asteroids as mined down,
+  the drone in flight with its cargo, the "Keep mining" standing order and the
+  herd's yield timers)
 - **Offline progression (2026-09-25):** crops, scaffolds under construction and
   craft batches catch up by the real time away when the game loads, with a
   notice. Settings >
   Gameplay > "Keep growing while away". `save_load::catch_up_world`;
   `docs/design/offline-progression.md`.
+- **Offline progression, the rest of single player (2026-09-27):** the
+  automated machines run the time away through moment by moment on the inputs
+  really on hand and the power the home could spare, resting at their keep
+  targets and feeding each other (`src/systems/crafting/away.rs`); the drone
+  finishes its trip and keeps flying a standing order out of the asteroid's
+  real ore (`mining::advance_away`); each animal's egg, milk or wool timer
+  moves on to one yield waiting (`livestock::timers_after_away`). Nothing
+  dies or is used up without the player's say. A character select now
+  restores the Barn with the save (`save_load::after_resume`).
 
 ### Data-Driven Tools (v0.90.7)
 tools.rs loads tool catalog from external JSON instead of hardcoded data.

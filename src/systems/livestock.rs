@@ -326,6 +326,117 @@ pub fn collect(h: &mut Harvestable) -> Option<u32> {
     Some((h.amount.round() as u32).max(1))
 }
 
+// ── The herd across restarts and the time away (2026-09-27) ──────────
+
+/// Which homestead animal this is, stable across restarts: the species and
+/// its place among that species' animals in data/entities/livestock.ron, as
+/// "chicken#0". The herd is spawned anew from the RON on every world entry,
+/// so the entity changes every launch; the save matches on this instead.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct HerdSlot(pub String);
+
+/// The slot of the `n`th animal of `creature` in the spawn list.
+pub fn herd_slot(creature: &str, n: u32) -> String {
+    format!("{creature}#{n}")
+}
+
+/// DataStore key: saved herd timers waiting for the herd to be spawned
+/// (world entry comes after the save is applied at startup).
+pub const HERD_RESTORE: &str = "livestock_herd_restore";
+
+/// Put the herd's restore channel in the DataStore (lib.rs, at boot).
+pub fn register(store: &mut DataStore) {
+    store.insert(HERD_RESTORE, std::sync::Mutex::new(Option::<Vec<(String, f32)>>::None));
+}
+
+/// Each living homestead animal's yield timer, (slot, seconds since it was
+/// last collected from), for the save. Dead animals are left out.
+pub fn herd_timers(world: &hecs::World) -> Vec<(String, f32)> {
+    let mut out: Vec<(String, f32)> = world
+        .query::<(&HerdSlot, &Harvestable, Option<&crate::ecs::components::Dead>)>()
+        .iter()
+        .filter(|(_, (_, _, dead))| dead.is_none())
+        .map(|(_, (slot, h, _))| (slot.0.clone(), h.time_since_harvest))
+        .collect();
+    out.sort_by(|a, b| a.0.cmp(&b.0));
+    out
+}
+
+/// Give the herd its saved timers, each capped at ready: an animal holds one
+/// yield until it is collected, away or not. Returns how many animals it matched.
+pub fn apply_herd_timers(world: &mut hecs::World, timers: &[(String, f32)]) -> usize {
+    let mut matched = 0;
+    for (_e, (slot, h)) in world.query_mut::<(&HerdSlot, &mut Harvestable)>() {
+        if let Some((_, t)) = timers.iter().find(|(s, _)| *s == slot.0) {
+            h.time_since_harvest = t.clamp(0.0, h.regrow_time);
+            matched += 1;
+        }
+    }
+    matched
+}
+
+/// The saved timers after `away_secs` of time away (offline progression,
+/// docs/design/offline-progression.md): an animal's egg, milk or wool keeps
+/// coming while the player is out, exactly as it would while they stood in
+/// the yard and never collected, so the same one-yield cap applies (it is
+/// applied with the animal's regrow time in `apply_herd_timers`). Nothing
+/// here can make an animal hungry, ill or dead: the livestock system has no
+/// such state today, and when it gets one it belongs to the doc's "must NOT
+/// advance offline" class, kept by the character's upkeep.
+pub fn timers_after_away(timers: &[(String, f32)], away_secs: f64) -> Vec<(String, f32)> {
+    timers
+        .iter()
+        .map(|(s, t)| (s.clone(), (f64::from(*t) + away_secs.max(0.0)).min(f64::from(f32::MAX)) as f32))
+        .collect()
+}
+
+/// How many of the saved animals were still regrowing when the player left
+/// and are ready again after `away_secs`: the "while you were away" count.
+/// The species' regrow time comes from the creature registry by the slot's
+/// species half.
+pub fn readied_by_away(timers: &[(String, f32)], away_secs: f64, reg: &CreatureRegistry) -> usize {
+    timers
+        .iter()
+        .filter(|(slot, t)| {
+            let species = slot.split('#').next().unwrap_or_default();
+            reg.get(species).and_then(|d| d.renewable()).is_some_and(|p| {
+                f64::from(*t) < f64::from(p.regrow_s) && f64::from(*t) + away_secs >= f64::from(p.regrow_s)
+            })
+        })
+        .count()
+}
+
+/// Put saved timers on the herd: at once when the herd is already in the
+/// world (a character select), else held for world entry to spawn it with
+/// (`take_pending_herd`). Replaces whatever was waiting.
+pub fn restore_herd(world: &mut hecs::World, data: &DataStore, timers: Vec<(String, f32)>) {
+    if world.query::<&HerdSlot>().iter().next().is_some() {
+        apply_herd_timers(world, &timers);
+        set_pending_herd(data, None);
+    } else {
+        set_pending_herd(data, Some(timers));
+    }
+}
+
+fn set_pending_herd(data: &DataStore, timers: Option<Vec<(String, f32)>>) {
+    if let Some(Ok(mut v)) = data.get::<std::sync::Mutex<Option<Vec<(String, f32)>>>>(HERD_RESTORE).map(|m| m.lock()) {
+        *v = timers;
+    }
+}
+
+/// The saved timers still waiting for the herd, if any, without taking them
+/// (a save written before world entry keeps them rather than forgetting).
+pub fn pending_herd(data: &DataStore) -> Option<Vec<(String, f32)>> {
+    data.get::<std::sync::Mutex<Option<Vec<(String, f32)>>>>(HERD_RESTORE)
+        .and_then(|m| m.lock().ok().and_then(|v| v.clone()))
+}
+
+/// Take the saved timers for the herd being spawned (world entry).
+pub fn take_pending_herd(data: &DataStore) -> Option<Vec<(String, f32)>> {
+    data.get::<std::sync::Mutex<Option<Vec<(String, f32)>>>>(HERD_RESTORE)
+        .and_then(|m| m.lock().ok().and_then(|mut v| v.take()))
+}
+
 // ── The system ──────────────────────────────────────────────────────
 
 /// Ages every Harvestable toward ready and ambles Creature entities around
@@ -740,6 +851,67 @@ mod tests {
             "the hen ran away from the wolf (x = {})",
             fled.x
         );
+    }
+
+    fn herd_hen(world: &mut hecs::World, slot: &str, since: f32) -> hecs::Entity {
+        world.spawn((
+            HerdSlot(slot.to_string()),
+            Harvestable { resource: "egg_0".into(), amount: 1.0, regrow_time: 300.0, time_since_harvest: since },
+        ))
+    }
+
+    /// The herd's yield timers survive a restart, and the time away moves
+    /// them on, to one yield waiting and no more (the same cap as a player at
+    /// home who never collects). Seen red with `timers_after_away` returning
+    /// the timers unchanged (the hen still 100 s short after an hour).
+    #[test]
+    fn herd_timers_come_back_and_move_on_by_the_time_away() {
+        let mut world = hecs::World::new();
+        herd_hen(&mut world, "chicken#0", 100.0);
+        herd_hen(&mut world, "chicken#1", 300.0);
+        let dead = herd_hen(&mut world, "chicken#2", 0.0);
+        world.insert_one(dead, crate::ecs::components::Dead { since: 0.0, looted: false }).unwrap();
+        let saved = herd_timers(&world);
+        assert_eq!(saved, vec![("chicken#0".to_string(), 100.0), ("chicken#1".to_string(), 300.0)], "the dead left out");
+
+        // A new launch: the herd respawns ready; the save puts the timers back.
+        let mut world = hecs::World::new();
+        let hen = herd_hen(&mut world, "chicken#0", 300.0);
+        assert_eq!(apply_herd_timers(&mut world, &saved), 1);
+        assert_eq!(world.get::<&Harvestable>(hen).unwrap().time_since_harvest, 100.0, "still regrowing, as saved");
+
+        // An hour away: ready, and one egg waits, not twelve.
+        apply_herd_timers(&mut world, &timers_after_away(&saved, 3600.0));
+        let mut h = world.get::<&mut Harvestable>(hen).unwrap();
+        assert_eq!(h.time_since_harvest, 300.0);
+        assert_eq!(collect(&mut h), Some(1));
+        assert_eq!(collect(&mut h), None);
+    }
+
+    /// Only the animals that were still regrowing and are ready now count
+    /// for the notice; one ready at the save is not news.
+    #[test]
+    fn the_notice_counts_the_animals_the_time_away_made_ready() {
+        let reg = shipped_registry();
+        let saved = vec![("chicken#0".to_string(), 100.0), ("chicken#1".to_string(), 300.0), ("goat#0".to_string(), 0.0)];
+        assert_eq!(readied_by_away(&saved, 60.0, &reg), 0);
+        assert_eq!(readied_by_away(&saved, 200.0, &reg), 1, "the hen, not the goat (400 s)");
+        assert_eq!(readied_by_away(&saved, 3600.0, &reg), 2);
+    }
+
+    /// Timers restored before the herd exists wait for world entry, and are
+    /// put on a herd that exists at once (a character select).
+    #[test]
+    fn restored_timers_wait_for_the_herd_or_apply_at_once() {
+        let mut data = DataStore::new();
+        register(&mut data);
+        let mut world = hecs::World::new();
+        restore_herd(&mut world, &data, vec![("chicken#0".to_string(), 50.0)]);
+        assert_eq!(pending_herd(&data), Some(vec![("chicken#0".to_string(), 50.0)]), "no herd yet: held");
+        let hen = herd_hen(&mut world, "chicken#0", 300.0);
+        restore_herd(&mut world, &data, vec![("chicken#0".to_string(), 20.0)]);
+        assert_eq!(world.get::<&Harvestable>(hen).unwrap().time_since_harvest, 20.0);
+        assert_eq!(take_pending_herd(&data), None, "applied, nothing left waiting");
     }
 
     /// The graze amble moves an animal toward its wander target and never

@@ -106,6 +106,24 @@ pub struct WorldSave {
     /// gs_first_steps twice is no longer the player experience.
     #[serde(default)]
     pub quests: Option<crate::systems::quests::QuestTracker>,
+    /// The homestead animals' yield timers (2026-09-27, offline progression):
+    /// (herd slot, seconds since last collected), one per living animal. The
+    /// herd respawns from data/entities/livestock.ron on world entry, so
+    /// without this every restart made every animal ready to collect again.
+    #[serde(default)]
+    pub herd: Vec<(String, f32)>,
+    /// The asteroids as they stood (2026-09-27), mined-down ore and all.
+    /// None = not recorded, keep the fresh set; Some = authoritative, and an
+    /// asteroid missing from it was mined out.
+    #[serde(default)]
+    pub asteroids: Option<Vec<crate::ecs::components::AsteroidBody>>,
+    /// The mining drone in flight, with its cargo (2026-09-27): the ore in its
+    /// hold has already left the asteroid, so dropping it lost the ore.
+    #[serde(default)]
+    pub drone: Option<crate::ecs::components::Drone>,
+    /// The drone's standing order ("Keep mining"), (asteroid id, manifest).
+    #[serde(default)]
+    pub mining_order: Option<(String, Vec<(String, u32)>)>,
 }
 
 fn default_credits() -> i64 {
@@ -166,6 +184,10 @@ impl WorldSave {
             soil_memory: Default::default(),
             credits: -1,
             quests: None,
+            herd: Vec::new(),
+            asteroids: None,
+            drone: None,
+            mining_order: None,
         }
     }
 }
@@ -381,6 +403,10 @@ mod tests {
             soil_memory: Default::default(),
             credits: -1,
             quests: None,
+            herd: Vec::new(),
+            asteroids: None,
+            drone: None,
+            mining_order: None,
         }
     }
 

@@ -1,8 +1,9 @@
 # Offline progression
 
 **Status:** designed 2026-09-21. **BUILT 2026-09-25 for crops, builds under
-construction and craft batches** (single player, device clock). See "What is
-built" below.
+construction and craft batches; 2026-09-27 for soil pH, the automated
+machines, the mining drone and livestock** (single player, device clock). See
+"What is built" below. The server clock for multiplayer is what remains.
 **Operator decision, 2026-09-21.** Verbatim:
 
 > "Offline growth should be a toggle for both single player, multiplayer, and
@@ -166,12 +167,73 @@ itself, so shaping the starting home keeps working. Revisit at launch.
   existed from the start with nothing writing it, so every structure the
   player built was discarded at exit after its materials had been spent.
 - **Toggle:** Settings > Gameplay > "Keep growing while away", on by default,
-  persisted in `config.json` as `offline_progression`.
+  persisted in `config.json` as `offline_progression`. Everything below
+  opts in behind it; with it off the saved state comes back exactly as saved
+  and nothing moves on.
 - **Never silent:** a "While you were away (8 h 12 min), 12 plants kept
   growing." notice on load.
-- **Not yet:** livestock, and the server clock for multiplayer and MMO saves
-  (none exist yet). Drones and manufacturing timers are countdowns inside
-  their systems and are not yet saved either.
+
+### The automated machines, the drone and livestock (2026-09-27)
+
+- **Automated machines** (the Barn's `AutoRefine` machines: the grain mill,
+  smelter, workbench, sawmill, fuel refinery, vehicle assembler).
+  `resume_home` hands them the time away (`crafting::away::AwayWork`), and
+  the CraftingSystem runs it once the machines exist, before it starts any
+  batch of its own. The hours are run moment by moment by the session's own
+  rules: a machine starts a batch when its inputs are on hand, spends them
+  then, runs the recipe's craft time, files the product in home storage
+  and starts again; it rests at its keep target (the mill's 20 flour); what
+  one machine makes feeds the next (ore to ingot to hammer) from the moment
+  it is made; a batch in flight at the save lands when it was due and the
+  machine carries on from there; a batch still running when the time runs
+  out is left running, where the player finds it. The outputs get the XP
+  and quest credit a session batch gets, without the sound. One notice
+  lists what they made ("the home's machines made 21 Flour").
+- **The drone** (`mining::advance_away`). The trip in flight finishes, and
+  while "Keep mining" is set the drone keeps flying the same trip until its
+  asteroid is mined out, as in a session. Each haul lands in the backpack
+  and is usable by the machines only from the moment it landed. A trip still
+  in the air when the time runs out is left in the air. The asteroids, the
+  drone with its cargo, and the standing order are saved now: all three were
+  rebuilt fresh at every launch, which refilled every asteroid and lost the
+  ore in a flying drone's hold.
+- **Livestock** (`livestock::timers_after_away`). Each homestead animal's
+  yield timer (egg, milk, wool) is saved by its herd slot ("chicken#0") and
+  moves on by the time away, to ONE yield waiting: the same cap as a player
+  at home who never collects, so the away time cannot give more than the
+  hours at home would. Before this the herd respawned ready at every launch.
+  The livestock system has no hunger, illness or growth yet, so nothing else
+  is advanced, and when it gets them they belong to "What must NOT advance
+  offline": the character feeds the animals. Nothing dies because the player
+  was away.
+- **Power offline.** An electric automated machine may draw only power the
+  home could have spared: the Usage meter's day balance, what the home makes
+  on its own (each panel's yield at the site, a turbine's site average, no
+  backstop genset) less what it uses (every machine's day average draw), for
+  the life support mode the player has chosen
+  (`crafting::away::day_power_balance`). It is paid out no faster than the
+  home made it: by any moment of the time away the machines have drawn at
+  most the spare watts times the hours so far. A home that makes less than
+  it uses has nothing to spare and runs no electric machine while away, and
+  the notice says so instead of leaving an idle machine unexplained.
+  Batteries are not a source: they move a day's power from noon to night,
+  they do not add to it. No automated machine in the shipped homes has a
+  power role today, and neither shipped home makes what it uses (the meter
+  of 2026-09-27), so this rule bites the moment one does
+  (`the_shipped_homes_have_no_power_to_spare_while_away` pins it).
+- **What deliberately does not move on:** tanks do not refill offline (a
+  machine's tap water comes out of what the tanks held), the backstop genset
+  burns nothing, the weather and fires do not run, predators do not hunt the
+  herd, and a machine never runs on stock that was not there. The inert
+  `ManufacturingSystem` facility counter has no spawned facilities and
+  produces nothing, so there is nothing to catch up there.
+- **Applying the same save twice is the same result.** The launcher applies
+  the save again when the character is picked, so on a character select the
+  home's storage (the Barn) now comes back with the save as well
+  (`save_load::after_resume`); it used to keep the previous state, which let
+  a rewound backpack and a kept Barn both hold the same goods.
+- **Not yet:** the server clock for multiplayer and MMO saves (none exist
+  yet). A dead animal is not saved and comes back alive and ready.
 
 ## Open questions
 
@@ -179,8 +241,21 @@ itself, so shaping the starting home keeps working. Revisit at launch.
   simplest reading of "certain craft jobs could take forever", and a returning
   player after six months finding a finished world is arguably the point. A cap
   is worth revisiting only if some system turns out to behave badly at scale.
-- Do offline hours consume inputs that were not reserved up front? A crafting job
-  should reserve its inputs when it starts, which sidesteps the question.
+  (2026-09-27: still unbounded in time. The machines and the drone carry only
+  a safety bound on the work one return may run, 200,000 machine batches and
+  100,000 drone trips, which a real home never nears because inputs and
+  asteroids run out first; it stops a save with an input-free recipe from
+  looping.)
+- ~~Do offline hours consume inputs that were not reserved up front?~~
+  **Answered 2026-09-27 by what was built: no input is reserved ahead, and
+  none needs to be.** A batch spends its inputs when it STARTS, away exactly
+  as at home (a manual craft, a scaffold and a machine batch all do). The
+  time away runs the automated machines moment by moment, so a batch starts
+  only on stock that was on hand at that moment: the backpack, the Barn,
+  what an earlier batch made, drone ore from the moment it landed, tap water
+  from what the tanks held. Offline hours therefore consume only inputs that
+  existed, never more than a session would, and a machine short of an input
+  simply waits, as it does at home.
 - Does the character's offline upkeep cost anything, or is it free? Free is the
   simpler start.
 

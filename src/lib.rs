@@ -1123,17 +1123,10 @@ mod native_app {
                 "time_set_scale_request",
                 std::sync::Mutex::new(Option::<f32>::None),
             );
-            // Craft batches in flight, both ways (2026-09-25): the
-            // CraftingSystem publishes its list for the save, and takes
-            // batches restored from a save. See systems::crafting::CraftSave.
-            data_store.insert(
-                "active_crafts_export",
-                std::sync::Mutex::new(Vec::<crate::systems::crafting::CraftSave>::new()),
-            );
-            data_store.insert(
-                "restore_active_crafts",
-                std::sync::Mutex::new(Option::<Vec<crate::systems::crafting::CraftSave>>::None),
-            );
+            // Craft batches in flight both ways, and the time away handed to
+            // the automated machines (systems::crafting::register).
+            crate::systems::crafting::register(&mut data_store);
+            crate::systems::livestock::register(&mut data_store); // the herd's saved timers until world entry
             // Absolute clock restore from a save (2026-09-25, offline
             // progression): see systems::time::request_restore_elapsed.
             data_store.insert(
@@ -1699,9 +1692,6 @@ mod native_app {
                     );
                 } else {
                     crate::save_load::apply_save_to_world(&mut game_world.world, save);
-                    if !save.placed_items.is_empty() {
-                        gui_state.placed_items = save.placed_items.clone();
-                    }
                     log::info!(
                         "Loaded offline home: {} item stacks, {} skills",
                         save.inventory.len(),
@@ -1712,10 +1702,10 @@ mod native_app {
                         &data_store,
                         save,
                         gui_state.settings.offline_progression,
+                        gui_state.home_machines.as_ref(),
                     );
-                    if let Some(msg) = crate::save_load::away_notice(&resumed) {
-                        gui_state.pending_notices.push(msg);
-                    }
+                    // Home storage, the notice, the Keep mining switch.
+                    crate::save_load::after_resume(&mut gui_state, save, &resumed);
                 }
             }
             // Bring the self-hosted relay node back up if it was running at
@@ -14812,10 +14802,9 @@ mod native_app {
                                                     &state.data_store,
                                                     &save,
                                                     state.gui_state.settings.offline_progression,
+                                                    state.gui_state.home_machines.as_ref(),
                                                 );
-                                                if let Some(msg) = crate::save_load::away_notice(&resumed) {
-                                                    state.gui_state.pending_notices.push(msg);
-                                                }
+                                                crate::save_load::after_resume(&mut state.gui_state, &save, &resumed);
                                             }
                                             // The world just REWOUND to the save:
                                             // drop in-flight craft batches or their
