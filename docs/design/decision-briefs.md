@@ -161,3 +161,64 @@ second drift.
 **First increment.** Move chore-site selection into a function over
 `MachineHome` + `home_structure` (the layouts the client renders), tick crew
 locally in the systems runner, delete the relay chore path for the home.
+
+---
+
+## Brief 6: How long is a day? (one clock for the garden, the body, the air and the sky)
+
+Written 2026-09-27. Asked before as PRIORITIES "Blocked on the operator" #3;
+this is the same question laid out so it can be answered with one letter.
+Three pieces of garden work wait on it: the ship's sun reaching the crops
+(BUG-090), room air and tank water balancing (BUG-092 item 7), and the
+body's share of the garden's nitrogen.
+
+**What runs on what today** (read from the code on 2026-09-27):
+
+| Thing | Clock | One day takes |
+|---|---|---|
+| World clock, the gameplay sun, room air | game days (`time.rs`, `SECONDS_PER_DAY` 1,200) | 20 real minutes |
+| Crop growth | game days x the growth speed you chose (10x shipped) | 2 real minutes of growth per crop day |
+| Crop water and nutrients from the tanks | real days (`farming/mod.rs`, litres per 1,440 real minutes) | 24 real hours |
+| The body (hunger, thirst, urine) | real seconds | 24 real hours |
+| The Sun drawn in the sky | the wall clock (the real ephemeris) | 24 real hours |
+
+So a lettuce grows from seed to harvest in about 1.5 real hours while its
+water is billed as if it took 45 days, the sun the crops feel rises every 20
+minutes while the Sun you see rises once a day, and one person's urine is a
+fraction of a percent of what a garden growing that fast needs. None of those
+balance, and each is two clocks meeting.
+
+**Your earlier call stands** (2026-09-20): crops have a growth speed
+separate from the world clock, 1x / 10x / 100x, shipping at 10x. The question
+now is what else follows it.
+
+**Options.**
+- **A. Game days for everything.** The drawn sky follows the 20-minute day
+  (as most games do), and the body, the tanks and the air all run on game
+  days too. Crops at 10x drink and breathe at their own growth speed, so the
+  tanks and air handling are sized for it. Everything balances. Cost: you
+  eat and drink about three times per 20 real minutes, and the sky no longer
+  shows the real Sun, Moon and Earth at this moment.
+- **B. Real days for everything.** The world clock becomes 24 real hours, the
+  sky stays real, the body is already there. Crops still grow at the speed
+  you chose, and what they drink and breathe speeds up with them, so a 10x
+  garden needs a 10x water system. Everything balances. Cost: a day and a
+  night take a real day, so a quick session sees little of either.
+- **C. Both, as the two modes the house rule asks for.** Full realism is B:
+  real days, the real sky, every flow balanced. The simplified mode is A: 20
+  minute days, the sky on the game clock, gentle upkeep. Each mode is one
+  clock; the two are never mixed inside one mode.
+
+**Recommendation: C, with full realism as B.** It is the only answer that
+keeps a single clock inside each mode, which is what makes mass and light
+balance, and it follows the rule already set for every deep system (full
+realism plus a simplified mode). It also settles BUG-090 without a
+compromise: in each mode the crops, the panels and the drawn Sun read the
+same clock. The one sub-choice left is which mode new players start in.
+
+**First increment.** Make the growth speed also scale the water and air a
+crop draws, as it already scales its nutrients (`soil::uptake_fraction`), so
+a crop at 10x drinks and breathes at 10x. That is correct under all three
+options, because a crop needs the same water per kilogram it grows however
+fast it grows, and it closes BUG-092 item 7 on its own. Then the mode switch
+that picks the day length and puts the drawn sky on the same clock.

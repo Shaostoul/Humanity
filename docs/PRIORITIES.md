@@ -978,6 +978,8 @@ them up.
    air (game hours) and tank water (real days) are 72x apart (BUG-092 item 7).
    Choosing one clock, or a slower garden, is a design choice for the
    full-realism and simplified modes.
+   **Laid out as one question with a recommendation on 2026-09-27:**
+   docs/design/decision-briefs.md Brief 6 ("How long is a day?").
 4. **Clear the old agent worktrees** under `.claude/worktrees/`. Audited
    2026-08-04: none could be cheaply proven redundant, and
    `just clean-worktrees` force-deletes branches and has destroyed
