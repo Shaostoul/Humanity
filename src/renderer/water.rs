@@ -303,9 +303,10 @@ pub fn water_wave_gradient(p_m: [f32; 3], n: [f32; 3], t: f32, footprint_m: f32)
 /// the land octaves -- the same pow-4-weight construction as the cloud
 /// field's sphere noise but with its own seed offsets, kept INDEPENDENT of
 /// the cloud functions (which have their own rework cadence). Reuses the
-/// one Rust mirror of the shader's shared `value_noise` primitive.
+/// one Rust mirror of the shader's shared `value_noise` primitive, whose
+/// corners are integer-lattice hashes bit-identical to the GPU's (BUG-103).
 pub fn surface_detail_noise(dir: [f32; 3], freq: f32, seed: f32) -> f32 {
-    use super::clouds::value_noise;
+    use super::lattice_noise::value_noise;
     let w2 = [dir[0] * dir[0], dir[1] * dir[1], dir[2] * dir[2]];
     let w4 = [w2[0] * w2[0], w2[1] * w2[1], w2[2] * w2[2]];
     let sum = (w4[0] + w4[1] + w4[2]).max(1e-12);

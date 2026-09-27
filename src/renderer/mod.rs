@@ -77,6 +77,10 @@ pub mod frame_costs;
 pub mod ground_textures;
 pub mod floating_origin;
 pub mod hologram;
+/// The megashader's shared 2D lattice value noise and its CPU twin (BUG-103:
+/// corners hashed from the INTEGER lattice point, so neighbouring cells can
+/// never disagree about a shared corner).
+pub mod lattice_noise;
 pub mod light;
 pub mod line;
 pub mod material_bind_groups;

@@ -1399,14 +1399,22 @@ fn cloud_noise(dir: vec3<f32>, freq: f32, seed: f32) -> f32 {
     let f = fract(p);
     let u = f * f * f * (f * (f * 6.0 - 15.0) + 10.0); // quintic fade
 
+    // Far corners by INTEGER add (BUG-103, the sea-colour lattice seams):
+    // `i + 1.0` in float let the compiler round the two routes to a shared
+    // corner differently, and at these coordinates (up to ~1,500 with a large
+    // seed) one ulp moves hash13's answer by up to 0.2. `i1` is the same
+    // exact value the float add produced, reached by a route nothing can fold
+    // into hash13's multiply, so the cloud pattern (and the CPU twin's KAT) is
+    // unchanged; only the chance of two cells disagreeing is gone.
+    let i1 = vec3<f32>(vec3<i32>(i) + vec3<i32>(1));
     let c000 = hash13(i);
-    let c100 = hash13(i + vec3<f32>(1.0, 0.0, 0.0));
-    let c010 = hash13(i + vec3<f32>(0.0, 1.0, 0.0));
-    let c110 = hash13(i + vec3<f32>(1.0, 1.0, 0.0));
-    let c001 = hash13(i + vec3<f32>(0.0, 0.0, 1.0));
-    let c101 = hash13(i + vec3<f32>(1.0, 0.0, 1.0));
-    let c011 = hash13(i + vec3<f32>(0.0, 1.0, 1.0));
-    let c111 = hash13(i + vec3<f32>(1.0, 1.0, 1.0));
+    let c100 = hash13(vec3<f32>(i1.x, i.y, i.z));
+    let c010 = hash13(vec3<f32>(i.x, i1.y, i.z));
+    let c110 = hash13(vec3<f32>(i1.x, i1.y, i.z));
+    let c001 = hash13(vec3<f32>(i.x, i.y, i1.z));
+    let c101 = hash13(vec3<f32>(i1.x, i.y, i1.z));
+    let c011 = hash13(vec3<f32>(i.x, i1.y, i1.z));
+    let c111 = hash13(i1);
 
     let x00 = mix(c000, c100, u.x);
     let x10 = mix(c010, c110, u.x);

@@ -135,15 +135,16 @@ ask the operator before winding them tighter.
 
 **The ocean, found on the way.** The glint stripes from 55 km are FIXED
 (BUG-101, 2026-09-27: the coarse crest warp now runs wherever a wave train is
-drawn). The rectangular blocks in the open-ocean colour are diagnosed and NOT
-fixed, named the next increment by the session that proved them: hard seams in
-`sea_var` along the value-noise lattice, where at coordinates in the thousands a
-one-ulp difference in `hash21`'s input changes its output. Hashing the corners
-from the integer lattice point removed every seam at 150 km in the rig, but
-`value_noise` is shared (land detail, sea, shore, wave warp, cloud and temporal
-call sites) and has a Rust twin (`clouds::value_noise`), so every pattern
-re-rolls: it needs its own increment with a look check (land detail at close
-range likely has the same seams).
+drawn). The rectangular blocks in the open-ocean colour are FIXED too (BUG-103,
+2026-09-27): value-noise lattice seams, because neighbouring cells reached a
+shared corner by float routes the compiler rounded apart. `value_noise` now
+hashes the INTEGER lattice point (`lattice_hash`, twin
+`renderer::lattice_noise`, bit-identical on the GPU); measured 3.34 to 0.83 at
+55 km and 1.68 to 0.82 at 150 km on `scripts/lattice-seam-metric.mjs`, no
+measurable cost. Every `value_noise` pattern re-rolled (sea colour, shore,
+surf, crest warp, land detail, materials); voronoi, the cloud lattice and the
+ground micro noise kept their patterns on integer corners. A seam on the
+Bahama Bank shallows went with it.
 
 **Do not retry:** base resolution for the sheets (raised twice, the complaint
 returned both times); for the ball pit, the cell split fully off, gated to the

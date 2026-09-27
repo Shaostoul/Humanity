@@ -188,25 +188,68 @@ fn canopy_card_shading(n: vec3<f32>, sun_dir: vec3<f32>, view_dir: vec3<f32>) ->
 
 // ── Procedural Patterns ──
 
-// Hash function for procedural noise
+// Hash function for procedural noise. FLOAT hash: every multiply rounds, so at
+// inputs in the thousands one ulp of difference in `p` changes the result
+// completely. Fine for a per-pixel jitter; a LATTICE must never feed it a
+// corner computed by float arithmetic (see lattice_hash below, BUG-103).
 fn hash21(p: vec2<f32>) -> f32 {
     var p3 = fract(vec3<f32>(p.x, p.y, p.x) * 0.1031);
     p3 = p3 + vec3<f32>(dot(p3, vec3<f32>(p3.y + 33.33, p3.z + 33.33, p3.x + 33.33)));
     return fract((p3.x + p3.y) * p3.z);
 }
 
-// Value noise
+// INTEGER lattice hash (2026-09-27, BUG-103: the rectangular blocks in the
+// open-sea colour). value_noise used to hash its corners with the float
+// hash21 of `i + vec2(1.0, 0.0)`. Two neighbouring cells share a corner, and
+// the shader compiler is free to round the two routes to that corner
+// differently (it may fold the `+ 1.0` into the multiply inside hash21 for
+// one cell and not the other). At lattice coordinates in the thousands, which
+// every planet-scale caller reaches (sea colour 700 to 3,500, the shore at
+// 70,000, land detail at 800,000), one ulp is enough for the float hash to
+// return a different number, so the cells disagreed about the corner they
+// share and the field stepped along every lattice line.
+//
+// Now the cell is floored ONCE, converted to an integer, and every corner is
+// an integer add: both cells hand this function the identical integer, and
+// nothing after that is floating point until the exact 24-bit conversion at
+// the end. So the corner value is a function of the lattice point alone, on
+// every GPU and in the CPU twin (renderer::lattice_noise::lattice_hash, which
+// is bit-identical and pinned by the lattice_noise tests).
+//
+// Mixer: odd-constant linear combine of the two coordinates, then the
+// lowbias32 finaliser (C. Wellons, "Prospecting for Hash Functions", 2018,
+// public domain). The linear combine makes the whole field repeat along its
+// shortest lattice vector, (33863, -40683) cells, 52,932 cells long (pinned by
+// lattice_noise::tests): 420 km at the finest 8 m land octave, so never in view.
+const LATTICE_HASH_KX: u32 = 0x27D4EB2Du;
+const LATTICE_HASH_KY: u32 = 0x165667B1u;
+const LATTICE_HASH_M1: u32 = 0x7FEB352Du;
+const LATTICE_HASH_M2: u32 = 0x846CA68Bu;
+
+fn lattice_hash(c: vec2<i32>) -> f32 {
+    var h = bitcast<u32>(c.x) * LATTICE_HASH_KX + bitcast<u32>(c.y) * LATTICE_HASH_KY;
+    h = (h ^ (h >> 16u)) * LATTICE_HASH_M1;
+    h = (h ^ (h >> 15u)) * LATTICE_HASH_M2;
+    h = h ^ (h >> 16u);
+    // The top 24 bits, exactly representable: [0, 1) with no rounding.
+    return f32(h >> 8u) * (1.0 / 16777216.0);
+}
+
+// Value noise on the integer lattice (see lattice_hash). Smoothstep fade, so
+// the field and its across-line derivative are both continuous at every
+// lattice line: any step there is a corner disagreement, never the noise.
 fn value_noise(p: vec2<f32>) -> f32 {
     let i = floor(p);
-    let f = fract(p);
+    let f = p - i;
     let u = f * f * (3.0 - 2.0 * f); // smoothstep
 
-    let a = hash21(i);
-    let b = hash21(i + vec2<f32>(1.0, 0.0));
-    let c = hash21(i + vec2<f32>(0.0, 1.0));
-    let d = hash21(i + vec2<f32>(1.0, 1.0));
+    let c = vec2<i32>(i);
+    let a = lattice_hash(c);
+    let b = lattice_hash(c + vec2<i32>(1, 0));
+    let cc = lattice_hash(c + vec2<i32>(0, 1));
+    let d = lattice_hash(c + vec2<i32>(1, 1));
 
-    return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
+    return mix(mix(a, b, u.x), mix(cc, d, u.x), u.y);
 }
 
 // FBM (fractal Brownian motion) — 4 octaves
@@ -301,15 +344,30 @@ fn triplanar_uv(world_pos: vec3<f32>, normal: vec3<f32>) -> vec2<f32> {
     return world_pos.xy;
 }
 
+// A voronoi cell's feature point, named by its INTEGER cell index (BUG-103).
+// Each pixel visits nine cells, so one cell is reached by nine different
+// offset routes from nine different pixels; with float offsets the compiler
+// may round those routes apart and move the point between neighbours. The
+// cell is now an exact integer converted once, which hands hash21 the same
+// bits the old `i + neighbor` did whenever that route was exact, so every
+// voronoi pattern (crystal, pores, facets, cracks, leaf veins) is unchanged.
+fn voronoi_point(cell: vec2<i32>) -> vec2<f32> {
+    return vec2<f32>(
+        hash21(vec2<f32>(cell)),
+        hash21(vec2<f32>(cell + vec2<i32>(57, 113))),
+    );
+}
+
 // Voronoi cell noise (returns distance to nearest cell center)
 fn voronoi(p: vec2<f32>) -> f32 {
     let i = floor(p);
     let f = fract(p);
+    let ci = vec2<i32>(i);
     var min_dist = 1.0;
     for (var y = -1; y <= 1; y = y + 1) {
         for (var x = -1; x <= 1; x = x + 1) {
             let neighbor = vec2<f32>(f32(x), f32(y));
-            let cell_center = vec2<f32>(hash21(i + neighbor), hash21(i + neighbor + vec2<f32>(57.0, 113.0)));
+            let cell_center = voronoi_point(ci + vec2<i32>(x, y));
             let diff = neighbor + cell_center - f;
             min_dist = min(min_dist, dot(diff, diff));
         }
@@ -324,12 +382,13 @@ fn voronoi(p: vec2<f32>) -> f32 {
 fn voronoi_edge(p: vec2<f32>) -> f32 {
     let i = floor(p);
     let f = fract(p);
+    let ci = vec2<i32>(i);
     var d1 = 8.0;
     var d2 = 8.0;
     for (var y = -1; y <= 1; y = y + 1) {
         for (var x = -1; x <= 1; x = x + 1) {
             let neighbor = vec2<f32>(f32(x), f32(y));
-            let cell_center = vec2<f32>(hash21(i + neighbor), hash21(i + neighbor + vec2<f32>(57.0, 113.0)));
+            let cell_center = voronoi_point(ci + vec2<i32>(x, y));
             let diff = neighbor + cell_center - f;
             let d = dot(diff, diff);
             if (d < d1) {

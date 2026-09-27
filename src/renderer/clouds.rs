@@ -290,13 +290,6 @@ pub fn advance_cloud_advect(
     (a, d)
 }
 
-/// WGSL `fract` semantics: `x - floor(x)`, always in [0, 1) -- NOT Rust's
-/// `f32::fract`, which is negative for negative inputs. Every mirror below
-/// must use this or the noise diverges from the shader on negative coords.
-fn fract(x: f32) -> f32 {
-    x - x.floor()
-}
-
 /// Mirrors WGSL `mix(a, b, t)`.
 fn mix(a: f32, b: f32, t: f32) -> f32 {
     a + (b - a) * t
@@ -308,35 +301,9 @@ fn smoothstep(e0: f32, e1: f32, x: f32) -> f32 {
     t * t * (3.0 - 2.0 * t)
 }
 
-/// Mirrors `hash21` in pbr_simple.wgsl (the shader's shared procedural
-/// hash, unchanged since the original material set -- reused, not redefined).
-pub fn hash21(px: f32, py: f32) -> f32 {
-    let mut p3 = [fract(px * 0.1031), fract(py * 0.1031), fract(px * 0.1031)];
-    // dot(p3, p3.yzx + 33.33)
-    let d = p3[0] * (p3[1] + 33.33) + p3[1] * (p3[2] + 33.33) + p3[2] * (p3[0] + 33.33);
-    p3[0] += d;
-    p3[1] += d;
-    p3[2] += d;
-    fract((p3[0] + p3[1]) * p3[2])
-}
-
-/// Mirrors `value_noise` in pbr_simple.wgsl: bilinear hash interpolation
-/// with a smoothstep fade.
-pub fn value_noise(px: f32, py: f32) -> f32 {
-    let ix = px.floor();
-    let iy = py.floor();
-    let fx = px - ix;
-    let fy = py - iy;
-    let ux = fx * fx * (3.0 - 2.0 * fx);
-    let uy = fy * fy * (3.0 - 2.0 * fy);
-    let a = hash21(ix, iy);
-    let b = hash21(ix + 1.0, iy);
-    let c = hash21(ix, iy + 1.0);
-    let d = hash21(ix + 1.0, iy + 1.0);
-    let ab = a + (b - a) * ux;
-    let cd = c + (d - c) * ux;
-    ab + (cd - ab) * uy
-}
+// The shader's 2D `hash21` / `value_noise` twins moved to
+// `renderer::lattice_noise` (BUG-103, 2026-09-27), where the lattice hash
+// became an integer hash; they were never cloud functions.
 
 /// Mirrors `cloud_rot_y`: rigid rotation around the local Y (spin) axis.
 pub fn cloud_rot_y(v: [f32; 3], a: f32) -> [f32; 3] {
@@ -381,7 +348,16 @@ pub fn cloud_noise(dir: [f32; 3], freq: f32, seed: f32) -> f32 {
     let fr = [p[0].fract_pos(), p[1].fract_pos(), p[2].fract_pos()];
     let fade = |v: f32| v * v * v * (v * (v * 6.0 - 15.0) + 10.0);
     let u = [fade(fr[0]), fade(fr[1]), fade(fr[2])];
-    let c = |dx: f32, dy: f32, dz: f32| hash13([i[0] + dx, i[1] + dy, i[2] + dz]);
+    // Far corners by INTEGER add, as the WGSL now does (BUG-103): the same
+    // exact values `i + 1.0` gave, so this twin's output did not change; the
+    // GPU just can no longer round the two routes to a shared corner apart.
+    let i1 = [
+        (i[0] as i32).wrapping_add(1) as f32,
+        (i[1] as i32).wrapping_add(1) as f32,
+        (i[2] as i32).wrapping_add(1) as f32,
+    ];
+    let pick = |k: usize, far: f32| if far > 0.5 { i1[k] } else { i[k] };
+    let c = |dx: f32, dy: f32, dz: f32| hash13([pick(0, dx), pick(1, dy), pick(2, dz)]);
     let mix = |a: f32, b: f32, t: f32| a + (b - a) * t;
     let x00 = mix(c(0.0, 0.0, 0.0), c(1.0, 0.0, 0.0), u[0]);
     let x10 = mix(c(0.0, 1.0, 0.0), c(1.0, 1.0, 0.0), u[0]);
@@ -860,18 +836,6 @@ mod tests {
         // An hour of 10 m/s wind stays a small angle (< 1 deg of planet).
         let (hr, _) = advance_cloud_advect(0.0, 0.0, 10.0, 3600.0);
         assert!(hr < 0.0175, "hourly drift should be gentle: {hr}");
-    }
-
-    #[test]
-    fn hash_and_value_noise_stay_in_unit_range() {
-        for i in 0..500 {
-            let x = (i as f32) * 0.73 - 180.0; // negative coords included:
-            let y = (i as f32) * 1.19 - 250.0; // the WGSL-fract mirror matters
-            let h = hash21(x, y);
-            assert!((0.0..1.0).contains(&h), "hash out of range: {h}");
-            let v = value_noise(x, y);
-            assert!((0.0..=1.0).contains(&v), "value_noise out of range: {v}");
-        }
     }
 
     #[test]

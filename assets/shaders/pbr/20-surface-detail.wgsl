@@ -286,12 +286,28 @@ fn micro_noise(p: vec3<f32>, period: f32) -> f32 {
     let i0 = floor(p);
     let f = p - i0;
     let u = f * f * (3.0 - 2.0 * f);
+    // INTEGER lattice (BUG-103): the corner is an integer add and the period
+    // wrap is done ONCE for the cell and then corrected exactly, not per
+    // corner in float. micro_hash is a sin hash whose argument reaches ~1e5,
+    // so one ulp in a corner changes it completely. The old per-corner
+    // `c - floor(c / period) * period` returned `period` instead of 0 at any
+    // multiple where the GPU division rounded just under the integer (80 and
+    // 200 are not powers of two), which breaks the periodicity the 64 m
+    // anchor jumps rely on, and a compiler folding the corner offset into the
+    // division could make two cells disagree about a shared corner. The
+    // corners here are exactly the old arithmetic's intended values, every
+    // one in [0, period).
+    let per = i32(round(period));
+    var w0 = vec3<i32>(i0 - floor(i0 / period) * period);
+    w0 = select(w0, w0 - vec3<i32>(per), w0 >= vec3<i32>(per));
+    w0 = select(w0, w0 + vec3<i32>(per), w0 < vec3<i32>(0));
     var s = 0.0;
     for (var dz = 0; dz < 2; dz = dz + 1) {
         for (var dy = 0; dy < 2; dy = dy + 1) {
             for (var dx = 0; dx < 2; dx = dx + 1) {
-                let c = i0 + vec3<f32>(f32(dx), f32(dy), f32(dz));
-                let cc = c - floor(c / period) * period;
+                var ci = w0 + vec3<i32>(dx, dy, dz);
+                ci = select(ci, ci - vec3<i32>(per), ci >= vec3<i32>(per));
+                let cc = vec3<f32>(ci);
                 let w = mix(1.0 - u.x, u.x, f32(dx))
                     * mix(1.0 - u.y, u.y, f32(dy))
                     * mix(1.0 - u.z, u.z, f32(dz));
