@@ -299,8 +299,11 @@ date; re-check before trusting one. The container data basis is
   phosphate slug bait. No synthetic pesticide. Three modes by
   `garden_pest_severity`: off, gentle (the default, half the damage) and the
   cited damage. The Garden panel buttons, pressure display and Settings mode
-  switch shipped in the same release. Still to do: whitefly and thrips, row
-  covers, and pests during the offline catch-up.
+  switch shipped in the same release. Whitefly, western flower thrips and a
+  floating row cover followed on 2026-09-27 (sticky cards, Encarsia and
+  cucumeris mites as their controls; a covered field is shut to wild insects,
+  so it is pollinated by hand until the cover comes off). Pests still do not
+  advance during the offline catch-up, by design.
 - **Gardening depth: per-crop nutrient removal, DONE 2026-09-26.** plants.csv
   gained `removal_n_g_per_kg`, `removal_p2o5_g_per_kg` and
   `removal_k2o_g_per_kg`, filled for 64 crops: every crop in the family home's
@@ -492,8 +495,10 @@ date; re-check before trusting one. The container data basis is
   starts flowering with nothing to pollinate it, and the crop card gains a
   "Pollination" row. Settings has Pollination Off / On (On by default; Off
   sets every crop fully and shows nothing). The record is saved with the
-  crop. Not modelled yet, and said on the hive's card: a colony lasts 10 to
-  14 weeks, and LSU warns a small garden's few flowers can leave the bees
+  crop. Since 2026-09-27 a hive needs a bought colony, which works 70 garden
+  days (Koppert: remove hives "the latest 10 weeks after introduction") and
+  is then spent, and a circulation fan sets 0.79 of a strawberry crop
+  (McGregor 1963). Not modelled yet: LSU warns a small garden's few flowers can leave the bees
   over-working and damaging them. Found, left alone: the harvest returns two
   seeds whatever the fruit set, so an unpollinated zucchini still gives
   seed; and a crop the offline catch-up carries past flowering is not
@@ -720,7 +725,7 @@ date; re-check before trusting one. The container data basis is
   racks put about 148 g of CO2 an hour into the mushroom room, like four
   resting people, which its leakage dilutes by about 540 ppm. A real room this
   full needs its air moved for CO2, which the model does not yet do. The tent
-  is not drawn in the world yet, and the T3's own 4.5 L reservoir is not
+  is drawn (2026-09-27, clear sheeting around open shelving), and the T3's own 4.5 L reservoir is not
   modelled.
 - **Mushroom yields are sourced, and every harvest counts only what is eaten:
   DONE 2026-09-27.** A mushroom's "plant" is now the unit growers count by:

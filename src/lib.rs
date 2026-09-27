@@ -12910,6 +12910,9 @@ mod native_app {
                             areas.sort();
                             areas.dedup();
                             let world = &state.game_world.world;
+                            // Row covers per soil area (2026-09-27, farming::pests::cover_rows):
+                            // the cover gets its own row with Row cover / Take off buttons.
+                            state.gui_state.garden_pests.covers = crate::systems::farming::pests::cover_rows(world, &state.data_store, pd);
                             state.gui_state.garden_pests.areas = areas
                                 .into_iter()
                                 .filter_map(|area| {
@@ -12918,7 +12921,7 @@ mod native_app {
                                         .into_iter()
                                         .filter(|(_, lvl, _)| *lvl >= 0.01)
                                         .map(|(p, lvl, _)| {
-                                            let controls = pd.controls_for(&p.id).into_iter().map(|c| (c.id.clone(), c.name.clone(), c.note.clone())).collect();
+                                            let controls = pd.controls_for(&p.id).into_iter().filter(|c| !c.is_cover()).map(|c| (c.id.clone(), c.name.clone(), c.note.clone())).collect();
                                             (p.name.clone(), lvl as f32, controls)
                                         })
                                         .collect();

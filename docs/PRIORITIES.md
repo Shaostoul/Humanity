@@ -1159,11 +1159,24 @@ and sawdust (v0.1371.0). An independent review's nine findings are fixed but
 one (BUG-092, v0.1373.0). The lib test run no longer aborts on threaded AV1
 decode (BUG-093, v0.1374.0: a real over-wide borrow in rav1d 1.1.0's CDEF,
 fixed in vendor/rav1d). The operator chose the SPACESHIP FIRST (Blocked #2,
-2026-09-27), so next on the garden: the ship's closed loops (greenhouse
-moisture condensed back to the tanks, CO2 and O2 through the ship's air) and
-crop light from the ship's real sun direction (the BUG-090 fix); the clock
-question (Blocked #3) is still open. The flaky screens test is fixed too
-(BUG-094, v0.1374.1: it assumed a paused clip delivers no new frame).
+2026-09-27), and the ship's closed loops are BUILT (v0.1377.0,
+docs/design/ship-life-support.md): air handlers return the garden's water
+to the tanks, and CO2 and O2 are a mass balance, in two modes
+(Station-supplied, the default, and Realistic). In Realistic neither home's
+Energy loop closes (the handlers average about 1.5 kW family, 1.0 kW solo).
+Mushroom yields are sourced (a rack was 7x high), so neither Food loop
+closes either (91% and 81%). Whitefly, thrips, row covers, bumblebee
+colonies, a pollinating fan, the bearing-between-picks label, open mushroom
+racks in drawn tents and plant meshes built off the frame are in
+(v0.1378.0). OPERATOR QUESTIONS from that work: the day length (Blocked #3,
+decision-briefs.md Brief 6); how to close the Realistic Energy loop (the
+home's air at 60%, tighter bulkheads, more panels, or leave it to
+Station-supplied); an O2 electrolyser; a CO2 fan for the mushroom room; how
+to close the Food loops (more beds, or more blocks per tent); and whether
+the v0.620 Wi-Fi crop harm stays (a powered router in the family home
+kills most of the garden at full power, and the code cites no source).
+Crop light from the ship's real sun (BUG-090) waits on the day length.
+The flaky screens test is fixed (BUG-094), and screens start muted (BUG-095).
 Containers as items (3c) waits on the
 unified placement schema. Progress and open items live at the top of the gap
 doc.
