@@ -1,5 +1,5 @@
 {
-  "count": 375,
+  "count": 378,
   "categories": [
     "assembly",
     "chemistry",
@@ -168,6 +168,11 @@
           "id": "stainless_steel_ingot_0",
           "label": "Stainless Steel Ingot",
           "qty": 1
+        },
+        {
+          "id": "wood_ash_0",
+          "label": "Wood Ash",
+          "qty": 1
         }
       ],
       "craft_time_sec": 18,
@@ -198,6 +203,11 @@
           "id": "steel_ingot_0",
           "label": "Steel Ingot",
           "qty": 1
+        },
+        {
+          "id": "wood_ash_0",
+          "label": "Wood Ash",
+          "qty": 2
         }
       ],
       "craft_time_sec": 15,
@@ -338,6 +348,11 @@
           "id": "glass_pane_0",
           "label": "Glass Pane",
           "qty": 2
+        },
+        {
+          "id": "wood_ash_0",
+          "label": "Wood Ash",
+          "qty": 1
         }
       ],
       "craft_time_sec": 12,
@@ -368,6 +383,11 @@
           "id": "glass_fiber_0",
           "label": "Glass Fiber",
           "qty": 1
+        },
+        {
+          "id": "wood_ash_0",
+          "label": "Wood Ash",
+          "qty": 1
         }
       ],
       "craft_time_sec": 15,
@@ -385,7 +405,7 @@
         {
           "id": "clay_raw_0",
           "label": "Clay Raw",
-          "qty": 4
+          "qty": 8
         },
         {
           "id": "coal_0",
@@ -398,6 +418,11 @@
           "id": "stone_brick_0",
           "label": "Stone Brick",
           "qty": 4
+        },
+        {
+          "id": "wood_ash_0",
+          "label": "Wood Ash",
+          "qty": 1
         }
       ],
       "craft_time_sec": 15,
@@ -432,6 +457,11 @@
         {
           "id": "glass_pane_0",
           "label": "Glass Pane",
+          "qty": 1
+        },
+        {
+          "id": "wood_ash_0",
+          "label": "Wood Ash",
           "qty": 1
         }
       ],
@@ -595,6 +625,41 @@
       "skill": "",
       "skill_level": 1,
       "description": "Mill wheat and sift the white flour from the bran",
+      "tools": []
+    },
+    {
+      "id": "mill_rice",
+      "name": "Mill Rice",
+      "category": "refining",
+      "inputs": [
+        {
+          "id": "grain_rice_0",
+          "label": "Grain Rice",
+          "qty": 10
+        }
+      ],
+      "outputs": [
+        {
+          "id": "rice_0",
+          "label": "Rice",
+          "qty": 7
+        },
+        {
+          "id": "rice_hulls_0",
+          "label": "Rice Hulls",
+          "qty": 1
+        },
+        {
+          "id": "rice_bran_0",
+          "label": "Rice Bran",
+          "qty": 1
+        }
+      ],
+      "craft_time_sec": 20,
+      "station": "Grain Mill",
+      "skill": "",
+      "skill_level": 1,
+      "description": "Hull paddy rice and polish it white and keep the hulls and the bran",
       "tools": []
     },
     {
@@ -798,6 +863,11 @@
           "id": "rubber_sheet_0",
           "label": "Rubber Sheet",
           "qty": 4
+        },
+        {
+          "id": "wood_ash_0",
+          "label": "Wood Ash",
+          "qty": 1
         }
       ],
       "craft_time_sec": 15,
@@ -1110,6 +1180,36 @@
       "skill": "",
       "skill_level": 1,
       "description": "Pack damp salt into a mold and dry it hard over low heat into a solid block",
+      "tools": []
+    },
+    {
+      "id": "press_oil_sunflower",
+      "name": "Press Sunflower Oil",
+      "category": "refining",
+      "inputs": [
+        {
+          "id": "fruit_sunflower_0",
+          "label": "Fruit Sunflower",
+          "qty": 6
+        }
+      ],
+      "outputs": [
+        {
+          "id": "cooking_oil_0",
+          "label": "Cooking Oil",
+          "qty": 2
+        },
+        {
+          "id": "press_cake_0",
+          "label": "Press Cake",
+          "qty": 4
+        }
+      ],
+      "craft_time_sec": 15,
+      "station": "",
+      "skill": "Cooking",
+      "skill_level": 2,
+      "description": "Screw-press whole sunflower seed into cooking oil and seed cake",
       "tools": []
     },
     {
@@ -8092,6 +8192,41 @@
       "tools": []
     },
     {
+      "id": "compost_rice_hulls",
+      "name": "Compost Rice Hulls and Bran",
+      "category": "chemistry",
+      "inputs": [
+        {
+          "id": "rice_hulls_0",
+          "label": "Rice Hulls",
+          "qty": 3
+        },
+        {
+          "id": "rice_bran_0",
+          "label": "Rice Bran",
+          "qty": 2
+        },
+        {
+          "id": "water_purified_0",
+          "label": "Water Purified",
+          "qty": 4
+        }
+      ],
+      "outputs": [
+        {
+          "id": "fertilizer_0",
+          "label": "Fertilizer",
+          "qty": 2
+        }
+      ],
+      "craft_time_sec": 20,
+      "station": "Composter",
+      "skill": "Farming",
+      "skill_level": 1,
+      "description": "Compost rice hulls with rice bran into plant food",
+      "tools": []
+    },
+    {
       "id": "craft_compass",
       "name": "Craft Compass",
       "category": "crafting",
@@ -9892,6 +10027,11 @@
           "id": "coal_0",
           "label": "Coal",
           "qty": 1
+        },
+        {
+          "id": "wood_ash_0",
+          "label": "Wood Ash",
+          "qty": 4
         }
       ],
       "craft_time_sec": 60,
@@ -12539,8 +12679,8 @@
       "category": "cooking",
       "inputs": [
         {
-          "id": "grain_rice_0",
-          "label": "Grain Rice",
+          "id": "rice_0",
+          "label": "Rice",
           "qty": 1
         },
         {
@@ -12565,7 +12705,7 @@
       "station": "Stove",
       "skill": "Cooking",
       "skill_level": 1,
-      "description": "Simmer grain in milk",
+      "description": "Simmer milled rice in milk",
       "tools": []
     },
     {

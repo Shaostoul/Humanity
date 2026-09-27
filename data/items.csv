@@ -168,7 +168,7 @@ vegetable_tomato_0,Tomato,food,vegetable,plant_fiber,0.2,20,0,Red vine-ripened f
 vegetable_corn_0,Corn,food,vegetable,plant_fiber,0.25,20,0,Sweet corn ear,solid,0.46
 vegetable_lettuce_0,Lettuce,food,vegetable,plant_fiber,0.3,20,0,Leafy green head,solid,0.56
 vegetable_cabbage_0,Cabbage,food,vegetable,plant_fiber,0.8,10,0,Dense leafy head,solid,1.48
-rice_0,Rice,food,grain,plant_fiber,0.5,20,0,Dry white rice 500g bag,dry_goods,0.93
+rice_0,Rice,food,grain,plant_fiber,0.5,20,0,Milled white rice 500g bag: paddy with its hull and bran taken off (mill_rice),dry_goods,0.93
 flour_0,Flour,food,grain,plant_fiber,0.5,20,0,Ground wheat flour 500g bag,dry_goods,0.93
 sugar_0,Sugar,food,seasoning,plant_fiber,0.5,20,0,Granulated cane sugar 500g,dry_goods,0.93
 salt_food_0,Salt,food,seasoning,salt,0.5,20,0,Table salt 500g container,dry_goods,0.51
@@ -278,6 +278,23 @@ press_cake_0,Seed Press Cake,material,byproduct,plant_fiber,0.5,20,0,Protein-ric
 olive_pomace_0,Olive Pomace,material,byproduct,plant_fiber,0.5,20,0,Crushed olive skins and pulp and stones left after pressing out the oil,solid,0.69
 apple_pomace_0,Apple Pomace,material,byproduct,plant_fiber,0.4,20,0,Pressed apple skins and cores and pulp left after juicing,solid,0.55
 whey_0,Whey,food,dairy,plant_fiber,1.0,5,0,The liquid left when milk becomes cheese 1L,food,1.85
+# Rice milling byproducts (2026-09-27; mill_rice in data/recipes.csv carries the split and its source).
+# rice_hulls_0 is 1 kg of husk; its volume is IRRI's bulk density, "The specific weight of uncompressed
+# rice husk is about 100 kg/m3" (IRRI Rice Knowledge Bank, Rice husk,
+# http://www.knowledgebank.irri.org/step-by-step-production/postharvest/rice-by-products/rice-husk, read
+# 2026-09-27), so 10 L. rice_bran_0 is a 500 g bag; no measured bulk density was read for it, so its
+# volume follows scripts/gen-item-volumes.js.
+rice_hulls_0,Rice Hulls,material,byproduct,plant_fiber,1.0,20,0,The husks milled off paddy rice; light and slow to rot. They burn as fuel and compost with something richer,dry_goods,10.0
+rice_bran_0,Rice Bran,material,byproduct,plant_fiber,0.5,20,0,Bran and germ polished off brown rice 500g bag; oily and rich in protein,dry_goods,0.69
+# Wood ash (2026-09-27): what a charcoal fire leaves. coal_0 is a 1.3 kg lump of charcoal, and "Good
+# quality lump charcoal typically has ash content of about 3%" (FAO Forestry Paper 41, "Simple technologies
+# for charcoal making", 1987, section 10.1.4, https://www.fao.org/4/x5328e/x5328e0b.htm, read 2026-09-27),
+# so one lump burnt leaves 39 g: one wood_ash_0. Its volume, 0.08 L, is Iowa State's "An average cord
+# yields about 20 pounds of ash, equivalent to one five-gallon bucket" (0.48 kg a litre; Steil and Naeve,
+# "Using Wood Ashes in the Home Garden", ISU Extension, reviewed February 2025, read 2026-09-27). The kiln,
+# forge and smelter recipes that burn charcoal as fuel leave it, and the garden uses it to raise soil pH
+# (data/garden/soil_ph.ron, amendment wood_ash). The stack of 100 is a game choice.
+wood_ash_0,Wood Ash,material,byproduct,ash_ite,0.039,100,0,Fine grey ash raked from a charcoal fire; it raises soil pH and carries some potash,dry_goods,0.08
 #
 # === MACHINES / APPLIANCES ===
 generator_portable_0,Portable Generator,machine,power,steel,25.0,1,300,Gasoline electric generator 2kW,solid,7.96
@@ -584,8 +601,8 @@ seed_valerian_0,Valerian Seeds,material,seed,plant_fiber,0.05,50,0,Planting vale
 seed_zucchini_0,Zucchini Seeds,material,seed,plant_fiber,0.05,50,0,Planting zucchini seeds packet,dry_goods,0.07
 grain_wheat_0,Wheat Grain,food,grain,plant_fiber,0.5,20,0,Threshed wheat kernels 500g,dry_goods,0.93
 grain_corn_0,Corn Grain,food,grain,plant_fiber,0.5,20,0,Shelled maize kernels 500g,dry_goods,0.93
-grain_rice_0,Rice Grain,food,grain,plant_fiber,0.5,20,0,Harvested paddy rice 500g,dry_goods,0.93
-grain_barley_0,Barley Grain,food,grain,plant_fiber,0.5,20,0,Threshed barley kernels 500g,dry_goods,0.93
+grain_rice_0,Paddy Rice,food,grain,plant_fiber,0.5,20,0,Threshed paddy rice still in its hull 500g; mill it into white rice before cooking,dry_goods,0.93
+grain_barley_0,Barley Grain,food,grain,plant_fiber,0.5,20,0,Threshed covered barley 500g: the grain with its hull still on,dry_goods,0.93
 grain_oat_0,Oat Grain,food,grain,plant_fiber,0.5,20,0,Threshed oat groats 500g,dry_goods,0.93
 grain_rye_0,Rye Grain,food,grain,plant_fiber,0.5,20,0,Threshed rye kernels 500g,dry_goods,0.93
 grain_sorghum_0,Sorghum Grain,food,grain,plant_fiber,0.5,20,0,Threshed sorghum kernels 500g,dry_goods,0.93

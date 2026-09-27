@@ -411,7 +411,8 @@ date; re-check before trusting one. The container data basis is
   real floor (the engine's "grow_plot_area_m2"); the area inferred from the
   crop's N removal is now only the fallback for a unit with no machine.
   Left: wood ash is
-  skipped because burning gives the player no ash item yet; crop removal of
+  skipped because burning gives the player no ash item yet (FIXED
+  2026-09-27: charcoal fires leave it and it limes, see below); crop removal of
   calcium and magnesium, and legumes, which also acidify (NRCS), are not
   counted; hand-planted crops have no unit, so they sit at 6.5 and cannot be
   limed; a tower's solution cannot yet be set per crop (a blueberry wants a
@@ -764,7 +765,8 @@ date; re-check before trusting one. The container data basis is
   unchanged; sizing it from the harvest's water is left to the humidity
   model. (3) Oyster mushrooms need dim light to form caps (Agrodok, Penn
   State), which `needs_light` does not model, and the rack still reads "no
-  light needed". (4) A harvest returns two spawn items as seed. (5) A perennial
+  light needed". (4) A harvest returns two spawn items as seed (FIXED
+  2026-09-27: a fungus returns none, and its spawn is bought). (5) A perennial
   like cacao counts one harvest per `growth_days` (five years), not one a year.
   (6) data/home_outline.json and homestead-solo-design.md still plan 50 kcal
   a rack.
@@ -824,6 +826,59 @@ date; re-check before trusting one. The container data basis is
   placed. Left: the latent heat (about 19 and 7 kW) and the Climate loop,
   trace contaminants, the station's well and rain, and the "outdoor" fields
   that breathe into a sky the station does not have.
+- **Rice is milled, sunflower is pressed, mushrooms do not seed themselves,
+  and a charcoal fire's ash limes the garden: DONE 2026-09-27.** Five gaps
+  from the 2026-09-27 review; every number and its quote sit beside it in
+  `data/recipes.csv`, `data/items.csv`, `data/food/crop_nutrition.ron` and
+  `data/garden/soil_ph.ron`. (1) RICE: the garden harvests paddy, still in
+  its hull (`grain_rice_0`, now "Paddy Rice", and no longer food as it is),
+  and a new `mill_rice` at the grain mill turns 10 paddy (5 kg) into 7 white
+  rice, 1 kg of hulls and 0.5 kg of bran, IRRI's "20% husk, 8−12% bran ...
+  and 68−72% milled rice" taken at its ideal. The porridge now simmers milled
+  rice (it took the paddy). The hulls (40% carbon, 0.8% N, IRRI) and the bran
+  (14.8% protein, Feedipedia) compost together, 3 hulls and 2 bran with 4 L
+  of water at C:N 34 and 56% water, into 2 bags (`compost_rice_hulls`). The
+  vendor's rice is a 500 g bag of white rice (its trade entry said 0.2 kg of
+  "hulled grain"). (2) SUNFLOWER: `press_oil_sunflower` presses 6 whole
+  oil-type seed (3 kg, 44.5% oil, Feedipedia) into 2 oil and 4 cake that
+  keeps 17% oil, inside Feedipedia's "15-20%" for a screw press. (3)
+  MUSHROOM SEED: a fungus's harvest hands back no spawn
+  (`picking::harvest_returns_seed`, read off plants.csv `needs_light`
+  false), because spawn is grain sterilised and grown from a stored culture
+  (Penn State), for which the game has no equipment; the vendor now sells
+  shiitake and button spawn beside the oyster spawn. (4) HULLED GRAINS:
+  barley's harvest is threshed covered barley, hull on, while its calories
+  were the dehulled grain's; it is now per 100 g as harvested, FDC "Barley,
+  hulled" x 0.87 (the husk "accounts for an average of 13%", Lukinac and
+  Jukić 2022), 308 kcal, not 354. Spelt was checked and agrees with itself:
+  its item is dehulled kernels, as its FDC row is. (5) WOOD ASH: a new
+  `wood_ash_0` (39 g, FAO's "about 3%" ash of a 1.3 kg charcoal lump) is
+  left by the eight kiln, forge and smelter recipes that burn charcoal as
+  fuel, one per lump; the six ore smelts leave none, because their charcoal
+  is charged with the ore and its ash goes into the slag. The Garden panel
+  gains a Wood ash button: 50% calcium carbonate equivalent (Iowa State's
+  figure for an untested ash; Wisconsin and UGA agree), capped at the
+  guides' 20 lb per 1,000 sq ft a year (97.6 g a m2, 0.128 of a pH unit in
+  the loam), with a 15-day half-life (a game estimate; UNH and Iowa State
+  say only "more quickly than lime"), and its 3% potash (the 0-1-3 analysis
+  Iowa State and UGA give) goes straight into the unit's K2O store.
+  `tests/byproduct_use_lint.rs` now counts a soil amendment as a use of a
+  byproduct, and holds the ash rule, IRRI's split and the sunflower press's
+  oil balance. Fixed on the way: `fire_brick` made 12 kg of brick out of 7.2
+  kg of wet clay; it takes 8 clay (14.4 kg) now, the rest leaving as water.
+  Found, left alone: (1) there is no cooked-rice item (the porridge is the
+  only rice dish); one needs a nutrition profile in data/food_system.ron.
+  (2) Barley is still eaten hull and all from the pack, and spelt's harvest
+  skips the dehuller; both want a dehulling or pearling step like rice's.
+  (3) Oats likewise: `grain_oat_0` is groats with groats' calories, while its
+  removal columns weigh whole oats, hull on. (4) The alien fungi's spores
+  are sold nowhere, like every alien plant's seed, and no harvest returns
+  them now either. (5) `make_charcoal` burns part of its wood to char the
+  rest and leaves no ash; a fire of plain wood is not modelled. (6) The ash
+  cap is per application, like sulfur's; the guides' once a year would need
+  a record of each unit's last dose. (7) The ash's 1% P2O5 is not credited,
+  and a crop that has not ticked yet gets no potash. (8) Of the ore smelts
+  whose ash goes to the slag, only iron and copper leave any slag.
 
 ## Defects found (things that are wrong, not merely missing)
 

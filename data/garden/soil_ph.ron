@@ -6,7 +6,8 @@
 // THE MODEL, in one paragraph (soil_ph.rs has the detail). Each unit of a soil
 // grow area (a bed, tray or field unit) has a pH, remembered between crops. It
 // starts at its medium's `start_ph`. Nitrogen fertilizer acidifies it as its
-// ammonium nitrifies; lime raises it and elemental sulfur lowers it. Every one
+// ammonium nitrifies; lime and wood ash raise it and elemental sulfur lowers it
+// (wood ash also adds potash to the unit's soil). Every one
 // of those is counted in grams of CALCIUM CARBONATE EQUIVALENT (positive
 // raises the pH, negative lowers it), turned into pH units by the medium's
 // BUFFER (grams of CaCO3 per m2 that move the pH of the root zone by one unit)
@@ -68,6 +69,21 @@
 //               Fertilization Guidelines, "Processing Tomatoes",
 //               https://www.cdfa.ca.gov/is/ffldrs/frep/FertilizationGuidelines/Tomato.html
 //               (also the anchor of data/garden/nutrients.ron)
+//
+// The wood ash sources, read on 2026-09-27:
+//   ISU Ash     Steil, A. and Naeve, L., "Using Wood Ashes in the Home Garden", Iowa
+//               State University Extension and Outreach, Yard and Garden, last reviewed
+//               February 2025, https://yardandgarden.extension.iastate.edu/how-to/using-wood-ashes-home-garden
+//   UW Ash      Schoessow, K., "Using Wood Ash in the Home Garden", University of
+//               Wisconsin-Madison Extension, last revised February 2020,
+//               https://hort.extension.wisc.edu/articles/using-wood-ash-in-the-home-garden/
+//   UNH Ash     Saunders, O., "Guide to Using Wood Ash as an Agricultural Soil
+//               Amendment", University of New Hampshire Cooperative Extension (undated),
+//               https://extension.unh.edu/resource/guide-using-wood-ash-agricultural-soil-amendment
+//   UGA B1142   Gaskin, J.W. and Risse, L.M., "Best Management Practices for Wood Ash as
+//               Agricultural Soil Amendment", University of Georgia Extension Bulletin
+//               1142, published with full review 2 September 2016,
+//               https://extension.uga.edu/publications/detail.html?number=B1142
 //
 // UNIT CONVERSIONS used below: 1 short ton per acre = 907.185 kg / 4046.86 m2
 // = 224.17 g per m2; 1 lb per 100 sq ft = 453.59 g / 9.2903 m2 = 48.82 g per
@@ -216,13 +232,16 @@
     reference_n_removal_g_per_m2: 16.8,
     default_unit_area_m2: 0.25,
 
-    // -- AMENDMENTS: the player's Lime and Sulfur buttons ------------------------
+    // -- AMENDMENTS: the player's Lime, Sulfur and Wood ash buttons -------------
     //
     //   item                 bought from the vendor or the Farming Elder
     //   caco3_g_per_g_pure   CaCO3 equivalent per gram of the pure material
     //   purity               share of the item's mass that is the material
     //   half_life_days       half of it reacts in this many garden days
     //   max_g_per_m2         the most one application may put on (None: no cap)
+    //   cap_note             who says so, in the notice when a dose is capped
+    //   k2o_g_per_g          grams of potash (K2O) each gram adds to its unit's
+    //                        plant-available store (farming/soil.rs); 0 if absent
     //
     // A button brings each planted unit of the area toward the middle of its
     // crop's window, counting what is still reacting, so pressing it twice does
@@ -272,6 +291,60 @@
             purity: 0.9,
             half_life_days: 60.0,
             max_g_per_m2: Some(97.6),
+            cap_note: Some("Oregon State: two small applications a year apart are better than one large one"),
+        ),
+        // Wood ash (2026-09-27): the ash a charcoal fire leaves (items.csv
+        // wood_ash_0, 39 g from each 1.3 kg lump the kiln, forge or smelter
+        // burns as fuel). Not bought: it is made.
+        //
+        // caco3_g_per_g_pure 0.5: ISU Ash, "their calcium carbonate equivalent
+        // (CCE) varies from 25 to 59%" and "When the CCE of wood ash is not known
+        // (a frequent occurrence for home gardeners), it is best to estimate it
+        // at about 50%". UW Ash agrees ("wood ash has about 50% less
+        // acid-neutralizing capacity than commercially available acid
+        // neutralizers such as pelletized lime or aglime"); UGA B1142 measured
+        // 37 ashes at a mean of 43 (22 to 92) and puts "most" at 25 to 60 percent.
+        // Those are wood ashes; the ash of charcoal holds the same minerals of
+        // the same wood, and no source read measured it apart. purity 1.0: the
+        // item is all ash.
+        //
+        // half_life_days 15: a GAME ESTIMATE, half lime's 30. UNH Ash: "Wood ash
+        // is more soluble and reactive than ground limestone, and brings about a
+        // change in soil pH more quickly than lime. Lime can take 6 months to
+        // 1-year to fully take effect." ISU Ash: "Wood ash also has a higher water
+        // solubility and changes the soil pH more quickly than lime." Neither
+        // gives a rate.
+        //
+        // max_g_per_m2 97.6: 20 lb per 1,000 sq ft, the guides' yearly limit.
+        // ISU Ash: "An annual application of no more than 20 pounds (~ 1
+        // five-gallon bucket) sprinkled over 1,000 square feet of the lawn or
+        // garden in the winter or early spring is safe for most plants"; UW Ash:
+        // "Applications of wood ash are generally limited to a maximum of 15 to
+        // 20 pounds (approximately a five gallon pail) per 1,000 sq. ft., per
+        // year"; UNH Ash: "no more than 20 pounds of wood ash". The cap is per
+        // application, as sulfur's is: a second press gives a second dose, so
+        // the once-a-year rule is left to the player (a per-unit record of when
+        // it was last given would enforce it). At 50% CCE the cap moves a loam
+        // 0.128 of a pH unit, which is why the guides call ash maintenance, not
+        // a cure.
+        //
+        // k2o_g_per_g 0.03: both ISU Ash ("Its approximate fertilizer analysis is
+        // 0-1-3 (N-P-K)") and UGA B1142 ("average wood ash would be about 0-1-3
+        // (N-P-K)") give 3% potash. All of it is counted as available at once, a
+        // GAME ESTIMATE: no source read gave a first-season share, and ash is
+        // water-soluble (ISU Ash, above) and "Crops have been shown to positively
+        // respond to K and P from wood ash" (UNH Ash). Its 1% P2O5 is not
+        // credited, for want of the same figure.
+        (
+            id: "wood_ash",
+            name: "Wood ash",
+            item: "wood_ash_0",
+            caco3_g_per_g_pure: 0.5,
+            purity: 1.0,
+            half_life_days: 15.0,
+            max_g_per_m2: Some(97.6),
+            cap_note: Some("Iowa State and Wisconsin Extension: no more than 20 pounds of wood ash per 1,000 square feet a year"),
+            k2o_g_per_g: 0.03,
         ),
     ],
 

@@ -28,16 +28,30 @@ smelt_iron,Smelt Iron,smelting,iron_ore_0:2|coal_0:1,iron_ingot_0:1|slag_0:1,10,
 smelt_copper,Smelt Copper,smelting,copper_ore_0:2|coal_0:1,copper_ingot_0:1|slag_0:6,10,smelter_0,metalworking,1,Reduce copper ore into a pure copper ingot and skim off the slag
 smelt_nickel,Smelt Nickel,smelting,nickel_ore_0:2|coal_0:1,nickel_ingot_0:1,10,smelter_0,metalworking,2,Reduce nickel ore into a nickel ingot
 smelt_platinum,Smelt Platinum,smelting,platinum_ore_0:2|coal_0:2,platinum_ingot_0:1,18,smelter_0,metalworking,4,Refine platinum-group ore into a platinum ingot
-smelt_stainless,Smelt Stainless Steel,smelting,iron_ingot_0:2|nickel_ingot_0:1|coal_0:1,stainless_steel_ingot_0:1,18,smelter_0,metalworking,3,Alloy iron with nickel into corrosion-resistant stainless steel
-smelt_steel,Smelt Steel,smelting,iron_ingot_0:2|coal_0:2,steel_ingot_0:1,15,smelter_0,metalworking,2,Alloy iron with carbon to form steel
+# Wood ash (2026-09-27). coal_0 is charcoal, and "Good quality lump charcoal typically has ash content of
+# about 3%" (FAO Forestry Paper 41, "Simple technologies for charcoal making", 1987, section 10.1.4,
+# https://www.fao.org/4/x5328e/x5328e0b.htm, read 2026-09-27): a 1.3 kg lump burnt leaves 39 g, one
+# wood_ash_0. A recipe leaves the ash where the charcoal only FUELS the fire, burning in a hearth, firebox or
+# under a crucible from which it is raked out: the alloy and glass melts here, the kiln and the forge. The
+# ore smelts above leave none as ash, because there the charcoal is charged in with the ore as its reducing
+# agent and its ash melts into the slag: blast-furnace slag "corresponds to the sterile gangue of the iron
+# ore combined with the ashes of the coke" (Wikipedia, "Slag", read 2026-09-27). tests/byproduct_use_lint.rs
+# holds both rules. The garden uses the ash to raise soil pH (data/garden/soil_ph.ron).
+smelt_stainless,Smelt Stainless Steel,smelting,iron_ingot_0:2|nickel_ingot_0:1|coal_0:1,stainless_steel_ingot_0:1|wood_ash_0:1,18,smelter_0,metalworking,3,Alloy iron with nickel into corrosion-resistant stainless steel
+smelt_steel,Smelt Steel,smelting,iron_ingot_0:2|coal_0:2,steel_ingot_0:1|wood_ash_0:2,15,smelter_0,metalworking,2,Alloy iron with carbon to form steel
 smelt_aluminum,Smelt Aluminum,smelting,bauxite_0:3|coal_0:2,aluminum_ingot_0:1,20,smelter_0,metalworking,3,Electrolytic reduction of alumina ore
 smelt_titanium,Smelt Titanium,smelting,rutile_0:4|coal_0:3,titanium_ingot_0:1,30,smelter_0,metalworking,5,High-temperature titanium extraction
 smelt_gold,Smelt Gold,smelting,gold_ore_0:5,gold_ingot_0:1,25,smelter_0,metalworking,4,Refine gold from raw ore
 smelt_silver,Smelt Silver,smelting,silver_ore_0:4,silver_ingot_0:1,20,smelter_0,metalworking,3,Refine silver from raw ore
-smelt_glass,Smelt Glass,smelting,sand_0:3|coal_0:1,glass_pane_0:2,12,smelter_0,metalworking,2,Melt silica sand into clear glass
-draw_glass_fiber,Draw Glass Fiber,smelting,glass_pane_0:1|coal_0:1,glass_fiber_0:1,15,smelter_0,metalworking,3,Remelt glass and draw it through a bushing into continuous fiber
-fire_brick,Fire Brick,smelting,clay_raw_0:4|coal_0:1,stone_brick_0:4,15,kiln_0,metalworking,1,Fire clay into durable bricks
-fire_porcelain,Fire Porcelain,smelting,clay_raw_0:2|sand_0:1|coal_0:1,glass_pane_0:1,20,kiln_0,metalworking,3,Fire fine porcelain ceramic
+smelt_glass,Smelt Glass,smelting,sand_0:3|coal_0:1,glass_pane_0:2|wood_ash_0:1,12,smelter_0,metalworking,2,Melt silica sand into clear glass
+draw_glass_fiber,Draw Glass Fiber,smelting,glass_pane_0:1|coal_0:1,glass_fiber_0:1|wood_ash_0:1,15,smelter_0,metalworking,3,Remelt glass and draw it through a bushing into continuous fiber
+# Bricks (2026-09-27): fire_brick made four 3 kg bricks (12 kg) out of four 1.8 kg lumps of wet clay (7.2 kg),
+# which the byproduct lint refuses once the recipe leaves its ash. It now takes eight (14.4 kg): the brick is
+# 83% of the wet clay, and the rest leaves as water, since brick clay is worked wet ("the clay is mixed with
+# 10–15% water (stiff extrusion) or 20–25% water (soft extrusion)", Wikipedia, "Brick", read 2026-09-27) and
+# the fire drives off the water held in the clay itself as well.
+fire_brick,Fire Brick,smelting,clay_raw_0:8|coal_0:1,stone_brick_0:4|wood_ash_0:1,15,kiln_0,metalworking,1,Fire clay into durable bricks
+fire_porcelain,Fire Porcelain,smelting,clay_raw_0:2|sand_0:1|coal_0:1,glass_pane_0:1|wood_ash_0:1,20,kiln_0,metalworking,3,Fire fine porcelain ceramic
 #
 # === REFINING (raw to processed) ===
 # Byproducts (2026-09-26). Real processing leaves material behind. Each ratio below is a published
@@ -60,6 +74,18 @@ refine_fuel,Refine Fuel,refining,oil_crude_0:2,fuel_refined_0:2,30,fuel_refinery
 # shorts. 4 wheat (2.0 kg) -> 3 flour (1.5 kg, 75%) + 1 bran (0.5 kg). flour_0 is wheat flour; this
 # recipe used to mill paddy rice into it, and nothing used the wheat the fields grow.
 grind_flour,Grind Flour,refining,grain_wheat_0:4,flour_0:3|bran_0:1,8,grain_mill_0,,0,Mill wheat and sift the white flour from the bran
+# Rice milling (2026-09-27). The garden harvests paddy (grain_rice_0, still in its hull), and nothing turned
+# it into the white rice people cook. IRRI Rice Knowledge Bank, "Milling"
+# (http://www.knowledgebank.irri.org/step-by-step-production/postharvest/milling, read 2026-09-27): "Most
+# rice varieties are composed of roughly 20% rice hull or husk, 11% bran layers, and 69% starchy endosperm",
+# and an ideal mill gives "20% husk, 8−12% bran depending on the milling degree and 68−72% milled rice or
+# white rice". Its "Rice husk" page agrees: "Each kg of milled white rice results in roughly 0.28 kg of rice
+# husk". 10 paddy (5.0 kg) -> 7 white rice (3.5 kg, 70%) + 1 hulls (1.0 kg, 20%) + 1 bran (0.5 kg, 10%). The
+# grain mill does both stages at once, what IRRI calls one step milling ("husk and bran removal are done in
+# one pass"). The split is IRRI's ideal, so it is generous: IRRI warns that steel one-pass hullers "lead to
+# low milling recovery and high grain breakage". The hulls and bran compost together (compost_rice_hulls);
+# IRRI's by-product pages name them as fuel, feed and bran oil too, which the game does not model yet.
+mill_rice,Mill Rice,refining,grain_rice_0:10,rice_0:7|rice_hulls_0:1|rice_bran_0:1,20,grain_mill_0,,0,Hull paddy rice and polish it white and keep the hulls and the bran
 purify_water,Purify Water,refining,water_bottle_0:2,water_purified_0:2,5,water_purifier_0,,0,Filter and sterilize drinking water
 make_charcoal,Make Charcoal,refining,wood_log_0:3,coal_0:4,20,kiln_0,,0,Carbonize wood into charcoal
 make_charcoal_slabs,Make Charcoal from Slabs,refining,wood_slab_0:8,coal_0:2,20,kiln_0,,0,Carbonize sawmill slabs into charcoal at the same yield as logs
@@ -81,7 +107,7 @@ make_wire,Draw Wire,refining,copper_ingot_0:1,wire_0:5,8,workbench_0,metalworkin
 # may contain from 25% to 80% sulfur and linseed oil", Wikipedia "Hard rubber", read 2026-09-26).
 # vulcanize_rubber used to turn 2 sheets into 3.
 coagulate_latex,Set Latex into Raw Rubber,refining,latex_0:3,raw_rubber_0:1,60,,,0,Let fresh latex stand in a pan until it sets and press it into a sheet
-vulcanize_rubber,Vulcanize Rubber,refining,raw_rubber_0:4|sulfur_powder_0:1|coal_0:1,rubber_sheet_0:4,15,forge_0,metalworking,2,Cure raw rubber with sulfur and heat into tough elastic sheets
+vulcanize_rubber,Vulcanize Rubber,refining,raw_rubber_0:4|sulfur_powder_0:1|coal_0:1,rubber_sheet_0:4|wood_ash_0:1,15,forge_0,metalworking,2,Cure raw rubber with sulfur and heat into tough elastic sheets
 # Tanning: UNIDO "Mass balance in leather processing" (Buljan, Reich and Ludvik, 2000): 1000 kg of
 # wet-salted hide (1100 kg green) gives 255 kg of finished leather once the unusable split (107 kg)
 # and shavings (99 kg) are thrown away, about 460 kg if the whole thickness is kept. One 2 kg raw
@@ -115,6 +141,15 @@ mold_salt_block,Mold Salt Block,refining,salt_food_0:4|water_purified_0:1,salt_b
 # Olives: FAO "Olive by-products for animal feed", Figure 4: 100 kg of olives at 27% oil press to
 # 33 kg of crude cake (24.3% water, 9.1% oil) and about 100 L of vegetation water. 10 olives
 # (3.0 kg) -> 1 oil (0.5 kg) + 2 pomace (1.0 kg); the fruit water drains off and is not modelled.
+# Sunflower (2026-09-27): the showcase oilseed beds grow it and nothing pressed it. The harvest is oil-type
+# seed with its thin hull on (fruit_sunflower_0), pressed whole, as Feedipedia advises for such seed ("Some
+# sunflower varieties have thinner hulls that are more difficult to remove. In this case, dehulling is not
+# recommended as it may result in oil loss"; Heuzé et al., "Sunflower meal", https://feedipedia.org/node/732,
+# updated 25 September 2019). Whole seed is 48% ether extract in 92.8% dry matter, 44.5% oil as harvested
+# (Heuzé et al., "Sunflower seeds", https://feedipedia.org/node/40, updated 1 June 2015), and screw presses
+# leave "a "cake" containing 15-20% of oil" (node/732). Both read 2026-09-27. 6 seed (3.0 kg, 1.34 kg of oil)
+# -> 2 oil (1.0 kg) + 4 cake (2.0 kg holding 0.34 kg, 17% oil), the same press shape as rapeseed.
+press_oil_sunflower,Press Sunflower Oil,refining,fruit_sunflower_0:6,cooking_oil_0:2|press_cake_0:4,15,,cooking,2,Screw-press whole sunflower seed into cooking oil and seed cake
 press_oil_rapeseed,Press Rapeseed Oil,refining,grain_rapeseed_0:6,cooking_oil_0:2|press_cake_0:4,15,,cooking,2,Screw-press rapeseed into cooking oil and seed cake
 press_oil_camelina,Press Camelina Oil,refining,grain_camelina_0:6,cooking_oil_0:2|press_cake_0:4,15,,cooking,2,Screw-press camelina seed into cooking oil and seed cake
 press_oil_safflower,Press Safflower Oil,refining,grain_safflower_0:6,cooking_oil_0:2|press_cake_0:4,15,,cooking,2,Screw-press safflower seed into cooking oil and seed cake
@@ -357,6 +392,15 @@ compost_pomace,Compost Olive Pomace,chemistry,olive_pomace_0:6|water_purified_0:
 # Apple pomace is wet fruit pulp and composts without added water; a turned pile loses about half its mass
 # (Tiquia, Richard and Honeyman 2002, as the other compost recipes): 4 kg in, one 2 kg unit out.
 compost_apple_pomace,Compost Apple Pomace,chemistry,apple_pomace_0:10,fertilizer_0:1,20,composter_0,farming,1,Compost the pulp left from pressing apples into plant food
+# Rice hulls with rice bran (2026-09-27), the two leftovers of mill_rice. The hull is 40% carbon and 0.8%
+# nitrogen dry (C:N 50; IRRI Rice Knowledge Bank, "Rice husk", Table 2, read 2026-09-27), too lean to rot
+# well alone; the bran brings nitrogen: 14.8% protein and 90.1% dry matter (Heuzé and Tran, "Rice bran and
+# other rice by-products", https://www.feedipedia.org/node/750, updated 5 October 2015, "Rice bran, fibre
+# 4-11%", read 2026-09-27), 2.4% N, carbon taken as 45% of dry bran as for wheat bran above. The hull is
+# taken as leaving the mill at the 14% moisture IRRI mills paddy at ("A moisture content of 14% MC is ideal
+# for milling", "Milling"), a game estimate. 3 hulls + 2 bran + 4 water = 8 kg at C:N 34 and 56% water, in
+# NRAES-54's 20-40 and 40-65% -> 4 kg, 2 bags, losing half the mass as the other piles do.
+compost_rice_hulls,Compost Rice Hulls and Bran,chemistry,rice_hulls_0:3|rice_bran_0:2|water_purified_0:4,fertilizer_0:2,20,composter_0,farming,1,Compost rice hulls with rice bran into plant food
 #
 # === MISCELLANEOUS ===
 craft_compass,Craft Compass,crafting,iron_ingot_0:1|glass_pane_0:1,compass_0:1,10,workbench_0,woodworking,1,Magnetize a needle in a glass housing
@@ -418,7 +462,7 @@ craft_grenade,Assemble Grenade,crafting,iron_ingot_0:2|coal_0:2|rope_0:1,flare_0
 craft_smoke_bomb,Craft Smoke Bomb,crafting,iron_ingot_0:1|coal_0:2|cloth_bolt_0:1,flare_0:5,15,workbench_0,woodworking,2,Pack slow-burn obscurant canisters
 #
 # === ENCHANTING ===
-enchant_fire_imbue,Enchant Fire Imbue,crafting,coal_0:5|oil_crude_0:2|gold_ingot_0:1,coal_0:1,60,forge_0,metalworking,4,Imbue an item with searing flame essence
+enchant_fire_imbue,Enchant Fire Imbue,crafting,coal_0:5|oil_crude_0:2|gold_ingot_0:1,coal_0:1|wood_ash_0:4,60,forge_0,metalworking,4,Imbue an item with searing flame essence
 enchant_sharpness,Enchant Sharpness,crafting,steel_ingot_0:3|platinum_ingot_0:1|gold_ingot_0:1,steel_ingot_0:1,45,forge_0,metalworking,4,Hone an edge to preternatural keenness
 enchant_fortification,Enchant Fortification,crafting,steel_ingot_0:4|titanium_ingot_0:1|gold_ingot_0:1,steel_ingot_0:1,50,forge_0,metalworking,4,Reinforce material beyond natural limits
 enchant_efficiency,Enchant Efficiency,crafting,copper_ingot_0:3|gold_ingot_0:1|wire_0:2,copper_ingot_0:1,40,electronics_bench_0,engineering,4,Tune a tool for reduced resource consumption
@@ -494,7 +538,7 @@ cook_sandwich,Make Sandwich,cooking,bread_0:1|cheese_0:1|vegetable_lettuce_0:1,s
 cook_pasta,Cook Pasta,cooking,flour_0:1|egg_0:1|salt_food_0:1|water_purified_0:1,pasta_cooked_0:1,15,stove_0,cooking,2,Boil noodles and toss with sauce
 cook_pizza,Bake Pizza,cooking,flour_0:1|cheese_0:1|vegetable_tomato_0:1,pizza_slice_0:4,25,oven_0,cooking,3,Bake topped flatbread into pizza
 cook_omelette,Cook Omelette,cooking,egg_0:3|cheese_0:1|butter_0:1,omelette_0:1,8,stove_0,cooking,1,Fold eggs and filling in a pan
-cook_porridge,Cook Porridge,cooking,grain_rice_0:1|milk_0:1|sugar_0:1,porridge_0:1,15,stove_0,cooking,1,Simmer grain in milk
+cook_porridge,Cook Porridge,cooking,rice_0:1|milk_0:1|sugar_0:1,porridge_0:1,15,stove_0,cooking,1,Simmer milled rice in milk
 bake_cake,Bake Cake,cooking,flour_0:2|sugar_0:1|egg_0:2|butter_0:1|milk_0:1,cake_0:1,45,oven_0,cooking,3,Bake a sweet layered dessert
 bake_pie,Bake Pie,cooking,flour_0:2|butter_0:1|fruit_apple_0:3|sugar_0:1,pie_0:1,40,oven_0,cooking,3,Bake a fruit-filled pastry
 bake_cookies,Bake Cookies,cooking,flour_0:1|sugar_0:1|butter_0:1|egg_0:1,cookies_batch_0:1,20,oven_0,cooking,2,Bake sweet dough discs

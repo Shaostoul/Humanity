@@ -24,11 +24,14 @@
 //!    for its fertilizer (stored urine as urea, 1.8 g per g of N; compost 0)
 //!    into the "nitrification" pool (`add_n`), so a unit fed urine season after
 //!    season slowly turns acid, the way a real bed does.
-//! 4. The player corrects it with LIME (raises) or SULFUR (lowers), per grow
-//!    area, through the "soil_ph_request" channel (`handle_request`). Each
-//!    button brings every planted unit toward the middle of its crop's window,
-//!    counting what is still reacting, so a second press does not double the
-//!    dose; sulfur is capped per application, as the guides advise.
+//! 4. The player corrects it with LIME or WOOD ASH (raise) or SULFUR (lowers),
+//!    per grow area, through the "soil_ph_request" channel (`handle_request`).
+//!    Each button brings every planted unit toward the middle of its crop's
+//!    window, counting what is still reacting, so a second press does not
+//!    double the dose; sulfur and wood ash are capped per application, as the
+//!    guides advise. Wood ash is not bought: the kiln, forge and smelter leave
+//!    it when they burn charcoal (data/recipes.csv), and its potash joins each
+//!    treated unit's K2O (2026-09-27).
 //! 5. A crop whose unit is outside its window has its health CAPPED
 //!    (`health_ceiling`): 30% of the harvest per pH unit outside, the median of
 //!    the NRCS relative-yield table, never below the same floor a nutrient
@@ -45,7 +48,7 @@ use std::sync::Mutex;
 
 use serde::Deserialize;
 
-use crate::ecs::components::{CropInstance, SoilMemory, UnitPh, STAGE_DEAD};
+use crate::ecs::components::{CropInstance, CropSoil, SoilMemory, UnitPh, STAGE_DEAD};
 use crate::hot_reload::data_store::DataStore;
 
 use super::PlantDef;
@@ -139,6 +142,13 @@ pub struct Amendment {
     /// Most of the PURE material per m2 in one application (None: no cap).
     #[serde(default)]
     pub max_g_per_m2: Option<f64>,
+    /// Who sets the cap, said in the notice when a dose is capped.
+    #[serde(default)]
+    pub cap_note: Option<String>,
+    /// Grams of potash (K2O) each gram of the item adds to its unit's
+    /// plant-available store (wood ash, 2026-09-27; 0 for lime and sulfur).
+    #[serde(default)]
+    pub k2o_g_per_g: f64,
 }
 
 fn pure() -> f64 {
@@ -664,6 +674,8 @@ pub(super) fn handle_request(
             }
         }
     }
+    let doses: Vec<(u32, f64)> = plan.iter().map(|p| (p.0, p.1)).collect();
+    let potash = credit_potash(world, area, &doses, am.k2o_g_per_g);
     let lo = plan.iter().map(|p| p.3).fold(f64::INFINITY, f64::min);
     let hi = plan.iter().map(|p| p.3).fold(f64::NEG_INFINITY, f64::max);
     let toward = if hi - lo < 0.05 { format!("pH {lo:.1}") } else { format!("pH {lo:.1} to {hi:.1}") };
@@ -676,14 +688,45 @@ pub(super) fn handle_request(
         if plan.len() == 1 { "" } else { "s" },
         am.half_life_days
     );
+    if potash > 0.0 {
+        s.push_str(&format!(" It also gives the soil {potash:.1} g of potash (K2O), which the crops can take at once."));
+    }
     if capped {
+        let who = am.cap_note.as_deref().map_or(String::new(), |n| format!(" ({n})"));
         s.push_str(&format!(
-            " That is as much {} as one application should give (Oregon State: two small applications a year apart are better than one large one); give it again once this has worked.",
+            " That is as much {} as one application should give{who}; give it again once this has worked.",
             am.name.to_lowercase()
         ));
     }
     log::info!("[Farming] {} on {area}: {:.1} g over {} units", am.id, total_g, plan.len());
     super::push_notice(data, s);
+}
+
+/// Add the potash an amendment carries (`k2o_per_g` grams of K2O per gram,
+/// wood ash's 0.03) to the plant-available store of the crop in each dosed
+/// unit `(slot, grams of the item)` of `area`, the store the N-P-K model
+/// draws from and the next crop sown there inherits (farming/soil.rs).
+/// Returns the grams added. A crop that has not ticked yet has no store and
+/// gets none; it gets fresh soil on its first tick.
+pub fn credit_potash(world: &mut hecs::World, area: &str, doses: &[(u32, f64)], k2o_per_g: f64) -> f64 {
+    if !(k2o_per_g > 0.0) {
+        return 0.0;
+    }
+    let per_slot: HashMap<u32, f64> = doses.iter().map(|(slot, g)| (*slot, g.max(0.0) * k2o_per_g)).collect();
+    let mut credited: HashSet<u32> = HashSet::new();
+    let mut added = 0.0;
+    for (_e, (crop, soil)) in world.query_mut::<(&CropInstance, &mut CropSoil)>() {
+        if crop.growth_stage == STAGE_DEAD || crop.tower_id.as_deref().unwrap_or("") != area {
+            continue;
+        }
+        let Some(slot) = crop.tower_slot else { continue };
+        let Some(k) = per_slot.get(&slot) else { continue };
+        if credited.insert(slot) {
+            soil.store.k2o += k;
+            added += k;
+        }
+    }
+    added
 }
 
 // -- The request and Settings channels, and the Garden panel's view ------------------

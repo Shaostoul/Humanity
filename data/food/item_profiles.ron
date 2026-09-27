@@ -81,12 +81,11 @@
         ("salad_0", "raw_vegetables"),        // raw lettuce, tomato and carrot, no dressing
 
         // --- Grains and flour (dry, keep for a year) ---
-        ("rice_0", "grains"),
+        ("rice_0", "grains"),                 // milled white rice (mill_rice); the paddy is under not_food
         ("flour_0", "grains"),
         ("grain_wheat_0", "grains"),
         ("grain_corn_0", "grains"),
-        ("grain_rice_0", "grains"),
-        ("grain_barley_0", "grains"),
+        ("grain_barley_0", "grains"),         // covered barley, hull on; no pearling step yet (see crop_nutrition.ron)
         ("grain_oat_0", "grains"),
         ("grain_rye_0", "grains"),
         ("grain_sorghum_0", "grains"),
@@ -234,6 +233,9 @@
         ("fruit_olive_0", "olives straight from the tree are too bitter to eat; they are cured in brine or pressed for oil first (pressing exists: press_oil_olive; curing does not yet)"),
         ("whey_0", "the liquid left from cheese making; used here in baking (cook_bread_whey), drinking it is not modelled yet"),
         ("apple_pomace_0", "the pressed skins, cores and pulp left from juicing; composted here (compost_apple_pomace), not eaten"),
+
+        // --- Grain that must be milled first ---
+        ("grain_rice_0", "paddy rice is still in its hull, which is not eaten; mill it into white rice (mill_rice) and cook that"),
 
         // --- Oilseeds grown for pressing ---
         ("grain_rapeseed_0", "grown to be pressed for oil; the seed is not eaten as it is"),

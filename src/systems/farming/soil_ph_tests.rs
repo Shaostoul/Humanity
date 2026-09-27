@@ -131,7 +131,10 @@ fn ph_per_g(data: &DataStore, ph: &SoilPhData, plant: &str) -> f64 {
 /// of CaCO3 per m2 per pH unit (UC Vossen Table 1, loam 5.5 to 6.5); a unit's
 /// area is its crop's N removal over the anchor tomato's 16.8 g per m2
 /// (CDFA); a bed starts at 6.5 (OSU EC 1560); a tower is held at 6.0 (UF
-/// HS796). Seen red by setting the loam buffer to 269 (UC's 4.5 to 5.5 row).
+/// HS796); wood ash (2026-09-27) is 50% CCE (Iowa State's figure for an
+/// untested ash), capped at the guides' 20 lb per 1,000 sq ft and 3% potash
+/// (the 0-1-3 analysis Iowa State and UGA give). Seen red by setting the loam
+/// buffer to 269 (UC's 4.5 to 5.5 row), and wood ash's CCE to 0.43.
 #[test]
 fn the_cited_numbers_are_the_shipped_ones() {
     let ph = shipped();
@@ -147,7 +150,59 @@ fn the_cited_numbers_are_the_shipped_ones() {
     assert!((sulfur.caco3_per_g() + 3.12 * 0.9).abs() < 1e-12 && !sulfur.raises());
     assert_eq!((lime.half_life_days, sulfur.half_life_days, ph.nitrification_half_life_days), (30.0, 60.0, 14.0));
     assert_eq!(sulfur.max_g_per_m2, Some(97.6), "OSU EC 1560 Table 2, 20 lb per 1,000 sq ft");
+    assert_eq!((lime.k2o_g_per_g, sulfur.k2o_g_per_g), (0.0, 0.0), "neither carries potash");
+    let ash = ph.amendment("wood_ash").unwrap();
+    assert!((ash.caco3_per_g() - 0.5).abs() < 1e-12 && ash.raises(), "ISU: estimate an untested ash at about 50%");
+    assert_eq!(ash.max_g_per_m2, Some(97.6), "ISU and UW: 20 lb per 1,000 sq ft a year");
+    assert_eq!((ash.half_life_days, ash.k2o_g_per_g), (15.0, 0.03), "faster than lime (an estimate); 0-1-3");
     assert_eq!((ph.loss_per_ph_unit, ph.health_floor), (0.30, 20.0));
+}
+
+/// Wood ash (2026-09-27) raises a bed's pH like lime at half its strength,
+/// capped at the guides' 97.6 g a m2 a year: an acid lettuce unit gets the
+/// cap, 0.128 of a pH unit in the loam, and the notice says who set it. The
+/// ash's 3% potash goes straight into the unit's K2O store, and the bags come
+/// out of the backpack, 39 g each. Seen red by removing the `credit_potash`
+/// call from `handle_request` (the store read its 10,000 g of K2O less the
+/// lettuce's three millionths, not 0.124 g more).
+#[test]
+fn wood_ash_raises_the_ph_and_gives_its_potash() {
+    let data = store(true);
+    let ph = shipped();
+    let mut sys = FarmingSystem::new();
+    let mut world = hecs::World::new();
+    world.spawn((Irrigator,));
+    let mut inv = Inventory::new(16);
+    inv.add_item("wood_ash_0", 50, 100);
+    let player = world.spawn((inv, Controllable));
+    let lettuce = world.spawn((crop(&data, "lettuce", "bed_1", 0), rich()));
+    set_unit(&mut world, "bed_1", 0, 5.5, &[]);
+
+    request(&data, "bed_1", "wood_ash");
+    sys.tick(&mut world, 0.001, &data);
+    let said = notices(&data).join(" ");
+    let def = data.get::<PlantRegistry>("plant_registry").unwrap().get("lettuce").cloned();
+    let area = soil_ph::unit_area_m2(&ph, None, def.as_ref(), need_n(&data, "lettuce"));
+    let grams = 97.6 * area;
+    let shift = grams * 0.5 / (381.1 * area);
+    assert!(grams * 0.5 < (6.5 - 5.5) * 381.1 * area, "the dose the lettuce wants is over the cap");
+    // (The request's own tick reacts a few millionths of it, hence 1e-5.)
+    let got = unit(&world, "bed_1", 0).unwrap().pending["wood_ash"];
+    assert!((got - shift).abs() < 1e-5 && (got - 0.1281).abs() < 1e-3, "the cap's pH: {got} vs {shift}");
+    // (The lettuce draws about a millionth of a gram of K2O in that tick.)
+    let k2o = world.get::<&CropSoil>(lettuce).unwrap().store.k2o;
+    assert!(grams * 0.03 > 1e-2, "a credit the check can see: {grams} g of ash");
+    assert!((k2o - 1e4 - grams * 0.03).abs() < 1e-4, "3% of {grams} g as K2O: {}", k2o - 1e4);
+    assert!(said.contains("Wood ash on the soil in bed 1"), "{said}");
+    assert!(said.contains("20 pounds") && said.contains("give it again"), "who set the cap: {said}");
+    assert!(said.contains("potash"), "{said}");
+    let bags = (grams / 39.0).ceil() as u32;
+    assert_eq!(world.get::<&Inventory>(player).unwrap().count_item("wood_ash_0"), 50 - bags, "{bags} bag(s) of 39 g");
+
+    // It reacts faster than lime: half of it after 15 garden days.
+    run_days(&mut sys, &mut world, &data, 15);
+    let now = unit(&world, "bed_1", 0).unwrap().ph;
+    assert!((now - (5.5 + shift / 2.0)).abs() < 1e-3, "one 15-day half-life: {now}");
 }
 
 /// A person-day of stored urine on a tomato in a bed acidifies its unit by
@@ -441,30 +496,37 @@ fn reactions_are_exact_however_the_time_is_sliced() {
     assert_eq!(over.ph, 8.3, "lime cannot take a soil past calcium carbonate's 8.3");
 }
 
-/// The shipped data, as data: every amendment names a real item that the
-/// vendor and the Farming Elder sell, every fertilizer with an acidity is a
-/// fertilizer the nutrient model applies, every yield-table crop is a
-/// plants.csv crop, and `loss_per_ph_unit` IS the median loss per pH unit of
-/// the cited NRCS table's points outside their crops' plants.csv windows.
-/// Seen red two ways: "garden_lime_0" misspelt "garden_lim_0" in soil_ph.ron
-/// (the items check named it), and loss_per_ph_unit set to 0.25 (the median
-/// check gave 0.30).
+/// The shipped data, as data: every amendment names a real item the player
+/// can get, either bought (the vendor and the Farming Elder sell lime and
+/// sulfur) or made (a recipe leaves wood ash, which nobody sells), every
+/// fertilizer with an acidity is a fertilizer the nutrient model applies,
+/// every yield-table crop is a plants.csv crop, and `loss_per_ph_unit` IS the
+/// median loss per pH unit of the cited NRCS table's points outside their
+/// crops' plants.csv windows. Seen red three ways: "garden_lime_0" misspelt
+/// "garden_lim_0" in soil_ph.ron (the items check named it), loss_per_ph_unit
+/// set to 0.25 (the median check gave 0.30), and the wood ash taken off every
+/// recipe's outputs (the source check named it).
 #[test]
 fn the_shipped_ph_data_names_real_items_and_matches_its_table() {
     let ph = shipped();
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let items = ItemRegistry::from_csv(&std::fs::read(root.join("data/items.csv")).unwrap()).unwrap();
     let plants = PlantRegistry::from_csv(&std::fs::read(root.join("data/plants.csv")).unwrap()).unwrap();
+    let recipes = crate::systems::crafting::RecipeRegistry::from_csv(&std::fs::read(root.join("data/recipes.csv")).unwrap())
+        .unwrap();
     let goods = std::fs::read_to_string(root.join("data/trade_goods.ron")).unwrap();
     let npcs = std::fs::read_to_string(root.join("data/npcs.ron")).unwrap();
     let nutrients = soil::NutrientData::parse(soil::NUTRIENTS_RON).unwrap();
-    assert_eq!(ph.amendments.len(), 2, "lime and sulfur");
+    assert_eq!(ph.amendments.len(), 3, "lime, sulfur and wood ash");
     for a in &ph.amendments {
         assert!(items.items.contains_key(&a.item), "{}: {} is not in items.csv", a.id, a.item);
-        assert!(goods.contains(&format!("id: \"{}\"", a.item)), "{}: the vendor does not sell {}", a.id, a.item);
-        assert!(npcs.contains(&format!("(\"{}\",", a.item)), "{}: no NPC shop sells {}", a.id, a.item);
+        let bought = goods.contains(&format!("id: \"{}\"", a.item)) && npcs.contains(&format!("(\"{}\",", a.item));
+        let made = recipes.recipes.values().any(|r| r.outputs.iter().any(|(o, _)| o == &a.item));
+        assert!(bought || made, "{}: nobody sells {} and no recipe makes it", a.id, a.item);
         assert!(a.half_life_days > 0.0 && a.purity > 0.0 && a.purity <= 1.0, "{}", a.id);
+        assert!(a.k2o_g_per_g >= 0.0 && a.k2o_g_per_g < 0.2, "{}: {} g of K2O a gram", a.id, a.k2o_g_per_g);
     }
+    assert!(recipes.recipes.values().any(|r| r.outputs.iter().any(|(o, _)| o == "wood_ash_0")), "a fire leaves wood ash");
     for f in &ph.fertilizer_acidity {
         assert!(nutrients.fertilizer(&f.item).is_some(), "{} is not a nutrients.ron fertilizer", f.item);
     }

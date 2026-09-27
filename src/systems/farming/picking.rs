@@ -42,7 +42,8 @@
 //! `SEEDS_PER_FULL_HARVEST` for a full season (every share, full health, full
 //! fruit set), less for a smaller one, none from a crop that set no fruit
 //! (`seed_count`). Until this rung every harvest returned 2 seeds whatever it
-//! gave, so a zucchini nothing pollinated still gave seed.
+//! gave, so a zucchini nothing pollinated still gave seed. A fungus returns
+//! none at all (`harvest_returns_seed`): its spawn is bought.
 //!
 //! The window runs on the farming tick's garden days (the growth speed
 //! setting applies, light does not: a plant bears through the night) and not
@@ -291,6 +292,20 @@ pub fn pick_items(carry: &mut f64, season: f64, shares: u32, picks: u32, ends: b
         *carry = frac;
         whole as u32
     }
+}
+
+/// Whether a harvest of this plant hands back its planting stock
+/// (`seed_<plant>_0`) at all (2026-09-27). A fungus does not: what a grower
+/// plants is spawn, and "The spawn production process begins by sterilizing
+/// a mixture of grain plus water and chalk. Once the mixture is sterilized,
+/// mycelium is added" from "a stored culture" (Penn State Extension,
+/// "Mushrooms Production and Harvesting", undated page, read 2026-09-27),
+/// never the mushrooms picked, and the game has no sterilizer or culture to
+/// make it with, so spawn is bought (data/trade_goods.ron). plants.csv marks
+/// the fungi with `needs_light` false ("false for the fungi"), the flag
+/// humidity.rs reads for them too. An unknown plant keeps the seed rule.
+pub fn harvest_returns_seed(def: Option<&super::PlantDef>) -> bool {
+    def.map_or(true, |d| d.needs_light)
 }
 
 /// Seed items a survival harvest returns: `SEEDS_PER_FULL_HARVEST` times the

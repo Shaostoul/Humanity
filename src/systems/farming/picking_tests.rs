@@ -310,6 +310,54 @@ fn seed_return_follows_the_harvest() {
     assert_eq!(seeds(&world, who, "lettuce"), 200, "one seed each at half health");
 }
 
+/// A mushroom harvest hands back no spawn (2026-09-27): spawn is grown on
+/// sterilised grain from a culture, never from the mushrooms picked, so 60
+/// ripe oyster blocks give their mushrooms and not one spawn, while 60 ripe
+/// lettuces beside them still give their seed. The rule reads the fungi off
+/// plants.csv (`needs_light` false), and every edible fungus's spawn is sold
+/// by the vendor, so a rack can still be restocked. Seen red by dropping the
+/// `harvest_returns_seed` check from the harvest in farming/mod.rs (the
+/// oysters returned 120 spawn).
+#[test]
+fn a_mushroom_harvest_returns_no_spawn_and_spawn_is_sold() {
+    let data = store();
+    let mut sys = FarmingSystem::new();
+    let mut world = hecs::World::new();
+    let who = player(&mut world);
+    let long_ripe = || CropPicking { days_ripe: 1000.0, ..Default::default() };
+    let oyster_ripe = last_stage(&data, "oyster_mushroom");
+    let lettuce_ripe = last_stage(&data, "lettuce");
+    let bits: Vec<u64> = (0..60)
+        .flat_map(|_| {
+            [
+                u64::from(world.spawn((crop("oyster_mushroom", None, &oyster_ripe), long_ripe())).to_bits()),
+                u64::from(world.spawn((crop("lettuce", None, &lettuce_ripe),)).to_bits()),
+            ]
+        })
+        .collect();
+    *data.get::<Mutex<Vec<u64>>>("harvest_many_request").unwrap().lock().unwrap() = bits;
+    sys.tick(&mut world, 0.0, &data);
+    assert!(count(&world, who, "vegetable_oyster_mushroom_0") >= 60, "the mushrooms were picked");
+    assert_eq!(count(&world, who, "seed_oyster_mushroom_0"), 0, "and no spawn came back");
+    assert!(count(&world, who, "seed_lettuce_0") >= 60, "the lettuces still seed");
+
+    let plants = data.get::<PlantRegistry>("plant_registry").unwrap();
+    let fungi: Vec<&str> = ["oyster_mushroom", "shiitake", "button_mushroom", "shadow_fungi", "phase_mushroom"].into();
+    for id in &fungi {
+        assert!(!picking::harvest_returns_seed(plants.get(id)), "{id} is a fungus");
+    }
+    for id in ["lettuce", "tomato", "wheat", "rice"] {
+        assert!(picking::harvest_returns_seed(plants.get(id)), "{id} sets seed");
+    }
+    assert!(picking::harvest_returns_seed(None), "an unknown plant keeps the rule");
+    // The edible fungi (the fictional alien ones have no vendor, like every
+    // alien plant) can be bought instead.
+    let goods = std::fs::read_to_string(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data/trade_goods.ron")).unwrap();
+    for id in &fungi[..3] {
+        assert!(goods.contains(&format!("id: \"seed_{id}_0\"")), "the vendor sells {id} spawn");
+    }
+}
+
 /// The bulk "Harvest N ready" button picks what is ready. The Garden panel's
 /// view counts a ripe tomato with a pick waiting as ready and one between
 /// picks as not, and passes a once crop's `mature` through; sending the ready

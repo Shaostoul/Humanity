@@ -115,7 +115,7 @@
     // =========================================================================
 
     (id: "wheat_0",           name: "Wheat",              category: "food_raw",        base_value: 1,    weight_kg: 0.2,   description: "Harvested grain, needs milling"),
-    (id: "rice_0",            name: "Rice",               category: "food_raw",        base_value: 1,    weight_kg: 0.2,   description: "Hulled grain, staple food crop"),
+    (id: "rice_0",            name: "Rice",               category: "food_raw",        base_value: 1,    weight_kg: 0.5,   description: "Milled white rice, a 500 g bag"),
     (id: "corn_0",            name: "Corn",               category: "food_raw",        base_value: 1,    weight_kg: 0.3,   description: "Maize ear, versatile crop"),
     (id: "potato_0",          name: "Potato",             category: "food_raw",        base_value: 1,    weight_kg: 0.3,   description: "Starchy root vegetable"),
     (id: "carrot_0",          name: "Carrot",             category: "food_raw",        base_value: 1,    weight_kg: 0.15,  description: "Orange root vegetable rich in vitamins"),
@@ -328,7 +328,10 @@
     // =========================================================================
     // SEEDS, Planting stock for a first garden (seed_<plant>_0 items; the
     // price is plants.csv seed_value). A survival harvest returns two seeds,
-    // so one purchase starts a self-sustaining bed.
+    // so one purchase starts a self-sustaining bed. Not a mushroom: its
+    // planting stock is spawn, made on sterilised grain from a culture, never
+    // from the mushrooms picked (2026-09-27, farming::picking), so every
+    // mushroom's spawn is sold here and a rack is restocked by buying it.
     // =========================================================================
 
     (id: "seed_wheat_0",      name: "Wheat Seeds",        category: "seeds",           base_value: 2,    weight_kg: 0.1,   description: "Bread wheat seed for a staple grain bed"),
@@ -360,6 +363,8 @@
     (id: "seed_banana_0",     name: "Banana Suckers",     category: "seeds",           base_value: 10,   weight_kg: 2.0,   description: "Banana suckers for a tropical bed"),
     (id: "seed_coffee_0",     name: "Coffee Seeds",       category: "seeds",           base_value: 15,   weight_kg: 0.05,  description: "Coffee seed for a tropical shrub"),
     (id: "seed_oyster_mushroom_0", name: "Oyster Mushroom Spawn", category: "seeds",           base_value: 3,    weight_kg: 0.5,   description: "Grain spawn to inoculate a mushroom rack"),
+    (id: "seed_shiitake_0",   name: "Shiitake Spawn",     category: "seeds",           base_value: 4,    weight_kg: 0.5,   description: "Sawdust spawn to inoculate a shiitake block"),
+    (id: "seed_button_mushroom_0", name: "Button Mushroom Spawn", category: "seeds",           base_value: 2,    weight_kg: 0.5,   description: "Grain spawn for a cased button mushroom bed"),
 
     // =========================================================================
     // MISCELLANEOUS, Books, maps, rare items, quest objects

@@ -112,10 +112,11 @@
 // macro alike, with the source of the share on the row: USDA's own refuse percentage for
 // that food row where it gives one (SR28 FOOD_DES: chestnut, hazelnut, walnut, coconut,
 // safflower), else the AFCM peanut shelling percentage, IRRI's paddy hull and Feedipedia's
-// oil-type sunflower hull. The trailing "// FDC <id> x <share>" says which. What is left:
-// spelt (hulled, and its FDC row is the dehulled grain) and barley (FDC "Barley, hulled",
-// which is the grain with its hull taken off) may carry the same gap; no hull share was
-// sourced for them in this pass.
+// oil-type sunflower hull. The trailing "// FDC <id> x <share>" says which. Checked
+// 2026-09-27 for the two left over: barley DID carry the gap (its harvest is threshed covered
+// barley, hull on, and its row was the dehulled grain) and is now on the harvest's basis;
+// spelt did not (its harvest item is dehulled kernels, as its FDC row is), though the
+// threshing that really gives spelt in its hull is skipped. See the two rows.
 //   * plantain uses USDA "Plantains, GREEN, raw" (152 kcal) not the ripe/general row
 //     (122 kcal), because the crop is harvested green and cooked as a starch. This is the
 //     banana calibration anchor: 152 vs banana 89 is the real starch difference.
@@ -300,12 +301,27 @@
         // starchy endosperm". Bran and endosperm together are the brown rice.
         (plant_id: "rice",            calories_per_100g: 289.6, protein_g: 6.0,  fat_g: 2.2,  carbs_g: 61.0),  // FDC 169706 x 0.80
         (plant_id: "sorghum",         calories_per_100g: 329.0, protein_g: 10.6, fat_g: 3.5,  carbs_g: 72.1),  // FDC 169716
-        (plant_id: "barley",          calories_per_100g: 354.0, protein_g: 12.5, fat_g: 2.3,  carbs_g: 73.5),  // FDC 170283
+        // barley: IN THE HULL (2026-09-27), per 100 g of threshed covered barley, the harvest item
+        // (grain_barley_0; the removal columns in plants.csv weigh the same grain, NRCS barley at
+        // a 48 lb bushel). FDC 170283 "Barley, hulled" is the grain with the hull taken off: "Hulled
+        // barley (or covered barley) is eaten after removing the inedible, fibrous, outer husk or
+        // hull" (Wikipedia, "Barley", read 2026-09-27). So (354/12.5/2.3/73.5) x 0.87: Lukinac
+        // and Jukić, "Barley in the Production of Cereal-Based Products", Plants 11(24):3519,
+        // 14 December 2022, https://doi.org/10.3390/plants11243519 (read 2026-09-27): "Depending
+        // on the barley variety and growing conditions, the husk accounts for an average of 13%".
+        (plant_id: "barley",          calories_per_100g: 308.0, protein_g: 10.9, fat_g: 2.0,  carbs_g: 63.9),  // FDC 170283 x 0.87
         (plant_id: "oat",             calories_per_100g: 389.0, protein_g: 16.9, fat_g: 6.9,  carbs_g: 66.3),  // FDC 169705
         (plant_id: "rye",             calories_per_100g: 338.0, protein_g: 10.3, fat_g: 1.6,  carbs_g: 75.9),  // FDC 168884
         (plant_id: "millet",          calories_per_100g: 378.0, protein_g: 11.0, fat_g: 4.2,  carbs_g: 72.8),  // FDC 169702
         // triticale: FDC 169718 "Triticale" read 2026-09-26; fat was 1.8.
         (plant_id: "triticale",       calories_per_100g: 336.0, protein_g: 13.1, fat_g: 2.1,  carbs_g: 72.1),  // FDC 169718
+        // spelt: checked 2026-09-27 and left as it is. Its harvest item (grain_spelt_0) is
+        // "Dehulled spelt kernels", and FDC 169745 "Spelt, uncooked" is the dehulled kernel, so
+        // the calories and the weight they multiply agree. What is not real is the harvest
+        // itself: spelt is harvested in its hull (Sinkovič et al., Foods 12(13):2452, 22 June
+        // 2023, https://doi.org/10.3390/foods12132452, read 2026-09-27: "the need to hull the
+        // grains after harvest"), and its yield is still the old unsourced placeholder, so the
+        // hull share waits for a dehulling step and a sourced yield.
         (plant_id: "spelt",           calories_per_100g: 338.0, protein_g: 14.6, fat_g: 2.4,  carbs_g: 70.2),  // FDC 169745
         (plant_id: "amaranth",        calories_per_100g: 371.0, protein_g: 13.6, fat_g: 7.0,  carbs_g: 65.3),  // FDC 170682
         (plant_id: "quinoa",          calories_per_100g: 368.0, protein_g: 14.1, fat_g: 6.1,  carbs_g: 64.2),  // FDC 168874

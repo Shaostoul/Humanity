@@ -1819,8 +1819,13 @@ impl System for FarmingSystem {
                             // what it harvested (picking::seed_count): 2 for a full
                             // season, fewer for a stressed or poorly set one, none
                             // from a crop that set no fruit, a share of 2 from a pick.
-                            // Creative needs no seeds, so it stays clean.
-                            if !creative && taken.seeds > 0 {
+                            // Creative needs no seeds, so it stays clean. A fungus
+                            // gives none: its spawn is bought (2026-09-27,
+                            // picking::harvest_returns_seed).
+                            if !creative
+                                && taken.seeds > 0
+                                && picking::harvest_returns_seed(plant_registry.and_then(|r| r.get(&plant_id)))
+                            {
                                 let seed_id = format!("seed_{plant_id}_0");
                                 let seed_stack =
                                     item_registry.map(|r| r.max_stack_for(&seed_id)).unwrap_or(99);
