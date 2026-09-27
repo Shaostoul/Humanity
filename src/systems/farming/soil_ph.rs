@@ -694,6 +694,36 @@ pub fn register(store: &mut DataStore) {
     store.insert("garden_soil_ph", SoilPhData::load());
     store.insert("garden_soil_ph_on", Mutex::new(DEFAULT_SOIL_PH_ON));
     store.insert("soil_ph_request", Mutex::new(Option::<(String, String)>::None));
+    store.insert(AWAY_CHANNEL, Mutex::new(0.0_f64));
+}
+
+/// The time away the offline catch-up hands the soil, in game seconds.
+pub const AWAY_CHANNEL: &str = "soil_ph_away_secs";
+
+/// Hand the soil the time the player was away (save_load::resume_home, with
+/// offline progression on). What was still reacting when they left (lime,
+/// sulfur, nitrifying ammonium) kept reacting: soil chemistry is not upkeep
+/// and destroys nothing, so it is on the doc's advancing side
+/// (docs/design/offline-progression.md). The farming tick takes it, once,
+/// because only there are the growth speed and the Soil pH switch the
+/// player's own: the resume runs before Settings reach the DataStore. The
+/// acidity of the growth made while away is not in it; that growth pays its
+/// nitrogen from the unit on the first tick back, and its acidity reacts
+/// from then on. Replaces, never adds: resuming the same save twice is the
+/// same time away.
+pub fn hand_away_secs(data: &DataStore, secs: f64) {
+    if let Some(m) = data.get::<Mutex<f64>>(AWAY_CHANNEL) {
+        if let Ok(mut v) = m.lock() {
+            *v = secs.max(0.0);
+        }
+    }
+}
+
+/// Take the time away handed to the soil, leaving zero (farming tick).
+pub fn take_away_secs(data: &DataStore) -> f64 {
+    data.get::<Mutex<f64>>(AWAY_CHANNEL)
+        .and_then(|m| m.lock().ok().map(|mut v| std::mem::take(&mut *v)))
+        .unwrap_or(0.0)
 }
 
 /// Carry this frame's Settings switch and the panel's chosen amendment

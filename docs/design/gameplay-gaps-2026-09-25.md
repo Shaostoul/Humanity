@@ -411,10 +411,13 @@ date; re-check before trusting one. The container data basis is
   skipped because burning gives the player no ash item yet; crop removal of
   calcium and magnesium, and legumes, which also acidify (NRCS), are not
   counted; hand-planted crops have no unit, so they sit at 6.5 and cannot be
-  limed; pH does not step during the offline catch-up; a tower's solution
-  cannot yet be set per crop (a blueberry wants a lower one), and the Home
-  page's tower compatibility check still intersects the plants.csv SOIL
-  windows for a reservoir the pH model treats as held.
+  limed; a tower's solution cannot yet be set per crop (a blueberry wants a
+  lower one). FIXED 2026-09-27: pH now steps over the offline catch-up (the
+  lime, sulfur and nitrifying ammonium still reacting when the player left
+  keep reacting, `soil_ph::hand_away_secs`; offline-progression.md), and the
+  Home page's tower check no longer intersects the plants.csv SOIL windows:
+  it shows the pH the solution is held at, 6.0, the setpoint the model grows
+  towers at (both shipped towers had shown a shared window of exactly 6.5).
 - **Gardening depth: what a grow unit really harvests, DONE 2026-09-26.**
   A bed, tray or field plot now holds as many plants as fit
   (`max(1, floor(plot area / area_per_plant_m2))`), a tower cup and a

@@ -528,6 +528,10 @@ pub struct Resumed {
 /// - BUILDS: scaffolds still going up advance by the time away (see below).
 /// - CRAFTS: batches in flight count down by the time away and deliver on
 ///   the CraftingSystem's next tick (see `restored_crafts`).
+/// - SOIL pH (2026-09-27): lime, sulfur and nitrifying ammonium that were
+///   still reacting keep reacting. `resume_home` hands the time away to the
+///   farming tick (`farming::soil_ph::hand_away_secs`), which steps it at the
+///   player's growth speed.
 ///
 /// Deliberately not advanced: vitals (not persisted; you wake rested), and
 /// anything that consumes or destroys. That includes garden PESTS
@@ -657,6 +661,11 @@ pub fn resume_home(
 ) -> Resumed {
     let r = catch_up_world(world, save, offline_progression, now_secs());
     crate::systems::time::request_restore_elapsed(data, r.clock);
+    // SOIL pH: what was still reacting when the player left kept reacting.
+    // Handed over, not stepped here: the farming tick applies it at the
+    // player's own growth speed and Soil pH switch, which reach the
+    // DataStore only after this runs (farming::soil_ph::hand_away_secs).
+    crate::systems::farming::soil_ph::hand_away_secs(data, r.away_secs);
     // Craft batches go through the CraftingSystem's restore channel, which
     // it consumes after its rewind drop, so a character select replaces the
     // live batches with the saved ones instead of losing both.

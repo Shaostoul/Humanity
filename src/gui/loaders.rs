@@ -681,19 +681,29 @@ pub fn load_tower_configs(data_dir: &std::path::Path) -> Vec<TowerConfig> {
 /// Whether the plants in one tower can share a single reservoir + air — the
 /// operator's "make sure they grow together". Aeroponics shares one nutrient
 /// reservoir and one air volume (NOT soil), so soil companion/adverse rules
-/// relax and the real constraint becomes a COMMON pH / temperature / humidity
-/// window every plant tolerates. Each axis here is the intersection of the
-/// per-plant windows (from plants.csv): `Some((lo, hi))` means all plants
+/// relax and the real constraint becomes a COMMON temperature / humidity
+/// window every plant tolerates. Each of those axes is the intersection of
+/// the per-plant windows (from plants.csv): `Some((lo, hi))` means all plants
 /// overlap and can share it; `None` means no shared window (a conflict), and
 /// `conflicts` names the binding extremes to reconsider.
+///
+/// pH is NOT intersected (2026-09-27). The plants.csv pH windows are SOIL
+/// ranges, and a tower's solution is tested and dosed to one setpoint where
+/// its dissolved nutrients stay available, the rule the farming model already
+/// follows (`data/garden/soil_ph.ron`, the aeroponic medium's `held_ph`;
+/// `farming::soil_ph`). Intersecting soil windows flagged towers the garden
+/// grows without complaint (a blueberry's 4.5 to 5.5 against an asparagus's
+/// 6.5 to 7.5), so the check now shows the pH the solution is held at.
 #[cfg(feature = "native")]
 #[derive(Debug, Clone, Default)]
 pub struct TowerCompat {
     /// Distinct species considered (those found in the plant registry).
     pub species: usize,
-    /// Shared reservoir pH window, °C temperature window, and 0..1 humidity
-    /// window. `None` on an axis = the plants have no common window there.
-    pub ph: Option<(f32, f32)>,
+    /// The pH the tower's nutrient solution is held at (the grow medium's
+    /// `held_ph` in soil_ph.ron), or `None` when the data names none.
+    pub held_ph: Option<f32>,
+    /// Shared °C temperature window and 0..1 humidity window. `None` on an
+    /// axis = the plants have no common window there.
     pub temp: Option<(f32, f32)>,
     pub humidity: Option<(f32, f32)>,
     /// One note per conflicting axis, naming the two binding plants, e.g.
@@ -740,11 +750,13 @@ fn intersect_axis(windows: &[(String, (f32, f32))], label: &str) -> (Option<(f32
 
 /// Compute a tower's shared-reservoir compatibility from the plant registry.
 /// Plants not found in the registry are skipped (so a partial registry still
-/// gives a useful answer for the plants it knows).
+/// gives a useful answer for the plants it knows). `held_ph` is the pH the
+/// tower's solution is held at, passed through for the check to show.
 #[cfg(feature = "native")]
 pub fn compute_tower_compat(
     tower: &TowerConfig,
     reg: &crate::systems::farming::PlantRegistry,
+    held_ph: Option<f32>,
 ) -> TowerCompat {
     // Distinct plant ids (a max-variety tower is mostly distinct already).
     let mut ids: Vec<String> = Vec::new();
@@ -753,23 +765,20 @@ pub fn compute_tower_compat(
             ids.push(p.plant.clone());
         }
     }
-    // (name, ph window, temp window, humidity window) for each known species.
-    let mut ph_w = Vec::new();
+    // (name, temp window, humidity window) for each known species.
     let mut temp_w = Vec::new();
     let mut hum_w = Vec::new();
     let mut species = 0usize;
     for id in &ids {
         if let Some(d) = reg.get(id) {
             species += 1;
-            ph_w.push((d.name.clone(), (d.ph_min, d.ph_max)));
             temp_w.push((d.name.clone(), (d.temp_min_c, d.temp_max_c)));
             hum_w.push((d.name.clone(), (d.humidity_min, d.humidity_max)));
         }
     }
-    let (ph, ph_c) = intersect_axis(&ph_w, "pH");
     let (temp, temp_c) = intersect_axis(&temp_w, "Temp");
     let (humidity, hum_c) = intersect_axis(&hum_w, "Humidity");
-    let conflicts: Vec<String> = [ph_c, temp_c, hum_c].into_iter().flatten().collect();
+    let conflicts: Vec<String> = [temp_c, hum_c].into_iter().flatten().collect();
     // Total daily water draw across ALL slots (not distinct species), and the
     // harvest window across the distinct species.
     let mut water_per_day_total = 0.0f32;
@@ -794,7 +803,7 @@ pub fn compute_tower_compat(
     };
     TowerCompat {
         species,
-        ph,
+        held_ph,
         temp,
         humidity,
         conflicts,
@@ -851,9 +860,9 @@ mod tower_compat_tests {
         let csv = b"id,name,growth_days,water_liters_per_day,ph_min,ph_max,temp_min_c,temp_max_c,humidity_min,humidity_max\n\
                     lettuce,Lettuce,45,0.5,6.0,7.0,10,22,0.5,0.8\n\
                     spinach,Spinach,40,0.6,6.2,7.2,8,24,0.5,0.9\n";
-        let c = compute_tower_compat(&tower_of(&["lettuce", "spinach"]), &reg_from(csv));
+        let c = compute_tower_compat(&tower_of(&["lettuce", "spinach"]), &reg_from(csv), Some(6.0));
         assert_eq!(c.species, 2);
-        assert_eq!(c.ph, Some((6.2, 7.0)));
+        assert_eq!(c.held_ph, Some(6.0), "the solution's setpoint is passed through");
         assert_eq!(c.temp, Some((10.0, 22.0)));
         assert!(c.conflicts.is_empty(), "no conflict expected, got {:?}", c.conflicts);
         // Water draw sums per slot; the harvest window spans soonest..latest.
@@ -868,12 +877,25 @@ mod tower_compat_tests {
         let csv = b"id,name,ph_min,ph_max,temp_min_c,temp_max_c,humidity_min,humidity_max\n\
                     rosemary,Rosemary,6.0,7.0,20,30,0.3,0.6\n\
                     lettuce,Lettuce,6.0,7.0,8,18,0.5,0.8\n";
-        let c = compute_tower_compat(&tower_of(&["rosemary", "lettuce"]), &reg_from(csv));
+        let c = compute_tower_compat(&tower_of(&["rosemary", "lettuce"]), &reg_from(csv), Some(6.0));
         assert!(c.temp.is_none(), "temp should conflict");
         assert_eq!(c.conflicts.len(), 1);
         assert!(c.conflicts[0].contains("Temp"), "note: {}", c.conflicts[0]);
-        // pH still overlaps, so it is reported as a shared window.
-        assert_eq!(c.ph, Some((6.0, 7.0)));
+    }
+
+    /// Soil pH windows that do not overlap are not a tower conflict: the
+    /// solution is held at one pH by the grower, and the plants.csv windows
+    /// are soil ranges (soil_ph.ron, the aeroponic medium's held_ph). The
+    /// check before 2026-09-27 intersected these two windows (6.5 above 5.5)
+    /// and so reported a pH conflict for them.
+    #[test]
+    fn disjoint_soil_ph_windows_are_not_a_tower_conflict() {
+        let csv = b"id,name,ph_min,ph_max,temp_min_c,temp_max_c,humidity_min,humidity_max\n\
+                    blueberry,Blueberry,4.5,5.5,10,25,0.5,0.8\n\
+                    asparagus,Asparagus,6.5,7.5,10,25,0.5,0.8\n";
+        let c = compute_tower_compat(&tower_of(&["blueberry", "asparagus"]), &reg_from(csv), Some(6.0));
+        assert!(c.conflicts.is_empty(), "no conflict expected, got {:?}", c.conflicts);
+        assert_eq!(c.held_ph, Some(6.0));
     }
 }
 

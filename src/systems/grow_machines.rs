@@ -345,6 +345,21 @@ mod tests {
         MachineHome::load(&data_dir().join("machines").join(file)).unwrap_or_else(|| panic!("{file} loads"))
     }
 
+    /// Prints each grow machine type's computed food for both shipped homes,
+    /// for keeping the numbers quoted in data comments and docs current:
+    /// `cargo test --features native --lib -- --ignored --nocapture print_grown_food`.
+    #[test]
+    #[ignore = "a table for doc upkeep, not a check"]
+    fn print_grown_food_per_machine() {
+        for file in ["home.ron", "home_solo.ron"] {
+            let h = home(file);
+            println!("{file}:");
+            for (id, g) in grown_food(&h, &data_dir()) {
+                println!("  {id:<34} {:>8.1} kcal/d  ({})", g.kcal_per_day, g.grows);
+            }
+        }
+    }
+
     /// No grow machine in either shipped home carries a typed food figure the
     /// model can compute: the figure on its card is the computed one, so a
     /// typed one would only be a second, disagreeing number in the data.

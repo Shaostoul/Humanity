@@ -1313,11 +1313,12 @@
     ],
 
     // Dense garden fill, infinite-of-X grids (one line per block instead of many hand-typed
-    // instances). Quantities from homestead-solo-design.md section 3's per-crop kcal table:
-    // 8 potato beds (960 kcal), 9 variety towers (828 kcal), 3 oilseed beds (75 kcal),
-    // 2 mushroom racks (100 kcal), 2 grain trays (40 kcal) -> ~2,078 kcal indoors alone,
-    // ~94% of the 2,200 kcal/day one-person target; the single outdoor grain_field above
-    // carries the rest into surplus.
+    // instances): 8 potato beds, 9 variety towers, 3 oilseed beds, 2 grain trays and 2
+    // mushroom racks. The counts were first sized from homestead-solo-design.md section 3's
+    // per-crop kcal table. What each machine grows a day is no longer typed here: it is
+    // computed from its crops (src/systems/grow_machines.rs; the ignored test
+    // print_grown_food_per_machine prints the table), and the Food loop's note below gives
+    // the whole home's total and whether it closes.
     arrays: [
         (
             machine: "potato_grow_bed",

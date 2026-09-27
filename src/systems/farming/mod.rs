@@ -462,10 +462,11 @@ mod plant_registry_csv_tests {
         );
     }
 
-    /// The shipped `data/plants.csv` carries real edible mushroom crops (added 2026-07-01 to
-    /// back the `mushroom_rack` machine's "+50 kcal/d" claim -- see
-    /// docs/design/homestead-solo-design.md gap #1). Guards the mushroom_rack's food-loop
-    /// story against a silent regression to the old alien-only fungi.
+    /// The shipped `data/plants.csv` carries real edible mushroom crops (added 2026-07-01 so
+    /// the `mushroom_rack` machine grows a real crop -- see docs/design/homestead-solo-design.md
+    /// gap #1; its food figure is now computed from them, src/systems/grow_machines.rs).
+    /// Guards the mushroom_rack's food-loop story against a silent regression to the old
+    /// alien-only fungi.
     #[test]
     fn shipped_plants_csv_has_real_edible_mushrooms() {
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("plants.csv");
@@ -1984,8 +1985,13 @@ impl System for FarmingSystem {
             .get::<&mut crate::ecs::components::SoilMemory>(memory)
             .map(|mut m| std::mem::take(&mut m.ph))
             .unwrap_or_default();
+        // The time away, once (offline progression; soil_ph::hand_away_secs):
+        // what was still reacting when the player left kept reacting, on
+        // garden days at their own growth speed. Taken with pH off as well,
+        // so it is not saved up for later: Off freezes the soil, away or not.
+        let away_days = soil_ph::take_away_secs(data) * f64::from(growth_speed) / SECONDS_PER_DAY;
         if ph_on {
-            soil_ph::step_all(&mut ph_units, ph_data, game_dt * f64::from(growth_speed) / SECONDS_PER_DAY);
+            soil_ph::step_all(&mut ph_units, ph_data, game_dt * f64::from(growth_speed) / SECONDS_PER_DAY + away_days);
         }
         let mut ph_out: HashMap<String, soil_ph::OutOfWindow> = HashMap::new();
 

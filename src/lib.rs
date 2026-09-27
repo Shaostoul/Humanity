@@ -12914,9 +12914,16 @@ mod native_app {
                         {
                             if let Some(reg) = plant_reg {
                                 let towers = state.gui_state.tower_configs.clone();
+                                // The pH each tower's solution is held at (its
+                                // grow medium in soil_ph.ron), the same setpoint
+                                // the farming model grows it at.
+                                let ph = crate::systems::farming::soil_ph::SoilPhData::load();
                                 state.gui_state.tower_compat = towers
                                     .iter()
-                                    .map(|t| crate::gui::compute_tower_compat(t, reg))
+                                    .map(|t| {
+                                        let held = ph.medium_for(&t.id).and_then(|m| m.held_ph).map(|p| p as f32);
+                                        crate::gui::compute_tower_compat(t, reg, held)
+                                    })
                                     .collect();
                             }
                         }

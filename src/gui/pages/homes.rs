@@ -860,12 +860,14 @@ fn draw_tower(ui: &mut egui::Ui, theme: &Theme, tower: &TowerConfig, compat: Opt
         }
         // ── Grow-together check: can these plants share one reservoir + air? ──
         // (operator: "make sure they'd all grow together too"). Aeroponics shares a
-        // reservoir + air, not soil, so the constraint is a common pH/temp/humidity
-        // window. Green = one shared window; warnings name the plants that conflict.
+        // reservoir + air, not soil, so the constraint is a common temp/humidity
+        // window; the solution's pH is held by the grower and shown as its
+        // setpoint (loaders::TowerCompat). Green = one shared window; warnings
+        // name the plants that conflict.
         if let Some(c) = compat {
             ui.add_space(theme.spacing_xs);
             let shared: Vec<String> = [
-                c.ph.map(|(a, b)| format!("pH {:.1}-{:.1}", a, b)),
+                c.held_ph.map(|p| format!("solution held at pH {:.1}", p)),
                 c.temp.map(|(a, b)| format!("{:.0}-{:.0}°C", a, b)),
                 c.humidity.map(|(a, b)| format!("humidity {:.0}-{:.0}%", a * 100.0, b * 100.0)),
             ]

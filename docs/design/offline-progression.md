@@ -145,6 +145,16 @@ itself, so shaping the starting home keeps working. Revisit at launch.
   - **Craft batches:** time remaining counts down by the time away (floored at
     zero, so the batch delivers on the next tick through the normal path).
     Inputs were spent when the batch started.
+  - **Soil pH (2026-09-27):** lime, sulfur and nitrifying ammonium that were
+    still reacting keep reacting, since soil chemistry is not upkeep and
+    destroys nothing (crop health is not integrated offline). `resume_home`
+    hands the time away to the farming tick
+    (`farming::soil_ph::hand_away_secs`), which steps it once at the player's
+    growth speed and Soil pH setting, because those reach the DataStore only
+    after the resume. The acidity of the growth made while away is not in it:
+    that growth pays its nitrogen on the first tick back and its acidity
+    reacts from then on. Weeds and pests do not advance (they cost crop
+    health the player could not answer).
 - **Craft batches are saved at all**, which they were not: a batch's inputs
   are consumed when it starts, and a restart dropped the batch, so every
   restart destroyed whatever was mid-smelt. The CraftingSystem publishes its

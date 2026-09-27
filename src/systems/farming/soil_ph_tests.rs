@@ -579,3 +579,43 @@ fn a_hand_planted_crop_is_not_held_to_soil_ph() {
     assert_eq!(soil_ph::crop_ceiling(&units, &ph, true, "", None, blueberry.as_ref()), 100.0);
     assert!(soil_ph::crop_ceiling(&units, &ph, true, "bed_1", Some(0), blueberry.as_ref()) < 100.0, "in a bed it is held");
 }
+
+/// Lime that was still reacting when the player left keeps reacting over the
+/// time away (offline progression, 2026-09-27): the farming tick takes the
+/// seconds the catch-up handed it, once, at the player's growth speed, and
+/// the pH lands where the same span of ticks would put it. With pH off the
+/// time is taken and nothing moves, so turning pH on later does not release
+/// it. Seen red by leaving the away days out of the step: the pH stayed at
+/// 5.5.
+#[test]
+fn lime_keeps_reacting_while_the_player_is_away() {
+    let data = store(true);
+    set_speed(&data, 10.0);
+    let mut sys = FarmingSystem::new();
+    let mut world = hecs::World::new();
+    world.spawn((Irrigator,));
+    world.spawn((crop(&data, "lettuce", "bed_1", 0), rich()));
+    set_unit(&mut world, "bed_1", 0, 5.5, &[("lime", 1.0)]);
+    // 30 garden days at 10x growth: 30 x 1200 / 10 game seconds away.
+    soil_ph::hand_away_secs(&data, 30.0 * f64::from(DAY_S) / 10.0);
+    sys.tick(&mut world, 0.001, &data);
+    let ph = unit(&world, "bed_1", 0).unwrap().ph;
+    assert!((ph - 6.0).abs() < 5e-3, "one lime half-life away: half way, {ph}");
+    // Taken once: the next tick adds only its own moment.
+    sys.tick(&mut world, 0.001, &data);
+    assert!((unit(&world, "bed_1", 0).unwrap().ph - ph).abs() < 1e-4, "the time away is not taken twice");
+
+    // Off: the time is taken and the soil stays frozen.
+    let data = store(false);
+    let mut sys = FarmingSystem::new();
+    let mut world = hecs::World::new();
+    world.spawn((Irrigator,));
+    world.spawn((crop(&data, "lettuce", "bed_1", 0), rich()));
+    set_unit(&mut world, "bed_1", 0, 5.5, &[("lime", 1.0)]);
+    soil_ph::hand_away_secs(&data, 30.0 * f64::from(DAY_S) / 10.0);
+    sys.tick(&mut world, 0.001, &data);
+    assert_eq!(unit(&world, "bed_1", 0).unwrap().ph, 5.5, "off: frozen");
+    *data.get::<Mutex<bool>>("garden_soil_ph_on").unwrap().lock().unwrap() = true;
+    sys.tick(&mut world, 0.001, &data);
+    assert!((unit(&world, "bed_1", 0).unwrap().ph - 5.5).abs() < 1e-3, "turning pH on later does not release the time away");
+}
