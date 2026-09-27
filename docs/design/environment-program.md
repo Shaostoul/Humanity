@@ -318,7 +318,25 @@ in 40-clouds.wgsl, Rust mirrors in renderer/clouds.rs):**
   burial and relief are read where the light is received; the relief rides
   the bisection's inside tap, which already computed it. The entry ladder is
   budgeted (`CLOUD_STEP_NEAR_TAU`): only a visible (trans > 0.5) step of at
-  least 1 optical depth pays for it.
+  least 1 optical depth pays for it. The step depth the lighting sees fades
+  to 0 below a quarter optical depth (`CLOUD_STEP_THIN_TAU`, a smoothstep,
+  never a hard switch: at 1 optical depth with a steep ramp the two laws
+  differ 3.5x on the first octave, so a switch would draw a contour at
+  every cloud edge), so thin steps keep the point law's cheap path.
+- COST, cloud_screen GPU timestamps, twin OFF against ON in the same
+  fixture order (every capture shared the machine with builds, which
+  inflates CPU and frame time, not these columns): High at 2,000 km 2.18 to
+  3.00 ms, low sun 2.19 to 3.05, terminator 1.96 to 2.68, 400 km 2.14 to
+  2.62, in the atmosphere +0.1 to +0.3. Ultra 3.58 to 5.4 and 3.57 to 5.8
+  for a frame change under 1%. What Ultra pays for, by elimination: NOT the
+  entry ladder (budgeting it moved nothing), NOT thin-step arithmetic (the
+  fade moved nothing, nor did widening it to 1-2 optical depths), NOT
+  register pressure beyond the law's presence (compiled but never executed
+  it costs +0.3 ms High, +0.44 ms Ultra; moving the segment work after the
+  sun ladder moved nothing). So it is the law on genuinely thick steps,
+  which on Ultra sit behind a skin sample the refine already resolves. Next
+  lever: weight the budget by eye transmittance (a smooth fade of the lit
+  step depth in trans) and measure it on `cloudlum-*-ultra`.
 - THE TWIN: `CLOUD_STEP_LIGHT = false` is the point law. Measured on all 32
   cloudlum fixtures against the pre-change build: signed mean dL within
   +-0.06, the same noise floor as the Low tier that the change never touches.

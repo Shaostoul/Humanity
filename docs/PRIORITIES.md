@@ -325,8 +325,12 @@ screen close in. The review's three darkening causes, as measured:
 | `reg.tint` darkens cumulonimbus tops | Cb 0.56x of Cu | 0.97x at 400 km, 0.95x at 2,000 km |
 | powder term on the sunlit skin | 35% darker | not measured (no dev toggle) |
 
-Queued, small: light each step at its median scattering point (the review's
-fix for the economy, about 10% at 2,000 km); gate `reg.tint` off when multiple
+DONE 2026-09-27 as item 2's in-step light (`CLOUD_STEP_LIGHT`, branch
+`worktree-agent-a9b14a7ffce488f62`): the step is integrated across its depth
+rather than lit at one point, see item 2. The "1.10x at 2,000 km" row above
+was measured with multiple scattering at gain 1.8, which hid it; with
+multiple scattering off the economy costs 1.24x (cloud 114.3 against 142.2
+economy-off). Still queued: gate `reg.tint` off when multiple
 scattering is on, mirroring the existing v0.909 switch. Measure the powder term
 before raising it with the operator: the review's replica overstated the other
 two by 3x or more.
@@ -336,9 +340,11 @@ Fixtures: `cloudgrey-*` (the broken-coverage ladder), `decklum-*-eco0/1` and
 
 ### 2. THE CLOUDS ARE TOO DARK. The static is its symptom, not the defect
 
-**STATUS 2026-09-27: cause found, fix on branch `worktree-agent-a9b14a7ffce488f62`
-(`CLOUD_STEP_LIGHT` in 40-clouds.wgsl), still being finished.** Fixture set
-`cloudlum-*` (33, each `desc` carries its reading).
+**STATUS 2026-09-27: cause found and fixed on branch
+`worktree-agent-a9b14a7ffce488f62` (`CLOUD_STEP_LIGHT` in 40-clouds.wgsl; not yet
+merged).** Fixture set `cloudlum-*` (33; each `desc` carries its reading). The
+full mechanism, the cost analysis and the residual live in
+`docs/design/environment-program.md` increment 10c.
 
 - **Which candidate.** Not 1: the profile knob ships at 0, so arm B never runs
   and there is no blend to lose energy in. Not 2 as posed: the sun ladder is
@@ -349,26 +355,48 @@ Fixtures: `cloudgrey-*` (the broken-coverage ladder), `decklum-*-eco0/1` and
   inside the deck (entry-depth channel white almost everywhere) and the whole
   visible deck was shaded as buried interior (burial channel white
   everywhere); the sunlit skin the eye sees was never lit. Candidate 3 was
-  already ON (2026-09-22) and its gain raised to 1.8 (2026-09-25); it
-  brightened that buried sample, which is why the ratio was already 1.12 on
+  already ON (2026-09-22) with its gain raised to 1.8 (2026-09-25); it
+  brightened that buried sample, which is why the ratio already read 1.12 on
   High before this work: compensation, not a cure. With multiple scattering
   off the defect is plain: ratio 0.66, against 0.82 with the economy off.
 - **The fix** integrates the direct light across each step in closed form
   from its measured near end (the skin), shades thick steps as skin plus
-  interior, and reads relief at the skin. Twin OFF reproduces the old frame on
-  all 32 fixtures (signed mean dL within 0.06). Measured at the noon Sahara
-  frame, High: ratio 1.12 -> 1.17 at the shipped settings, 0.66 -> 0.92 with
-  multiple scattering off, 0.78 -> 1.13 with its source zeroed (the gain now
-  barely matters at orbit); low sun 0.80 -> 0.93; terminator mean 84.7 ->
-  100.5. Low is unchanged everywhere.
-- **Open.** (a) Cost: the cloud pass +0.8 ms on High at 2,000 km (2.2 -> 3.0),
-  and about +2 ms on Ultra for no visible change; being cut. (b) A +5%
-  residual against the economy-off fine march in the same sweep, not yet
-  explained (slope, relief, burial placement and the entry bracket are ruled
-  out). (c) Grain is essentially unchanged at noon (0.63% -> 0.64%), so the
-  missing energy was not the grain's main carrier; 2a-i is untouched. (d)
-  The multiple-scattering gain default (1.8) is left alone; re-derive it at
-  the in-atmosphere vantages now that it no longer carries the orbit deck.
+  interior, and reads relief at the skin. Switch OFF reproduces the old frame
+  on all 32 fixtures (signed mean dL within 0.06).
+- **Measured**, noon Sahara frame unless named, cloud-to-desert ratio
+  (`scripts/cloud-brightness.js`), before -> after, same fixture order:
+
+| arm | before | after |
+| --- | --- | --- |
+| High, shipped settings | 1.12 (cloud 195.2, p50 216) | 1.17 (204.9, p50 229) |
+| High, multiple scattering off | 0.66 | 0.91 |
+| High, its source zeroed | 0.78 | 1.13 |
+| High, gain 1.0 | 1.04 | 1.16 |
+| High, economy off (the fine march) | 1.12 | 1.12 |
+| Low | 1.11 | 1.11 |
+| High, low sun (17:00) | 0.80 | 0.92 (Low 0.86) |
+| High, 400 km | 1.25 | 1.33 (folds now visible, not washed out) |
+| High, terminator, cloud mean L | 84.7 | 100.1 (Low 86.7) |
+| High, under the deck looking up | 0.51 | 0.48 |
+
+- **Cost**, cloud pass GPU time, switch off -> on: High at 2,000 km 2.18 ->
+  3.03 ms, low sun 2.19 -> 3.14, terminator 1.96 -> 2.72, 400 km 2.14 -> 2.78,
+  in the atmosphere +0.1 to +0.45; Ultra 3.58 -> 5.47 and 3.57 -> 5.86 for a
+  frame change under 1%. High stays inside the increment-10 budget (+3 ms).
+- **Grain (2a)**: noon speckle 0.63% -> 0.64% at the shipped settings, 0.99% ->
+  0.79% with multiple scattering off; terminator peak 5.60% -> 4.69%, band 3
+  0.71% -> 1.08%. The missing energy was not the grain's main carrier; the
+  2a-i decision is untouched.
+- **Open, in order.** (a) Ultra's +2 ms: by elimination the law on genuinely
+  thick steps behind a resolved skin; next lever a budget weighted by eye
+  transmittance. (b) A +5% residual against the economy-off march in the same
+  sweep: slope, relief, burial placement and the entry bracket are ruled out;
+  suspects are the trapezoid view depth on a skirt-to-core step and the
+  ambient's weight. (c) The gain default (1.8, `src/gui/mod.rs`) now barely
+  matters at orbit (source zeroed 1.13 against 1.17); re-derive it at the
+  in-atmosphere vantages before touching it. (d) Two fixtures are
+  sweep-ORDER sensitive (`cloudlum-2000-high-noms-eco0`, `cloudlum-under-*`):
+  compare them only within one sweep.
 
 **Rewritten 2026-09-22 after measuring the thing nobody had measured.** Seven
 hypotheses had been refuted, all of them about NOISE. The framing was wrong.
