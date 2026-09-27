@@ -56,11 +56,20 @@ pub enum MachinePower {
     /// `idle_watts` (2026-09-26): a work station (stove, oven, electronics
     /// bench) draws `watts` only while a craft runs at it and `idle_watts`
     /// otherwise. Absent = a steady load that always draws `watts`.
+    /// `average_watts` (2026-09-27): a machine whose controller runs it below
+    /// its full `watts` (an air handler on its speed curve, a fan or a
+    /// humidifier holding a setpoint, a scrubber cycling) averages this over a
+    /// day in its home at full planting, as the model measures it
+    /// (farming::life_support_tests pins each figure to the measured balance).
+    /// The static power meters charge it for the day instead of `watts`.
+    /// Absent = the meters charge its full draw (or its idle draw).
     Consumer {
         watts: f32,
         priority: u8,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         idle_watts: Option<f32>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        average_watts: Option<f32>,
     },
     /// Battery bank: buffers surplus / supplies deficit (v0.473). Charges when generation exceeds
     /// consumption, discharges when it falls short, clamped by capacity + the charge/discharge rates.
@@ -150,6 +159,14 @@ pub struct MachineDef {
     /// data/garden/humidity.ron). 0 = not a fan. Spawns a `Ventilator`.
     #[serde(default)]
     pub ventilation_m3_h: f32,
+    /// With `ventilation_m3_h`: the fan is switched by a CO2 controller
+    /// (2026-09-27), on while the air it stands in (a grow room's, or a
+    /// fruiting tent's) holds more than this many ppm of carbon dioxide, on
+    /// for the share of the time that holds it there, off below, drawing its
+    /// watts for that share (farming::humidity, data/garden/humidity.ron THE
+    /// CO2 FANS). 0 = a humidity-controlled fan.
+    #[serde(default)]
+    pub co2_setpoint_ppm: f32,
     /// This machine is a humidifier (2026-09-26): while it is powered and the
     /// home has water for the garden, it puts up to this many litres of water
     /// an hour into the air of the grow room it stands in, as much as holds
@@ -354,6 +371,49 @@ impl MachineDef {
             Some(MachinePower::Consumer { watts, .. }) => vec![Port::elec_in(*watts)],
             Some(MachinePower::Battery { max_discharge_w, .. }) => vec![Port::elec_bidir(*max_discharge_w)],
             None => Vec::new(),
+        }
+    }
+
+    /// One of ship life support's air machines (2026-09-27): an air handler or
+    /// a CO2 scrubber, the machines the Settings' Ship life support mode puts on
+    /// the station's own plant (Station-supplied) or on the home's grid
+    /// (Realistic). systems::life_support draws them the same way.
+    pub fn is_ship_life_support(&self) -> bool {
+        self.dehumidifies_m3_h > 0.0 || self.scrubs_co2_kg_day > 0.0
+    }
+
+    /// The watts this machine takes from the home's grid AVERAGED over a day,
+    /// for the static power meters (2026-09-27; they charged every consumer its
+    /// full draw for 24 hours, so an air handler read 7.8 kWh a day whatever it
+    /// did): none for storage, none for a ship life support machine the
+    /// station's plant powers (`basis`), a controller-driven machine's measured
+    /// `average_watts`, a work station's idle draw (its working draw is
+    /// `working_extra_watts`, charged by the hour it works), a grow light
+    /// (`grow_light`) for its timer's `GROW_LIGHT_DUTY_HOURS`, and anything else
+    /// its full electrical load.
+    pub fn average_load_watts(&self, basis: MeterBasis, grow_light: bool) -> f32 {
+        if matches!(self.power, Some(MachinePower::Battery { .. })) {
+            return 0.0;
+        }
+        if self.is_ship_life_support() && !basis.life_support_on_grid {
+            return 0.0;
+        }
+        let full = self.electrical_load_watts();
+        match &self.power {
+            Some(MachinePower::Consumer { average_watts: Some(a), .. }) => a.max(0.0),
+            Some(MachinePower::Consumer { idle_watts: Some(i), .. }) => i.max(0.0),
+            _ if grow_light => full * GROW_LIGHT_DUTY_HOURS / 24.0,
+            _ => full,
+        }
+    }
+
+    /// What a work station draws over its idle draw while a craft runs at it
+    /// (2026-09-27): its `watts` less its `idle_watts`; 0 for anything that is
+    /// not a work station.
+    pub fn working_extra_watts(&self) -> f32 {
+        match &self.power {
+            Some(MachinePower::Consumer { watts, idle_watts: Some(i), .. }) => (watts - i).max(0.0),
+            _ => 0.0,
         }
     }
 
@@ -637,6 +697,23 @@ pub struct BuildabilityCheck {
 #[derive(Debug, Clone)]
 pub struct BuildabilityReport {
     pub checks: Vec<BuildabilityCheck>,
+}
+
+/// What the static power meters charge a day (2026-09-27): who powers ship
+/// life support. The default is the game's default mode, Station-supplied.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct MeterBasis {
+    /// Settings > Gameplay > Ship life support is Realistic: the home's grid
+    /// powers the air handlers and the CO2 scrubber, which the meters then
+    /// charge at their `average_watts`. False (Station-supplied): the station's
+    /// own plant powers them and they take nothing from the home's grid.
+    pub life_support_on_grid: bool,
+}
+
+/// A placed machine whose catalog id names it a grow light (`grow_light`, or a
+/// `grow_light_` wattage variant): the lights `grow_light_report` meters.
+fn is_grow_light(machine: &str) -> bool {
+    machine == "grow_light" || machine.starts_with("grow_light_")
 }
 
 /// A non-punitive USAGE METER for one utility (v0.630, grid S2 -- docs/design/grid-hierarchy.md): the
@@ -1143,9 +1220,14 @@ impl MachineHome {
     /// sufficiency fraction for power (kWh/day), water (L/day), and data (Mbps). Pure + world-free
     /// (computed from the placed machines' catalog defs), so it runs in the editor + an AI can read it.
     /// Non-punitive: it tells you what you make + use, never penalises consuming. `sun_hours` ~ 4.5.
-    pub fn utility_meters(&self, sun_hours: f32) -> Vec<UtilityMeter> {
+    /// Power demand is what each machine takes from the home's grid averaged over a day
+    /// (`MachineDef::average_load_watts`, 2026-09-27; it was every consumer's full draw for 24 h),
+    /// with ship life support on the grid or not by `basis`; a work station's working draw, which
+    /// only runs while a craft does, is named in the summary instead of charged for the day.
+    pub fn utility_meters(&self, sun_hours: f32, basis: MeterBasis) -> Vec<UtilityMeter> {
         let sun = sun_hours.clamp(0.0, 24.0);
         let (mut solar_peak, mut gen_watts, mut consumer_watts) = (0.0f32, 0.0f32, 0.0f32);
+        let mut working_watts = 0.0f32;
         let (mut water_prod, mut water_dem) = (0.0f32, 0.0f32);
         let (mut data_sup, mut data_dem) = (0.0f32, 0.0f32);
         for inst in self.all_instances() {
@@ -1155,12 +1237,9 @@ impl MachineHome {
                     Some(MachinePower::Generator { watts, .. }) => gen_watts += watts,
                     _ => {}
                 }
-                // A battery is STORAGE, not demand: its inferred bidirectional bus terminal is a
-                // cable RATING (what a feeder must carry), not a daily load -- counting it here
-                // charged each shipped bank 48 kWh/day of phantom demand (fixed v0.664).
-                if !matches!(def.power, Some(MachinePower::Battery { .. })) {
-                    consumer_watts += def.electrical_load_watts();
-                }
+                // A battery is STORAGE, not demand (fixed v0.664; `average_load_watts` gives it 0).
+                consumer_watts += def.average_load_watts(basis, is_grow_light(&inst.machine));
+                working_watts += def.working_extra_watts();
                 water_prod += def.water_production_lpm();
                 water_dem += def.water_demand_lpm();
                 data_sup += def.data_supply_mbps();
@@ -1172,7 +1251,15 @@ impl MachineHome {
         let p_gen = (solar_peak * sun + gen_watts * 24.0) / 1000.0;
         let p_dem = consumer_watts * 24.0 / 1000.0;
         if p_gen > 0.0 || p_dem > 0.0 {
-            meters.push(make_utility_meter("power", p_gen, p_dem, "kWh/day"));
+            let mut m = make_utility_meter("power", p_gen, p_dem, "kWh/day");
+            if working_watts > 0.0 {
+                m.summary.push_str(&format!(
+                    "; the work stations draw {:.1} kW more while a craft runs at them ({:.1} kWh for each such hour)",
+                    working_watts / 1000.0,
+                    working_watts / 1000.0
+                ));
+            }
+            meters.push(m);
         }
         // WATER: L/day (lpm over 1440 min).
         let w_gen = water_prod * 1440.0;
@@ -1201,13 +1288,12 @@ impl MachineHome {
     /// - lights draw = fixture watts x `GROW_LIGHT_DUTY_HOURS` (6 h: the garden timer runs them
     ///   from sunset to its 18 h photoperiod, unlike the 24 h worst-case the generic meter charges
     ///   every consumer).
-    /// - free headroom = generation - every NON-grow-light demand (at 24 h, matching
-    ///   `utility_meters`); batteries are storage, never demand.
+    /// - free headroom = generation - every NON-grow-light demand (its average draw for 24 h,
+    ///   `MachineDef::average_load_watts` under `basis`, matching `utility_meters`); batteries are
+    ///   storage, never demand.
     /// - verdict: lights within headroom (green) / past headroom, eating battery reserves daily
     ///   (amber) / lights ALONE exceed the whole home's generation (red).
-    pub fn grow_light_report(&self, sun_hours: f32) -> Option<GrowLightReport> {
-        let is_grow_light =
-            |machine: &str| machine == "grow_light" || machine.starts_with("grow_light_");
+    pub fn grow_light_report(&self, sun_hours: f32, basis: MeterBasis) -> Option<GrowLightReport> {
         let sun = sun_hours.clamp(0.0, 24.0);
         let mut count = 0usize;
         let mut grow_watts = 0.0f32;
@@ -1222,9 +1308,10 @@ impl MachineHome {
             if is_grow_light(&inst.machine) {
                 count += 1;
                 grow_watts += def.electrical_load_watts();
-            } else if !matches!(def.power, Some(MachinePower::Battery { .. })) {
-                // Same storage-is-not-demand rule as utility_meters.
-                other_watts += def.electrical_load_watts();
+            } else {
+                // What the rest takes averaged over a day, as utility_meters charges it
+                // (2026-09-27; batteries none).
+                other_watts += def.average_load_watts(basis, false);
             }
         }
         if count == 0 {
@@ -1279,19 +1366,23 @@ impl MachineHome {
     /// AND is callable by an AI before it commits a design. `sun_hours` = representative daily peak-
     /// equivalent sun (the self-sufficiency model uses ~4.5). Real kWh/day, not nameplate -- this is
     /// the home-design real-world-validity guarantee. (v0.524, Stage 3 -- docs/design/home-design.md)
-    pub fn buildability_report(&self, sun_hours: f32) -> BuildabilityReport {
+    pub fn buildability_report(&self, sun_hours: f32, basis: MeterBasis) -> BuildabilityReport {
         let all = self.all_instances();
         // Sum the electrical roles across every placed machine (via its catalog def's power).
         let mut solar_peak = 0.0f32; // W at full sun
         let mut gen_watts = 0.0f32; // W steady (fuel/wind generators)
-        let mut consumer_watts = 0.0f32; // W draw
+        let mut consumer_watts = 0.0f32; // W draw, full
+        let mut average_watts = 0.0f32; // W draw averaged over a day (2026-09-27)
         let mut battery_wh = 0.0f32; // Wh storage
         for inst in &all {
             if let Some(def) = self.catalog.get(&inst.machine) {
                 match &def.power {
                     Some(MachinePower::Solar { peak_watts }) => solar_peak += peak_watts,
                     Some(MachinePower::Generator { watts, .. }) => gen_watts += watts,
-                    Some(MachinePower::Consumer { watts, .. }) => consumer_watts += watts,
+                    Some(MachinePower::Consumer { watts, .. }) => {
+                        consumer_watts += watts;
+                        average_watts += def.average_load_watts(basis, is_grow_light(&inst.machine));
+                    }
                     Some(MachinePower::Battery { capacity_wh, .. }) => battery_wh += capacity_wh,
                     None => {}
                 }
@@ -1299,7 +1390,9 @@ impl MachineHome {
         }
         let sun = sun_hours.clamp(0.0, 24.0);
         let gen_daily = solar_peak * sun + gen_watts * 24.0; // Wh/day
-        let use_daily = consumer_watts * 24.0; // Wh/day
+        // What the loads take in a day: each one's average draw
+        // (`MachineDef::average_load_watts`), not its full draw for 24 h.
+        let use_daily = average_watts * 24.0; // Wh/day
         let mut checks = Vec::new();
 
         // 1. A power source exists for the load.
@@ -1334,7 +1427,7 @@ impl MachineHome {
             } else {
                 // Generation covers the day; can the battery carry the load while solar is off?
                 let night_h = (24.0 - sun).max(0.0);
-                let night_deficit_w = (consumer_watts - gen_watts).max(0.0);
+                let night_deficit_w = (average_watts - gen_watts).max(0.0);
                 let night_need = night_deficit_w * night_h; // Wh the battery must supply overnight
                 if battery_wh + 1.0 < night_need {
                     checks.push(BuildabilityCheck {
@@ -2033,6 +2126,7 @@ mod tests {
             lights_crops: false,
             pollinates_crops: false,
             ventilation_m3_h: 0.0,
+            co2_setpoint_ppm: 0.0,
             humidifies_l_h: 0.0,
             dehumidifies_m3_h: 0.0,
             scrubs_co2_kg_day: 0.0,
@@ -2349,7 +2443,7 @@ mod tests {
     #[test]
     fn buildability_flags_load_without_a_source() {
         let mut catalog = BTreeMap::new();
-        catalog.insert("load".to_string(), def_with_power(Some(MachinePower::Consumer { watts: 100.0, priority: 1, idle_watts: None })));
+        catalog.insert("load".to_string(), def_with_power(Some(MachinePower::Consumer { watts: 100.0, priority: 1, idle_watts: None, average_watts: None })));
         let home = MachineHome {
             catalog,
             instances: vec![MachineInstance { id: "l1".into(), machine: "load".into(), room: "garage".into(), offset: (0.0, 0.0, 0.0), rotation: 0.0, zone: "home".into(), screen_source: None }],
@@ -2360,7 +2454,7 @@ mod tests {
             conduit_edges: Vec::new(),
             grown: Default::default(),
 };
-        let report = home.buildability_report(4.5);
+        let report = home.buildability_report(4.5, MeterBasis::default());
         assert_eq!(report.worst(), CheckStatus::Fail);
         assert!(report.checks.iter().any(|c| c.name == "Power source" && c.status == CheckStatus::Fail));
     }
@@ -2371,7 +2465,7 @@ mod tests {
     fn utility_meters_report_generation_demand_and_self_sufficiency() {
         let mut catalog = BTreeMap::new();
         catalog.insert("panel".to_string(), def_with_power(Some(MachinePower::Solar { peak_watts: 1000.0 })));
-        catalog.insert("load".to_string(), def_with_power(Some(MachinePower::Consumer { watts: 100.0, priority: 1, idle_watts: None })));
+        catalog.insert("load".to_string(), def_with_power(Some(MachinePower::Consumer { watts: 100.0, priority: 1, idle_watts: None, average_watts: None })));
         let inst = |id: &str, m: &str| MachineInstance { id: id.into(), machine: m.into(), room: "g".into(), offset: (0.0, 0.0, 0.0), rotation: 0.0, zone: "home".into(), screen_source: None };
         let home = MachineHome {
             catalog,
@@ -2383,7 +2477,7 @@ mod tests {
             conduit_edges: Vec::new(),
             grown: Default::default(),
 };
-        let meters = home.utility_meters(4.5);
+        let meters = home.utility_meters(4.5, MeterBasis::default());
         let power = meters.iter().find(|m| m.utility == "power").expect("a power meter exists");
         // gen = 1000 W * 4.5 h / 1000 = 4.5 kWh/day; demand = 100 W * 24 h / 1000 = 2.4 kWh/day.
         assert!((power.generation - 4.5).abs() < 1e-3, "gen {}", power.generation);
@@ -2396,6 +2490,78 @@ mod tests {
         assert!(m.summary.contains("imported"), "{}", m.summary);
     }
 
+    /// The static meters charge what the machines really draw (2026-09-27): a ship life support
+    /// machine nothing in the Station-supplied mode and its measured `average_watts` in the
+    /// Realistic one, a work station its idle draw (its working draw named in the summary, not
+    /// charged for the day), a grow light its timer's hours, anything else its full draw. And on
+    /// the shipped family home, the two modes differ by exactly its seven air handlers' measured
+    /// average. Seen red by charging every consumer its full electrical load for 24 h again (the
+    /// old meter: an air handler read 7.8 kWh a day in either mode, the stove 28.8).
+    #[test]
+    fn the_static_meters_charge_what_the_machines_draw() {
+        let mut catalog = BTreeMap::new();
+        catalog.insert("panel".to_string(), def_with_power(Some(MachinePower::Solar { peak_watts: 1000.0 })));
+        let mut handler = def_with_power(Some(MachinePower::Consumer { watts: 325.0, priority: 2, idle_watts: None, average_watts: Some(200.0) }));
+        handler.dehumidifies_m3_h = 1842.0;
+        catalog.insert("air_handler".to_string(), handler);
+        catalog.insert("stove".to_string(), def_with_power(Some(MachinePower::Consumer { watts: 1200.0, priority: 2, idle_watts: Some(0.0), average_watts: None })));
+        catalog.insert("grow_light".to_string(), def_with_power(Some(MachinePower::Consumer { watts: 100.0, priority: 5, idle_watts: None, average_watts: None })));
+        catalog.insert("load".to_string(), def_with_power(Some(MachinePower::Consumer { watts: 100.0, priority: 1, idle_watts: None, average_watts: None })));
+        let inst = |id: &str, m: &str| MachineInstance { id: id.into(), machine: m.into(), room: "g".into(), offset: (0.0, 0.0, 0.0), rotation: 0.0, zone: "home".into(), screen_source: None };
+        let home = MachineHome {
+            catalog,
+            instances: vec![inst("p1", "panel"), inst("a1", "air_handler"), inst("s1", "stove"), inst("g1", "grow_light"), inst("l1", "load")],
+            arrays: Vec::new(),
+            connections: Vec::new(),
+            loops: Vec::new(),
+            conduit_nodes: Vec::new(),
+            conduit_edges: Vec::new(),
+            grown: Default::default(),
+        };
+        let power = |basis: MeterBasis| home.utility_meters(4.5, basis).into_iter().find(|m| m.utility == "power").unwrap();
+        let (station, realistic) = (power(MeterBasis { life_support_on_grid: false }), power(MeterBasis { life_support_on_grid: true }));
+        // Station-supplied: the handler 0, the idle stove 0, the light 100 W x 6 h, the load 100 W x 24 h.
+        assert!((station.demand - 3.0).abs() < 1e-3, "station {}", station.demand);
+        // Realistic: plus the handler's 200 W average for the day.
+        assert!((realistic.demand - 7.8).abs() < 1e-3, "realistic {}", realistic.demand);
+        assert!(station.summary.contains("1.2 kW more while a craft runs"), "{}", station.summary);
+        let report = home.buildability_report(4.5, MeterBasis { life_support_on_grid: true });
+        assert!(report.checks.iter().any(|c| c.name == "Energy balance" && c.detail.contains("< 7.8 consumed")), "{:?}", report.checks);
+
+        // The shipped family home: the modes differ by its air handlers' measured average.
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("machines").join("home.ron");
+        let family = MachineHome::load(&path).expect("home.ron parses");
+        let kwh = |basis: MeterBasis| family.utility_meters(4.5, basis).into_iter().find(|m| m.utility == "power").unwrap().demand;
+        let (s, r) = (kwh(MeterBasis { life_support_on_grid: false }), kwh(MeterBasis { life_support_on_grid: true }));
+        let Some(MachinePower::Consumer { average_watts: Some(avg), .. }) = family.catalog["air_handler"].power else { panic!("an average") };
+        let handlers = family.all_instances().iter().filter(|i| i.machine == "air_handler").count() as f32;
+        let old: f32 = family
+            .all_instances()
+            .iter()
+            .filter_map(|i| family.catalog.get(&i.machine))
+            .filter(|d| !matches!(d.power, Some(MachinePower::Battery { .. })))
+            .map(|d| d.electrical_load_watts())
+            .sum::<f32>()
+            * 24.0
+            / 1000.0;
+        println!("family home: {s:.1} kWh/day Station-supplied, {r:.1} Realistic; the old nameplate meter {old:.1}");
+        // What the Station-supplied figure is made of, largest first.
+        let mut by_type: BTreeMap<String, (usize, f32)> = BTreeMap::new();
+        for i in family.all_instances() {
+            if let Some(d) = family.catalog.get(&i.machine) {
+                let e = by_type.entry(i.machine.clone()).or_insert((0, 0.0));
+                e.0 += 1;
+                e.1 += d.average_load_watts(MeterBasis::default(), is_grow_light(&i.machine)) * 24.0 / 1000.0;
+            }
+        }
+        let mut rows: Vec<_> = by_type.into_iter().filter(|(_, (_, k))| *k > 0.0).collect();
+        rows.sort_by(|a, b| b.1 .1.total_cmp(&a.1 .1));
+        for (id, (n, k)) in rows.iter().take(12) {
+            println!("  {id}: {n} placed, {k:.1} kWh/day");
+        }
+        assert!((r - s - handlers * avg * 24.0 / 1000.0).abs() < 0.01, "{r} - {s} is the {handlers} handlers' {avg} W");
+    }
+
     /// v0.664: a battery bank is STORAGE, not demand -- its inferred bidirectional bus terminal
     /// (a cable rating) must not inflate the power meter's kWh/day demand. Pre-fix, each shipped
     /// bank added max_discharge_w x 24 h (48 kWh/day of phantom demand per bank).
@@ -2404,7 +2570,7 @@ mod tests {
         let mut catalog = BTreeMap::new();
         catalog.insert("panel".to_string(), def_with_power(Some(MachinePower::Solar { peak_watts: 1000.0 })));
         catalog.insert("batt".to_string(), def_with_power(Some(MachinePower::Battery { capacity_wh: 4000.0, max_charge_w: 2000.0, max_discharge_w: 2000.0 })));
-        catalog.insert("load".to_string(), def_with_power(Some(MachinePower::Consumer { watts: 100.0, priority: 1, idle_watts: None })));
+        catalog.insert("load".to_string(), def_with_power(Some(MachinePower::Consumer { watts: 100.0, priority: 1, idle_watts: None, average_watts: None })));
         let inst = |id: &str, m: &str| MachineInstance { id: id.into(), machine: m.into(), room: "g".into(), offset: (0.0, 0.0, 0.0), rotation: 0.0, zone: "home".into(), screen_source: None };
         let home = MachineHome {
             catalog,
@@ -2416,7 +2582,7 @@ mod tests {
             conduit_edges: Vec::new(),
             grown: Default::default(),
 };
-        let meters = home.utility_meters(4.5);
+        let meters = home.utility_meters(4.5, MeterBasis::default());
         let power = meters.iter().find(|m| m.utility == "power").expect("a power meter exists");
         // Demand is ONLY the 100 W consumer (2.4 kWh/day) -- not 2.4 + the battery's 48.
         assert!((power.demand - 2.4).abs() < 1e-3, "battery must not count as demand: {}", power.demand);
@@ -2433,8 +2599,8 @@ mod tests {
     fn grow_light_meter_green_amber_red_thresholds() {
         let mut catalog = BTreeMap::new();
         catalog.insert("panel".to_string(), def_with_power(Some(MachinePower::Solar { peak_watts: 1000.0 })));
-        catalog.insert("load".to_string(), def_with_power(Some(MachinePower::Consumer { watts: 100.0, priority: 1, idle_watts: None })));
-        catalog.insert("grow_light".to_string(), def_with_power(Some(MachinePower::Consumer { watts: 100.0, priority: 5, idle_watts: None })));
+        catalog.insert("load".to_string(), def_with_power(Some(MachinePower::Consumer { watts: 100.0, priority: 1, idle_watts: None, average_watts: None })));
+        catalog.insert("grow_light".to_string(), def_with_power(Some(MachinePower::Consumer { watts: 100.0, priority: 5, idle_watts: None, average_watts: None })));
         let inst = |id: &str, m: &str| MachineInstance { id: id.into(), machine: m.into(), room: "g".into(), offset: (0.0, 0.0, 0.0), rotation: 0.0, zone: "home".into(), screen_source: None };
         let mut home = MachineHome {
             catalog,
@@ -2447,13 +2613,13 @@ mod tests {
             grown: Default::default(),
 };
         // Zero grow lights -> no report (the meter row only appears once one is placed).
-        assert!(home.grow_light_report(4.5).is_none(), "no lights -> no report");
+        assert!(home.grow_light_report(4.5, MeterBasis::default()).is_none(), "no lights -> no report");
 
         // (CHANGED 2026-09-26: a light runs the timer's 6 h a day, not 14, so
         // each is 0.6 kWh; the thresholds are the same, the light counts are
         // higher.) 1 light: 0.6 kWh/day <= 2.1 headroom -> GREEN.
         home.instances.push(inst("gl1", "grow_light"));
-        let r = home.grow_light_report(4.5).expect("one light -> a report");
+        let r = home.grow_light_report(4.5, MeterBasis::default()).expect("one light -> a report");
         assert_eq!(r.count, 1);
         assert!((r.watts - 100.0).abs() < 1e-3, "watts {}", r.watts);
         assert!((r.draw_kwh_day - 0.6).abs() < 1e-3, "draw {}", r.draw_kwh_day);
@@ -2466,7 +2632,7 @@ mod tests {
         for id in ["gl2", "gl3", "gl4"] {
             home.instances.push(inst(id, "grow_light"));
         }
-        let r = home.grow_light_report(4.5).expect("a report");
+        let r = home.grow_light_report(4.5, MeterBasis::default()).expect("a report");
         assert_eq!(r.count, 4);
         assert_eq!(r.verdict, GrowLightVerdict::EatingReserves);
         assert!(r.summary.contains("battery reserves"), "{}", r.summary);
@@ -2475,7 +2641,7 @@ mod tests {
         for id in ["gl5", "gl6", "gl7", "gl8"] {
             home.instances.push(inst(id, "grow_light"));
         }
-        let r = home.grow_light_report(4.5).expect("a report");
+        let r = home.grow_light_report(4.5, MeterBasis::default()).expect("a report");
         assert_eq!(r.count, 8);
         assert!((r.draw_kwh_day - 4.8).abs() < 1e-3, "draw {}", r.draw_kwh_day);
         assert_eq!(r.verdict, GrowLightVerdict::ExceedsGeneration);
@@ -2500,7 +2666,7 @@ mod tests {
                 "{file}: grow_light is a real electrical consumer"
             );
             assert!(
-                home.grow_light_report(4.5).is_none(),
+                home.grow_light_report(4.5, MeterBasis::default()).is_none(),
                 "{file}: the seed design places no grow lights (sun-lit by design)"
             );
         }
@@ -2549,9 +2715,11 @@ mod tests {
             let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("machines").join(file);
             let home = MachineHome::load(&path).unwrap_or_else(|| panic!("{file} parses"));
             for (id, def) in &home.catalog {
-                let is_fan = id == "exhaust_fan";
-                assert_eq!(def.ventilation_m3_h > 0.0, is_fan, "{file}: `{id}` ventilates only if it is the fan");
-                if is_fan {
+                // The humidity fan, and since 2026-09-27 the two CO2 fans.
+                let is_fan = id == "exhaust_fan" || id == "tent_co2_fan" || id == "room_co2_fan";
+                assert_eq!(def.ventilation_m3_h > 0.0, is_fan, "{file}: `{id}` ventilates only if it is a fan");
+                assert_eq!(def.co2_setpoint_ppm > 0.0, id.ends_with("co2_fan"), "{file}: `{id}` is switched on CO2 only if it is a CO2 fan");
+                if id == "exhaust_fan" {
                     assert!((def.ventilation_m3_h - 2725.0).abs() < 1.0, "{file}: 1604 CFM");
                     assert!(
                         matches!(def.power, Some(MachinePower::Consumer { watts, .. }) if (watts - 250.0).abs() < 1e-3),
@@ -2563,6 +2731,45 @@ mod tests {
                 home.all_instances().into_iter().filter(|i| i.machine == "exhaust_fan").collect();
             assert_eq!(fans.len(), placed, "{file}: fans placed");
             assert!(fans.iter().all(|f| f.room == "room-greenhouse"), "{file}: in the greenhouse");
+        }
+    }
+
+    /// The mushroom CO2 fans (2026-09-27): both shipped catalogs carry the tent
+    /// fan (AC Infinity CLOUDLINE S4: 226 CFM = 384 m3/h, a 28 W Consumer,
+    /// switched at 900 ppm) and the room fan (CLOUDLINE S6: 425 CFM = 722.1
+    /// m3/h, 70 W, at 600 ppm); every mushroom rack has a tent fan at its spot,
+    /// high enough to stand inside its tent, and each home's mushroom room one
+    /// room fan, all cabled to a battery. Seen red by deleting home.ron's
+    /// `mushfan` array (the six home racks then had none).
+    #[test]
+    fn every_shipped_mushroom_rack_has_a_wired_co2_fan() {
+        for file in ["home.ron", "home_solo.ron"] {
+            let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("machines").join(file);
+            let home = MachineHome::load(&path).unwrap_or_else(|| panic!("{file} parses"));
+            for (id, m3_h, w, set) in [("tent_co2_fan", 384.0, 28.0, 900.0), ("room_co2_fan", 722.1, 70.0, 600.0)] {
+                let def = &home.catalog[id];
+                assert!((def.ventilation_m3_h - m3_h).abs() < 0.1 && (def.co2_setpoint_ppm - set).abs() < 1e-3, "{file}: {id}");
+                assert!(
+                    matches!(def.power, Some(MachinePower::Consumer { watts, .. }) if (watts - w).abs() < 1e-3),
+                    "{file}: {id} a {w} W Consumer, so it can be switched on and shed"
+                );
+                // 226 and 425 CFM at 1.69901 m3/h a CFM.
+                assert!((def.ventilation_m3_h - (if w < 50.0 { 226.0 } else { 425.0 }) * 1.69901).abs() < 0.1, "{file}: {id} CFM");
+            }
+            let all = home.all_instances();
+            let wired = |id: &str| home.connections.iter().any(|c| c.kind == "power" && c.to == id && c.from.starts_with("battery_"));
+            for r in all.iter().filter(|i| i.machine == "mushroom_rack") {
+                let fan = all
+                    .iter()
+                    .find(|f| f.machine == "tent_co2_fan" && f.offset.0 == r.offset.0 && f.offset.2 == r.offset.2)
+                    .unwrap_or_else(|| panic!("{file}: no CO2 fan in rack {}'s tent", r.id));
+                // Inside the tent: the medium's 1.9 m tall enclosure stands on the rack's floor.
+                assert!(fan.offset.1 > r.offset.1 && fan.offset.1 < r.offset.1 + 1.9, "{file}: {} inside the tent", fan.id);
+                assert!(wired(&fan.id), "{file}: {} cabled to a battery", fan.id);
+            }
+            let room_fans: Vec<_> = all.iter().filter(|i| i.machine == "room_co2_fan").collect();
+            assert_eq!(room_fans.len(), 1, "{file}: one room fan");
+            assert!(room_fans[0].room == "room-mushroom" && wired(&room_fans[0].id), "{file}: in the mushroom room, cabled");
         }
     }
 
@@ -2656,7 +2863,7 @@ mod tests {
         let mut catalog = BTreeMap::new();
         catalog.insert("panel".to_string(), def_with_power(Some(MachinePower::Solar { peak_watts: 1000.0 })));
         catalog.insert("batt".to_string(), def_with_power(Some(MachinePower::Battery { capacity_wh: 2000.0, max_charge_w: 500.0, max_discharge_w: 500.0 })));
-        catalog.insert("load".to_string(), def_with_power(Some(MachinePower::Consumer { watts: 100.0, priority: 1, idle_watts: None })));
+        catalog.insert("load".to_string(), def_with_power(Some(MachinePower::Consumer { watts: 100.0, priority: 1, idle_watts: None, average_watts: None })));
         let inst = |id: &str, m: &str| MachineInstance { id: id.into(), machine: m.into(), room: "garage".into(), offset: (0.0, 0.0, 0.0), rotation: 0.0, zone: "home".into(), screen_source: None };
         let home = MachineHome {
             catalog,
@@ -2674,7 +2881,7 @@ mod tests {
 };
         // 1000W * 4.5h = 4500 Wh/day made vs 100W * 24h = 2400 used; night need = 100W * 19.5h =
         // 1950 Wh <= 2000 Wh battery, so every check passes.
-        let report = home.buildability_report(4.5);
+        let report = home.buildability_report(4.5, MeterBasis::default());
         assert_eq!(report.worst(), CheckStatus::Pass, "balanced home passes: {:?}", report.checks);
     }
 
@@ -2684,7 +2891,7 @@ mod tests {
         let mut catalog = BTreeMap::new();
         catalog.insert("panel".to_string(), def_with_power(Some(MachinePower::Solar { peak_watts: 1000.0 })));
         catalog.insert("batt".to_string(), def_with_power(Some(MachinePower::Battery { capacity_wh: 200.0, max_charge_w: 500.0, max_discharge_w: 500.0 })));
-        catalog.insert("load".to_string(), def_with_power(Some(MachinePower::Consumer { watts: 100.0, priority: 1, idle_watts: None })));
+        catalog.insert("load".to_string(), def_with_power(Some(MachinePower::Consumer { watts: 100.0, priority: 1, idle_watts: None, average_watts: None })));
         let inst = |id: &str, m: &str| MachineInstance { id: id.into(), machine: m.into(), room: "garage".into(), offset: (0.0, 0.0, 0.0), rotation: 0.0, zone: "home".into(), screen_source: None };
         let home = MachineHome {
             catalog,
@@ -2700,7 +2907,7 @@ mod tests {
             conduit_edges: Vec::new(),
             grown: Default::default(),
 };
-        let report = home.buildability_report(4.5);
+        let report = home.buildability_report(4.5, MeterBasis::default());
         assert_eq!(report.worst(), CheckStatus::Warn, "tiny battery warns: {:?}", report.checks);
     }
 
@@ -2719,7 +2926,7 @@ mod tests {
             conduit_edges: Vec::new(),
             grown: Default::default(),
 };
-        let report = home.buildability_report(4.5);
+        let report = home.buildability_report(4.5, MeterBasis::default());
         assert!(report.checks.iter().any(|c| c.name == "Wiring" && c.status == CheckStatus::Fail));
         assert_eq!(report.worst(), CheckStatus::Fail);
     }
@@ -2733,7 +2940,7 @@ mod tests {
             .join("machines")
             .join("home.ron");
         let home = MachineHome::load(&path).expect("home.ron parses");
-        let report = home.buildability_report(4.5);
+        let report = home.buildability_report(4.5, MeterBasis::default());
         assert!(!report.checks.is_empty(), "seed home produces checks");
         assert!(
             !report.checks.iter().any(|c| c.name == "Wiring" && c.status == CheckStatus::Fail),
@@ -3028,7 +3235,7 @@ mod tests {
     /// the load helper sums IN + bidirectional electrical ports.
     #[test]
     fn derive_ports_infers_from_power_and_explicit_wins() {
-        let consumer = def_with_power(Some(MachinePower::Consumer { watts: 200.0, priority: 1, idle_watts: None }));
+        let consumer = def_with_power(Some(MachinePower::Consumer { watts: 200.0, priority: 1, idle_watts: None, average_watts: None }));
         assert_eq!(consumer.derive_ports().len(), 1, "a consumer infers one IN port");
         assert_eq!(consumer.electrical_load_watts(), 200.0);
         let panel = def_with_power(Some(MachinePower::Solar { peak_watts: 1000.0 }));
@@ -3047,11 +3254,11 @@ mod tests {
     fn buildability_conduits_autosize_passes() {
         let home = wired_pair(
             def_with_power(Some(MachinePower::Solar { peak_watts: 1000.0 })),
-            def_with_power(Some(MachinePower::Consumer { watts: 120.0, priority: 1, idle_watts: None })),
+            def_with_power(Some(MachinePower::Consumer { watts: 120.0, priority: 1, idle_watts: None, average_watts: None })),
             2.0,
             None,
         );
-        let report = home.buildability_report(4.5);
+        let report = home.buildability_report(4.5, MeterBasis::default());
         let conduit = report.checks.iter().find(|c| c.name == "Conduits").expect("a Conduits check exists");
         assert_eq!(conduit.status, CheckStatus::Pass, "120 W over 2 m auto-sizes: {}", conduit.detail);
     }
@@ -3061,11 +3268,11 @@ mod tests {
     fn buildability_conduits_undersized_pinned_cable_fails() {
         let home = wired_pair(
             def_with_power(Some(MachinePower::Generator { watts: 5000.0, fuel_lph: 0.0 })),
-            def_with_power(Some(MachinePower::Consumer { watts: 3000.0, priority: 1, idle_watts: None })),
+            def_with_power(Some(MachinePower::Consumer { watts: 3000.0, priority: 1, idle_watts: None, average_watts: None })),
             1.0,
             Some("cu_awg14"), // 15 A cable; 3000 W @ 120 V = 25 A -> over ampacity
         );
-        let report = home.buildability_report(4.5);
+        let report = home.buildability_report(4.5, MeterBasis::default());
         let conduit = report.checks.iter().find(|c| c.name == "Conduits").expect("a Conduits check exists");
         assert_eq!(conduit.status, CheckStatus::Fail, "25 A on a 15 A cable fails: {}", conduit.detail);
     }
@@ -3076,11 +3283,11 @@ mod tests {
     fn buildability_conduits_unknown_cable_id_fails() {
         let home = wired_pair(
             def_with_power(Some(MachinePower::Generator { watts: 500.0, fuel_lph: 0.0 })),
-            def_with_power(Some(MachinePower::Consumer { watts: 200.0, priority: 1, idle_watts: None })),
+            def_with_power(Some(MachinePower::Consumer { watts: 200.0, priority: 1, idle_watts: None, average_watts: None })),
             1.0,
             Some("unobtainium_42"),
         );
-        let report = home.buildability_report(4.5);
+        let report = home.buildability_report(4.5, MeterBasis::default());
         let conduit = report.checks.iter().find(|c| c.name == "Conduits").expect("a Conduits check exists");
         assert_eq!(conduit.status, CheckStatus::Fail, "unknown cable id fails: {}", conduit.detail);
     }
@@ -3107,13 +3314,13 @@ mod tests {
             conduit_edges: Vec::new(),
             grown: Default::default(),
 };
-        let wired = home.buildability_report(4.5);
+        let wired = home.buildability_report(4.5, MeterBasis::default());
         let d = wired.checks.iter().find(|c| c.name == "Data links").expect("a Data links check");
         assert_eq!(d.status, CheckStatus::Pass, "wired Cat6 carries 100 Mbps: {}", d.detail);
 
         // Swap to WiFi: it still carries the bandwidth, but the wireless RF warning fires.
         home.connections[0].spec = Some("wifi_6".to_string());
-        let wifi = home.buildability_report(4.5);
+        let wifi = home.buildability_report(4.5, MeterBasis::default());
         let d2 = wifi.checks.iter().find(|c| c.name == "Data links").unwrap();
         assert_eq!(d2.status, CheckStatus::Warn, "wireless warns about RF near grows: {}", d2.detail);
     }
@@ -3123,7 +3330,7 @@ mod tests {
     fn buildability_seed_home_data_links_are_sane() {
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("machines").join("home.ron");
         let home = MachineHome::load(&path).expect("home.ron parses");
-        let report = home.buildability_report(4.5);
+        let report = home.buildability_report(4.5, MeterBasis::default());
         if let Some(d) = report.checks.iter().find(|c| c.name == "Data links") {
             assert_ne!(d.status, CheckStatus::Fail, "seed data links must size: {}", d.detail);
         }
@@ -3135,7 +3342,7 @@ mod tests {
     fn buildability_power_circuit_flags_an_isolated_load() {
         let mut catalog = BTreeMap::new();
         catalog.insert("batt".to_string(), def_with_power(Some(MachinePower::Battery { capacity_wh: 1000.0, max_charge_w: 500.0, max_discharge_w: 500.0 })));
-        catalog.insert("load".to_string(), def_with_power(Some(MachinePower::Consumer { watts: 100.0, priority: 1, idle_watts: None })));
+        catalog.insert("load".to_string(), def_with_power(Some(MachinePower::Consumer { watts: 100.0, priority: 1, idle_watts: None, average_watts: None })));
         let inst = |id: &str, m: &str| MachineInstance { id: id.into(), machine: m.into(), room: "g".into(), offset: (0.0, 0.0, 0.0), rotation: 0.0, zone: "home".into(), screen_source: None };
         let mut home = MachineHome {
             catalog,
@@ -3164,7 +3371,7 @@ mod tests {
     fn buildability_power_circuit_traverses_conduit_nodes() {
         let mut catalog = BTreeMap::new();
         catalog.insert("panel".to_string(), def_with_power(Some(MachinePower::Solar { peak_watts: 500.0 })));
-        catalog.insert("load".to_string(), def_with_power(Some(MachinePower::Consumer { watts: 80.0, priority: 1, idle_watts: None })));
+        catalog.insert("load".to_string(), def_with_power(Some(MachinePower::Consumer { watts: 80.0, priority: 1, idle_watts: None, average_watts: None })));
         let inst = |id: &str, m: &str| MachineInstance { id: id.into(), machine: m.into(), room: "g".into(), offset: (0.0, 0.0, 0.0), rotation: 0.0, zone: "home".into(), screen_source: None };
         let mut home = MachineHome {
             catalog,
@@ -3234,7 +3441,7 @@ mod tests {
     fn buildability_seed_home_power_circuit_is_connected() {
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("machines").join("home.ron");
         let home = MachineHome::load(&path).expect("home.ron parses");
-        let report = home.buildability_report(4.5);
+        let report = home.buildability_report(4.5, MeterBasis::default());
         let circuit = report.checks.iter().find(|c| c.name == "Power circuit").expect("the seed has electrical machines");
         assert_ne!(circuit.status, CheckStatus::Fail, "seed power must be fully wired: {}", circuit.detail);
     }
@@ -3248,7 +3455,7 @@ mod tests {
             .join("machines")
             .join("home.ron");
         let home = MachineHome::load(&path).expect("home.ron parses");
-        let report = home.buildability_report(4.5);
+        let report = home.buildability_report(4.5, MeterBasis::default());
         // If the seed has power runs at all, the Conduits check must not FAIL (Pass or Warn is fine).
         if let Some(conduit) = report.checks.iter().find(|c| c.name == "Conduits") {
             assert_ne!(conduit.status, CheckStatus::Fail, "seed conduits must be sizable: {}", conduit.detail);
@@ -3280,7 +3487,7 @@ mod tests {
     fn home_solo_variant_power_circuit_is_connected() {
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("machines").join("home_solo.ron");
         let home = MachineHome::load(&path).expect("home_solo.ron parses");
-        let report = home.buildability_report(4.5);
+        let report = home.buildability_report(4.5, MeterBasis::default());
         let circuit = report.checks.iter().find(|c| c.name == "Power circuit").expect("the solo home has electrical machines");
         assert_ne!(circuit.status, CheckStatus::Fail, "solo home power must be fully wired: {}", circuit.detail);
     }

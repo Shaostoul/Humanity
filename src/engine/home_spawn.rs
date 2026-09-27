@@ -130,7 +130,7 @@ pub(crate) fn spawn_home_machine_entity(
                     },
                 );
             }
-            MachinePower::Consumer { watts, priority, idle_watts } => {
+            MachinePower::Consumer { watts, priority, idle_watts, .. } => {
                 // A work station starts idle; the crafting system raises it
                 // to its working draw while a craft runs (2026-09-26).
                 let draw = idle_watts.unwrap_or(*watts);
@@ -196,14 +196,22 @@ pub(crate) fn spawn_home_machine_entity(
         let _ = world.insert_one(e, crate::ecs::components::PollinatorHive);
     }
     // Exhaust fan (2026-09-26): FarmingSystem runs it to hold the humidity of
-    // the grow room around this entity's Transform (farming::humidity). Its
-    // full-speed draw is its Consumer watts; the controller scales it.
+    // the grow room around this entity's Transform (farming::humidity), or,
+    // with a `co2_setpoint_ppm` (2026-09-27), switches it on its CO2
+    // controller. Its full draw is its Consumer watts; the controller scales it.
     if def.ventilation_m3_h > 0.0 {
         let watts = match &def.power {
             Some(MachinePower::Consumer { watts, .. }) => *watts,
             _ => 0.0,
         };
-        let _ = world.insert_one(e, crate::ecs::components::Ventilator { airflow_m3_h: def.ventilation_m3_h, watts });
+        let _ = world.insert_one(
+            e,
+            crate::ecs::components::Ventilator {
+                airflow_m3_h: def.ventilation_m3_h,
+                watts,
+                co2_setpoint_ppm: def.co2_setpoint_ppm,
+            },
+        );
     }
     // Humidifier (2026-09-26): FarmingSystem runs it to hold the humidity of
     // the grow room around this entity's Transform, drawing its litres from

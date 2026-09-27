@@ -2291,6 +2291,17 @@ impl System for FarmingSystem {
             let air_ceiling = air_map
                 .known_rh(air_data, area, &room_air)
                 .map_or(100.0, |rh| humidity::health_ceiling(air_data, def, rh));
+            // Stale air (2026-09-27, humidity.ron STALE AIR): a fruiting fungus
+            // in air past its CO2 limit grows long stems and small caps and
+            // gives less, capped the same way and scaled by the garden's
+            // Off / Gentle / Realistic setting. Only where the CO2 is tracked.
+            let co2_ceiling = if pest_severity > 0.0 {
+                air_map
+                    .known_co2_ppm(air_data, area, &room_air)
+                    .map_or(100.0, |ppm| humidity::co2_ceiling(air_data, def, ppm, pest_severity))
+            } else {
+                100.0
+            };
             if crop.water_level >= WATER_STRESS_THRESHOLD {
                 let litres = def.map_or(0.0, |d| f64::from(d.water_per_day)) * f64::from(plants_here);
                 *breathed.entry(area.to_string()).or_insert(0.0) += litres;
@@ -2311,11 +2322,15 @@ impl System for FarmingSystem {
                         e.0 += litres * x.co2_g_per_l * lit * health;
                         e.1 += litres * x.o2_g_per_l * lit * health;
                     } else {
-                        air_step.fungi.insert(area.to_string());
+                        // Its blocks (or square feet of bed) breathe, each at
+                        // its species' rate (2026-09-27, humidity.ron THE
+                        // FUNGI'S BREATH): only what is planted.
+                        *air_step.fungi.entry(area.to_string()).or_insert(0.0) +=
+                            air_data.fungus_co2_g_h(&crop.crop_def_id) * f64::from(plants_here);
                     }
                 }
             }
-            let ceiling = nutrient_ceiling.min(pest_ceiling).min(ph_ceiling).min(air_ceiling).min(weed_ceiling);
+            let ceiling = nutrient_ceiling.min(pest_ceiling).min(ph_ceiling).min(air_ceiling).min(co2_ceiling).min(weed_ceiling);
 
             // Health effects from water level, capped by nutrients and pests.
             if crop.water_level < WATER_STRESS_THRESHOLD {

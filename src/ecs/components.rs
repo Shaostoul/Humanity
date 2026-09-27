@@ -594,6 +594,10 @@ pub struct RoomAir {
     /// Its CO2 scrubbers' share of the time they run, 0..1.
     #[serde(default)]
     pub scrubber: f64,
+    /// Its CO2 fans' share of the time their controller has them on, 0..1
+    /// (2026-09-27, `Ventilator::co2_setpoint_ppm`).
+    #[serde(default)]
+    pub co2_fan: f64,
     /// Grams of carbon dioxide a day its crops were taking up, and its
     /// fruiting substrate breathing out, at the last step (the Garden panel).
     #[serde(default)]
@@ -1155,14 +1159,20 @@ pub struct GrowLight {
 pub struct PollinatorHive;
 
 /// An exhaust fan (2026-09-26, `MachineDef::ventilation_m3_h`): while its
-/// `PowerConsumer` is enabled it exchanges the air of the grow room its
-/// `Transform` stands in with the home's air, up to `airflow_m3_h` at full
-/// speed. Its humidity controller runs it only as fast as the room needs
+/// `PowerConsumer` is enabled it exchanges the air of the grow room (or
+/// fruiting tent) its `Transform` stands in with the air around it (the
+/// home's, or the tent's room), up to `airflow_m3_h` at full speed. Its
+/// humidity controller runs it only as fast as the room needs
 /// (`farming::humidity`), and it draws `watts` times the cube of its speed.
+/// With `co2_setpoint_ppm` above 0 (2026-09-27, `MachineDef::co2_setpoint_ppm`)
+/// a CO2 controller switches it instead: on above that, on for the share of
+/// the time that holds it there, off below, drawing `watts` for that share.
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
 pub struct Ventilator {
     pub airflow_m3_h: f32,
     pub watts: f32,
+    #[serde(default)]
+    pub co2_setpoint_ppm: f32,
 }
 
 /// A humidifier (2026-09-26, `MachineDef::humidifies_l_h`): while its

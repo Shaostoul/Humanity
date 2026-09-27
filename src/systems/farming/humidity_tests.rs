@@ -212,7 +212,7 @@ fn an_exhaust_fan_holds_the_room_at_its_setpoint() {
         world.spawn((crop(&data, "tomato", "bed_b", slot),));
     }
     let fan = world.spawn((
-        Ventilator { airflow_m3_h: 2725.0, watts: 250.0 },
+        Ventilator { airflow_m3_h: 2725.0, watts: 250.0, co2_setpoint_ppm: 0.0 },
         Transform { position: glam::Vec3::new(5.0, 2.2, 9.5), ..Default::default() },
         PowerConsumer { draw_watts: 250.0, priority: 4, enabled: true },
     ));

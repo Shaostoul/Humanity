@@ -130,6 +130,25 @@ pub struct HumidityData {
     pub co2_molar_mass: f64,
     pub air_pressure_kpa: f64,
     pub molar_gas_constant: f64,
+    /// The share of a fruiting fungus's crop lost for every 1,000 ppm of
+    /// carbon dioxide over its limit (2026-09-27, humidity.ron STALE AIR).
+    pub fungi_co2_loss_per_1000_ppm: f64,
+    /// What each fungus breathes out per "plant" (a block, a square foot of
+    /// bed), and its own CO2 limit where sourced (humidity.ron, THE FUNGI'S
+    /// BREATH).
+    pub fungi: Vec<FungusBreath>,
+}
+
+/// One fungus's breath (2026-09-27): grams of carbon dioxide an hour from each
+/// of its "plants" (plants.csv; a 5 lb block, a square foot of bed) while it
+/// grows, and the CO2 above which its fruiting suffers, where a source gives
+/// it its own (else `HumidityData::fruiting_co2_limit_ppm`).
+#[derive(Debug, Clone, Deserialize)]
+pub struct FungusBreath {
+    pub plants: Vec<String>,
+    pub co2_g_h_per_plant: f64,
+    #[serde(default)]
+    pub co2_limit_ppm: Option<f64>,
 }
 
 impl HumidityData {
@@ -200,6 +219,33 @@ impl HumidityData {
         let room = (self.fruiting_co2_limit_ppm - self.intake_co2_ppm).max(1.0) * 1e-6 * self.co2_density();
         substrate_kg.max(0.0) * self.substrate_co2_g_kg_h.max(0.0) / room
     }
+
+    /// The row of `fungi` naming plants.csv crop `plant`, if any.
+    fn fungus_row(&self, plant: &str) -> Option<&FungusBreath> {
+        self.fungi.iter().find(|f| f.plants.iter().any(|p| p == plant))
+    }
+
+    /// Grams of carbon dioxide an hour one "plant" of fungus `plant` breathes
+    /// out while it grows (2026-09-27): its row of `fungi`, or the median of the
+    /// rows for a fungus not listed (humidity.ron, THE FUNGI'S BREATH).
+    pub fn fungus_co2_g_h(&self, plant: &str) -> f64 {
+        if let Some(row) = self.fungus_row(plant) {
+            return row.co2_g_h_per_plant.max(0.0);
+        }
+        let mut v: Vec<f64> = self.fungi.iter().map(|f| f.co2_g_h_per_plant.max(0.0)).collect();
+        v.sort_by(f64::total_cmp);
+        match v.len() {
+            0 => 0.0,
+            n if n % 2 == 1 => v[n / 2],
+            n => (v[n / 2 - 1] + v[n / 2]) / 2.0,
+        }
+    }
+
+    /// The CO2, ppm, above which fungus `plant` fruits poorly: its own limit
+    /// where a source gives one, else `fruiting_co2_limit_ppm`.
+    pub fn fungus_co2_limit_ppm(&self, plant: &str) -> f64 {
+        self.fungus_row(plant).and_then(|f| f.co2_limit_ppm).unwrap_or(self.fruiting_co2_limit_ppm)
+    }
 }
 
 // -- The balance ----------------------------------------------------------------------
@@ -244,6 +290,45 @@ pub fn fan_speed(v: f64, source: f64, base: f64, fan_max: f64, outside: f64, set
         return 0.0;
     }
     ((source / room - base) / fan_max).clamp(0.0, 1.0)
+}
+
+/// The share of a slice `hours` long, 0..1, a room's CO2 fans are switched on
+/// (2026-09-27, humidity.ron THE CO2 FANS): from its carbon dioxide `c0` (g/m3),
+/// what its sources add (`source`, g/m3 an hour), its other air changes an hour
+/// (`base`), its CO2 fans' full-speed air changes (`fan_max`), the air around
+/// it and the setpoint (g/m3). An on/off controller with a small switching
+/// band holds its air AT the setpoint, cycling the fan; over a slice that is
+/// the one steady share that ends the slice on the setpoint (solved exactly
+/// through `life_support::relax`), off when the air would end it below without
+/// the fan, flat out when even that cannot bring it down. Judged once a slice
+/// instead, a 384 m3/h fan (over 200 changes an hour of a 1.73 m3 tent) flushed
+/// the tent to its room's air, humidity and all, and then left it to climb to
+/// about 1,100 ppm the next slice.
+pub fn co2_fan_duty(c0: f64, source: f64, base: f64, fan_max: f64, outside: f64, set: f64, hours: f64) -> f64 {
+    if !(fan_max > 0.0) {
+        return 0.0;
+    }
+    if !(hours > 0.0) {
+        return if c0 > set { 1.0 } else { 0.0 };
+    }
+    let end = |duty: f64| life_support::relax(c0, source, &[(base.max(0.0) + duty * fan_max, outside)], hours, f64::INFINITY).x;
+    if end(0.0) <= set {
+        return 0.0;
+    }
+    if end(1.0) >= set {
+        return 1.0;
+    }
+    // More fan, lower air at the slice's end: bisect for the share that lands on it.
+    let (mut lo, mut hi) = (0.0f64, 1.0f64);
+    for _ in 0..40 {
+        let mid = 0.5 * (lo + hi);
+        if end(mid) > set {
+            lo = mid;
+        } else {
+            hi = mid;
+        }
+    }
+    0.5 * (lo + hi)
 }
 
 /// The share, 0..1 of their full output, a room's humidifiers run at, from
@@ -294,6 +379,24 @@ pub fn health_ceiling(d: &HumidityData, def: Option<&PlantDef>, rh: f64) -> f32 
     ((100.0 * (1.0 - loss)) as f32).clamp(d.health_floor, 100.0)
 }
 
+/// The highest health a FUNGUS can hold in air holding `ppm` of carbon
+/// dioxide (2026-09-27, humidity.ron STALE AIR): 100 up to its limit, then
+/// 100 x (1 - severity x fungi_co2_loss_per_1000_ppm x (ppm - limit) / 1000),
+/// never below the floor. `severity` is the garden's Off / Gentle / Realistic
+/// setting (`garden_pest_severity`: 0, 0.5, 1). A green crop (plants.csv
+/// `needs_light` true) is not harmed by it here: it takes the carbon dioxide
+/// up (life_support.rs). 100 for an unknown plant.
+pub fn co2_ceiling(d: &HumidityData, def: Option<&PlantDef>, ppm: f64, severity: f32) -> f32 {
+    let Some(def) = def else { return 100.0 };
+    if def.needs_light || !ppm.is_finite() {
+        return 100.0;
+    }
+    let over = (ppm - d.fungus_co2_limit_ppm(&def.id)).max(0.0);
+    let sev = f64::from(severity).clamp(0.0, 1.0);
+    let loss = (sev * d.fungi_co2_loss_per_1000_ppm.max(0.0) * over / 1000.0).clamp(0.0, 1.0);
+    ((100.0 * (1.0 - loss)) as f32).clamp(d.health_floor, 100.0)
+}
+
 // -- The rooms ------------------------------------------------------------------------
 
 /// One room of the home, as the engine's room bounds give it, or a grow
@@ -308,8 +411,10 @@ pub struct GrowRoom {
     /// air over its volume. None = a room, which leaks at
     /// `base_air_changes_per_hour`.
     pub air_changes_per_hour: Option<f64>,
-    /// The fruiting substrate a tent holds, kg (0 for a room): it breathes out
-    /// `HumidityData::substrate_co2_g_kg_h` while its mushrooms grow.
+    /// The fruiting substrate a tent holds when full, kg (0 for a room): what
+    /// its own fresh air is sized for (`HumidityData::tent_fresh_air_m3_h`).
+    /// What breathes is only the fungus actually planted in it, at each
+    /// species' rate (`AirStep::fungi`, 2026-09-27).
     pub substrate_kg: f64,
 }
 
@@ -549,6 +654,26 @@ impl AirMap {
         }
     }
 
+    /// The carbon dioxide, ppm, the crops of `area` grow in (2026-09-27), where
+    /// the game tracks it: their grow room's or tent's own (with the life
+    /// support data), or the home's own air for a crop in no grow room when the
+    /// home's air space exists. None for an outdoor field (the weather's air)
+    /// and wherever it is not known, where the fungi are not judged by it.
+    pub fn known_co2_ppm(&self, d: &HumidityData, area: &str, state: &HashMap<String, RoomAir>) -> Option<f64> {
+        if super::is_field_area(area) {
+            return None;
+        }
+        match self.room_of(area) {
+            Some(r) => state
+                .get(&r.id)
+                .map(|a| a.co2_g_m3)
+                .filter(|c| *c > 0.0)
+                .map(|c| crate::systems::life_support::co2_ppm(d, c, d.room_temp_c)),
+            None => (self.home_known && self.home_co2 > 0.0)
+                .then(|| crate::systems::life_support::co2_ppm(d, self.home_co2, self.home_temp_c)),
+        }
+    }
+
     /// `rh_for`, but only where the game knows the air: a grow room's own
     /// balance, an outdoor field's weather, or the home's air space. None
     /// otherwise (a headless world with none of them), where a crop's
@@ -591,15 +716,43 @@ fn tent_box(d: &HumidityData, p: &GrowPlot, e: &crate::systems::grow_machines::E
     room
 }
 
-/// The exhaust fans, by the room they stand in: (entity, room index, full
-/// m3/h, full-speed watts, powered).
-fn room_fans(world: &hecs::World, map: &AirMap) -> Vec<(hecs::Entity, usize, f64, f64, bool)> {
+/// A placed exhaust fan, by the room (or tent) it stands in.
+#[derive(Debug, Clone, Copy)]
+struct Fan {
+    entity: hecs::Entity,
+    /// Index into `AirMap::rooms`.
+    room: usize,
+    /// Full airflow, m3 an hour, and full draw, W.
+    airflow: f64,
+    watts: f64,
+    /// Its PowerConsumer is enabled.
+    powered: bool,
+    /// 0 for a humidity-controlled fan; else the CO2, ppm, its CO2 controller
+    /// switches it on above (2026-09-27, `Ventilator::co2_setpoint_ppm`).
+    co2_set: f64,
+}
+
+impl Fan {
+    fn on_co2(&self) -> bool {
+        self.co2_set > 0.0
+    }
+}
+
+/// The exhaust fans, by the room they stand in.
+fn room_fans(world: &hecs::World, map: &AirMap) -> Vec<Fan> {
     world
         .query::<(&Ventilator, &Transform, Option<&PowerConsumer>)>()
         .iter()
         .filter_map(|(e, (v, t, pc))| {
             let room = map.room_at(t.position.to_array())?;
-            Some((e, room, f64::from(v.airflow_m3_h), f64::from(v.watts), pc.map_or(false, |p| p.enabled)))
+            Some(Fan {
+                entity: e,
+                room,
+                airflow: f64::from(v.airflow_m3_h),
+                watts: f64::from(v.watts),
+                powered: pc.map_or(false, |p| p.enabled),
+                co2_set: f64::from(v.co2_setpoint_ppm).max(0.0),
+            })
         })
         .collect()
 }
@@ -687,8 +840,12 @@ pub struct AirStep {
     /// oxygen they would give out, at the reference CO2 and their light
     /// (life_support.rs, `Exchange`).
     pub photo: HashMap<String, (f64, f64)>,
-    /// The areas holding a growing fungus crop: their tent's substrate breathes.
-    pub fungi: std::collections::HashSet<String>,
+    /// Grams of carbon dioxide an hour each area's growing fungus breathes out
+    /// (2026-09-27): the blocks or square feet actually planted there, each at
+    /// its species' rate (`HumidityData::fungus_co2_g_h`). It used to be a set
+    /// of areas, and a tent breathed for its whole ten-block load as soon as
+    /// one shelf was planted.
+    pub fungi: HashMap<String, f64>,
     /// The home has water for the garden (the humidifiers may run).
     pub water_ok: bool,
     pub hours: f64,
@@ -768,10 +925,15 @@ pub fn step_rooms(
             None => {}
         }
     }
-    // Which tents hold growing mushrooms (their substrate breathes).
-    let fungi_room: Vec<bool> = (0..n_rooms)
-        .map(|i| map.rooms[i].substrate_kg > 0.0 && step.fungi.iter().any(|a| map.area_room.get(a) == Some(&i)))
-        .collect();
+    // What each room's or tent's growing fungus breathes out, g of CO2 an
+    // hour: the blocks or square feet planted there (2026-09-27; a tent used
+    // to breathe for its whole load as soon as one shelf was planted).
+    let mut fungi_rate = vec![0.0f64; n_rooms];
+    for (area, g_h) in &step.fungi {
+        if let Some(i) = map.area_room.get(area) {
+            fungi_rate[*i] += g_h.max(0.0);
+        }
+    }
     let fans = room_fans(world, map);
     let hums = room_humidifiers(world, map);
     let (handlers, scrubbers) = life_units(world, map);
@@ -803,10 +965,21 @@ pub fn step_rooms(
         .collect();
     let slices = if step.hours > 0.0 { (step.hours / life_support::MAX_SLICE_H).ceil().clamp(1.0, 10_000.0) as usize } else { 1 };
     let sh = step.hours.max(0.0) / slices as f64;
+    // Each room's machines as their controllers set them this step: the
+    // powered ones' share (the physics), and the share a unit the electrical
+    // sim has shed would ask for if it had power (its request, 2026-09-27: a
+    // shed unit that asked for nothing, or for what it last drew, never came
+    // back, or kept a phantom load on the island).
     let mut speed = vec![0.0f64; n_rooms];
+    let mut speed_req = vec![0.0f64; n_rooms];
+    let mut duty = vec![0.0f64; n_rooms];
+    let mut duty_req = vec![0.0f64; n_rooms];
     let mut share = vec![0.0f64; n_rooms];
+    let mut share_req = vec![0.0f64; n_rooms];
     let mut handler_share = vec![0.0f64; n_rooms];
+    let mut handler_req = vec![0.0f64; n_rooms];
     let mut scrubber_share = vec![0.0f64; n_rooms];
+    let mut scrubber_req = vec![0.0f64; n_rooms];
     for slice in 0..slices {
         let last = slice + 1 == slices;
         let (home_v, home_c) = if runs_home { (home.vapour_g_m3, home.co2_g_m3) } else { (map.home_vapour, map.home_co2) };
@@ -821,12 +994,27 @@ pub fn step_rooms(
             let outside_c = parent_air.map(|a| a.co2_g_m3).filter(|c| *c > 0.0).unwrap_or(home_c);
             let breath_g_h = litres[i] * d.vapour_share.max(0.0) * 1000.0 / 24.0;
             let source = (breath_g_h + if sh > 0.0 { vented_v[i] / sh } else { 0.0 }) / volume;
-            let fan_max: f64 = fans.iter().filter(|f| f.1 == i && f.4).map(|f| f.2).sum::<f64>() / volume;
+            // Its fans, each air changes an hour at full speed: the humidity
+            // ones, and the ones a CO2 controller switches (2026-09-27), the
+            // powered ones and all of them (for a shed fan's request).
+            let air_changes = |co2: bool, powered_only: bool| -> f64 {
+                fans.iter()
+                    .filter(|f| f.room == i && f.on_co2() == co2 && (f.powered || !powered_only))
+                    .map(|f| f.airflow)
+                    .sum::<f64>()
+                    / volume
+            };
+            let (fan_max, fan_max_all) = (air_changes(false, true), air_changes(false, false));
+            let (cfan_max, cfan_max_all) = (air_changes(true, true), air_changes(true, false));
+            // The CO2 fans' controller setpoint: the lowest among them.
+            let co2_set_ppm = fans.iter().filter(|f| f.room == i && f.on_co2()).map(|f| f.co2_set).fold(f64::INFINITY, f64::min);
             let humidified = hums.iter().any(|h| h.1 == i);
             let powered_l_h: f64 = hums.iter().filter(|h| h.1 == i && h.4).map(|h| h.2).sum();
+            let all_l_h: f64 = hums.iter().filter(|h| h.1 == i).map(|h| h.2).sum();
             // What the humidifiers can put in, g/m3 an hour: none without water.
             // (Tested with `>`: an empty float sum is -0.0, which would print.)
             let hum_max = if step.water_ok && powered_l_h > 0.0 { powered_l_h * 1000.0 / volume } else { 0.0 };
+            let hum_max_all = if step.water_ok && all_l_h > 0.0 { all_l_h * 1000.0 / volume } else { 0.0 };
             let st = state
                 .entry(room.id.clone())
                 .or_insert(RoomAir { vapour_g_m3: outside, co2_g_m3: outside_c, ..Default::default() });
@@ -834,25 +1022,57 @@ pub fn step_rooms(
                 st.co2_g_m3 = outside_c;
             }
             let base = room.air_changes_per_hour.unwrap_or(d.base_air_changes_per_hour).max(0.0);
-            let s = fan_speed(st.vapour_g_m3, source, base, fan_max, outside, fan_set(d, humidified));
-            let n = base + s * fan_max;
+            // Its carbon dioxide's sources at the slice's start (with the
+            // life-support data): what its tents vented into it, its fungi's
+            // breath, less its crops' uptake at their light and its CO2.
+            let c0 = st.co2_g_m3;
+            let (co2_f, uptake_g_h, fungi_g_h) = match life {
+                Some(ld) => {
+                    let f = ld.co2_factor(life_support::co2_ppm(d, c0, t_room));
+                    (f, photo[i].0 / 24.0 * f, fungi_rate[i])
+                }
+                None => (0.0, 0.0, 0.0),
+            };
+            let s_c = ((if sh > 0.0 { vented_c[i] / sh } else { 0.0 }) + fungi_g_h - uptake_g_h) / volume;
+            // The CO2 fans (2026-09-27): switched on above their setpoint, on
+            // for the share of the time that holds it, off below
+            // (`co2_fan_duty`); the humidity fans are counted as they last ran.
+            // Only with the life-support data, which tracks the carbon dioxide.
+            let (dt_c, dt_c_req) = match (life.is_some(), co2_set_ppm.is_finite()) {
+                (true, true) => {
+                    let set_c = life_support::co2_g_m3(d, co2_set_ppm, t_room);
+                    let around = base + st.fan_speed * fan_max;
+                    (
+                        co2_fan_duty(c0, s_c, around, cfan_max, outside_c, set_c, sh),
+                        co2_fan_duty(c0, s_c, around, cfan_max_all, outside_c, set_c, sh),
+                    )
+                }
+                _ => (0.0, 0.0),
+            };
+            let base_c = base + dt_c * cfan_max;
+            let s = fan_speed(st.vapour_g_m3, source, base_c, fan_max, outside, fan_set(d, humidified));
+            let s_req = fan_speed(st.vapour_g_m3, source, base_c, fan_max_all, outside, fan_set(d, humidified));
+            let n = base_c + s * fan_max;
             // Its air handlers: their coil, the setpoint they hold (above a
             // humidifier's, like the fans, where one holds the room), their pull.
-            let (v_coil, set_a, a_max) = match life {
+            let (v_coil, set_a, a_max, a_max_all) = match life {
                 Some(ld) => {
                     let hq: f64 = handlers.iter().filter(|u| u.room == Some(i) && u.powered).map(|u| u.capacity).sum();
+                    let hq_all: f64 = handlers.iter().filter(|u| u.room == Some(i)).map(|u| u.capacity).sum();
                     let rh = if humidified {
                         ld.grow_room_setpoint_rh.max(d.humidifier_setpoint_rh + d.humidified_fan_margin_rh)
                     } else {
                         ld.grow_room_setpoint_rh
                     };
-                    (life_support::coil_vapour(d, ld, t_room), rh.clamp(0.0, 1.0) * sat, hq / volume)
+                    (life_support::coil_vapour(d, ld, t_room), rh.clamp(0.0, 1.0) * sat, hq / volume, hq_all / volume)
                 }
-                None => (0.0, sat, 0.0),
+                None => (0.0, sat, 0.0, 0.0),
             };
             let v0 = st.vapour_g_m3;
             let mut h = humidifier_share(v0, source, n, hum_max, outside, hum_set);
+            let h_req = humidifier_share(v0, source, n, hum_max_all, outside, hum_set);
             let ash = life_support::pull_share(v0, set_a, a_max, v_coil, source + h * hum_max + n * (outside - set_a));
+            let ash_req = life_support::pull_share(v0, set_a, a_max_all, v_coil, source + h * hum_max + n * (outside - set_a));
             let a = ash * a_max;
             let sinks = [(n, outside), (a, v_coil)];
             // The humidifiers' output held at its setpoint, the coil counted.
@@ -894,21 +1114,32 @@ pub fn step_rooms(
             st.humidifier_dry = !step.water_ok && powered_l_h > 0.0;
             st.air_handler = ash;
             st.condensate_l_day = a * (rv.x - v_coil).max(0.0) * volume * 24.0 / 1000.0;
+            st.co2_fan = dt_c;
             speed[i] = s;
+            speed_req[i] = s_req;
+            duty[i] = dt_c;
+            duty_req[i] = dt_c_req;
             share[i] = h;
+            share_req[i] = h_req;
             handler_share[i] = ash;
+            handler_req[i] = ash_req;
             // Its carbon dioxide (with the life-support data).
             if let Some(ld) = life {
-                let c0 = st.co2_g_m3;
-                let f = ld.co2_factor(life_support::co2_ppm(d, c0, t_room));
-                let uptake_g_h = photo[i].0 / 24.0 * f;
-                let fungi_g_h = if fungi_room[i] { room.substrate_kg * d.substrate_co2_g_kg_h.max(0.0) } else { 0.0 };
-                let s_c = ((if sh > 0.0 { vented_c[i] / sh } else { 0.0 }) + fungi_g_h - uptake_g_h) / volume;
+                let f = co2_f;
                 let rated = life_support::co2_g_m3(d, ld.scrubber_rated_ppm, t_room).max(1e-9);
-                let sc_g_h: f64 = scrubbers.iter().filter(|u| u.room == Some(i) && u.powered).map(|u| u.capacity * 1000.0 / 24.0).sum();
-                let b_max = sc_g_h / rated / volume;
+                let scrub = |powered_only: bool| -> f64 {
+                    scrubbers
+                        .iter()
+                        .filter(|u| u.room == Some(i) && (u.powered || !powered_only))
+                        .map(|u| u.capacity * 1000.0 / 24.0)
+                        .sum::<f64>()
+                        / rated
+                        / volume
+                };
+                let (b_max, b_max_all) = (scrub(true), scrub(false));
                 let set_c = life_support::co2_g_m3(d, ld.scrubber_setpoint_ppm, t_room);
                 let csh = life_support::pull_share(c0, set_c, b_max, 0.0, s_c + n * (outside_c - set_c));
+                scrubber_req[i] = life_support::pull_share(c0, set_c, b_max_all, 0.0, s_c + n * (outside_c - set_c));
                 let b = csh * b_max;
                 let rc = relax(c0, s_c, &[(n, outside_c), (b, 0.0)], sh, f64::INFINITY);
                 st.co2_g_m3 = rc.x;
@@ -972,39 +1203,50 @@ pub fn step_rooms(
             }
         }
     }
-    // Each fan draws its watts at the cube of its speed (the fan laws); a
-    // fan the electrical sim has shed stays where it was, off.
-    for (e, room, _, watts, powered) in fans {
-        if !powered {
-            continue;
-        }
-        if let Ok(mut pc) = world.get::<&mut PowerConsumer>(e) {
-            pc.draw_watts = (watts * speed[room].powf(d.fan_power_exponent.max(1.0))) as f32;
+    // Every machine's draw is written every step, powered or not
+    // (2026-09-27): a powered one draws what its controller runs it at, and
+    // one the electrical sim has shed asks for what it would draw with power,
+    // so the island sees its real request and gives it back its power when
+    // there is room. Writing only the powered ones left a shed unit asking
+    // for whatever it drew last (its spawn nameplate, 325 W for an air handler
+    // whose station supplies it), or for nothing, and it never came back.
+    //
+    // A humidity fan draws its watts at the cube of its speed (the fan laws);
+    // a CO2 fan is switched on and off by its controller, so it draws its
+    // watts for the share of the time it is on (humidity.ron, THE CO2 FANS).
+    for f in &fans {
+        if let Ok(mut pc) = world.get::<&mut PowerConsumer>(f.entity) {
+            pc.draw_watts = if f.on_co2() {
+                (f.watts * if f.powered { duty[f.room] } else { duty_req[f.room] }) as f32
+            } else {
+                let s = if f.powered { speed[f.room] } else { speed_req[f.room] };
+                (f.watts * s.powf(d.fan_power_exponent.max(1.0))) as f32
+            };
         }
     }
     // Each humidifier draws its watts in proportion to its output share
-    // (humidity.ron, THE HUMIDIFIER); one shed stays where it was, off.
+    // (humidity.ron, THE HUMIDIFIER).
     for (e, room, _, watts, powered) in hums {
-        if !powered {
-            continue;
-        }
         if let Ok(mut pc) = world.get::<&mut PowerConsumer>(e) {
-            pc.draw_watts = (watts * share[room]) as f32;
+            pc.draw_watts = (watts * if powered { share[room] } else { share_req[room] }) as f32;
         }
     }
     // Each room's air handlers along their fan's curve, its scrubbers for
     // the share of time they run (life_support.ron), on the home's grid only
-    // in the Realistic mode; the home's own are set by its step.
+    // in the Realistic mode (0 W in the Station-supplied mode, which the
+    // electrical sim never sheds); the home's own are set by its step.
     if let Some(ld) = life {
         let on_grid = if step.realistic { 1.0 } else { 0.0 };
-        for u in handlers.iter().filter(|u| u.powered) {
+        for u in &handlers {
             if let (Some(i), Ok(mut pc)) = (u.room, world.get::<&mut PowerConsumer>(u.entity)) {
-                pc.draw_watts = (u.watts * ld.fan_power_share(handler_share[i]) * on_grid) as f32;
+                let s = if u.powered { handler_share[i] } else { handler_req[i] };
+                pc.draw_watts = (u.watts * ld.fan_power_share(s) * on_grid) as f32;
             }
         }
-        for u in scrubbers.iter().filter(|u| u.powered) {
+        for u in &scrubbers {
             if let (Some(i), Ok(mut pc)) = (u.room, world.get::<&mut PowerConsumer>(u.entity)) {
-                pc.draw_watts = (u.watts * scrubber_share[i] * on_grid) as f32;
+                let s = if u.powered { scrubber_share[i] } else { scrubber_req[i] };
+                pc.draw_watts = (u.watts * s * on_grid) as f32;
             }
         }
     }
@@ -1038,8 +1280,14 @@ pub fn ventilate(world: &mut hecs::World, data: &DataStore, d: &HumidityData, ar
     // How long until the crops breathe it back: to the disease line, or to
     // where it was if that was lower, at the air change it has now.
     let source = st.breathed_l_day * d.vapour_share.max(0.0) * 1000.0 / 24.0 / volume;
-    let fan_max: f64 = fans.iter().filter(|f| Some(f.1) == ri && f.4).map(|f| f.2).sum::<f64>() / volume;
-    let n = room.air_changes_per_hour.unwrap_or(d.base_air_changes_per_hour).max(0.0) + st.fan_speed * fan_max;
+    // Its air changes now: its leakage, its humidity fans at their speed and
+    // its CO2 fans for the share of the time they run.
+    let fan_max = |co2: bool| -> f64 {
+        fans.iter().filter(|f| Some(f.room) == ri && f.powered && f.on_co2() == co2).map(|f| f.airflow).sum::<f64>() / volume
+    };
+    let n = room.air_changes_per_hour.unwrap_or(d.base_air_changes_per_hour).max(0.0)
+        + st.fan_speed * fan_max(false)
+        + st.co2_fan * fan_max(true);
     let target = before.min(d.notice_above_rh * d.room_saturation());
     let back = if n > 1e-12 {
         let eq = outside + source / n;
@@ -1203,6 +1451,9 @@ pub struct GuiView {
     /// fine, 1 a machine cannot keep up or has no power, 2 the air is past a
     /// limit). Empty without a home air space or the life-support data.
     pub home: Vec<(String, u8)>,
+    /// The garden's Off / Gentle / Realistic setting (`garden_pest_severity`),
+    /// which scales what stale air costs a fungus (2026-09-27).
+    severity: f32,
 }
 
 impl GuiView {
@@ -1236,33 +1487,51 @@ impl GuiView {
             .map(|area| {
                 let rh = map.rh_for(d, &area, &state);
                 let mut humidified = None;
+                // A mushroom tent over its CO2 limit, or its CO2 fan without
+                // power (2026-09-27).
+                let mut co2_warn = false;
                 let line = if super::is_field_area(&area) {
                     format!("Outdoor air {} humidity", pct(rh))
                 } else if let Some((i, room)) = map.area_room.get(&area).and_then(|i| map.rooms.get(*i).map(|r| (*i, r))) {
                     let st = state.get(&room.id).copied().unwrap_or_default();
-                    let here: Vec<_> = fans.iter().filter(|f| f.1 == i).collect();
+                    let here: Vec<_> = fans.iter().filter(|f| f.room == i && !f.on_co2()).collect();
+                    let co2_fans: Vec<_> = fans.iter().filter(|f| f.room == i && f.on_co2()).collect();
                     let hum: Vec<_> = hums.iter().filter(|h| h.1 == i).collect();
                     let mut parts = Vec::new();
                     if let Some(ach) = room.air_changes_per_hour {
-                        // A fruiting tent: its fresh air is set by its CO2.
+                        // A fruiting tent: its own fresh air is set by its CO2.
                         parts.push(format!("fresh air {:.0} m3 an hour for its CO2", ach * room.volume_m3()));
                     }
                     if here.is_empty() {
-                        // A humidified room or a tent says nothing of a fan it need not have.
-                        if hum.is_empty() && room.air_changes_per_hour.is_none() {
+                        // A humidified room, a tent or a room with a CO2 fan
+                        // says nothing of a fan it need not have.
+                        if hum.is_empty() && room.air_changes_per_hour.is_none() && co2_fans.is_empty() {
                             parts.push("no exhaust fan, its own leakage only".to_string());
                         }
-                    } else if !here.iter().any(|f| f.4) {
+                    } else if !here.iter().any(|f| f.powered) {
                         parts.push("exhaust fan off (no power)".to_string());
                     } else if st.fan_speed <= 0.0 {
                         parts.push("exhaust fan idle".to_string());
                     } else {
                         let w: f64 = here
                             .iter()
-                            .filter(|f| f.4)
-                            .map(|f| f.3 * st.fan_speed.powf(d.fan_power_exponent.max(1.0)))
+                            .filter(|f| f.powered)
+                            .map(|f| f.watts * st.fan_speed.powf(d.fan_power_exponent.max(1.0)))
                             .sum();
                         parts.push(format!("exhaust fan at {:.0}%, {w:.0} W", st.fan_speed * 100.0));
+                    }
+                    // Its CO2 fans (2026-09-27): switched on by their controller.
+                    if !co2_fans.is_empty() {
+                        let set = co2_fans.iter().map(|f| f.co2_set).fold(f64::INFINITY, f64::min);
+                        parts.push(if !co2_fans.iter().any(|f| f.powered) {
+                            co2_warn = true;
+                            "CO2 fan off (no power)".to_string()
+                        } else if st.co2_fan <= 0.0 {
+                            format!("CO2 fan idle (it runs above {} ppm)", thousands(set))
+                        } else {
+                            let w: f64 = co2_fans.iter().filter(|f| f.powered).map(|f| f.watts * st.co2_fan).sum();
+                            format!("CO2 fan on {:.0}% of the time, {w:.0} W", st.co2_fan * 100.0)
+                        });
                     }
                     if !hum.is_empty() {
                         let running = hum.iter().any(|h| h.4) && !st.humidifier_dry;
@@ -1306,7 +1575,11 @@ impl GuiView {
                             let ppm = life_support::co2_ppm(d, st.co2_g_m3, d.room_temp_c);
                             let mut co2 = format!("CO2 {} ppm", thousands(ppm));
                             if room.substrate_kg > 0.0 && ppm > d.fruiting_co2_limit_ppm {
-                                co2.push_str(&format!(", over the {} the mushrooms fruit under", thousands(d.fruiting_co2_limit_ppm)));
+                                co2_warn = true;
+                                co2.push_str(&format!(
+                                    ", over the {} the mushrooms fruit under: long stems, small caps and a smaller crop",
+                                    thousands(d.fruiting_co2_limit_ppm)
+                                ));
                             } else if st.co2_uptake_g_day > 0.0 {
                                 co2.push_str(&format!(", its crops take up {:.1} kg a day", st.co2_uptake_g_day / 1000.0));
                             }
@@ -1331,14 +1604,20 @@ impl GuiView {
                     None if rh > d.fan_setpoint_rh => 1,
                     None => 0,
                 };
-                (area, line, level)
+                (area, line, level.max(u8::from(co2_warn)))
             })
             .collect();
         let home = match (life, map.home_known) {
             (Some(ld), true) => home_lines(world, data, d, ld, &map, &handlers, &scrubbers, on_grid),
             _ => Vec::new(),
         };
-        Self { data: Some(d.clone()), map, state, areas, home }
+        let severity = data
+            .get::<Mutex<f32>>("garden_pest_severity")
+            .and_then(|m| m.lock().ok().map(|v| *v))
+            .filter(|v| v.is_finite())
+            .unwrap_or(super::pests::DEFAULT_PEST_SEVERITY)
+            .clamp(0.0, 1.0);
+        Self { data: Some(d.clone()), map, state, areas, home, severity }
     }
 
     /// The crop card's "Humidity" row: the air it grows in against its
@@ -1359,6 +1638,20 @@ impl GuiView {
             let cap = health_ceiling(d, Some(def), rh);
             if cap < 99.5 {
                 s.push_str(&format!(", holds health to {cap:.0}%"));
+            }
+        }
+        // A fungus's carbon dioxide (2026-09-27): stale air costs it its crop.
+        if let Some(def) = def.filter(|p| !p.needs_light) {
+            if let Some(ppm) = self.map.known_co2_ppm(d, crop.tower_id.as_deref().unwrap_or(""), &self.state) {
+                let limit = d.fungus_co2_limit_ppm(&def.id);
+                s.push_str(&format!("; CO2 {} ppm", thousands(ppm)));
+                if ppm > limit {
+                    s.push_str(&format!(", over the {} it fruits under", thousands(limit)));
+                    let cap = co2_ceiling(d, Some(def), ppm, self.severity);
+                    if cap < 99.5 {
+                        s.push_str(&format!(", holds health to {cap:.0}%"));
+                    }
+                }
             }
         }
         s

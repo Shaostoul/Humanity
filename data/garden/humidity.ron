@@ -105,6 +105,49 @@
 //   NIST       NIST Chemistry WebBook, carbon dioxide,
 //              https://webbook.nist.gov/cgi/cbook.cgi?ID=C124389 ; CODATA
 //              molar gas constant, https://physics.nist.gov/cgi-bin/cuu/Value?r
+//
+// Added 2026-09-27 (STALE AIR, THE FUNGI'S BREATH and THE CO2 FANS, at the
+// end), each read on 2026-09-27:
+//   Won 2010   Won, S.-Y., Jang, M.-J., Ju, Y. and Lee, Y.B., "Optimum CO2
+//              Concentration for Fruit-body Formation and Yield of Pleurotus
+//              ferulae Mushroom in the Growing Facility for Bottle
+//              Cultivation", Journal of Bio-Environment Control 19(2): 77-81,
+//              2010 (English abstract read at KCI,
+//              https://www.kci.go.kr/kciportal/ci/sereArticleSearch/ciSereArtiView.kci?sereArticleSearchBean.artiId=ART001457663)
+//   Cornell    "2. Seven Stages of Cultivation", in "Methods of Commercial
+//              Mushroom Cultivation in the Northeastern United States",
+//              Cornell Small Farms Program (no author or date on the page; its
+//              images are dated 2020-05; Northeast SARE subaward LNE19-376),
+//              https://smallfarms.cornell.edu/resources/methods-of-commercial-mushroom-cultivation-in-the-northeastern-united-states/2-seven-stages-of-cultivation/
+//   Jang 2003  Jang, K.Y., Jhune, C.S., Park, J.S., Cho, S.M., Weon, H.Y.,
+//              Cheong, J.C., Choi, S.G. and Sung, J.M., "Characterization of
+//              Fruitbody Morphology on Various Environmental Conditions in
+//              Pleurotus ostreatus", Mycobiology 31(3): 145-150, September
+//              2003, doi:10.4489/MYCO.2003.31.3.145 (abstract read at
+//              KoreaMed, https://www.koreamed.org/SearchBasic.php?RID=2052986)
+//   Hu 2013    Hu, S.H., Wu, C.Y., Chen, Y.K., Wang, J.C. and Chang, S.J.,
+//              "Effect of light and atmosphere on the cultivation of the
+//              golden oyster culinary-medicinal mushroom, Pleurotus
+//              citrinopileatus (higher Basidiomycetes)", International Journal
+//              of Medicinal Mushrooms 15(1): 101-111, 2013,
+//              doi:10.1615/IntJMedMushr.v15.i1.110 (abstract read through Europe PMC)
+//   IASRI      ICAR-Indian Agricultural Statistics Research Institute,
+//              Agridaksh, "Cultivation of White Button Mushroom (Agaricus
+//              bisporus)" (no author or date on the page),
+//              http://agridaksh.iasri.res.in/html_file/mushroom/white_button_mush.htm ,
+//              read in the Internet Archive's copy of 22 June 2014 (the site
+//              did not resolve)
+//   AC-CTC7    "CO2 Controller, Smart Carbon Dioxide Monitor 2-Outlet", AC
+//              Infinity product page (no page date),
+//              https://acinfinity.com/hydroponics-growers/co2-controller-smart-outlet-carbon-dioxide-monitor-for-co2-regulators-and-inline-fans/ ;
+//              and Redwood Mushroom Supply's listing of it,
+//              https://www.redwoodmushroomsupply.com/products/ac-infinity-co2-controller
+//   AC Infinity S4, S6  "CLOUDLINE S4, Quiet Inline Fan 4" with Speed
+//              Controller" (AI-CLS4),
+//              https://acinfinity.com/cloudline-s4-quiet-inline-fan-4-with-speed-controller/ ;
+//              "CLOUDLINE S6, Quiet Inline Fan 6" with Speed Controller"
+//              (AI-CLS6), https://acinfinity.com/cloudline-s6-quiet-inline-fan-6-with-speed-controller/
+//              (no page dates)
 (
     // -- RELATIVE AND ABSOLUTE HUMIDITY: the psychrometric formula ---------------
     //
@@ -360,10 +403,11 @@
     //     CO2, a GAME CHOICE. Since 2026-09-26 ship life support tracks every
     //     room's carbon dioxide (data/life_support.ron), so a tent really draws
     //     its room's air: six racks' tents lift a 300 m3 mushroom room about
-    //     540 ppm over the home's, and each tent then sits about 600 ppm over
-    //     that, past the 1,000 limit below. The Garden panel says so; the fix
-    //     (a fan for the mushroom room, or tents sized to their room's real air)
-    //     is the next rung (docs/design/ship-life-support.md).
+    //     540 ppm over the home's, and each tent then sat about 600 ppm over
+    //     that, 1,570 to 1,640 ppm, past the 1,000 limit below. Since
+    //     2026-09-27 each tent has a CO2 fan and the mushroom room one of its
+    //     own (THE CO2 FANS, at the end): this fresh air is the tent's own
+    //     (its gaps and vents), and the fan adds what the room's real air needs.
     //   The CO2 each cubic metre of intake air can take up is (1000 - 400)
     //   ppm of CO2's density at the rooms' 21 °C, P M / (R T) with FAO-56's
     //   sea-level P = 101.3 kPa (its equation 7 at z = 0), NIST's CO2
@@ -401,11 +445,117 @@
     // 5.6 L, 23 W and 0.56 kWh a day, against the room T7's 31 L, 100 W and
     // 2.4 kWh. One rack alone in a 300 m3 room: its tent takes 3.35 L and
     // 14 W, where holding the room took the T7 flat out at 31 L and 100 W,
-    // and still fell short of 90%.
+    // and still fell short of 90%. Since 2026-09-27 the CO2 fans (THE CO2
+    // FANS, at the end) draw more and drier air through the tents, and the
+    // humidifiers work harder: the family home's six tents about 122 W and
+    // 29 L a day together, the solo home's two about 34 W and 8 L, every tent
+    // still at 90.0% (docs/design/ship-life-support.md, section 7).
     substrate_co2_g_kg_h: 1.09,
     fruiting_co2_limit_ppm: 1000.0,
     intake_co2_ppm: 400.0,
     co2_molar_mass: 44.0095,
     air_pressure_kpa: 101.3,
     molar_gas_constant: 8.314462618,
+
+    // -- STALE AIR: WHAT CARBON DIOXIDE DOES TO A FRUITING MUSHROOM (2026-09-27) ----
+    //
+    // Cornell: "When CO2 is high, oyster and other mushrooms will form with long
+    // stems and little caps", and "Fresh air needs to be brought in to keep CO2
+    // levels below 1000 PPM for most species. Oysters are a little more picky and
+    // should be kept below 800 PPM." IASRI, on the button mushroom: "higher
+    // concentration of CO2 will lead to long stiped mushrooms with a small cap
+    // (opened), which reduces the crop yields."
+    //
+    // THE DOSE AND THE LOSS. The one measured series of yield against held CO2
+    // found for the oyster's genus is Won 2010, on Pleurotus ferulae (a variety of
+    // the king oyster, P. eryngii, the species Kim 2013 already stands for in
+    // FUNGI above): "The CO2 concentration levels in the growing facilities were
+    // 500 ppm, 1000 ppm, 1500 ppm and 2000 ppm of CO2, controlled by different
+    // ventilation amount. Yield of fruit body was highest of 102.4 g/bottle at
+    // 1000 ppm treatment and lowest of 75.1 g/bottle at 2000 ppm", and "total
+    // growing period took 16 days at 500 ppm, but 23 days at 2000 ppm". So 26.7%
+    // of the crop is lost over the 1,000 ppm above the best:
+    //   fungi_co2_loss_per_1000_ppm 0.267 = (102.4 - 75.1) / 102.4.
+    // A fungus in air holding more than its limit (fruiting_co2_limit_ppm above,
+    // Lin 2022's 1,000 ppm and also Won's best; or its own in `fungi` below) is
+    // capped at 100 x (1 - severity x 0.267 x (ppm - limit) / 1000), never below
+    // health_floor, the way FUNGI above caps it in dry air; the season health that
+    // follows is what its harvest is scaled by, the house's reading of yield.
+    //
+    // THREE GAME CHOICES. (1) A straight line through Won's two points, carried
+    // past his 2,000 ppm, so the cap reaches the house floor (80% lost) 3,000 ppm
+    // over the limit; Won published no 1,500 ppm yield in the abstract, and Jang
+    // 2003 found P. ostreatus "morphologically low qualities in more than 0.5% of
+    // CO2 concentration", where the line has long reached the floor. (2) Applied to
+    // every fungus: the genus's series stands for the shiitake and the button
+    // mushroom too, each from its own limit. (3) The loss is scaled by the
+    // garden's Off / Gentle / Realistic setting (`garden_pest_severity`, 0, 0.5,
+    // 1), the mode the house's other harms to a crop follow (the pests, the
+    // diseases, the weeds): Gentle halves it, Off turns it off. The slower growth
+    // Won measured is not modelled; the smaller harvest is.
+    //
+    // THE SOURCES DISAGREE on where the harm starts, and the model takes the
+    // cautious end. Lin 2022 puts the oyster's toxic line at "more than 0.1%" and
+    // Cornell's growers keep oysters "below 800 PPM"; but Jang 2003, on Korean
+    // bottle-grown P. ostreatus: "The optimum CO2 concentration for good morphology
+    // of P. ostreatus was 0.3%. But most fruitbody showed the morphologically low
+    // qualities in more than 0.5% of CO2 concentration." Hu 2013 had the golden
+    // oyster's "Biological efficiency and yield ... higher at CO2 levels of 0.05
+    // and 0.1% than other tested CO2 levels". Strains differ; the model's line
+    // starts at 1,000.
+    fungi_co2_loss_per_1000_ppm: 0.267,
+
+    // -- THE FUNGI'S BREATH: WHAT EACH ONE BREATHES OUT (2026-09-27) --------------
+    //
+    // Grams of carbon dioxide an hour from each "plant" of a fungus while it grows
+    // (plants.csv; data/garden/yields.ron MUSHROOMS: one 5 lb fruiting block for the
+    // oyster and the shiitake, one square foot of cased compost bed for the button
+    // mushroom). Only the blocks or square feet actually planted breathe: until
+    // 2026-09-27 a tent breathed for its whole ten-block load as soon as one shelf
+    // was planted, five times too much for one shelf of two blocks, and a button
+    // mushroom bed was charged as oyster blocks.
+    //   oyster_mushroom 2.472: Pavlik 2020's 1.09 g per kg of substrate an hour
+    //     (substrate_co2_g_kg_h above) x a 5 lb (2.268 kg) block.
+    //   shiitake 2.472: the same, a GAME CHOICE. Pavlik 2020 measured
+    //     P. ostreatus and Ganoderma lucidum only ("This study is focused on species
+    //     Pleurotus ostreatus and Ganoderma lucidum"), no shiitake rate was found,
+    //     and the shiitake fruits from the same 5 lb sawdust block.
+    //   button_mushroom 0.929: IASRI, for the cropping period "from the venting time
+    //     to completion of first 2 flushes": "During this period, CO2 production is
+    //     highest (10 g/h/m2)", x one square foot (0.0929 m2). The first two flushes'
+    //     rate, carried through the whole crop: an upper bound.
+    //     Its own limit, 1,500 ppm: IASRI's cropping room is brought to "800 to 1000
+    //     ppm, desired for pinhead formation", then "fresh air can be slightly
+    //     reduced to achieve 1000-1500 ppm CO2 concentration", and "CO2
+    //     concentration upto 1500 ppm is maintained during pinning & cropping".
+    // A fungus not listed breathes the median of the rows and takes the 1,000 limit.
+    fungi: [
+        (plants: ["oyster_mushroom"], co2_g_h_per_plant: 2.472),
+        (plants: ["shiitake"], co2_g_h_per_plant: 2.472),
+        (plants: ["button_mushroom"], co2_g_h_per_plant: 0.929, co2_limit_ppm: Some(1500.0)),
+    ],
+
+    // -- THE CO2 FANS: FRESH AIR ON A CO2 CONTROLLER (2026-09-27) ------------------
+    //
+    // What growers do about stale air: a fan switched by a CO2 controller. Redwood
+    // Mushroom Supply sells the AC Infinity CO2 controller to "monitor and regulate
+    // carbon dioxide levels, helping you maintain proper fresh air exchange in your
+    // mushroom grow tent or fruiting chamber", as it "Automates fresh air intake by
+    // triggering exhaust fans when CO₂ levels rise". AC Infinity's page (AC-CTC7):
+    // "2" outlets, "1100 W" of load, a "0 - 10,000 PPM" range, "100 to 240V". Its
+    // own draw is not published and is not modelled. Nor is a catch a grower would
+    // meet: the maker gives its "Operating Humidity" as "35 to 85% RH", and a
+    // fruiting tent is held at 90%.
+    //
+    // A machine with a `co2_setpoint_ppm` (data/machines) is such a fan: fully on
+    // while the air it stands in holds more carbon dioxide than its setpoint, on
+    // for the share of the time that holds the setpoint once there, off below
+    // (humidity.rs step_rooms: the balance the humidity fans' controller solves,
+    // on the carbon dioxide instead). Switched, it draws its watts for the share
+    // of the time it is on, not the cube of a speed. Where it stands decides what
+    // it exchanges: in a tent, the tent's air with its room; in a room, the room's
+    // air with the home's. Each machine's catalog entry gives the fan's product
+    // and the setpoint's reasoning; the balance they hold is measured by
+    // src/systems/farming/life_support_tests.rs and quoted in
+    // docs/design/ship-life-support.md.
 )

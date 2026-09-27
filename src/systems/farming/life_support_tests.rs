@@ -310,6 +310,85 @@ fn station_supplied_life_support_changes_only_who_pays() {
     assert!(r0 > 0.0 && (r0 - r1).abs() < 1e-9 && (g0 - g1).abs() < 1e-12 && (h0 - h1).abs() < 1e-12, "the same air and water either way: {runs:?}");
 }
 
+/// The air machines with the ELECTRICAL SYSTEM ticking on a short island
+/// (2026-09-27, the critic's review of v0.1377): every solar island is short at
+/// night (solar gives nothing from 18:00 to 06:00 and the wind 150 W), and in
+/// the default Station-supplied mode the air handlers take nothing from the
+/// home's grid. Here the island has 150 W against a 500 W load and two air
+/// handlers spawned drawing their 325 W nameplate, as the home's spawn gives
+/// them. They must keep (or get back) their power, and keep handing the water
+/// back. Seen red twice: with the electrical sim shedding 0 W loads (`*draw >
+/// 0.0`; the handlers went off at their first 0 W and stayed off), and with the
+/// air step writing only a powered unit's draw (the shed handlers kept asking
+/// for their 325 W nameplate, a phantom 650 W on the island, and never came
+/// back); either way no water came back.
+#[test]
+fn the_air_handlers_keep_their_power_through_a_short_night() {
+    use crate::ecs::components::PowerGenerator;
+    use crate::systems::electrical::{ElectricalSystem, PowerStatus};
+    let (mut data, mut world, _) = greenhouse(1000.0);
+    data.insert("power_status", Mutex::new(PowerStatus::default()));
+    data.insert(life_support::MODE_KEY, Mutex::new(false)); // Station-supplied, the default
+    world.spawn((PowerGenerator { output_watts: 150.0, fuel_per_second: 0.0, active: true },));
+    let lamp = world.spawn((PowerConsumer { draw_watts: 500.0, priority: 3, enabled: true },));
+    for (_, (_, pc)) in world.query_mut::<(&AirHandler, &mut PowerConsumer)>() {
+        pc.draw_watts = 325.0; // the spawn's nameplate
+    }
+    let mut power = ElectricalSystem::new(std::path::Path::new("data"));
+    let mut sys = FarmingSystem::new();
+    for _ in 0..1500 {
+        power.tick(&mut world, 1.0, &data);
+        advance(&data, 1.0);
+        sys.tick(&mut world, 1.0, &data);
+    }
+    assert!(!world.get::<&PowerConsumer>(lamp).unwrap().enabled, "the island is short: the 500 W load is shed");
+    let handlers: Vec<(bool, f32)> = world.query::<(&AirHandler, &PowerConsumer)>().iter().map(|(_, (_, p))| (p.enabled, p.draw_watts)).collect();
+    // Powered, and asking the home's grid for nothing: no phantom 325 W each.
+    assert!(handlers.iter().all(|(on, w)| *on && *w == 0.0), "the station powers them, and they keep their place on the island: {handlers:?}");
+    assert!(returned_lpm(&world) > 0.0, "the coils still hand the water back");
+    let d = air();
+    let rh = d.rh_of(memory(&world).rooms["room-a"].vapour_g_m3, d.room_temp_c);
+    assert!((rh - life().grow_room_setpoint_rh).abs() < 0.01, "the greenhouse held at 75%: {rh}");
+}
+
+/// Realistic mode on a short island (2026-09-27): the CO2 scrubber (priority
+/// 1) is fed before an optional load (priority 5), so with 900 W for its
+/// 860 W (about 423 W once it holds the setpoint) and a 600 W optional one it
+/// keeps its power and holds the home's CO2 at its setpoint while the
+/// optional load goes off. Seen red with the
+/// electrical sim's old order (priority 5 fed first: the scrubber was shed and
+/// the carbon dioxide climbed past 3,000 ppm).
+#[test]
+fn a_short_island_keeps_the_scrubber_before_an_optional_load() {
+    use crate::ecs::components::PowerGenerator;
+    use crate::systems::electrical::{ElectricalSystem, PowerStatus};
+    let (ld, d) = (life(), air());
+    let mut data = store(Vec::new(), Vec::new());
+    data.insert("power_status", Mutex::new(PowerStatus::default()));
+    data.insert(life_support::MODE_KEY, Mutex::new(true)); // Realistic
+    let mut world = hecs::World::new();
+    world.spawn((HomeAir { metabolic_kcal_per_day: 6600.0 }, EnclosedSpace::new_sealed(1000.0)));
+    let s = machine(&mut world, [0.0, 0.0, 0.0]);
+    world.insert(s, (Co2Scrubber { rated_kg_day: 4.74, watts: 860.0 }, PowerConsumer { draw_watts: 860.0, priority: 1, enabled: true })).unwrap();
+    world.spawn((PowerGenerator { output_watts: 900.0, fuel_per_second: 0.0, active: true },));
+    let optional = world.spawn((PowerConsumer { draw_watts: 600.0, priority: 5, enabled: true },));
+    world.spawn((Irrigator,));
+    let mut power = ElectricalSystem::new(std::path::Path::new("data"));
+    let mut sys = FarmingSystem::new();
+    sys.tick(&mut world, 0.001, &data);
+    let map = humidity::AirMap::new(&world, &data, &d);
+    world.query_mut::<&mut SoilMemory>().into_iter().for_each(|(_, m)| m.home_air.co2_g_m3 = life_support::co2_g_m3(&d, 2700.0, map.home_temp_c));
+    for _ in 0..2400 {
+        power.tick(&mut world, 1.0, &data);
+        advance(&data, 1.0);
+        sys.tick(&mut world, 1.0, &data);
+    }
+    assert!(world.get::<&PowerConsumer>(s).unwrap().enabled, "the scrubber keeps its power");
+    assert!(!world.get::<&PowerConsumer>(optional).unwrap().enabled, "the optional load is shed");
+    let ppm = life_support::co2_ppm(&d, home(&world).co2_g_m3, map.home_temp_c);
+    assert!((ppm - ld.scrubber_setpoint_ppm).abs() < 60.0, "held at the setpoint: {ppm}");
+}
+
 /// The household breathes into the home's own air in proportion to its food
 /// (three at 2,200 kcal: 1.95 kg of oxygen in, 2.33 kg of carbon dioxide and
 /// 5.3 L of water out a day), and above 2,636 ppm the scrubber takes the
@@ -392,16 +471,49 @@ fn crops_fix_carbon_by_day_and_not_by_night() {
     assert!((thin / want - ld.co2_factor(400.0)).abs() < 0.01, "{thin} of {want}");
 }
 
-/// The mushroom room's carbon dioxide (the gap doc's first known consequence):
-/// six racks' tents breathe out 148 g of CO2 an hour into a 300 m3 room that
-/// changes its air half a time an hour, so the room sits about 540 ppm above
-/// the home's, and each tent, whose fresh air was sized for 400 ppm intake,
-/// sits well over the 1,000 ppm the mushrooms fruit under. The Garden panel
-/// says so. Seen red by leaving the tents' vented CO2 out of their room's
-/// sources (the room then sat at the home's air).
-#[test]
-fn the_mushroom_rooms_carbon_dioxide_reaches_the_tents() {
-    let d = air();
+/// A rack's shelf floor, m2: the shipped rack's 1.2 x 0.6 m footprint, which
+/// every one of its five stacked shelves has whole (grow_media.ron `stacked`),
+/// so a shelf holds two 5 lb oyster blocks at plants.csv's 0.36 m2 a block.
+const RACK_SHELF_M2: f32 = 1.2 * 0.6;
+
+/// Six mushroom racks in their tents in a 300 m3 room (room-m), `shelves` of
+/// each rack's five shelves sown with `plant`, a tent humidifier (the shipped
+/// CLOUDFORGE T3: 0.24 L/h, 24 W) in every tent, and no fans.
+fn mushroom_room(plant: &str, shelves: u32) -> (DataStore, hecs::World) {
+    let (data, mut world) = mushroom_room_bare(plant, shelves);
+    for i in 0..6 {
+        let e = machine(&mut world, [1.5 + 1.4 * i as f32, 0.0, 5.0]);
+        world
+            .insert(e, (crate::ecs::components::Humidifier { output_l_h: 0.24, watts: 24.0 }, PowerConsumer { draw_watts: 24.0, priority: 4, enabled: true }))
+            .unwrap();
+    }
+    (data, world)
+}
+
+/// The shipped CO2 fans in `mushroom_room`: an AC Infinity CLOUDLINE S4 on top
+/// of each rack in its tent (384 m3/h, 28 W, switched at 900 ppm) and a
+/// CLOUDLINE S6 high on the room's wall (722.1 m3/h, 70 W, at 600 ppm), as
+/// home.ron places them. Returns (the tent fans, the room fan).
+fn co2_fans(world: &mut hecs::World) -> (Vec<hecs::Entity>, hecs::Entity) {
+    use crate::ecs::components::Ventilator;
+    let tents = (0..6)
+        .map(|i| {
+            let e = machine(world, [1.5 + 1.4 * i as f32, 1.6, 5.0]);
+            world
+                .insert(e, (Ventilator { airflow_m3_h: 384.0, watts: 28.0, co2_setpoint_ppm: 900.0 }, PowerConsumer { draw_watts: 28.0, priority: 4, enabled: true }))
+                .unwrap();
+            e
+        })
+        .collect();
+    let room = machine(world, [9.5, 2.4, 9.5]);
+    world
+        .insert(room, (Ventilator { airflow_m3_h: 722.1, watts: 70.0, co2_setpoint_ppm: 600.0 }, PowerConsumer { draw_watts: 70.0, priority: 4, enabled: true }))
+        .unwrap();
+    (tents, room)
+}
+
+/// `mushroom_room` without the humidifiers.
+fn mushroom_room_bare(plant: &str, shelves: u32) -> (DataStore, hecs::World) {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
     let media = crate::systems::grow_machines::load_grow_media(&root);
     let tent = media.iter().find(|m| m.matches("mushroom_rack")).and_then(|m| m.enclosure.clone()).unwrap();
@@ -409,12 +521,30 @@ fn the_mushroom_rooms_carbon_dioxide_reaches_the_tents() {
     let plots: Vec<GrowPlot> = (0..6)
         .map(|i| GrowPlot { id: format!("rack_{i}"), pos: [1.5 + 1.4 * i as f32, 0.0, 5.0], enclosure: Some(tent.clone()), ..Default::default() })
         .collect();
-    let data = store(rooms, plots);
+    let mut data = store(rooms, plots);
+    data.insert(units::PLOT_AREA_KEY, (0..6).map(|i| (format!("rack_{i}"), RACK_SHELF_M2)).collect::<HashMap<String, f32>>());
     let mut world = hecs::World::new();
     world.spawn((Irrigator,));
     for i in 0..6 {
-        world.spawn((crop(&data, "oyster_mushroom", &format!("rack_{i}"), 0, 0.0),));
+        for shelf in 0..shelves {
+            world.spawn((crop(&data, plant, &format!("rack_{i}"), shelf, 0.0),));
+        }
     }
+    (data, world)
+}
+
+/// The mushroom room's carbon dioxide with no CO2 fans (the gap doc's first
+/// known consequence): six racks' tents, every shelf sown (ten blocks a tent),
+/// breathe out 148 g of CO2 an hour into a 300 m3 room that changes its air
+/// half a time an hour, so the room sits about 540 ppm above the home's, and
+/// each tent, whose own fresh air was sized for 400 ppm intake, sits well over
+/// the 1,000 ppm the mushrooms fruit under. The Garden panel says so. Seen red
+/// by leaving the tents' vented CO2 out of their room's sources (the room then
+/// sat at the home's air).
+#[test]
+fn the_mushroom_rooms_carbon_dioxide_reaches_the_tents() {
+    let d = air();
+    let (data, mut world) = mushroom_room("oyster_mushroom", 5);
     let mut sys = FarmingSystem::new();
     for _ in 0..2400 {
         advance(&data, 1.0);
@@ -431,6 +561,170 @@ fn the_mushroom_rooms_carbon_dioxide_reaches_the_tents() {
     let view = humidity::GuiView::new(&world, &data);
     let line = &view.areas.iter().find(|(a, _, _)| a == "rack_0").unwrap().1;
     assert!(line.contains("over the 1,000 the mushrooms fruit under"), "{line}");
+}
+
+/// A tent breathes only the blocks planted in it, each species at its own rate
+/// (2026-09-27, the critic's review): one shelf of oysters (two 5 lb blocks)
+/// breathes out 2 x 2.472 g an hour, 118.7 g a day, five shelves 593 g, and a
+/// shelf of button mushroom its seven square feet of bed at IASRI's 10 g/h/m2,
+/// 156 g. Seen red with the old charge (the tent's whole 22.7 kg load at the
+/// oyster's rate, 593 g a day, as soon as any shelf held a fungus).
+#[test]
+fn a_tent_breathes_only_the_blocks_planted_at_each_species_rate() {
+    let d = air();
+    let run = |plant: &str, shelves: u32| -> f64 {
+        let (data, mut world) = mushroom_room(plant, shelves);
+        let mut sys = FarmingSystem::new();
+        for _ in 0..20 {
+            advance(&data, 1.0);
+            sys.tick(&mut world, 1.0, &data);
+        }
+        memory(&world).rooms["tent:rack_0"].co2_out_g_day
+    };
+    let one = run("oyster_mushroom", 1);
+    let five = run("oyster_mushroom", 5);
+    let button = run("button_mushroom", 1);
+    println!("one shelf {one:.1} g a day, five {five:.1}, a shelf of button mushroom {button:.1}");
+    assert!((one - 2.0 * d.fungus_co2_g_h("oyster_mushroom") * 24.0).abs() < 1e-6 && (one - 118.66).abs() < 0.01, "{one}");
+    assert!((five - 5.0 * one).abs() < 1e-6, "{five}");
+    let feet = (RACK_SHELF_M2 / 0.0929_f32).floor() as f64;
+    assert!((button - feet * 0.929 * 24.0).abs() < 1e-6 && feet == 7.0, "{button}");
+    // A fungus not listed breathes the median of the rows.
+    assert!((d.fungus_co2_g_h("a_new_fungus") - 2.472).abs() < 1e-12);
+    assert!((d.fungus_co2_limit_ppm("button_mushroom") - 1500.0).abs() < 1e-12 && (d.fungus_co2_limit_ppm("shiitake") - 1000.0).abs() < 1e-12);
+}
+
+/// What stale air costs a fruiting fungus (2026-09-27, humidity.ron STALE AIR):
+/// nothing up to its limit, then 26.7% of its crop for every 1,000 ppm over it
+/// (Won 2010: 102.4 g a bottle at 1,000 ppm, 75.1 at 2,000), scaled by the
+/// garden's Off / Gentle / Realistic setting and floored at the house's 20; a
+/// green crop is not harmed by it (it takes the carbon dioxide up), and the
+/// button mushroom starts from its own 1,500. Seen red by leaving the
+/// severity out (Gentle then cost the full loss).
+#[test]
+fn stale_air_costs_a_fruiting_mushroom_its_crop() {
+    let d = air();
+    let data = store(Vec::new(), Vec::new());
+    let reg = data.get::<PlantRegistry>("plant_registry").unwrap();
+    let (oyster, button, lettuce) = (reg.get("oyster_mushroom"), reg.get("button_mushroom"), reg.get("lettuce"));
+    assert_eq!(humidity::co2_ceiling(&d, oyster, 1000.0, 1.0), 100.0);
+    assert!((humidity::co2_ceiling(&d, oyster, 2000.0, 1.0) - 73.3).abs() < 0.01, "Won's 2,000 ppm");
+    assert!((humidity::co2_ceiling(&d, oyster, 2000.0, 0.5) - 86.65).abs() < 0.01, "Gentle halves it");
+    assert_eq!(humidity::co2_ceiling(&d, oyster, 2000.0, 0.0), 100.0, "Off");
+    assert_eq!(humidity::co2_ceiling(&d, oyster, 9000.0, 1.0), d.health_floor, "the floor");
+    assert_eq!(humidity::co2_ceiling(&d, lettuce, 9000.0, 1.0), 100.0, "a green crop");
+    assert_eq!(humidity::co2_ceiling(&d, button, 1500.0, 1.0), 100.0);
+    assert!((humidity::co2_ceiling(&d, button, 2500.0, 1.0) - 73.3).abs() < 0.01);
+}
+
+/// Through the tick: oysters fruiting in tents at about 1,540 ppm (six full
+/// racks, no CO2 fans, every tent held at 90% by its humidifier) are held to
+/// about 86 health at the Realistic setting and about 93 at Gentle; with the
+/// shipped CO2 fans they stay whole. Seen red by leaving `co2_ceiling` out of
+/// the crop's ceiling (the oysters then kept 100 in the stale air).
+#[test]
+fn oysters_in_stale_air_lose_health_and_the_co2_fans_spare_them() {
+    let d = air();
+    let run = |severity: f32, fans: bool| -> (f32, f64, String) {
+        let (data, mut world) = mushroom_room("oyster_mushroom", 5);
+        *data.get::<Mutex<f32>>("garden_pest_severity").unwrap().lock().unwrap() = severity;
+        if fans {
+            co2_fans(&mut world);
+        }
+        let mut sys = FarmingSystem::new();
+        for _ in 0..2400 {
+            advance(&data, 1.0);
+            sys.tick(&mut world, 1.0, &data);
+        }
+        let health = world.query::<&CropInstance>().iter().map(|(_, c)| c.health).fold(f32::INFINITY, f32::min);
+        let ppm = life_support::co2_ppm(&d, memory(&world).rooms["tent:rack_0"].co2_g_m3, d.room_temp_c);
+        // The crop card's air row (2026-09-27): a fungus's CO2 and its cap.
+        let view = humidity::GuiView::new(&world, &data);
+        let reg = data.get::<PlantRegistry>("plant_registry").unwrap();
+        let row = world
+            .query::<&CropInstance>()
+            .iter()
+            .find(|(_, c)| c.tower_id.as_deref() == Some("rack_0"))
+            .map(|(_, c)| view.crop_row(c, reg.get("oyster_mushroom")))
+            .unwrap();
+        (health, ppm, row)
+    };
+    let (realistic, ppm, row) = run(1.0, false);
+    let want = 100.0 * (1.0 - d.fungi_co2_loss_per_1000_ppm * (ppm - d.fruiting_co2_limit_ppm) / 1000.0);
+    println!("stale: {realistic} at {ppm:.0} ppm (cap {want:.1}); the card: {row}");
+    assert!(ppm > 1400.0 && (f64::from(realistic) - want).abs() < 0.5, "Realistic: {realistic} vs {want}");
+    assert!(row.contains("over the 1,000 it fruits under, holds health to"), "{row}");
+    let (gentle, _, _) = run(0.5, false);
+    assert!((f64::from(gentle) - (100.0 - (100.0 - want) / 2.0)).abs() < 0.5, "Gentle: {gentle}");
+    let (fanned, ppm, row) = run(1.0, true);
+    assert!(ppm <= 900.0 + 1e-6 && fanned > 99.9, "with the fans: {fanned} at {ppm}");
+    assert!(row.contains("; CO2 900 ppm") && !row.contains("over the"), "{row}");
+}
+
+/// The CO2 fans hold their airs at their setpoints (2026-09-27): each tent's
+/// S4 at 900 ppm, the room's S6 at or under 600, the tents still at 90% on
+/// their humidifiers, each fan drawing its watts for the share of the time it
+/// runs (switched, not the cube of a speed), and the Garden panel saying so.
+/// Unpowered, the tents go back over 1,000. Seen red by leaving the CO2 fans'
+/// air changes out of the rooms' exchange (`base_c`; the tents then sat at
+/// 1,540 with their fans "on").
+#[test]
+fn co2_fans_hold_the_tents_and_their_room_at_their_setpoints() {
+    let d = air();
+    let (data, mut world) = mushroom_room("oyster_mushroom", 5);
+    let (tent_fans, room_fan) = co2_fans(&mut world);
+    let mut sys = FarmingSystem::new();
+    for _ in 0..2400 {
+        advance(&data, 1.0);
+        sys.tick(&mut world, 1.0, &data);
+    }
+    let m = memory(&world);
+    let (tent, room) = (m.rooms["tent:rack_0"], m.rooms["room-m"]);
+    let (tent_ppm, room_ppm) = (life_support::co2_ppm(&d, tent.co2_g_m3, d.room_temp_c), life_support::co2_ppm(&d, room.co2_g_m3, d.room_temp_c));
+    println!("tent {tent_ppm:.1} ppm at {:.3} RH, fan on {:.3}; room {room_ppm:.1} ppm, fan on {:.3}", d.rh_of(tent.vapour_g_m3, d.room_temp_c), tent.co2_fan, room.co2_fan);
+    assert!((tent_ppm - 900.0).abs() < 0.5, "the tent held at 900: {tent_ppm}");
+    assert!(room_ppm <= 600.0 + 0.5, "the room at or under 600: {room_ppm}");
+    assert!((d.rh_of(tent.vapour_g_m3, d.room_temp_c) - 0.9).abs() < 0.002, "and still at 90%");
+    assert!(tent.co2_fan > 0.0 && tent.co2_fan < 1.0, "the tent fan on part of the time: {}", tent.co2_fan);
+    let draw = f64::from(world.get::<&PowerConsumer>(tent_fans[0]).unwrap().draw_watts);
+    assert!((draw - 28.0 * tent.co2_fan).abs() < 1e-3, "switched: {draw} W for {} of the time", tent.co2_fan);
+    let draw = f64::from(world.get::<&PowerConsumer>(room_fan).unwrap().draw_watts);
+    assert!((draw - 70.0 * room.co2_fan).abs() < 1e-3, "{draw} W");
+    let view = humidity::GuiView::new(&world, &data);
+    let line = &view.areas.iter().find(|(a, _, _)| a == "rack_0").unwrap().1;
+    assert!(line.contains("CO2 fan on ") && !line.contains("over the 1,000"), "{line}");
+    // Unpowered, the tents climb back over the limit.
+    for e in tent_fans {
+        world.get::<&mut PowerConsumer>(e).unwrap().enabled = false;
+    }
+    for _ in 0..600 {
+        advance(&data, 1.0);
+        sys.tick(&mut world, 1.0, &data);
+    }
+    let ppm = life_support::co2_ppm(&d, memory(&world).rooms["tent:rack_0"].co2_g_m3, d.room_temp_c);
+    assert!(ppm > d.fruiting_co2_limit_ppm, "unpowered: {ppm}");
+}
+
+/// The CO2 controller's share over a slice lands the air on its setpoint
+/// (2026-09-27): from above, the one steady share that ends the slice on it;
+/// under it and staying under without the fan, off; unable to bring the air
+/// down even flat out, on. A 1.73 m3 tent under a 384 m3/h fan, the case
+/// judging once a slice could not hold. Seen red with the plain `fan_speed`
+/// band controller (from above it ran flat out and flushed the tent far
+/// under its setpoint).
+#[test]
+fn a_co2_controller_lands_its_air_on_the_setpoint() {
+    let d = air();
+    let (v, tent_fan) = (1.3 * 1.9 * 0.7, 384.0);
+    let g = |ppm: f64| life_support::co2_g_m3(&d, ppm, d.room_temp_c);
+    let (source, base, fan, outside, set, h) = (24.72 / v, 22.6 / v, tent_fan / v, g(600.0), g(900.0), 0.1);
+    let end = |c0: f64, duty: f64| life_support::relax(c0, source, &[(base + duty * fan, outside)], h, f64::INFINITY).x;
+    let from_above = humidity::co2_fan_duty(g(1500.0), source, base, fan, outside, set, h);
+    assert!(from_above > 0.0 && from_above < 1.0 && (end(g(1500.0), from_above) - set).abs() < 1e-6 * set, "{from_above}");
+    let at = humidity::co2_fan_duty(set, source, base, fan, outside, set, h);
+    assert!((end(set, at) - set).abs() < 1e-6 * set && at < 0.2, "holding: {at}");
+    assert_eq!(humidity::co2_fan_duty(g(650.0), 0.0, base, fan, outside, set, h), 0.0, "under it, off");
+    assert_eq!(humidity::co2_fan_duty(g(1500.0), source, base, fan, g(950.0), set, h), 1.0, "its room over the setpoint: flat out");
 }
 
 /// The home's own air is saved with the soil memory and loads back the same.
@@ -576,13 +870,25 @@ mod shipped {
         o2_made_kg: f64,
         o2_used_kg: f64,
         leak_kg: f64,
+        /// Each machine type's draw over the day (2026-09-27): the average
+        /// watts of all its units together, and how many units there are.
+        by_type: std::collections::BTreeMap<String, (f64, usize)>,
+        /// The mushroom room's own CO2 and humidity, the day's range.
+        mushroom_room_ppm: (f64, f64),
+        mushroom_room_rh: (f64, f64),
     }
 
     /// Run a shipped home a game day to settle, then one to measure, each tick
     /// 6 s at 1x (a tenth of a game hour: one slice, the clock turning day and
     /// night), with `tweak` applied to the life-support data.
     fn settle_home(file: &str, tweak: impl Fn(&mut LifeSupportData)) -> HomeDay {
-        use crate::ecs::components::{Humidifier, RoomAir, Ventilator};
+        settle_home_with(file, tweak, |_| {})
+    }
+
+    /// `settle_home`, with `tweak_world` applied to the world after its first
+    /// tick (when the air has its state): a machine's setpoint, the home's CO2.
+    fn settle_home_with(file: &str, tweak: impl Fn(&mut LifeSupportData), tweak_world: impl Fn(&mut hecs::World)) -> HomeDay {
+        use crate::ecs::components::{Humidifier, MachineType, RoomAir, Ventilator};
         let (mut data, mut world) = shipped_home(file);
         let mut ld = life();
         tweak(&mut ld);
@@ -591,11 +897,21 @@ mod shipped {
         let mut sys = FarmingSystem::new();
         let dt = 6.0_f32;
         let per_day = (1200.0 / dt) as usize;
-        for _ in 0..per_day {
+        for tick in 0..per_day {
             advance(&data, f64::from(dt));
             sys.tick(&mut world, dt, &data);
+            if tick == 0 {
+                tweak_world(&mut world);
+            }
         }
-        let mut day = HomeDay { co2_ppm: (f64::INFINITY, 0.0), tents_rh: (1.0, 0.0), tents_co2_ppm: (f64::INFINITY, 0.0), ..Default::default() };
+        let mut day = HomeDay {
+            co2_ppm: (f64::INFINITY, 0.0),
+            tents_rh: (1.0, 0.0),
+            tents_co2_ppm: (f64::INFINITY, 0.0),
+            mushroom_room_ppm: (f64::INFINITY, 0.0),
+            mushroom_room_rh: (1.0, 0.0),
+            ..Default::default()
+        };
         let map = humidity::AirMap::new(&world, &data, &d);
         let surface0 = home(&world).ledger.surface_l;
         let watts = |world: &hecs::World, pick: fn(&hecs::EntityRef) -> bool| -> f64 {
@@ -618,6 +934,15 @@ mod shipped {
             }
             let ppm = life_support::co2_ppm(&d, m.home_air.co2_g_m3, map.home_temp_c);
             day.co2_ppm = (day.co2_ppm.0.min(ppm), day.co2_ppm.1.max(ppm));
+            if let Some(a) = m.rooms.get("room-mushroom") {
+                let (p, r) = (life_support::co2_ppm(&d, a.co2_g_m3, d.room_temp_c), d.rh_of(a.vapour_g_m3, d.room_temp_c));
+                day.mushroom_room_ppm = (day.mushroom_room_ppm.0.min(p), day.mushroom_room_ppm.1.max(p));
+                day.mushroom_room_rh = (day.mushroom_room_rh.0.min(r), day.mushroom_room_rh.1.max(r));
+            }
+            for (_, (mt, pc)) in world.query::<(&MachineType, &PowerConsumer)>().iter() {
+                let e = day.by_type.entry(mt.0.clone()).or_insert((0.0, 0));
+                e.0 += f64::from(pc.draw_watts) / n;
+            }
             day.handler_w += watts(&world, |e| e.has::<AirHandler>()) / n;
             day.scrubber_w += watts(&world, |e| e.has::<Co2Scrubber>()) / n;
             day.fan_w += watts(&world, |e| e.has::<Ventilator>()) / n;
@@ -648,6 +973,11 @@ mod shipped {
         }
         day.people_l = ld.breath(map.home_kcal).water_g_day / 1000.0;
         day.surface_l = home(&world).ledger.surface_l - surface0;
+        for (_, (mt, _)) in world.query::<(&crate::ecs::components::MachineType, &PowerConsumer)>().iter() {
+            if let Some(e) = day.by_type.get_mut(&mt.0) {
+                e.1 += 1;
+            }
+        }
         let m = memory(&world);
         let mut rooms: Vec<_> = m.rooms.iter().filter(|(id, _)| !id.starts_with("tent:")).collect();
         rooms.sort_by(|a, b| a.0.cmp(b.0));
@@ -670,9 +1000,21 @@ mod shipped {
     /// quote (docs/design/ship-life-support.md). Seen red before the court had
     /// its air handler: the family home's court sat at 100% and about 45 L a day
     /// condensed on its walls, lost to the tanks.
+    ///
+    /// Since 2026-09-27 (the CO2 fans): every tent is also held under the
+    /// 1,000 ppm its oysters fruit under, the mushroom room under its fan's
+    /// setpoint, and every catalog `average_watts` (what the static power
+    /// meter charges a controller-driven machine for the day) is the draw the
+    /// day measured, to within 5% or 1 W a unit. Seen red two ways: with the
+    /// tent CO2 fans moved out of home.ron's tents (the family tents then sat
+    /// at about 1,200 ppm, 600 over the room its own fan still held at 600),
+    /// and with home.ron's air handler `average_watts` left at its nameplate
+    /// 325 W (the day measured 224.8 W a unit).
     #[test]
     fn the_shipped_homes_hold_their_air_and_return_their_water() {
         let ld = life();
+        let d = air();
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("machines");
         for file in ["home.ron", "home_solo.ron"] {
             let day = settle_home(file, |_| {});
             assert!((day.greenhouse_rh - ld.grow_room_setpoint_rh).abs() < 0.02, "{file}: greenhouse {}", day.greenhouse_rh);
@@ -682,6 +1024,24 @@ mod shipped {
             assert!(day.surface_l < 0.01, "{file}: {} L condensed on walls, lost to the tanks", day.surface_l);
             let into_air = day.breathed_indoor_l + day.tents_breath_l + day.humidifier_l + day.people_l;
             assert!((day.returned_l - into_air).abs() < 0.01 * into_air, "{file}: {} L returned of {into_air} L put in the air", day.returned_l);
+            // The mushrooms' air (2026-09-27).
+            assert!(day.tents_co2_ppm.1 < d.fruiting_co2_limit_ppm, "{file}: tents at {:?} ppm, over the {}", day.tents_co2_ppm, d.fruiting_co2_limit_ppm);
+            let home = crate::machines::MachineHome::load(&root.join(file)).expect("home parses");
+            let room_set = f64::from(home.catalog["room_co2_fan"].co2_setpoint_ppm);
+            // The room under its fan's setpoint but at the family home's evening
+            // peak, where its S6 runs flat out and the room reaches about 604.
+            assert!(day.mushroom_room_ppm.1 <= room_set * 1.02, "{file}: the mushroom room at {:?} ppm, over its fan's {room_set}", day.mushroom_room_ppm);
+            // The static meter's average draws are the measured ones.
+            for (id, def) in &home.catalog {
+                let Some(crate::machines::MachinePower::Consumer { average_watts: Some(avg), .. }) = def.power else { continue };
+                let (total, units) = day.by_type.get(id).copied().unwrap_or_default();
+                assert!(units > 0, "{file}: `{id}` carries average_watts but none is placed");
+                let measured = total / units as f64;
+                assert!(
+                    (measured - f64::from(avg)).abs() <= (0.05 * measured).max(1.0),
+                    "{file}: `{id}` averages {measured:.1} W a unit over the day, its catalog says {avg}"
+                );
+            }
         }
     }
 
@@ -693,6 +1053,59 @@ mod shipped {
     fn print_the_shipped_homes_with_the_home_at_60_percent() {
         for file in ["home.ron", "home_solo.ron"] {
             settle_home(file, |l| l.home_setpoint_rh = 0.60);
+        }
+    }
+
+    /// Set the CO2 fans' setpoints: the tents' and the mushroom room's.
+    fn co2_setpoints(tent: f32, room: f32) -> impl Fn(&mut hecs::World) {
+        move |w: &mut hecs::World| {
+            for (_, (mt, v)) in w.query_mut::<(&crate::ecs::components::MachineType, &mut crate::ecs::components::Ventilator)>() {
+                match mt.0.as_str() {
+                    "tent_co2_fan" => v.co2_setpoint_ppm = tent,
+                    "room_co2_fan" => v.co2_setpoint_ppm = room,
+                    _ => {}
+                }
+            }
+        }
+    }
+
+    /// The mushroom CO2 fans at other setpoints (2026-09-27): what a lower or
+    /// higher setpoint costs in fan and humidifier power, and whether the
+    /// tents' small humidifiers still hold 90%. The measurements behind the
+    /// setpoints docs/design/ship-life-support.md quotes; not a guard.
+    #[test]
+    #[ignore]
+    fn print_the_mushroom_co2_fans_at_other_setpoints() {
+        for file in ["home.ron", "home_solo.ron"] {
+            for (tent, room) in [(800.0, 600.0), (800.0, 500.0), (900.0, 600.0), (900.0, 550.0), (950.0, 650.0)] {
+                println!("== {file}: tents held at {tent} ppm, the mushroom room at {room}");
+                let day = settle_home_with(file, |_| {}, co2_setpoints(tent, room));
+                println!("== {file} {tent}/{room}: tents {:?} ppm {:?} RH, room {:?} ppm, fans {:.1} W, humidifiers {:.1} W", day.tents_co2_ppm, day.tents_rh, day.mushroom_room_ppm, day.fan_w, day.humidifier_w);
+            }
+        }
+    }
+
+    /// Both homes with the home's own air started where its carbon dioxide
+    /// settles (2026-09-27): the family home's crops only take up all it makes
+    /// near 800 ppm (Kimball's law), weeks of play after a new game starts at
+    /// 400; the solo home's near 470. Whether the mushroom tents can still be
+    /// held there, and at what cost. A measurement, not a guard.
+    #[test]
+    #[ignore]
+    fn print_the_shipped_homes_with_the_home_air_at_its_settled_co2() {
+        for (file, ppm) in [("home.ron", 700.0), ("home_solo.ron", 450.0)] {
+            println!("== {file}: the home's air started at {ppm} ppm of CO2");
+            settle_home_with(file, |_| {}, move |w: &mut hecs::World| {
+                let t_c = w
+                    .query::<&EnclosedSpace>()
+                    .iter()
+                    .next()
+                    .map_or(20.0, |(_, s)| f64::from(s.atmosphere.temperature_k) - 273.15);
+                let g = life_support::co2_g_m3(&air(), ppm, t_c);
+                for (_, m) in w.query_mut::<&mut SoilMemory>() {
+                    m.home_air.co2_g_m3 = g;
+                }
+            });
         }
     }
 }

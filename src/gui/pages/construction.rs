@@ -570,7 +570,11 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) {
             //    power balances, the battery carries the night, wiring is intact. Shown always
             //    (not per-room); the same report an AI can call before committing a design. ──
             if let Some(home) = &state.home_machines {
-                draw_buildability(ui, theme, home);
+                // Who powers ship life support (Settings > Gameplay), so the
+                // meters charge the air handlers and the scrubber to the home or
+                // to the station (2026-09-27).
+                let basis = crate::machines::MeterBasis { life_support_on_grid: state.garden_pests.life_support_realistic };
+                draw_buildability(ui, theme, home, basis);
             }
 
             ui.add_space(theme.spacing_md);
@@ -3887,12 +3891,12 @@ fn draw_palette(ctx: &Context, theme: &Theme, state: &mut GuiState) {
 /// the load, energy balances over a representative day with the battery carrying the solar-off
 /// window, and the wiring is intact. Read-only; the same MachineHome::buildability_report an AI
 /// can call before committing a design. 4.5 = the self-sufficiency model's representative sun-hours.
-fn draw_buildability(ui: &mut egui::Ui, theme: &Theme, home: &crate::machines::MachineHome) {
+fn draw_buildability(ui: &mut egui::Ui, theme: &Theme, home: &crate::machines::MachineHome, basis: crate::machines::MeterBasis) {
     use crate::machines::CheckStatus;
     ui.add_space(theme.spacing_md);
     ui.separator();
     ui.label(RichText::new("Buildability").strong().color(theme.text_primary()));
-    let report = home.buildability_report(4.5);
+    let report = home.buildability_report(4.5, basis);
     if report.checks.is_empty() {
         ui.label(
             RichText::new("No systems to check yet -- place a panel, battery, and a load.")
@@ -3916,10 +3920,21 @@ fn draw_buildability(ui: &mut egui::Ui, theme: &Theme, home: &crate::machines::M
     }
     // Usage / self-sufficiency METERS (v0.630, grid S2): per-utility daily generation vs demand, framed
     // to TEACH (how much you make + use, how self-sufficient you are) -- never a penalty for consuming.
-    let meters = home.utility_meters(4.5);
+    let meters = home.utility_meters(4.5, basis);
     if !meters.is_empty() {
         ui.add_space(theme.spacing_sm);
         ui.label(RichText::new("Usage + self-sufficiency").strong().color(theme.text_primary()));
+        // What the power figure charges (2026-09-27): each machine's average
+        // draw over a day, not its full draw around the clock.
+        ui.label(
+            RichText::new(if basis.life_support_on_grid {
+                "Each machine at its average draw over a day. The air handlers and the CO2 scrubber are on your home's grid (Settings, Ship life support: Realistic)."
+            } else {
+                "Each machine at its average draw over a day. The station's own plant powers the air handlers and the CO2 scrubber (Settings, Ship life support: Station-supplied)."
+            })
+            .size(theme.font_size_small)
+            .color(theme.text_muted()),
+        );
         for m in &meters {
             let c = crate::machines::MachineHome::connection_color(&m.utility);
             let col = egui::Color32::from_rgb((c[0] * 255.0) as u8, (c[1] * 255.0) as u8, (c[2] * 255.0) as u8);
@@ -3934,7 +3949,7 @@ fn draw_buildability(ui: &mut egui::Ui, theme: &Theme, home: &crate::machines::M
     // placed: green = the lights fit inside the free solar headroom; amber = the home now eats its
     // battery reserves every day to keep them on; red = the lights ALONE outdraw everything the
     // home generates -- the visceral proof of why the garden grows under the sun, not LEDs.
-    if let Some(gl) = home.grow_light_report(4.5) {
+    if let Some(gl) = home.grow_light_report(4.5, basis) {
         use crate::machines::GrowLightVerdict;
         ui.add_space(theme.spacing_sm);
         ui.label(RichText::new("Grow-light power meter").strong().color(theme.text_primary()));
@@ -4082,6 +4097,7 @@ mod multi_select_tests {
             lights_crops: false,
             pollinates_crops: false,
             ventilation_m3_h: 0.0,
+            co2_setpoint_ppm: 0.0,
             humidifies_l_h: 0.0,
             dehumidifies_m3_h: 0.0,
             scrubs_co2_kg_day: 0.0,

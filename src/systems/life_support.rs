@@ -568,6 +568,10 @@ pub fn step_home(
     let set_v = ld.home_setpoint_rh.clamp(0.0, 1.0) * sat;
     let load_v = s_v - f_leak * set_v;
     let share_v = pull_share(state.vapour_g_m3, set_v, a_max, v_coil, load_v);
+    // What a handler the electrical sim has shed would run at with power:
+    // its request (2026-09-27), the controller's share with every unit.
+    let a_all = handlers.iter().map(|u| u.capacity).sum::<f64>() / v;
+    let share_v_req = pull_share(state.vapour_g_m3, set_v, a_all, v_coil, load_v);
     let a = share_v * a_max;
     let rv = relax(state.vapour_g_m3, s_v, &[(a, v_coil), (f_leak, 0.0)], h, sat);
     let condensed_g = rv.to_sink(a, v_coil, h) * v;
@@ -588,11 +592,17 @@ pub fn step_home(
     for u in handlers.iter().filter(|u| u.powered) {
         out.condensate_by_entity.insert(u.entity, if hq > 0.0 { rate_l_day * u.capacity / hq } else { 0.0 });
     }
+    // Every handler's draw, powered or not (2026-09-27): a powered one draws
+    // along its fan's curve, a shed one asks for what it would draw with
+    // power, so the island sees its request and powers it again when it can.
+    // In the Station-supplied mode the station's plant powers them: 0 W on
+    // the home's grid, which the electrical sim never sheds. (Writing only the
+    // powered ones left a shed handler asking for its spawn nameplate, a
+    // phantom 325 W on the home's grid in the Station-supplied mode.)
     for u in handlers {
         if let Ok(mut pc) = world.get::<&mut crate::ecs::components::PowerConsumer>(u.entity) {
-            if u.powered {
-                pc.draw_watts = if inp.realistic { (u.watts * ld.fan_power_share(share_v)) as f32 } else { 0.0 };
-            }
+            let share = if u.powered { share_v } else { share_v_req };
+            pc.draw_watts = if inp.realistic { (u.watts * ld.fan_power_share(share)) as f32 } else { 0.0 };
         }
     }
 
@@ -606,17 +616,21 @@ pub fn step_home(
     let set_c = co2_g_m3(hd, ld.scrubber_setpoint_ppm, t);
     let load_c = s_c - f_leak * set_c;
     let share_c = pull_share(state.co2_g_m3, set_c, b_max, 0.0, load_c);
+    let b_all = scrubbers.iter().map(|u| u.capacity * 1000.0 / 24.0).sum::<f64>() / rated_g_m3 / v;
+    let share_c_req = pull_share(state.co2_g_m3, set_c, b_all, 0.0, load_c);
     let b = share_c * b_max;
     let rc = relax(state.co2_g_m3, s_c, &[(b, 0.0), (f_leak, 0.0)], h, f64::INFINITY);
     let taken_home_g = uptake_g_h * h - rc.short * v;
     state.co2_g_m3 = rc.x;
     state.scrubber = share_c;
     state.scrubbed_kg_day = b * rc.x * v * 24.0 / 1000.0;
+    // Every scrubber's draw, powered or not, the same way (2026-09-27): above
+    // its setpoint a shed scrubber asks for its full 860 W, and as a
+    // priority-1 load it is fed before the optional ones.
     for u in scrubbers {
         if let Ok(mut pc) = world.get::<&mut crate::ecs::components::PowerConsumer>(u.entity) {
-            if u.powered {
-                pc.draw_watts = if inp.realistic { (u.watts * share_c) as f32 } else { 0.0 };
-            }
+            let share = if u.powered { share_c } else { share_c_req };
+            pc.draw_watts = if inp.realistic { (u.watts * share) as f32 } else { 0.0 };
         }
     }
 

@@ -4,8 +4,13 @@
 //!   1. Sum all `PowerGenerator.output_watts` where `active`.
 //!   2. Sum all `PowerConsumer.draw_watts` where `enabled`.
 //!   3. If supply >= demand: every consumer stays enabled.
-//!   4. If supply < demand: shed load by `priority` (highest priority off first)
-//!      until supply >= remaining demand.
+//!   4. If supply < demand: feed the loads in `priority` order, 1 (critical)
+//!      first and 5 (optional) last, and shed each one the supply left cannot
+//!      carry, so the optional loads go off first and the critical ones last.
+//!      A load drawing nothing is never shed: it takes nothing from the island
+//!      (an idle fan, an idle scrubber, or an air machine the station's own
+//!      plant powers), and shedding it would keep it off until the island has
+//!      a surplus again (2026-09-27).
 //!   5. Throttle log spam to once per 5 seconds.
 //!
 //! Fueled BACKSTOP gensets (v0.733): a generator with `fuel_per_second > 0`
@@ -259,8 +264,14 @@ impl System for ElectricalSystem {
         for key in keys {
             let total_gen = gen_by.get(&key).copied().unwrap_or(0.0);
             let mut consumers = cons_by.remove(&key).unwrap_or_default();
-            // Highest priority shed FIRST (convention: priority 5 = optional, 1 = critical).
-            consumers.sort_by(|a, b| b.2.cmp(&a.2));
+            // Fed in priority order, 1 (critical) FIRST, so the optional loads
+            // (5) are the ones the supply runs out on and are shed first
+            // (convention: priority 5 = optional, 1 = critical). Until
+            // 2026-09-27 this sorted 5 first and fed it first, which shed the
+            // critical loads first: the CO2 scrubber, priority 1, was the first
+            // thing to go off. A stable sort, so equal priorities keep the
+            // query's order.
+            consumers.sort_by(|a, b| a.2.cmp(&b.2));
             let total_demand: f32 = consumers.iter().map(|(_, w, _)| *w).sum();
             demand_all += total_demand;
 
@@ -275,7 +286,13 @@ impl System for ElectricalSystem {
                 }
             } else {
                 for (e, draw, _) in &consumers {
-                    if remaining >= *draw && *draw > 0.0 {
+                    // A load drawing nothing takes nothing, so it keeps (or
+                    // gets back) its power even on a short island (2026-09-27):
+                    // shedding it left an idle air handler, or one the
+                    // station's plant powers, off all night, and a shed unit
+                    // never asked again, because the air step only drives a
+                    // powered one.
+                    if *draw <= 0.0 || remaining >= *draw {
                         remaining -= *draw;
                         consumed += *draw;
                         if world.get::<&PowerConsumer>(*e).map(|c| !c.enabled).unwrap_or(false) {
@@ -561,5 +578,54 @@ mod tests {
         let ps = data.get::<std::sync::Mutex<PowerStatus>>("power_status").unwrap().lock().unwrap();
         assert!((ps.generation - 1000.0).abs() < 1.0, "generation {}", ps.generation);
         assert!((ps.consumption - 200.0).abs() < 1.0, "only the powered load draws: {}", ps.consumption);
+    }
+
+    /// A short island sheds its OPTIONAL loads first (2026-09-27): with 1,000
+    /// W for a 860 W priority-1 load (the CO2 scrubber) and a 300 W
+    /// priority-5 one, the critical load keeps its power and the optional one
+    /// goes off. Seen red with the old sort (priority 5 fed first: the
+    /// optional load ran and the scrubber was shed).
+    #[test]
+    fn a_short_island_sheds_its_optional_loads_first() {
+        use super::{ElectricalSystem, PowerStatus};
+        use crate::ecs::components::{PowerCircuit, PowerConsumer, PowerGenerator};
+        use crate::ecs::systems::System;
+        use crate::hot_reload::data_store::DataStore;
+        let mut data = DataStore::new();
+        data.insert("power_status", std::sync::Mutex::new(PowerStatus::default()));
+        let mut world = hecs::World::new();
+        world.spawn((PowerGenerator { output_watts: 1000.0, fuel_per_second: 0.0, active: true }, PowerCircuit { island: 0 }));
+        let optional = world.spawn((PowerConsumer { draw_watts: 300.0, priority: 5, enabled: true }, PowerCircuit { island: 0 }));
+        let critical = world.spawn((PowerConsumer { draw_watts: 860.0, priority: 1, enabled: true }, PowerCircuit { island: 0 }));
+        let mut sys = ElectricalSystem::new(std::path::Path::new("data"));
+        sys.tick(&mut world, 1.0, &data);
+        assert!(world.get::<&PowerConsumer>(critical).unwrap().enabled, "priority 1 keeps its power");
+        assert!(!world.get::<&PowerConsumer>(optional).unwrap().enabled, "priority 5 is shed");
+    }
+
+    /// A load drawing nothing is never shed, and gets its power back on a
+    /// short island (2026-09-27): an idle air handler, or one the station's
+    /// plant powers, draws 0 W, and shedding it kept it off until the island
+    /// had a surplus, which a solar island does not have at night. Seen red
+    /// with the old `*draw > 0.0` guard (both 0 W loads went off and stayed off).
+    #[test]
+    fn a_load_drawing_nothing_is_never_shed() {
+        use super::{ElectricalSystem, PowerStatus};
+        use crate::ecs::components::{PowerCircuit, PowerConsumer, PowerGenerator};
+        use crate::ecs::systems::System;
+        use crate::hot_reload::data_store::DataStore;
+        let mut data = DataStore::new();
+        data.insert("power_status", std::sync::Mutex::new(PowerStatus::default()));
+        let mut world = hecs::World::new();
+        world.spawn((PowerGenerator { output_watts: 150.0, fuel_per_second: 0.0, active: true }, PowerCircuit { island: 0 }));
+        world.spawn((PowerConsumer { draw_watts: 500.0, priority: 3, enabled: true }, PowerCircuit { island: 0 }));
+        let idle = world.spawn((PowerConsumer { draw_watts: 0.0, priority: 2, enabled: true }, PowerCircuit { island: 0 }));
+        let was_shed = world.spawn((PowerConsumer { draw_watts: 0.0, priority: 2, enabled: false }, PowerCircuit { island: 0 }));
+        let mut sys = ElectricalSystem::new(std::path::Path::new("data"));
+        for _ in 0..3 {
+            sys.tick(&mut world, 1.0, &data);
+        }
+        assert!(world.get::<&PowerConsumer>(idle).unwrap().enabled, "an idle load keeps its power on a short island");
+        assert!(world.get::<&PowerConsumer>(was_shed).unwrap().enabled, "and one shed earlier gets it back");
     }
 }

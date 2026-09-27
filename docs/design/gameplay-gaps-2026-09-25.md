@@ -879,6 +879,54 @@ date; re-check before trusting one. The container data basis is
   a record of each unit's last dose. (7) The ash's 1% P2O5 is not credited,
   and a crop that has not ticked yet gets no potash. (8) Of the ore smelts
   whose ash goes to the slag, only iron and copper leave any slag.
+- **The mushrooms' air, the static power meter and a short night: DONE
+  2026-09-27** (ship life support, rung two; the balance in
+  [ship-life-support.md](ship-life-support.md), every number with its quoted,
+  dated source in `data/garden/humidity.ron`). STALE AIR: a fruiting fungus in
+  air past its CO2 limit is capped the way dry air caps it, 26.7% of its crop
+  per 1,000 ppm over (Won et al. 2010: the oyster's genus gave 102.4 g a bottle
+  at 1,000 ppm and 75.1 at 2,000), from 1,000 ppm (Lin 2022) or the button
+  mushroom's 1,500 (IASRI), scaled by the garden's Off / Gentle / Realistic
+  setting; the Garden panel says "long stems, small caps and a smaller crop".
+  THE CO2 FANS: what growers do, a fan on a CO2 controller (the AC Infinity CO2
+  controller mushroom suppliers sell for fruiting tents). A `co2_setpoint_ppm`
+  on a fan machine makes it one: each rack's tent has a CLOUDLINE S4 (384 m3/h,
+  28 W) at 900 ppm and each mushroom room a CLOUDLINE S6 (722 m3/h, 70 W) at
+  600, on for the share of the time that lands the air on the setpoint. On the
+  measured day every tent in both homes holds 900 ppm and 90.0% (they sat at
+  1,570 to 1,640 ppm in the family home and 1,180 to 1,200 in the solo), for
+  about 4.4 and 0.9 kWh a day of fans and humidifiers (was 0.6 and 0.4). 800 ppm,
+  Cornell's figure for oysters, is out of the family tents' small humidifiers'
+  reach (they fell to 81 to 89%). And only what is planted breathes now, at each
+  species' rate: a tent used to breathe its whole ten blocks' worth as soon as
+  one shelf was planted, and a button mushroom bed was charged as oyster blocks.
+  FOUND, NOT FIXED: the family home's air does not stay near 470 ppm. Its crops
+  only take up all the carbon dioxide it makes near 675 ppm, weeks into a game
+  (not 800, as this rung's first pass estimated), and there the tents' fans pull
+  so much of the room's 700 to 780 ppm air that their humidifiers, flat out, let
+  the tents fall to 71 to 82%, under the oyster's 85%: the mushrooms make 3.6 of
+  the home's 5.9 kg of carbon dioxide a day and cannot fruit in the air they
+  enrich. A home of their own for the mushrooms' air, or a way for it to reach
+  the crops, is the operator's call. THE METER: the Construction page's Usage
+  and Buildability figures charged every consumer its full draw for 24 hours
+  (each air handler 7.8 kWh a day in either mode, the stove 28.8); they now
+  charge each machine's average draw (`MachineDef::average_load_watts`): ship
+  life support nothing in the Station-supplied mode and its measured
+  `average_watts` in the Realistic one, work stations their idle draw with the
+  working draw named, grow lights their timer's 6 hours. A SHORT NIGHT (the
+  review of v0.1377): the electrical sim fed priority 5 first, so the CO2
+  scrubber was the first load shed, and it shed every 0 W load, so in the
+  default mode the air handlers went off at nightfall and stayed off (a shed
+  unit never asked again, or kept asking for its 325 W spawn nameplate). Now it
+  feeds priority 1 first, never sheds a load drawing nothing, and every air
+  machine writes its request each step; tests run the power system on a short
+  island. `data/home_outline.json`'s sealed air loop is corrected from Hanford
+  2004 Table 7.3.2: the CO2 sorbent bed 4.8 kWh a day (was 0.6), trace
+  contaminant control 4.3 (was 0.2, although "about 200 W" is 4.8), so a sealed
+  one-person home needs 14.1 kWh a day for its air and 45 panels (was 5.8 and
+  24). The family Energy loop no longer closes even Station-supplied (about 15.8
+  against 15.1 kWh a day: the fans and the humidifiers they work harder); one
+  more panel would close it.
 
 ## Defects found (things that are wrong, not merely missing)
 
