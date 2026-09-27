@@ -266,6 +266,10 @@ them up.
    O2 from plants as a mass balance through the ship's air. Crop light from the
    ship's real sun direction (the BUG-090 fix) waits on item 3. Seasons and
    ground farming (Silverdale in data/home_outline.json) come after.
+   **Follow-up (asked 2026-09-27):** TIER 0 is all rendering, while the
+   spaceship-first answer sent the day's work to arc C (the playable game and
+   ship life support). Should arc C rank against TIER 0, or stay a fenced arc
+   worked beside it?
 3. **One clock or two, for the body and the garden (asked 2026-09-26).** The body
    runs on real seconds, the garden on 20-minute game days at 10x growth, so
    urine is a fraction of a percent of the garden's nitrogen in play, and room
