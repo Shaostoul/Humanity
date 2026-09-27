@@ -275,9 +275,27 @@ impl System for ElectricalSystem {
             let total_demand: f32 = consumers.iter().map(|(_, w, _)| *w).sum();
             demand_all += total_demand;
 
-            let mut remaining = total_gen;
+            // What this island's batteries can give this tick: each bank's
+            // discharge limit, and no more than the energy it holds (the
+            // integration below takes exactly what the loads used). Until
+            // 2026-09-27 discharge only tracked state and never kept a load
+            // on, so every solar island shed its loads at sunset however full
+            // its batteries were (the "does not yet prevent the shed" defect,
+            // docs/design/sim-realism-roadmap.md row 16).
+            let batt_supply: f32 = batt_by.get(&key).map_or(0.0, |banks| {
+                banks
+                    .iter()
+                    .filter_map(|e| world.get::<&Battery>(*e).ok())
+                    .map(|b| {
+                        let held_w = if dt > 0.0 { b.charge_wh.max(0.0) * 3600.0 / dt } else { 0.0 };
+                        b.max_discharge_w.max(0.0).min(held_w)
+                    })
+                    .sum()
+            });
+            let supply = total_gen + batt_supply;
+            let mut remaining = supply;
             let mut consumed = 0.0_f32;
-            if total_demand <= total_gen {
+            if total_demand <= supply {
                 for (e, draw, _) in &consumers {
                     if world.get::<&PowerConsumer>(*e).map(|c| !c.enabled).unwrap_or(false) {
                         to_enable.push(*e);
@@ -307,8 +325,10 @@ impl System for ElectricalSystem {
             consumed_all += consumed;
 
             // Batteries on THIS island buffer this island's surplus/deficit (sequential bite, no
-            // double counting). Discharge tracks state; it does not yet prevent the shed above.
-            let mut grid_balance = total_gen - total_demand;
+            // double counting). The balance is what the loads that stayed on USED against what
+            // was generated, so a battery charges from real surplus and drains only for loads
+            // it actually kept on (it used to drain for shed loads too).
+            let mut grid_balance = total_gen - consumed;
             if let Some(batts) = batt_by.remove(&key) {
                 for e in batts {
                     if let Ok(mut b) = world.get::<&mut Battery>(e) {
@@ -628,4 +648,58 @@ mod tests {
         assert!(world.get::<&PowerConsumer>(idle).unwrap().enabled, "an idle load keeps its power on a short island");
         assert!(world.get::<&PowerConsumer>(was_shed).unwrap().enabled, "and one shed earlier gets it back");
     }
+
+    /// Batteries carry the load when the sun is down (2026-09-27): with no
+    /// generation, a charged bank keeps a 500 W load on and drains by what the
+    /// load used; an empty bank cannot, and the load is shed. Seen red with
+    /// the old rule (the shed decided on generation alone): the load was shed
+    /// with a full battery.
+    #[test]
+    fn batteries_carry_the_night_load() {
+        use super::{ElectricalSystem, PowerStatus};
+        use crate::ecs::components::{Battery, PowerConsumer};
+        use crate::ecs::systems::System;
+        use crate::hot_reload::data_store::DataStore;
+        let mut data = DataStore::new();
+        data.insert("power_status", std::sync::Mutex::new(PowerStatus::default()));
+        let mut world = hecs::World::new();
+        let load = world.spawn((PowerConsumer { draw_watts: 500.0, priority: 2, enabled: true },));
+        let bank = world.spawn((Battery { charge_wh: 10_000.0, capacity_wh: 13_500.0, max_charge_w: 5_000.0, max_discharge_w: 5_000.0 },));
+        let mut sys = ElectricalSystem::new(std::path::Path::new("data"));
+        sys.tick(&mut world, 3600.0, &data);
+        assert!(world.get::<&PowerConsumer>(load).unwrap().enabled, "a charged bank keeps the load on at night");
+        let left = world.get::<&Battery>(bank).unwrap().charge_wh;
+        assert!((left - 9_500.0).abs() < 1.0, "it drains by what the load used, 500 Wh in an hour: {left}");
+
+        let mut world = hecs::World::new();
+        let load = world.spawn((PowerConsumer { draw_watts: 500.0, priority: 2, enabled: true },));
+        world.spawn((Battery { charge_wh: 0.0, capacity_wh: 13_500.0, max_charge_w: 5_000.0, max_discharge_w: 5_000.0 },));
+        sys.tick(&mut world, 3600.0, &data);
+        assert!(!world.get::<&PowerConsumer>(load).unwrap().enabled, "an empty bank cannot, so the load is shed");
+    }
+
+    /// A bank gives no more than its discharge limit, and the loads it cannot
+    /// carry are shed by priority, optional first; a shed load no longer
+    /// drains the bank. Seen red with the balance on total demand again: the
+    /// bank lost the shed load's energy as well.
+    #[test]
+    fn a_bank_at_its_limit_sheds_the_optional_loads_and_pays_only_for_the_rest() {
+        use super::{ElectricalSystem, PowerStatus};
+        use crate::ecs::components::{Battery, PowerConsumer};
+        use crate::ecs::systems::System;
+        use crate::hot_reload::data_store::DataStore;
+        let mut data = DataStore::new();
+        data.insert("power_status", std::sync::Mutex::new(PowerStatus::default()));
+        let mut world = hecs::World::new();
+        let critical = world.spawn((PowerConsumer { draw_watts: 800.0, priority: 1, enabled: true },));
+        let optional = world.spawn((PowerConsumer { draw_watts: 800.0, priority: 5, enabled: true },));
+        let bank = world.spawn((Battery { charge_wh: 10_000.0, capacity_wh: 13_500.0, max_charge_w: 1_000.0, max_discharge_w: 1_000.0 },));
+        let mut sys = ElectricalSystem::new(std::path::Path::new("data"));
+        sys.tick(&mut world, 3600.0, &data);
+        assert!(world.get::<&PowerConsumer>(critical).unwrap().enabled, "the critical load stays on");
+        assert!(!world.get::<&PowerConsumer>(optional).unwrap().enabled, "the optional one is shed");
+        let left = world.get::<&Battery>(bank).unwrap().charge_wh;
+        assert!((left - 9_200.0).abs() < 1.0, "the bank pays for the 800 W it carried, not the shed load: {left}");
+    }
+
 }

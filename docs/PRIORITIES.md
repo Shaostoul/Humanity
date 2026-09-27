@@ -1248,7 +1248,7 @@ at before and after:**
   markers never show. Only blocks change shape (`chat::one_line_formatted`): a
   fenced block becomes inline code where it sat, bullets stay, line breaks
   become spaces, and the line elides at the box edge with an ellipsis instead
-  of at 66 chars. `[text](url)` is not part of the chat dialect on either
+  of at 66 chars. The bracketed markdown link form (label in square brackets, address in parentheses) is not part of the chat dialect on either
   client, so it shows as the Chat page shows it (the URL linked).
 - `watch`: the title was egui's built-in heading (18 px, not a token) under a
   `font_size_heading` section; it is now `font_size_title`, and "Live now"
@@ -1332,6 +1332,18 @@ them up.
      setting, or remove (docs/reference/findings/2026-09-27-wifi-and-plants.md;
      no source shows a household router harming a garden at the distances
      plants sit from one).
+   - **Energy, from the honest meter (2026-09-27, docs/design/ship-life-support.md
+     section 7).** The supply side now counts each home at its site (NREL PVWatts
+     for Silverdale: 1.09 kWh a panel a day, 0.51 in January; the wind turbine 0.11
+     kWh a day at 2.8% capacity; the generator shown apart as a backstop). Neither
+     home closes in either mode (family Station-supplied 13 kWh a day short, about
+     12 more panels). Questions: which SITE the loops are for, station or ground
+     (the BUG-090 decision); whether PLAY should match the meter (each panel still
+     makes about 3.1 kWh a day in the live sim, 2.8x the site; batteries now carry
+     load at night, 2026-09-27, but the homes would still brown out); the water
+     heater at the US survey average or at the home's own hot water plus standby
+     loss; the outline's conservative December solar; and whether to keep a wind
+     turbine that makes 0.11 kWh a day at this site.
 4. **Clear the old agent worktrees** under `.claude/worktrees/`. Audited
    2026-08-04: none could be cheaply proven redundant, and
    `just clean-worktrees` force-deletes branches and has destroyed
