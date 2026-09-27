@@ -162,7 +162,11 @@ pub fn message_row(
                 Color32::TRANSPARENT,
             )
         }).size().x.max(1.0);
-        let n = ((pill_width / space_w).ceil() as usize).max(1);
+        // pill_width PLUS a gap: reserving exactly the pill's width put the
+        // message's first letter flush against the pill's right edge (the
+        // name side already gets its two-space gap in the prefix above).
+        let reserve = pill_width + theme.spacing_sm;
+        let n = ((reserve / space_w).ceil() as usize).max(1);
         job.append(
             &" ".repeat(n),
             0.0,

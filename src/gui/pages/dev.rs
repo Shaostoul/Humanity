@@ -296,7 +296,7 @@ fn draw_travel_card(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         });
         ui.horizontal(|ui| {
             ui.label(RichText::new("Speed").color(theme.text_secondary()));
-            ui.add(
+            widgets::slider(ui, theme,
                 egui::Slider::new(&mut state.dev_fly_speed_mult, 1.0..=1.0e9)
                     .logarithmic(true)
                     .custom_formatter(|v, _| {
@@ -530,7 +530,7 @@ pub fn draw_creature_editor(ctx: &egui::Context, theme: &Theme, state: &mut GuiS
                     });
                     ui.horizontal(|ui| {
                         ui.label(RichText::new("Health").color(theme.text_secondary()));
-                        ui.add(egui::Slider::new(&mut state.dev_edit_health, 0.0..=hmax));
+                        widgets::slider(ui, theme, egui::Slider::new(&mut state.dev_edit_health, 0.0..=hmax));
                     });
                     ui.horizontal(|ui| {
                         ui.label(RichText::new("Max HP").color(theme.text_secondary()));
@@ -539,7 +539,7 @@ pub fn draw_creature_editor(ctx: &egui::Context, theme: &Theme, state: &mut GuiS
                     ui.checkbox(&mut state.dev_edit_hostile, "Hostile (attacks the player)");
                     ui.horizontal(|ui| {
                         ui.label(RichText::new("Size").color(theme.text_secondary()));
-                        ui.add(egui::Slider::new(&mut state.dev_edit_scale, 0.1..=3.0));
+                        widgets::slider(ui, theme, egui::Slider::new(&mut state.dev_edit_scale, 0.1..=3.0));
                     });
                     ui.horizontal(|ui| {
                         ui.label(RichText::new("Tint").color(theme.text_secondary()));

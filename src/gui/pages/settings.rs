@@ -1232,6 +1232,7 @@ pub(crate) fn draw_appearance_content(ui: &mut egui::Ui, theme: &mut Theme, stat
                     ("Text (primary)", &mut theme.text_primary as *mut _),
                     ("Text (secondary)", &mut theme.text_secondary as *mut _),
                     ("Text (muted)", &mut theme.text_muted as *mut _),
+                    ("Text (strong / emphasis)", &mut theme.text_strong as *mut _),
                     ("Success", &mut theme.success as *mut _),
                     ("Warning", &mut theme.warning as *mut _),
                     ("Danger", &mut theme.danger as *mut _),

@@ -725,25 +725,32 @@ fn draw_setup(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, n: &mut Lo
             // Folder picker so nobody types a path by hand (operator ask,
             // 2026-08-14). Picks the FOLDER; the file keeps its name (or
             // gets the default relay.db when the field was empty/a dir).
-            ui.horizontal(|ui| {
-                if widgets::Button::secondary("Browse for folder").show(ui, theme) {
-                    let start = std::path::Path::new(n.db_input.trim())
-                        .parent()
-                        .filter(|p| p.is_dir())
-                        .map(|p| p.to_path_buf());
-                    n.db_picker = Some(
-                        crate::gui::widgets::file_browser::FilePickerState::new_dir_picker(start),
+            // In the control column under the Database file field, with the
+            // note wrapping at the field's width. As a plain label beside the
+            // button in a `ui.horizontal` it could not wrap, and it pushed the
+            // whole form card past the page edge (2026-09-27 snapshot review).
+            widgets::form_row(ui, theme, "", |ui| {
+                ui.vertical(|ui| {
+                    ui.set_max_width(field_w);
+                    if widgets::Button::secondary("Browse for folder").show(ui, theme) {
+                        let start = std::path::Path::new(n.db_input.trim())
+                            .parent()
+                            .filter(|p| p.is_dir())
+                            .map(|p| p.to_path_buf());
+                        n.db_picker = Some(
+                            crate::gui::widgets::file_browser::FilePickerState::new_dir_picker(start),
+                        );
+                    }
+                    ui.label(
+                        RichText::new(
+                            "The default lives in your Windows user profile (AppData), which \
+                             survives app updates and needs no admin rights. Pick any folder \
+                             you prefer; a drive you back up is a fine choice.",
+                        )
+                        .size(theme.font_size_small)
+                        .color(theme.text_muted()),
                     );
-                }
-                ui.label(
-                    RichText::new(
-                        "The default lives in your Windows user profile (AppData), which \
-                         survives app updates and needs no admin rights. Pick any folder \
-                         you prefer; a drive you back up is a fine choice.",
-                    )
-                    .size(theme.font_size_small)
-                    .color(theme.text_muted()),
-                );
+                });
             });
 
             ui.add_space(theme.spacing_xs);
@@ -979,6 +986,18 @@ pub(crate) fn force_running_for_snapshot(port: u16, name: &str, db: &str, lan: O
     n.server_pubkey = "3f9a1c07be52d4e8a6017c93f2b5d8e04a6c19f7b3e2d05c8a41f6e97b2d0c35".to_string();
     n.events = None;
     n.stop_tx = None;
+}
+
+/// Test-only: fill the stopped node's setup form with fixed values. The real
+/// defaults read this machine's name and profile folder, so without this the
+/// setup snapshot showed whichever PC ran the test and could never be a stable
+/// baseline. Undo with `reset_for_snapshot`.
+#[cfg(test)]
+pub(crate) fn seed_setup_for_snapshot(name: &str, db: &str) {
+    let mut n = node().lock().expect("host node state");
+    *n = LocalNode::new();
+    n.name_input = name.to_string();
+    n.db_input = db.to_string();
 }
 
 /// Test-only: undo `force_running_for_snapshot`. The state is process-global,

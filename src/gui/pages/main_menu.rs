@@ -102,7 +102,11 @@ fn draw_onboarding(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
         .title_bar(false)
         .resizable(false)
         .anchor(Align2::CENTER_CENTER, [0.0, 0.0])
-        .fixed_size(Vec2::new(500.0, 520.0))
+        // Width fixed, height from the content (the storage chooser's
+        // pattern). A fixed 520 px height clipped the identity step, which is
+        // taller once the 24 words are showing: the Back button under Finish
+        // Setup was cut in half (2026-09-27 snapshot review).
+        .fixed_size(Vec2::new(500.0, 0.0))
         .frame(egui::Frame::window(&ctx.style()).fill(theme.bg_card()))
         .show(ctx, |ui| {
             match state.onboarding_step {
@@ -373,6 +377,21 @@ mod server_check_tests {
 }
 
 /// Step 2: Identity / display name
+/// A note indented 40 px like the rest of the identity step, WRAPPING inside
+/// the window with the same 40 px margin on the right. A plain label in a
+/// `ui.horizontal` does not wrap: the long seed-phrase warning stretched the
+/// 500 px window to about 975 px (2026-09-27 snapshot review).
+fn indented_note(ui: &mut egui::Ui, text: RichText) {
+    ui.horizontal(|ui| {
+        ui.add_space(40.0);
+        let w = (ui.available_width() - 40.0).max(120.0);
+        ui.scope(|ui| {
+            ui.set_max_width(w);
+            ui.add(egui::Label::new(text).wrap());
+        });
+    });
+}
+
 fn draw_step_identity(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     ui.vertical_centered(|ui| {
         ui.add_space(20.0);
@@ -425,10 +444,12 @@ fn draw_step_identity(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             }
         });
         ui.add_space(4.0);
-        ui.horizontal(|ui| {
-            ui.add_space(40.0);
-            ui.label(RichText::new("Creates a fresh 24-word recovery phrase (your only backup). Or recover an existing one below.").size(11.0).color(theme.text_secondary()));
-        });
+        indented_note(
+            ui,
+            RichText::new("Creates a fresh 24-word recovery phrase (your only backup). Or recover an existing one below.")
+                .size(11.0)
+                .color(theme.text_secondary()),
+        );
         ui.add_space(8.0);
     }
 
@@ -443,27 +464,23 @@ fn draw_step_identity(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             .and_then(|s| crate::net::identity::mnemonic_from_seed(s))
         {
             ui.add_space(10.0);
-            ui.horizontal(|ui| {
-                ui.add_space(40.0);
-                ui.label(
-                    RichText::new("Write these 24 words on paper, in this order. They ARE your account.")
-                        .size(13.0)
-                        .strong()
-                        .color(theme.warning()),
-                );
-            });
-            ui.horizontal(|ui| {
-                ui.add_space(40.0);
-                ui.label(
-                    RichText::new(
-                        "Anyone who has them can be you, and if you lose them nobody can reset or \
-                         recover your account -- not even us. Paper beats a screenshot: photos get \
-                         synced, hacked, and lost.",
-                    )
-                    .size(11.0)
-                    .color(theme.text_secondary()),
-                );
-            });
+            indented_note(
+                ui,
+                RichText::new("Write these 24 words on paper, in this order. They ARE your account.")
+                    .size(13.0)
+                    .strong()
+                    .color(theme.warning()),
+            );
+            indented_note(
+                ui,
+                RichText::new(
+                    "Anyone who has them can be you, and if you lose them nobody can reset or \
+                     recover your account -- not even us. Paper beats a screenshot: photos get \
+                     synced, hacked, and lost.",
+                )
+                .size(11.0)
+                .color(theme.text_secondary()),
+            );
             ui.add_space(8.0);
             ui.horizontal(|ui| {
                 ui.add_space(40.0);

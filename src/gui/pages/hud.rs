@@ -841,7 +841,13 @@ pub fn draw(
                 for (i, m) in recent.iter().rev().enumerate() {
                     let y = top + line_h * (i as f32 + 1.0) + 2.0;
                     let name = if m.sender_name.is_empty() { "?" } else { m.sender_name.as_str() };
-                    let mut line = format!("{name}: {}", m.content);
+                    // ONE line per message: the feed is a fixed 15 px grid, so
+                    // a message with newlines (a list, a code block) painted
+                    // its extra lines over the rows below and out past the
+                    // bottom of the box. Collapse every run of whitespace,
+                    // newlines included, to one space, then trim to fit.
+                    let flat = m.content.split_whitespace().collect::<Vec<_>>().join(" ");
+                    let mut line = format!("{name}: {flat}");
                     if line.chars().count() > 66 {
                         line = format!("{}...", line.chars().take(63).collect::<String>());
                     }

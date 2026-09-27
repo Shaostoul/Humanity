@@ -1666,9 +1666,23 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     } else {
                         format!("Message #{}", state.chat_active_channel)
                     };
-                    // Reserve room for the FOUR trailing widgets on this row —
-                    // search, pins, help, and the Send button. 104px only fit the
-                    // three icons, clipping Send off the right edge; ~210 fits all.
+                    // Room for the trailing widgets on this row (search, pins,
+                    // help, Attach, Send) is MEASURED, not guessed: the row
+                    // records last frame's width of everything that is not
+                    // the text area (`composer_overhead_id` below) and the box
+                    // takes the rest. A fixed guess kept going stale: 104 px
+                    // fit three icons, 210 px fit four, and with Attach added
+                    // and Noto Sans widths the Send button was cut off at the
+                    // right edge (2026-09-27 snapshot review). The first frame
+                    // falls back to the old guess and corrects itself on the
+                    // next one.
+                    let composer_overhead_id = egui::Id::new("chat_composer_overhead");
+                    let composer_row_w = ui.available_width();
+                    let composer_overhead = ui
+                        .ctx()
+                        .data(|d| d.get_temp::<f32>(composer_overhead_id))
+                        .unwrap_or(210.0);
+                    let composer_text_w = (composer_row_w - composer_overhead).max(120.0);
                     // Stable id (v0.972, operator: the "is typing" indicator
                     // appearing made the box lose focus): egui auto-ids
                     // derive from layout position, and the indicator row
@@ -1691,7 +1705,7 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                         // trigger below uses has_focus()+Enter, NOT lost_focus().
                         egui::TextEdit::multiline(&mut state.chat_input)
                             .id(egui::Id::new("chat_composer_input"))
-                            .desired_width((ui.available_width() - 210.0).max(120.0))
+                            .desired_width(composer_text_w)
                             .desired_rows(1)
                             .return_key(Some(egui::KeyboardShortcut::new(
                                 egui::Modifiers::SHIFT,
@@ -1948,6 +1962,15 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     let send_clicked = widgets::Button::primary("Send")
                         .tooltip("Send the message (or press Enter)")
                         .show(ui, theme);
+                    // Everything on this row that is not the text area: the
+                    // box's own margins beyond its desired width, the spacing,
+                    // and the five buttons. Next frame's box is sized from it.
+                    let row_used = ui.min_rect().right() - response.rect.left();
+                    let overhead = (row_used - composer_text_w).max(0.0);
+                    if (overhead - composer_overhead).abs() > 0.5 {
+                        ui.ctx().data_mut(|d| d.insert_temp(composer_overhead_id, overhead));
+                        ui.ctx().request_repaint();
+                    }
 
                     if (enter_pressed || send_clicked) && !state.chat_input.trim().is_empty() {
                         let content = state.chat_input.trim().to_string();
@@ -2624,7 +2647,9 @@ pub(crate) fn draw_ingame_chat(ctx: &egui::Context, theme: &Theme, state: &mut G
                                         .size(theme.font_size_small)
                                         .color(theme.text_secondary()),
                                 );
-                                let resp = ui.add(
+                                let resp = widgets::slider(
+                                    ui,
+                                    theme,
                                     egui::Slider::new(
                                         &mut state.ingame_chat_panel_height,
                                         100.0..=320.0,

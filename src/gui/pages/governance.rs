@@ -517,7 +517,9 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                         ui.selectable_value(&mut state.governance_new_scope_idx, i, *label);
                                     }
                                 });
-                            ui.add(
+                            widgets::slider(
+                                ui,
+                                theme,
                                 egui::Slider::new(&mut state.governance_new_days, 1.0..=30.0)
                                     .step_by(1.0)
                                     .fixed_decimals(0)

@@ -80,8 +80,12 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                     if state.construction_rooms[ri].level != active_level { continue; }
                     let name = state.construction_rooms[ri].id.clone();
                     let selected = state.construction_selected_room == Some(ri);
+                    // A selected label sits on the accent selection fill, so
+                    // its text takes the on-accent ink. Accent text on the
+                    // accent fill drew the selected room (and the selected
+                    // palette tab, same fix below) as a blank orange bar.
                     let label = RichText::new(format!("  {name}"))
-                        .color(if selected { theme.accent() } else { theme.text_secondary() });
+                        .color(if selected { theme.text_on_accent() } else { theme.text_secondary() });
                     if ui.selectable_label(selected, label).clicked() {
                         state.construction_selected_room = Some(ri);
                     }
@@ -143,7 +147,7 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                 RichText::new("Top-down plan overlay").size(theme.font_size_small).color(theme.text_muted()));
             ui.horizontal(|ui| {
                 ui.label(RichText::new("Ceiling height").color(theme.text_secondary()));
-                if ui.add(egui::Slider::new(&mut state.construction_height, 2.5..=12.0).suffix(" m")).changed() {
+                if crate::gui::widgets::slider(ui, theme, egui::Slider::new(&mut state.construction_height, 2.5..=12.0).suffix(" m")).changed() {
                     state.construction_dirty = true;
                 }
             });
@@ -769,7 +773,7 @@ fn draw_wall_editor(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                         if state.construction_sun_override {
                             ui.horizontal(|ui| {
                                 ui.label(RichText::new("Hour of day").size(theme.font_size_small).color(theme.text_muted()));
-                                ui.add(egui::Slider::new(&mut state.construction_sun_override_hour, 0.0..=24.0).suffix("h"));
+                                crate::gui::widgets::slider(ui, theme, egui::Slider::new(&mut state.construction_sun_override_hour, 0.0..=24.0).suffix("h"));
                                 if ui.small_button("noon").clicked() {
                                     state.construction_sun_override_hour = 12.0;
                                 }
@@ -3297,7 +3301,7 @@ fn draw_object_browser(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                                     let in_multi = multi.contains(&key_str(&row.key));
                                     let txt = format!("{}{}  ({:.0},{:.0})", if in_multi { "* " } else { "" }, row.name, row.pos.0, row.pos.2);
                                     let resp = ui.selectable_label(row.selected || in_multi, RichText::new(txt).size(theme.font_size_small)
-                                        .color(if row.selected || in_multi { theme.accent() } else { theme.text_secondary() }));
+                                        .color(if row.selected || in_multi { theme.text_on_accent() } else { theme.text_secondary() }));
                                     if resp.clicked() {
                                         // Ctrl+click toggles multi-select membership; a plain click is the
                                         // usual single-select (which the handler also clears the set on).
@@ -3786,34 +3790,62 @@ fn draw_palette(ctx: &Context, theme: &Theme, state: &mut GuiState) {
             .unwrap_or_default();
     }
     let expanded = state.construction_palette_expanded;
-    let panel_h = if expanded { 210.0 } else { 96.0 };
+    // When the category tabs wrap onto extra rows, the panel grows by exactly
+    // that much (measured last frame, below), so the item grid keeps its rows
+    // instead of being squeezed under the tabs.
+    let tabs_extra_id = egui::Id::new("construction_palette_tabs_extra");
+    let tabs_extra: f32 = ctx.data(|d| d.get_temp(tabs_extra_id)).unwrap_or(0.0);
+    let panel_h = if expanded { 210.0 } else { 96.0 } + tabs_extra;
     egui::TopBottomPanel::bottom("construction_palette")
         .exact_height(panel_h)
         .show(ctx, |ui| {
             ui.add_space(theme.spacing_xs);
             // Category tabs + the expand toggle (right-aligned).
             let is_structure = state.construction_palette_category == "Structure";
+            // The right-hand controls are laid out FIRST (right to left), then
+            // the tabs fill what is left and WRAP onto a second row when there
+            // are more categories than fit. Tabs first with the button after
+            // them ran the last tab under the Expand button ("Water (1" cut,
+            // 2026-09-27 snapshot review).
+            let mut one_row_h = 0.0_f32;
+            let mut tabs_h = 0.0_f32;
             ui.horizontal(|ui| {
-                ui.label(RichText::new("Place").strong().color(theme.text_primary()));
-                ui.separator();
-                for (cat, items) in &categories {
-                    let selected = cat == &state.construction_palette_category;
-                    let txt = RichText::new(format!("{cat} ({})", items.len()))
-                        .color(if selected { theme.accent() } else { theme.text_secondary() });
-                    if ui.selectable_label(selected, txt).clicked() {
-                        state.construction_palette_category = cat.clone();
-                    }
-                }
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if ui.button(if expanded { "Collapse" } else { "Expand" }).clicked() {
+                    let expand = ui.button(if expanded { "Collapse" } else { "Expand" });
+                    one_row_h = expand.rect.height();
+                    if expand.clicked() {
                         state.construction_palette_expanded = !expanded;
                     }
                     if state.construction_selected_room.is_none() {
                         ui.label(RichText::new("select a room to place into")
                             .size(theme.font_size_small).color(theme.text_muted()));
                     }
+                    tabs_h = ui.with_layout(
+                        egui::Layout::left_to_right(egui::Align::Center).with_main_wrap(true),
+                        |ui| {
+                            ui.label(RichText::new("Place").strong().color(theme.text_primary()));
+                            ui.separator();
+                            for (cat, items) in &categories {
+                                let selected = cat == &state.construction_palette_category;
+                                let txt = RichText::new(format!("{cat} ({})", items.len()))
+                                    .color(if selected { theme.text_on_accent() } else { theme.text_secondary() });
+                                if ui.selectable_label(selected, txt).clicked() {
+                                    state.construction_palette_category = cat.clone();
+                                }
+                            }
+                        },
+                    )
+                    .response
+                    .rect
+                    .height();
                 });
             });
+            // Rows beyond the first, in points, for next frame's panel height.
+            let extra = (tabs_h - one_row_h).max(0.0).round();
+            if (extra - tabs_extra).abs() > 0.5 {
+                ui.ctx().data_mut(|d| d.insert_temp(tabs_extra_id, extra));
+                ui.ctx().request_repaint();
+            }
             ui.separator();
             // The item grid for the selected category, 10 columns. Collapsed clips to ~1 row +
             // scrolls; expanded shows ~5 rows.
@@ -3822,7 +3854,10 @@ fn draw_palette(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                 .find(|(c, _)| c == &state.construction_palette_category)
                 .map(|(_, its)| its.clone())
                 .unwrap_or_default();
-            egui::ScrollArea::vertical().max_height(panel_h - 48.0).show(ui, |ui| {
+            // Whatever height the (possibly wrapped) tab rows left over, so a
+            // second row of tabs shortens the grid instead of pushing it out
+            // of the fixed-height panel.
+            egui::ScrollArea::vertical().max_height(ui.available_height().max(0.0)).show(ui, |ui| {
                 egui::Grid::new("palette_grid")
                     .num_columns(10)
                     .spacing([theme.spacing_xs, theme.spacing_xs])

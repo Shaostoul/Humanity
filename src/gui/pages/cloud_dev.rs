@@ -100,14 +100,18 @@ enum TabAction {
 /// number, caption), nothing here can take focus. Returns true on change.
 fn dev_slider(
     ui: &mut egui::Ui,
+    theme: &Theme,
     value: &mut f32,
     range: std::ops::RangeInclusive<f32>,
     label: &str,
 ) -> bool {
     ui.horizontal(|ui| {
-        let changed = ui
-            .add(egui::Slider::new(value, range).show_value(false))
-            .changed();
+        let changed = crate::gui::widgets::slider(
+            ui,
+            theme,
+            egui::Slider::new(value, range).show_value(false),
+        )
+        .changed();
         // Three decimals, the same precision egui's own box showed.
         ui.label(RichText::new(format!("{value:.3}")).monospace());
         ui.label(label);
@@ -433,7 +437,7 @@ fn draw_body(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) -> bool {
     if state.cloud_dev_ms {
         let mut g = if state.cloud_dev_ms_gain > 0.0 { state.cloud_dev_ms_gain } else { 1.0 };
         test_mark(ui, theme, "in-scatter gain", &tests);
-        if dev_slider(ui, &mut g, 0.2..=3.0, "in-scatter gain") {
+        if dev_slider(ui, theme, &mut g, 0.2..=3.0, "in-scatter gain") {
             state.cloud_dev_ms_gain = g;
             changed = true;
         }
@@ -445,7 +449,7 @@ fn draw_body(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) -> bool {
     // in-cloud light fed the body's own column.
     let mut sat = state.cloud_dev_int_sat;
     test_mark(ui, theme, "interior saturation (built bodies)", &tests);
-    if dev_slider(ui, &mut sat, 0.0..=1.0, "interior saturation (built bodies)") {
+    if dev_slider(ui, theme, &mut sat, 0.0..=1.0, "interior saturation (built bodies)") {
         state.cloud_dev_int_sat = sat;
         changed = true;
     }
@@ -455,7 +459,7 @@ fn draw_body(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) -> bool {
     // opaque rays relax their step; 0 = off, 1 = full.
     let mut eco = state.cloud_dev_step_eco;
     test_mark(ui, theme, "step economy (footprint floors + deep relaxation)", &tests);
-    if dev_slider(ui, &mut eco, 0.0..=1.0, "step economy (footprint floors + deep relaxation)") {
+    if dev_slider(ui, theme, &mut eco, 0.0..=1.0, "step economy (footprint floors + deep relaxation)") {
         state.cloud_dev_step_eco = eco;
         changed = true;
     }
@@ -594,7 +598,7 @@ fn draw_body(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) -> bool {
     // convergence point moves off straight-down as this rises.
     let mut sh = state.cloud_dev_shear;
     test_mark(ui, theme, "cloud lean (m per m of height; 0 = off)", &tests);
-    if dev_slider(ui, &mut sh, 0.0..=1.0, "cloud lean (m per m of height; 0 = off)") {
+    if dev_slider(ui, theme, &mut sh, 0.0..=1.0, "cloud lean (m per m of height; 0 = off)") {
         state.cloud_dev_shear = sh;
         changed = true;
     }
@@ -627,14 +631,14 @@ fn draw_body(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) -> bool {
     if state.cloud_dev_hv_warp {
         let mut hk = if state.cloud_dev_hv_km > 0.0 { state.cloud_dev_hv_km } else { 0.5 };
         test_mark(ui, theme, "wall wander km per 1.3 km of height", &tests);
-        if dev_slider(ui, &mut hk, 0.1..=5.0, "wall wander km per 1.3 km of height") {
+        if dev_slider(ui, theme, &mut hk, 0.1..=5.0, "wall wander km per 1.3 km of height") {
             state.cloud_dev_hv_km = hk;
             changed = true;
         }
     }
     let mut sm = state.cloud_dev_sigma_mul;
     test_mark(ui, theme, "extinction x (0 = off; the transparency test)", &tests);
-    if dev_slider(ui, &mut sm, 0.0..=10.0, "extinction x (0 = off; the transparency test)") {
+    if dev_slider(ui, theme, &mut sm, 0.0..=10.0, "extinction x (0 = off; the transparency test)") {
         state.cloud_dev_sigma_mul = sm;
         changed = true;
     }
@@ -677,7 +681,7 @@ fn draw_body(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) -> bool {
     if state.cloud_dev_uniform_step {
         let mut sm = state.cloud_dev_step_m;
         test_mark(ui, theme, "fixed step m (0 = off)", &tests);
-        if dev_slider(ui, &mut sm, 0.0..=600.0, "fixed step m (0 = off)") {
+        if dev_slider(ui, theme, &mut sm, 0.0..=600.0, "fixed step m (0 = off)") {
             state.cloud_dev_step_m = sm;
             changed = true;
         }
@@ -695,13 +699,13 @@ fn draw_body(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) -> bool {
     if state.cloud_dev_wide_edge {
         let mut m = if state.cloud_dev_edge_mul > 0.0 { state.cloud_dev_edge_mul } else { 20.0 };
         test_mark(ui, theme, "edge width x (hinge)", &tests);
-        if dev_slider(ui, &mut m, 1.0..=200.0, "edge width x (hinge)") {
+        if dev_slider(ui, theme, &mut m, 1.0..=200.0, "edge width x (hinge)") {
             state.cloud_dev_edge_mul = m;
             changed = true;
         }
         let mut r = if state.cloud_dev_rind_wide_m > 0.0 { state.cloud_dev_rind_wide_m } else { 300.0 };
         test_mark(ui, theme, "body rind m", &tests);
-        if dev_slider(ui, &mut r, 90.0..=1500.0, "body rind m") {
+        if dev_slider(ui, theme, &mut r, 90.0..=1500.0, "body rind m") {
             state.cloud_dev_rind_wide_m = r;
             changed = true;
         }

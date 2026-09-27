@@ -952,96 +952,90 @@ critique on eight real blockers). The measured target it exists to fix: at 873 k
 Ultra renders about 0.9 percent coverage against High's 31, because one sample
 per ray misses a 300 m layer vertically.
 
-### 5. Page snapshots: 49 of 63 are good baselines, 14 pages render wrong
+### 5. Page snapshots: all 63 pages render right and are committed as baselines
 
-**Done 2026-09-27 (regenerated, every PNG opened and looked at).** All 63
-snapshot tests rendered on the GPU (none skipped); 56 files differed from what
-was committed. Three runs, and the third was byte-identical to the second
-except for the pages seeded on purpose and `cosmos`, so the baselines are
-stable run to run.
+**Done 2026-09-27, in two passes, every PNG opened and looked at.** The first
+pass regenerated all 63 on the GPU (none skipped), committed 49 good pages and
+held back 14 that rendered wrong. The second pass fixed those 14 and committed
+them; the list of what was wrong and how each was fixed is below, so the next
+review knows what these pictures are guarding.
 
-The harness itself had two defects, both fixed in `src/gui/ui_snapshots.rs`:
+Harness fixes (`src/gui/ui_snapshots.rs`), all three still load-bearing:
 
-- **Every Window-based page was photographed half faded in.** egui fades a
-  Window or Area in over 1/12 s and the harness captures its second frame at
-  about 1/60 s, so the main menu, onboarding, the garden and mining modals, the
-  profile modal, the toast and the F1 overlays were all committed at roughly
-  half opacity with the page behind showing through. `render_page_png` now
-  sets `animation_time = 0` (a still of the settled page).
-- **`inventory_transfer` was byte-identical to `inventory`**: the inspect and
-  "Move to" card it exists to guard had grown below the 1700 px canvas. Now
-  2600 tall.
+- **Window fade.** egui fades a Window or Area in over 1/12 s and the harness
+  captured at about 1/60 s, so every Window page was half transparent.
+  `render_page_png` sets `animation_time = 0`.
+- **Three frames, not two (second pass).** A Window's first frame is egui's
+  invisible sizing pass, which lays justified and centred content out at its
+  minimum size, and the next frame clips the window to what that pass
+  measured. Two frames photographed that one-frame state: the onboarding
+  window lost the bottom of its Back button, the main menu sat 70 px right of
+  centre, and new toasts were invisible. The extra frame is pinned at t = 0 so
+  the captured frame's clock is still 2/60 s and time-driven paint is
+  unchanged.
+- **Seeding** so a picture shows a state a player reaches and is the same on
+  every machine: the donate FAQ, the showroom picker, the running node's
+  server key, and (second pass) the stopped node's setup form (its defaults
+  read the PC's name and profile path) and the Maps clock, pinned to
+  2026-09-27 12:00 UTC (it opens on today's sky). `inventory_transfer` is 2600
+  tall so its card is on the canvas; the toast is pushed once.
 
-Seeding fixed so the pictures show a state a player actually reaches: the
-donate FAQ is loaded in `demo_state` (the page ended on a heading over
-nothing), the showroom picker is seeded instead of reading the saves of
-whatever machine runs the test, and the running host node now has its server
-key (the prose said "Copy the Federation key above" over no key row).
+The 14 pages, and the fix for each:
 
-**Not committed, because the page renders wrong** (the regenerated PNG is the
-evidence; run `just snapshot <name>` to see it):
+- **Plain `egui::Slider` drew no track** (`cloud_dev`, `governance`, `studio`,
+  `construction`): egui paints the rail from `widgets.inactive.bg_fill`, the
+  same field as every checkbox and radio fill, which the theme keeps at
+  `bg_card`. A one-line theme change would have restyled 90-odd checkboxes, so
+  instead every egui slider goes through `widgets::slider` (rail in
+  `slider_track` at `slider_track_height`, accent trail, ringed knob), and
+  `tests/theme_token_lint.rs` now fails on a bare `Slider::new` (proven red on
+  a probe file).
+- **Uncoloured `.strong()` labels near-invisible** (`watch` "Live now", the
+  Construction "Add" button): egui's strong colour is
+  `widgets.active.fg_stroke`, which was `text_on_accent`. New token
+  `text_strong` (white, one step above `text_primary`, since the app's font has
+  no bold face), with its Settings editor row and a `--text-strong` CSS
+  variable. The web's `<strong>` keeps its bold face and inherited colour and
+  never had the defect.
+- `chat`, `chat_commons`: the composer measures the width of its buttons each
+  frame instead of guessing 210 px, and the timestamp pill reservation adds a
+  `spacing_sm` gap before the message.
+- `cosmos`: the header hint truncates beside the tabs (full text on hover),
+  the Track toggle fits its row (see `widgets::toggle` below), the camera help
+  is laid out and the sky-events list moves above it when they would share the
+  bottom edge, and "-0.00" days from today reads 0.
+- `construction`: selected room and palette tab take `text_on_accent` on the
+  accent fill; the tabs wrap onto a second row and the palette grows by that
+  row, measured, instead of running under Expand.
+- `studio`: the Program/Preview canvases overran the centre panel by their
+  frame strokes (4 px), which widened its layout and clipped every
+  right-aligned item after them ("Connecting to relay...", the channel picker).
+  `widgets::toggle` now shrinks its 200 px label column in a narrow panel, so
+  "Show LIVE on profile" keeps its box.
+- `hud_vitals`: the in-world chat feed collapses a message to one line.
+- `nav_bar_icon_only` (and the labelled bars): `paint_watch`, a monitor with a
+  play triangle, for `GuiPage::Watch`.
+- `onboarding_identity`: fixed width, height from the content; the long notes
+  wrap (`indented_note`).
+- `tasks`: the card title wraps beside its badge, the guide column sits at a
+  fixed x whatever the board draws, and the quest cards in it subtract their
+  frame margins (`onboarding::draw_quests` overran its column by 16 px).
+- `relay_control_host_node`: Browse-for-folder and its note sit in the form's
+  control column, the note wrapping at the field width.
+- `library_ladder`: `widgets/markdown.rs` has an ordered-list branch (the
+  number is the marker, links in the item stay clickable), with a unit test.
 
-- `chat`, `chat_commons`: the Send button is cut off at the right edge of the
-  centre panel (`chat.rs` `draw_center_panel`: the composer reserves a fixed
-  210 px for five buttons, too little at Noto Sans widths), and the timestamp
-  pill now touches the first letter of the message with no gap
-  (`compute_pill_width` / `paint_timestamp_pill`, and the space reservation in
-  `widgets/row.rs` `message_row`).
-- `cosmos`: the header hint is drawn over the Solar System / Galaxy / Night Sky
-  tabs (`cosmos.rs` `draw`), the station tracking note is cut off at the left
-  panel edge (`draw_body_browser`), and the camera help line runs through the
-  sky-events list (`draw_system_view`). It also reads the wall clock, so it can
-  never be a stable baseline until the time is seeded.
-- `construction`: the selected room in the Structure tree and the selected
-  palette category are blank orange bars, accent text on the accent selection
-  fill (`construction.rs` `draw` and `draw_palette`); the category tabs run
-  under the Expand button ("Water (1" cut).
-- `cloud_dev`, `governance`, `studio`, `construction`: every plain
-  `egui::Slider` draws no track, only a hollow circle that reads as a radio
-  button. egui paints the rail and the handle fill from
-  `widgets.inactive.bg_fill`, which `Theme::apply_to_egui` sets to `bg_card`
-  (4,4,4) on a black panel. One fix in `theme.rs` (or moving these call sites
-  to `widgets::custom_slider`, which uses the `slider_track` token) clears all
-  four.
-- `studio` also: the "Show LIVE on profile" toggle is cut by the right edge
-  (`draw_right_panel`) and "Connecting to relay..." by the centre panel edge
-  (`draw_center_panel`).
-- `watch`: the "Live now" heading is near-invisible. An uncoloured `.strong()`
-  label takes egui's `strong_text_color()`, which is `widgets.active.fg_stroke`,
-  which `apply_to_egui` sets to `text_on_accent` (near black). Any other
-  uncoloured `.strong()` label in the app has the same problem.
-- `hud_vitals`: the in-world chat feed draws a multi-line message on top of the
-  next rows and past the bottom of its box, because the line is formatted with
-  its newlines intact (`hud.rs` `draw`, the chat feed block).
-- `nav_bar_icon_only`: the Watch button is an empty square, because
-  `widgets/icons.rs` `paint_nav_icon` has no `GuiPage::Watch` arm. The labelled
-  nav bars show the same missing icon as a gap before "Watch" (committed, as a
-  nit).
-- `onboarding_identity`: the window is `fixed_size(500, 520)` in
-  `main_menu.rs` `draw_onboarding`, but a non-wrapping warning line in
-  `draw_step_identity` widens it to about 975 px, and the 520 px height cuts
-  off the Back button below Finish Setup.
-- `tasks`: the Learn by Doing guides column runs off the right edge, text cut
-  mid-word, and the In Progress card's "Medium" badge crosses into the Done
-  column (`tasks.rs` `draw`, the wide layout, and `draw_board`).
-- `relay_control_host_node` (new, not added): the Browse-for-folder hint is a
-  non-wrapping label in a `ui.horizontal`, so it pushes the form card past the
-  page edge and its text is cut (`host_node.rs` `draw_setup`).
-- `library_ladder` (unchanged, already committed wrong): the numbered list in
-  04-CONTRIBUTING renders as one run-on paragraph, because
-  `widgets/markdown.rs` `render_markdown_impl` has no ordered-list branch.
+Nits fixed on the way: a themed slider's knob stays inside its track, so at
+maximum it no longer covers the value label (audio, graphics, controls,
+planet tuner); badges never wrap inside their pill; the Quests completed tick
+is painted (`icons::paint_check`) instead of the U+2713 glyph that sat high.
 
-Committed with a nit worth knowing: a themed slider at its maximum overlaps
-the first character of its value label (`widgets/mod.rs`
-`custom_slider_with_width`: audio and graphics settings); star and street
-labels collide on the two Maps views and the OSM attribution has no backing
-over roads; `main_menu` carries the version string, so it changes every
-release; the quests check mark sits high.
-
-Next: fix the 14 pages above (the slider-rail and `.strong()` theme fixes are
-one line each; they fully clear `cloud_dev`, `governance` and `watch`, and
-take one defect off `studio` and `construction`), then `just snapshot <name>`
-each and commit it as its baseline.
+Still open, all minor: star and street labels collide on the two Maps views
+and the OSM attribution has no backing over roads; `main_menu` carries the
+version string, so it changes every release; on Watch the "Live now" heading
+is larger than the page title; the Construction "Add room" picker shows empty
+because the snapshot does not seed room types; the in-world chat feed shows
+raw markdown (`__bold__`, a code fence).
 
 ---
 

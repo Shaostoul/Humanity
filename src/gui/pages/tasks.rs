@@ -465,35 +465,46 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             if !show_guides {
                 draw_board(ui, theme, state, &filtered, &mut select_task);
             } else if avail_w >= WIDE_LAYOUT_MIN_WIDTH {
-                ui.horizontal_top(|ui| {
-                    let board_w = (avail_w - GUIDE_PANEL_WIDTH - theme.spacing_lg).max(480.0);
-                    ui.allocate_ui_with_layout(
-                        egui::vec2(board_w, avail_h),
-                        egui::Layout::top_down(egui::Align::Min),
-                        |ui| {
-                            // set_width so the board actually fills its share;
-                            // allocate_ui_with_layout otherwise advances by the
-                            // content's own (smaller) width.
-                            ui.set_width(board_w);
-                            draw_board(ui, theme, state, &filtered, &mut select_task);
-                        },
-                    );
-                    ui.add_space(theme.spacing_lg);
-                    ui.allocate_ui_with_layout(
-                        egui::vec2(GUIDE_PANEL_WIDTH, avail_h),
-                        egui::Layout::top_down(egui::Align::Min),
-                        |ui| {
-                            ui.set_width(GUIDE_PANEL_WIDTH);
-                            // Own scroll id: the kanban columns already salt
-                            // theirs, and a bare auto-id would clash.
-                            ScrollArea::vertical()
-                                .id_salt("task_guides_side")
-                                .show(ui, |ui| {
-                                    draw_guides(ui, theme, state);
-                                });
-                        },
-                    );
-                });
+                // Two FIXED rects side by side. The guide column used to be
+                // placed after the board's actual drawn width, so one card
+                // wider than its column pushed the whole guide panel off the
+                // right edge with its text cut mid-word (2026-09-27 snapshot
+                // review). Now the board is clipped to its share and the
+                // guides always sit at the same x, whatever the board draws.
+                let board_w = (avail_w - GUIDE_PANEL_WIDTH - theme.spacing_lg).max(480.0);
+                let top_left = ui.cursor().min;
+                let board_rect = egui::Rect::from_min_size(top_left, egui::vec2(board_w, avail_h));
+                let guide_rect = egui::Rect::from_min_size(
+                    egui::pos2(board_rect.right() + theme.spacing_lg, top_left.y),
+                    egui::vec2(GUIDE_PANEL_WIDTH, avail_h),
+                );
+                ui.scope_builder(
+                    egui::UiBuilder::new()
+                        .max_rect(board_rect)
+                        .layout(egui::Layout::top_down(egui::Align::Min)),
+                    |ui| {
+                        ui.set_clip_rect(board_rect.intersect(ui.clip_rect()));
+                        // set_width so the board actually fills its share
+                        // rather than shrinking to its content.
+                        ui.set_width(board_w);
+                        draw_board(ui, theme, state, &filtered, &mut select_task);
+                    },
+                );
+                ui.scope_builder(
+                    egui::UiBuilder::new()
+                        .max_rect(guide_rect)
+                        .layout(egui::Layout::top_down(egui::Align::Min)),
+                    |ui| {
+                        ui.set_width(GUIDE_PANEL_WIDTH);
+                        // Own scroll id: the kanban columns already salt
+                        // theirs, and a bare auto-id would clash.
+                        ScrollArea::vertical()
+                            .id_salt("task_guides_side")
+                            .show(ui, |ui| {
+                                draw_guides(ui, theme, state);
+                            });
+                    },
+                );
             } else {
                 let board_h = (avail_h * STACKED_BOARD_HEIGHT_FRACTION).max(220.0);
                 ui.allocate_ui_with_layout(
@@ -569,9 +580,39 @@ fn draw_board(
                         let task = &state.tasks[idx];
                         let pc = priority_color(theme, task.priority);
                         widgets::card(ui, theme, |ui| {
-                            ui.horizontal(|ui| {
-                                ui.label(RichText::new(&task.title).size(theme.font_size_body).color(theme.text_primary()));
-                                widgets::badge_sm(ui, theme, priority_label(task.priority), pc);
+                            // The title WRAPS in the room left beside the
+                            // priority badge, which keeps the top-right corner.
+                            // As a plain label in a horizontal row it could not
+                            // wrap: the card grew past its column and the
+                            // "Medium" badge sat in the Done column (2026-09-27
+                            // snapshot review).
+                            ui.horizontal_top(|ui| {
+                                let prio = priority_label(task.priority);
+                                let badge_w = ui
+                                    .fonts(|f| {
+                                        f.layout_no_wrap(
+                                            prio.to_string(),
+                                            egui::FontId::proportional(theme.small_size),
+                                            theme.text_primary(),
+                                        )
+                                    })
+                                    .size()
+                                    .x
+                                    + 8.0 // badge_sm's inner margin, 4 px a side
+                                    + ui.spacing().item_spacing.x;
+                                let title_w = (ui.available_width() - badge_w).max(60.0);
+                                ui.scope(|ui| {
+                                    ui.set_max_width(title_w);
+                                    ui.add(
+                                        egui::Label::new(
+                                            RichText::new(&task.title)
+                                                .size(theme.font_size_body)
+                                                .color(theme.text_primary()),
+                                        )
+                                        .wrap(),
+                                    );
+                                });
+                                widgets::badge_sm(ui, theme, prio, pc);
                             });
                             // Description preview (first 80 chars)
                             if !task.description.is_empty() {

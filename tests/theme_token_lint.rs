@@ -206,6 +206,58 @@ fn looks_like_hardcoded_color(line: &str) -> bool {
     false
 }
 
+/// Every plain `egui::Slider` must be added through `widgets::slider`, which
+/// scopes the slider-only visuals (rail in `slider_track`, accent trail). Added
+/// bare, egui paints the rail from the checkbox fill the theme keeps at
+/// `bg_card`, which is invisible on the black panels, so the slider draws as a
+/// lone hollow circle that reads as a radio button (2026-09-27 snapshot review:
+/// Cloud dev, Governance, Studio, Construction). This test is the reason a new
+/// slider cannot quietly bring that back.
+///
+/// The rule is textual: the `Slider::new(` call must sit inside a
+/// `widgets::slider(` call that opens on the same line or up to three lines
+/// above it. Build the slider inline in the wrapper call, not in a `let` first.
+#[test]
+fn egui_sliders_go_through_the_themed_wrapper() {
+    let root = project_root();
+    let mut bare: Vec<String> = Vec::new();
+    for dir in SCAN_DIRS {
+        let dir_path = root.join(dir);
+        if !dir_path.exists() { continue; }
+        for file in walk_rs(&dir_path) {
+            let body = match fs::read_to_string(&file) {
+                Ok(b) => b,
+                Err(_) => continue,
+            };
+            let lines: Vec<&str> = body.lines().collect();
+            for (idx, line) in lines.iter().enumerate() {
+                let code = line.split("//").next().unwrap_or("");
+                if !code.contains("Slider::new(") { continue; }
+                let from = idx.saturating_sub(3);
+                let wrapped = lines[from..=idx]
+                    .iter()
+                    .any(|l| l.split("//").next().unwrap_or("").contains("widgets::slider("));
+                if !wrapped {
+                    bare.push(format!(
+                        "  {}:{}  {}",
+                        file.strip_prefix(&root).unwrap_or(&file).display(),
+                        idx + 1,
+                        line.trim()
+                    ));
+                }
+            }
+        }
+    }
+    assert!(
+        bare.is_empty(),
+        "\n\n{} egui::Slider call(s) are added without the themed wrapper:\n\n{}\n\n\
+         Fix: `widgets::slider(ui, theme, egui::Slider::new(..))` (returns the \
+         Response, so `.changed()` chains as before).\n",
+        bare.len(),
+        bare.join("\n")
+    );
+}
+
 fn walk_rs(dir: &Path) -> Vec<PathBuf> {
     let mut out = Vec::new();
     let entries = match fs::read_dir(dir) {

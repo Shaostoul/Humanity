@@ -87,14 +87,21 @@ pub fn draw_quests(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         return;
     }
 
+    // The Frame's margin and stroke are laid out AROUND its content, so the
+    // content gets the column minus both, or the card runs past the column.
+    // With `avail - 4` it overran by 16 px and the Tasks guide cards were cut
+    // at the window edge (2026-09-27 snapshot review). The Frame rounds the
+    // f32 margin to whole points, so round here too.
+    let chain_margin = (theme.card_padding * 1.5).round();
+    let chain_frame = 2.0 * chain_margin + 2.0;
     for chain in state.onboarding_quest_chains.clone().iter() {
         Frame::none()
             .fill(theme.bg_card())
             .stroke(Stroke::new(1.0, theme.border()))
             .rounding(Rounding::same(theme.border_radius as u8))
-            .inner_margin(theme.card_padding * 1.5)
+            .inner_margin(chain_margin)
             .show(ui, |ui| {
-                ui.set_width(avail - 4.0);
+                ui.set_width((avail - chain_frame).max(40.0));
                     ui.label(
                         RichText::new(&chain.title)
                             .size(theme.font_size_body)

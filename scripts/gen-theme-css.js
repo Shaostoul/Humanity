@@ -123,6 +123,11 @@ function buildCss(tokens) {
   lines.push(`  --text-secondary: ${c('text_secondary')};`);
   lines.push(`  --text-muted: ${c('text_muted')};`);
   lines.push(`  --text-on-accent: ${c('text_on_accent')};`);
+  // Native emphasis ink (egui .strong() labels). The web's <strong> keeps its
+  // bold face and inherits its parent's colour, which never had the native
+  // near-invisible defect; the variable is here for components that mirror a
+  // native strong label exactly.
+  lines.push(`  --text-strong: ${c('text_strong')};`);
   lines.push('');
   lines.push('  /* Accent */');
   lines.push(`  --accent: ${c('accent')};`);

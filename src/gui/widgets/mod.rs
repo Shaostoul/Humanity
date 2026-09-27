@@ -652,12 +652,19 @@ fn custom_slider_with_width(
         Vec2::new(desired_width, widget_height),
         Sense::click_and_drag(),
     );
+    // The thumb CENTRE travels between these two x positions, one thumb
+    // radius in from each end, so the whole knob stays inside the allocated
+    // rect. With the centre running edge to edge, a slider at its maximum
+    // painted half its knob over the first character of the value label
+    // beside it (2026-09-27 snapshot review, the audio and graphics settings).
+    let travel_left = rect.left() + thumb_r;
+    let travel_w = (rect.width() - 2.0 * thumb_r).max(1.0);
 
     // Handle drag/click interaction
     let old_value = *value;
     if response.dragged() || response.clicked() {
         if let Some(pos) = response.interact_pointer_pos() {
-            let t = ((pos.x - rect.left()) / rect.width()).clamp(0.0, 1.0);
+            let t = ((pos.x - travel_left) / travel_w).clamp(0.0, 1.0);
             // Snap to the precision the value label displays at, so the
             // stored number IS the shown number (see `slider_display_step`).
             // Clamped after rounding: half a step of round-up at the top end
@@ -676,7 +683,7 @@ fn custom_slider_with_width(
         // clamp the thumb and the gradient fill would be drawn outside the
         // allocated rect and paint over the widget to its right.
         let t = if (max - min).abs() < f32::EPSILON { 0.5 } else { ((*value - min) / (max - min)).clamp(0.0, 1.0) };
-        let thumb_x = rect.left() + t * rect.width();
+        let thumb_x = travel_left + t * travel_w;
         let rounding = Rounding::same((track_h / 2.0) as u8);
 
         // Draw dim track (unfilled portion: thumb to right)
@@ -840,6 +847,35 @@ pub fn custom_slider_capped(
     custom_slider_with_width(ui, theme, value, range, target_w)
 }
 
+/// Add an `egui::Slider` in the house look. EVERY plain egui slider in the
+/// app goes through here (`tests/theme_token_lint.rs` fails on one that does
+/// not), for the times the house `custom_slider` is not enough: integer
+/// ranges, suffixes, logarithmic ranges, a value box beside the track.
+///
+/// Why a wrapper rather than one line in `Theme::apply_to_egui`: egui paints a
+/// slider's rail, and its knob at rest, from `widgets.inactive.bg_fill`, and
+/// that same field is the resting fill of every egui checkbox and radio
+/// button. The theme keeps it at `bg_card` so those boxes stay flat and dark
+/// like the house `custom_checkbox`, which on the near-black panels made the
+/// rail invisible: an egui slider drew as a lone hollow circle that read as a
+/// radio button (Cloud dev, Governance, Studio, Construction, found in the
+/// 2026-09-27 snapshot review). Scoping the change to the slider is the only
+/// way to fix the rail without restyling 90-odd checkboxes and radios.
+///
+/// Look, all from theme tokens: the rail in `slider_track` at
+/// `slider_track_height`, the part left of the knob filled with the accent
+/// (egui's trailing fill reads `selection.bg_fill`), and the knob a
+/// `slider_track` disc ringed in `text_secondary` (egui's inactive stroke).
+pub fn slider(ui: &mut Ui, theme: &Theme, slider: egui::Slider<'_>) -> egui::Response {
+    ui.scope(|ui| {
+        ui.visuals_mut().widgets.inactive.bg_fill = theme.slider_track();
+        ui.visuals_mut().selection.bg_fill = theme.accent();
+        ui.spacing_mut().slider_rail_height = theme.slider_track_height;
+        ui.add(slider.trailing_fill(true))
+    })
+    .inner
+}
+
 /// Custom checkbox with visible border when unchecked.
 /// Returns true if value changed.
 pub fn custom_checkbox(ui: &mut Ui, theme: &Theme, value: &mut bool) -> bool {
@@ -885,9 +921,37 @@ pub fn custom_checkbox(ui: &mut Ui, theme: &Theme, value: &mut bool) -> bool {
 }
 
 /// Toggle switch with label and visible checkbox. Returns true if value changed.
+///
+/// The label column is `settings_label_width` wide so toggles line up with the
+/// other settings rows, EXCEPT where that would push the box off the edge: in a
+/// narrow side panel the column shrinks to what is left beside the box and the
+/// label wraps inside it. A fixed 200 px column cut the box off in Studio's
+/// 220 px right panel and in the Maps station row (2026-09-27 snapshot
+/// review). Wide pages lay out exactly as before.
 pub fn toggle(ui: &mut Ui, theme: &Theme, label: &str, value: &mut bool) -> bool {
+    // The box's unchecked outline is stroked OUTSIDE its rect (1.5 px), so
+    // leave 2 px for it or a box flush with the panel edge loses its right side.
+    let box_w = theme.checkbox_size + ui.spacing().item_spacing.x + 2.0;
+    let room = ui.available_width() - box_w;
+    if room >= theme.settings_label_width {
+        let mut changed = false;
+        settings_row(ui, theme, label, |ui| {
+            changed = custom_checkbox(ui, theme, value);
+        });
+        return changed;
+    }
+    let label_w = room.max(40.0);
     let mut changed = false;
-    settings_row(ui, theme, label, |ui| {
+    ui.horizontal_top(|ui| {
+        ui.allocate_ui_with_layout(
+            Vec2::new(label_w, ui.spacing().interact_size.y),
+            egui::Layout::left_to_right(egui::Align::Center),
+            |ui| {
+                ui.set_min_width(label_w);
+                ui.set_max_width(label_w);
+                ui.add(egui::Label::new(RichText::new(label).color(theme.text_secondary())).wrap());
+            },
+        );
         changed = custom_checkbox(ui, theme, value);
     });
     changed
@@ -1635,7 +1699,10 @@ pub fn badge_sm(ui: &mut Ui, theme: &Theme, text: &str, color: Color32) {
         .rounding(Rounding::same(theme.badge_radius as u8))
         .inner_margin(Vec2::new(4.0, 1.0))
         .show(ui, |ui| {
-            ui.label(RichText::new(text).size(theme.small_size).color(Color32::WHITE));
+            // A badge is one word or two and never breaks: in a wrapping row
+            // with little room left, a wrapping label split "Medium" into
+            // "Medi / um" inside its pill (Tasks, 2026-09-27 snapshot review).
+            ui.add(egui::Label::new(RichText::new(text).size(theme.small_size).color(Color32::WHITE)).extend());
         });
 }
 

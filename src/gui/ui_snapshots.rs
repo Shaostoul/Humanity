@@ -382,11 +382,30 @@ fn render_page_png(name: &str, w: u32, h: u32, frame: impl Fn(&egui::Context, &m
         // pages (the main menu hub/onboarding, modals) blank. Run a warm-up frame,
         // then capture the second — applying BOTH frames' texture deltas (the font
         // atlas is created on frame 1).
-        let warm = ctx.run(raw_input.clone(), |ctx| {
-            frame(ctx, &mut theme, &mut state);
-        });
-        for (id, delta) in &warm.textures_delta.set {
-            renderer.update_texture(&device, &queue, *id, delta);
+        //
+        // TWO warm-up frames, not one (2026-09-27). A Window's first frame is
+        // egui's invisible SIZING pass, which lays justified and centred
+        // content out at its minimum size, and the second frame clips the
+        // window's content to the size that pass measured. So a window whose
+        // content is taller once properly laid out (a TextEdit given a
+        // height, a centred button) was photographed with its bottom cut off:
+        // the onboarding window lost the lower half of its Back button, a
+        // state that lasts one frame in the app. The third frame is settled.
+        //
+        // The extra frame is pinned at t = 0, so the two frames after it land
+        // at 1/60 s and 2/60 s exactly as the old two frames did (egui adds
+        // its predicted 1/60 s per frame when no time is given). Anything
+        // painted from `input.time` (the animated slider-thumb ring, the RGB
+        // selection edges, uptime clocks) looks exactly as it did.
+        for warm_t in [Some(0.0_f64), None] {
+            let mut warm_input = raw_input.clone();
+            warm_input.time = warm_t;
+            let warm = ctx.run(warm_input, |ctx| {
+                frame(ctx, &mut theme, &mut state);
+            });
+            for (id, delta) in &warm.textures_delta.set {
+                renderer.update_texture(&device, &queue, *id, delta);
+            }
         }
         let full_output = ctx.run(raw_input, |ctx| {
             frame(ctx, &mut theme, &mut state);
@@ -1067,8 +1086,13 @@ fn snapshot_nav_bar_wrapped() {
 fn snapshot_toast() {
     // The confirmation toast that fires on save (v0.861). Push one, render it.
     render_page_png("toast", 700, 320, |ctx, theme, state| {
-        let now = ctx.input(|i| i.time);
-        state.toast("Theme saved", crate::gui::ToastKind::Success, now);
+        // Push on the FIRST frame only: the closure runs once per rendered
+        // frame, and pushing every frame stacked a second copy once the
+        // harness began rendering three frames instead of two.
+        if state.toasts.is_empty() {
+            let now = ctx.input(|i| i.time);
+            state.toast("Theme saved", crate::gui::ToastKind::Success, now);
+        }
         crate::gui::widgets::draw_toasts(ctx, theme, state);
     });
 }
@@ -1296,7 +1320,18 @@ fn snapshot_chat_commons() {
         crate::gui::pages::chat::draw(ctx, theme, state);
     });
 }
-page_snapshot!(snapshot_cosmos, "cosmos", cosmos, 1280, 900);
+/// Maps, Solar System view. The page opens on TODAY's sky and reads the wall
+/// clock for "days from today", so it is pinned to 2026-09-27 12:00 UTC
+/// (843,782,400 s after J2000.0); unpinned, the picture changed on every run.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
+fn snapshot_cosmos() {
+    crate::gui::pages::cosmos::set_clock_for_snapshot(Some(843_782_400.0));
+    render_page_png("cosmos", 1280, 900, |ctx, theme, state| {
+        crate::gui::pages::cosmos::draw(ctx, theme, state);
+    });
+    crate::gui::pages::cosmos::set_clock_for_snapshot(None);
+}
 #[test]
 #[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
 fn snapshot_inventory() {
@@ -1482,6 +1517,13 @@ fn snapshot_relay_control_actions() {
 #[test]
 #[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
 fn snapshot_relay_control_host_node() {
+    // The form's defaults come from this machine (its name, its profile
+    // folder); fixed values keep the picture the same on every PC. They match
+    // the running-node snapshot below.
+    crate::gui::pages::host_node::seed_setup_for_snapshot(
+        "Shaostoul's node",
+        r"C:\Users\Shaos\AppData\Roaming\HumanityOS\relay\relay.db",
+    );
     render_page_png("relay_control_host_node", 1100, 900, |ctx, theme, state| {
         // No saved servers and no connected relay: the empty-selection path.
         state.chat_servers.clear();
@@ -1489,6 +1531,7 @@ fn snapshot_relay_control_host_node() {
         state.relay_cc_selected = None;
         crate::gui::pages::relay_control::draw(ctx, theme, state);
     });
+    crate::gui::pages::host_node::reset_for_snapshot();
 }
 
 /// Relay Control Center — a node that IS serving: the addresses to hand to a

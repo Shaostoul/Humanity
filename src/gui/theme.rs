@@ -24,6 +24,16 @@ pub struct Theme {
     pub text_secondary: C,
     pub text_muted: C,
     pub text_on_accent: C,
+    /// Emphasised text: every uncoloured `.strong()` label (egui takes the
+    /// strong colour from `widgets.active.fg_stroke`, see `apply_to_egui`)
+    /// and the stroke of a control while it is pressed. One step brighter
+    /// than `text_primary`, because the app's font has no bold face, so
+    /// brighter ink IS the emphasis (the chat row paints bold spans white for
+    /// the same reason). It used to borrow `text_on_accent`, the near-black
+    /// ink for orange buttons, which made every plain strong label almost
+    /// invisible on the black panels (the Watch page's "Live now").
+    #[serde(default = "default_text_strong")]
+    pub text_strong: C,
     pub success: C,
     pub warning: C,
     pub danger: C,
@@ -376,6 +386,7 @@ impl Theme {
     pub fn text_secondary(&self) -> Color32 { Self::c32(&self.text_secondary) }
     pub fn text_muted(&self) -> Color32 { Self::c32(&self.text_muted) }
     pub fn text_on_accent(&self) -> Color32 { Self::c32(&self.text_on_accent) }
+    pub fn text_strong(&self) -> Color32 { Self::c32(&self.text_strong) }
     pub fn success(&self) -> Color32 { Self::c32(&self.success) }
     pub fn warning(&self) -> Color32 { Self::c32(&self.warning) }
     pub fn danger(&self) -> Color32 { Self::c32(&self.danger) }
@@ -490,6 +501,7 @@ impl Theme {
         self.text_secondary = (0.706, 0.706, 0.745, 1.0); // #b4b4be (was #888894)
         self.text_muted = (0.580, 0.580, 0.624, 1.0);     // #94949f (was #6a6a75)
         self.text_on_accent = (1.0, 1.0, 1.0, 1.0);
+        self.text_strong = default_text_strong();
         self.success = (0.165, 0.722, 0.439, 1.0);        // #2AB870
         self.warning = (0.961, 0.722, 0.231, 1.0);        // #F5B83B
         self.danger = (0.937, 0.310, 0.310, 1.0);         // #EF4F4F
@@ -569,7 +581,14 @@ impl Theme {
 
         // Active (pressed) widgets
         visuals.widgets.active.bg_fill = self.accent();                // #ED8C24
-        visuals.widgets.active.fg_stroke = Stroke::new(1.0, self.text_on_accent());
+        // NOT text_on_accent: egui's `strong_text_color()` IS this stroke's
+        // colour, so every uncoloured `.strong()` label in the app takes it.
+        // With the near-black on-accent ink those labels vanished on the black
+        // panels (2026-09-27 snapshot review: the Watch page's "Live now").
+        // The only other thing it paints is a control's stroke while the mouse
+        // is held on it (the check mark, the slider knob ring), which reads
+        // fine in the strong ink on the accent fill.
+        visuals.widgets.active.fg_stroke = Stroke::new(1.0, self.text_strong());
 
         // Selection
         visuals.selection.bg_fill = self.accent();                     // #ED8C24
@@ -659,6 +678,7 @@ fn default_cell_name_width() -> f32 { 150.0 }
 fn default_button_pad_y() -> f32 { 3.0 }
 fn default_bg_panel() -> C { (0.078, 0.078, 0.098, 1.0) }      // rgb(20, 20, 25)
 fn default_row_stripe() -> C { (0.0157, 0.0157, 0.0157, 1.0) } // #040404
+fn default_text_strong() -> C { (1.0, 1.0, 1.0, 1.0) } // #ffffff, one step above text_primary
 fn default_orbit_line() -> C { (0.0078, 0.0118, 0.0196, 1.0) } // #020305 near-black
 fn default_constellation_line() -> C { (0.133, 0.267, 0.267, 1.0) } // #224444 teal
 fn default_bg_sidebar() -> C { (0.086, 0.086, 0.110, 1.0) }    // rgb(22, 22, 28)
@@ -736,6 +756,7 @@ fn default_theme() -> Theme {
         text_secondary: (0.706, 0.706, 0.745, 1.0),   // #b4b4be
         text_muted: (0.580, 0.580, 0.624, 1.0),       // #94949f
         text_on_accent: (0.05, 0.05, 0.05, 1.0),
+        text_strong: default_text_strong(),
         success: (0.2, 0.75, 0.3, 1.0),
         warning: (0.95, 0.75, 0.1, 1.0),
         danger: (0.9, 0.25, 0.2, 1.0),

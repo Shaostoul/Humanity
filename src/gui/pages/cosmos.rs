@@ -473,11 +473,20 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                         CosmosView::Galactic  => "2D top-down · scroll to zoom · click-drag to pan",
                         CosmosView::NightSky  => "2D celestial sphere · scroll to zoom · click-drag to pan",
                     };
-                    ui.label(
-                        RichText::new(hint)
-                            .size(theme.font_size_small)
-                            .color(theme.text_muted())
-                            .italics(),
+                    // Truncated to the room left beside the view tabs (full
+                    // text on hover). Untruncated it ran leftward over the
+                    // tabs whenever the side panels left the centre narrow,
+                    // which with both System panels open is most of the time
+                    // (2026-09-27 snapshot review). The same controls are
+                    // spelled out at the bottom of the canvas anyway.
+                    ui.add(
+                        egui::Label::new(
+                            RichText::new(hint)
+                                .size(theme.font_size_small)
+                                .color(theme.text_muted())
+                                .italics(),
+                        )
+                        .truncate(),
                     );
                 });
             });
@@ -1640,26 +1649,39 @@ fn draw_system_view(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     }
 
     // ── HUD overlay: camera state for the operator ──
-    paint.text(
-        Pos2::new(rect.left() + 8.0, rect.bottom() - 24.0),
-        Align2::LEFT_BOTTOM,
-        format!("Cam: {:.1} AU from target · yaw {:+.0}° · pitch {:+.0}°",
-            cam.distance_au, cam.yaw_rad.to_degrees(), cam.pitch_rad.to_degrees()),
-        egui::FontId::proportional(10.0),
-        theme.text_muted(),
-    );
-    paint.text(
-        Pos2::new(rect.left() + 8.0, rect.bottom() - 8.0),
-        Align2::LEFT_BOTTOM,
-        "Drag to rotate · scroll to zoom · shift+drag to pan target · click body to select · Focus button in details panel",
-        egui::FontId::proportional(10.0),
-        theme.text_muted(),
-    );
+    // Laid out (not painted blind) so the sky-events list below can see how
+    // much of the bottom edge these two lines take. Wrapped to the canvas
+    // width: a narrow centre panel used to cut the help line at the edge.
+    let hud_font = egui::FontId::proportional(10.0);
+    let hud_wrap = (rect.width() - 16.0).max(40.0);
+    let cam_galley = ui.fonts(|f| {
+        f.layout(
+            format!("Cam: {:.1} AU from target · yaw {:+.0}° · pitch {:+.0}°",
+                cam.distance_au, cam.yaw_rad.to_degrees(), cam.pitch_rad.to_degrees()),
+            hud_font.clone(),
+            theme.text_muted(),
+            hud_wrap,
+        )
+    });
+    let help_galley = ui.fonts(|f| {
+        f.layout(
+            "Drag to rotate · scroll to zoom · shift+drag to pan target · click body to select · Focus button in details panel".to_string(),
+            hud_font.clone(),
+            theme.text_muted(),
+            hud_wrap,
+        )
+    });
+    let help_top = rect.bottom() - 8.0 - help_galley.size().y;
+    let cam_top = help_top - 2.0 - cam_galley.size().y;
+    let hud_w = cam_galley.size().x.max(help_galley.size().x);
+    paint.galley(Pos2::new(rect.left() + 8.0, cam_top), cam_galley, theme.text_muted());
+    paint.galley(Pos2::new(rect.left() + 8.0, help_top), help_galley, theme.text_muted());
 
     // ── Sky-events HUD (Phase 4d-tri, v0.210.0) ──
     // Bottom-right corner readout. Shows up to 3 tightest conjunctions
     // currently in progress + any solar eclipse. Empty when sky is quiet.
-    let sky_y_base = rect.bottom() - 8.0;
+    // Its base line is decided once the lines are known (below): the bottom
+    // edge when it clears the camera lines, above them when it would not.
     let mut sky_lines: Vec<(String, Color32)> = Vec::new();
     if let Some(ref ev) = eclipse {
         let pct = (ev.coverage * 100.0).round();
@@ -1748,6 +1770,24 @@ fn draw_system_view(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             ),
         );
     }
+    // Where the list sits: on the bottom edge when it clears the camera lines
+    // at the bottom-left, otherwise stacked above them. On a narrow centre
+    // panel (both System side panels open) the two used to share the bottom
+    // edge and the help line ran straight through the event list (2026-09-27
+    // snapshot review).
+    let sky_w = sky_lines
+        .iter()
+        .map(|(line, _)| {
+            ui.fonts(|f| f.layout_no_wrap(line.clone(), hud_font.clone(), theme.text_muted()))
+                .size()
+                .x
+        })
+        .fold(0.0_f32, f32::max);
+    let sky_y_base = if hud_w + sky_w + 24.0 <= rect.width() {
+        rect.bottom() - 8.0
+    } else {
+        cam_top - 8.0
+    };
     // Section header.
     paint.text(
         Pos2::new(rect.right() - 8.0, sky_y_base - sky_lines.len() as f32 * 14.0 - 18.0),
@@ -3239,10 +3279,29 @@ fn dist_point_to_segment(p: Pos2, a: Pos2, b: Pos2) -> f32 {
 /// J2000 = 2000-01-01 12:00:00 UTC = UNIX time 946,728,000.
 const J2000_UNIX_SECONDS: f64 = 946_728_000.0;
 
+#[cfg(test)]
+thread_local! {
+    /// Test-only stand-in for the wall clock. The page opens on TODAY's sky,
+    /// so a snapshot of it changed every time it ran and could never be a
+    /// baseline. `set_clock_for_snapshot` pins it for the calling thread.
+    static TEST_NOW_SINCE_J2000: std::cell::Cell<Option<f64>> = const { std::cell::Cell::new(None) };
+}
+
+/// Test-only: pin (or with `None`, release) the clock this page reads, in
+/// seconds since J2000.0, for the calling thread.
+#[cfg(test)]
+pub(crate) fn set_clock_for_snapshot(seconds_since_j2000: Option<f64>) {
+    TEST_NOW_SINCE_J2000.with(|c| c.set(seconds_since_j2000));
+}
+
 /// Seconds since J2000.0 corresponding to the current real-world clock.
 /// Used to initialize sim_time so the user sees today's planetary
 /// configuration without scrubbing.
 fn current_real_time_seconds_since_j2000() -> f64 {
+    #[cfg(test)]
+    if let Some(t) = TEST_NOW_SINCE_J2000.with(|c| c.get()) {
+        return t;
+    }
     let unix = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs_f64())
@@ -3495,10 +3554,20 @@ fn draw_time_controls(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         // Range is ±10 years from today's date, scaled in days.
         let now = current_real_time_seconds_since_j2000();
         let mut offset_days = (state.cosmos_sim_time_seconds - now) / 86_400.0;
-        let scrubber = egui::Slider::new(&mut offset_days, -(365.25 * 10.0)..=(365.25 * 10.0))
-            .text("Days from today")
-            .show_value(true);
-        if ui.add(scrubber).changed() {
+        // The wall clock runs on between the frame that set sim time to "now"
+        // and this one, so a paused view at today read "-0.00". Anything
+        // inside the box's display precision is today.
+        if offset_days.abs() < 0.005 {
+            offset_days = 0.0;
+        }
+        let scrubbed = widgets::slider(
+            ui,
+            theme,
+            egui::Slider::new(&mut offset_days, -(365.25 * 10.0)..=(365.25 * 10.0))
+                .text("Days from today")
+                .show_value(true),
+        );
+        if scrubbed.changed() {
             state.cosmos_sim_time_seconds = now + offset_days * 86_400.0;
         }
     });

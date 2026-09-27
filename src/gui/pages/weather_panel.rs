@@ -236,7 +236,7 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) -> bool {
                 .size(theme.font_size_small)
                 .color(theme.text_primary()),
             );
-            let scrub = ui.add(
+            let scrub = crate::gui::widgets::slider(ui, theme,
                 egui::Slider::new(&mut state.time_pick_hour, 0.0..=24.0)
                     .text("Hour")
                     .fixed_decimals(2),
@@ -293,8 +293,7 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) -> bool {
                     Some(if frozen { 0.0 } else { state.time_speed });
             }
             if !state.time_frozen {
-                if ui
-                    .add(
+                if crate::gui::widgets::slider(ui, theme,
                         egui::Slider::new(&mut state.time_speed, 1.0..=600.0)
                             .text("Clock speed")
                             .logarithmic(true)
@@ -361,22 +360,19 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) -> bool {
             // nadir pointing these turn the home on its own axes without
             // breaking the floor-down rule.
             let mut trimmed = false;
-            trimmed |= ui
-                .add(
+            trimmed |= crate::gui::widgets::slider(ui, theme,
                     egui::Slider::new(&mut state.station_yaw_deg, -180.0..=180.0)
                         .text("Yaw")
                         .fixed_decimals(0),
                 )
                 .changed();
-            trimmed |= ui
-                .add(
+            trimmed |= crate::gui::widgets::slider(ui, theme,
                     egui::Slider::new(&mut state.station_pitch_deg, -180.0..=180.0)
                         .text("Pitch")
                         .fixed_decimals(0),
                 )
                 .changed();
-            trimmed |= ui
-                .add(
+            trimmed |= crate::gui::widgets::slider(ui, theme,
                     egui::Slider::new(&mut state.station_roll_deg, -180.0..=180.0)
                         .text("Roll")
                         .fixed_decimals(0),
@@ -492,8 +488,7 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) -> bool {
             }
 
             ui.add_space(theme.spacing_sm);
-            if ui
-                .add(
+            if crate::gui::widgets::slider(ui, theme,
                     egui::Slider::new(&mut state.weather_pick_wind, 0.0..=30.0)
                         .text("Wind m/s")
                         .fixed_decimals(1),
@@ -512,8 +507,7 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) -> bool {
                 .size(theme.font_size_small)
                 .color(theme.text_secondary()),
             );
-            if ui
-                .add(
+            if crate::gui::widgets::slider(ui, theme,
                     egui::Slider::new(&mut state.weather_pick_intensity, 0.0..=1.0)
                         .text("Intensity")
                         .fixed_decimals(2),
@@ -537,8 +531,7 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) -> bool {
             // extinction the whole aerial term is built on.
             ui.label(RichText::new("Effect strength").strong().color(theme.accent()));
             ui.add_space(2.0);
-            if ui
-                .add(
+            if crate::gui::widgets::slider(ui, theme,
                     egui::Slider::new(&mut state.settings.precip_density, 0.1..=100.0)
                         .text("Precipitation density")
                         .logarithmic(true)
@@ -555,8 +548,7 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) -> bool {
                 .size(theme.font_size_small)
                 .color(theme.text_muted()),
             );
-            if ui
-                .add(
+            if crate::gui::widgets::slider(ui, theme,
                     egui::Slider::new(&mut state.settings.fog_density, 0.0..=4.0)
                         .text("Fog / dust density")
                         .fixed_decimals(2),

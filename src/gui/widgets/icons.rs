@@ -496,6 +496,55 @@ pub fn paint_play(painter: &egui::Painter, rect: Rect, color: Color32) {
     painter.add(PathShape::convex_polygon(pts, color, Stroke::NONE));
 }
 
+/// Check mark: a painted tick, for "done" markers inline with text. The
+/// U+2713 glyph comes from a fallback font whose metrics differ from Noto
+/// Sans, so it sat well above the text's centre line (the Quests page's
+/// completed list, 2026-09-27 snapshot review). Painted, it centres on the
+/// rect like every other icon here.
+pub fn paint_check(painter: &egui::Painter, rect: Rect, color: Color32) {
+    let c = rect.center();
+    let s = rect.width().min(rect.height()) * 0.32;
+    let stroke = Stroke::new((s * 0.35).max(1.2), color);
+    let a = Pos2::new(c.x - s, c.y);
+    let b = Pos2::new(c.x - s * 0.3, c.y + s * 0.7);
+    let d = Pos2::new(c.x + s, c.y - s * 0.6);
+    painter.line_segment([a, b], stroke);
+    painter.line_segment([b, d], stroke);
+}
+
+/// Watch: a screen outline with a play triangle inside and a short stand
+/// under it, "a stream on a monitor". Distinct from the bare play triangle
+/// the Play button carries, so the two never read as the same thing.
+pub fn paint_watch(painter: &egui::Painter, rect: Rect, color: Color32) {
+    use egui::epaint::PathShape;
+    let c = rect.center();
+    let w = rect.width().min(rect.height());
+    let stroke = Stroke::new((w * 0.09).max(1.0), color);
+    // Screen: a wide rectangle sitting slightly above centre, leaving room
+    // for the stand below it.
+    let screen = Rect::from_center_size(
+        Pos2::new(c.x, c.y - w * 0.06),
+        Vec2::new(w * 0.84, w * 0.58),
+    );
+    painter.rect_stroke(screen, egui::Rounding::same(2), stroke, egui::StrokeKind::Inside);
+    // Play triangle centred in the screen.
+    let s = w * 0.15;
+    let sc = screen.center();
+    let tri = vec![
+        Pos2::new(sc.x - s * 0.7, sc.y - s),
+        Pos2::new(sc.x - s * 0.7, sc.y + s),
+        Pos2::new(sc.x + s * 0.9, sc.y),
+    ];
+    painter.add(PathShape::convex_polygon(tri, color, Stroke::NONE));
+    // Stand: a short neck and a foot bar under the screen.
+    let foot_y = screen.bottom() + w * 0.12;
+    painter.line_segment([Pos2::new(c.x, screen.bottom()), Pos2::new(c.x, foot_y)], stroke);
+    painter.line_segment(
+        [Pos2::new(c.x - w * 0.18, foot_y), Pos2::new(c.x + w * 0.18, foot_y)],
+        stroke,
+    );
+}
+
 /// House — the Home tab (your homestead). An outlined square body with a
 /// triangular roof.
 pub fn paint_house(painter: &egui::Painter, rect: Rect, color: Color32) {
@@ -804,6 +853,10 @@ pub fn paint_nav_icon(painter: &egui::Painter, rect: Rect, page: crate::gui::Gui
         // v0.1147: Civilization variant merged into Humanity (paint_building
         // stays for future use).
         P::Studio      => { paint_palette(painter, rect, color); true }
+        // Watch had no arm, so its nav button was an empty square in the
+        // icon-only bar and a gap before the label in the others (2026-09-27
+        // snapshot review).
+        P::Watch       => { paint_watch(painter, rect, color); true }
         // v0.415.0: Onboarding + Play variants removed with their pages.
         // v0.197.0: Agents + AiUsage variants removed. paint_robot and
         // paint_chart are kept (other future pages might use them).

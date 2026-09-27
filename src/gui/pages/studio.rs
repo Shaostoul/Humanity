@@ -317,7 +317,7 @@ fn draw_scene_canvas(
     Frame::none()
         .fill(theme.bg_sidebar_dark())
         .rounding(Rounding::same(4))
-        .stroke(Stroke::new(1.0, theme.border()))
+        .stroke(Stroke::new(CANVAS_FRAME_STROKE, theme.border()))
         .show(ui, |ui| {
             let (rect, _) = ui.allocate_exact_size(size, egui::Sense::hover());
             let painter = ui.painter_at(rect);
@@ -442,6 +442,10 @@ fn pane_label(ui: &mut egui::Ui, theme: &Theme, state: &GuiState, program_side: 
 /// Minimum center-panel width for the side-by-side Program/Preview canvases;
 /// below this the panel falls back to one canvas with a pane toggle.
 const SPLIT_MIN_WIDTH: f32 = 660.0;
+/// Stroke width of a Program/Preview canvas frame. egui lays a Frame's stroke
+/// out around its content, so the canvas sizing subtracts it (see
+/// `letterbox_16_9`).
+const CANVAS_FRAME_STROKE: f32 = 1.0;
 
 /// The honest broadcast readout (v0.853): is anything actually leaving the machine,
 /// where can people watch it, how many are watching, and what is it costing in
@@ -630,6 +634,14 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     // the 2026-07-04 snapshot QA sweep). Width-driven, capped by the available
     // height (shrink width to keep 16:9 when height-limited).
     let letterbox_16_9 = |max_w: f32, max_h: f32| -> Vec2 {
+        // The canvas Frame's stroke is laid out OUTSIDE the canvas, one
+        // stroke width on each side, so the canvas itself gets the pane minus
+        // that. Sized to the full pane, the two panes overran the centre
+        // panel by 4 px, which widened the panel's layout rect, and every
+        // right-aligned item below (the "Connecting to relay..." status, the
+        // chat channel picker) was then clipped at the panel edge (2026-09-27
+        // snapshot review).
+        let max_w = max_w - 2.0 * CANVAS_FRAME_STROKE;
         let ideal_h = max_w * 9.0 / 16.0;
         if ideal_h <= max_h {
             Vec2::new(max_w, ideal_h)
@@ -1123,11 +1135,11 @@ fn draw_right_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 ui.label(RichText::new("Position").size(theme.font_size_small).color(theme.text_secondary()));
                 ui.horizontal(|ui| {
                     ui.label(RichText::new("X:").size(theme.font_size_small).color(theme.text_muted()));
-                    ui.add(egui::Slider::new(&mut src.position.0, 0.0..=1.0).step_by(0.01).show_value(true));
+                    widgets::slider(ui, theme, egui::Slider::new(&mut src.position.0, 0.0..=1.0).step_by(0.01).show_value(true));
                 });
                 ui.horizontal(|ui| {
                     ui.label(RichText::new("Y:").size(theme.font_size_small).color(theme.text_muted()));
-                    ui.add(egui::Slider::new(&mut src.position.1, 0.0..=1.0).step_by(0.01).show_value(true));
+                    widgets::slider(ui, theme, egui::Slider::new(&mut src.position.1, 0.0..=1.0).step_by(0.01).show_value(true));
                 });
 
                 ui.add_space(theme.section_gap);
@@ -1136,18 +1148,18 @@ fn draw_right_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 ui.label(RichText::new("Size").size(theme.font_size_small).color(theme.text_secondary()));
                 ui.horizontal(|ui| {
                     ui.label(RichText::new("W:").size(theme.font_size_small).color(theme.text_muted()));
-                    ui.add(egui::Slider::new(&mut src.size.0, 0.05..=1.0).step_by(0.01).show_value(true));
+                    widgets::slider(ui, theme, egui::Slider::new(&mut src.size.0, 0.05..=1.0).step_by(0.01).show_value(true));
                 });
                 ui.horizontal(|ui| {
                     ui.label(RichText::new("H:").size(theme.font_size_small).color(theme.text_muted()));
-                    ui.add(egui::Slider::new(&mut src.size.1, 0.05..=1.0).step_by(0.01).show_value(true));
+                    widgets::slider(ui, theme, egui::Slider::new(&mut src.size.1, 0.05..=1.0).step_by(0.01).show_value(true));
                 });
 
                 ui.add_space(theme.section_gap);
 
                 // Opacity
                 ui.label(RichText::new("Opacity").size(theme.font_size_small).color(theme.text_secondary()));
-                ui.add(egui::Slider::new(&mut src.opacity, 0.0..=1.0).step_by(0.01).show_value(true));
+                widgets::slider(ui, theme, egui::Slider::new(&mut src.opacity, 0.0..=1.0).step_by(0.01).show_value(true));
 
                 ui.add_space(theme.section_gap);
 
@@ -1283,7 +1295,7 @@ fn draw_right_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         // it; a real rate controller arrives with the H.264 encoder. Claiming a hard
         // cap we do not enforce would be a lie the viewer's buffering would expose.
         ui.label(RichText::new("Quality target (kbps)").size(theme.font_size_small).color(theme.text_secondary()));
-        ui.add(egui::Slider::new(&mut state.studio.stream_bitrate, 1000..=10000).step_by(100.0).show_value(true))
+        widgets::slider(ui, theme, egui::Slider::new(&mut state.studio.stream_bitrate, 1000..=10000).step_by(100.0).show_value(true))
             .on_hover_text(
                 "Higher means a sharper picture and more bandwidth, for you AND for the server, \
                  which pays this again for every viewer. This is a target rather than a hard \
@@ -1329,7 +1341,7 @@ fn draw_right_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         ui.add_space(theme.section_gap);
 
         ui.label(RichText::new("Font Size").size(theme.font_size_small).color(theme.text_secondary()));
-        ui.add(egui::Slider::new(&mut state.studio.chat_overlay_font_size, 8.0..=32.0).step_by(1.0).show_value(true));
+        widgets::slider(ui, theme, egui::Slider::new(&mut state.studio.chat_overlay_font_size, 8.0..=32.0).step_by(1.0).show_value(true));
 
         ui.add_space(theme.section_gap);
 
@@ -1346,16 +1358,16 @@ fn draw_right_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         ui.add_space(theme.section_gap);
 
         ui.label(RichText::new("Opacity").size(theme.font_size_small).color(theme.text_secondary()));
-        ui.add(egui::Slider::new(&mut state.studio.chat_overlay_opacity, 0.0..=1.0).step_by(0.05).show_value(true));
+        widgets::slider(ui, theme, egui::Slider::new(&mut state.studio.chat_overlay_opacity, 0.0..=1.0).step_by(0.05).show_value(true));
 
         ui.add_space(theme.section_gap);
 
         ui.label(RichText::new("Max Messages").size(theme.font_size_small).color(theme.text_secondary()));
-        ui.add(egui::Slider::new(&mut state.studio.chat_overlay_max_messages, 1..=50).show_value(true));
+        widgets::slider(ui, theme, egui::Slider::new(&mut state.studio.chat_overlay_max_messages, 1..=50).show_value(true));
 
         ui.add_space(theme.section_gap);
 
         ui.label(RichText::new("Background Opacity").size(theme.font_size_small).color(theme.text_secondary()));
-        ui.add(egui::Slider::new(&mut state.studio.chat_overlay_bg_opacity, 0.0..=1.0).step_by(0.05).show_value(true));
+        widgets::slider(ui, theme, egui::Slider::new(&mut state.studio.chat_overlay_bg_opacity, 0.0..=1.0).step_by(0.05).show_value(true));
     });
 }

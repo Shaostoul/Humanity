@@ -221,6 +221,22 @@ fn table_cells(row: &str) -> Vec<String> {
     s.split('|').map(|c| strip_md(c.trim())).collect()
 }
 
+/// An ordered-list line: one to nine digits, then `.` or `)`, then a space
+/// (the CommonMark marker). Returns the marker as it should be drawn ("3.")
+/// and the item text. "2026. was a year" style prose is the price of the rule
+/// and the same price every markdown reader pays.
+fn ordered_item(line: &str) -> Option<(String, &str)> {
+    let digits = line.bytes().take_while(|b| b.is_ascii_digit()).count();
+    if digits == 0 || digits > 9 {
+        return None;
+    }
+    let after = &line[digits..];
+    let rest = after
+        .strip_prefix(". ")
+        .or_else(|| after.strip_prefix(") "))?;
+    Some((format!("{}.", &line[..digits]), rest))
+}
+
 fn render_markdown_impl(
     ui: &mut egui::Ui,
     theme: &Theme,
@@ -246,9 +262,56 @@ fn render_markdown_impl(
     // silently ended a bullet at its first continuation line. 42 of the 81
     // Library documents wrap their list items. Buffer, then flush.
     let mut para: Vec<String> = Vec::new();
-    let mut li: Option<Vec<String>> = None;
+    // The open list item: its marker (a bullet dot, or "3." for an ordered
+    // list) and its source lines, joined when it is flushed.
+    let mut li: Option<(String, Vec<String>)> = None;
     let mut quote: Vec<String> = Vec::new();
     let mut seen_slugs: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
+
+    // Lay a run of prose out segment by segment so the link parts can be their
+    // own clickable labels. Shared by paragraphs and list items (a numbered
+    // step in 04-CONTRIBUTING is mostly links). `$ui` is the ui to draw into.
+    macro_rules! link_run {
+        ($ui:ident, $joined:expr) => {{
+            let segs = link_segments($joined);
+            let mut hit: Option<String> = None;
+            $ui.horizontal_wrapped(|ui| {
+                ui.spacing_mut().item_spacing.x = 0.0;
+                for (text, target) in segs {
+                    let shown = strip_md(&text);
+                    match target {
+                        Some(t) => {
+                            let r = ui.add(
+                                Label::new(
+                                    RichText::new(shown)
+                                        .size(theme.font_size_small)
+                                        .underline()
+                                        .color(theme.accent()),
+                                )
+                                .sense(egui::Sense::click()),
+                            );
+                            if r.on_hover_cursor(egui::CursorIcon::PointingHand).clicked() {
+                                hit = Some(t);
+                            }
+                        }
+                        None => {
+                            ui.add(
+                                Label::new(
+                                    RichText::new(shown)
+                                        .size(theme.font_size_small)
+                                        .color(theme.text_secondary()),
+                                )
+                                .wrap(),
+                            );
+                        }
+                    }
+                }
+            });
+            if let (Some(t), Some(sink)) = (hit, link.as_deref_mut()) {
+                *sink = Some(t);
+            }
+        }};
+    }
 
     macro_rules! flush_para {
         () => {
@@ -258,47 +321,9 @@ fn render_markdown_impl(
                     let text = strip_md(&joined);
                     defining_words(ui, theme, &text, theme.font_size_small, clicked);
                 } else if link.is_some() && joined.contains("](") {
-                    // Lay the paragraph out segment by segment so the link parts
-                    // can be their own clickable labels. Only taken when the
-                    // paragraph actually has a link, so ordinary prose keeps the
-                    // cheap single-label path.
-                    let segs = link_segments(&joined);
-                    let mut hit: Option<String> = None;
-                    ui.horizontal_wrapped(|ui| {
-                        ui.spacing_mut().item_spacing.x = 0.0;
-                        for (text, target) in segs {
-                            let shown = strip_md(&text);
-                            match target {
-                                Some(t) => {
-                                    let r = ui.add(
-                                        Label::new(
-                                            RichText::new(shown)
-                                                .size(theme.font_size_small)
-                                                .underline()
-                                                .color(theme.accent()),
-                                        )
-                                        .sense(egui::Sense::click()),
-                                    );
-                                    if r.on_hover_cursor(egui::CursorIcon::PointingHand).clicked() {
-                                        hit = Some(t);
-                                    }
-                                }
-                                None => {
-                                    ui.add(
-                                        Label::new(
-                                            RichText::new(shown)
-                                                .size(theme.font_size_small)
-                                                .color(theme.text_secondary()),
-                                        )
-                                        .wrap(),
-                                    );
-                                }
-                            }
-                        }
-                    });
-                    if let (Some(t), Some(sink)) = (hit, link.as_deref_mut()) {
-                        *sink = Some(t);
-                    }
+                    // Only taken when the paragraph actually has a link, so
+                    // ordinary prose keeps the cheap single-label path.
+                    link_run!(ui, &joined);
                 } else {
                     let text = strip_md(&joined);
                     ui.label(RichText::new(text).size(theme.font_size_small).color(theme.text_secondary()));
@@ -363,13 +388,29 @@ fn render_markdown_impl(
 
     macro_rules! flush_li {
         () => {
-            if let Some(parts) = li.take() {
-                let text = strip_md(&parts.join(" "));
+            if let Some((marker, parts)) = li.take() {
+                let joined = parts.join(" ");
+                let text = strip_md(&joined);
                 ui.horizontal_top(|ui| {
                     ui.add_space(theme.spacing_sm);
-                    ui.label(RichText::new("\u{00b7}").color(theme.accent()));
+                    if marker.is_empty() {
+                        ui.label(RichText::new("\u{00b7}").color(theme.accent()));
+                    } else {
+                        // An ordered item's own number, at the item's text
+                        // size so "1." sits on the first line's baseline.
+                        ui.label(
+                            RichText::new(marker.as_str())
+                                .size(theme.font_size_small)
+                                .color(theme.accent()),
+                        );
+                    }
                     if define {
                         defining_words(ui, theme, &text, theme.font_size_small, clicked);
+                    } else if link.is_some() && joined.contains("](") {
+                        ui.scope(|ui| {
+                            ui.set_max_width(ui.available_width());
+                            link_run!(ui, &joined);
+                        });
                     } else {
                         // Same wrapping problem as the block quote: a long bullet
                         // was clipped at the right edge rather than reflowing.
@@ -443,12 +484,21 @@ fn render_markdown_impl(
             continue;
         }
 
-        let bullet = trimmed.strip_prefix("- ").or_else(|| trimmed.strip_prefix("* "));
+        // A list item opens here: a bullet (empty marker, drawn as a dot) or an
+        // ordered item ("1. ", "2) "), which keeps its own number. Ordered
+        // lists had no branch before 2026-09-27, so a numbered list fell
+        // through to the paragraph branch and every step ran together into one
+        // paragraph (04-CONTRIBUTING's "Before coding" steps).
+        let list_item: Option<(String, &str)> = trimmed
+            .strip_prefix("- ")
+            .or_else(|| trimmed.strip_prefix("* "))
+            .map(|rest| (String::new(), rest))
+            .or_else(|| ordered_item(trimmed));
 
-        // A wrapped list item: indented, not itself a bullet, and a bullet is
-        // open. Belongs to that bullet rather than to a paragraph of its own.
-        if li.is_some() && bullet.is_none() && raw.starts_with(char::is_whitespace) {
-            if let Some(parts) = li.as_mut() {
+        // A wrapped list item: indented, not itself a list item, and an item
+        // is open. Belongs to that item rather than to a paragraph of its own.
+        if li.is_some() && list_item.is_none() && raw.starts_with(char::is_whitespace) {
+            if let Some((_, parts)) = li.as_mut() {
                 parts.push(trimmed.to_string());
             }
             i += 1;
@@ -553,11 +603,11 @@ fn render_markdown_impl(
             flush_para!();
             ui.add_space(theme.spacing_sm);
             heading!(rest, theme.font_size_title, theme.text_primary());
-        } else if let Some(rest) = bullet {
+        } else if let Some((marker, rest)) = list_item {
             flush_quote!();
             flush_li!();
             flush_para!();
-            li = Some(vec![rest.to_string()]);
+            li = Some((marker, vec![rest.to_string()]));
         } else {
             para.push(trimmed.to_string());
         }
@@ -767,6 +817,19 @@ mod tests {
         assert_eq!(table_cells("Species | Eats"), vec!["Species", "Eats"]);
         // Cells carry inline markup, which must not reach the drawn text.
         assert_eq!(table_cells("| **Otter** | `crab` |"), vec!["Otter", "crab"]);
+    }
+
+    /// A numbered list is a list, not prose. Before this branch existed a run
+    /// of "1. ... 2. ..." lines joined into one paragraph.
+    #[test]
+    fn an_ordered_list_line_is_recognised_and_keeps_its_number() {
+        assert_eq!(ordered_item("1. Read the guide"), Some(("1.".to_string(), "Read the guide")));
+        assert_eq!(ordered_item("12) Twelfth"), Some(("12.".to_string(), "Twelfth")));
+        // Not a marker: no space after the dot, no digits, too many digits.
+        assert_eq!(ordered_item("3.14 is pi"), None);
+        assert_eq!(ordered_item("Step 1. first"), None);
+        assert_eq!(ordered_item("1234567890. too long"), None);
+        assert_eq!(ordered_item("- bullet"), None);
     }
 
     /// The web reader mangled every underscored link target for a while,

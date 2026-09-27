@@ -146,11 +146,18 @@ fn draw_game_quests(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         ui.add_space(theme.spacing_xs);
         widgets::card(ui, theme, |ui| {
             for q in state.quests.iter().filter(|q| q.completed) {
-                ui.label(
-                    RichText::new(format!("\u{2713} {}", q.name))
-                        .size(theme.font_size_small)
-                        .color(theme.text_muted()),
-                );
+                ui.horizontal(|ui| {
+                    // A painted tick, centred on the text line; the U+2713
+                    // glyph sat high because it comes from a fallback font.
+                    let side = theme.font_size_small;
+                    let (rect, _) = ui.allocate_exact_size(egui::vec2(side, side), egui::Sense::hover());
+                    widgets::icons::paint_check(ui.painter(), rect, theme.text_muted());
+                    ui.label(
+                        RichText::new(&q.name)
+                            .size(theme.font_size_small)
+                            .color(theme.text_muted()),
+                    );
+                });
             }
         });
     }
