@@ -295,13 +295,39 @@
       "subject": "food_growing",
       "title": "Testing and correcting soil",
       "summary": "Measure pH and nutrients, then change them deliberately.",
-      "status": "absent",
+      "status": "sourced",
+      "reading": [
+        "testing-and-correcting-soil"
+      ],
       "skills": [
         "farming",
         "alchemy"
       ],
+      "data": [
+        "data/garden/soil_ph.ron",
+        "data/garden/nutrients.ron",
+        "data/plants.csv"
+      ],
       "sources": [
-        "soil-testing-lab"
+        "soil-testing-lab",
+        "state-extension",
+        "epa",
+        "penn-state-extension",
+        "nc-state-extension",
+        "iowa-state-extension",
+        "umn-extension",
+        "clemson-extension",
+        "cornell-nmsp",
+        "purdue-extension",
+        "oregon-state-extension",
+        "uc-anr",
+        "sdsu-extension",
+        "colorado-state-extension",
+        "uw-madison-extension",
+        "udel-extension",
+        "uvm-extension",
+        "cdfa",
+        "wa-ecology"
       ],
       "locale_dependent": true,
       "hazard": "caution"
@@ -496,9 +522,26 @@
       "subject": "food_growing",
       "title": "Growing mushrooms",
       "summary": "Cultivate fungi on logs and substrate.",
-      "status": "absent",
+      "status": "sourced",
+      "reading": [
+        "growing-mushrooms"
+      ],
       "skills": [
         "farming"
+      ],
+      "data": [
+        "data/garden/yields.ron",
+        "data/garden/humidity.ron",
+        "data/plants_visual.ron"
+      ],
+      "sources": [
+        "penn-state-extension",
+        "agromisa",
+        "uf-ifas-extension",
+        "cornell-small-farms",
+        "uvm-extension",
+        "usda-nass",
+        "peer-reviewed-literature"
       ],
       "locale_dependent": false,
       "hazard": "caution"

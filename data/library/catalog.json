@@ -185,6 +185,15 @@
           ]
         },
         {
+          "title": "Testing and Correcting Soil",
+          "src": "docs/user/skills/testing_and_correcting_soil.md",
+          "tags": [
+            "guide",
+            "real",
+            "food"
+          ]
+        },
+        {
           "title": "The Growing Calendar",
           "src": "docs/user/skills/the_growing_calendar.md",
           "tags": [
@@ -199,6 +208,15 @@
           "tags": [
             "guide",
             "real"
+          ]
+        },
+        {
+          "title": "Growing Mushrooms",
+          "src": "docs/user/skills/growing_mushrooms.md",
+          "tags": [
+            "guide",
+            "real",
+            "food"
           ]
         }
       ]

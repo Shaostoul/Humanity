@@ -2469,6 +2469,165 @@
       "use": "facts",
       "bundle": false,
       "note": "Not an authority; community figure only. Undated, read 2026-09-24. Thermal conductivity 16.4 W/(m K) for annealed CP grade 2, cited only to show the alloys.csv figure is a published one."
+    },
+    {
+      "id": "usda-nass",
+      "name": "USDA National Agricultural Statistics Service",
+      "publisher": "United States Department of Agriculture",
+      "url": "https://www.nass.usda.gov/",
+      "kind": "authority",
+      "licence": "public-domain-us-gov",
+      "use": "verbatim",
+      "bundle": true,
+      "note": "Crop statistics, including the annual Mushrooms report (Agaricus yield per square foot), distributed through ESMIS."
+    },
+    {
+      "id": "agromisa",
+      "name": "Agromisa Foundation, Agrodok series",
+      "publisher": "Agromisa Foundation and CTA, Wageningen",
+      "url": "https://www.agromisa.org/",
+      "kind": "authority",
+      "licence": "copyright-all-rights-reserved",
+      "use": "facts",
+      "bundle": false,
+      "note": "Agrodok 40, Small-scale mushroom cultivation (Oei, 2005), is a practical manual for growing oyster, shiitake and wood ear mushrooms at small scale. Copyrighted: restate the fact, never the wording."
+    },
+    {
+      "id": "uf-ifas-extension",
+      "name": "UF/IFAS Extension",
+      "publisher": "University of Florida Institute of Food and Agricultural Sciences",
+      "url": "https://ask.ifas.ufl.edu/",
+      "kind": "authority",
+      "licence": "copyright-all-rights-reserved",
+      "use": "facts",
+      "bundle": false,
+      "note": "EDIS publications, among them SS662, a home guide to growing oyster mushrooms on straw. A state university: restate the fact."
+    },
+    {
+      "id": "cornell-small-farms",
+      "name": "Cornell Small Farms Program",
+      "publisher": "Cornell University",
+      "url": "https://smallfarms.cornell.edu/",
+      "kind": "authority",
+      "licence": "copyright-all-rights-reserved",
+      "use": "facts",
+      "bundle": false,
+      "note": "Hosts Methods of Commercial Mushroom Cultivation in the Northeastern United States and the log-grown shiitake best management practices manual. The manual itself is copyright the University of Vermont (see uvm-extension)."
+    },
+    {
+      "id": "uvm-extension",
+      "name": "University of Vermont Extension",
+      "url": "https://www.uvm.edu/extension",
+      "kind": "authority",
+      "licence": "copyright-all-rights-reserved",
+      "use": "facts",
+      "bundle": false,
+      "note": "Its Center for Sustainable Agriculture holds the copyright on Best Management Practices for Log-Based Shiitake Cultivation in the Northeastern United States (2013, with Cornell). Its Northwest Crops and Soils team publishes on soil nitrogen."
+    },
+    {
+      "id": "cornell-nmsp",
+      "name": "Cornell University Nutrient Management Spear Program",
+      "publisher": "Cornell University",
+      "url": "http://nmsp.cals.cornell.edu/",
+      "kind": "authority",
+      "licence": "copyright-all-rights-reserved",
+      "use": "facts",
+      "bundle": false,
+      "note": "Agronomy Fact Sheet series, including number 48 on deriving lime rates from buffer pH."
+    },
+    {
+      "id": "clemson-extension",
+      "name": "Clemson Cooperative Extension",
+      "publisher": "Clemson University",
+      "url": "https://hgic.clemson.edu/",
+      "kind": "authority",
+      "licence": "copyright-all-rights-reserved",
+      "use": "facts",
+      "bundle": false,
+      "note": "Home and Garden Information Center fact sheets, and the Agricultural Service Laboratory soil testing pages. The HGIC site answers automated clients with a Cloudflare challenge while serving browsers normally."
+    },
+    {
+      "id": "purdue-extension",
+      "name": "Purdue Extension",
+      "publisher": "Purdue University",
+      "url": "https://www.extension.purdue.edu/",
+      "kind": "authority",
+      "licence": "copyright-all-rights-reserved",
+      "use": "facts",
+      "bundle": false
+    },
+    {
+      "id": "oregon-state-extension",
+      "name": "Oregon State University Extension Service",
+      "publisher": "Oregon State University",
+      "url": "https://extension.oregonstate.edu/",
+      "kind": "authority",
+      "licence": "copyright-all-rights-reserved",
+      "use": "facts",
+      "bundle": false,
+      "note": "Its Pacific Northwest publications, such as EC 1560 on acidifying soil west of the Cascades, apply directly to the Puget Sound locale."
+    },
+    {
+      "id": "uc-anr",
+      "name": "University of California Cooperative Extension",
+      "publisher": "University of California Agriculture and Natural Resources",
+      "url": "https://ucanr.edu/",
+      "kind": "authority",
+      "licence": "copyright-all-rights-reserved",
+      "use": "facts",
+      "bundle": false
+    },
+    {
+      "id": "sdsu-extension",
+      "name": "South Dakota State University Extension",
+      "publisher": "South Dakota State University",
+      "url": "https://extension.sdstate.edu/",
+      "kind": "authority",
+      "licence": "copyright-all-rights-reserved",
+      "use": "facts",
+      "bundle": false
+    },
+    {
+      "id": "uw-madison-extension",
+      "name": "University of Wisconsin-Madison Division of Extension",
+      "publisher": "University of Wisconsin-Madison",
+      "url": "https://extension.wisc.edu/",
+      "kind": "authority",
+      "licence": "copyright-all-rights-reserved",
+      "use": "facts",
+      "bundle": false,
+      "note": "A2809, Nutrient application guidelines for field, vegetable, and fruit crops in Wisconsin: crop removal of P2O5 and K2O and target soil pH by crop (Table 4.2). Also cited throughout data/garden/nutrients.ron."
+    },
+    {
+      "id": "udel-extension",
+      "name": "University of Delaware Cooperative Extension",
+      "publisher": "University of Delaware",
+      "url": "https://www.udel.edu/academics/colleges/canr/cooperative-extension/",
+      "kind": "authority",
+      "licence": "copyright-all-rights-reserved",
+      "use": "facts",
+      "bundle": false,
+      "note": "Hosts the Northeast regional manual of recommended soil testing procedures, including the chapter on soil pH and lime requirement tests."
+    },
+    {
+      "id": "cdfa",
+      "name": "California Department of Food and Agriculture",
+      "url": "https://www.cdfa.ca.gov/",
+      "kind": "authority",
+      "licence": "copyright-all-rights-reserved",
+      "use": "facts",
+      "bundle": false,
+      "note": "A state agency, so not covered by 17 U.S.C. 105. Its FREP California Fertilization Guidelines give crop nutrient removal, including the processing tomato figure data/garden/nutrients.ron anchors on."
+    },
+    {
+      "id": "wa-ecology",
+      "name": "Washington State Department of Ecology",
+      "url": "https://ecology.wa.gov/",
+      "kind": "authority",
+      "licence": "copyright-all-rights-reserved",
+      "use": "facts",
+      "bundle": false,
+      "note": "A state agency; Washington does not waive copyright in state works by statute (see schemas/source.toml), so facts only. Runs the Tacoma Smelter Plume cleanup and the Dirt Alert map of arsenic and lead in Puget Sound soils."
     }
   ]
 }

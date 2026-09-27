@@ -618,14 +618,18 @@ fruiting crops such as tomatoes, peppers and cucumbers.
 
 For a number to compare a result against: in January 2024 EPA lowered
 its recommended screening level for lead in soil at residential
-properties from 400 parts per million to 200 ppm, and said it would
-generally use 100 ppm at residential properties with multiple sources of
-lead exposure. Be precise about what that is. It is the level at which
-EPA decides to investigate a residential property further under the
-Superfund and hazardous waste cleanup programmes, not a garden safety
-standard. But it is the clearest federal statement of what counts as a
-concerning concentration, and it is the number your lab result is
-usefully read against.
+properties from 400 parts per million to 200 ppm, with a lower 100 ppm
+where there were multiple sources of lead exposure. A directive of 16
+October 2025 replaced that guidance: it keeps a single screening level of
+200 ppm, drops the separate lower figure, and sets 600 ppm as the level
+that marks the highest-priority properties. Be precise about what that
+is. It is the level at which EPA decides to investigate a residential
+property further under the Superfund and hazardous waste cleanup
+programmes, not a garden safety standard. But it is the clearest federal
+statement of what counts as a concerning concentration, and it is the
+number your lab result is usefully read against.
+[Testing and Correcting Soil](testing_and_correcting_soil.md) covers
+sampling for lead and the other reference points.
 
 [What Soil Is](what_soil_is.md) covers the rest of the contamination
 basics.
@@ -731,7 +735,13 @@ them is restated here in our own words.
   200 ppm, and 100 ppm where there are multiple sources of lead
   exposure).
   https://www.epa.gov/system/files/documents/2024-01/olem-residential-lead-soil-guidance-2024_signed_508.pdf
-  and
+- United States Environmental Protection Agency, Office of Land and
+  Emergency Management. Residential Lead Directive for CERCLA Sites and
+  RCRA Hazardous Waste Cleanup Program Facilities, 16 October 2025
+  (supersedes the January 2024 guidance: a single regional screening
+  level of 200 ppm for residential soil, and a removal management level
+  of 600 ppm).
+  https://semspub.epa.gov/src/document/HQ/100003761 and
   https://www.epa.gov/superfund/residential-soil-lead-directive-cercla-sites-and-rcra-hazardous-waste-cleanup-facilities
 
 ### University extension (copyrighted; cited as the authority, restated here in our own words)
