@@ -962,7 +962,19 @@ them up.
    rule, CLAUDE.md "Release signing is the operator's to raise, never yours".
    He signs when he decides to; `docs/admin/release-signing.md` is there if he
    asks.
-2. **Clear the old agent worktrees** under `.claude/worktrees/`. Audited
+2. **Ground or orbit, for the garden's seasons (asked 2026-09-26).** The data
+   sizes the home as a ground site at Silverdale 47.6 N (data/home_outline.json);
+   the engine runs an equatorial GEO station (data/stations/home.ron), where the
+   sun is up about 12 h every day and there are no seasons. Seasonal daylight
+   and sun strength for the crops, and the fix for BUG-090 (the gameplay sun and
+   the drawn sun disagree aboard by up to 12 h), wait on this.
+3. **One clock or two, for the body and the garden (asked 2026-09-26).** The body
+   runs on real seconds, the garden on 20-minute game days at 10x growth, so
+   urine is a fraction of a percent of the garden's nitrogen in play, and room
+   air (game hours) and tank water (real days) are 72x apart (BUG-092 item 7).
+   Choosing one clock, or a slower garden, is a design choice for the
+   full-realism and simplified modes.
+4. **Clear the old agent worktrees** under `.claude/worktrees/`. Audited
    2026-08-04: none could be cheaply proven redundant, and
    `just clean-worktrees` force-deletes branches and has destroyed
    review-approved work before. Operator-only by standing rule.
