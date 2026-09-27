@@ -5,6 +5,7 @@ pub mod escape_menu;
 pub mod settings;
 pub mod inventory;
 pub mod chat;
+pub mod chat_text;
 pub mod hud;
 pub mod vendor;
 pub mod showroom;
