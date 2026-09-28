@@ -91,6 +91,17 @@ impl GameTime {
         self.hour * 24.0 / clamp_hours_per_day(self.hours_per_day) as f32
     }
 
+    /// `solar_hour` where the sun crosses longitude `lon_deg` (east
+    /// positive) rather than longitude 0: noon is the moment the sun stands
+    /// over that meridian. The game clock is longitude 0's time by
+    /// construction (`dev_travel::planet_spin_from_time`), so a place 122
+    /// degrees west has its noon at about 20:09 on it. The home's own systems
+    /// (its solar panels, the grow lights' timer, the crops' sunlight) read
+    /// this at the home's longitude, `home_longitude_deg` (BUG-090).
+    pub fn solar_hour_at(&self, lon_deg: f64) -> f32 {
+        (f64::from(self.solar_hour()) + lon_deg / 15.0).rem_euclid(24.0) as f32
+    }
+
     /// Recompute hour, day and season from `elapsed_seconds`. Every writer of
     /// the clock goes through this, so the derived fields can never disagree
     /// with the total.
@@ -255,6 +266,17 @@ pub fn request_speed_hold(data: &DataStore, hold: Option<f32>) {
             *r = Some(hold.map(|v| v.max(0.0)));
         }
     }
+}
+
+/// DataStore key: the longitude (degrees east) the player's home hangs over,
+/// an `f64`. The engine publishes it at world load from the home station's
+/// orbit (`station::orbit::hang_longitude_deg`). Absent (the relay, unit
+/// tests) means longitude 0, where the game clock already is local time.
+pub const HOME_LONGITUDE_KEY: &str = "home_longitude_deg";
+
+/// The home's longitude, degrees east: 0 when nobody published one.
+pub fn home_longitude_deg(data: &DataStore) -> f64 {
+    data.get::<f64>(HOME_LONGITUDE_KEY).copied().unwrap_or(0.0)
 }
 
 /// The local hour at longitude `lon_deg` when it is `global_hour` at

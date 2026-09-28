@@ -110,13 +110,20 @@ pub(crate) fn current_planet_spin(state: &EngineState) -> f64 {
         // game day of any length (the one clock, 2026-09-27).
         .map(|gt| gt.day_fraction() * 24.0)
         .unwrap_or(12.0);
+    crate::dev_travel::planet_spin_from_time(hour, sun_azimuth(state))
+}
+
+/// The world-frame sun's azimuth, `atan2(-z, x)`: the one number both the
+/// planet's spin and the home station's phase are built from (BUG-090,
+/// `station::orbit::over_its_longitude`), so the home cannot drift off its
+/// longitude as the sun creeps round the year.
+pub(crate) fn sun_azimuth(state: &EngineState) -> f64 {
     let s = state.sun_world_pos;
-    let sun_az = if s.length_squared() > 1e-6 {
+    if s.length_squared() > 1e-6 {
         (-s.z).atan2(s.x)
     } else {
         0.0
-    };
-    crate::dev_travel::planet_spin_from_time(hour, sun_az)
+    }
 }
 
 /// Micro-detail precision anchor (v0.902): the camera's planet-frame

@@ -40,10 +40,12 @@ impl System for SolarSystem {
     fn tick(&mut self, world: &mut hecs::World, _dt: f32, data: &DataStore) {
         // The sun's place from the shared GameTime (same Mutex pattern as
         // TimeSystem), on a 24-hour dial so any day length rises at a quarter
-        // of the day and sets at three quarters.
+        // of the day and sets at three quarters, and at the HOME's longitude,
+        // so the panels see the sun the deck sees (BUG-090).
+        let lon = crate::systems::time::home_longitude_deg(data);
         let hour = data
             .get::<std::sync::Mutex<GameTime>>("game_time")
-            .and_then(|m| m.lock().ok().map(|t| t.solar_hour()))
+            .and_then(|m| m.lock().ok().map(|t| t.solar_hour_at(lon)))
             .unwrap_or(12.0);
         let factor = sun_factor(hour);
         for (_e, (gen, panel)) in world.query::<(&mut PowerGenerator, &SolarPanel)>().iter() {

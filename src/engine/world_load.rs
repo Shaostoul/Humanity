@@ -994,6 +994,16 @@ pub(crate) fn load_world(state: &mut EngineState) {
         state.station_world_rot =
             crate::station::orbit::attitude(&state.station_def.attitude, pos, vel);
         state.ship_world_pos = pos;
+        // The longitude the home hangs over, so its panels, grow lights and
+        // crops see the sun the deck sees and the HUD reads the deck's time
+        // (BUG-090). A home on any other orbit has no fixed place below it
+        // and keeps the game clock (longitude 0).
+        if let Some(lon) = crate::station::orbit::hang_longitude_deg(
+            &state.station_def.orbit,
+            crate::systems::time::EARTH_DAY_S,
+        ) {
+            state.data_store.insert(crate::systems::time::HOME_LONGITUDE_KEY, lon);
+        }
         log::info!(
             "station: {} on a {:.0} km orbit of {}, {:?}",
             state.station_def.name,

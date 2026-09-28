@@ -1672,7 +1672,7 @@ and sows one crop per plot of each, tagged with the machine. Test
 `planting_a_bed_type_sows_every_plot_of_every_machine`, red with the
 expansion switched off.
 
-## BUG-090: the gameplay sun and the drawn sun disagree aboard the home station (OPEN, 2026-09-26)
+## BUG-090: the gameplay sun and the drawn sun disagree aboard the home station (FIXED v0.1397.0, 2026-09-28)
 
 Found by a read-only survey while preparing seasonal daylight for the garden.
 The home is a station in equatorial geosynchronous orbit (`data/stations/home.ron`:
@@ -1701,6 +1701,37 @@ data files size the home as a GROUND site at Silverdale 47.6 N
 nothing), and the station is really at 0 degrees. Which of these the home is
 decides whether it has seasons at all (at equatorial GEO the sun is up about
 12 h all year), so the fix waits on that decision (docs/PRIORITIES.md).
+
+**Fixed 2026-09-28**, after the operator settled the day (24 hours by default,
+configurable, an hour always an hour) and put the spaceship first. The survey
+was right about the effect and wrong about one cause: the drawn Sun already
+turned the planet on the GAME clock (`dev_travel::planet_spin_from_time`,
+since v0.878), but the planet's spin is tied to the sun's azimuth, which
+creeps a full turn a year, while `station::orbit::propagate` placed the home by
+the game clock alone. So the longitude below the home was `-122.3 - azimuth +
+180` degrees: right in late September, a full turn out by the next. Two parts:
+
+1. **The home hangs over its longitude on every date.** `orbit::over_its_longitude`
+   adds `azimuth - 180` degrees to a synchronous orbit's phase, from the same
+   `engine::frame_lock::sun_azimuth` the spin uses. The home's noon is now at
+   20:09 on the game clock (longitude 0's time) all year, which is where the
+   pinned home vantages already put it.
+2. **The home reads its own time.** The engine publishes the home's longitude
+   (`HOME_LONGITUDE_KEY`, from `orbit::hang_longitude_deg`), and the solar
+   panels, the grow lights' timer and the crops' sunlight read
+   `GameTime::solar_hour_at` there; the HUD aboard and the wake notice show the
+   home's time, as the HUD on a planet already showed the place's.
+
+Test `a_synchronous_station_hangs_over_its_longitude_on_every_date` checks, at
+four sun azimuths, three days and seven hours, that the home is over -122.3
+and that the deck (LVLH) has the sun above it exactly when the home's clock
+says the sun is up; seen red by propagating without the re-phase.
+
+Still open from the survey: the weather's day warmth and the Settings hour
+slider speak the game clock, the planet build sites' panels use the home's
+longitude rather than their own, and the latitude question (the station is at
+0 degrees, the temperature reference at 45, the data at Silverdale's 47.6)
+waits for ground farming.
 
 ## BUG-091: plot areas were never published on a fresh boot, so every plot counted one plant (FIXED v0.1369.0)
 

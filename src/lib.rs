@@ -3381,8 +3381,13 @@ mod native_app {
                         // therefore means synchronous with the day/night cycle the
                         // player actually sees. Using 86164 would drift the home a
                         // quarter degree of longitude per game day.
+                        // Re-phased by the sun's azimuth so a synchronous home
+                        // hangs over its own longitude on every date (BUG-090).
                         let (new_pos, vel) = orbit::propagate(
-                            &state.station_def.orbit,
+                            &orbit::over_its_longitude(
+                                &state.station_def.orbit,
+                                crate::engine::frame_lock::sun_azimuth(state),
+                            ),
                             orbit::MU_EARTH,
                             orbit::REAL_SECONDS_PER_DAY,
                             orbit::sim_seconds(game_elapsed, game_day_s),
@@ -13116,6 +13121,16 @@ mod native_app {
                                     );
                                 Some(crate::systems::time::local_hour(
                                     gt.hour as f64, lon as f64, gt.hours_per_day,
+                                ) as f32)
+                            } else if state.aboard_station
+                                && state.data_store.get::<f64>(crate::systems::time::HOME_LONGITUDE_KEY).is_some()
+                            {
+                                // Aboard the home: the deck's own time, the
+                                // clock its panels and crops follow (BUG-090).
+                                Some(crate::systems::time::local_hour(
+                                    gt.hour as f64,
+                                    crate::systems::time::home_longitude_deg(&state.data_store),
+                                    gt.hours_per_day,
                                 ) as f32)
                             } else {
                                 None

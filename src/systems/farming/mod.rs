@@ -955,10 +955,12 @@ impl System for FarmingSystem {
         // by exactly the game time that passed (see light_growth_rate).
         // Absent clock (headless tests, early boot) = noon at real time, the
         // same default SolarSystem uses, so nothing is dark by accident.
+        // The sun at the home's longitude, the one the deck sees (BUG-090).
+        let home_lon = crate::systems::time::home_longitude_deg(data);
         let (hour, time_scale) = data
             .get::<std::sync::Mutex<crate::systems::time::GameTime>>("game_time")
             .and_then(|m| m.lock().ok())
-            .map(|gt| (gt.solar_hour(), gt.time_scale))
+            .map(|gt| (gt.solar_hour_at(home_lon), gt.time_scale))
             .unwrap_or((12.0, 1.0));
         // Outdoor climate inputs (v0.749, ladder rung 6): the current season +
         // live weather temperature, applied to FIELD crops only below. Empty

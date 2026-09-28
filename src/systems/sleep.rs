@@ -149,7 +149,15 @@ pub fn tick(asleep: &mut Option<Asleep>, world: &mut hecs::World, data: &DataSto
         .and_then(|m| m.lock().ok().and_then(|mut s| s.take()));
     let (now, hold, hour) = data
         .get::<Mutex<GameTime>>("game_time")
-        .and_then(|m| m.lock().ok().map(|g| (g.elapsed_seconds, g.speed_hold, g.hour)))
+        // The hour the wake notice reads: the home's own time, the one the
+        // HUD shows aboard (BUG-090).
+        .and_then(|m| {
+            m.lock().ok().map(|g| {
+                let lon = crate::systems::time::home_longitude_deg(data);
+                let local = crate::systems::time::local_hour(f64::from(g.hour), lon, g.hours_per_day) as f32;
+                (g.elapsed_seconds, g.speed_hold, local)
+            })
+        })
         .unwrap_or((0.0, None, 8.0));
 
     if let Some(place) = requested {

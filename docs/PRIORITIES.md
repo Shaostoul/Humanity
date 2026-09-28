@@ -337,7 +337,7 @@ them up.
    (v0.1377.0 to v0.1384.0, docs/design/ship-life-support.md): greenhouse
    moisture condensed back to the tanks, and CO2 from people and mushrooms and
    O2 from plants as a mass balance through the ship's air. Crop light from the
-   ship's real sun direction (the BUG-090 fix) waits on item 3. Seasons and
+   ship's real sun direction (the BUG-090 fix) shipped 2026-09-28. Seasons and
    ground farming (Silverdale in data/home_outline.json) come after.
    **Follow-up (asked 2026-09-27):** TIER 0 is all rendering, while the
    spaceship-first answer sent the day's work to arc C (the playable game and
@@ -573,9 +573,11 @@ BUG-092, BUG-097 and BUG-100. The full running account, verbatim, is in
 live at the top of `docs/design/gameplay-gaps-2026-09-25.md` and in
 `docs/design/ship-life-support.md`.
 
-Open: the operator's questions are Blocked #3 (the day length) and #3b; crop
-light from the ship's real sun (BUG-090) waits on the day length; containers as
-items (the gap doc's 3c) waits on the unified placement schema.
+Open: containers as items (the gap doc's 3c) waits on the unified placement
+schema. Crop light from the ship's real sun (BUG-090) was FIXED 2026-09-28: the
+home hangs over its longitude on every date, and its panels, grow lights,
+crops and HUD clock follow the sun the deck sees (BUGS.md lists what is left:
+the weather's day warmth and the hour slider still speak the game clock).
 
 **Gameplay gap survey (2026-09-25):** `docs/design/gameplay-gaps-2026-09-25.md`
 lists seven defects (items lost when the backpack is full, the showcase garden
