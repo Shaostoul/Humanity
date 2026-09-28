@@ -256,6 +256,11 @@
       "date": "2026-09-27",
       "decision": "v0.1391.0: environment Layer 1 (latitude/season/altitude temperature fitted to NCEP/NCAR, standard atmosphere, circulation winds; CPU and WGSL twins through a naga-IR interpreter test), survival_env merged by hand with the shelter work; Heating Water (lethal, stays sourced) and Perennials guides. v0.1392.0: value noise integer lattice hash (BUG-103, sea-colour blocks gone, clouds pattern kept exactly), two more load-bound tests hardened (BUG-099 addendum).",
       "why": "Library writer+independent refuter cadence continues (batteries and seasons in flight); WebFetch summaries invent figures, so refuters read raw source text (memory updated). In flight: HDR increments 1-2 (long), planet-anchored building (BUG-102 real fix), batteries and seasons guides, rain or snow by local air. Next after HDR lands: sun cascades (docs/design/sun-cascades.md), then Layer 1 GPU consumer (cloud advection by wind)."
+    },
+    {
+      "date": "2026-09-27",
+      "decision": "Merged to main, UNTAGGED: planet-anchored building (930c2364, BUG-102 real fix), rain or snow by local air (2bfcfc2d, Jennings 2018 threshold), batteries and seasons guides (+ seasons game section corrected against code: the drawn Sun also runs on the 20-min day, no axial tilt), 3 more guides verified (16/143), HDR scene target increments 1-2 (4a63f0b2; 4K capture byte-identical; gpu.present ~0.06 ms; new scene_format_lint). All boots 0 panics.",
+      "why": "The planet-building critic found a HIGH (the near copy in the depth-clearing scene pass draws over nearer celestial objects: furniture vanishes behind walls), overlapping sites, and home-frame leaks (planet stations on the ship grid, materials from the orbiting home). No tag until the fix agent (lower celestial near plane via one constant, delete the near copy, site membership by pieces, planet-local materials and power) lands. HDR increments 3-4 (Rgba16Float + one dither, closes the banding report) dispatched. Operator back briefly at 16:39 and got a summary from the logs."
     }
   ],
   "active_scopes_to_avoid": [
