@@ -1174,6 +1174,16 @@ what it becomes, the capture paths, and six bootable increments; increment 4,
 one dither in a final pass, closes the banding report). Estimated cost 0.2 to
 0.4 ms at 1600x900.
 
+**Increments 1 and 2 built 2026-09-27** (design doc section 6): every scene
+pass draws into a scene target (`renderer/scene_target.rs`) and one present
+pass copies it to the display; camera screens and the hi-res capture go
+through a view scratch and the same pass. Still 8-bit, so bit-exact: a GPU
+test round-trips every code of every channel, and the 3840x2160 capture at
+console-face-3 is byte-identical between the old and new builds. `gpu.present`
+measures 0.05 to 0.07 ms at 2560x1387. `tests/scene_format_lint.rs` keeps every
+scene PSO on `scene_format()`. **Next: increment 3** (`scene_format_for` returns
+`Rgba16Float`, clamp flag on), then increment 4, the one dither.
+
 ### 3c. The ship's rooms: no bounce light, and the sun shines through shelves (2026-09-27)
 
 A read-only lighting review measured it at 25b-mushroom-racks: interiors get
