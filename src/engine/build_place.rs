@@ -30,7 +30,10 @@ use crate::engine::planet_build;
 use crate::engine::state::EngineState;
 use crate::gui::{BuildPlacing, GuiPage, GuiState};
 use crate::input::bindings::{pretty_key_name, GameAction};
-use crate::systems::construction::{BlueprintRegistry, BuildRequest};
+use crate::ecs::components::Transform;
+use crate::ship::wall_collision::WallSegment;
+use crate::systems::construction::{placement, BlueprintRegistry, BuildRequest, PlanetSite, Structure};
+use glam::Vec3;
 
 /// What a key press does to the piece in hand.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -208,6 +211,50 @@ pub(crate) fn placing_hint(name: &str, quarter_turns: u8, above_floor: f32, occu
     format!("Placing {name}{turned}{on_top}   [{build_key}] build here   [{turn_key}] turn   [Esc] done")
 }
 
+/// Built pieces are solid aboard (2026-09-28, arc C Tier B: "built pieces have
+/// no collision, you walk through them"). Every finished piece in the home
+/// frame whose box reaches from above the knee to the eye becomes a blocking
+/// segment for `ship::wall_collision::resolve`, beside the home's own walls:
+/// a wall, a bed, a chest or a machine stops you like a wall of the home.
+/// Roofs overhead and floors underfoot sit outside that band, and scaffolds are
+/// not `Structure`s yet, so a piece going up can still be walked through.
+///
+/// NOT on a planet's ground: there the player moves by the frame lock's anchor
+/// rather than the camera, and the resolver works on the camera, so planet
+/// build sites need their own pass (PRIORITIES, arc C Tier B).
+pub(crate) fn built_piece_segments(world: &hecs::World, eye: Vec3, eye_height: f32) -> Vec<WallSegment> {
+    let feet_y = eye.y - eye_height;
+    world
+        .query::<(&Structure, &Transform, Option<&PlanetSite>)>()
+        .iter()
+        .filter(|(_e, (_, _, site))| site.is_none())
+        .filter_map(|(_e, (_, tf, _))| {
+            let (lo, hi) = placement::world_aabb(tf);
+            (lo.y < eye.y && hi.y > feet_y + STEP_OVER_M).then(|| segment_of_box(lo, hi))
+        })
+        .collect()
+}
+
+/// A piece lower than this (m above the feet) is stepped over, not walked into:
+/// a foundation or a floor tile.
+const STEP_OVER_M: f32 = 0.4;
+
+/// The blocking segment for a box on the ground: along its longer side, inset
+/// by half its thickness at each end, with that half thickness as the radius,
+/// so the rounded ends stay inside the box's footprint. A square box becomes a
+/// point with its half width as the radius.
+fn segment_of_box(lo: Vec3, hi: Vec3) -> WallSegment {
+    let (cx, cz) = ((lo.x + hi.x) * 0.5, (lo.z + hi.z) * 0.5);
+    let (half_x, half_z) = ((hi.x - lo.x) * 0.5, (hi.z - lo.z) * 0.5);
+    if half_x >= half_z {
+        let run = half_x - half_z;
+        WallSegment { a: (cx - run, cz), b: (cx + run, cz), half_thickness: half_z }
+    } else {
+        let run = half_z - half_x;
+        WallSegment { a: (cx, cz - run), b: (cx, cz + run), half_thickness: half_x }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -273,5 +320,75 @@ mod tests {
         assert!(cannot_build_hint("Bed", CannotBuild::OnWater).contains("water"));
         let short = short_hint("Wood Wall", "Wood Plank", 4);
         assert!(short.contains("carry 4 more Wood Plank") && short.contains("what you carry") && !short.contains("build here"), "{short}");
+    }
+}
+
+#[cfg(test)]
+mod collision_tests {
+    use super::*;
+    use crate::ship::wall_collision::{resolve, PLAYER_RADIUS};
+    use glam::Quat;
+
+    fn place(world: &mut hecs::World, reg: &BlueprintRegistry, id: &str, x: f32, z: f32, turns: u8) {
+        let bp = reg.get(id).unwrap();
+        let tf = placement::placement_pose(bp, Vec3::new(x, 0.0, z), turns, world, reg, None);
+        world.spawn((tf, Structure { blueprint_id: id.into(), health: bp.health, max_health: bp.health, provides: bp.provides.clone(), uid: 0 }));
+    }
+
+    /// A BUILT WALL IS SOLID (2026-09-28). Walking east into a wall built
+    /// across the way stops the player at the wall; a roof overhead does not
+    /// block the way under it; a piece on a planet site is not in the home's
+    /// list; and with no pieces the walk goes through. Red check, run:
+    /// returning an empty list from `built_piece_segments` lets the walk pass
+    /// through the wall and fails the first assertion.
+    #[test]
+    fn a_built_wall_stops_the_player_and_a_roof_overhead_does_not() {
+        let reg = BlueprintRegistry::from_ron(include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/data/blueprints/basic.ron"))).unwrap();
+        let eye_h = 1.7;
+        let start = Vec3::new(-2.0, eye_h, 0.0);
+        let goal = Vec3::new(2.0, eye_h, 0.0);
+        let walk = |world: &hecs::World| {
+            let segs = built_piece_segments(world, start, eye_h);
+            resolve(start, goal, PLAYER_RADIUS, &[], &segs)
+        };
+        // A wall running north-south at x = 0 (one quarter turn).
+        let mut world = hecs::World::new();
+        place(&mut world, &reg, "wood_wall", 0.0, 0.0, 1);
+        let end = walk(&world);
+        assert!(end.x < -PLAYER_RADIUS + 0.05, "stopped west of the wall, at {end}");
+
+        // A roof alone, overhead: the way under it is open.
+        let mut roofed = hecs::World::new();
+        let roof = reg.get("roof").unwrap();
+        roofed.spawn((
+            Transform { position: Vec3::new(0.0, 3.0, 0.0), rotation: Quat::IDENTITY, scale: Vec3::from_array(roof.size) },
+            Structure { blueprint_id: "roof".into(), health: 1.0, max_health: 1.0, provides: roof.provides.clone(), uid: 0 },
+        ));
+        assert!(built_piece_segments(&roofed, start, eye_h).is_empty(), "a roof overhead is not in the way");
+        assert!((walk(&roofed).x - goal.x).abs() < 1e-4);
+
+        // The same wall on a planet site is not a home piece.
+        let mut site = hecs::World::new();
+        let bp = reg.get("wood_wall").unwrap();
+        let tf = placement::placement_pose(bp, Vec3::ZERO, 1, &site, &reg, None);
+        site.spawn((
+            tf,
+            Structure { blueprint_id: "wood_wall".into(), health: 1.0, max_health: 1.0, provides: bp.provides.clone(), uid: 0 },
+            PlanetSite { body: "earth".into(), origin: glam::DVec3::new(6.371e6, 0.0, 0.0) },
+        ));
+        assert!(built_piece_segments(&site, start, eye_h).is_empty(), "planet sites are not the home frame");
+        assert!((walk(&hecs::World::new()).x - goal.x).abs() < 1e-4, "nothing built, nothing in the way");
+    }
+
+    /// The segment stays inside the box's footprint: a long thin box runs
+    /// along its length, a square one is a point with its half width.
+    #[test]
+    fn a_box_becomes_a_segment_inside_its_footprint() {
+        let s = segment_of_box(Vec3::new(-1.0, 0.0, -0.1), Vec3::new(1.0, 3.0, 0.1));
+        assert_eq!((s.a, s.b, s.half_thickness), ((-0.9, 0.0), (0.9, 0.0), 0.1));
+        let s = segment_of_box(Vec3::new(2.0, 0.0, 2.0), Vec3::new(2.8, 1.0, 2.8));
+        assert!((s.a.0 - 2.4).abs() < 1e-6 && s.a == s.b && (s.half_thickness - 0.4).abs() < 1e-6);
+        let s = segment_of_box(Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.2, 3.0, 2.0));
+        assert!((s.a.1 - 0.1).abs() < 1e-6 && (s.b.1 - 1.9).abs() < 1e-6 && (s.a.0 - 0.1).abs() < 1e-6);
     }
 }

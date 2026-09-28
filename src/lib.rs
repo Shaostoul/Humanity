@@ -5311,7 +5311,7 @@ mod native_app {
                         // together span the full aperture (each contributes its own half-width
                         // segment), so a shut corridor door is impassable; open, both drop out and
                         // the mouth is the walk-through gap the shell cut left.
-                        let doors: Vec<crate::ship::wall_collision::WallSegment> = state
+                        let mut doors: Vec<crate::ship::wall_collision::WallSegment> = state
                             .door_panels
                             .iter()
                             .enumerate()
@@ -5332,6 +5332,12 @@ mod native_app {
                                 })
                             })
                             .collect();
+                        // Built pieces are solid too (2026-09-28, build_place::built_piece_segments).
+                        doors.extend(crate::engine::build_place::built_piece_segments(
+                            &state.game_world.world,
+                            state.camera.position,
+                            state.controller.eye_height(),
+                        ));
                         let resolved = crate::ship::wall_collision::resolve(
                             prev_cam_pos,
                             state.camera.position,

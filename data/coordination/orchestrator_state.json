@@ -286,6 +286,11 @@
       "date": "2026-09-28",
       "decision": "Arc C shelter: the wind direction against the open side. ShelterCheck records which sides are walled; under a roof the wind reaching the body is the share coming in through open sides facing into it (cosine per side, a stated game choice); three walls shelter only with their back to the wind. HUD note says Sheltered / Out of the rain and the wind / N% of the wind gets in.",
       "why": "Next unticked Tier A item after the day-length work; the direction rule is the survival manuals' back-to-the-wind advice, which the game can now teach. The walls' radiant warmth stays open."
+    },
+    {
+      "date": "2026-09-28",
+      "decision": "Arc C Tier B: built pieces are solid aboard. Finished home-frame Structures whose box spans knee to eye join the first-person wall resolver as live segments (build_place::built_piece_segments); roofs, floors and scaffolds do not block. Planet build sites left for their own pass.",
+      "why": "Walking through what you built was the most visible gap in the building loop, and aboard it was a small change riding the existing 2D resolver. On a planet the player moves by the frame lock anchor, not the camera, so it needs a separate design rather than a shortcut."
     }
   ],
   "active_scopes_to_avoid": [

@@ -633,7 +633,10 @@ between the simulation and the person. Its tier ladder is the build order.
   then building on a planet's ground in f64-anchored build sites, one storey
   at a time, no double builds), and share the rest of the list: nothing stands
   on a roof yet (no second storey), doors and windows cannot be set into a
-  wall, built pieces have no collision (you walk through them), and they are a
+  wall, built pieces are solid only aboard (DONE 2026-09-28,
+  `build_place::built_piece_segments`; on a planet's ground you still walk
+  through them, because there the player moves by the frame lock's anchor and
+  the resolver works on the camera), and they are a
   third shape beside the home editor's `InteriorWall` and the ship structure
   pieces.
 - **Tier C (make the world look right).** Un-gate hero plant models for towers;
