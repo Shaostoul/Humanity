@@ -761,7 +761,7 @@ async function main() {
       log(`discarded first pass: ${v0.id}`);
       try {
         if (v0.showcase) {
-          req("showcase_request.json", Object.assign({ map_diag: "0", cloud_top_bound: "0", cloud_uniform_step: "0", cloud_step_m: "0", wind: "auto", anim_clock: "auto", aurora: "1", room_gi: "1", present_dither: "1" },v0.showcase)); // diag channels + the determinism pins are sticky across cells: reset unless the cell pins one
+          req("showcase_request.json", Object.assign({ map_diag: "0", cloud_top_bound: "0", cloud_uniform_step: "0", cloud_step_m: "0", wind: "auto", anim_clock: "auto", aurora: "1", room_gi: "1", present_dither: "1", sun_shadows: "auto", near_levels: "auto" },v0.showcase)); // diag channels + the determinism pins are sticky across cells: reset unless the cell pins one
           await sleep(3500);
         }
         clearDone("camera_done.json");
@@ -791,18 +791,18 @@ async function main() {
       };
       try {
         if (v.showcase) {
-          req("showcase_request.json", Object.assign({ map_diag: "0", cloud_top_bound: "0", cloud_uniform_step: "0", cloud_step_m: "0", wind: "auto", anim_clock: "auto", aurora: "1", room_gi: "1", present_dither: "1" },v.showcase)); // diag channels + the determinism pins are sticky across cells: reset unless the cell pins one
+          req("showcase_request.json", Object.assign({ map_diag: "0", cloud_top_bound: "0", cloud_uniform_step: "0", cloud_step_m: "0", wind: "auto", anim_clock: "auto", aurora: "1", room_gi: "1", present_dither: "1", sun_shadows: "auto", near_levels: "auto" },v.showcase)); // diag channels + the determinism pins are sticky across cells: reset unless the cell pins one
           await sleep(3500);
           // The aurora switch is a pin too: an aurora-OFF twin must never leave
           // the next vantage dark (2026-09-27, scripts/aurora-gate.js).
-          pinsActive = "wind" in v.showcase || "anim_clock" in v.showcase || v.showcase.aurora === "0" || v.showcase.room_gi === "0" || v.showcase.present_dither === "0";
+          pinsActive = "wind" in v.showcase || "anim_clock" in v.showcase || v.showcase.aurora === "0" || v.showcase.room_gi === "0" || v.showcase.present_dither === "0" || "sun_shadows" in v.showcase || "near_levels" in v.showcase;
         } else if (pinsActive) {
           // The 8 vantages with NO showcase block would otherwise INHERIT a
           // previous cell's wind / anim_clock pin, which is how a frozen
           // canopy or a frozen sky ends up in a frame nobody asked to freeze.
           // Only sent when a pin is actually live, so an ordinary sweep pays
           // nothing for it.
-          req("showcase_request.json", { wind: "auto", anim_clock: "auto", aurora: "1", room_gi: "1", present_dither: "1" });
+          req("showcase_request.json", { wind: "auto", anim_clock: "auto", aurora: "1", room_gi: "1", present_dither: "1", sun_shadows: "auto", near_levels: "auto" });
           await sleep(1500);
           pinsActive = false;
           log(`  released the previous vantage's wind / anim_clock / aurora pin`);
@@ -847,6 +847,16 @@ async function main() {
           // clock/park race), the re-park is a big jump and the temporal
           // cloud map needs a few seconds to re-converge before the shot.
           await sleep(v.hold_altitude ? 900 : 6000);
+        }
+        // FINAL SHOWCASE (2026-09-27): a request that must land AFTER the
+        // re-park, because the re-park would undo it: the dev "stand" verb
+        // puts the eye inside a hut the post_showcase built
+        // (planet-built-inside), which no camera park can do (a park sits
+        // tens of metres over the ground).
+        if (v.final_showcase) {
+          req("showcase_request.json", v.final_showcase);
+          await sleep((v.final_settle_s ?? 4) * 1000);
+          log(`  final showcase sent: ${JSON.stringify(v.final_showcase)}`);
         }
         // Capture window opens: anyone else on this GPU from here to the last
         // shot below invalidates this vantage's timing numbers.

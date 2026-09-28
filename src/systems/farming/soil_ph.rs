@@ -748,7 +748,7 @@ pub const AWAY_CHANNEL: &str = "soil_ph_away_secs";
 /// sulfur, nitrifying ammonium) kept reacting: soil chemistry is not upkeep
 /// and destroys nothing, so it is on the doc's advancing side
 /// (docs/design/offline-progression.md). The farming tick takes it, once,
-/// because only there are the growth speed and the Soil pH switch the
+/// because only there is the Soil pH switch the
 /// player's own: the resume runs before Settings reach the DataStore. The
 /// acidity of the growth made while away is not in it; that growth pays its
 /// nitrogen from the unit on the first tick back, and its acidity reacts

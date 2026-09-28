@@ -150,6 +150,33 @@ pub(crate) fn parse_notification_prefs(val: &serde_json::Value) -> NotifPrefsPay
     }
 }
 
+/// A five-number camera pose "x,y,z,yaw,pitch" (the station camera verb's
+/// `pose`, 2026-09-27). Exactly five finite numbers or None: a pose with a
+/// typo must fail the request, never park at a half-parsed spot.
+pub(crate) fn parse_pose5(text: &str) -> Option<([f32; 3], f32, f32)> {
+    let v: Vec<f32> = text.split(',').map(|p| p.trim().parse::<f32>()).collect::<Result<_, _>>().ok()?;
+    if v.len() != 5 || v.iter().any(|x| !x.is_finite()) {
+        return None;
+    }
+    Some(([v[0], v[1], v[2]], v[3], v[4]))
+}
+
+#[cfg(test)]
+mod pose_tests {
+    use super::parse_pose5;
+
+    #[test]
+    fn a_pose_is_exactly_five_finite_numbers() {
+        assert_eq!(parse_pose5("6.9,1.5,58.6,-0.55,-0.14"), Some(([6.9, 1.5, 58.6], -0.55, -0.14)));
+        assert_eq!(parse_pose5(" 1, 2 ,3,0 ,0"), Some(([1.0, 2.0, 3.0], 0.0, 0.0)));
+        assert_eq!(parse_pose5("1,2,3,4"), None, "four numbers");
+        assert_eq!(parse_pose5("1,2,3,4,5,6"), None, "six numbers");
+        assert_eq!(parse_pose5("1,2,x,4,5"), None, "a typo");
+        assert_eq!(parse_pose5("1,2,inf,4,5"), None, "not finite");
+        assert_eq!(parse_pose5(""), None);
+    }
+}
+
 #[cfg(test)]
 mod provider_status_merge_tests {
     use super::merge_provider_status;

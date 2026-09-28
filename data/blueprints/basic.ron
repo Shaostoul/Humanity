@@ -30,6 +30,14 @@
     (id: "grain_mill", name: "Grain Mill", category: "machine", materials: [("grain_mill_0", 1)], build_time: 5.0, size: (1.0, 1.2, 1.0), snap_to: ["foundation"], mount: OnTop, health: 200.0, provides: Some("crafting_station"), stations: ["grain_mill"]),
     (id: "fuel_refinery", name: "Fuel Refinery", category: "machine", materials: [("fuel_refinery_0", 1)], build_time: 5.0, size: (1.5, 2.0, 1.5), snap_to: ["foundation"], mount: OnTop, health: 300.0, provides: Some("crafting_station"), stations: ["fuel_refinery"]),
     (id: "water_purifier", name: "Water Purifier", category: "machine", materials: [("water_purifier_0", 1)], build_time: 5.0, size: (0.6, 1.0, 0.5), snap_to: ["foundation"], mount: OnTop, health: 100.0, provides: Some("crafting_station"), stations: ["water_purifier"]),
+    // A SOLAR PANEL to set down (2026-09-27): the first buildable power source, so a
+    // planet site can power its stove and a home can offset what it draws from the
+    // ship's reactor. It consumes the Solar Panel crafted at the electronics bench
+    // (recipe build_solar_panel) and makes the home catalog panel's 400 W peak with
+    // the sun (data/machines/home.ron "solar_panel", whose PVWatts yield at the home's
+    // site is quoted there). Ground-mounted; the 1.7 x 1.0 m footprint is a game
+    // choice near a residential 400 W module's size.
+    (id: "solar_panel", name: "Solar Panel", category: "machine", materials: [("solar_panel_0", 1)], build_time: 5.0, size: (1.7, 0.05, 1.0), snap_to: [], health: 80.0, provides: Some("power"), generates: Some(Solar(peak_watts: 400.0, average_watts: Some(45.3)))),
     (id: "storage_chest", name: "Storage Chest", category: "furniture", materials: [("wood_plank_0", 8)], build_time: 3.0, size: (1.0, 0.8, 0.6), snap_to: ["foundation"], mount: OnTop, health: 80.0, provides: Some("storage")),
     (id: "bed", name: "Bed", category: "furniture", materials: [("wood_plank_0", 6), ("fiber_bundle_0", 4)], build_time: 4.0, size: (1.0, 0.6, 2.0), snap_to: ["foundation"], mount: OnTop, health: 60.0, provides: Some("rest")),
 ]

@@ -64,7 +64,6 @@ a placeable object in your homestead.
             power: None,
             ports: [],
             storage: [],
-            rf_emission: 0.0,
             auto_recipe: None,
             container_type: None,
             model: Some("models/test_crate.glb"),
@@ -144,7 +143,6 @@ One line per field, in plain words:
 - `power`: electricity use; `None` means it needs no power.
 - `ports`: connection points for pipes or wires; `[]` means none.
 - `storage`: built-in storage slots; `[]` means none.
-- `rf_emission`: radio noise it gives off; `0.0` means silent.
 - `auto_recipe`: a recipe it runs by itself; `None` means it does not.
 - `container_type`: what kind of container it counts as; `None` for none.
 - `model`: the 3D model file to draw; `Some("models/file.glb")` to use

@@ -669,9 +669,10 @@ fn draw_recipe_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, re
         _ => true,
     };
     // Station gate (v0.749, ladder rung 6): the named station machine must be
-    // placed in the home (strip the item-style _0 suffix to the machine type).
-    // Mirrors CraftingSystem's authoritative check; fail-open when no home
-    // layout is loaded.
+    // where the player is (strip the item-style _0 suffix to the machine
+    // type): aboard, placed or built in the home; on a planet, built at the
+    // site (2026-09-27). Mirrors CraftingSystem's authoritative check through
+    // the one published set; fail-open when no home layout is loaded.
     let station_ok = if recipe.station_required.is_empty() || recipe.station_required == "none" {
         true
     } else {
@@ -679,11 +680,7 @@ fn draw_recipe_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, re
             .station_required
             .strip_suffix("_0")
             .unwrap_or(&recipe.station_required);
-        state.built_station_types.contains(machine_type)
-            || state.home_machines.as_ref().map_or(true, |hm| {
-                hm.instances.iter().any(|i| i.machine == machine_type)
-                    || hm.arrays.iter().any(|a| a.machine == machine_type)
-            })
+        state.home_machines.is_none() || state.stations_here.contains(machine_type)
     };
     let missing_tool = recipe.tools.iter().find(|t| count_in_inventory(state, t) == 0).cloned();
     // Power (2026-09-26): lib.rs publishes the electric station types that
@@ -760,7 +757,15 @@ fn draw_recipe_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, re
         } else if let Some(t) = &missing_tool {
             format!("Needs a {t} in your backpack")
         } else if unpowered {
-            format!("The {} has no power", recipe.station_required.trim_end_matches("_0").replace('_', " "))
+            let station = recipe.station_required.trim_end_matches("_0").replace('_', " ");
+            match &state.stations_where {
+                // A station built on a planet is not on the home's grid
+                // (construction::wire_built_stations), so say so.
+                crate::systems::construction::StationsWhere::Site(_) => {
+                    format!("The {station} has no power: nothing at this site makes power, and the home's grid is in orbit")
+                }
+                _ => format!("The {station} has no power"),
+            }
         } else if !skill_ok {
             "Skill level too low".to_string()
         } else {
@@ -772,12 +777,16 @@ fn draw_recipe_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, re
                 .iter()
                 .find(|b| b.stations.iter().any(|s| s == machine_type))
                 .map(|b| b.name.clone());
-            match buildable {
-                Some(name) => format!(
-                    "Needs a {} in your home, or build a {name}",
-                    machine_type.replace('_', " ")
-                ),
-                None => format!("Needs a {} placed in your home", machine_type.replace('_', " ")),
+            let station = machine_type.replace('_', " ");
+            use crate::systems::construction::StationsWhere;
+            match (&state.stations_where, buildable) {
+                (StationsWhere::Site(_), Some(name)) => {
+                    format!("Needs a {station} at this site: build a {name} here (the home's machines are in orbit)")
+                }
+                (StationsWhere::Site(_), None) => format!("Needs a {station}, and the home's machines are in orbit"),
+                (StationsWhere::Nowhere, _) => format!("Needs a {station}: go aboard your home, or to a site you built"),
+                (StationsWhere::Home, Some(name)) => format!("Needs a {station} in your home, or build a {name}"),
+                (StationsWhere::Home, None) => format!("Needs a {station} placed in your home"),
             }
         };
         ui.label(

@@ -45,7 +45,7 @@ fn crop(data: &DataStore, plant: &str, area: &str, slot: u32) -> CropInstance {
 /// and pest `severity`.
 fn store(base: f64, speed: f32, severity: f32) -> DataStore {
     let mut data = make_store();
-    data.insert("crop_growth_speed", Mutex::new(speed));
+    super::gardening_tests::set_garden_speed(&data, speed);
     data.insert("garden_pest_severity", Mutex::new(severity));
     data.insert("player_notices", Mutex::new(Vec::<String>::new()));
     data.insert("hand_water_draw_l", Mutex::new(0.0_f32));
@@ -184,7 +184,8 @@ fn transpiration_raises_a_closed_greenhouse_at_the_cited_rate() {
     let plants = units::plants_in_plot(&tomato, Some(1.0));
     assert_eq!(plants, 2, "two tomato plants to a square metre (0.418 m2 each)");
     let litres = f64::from(tomato.water_per_day) * f64::from(plants) * 20.0;
-    let hours = 60.0 / SECONDS_PER_DAY * 24.0;
+    // 60 ticks of a real second at the store's 72x: 1.2 game hours.
+    let hours = 60.0 * 72.0 / 3600.0;
     let expected = home + litres * d.vapour_share * 1000.0 / 24.0 / 300.0 * hours;
     let got = room(&world, "room-a").vapour_g_m3;
     assert!((got - expected).abs() < 1e-6, "breathed {litres} L a day: expected {expected} g/m3, got {got}");
@@ -605,9 +606,11 @@ fn a_humidifier_draws_its_water_from_the_tanks_and_stops_when_they_are_dry() {
     sys.tick(&mut world, 1.0, &data);
     let demand = *data.get::<Mutex<f32>>("irrigation_demand_lpm").unwrap().lock().unwrap();
     assert!((f64::from(demand) - 1.3 * 24.0 / 1440.0).abs() < 1e-6, "the humidifier's 31.2 L a day: {demand} L/min");
+    // A real minute at the store's 72x is 72 game minutes of draw: the
+    // tanks run on the game clock with the crops (2026-09-27).
     pipes.tick(&mut world, 60.0, &data);
     let left = world.get::<&WaterTank>(cistern).unwrap().liters;
-    assert!((f64::from(7000.0 - left) - 1.3 * 24.0 / 1440.0).abs() < 1e-3, "a minute's draw left the cistern: {left}");
+    assert!((f64::from(7000.0 - left) - 72.0 * 1.3 * 24.0 / 1440.0).abs() < 1e-2, "72 game minutes' draw left the cistern: {left}");
     run(&mut sys, &mut world, &data, 300, 1.0);
     let wet = rh(&world, "room-a");
     // The cistern runs dry (the plumbing publishes it): the humidifier stops.

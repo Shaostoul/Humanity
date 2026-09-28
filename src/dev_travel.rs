@@ -98,10 +98,11 @@ pub fn look_dir(yaw: f32, pitch: f32) -> DVec3 {
 /// ~1e-6 quantization would put ~0.4 m stair-steps back into the surface
 /// lock (the v0.872 jitter lesson).
 ///
-/// The spin rate becomes TAU per game day (1200 s = 20 real min at scale
-/// 1.0, systems::time::SECONDS_PER_DAY) -- still a lively visible day from
-/// orbit, and now the HUD clock, the lit hemisphere, and the "time" dev
-/// verb all agree by construction.
+/// `hour` is the sun's place on a 24-hour dial (`GameTime::day_fraction`
+/// times 24), so the spin rate is TAU per game day of whatever length the
+/// Settings day has (24 hours by default, the one clock of 2026-09-27), and
+/// the HUD clock, the lit hemisphere, and the "time" dev verb all agree by
+/// construction.
 pub fn planet_spin_from_time(hour: f64, sun_azimuth_rad: f64) -> f64 {
     (sun_azimuth_rad + (hour - 12.0) * (std::f64::consts::TAU / 24.0))
         .rem_euclid(std::f64::consts::TAU)
@@ -184,12 +185,13 @@ mod tests {
                 "hour {hour}: subsolar lon {lon} (want {want_lon_deg})"
             );
         }
-        // Continuity: one game second advances the spin by TAU/1200.
+        // Continuity: one game second of a 24-hour day advances the spin by
+        // TAU/86400.
         let a = planet_spin_from_time(10.0, sun_az);
-        let b = planet_spin_from_time(10.0 + 24.0 / 1200.0, sun_az);
+        let b = planet_spin_from_time(10.0 + 24.0 / 86_400.0, sun_az);
         let step = (b - a).rem_euclid(std::f64::consts::TAU);
         assert!(
-            (step - std::f64::consts::TAU / 1200.0).abs() < 1e-12,
+            (step - std::f64::consts::TAU / 86_400.0).abs() < 1e-12,
             "spin rate must be one turn per game day"
         );
     }

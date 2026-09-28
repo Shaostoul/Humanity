@@ -237,11 +237,13 @@ pub fn light_at(world: &hecs::World, data: &crate::hot_reload::data_store::DataS
     LightNow { sun_up, lamps_on, cover }
 }
 
-/// `light_at` for the clock's hour now (no clock = noon, the tick's default).
+/// `light_at` for the clock's hour now at the home's longitude (no clock =
+/// noon, the tick's default).
 pub fn light_now(world: &hecs::World, data: &crate::hot_reload::data_store::DataStore) -> LightNow {
+    let lon = crate::systems::time::home_longitude_deg(data);
     let hour = data
         .get::<std::sync::Mutex<crate::systems::time::GameTime>>("game_time")
-        .and_then(|m| m.lock().ok().map(|g| g.hour))
+        .and_then(|m| m.lock().ok().map(|g| g.solar_hour_at(lon)))
         .unwrap_or(12.0);
     light_at(world, data, hour)
 }

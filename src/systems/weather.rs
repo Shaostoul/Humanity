@@ -162,18 +162,28 @@ pub struct ManualWeather {
     pub wind_speed: f32,
 }
 
-/// Duration of smooth transition between weather conditions (seconds).
-const TRANSITION_DURATION: f32 = 30.0;
+// The weather's timers run on the one game clock (2026-09-27): game seconds,
+// so a front, a storm and the gap between them take the same game hours at
+// any time speed. The roll cadence keeps the share of a day it had on the
+// 20-minute day (5 to 15 minutes of it were 6 to 18 game hours).
 
-/// Minimum game-time seconds between weather changes (5 minutes).
-const MIN_CHANGE_INTERVAL: f32 = 300.0;
+/// Game seconds a natural change of weather takes to arrive: half an hour,
+/// the pace of a front passing.
+const TRANSITION_DURATION: f32 = 1800.0;
+/// Seconds a change the player asked for (the F11 panel) or an arrival on a
+/// new world takes: half a minute, on whichever of real or game time is
+/// faster, so it still arrives with the clock held still.
+const QUICK_TRANSITION_S: f32 = 30.0;
 
-/// Maximum game-time seconds between weather changes (15 minutes).
-const MAX_CHANGE_INTERVAL: f32 = 900.0;
+/// Minimum game seconds between weather changes (6 hours).
+const MIN_CHANGE_INTERVAL: f32 = 6.0 * 3600.0;
 
-/// Seconds between extreme-event roll attempts (v0.1035; same clock as
-/// the change intervals above).
-const EVENT_ROLL_INTERVAL_S: f32 = 900.0;
+/// Maximum game seconds between weather changes (18 hours).
+const MAX_CHANGE_INTERVAL: f32 = 18.0 * 3600.0;
+
+/// Game seconds between extreme-event roll attempts (v0.1035; 18 hours, the
+/// same share of a day as the 15 minutes it was on the 20-minute day).
+const EVENT_ROLL_INTERVAL_S: f32 = 18.0 * 3600.0;
 
 /// Chance per roll that an eligible extreme event actually fires - the
 /// registry's rarity weights then decide WHICH one.
@@ -211,6 +221,9 @@ pub struct WeatherSystem {
     temp_dev: f32,
     /// Countdown until the next weather change attempt.
     next_change_timer: f32,
+    /// How long the transition in progress takes (TRANSITION_DURATION or
+    /// QUICK_TRANSITION_S).
+    transition_len: f32,
     /// Countdown until the next extreme-event roll (v0.1035).
     event_roll_timer: f32,
     /// Steady wind bonus (m/s) exported while a Front-profile event is
@@ -248,6 +261,7 @@ impl WeatherSystem {
             temp_dev,
             weather,
             next_change_timer: 60.0, // First change after 1 minute
+            transition_len: TRANSITION_DURATION,
             event_roll_timer: EVENT_ROLL_INTERVAL_S,
             active_gust_mps: 0.0,
             env: BodyEnvironment::default(),
@@ -411,7 +425,7 @@ impl WeatherSystem {
     }
 
     /// Start a transition to a new weather condition.
-    fn begin_transition(&mut self, new_condition: WeatherCondition, season: Season) {
+    fn begin_transition(&mut self, new_condition: WeatherCondition, season: Season, len: f32) {
         // Snapshot current values for lerping
         self.prev_intensity = self.weather.intensity;
         self.prev_visibility = self.weather.visibility;
@@ -420,7 +434,8 @@ impl WeatherSystem {
         self.prev_wind_speed = self.weather.wind_speed;
 
         self.weather.condition = new_condition;
-        self.weather.transition_timer = TRANSITION_DURATION;
+        self.weather.transition_timer = len;
+        self.transition_len = len.max(1e-3);
         self.compute_targets(new_condition, season);
 
         // Randomize wind direction on weather change
@@ -445,11 +460,11 @@ impl System for WeatherSystem {
         let (season, hour, year_fraction) = data
             .get::<std::sync::Mutex<GameTime>>("game_time")
             .and_then(|m| m.lock().ok())
-            .map(|gt| (gt.season, gt.hour, gt.year_fraction()))
+            .map(|gt| (gt.season, gt.solar_hour(), gt.year_fraction()))
             .unwrap_or((
                 Season::Spring,
                 12.0,
-                0.5 / f64::from(crate::systems::time::DAYS_PER_YEAR),
+                0.5 / f64::from(crate::systems::time::DEFAULT_DAYS_PER_YEAR),
             ));
 
         // Which body's weather are we simulating? (increment 4) The main
@@ -472,7 +487,7 @@ impl System for WeatherSystem {
             // when the condition name stays the same, so temperature and
             // wind ramp over the normal 30 s instead of waiting.
             let cond = body_environment::sanitize_condition(self.weather.condition, &self.env);
-            self.begin_transition(cond, season);
+            self.begin_transition(cond, season, QUICK_TRANSITION_S);
             // A running extreme event does not follow you to a world that
             // cannot host it (a thunderstorm has no business on the Moon).
             if !(self.env.has_atmosphere && self.env.has_water)
@@ -505,12 +520,14 @@ impl System for WeatherSystem {
             // temperature and humidity ramp naturally rather than snapping;
             // wind and intensity are then held at the panel's values below.
             if retrigger || m.condition != self.weather.condition {
-                self.begin_transition(m.condition, season);
+                self.begin_transition(m.condition, season, QUICK_TRANSITION_S);
             }
         }
 
+        // Game seconds this tick (the one clock); dt stays real seconds.
+        let game_dt = crate::systems::time::scaled_dt(dt, data);
         // Count down to next weather change
-        self.next_change_timer -= dt;
+        self.next_change_timer -= game_dt;
         if manual.is_none() && self.next_change_timer <= 0.0 {
             // The roll still uses the Earth-tuned season odds; sanitize
             // clamps the result to what THIS body can host (increment 4):
@@ -521,7 +538,7 @@ impl System for WeatherSystem {
                 &self.env,
             );
             if new_condition != self.weather.condition {
-                self.begin_transition(new_condition, season);
+                self.begin_transition(new_condition, season, TRANSITION_DURATION);
             }
             // Schedule next change
             self.next_change_timer = self.rng.gen_range(MIN_CHANGE_INTERVAL..MAX_CHANGE_INTERVAL);
@@ -529,8 +546,8 @@ impl System for WeatherSystem {
 
         // Process smooth transition
         if self.weather.transition_timer > 0.0 {
-            self.weather.transition_timer = (self.weather.transition_timer - dt).max(0.0);
-            let t = 1.0 - (self.weather.transition_timer / TRANSITION_DURATION);
+            self.weather.transition_timer = (self.weather.transition_timer - dt.max(game_dt)).max(0.0);
+            let t = (1.0 - self.weather.transition_timer / self.transition_len).clamp(0.0, 1.0);
             // Smooth-step for more natural transitions
             let t = t * t * (3.0 - 2.0 * t);
 
@@ -563,7 +580,7 @@ impl System for WeatherSystem {
         // precipitation; Vortex spatial wind and hazard damage are the
         // NEXT rung (logged on activation so playtests can spot them).
         if self.weather.event_remaining_s > 0.0 {
-            self.weather.event_remaining_s = (self.weather.event_remaining_s - dt).max(0.0);
+            self.weather.event_remaining_s = (self.weather.event_remaining_s - game_dt).max(0.0);
             if self.weather.event_remaining_s == 0.0 {
                 log::info!("[WeatherEvent] '{}' ended", self.weather.event_name);
                 self.weather.event_id.clear();
@@ -576,7 +593,7 @@ impl System for WeatherSystem {
             // the shipped registry is Earth-authored (thunderstorms,
             // tornadoes); per-body event profiles (Mars dust fronts) are a
             // later increment per docs/design/artificial-planet.md.
-            self.event_roll_timer -= dt;
+            self.event_roll_timer -= game_dt;
             if self.event_roll_timer <= 0.0 {
                 self.event_roll_timer = EVENT_ROLL_INTERVAL_S;
                 if self.rng.gen::<f32>() < EVENT_FIRE_CHANCE {
@@ -880,7 +897,7 @@ mod tests {
         data.insert("weather", std::sync::Mutex::new(Weather::default()));
         let mut world = hecs::World::new();
         let mut sys = WeatherSystem::new();
-        sys.begin_transition(WeatherCondition::Snow, Season::Winter);
+        sys.begin_transition(WeatherCondition::Snow, Season::Winter, QUICK_TRANSITION_S);
         for _ in 0..40 {
             sys.tick(&mut world, 1.0, &data);
         }

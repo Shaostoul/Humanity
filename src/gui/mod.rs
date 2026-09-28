@@ -1456,10 +1456,11 @@ pub struct GuiState {
     /// the player needs to read rather than a confirmation (the offline
     /// progression "while you were away" line). See `GuiState::notice`.
     pub pending_notices: Vec<String>,
-    /// Machine types the player's finished structures serve as (a built
-    /// furnace is a "smelter"), mirrored each frame from the world so the
-    /// Crafting page's station check agrees with CraftingSystem's.
-    pub built_station_types: std::collections::HashSet<String>,
+    /// Station types WHERE THE PLAYER IS (engine/built_uses.rs
+    /// publish_stations): aboard the home's machines and its built stations,
+    /// at a planet site that site's; the same set CraftingSystem gates on.
+    pub stations_here: std::collections::HashSet<String>,
+    pub stations_where: crate::systems::construction::StationsWhere,
 
     // ── Wallet state ──
     pub wallet_balance: f64,
@@ -1642,6 +1643,7 @@ pub struct GuiState {
     pub power_battery_wh: f32,
     pub power_battery_capacity_wh: f32,
     pub power_autonomy_hours: f32,
+    pub power_ship: crate::systems::electrical::ShipFeedReading, // the ship's reactor feed (ship_power)
     /// Live home WATER readout (v0.608), mirrored from PlumbingSystem each frame: production + demand
     /// (L/min), stored + capacity (litres), and days of autonomy at the current demand.
     pub water_production_lpm: f32,
@@ -1862,20 +1864,20 @@ pub struct GuiState {
     /// Time-of-day scrubber (v0.1224). The clock lives inside TimeSystem's own
     /// accumulator (the DataStore copy is overwritten every tick), so the panel
     /// cannot just poke `game_time`: it drains these into the
-    /// `time_set_hour_request` / `time_set_scale_request` channels, the same
+    /// `time_set_hour_request` / `time::HOLD_SLOT` channels, the same
     /// pattern the screenshot hook has used since v0.871. Until now that hook
     /// was the ONLY way to move the clock - there was no in-app control at all,
     /// which the GUI-first rule does not allow for something this central to
     /// reviewing sky, sea and lighting.
     pub time_hour_request: Option<f32>,
-    pub time_scale_request: Option<f32>,
+    /// A hold on the clock's speed to send (`time::request_speed_hold`):
+    /// Some(Some(0)) holds it still, Some(None) lets it go to the setting.
+    pub time_scale_request: Option<Option<f32>>,
     /// Last hour the scrubber published, so the slider does not fight the
     /// running clock while the operator is dragging it.
     pub time_pick_hour: f32,
-    /// Chosen clock speed (1 = real time, 60 = a game day per 20 s) and
-    /// whether the clock is held still. Frozen publishes scale 0, which is what
-    /// makes a lighting or sky comparison actually repeatable.
-    pub time_speed: f32,
+    /// Whether the clock is held still (speed 0), which is what makes a
+    /// lighting or sky comparison repeatable. Its speed is settings.time_speed.
     pub time_frozen: bool,
     /// Home-station attitude, mirrored for the F11 panel (v0.1225).
     ///
@@ -3601,7 +3603,8 @@ impl Default for GuiState {
             pending_bookmark_recat: None,
             pending_toasts: Vec::new(),
             pending_notices: Vec::new(),
-            built_station_types: std::collections::HashSet::new(),
+            stations_here: std::collections::HashSet::new(),
+            stations_where: Default::default(),
             surface_altitude_m: None,
             surface_gravity_now: None,
             surface_speed_mult: 1.0,
@@ -3691,6 +3694,7 @@ impl Default for GuiState {
             power_battery_wh: 0.0,
             power_battery_capacity_wh: 0.0,
             power_autonomy_hours: 0.0,
+            power_ship: Default::default(),
             power_consumption: 0.0,
             power_balance: 0.0,
             water_production_lpm: 0.0,
@@ -3842,7 +3846,6 @@ impl Default for GuiState {
             time_hour_request: None,
             time_scale_request: None,
             time_pick_hour: 8.0,
-            time_speed: 1.0,
             time_frozen: false,
             station_nadir: true,
             station_yaw_deg: 0.0,
@@ -4446,13 +4449,12 @@ pub struct SettingsState {
     /// reaches a shadowed surface and the sky-irradiance term fills it, which
     /// is what real shadows are. Lower values leak warm sunlight into shadow.
     pub shadow_strength: f32,
-    /// How fast crops grow, as a multiplier on growth progress ONLY -- the
-    /// world clock is untouched (operator, 2026-09-20: "10x growth speed (not
-    /// clock speed)"). 1x is real agricultural time, where the fastest crop in
-    /// `plants.csv` still takes 4.7 real hours; 10x and 100x are the offered
-    /// presets. The default is 10x because a 1x default makes plant life
-    /// cycles untestable without waiting days.
-    pub crop_growth_speed: f32,
+    /// The one game clock (2026-09-27, systems::time; Settings > Gameplay >
+    /// Time): the time speed (1 = real time, the only speed-up), hours in a
+    /// day and days in a year.
+    pub time_speed: f32,
+    pub hours_per_day: u32,
+    pub days_per_year: u32,
     pub pest_severity: f32, // garden pests: 0 off, 0.5 gentle, 1 realistic (farming::pests)
     /// Offline progression (operator, 2026-09-21; docs/design/offline-
     /// progression.md): while the game is closed your character keeps living,
@@ -4674,7 +4676,9 @@ impl Default for SettingsState {
             water_detail_depth: 20.0,
             sun_shadows: true,
             shadow_strength: 1.0,
-            crop_growth_speed: crate::systems::farming::DEFAULT_CROP_GROWTH_SPEED,
+            time_speed: crate::systems::time::DEFAULT_TIME_SPEED,
+            hours_per_day: crate::systems::time::DEFAULT_HOURS_PER_DAY,
+            days_per_year: crate::systems::time::DEFAULT_DAYS_PER_YEAR,
             pest_severity: crate::systems::farming::pests::DEFAULT_PEST_SEVERITY,
             offline_progression: true,
             fresh_world_each_launch: true,

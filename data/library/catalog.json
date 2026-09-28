@@ -159,6 +159,26 @@
           ]
         },
         {
+          "title": "Drying Food",
+          "src": "docs/user/skills/drying_food.md",
+          "tags": [
+            "guide",
+            "real",
+            "food",
+            "safety"
+          ]
+        },
+        {
+          "title": "Fermenting Vegetables",
+          "src": "docs/user/skills/fermenting_vegetables.md",
+          "tags": [
+            "guide",
+            "real",
+            "food",
+            "safety"
+          ]
+        },
+        {
           "title": "Your First Compost",
           "src": "docs/user/skills/your_first_compost.md",
           "tags": [

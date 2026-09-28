@@ -125,11 +125,6 @@ pub struct MachineDef {
     /// (a cistern's level is a draining number, not a static "33 days" string).
     #[serde(default)]
     pub storage: Vec<MachineStorage>,
-    /// RF emission level 0..1 (v0.620): a wireless device (a WiFi router) emits RF while powered, which
-    /// harms sensitive crops nearby (run wired instead to keep a grow clean) and is a detection signature.
-    /// 0 = a quiet wired/optical device. Spawns an `RfEmitter` ECS component.
-    #[serde(default)]
-    pub rf_emission: f32,
     /// Economy automation (v0.663): a recipe id from `data/recipes.csv` this machine runs
     /// CONTINUOUSLY against the home inventory whenever the inputs are in stock (the smelter
     /// auto-runs `smelt_iron`, the workbench `craft_hammer`). Spawns an `AutoRefine` ECS
@@ -745,8 +740,10 @@ pub struct BuildabilityReport {
 pub struct MeterBasis {
     /// Settings > Gameplay > Ship life support is Realistic: the home's grid
     /// powers the air handlers and the CO2 scrubber, which the meters then
-    /// charge at their `average_watts`. False (Station-supplied): the station's
-    /// own plant powers them and they take nothing from the home's grid.
+    /// charge at their `average_watts`, and the home runs on what it makes and
+    /// stores. False (Station-supplied): the ship's reactor powers them and
+    /// feeds the home's grid past what the home makes (`UtilityMeter::reactor`,
+    /// 2026-09-27); they are not charged to the home's grid line.
     pub life_support_on_grid: bool,
 }
 
@@ -774,6 +771,13 @@ pub struct UtilityMeter {
     /// Never part of `generation`, which is what the home makes on its own.
     pub backstop_watts: f32,
     pub backstop_fuel_lph: f32,
+    /// Power only (2026-09-27, `systems::ship_power`): in the Station-supplied
+    /// mode, what the ship's reactor supplies a day on the day's average, kWh:
+    /// the home grid's use past what the home makes, plus ship life support,
+    /// and what the home makes past its use, which goes back to the ship. Both
+    /// 0 in the Realistic mode, where the home runs on its own.
+    pub reactor: f32,
+    pub returned: f32,
 }
 
 /// Build one meter from a utility's daily generation + demand, with a plain-language, NON-PUNITIVE
@@ -803,6 +807,8 @@ fn make_utility_meter(utility: &str, generation: f32, demand: f32, unit: &str) -
         summary,
         backstop_watts: 0.0,
         backstop_fuel_lph: 0.0,
+        reactor: 0.0,
+        returned: 0.0,
     }
 }
 
@@ -1314,6 +1320,7 @@ impl MachineHome {
         let (mut supply_watts, mut consumer_watts) = (0.0f32, 0.0f32);
         let (mut backstop_w, mut backstop_lph) = (0.0f32, 0.0f32);
         let mut working_watts = 0.0f32;
+        let mut life_support_watts = 0.0f32; // Station-supplied: what the reactor gives ship life support
         let (mut water_prod, mut water_dem) = (0.0f32, 0.0f32);
         let (mut data_sup, mut data_dem) = (0.0f32, 0.0f32);
         for inst in self.all_instances() {
@@ -1324,6 +1331,9 @@ impl MachineHome {
                 backstop_lph += lph;
                 // A battery is STORAGE, not demand (fixed v0.664; `average_load_watts` gives it 0).
                 consumer_watts += def.average_load_watts(basis, is_grow_light(&inst.machine));
+                if def.is_ship_life_support() && !basis.life_support_on_grid {
+                    life_support_watts += def.average_load_watts(MeterBasis { life_support_on_grid: true }, false);
+                }
                 working_watts += def.working_extra_watts();
                 water_prod += def.water_production_lpm();
                 water_dem += def.water_demand_lpm();
@@ -1350,6 +1360,25 @@ impl MachineHome {
             }
             m.backstop_watts = backstop_w;
             m.backstop_fuel_lph = backstop_lph;
+            // The ship's reactor (2026-09-27, systems::ship_power): the default mode feeds
+            // every home island past what the home makes, and ship life support, metered.
+            if basis.life_support_on_grid {
+                if p_dem > p_gen {
+                    m.summary.push_str("; the Realistic mode imports nothing: loads are shed when the batteries run out");
+                }
+            } else {
+                let ls = life_support_watts * 24.0 / 1000.0;
+                m.reactor = (p_dem - p_gen).max(0.0) + ls;
+                m.returned = (p_gen - p_dem).max(0.0);
+                m.summary.push_str(&format!(
+                    "; the ship's reactor supplies {:.1} kWh/day ({:.1} to the home's grid, {ls:.1} to ship life support), metered, so nothing browns out",
+                    m.reactor,
+                    (p_dem - p_gen).max(0.0)
+                ));
+                if m.returned > 0.0 {
+                    m.summary.push_str(&format!("; {:.1} kWh/day goes back to the ship", m.returned));
+                }
+            }
             meters.push(m);
         }
         // WATER: L/day (lpm over 1440 min).
@@ -1699,8 +1728,9 @@ impl MachineHome {
 
         // 6. Data links (v0.621): every DATA run needs a medium (ethernet/fibre/WiFi) that carries the
         //    destination's bandwidth demand over the run length. Auto-pick the cheapest, or validate a
-        //    pinned medium. A WIRELESS medium adds an RF caution (it can harm a nearby grow) -- the
-        //    telecom teaching moment. Length from the machines' world offsets (box-home coords).
+        //    pinned medium. A wireless medium is judged like a wired one, on bandwidth and range (its
+        //    RF-harms-a-grow caution was removed 2026-09-27 with the crop harm). Length from the
+        //    machines' world offsets (box-home coords).
         let data_runs: Vec<&MachineConnection> = self.connections.iter().filter(|c| c.kind == "data").collect();
         if !data_runs.is_empty() {
             let by_id: std::collections::HashMap<&str, &MachineInstance> =
@@ -1736,11 +1766,6 @@ impl MachineHome {
                                 worst = CheckStatus::Fail;
                                 notes.push(format!("{}->{}: {} can't carry {demand:.0} Mbps over {len:.0} m", c.from, c.to, m.label));
                             }
-                        }
-                        if m.wireless {
-                            // A wireless link emits RF -- caution near a grow (the operator's tradeoff).
-                            worst = worst.max(CheckStatus::Warn);
-                            notes.push(format!("{}->{}: {} is WIRELESS -- its RF can harm a nearby grow (run wired to stay clean)", c.from, c.to, m.label));
                         }
                     }
                     None => {
@@ -2250,7 +2275,6 @@ mod tests {
             power: None,
             ports: Vec::new(),
             storage: Vec::new(),
-            rf_emission: 0.0,
             auto_recipe: None,
             irrigates: false,
             auto_keep: None,
@@ -3747,10 +3771,12 @@ mod tests {
         assert_eq!(conduit.status, CheckStatus::Fail, "unknown cable id fails: {}", conduit.detail);
     }
 
-    /// v0.621 telecom Stage 2: a DATA run sized to a wired medium PASSES; the same run on WiFi WARNS
-    /// (its RF can harm a nearby grow). Builds the uplink -> server pair the Data-links check validates.
+    /// v0.621 telecom Stage 2: a DATA run sized to a wired medium PASSES, and so does the same run on
+    /// WiFi, which carries the bandwidth over the range (2026-09-27: WiFi no longer raises an RF
+    /// warning, removed with the Wi-Fi crop harm). A run beyond WiFi's range still fails. Builds the
+    /// uplink -> server pair the Data-links check validates.
     #[test]
-    fn buildability_data_links_wired_passes_wifi_warns_on_rf() {
+    fn buildability_data_links_wired_and_wifi_pass_on_bandwidth_and_range() {
         let mut uplink = test_def("box");
         uplink.ports = vec![crate::utilities::Port::data_out(1000.0)];
         let mut server = test_def("box");
@@ -3773,11 +3799,18 @@ mod tests {
         let d = wired.checks.iter().find(|c| c.name == "Data links").expect("a Data links check");
         assert_eq!(d.status, CheckStatus::Pass, "wired Cat6 carries 100 Mbps: {}", d.detail);
 
-        // Swap to WiFi: it still carries the bandwidth, but the wireless RF warning fires.
+        // Swap to WiFi: it carries the bandwidth over this short run, so it passes like the cable.
         home.connections[0].spec = Some("wifi_6".to_string());
         let wifi = home.buildability_report(4.5, MeterBasis::default());
         let d2 = wifi.checks.iter().find(|c| c.name == "Data links").unwrap();
-        assert_eq!(d2.status, CheckStatus::Warn, "wireless warns about RF near grows: {}", d2.detail);
+        assert_eq!(d2.status, CheckStatus::Pass, "WiFi carries 100 Mbps over a short run: {}", d2.detail);
+        assert!(!d2.detail.contains("RF"), "no RF warning on a WiFi link: {}", d2.detail);
+
+        // The genuine range check stays: 60 m is twice WiFi's 30 m reach.
+        home.instances[1].offset = (60.0, 0.0, 0.0);
+        let far = home.buildability_report(4.5, MeterBasis::default());
+        let d3 = far.checks.iter().find(|c| c.name == "Data links").unwrap();
+        assert_eq!(d3.status, CheckStatus::Fail, "WiFi out of range fails: {}", d3.detail);
     }
 
     /// The shipped seed home's data link (uplink -> server over Cat6) sizes OK (no FAIL).

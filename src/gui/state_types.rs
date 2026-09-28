@@ -82,6 +82,8 @@ pub struct GuiGameTime {
     /// "20:04" beside a noon sun - the clock ran exactly lon/15 = 8.2 h
     /// ahead of the sky (the sun-clock incident, 2026-08-18).
     pub local_hour: Option<f32>,
+    /// Hours in this clock's day (Settings, 24 by default).
+    pub hours_per_day: u32,
 }
 
 /// Weather snapshot bridged from WeatherSystem for GUI display.
@@ -753,6 +755,9 @@ pub struct BuildPlacing {
     /// The ghost's box is already built there: E would spend the materials
     /// twice, so it does nothing and the hint says why.
     pub occupied: bool,
+    /// On a planet the pack holds too little for it (the home's storage is
+    /// in orbit): E does nothing and the hint says what is missing.
+    pub short: bool,
     /// The line under the crosshair: what is in hand and its keys.
     pub hint: String,
 }

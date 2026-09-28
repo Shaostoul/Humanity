@@ -3707,8 +3707,7 @@ fn draw_machines_and_connections(ui: &mut egui::Ui, theme: &Theme, state: &mut G
                                             });
                                     } else if kind == "data" {
                                         // Per-data-run MEDIUM picker (v0.621): ethernet / fibre / WiFi.
-                                        // WiFi is wireless -- the Data-links buildability check warns it
-                                        // emits RF (harms a nearby grow).
+                                        // The Data-links buildability check sizes each by bandwidth + range.
                                         let cur = spec
                                             .as_ref()
                                             .and_then(|id| data_choices.iter().find(|(cid, _)| cid == id).map(|(_, l)| l.clone()))
@@ -3969,7 +3968,7 @@ fn draw_buildability(ui: &mut egui::Ui, theme: &Theme, home: &crate::machines::M
             RichText::new(if basis.life_support_on_grid {
                 "Each machine at its average draw over a day. The air handlers and the CO2 scrubber are on your home's grid (Settings, Ship life support: Realistic)."
             } else {
-                "Each machine at its average draw over a day. The station's own plant powers the air handlers and the CO2 scrubber (Settings, Ship life support: Station-supplied)."
+                "Each machine at its average draw over a day. The ship's reactor supplies what your home does not make, the air handlers and the CO2 scrubber included, metered (Settings, Ship life support: Station-supplied)."
             })
             .size(theme.font_size_small)
             .color(theme.text_muted()),
@@ -4129,7 +4128,6 @@ mod multi_select_tests {
             power: None,
             ports: Vec::new(),
             storage: Vec::new(),
-            rf_emission: 0.0,
             auto_recipe: None,
             irrigates: false,
             auto_keep: None,

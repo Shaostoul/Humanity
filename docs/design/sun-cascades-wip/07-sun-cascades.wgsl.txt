@@ -1,0 +1,152 @@
+// ── NEAR SUN CASCADES (2026-09-27, docs/design/sun-cascades.md) ──
+//
+// The sun shadow map is an ATLAS: one Depth32Float texture, 8192 x 4096.
+// The far map (the v0.899 +-1500 m box, 0.73 m texels) sits unchanged in the
+// left 4096 square; the right half holds four 2048 square NEAR tiles, one per
+// camera-centred cascade (renderer/sun_cascades.rs):
+//
+//   level  half-extent  texel     tile origin (atlas texels)
+//   C0       4 m        3.9 mm    (4096, 0)
+//   C1      15 m        1.46 cm   (6144, 0)
+//   C2      60 m        5.9 cm    (4096, 2048)
+//   C3     240 m        23 cm     (6144, 2048)
+//
+// Increment 1 renders C1 only. Its casters are the ones the far map never
+// had (the home: walls, floors, shelves, racks, machines, plants; renderer
+// sun_cascades::stage_sun_casters) plus the celestial pass's own objects near
+// the eye (the planet build sites' pieces, props, near trees). Terrain
+// patches and the sea are NOT in it yet, so a near answer is MIN-combined
+// with the far map (00-bindings-vertex.wgsl `sun_visibility`), never used
+// alone: the far map still supplies terrain self-shadowing and wave crests
+// inside C1. Increment 2 moves every caster into the ladder.
+//
+// The near tiles are built along the sun that LIGHTS the home (the renderer's
+// cur_sun, the hull-frame sun aboard the station), not the far map's world
+// sun; on a planet the two are the same vector.
+//
+// Written to be INCLUDED (increment 4's room-GI handshake): the structs and
+// the functions below read the atlas and its sampler as PARAMETERS and the
+// uniform as the global `shadow_u`, so a compute shader that declares its own
+// `shadow_u: ShadowUniforms` binding can include this file verbatim instead
+// of copying it.
+
+// The near cascades' half of the shadow uniform (group 3 binding 8, after the
+// far map's 96 bytes). Every array is indexed with CONSTANT indices only (the
+// unrolled chain in sun_cascade_visibility): a dynamic index would make the
+// backend spill the arrays to per-invocation scratch, the cost class
+// frame-cost-arc.md is about.
+struct SunCascades {
+    // Light view-projection per level, ortho, standard z (near 0, far 1).
+    vp: array<mat4x4<f32>, 4>,
+    // The level's tile in atlas UV: xy = origin, zw = size.
+    rect: array<vec4<f32>, 4>,
+    // x = constant depth bias (NDC; one texel of world depth over the slab),
+    // y = texel size in metres (the normal offset), z = slope bias (NDC per
+    // unit tan(theta)), w = 1 when the level rendered this frame.
+    bias: array<vec4<f32>, 4>,
+    // x = near cascades on (at least one level rendered), yz = one atlas
+    // texel in UV (1/8192, 1/4096), w = reserved for increment 4 (glass
+    // casts: room GI drops its lid factor where the atlas covers).
+    ctl: vec4<f32>,
+};
+
+struct ShadowUniforms {
+    // The FAR map's light view-projection (its tile: FAR_TILE_U below).
+    light_vp: mat4x4<f32>,
+    // x = enable, y = shadow strength (0..1), z = 1/far map size,
+    // w = tree-card HIDE radius (cards yield to 3D models inside it).
+    params: vec4<f32>,
+    // v0.924 vegetation LOD: x = tree-card FAR cutoff (m) - the silhouette
+    // stage's outer distance, the "Tree silhouette distance" Settings
+    // slider. y = sky-view LUT valid this frame, zw = light-tile pixel sizes.
+    params2: vec4<f32>,
+    // The near ladder (2026-09-27). 496 bytes in all.
+    near: SunCascades,
+};
+
+// The far map's share of the atlas width: it occupies u in [0, 0.5). LOCKSTEP
+// with renderer::sun_cascades::FAR_TILE_U (its test reads this literal).
+const FAR_TILE_U: f32 = 0.5;
+
+// One level's 3x3 PCF visibility, or -1 when the point is not inside the
+// level's tile (outside its box, beyond its depth slab, or within two texels
+// of the tile edge, where the filter would read the neighbouring tile).
+//
+// Bias in WORLD units, per level (converted to NDC on the CPU): one texel of
+// constant depth bias, a slope term, and a normal offset of one texel times
+// sin(theta) along the geometric normal (Holbert's normal-offset shadows, the
+// same mechanism the far map uses at half a texel). The shadow PSOs keep no
+// hardware bias.
+fn sun_cascade_tap(
+    atlas: texture_depth_2d,
+    samp: sampler_comparison,
+    vp: mat4x4<f32>,
+    rect: vec4<f32>,
+    bias: vec4<f32>,
+    texel: vec2<f32>,
+    world_pos: vec3<f32>,
+    n: vec3<f32>,
+    n_dot_l: f32,
+) -> f32 {
+    let ndl = clamp(n_dot_l, 0.0, 1.0);
+    let sin_t = sqrt(max(1.0 - ndl * ndl, 0.0));
+    var p = world_pos;
+    if (dot(n, n) > 0.5) {
+        p = p + normalize(n) * (bias.y * sin_t);
+    }
+    // Ortho: w is 1, so the clip position IS the NDC.
+    let lc = (vp * vec4<f32>(p, 1.0)).xyz;
+    // Two texels of margin in tile NDC: the 3x3 filter of bilinear compares
+    // reaches 1.5 texels out.
+    let margin = 1.0 - 4.0 * texel.x / rect.z;
+    if (abs(lc.x) > margin || abs(lc.y) > margin || lc.z <= 0.0 || lc.z >= 1.0) {
+        return -1.0;
+    }
+    let uv = rect.xy + vec2<f32>(lc.x * 0.5 + 0.5, 0.5 - lc.y * 0.5) * rect.zw;
+    let tan_t = sin_t / max(ndl, 0.125);
+    let ref_z = lc.z - (bias.x + bias.z * tan_t);
+    var lit = 0.0;
+    for (var dy = -1; dy <= 1; dy = dy + 1) {
+        for (var dx = -1; dx <= 1; dx = dx + 1) {
+            let o = vec2<f32>(f32(dx), f32(dy)) * texel;
+            lit = lit + textureSampleCompareLevel(atlas, samp, uv + o, ref_z);
+        }
+    }
+    // The outer 10% of the tile fades the near answer to "no near shadow",
+    // so a home shadow does not end on a hard square at the box edge (the
+    // far map has no home casters to take over there). Increment 2's blend
+    // bands hand over to the next level instead.
+    let edge = smoothstep(0.88, 0.98, max(abs(lc.x), abs(lc.y)) / margin);
+    return mix(mix(1.0 - shadow_u.params.y, 1.0, lit / 9.0), 1.0, edge);
+}
+
+// The near ladder's sun visibility for a world point: the FINEST level whose
+// tile contains it, or -1 when no rendered level does (the caller then uses
+// the far map alone). Unrolled with constant indices on purpose (see the
+// SunCascades note). Called from exactly three places, each the guarded line
+// right after frag_prologue in fs_surface, fs_terrain and fs_vegetation
+// (pipeline.rs permutation tests pin that).
+fn sun_cascade_visibility(
+    atlas: texture_depth_2d,
+    samp: sampler_comparison,
+    world_pos: vec3<f32>,
+    n: vec3<f32>,
+    n_dot_l: f32,
+) -> f32 {
+    let sc = shadow_u.near;
+    let texel = sc.ctl.yz;
+    var v = -1.0;
+    if (sc.bias[0].w > 0.5) {
+        v = sun_cascade_tap(atlas, samp, sc.vp[0], sc.rect[0], sc.bias[0], texel, world_pos, n, n_dot_l);
+    }
+    if (v < 0.0 && sc.bias[1].w > 0.5) {
+        v = sun_cascade_tap(atlas, samp, sc.vp[1], sc.rect[1], sc.bias[1], texel, world_pos, n, n_dot_l);
+    }
+    if (v < 0.0 && sc.bias[2].w > 0.5) {
+        v = sun_cascade_tap(atlas, samp, sc.vp[2], sc.rect[2], sc.bias[2], texel, world_pos, n, n_dot_l);
+    }
+    if (v < 0.0 && sc.bias[3].w > 0.5) {
+        v = sun_cascade_tap(atlas, samp, sc.vp[3], sc.rect[3], sc.bias[3], texel, world_pos, n, n_dot_l);
+    }
+    return v;
+}

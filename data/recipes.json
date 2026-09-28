@@ -3796,8 +3796,8 @@
       "category": "cooking",
       "inputs": [
         {
-          "id": "dried_meat_0",
-          "label": "Dried Meat",
+          "id": "raw_mutton_0",
+          "label": "Raw Mutton",
           "qty": 2
         },
         {
@@ -3822,7 +3822,7 @@
       "station": "Stove",
       "skill": "Cooking",
       "skill_level": 1,
-      "description": "Season and dry cure meat strips",
+      "description": "Slice lean meat thin and season it; heat to 160 F then dry (USDA FSIS)",
       "tools": [
         {
           "id": "knife_utility_0",
@@ -4196,9 +4196,9 @@
       "category": "cooking",
       "inputs": [
         {
-          "id": "jerky_0",
-          "label": "Jerky",
-          "qty": 3
+          "id": "raw_mutton_0",
+          "label": "Raw Mutton",
+          "qty": 2
         },
         {
           "id": "salt_food_0",

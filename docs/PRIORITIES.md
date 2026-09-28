@@ -48,6 +48,47 @@ fixed v0.1384.0), 2a, 2a-ii and 2a-i (the grain measurements, condensed into
 page snapshots, done). A code comment or fixture that cites one of those
 numbers finds it there.
 
+### IN FLIGHT AT THE USAGE CAP (2026-09-27 evening): resume from these branches
+
+Weekly usage reached 89%, so every agent was told to commit (WIP if not
+done, with a message saying what is left) and stop. Each branch is
+`worktree-agent-<id>` in `.claude/worktrees/agent-<id>`. Merge a finished
+one the way today's were merged (preview with `git merge-tree`, cherry-pick
+or merge, verify, boot, release); resume a WIP one by giving a new agent its
+branch and its commit message. Remove a line here once its branch is merged.
+
+State after the wrap-up (merged ones are removed: the Wi-Fi harm removal,
+saved machine levels and the electroculture findings landed in v0.1394.0;
+the one game clock in v0.1395.0; the ship reactor feed in v0.1396.0; the
+Drying and Fermenting guides, verified, with the jerky recipe loop fixed
+(jerky and dried meat now start from mutton), in v0.1396.1):
+
+- `a5e6f9189e45ed9b9`: HDR scene target steps 3 and 4. WIP 8df827c1, NOT
+  safe to merge: Rgba16Float target, one dither in present.wgsl, the aurora
+  dither and srgb_dither deleted, band-census.js and GPU tests written;
+  left: re-run `cargo test --release --features native --lib scene_target`
+  (one fix never re-run), the relay check, the A/B and band-census
+  measurements, vantage pins, world-entry boots, docs, and delete
+  scripts/hdr-inc34-wip/ before merge. The rig needs the two DXC DLLs
+  beside the exe or its boot stalls 10+ minutes.
+- `a2932acea7b338a59`: sun cascades. WIP e25375bb: increment 0 (fixtures,
+  the station camera pose, five clock-pinned home vantages, sun_shadows
+  pin) is done and safe to merge; increment 1 is drafted as text in
+  docs/design/sun-cascades-wip/ and never built. home-shadow-metrics.mjs
+  region boxes are placeholders.
+
+### 0. The ship and the playable game (arc C, ranked first 2026-09-27)
+
+Spaceship first (Blocked #2, answered 2026-09-27): the ship's life support,
+the garden, building and survival come before the rendering items below.
+The work list is arc C in "Fenced arcs"; the next items there, from the
+operator's answers of 2026-09-27, all SHIPPED: saved battery and other
+stored levels (v0.1394.0), the 24-hour configurable day (v0.1395.0, Blocked
+#3), and the ship reactor as the homes' metered power (v0.1396.0, Blocked
+#3b). The Wi-Fi crop harm was removed on 2026-09-27. Next in arc C is the
+first unticked item in its "Fenced arcs" list.
+Rendering items below still run beside it on files that do not overlap.
+
 ### 1. Environment regions: the rest of the arc BUG-080 opened
 
 Weather has been a place since v0.1330.0 (BUG-080,
@@ -296,13 +337,26 @@ them up.
    (v0.1377.0 to v0.1384.0, docs/design/ship-life-support.md): greenhouse
    moisture condensed back to the tanks, and CO2 from people and mushrooms and
    O2 from plants as a mass balance through the ship's air. Crop light from the
-   ship's real sun direction (the BUG-090 fix) waits on item 3. Seasons and
+   ship's real sun direction (the BUG-090 fix) shipped 2026-09-28. Seasons and
    ground farming (Silverdale in data/home_outline.json) come after.
    **Follow-up (asked 2026-09-27):** TIER 0 is all rendering, while the
    spaceship-first answer sent the day's work to arc C (the playable game and
    ship life support). Should arc C rank against TIER 0, or stay a fenced arc
-   worked beside it?
-3. **One clock or two, for the body and the garden (asked 2026-09-26).** The body
+   worked beside it? The operator asked what this meant (2026-09-27 evening);
+   explained, with the AI's call to put arc C at the top of TIER 0 to match
+   spaceship-first unless he says otherwise.
+3. **ANSWERED 2026-09-27: a 24-hour day by default, configurable, with an
+   hour that stays an hour.** Operator, verbatim: "The default day length
+   should be 24 hours. Though we want it to be configurable. Like, maybe prefer
+   a 20 hour day or 36 hour day. However that shouldn't change how long an hour
+   is unless they change the setting that makes stuff happen faster/slower."
+   So: hours per day is a setting (default 24), the length of an hour is fixed,
+   and only the separate time-speed setting makes things run faster or slower.
+   **Built (2026-09-27):** one game clock, Settings > Gameplay > Time (time
+   speed default 1, hours in a day default 24, days in a year default 365,
+   the last the agent's choice); decision-briefs.md Brief 6 says how, and
+   proposes 72x as the simplified mode's default. The question as it was asked:
+   **One clock or two, for the body and the garden (asked 2026-09-26).** The body
    runs on real seconds, the garden on 20-minute game days at 10x growth, so
    urine is a fraction of a percent of the garden's nitrogen in play, and room
    air (game hours) and tank water (real days) are 72x apart (BUG-092 item 7).
@@ -314,6 +368,26 @@ them up.
    evidence in the doc named; none blocks other work). The three energy
    bullets were merged on 2026-09-27 onto the v0.1384.0 meter's figures; the
    earlier wording is in docs/history/priorities-archive-2026-09-20-to-27.md.
+   - **ANSWERED 2026-09-27 (energy).** Operator, verbatim: "For now we can
+     base power budget on nuclear reactors and then players can build solar
+     and other means of producing electricity. We could track user resource
+     usage but, essentially provide unlimited (at least to start) then we
+     could figure out how to track a whole fleets worth of supplies because,
+     that'll be important once the MMORPG storyline begins once the game is
+     ready for release in a couple years." So: the ship's reactor supplies the
+     homes, effectively unlimited to start and metered; players can build
+     solar and other generation; fleet-wide supply tracking comes later with
+     the MMORPG storyline. BUILT 2026-09-27 (docs/design/ship-life-support.md
+     section 8): in the default Station-supplied mode every home power island
+     is tied to one KLT-40S-class reactor (35 MWe, trade-press figure), used
+     after the home's own generation and batteries, so nothing sheds; every
+     watt-hour drawn and returned is metered per home in f64 and saved
+     (`systems::ship_power`, WorldSave `ship_supply`), shown on the Home card,
+     the HUD and the Usage meter. Realistic runs on the home's own generation
+     and batteries. A Solar Panel blueprint (400 W) offsets the draw one for
+     one aboard and powers a planet site, which the reactor never reaches. The
+     fleet ledger is next (section 8), not built. The energy questions below
+     are superseded by this; kept for the record.
    - **Energy: neither home's budget closes, in either mode**
      (docs/design/ship-life-support.md section 7). Each home now counts what it
      makes at its site (NREL PVWatts for Silverdale: 1.09 kWh a panel a day,
@@ -346,10 +420,18 @@ them up.
      Cornell's 800 in the family home) is acceptable.
    - How to close the Food loops (91% family, 81% solo, since the mushroom
      yields were sourced): more beds, or more blocks per tent.
-   - The v0.620 Wi-Fi crop harm: keep, scale to the evidence, make it a
-     setting, or remove (docs/reference/findings/2026-09-27-wifi-and-plants.md;
-     no source shows a household router harming a garden at the distances
-     plants sit from one).
+   - **ANSWERED 2026-09-27: no Wi-Fi crop harm. REMOVED the same day.** Operator:
+     "We'll assume no wi-fi crop harm at this time." The FarmingSystem's RF
+     drain, the `RfEmitter` component, the machine `rf_emission` field and the
+     Wi-Fi-harms-a-grow buildability warning are gone; the router stays as a
+     network device, and a test holds that a powered router leaves crop health
+     unchanged. He also mentioned
+     farmers using copper coils to increase growth (electroculture); a dated
+     findings document is being researched before anything goes into the sim.
+     The question as it was asked: the v0.620 Wi-Fi crop harm: keep, scale to
+     the evidence, make it a setting, or remove
+     (docs/reference/findings/2026-09-27-wifi-and-plants.md; no source shows a
+     household router harming a garden at the distances plants sit from one).
 4. **Clear the old agent worktrees** under `.claude/worktrees/`. Audited
    2026-08-04: none could be cheaply proven redundant, and
    `just clean-worktrees` force-deletes branches and has destroyed
@@ -491,9 +573,11 @@ BUG-092, BUG-097 and BUG-100. The full running account, verbatim, is in
 live at the top of `docs/design/gameplay-gaps-2026-09-25.md` and in
 `docs/design/ship-life-support.md`.
 
-Open: the operator's questions are Blocked #3 (the day length) and #3b; crop
-light from the ship's real sun (BUG-090) waits on the day length; containers as
-items (the gap doc's 3c) waits on the unified placement schema.
+Open: containers as items (the gap doc's 3c) waits on the unified placement
+schema. Crop light from the ship's real sun (BUG-090) was FIXED 2026-09-28: the
+home hangs over its longitude on every date, and its panels, grow lights,
+crops and HUD clock follow the sun the deck sees (BUGS.md lists what is left:
+the weather's day warmth and the hour slider still speak the game clock).
 
 **Gameplay gap survey (2026-09-25):** `docs/design/gameplay-gaps-2026-09-25.md`
 lists seven defects (items lost when the backpack is full, the showcase garden
@@ -529,9 +613,7 @@ between the simulation and the person. Its tier ladder is the build order.
   hall under several touching roof tiles shelters, and the review's other
   findings are closed. Remaining: a scripted first-run sequence in the world;
   the server clock for offline progression in multiplayer; for shelter, wind
-  direction against the open side and the walls' radiant warmth; battery
-  charge is not saved (found 2026-09-27 by the batteries guide's code check:
-  `WorldSave` has no charge, so every restart starts the banks at 50%); and
+  direction against the open side and the walls' radiant warmth; and
   the gameplay sun rises at 6:00 and sets at 18:00 every day at every
   latitude, so day length never changes with season (a Brief 6 question).
 - **Tier B (make the construction tool good enough to build a city).** Pick one

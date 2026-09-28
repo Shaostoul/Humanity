@@ -1502,6 +1502,16 @@ Save and load game world state (entities, terrain, player progress).
   flight, the world clock; since 2026-09-27 also the asteroids as mined down,
   the drone in flight with its cargo, the "Keep mining" standing order and the
   herd's yield timers)
+- **What the home's machines hold (2026-09-27):** each battery bank's charge,
+  each water tank's litres and each machine vessel's contents (the genset and
+  refinery fuel drums, the grain silo, the pantry, the freezer, the furniture
+  drawers, with their residue and toxic history) are saved by machine instance
+  id and carried across world entry, which respawns every machine. Before, each
+  restart and each world entry reset banks and tanks to half and emptied every
+  vessel, destroying what was stored in it. None of them moves on by the time
+  away. `src/engine/machine_levels.rs`, `WorldSave.machine_levels`. The home's
+  air (oxygen, carbon dioxide, humidity) and each grow room's air were already
+  saved in `SoilMemory` (`home_air`, `rooms`).
 - **Offline progression (2026-09-25):** crops, scaffolds under construction and
   craft batches catch up by the real time away when the game loads, with a
   notice. Settings >
@@ -1602,8 +1612,8 @@ Raycast from camera, find nearest interactable entity.
 - Native: `src/systems/interaction.rs`
 
 ### Day/Night Cycle
-GameTime with seasons, sun direction/color computation. 20 real minutes = 1 game day.
-- Native: `src/systems/time.rs`
+One game clock (2026-09-27, decision-briefs.md Brief 6): an hour is 3,600 game seconds, a day is the Settings "Hours in a day" (default 24, 12 to 48), a year the "Days in a year" (default 365), and the "Time speed" (default 1 = real time, presets Realistic 1x, a day an hour 24x, Simplified 72x, Garden testing 720x, up to 1,000x) is the only speed-up: crops, tanks, batteries, the body's daily needs, the weather, the sun, the planet's spin and the seasons all follow it. The sun is up the middle half of any day (`GameTime::solar_hour`). Holds over the speed: the F11 freeze, sleep (7,200x, a night in 4 real seconds) and the probe rig. Offline time counts at the time speed.
+- Native: `src/systems/time.rs`, `src/gui/pages/settings_time.rs` (Settings > Gameplay > Time)
 
 ### Weather System
 7 conditions (clear, cloudy, rain, storm, snow, fog, sandstorm). Seasonal transitions. **Registered, ticks live** (`WeatherSystem` is NOT in `tests/engine_wiring_lint.rs::DEFERRED_SYSTEMS` -- this "NOT registered" note was stale, corrected 2026-07-01 during the overnight loop's registration-status sweep).
@@ -1874,24 +1884,36 @@ left-right off the look direction by a sign slip in the old bridge).
 
 **Building on a planet (2026-09-27, BUG-102 fixed).** On a planet's ground a piece goes into a BUILD SITE
 (`construction/site.rs`): the body and an origin in its unrotated frame in f64, with a flat Y-up tangent
-frame; pieces within 1 km of a site join it and its grid. The ghost meets the drawn ground under the
+frame; a new piece joins the site of the nearest piece within 1 km of it (and its grid), and the player is
+at the site of the nearest piece within 1 km. The ghost meets the drawn ground under the
 crosshair (`placement::aim_point_on_ground`, the surface the player's feet stand on), the shelter test and
 the bed and chest look ray run in the site, and the save carries the site. Site pieces draw with the
-terrain's own transform in the celestial pass (hidden by hills, casting the sun's shadow), plus a scene-pass
-copy within 2 m of the eye, where the celestial pass's 1 m near plane would cut a wall open
-(`engine/planet_build.rs`). Building refuses, with a plain hint, in open space, in
-a vehicle, while flying and on water. Dev: showcase `{"build":"id@dx,dz,turns;...","build_at":"lat,lon"}`
-stands pieces up finished (the rig's `planet-built-shelter` vantage uses it through `post_showcase`).
+terrain's own `render_off` and `rot_d` in the celestial pass only, at every distance (hidden by hills,
+casting the sun's shadow, and behind whatever stands in front of them); the celestial pass's near plane is
+5 cm (`renderer::camera::CELESTIAL_NEAR_M`, one shared constant), so a wall beside the eye is whole
+(`engine/planet_build.rs`). The piece in hand on a planet is drawn in the scene pass, on top and without a
+shadow, as a preview. On a planet a piece is built from what the player CARRIES (the home's storage is in
+orbit; the hint under the crosshair says what is missing), a station built there is on no power grid until
+its own site makes power (the home's grid is in orbit; the Crafting page says so), and the stations that
+count for crafting are the ones where the player is: aboard, the home's machines and pieces built in the
+home; at a planet site, that site's built stations; elsewhere, none (`engine/built_uses.rs`
+`publish_stations`, `CraftingSystem::station_unpowered_at`). Building refuses, with a plain hint, in open
+space, in a vehicle, while flying and on water. Dev (no dev gate, like every showcase verb): showcase
+`{"build":"id@dx,dz,turns;...","build_at":"lat,lon"}` stands pieces up finished (the rig's
+`planet-built-shelter` vantage uses it through `post_showcase`), and `{"stand":"dx,h,dz,heading,pitch",
+"stand_at":"lat,lon"}` puts the eye at a point of that site (the `planet-built-inside` vantage stands inside
+an open hut with a chest and a furnace in front of its north wall, through probe-sweep's new
+`final_showcase`, sent after the re-park).
 Still missing: a door or window set INTO a wall (they sit on the floor); a second storey (nothing stands on a
 roof yet); collision for built pieces (you walk through walls); the one canonical layout schema (built
 pieces, the home editor's `InteriorWall`s and the ship structure pieces are three different shapes); pieces
 on a planet stand at the drawn ground's height where they were built, so far off, where the terrain draws at
 a coarser level, they can sit a little high or low; a planet piece's face turned from the sun reads near
-black, and within 2 m (the scene-pass copy, which lights everything as if indoors) fully black: one lighting
-for planet pieces in both passes, with the roof's shade inside a hut, is the follow-up.
+black; a generator that can be built at a site (nothing on a planet can make power yet, so a planet stove
+or oven stays unpowered).
 - Native: `src/systems/construction/mod.rs`, `src/systems/construction/placement.rs`,
   `src/systems/construction/site.rs` (build sites), `src/systems/construction/uses.rs`,
-  `src/systems/sleep.rs`, `src/engine/built_uses.rs` (prompt, E press, chest sync),
+  `src/systems/sleep.rs`, `src/engine/built_uses.rs` (prompt, E press, chest sync, the stations where the player is),
   `src/engine/build_place.rs` (the piece in hand), `src/engine/planet_build.rs` (the frame, the ground, the
   draw, the dev build verb), `src/engine/survival_env.rs` (shelter to the body), `src/gui/organize.rs`
   (`place_path`, `sync_built_stores`), `src/gui/pages/hud.rs` (the prompts and the Shelter row)
@@ -2461,6 +2483,20 @@ v0.607 the flow is PER ISLAND (a generator only feeds loads on its own wired cir
 - Data: `data/electrical.ron`
 - ECS: `PowerGenerator`, `PowerConsumer`, `Battery`, `PowerCircuit` (island) components
 
+### The ship's reactor, metered per home (2026-09-27)
+The operator's energy decision (PRIORITIES Blocked #3b): in the default Ship life support mode
+(Station-supplied) every home power island carries a feed tap to the ship's bus; after the island's own
+generation and batteries the reactor (one KLT-40S-class plant, 35 MWe, a trade-press figure) supplies the
+rest, so a home never sheds, and every watt-hour drawn and returned is metered per home and utility in
+f64, saved with the home, and shown on the Home card's Live power, the HUD power line and the Usage
+meter. Realistic mode runs on the home's own generation and batteries. A buildable Solar Panel
+blueprint (400 W, `generates`) offsets the draw one for one aboard, and powers a planet build site on
+its own island, which the reactor never reaches. The fleet ledger is designed, not built
+(docs/design/ship-life-support.md section 8).
+- Native: `src/systems/ship_power.rs` (`ShipFeed`, `ShipSupplyLedger`, `feed_watts`, `site_island`), `src/systems/electrical.rs` (`ShipFeedReading`), `src/systems/construction/mod.rs` (`wire_built_generators`), `src/engine/home_spawn.rs` (`spawn_home_feed_taps`), `src/systems/crafting/away.rs` (`meter_away_reactor`)
+- Data: `data/ship_power.ron`, `data/blueprints/basic.ron` (`solar_panel`)
+- Tests: `src/systems/ship_power_tests.rs`
+
 ### Home Machine Layout
 The data-driven machine layout for the 3D home: a catalog of machine types, placed instances + arrays
 (row x col grids), connections, conduit nodes/edges, and self-sufficiency loops. Machines carry a power
@@ -2522,27 +2558,29 @@ The telecom utility's primary function: wire devices to the internet via a chose
 a power run. `Port` gained an `mbps` field; machines declare Data IN/OUT ports (a `home_server` demands
 100 Mbps, a `network_uplink` supplies it). A "data" connection carries a medium `spec`; the editor's
 utility-lines panel shows a per-data-run medium picker (auto / Cat6 / fibre / WiFi). A new "Data links"
-buildability check sizes each data run (bandwidth + range via `check_data_link`) and CAUTIONS when the
-medium is wireless (its RF can harm a grow -- the v0.620 consequence). The seed home wires its uplink to
-its server over Cat6 (clean); swap it to WiFi in the editor to see the RF warning fire.
+buildability check sizes each data run (bandwidth + range via `check_data_link`); a WiFi link passes
+exactly like a wired one wherever its bandwidth and range suffice. (Until 2026-09-27 it also warned that
+a wireless link's RF can harm a grow; that warning went with the crop harm, see below.) The seed home
+wires its uplink to its server over Cat6.
 - Native: `src/utilities.rs` (`Port.mbps`, `Port::data_in`/`data_out`), `src/machines.rs` (`data_demand_mbps`, the "Data links" check), `src/gui/pages/construction.rs` (the "data" kind + the data-medium picker)
 - Data: `data/machines/home.ron` (`network_uplink`, `home_server`, a `data` connection on `eth_cat6`)
 
-### Telecom RF -> Plant Harm (v0.620)
-The first telecom consequence, the operator's headline ("the user doesn't want a WiFi router because the
-frequencies harm a plant they're growing"). A machine with `rf_emission > 0` (a `wifi_router`) spawns an
-`RfEmitter`; while powered it adds to the home RF level; the FarmingSystem drains crop health by that
-level (outpacing recovery at one router's worth). Run a wired link (Cat6/fibre, zero RF) -- or remove the
-router -- to keep a clean grow. The `wifi_router` is placeable but NOT in the seed home, so the reference
-grow stays safe until you choose to add one.
-- Native: `src/ecs/components.rs` (`RfEmitter`), `src/machines.rs` (`MachineDef.rf_emission`), `src/lib.rs` (spawns `RfEmitter`), `src/systems/farming/mod.rs` (the home-RF sum + the crop RF-stress drain)
-- Data: `data/machines/home.ron` (`wifi_router`: a powered wireless device, `rf_emission: 0.6`)
+### Telecom RF -> Plant Harm (v0.620) -- REMOVED 2026-09-27
+A powered `wifi_router` used to drain the health of every crop in the home. The operator decided "We'll
+assume no wi-fi crop harm at this time" on the evidence in
+`docs/reference/findings/2026-09-27-wifi-and-plants.md` (no source shows a household router harming a
+garden at the distances plants sit from one), and the harm was removed that day: the FarmingSystem's
+home-RF drain, the `RfEmitter` component and its spawn, `MachineDef.rf_emission`, and the Data-links RF
+warning. The `wifi_router` stays as a powered network device (8 W, a wireless data port).
+- Test: `powered_wifi_router_leaves_crop_health_unchanged` (`src/systems/farming/mod.rs`)
+- Data: `data/machines/home.ron` (`wifi_router`, placed as `router_1` in the study)
 
 ### Data / Telecom Media, Stage 1 (v0.619)
 The internet/telecom utility: teach real telecommunications. Data is `Utility::Data` in the same
 `conduits.ron` registry, with media that have real tradeoffs -- bandwidth, range, latency, cost, and RF
-emission. Stage 1 ships the data model + link physics + 3 core media; the consequences (RF harms a
-sensitive plant; emissions become detection signatures) + the full media catalog are later stages.
+emission. Stage 1 ships the data model + link physics + 3 core media; emissions becoming detection
+signatures + the full media catalog are later stages. (RF harming plants was built in v0.620 and removed
+2026-09-27; the medium's `rf_emission` stays as the real property a detection layer would read.)
 - Native: `src/utilities.rs` (`ConduitType` data fields `bandwidth_mbps`/`range_m`/`latency_ms`/`wireless`/`rf_emission`, `ConductorMaterial::{Glass,Radio}`, `check_data_link`/`cheapest_data_link_for`/`data_media`)
 - Data: `data/utilities/conduits.ron` (`eth_cat6` quiet wired workhorse, `fiber_om4` high-bandwidth no-RF, `wifi_6` convenient but RF-loud)
 - Design: `docs/design/telecom.md` (the 21-media catalog + the emissions-as-signature design + the staged plan)

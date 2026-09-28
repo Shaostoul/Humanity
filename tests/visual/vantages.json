@@ -856,6 +856,111 @@
       "settle_s": 10
     },
     {
+      "id": "home-racks-noon",
+      "desc": "The mushroom room racks (photograph-home 25b pose) at 12:00 station time.",
+      "expect": "Sun through the glass roof on the open floor; the shelf tops under other shelves in shadow, not lit like the floor.",
+      "_why": "Sun cascades increment 0 (docs/design/sun-cascades.md): the home never cast into the sun shadow map, so a shelf under three shelves read 130 sRGB against the open floor's 133 at noon. These vantages hold a ROOM pose at a PINNED clock (the station verb's `pose`), which photograph-home.js cannot do: its `cam` pose is not re-glued to the station when the hour moves the orbit. Score with scripts/home-shadow-metrics.mjs.",
+      "_pair_note": "The racks vantages share one pose and differ only in `time` (the home-clock hours: 14.15 dawn, 20.15 noon, 8.15 night). Same-boot A/B: showcase `sun_shadows` 0/1 and `near_levels` 0/1 through scripts/probe-hot-ab.js with same_park.",
+      "regressions": [
+        "home casters must shadow the sun (sun cascades)"
+      ],
+      "camera": {
+        "station": "home",
+        "pose": "6.9,1.5,58.6,-0.55,-0.14",
+        "time": 20.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear"
+      },
+      "settle_s": 10
+    },
+    {
+      "id": "home-racks-dawn",
+      "desc": "The mushroom room racks (25b pose) at 06:00 station time.",
+      "expect": "Low sun: long shadows from the walls and racks across the floor.",
+      "_why": "Sun cascades increment 0 (docs/design/sun-cascades.md): the home never cast into the sun shadow map, so a shelf under three shelves read 130 sRGB against the open floor's 133 at noon. These vantages hold a ROOM pose at a PINNED clock (the station verb's `pose`), which photograph-home.js cannot do: its `cam` pose is not re-glued to the station when the hour moves the orbit. Score with scripts/home-shadow-metrics.mjs.",
+      "_pair_note": "The racks vantages share one pose and differ only in `time` (the home-clock hours: 14.15 dawn, 20.15 noon, 8.15 night). Same-boot A/B: showcase `sun_shadows` 0/1 and `near_levels` 0/1 through scripts/probe-hot-ab.js with same_park.",
+      "regressions": [
+        "home casters must shadow the sun (sun cascades)"
+      ],
+      "camera": {
+        "station": "home",
+        "pose": "6.9,1.5,58.6,-0.55,-0.14",
+        "time": 14.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear"
+      },
+      "settle_s": 10
+    },
+    {
+      "id": "home-racks-night",
+      "desc": "The mushroom room racks (25b pose) at 00:00 station time: the no-sun reference.",
+      "expect": "No sun on anything; lamps and room GI only. The shadowed shelf at noon should read within 10% of this.",
+      "_why": "Sun cascades increment 0 (docs/design/sun-cascades.md): the home never cast into the sun shadow map, so a shelf under three shelves read 130 sRGB against the open floor's 133 at noon. These vantages hold a ROOM pose at a PINNED clock (the station verb's `pose`), which photograph-home.js cannot do: its `cam` pose is not re-glued to the station when the hour moves the orbit. Score with scripts/home-shadow-metrics.mjs.",
+      "_pair_note": "The racks vantages share one pose and differ only in `time` (the home-clock hours: 14.15 dawn, 20.15 noon, 8.15 night). Same-boot A/B: showcase `sun_shadows` 0/1 and `near_levels` 0/1 through scripts/probe-hot-ab.js with same_park.",
+      "regressions": [
+        "home casters must shadow the sun (sun cascades)"
+      ],
+      "camera": {
+        "station": "home",
+        "pose": "6.9,1.5,58.6,-0.55,-0.14",
+        "time": 8.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear"
+      },
+      "settle_s": 10
+    },
+    {
+      "id": "home-beds-noon",
+      "desc": "The greenhouse beds (photograph-home 24 pose) at 12:00 station time.",
+      "expect": "Potato and oilseed beds in sun; plant and bed shadows on the soil.",
+      "_why": "Sun cascades increment 0 (docs/design/sun-cascades.md): the home never cast into the sun shadow map, so a shelf under three shelves read 130 sRGB against the open floor's 133 at noon. These vantages hold a ROOM pose at a PINNED clock (the station verb's `pose`), which photograph-home.js cannot do: its `cam` pose is not re-glued to the station when the hour moves the orbit. Score with scripts/home-shadow-metrics.mjs.",
+      "_pair_note": "The racks vantages share one pose and differ only in `time` (the home-clock hours: 14.15 dawn, 20.15 noon, 8.15 night). Same-boot A/B: showcase `sun_shadows` 0/1 and `near_levels` 0/1 through scripts/probe-hot-ab.js with same_park.",
+      "regressions": [
+        "home casters must shadow the sun (sun cascades)"
+      ],
+      "camera": {
+        "station": "home",
+        "pose": "38,1.7,52.5,3.1416,-0.1",
+        "time": 20.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear"
+      },
+      "settle_s": 10
+    },
+    {
+      "id": "home-overview-noon",
+      "desc": "The whole acre from beyond its south end (photograph-home 00 pose) at 12:00 station time.",
+      "expect": "The acre under its glass roof, walls casting short shadows into the rooms.",
+      "_why": "Sun cascades increment 0 (docs/design/sun-cascades.md): the home never cast into the sun shadow map, so a shelf under three shelves read 130 sRGB against the open floor's 133 at noon. These vantages hold a ROOM pose at a PINNED clock (the station verb's `pose`), which photograph-home.js cannot do: its `cam` pose is not re-glued to the station when the hour moves the orbit. Score with scripts/home-shadow-metrics.mjs.",
+      "_pair_note": "The racks vantages share one pose and differ only in `time` (the home-clock hours: 14.15 dawn, 20.15 noon, 8.15 night). Same-boot A/B: showcase `sun_shadows` 0/1 and `near_levels` 0/1 through scripts/probe-hot-ab.js with same_park.",
+      "regressions": [
+        "home casters must shadow the sun (sun cascades)"
+      ],
+      "camera": {
+        "station": "home",
+        "pose": "27.5,26,96,0,-0.42",
+        "time": 20.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear"
+      },
+      "settle_s": 10
+    },
+    {
       "id": "console-face-6",
       "desc": "The console room, 2.2 m from the east wall, facing wall_screen_6 (the readable-web screen). The screens rig park.",
       "expect": "Two wall screens on the east wall (tasks above, web below), the north wall screens (watch, video) at the right edge, the glass ceiling lit by the deck sun; every visible screen shows a rendered page, never a black quad.",
@@ -13138,6 +13243,22 @@
       "camera": {"body":"earth","lat":23.5,"lon":13.0,"altitude_km":0.03,"look_offset_deg":60},
       "showcase": {"time":"12.0","sea":"0.3"},
       "post_showcase": {"build":"wood_wall@0,-2,0;wood_wall@-2,0,1;wood_wall@2,0,1;wood_wall@0,2,0;roof@0,0,0"},
+      "settle_s": 10,
+      "perf_floor_fps": 20
+    },
+    {
+      "id": "planet-built-inside",
+      "desc": "Standing INSIDE a hut built on a planet's ground (2026-09-27, the planet-build review): an open hut (north, east and west walls under a roof) with a storage chest and a furnace in front of its north wall, stood up on the Sahara at a fixed lat/lon by the dev build verb; the eye is then put 1.7 m over the floor in the hut's open south side, looking north and down 18 degrees, by the dev stand verb (final_showcase, after the re-park). The failure it guards: pieces within 2 m of the eye used to be copied into the scene pass, which clears depth, so the north wall was painted over the chest and the furnace in front of it. 2 km east of planet-built-shelter, its own build site.",
+      "expect": "The inside of a small wooden hut: the north wall across the middle of the frame, the side walls at the left and right edges, the roof's underside at the top, and on the floor in front of the north wall a wooden chest and a darker reddish metal furnace, both whole and in front of the wall. The walls are whole (not cut open to the sand outside).",
+      "regressions": [
+        "the chest and the furnace are visible in front of the north wall: not hidden behind it (the old scene-pass near copy painted the wall over them)",
+        "the walls beside the eye are whole: no view of the outside through a wall cut open by the near plane",
+        "panics=0"
+      ],
+      "camera": {"body":"earth","lat":23.5,"lon":13.02,"altitude_km":0.03,"look_offset_deg":60},
+      "showcase": {"time":"12.0","sea":"0.3"},
+      "post_showcase": {"build":"wood_wall@0,-2,0;wood_wall@-2,0,1;wood_wall@2,0,1;roof@0,0,0;storage_chest@0,-1,0;furnace@-1,-1,0","build_at":"23.5,13.02"},
+      "final_showcase": {"stand":"0,1.7,1.5,0,-18","stand_at":"23.5,13.02"},
       "settle_s": 10,
       "perf_floor_fps": 20
     }

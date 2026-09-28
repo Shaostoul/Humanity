@@ -22,21 +22,24 @@
 
 use crate::ecs::components::{Controllable, Dead, StatusEffects, Vitals};
 use crate::hot_reload::data_store::DataStore;
-use crate::systems::time::{GameTime, SECONDS_PER_DAY};
+use crate::systems::time::{GameTime, SECONDS_PER_HOUR};
 use std::sync::Mutex;
 
 /// Game hours a night's sleep lasts.
 pub const SLEEP_HOURS: f64 = 8.0;
 /// How many times faster the clock runs while the player sleeps. Eight game
-/// hours are 400 game seconds (a game day is `SECONDS_PER_DAY`, 1,200 s),
-/// so the night goes by in about three and a half real seconds.
-pub const SLEEP_TIME_SCALE: f32 = 120.0;
+/// hours are 28,800 game seconds (an hour is always 3,600, the one clock of
+/// 2026-09-27), so at 7,200 the night goes by in four real seconds, whatever
+/// the time-speed setting (the fastest it offers is 1,000).
+pub const SLEEP_TIME_SCALE: f32 = 7200.0;
 /// The DataStore slot a sleep request travels in: where the player lies
 /// down ("Bed"), taken by the next tick.
 pub const REQUEST_SLOT: &str = "sleep_request";
 /// Game seconds past the wake time beyond which the clock must have been
-/// set by something else (a save loaded mid-sleep), not run there.
-const CLOCK_JUMP_SLACK_S: f64 = 60.0;
+/// set by something else (a save loaded mid-sleep), not run there: twice
+/// the most one frame can move it asleep (dt is capped at 0.1 s, so 720 s
+/// at `SLEEP_TIME_SCALE`).
+const CLOCK_JUMP_SLACK_S: f64 = 2.0 * 0.1 * SLEEP_TIME_SCALE as f64;
 
 /// A sleep in progress.
 #[derive(Debug, Clone, PartialEq)]
@@ -45,8 +48,9 @@ pub struct Asleep {
     pub started_at: f64,
     /// The game second the sleeper wakes at.
     pub wake_at: f64,
-    /// The clock speed to put back on waking: whatever the player had.
-    pub resume_scale: f32,
+    /// The hold to put back on waking: whatever the player had (None = the
+    /// time-speed setting, Some(0) = the F11 panel held the clock still).
+    pub resume_hold: Option<f32>,
     /// What they sleep in, for the notices ("Bed").
     pub place: String,
 }
@@ -60,12 +64,8 @@ pub fn request(data: &DataStore, place: &str) {
     }
 }
 
-fn set_clock_scale(data: &DataStore, scale: f32) {
-    if let Some(slot) = data.get::<Mutex<Option<f32>>>("time_set_scale_request") {
-        if let Ok(mut s) = slot.lock() {
-            *s = Some(scale);
-        }
-    }
+fn set_clock_hold(data: &DataStore, hold: Option<f32>) {
+    crate::systems::time::request_speed_hold(data, hold);
 }
 
 // -- The short rest (the Inventory page's Rest button, 2026-09-27) --------------------
@@ -147,20 +147,28 @@ pub fn tick(asleep: &mut Option<Asleep>, world: &mut hecs::World, data: &DataSto
     let requested = data
         .get::<Mutex<Option<String>>>(REQUEST_SLOT)
         .and_then(|m| m.lock().ok().and_then(|mut s| s.take()));
-    let (now, scale, hour) = data
+    let (now, hold, hour) = data
         .get::<Mutex<GameTime>>("game_time")
-        .and_then(|m| m.lock().ok().map(|g| (g.elapsed_seconds, g.time_scale, g.hour)))
-        .unwrap_or((0.0, 1.0, 8.0));
+        // The hour the wake notice reads: the home's own time, the one the
+        // HUD shows aboard (BUG-090).
+        .and_then(|m| {
+            m.lock().ok().map(|g| {
+                let lon = crate::systems::time::home_longitude_deg(data);
+                let local = crate::systems::time::local_hour(f64::from(g.hour), lon, g.hours_per_day) as f32;
+                (g.elapsed_seconds, g.speed_hold, local)
+            })
+        })
+        .unwrap_or((0.0, None, 8.0));
 
     if let Some(place) = requested {
         if asleep.is_none() && living_player(world) {
             *asleep = Some(Asleep {
                 started_at: now,
-                wake_at: now + SLEEP_HOURS * SECONDS_PER_DAY / 24.0,
-                resume_scale: scale,
+                wake_at: now + SLEEP_HOURS * SECONDS_PER_HOUR,
+                resume_hold: hold,
                 place: place.clone(),
             });
-            set_clock_scale(data, SLEEP_TIME_SCALE);
+            set_clock_hold(data, Some(SLEEP_TIME_SCALE));
             notice(data, format!("You lie down in the {place} and fall asleep."));
         }
         return;
@@ -170,12 +178,12 @@ pub fn tick(asleep: &mut Option<Asleep>, world: &mut hecs::World, data: &DataSto
     // The clock left the night (2026-09-27, review of the sleep batch):
     // another save loaded mid-sleep (ESC > Play, or Characters) sets the
     // clock before the sleep began or past its end. That is no night slept:
-    // put the clock back and wake nobody rested, rather than leave it at 120x
+    // put the clock back and wake nobody rested, rather than leave it racing
     // for the loaded character or refill someone who never lay down. A frame
-    // at 120x moves at most 12 game seconds (dt is capped at 0.1 s), so the
-    // slack below only ever catches a jump.
+    // asleep moves at most 720 game seconds (dt is capped at 0.1 s), so the
+    // slack (twice that) only ever catches a jump.
     if now < a.started_at || now > a.wake_at + CLOCK_JUMP_SLACK_S {
-        set_clock_scale(data, a.resume_scale);
+        set_clock_hold(data, a.resume_hold);
         *asleep = None;
         return;
     }
@@ -183,7 +191,7 @@ pub fn tick(asleep: &mut Option<Asleep>, world: &mut hecs::World, data: &DataSto
     if alive && now < a.wake_at {
         return;
     }
-    set_clock_scale(data, a.resume_scale);
+    set_clock_hold(data, a.resume_hold);
     if alive {
         for (_e, (vitals, effects, _c)) in world.query_mut::<(&mut Vitals, &mut StatusEffects, &Controllable)>() {
             vitals.energy = vitals.energy_max;
@@ -210,7 +218,7 @@ mod tests {
         let mut gt = GameTime::default();
         gt.set_elapsed(elapsed);
         data.insert("game_time", Mutex::new(gt));
-        data.insert("time_set_scale_request", Mutex::new(None::<f32>));
+        crate::systems::time::insert_slots(&mut data);
         data.insert(REQUEST_SLOT, Mutex::new(None::<String>));
         data.insert("player_notices", Mutex::new(Vec::<String>::new()));
         data
@@ -228,8 +236,10 @@ mod tests {
         data.get::<Mutex<GameTime>>("game_time").unwrap().lock().unwrap().set_elapsed(secs);
     }
 
-    fn scale_asked(data: &DataStore) -> Option<f32> {
-        data.get::<Mutex<Option<f32>>>("time_set_scale_request").unwrap().lock().unwrap().take()
+    /// The hold the sleep asked the clock for, if any: Some(Some(x)) held
+    /// at x, Some(None) let go back to the time-speed setting.
+    fn scale_asked(data: &DataStore) -> Option<Option<f32>> {
+        data.get::<Mutex<Option<Option<f32>>>>(crate::systems::time::HOLD_SLOT).unwrap().lock().unwrap().take()
     }
 
     /// Lying down speeds the clock, the night runs, and the player wakes at
@@ -247,20 +257,24 @@ mod tests {
         request(&data, "Bed");
         tick(&mut asleep, &mut world, &data, 3600.0);
         let wake_at = asleep.as_ref().expect("asleep").wake_at;
-        assert_eq!(wake_at, 10_000.0 + 400.0, "eight game hours of a 1,200 s day");
-        assert_eq!(scale_asked(&data), Some(SLEEP_TIME_SCALE), "the clock runs fast through the night");
+        assert_eq!(wake_at, 10_000.0 + 28_800.0, "eight hours of 3,600 s");
+        assert_eq!(scale_asked(&data), Some(Some(SLEEP_TIME_SCALE)), "the clock runs fast through the night");
+        // A few real seconds, not a real night: the eight hours at the
+        // sleep speed. Red check, run: the old 120x makes this 240 s.
+        let real_s = 28_800.0 / f64::from(SLEEP_TIME_SCALE);
+        assert!((2.0..=6.0).contains(&real_s), "a night takes {real_s} real seconds");
 
         // Halfway through the night: still asleep, still tired.
-        set_clock(&data, 10_200.0);
+        set_clock(&data, 24_400.0);
         tick(&mut asleep, &mut world, &data, 3600.0);
         assert!(asleep.is_some());
         assert_eq!(world.get::<&Vitals>(p).unwrap().energy, 10.0);
 
         // Morning.
-        set_clock(&data, 10_401.0);
+        set_clock(&data, 38_801.0);
         tick(&mut asleep, &mut world, &data, 3600.0);
         assert!(asleep.is_none(), "awake");
-        assert_eq!(scale_asked(&data), Some(1.0), "the clock goes back to the speed it had");
+        assert_eq!(scale_asked(&data), Some(None), "the clock goes back to the speed it had");
         let v = world.get::<&Vitals>(p).unwrap();
         assert_eq!(v.energy, v.energy_max, "a night's sleep refills energy");
         let fx = world.get::<&StatusEffects>(p).unwrap();
@@ -288,7 +302,7 @@ mod tests {
             set_clock(&data, jump_to);
             tick(&mut asleep, &mut world, &data, 3600.0);
             assert!(asleep.is_none(), "clock at {jump_to}: the sleep ended");
-            assert_eq!(scale_asked(&data), Some(1.0), "clock at {jump_to}: speed put back");
+            assert_eq!(scale_asked(&data), Some(None), "clock at {jump_to}: speed put back");
             assert_eq!(world.get::<&Vitals>(p).unwrap().energy, 10.0, "clock at {jump_to}: nobody refilled");
         }
     }
@@ -325,7 +339,7 @@ mod tests {
     }
 
     /// A player who dies in their sleep is not woken rested, and the clock
-    /// is still put back rather than left running at 120x. Red check: with
+    /// is still put back rather than left racing. Red check: with
     /// the refill not guarded by `alive`, the dead player is refilled.
     #[test]
     fn dying_asleep_puts_the_clock_back_and_restores_nothing() {
@@ -339,7 +353,7 @@ mod tests {
         world.insert_one(p, Dead::default()).unwrap();
         tick(&mut asleep, &mut world, &data, 3600.0);
         assert!(asleep.is_none());
-        assert_eq!(scale_asked(&data), Some(1.0));
+        assert_eq!(scale_asked(&data), Some(None));
         assert_eq!(world.get::<&Vitals>(p).unwrap().energy, 10.0);
     }
 }

@@ -231,6 +231,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 battery_wh: state.power_battery_wh,
                 capacity_wh: state.power_battery_capacity_wh,
                 autonomy: state.power_autonomy_hours,
+                ship: state.power_ship,
             };
             let water = LiveWater {
                 production: state.water_production_lpm,
@@ -264,6 +265,8 @@ struct LivePower {
     battery_wh: f32,
     capacity_wh: f32,
     autonomy: f32,
+    /// The ship's reactor feed and its metered totals (systems::ship_power).
+    ship: crate::systems::electrical::ShipFeedReading,
 }
 
 /// Live WATER readout from the running sim (PlumbingSystem -> WaterStatus -> GuiState), passed into
@@ -383,7 +386,7 @@ fn draw_design(
         // ── Live power (the running sim, v0.518) ──
         // Generation swings with day/night; the battery charges on surplus + discharges
         // on deficit. This is the home as a LIVE sim, not the authored demand above.
-        if live_gen > 0.0 || live_use > 0.0 || live_capacity > 0.0 {
+        if live_gen > 0.0 || live_use > 0.0 || live_capacity > 0.0 || power.ship.fed {
             widgets::card(ui, theme, |ui| {
                 ui.label(RichText::new("Live power").size(theme.font_size_body).strong().color(theme.text_primary()));
                 ui.label(
@@ -412,6 +415,7 @@ fn draw_design(
                         &format!("{:.0}%  ({:.1} kWh)  ~{:.1} h autonomy", pct, live_battery_wh / 1000.0, live_autonomy),
                     );
                 }
+                ship_power_rows(ui, theme, power.ship);
             });
             ui.add_space(theme.spacing_sm);
         }
@@ -1245,4 +1249,26 @@ mod tests {
             }
         }
     }
+}
+
+/// The ship's reactor on the Live power card (2026-09-27, systems::ship_power):
+/// in the Station-supplied mode what it supplies now and what the home has drawn
+/// from it in all, metered; in the Realistic mode a line saying the home runs on
+/// its own. Shown whatever the balance: using ship power is never a fault.
+fn ship_power_rows(ui: &mut egui::Ui, theme: &Theme, ship: crate::systems::electrical::ShipFeedReading) {
+    if !ship.fed {
+        ui.label(
+            RichText::new("Off the ship's reactor (Realistic): the home runs on what it makes and stores.")
+                .size(theme.font_size_small)
+                .color(theme.text_muted()),
+        );
+        return;
+    }
+    widgets::detail_row(ui, theme, "Ship's reactor", &format!("{:.0} W now, {:.0} W back to the ship", ship.drawn_w, ship.returned_w));
+    widgets::detail_row(
+        ui,
+        theme,
+        "Metered from the ship",
+        &format!("{:.2} kWh drawn, {:.2} kWh returned", ship.drawn_wh / 1000.0, ship.returned_wh / 1000.0),
+    );
 }

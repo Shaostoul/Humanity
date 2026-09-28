@@ -1,5 +1,5 @@
 //! Manufacturing system — drives `ProductionFacility` entities through their
-//! recipes. Each tick advances `progress` by `dt / (days_per_unit * SECONDS_PER_DAY)`.
+//! recipes. Each tick advances `progress` by `game_dt / (days_per_unit * EARTH_DAY_S)`.
 //! When progress hits 1.0, `output_count` increments and progress resets.
 //!
 //! For now this is the minimal "factory ticks out widgets over time" loop.
@@ -16,8 +16,8 @@ use crate::ecs::components::ProductionFacility;
 use crate::ecs::systems::System;
 use crate::hot_reload::data_store::DataStore;
 
-/// 1 game day = 1200 real seconds.
-const REAL_SECONDS_PER_GAME_DAY: f32 = 1200.0;
+/// Game seconds in a day: 24 hours of the one game clock (2026-09-27).
+const REAL_SECONDS_PER_GAME_DAY: f32 = crate::systems::time::EARTH_DAY_S as f32;
 
 /// Top-level RON schema for `data/manufacturing.ron`.
 /// (Field name is `production_stages` in the data file, not `stages`.)

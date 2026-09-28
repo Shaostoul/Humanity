@@ -22,6 +22,9 @@ pub mod ipc_parse;
 /// The Settings > Controls key-capture step (rebindable keybinds, 2026-08-12).
 pub mod keybind_capture;
 pub mod launch_focus;
+/// What the home's machines hold (battery charge, tank litres, vessel
+/// contents), kept across a restart and across world entry (2026-09-27).
+pub mod machine_levels;
 /// How a mushroom crop is drawn: its fruiting blocks or cased bed, and the
 /// mushrooms on them by stage (2026-09-27).
 pub mod fungus_mesh;

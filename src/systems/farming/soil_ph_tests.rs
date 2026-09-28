@@ -16,8 +16,8 @@ use crate::ecs::systems::System;
 use crate::hot_reload::data_store::DataStore;
 use crate::systems::inventory::{Inventory, ItemRegistry};
 
-/// Game seconds in a garden day at 1x (farming's SECONDS_PER_DAY).
-const DAY_S: f32 = 1200.0;
+/// Game seconds in a garden day (farming's SECONDS_PER_DAY, 24 hours).
+const DAY_S: f32 = 86_400.0;
 
 fn shipped() -> SoilPhData {
     SoilPhData::parse(soil_ph::SOIL_PH_RON).expect("the shipped soil_ph.ron parses")
@@ -27,16 +27,19 @@ fn shipped() -> SoilPhData {
 /// crops at 100x growth, soil pH `on` or off.
 fn store(on: bool) -> DataStore {
     let mut data = make_store();
-    data.insert("crop_growth_speed", Mutex::new(100.0_f32));
     data.insert("garden_pest_severity", Mutex::new(0.0_f32));
     data.insert("player_notices", Mutex::new(Vec::<String>::new()));
+    // Time speed 1 (the one clock, 2026-09-27): a real second is a game second.
+    data.get::<Mutex<crate::systems::time::GameTime>>("game_time").unwrap().lock().unwrap().time_scale = 1.0;
     soil_ph::register(&mut data);
     *data.get::<Mutex<bool>>("garden_soil_ph_on").unwrap().lock().unwrap() = on;
     data
 }
 
+/// The clock's speed in the old growth-speed units (garden days per 1,200
+/// real seconds; see `gardening_tests::set_garden_speed`).
 fn set_speed(data: &DataStore, speed: f32) {
-    *data.get::<Mutex<f32>>("crop_growth_speed").unwrap().lock().unwrap() = speed;
+    super::gardening_tests::set_garden_speed(data, speed);
 }
 
 /// A well-watered crop of `plant` in unit `slot` of `area`, at its first
@@ -68,9 +71,9 @@ fn run(sys: &mut FarmingSystem, world: &mut hecs::World, data: &DataStore, ticks
     }
 }
 
-/// Run `days` garden days at 100x growth, one garden day a tick.
+/// Run `days` garden days, one garden day a tick.
 fn run_days(sys: &mut FarmingSystem, world: &mut hecs::World, data: &DataStore, days: usize) {
-    run(sys, world, data, days, DAY_S / 100.0);
+    run(sys, world, data, days, DAY_S);
 }
 
 fn memory(world: &hecs::World) -> SoilMemory {
@@ -644,7 +647,7 @@ fn a_hand_planted_crop_is_not_held_to_soil_ph() {
 
 /// Lime that was still reacting when the player left keeps reacting over the
 /// time away (offline progression, 2026-09-27): the farming tick takes the
-/// seconds the catch-up handed it, once, at the player's growth speed, and
+/// game seconds the catch-up handed it, once, and
 /// the pH lands where the same span of ticks would put it. With pH off the
 /// time is taken and nothing moves, so turning pH on later does not release
 /// it. Seen red by leaving the away days out of the step: the pH stayed at
@@ -652,14 +655,14 @@ fn a_hand_planted_crop_is_not_held_to_soil_ph() {
 #[test]
 fn lime_keeps_reacting_while_the_player_is_away() {
     let data = store(true);
-    set_speed(&data, 10.0);
     let mut sys = FarmingSystem::new();
     let mut world = hecs::World::new();
     world.spawn((Irrigator,));
     world.spawn((crop(&data, "lettuce", "bed_1", 0), rich()));
     set_unit(&mut world, "bed_1", 0, 5.5, &[("lime", 1.0)]);
-    // 30 garden days at 10x growth: 30 x 1200 / 10 game seconds away.
-    soil_ph::hand_away_secs(&data, 30.0 * f64::from(DAY_S) / 10.0);
+    // 30 garden days away, in game seconds (catch_up_world has already
+    // counted them at the time speed).
+    soil_ph::hand_away_secs(&data, 30.0 * f64::from(DAY_S));
     sys.tick(&mut world, 0.001, &data);
     let ph = unit(&world, "bed_1", 0).unwrap().ph;
     assert!((ph - 6.0).abs() < 5e-3, "one lime half-life away: half way, {ph}");
@@ -674,7 +677,7 @@ fn lime_keeps_reacting_while_the_player_is_away() {
     world.spawn((Irrigator,));
     world.spawn((crop(&data, "lettuce", "bed_1", 0), rich()));
     set_unit(&mut world, "bed_1", 0, 5.5, &[("lime", 1.0)]);
-    soil_ph::hand_away_secs(&data, 30.0 * f64::from(DAY_S) / 10.0);
+    soil_ph::hand_away_secs(&data, 30.0 * f64::from(DAY_S));
     sys.tick(&mut world, 0.001, &data);
     assert_eq!(unit(&world, "bed_1", 0).unwrap().ph, 5.5, "off: frozen");
     *data.get::<Mutex<bool>>("garden_soil_ph_on").unwrap().lock().unwrap() = true;

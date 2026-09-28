@@ -256,6 +256,26 @@
       "date": "2026-09-27",
       "decision": "v0.1391.0: environment Layer 1 (latitude/season/altitude temperature fitted to NCEP/NCAR, standard atmosphere, circulation winds; CPU and WGSL twins through a naga-IR interpreter test), survival_env merged by hand with the shelter work; Heating Water (lethal, stays sourced) and Perennials guides. v0.1392.0: value noise integer lattice hash (BUG-103, sea-colour blocks gone, clouds pattern kept exactly), two more load-bound tests hardened (BUG-099 addendum).",
       "why": "Library writer+independent refuter cadence continues (batteries and seasons in flight); WebFetch summaries invent figures, so refuters read raw source text (memory updated). In flight: HDR increments 1-2 (long), planet-anchored building (BUG-102 real fix), batteries and seasons guides, rain or snow by local air. Next after HDR lands: sun cascades (docs/design/sun-cascades.md), then Layer 1 GPU consumer (cloud advection by wind)."
+    },
+    {
+      "date": "2026-09-27",
+      "decision": "Merged to main, UNTAGGED: planet-anchored building (930c2364, BUG-102 real fix), rain or snow by local air (2bfcfc2d, Jennings 2018 threshold), batteries and seasons guides (+ seasons game section corrected against code: the drawn Sun also runs on the 20-min day, no axial tilt), 3 more guides verified (16/143), HDR scene target increments 1-2 (4a63f0b2; 4K capture byte-identical; gpu.present ~0.06 ms; new scene_format_lint). All boots 0 panics.",
+      "why": "The planet-building critic found a HIGH (the near copy in the depth-clearing scene pass draws over nearer celestial objects: furniture vanishes behind walls), overlapping sites, and home-frame leaks (planet stations on the ship grid, materials from the orbiting home). No tag until the fix agent (lower celestial near plane via one constant, delete the near copy, site membership by pieces, planet-local materials and power) lands. HDR increments 3-4 (Rgba16Float + one dither, closes the banding report) dispatched. Operator back briefly at 16:39 and got a summary from the logs."
+    },
+    {
+      "date": "2026-09-27",
+      "decision": "v0.1393.0 released and delivered: planet building with the review fixes (celestial near plane 0.05 m as CELESTIAL_NEAR_M, no near copy, sites follow pieces, no home-frame leaks), rain or snow by local air, HDR scene target steps 1-2, batteries and seasons guides; 16/143 verified. Independent boot of the delivered build: planet-built-inside and blue-marble-12000km, 0 panics.",
+      "why": "Merged tree was byte-identical to the fix branch the agent verified (2508 tests, 16 lints, 6 boots), so the battery was not re-run; one independent boot of the delivered exe instead. In flight: HDR steps 3-4 (Rgba16Float + one dither). Next candidates: sun cascades (docs/design/sun-cascades.md, now unblocked by room GI), Layer 1 GPU consumer (cloud advection by wind), battery charge persistence, more guides."
+    },
+    {
+      "date": "2026-09-27",
+      "decision": "Operator answered: 24-hour configurable day (hour fixed, one time-speed control), ship reactor as metered effectively-unlimited power with fleet tracking later, no Wi-Fi crop harm, arc C ranked first in TIER 0. Agents dispatched for each, plus electroculture findings research. Then the operator reported weekly usage at 89%: every agent told to commit (WIP if unfinished) and stop; the in-flight branch list is at the top of PRIORITIES TIER 0.",
+      "why": "Wind down at the usage cap so nothing is lost: all merged work is released and pushed (v0.1393.0 is the latest release, delivered); unmerged work lives on named branches with self-describing commits; PRIORITIES carries the resume map."
+    },
+    {
+      "date": "2026-09-28",
+      "decision": "Sequential work after the usage warning. v0.1396.1: Drying and Fermenting guides verified (18 of 143); the jerky/dried-meat recipe loop broken by starting both from raw_mutton_0, the only meat a spawned creature drops (raw_meat_0 has no spawned source, so the recipe sources lint rejected it). Sun cascades increment 0 merged (inert fixtures). BUG-090 fixed: the home station now hangs over its longitude on every date (orbit::over_its_longitude re-phases a synchronous orbit by the sun azimuth the planet spin uses), and the home panels, grow-light timer, crop light, HUD clock aboard and wake notice read the home local solar time (GameTime::solar_hour_at at HOME_LONGITUDE_KEY).",
+      "why": "The game clock stays longitude 0 time so the time pinned in 482 of the 486 vantages keeps its meaning; making the clock home-local instead would have shifted every pin by 8.15 h. The drift was a real bug: the spin tracks the sun azimuth (a turn a year) while the station tracked the game clock alone, so the deck noon would have walked through every hour over a year. Late September happened to be the date it lined up, which is why the home-clock-noon pin at 20.15 looked right."
     }
   ],
   "active_scopes_to_avoid": [
@@ -285,7 +305,7 @@
     "Trees have no materialised identity, so they cannot be felled. The key (cell_x, cell_y, item_index) already exists structurally; a sparse delta store is the shape."
   ],
   "how_to_resume": "1. `just brief` (version/CI/signing). 2. docs/PRIORITIES.md \"Active focus\" - the top item is fully specified, start implementing rather than investigating. 3. This file for WHY. Note the ONE-GPU rule: `tasklist //FI \"IMAGENAME eq HumanityOS.exe\"` before booting any rig, and never boot beside the operator instance.",
-  "last_updated": "2026-09-27",
+  "last_updated": "2026-09-28",
   "focus": "v0.1111.1 shipped (the 2026-08-03/04 vegetation marathon, v0.1109.4-v0.1111.1). Landed: leaf tufts stopped being cubes (golden-angle azimuths + solved per-card tilts, measured 100% parallel pairs on conifers and 67% perpendicular on broadleaves before); distant cards stopped out-shining mesh trees (4-8x, three multiplying causes, then the residual 28% conifer excess traced to the odd component of the shading normals and cancelled at source - all species now 1.00 flat across the sky); standing still stopped depending on the frame rate (the frame-lock sampled terrain one frame of planetary spin behind the player, 33,360 m/s of ground slip, so altitude read as a function of fps and flipped stand height by 2.45 m); the card-hide radius stopped promising models that never drew (BUG-068); forest density stopped being a process-global read separately by two streams (BUG-069); and the card cutoff is now clamped to the terrain reach that actually exists. Foliage-card arrangement extracted to renderer/tree_cards.rs under the size ratchet, and the ratchet budget came DOWN.",
   "overnight_plan_2026_08_01": {
     "directive": "Operator (heading to bed, full trust granted): PERMANENT versions only, no half fixes. Full PBR textures (not just diffuse). Real full canopies of leaves and flowers. Photorealism is the goal - screenshots good enough to land donations/grants; money is tight. 8-10 hours unattended.",

@@ -531,7 +531,7 @@ mod near_tree_draw_plan_tests {
     /// same matrices the frame loop builds from `Camera::celestial_uniforms`.
     fn frustum_looking(dir: DVec3) -> FrustumPlanes {
         let view = DMat4::look_at_rh(DVec3::ZERO, dir, DVec3::Y);
-        let proj = DMat4::perspective_rh(60f64.to_radians(), 16.0 / 9.0, 1.0e13, 1.0);
+        let proj = crate::renderer::camera::celestial_projection_f64(60.0, 16.0 / 9.0);
         FrustumPlanes::from_view_proj(&(proj * view))
     }
 

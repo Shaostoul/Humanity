@@ -365,15 +365,15 @@ follows them by latitude, land and sea. Some of what this guide describes is
 modelled closely; some of it is not modelled at all, and the list below says
 which.
 
-- **The game year.** A game year is 120 game days, four seasons of 30 days
-  each, starting with Spring (`src/systems/time.rs`). A game day lasts 20
-  real minutes at normal speed, so a game year passes in 40 real hours. The
+- **The game year.** A game day is 24 hours by default and a game year 365
+  game days, four equal seasons starting with Spring (`src/systems/time.rs`);
+  both are settings. An hour is always an hour: at normal speed a game day
+  takes a real day, and one time-speed setting runs everything faster. The
   seasons are read as the astronomical ones: Spring begins at the March
   equinox and Winter at the northern winter solstice, which sits three quarters
-  of the way through the game year, on game day 90
-  (`data/environment/climate.ron`). [Decision Briefs](https://github.com/Shaostoul/Humanity/blob/main/docs/design/decision-briefs.md)
-  (Brief 6) lays out the open question of whether a full-realism mode should
-  run on real 24 hour days; until it is decided, the day is 20 minutes.
+  of the way through the game year (`data/environment/climate.ron`). The day
+  length was settled on 27 September 2026
+  ([Decision Briefs](https://github.com/Shaostoul/Humanity/blob/main/docs/design/decision-briefs.md), Brief 6).
 - **The air by latitude and season.** Environment Layer 1
   (`src/systems/env_layer1.rs`, with each world's numbers in
   `data/environment/climate.ron` and the design in
@@ -389,10 +389,10 @@ which.
   and sea seasons.
 - **What those fitted numbers give** (worked here from the model's formula):
   - At 45 degrees north, deep inland, the air swings from minus 5.2 C at the
-    coldest to 23.2 C at the warmest, a 28.4 C swing, and peaks 8.5 game days
-    after the summer solstice.
+    coldest to 23.2 C at the warmest, a 28.4 C swing, and peaks about 26
+    game days after the summer solstice.
   - At 45 degrees north on the open sea it swings from 2.4 C to 15.6 C, a 13.3
-    C swing, and peaks 15.5 game days after the solstice: less than half the
+    C swing, and peaks about 47 game days after the solstice: less than half the
     swing, and later. Those are the coastal and seasonal-lag effects this guide
     describes.
   - At 45 degrees south the inland swing is 20.4 C and the open sea's only
@@ -400,8 +400,8 @@ which.
   - Inland at 45 degrees north, the first day of Spring is 2.9 C and the first
     day of Autumn 15.1 C, at the two equinoxes, with the same sunlight: the
     equinox table above, in the game.
-  - The lag scales with the game year: 8.5 of 120 game days is the same share
-    of a year as about 26 real days, which puts the inland peak in mid July,
+  - The lag is set as a share of the year, so it scales with the year's
+    length setting: about 26 of 365 days puts the inland peak in mid July,
     where Sacramento's is.
 - **What you feel.** Standing on Earth, the temperature at the player is
   Layer 1 at the player's place and altitude, plus the weather's own
@@ -419,7 +419,7 @@ which.
 What the game simplifies, so you do not learn it from the game:
 
 - **The day never changes length.** The gameplay sun rises at 6:00 and sets at
-  18:00 on every day of the year and at every latitude (`src/systems/time.rs`
+  18:00 by the home's clock on every day of the year and at every latitude (`src/systems/time.rs`
   and `src/systems/solar.rs`), and the garden counts every day as half
   daylight (`DAYLIGHT_FRACTION` in `src/systems/farming/mod.rs`, held to the
   sun's curve by a test). There is no midnight sun and no polar night.
@@ -431,11 +431,13 @@ What the game simplifies, so you do not learn it from the game:
   length signal; grow lights run on a fixed timer to an 18 hour photoperiod:
   on at sunset (18:00), off at midnight (`data/garden/lighting.ron`).
 - **Crops do not feel the seasonal lag or the coast**, as the list above says.
-- **The Sun drawn in the sky** also crosses it once per 20 minute game day,
-  but where it sits along Earth's orbit comes from the real date. The drawn
-  world has no axial tilt, so the drawn Sun has no seasons either. Aboard the
-  home, that real-date term moves the deck's drawn noon away from the gameplay
-  noon, by an amount that drifts through a full day each real year (BUG-090).
+- **The Sun drawn in the sky** also crosses it once per game day, but where
+  it sits along Earth's orbit comes from the real date. The drawn world has no
+  axial tilt, so the drawn Sun has no seasons either. The home hangs over
+  longitude 122.3 degrees west, so its noon comes at about 20:09 on the game
+  clock, which is longitude 0's time; the HUD aboard shows the home's own
+  time, and the home's panels, grow lights and crops follow the same sun the
+  deck sees (fixed 28 September 2026, BUG-090).
 - **Other worlds.** Mars is tilted 25.19 degrees, according to NASA's Mars fact
   sheet, so the real Mars has seasons. The game's Mars row carries no seasonal
   or latitude term yet, because no Mars climatology was in hand, and the file
@@ -534,8 +536,8 @@ taken from them is restated here in our own words.
   the seasonal air by latitude, land and sea, and where each number came from;
   [Environment Fields](https://github.com/Shaostoul/Humanity/blob/main/docs/design/environment-fields.md), "Layer 1 as
   built".
-- `src/systems/time.rs`: the 120 day year, the 20 minute day and the gameplay
-  sun; `src/systems/solar.rs`: the panels' sun curve.
+- `src/systems/time.rs`: the year and day lengths and the gameplay sun;
+  `src/systems/solar.rs`: the panels' sun curve.
 - `src/systems/body_environment.rs` and `src/systems/weather.rs`: the global
   reference temperature crops and water read.
 - [Decision Briefs](https://github.com/Shaostoul/Humanity/blob/main/docs/design/decision-briefs.md), Brief 6: how long a day

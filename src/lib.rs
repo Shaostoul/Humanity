@@ -1118,11 +1118,8 @@ mod native_app {
                 "time_set_hour_request",
                 std::sync::Mutex::new(Option::<f32>::None),
             );
-            // Clock speed, same channel shape (v0.1224, F11 time scrubber).
-            data_store.insert(
-                "time_set_scale_request",
-                std::sync::Mutex::new(Option::<f32>::None),
-            );
+            // The one game clock's settings and its speed hold (2026-09-27).
+            crate::systems::time::insert_slots(&mut data_store);
             // Craft batches in flight both ways, and the time away handed to
             // the automated machines (systems::crafting::register).
             crate::systems::crafting::register(&mut data_store);
@@ -1157,14 +1154,6 @@ mod native_app {
             data_store.insert(
                 "garden_nutrient",
                 std::sync::Mutex::new(std::collections::HashMap::<String, f32>::new()),
-            );
-            // Global crop growth multiplier (operator, 2026-09-20: 1x / 10x / 100x,
-            // growth speed and NOT clock speed). A plain f32 behind a Mutex so the sim
-            // never imports a GUI type; mirrored from Settings each frame by the bridge
-            // below. See systems::farming::DEFAULT_CROP_GROWTH_SPEED for why 10x ships.
-            data_store.insert(
-                "crop_growth_speed",
-                std::sync::Mutex::new(crate::systems::farming::DEFAULT_CROP_GROWTH_SPEED),
             );
             // Garden pests (2026-09-26, systems::farming::pests): the data, the
             // Settings severity, and the Garden panel's control buttons.
@@ -1702,6 +1691,7 @@ mod native_app {
                         &data_store,
                         save,
                         gui_state.settings.offline_progression,
+                        gui_state.settings.time_speed,
                         gui_state.home_machines.as_ref(),
                     );
                     // Home storage, the notice, the Keep mining switch.
@@ -3377,13 +3367,13 @@ mod native_app {
                             };
                             state.gui_state.station_attitude_dirty = false;
                         }
-                        let game_elapsed = state
+                        let (game_elapsed, game_day_s) = state
                             .data_store
                             .get::<std::sync::Mutex<crate::systems::time::GameTime>>(
                                 "game_time",
                             )
-                            .and_then(|m| m.lock().ok().map(|g| g.elapsed_seconds))
-                            .unwrap_or(0.0);
+                            .and_then(|m| m.lock().ok().map(|g| (g.elapsed_seconds, g.seconds_per_day())))
+                            .unwrap_or((0.0, crate::systems::time::EARTH_DAY_S));
                         // The parent rotation period is the SOLAR day, not the
                         // sidereal one, because this engine defines a planet's spin
                         // relative to the sun (planet_spin_from_time is
@@ -3391,11 +3381,17 @@ mod native_app {
                         // therefore means synchronous with the day/night cycle the
                         // player actually sees. Using 86164 would drift the home a
                         // quarter degree of longitude per game day.
+                        // Re-phased by the sun's azimuth so a synchronous home
+                        // hangs over its own longitude on every date (BUG-090).
                         let (new_pos, vel) = orbit::propagate(
-                            &state.station_def.orbit,
+                            &orbit::over_its_longitude(
+                                &state.station_def.orbit,
+                                crate::engine::frame_lock::sun_azimuth(state),
+                            ),
                             orbit::MU_EARTH,
                             orbit::REAL_SECONDS_PER_DAY,
-                            orbit::sim_seconds(game_elapsed),
+                            orbit::sim_seconds(game_elapsed, game_day_s),
+                            game_day_s,
                         );
                         let prev_rot = state.station_world_rot;
                         let prev_pos = state.station_world_pos;
@@ -3488,9 +3484,8 @@ mod native_app {
                             // speaks. The physical period means little to the player;
                             // "one sunrise per game day" is the useful fact.
                             let period_game_h = period_s
-                                / (orbit::REAL_SECONDS_PER_DAY
-                                    / crate::systems::time::SECONDS_PER_DAY)
-                                / (crate::systems::time::SECONDS_PER_DAY / 24.0);
+                                / (orbit::REAL_SECONDS_PER_DAY / game_day_s)
+                                / crate::systems::time::SECONDS_PER_HOUR;
                             state.gui_state.station_readout = format!(
                                 "{}: {:.0} km up, one orbit every {:.1} game hours.",
                                 state.station_def.name, alt_km, period_game_h
@@ -6529,21 +6524,10 @@ mod native_app {
                             }
                         }
                     }
-                    // Crop growth multiplier: Settings -> sim. Clamped here as well as
-                    // on config load, because the Settings slider and the dev IPC can
-                    // both write the field directly.
-                    if let Some(slot) =
-                        state.data_store.get::<std::sync::Mutex<f32>>("crop_growth_speed")
-                    {
-                        if let Ok(mut s) = slot.lock() {
-                            let want = crate::systems::farming::clamp_growth_speed(
-                                state.gui_state.settings.crop_growth_speed,
-                            );
-                            if (*s - want).abs() > f32::EPSILON {
-                                *s = want;
-                            }
-                        }
-                    }
+                    // The one game clock's settings -> the TimeSystem (2026-09-27):
+                    // hours in a day, days in a year, the time speed. Clamped inside.
+                    let s = &state.gui_state.settings;
+                    crate::systems::time::publish_settings(&state.data_store, s.hours_per_day, s.days_per_year, s.time_speed);
                     // Backpack <-> container transfers: drain the GUI's pending ops into
                     // the InventorySystem channel (it applies them to the player backpack).
                     if !state.gui_state.pending_inventory_transfers.is_empty() {
@@ -9384,7 +9368,13 @@ mod native_app {
                                 state.station_world_rot,
                                 rel_earth_m - state.ship_world_pos,
                             );
-                            crate::engine::planet_build::note_body(state, &b.id, render_off); // pieces built on it draw here
+                            // Planet model rotation this frame: the SAME spin the uniform
+                            // body uses, composed in f64 with the hull frame (v0.1225): a
+                            // point at planet-local p renders at render_off + R_hull *
+                            // R_spin * p. ONE binding: the terrain, the near trees, the OSM
+                            // buildings and the pieces built on the planet all use it.
+                            let rot_d = crate::engine::planet_build::body_render_rot(state.station_ride, state.station_world_rot, spin_f64);
+                            crate::engine::planet_build::note_body(state, &b.id, render_off, rot_d); // pieces built on it draw here
                             // Distance from the CAMERA, not the frame origin
                             // (v0.1238 starburst-far forensics). This was
                             // render_off.length(): the body's distance from
@@ -9542,19 +9532,8 @@ mod native_app {
                                     .planet_heightmaps
                                     .get(&b.id)
                                     .expect("chunked_on implies heightmap");
-                                // Planet model rotation this frame: the SAME
-                                // spin the uniform body uses, but composed in
-                                // f64 for anchor placement (precision rule:
-                                // narrow to f32 only at the very end).
-                                // Composed with the hull frame (v0.1225): a point at
-                                // planet-local p renders at render_off + R_hull * R_spin * p,
-                                // so the model rotation in render space is the product.
-                                // Without this Earth would swing across the window with its
-                                // axis still pinned to the world frame.
-                                let rot_d = crate::station::hull_frame_rot(
-                                    state.station_ride,
-                                    state.station_world_rot,
-                                ) * glam::DQuat::from_rotation_y(spin_f64);
+                                // The planet's rotation this frame is `rot_d`, bound once
+                                // above beside note_body (f64; narrow to f32 only at the end).
                                 // Camera position in the planet's UNROTATED
                                 // local frame, f64 end to end. The camera
                                 // lives at metre scale near the origin (dev
@@ -9567,15 +9546,12 @@ mod native_app {
                                     cam_pos.z as f64,
                                 );
                                 let cam_local = rot_d.inverse() * (cam_render - render_off);
-                                // Camera frustum, rebuilt in f64. MUST mirror
-                                // Camera::celestial_uniforms (reverse-Z, far
-                                // plane 1e13) or culling would disagree with
-                                // what actually rasterizes.
-                                let proj_d = glam::DMat4::perspective_rh(
-                                    (fov_deg.max(1.0) as f64).to_radians(),
+                                // Camera frustum, rebuilt in f64 from the one
+                                // celestial projection (camera.rs) or culling
+                                // would disagree with what actually rasterizes.
+                                let proj_d = crate::renderer::camera::celestial_projection_f64(
+                                    fov_deg.max(1.0) as f64,
                                     state.camera.aspect.max(0.01) as f64,
-                                    1.0e13,
-                                    1.0,
                                 );
                                 let view_d = state.camera.view_matrix().as_dmat4();
                                 let frustum = chunks::FrustumPlanes::from_view_proj(
@@ -12061,43 +12037,10 @@ mod native_app {
                         }
                     }
 
-                    // Station-gate input (v0.749, ladder rung 6): the set of
-                    // machine TYPES placed in the home, for CraftingSystem's
-                    // manual-craft required_station check.
-                    // Built structures count too (2026-09-25): a furnace the
-                    // player built is a smelter, a crafting table a workbench
-                    // (Blueprint::stations). Mirrored into GuiState so the
-                    // Crafting page's check says the same thing.
-                    let built = state
-                        .data_store
-                        .get::<crate::systems::construction::BlueprintRegistry>("blueprint_registry")
-                        .map(|reg| {
-                            crate::systems::construction::built_station_types(&state.game_world.world, reg)
-                        })
-                        .unwrap_or_default();
-                    if let Some(hm) = &state.gui_state.home_machines {
-                        let mut types: std::collections::HashSet<String> =
-                            hm.instances.iter().map(|i| i.machine.clone()).collect();
-                        for a in &hm.arrays {
-                            types.insert(a.machine.clone());
-                        }
-                        types.extend(built.iter().cloned());
-                        state
-                            .data_store
-                            .insert("placed_machine_types", std::sync::Mutex::new(types));
-                    }
-                    state.gui_state.built_station_types = built;
-                    // Electric stations with no power (2026-09-26), for the Crafting page.
-                    state.gui_state.unpowered_station_types = {
-                        let w = &state.game_world.world;
-                        let mut types = std::collections::HashSet::new();
-                        for (_e, mt) in w.query::<&crate::ecs::components::MachineType>().iter() {
-                            if crate::systems::crafting::CraftingSystem::station_unpowered(w, &mt.0).is_some() {
-                                types.insert(mt.0.clone());
-                            }
-                        }
-                        types
-                    };
+                    // Station-gate input (v0.749; where the player is since
+                    // 2026-09-27): the station types and their power for the
+                    // CraftingSystem and the Crafting page (engine/built_uses.rs).
+                    crate::engine::built_uses::publish_stations(state);
 
                     // ── Vendor + wallet bridges (v0.747, ladder rung 3) ──
                     // Live credit balance for the HUD + vendor modal.
@@ -13065,11 +13008,11 @@ mod native_app {
 
                     // ── Built pieces (v0.746; planet sites 2026-09-27, BUG-102) ── scaffolds
                     // and finished pieces: home pieces in the home frame here, pieces on a
-                    // planet where they stand (engine/planet_build.rs). `planet_near` is
-                    // already in render space, so it joins the scene list AFTER the
-                    // station shift below.
-                    let mut planet_near: Vec<RenderObject> = Vec::new();
-                    crate::engine::planet_build::push_render_objects(state, &mut all_objects, &mut celestial_objects, &mut planet_near);
+                    // planet in the celestial list where they stand (engine/planet_build.rs).
+                    // `planet_ghost` (the piece in hand on a planet) is already in render
+                    // space, so it joins the scene list AFTER the station shift below.
+                    let mut planet_ghost: Vec<RenderObject> = Vec::new();
+                    crate::engine::planet_build::push_render_objects(state, &mut all_objects, &mut celestial_objects, &mut planet_ghost);
 
                     // ── Livestock render (v0.751, ladder rung 7) ── placeholder
                     // block bodies until real models: body + head + 4 legs from
@@ -13176,15 +13119,25 @@ mod native_app {
                                     crate::terrain::planet_heightmap::dir_to_latlon_deg(
                                         glam::Vec3::new(d.x as f32, d.y as f32, d.z as f32),
                                     );
-                                Some(
-                                    ((gt.hour as f64 + lon as f64 / 15.0)
-                                        .rem_euclid(24.0)) as f32,
-                                )
+                                Some(crate::systems::time::local_hour(
+                                    gt.hour as f64, lon as f64, gt.hours_per_day,
+                                ) as f32)
+                            } else if state.aboard_station
+                                && state.data_store.get::<f64>(crate::systems::time::HOME_LONGITUDE_KEY).is_some()
+                            {
+                                // Aboard the home: the deck's own time, the
+                                // clock its panels and crops follow (BUG-090).
+                                Some(crate::systems::time::local_hour(
+                                    gt.hour as f64,
+                                    crate::systems::time::home_longitude_deg(&state.data_store),
+                                    gt.hours_per_day,
+                                ) as f32)
                             } else {
                                 None
                             }
                         };
-                        let wall = local_hour.unwrap_or(gt.hour);
+                        // On a 24-hour dial, so the sun is up 6 to 18 of any day length.
+                        let wall = local_hour.unwrap_or(gt.hour) * 24.0 / gt.hours_per_day.max(1) as f32;
                         state.gui_state.game_time = Some(GuiGameTime {
                             hour: gt.hour,
                             day_count: gt.day_count,
@@ -13193,6 +13146,7 @@ mod native_app {
                             // the local one where it exists.
                             is_daytime: wall >= 6.0 && wall <= 18.0,
                             local_hour,
+                            hours_per_day: gt.hours_per_day,
                         });
                     }
 
@@ -13563,6 +13517,7 @@ mod native_app {
                         state.gui_state.power_battery_wh = ps.battery_wh;
                         state.gui_state.power_battery_capacity_wh = ps.battery_capacity_wh;
                         state.gui_state.power_autonomy_hours = ps.autonomy_hours;
+                        state.gui_state.power_ship = ps.ship;
                     }
 
                     // Bridge the live home WATER readout (PlumbingSystem writes it via Mutex). (v0.608)
@@ -14624,6 +14579,7 @@ mod native_app {
                                                     &state.data_store,
                                                     &save,
                                                     state.gui_state.settings.offline_progression,
+                                                    state.gui_state.settings.time_speed,
                                                     state.gui_state.home_machines.as_ref(),
                                                 );
                                                 crate::save_load::after_resume(&mut state.gui_state, &save, &resumed);
@@ -15196,8 +15152,8 @@ mod native_app {
                                         o.position += so;
                                     }
                                 }
-                                // Pieces built on a planet near the eye: already in render space (engine/planet_build.rs).
-                                all_objects.append(&mut planet_near);
+                                // The piece in hand on a planet: already in render space (engine/planet_build.rs).
+                                all_objects.append(&mut planet_ghost);
                                 // `SceneView::Main`: these four are the live frame's
                                 // `gpu.scene` / `gpu.transparent` / `gpu.overlay` /
                                 // `gpu.lines`; a camera screen's re-render of the same
@@ -15657,17 +15613,8 @@ mod native_app {
                                         }
                                     }
                                 }
-                                if let Some(sc) = state.gui_state.time_scale_request.take() {
-                                    if let Some(m) = state
-                                        .data_store
-                                        .get::<std::sync::Mutex<Option<f32>>>(
-                                            "time_set_scale_request",
-                                        )
-                                    {
-                                        if let Ok(mut r) = m.lock() {
-                                            *r = Some(sc);
-                                        }
-                                    }
+                                if let Some(hold) = state.gui_state.time_scale_request.take() {
+                                    crate::systems::time::request_speed_hold(&state.data_store, hold);
                                 }
                                 if weather_changed {
                                     if let Some(m) = state

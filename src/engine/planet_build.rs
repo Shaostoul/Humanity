@@ -9,12 +9,14 @@
 //! This module is what lets a player build a shelter on a planet's ground,
 //! where the weather is:
 //!
-//! - WHICH FRAME the player is in this frame ([`build_frame`] for placing,
-//!   [`player_frame`] for the shelter and the bed and chest look ray): the
-//!   home frame aboard, or on a planet's ground the build site they stand in
-//!   (`construction::site`), with their eye and look direction converted
-//!   into that site's flat Y-up frame from the frame lock's anchor (the eye
-//!   in the body's frame, f64) and the camera's look.
+//! - WHICH FRAME the player is in this frame ([`ghost`] for placing,
+//!   [`player_frame`] for the shelter, the stations and the bed and chest
+//!   look ray): the home frame aboard, or on a planet's ground the build
+//!   site they stand in (`construction::site`), with their eye and look
+//!   direction converted into that site's flat Y-up frame from the frame
+//!   lock's anchor (the eye in the body's frame, f64) and the camera's look.
+//!   Everything the frame reads from the engine is read in ONE place,
+//!   [`PlayerView::of`], so the rules are tested without a window.
 //! - THE GROUND in that frame ([`Ground`]): the drawn terrain the player
 //!   stands on (`surface_walk::walk_ground_radius`, the same floor the walk
 //!   clamp, the grass and the near trees use), so a piece is set on the
@@ -22,14 +24,26 @@
 //! - THE DRAW ([`push_render_objects`], moved here from lib.rs): home pieces
 //!   into the home-frame list as before; site pieces at `render_off + rot *
 //!   p` in the CELESTIAL list with the terrain, the near trees and the OSM
-//!   buildings, so the ground hides them behind a hill and they cast the
-//!   sun's shadow; and a second copy of any piece within 2 m of the
-//!   eye in the scene list, whose near plane (unlike the celestial pass's
-//!   1 m) does not cut into a wall you stand beside.
+//!   buildings, at every distance, so the ground hides them behind a hill,
+//!   they cast the sun's shadow, and anything else in front of them (a
+//!   chest inside a hut, the grass on a slope) stays in front.
+//!
+//! THE NEAR COPY IS GONE (2026-09-27, the review of this module). Site pieces
+//! within 2 m of the eye used to be drawn a second time in the scene pass,
+//! because the celestial pass's near plane was 1 m and its corner reached
+//! 2.27 m at the widest view, so a wall beside you was cut open. But the
+//! scene pass CLEARS depth, so the copy was painted over everything drawn
+//! only in the celestial pass: a chest inside the hut vanished behind its own
+//! wall, and a wall's buried base painted over the grass on a slope. The
+//! celestial near plane is now 5 cm (`renderer::camera::CELESTIAL_NEAR_M`),
+//! which costs no depth precision anywhere (the tests there prove it), and
+//! every site piece is drawn once, in the celestial pass.
 //!
 //! `render_off` and `rot` are the body's centre and orientation in render
-//! space THIS frame, recorded by [`note_body`] from inside the celestial loop,
-//! so a piece is placed with exactly the numbers its ground was.
+//! space THIS frame, handed to [`note_body`] by the celestial loop: the very
+//! values it places that body's terrain with (lib.rs `rot_d`, computed by
+//! [`body_render_rot`]), so a piece stands exactly on the ground it was set
+//! on.
 
 use crate::ecs::components::Transform;
 use crate::engine::state::EngineState;
@@ -38,25 +52,12 @@ use crate::renderer::RenderObject;
 use crate::systems::construction::site::{self, PlanetSite};
 use crate::systems::construction::{placement, BlueprintRegistry, Construction, Structure};
 use crate::terrain::planet::PlanetDef;
-use glam::{DQuat, DVec3, Quat, Vec3};
+use glam::{DQuat, DVec3, Vec3};
 
 /// How high the eye may be over the ground and still place a piece, metres:
 /// standing (1.7 m plus the walk clamp's clearance, up to 2.5 m on the
 /// elevation field) with a little air for a hop. Higher is flying.
 const MAX_EYE_OVER_GROUND_M: f64 = 4.5;
-/// A site piece whose box comes within this of the eye is also drawn in the
-/// scene pass: the celestial pass's near plane is 1 m, and its frustum
-/// corners reach about 1.8 m at a wide window, so a wall closer than that
-/// would be cut open and show the outside through it. Kept this tight on
-/// purpose: the scene pass lights everything as if indoors (its uniforms
-/// carry no local up, so there is no sky ambient, `sky_ambient` in the
-/// shader), so the copy of a face turned from the sun reads black where the
-/// celestial draw reads dark (measured at the planet-built-shelter hut,
-/// 2026-09-27). Inside a roofed hut that is closer to the truth than the
-/// sky light the celestial pass would give it; outside, it is a small step
-/// in shade within arm's reach. Giving planet pieces one lighting in both
-/// passes is the follow-up (docs/FEATURES.md, "Building on a planet").
-const NEAR_COPY_M: f32 = 2.0;
 /// Site pieces farther than this from the eye are not drawn (sub-pixel).
 const DRAW_RANGE_M: f32 = 30_000.0;
 /// Ground over connected ocean deeper than this under the sea's surface is
@@ -72,20 +73,62 @@ pub(crate) struct BodyFrame {
     pub rot: DQuat,
 }
 
-/// Called from inside the celestial loop for every body it places. Keeps the
+/// Called from inside the celestial loop for every body it places, with the
+/// SAME render offset and rotation that loop places the body's terrain with
+/// (its `rot_d`: one binding, never a recomputation here). Keeps the
 /// placement of the one the player is locked to, for [`push_render_objects`]
 /// later in the same frame (which takes it, so it is never a frame stale).
-pub(crate) fn note_body(state: &mut EngineState, body: &str, render_off: DVec3) {
+pub(crate) fn note_body(state: &mut EngineState, body: &str, render_off: DVec3, rot: DQuat) {
     if state.frame_lock_body.as_deref() == Some(body) {
-        state.planet_body_frame = Some(BodyFrame { body: body.to_string(), render_off, rot: body_rot(state) });
+        state.planet_body_frame = Some(BodyFrame { body: body.to_string(), render_off, rot });
     }
 }
 
-/// The rotation taking a direction in the locked body's unrotated frame to
-/// render space: the planet's spin, composed with the hull frame when riding
-/// the station (the same product the celestial loop builds as `rot_d`).
-fn body_rot(state: &EngineState) -> DQuat {
-    crate::station::hull_frame_rot(state.station_ride, state.station_world_rot) * DQuat::from_rotation_y(state.current_spin)
+/// THE rotation taking a direction in a body's unrotated frame to render
+/// space: the planet's spin, composed with the hull frame when riding the
+/// station. The celestial loop places the terrain with this (lib.rs
+/// `rot_d`), and the look conversions below use it, so there is one formula.
+pub(crate) fn body_render_rot(station_ride: bool, station_world_rot: DQuat, spin: f64) -> DQuat {
+    crate::station::hull_frame_rot(station_ride, station_world_rot) * DQuat::from_rotation_y(spin)
+}
+
+/// What the frame needs to know about the player, read from the engine in
+/// this ONE place so everything that follows is pure (and tested without a
+/// window). On a planet the camera stays parked while the ship frame moves
+/// under it, so the player's place there is the frame lock's ANCHOR (the eye
+/// in the body's unrotated frame, f64) and never the camera's position,
+/// which is only the player's place aboard.
+#[derive(Debug, Clone)]
+pub(crate) struct PlayerView {
+    pub aboard: bool,
+    /// The camera in the home frame, and its look in render space.
+    pub camera_pos: Vec3,
+    pub forward: Vec3,
+    pub eye_height: f32,
+    /// The body the frame lock holds, and the eye in its frame.
+    pub body: Option<String>,
+    pub anchor: DVec3,
+    /// That body's rotation into render space this frame ([`body_render_rot`]).
+    pub rot: DQuat,
+}
+
+impl PlayerView {
+    pub(crate) fn of(state: &EngineState) -> Self {
+        PlayerView {
+            aboard: state.aboard_station,
+            camera_pos: state.camera.position,
+            forward: state.camera.forward(),
+            eye_height: state.controller.eye_height(),
+            body: state.frame_lock_body.clone(),
+            anchor: state.frame_lock_anchor,
+            rot: body_render_rot(state.station_ride, state.station_world_rot, state.current_spin),
+        }
+    }
+
+    /// The look direction in the locked body's unrotated frame.
+    fn look_body(&self) -> DVec3 {
+        self.rot.inverse() * self.forward.as_dvec3()
+    }
 }
 
 /// The ground of one body, as the player stands on it this frame.
@@ -207,27 +250,27 @@ pub(crate) fn ghost(state: &EngineState, blueprint_id: &str, quarter_turns: u8) 
     };
     let Some(bp) = reg.get(blueprint_id) else { return Err(CannotBuild::OpenSpace) };
     let world = &state.game_world.world;
-    let (at, site) = if state.aboard_station {
+    let v = PlayerView::of(state);
+    let (at, site) = if v.aboard {
         let floor = state.controller.ground_floor();
-        (placement::aim_point(state.camera.position, state.camera.forward(), floor), None)
+        (placement::aim_point(v.camera_pos, v.forward, floor), None)
     } else {
-        let body = state.frame_lock_body.as_deref().ok_or(CannotBuild::OpenSpace)?;
+        let body = v.body.as_deref().ok_or(CannotBuild::OpenSpace)?;
         if !state.surface_walk_band {
             return Err(CannotBuild::NotOnGround);
         }
         let ground = Ground::for_body(state, body).ok_or(CannotBuild::NotOnGround)?;
-        let eye_body = state.frame_lock_anchor;
-        let up = eye_body.normalize_or_zero();
+        let up = v.anchor.normalize_or_zero();
         let under = ground.radius(up);
-        if eye_body.length() - under > MAX_EYE_OVER_GROUND_M {
+        if v.anchor.length() - under > MAX_EYE_OVER_GROUND_M {
             return Err(CannotBuild::NotOnGround);
         }
         if ground.under_water(up, under) {
             return Err(CannotBuild::OnWater);
         }
         let site = site::site_for(world, body, up * under);
-        let eye = site.to_local(eye_body);
-        let look = site.dir_to_local(body_rot(state).inverse() * state.camera.forward().as_dvec3());
+        let eye = site.to_local(v.anchor);
+        let look = site.dir_to_local(v.look_body());
         let at = placement::aim_point_on_ground(eye, look, |x, z| ground.height(&site, x, z));
         let dir = site.to_body(at).normalize();
         if ground.under_water(dir, ground.radius(dir)) {
@@ -251,23 +294,32 @@ pub(crate) struct PlayerFrame {
 }
 
 /// The frame the player's built surroundings are in: the home frame aboard;
-/// on a planet, the nearest build site within reach (`site::SITE_JOIN_M`);
-/// None anywhere else (open space, or a planet with nothing built near).
+/// on a planet, the site of the nearest piece within reach
+/// (`site::SITE_JOIN_M`); None anywhere else (open space, or a planet with
+/// nothing built near).
 pub(crate) fn player_frame(state: &EngineState) -> Option<PlayerFrame> {
-    if state.aboard_station {
-        let eye = state.camera.position;
-        let feet = eye - Vec3::Y * state.controller.eye_height();
-        return Some(PlayerFrame { site: None, eye, forward: state.camera.forward(), feet });
-    }
-    let body = state.frame_lock_body.as_deref()?;
-    let eye_body = state.frame_lock_anchor;
-    let look_body = body_rot(state).inverse() * state.camera.forward().as_dvec3();
-    let ground_r = || Ground::for_body(state, body).map(|g| g.radius(eye_body.normalize_or_zero()));
-    player_at_site(&state.game_world.world, body, eye_body, look_body, ground_r)
+    let v = PlayerView::of(state);
+    let ground_r = || {
+        let g = Ground::for_body(state, v.body.as_deref()?)?;
+        Some(g.radius(v.anchor.normalize_or_zero()))
+    };
+    frame_of(&state.game_world.world, &v, ground_r)
 }
 
-/// The player in the nearest build site on `body`, from their eye and look
-/// direction in the body's frame and the ground radius under them
+/// [`player_frame`] over a [`PlayerView`]: aboard, the camera in the home
+/// frame; on a planet, the anchor and the look in the nearest site
+/// ([`player_at_site`]); the camera's position is never read there.
+pub(crate) fn frame_of(world: &hecs::World, v: &PlayerView, ground_r: impl FnOnce() -> Option<f64>) -> Option<PlayerFrame> {
+    if v.aboard {
+        let feet = v.camera_pos - Vec3::Y * v.eye_height;
+        return Some(PlayerFrame { site: None, eye: v.camera_pos, forward: v.forward, feet });
+    }
+    let body = v.body.as_deref()?;
+    player_at_site(world, body, v.anchor, v.look_body(), ground_r)
+}
+
+/// The player in the site of the nearest piece on `body`, from their eye and
+/// look direction in the body's frame and the ground radius under them
 /// (`ground_r`, asked only when there is a site; None when unknown). Their
 /// feet are on that ground while they stand on it, else a standing height
 /// under the eye (flying over a roof is not being under it). Pure, so the
@@ -294,20 +346,74 @@ pub(crate) fn player_at_site(
     })
 }
 
+/// One piece to draw this frame: its transform in its frame, its drawn scale
+/// (a scaffold is shorter), the frame, and how it looks.
+struct Piece<'a> {
+    tf: &'a Transform,
+    scale: Vec3,
+    site: Option<&'a PlanetSite>,
+    material: usize,
+    fade: f32,
+    ghost: bool,
+}
+
+/// The lists a frame's pieces are drawn in.
+#[derive(Default)]
+struct Drawn {
+    /// The home frame's scene list (shifted to the station with the home).
+    home: Vec<RenderObject>,
+    /// The celestial list, in render space: EVERY site piece, at every
+    /// distance, so what is in front of it stays in front.
+    celestial: Vec<RenderObject>,
+    /// The scene list after the station shift, in render space: only the
+    /// planet ghost.
+    ghost: Vec<RenderObject>,
+}
+
+/// Route the frame's pieces into their lists. Home pieces go to the home
+/// list. A site piece is placed with the body's frame at `render_off + rot *
+/// p` and goes to the CELESTIAL list only, however close to the eye `cam`
+/// it is. The planet ghost goes to the ghost list, drawn in the scene pass:
+/// a preview is meant to be seen where it would stand even when something is
+/// in front of it, and it must cast no shadow, which the celestial list
+/// would give it. A site piece with no body frame this frame (the loop did
+/// not place its body) or past [`DRAW_RANGE_M`] is not drawn.
+fn route<'a>(pieces: impl Iterator<Item = Piece<'a>>, body_frame: Option<&BodyFrame>, cam: Vec3, mesh: usize) -> Drawn {
+    let mut out = Drawn::default();
+    for p in pieces {
+        let obj = |position, rotation| RenderObject { fade: p.fade, position, rotation, scale: p.scale, mesh, material: p.material };
+        let Some(site) = p.site else {
+            out.home.push(obj(p.tf.position, p.tf.rotation));
+            continue;
+        };
+        let Some(bf) = body_frame.filter(|f| f.body == site.body) else { continue };
+        let (position, rotation) = site.render_pose(p.tf, bf.render_off, bf.rot);
+        let centre = position + rotation * Vec3::new(0.0, p.scale.y * 0.5, 0.0);
+        if (centre - cam).length() - p.scale.length() * 0.5 > DRAW_RANGE_M {
+            continue;
+        }
+        if p.ghost {
+            out.ghost.push(obj(position, rotation));
+        } else {
+            out.celestial.push(obj(position, rotation));
+        }
+    }
+    out
+}
+
 /// Push this frame's built pieces and the ghost (moved from lib.rs's
 /// "Blueprint structures render" block, v0.746). A scaffold shows as an
 /// amber box that rises with build progress; a finished piece is a solid box
 /// tinted by its blueprint category. Home pieces go to `home` (shifted to
 /// the station with the rest of the home frame); site pieces go to
-/// `celestial` in render space, plus a copy in `near` when within
-/// [`NEAR_COPY_M`] of the eye; a planet ghost goes to `near` only (it never
-/// casts a shadow). `near` is drawn in the scene pass AFTER the home frame's
-/// station shift, because it is already in render space.
+/// `celestial` in render space ([`route`]); a planet ghost goes to
+/// `ghost_out`, drawn in the scene pass AFTER the home frame's station
+/// shift, because it is already in render space.
 pub(crate) fn push_render_objects(
     state: &mut EngineState,
     home: &mut Vec<RenderObject>,
     celestial: &mut Vec<RenderObject>,
-    near: &mut Vec<RenderObject>,
+    ghost_out: &mut Vec<RenderObject>,
 ) {
     if state.structure_mesh.is_none() {
         let mesh = crate::renderer::mesh::Mesh::box_xyz(&state.renderer.device, 1.0, 1.0, 1.0);
@@ -333,43 +439,26 @@ pub(crate) fn push_render_objects(
             _ => metal_mat,
         }
     };
-    let cam = state.camera.position;
-    // One piece, in its frame, into the right list(s).
-    let mut push = |tf: &Transform, scale: Vec3, site: Option<&PlanetSite>, material: usize, fade: f32, ghost: bool| {
-        let Some(site) = site else {
-            home.push(RenderObject { fade, position: tf.position, rotation: tf.rotation, scale, mesh: unit_box, material });
-            return;
-        };
-        let Some(bf) = body_frame.as_ref().filter(|f| f.body == site.body) else { return };
-        let (position, rotation) = site.render_pose(tf, bf.render_off, bf.rot);
-        let centre = position + rotation * Vec3::new(0.0, scale.y * 0.5, 0.0);
-        let gap = (centre - cam).length() - scale.length() * 0.5;
-        if gap > DRAW_RANGE_M {
-            return;
-        }
-        let obj = RenderObject { fade, position, rotation, scale, mesh: unit_box, material };
-        if gap < NEAR_COPY_M || ghost {
-            near.push(obj.clone());
-        }
-        if !ghost {
-            celestial.push(obj);
-        }
-    };
     let world = &state.game_world.world;
-    for (_e, (c, tf, site)) in world.query::<(&Construction, &Transform, Option<&PlanetSite>)>().iter() {
-        // A scaffold rises from 15% to full height with progress.
+    let mut scaffolds = world.query::<(&Construction, &Transform, Option<&PlanetSite>)>();
+    let mut finished = world.query::<(&Structure, &Transform, Option<&PlanetSite>)>();
+    // A scaffold rises from 15% to full height with progress.
+    let rising = scaffolds.iter().map(|(_e, (c, tf, site))| {
         let frac = (c.progress / c.build_time.max(0.01)).clamp(0.0, 1.0) * 0.85 + 0.15;
-        push(tf, Vec3::new(tf.scale.x, tf.scale.y * frac, tf.scale.z), site, scaffold_mat, 0.0, false);
-    }
-    for (_e, (s, tf, site)) in world.query::<(&Structure, &Transform, Option<&PlanetSite>)>().iter() {
-        push(tf, tf.scale, site, mat_for(&s.blueprint_id), 0.0, false);
-    }
+        Piece { tf, scale: Vec3::new(tf.scale.x, tf.scale.y * frac, tf.scale.z), site, material: scaffold_mat, fade: 0.0, ghost: false }
+    });
+    let standing = finished
+        .iter()
+        .map(|(_e, (s, tf, site))| Piece { tf, scale: tf.scale, site, material: mat_for(&s.blueprint_id), fade: 0.0, ghost: false });
     // The piece in hand (engine/build_place.rs): a half-dithered scaffold where it would go.
-    if let Some(p) = state.gui_state.build_placing.as_ref() {
-        if let Some(g) = p.ghost.as_ref() {
-            push(g, g.scale, p.site.as_ref(), scaffold_mat, 0.5, true);
-        }
-    }
+    let in_hand = state.gui_state.build_placing.as_ref().and_then(|p| {
+        let g = p.ghost.as_ref()?;
+        Some(Piece { tf: g, scale: g.scale, site: p.site.as_ref(), material: scaffold_mat, fade: 0.5, ghost: true })
+    });
+    let drawn = route(rising.chain(standing).chain(in_hand), body_frame.as_ref(), state.camera.position, unit_box);
+    home.extend(drawn.home);
+    celestial.extend(drawn.celestial);
+    ghost_out.extend(drawn.ghost);
 }
 
 /// Dev verb for the probe rig (showcase_request `{"build":"...",
@@ -385,6 +474,12 @@ pub(crate) fn push_render_objects(
 /// what a dev verb is for. A piece whose box already stands is skipped, so
 /// running the same request twice builds nothing new. Aboard it builds in
 /// the home frame around the aimed deck point. Returns a line for the log.
+///
+/// NO DEV GATE, on purpose: like every other showcase verb, it is reached
+/// only by dropping `debug/showcase_request.json` next to the running exe,
+/// which is the dev channel itself; none of the showcase verbs (time,
+/// weather, the camera, the sea) checks a dev flag, and this one would be
+/// the odd one out if it did (the planet-build review, 2026-09-27).
 pub(crate) fn dev_build(state: &mut EngineState, spec: &str, at: Option<&str>) -> String {
     let items: Vec<(String, f32, f32, u8)> = spec
         .split(';')
@@ -401,24 +496,9 @@ pub(crate) fn dev_build(state: &mut EngineState, spec: &str, at: Option<&str>) -
         let base = placement::aim_point(state.camera.position, state.camera.forward(), state.controller.ground_floor());
         (None, items.iter().map(|(_, dx, dz, _)| base + Vec3::new(*dx, 0.0, *dz)).collect())
     } else {
-        let Some(body) = state.frame_lock_body.clone() else { return "not aboard and not over a body: nothing built".into() };
-        let Some(ground) = Ground::for_body(state, &body) else { return format!("{body} has no surface to build on") };
-        let base_dir = match at.map(|a| a.split(',').filter_map(|v| v.trim().parse::<f64>().ok()).collect::<Vec<_>>()) {
-            Some(ll) if ll.len() == 2 => crate::terrain::osm_region::latlon_to_dir_f64(ll[0], ll[1]),
-            _ => {
-                // The crosshair: march the look ray to the ground, up to 3 km.
-                let eye_body = state.frame_lock_anchor;
-                let up = eye_body.normalize_or_zero();
-                let probe = PlanetSite { body: body.clone(), origin: up * ground.radius(up) };
-                let look = probe.dir_to_local(body_rot(state).inverse() * state.camera.forward().as_dvec3());
-                let hit = placement::ray_ground_hit(probe.to_local(eye_body), look, &|x, z| ground.height(&probe, x, z), 3_000.0);
-                let Some(hit) = hit else { return "the crosshair meets no ground within 3 km: nothing built".into() };
-                probe.to_body(hit).normalize()
-            }
+        let Some((site, base, ground)) = dev_ground_point(state, at) else {
+            return "not aboard, and no ground point on a body: nothing built".into();
         };
-        let base_ground = base_dir * ground.radius(base_dir);
-        let site = site::site_for(&state.game_world.world, &body, base_ground);
-        let base = site.to_local(base_ground);
         let targets = items
             .iter()
             .map(|(_, dx, dz, _)| {
@@ -453,6 +533,82 @@ pub(crate) fn dev_build(state: &mut EngineState, spec: &str, at: Option<&str>) -
         }
         None => format!("{built} of {} pieces stood up in the home", items.len()),
     }
+}
+
+/// The dev verbs' ground point on the locked body: `at` ("lat,lon") or the
+/// ground under the crosshair (marched up to 3 km), with the build site it
+/// belongs to (`site_for`: the site of the nearest piece, or a new one) and
+/// the point in that site's frame. None off a body or when the crosshair
+/// meets no ground.
+fn dev_ground_point<'a>(state: &'a EngineState, at: Option<&str>) -> Option<(PlanetSite, Vec3, Ground<'a>)> {
+    let v = PlayerView::of(state);
+    let body = v.body.clone()?;
+    let ground = Ground::for_body(state, &body)?;
+    let base_dir = match at.map(|a| a.split(',').filter_map(|v| v.trim().parse::<f64>().ok()).collect::<Vec<_>>()) {
+        Some(ll) if ll.len() == 2 => crate::terrain::osm_region::latlon_to_dir_f64(ll[0], ll[1]),
+        _ => {
+            let up = v.anchor.normalize_or_zero();
+            let probe = PlanetSite { body: body.clone(), origin: up * ground.radius(up) };
+            let look = probe.dir_to_local(v.look_body());
+            let hit = placement::ray_ground_hit(probe.to_local(v.anchor), look, &|x, z| ground.height(&probe, x, z), 3_000.0)?;
+            probe.to_body(hit).normalize()
+        }
+    };
+    let base_ground = base_dir * ground.radius(base_dir);
+    let site = site::site_for(&state.game_world.world, &body, base_ground);
+    let base = site.to_local(base_ground);
+    Some((site, base, ground))
+}
+
+/// Dev verb for the probe rig (showcase_request `{"stand":"dx,h,dz,heading,
+/// pitch","stand_at":"lat,lon"}`, 2026-09-27): put the player's eye `h`
+/// metres over the ground at `dx`, `dz` (east and south, metres) from the
+/// ground point (`stand_at`, or the crosshair's), in the build site that
+/// point belongs to, looking toward `heading` (degrees from north, east
+/// positive) and `pitch` (degrees, up positive). This is how a capture
+/// stands INSIDE a hut the `build` verb stood up (the planet-built-inside
+/// vantage), which the camera park cannot do: it parks tens of metres over
+/// the ground. The eye moves through the frame lock's anchor, exactly where
+/// walking would have put it. Send it after the park (probe-sweep.js
+/// `final_showcase`). No dev gate, like every showcase verb (see
+/// [`dev_build`]). Returns a line for the log.
+pub(crate) fn dev_stand(state: &mut EngineState, spec: &str, at: Option<&str>) -> String {
+    let n: Vec<f32> = spec.split(',').filter_map(|v| v.trim().parse().ok()).collect();
+    let [dx, h, dz, heading, pitch] = [0, 1, 2, 3, 4].map(|i| n.get(i).copied().unwrap_or(if i == 1 { 1.7 } else { 0.0 }));
+    if state.aboard_station {
+        return "aboard: stand is for a planet's ground".into();
+    }
+    let Some((site, base, ground)) = dev_ground_point(state, at) else {
+        return "no ground point on a body: nobody moved".into();
+    };
+    let (x, z) = (base.x + dx, base.z + dz);
+    let eye_local = Vec3::new(x, ground.height(&site, x, z) + h, z);
+    let (hr, pr) = (heading.to_radians(), pitch.to_radians());
+    // Site axes: +X east, -Z north, +Y up.
+    let look_local = Vec3::new(hr.sin() * pr.cos(), pr.sin(), -hr.cos() * pr.cos());
+    let v = PlayerView::of(state);
+    let look_render = v.rot * (site.basis() * look_local.as_dvec3());
+    let eye = site.to_body(eye_local);
+    drop(ground);
+    // Move the eye the way walking would: the anchor, and the ship frame by
+    // the same step in render space, so the camera's world position agrees
+    // with the anchor whichever way the frame lock reads it next frame (it
+    // re-captures the anchor from the camera on the frame surface mode
+    // engages, and keeps the stored one after).
+    let step = DQuat::from_rotation_y(state.current_spin) * (eye - state.frame_lock_anchor);
+    state.ship_world_pos += step;
+    state.frame_lock_anchor = eye;
+    // The look in the camera's CURRENT basis, the surface one when engaged
+    // (clearing it would make the frame lock re-capture the anchor).
+    let look = look_render.as_vec3();
+    let (cam_yaw, cam_pitch) = if state.camera.surface_mode {
+        crate::surface_walk::surface_look_angles(state.camera.up, look)
+    } else {
+        crate::surface_walk::world_look_angles(look)
+    };
+    state.camera.yaw = cam_yaw;
+    state.camera.pitch = cam_pitch;
+    format!("eye at {eye_local:?} in the {} site (heading {heading} deg, pitch {pitch} deg)", site.body)
 }
 
 #[cfg(test)]
@@ -509,7 +665,7 @@ mod tests {
             // The player walks 3 m east and 2 m north each frame.
             let eye = site.to_body(Vec3::new(3.0 * k as f32, 1.7, -2.0 * k as f32));
             let ship = crate::dev_travel::frame_lock_ship_pos(body_center, spin, eye, cam_local);
-            let rot = DQuat::from_rotation_y(spin);
+            let rot = body_render_rot(false, DQuat::IDENTITY, spin);
             let (p, r) = site.render_pose(&wall, body_center - ship, rot);
             let world = ship + p.as_dvec3();
             let back = rot.inverse() * (world - body_center);
@@ -549,5 +705,149 @@ mod tests {
         // Beyond the site's reach there is no build frame at all.
         let far = site.to_body(Vec3::new(5_000.0, 1.7, 0.0));
         assert!(player_at_site(&world, "earth", far, DVec3::X, || None).is_none());
+    }
+
+    /// A view of a player on a planet whose eye (the anchor) stands at `local`
+    /// in `site`, looking along the site's -Z (north), with the parked camera
+    /// at `camera_pos` in the home frame.
+    fn on_planet(site: &PlanetSite, local: Vec3, camera_pos: Vec3, spin: f64) -> PlayerView {
+        let rot = body_render_rot(false, DQuat::IDENTITY, spin);
+        PlayerView {
+            aboard: false,
+            camera_pos,
+            forward: (rot * (site.basis() * DVec3::NEG_Z)).as_vec3(),
+            eye_height: 1.7,
+            body: Some(site.body.clone()),
+            anchor: site.to_body(local),
+            rot,
+        }
+    }
+
+    /// THE PLAYER'S FRAME IS WIRED TO THE ANCHOR, NOT THE CAMERA (the review's
+    /// missing test). A hut stands in the home frame around (0, 0, 0) and
+    /// another in a site on Earth. On the planet the parked camera's LOCAL
+    /// position sits inside the home hut by coincidence (it is where the
+    /// park leaves it) while the anchor is 60 m from the Earth hut: the
+    /// player is in the Earth site, not sheltered, and the look is the
+    /// site's north. With the anchor moved inside the Earth hut they are
+    /// sheltered, whatever the camera says. Aboard, the camera is the place
+    /// and the home hut shelters. Red check, run: making `frame_of` place a
+    /// planet player at `camera_pos` in the site (what reading the raw
+    /// camera amounted to) shelters the player 60 m out, and the first
+    /// shelter assertion fails.
+    #[test]
+    fn the_players_frame_follows_the_anchor_not_the_parked_camera() {
+        let reg = shipped();
+        let site = site_at(23.5, 13.0);
+        let hut = [("wood_wall", 0.0, -2.0, 0), ("wood_wall", -2.0, 0.0, 1), ("wood_wall", 2.0, 0.0, 1), ("roof", 0.0, 0.0, 0)];
+        let mut world = hecs::World::new();
+        build_in(&mut world, &reg, &site, &hut);
+        for (id, x, z, t) in hut {
+            let bp = reg.get(id).unwrap();
+            let pose = placement::placement_pose(bp, Vec3::new(x, 0.0, z), t, &world, &reg, None);
+            world.spawn((pose, Structure { blueprint_id: id.into(), health: 1.0, max_health: 1.0, provides: bp.provides.clone(), uid: 0 }));
+        }
+        let parked = Vec3::new(0.0, 1.7, 0.5); // inside the HOME hut
+        let ground = |v: &PlayerView| {
+            let g = site.to_body(site.to_local(v.anchor) * Vec3::new(1.0, 0.0, 1.0)).length();
+            move || Some(g)
+        };
+        let out = on_planet(&site, Vec3::new(60.0, 1.7, 0.0), parked, 0.8);
+        let f = frame_of(&world, &out, ground(&out)).expect("within the site's reach");
+        assert_eq!(f.site.as_ref(), Some(&site), "in the Earth site");
+        assert!(!uses::shelter_at(&world, f.feet, f.site.as_ref()).sheltered(), "60 m from the hut: out in the weather");
+        assert!((f.forward - Vec3::NEG_Z).length() < 1e-5, "the look is the site's north: {}", f.forward);
+        assert!((f.eye - Vec3::new(60.0, 1.7, 0.0)).length() < 1e-3, "the eye is the anchor's: {}", f.eye);
+        let inside = on_planet(&site, Vec3::new(0.0, 1.7, 0.5), Vec3::new(500.0, 40.0, 0.0), 2.1);
+        let f = frame_of(&world, &inside, ground(&inside)).unwrap();
+        assert!(uses::shelter_at(&world, f.feet, f.site.as_ref()).sheltered(), "inside the Earth hut, wherever the camera is");
+        let aboard = PlayerView { aboard: true, ..on_planet(&site, Vec3::new(60.0, 1.7, 0.0), parked, 0.8) };
+        let f = frame_of(&world, &aboard, || None).unwrap();
+        assert_eq!(f.site, None, "aboard: the home frame");
+        assert!(uses::shelter_at(&world, f.feet, None).sheltered(), "aboard, the home hut shelters the camera's place");
+    }
+
+    /// NOTE_BODY RECORDS THE TERRAIN'S OWN ROTATION, never a recomputation
+    /// (the review's missing test). The frame loop has exactly one `rot_d`
+    /// binding, made by [`body_render_rot`], with which it places the
+    /// terrain patches, the near trees and the OSM buildings, and it hands
+    /// that same binding to `note_body`; note_body stores what it is given.
+    /// A piece is then drawn with the numbers its ground was: the drawn
+    /// piece's base and the terrain's own placement of the same planet point
+    /// (`render_off + rot_d * p`, region_meshes' form) agree to the bit.
+    /// Red check, run: note_body computing its own rotation from the spin
+    /// again (the old `body_rot(state)`) fails the source assertions.
+    #[test]
+    fn note_body_is_handed_the_terrains_own_rot_d() {
+        let src = crate::terrain::planet_chunks::frame_loop_source();
+        let bindings = src.matches("let rot_d =").count();
+        assert_eq!(bindings, 1, "one rot_d binding in the frame loop, got {bindings}");
+        let at = src.find("let rot_d =").unwrap();
+        assert!(src[at..].starts_with("let rot_d = crate::engine::planet_build::body_render_rot("), "rot_d comes from body_render_rot");
+        let call = src.find("planet_build::note_body(state, &b.id, render_off, rot_d)").expect("note_body is handed rot_d");
+        assert!(call > at, "after the binding it is handed");
+        let this = include_str!("planet_build.rs");
+        let body = &this[this.find("pub(crate) fn note_body").unwrap()..this.find("/// THE rotation taking").unwrap()];
+        assert!(!body.contains("spin") && !body.contains("body_render_rot"), "note_body recomputes nothing: {body}");
+        // What it stores draws a piece exactly where the terrain puts the point.
+        let site = site_at(47.645, -122.6925);
+        let rot_d = body_render_rot(true, DQuat::from_rotation_z(0.3), 1.234);
+        let render_off = DVec3::new(-120.0, -6_371_010.0, 35.0);
+        let base = Transform { position: Vec3::new(3.0, 0.2, -1.0), ..Transform::default() };
+        let (p, _) = site.render_pose(&base, render_off, rot_d);
+        let terrain = (render_off + rot_d * site.to_body(base.position)).as_vec3();
+        assert_eq!(p, terrain);
+    }
+
+    /// THE DRAW'S REAL FAILURE MODE (the review's missing test). An open hut
+    /// (three walls and a roof) with a chest 0.6 m in front of its north
+    /// wall, and the eye standing in its open south side looking north: the
+    /// geometry the old near copy got wrong, because the north wall (1.0 m
+    /// by the copy's measure, centre distance less half its diagonal) was
+    /// copied into the scene pass, which clears depth, while the chest (2.1
+    /// m) was not, so the wall was painted over the chest. Now every site
+    /// piece is routed to the CELESTIAL list only, and the ghost alone to
+    /// the ghost list. In that one depth-tested pass, along a look ray
+    /// through the chest into the wall, the chest is met first and writes
+    /// the greater reverse-Z depth, both inside the near plane (depth at
+    /// most 1), so the chest stays in front of its wall. Red check, run:
+    /// putting back the near copy (`gap < 2.0` also pushed to the scene
+    /// list) sends the walls there and the ghost-list assertion fails.
+    #[test]
+    fn a_chest_in_front_of_its_wall_stays_in_front() {
+        let reg = shipped();
+        let site = site_at(23.5, 13.02);
+        let mut world = hecs::World::new();
+        build_in(
+            &mut world,
+            &reg,
+            &site,
+            &[("wood_wall", 0.0, -2.0, 0), ("wood_wall", -2.0, 0.0, 1), ("wood_wall", 2.0, 0.0, 1), ("roof", 0.0, 0.0, 0), ("storage_chest", 0.0, -1.0, 0)],
+        );
+        let spin = 0.9;
+        let rot = body_render_rot(false, DQuat::IDENTITY, spin);
+        let eye = site.to_body(Vec3::new(0.0, 1.7, 1.5));
+        let render_off = -(rot * eye); // the eye at the render origin
+        let bf = BodyFrame { body: "earth".into(), render_off, rot };
+        let ghost_tf = Transform { position: Vec3::new(1.0, 0.0, 1.0), ..Transform::default() };
+        let mut q = world.query::<(&Structure, &Transform, &PlanetSite)>();
+        let pieces: Vec<(String, Transform)> = q.iter().map(|(_e, (s, tf, _))| (s.blueprint_id.clone(), tf.clone())).collect();
+        let items = pieces
+            .iter()
+            .map(|(_, tf)| Piece { tf, scale: tf.scale, site: Some(&site), material: 1, fade: 0.0, ghost: false })
+            .chain(std::iter::once(Piece { tf: &ghost_tf, scale: Vec3::ONE, site: Some(&site), material: 0, fade: 0.5, ghost: true }));
+        let drawn = route(items, Some(&bf), Vec3::ZERO, 0);
+        assert_eq!(drawn.celestial.len(), pieces.len(), "every site piece is in the celestial pass");
+        assert!(drawn.home.is_empty());
+        assert_eq!(drawn.ghost.len(), 1, "only the ghost goes to the scene pass");
+        // A look ray from the eye through the chest's front face, near its
+        // top, on into the north wall 0.2 m over the floor.
+        let from = Vec3::new(0.0, 1.7, 1.5);
+        let dir = Vec3::new(0.0, -1.0, -2.25).normalize();
+        let hit = |id: &str| pieces.iter().filter(|(b, _)| b == id).filter_map(|(_, tf)| uses::ray_hits_box(from, dir, tf)).fold(f32::MAX, f32::min);
+        let (chest, wall) = (hit("storage_chest"), hit("wood_wall"));
+        assert!(chest < wall && wall < 10.0, "the chest ({chest} m) is in front of the wall ({wall} m)");
+        let depth = |d: f32| crate::renderer::camera::celestial_depth_at(d);
+        assert!(depth(chest) > depth(wall) && depth(chest) <= 1.0, "one pass, nearer wins: {} vs {}", depth(chest), depth(wall));
     }
 }

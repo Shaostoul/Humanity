@@ -192,15 +192,11 @@ pub(crate) fn auto_seed_showcase(state: &mut EngineState) {
         .map(|gt| gt.elapsed_seconds)
         .unwrap_or(0.0);
     let tower_cfgs = crate::gui::load_tower_configs(&crate::data_dir());
-    const DAY: f64 = 1200.0; // farming SECONDS_PER_DAY
+    // A garden day: 24 hours of the one game clock (farming's day, 2026-09-27).
+    const DAY: f64 = crate::systems::time::EARTH_DAY_S;
 
     // Collect the spawn list first (no world borrow while iterating data).
     let mut to_spawn: Vec<crate::ecs::components::CropInstance> = Vec::new();
-    let speed = state
-        .data_store
-        .get::<std::sync::Mutex<f32>>("crop_growth_speed")
-        .and_then(|m| m.lock().ok().map(|v| *v))
-        .unwrap_or(crate::systems::farming::DEFAULT_CROP_GROWTH_SPEED);
     let mut stagger = |list: &mut Vec<crate::ecs::components::CropInstance>,
                        plant_id: &str,
                        grow_id: &str,
@@ -208,13 +204,12 @@ pub(crate) fn auto_seed_showcase(state: &mut EngineState) {
                        frac: f32| {
         let Some(def) = reg.get(plant_id) else { return };
         let stages = def.stages();
-        // Its stage and its age on the GROWTH clock, which runs at the
-        // growth-speed setting (10x by default): at 1x ages every stagger
-        // above the first came out ripe (2026-09-26 review).
+        // Its stage and its age on the game clock, which agree: there is no
+        // separate growth speed (the one clock, 2026-09-27).
         list.push(crate::ecs::components::CropInstance {
             crop_def_id: plant_id.to_string(),
             growth_stage: crate::systems::farming::stage_from_progress(frac, &stages).to_string(),
-            planted_at: elapsed - def.growth_days as f64 * DAY * frac as f64 / f64::from(speed.max(0.01)),
+            planted_at: elapsed - def.growth_days as f64 * DAY * frac as f64,
             water_level: 1.0,
             health: 100.0,
             tower_id: Some(grow_id.to_string()),
@@ -331,6 +326,16 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
         let note = crate::engine::planet_build::dev_build(state, &spec, grab("build_at").as_deref());
         log::info!("Showcase: build -> {note}");
     }
+    // {"stand":"dx,h,dz,heading,pitch","stand_at":"lat,lon"} (2026-09-27): put
+    // the eye h metres over the ground at dx, dz from that point, in its build
+    // site, looking along heading (degrees from north) and pitch, so a capture
+    // can stand INSIDE a hut the build verb stood up; the camera park cannot
+    // (it parks tens of metres up). See engine::planet_build::dev_stand. Send
+    // it as a vantage's `final_showcase` (probe-sweep.js), after the re-park.
+    if let Some(spec) = grab("stand") {
+        let note = crate::engine::planet_build::dev_stand(state, &spec, grab("stand_at").as_deref());
+        log::info!("Showcase: stand -> {note}");
+    }
     // Optional "time":"9.5" sets the game clock to that hour of the
     // current day (dev/screenshot control: dawn shots without waiting
     // out the night). Routed through the TimeSystem's request channel -
@@ -346,22 +351,15 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
             }
         }
     }
-    // Optional "time_scale":"0" sets the game clock SPEED (v0.1287, the rig
-    // clock freeze): 0 holds the clock still so the planet does not spin
-    // and the sun does not move between a park and its capture. Two
+    // Optional "time_scale":"0" holds the game clock at that SPEED (v0.1287,
+    // the rig clock freeze): 0 holds the clock still so the planet does not
+    // spin and the sun does not move between a park and its capture. Two
     // down-look captures in one sweep came out rotated about the nadir
-    // (2026-09-05) because the 20-minute day turns the planet 0.3 degrees
-    // per second under a world-fixed camera. Same request channel as the
-    // hour (the TimeSystem's own accumulator is authoritative).
+    // (2026-09-05) because a fast day turned the planet 0.3 degrees per
+    // second under a world-fixed camera. A hold over the time-speed setting
+    // (time::request_speed_hold); the TimeSystem's accumulator is authoritative.
     if let Some(sc) = grab("time_scale").and_then(|t| t.parse::<f32>().ok()) {
-        if let Some(req) = state
-            .data_store
-            .get::<std::sync::Mutex<Option<f32>>>("time_set_scale_request")
-        {
-            if let Ok(mut r) = req.lock() {
-                *r = Some(sc.max(0.0));
-            }
-        }
+        crate::systems::time::request_speed_hold(&state.data_store, Some(sc.max(0.0)));
     }
     // Optional "wind":"0" pins the wind speed the VEGETATION sees, in m/s;
     // "wind":"auto" hands it back to the weather. See published_foliage_wind
@@ -464,6 +462,19 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
             if state.renderer.room_gi.off { "OFF (the old ambient floor)" } else { "on" },
             state.renderer.room_gi.probe_count()
         );
+    }
+    // {"sun_shadows":"0"} switches the sun's shadow maps off, "1" on and
+    // "auto" hands them back to Settings > Planets (2026-09-27,
+    // docs/design/sun-cascades.md increment 0). A PIN over the setting, not a
+    // write to it, so a capture and its sun-shadows-off twin differ ONLY by
+    // what the maps take away (and gpu.shadow plus gpu.shadow_near is what
+    // they cost), while the player's own config is never touched.
+    if let Some(t) = grab("sun_shadows") {
+        state.renderer.sun_cascades.shadows_pin = match t.as_str() {
+            "auto" => None,
+            v => Some(v != "0"),
+        };
+        log::info!("Showcase: sun_shadows -> {:?} (None = Settings > Planets)", state.renderer.sun_cascades.shadows_pin);
     }
     // {"room_gi_vis":"1"} makes every room run DDGI's Chebyshev visibility
     // test, which rung 1 skips because inside a room's own box it is an
@@ -2386,11 +2397,42 @@ pub(crate) fn poll_camera_request(state: &mut EngineState) {
             Some((p, look)) => (p + state.station_off, glam::DVec3::new(look.x as f64, look.y as f64, look.z as f64)),
             None => (Vec3::new(0.0, hull_top + 14.0, 34.0), glam::DVec3::new(0.0, -0.34, -1.0).normalize()),
         };
+        // Optional "pose" (2026-09-27, docs/design/sun-cascades.md increment
+        // 0): `{"station":"home","pose":"x,y,z,yaw,pitch","time":20.15}` parks
+        // at a HOME-FRAME pose instead, the same five numbers
+        // scripts/home-vantages.json and the showcase `cam` verb use (metres in
+        // the home zone's coordinates, y at eye height; yaw 0 looks north).
+        // This is what lets a probe-sweep vantage hold a room pose at a pinned
+        // clock: photograph-home.js cannot pin the clock, because its `cam`
+        // pose is not re-glued to the station when the hour moves the orbit.
+        let pose = match v.get("pose").and_then(|s| s.as_str()).map(crate::engine::ipc_parse::parse_pose5) {
+            None => None,
+            Some(Some(p)) => Some(p),
+            Some(None) => {
+                fail("pose must be \"x,y,z,yaw,pitch\" (five numbers)".to_string());
+                return;
+            }
+        };
+        let (position, yaw_pitch) = match pose {
+            Some(([x, y, z], yaw, pitch)) => (Vec3::new(x, y, z) + state.station_off, Some((yaw, pitch))),
+            None => (position, None),
+        };
         state.camera.position = position;
         state.camera.clear_surface();
-        let (yaw, pitch) = crate::dev_travel::look_angles(look);
+        let (yaw, pitch) = yaw_pitch.unwrap_or_else(|| crate::dev_travel::look_angles(look));
         state.camera.yaw = yaw;
         state.camera.pitch = pitch;
+        if yaw_pitch.is_some() {
+            // Teleport the player body too, as the showcase `cam` verb does:
+            // in first person the camera derives from it.
+            for (_e, (t, _c)) in state
+                .game_world
+                .world
+                .query_mut::<(&mut crate::ecs::components::Transform, &crate::ecs::components::Controllable)>()
+            {
+                t.position = position;
+            }
+        }
         state.gui_state.dev_fly_mode = true;
         state.controller.fly_mode = true;
         // GRAVITY OFF, exactly as F9 does it (v0.1269, operator catch). The
@@ -2412,6 +2454,10 @@ pub(crate) fn poll_camera_request(state: &mut EngineState) {
             done["position"] = serde_json::json!([position.x, position.y, position.z]);
             done["look"] = serde_json::json!([look.x, look.y, look.z]);
             log::info!("Camera request: parked aboard the home station facing screen {id:?} at {position:?}");
+        } else if let Some((yaw, pitch)) = yaw_pitch {
+            done["position"] = serde_json::json!([position.x, position.y, position.z]);
+            done["yaw_pitch"] = serde_json::json!([yaw, pitch]);
+            log::info!("Camera request: parked aboard the home station at pose {position:?} yaw {yaw} pitch {pitch}");
         } else {
             log::info!("Camera request: parked aboard the home station");
         }

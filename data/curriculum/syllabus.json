@@ -947,12 +947,25 @@
       "subject": "food_preservation",
       "title": "Drying",
       "summary": "Dry food to a moisture level that will not spoil.",
-      "status": "absent",
+      "status": "verified",
+      "reading": [
+        "drying-food"
+      ],
       "skills": [
         "cooking"
       ],
+      "data": [
+        "data/recipes.csv",
+        "data/food_system.ron"
+      ],
       "sources": [
-        "nchfp"
+        "usda-fsis",
+        "cdc",
+        "nchfp",
+        "colorado-state-extension",
+        "penn-state-extension",
+        "kstate-extension",
+        "utah-state-extension"
       ],
       "locale_dependent": false,
       "hazard": "serious"
@@ -1026,13 +1039,24 @@
       "subject": "food_preservation",
       "title": "Fermenting",
       "summary": "Use salt and time to preserve food with living cultures.",
-      "status": "absent",
+      "status": "verified",
+      "reading": [
+        "fermenting-vegetables"
+      ],
       "skills": [
         "cooking",
         "alchemy"
       ],
       "sources": [
-        "nchfp"
+        "usda-canning-guide",
+        "cdc",
+        "nchfp",
+        "penn-state-extension",
+        "colorado-state-extension",
+        "oregon-state-extension",
+        "illinois-extension",
+        "utah-state-extension",
+        "umn-extension"
       ],
       "locale_dependent": false,
       "hazard": "serious"

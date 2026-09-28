@@ -128,6 +128,18 @@ pub struct WorldSave {
     /// The drone's standing order ("Keep mining"), (asteroid id, manifest).
     #[serde(default)]
     pub mining_order: Option<(String, Vec<(String, u32)>)>,
+    /// What each home machine holds, by instance id (2026-09-27): a battery
+    /// bank's charge, a water tank's litres, a vessel's contents. Before it
+    /// every launch reset each bank and tank to half and emptied every
+    /// vessel. A machine missing from it (a save from before, or one placed
+    /// since) keeps its spawn level. See engine::machine_levels.
+    #[serde(default)]
+    pub machine_levels: Vec<crate::engine::machine_levels::MachineLevels>,
+    /// What the home has drawn from and returned to the ship's supply
+    /// (2026-09-27, systems::ship_power): the reactor's kWh, metered. Empty in
+    /// a save from before it; the meter then starts at zero.
+    #[serde(default)]
+    pub ship_supply: crate::systems::ship_power::ShipSupplyLedger,
 }
 
 fn default_credits() -> i64 {
@@ -192,6 +204,8 @@ impl WorldSave {
             asteroids: None,
             drone: None,
             mining_order: None,
+            machine_levels: Vec::new(),
+            ship_supply: Default::default(),
         }
     }
 }
@@ -418,6 +432,8 @@ mod tests {
             asteroids: None,
             drone: None,
             mining_order: None,
+            machine_levels: Vec::new(),
+            ship_supply: Default::default(),
         }
     }
 

@@ -74,7 +74,10 @@ function isStructural(line) {
 }
 
 const md = fs.readFileSync(SRC, 'utf8');
-const lines = md.split('\n');
+// Split on CRLF too: a Windows checkout (core.autocrlf) hands this file over with
+// CRLF endings, and splitting on '\n' alone left a '\r' on every line, so no item
+// matched and the script wrote an empty roadmap (caught 2026-09-27).
+const lines = md.split(/\r?\n/);
 
 const sections = [];
 let cur = null;

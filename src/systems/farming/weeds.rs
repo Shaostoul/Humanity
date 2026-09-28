@@ -344,9 +344,9 @@ pub fn area_plots(store: &DataStore, area: &str) -> u32 {
 }
 
 /// How many garden days into its season a crop is: its growth age on the
-/// garden clock (game seconds at the growth speed).
-pub fn crop_days(crop: &CropInstance, elapsed_seconds: f64, growth_speed: f32) -> f64 {
-    (elapsed_seconds - crop.planted_at).max(0.0) / super::SECONDS_PER_DAY * f64::from(growth_speed.max(0.0))
+/// game clock.
+pub fn crop_days(crop: &CropInstance, elapsed_seconds: f64) -> f64 {
+    (elapsed_seconds - crop.planted_at).max(0.0) / super::SECONDS_PER_DAY
 }
 
 /// The farming system's weeds: the data, read on first use (a "garden_weeds"
@@ -429,7 +429,6 @@ impl Weeds {
         def: Option<&PlantDef>,
         severity: f32,
         elapsed_seconds: f64,
-        growth_speed: f32,
         days: f64,
         soil: &mut Npk,
         organic: &mut HashMap<String, HashMap<u32, Vec<OrganicCohort>>>,
@@ -448,7 +447,7 @@ impl Weeds {
             }
         }
         let growth = def.map_or(0.0, |d| f64::from(d.growth_days));
-        health_ceiling(data, st.level, &crop.crop_def_id, growth, crop_days(crop, elapsed_seconds, growth_speed), severity)
+        health_ceiling(data, st.level, &crop.crop_def_id, growth, crop_days(crop, elapsed_seconds), severity)
     }
 
     /// Apply one player request `(area, control id)` from the
@@ -661,7 +660,6 @@ pub struct GuiView {
     weeds: HashMap<String, AreaWeeds>,
     severity: f32,
     elapsed: f64,
-    speed: f32,
     /// A row per soil area with a living crop, or an emptied bed that still
     /// carries weeds or mulch, sorted by area.
     pub areas: Vec<WeedAreaRow>,
@@ -675,13 +673,7 @@ impl GuiView {
             .get::<Mutex<f32>>("garden_pest_severity")
             .and_then(|m| m.lock().ok().map(|v| *v))
             .unwrap_or(super::pests::DEFAULT_PEST_SEVERITY);
-        let speed = super::clamp_growth_speed(
-            store
-                .get::<Mutex<f32>>("crop_growth_speed")
-                .and_then(|m| m.lock().ok().map(|v| *v))
-                .unwrap_or(super::DEFAULT_CROP_GROWTH_SPEED),
-        );
-        let mut view = Self { data, weeds, severity, elapsed: crate::systems::time::elapsed_now(store), speed, areas: Vec::new() };
+        let mut view = Self { data, weeds, severity, elapsed: crate::systems::time::elapsed_now(store), areas: Vec::new() };
         let (Some(data), Some(soil), true) = (view.data.as_ref(), store.get::<SoilPhData>("garden_soil_ph"), severity > 0.0) else {
             return view;
         };
@@ -736,7 +728,7 @@ impl GuiView {
             return String::new();
         };
         let growth = def.map_or(0.0, |d| f64::from(d.growth_days));
-        let days = crop_days(crop, self.elapsed, self.speed);
+        let days = crop_days(crop, self.elapsed);
         let cap = health_ceiling(data, st.level, &crop.crop_def_id, growth, days, self.severity);
         if cap >= 99.5 {
             return String::new();

@@ -160,12 +160,13 @@ pub const FEED_NEUTRAL: f32 = 0.5;
 /// inside that range.
 pub const NUTRIENT_HEALTH_FLOOR: f32 = 20.0;
 
-/// Health a crop above its nutrient cap loses per second (0.1): 100 to the
-/// floor in about 13 minutes of play. Against the shipped 10x growth, where a
-/// tomato's 70-day season is about 2.3 hours, that is roughly a tenth of a
-/// season: gradual, and back within a few minutes of fertilizing, because a
-/// crop below its cap recovers at the well-watered rate. A game-feel choice.
-pub const NUTRIENT_DECLINE_RATE: f32 = 0.1;
+/// Health a crop above its nutrient cap loses per game second: 100 points
+/// in 20 game hours, so from full to the floor in 16. Gradual against a
+/// tomato's 70-day season, and back within hours of fertilizing, because a
+/// crop below its cap recovers at the well-watered rate. A game-feel choice
+/// (the old 0.1 a real second on the 20-minute day, over 72: the same game
+/// hours, on the one clock of 2026-09-27).
+pub const NUTRIENT_DECLINE_RATE: f32 = 100.0 / (20.0 * 3600.0);
 
 // -- Data: data/garden/nutrients.ron -------------------------------------------
 

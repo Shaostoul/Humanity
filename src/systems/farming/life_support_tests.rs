@@ -34,7 +34,6 @@ fn air() -> HumidityData {
 /// data, the given room boxes and grow plots, growth at 1x, no pests.
 fn store(rooms: Vec<GrowRoom>, plots: Vec<GrowPlot>) -> DataStore {
     let mut data = make_store();
-    data.insert("crop_growth_speed", Mutex::new(1.0_f32));
     data.insert("garden_pest_severity", Mutex::new(0.0_f32));
     data.insert("player_notices", Mutex::new(Vec::<String>::new()));
     data.insert("hand_water_draw_l", Mutex::new(0.0_f32));
@@ -48,16 +47,23 @@ fn store(rooms: Vec<GrowRoom>, plots: Vec<GrowPlot>) -> DataStore {
     data
 }
 
-/// Advance the game clock by `game_s` seconds (the hour follows).
-fn advance(data: &DataStore, game_s: f64) {
+/// The game seconds in one second of the 20-minute day these tests were
+/// written on (the one clock, 2026-09-27: a day is 86,400 game seconds).
+const OLD_S: f64 = 72.0;
+
+/// Advance the game clock by `old_s` seconds of the 20-minute day, 72 game
+/// seconds each (the hour follows): advance(600) is still noon.
+fn advance(data: &DataStore, old_s: f64) {
     let gt = data.get::<Mutex<crate::systems::time::GameTime>>("game_time").unwrap();
     let mut g = gt.lock().unwrap();
-    let t = g.elapsed_seconds + game_s;
+    let t = g.elapsed_seconds + old_s * OLD_S;
     g.set_elapsed(t);
 }
 
+/// The clock's speed in the 20-minute day's units: 1 is 72 game seconds a
+/// real second, the pace the store starts at.
 fn set_scale(data: &DataStore, scale: f32) {
-    data.get::<Mutex<crate::systems::time::GameTime>>("game_time").unwrap().lock().unwrap().time_scale = scale;
+    data.get::<Mutex<crate::systems::time::GameTime>>("game_time").unwrap().lock().unwrap().time_scale = scale * OLD_S as f32;
 }
 
 fn memory(world: &hecs::World) -> SoilMemory {
@@ -156,10 +162,11 @@ fn vapour_held_l(world: &hecs::World, data: &DataStore) -> f64 {
 /// within 0.5%. On the air side the ledger closes to the gram: what went into
 /// the air less what left it is what it holds. And the same day's figures come
 /// out at twice the game speed: the clock changes how long a day lasts, never
-/// how many litres it moves. Seen red two ways: by handing the condensate to
-/// the plumbing as litres a GAME day (72 times the litres a real day at 1x,
-/// so the tanks gained water), and by drawing the lettuce's water without what
-/// it keeps (the kept 6% then vanished from the balance).
+/// how many litres it moves. Since the one clock (2026-09-27) the tanks run
+/// on game minutes too, so both sides are counted per game day. Seen red two
+/// ways: by handing the condensate to the plumbing per hour instead of per
+/// minute (the tanks then gained water), and by drawing the lettuce's water
+/// without what it keeps (the kept 6% then vanished from the balance).
 #[test]
 fn the_gardens_water_balances_across_the_two_clocks() {
     let ld = life();
@@ -183,22 +190,23 @@ fn the_gardens_water_balances_across_the_two_clocks() {
             tick(&mut world);
         }
         let (tank0, held0, ledger0) = (world.get::<&WaterTank>(cistern).unwrap().liters, vapour_held_l(&world, &data), home(&world).ledger);
-        // One game day, integrated on the plumbing's real minutes.
+        // One game day, integrated on the plumbing's game minutes.
         let span = (1200.0 / f64::from(scale)) as usize;
+        let game_dt = f64::from(dt * scale) * OLD_S;
         let (mut drawn, mut returned) = (0.0f64, 0.0f64);
         for _ in 0..span {
             let (d, r) = tick(&mut world);
-            drawn += d * f64::from(dt) / 60.0;
-            returned += r * f64::from(dt) / 60.0;
+            drawn += d * game_dt / 60.0;
+            returned += r * game_dt / 60.0;
         }
         let tank1 = world.get::<&WaterTank>(cistern).unwrap().liters;
         let (held1, ledger1) = (vapour_held_l(&world, &data), home(&world).ledger);
 
         // The tank side: the cistern moved by exactly what crossed.
         assert!((f64::from(tank1 - tank0) - (returned - drawn)).abs() < 0.05, "{scale}x: tank {tank0} -> {tank1}, drawn {drawn}, returned {returned}");
-        // Per day on the tanks' clock: drawn = returned + kept + lost.
-        let real_days = span as f64 * f64::from(dt) / 86_400.0;
-        let (drawn_d, returned_d) = (drawn / real_days, returned / real_days);
+        // Per game day: drawn = returned + kept + lost.
+        let game_days = span as f64 * game_dt / 86_400.0;
+        let (drawn_d, returned_d) = (drawn / game_days, returned / game_days);
         let reg = data.get::<PlantRegistry>("plant_registry").unwrap();
         let lettuce = reg.get("lettuce").unwrap();
         let plants = f64::from(units::plants_in_plot(lettuce, Some(10.0)));
@@ -282,12 +290,14 @@ fn air_handlers_hold_their_setpoints_and_return_the_water() {
     assert!(wet > gh + 0.03, "the greenhouse's water stays in the air: {gh} -> {wet}");
 }
 
-/// The simplified mode (Settings: Ship life support, Station-supplied, the
-/// default) takes the air machines' draw off the home's grid and changes
-/// nothing else: the rooms hold the same air and the same litres come back.
-/// Switched to Realistic, the same machines draw along their fan curve. Seen
-/// red by stopping the handlers in the simplified mode (the water then stayed
-/// in the air).
+/// The Ship life support mode changes only who supplies the air machines
+/// (2026-09-27, systems::ship_power): in the default Station-supplied mode the
+/// ship's reactor feeds their island, metered, and in the Realistic one the
+/// home's own generation does, so they draw the same watts along their fan
+/// curve either way, and the rooms hold the same air and the same litres come
+/// back. NOT yet seen red: keeping the old Station-supplied zeroing in the air
+/// step (the handlers drew 0 W there, so nothing reached the meter) should
+/// fail it, but that break was not run (2026-09-27, noted at merge).
 #[test]
 fn station_supplied_life_support_changes_only_who_pays() {
     let mut runs = Vec::new();
@@ -305,23 +315,21 @@ fn station_supplied_life_support_changes_only_who_pays() {
         runs.push((watts, returned_lpm(&world), m.rooms["room-a"].vapour_g_m3, m.home_air.vapour_g_m3));
     }
     let ((w0, r0, g0, h0), (w1, r1, g1, h1)) = (runs[0], runs[1]);
-    assert_eq!(w0, 0.0, "the station's plant powers them: no draw on the home");
-    assert!(w1 > 0.0, "Realistic: the home's grid pays {w1} W");
+    assert!(w0 > 0.0 && (w0 - w1).abs() < 1e-9, "the same draw in either mode: {w0} W and {w1} W");
     assert!(r0 > 0.0 && (r0 - r1).abs() < 1e-9 && (g0 - g1).abs() < 1e-12 && (h0 - h1).abs() < 1e-12, "the same air and water either way: {runs:?}");
 }
 
-/// The air machines with the ELECTRICAL SYSTEM ticking on a short island
-/// (2026-09-27, the critic's review of v0.1377): every solar island is short at
-/// night (solar gives nothing from 18:00 to 06:00 and the wind 150 W), and in
-/// the default Station-supplied mode the air handlers take nothing from the
-/// home's grid. Here the island has 150 W against a 500 W load and two air
-/// handlers spawned drawing their 325 W nameplate, as the home's spawn gives
-/// them. They must keep (or get back) their power, and keep handing the water
-/// back. Seen red twice: with the electrical sim shedding 0 W loads (`*draw >
-/// 0.0`; the handlers went off at their first 0 W and stayed off), and with the
-/// air step writing only a powered unit's draw (the shed handlers kept asking
-/// for their 325 W nameplate, a phantom 650 W on the island, and never came
-/// back); either way no water came back.
+/// The air machines with the ELECTRICAL SYSTEM ticking through a night
+/// (2026-09-27, the critic's review of v0.1377, then the ship's reactor the
+/// same day): every solar island is short at night. Here the island makes
+/// 150 W against a 500 W load and two air handlers spawned drawing their 325 W
+/// nameplate, and in the default Station-supplied mode the ship's reactor
+/// feeds it: nothing is shed, the handlers draw what their controller runs
+/// them at, the water comes back, and the reactor's share is metered. Seen
+/// red with the feed left out of the island's supply (the lamp and the
+/// handlers were shed and no water came back); before the reactor, with the
+/// electrical sim shedding 0 W loads and with the air step writing only a
+/// powered unit's draw.
 #[test]
 fn the_air_handlers_keep_their_power_through_a_short_night() {
     use crate::ecs::components::PowerGenerator;
@@ -329,6 +337,9 @@ fn the_air_handlers_keep_their_power_through_a_short_night() {
     let (mut data, mut world, _) = greenhouse(1000.0);
     data.insert("power_status", Mutex::new(PowerStatus::default()));
     data.insert(life_support::MODE_KEY, Mutex::new(false)); // Station-supplied, the default
+    crate::systems::ship_power::register(&mut data);
+    // The tap on this island (these test entities carry no circuit).
+    world.spawn((crate::systems::ship_power::ShipFeed { home: crate::systems::ship_power::PLAYER_HOME.into() },));
     world.spawn((PowerGenerator { output_watts: 150.0, fuel_per_second: 0.0, active: true },));
     let lamp = world.spawn((PowerConsumer { draw_watts: 500.0, priority: 3, enabled: true },));
     for (_, (_, pc)) in world.query_mut::<(&AirHandler, &mut PowerConsumer)>() {
@@ -341,10 +352,11 @@ fn the_air_handlers_keep_their_power_through_a_short_night() {
         advance(&data, 1.0);
         sys.tick(&mut world, 1.0, &data);
     }
-    assert!(!world.get::<&PowerConsumer>(lamp).unwrap().enabled, "the island is short: the 500 W load is shed");
+    assert!(world.get::<&PowerConsumer>(lamp).unwrap().enabled, "the reactor carries the 500 W load too");
     let handlers: Vec<(bool, f32)> = world.query::<(&AirHandler, &PowerConsumer)>().iter().map(|(_, (_, p))| (p.enabled, p.draw_watts)).collect();
-    // Powered, and asking the home's grid for nothing: no phantom 325 W each.
-    assert!(handlers.iter().all(|(on, w)| *on && *w == 0.0), "the station powers them, and they keep their place on the island: {handlers:?}");
+    assert!(handlers.iter().all(|(on, w)| *on && *w > 0.0 && *w <= 325.0), "powered, on their controller's curve: {handlers:?}");
+    let t = crate::systems::ship_power::tally(&data, crate::systems::ship_power::PLAYER_HOME, crate::systems::ship_power::POWER);
+    assert!(t.drawn > 0.0, "the reactor's share is metered: {t:?}");
     assert!(returned_lpm(&world) > 0.0, "the coils still hand the water back");
     let d = air();
     let rh = d.rh_of(memory(&world).rooms["room-a"].vapour_g_m3, d.room_temp_c);
@@ -831,10 +843,7 @@ mod shipped {
         data.insert(units::PLOT_AREA_KEY, areas);
         let mut world = hecs::World::new();
         let (power, water) = (home.electrical_islands(&all), home.water_islands(&all));
-        // Every machine but the RF emitters: the family home's Wi-Fi router, at
-        // full power, stunts the whole garden to death within minutes (its own
-        // lesson, farming's RF stress), and this measures the air, not that.
-        for inst in all.iter().filter(|i| !(home.catalog[&i.machine].rf_emission > 0.0)) {
+        for inst in &all {
             crate::engine::home_spawn::spawn_home_machine_entity(&mut world, inst, &home.catalog[&inst.machine], &power, &water, None, None);
         }
         crate::engine::home_spawn::spawn_home_air_space(&mut world, crate::engine::home_spawn::home_metabolic_kcal(&home));

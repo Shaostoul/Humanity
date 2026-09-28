@@ -17,6 +17,17 @@
 //! the way the ground turns), so every piece of a site shares them bit for
 //! bit and a save needs nothing but the body and the origin.
 //!
+//! MEMBERSHIP FOLLOWS THE PIECES, not the origin (2026-09-27, the review of
+//! the planet build). A new piece joins the site of the nearest piece
+//! already standing within [`SITE_JOIN_M`] of it, and the site the player is
+//! at is the site of the nearest piece within that reach ([`nearest_site`]).
+//! It used to be the nearest site ORIGIN, which broke on overlap: a hut built
+//! 900 m from its site's origin was ignored (no shelter, no bed, no chest,
+//! no roof snapping) as soon as a second site was started 200 m from the
+//! hut, because that origin was closer. Now the second site is never
+//! started there (the new piece joins the hut's site), and where two sites
+//! do meet, the player belongs to whichever has the nearest piece.
+//!
 //! Inside a site everything works exactly as it does aboard: the metre grid,
 //! turning, resting on top, the shelter rule, the look ray. A planet piece is
 //! a `Structure` (or a `Construction`) with a SITE-LOCAL `Transform`, metres
@@ -24,7 +35,10 @@
 //! has no `PlanetSite`. Pieces are only ever compared with pieces in the same
 //! frame ([`in_frame`]), which is what keeps a wall on Earth from holding up a
 //! roof on the ship. Across a site's reach ([`SITE_JOIN_M`]) Earth's
-//! curvature drops the ground by 8 cm, so the flat frame is honest.
+//! curvature drops the ground by 8 cm, so the flat frame is honest. A site
+//! grown piece by piece past that still sets every piece on the ground (its
+//! height is the ground's, taken in the site frame); what grows is only the
+//! lean of its vertical, 0.009 degrees per kilometre from the origin.
 //!
 //! Each frame the renderer draws a site piece at `render_off + rot * p`,
 //! where `render_off` and `rot` are the body's centre and orientation in
@@ -38,9 +52,11 @@ use crate::ecs::components::Transform;
 use glam::{DMat3, DQuat, DVec3, Quat, Vec3};
 use serde::{Deserialize, Serialize};
 
-/// How far from an existing site's origin a new piece joins that site (and
-/// its grid) rather than starting a site of its own, metres. A kilometre
-/// holds a homestead and its fields; curvature across it is 8 cm on Earth.
+/// How far from the nearest piece already built a new piece still joins that
+/// piece's site (and its grid) rather than starting a site of its own, and
+/// how far from a piece the player still counts as at its site, metres. A
+/// kilometre holds a homestead and its fields; curvature across it is 8 cm
+/// on Earth.
 pub const SITE_JOIN_M: f64 = 1_000.0;
 
 /// The planet-fixed frame a group of built pieces stands in.
@@ -112,31 +128,33 @@ pub fn in_frame(piece: Option<&PlanetSite>, frame: Option<&PlanetSite>) -> bool 
 }
 
 /// The site a piece placed from `feet` (a point on the ground, in `body`'s
-/// frame) goes into: the nearest site already standing on that body within
-/// [`SITE_JOIN_M`], so a new wall lines up on the same grid as the last one,
-/// or a new site with its origin at `feet`.
+/// frame) goes into: the site of the nearest piece already standing on that
+/// body within [`SITE_JOIN_M`] of it, so a new wall lines up on the same grid
+/// as the one beside it, or a new site with its origin at `feet`.
 pub fn site_for(world: &hecs::World, body: &str, feet: DVec3) -> PlanetSite {
     nearest_site(world, body, feet, SITE_JOIN_M).unwrap_or_else(|| PlanetSite { body: body.to_string(), origin: feet })
 }
 
-/// The nearest site on `body` with pieces in it (finished or going up) whose
-/// origin is within `within` metres of `at`, or None.
+/// The site of the PIECE (finished or going up) on `body` nearest to `at`,
+/// when that piece stands within `within` metres of it, or None. The
+/// distance is to the piece's own place (`site.to_body(position)`, f64), so
+/// a piece far from its site's origin still claims the ground around it.
 pub fn nearest_site(world: &hecs::World, body: &str, at: DVec3, within: f64) -> Option<PlanetSite> {
     let mut best: Option<(f64, PlanetSite)> = None;
-    let mut consider = |s: &PlanetSite| {
+    let mut consider = |tf: &Transform, s: &PlanetSite| {
         if s.body != body {
             return;
         }
-        let d = (s.origin - at).length();
+        let d = (s.to_body(tf.position) - at).length();
         if d <= within && best.as_ref().map_or(true, |(bd, _)| d < *bd) {
             best = Some((d, s.clone()));
         }
     };
-    for (_e, (_, s)) in world.query::<(&Structure, &PlanetSite)>().iter() {
-        consider(s);
+    for (_e, (_, tf, s)) in world.query::<(&Structure, &Transform, &PlanetSite)>().iter() {
+        consider(tf, s);
     }
-    for (_e, (_, s)) in world.query::<(&Construction, &PlanetSite)>().iter() {
-        consider(s);
+    for (_e, (_, tf, s)) in world.query::<(&Construction, &Transform, &PlanetSite)>().iter() {
+        consider(tf, s);
     }
     best.map(|(_, s)| s)
 }
@@ -193,5 +211,37 @@ mod tests {
         let far = ground(10.0, 10.0);
         assert_eq!(site_for(&world, "earth", far), PlanetSite { body: "earth".into(), origin: far });
         assert_eq!(site_for(&world, "moon", near_a).origin, near_a, "another body's site is never joined");
+    }
+
+    /// THE REVIEW'S OVERLAP SCENARIO. Site A's first piece is at its origin;
+    /// a hut (a wall and a roof) was then built 900 m east, still in A. A
+    /// piece placed 200 m past the hut (1,100 m from A's origin) joins A
+    /// through the hut, rather than starting a site of its own. And where a
+    /// second site B does exist with its ORIGIN 150 m from the hut (its only
+    /// piece 700 m from the hut), a player standing at the hut is in A: the
+    /// nearest piece is the hut's. Red check, run: the old origin rule
+    /// starts a new site 200 m past the hut and puts the player at the hut
+    /// in B, and both assertions fail.
+    #[test]
+    fn membership_follows_the_pieces_not_the_origin() {
+        let a = PlanetSite { body: "earth".into(), origin: ground(23.0, 13.0) };
+        let mut world = hecs::World::new();
+        let piece = |id: &str| Structure { blueprint_id: id.into(), health: 1.0, max_health: 1.0, provides: None, uid: 0 };
+        let at = |x: f32| Transform { position: Vec3::new(x, 0.0, 0.0), ..Transform::default() };
+        world.spawn((at(0.0), piece("wood_wall"), a.clone()));
+        world.spawn((at(900.0), piece("wood_wall"), a.clone()));
+        world.spawn((at(900.0), piece("roof"), a.clone()));
+        let past_the_hut = a.to_body(Vec3::new(1_100.0, 0.0, 0.0));
+        assert_eq!(site_for(&world, "earth", past_the_hut), a, "a piece 200 m past the hut joins the hut's site");
+        // A second site B, its origin 150 m from the hut and its one piece
+        // 700 m from it (1,600 m from A's origin: B began as its own site).
+        let b = PlanetSite { body: "earth".into(), origin: a.to_body(Vec3::new(900.0, 0.0, 150.0)) };
+        let b_piece_local = b.to_local(a.to_body(Vec3::new(1_600.0, 0.0, 0.0)));
+        world.spawn((Transform { position: b_piece_local, ..Transform::default() }, piece("wood_wall"), b.clone()));
+        let at_the_hut = a.to_body(Vec3::new(900.5, 1.7, 0.5));
+        assert_eq!(nearest_site(&world, "earth", at_the_hut, SITE_JOIN_M), Some(a.clone()), "at the hut, in the hut's site");
+        // Beside B's own piece, the player is in B.
+        let at_b = a.to_body(Vec3::new(1_600.0, 1.7, 3.0));
+        assert_eq!(nearest_site(&world, "earth", at_b, SITE_JOIN_M), Some(b), "beside B's piece, in B");
     }
 }

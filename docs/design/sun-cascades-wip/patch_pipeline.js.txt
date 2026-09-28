@@ -1,0 +1,207 @@
+// Apply the sun-cascade switch to src/renderer/pipeline.rs (increment 1).
+const fs = require("fs");
+const path = require("path");
+const ROOT = process.argv[2];
+const file = path.join(ROOT, "src", "renderer", "pipeline.rs");
+let t = fs.readFileSync(file, "utf8");
+const crlf = t.includes("\r\n");
+const N = (s) => (crlf ? s.replace(/\r?\n/g, "\r\n") : s);
+function rep(a, b, count = 1) {
+  a = N(a);
+  b = N(b);
+  const n = t.split(a).length - 1;
+  if (n !== count) throw new Error(`found ${n}x (want ${count}): ${a.slice(0, 90)}`);
+  t = t.split(a).join(b);
+}
+
+rep(
+  `/// Every feature switch (see \`FEATURE_ROOM_GI\`).
+pub const ALL_FEATURE_SWITCHES: &[&str] = &[FEATURE_ROOM_GI];
+
+/// Every switch the megashader declares, in declaration order: the shell
+/// switches, then the feature switches. The permutation tests and
+/// \`shader_loader::validate_wgsl\` require each one to exist with a \`= true\`
+/// default, so every pipeline that does NOT name a switch keeps its code.
+pub const ALL_SWITCHES: &[&str] = &[BRANCH_ATMOSPHERE, BRANCH_CLOUD, BRANCH_OCEAN, FEATURE_ROOM_GI];`,
+  `/// Every feature switch (see \`FEATURE_ROOM_GI\`).
+pub const ALL_FEATURE_SWITCHES: &[&str] = &[FEATURE_ROOM_GI];
+
+/// The near sun cascades (2026-09-27, docs/design/sun-cascades.md): the
+/// sample of the atlas's near tiles. A LIGHTING switch, a third kind: it
+/// guards one line in each of the three class entries that draw lit OPAQUE
+/// surfaces (fs_surface, fs_terrain, fs_vegetation), right after
+/// frag_prologue, writing \`FragSetup.sun_vis\`; frag_tail then reads that
+/// value and no switch. Live in the surface, terrain and vegetation PSOs,
+/// compiled out of the water, shell and cloud PSOs (which never draw a home
+/// or a build site) and the three sun-shadow PSOs.
+///
+/// Its own list, not \`ALL_BRANCH_SWITCHES\`: that list feeds the shell band
+/// parser (\`guarded_dispatch_bands\`, one \`material_type\` band per switch)
+/// and the "each switch live in exactly one class" rule, both of which are
+/// about shell dispatches and neither of which a lighting sample has.
+pub const LIGHTING_SUN_CASCADES: &str = "HAS_SUN_CASCADES_BRANCH";
+
+/// Every lighting switch (see \`LIGHTING_SUN_CASCADES\`).
+pub const LIGHTING_SWITCHES: &[&str] = &[LIGHTING_SUN_CASCADES];
+
+/// Every switch the megashader declares, in declaration order: the shell
+/// switches, then the feature switches, then the lighting switches. The
+/// permutation tests and \`shader_loader::validate_wgsl\` require each one to
+/// exist with a \`= true\` default, so every pipeline that does NOT name a
+/// switch keeps its code.
+pub const ALL_SWITCHES: &[&str] =
+    &[BRANCH_ATMOSPHERE, BRANCH_CLOUD, BRANCH_OCEAN, FEATURE_ROOM_GI, LIGHTING_SUN_CASCADES];
+
+/// What the terrain PSOs compile out: every shell branch and room GI, keeping
+/// only the near sun cascades (a build site's shadow falls on the ground).
+const TERRAIN_DEAD: &[&str] = &[BRANCH_ATMOSPHERE, BRANCH_CLOUD, BRANCH_OCEAN, FEATURE_ROOM_GI];`
+);
+
+rep(
+  `    pub const fn live_features(self) -> &'static [&'static str] {
+        match self {
+            ShaderClass::Surface | ShaderClass::Vegetation => ALL_FEATURE_SWITCHES,
+            ShaderClass::Terrain | ShaderClass::Water | ShaderClass::Shell | ShaderClass::Cloud => &[],
+        }
+    }
+`,
+  `    pub const fn live_features(self) -> &'static [&'static str] {
+        match self {
+            ShaderClass::Surface | ShaderClass::Vegetation => ALL_FEATURE_SWITCHES,
+            ShaderClass::Terrain | ShaderClass::Water | ShaderClass::Shell | ShaderClass::Cloud => &[],
+        }
+    }
+
+    /// The LIGHTING switches this class's pipelines keep ON: the near sun
+    /// cascades, in the three classes that draw lit opaque surfaces (their
+    /// entries each guard the one sample line). Water, shells and clouds
+    /// read only the far map.
+    pub const fn live_lighting(self) -> &'static [&'static str] {
+        match self {
+            ShaderClass::Surface | ShaderClass::Terrain | ShaderClass::Vegetation => LIGHTING_SWITCHES,
+            ShaderClass::Water | ShaderClass::Shell | ShaderClass::Cloud => &[],
+        }
+    }
+`
+);
+
+rep(
+  `    /// The complement of \`live_branches\` + \`live_features\` over`,
+  `    /// The complement of \`live_branches\` + \`live_features\` + \`live_lighting\` over`
+);
+
+rep(
+  `            ShaderClass::Surface | ShaderClass::Vegetation => ALL_BRANCH_SWITCHES,
+            ShaderClass::Terrain => &[BRANCH_ATMOSPHERE, BRANCH_CLOUD, BRANCH_OCEAN, FEATURE_ROOM_GI],
+            ShaderClass::Water => &[BRANCH_ATMOSPHERE, BRANCH_CLOUD, FEATURE_ROOM_GI],
+            ShaderClass::Shell => &[BRANCH_CLOUD, BRANCH_OCEAN, FEATURE_ROOM_GI],
+            ShaderClass::Cloud => &[BRANCH_ATMOSPHERE, BRANCH_OCEAN, FEATURE_ROOM_GI],`,
+  `            ShaderClass::Surface | ShaderClass::Vegetation => ALL_BRANCH_SWITCHES,
+            ShaderClass::Terrain => TERRAIN_DEAD,
+            ShaderClass::Water => &[BRANCH_ATMOSPHERE, BRANCH_CLOUD, FEATURE_ROOM_GI, LIGHTING_SUN_CASCADES],
+            ShaderClass::Shell => &[BRANCH_CLOUD, BRANCH_OCEAN, FEATURE_ROOM_GI, LIGHTING_SUN_CASCADES],
+            ShaderClass::Cloud => &[BRANCH_ATMOSPHERE, BRANCH_OCEAN, FEATURE_ROOM_GI, LIGHTING_SUN_CASCADES],`
+);
+
+// ── tests ──
+rep(
+  `            let mut live: Vec<String> = class.live_branches().iter().map(|s| s.to_string()).collect();
+            live.sort();
+            assert_eq!(
+                read, live,`,
+  `            let mut live: Vec<String> =
+                class.live_branches().iter().chain(class.live_lighting()).map(|s| s.to_string()).collect();
+            live.sort();
+            assert_eq!(
+                read, live,`
+);
+
+rep(
+  `                    let live = class.live_branches().contains(name) || class.live_features().contains(name);`,
+  `                    let live = class.live_branches().contains(name)
+                        || class.live_features().contains(name)
+                        || class.live_lighting().contains(name);`
+);
+
+rep(
+  `        // The opaque classes all compile every SHELL branch out: an opaque
+        // fragment never enters a shell. The two that draw room interiors
+        // keep room GI; the terrain PSOs switch it off as well.
+        for (label, dead) in [
+            ("PBR-lite Surface Render Pipeline", ALL_BRANCH_SWITCHES),
+            ("PBR-lite Terrain Render Pipeline", ALL_SWITCHES),
+            ("PBR-lite Vegetation Render Pipeline", ALL_BRANCH_SWITCHES),
+            ("Patch Batch Render Pipeline", ALL_SWITCHES),
+        ] {`,
+  `        // The opaque classes all compile every SHELL branch out: an opaque
+        // fragment never enters a shell. The two that draw room interiors
+        // keep room GI; the terrain PSOs switch it off as well. All three
+        // keep the near sun cascades.
+        for (label, dead) in [
+            ("PBR-lite Surface Render Pipeline", ALL_BRANCH_SWITCHES),
+            ("PBR-lite Terrain Render Pipeline", TERRAIN_DEAD),
+            ("PBR-lite Vegetation Render Pipeline", ALL_BRANCH_SWITCHES),
+            ("Patch Batch Render Pipeline", TERRAIN_DEAD),
+        ] {`
+);
+
+// The new test, right after the room GI one.
+rep(
+  `    /// The expected registry, PSO by PSO. A hand-written twin of`,
+  `    /// THE NEAR SUN CASCADES' SWITCH (2026-09-27, docs/design/sun-cascades.md).
+    /// The cascade function is called in exactly three places before
+    /// fs_shadow, each the line right after its guard
+    /// \`if (HAS_SUN_CASCADES_BRANCH && shadow_u.near.ctl.x > 0.5) {\`, which is
+    /// the first statement after frag_prologue in fs_surface, fs_terrain and
+    /// fs_vegetation; frag_tail and frag_prologue read no lighting switch; and
+    /// the switch is live in exactly those three classes' PSOs and dead in
+    /// every other row (water, shell, cloud, the three sun-shadow PSOs). Seen
+    /// fail first by calling the function unguarded from frag_tail (the use
+    /// count named the extra site), then restored.
+    #[test]
+    fn the_sun_cascade_sample_is_guarded_at_three_sites_only() {
+        let main = code_only(class_entries_side());
+        let guard = format!("if ({LIGHTING_SUN_CASCADES} && shadow_u.near.ctl.x > 0.5) {{");
+        let sites: Vec<usize> = main.match_indices(&guard).map(|(p, _)| p).collect();
+        let entries = ["fs_surface", "fs_terrain", "fs_vegetation"];
+        assert_eq!(sites.len(), entries.len(), "one {guard:?} per lit opaque class entry, found {}", sites.len());
+        for entry in entries {
+            let (start, end) = function_body(&main, entry);
+            let here: Vec<usize> = sites.iter().copied().filter(|&p| p > start && p < end).collect();
+            assert_eq!(here.len(), 1, "{entry} must hold exactly one sun-cascade guard");
+            // The guard comes right after the prologue: nothing but the
+            // prologue call between the entry's opening brace and it.
+            let before = main[start..here[0]].trim();
+            assert!(
+                before.starts_with("var s = frag_prologue(in);") && before.matches(';').count() == 1,
+                "{entry}: the sun-cascade guard must be the first statement after frag_prologue, found {before:?}"
+            );
+            let next_line = main[here[0] + guard.len()..].lines().nth(1).unwrap_or("").trim();
+            assert!(
+                next_line.starts_with("s.sun_vis = sun_cascade_visibility("),
+                "{entry}: the line after the guard must set s.sun_vis from sun_cascade_visibility, found {next_line:?}"
+            );
+        }
+        let uses: Vec<usize> = identifier_sites(&main, "sun_cascade_visibility")
+            .into_iter()
+            .filter(|&p| !main[..p].ends_with("fn "))
+            .collect();
+        assert_eq!(uses.len(), 3, "sun_cascade_visibility must be called at exactly the three guarded sites");
+        for helper in ["frag_prologue", "frag_tail"] {
+            let read = switches_read_by(&main, helper);
+            assert!(!read.contains(&LIGHTING_SUN_CASCADES.to_string()), "{helper} must not read {LIGHTING_SUN_CASCADES}");
+        }
+        let owners: Vec<ShaderClass> =
+            ShaderClass::ALL.iter().copied().filter(|c| c.live_lighting().contains(&LIGHTING_SUN_CASCADES)).collect();
+        assert_eq!(owners, vec![ShaderClass::Surface, ShaderClass::Terrain, ShaderClass::Vegetation]);
+        for row in PSO_REGISTRY {
+            let live = row.class.is_some_and(|c| owners.contains(&c));
+            assert_eq!(!row.dead.contains(&LIGHTING_SUN_CASCADES), live, "{}: sun cascades live = {live}", row.label);
+        }
+    }
+
+    /// The expected registry, PSO by PSO. A hand-written twin of`
+);
+
+fs.writeFileSync(file, t);
+console.log("pipeline.rs patched");

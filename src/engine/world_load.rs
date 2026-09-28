@@ -250,6 +250,12 @@ pub(crate) fn load_world(state: &mut EngineState) {
                 })
                 .collect();
             state.gui_state.machine_labels.clear();
+            // What the old machines hold (each bank's charge, tank's litres and
+            // vessel's contents), plus a save's contents held since startup, to put
+            // back on the new ones below (2026-09-27, engine::machine_levels):
+            // respawning used to reset every bank and tank to half and empty
+            // every vessel, at each world entry.
+            let carried_levels = crate::engine::machine_levels::take_all(&mut state.game_world.world);
             // Despawn any previously-spawned home machine entities so re-entering the
             // world never duplicates the live power entities (load_world can re-run).
             {
@@ -413,7 +419,15 @@ pub(crate) fn load_world(state: &mut EngineState) {
                 );
                 placed += 1;
             }
+            crate::engine::home_spawn::spawn_home_feed_taps(&mut state.game_world.world, &home, &all_instances, &power_islands);
             log::info!("Machines: placed {placed} machines");
+            // Their levels back, by instance id. What is left belongs to a machine
+            // no longer in the layout, which takes its contents with it, as
+            // removing one in the editor always has.
+            let orphaned = crate::engine::machine_levels::apply(&mut state.game_world.world, &carried_levels);
+            if !orphaned.is_empty() {
+                log::warn!("Machines: {} saved machine levels had no machine to go to: {:?}", orphaned.len(), orphaned);
+            }
 
             // In-world screens (rung 2): a page surface + display quad for
             // every placed machine whose def carries a `screen`. Built here
@@ -983,11 +997,22 @@ pub(crate) fn load_world(state: &mut EngineState) {
             crate::station::orbit::MU_EARTH,
             crate::station::orbit::REAL_SECONDS_PER_DAY,
             0.0,
+            crate::systems::time::EARTH_DAY_S,
         );
         state.station_world_pos = pos;
         state.station_world_rot =
             crate::station::orbit::attitude(&state.station_def.attitude, pos, vel);
         state.ship_world_pos = pos;
+        // The longitude the home hangs over, so its panels, grow lights and
+        // crops see the sun the deck sees and the HUD reads the deck's time
+        // (BUG-090). A home on any other orbit has no fixed place below it
+        // and keeps the game clock (longitude 0).
+        if let Some(lon) = crate::station::orbit::hang_longitude_deg(
+            &state.station_def.orbit,
+            crate::systems::time::EARTH_DAY_S,
+        ) {
+            state.data_store.insert(crate::systems::time::HOME_LONGITUDE_KEY, lon);
+        }
         log::info!(
             "station: {} on a {:.0} km orbit of {}, {:?}",
             state.station_def.name,

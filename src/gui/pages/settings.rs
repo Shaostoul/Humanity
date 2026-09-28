@@ -3475,10 +3475,6 @@ pub(crate) fn draw_gameplay_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
         );
 
         ui.add_space(theme.spacing_lg);
-        // Crop growth speed (operator, 2026-09-20). A multiplier on crop growth
-        // ONLY: the world clock, day/night and weather all keep running at real
-        // time. plants.csv keeps its real agricultural growth_days, so 1x stays a
-        // truthful mode and the displayed numbers stay teachable at every rung.
         // Garden pests (2026-09-26, the dual-mode house rule for deep systems).
         ui.label(RichText::new("Garden pests, diseases and weeds").color(theme.text_secondary()).strong());
         ui.add_space(theme.spacing_xs);
@@ -3524,7 +3520,7 @@ pub(crate) fn draw_gameplay_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
         ui.add_space(theme.spacing_lg);
         ui.label(RichText::new("Ship life support").color(theme.text_secondary()).strong());
         ui.add_space(theme.spacing_xs);
-        widgets::setting_hint(ui, theme, hint, "Aboard the station every litre the crops breathe out is condensed back out of the air by the air handlers and returned to the tanks, and the crops, the people and the mushrooms trade carbon dioxide and oxygen through the home's air. That happens either way. Station-supplied has the station's own plant power the air handlers and the CO2 scrubber; Realistic puts their draw on your home's grid, which at full planting is more than the rest of the home uses.");
+        widgets::setting_hint(ui, theme, hint, "Aboard the station every litre the crops breathe out is condensed back out of the air by the air handlers and returned to the tanks, and the crops, the people and the mushrooms trade carbon dioxide and oxygen through the home's air. That happens either way. Station-supplied ties your home to the ship's reactor: it supplies whatever your own panels and batteries do not, air machines included, and every kilowatt-hour is metered on the Home page, so nothing browns out. Realistic unties it: your home runs on what it makes and stores, and at full planting the air machines alone use more than the rest of the home.");
         ui.horizontal(|ui| {
             for (realistic, label) in [(false, "Station-supplied"), (true, "Realistic")] {
                 let selected = state.garden_pests.life_support_realistic == realistic;
@@ -3549,37 +3545,9 @@ pub(crate) fn draw_gameplay_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
             }
         });
         ui.add_space(theme.spacing_lg);
-        ui.label(RichText::new("Crop growth speed").color(theme.text_secondary()).strong());
-        ui.add_space(theme.spacing_xs);
-        widgets::setting_hint(ui, theme, hint, "How fast plants grow, and nothing else: the clock, the seasons and the weather are untouched. 1x is real agricultural time, where even a fast crop takes hours. Applies immediately, including to plants already in the ground.");
-        ui.horizontal(|ui| {
-            for preset in crate::systems::farming::CROP_GROWTH_SPEED_PRESETS {
-                let selected =
-                    (state.settings.crop_growth_speed - preset).abs() < f32::EPSILON;
-                let label = format!("{}x", preset);
-                if ui.radio(selected, RichText::new(label).color(theme.text_primary())).clicked()
-                    && !selected
-                {
-                    state.settings.crop_growth_speed = preset;
-                    state.settings_dirty = true;
-                }
-            }
-        });
-        // The free slider under the presets: the operator asked for a "custom
-        // option", so the three rungs are shortcuts, not the whole choice.
-        let mut speed = state.settings.crop_growth_speed;
-        if widgets::labeled_slider(
-            ui,
-            theme,
-            "Custom",
-            &mut speed,
-            crate::systems::farming::MIN_CROP_GROWTH_SPEED
-                ..=crate::systems::farming::MAX_CROP_GROWTH_SPEED,
-        ) {
-            state.settings.crop_growth_speed =
-                crate::systems::farming::clamp_growth_speed(speed);
-            state.settings_dirty = true;
-        }
+        // Time (2026-09-27): the one game clock's three settings, in their
+        // own module because this file is past its size.
+        super::settings_time::draw(ui, theme, state, hint);
         // Fresh world each launch (operator, 2026-09-25): during development,
         // every session starts from the default home so what you see is what
         // a new player gets.

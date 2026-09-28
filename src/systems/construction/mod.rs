@@ -56,6 +56,59 @@ pub struct Blueprint {
     /// Shed priority (1 critical .. 5 optional), as the machines use.
     #[serde(default)]
     pub power_priority: u8,
+    /// What a built GENERATOR makes (2026-09-27): a solar panel's peak watts,
+    /// or a steady generator's watts, in the home machines' own terms
+    /// (`machines::MachinePower::Solar` / `Generator`). Once built it joins
+    /// the power of where it stands (see `wire_built_generators`), and what it
+    /// makes offsets what that island draws from the ship's reactor. None =
+    /// it makes no power.
+    #[serde(default)]
+    pub generates: Option<crate::machines::MachinePower>,
+}
+
+/// Give every finished structure whose blueprint GENERATES power a live
+/// generator (2026-09-27): a `PowerGenerator` (and a `SolarPanel`, which the
+/// SolarSystem runs with the sun) on a power island. A generator built in the
+/// home joins the home's strongest island, the one the ship's reactor feeds
+/// in the Station-supplied mode, so what it makes is drawn from the reactor
+/// one watt less for one watt; one built on a planet site gets that site's
+/// own island (`ship_power::site_island`), which no reactor reaches, and
+/// which the site's electric stations then join (`site_power_island`).
+pub fn wire_built_generators(world: &mut hecs::World, registry: &BlueprintRegistry) {
+    use crate::ecs::components::{PowerCircuit, PowerGenerator, SolarPanel};
+    use crate::machines::MachinePower;
+    let todo: Vec<(hecs::Entity, MachinePower, Option<PlanetSite>)> = world
+        .query::<hecs::Without<(&Structure, Option<&PlanetSite>), &PowerGenerator>>()
+        .iter()
+        .filter_map(|(e, (s, site))| registry.get(&s.blueprint_id)?.generates.clone().map(|g| (e, g, site.cloned())))
+        .collect();
+    if todo.is_empty() {
+        return;
+    }
+    let mut by_island: HashMap<u32, f32> = HashMap::new();
+    for (_e, (g, pc)) in world.query::<hecs::Without<(&PowerGenerator, &PowerCircuit), &PlanetSite>>().iter() {
+        *by_island.entry(pc.island).or_default() += g.output_watts;
+    }
+    let home_island = by_island
+        .into_iter()
+        .max_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal))
+        .map_or(0, |(i, _)| i);
+    for (e, power, site) in todo {
+        let island = site.as_ref().map_or(home_island, crate::systems::ship_power::site_island);
+        let _ = world.insert_one(e, PowerCircuit { island });
+        match power {
+            MachinePower::Solar { peak_watts, .. } => {
+                let _ = world.insert(
+                    e,
+                    (PowerGenerator { output_watts: peak_watts, fuel_per_second: 0.0, active: true }, SolarPanel { peak_watts }),
+                );
+            }
+            MachinePower::Generator { watts, fuel_lph } if fuel_lph <= 0.0 => {
+                let _ = world.insert_one(e, PowerGenerator { output_watts: watts, fuel_per_second: 0.0, active: true });
+            }
+            _ => log::warn!("a blueprint's `generates` must be Solar or a fuel-free Generator"),
+        }
+    }
 }
 
 /// Where a placed piece sits (2026-09-27). Data, not code: a blueprint says
@@ -104,60 +157,124 @@ impl BuildRequest {
 }
 
 /// Give every finished structure whose blueprint draws power the components
-/// a placed station machine carries (2026-09-26): its station type, a power
-/// consumer at idle draw, its working/idle loads, on the home's strongest
-/// power island (the one with the most generation). The crafting system then
-/// refuses a craft there without power and raises its draw while it works.
-/// Runs each tick, so it also covers structures restored from a save.
+/// a placed station machine carries (2026-09-26): its station type and its
+/// working/idle loads, and a power consumer at idle draw on a power island.
+/// The crafting system then refuses a craft there without power and raises
+/// its draw while it works. Runs each tick, so it also covers structures
+/// restored from a save.
+///
+/// WHICH GRID (2026-09-27, the planet-build review). A station built in the
+/// home joins the home's strongest island (the one with the most
+/// generation), as before. A station built on a planet's ground does NOT:
+/// the home is in orbit, and a stove on Earth drawing from its batteries
+/// was a leak. It joins the power of its own build site, when something in
+/// that site makes power ([`site_power_island`]); until then it carries its
+/// station type and its loads but no power consumer, so it reads as a
+/// station with no power (`CraftingSystem::station_unpowered_at`), and it is
+/// wired the tick its site gains power.
 pub fn wire_built_stations(world: &mut hecs::World, registry: &BlueprintRegistry) {
     use crate::ecs::components::{MachineType, PowerCircuit, PowerConsumer, PowerGenerator, StationLoad};
-    let todo: Vec<(hecs::Entity, String, f32, f32, u8)> = world
-        .query::<hecs::Without<&Structure, &StationLoad>>()
+    let electric = |s: &Structure| {
+        let bp = registry.get(&s.blueprint_id)?;
+        let station = bp.stations.first()?.clone();
+        (bp.power_watts > 0.0).then(|| (station, bp.power_watts, bp.idle_watts, bp.power_priority.max(1)))
+    };
+    // Not wired yet: new, or restored from a save, or a planet station whose
+    // site had no power when it was last looked at.
+    let todo: Vec<(hecs::Entity, String, f32, f32, u8, Option<PlanetSite>)> = world
+        .query::<hecs::Without<(&Structure, Option<&PlanetSite>), &PowerConsumer>>()
         .iter()
-        .filter_map(|(e, s)| {
-            let bp = registry.get(&s.blueprint_id)?;
-            let station = bp.stations.first()?.clone();
-            (bp.power_watts > 0.0).then(|| (e, station, bp.power_watts, bp.idle_watts, bp.power_priority.max(1)))
-        })
+        .filter_map(|(e, (s, site))| electric(s).map(|(st, w, i, p)| (e, st, w, i, p, site.cloned())))
         .collect();
     if todo.is_empty() {
         return;
     }
+    // The home's islands: generation that is not on a planet.
     let mut by_island: HashMap<u32, f32> = HashMap::new();
-    for (_e, (g, pc)) in world.query::<(&PowerGenerator, &PowerCircuit)>().iter() {
+    for (_e, (g, pc)) in world.query::<hecs::Without<(&PowerGenerator, &PowerCircuit), &PlanetSite>>().iter() {
         *by_island.entry(pc.island).or_default() += g.output_watts;
     }
-    let island = by_island
+    let home_island = by_island
         .into_iter()
         .max_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal))
         .map_or(0, |(i, _)| i);
-    for (e, station, watts, idle, priority) in todo {
-        let _ = world.insert(
-            e,
-            (
-                MachineType(station),
-                PowerConsumer { draw_watts: idle, priority, enabled: true },
-                StationLoad { active_watts: watts, idle_watts: idle },
-                PowerCircuit { island },
-            ),
-        );
+    for (e, station, watts, idle, priority, site) in todo {
+        let island = match &site {
+            None => Some(home_island),
+            Some(s) => site_power_island(world, s),
+        };
+        let _ = world.insert(e, (MachineType(station), StationLoad { active_watts: watts, idle_watts: idle }));
+        if let Some(island) = island {
+            let _ = world.insert(e, (PowerConsumer { draw_watts: idle, priority, enabled: true }, PowerCircuit { island }));
+        }
     }
 }
 
-/// Every machine type the player's FINISHED structures serve as, for the
-/// recipe station gate (see `Blueprint::stations`). A scaffold still going
-/// up is a `Construction`, not a `Structure`, so it serves as nothing yet.
+/// The power island of a planet build site: the island of a generator that
+/// stands in `site`, or None when nothing there makes power (the home's
+/// generators are in orbit and never count).
+pub fn site_power_island(world: &hecs::World, site: &PlanetSite) -> Option<u32> {
+    use crate::ecs::components::{PowerCircuit, PowerGenerator};
+    let mut q = world.query::<(&PowerGenerator, &PowerCircuit, &PlanetSite)>();
+    let found = q.iter().find(|(_e, (_, _, s))| *s == site).map(|(_e, (_, pc, _))| pc.island);
+    found
+}
+
+/// Where the player's crafting stations are this frame (2026-09-27, the
+/// planet-build review): aboard, the home's machines and the pieces built in
+/// the home; on a planet's ground, the stations built in the site they stand
+/// in; anywhere else (open space, a planet with nothing built near) none.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub enum StationsWhere {
+    #[default]
+    Home,
+    Site(PlanetSite),
+    Nowhere,
+}
+
+impl StationsWhere {
+    /// The frame whose pieces serve here (None = the home), or None nowhere.
+    pub fn frame(&self) -> Option<Option<&PlanetSite>> {
+        match self {
+            StationsWhere::Home => Some(None),
+            StationsWhere::Site(s) => Some(Some(s)),
+            StationsWhere::Nowhere => None,
+        }
+    }
+}
+
+/// Every machine type the player's FINISHED structures in `frame` serve as
+/// (None = the home frame), for the recipe station gate (see
+/// `Blueprint::stations`). A scaffold still going up is a `Construction`,
+/// not a `Structure`, so it serves as nothing yet. A furnace built on Earth
+/// is a smelter only at its site, never for a craft aboard the home.
 pub fn built_station_types(
     world: &hecs::World,
     registry: &BlueprintRegistry,
+    frame: Option<&PlanetSite>,
 ) -> std::collections::HashSet<String> {
     let mut out = std::collections::HashSet::new();
-    for (_e, s) in world.query::<&Structure>().iter() {
+    for (_e, (s, site)) in world.query::<(&Structure, Option<&PlanetSite>)>().iter() {
+        if !site::in_frame(site, frame) {
+            continue;
+        }
         if let Some(bp) = registry.get(&s.blueprint_id) {
             out.extend(bp.stations.iter().cloned());
         }
     }
     out
+}
+
+/// The first material a build of `bp` is short of, and how many more it
+/// needs, or None when there is enough. `pack` counts what the builder
+/// carries; `stores` what the home's storage holds, or None on a planet,
+/// where only what the player carries can be used (the home's storage is in
+/// orbit; the planet-build review, 2026-09-27).
+pub fn materials_short(bp: &Blueprint, pack: impl Fn(&str) -> u32, stores: Option<&dyn Fn(&str) -> u32>) -> Option<(String, u32)> {
+    bp.materials.iter().find_map(|(id, qty)| {
+        let have = pack(id) + stores.map_or(0, |s| s(id));
+        (have < *qty).then(|| (id.clone(), qty - have))
+    })
 }
 
 /// Registry of all available blueprints.
@@ -298,13 +415,20 @@ impl System for ConstructionSystem {
                 status = Some("No builder inventory".to_string());
                 continue;
             };
+            // On a planet only the pack counts: the home's storage is in
+            // orbit (review of the planet build, 2026-09-27).
+            let on_planet = req.site.is_some();
             let missing: Option<String> = {
                 let inv = world
                     .get::<&crate::systems::inventory::Inventory>(player)
                     .expect("player inventory queried above");
-                bp.materials.iter().find_map(|(id, qty)| {
-                    let have = inv.count_item(id) + home_count(id);
-                    (have < *qty).then(|| format!("need {}x {} to build {}", qty - have, id, bp.name))
+                let stores: Option<&dyn Fn(&str) -> u32> = if on_planet { None } else { Some(&home_count) };
+                materials_short(&bp, |id| inv.count_item(id), stores).map(|(id, more)| {
+                    if on_planet {
+                        format!("need {more}x {id} more in your pack to build {} here: on a planet you build from what you carry", bp.name)
+                    } else {
+                        format!("need {more}x {id} to build {}", bp.name)
+                    }
                 })
             };
             if let Some(m) = missing {
@@ -318,7 +442,7 @@ impl System for ConstructionSystem {
                         inv.remove_item(id, from_pack);
                     }
                     let remainder = qty - from_pack;
-                    if remainder > 0 {
+                    if remainder > 0 && !on_planet {
                         if let Some(m) = home_stock.as_ref() {
                             if let Ok(mut s) = m.lock() {
                                 if let Some(c) = s.get_mut(id) {
@@ -396,7 +520,9 @@ impl System for ConstructionSystem {
         uses::assign_uids(world);
 
         // Built electric stations join the home's power (2026-09-26).
+        // Generators first, so a site's stations find its island this tick.
         if let Some(reg) = registry.as_ref() {
+            wire_built_generators(world, reg);
             wire_built_stations(world, reg);
         }
 
@@ -477,18 +603,18 @@ mod tests {
     fn built_structures_serve_as_their_stations_once_finished() {
         let reg = shipped_registry();
         let mut world = hecs::World::new();
-        assert!(built_station_types(&world, &reg).is_empty());
+        assert!(built_station_types(&world, &reg, None).is_empty());
         world.spawn((Construction {
             blueprint_id: "furnace".into(),
             progress: 1.0,
             build_time: 12.0,
             builder_key: None,
         },));
-        assert!(built_station_types(&world, &reg).is_empty(), "a scaffold is not a smelter yet");
+        assert!(built_station_types(&world, &reg, None).is_empty(), "a scaffold is not a smelter yet");
         for id in ["furnace", "crafting_table", "wood_wall"] {
             world.spawn((Structure { blueprint_id: id.into(), health: 1.0, max_health: 1.0, provides: None, uid: 0 },));
         }
-        let got = built_station_types(&world, &reg);
+        let got = built_station_types(&world, &reg, None);
         assert!(got.contains("smelter") && got.contains("workbench"), "{got:?}");
         assert!(got.contains("kiln"), "a furnace fires clay too: {got:?}");
     }
@@ -515,6 +641,89 @@ mod tests {
         assert!(world.get::<&PowerConsumer>(bench).is_err(), "a workbench needs no power");
         wire_built_stations(&mut world, &reg);
         assert_eq!(world.query::<&StationLoad>().iter().count(), 1, "wired once, not again");
+    }
+
+    /// THE HOME'S GRID STAYS IN ORBIT (planet-build review, 2026-09-27). A
+    /// stove built at a site on Earth, while the home has 3 kW of generation,
+    /// is not put on the home's island: it has its station type and its
+    /// loads, no power consumer, and so it reads as a stove with no power
+    /// at its site, while a stove built in the home is powered there. It is
+    /// a station only in its own frame. When its site gains a generator of
+    /// its own, it is wired to that generator's island. Red check, run: the
+    /// old wiring (every station onto the strongest island) puts the Earth
+    /// stove on the home's island 2 and the first assertion fails.
+    #[test]
+    fn a_stove_built_on_a_planet_is_not_on_the_homes_grid() {
+        use crate::ecs::components::{PowerCircuit, PowerConsumer, PowerGenerator, StationLoad};
+        use crate::systems::crafting::CraftingSystem;
+        let reg = shipped_registry();
+        let site = PlanetSite { body: "earth".into(), origin: glam::DVec3::new(0.0, 6_371_000.0, 0.0) };
+        let mut world = hecs::World::new();
+        world.spawn((PowerGenerator { output_watts: 3000.0, fuel_per_second: 0.0, active: true }, PowerCircuit { island: 2 }));
+        let stove = || Structure { blueprint_id: "stove".into(), health: 1.0, max_health: 1.0, provides: None, uid: 0 };
+        let on_earth = world.spawn((stove(), site.clone()));
+        let aboard = world.spawn((stove(),));
+        wire_built_stations(&mut world, &reg);
+        assert!(world.get::<&PowerConsumer>(on_earth).is_err(), "the Earth stove is not on the home's grid");
+        assert!(world.get::<&StationLoad>(on_earth).is_ok(), "but it is a known electric station");
+        assert_eq!(world.get::<&PowerCircuit>(aboard).unwrap().island, 2, "the home's stove is");
+        assert!(CraftingSystem::station_unpowered_at(&world, "stove", Some(&site)).is_some(), "no power at the site");
+        assert!(CraftingSystem::station_unpowered_at(&world, "stove", None).is_none(), "powered aboard");
+        // Station availability follows the frame.
+        let mut other = hecs::World::new();
+        other.spawn((Structure { blueprint_id: "furnace".into(), health: 1.0, max_health: 1.0, provides: None, uid: 0 }, site.clone()));
+        assert!(built_station_types(&other, &reg, Some(&site)).contains("smelter"), "a smelter at its site");
+        assert!(built_station_types(&other, &reg, None).is_empty(), "and not aboard the home");
+        // The site gains power of its own: the stove joins that island.
+        world.spawn((PowerGenerator { output_watts: 800.0, fuel_per_second: 0.0, active: true }, PowerCircuit { island: 9 }, site.clone()));
+        wire_built_stations(&mut world, &reg);
+        assert_eq!(world.get::<&PowerCircuit>(on_earth).unwrap().island, 9, "the site's own power");
+        assert_eq!(world.get::<&PowerCircuit>(aboard).unwrap().island, 2, "the home's stove is unmoved");
+        assert!(CraftingSystem::station_unpowered_at(&world, "stove", Some(&site)).is_none());
+    }
+
+    /// A PLANET BUILD TAKES WHAT THE PLAYER CARRIES (planet-build review,
+    /// 2026-09-27). With an empty pack and the home's storage full of planks,
+    /// a wall aboard is built from the storage, and a wall at a site on a
+    /// planet is refused with a status that says to carry them; nothing is
+    /// taken from the storage for it. Carrying the planks, it builds and the
+    /// storage is untouched. Red check, run: counting the home's storage for
+    /// a planet build (what the ConstructionSystem did before) builds the
+    /// planet wall from orbit and the scaffold-count assertion fails.
+    #[test]
+    fn a_planet_build_takes_what_the_player_carries() {
+        use crate::ecs::components::Controllable;
+        use crate::systems::inventory::Inventory;
+        let reg = shipped_registry();
+        let wall = reg.get("wood_wall").unwrap().clone();
+        let (plank, per_wall) = wall.materials[0].clone();
+        let site = PlanetSite { body: "earth".into(), origin: glam::DVec3::new(0.0, 6_371_000.0, 0.0) };
+        let pose = placement::placement_pose(&wall, Vec3::new(0.0, 0.0, 2.0), 0, &hecs::World::new(), &reg, None);
+        let mut data = build_store(reg, vec![BuildRequest::new("wood_wall", pose.clone()).on(Some(site.clone()))]);
+        let stock: HashMap<String, u32> = [(plank.clone(), per_wall * 10)].into_iter().collect();
+        data.insert("home_stock", std::sync::Mutex::new(stock));
+        let mut world = hecs::World::new();
+        let player = world.spawn((Inventory::new(16), Controllable));
+        let mut sys = ConstructionSystem::new();
+        sys.tick(&mut world, 0.05, &data);
+        assert_eq!(world.query::<&Construction>().iter().count(), 0, "nothing built on the planet from orbit");
+        let status = data.get::<std::sync::Mutex<String>>("build_status").unwrap().lock().unwrap().clone();
+        assert!(status.contains("in your pack") && status.contains("what you carry"), "{status}");
+        let stored = |d: &DataStore| d.get::<std::sync::Mutex<HashMap<String, u32>>>("home_stock").unwrap().lock().unwrap()[&plank];
+        assert_eq!(stored(&data), per_wall * 10, "the home's storage untouched");
+        // Aboard, the same wall comes out of the storage.
+        data.get::<std::sync::Mutex<Vec<BuildRequest>>>("build_request").unwrap().lock().unwrap().push(BuildRequest::new("wood_wall", pose.clone()));
+        sys.tick(&mut world, 0.05, &data);
+        assert_eq!(world.query::<(&Construction, &PlanetSite)>().iter().count(), 0);
+        assert_eq!(world.query::<&Construction>().iter().count(), 1, "aboard it builds from the storage");
+        assert_eq!(stored(&data), per_wall * 9);
+        // Carrying the planks, the planet wall goes up and the storage is kept.
+        world.get::<&mut Inventory>(player).unwrap().add_item(&plank, per_wall, 999);
+        data.get::<std::sync::Mutex<Vec<BuildRequest>>>("build_request").unwrap().lock().unwrap().push(BuildRequest::new("wood_wall", pose).on(Some(site)));
+        sys.tick(&mut world, 0.05, &data);
+        assert_eq!(world.query::<(&Construction, &PlanetSite)>().iter().count(), 1, "built from the pack");
+        assert_eq!(world.get::<&Inventory>(player).unwrap().count_item(&plank), 0);
+        assert_eq!(stored(&data), per_wall * 9, "nothing more from orbit");
     }
 
     #[test]

@@ -40,44 +40,12 @@ use crate::ecs::components::{CropInstance, CropSoil, Npk, DEFAULT_GROWTH_STAGES,
 use crate::ecs::systems::System;
 use crate::hot_reload::data_store::DataStore;
 
-/// The crop growth multiplier the game ships with.
-///
-/// The operator, 2026-09-20, asked how fast a crop should grow in real time:
-/// "I would like to have normal real growth speed but, with a custom option for
-/// accelerating plant growth... it'd be nice for people to be like I want either
-/// 1x speed or 10x or even 100x. For development purpose we could default to 10x
-/// growth speed (not clock speed) just so we can actually test plant life cycles
-/// without waiting days/weeks/months."
-///
-/// So this scales GROWTH PROGRESS only. The world clock, the day/night cycle,
-/// weather and every other system keep running at real time: speeding the clock
-/// instead would have dragged all of them along, which is not what was asked
-/// for. `plants.csv` keeps its real agricultural `growth_days`, so the numbers
-/// stay teachable and 1x remains a truthful mode rather than a handicap.
-pub const DEFAULT_CROP_GROWTH_SPEED: f32 = 10.0;
-
-/// The presets offered in Settings. 1x is real time, where the fastest crop in
-/// `plants.csv` still takes hours; the faster rungs exist because a garden
-/// nobody can watch change is a garden nobody learns from.
-pub const CROP_GROWTH_SPEED_PRESETS: [f32; 3] = [1.0, 10.0, 100.0];
-
-/// Lower bound: at zero, crops freeze forever and read as a BROKEN farm rather
-/// than a slow one. Upper bound: past 1000x a crop ripens inside a single tick,
-/// so the stage progression is never seen at all.
-pub const MIN_CROP_GROWTH_SPEED: f32 = 0.01;
-/// See [`MIN_CROP_GROWTH_SPEED`].
-pub const MAX_CROP_GROWTH_SPEED: f32 = 1000.0;
-
-/// Clamp a growth multiplier arriving from ANY source: the config file, the dev
-/// IPC, a Settings slider. A NaN returns the default instead of propagating
-/// into every crop's progress and stalling the whole garden at stage zero.
-pub fn clamp_growth_speed(v: f32) -> f32 {
-    if !v.is_finite() {
-        return DEFAULT_CROP_GROWTH_SPEED;
-    }
-    v.clamp(MIN_CROP_GROWTH_SPEED, MAX_CROP_GROWTH_SPEED)
-}
-
+// Crops grow on the one game clock (2026-09-27, decision-briefs.md Brief 6):
+// a crop takes its plants.csv `growth_days` of 24 game hours each, and the
+// time-speed setting (systems::time) is the only thing that makes it faster.
+// The separate crop growth multiplier of 2026-09-20 (10x by default) is gone:
+// it sped the plants and nothing that feeds them, so the water, air and sun a
+// crop used never balanced against how fast it grew.
 
 /// Plant definition loaded from plants.csv -- cached in DataStore as "plant_registry".
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -513,26 +481,31 @@ mod plant_registry_csv_tests {
     }
 }
 
-/// Rate at which water_level decreases per second (base dehydration).
-const DEHYDRATION_RATE: f32 = 0.002;
+/// Water level a crop loses per game second without water: from full to the
+/// stress line (0.8 of the level) in eight hours. These four crop rates ran
+/// on real seconds against the 20-minute day until the one clock
+/// (2026-09-27); they now run on game seconds and keep the same hours they
+/// took then (the old per-second values over 72, the old day's compression).
+const DEHYDRATION_RATE: f32 = 0.8 / (8.0 * 3600.0);
 
 /// Water level below which crop health starts dropping.
 const WATER_STRESS_THRESHOLD: f32 = 0.2;
 
-/// Health recovery rate per second when well-watered.
-const HEALTH_RECOVERY_RATE: f32 = 0.5;
+/// Health a well-watered crop recovers per game second: all of it in four hours.
+const HEALTH_RECOVERY_RATE: f32 = 100.0 / (4.0 * 3600.0);
 
-/// Health decay rate per second when water-stressed.
-const HEALTH_DECAY_RATE: f32 = 1.0;
+/// Health a water-stressed crop loses per game second: all of it in two hours.
+const HEALTH_DECAY_RATE: f32 = 100.0 / (2.0 * 3600.0);
 
 /// Litres one hand watering uses (2026-09-25): a watering can, drawn from the
 /// home tanks.
 pub const HAND_WATER_L: f32 = 2.0;
 
-/// Water level a steady full-intensity rain adds per second to an outdoor
-/// field crop (2026-09-25). About twice the base dehydration, so rain keeps a
-/// field watered and a drizzle slows the drying.
-pub const RAIN_WATER_PER_S: f32 = 0.004;
+/// Water level a steady full-intensity rain adds per game second to an
+/// outdoor field crop (2026-09-25): empty to full in five hours. About twice
+/// the base dehydration, so rain keeps a field watered and a drizzle slows
+/// the drying.
+pub const RAIN_WATER_PER_S: f32 = 1.0 / (5.0 * 3600.0);
 
 /// One line for the player (the "player_notices" channel the main loop shows).
 fn push_notice(data: &DataStore, msg: String) {
@@ -622,14 +595,10 @@ pub fn light_growth_rate(needs_light: bool, outdoors: bool, sun_up: bool, lamp_c
     }
 }
 
-/// Home RF level above which crops start taking RF stress (v0.620). Any notable wireless emission.
-const RF_HARM_THRESHOLD: f32 = 0.1;
-/// Crop health lost per second per unit of home RF level. Scaled so one WiFi router (~0.6) outpaces the
-/// well-watered recovery rate, so the grow visibly declines while RF is present + recovers once it stops.
-const RF_HEALTH_PENALTY: f32 = 1.5;
-
-/// Seconds per in-game day (must match time system).
-const SECONDS_PER_DAY: f64 = 1200.0;
+/// Game seconds in a garden day: 24 hours of the one game clock
+/// (`time::EARTH_DAY_S`), the day plants.csv `growth_days` and every litre
+/// a day are counted in, whatever the calendar's day length.
+const SECONDS_PER_DAY: f64 = crate::systems::time::EARTH_DAY_S;
 
 /// Determine growth stage from progress fraction (0.0 to 1.0+) using
 /// a data-driven stage list. The LAST stage (ripe, harvestable) is reached at
@@ -986,10 +955,12 @@ impl System for FarmingSystem {
         // by exactly the game time that passed (see light_growth_rate).
         // Absent clock (headless tests, early boot) = noon at real time, the
         // same default SolarSystem uses, so nothing is dark by accident.
+        // The sun at the home's longitude, the one the deck sees (BUG-090).
+        let home_lon = crate::systems::time::home_longitude_deg(data);
         let (hour, time_scale) = data
             .get::<std::sync::Mutex<crate::systems::time::GameTime>>("game_time")
             .and_then(|m| m.lock().ok())
-            .map(|gt| (gt.hour, gt.time_scale))
+            .map(|gt| (gt.solar_hour_at(home_lon), gt.time_scale))
             .unwrap_or((12.0, 1.0));
         // Outdoor climate inputs (v0.749, ladder rung 6): the current season +
         // live weather temperature, applied to FIELD crops only below. Empty
@@ -1009,17 +980,6 @@ impl System for FarmingSystem {
             .get::<std::sync::Mutex<crate::systems::weather::Weather>>("weather")
             .and_then(|m| m.lock().ok().map(|w| w.temperature))
             .unwrap_or(20.0);
-
-        // Global crop growth multiplier (operator, 2026-09-20). Published by
-        // lib.rs from Settings as a plain f32 so the sim never imports a GUI
-        // type, the same neutral-handle pattern as irrigation and nutrient.
-        // Absent (headless tests, early boot) = the shipped default, so a test
-        // that never publishes it still sees the behaviour players get.
-        let growth_speed = clamp_growth_speed(
-            data.get::<std::sync::Mutex<f32>>("crop_growth_speed")
-                .and_then(|m| m.lock().ok().map(|v| *v))
-                .unwrap_or(DEFAULT_CROP_GROWTH_SPEED),
-        );
 
         // Build default stages vec once for plants without custom stages
         let default_stages: Vec<&str> = DEFAULT_GROWTH_STAGES.iter().copied().collect();
@@ -1095,6 +1055,11 @@ impl System for FarmingSystem {
         // passed. A clock jump (the dev hour set, a save restore) is not a
         // tick and is not light-counted, as it was not before.
         let game_dt = f64::from(dt) * f64::from(time_scale);
+        // The same, for the per-second crop rates (water, health): they run
+        // on the game clock too, so a crop dries in the same game hours at
+        // any time speed. A sustained burn's harm (g_harm_per_sec) stays on
+        // real seconds: it is the ship's acceleration this moment.
+        let game_dt32 = game_dt as f32;
         // Rain waters outdoor fields (2026-09-25): litres of water level per
         // second at full intensity; 0 when it is not raining. Only the LIQUID
         // share (2026-09-27, systems::precipitation): whether water falls as
@@ -1123,21 +1088,6 @@ impl System for FarmingSystem {
             .and_then(|m| m.lock().ok())
             .map(|ws| ws.capacity_l <= 0.0 || ws.stored_l > ws.capacity_l * 0.02)
             .unwrap_or(true);
-
-        // RF -> FOOD coupling (v0.620): sum every POWERED RF emitter (a WiFi router) into a home RF
-        // level. Sensitive crops lose health under RF -- the operator's "the user doesn't want a WiFi
-        // router because it harms a plant they're growing." Run wired (Cat6/fibre, zero RF) to stay clean.
-        let home_rf: f32 = {
-            use crate::ecs::components::{PowerConsumer, RfEmitter};
-            let mut rf = 0.0f32;
-            for (_, (em, power)) in world.query::<(&RfEmitter, Option<&PowerConsumer>)>().iter() {
-                let powered = !em.needs_power || power.map(|c| c.enabled).unwrap_or(false);
-                if powered {
-                    rf += em.strength;
-                }
-            }
-            rf
-        };
 
         // Creative mode (default ON in early dev): planting + fertilizing skip the
         // inventory requirement + consumption. Absent flag (tests) = survival =
@@ -1394,9 +1344,8 @@ impl System for FarmingSystem {
                     world.spawn((CropInstance {
                         crop_def_id: plant_id.clone(),
                         growth_stage: stage_from_progress(frac, &stages).to_string(),
-                        // Its age on the growth clock, which runs at the
-                        // growth-speed setting (10x by default).
-                        planted_at: elapsed_seconds - growth_seconds * frac as f64 / f64::from(growth_speed.max(0.01)),
+                        // Its age on the game clock.
+                        planted_at: elapsed_seconds - growth_seconds * frac as f64,
                         water_level: 1.0,
                         health: 100.0,
                         tower_id: Some(tower_id.clone()),
@@ -1680,7 +1629,7 @@ impl System for FarmingSystem {
         }
         // POLLINATION (2026-09-26, pollination.rs): the Hand-pollinate request,
         // each indoor flowering crop's record on the garden clock, the notices.
-        self.pollination.tick(world, data, game_dt * f64::from(growth_speed) / SECONDS_PER_DAY);
+        self.pollination.tick(world, data, game_dt / SECONDS_PER_DAY);
 
         // DEV: instantly mature every living crop (a testing affordance, like
         // "Dev: stock all materials" — so the loop is verifiable without waiting
@@ -1706,7 +1655,7 @@ impl System for FarmingSystem {
         // PICKING (2026-09-26, picking.rs): the Clear request, each ripe
         // picked plant's window on the garden clock, and (Realistic mode) the
         // plants whose window ended. Each leaves its unit as a harvest does.
-        let leaving = self.picking.step(world, data, game_dt * f64::from(growth_speed) / SECONDS_PER_DAY);
+        let leaving = self.picking.step(world, data, game_dt / SECONDS_PER_DAY);
         let mut finished: Vec<String> = Vec::new();
         for (e, why) in leaving {
             let Some((plant_id, plants_here)) =
@@ -2000,11 +1949,11 @@ impl System for FarmingSystem {
             .unwrap_or_default();
         // The time away, once (offline progression; soil_ph::hand_away_secs):
         // what was still reacting when the player left kept reacting, on
-        // garden days at their own growth speed. Taken with pH off as well,
+        // garden days of the game clock. Taken with pH off as well,
         // so it is not saved up for later: Off freezes the soil, away or not.
-        let away_days = soil_ph::take_away_secs(data) * f64::from(growth_speed) / SECONDS_PER_DAY;
+        let away_days = soil_ph::take_away_secs(data) / SECONDS_PER_DAY;
         if ph_on {
-            soil_ph::step_all(&mut ph_units, ph_data, game_dt * f64::from(growth_speed) / SECONDS_PER_DAY + away_days);
+            soil_ph::step_all(&mut ph_units, ph_data, game_dt / SECONDS_PER_DAY + away_days);
         }
         let mut ph_out: HashMap<String, soil_ph::OutOfWindow> = HashMap::new();
 
@@ -2014,11 +1963,11 @@ impl System for FarmingSystem {
         // picked) and, per pest, how much of the area feeds it in the
         // conditions it likes; then each area with crops or pests steps.
         if pest_severity > 0.0 {
-            // Garden days this tick: game time at the growth speed, the clock
+            // Garden days this tick: game time, the clock
             // the crops ripen on, so a pest's life cycle keeps its real length
             // against the season. Continuous, not light-gated: pests feed in
             // the dark too (slugs mostly at night).
-            let pest_days = game_dt * f64::from(growth_speed) / SECONDS_PER_DAY;
+            let pest_days = game_dt / SECONDS_PER_DAY;
             // Per area: living crops, and per pest (by its index in
             // pests.ron) the summed favour. Indexed so this pass over every
             // crop allocates nothing per crop.
@@ -2081,7 +2030,7 @@ impl System for FarmingSystem {
         }
         // WEEDS (weeds.rs): every soil area's cover and seed bank, taken out and
         // stepped on the garden clock like the pests, and put back after the loop.
-        let weed_days = game_dt * f64::from(growth_speed) / SECONDS_PER_DAY;
+        let weed_days = game_dt / SECONDS_PER_DAY;
         let area_weeds = self.weeds.step(world, data, ph_data, pest_severity, weed_days);
 
         // A plant picked over a season keeps living through its picking window
@@ -2214,7 +2163,7 @@ impl System for FarmingSystem {
             }
 
             // Dehydration: water level drops over time
-            crop.water_level = (crop.water_level - DEHYDRATION_RATE * dt).max(0.0);
+            crop.water_level = (crop.water_level - DEHYDRATION_RATE * game_dt32).max(0.0);
 
             // Per-area irrigation: if the crop's grow area is configured with a water
             // target, automated irrigation keeps it topped up to that level. A high
@@ -2256,7 +2205,7 @@ impl System for FarmingSystem {
             }
             // Rain on an outdoor field (2026-09-25).
             if rain > 0.0 && crop.tower_id.as_deref().map_or(false, is_field_area) {
-                crop.water_level = (crop.water_level + RAIN_WATER_PER_S * rain * dt).min(1.0);
+                crop.water_level = (crop.water_level + RAIN_WATER_PER_S * rain * game_dt32).min(1.0);
             }
 
             // Pests (2026-09-26, pests.rs): each pest in this crop's area that
@@ -2283,7 +2232,7 @@ impl System for FarmingSystem {
             }
             // Weeds (weeds.rs): the cover caps it, hardest in its critical period;
             // a sawdust or bark mulch over its unit takes nitrogen as it rots.
-            let weed_ceiling = self.weeds.crop_tick(data, &area_weeds, &crop, def, pest_severity, elapsed_seconds, growth_speed, weed_days, &mut crop_soil.store, &mut organic);
+            let weed_ceiling = self.weeds.crop_tick(data, &area_weeds, &crop, def, pest_severity, elapsed_seconds, weed_days, &mut crop_soil.store, &mut organic);
             // Humidity (humidity.rs): outside its plants.csv window a crop is
             // gently capped; and a growing, watered crop breathes its day's
             // water into its grow room's air (the room steps after the loop).
@@ -2334,12 +2283,12 @@ impl System for FarmingSystem {
             // Health effects from water level, capped by nutrients and pests.
             if crop.water_level < WATER_STRESS_THRESHOLD {
                 // Water stress -- health decays
-                crop.health = (crop.health - HEALTH_DECAY_RATE * dt).max(0.0);
+                crop.health = (crop.health - HEALTH_DECAY_RATE * game_dt32).max(0.0);
             } else if crop.health < ceiling {
                 // Well watered -- health recovers, as far as its nutrients
                 // and pests allow (100 when fed and pest-free, so unchanged
                 // for a healthy crop).
-                crop.health = (crop.health + HEALTH_RECOVERY_RATE * dt).min(ceiling);
+                crop.health = (crop.health + HEALTH_RECOVERY_RATE * game_dt32).min(ceiling);
             } else {
                 // Watered but short of a nutrient or eaten by a pest: health
                 // eases down to what the cap allows, slowly, and never below
@@ -2347,19 +2296,11 @@ impl System for FarmingSystem {
                 // pests::PEST_HEALTH_FLOOR). A shortage or an infestation
                 // stunts; it does not kill. Fertilize, or knock the pest
                 // back, and the cap lifts at once.
-                crop.health = (crop.health - soil::NUTRIENT_DECLINE_RATE * dt).max(ceiling);
+                crop.health = (crop.health - soil::NUTRIENT_DECLINE_RATE * game_dt32).max(ceiling);
             }
 
-            // RF stress (v0.620): a powered wireless emitter (WiFi router) bathes the grow in RF; crops
-            // lose health proportional to the home RF level. Run wired / Li-Fi or remove the emitter to
-            // protect the grow (the operator's "tradeoffs bite"). Outpaces recovery at one router's worth.
-            if home_rf > RF_HARM_THRESHOLD {
-                crop.health = (crop.health - RF_HEALTH_PENALTY * home_rf * dt).max(0.0);
-            }
-
-            // Sustained acceleration snaps stems and collapses trellises. Same
-            // shape as the RF drain above: a ship-wide scalar eating crop health
-            // until something gives. Silent at cruise, lethal during an evasion
+            // Sustained acceleration snaps stems and collapses trellises: a
+            // ship-wide scalar eating crop health until something gives. Silent at cruise, lethal during an evasion
             // burn -- which makes "the farm dies if you run from the missile" a
             // consequence of the flight plan rather than a scripted event.
             if g_harm_per_sec > 0.0 {
@@ -2377,8 +2318,8 @@ impl System for FarmingSystem {
             // and lowers the picks after it: each pick is scaled by the season
             // health and fruit set at that pick (the harvest path; the season's
             // place in the yield range is the one thing rolled once, picking.rs).
-            crop.health_seconds += f64::from((crop.health / 100.0).clamp(0.0, 1.0)) * f64::from(dt);
-            crop.growing_seconds += f64::from(dt);
+            crop.health_seconds += f64::from((crop.health / 100.0).clamp(0.0, 1.0)) * game_dt;
+            crop.growing_seconds += game_dt;
 
             // If health hits zero, crop dies
             if crop.health <= 0.0 {
@@ -2462,10 +2403,10 @@ impl System for FarmingSystem {
                         } else {
                             1.0
                         };
-                        // growth_speed is the player/dev multiplier; it multiplies
-                        // PROGRESS, so 10x reaches harvest in a tenth of the real
-                        // growth_days while the world clock is untouched.
-                        let clock_progress = progress * climate_factor * growth_speed;
+                        // The clock is the only speed: a crop at time speed
+                        // 72 ripens 72 times sooner in real time, and so does
+                        // everything it drinks and breathes.
+                        let clock_progress = progress * climate_factor;
                         let effective_progress = clock_progress * health_factor;
 
                         // The crop draws its season need in step with its
@@ -2525,9 +2466,8 @@ impl System for FarmingSystem {
         // With ship life support (2026-09-26) the step also runs each room's
         // carbon dioxide, the air handlers and scrubbers, and the home's own
         // air, whose state is taken out of the soil memory the same way.
-        let air_hours = game_dt / SECONDS_PER_DAY * 24.0;
+        let air_hours = game_dt / crate::systems::time::SECONDS_PER_HOUR;
         air_step.water_ok = water_available && irrigation_on;
-        air_step.realistic = crate::systems::life_support::is_realistic(data);
         air_step.hours = air_hours;
         air_step.breathed = breathed;
         let mut home_air = world
@@ -2607,9 +2547,10 @@ impl System for FarmingSystem {
             );
         }
 
-        // What the irrigation draws, in litres per minute of real time: the
-        // plants' daily need is per real day, and the plumbing sim runs on
-        // real minutes like the rest of the home's machines.
+        // What the irrigation draws, in litres per game minute: the plants'
+        // daily need is per 24-hour day, and the plumbing sim runs on game
+        // minutes (the one clock, 2026-09-27), so a garden at time speed 72
+        // drains the tanks 72 times as fast in real time as it grows.
         if let Some(m) = data.get::<std::sync::Mutex<f32>>("irrigation_demand_lpm") {
             if let Ok(mut v) = m.lock() {
                 *v = irrigation_l_per_day / 1440.0;
@@ -2646,6 +2587,19 @@ mod gardening_tests {
     use crate::hot_reload::data_store::DataStore;
     use crate::systems::inventory::{Inventory, ItemRegistry};
 
+    /// The garden test helpers' `speed`: garden days per 1,200 real
+    /// seconds, what a growth speed of 1 meant on the 20-minute day. Set as
+    /// the clock's time scale, the one speed there is now (2026-09-27), so
+    /// the tests keep their garden days a tick. At 1 it is 72 game seconds a
+    /// real second.
+    pub(super) fn set_garden_speed(data: &DataStore, speed: f32) {
+        data.get::<std::sync::Mutex<crate::systems::time::GameTime>>("game_time")
+            .unwrap()
+            .lock()
+            .unwrap()
+            .time_scale = speed * (SECONDS_PER_DAY / 1200.0) as f32;
+    }
+
     /// DataStore with plant + item registries and the four gardening channels,
     /// mirroring the runtime wiring in lib.rs. Shared with nutrient_tests.
     pub(super) fn make_store() -> DataStore {
@@ -2662,9 +2616,16 @@ mod gardening_tests {
         .expect("items.csv");
         data.insert("plant_registry", plants);
         data.insert("item_registry", items);
+        // The clock at 72 game seconds a real second: the pace these tests
+        // were written at, when a garden day was 1,200 real seconds and a
+        // crop's water and health ran on real seconds (the one clock,
+        // 2026-09-27, made both game time; see set_garden_speed).
         data.insert(
             "game_time",
-            std::sync::Mutex::new(crate::systems::time::GameTime::default()),
+            std::sync::Mutex::new(crate::systems::time::GameTime {
+                time_scale: (SECONDS_PER_DAY / 1200.0) as f32,
+                ..Default::default()
+            }),
         );
         data.insert("plant_request", std::sync::Mutex::new(Option::<String>::None));
         data.insert(
@@ -2902,7 +2863,7 @@ mod gardening_tests {
             set_clock(&data, 400, 12.0);
             let now = crate::systems::time::elapsed_now(&data);
             let mut c = fresh_crop(&data, "tomato", Some("ntower_3"));
-            c.planted_at = now - tomato_days * SECONDS_PER_DAY * share / f64::from(DEFAULT_CROP_GROWTH_SPEED);
+            c.planted_at = now - tomato_days * SECONDS_PER_DAY * share;
             let e = world.spawn((c,));
             sys.tick(&mut world, 0.001, &data);
             let last = data.get::<PlantRegistry>("plant_registry").unwrap().get("tomato").unwrap().last_stage().to_string();
@@ -3496,59 +3457,38 @@ mod gardening_tests {
         assert!(dry.health < 80.0, "dry cistern -> the water-stressed crop loses health, got {}", dry.health);
     }
 
-    /// The global crop growth multiplier (operator, 2026-09-20) reaches the sim,
-    /// and it multiplies GROWTH rather than the clock: at the SAME elapsed game
-    /// time and the same real growth_days, a 10x garden is further along than a
-    /// 1x one. Written red first: without the multiplier applied, both gardens
-    /// land on the same stage and the assert fails.
+    /// The one clock (2026-09-27): a crop ages with the game clock, so the
+    /// time-speed setting grows it exactly as fast as it runs the clock, and
+    /// nothing else speeds it. Ten real seconds of noon at time speed 72 age a
+    /// lit crop 72 times what they do at 1 (two game seconds of growth a game
+    /// second in the sun). Red check, run: holding the crop's light clock on
+    /// real `dt` instead of game time (`planted_at + dt * (1 - light_rate)`)
+    /// gives the 72x crop 730 s instead of 1,440 and the ratio assertion
+    /// fails; so would a growth multiplier left on its progress.
     #[test]
-    fn crop_growth_speed_multiplies_growth_not_the_clock() {
-        use crate::ecs::components::CropInstance;
-
-        // 5% of the way through tomato's real window. At 1x that is stage 0; at
-        // 10x it is half-grown. Deliberately a fraction where the two answers
-        // cannot be the same stage, so the test cannot pass by accident.
-        let elapsed_fraction = 0.05_f64;
-
-        let run = |speed: f32| -> usize {
+    fn the_time_speed_grows_crops_with_the_clock_and_nothing_else_does() {
+        use crate::systems::time;
+        let age_after = |speed: f32| -> f64 {
             let mut data = make_store();
-            data.insert("crop_growth_speed", std::sync::Mutex::new(speed));
-            let (growth_seconds, stages): (f64, Vec<&str>) = {
-                let reg = data.get::<PlantRegistry>("plant_registry").unwrap();
-                let def = reg.get("tomato").unwrap();
-                (def.growth_days as f64 * SECONDS_PER_DAY, def.stages())
-            };
-            {
-                let gt = data
-                    .get::<std::sync::Mutex<crate::systems::time::GameTime>>("game_time")
-                    .unwrap();
-                gt.lock().unwrap().elapsed_seconds = growth_seconds * elapsed_fraction;
-            }
+            time::insert_slots(&mut data);
+            data.insert("time_set_hour_request", std::sync::Mutex::new(Some(12.0_f32)));
+            time::publish_settings(&data, 24, 365, speed);
+            let mut clock = time::TimeSystem::new();
             let mut sys = FarmingSystem::new();
             let mut world = hecs::World::new();
-            let e = world.spawn((CropInstance {
-                crop_def_id: "tomato".to_string(),
-                growth_stage: stages[0].to_string(),
-                planted_at: 0.0,
-                water_level: 1.0,
-                health: 100.0,
-                tower_id: None,
-                tower_slot: None,
-                health_seconds: 0.0,
-                growing_seconds: 0.0,
-            },));
-            sys.tick(&mut world, 1.0, &data);
-            let c = world.get::<&CropInstance>(e).unwrap();
-            stage_index(&c.growth_stage, &stages).unwrap()
+            world.spawn((crate::ecs::components::Irrigator,));
+            clock.tick(&mut world, 0.0, &data); // to noon
+            let e = world.spawn((fresh_crop(&data, "lettuce", Some("grain_field_1")),));
+            for _ in 0..10 {
+                clock.tick(&mut world, 1.0, &data);
+                sys.tick(&mut world, 1.0, &data);
+            }
+            growth_age(&world, e, &data)
         };
-
-        let slow = run(1.0);
-        let fast = run(10.0);
-        assert!(
-            fast > slow,
-            "10x must outgrow 1x at the same game time (1x stage {slow}, 10x stage {fast})",
-        );
-        assert_eq!(slow, 0, "at 1x, 5% of the window is still the first stage");
+        let slow = age_after(1.0);
+        let fast = age_after(72.0);
+        assert!((slow - 20.0).abs() < 1e-6, "ten noon seconds at 1x: {slow}");
+        assert!((fast / slow - 72.0).abs() < 1e-6, "72x grows it 72 times as far: {fast} vs {slow}");
     }
 
     /// Offline progression end to end (2026-09-25): a garden saved, then loaded
@@ -3564,7 +3504,6 @@ mod gardening_tests {
 
         let run = |offline_on: bool| -> usize {
             let mut data = make_store();
-            data.insert("crop_growth_speed", std::sync::Mutex::new(1.0_f32));
             let (growth_seconds, stages): (f64, Vec<&str>) = {
                 let reg = data.get::<PlantRegistry>("plant_registry").unwrap();
                 let def = reg.get("tomato").unwrap();
@@ -3589,7 +3528,7 @@ mod gardening_tests {
             crate::save_load::apply_save_to_world(&mut world, &save);
             // Away for 60% of the tomato's whole real growth window.
             let now = save.timestamp + (growth_seconds * 0.6) as u64;
-            let r = crate::save_load::catch_up_world(&mut world, &save, offline_on, now);
+            let r = crate::save_load::catch_up_world(&mut world, &save, offline_on, 1.0, now);
             assert!((r.clock - 1060.0).abs() < 1e-9, "the clock resumes where it was saved");
             data.get::<std::sync::Mutex<crate::systems::time::GameTime>>("game_time")
                 .unwrap()
@@ -3608,54 +3547,75 @@ mod gardening_tests {
         assert!(on > off, "toggle on: 60% of the window away must grow the crop (on {on}, off {off})");
     }
 
-    /// A multiplier arriving from a hand-edited config or the dev IPC is clamped
-    /// rather than trusted. Zero would freeze the whole garden forever and read as
-    /// broken; NaN would poison every crop's progress.
+    /// A powered Wi-Fi router in the grow room leaves crop health exactly
+    /// where it would be without one (2026-09-27). The v0.620 radio-frequency
+    /// crop harm was removed on the operator's decision, "We'll assume no
+    /// wi-fi crop harm at this time", on the evidence in
+    /// docs/reference/findings/2026-09-27-wifi-and-plants.md (no source shows a
+    /// household router harming a garden at the distances plants sit from
+    /// one). The router is spawned from the shipped catalog through the same
+    /// path the game uses, with its power on, beside a well-watered crop, and
+    /// the crop's health is compared with the same crop in a room with no
+    /// router. Seen red with the old coupling restored (the RfEmitter spawn
+    /// plus the FarmingSystem's home-RF drain): after five seconds the crop by
+    /// the router fell to 78.0 while the one without it recovered to 82.5.
+    /// Native only: it spawns the router through `engine::home_spawn`, which
+    /// the relay build does not have.
+    #[cfg(feature = "native")]
     #[test]
-    fn growth_speed_is_clamped_from_any_source() {
-        assert_eq!(clamp_growth_speed(0.0), MIN_CROP_GROWTH_SPEED);
-        assert_eq!(clamp_growth_speed(-5.0), MIN_CROP_GROWTH_SPEED);
-        assert_eq!(clamp_growth_speed(1.0e9), MAX_CROP_GROWTH_SPEED);
-        assert_eq!(clamp_growth_speed(f32::NAN), DEFAULT_CROP_GROWTH_SPEED);
-        // The offered presets must all survive the clamp untouched, or a radio
-        // button in Settings would silently not be the value it claims.
-        for preset in CROP_GROWTH_SPEED_PRESETS {
-            assert_eq!(clamp_growth_speed(preset), preset, "preset {preset} clamped");
-        }
-    }
-    /// RF -> FOOD coupling (v0.620): a POWERED WiFi router (RF emitter) harms a well-watered crop (RF
-    /// stress outpaces recovery); with NO emitter the same crop holds/recovers. The operator's tradeoff.
-    #[test]
-    fn powered_rf_emitter_harms_crops() {
-        use crate::ecs::components::{CropInstance, PowerConsumer, RfEmitter};
+    fn powered_wifi_router_leaves_crop_health_unchanged() {
+        use crate::ecs::components::{CropInstance, MachineInstanceId, PowerConsumer};
         let well_watered = || CropInstance {
             crop_def_id: "tomato".to_string(),
             growth_stage: "sprout".to_string(),
             planted_at: 0.0,
-            water_level: 1.0, // not water-stressed, so we isolate RF
+            water_level: 1.0, // not water-stressed, so only the router differs
             health: 80.0,
             tower_id: None,
             tower_slot: None,
             health_seconds: 0.0,
             growing_seconds: 0.0,
         };
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("machines").join("home.ron");
+        let home = crate::machines::MachineHome::load(&path).expect("home.ron parses");
+        let router = home.catalog.get("wifi_router").expect("home.ron catalogs the wifi_router");
+        let inst = crate::machines::MachineInstance {
+            id: "router_test".to_string(),
+            machine: "wifi_router".to_string(),
+            room: "room-greenhouse".to_string(),
+            offset: (0.0, 0.0, 0.0),
+            rotation: 0.0,
+            zone: "home".to_string(),
+            screen_source: None,
+        };
         let data = make_store();
+        let empty = std::collections::HashMap::new();
+
+        // The grow room with the router, powered on.
+        let mut with_router = hecs::World::new();
+        let c = with_router.spawn((well_watered(),));
+        crate::engine::home_spawn::spawn_home_machine_entity(&mut with_router, &inst, router, &empty, &empty, None, None);
+        let powered: Vec<bool> = with_router
+            .query::<(&PowerConsumer, &MachineInstanceId)>()
+            .iter()
+            .map(|(_, (p, _))| p.enabled)
+            .collect();
+        assert_eq!(powered, vec![true], "the router spawns as a powered network device");
+
+        // The same grow room with no router.
+        let mut without = hecs::World::new();
+        let c2 = without.spawn((well_watered(),));
+
         let mut sys = FarmingSystem::new();
-
-        // A powered WiFi router (RF 0.6) bathes the grow -> the crop loses health.
-        let mut world = hecs::World::new();
-        let c = world.spawn((well_watered(),));
-        world.spawn((RfEmitter { strength: 0.6, needs_power: true }, PowerConsumer { draw_watts: 8.0, priority: 4, enabled: true }));
-        for _ in 0..5 { sys.tick(&mut world, 1.0, &data); }
-        let harmed = world.get::<&CropInstance>(c).unwrap().health;
-        assert!(harmed < 80.0, "powered RF harms the crop, got {harmed}");
-
-        // No emitter -> the same well-watered crop holds or recovers.
-        let mut world2 = hecs::World::new();
-        let c2 = world2.spawn((well_watered(),));
-        for _ in 0..5 { sys.tick(&mut world2, 1.0, &data); }
-        let safe = world2.get::<&CropInstance>(c2).unwrap().health;
-        assert!(safe >= 80.0, "no RF -> the crop holds/recovers, got {safe}");
+        let mut sys2 = FarmingSystem::new();
+        for _ in 0..5 {
+            sys.tick(&mut with_router, 1.0, &data);
+            sys2.tick(&mut without, 1.0, &data);
+        }
+        let near_router = with_router.get::<&CropInstance>(c).unwrap().health;
+        let no_router = without.get::<&CropInstance>(c2).unwrap().health;
+        assert_eq!(near_router, no_router, "a powered Wi-Fi router changes nothing about the crop's health");
+        assert!(no_router >= 80.0, "the well-watered crop holds or recovers, got {no_router}");
     }
 
     /// Yield follows the crop's season health (2026-09-26): forty potato
@@ -3862,7 +3822,12 @@ mod gardening_tests {
             .set_elapsed(f64::from(day) * SECONDS_PER_DAY + hour / 24.0 * SECONDS_PER_DAY);
     }
 
-    /// Advance the clock one second at a time the way TimeSystem does (the
+    /// Game seconds one test tick advances: a 50th of an hour, so these light
+    /// tests keep the shape they had on the 20-minute day (50 ticks an hour)
+    /// on the one clock's 3,600 s hour (2026-09-27).
+    const TICK_S: f64 = 72.0;
+
+    /// Advance the clock one tick at a time the way TimeSystem does (the
     /// clock moves first, then the farming tick sees the new hour), `n` times.
     fn run_seconds(sys: &mut FarmingSystem, world: &mut hecs::World, data: &DataStore, n: usize) {
         for _ in 0..n {
@@ -3871,10 +3836,12 @@ mod gardening_tests {
                     .get::<std::sync::Mutex<crate::systems::time::GameTime>>("game_time")
                     .unwrap();
                 let mut gt = slot.lock().unwrap();
-                let next = gt.elapsed_seconds + 1.0;
+                let next = gt.elapsed_seconds + TICK_S;
                 gt.set_elapsed(next);
             }
-            sys.tick(world, 1.0, data);
+            // The real seconds that are TICK_S game seconds at the store's speed.
+            let scale = crate::systems::time::scaled_dt(1.0, data);
+            sys.tick(world, TICK_S as f32 / scale, data);
         }
     }
 
@@ -3941,14 +3908,12 @@ mod gardening_tests {
         );
     }
 
-    /// An outdoor field crop does not grow at night and does by day. At
-    /// 100x growth so a day visibly moves it through its stages; its age
-    /// shows the mechanism: frozen through the night, two seconds a second
-    /// in the sun.
+    /// An outdoor field crop does not grow at night and does by day. Its
+    /// age shows the mechanism: frozen through the night, two seconds a
+    /// second in the sun.
     #[test]
     fn an_outdoor_crop_grows_by_day_and_not_at_night() {
         let mut data = make_store();
-        data.insert("crop_growth_speed", std::sync::Mutex::new(100.0_f32));
         let mut sys = FarmingSystem::new();
         let mut world = hecs::World::new();
         world.spawn((crate::ecs::components::Irrigator,)); // watered, so only light differs
@@ -3970,15 +3935,13 @@ mod gardening_tests {
         let dawn = growth_age(&world, field, &data);
         run_seconds(&mut sys, &mut world, &data, 50);
         let gained = growth_age(&world, field, &data) - dawn;
-        assert!((gained - 100.0).abs() < 1e-6, "an hour of sun (50 s) grows it 100 s, got {gained}");
+        assert!((gained - 100.0 * TICK_S).abs() < 1e-6, "an hour of sun grows it two hours, got {gained}");
 
-        // The rest of the day: it moves on.
+        // The rest of the day to 17:30: it keeps growing at two a second.
+        let before = growth_age(&world, field, &data);
         run_seconds(&mut sys, &mut world, &data, 500);
-        assert_ne!(
-            world.get::<&CropInstance>(field).unwrap().growth_stage,
-            first,
-            "a day of sun moved the crop on a stage"
-        );
+        let day = growth_age(&world, field, &data) - before;
+        assert!((day - 1000.0 * TICK_S).abs() < 1e-6, "ten hours of sun grow it twenty, got {day}");
     }
 
     /// Why lit time counts double: over a whole natural day, a crop under
@@ -3990,7 +3953,6 @@ mod gardening_tests {
     #[test]
     fn a_natural_day_grows_a_crop_exactly_one_day() {
         let mut data = make_store();
-        data.insert("crop_growth_speed", std::sync::Mutex::new(1.0_f32));
         let mut sys = FarmingSystem::new();
         let mut world = hecs::World::new();
         world.spawn((crate::ecs::components::Irrigator,));
@@ -3999,11 +3961,11 @@ mod gardening_tests {
             world.spawn((fresh_crop(&data, "tomato", Some("grain_field_1")),)),
             world.spawn((fresh_crop(&data, "tomato", Some("ntower_3")),)),
         ];
-        run_seconds(&mut sys, &mut world, &data, SECONDS_PER_DAY as usize);
+        run_seconds(&mut sys, &mut world, &data, 1200);
         for e in crops {
             let age = growth_age(&world, e, &data);
             assert!(
-                (age - SECONDS_PER_DAY).abs() <= 2.0,
+                (age - SECONDS_PER_DAY).abs() <= 2.0 * TICK_S,
                 "a day of sun and night is one day of growth, got {age} s of {SECONDS_PER_DAY}"
             );
         }
@@ -4017,7 +3979,6 @@ mod gardening_tests {
     fn an_indoor_crop_grows_at_night_only_under_a_powered_grow_light() {
         let night_growth = |light: Option<bool>| -> (f64, f64) {
             let mut data = make_store();
-            data.insert("crop_growth_speed", std::sync::Mutex::new(1.0_f32));
             let mut sys = FarmingSystem::new();
             let mut world = hecs::World::new();
             world.spawn((crate::ecs::components::Irrigator,));
@@ -4038,7 +3999,7 @@ mod gardening_tests {
         // The timer (lighting.ron lamp_photoperiod_h 18) runs it 19:00 to
         // midnight of this 19:00-04:00 night: five lit hours at 2x, 500 s.
         // Within a tick (2 s of growth) at the midnight switch, as the natural-day test allows at sunrise and sunset.
-        assert!((lit_tower - 500.0).abs() <= 2.0, "a powered grow light lights it until midnight, age {lit_tower}");
+        assert!((lit_tower - 500.0 * TICK_S).abs() <= 2.0 * TICK_S, "a powered grow light lights it until midnight, age {lit_tower}");
         assert!(lit_field.abs() < 1e-6, "a grow light does not reach an outdoor field, age {lit_field}");
 
         // By day, no grow light needed.
@@ -4050,7 +4011,7 @@ mod gardening_tests {
         let tower = world.spawn((fresh_crop(&data, "lettuce", Some("ntower_3")),));
         run_seconds(&mut sys, &mut world, &data, 100);
         let age = growth_age(&world, tower, &data);
-        assert!((age - 200.0).abs() < 1e-6, "the skylight lights it by day, age {age}");
+        assert!((age - 200.0 * TICK_S).abs() < 1e-6, "the skylight lights it by day, age {age}");
     }
 
     /// A grow light lights the tower under it, not the one across the room:
@@ -4061,7 +4022,6 @@ mod gardening_tests {
     #[test]
     fn a_grow_light_lights_the_tower_under_it_not_the_one_across_the_room() {
         let mut data = make_store();
-        data.insert("crop_growth_speed", std::sync::Mutex::new(1.0_f32));
         data.insert(
             "grow_plots",
             vec![
@@ -4078,7 +4038,7 @@ mod gardening_tests {
         let far = world.spawn((fresh_crop(&data, "lettuce", Some("ntower_9")),));
         run_seconds(&mut sys, &mut world, &data, 450); // 19:00 to 04:00
         let (n, f) = (growth_age(&world, near, &data), growth_age(&world, far, &data));
-        assert!((n - 500.0).abs() <= 2.0, "the tower under the light grew until the timer, age {n}");
+        assert!((n - 500.0 * TICK_S).abs() <= 2.0 * TICK_S, "the tower under the light grew until the timer, age {n}");
         assert!(f.abs() < 1e-6, "the tower across the room did not, age {f}");
     }
 
@@ -4091,7 +4051,6 @@ mod gardening_tests {
     fn darkness_pauses_a_crop_but_does_it_no_harm() {
         let night = |lit: bool| -> CropInstance {
             let mut data = make_store();
-            data.insert("crop_growth_speed", std::sync::Mutex::new(1.0_f32));
             let mut sys = FarmingSystem::new();
             let mut world = hecs::World::new();
             world.spawn((crate::ecs::components::Irrigator,));
@@ -4126,7 +4085,6 @@ mod gardening_tests {
     #[test]
     fn mushrooms_grow_in_the_dark() {
         let mut data = make_store();
-        data.insert("crop_growth_speed", std::sync::Mutex::new(1.0_f32));
         let mut sys = FarmingSystem::new();
         let mut world = hecs::World::new();
         world.spawn((crate::ecs::components::Irrigator,));
@@ -4135,7 +4093,7 @@ mod gardening_tests {
         let lettuce = world.spawn((fresh_crop(&data, "lettuce", Some("mushroom_rack")),));
         run_seconds(&mut sys, &mut world, &data, 450);
         let m = growth_age(&world, mushroom, &data);
-        assert!((m - 450.0).abs() < 1e-6, "the mushroom grew through the night, age {m}");
+        assert!((m - 450.0 * TICK_S).abs() < 1e-6, "the mushroom grew through the night, age {m}");
         assert!(growth_age(&world, lettuce, &data).abs() < 1e-6, "the green crop beside it did not");
     }
 }

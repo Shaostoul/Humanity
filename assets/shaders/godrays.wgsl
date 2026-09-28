@@ -19,7 +19,9 @@ struct GodrayUniforms {
     aspect: f32,
     // Overall strength, pre-gated by daylight on the Rust side.
     intensity: f32,
-    // Ray color (sunlight tint), a = unused.
+    // Ray color (sunlight tint); a = the depth under which a tap is open
+    // sky (the celestial depth of a point 10,000 km away, camera.rs
+    // CELESTIAL_SKY_M, so it follows the near plane).
     color: vec4<f32>,
 };
 
@@ -82,8 +84,9 @@ fn fs_main(@builtin(position) fc: vec4<f32>) -> @location(0) vec4<f32> {
         let px = vec2<i32>(suv * dims);
         let d = textureLoad(depth_tex, px, 0);
         // Reverse-Z: the celestial pass clears depth to 0.0 (farthest), so
-        // a still-zero tap is open sky and passes sunlight.
-        let sky = select(0.0, 1.0, d <= 1.0e-7);
+        // a still-zero tap is open sky and passes sunlight; so does anything
+        // past 10,000 km (the Sun's own disc, far planets).
+        let sky = select(0.0, 1.0, d <= u.color.a);
         lit = lit + sky * decay;
         wsum = wsum + decay;
         decay = decay * 0.965;

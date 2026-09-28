@@ -88,8 +88,9 @@ simulate supply/demand/battery; Plumbing pumps water on power; Atmosphere
 (5035) runs the sealed home's O2/CO2 with powered scrubbers; Farming (5169)
 grows 132 plant species (data/plants.csv) in towers/beds/trays/fields with
 irrigation gated on live water; harvest routes overflow to typed containers
-(grain silo); compost closes waste back to fertilizer. RF from wireless
-devices harms crops (the wired-vs-WiFi tradeoff is playable). Cut power and
+(grain silo); compost closes waste back to fertilizer. (RF from wireless
+devices harmed crops from v0.620 until 2026-09-27, when it was removed for
+lack of evidence: docs/reference/findings/2026-09-27-wifi-and-plants.md.) Cut power and
 you watch air, water, and crops degrade in order. This chain is the
 educational core and it works.
 
@@ -101,7 +102,7 @@ educational core and it works.
   (`src/systems/farming/mod.rs:1071`). Temperature window and season ARE
   consumed (`:1046-1066`), gated to FIELD crops since indoor grows are
   climate-controlled, and deliberately slow rather than lethal. Water stress
-  and RF stress both damage `crop.health`, and crops DIE to `STAGE_DEAD`
+  damages `crop.health` (RF stress did too, until 2026-09-27), and crops DIE to `STAGE_DEAD`
   (`:995-1015`). **Still genuinely decorative: `ph_min`/`ph_max` and
   `humidity_min`/`humidity_max` only.**
 - Weather is global and consequence-free (no rain-to-irrigation coupling,

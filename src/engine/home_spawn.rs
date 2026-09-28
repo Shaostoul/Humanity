@@ -20,7 +20,25 @@ pub(crate) fn spawn_home_power_entities(world: &mut hecs::World, data_dir: &std:
         };
         spawn_home_machine_entity(world, inst, def, &power_islands, &water_islands, None, None);
     }
+    spawn_home_feed_taps(world, &home, &all, &power_islands);
     spawn_home_air_space(world, home_metabolic_kcal(&home));
+}
+
+/// Tie every power island of the home to the ship's bus (2026-09-27,
+/// `systems::ship_power`): one feed tap per island any of its machines is on,
+/// the same island each machine's `PowerCircuit` gets. The reactor feeds a
+/// tap only in the Station-supplied mode. Called beside every home spawn.
+pub(crate) fn spawn_home_feed_taps(
+    world: &mut hecs::World,
+    home: &crate::machines::MachineHome,
+    all: &[crate::machines::MachineInstance],
+    power_islands: &std::collections::HashMap<String, u32>,
+) {
+    let islands = all
+        .iter()
+        .filter(|i| home.catalog.get(&i.machine).map_or(false, |d| d.power.is_some()))
+        .map(|i| power_islands.get(&i.id).copied().unwrap_or(0));
+    crate::systems::ship_power::spawn_feed_taps(world, crate::systems::ship_power::PLAYER_HOME, islands);
 }
 
 /// The household's food energy, kcal a day: its Food loop's demand (the home breathes what it eats,
@@ -74,7 +92,6 @@ pub(crate) fn spawn_home_machine_entity(
     let is_water = def.is_water_machine();
     if def.power.is_none()
         && !is_water
-        && def.rf_emission <= 0.0
         && def.auto_recipe.is_none()
         && def.container_type.is_none()
         && !def.pollinates_crops
@@ -248,16 +265,6 @@ pub(crate) fn spawn_home_machine_entity(
             _ => 0.0,
         };
         let _ = world.insert_one(e, crate::ecs::components::Co2Scrubber { rated_kg_day: def.scrubs_co2_kg_day, watts });
-    }
-    // RF emitter (v0.620): a wireless device (WiFi router) bathes the home in RF while powered.
-    if def.rf_emission > 0.0 {
-        let _ = world.insert_one(
-            e,
-            crate::ecs::components::RfEmitter {
-                strength: def.rf_emission,
-                needs_power: matches!(&def.power, Some(MachinePower::Consumer { .. })),
-            },
-        );
     }
     // Economy automation (v0.663): a machine with an `auto_recipe` continuously
     // runs that recipe against the home inventory (CraftingSystem's AutoRefine
