@@ -1643,6 +1643,7 @@ pub struct GuiState {
     pub power_battery_wh: f32,
     pub power_battery_capacity_wh: f32,
     pub power_autonomy_hours: f32,
+    pub power_ship: crate::systems::electrical::ShipFeedReading, // the ship's reactor feed (ship_power)
     /// Live home WATER readout (v0.608), mirrored from PlumbingSystem each frame: production + demand
     /// (L/min), stored + capacity (litres), and days of autonomy at the current demand.
     pub water_production_lpm: f32,
@@ -3693,6 +3694,7 @@ impl Default for GuiState {
             power_battery_wh: 0.0,
             power_battery_capacity_wh: 0.0,
             power_autonomy_hours: 0.0,
+            power_ship: Default::default(),
             power_consumption: 0.0,
             power_balance: 0.0,
             water_production_lpm: 0.0,

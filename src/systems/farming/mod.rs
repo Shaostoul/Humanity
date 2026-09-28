@@ -2466,7 +2466,6 @@ impl System for FarmingSystem {
         // air, whose state is taken out of the soil memory the same way.
         let air_hours = game_dt / crate::systems::time::SECONDS_PER_HOUR;
         air_step.water_ok = water_available && irrigation_on;
-        air_step.realistic = crate::systems::life_support::is_realistic(data);
         air_step.hours = air_hours;
         air_step.breathed = breathed;
         let mut home_air = world

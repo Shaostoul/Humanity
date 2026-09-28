@@ -13502,6 +13502,7 @@ mod native_app {
                         state.gui_state.power_battery_wh = ps.battery_wh;
                         state.gui_state.power_battery_capacity_wh = ps.battery_capacity_wh;
                         state.gui_state.power_autonomy_hours = ps.autonomy_hours;
+                        state.gui_state.power_ship = ps.ship;
                     }
 
                     // Bridge the live home WATER readout (PlumbingSystem writes it via Mutex). (v0.608)

@@ -65,11 +65,10 @@ saved machine levels and the electroculture findings landed in v0.1394.0):
   (decision-briefs.md Brief 6, "How it was built"). Its year default of 365
   days is the agent's choice, not the operator's.
 - `af651e3cf56b6c02a`: the ship reactor as the homes' metered power
-  (Blocked #3b, operator decision). NO CODE YET: commit e94bd8e5 (empty)
-  holds the findings and plan: no buildable generator exists (the
-  solar_panel_0 item and build_solar_panel recipe do); reactor figure so far
-  from trade press (KLT-40S, 35 MWe each, World Nuclear News 2025-01-16),
-  an IAEA primary source still wanted.
+  (Blocked #3b, operator decision). BUILT, committed, not yet merged:
+  docs/design/ship-life-support.md section 8. The reactor figure (KLT-40S,
+  35 MWe) is trade press (World Nuclear News, 2025-01-16), labelled so; an
+  IAEA primary figure is still wanted.
 - `a5e6f9189e45ed9b9`: HDR scene target steps 3 and 4. WIP 8df827c1, NOT
   safe to merge: Rgba16Float target, one dither in present.wgsl, the aurora
   dither and srgb_dither deleted, band-census.js and GPU tests written;
@@ -386,8 +385,17 @@ them up.
      ready for release in a couple years." So: the ship's reactor supplies the
      homes, effectively unlimited to start and metered; players can build
      solar and other generation; fleet-wide supply tracking comes later with
-     the MMORPG storyline. Being built (agent). The energy questions below are
-     superseded by this; kept for the record.
+     the MMORPG storyline. BUILT 2026-09-27 (docs/design/ship-life-support.md
+     section 8): in the default Station-supplied mode every home power island
+     is tied to one KLT-40S-class reactor (35 MWe, trade-press figure), used
+     after the home's own generation and batteries, so nothing sheds; every
+     watt-hour drawn and returned is metered per home in f64 and saved
+     (`systems::ship_power`, WorldSave `ship_supply`), shown on the Home card,
+     the HUD and the Usage meter. Realistic runs on the home's own generation
+     and batteries. A Solar Panel blueprint (400 W) offsets the draw one for
+     one aboard and powers a planet site, which the reactor never reaches. The
+     fleet ledger is next (section 8), not built. The energy questions below
+     are superseded by this; kept for the record.
    - **Energy: neither home's budget closes, in either mode**
      (docs/design/ship-life-support.md section 7). Each home now counts what it
      makes at its site (NREL PVWatts for Silverdale: 1.09 kWh a panel a day,

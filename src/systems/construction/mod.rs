@@ -56,6 +56,59 @@ pub struct Blueprint {
     /// Shed priority (1 critical .. 5 optional), as the machines use.
     #[serde(default)]
     pub power_priority: u8,
+    /// What a built GENERATOR makes (2026-09-27): a solar panel's peak watts,
+    /// or a steady generator's watts, in the home machines' own terms
+    /// (`machines::MachinePower::Solar` / `Generator`). Once built it joins
+    /// the power of where it stands (see `wire_built_generators`), and what it
+    /// makes offsets what that island draws from the ship's reactor. None =
+    /// it makes no power.
+    #[serde(default)]
+    pub generates: Option<crate::machines::MachinePower>,
+}
+
+/// Give every finished structure whose blueprint GENERATES power a live
+/// generator (2026-09-27): a `PowerGenerator` (and a `SolarPanel`, which the
+/// SolarSystem runs with the sun) on a power island. A generator built in the
+/// home joins the home's strongest island, the one the ship's reactor feeds
+/// in the Station-supplied mode, so what it makes is drawn from the reactor
+/// one watt less for one watt; one built on a planet site gets that site's
+/// own island (`ship_power::site_island`), which no reactor reaches, and
+/// which the site's electric stations then join (`site_power_island`).
+pub fn wire_built_generators(world: &mut hecs::World, registry: &BlueprintRegistry) {
+    use crate::ecs::components::{PowerCircuit, PowerGenerator, SolarPanel};
+    use crate::machines::MachinePower;
+    let todo: Vec<(hecs::Entity, MachinePower, Option<PlanetSite>)> = world
+        .query::<hecs::Without<(&Structure, Option<&PlanetSite>), &PowerGenerator>>()
+        .iter()
+        .filter_map(|(e, (s, site))| registry.get(&s.blueprint_id)?.generates.clone().map(|g| (e, g, site.cloned())))
+        .collect();
+    if todo.is_empty() {
+        return;
+    }
+    let mut by_island: HashMap<u32, f32> = HashMap::new();
+    for (_e, (g, pc)) in world.query::<hecs::Without<(&PowerGenerator, &PowerCircuit), &PlanetSite>>().iter() {
+        *by_island.entry(pc.island).or_default() += g.output_watts;
+    }
+    let home_island = by_island
+        .into_iter()
+        .max_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal))
+        .map_or(0, |(i, _)| i);
+    for (e, power, site) in todo {
+        let island = site.as_ref().map_or(home_island, crate::systems::ship_power::site_island);
+        let _ = world.insert_one(e, PowerCircuit { island });
+        match power {
+            MachinePower::Solar { peak_watts, .. } => {
+                let _ = world.insert(
+                    e,
+                    (PowerGenerator { output_watts: peak_watts, fuel_per_second: 0.0, active: true }, SolarPanel { peak_watts }),
+                );
+            }
+            MachinePower::Generator { watts, fuel_lph } if fuel_lph <= 0.0 => {
+                let _ = world.insert_one(e, PowerGenerator { output_watts: watts, fuel_per_second: 0.0, active: true });
+            }
+            _ => log::warn!("a blueprint's `generates` must be Solar or a fuel-free Generator"),
+        }
+    }
 }
 
 /// Where a placed piece sits (2026-09-27). Data, not code: a blueprint says
@@ -467,7 +520,9 @@ impl System for ConstructionSystem {
         uses::assign_uids(world);
 
         // Built electric stations join the home's power (2026-09-26).
+        // Generators first, so a site's stations find its island this tick.
         if let Some(reg) = registry.as_ref() {
+            wire_built_generators(world, reg);
             wire_built_stations(world, reg);
         }
 

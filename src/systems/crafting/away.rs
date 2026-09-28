@@ -80,6 +80,24 @@ pub fn day_power_balance(home: &crate::machines::MachineHome) -> [f32; 2] {
     [balance(false), balance(true)]
 }
 
+/// Meter what the time away drew from the ship's reactor (2026-09-27,
+/// systems::ship_power), on the Usage meter's day averages: ship life support
+/// the whole time (`power_balance_w[0] - [1]`), plus what the home grid used
+/// past what it made (`[0]` is its own balance with life support off it) and
+/// the machines' working draw `used_wh`; what it made past both went back.
+pub fn meter_away_reactor(data: &DataStore, work: &AwayWork, used_wh: f64) {
+    let h = work.secs.max(0.0) / 3600.0;
+    let life_support_w = f64::from(work.power_balance_w[0] - work.power_balance_w[1]).max(0.0);
+    let grid_wh = f64::from(work.power_balance_w[0]) * h - used_wh;
+    crate::systems::ship_power::record(
+        data,
+        crate::systems::ship_power::PLAYER_HOME,
+        crate::systems::ship_power::POWER,
+        life_support_w * h + (-grid_wh).max(0.0),
+        grid_wh.max(0.0),
+    );
+}
+
 /// Hand the machines the time away (save_load::resume_home). Replaces, never
 /// adds: resuming the same save twice is the same time away, and None clears
 /// a hand-over the machines never took.
@@ -309,7 +327,14 @@ impl CraftingSystem {
         if !(window > 0.0) {
             return report;
         }
-        let balance_w = work.power_balance_w[usize::from(crate::systems::life_support::is_realistic(data))];
+        // In the Station-supplied mode the ship's reactor feeds the home
+        // (2026-09-27, systems::ship_power): its output is the spare, and what
+        // the time away took from it is metered below.
+        let reactor_w = crate::systems::ship_power::feed_watts(data);
+        let balance_w = match reactor_w {
+            Some(w) => w as f32,
+            None => work.power_balance_w[usize::from(crate::systems::life_support::is_realistic(data))],
+        };
         let spare_w = f64::from(balance_w.max(0.0));
         let mut used_wh = 0.0_f64;
 
@@ -484,6 +509,9 @@ impl CraftingSystem {
             }
         }
         ledger.file(data);
+        if reactor_w.is_some() {
+            meter_away_reactor(data, work, used_wh);
+        }
 
         let mut made: Vec<(String, u32)> = made.into_iter().collect();
         made.sort();

@@ -2483,6 +2483,20 @@ v0.607 the flow is PER ISLAND (a generator only feeds loads on its own wired cir
 - Data: `data/electrical.ron`
 - ECS: `PowerGenerator`, `PowerConsumer`, `Battery`, `PowerCircuit` (island) components
 
+### The ship's reactor, metered per home (2026-09-27)
+The operator's energy decision (PRIORITIES Blocked #3b): in the default Ship life support mode
+(Station-supplied) every home power island carries a feed tap to the ship's bus; after the island's own
+generation and batteries the reactor (one KLT-40S-class plant, 35 MWe, a trade-press figure) supplies the
+rest, so a home never sheds, and every watt-hour drawn and returned is metered per home and utility in
+f64, saved with the home, and shown on the Home card's Live power, the HUD power line and the Usage
+meter. Realistic mode runs on the home's own generation and batteries. A buildable Solar Panel
+blueprint (400 W, `generates`) offsets the draw one for one aboard, and powers a planet build site on
+its own island, which the reactor never reaches. The fleet ledger is designed, not built
+(docs/design/ship-life-support.md section 8).
+- Native: `src/systems/ship_power.rs` (`ShipFeed`, `ShipSupplyLedger`, `feed_watts`, `site_island`), `src/systems/electrical.rs` (`ShipFeedReading`), `src/systems/construction/mod.rs` (`wire_built_generators`), `src/engine/home_spawn.rs` (`spawn_home_feed_taps`), `src/systems/crafting/away.rs` (`meter_away_reactor`)
+- Data: `data/ship_power.ron`, `data/blueprints/basic.ron` (`solar_panel`)
+- Tests: `src/systems/ship_power_tests.rs`
+
 ### Home Machine Layout
 The data-driven machine layout for the 3D home: a catalog of machine types, placed instances + arrays
 (row x col grids), connections, conduit nodes/edges, and self-sufficiency loops. Machines carry a power

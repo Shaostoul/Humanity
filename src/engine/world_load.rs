@@ -390,6 +390,7 @@ pub(crate) fn load_world(state: &mut EngineState) {
                 );
                 placed += 1;
             }
+            crate::engine::home_spawn::spawn_home_feed_taps(&mut state.game_world.world, &home, &all_instances, &power_islands);
             log::info!("Machines: placed {placed} machines");
             // Their levels back, by instance id. What is left belongs to a machine
             // no longer in the layout, which takes its contents with it, as

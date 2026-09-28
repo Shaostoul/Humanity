@@ -290,12 +290,13 @@ fn air_handlers_hold_their_setpoints_and_return_the_water() {
     assert!(wet > gh + 0.03, "the greenhouse's water stays in the air: {gh} -> {wet}");
 }
 
-/// The simplified mode (Settings: Ship life support, Station-supplied, the
-/// default) takes the air machines' draw off the home's grid and changes
-/// nothing else: the rooms hold the same air and the same litres come back.
-/// Switched to Realistic, the same machines draw along their fan curve. Seen
-/// red by stopping the handlers in the simplified mode (the water then stayed
-/// in the air).
+/// The Ship life support mode changes only who supplies the air machines
+/// (2026-09-27, systems::ship_power): in the default Station-supplied mode the
+/// ship's reactor feeds their island, metered, and in the Realistic one the
+/// home's own generation does, so they draw the same watts along their fan
+/// curve either way, and the rooms hold the same air and the same litres come
+/// back. Seen red with the old Station-supplied zeroing kept in the air step
+/// (the handlers drew 0 W there and nothing reached the meter).
 #[test]
 fn station_supplied_life_support_changes_only_who_pays() {
     let mut runs = Vec::new();
@@ -313,23 +314,21 @@ fn station_supplied_life_support_changes_only_who_pays() {
         runs.push((watts, returned_lpm(&world), m.rooms["room-a"].vapour_g_m3, m.home_air.vapour_g_m3));
     }
     let ((w0, r0, g0, h0), (w1, r1, g1, h1)) = (runs[0], runs[1]);
-    assert_eq!(w0, 0.0, "the station's plant powers them: no draw on the home");
-    assert!(w1 > 0.0, "Realistic: the home's grid pays {w1} W");
+    assert!(w0 > 0.0 && (w0 - w1).abs() < 1e-9, "the same draw in either mode: {w0} W and {w1} W");
     assert!(r0 > 0.0 && (r0 - r1).abs() < 1e-9 && (g0 - g1).abs() < 1e-12 && (h0 - h1).abs() < 1e-12, "the same air and water either way: {runs:?}");
 }
 
-/// The air machines with the ELECTRICAL SYSTEM ticking on a short island
-/// (2026-09-27, the critic's review of v0.1377): every solar island is short at
-/// night (solar gives nothing from 18:00 to 06:00 and the wind 150 W), and in
-/// the default Station-supplied mode the air handlers take nothing from the
-/// home's grid. Here the island has 150 W against a 500 W load and two air
-/// handlers spawned drawing their 325 W nameplate, as the home's spawn gives
-/// them. They must keep (or get back) their power, and keep handing the water
-/// back. Seen red twice: with the electrical sim shedding 0 W loads (`*draw >
-/// 0.0`; the handlers went off at their first 0 W and stayed off), and with the
-/// air step writing only a powered unit's draw (the shed handlers kept asking
-/// for their 325 W nameplate, a phantom 650 W on the island, and never came
-/// back); either way no water came back.
+/// The air machines with the ELECTRICAL SYSTEM ticking through a night
+/// (2026-09-27, the critic's review of v0.1377, then the ship's reactor the
+/// same day): every solar island is short at night. Here the island makes
+/// 150 W against a 500 W load and two air handlers spawned drawing their 325 W
+/// nameplate, and in the default Station-supplied mode the ship's reactor
+/// feeds it: nothing is shed, the handlers draw what their controller runs
+/// them at, the water comes back, and the reactor's share is metered. Seen
+/// red with the feed left out of the island's supply (the lamp and the
+/// handlers were shed and no water came back); before the reactor, with the
+/// electrical sim shedding 0 W loads and with the air step writing only a
+/// powered unit's draw.
 #[test]
 fn the_air_handlers_keep_their_power_through_a_short_night() {
     use crate::ecs::components::PowerGenerator;
@@ -337,6 +336,9 @@ fn the_air_handlers_keep_their_power_through_a_short_night() {
     let (mut data, mut world, _) = greenhouse(1000.0);
     data.insert("power_status", Mutex::new(PowerStatus::default()));
     data.insert(life_support::MODE_KEY, Mutex::new(false)); // Station-supplied, the default
+    crate::systems::ship_power::register(&mut data);
+    // The tap on this island (these test entities carry no circuit).
+    world.spawn((crate::systems::ship_power::ShipFeed { home: crate::systems::ship_power::PLAYER_HOME.into() },));
     world.spawn((PowerGenerator { output_watts: 150.0, fuel_per_second: 0.0, active: true },));
     let lamp = world.spawn((PowerConsumer { draw_watts: 500.0, priority: 3, enabled: true },));
     for (_, (_, pc)) in world.query_mut::<(&AirHandler, &mut PowerConsumer)>() {
@@ -349,10 +351,11 @@ fn the_air_handlers_keep_their_power_through_a_short_night() {
         advance(&data, 1.0);
         sys.tick(&mut world, 1.0, &data);
     }
-    assert!(!world.get::<&PowerConsumer>(lamp).unwrap().enabled, "the island is short: the 500 W load is shed");
+    assert!(world.get::<&PowerConsumer>(lamp).unwrap().enabled, "the reactor carries the 500 W load too");
     let handlers: Vec<(bool, f32)> = world.query::<(&AirHandler, &PowerConsumer)>().iter().map(|(_, (_, p))| (p.enabled, p.draw_watts)).collect();
-    // Powered, and asking the home's grid for nothing: no phantom 325 W each.
-    assert!(handlers.iter().all(|(on, w)| *on && *w == 0.0), "the station powers them, and they keep their place on the island: {handlers:?}");
+    assert!(handlers.iter().all(|(on, w)| *on && *w > 0.0 && *w <= 325.0), "powered, on their controller's curve: {handlers:?}");
+    let t = crate::systems::ship_power::tally(&data, crate::systems::ship_power::PLAYER_HOME, crate::systems::ship_power::POWER);
+    assert!(t.drawn > 0.0, "the reactor's share is metered: {t:?}");
     assert!(returned_lpm(&world) > 0.0, "the coils still hand the water back");
     let d = air();
     let rh = d.rh_of(memory(&world).rooms["room-a"].vapour_g_m3, d.room_temp_c);

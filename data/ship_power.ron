@@ -1,0 +1,39 @@
+// The ship's reactor: the homes' baseline supply (2026-09-27).
+//
+// The operator's decision (docs/PRIORITIES.md, Blocked 3b, 2026-09-27): "For now
+// we can base power budget on nuclear reactors and then players can build solar
+// and other means of producing electricity. We could track user resource usage
+// but, essentially provide unlimited (at least to start) then we could figure out
+// how to track a whole fleets worth of supplies because, that'll be important
+// once the MMORPG storyline begins once the game is ready for release in a
+// couple years."
+//
+// So in the default Ship life support mode (Station-supplied) every power island
+// of the player's home is tied to the ship's bus: the home's own panels, turbine
+// and batteries are used first, and the reactor supplies the rest, metered to the
+// watt-hour (src/systems/ship_power.rs). In the Realistic mode the tie is off and
+// the home runs on what it makes and stores. A planet build site is never on it.
+//
+// THE REACTOR CLASS IS A GAME CHOICE; its figure is a real one. The model is the
+// only ship-mounted reactor plant that supplies a town's grid today: the KLT-40S
+// pressurised water reactors of the floating nuclear power plant Akademik
+// Lomonosov, which supplies Pevek in Chukotka. The figure is from TRADE PRESS,
+// not a primary source: World Nuclear News, "Russia's floating nuclear power plant
+// passes one billion kWh" (published "Thursday, 16 January 2025", read
+// 2026-09-27, https://www.world-nuclear-news.org/articles/russias-floating-nuclear-power-plant-passes-one-billion-kwh):
+// "two KLT-40S reactors generating 35 MWe each"; "It began commercial operation
+// in May 2020". The IAEA's reactor database (PRIS) and its SMR booklet (ARIS)
+// carry the plant's official figures; neither could be read on 2026-09-27, so
+// replace this with their net figure when one is. The ship carries one such
+// reactor.
+//
+// For scale: the family home uses about 62 kWh a day with its life support, a
+// 2.6 kW average, so one 35 MWe reactor would carry about 13,000 such homes.
+// That ceiling is what "effectively unlimited" means here: no single home comes
+// near it, so a home on the ship's bus never sheds a load. Sharing it among the
+// homes of a fleet is the fleet ledger's job, not built yet
+// (docs/design/ship-life-support.md, section 8).
+(
+    reactor: "KLT-40S (Akademik Lomonosov class)",
+    electric_watts: 35000000.0,
+)

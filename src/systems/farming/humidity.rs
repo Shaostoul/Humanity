@@ -849,10 +849,6 @@ pub struct AirStep {
     /// The home has water for the garden (the humidifiers may run).
     pub water_ok: bool,
     pub hours: f64,
-    /// The home's grid powers the air handlers and scrubbers (Settings: Ship
-    /// life support, Realistic); false has the station's plant do it, and
-    /// their draw on the home is 0 (`life_support::is_realistic`).
-    pub realistic: bool,
 }
 
 /// What one air step did, for the caller to bill and to say.
@@ -1196,7 +1192,6 @@ pub fn step_rooms(
             home_in.breathed_l_day = home_litres;
             home_in.photo_co2_g_day = home_photo.0;
             home_in.photo_o2_g_day = home_photo.1;
-            home_in.realistic = step.realistic;
             let ho = life_support::step_home(world, d, ld, home, &home_in, &home_handlers, &home_scrubbers, sh);
             if last {
                 out.condensate_by_entity.extend(ho.condensate_by_entity);
@@ -1232,21 +1227,20 @@ pub fn step_rooms(
         }
     }
     // Each room's air handlers along their fan's curve, its scrubbers for
-    // the share of time they run (life_support.ron), on the home's grid only
-    // in the Realistic mode (0 W in the Station-supplied mode, which the
-    // electrical sim never sheds); the home's own are set by its step.
+    // the share of time they run (life_support.ron), in either Ship life
+    // support mode (the Station-supplied one feeds them from the ship's
+    // reactor, systems::ship_power); the home's own are set by its step.
     if let Some(ld) = life {
-        let on_grid = if step.realistic { 1.0 } else { 0.0 };
         for u in &handlers {
             if let (Some(i), Ok(mut pc)) = (u.room, world.get::<&mut PowerConsumer>(u.entity)) {
                 let s = if u.powered { handler_share[i] } else { handler_req[i] };
-                pc.draw_watts = (u.watts * ld.fan_power_share(s) * on_grid) as f32;
+                pc.draw_watts = (u.watts * ld.fan_power_share(s)) as f32;
             }
         }
         for u in &scrubbers {
             if let (Some(i), Ok(mut pc)) = (u.room, world.get::<&mut PowerConsumer>(u.entity)) {
                 let s = if u.powered { scrubber_share[i] } else { scrubber_req[i] };
-                pc.draw_watts = (u.watts * s * on_grid) as f32;
+                pc.draw_watts = (u.watts * s) as f32;
             }
         }
     }
@@ -1348,9 +1342,8 @@ fn home_lines(
     map: &AirMap,
     handlers: &[life_support::Unit],
     scrubbers: &[life_support::Unit],
-    on_grid: bool,
 ) -> Vec<(String, u8)> {
-    let watts_word = |w: f64| if on_grid { format!("{w:.0} W") } else { "on the station's plant".to_string() };
+    let watts_word = |w: f64| format!("{w:.0} W");
     let Some((h, rooms)) = world.query::<&SoilMemory>().iter().next().map(|(_, m)| (m.home_air.clone(), m.rooms.clone())) else {
         return Vec::new();
     };
@@ -1471,8 +1464,7 @@ impl GuiView {
         let life = data.get::<LifeSupportData>(life_support::DATA_KEY);
         let (handlers, scrubbers) = life_units(world, &map);
         // Who powers the air machines (Settings: Ship life support).
-        let on_grid = life_support::is_realistic(data);
-        let watts_word = |w: f64| if on_grid { format!("{w:.0} W") } else { "on the station's plant".to_string() };
+        let watts_word = |w: f64| format!("{w:.0} W");
         let mut tags: Vec<String> = world
             .query::<&CropInstance>()
             .iter()
@@ -1608,7 +1600,7 @@ impl GuiView {
             })
             .collect();
         let home = match (life, map.home_known) {
-            (Some(ld), true) => home_lines(world, data, d, ld, &map, &handlers, &scrubbers, on_grid),
+            (Some(ld), true) => home_lines(world, data, d, ld, &map, &handlers, &scrubbers),
             _ => Vec::new(),
         };
         let severity = data

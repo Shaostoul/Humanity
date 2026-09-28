@@ -740,8 +740,10 @@ pub struct BuildabilityReport {
 pub struct MeterBasis {
     /// Settings > Gameplay > Ship life support is Realistic: the home's grid
     /// powers the air handlers and the CO2 scrubber, which the meters then
-    /// charge at their `average_watts`. False (Station-supplied): the station's
-    /// own plant powers them and they take nothing from the home's grid.
+    /// charge at their `average_watts`, and the home runs on what it makes and
+    /// stores. False (Station-supplied): the ship's reactor powers them and
+    /// feeds the home's grid past what the home makes (`UtilityMeter::reactor`,
+    /// 2026-09-27); they are not charged to the home's grid line.
     pub life_support_on_grid: bool,
 }
 
@@ -769,6 +771,13 @@ pub struct UtilityMeter {
     /// Never part of `generation`, which is what the home makes on its own.
     pub backstop_watts: f32,
     pub backstop_fuel_lph: f32,
+    /// Power only (2026-09-27, `systems::ship_power`): in the Station-supplied
+    /// mode, what the ship's reactor supplies a day on the day's average, kWh:
+    /// the home grid's use past what the home makes, plus ship life support,
+    /// and what the home makes past its use, which goes back to the ship. Both
+    /// 0 in the Realistic mode, where the home runs on its own.
+    pub reactor: f32,
+    pub returned: f32,
 }
 
 /// Build one meter from a utility's daily generation + demand, with a plain-language, NON-PUNITIVE
@@ -798,6 +807,8 @@ fn make_utility_meter(utility: &str, generation: f32, demand: f32, unit: &str) -
         summary,
         backstop_watts: 0.0,
         backstop_fuel_lph: 0.0,
+        reactor: 0.0,
+        returned: 0.0,
     }
 }
 
@@ -1309,6 +1320,7 @@ impl MachineHome {
         let (mut supply_watts, mut consumer_watts) = (0.0f32, 0.0f32);
         let (mut backstop_w, mut backstop_lph) = (0.0f32, 0.0f32);
         let mut working_watts = 0.0f32;
+        let mut life_support_watts = 0.0f32; // Station-supplied: what the reactor gives ship life support
         let (mut water_prod, mut water_dem) = (0.0f32, 0.0f32);
         let (mut data_sup, mut data_dem) = (0.0f32, 0.0f32);
         for inst in self.all_instances() {
@@ -1319,6 +1331,9 @@ impl MachineHome {
                 backstop_lph += lph;
                 // A battery is STORAGE, not demand (fixed v0.664; `average_load_watts` gives it 0).
                 consumer_watts += def.average_load_watts(basis, is_grow_light(&inst.machine));
+                if def.is_ship_life_support() && !basis.life_support_on_grid {
+                    life_support_watts += def.average_load_watts(MeterBasis { life_support_on_grid: true }, false);
+                }
                 working_watts += def.working_extra_watts();
                 water_prod += def.water_production_lpm();
                 water_dem += def.water_demand_lpm();
@@ -1345,6 +1360,25 @@ impl MachineHome {
             }
             m.backstop_watts = backstop_w;
             m.backstop_fuel_lph = backstop_lph;
+            // The ship's reactor (2026-09-27, systems::ship_power): the default mode feeds
+            // every home island past what the home makes, and ship life support, metered.
+            if basis.life_support_on_grid {
+                if p_dem > p_gen {
+                    m.summary.push_str("; the Realistic mode imports nothing: loads are shed when the batteries run out");
+                }
+            } else {
+                let ls = life_support_watts * 24.0 / 1000.0;
+                m.reactor = (p_dem - p_gen).max(0.0) + ls;
+                m.returned = (p_gen - p_dem).max(0.0);
+                m.summary.push_str(&format!(
+                    "; the ship's reactor supplies {:.1} kWh/day ({:.1} to the home's grid, {ls:.1} to ship life support), metered, so nothing browns out",
+                    m.reactor,
+                    (p_dem - p_gen).max(0.0)
+                ));
+                if m.returned > 0.0 {
+                    m.summary.push_str(&format!("; {:.1} kWh/day goes back to the ship", m.returned));
+                }
+            }
             meters.push(m);
         }
         // WATER: L/day (lpm over 1440 min).

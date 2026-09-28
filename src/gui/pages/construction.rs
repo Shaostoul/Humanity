@@ -3968,7 +3968,7 @@ fn draw_buildability(ui: &mut egui::Ui, theme: &Theme, home: &crate::machines::M
             RichText::new(if basis.life_support_on_grid {
                 "Each machine at its average draw over a day. The air handlers and the CO2 scrubber are on your home's grid (Settings, Ship life support: Realistic)."
             } else {
-                "Each machine at its average draw over a day. The station's own plant powers the air handlers and the CO2 scrubber (Settings, Ship life support: Station-supplied)."
+                "Each machine at its average draw over a day. The ship's reactor supplies what your home does not make, the air handlers and the CO2 scrubber included, metered (Settings, Ship life support: Station-supplied)."
             })
             .size(theme.font_size_small)
             .color(theme.text_muted()),

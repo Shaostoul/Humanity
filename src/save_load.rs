@@ -526,6 +526,8 @@ pub fn save_active_home(
         .unwrap_or_default();
     // The drone's standing order lives in the DataStore (2026-09-27).
     save.mining_order = crate::systems::mining::standing_order(data);
+    // So does the ship supply ledger (systems::ship_power): the reactor's kWh.
+    save.ship_supply = crate::systems::ship_power::ledger(data);
     // Before world entry the herd is not spawned yet and its saved timers
     // are still waiting for it: keep those rather than forget them.
     if save.herd.is_empty() {
@@ -796,6 +798,9 @@ pub fn resume_home(
     // any the order sends finish in the time away, out of the asteroid's real
     // ore, and each haul lands in the backpack as it would have.
     crate::systems::mining::set_standing_order(data, save.mining_order.clone());
+    // THE SHIP SUPPLY LEDGER comes back as saved; the time away adds to it
+    // when the machines take it (crafting::away::meter_away_reactor).
+    crate::systems::ship_power::restore(data, &save.ship_supply);
     let hauls = crate::systems::mining::advance_away(world, data, r.away_secs);
     r.drone_hauls = hauls.len();
     // LIVESTOCK: each animal's timer as saved, moved on by the time away (by

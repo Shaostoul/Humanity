@@ -47,9 +47,9 @@ pub struct GardenPests {
     /// default), and the crop the player chose to clear from its plot.
     pub picking_realistic: bool,
     /// Ship life support (2026-09-26, systems::life_support): Settings
-    /// "Realistic" (the home's grid powers the air handlers and the CO2
-    /// scrubber; saved as AppConfig::life_support_realistic) or
-    /// "Station-supplied", the default (the station's plant does).
+    /// "Realistic" (the home runs on what it makes and stores; saved as
+    /// AppConfig::life_support_realistic) or "Station-supplied", the default
+    /// (the ship's reactor feeds it, metered: systems::ship_power).
     pub life_support_realistic: bool,
     pub clear_pending: Option<u64>,
     /// The air each grow area grows in (2026-09-26, farming::humidity): (area

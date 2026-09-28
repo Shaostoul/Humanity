@@ -21,6 +21,7 @@ Where things live:
 | What the static power meter charges a day (2026-09-27) | `MachineDef::average_load_watts` in `src/machines.rs`; `average_watts` on the air machines in both home files |
 | What it credits a day, and the backstop apart (2026-09-27) | `MachineDef::average_supply_watts` and `backstop_watts` in `src/machines.rs`; the solar panel's `average_watts`, the wind turbine's day-average `watts` and the generator in both home files (section 7) |
 | Who the electrical sim feeds first on a short island (2026-09-27) | `src/systems/electrical.rs` |
+| The ship's reactor, its feed taps and the per-home supply ledger (2026-09-27) | `data/ship_power.ron`, `src/systems/ship_power.rs` (section 8) |
 
 ## 1. What was wrong before
 
@@ -122,9 +123,13 @@ crew limit) and takes a fixed share of the carbon dioxide in the air it draws.
 rooms counted as one (23 in the acre, 0.46 kg a day).
 
 **Modes** (the house rule for deep systems): Settings > Gameplay > Ship life
-support. Station-supplied, the default, has the station's own plant power the
-air handlers and the scrubber; Realistic puts their draw on the home's grid.
-The air, the water and the carbon are modelled identically either way.
+support. Since 2026-09-27 (section 8) Station-supplied, the default, ties every
+home power island to the ship's reactor, which supplies whatever the home's own
+generation and batteries do not, metered, so nothing browns out; Realistic
+unties it and the home runs on what it makes and stores. The air machines draw
+the same watts either way (they used to draw 0 W on the home's grid in
+Station-supplied). The air, the water and the carbon are modelled identically
+either way.
 
 **On a short island** (2026-09-27, found by the review of v0.1377): every solar
 island is short at night (no sun from 18:00 to 06:00, the wind 150 W, and the
@@ -511,3 +516,95 @@ timer note back at "15 min on / 15 off", and the energy balance counting only
 machines with a power role). In `src/systems/self_sufficiency.rs`:
 `household_energy_supply_sums_kwh_per_day_components` now holds the component
 table to the catalog (red with the table's panel left at 1.44).
+
+## 8. 2026-09-27: the ship's reactor feeds the homes, metered
+
+The operator's decision (PRIORITIES Blocked 3b), verbatim: "For now we can
+base power budget on nuclear reactors and then players can build solar and
+other means of producing electricity. We could track user resource usage but,
+essentially provide unlimited (at least to start) then we could figure out how
+to track a whole fleets worth of supplies because, that'll be important once
+the MMORPG storyline begins once the game is ready for release in a couple
+years."
+
+**The reactor** (`data/ship_power.ron`): one KLT-40S-class plant, 35 MWe. The
+class is a game choice: the only ship-mounted reactor plant that supplies a
+town's grid today, the floating plant Akademik Lomonosov at Pevek. The figure
+is TRADE PRESS, not a primary source: World Nuclear News, 16 January 2025,
+"two KLT-40S reactors generating 35 MWe each" (read 2026-09-27). The IAEA's
+PRIS and ARIS entries could not be read that day; replace it with their net
+figure when one is. At the family home's 61.8 kWh a day (2.6 kW) one reactor
+carries about 13,000 such homes, which is what "effectively unlimited" means:
+no home comes near it.
+
+**How the modes behave now.**
+
+- *Station-supplied* (the default): every power island of the home carries a
+  feed tap (`ship_power::ShipFeed`, spawned beside the home's machines). The
+  electrical sim uses the island's own generation first, then its batteries,
+  and the reactor supplies the rest, up to its whole output, so a fed island
+  never sheds a load and its backstop generator never burns fuel. What the
+  island makes past its loads and past what its batteries take goes back to
+  the ship. Both are metered to the watt-hour on the game clock, in f64.
+- *Realistic*: the tie is off. The home runs on what it makes and stores,
+  exactly as before: batteries carry the night, then loads are shed by
+  priority.
+- The air handlers and the CO2 scrubber draw their real watts in both modes
+  (they drew 0 W on the home's grid in Station-supplied before); the mode
+  decides only who supplies them.
+- A planet build site is never fed: a Solar Panel built there gets the site's
+  own island (`ship_power::site_island`, a number no home island uses), and
+  the site's electric stations join it.
+
+**Own generation.** The Solar Panel blueprint (`data/blueprints/basic.ron`,
+from the Solar Panel item that `build_solar_panel` makes at the electronics
+bench) is the first buildable generator: 400 W peak with the sun, the home
+catalog panel's figure. Built aboard it joins the home's fed island and takes
+its output off the reactor's draw one watt for one watt; built on a planet it
+powers the site. Panels placed from the home catalog in the Construction
+editor do the same.
+
+**What the meter shows.**
+
+- The Home page's Live power card: the reactor's watts now, the watts going
+  back, and the home's metered totals, kWh drawn and returned; in Realistic a
+  line saying the home runs on its own.
+- The HUD power line adds "reactor N W", and a covered deficit is not red.
+- The Usage meter (Construction page, `UtilityMeter::reactor` and
+  `returned`): in Station-supplied, what the reactor supplies a day on the
+  day's average, the home grid's use past what it makes plus ship life
+  support. Family: 50.8 kWh a day (13.0 to the grid, 37.8 to life support, on
+  section 7's figures); solo: about 28.4. In Realistic it says the mode
+  imports nothing.
+- Time away: the machines run on the reactor, and the time away's draw is
+  metered on the meter's day averages (`crafting::away::meter_away_reactor`).
+
+**The ledger** (`ship_power::ShipSupplyLedger`, saved as WorldSave
+`ship_supply`): home id, then utility id (`Utility::id`: "power" in Wh
+today), each a `{drawn, returned}` tally. Water and air are not drawn from a
+ship supply in either mode yet (the home's tanks and air are its own closed
+loops; the 0.46 kg a day of air leaked overboard is lost, not replaced), so
+the ledger has no lines for them; when the ship supplies them they are two
+more lines in the same map.
+
+**Next: the fleet ledger (not built).** The operator's "track a whole fleets
+worth of supplies" is the same ledger summed across homes
+(`ShipSupplyLedger::fleet_total` already does the sum). What it needs, when
+the MMORPG storyline begins: every home's ledger rows reaching one fleet
+record (per ship first, federated later, the open question in
+`grid-hierarchy.md`); the reactor's output shared among the homes it feeds
+rather than offered whole to each; what homes return credited to the fleet;
+and the ship's water and air supplies metered the same way. The ledger's
+shape is fixed for that now so none of it changes the per-home record.
+
+**Tests** (`src/systems/ship_power_tests.rs`), each seen red:
+`a_fed_home_never_sheds_and_is_metered_to_the_watt_hour` (red with the feed
+left out of the island's supply), `realistic_mode_runs_on_its_own_generation_and_batteries`
+(red with the feed ignoring the mode), `own_solar_offsets_reactor_draw_one_for_one`
+(red with the feed left out, and with the blueprint's `generates` dropped),
+`a_planet_site_is_not_fed_by_the_ships_reactor` (red with the site's island
+numbered 0, the home's). In `life_support_tests.rs`,
+`the_air_handlers_keep_their_power_through_a_short_night` now runs on the
+reactor (red with the feed left out) and
+`station_supplied_life_support_changes_only_who_pays` holds the same draw in
+both modes.

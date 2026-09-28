@@ -252,10 +252,12 @@ impl LifeSupportData {
 }
 
 /// DataStore key of the Settings mode, `Mutex<bool>`: true is Realistic (the
-/// home's grid powers the air handlers and the CO2 scrubber), false is
-/// Station-supplied (the station's own plant does). The air, the water and
-/// the carbon are modelled the same either way: the simplified mode only takes
-/// the machines' draw off the home's grid.
+/// home runs on what it makes and stores, its air machines included), false
+/// is Station-supplied (the ship's reactor feeds every home power island,
+/// metered, and nothing browns out: `systems::ship_power`). The air, the water
+/// and the carbon are modelled the same either way, and the air machines draw
+/// the same watts either way (2026-09-27); the mode decides only who supplies
+/// them.
 pub const MODE_KEY: &str = "life_support_realistic";
 
 /// Register the data and the mode (lib.rs, at startup). The mode starts
@@ -264,6 +266,8 @@ pub const MODE_KEY: &str = "life_support_realistic";
 pub fn register(data_store: &mut DataStore) {
     data_store.insert(DATA_KEY, LifeSupportData::load());
     data_store.insert(MODE_KEY, std::sync::Mutex::new(false));
+    // The ship's reactor, which feeds the home in that mode (systems::ship_power).
+    crate::systems::ship_power::register(data_store);
 }
 
 /// Publish the Settings mode (lib.rs, each frame).
@@ -527,9 +531,6 @@ pub struct HomeInputs {
     /// the home through `co2_in_g`).
     pub co2_out_rooms_g: f64,
     pub co2_uptake_rooms_g: f64,
-    /// The home's grid powers its air machines (Settings: Realistic); false
-    /// has the station's plant do it, and their draw on the home is 0.
-    pub realistic: bool,
 }
 
 /// Step the home's own air `hours` game hours: vapour (sources: the rooms'
@@ -595,14 +596,13 @@ pub fn step_home(
     // Every handler's draw, powered or not (2026-09-27): a powered one draws
     // along its fan's curve, a shed one asks for what it would draw with
     // power, so the island sees its request and powers it again when it can.
-    // In the Station-supplied mode the station's plant powers them: 0 W on
-    // the home's grid, which the electrical sim never sheds. (Writing only the
-    // powered ones left a shed handler asking for its spawn nameplate, a
-    // phantom 325 W on the home's grid in the Station-supplied mode.)
+    // The same in either Ship life support mode (2026-09-27): in the
+    // Station-supplied one the ship's reactor feeds the island, metered, so
+    // the draw is real and nothing is shed (systems::ship_power).
     for u in handlers {
         if let Ok(mut pc) = world.get::<&mut crate::ecs::components::PowerConsumer>(u.entity) {
             let share = if u.powered { share_v } else { share_v_req };
-            pc.draw_watts = if inp.realistic { (u.watts * ld.fan_power_share(share)) as f32 } else { 0.0 };
+            pc.draw_watts = (u.watts * ld.fan_power_share(share)) as f32;
         }
     }
 
@@ -630,7 +630,7 @@ pub fn step_home(
     for u in scrubbers {
         if let Ok(mut pc) = world.get::<&mut crate::ecs::components::PowerConsumer>(u.entity) {
             let share = if u.powered { share_c } else { share_c_req };
-            pc.draw_watts = if inp.realistic { (u.watts * share) as f32 } else { 0.0 };
+            pc.draw_watts = (u.watts * share) as f32;
         }
     }
 

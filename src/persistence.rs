@@ -135,6 +135,11 @@ pub struct WorldSave {
     /// since) keeps its spawn level. See engine::machine_levels.
     #[serde(default)]
     pub machine_levels: Vec<crate::engine::machine_levels::MachineLevels>,
+    /// What the home has drawn from and returned to the ship's supply
+    /// (2026-09-27, systems::ship_power): the reactor's kWh, metered. Empty in
+    /// a save from before it; the meter then starts at zero.
+    #[serde(default)]
+    pub ship_supply: crate::systems::ship_power::ShipSupplyLedger,
 }
 
 fn default_credits() -> i64 {
@@ -200,6 +205,7 @@ impl WorldSave {
             drone: None,
             mining_order: None,
             machine_levels: Vec::new(),
+            ship_supply: Default::default(),
         }
     }
 }
@@ -427,6 +433,7 @@ mod tests {
             drone: None,
             mining_order: None,
             machine_levels: Vec::new(),
+            ship_supply: Default::default(),
         }
     }
 

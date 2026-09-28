@@ -11,7 +11,13 @@
 //!      (an idle fan, an idle scrubber, or an air machine the station's own
 //!      plant powers), and shedding it would keep it off until the island has
 //!      a surplus again (2026-09-27).
-//!   5. Throttle log spam to once per 5 seconds.
+//!   5. THE SHIP'S REACTOR (2026-09-27, `systems::ship_power`): an island
+//!      with a feed tap, in the Station-supplied mode, counts the reactor's
+//!      output as supply, so it sheds nothing; after its own generation and
+//!      its batteries, the reactor covers the rest and the island's surplus
+//!      past full batteries goes back to the ship, both metered into the
+//!      ship supply ledger. The Realistic mode and a planet site have no feed.
+//!   6. Throttle log spam to once per 5 seconds.
 //!
 //! Fueled BACKSTOP gensets (v0.733): a generator with `fuel_per_second > 0`
 //! runs ONLY when its island needs it — free-source supply short of demand
@@ -40,6 +46,24 @@ pub struct PowerStatus {
     pub battery_capacity_wh: f32,
     /// Hours the stored charge would run the current load with zero generation.
     pub autonomy_hours: f32,
+    /// The ship's reactor feed this tick (2026-09-27, `systems::ship_power`).
+    /// `generation` above stays what the home makes on its own.
+    pub ship: ShipFeedReading,
+}
+
+/// What the home takes from the ship's reactor, for the Home card and the HUD.
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub struct ShipFeedReading {
+    /// Some island of the home is tied to the ship's bus and the feed is on
+    /// (the Station-supplied mode).
+    pub fed: bool,
+    /// Watts the reactor supplies now, and watts the home gives back to it.
+    pub drawn_w: f32,
+    pub returned_w: f32,
+    /// The player's home's metered totals, watt-hours (the ledger's power
+    /// line, `ship_power::PLAYER_HOME`), saved with the home.
+    pub drawn_wh: f64,
+    pub returned_wh: f64,
 }
 
 /// Integrate one tick of grid balance into a single battery. `balance_w` = generation - demand
@@ -138,6 +162,14 @@ impl System for ElectricalSystem {
         let raw_dt = dt;
         let dt = crate::systems::time::scaled_dt(dt, data);
 
+        // The ship's reactor (2026-09-27, systems::ship_power): in the
+        // Station-supplied mode every island with a feed tap may take up to
+        // the reactor's output from the ship's bus, after its own generation
+        // and batteries; in the Realistic mode (None) no island may.
+        let feed_w = crate::systems::ship_power::feed_watts(data).map(|w| w as f32);
+        let taps = crate::systems::ship_power::taps(world);
+        let fed = |island: &Option<u32>| feed_w.and_then(|w| taps.get(island).map(|home| (w, home.clone())));
+
         // Power flows PER ISLAND (v0.607): generation, loads, and batteries are grouped by their
         // PowerCircuit.island, so a generator only feeds loads on its own wired circuit -- no magic
         // transmission across unconnected wiring. Entities WITHOUT a PowerCircuit (legacy/test spawns)
@@ -154,6 +186,12 @@ impl System for ElectricalSystem {
             for (_, (g, pc)) in world.query::<(&PowerGenerator, Option<&PowerCircuit>)>().iter() {
                 if g.active && g.fuel_per_second <= 0.0 {
                     *free_gen.entry(pc.map(|p| p.island)).or_default() += g.output_watts;
+                }
+            }
+            // A fed island is never short, so its backstop never burns fuel.
+            for island in taps.keys() {
+                if let Some((w, _)) = fed(island) {
+                    *free_gen.entry(*island).or_default() += w;
                 }
             }
             let mut raw_demand: HashMap<Option<u32>, f32> = HashMap::new();
@@ -269,6 +307,7 @@ impl System for ElectricalSystem {
         let mut to_enable: Vec<hecs::Entity> = Vec::new();
         let (mut total_gen_all, mut consumed_all, mut demand_all) = (0.0_f32, 0.0_f32, 0.0_f32);
         let (mut battery_wh, mut battery_cap) = (0.0_f32, 0.0_f32);
+        let mut ship = ShipFeedReading::default();
 
         // 2. Balance + shed + integrate batteries, ONE ISLAND AT A TIME.
         for key in keys {
@@ -302,7 +341,8 @@ impl System for ElectricalSystem {
                     })
                     .sum()
             });
-            let supply = total_gen + batt_supply;
+            let feed = fed(&key);
+            let supply = total_gen + batt_supply + feed.as_ref().map_or(0.0, |(w, _)| *w);
             let mut remaining = supply;
             let mut consumed = 0.0_f32;
             if total_demand <= supply {
@@ -352,9 +392,27 @@ impl System for ElectricalSystem {
                     }
                 }
             }
+            // What the batteries could not cover comes from the ship's
+            // reactor, and what they could not take goes back to it: both
+            // metered to the watt-hour on the game clock, in f64.
+            if let Some((_, home)) = feed {
+                let (drawn, returned) = if grid_balance < 0.0 { (-grid_balance, 0.0) } else { (0.0, grid_balance) };
+                ship.fed = true;
+                ship.drawn_w += drawn;
+                ship.returned_w += returned;
+                let h = f64::from(dt) / 3600.0;
+                crate::systems::ship_power::record(
+                    data,
+                    &home,
+                    crate::systems::ship_power::POWER,
+                    f64::from(drawn) * h,
+                    f64::from(returned) * h,
+                );
+            }
         }
 
         // 3. Apply the enabled/disabled changes (deferred so the borrows above stay short).
+        let shed_any = !to_disable.is_empty();
         for entity in to_disable {
             if let Ok(mut c) = world.get::<&mut PowerConsumer>(entity) { c.enabled = false; }
         }
@@ -376,6 +434,12 @@ impl System for ElectricalSystem {
                 s.battery_wh = battery_wh;
                 s.battery_capacity_wh = battery_cap;
                 s.autonomy_hours = autonomy_hours;
+                let t = crate::systems::ship_power::tally(
+                    data,
+                    crate::systems::ship_power::PLAYER_HOME,
+                    crate::systems::ship_power::POWER,
+                );
+                s.ship = ShipFeedReading { drawn_wh: t.drawn, returned_wh: t.returned, ..ship };
             }
         }
 
@@ -383,7 +447,7 @@ impl System for ElectricalSystem {
         self.log_cooldown -= raw_dt;
         if self.log_cooldown <= 0.0 {
             self.log_cooldown = 5.0;
-            if demand_all > total_gen_all && total_gen_all > 0.0 {
+            if shed_any {
                 log::warn!(
                     "Power deficit: shedding {:.0}W (demand {:.0}W, supply {:.0}W)",
                     demand_all - total_gen_all, demand_all, total_gen_all
