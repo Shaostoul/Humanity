@@ -1502,6 +1502,16 @@ Save and load game world state (entities, terrain, player progress).
   flight, the world clock; since 2026-09-27 also the asteroids as mined down,
   the drone in flight with its cargo, the "Keep mining" standing order and the
   herd's yield timers)
+- **What the home's machines hold (2026-09-27):** each battery bank's charge,
+  each water tank's litres and each machine vessel's contents (the genset and
+  refinery fuel drums, the grain silo, the pantry, the freezer, the furniture
+  drawers, with their residue and toxic history) are saved by machine instance
+  id and carried across world entry, which respawns every machine. Before, each
+  restart and each world entry reset banks and tanks to half and emptied every
+  vessel, destroying what was stored in it. None of them moves on by the time
+  away. `src/engine/machine_levels.rs`, `WorldSave.machine_levels`. The home's
+  air (oxygen, carbon dioxide, humidity) and each grow room's air were already
+  saved in `SoilMemory` (`home_air`, `rooms`).
 - **Offline progression (2026-09-25):** crops, scaffolds under construction and
   craft batches catch up by the real time away when the game loads, with a
   notice. Settings >

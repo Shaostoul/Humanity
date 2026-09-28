@@ -146,3 +146,10 @@ what we will say about it.
   units, the quality grading of the field, and the 2013 Danish cress project.
   The evidence base for deciding the game's v0.620 Wi-Fi crop harm; the
   operator chose removal on 2026-09-27 and the harm was taken out that day.
+- [`2026-09-27-electroculture-copper-coils.md`](2026-09-27-electroculture-copper-coils.md),
+  whether copper coils and antennas, applied electricity or lightning make crops
+  grow better: the 2025 controlled test of passive coils (no effect), the USDA
+  1926 bulletin and the UK Electro-Culture Committee (1918 to 1936, closed as
+  unreliable), modern seedling-stage stimulation results, and how much nitrogen
+  lightning actually fixes. Cut short by the session limit; unread sources
+  listed. Options for the game set out, not chosen.
