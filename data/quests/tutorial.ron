@@ -17,12 +17,12 @@
                 objective: Build(blueprint_id: "wood_wall"),
             ),
             (
-                description: "Install an entrance door",
-                objective: Build(blueprint_id: "wood_door"),
+                description: "Build a wall with a door in it for an entrance",
+                objective: Build(blueprint_id: "wood_wall_door"),
             ),
             (
-                description: "Fit a window for natural light",
-                objective: Build(blueprint_id: "window"),
+                description: "Build a wall with a window in it",
+                objective: Build(blueprint_id: "wood_wall_window"),
             ),
         ],
         rewards: [

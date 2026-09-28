@@ -316,6 +316,11 @@
       "date": "2026-09-28",
       "decision": "Windows in walls: Blueprint.window (width, height, sill), the Wood Wall with Window, doorway::window_parts sharing opening_walls with doors, glass drawn with the home window glass material in the transparent lists; at planet sites the celestial transparent key gains a near-glass flag sorted after everything (celestial_order::list_key). Also closed BUG-052 (fixed as BUG-077 in v0.1315.0, re-proved with a vsync-off rig boot).",
       "why": "Doors needed windows to make a real room; the one risk was the celestial transparent order, so near glass goes after the layer stack and water, where what is seen through it is already composited, and the key is a pure tested function."
+    },
+    {
+      "date": "2026-09-28",
+      "decision": "Critic review of v0.1399.0..v0.1404.0 (building batch): no crash, trap or loss. Fixed: the look ray now meets doorway and window pieces as their parts and stops at a scaffold in front (first_in_view takes the registry); aboard the wind has no direction (home frame has no compass, vacuum outside); the old free-standing Wood Door and Window blueprints removed (solid slabs that could not open); tests strengthened (window glass segment count, upwind_from sign). Left, documented: the look ray does not stop at the home's own walls aboard; take-down overflow goes to the home's storage even on a planet; take_down itself (despawn and refund) is untested.",
+      "why": "Same lesson as 2026-09-26: features built back to back disagree at the seams (here the look ray kept the whole-box model after drawing and collision moved to parts). Each finding was checked against the code before fixing."
     }
   ],
   "active_scopes_to_avoid": [

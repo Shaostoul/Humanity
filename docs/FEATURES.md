@@ -1893,7 +1893,10 @@ ground the player moves by the frame lock's anchor, so the walk's step is resolv
 against that site's pieces (`engine::planet_build::collide_on_site`); dev fly mode stays noclip. So nobody can be walled
 in, a piece can be TAKEN DOWN: with a piece in hand, the Swing tool key (F) takes down the finished piece in view
 within 8 m and puts all its materials back in the pack (what does not fit goes to storage, through the "Take to
-backpack" channel); a chest that still holds anything is refused until it is empty (`build_place::take_down_plan`).
+backpack" channel; on a planet that storage is the home's, in orbit); a chest that still holds anything is refused until it
+is empty (`build_place::take_down_plan`). The look ray (E and F alike, `uses::first_in_view`) meets a door or window wall as
+its parts, so it goes through an open doorway, and a scaffold in front hides what is behind it (review of 2026-09-28). It
+does not yet stop at the home's own walls aboard, so a chest in the next room can be aimed at through one.
 
 **Placing a built piece (2026-09-27).** Build on the Crafting page's Structures now puts the piece IN HAND
 (`engine/build_place.rs`): the page closes and a half-dithered scaffold ghost follows the crosshair, on the floor

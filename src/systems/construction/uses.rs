@@ -35,7 +35,7 @@
 //! (BUG-102).
 
 use super::site::{in_frame, PlanetSite};
-use super::{placement, BlueprintRegistry, Structure};
+use super::{doorway, placement, BlueprintRegistry, Construction, DoorOpen, Structure};
 use crate::ecs::components::Transform;
 use glam::Vec3;
 
@@ -133,7 +133,7 @@ pub fn looked_at(
     reach: f32,
     frame: Option<&PlanetSite>,
 ) -> Option<(hecs::Entity, StructureUse)> {
-    let e = first_in_view(world, eye, dir, reach, frame)?;
+    let e = first_in_view(world, registry, eye, dir, reach, frame)?;
     let s = world.get::<&Structure>(e).ok()?;
     // A wall with a door in it is used as a door (its `provides` is the
     // wall's `shelter`), which only the blueprint says.
@@ -146,24 +146,48 @@ pub fn looked_at(
 
 /// The FIRST finished structure in `frame` the look ray meets within
 /// `reach` metres, whatever it is: the piece Take down removes, and the one
-/// [`looked_at`] asks the use of. Scaffolds (`Construction`) are not
-/// structures and are never met.
-pub fn first_in_view(world: &hecs::World, eye: Vec3, dir: Vec3, reach: f32, frame: Option<&PlanetSite>) -> Option<hecs::Entity> {
+/// [`looked_at`] asks the use of.
+///
+/// A piece with a door or a window in it is met as its PARTS
+/// (`doorway::piece_parts`), the same boxes that are drawn and that block
+/// (review of 2026-09-28): the ray goes through an open doorway to what is
+/// beyond it, and meets the open leaf where it stands. A scaffold
+/// (`Construction`) is not a structure and is never the answer, but one in
+/// front hides what is behind it, so a piece behind a rising wall cannot be
+/// taken down through it.
+pub fn first_in_view(
+    world: &hecs::World,
+    registry: Option<&BlueprintRegistry>,
+    eye: Vec3,
+    dir: Vec3,
+    reach: f32,
+    frame: Option<&PlanetSite>,
+) -> Option<hecs::Entity> {
     let dir = dir.normalize_or_zero();
     if dir == Vec3::ZERO {
         return None;
     }
     let mut first: Option<(hecs::Entity, f32)> = None;
-    for (e, (_s, tf, site)) in world.query::<(&Structure, &Transform, Option<&PlanetSite>)>().iter() {
+    for (e, (s, tf, site, open)) in world.query::<(&Structure, &Transform, Option<&PlanetSite>, Option<&DoorOpen>)>().iter() {
         if !in_frame(site, frame) {
             continue;
         }
-        let Some(t) = ray_hits_box(eye, dir, tf) else { continue };
+        let parts = registry.and_then(|r| r.get(&s.blueprint_id)).and_then(|bp| doorway::piece_parts(bp, tf, open.is_some()));
+        let hit = match parts {
+            Some(parts) => parts.iter().filter_map(|(p, _)| ray_hits_box(eye, dir, p)).reduce(f32::min),
+            None => ray_hits_box(eye, dir, tf),
+        };
+        let Some(t) = hit else { continue };
         if t <= reach && first.map_or(true, |f| t < f.1) {
             first = Some((e, t));
         }
     }
-    first.map(|(e, _)| e)
+    let (e, t) = first?;
+    let scaffold_in_front = world
+        .query::<(&Construction, &Transform, Option<&PlanetSite>)>()
+        .iter()
+        .any(|(_e, (_, tf, site))| in_frame(site, frame) && ray_hits_box(eye, dir, tf).is_some_and(|s| s < t));
+    (!scaffold_in_front).then_some(e)
 }
 
 /// Give every finished structure that has no uid (0) the next free one.
@@ -535,6 +559,36 @@ mod tests {
         let bp = reg.get(id).unwrap_or_else(|| panic!("{id} in basic.ron"));
         let tf = placement::placement_pose(bp, Vec3::new(x, 0.0, z), turns, world, reg, None);
         world.spawn((tf, Structure { blueprint_id: id.into(), health: bp.health, max_health: bp.health, provides: bp.provides.clone(), uid: 0 }));
+    }
+
+    /// THE LOOK RAY MEETS WHAT IS DRAWN (review of 2026-09-28). Through an
+    /// open doorway it reaches the chest beyond; a shut door stops it at the
+    /// door; standing in the open doorway it does not meet the wall at zero;
+    /// and a scaffold in front of a bed hides the bed. Red check, run: testing
+    /// the whole piece's box instead of its parts fails the open-doorway assertion.
+    #[test]
+    fn the_look_ray_goes_through_an_open_doorway_and_stops_at_a_scaffold() {
+        let reg = shipped();
+        let mut world = hecs::World::new();
+        // A doorway wall running north-south at x = 0, the gap at z -0.5..0.5.
+        place(&mut world, &reg, "wood_wall_door", 0.0, 0.0, 1);
+        let wall = world.query::<&Structure>().iter().next().map(|(e, _)| e).unwrap();
+        place(&mut world, &reg, "storage_chest", 2.0, 0.0, 0);
+        let chest = world.query::<&Structure>().iter().find(|(e, _)| *e != wall).map(|(e, _)| e).unwrap();
+        let eye = Vec3::new(-3.0, 0.5, 0.0);
+        assert_eq!(first_in_view(&world, Some(&reg), eye, Vec3::X, 8.0, None), Some(wall), "a shut door is in the way");
+        world.insert_one(wall, DoorOpen).unwrap();
+        assert_eq!(first_in_view(&world, Some(&reg), eye, Vec3::X, 8.0, None), Some(chest), "through the open doorway");
+        let in_gap = Vec3::new(0.0, 1.5, 0.0);
+        assert_eq!(first_in_view(&world, Some(&reg), in_gap, Vec3::NEG_Y, 8.0, None), None, "standing in the open doorway, looking down: not inside the wall");
+
+        let mut site = hecs::World::new();
+        place(&mut site, &reg, "bed", 0.0, 3.0, 0);
+        let bp = reg.get("wood_wall").unwrap();
+        let tf = placement::placement_pose(bp, Vec3::new(0.0, 0.0, 1.0), 0, &site, &reg, None);
+        site.spawn((tf, Construction { blueprint_id: "wood_wall".into(), progress: 1.0, build_time: 4.0, builder_key: None }));
+        let at_bed = Vec3::new(0.0, 0.3, 3.0) - Vec3::new(0.0, 1.5, -1.0);
+        assert_eq!(first_in_view(&site, Some(&reg), Vec3::new(0.0, 1.5, -1.0), at_bed, 8.0, None), None, "a scaffold hides the bed behind it");
     }
 
     /// BACK TO THE WIND (2026-09-28). The same three-walled shelter, open to

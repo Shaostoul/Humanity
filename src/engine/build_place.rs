@@ -244,7 +244,7 @@ pub(crate) fn take_down_plan(
     forward: Vec3,
     frame: Option<&PlanetSite>,
 ) -> Result<(hecs::Entity, String, Vec<(String, u32)>), String> {
-    let Some(e) = crate::systems::construction::uses::first_in_view(world, eye, forward, TAKE_DOWN_REACH_M, frame) else {
+    let Some(e) = crate::systems::construction::uses::first_in_view(world, registry, eye, forward, TAKE_DOWN_REACH_M, frame) else {
         return Err("Nothing built in reach to take down".to_string());
     };
     let (id, uid) = match world.get::<&Structure>(e) {
@@ -515,10 +515,16 @@ mod collision_tests {
         assert!((walk(&world, 0.0).x - 2.0).abs() < 1e-3, "an open door lets you through: {}", walk(&world, 0.0));
         assert!(walk(&world, 1.5).x < -0.25, "the wall beside the gap still blocks");
 
-        // A window is glass: walking at it stops you, like the wall.
+        // A window is glass: walking at it stops you, like the wall. The wall
+        // under the sill would stop you on its own, so the glass is checked
+        // as a segment of its own: the two sides, the wall under the sill and
+        // the pane (the lintel is over the head). Red check, run: leaving the
+        // glass out of collision fails the count.
         let mut glazed = hecs::World::new();
         place(&mut glazed, &reg, "wood_wall_window", 0.0, 0.0, 1);
         assert!(walk(&glazed, 0.0).x < -0.25, "a window stops you");
+        let segs = built_piece_segments(&glazed, Some(&reg), None, Vec3::new(-2.0, eye_h, 0.0), eye_h);
+        assert_eq!(segs.len(), 4, "the sides, the wall under the sill and the pane");
     }
 
     /// The segment stays inside the box's footprint: a long thin box runs

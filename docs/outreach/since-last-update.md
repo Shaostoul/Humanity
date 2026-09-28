@@ -42,3 +42,8 @@ Each line is written the way a player would hear it; the release notes and
   when you load your save.
 - **v0.1404.0: windows in walls.** A Wood Wall with Window (a pane of
   glass you smelt from sand) lets you see out and is solid to walk into.
+- **v0.1405.0: building fixes from a review.** You can now aim through an
+  open doorway at what is beyond it, a piece still going up blocks taking down
+  what stands behind it, a roof on the ship no longer reads open to a wind that
+  is not there, and the old free-standing door and window pieces (which built
+  solid slabs you could not open) are gone.

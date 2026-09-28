@@ -12,8 +12,8 @@
                 objective: Gather(item_id: "glass_pane_0", quantity: 20),
             ),
             (
-                description: "Enclose the growing space with a glass window",
-                objective: Build(blueprint_id: "window"),
+                description: "Enclose the growing space with a wall with a window in it",
+                objective: Build(blueprint_id: "wood_wall_window"),
             ),
             (
                 description: "Build a heater for temperature regulation",

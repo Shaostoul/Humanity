@@ -154,6 +154,8 @@ pub(crate) fn publish(state: &mut EngineState) {
     // fly mode off restores normal survival rules wherever you are.
     // Set in the outside branch below; nothing shelters inside the home or in fly mode.
     let mut shelter = uses::ShelterCheck::default();
+    // The air the shelter note is worded for (its upwind as the outside branch set it).
+    let mut sheltered_air = exposed;
     let env = if state.controller.fly_mode {
         // Fly mode already suspends vacuum and cold; suspend the burn too, so
         // sightseeing during a 5 g evasion does not quietly kill the operator.
@@ -194,18 +196,28 @@ pub(crate) fn publish(state: &mut EngineState) {
                 // their feet taken from the frame lock's anchor (BUG-102:
                 // testing the raw camera position said "Sheltered" wherever
                 // one walked, because on a planet the camera does not move).
+                let mut air = exposed;
                 if let Some(f) = crate::engine::planet_build::player_frame(state) {
                     shelter = uses::shelter_at(&state.game_world.world, f.feet, f.site.as_ref());
+                    // The wind's east and north are a PLANET site's axes. The
+                    // home frame has no compass (and outside it is vacuum), so
+                    // there the wind has no side to come from (review of
+                    // 2026-09-28: a roof on the hull read sheltered or not by
+                    // a random roll against the home's axes).
+                    if f.site.is_none() {
+                        air.upwind = Vec3::ZERO;
+                    }
                 }
-                outside_context(exposed, outside_breathable, shelter, activity, felt_g_now)
+                sheltered_air = air;
+                outside_context(air, outside_breathable, shelter, activity, felt_g_now)
             }
             Whereabouts::NoHome => EnvironmentContext::default(),
         }
     };
     state.data_store.insert("environment_context", env);
     // The HUD's Shelter line and the Inventory page's readout.
-    state.gui_state.vitals.sheltered = shelter.out_of_the_wind(exposed.upwind);
-    state.gui_state.vitals.shelter_note = shelter.note(exposed.upwind);
+    state.gui_state.vitals.sheltered = shelter.out_of_the_wind(sheltered_air.upwind);
+    state.gui_state.vitals.shelter_note = shelter.note(sheltered_air.upwind);
 }
 
 /// Where the player is for the survival context.
@@ -452,5 +464,16 @@ mod tests {
         let roof_only = uses::ShelterCheck { roofed: true, walls: 0b0011 };
         let ex = Exposure::from_context(&outside_context(weather, true, roof_only, MET_STANDING, 1.0));
         assert_eq!((ex.wind_10m_m_s, ex.precipitation), (3.3, 0.0), "rain off, wind in");
+    }
+
+    /// Where the wind comes FROM, in a build site's axes: blowing east it
+    /// comes from the west (-X); blowing north, from the south (+Z, since -Z is
+    /// north there). Red check, run: flipping the sign of east in upwind_from
+    /// fails the first assertion.
+    #[test]
+    fn upwind_is_where_the_wind_comes_from_in_a_sites_axes() {
+        assert_eq!(upwind_from(3.0, 0.0), Vec3::NEG_X);
+        assert_eq!(upwind_from(0.0, 2.0), Vec3::Z);
+        assert_eq!(upwind_from(0.0, 0.0), Vec3::ZERO, "calm");
     }
 }
