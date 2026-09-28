@@ -595,12 +595,7 @@ mod stand_still_tests {
         // Mirrors lib.rs 8810-8820: same reverse-Z projection, same transform
         // into the planet's unrotated frame (here spin 0, camera at the render
         // origin, so the planet offset is -cam_local).
-        let proj = glam::DMat4::perspective_rh(
-            (cam.fov_degrees as f64).to_radians(),
-            cam.aspect as f64,
-            1.0e13,
-            1.0,
-        );
+        let proj = crate::renderer::camera::celestial_projection_f64(cam.fov_degrees as f64, cam.aspect as f64);
         let frustum = pc::FrustumPlanes::from_view_proj(&(proj * cam.view_matrix().as_dmat4()))
             .into_local(DQuat::IDENTITY, -cam_local);
         let params = pc::ChunkParams {

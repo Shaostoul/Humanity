@@ -141,19 +141,8 @@ pub(crate) fn publish(state: &mut EngineState) {
         // sightseeing during a 5 g evasion does not quietly kill the operator.
         EnvironmentContext::default()
     } else {
-        match state.homestead_bounds {
-            // Inside the home only while in the home frame: on a planet the
-            // parked camera's local position can sit inside the home's box by
-            // coincidence (the same frame confusion as BUG-102).
-            Some((mn, mx))
-                if state.aboard_station
-                    && pos.x >= mn.x
-                    && pos.x <= mx.x
-                    && pos.y >= mn.y
-                    && pos.y <= mx.y
-                    && pos.z >= mn.z
-                    && pos.z <= mx.z =>
-            {
+        match whereabouts(state.homestead_bounds, state.aboard_station, pos) {
+            Whereabouts::InsideHome => {
                 // Inside the homestead: sealed, still air at the home's own
                 // temperature and humidity, and OXYGENATED only while the
                 // life-support air is breathable (v0.618). Since 2026-09-26 that
@@ -179,7 +168,7 @@ pub(crate) fn publish(state: &mut EngineState) {
                     ..base
                 }
             }
-            Some(_) => {
+            Whereabouts::Outside => {
                 // Outside the hull, under whatever the player has built over
                 // themselves (2026-09-27: a roof on three walls keeps the wind
                 // and rain off), tested in the frame the player is in: the
@@ -192,14 +181,37 @@ pub(crate) fn publish(state: &mut EngineState) {
                 }
                 outside_context(exposed, outside_breathable, shelter, activity, felt_g_now)
             }
-            // Homestead not generated yet: assume safe.
-            None => EnvironmentContext::default(),
+            Whereabouts::NoHome => EnvironmentContext::default(),
         }
     };
     state.data_store.insert("environment_context", env);
     // The HUD's Shelter line and the Inventory page's readout.
     state.gui_state.vitals.sheltered = shelter.sheltered();
     state.gui_state.vitals.shelter_note = shelter.note();
+}
+
+/// Where the player is for the survival context.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Whereabouts {
+    /// In the homestead's sealed air.
+    InsideHome,
+    /// Out in the weather (or in space), under whatever they built.
+    Outside,
+    /// The homestead is not generated yet: assume safe.
+    NoHome,
+}
+
+/// Inside the home only while ABOARD, in the home frame, with the camera in
+/// the home's box (`bounds`). On a planet the parked camera's local position
+/// can sit inside the home's box by coincidence, because the camera stays
+/// put while the ship frame moves under it (the same frame confusion as
+/// BUG-102), and that must never read as the home's still, warm air.
+pub(crate) fn whereabouts(bounds: Option<(glam::Vec3, glam::Vec3)>, aboard: bool, pos: glam::Vec3) -> Whereabouts {
+    match bounds {
+        None => Whereabouts::NoHome,
+        Some((mn, mx)) if aboard && pos.cmpge(mn).all() && pos.cmple(mx).all() => Whereabouts::InsideHome,
+        Some(_) => Whereabouts::Outside,
+    }
 }
 
 /// THE home's air: temperature (C), relative humidity (0 to 1) and pressure
@@ -220,6 +232,25 @@ mod tests {
     use crate::systems::body_environment::BodyEnvironment;
     use crate::systems::weather::WeatherSystem;
     use crate::ecs::systems::System;
+
+    /// INSIDE THE HOME REQUIRES ABOARD (the review's missing test). The same
+    /// camera position inside the home's box is the home's air aboard and
+    /// the weather on a planet, where the parked camera sits there by
+    /// coincidence; outside the box it is the weather either way; with no
+    /// home generated, the safe default. Red check, run: dropping the
+    /// `aboard` condition from `whereabouts` puts the planet player in the
+    /// home's air and the second assertion fails.
+    #[test]
+    fn inside_the_home_requires_being_aboard() {
+        use glam::Vec3;
+        let home = Some((Vec3::new(-10.0, 0.0, -10.0), Vec3::new(10.0, 20.0, 10.0)));
+        let parked = Vec3::new(0.0, 5.0, 0.0);
+        assert_eq!(whereabouts(home, true, parked), Whereabouts::InsideHome);
+        assert_eq!(whereabouts(home, false, parked), Whereabouts::Outside, "on a planet the parked camera is not in the home");
+        assert_eq!(whereabouts(home, true, Vec3::new(0.0, 50.0, 0.0)), Whereabouts::Outside, "on the hull, outside the box");
+        assert_eq!(whereabouts(home, true, Vec3::new(10.0, 20.0, 10.0)), Whereabouts::InsideHome, "the box's own corner is inside");
+        assert_eq!(whereabouts(None, false, parked), Whereabouts::NoHome);
+    }
 
     /// The body heat INPUT at the player changes with altitude: at the same
     /// place and moment, under the same weather, a mountain top is colder and

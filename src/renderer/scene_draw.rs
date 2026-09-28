@@ -559,13 +559,7 @@ impl Renderer {
         // The SAME projection the celestial pass rendered depth with
         // (reverse-Z, far plane at 1e13) — a mismatched matrix would park
         // the sun uv in the wrong place and bend every shaft.
-        let proj = Mat4::perspective_rh(
-            camera.fov_degrees.to_radians(),
-            camera.aspect,
-            1.0e13,
-            1.0,
-        );
-        let view_proj = proj * camera.view_matrix();
+        let view_proj = camera.celestial_projection() * camera.view_matrix();
         self.godrays.render(
             &self.device,
             &self.queue,
@@ -594,13 +588,7 @@ impl Renderer {
         }
         // The SAME projection the celestial depth was rendered with; its
         // [2][2] / [3][2] elements linearize reverse-Z depth in the shader.
-        let proj = Mat4::perspective_rh(
-            camera.fov_degrees.to_radians(),
-            camera.aspect,
-            1.0e13,
-            1.0,
-        );
-        let m = proj.to_cols_array_2d();
+        let m = camera.celestial_projection().to_cols_array_2d();
         // True focal length in pixels — the shader reconstructs view-space
         // positions from it, so the small-angle px-per-radian approximation
         // is no longer good enough (v0.1100 estimator rebuild, BUG-062).

@@ -82,7 +82,7 @@ pub(crate) fn key(state: &mut EngineState, key_name: &str, escape: bool, repeat:
             // a planet's ground), and never twice in one spot.
             let Some(p) = state.gui_state.build_placing.as_ref() else { return false };
             let Some(pose) = p.ghost.clone() else { return false };
-            if p.occupied {
+            if p.occupied || p.short {
                 return true;
             }
             let request = BuildRequest::new(p.blueprint_id.clone(), pose).on(p.site.clone());
@@ -116,6 +116,7 @@ pub(crate) fn frame(state: &mut EngineState) {
             ghost: None,
             site: None,
             occupied: false,
+            short: false,
             hint: String::new(),
         });
         state.gui_state.active_page = GuiPage::None;
@@ -130,9 +131,15 @@ pub(crate) fn frame(state: &mut EngineState) {
     // aboard, the build site they stand in on a planet (planet_build).
     let (name, turns) = (p.name.clone(), p.quarter_turns);
     let placed = planet_build::ghost(state, &p.blueprint_id, turns);
+    // On a planet only the pack counts (the home's storage is in orbit).
+    let short = match &placed {
+        Ok(g) if g.site.is_some() => carried_short(state, &p.blueprint_id),
+        _ => None,
+    };
     let keys = &state.gui_state.keybinds;
-    let hint = match &placed {
-        Ok(g) => placing_hint(
+    let hint = match (&placed, &short) {
+        (Ok(_), Some((item, more))) => short_hint(&name, item, *more),
+        (Ok(g), None) => placing_hint(
             &name,
             turns,
             g.above_floor,
@@ -140,10 +147,11 @@ pub(crate) fn frame(state: &mut EngineState) {
             &pretty_key_name(keys.pair(GameAction::Interact).0),
             &pretty_key_name(keys.pair(GameAction::ToggleRoof).0),
         ),
-        Err(why) => planet_build::cannot_build_hint(&name, *why),
+        (Err(why), _) => planet_build::cannot_build_hint(&name, *why),
     };
     if let Some(p) = state.gui_state.build_placing.as_mut() {
         p.hint = hint;
+        p.short = short.is_some();
         match placed {
             Ok(g) => {
                 p.ghost = Some(g.pose);
@@ -157,6 +165,32 @@ pub(crate) fn frame(state: &mut EngineState) {
             }
         }
     }
+}
+
+/// What the player's pack is short of for `blueprint_id`: the item's name
+/// and how many more, or None when they carry enough
+/// (`construction::materials_short` with no home storage, the rule the
+/// ConstructionSystem applies to a planet build).
+fn carried_short(state: &EngineState, blueprint_id: &str) -> Option<(String, u32)> {
+    use crate::ecs::components::Controllable;
+    use crate::systems::inventory::{Inventory, ItemRegistry};
+    let bp = state.data_store.get::<BlueprintRegistry>("blueprint_registry")?.get(blueprint_id)?;
+    let world = &state.game_world.world;
+    let mut q = world.query::<(&Inventory, &Controllable)>();
+    let (_e, (inv, _)) = q.iter().next()?;
+    let (id, more) = crate::systems::construction::materials_short(bp, |id| inv.count_item(id), None)?;
+    let name = state
+        .data_store
+        .get::<ItemRegistry>("item_registry")
+        .and_then(|r| r.items.get(&id).map(|d| d.name.clone()))
+        .unwrap_or(id);
+    Some((name, more))
+}
+
+/// The line under the crosshair on a planet when the pack holds too little:
+/// what is missing, and why the home's storage does not count.
+pub(crate) fn short_hint(name: &str, item: &str, more: u32) -> String {
+    format!("Placing {name}: carry {more} more {item} to build it here (on a planet you build from what you carry)   [Esc] done")
 }
 
 /// The line under the crosshair while placing. `above_floor` is how high the
@@ -188,6 +222,7 @@ mod tests {
             ghost: None,
             site: None,
             occupied: false,
+            short: false,
             hint: String::new(),
         });
         g
@@ -236,5 +271,7 @@ mod tests {
         assert!(cannot_build_hint("Bed", CannotBuild::OpenSpace).contains("open space"));
         assert!(cannot_build_hint("Bed", CannotBuild::NotOnGround).contains("stand on the ground"));
         assert!(cannot_build_hint("Bed", CannotBuild::OnWater).contains("water"));
+        let short = short_hint("Wood Wall", "Wood Plank", 4);
+        assert!(short.contains("carry 4 more Wood Plank") && short.contains("what you carry") && !short.contains("build here"), "{short}");
     }
 }

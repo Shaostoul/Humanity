@@ -549,6 +549,42 @@ impl CraftingSystem {
         electric.then(|| format!("the {} has no power", machine_type.replace('_', " ")))
     }
 
+    /// The same question for the stations WHERE THE PLAYER IS (2026-09-27,
+    /// the planet-build review): only the machines of `frame` count (None =
+    /// the home; a planet build site otherwise), so a powered stove aboard
+    /// the home does not power a craft at a stove built on Earth. A station
+    /// built on a planet that is on no grid (`construction::wire_built_stations`
+    /// gives it its loads but no power consumer) is electric and unpowered,
+    /// and the reason says why.
+    pub fn station_unpowered_at(
+        world: &hecs::World,
+        machine_type: &str,
+        frame: Option<&crate::systems::construction::PlanetSite>,
+    ) -> Option<String> {
+        use crate::ecs::components::{MachineType, PowerConsumer, StationLoad};
+        use crate::systems::construction::{site::in_frame, PlanetSite};
+        let (mut electric, mut off_grid) = (false, false);
+        for (_e, (mt, pc, load, site)) in world
+            .query::<(&MachineType, Option<&PowerConsumer>, Option<&StationLoad>, Option<&PlanetSite>)>()
+            .iter()
+        {
+            if mt.0 != machine_type || !in_frame(site, frame) {
+                continue;
+            }
+            match pc {
+                Some(pc) if pc.enabled => return None,
+                Some(_) => electric = true,
+                None if load.is_some() => (electric, off_grid) = (true, true),
+                None => {}
+            }
+        }
+        let name = machine_type.replace('_', " ");
+        electric.then(|| match frame {
+            Some(_) if off_grid => format!("the {name} has no power: nothing at this site makes power, and the home's grid is in orbit"),
+            _ => format!("the {name} has no power"),
+        })
+    }
+
     /// Would the recipe's outputs land WITHOUT overflow-loss? Conservative slot
     /// math (existing same-item stack headroom first, then free slots). Used by
     /// the AutoRefine arm so automation never grinds inputs into discarded
@@ -1163,8 +1199,15 @@ impl System for CraftingSystem {
                         }
                         // Power (2026-09-26): an electric station needs power.
                         // Stations with no electrical role (a workbench, a
-                        // fire-fed furnace) are not asked.
-                        if let Some(reason) = Self::station_unpowered(world, machine_type) {
+                        // fire-fed furnace) are not asked. Only the stations
+                        // where the player is count (2026-09-27): the home's
+                        // aboard, a planet site's on its ground.
+                        let here = data
+                            .get::<std::sync::Mutex<crate::systems::construction::StationsWhere>>("stations_where")
+                            .and_then(|m| m.lock().ok().map(|w| w.clone()))
+                            .unwrap_or_default();
+                        let unpowered = here.frame().and_then(|f| Self::station_unpowered_at(world, machine_type, f));
+                        if let Some(reason) = unpowered {
                             if let Some(slot) = data.get::<std::sync::Mutex<Vec<String>>>("player_notices") {
                                 if let Ok(mut n) = slot.lock() {
                                     n.push(format!("{}: {reason}", recipe.name));
