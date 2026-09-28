@@ -49,9 +49,11 @@ placed sub-structure. Reuse, don't reinvent.
 Zone placement isn't just "does it fit," it has real physical consequences that should
 feed back into the aggregate simulation (see the "Population scale target" open
 question below): "if the industrial area is too close, no one can sleep, the noise
-comes through the steel frame of the ship." This is the same category of mechanic as
-the already-shipped WiFi-RF-harms-crops consequence chain (v0.619-620), a zone property
-that degrades a nearby zone's livability unless properly separated or insulated.
+comes through the steel frame of the ship." This is the same category of mechanic the
+v0.619-620 WiFi-RF-harms-crops chain was (removed 2026-09-27 for lack of evidence,
+`docs/reference/findings/2026-09-27-wifi-and-plants.md`; noise through a steel frame is
+well established, unlike that one): a zone property that degrades a nearby zone's
+livability unless properly separated or insulated.
 Proposed model (not yet built): give each `zone_types.ron` entry a `noise_output` and
 `thermal_output` coefficient (industrial and power high, residential/medical low), and
 compute a per-residential-zone "disturbance" value from `sum(nearby_zone.output /

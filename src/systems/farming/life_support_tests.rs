@@ -831,10 +831,7 @@ mod shipped {
         data.insert(units::PLOT_AREA_KEY, areas);
         let mut world = hecs::World::new();
         let (power, water) = (home.electrical_islands(&all), home.water_islands(&all));
-        // Every machine but the RF emitters: the family home's Wi-Fi router, at
-        // full power, stunts the whole garden to death within minutes (its own
-        // lesson, farming's RF stress), and this measures the air, not that.
-        for inst in all.iter().filter(|i| !(home.catalog[&i.machine].rf_emission > 0.0)) {
+        for inst in &all {
             crate::engine::home_spawn::spawn_home_machine_entity(&mut world, inst, &home.catalog[&inst.machine], &power, &water, None, None);
         }
         crate::engine::home_spawn::spawn_home_air_space(&mut world, crate::engine::home_spawn::home_metabolic_kcal(&home));
