@@ -156,12 +156,12 @@ pub fn extract_world_save(world: &hecs::World) -> WorldSave {
     // gone after a restart even though its materials had been consumed.
     // A piece built on a planet carries its build site (2026-09-27): the
     // pose is then site-local, and the site says which body and where.
-    use crate::systems::construction::{Construction, PlanetSite, Structure};
+    use crate::systems::construction::{Construction, DoorOpen, PlanetSite, Structure};
     let pose = |t: &crate::ecs::components::Transform| {
         (t.position.to_array(), t.rotation.to_array(), t.scale.to_array())
     };
-    for (_e, (s, t, site)) in world
-        .query::<(&Structure, &crate::ecs::components::Transform, Option<&PlanetSite>)>()
+    for (_e, (s, t, site, open)) in world
+        .query::<(&Structure, &crate::ecs::components::Transform, Option<&PlanetSite>, Option<&DoorOpen>)>()
         .iter()
     {
         let (position, rotation, scale) = pose(t);
@@ -175,6 +175,7 @@ pub fn extract_world_save(world: &hecs::World) -> WorldSave {
             provides: s.provides.clone(),
             building: None,
             uid: s.uid,
+            open: open.is_some(),
             site: site.cloned(),
         });
     }
@@ -193,6 +194,7 @@ pub fn extract_world_save(world: &hecs::World) -> WorldSave {
             provides: None,
             building: Some((c.progress, c.build_time)),
             uid: 0,
+            open: false,
             site: site.cloned(),
         });
     }
@@ -399,6 +401,10 @@ pub fn apply_save_to_world(world: &mut hecs::World, save: &WorldSave) {
         // Back into its planet build site, when it was built on a planet.
         if let Some(site) = &b.site {
             let _ = world.insert_one(piece, site.clone());
+        }
+        // A door that was left open is open again.
+        if b.open && b.building.is_none() {
+            let _ = world.insert_one(piece, crate::systems::construction::DoorOpen);
         }
     }
     // Asteroids (2026-09-27): authoritative once recorded, so what was mined
@@ -1588,6 +1594,44 @@ mod tests {
         assert_eq!(back.constructions, save.constructions);
     }
 
+    /// A door left open is open after a save and a load (2026-09-28), a shut
+    /// one stays shut, and a record from before doors (no `open`) loads shut.
+    /// Red check, run: writing `open: false` for every structure fails the
+    /// first assertion.
+    #[test]
+    fn an_open_door_stays_open_across_a_save() {
+        use crate::systems::construction::{DoorOpen, Structure};
+        let piece = |uid: u32| Structure {
+            blueprint_id: "wood_wall_door".to_string(),
+            health: 150.0,
+            max_health: 150.0,
+            provides: Some("shelter".to_string()),
+            uid,
+        };
+        let tf = |x: f32| crate::ecs::components::Transform {
+            position: glam::Vec3::new(x, 0.0, 0.0),
+            rotation: glam::Quat::IDENTITY,
+            scale: glam::Vec3::new(4.0, 3.0, 0.2),
+        };
+        let mut world = hecs::World::new();
+        let open = world.spawn((tf(0.0), piece(1)));
+        world.insert_one(open, DoorOpen).unwrap();
+        world.spawn((tf(8.0), piece(2)));
+        let json = serde_json::to_string(&extract_world_save(&world)).unwrap();
+        let back: WorldSave = serde_json::from_str(&json).unwrap();
+        let mut fresh = hecs::World::new();
+        apply_save_to_world(&mut fresh, &back);
+        let mut states: Vec<(u32, bool)> =
+            fresh.query::<(&Structure, Option<&DoorOpen>)>().iter().map(|(_e, (s, o))| (s.uid, o.is_some())).collect();
+        states.sort();
+        assert_eq!(states, vec![(1, true), (2, false)]);
+        let old: crate::persistence::ConstructionSave = serde_json::from_str(
+            r#"{"blueprint_id":"wood_wall_door","position":[0,0,0],"rotation":[0,0,0,1],"health":150}"#,
+        )
+        .unwrap();
+        assert!(!old.open, "a record from before doors loads shut");
+    }
+
     /// A wall the player turned is built turned, saved turned, and comes back
     /// turned (2026-09-27). The whole path: a build request with a quarter
     /// turn through the ConstructionSystem (materials, the timed build,
@@ -1774,6 +1818,7 @@ mod tests {
             provides: None,
             building: Some((4.0, 10.0)),
             uid: 0,
+            open: false,
             site: None,
         }];
         let mut world = hecs::World::new();

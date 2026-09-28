@@ -38,3 +38,5 @@ Each line is written the way a player would hear it; the release notes and
 - **v0.1402.0: doors in walls.** Build a Wood Wall with Door and press E
   to open or shut it; an open door lets you walk through, a shut one stops you.
   A closed room finally has a way in and out.
+- **v0.1403.0: doors remember.** A door you leave open is still open
+  when you load your save.

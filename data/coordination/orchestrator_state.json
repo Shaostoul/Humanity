@@ -306,6 +306,11 @@
       "date": "2026-09-28",
       "decision": "Doors set into walls: Blueprint.doorway (width, height), the Wood Wall with Door blueprint, construction::doorway::parts as the one source of a doorway piece's boxes for drawing and collision, StructureUse::Door via looked_at with the registry, E toggles a DoorOpen marker (not saved). Also started docs/outreach/since-last-update.md at the operator's request (report on his prompt near 100% usage).",
       "why": "Solid walls made a closed room unenterable except by taking a wall down; a door is the real answer and the next Tier B blocker. One parts function keeps what is drawn and what blocks identical."
+    },
+    {
+      "date": "2026-09-28",
+      "decision": "Door state saved: ConstructionSave gains open (serde default false), written from the DoorOpen marker and restored with it.",
+      "why": "v0.1402.0 shipped doors that reset to shut on load; the save record already carries each piece, so one defaulted field closes it without any migration code."
     }
   ],
   "active_scopes_to_avoid": [

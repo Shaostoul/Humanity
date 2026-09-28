@@ -80,7 +80,7 @@ pub struct Doorway {
 }
 
 /// Marks a doorway piece whose door stands open (E toggles it,
-/// `engine::built_uses`). Not saved: a door is shut again after a load.
+/// `engine::built_uses`). Saved with the piece (`persistence::ConstructionSave::open`).
 #[derive(Debug, Clone, Copy, Default)]
 pub struct DoorOpen;
 

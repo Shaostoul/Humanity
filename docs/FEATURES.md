@@ -1876,8 +1876,8 @@ in by data, no ids in code; the first structure the look ray meets wins, so a wa
 (`systems::construction::doorway::parts`: the wall either side of the gap, the lintel, and the door leaf, drawn in a
 darker wood so a shut door reads against its wall; vantage `planet-built-door`). Looking at it
 the crosshair says "[E] open or shut the door"; E toggles the `DoorOpen` marker, and an open door swings a quarter turn
-out of the gap and stops blocking. Door state is not saved: doors are shut again after a load. Windows cannot be set
-into a wall yet.
+out of the gap and stops blocking. An open door stays open across a save (`ConstructionSave.open`). Windows cannot be
+set into a wall yet.
 
 **Built pieces are solid (2026-09-28).** Every finished piece in the home frame whose box reaches from
 above the knee to the eye (a wall, a bed, a chest, a machine) joins the home's own walls in the first-person

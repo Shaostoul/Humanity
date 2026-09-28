@@ -238,6 +238,10 @@ pub struct ConstructionSave {
     /// the same number. 0 for a scaffold, which has none yet.
     #[serde(default)]
     pub uid: u32,
+    /// A door set into the piece stands open (2026-09-28, the `DoorOpen`
+    /// marker). Absent from older saves: the door is shut.
+    #[serde(default)]
+    pub open: bool,
     /// The planet build site the piece stands in (2026-09-27, BUG-102): its
     /// body and the site origin in the body's frame, in f64, and then
     /// `position`/`rotation` are site-local. None (and absent from saves
@@ -407,6 +411,7 @@ mod tests {
                     provides: None,
                     building: None,
                     uid: 1,
+                    open: false,
                     site: None,
                 },
             ],
