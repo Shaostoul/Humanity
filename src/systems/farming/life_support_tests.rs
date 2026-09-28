@@ -295,8 +295,9 @@ fn air_handlers_hold_their_setpoints_and_return_the_water() {
 /// ship's reactor feeds their island, metered, and in the Realistic one the
 /// home's own generation does, so they draw the same watts along their fan
 /// curve either way, and the rooms hold the same air and the same litres come
-/// back. Seen red with the old Station-supplied zeroing kept in the air step
-/// (the handlers drew 0 W there and nothing reached the meter).
+/// back. NOT yet seen red: keeping the old Station-supplied zeroing in the air
+/// step (the handlers drew 0 W there, so nothing reached the meter) should
+/// fail it, but that break was not run (2026-09-27, noted at merge).
 #[test]
 fn station_supplied_life_support_changes_only_who_pays() {
     let mut runs = Vec::new();

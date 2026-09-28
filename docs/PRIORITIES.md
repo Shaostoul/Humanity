@@ -58,17 +58,9 @@ or merge, verify, boot, release); resume a WIP one by giving a new agent its
 branch and its commit message. Remove a line here once its branch is merged.
 
 State after the wrap-up (merged ones are removed: the Wi-Fi harm removal,
-saved machine levels and the electroculture findings landed in v0.1394.0):
+saved machine levels and the electroculture findings landed in v0.1394.0;
+the one game clock in v0.1395.0; the ship reactor feed in v0.1396.0):
 
-- `a0944d211e0ff283e`: the 24-hour configurable day (Blocked #3, operator
-  decision). BUILT, committed, not yet merged: one game clock
-  (decision-briefs.md Brief 6, "How it was built"). Its year default of 365
-  days is the agent's choice, not the operator's.
-- `af651e3cf56b6c02a`: the ship reactor as the homes' metered power
-  (Blocked #3b, operator decision). BUILT, committed, not yet merged:
-  docs/design/ship-life-support.md section 8. The reactor figure (KLT-40S,
-  35 MWe) is trade press (World Nuclear News, 2025-01-16), labelled so; an
-  IAEA primary figure is still wanted.
 - `a5e6f9189e45ed9b9`: HDR scene target steps 3 and 4. WIP 8df827c1, NOT
   safe to merge: Rgba16Float target, one dither in present.wgsl, the aurora
   dither and srgb_dither deleted, band-census.js and GPU tests written;
