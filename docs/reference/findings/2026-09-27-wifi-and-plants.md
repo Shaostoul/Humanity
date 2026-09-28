@@ -16,6 +16,18 @@ Prepared for the operator's decision on the game's RF crop harm
 cites no source. What that code does on this date is described under "What this
 means for the game" at the end.
 
+**Decision, 2026-09-27.** The operator chose option 4, removal: "We'll assume no
+wi-fi crop harm at this time." The same day the harm was taken out of the game:
+the FarmingSystem's home-RF drain (`RF_HARM_THRESHOLD`, `RF_HEALTH_PENALTY`), the
+`RfEmitter` component and its spawn, the `rf_emission` field on machine
+definitions, and the buildability report's warning that a Wi-Fi data link can
+harm a grow. The Wi-Fi router stays in the game as a powered network device, and
+a Wi-Fi link still carries its bandwidth over its range like any other medium.
+A test (`powered_wifi_router_leaves_crop_health_unchanged` in
+`src/systems/farming/mod.rs`) holds that a powered router beside a crop changes
+nothing about its health. The findings below are unchanged; they describe the
+evidence as read on this date.
+
 ---
 
 ## Short answer
@@ -971,7 +983,8 @@ of a metre of a router that never stops transmitting.
 
 ### Certain
 
-- **What the code does on this date.** `src/systems/farming/mod.rs` sums the
+- **What the code did when this was researched** (removed later the same day; see
+  "Decision, 2026-09-27" at the top). `src/systems/farming/mod.rs` summed the
   `strength` of every powered `RfEmitter` in the world into one home-wide level. A
   `wifi_router` (`data/machines/home.ron`, `rf_emission: 0.6`; the shipped home
   places one as `router_1` in `room-study`) adds 0.6. Above `RF_HARM_THRESHOLD`
@@ -1035,7 +1048,7 @@ The choice among these is the operator's. They are listed, not ranked.
   setting defaults to on at today's strength, option 1's objections apply; if it
   defaults to off, the effect is effectively option 4 for most players.
 
-**4. Remove it.**
+**4. Remove it.** (Chosen by the operator on 2026-09-27; see the decision at the top.)
 - For: the systematic map and its analysis raise doubt that plants are affected at
   levels below human limits (A4, A5); controlled studies found no growth effect on
   young trees beside six 100 mW routers for months (C3), no germination effect on

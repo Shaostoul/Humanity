@@ -175,8 +175,10 @@ pub struct ConduitType {
     /// A WIRELESS link (WiFi/Bluetooth/cellular): no physical cable, but emits RF. Wired = false.
     #[serde(default)]
     pub wireless: bool,
-    /// RF emission level 0..1 (0 = none/shielded-wired/fibre; ~0.6 = a WiFi router). Drives the
-    /// plant-harm consequence + the detection signature. (Stage 3/4.)
+    /// RF emission level 0..1 (0 = none/shielded-wired/fibre; ~0.6 = a WiFi router). A real property of
+    /// the medium, for the planned detection-signature layer (docs/design/detection-sensing.md). It does
+    /// NOT harm plants: that v0.620 consequence was removed 2026-09-27
+    /// (docs/reference/findings/2026-09-27-wifi-and-plants.md).
     #[serde(default)]
     pub rf_emission: f32,
     /// Max usable distance in metres (a wired run length limit ~100 m for Cat6; a wireless signal range).

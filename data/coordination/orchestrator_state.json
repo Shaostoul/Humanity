@@ -266,6 +266,11 @@
       "date": "2026-09-27",
       "decision": "v0.1393.0 released and delivered: planet building with the review fixes (celestial near plane 0.05 m as CELESTIAL_NEAR_M, no near copy, sites follow pieces, no home-frame leaks), rain or snow by local air, HDR scene target steps 1-2, batteries and seasons guides; 16/143 verified. Independent boot of the delivered build: planet-built-inside and blue-marble-12000km, 0 panics.",
       "why": "Merged tree was byte-identical to the fix branch the agent verified (2508 tests, 16 lints, 6 boots), so the battery was not re-run; one independent boot of the delivered exe instead. In flight: HDR steps 3-4 (Rgba16Float + one dither). Next candidates: sun cascades (docs/design/sun-cascades.md, now unblocked by room GI), Layer 1 GPU consumer (cloud advection by wind), battery charge persistence, more guides."
+    },
+    {
+      "date": "2026-09-27",
+      "decision": "Operator answered: 24-hour configurable day (hour fixed, one time-speed control), ship reactor as metered effectively-unlimited power with fleet tracking later, no Wi-Fi crop harm, arc C ranked first in TIER 0. Agents dispatched for each, plus electroculture findings research. Then the operator reported weekly usage at 89%: every agent told to commit (WIP if unfinished) and stop; the in-flight branch list is at the top of PRIORITIES TIER 0.",
+      "why": "Wind down at the usage cap so nothing is lost: all merged work is released and pushed (v0.1393.0 is the latest release, delivered); unmerged work lives on named branches with self-describing commits; PRIORITIES carries the resume map."
     }
   ],
   "active_scopes_to_avoid": [

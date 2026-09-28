@@ -48,15 +48,59 @@ fixed v0.1384.0), 2a, 2a-ii and 2a-i (the grain measurements, condensed into
 page snapshots, done). A code comment or fixture that cites one of those
 numbers finds it there.
 
+### IN FLIGHT AT THE USAGE CAP (2026-09-27 evening): resume from these branches
+
+Weekly usage reached 89%, so every agent was told to commit (WIP if not
+done, with a message saying what is left) and stop. Each branch is
+`worktree-agent-<id>` in `.claude/worktrees/agent-<id>`. Merge a finished
+one the way today's were merged (preview with `git merge-tree`, cherry-pick
+or merge, verify, boot, release); resume a WIP one by giving a new agent its
+branch and its commit message. Remove a line here once its branch is merged.
+
+State after the wrap-up (merged ones are removed: the Wi-Fi harm removal,
+saved machine levels and the electroculture findings landed in v0.1394.0):
+
+- `a0944d211e0ff283e`: the 24-hour configurable day (Blocked #3, operator
+  decision). NO CODE YET: commit 954d5813 is an empty commit whose message
+  maps every clock in the code (beyond Brief 6: crop water and health rates,
+  plumbing, weather timers, passive income, manufacturing, the station
+  orbit's x72, planet spin, the dev IPC, the F11 scrubber, the HUD hour)
+  and gives a step-by-step plan. Its year default of 365 days is the
+  agent's choice, not the operator's. gui/mod.rs and state_types.rs are
+  within 15 and 11 lines of their budgets.
+- `af651e3cf56b6c02a`: the ship reactor as the homes' metered power
+  (Blocked #3b, operator decision). NO CODE YET: commit e94bd8e5 (empty)
+  holds the findings and plan: no buildable generator exists (the
+  solar_panel_0 item and build_solar_panel recipe do); reactor figure so far
+  from trade press (KLT-40S, 35 MWe each, World Nuclear News 2025-01-16),
+  an IAEA primary source still wanted.
+- `a5e6f9189e45ed9b9`: HDR scene target steps 3 and 4. WIP 8df827c1, NOT
+  safe to merge: Rgba16Float target, one dither in present.wgsl, the aurora
+  dither and srgb_dither deleted, band-census.js and GPU tests written;
+  left: re-run `cargo test --release --features native --lib scene_target`
+  (one fix never re-run), the relay check, the A/B and band-census
+  measurements, vantage pins, world-entry boots, docs, and delete
+  scripts/hdr-inc34-wip/ before merge. The rig needs the two DXC DLLs
+  beside the exe or its boot stalls 10+ minutes.
+- `a2932acea7b338a59`: sun cascades. WIP e25375bb: increment 0 (fixtures,
+  the station camera pose, five clock-pinned home vantages, sun_shadows
+  pin) is done and safe to merge; increment 1 is drafted as text in
+  docs/design/sun-cascades-wip/ and never built. home-shadow-metrics.mjs
+  region boxes are placeholders.
+- `a83c9985bdf67dda5`: Library guides Drying and Fermenting, committed
+  3339e4e2 and self-checked (287 of 299 quoted phrases matched the saved
+  sources by script); the independent refutation pass every guide gets is
+  still owed before merge. Found: the Make Jerky recipe needs dried meat and
+  Dry Meat needs jerky, so neither can start from raw meat (a data bug).
 ### 0. The ship and the playable game (arc C, ranked first 2026-09-27)
 
 Spaceship first (Blocked #2, answered 2026-09-27): the ship's life support,
 the garden, building and survival come before the rendering items below.
 The work list is arc C in "Fenced arcs"; the next items there, from the
 operator's answers of 2026-09-27: the 24-hour configurable day (Blocked #3),
-the ship reactor as the homes' metered power (Blocked #3b), the Wi-Fi crop
-harm removed, and saved battery and other stored levels. Rendering items
-below still run beside it on files that do not overlap.
+the ship reactor as the homes' metered power (Blocked #3b), and saved battery
+and other stored levels. (The Wi-Fi crop harm was removed on 2026-09-27.)
+Rendering items below still run beside it on files that do not overlap.
 
 ### 1. Environment regions: the rest of the arc BUG-080 opened
 
@@ -377,8 +421,12 @@ them up.
      Cornell's 800 in the family home) is acceptable.
    - How to close the Food loops (91% family, 81% solo, since the mushroom
      yields were sourced): more beds, or more blocks per tent.
-   - **ANSWERED 2026-09-27: no Wi-Fi crop harm.** Operator: "We'll assume no
-     wi-fi crop harm at this time." Being removed (agent). He also mentioned
+   - **ANSWERED 2026-09-27: no Wi-Fi crop harm. REMOVED the same day.** Operator:
+     "We'll assume no wi-fi crop harm at this time." The FarmingSystem's RF
+     drain, the `RfEmitter` component, the machine `rf_emission` field and the
+     Wi-Fi-harms-a-grow buildability warning are gone; the router stays as a
+     network device, and a test holds that a powered router leaves crop health
+     unchanged. He also mentioned
      farmers using copper coils to increase growth (electroculture); a dated
      findings document is being researched before anything goes into the sim.
      The question as it was asked: the v0.620 Wi-Fi crop harm: keep, scale to
@@ -564,9 +612,7 @@ between the simulation and the person. Its tier ladder is the build order.
   hall under several touching roof tiles shelters, and the review's other
   findings are closed. Remaining: a scripted first-run sequence in the world;
   the server clock for offline progression in multiplayer; for shelter, wind
-  direction against the open side and the walls' radiant warmth; battery
-  charge is not saved (found 2026-09-27 by the batteries guide's code check:
-  `WorldSave` has no charge, so every restart starts the banks at 50%); and
+  direction against the open side and the walls' radiant warmth; and
   the gameplay sun rises at 6:00 and sets at 18:00 every day at every
   latitude, so day length never changes with season (a Brief 6 question).
 - **Tier B (make the construction tool good enough to build a city).** Pick one

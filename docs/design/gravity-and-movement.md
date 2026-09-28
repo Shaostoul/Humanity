@@ -222,11 +222,12 @@ closed in v0.745 and v0.749.)
   way inherits gear-resistance scaling, the death-cause tracker, death itself and
   the HUD readout for free. Add a `high_g` row next to the existing
   `zero_gravity` one.
-- **Plants: about three lines, and the template is RF.**
-  `src/systems/farming/mod.rs:1006-1008` already does
-  `crop.health -= RF_HEALTH_PENALTY * home_rf * dt` for an ambient scalar field,
-  and `:1011-1015` kills the crop to `STAGE_DEAD`. A g-load line beside it gives
-  the operator's "plants die under a sustained 5 g burn" literally, not scripted.
+- **Plants: about three lines, and the template was RF.**
+  `src/systems/farming/mod.rs` did
+  `crop.health -= RF_HEALTH_PENALTY * home_rf * dt` for an ambient scalar field
+  (that Wi-Fi crop harm was removed 2026-09-27), and the crop dies to
+  `STAGE_DEAD` at zero health. A g-load line in the same place gives the
+  operator's "plants die under a sustained 5 g burn" literally, not scripted.
 - **Animals: the one genuinely new mechanism.** Livestock get `Health` and `Dead`
   and dead animals stop producing, but nothing environmental has ever damaged
   them; combat is the only path. The template to copy is the dormant
