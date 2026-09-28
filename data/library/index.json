@@ -274,6 +274,26 @@
           ]
         },
         {
+          "title": "Drying Food",
+          "file": "drying_food.md",
+          "tags": [
+            "guide",
+            "real",
+            "food",
+            "safety"
+          ]
+        },
+        {
+          "title": "Fermenting Vegetables",
+          "file": "fermenting_vegetables.md",
+          "tags": [
+            "guide",
+            "real",
+            "food",
+            "safety"
+          ]
+        },
+        {
           "title": "Your First Compost",
           "file": "your_first_compost.md",
           "tags": [
