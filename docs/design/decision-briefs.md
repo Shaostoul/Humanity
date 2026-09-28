@@ -166,6 +166,16 @@ locally in the systems runner, delete the relay chore path for the home.
 
 ## Brief 6: How long is a day? (one clock for the garden, the body, the air and the sky)
 
+**ANSWERED 2026-09-27 by the operator**, verbatim: "The default day length
+should be 24 hours. Though we want it to be configurable. Like, maybe prefer
+a 20 hour day or 36 hour day. However that shouldn't change how long an hour
+is unless they change the setting that makes stuff happen faster/slower." So
+the day is 24 hours by default and its number of hours is a setting; an hour
+is always an hour; only the separate time-speed setting makes everything run
+faster or slower. That is none of the lettered options below exactly: it is
+real-length hours with a configurable day, and one speed control over all of
+it. The brief as written follows, for the record.
+
 Written 2026-09-27. Asked before as PRIORITIES "Blocked on the operator" #3;
 this is the same question laid out so it can be answered with one letter.
 Three pieces of garden work wait on it: the ship's sun reaching the crops

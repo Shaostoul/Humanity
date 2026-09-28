@@ -48,6 +48,16 @@ fixed v0.1384.0), 2a, 2a-ii and 2a-i (the grain measurements, condensed into
 page snapshots, done). A code comment or fixture that cites one of those
 numbers finds it there.
 
+### 0. The ship and the playable game (arc C, ranked first 2026-09-27)
+
+Spaceship first (Blocked #2, answered 2026-09-27): the ship's life support,
+the garden, building and survival come before the rendering items below.
+The work list is arc C in "Fenced arcs"; the next items there, from the
+operator's answers of 2026-09-27: the 24-hour configurable day (Blocked #3),
+the ship reactor as the homes' metered power (Blocked #3b), the Wi-Fi crop
+harm removed, and saved battery and other stored levels. Rendering items
+below still run beside it on files that do not overlap.
+
 ### 1. Environment regions: the rest of the arc BUG-080 opened
 
 Weather has been a place since v0.1330.0 (BUG-080,
@@ -301,8 +311,18 @@ them up.
    **Follow-up (asked 2026-09-27):** TIER 0 is all rendering, while the
    spaceship-first answer sent the day's work to arc C (the playable game and
    ship life support). Should arc C rank against TIER 0, or stay a fenced arc
-   worked beside it?
-3. **One clock or two, for the body and the garden (asked 2026-09-26).** The body
+   worked beside it? The operator asked what this meant (2026-09-27 evening);
+   explained, with the AI's call to put arc C at the top of TIER 0 to match
+   spaceship-first unless he says otherwise.
+3. **ANSWERED 2026-09-27: a 24-hour day by default, configurable, with an
+   hour that stays an hour.** Operator, verbatim: "The default day length
+   should be 24 hours. Though we want it to be configurable. Like, maybe prefer
+   a 20 hour day or 36 hour day. However that shouldn't change how long an hour
+   is unless they change the setting that makes stuff happen faster/slower."
+   So: hours per day is a setting (default 24), the length of an hour is fixed,
+   and only the separate time-speed setting makes things run faster or slower.
+   Being built (agent, 2026-09-27). The question as it was asked:
+   **One clock or two, for the body and the garden (asked 2026-09-26).** The body
    runs on real seconds, the garden on 20-minute game days at 10x growth, so
    urine is a fraction of a percent of the garden's nitrogen in play, and room
    air (game hours) and tank water (real days) are 72x apart (BUG-092 item 7).
@@ -314,6 +334,17 @@ them up.
    evidence in the doc named; none blocks other work). The three energy
    bullets were merged on 2026-09-27 onto the v0.1384.0 meter's figures; the
    earlier wording is in docs/history/priorities-archive-2026-09-20-to-27.md.
+   - **ANSWERED 2026-09-27 (energy).** Operator, verbatim: "For now we can
+     base power budget on nuclear reactors and then players can build solar
+     and other means of producing electricity. We could track user resource
+     usage but, essentially provide unlimited (at least to start) then we
+     could figure out how to track a whole fleets worth of supplies because,
+     that'll be important once the MMORPG storyline begins once the game is
+     ready for release in a couple years." So: the ship's reactor supplies the
+     homes, effectively unlimited to start and metered; players can build
+     solar and other generation; fleet-wide supply tracking comes later with
+     the MMORPG storyline. Being built (agent). The energy questions below are
+     superseded by this; kept for the record.
    - **Energy: neither home's budget closes, in either mode**
      (docs/design/ship-life-support.md section 7). Each home now counts what it
      makes at its site (NREL PVWatts for Silverdale: 1.09 kWh a panel a day,
@@ -346,10 +377,14 @@ them up.
      Cornell's 800 in the family home) is acceptable.
    - How to close the Food loops (91% family, 81% solo, since the mushroom
      yields were sourced): more beds, or more blocks per tent.
-   - The v0.620 Wi-Fi crop harm: keep, scale to the evidence, make it a
-     setting, or remove (docs/reference/findings/2026-09-27-wifi-and-plants.md;
-     no source shows a household router harming a garden at the distances
-     plants sit from one).
+   - **ANSWERED 2026-09-27: no Wi-Fi crop harm.** Operator: "We'll assume no
+     wi-fi crop harm at this time." Being removed (agent). He also mentioned
+     farmers using copper coils to increase growth (electroculture); a dated
+     findings document is being researched before anything goes into the sim.
+     The question as it was asked: the v0.620 Wi-Fi crop harm: keep, scale to
+     the evidence, make it a setting, or remove
+     (docs/reference/findings/2026-09-27-wifi-and-plants.md; no source shows a
+     household router harming a garden at the distances plants sit from one).
 4. **Clear the old agent worktrees** under `.claude/worktrees/`. Audited
    2026-08-04: none could be cheaply proven redundant, and
    `just clean-worktrees` force-deletes branches and has destroyed
