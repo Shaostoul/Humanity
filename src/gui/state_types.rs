@@ -745,6 +745,9 @@ pub struct BuildPlacing {
     /// The ghost's box is already built there: E would spend the materials
     /// twice, so it does nothing and the hint says why.
     pub occupied: bool,
+    /// On a planet the pack holds too little for it (the home's storage is
+    /// in orbit): E does nothing and the hint says what is missing.
+    pub short: bool,
     /// The line under the crosshair: what is in hand and its keys.
     pub hint: String,
 }

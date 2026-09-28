@@ -9388,7 +9388,13 @@ mod native_app {
                                 state.station_world_rot,
                                 rel_earth_m - state.ship_world_pos,
                             );
-                            crate::engine::planet_build::note_body(state, &b.id, render_off); // pieces built on it draw here
+                            // Planet model rotation this frame: the SAME spin the uniform
+                            // body uses, composed in f64 with the hull frame (v0.1225): a
+                            // point at planet-local p renders at render_off + R_hull *
+                            // R_spin * p. ONE binding: the terrain, the near trees, the OSM
+                            // buildings and the pieces built on the planet all use it.
+                            let rot_d = crate::engine::planet_build::body_render_rot(state.station_ride, state.station_world_rot, spin_f64);
+                            crate::engine::planet_build::note_body(state, &b.id, render_off, rot_d); // pieces built on it draw here
                             // Distance from the CAMERA, not the frame origin
                             // (v0.1238 starburst-far forensics). This was
                             // render_off.length(): the body's distance from
@@ -9546,19 +9552,8 @@ mod native_app {
                                     .planet_heightmaps
                                     .get(&b.id)
                                     .expect("chunked_on implies heightmap");
-                                // Planet model rotation this frame: the SAME
-                                // spin the uniform body uses, but composed in
-                                // f64 for anchor placement (precision rule:
-                                // narrow to f32 only at the very end).
-                                // Composed with the hull frame (v0.1225): a point at
-                                // planet-local p renders at render_off + R_hull * R_spin * p,
-                                // so the model rotation in render space is the product.
-                                // Without this Earth would swing across the window with its
-                                // axis still pinned to the world frame.
-                                let rot_d = crate::station::hull_frame_rot(
-                                    state.station_ride,
-                                    state.station_world_rot,
-                                ) * glam::DQuat::from_rotation_y(spin_f64);
+                                // The planet's rotation this frame is `rot_d`, bound once
+                                // above beside note_body (f64; narrow to f32 only at the end).
                                 // Camera position in the planet's UNROTATED
                                 // local frame, f64 end to end. The camera
                                 // lives at metre scale near the origin (dev
@@ -9571,15 +9566,12 @@ mod native_app {
                                     cam_pos.z as f64,
                                 );
                                 let cam_local = rot_d.inverse() * (cam_render - render_off);
-                                // Camera frustum, rebuilt in f64. MUST mirror
-                                // Camera::celestial_uniforms (reverse-Z, far
-                                // plane 1e13) or culling would disagree with
-                                // what actually rasterizes.
-                                let proj_d = glam::DMat4::perspective_rh(
-                                    (fov_deg.max(1.0) as f64).to_radians(),
+                                // Camera frustum, rebuilt in f64 from the one
+                                // celestial projection (camera.rs) or culling
+                                // would disagree with what actually rasterizes.
+                                let proj_d = crate::renderer::camera::celestial_projection_f64(
+                                    fov_deg.max(1.0) as f64,
                                     state.camera.aspect.max(0.01) as f64,
-                                    1.0e13,
-                                    1.0,
                                 );
                                 let view_d = state.camera.view_matrix().as_dmat4();
                                 let frustum = chunks::FrustumPlanes::from_view_proj(
@@ -12065,43 +12057,10 @@ mod native_app {
                         }
                     }
 
-                    // Station-gate input (v0.749, ladder rung 6): the set of
-                    // machine TYPES placed in the home, for CraftingSystem's
-                    // manual-craft required_station check.
-                    // Built structures count too (2026-09-25): a furnace the
-                    // player built is a smelter, a crafting table a workbench
-                    // (Blueprint::stations). Mirrored into GuiState so the
-                    // Crafting page's check says the same thing.
-                    let built = state
-                        .data_store
-                        .get::<crate::systems::construction::BlueprintRegistry>("blueprint_registry")
-                        .map(|reg| {
-                            crate::systems::construction::built_station_types(&state.game_world.world, reg)
-                        })
-                        .unwrap_or_default();
-                    if let Some(hm) = &state.gui_state.home_machines {
-                        let mut types: std::collections::HashSet<String> =
-                            hm.instances.iter().map(|i| i.machine.clone()).collect();
-                        for a in &hm.arrays {
-                            types.insert(a.machine.clone());
-                        }
-                        types.extend(built.iter().cloned());
-                        state
-                            .data_store
-                            .insert("placed_machine_types", std::sync::Mutex::new(types));
-                    }
-                    state.gui_state.built_station_types = built;
-                    // Electric stations with no power (2026-09-26), for the Crafting page.
-                    state.gui_state.unpowered_station_types = {
-                        let w = &state.game_world.world;
-                        let mut types = std::collections::HashSet::new();
-                        for (_e, mt) in w.query::<&crate::ecs::components::MachineType>().iter() {
-                            if crate::systems::crafting::CraftingSystem::station_unpowered(w, &mt.0).is_some() {
-                                types.insert(mt.0.clone());
-                            }
-                        }
-                        types
-                    };
+                    // Station-gate input (v0.749; where the player is since
+                    // 2026-09-27): the station types and their power for the
+                    // CraftingSystem and the Crafting page (engine/built_uses.rs).
+                    crate::engine::built_uses::publish_stations(state);
 
                     // ── Vendor + wallet bridges (v0.747, ladder rung 3) ──
                     // Live credit balance for the HUD + vendor modal.
@@ -13069,11 +13028,11 @@ mod native_app {
 
                     // ── Built pieces (v0.746; planet sites 2026-09-27, BUG-102) ── scaffolds
                     // and finished pieces: home pieces in the home frame here, pieces on a
-                    // planet where they stand (engine/planet_build.rs). `planet_near` is
-                    // already in render space, so it joins the scene list AFTER the
-                    // station shift below.
-                    let mut planet_near: Vec<RenderObject> = Vec::new();
-                    crate::engine::planet_build::push_render_objects(state, &mut all_objects, &mut celestial_objects, &mut planet_near);
+                    // planet in the celestial list where they stand (engine/planet_build.rs).
+                    // `planet_ghost` (the piece in hand on a planet) is already in render
+                    // space, so it joins the scene list AFTER the station shift below.
+                    let mut planet_ghost: Vec<RenderObject> = Vec::new();
+                    crate::engine::planet_build::push_render_objects(state, &mut all_objects, &mut celestial_objects, &mut planet_ghost);
 
                     // ── Livestock render (v0.751, ladder rung 7) ── placeholder
                     // block bodies until real models: body + head + 4 legs from
@@ -15196,8 +15155,8 @@ mod native_app {
                                         o.position += so;
                                     }
                                 }
-                                // Pieces built on a planet near the eye: already in render space (engine/planet_build.rs).
-                                all_objects.append(&mut planet_near);
+                                // The piece in hand on a planet: already in render space (engine/planet_build.rs).
+                                all_objects.append(&mut planet_ghost);
                                 // `SceneView::Main`: these four are the live frame's
                                 // `gpu.scene` / `gpu.transparent` / `gpu.overlay` /
                                 // `gpu.lines`; a camera screen's re-render of the same

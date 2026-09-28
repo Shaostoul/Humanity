@@ -35,6 +35,14 @@ struct SsaoUniforms {
 @group(0) @binding(0) var ssao_depth: texture_depth_2d;
 @group(0) @binding(1) var<uniform> u: SsaoUniforms;
 
+// The depth under which a sample is SKY: the celestial depth of a point
+// 10,000 km away (camera.rs CELESTIAL_SKY_M), from the same m22/m32, so it
+// follows the near plane instead of assuming one (it was a fixed 1e-7,
+// which meant 10,000 km only while the near plane was 1 m).
+fn sky_depth() -> f32 {
+    return (u.proj.y - u.proj.x * 1.0e7) * 1.0e-7;
+}
+
 fn lin_dist(d: f32) -> f32 {
     // Metres from the camera along the view axis; huge for the sky.
     return u.proj.y / max(d + u.proj.x, 1.0e-12);
@@ -66,7 +74,7 @@ fn fs_main(@builtin(position) fc: vec4<f32>) -> @location(0) vec4<f32> {
     let dims = vec2<f32>(textureDimensions(ssao_depth));
     let px = vec2<i32>(fc.xy);
     let d0 = textureLoad(ssao_depth, px, 0);
-    if (d0 <= 1.0e-7) {
+    if (d0 <= sky_depth()) {
         return vec4<f32>(1.0, 1.0, 1.0, 1.0); // sky
     }
     let dist0 = lin_dist(d0);
@@ -79,10 +87,10 @@ fn fs_main(@builtin(position) fc: vec4<f32>) -> @location(0) vec4<f32> {
     // one on OUR surface.
     let last = vec2<i32>(dims) - vec2<i32>(1, 1);
     let zero = vec2<i32>(0, 0);
-    let dist_r = lin_dist(max(textureLoad(ssao_depth, clamp(px + vec2<i32>(1, 0), zero, last), 0), 1.0e-7));
-    let dist_l = lin_dist(max(textureLoad(ssao_depth, clamp(px - vec2<i32>(1, 0), zero, last), 0), 1.0e-7));
-    let dist_d = lin_dist(max(textureLoad(ssao_depth, clamp(px + vec2<i32>(0, 1), zero, last), 0), 1.0e-7));
-    let dist_u = lin_dist(max(textureLoad(ssao_depth, clamp(px - vec2<i32>(0, 1), zero, last), 0), 1.0e-7));
+    let dist_r = lin_dist(max(textureLoad(ssao_depth, clamp(px + vec2<i32>(1, 0), zero, last), 0), sky_depth()));
+    let dist_l = lin_dist(max(textureLoad(ssao_depth, clamp(px - vec2<i32>(1, 0), zero, last), 0), sky_depth()));
+    let dist_d = lin_dist(max(textureLoad(ssao_depth, clamp(px + vec2<i32>(0, 1), zero, last), 0), sky_depth()));
+    let dist_u = lin_dist(max(textureLoad(ssao_depth, clamp(px - vec2<i32>(0, 1), zero, last), 0), sky_depth()));
     var dpdx: vec3<f32>;
     if (abs(dist_r - dist0) <= abs(dist0 - dist_l)) {
         dpdx = view_pos(fc.xy + vec2<f32>(1.0, 0.0), dims, dist_r) - p0;
@@ -129,7 +137,7 @@ fn fs_main(@builtin(position) fc: vec4<f32>) -> @location(0) vec4<f32> {
             continue;
         }
         let dt = textureLoad(ssao_depth, vec2<i32>(sp), 0);
-        if (dt <= 1.0e-7) {
+        if (dt <= sky_depth()) {
             continue; // sky tap
         }
         let pt = view_pos(sp, dims, lin_dist(dt));

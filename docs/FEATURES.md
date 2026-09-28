@@ -1867,24 +1867,36 @@ left-right off the look direction by a sign slip in the old bridge).
 
 **Building on a planet (2026-09-27, BUG-102 fixed).** On a planet's ground a piece goes into a BUILD SITE
 (`construction/site.rs`): the body and an origin in its unrotated frame in f64, with a flat Y-up tangent
-frame; pieces within 1 km of a site join it and its grid. The ghost meets the drawn ground under the
+frame; a new piece joins the site of the nearest piece within 1 km of it (and its grid), and the player is
+at the site of the nearest piece within 1 km. The ghost meets the drawn ground under the
 crosshair (`placement::aim_point_on_ground`, the surface the player's feet stand on), the shelter test and
 the bed and chest look ray run in the site, and the save carries the site. Site pieces draw with the
-terrain's own transform in the celestial pass (hidden by hills, casting the sun's shadow), plus a scene-pass
-copy within 2 m of the eye, where the celestial pass's 1 m near plane would cut a wall open
-(`engine/planet_build.rs`). Building refuses, with a plain hint, in open space, in
-a vehicle, while flying and on water. Dev: showcase `{"build":"id@dx,dz,turns;...","build_at":"lat,lon"}`
-stands pieces up finished (the rig's `planet-built-shelter` vantage uses it through `post_showcase`).
+terrain's own `render_off` and `rot_d` in the celestial pass only, at every distance (hidden by hills,
+casting the sun's shadow, and behind whatever stands in front of them); the celestial pass's near plane is
+5 cm (`renderer::camera::CELESTIAL_NEAR_M`, one shared constant), so a wall beside the eye is whole
+(`engine/planet_build.rs`). The piece in hand on a planet is drawn in the scene pass, on top and without a
+shadow, as a preview. On a planet a piece is built from what the player CARRIES (the home's storage is in
+orbit; the hint under the crosshair says what is missing), a station built there is on no power grid until
+its own site makes power (the home's grid is in orbit; the Crafting page says so), and the stations that
+count for crafting are the ones where the player is: aboard, the home's machines and pieces built in the
+home; at a planet site, that site's built stations; elsewhere, none (`engine/built_uses.rs`
+`publish_stations`, `CraftingSystem::station_unpowered_at`). Building refuses, with a plain hint, in open
+space, in a vehicle, while flying and on water. Dev (no dev gate, like every showcase verb): showcase
+`{"build":"id@dx,dz,turns;...","build_at":"lat,lon"}` stands pieces up finished (the rig's
+`planet-built-shelter` vantage uses it through `post_showcase`), and `{"stand":"dx,h,dz,heading,pitch",
+"stand_at":"lat,lon"}` puts the eye at a point of that site (the `planet-built-inside` vantage stands inside
+an open hut with a chest and a furnace in front of its north wall, through probe-sweep's new
+`final_showcase`, sent after the re-park).
 Still missing: a door or window set INTO a wall (they sit on the floor); a second storey (nothing stands on a
 roof yet); collision for built pieces (you walk through walls); the one canonical layout schema (built
 pieces, the home editor's `InteriorWall`s and the ship structure pieces are three different shapes); pieces
 on a planet stand at the drawn ground's height where they were built, so far off, where the terrain draws at
 a coarser level, they can sit a little high or low; a planet piece's face turned from the sun reads near
-black, and within 2 m (the scene-pass copy, which lights everything as if indoors) fully black: one lighting
-for planet pieces in both passes, with the roof's shade inside a hut, is the follow-up.
+black; a generator that can be built at a site (nothing on a planet can make power yet, so a planet stove
+or oven stays unpowered).
 - Native: `src/systems/construction/mod.rs`, `src/systems/construction/placement.rs`,
   `src/systems/construction/site.rs` (build sites), `src/systems/construction/uses.rs`,
-  `src/systems/sleep.rs`, `src/engine/built_uses.rs` (prompt, E press, chest sync),
+  `src/systems/sleep.rs`, `src/engine/built_uses.rs` (prompt, E press, chest sync, the stations where the player is),
   `src/engine/build_place.rs` (the piece in hand), `src/engine/planet_build.rs` (the frame, the ground, the
   draw, the dev build verb), `src/engine/survival_env.rs` (shelter to the body), `src/gui/organize.rs`
   (`place_path`, `sync_built_stores`), `src/gui/pages/hud.rs` (the prompts and the Shelter row)

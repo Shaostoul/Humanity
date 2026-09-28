@@ -848,6 +848,16 @@ async function main() {
           // cloud map needs a few seconds to re-converge before the shot.
           await sleep(v.hold_altitude ? 900 : 6000);
         }
+        // FINAL SHOWCASE (2026-09-27): a request that must land AFTER the
+        // re-park, because the re-park would undo it: the dev "stand" verb
+        // puts the eye inside a hut the post_showcase built
+        // (planet-built-inside), which no camera park can do (a park sits
+        // tens of metres over the ground).
+        if (v.final_showcase) {
+          req("showcase_request.json", v.final_showcase);
+          await sleep((v.final_settle_s ?? 4) * 1000);
+          log(`  final showcase sent: ${JSON.stringify(v.final_showcase)}`);
+        }
         // Capture window opens: anyone else on this GPU from here to the last
         // shot below invalidates this vantage's timing numbers.
         const guardPre = guardBegin();

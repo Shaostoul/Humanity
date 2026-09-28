@@ -2109,19 +2109,23 @@ stands in a BUILD SITE (`systems/construction/site.rs`): the body it stands
 on and an origin in that body's unrotated frame, in f64, with a flat tangent
 frame (Y the local up) that follows from the origin alone. The piece's
 Transform is site-local and it carries a `PlanetSite` component; a home piece
-has none. Pieces within 1 km of a site join it and its metre grid. Every query
-that compares pieces (what a piece rests on, the shelter, the look ray, a
-duplicate) runs in one frame only. The ghost, the build pose, the shelter test
-and the bed and chest look ray all convert the player into that frame from the
-frame lock's anchor (the eye in the body's frame) and the camera's look
-(`engine/planet_build.rs`), and the aim meets the drawn ground under the
-crosshair (`placement::aim_point_on_ground`, sampling the same surface the
-walk clamp stands the player on). Each frame a site piece is drawn at
-`render_off + rot * p` with the body's placement recorded inside the celestial
-loop, the terrain's own transform, in the celestial list (so a hill hides it
-and it casts the sun's shadow), plus a scene-pass copy within 2 m of the eye,
-where the celestial pass's 1 m near plane would cut into a wall. The save
-carries the site. The v0.1390.0 gate is gone; building still refuses, with a
+has none. A new piece joins the site of the nearest piece already standing
+within 1 km of it (and that site's metre grid), and the player is at the site
+of the nearest piece within 1 km. Every query that compares pieces (what a
+piece rests on, the shelter, the look ray, a duplicate) runs in one frame
+only. The ghost, the build pose, the shelter test, the stations and the bed
+and chest look ray all convert the player into that frame from the frame
+lock's anchor (the eye in the body's frame) and the camera's look
+(`engine/planet_build.rs`, read from the engine in one place, `PlayerView`),
+and the aim meets the drawn ground under the crosshair
+(`placement::aim_point_on_ground`, sampling the same surface the walk clamp
+stands the player on). Each frame a site piece is drawn at `render_off + rot *
+p`, with the very `render_off` and `rot_d` the celestial loop places that
+body's terrain with (one binding, handed to `note_body`), in the celestial list
+only, at every distance: a hill hides it, it casts the sun's shadow, and
+whatever stands in front of it stays in front. The celestial pass's near plane
+is 5 cm (`renderer::camera::CELESTIAL_NEAR_M`), so a wall beside the eye is not
+cut open. The save carries the site. The v0.1390.0 gate is gone; building still refuses, with a
 plain hint, in open space, in a vehicle, while flying, and on water. The
 review's other findings, fixed with it: roofs that touch are one covered area
 (`uses::covered_run`), so an 8 x 8 m hall under four tiles shelters every
@@ -2137,6 +2141,41 @@ planet-fixed draw while the ship frame moves, the planet shelter following the
 player, the site round-tripping a save, the 8 x 8 hall, the storey filter, the
 duplicate, the ghost's exact pose, the site frame's f64 exactness, the ground
 aim, the 5 cm overlap, the frame filter.
+
+**The review of that fix (2026-09-27), all fixed before it shipped.** (1) HIGH:
+the first version drew a second copy of every site piece within 2 m of the eye
+in the scene pass, because the celestial pass's near plane was 1 m (its corner
+reaches 2.27 m from the eye at 90 degrees vertical and 16:9, not the 1.8 m first
+written here). The scene pass clears depth, so the copy was painted over
+everything drawn only in the celestial pass: a chest inside the hut vanished
+behind its own wall, and a wall's buried base painted over the grass on a
+slope. The near copy is deleted; the celestial near plane went from 1 m to 5 cm,
+one shared constant used by every site that builds or reads that projection
+(the frame loop's culling frustum, the god rays, the SSAO, the cloud composite,
+the emission pass, the tests). Reverse-Z into a float depth buffer keeps the
+same relative precision whatever the near plane is (depth = near / distance),
+so no range gains z-fighting (tested at every range from 0.5 m to the Sun, and
+compared in the rig from orbit and at the limb); the two shaders that tested
+depth against a fixed 1e-7 for "sky" now take the threshold from the projection.
+(2) Overlapping sites: membership followed the nearest site ORIGIN, so a hut
+900 m from its origin was ignored once a second site started 200 m from it.
+Membership now follows the pieces (above). (3) Home-frame leaks now reachable
+on a planet: a stove or oven built on Earth was wired onto the orbiting home's
+power island, a station built on a planet counted for crafting aboard, and a
+planet build took materials from the home's storage. Now a planet station is
+on no grid until its own site makes power (it reads "no power: nothing at this
+site makes power, and the home's grid is in orbit" on the Crafting page),
+station availability follows where the player is (the home's machines and
+built stations aboard, the site's built stations on a planet, none elsewhere),
+and a planet build takes only what the player carries, with a hint under the
+crosshair saying what is missing. (4) The dev `build` showcase verb has no dev
+gate, like every other showcase verb; its doc comment now says so. (5) Tests
+the review asked for: the chest in front of its wall (routing plus depth order,
+and the planet-built-inside rig vantage, which stands the eye inside an open
+hut with a chest and a furnace in front of the north wall), note_body handed
+the terrain's own `rot_d`, the player's frame following the anchor and not the
+parked camera, and "inside the home" requiring aboard. Each new test was seen
+red by the mutation its comment names.
 
 ## BUG-103: rectangular blocks in the open-sea colour seen from orbit (FIXED v0.1392.0)
 

@@ -27,6 +27,51 @@ pub(crate) fn frame(state: &mut EngineState) {
         .unwrap_or_default();
 }
 
+/// Once per frame: the crafting stations WHERE THE PLAYER IS, for
+/// CraftingSystem's station gate (`placed_machine_types`, `stations_where`)
+/// and the Crafting page's mirror of it (v0.749 station gate; built
+/// structures since 2026-09-25; by place since 2026-09-27, the planet-build
+/// review). Aboard: the home's placed machines and the stations built in
+/// the home. On a planet's ground: the stations built at the site the player
+/// stands in, and nothing of the home's, which is in orbit. Anywhere else:
+/// none. Power follows the same place (`station_unpowered_at`).
+pub(crate) fn publish_stations(state: &mut EngineState) {
+    use crate::systems::construction::{built_station_types, StationsWhere};
+    let here = match crate::engine::planet_build::player_frame(state) {
+        Some(f) => f.site.map_or(StationsWhere::Home, StationsWhere::Site),
+        None => StationsWhere::Nowhere,
+    };
+    let world = &state.game_world.world;
+    let built = match (here.frame(), state.data_store.get::<BlueprintRegistry>("blueprint_registry")) {
+        (Some(frame), Some(reg)) => built_station_types(world, reg, frame),
+        _ => Default::default(),
+    };
+    let mut types = built;
+    if here == StationsWhere::Home {
+        if let Some(hm) = &state.gui_state.home_machines {
+            types.extend(hm.instances.iter().map(|i| i.machine.clone()));
+            types.extend(hm.arrays.iter().map(|a| a.machine.clone()));
+        }
+    }
+    // Electric stations here with no power, for the Crafting page.
+    let mut unpowered = std::collections::HashSet::new();
+    if let Some(frame) = here.frame() {
+        for (_e, mt) in world.query::<&crate::ecs::components::MachineType>().iter() {
+            if crate::systems::crafting::CraftingSystem::station_unpowered_at(world, &mt.0, frame).is_some() {
+                unpowered.insert(mt.0.clone());
+            }
+        }
+    }
+    // Fail-open without a home layout (headless worlds), as before.
+    if state.gui_state.home_machines.is_some() {
+        state.data_store.insert("placed_machine_types", std::sync::Mutex::new(types.clone()));
+    }
+    state.data_store.insert("stations_where", std::sync::Mutex::new(here.clone()));
+    state.gui_state.stations_here = types;
+    state.gui_state.stations_where = here;
+    state.gui_state.unpowered_station_types = unpowered;
+}
+
 /// The usable built structure under the crosshair, when nothing else is
 /// claiming the E key: a page, the build editor, a vehicle, an animal, a
 /// person, a door panel or a home machine all come first, in the same order

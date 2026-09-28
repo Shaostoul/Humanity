@@ -48,6 +48,8 @@ struct GodrayUniforms {
     sun_uv: [f32; 2],
     aspect: f32,
     intensity: f32,
+    /// rgb = the ray tint; a = the depth under which a tap counts as open
+    /// sky (`camera::celestial_depth_at(CELESTIAL_SKY_M)`).
     color: [f32; 4],
 }
 
@@ -217,8 +219,15 @@ impl GodrayPass {
                 aspect,
                 intensity,
                 // Warm low-sun light; the daylight gate on the Rust side
-                // scales intensity, the tint stays constant.
-                color: [1.0, 0.86, 0.62, 0.0],
+                // scales intensity, the tint stays constant. Alpha carries
+                // the sky test's depth, taken from the one celestial
+                // projection so a change of near plane cannot strand it.
+                color: [
+                    1.0,
+                    0.86,
+                    0.62,
+                    crate::renderer::camera::celestial_depth_at(crate::renderer::camera::CELESTIAL_SKY_M),
+                ],
             }),
         );
 

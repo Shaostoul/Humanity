@@ -665,7 +665,8 @@ mod drawn_ground_tests {
     ///   * TWO levels stale - the paranoid case. The world-entry ladder climbs
     ///     several depths in a handful of frames, so a two-level jump between
     ///     one frame's selection and the next is reachable. Must still clear
-    ///     the 0.1 m camera near plane by a wide margin: > 0.3 m.
+    ///     the near plane the ground is drawn with (the celestial pass's, 5 cm,
+    ///     camera.rs CELESTIAL_NEAR_M) by a wide margin: > 0.3 m.
     ///
     /// Both passing with a 5 cm clearance is the evidence that
     /// `DRAWN_CLEARANCE_M` does not need to be metres: the 1.7 m eye height is

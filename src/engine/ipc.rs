@@ -331,6 +331,16 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
         let note = crate::engine::planet_build::dev_build(state, &spec, grab("build_at").as_deref());
         log::info!("Showcase: build -> {note}");
     }
+    // {"stand":"dx,h,dz,heading,pitch","stand_at":"lat,lon"} (2026-09-27): put
+    // the eye h metres over the ground at dx, dz from that point, in its build
+    // site, looking along heading (degrees from north) and pitch, so a capture
+    // can stand INSIDE a hut the build verb stood up; the camera park cannot
+    // (it parks tens of metres up). See engine::planet_build::dev_stand. Send
+    // it as a vantage's `final_showcase` (probe-sweep.js), after the re-park.
+    if let Some(spec) = grab("stand") {
+        let note = crate::engine::planet_build::dev_stand(state, &spec, grab("stand_at").as_deref());
+        log::info!("Showcase: stand -> {note}");
+    }
     // Optional "time":"9.5" sets the game clock to that hour of the
     // current day (dev/screenshot control: dawn shots without waiting
     // out the night). Routed through the TimeSystem's request channel -

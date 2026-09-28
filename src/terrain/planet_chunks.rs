@@ -3845,7 +3845,7 @@ pub(crate) mod tests {
         // Camera at origin looking down -Z (glam look_at_rh convention),
         // 60 deg fov, 16:9, celestial-style reverse-Z far plane.
         let view = DMat4::look_at_rh(DVec3::ZERO, DVec3::new(0.0, 0.0, -1.0), DVec3::Y);
-        let proj = DMat4::perspective_rh(60f64.to_radians(), 16.0 / 9.0, 1.0e13, 1.0);
+        let proj = crate::renderer::camera::celestial_projection_f64(60.0, 16.0 / 9.0);
         let f = FrustumPlanes::from_view_proj(&(proj * view));
         // In front: visible. Behind: culled. Far off to the side: culled.
         assert!(f.sphere_visible(DVec3::new(0.0, 0.0, -100.0), 1.0));
@@ -3876,7 +3876,7 @@ pub(crate) mod tests {
         // Render frame == local frame here (identity planet transform);
         // looking +X from above the +X pole faces away from the center.
         let view = DMat4::look_at_rh(cam_local, cam_local + DVec3::X, DVec3::Y);
-        let proj = DMat4::perspective_rh(60f64.to_radians(), 16.0 / 9.0, 1.0e13, 1.0);
+        let proj = crate::renderer::camera::celestial_projection_f64(60.0, 16.0 / 9.0);
         let fr = FrustumPlanes::from_view_proj(&(proj * view));
         let sel = select_patches(cam_local, Some(&fr), &|_| Some(tight), &params);
         assert!(
