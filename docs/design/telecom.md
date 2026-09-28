@@ -2,9 +2,11 @@
 
 > **Status:** Stages 1-3 SHIPPED (v0.619-0.621); Stage 4 (emissions-as-signature detection + pheromones)
 > is DESIGN. Stage 2 (v0.621): `Port.mbps` + Data IN/OUT ports, a "data" connection medium picker, +
-> a "Data links" buildability check (bandwidth + range + a wireless-RF caution). Stage 3 (v0.620): the
-> RF -> plant harm consequence (an `RfEmitter` from a `wifi_router`; the FarmingSystem drains crop health
-> by the home RF level). Stage 1 originally shipped a leaner field set than the fuller proposal below. Stage 1 shipped a LEANER field set than
+> a "Data links" buildability check (bandwidth + range). Stage 3 (v0.620, the RF -> plant harm
+> consequence) was **REMOVED on 2026-09-27** by the operator's decision, "We'll assume no wi-fi crop
+> harm at this time", on the evidence in `docs/reference/findings/2026-09-27-wifi-and-plants.md`: the
+> `RfEmitter` component, `MachineDef.rf_emission`, the FarmingSystem's home-RF drain and the Data-links
+> wireless-RF caution are gone. See section (a) below. Stage 1 shipped a LEANER field set than
 > the fuller proposal below -- `ConduitType` gained `bandwidth_mbps`, `range_m`, `latency_ms`, `wireless`,
 > `rf_emission` (all `#[serde(default)]`) + `ConductorMaterial::{Glass, Radio}`, plus `check_data_link` /
 > `cheapest_data_link_for` / `data_media` in `src/utilities.rs`, and three media in `conduits.ron`
@@ -16,8 +18,8 @@
 > buildability checks. Companions: `docs/design/conduits-node-graph.md` (the routing graph),
 > `docs/design/sim-realism-roadmap.md` (the realism gaps this closes). The teaching goal: real
 > telecom -- bandwidth, range, latency, RF emission, interference, security -- so a player learns to
-> pick the right medium, and the tradeoffs BITE (WiFi RF harms a sensitive crop; emissions give you
-> away to enemies + reveal them to you).
+> pick the right medium, and the tradeoffs BITE (emissions give you away to enemies + reveal them to
+> you). A Wi-Fi router does NOT harm crops in this game (removed 2026-09-27, see section (a)).
 
 ## The rule
 
@@ -28,9 +30,9 @@ is a `ConduitType` row with `utility: Data` in `data/utilities/conduits.ron` (in
 row, no code), a machine declares Data IN/OUT `Port`s (a demand in Mbps), and a data run is validated
 by `check_data_link` exactly like a power run is validated by `check_cable`. Wireless media (WiFi /
 Bluetooth / cellular / satellite) carry NO physical cable but DO emit RF -- and that emission is a
-real, consequential signal: it harms a nearby sensitive plant, and it is a **detection signature** an
-enemy can sense (and a sensor you carry can sense theirs). Wired/optical media are quiet -- pick wired
-to protect a grow or to stay dark.
+real signal: a **detection signature** an enemy can sense (and a sensor you carry can sense theirs).
+Wired/optical media are quiet -- pick wired to stay dark. (RF does not harm plants in this game: that
+consequence was removed on 2026-09-27, see section (a).)
 
 ## Data model (`src/utilities.rs`)
 
@@ -129,42 +131,31 @@ pub fn cheapest_medium_for(demand_mbps: f32, length_m: f32, allow_wireless: bool
 ```
 
 The auto-picker (mirrors `cheapest_cable_for`): cheapest `Utility::Data` row that `Pass`es the demand
-over the length. `allow_wireless` lets a caller force a WIRED/optical pick (the "protect my grow"
-button: exclude `wireless` media so nothing emits RF near the crops).
+over the length. `allow_wireless` lets a caller force a WIRED/optical pick (exclude `wireless` media,
+for a player who wants a link that emits no RF signature).
 
 ## Consequence chains (the point)
 
-### (a) RF emission -> plant harm
+### (a) RF emission -> plant harm: REMOVED 2026-09-27
 
-The downstream consequence, hooked into `FarmingSystem` the SAME way the v0.611 water->food coupling
-is (`src/systems/farming/mod.rs`, the `water_available` gate). A wireless emitter (a WiFi router,
-cellular modem, satellite dish) near a sensitive crop slows its growth + drains its health.
+Built in v0.620 (a powered `wifi_router` spawned an `RfEmitter`; the FarmingSystem summed every
+powered emitter into one home-wide RF level and drained the health of every crop in the home by it),
+then removed on 2026-09-27. The operator's decision: "We'll assume no wi-fi crop harm at this time."
+The evidence is `docs/reference/findings/2026-09-27-wifi-and-plants.md`: no source read shows a
+household router harming a garden at the distances plants sit from one; the positive laboratory
+reports are small, close-range (under about half a metre), unreplicated and mostly graded poor by the
+systematic reviewers, and other studies found nothing or the opposite.
 
-- **Emitter source:** any spawned machine whose chosen Data medium is `wireless` carries an
-  `RfEmitter { level, radius_m }` component (new, in `src/ecs/components.rs`), where `level =
-  medium.rf_emission` and `radius_m` derives from `medium.range_m` (RF falls off with distance, so
-  harm scales with `1 - dist/radius`). Wired/optical media spawn NO emitter -> zero harm (the
-  teaching payoff: route a cable and your grow is safe).
-- **"Near" detection:** a crop is affected if it sits within an emitter's `radius_m`. Crops in towers
-  have a world position via the home placement (`MachineHome::placements`); the FarmingSystem already
-  reads per-tower context by `tower_id`. Simplest first cut (Stage 3): publish a per-tower RF dose
-  (a `HashMap<String, f32>` keyed by `tower_id`, like `garden_irrigation`/`garden_nutrient`) computed
-  from emitters near each tower's position; the FarmingSystem reads `rf_dose.get(tower_id)`. A later
-  cut can do true per-crop world-distance once seed-planted (non-tower) crops carry a position.
-- **Harm model:** mirror the water-stress path. With dose `d` (0..1, the emitter `level` scaled by
-  proximity, summed + clamped over nearby emitters):
-  - health drains at `RF_HARM_RATE * d * dt` (a new const, tuned so a loud router at point-blank
-    visibly wilts a sensitive crop over a couple of in-game days -- never instant, like the air
-    drain), AND
-  - growth is scaled by an `rf_factor = (1 - RF_GROWTH_PENALTY * d).max(floor)` multiplier folded in
-    next to the existing `health_factor` / `nutrient_factor` in the growth-progress calc.
-  - Tolerance is per-species (see Open questions): a `rf_tolerance` column on `plants.csv`
-    (`#[serde(default)] = 1.0`, fully tolerant) scales `d` down, so "sensitive" crops (e.g. a
-    delicate medicinal) suffer while a hardy crop shrugs it off. Default keeps every existing plant
-    row + test unchanged.
-- **The lesson:** the player who puts a WiFi router in the grow room watches yields fall, moves to
-  Cat6 or Li-Fi (rf 0), and recovers -- learning a real (if dramatized) EMF-vs-sensitive-systems
-  tradeoff.
+Removed with it: `RF_HARM_THRESHOLD`, `RF_HEALTH_PENALTY` and the home-RF sum in
+`src/systems/farming/mod.rs`; the `RfEmitter` component and its spawn; `MachineDef.rf_emission`;
+and the Data-links buildability warning that a wireless link "can harm a nearby grow". A Wi-Fi link
+now passes that check exactly like a wired one wherever its bandwidth and range suffice. What stays:
+the `wifi_router` as a powered network device, and the data medium's `rf_emission` in
+`conduits.ron`, a real property of the medium that the detection layer in (b) would read.
+
+Do not rebuild this without a new dated finding that changes the evidence (the findings doc says
+when to write one: an ICNIRP statement on plants, or a replicated household-distance study). A
+test, `powered_wifi_router_leaves_crop_health_unchanged`, holds the current behaviour.
 
 ### (b) Emissions-as-signature -> detection (the awareness layer)
 
@@ -198,9 +189,8 @@ shoots whom.
   stealth choices, "go dark by going wired") with zero weapon/damage code. Combat, when it comes,
   consumes this layer (you can only engage what you can detect) instead of inventing its own.
 
-Both chains reuse existing patterns -- no parallel architecture: (a) is the farming gate pattern, (b)
-is the atmosphere-system pattern (a `System` that reads components + publishes a status to the
-DataStore).
+The detection chain (b) reuses an existing pattern -- no parallel architecture: it is the
+atmosphere-system pattern (a `System` that reads components + publishes a status to the DataStore).
 
 ## Staged build plan
 
@@ -219,10 +209,8 @@ DataStore).
   over the run length, and (the union-find already in `utility_component_roots`, generic over `kind`)
   every Data consumer must reach a Data source (a router/uplink). A "data connection" medium picker in
   the editor mirrors the cable picker.
-- **Stage 3 -- RF -> plant harm.** The `RfEmitter` component + the per-tower RF-dose channel + the
-  `rf_tolerance` plants.csv column + the FarmingSystem hook (health drain + growth penalty), with a
-  test mirroring `dry_cistern_stops_irrigation_and_wilts_crops`: a loud emitter beside a sensitive
-  tower wilts it; a wired run (no emitter) does not.
+- **Stage 3 -- RF -> plant harm.** Built v0.620 as a single home-wide drain, REMOVED 2026-09-27 (see
+  section (a)). Not to be rebuilt without new evidence.
 - **Stage 4 -- emissions-as-signature detection + pheromones.** `Signature` + `Sensor` components, the
   `SignatureKind` enum (Rf/Bluetooth/Pheromone/Thermal/Acoustic), the `SignatureSystem`, the contacts
   channel + awareness HUD. Pheromones (and other future kinds) are new enum variants on the shipped
@@ -230,10 +218,8 @@ DataStore).
 
 ## Open design questions (for the operator)
 
-1. **RF tolerance: per-species or global?** Proposed: per-species `rf_tolerance` on plants.csv
-   (default 1.0 = fully tolerant) so only flagged "sensitive" crops suffer. Alternative: a single
-   global sensitivity. Per-species is more realistic + more interesting, at the cost of authoring a
-   column. (Leaning per-species.)
+1. ~~**RF tolerance: per-species or global?**~~ Moot: the plant harm was removed 2026-09-27 (section
+   (a)).
 2. **Fiber transceivers as machines at each end?** Real fiber needs a media converter / SFP at both
    ends. Model that as a required endpoint machine (more realistic, more build cost, a real teaching
    point) or fold it into the fiber medium's per-metre cost (simpler)? (Leaning fold-in for Stage 1,

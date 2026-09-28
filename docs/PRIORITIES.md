@@ -79,9 +79,9 @@ Spaceship first (Blocked #2, answered 2026-09-27): the ship's life support,
 the garden, building and survival come before the rendering items below.
 The work list is arc C in "Fenced arcs"; the next items there, from the
 operator's answers of 2026-09-27: the 24-hour configurable day (Blocked #3),
-the ship reactor as the homes' metered power (Blocked #3b), the Wi-Fi crop
-harm removed, and saved battery and other stored levels. Rendering items
-below still run beside it on files that do not overlap.
+the ship reactor as the homes' metered power (Blocked #3b), and saved battery
+and other stored levels. (The Wi-Fi crop harm was removed on 2026-09-27.)
+Rendering items below still run beside it on files that do not overlap.
 
 ### 1. Environment regions: the rest of the arc BUG-080 opened
 
@@ -402,8 +402,12 @@ them up.
      Cornell's 800 in the family home) is acceptable.
    - How to close the Food loops (91% family, 81% solo, since the mushroom
      yields were sourced): more beds, or more blocks per tent.
-   - **ANSWERED 2026-09-27: no Wi-Fi crop harm.** Operator: "We'll assume no
-     wi-fi crop harm at this time." Being removed (agent). He also mentioned
+   - **ANSWERED 2026-09-27: no Wi-Fi crop harm. REMOVED the same day.** Operator:
+     "We'll assume no wi-fi crop harm at this time." The FarmingSystem's RF
+     drain, the `RfEmitter` component, the machine `rf_emission` field and the
+     Wi-Fi-harms-a-grow buildability warning are gone; the router stays as a
+     network device, and a test holds that a powered router leaves crop health
+     unchanged. He also mentioned
      farmers using copper coils to increase growth (electroculture); a dated
      findings document is being researched before anything goes into the sim.
      The question as it was asked: the v0.620 Wi-Fi crop harm: keep, scale to

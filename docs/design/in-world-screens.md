@@ -159,7 +159,7 @@ the placed instance:
     label: "Wall screen",
     category: "Displays",
     stats: [(kind: "display", value: "1280 x 720 touchscreen", status: "ok")],
-    power: None, ports: [], storage: [], rf_emission: 0.0,
+    power: None, ports: [], storage: [],
     auto_recipe: None, container_type: None, model: None,
     screen: Some((
         source: "inventory",        // default source: a page id, or a scheme (see Sources)

@@ -2,7 +2,7 @@
 
 > **Status:** DESIGN ONLY (not built). Captures the operator's vision so we can move on until we know how
 > to solve the PERFORMANCE problem (this must be cheap enough for MMO servers). The telecom RF emission
-> (`docs/design/telecom.md`, the `RfEmitter` from v0.620) is ONE signature feeding this layer; this doc is
+> (`docs/design/telecom.md`, a data medium's `rf_emission`) is ONE signature feeding this layer; this doc is
 > the broader sensing model. Nothing here is wired yet -- it's the idea, the constraints, and the open
 > questions.
 
@@ -58,9 +58,11 @@ stealth at MMO scale without a physics bill. Likely a hybrid: analytic point-to-
 
 ## How it connects to what exists
 
-- `RfEmitter` (`src/ecs/components.rs`, v0.620) is already the RF signature for a powered wireless device;
-  the FarmingSystem already reads summed RF (the plant-harm consequence). A sensing layer would add
-  `Sensor`s that read the same emitters -- reuse, don't duplicate.
+- The RF source is the data medium's `rf_emission` (`data/utilities/conduits.ron`, `ConduitType` in
+  `src/utilities.rs`): Wi-Fi emits, Cat6 and fibre do not. The v0.620 `RfEmitter` component, which put
+  a powered router's RF on an ECS entity, was removed on 2026-09-27 together with the Wi-Fi crop harm it
+  served (`docs/reference/findings/2026-09-27-wifi-and-plants.md`); a sensing layer adds its own
+  signature component when it is built, reading the medium's `rf_emission`.
 - `AtmosphereSystem` (`src/systems/atmosphere.rs`) owns air + (future) wind, which the smell/pheromone
   dispersion needs.
 - `Weather` (wind speed/direction) feeds smell dispersion direction.

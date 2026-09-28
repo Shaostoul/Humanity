@@ -74,7 +74,6 @@ pub(crate) fn spawn_home_machine_entity(
     let is_water = def.is_water_machine();
     if def.power.is_none()
         && !is_water
-        && def.rf_emission <= 0.0
         && def.auto_recipe.is_none()
         && def.container_type.is_none()
         && !def.pollinates_crops
@@ -248,16 +247,6 @@ pub(crate) fn spawn_home_machine_entity(
             _ => 0.0,
         };
         let _ = world.insert_one(e, crate::ecs::components::Co2Scrubber { rated_kg_day: def.scrubs_co2_kg_day, watts });
-    }
-    // RF emitter (v0.620): a wireless device (WiFi router) bathes the home in RF while powered.
-    if def.rf_emission > 0.0 {
-        let _ = world.insert_one(
-            e,
-            crate::ecs::components::RfEmitter {
-                strength: def.rf_emission,
-                needs_power: matches!(&def.power, Some(MachinePower::Consumer { .. })),
-            },
-        );
     }
     // Economy automation (v0.663): a machine with an `auto_recipe` continuously
     // runs that recipe against the home inventory (CraftingSystem's AutoRefine

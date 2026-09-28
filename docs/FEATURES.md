@@ -2544,27 +2544,29 @@ The telecom utility's primary function: wire devices to the internet via a chose
 a power run. `Port` gained an `mbps` field; machines declare Data IN/OUT ports (a `home_server` demands
 100 Mbps, a `network_uplink` supplies it). A "data" connection carries a medium `spec`; the editor's
 utility-lines panel shows a per-data-run medium picker (auto / Cat6 / fibre / WiFi). A new "Data links"
-buildability check sizes each data run (bandwidth + range via `check_data_link`) and CAUTIONS when the
-medium is wireless (its RF can harm a grow -- the v0.620 consequence). The seed home wires its uplink to
-its server over Cat6 (clean); swap it to WiFi in the editor to see the RF warning fire.
+buildability check sizes each data run (bandwidth + range via `check_data_link`); a WiFi link passes
+exactly like a wired one wherever its bandwidth and range suffice. (Until 2026-09-27 it also warned that
+a wireless link's RF can harm a grow; that warning went with the crop harm, see below.) The seed home
+wires its uplink to its server over Cat6.
 - Native: `src/utilities.rs` (`Port.mbps`, `Port::data_in`/`data_out`), `src/machines.rs` (`data_demand_mbps`, the "Data links" check), `src/gui/pages/construction.rs` (the "data" kind + the data-medium picker)
 - Data: `data/machines/home.ron` (`network_uplink`, `home_server`, a `data` connection on `eth_cat6`)
 
-### Telecom RF -> Plant Harm (v0.620)
-The first telecom consequence, the operator's headline ("the user doesn't want a WiFi router because the
-frequencies harm a plant they're growing"). A machine with `rf_emission > 0` (a `wifi_router`) spawns an
-`RfEmitter`; while powered it adds to the home RF level; the FarmingSystem drains crop health by that
-level (outpacing recovery at one router's worth). Run a wired link (Cat6/fibre, zero RF) -- or remove the
-router -- to keep a clean grow. The `wifi_router` is placeable but NOT in the seed home, so the reference
-grow stays safe until you choose to add one.
-- Native: `src/ecs/components.rs` (`RfEmitter`), `src/machines.rs` (`MachineDef.rf_emission`), `src/lib.rs` (spawns `RfEmitter`), `src/systems/farming/mod.rs` (the home-RF sum + the crop RF-stress drain)
-- Data: `data/machines/home.ron` (`wifi_router`: a powered wireless device, `rf_emission: 0.6`)
+### Telecom RF -> Plant Harm (v0.620) -- REMOVED 2026-09-27
+A powered `wifi_router` used to drain the health of every crop in the home. The operator decided "We'll
+assume no wi-fi crop harm at this time" on the evidence in
+`docs/reference/findings/2026-09-27-wifi-and-plants.md` (no source shows a household router harming a
+garden at the distances plants sit from one), and the harm was removed that day: the FarmingSystem's
+home-RF drain, the `RfEmitter` component and its spawn, `MachineDef.rf_emission`, and the Data-links RF
+warning. The `wifi_router` stays as a powered network device (8 W, a wireless data port).
+- Test: `powered_wifi_router_leaves_crop_health_unchanged` (`src/systems/farming/mod.rs`)
+- Data: `data/machines/home.ron` (`wifi_router`, placed as `router_1` in the study)
 
 ### Data / Telecom Media, Stage 1 (v0.619)
 The internet/telecom utility: teach real telecommunications. Data is `Utility::Data` in the same
 `conduits.ron` registry, with media that have real tradeoffs -- bandwidth, range, latency, cost, and RF
-emission. Stage 1 ships the data model + link physics + 3 core media; the consequences (RF harms a
-sensitive plant; emissions become detection signatures) + the full media catalog are later stages.
+emission. Stage 1 ships the data model + link physics + 3 core media; emissions becoming detection
+signatures + the full media catalog are later stages. (RF harming plants was built in v0.620 and removed
+2026-09-27; the medium's `rf_emission` stays as the real property a detection layer would read.)
 - Native: `src/utilities.rs` (`ConduitType` data fields `bandwidth_mbps`/`range_m`/`latency_ms`/`wireless`/`rf_emission`, `ConductorMaterial::{Glass,Radio}`, `check_data_link`/`cheapest_data_link_for`/`data_media`)
 - Data: `data/utilities/conduits.ron` (`eth_cat6` quiet wired workhorse, `fiber_om4` high-bandwidth no-RF, `wifi_6` convenient but RF-loud)
 - Design: `docs/design/telecom.md` (the 21-media catalog + the emissions-as-signature design + the staged plan)
