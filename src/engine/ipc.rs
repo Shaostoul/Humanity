@@ -667,6 +667,21 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
     if let Some(t) = grab("cloud_dither") {
         state.gui_state.cloud_dev_dither_off = t == "0";
     }
+    // {"present_direct":"1"} draws the scene straight into the display (the
+    // pre-2026-09-27 path, no scene target, no present pass); "0" restores
+    // the default. The HDR scene target's same-boot A/B switch: it proves the
+    // target changes no pixel and reads what the present pass costs
+    // (renderer/scene_target.rs). The renderer ignores it once the scene
+    // format differs from the display's (increment 3), and says so here.
+    if let Some(t) = grab("present_direct") {
+        state.renderer.present_direct = t == "1";
+        let live = state.renderer.scene_format() == state.renderer.surface_format(); // display-format: the switch needs the formats equal
+        log::info!(
+            "Showcase: present_direct -> {} ({})",
+            state.renderer.present_direct,
+            if live { "in force" } else { "IGNORED: the scene format is not the display format" }
+        );
+    }
     // {"cloud_res":"4|2|1"} sets the cloud march resolution divisor
     // (4 = quarter, the historical default; 1 = full screen resolution).
     if let Some(r) = grab("cloud_res").and_then(|t| t.parse::<u32>().ok()) {
@@ -1139,7 +1154,8 @@ pub(crate) fn execute_screenshot_capture(
 /// a PNG. The camera position/orientation are untouched; only the projection
 /// aspect follows the requested W/H. Approach: create an offscreen color
 /// target in the swapchain's format, size the shared depth buffer to match,
-/// re-run the normal scene passes (they are all target-agnostic), read the
+/// re-run the normal scene passes into a scratch target in the scene format
+/// and present it into the capture target (`render_view_onto`), read the
 /// pixels back, then restore the window-sized depth buffer -- one frame of
 /// extra GPU work, no visible hiccup (the swapchain frame was already
 /// composed). The GUI/HUD is deliberately NOT drawn into the capture: the
@@ -1257,9 +1273,14 @@ pub(crate) fn sky_daylight(state: &EngineState) -> bool {
 /// next live pass binds exactly the buffer it had, whatever happens in
 /// between, and a 10 Hz camera costs no depth allocations at steady state.
 ///
-/// `target` must be a render attachment in the scene's swapchain format
-/// (`Renderer::surface_format`): the scene pipelines were built for that
-/// format and can draw into no other. The caller checks `world_loaded`.
+/// `target` must be a render attachment in the DISPLAY format
+/// (`Renderer::surface_format`): the passes draw into a view-sized scratch
+/// target in the scene format (`Renderer::begin_view_scene`), and the present
+/// pass, which is built for the display format, writes `target` at the end,
+/// exactly as the live frame presents its scene target to the swapchain
+/// (renderer/scene_target.rs, HDR scene target increment 2, 2026-09-27). The
+/// scratch is kept for the camera screens and dropped after a screenshot,
+/// the same rule as the depth buffer. The caller checks `world_loaded`.
 ///
 /// Frame-of-reference note for callers that run BEFORE the live scene pass
 /// (the camera screens): the draw lists are still in the HOME frame at that
@@ -1291,6 +1312,12 @@ pub(crate) fn render_view_onto(
     // The view's own depth buffer goes in; the window's is parked, not
     // recreated (see `Renderer::begin_view_depth`).
     state.renderer.begin_view_depth(w, h);
+    // And its own colour target: every pass below draws into the scratch
+    // (`target` from here on), and `end_view_scene` presents it into the
+    // caller's display target (`display`).
+    let display = target;
+    let scratch = state.renderer.begin_view_scene(w, h, display);
+    let target = &scratch;
     // The same daylight the live frame computes for its star pass: a camera
     // draws no sky over its stars, so without this a daytime window would
     // show stars (the rung-3 reviewer's finding).
@@ -1381,6 +1408,11 @@ pub(crate) fn render_view_onto(
     // frame's ids (the 2026-09-18 review found them summed into the Main ones).
     state.renderer.render_overlay_onto(camera, lists.overlay, target, who);
     state.renderer.draw_lines_onto(camera, lists.ring_lines, target, who);
+
+    // Present the scratch into the caller's target, timed as this view's
+    // present (`gpu.present` for the screenshot, `gpu.screen_present` for a
+    // camera screen); the scratch is kept or dropped by the depth rule.
+    state.renderer.end_view_scene(display, who, passes == ViewPasses::SceneOnly);
 
     // Put the window's depth buffer back BEFORE returning, or the next live
     // pass would bind a mismatched one. The view-sized buffer is kept for

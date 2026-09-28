@@ -28,8 +28,8 @@ impl Renderer {
     /// `depth_view`, so the depth buffer must match the capture target's size for
     /// that one frame; the caller calls this again with the window size right
     /// after to restore. Deliberately does NOT reconfigure the swapchain (that
-    /// belongs to the window) and does not touch scene_texture/bloom (they are
-    /// not part of the live frame path).
+    /// belongs to the window) and does not touch the scene target or bloom
+    /// (an off-screen view draws into its own scratch, `begin_view_scene`).
     ///
     /// A request for the size the buffer already has is a no-op: a depth
     /// texture is a full-screen allocation, and re-creating one that already

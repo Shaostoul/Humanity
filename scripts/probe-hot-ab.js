@@ -16,7 +16,21 @@
 //
 // plan = { pins: {showcase pins applied to every vantage},
 //          vantages: ["id from tests/visual/vantages.json" | {id, camera, showcase, settle_s, hold_altitude}],
-//          arms: [{name, patches: [{file, find, replace, count?}]}] }
+//          arms: [{name, patches: [{file, find, replace, count?}], showcase?: {pins for this arm only}}],
+//          shot?: {width, height}, same_park?: true }
+// An arm's `showcase` is merged LAST, so it wins over the plan and vantage
+// pins: it is how an arm flips a runtime switch instead of a shader (the
+// HDR scene target's `present_direct`, 2026-09-27). An arm with no patches
+// and a showcase needs no reload. `shot` asks every capture for a hi-res
+// off-screen render instead of the window grab.
+//
+// `same_park: true` parks each vantage ONCE and takes every arm there in
+// turn (vantage-major), instead of re-parking per arm. Measured 2026-09-27:
+// two re-parked captures of the SAME arm in one boot differed in 18 to 33
+// percent of pixels (a re-park never lands exactly where the last one did),
+// which drowns a bit-exact claim; consecutive captures of one park differ
+// only where the scene itself moves. In this mode an arm's showcase is sent
+// on its own, so every arm must set its switch explicitly (it persists).
 // Every arm starts from the ORIGINAL file text captured at start, applies its
 // patches (each `find` must occur exactly `count` (default 1) times, or the
 // arm is refused: a patch that silently did not apply is the classic null
@@ -114,11 +128,17 @@ async function applyAndReload(texts, label) {
   throw new Error(`${label}: no [HotReload] reassembled line within 120 s`);
 }
 
-async function capture(v, arm) {
+async function capture(v, arm, armShowcase) {
+  await park(v, armShowcase);
+  await shoot(v, arm);
+}
+
+async function park(v, armShowcase) {
   const sc = Object.assign(
     { map_diag: "0", cloud_top_bound: "0", cloud_uniform_step: "0", cloud_step_m: "0", wind: "auto", anim_clock: "auto", aurora: "1" },
     plan.pins || {},
-    v.showcase || {}
+    v.showcase || {},
+    armShowcase || {}
   );
   req("showcase_request.json", sc);
   await sleep(3500);
@@ -133,8 +153,11 @@ async function capture(v, arm) {
   const re = await waitFile("camera_done.json", 60000);
   if (!re || re.ok !== true) throw new Error(`re-park: ${JSON.stringify(re)}`);
   await sleep(v.hold_altitude ? 900 : 6000);
+}
+
+async function shoot(v, arm) {
   clearDone("screenshot_done.json");
-  req("screenshot_request.json", {});
+  req("screenshot_request.json", plan.shot || {});
   const shot = await waitFile("screenshot_done.json", 60000);
   if (!shot || shot.ok !== true) throw new Error(`screenshot: ${JSON.stringify(shot)}`);
   const dest = `${arm}__${v.id}.png`;
@@ -148,13 +171,41 @@ async function capture(v, arm) {
   const results = [];
   try {
     const texts = plan.arms.map((a) => armText(a)); // refuse bad patches BEFORE touching anything
+    // SAME-PARK mode: park each vantage ONCE and take every arm there, arm
+    // after arm, with the arm's shader reload or showcase switch in between.
+    if (plan.same_park) {
+      for (const v of vantages) {
+        log(`vantage ${v.id} (same park)`);
+        try {
+          await park(v, {});
+        } catch (e) {
+          log(`  FAILED park ${v.id}: ${e.message}`);
+          for (const arm of plan.arms) results.push({ arm: arm.name, id: v.id, ok: false, error: e.message });
+          continue;
+        }
+        for (let i = 0; i < plan.arms.length; i++) {
+          const arm = plan.arms[i];
+          try {
+            await applyAndReload(texts[i], arm.name);
+            if (arm.showcase) req("showcase_request.json", arm.showcase);
+            await sleep(2500); // the switch lands; the frame-cost EMA settles
+            await shoot(v, arm.name);
+            results.push({ arm: arm.name, id: v.id, ok: true });
+          } catch (e) {
+            log(`  FAILED ${arm.name} ${v.id}: ${e.message}`);
+            results.push({ arm: arm.name, id: v.id, ok: false, error: e.message });
+          }
+        }
+      }
+      return;
+    }
     for (let i = 0; i < plan.arms.length; i++) {
       const arm = plan.arms[i];
       log(`arm ${arm.name}`);
       await applyAndReload(texts[i], arm.name);
       for (const v of vantages) {
         try {
-          await capture(v, arm.name);
+          await capture(v, arm.name, arm.showcase);
           results.push({ arm: arm.name, id: v.id, ok: true });
         } catch (e) {
           log(`  FAILED ${v.id}: ${e.message}`);

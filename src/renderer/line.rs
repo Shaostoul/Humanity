@@ -191,7 +191,7 @@ mod tests {
 /// `camera_bind_group` (full view-proj) can be bound directly.
 pub fn build_line_pipeline(
     device: &wgpu::Device,
-    surface_format: wgpu::TextureFormat,
+    scene_format: wgpu::TextureFormat,
     camera_bgl: &wgpu::BindGroupLayout,
 ) -> wgpu::RenderPipeline {
     let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
@@ -216,7 +216,7 @@ pub fn build_line_pipeline(
             module: &shader,
             entry_point: Some("fs_main"),
             targets: &[Some(wgpu::ColorTargetState {
-                format: surface_format,
+                format: scene_format,
                 blend: Some(wgpu::BlendState {
                     color: wgpu::BlendComponent {
                         src_factor: wgpu::BlendFactor::SrcAlpha,
