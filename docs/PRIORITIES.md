@@ -48,6 +48,31 @@ fixed v0.1384.0), 2a, 2a-ii and 2a-i (the grain measurements, condensed into
 page snapshots, done). A code comment or fixture that cites one of those
 numbers finds it there.
 
+### IN FLIGHT AT THE USAGE CAP (2026-09-27 evening): resume from these branches
+
+Weekly usage reached 89%, so every agent was told to commit (WIP if not
+done, with a message saying what is left) and stop. Each branch is
+`worktree-agent-<id>` in `.claude/worktrees/agent-<id>`. Merge a finished
+one the way today's were merged (preview with `git merge-tree`, cherry-pick
+or merge, verify, boot, release); resume a WIP one by giving a new agent its
+branch and its commit message. Remove a line here once its branch is merged.
+
+- `a0944d211e0ff283e`: the 24-hour configurable day (Blocked #3, operator
+  decision). Large; touches time.rs, sleep, crops, sun, Layer 1 seasons.
+- `af651e3cf56b6c02a`: the ship reactor as the homes' metered power
+  (Blocked #3b, operator decision).
+- `a94e719ae551c5dd8`: remove the v0.620 Wi-Fi crop harm (operator decision).
+- `adabb8ee885f6702b`: save battery charge and other stored levels.
+- `a5e6f9189e45ed9b9`: HDR scene target steps 3 and 4 (Rgba16Float, one
+  dither; item 3b below).
+- `a2932acea7b338a59`: sun cascades increments 0 and 1 (item 3c below,
+  docs/design/sun-cascades.md).
+- `a83c9985bdf67dda5`: Library guides Drying and Fermenting (then an
+  independent refutation pass before merge, as every guide gets).
+- No branch: `docs/reference/findings/2026-09-27-electroculture-copper-coils.md`
+  written straight into the main checkout by a research agent; commit it if
+  it is there and uncommitted.
+
 ### 0. The ship and the playable game (arc C, ranked first 2026-09-27)
 
 Spaceship first (Blocked #2, answered 2026-09-27): the ship's life support,
