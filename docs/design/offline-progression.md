@@ -153,8 +153,8 @@ itself, so shaping the starting home keeps working. Revisit at launch.
     destroys nothing (crop health is not integrated offline). `resume_home`
     hands the time away to the farming tick
     (`farming::soil_ph::hand_away_secs`), which steps it once at the player's
-    growth speed and Soil pH setting, because those reach the DataStore only
-    after the resume. The acidity of the growth made while away is not in it:
+    Soil pH setting, because that reaches the DataStore only after the
+    resume. The acidity of the growth made while away is not in it:
     that growth pays its nitrogen on the first tick back and its acidity
     reacts from then on. Weeds and pests do not advance (they cost crop
     health the player could not answer).
@@ -288,3 +288,16 @@ itself, so shaping the starting home keeps working. Revisit at launch.
 - `docs/design/playable-assessment-2026-09-19.md` section 7, question 1.
 - Timetable-shaped chores rather than countdown timers:
   `docs/design/crowd-simulation.md` rung 3, the same refactor.
+
+## The one clock (2026-09-27)
+
+The world clock is now one game clock with a time-speed setting
+(decision-briefs.md Brief 6): the 20-minute day and the crop growth
+multiplier are gone. The time away is counted at that speed:
+`save_load::catch_up_world` multiplies the real seconds away by the
+player's time speed, the rate the world ran at while they played, so a
+garden at 72x keeps growing at 72x while the game is closed and one at 1x
+grows by exactly the real time away. Everything handed the time away
+(crops, builds, crafts, soil pH, the drone, machines, livestock) gets it in
+game seconds. A dev hold (the F11 freeze, a sleep) is not the setting and
+does not stretch it.

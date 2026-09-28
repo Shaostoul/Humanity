@@ -1075,6 +1075,15 @@ mod tests {
     use crate::systems::farming::{FarmingSystem, PlantRegistry};
     use crate::systems::inventory::Inventory;
 
+    /// A world with the home's irrigation in it (the marker, unpowered: always
+    /// on), so the crops stay watered at any garden speed. Water runs on the
+    /// game clock (2026-09-27), and these tests are about flowers, not thirst.
+    fn watered_world() -> hecs::World {
+        let mut world = hecs::World::new();
+        world.spawn((crate::ecs::components::Irrigator,));
+        world
+    }
+
     fn shipped() -> PollinationData {
         PollinationData::parse(POLLINATION_RON).expect("the shipped pollination.ron parses")
     }
@@ -1083,7 +1092,7 @@ mod tests {
     /// notices, with the mode On (as absent) unless `on` is false.
     fn store(speed: f32, on: bool) -> DataStore {
         let mut data = make_store();
-        data.insert("crop_growth_speed", std::sync::Mutex::new(speed));
+        crate::systems::farming::gardening_tests::set_garden_speed(&data, speed);
         data.insert("player_notices", std::sync::Mutex::new(Vec::<String>::new()));
         data.insert(REQUEST_KEY, std::sync::Mutex::new(Option::<Request>::None));
         data.insert(MODE_KEY, std::sync::Mutex::new(on));
@@ -1211,7 +1220,7 @@ mod tests {
     fn an_indoor_tomato_with_no_help_sets_its_cited_share() {
         let data = store(100.0, true);
         let mut sys = FarmingSystem::new();
-        let mut world = hecs::World::new();
+        let mut world = watered_world();
         let e = world.spawn((crop("tomato", "ntower_3", "flower"),));
         // 100x growth, 1 s ticks: a garden day is 12 ticks.
         for _ in 0..24 {
@@ -1244,7 +1253,7 @@ mod tests {
         data.insert("creative_mode", std::sync::Mutex::new(true));
         let ripe = data.get::<PlantRegistry>("plant_registry").unwrap().get("tomato").unwrap().last_stage().to_string();
         let mut sys = FarmingSystem::new();
-        let mut world = hecs::World::new();
+        let mut world = watered_world();
         let mut inv = Inventory::new(64);
         inv.volume_capacity_l = 1.0e9;
         let player = world.spawn((inv, Controllable));
@@ -1281,7 +1290,7 @@ mod tests {
     fn hand_pollinating_restores_full_set_while_it_lasts() {
         let data = store(100.0, true);
         let mut sys = FarmingSystem::new();
-        let mut world = hecs::World::new();
+        let mut world = watered_world();
         let e = world.spawn((crop("tomato", "ntower_3", "flower"),));
         let other = world.spawn((crop("tomato", "ntower_4", "flower"),));
         sys.tick(&mut world, 1.0, &data); // both get a record
@@ -1323,7 +1332,7 @@ mod tests {
     fn an_outdoor_field_crop_needs_no_help() {
         let data = store(100.0, true);
         let mut sys = FarmingSystem::new();
-        let mut world = hecs::World::new();
+        let mut world = watered_world();
         let field = world.spawn((crop("zucchini", "grain_field_1", "flower"),));
         for _ in 0..24 {
             sys.tick(&mut world, 1.0, &data);
@@ -1356,7 +1365,7 @@ mod tests {
         let mut data = store(100.0, true);
         data.insert("garden_pests", crate::systems::farming::pests::PestData::load());
         let mut sys = FarmingSystem::new();
-        let mut world = hecs::World::new();
+        let mut world = watered_world();
         let field = world.spawn((crop("zucchini", "grain_field_1", "flower"),));
         let m = crate::systems::farming::soil::soil_memory_entity(&mut world);
         world
@@ -1414,7 +1423,7 @@ mod tests {
         data.insert("garden_pests", crate::systems::farming::pests::PestData::load());
         data.insert("garden_pest_severity", std::sync::Mutex::new(0.0_f32));
         let mut sys = FarmingSystem::new();
-        let mut world = hecs::World::new();
+        let mut world = watered_world();
         let field = world.spawn((crop("zucchini", "grain_field_1", "flower"),));
         let m = crate::systems::farming::soil::soil_memory_entity(&mut world);
         world.get::<&mut SoilMemory>(m).unwrap().pests.entry("grain_field_1".to_string()).or_default().releases.insert("row_cover".to_string(), 300.0);
@@ -1436,7 +1445,7 @@ mod tests {
         data.insert("garden_pests", crate::systems::farming::pests::PestData::load());
         data.insert("grow_plots", vec![GrowPlot { id: "bed_1".into(), footprint_m2: 2.0, ..Default::default() }]);
         let mut sys = FarmingSystem::new();
-        let mut world = hecs::World::new();
+        let mut world = watered_world();
         hive(&mut world, "hive_1", [1.0, 0.0, 0.0], Some(0.0));
         let open = world.spawn((crop("tomato", "bed_1", "flower"),));
         for _ in 0..24 {
@@ -1463,7 +1472,7 @@ mod tests {
     fn lettuce_is_unaffected() {
         let data = store(100.0, true);
         let mut sys = FarmingSystem::new();
-        let mut world = hecs::World::new();
+        let mut world = watered_world();
         let lettuce = world.spawn((crop("lettuce", "ntower_3", "vegetative"),));
         let bean = world.spawn((crop("bean", "ntower_3", "flower"),));
         for _ in 0..24 {
@@ -1506,7 +1515,7 @@ mod tests {
             ],
         );
         let mut sys = FarmingSystem::new();
-        let mut world = hecs::World::new();
+        let mut world = watered_world();
         hive(&mut world, "hive_1", [1.0, 0.0, 0.0], Some(0.0));
         let near = world.spawn((crop("tomato", "ntower_3", "flower"),));
         let far = world.spawn((crop("tomato", "ntower_9", "flower"),));
@@ -1543,7 +1552,7 @@ mod tests {
         let mut data = store(100.0, false);
         data.insert(DATA_KEY, shipped());
         let mut sys = FarmingSystem::new();
-        let mut world = hecs::World::new();
+        let mut world = watered_world();
         let fresh = world.spawn((crop("tomato", "ntower_3", "flower"),));
         let old = world.spawn((
             crop("zucchini", "ntower_3", "flower"),
@@ -1654,7 +1663,7 @@ mod tests {
     fn a_colony_works_its_life_then_is_spent() {
         let mut data = store(100.0, true);
         data.insert(DATA_KEY, shipped());
-        let mut world = hecs::World::new();
+        let mut world = watered_world();
         hive(&mut world, "hive_1", [1.0, 0.0, 0.0], Some(0.0));
         let t = world.spawn((crop("tomato", "ntower_3", "flower"),));
         let mut p = Pollination::new();
@@ -1682,7 +1691,7 @@ mod tests {
         assert!(row.needs_colony && row.line.contains("colony spent"), "{row:?}");
         assert!(view.row(t).starts_with("not pollinated"), "{}", view.row(t));
         // A hive with no colony pollinates nothing and says so.
-        let mut world = hecs::World::new();
+        let mut world = watered_world();
         hive(&mut world, "hive_2", [1.0, 0.0, 0.0], None);
         let t = world.spawn((crop("tomato", "ntower_3", "flower"),));
         step(&mut p, &mut world, &data, 3.0);
@@ -1704,7 +1713,7 @@ mod tests {
     fn introducing_a_colony_takes_a_bought_one() {
         let mut data = store(100.0, true);
         data.insert(DATA_KEY, shipped());
-        let mut world = hecs::World::new();
+        let mut world = watered_world();
         hive(&mut world, "hive_1", [1.0, 0.0, 0.0], None);
         let who = player_with(&mut world, 0);
         let mut p = Pollination::new();
@@ -1764,7 +1773,7 @@ mod tests {
                 GrowPlot { id: "ntower_5".into(), cups: 12, pos: [6.0, 0.0, 0.0], ..Default::default() },
             ],
         );
-        let mut world = hecs::World::new();
+        let mut world = watered_world();
         let fan = world.spawn((
             crate::ecs::components::MachineType("circulation_fan".into()),
             Transform { position: glam::Vec3::new(0.5, 0.0, 0.0), ..Default::default() },

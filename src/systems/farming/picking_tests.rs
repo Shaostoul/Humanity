@@ -14,10 +14,10 @@ use crate::ecs::systems::System;
 use crate::hot_reload::data_store::DataStore;
 use crate::systems::inventory::Inventory;
 
-/// The tick length, real seconds, that is `days` garden days at the default
-/// growth speed.
+/// The tick length, real seconds, that is `days` garden days at time speed 1
+/// (the one clock, 2026-09-27).
 fn dt_for(days: f64) -> f32 {
-    (days * SECONDS_PER_DAY / f64::from(DEFAULT_CROP_GROWTH_SPEED)) as f32
+    (days * SECONDS_PER_DAY) as f32
 }
 
 /// The shipped store, with a tomato bed plot of 4.2 m2 (ten tomato plants at
@@ -32,6 +32,8 @@ fn store() -> DataStore {
     // the weeks these tests jump, pests on the bed would trim its health and
     // so its picks; the picking arithmetic is what is under test here.
     data.insert("garden_pest_severity", Mutex::new(0.0_f32));
+    // Time speed 1 (the one clock, 2026-09-27): a real second is a game second.
+    data.get::<Mutex<crate::systems::time::GameTime>>("game_time").unwrap().lock().unwrap().time_scale = 1.0;
     data
 }
 

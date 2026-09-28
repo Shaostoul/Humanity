@@ -61,13 +61,9 @@ State after the wrap-up (merged ones are removed: the Wi-Fi harm removal,
 saved machine levels and the electroculture findings landed in v0.1394.0):
 
 - `a0944d211e0ff283e`: the 24-hour configurable day (Blocked #3, operator
-  decision). NO CODE YET: commit 954d5813 is an empty commit whose message
-  maps every clock in the code (beyond Brief 6: crop water and health rates,
-  plumbing, weather timers, passive income, manufacturing, the station
-  orbit's x72, planet spin, the dev IPC, the F11 scrubber, the HUD hour)
-  and gives a step-by-step plan. Its year default of 365 days is the
-  agent's choice, not the operator's. gui/mod.rs and state_types.rs are
-  within 15 and 11 lines of their budgets.
+  decision). BUILT, committed, not yet merged: one game clock
+  (decision-briefs.md Brief 6, "How it was built"). Its year default of 365
+  days is the agent's choice, not the operator's.
 - `af651e3cf56b6c02a`: the ship reactor as the homes' metered power
   (Blocked #3b, operator decision). NO CODE YET: commit e94bd8e5 (empty)
   holds the findings and plan: no buildable generator exists (the
@@ -365,7 +361,10 @@ them up.
    is unless they change the setting that makes stuff happen faster/slower."
    So: hours per day is a setting (default 24), the length of an hour is fixed,
    and only the separate time-speed setting makes things run faster or slower.
-   Being built (agent, 2026-09-27). The question as it was asked:
+   **Built (2026-09-27):** one game clock, Settings > Gameplay > Time (time
+   speed default 1, hours in a day default 24, days in a year default 365,
+   the last the agent's choice); decision-briefs.md Brief 6 says how, and
+   proposes 72x as the simplified mode's default. The question as it was asked:
    **One clock or two, for the body and the garden (asked 2026-09-26).** The body
    runs on real seconds, the garden on 20-minute game days at 10x growth, so
    urine is a fraction of a percent of the garden's nitrogen in play, and room

@@ -19,7 +19,7 @@ fn crop(data: &DataStore, plant: &str, area: &str, slot: u32, days: f64, speed: 
     CropInstance {
         crop_def_id: plant.to_string(),
         growth_stage: stage,
-        planted_at: -days * SECONDS_PER_DAY / f64::from(speed),
+        planted_at: -days * SECONDS_PER_DAY,
         water_level: 1.0,
         health: 100.0,
         tower_id: Some(area.to_string()),
@@ -32,7 +32,7 @@ fn crop(data: &DataStore, plant: &str, area: &str, slot: u32, days: f64, speed: 
 /// A store with the channels weeds use, at `speed` growth and `severity`.
 fn store(speed: f32, severity: f32) -> DataStore {
     let mut data = make_store();
-    data.insert("crop_growth_speed", std::sync::Mutex::new(speed));
+    super::gardening_tests::set_garden_speed(&data, speed);
     data.insert("garden_pest_severity", std::sync::Mutex::new(severity));
     data.insert("player_notices", std::sync::Mutex::new(Vec::<String>::new()));
     data.insert(weeds::REQUEST_KEY, std::sync::Mutex::new(Option::<(String, String)>::None));

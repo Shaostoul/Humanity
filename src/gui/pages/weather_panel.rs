@@ -159,15 +159,10 @@ pub fn sea_description(wind: f32) -> &'static str {
     }
 }
 
-/// Turn a clock multiplier into how long a full game day takes in real time,
-/// so the speed slider says something concrete instead of a bare number.
-pub fn fmt_day_length(scale: f32) -> String {
-    let secs = crate::systems::time::SECONDS_PER_DAY / scale.max(0.001) as f64;
-    if secs >= 90.0 {
-        format!("{:.0} minutes", secs / 60.0)
-    } else {
-        format!("{:.0} seconds", secs)
-    }
+/// Turn a clock speed into how long a full day of `hours` takes in real
+/// time, so the speed slider says something concrete instead of a bare number.
+pub fn fmt_day_length(hours: u32, scale: f32) -> String {
+    crate::gui::pages::settings_time::day_in_real_time(hours, scale)
 }
 
 /// Draw the panel. Returns true when the operator changed something, so the
@@ -213,6 +208,8 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) -> bool {
             ui.label(RichText::new("Time of day").strong().color(theme.accent()));
             ui.add_space(2.0);
             let g_hour = state.game_time.as_ref().map(|t| t.hour).unwrap_or(0.0);
+            // Hours on this clock (the Settings day length, 24 by default).
+            let day_h = state.game_time.as_ref().map_or(24, |t| t.hours_per_day).max(1) as f32;
             let has_local = state
                 .game_time
                 .as_ref()
@@ -225,7 +222,7 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) -> bool {
                 .unwrap_or(g_hour);
             // Local minus global: this site's longitude offset, in hours.
             let lon_off = l_hour - g_hour;
-            let hh = state.time_pick_hour.floor().clamp(0.0, 23.0) as u32;
+            let hh = state.time_pick_hour.floor().clamp(0.0, day_h - 1.0) as u32;
             let mm = ((state.time_pick_hour - state.time_pick_hour.floor()) * 60.0) as u32;
             ui.label(
                 RichText::new(if has_local {
@@ -237,13 +234,13 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) -> bool {
                 .color(theme.text_primary()),
             );
             let scrub = crate::gui::widgets::slider(ui, theme,
-                egui::Slider::new(&mut state.time_pick_hour, 0.0..=24.0)
+                egui::Slider::new(&mut state.time_pick_hour, 0.0..=day_h)
                     .text("Hour")
                     .fixed_decimals(2),
             );
             if scrub.changed() {
                 state.time_hour_request =
-                    Some((state.time_pick_hour - lon_off).rem_euclid(24.0));
+                    Some((state.time_pick_hour - lon_off).rem_euclid(day_h));
             }
             // Follow the running clock whenever the operator is not holding the
             // handle, so the slider reads as a clock instead of drifting away
@@ -253,6 +250,8 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) -> bool {
             }
             // Named stops: the lighting situations worth returning to. They are
             // only meaningful in LOCAL solar time, which is why the slider is.
+            // Written for a 24-hour day and scaled to this one's (noon is the
+            // middle of any day).
             const STOPS: &[(&str, f32, &str)] = &[
                 ("Dawn", 6.0, "Sun on the horizon, longest shadows, warmest light."),
                 ("Morning", 9.0, "Clean side light. The everyday working sky."),
@@ -274,40 +273,46 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) -> bool {
                             m.borrow_mut().insert(*name, b.rect);
                         });
                         if b.clicked() {
-                            state.time_pick_hour = *hour;
-                            state.time_hour_request = Some((*hour - lon_off).rem_euclid(24.0));
+                            let at = *hour * day_h / 24.0;
+                            state.time_pick_hour = at;
+                            state.time_hour_request = Some((at - lon_off).rem_euclid(day_h));
                         }
                         b.on_hover_text(*note);
                     }
                 });
             }
             ui.add_space(theme.spacing_sm);
-            // Freeze is what earns this section its keep for review work: a game
-            // day is 20 real minutes, so an unfrozen clock walks the sun about 3
-            // degrees while you study one frame, and no two captures of the same
-            // scene are comparable.
+            // Freeze is what earns this section its keep for review work: at
+            // any faster time speed an unfrozen clock walks the sun while you
+            // study one frame, and no two captures of the same scene are
+            // comparable. It is a hold over the time speed, not a new speed.
             let mut frozen = state.time_frozen;
             if ui.checkbox(&mut frozen, "Hold the clock still").changed() {
                 state.time_frozen = frozen;
-                state.time_scale_request =
-                    Some(if frozen { 0.0 } else { state.time_speed });
+                state.time_scale_request = Some(if frozen { Some(0.0) } else { None });
             }
             if !state.time_frozen {
+                // The same setting as Settings > Gameplay > Time (the one
+                // time speed, 2026-09-27): this slider changes it for good.
                 if crate::gui::widgets::slider(ui, theme,
-                        egui::Slider::new(&mut state.time_speed, 1.0..=600.0)
-                            .text("Clock speed")
+                        egui::Slider::new(
+                            &mut state.settings.time_speed,
+                            crate::systems::time::MIN_TIME_SPEED..=crate::systems::time::MAX_TIME_SPEED,
+                        )
+                            .text("Time speed")
                             .logarithmic(true)
                             .fixed_decimals(0),
                     )
                     .changed()
                 {
-                    state.time_scale_request = Some(state.time_speed);
+                    state.settings.time_speed = crate::systems::time::clamp_time_speed(state.settings.time_speed);
+                    state.settings_dirty = true;
                 }
                 ui.label(
                     RichText::new(format!(
                         "{:.0}x real time. A full day takes {}.",
-                        state.time_speed,
-                        fmt_day_length(state.time_speed)
+                        state.settings.time_speed,
+                        fmt_day_length(day_h as u32, state.settings.time_speed)
                     ))
                     .size(theme.font_size_small)
                     .color(theme.text_secondary()),

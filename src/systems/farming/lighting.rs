@@ -241,7 +241,7 @@ pub fn light_at(world: &hecs::World, data: &crate::hot_reload::data_store::DataS
 pub fn light_now(world: &hecs::World, data: &crate::hot_reload::data_store::DataStore) -> LightNow {
     let hour = data
         .get::<std::sync::Mutex<crate::systems::time::GameTime>>("game_time")
-        .and_then(|m| m.lock().ok().map(|g| g.hour))
+        .and_then(|m| m.lock().ok().map(|g| g.solar_hour()))
         .unwrap_or(12.0);
     light_at(world, data, hour)
 }

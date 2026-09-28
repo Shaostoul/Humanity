@@ -454,6 +454,16 @@ impl System for FoodSystem {
         use crate::ecs::components::{Health, Name, StatusEffects, Vitals};
         use crate::systems::inventory::{Inventory, ItemRegistry};
         use crate::systems::status_effects::StatusEffectRegistry;
+        // THE BODY ON THE ONE CLOCK (2026-09-27, decision-briefs.md Brief 6).
+        // The body's daily needs (hunger, thirst, the waking day's tiredness,
+        // waste, urine, starving and dehydration, food spoiling) run on game
+        // seconds, so the time-speed setting speeds them with the crops, the
+        // tanks and the sun, and a night asleep costs a night of them. What
+        // answers to this moment runs on real seconds (`dt`): breath, body
+        // heat, a burn's g-load and timed status effects, because the player
+        // moves and acts in real seconds, and at 72x a held breath would
+        // otherwise last half a real second. At time speed 1 the two agree.
+        let game_dt = crate::systems::time::scaled_dt(dt, data);
 
         // ── 1. EAT / DRINK: drain the consume_request (Eat button) and
         //    drink_request (Drink button) channels, written by the main-loop
@@ -548,7 +558,7 @@ impl System for FoodSystem {
             .iter()
             .any(|(_, (_, _, dead))| dead.is_none());
         if player_alive {
-            self.urine_person_days = collect_urine(self.urine_person_days, f64::from(dt));
+            self.urine_person_days = collect_urine(self.urine_person_days, f64::from(game_dt));
         }
         if do_compost {
             let max_stack = item_registry
@@ -637,9 +647,9 @@ impl System for FoodSystem {
             let mut worst: (&str, f32) = ("", 0.0);
 
             vitals.satiation =
-                (vitals.satiation - SATIATION_DECAY_PER_SEC * drain_scale * dt).max(0.0);
+                (vitals.satiation - SATIATION_DECAY_PER_SEC * drain_scale * game_dt).max(0.0);
             vitals.hydration =
-                (vitals.hydration - HYDRATION_DECAY_PER_SEC * drain_scale * dt).max(0.0);
+                (vitals.hydration - HYDRATION_DECAY_PER_SEC * drain_scale * game_dt).max(0.0);
             if vitals.satiation < HUNGRY_THRESHOLD {
                 effects.apply("hungry", CONDITION_LINGER);
             } else {
@@ -651,14 +661,14 @@ impl System for FoodSystem {
                 effects.remove("thirsty");
             }
             if vitals.satiation <= 0.0 {
-                let amt = STARVE_DAMAGE_PER_SEC * dt;
+                let amt = STARVE_DAMAGE_PER_SEC * game_dt;
                 health_drain += amt;
                 if amt > worst.1 {
                     worst = ("starvation", amt);
                 }
             }
             if vitals.hydration <= 0.0 {
-                let amt = DEHYDRATE_DAMAGE_PER_SEC * dt;
+                let amt = DEHYDRATE_DAMAGE_PER_SEC * game_dt;
                 health_drain += amt;
                 if amt > worst.1 {
                     worst = ("dehydration", amt);
@@ -668,7 +678,7 @@ impl System for FoodSystem {
             // Energy drains while awake; low energy -> fatigued (speed debuff, #3b),
             // unless a short rest is still keeping a tired (not exhausted)
             // person alert (systems::sleep::short_rest, 2026-09-27).
-            vitals.energy = (vitals.energy - ENERGY_DECAY_PER_SEC * drain_scale * dt).max(0.0);
+            vitals.energy = (vitals.energy - ENERGY_DECAY_PER_SEC * drain_scale * game_dt).max(0.0);
             if vitals.energy < FATIGUED_THRESHOLD && !crate::systems::sleep::nap_holds_off_fatigue(vitals.energy, effects) {
                 effects.apply("fatigued", CONDITION_LINGER);
             } else {
@@ -750,7 +760,7 @@ impl System for FoodSystem {
             }
 
             // Organic waste accrues while living; high waste -> the unsanitary debuff.
-            vitals.waste = (vitals.waste + WASTE_RISE_PER_SEC * dt).min(vitals.waste_max);
+            vitals.waste = (vitals.waste + WASTE_RISE_PER_SEC * game_dt).min(vitals.waste_max);
             if vitals.waste > UNSANITARY_THRESHOLD {
                 effects.apply("unsanitary", CONDITION_LINGER);
             } else {
@@ -864,7 +874,7 @@ impl System for FoodSystem {
                 }
 
                 // Advance spoilage timer
-                state.spoilage_timer += dt;
+                state.spoilage_timer += game_dt;
 
                 if state.spoilage_timer >= state.max_freshness {
                     state.spoiled = true;
@@ -976,6 +986,38 @@ mod nutrition_tests {
         let v = world.get::<&Vitals>(e).unwrap();
         assert!((v.hydration - (50.0 - HYDRATION_DECAY_PER_SEC * 2.0 * 10.0)).abs() < 1e-3);
         assert!((v.satiation - (50.0 - SATIATION_DECAY_PER_SEC * 2.0 * 10.0)).abs() < 1e-3);
+    }
+
+    /// The body's daily needs follow the one game clock (2026-09-27): at time
+    /// speed 72, ten real seconds cost 72 times the hunger, thirst, tiredness
+    /// and waste they cost at 1; the moment-to-moment body does not scale
+    /// (breath comes back at the same real rate). Red check, run: the decay
+    /// on raw `dt` instead of `game_dt` makes the 72x drops equal the 1x
+    /// ones and the ratio assertions fail.
+    #[test]
+    fn the_time_speed_runs_the_bodys_daily_needs_and_not_its_breath() {
+        let drops = |speed: f32| -> [f32; 5] {
+            let mut sys = FoodSystem::new(data_dir());
+            let data = make_store();
+            let mut data = data;
+            let mut gt = crate::systems::time::GameTime::default();
+            gt.time_scale = speed;
+            data.insert("game_time", std::sync::Mutex::new(gt));
+            let mut world = hecs::World::new();
+            let mut v = vitals(1.0, 1.0);
+            v.oxygen = 50.0;
+            let e = world.spawn((Inventory::new(4), v, StatusEffects::default(), Health { current: 100.0, max: 100.0 }));
+            sys.tick(&mut world, 2.0, &data);
+            let v = world.get::<&Vitals>(e).unwrap();
+            [1.0 - v.satiation, 1.0 - v.hydration, 100.0 - v.energy, v.waste, v.oxygen - 50.0]
+        };
+        let slow = drops(1.0);
+        let fast = drops(72.0);
+        for (i, name) in ["hunger", "thirst", "tiredness", "waste"].iter().enumerate() {
+            assert!(slow[i] > 0.0, "{name} moves at 1x");
+            assert!((fast[i] / slow[i] / 72.0 - 1.0).abs() < 0.01, "{name}: {} vs {}", fast[i], slow[i]);
+        }
+        assert_eq!(fast[4], slow[4], "breath recovers in real seconds at any time speed");
     }
 
     /// Clothing keeps a body warm (2026-09-27): the winter coat's 0.70 clo

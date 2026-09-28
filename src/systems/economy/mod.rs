@@ -305,7 +305,7 @@ impl EconomySystem {
     /// Test hook: put the passive-income timer `seconds` away from a payout.
     #[cfg(test)]
     fn force_payout_in(&mut self, seconds: f32) {
-        self.passive_timer = crate::systems::time::SECONDS_PER_DAY as f32 - seconds;
+        self.passive_timer = crate::systems::time::EARTH_DAY_S as f32 - seconds;
     }
 
     /// Calculate starting credits from a birth date string (YYYY-MM-DD format).
@@ -354,13 +354,16 @@ impl System for EconomySystem {
         "economy"
     }
 
-    fn tick(&mut self, world: &mut hecs::World, dt: f32, _data: &DataStore) {
-        // Passive income (v0.747, REAL): 1 credit per GAME day (1200 s, the
-        // TimeSystem day length) into every Wallet — "nobody is ever stuck at
-        // zero" (economy.ron's design note). Was a TODO log line since the
-        // system was written.
-        self.passive_timer += dt;
-        let day_seconds = crate::systems::time::SECONDS_PER_DAY as f32;
+    fn tick(&mut self, world: &mut hecs::World, dt: f32, data: &DataStore) {
+        // Passive income (v0.747, REAL): 1 credit per GAME day into every
+        // Wallet — "nobody is ever stuck at zero" (economy.ron's design
+        // note). The day is the calendar's (hours in a day, from Settings) on
+        // the one game clock (2026-09-27): game seconds, at the time speed.
+        self.passive_timer += crate::systems::time::scaled_dt(dt, data);
+        let day_seconds = data
+            .get::<std::sync::Mutex<crate::systems::time::GameTime>>("game_time")
+            .and_then(|m| m.lock().ok().map(|g| g.seconds_per_day()))
+            .unwrap_or(crate::systems::time::EARTH_DAY_S) as f32;
         if self.passive_timer >= day_seconds {
             self.passive_timer -= day_seconds;
             let income = self.passive_income_per_day as i64;

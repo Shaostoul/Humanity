@@ -45,8 +45,8 @@
 //! gave, so a zucchini nothing pollinated still gave seed. A fungus returns
 //! none at all (`harvest_returns_seed`): its spawn is bought.
 //!
-//! The window runs on the farming tick's garden days (the growth speed
-//! setting applies, light does not: a plant bears through the night) and not
+//! The window runs on the farming tick's garden days (the time speed
+//! applies, light does not: a plant bears through the night) and not
 //! during the offline catch-up (save_load.rs), so produce the player could not
 //! have picked while away does not pass over.
 

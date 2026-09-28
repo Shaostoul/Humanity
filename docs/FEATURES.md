@@ -1612,8 +1612,8 @@ Raycast from camera, find nearest interactable entity.
 - Native: `src/systems/interaction.rs`
 
 ### Day/Night Cycle
-GameTime with seasons, sun direction/color computation. 20 real minutes = 1 game day.
-- Native: `src/systems/time.rs`
+One game clock (2026-09-27, decision-briefs.md Brief 6): an hour is 3,600 game seconds, a day is the Settings "Hours in a day" (default 24, 12 to 48), a year the "Days in a year" (default 365), and the "Time speed" (default 1 = real time, presets Realistic 1x, a day an hour 24x, Simplified 72x, Garden testing 720x, up to 1,000x) is the only speed-up: crops, tanks, batteries, the body's daily needs, the weather, the sun, the planet's spin and the seasons all follow it. The sun is up the middle half of any day (`GameTime::solar_hour`). Holds over the speed: the F11 freeze, sleep (7,200x, a night in 4 real seconds) and the probe rig. Offline time counts at the time speed.
+- Native: `src/systems/time.rs`, `src/gui/pages/settings_time.rs` (Settings > Gameplay > Time)
 
 ### Weather System
 7 conditions (clear, cloudy, rain, storm, snow, fog, sandstorm). Seasonal transitions. **Registered, ticks live** (`WeatherSystem` is NOT in `tests/engine_wiring_lint.rs::DEFERRED_SYSTEMS` -- this "NOT registered" note was stale, corrected 2026-07-01 during the overnight loop's registration-status sweep).

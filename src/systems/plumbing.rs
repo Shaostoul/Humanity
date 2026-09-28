@@ -144,7 +144,9 @@ impl System for PlumbingSystem {
         keys.extend(dem_by.keys().copied());
         keys.extend(tanks_by.keys().copied());
 
-        let dt_min = dt / 60.0;
+        // Game minutes (the one clock, 2026-09-27): the tanks fill and drain
+        // at the time speed, with the crops that drink from them.
+        let dt_min = crate::systems::time::scaled_dt(dt, data) / 60.0;
         let (mut prod_all, mut dem_all, mut stored_all, mut cap_all) = (0.0_f32, 0.0_f32, 0.0_f32, 0.0_f32);
 
         // 3. Integrate the net flow into each island's tanks (sequential bite, no double counting).

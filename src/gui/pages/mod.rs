@@ -3,6 +3,7 @@
 pub mod main_menu;
 pub mod escape_menu;
 pub mod settings;
+pub mod settings_time;
 pub mod inventory;
 pub mod chat;
 pub mod chat_text;

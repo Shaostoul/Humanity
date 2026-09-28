@@ -987,6 +987,7 @@ pub(crate) fn load_world(state: &mut EngineState) {
             crate::station::orbit::MU_EARTH,
             crate::station::orbit::REAL_SECONDS_PER_DAY,
             0.0,
+            crate::systems::time::EARTH_DAY_S,
         );
         state.station_world_pos = pos;
         state.station_world_rot =

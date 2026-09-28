@@ -551,8 +551,14 @@ pub struct AppConfig {
     pub sun_shadows: bool,
     #[serde(default = "default_shadow_strength")]
     pub shadow_strength: f32,
-    #[serde(default = "default_crop_growth_speed")]
-    pub crop_growth_speed: f32,
+    /// The one game clock (2026-09-27, systems::time): how fast the world
+    /// runs (1 = real time), hours in a day, days in a year.
+    #[serde(default = "default_time_speed")]
+    pub time_speed: f32,
+    #[serde(default = "default_hours_per_day")]
+    pub hours_per_day: u32,
+    #[serde(default = "default_days_per_year")]
+    pub days_per_year: u32,
     /// Garden pests (2026-09-26): 0 off, 0.5 gentle, 1 the cited damage.
     #[serde(default = "default_pest_severity")]
     pub pest_severity: f32,
@@ -957,10 +963,9 @@ fn default_godray_intensity() -> f32 { 0.55 }
 /// v0.1104, which left 40% of full sunlight - in the sun's own warm colour -
 /// inside every shadow, and no way to change it.
 fn default_shadow_strength() -> f32 { 1.0 }
-/// Crop growth multiplier. 10x by default so plant life cycles are testable;
-/// see `GuiState::settings.crop_growth_speed` for why the world clock is not
-/// the knob the operator asked for.
-fn default_crop_growth_speed() -> f32 { crate::systems::farming::DEFAULT_CROP_GROWTH_SPEED }
+fn default_time_speed() -> f32 { crate::systems::time::DEFAULT_TIME_SPEED }
+fn default_hours_per_day() -> u32 { crate::systems::time::DEFAULT_HOURS_PER_DAY }
+fn default_days_per_year() -> u32 { crate::systems::time::DEFAULT_DAYS_PER_YEAR }
 fn default_pest_severity() -> f32 { crate::systems::farming::pests::DEFAULT_PEST_SEVERITY }
 // ── Vegetation LOD ceilings (v0.1109) ──────────────────────────────────────
 // The OUTER limit of each vegetation-LOD control, in ONE place, because the
@@ -1360,7 +1365,9 @@ impl AppConfig {
             veg_tree_card_m: state.settings.veg_tree_card_m,
             sun_shadows: state.settings.sun_shadows,
             shadow_strength: state.settings.shadow_strength,
-            crop_growth_speed: state.settings.crop_growth_speed,
+            time_speed: state.settings.time_speed,
+            hours_per_day: state.settings.hours_per_day,
+            days_per_year: state.settings.days_per_year,
             pest_severity: state.settings.pest_severity,
             soil_ph: !state.garden_pests.soil_ph_off,
             pollination: !state.garden_pests.pollination_off,
@@ -1593,10 +1600,11 @@ impl AppConfig {
         state.settings.sun_shadows = self.sun_shadows;
         state.settings.shadow_strength = self.shadow_strength;
         // Clamped on the way IN, not only in the UI: a hand-edited config with 0
-        // would freeze every crop forever and read as a broken farm, and a huge
-        // value would ripen the whole garden the instant the save loaded.
-        state.settings.crop_growth_speed =
-            crate::systems::farming::clamp_growth_speed(self.crop_growth_speed);
+        // would freeze the world, and a huge value would ripen the whole garden
+        // the instant the save loaded.
+        state.settings.time_speed = crate::systems::time::clamp_time_speed(self.time_speed);
+        state.settings.hours_per_day = crate::systems::time::clamp_hours_per_day(self.hours_per_day);
+        state.settings.days_per_year = crate::systems::time::clamp_days_per_year(self.days_per_year);
         state.settings.pest_severity = self.pest_severity.clamp(0.0, 1.0);
         state.garden_pests.soil_ph_off = !self.soil_ph;
         state.garden_pests.pollination_off = !self.pollination;

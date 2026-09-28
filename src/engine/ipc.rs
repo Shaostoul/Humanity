@@ -192,15 +192,11 @@ pub(crate) fn auto_seed_showcase(state: &mut EngineState) {
         .map(|gt| gt.elapsed_seconds)
         .unwrap_or(0.0);
     let tower_cfgs = crate::gui::load_tower_configs(&crate::data_dir());
-    const DAY: f64 = 1200.0; // farming SECONDS_PER_DAY
+    // A garden day: 24 hours of the one game clock (farming's day, 2026-09-27).
+    const DAY: f64 = crate::systems::time::EARTH_DAY_S;
 
     // Collect the spawn list first (no world borrow while iterating data).
     let mut to_spawn: Vec<crate::ecs::components::CropInstance> = Vec::new();
-    let speed = state
-        .data_store
-        .get::<std::sync::Mutex<f32>>("crop_growth_speed")
-        .and_then(|m| m.lock().ok().map(|v| *v))
-        .unwrap_or(crate::systems::farming::DEFAULT_CROP_GROWTH_SPEED);
     let mut stagger = |list: &mut Vec<crate::ecs::components::CropInstance>,
                        plant_id: &str,
                        grow_id: &str,
@@ -208,13 +204,12 @@ pub(crate) fn auto_seed_showcase(state: &mut EngineState) {
                        frac: f32| {
         let Some(def) = reg.get(plant_id) else { return };
         let stages = def.stages();
-        // Its stage and its age on the GROWTH clock, which runs at the
-        // growth-speed setting (10x by default): at 1x ages every stagger
-        // above the first came out ripe (2026-09-26 review).
+        // Its stage and its age on the game clock, which agree: there is no
+        // separate growth speed (the one clock, 2026-09-27).
         list.push(crate::ecs::components::CropInstance {
             crop_def_id: plant_id.to_string(),
             growth_stage: crate::systems::farming::stage_from_progress(frac, &stages).to_string(),
-            planted_at: elapsed - def.growth_days as f64 * DAY * frac as f64 / f64::from(speed.max(0.01)),
+            planted_at: elapsed - def.growth_days as f64 * DAY * frac as f64,
             water_level: 1.0,
             health: 100.0,
             tower_id: Some(grow_id.to_string()),
@@ -356,22 +351,15 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
             }
         }
     }
-    // Optional "time_scale":"0" sets the game clock SPEED (v0.1287, the rig
-    // clock freeze): 0 holds the clock still so the planet does not spin
-    // and the sun does not move between a park and its capture. Two
+    // Optional "time_scale":"0" holds the game clock at that SPEED (v0.1287,
+    // the rig clock freeze): 0 holds the clock still so the planet does not
+    // spin and the sun does not move between a park and its capture. Two
     // down-look captures in one sweep came out rotated about the nadir
-    // (2026-09-05) because the 20-minute day turns the planet 0.3 degrees
-    // per second under a world-fixed camera. Same request channel as the
-    // hour (the TimeSystem's own accumulator is authoritative).
+    // (2026-09-05) because a fast day turned the planet 0.3 degrees per
+    // second under a world-fixed camera. A hold over the time-speed setting
+    // (time::request_speed_hold); the TimeSystem's accumulator is authoritative.
     if let Some(sc) = grab("time_scale").and_then(|t| t.parse::<f32>().ok()) {
-        if let Some(req) = state
-            .data_store
-            .get::<std::sync::Mutex<Option<f32>>>("time_set_scale_request")
-        {
-            if let Ok(mut r) = req.lock() {
-                *r = Some(sc.max(0.0));
-            }
-        }
+        crate::systems::time::request_speed_hold(&state.data_store, Some(sc.max(0.0)));
     }
     // Optional "wind":"0" pins the wind speed the VEGETATION sees, in m/s;
     // "wind":"auto" hands it back to the weather. See published_foliage_wind

@@ -106,11 +106,9 @@ pub(crate) fn current_planet_spin(state: &EngineState) -> f64 {
         .data_store
         .get::<std::sync::Mutex<crate::systems::time::GameTime>>("game_time")
         .and_then(|m| m.lock().ok())
-        .map(|gt| {
-            gt.elapsed_seconds.rem_euclid(crate::systems::time::SECONDS_PER_DAY)
-                / crate::systems::time::SECONDS_PER_DAY
-                * 24.0
-        })
+        // Where the sun is on a 24-hour dial, so the planet turns once per
+        // game day of any length (the one clock, 2026-09-27).
+        .map(|gt| gt.day_fraction() * 24.0)
         .unwrap_or(12.0);
     let s = state.sun_world_pos;
     let sun_az = if s.length_squared() > 1e-6 {

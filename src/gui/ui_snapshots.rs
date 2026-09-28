@@ -2047,6 +2047,7 @@ fn weather_panel_time_stop_publishes_converted_global_hour() {
         season: "Spring".to_string(),
         is_daytime: false,
         local_hour: Some(8.0),
+        hours_per_day: 24,
     });
     let screen = egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(1280.0, 1400.0));
     let run = |events: Vec<egui::Event>, state: &mut GuiState| {
@@ -2106,7 +2107,7 @@ fn weather_panel_time_stop_publishes_converted_global_hour() {
 /// The clock-speed readout must describe a day in units a person can picture.
 #[test]
 fn clock_speed_readout_describes_a_real_day_length() {
-    // 1200 s per game day at 1x.
-    assert_eq!(crate::gui::pages::weather_panel::fmt_day_length(1.0), "20 minutes");
-    assert_eq!(crate::gui::pages::weather_panel::fmt_day_length(60.0), "20 seconds");
+    // A 24-hour day of 3,600 s hours (the one clock, 2026-09-27).
+    assert_eq!(crate::gui::pages::weather_panel::fmt_day_length(24, 1.0), "24 hours");
+    assert_eq!(crate::gui::pages::weather_panel::fmt_day_length(24, 72.0), "20 minutes");
 }

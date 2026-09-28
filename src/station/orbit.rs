@@ -42,11 +42,12 @@
 //! ## The unit trap
 //!
 //! `GameTime::elapsed_seconds` counts GAME seconds, and a game day is
-//! `SECONDS_PER_DAY = 1200.0` of them, not 86400. Feeding those straight into a
-//! propagator built on the real gravitational parameter would stretch a
-//! synchronous orbit to 72 game days. [`sim_seconds`] is the conversion and it
-//! has its own test, because getting it wrong produces an orbit that looks
-//! plausible and is off by a factor of 72.
+//! `GameTime::seconds_per_day` of them: 86,400 on the default 24-hour day, but
+//! the day length is a setting (12 to 48 hours, the one clock of 2026-09-27).
+//! One game day is one turn of the planet whatever its length, so every
+//! celestial rate is scaled by 86,400 over the day's seconds. [`sim_seconds`]
+//! is the conversion and it has its own test, because getting it wrong
+//! produces an orbit that looks plausible and is off by the day's ratio.
 
 use glam::{DMat3, DQuat, DVec3};
 
@@ -59,11 +60,12 @@ pub const REAL_SECONDS_PER_DAY: f64 = 86_400.0;
 
 /// Convert game seconds to the physical seconds an orbit propagator wants.
 ///
-/// The game compresses a day into `SECONDS_PER_DAY` (1200) seconds, so every
-/// celestial rate has to be stretched by the same factor or the sky and the
-/// station disagree about what "a day" is. At the default that factor is 72.
-pub fn sim_seconds(game_elapsed_s: f64) -> f64 {
-    game_elapsed_s * (REAL_SECONDS_PER_DAY / crate::systems::time::SECONDS_PER_DAY)
+/// A game day of `game_day_s` seconds is one turn of the planet, so every
+/// celestial rate is scaled by the same factor or the sky and the station
+/// disagree about what "a day" is. On the default 24-hour day the factor is
+/// 1; on a 36-hour day it is 2/3.
+pub fn sim_seconds(game_elapsed_s: f64, game_day_s: f64) -> f64 {
+    game_elapsed_s * (REAL_SECONDS_PER_DAY / game_day_s.max(1.0))
 }
 
 /// How the orbit's size is specified.
@@ -175,11 +177,12 @@ pub fn propagate(
     mu: f64,
     parent_rotation_s: f64,
     t_sim_s: f64,
+    game_day_s: f64,
 ) -> (DVec3, DVec3) {
     let a = semi_major_axis_m(def, mu, parent_rotation_s);
     let e = def.eccentricity.clamp(0.0, 0.95);
     let n = (mu / (a * a * a)).sqrt();
-    let dt = t_sim_s - sim_seconds(def.epoch_game_seconds);
+    let dt = t_sim_s - sim_seconds(def.epoch_game_seconds, game_day_s);
     let m = def.mean_anomaly_at_epoch_deg.to_radians() + n * dt;
     let ea = crate::cosmos::kepler_solve(m.rem_euclid(std::f64::consts::TAU), e);
 
@@ -273,6 +276,8 @@ mod tests {
     // synchronous with that. Using the sidereal figure here would leave the
     // home drifting a quarter degree of longitude per game day.
     const EARTH_ROT_S: f64 = REAL_SECONDS_PER_DAY;
+    /// The game day the tests run on: the default 24 hours.
+    const DAY: f64 = crate::systems::time::EARTH_DAY_S;
 
     fn geo_def() -> OrbitDef {
         OrbitDef {
@@ -286,20 +291,21 @@ mod tests {
         }
     }
 
-    /// The unit trap, guarded. If someone "simplifies" sim_seconds to the
-    /// identity, a synchronous orbit silently becomes a 72-day one.
+    /// The unit trap, guarded: one game day is one turn of the planet at any
+    /// day length. Red check, run: `sim_seconds` as the identity passes the
+    /// 24-hour day and fails the 36-hour one (one game day would be 1.5 real
+    /// days of orbit).
     #[test]
-    fn sim_seconds_is_the_factor_72_conversion_not_the_identity() {
-        let one_game_day = crate::systems::time::SECONDS_PER_DAY;
-        let phys = sim_seconds(one_game_day);
-        assert!(
-            (phys - REAL_SECONDS_PER_DAY).abs() < 1.0,
-            "one game day must be one real day of orbital motion, got {phys} s"
-        );
-        assert!(
-            (sim_seconds(1.0) - 72.0).abs() < 1.0e-9,
-            "the conversion factor should be 72 at the default day length"
-        );
+    fn sim_seconds_makes_one_game_day_one_turn_at_any_day_length() {
+        for hours in [24.0, 36.0, 12.0] {
+            let day = hours * 3600.0;
+            let phys = sim_seconds(day, day);
+            assert!(
+                (phys - REAL_SECONDS_PER_DAY).abs() < 1.0e-6,
+                "{hours}-hour day: one game day must be one real day of orbital motion, got {phys} s"
+            );
+        }
+        assert!((sim_seconds(1.0, 86_400.0) - 1.0).abs() < 1.0e-12, "1:1 on the default day");
     }
 
     /// A synchronous orbit must come out at the textbook geostationary radius.
@@ -322,8 +328,8 @@ mod tests {
         let def = geo_def();
         let mode = AttitudeMode::default();
         for i in 0..16 {
-            let t = sim_seconds(i as f64 * crate::systems::time::SECONDS_PER_DAY / 16.0);
-            let (pos, vel) = propagate(&def, MU_EARTH, EARTH_ROT_S, t);
+            let t = sim_seconds(i as f64 * DAY / 16.0, DAY);
+            let (pos, vel) = propagate(&def, MU_EARTH, EARTH_ROT_S, t, DAY);
             let q = attitude(&mode, pos, vel);
             let floor = q * DVec3::NEG_Y;
             let nadir = -pos.normalize();
@@ -341,9 +347,9 @@ mod tests {
     #[test]
     fn scrubbing_twelve_hours_puts_the_synchronous_station_antipodal() {
         let def = geo_def();
-        let day = crate::systems::time::SECONDS_PER_DAY;
-        let (a_pos, _) = propagate(&def, MU_EARTH, EARTH_ROT_S, sim_seconds(0.0));
-        let (b_pos, _) = propagate(&def, MU_EARTH, EARTH_ROT_S, sim_seconds(day * 0.5));
+        let day = DAY;
+        let (a_pos, _) = propagate(&def, MU_EARTH, EARTH_ROT_S, sim_seconds(0.0, day), day);
+        let (b_pos, _) = propagate(&def, MU_EARTH, EARTH_ROT_S, sim_seconds(day * 0.5, day), day);
         let sum = (a_pos + b_pos).length();
         assert!(
             sum < 5.0e4,
@@ -368,11 +374,11 @@ mod tests {
         // Sun parked along +X at 1 AU in the same inertial frame. At t=0 the
         // station's mean anomaly is 0, which also puts it on +X: local noon.
         let sun_world = DVec3::new(1.496e11, 0.0, 0.0);
-        let day = crate::systems::time::SECONDS_PER_DAY;
+        let day = DAY;
         for i in 0..8 {
             let frac = i as f64 / 8.0;
             let t_game = frac * day;
-            let (pos, vel) = propagate(&def, MU_EARTH, EARTH_ROT_S, sim_seconds(t_game));
+            let (pos, vel) = propagate(&def, MU_EARTH, EARTH_ROT_S, sim_seconds(t_game, day), day);
             let q = attitude(&mode, pos, vel);
             let sun_dir_world = (sun_world - pos).normalize();
             // Into the hull frame, exactly as the renderer does it.
@@ -404,11 +410,11 @@ mod tests {
             roll_deg: 0.0,
         };
         let sun_world = DVec3::new(1.496e11, 0.0, 0.0);
-        let day = crate::systems::time::SECONDS_PER_DAY;
+        let day = DAY;
         let mut first = None;
         for i in 0..8 {
-            let t = sim_seconds(i as f64 * day / 8.0);
-            let (pos, vel) = propagate(&def, MU_EARTH, EARTH_ROT_S, t);
+            let t = sim_seconds(i as f64 * day / 8.0, day);
+            let (pos, vel) = propagate(&def, MU_EARTH, EARTH_ROT_S, t, DAY);
             let q = attitude(&mode, pos, vel);
             let sun_body = q.inverse() * (sun_world - pos).normalize();
             let elev = sun_body.dot(DVec3::Y).clamp(-1.0, 1.0).asin().to_degrees();

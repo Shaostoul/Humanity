@@ -610,8 +610,8 @@ pub struct Resumed {
 ///   the CraftingSystem's next tick (see `restored_crafts`).
 /// - SOIL pH (2026-09-27): lime, sulfur and nitrifying ammonium that were
 ///   still reacting keep reacting. `resume_home` hands the time away to the
-///   farming tick (`farming::soil_ph::hand_away_secs`), which steps it at the
-///   player's growth speed.
+///   farming tick (`farming::soil_ph::hand_away_secs`), which steps it in
+///   garden days.
 /// - THE DRONE (2026-09-27, in `resume_home`): the trip in flight finishes and
 ///   a standing order keeps flying, bounded by the asteroid's real ore
 ///   (`mining::advance_away`).
@@ -637,15 +637,18 @@ pub struct Resumed {
 /// are saved today. Multiplayer and MMO must use the SERVER clock instead
 /// (the design doc's cheating section) when their saves exist.
 ///
-/// A game second is a real second at time scale 1 (SECONDS_PER_DAY is
-/// defined that way), so real seconds away convert one to one. The time
-/// scale is a dev scrubber and is not saved, so it does not stretch the
-/// time away. No cap: a returning player finding a finished garden is the
-/// point (the doc's open question, unbounded until something misbehaves).
+/// The time away is counted on the one game clock (2026-09-27): real
+/// seconds away times the player's `time_speed` setting, the same rate the
+/// world ran at while they played, so a garden at 72x keeps growing at 72x
+/// while the game is closed. (A dev hold, the F11 freeze or a sleep, is not
+/// the setting and does not stretch it.) No cap: a returning player finding
+/// a finished garden is the point (the doc's open question, unbounded until
+/// something misbehaves).
 pub fn catch_up_world(
     world: &mut hecs::World,
     save: &WorldSave,
     offline_progression: bool,
+    time_speed: f32,
     now: u64,
 ) -> Resumed {
     let newest_planting = world
@@ -657,7 +660,7 @@ pub fn catch_up_world(
     // timestamp 0 = never stamped by a save, so there is no "away" to measure.
     // A clock set backwards gives zero, never negative growth.
     let away_secs = if offline_progression && save.timestamp > 0 {
-        now.saturating_sub(save.timestamp) as f64
+        now.saturating_sub(save.timestamp) as f64 * f64::from(crate::systems::time::clamp_time_speed(time_speed))
     } else {
         0.0
     };
@@ -778,14 +781,15 @@ pub fn resume_home(
     data: &crate::hot_reload::data_store::DataStore,
     save: &WorldSave,
     offline_progression: bool,
+    time_speed: f32,
     home: Option<&crate::machines::MachineHome>,
 ) -> Resumed {
-    let mut r = catch_up_world(world, save, offline_progression, now_secs());
+    let mut r = catch_up_world(world, save, offline_progression, time_speed, now_secs());
     crate::systems::time::request_restore_elapsed(data, r.clock);
     // SOIL pH: what was still reacting when the player left kept reacting.
-    // Handed over, not stepped here: the farming tick applies it at the
-    // player's own growth speed and Soil pH switch, which reach the
-    // DataStore only after this runs (farming::soil_ph::hand_away_secs).
+    // Handed over, not stepped here: the farming tick applies it under the
+    // player's own Soil pH switch, which reaches the DataStore only after
+    // this runs (farming::soil_ph::hand_away_secs).
     crate::systems::farming::soil_ph::hand_away_secs(data, r.away_secs);
     // THE DRONE: its standing order is the player's own setting, so it comes
     // back whether or not the time away counts; then the trip in flight and
@@ -1468,7 +1472,7 @@ mod tests {
 
         let mut world = hecs::World::new();
         apply_save_to_world(&mut world, &save);
-        let r = catch_up_world(&mut world, &save, true, now);
+        let r = catch_up_world(&mut world, &save, true, 1.0, now);
         assert_eq!(r, Resumed { clock: 6000.0, away_secs: 3600.0, crops_aged: 1, ..Default::default() });
         let mut got: Vec<(f64, f32, f32)> = world
             .query_mut::<&crate::ecs::components::CropInstance>()
@@ -1480,8 +1484,16 @@ mod tests {
 
         let mut world = hecs::World::new();
         apply_save_to_world(&mut world, &save);
-        let r = catch_up_world(&mut world, &save, false, now);
+        let r = catch_up_world(&mut world, &save, false, 1.0, now);
         assert_eq!(r, Resumed { clock: 6000.0, ..Default::default() });
+
+        // At time speed 72 the hour away is 72 game hours, the rate the world
+        // ran at while played (the one clock, 2026-09-27). Red check, run:
+        // leaving out the time speed ages the crop one hour, not 72.
+        let mut world = hecs::World::new();
+        apply_save_to_world(&mut world, &save);
+        let r = catch_up_world(&mut world, &save, true, 72.0, now);
+        assert_eq!(r.away_secs, 72.0 * 3600.0);
     }
 
     /// A crop cannot have been planted in the future, so the clock never
@@ -1493,7 +1505,7 @@ mod tests {
         save.crops = vec![crop(5000.0, "seedling"), crop(1200.0, "seedling")];
         let mut world = hecs::World::new();
         apply_save_to_world(&mut world, &save);
-        assert_eq!(catch_up_world(&mut world, &save, false, 0).clock, 5000.0);
+        assert_eq!(catch_up_world(&mut world, &save, false, 1.0, 0).clock, 5000.0);
     }
 
     /// No stamp means no measurable absence; a clock set backwards means zero
@@ -1504,12 +1516,12 @@ mod tests {
         save.crops = vec![crop(100.0, "seedling")];
         let mut world = hecs::World::new();
         apply_save_to_world(&mut world, &save);
-        assert_eq!(catch_up_world(&mut world, &save, true, 9_999).away_secs, 0.0, "timestamp 0");
+        assert_eq!(catch_up_world(&mut world, &save, true, 1.0, 9_999).away_secs, 0.0, "timestamp 0");
 
         save.timestamp = 5_000;
         let mut world = hecs::World::new();
         apply_save_to_world(&mut world, &save);
-        assert_eq!(catch_up_world(&mut world, &save, true, 4_000).away_secs, 0.0, "clock went backwards");
+        assert_eq!(catch_up_world(&mut world, &save, true, 1.0, 4_000).away_secs, 0.0, "clock went backwards");
     }
 
     /// Builds survive a restart (2026-09-25: nothing wrote save.constructions,
@@ -1761,14 +1773,14 @@ mod tests {
         }];
         let mut world = hecs::World::new();
         apply_save_to_world(&mut world, &save);
-        let r = catch_up_world(&mut world, &save, true, 1_000 + 3_600);
+        let r = catch_up_world(&mut world, &save, true, 1.0, 1_000 + 3_600);
         assert_eq!(r.builds_advanced, 1);
         let (_e, c) = world.query_mut::<&Construction>().into_iter().next().unwrap();
         assert_eq!(c.progress, 10.0, "capped at build_time, still a Construction for the tick to complete");
 
         let mut world = hecs::World::new();
         apply_save_to_world(&mut world, &save);
-        assert_eq!(catch_up_world(&mut world, &save, false, 1_000 + 3_600).builds_advanced, 0);
+        assert_eq!(catch_up_world(&mut world, &save, false, 1.0, 1_000 + 3_600).builds_advanced, 0);
         let (_e, c) = world.query_mut::<&Construction>().into_iter().next().unwrap();
         assert_eq!(c.progress, 4.0, "toggle off leaves the scaffold where it was");
     }
@@ -1939,7 +1951,7 @@ mod tests {
         let player = world.spawn((inv, Controllable));
         world.spawn((AutoRefine { recipe_id: "smelt_iron".into(), keep: None }, MachineInstanceId("smelter_1".into())));
         apply_save_to_world(&mut world, &save);
-        let r = resume_home(&mut world, &data, &save, true, None);
+        let r = resume_home(&mut world, &data, &save, true, 1.0, None);
         assert_eq!((r.drone_hauls, r.animals_ready), (3, 1));
         assert!((r.away_secs - 3600.0).abs() <= 2.0, "{}", r.away_secs);
         let pending = crate::systems::livestock::pending_herd(&data).expect("waits for the herd");
@@ -1994,7 +2006,7 @@ mod tests {
         let mut world = hecs::World::new();
         world.spawn((Inventory::new(16), Controllable));
         apply_save_to_world(&mut world, &save);
-        let r = resume_home(&mut world, &data, &save, false, None);
+        let r = resume_home(&mut world, &data, &save, false, 1.0, None);
         assert_eq!((r.away_secs, r.drone_hauls, r.animals_ready), (0.0, 0, 0));
         let drones: Vec<crate::ecs::components::Drone> =
             world.query::<&crate::ecs::components::Drone>().iter().map(|(_, d)| d.clone()).collect();
@@ -2093,7 +2105,7 @@ mod tests {
         data.insert("auto_mine_order", std::sync::Mutex::new(Option::<(String, Vec<(String, u32)>)>::None));
         crate::systems::crafting::register(&mut data);
         crate::systems::livestock::register(&mut data);
-        let r = resume_home(&mut fresh, &data, &save, true, None);
+        let r = resume_home(&mut fresh, &data, &save, true, 1.0, None);
         assert!(r.away_secs >= 3600.0, "an hour away counted: {}", r.away_secs);
         assert_eq!(bank_and_tank(&fresh), (0.85, 0.2), "not advanced by the time away");
     }

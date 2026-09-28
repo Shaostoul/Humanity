@@ -34,7 +34,6 @@ fn air() -> HumidityData {
 /// data, the given room boxes and grow plots, growth at 1x, no pests.
 fn store(rooms: Vec<GrowRoom>, plots: Vec<GrowPlot>) -> DataStore {
     let mut data = make_store();
-    data.insert("crop_growth_speed", Mutex::new(1.0_f32));
     data.insert("garden_pest_severity", Mutex::new(0.0_f32));
     data.insert("player_notices", Mutex::new(Vec::<String>::new()));
     data.insert("hand_water_draw_l", Mutex::new(0.0_f32));
@@ -48,16 +47,23 @@ fn store(rooms: Vec<GrowRoom>, plots: Vec<GrowPlot>) -> DataStore {
     data
 }
 
-/// Advance the game clock by `game_s` seconds (the hour follows).
-fn advance(data: &DataStore, game_s: f64) {
+/// The game seconds in one second of the 20-minute day these tests were
+/// written on (the one clock, 2026-09-27: a day is 86,400 game seconds).
+const OLD_S: f64 = 72.0;
+
+/// Advance the game clock by `old_s` seconds of the 20-minute day, 72 game
+/// seconds each (the hour follows): advance(600) is still noon.
+fn advance(data: &DataStore, old_s: f64) {
     let gt = data.get::<Mutex<crate::systems::time::GameTime>>("game_time").unwrap();
     let mut g = gt.lock().unwrap();
-    let t = g.elapsed_seconds + game_s;
+    let t = g.elapsed_seconds + old_s * OLD_S;
     g.set_elapsed(t);
 }
 
+/// The clock's speed in the 20-minute day's units: 1 is 72 game seconds a
+/// real second, the pace the store starts at.
 fn set_scale(data: &DataStore, scale: f32) {
-    data.get::<Mutex<crate::systems::time::GameTime>>("game_time").unwrap().lock().unwrap().time_scale = scale;
+    data.get::<Mutex<crate::systems::time::GameTime>>("game_time").unwrap().lock().unwrap().time_scale = scale * OLD_S as f32;
 }
 
 fn memory(world: &hecs::World) -> SoilMemory {
@@ -156,10 +162,11 @@ fn vapour_held_l(world: &hecs::World, data: &DataStore) -> f64 {
 /// within 0.5%. On the air side the ledger closes to the gram: what went into
 /// the air less what left it is what it holds. And the same day's figures come
 /// out at twice the game speed: the clock changes how long a day lasts, never
-/// how many litres it moves. Seen red two ways: by handing the condensate to
-/// the plumbing as litres a GAME day (72 times the litres a real day at 1x,
-/// so the tanks gained water), and by drawing the lettuce's water without what
-/// it keeps (the kept 6% then vanished from the balance).
+/// how many litres it moves. Since the one clock (2026-09-27) the tanks run
+/// on game minutes too, so both sides are counted per game day. Seen red two
+/// ways: by handing the condensate to the plumbing per hour instead of per
+/// minute (the tanks then gained water), and by drawing the lettuce's water
+/// without what it keeps (the kept 6% then vanished from the balance).
 #[test]
 fn the_gardens_water_balances_across_the_two_clocks() {
     let ld = life();
@@ -183,22 +190,23 @@ fn the_gardens_water_balances_across_the_two_clocks() {
             tick(&mut world);
         }
         let (tank0, held0, ledger0) = (world.get::<&WaterTank>(cistern).unwrap().liters, vapour_held_l(&world, &data), home(&world).ledger);
-        // One game day, integrated on the plumbing's real minutes.
+        // One game day, integrated on the plumbing's game minutes.
         let span = (1200.0 / f64::from(scale)) as usize;
+        let game_dt = f64::from(dt * scale) * OLD_S;
         let (mut drawn, mut returned) = (0.0f64, 0.0f64);
         for _ in 0..span {
             let (d, r) = tick(&mut world);
-            drawn += d * f64::from(dt) / 60.0;
-            returned += r * f64::from(dt) / 60.0;
+            drawn += d * game_dt / 60.0;
+            returned += r * game_dt / 60.0;
         }
         let tank1 = world.get::<&WaterTank>(cistern).unwrap().liters;
         let (held1, ledger1) = (vapour_held_l(&world, &data), home(&world).ledger);
 
         // The tank side: the cistern moved by exactly what crossed.
         assert!((f64::from(tank1 - tank0) - (returned - drawn)).abs() < 0.05, "{scale}x: tank {tank0} -> {tank1}, drawn {drawn}, returned {returned}");
-        // Per day on the tanks' clock: drawn = returned + kept + lost.
-        let real_days = span as f64 * f64::from(dt) / 86_400.0;
-        let (drawn_d, returned_d) = (drawn / real_days, returned / real_days);
+        // Per game day: drawn = returned + kept + lost.
+        let game_days = span as f64 * game_dt / 86_400.0;
+        let (drawn_d, returned_d) = (drawn / game_days, returned / game_days);
         let reg = data.get::<PlantRegistry>("plant_registry").unwrap();
         let lettuce = reg.get("lettuce").unwrap();
         let plants = f64::from(units::plants_in_plot(lettuce, Some(10.0)));
