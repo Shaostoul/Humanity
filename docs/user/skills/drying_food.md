@@ -254,8 +254,8 @@ of Food Protection in 2004:
 - Some samples lost all their bacteria in drying and others did not,
   especially jerky made from ground beef.
 - In venison deliberately contaminated in the laboratory, disease-causing
-  E. coli survived drying times of up to 10 hours and temperatures of up to
-  145 F (63 C).
+  E. coli could survive drying times of up to 10 hours and temperatures of up
+  to 145 F (63 C).
 
 An earlier University of Georgia study on ground beef jerky, which FSIS also
 reports, found that a curing mix containing salt and sodium nitrite killed
@@ -277,7 +277,7 @@ least 130°F to 140°F throughout the drying process."
 
 NCHFP's jerky page, revised by two of the University of Georgia authors of
 that 2004 study, gives two ways to bring the meat to 160 F (71 C) without
-ruining the jerky's texture:
+case hardening it (a hard, dry surface sealing moisture into the middle):
 
 - **Heat before drying.** At the end of marinating, bring the strips and
   their marinade to a boil and boil them for 5 minutes, then drain and dry
@@ -288,7 +288,7 @@ ruining the jerky's texture:
 - **Heat after drying.** Dry the raw marinated strips first, then lay them on
   a baking sheet, close together but not touching, and heat them for 10
   minutes in an oven preheated to 275 F (135 C). That time is for strips cut
-  1/4 inch thick or thinner; thicker strips need longer to reach 160 F.
+  1/4 inch thick or thinner; thicker strips may need longer to reach 160 F.
 
 ### Making it, step by step
 
@@ -559,8 +559,8 @@ From NCHFP unless noted:
 | Home-dried jerky at room temperature, sealed | Two weeks; refrigerate or freeze it to keep longer | NCHFP |
 | Commercially packaged jerky | 12 months | FSIS |
 
-The two sources differ on vegetables, and the safe reading is the shorter
-one. The rule behind every number in that table is NCHFP's: the warmer the
+The two sources differ on vegetables, and the cautious reading is the
+shorter one. NCHFP sets these times by quality, because heat lowers it. The rule behind every number in that table is NCHFP's: the warmer the
 store, the shorter the time. Dried fruit lasts longer still in the
 refrigerator or freezer (Penn State), and CSU lists both as storage places.
 For the most nutrition, CSU suggests eating dried food within a year.
@@ -581,9 +581,8 @@ For the most nutrition, CSU suggests eating dried food within a year.
 - **Brown fruit:** no acid dip, or too short a soak.
 - **Insects:** pasteurise outdoor-dried food, and store everything in
   insect-proof containers.
-- **Dried herbs, garlic or tomatoes put into oil.** This is the one way dried
-  food can become a botulism risk, because the oil seals low-acid food away
-  from air. The CDC's rule for home-made flavoured oils: "Refrigerate homemade
+- **Dried herbs or garlic put into oil.** This can turn a safe dried food
+  into a botulism risk, because the oil seals low-acid food away from air. The CDC's rule for home-made flavoured oils: "Refrigerate homemade
   oils made with garlic or herbs. Throw the oils away after 4 days." See
   [Why Canning Has Rules](why_canning_has_rules.md) for the reasoning.
 

@@ -155,10 +155,10 @@ plain water.
 - **A container.** The USDA guide allows 1 gallon (3.8 litres) of container
   for each 5 pounds of vegetables, so a 5-gallon crock holds about 25 pounds
   of cabbage or cucumbers. Food-grade plastic and glass work as well as
-  stoneware. A container that is not food grade can be used only if it is
-  lined with a clean food-grade plastic bag, and never a garbage bag or bin
-  liner. Mason jars work for sauerkraut, the USDA guide says, but lose more
-  batches to spoilage. Penn State rules out copper, iron and galvanised metal
+  stoneware. A 1- to 3-gallon plastic container that is not food grade can be
+  used only if it is lined with a clean food-grade plastic bag, and never a
+  garbage bag or bin liner. Mason jars work for sauerkraut, the USDA guide
+  says, but may lose more batches to spoilage. Penn State rules out copper, iron and galvanised metal
   containers and lead-glazed crocks, and CSU any container that is cracked or
   chipped.
 - **A plate and weights.** A dinner plate or glass pie plate just smaller than
@@ -168,7 +168,7 @@ plain water.
   same idea). The bag holds brine rather than plain water because, as
   University of Minnesota Extension points out, a leaking bag then only adds
   more brine to the vegetables.
-- **A cloth cover.** A clean, heavy towel over the top keeps insects and
+- **A cloth cover.** A clean, heavy towel over the top helps keep insects and
   mould spores out (USDA guide).
 - **Clean equipment.** Wash the container, plate and jars in hot, soapy water
   and rinse them with very hot water (USDA guide). Use utensils of glass,
@@ -309,7 +309,8 @@ How to keep them down:
 - **A sour smell.** CSU suggests a well-ventilated spot for the crock for
   this reason.
 - **A white sediment** in the jar, which NCHFP describes as caused by the
-  bacteria during fermentation, needing no action.
+  bacteria during fermentation, needing no action. (Its other cause is salt
+  with an anti-caking agent; canning salt avoids it.)
 - **Finished sauerkraut** that is tart, firm, with clear brine and no mould or
   yeast growth (Penn State).
 
