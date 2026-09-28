@@ -538,7 +538,7 @@ impl Renderer {
         // ── Sun shadow pass (v0.899) ── near-field ortho depth from the sun,
         // rendered before the main pass so every lit fragment this frame can
         // sample it. Texel-snapped so a drifting camera never swims the map.
-        let shadow_on = self.sun_shadows && sun_dir != Vec3::ZERO;
+        let shadow_on = self.sun_cascades.shadows_on(self.sun_shadows) && sun_dir != Vec3::ZERO;
         {
             const SHADOW_MAP_SIZE: f32 = SUN_SHADOW_MAP_SIZE;
             let extent = SUN_SHADOW_EXTENT_M;

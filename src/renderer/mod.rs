@@ -114,6 +114,9 @@ pub mod shader_loader;
 /// keeps that answer equal to the shader's (v0.1108).
 pub mod shadow_cutout;
 pub mod stars;
+/// Near sun cascades: the home and the planet build sites as sun casters
+/// (2026-09-27, docs/design/sun-cascades.md).
+pub mod sun_cascades;
 /// Swapchain + render-target lifecycle: configure, resize, acquire, and the
 /// two target constructors everything else shares. Extracted from mod.rs in
 /// v0.1319 - see the file's header for why this cluster.
@@ -343,6 +346,8 @@ pub struct Renderer {
     pub emission: emission_pass::EmissionState,
     /// Room GI probes, bound at group 0 bindings 5-7 (renderer/room_probes_gpu.rs).
     pub room_gi: room_probes_gpu::RoomGi,
+    /// Near sun cascades (renderer/sun_cascades.rs).
+    pub sun_cascades: sun_cascades::SunCascades,
     tile_counts_buffer: wgpu::Buffer,
     tile_indices_buffer: wgpu::Buffer,
     /// Tile pixel sizes for the shadow-uniform poke (0 = tiling off).
@@ -1933,6 +1938,7 @@ impl Renderer {
             env_regions_capacity,
             emission,
             room_gi,
+            sun_cascades: Default::default(),
             tile_counts_buffer,
             tile_indices_buffer,
             tile_px: (0.0, 0.0),

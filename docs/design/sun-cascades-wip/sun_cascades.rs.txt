@@ -1,0 +1,579 @@
+//! Near sun cascades: the home and the planet build sites as sun casters.
+//!
+//! Plan of record: docs/design/sun-cascades.md. The WGSL twin is
+//! assets/shaders/pbr/07-sun-cascades.wgsl.
+//!
+//! WHY THIS EXISTS. Until 2026-09-27 the player's home never cast into the
+//! sun shadow map: the map's caster loops walked only the celestial pass's own
+//! lists, and the home is drawn by the scene pass. The home RECEIVED the map
+//! (v0.899) but nothing in it occluded anything, so a shelf under three
+//! shelves read 130 sRGB against the open floor's 133 at noon. And even drawn
+//! into that map, a 0.4 m shelf gap vanishes inside its 1.9 m depth bias: the
+//! far map is a 3 km box at 0.73 m texels, built for terrain and trees.
+//!
+//! THE SHAPE. The sun shadow texture becomes an ATLAS (8192 x 4096): the far
+//! map unchanged in the left 4096 square, four 2048 square NEAR tiles in the
+//! right half, one per camera-centred clipmap level (C0 4 m, C1 15 m, C2 60 m,
+//! C3 240 m half-extents). Camera-centred rather than frustum-fitted because
+//! at the default 90 degree field of view a bounding-sphere fit of width D
+//! reaches only about D/4.1 of view depth, while a camera-centred box reaches
+//! D/2 and never refits when the player turns. Increment 1 builds C1 only.
+//!
+//! WHAT CASTS INTO THE NEAR TILES (increment 1): the home's opaque list
+//! (staged here each frame by `stage_sun_casters`, shifted by the station
+//! offset into render space), and the celestial pass's classic objects near
+//! the eye (the planet build sites' pieces, props, near trees). Terrain
+//! patches and the sea are not in it yet, so the shader MIN-combines a near
+//! answer with the far map instead of using it alone.
+//!
+//! WHICH SUN. The near tiles are built along `cur_sun`, the sun that LIGHTS
+//! the home (the hull-frame sun aboard the station, lib.rs `to_hull`), not the
+//! far map's world-frame direction. On a planet the two are the same vector;
+//! aboard they differ by the station's attitude, and building the home's
+//! shadows along the world sun would put them where the light is not.
+//!
+//! NO BIND GROUP LAYOUT CHANGES. Group 3 binding 6 stays a
+//! `texture_depth_2d` (only the texture behind the view grew), binding 8
+//! grows from 96 to 496 bytes (`min_binding_size: None`, and every group-3
+//! bind group binds the whole buffer). The near passes' group 0 uses the SAME
+//! camera layout through `pipeline::camera_bind_group`, rebuilt beside the
+//! other two in `rebuild_camera_bind_groups` whenever a group-0 resource
+//! grows (the v0.1029 lesson: every site that builds one).
+
+use super::*;
+
+/// The shadow atlas, in texels. 8192 is `wgpu::Limits::default()`'s
+/// `max_texture_dimension_2d`, which the device requests.
+pub const ATLAS_W: u32 = 8192;
+pub const ATLAS_H: u32 = 4096;
+/// Side of one near tile, in texels.
+pub const NEAR_TILE: u32 = 2048;
+/// The far map's share of the atlas width. LOCKSTEP with `FAR_TILE_U` in
+/// 07-sun-cascades.wgsl (the test below reads the literal).
+pub const FAR_TILE_U: f32 = SUN_SHADOW_MAP_SIZE / ATLAS_W as f32;
+/// The ladder: half-extent of each level's box, metres.
+pub const HALF_EXTENT_M: [f32; 4] = [4.0, 15.0, 60.0, 240.0];
+/// Each level's tile origin in the atlas, texels.
+pub const TILE_ORIGIN: [(u32, u32); 4] = [(4096, 0), (6144, 0), (4096, 2048), (6144, 2048)];
+/// The levels this increment renders when near cascades are on: C1 alone
+/// (increment 1). Increment 2 turns on the rest with the culling and blend
+/// bands that make four levels affordable.
+pub const BUILT_LEVELS: [bool; 4] = [false, true, false, false];
+/// The slab each level's depth range covers on EACH side of the eye, along
+/// the sun: 4 x the half-extent, never less than this. Toward the sun it is
+/// how far away a caster can stand and still shade the box (a 30 m tree on
+/// a slope, a station truss); away from it, how far below the eye a receiver
+/// can sit (the acre from the overview pose is 26 m down).
+pub const MIN_SLAB_M: f32 = 200.0;
+/// The light direction is quantised to this step (0.02 degrees) before a
+/// basis is built from it, so a slowly turning sun (the station's attitude
+/// turns once an orbit) moves the texel grid a few times a second rather
+/// than every frame, which would crawl every shadow edge.
+pub const SUN_QUANT_RAD: f32 = 0.02 * std::f32::consts::PI / 180.0;
+/// Bytes of the shadow uniform (group 3 binding 8): the far map's 96, then
+/// the near ladder's 400. The test below checks the WGSL struct is this big.
+pub const SHADOW_UNIFORM_BYTES: u64 = 496;
+/// Floats of the near half (`SunCascades` in the WGSL).
+pub const NEAR_FLOATS: usize = 100;
+
+/// The sun direction snapped to `SUN_QUANT_RAD` steps of azimuth and
+/// elevation (render-space y up). Unit in, unit out.
+pub fn quantize_sun(sun: Vec3) -> Vec3 {
+    let s = sun.normalize_or_zero();
+    let el = s.y.clamp(-1.0, 1.0).asin();
+    let az = s.z.atan2(s.x);
+    let q = |a: f32| (a / SUN_QUANT_RAD).round() * SUN_QUANT_RAD;
+    let (el, az) = (q(el), q(az));
+    Vec3::new(el.cos() * az.cos(), el.sin(), el.cos() * az.sin())
+}
+
+/// One level's fit this frame: its light view-projection and the light-space
+/// basis the caster cull uses.
+#[derive(Clone, Copy, Debug)]
+pub struct CascadeFit {
+    pub vp: Mat4,
+    pub eye: Vec3,
+    pub right: Vec3,
+    pub up: Vec3,
+    /// Toward the sun (quantised).
+    pub sun: Vec3,
+    pub half: f32,
+    /// Depth covered on each side of the eye along `sun`.
+    pub slab: f32,
+    /// World size of one texel, metres.
+    pub texel_m: f32,
+}
+
+impl CascadeFit {
+    /// The box of half-extent `half` centred on `eye`, looking down `sun`
+    /// (toward the light), texel-snapped. None for a zero sun.
+    pub fn new(eye: Vec3, sun: Vec3, half: f32) -> Option<Self> {
+        if sun.length_squared() < 1.0e-12 || half <= 0.0 {
+            return None;
+        }
+        let sun = quantize_sun(sun);
+        let up_hint = if sun.y.abs() > 0.95 { Vec3::Z } else { Vec3::Y };
+        let slab = (4.0 * half).max(MIN_SLAB_M);
+        let view = Mat4::look_at_rh(eye + sun * slab, eye, up_hint);
+        let proj = Mat4::orthographic_rh(-half, half, -half, half, 0.0, 2.0 * slab);
+        let mut vp = proj * view;
+        // Texel snap, the far map's method: shift in NDC so a FIXED world
+        // point (the render origin) lands on the texel grid. The mapping is
+        // linear, so every world point then keeps its sub-texel phase as the
+        // eye moves, and a shadow edge cannot swim.
+        let ndc_texel = 2.0 / NEAR_TILE as f32;
+        let origin = vp * glam::Vec4::new(0.0, 0.0, 0.0, 1.0);
+        let snap = |v: f32| (v / ndc_texel).round() * ndc_texel - v;
+        vp = Mat4::from_translation(Vec3::new(snap(origin.x), snap(origin.y), 0.0)) * vp;
+        let right = Vec3::new(view.x_axis.x, view.y_axis.x, view.z_axis.x);
+        let up = Vec3::new(view.x_axis.y, view.y_axis.y, view.z_axis.y);
+        Some(Self { vp, eye, right, up, sun, half, slab, texel_m: 2.0 * half / NEAR_TILE as f32 })
+    }
+
+    /// Whether a caster's bounding sphere can reach this level's tile: inside
+    /// the box across (plus a texel for the snap), and not wholly beyond the
+    /// slab on either side along the sun.
+    pub fn overlaps(&self, centre: Vec3, radius: f32) -> bool {
+        let d = centre - self.eye;
+        let reach = self.half + radius + self.texel_m;
+        d.dot(self.right).abs() <= reach
+            && d.dot(self.up).abs() <= reach
+            && d.dot(self.sun) - radius <= self.slab
+            && d.dot(self.sun) + radius >= -self.slab
+    }
+
+    /// The level's bias vector as the shader reads it (see `SunCascades.bias`
+    /// in the WGSL): one texel of depth, a slope term of one and a half texels
+    /// per unit tan(theta) (the 3x3 filter reaches 1.5 texels out), the
+    /// normal offset in metres, and the live flag.
+    fn bias(&self, live: bool) -> [f32; 4] {
+        let depth = 2.0 * self.slab;
+        [self.texel_m / depth, self.texel_m, 1.5 * self.texel_m / depth, if live { 1.0 } else { 0.0 }]
+    }
+}
+
+/// A caster's world bounding sphere: its mesh's model-space sphere carried
+/// through the object's transform, padded for the vertex shader's motion
+/// (foliage sway reaches about 2% of a plant's height).
+pub fn world_sphere(obj: &RenderObject, bound: [f32; 4]) -> (Vec3, f32) {
+    let c = obj.position + obj.rotation * (obj.scale * Vec3::new(bound[0], bound[1], bound[2]));
+    let r = bound[3] * obj.scale.abs().max_element();
+    (c, r * 1.05 + 0.25)
+}
+
+/// One level's two light cameras. The home casters draw through a camera
+/// built like the SCENE pass's (`lit_uniform(camera.uniforms())`), the
+/// celestial casters through one built like the FAR shadow pass's (the
+/// celestial uniforms with the water anchors, wind and clock poked in), so
+/// every caster's vertex shader sways and displaces exactly as its own colour
+/// pass does. Only `view_proj` differs.
+struct NearCam {
+    home_buf: wgpu::Buffer,
+    home_bg: wgpu::BindGroup,
+    sky_buf: wgpu::Buffer,
+    sky_bg: wgpu::BindGroup,
+}
+
+/// The renderer's sun-cascade state.
+pub struct SunCascades {
+    /// Showcase pin over Settings > Planets "Sun shadows" (`sun_shadows`
+    /// "0" / "1" / "auto"): `None` follows the setting. A pin rather than a
+    /// write to the setting, so a rig A/B never changes what the player's
+    /// own config says and "auto" can always put it back.
+    pub shadows_pin: Option<bool>,
+    /// Near levels on: 0 = the far map alone (the pre-2026-09-27 picture),
+    /// anything else = `BUILT_LEVELS`. The showcase `near_levels` knob; the
+    /// Settings slider arrives with the full ladder (increment 2).
+    pub near_levels: u32,
+    cams: Vec<NearCam>,
+    /// This frame's home casters in render space, culled to the built levels
+    /// (`stage_sun_casters`). Reused by the capture path, so a rig
+    /// screenshot shows the live frame's shadows.
+    home: Vec<RenderObject>,
+}
+
+/// Group-0 resources a near camera bind group binds besides its own buffer.
+pub struct CameraShared<'a> {
+    pub layout: &'a wgpu::BindGroupLayout,
+    pub lights: &'a wgpu::Buffer,
+    pub tile_counts: &'a wgpu::Buffer,
+    pub tile_indices: &'a wgpu::Buffer,
+    pub env_regions: &'a wgpu::Buffer,
+    pub room_gi: &'a room_probes_gpu::RoomGi,
+}
+
+impl SunCascades {
+    pub fn new(device: &wgpu::Device, shared: &CameraShared) -> Self {
+        let size = std::mem::size_of::<CameraUniforms>() as u64;
+        let buf = |label: &str| {
+            device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some(label),
+                size,
+                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            })
+        };
+        let cams = (0..4)
+            .map(|_| {
+                let home_buf = buf("Near Sun Camera (home)");
+                let sky_buf = buf("Near Sun Camera (celestial)");
+                let home_bg = Self::bind(device, shared, &home_buf);
+                let sky_bg = Self::bind(device, shared, &sky_buf);
+                NearCam { home_buf, home_bg, sky_buf, sky_bg }
+            })
+            .collect();
+        Self { shadows_pin: None, near_levels: 1, cams, home: Vec::new() }
+    }
+
+    fn bind(device: &wgpu::Device, s: &CameraShared, camera: &wgpu::Buffer) -> wgpu::BindGroup {
+        pipeline::camera_bind_group(
+            device,
+            s.layout,
+            "Near Sun Camera BG",
+            camera,
+            s.lights,
+            s.tile_counts,
+            s.tile_indices,
+            s.env_regions,
+            s.room_gi,
+        )
+    }
+
+    /// Rebuild every near camera bind group (called from
+    /// `Renderer::rebuild_camera_bind_groups` with the other two).
+    pub fn rebind(&mut self, device: &wgpu::Device, shared: &CameraShared) {
+        for c in &mut self.cams {
+            c.home_bg = Self::bind(device, shared, &c.home_buf);
+            c.sky_bg = Self::bind(device, shared, &c.sky_buf);
+        }
+    }
+
+    /// Whether the sun shadow maps render this frame: the setting unless a
+    /// showcase pin overrides it.
+    pub fn shadows_on(&self, setting: bool) -> bool {
+        self.shadows_pin.unwrap_or(setting)
+    }
+
+    /// Bytes of GPU memory held here (the eight camera buffers), for the
+    /// Performance page's uniform slice.
+    pub fn vram_bytes(&self) -> u64 {
+        self.cams.iter().map(|c| c.home_buf.size() + c.sky_buf.size()).sum()
+    }
+}
+
+impl Renderer {
+    /// This frame's near fits around `eye`, one per BUILT level, along the
+    /// sun that lights the home. All None when near cascades are off or the
+    /// sun is dark (the home lit by lamps alone needs no sun map).
+    fn near_fits(&self, eye: Vec3) -> [Option<CascadeFit>; 4] {
+        let (dir, _, intensity) = self.cur_sun;
+        if self.sun_cascades.near_levels == 0 || intensity <= 0.0 {
+            return [None; 4];
+        }
+        let sun = Vec3::from(dir);
+        std::array::from_fn(|i| if BUILT_LEVELS[i] { CascadeFit::new(eye, sun, HALF_EXTENT_M[i]) } else { None })
+    }
+
+    /// Stage the home's casters for this frame's near cascades. Called by the
+    /// frame loop right before `render_celestial_onto`, with the scene pass's
+    /// opaque list while it is still in the HOME frame; `station_off` moves
+    /// it into render space, the same shift the scene pass applies further
+    /// down the frame. Casters that cannot reach a built level are dropped
+    /// here, so the near pass walks only what can shade the box.
+    pub fn stage_sun_casters(&mut self, home: &[RenderObject], station_off: Vec3, camera: &Camera) {
+        let _cost = frame_costs::stage("cpu.shadow_near");
+        let fits = self.near_fits(camera.effective_position());
+        let mut staged = std::mem::take(&mut self.sun_cascades.home);
+        staged.clear();
+        if fits.iter().any(Option::is_some) {
+            for o in home {
+                let Some(mesh) = self.meshes.get(o.mesh) else { continue };
+                let mut o = o.clone();
+                o.position += station_off;
+                let (c, r) = world_sphere(&o, mesh.bound);
+                if fits.iter().flatten().any(|f| f.overlaps(c, r)) {
+                    staged.push(o);
+                }
+            }
+        }
+        self.sun_cascades.home = staged;
+    }
+
+    /// The near half of the shadow uniform (floats 24..124 of the block
+    /// celestial.rs writes to binding 8). A level is live when it is built,
+    /// the sun maps render this frame (`shadow_on`) and the sun is up.
+    pub(super) fn near_uniform_block(&self, eye: Vec3, shadow_on: bool) -> [f32; NEAR_FLOATS] {
+        let mut b = [0.0_f32; NEAR_FLOATS];
+        let fits = self.near_fits(eye);
+        let mut any = false;
+        for (i, fit) in fits.iter().enumerate() {
+            let (tx, ty) = TILE_ORIGIN[i];
+            let rect = [
+                tx as f32 / ATLAS_W as f32,
+                ty as f32 / ATLAS_H as f32,
+                NEAR_TILE as f32 / ATLAS_W as f32,
+                NEAR_TILE as f32 / ATLAS_H as f32,
+            ];
+            b[64 + 4 * i..68 + 4 * i].copy_from_slice(&rect);
+            if let Some(f) = fit {
+                b[16 * i..16 * i + 16].copy_from_slice(&f.vp.to_cols_array());
+                b[80 + 4 * i..84 + 4 * i].copy_from_slice(&f.bias(shadow_on));
+                any |= shadow_on;
+            }
+        }
+        b[96..100].copy_from_slice(&[if any { 1.0 } else { 0.0 }, 1.0 / ATLAS_W as f32, 1.0 / ATLAS_H as f32, 0.0]);
+        b
+    }
+
+    /// Encode the near levels into the atlas, after the far map's pass (which
+    /// cleared the whole texture) and in the same encoder. `sky_camera` is
+    /// the far light camera's uniform bytes with its pokes applied, `home_base`
+    /// the first object slot of the staged home casters (their uniforms were
+    /// uploaded after the celestial lists'), and `objects` the celestial pass's
+    /// classic list, whose uniforms sit at slots 0.. .
+    pub(super) fn encode_sun_near(
+        &self,
+        enc: &mut wgpu::CommandEncoder,
+        camera: &Camera,
+        objects: &[RenderObject],
+        sky_camera: &[u8],
+        home_base: usize,
+    ) {
+        let _cost = frame_costs::stage("cpu.shadow_near");
+        let eye = camera.effective_position();
+        let fits = self.near_fits(eye);
+        if fits.iter().all(Option::is_none) {
+            return;
+        }
+        let home_u = self.lit_uniform(camera.uniforms());
+        let mut pass = enc.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("Near Sun Shadow Pass"),
+            timestamp_writes: self.pass_timer("gpu.shadow_near"),
+            color_attachments: &[],
+            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                view: &self.shadow_map_view,
+                // LOAD: the far pass cleared the whole atlas and wrote its
+                // own tile; this pass only draws inside the near tiles.
+                depth_ops: Some(wgpu::Operations { load: wgpu::LoadOp::Load, store: wgpu::StoreOp::Store }),
+                stencil_ops: None,
+            }),
+            ..Default::default()
+        });
+        pass.set_vertex_buffer(1, self.dummy_instance_buf.slice(..));
+        for (i, fit) in fits.iter().enumerate() {
+            let Some(fit) = fit else { continue };
+            let cam = &self.sun_cascades.cams[i];
+            let vp = fit.vp.to_cols_array_2d();
+            let mut u = home_u;
+            u.view_proj = vp;
+            self.queue.write_buffer(&cam.home_buf, 0, bytemuck::bytes_of(&u));
+            let mut sky = sky_camera.to_vec();
+            sky[..64].copy_from_slice(bytemuck::bytes_of(&vp));
+            self.queue.write_buffer(&cam.sky_buf, 0, &sky);
+            let (tx, ty) = TILE_ORIGIN[i];
+            pass.set_viewport(tx as f32, ty as f32, NEAR_TILE as f32, NEAR_TILE as f32, 0.0, 1.0);
+            pass.set_scissor_rect(tx, ty, NEAR_TILE, NEAR_TILE);
+            // The home first, through the scene-style camera.
+            pass.set_bind_group(0, &cam.home_bg, &[]);
+            let home = self.sun_cascades.home.iter().enumerate().map(|(j, o)| (home_base + j, o));
+            self.draw_near_casters(&mut pass, fit, home, false);
+            // Then the celestial pass's own objects near the eye (build-site
+            // pieces, props, near trees), through the far-style camera, with
+            // the far pass's own 6 km pre-cull.
+            pass.set_bind_group(0, &cam.sky_bg, &[]);
+            self.draw_near_casters(&mut pass, fit, objects.iter().enumerate(), true);
+        }
+    }
+
+    /// One caster list into one level: cull by bounding sphere, then the far
+    /// pass's own draw (the depth-only or cutout PSO by `shadow_for`, the
+    /// material's SHADOW-SAFE group 3, never its colour group, whose binding
+    /// 6 is this pass's own depth attachment).
+    fn draw_near_casters<'a>(
+        &self,
+        pass: &mut wgpu::RenderPass<'_>,
+        fit: &CascadeFit,
+        list: impl Iterator<Item = (usize, &'a RenderObject)>,
+        celestial: bool,
+    ) {
+        let mut bound_material = usize::MAX;
+        for (slot, obj) in list {
+            if slot >= MAX_OBJECTS {
+                break;
+            }
+            if celestial && (obj.position - fit.eye).length_squared() > 6_000.0_f32 * 6_000.0 {
+                continue;
+            }
+            let (Some(mesh), Some(material)) = (self.meshes.get(obj.mesh), self.materials.get(obj.material)) else {
+                continue;
+            };
+            let (c, r) = world_sphere(obj, mesh.bound);
+            if !fit.overlaps(c, r) {
+                continue;
+            }
+            pass.set_pipeline(self.pipeline.shadow_for(obj.fade != 0.0 || material.casts_cutout_shadow()));
+            pass.set_bind_group(1, &self.object_bind_group, &[(256 * slot) as u32]);
+            if bound_material != obj.material {
+                bound_material = obj.material;
+                pass.set_bind_group(2, &material.bind_group, &[]);
+                pass.set_bind_group(
+                    3,
+                    material.shadow_albedo_group().unwrap_or(&self.shadow_pass_texture_bind_group),
+                    &[],
+                );
+            }
+            pass.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
+            pass.set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+            pass.draw_indexed(0..mesh.index_count, 0, 0..1);
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const SUNS: [Vec3; 4] = [
+        Vec3::new(0.3, 0.9, 0.2),
+        Vec3::new(-0.8, 0.15, 0.55),
+        Vec3::new(0.02, 0.999, 0.01),
+        Vec3::new(0.6, -0.2, -0.7),
+    ];
+
+    /// THE TEXEL SNAP. Moving the eye by any sub-texel amount must leave a
+    /// fixed world point at the same sub-texel phase in the tile, or every
+    /// shadow edge swims as the player walks. Checked by projecting a set of
+    /// world points under two eyes and requiring their NDC to differ by a
+    /// whole number of texels. Seen red by deleting the snap line.
+    #[test]
+    fn the_fit_is_texel_snapped() {
+        for sun in SUNS {
+            let a = CascadeFit::new(Vec3::new(3.3, 1.5, 58.6), sun, HALF_EXTENT_M[1]).unwrap();
+            let ndc_texel = 2.0 / NEAR_TILE as f32;
+            for step in [0.0031, 0.0107, 0.37, 1.93] {
+                let b = CascadeFit::new(Vec3::new(3.3 + step, 1.5 - step * 0.5, 58.6 + step * 0.7), sun, HALF_EXTENT_M[1]).unwrap();
+                for p in [Vec3::new(0.0, 0.0, 0.0), Vec3::new(4.0, 0.2, 60.0), Vec3::new(-2.0, 2.9, 55.0)] {
+                    let pa = a.vp.project_point3(p);
+                    let pb = b.vp.project_point3(p);
+                    for d in [(pa.x - pb.x) / ndc_texel, (pa.y - pb.y) / ndc_texel] {
+                        assert!((d - d.round()).abs() < 0.02, "sun {sun:?} step {step}: phase moved by {d} texels");
+                    }
+                }
+            }
+        }
+    }
+
+    /// THE FIT. The eye sits at the box centre (within the snap), the box is
+    /// the level's half-extent across, and the slab reaches `MIN_SLAB_M` (or
+    /// 4 x the half-extent) on both sides along the sun, depth 0 toward it.
+    #[test]
+    fn the_fit_is_camera_centred_with_the_planned_slab() {
+        for (i, &half) in HALF_EXTENT_M.iter().enumerate() {
+            let eye = Vec3::new(12.0, 1.5, 40.0);
+            let f = CascadeFit::new(eye, SUNS[0], half).unwrap();
+            let e = f.vp.project_point3(eye);
+            assert!(e.x.abs() <= 2.0 / NEAR_TILE as f32 && e.y.abs() <= 2.0 / NEAR_TILE as f32, "level {i}: eye at {e:?}");
+            assert!((e.z - 0.5).abs() < 1.0e-4, "level {i}: eye mid-slab, at depth {}", e.z);
+            let edge = f.vp.project_point3(eye + f.right * half);
+            assert!((edge.x - 1.0).abs() < 2.5 / NEAR_TILE as f32, "level {i}: half-extent maps to the tile edge, got {}", edge.x);
+            let slab = (4.0 * half).max(MIN_SLAB_M);
+            assert!((f.slab - slab).abs() < 1.0e-3);
+            let toward = f.vp.project_point3(eye + f.sun * (slab * 0.999));
+            let away = f.vp.project_point3(eye - f.sun * (slab * 0.999));
+            assert!(toward.z > 0.0 && toward.z < 0.001, "toward the sun is depth 0, got {}", toward.z);
+            assert!(away.z < 1.0 && away.z > 0.999, "away from the sun is depth 1, got {}", away.z);
+            assert!((f.texel_m - 2.0 * half / NEAR_TILE as f32).abs() < 1.0e-7);
+        }
+        assert!(CascadeFit::new(Vec3::ZERO, Vec3::ZERO, 15.0).is_none(), "no sun, no fit");
+    }
+
+    /// The quantised sun is within half a step of the real one, unit length,
+    /// and does not change for a sub-step turn.
+    #[test]
+    fn the_sun_is_quantised_to_the_planned_step() {
+        for sun in SUNS {
+            let q = quantize_sun(sun);
+            assert!((q.length() - 1.0).abs() < 1.0e-5);
+            let angle = q.dot(sun.normalize()).clamp(-1.0, 1.0).acos();
+            assert!(angle <= SUN_QUANT_RAD, "{sun:?}: moved by {angle} rad");
+        }
+        // A sun turning smoothly through one step (1,000 frames of a slow
+        // orbit) yields a handful of distinct directions, not 1,000: the grid
+        // moves a few times, it does not crawl every frame. Seen red by
+        // returning the input unquantised.
+        let s = Vec3::new(0.3, 0.9, 0.2).normalize();
+        let mut seen: Vec<Vec3> = Vec::new();
+        for k in 0..1000 {
+            let q = quantize_sun(glam::Quat::from_rotation_y(SUN_QUANT_RAD * 0.001 * k as f32) * s);
+            if !seen.contains(&q) {
+                seen.push(q);
+            }
+        }
+        assert!(seen.len() <= 3, "{} distinct light directions over a one-step turn", seen.len());
+    }
+
+    /// THE CASTER CULL. A sphere beside the box is dropped, one on the sun
+    /// column 150 m up (a truss over the acre) is kept, one past the slab
+    /// toward the sun or below it is dropped, and one straddling the box
+    /// edge is kept. Seen red by testing only the centre (radius 0).
+    #[test]
+    fn the_caster_cull_keeps_what_can_shade_the_box() {
+        let eye = Vec3::new(6.9, 1.5, 58.6);
+        let f = CascadeFit::new(eye, SUNS[0], HALF_EXTENT_M[1]).unwrap();
+        assert!(f.overlaps(eye, 0.5), "a caster at the eye");
+        assert!(f.overlaps(eye + f.sun * 150.0, 2.0), "a caster up the sun column");
+        assert!(!f.overlaps(eye + f.right * 40.0, 2.0), "a caster 40 m across the column");
+        assert!(!f.overlaps(eye + f.up * -40.0, 2.0), "a caster 40 m across, the other axis");
+        assert!(!f.overlaps(eye + f.sun * 260.0, 5.0), "a caster past the slab toward the sun");
+        assert!(!f.overlaps(eye - f.sun * 260.0, 5.0), "a receiver-side object past the slab");
+        assert!(f.overlaps(eye + f.right * 17.0, 3.0), "a sphere straddling the box edge");
+        assert!(!f.overlaps(eye + f.right * 17.0, 1.0), "the same centre with a small radius is out");
+        // A shelf in a rack: the whole mesh sphere through a scaled transform.
+        let obj = RenderObject {
+            fade: 0.0,
+            position: eye + f.right * 15.8,
+            rotation: glam::Quat::IDENTITY,
+            scale: Vec3::new(1.2, 0.05, 0.6),
+            mesh: 0,
+            material: 0,
+        };
+        let (c, r) = world_sphere(&obj, [0.0, 0.0, 0.0, 0.87]);
+        assert!(f.overlaps(c, r), "a shelf whose far end reaches into the box (r {r})");
+    }
+
+    /// LOCKSTEP with the WGSL: the far map's share of the atlas width is the
+    /// same literal on both sides, and the shadow uniform the shader declares
+    /// is exactly the bytes the renderer writes, with the near ladder at
+    /// offset 96. Read through naga's own layouter, so a member added on one
+    /// side only fails here rather than reading garbage on the GPU.
+    #[test]
+    fn the_shader_and_the_renderer_agree_on_the_atlas_and_the_uniform() {
+        let src = crate::renderer::shader_loader::assembled_pbr_source();
+        let needle = "const FAR_TILE_U: f32 = ";
+        let at = src.find(needle).expect("FAR_TILE_U missing from the megashader");
+        let lit: String = src[at + needle.len()..].chars().take_while(|c| *c != ';').collect();
+        assert_eq!(lit.trim().parse::<f32>().unwrap().to_bits(), FAR_TILE_U.to_bits());
+        assert_eq!(FAR_TILE_U, 0.5);
+        assert_eq!(TILE_ORIGIN[0].0, SUN_SHADOW_MAP_SIZE as u32, "the near tiles start where the far map ends");
+        for (x, y) in TILE_ORIGIN {
+            assert!(x + NEAR_TILE <= ATLAS_W && y + NEAR_TILE <= ATLAS_H);
+        }
+        let module = wgpu::naga::front::wgsl::parse_str(src).expect("megashader parses");
+        let mut layouter = wgpu::naga::proc::Layouter::default();
+        layouter.update(module.to_ctx()).expect("layout");
+        let find = |name: &str| {
+            module
+                .types
+                .iter()
+                .find(|(_, t)| t.name.as_deref() == Some(name))
+                .unwrap_or_else(|| panic!("no struct {name} in the megashader"))
+        };
+        let (su, su_ty) = find("ShadowUniforms");
+        assert_eq!(layouter[su].size as u64, SHADOW_UNIFORM_BYTES, "ShadowUniforms size");
+        let wgpu::naga::TypeInner::Struct { members, .. } = &su_ty.inner else { panic!("not a struct") };
+        let near = members.iter().find(|m| m.name.as_deref() == Some("near")).expect("near member");
+        assert_eq!(near.offset, 96, "the near ladder follows the far map's 96 bytes");
+        let (sc, _) = find("SunCascades");
+        assert_eq!(layouter[sc].size as usize, NEAR_FLOATS * 4, "SunCascades is the near block the renderer writes");
+    }
+}
