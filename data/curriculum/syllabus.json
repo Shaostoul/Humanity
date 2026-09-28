@@ -947,7 +947,7 @@
       "subject": "food_preservation",
       "title": "Drying",
       "summary": "Dry food to a moisture level that will not spoil.",
-      "status": "sourced",
+      "status": "verified",
       "reading": [
         "drying-food"
       ],
@@ -1039,7 +1039,7 @@
       "subject": "food_preservation",
       "title": "Fermenting",
       "summary": "Use salt and time to preserve food with living cultures.",
-      "status": "sourced",
+      "status": "verified",
       "reading": [
         "fermenting-vegetables"
       ],

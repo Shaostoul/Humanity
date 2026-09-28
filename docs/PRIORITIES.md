@@ -59,7 +59,9 @@ branch and its commit message. Remove a line here once its branch is merged.
 
 State after the wrap-up (merged ones are removed: the Wi-Fi harm removal,
 saved machine levels and the electroculture findings landed in v0.1394.0;
-the one game clock in v0.1395.0; the ship reactor feed in v0.1396.0):
+the one game clock in v0.1395.0; the ship reactor feed in v0.1396.0; the
+Drying and Fermenting guides, verified, with the jerky recipe loop fixed
+(jerky and dried meat now start from mutton), in v0.1396.1):
 
 - `a5e6f9189e45ed9b9`: HDR scene target steps 3 and 4. WIP 8df827c1, NOT
   safe to merge: Rgba16Float target, one dither in present.wgsl, the aurora
@@ -74,19 +76,17 @@ the one game clock in v0.1395.0; the ship reactor feed in v0.1396.0):
   pin) is done and safe to merge; increment 1 is drafted as text in
   docs/design/sun-cascades-wip/ and never built. home-shadow-metrics.mjs
   region boxes are placeholders.
-- `a83c9985bdf67dda5`: Library guides Drying and Fermenting, committed
-  3339e4e2 and self-checked (287 of 299 quoted phrases matched the saved
-  sources by script); the independent refutation pass every guide gets is
-  still owed before merge. Found: the Make Jerky recipe needs dried meat and
-  Dry Meat needs jerky, so neither can start from raw meat (a data bug).
+
 ### 0. The ship and the playable game (arc C, ranked first 2026-09-27)
 
 Spaceship first (Blocked #2, answered 2026-09-27): the ship's life support,
 the garden, building and survival come before the rendering items below.
 The work list is arc C in "Fenced arcs"; the next items there, from the
-operator's answers of 2026-09-27: the 24-hour configurable day (Blocked #3),
-the ship reactor as the homes' metered power (Blocked #3b), and saved battery
-and other stored levels. (The Wi-Fi crop harm was removed on 2026-09-27.)
+operator's answers of 2026-09-27, all SHIPPED: saved battery and other
+stored levels (v0.1394.0), the 24-hour configurable day (v0.1395.0, Blocked
+#3), and the ship reactor as the homes' metered power (v0.1396.0, Blocked
+#3b). The Wi-Fi crop harm was removed on 2026-09-27. Next in arc C is the
+first unticked item in its "Fenced arcs" list.
 Rendering items below still run beside it on files that do not overlap.
 
 ### 1. Environment regions: the rest of the arc BUG-080 opened
