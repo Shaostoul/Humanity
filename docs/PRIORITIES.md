@@ -57,22 +57,41 @@ one the way today's were merged (preview with `git merge-tree`, cherry-pick
 or merge, verify, boot, release); resume a WIP one by giving a new agent its
 branch and its commit message. Remove a line here once its branch is merged.
 
-- `a0944d211e0ff283e`: the 24-hour configurable day (Blocked #3, operator
-  decision). Large; touches time.rs, sleep, crops, sun, Layer 1 seasons.
-- `af651e3cf56b6c02a`: the ship reactor as the homes' metered power
-  (Blocked #3b, operator decision).
-- `a94e719ae551c5dd8`: remove the v0.620 Wi-Fi crop harm (operator decision).
-- `adabb8ee885f6702b`: save battery charge and other stored levels.
-- `a5e6f9189e45ed9b9`: HDR scene target steps 3 and 4 (Rgba16Float, one
-  dither; item 3b below).
-- `a2932acea7b338a59`: sun cascades increments 0 and 1 (item 3c below,
-  docs/design/sun-cascades.md).
-- `a83c9985bdf67dda5`: Library guides Drying and Fermenting (then an
-  independent refutation pass before merge, as every guide gets).
-- No branch: `docs/reference/findings/2026-09-27-electroculture-copper-coils.md`
-  written straight into the main checkout by a research agent; commit it if
-  it is there and uncommitted.
+State after the wrap-up (merged ones are removed: the Wi-Fi harm removal,
+saved machine levels and the electroculture findings landed in v0.1394.0):
 
+- `a0944d211e0ff283e`: the 24-hour configurable day (Blocked #3, operator
+  decision). NO CODE YET: commit 954d5813 is an empty commit whose message
+  maps every clock in the code (beyond Brief 6: crop water and health rates,
+  plumbing, weather timers, passive income, manufacturing, the station
+  orbit's x72, planet spin, the dev IPC, the F11 scrubber, the HUD hour)
+  and gives a step-by-step plan. Its year default of 365 days is the
+  agent's choice, not the operator's. gui/mod.rs and state_types.rs are
+  within 15 and 11 lines of their budgets.
+- `af651e3cf56b6c02a`: the ship reactor as the homes' metered power
+  (Blocked #3b, operator decision). NO CODE YET: commit e94bd8e5 (empty)
+  holds the findings and plan: no buildable generator exists (the
+  solar_panel_0 item and build_solar_panel recipe do); reactor figure so far
+  from trade press (KLT-40S, 35 MWe each, World Nuclear News 2025-01-16),
+  an IAEA primary source still wanted.
+- `a5e6f9189e45ed9b9`: HDR scene target steps 3 and 4. WIP 8df827c1, NOT
+  safe to merge: Rgba16Float target, one dither in present.wgsl, the aurora
+  dither and srgb_dither deleted, band-census.js and GPU tests written;
+  left: re-run `cargo test --release --features native --lib scene_target`
+  (one fix never re-run), the relay check, the A/B and band-census
+  measurements, vantage pins, world-entry boots, docs, and delete
+  scripts/hdr-inc34-wip/ before merge. The rig needs the two DXC DLLs
+  beside the exe or its boot stalls 10+ minutes.
+- `a2932acea7b338a59`: sun cascades. WIP e25375bb: increment 0 (fixtures,
+  the station camera pose, five clock-pinned home vantages, sun_shadows
+  pin) is done and safe to merge; increment 1 is drafted as text in
+  docs/design/sun-cascades-wip/ and never built. home-shadow-metrics.mjs
+  region boxes are placeholders.
+- `a83c9985bdf67dda5`: Library guides Drying and Fermenting, committed
+  3339e4e2 and self-checked (287 of 299 quoted phrases matched the saved
+  sources by script); the independent refutation pass every guide gets is
+  still owed before merge. Found: the Make Jerky recipe needs dried meat and
+  Dry Meat needs jerky, so neither can start from raw meat (a data bug).
 ### 0. The ship and the playable game (arc C, ranked first 2026-09-27)
 
 Spaceship first (Blocked #2, answered 2026-09-27): the ship's life support,

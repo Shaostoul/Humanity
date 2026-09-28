@@ -3606,6 +3606,9 @@ mod gardening_tests {
     /// router. Seen red with the old coupling restored (the RfEmitter spawn
     /// plus the FarmingSystem's home-RF drain): after five seconds the crop by
     /// the router fell to 78.0 while the one without it recovered to 82.5.
+    /// Native only: it spawns the router through `engine::home_spawn`, which
+    /// the relay build does not have.
+    #[cfg(feature = "native")]
     #[test]
     fn powered_wifi_router_leaves_crop_health_unchanged() {
         use crate::ecs::components::{CropInstance, MachineInstanceId, PowerConsumer};
