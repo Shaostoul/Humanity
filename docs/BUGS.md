@@ -2262,7 +2262,7 @@ against 0.078 to 0.088 on the old shader), sand and ocean from 700 m kept their
 character, and a straight seam across the Bahama Bank shallows (a custom
 `bahamas-bank-shore` camera, 0.6 km) is gone.
 
-## BUG-104: flat rings on every dark gradient (8-bit banding) (FIXED VTBD_HDR)
+## BUG-104: flat rings on every dark gradient (8-bit banding) (FIXED v0.1398.0)
 
 Reported 2026-09-24 while fixing the aurora: its faint glow drew as nested
 ellipses with crisp outlines. The cause was not the aurora. The scene rendered

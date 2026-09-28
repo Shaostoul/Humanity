@@ -62,7 +62,7 @@ saved machine levels and the electroculture findings landed in v0.1394.0;
 the one game clock in v0.1395.0; the ship reactor feed in v0.1396.0; the
 Drying and Fermenting guides, verified, with the jerky recipe loop fixed
 (jerky and dried meat now start from mutton), in v0.1396.1; the HDR scene
-target increments 3 and 4 in VTBD_HDR):
+target increments 3 and 4 in v0.1398.0):
 
 - `a2932acea7b338a59`: sun cascades. WIP e25375bb: increment 0 (fixtures,
   the station camera pose, five clock-pinned home vantages, sun_shadows
@@ -276,7 +276,7 @@ scene PSO on `scene_format()`. **Next: increment 3** (`scene_format_for` returns
 `Rgba16Float`, clamp flag on), then increment 4, the one dither.
 
 **Increments 3 and 4 built (2026-09-27) and measured (2026-09-28), merged in
-VTBD_HDR: the banding report is CLOSED.** The scene target is `Rgba16Float`,
+v0.1398.0: the banding report is CLOSED.** The scene target is `Rgba16Float`,
 and ONE triangular dither in the present pass replaces the aurora's own and
 `srgb_dither`. Same-boot A/B (design doc section 7): the float target moves
 still scenes by at most 2 codes; the dither cuts the mean flat run in the dark
