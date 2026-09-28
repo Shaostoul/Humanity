@@ -129,21 +129,31 @@ pub fn looked_at(
     reach: f32,
     frame: Option<&PlanetSite>,
 ) -> Option<(hecs::Entity, StructureUse)> {
+    let e = first_in_view(world, eye, dir, reach, frame)?;
+    let u = world.get::<&Structure>(e).ok().and_then(|s| use_of(&s))?;
+    Some((e, u))
+}
+
+/// The FIRST finished structure in `frame` the look ray meets within
+/// `reach` metres, whatever it is: the piece Take down removes, and the one
+/// [`looked_at`] asks the use of. Scaffolds (`Construction`) are not
+/// structures and are never met.
+pub fn first_in_view(world: &hecs::World, eye: Vec3, dir: Vec3, reach: f32, frame: Option<&PlanetSite>) -> Option<hecs::Entity> {
     let dir = dir.normalize_or_zero();
     if dir == Vec3::ZERO {
         return None;
     }
-    let mut first: Option<(hecs::Entity, Option<StructureUse>, f32)> = None;
-    for (e, (s, tf, site)) in world.query::<(&Structure, &Transform, Option<&PlanetSite>)>().iter() {
+    let mut first: Option<(hecs::Entity, f32)> = None;
+    for (e, (_s, tf, site)) in world.query::<(&Structure, &Transform, Option<&PlanetSite>)>().iter() {
         if !in_frame(site, frame) {
             continue;
         }
         let Some(t) = ray_hits_box(eye, dir, tf) else { continue };
-        if t <= reach && first.map_or(true, |f| t < f.2) {
-            first = Some((e, use_of(s), t));
+        if t <= reach && first.map_or(true, |f| t < f.1) {
+            first = Some((e, t));
         }
     }
-    first.and_then(|(e, u, _)| u.map(|u| (e, u)))
+    first.map(|(e, _)| e)
 }
 
 /// Give every finished structure that has no uid (0) the next free one.

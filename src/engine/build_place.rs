@@ -44,6 +44,8 @@ pub(crate) enum PlaceKey {
     Turn,
     /// Put it down (Esc).
     Stop,
+    /// Take down the finished piece in view (the Swing tool key, F).
+    TakeDown,
 }
 
 /// The placement meaning of a key press, or None when nothing is in hand, a
@@ -59,6 +61,8 @@ pub(crate) fn key_action(gui: &GuiState, key_name: &str, escape: bool) -> Option
         Some(PlaceKey::Turn)
     } else if gui.keybinds.is(GameAction::Interact, key_name) {
         Some(PlaceKey::Build)
+    } else if gui.keybinds.is(GameAction::AttackSwing, key_name) {
+        Some(PlaceKey::TakeDown)
     } else {
         None
     }
@@ -75,6 +79,7 @@ pub(crate) fn key(state: &mut EngineState, key_name: &str, escape: bool, repeat:
     }
     match action {
         PlaceKey::Stop => state.gui_state.build_placing = None,
+        PlaceKey::TakeDown => take_down(state),
         PlaceKey::Turn => {
             if let Some(p) = state.gui_state.build_placing.as_mut() {
                 p.quarter_turns = (p.quarter_turns + 1) % 4;
@@ -149,6 +154,7 @@ pub(crate) fn frame(state: &mut EngineState) {
             g.occupied,
             &pretty_key_name(keys.pair(GameAction::Interact).0),
             &pretty_key_name(keys.pair(GameAction::ToggleRoof).0),
+            &pretty_key_name(keys.pair(GameAction::AttackSwing).0),
         ),
         (Err(why), _) => planet_build::cannot_build_hint(&name, *why),
     };
@@ -199,35 +205,124 @@ pub(crate) fn short_hint(name: &str, item: &str, more: u32) -> String {
 /// The line under the crosshair while placing. `above_floor` is how high the
 /// ghost rests above the floor it is aimed at (a roof on walls); `occupied`
 /// says the same piece already stands there, so E will not build it again.
-pub(crate) fn placing_hint(name: &str, quarter_turns: u8, above_floor: f32, occupied: bool, build_key: &str, turn_key: &str) -> String {
+/// `take_down_key` takes down the finished piece in view (`take_down`).
+pub(crate) fn placing_hint(
+    name: &str,
+    quarter_turns: u8,
+    above_floor: f32,
+    occupied: bool,
+    build_key: &str,
+    turn_key: &str,
+    take_down_key: &str,
+) -> String {
     let turned = match quarter_turns % 4 {
         0 => String::new(),
         q => format!(", turned {} degrees", u32::from(q) * 90),
     };
     let on_top = if above_floor > 0.01 { format!(", on top at {above_floor:.1} m") } else { String::new() };
     if occupied {
-        return format!("Placing {name}{turned}{on_top}: already built here   [{turn_key}] turn   [Esc] done");
+        return format!(
+            "Placing {name}{turned}{on_top}: already built here   [{turn_key}] turn   [{take_down_key}] take down   [Esc] done"
+        );
     }
-    format!("Placing {name}{turned}{on_top}   [{build_key}] build here   [{turn_key}] turn   [Esc] done")
+    format!("Placing {name}{turned}{on_top}   [{build_key}] build here   [{turn_key}] turn   [{take_down_key}] take down   [Esc] done")
 }
 
-/// Built pieces are solid aboard (2026-09-28, arc C Tier B: "built pieces have
-/// no collision, you walk through them"). Every finished piece in the home
-/// frame whose box reaches from above the knee to the eye becomes a blocking
+/// How far away a piece can be taken down from, metres: the reach a piece is
+/// placed within (the ghost stands 1.5 to 8 m ahead).
+const TAKE_DOWN_REACH_M: f32 = 8.0;
+
+/// What taking down the piece in view would do, or why it will not: the
+/// piece, its name and the materials that go back. A store that still holds
+/// anything is refused, so taking down a chest can never lose what is in it.
+/// Pure over the world and the placed items, so it is tested without a window.
+pub(crate) fn take_down_plan(
+    world: &hecs::World,
+    placed: &[crate::gui::PlacedItem],
+    registry: Option<&BlueprintRegistry>,
+    eye: Vec3,
+    forward: Vec3,
+    frame: Option<&PlanetSite>,
+) -> Result<(hecs::Entity, String, Vec<(String, u32)>), String> {
+    let Some(e) = crate::systems::construction::uses::first_in_view(world, eye, forward, TAKE_DOWN_REACH_M, frame) else {
+        return Err("Nothing built in reach to take down".to_string());
+    };
+    let (id, uid) = match world.get::<&Structure>(e) {
+        Ok(s) => (s.blueprint_id.clone(), s.uid),
+        Err(_) => return Err("Nothing built in reach to take down".to_string()),
+    };
+    let bp = registry.and_then(|r| r.get(&id));
+    let name = bp.map_or_else(|| id.clone(), |b| b.name.clone());
+    let path = crate::systems::construction::uses::storage_path(uid);
+    if uid != 0 && placed.iter().any(|it| it.container == path && it.qty > 0) {
+        return Err(format!("Empty the {name} before taking it down"));
+    }
+    Ok((e, name, bp.map(|b| b.materials.clone()).unwrap_or_default()))
+}
+
+/// Take down the finished piece the player looks at (the Swing tool key with a
+/// piece in hand, 2026-09-28). Its materials go back into the pack through the
+/// same channel "Take to backpack" uses, so what does not fit goes back to
+/// storage and the player is told; the piece is gone. Built pieces are solid
+/// (`built_piece_segments`), so without this four walls could shut a player in.
+/// Every material comes back: a game choice, since nothing models what
+/// dismantling breaks.
+fn take_down(state: &mut EngineState) {
+    let Some(f) = planet_build::player_frame(state) else {
+        set_placing_note(state, "Nothing built in reach to take down".to_string());
+        return;
+    };
+    let plan = take_down_plan(
+        &state.game_world.world,
+        &state.gui_state.placed_items,
+        state.data_store.get::<BlueprintRegistry>("blueprint_registry"),
+        f.eye,
+        f.forward,
+        f.site.as_ref(),
+    );
+    match plan {
+        Err(why) => set_placing_note(state, why),
+        Ok((e, name, materials)) => {
+            if let Some(chan) =
+                state.data_store.get::<std::sync::Mutex<Vec<crate::systems::inventory::TransferOp>>>("inventory_transfer_ops")
+            {
+                if let Ok(mut c) = chan.lock() {
+                    for (id, qty) in &materials {
+                        c.push(crate::systems::inventory::TransferOp { item_id: id.clone(), qty: *qty, add: true, wear: 0, quality: 0 });
+                    }
+                }
+            }
+            let _ = state.game_world.world.despawn(e);
+            let got: Vec<String> = materials.iter().map(|(id, q)| format!("{q} {id}")).collect();
+            let msg = if got.is_empty() { format!("Took down the {name}") } else { format!("Took down the {name}: {} back", got.join(", ")) };
+            state.gui_state.pending_notices.push(msg);
+        }
+    }
+}
+
+/// A refusal shown in the placing hint's place for a moment: through the
+/// notice toasts, which is where a player already looks for "why not".
+fn set_placing_note(state: &mut EngineState, msg: String) {
+    state.gui_state.pending_notices.push(msg);
+}
+
+/// Built pieces are solid (2026-09-28, arc C Tier B: "built pieces have no
+/// collision, you walk through them"). Every finished piece in `frame` (the
+/// home aboard, `None`; a planet build site on the ground) whose box reaches from above the knee to the eye becomes a blocking
 /// segment for `ship::wall_collision::resolve`, beside the home's own walls:
 /// a wall, a bed, a chest or a machine stops you like a wall of the home.
 /// Roofs overhead and floors underfoot sit outside that band, and scaffolds are
 /// not `Structure`s yet, so a piece going up can still be walked through.
 ///
-/// NOT on a planet's ground: there the player moves by the frame lock's anchor
-/// rather than the camera, and the resolver works on the camera, so planet
-/// build sites need their own pass (PRIORITIES, arc C Tier B).
-pub(crate) fn built_piece_segments(world: &hecs::World, eye: Vec3, eye_height: f32) -> Vec<WallSegment> {
+/// `eye` is in that frame's metres. On a planet the walk calls this through
+/// `planet_build::collide_on_site`, because there the player moves by the frame
+/// lock's anchor rather than the camera.
+pub(crate) fn built_piece_segments(world: &hecs::World, frame: Option<&PlanetSite>, eye: Vec3, eye_height: f32) -> Vec<WallSegment> {
     let feet_y = eye.y - eye_height;
     world
         .query::<(&Structure, &Transform, Option<&PlanetSite>)>()
         .iter()
-        .filter(|(_e, (_, _, site))| site.is_none())
+        .filter(|(_e, (_, _, site))| crate::systems::construction::site::in_frame(*site, frame))
         .filter_map(|(_e, (_, tf, _))| {
             let (lo, hi) = placement::world_aabb(tf);
             (lo.y < eye.y && hi.y > feet_y + STEP_OVER_M).then(|| segment_of_box(lo, hi))
@@ -286,6 +381,7 @@ mod tests {
         assert_eq!(key_action(&g, "KeyE", false), Some(PlaceKey::Build));
         assert_eq!(key_action(&g, "KeyR", false), Some(PlaceKey::Turn));
         assert_eq!(key_action(&g, "Escape", true), Some(PlaceKey::Stop));
+        assert_eq!(key_action(&g, "KeyF", false), Some(PlaceKey::TakeDown), "the Swing tool key takes down");
         assert_eq!(key_action(&g, "KeyW", false), None, "walking still walks");
         g.keybinds.force_bind(GameAction::ToggleRoof, false, "KeyT");
         assert_eq!(key_action(&g, "KeyT", false), Some(PlaceKey::Turn));
@@ -303,14 +399,14 @@ mod tests {
     #[test]
     fn the_hint_says_the_turn_and_the_keys() {
         assert_eq!(
-            placing_hint("Wood Wall", 1, 0.0, false, "E", "R"),
-            "Placing Wood Wall, turned 90 degrees   [E] build here   [R] turn   [Esc] done"
+            placing_hint("Wood Wall", 1, 0.0, false, "E", "R", "F"),
+            "Placing Wood Wall, turned 90 degrees   [E] build here   [R] turn   [F] take down   [Esc] done"
         );
         assert_eq!(
-            placing_hint("Wood Roof", 4, 3.0, false, "E", "T"),
-            "Placing Wood Roof, on top at 3.0 m   [E] build here   [T] turn   [Esc] done"
+            placing_hint("Wood Roof", 4, 3.0, false, "E", "T", "F"),
+            "Placing Wood Roof, on top at 3.0 m   [E] build here   [T] turn   [F] take down   [Esc] done"
         );
-        let twice = placing_hint("Wood Wall", 0, 0.0, true, "E", "R");
+        let twice = placing_hint("Wood Wall", 0, 0.0, true, "E", "R", "F");
         assert!(twice.contains("already built here") && !twice.contains("[E]"), "{twice}");
         use planet_build::{cannot_build_hint, CannotBuild};
         assert!(cannot_build_hint("Bed", CannotBuild::NotFirstPerson).contains("first person"));
@@ -348,7 +444,7 @@ mod collision_tests {
         let start = Vec3::new(-2.0, eye_h, 0.0);
         let goal = Vec3::new(2.0, eye_h, 0.0);
         let walk = |world: &hecs::World| {
-            let segs = built_piece_segments(world, start, eye_h);
+            let segs = built_piece_segments(world, None, start, eye_h);
             resolve(start, goal, PLAYER_RADIUS, &[], &segs)
         };
         // A wall running north-south at x = 0 (one quarter turn).
@@ -364,7 +460,7 @@ mod collision_tests {
             Transform { position: Vec3::new(0.0, 3.0, 0.0), rotation: Quat::IDENTITY, scale: Vec3::from_array(roof.size) },
             Structure { blueprint_id: "roof".into(), health: 1.0, max_health: 1.0, provides: roof.provides.clone(), uid: 0 },
         ));
-        assert!(built_piece_segments(&roofed, start, eye_h).is_empty(), "a roof overhead is not in the way");
+        assert!(built_piece_segments(&roofed, None, start, eye_h).is_empty(), "a roof overhead is not in the way");
         assert!((walk(&roofed).x - goal.x).abs() < 1e-4);
 
         // The same wall on a planet site is not a home piece.
@@ -376,7 +472,7 @@ mod collision_tests {
             Structure { blueprint_id: "wood_wall".into(), health: 1.0, max_health: 1.0, provides: bp.provides.clone(), uid: 0 },
             PlanetSite { body: "earth".into(), origin: glam::DVec3::new(6.371e6, 0.0, 0.0) },
         ));
-        assert!(built_piece_segments(&site, start, eye_h).is_empty(), "planet sites are not the home frame");
+        assert!(built_piece_segments(&site, None, start, eye_h).is_empty(), "planet sites are not the home frame");
         assert!((walk(&hecs::World::new()).x - goal.x).abs() < 1e-4, "nothing built, nothing in the way");
     }
 
@@ -390,5 +486,51 @@ mod collision_tests {
         assert!((s.a.0 - 2.4).abs() < 1e-6 && s.a == s.b && (s.half_thickness - 0.4).abs() < 1e-6);
         let s = segment_of_box(Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.2, 3.0, 2.0));
         assert!((s.a.1 - 0.1).abs() < 1e-6 && (s.b.1 - 1.9).abs() < 1e-6 && (s.a.0 - 0.1).abs() < 1e-6);
+    }
+}
+
+#[cfg(test)]
+mod take_down_tests {
+    use super::*;
+    use crate::systems::construction::placement;
+
+    fn place(world: &mut hecs::World, reg: &BlueprintRegistry, id: &str, x: f32, z: f32, turns: u8, uid: u32) -> hecs::Entity {
+        let bp = reg.get(id).unwrap();
+        let tf = placement::placement_pose(bp, Vec3::new(x, 0.0, z), turns, world, reg, None);
+        world.spawn((tf, Structure { blueprint_id: id.into(), health: bp.health, max_health: bp.health, provides: bp.provides.clone(), uid }))
+    }
+
+    /// TAKE DOWN (2026-09-28). Looking at a wall within reach names it and
+    /// gives back its materials; looking away, or at a wall past the reach,
+    /// finds nothing; a chest that still holds something is refused until it
+    /// is empty, and an empty one comes down. Red check, run: dropping the
+    /// store check lets the full chest come down and fails the refusal.
+    #[test]
+    fn take_down_finds_the_piece_in_view_and_keeps_a_full_chest() {
+        let reg = BlueprintRegistry::from_ron(include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/data/blueprints/basic.ron"))).unwrap();
+        let mut world = hecs::World::new();
+        let wall = place(&mut world, &reg, "wood_wall", 0.0, 0.0, 1, 1);
+        let eye = Vec3::new(-2.0, 1.5, 0.0);
+        let (e, name, materials) = take_down_plan(&world, &[], Some(&reg), eye, Vec3::X, None).expect("a wall in view");
+        assert_eq!((e, name.as_str()), (wall, "Wood Wall"));
+        assert_eq!(materials, vec![("wood_plank_0".to_string(), 6)], "every material comes back");
+        assert!(take_down_plan(&world, &[], Some(&reg), eye, Vec3::NEG_X, None).is_err(), "looking away");
+        assert!(take_down_plan(&world, &[], Some(&reg), Vec3::new(-20.0, 1.5, 0.0), Vec3::X, None).is_err(), "out of reach");
+
+        let mut stores = hecs::World::new();
+        let chest = place(&mut stores, &reg, "storage_chest", 0.0, 0.0, 0, 7);
+        let held = vec![crate::gui::PlacedItem {
+            key: "wood_plank_0".into(),
+            name: "Wood Plank".into(),
+            qty: 3,
+            container: crate::systems::construction::uses::storage_path(7),
+            wear: 0,
+            quality: 0,
+        }];
+        let at_chest = Vec3::new(0.0, 0.5, -2.0);
+        let refused = take_down_plan(&stores, &held, Some(&reg), at_chest, Vec3::Z, None).unwrap_err();
+        assert_eq!(refused, "Empty the Storage Chest before taking it down");
+        let (e, _, _) = take_down_plan(&stores, &[], Some(&reg), at_chest, Vec3::Z, None).expect("an empty chest comes down");
+        assert_eq!(e, chest);
     }
 }

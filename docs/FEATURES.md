@@ -1871,11 +1871,15 @@ in by data, no ids in code; the first structure the look ray meets wins, so a wa
   survival rows say "Sheltered", "Out of the rain and the wind", or "Out of the rain; 70% of the wind gets in",
   and the Inventory page's readout says Sealed / Sheltered / Outside.
 
-**Built pieces are solid aboard (2026-09-28).** Every finished piece in the home frame whose box reaches from
+**Built pieces are solid (2026-09-28).** Every finished piece in the home frame whose box reaches from
 above the knee to the eye (a wall, a bed, a chest, a machine) joins the home's own walls in the first-person
 wall resolver (`engine::build_place::built_piece_segments` into `ship::wall_collision::resolve`), so you no longer
-walk through what you built; roofs overhead, floors underfoot and scaffolds still going up do not block. Not yet on
-a planet's ground, where the player moves by the frame lock's anchor.
+walk through what you built; roofs overhead, floors underfoot and scaffolds still going up do not block. On a planet's
+ground the player moves by the frame lock's anchor, so the walk's step is resolved in the build site's own frame
+against that site's pieces (`engine::planet_build::collide_on_site`); dev fly mode stays noclip. So nobody can be walled
+in, a piece can be TAKEN DOWN: with a piece in hand, the Swing tool key (F) takes down the finished piece in view
+within 8 m and puts all its materials back in the pack (what does not fit goes to storage, through the "Take to
+backpack" channel); a chest that still holds anything is refused until it is empty (`build_place::take_down_plan`).
 
 **Placing a built piece (2026-09-27).** Build on the Crafting page's Structures now puts the piece IN HAND
 (`engine/build_place.rs`): the page closes and a half-dithered scaffold ghost follows the crosshair, on the floor

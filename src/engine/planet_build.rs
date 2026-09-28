@@ -611,6 +611,32 @@ pub(crate) fn dev_stand(state: &mut EngineState, spec: &str, at: Option<&str>) -
     format!("eye at {eye_local:?} in the {} site (heading {heading} deg, pitch {pitch} deg)", site.body)
 }
 
+/// Built pieces are solid on a planet's ground too (2026-09-28). On a planet
+/// the player moves by the frame lock's anchor (the eye's point in the body's
+/// unrotated frame), not by the camera, so the walk's step, from the anchor
+/// before it to the anchor after, is resolved in the frame of the build site
+/// the player stands in, against that site's finished pieces, with the same
+/// resolver and segments the home uses aboard
+/// (`build_place::built_piece_segments`). Site-local metres are small numbers
+/// (a site reaches 1 km), so the round trip through f32 costs well under a
+/// millimetre, and it is only taken when a piece actually moved the step.
+/// Outside any site, or with nothing in the way, the anchor is returned as is.
+pub(crate) fn collide_on_site(world: &hecs::World, body: &str, before: DVec3, after: DVec3, eye_height: f32) -> DVec3 {
+    let Some(site) = site::nearest_site(world, body, after, site::SITE_JOIN_M) else {
+        return after;
+    };
+    let (from, to) = (site.to_local(before), site.to_local(after));
+    let segments = crate::engine::build_place::built_piece_segments(world, Some(&site), to, eye_height);
+    if segments.is_empty() {
+        return after;
+    }
+    let resolved = crate::ship::wall_collision::resolve(from, to, crate::ship::wall_collision::PLAYER_RADIUS, &[], &segments);
+    if (resolved - to).length_squared() < 1.0e-10 {
+        return after;
+    }
+    site.to_body(resolved)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -849,5 +875,47 @@ mod tests {
         assert!(chest < wall && wall < 10.0, "the chest ({chest} m) is in front of the wall ({wall} m)");
         let depth = |d: f32| crate::renderer::camera::celestial_depth_at(d);
         assert!(depth(chest) > depth(wall) && depth(chest) <= 1.0, "one pass, nearer wins: {} vs {}", depth(chest), depth(wall));
+    }
+}
+
+#[cfg(test)]
+mod site_collision_tests {
+    use super::*;
+    use crate::systems::construction::{placement, BlueprintRegistry, Structure};
+
+    /// A BUILT WALL IS SOLID ON THE GROUND (2026-09-28). A site on Earth's
+    /// equator with one wall standing north-south: a step east into it from
+    /// the west is stopped short of the wall, in the site's own metres; a step
+    /// that misses the wall, or a step taken far from any site, comes back
+    /// exactly as it went in. Red check, run: returning `after` at the top of
+    /// `collide_on_site` walks through the wall and fails the first assertion.
+    #[test]
+    fn a_wall_on_a_planet_site_stops_the_walk() {
+        let reg = BlueprintRegistry::from_ron(include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/data/blueprints/basic.ron"))).unwrap();
+        let site = PlanetSite { body: "earth".into(), origin: DVec3::new(6.371e6, 0.0, 0.0) };
+        let mut world = hecs::World::new();
+        let bp = reg.get("wood_wall").unwrap();
+        let tf = placement::placement_pose(bp, Vec3::ZERO, 1, &world, &reg, Some(&site));
+        world.spawn((
+            tf,
+            Structure { blueprint_id: "wood_wall".into(), health: bp.health, max_health: bp.health, provides: bp.provides.clone(), uid: 0 },
+            site.clone(),
+        ));
+        let eye_h = 1.7;
+        let body = |x: f32, z: f32| site.to_body(Vec3::new(x, eye_h, z));
+
+        let out = collide_on_site(&world, "earth", body(-2.0, 0.0), body(2.0, 0.0), eye_h);
+        let local = site.to_local(out);
+        assert!(local.x < -0.25, "stopped west of the wall, at {local}");
+        assert!(local.z.abs() < 1e-3, "no sideways slide on a square hit: {local}");
+
+        // Past the wall's end: nothing in the way, the anchor is untouched.
+        let clear = body(2.0, 5.0);
+        assert_eq!(collide_on_site(&world, "earth", body(-2.0, 5.0), clear, eye_h), clear);
+        // Far from any site (3 km away): untouched.
+        let far = body(3_000.0, 0.0);
+        assert_eq!(collide_on_site(&world, "earth", body(2_990.0, 0.0), far, eye_h), far);
+        // Another body's site is not this one.
+        assert_eq!(collide_on_site(&world, "moon", body(-2.0, 0.0), body(2.0, 0.0), eye_h), body(2.0, 0.0));
     }
 }

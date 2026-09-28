@@ -4881,7 +4881,13 @@ mod native_app {
                             // on takeoff" report. Same deliberate-input
                             // dead zone as the radial axis.
                             if tangential.length() > crate::surface_move::RADIAL_WISH_EPS {
+                                let before = anchor;
                                 anchor += tangential.normalize() * step;
+                                // Built pieces are solid on the ground too (2026-09-28); fly mode stays noclip.
+                                if !state.controller.fly_mode {
+                                    let eye_h = state.controller.eye_height();
+                                    anchor = crate::engine::planet_build::collide_on_site(&state.game_world.world, &lock_body, before, anchor, eye_h);
+                                }
                             }
                             // Ground radius at the (possibly moved) surface point.
                             // v0.1108, THE 2.5 m STILT: the eye now rests on the
@@ -5335,6 +5341,7 @@ mod native_app {
                         // Built pieces are solid too (2026-09-28, build_place::built_piece_segments).
                         doors.extend(crate::engine::build_place::built_piece_segments(
                             &state.game_world.world,
+                            None,
                             state.camera.position,
                             state.controller.eye_height(),
                         ));
