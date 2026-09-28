@@ -332,9 +332,9 @@ pub(crate) fn built_piece_segments(
         if !crate::systems::construction::site::in_frame(site, frame) {
             continue;
         }
-        let door = registry.and_then(|r| r.get(&s.blueprint_id)).and_then(|bp| bp.doorway);
-        let boxes: Vec<(Vec3, Vec3)> = match door {
-            Some(d) => doorway::parts(tf, &d, open.is_some()).iter().map(|(p, _)| placement::world_aabb(p)).collect(),
+        let parts = registry.and_then(|r| r.get(&s.blueprint_id)).and_then(|bp| doorway::piece_parts(bp, tf, open.is_some()));
+        let boxes: Vec<(Vec3, Vec3)> = match parts {
+            Some(parts) => parts.iter().map(|(p, _)| placement::world_aabb(p)).collect(),
             None => vec![placement::world_aabb(tf)],
         };
         for (lo, hi) in boxes {
@@ -514,6 +514,11 @@ mod collision_tests {
         world.insert_one(e, DoorOpen).unwrap();
         assert!((walk(&world, 0.0).x - 2.0).abs() < 1e-3, "an open door lets you through: {}", walk(&world, 0.0));
         assert!(walk(&world, 1.5).x < -0.25, "the wall beside the gap still blocks");
+
+        // A window is glass: walking at it stops you, like the wall.
+        let mut glazed = hecs::World::new();
+        place(&mut glazed, &reg, "wood_wall_window", 0.0, 0.0, 1);
+        assert!(walk(&glazed, 0.0).x < -0.25, "a window stops you");
     }
 
     /// The segment stays inside the box's footprint: a long thin box runs

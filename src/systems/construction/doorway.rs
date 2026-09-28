@@ -13,7 +13,7 @@
 //! pieces became solid (v0.1400.0) a closed room could only be entered by
 //! taking a wall down.
 
-use super::Doorway;
+use super::{Blueprint, Doorway, Window};
 use crate::ecs::components::Transform;
 use glam::Vec3;
 
@@ -24,6 +24,59 @@ pub enum Part {
     Wall,
     /// The door leaf.
     Leaf,
+    /// A window's pane of glass, drawn in the transparent pass. It is solid
+    /// to walk into.
+    Glass,
+}
+
+/// The parts of a piece with an opening in it, or None for a plain piece:
+/// what drawing and collision both ask. A door is `parts`, a window
+/// `window_parts`.
+pub fn piece_parts(bp: &Blueprint, tf: &Transform, open: bool) -> Option<Vec<(Transform, Part)>> {
+    if let Some(d) = bp.doorway {
+        Some(parts(tf, &d, open))
+    } else {
+        bp.window.map(|w| window_parts(tf, &w))
+    }
+}
+
+/// The wall around an opening `w` wide and `h` tall whose bottom is
+/// `sill` above the floor, centred along the piece: the wall either side,
+/// the wall under it when the sill is above the floor, and the lintel over it
+/// when the top is below the wall's. Returns the parts and the opening's
+/// clamped width and height (kept 0.1 m inside each end and within the wall).
+fn opening_walls(tf: &Transform, w: f32, h: f32, sill: f32) -> (Vec<(Transform, Part)>, f32, f32, f32) {
+    let (wall_w, wall_h, thick) = (tf.scale.x, tf.scale.y, tf.scale.z);
+    let w = w.clamp(0.1, (wall_w - 0.2).max(0.1));
+    let sill = sill.clamp(0.0, (wall_h - 0.1).max(0.0));
+    let h = h.clamp(0.1, (wall_h - sill).max(0.1));
+    let side = (wall_w - w) * 0.5;
+    let at = |local: Vec3, size: Vec3| {
+        (Transform { position: tf.position + tf.rotation * local, rotation: tf.rotation, scale: size }, Part::Wall)
+    };
+    let mut out = vec![
+        at(Vec3::new(-(w + side) * 0.5, 0.0, 0.0), Vec3::new(side, wall_h, thick)),
+        at(Vec3::new((w + side) * 0.5, 0.0, 0.0), Vec3::new(side, wall_h, thick)),
+    ];
+    if sill > 1.0e-3 {
+        out.push(at(Vec3::ZERO, Vec3::new(w, sill, thick)));
+    }
+    if wall_h - (sill + h) > 1.0e-3 {
+        out.push(at(Vec3::new(0.0, sill + h, 0.0), Vec3::new(w, wall_h - sill - h, thick)));
+    }
+    (out, w, h, sill)
+}
+
+/// The boxes a piece with a window is made of: the wall around the opening
+/// and a pane of glass in it, a third of the wall's thickness, at its middle.
+pub fn window_parts(tf: &Transform, win: &Window) -> Vec<(Transform, Part)> {
+    let (mut out, w, h, sill) = opening_walls(tf, win.width, win.height, win.sill);
+    let pane_t = (tf.scale.z / 3.0).max(0.01);
+    out.push((
+        Transform { position: tf.position + tf.rotation * Vec3::new(0.0, sill, 0.0), rotation: tf.rotation, scale: Vec3::new(w, h, pane_t) },
+        Part::Glass,
+    ));
+    out
 }
 
 /// The boxes a piece with a doorway is made of, in the piece's frame (its
@@ -34,21 +87,12 @@ pub enum Part {
 /// convention: `position` the bottom centre, `scale` the size. The gap is
 /// kept at least 0.1 m inside each end of the wall.
 pub fn parts(tf: &Transform, d: &Doorway, open: bool) -> Vec<(Transform, Part)> {
-    let (wall_w, wall_h, thick) = (tf.scale.x, tf.scale.y, tf.scale.z);
-    let w = d.width.clamp(0.1, (wall_w - 0.2).max(0.1));
-    let h = d.height.clamp(0.1, wall_h);
-    let side = (wall_w - w) * 0.5;
+    let thick = tf.scale.z;
+    let (mut out, w, h, _sill) = opening_walls(tf, d.width, d.height, 0.0);
     let leaf_t = (thick * 0.4).max(0.03);
     let at = |local: Vec3, size: Vec3, kind: Part| {
         (Transform { position: tf.position + tf.rotation * local, rotation: tf.rotation, scale: size }, kind)
     };
-    let mut out = vec![
-        at(Vec3::new(-(w + side) * 0.5, 0.0, 0.0), Vec3::new(side, wall_h, thick), Part::Wall),
-        at(Vec3::new((w + side) * 0.5, 0.0, 0.0), Vec3::new(side, wall_h, thick), Part::Wall),
-    ];
-    if wall_h - h > 1.0e-3 {
-        out.push(at(Vec3::new(0.0, h, 0.0), Vec3::new(w, wall_h - h, thick), Part::Wall));
-    }
     out.push(if open {
         at(Vec3::new(-w * 0.5 + leaf_t * 0.5, 0.0, thick * 0.5 + w * 0.5), Vec3::new(leaf_t, h, w), Part::Leaf)
     } else {
@@ -92,6 +136,22 @@ mod tests {
             let in_gap_x = hi.x > 9.5 + 1e-4 && lo.x < 10.5 - 1e-4;
             assert!(!in_gap_x || lo.y >= 2.1 - 1e-4, "a wall part in the doorway: {lo} {hi}");
         }
+    }
+
+    /// A WINDOW (2026-09-28): the wall around a 1 x 1 m opening 0.9 m up
+    /// covers the wall less the opening, and the pane fills the opening.
+    /// Red check, run: leaving out the wall under the sill fails the area sum.
+    #[test]
+    fn a_window_wall_is_its_wall_around_the_opening_and_its_pane() {
+        let win = Window { width: 1.0, height: 1.0, sill: 0.9 };
+        let p = window_parts(&wall(), &win);
+        let area: f32 = p.iter().filter(|(_, k)| *k == Part::Wall).map(|(t, _)| t.scale.x * t.scale.y).sum();
+        assert!((area - (4.0 * 3.0 - 1.0 * 1.0)).abs() < 1e-4, "wall area {area}");
+        let (pane, _) = p.iter().find(|(_, k)| *k == Part::Glass).unwrap();
+        let (lo, hi) = world_aabb(pane);
+        assert!((lo.y - 0.9).abs() < 1e-4 && (hi.y - 1.9).abs() < 1e-4, "the pane from sill to head: {lo} {hi}");
+        assert!((lo.x - 9.5).abs() < 1e-4 && (hi.x - 10.5).abs() < 1e-4, "the pane fills the width: {lo} {hi}");
+        assert_eq!(p.iter().filter(|(_, k)| *k == Part::Glass).count(), 1);
     }
 
     /// Turned a quarter, the parts turn with the wall.

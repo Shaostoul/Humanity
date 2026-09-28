@@ -311,6 +311,11 @@
       "date": "2026-09-28",
       "decision": "Door state saved: ConstructionSave gains open (serde default false), written from the DoorOpen marker and restored with it.",
       "why": "v0.1402.0 shipped doors that reset to shut on load; the save record already carries each piece, so one defaulted field closes it without any migration code."
+    },
+    {
+      "date": "2026-09-28",
+      "decision": "Windows in walls: Blueprint.window (width, height, sill), the Wood Wall with Window, doorway::window_parts sharing opening_walls with doors, glass drawn with the home window glass material in the transparent lists; at planet sites the celestial transparent key gains a near-glass flag sorted after everything (celestial_order::list_key). Also closed BUG-052 (fixed as BUG-077 in v0.1315.0, re-proved with a vsync-off rig boot).",
+      "why": "Doors needed windows to make a real room; the one risk was the celestial transparent order, so near glass goes after the layer stack and water, where what is seen through it is already composited, and the key is a pure tested function."
     }
   ],
   "active_scopes_to_avoid": [

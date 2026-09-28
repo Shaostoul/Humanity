@@ -40,3 +40,5 @@ Each line is written the way a player would hear it; the release notes and
   A closed room finally has a way in and out.
 - **v0.1403.0: doors remember.** A door you leave open is still open
   when you load your save.
+- **v0.1404.0: windows in walls.** A Wood Wall with Window (a pane of
+  glass you smelt from sand) lets you see out and is solid to walk into.

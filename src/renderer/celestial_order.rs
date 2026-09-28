@@ -50,10 +50,24 @@ pub fn celestial_transparent_key(material_type: f32, is_water: bool) -> (bool, b
 /// type copy (a private field of `Material`, visible here because this
 /// module is a child of `renderer`) and answers General-shaped (not a
 /// layer) for a missing index, which every draw loop skips anyway.
+///
+/// `is_near_glass` (2026-09-28): a window pane in a building on the ground
+/// sorts after EVERYTHING, water included. It is the nearest thing in the
+/// list and it is looked through, so the sky, the clouds and the sea behind
+/// it must already be composited when it blends on top; drawn before the
+/// stack, the atmosphere shell would be blended over the pane.
 #[inline]
-pub fn key_for(renderer: &super::Renderer, material: usize, is_water: bool) -> (bool, bool) {
+pub fn key_for(renderer: &super::Renderer, material: usize, is_water: bool, is_near_glass: bool) -> (bool, (bool, bool)) {
     let mt = renderer.materials.get(material).map_or(0.0, |m| m.material_type);
-    celestial_transparent_key(mt, is_water)
+    list_key(mt, is_water, is_near_glass)
+}
+
+/// [`key_for`] over the material type: near glass after everything, then the
+/// layer stack as [`celestial_transparent_key`] orders it. Pure, so the order
+/// is tested without a renderer.
+#[inline]
+pub fn list_key(material_type: f32, is_water: bool, is_near_glass: bool) -> (bool, (bool, bool)) {
+    (is_near_glass, celestial_transparent_key(material_type, is_water))
 }
 
 #[cfg(test)]
@@ -114,6 +128,24 @@ mod tests {
     /// A non-layer object pushed AFTER the stack (a gas giant's bands, a
     /// later body's halo) is lifted in front of it, which is the grouping
     /// P2 wanted; the stack's own order is untouched by that lift.
+    /// Near glass (a window at a build site) goes after the whole stack,
+    /// water included, so what is seen through it is already there. Red
+    /// check, run: dropping the glass flag from the key puts the window
+    /// before the atmosphere.
+    #[test]
+    fn near_glass_goes_after_everything() {
+        let list = [
+            ("window", 1.0, false, true),
+            ("sun", 17.0, false, false),
+            ("atmo14", 14.0, false, false),
+            ("water", 16.0, true, false),
+        ];
+        let mut v = list.to_vec();
+        v.sort_by_key(|(_, t, w, g)| list_key(*t, *w, *g));
+        let names: Vec<&str> = v.into_iter().map(|(n, _, _, _)| n).collect();
+        assert_eq!(names, vec!["sun", "atmo14", "water", "window"]);
+    }
+
     #[test]
     fn non_layers_group_before_the_stack_without_reordering_it() {
         let list = [

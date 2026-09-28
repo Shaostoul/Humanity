@@ -355,6 +355,8 @@ struct Piece<'a> {
     material: usize,
     fade: f32,
     ghost: bool,
+    /// A window's pane: drawn in the transparent pass (2026-09-28).
+    glass: bool,
 }
 
 /// The lists a frame's pieces are drawn in.
@@ -368,6 +370,11 @@ struct Drawn {
     /// The scene list after the station shift, in render space: only the
     /// planet ghost.
     ghost: Vec<RenderObject>,
+    /// Window glass in the home frame (the scene's transparent list).
+    home_glass: Vec<RenderObject>,
+    /// Window glass at a site, in render space (the celestial transparent
+    /// list, sorted after everything else: `celestial_order::key_for`).
+    celestial_glass: Vec<RenderObject>,
 }
 
 /// Route the frame's pieces into their lists. Home pieces go to the home
@@ -383,7 +390,11 @@ fn route<'a>(pieces: impl Iterator<Item = Piece<'a>>, body_frame: Option<&BodyFr
     for p in pieces {
         let obj = |position, rotation| RenderObject { fade: p.fade, position, rotation, scale: p.scale, mesh, material: p.material };
         let Some(site) = p.site else {
-            out.home.push(obj(p.tf.position, p.tf.rotation));
+            if p.glass {
+                out.home_glass.push(obj(p.tf.position, p.tf.rotation));
+            } else {
+                out.home.push(obj(p.tf.position, p.tf.rotation));
+            }
             continue;
         };
         let Some(bf) = body_frame.filter(|f| f.body == site.body) else { continue };
@@ -394,6 +405,8 @@ fn route<'a>(pieces: impl Iterator<Item = Piece<'a>>, body_frame: Option<&BodyFr
         }
         if p.ghost {
             out.ghost.push(obj(position, rotation));
+        } else if p.glass {
+            out.celestial_glass.push(obj(position, rotation));
         } else {
             out.celestial.push(obj(position, rotation));
         }
@@ -414,6 +427,8 @@ pub(crate) fn push_render_objects(
     home: &mut Vec<RenderObject>,
     celestial: &mut Vec<RenderObject>,
     ghost_out: &mut Vec<RenderObject>,
+    home_transparent: &mut Vec<RenderObject>,
+    celestial_transparent: &mut Vec<RenderObject>,
 ) {
     if state.structure_mesh.is_none() {
         let mesh = crate::renderer::mesh::Mesh::box_xyz(&state.renderer.device, 1.0, 1.0, 1.0);
@@ -427,9 +442,11 @@ pub(crate) fn push_render_objects(
         let metal = state.renderer.add_material_typed([0.45, 0.30, 0.25, 1.0], 0.6, 0.45, 0.0);
         // A door leaf is darker wood, so a shut door reads against its wall (2026-09-28).
         let door = state.renderer.add_material_typed([0.30, 0.19, 0.11, 1.0], 0.0, 0.75, 0.0); // theme-exempt: world material, not UI
-        state.structure_mats = Some([scaffold, wood, stone, metal, door]);
+        // Window glass: the home's own window glass (door panels), transparent pass.
+        let glass = state.renderer.add_material_full([0.55, 0.78, 0.92, 0.34], 0.0, 0.08, 1.0, 0.10); // theme-exempt: world material, not UI
+        state.structure_mats = Some([scaffold, wood, stone, metal, door, glass]);
     }
-    let (Some(unit_box), Some([scaffold_mat, wood_mat, stone_mat, metal_mat, door_mat])) = (state.structure_mesh, state.structure_mats) else {
+    let (Some(unit_box), Some([scaffold_mat, wood_mat, stone_mat, metal_mat, door_mat, glass_mat])) = (state.structure_mesh, state.structure_mats) else {
         return;
     };
     let body_frame = state.planet_body_frame.take();
@@ -447,31 +464,37 @@ pub(crate) fn push_render_objects(
     // A scaffold rises from 15% to full height with progress.
     let rising = scaffolds.iter().map(|(_e, (c, tf, site))| {
         let frac = (c.progress / c.build_time.max(0.01)).clamp(0.0, 1.0) * 0.85 + 0.15;
-        Piece { tf: tf.clone(), scale: Vec3::new(tf.scale.x, tf.scale.y * frac, tf.scale.z), site, material: scaffold_mat, fade: 0.0, ghost: false }
+        Piece { tf: tf.clone(), scale: Vec3::new(tf.scale.x, tf.scale.y * frac, tf.scale.z), site, material: scaffold_mat, fade: 0.0, ghost: false, glass: false }
     });
     // A wall with a door in it is drawn as its parts (`doorway::parts`), the
     // same boxes that block the walk.
     let standing = finished.iter().flat_map(|(_e, (s, tf, site, open))| {
         let material = mat_for(&s.blueprint_id);
-        let door = registry.and_then(|r| r.get(&s.blueprint_id)).and_then(|bp| bp.doorway);
-        let parts: Vec<(Transform, usize)> = match door {
-            Some(d) => crate::systems::construction::doorway::parts(tf, &d, open.is_some())
+        use crate::systems::construction::doorway::{piece_parts, Part};
+        let parts: Vec<(Transform, usize, bool)> = match registry.and_then(|r| r.get(&s.blueprint_id)).and_then(|bp| piece_parts(bp, tf, open.is_some())) {
+            Some(parts) => parts
                 .into_iter()
-                .map(|(p, kind)| (p, if kind == crate::systems::construction::doorway::Part::Leaf { door_mat } else { material }))
+                .map(|(p, kind)| match kind {
+                    Part::Leaf => (p, door_mat, false),
+                    Part::Glass => (p, glass_mat, true),
+                    Part::Wall => (p, material, false),
+                })
                 .collect(),
-            None => vec![(tf.clone(), material)],
+            None => vec![(tf.clone(), material, false)],
         };
-        parts.into_iter().map(move |(p, material)| Piece { scale: p.scale, tf: p, site, material, fade: 0.0, ghost: false })
+        parts.into_iter().map(move |(p, material, glass)| Piece { scale: p.scale, tf: p, site, material, fade: 0.0, ghost: false, glass })
     });
     // The piece in hand (engine/build_place.rs): a half-dithered scaffold where it would go.
     let in_hand = state.gui_state.build_placing.as_ref().and_then(|p| {
         let g = p.ghost.as_ref()?;
-        Some(Piece { tf: g.clone(), scale: g.scale, site: p.site.as_ref(), material: scaffold_mat, fade: 0.5, ghost: true })
+        Some(Piece { tf: g.clone(), scale: g.scale, site: p.site.as_ref(), material: scaffold_mat, fade: 0.5, ghost: true, glass: false })
     });
     let drawn = route(rising.chain(standing).chain(in_hand), body_frame.as_ref(), state.camera.position, unit_box);
     home.extend(drawn.home);
     celestial.extend(drawn.celestial);
     ghost_out.extend(drawn.ghost);
+    home_transparent.extend(drawn.home_glass);
+    celestial_transparent.extend(drawn.celestial_glass);
 }
 
 /// Dev verb for the probe rig (showcase_request `{"build":"...",
@@ -880,8 +903,8 @@ mod tests {
         let pieces: Vec<(String, Transform)> = q.iter().map(|(_e, (s, tf, _))| (s.blueprint_id.clone(), tf.clone())).collect();
         let items = pieces
             .iter()
-            .map(|(_, tf)| Piece { tf: tf.clone(), scale: tf.scale, site: Some(&site), material: 1, fade: 0.0, ghost: false })
-            .chain(std::iter::once(Piece { tf: ghost_tf.clone(), scale: Vec3::ONE, site: Some(&site), material: 0, fade: 0.5, ghost: true }));
+            .map(|(_, tf)| Piece { tf: tf.clone(), scale: tf.scale, site: Some(&site), material: 1, fade: 0.0, ghost: false, glass: false })
+            .chain(std::iter::once(Piece { tf: ghost_tf.clone(), scale: Vec3::ONE, site: Some(&site), material: 0, fade: 0.5, ghost: true, glass: false }));
         let drawn = route(items, Some(&bf), Vec3::ZERO, 0);
         assert_eq!(drawn.celestial.len(), pieces.len(), "every site piece is in the celestial pass");
         assert!(drawn.home.is_empty());

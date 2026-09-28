@@ -234,7 +234,7 @@ positive-control an arm before believing a null. The measure judges a STILL:
 motion, where the operator's "boiling" lives and the temporal filter cannot
 converge, is untested.
 
-### 3b. 8-bit banding everywhere: the scene has no HDR target and no dither
+### 3b. 8-bit banding everywhere: CLOSED v0.1398.0 (the HDR target and one dither); increment 5 next
 
 Found 2026-09-24 while fixing the aurora. The scene renders straight into the
 8-bit sRGB surface format (`renderer/mod.rs`, `surface_format` picked by
@@ -293,8 +293,8 @@ NO indirect light (the whole term is the 0.005 silhouette floor), so walls sit
 at 2.5% of the floor where interreflection predicts about 25 to 30%; and the
 home never casts into the sun shadow map, so the lowest shelf under three
 others reads 130 against the open floor's 133. Two arcs, in this order:
-1. **Room GI**: per-room DDGI irradiance probes. **Rung 1 BUILT 2026-09-27**
-   (branch of the room-GI agent, not yet merged): probes traced against each
+1. **Room GI**: per-room DDGI irradiance probes. **Rung 1 BUILT 2026-09-27,
+   merged in v0.1390.0**: probes traced against each
    room's own box, `docs/design/room-gi.md`. At 25b the wall goes from 4 to 46
    sRGB (wall/floor 0.17 before the tone map, target 0.15 to 0.40); at the new
    `25c-oyster-rack-close` the shelf underside goes from 2 to 76 and the oyster
@@ -306,8 +306,9 @@ others reads 130 against the open floor's 133. Two arcs, in this order:
 2. **Near sun cascades** with the home as a caster:
    `docs/design/sun-cascades.md` (camera-centred clipmap cascades C0 to C3 in
    an atlas beside the existing far map, no bind group layout change; five
-   increments). Starts after room GI lands, since both touch
-   80-fragment-shared.wgsl and the frame order.
+   increments). Room GI has landed; increment 0 (the fixtures) merged in
+   v0.1397.0, and increment 1 (the atlas and C1) is drafted in
+   `docs/design/sun-cascades-wip/`, not built.
 
 ### 4. The far-rung gates, G0(d) and G1 to G7
 
@@ -632,9 +633,12 @@ between the simulation and the person. Its tier ladder is the build order.
   walls, walls on a foundation, one placement function for ghost and build,
   then building on a planet's ground in f64-anchored build sites, one storey
   at a time, no double builds), and share the rest of the list: nothing stands
-  on a roof yet (no second storey), windows cannot be set into a wall (a DOOR
-  can since 2026-09-28: the Wood Wall with Door, `construction::doorway`, E
-  opens and shuts it), built pieces are now solid aboard and on a planet's ground (DONE
+  on a roof yet (no second storey), doors and windows set into walls are DONE
+  (2026-09-28: the Wood Wall with Door and the Wood Wall with Window,
+  `construction::doorway`), walls built straight on uneven ground stand at
+  the ground under each (the roof then rests on the tallest and leaves a sliver
+  of sky over a lower one, seen 2026-09-28; a foundation levels it, and the
+  placement could level a room's walls itself), built pieces are now solid aboard and on a planet's ground (DONE
   2026-09-28: `build_place::built_piece_segments`, and on the ground
   `planet_build::collide_on_site` resolves the walk's anchor step in the build
   site's frame) and can be TAKEN DOWN (F with a piece in hand, materials back),

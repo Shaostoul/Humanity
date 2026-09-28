@@ -13027,7 +13027,14 @@ mod native_app {
                     // `planet_ghost` (the piece in hand on a planet) is already in render
                     // space, so it joins the scene list AFTER the station shift below.
                     let mut planet_ghost: Vec<RenderObject> = Vec::new();
-                    crate::engine::planet_build::push_render_objects(state, &mut all_objects, &mut celestial_objects, &mut planet_ghost);
+                    crate::engine::planet_build::push_render_objects(
+                        state,
+                        &mut all_objects,
+                        &mut celestial_objects,
+                        &mut planet_ghost,
+                        &mut transparent_objects,
+                        &mut celestial_transparent,
+                    );
 
                     // ── Livestock render (v0.751, ladder rung 7) ── placeholder
                     // block bodies until real models: body + head + 4 legs from
@@ -15104,11 +15111,14 @@ mod native_app {
                                     } else {
                                         std::collections::HashSet::new()
                                     };
+                                // Built windows' glass sorts after everything (2026-09-28).
+                                let glass_mat = state.structure_mats.map(|m| m[5]);
                                 celestial_transparent.sort_by_key(|o| {
                                     crate::renderer::celestial_order::key_for(
                                         &state.renderer,
                                         o.material,
                                         water_mats.contains(&o.material),
+                                        glass_mat == Some(o.material),
                                     )
                                 });
                                 // The 5th argument is this pass's ANIMATION CLOCK: live wall time unless the rig

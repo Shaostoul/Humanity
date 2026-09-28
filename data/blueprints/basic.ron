@@ -11,6 +11,9 @@
     // A wall with a door in it (2026-09-28): the wall's six planks less the
     // one the 1 x 2.1 m opening saves, plus the Wood Door's four for the leaf.
     (id: "wood_wall_door", name: "Wood Wall with Door", category: "wall", materials: [("wood_plank_0", 9)], build_time: 5.0, size: (4.0, 3.0, 0.2), snap_to: ["foundation"], mount: OnTop, health: 150.0, provides: Some("shelter"), doorway: Some((width: 1.0, height: 2.1))),
+    // A wall with a window in it (2026-09-28): a 1 x 1 m pane of glass 0.9 m
+    // up, framed with a plank more than the plain wall.
+    (id: "wood_wall_window", name: "Wood Wall with Window", category: "wall", materials: [("wood_plank_0", 7), ("glass_pane_0", 1)], build_time: 5.0, size: (4.0, 3.0, 0.2), snap_to: ["foundation"], mount: OnTop, health: 140.0, provides: Some("shelter"), window: Some((width: 1.0, height: 1.0, sill: 0.9))),
     (id: "wood_door", name: "Wood Door", category: "door", materials: [("wood_plank_0", 4)], build_time: 3.0, size: (1.0, 2.5, 0.1), snap_to: ["wall"], health: 100.0, provides: None),
     (id: "window", name: "Window", category: "window", materials: [("wood_plank_0", 2), ("glass_pane_0", 1)], build_time: 3.0, size: (1.0, 1.0, 0.1), snap_to: ["wall"], health: 50.0, provides: None),
     (id: "roof", name: "Wood Roof", category: "roof", materials: [("wood_plank_0", 10)], build_time: 6.0, size: (4.0, 0.2, 4.0), snap_to: ["wall"], mount: OnTop, health: 180.0, provides: Some("shelter")),

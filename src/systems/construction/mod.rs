@@ -70,6 +70,20 @@ pub struct Blueprint {
     /// E opens and closes. None = a solid piece. See `doorway::parts`.
     #[serde(default)]
     pub doorway: Option<Doorway>,
+    /// A window set into the piece (2026-09-28): a glazed opening `width`
+    /// wide and `height` tall whose bottom sits `sill` above the floor,
+    /// centred along the piece's length. None = no window. See
+    /// `doorway::piece_parts`.
+    #[serde(default)]
+    pub window: Option<Window>,
+}
+
+/// A glazed opening in a piece (`Blueprint::window`), metres.
+#[derive(Debug, Clone, Copy, PartialEq, Deserialize)]
+pub struct Window {
+    pub width: f32,
+    pub height: f32,
+    pub sill: f32,
 }
 
 /// The gap a doorway piece leaves for its door, metres (`Blueprint::doorway`).

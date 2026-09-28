@@ -1876,8 +1876,14 @@ in by data, no ids in code; the first structure the look ray meets wins, so a wa
 (`systems::construction::doorway::parts`: the wall either side of the gap, the lintel, and the door leaf, drawn in a
 darker wood so a shut door reads against its wall; vantage `planet-built-door`). Looking at it
 the crosshair says "[E] open or shut the door"; E toggles the `DoorOpen` marker, and an open door swings a quarter turn
-out of the gap and stops blocking. An open door stays open across a save (`ConstructionSave.open`). Windows cannot be
-set into a wall yet.
+out of the gap and stops blocking. An open door stays open across a save (`ConstructionSave.open`).
+
+**Windows in walls (2026-09-28).** A blueprint can carry a `window` (width, height, sill): the Wood Wall with Window
+(7 planks and a glass pane) has a 1 x 1 m pane 0.9 m up (`doorway::window_parts`: the wall around the opening and the
+pane). The pane is solid to walk into and is drawn in the transparent pass with the home's own window glass: aboard in the
+scene's transparent list, at a planet build site in the celestial transparent list AFTER everything else, water included
+(`celestial_order::list_key`), so the sky and the ground seen through it are already there when it blends. Vantage
+`planet-built-window`.
 
 **Built pieces are solid (2026-09-28).** Every finished piece in the home frame whose box reaches from
 above the knee to the eye (a wall, a bed, a chest, a machine) joins the home's own walls in the first-person
