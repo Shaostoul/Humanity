@@ -261,6 +261,11 @@
       "date": "2026-09-27",
       "decision": "Merged to main, UNTAGGED: planet-anchored building (930c2364, BUG-102 real fix), rain or snow by local air (2bfcfc2d, Jennings 2018 threshold), batteries and seasons guides (+ seasons game section corrected against code: the drawn Sun also runs on the 20-min day, no axial tilt), 3 more guides verified (16/143), HDR scene target increments 1-2 (4a63f0b2; 4K capture byte-identical; gpu.present ~0.06 ms; new scene_format_lint). All boots 0 panics.",
       "why": "The planet-building critic found a HIGH (the near copy in the depth-clearing scene pass draws over nearer celestial objects: furniture vanishes behind walls), overlapping sites, and home-frame leaks (planet stations on the ship grid, materials from the orbiting home). No tag until the fix agent (lower celestial near plane via one constant, delete the near copy, site membership by pieces, planet-local materials and power) lands. HDR increments 3-4 (Rgba16Float + one dither, closes the banding report) dispatched. Operator back briefly at 16:39 and got a summary from the logs."
+    },
+    {
+      "date": "2026-09-27",
+      "decision": "v0.1393.0 released and delivered: planet building with the review fixes (celestial near plane 0.05 m as CELESTIAL_NEAR_M, no near copy, sites follow pieces, no home-frame leaks), rain or snow by local air, HDR scene target steps 1-2, batteries and seasons guides; 16/143 verified. Independent boot of the delivered build: planet-built-inside and blue-marble-12000km, 0 panics.",
+      "why": "Merged tree was byte-identical to the fix branch the agent verified (2508 tests, 16 lints, 6 boots), so the battery was not re-run; one independent boot of the delivered exe instead. In flight: HDR steps 3-4 (Rgba16Float + one dither). Next candidates: sun cascades (docs/design/sun-cascades.md, now unblocked by room GI), Layer 1 GPU consumer (cloud advection by wind), battery charge persistence, more guides."
     }
   ],
   "active_scopes_to_avoid": [
