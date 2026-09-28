@@ -36,6 +36,7 @@
 
 use super::site::{in_frame, PlanetSite};
 use super::{doorway, placement, BlueprintRegistry, Construction, DoorOpen, Structure};
+use crate::ship::wall_collision::WallSegment;
 use crate::ecs::components::Transform;
 use glam::Vec3;
 
@@ -132,8 +133,9 @@ pub fn looked_at(
     dir: Vec3,
     reach: f32,
     frame: Option<&PlanetSite>,
+    walls: &[WallSegment],
 ) -> Option<(hecs::Entity, StructureUse)> {
-    let e = first_in_view(world, registry, eye, dir, reach, frame)?;
+    let e = first_in_view(world, registry, eye, dir, reach, frame, walls)?;
     let s = world.get::<&Structure>(e).ok()?;
     // A wall with a door in it is used as a door (its `provides` is the
     // wall's `shelter`), which only the blueprint says.
@@ -154,7 +156,10 @@ pub fn looked_at(
 /// beyond it, and meets the open leaf where it stands. A scaffold
 /// (`Construction`) is not a structure and is never the answer, but one in
 /// front hides what is behind it, so a piece behind a rising wall cannot be
-/// taken down through it.
+/// taken down through it. `walls` are the frame's own wall segments (the
+/// home's walls aboard, `ship::wall_collision`; none at a planet site): a
+/// wall the ray crosses before the piece hides it, so a chest in the next
+/// room cannot be opened or taken down through the wall.
 pub fn first_in_view(
     world: &hecs::World,
     registry: Option<&BlueprintRegistry>,
@@ -162,6 +167,7 @@ pub fn first_in_view(
     dir: Vec3,
     reach: f32,
     frame: Option<&PlanetSite>,
+    walls: &[WallSegment],
 ) -> Option<hecs::Entity> {
     let dir = dir.normalize_or_zero();
     if dir == Vec3::ZERO {
@@ -187,7 +193,30 @@ pub fn first_in_view(
         .query::<(&Construction, &Transform, Option<&PlanetSite>)>()
         .iter()
         .any(|(_e, (_, tf, site))| in_frame(site, frame) && ray_hits_box(eye, dir, tf).is_some_and(|s| s < t));
-    (!scaffold_in_front).then_some(e)
+    (!scaffold_in_front && !ray_crosses_walls(eye, dir, t, walls)).then_some(e)
+}
+
+/// Does the ray from `eye` along `dir` (unit) cross one of `walls` before
+/// it has gone `t` metres? The walls are full-height segments in the XZ
+/// plane (their centre lines), so only the ray's horizontal travel counts: a
+/// ray straight up or down crosses none.
+pub fn ray_crosses_walls(eye: Vec3, dir: Vec3, t: f32, walls: &[WallSegment]) -> bool {
+    let (dx, dz) = (dir.x * t, dir.z * t);
+    if dx * dx + dz * dz < 1.0e-8 {
+        return false;
+    }
+    walls.iter().any(|w| {
+        let (ax, az) = w.a;
+        let (ex, ez) = (w.b.0 - ax, w.b.1 - az);
+        let denom = dx * ez - dz * ex;
+        if denom.abs() < 1.0e-9 {
+            return false;
+        }
+        let (ox, oz) = (ax - eye.x, az - eye.z);
+        let s = (ox * ez - oz * ex) / denom;
+        let u = (ox * dz - oz * dx) / denom;
+        (0.0..1.0).contains(&s) && (0.0..=1.0).contains(&u)
+    })
 }
 
 /// Give every finished structure that has no uid (0) the next free one.
@@ -493,17 +522,17 @@ mod tests {
         world.spawn(built(&reg, "bed", Vec3::new(0.0, 0.0, -2.0), 1));
         // Aim at the middle of the bed's top face (0.6 m up).
         let at_bed = (Vec3::new(0.0, 0.6, -2.0) - eye).normalize();
-        assert_eq!(looked_at(&world, None, eye, at_bed, 5.0, None).map(|h| h.1), Some(StructureUse::Sleep));
-        assert!(looked_at(&world, None, eye, Vec3::NEG_Z, 5.0, None).is_none(), "looking level passes over a 0.6 m bed");
-        assert!(looked_at(&world, None, eye, at_bed, 1.0, None).is_none(), "out of reach");
+        assert_eq!(looked_at(&world, None, eye, at_bed, 5.0, None, &[]).map(|h| h.1), Some(StructureUse::Sleep));
+        assert!(looked_at(&world, None, eye, Vec3::NEG_Z, 5.0, None, &[]).is_none(), "looking level passes over a 0.6 m bed");
+        assert!(looked_at(&world, None, eye, at_bed, 1.0, None, &[]).is_none(), "out of reach");
 
         // A chest straight ahead with a wall between: the wall is hit first.
         let mut walled = hecs::World::new();
         walled.spawn(built(&reg, "storage_chest", Vec3::new(0.0, 0.0, -4.0), 1));
         let at_chest = (Vec3::new(0.0, 0.4, -4.0) - eye).normalize();
-        assert_eq!(looked_at(&walled, None, eye, at_chest, 6.0, None).map(|h| h.1), Some(StructureUse::Store));
+        assert_eq!(looked_at(&walled, None, eye, at_chest, 6.0, None, &[]).map(|h| h.1), Some(StructureUse::Store));
         walled.spawn(built(&reg, "wood_wall", Vec3::new(0.0, 0.0, -2.0), 2));
-        assert!(looked_at(&walled, None, eye, at_chest, 6.0, None).is_none(), "a wall hides the chest behind it");
+        assert!(looked_at(&walled, None, eye, at_chest, 6.0, None, &[]).is_none(), "a wall hides the chest behind it");
 
         // A bed still going up is not a bed yet.
         let mut scaffold = hecs::World::new();
@@ -511,7 +540,7 @@ mod tests {
             Transform { position: Vec3::new(0.0, 0.0, -2.0), rotation: Quat::IDENTITY, scale: Vec3::new(1.0, 0.6, 2.0) },
             Construction { blueprint_id: "bed".into(), progress: 1.0, build_time: 4.0, builder_key: None },
         ));
-        assert!(looked_at(&scaffold, None, eye, at_bed, 5.0, None).is_none());
+        assert!(looked_at(&scaffold, None, eye, at_bed, 5.0, None, &[]).is_none());
     }
 
     /// Uids are handed out once and kept: a restored uid is never renumbered
@@ -576,11 +605,11 @@ mod tests {
         place(&mut world, &reg, "storage_chest", 2.0, 0.0, 0);
         let chest = world.query::<&Structure>().iter().find(|(e, _)| *e != wall).map(|(e, _)| e).unwrap();
         let eye = Vec3::new(-3.0, 0.5, 0.0);
-        assert_eq!(first_in_view(&world, Some(&reg), eye, Vec3::X, 8.0, None), Some(wall), "a shut door is in the way");
+        assert_eq!(first_in_view(&world, Some(&reg), eye, Vec3::X, 8.0, None, &[]), Some(wall), "a shut door is in the way");
         world.insert_one(wall, DoorOpen).unwrap();
-        assert_eq!(first_in_view(&world, Some(&reg), eye, Vec3::X, 8.0, None), Some(chest), "through the open doorway");
+        assert_eq!(first_in_view(&world, Some(&reg), eye, Vec3::X, 8.0, None, &[]), Some(chest), "through the open doorway");
         let in_gap = Vec3::new(0.0, 1.5, 0.0);
-        assert_eq!(first_in_view(&world, Some(&reg), in_gap, Vec3::NEG_Y, 8.0, None), None, "standing in the open doorway, looking down: not inside the wall");
+        assert_eq!(first_in_view(&world, Some(&reg), in_gap, Vec3::NEG_Y, 8.0, None, &[]), None, "standing in the open doorway, looking down: not inside the wall");
 
         let mut site = hecs::World::new();
         place(&mut site, &reg, "bed", 0.0, 3.0, 0);
@@ -588,7 +617,27 @@ mod tests {
         let tf = placement::placement_pose(bp, Vec3::new(0.0, 0.0, 1.0), 0, &site, &reg, None);
         site.spawn((tf, Construction { blueprint_id: "wood_wall".into(), progress: 1.0, build_time: 4.0, builder_key: None }));
         let at_bed = Vec3::new(0.0, 0.3, 3.0) - Vec3::new(0.0, 1.5, -1.0);
-        assert_eq!(first_in_view(&site, Some(&reg), Vec3::new(0.0, 1.5, -1.0), at_bed, 8.0, None), None, "a scaffold hides the bed behind it");
+        assert_eq!(first_in_view(&site, Some(&reg), Vec3::new(0.0, 1.5, -1.0), at_bed, 8.0, None, &[]), None, "a scaffold hides the bed behind it");
+    }
+
+    /// A HOME WALL HIDES WHAT IS BEHIND IT (2026-09-28). A chest 3 m ahead is
+    /// found, and not with one of the home's walls between; a wall beside the
+    /// ray, or past the chest, does not hide it. Red check, run: making
+    /// `ray_crosses_walls` return false fails the second assertion.
+    #[test]
+    fn a_home_wall_between_the_eye_and_a_chest_hides_it() {
+        let reg = shipped();
+        let mut world = hecs::World::new();
+        place(&mut world, &reg, "storage_chest", 0.0, -3.0, 0);
+        let eye = Vec3::new(0.0, 0.5, 0.0);
+        let wall = |a: (f32, f32), b: (f32, f32)| WallSegment { a, b, half_thickness: 0.1 };
+        assert!(first_in_view(&world, Some(&reg), eye, Vec3::NEG_Z, 8.0, None, &[]).is_some());
+        let between = [wall((-2.0, -1.5), (2.0, -1.5))];
+        assert!(first_in_view(&world, Some(&reg), eye, Vec3::NEG_Z, 8.0, None, &between).is_none(), "the wall hides the chest");
+        let beside = [wall((1.0, -5.0), (1.0, 5.0))];
+        assert!(first_in_view(&world, Some(&reg), eye, Vec3::NEG_Z, 8.0, None, &beside).is_some(), "a wall beside the ray");
+        let past = [wall((-2.0, -6.0), (2.0, -6.0))];
+        assert!(first_in_view(&world, Some(&reg), eye, Vec3::NEG_Z, 8.0, None, &past).is_some(), "a wall past the chest");
     }
 
     /// BACK TO THE WIND (2026-09-28). The same three-walled shelter, open to
@@ -775,7 +824,7 @@ mod tests {
         assert_eq!(shelter_at(&world, feet, None), ShelterCheck::default(), "the home frame has no roof here");
         let eye = Vec3::new(0.0, 1.7, -1.0);
         let at_bed = (Vec3::new(0.0, 0.6, 1.0) - eye).normalize();
-        assert_eq!(looked_at(&world, None, eye, at_bed, 5.0, Some(&site)).map(|h| h.1), Some(StructureUse::Sleep));
-        assert!(looked_at(&world, None, eye, at_bed, 5.0, None).is_none());
+        assert_eq!(looked_at(&world, None, eye, at_bed, 5.0, Some(&site), &[]).map(|h| h.1), Some(StructureUse::Sleep));
+        assert!(looked_at(&world, None, eye, at_bed, 5.0, None, &[]).is_none());
     }
 }

@@ -321,6 +321,11 @@
       "date": "2026-09-28",
       "decision": "Critic review of v0.1399.0..v0.1404.0 (building batch): no crash, trap or loss. Fixed: the look ray now meets doorway and window pieces as their parts and stops at a scaffold in front (first_in_view takes the registry); aboard the wind has no direction (home frame has no compass, vacuum outside); the old free-standing Wood Door and Window blueprints removed (solid slabs that could not open); tests strengthened (window glass segment count, upwind_from sign). Left, documented: the look ray does not stop at the home's own walls aboard; take-down overflow goes to the home's storage even on a planet; take_down itself (despawn and refund) is untested.",
       "why": "Same lesson as 2026-09-26: features built back to back disagree at the seams (here the look ray kept the whole-box model after drawing and collision moved to parts). Each finding was checked against the code before fixing."
+    },
+    {
+      "date": "2026-09-28",
+      "decision": "The look ray (E and F) stops at the home's own walls aboard: uses::ray_crosses_walls tests the ray's horizontal travel against wall_colliders (full-height segments, windows solid) before the piece it found.",
+      "why": "The review's main leftover; with take-down on F it let a player remove a chest or bed in the next room through a wall."
     }
   ],
   "active_scopes_to_avoid": [

@@ -47,3 +47,5 @@ Each line is written the way a player would hear it; the release notes and
   what stands behind it, a roof on the ship no longer reads open to a wind that
   is not there, and the old free-standing door and window pieces (which built
   solid slabs you could not open) are gone.
+- **v0.1406.0: no reaching through walls.** Aboard, E and F no longer reach a
+  chest or a bed in the next room through the home's walls.

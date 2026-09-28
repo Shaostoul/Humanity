@@ -100,7 +100,9 @@ fn target(state: &EngineState) -> Option<(hecs::Entity, uses::StructureUse, Stri
     let world = &state.game_world.world;
     let f = crate::engine::planet_build::player_frame(state)?;
     let registry = state.data_store.get::<BlueprintRegistry>("blueprint_registry");
-    let (e, u) = uses::looked_at(world, registry, f.eye, f.forward, REACH_M, f.site.as_ref())?;
+    // Aboard, the home's own walls hide what is behind them.
+    let walls: &[crate::ship::wall_collision::WallSegment] = if f.site.is_none() { state.wall_colliders.as_slice() } else { &[] };
+    let (e, u) = uses::looked_at(world, registry, f.eye, f.forward, REACH_M, f.site.as_ref(), walls)?;
     let s = world.get::<&Structure>(e).ok()?;
     let name = uses::display_name(&s, registry);
     Some((e, u, name))

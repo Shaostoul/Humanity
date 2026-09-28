@@ -243,8 +243,9 @@ pub(crate) fn take_down_plan(
     eye: Vec3,
     forward: Vec3,
     frame: Option<&PlanetSite>,
+    walls: &[WallSegment],
 ) -> Result<(hecs::Entity, String, Vec<(String, u32)>), String> {
-    let Some(e) = crate::systems::construction::uses::first_in_view(world, registry, eye, forward, TAKE_DOWN_REACH_M, frame) else {
+    let Some(e) = crate::systems::construction::uses::first_in_view(world, registry, eye, forward, TAKE_DOWN_REACH_M, frame, walls) else {
         return Err("Nothing built in reach to take down".to_string());
     };
     let (id, uid) = match world.get::<&Structure>(e) {
@@ -279,6 +280,8 @@ fn take_down(state: &mut EngineState) {
         f.eye,
         f.forward,
         f.site.as_ref(),
+        // Aboard, the home's own walls hide what is behind them.
+        if f.site.is_none() { state.wall_colliders.as_slice() } else { &[] },
     );
     match plan {
         Err(why) => set_placing_note(state, why),
@@ -562,11 +565,11 @@ mod take_down_tests {
         let mut world = hecs::World::new();
         let wall = place(&mut world, &reg, "wood_wall", 0.0, 0.0, 1, 1);
         let eye = Vec3::new(-2.0, 1.5, 0.0);
-        let (e, name, materials) = take_down_plan(&world, &[], Some(&reg), eye, Vec3::X, None).expect("a wall in view");
+        let (e, name, materials) = take_down_plan(&world, &[], Some(&reg), eye, Vec3::X, None, &[]).expect("a wall in view");
         assert_eq!((e, name.as_str()), (wall, "Wood Wall"));
         assert_eq!(materials, vec![("wood_plank_0".to_string(), 6)], "every material comes back");
-        assert!(take_down_plan(&world, &[], Some(&reg), eye, Vec3::NEG_X, None).is_err(), "looking away");
-        assert!(take_down_plan(&world, &[], Some(&reg), Vec3::new(-20.0, 1.5, 0.0), Vec3::X, None).is_err(), "out of reach");
+        assert!(take_down_plan(&world, &[], Some(&reg), eye, Vec3::NEG_X, None, &[]).is_err(), "looking away");
+        assert!(take_down_plan(&world, &[], Some(&reg), Vec3::new(-20.0, 1.5, 0.0), Vec3::X, None, &[]).is_err(), "out of reach");
 
         let mut stores = hecs::World::new();
         let chest = place(&mut stores, &reg, "storage_chest", 0.0, 0.0, 0, 7);
@@ -579,9 +582,9 @@ mod take_down_tests {
             quality: 0,
         }];
         let at_chest = Vec3::new(0.0, 0.5, -2.0);
-        let refused = take_down_plan(&stores, &held, Some(&reg), at_chest, Vec3::Z, None).unwrap_err();
+        let refused = take_down_plan(&stores, &held, Some(&reg), at_chest, Vec3::Z, None, &[]).unwrap_err();
         assert_eq!(refused, "Empty the Storage Chest before taking it down");
-        let (e, _, _) = take_down_plan(&stores, &[], Some(&reg), at_chest, Vec3::Z, None).expect("an empty chest comes down");
+        let (e, _, _) = take_down_plan(&stores, &[], Some(&reg), at_chest, Vec3::Z, None, &[]).expect("an empty chest comes down");
         assert_eq!(e, chest);
     }
 }
