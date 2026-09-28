@@ -307,7 +307,10 @@ All known bugs and their resolution status. Check here BEFORE fixing any bug to 
 
 ## Open Bugs
 
-- **BUG-052** (bottom of this file): Settings VSync OFF panics the app at boot.
+None listed here. BUG-052, the one entry this list carried, was closed on
+2026-09-28 (fixed in v0.1315.0 as BUG-077). Entries marked OPEN, PARTIALLY or
+REOPENED in their headings further down (BUG-079, the one item left in
+BUG-092) are the live ones.
 
 Report bugs at https://github.com/Shaostoul/Humanity/issues
 
@@ -372,7 +375,17 @@ kill legitimate snowfall. Both captured clean on v0.1073.0.
 absence of data must fail SAFE (here: not-near-surface), never default to the
 permissive branch.
 
-## BUG-052: Settings VSync OFF panics the app at boot (OPEN, v0.1073.1)
+## BUG-052: Settings VSync OFF panics the app at boot (FIXED v0.1315.0, as BUG-077; closed 2026-09-28)
+
+**Closed 2026-09-28.** This is the crash BUG-077 found again on 2026-09-18
+and fixed in v0.1315.0: the present-mode change is now recorded by
+`Renderer::set_vsync` and applied at the START of the next frame, before the
+surface texture is acquired (`renderer/surface.rs`,
+`apply_pending_surface_config`), which is the "defer the reconfigure" fix
+this entry proposed. The entry stayed OPEN, and the only item in the Open Bugs
+list, for ten days after the fix and two months after it was filed. Re-proved on v0.1403.0: a probe-rig boot with `vsync: false` in the rig's config.json logged `[Surface] present mode AutoVsync -> AutoNoVsync (applied before the frame)`, entered the world and captured blue-marble-12000km with panics=0 and no "window is in use" line in run.log.
+
+The original report follows.
 
 **Found**: 2026-07-31, by the clouds domain pass's perf agent while trying to lift the
 present-pacing cap off frame-time measurement. Reproduced DETERMINISTICALLY twice on
