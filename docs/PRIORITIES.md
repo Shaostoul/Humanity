@@ -61,16 +61,9 @@ State after the wrap-up (merged ones are removed: the Wi-Fi harm removal,
 saved machine levels and the electroculture findings landed in v0.1394.0;
 the one game clock in v0.1395.0; the ship reactor feed in v0.1396.0; the
 Drying and Fermenting guides, verified, with the jerky recipe loop fixed
-(jerky and dried meat now start from mutton), in v0.1396.1):
+(jerky and dried meat now start from mutton), in v0.1396.1; the HDR scene
+target increments 3 and 4 in VTBD_HDR):
 
-- `a5e6f9189e45ed9b9`: HDR scene target steps 3 and 4. WIP 8df827c1, NOT
-  safe to merge: Rgba16Float target, one dither in present.wgsl, the aurora
-  dither and srgb_dither deleted, band-census.js and GPU tests written;
-  left: re-run `cargo test --release --features native --lib scene_target`
-  (one fix never re-run), the relay check, the A/B and band-census
-  measurements, vantage pins, world-entry boots, docs, and delete
-  scripts/hdr-inc34-wip/ before merge. The rig needs the two DXC DLLs
-  beside the exe or its boot stalls 10+ minutes.
 - `a2932acea7b338a59`: sun cascades. WIP e25375bb: increment 0 (fixtures,
   the station camera pose, five clock-pinned home vantages, sun_shadows
   pin) is done and safe to merge; increment 1 is drafted as text in
@@ -281,6 +274,17 @@ console-face-3 is byte-identical between the old and new builds. `gpu.present`
 measures 0.05 to 0.07 ms at 2560x1387. `tests/scene_format_lint.rs` keeps every
 scene PSO on `scene_format()`. **Next: increment 3** (`scene_format_for` returns
 `Rgba16Float`, clamp flag on), then increment 4, the one dither.
+
+**Increments 3 and 4 built (2026-09-27) and measured (2026-09-28), merged in
+VTBD_HDR: the banding report is CLOSED.** The scene target is `Rgba16Float`,
+and ONE triangular dither in the present pass replaces the aurora's own and
+`srgb_dither`. Same-boot A/B (design doc section 7): the float target moves
+still scenes by at most 2 codes; the dither cuts the mean flat run in the dark
+parts of every banding vantage (aurora-over-land-dark 7.1 to 2.3, night-horizon
+4.8 to 1.8, shore-dawn 2.6 to 1.7) with means and the aurora comb held; about
+0.03 to 0.06 ms at 2560x1387 against an estimate of 0.2 to 0.4. The
+high-frequency gates' 35 vantages pin `present_dither: "0"`. **Next:
+increment 5**, linear radiance behind a runtime `hdr_linear` flag.
 
 ### 3c. The ship's rooms: no bounce light, and the sun shines through shelves (2026-09-27)
 

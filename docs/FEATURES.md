@@ -1406,8 +1406,8 @@ GPU instancing through the per-instance vertex stream at slot 1 (`INSTANCE_STRID
 - Native: `src/renderer/mesh.rs` (instance layout), `src/renderer/mod.rs` (grass instances)
 
 ### Scene Target and Present Pass
-Every scene pass draws into a scene target; one full-screen present pass copies it to the display before egui (HDR scene target increments 1 and 2, 2026-09-27). Off-screen views (camera screens, the hi-res capture) draw into a view-sized scratch and are presented the same way. Today the scene format equals the display format, so the copy is bit-exact; it is the rung the Rgba16Float target, the one dither and the one tonemap build on.
-- Native: `src/renderer/scene_target.rs`, `assets/shaders/present.wgsl`; plan `docs/design/hdr-scene-target.md`; lint `tests/scene_format_lint.rs`
+Every scene pass draws into a scene target; one full-screen present pass copies it to the display before egui (HDR scene target increments 1 and 2, 2026-09-27). Off-screen views (camera screens, the hi-res capture) draw into a view-sized scratch and are presented the same way. The scene target is `Rgba16Float` (increment 3), and the present pass clamps it and adds ONE triangular dither of about one display code before the 8-bit write (increment 4), which ends the banding on dark gradients; black and white stay exact. Showcase keys `scene_format` (display or hdr, a same-boot A/B that rebuilds every scene pipeline) and `present_dither` (0 or 1). The one tonemap (increment 5) is next.
+- Native: `src/renderer/scene_target.rs`, `src/renderer/scene_format_ab.rs`, `assets/shaders/present.wgsl`; tests `src/renderer/scene_target_tests.rs`; plan `docs/design/hdr-scene-target.md`; lint `tests/scene_format_lint.rs`; banding metric `scripts/band-census.js`; A/B plans `scripts/hdr-ab/`
 
 ### Icosphere Planet Terrain
 Recursive subdivision from icosahedron. LOD from billboard to walkable surface.

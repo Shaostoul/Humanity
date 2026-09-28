@@ -5,11 +5,11 @@ build order for replacing the 8-bit scene with a linear `Rgba16Float` target,
 one tonemap and one dither. Line numbers are as of v0.1384.0; re-grep before
 trusting one.
 
-**Status (2026-09-27): increments 1 and 2 are BUILT** (section 6 says what
-landed, where it departs from the plan, and what was measured). Sections 1
-to 3 describe the tree as it was before them; the "Where things stand"
-paragraph is history now: every live scene pass draws into the scene target
-and `render_instanced` is gone. Increment 3 is next.
+**Status (2026-09-28): increments 1 to 4 are BUILT.** Section 6 covers 1
+and 2, section 7 covers 3 and 4 (the float target and the one dither, which
+close the banding report), with what was measured. Sections 1 to 3 describe
+the tree as it was before them; the "Where things stand" paragraph is history
+now. Increment 5 (linear radiance behind a runtime flag) is next.
 
 ## Where things stand
 
@@ -135,3 +135,156 @@ How the table was taken: park once, then capture direct, target, direct, target 
 ### For increment 3
 
 Change `scene_format_for` to `Rgba16Float` and write `flags.x = 1` into the present uniform when the formats differ. The lint then guards every builder; the billboard bake keeps the display format. The A/B switch becomes a logged no-op. Re-measure `gpu.present` (the read doubles to 8 B a pixel) and the passes section 5 names.
+
+## 7. Built: increments 3 and 4 (2026-09-27, measured 2026-09-28)
+
+### What landed
+
+- **Increment 3.** `scene_format_for` returns `Rgba16Float`; the present pass
+  clamps (and scrubs NaN) whenever the scene and output formats differ.
+  `PresentPass::new(device, output_format, scene_format)` writes its own
+  uniform. The billboard bake keeps the display format.
+- **Increment 4.** ONE triangular spatial dither in `assets/shaders/present.wgsl`,
+  exact in code space (encode, add noise, decode), with the amplitude narrowed
+  to `c + 0.4` within 0.6 of a code of either end, so black and white stay
+  exact (the space background is 0 and stays 0). The aurora's own dither
+  (`95-emission-pass.wgsl`) and `srgb_dither` (`30-atmosphere.wgsl`) are
+  deleted.
+- **Showcase keys** for same-boot A/B: `present_dither` (0 or 1) and
+  `scene_format` (display or hdr). The latter rebuilds the scene target, every
+  scene PSO (`renderer/scene_format_ab.rs`) and the star sky
+  (`world_load::build_star_sky`, extracted for it); a rebuild takes 13 to 27 s
+  on the rig. probe-sweep and probe-hot-ab reset `present_dither` to 1 for
+  every cell that does not pin it.
+- **`scripts/band-census.js`**: the mean run of identical codes in the dark
+  part of a capture (checked on synthetic ramps: banded 318, dithered 2.2).
+- **GPU tests** (`src/renderer/scene_target_tests.rs`, all 7 pass): the
+  display arm is byte-exact, the float target presents every code and clamps,
+  and a dark ramp (0 to 0.02 over 8,192 pixels) has no run of one code longer
+  than 64 with every block mean within 0.1 code.
+
+### Measured: increment 3 (the float target alone, dither off)
+
+Same boot, same park, captures display, hdr, display, hdr (plan
+`scripts/hdr-ab/planA.json`, pins `anim_clock 300`, `wind 0`,
+2560x1387). A pixel the switch changed differs at both flips and at neither
+same-arm pair; the "floor" is what two captures of the SAME arm differ by.
+
+| Vantage | same-arm floor | switch pixels | switch max (codes) | over 2 codes |
+| --- | --- | --- | --- | --- |
+| console-face-3 | 0 | 17,156 | 2 | 0 |
+| home-clock-night | 109k | 283,793 | 2 | 0 |
+| space-50000km | 26 | 31,809 | 2 | 0 |
+| ground-snow-gpu | 7.6k | 4,931 | 1 | 0 |
+| sahara-noon-ground | 748k | 480,274 | 3 | 4 |
+| aurora-limb-1200 | 4.3k | 61,275 | 6 | 2 |
+| limb-400km | 280k | 1,620,540 | 5 | 20 |
+| approach-2000km-high | 670k | 513,789 | 7 | 1,342 (1,264 in dark star neighbourhoods) |
+| sunset-over-water | 312k | 904,176 | 21 | 40 (36 star-like) |
+| fuji-forest-ground | 308k | 809,756 | 104 | 9 (3 over 32) |
+
+The plan's bar was "at most 2 codes, anything over 8 on star cores only". Where
+the scene holds still (the console room, the home at night, space, snow) the
+switch moves pixels by 1 or 2 codes and nothing more: the intermediate 8-bit
+rounding is gone. The larger values come from vantages whose floor is hundreds
+of thousands of pixels. At sunset 36 of the 40 sit in dark neighbourhoods (the
+script's star-like test; the largest, 21 codes, is a small cluster near
+(2369, 1020) that reads darker in the float arm, and its cause was not
+isolated). The three Fuji pixels over 32 codes are most likely motion that
+happened to alternate with the arms: with 30 % of the frame moving between two
+captures of one arm, a few such coincidences are expected. Nothing over 8
+codes in any still scene.
+
+### Measured: increment 4 (the one dither), the banding report closed
+
+Same boot, same park, four arms (plan `scripts/hdr-ab/planB.json`):
+`before` is the old build's picture (display target, the aurora's own dither
+patched back in through the hot reload), `inc3` the float target with no dither
+at all, `after` the float target with the present dither, and `before2` a
+repeat of `before` last, whose distance from the first is the same-boot floor.
+`scripts/band-census.js` counts runs of one identical code among the dark
+pixels (brightest channel at most 64, not pure black), along rows and columns:
+the mean run is the band width, `long` the share of dark pixels in a row run of
+16 or more.
+
+| Vantage | before (mean run / long) | inc3 | after |
+| --- | --- | --- | --- |
+| aurora-over-land-dark | 7.1 / 53 % | 7.1 / 53 % | **2.3 / 10 %** |
+| ocean-grazing-calm | 5.6 / 64 % | 5.6 / 64 % | **3.1 / 52 %** |
+| night-horizon | 4.8 / 70 % | 4.7 / 58 % | **1.8 / 27 %** |
+| aurora-polar-1500 | 3.3 / 59 % | 4.4 / 63 % | **1.9 / 12 %** |
+| shore-dawn-0600 | 2.6 / 54 % | 2.7 / 54 % | **1.7 / 9 %** |
+| coast-night-2000 | 2.6 / 54 % | 2.6 / 54 % | **1.7 / 28 %** |
+| aurora-limb-1200 | 2.5 / 50 % | 2.5 / 50 % | **1.7 / 16 %** |
+| desert-night | 2.4 / 42 % | 2.4 / 41 % | **2.0 / 36 %** |
+| orbit-terminator-3000km | 2.2 / 42 % | 2.2 / 42 % | **1.6 / 17 %** |
+| aurora-over-land | 1.9 / 17 % | 4.1 / 36 % | **1.7 / 9 %** |
+| home-clock-dawn | 1.7 / 25 % | 1.7 / 25 % | **1.4 / 16 %** |
+| cloudlum-2000-high | 1.7 / 32 % | 1.7 / 31 % | 1.6 / 30 % |
+
+`before2` matched `before` to within 0.1 of a run everywhere except
+night-horizon (4.8 against 5.2). land-fog and limb-400km are bright daytime
+scenes whose only dark pixels are the HUD (239,456 of them, identical in every
+arm and in both vantages, because egui draws after the present pass): the
+census has nothing to read there, which is the expected answer, not a
+measurement.
+
+Read together: the float target alone (`inc3`) changes little where the
+aurora is absent (night-horizon's long share, 70 to 58 %, is the one real
+move), and makes the aurora vantages WORSE (1.9 to 4.1, 3.3 to 4.4),
+because the branch deleted the aurora's own dither; the present dither then
+beats both. The flat runs that remain after it (desert-night, cloudlum) are
+genuinely flat surfaces at one code, which the census counts before and after
+alike.
+
+**Means held.** Mean brightness per capture moved by at most 0.1 of a code
+between `before` and `after` everywhere the same-boot floor allows a reading
+(night-horizon 2.58 to 2.67 against a floor of 0.04; shore-dawn's own floor is
+1.5 codes, the scene moves). **The aurora comb held** (`scripts/aurora-comb.js`,
+the aurora's own dither against the present dither): 8.5 against 8.7 % at
+aurora-limb-1200, 4.8 against 4.8 at aurora-polar-1500, 2.9 against 2.9 at
+aurora-over-land. The float target does find about 4.6 % more aurora pixels
+over land (153,853 to 161,105 above the script's threshold, mean green 60.1
+to 58.3): faint curtain edges that the 8-bit intermediate rounded away.
+
+**Gate pins.** The vantages of the high-frequency gates (glint-autocorr,
+blackline-census, speckle-census, cloud-speckle-census, cloud-grain-metric,
+terminator-grain: 35 vantages) pin `present_dither: "0"`, with the reason in
+the `_dither_note` at the top of tests/visual/vantages.json; the mean-based
+gates and aurora-comb run dithered.
+
+### Measured: cost
+
+Same boot with `HUMANITY_FRAME_COSTS=1`, same park, 45 s settle per arm
+(plan `scripts/hdr-ab/planC.json`), arms display, hdr, hdr with the
+dither, display, hdr; RTX 4070 at 2560x1387, timestamp queries, ms:
+
+| Pass | space-50000km display / hdr / hdr+dither | fuji-forest-ground | approach-2000km-high |
+| --- | --- | --- | --- |
+| `gpu.present` | 0.067 / 0.093 / 0.094 | 0.055 / 0.072 / 0.075 | 0.055 / 0.070 / 0.074 |
+| `gpu.ssao` | 0.026 / 0.048 / 0.048 | 0.122 / 0.127 / 0.127 | 0.106 / 0.107 / 0.107 |
+| `gpu.stars` | 0.065 / 0.083 / 0.083 | (not drawn) | 0.059 / 0.072 / 0.071 |
+
+Every other pass (`gpu.scene`, `gpu.celestial`, `gpu.celestial_t`,
+`gpu.cloud_composite`, the cloud passes, `gpu.shadow`, `gpu.aurora`) moved by
+no more than its own display-to-display floor (for example `gpu.celestial_t`
+at space read 0.363 and 0.462 in the two display arms). The float target
+costs about 0.02 ms in the present pass (it reads 8 B a pixel instead of 4)
+and 0.01 to 0.02 ms in SSAO and the stars; the dither costs under 0.004 ms.
+**In all, about 0.03 to 0.06 ms at 2560x1387**, against the plan's estimate of
+0.2 to 0.4 ms at 1600x900: the bandwidth estimate in section 5 assumed six
+full-screen layers doubling their traffic, and on this GPU most of them do not
+show it.
+
+### Checked at world entry
+
+panics 0 in every boot: the three A/B plans (27 vantages between them), the
+rig boot at space-50000km, and `photograph-home.js` at 00-overview and
+25b-mushroom-racks. The release build and the relay check are clean.
+
+### Next: increment 5
+
+Linear radiance behind a runtime `hdr_linear` flag, default off (section 4).
+With the target in float, a value above 1 now survives from one pass to the
+next, so the inline tonemaps can move into the present pass one at a time
+behind that flag.

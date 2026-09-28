@@ -2261,3 +2261,24 @@ against new in one boot: the 55 km glint stripe gate did not move (share3 0.083
 against 0.078 to 0.088 on the old shader), sand and ocean from 700 m kept their
 character, and a straight seam across the Bahama Bank shallows (a custom
 `bahamas-bank-shore` camera, 0.6 km) is gone.
+
+## BUG-104: flat rings on every dark gradient (8-bit banding) (FIXED VTBD_HDR)
+
+Reported 2026-09-24 while fixing the aurora: its faint glow drew as nested
+ellipses with crisp outlines. The cause was not the aurora. The scene rendered
+straight into the 8-bit display format, each pass tonemapped in its own shader,
+and nothing dithered before the 8-bit write, so any slow dark gradient (the
+night sky, the atmosphere's limb and twilight falloff, dusk terrain, fog)
+quantised into flat bands one display code apart, which the eye reads as hard
+edges. v0.1331.21 dithered the aurora alone (`srgb_dither`) as a stopgap.
+
+Fixed by the HDR scene target (`docs/design/hdr-scene-target.md`): every pass
+draws into an `Rgba16Float` target (increment 3), and the present pass adds ONE
+triangular dither before the 8-bit write (increment 4), replacing the aurora's
+own and `srgb_dither`. Measured in one boot per vantage (section 7 of the
+design doc): the mean run of one identical code in the dark parts fell at every
+banding vantage (aurora-over-land-dark 7.1 to 2.3 pixels, night-horizon 4.8 to
+1.8, shore-dawn 2.6 to 1.7), the share of dark pixels in long flat runs fell
+from 53 to 10 %, 70 to 27 % and 54 to 9 % there, and the means and the aurora
+comb held. GPU test `the_dither_breaks_every_band_of_a_dark_ramp_and_keeps_the_mean`
+guards the ramp; `scripts/band-census.js` is the measure.

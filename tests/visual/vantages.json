@@ -3,6 +3,7 @@
   "_perf_note": "perf_floor_fps is an advisory lower bound at this vantage on the dev machine (RTX 4070). The perf sweep flags a stop below it; it is a smoke threshold, not a hard gate.",
   "_clock_note": "READ THIS BEFORE PICKING A `time`. The showcase `time` field is a GLOBAL clock, not the local solar hour at the vantage (src/engine/ipc.rs:200-205 feeds it straight into the world clock). The local solar hour is roughly `time + lon/15`. So time 12.0 is local noon only near lon 0; at lon 138.8 (the Fuji vantages) time 12.0 is about 21:15 LOCAL and the frame comes back as a night scene. Pick `time = desired_local_hour - lon/15`, wrapped into 0..24. This trap cost `ground-storm-inslab` its whole purpose from v0.1070 to v0.1073: it was installed as the permanent BUG-049 daylight gate and was silently rendering at night, so every cloud LIGHTING change was being judged in the dark.",
   "_profile_note": "FAR-RUNG CELLS (docs/design/cloud-far-rung.md, the cloud profile, perf increment 4). Showcase `cloud_profile` takes 0 (off, the bit-identical A/B twin), 1 (auto), hard (knob 8), ref (knob 9, the slow reference bake, settle 30 s) or L0..L5 (that level forced on every sample); an unknown value is logged as a warning and leaves the knob at 0, so grep run.log for `cloud_profile: unknown value` after a sweep. `dump_cloud_profile: true` makes probe-sweep.js dump every slice of the profile atlas after the capture(s) into <out>/<id>-profile/ (debug/cloud_profile_*.png moved there, plus dump.json) for scripts/cloud-profile-compare.js. Every far-rung cell pins the cache/eco/res keys explicitly because showcase pins are STICKY across cells. The nadir level in a cell's _note is computed as floor(log2((alt - 6 km) * pix_ang_march) + 2) with pix_ang_march = (1387 / 693) / floor(1387 / cloud_res). `cloud_top_bound` (0 | 1, D3 2026-09-06) is the built-body top-bound dev bit (flags-pad bit 12), independent of `cloud_profile`; every far-rung cell pins it 0 and only the prof-vert-*-fix cells set it 1. The prof-vert-*-ref cells pin cloud_uniform_step 1 / cloud_step_m 60 and every other cell pins them 0 for the same stickiness reason.",
+  "_dither_note": "HDR scene target increment 4 (2026-09-27, docs/design/hdr-scene-target.md) put ONE triangular dither of about one code in the present pass, before the 8-bit write. Metrics that read pixel-to-pixel differences would read that grain instead of the scene, so the vantages of the high-frequency gates (glint-autocorr.mjs, blackline-census.mjs, speckle-census.js, cloud-speckle-census.js, cloud-grain-metric.js, terminator-grain.js) pin {\"present_dither\":\"0\"}; the rigs reset it to on for every cell that does not pin it. Mean-based metrics (aurora-gate.js, night-side-mean.js, measure-sky.mjs, cloud-brightness.js) are unmoved by it and do not pin it. aurora-comb.js is left dithered on purpose: its baselines were taken with the aurora's own dither of the same size, so an undithered aurora would move its baseline instead. Checked 2026-09-28 in one boot, the aurora's own dither against the present dither: comb 8.5 against 8.7 % at aurora-limb-1200, 4.8 against 4.8 at aurora-polar-1500, 2.9 against 2.9 at aurora-over-land.",
   "_wind_note": "READ THIS BEFORE CLAIMING A PIXEL-IDENTITY PROOF AT A VEGETATION VANTAGE. Two boots of the SAME exe at fuji-forest-ground differ in 42 to 44 percent of pixels outside the HUD (mean channel delta 9 to 14) while the sky and bare-ground blocks of the same frames read 0.00: every differing pixel is foliage or its shadow. That is why V1 had to rest its 'the model set did not change' claim on counters and unit tests rather than on a capture (docs/design/frame-cost-arc.md, V1 outcome). TWO showcase pins address it, and they are not interchangeable. (1) `wind`: '<m/s>' | 'auto' pins the wind speed the VEGETATION sees, near-tree sway and grass sway together, at the single publish site in lib.rs (engine::ipc::published_foliage_wind). It makes the sway INPUT deterministic and removes the static lean and the gust travel. A pinned 0 is published as 1e-4 m/s, not 0, because the shader reads speed <= 0 as 'no publisher' and substitutes a 4 m/s breeze - publishing a literal 0 would do the exact opposite of what the pin says. (2) `anim_clock`: '<seconds>' | 'auto' freezes the celestial-pass animation clock (sun_color.w) in BOTH the colour and shadow camera buffers. THIS is the one that actually stops a canopy: the sway keeps a wind-INDEPENDENT breathe term, sway_amp = h * (0.020 + ...), about 0.44 m at the tip of a 22 m fir at 0.9 Hz, and the leaf flutter keeps a floor of clamp(wind_v/6, 0.35, 3), both of them sines of that clock. So `wind` alone CANNOT give two comparable forest frames; the identity recipe is both pins together, and it also freezes the ocean wave phase and cloud advection. NEITHER pin belongs in a normal sweep: fuji-forest-ground's regressions require a visible calm-weather sway ('NO storm-strength lean in calm weather... Crowns sway but stay centred over their bases') and fuji-grass-underfoot's require GRASS MOVES IN WIND and GRASS LAYS OVER FURTHER THAN THE TREES at a stated speed, so pinning wind there would make those gates unfalsifiable - a check that cannot fail is worse than no check. Only silverdale-osm-ground carries `wind: 0`, because its three regressions are road z-fighting, building placement and panics, none of which involve sway, and its forest is the thing that made its two boots incomparable. Pins are STICKY across cells: probe-sweep resets both to auto for every vantage that does not set them.",
   "vantages": [
     {
@@ -32,6 +33,7 @@
       "id": "ocean-grazing-calm",
       "desc": "8 m above a calm sea, grazing angle to the horizon",
       "showcase": {
+        "present_dither": "0",
         "time": "10.7",
         "sea": "0.3"
       },
@@ -374,6 +376,7 @@
         "time": 12.02
       },
       "showcase": {
+        "present_dither": "0",
         "cloud_quality": "high",
         "clouds": "1",
         "cloud_cover": "0.4"
@@ -398,6 +401,7 @@
         "time": 12.02
       },
       "showcase": {
+        "present_dither": "0",
         "cloud_quality": "ultra",
         "clouds": "1",
         "cloud_cover": "0.4"
@@ -1171,6 +1175,7 @@
         "look_offset_deg": 90
       },
       "showcase": {
+        "present_dither": "0",
         "time": "10.7",
         "sea": "1.0",
         "weather": "clear",
@@ -1481,6 +1486,7 @@
       ],
       "perf_floor_fps": 10,
       "showcase": {
+        "present_dither": "0",
         "sea": "0.3",
         "weather": "cloudy",
         "clouds": "1",
@@ -1588,6 +1594,7 @@
       "id": "ocean-storm-glitter",
       "desc": "Sun glitter at STORM sea state. The rig has only ever captured Clear 2 m/s, which is the NARROWEST glitter lobe - that blind spot hid a blowout that only appears in live weather (v0.1168).",
       "showcase": {
+        "present_dither": "0",
         "time": "10.7",
         "sea": "1.0",
         "weather": "clear"
@@ -5681,6 +5688,7 @@
         "panics=0"
       ],
       "showcase": {
+        "present_dither": "0",
         "cloud_quality": "ultra",
         "clouds": "1",
         "cloud_cover": "0.5",
@@ -5716,6 +5724,7 @@
         "panics=0"
       ],
       "showcase": {
+        "present_dither": "0",
         "cloud_quality": "ultra",
         "clouds": "1",
         "cloud_cover": "0.5",
@@ -5751,6 +5760,7 @@
         "panics=0"
       ],
       "showcase": {
+        "present_dither": "0",
         "cloud_quality": "ultra",
         "clouds": "0",
         "cloud_cover": "0.5",
@@ -5787,6 +5797,7 @@
         "panics=0"
       ],
       "showcase": {
+        "present_dither": "0",
         "cloud_quality": "ultra",
         "clouds": "1",
         "cloud_cover": "0.5",
@@ -5822,6 +5833,7 @@
         "panics=0"
       ],
       "showcase": {
+        "present_dither": "0",
         "cloud_quality": "ultra",
         "clouds": "1",
         "cloud_cover": "0.5",
@@ -5857,6 +5869,7 @@
         "panics=0"
       ],
       "showcase": {
+        "present_dither": "0",
         "cloud_quality": "ultra",
         "clouds": "0",
         "cloud_cover": "0.5",
@@ -6912,6 +6925,7 @@
         "look_offset_deg": 0
       },
       "showcase": {
+        "present_dither": "0",
         "cloud_quality": "ultra",
         "clouds": "1",
         "cloud_cover": "0.5",
@@ -6948,6 +6962,7 @@
         "look_offset_deg": 0
       },
       "showcase": {
+        "present_dither": "0",
         "cloud_quality": "ultra",
         "clouds": "1",
         "cloud_cover": "0.5",
@@ -9375,6 +9390,7 @@
         "look_offset_deg": 0
       },
       "showcase": {
+        "present_dither": "0",
         "cloud_quality": "ultra",
         "clouds": "1",
         "cloud_cover": "0.5",
@@ -9411,6 +9427,7 @@
         "look_offset_deg": 0
       },
       "showcase": {
+        "present_dither": "0",
         "cloud_quality": "ultra",
         "clouds": "1",
         "cloud_cover": "0.5",
@@ -9812,6 +9829,7 @@
         "look_offset_deg": 0
       },
       "showcase": {
+        "present_dither": "0",
         "cloud_quality": "high",
         "clouds": "1",
         "cloud_cover": "0.5",
@@ -9847,6 +9865,7 @@
         "look_offset_deg": 0
       },
       "showcase": {
+        "present_dither": "0",
         "cloud_quality": "high",
         "clouds": "1",
         "cloud_cover": "0.5",
@@ -11297,6 +11316,7 @@
         "look_offset_deg": 0
       },
       "showcase": {
+        "present_dither": "0",
         "cloud_quality": "ultra",
         "clouds": "1",
         "cloud_cover": "0.5",
@@ -11331,6 +11351,7 @@
         "time": 12.02
       },
       "showcase": {
+        "present_dither": "0",
         "cloud_quality": "high",
         "clouds": "1",
         "cloud_cover": "0.4",
@@ -11354,6 +11375,7 @@
         "time": 12.02
       },
       "showcase": {
+        "present_dither": "0",
         "cloud_quality": "high",
         "clouds": "1",
         "cloud_cover": "0.4",
@@ -11377,6 +11399,7 @@
         "time": 12.02
       },
       "showcase": {
+        "present_dither": "0",
         "cloud_quality": "high",
         "clouds": "1",
         "cloud_cover": "0.4",
@@ -11400,6 +11423,7 @@
         "time": 12.02
       },
       "showcase": {
+        "present_dither": "0",
         "cloud_quality": "high",
         "clouds": "1",
         "cloud_cover": "0.4",
@@ -11423,6 +11447,7 @@
         "time": 12.02
       },
       "showcase": {
+        "present_dither": "0",
         "cloud_quality": "high",
         "clouds": "1",
         "cloud_cover": "0.4",
@@ -11446,6 +11471,7 @@
         "time": 12.02
       },
       "showcase": {
+        "present_dither": "0",
         "cloud_quality": "high",
         "clouds": "1",
         "cloud_cover": "0.4",
@@ -11869,7 +11895,7 @@
         "panics=0"
       ],
       "camera": {"body":"earth","lat":23,"lon":13,"time":12,"altitude_km":2000,"look_offset_deg":0},
-      "showcase": {"cloud_quality":"low","clouds":"1","cloud_cover":"0.4"},
+      "showcase": {"present_dither":"0","cloud_quality":"low","clouds":"1","cloud_cover":"0.4"},
       "settle_s": 12,
       "hold_altitude": true
     },
@@ -12339,7 +12365,7 @@
         "panics=0"
       ],
       "camera": {"body":"earth","lat":15,"lon":0,"time":18,"altitude_km":3000,"look_offset_deg":0},
-      "showcase": {"cloud_quality":"ultra","clouds":"1","cloud_cover":"0.5","cloud_type":"0.34","weather":"clear","cloud_clock":"120","cloud_light":"1","cloud_body_cache":"1","cloud_step_eco":"1","map_diag":"0","cloud_res":"1","cloud_profile":"1","cloud_top_bound":"0","cloud_uniform_step":"0","cloud_step_m":"0","cloud_ms":"0"},
+      "showcase": {"present_dither":"0","cloud_quality":"ultra","clouds":"1","cloud_cover":"0.5","cloud_type":"0.34","weather":"clear","cloud_clock":"120","cloud_light":"1","cloud_body_cache":"1","cloud_step_eco":"1","map_diag":"0","cloud_res":"1","cloud_profile":"1","cloud_top_bound":"0","cloud_uniform_step":"0","cloud_step_m":"0","cloud_ms":"0"},
       "settle_s": 12,
       "hold_altitude": true
     },
@@ -12351,7 +12377,7 @@
         "panics=0"
       ],
       "camera": {"body":"earth","lat":15,"lon":0,"time":18,"altitude_km":3000,"look_offset_deg":0},
-      "showcase": {"cloud_quality":"ultra","clouds":"1","cloud_cover":"0.5","cloud_type":"0.34","weather":"clear","cloud_clock":"120","cloud_light":"1","cloud_body_cache":"1","cloud_step_eco":"1","map_diag":"0","cloud_res":"1","cloud_profile":"1","cloud_top_bound":"0","cloud_uniform_step":"0","cloud_step_m":"0"},
+      "showcase": {"present_dither":"0","cloud_quality":"ultra","clouds":"1","cloud_cover":"0.5","cloud_type":"0.34","weather":"clear","cloud_clock":"120","cloud_light":"1","cloud_body_cache":"1","cloud_step_eco":"1","map_diag":"0","cloud_res":"1","cloud_profile":"1","cloud_top_bound":"0","cloud_uniform_step":"0","cloud_step_m":"0"},
       "settle_s": 12,
       "hold_altitude": true
     },
@@ -12363,7 +12389,7 @@
         "panics=0"
       ],
       "camera": {"body":"earth","lat":24,"lon":-77,"time":6.5,"altitude_km":3000,"look_offset_deg":55},
-      "showcase": {"clouds":"1","weather":"clear","cloud_clock":"120"},
+      "showcase": {"present_dither":"0","clouds":"1","weather":"clear","cloud_clock":"120"},
       "settle_s": 12,
       "hold_altitude": true
     },
@@ -12375,7 +12401,7 @@
         "panics=0"
       ],
       "camera": {"body":"earth","lat":24,"lon":-77,"time":6.5,"altitude_km":3000,"look_offset_deg":55},
-      "showcase": {"clouds":"1","weather":"clear","cloud_clock":"120","cloud_res":"1"},
+      "showcase": {"present_dither":"0","clouds":"1","weather":"clear","cloud_clock":"120","cloud_res":"1"},
       "settle_s": 14,
       "hold_altitude": true
     },
@@ -12387,7 +12413,7 @@
         "panics=0"
       ],
       "camera": {"body":"earth","lat":24,"lon":-77,"time":6.5,"altitude_km":3000,"look_offset_deg":55},
-      "showcase": {"clouds":"1","weather":"clear","cloud_clock":"120","cloud_res":"2"},
+      "showcase": {"present_dither":"0","clouds":"1","weather":"clear","cloud_clock":"120","cloud_res":"2"},
       "settle_s": 14,
       "hold_altitude": true
     },
@@ -12399,7 +12425,7 @@
         "panics=0"
       ],
       "camera": {"body":"earth","lat":24,"lon":-77,"time":6.5,"altitude_km":3000,"look_offset_deg":55},
-      "showcase": {"clouds":"1","weather":"clear","cloud_clock":"120","cloud_res":"2","cloud_dither":"0"},
+      "showcase": {"present_dither":"0","clouds":"1","weather":"clear","cloud_clock":"120","cloud_res":"2","cloud_dither":"0"},
       "settle_s": 14,
       "hold_altitude": true
     },
@@ -12627,7 +12653,7 @@
         "panics=0"
       ],
       "camera": {"body":"earth","lat":20,"lon":150,"time":12.0,"altitude_km":150,"look_offset_deg":0},
-      "showcase": {"clouds":"0","weather":"clear"},
+      "showcase": {"present_dither":"0","clouds":"0","weather":"clear"},
       "settle_s": 10,
       "hold_altitude": true
     },
@@ -12711,7 +12737,7 @@
         "panics=0"
       ],
       "camera": {"body":"earth","lat":0,"lon":150,"time":12.0,"altitude_km":55,"look_offset_deg":0},
-      "showcase": {"clouds":"1","weather":"clear","cloud_cover":"0.8","cloud_type":"0.67","cloud_clock":"120","cloud_no_cell":"0","cloud_no_puff":"0"},
+      "showcase": {"present_dither":"0","clouds":"1","weather":"clear","cloud_cover":"0.8","cloud_type":"0.67","cloud_clock":"120","cloud_no_cell":"0","cloud_no_puff":"0"},
       "settle_s": 12,
       "hold_altitude": true
     },
@@ -12975,7 +13001,7 @@
         "panics=0"
       ],
       "camera": {"body":"earth","lat":15,"lon":0,"time":18,"altitude_km":3000,"look_offset_deg":0},
-      "showcase": {"cloud_quality":"high","clouds":"1","cloud_cover":"0.5","cloud_type":"0.34","weather":"clear","cloud_clock":"120","cloud_profile":"0","cloud_ms":"1","cloud_ms_gain":"1.8","cloud_step_eco":"1"},
+      "showcase": {"present_dither":"0","cloud_quality":"high","clouds":"1","cloud_cover":"0.5","cloud_type":"0.34","weather":"clear","cloud_clock":"120","cloud_profile":"0","cloud_ms":"1","cloud_ms_gain":"1.8","cloud_step_eco":"1"},
       "settle_s": 12,
       "hold_altitude": true
     },
