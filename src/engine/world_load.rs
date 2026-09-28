@@ -62,6 +62,35 @@ pub(crate) fn place_avatar(
     state.placeholder_objects.push((hm, hmat, base + Vec3::new(0.0, head_cy, 0.0)));
 }
 
+/// Build the star sky NOW, synchronously, with the CURRENT settings and in
+/// the renderer's current scene format. World entries after the first use it
+/// (character switch, tier change), and so does the HDR scene target's A/B
+/// switch (showcase `scene_format`, engine/ipc.rs), because the sky's
+/// pipelines are built for the format the scene target had when it was made.
+pub(crate) fn build_star_sky(state: &mut EngineState) {
+    let star_tier_cap = crate::renderer::stars::StarCatalogTier::resolve_cap(
+        &state.gui_state.settings.star_catalog_tier,
+    );
+    let star_catalog =
+        crate::renderer::stars::StarCatalog::load(&state.data_dir, star_tier_cap);
+    state.star_renderer = star_catalog.as_ref().and_then(|catalog| {
+        crate::renderer::stars::StarRenderer::new(
+            &state.renderer.device,
+            &state.renderer.queue,
+            state.renderer.scene_format(),
+            catalog,
+            &state.data_dir,
+            // Ultra Milky Way glow tier (2026-07-11): built here with the
+            // rest of the sky, so a tier change applies next world entry
+            // (same convention as the star catalog tiers). Also gated by the
+            // star-tier cap so the dev fast path (cap < 2) ALSO drops the
+            // heavy Ultra glow texture, per the operator's "the mega skybox
+            // thing AND the other versions".
+            state.gui_state.settings.sky_glow_tier == "ultra" && star_tier_cap >= 2,
+        )
+    });
+}
+
 pub(crate) fn load_world(state: &mut EngineState) {
     log::info!("Loading 3D world...");
     let load_start = Instant::now();
@@ -916,27 +945,7 @@ pub(crate) fn load_world(state: &mut EngineState) {
     } else {
         // Later entries (character switch / tier change): synchronous
         // rebuild with the CURRENT settings, exactly as before.
-        let star_tier_cap = crate::renderer::stars::StarCatalogTier::resolve_cap(
-            &state.gui_state.settings.star_catalog_tier,
-        );
-        let star_catalog =
-            crate::renderer::stars::StarCatalog::load(&state.data_dir, star_tier_cap);
-        state.star_renderer = star_catalog.as_ref().and_then(|catalog| {
-            crate::renderer::stars::StarRenderer::new(
-                &state.renderer.device,
-                &state.renderer.queue,
-                state.renderer.scene_format(),
-                catalog,
-                &state.data_dir,
-                // Ultra Milky Way glow tier (2026-07-11): built here with the
-                // rest of the sky, so a tier change applies next world entry
-                // (same convention as the star catalog tiers). Also gated by the
-                // star-tier cap so the dev fast path (cap < 2) ALSO drops the
-                // heavy Ultra glow texture, per the operator's "the mega skybox
-                // thing AND the other versions".
-                state.gui_state.settings.sky_glow_tier == "ultra" && star_tier_cap >= 2,
-            )
-        });
+        build_star_sky(state);
     }
     state.boot_timer.since("star_catalog_and_glow", t_sky);
 

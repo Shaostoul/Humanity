@@ -106,9 +106,10 @@ pub mod room_probes_gpu;
 /// v0.1319 - see the file's header for why this cluster.
 pub mod scene_draw;
 /// The scene target every scene pass draws into, and the present pass that
-/// copies it to the display (HDR scene target increments 1 and 2,
-/// 2026-09-27; docs/design/hdr-scene-target.md).
+/// copies it to the display (HDR scene target increments 1 to 4,
+/// 2026-09-27; docs/design/hdr-scene-target.md), and its dev A/B switch.
 pub mod scene_target;
+pub mod scene_format_ab;
 pub mod shader_loader;
 /// Which material types can DISCARD in the sun shadow pass, and the test that
 /// keeps that answer equal to the shader's (v0.1108).
@@ -1203,7 +1204,7 @@ impl Renderer {
         // scene pipeline below is built for `scene_format`, never for the
         // display's `surface_format`: tests/scene_format_lint.rs holds that.
         let scene_format = scene_target::scene_format_for(surface_format);
-        let present_pass = scene_target::PresentPass::new(&device, surface_format);
+        let present_pass = scene_target::PresentPass::new(&device, surface_format, scene_format);
         let scene = scene_target::SceneTarget::new(&device, &present_pass, width, height, scene_format);
         let t_unit = std::time::Instant::now();
         let bloom_pass = bloom::BloomPass::new(&device, width, height, scene_format);

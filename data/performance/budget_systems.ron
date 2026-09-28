@@ -180,8 +180,9 @@
         category: "gpu",
         // gpu.present: the full-screen pass that copies the scene target into
         // the window before the interface draws (renderer/scene_target.rs,
-        // HDR scene target increment 1, 2026-09-27). A plain copy today; the
-        // one dither and the one tonemap land here in later increments.
+        // HDR scene target increment 1, 2026-09-27). Since increments 3 and 4
+        // it reads the Rgba16Float target, clamps and applies the one dither;
+        // the one tonemap lands here at increment 5.
         sources: ["gpu.present"],
         locked: true,
         base_frac: 0.01,

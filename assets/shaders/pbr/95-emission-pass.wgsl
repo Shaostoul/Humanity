@@ -138,9 +138,13 @@ fn fs_emission_pass(in: CloudScreenVsOut) -> @location(0) vec4<f32> {
     // A SHOULDER, NOT A CLIP (operator, 2026-09-24: "the harsh edges for the
     // different shades of green/orange look weird"). 1 - exp(-x) is linear for
     // faint light and rolls a bright fold off smoothly toward white-green
-    // instead of clipping one channel while the others keep rising. Dithered
-    // because this lands on an 8-bit sRGB target (see srgb_dither).
-    let au = srgb_dither(vec3<f32>(1.0) - exp(-au_raw), in.pos.xy);
+    // instead of clipping one channel while the others keep rising.
+    // NOT DITHERED HERE any more (HDR scene target, increment 4, 2026-09-27):
+    // this lands in the Rgba16Float scene target, which does not quantise,
+    // and the one dither sits in the present pass before the 8-bit write
+    // (assets/shaders/present.wgsl), where it sees the final value rather than
+    // the aurora's share of it. The shoulder goes with the linear increment.
+    let au = vec3<f32>(1.0) - exp(-au_raw);
     // ADDITIVE (the pipeline blends One/One on colour and leaves alpha alone).
     return vec4<f32>(au, 0.0);
 }

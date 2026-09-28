@@ -1,5 +1,5 @@
-//! THE SCENE TARGET and THE PRESENT PASS (HDR scene target, increments 1
-//! and 2; the plan of record is docs/design/hdr-scene-target.md).
+//! THE SCENE TARGET and THE PRESENT PASS (HDR scene target; the plan of
+//! record is docs/design/hdr-scene-target.md).
 //!
 //! WHAT CHANGED. Until 2026-09-27 every scene pass drew straight into the
 //! display target: the swapchain for the live frame, a camera screen's
@@ -10,16 +10,16 @@
 //! copies it into the display target at the end; egui draws after that, on
 //! the display target, and is never touched by any of this.
 //!
-//! WHY IT IS BIT-EXACT TODAY. [`scene_format_for`] returns the display format
-//! itself, so the scene target has the same format as the thing it is copied
-//! into, every pass draws and blends into it exactly as it drew into the
-//! display before, and the present shader (assets/shaders/present.wgsl) is a
-//! `textureLoad` of the pixel's own texel written back with no blend, alpha
-//! included. The GPU test below proves the copy is byte-exact for every code
-//! of every channel, in all four 8-bit formats a surface can pick, and that a
-//! blended draw through the target equals the same draw straight into the
-//! display. Increment 3 changes ONE line, `scene_format_for`, to
-//! `Rgba16Float`; the shaders stay untouched and the present pass clamps.
+//! THE INCREMENTS, AS BUILT.
+//! 1 and 2: the target in the display format and a bit-exact passthrough
+//!    (proved on the GPU, and by a byte-identical 3840x2160 capture).
+//! 3: [`scene_format_for`] returns `Rgba16Float`. The shaders are untouched,
+//!    so they write the same values, but every blend now happens at float
+//!    precision and the scene is quantised ONCE, at the present, instead of
+//!    after every pass. The present clamps to 0..1 first (an 8-bit target
+//!    clamped every write; a float one keeps additive sums above 1).
+//! 4: the ONE dither, in the present pass, before the 8-bit write
+//!    (assets/shaders/present.wgsl `dither`). The aurora's own dither is gone.
 //!
 //! THE RULES THIS FILE CARRIES:
 //! * Every scene pipeline is built for [`Renderer::scene_format`], never for
@@ -36,29 +36,50 @@
 //!   kept for the camera screens (the same size again in 100 ms), dropped
 //!   after a one-off screenshot (a 7680 x 4320 scratch must not linger).
 //!
-//! THE A/B SWITCH. `Renderer::present_direct` (the rig's showcase key
-//! `present_direct`) draws the scene straight into the display target again,
-//! the pre-2026-09-27 path, so a same-boot A/B can prove the target changes
-//! no pixel and can read what the present pass costs. It only acts while the
-//! scene and display formats are equal; from increment 3 on it is ignored
-//! (logged), because a scene pipeline cannot draw into another format.
+//! THE A/B SWITCHES (dev, the rig's showcase keys; delete at increment 6):
+//! * `scene_format` ("display" or "hdr", renderer/scene_format_ab.rs):
+//!   rebuilds the scene target and every scene pipeline in the display
+//!   format (increments 1 and 2) or in Rgba16Float, so increment 3 can be
+//!   measured in one boot at one park.
+//! * `present_direct` draws the scene straight into the display target, the
+//!   pre-2026-09-27 path. It only acts while the scene and display formats
+//!   are equal (a scene pipeline cannot draw into another format), so from
+//!   increment 3 on it needs `scene_format: display` first.
+//! * `present_dither` ("0" off, "1" on, the default): the high-frequency
+//!   gates pin it off so they read the scene, not the dither.
 
 use super::{frame_costs, Renderer};
 use bytemuck::{Pod, Zeroable};
+use wgpu::util::DeviceExt;
 
-/// The format the scene is drawn in, given the display's format. THE line
-/// increment 3 changes (to `Rgba16Float`). Everything that builds a scene
-/// pipeline asks `Renderer::scene_format`, which is this at init.
-pub fn scene_format_for(display: wgpu::TextureFormat) -> wgpu::TextureFormat {
-    display
+/// The format the scene is drawn in, given the display's format. Increment
+/// 3 (2026-09-27): always `Rgba16Float`, a blendable, filterable core format
+/// (so `Limits::default()` is enough), 8 bytes a pixel. The display format
+/// is taken so the signature did not change from increments 1 and 2, when
+/// this returned it; the A/B switch still can (`scene_format_ab.rs`).
+pub fn scene_format_for(_display: wgpu::TextureFormat) -> wgpu::TextureFormat {
+    wgpu::TextureFormat::Rgba16Float
+}
+
+/// How many codes the present's write quantises to, which is what the
+/// dither is scaled by: 255 for the 8-bit formats a surface picks, 1023 for
+/// 10-bit, 0 (no dither) for a float output, which does not quantise.
+pub fn dither_levels(output: wgpu::TextureFormat) -> f32 {
+    use wgpu::TextureFormat as F;
+    match output {
+        F::Rgba8Unorm | F::Rgba8UnormSrgb | F::Bgra8Unorm | F::Bgra8UnormSrgb => 255.0,
+        F::Rgb10a2Unorm => 1023.0,
+        _ => 0.0,
+    }
 }
 
 /// The present pass's uniform (binding 1). See present.wgsl for the lanes.
 #[repr(C)]
-#[derive(Clone, Copy, Pod, Zeroable)]
-struct PresentParams {
-    /// x: clamp rgba to 0..1 (1) or not (0). y, z, w: reserved.
-    flags: [f32; 4],
+#[derive(Clone, Copy, Pod, Zeroable, Debug, PartialEq)]
+pub(super) struct PresentParams {
+    /// x: clamp to 0..1. y: dither levels (0 = off). z: output encodes sRGB.
+    /// w: reserved for the tonemap.
+    pub(super) flags: [f32; 4],
 }
 
 /// A colour target the scene is drawn into, with its own present bind group
@@ -119,12 +140,19 @@ pub struct PresentPass {
     pipeline: wgpu::RenderPipeline,
     params: wgpu::Buffer,
     output_format: wgpu::TextureFormat,
+    /// The format of the scene targets this pass reads (all of one frame's
+    /// targets share it): the clamp is on exactly when it is not the output.
+    scene_format: wgpu::TextureFormat,
+    /// The one dither (increment 4). On by default; the showcase key
+    /// `present_dither` turns it off for the high-frequency gates.
+    dither: bool,
 }
 
 impl PresentPass {
     /// Build the pass for display targets in `output_format` (the swapchain's
-    /// format: camera screens and hi-res capture targets use it too).
-    pub fn new(device: &wgpu::Device, output_format: wgpu::TextureFormat) -> Self {
+    /// format: camera screens and hi-res capture targets use it too), reading
+    /// scene targets in `scene_format`. The dither starts on.
+    pub fn new(device: &wgpu::Device, output_format: wgpu::TextureFormat, scene_format: wgpu::TextureFormat) -> Self {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Present Shader"),
             source: wgpu::ShaderSource::Wgsl(include_str!("../../assets/shaders/present.wgsl").into()),
@@ -133,8 +161,8 @@ impl PresentPass {
             label: Some("Present BGL"),
             entries: &[
                 // The scene target, read with textureLoad (no sampler). Not
-                // filterable, so any float format can bind here, including
-                // the Rgba16Float of increment 3.
+                // filterable, so any float format can bind here, the
+                // Rgba16Float of increment 3 included.
                 wgpu::BindGroupLayoutEntry {
                     binding: 0,
                     visibility: wgpu::ShaderStages::FRAGMENT,
@@ -157,12 +185,11 @@ impl PresentPass {
                 },
             ],
         });
-        // Zero-initialised by wgpu: flags (0, 0, 0, 0), the passthrough.
-        let params = device.create_buffer(&wgpu::BufferDescriptor {
+        let flags = present_flags(output_format, scene_format, true);
+        let params = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Present Params"),
-            size: std::mem::size_of::<PresentParams>() as u64,
+            contents: bytemuck::bytes_of(&flags),
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-            mapped_at_creation: false,
         });
         let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("Present Pipeline Layout"),
@@ -196,12 +223,34 @@ impl PresentPass {
             multiview: None,
             cache: None,
         });
-        Self { bind_group_layout, pipeline, params, output_format }
+        Self { bind_group_layout, pipeline, params, output_format, scene_format, dither: true }
     }
 
     /// The display format this pass writes.
     pub fn output_format(&self) -> wgpu::TextureFormat {
         self.output_format
+    }
+
+    /// Whether the one dither is on.
+    pub fn dither(&self) -> bool {
+        self.dither
+    }
+
+    /// Turn the dither on or off (the showcase key `present_dither`).
+    pub fn set_dither(&mut self, queue: &wgpu::Queue, on: bool) {
+        self.dither = on;
+        self.upload(queue);
+    }
+
+    /// Read scene targets in `scene_format` from now on (the A/B switch).
+    pub(super) fn set_scene_format(&mut self, queue: &wgpu::Queue, scene_format: wgpu::TextureFormat) {
+        self.scene_format = scene_format;
+        self.upload(queue);
+    }
+
+    fn upload(&self, queue: &wgpu::Queue) {
+        let flags = present_flags(self.output_format, self.scene_format, self.dither);
+        queue.write_buffer(&self.params, 0, bytemuck::bytes_of(&flags));
     }
 
     /// THE ONE `create_bind_group` site for the present layout. Every scene
@@ -245,13 +294,28 @@ impl PresentPass {
     }
 }
 
+/// The present uniform for an output format, a scene format and the dither
+/// switch. The clamp is on whenever the formats differ: a scene target in
+/// the output's own format holds nothing outside 0..1 (that is the
+/// increments 1 and 2 path, which must stay bit-exact), a float one can.
+pub(super) fn present_flags(
+    output: wgpu::TextureFormat,
+    scene: wgpu::TextureFormat,
+    dither: bool,
+) -> PresentParams {
+    let clamp = if scene == output { 0.0 } else { 1.0 };
+    let levels = if dither { dither_levels(output) } else { 0.0 };
+    let srgb = if output.is_srgb() { 1.0 } else { 0.0 };
+    PresentParams { flags: [clamp, levels, srgb, 0.0] }
+}
+
 /// The off-screen views' scratch target and whether a view is being drawn.
 /// Exactly one view is in flight at a time (`render_view_onto` is not
 /// re-entrant), so one spare is the whole cache; two camera screens of
 /// different sizes alternate re-creating it, the same trade `ViewDepth` made.
 #[derive(Default)]
 pub(super) struct ViewScene {
-    spare: Option<SceneTarget>,
+    pub(super) spare: Option<SceneTarget>,
     state: ViewSceneState,
 }
 
@@ -268,9 +332,20 @@ enum ViewSceneState {
 
 impl Renderer {
     /// The format every scene pipeline is built for and the scene target is
-    /// allocated in. Equal to the display format until increment 3.
+    /// allocated in: `Rgba16Float` since increment 3 (the display format
+    /// under the `scene_format: display` A/B arm).
     pub fn scene_format(&self) -> wgpu::TextureFormat {
         self.scene.format()
+    }
+
+    /// Whether the one dither is on (showcase `present_dither`).
+    pub fn present_dither(&self) -> bool {
+        self.present.dither()
+    }
+
+    /// Turn the one dither on or off (showcase `present_dither`).
+    pub fn set_present_dither(&mut self, on: bool) {
+        self.present.set_dither(&self.queue, on);
     }
 
     /// Whether the A/B switch is in force: asked for, and possible (the
@@ -370,253 +445,5 @@ impl Renderer {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    /// The present shader is compiled at renderer init, so a WGSL error would
-    /// make the app unbootable while every static check stays green (the
-    /// v0.782 class). Parse and validate it here, as ssao.rs does its own.
-    #[test]
-    fn present_shader_parses_and_validates() {
-        let src = include_str!("../../assets/shaders/present.wgsl");
-        let module = wgpu::naga::front::wgsl::parse_str(src)
-            .unwrap_or_else(|e| panic!("present.wgsl failed to parse: {e}"));
-        let mut validator = wgpu::naga::valid::Validator::new(
-            wgpu::naga::valid::ValidationFlags::all(),
-            wgpu::naga::valid::Capabilities::all(),
-        );
-        validator
-            .validate(&module)
-            .unwrap_or_else(|e| panic!("present.wgsl failed naga validation: {e:?}"));
-        let entries: Vec<&str> = module.entry_points.iter().map(|e| e.name.as_str()).collect();
-        assert_eq!(entries, vec!["vs_main", "fs_main"]);
-    }
-
-    /// Until increment 3 the scene is drawn in the display format itself;
-    /// that equality is what makes increments 1 and 2 bit-exact.
-    #[test]
-    fn scene_format_is_the_display_format_until_increment_3() {
-        for f in [
-            wgpu::TextureFormat::Bgra8UnormSrgb,
-            wgpu::TextureFormat::Rgba8UnormSrgb,
-            wgpu::TextureFormat::Bgra8Unorm,
-            wgpu::TextureFormat::Rgba8Unorm,
-        ] {
-            assert_eq!(scene_format_for(f), f);
-        }
-    }
-
-    /// THE BIT-EXACT PROOF, on a real device (skips with a note without an
-    /// adapter; the relay build has no `pollster`, so native only).
-    ///
-    /// Two halves, for each 8-bit format a surface can pick:
-    /// 1. Round trip: upload known bytes into a scene target, present it into
-    ///    a display texture, read that back. Every channel takes all 256
-    ///    codes across a row, alpha included, so a lossy sRGB decode and
-    ///    re-encode, a half-texel offset or a dropped alpha all fail here.
-    /// 2. The architecture: draw an alpha-blended gradient over a cleared
-    ///    colour into a scene target and present it, and draw the same thing
-    ///    straight into a display texture; the two must match byte for byte.
-    ///    That is the claim increments 1 and 2 rest on, made on the GPU.
-    #[cfg(feature = "native")]
-    #[test]
-    fn present_pass_is_byte_exact_on_a_real_device() {
-        let instance = wgpu::Instance::default();
-        let Some(adapter) = pollster::block_on(instance.request_adapter(&Default::default())) else {
-            println!("no GPU adapter; skipping the present-pass round trip");
-            return;
-        };
-        let (device, queue) = pollster::block_on(adapter.request_device(
-            &wgpu::DeviceDescriptor { label: Some("present pass test"), ..Default::default() },
-            None,
-        ))
-        .expect("device");
-        // Not square and not a power of two in height, so a transposed or
-        // offset read cannot pass by symmetry. 256 wide = 1024 bytes a row,
-        // already a multiple of the 256-byte copy alignment.
-        let (w, h) = (256u32, 83u32);
-        for format in [
-            wgpu::TextureFormat::Bgra8UnormSrgb,
-            wgpu::TextureFormat::Rgba8UnormSrgb,
-            wgpu::TextureFormat::Bgra8Unorm,
-            wgpu::TextureFormat::Rgba8Unorm,
-        ] {
-            let present = PresentPass::new(&device, format);
-            let scene = SceneTarget::new(&device, &present, w, h, scene_format_for(format));
-
-            // 1. Round trip of every code.
-            let mut bytes = vec![0u8; (w * h * 4) as usize];
-            for y in 0..h {
-                for x in 0..w {
-                    let i = ((y * w + x) * 4) as usize;
-                    // Each channel is a bijection of x for a fixed y (odd
-                    // multipliers and xor), so every row holds all 256 codes
-                    // in every channel.
-                    bytes[i] = x as u8;
-                    bytes[i + 1] = (x * 5 + y) as u8;
-                    bytes[i + 2] = (x as u8) ^ ((y * 7) as u8);
-                    bytes[i + 3] = (x * 3 + y * 11) as u8;
-                }
-            }
-            queue.write_texture(
-                wgpu::TexelCopyTextureInfo {
-                    texture: &scene.texture,
-                    mip_level: 0,
-                    origin: wgpu::Origin3d::ZERO,
-                    aspect: wgpu::TextureAspect::All,
-                },
-                &bytes,
-                wgpu::TexelCopyBufferLayout { offset: 0, bytes_per_row: Some(w * 4), rows_per_image: Some(h) },
-                wgpu::Extent3d { width: w, height: h, depth_or_array_layers: 1 },
-            );
-            let out = display_texture(&device, w, h, format);
-            let mut enc = device.create_command_encoder(&Default::default());
-            present.encode(&mut enc, &scene, &out.create_view(&Default::default()), None);
-            queue.submit(std::iter::once(enc.finish()));
-            let back = read_back(&device, &queue, &out, w, h);
-            let first_bad = bytes.iter().zip(&back).position(|(a, b)| a != b);
-            assert!(
-                first_bad.is_none(),
-                "{format:?}: the present pass changed byte {} (pixel {}, channel {}): {} -> {}",
-                first_bad.unwrap(),
-                first_bad.unwrap() / 4,
-                first_bad.unwrap() % 4,
-                bytes[first_bad.unwrap()],
-                back[first_bad.unwrap()]
-            );
-
-            // 2. A blended draw through the target equals the same draw direct.
-            let gradient = gradient_pipeline(&device, format);
-            let direct = display_texture(&device, w, h, format);
-            for view in [scene.view().clone(), direct.create_view(&Default::default())] {
-                let mut enc = device.create_command_encoder(&Default::default());
-                {
-                    let mut pass = enc.begin_render_pass(&wgpu::RenderPassDescriptor {
-                        label: Some("gradient"),
-                        color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                            view: &view,
-                            resolve_target: None,
-                            ops: wgpu::Operations {
-                                load: wgpu::LoadOp::Clear(wgpu::Color { r: 0.02, g: 0.3, b: 0.7, a: 1.0 }),
-                                store: wgpu::StoreOp::Store,
-                            },
-                        })],
-                        depth_stencil_attachment: None,
-                        timestamp_writes: None,
-                        occlusion_query_set: None,
-                    });
-                    pass.set_pipeline(&gradient);
-                    pass.draw(0..3, 0..1);
-                }
-                queue.submit(std::iter::once(enc.finish()));
-            }
-            let presented = display_texture(&device, w, h, format);
-            let mut enc = device.create_command_encoder(&Default::default());
-            present.encode(&mut enc, &scene, &presented.create_view(&Default::default()), None);
-            queue.submit(std::iter::once(enc.finish()));
-            let a = read_back(&device, &queue, &presented, w, h);
-            let b = read_back(&device, &queue, &direct, w, h);
-            let diffs = a.iter().zip(&b).filter(|(x, y)| x != y).count();
-            assert_eq!(diffs, 0, "{format:?}: drawing through the scene target differs from drawing direct in {diffs} bytes");
-            // And the gradient really drew (a blank frame would pass the
-            // comparison above without proving anything).
-            let distinct: std::collections::BTreeSet<u8> = a.iter().step_by(4).copied().collect();
-            assert!(distinct.len() > 100, "{format:?}: the gradient drew only {} distinct codes", distinct.len());
-        }
-    }
-
-    #[cfg(feature = "native")]
-    fn display_texture(device: &wgpu::Device, w: u32, h: u32, format: wgpu::TextureFormat) -> wgpu::Texture {
-        device.create_texture(&wgpu::TextureDescriptor {
-            label: Some("present test display"),
-            size: wgpu::Extent3d { width: w, height: h, depth_or_array_layers: 1 },
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format,
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
-            view_formats: &[],
-        })
-    }
-
-    #[cfg(feature = "native")]
-    fn read_back(device: &wgpu::Device, queue: &wgpu::Queue, tex: &wgpu::Texture, w: u32, h: u32) -> Vec<u8> {
-        let buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("present test readback"),
-            size: (w * h * 4) as u64,
-            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
-            mapped_at_creation: false,
-        });
-        let mut enc = device.create_command_encoder(&Default::default());
-        enc.copy_texture_to_buffer(
-            wgpu::TexelCopyTextureInfo {
-                texture: tex,
-                mip_level: 0,
-                origin: wgpu::Origin3d::ZERO,
-                aspect: wgpu::TextureAspect::All,
-            },
-            wgpu::TexelCopyBufferInfo {
-                buffer: &buffer,
-                layout: wgpu::TexelCopyBufferLayout { offset: 0, bytes_per_row: Some(w * 4), rows_per_image: Some(h) },
-            },
-            wgpu::Extent3d { width: w, height: h, depth_or_array_layers: 1 },
-        );
-        queue.submit(std::iter::once(enc.finish()));
-        let slice = buffer.slice(..);
-        slice.map_async(wgpu::MapMode::Read, |_| {});
-        let _ = device.poll(wgpu::Maintain::Wait);
-        let out = slice.get_mapped_range().to_vec();
-        buffer.unmap();
-        out
-    }
-
-    /// A full-screen gradient with a varying alpha, drawn with ordinary
-    /// alpha blending: the blend the scene's transparent passes use.
-    #[cfg(feature = "native")]
-    fn gradient_pipeline(device: &wgpu::Device, format: wgpu::TextureFormat) -> wgpu::RenderPipeline {
-        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("present test gradient"),
-            source: wgpu::ShaderSource::Wgsl(
-                "@vertex fn vs(@builtin(vertex_index) vi: u32) -> @builtin(position) vec4<f32> {
-                    return vec4<f32>(f32((vi << 1u) & 2u) * 2.0 - 1.0, f32(vi & 2u) * 2.0 - 1.0, 0.0, 1.0);
-                }
-                @fragment fn fs(@builtin(position) p: vec4<f32>) -> @location(0) vec4<f32> {
-                    let u = p.x / 256.0;
-                    let v = p.y / 83.0;
-                    return vec4<f32>(u, v, fract(u * 7.0 + v), 0.25 + 0.7 * fract(u * 3.0 - v));
-                }"
-                .into(),
-            ),
-        });
-        let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: None,
-            bind_group_layouts: &[],
-            push_constant_ranges: &[],
-        });
-        device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("present test gradient"),
-            layout: Some(&layout),
-            vertex: wgpu::VertexState {
-                module: &shader,
-                entry_point: Some("vs"),
-                buffers: &[],
-                compilation_options: Default::default(),
-            },
-            fragment: Some(wgpu::FragmentState {
-                module: &shader,
-                entry_point: Some("fs"),
-                targets: &[Some(wgpu::ColorTargetState {
-                    format,
-                    blend: Some(wgpu::BlendState::ALPHA_BLENDING),
-                    write_mask: wgpu::ColorWrites::ALL,
-                })],
-                compilation_options: Default::default(),
-            }),
-            primitive: wgpu::PrimitiveState::default(),
-            depth_stencil: None,
-            multisample: wgpu::MultisampleState::default(),
-            multiview: None,
-            cache: None,
-        })
-    }
-}
+#[path = "scene_target_tests.rs"]
+mod tests;

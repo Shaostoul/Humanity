@@ -16,7 +16,7 @@
 //
 // plan = { pins: {showcase pins applied to every vantage},
 //          vantages: ["id from tests/visual/vantages.json" | {id, camera, showcase, settle_s, hold_altitude}],
-//          arms: [{name, patches: [{file, find, replace, count?}], showcase?: {pins for this arm only}}],
+//          arms: [{name, patches: [{file, find, replace, count?}], showcase?: {pins for this arm only}, settle_s?}],
 //          shot?: {width, height}, same_park?: true }
 // An arm's `showcase` is merged LAST, so it wins over the plan and vantage
 // pins: it is how an arm flips a runtime switch instead of a shader (the
@@ -30,7 +30,10 @@
 // percent of pixels (a re-park never lands exactly where the last one did),
 // which drowns a bit-exact claim; consecutive captures of one park differ
 // only where the scene itself moves. In this mode an arm's showcase is sent
-// on its own, so every arm must set its switch explicitly (it persists).
+// on its own, so every arm must set its switch explicitly (it persists),
+// and `settle_s` (default 2.5) is how long to wait after it before the
+// capture: the frame-cost EMA needs a few seconds of frames at the new
+// setting, so a cost A/B asks for about 8.
 // Every arm starts from the ORIGINAL file text captured at start, applies its
 // patches (each `find` must occur exactly `count` (default 1) times, or the
 // arm is refused: a patch that silently did not apply is the classic null
@@ -135,7 +138,7 @@ async function capture(v, arm, armShowcase) {
 
 async function park(v, armShowcase) {
   const sc = Object.assign(
-    { map_diag: "0", cloud_top_bound: "0", cloud_uniform_step: "0", cloud_step_m: "0", wind: "auto", anim_clock: "auto", aurora: "1" },
+    { map_diag: "0", cloud_top_bound: "0", cloud_uniform_step: "0", cloud_step_m: "0", wind: "auto", anim_clock: "auto", aurora: "1", present_dither: "1" },
     plan.pins || {},
     v.showcase || {},
     armShowcase || {}
@@ -188,7 +191,9 @@ async function shoot(v, arm) {
           try {
             await applyAndReload(texts[i], arm.name);
             if (arm.showcase) req("showcase_request.json", arm.showcase);
-            await sleep(2500); // the switch lands; the frame-cost EMA settles
+            // The switch lands and the frame-cost EMA settles; an arm whose
+            // switch rebuilds pipelines (scene_format) asks for longer.
+            await sleep((arm.settle_s ?? 2.5) * 1000);
             await shoot(v, arm.name);
             results.push({ arm: arm.name, id: v.id, ok: true });
           } catch (e) {

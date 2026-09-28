@@ -749,32 +749,9 @@ fn aurora_emission(ro: vec3<f32>, rd: vec3<f32>, t0: f32, t1: f32, rp: f32, pix_
     return total;
 }
 
-// ── DITHER BEFORE AN 8-BIT WRITE (operator, 2026-09-24) ──
-//
-// The scene renders straight into the 8-bit sRGB surface format with no
-// dither anywhere in the path. A slow, dark gradient therefore quantises
-// into flat rings one display level apart, and the eye reads each ring as a
-// hard edge: the aurora's diffuse glow spans only three or four levels, so
-// it drew as nested ellipses with crisp outlines (proven by rendering it
-// alone at full strength, where the rings multiply into a contour map).
-//
-// Triangular-distribution noise of plus or minus one step, the standard
-// choice: it removes the banding without leaving the noise level visibly
-// tied to the signal. One value for all three channels so it adds no colour
-// speckle. The step is one 8-bit sRGB code converted to LINEAR at this
-// value, because the blend happens in linear and the encode is what
-// quantises. The encode 1.055 * v^(1/2.4) has slope 0.4396 * v^-0.5833, so
-// one code (1/255) is v^0.5833 / 112.1 in linear, floored at the linear toe.
-//
-// The real fix is an HDR scene target with one tonemap and one dither at
-// the end; this covers the surface the operator reported until then.
-fn srgb_dither(v: vec3<f32>, pix: vec2<f32>) -> vec3<f32> {
-    let p = vec2<u32>(max(pix, vec2<f32>(0.0)));
-    let n = pcg2d_hash(p + vec2<u32>(0x2C1Bu, 0x7F4Du))
-        + pcg2d_hash(p + vec2<u32>(0x91E3u, 0x0A57u)) - 1.0;
-    let step = pow(max(v, vec3<f32>(0.0031308)), vec3<f32>(0.5833)) / 112.1;
-    return max(v + n * step, vec3<f32>(0.0));
-}
+// (The aurora's srgb_dither lived here from 2026-09-24 until increment 4 of
+// the HDR scene target, 2026-09-27, which put the ONE dither in the present
+// pass, assets/shaders/present.wgsl, before the 8-bit write.)
 
 fn atmosphere_scattering(world_position: vec3<f32>, front_facing: bool, pix: vec2<f32>) -> vec4<f32> {
     // Shell center + radius recovered from the object transform: the shell

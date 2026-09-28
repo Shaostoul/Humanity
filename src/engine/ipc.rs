@@ -667,12 +667,59 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
     if let Some(t) = grab("cloud_dither") {
         state.gui_state.cloud_dev_dither_off = t == "0";
     }
+    // {"scene_format":"display"|"hdr"}: the HDR scene target's increment-3
+    // A/B switch (renderer/scene_format_ab.rs). "display" rebuilds the scene
+    // target and every scene pipeline in the display's 8-bit format (the
+    // increments 1 and 2 path, where every pass quantised its own write);
+    // "hdr" (the default) rebuilds them in Rgba16Float. The star sky is
+    // built for the old format, so it is rebuilt here too, and a sky still
+    // being built by the boot thread for the old format is dropped (the
+    // next world entry builds one synchronously). Blocks this frame for the
+    // megashader compile; the rig waits.
+    if let Some(t) = grab("scene_format") {
+        let t = t.trim().to_ascii_lowercase();
+        let hdr = match t.as_str() {
+            "hdr" | "float" | "1" => Some(true),
+            "display" | "8bit" | "0" => Some(false),
+            // An unknown value must be LOUD (an A/B arm that silently ran the
+            // other arm is a gate that cannot fail).
+            other => {
+                log::warn!("[showcase] scene_format: unknown value {other:?} (want display|hdr), unchanged");
+                None
+            }
+        };
+        if let Some(hdr) = hdr {
+            if state.renderer.switch_scene_format(hdr) {
+                state.star_preload_rx = None;
+                if state.world_loaded {
+                    crate::engine::world_load::build_star_sky(state);
+                }
+            }
+            log::info!("Showcase: scene_format -> {:?}", state.renderer.scene_format());
+        }
+    }
+    // {"present_dither":"0"} turns off the one dither in the present pass
+    // (HDR scene target, increment 4); "1" (the default) turns it back on.
+    // The high-frequency gates (grain, speckle, comb, glint autocorrelation,
+    // the pure-black census) pin it off so they read the scene, not the
+    // dither; the rig resets it to "1" on every cell that does not pin it.
+    if let Some(t) = grab("present_dither") {
+        let t = t.trim();
+        let on = t != "0";
+        if on && t != "1" {
+            log::warn!("[showcase] present_dither: unknown value {t:?} (want 0|1), dither stays on");
+        }
+        state.renderer.set_present_dither(on);
+        log::info!("Showcase: present_dither -> {}", state.renderer.present_dither());
+    }
     // {"present_direct":"1"} draws the scene straight into the display (the
     // pre-2026-09-27 path, no scene target, no present pass); "0" restores
-    // the default. The HDR scene target's same-boot A/B switch: it proves the
-    // target changes no pixel and reads what the present pass costs
-    // (renderer/scene_target.rs). The renderer ignores it once the scene
-    // format differs from the display's (increment 3), and says so here.
+    // the default. The HDR scene target's same-boot A/B switch of
+    // increments 1 and 2: it proves the target changes no pixel and reads
+    // what the present pass costs (renderer/scene_target.rs). It needs the
+    // scene format to be the display's, which since increment 3 means
+    // {"scene_format":"display"} first; otherwise it is ignored, and the log
+    // says so here.
     if let Some(t) = grab("present_direct") {
         state.renderer.present_direct = t == "1";
         let live = state.renderer.scene_format() == state.renderer.surface_format(); // display-format: the switch needs the formats equal

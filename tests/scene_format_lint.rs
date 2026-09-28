@@ -3,13 +3,13 @@
 //!
 //! The scene is drawn into a scene target whose format is
 //! `Renderer::scene_format()`, and a present pass copies it into the display
-//! (the swapchain). Today the two formats are equal, so a scene pipeline
-//! built for the DISPLAY format by mistake still works, and nothing would
-//! notice. Increment 3 makes the scene target `Rgba16Float`; from then on such
+//! (the swapchain). In increments 1 and 2 the two formats were equal, so a
+//! scene pipeline built for the DISPLAY format by mistake still worked and
+//! nothing would have noticed; the lint was written then, while the mistake
+//! was harmless. Since increment 3 the scene target is `Rgba16Float`, and such
 //! a pipeline fails wgpu validation the first time it draws, which is a
 //! world-entry panic (the v0.1029 and v0.782 incident classes: every static
-//! check green, the app dead on boot). This lint makes the mistake visible
-//! now, while it is still harmless.
+//! check green, the app dead on boot).
 //!
 //! Three checks:
 //! 1. Every call to a scene-pipeline builder passes a `scene_format`
@@ -233,9 +233,8 @@ fn scene_pso_builders_take_the_scene_format() {
         "\n\nA SCENE PIPELINE IS BUILT FOR THE WRONG FORMAT:\n{}\n\n\
          Scene pipelines draw into the scene target, whose format is \
          `Renderer::scene_format()` (`scene_target::scene_format_for` at init). \
-         Today it equals the display format, so this works by accident; from \
-         increment 3 of docs/design/hdr-scene-target.md it is Rgba16Float and a \
-         pipeline built for the display format fails validation at world entry.\n",
+         Since increment 3 of docs/design/hdr-scene-target.md it is Rgba16Float, \
+         so a pipeline built for the display format fails validation at world entry.\n",
         problems.join("\n")
     );
 }

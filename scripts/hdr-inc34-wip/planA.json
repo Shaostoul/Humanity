@@ -1,0 +1,53 @@
+{
+ "pins": {
+  "anim_clock": "300",
+  "wind": "0"
+ },
+ "same_park": true,
+ "vantages": [
+  "console-face-3",
+  "home-clock-night",
+  "space-50000km",
+  "sahara-noon-ground",
+  "limb-400km",
+  "sunset-over-water",
+  "ground-snow-gpu",
+  "fuji-forest-ground",
+  "approach-2000km-high",
+  "aurora-limb-1200"
+ ],
+ "arms": [
+  {
+   "name": "d1",
+   "showcase": {
+    "scene_format": "display",
+    "present_dither": "0"
+   },
+   "settle_s": 4
+  },
+  {
+   "name": "h1",
+   "showcase": {
+    "scene_format": "hdr",
+    "present_dither": "0"
+   },
+   "settle_s": 4
+  },
+  {
+   "name": "d2",
+   "showcase": {
+    "scene_format": "display",
+    "present_dither": "0"
+   },
+   "settle_s": 4
+  },
+  {
+   "name": "h2",
+   "showcase": {
+    "scene_format": "hdr",
+    "present_dither": "0"
+   },
+   "settle_s": 4
+  }
+ ]
+}

@@ -1,0 +1,71 @@
+{
+ "pins": {
+  "anim_clock": "300",
+  "wind": "0"
+ },
+ "same_park": true,
+ "vantages": [
+  "aurora-limb-1200",
+  "aurora-polar-1500",
+  "limb-400km",
+  "orbit-terminator-3000km",
+  "desert-night",
+  "land-fog",
+  "night-horizon",
+  "shore-dawn-0600",
+  "home-clock-dawn",
+  "coast-night-2000",
+  "aurora-over-land",
+  "aurora-over-land-dark",
+  "ocean-grazing-calm",
+  "cloudlum-2000-high"
+ ],
+ "arms": [
+  {
+   "name": "before",
+   "patches": [
+    {
+     "file": "assets/shaders/pbr/95-emission-pass.wgsl",
+     "find": "    let au = vec3<f32>(1.0) - exp(-au_raw);",
+     "replace": "    let au0 = vec3<f32>(1.0) - exp(-au_raw);\n    let dp = vec2<u32>(max(in.pos.xy, vec2<f32>(0.0)));\n    let dn = pcg2d_hash(dp + vec2<u32>(0x2C1Bu, 0x7F4Du)) + pcg2d_hash(dp + vec2<u32>(0x91E3u, 0x0A57u)) - 1.0;\n    let au = max(au0 + dn * (pow(max(au0, vec3<f32>(0.0031308)), vec3<f32>(0.5833)) / 112.1), vec3<f32>(0.0));"
+    }
+   ],
+   "showcase": {
+    "scene_format": "display",
+    "present_dither": "0"
+   },
+   "settle_s": 4
+  },
+  {
+   "name": "inc3",
+   "showcase": {
+    "scene_format": "hdr",
+    "present_dither": "0"
+   },
+   "settle_s": 4
+  },
+  {
+   "name": "after",
+   "showcase": {
+    "scene_format": "hdr",
+    "present_dither": "1"
+   },
+   "settle_s": 4
+  },
+  {
+   "name": "before2",
+   "patches": [
+    {
+     "file": "assets/shaders/pbr/95-emission-pass.wgsl",
+     "find": "    let au = vec3<f32>(1.0) - exp(-au_raw);",
+     "replace": "    let au0 = vec3<f32>(1.0) - exp(-au_raw);\n    let dp = vec2<u32>(max(in.pos.xy, vec2<f32>(0.0)));\n    let dn = pcg2d_hash(dp + vec2<u32>(0x2C1Bu, 0x7F4Du)) + pcg2d_hash(dp + vec2<u32>(0x91E3u, 0x0A57u)) - 1.0;\n    let au = max(au0 + dn * (pow(max(au0, vec3<f32>(0.0031308)), vec3<f32>(0.5833)) / 112.1), vec3<f32>(0.0));"
+    }
+   ],
+   "showcase": {
+    "scene_format": "display",
+    "present_dither": "0"
+   },
+   "settle_s": 4
+  }
+ ]
+}

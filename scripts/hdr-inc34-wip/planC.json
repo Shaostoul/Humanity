@@ -1,0 +1,54 @@
+{
+ "pins": {
+  "anim_clock": "300",
+  "wind": "0"
+ },
+ "same_park": true,
+ "vantages": [
+  "space-50000km",
+  "fuji-forest-ground",
+  "approach-2000km-high"
+ ],
+ "arms": [
+  {
+   "name": "d1",
+   "showcase": {
+    "scene_format": "display",
+    "present_dither": "0"
+   },
+   "settle_s": 45
+  },
+  {
+   "name": "h1",
+   "showcase": {
+    "scene_format": "hdr",
+    "present_dither": "0"
+   },
+   "settle_s": 45
+  },
+  {
+   "name": "hd",
+   "showcase": {
+    "scene_format": "hdr",
+    "present_dither": "1"
+   },
+   "settle_s": 15
+  },
+  {
+   "name": "d2",
+   "showcase": {
+    "scene_format": "display",
+    "present_dither": "0"
+   },
+   "settle_s": 45
+  },
+  {
+   "name": "h2",
+   "showcase": {
+    "scene_format": "hdr",
+    "present_dither": "0"
+   },
+   "settle_s": 45
+  }
+ ]
+}
