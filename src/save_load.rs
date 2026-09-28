@@ -213,6 +213,10 @@ pub fn extract_world_save(world: &hecs::World) -> WorldSave {
         .iter()
         .next()
         .map(|(_e, d)| d.clone());
+    // What the home's machines hold (2026-09-27): each bank's charge, each
+    // tank's litres, each vessel's contents, with any saved contents still
+    // held for world entry (engine::machine_levels).
+    save.machine_levels = crate::engine::machine_levels::levels(world);
     save
 }
 
@@ -426,6 +430,11 @@ pub fn apply_save_to_world(world: &mut hecs::World, save: &WorldSave) {
             world.spawn((Drone { home, ..d.clone() },));
         }
     }
+    // What the home's machines hold (2026-09-27): onto the machines by
+    // instance id now, and a vessel's contents held until world entry spawns
+    // the vessel (the menu-mode machines carry none). Not advanced by the
+    // time away: a bank, a tank and a drum come back as saved.
+    crate::engine::machine_levels::restore(world, &save.machine_levels);
 }
 
 /// A NEW player's starting kit: `starting_items` in data/world/player.ron
@@ -1994,6 +2003,178 @@ mod tests {
         assert_eq!(crate::systems::livestock::pending_herd(&data), Some(vec![("chicken#0".to_string(), 100.0)]));
         assert_eq!(crate::systems::mining::standing_order(&data), save.mining_order, "the order is the player's own setting");
         assert!(crate::systems::crafting::away::take(&data).is_none(), "nothing handed to the machines");
+    }
+
+    /// The machine catalog the game ships (data/machines/home.ron).
+    fn shipped_home() -> crate::machines::MachineHome {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("machines").join("home.ron");
+        crate::machines::MachineHome::load(&path).expect("home.ron parses")
+    }
+
+    fn shipped_containers() -> crate::systems::inventory::containers::ContainerRegistry {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("containers");
+        crate::systems::inventory::containers::ContainerRegistry::from_bytes(
+            &std::fs::read(root.join("types.csv")).unwrap(),
+            &std::fs::read(root.join("content_classes.ron")).unwrap(),
+        )
+        .unwrap()
+    }
+
+    /// Spawn the home's battery bank, water tank, backup genset (with its
+    /// fuel drum) and grain silo the way the game does: in menu mode (no
+    /// container registry, so no vessels) or at world entry (with it).
+    fn spawn_machines(
+        world: &mut hecs::World,
+        home: &crate::machines::MachineHome,
+        containers: Option<&crate::systems::inventory::containers::ContainerRegistry>,
+    ) {
+        let empty = std::collections::HashMap::new();
+        for (id, machine) in
+            [("bank_0", "battery_bank"), ("tank_0", "water_tank"), ("genset_0", "generator_portable"), ("silo_0", "grain_silo")]
+        {
+            let inst = crate::machines::MachineInstance {
+                id: id.to_string(),
+                machine: machine.to_string(),
+                room: "room-plant".to_string(),
+                offset: (0.0, 0.0, 0.0),
+                rotation: 0.0,
+                zone: "home".to_string(),
+                screen_source: None,
+            };
+            crate::engine::home_spawn::spawn_home_machine_entity(world, &inst, &home.catalog[machine], &empty, &empty, None, containers);
+        }
+    }
+
+    /// (charge as a share of the bank, litres as a share of the tank).
+    fn bank_and_tank(world: &hecs::World) -> (f32, f32) {
+        use crate::ecs::components::{Battery, WaterTank};
+        let b: Vec<f32> = world.query::<&Battery>().iter().map(|(_, b)| b.charge_wh / b.capacity_wh).collect();
+        let t: Vec<f32> = world.query::<&WaterTank>().iter().map(|(_, t)| t.liters / t.capacity_l).collect();
+        assert_eq!((b.len(), t.len()), (1, 1), "one bank, one tank");
+        (b[0], t[0])
+    }
+
+    fn set_bank_and_tank(world: &mut hecs::World, charge: f32, water: f32) {
+        for (_e, b) in world.query_mut::<&mut crate::ecs::components::Battery>() {
+            b.charge_wh = b.capacity_wh * charge;
+        }
+        for (_e, t) in world.query_mut::<&mut crate::ecs::components::WaterTank>() {
+            t.liters = t.capacity_l * water;
+        }
+    }
+
+    /// A battery bank's charge and a water tank's litres survive a save
+    /// through JSON and a restore onto the next launch's fresh spawn, which
+    /// starts both at half (2026-09-27: nothing saved them, so every restart
+    /// undid the night's discharge or the day's charge). Re-applying lands in
+    /// the same place, and a return an hour later with offline progression on
+    /// finds them as saved: neither moves on by the time away
+    /// (docs/design/offline-progression.md). Seen red by not calling
+    /// `machine_levels::restore` in `apply_save_to_world` (both came back at
+    /// the spawn half); the offline half pins the decision.
+    #[test]
+    fn a_banks_charge_and_a_tanks_litres_survive_a_save() {
+        let home = shipped_home();
+        let mut world = hecs::World::new();
+        spawn_machines(&mut world, &home, None);
+        assert_eq!(bank_and_tank(&world), (0.5, 0.5), "the spawn levels");
+        set_bank_and_tank(&mut world, 0.85, 0.2);
+        let mut save = extract_world_save(&world);
+        save.timestamp = now_secs() - 3600;
+        let save: WorldSave = serde_json::from_str(&serde_json::to_string(&save).unwrap()).unwrap();
+
+        let mut fresh = hecs::World::new();
+        spawn_machines(&mut fresh, &home, None);
+        apply_save_to_world(&mut fresh, &save);
+        apply_save_to_world(&mut fresh, &save);
+        assert_eq!(bank_and_tank(&fresh), (0.85, 0.2), "the bank and the tank as saved");
+
+        let mut data = crate::hot_reload::data_store::DataStore::new();
+        data.insert("auto_mine_order", std::sync::Mutex::new(Option::<(String, Vec<(String, u32)>)>::None));
+        crate::systems::crafting::register(&mut data);
+        crate::systems::livestock::register(&mut data);
+        let r = resume_home(&mut fresh, &data, &save, true, None);
+        assert!(r.away_secs >= 3600.0, "an hour away counted: {}", r.away_secs);
+        assert_eq!(bank_and_tank(&fresh), (0.85, 0.2), "not advanced by the time away");
+    }
+
+    /// What a vessel holds (the genset's fuel drum, with what it remembers)
+    /// survives a save, and since the menu-mode machines the save lands on
+    /// carry no vessel, it waits for world entry: a save written before then
+    /// still has it, and world entry puts it in the new drum, with the bank's
+    /// charge carried across the respawn too (2026-09-27: every vessel came
+    /// back empty, which destroyed what was stored in it, and world entry
+    /// reset every bank to half). Seen red with `machine_levels::levels`
+    /// leaving out the held contents (the save written in the menu had no
+    /// drum, so the fuel was lost at the next restart).
+    #[test]
+    fn a_vessels_contents_survive_a_save_and_wait_for_world_entry() {
+        use crate::ecs::components::{HomeMachine, MachineInstanceId};
+        use crate::engine::machine_levels::{self, HeldMachineLevels};
+        use crate::systems::inventory::containers::Container;
+        let (home, reg) = (shipped_home(), shipped_containers());
+        let mut world = hecs::World::new();
+        spawn_machines(&mut world, &home, Some(&reg));
+        let mut drum = None;
+        for (_e, (id, c)) in world.query_mut::<(&MachineInstanceId, &mut Container)>() {
+            if id.0 == "genset_0" {
+                c.current_content_item = Some("fuel_refined_0".into());
+                c.current_qty = 20;
+                c.used_liters = 20.0;
+                c.last_content = Some("fuel_refined_0".into());
+                c.toxic_from = Some("fuel_refined_0".into());
+                drum = Some(c.clone());
+            }
+        }
+        let drum = drum.expect("the genset has its drum");
+        let save: WorldSave = serde_json::from_str(&serde_json::to_string(&extract_world_save(&world)).unwrap()).unwrap();
+
+        // The next launch: menu-mode machines, no vessels, take the save.
+        let mut fresh = hecs::World::new();
+        spawn_machines(&mut fresh, &home, None);
+        apply_save_to_world(&mut fresh, &save);
+        assert_eq!(fresh.query::<&Container>().iter().count(), 0, "no vessels in the menu");
+        let vessel_in = |s: &WorldSave| s.machine_levels.iter().find(|l| l.id == "genset_0").and_then(|l| l.vessel.clone());
+        assert_eq!(vessel_in(&extract_world_save(&fresh)), Some(drum.clone()), "a save before world entry keeps it");
+        set_bank_and_tank(&mut fresh, 0.3, 0.6);
+
+        // World entry, as load_world does it: take, respawn, put back.
+        let carried = machine_levels::take_all(&mut fresh);
+        let old: Vec<hecs::Entity> = fresh.query::<&HomeMachine>().iter().map(|(e, _)| e).collect();
+        for e in old {
+            let _ = fresh.despawn(e);
+        }
+        spawn_machines(&mut fresh, &home, Some(&reg));
+        assert!(machine_levels::apply(&mut fresh, &carried).is_empty(), "every level found its machine");
+        let vessels: Vec<(String, Container)> =
+            fresh.query::<(&MachineInstanceId, &Container)>().iter().map(|(_, (id, c))| (id.0.clone(), c.clone())).collect();
+        let genset = vessels.iter().find(|(id, _)| id == "genset_0").map(|(_, c)| c.clone());
+        assert_eq!(genset, Some(drum), "the fuel is back in its drum");
+        let silo = vessels.iter().find(|(id, _)| id == "silo_0").map(|(_, c)| c.clone()).unwrap();
+        assert!(silo.is_empty(), "the silo held nothing and holds nothing");
+        assert_eq!(bank_and_tank(&fresh), (0.3, 0.6), "carried across the respawn");
+        assert_eq!(fresh.query::<&HeldMachineLevels>().iter().count(), 0, "nothing left waiting");
+    }
+
+    /// A save from before the field (no `machine_levels`) still loads, and
+    /// every machine keeps its spawn level. Seen red by removing
+    /// `#[serde(default)]` from `WorldSave::machine_levels` (the older save
+    /// then failed to parse).
+    #[test]
+    fn a_save_without_machine_levels_keeps_the_spawn_levels() {
+        let home = shipped_home();
+        let mut world = hecs::World::new();
+        spawn_machines(&mut world, &home, None);
+        set_bank_and_tank(&mut world, 0.9, 0.1);
+        let mut old = serde_json::to_value(extract_world_save(&world)).unwrap();
+        assert!(old.as_object_mut().unwrap().remove("machine_levels").is_some(), "the save wrote it");
+        let save: WorldSave = serde_json::from_value(old).unwrap();
+        assert!(save.machine_levels.is_empty());
+        let mut fresh = hecs::World::new();
+        spawn_machines(&mut fresh, &home, None);
+        apply_save_to_world(&mut fresh, &save);
+        assert_eq!(bank_and_tank(&fresh), (0.5, 0.5), "the spawn levels");
+        assert_eq!(fresh.query::<&crate::engine::machine_levels::HeldMachineLevels>().iter().count(), 0);
     }
 
     #[test]
