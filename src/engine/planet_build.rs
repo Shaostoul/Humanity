@@ -349,7 +349,7 @@ pub(crate) fn player_at_site(
 /// One piece to draw this frame: its transform in its frame, its drawn scale
 /// (a scaffold is shorter), the frame, and how it looks.
 struct Piece<'a> {
-    tf: &'a Transform,
+    tf: Transform,
     scale: Vec3,
     site: Option<&'a PlanetSite>,
     material: usize,
@@ -387,7 +387,7 @@ fn route<'a>(pieces: impl Iterator<Item = Piece<'a>>, body_frame: Option<&BodyFr
             continue;
         };
         let Some(bf) = body_frame.filter(|f| f.body == site.body) else { continue };
-        let (position, rotation) = site.render_pose(p.tf, bf.render_off, bf.rot);
+        let (position, rotation) = site.render_pose(&p.tf, bf.render_off, bf.rot);
         let centre = position + rotation * Vec3::new(0.0, p.scale.y * 0.5, 0.0);
         if (centre - cam).length() - p.scale.length() * 0.5 > DRAW_RANGE_M {
             continue;
@@ -425,9 +425,11 @@ pub(crate) fn push_render_objects(
         let wood = state.renderer.add_material_typed([0.48, 0.33, 0.20, 1.0], 0.0, 0.8, 0.0);
         let stone = state.renderer.add_material_typed([0.55, 0.55, 0.58, 1.0], 0.05, 0.9, 0.0);
         let metal = state.renderer.add_material_typed([0.45, 0.30, 0.25, 1.0], 0.6, 0.45, 0.0);
-        state.structure_mats = Some([scaffold, wood, stone, metal]);
+        // A door leaf is darker wood, so a shut door reads against its wall (2026-09-28).
+        let door = state.renderer.add_material_typed([0.30, 0.19, 0.11, 1.0], 0.0, 0.75, 0.0); // theme-exempt: world material, not UI
+        state.structure_mats = Some([scaffold, wood, stone, metal, door]);
     }
-    let (Some(unit_box), Some([scaffold_mat, wood_mat, stone_mat, metal_mat])) = (state.structure_mesh, state.structure_mats) else {
+    let (Some(unit_box), Some([scaffold_mat, wood_mat, stone_mat, metal_mat, door_mat])) = (state.structure_mesh, state.structure_mats) else {
         return;
     };
     let body_frame = state.planet_body_frame.take();
@@ -441,19 +443,30 @@ pub(crate) fn push_render_objects(
     };
     let world = &state.game_world.world;
     let mut scaffolds = world.query::<(&Construction, &Transform, Option<&PlanetSite>)>();
-    let mut finished = world.query::<(&Structure, &Transform, Option<&PlanetSite>)>();
+    let mut finished = world.query::<(&Structure, &Transform, Option<&PlanetSite>, Option<&crate::systems::construction::DoorOpen>)>();
     // A scaffold rises from 15% to full height with progress.
     let rising = scaffolds.iter().map(|(_e, (c, tf, site))| {
         let frac = (c.progress / c.build_time.max(0.01)).clamp(0.0, 1.0) * 0.85 + 0.15;
-        Piece { tf, scale: Vec3::new(tf.scale.x, tf.scale.y * frac, tf.scale.z), site, material: scaffold_mat, fade: 0.0, ghost: false }
+        Piece { tf: tf.clone(), scale: Vec3::new(tf.scale.x, tf.scale.y * frac, tf.scale.z), site, material: scaffold_mat, fade: 0.0, ghost: false }
     });
-    let standing = finished
-        .iter()
-        .map(|(_e, (s, tf, site))| Piece { tf, scale: tf.scale, site, material: mat_for(&s.blueprint_id), fade: 0.0, ghost: false });
+    // A wall with a door in it is drawn as its parts (`doorway::parts`), the
+    // same boxes that block the walk.
+    let standing = finished.iter().flat_map(|(_e, (s, tf, site, open))| {
+        let material = mat_for(&s.blueprint_id);
+        let door = registry.and_then(|r| r.get(&s.blueprint_id)).and_then(|bp| bp.doorway);
+        let parts: Vec<(Transform, usize)> = match door {
+            Some(d) => crate::systems::construction::doorway::parts(tf, &d, open.is_some())
+                .into_iter()
+                .map(|(p, kind)| (p, if kind == crate::systems::construction::doorway::Part::Leaf { door_mat } else { material }))
+                .collect(),
+            None => vec![(tf.clone(), material)],
+        };
+        parts.into_iter().map(move |(p, material)| Piece { scale: p.scale, tf: p, site, material, fade: 0.0, ghost: false })
+    });
     // The piece in hand (engine/build_place.rs): a half-dithered scaffold where it would go.
     let in_hand = state.gui_state.build_placing.as_ref().and_then(|p| {
         let g = p.ghost.as_ref()?;
-        Some(Piece { tf: g, scale: g.scale, site: p.site.as_ref(), material: scaffold_mat, fade: 0.5, ghost: true })
+        Some(Piece { tf: g.clone(), scale: g.scale, site: p.site.as_ref(), material: scaffold_mat, fade: 0.5, ghost: true })
     });
     let drawn = route(rising.chain(standing).chain(in_hand), body_frame.as_ref(), state.camera.position, unit_box);
     home.extend(drawn.home);
@@ -621,12 +634,19 @@ pub(crate) fn dev_stand(state: &mut EngineState, spec: &str, at: Option<&str>) -
 /// (a site reaches 1 km), so the round trip through f32 costs well under a
 /// millimetre, and it is only taken when a piece actually moved the step.
 /// Outside any site, or with nothing in the way, the anchor is returned as is.
-pub(crate) fn collide_on_site(world: &hecs::World, body: &str, before: DVec3, after: DVec3, eye_height: f32) -> DVec3 {
+pub(crate) fn collide_on_site(
+    world: &hecs::World,
+    registry: Option<&BlueprintRegistry>,
+    body: &str,
+    before: DVec3,
+    after: DVec3,
+    eye_height: f32,
+) -> DVec3 {
     let Some(site) = site::nearest_site(world, body, after, site::SITE_JOIN_M) else {
         return after;
     };
     let (from, to) = (site.to_local(before), site.to_local(after));
-    let segments = crate::engine::build_place::built_piece_segments(world, Some(&site), to, eye_height);
+    let segments = crate::engine::build_place::built_piece_segments(world, registry, Some(&site), to, eye_height);
     if segments.is_empty() {
         return after;
     }
@@ -860,8 +880,8 @@ mod tests {
         let pieces: Vec<(String, Transform)> = q.iter().map(|(_e, (s, tf, _))| (s.blueprint_id.clone(), tf.clone())).collect();
         let items = pieces
             .iter()
-            .map(|(_, tf)| Piece { tf, scale: tf.scale, site: Some(&site), material: 1, fade: 0.0, ghost: false })
-            .chain(std::iter::once(Piece { tf: &ghost_tf, scale: Vec3::ONE, site: Some(&site), material: 0, fade: 0.5, ghost: true }));
+            .map(|(_, tf)| Piece { tf: tf.clone(), scale: tf.scale, site: Some(&site), material: 1, fade: 0.0, ghost: false })
+            .chain(std::iter::once(Piece { tf: ghost_tf.clone(), scale: Vec3::ONE, site: Some(&site), material: 0, fade: 0.5, ghost: true }));
         let drawn = route(items, Some(&bf), Vec3::ZERO, 0);
         assert_eq!(drawn.celestial.len(), pieces.len(), "every site piece is in the celestial pass");
         assert!(drawn.home.is_empty());
@@ -904,18 +924,18 @@ mod site_collision_tests {
         let eye_h = 1.7;
         let body = |x: f32, z: f32| site.to_body(Vec3::new(x, eye_h, z));
 
-        let out = collide_on_site(&world, "earth", body(-2.0, 0.0), body(2.0, 0.0), eye_h);
+        let out = collide_on_site(&world, None, "earth", body(-2.0, 0.0), body(2.0, 0.0), eye_h);
         let local = site.to_local(out);
         assert!(local.x < -0.25, "stopped west of the wall, at {local}");
         assert!(local.z.abs() < 1e-3, "no sideways slide on a square hit: {local}");
 
         // Past the wall's end: nothing in the way, the anchor is untouched.
         let clear = body(2.0, 5.0);
-        assert_eq!(collide_on_site(&world, "earth", body(-2.0, 5.0), clear, eye_h), clear);
+        assert_eq!(collide_on_site(&world, None, "earth", body(-2.0, 5.0), clear, eye_h), clear);
         // Far from any site (3 km away): untouched.
         let far = body(3_000.0, 0.0);
-        assert_eq!(collide_on_site(&world, "earth", body(2_990.0, 0.0), far, eye_h), far);
+        assert_eq!(collide_on_site(&world, None, "earth", body(2_990.0, 0.0), far, eye_h), far);
         // Another body's site is not this one.
-        assert_eq!(collide_on_site(&world, "moon", body(-2.0, 0.0), body(2.0, 0.0), eye_h), body(2.0, 0.0));
+        assert_eq!(collide_on_site(&world, None, "moon", body(-2.0, 0.0), body(2.0, 0.0), eye_h), body(2.0, 0.0));
     }
 }

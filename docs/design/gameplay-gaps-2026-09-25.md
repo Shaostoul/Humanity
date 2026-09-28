@@ -653,8 +653,9 @@ date; re-check before trusting one. The container data basis is
   box of its own (the AirMap already picks the smallest box a machine
   stands in) but no machine publishes one yet. Also left: the T7's own 15 L
   reservoir is not modelled (it stops with the tanks); its vapour leaves
-  into the home air, still held at 40%; and the humidifier's litres are
-  billed on the irrigation's per-real-day clock, like the crops' water.
+  into the home air, still held at 40%. (The humidifier's litres were billed
+  on a per-real-day clock like the crops' water; since the one clock,
+  v0.1395.0, both are billed per game minute, `irrigation_demand_lpm`.)
 - **Weeds compete with the crops in soil, and the player keeps them down:
   DONE 2026-09-26.** Every soil grow area (beds, trays, fields and the
   hand-planted crops; `soil_ph.ron` decides which are soil, so towers and

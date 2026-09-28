@@ -46,6 +46,8 @@ pub enum StructureUse {
     Sleep,
     /// A container for items (`provides: "storage"`).
     Store,
+    /// A door set into a wall (the blueprint's `doorway`): E opens or shuts it.
+    Door,
 }
 
 impl StructureUse {
@@ -65,6 +67,7 @@ impl StructureUse {
         match self {
             Self::Sleep => format!("[E] sleep in the {name}"),
             Self::Store => format!("[E] open the {name}"),
+            Self::Door => format!("[E] open or shut the door in the {name}"),
         }
     }
 }
@@ -124,13 +127,20 @@ pub fn ray_hits_box(origin: Vec3, dir: Vec3, tf: &Transform) -> Option<f32> {
 /// never usable.
 pub fn looked_at(
     world: &hecs::World,
+    registry: Option<&BlueprintRegistry>,
     eye: Vec3,
     dir: Vec3,
     reach: f32,
     frame: Option<&PlanetSite>,
 ) -> Option<(hecs::Entity, StructureUse)> {
     let e = first_in_view(world, eye, dir, reach, frame)?;
-    let u = world.get::<&Structure>(e).ok().and_then(|s| use_of(&s))?;
+    let s = world.get::<&Structure>(e).ok()?;
+    // A wall with a door in it is used as a door (its `provides` is the
+    // wall's `shelter`), which only the blueprint says.
+    if registry.and_then(|r| r.get(&s.blueprint_id)).is_some_and(|bp| bp.doorway.is_some()) {
+        return Some((e, StructureUse::Door));
+    }
+    let u = use_of(&s)?;
     Some((e, u))
 }
 
@@ -212,8 +222,9 @@ pub fn built_stores(world: &hecs::World, registry: Option<&BlueprintRegistry>) -
 pub const SHELTER: &str = "shelter";
 /// Walled sides a finished shelter has, with a roof overhead: three of the
 /// four, leaving the fourth open as a way in, which is how a lean-to or a
-/// three-sided field shelter is built (doors cannot be set into a wall yet, so
-/// a fully closed room would have no door). It is the HUD's build goal. What
+/// three-sided field shelter is built (a fully closed room needs a Wood Wall
+/// with Door, 2026-09-28, which counts as a wall here, open or shut). It is
+/// the HUD's build goal. What
 /// the WIND does is decided by which sides are walled (`ShelterCheck::wind_share`),
 /// so three walls keep the wind off only with the open side turned away from
 /// it: the survival manuals' "back to the wind" (2026-09-28).
@@ -458,17 +469,17 @@ mod tests {
         world.spawn(built(&reg, "bed", Vec3::new(0.0, 0.0, -2.0), 1));
         // Aim at the middle of the bed's top face (0.6 m up).
         let at_bed = (Vec3::new(0.0, 0.6, -2.0) - eye).normalize();
-        assert_eq!(looked_at(&world, eye, at_bed, 5.0, None).map(|h| h.1), Some(StructureUse::Sleep));
-        assert!(looked_at(&world, eye, Vec3::NEG_Z, 5.0, None).is_none(), "looking level passes over a 0.6 m bed");
-        assert!(looked_at(&world, eye, at_bed, 1.0, None).is_none(), "out of reach");
+        assert_eq!(looked_at(&world, None, eye, at_bed, 5.0, None).map(|h| h.1), Some(StructureUse::Sleep));
+        assert!(looked_at(&world, None, eye, Vec3::NEG_Z, 5.0, None).is_none(), "looking level passes over a 0.6 m bed");
+        assert!(looked_at(&world, None, eye, at_bed, 1.0, None).is_none(), "out of reach");
 
         // A chest straight ahead with a wall between: the wall is hit first.
         let mut walled = hecs::World::new();
         walled.spawn(built(&reg, "storage_chest", Vec3::new(0.0, 0.0, -4.0), 1));
         let at_chest = (Vec3::new(0.0, 0.4, -4.0) - eye).normalize();
-        assert_eq!(looked_at(&walled, eye, at_chest, 6.0, None).map(|h| h.1), Some(StructureUse::Store));
+        assert_eq!(looked_at(&walled, None, eye, at_chest, 6.0, None).map(|h| h.1), Some(StructureUse::Store));
         walled.spawn(built(&reg, "wood_wall", Vec3::new(0.0, 0.0, -2.0), 2));
-        assert!(looked_at(&walled, eye, at_chest, 6.0, None).is_none(), "a wall hides the chest behind it");
+        assert!(looked_at(&walled, None, eye, at_chest, 6.0, None).is_none(), "a wall hides the chest behind it");
 
         // A bed still going up is not a bed yet.
         let mut scaffold = hecs::World::new();
@@ -476,7 +487,7 @@ mod tests {
             Transform { position: Vec3::new(0.0, 0.0, -2.0), rotation: Quat::IDENTITY, scale: Vec3::new(1.0, 0.6, 2.0) },
             Construction { blueprint_id: "bed".into(), progress: 1.0, build_time: 4.0, builder_key: None },
         ));
-        assert!(looked_at(&scaffold, eye, at_bed, 5.0, None).is_none());
+        assert!(looked_at(&scaffold, None, eye, at_bed, 5.0, None).is_none());
     }
 
     /// Uids are handed out once and kept: a restored uid is never renumbered
@@ -710,7 +721,7 @@ mod tests {
         assert_eq!(shelter_at(&world, feet, None), ShelterCheck::default(), "the home frame has no roof here");
         let eye = Vec3::new(0.0, 1.7, -1.0);
         let at_bed = (Vec3::new(0.0, 0.6, 1.0) - eye).normalize();
-        assert_eq!(looked_at(&world, eye, at_bed, 5.0, Some(&site)).map(|h| h.1), Some(StructureUse::Sleep));
-        assert!(looked_at(&world, eye, at_bed, 5.0, None).is_none());
+        assert_eq!(looked_at(&world, None, eye, at_bed, 5.0, Some(&site)).map(|h| h.1), Some(StructureUse::Sleep));
+        assert!(looked_at(&world, None, eye, at_bed, 5.0, None).is_none());
     }
 }

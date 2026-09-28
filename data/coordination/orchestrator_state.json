@@ -301,6 +301,11 @@
       "date": "2026-09-28",
       "decision": "Take down a built piece: with a piece in hand, the Swing tool key (F, AttackSwing, unused in build mode) takes down the finished piece in view within 8 m; all its materials go back to the pack via the inventory transfer channel (overflow to storage); a chest holding anything is refused.",
       "why": "Solid built pieces (v0.1400.0) made it possible to wall yourself in with no way out: there was no way to remove a piece at all. Reusing AttackSwing avoided a new binding; full material return is a stated game choice."
+    },
+    {
+      "date": "2026-09-28",
+      "decision": "Doors set into walls: Blueprint.doorway (width, height), the Wood Wall with Door blueprint, construction::doorway::parts as the one source of a doorway piece's boxes for drawing and collision, StructureUse::Door via looked_at with the registry, E toggles a DoorOpen marker (not saved). Also started docs/outreach/since-last-update.md at the operator's request (report on his prompt near 100% usage).",
+      "why": "Solid walls made a closed room unenterable except by taking a wall down; a door is the real answer and the next Tier B blocker. One parts function keeps what is drawn and what blocks identical."
     }
   ],
   "active_scopes_to_avoid": [

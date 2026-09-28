@@ -32,7 +32,7 @@ use crate::gui::{BuildPlacing, GuiPage, GuiState};
 use crate::input::bindings::{pretty_key_name, GameAction};
 use crate::ecs::components::Transform;
 use crate::ship::wall_collision::WallSegment;
-use crate::systems::construction::{placement, BlueprintRegistry, BuildRequest, PlanetSite, Structure};
+use crate::systems::construction::{doorway, placement, BlueprintRegistry, BuildRequest, DoorOpen, PlanetSite, Structure};
 use glam::Vec3;
 
 /// What a key press does to the piece in hand.
@@ -316,18 +316,34 @@ fn set_placing_note(state: &mut EngineState, msg: String) {
 ///
 /// `eye` is in that frame's metres. On a planet the walk calls this through
 /// `planet_build::collide_on_site`, because there the player moves by the frame
-/// lock's anchor rather than the camera.
-pub(crate) fn built_piece_segments(world: &hecs::World, frame: Option<&PlanetSite>, eye: Vec3, eye_height: f32) -> Vec<WallSegment> {
+/// lock's anchor rather than the camera. A wall with a door in it blocks as
+/// its parts (`doorway::parts`): the wall either side, and the door while it
+/// is shut; the lintel is over the head.
+pub(crate) fn built_piece_segments(
+    world: &hecs::World,
+    registry: Option<&BlueprintRegistry>,
+    frame: Option<&PlanetSite>,
+    eye: Vec3,
+    eye_height: f32,
+) -> Vec<WallSegment> {
     let feet_y = eye.y - eye_height;
-    world
-        .query::<(&Structure, &Transform, Option<&PlanetSite>)>()
-        .iter()
-        .filter(|(_e, (_, _, site))| crate::systems::construction::site::in_frame(*site, frame))
-        .filter_map(|(_e, (_, tf, _))| {
-            let (lo, hi) = placement::world_aabb(tf);
-            (lo.y < eye.y && hi.y > feet_y + STEP_OVER_M).then(|| segment_of_box(lo, hi))
-        })
-        .collect()
+    let mut out = Vec::new();
+    for (_e, (s, tf, site, open)) in world.query::<(&Structure, &Transform, Option<&PlanetSite>, Option<&DoorOpen>)>().iter() {
+        if !crate::systems::construction::site::in_frame(site, frame) {
+            continue;
+        }
+        let door = registry.and_then(|r| r.get(&s.blueprint_id)).and_then(|bp| bp.doorway);
+        let boxes: Vec<(Vec3, Vec3)> = match door {
+            Some(d) => doorway::parts(tf, &d, open.is_some()).iter().map(|(p, _)| placement::world_aabb(p)).collect(),
+            None => vec![placement::world_aabb(tf)],
+        };
+        for (lo, hi) in boxes {
+            if lo.y < eye.y && hi.y > feet_y + STEP_OVER_M {
+                out.push(segment_of_box(lo, hi));
+            }
+        }
+    }
+    out
 }
 
 /// A piece lower than this (m above the feet) is stepped over, not walked into:
@@ -444,7 +460,7 @@ mod collision_tests {
         let start = Vec3::new(-2.0, eye_h, 0.0);
         let goal = Vec3::new(2.0, eye_h, 0.0);
         let walk = |world: &hecs::World| {
-            let segs = built_piece_segments(world, None, start, eye_h);
+            let segs = built_piece_segments(world, None, None, start, eye_h);
             resolve(start, goal, PLAYER_RADIUS, &[], &segs)
         };
         // A wall running north-south at x = 0 (one quarter turn).
@@ -460,7 +476,7 @@ mod collision_tests {
             Transform { position: Vec3::new(0.0, 3.0, 0.0), rotation: Quat::IDENTITY, scale: Vec3::from_array(roof.size) },
             Structure { blueprint_id: "roof".into(), health: 1.0, max_health: 1.0, provides: roof.provides.clone(), uid: 0 },
         ));
-        assert!(built_piece_segments(&roofed, None, start, eye_h).is_empty(), "a roof overhead is not in the way");
+        assert!(built_piece_segments(&roofed, None, None, start, eye_h).is_empty(), "a roof overhead is not in the way");
         assert!((walk(&roofed).x - goal.x).abs() < 1e-4);
 
         // The same wall on a planet site is not a home piece.
@@ -472,8 +488,32 @@ mod collision_tests {
             Structure { blueprint_id: "wood_wall".into(), health: 1.0, max_health: 1.0, provides: bp.provides.clone(), uid: 0 },
             PlanetSite { body: "earth".into(), origin: glam::DVec3::new(6.371e6, 0.0, 0.0) },
         ));
-        assert!(built_piece_segments(&site, None, start, eye_h).is_empty(), "planet sites are not the home frame");
+        assert!(built_piece_segments(&site, None, None, start, eye_h).is_empty(), "planet sites are not the home frame");
         assert!((walk(&hecs::World::new()).x - goal.x).abs() < 1e-4, "nothing built, nothing in the way");
+    }
+
+    /// A DOOR IN A WALL (2026-09-28). A shut door blocks the doorway, an open
+    /// one lets the player through it, and the wall beside the gap blocks
+    /// either way. Red check, run: collecting the whole piece's box instead
+    /// of its parts fails the open-door walk.
+    #[test]
+    fn a_doorway_lets_you_through_only_when_the_door_is_open() {
+        let reg = BlueprintRegistry::from_ron(include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/data/blueprints/basic.ron"))).unwrap();
+        assert!(reg.get("wood_wall_door").and_then(|b| b.doorway).is_some(), "the shipped doorway wall");
+        let eye_h = 1.7;
+        let mut world = hecs::World::new();
+        // Running north-south at x = 0, the gap at z -0.5 .. 0.5.
+        place(&mut world, &reg, "wood_wall_door", 0.0, 0.0, 1);
+        let e = world.query::<&Structure>().iter().next().map(|(e, _)| e).unwrap();
+        let walk = |world: &hecs::World, z: f32| {
+            let (start, goal) = (Vec3::new(-2.0, eye_h, z), Vec3::new(2.0, eye_h, z));
+            let segs = built_piece_segments(world, Some(&reg), None, start, eye_h);
+            resolve(start, goal, PLAYER_RADIUS, &[], &segs)
+        };
+        assert!(walk(&world, 0.0).x < -0.25, "a shut door blocks the doorway");
+        world.insert_one(e, DoorOpen).unwrap();
+        assert!((walk(&world, 0.0).x - 2.0).abs() < 1e-3, "an open door lets you through: {}", walk(&world, 0.0));
+        assert!(walk(&world, 1.5).x < -0.25, "the wall beside the gap still blocks");
     }
 
     /// The segment stays inside the box's footprint: a long thin box runs

@@ -632,8 +632,9 @@ between the simulation and the person. Its tier ladder is the build order.
   walls, walls on a foundation, one placement function for ghost and build,
   then building on a planet's ground in f64-anchored build sites, one storey
   at a time, no double builds), and share the rest of the list: nothing stands
-  on a roof yet (no second storey), doors and windows cannot be set into a
-  wall, built pieces are now solid aboard and on a planet's ground (DONE
+  on a roof yet (no second storey), windows cannot be set into a wall (a DOOR
+  can since 2026-09-28: the Wood Wall with Door, `construction::doorway`, E
+  opens and shuts it), built pieces are now solid aboard and on a planet's ground (DONE
   2026-09-28: `build_place::built_piece_segments`, and on the ground
   `planet_build::collide_on_site` resolves the walk's anchor step in the build
   site's frame) and can be TAKEN DOWN (F with a piece in hand, materials back),

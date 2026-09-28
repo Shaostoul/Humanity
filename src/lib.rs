@@ -4886,7 +4886,8 @@ mod native_app {
                                 // Built pieces are solid on the ground too (2026-09-28); fly mode stays noclip.
                                 if !state.controller.fly_mode {
                                     let eye_h = state.controller.eye_height();
-                                    anchor = crate::engine::planet_build::collide_on_site(&state.game_world.world, &lock_body, before, anchor, eye_h);
+                                    let reg = state.data_store.get::<crate::systems::construction::BlueprintRegistry>("blueprint_registry");
+                                    anchor = crate::engine::planet_build::collide_on_site(&state.game_world.world, reg, &lock_body, before, anchor, eye_h);
                                 }
                             }
                             // Ground radius at the (possibly moved) surface point.
@@ -5341,6 +5342,7 @@ mod native_app {
                         // Built pieces are solid too (2026-09-28, build_place::built_piece_segments).
                         doors.extend(crate::engine::build_place::built_piece_segments(
                             &state.game_world.world,
+                            state.data_store.get::<crate::systems::construction::BlueprintRegistry>("blueprint_registry"),
                             None,
                             state.camera.position,
                             state.controller.eye_height(),

@@ -7,7 +7,7 @@
 //! calls `frame` once per frame and `activate` from the E chain.
 
 use crate::engine::state::EngineState;
-use crate::systems::construction::{uses, BlueprintRegistry, Structure};
+use crate::systems::construction::{uses, BlueprintRegistry, DoorOpen, Structure};
 
 /// How far away a built structure can be used from, metres: the same reach
 /// the home machines' walk-up cards use.
@@ -23,7 +23,7 @@ pub(crate) fn frame(state: &mut EngineState) {
     );
     crate::gui::sync_built_stores(&mut state.gui_state.places, &stores);
     state.gui_state.structure_prompt = target(state)
-        .map(|(u, name)| u.prompt(&name))
+        .map(|(_e, u, name)| u.prompt(&name))
         .unwrap_or_default();
 }
 
@@ -77,7 +77,7 @@ pub(crate) fn publish_stations(state: &mut EngineState) {
 /// person, a door panel or a home machine all come first, in the same order
 /// the E chain in lib.rs tries them. A built piece in hand comes before all
 /// of them (lib.rs asks `build_place::key` first).
-fn target(state: &EngineState) -> Option<(uses::StructureUse, String)> {
+fn target(state: &EngineState) -> Option<(hecs::Entity, uses::StructureUse, String)> {
     let g = &state.gui_state;
     let busy = g.active_page != crate::gui::GuiPage::None
         || g.construction_active
@@ -99,10 +99,11 @@ fn target(state: &EngineState) -> Option<(uses::StructureUse, String)> {
     // into it. It used to be the raw camera against every piece.
     let world = &state.game_world.world;
     let f = crate::engine::planet_build::player_frame(state)?;
-    let (e, u) = uses::looked_at(world, f.eye, f.forward, REACH_M, f.site.as_ref())?;
+    let registry = state.data_store.get::<BlueprintRegistry>("blueprint_registry");
+    let (e, u) = uses::looked_at(world, registry, f.eye, f.forward, REACH_M, f.site.as_ref())?;
     let s = world.get::<&Structure>(e).ok()?;
-    let name = uses::display_name(&s, state.data_store.get::<BlueprintRegistry>("blueprint_registry"));
-    Some((u, name))
+    let name = uses::display_name(&s, registry);
+    Some((e, u, name))
 }
 
 /// The E press on a built structure. A bed: lie down and sleep the night
@@ -113,8 +114,19 @@ pub(crate) fn activate(state: &mut EngineState) -> bool {
     if state.gui_state.structure_prompt.is_empty() {
         return false;
     }
-    let Some((u, name)) = target(state) else { return false };
+    let Some((e, u, name)) = target(state) else { return false };
     match u {
+        // A door in a wall (2026-09-28): open it if shut, shut it if open.
+        // The open one swings a quarter turn out of the gap and stops blocking
+        // (`doorway::parts`, `build_place::built_piece_segments`).
+        uses::StructureUse::Door => {
+            let world = &mut state.game_world.world;
+            if world.get::<&DoorOpen>(e).is_ok() {
+                let _ = world.remove_one::<DoorOpen>(e);
+            } else {
+                let _ = world.insert_one(e, DoorOpen);
+            }
+        }
         uses::StructureUse::Sleep => crate::systems::sleep::request(&state.data_store, &name),
         uses::StructureUse::Store => {
             state.gui_state.active_page = crate::gui::GuiPage::Inventory;

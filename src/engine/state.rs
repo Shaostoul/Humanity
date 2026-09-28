@@ -533,7 +533,7 @@ pub(crate) struct EngineState {
     /// scaled per Construction/Structure Transform each frame.
     pub(crate) structure_mesh: Option<usize>,
     /// [scaffold amber, wood, stone, metal] — picked by blueprint category.
-    pub(crate) structure_mats: Option<[usize; 4]>,
+    pub(crate) structure_mats: Option<[usize; 5]>,
     /// Stage 3 take-over (v0.690): the vehicle the player is DRIVING (camera
     /// glued to the cab, WASD steers the vehicle). Deliberately NOT the
     /// Controllable-transfer path -- moving Controllable off the player would

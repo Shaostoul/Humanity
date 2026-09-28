@@ -9,6 +9,7 @@ pub mod solver;
 pub mod placement;
 pub mod site;
 pub mod uses;
+pub mod doorway;
 
 pub use site::PlanetSite;
 
@@ -64,7 +65,24 @@ pub struct Blueprint {
     /// it makes no power.
     #[serde(default)]
     pub generates: Option<crate::machines::MachinePower>,
+    /// A door set into the piece (2026-09-28): a gap `width` wide and
+    /// `height` tall, centred along the piece's length, with a door leaf that
+    /// E opens and closes. None = a solid piece. See `doorway::parts`.
+    #[serde(default)]
+    pub doorway: Option<Doorway>,
 }
+
+/// The gap a doorway piece leaves for its door, metres (`Blueprint::doorway`).
+#[derive(Debug, Clone, Copy, PartialEq, Deserialize)]
+pub struct Doorway {
+    pub width: f32,
+    pub height: f32,
+}
+
+/// Marks a doorway piece whose door stands open (E toggles it,
+/// `engine::built_uses`). Not saved: a door is shut again after a load.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct DoorOpen;
 
 /// Give every finished structure whose blueprint GENERATES power a live
 /// generator (2026-09-27): a `PowerGenerator` (and a `SolarPanel`, which the

@@ -1863,13 +1863,21 @@ in by data, no ids in code; the first structure the look ray meets wins, so a wa
   sets `EnvironmentContext::sheltered`,
   on a planet's ground as well as aboard (the test runs in the player's build site), so the body heat
   model gets still air and nothing falling at the outside temperature. The fourth side is left open as the way
-  in (doors cannot be set into walls yet), like a lean-to. On a wet, windy 5 C day the everyday outfit holds
+  in, like a lean-to (or, since 2026-09-28, a room closes with a Wood Wall with Door). On a wet, windy 5 C day the everyday outfit holds
   36.66 C after 6 h under it, against 36.28 C soaked in the open. A roof with walls missing keeps the rain and
   snow off, and since 2026-09-28 the WIND depends on which way it blows (`ShelterCheck::wind_share`): a wall on
   the windward side stops it, and each open side facing into it lets in the cosine of the wind's angle to it, so
   three walls keep the wind off only with the open side turned away from it ("back to the wind"). The HUD's
   survival rows say "Sheltered", "Out of the rain and the wind", or "Out of the rain; 70% of the wind gets in",
   and the Inventory page's readout says Sealed / Sheltered / Outside.
+
+**Doors in walls (2026-09-28).** A blueprint can carry a `doorway` (width and height): the Wood Wall with Door
+(`data/blueprints/basic.ron`, 9 planks) is one piece to place, save and take down, drawn and walked into as its parts
+(`systems::construction::doorway::parts`: the wall either side of the gap, the lintel, and the door leaf, drawn in a
+darker wood so a shut door reads against its wall; vantage `planet-built-door`). Looking at it
+the crosshair says "[E] open or shut the door"; E toggles the `DoorOpen` marker, and an open door swings a quarter turn
+out of the gap and stops blocking. Door state is not saved: doors are shut again after a load. Windows cannot be set
+into a wall yet.
 
 **Built pieces are solid (2026-09-28).** Every finished piece in the home frame whose box reaches from
 above the knee to the eye (a wall, a bed, a chest, a machine) joins the home's own walls in the first-person

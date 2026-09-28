@@ -13287,6 +13287,22 @@
       "final_showcase": {"stand":"0,1.7,1.5,0,-18","stand_at":"23.5,13.02"},
       "settle_s": 10,
       "perf_floor_fps": 20
+    },
+    {
+      "id": "planet-built-door",
+      "desc": "Standing inside a CLOSED hut built on a planet's ground, facing its door (2026-09-28, doors in walls): four walls under a roof, the north one a Wood Wall with Door, stood up on the Sahara at a fixed lat/lon by the dev build verb; the eye is put 1.7 m over the floor near the south wall, looking north and down 8 degrees, by the dev stand verb. It draws a doorway piece as its parts (construction::doorway::parts): the wall either side, the lintel over the gap, and the shut door leaf in darker wood. 2 km east of planet-built-inside, its own build site.",
+      "expect": "The inside of a closed wooden hut: the north wall across the frame with a darker wooden door in its middle, about 1 m wide and 2.1 m tall, the lintel of the wall above it; the side walls at the frame edges and the roof's underside at the top. No sand is seen through the doorway while the door is shut.",
+      "regressions": [
+        "the door leaf fills its gap: no sand or sky through the doorway of a shut door",
+        "the wall either side of the door and the lintel over it are whole",
+        "panics=0"
+      ],
+      "camera": {"body":"earth","lat":23.5,"lon":13.04,"altitude_km":0.03,"look_offset_deg":60},
+      "showcase": {"time":"12.0","sea":"0.3"},
+      "post_showcase": {"build":"wood_wall_door@0,-2,0;wood_wall@-2,0,1;wood_wall@2,0,1;wood_wall@0,2,0;roof@0,0,0","build_at":"23.5,13.04"},
+      "final_showcase": {"stand":"0,1.7,1.2,0,-8","stand_at":"23.5,13.04"},
+      "settle_s": 10,
+      "perf_floor_fps": 20
     }
   ],
   "ladder": {
