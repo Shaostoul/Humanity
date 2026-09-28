@@ -1,0 +1,16 @@
+{
+  "same_park": true,
+  "shot": { "width": 1600, "height": 900 },
+  "pins": { "anim_clock": "300", "wind": "2" },
+  "vantages": [
+    "home-racks-noon", "home-racks-dawn", "home-racks-night", "home-beds-noon", "home-overview-noon",
+    "planet-built-inside",
+    "sahara-noon-ground", "moon-surface-200m", "ocean-grazing-calm", "silverdale-osm-ground", "fuji-forest-ground"
+  ],
+  "arms": [
+    { "name": "base", "showcase": { "sun_shadows": "auto", "near_levels": "auto" } },
+    { "name": "near0", "showcase": { "sun_shadows": "auto", "near_levels": "0" } },
+    { "name": "shoff", "showcase": { "sun_shadows": "0", "near_levels": "auto" } },
+    { "name": "base2", "showcase": { "sun_shadows": "auto", "near_levels": "auto" } }
+  ]
+}

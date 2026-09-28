@@ -475,6 +475,19 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
             state.renderer.room_gi.probe_count()
         );
     }
+    // {"sun_shadows":"0"} switches the sun's shadow maps off, "1" on and
+    // "auto" hands them back to Settings > Planets (2026-09-27,
+    // docs/design/sun-cascades.md increment 0). A PIN over the setting, not a
+    // write to it, so a capture and its sun-shadows-off twin differ ONLY by
+    // what the maps take away (and gpu.shadow plus gpu.shadow_near is what
+    // they cost), while the player's own config is never touched.
+    if let Some(t) = grab("sun_shadows") {
+        state.renderer.sun_cascades.shadows_pin = match t.as_str() {
+            "auto" => None,
+            v => Some(v != "0"),
+        };
+        log::info!("Showcase: sun_shadows -> {:?} (None = Settings > Planets)", state.renderer.sun_cascades.shadows_pin);
+    }
     // {"room_gi_vis":"1"} makes every room run DDGI's Chebyshev visibility
     // test, which rung 1 skips because inside a room's own box it is an
     // identity; "0" restores the default. For measuring what the test costs,
@@ -2349,11 +2362,42 @@ pub(crate) fn poll_camera_request(state: &mut EngineState) {
             Some((p, look)) => (p + state.station_off, glam::DVec3::new(look.x as f64, look.y as f64, look.z as f64)),
             None => (Vec3::new(0.0, hull_top + 14.0, 34.0), glam::DVec3::new(0.0, -0.34, -1.0).normalize()),
         };
+        // Optional "pose" (2026-09-27, docs/design/sun-cascades.md increment
+        // 0): `{"station":"home","pose":"x,y,z,yaw,pitch","time":20.15}` parks
+        // at a HOME-FRAME pose instead, the same five numbers
+        // scripts/home-vantages.json and the showcase `cam` verb use (metres in
+        // the home zone's coordinates, y at eye height; yaw 0 looks north).
+        // This is what lets a probe-sweep vantage hold a room pose at a pinned
+        // clock: photograph-home.js cannot pin the clock, because its `cam`
+        // pose is not re-glued to the station when the hour moves the orbit.
+        let pose = match v.get("pose").and_then(|s| s.as_str()).map(crate::engine::ipc_parse::parse_pose5) {
+            None => None,
+            Some(Some(p)) => Some(p),
+            Some(None) => {
+                fail("pose must be \"x,y,z,yaw,pitch\" (five numbers)".to_string());
+                return;
+            }
+        };
+        let (position, yaw_pitch) = match pose {
+            Some(([x, y, z], yaw, pitch)) => (Vec3::new(x, y, z) + state.station_off, Some((yaw, pitch))),
+            None => (position, None),
+        };
         state.camera.position = position;
         state.camera.clear_surface();
-        let (yaw, pitch) = crate::dev_travel::look_angles(look);
+        let (yaw, pitch) = yaw_pitch.unwrap_or_else(|| crate::dev_travel::look_angles(look));
         state.camera.yaw = yaw;
         state.camera.pitch = pitch;
+        if yaw_pitch.is_some() {
+            // Teleport the player body too, as the showcase `cam` verb does:
+            // in first person the camera derives from it.
+            for (_e, (t, _c)) in state
+                .game_world
+                .world
+                .query_mut::<(&mut crate::ecs::components::Transform, &crate::ecs::components::Controllable)>()
+            {
+                t.position = position;
+            }
+        }
         state.gui_state.dev_fly_mode = true;
         state.controller.fly_mode = true;
         // GRAVITY OFF, exactly as F9 does it (v0.1269, operator catch). The
@@ -2375,6 +2419,10 @@ pub(crate) fn poll_camera_request(state: &mut EngineState) {
             done["position"] = serde_json::json!([position.x, position.y, position.z]);
             done["look"] = serde_json::json!([look.x, look.y, look.z]);
             log::info!("Camera request: parked aboard the home station facing screen {id:?} at {position:?}");
+        } else if let Some((yaw, pitch)) = yaw_pitch {
+            done["position"] = serde_json::json!([position.x, position.y, position.z]);
+            done["yaw_pitch"] = serde_json::json!([yaw, pitch]);
+            log::info!("Camera request: parked aboard the home station at pose {position:?} yaw {yaw} pitch {pitch}");
         } else {
             log::info!("Camera request: parked aboard the home station");
         }

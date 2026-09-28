@@ -135,7 +135,7 @@ async function capture(v, arm, armShowcase) {
 
 async function park(v, armShowcase) {
   const sc = Object.assign(
-    { map_diag: "0", cloud_top_bound: "0", cloud_uniform_step: "0", cloud_step_m: "0", wind: "auto", anim_clock: "auto", aurora: "1" },
+    { map_diag: "0", cloud_top_bound: "0", cloud_uniform_step: "0", cloud_step_m: "0", wind: "auto", anim_clock: "auto", aurora: "1", sun_shadows: "auto", near_levels: "auto" },
     plan.pins || {},
     v.showcase || {},
     armShowcase || {}
@@ -148,11 +148,23 @@ async function park(v, armShowcase) {
   if (!cam || cam.ok !== true) throw new Error(`camera: ${JSON.stringify(cam)}`);
   req("showcase_request.json", { time_scale: "0" });
   await sleep((v.settle_s ?? 8) * 1000);
+  // The vantage's post-park and final showcases, in probe-sweep.js's order
+  // (2026-09-27): a planet-built-* vantage builds its hut after the ground
+  // streams in and stands the eye inside it after the re-park, and without
+  // them this rig photographed empty sand.
+  if (v.post_showcase) {
+    req("showcase_request.json", v.post_showcase);
+    await sleep((v.post_settle_s ?? 3) * 1000);
+  }
   clearDone("camera_done.json");
   req("camera_request.json", v.camera);
   const re = await waitFile("camera_done.json", 60000);
   if (!re || re.ok !== true) throw new Error(`re-park: ${JSON.stringify(re)}`);
   await sleep(v.hold_altitude ? 900 : 6000);
+  if (v.final_showcase) {
+    req("showcase_request.json", v.final_showcase);
+    await sleep((v.final_settle_s ?? 4) * 1000);
+  }
 }
 
 async function shoot(v, arm) {
