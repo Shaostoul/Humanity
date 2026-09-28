@@ -227,11 +227,12 @@ pub trait ScreenProvider: Send {
 
     /// The texture format this provider's surface must be created with.
     /// Default: [`SURFACE_FORMAT`]. A provider that has the game world
-    /// rendered STRAIGHT INTO its surface (the camera provider) returns
-    /// `scene_format`, the swapchain's format, because the scene pipelines
-    /// were built for that format and can draw into no other. Asked once,
-    /// when the surface is created (`engine::screens::sync_screens`).
-    fn surface_format(&self, _scene_format: wgpu::TextureFormat) -> wgpu::TextureFormat {
+    /// rendered for it (the camera provider) returns `display_format`, the
+    /// swapchain's format: the world is drawn into a scratch target and the
+    /// renderer's present pass, built for the display format, writes the
+    /// surface (renderer/scene_target.rs, 2026-09-27). Asked once, when the
+    /// surface is created (`engine::screens::sync_screens`).
+    fn surface_format(&self, _display_format: wgpu::TextureFormat) -> wgpu::TextureFormat {
         SURFACE_FORMAT
     }
 
@@ -781,8 +782,8 @@ pub struct ScreenSurface {
     texture: wgpu::Texture,
     view: wgpu::TextureView,
     /// The texture's format: [`SURFACE_FORMAT`] for every page and every
-    /// provider that draws pixels or egui content; the scene's swapchain
-    /// format for a surface the world is rendered straight into (see
+    /// provider that draws pixels or egui content; the display (swapchain)
+    /// format for a surface the present pass writes a world view into (see
     /// `ScreenProvider::surface_format`). The readback and the pixel upload
     /// swizzle for a BGRA format so their byte contract stays RGBA.
     format: wgpu::TextureFormat,

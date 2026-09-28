@@ -218,7 +218,7 @@ impl StarRenderer {
     pub fn new(
         device: &wgpu::Device,
         queue: &wgpu::Queue,
-        surface_format: wgpu::TextureFormat,
+        scene_format: wgpu::TextureFormat,
         catalog: &StarCatalog,
         data_dir: &Path,
         glow_ultra: bool,
@@ -263,7 +263,7 @@ impl StarRenderer {
         let glow = build_glow_layer(
             device,
             queue,
-            surface_format,
+            scene_format,
             &camera_bind_group_layout,
             data_dir,
             glow_ultra,
@@ -401,7 +401,7 @@ impl StarRenderer {
                 module: &shader_module,
                 entry_point: Some("fs_main"),
                 targets: &[Some(wgpu::ColorTargetState {
-                    format: surface_format,
+                    format: scene_format,
                     blend: Some(wgpu::BlendState {
                         color: wgpu::BlendComponent {
                             src_factor: wgpu::BlendFactor::SrcAlpha,
@@ -468,7 +468,7 @@ impl StarRenderer {
                         module: &shader_module,
                         entry_point: Some("fs_main"),
                         targets: &[Some(wgpu::ColorTargetState {
-                            format: surface_format,
+                            format: scene_format,
                             blend: Some(wgpu::BlendState {
                                 color: wgpu::BlendComponent {
                                     src_factor: wgpu::BlendFactor::SrcAlpha,
@@ -595,7 +595,7 @@ impl StarRenderer {
                     module: &halo_module,
                     entry_point: Some("fs_main"),
                     targets: &[Some(wgpu::ColorTargetState {
-                        format: surface_format,
+                        format: scene_format,
                         // ADDITIVE like the glow pass: halos add light on top
                         // of the points; the falloff reaches exactly zero at
                         // the quad's inscribed circle so no edge can show.
@@ -974,7 +974,7 @@ fn load_glow_image(
 fn build_glow_layer(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
-    surface_format: wgpu::TextureFormat,
+    scene_format: wgpu::TextureFormat,
     camera_bind_group_layout: &wgpu::BindGroupLayout,
     data_dir: &Path,
     want_ultra: bool,
@@ -1122,7 +1122,7 @@ fn build_glow_layer(
             module: &shader_module,
             entry_point: Some("fs_main"),
             targets: &[Some(wgpu::ColorTargetState {
-                format: surface_format,
+                format: scene_format,
                 // ADDITIVE: glow adds light on top of the cleared-black sky;
                 // the star points then alpha-blend over it. Space stays
                 // black because the baked texture is black off-band.

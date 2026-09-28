@@ -143,8 +143,12 @@ starts the body over.
 - Inside the sealed home: the home's own air (temperature, humidity, pressure
   from its enclosed space), still, nothing falling.
 - Outside: the weather at the player's position (`temperature_at_player`,
-  humidity, the 10 m wind at the player, rain and storms at their intensity,
-  snow at a third) and the air pressure there, or vacuum where there is no air.
+  humidity, the 10 m wind at the player, rain at the weather's intensity, snow
+  at a third of it) and the air pressure there, or vacuum where there is no air.
+  Since 2026-09-27 whether it is rain or snow is decided by the air at the
+  player, not the condition's name (`systems::precipitation`, Jennings et al.
+  2018's rain-snow model), and nothing falls where there is no air. The third
+  is a game choice, unsourced (`SNOW_WETTING_SHARE`).
   Since 2026-09-27 the temperature, pressure and wind are environment Layer 1
   where the player stands (latitude, altitude, land or sea, time of year, the
   prevailing wind) with the weather's condition as the deviation on top

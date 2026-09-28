@@ -30,7 +30,10 @@ pub enum WeatherCondition {
 /// Complete weather state.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Weather {
-    /// Current weather condition.
+    /// Current weather condition: the weather SYSTEM (its clouds, its
+    /// temperature deviation, whether it brings water and how hard). It does
+    /// not decide rain versus snow: the air where the water falls does
+    /// (`systems::precipitation`, `falling_at_player`, `condition_at_player`).
     pub condition: WeatherCondition,
     /// Weather intensity (0.0 = calm, 1.0 = extreme).
     pub intensity: f32,
@@ -368,9 +371,10 @@ impl WeatherSystem {
                 self.target_intensity = self.rng.gen_range(0.3..0.7);
                 self.target_visibility = 0.5;
                 // Must be freezing at the reference: the deviation that puts
-                // the reference at or below 0 C. (Whether falling water is
-                // rain or snow AT THE PLAYER should come from the air there;
-                // docs/design/environment-fields.md lists it as a consumer.)
+                // the reference at or below 0 C. That is the Snow SYSTEM's cold
+                // snap; whether what falls is rain or snow comes from the air
+                // where it falls (systems::precipitation), so a Snow roll over
+                // the tropics still rains there.
                 self.target_temp_dev = (base_temp + temp_variance).min(0.0) - base_temp;
                 self.target_humidity = 0.7 + self.rng.gen_range(0.0..0.2);
                 self.target_wind_speed = self.rng.gen_range(2.0..7.0);

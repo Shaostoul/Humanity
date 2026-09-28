@@ -88,13 +88,21 @@ pub struct GuiGameTime {
 #[cfg(feature = "native")]
 #[derive(Debug, Clone)]
 pub struct GuiWeather {
+    /// The condition as felt at the player: Rain or Snow named by the phase
+    /// that falls there (`Weather::condition_at_player`).
     pub condition: String,
     /// Weather intensity 0..1 (v0.1059). Needed by the aerial-haze fog ramp,
     /// which is the first thing in the engine to actually CONSUME the weather's
     /// severity rather than just its name.
     pub intensity: f32,
     pub temperature: f32,
+    /// The weather's own wind, m/s (what the F11 panel drives).
     pub wind_speed: f32,
+    /// The wind AT THE PLAYER, toward the east and the north, m/s: Layer 1's
+    /// prevailing wind plus the weather's own (2026-09-27). The HUD's reading.
+    pub wind_at_player: (f32, f32),
+    /// What falls at the player, rain and snow (systems::precipitation).
+    pub falling: crate::systems::precipitation::Falling,
     /// Active extreme-weather event display name ("" = none, v0.1035):
     /// the HUD shows this instead of the plain condition while it runs.
     pub event: String,

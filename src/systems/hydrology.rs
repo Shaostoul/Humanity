@@ -194,23 +194,34 @@ impl HydrologySystem {
             }
 
             // -- Precipitation (from weather) --
-            // Rain adds water based on humidity and intensity.
-            let precip_rate = weather.humidity as f64 * weather.intensity as f64;
+            // What falls, and in which phase, is the one answer every consumer
+            // shares (2026-09-27, systems::precipitation), in the body-global
+            // reference air water bodies already read: only Rain, Storm and
+            // Snow bring water now (Cloudy and Fog used to, at their
+            // intensity). Snow onto the water adds its water equivalent (it
+            // melts into a lake and builds a glacier); the catchment's runoff
+            // carries only the rain, because snow on the surrounding land waits
+            // for a thaw. A snowpack that banks it is not modelled yet, so
+            // that share is not counted.
+            let falling = weather.falling_global();
+            let precip_rate = weather.humidity as f64 * falling.total() as f64;
             let seasonal_p = Self::seasonal_precipitation(season);
             let precip_volume = precip_rate * body.surface_area_m2 * 0.001 * seasonal_p * dt_d;
             body.volume_liters += precip_volume;
+            let liquid_share = if falling.total() > 0.0 { (falling.rain / falling.total()) as f64 } else { 0.0 };
 
             // Runoff adds water to surface bodies from surrounding terrain.
             if body.body_type != WaterBodyType::Aquifer
                 && body.body_type != WaterBodyType::Ocean
             {
-                let runoff = precip_volume * RUNOFF_FRACTION * 2.0; // terrain catchment area
+                let runoff = precip_volume * liquid_share * RUNOFF_FRACTION * 2.0; // terrain catchment area
                 body.volume_liters += runoff;
             }
 
             // -- Aquifer recharge (slow seepage) --
             if body.body_type == WaterBodyType::Aquifer {
-                let infiltration = precip_volume * (1.0 - RUNOFF_FRACTION);
+                // Snow seeps in only once it melts, like the runoff above.
+                let infiltration = precip_volume * liquid_share * (1.0 - RUNOFF_FRACTION);
                 body.volume_liters += infiltration * AQUIFER_RECHARGE_FRACTION;
             }
 
@@ -323,18 +334,48 @@ impl System for HydrologySystem {
             .map(|gt| gt.season)
             .unwrap_or(Season::Spring);
 
-        let default_weather = Weather::default();
+        // The weather lives in the store behind a Mutex, as WeatherSystem
+        // exports it; a bare `Weather` under this key never existed, so this
+        // read always fell back to the default (2026-09-27).
         let weather = data
-            .get::<Weather>("weather")
-            .unwrap_or(&default_weather);
+            .get::<std::sync::Mutex<Weather>>("weather")
+            .and_then(|m| m.lock().ok().map(|w| w.clone()))
+            .unwrap_or_default();
 
-        self.simulate_step(step_dt, season, weather);
+        self.simulate_step(step_dt, season, &weather);
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// What falls reaches the water in its phase (2026-09-27). The same Rain
+    /// condition over a lake: in 15 C air its rain lands on the lake and runs
+    /// off the catchment into it; in -10 C air it falls as snow, which adds
+    /// only what lands on the lake itself; Fog adds nothing. Red check, run:
+    /// the old read (humidity times intensity, whatever the condition and the
+    /// air) gives the snow the full runoff and the fog water, and both
+    /// assertions fail.
+    #[test]
+    fn precipitation_reaches_the_water_in_its_phase() {
+        use crate::systems::weather::WeatherCondition;
+        let gain = |condition: WeatherCondition, temperature: f32| {
+            let mut sys = HydrologySystem::new();
+            let id = sys.add_water_body(WaterBody::new(0, WaterBodyType::Lake, 1_000_000.0));
+            // Clear carries no intensity in the sim; everything else at full.
+            let intensity = if condition == WeatherCondition::Clear { 0.0 } else { 1.0 };
+            let w = Weather { condition, intensity, humidity: 0.9, temperature, ..Default::default() };
+            sys.simulate_step(100.0, Season::Spring, &w);
+            sys.get(id).unwrap().volume_liters
+        };
+        let dry = gain(WeatherCondition::Clear, 15.0);
+        let rain = gain(WeatherCondition::Rain, 15.0) - dry;
+        let snow = gain(WeatherCondition::Rain, -10.0) - dry;
+        assert!(rain > 0.0);
+        assert!((snow - rain / (1.0 + RUNOFF_FRACTION * 2.0)).abs() < 1e-6 * rain, "snow: no runoff ({snow} vs rain {rain})");
+        assert_eq!(gain(WeatherCondition::Fog, 15.0), dry, "fog brings no water");
+    }
 
     #[test]
     fn test_water_body_creation() {

@@ -85,10 +85,13 @@
         // inside the live frame's numbers (the scene pass was 17 ms at
         // 1280 x 720 before the camera got its own render size; the overlay
         // and line passes were summed into gpu.overlay / gpu.lines until
-        // the 2026-09-18 review).
+        // the 2026-09-18 review). screen_present: the present pass that
+        // copies the camera view's scratch target into the screen's texture
+        // (renderer/scene_target.rs, 2026-09-27).
         sources: [
             "gpu.screen_ui", "gpu.screen_sky", "gpu.screen_scene",
             "gpu.screen_transparent", "gpu.screen_overlay", "gpu.screen_lines",
+            "gpu.screen_present",
         ],
         locked: false,
         base_frac: 0.03,
@@ -111,8 +114,9 @@
         category: "gpu",
         // gpu.room_probes: room GI's probe update, the compute pass that
         // relights the rooms' irradiance probes each frame before the scene
-        // pass (renderer/room_probes_gpu.rs, 2026-09-27).
-        sources: ["gpu.scene", "gpu.transparent", "gpu.overlay", "gpu.instanced", "gpu.room_probes"],
+        // pass (renderer/room_probes_gpu.rs, 2026-09-27). gpu.instanced was
+        // retired with render_instanced (HDR scene target increment 1).
+        sources: ["gpu.scene", "gpu.transparent", "gpu.overlay", "gpu.room_probes"],
         locked: true,
         base_frac: 0.15,
         color: "nav_reality",
@@ -170,6 +174,20 @@
         color: "success",
         note: "Screen-space effects, timed on the graphics card. Bloom reads 0 until the bloom pass is switched on.",
     ),
+    (
+        id: "scene_present",
+        display: "Scene present",
+        category: "gpu",
+        // gpu.present: the full-screen pass that copies the scene target into
+        // the window before the interface draws (renderer/scene_target.rs,
+        // HDR scene target increment 1, 2026-09-27). A plain copy today; the
+        // one dither and the one tonemap land here in later increments.
+        sources: ["gpu.present"],
+        locked: true,
+        base_frac: 0.01,
+        color: "nav_dev",
+        note: "The final pass that copies the finished scene to the window, before the interface is drawn.",
+    ),
 
     // ── CPU pie: where the frame's milliseconds go on the processor ──
     (
@@ -178,11 +196,12 @@
         category: "cpu",
         // cpu.stars: the live star pass's submission twin (added 2026-09-18
         // so the Star field GPU row is measurable in the no-timestamp
-        // fallback; it read 0 there before).
+        // fallback; it read 0 there before). cpu.present: the present pass's
+        // submission twin (renderer/scene_target.rs, 2026-09-27).
         sources: [
             "cpu.stars", "cpu.celestial", "cpu.scene", "cpu.transparent",
             "cpu.overlay", "cpu.lines", "cpu.celestial_lines", "cpu.particles",
-            "cpu.gpu_particles", "cpu.particles_sim",
+            "cpu.gpu_particles", "cpu.particles_sim", "cpu.present",
         ],
         locked: true,
         base_frac: 0.25,
@@ -196,11 +215,12 @@
         // The CPU side of the "screens" GPU row: each framed display's egui
         // run + tessellation + submit, and the camera wall's re-render
         // submission, one stage per pass (sky, scene, transparent, overlay,
-        // lines) so every gpu.screen_* id has the cpu.screen_* twin the
-        // no-timestamp fallback reads.
+        // lines, present) so every gpu.screen_* id has the cpu.screen_* twin
+        // the no-timestamp fallback reads.
         sources: [
             "cpu.screen_ui", "cpu.screen_sky", "cpu.screen_scene",
             "cpu.screen_transparent", "cpu.screen_overlay", "cpu.screen_lines",
+            "cpu.screen_present",
         ],
         locked: false,
         base_frac: 0.05,

@@ -68,10 +68,11 @@ impl Renderer {
     }
 
     /// Create an offscreen color target for a one-frame hi-res capture (v0.810).
-    /// Uses the SWAPCHAIN's format so every existing scene pipeline (they were all
-    /// built against `surface_format`) renders to it unchanged, plus COPY_SRC for
-    /// the PNG readback. Caller renders the normal passes to the returned view,
-    /// then hands the texture to `read_texture_to_png`.
+    /// It is a DISPLAY target in the swapchain's format (since 2026-09-27): the
+    /// scene is drawn into a view-sized scratch in the scene format and the
+    /// present pass writes this (`render_view_onto`), so the PNG goes through
+    /// the same final pass as the window. COPY_SRC for the readback; the
+    /// caller hands the texture to `read_texture_to_png`.
     pub fn create_capture_target(&self, width: u32, height: u32) -> (wgpu::Texture, wgpu::TextureView) {
         let texture = self.device.create_texture(&wgpu::TextureDescriptor {
             label: Some("HiRes Capture Target"),
@@ -79,7 +80,7 @@ impl Renderer {
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
-            format: self.config.format,
+            format: self.config.format, // display-format: the present pass writes the capture target
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
             view_formats: &[],
         });
@@ -236,7 +237,7 @@ impl Renderer {
         let _ = self.device.poll(wgpu::Maintain::Wait);
         let data = slice.get_mapped_range();
         let bgra = matches!(
-            self.config.format,
+            self.config.format, // display-format: the readback swizzle follows the swapchain and capture targets
             wgpu::TextureFormat::Bgra8Unorm | wgpu::TextureFormat::Bgra8UnormSrgb
         );
         let mut pixels = Vec::with_capacity((w * h * 4) as usize);

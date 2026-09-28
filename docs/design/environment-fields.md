@@ -550,10 +550,90 @@ body model in `body_environment.rs`.
 **Next consumers**, in order: cloud advection (the first GPU caller:
 `env_l1_wind_body` at the ray's ground point, once per ray, with `EnvClimate` as
 one uniform the consumer adds: the v0.1029 every-create-site rule applies to
-that binding); the HUD wind readout and the sea state reading the wind at the
-player (both read the weather's own wind today); field crops and water bodies
-sampling Layer 1 at THEIR positions instead of the global reference (farming
-and hydrology read the global on purpose today, so a player's climb cannot chill
-a field; the right fix is the field's own position, not the player's); rain
-versus snow decided by the air temperature where it falls; fire spread, seed
-dispersal and turbines reading the wind.
+that binding); the sea state reading the wind at the player (it reads the
+weather's own wind today); field crops and water bodies sampling Layer 1 at
+THEIR positions instead of the global reference (farming and hydrology read the
+global on purpose today, so a player's climb cannot chill a field; the right fix
+is the field's own position, not the player's); fire spread, seed dispersal and
+turbines reading the wind. Rain versus snow and the HUD readout were built
+next: see the section below.
+
+## Rain or snow, decided by the air (2026-09-27)
+
+Code: `src/systems/precipitation.rs`. The first two CPU consumers of Layer 1
+after the body heat model.
+
+**What changed.** The condition still names the weather SYSTEM (its clouds, its
+temperature deviation, whether it brings water and how hard: Rain, Storm and
+Snow at their intensity). It no longer decides the PHASE. The air where the
+water falls does: a Rain roll at 70 N in winter falls as snow, a Snow roll over
+the equator falls as rain, and walking up a mountain carries the player from
+rain through a mixed band into snow. Where there is no air (a station in orbit,
+an airless world) nothing falls on the player, whatever the world below is
+doing; before this, rain landed on a body standing in vacuum outside the hull.
+
+**The source and the threshold.** Jennings, Winchell, Livneh and Molotch (2018),
+"Spatial variation of the rain-snow temperature threshold across the Northern
+Hemisphere", Nature Communications 9:1148 (doi:10.1038/s41467-018-03629-7, open
+access, read 2026-09-27): 17.8 million observations at 11,924 stations,
+1978-2007. Rain and snow fall with equal frequency at an air temperature
+"averaging 1.0 °C and ranging from –0.4 to 2.4 °C for 95% of the stations", and
+humidity moves it: from "0.7 °C in the 90–100% RH bin to 4.5 °C in the 40–50%
+RH bin", because dry air cools a falling flake by evaporation (the wet-bulb
+effect). We use their trivariate logistic model, p(snow) = 1 / (1 + exp(alpha +
+beta T + gamma RH + lambda P)), with T in C, RH in percent and P in kPa, and the
+coefficients from their Supplementary Table 2: alpha -12.80, beta 1.41, gamma
+0.09, lambda 0.03. At 90 percent humidity and sea level the 50 percent point is
+1.18 C, and the share runs from nine tenths snow to nine tenths rain over about
+3 C: a smooth band, not a switch.
+
+Two readings of ours, stated in the code: the paper fits how OFTEN snow falls
+and we read it as the SHARE of what falls that is frozen (so the band is mixed
+rain and snow rather than a coin toss); and the fit is Northern Hemisphere land
+stations from 60 to 105 kPa, which we clamp to and apply over the sea and in the
+south too.
+
+**Every consumer, and what it now gets.**
+
+| Consumer | Reads | Gets |
+|---|---|---|
+| Body heat input (`engine::survival_env`, `ExposedAir::from_weather`) | `Weather::falling_at_player` | rain at full weight, snow at a third, a mix by its parts; nothing where there is no air |
+| Clothing wetness (`body_heat`, the wetting step) | the input above | the same number: it has no other source |
+| HUD weather line (`gui::pages::hud::weather_line`) | the bridged condition and `Falling` | "Snow", "Rain", "Rain and snow" in the band, "Storm, snow", an event plus its phase |
+| Weather fog (lib.rs, the aerial-haze floor and tint) | the bridged condition, `Weather::condition_at_player` | the snow floor (400 m) when snow falls here, the rain floor when rain does |
+| Rain and snow particles (lib.rs precipitation block) | `Falling::emitters` | the DOMINANT phase: one GPU pool, so a mixed band draws the larger share |
+| F11 panel readback | `weather_line` | an "At the player" line under the panel's own values |
+| Outdoor fields (farming) | `Weather::falling_global().rain` | only the liquid share waters a field |
+| Water bodies (hydrology) | `Weather::falling_global()` | snow adds its water to a lake or glacier; catchment runoff and aquifer seepage carry only the rain |
+| Cloud region kind (`frame_shells.rs`) | the condition | unchanged: the rain and snow kinds carry identical params today, and the region is the weather system's, anchored where it appeared |
+
+Farming and hydrology read the phase in the body-global reference air
+(`temperature`, sea-level pressure), the same air the rest of their climate
+reads, so a player's climb cannot freeze a field. Wherever fields exist today
+(the home frame) that is the same air as the player's.
+
+**Snow wets less than rain, and that is a game choice.** `body_heat` wets
+clothing with snow at a third of rain at the same rate
+(`SNOW_WETTING_SHARE`), unsourced: dry snow mostly sheds and melts in slowly
+while it stays frozen. It does not follow wet snow near 0 C soaking harder; the
+phase share moves part of the way, because inside the band part of what falls
+is rain. A sourced wet-snow model is open.
+
+**The HUD line.** From the at-player values the weather exports: the condition
+as felt here, the temperature at the player, and the wind at the player (Layer
+1's prevailing wind plus the weather's own) with the eight-point compass point
+it blows FROM, or "calm" below 0.5 m/s. It used to print the weather's own wind,
+which in the trades was not the wind the player stood in. No Settings choice
+governs the line: `HudVitals` chooses the survival rows, and the weather line
+was always shown.
+
+**Not done, and where it goes.**
+
+- Hydrology is not registered in the runner yet (FEATURES.md), and until this
+  change it read a DataStore slot the weather never writes, so it always saw
+  the default weather. It now reads the real slot.
+- No snowpack: snow on a field or a catchment is neither banked nor melted
+  later. That water is not counted anywhere.
+- Mixed particles: drawing rain and snow together at their shares needs
+  per-emitter rates in lib.rs's precipitation block and a second GPU pool.
+- Snow on the ground: nothing accumulates on terrain or roofs.

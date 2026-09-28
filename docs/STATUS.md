@@ -300,7 +300,8 @@ Mostly **built and working**; the two voice-parity rows flagged ⚠️/❌ below
 | Ecology simulation | ⚠️ | `EcologySystem` implemented but **NOT registered**, never ticks. See `tests/engine_wiring_lint.rs::DEFERRED_SYSTEMS`. |
 | Quest system | ✅ | **Registered + ticking since v0.342.0** (this row predated that; see the detailed "Quests" row further down). The relay still runs its separate authoritative chain for MMO, native-vs-relay reconciliation is the #8c-tail. |
 | GLTF model loading | ✅ | Load .glb models via gltf crate, mesh caching in AssetManager (v0.34.0) |
-| Instanced rendering | ✅ | InstanceBatch, pre-allocated uniform buffer, no per-frame GPU alloc (v0.34.0) |
+| Instanced rendering | ✅ | GPU instancing through the slot-1 instance stream (grass strands). The v0.34.0 `InstanceBatch` / `render_instanced` path had no callers and was deleted 2026-09-27 |
+| Scene target + present pass | ✅ | HDR scene target increments 1 and 2 (2026-09-27): the scene draws into `renderer/scene_target.rs`'s target and one present pass copies it to the display, bit-exact while the formats match. Increments 3 to 6 (Rgba16Float, one dither, linear radiance) in `docs/design/hdr-scene-target.md` |
 | Global error boundary | ✅ | window.onerror + unhandledrejection, toast UI instead of white screen (v0.35.0) |
 | Env var validation | ✅ | Fail-fast startup, clear messages for missing/invalid config (v0.35.0) |
 | Automated DB backup | ✅ | SQLite backup every 6 hours, keep last 5, tokio background task (v0.35.0) |

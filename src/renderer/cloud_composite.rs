@@ -72,7 +72,7 @@ pub struct CloudCompositePass {
 }
 
 impl CloudCompositePass {
-    pub fn new(device: &wgpu::Device, surface_format: wgpu::TextureFormat) -> Self {
+    pub fn new(device: &wgpu::Device, scene_format: wgpu::TextureFormat) -> Self {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Cloud Composite Shader"),
             source: wgpu::ShaderSource::Wgsl(
@@ -180,7 +180,7 @@ impl CloudCompositePass {
                 module: &shader,
                 entry_point: Some("fs_main"),
                 targets: &[Some(wgpu::ColorTargetState {
-                    format: surface_format,
+                    format: scene_format,
                     // Premultiplied-over: the map stores premultiplied rgb.
                     blend: Some(wgpu::BlendState {
                         color: wgpu::BlendComponent {

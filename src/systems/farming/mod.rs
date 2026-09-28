@@ -1096,16 +1096,15 @@ impl System for FarmingSystem {
         // tick and is not light-counted, as it was not before.
         let game_dt = f64::from(dt) * f64::from(time_scale);
         // Rain waters outdoor fields (2026-09-25): litres of water level per
-        // second at full intensity; 0 when it is not raining.
+        // second at full intensity; 0 when it is not raining. Only the LIQUID
+        // share (2026-09-27, systems::precipitation): whether water falls as
+        // rain or snow follows the air, here the body-global reference air the
+        // fields' climate already reads (`weather_temp` below), and snow lying
+        // on a field waters nothing until it melts (a snowpack is not
+        // modelled, so that water is not banked either).
         let rain = data
             .get::<std::sync::Mutex<crate::systems::weather::Weather>>("weather")
-            .and_then(|m| m.lock().ok().map(|w| {
-                use crate::systems::weather::WeatherCondition::*;
-                match w.condition {
-                    Rain | Storm => w.intensity.clamp(0.0, 1.0),
-                    _ => 0.0,
-                }
-            }))
+            .and_then(|m| m.lock().ok().map(|w| w.falling_global().rain))
             .unwrap_or(0.0);
         // Damp weather for the pests that like it (2026-09-26, pests.rs):
         // UC IPM, "Snails and slugs are most active at night and on cloudy or
@@ -3417,6 +3416,25 @@ mod gardening_tests {
         }
         assert!(w2.get::<&CropInstance>(field).unwrap().water_level > 0.3, "rain wets the field");
         assert!(w2.get::<&CropInstance>(tower).unwrap().water_level < 0.3, "not the indoor tower");
+        // The same Rain condition in -10 C air falls as snow, which waters no
+        // field (2026-09-27, systems::precipitation). Red check, run: the old
+        // read (Rain or Storm at their intensity, whatever the air) wets it.
+        let mut snowy = make_store();
+        snowy.insert(
+            "weather",
+            std::sync::Mutex::new(crate::systems::weather::Weather {
+                condition: crate::systems::weather::WeatherCondition::Rain,
+                intensity: 1.0,
+                temperature: -10.0,
+                ..Default::default()
+            }),
+        );
+        let mut w3 = hecs::World::new();
+        let frozen = w3.spawn((crop("grain_field_2", 0.3),));
+        for _ in 0..10 {
+            sys.tick(&mut w3, 1.0, &snowy);
+        }
+        assert!(w3.get::<&CropInstance>(frozen).unwrap().water_level < 0.3, "snow does not water the field");
 
         // Hand watering: litres queued; refused with a notice when the tanks are empty.
         let bits = world.query::<&CropInstance>().iter().next().unwrap().0.to_bits().get();

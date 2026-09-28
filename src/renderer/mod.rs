@@ -105,6 +105,10 @@ pub mod room_probes_gpu;
 /// and the whole-frame wrappers around them. Extracted from mod.rs in
 /// v0.1319 - see the file's header for why this cluster.
 pub mod scene_draw;
+/// The scene target every scene pass draws into, and the present pass that
+/// copies it to the display (HDR scene target increments 1 and 2,
+/// 2026-09-27; docs/design/hdr-scene-target.md).
+pub mod scene_target;
 pub mod shader_loader;
 /// Which material types can DISCARD in the sun shadow pass, and the test that
 /// keeps that answer equal to the shader's (v0.1108).
@@ -266,16 +270,6 @@ impl Material {
     }
 }
 
-/// Groups objects sharing the same mesh and material for instanced drawing.
-pub struct InstanceBatch {
-    /// Index into Renderer::meshes.
-    pub mesh: usize,
-    /// Index into Renderer::materials.
-    pub material: usize,
-    /// Model-space transforms for each instance.
-    pub transforms: Vec<Mat4>,
-}
-
 /// Core renderer state wrapping wgpu device, queue, and surface.
 /// Live weather map dimensions (v0.874). Defined HERE (not in
 /// net::live_weather) because the renderer compiles in every feature set
@@ -360,11 +354,16 @@ pub struct Renderer {
     // Registered meshes and materials
     pub meshes: Vec<Mesh>,
     pub materials: Vec<Material>,
-    // ── Off-screen render target (for bloom, shadow maps, particles) ──
-    /// Scene renders here first, then post-processing composites to swapchain.
-    scene_texture: wgpu::Texture,
-    scene_view: wgpu::TextureView,
-    /// Bloom post-processing (reads scene_texture, composites result).
+    // ── The scene target and the present pass (renderer/scene_target.rs) ──
+    /// Every scene pass draws here; `present_scene` copies it to the display.
+    scene: scene_target::SceneTarget,
+    present: scene_target::PresentPass,
+    /// The off-screen views' scratch target (camera screens, hi-res capture).
+    view_scene: scene_target::ViewScene,
+    /// Dev A/B switch (showcase `present_direct`): draw the scene straight
+    /// into the display, the pre-2026-09-27 path. See scene_target.rs.
+    pub present_direct: bool,
+    /// Bloom post-processing (dormant; would read the scene target).
     pub bloom: Option<bloom::BloomPass>,
     /// Crepuscular god rays (v0.895): depth-marched light shafts drawn
     /// between the celestial and interior passes.
@@ -1200,17 +1199,21 @@ impl Renderer {
         // Depth buffer
         let (depth_texture, depth_view) = Self::create_depth_texture(&device, width, height);
 
-        // Off-screen scene texture (for post-processing: bloom, etc.)
-        let (scene_tex, scene_tex_view) = Self::create_scene_texture(&device, width, height, surface_format);
+        // The scene target and the present pass (scene_target.rs). Every
+        // scene pipeline below is built for `scene_format`, never for the
+        // display's `surface_format`: tests/scene_format_lint.rs holds that.
+        let scene_format = scene_target::scene_format_for(surface_format);
+        let present_pass = scene_target::PresentPass::new(&device, surface_format);
+        let scene = scene_target::SceneTarget::new(&device, &present_pass, width, height, scene_format);
         let t_unit = std::time::Instant::now();
-        let bloom_pass = bloom::BloomPass::new(&device, width, height, surface_format);
+        let bloom_pass = bloom::BloomPass::new(&device, width, height, scene_format);
         log::info!("[BootPhase]   bloom_pass: {:.0} ms", t_unit.elapsed().as_secs_f32() * 1000.0);
         let t_unit = std::time::Instant::now();
-        let godray_pass = godrays::GodrayPass::new(&device, surface_format);
+        let godray_pass = godrays::GodrayPass::new(&device, scene_format);
         log::info!("[BootPhase]   godray_pass: {:.0} ms", t_unit.elapsed().as_secs_f32() * 1000.0);
         let t_unit = std::time::Instant::now();
-        let ssao_pass = ssao::SsaoPass::new(&device, surface_format);
-        let cloud_composite_pass = cloud_composite::CloudCompositePass::new(&device, surface_format);
+        let ssao_pass = ssao::SsaoPass::new(&device, scene_format);
+        let cloud_composite_pass = cloud_composite::CloudCompositePass::new(&device, scene_format);
         let cloud_resolve_pass = cloud_resolve::CloudResolvePass::new(&device);
         log::info!("[BootPhase]   ssao_pass: {:.0} ms", t_unit.elapsed().as_secs_f32() * 1000.0);
 
@@ -1249,7 +1252,7 @@ impl Renderer {
             Some((dir, mtime))
         });
         let t_unit = std::time::Instant::now();
-        let pipeline = Pipeline::new(&device, surface_format, &shader, &batch_shader);
+        let pipeline = Pipeline::new(&device, scene_format, &shader, &batch_shader);
         log::info!("[BootPhase]   pipeline_new: {:.0} ms", t_unit.elapsed().as_secs_f32() * 1000.0);
         // World-space thin-line pipeline — reuses the SAME camera BGL so
         // it can bind the existing camera_bind_group (full view-proj).
@@ -1257,7 +1260,7 @@ impl Renderer {
         let (particle_pipeline_alpha, particle_pipeline_additive, particle_frame_bgl) =
             particles::build_particle_pipelines(
                 &device,
-                config.format,
+                scene_format,
                 &pipeline.camera_bind_group_layout,
             );
         let particle_frame_buffer = device.create_buffer(&wgpu::BufferDescriptor {
@@ -1276,7 +1279,7 @@ impl Renderer {
         });
         let line_pipeline = line::build_line_pipeline(
             &device,
-            surface_format,
+            scene_format,
             &pipeline.camera_bind_group_layout,
         );
         log::info!("[BootPhase]   particles_and_line: {:.0} ms", t_unit.elapsed().as_secs_f32() * 1000.0);
@@ -1655,7 +1658,7 @@ impl Renderer {
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
-            format: config.format,
+            format: config.format, // display-format: the tree-card bake atlas, sampled like any texture, not a scene target
             usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
             view_formats: &[],
         });
@@ -1944,8 +1947,10 @@ impl Renderer {
             object_bind_group,
             meshes: Vec::new(),
             materials: Vec::new(),
-            scene_texture: scene_tex,
-            scene_view: scene_tex_view,
+            scene,
+            present: present_pass,
+            view_scene: Default::default(),
+            present_direct: false,
             bloom: Some(bloom_pass),
             godrays: godray_pass,
             godray_intensity: 0.55,
@@ -2164,12 +2169,15 @@ impl Renderer {
                 label: Some("pbr megashader (terrain-batch, hot-reload)"),
                 source: wgpu::ShaderSource::Wgsl(batch_source.into()),
             });
-        let format = self.config.format;
+        // The SCENE format, not the display's (`self.config.format` until
+        // 2026-09-27): a hot reload must rebuild the PSOs for the target they
+        // draw into, or the first reload after increment 3 kills the frame.
+        let scene_format = self.scene_format();
         // The counts come back from the rebuild itself (its slot tables),
         // so this line reports what was installed, not a number typed here.
         let rebuilt = self
             .pipeline
-            .recreate_pipelines(&self.device, format, &module, &batch_module);
+            .recreate_pipelines(&self.device, scene_format, &module, &batch_module);
         log::info!(
             "[HotReload] megashader reassembled + {} PSOs rebuilt ({} megashader + {} cloud + {} emission) in {:.1}s",
             rebuilt.total(),
@@ -2653,134 +2661,5 @@ impl Renderer {
     /// pixel rays from fov + viewport rows.
     pub fn viewport_size(&self) -> (u32, u32) {
         (self.config.width, self.config.height)
-    }
-
-    /// Render instanced batches — objects sharing the same mesh/material are
-    /// drawn with a single draw call each. More efficient than `render()` when
-    /// many objects share geometry (trees, rocks, buildings).
-    pub fn render_instanced(
-        &self,
-        camera: &Camera,
-        batches: &[InstanceBatch],
-    ) -> Result<(), wgpu::SurfaceError> {
-        self.queue.write_buffer(
-            &self.camera_buffer,
-            0,
-            bytemuck::bytes_of(&self.lit_uniform(camera.uniforms())),
-        );
-
-        let output = self.surface.get_current_texture()?;
-        let view = output
-            .texture
-            .create_view(&wgpu::TextureViewDescriptor::default());
-
-        let mut encoder = self
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("Instanced Render Encoder"),
-            });
-
-        {
-            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("Instanced Render Pass"),
-                timestamp_writes: self.pass_timer("gpu.instanced"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &view,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color {
-                            r: 0.1,
-                            g: 0.1,
-                            b: 0.15,
-                            a: 1.0,
-                        }),
-                        store: wgpu::StoreOp::Store,
-                    },
-                })],
-                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                    view: &self.depth_view,
-                    depth_ops: Some(wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(0.0), // reverse-Z: clear to 0 (farthest)
-                        store: wgpu::StoreOp::Store,
-                    }),
-                    stencil_ops: None,
-                }),
-                ..Default::default()
-            });
-
-            // Slot 1: zero per-instance data for classic draws (increment 2).
-            render_pass.set_vertex_buffer(1, self.dummy_instance_buf.slice(..));
-            render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
-
-            let mut bound_material = usize::MAX;
-            // The opaque PSO by the batch material's class (P3), switched
-            // only when the class changes: batches are grouped by material
-            // already, so this binds once per run of a class.
-            let mut bound_class: Option<ShaderClass> = None;
-            for batch in batches {
-                let mesh = match self.meshes.get(batch.mesh) {
-                    Some(m) => m,
-                    None => continue,
-                };
-                let material = match self.materials.get(batch.material) {
-                    Some(m) => m,
-                    None => continue,
-                };
-                let class = pipeline::shader_class(material.material_type);
-                if bound_class != Some(class) {
-                    bound_class = Some(class);
-                    // `opaque_for` debug-asserts on a shell, cloud or water
-                    // batch: no such batch exists, and one would be a bug.
-                    render_pass.set_pipeline(self.pipeline.opaque_for(class));
-                    render_pass.set_vertex_buffer(1, self.dummy_instance_buf.slice(..));
-                    bound_material = usize::MAX;
-                }
-
-                // Material bind groups (2 + 3) skipped when unchanged
-                // (v0.891): consecutive batches can share a material.
-                if bound_material != batch.material {
-                    bound_material = batch.material;
-                    render_pass.set_bind_group(2, &material.bind_group, &[]);
-                    // Group 3 (v0.811): the material's albedo texture when it
-                    // has one (textured planets), the 1x1 white fallback
-                    // otherwise -- the shared pipeline layout requires
-                    // SOMETHING bound here.
-                    render_pass.set_bind_group(
-                        3,
-                        material.albedo_group().unwrap_or(&self.default_texture_bind_group),
-                        &[],
-                    );
-                }
-                render_pass.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
-                render_pass.set_index_buffer(
-                    mesh.index_buffer.slice(..),
-                    wgpu::IndexFormat::Uint32,
-                );
-
-                // Draw each instance with its own transform via the shared object buffer.
-                // Uses the same uniform-per-draw approach as render() but avoids
-                // per-frame buffer allocation. For truly GPU-instanced rendering
-                // (single draw call per batch), a storage buffer or instance vertex
-                // buffer with shader changes would be needed.
-                for transform in &batch.transforms {
-                    let normal_matrix = transform.inverse().transpose();
-                    let object_uniforms = ObjectUniforms {
-                        model: transform.to_cols_array_2d(),
-                        normal_matrix: normal_matrix.to_cols_array_2d(),
-                    };
-                    self.queue.write_buffer(
-                        &self.object_buffer,
-                        0,
-                        bytemuck::bytes_of(&object_uniforms),
-                    );
-                    render_pass.set_bind_group(1, &self.object_bind_group, &[]);
-                    render_pass.draw_indexed(0..mesh.index_count, 0, 0..1);
-                }
-            }
-        }
-
-        self.queue.submit(std::iter::once(encoder.finish()));
-        output.present();
-        Ok(())
     }
 }

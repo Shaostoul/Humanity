@@ -1469,7 +1469,7 @@ mod native_app {
             );
             let egui_renderer = egui_wgpu::Renderer::new(
                 &renderer.device,
-                renderer.surface_format(),
+                renderer.surface_format(), // display-format: egui draws on the swapchain, after the present pass
                 None,
                 1,
                 false,
@@ -1558,7 +1558,7 @@ mod native_app {
                 let (tx, rx) = std::sync::mpsc::channel();
                 let device = renderer.device.clone();
                 let queue = renderer.queue.clone();
-                let format = renderer.surface_format();
+                let scene_format = renderer.scene_format();
                 let sky_dir = data_dir.clone();
                 let tier_setting = gui_state.settings.star_catalog_tier.clone();
                 let ultra_glow = gui_state.settings.sky_glow_tier == "ultra";
@@ -1571,7 +1571,7 @@ mod native_app {
                             crate::renderer::stars::StarRenderer::new(
                                 &device,
                                 &queue,
-                                format,
+                                scene_format,
                                 catalog,
                                 &sky_dir,
                                 ultra_glow && cap >= 2,
@@ -4028,7 +4028,7 @@ mod native_app {
                                 .and_then(|m| m.lock().ok())
                                 .map(|w| {
                                     (
-                                        w.condition,
+                                        (w.condition, w.falling_at_player()),
                                         w.intensity,
                                         w.wind_speed,
                                         w.wind_direction,
@@ -4043,7 +4043,7 @@ mod native_app {
                                 // followed the camera all the way out. Rain and
                                 // snow live under the cloud deck; above a few km
                                 // there is nothing to fall past you.
-                                Some((cond, inten, wind, wdir, ev))
+                                Some(((cond, fall), inten, wind, wdir, ev))
                                     if state.camera.surface_mode
                                         // map_or(false, ..), NOT unwrap_or(0.0):
                                         // the altitude readout is None whenever no
@@ -4062,12 +4062,8 @@ mod native_app {
                                             .map_or(false, |a| a < 4000.0) =>
                                 {
                                     use crate::systems::weather::WeatherCondition as WC;
-                                    let (r, s) = match cond {
-                                        WC::Rain => (true, false),
-                                        WC::Storm => (true, false),
-                                        WC::Snow => (false, true),
-                                        _ => (false, false),
-                                    };
+                                    // Rain or snow: the air at the player decides (systems::precipitation).
+                                    let (r, s) = fall.emitters();
                                     let storm_boost =
                                         if matches!(cond, WC::Storm) { 1.6 } else { 1.0 };
                                     let up = state.camera.up;
@@ -13167,7 +13163,7 @@ mod native_app {
                     {
                         state.gui_state.weather = Some(GuiWeather {
                             intensity: w.intensity,
-                            condition: format!("{:?}", w.condition),
+                            condition: format!("{:?}", w.condition_at_player()), // rain or snow as it falls HERE
                             // The HUD thermometer shows the temperature AT THE
                             // PLAYER (the same value the survival exposure path
                             // uses), not the body-global simulation reference:
@@ -13176,6 +13172,7 @@ mod native_app {
                             // hydrology keep reading the global w.temperature.
                             temperature: w.temperature_at_player,
                             wind_speed: w.wind_speed,
+                            wind_at_player: (w.wind_east_at_player, w.wind_north_at_player), falling: w.falling_at_player(),
                             event: w.event_name.clone(),
                             warning: String::new(),
                         });
@@ -14684,7 +14681,10 @@ mod native_app {
                     } else {
                         // In-game: render stars first, then scene objects on top
                         match state.renderer.acquire_surface() {
-                            Ok((output, view)) => {
+                            Ok((output, swap_view)) => {
+                                // HDR scene target (renderer/scene_target.rs): every pass below draws into the
+                                // scene target, and `present_scene` copies it to the swapchain before egui.
+                                let view = state.renderer.scene_view_for(&swap_view);
                                 // DAYLIGHT GATE (v0.1059): inside an
                                 // atmosphere with the sun well up, the
                                 // stars are washed out by the sky drawn
@@ -15188,7 +15188,8 @@ mod native_app {
                                             .draw_gpu_particles_onto(&state.camera, &view);
                                     }
                                 }
-                                Ok((output, view))
+                                state.renderer.present_scene(&swap_view);
+                                Ok((output, swap_view))
                             }
                             Err(e) => Err(e),
                         }

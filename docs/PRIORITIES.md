@@ -75,12 +75,15 @@ Remaining, in order:
    in `00-bindings-vertex.wgsl` that a test RUNS against the CPU copy. The body
    heat model now feels the air where the player stands: temperature, pressure
    and wind at the player all come from it, with the weather as the deviation.
+   Rain versus snow and the HUD readout are BUILT (2026-09-27, design doc
+   "Rain or snow, decided by the air": the air where it falls picks the phase by
+   Jennings et al. 2018's model, every precipitation reader shares it, and the
+   HUD prints the temperature, wind and phase at the player).
    Next consumers, in order: **cloud advection** (the first GPU caller:
-   `env_l1_wind_body` once per ray, `EnvClimate` as a uniform); the HUD wind
-   and the sea state reading the wind at the player; field crops and water
-   bodies sampling the climate at THEIR positions; rain versus snow from the air
-   temperature at the player; weighting the weather's deviation by its region's
-   influence at the player. Open data gaps: Mars by latitude and season, the
+   `env_l1_wind_body` once per ray, `EnvClimate` as a uniform); the sea state
+   reading the wind at the player; field crops and water bodies sampling the
+   climate at THEIR positions; weighting the weather's deviation by its
+   region's influence at the player. Open data gaps: Mars by latitude and season, the
    Moon (a sunlight function of local solar time).
 
 Aurora follow-ups, none urgent: the red cap is a look change for the operator
@@ -227,6 +230,16 @@ shader that tonemaps inline, so it is an arc, not an increment. Until then,
 what it becomes, the capture paths, and six bootable increments; increment 4,
 one dither in a final pass, closes the banding report). Estimated cost 0.2 to
 0.4 ms at 1600x900.
+
+**Increments 1 and 2 built 2026-09-27** (design doc section 6): every scene
+pass draws into a scene target (`renderer/scene_target.rs`) and one present
+pass copies it to the display; camera screens and the hi-res capture go
+through a view scratch and the same pass. Still 8-bit, so bit-exact: a GPU
+test round-trips every code of every channel, and the 3840x2160 capture at
+console-face-3 is byte-identical between the old and new builds. `gpu.present`
+measures 0.05 to 0.07 ms at 2560x1387. `tests/scene_format_lint.rs` keeps every
+scene PSO on `scene_format()`. **Next: increment 3** (`scene_format_for` returns
+`Rgba16Float`, clamp flag on), then increment 4, the one dither.
 
 ### 3c. The ship's rooms: no bounce light, and the sun shines through shelves (2026-09-27)
 
@@ -516,7 +529,11 @@ between the simulation and the person. Its tier ladder is the build order.
   hall under several touching roof tiles shelters, and the review's other
   findings are closed. Remaining: a scripted first-run sequence in the world;
   the server clock for offline progression in multiplayer; for shelter, wind
-  direction against the open side and the walls' radiant warmth.
+  direction against the open side and the walls' radiant warmth; battery
+  charge is not saved (found 2026-09-27 by the batteries guide's code check:
+  `WorldSave` has no charge, so every restart starts the banks at 50%); and
+  the gameplay sun rises at 6:00 and sets at 18:00 every day at every
+  latitude, so day length never changes with season (a Brief 6 question).
 - **Tier B (make the construction tool good enough to build a city).** Pick one
   canonical layout schema of the three that exist; the four multi-storey
   blockers in order, starting with a base Y on `InteriorWall`; collision for

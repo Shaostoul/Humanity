@@ -560,7 +560,7 @@ impl ParticleVertexData {
 /// rendered frame.
 pub fn build_particle_pipelines(
     device: &wgpu::Device,
-    surface_format: wgpu::TextureFormat,
+    scene_format: wgpu::TextureFormat,
     camera_bgl: &wgpu::BindGroupLayout,
 ) -> (wgpu::RenderPipeline, wgpu::RenderPipeline, wgpu::BindGroupLayout) {
     let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
@@ -599,7 +599,7 @@ pub fn build_particle_pipelines(
                 module: &shader,
                 entry_point: Some("fs_main"),
                 targets: &[Some(wgpu::ColorTargetState {
-                    format: surface_format,
+                    format: scene_format,
                     blend: Some(blend),
                     write_mask: wgpu::ColorWrites::ALL,
                 })],

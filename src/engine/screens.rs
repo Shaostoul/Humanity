@@ -533,12 +533,13 @@ pub(crate) fn sync_screens(state: &mut EngineState, placements: &[PlacedMachine]
             Some(s) => (s, false),
             None => {
                 // The provider comes first because it decides the texture
-                // format: a camera screen is rendered straight into by the
-                // scene pipelines, which only draw in the swapchain's format.
+                // format: a camera screen is written by the present pass
+                // (the world is drawn into a scratch, then presented), which
+                // draws in the display's format (renderer/scene_target.rs).
                 let provider = provider_for(&ScreenSource::parse(&def.source));
                 let format = provider
                     .as_ref()
-                    .map_or(SURFACE_FORMAT, |pr| pr.surface_format(state.renderer.surface_format()));
+                    .map_or(SURFACE_FORMAT, |pr| pr.surface_format(state.renderer.surface_format())); // display-format: the present pass writes a camera screen
                 let mut s = ScreenSurface::new_with_format(
                     &state.renderer.device,
                     &p.id,

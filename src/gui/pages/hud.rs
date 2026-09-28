@@ -240,26 +240,12 @@ pub fn draw(
 
             // ── Weather indicator (below time) ──
             if let Some(ref w) = state.weather {
-                let weather_icon = match w.condition.as_str() {
-                    "Clear" => "☀",
-                    "Cloudy" => "☁",
-                    "Rain" => "🌧",
-                    "Storm" => "⛈",
-                    "Snow" => "❄",
-                    "Fog" => "🌫",
-                    "Sandstorm" => "🌪",
-                    _ => "?",
-                };
-                // An active extreme event replaces the plain condition
-                // label ("Thunderstorm" beats "Rain", v0.1035); the icon
-                // still keys off the underlying condition.
-                let cond_label =
-                    if w.event.is_empty() { w.condition.as_str() } else { w.event.as_str() };
+                // The air the player stands in (2026-09-27): `weather_line`.
                 text_shadowed(
                     painter,
                     Pos2::new(screen.right() - 16.0, 46.0),
                     Align2::RIGHT_TOP,
-                    &format!("{} {} {:.0}C {:.0}m/s", weather_icon, cond_label, w.temperature, w.wind_speed),
+                    &weather_line(w),
                     11.0,
                     theme.text_secondary(),
                 );
@@ -955,6 +941,65 @@ fn normalize_angle(a: f32) -> f32 {
     if a > std::f32::consts::PI { a -= 2.0 * std::f32::consts::PI; }
     if a < -std::f32::consts::PI { a += 2.0 * std::f32::consts::PI; }
     a
+}
+
+/// Below this the wind reads "calm": it would print as 0 m/s, and the
+/// direction of a wind that rounds to nothing is noise.
+const CALM_M_S: f32 = 0.5;
+
+/// The eight compass points, clockwise from north.
+const COMPASS_POINTS: [&str; 8] = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
+
+/// The compass point a wind blows FROM (the weather convention: a north wind
+/// comes out of the north), given the wind toward the east and the north.
+pub(crate) fn wind_from(east: f32, north: f32) -> &'static str {
+    // Bearing the air is heading toward, clockwise from north, then turned
+    // round to where it comes from.
+    let from = (east.atan2(north).to_degrees() + 180.0).rem_euclid(360.0);
+    COMPASS_POINTS[((from / 45.0).round() as usize) % COMPASS_POINTS.len()]
+}
+
+/// THE HUD'S WEATHER LINE (2026-09-27): the air the player stands in, from the
+/// at-player values the weather exports. The condition as it falls HERE (a
+/// Rain system in freezing air reads Snow: `Weather::condition_at_player`), or
+/// the running event's name; what is falling when that name does not already
+/// say it ("rain", "snow", or "rain and snow" inside the band); the
+/// temperature at the player; and the wind at the player with the point it
+/// blows from. Pure, so it is tested without a window. No Settings choice
+/// governs it: Settings > Gameplay's HUD survival bars (`HudVitals`) choose
+/// the vitals rows, and the weather line was always shown.
+pub(crate) fn weather_line(w: &crate::gui::GuiWeather) -> String {
+    let icon = match w.condition.as_str() {
+        "Clear" => "☀",
+        "Cloudy" => "☁",
+        "Rain" => "🌧",
+        "Storm" => "⛈",
+        "Snow" => "❄",
+        "Fog" => "🌫",
+        "Sandstorm" => "🌪",
+        _ => "?",
+    };
+    let phase = w.falling.phase_word();
+    // An active extreme event names the sky ("Thunderstorm" beats "Rain",
+    // v0.1035); the icon still keys off the condition.
+    let base = if w.event.is_empty() { w.condition.as_str() } else { w.event.as_str() };
+    let label = if phase.is_empty() {
+        base.to_string()
+    } else if w.event.is_empty() && matches!(base, "Rain" | "Snow") {
+        // The condition IS the phase; say the mix when it is one.
+        let mut c = phase.chars();
+        c.next().map(|f| f.to_ascii_uppercase().to_string() + c.as_str()).unwrap_or_default()
+    } else {
+        format!("{base}, {phase}")
+    };
+    let (east, north) = w.wind_at_player;
+    let speed = east.hypot(north);
+    let wind = if speed < CALM_M_S {
+        "calm".to_string()
+    } else {
+        format!("wind {speed:.0} m/s from {}", wind_from(east, north))
+    };
+    format!("{icon} {label} {:.0}C  {wind}", w.temperature)
 }
 
 /// Crew nameplate visibility (v0.667). The NAME shows out to this range; beyond it the
@@ -1733,6 +1778,46 @@ mod crew_label_tests {
         home.shelter_note = "Sheltered".into();
         assert!(!labels(&vital_rows(&home, HudVitals::Always)).contains(&"Shelter"), "sealed indoors says Sealed elsewhere");
         assert!(vital_rows(&v, HudVitals::Off).is_empty());
+    }
+
+    fn sky(condition: &str, temp: f32, wind: (f32, f32), falling: crate::systems::precipitation::Falling, event: &str) -> crate::gui::GuiWeather {
+        crate::gui::GuiWeather {
+            condition: condition.into(),
+            intensity: falling.total(),
+            temperature: temp,
+            // The weather's own wind: the line must NOT read it.
+            wind_speed: 2.0,
+            wind_at_player: wind,
+            falling,
+            event: event.into(),
+            warning: String::new(),
+        }
+    }
+
+    /// THE HUD SAYS THE AIR THE PLAYER STANDS IN (2026-09-27): the
+    /// temperature and the wind AT THE PLAYER (with the point it blows from),
+    /// and whether it is raining or snowing there, including the mix inside
+    /// the band, a storm's phase and an event's. Seen red: the line as it was
+    /// (`{icon} {condition} {temp}C {wind_speed}m/s`, the weather's own 2 m/s
+    /// and no phase) prints "❄ Snow -12C 2m/s" for the first case.
+    #[test]
+    fn the_weather_line_reads_the_air_at_the_player() {
+        use crate::systems::precipitation::Falling;
+        let snowing = sky("Snow", -12.4, (-6.0, -6.0), Falling { rain: 0.0, snow: 0.7 }, "");
+        assert_eq!(weather_line(&snowing), "❄ Snow -12C  wind 8 m/s from NE");
+        let mixed = sky("Rain", 1.0, (0.0, 3.0), Falling { rain: 0.3, snow: 0.3 }, "");
+        assert_eq!(weather_line(&mixed), "🌧 Rain and snow 1C  wind 3 m/s from S");
+        let blizzard = sky("Storm", -3.0, (10.0, 0.0), Falling { rain: 0.05, snow: 0.9 }, "");
+        assert_eq!(weather_line(&blizzard), "⛈ Storm, snow -3C  wind 10 m/s from W");
+        let event = sky("Rain", 18.0, (0.2, 0.1), Falling { rain: 0.8, snow: 0.0 }, "Thunderstorm");
+        assert_eq!(weather_line(&event), "🌧 Thunderstorm, rain 18C  calm");
+        let trades = sky("Clear", 25.0, (-4.0, 1.0), Falling::NONE, "");
+        assert_eq!(weather_line(&trades), "☀ Clear 25C  wind 4 m/s from E");
+        // A Rain system over the world below, nothing falling on the player
+        // (no air here): the condition's name, no phase.
+        let dry_here = sky("Rain", 20.0, (2.0, 0.0), Falling::NONE, "");
+        assert_eq!(weather_line(&dry_here), "🌧 Rain 20C  wind 2 m/s from W");
+        assert_eq!((wind_from(0.0, -5.0), wind_from(5.0, 0.0), wind_from(-3.0, 3.0)), ("N", "W", "SE"));
     }
 
     #[test]

@@ -2836,6 +2836,82 @@
       "use": "facts",
       "bundle": false,
       "note": "Tree Fruit in the Home Garden, 426-841 (first published February 2015, last reviewed November 2025), Table 1: spacing, yield, bearing age and life expectancy of tree fruits. Written for Virginia, so scope-check it. A state university, so restate the fact, never the wording."
+    },
+    {
+      "id": "pnnl",
+      "name": "Pacific Northwest National Laboratory technical reports",
+      "publisher": "Pacific Northwest National Laboratory, for the US Department of Energy",
+      "url": "https://www.pnnl.gov/projects/esgc-cost-performance/download-reports",
+      "kind": "authority",
+      "licence": "unknown",
+      "use": "facts",
+      "bundle": false,
+      "note": "Viswanathan, Mongird, Franks, Li, Sprenkle and Baxter, 2022 Grid Energy Storage Technology Cost and Performance Assessment, PNNL-33283, August 2022: round-trip efficiencies (Tables 4.4 and 4.6), cycle life by depth of discharge (Table 4.3, Table 4.5), calendar lives, lead-acid sulfation and the 80 percent cap. Like lbnl, a contractor-operated laboratory report is not automatically a 17 USC 105 federal work, so licence stays unknown and use facts until its status is checked."
+    },
+    {
+      "id": "nlr",
+      "name": "National Laboratory of the Rockies (formerly the National Renewable Energy Laboratory)",
+      "publisher": "Operated for the US Department of Energy",
+      "url": "https://www.nlr.gov/",
+      "kind": "authority",
+      "licence": "unknown",
+      "use": "facts",
+      "bundle": false,
+      "note": "The laboratory formerly called NREL; its sites moved to nlr.gov (atb.nlr.gov, developer.nlr.gov, docs.nlr.gov) by 2026, and older documents still carry the NREL name. Annual Technology Baseline 2025, Residential Battery Storage (5 kW and 12.5 kWh, LFP cells, 15 year life, 85 percent round trip); the PVWatts calculator (version 8.5.0; inverter efficiency default 96 percent); NREL/CP-5700-90527 on charge controllers (copyright IEEE). A contractor-operated laboratory, so licence unknown and use facts, as for lbnl and pnnl."
+    },
+    {
+      "id": "ul-solutions",
+      "name": "UL Solutions",
+      "url": "https://www.ul.com/services/energy-storage-system-testing-and-certification",
+      "kind": "authority",
+      "licence": "copyright-all-rights-reserved",
+      "use": "facts",
+      "bundle": false,
+      "note": "Public summary of UL 9540 (energy storage systems and equipment, drawing on UL 1973 for batteries and UL 1741 for inverters) and UL 9540A (the thermal runaway fire propagation test cited by NFPA 855). The standards themselves are copyrighted and were not read; cite only what the summary page says."
+    },
+    {
+      "id": "tesla-energy",
+      "name": "Tesla Powerwall 2 datasheet",
+      "publisher": "Tesla, Inc.",
+      "url": "https://solarforward.com/pdf/products/Powerwall/Powerwall_2_AC_Backup_Datasheet_EN_NA.pdf",
+      "kind": "authority",
+      "licence": "copyright-all-rights-reserved",
+      "use": "facts",
+      "bundle": false,
+      "note": "Powerwall 2 AC, North America backup version, footer dated 2017-03-21: 14 kWh total, 13.5 kWh usable, 5 kW continuous, 7 kW for 10 seconds, 100 percent depth of discharge, more than 90 percent round trip at the beginning of life (25 C, 3.3 kW), minus 20 to 50 C operating, UL 9540 listed. An illustrative manufacturer specification only. Hosted by a retailer because tesla.com refused the download; data/machines/home.ron quotes a regional version giving 90 percent."
+    },
+    {
+      "id": "simpliphi-power",
+      "name": "SimpliPhi Power PHI battery installation manual",
+      "publisher": "SimpliPhi Power (now Briggs and Stratton Energy Solutions)",
+      "url": "https://www.solarelectricsupply.com/media/sparsh/product_attachment/custom/upload/Simpliphi-Power-PHI-batteries-installation-manual.pdf",
+      "kind": "authority",
+      "licence": "copyright-all-rights-reserved",
+      "use": "facts",
+      "bundle": false,
+      "note": "PHI 3.8, 2.9, 1.4 and 730 lithium iron phosphate batteries, manual revision 073019: the 51.2 V, 75 Ah, 3.8 kWh rating; continuous and 10 minute currents; charging 0 to 49 C, operating minus 20 to 60 C; no charging below freezing (C/20 at most if unavoidable); the maker's claim of 10,000 cycles at 80 percent depth of discharge. An illustrative manufacturer specification. Its claim that the batteries cannot go into thermal runaway is marketing and is contradicted for LFP generally by DOE's 2024 energy storage safety plan; do not repeat it."
+    },
+    {
+      "id": "nasa-nssdca",
+      "name": "NASA Space Science Data Coordinated Archive planetary fact sheets",
+      "publisher": "NASA Goddard Space Flight Center",
+      "url": "https://nssdc.gsfc.nasa.gov/planetary/factsheet/",
+      "kind": "authority",
+      "licence": "public-domain-us-gov",
+      "use": "verbatim",
+      "bundle": true,
+      "note": "Earth Fact Sheet (last updated 15 November 2024): obliquity 23.44 degrees, perihelion 147.095 and aphelion 152.100 million km, solar irradiance 1361.0 W/m2. Mars Fact Sheet (last updated 19 May 2025): obliquity 25.19 degrees. Maintained by NASA staff at Goddard."
+    },
+    {
+      "id": "nasa-space-place",
+      "name": "NASA Space Place",
+      "publisher": "NASA, managed by the Jet Propulsion Laboratory",
+      "url": "https://spaceplace.nasa.gov/",
+      "kind": "authority",
+      "licence": "unknown",
+      "use": "facts",
+      "bundle": false,
+      "note": "What Causes the Seasons? (article last updated 29 July 2025). NASA-branded, but its pages carry NASA/JPL-Caltech credits and JPL is run by Caltech, so its licence is not assumed to be public domain: restate, do not quote, until checked. For numbers prefer nasa-nssdca."
     }
   ]
 }
