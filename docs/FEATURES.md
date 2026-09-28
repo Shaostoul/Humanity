@@ -1859,13 +1859,17 @@ in by data, no ids in code; the first structure the look ray meets wins, so a wa
   piece overhead (the roof: whichever shelter piece is straight above the head, not an id or category) with
   finished shelter pieces on at least THREE of the four sides within half a metre of the edge of the COVERED
   AREA (the roof overhead and every roof touching it, so a hall under several roof tiles counts:
-  `uses::covered_run`) (`uses::shelter_at`, level rays at chest height) sets `EnvironmentContext::sheltered`,
+  `uses::covered_run`) (`uses::shelter_at`, level rays at chest height), with the open side away from the wind,
+  sets `EnvironmentContext::sheltered`,
   on a planet's ground as well as aboard (the test runs in the player's build site), so the body heat
   model gets still air and nothing falling at the outside temperature. The fourth side is left open as the way
   in (doors cannot be set into walls yet), like a lean-to. On a wet, windy 5 C day the everyday outfit holds
   36.66 C after 6 h under it, against 36.28 C soaked in the open. A roof with walls missing keeps the rain and
-  snow off but not the wind. The HUD's survival rows say "Sheltered" (or "Out of the rain, 2 of 3 walls"), and
-  the Inventory page's readout says Sealed / Sheltered / Outside.
+  snow off, and since 2026-09-28 the WIND depends on which way it blows (`ShelterCheck::wind_share`): a wall on
+  the windward side stops it, and each open side facing into it lets in the cosine of the wind's angle to it, so
+  three walls keep the wind off only with the open side turned away from it ("back to the wind"). The HUD's
+  survival rows say "Sheltered", "Out of the rain and the wind", or "Out of the rain; 70% of the wind gets in",
+  and the Inventory page's readout says Sealed / Sheltered / Outside.
 
 **Placing a built piece (2026-09-27).** Build on the Crafting page's Structures now puts the piece IN HAND
 (`engine/build_place.rs`): the page closes and a half-dithered scaffold ghost follows the crosshair, on the floor

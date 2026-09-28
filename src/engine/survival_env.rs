@@ -15,6 +15,7 @@ use crate::engine::state::EngineState;
 use crate::systems::body_heat;
 use crate::systems::construction::uses;
 use crate::systems::weather::Weather;
+use glam::Vec3;
 
 /// Sea-level air pressure, kPa (the home air's pressure is kept in atm).
 const SEA_LEVEL_KPA: f32 = 101.325;
@@ -29,12 +30,16 @@ pub(crate) struct ExposedAir {
     pub wind_m_s: f32,
     pub precipitation: f32,
     pub pressure_kpa: f32,
+    /// Where the wind comes FROM, a horizontal unit vector in a build site's
+    /// axes (+X east, -Z north, `site::tangent_basis`), zero in calm air:
+    /// what `uses::ShelterCheck::wind_share` asks.
+    pub upwind: Vec3,
 }
 
 impl ExposedAir {
     /// No weather published yet: assume the worst (-40 C, no air).
     const UNKNOWN: ExposedAir =
-        ExposedAir { temp_c: -40.0, relative_humidity: 0.0, wind_m_s: 0.0, precipitation: 0.0, pressure_kpa: 0.0 };
+        ExposedAir { temp_c: -40.0, relative_humidity: 0.0, wind_m_s: 0.0, precipitation: 0.0, pressure_kpa: 0.0, upwind: Vec3::ZERO };
 
     /// The PLAYER-LOCAL fields of the weather, never the body-global
     /// `temperature` (review split): exposure is about where THIS body stands
@@ -50,8 +55,17 @@ impl ExposedAir {
             wind_m_s: w.wind_speed_at_player(),
             precipitation: body_heat::precipitation(w.falling_at_player()),
             pressure_kpa: w.pressure_kpa_at_player,
+            upwind: upwind_from(w.wind_east_at_player, w.wind_north_at_player),
         }
     }
+}
+
+/// The wind's velocity at the player (east and north components, m/s, the
+/// way it blows) turned into where it comes FROM in a build site's axes: east
+/// is +X and north is -Z, so the air heads along (east, 0, -north) and comes
+/// from the opposite way. Zero in calm air.
+pub(crate) fn upwind_from(east: f32, north: f32) -> Vec3 {
+    Vec3::new(-east, 0.0, north).normalize_or_zero()
 }
 
 /// The context OUTSIDE the hull: unsealed, in the live weather, under what
@@ -59,10 +73,14 @@ impl ExposedAir {
 /// ONLY when standing on a body whose open air supports it (Earth below the
 /// death zone); space, the Moon, and Mars keep the vacuum oxygen drain
 /// (artificial-planet increment 4). A roof keeps the rain and snow off even
-/// with walls missing; a roof on enough walls is `sheltered`, which tells the
-/// body heat model the wind does not reach the body either
-/// (`body_heat::Exposure::from_context`). The air is the weather's either
-/// way. Pure, so the body heat chain can be tested.
+/// with walls missing. The wind that reaches the body under it is the share
+/// that comes in through the open sides facing into it
+/// (`uses::ShelterCheck::wind_share`, 2026-09-28): a wall on the windward side
+/// stops it, so a three-walled shelter with its back to the wind is
+/// `sheltered` (still air to the body heat model,
+/// `body_heat::Exposure::from_context`) and the same shelter turned into the
+/// wind is not. The air is the weather's either way. Pure, so the body heat
+/// chain can be tested.
 pub(crate) fn outside_context(
     air: ExposedAir,
     breathable: bool,
@@ -75,9 +93,9 @@ pub(crate) fn outside_context(
         oxygenated: breathable,
         ambient_temp_c: air.temp_c,
         relative_humidity: air.relative_humidity,
-        wind_m_s: air.wind_m_s,
+        wind_m_s: air.wind_m_s * shelter.wind_share(air.upwind),
         precipitation: if shelter.roofed { 0.0 } else { air.precipitation },
-        sheltered: shelter.sheltered(),
+        sheltered: shelter.out_of_the_wind(air.upwind),
         radiant_temp_c: None,
         pressure_kpa: air.pressure_kpa,
         activity_met,
@@ -186,8 +204,8 @@ pub(crate) fn publish(state: &mut EngineState) {
     };
     state.data_store.insert("environment_context", env);
     // The HUD's Shelter line and the Inventory page's readout.
-    state.gui_state.vitals.sheltered = shelter.sheltered();
-    state.gui_state.vitals.shelter_note = shelter.note();
+    state.gui_state.vitals.sheltered = shelter.out_of_the_wind(exposed.upwind);
+    state.gui_state.vitals.shelter_note = shelter.note(exposed.upwind);
 }
 
 /// Where the player is for the survival context.
@@ -404,6 +422,8 @@ mod tests {
             wind_m_s: 3.3,
             precipitation: 1.0,
             pressure_kpa: SEA_LEVEL_KPA,
+            // From the north: the shelter's walls stand north, west and east.
+            upwind: Vec3::NEG_Z,
         };
         let six_hours = |check: uses::ShelterCheck| {
             let ex = Exposure::from_context(&outside_context(weather, true, check, MET_STANDING, 1.0));
@@ -428,7 +448,8 @@ mod tests {
         );
 
         // A roof with walls missing still keeps the rain off; the wind gets in.
-        let roof_only = uses::ShelterCheck { roofed: true, walled_sides: 2 };
+        // West and east walls only: the north wind comes straight in.
+        let roof_only = uses::ShelterCheck { roofed: true, walls: 0b0011 };
         let ex = Exposure::from_context(&outside_context(weather, true, roof_only, MET_STANDING, 1.0));
         assert_eq!((ex.wind_10m_m_s, ex.precipitation), (3.3, 0.0), "rain off, wind in");
     }

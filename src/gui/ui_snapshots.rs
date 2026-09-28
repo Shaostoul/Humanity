@@ -904,7 +904,7 @@ fn settings_panel(
             waste_max: 100.0,
             sealed: false,
             sheltered: false,
-            shelter_note: "Out of the rain, 2 of 3 walls".into(),
+            shelter_note: "Out of the rain; 100% of the wind gets in".into(),
             effects: Vec::new(),
         };
         state.quests = vec![crate::gui::GuiQuest {

@@ -200,14 +200,18 @@ pub fn built_stores(world: &hecs::World, registry: Option<&BlueprintRegistry>) -
 
 /// The `provides` a built piece carries when it keeps weather off (walls, roofs).
 pub const SHELTER: &str = "shelter";
-/// Walled sides needed, with a roof overhead, to count as sheltered: three of
-/// the four. A roof alone keeps the rain off but not the wind; walls on three
-/// sides stop the wind from most of the compass and leave the fourth open as
-/// a way in, which is how a lean-to or a three-sided field shelter is built
-/// (doors cannot be set into a wall yet, so a fully closed room would have no
-/// door). A GAME CHOICE: the weather's wind has a direction, and a later rule
-/// could ask whether the open side faces into it.
+/// Walled sides a finished shelter has, with a roof overhead: three of the
+/// four, leaving the fourth open as a way in, which is how a lean-to or a
+/// three-sided field shelter is built (doors cannot be set into a wall yet, so
+/// a fully closed room would have no door). It is the HUD's build goal. What
+/// the WIND does is decided by which sides are walled (`ShelterCheck::wind_share`),
+/// so three walls keep the wind off only with the open side turned away from
+/// it: the survival manuals' "back to the wind" (2026-09-28).
 pub const SHELTER_MIN_WALLS: u8 = 3;
+/// The four sides a shelter check looks along, in the check's frame (on a
+/// planet the build site's: +X east, -Z north, `site::tangent_basis`). Bit i
+/// of `ShelterCheck::walls` is side i.
+pub const SHELTER_SIDES: [Vec3; 4] = [Vec3::X, Vec3::NEG_X, Vec3::Z, Vec3::NEG_Z];
 /// Where the side rays run from, metres above the feet: chest height, so a
 /// wall counts when it stands between the wind and the body.
 const SHELTER_CHEST_M: f32 = 1.0;
@@ -229,28 +233,69 @@ const SHELTER_JOIN_M: f32 = 0.05;
 pub struct ShelterCheck {
     /// A finished shelter piece is overhead.
     pub roofed: bool,
-    /// How many of the four sides (east, west, north, south) have a finished
-    /// shelter piece within the roof's reach. 0 without a roof.
-    pub walled_sides: u8,
+    /// Which of the four [`SHELTER_SIDES`] have a finished shelter piece
+    /// within the roof's reach, bit i for side i. 0 without a roof.
+    pub walls: u8,
 }
 
 impl ShelterCheck {
-    /// Under a roof with enough walls: the wind and the rain do not reach
-    /// the body.
-    pub fn sheltered(&self) -> bool {
-        self.roofed && self.walled_sides >= SHELTER_MIN_WALLS
+    /// How many of the four sides are walled.
+    pub fn walled_sides(&self) -> u8 {
+        self.walls.count_ones() as u8
     }
 
-    /// One line for the HUD: "Sheltered", or under a roof with walls missing
-    /// that the rain is off and how many walls there are, or empty in the
-    /// open.
-    pub fn note(&self) -> String {
-        if self.sheltered() {
-            "Sheltered".to_string()
-        } else if self.roofed {
-            format!("Out of the rain, {} of {} walls", self.walled_sides, SHELTER_MIN_WALLS)
-        } else {
+    /// Built as a shelter: a roof on at least [`SHELTER_MIN_WALLS`] walls.
+    /// Whether the wind gets in as well depends on where it comes from:
+    /// [`Self::wind_share`].
+    pub fn sheltered(&self) -> bool {
+        self.roofed && self.walled_sides() >= SHELTER_MIN_WALLS
+    }
+
+    /// The share of the wind that reaches a person under this roof, 0 to 1,
+    /// when it blows FROM `upwind` (a horizontal direction in the check's
+    /// frame; zero for calm air). Out in the open, or with no roof, all of
+    /// it. Under a roof, what comes in through the open sides that face into
+    /// the wind, each side letting in the cosine of the wind's angle to it:
+    /// a wall on the windward side stops it, the lee side can stand open, and
+    /// a wind straight into the open side of a three-walled shelter comes in
+    /// in full. The cosine split is A GAME CHOICE (how much of an oblique
+    /// wind a half-open corner lets through is a matter for airflow models
+    /// this does not run); the direction rule is the survival manuals'.
+    pub fn wind_share(&self, upwind: Vec3) -> f32 {
+        if !self.roofed {
+            return 1.0;
+        }
+        let u = Vec3::new(upwind.x, 0.0, upwind.z).normalize_or_zero();
+        SHELTER_SIDES
+            .iter()
+            .enumerate()
+            .filter(|(i, _)| self.walls & (1 << i) == 0)
+            .map(|(_, side)| side.dot(u).max(0.0))
+            .sum::<f32>()
+            .min(1.0)
+    }
+
+    /// Out of the rain AND the wind blowing from `upwind`: what the body
+    /// heat model treats as still air (`body_heat::Exposure::from_context`).
+    pub fn out_of_the_wind(&self, upwind: Vec3) -> bool {
+        self.roofed && self.wind_share(upwind) <= 1.0e-3
+    }
+
+    /// One line for the HUD, for the wind blowing from `upwind`: "Sheltered"
+    /// under a finished shelter the wind does not reach, "Out of the rain and
+    /// the wind" under a roof whose walls happen to face it, how much of the
+    /// wind gets in when an open side faces it, and empty in the open.
+    pub fn note(&self, upwind: Vec3) -> String {
+        if !self.roofed {
             String::new()
+        } else if self.out_of_the_wind(upwind) {
+            if self.sheltered() {
+                "Sheltered".to_string()
+            } else {
+                "Out of the rain and the wind".to_string()
+            }
+        } else {
+            format!("Out of the rain; {:.0}% of the wind gets in", self.wind_share(upwind) * 100.0)
         }
     }
 }
@@ -291,18 +336,19 @@ pub fn shelter_at(world: &hecs::World, feet: Vec3, frame: Option<&PlanetSite>) -
         .filter(|(_e, b)| (SHELTER_HEADROOM_M..=SHELTER_ROOF_REACH_M).contains(&(b.0.y - chest.y)))
         .collect();
     let boxes: Vec<(Vec3, Vec3)> = roofs.iter().map(|(_e, b)| *b).collect();
-    let walled = [Vec3::X, Vec3::NEG_X, Vec3::Z, Vec3::NEG_Z]
-        .iter()
-        .filter(|dir| {
-            let reach = covered_run(chest, **dir, &boxes) + SHELTER_EAVE_M;
-            // A hit at 0 is a wall the person is standing inside (nothing
-            // stops walking through built pieces yet): it shelters no side.
-            pieces.iter().any(|(e, tf)| {
-                !roofs.iter().any(|(r, _)| r == e) && ray_hits_box(chest, **dir, tf).is_some_and(|t| t > 1e-4 && t <= reach)
-            })
-        })
-        .count() as u8;
-    ShelterCheck { roofed: true, walled_sides: walled }
+    let mut walls = 0u8;
+    for (i, dir) in SHELTER_SIDES.iter().enumerate() {
+        let reach = covered_run(chest, *dir, &boxes) + SHELTER_EAVE_M;
+        // A hit at 0 is a wall the person is standing inside (nothing
+        // stops walking through built pieces yet): it shelters no side.
+        let walled = pieces.iter().any(|(e, tf)| {
+            !roofs.iter().any(|(r, _)| r == e) && ray_hits_box(chest, *dir, tf).is_some_and(|t| t > 1e-4 && t <= reach)
+        });
+        if walled {
+            walls |= 1 << i;
+        }
+    }
+    ShelterCheck { roofed: true, walls }
 }
 
 /// How far along the level ray from `chest` in the axis direction `dir` the
@@ -470,6 +516,41 @@ mod tests {
         world.spawn((tf, Structure { blueprint_id: id.into(), health: bp.health, max_health: bp.health, provides: bp.provides.clone(), uid: 0 }));
     }
 
+    /// BACK TO THE WIND (2026-09-28). The same three-walled shelter, open to
+    /// the south: a north wind meets a wall and none of it reaches the person
+    /// inside; a south wind blows straight in the open side, all of it; a
+    /// wind from the south-east comes in at the cosine of its angle to the
+    /// open side. Four walls stop every wind, and in the open all of it
+    /// reaches you. Red check, run: counting the open sides without the
+    /// direction (`share = open sides / 4`) fails the north-wind assertion.
+    #[test]
+    fn three_walls_shelter_only_with_their_back_to_the_wind() {
+        let reg = shipped();
+        let feet = Vec3::new(0.0, 0.0, 0.5);
+        let mut world = hecs::World::new();
+        for (x, z, t) in [(0.0, -2.0, 0), (-2.0, 0.0, 1), (2.0, 0.0, 1)] {
+            place(&mut world, &reg, "wood_wall", x, z, t);
+        }
+        place(&mut world, &reg, "roof", 0.0, 0.0, 0);
+        let s = shelter_at(&world, feet, None);
+        assert_eq!(s.walls, 0b1011, "east, west and north walled, south open: {s:?}");
+        let north = Vec3::NEG_Z;
+        let south = Vec3::Z;
+        let south_east = Vec3::new(1.0, 0.0, 1.0);
+        assert_eq!(s.wind_share(north), 0.0, "a north wind meets the north wall");
+        assert!(s.out_of_the_wind(north) && s.note(north) == "Sheltered");
+        assert!((s.wind_share(south) - 1.0).abs() < 1e-6, "a south wind comes in the open side");
+        assert_eq!(s.note(south), "Out of the rain; 100% of the wind gets in");
+        assert!((s.wind_share(south_east) - std::f32::consts::FRAC_1_SQRT_2).abs() < 1e-5, "{}", s.wind_share(south_east));
+        assert_eq!(s.wind_share(Vec3::ZERO), 0.0, "calm air");
+        let closed = ShelterCheck { roofed: true, walls: 0b1111 };
+        for u in [north, south, south_east, Vec3::X, Vec3::NEG_X] {
+            assert_eq!(closed.wind_share(u), 0.0, "four walls, wind from {u}");
+        }
+        assert_eq!(ShelterCheck::default().wind_share(north), 1.0, "the open");
+        assert_eq!(ShelterCheck::default().note(north), "");
+    }
+
     /// THE SHELTER RULE (2026-09-27). Under a roof on three walls you are
     /// sheltered, and under four; under a roof on two walls you are not (the
     /// note says what is missing), nor under a roof alone, nor in a roofless
@@ -495,17 +576,19 @@ mod tests {
         assert!(!shelter_at(&roofless, feet, None).roofed, "four walls and no roof is open to the rain");
         place(&mut world, &reg, "roof", 0.0, 0.0, 0);
         let two = shelter_at(&world, feet, None);
-        assert_eq!(two, ShelterCheck { roofed: true, walled_sides: 2 });
-        assert!(!two.sheltered(), "two walls leave the wind in");
-        assert_eq!(two.note(), "Out of the rain, 2 of 3 walls");
+        // West (bit 1) and north (bit 3).
+        assert_eq!(two, ShelterCheck { roofed: true, walls: 0b1010 });
+        assert!(!two.sheltered(), "two walls are not yet a shelter");
+        assert_eq!(two.note(Vec3::X), "Out of the rain; 100% of the wind gets in", "an east wind");
+        assert_eq!(two.note(Vec3::NEG_Z), "Out of the rain and the wind", "a north wind meets the north wall");
 
         // The east wall: three sides, sheltered. The south wall: four.
         place(&mut world, &reg, "wood_wall", 2.0, 0.0, 1);
         let three = shelter_at(&world, feet, None);
-        assert!(three.sheltered() && three.walled_sides == 3, "{three:?}");
-        assert_eq!(three.note(), "Sheltered");
+        assert!(three.sheltered() && three.walled_sides() == 3, "{three:?}");
+        assert_eq!(three.note(Vec3::NEG_Z), "Sheltered", "back to a north wind");
         place(&mut world, &reg, "wood_wall", 0.0, 2.0, 0);
-        assert_eq!(shelter_at(&world, feet, None).walled_sides, 4);
+        assert_eq!(shelter_at(&world, feet, None).walled_sides(), 4);
         // Anywhere under it, and not a step outside it.
         assert!(shelter_at(&world, Vec3::new(1.5, 0.0, -1.5), None).sheltered());
         assert_eq!(shelter_at(&world, Vec3::new(5.0, 0.0, 0.0), None), ShelterCheck::default(), "outside the east wall");
@@ -518,12 +601,12 @@ mod tests {
             Structure { blueprint_id: "roof".into(), health: 1.0, max_health: 1.0, provides: roof.provides.clone(), uid: 0 },
         ));
         let a = shelter_at(&alone, feet, None);
-        assert!(a.roofed && a.walled_sides == 0 && !a.sheltered(), "{a:?}");
+        assert!(a.roofed && a.walled_sides() == 0 && !a.sheltered(), "{a:?}");
         // Walls well beyond the roof's edge keep nothing off the person under it.
         for (x, z, t) in [(0.0, -6.0, 0), (-6.0, 0.0, 1), (6.0, 0.0, 1)] {
             place(&mut alone, &reg, "wood_wall", x, z, t);
         }
-        assert_eq!(shelter_at(&alone, feet, None).walled_sides, 0, "walls 4 m past the eaves");
+        assert_eq!(shelter_at(&alone, feet, None).walled_sides(), 0, "walls 4 m past the eaves");
 
         // A roof still going up keeps nothing off.
         let mut scaffold = hecs::World::new();
@@ -574,7 +657,7 @@ mod tests {
             for j in 0..15 {
                 let feet = Vec3::new(-3.5 + 0.5 * i as f32, 0.0, -3.5 + 0.5 * j as f32);
                 let s = shelter_at(&world, feet, None);
-                assert_eq!(s, ShelterCheck { roofed: true, walled_sides: 4 }, "inside the hall at {feet}");
+                assert_eq!(s, ShelterCheck { roofed: true, walls: 0b1111 }, "inside the hall at {feet}");
                 checked += 1;
             }
         }

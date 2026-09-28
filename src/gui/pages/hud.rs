@@ -1772,9 +1772,9 @@ mod crew_label_tests {
         let row = rows.iter().find(|r| r.label == "Shelter").expect("a Shelter row outside under a roof");
         assert_eq!((row.text.as_str(), row.severity), ("Sheltered", 0));
         v.sheltered = false;
-        v.shelter_note = "Out of the rain, 2 of 3 walls".into();
+        v.shelter_note = "Out of the rain; 100% of the wind gets in".into();
         let rows = vital_rows(&v, HudVitals::WhenLow);
-        assert_eq!(rows.iter().find(|r| r.label == "Shelter").map(|r| r.severity), Some(1), "missing walls need attention");
+        assert_eq!(rows.iter().find(|r| r.label == "Shelter").map(|r| r.severity), Some(1), "the wind getting in needs attention");
         v.shelter_note.clear();
         assert!(!labels(&vital_rows(&v, HudVitals::Always)).contains(&"Shelter"), "the open: no line");
         let mut home = vitals(90.0, 90.0, 90.0, 100.0, true, 36.8, 10.0);

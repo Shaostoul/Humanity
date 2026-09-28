@@ -783,7 +783,7 @@ pub struct GuiVitals {
     /// `construction::uses::shelter_at`): the wind and rain do not reach them.
     pub sheltered: bool,
     /// The HUD's Shelter line: "Sheltered", what is missing under a roof
-    /// ("Out of the rain, 2 of 3 walls"), or empty in the open or indoors.
+    /// ("Out of the rain; 100% of the wind gets in"), or empty in the open or indoors.
     pub shelter_note: String,
     /// Active status effects: (display name, seconds remaining).
     pub effects: Vec<(String, f32)>,

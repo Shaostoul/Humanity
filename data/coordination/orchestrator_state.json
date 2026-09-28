@@ -281,6 +281,11 @@
       "date": "2026-09-28",
       "decision": "HDR scene target increments 3 and 4 (Rgba16Float target, one present-pass dither) finished from the WIP branch and merged in v0.1398.0: GPU tests 7/7, same-boot A/B plans A (float target: still scenes within 2 codes), B (banding: mean dark flat run cut at every banding vantage, means and aurora comb held) and C (about 0.03-0.06 ms at 2560x1387), panics 0 at world entry. 35 high-frequency gate vantages pin present_dither 0. Banding report closed as BUG-104. Plans kept in scripts/hdr-ab/.",
       "why": "The resume map from the usage cap listed this branch as NOT safe until measured; every item it named is now done, so it merges rather than lingering as a loose end. Sun cascades increment 1 and increment 5 (hdr_linear flag) are the next rendering rungs; arc C stays ranked first."
+    },
+    {
+      "date": "2026-09-28",
+      "decision": "Arc C shelter: the wind direction against the open side. ShelterCheck records which sides are walled; under a roof the wind reaching the body is the share coming in through open sides facing into it (cosine per side, a stated game choice); three walls shelter only with their back to the wind. HUD note says Sheltered / Out of the rain and the wind / N% of the wind gets in.",
+      "why": "Next unticked Tier A item after the day-length work; the direction rule is the survival manuals' back-to-the-wind advice, which the game can now teach. The walls' radiant warmth stays open."
     }
   ],
   "active_scopes_to_avoid": [
