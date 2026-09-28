@@ -2,7 +2,9 @@
 
 **Status:** designed 2026-09-21. **BUILT 2026-09-25 for crops, builds under
 construction and craft batches; 2026-09-27 for soil pH, the automated
-machines, the mining drone and livestock** (single player, device clock). See
+machines, the mining drone and livestock** (single player, device clock).
+Battery charge, tank levels and vessel contents are saved since 2026-09-27
+and deliberately do not advance. See
 "What is built" below. The server clock for multiplayer is what remains.
 **Operator decision, 2026-09-21.** Verbatim:
 
@@ -151,8 +153,8 @@ itself, so shaping the starting home keeps working. Revisit at launch.
     destroys nothing (crop health is not integrated offline). `resume_home`
     hands the time away to the farming tick
     (`farming::soil_ph::hand_away_secs`), which steps it once at the player's
-    growth speed and Soil pH setting, because those reach the DataStore only
-    after the resume. The acidity of the growth made while away is not in it:
+    Soil pH setting, because that reaches the DataStore only after the
+    resume. The acidity of the growth made while away is not in it:
     that growth pays its nitrogen on the first tick back and its acidity
     reacts from then on. Weeds and pests do not advance (they cost crop
     health the player could not answer).
@@ -227,6 +229,27 @@ itself, so shaping the starting home keeps working. Revisit at launch.
   herd, and a machine never runs on stock that was not there. The inert
   `ManufacturingSystem` facility counter has no spawned facilities and
   produces nothing, so there is nothing to catch up there.
+- **What the home's machines hold is saved (2026-09-27), and does not move on
+  while away.** Each battery bank's charge, each water tank's litres and each
+  machine vessel's contents (the genset and refinery fuel drums, the grain
+  silo, the pantry, the freezer, the furniture drawers, with their residue and
+  toxic history) are saved by machine instance id
+  (`WorldSave.machine_levels`, `engine::machine_levels`). None of it was
+  before: every restart put each bank and tank back at half, which undid the
+  night's discharge or the day's charge, and emptied every vessel, which
+  destroyed whatever was stored in it; entering the world, which respawns
+  every machine, did the same within a session, and now carries the levels
+  across. By the rule above none of them is advanced by the time away: a
+  bank neither charges nor runs flat while the player is out (the panels are
+  not simulated offline, and a flat bank is the "battery running flat"
+  case), a tank does not refill, and a drum is not burned. They come back as
+  saved, and the automated machines' tap water while away comes out of the
+  tanks as saved. The home's own air (oxygen, carbon dioxide, humidity) and
+  each grow room's air were already saved in `SoilMemory` and are not
+  advanced either, since the air runs on the game clock, which does not
+  jump. Not saved on purpose: the fraction of a fuel unit a running genset
+  has burned toward its next whole unit, and the fraction of a litre the
+  plumbing carries between ticks, both smaller than one unit.
 - **Applying the same save twice is the same result.** The launcher applies
   the save again when the character is picked, so on a character select the
   home's storage (the Barn) now comes back with the save as well
@@ -265,3 +288,16 @@ itself, so shaping the starting home keeps working. Revisit at launch.
 - `docs/design/playable-assessment-2026-09-19.md` section 7, question 1.
 - Timetable-shaped chores rather than countdown timers:
   `docs/design/crowd-simulation.md` rung 3, the same refactor.
+
+## The one clock (2026-09-27)
+
+The world clock is now one game clock with a time-speed setting
+(decision-briefs.md Brief 6): the 20-minute day and the crop growth
+multiplier are gone. The time away is counted at that speed:
+`save_load::catch_up_world` multiplies the real seconds away by the
+player's time speed, the rate the world ran at while they played, so a
+garden at 72x keeps growing at 72x while the game is closed and one at 1x
+grows by exactly the real time away. Everything handed the time away
+(crops, builds, crafts, soil pH, the drone, machines, livestock) gets it in
+game seconds. A dev hold (the F11 freeze, a sleep) is not the setting and
+does not stretch it.

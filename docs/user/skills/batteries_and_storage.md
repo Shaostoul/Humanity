@@ -589,8 +589,10 @@ bank charging in the cold; batteries never age or lose capacity; there is no
 chemistry, so no lead-acid or lithium to choose between, no hydrogen, no acid,
 and no thermal runaway or fire; there are no charge controllers or inverters,
 and their losses are not charged anywhere in the live power; the Buildability
-check counts a bank's whole capacity as usable; and a bank's charge is not
-saved, so it starts half full each time the home is loaded. The
+check counts a bank's whole capacity as usable; and while you are away a
+bank's charge stands still (it is saved with the home and comes back as you
+left it), where a real bank keeps charging from the panels, keeps carrying
+the loads, and slowly loses charge on its own. The
 [Sim Realism Roadmap](../../design/sim-realism-roadmap.md) (row 16) keeps the
 list of what is left to make the battery real.
 

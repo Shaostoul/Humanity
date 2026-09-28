@@ -583,10 +583,12 @@ with more than 1,300 tagged releases); for the granular per-release history see
   Plus the multi-modal detection/sensing vision captured in docs/design/detection-sensing.md.
 - `v0.621` Telecom Stage 2: data routing -- machines demand internet (Mbps), a data
   connection picks its medium (Cat6 / fibre / WiFi) in the editor, and a Data-links
-  buildability check sizes bandwidth + range + cautions when a wireless link's RF is near a grow.
-- `v0.620` Telecom consequence: a powered WiFi router's RF now HARMS the grow -- the
-  FarmingSystem drains crop health by the home RF level, so you run wired (Cat6/fibre,
-  zero RF) to protect a sensitive crop. The operator's "the tradeoffs bite" example.
+  buildability check sizes bandwidth + range (its wireless-RF-near-a-grow caution was removed
+  2026-09-27 with the crop harm below).
+- `v0.620` Telecom consequence: a powered WiFi router's RF HARMED the grow -- the
+  FarmingSystem drained crop health by the home RF level. REMOVED 2026-09-27 by the
+  operator's decision ("We'll assume no wi-fi crop harm at this time"), on the evidence in
+  docs/reference/findings/2026-09-27-wifi-and-plants.md.
 - `v0.619` Telecom / internet utility Stage 1: real data media (Cat6 ethernet, fibre,
   WiFi) with bandwidth / range / latency / RF-emission tradeoffs + a link-physics check.
   Next: emissions become enemy/player detection signatures + pheromones.

@@ -321,12 +321,12 @@ mod tests {
     /// 0.9 on the arctic body and the first precipitation assertion fails.
     #[test]
     fn the_body_heat_input_gets_the_phase_the_weather_decided() {
-        use crate::systems::time::{GameTime, DAYS_PER_YEAR, SECONDS_PER_DAY};
+        use crate::systems::time::{GameTime, DEFAULT_DAYS_PER_YEAR, EARTH_DAY_S};
         use crate::systems::weather::{ManualWeather, WeatherCondition, WeatherControl};
         let mut data = DataStore::new();
         data.insert("weather", std::sync::Mutex::new(Weather::default()));
         let mut clock = GameTime {
-            elapsed_seconds: 0.75 * f64::from(DAYS_PER_YEAR) * SECONDS_PER_DAY,
+            elapsed_seconds: 0.75 * f64::from(DEFAULT_DAYS_PER_YEAR) * EARTH_DAY_S,
             ..Default::default()
         };
         clock.recompute_derived();

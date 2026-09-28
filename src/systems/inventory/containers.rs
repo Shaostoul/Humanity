@@ -276,7 +276,7 @@ pub fn clean_container(
 /// and how damaged it is. Storing an incompatible content class drives
 /// `damage_ratio` toward 0.0; at 0.0 the container is broken and its contents
 /// spill (are cleared).
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Container {
     /// Which archetype this is — an id in `data/containers/types.csv`.
     pub container_type_id: String,

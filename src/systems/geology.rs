@@ -17,8 +17,8 @@ use crate::ecs::components::{OreDeposit, SoilPatch, Transform, WasteAccumulator}
 use crate::ecs::systems::System;
 use crate::hot_reload::data_store::DataStore;
 
-/// 1 game day = 1200 real seconds.
-const REAL_SECONDS_PER_GAME_DAY: f32 = 1200.0;
+/// Game seconds in a day: 24 hours of the one game clock (2026-09-27).
+const REAL_SECONDS_PER_GAME_DAY: f32 = crate::systems::time::EARTH_DAY_S as f32;
 /// Baseline fertility recovery per game-day (toward 1.0).
 const FERTILITY_RECOVERY_PER_DAY: f32 = 0.005;
 /// Bonus recovery per kg of organic waste within range.

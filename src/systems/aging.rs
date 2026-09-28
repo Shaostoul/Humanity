@@ -1,8 +1,8 @@
 //! Aging system — advances entity age over game-time and transitions
 //! life stages at the thresholds defined in `data/aging_fitness.ron`.
 //!
-//! Time conversion: 1 game day = 20 real minutes (`SECONDS_PER_GAME_DAY`).
-//! 1 game year = 365 game days. So 1 real second ≈ 2.28e-6 game years.
+//! Time conversion: a year of age is 365 days of 24 game hours (the one
+//! clock, 2026-09-27).
 
 use std::path::Path;
 
@@ -12,8 +12,9 @@ use crate::ecs::components::Age;
 use crate::ecs::systems::System;
 use crate::hot_reload::data_store::DataStore;
 
-/// 20 real minutes per game day, 365 days per game year.
-const REAL_SECONDS_PER_GAME_YEAR: f32 = 1200.0 * 365.0;
+/// Game seconds in a year of age: 365 days of 24 hours (the one clock,
+/// 2026-09-27). Age counts biological years, whatever the calendar says.
+const REAL_SECONDS_PER_GAME_YEAR: f32 = crate::systems::time::EARTH_DAY_S as f32 * 365.0;
 
 /// Top-level RON schema for `data/aging_fitness.ron`.
 #[derive(Debug, Deserialize)]

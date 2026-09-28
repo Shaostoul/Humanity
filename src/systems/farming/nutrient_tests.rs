@@ -73,7 +73,6 @@ fn compost_bag() -> Npk {
 #[test]
 fn a_crop_short_of_one_nutrient_is_stunted_by_the_minimum_rule() {
     let mut data = make_store();
-    data.insert("crop_growth_speed", std::sync::Mutex::new(1.0_f32));
     data.insert("player_notices", std::sync::Mutex::new(Vec::<String>::new()));
     let mut sys = FarmingSystem::new();
     let mut world = hecs::World::new();
@@ -179,7 +178,6 @@ fn fertilizing_adds_a_bags_nutrients_at_the_cited_ratio_and_nothing_else() {
 #[test]
 fn nutrient_draw_scales_with_the_plants_csv_demand() {
     let mut data = make_store();
-    data.insert("crop_growth_speed", std::sync::Mutex::new(1.0_f32));
     // The twin: the tomato row with its removal columns doubled.
     let mut plants = PlantRegistry::from_csv(include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/data/plants.csv")))
         .expect("plants.csv");
@@ -243,7 +241,6 @@ fn nutrient_draw_scales_with_the_plants_csv_demand() {
 #[test]
 fn the_nutrient_slider_no_longer_speeds_growth() {
     let mut data = make_store();
-    data.insert("crop_growth_speed", std::sync::Mutex::new(1.0_f32));
     let mut nut = HashMap::new();
     nut.insert("rich".to_string(), 1.0_f32);
     nut.insert("lean".to_string(), 0.0_f32);
@@ -281,7 +278,6 @@ fn the_nutrient_slider_no_longer_speeds_growth() {
 fn the_nutrient_slider_runs_a_feeder_that_spends_stored_fertilizer() {
     let run = |creative: bool, bags: u32| {
         let mut data = make_store();
-        data.insert("crop_growth_speed", std::sync::Mutex::new(1.0_f32));
         data.insert("creative_mode", std::sync::Mutex::new(creative));
         data.insert("player_notices", std::sync::Mutex::new(Vec::<String>::new()));
         let mut stock = HashMap::new();
@@ -435,7 +431,6 @@ fn home_stock_of(data: &DataStore, item: &str) -> u32 {
 #[test]
 fn compost_banks_its_organic_nitrogen_and_it_comes_back_in_the_second_year() {
     let mut data = make_store();
-    data.insert("crop_growth_speed", std::sync::Mutex::new(1.0_f32));
     let mut sys = FarmingSystem::new();
     let mut world = hecs::World::new();
     world.spawn((Irrigator,));
@@ -474,7 +469,6 @@ fn compost_banks_its_organic_nitrogen_and_it_comes_back_in_the_second_year() {
 #[test]
 fn stored_urine_by_hand_feeds_a_crop_but_not_within_a_month_of_its_harvest() {
     let mut data = make_store();
-    data.insert("crop_growth_speed", std::sync::Mutex::new(1.0_f32));
     data.insert("player_notices", std::sync::Mutex::new(Vec::<String>::new()));
     let mut sys = FarmingSystem::new();
     let mut world = hecs::World::new();
@@ -514,7 +508,6 @@ fn stored_urine_by_hand_feeds_a_crop_but_not_within_a_month_of_its_harvest() {
 #[test]
 fn a_legume_draws_less_and_leaves_its_fixed_nitrogen_for_the_next_crop() {
     let mut data = make_store();
-    data.insert("crop_growth_speed", std::sync::Mutex::new(1.0_f32));
     data.insert("creative_mode", std::sync::Mutex::new(true));
     let mut plants = PlantRegistry::from_csv(include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/data/plants.csv")))
         .expect("plants.csv");
@@ -609,10 +602,11 @@ fn a_legume_draws_less_and_leaves_its_fixed_nitrogen_for_the_next_crop() {
 fn the_households_urine_feeds_the_garden_through_the_compost_action() {
     use crate::ecs::components::{Health, StatusEffects, Vitals};
     let mut data = make_store();
-    data.insert("crop_growth_speed", std::sync::Mutex::new(1.0_f32));
     data.insert("compost_request", std::sync::Mutex::new(false));
     data.insert("vitals_drain_scale", std::sync::Mutex::new(0.0_f32));
     data.insert("player_notices", std::sync::Mutex::new(Vec::<String>::new()));
+    // Time speed 1: the body's days are real days (the one clock, 2026-09-27).
+    data.get::<std::sync::Mutex<crate::systems::time::GameTime>>("game_time").unwrap().lock().unwrap().time_scale = 1.0;
     let mut food = crate::systems::food::FoodSystem::new(std::path::Path::new(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/data"

@@ -176,6 +176,46 @@ faster or slower. That is none of the lettered options below exactly: it is
 real-length hours with a configurable day, and one speed control over all of
 it. The brief as written follows, for the record.
 
+**How it was built (2026-09-27, `src/systems/time.rs`).** One game clock.
+An hour is 3,600 game seconds; a day is `hours_per_day` of them (Settings,
+default 24, 12 to 48); a year is `days_per_year` days (Settings, default
+365, 28 to 1,000; the operator did not choose the year, 365 is the agent's
+choice to match real hours). The time speed (Settings, default 1 =
+realistic, 1 to 1,000) is the only speed-up: the crop growth multiplier of
+2026-09-20 and the 1,200 s day are deleted. Settings > Gameplay > Time holds
+all three (`gui/pages/settings_time.rs`); the F11 panel's speed slider is the
+same setting, and its "Hold the clock still" is a hold over it, as are sleep
+and the probe rig's freeze (`time::request_speed_hold`).
+
+What reads the one clock: crops (their `growth_days` are 24-hour days, so a
+crop takes the same hours whatever the day length), their water and health
+rates (now per game second, keeping the game hours they had: dry in 8 h, die
+2 h later), the tanks (plumbing on game minutes), batteries (already), the
+body's daily needs (hunger, thirst, tiredness, waste, urine, spoilage), the
+weather (rolls every 6 to 18 game hours, events of real length, a front in
+half an hour), passive income, the gameplay sun and solar power, the drawn
+Sun and the planet's spin (one turn per game day of any length, through
+`GameTime::solar_hour`: the sun is up the middle half of the day, so noon of
+a 36-hour day is 18:00), the station's orbit (`orbit::sim_seconds`), the HUD
+clock and Day N, seasons and environment Layer 1's year. What stays on real
+seconds, deliberately: breath, body heat, a burn's g-load and timed status
+effects, because the player moves and acts in real seconds (at 72x a held
+breath would last half a real second); and the planets' orbital positions
+(`renderer/celestial.rs` still reads the wall clock, months-scale; the next
+step if the sky should also run at the time speed). Sleep runs the clock at
+7,200x, so a night of 8 hours passes in 4 real seconds at any setting, and
+the clock-jump rule (BUG-100) keeps its slack at twice one frame's move.
+Offline progression counts the time away at the time speed.
+
+**The simplified mode, proposed:** time speed 72, a day in 20 real minutes
+(the pace the game had), offered as the "Simplified" preset. At 1x a lettuce
+(45 days) takes 45 real days, a 12-hour night 12 real hours, and one 4 kWh
+battery bank carries a 500 W night load 8 real hours; at 72x the lettuce
+takes 15 hours of play, the night 10 minutes, the bank 6.7 minutes. The
+default ships at 1 because the operator's words fix an hour at an hour
+"unless they change the setting"; making 72 the default for general play
+(the dual-mode house rule's softened default) is his call.
+
 Written 2026-09-27. Asked before as PRIORITIES "Blocked on the operator" #3;
 this is the same question laid out so it can be answered with one letter.
 Three pieces of garden work wait on it: the ship's sun reaching the crops

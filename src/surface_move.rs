@@ -272,8 +272,8 @@ pub const ANCHOR_CONTINUITY_M: f64 = 100_000.0;
 /// planet's unrotated frame (`dev_travel::frame_lock_capture`). It is NOT
 /// where the player is standing: the camera was placed by LAST frame's
 /// co-rotation, so un-rotating it with THIS frame's spin lands one frame of
-/// planetary rotation BEHIND the ground point under their feet. On the game's
-/// 20-minute day (`systems::time::SECONDS_PER_DAY` = 1200) the ground slips
+/// planetary rotation BEHIND the ground point under their feet. On a day that
+/// passes in 20 real minutes (the 24-hour day at time speed 72) the ground slips
 /// 33,360 m/s at the equator, so the lag is 556 m at 60 fps, 1.1 km at 30 and
 /// 4.7 km at 7 - PROPORTIONAL TO FRAME TIME.
 ///
@@ -325,10 +325,11 @@ mod stand_still_tests {
     use crate::terrain::planet_heightmap::PlanetHeightmap;
     use glam::{DQuat, DVec3};
 
-    /// The game's own day length: 20 minutes, so the ground under a standing
-    /// player slips 2*PI*R/1200 = 33,360 m/s at the equator. This is the
-    /// number that turns a one-frame sampling lag into kilometres.
-    const DAY_S: f64 = crate::systems::time::SECONDS_PER_DAY;
+    /// A day in 20 real minutes (the 24-hour day at the Simplified time
+    /// speed, 72x; the fastest setting is faster still), so the ground under
+    /// a standing player slips 2*PI*R/1200 = 33,360 m/s at the equator. This
+    /// is the number that turns a one-frame sampling lag into kilometres.
+    const DAY_S: f64 = 1200.0;
     const G: f64 = 9.81;
     const SETTLE: f64 = 4.0;
     /// A settled walk-band depth (the operator's tile tier reaches 17-20).

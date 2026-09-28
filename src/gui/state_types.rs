@@ -82,6 +82,8 @@ pub struct GuiGameTime {
     /// "20:04" beside a noon sun - the clock ran exactly lon/15 = 8.2 h
     /// ahead of the sky (the sun-clock incident, 2026-08-18).
     pub local_hour: Option<f32>,
+    /// Hours in this clock's day (Settings, 24 by default).
+    pub hours_per_day: u32,
 }
 
 /// Weather snapshot bridged from WeatherSystem for GUI display.

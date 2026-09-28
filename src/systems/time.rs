@@ -19,9 +19,11 @@ pub enum Season {
 }
 
 impl Season {
-    /// Determine season from day count (30-day seasons, 120-day year).
-    pub fn from_day(day: u32) -> Self {
-        match (day % DAYS_PER_YEAR) / (DAYS_PER_YEAR / 4) {
+    /// Determine season from day count: four equal quarters of a year of
+    /// `days_per_year` days (the setting), Spring first.
+    pub fn from_day(day: u32, days_per_year: u32) -> Self {
+        let year = days_per_year.max(4);
+        match (day % year) * 4 / year {
             0 => Season::Spring,
             1 => Season::Summer,
             2 => Season::Autumn,
@@ -41,8 +43,17 @@ pub struct GameTime {
     pub hour: f32,
     /// Current season.
     pub season: Season,
-    /// Time multiplier (1.0 = real-time, higher = faster).
+    /// The clock's speed this frame, game seconds per real second: the
+    /// time-speed setting, or a hold over it (`speed_hold`).
     pub time_scale: f32,
+    /// Hours in a day (the Settings "Hours in a day", default 24). An hour
+    /// is always `SECONDS_PER_HOUR`; this only says how many make a day.
+    pub hours_per_day: u32,
+    /// Days in a year (the Settings "Days in a year", default 365).
+    pub days_per_year: u32,
+    /// A temporary speed over the setting: the F11 panel's "Hold the clock
+    /// still" (0), a night's sleep, a probe rig's freeze. None = the setting.
+    pub speed_hold: Option<f32>,
 }
 
 impl Default for GameTime {
@@ -52,20 +63,42 @@ impl Default for GameTime {
             day_count: 0,
             hour: 8.0,
             season: Season::Spring,
-            time_scale: 1.0,
+            time_scale: DEFAULT_TIME_SPEED,
+            hours_per_day: DEFAULT_HOURS_PER_DAY,
+            days_per_year: DEFAULT_DAYS_PER_YEAR,
+            speed_hold: None,
         }
     }
 }
 
 impl GameTime {
+    /// Game seconds in one day of this calendar: its hours times an hour.
+    pub fn seconds_per_day(&self) -> f64 {
+        f64::from(clamp_hours_per_day(self.hours_per_day)) * SECONDS_PER_HOUR
+    }
+
+    /// How far through the day, 0 to 1 (0 = midnight, 0.5 = noon).
+    pub fn day_fraction(&self) -> f64 {
+        let day = self.seconds_per_day();
+        self.elapsed_seconds.rem_euclid(day) / day
+    }
+
+    /// Where the sun is, as the hour it would be on a 24-hour dial: noon is
+    /// 12 however many hours the day has. Everything that follows the SUN
+    /// (solar power, the grow lights' timer, the drawn sky, the planet's
+    /// spin, the day's warmth) reads this; the clock a person reads is `hour`.
+    pub fn solar_hour(&self) -> f32 {
+        self.hour * 24.0 / clamp_hours_per_day(self.hours_per_day) as f32
+    }
+
     /// Recompute hour, day and season from `elapsed_seconds`. Every writer of
     /// the clock goes through this, so the derived fields can never disagree
     /// with the total.
     pub fn recompute_derived(&mut self) {
-        let day_seconds = self.elapsed_seconds % SECONDS_PER_DAY;
-        self.hour = (day_seconds / SECONDS_PER_DAY * 24.0) as f32;
-        self.day_count = (self.elapsed_seconds / SECONDS_PER_DAY) as u32;
-        self.season = Season::from_day(self.day_count);
+        let day = self.seconds_per_day();
+        self.hour = (self.elapsed_seconds.rem_euclid(day) / SECONDS_PER_HOUR) as f32;
+        self.day_count = (self.elapsed_seconds.max(0.0) / day) as u32;
+        self.season = Season::from_day(self.day_count, clamp_days_per_year(self.days_per_year));
     }
 
     /// Put the clock at an absolute game time (clamped to >= 0).
@@ -107,13 +140,130 @@ pub fn elapsed_now(data: &DataStore) -> f64 {
         .unwrap_or(0.0)
 }
 
-/// Seconds per in-game day (real-time at time_scale=1.0).
-/// 20 real minutes = 1 game day. Public so sibling systems pacing
-/// per-game-day mechanics (economy passive income, v0.747) share it.
-pub const SECONDS_PER_DAY: f64 = 1200.0;
+// ── ONE GAME CLOCK (operator, 2026-09-27, decision-briefs.md Brief 6) ──────
+// "The default day length should be 24 hours. Though we want it to be
+// configurable. Like, maybe prefer a 20 hour day or 36 hour day. However that
+// shouldn't change how long an hour is unless they change the setting that
+// makes stuff happen faster/slower."
+//
+// So an hour is always 3,600 game seconds, a day is `hours_per_day` of them,
+// and at time speed 1 a game second is a real second. The time speed is the
+// ONLY thing that makes the world run faster: the garden's separate growth
+// multiplier (2026-09-20) and the 20-minute day (1,200 s) are gone, and
+// crops, tanks, batteries, the body's daily needs, the weather, the sun and
+// the planet's spin all read this one clock.
 
-/// Days in the game year: four 30-day seasons, Spring first (Season::from_day).
-pub const DAYS_PER_YEAR: u32 = 120;
+/// Game seconds in an hour, whatever the day length.
+pub const SECONDS_PER_HOUR: f64 = 3600.0;
+/// Game seconds in an Earth day, 24 hours: the unit every per-day number in
+/// the data is written in (plants.csv `growth_days`, litres a day, a year of
+/// urine). A crop takes its `growth_days` of these whatever the calendar
+/// says, because a plant grows by the hour, not by the name of the day.
+pub const EARTH_DAY_S: f64 = 24.0 * SECONDS_PER_HOUR;
+
+/// Hours in a day unless the player sets another (the operator's default).
+pub const DEFAULT_HOURS_PER_DAY: u32 = 24;
+/// The Settings range for hours in a day: whole hours, half to twice Earth's.
+pub const MIN_HOURS_PER_DAY: u32 = 12;
+/// See [`MIN_HOURS_PER_DAY`].
+pub const MAX_HOURS_PER_DAY: u32 = 48;
+/// Days in a year unless the player sets another. Earth's 365, to match
+/// real hours; the operator did not decide this one (it is the agent's
+/// choice of 2026-09-27, changeable in Settings).
+pub const DEFAULT_DAYS_PER_YEAR: u32 = 365;
+/// The Settings range for days in a year: four seasons of a week or more,
+/// up to about a Mars year and a half.
+pub const MIN_DAYS_PER_YEAR: u32 = 28;
+/// See [`MIN_DAYS_PER_YEAR`].
+pub const MAX_DAYS_PER_YEAR: u32 = 1000;
+
+/// Time speed 1: a game second is a real second (the realistic mode).
+pub const REALISTIC_TIME_SPEED: f32 = 1.0;
+/// The time speed a new game starts at: realistic. The operator's words
+/// above fix an hour at an hour "unless they change the setting".
+pub const DEFAULT_TIME_SPEED: f32 = REALISTIC_TIME_SPEED;
+/// The simplified mode's speed, the agent's proposal (2026-09-27): a day in
+/// 20 real minutes, the pace the game had before the one clock, so a
+/// lettuce (45 days) ripens in 15 hours of play and a 12-hour night passes
+/// in 10 minutes.
+pub const SIMPLIFIED_TIME_SPEED: f32 = 72.0;
+/// The time speeds Settings offers as buttons, with their names.
+pub const TIME_SPEED_PRESETS: [(f32, &str); 4] = [
+    (REALISTIC_TIME_SPEED, "Realistic"),
+    (24.0, "A day an hour"),
+    (SIMPLIFIED_TIME_SPEED, "Simplified"),
+    (720.0, "Garden testing"),
+];
+/// Slowest and fastest the setting goes. Below 1 the world crawls behind
+/// real time; past 1,000 a whole day goes by in under 90 seconds.
+pub const MIN_TIME_SPEED: f32 = 1.0;
+/// See [`MIN_TIME_SPEED`].
+pub const MAX_TIME_SPEED: f32 = 1000.0;
+
+/// Clamp a time speed from any source (config file, Settings slider). A NaN
+/// gives the default rather than a clock that never moves.
+pub fn clamp_time_speed(v: f32) -> f32 {
+    if !v.is_finite() {
+        return DEFAULT_TIME_SPEED;
+    }
+    v.clamp(MIN_TIME_SPEED, MAX_TIME_SPEED)
+}
+/// Clamp hours in a day to the Settings range.
+pub fn clamp_hours_per_day(v: u32) -> u32 {
+    v.clamp(MIN_HOURS_PER_DAY, MAX_HOURS_PER_DAY)
+}
+/// Clamp days in a year to the Settings range.
+pub fn clamp_days_per_year(v: u32) -> u32 {
+    v.clamp(MIN_DAYS_PER_YEAR, MAX_DAYS_PER_YEAR)
+}
+
+/// DataStore slot: (hours per day, days per year) from Settings.
+pub const CALENDAR_SLOT: &str = "time_calendar";
+/// DataStore slot: the time-speed setting.
+pub const SPEED_SLOT: &str = "time_speed_setting";
+/// DataStore slot: a request to hold the clock's speed (Some(Some(x))) or
+/// let it go back to the setting (Some(None)).
+pub const HOLD_SLOT: &str = "time_speed_hold_request";
+
+/// Put the clock's slots in a fresh DataStore (world init, and tests).
+pub fn insert_slots(data: &mut DataStore) {
+    data.insert(CALENDAR_SLOT, std::sync::Mutex::new((DEFAULT_HOURS_PER_DAY, DEFAULT_DAYS_PER_YEAR)));
+    data.insert(SPEED_SLOT, std::sync::Mutex::new(DEFAULT_TIME_SPEED));
+    data.insert(HOLD_SLOT, std::sync::Mutex::new(None::<Option<f32>>));
+}
+
+/// Settings to the clock, every frame (lib.rs): hours in a day, days in a
+/// year and the time speed. The TimeSystem applies them on its next tick.
+pub fn publish_settings(data: &DataStore, hours_per_day: u32, days_per_year: u32, time_speed: f32) {
+    if let Some(m) = data.get::<std::sync::Mutex<(u32, u32)>>(CALENDAR_SLOT) {
+        if let Ok(mut c) = m.lock() {
+            *c = (clamp_hours_per_day(hours_per_day), clamp_days_per_year(days_per_year));
+        }
+    }
+    if let Some(m) = data.get::<std::sync::Mutex<f32>>(SPEED_SLOT) {
+        if let Ok(mut s) = m.lock() {
+            *s = clamp_time_speed(time_speed);
+        }
+    }
+}
+
+/// Hold the clock at `hold` game seconds a second (Some), or let it go back
+/// to the time-speed setting (None). The F11 freeze, sleep and the probe rig.
+pub fn request_speed_hold(data: &DataStore, hold: Option<f32>) {
+    if let Some(m) = data.get::<std::sync::Mutex<Option<Option<f32>>>>(HOLD_SLOT) {
+        if let Ok(mut r) = m.lock() {
+            *r = Some(hold.map(|v| v.max(0.0)));
+        }
+    }
+}
+
+/// The local hour at longitude `lon_deg` when it is `global_hour` at
+/// longitude 0, on a day of `hours_per_day`: the day's hours are spread
+/// round the planet, so each degree east is `hours_per_day / 360` later.
+pub fn local_hour(global_hour: f64, lon_deg: f64, hours_per_day: u32) -> f64 {
+    let h = f64::from(clamp_hours_per_day(hours_per_day));
+    (global_hour + lon_deg / 360.0 * h).rem_euclid(h)
+}
 
 impl GameTime {
     /// How far through the game year, 0 to 1, continuously (the hour of the
@@ -121,7 +271,7 @@ impl GameTime {
     /// (`systems::env_layer1`): a smooth annual cycle, where `season` is the
     /// four-step label.
     pub fn year_fraction(&self) -> f64 {
-        let years = self.elapsed_seconds / SECONDS_PER_DAY / f64::from(DAYS_PER_YEAR);
+        let years = self.elapsed_seconds / self.seconds_per_day() / f64::from(clamp_days_per_year(self.days_per_year));
         years - years.floor()
     }
 }
@@ -218,6 +368,12 @@ impl System for TimeSystem {
     }
 
     fn tick(&mut self, _world: &mut hecs::World, dt: f32, data: &DataStore) {
+        // The calendar and the time speed from Settings (publish_settings),
+        // read every tick. Absent (tests that never publish) = the defaults.
+        if let Some((h, d)) = data.get::<std::sync::Mutex<(u32, u32)>>(CALENDAR_SLOT).and_then(|m| m.lock().ok().map(|c| *c)) {
+            self.game_time.hours_per_day = clamp_hours_per_day(h);
+            self.game_time.days_per_year = clamp_days_per_year(d);
+        }
         // Dev/screenshot clock control (v0.871): an external hour request
         // jumps the clock. The TimeSystem's own accumulator is authoritative
         // (it re-exports over the DataStore copy every tick), so outside
@@ -229,19 +385,23 @@ impl System for TimeSystem {
                 }
             }
         }
-        // Clock SPEED over the same channel shape (v0.1224, the F11 time
-        // scrubber). Needed for the same reason the hour is: time_scale lives
-        // in this system's own GameTime, and the DataStore copy is overwritten
-        // from it at the end of every tick, so a GUI write straight to the
-        // mutex would be erased before anything read it. 0 holds the clock
-        // still, which is what makes a lighting comparison repeatable.
-        if let Some(req) = data.get::<std::sync::Mutex<Option<f32>>>("time_set_scale_request") {
+        let setting = data
+            .get::<std::sync::Mutex<f32>>(SPEED_SLOT)
+            .and_then(|m| m.lock().ok().map(|s| clamp_time_speed(*s)))
+            .unwrap_or(DEFAULT_TIME_SPEED);
+        // A hold over the setting (request_speed_hold): the F11 panel's
+        // freeze (v0.1224, 0 is what makes a lighting comparison repeatable),
+        // a night's sleep, the probe rig. It goes through this channel
+        // because the DataStore copy is overwritten from this system's own
+        // GameTime at the end of every tick.
+        if let Some(req) = data.get::<std::sync::Mutex<Option<Option<f32>>>>(HOLD_SLOT) {
             if let Ok(mut r) = req.lock() {
-                if let Some(sc) = r.take() {
-                    self.set_time_scale(sc);
+                if let Some(hold) = r.take() {
+                    self.game_time.speed_hold = hold.map(|v| v.max(0.0));
                 }
             }
         }
+        self.game_time.time_scale = self.game_time.speed_hold.unwrap_or(setting);
         // Absolute clock restore from a save (see request_restore_elapsed).
         // Same channel shape as the two above, f64 because it carries the
         // whole clock, not an hour.
@@ -286,30 +446,27 @@ impl TimeSystem {
 
     /// Get current sun direction.
     pub fn current_sun_direction(&self) -> Vec3 {
-        Self::sun_direction(self.game_time.hour)
+        Self::sun_direction(self.game_time.solar_hour())
     }
 
     /// Get current sun color.
     pub fn current_sun_color(&self) -> [f32; 3] {
-        Self::sun_color(self.game_time.hour)
+        Self::sun_color(self.game_time.solar_hour())
     }
 
-    /// Set time scale (speed multiplier).
-    pub fn set_time_scale(&mut self, scale: f32) {
-        self.game_time.time_scale = scale.max(0.0);
-    }
-
-    /// Jump to a specific hour (0-24).
+    /// Jump to an hour of the current day, on the clock a person reads
+    /// (0 to `hours_per_day`).
     pub fn set_hour(&mut self, hour: f32) {
-        let clamped = hour.rem_euclid(24.0);
-        let current_day_start = (self.game_time.day_count as f64) * SECONDS_PER_DAY;
-        self.game_time.elapsed_seconds = current_day_start + (clamped as f64 / 24.0) * SECONDS_PER_DAY;
-        self.game_time.hour = clamped;
+        let hours = f64::from(clamp_hours_per_day(self.game_time.hours_per_day));
+        let clamped = f64::from(hour).rem_euclid(hours);
+        let current_day_start = f64::from(self.game_time.day_count) * self.game_time.seconds_per_day();
+        self.game_time.set_elapsed(current_day_start + clamped * SECONDS_PER_HOUR);
     }
 
-    /// Check if it's currently daytime (between 6:00 and 18:00).
+    /// Check if it's currently daytime: the sun is up in the middle half of
+    /// the day (6:00 to 18:00 of a 24-hour day).
     pub fn is_daytime(&self) -> bool {
-        self.game_time.hour >= 6.0 && self.game_time.hour <= 18.0
+        (6.0..=18.0).contains(&self.game_time.solar_hour())
     }
 }
 
@@ -367,7 +524,7 @@ mod game_time_export_tests {
             "time_restore_elapsed_request",
             std::sync::Mutex::new(Option::<f64>::None),
         );
-        let saved = 3.0 * SECONDS_PER_DAY + 600.0; // day 3, noon
+        let saved = 3.0 * EARTH_DAY_S + 12.0 * SECONDS_PER_HOUR; // day 3, noon
         request_restore_elapsed(&data, saved);
         assert!((elapsed_now(&data) - saved).abs() < 1e-9, "visible before the first tick");
 
@@ -443,5 +600,110 @@ mod sun_override_tests {
             midnight[0] < 0.2 && midnight[2] > midnight[0],
             "midnight should read as dim and blue-shifted, got {midnight:?}"
         );
+    }
+}
+
+/// The one clock of 2026-09-27 (decision-briefs.md Brief 6).
+#[cfg(test)]
+mod one_clock_tests {
+    use super::*;
+
+    fn store() -> DataStore {
+        let mut data = DataStore::new();
+        data.insert("game_time", std::sync::Mutex::new(GameTime::default()));
+        data.insert("time_set_hour_request", std::sync::Mutex::new(None::<f32>));
+        insert_slots(&mut data);
+        data
+    }
+
+    /// The default day is 24 hours of 3,600 s, 86,400 game seconds, and a
+    /// 36-hour day is 129,600; the hour is the same length in both, so the
+    /// hour a person reads moves by exactly one every 3,600 game seconds.
+    /// Red check, run: `seconds_per_day` returning the old fixed 1,200 fails
+    /// the first assertion, and deriving `hour` as a 24th of the day (the old
+    /// `day_seconds / SECONDS_PER_DAY * 24`) fails the 36-hour hour step.
+    #[test]
+    fn the_day_is_its_hours_and_an_hour_is_always_3600_seconds() {
+        let day24 = GameTime::default();
+        assert_eq!(day24.seconds_per_day(), 86_400.0);
+        let day36 = GameTime { hours_per_day: 36, ..Default::default() };
+        assert_eq!(day36.seconds_per_day(), 129_600.0);
+        for hours in [24, 36, 20] {
+            let mut g = GameTime { hours_per_day: hours, ..Default::default() };
+            g.set_elapsed(5.0 * SECONDS_PER_HOUR);
+            let before = g.hour;
+            g.set_elapsed(6.0 * SECONDS_PER_HOUR);
+            assert!((g.hour - before - 1.0).abs() < 1e-4, "{hours}-hour day: an hour moved the clock {}", g.hour - before);
+        }
+        // Through the system: Settings publish 36 hours, the day follows.
+        let data = store();
+        publish_settings(&data, 36, 365, 1.0);
+        let mut sys = TimeSystem::new();
+        let mut world = hecs::World::new();
+        sys.tick(&mut world, 1.0, &data);
+        assert_eq!(sys.game_time().seconds_per_day(), 129_600.0);
+        // Noon of a 36-hour day is hour 18, and the sun is overhead there.
+        let mut noon = GameTime { hours_per_day: 36, ..Default::default() };
+        noon.set_elapsed(18.0 * SECONDS_PER_HOUR);
+        assert!((noon.solar_hour() - 12.0).abs() < 1e-4);
+        assert!((noon.day_fraction() - 0.5).abs() < 1e-9);
+    }
+
+    /// The time speed is the only speed-up: at 72 the clock runs 72 game
+    /// seconds a real second (and the sun with it), a hold (the F11 freeze,
+    /// sleep) overrides it, and letting go puts the setting back. Red check,
+    /// run: dropping `self.game_time.time_scale = ...` leaves the clock at
+    /// the default speed 1 and the first assertion fails (72 s wanted, 1 got).
+    #[test]
+    fn the_time_speed_setting_drives_the_clock_and_a_hold_overrides_it() {
+        let data = store();
+        let mut sys = TimeSystem::new();
+        let mut world = hecs::World::new();
+        publish_settings(&data, 24, 365, 72.0);
+        sys.tick(&mut world, 1.0, &data);
+        assert!((sys.game_time().elapsed_seconds - 72.0).abs() < 1e-6, "{}", sys.game_time().elapsed_seconds);
+        assert!((scaled_dt(0.5, &data) - 36.0).abs() < 1e-5, "every system's scaled_dt follows the same speed");
+        // Held still.
+        request_speed_hold(&data, Some(0.0));
+        sys.tick(&mut world, 1.0, &data);
+        assert!((sys.game_time().elapsed_seconds - 72.0).abs() < 1e-6, "held");
+        // Let go: back to the setting.
+        request_speed_hold(&data, None);
+        sys.tick(&mut world, 1.0, &data);
+        assert!((sys.game_time().elapsed_seconds - 144.0).abs() < 1e-6);
+        // Out-of-range settings are clamped, never a frozen clock.
+        assert_eq!(clamp_time_speed(0.0), MIN_TIME_SPEED);
+        assert_eq!(clamp_time_speed(f32::NAN), DEFAULT_TIME_SPEED);
+        assert_eq!(clamp_hours_per_day(3), MIN_HOURS_PER_DAY);
+    }
+
+    /// Seasons follow the year the player set: a quarter of it each, Spring
+    /// first. Red check, run: `from_day` on the old fixed 120-day year puts
+    /// day 100 of a 365-day year in Winter, not Spring.
+    #[test]
+    fn seasons_follow_the_configured_year() {
+        assert_eq!(Season::from_day(0, 365), Season::Spring);
+        assert_eq!(Season::from_day(100, 365), Season::Summer);
+        assert_eq!(Season::from_day(90, 365), Season::Spring);
+        assert_eq!(Season::from_day(200, 365), Season::Autumn);
+        assert_eq!(Season::from_day(300, 365), Season::Winter);
+        assert_eq!(Season::from_day(365, 365), Season::Spring, "a new year");
+        assert_eq!(Season::from_day(30, 120), Season::Summer, "a 120-day year");
+        let mut g = GameTime { days_per_year: 365, ..Default::default() };
+        g.set_elapsed(182.5 * EARTH_DAY_S);
+        assert!((g.year_fraction() - 0.5).abs() < 1e-9, "{}", g.year_fraction());
+        let mut short = GameTime { days_per_year: 120, ..Default::default() };
+        short.set_elapsed(60.0 * EARTH_DAY_S);
+        assert!((short.year_fraction() - 0.5).abs() < 1e-9);
+        assert_eq!(short.season, Season::Autumn);
+    }
+
+    /// The local hour spreads the day's hours round the planet: 15 degrees
+    /// an hour on a 24-hour day, 10 on a 36-hour one.
+    #[test]
+    fn local_hour_spreads_the_day_round_the_planet() {
+        assert!((local_hour(12.0, 15.0, 24) - 13.0).abs() < 1e-9);
+        assert!((local_hour(12.0, -90.0, 36) - 3.0).abs() < 1e-9);
+        assert!((local_hour(1.0, -30.0, 24) - 23.0).abs() < 1e-9);
     }
 }
