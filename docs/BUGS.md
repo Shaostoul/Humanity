@@ -309,8 +309,8 @@ All known bugs and their resolution status. Check here BEFORE fixing any bug to 
 
 None listed here. BUG-052, the one entry this list carried, was closed on
 2026-09-28 (fixed in v0.1315.0 as BUG-077). Entries marked OPEN, PARTIALLY or
-REOPENED in their headings further down (BUG-079, the one item left in
-BUG-092) are the live ones.
+REOPENED in their headings further down (BUG-079) are the live ones; BUG-092's
+last item was closed by the one clock (v0.1395.0).
 
 Report bugs at https://github.com/Shaostoul/Humanity/issues
 
@@ -1758,7 +1758,7 @@ back to TYPE-tagged units. Every unit test inserted its own maps, so none could 
 the plot-drawing work (2026-09-26) when its first after-photo showed no change. Fix:
 `world_load` publishes the plots as soon as it records the grow anchors.
 
-## BUG-092: nine defects in the day's garden releases, found by review (FIXED v0.1373.0, one left open)
+## BUG-092: nine defects in the day's garden releases, found by review (FIXED v0.1373.0; the last item closed by the one clock, v0.1395.0)
 
 An independent review of v0.1363.0 to v0.1372.1 (a read-only critic agent that
 drove the shipped crate from a scratch test package) found:
@@ -1792,7 +1792,12 @@ drove the shipped crate from a scratch test package) found:
    2026-09-26 (ship life support):** the air now condenses the water back and
    every flow crosses between the clocks as litres a day on both sides, so a
    day's water balances on each clock (`the_gardens_water_balances_across_the_two_clocks`).
-   Which clock is right, and so how long a garden day lasts, is still open.
+   Which clock is right, and so how long a garden day lasts, was answered by
+   the operator on 2026-09-27 (a 24-hour day, an hour always an hour) and
+   built as ONE game clock in v0.1395.0: the room air and the crops run on
+   game hours, and the irrigation and humidifier litres are billed per game
+   minute (`irrigation_demand_lpm`), so both sides are on the same clock.
+   CLOSED 2026-09-28.
 8. **Later picks are rescaled by season health at each pick,** though the code
    comment said they were not. The behaviour is kept (a drought during the
    window lowers the picks after it) and the comment corrected.
