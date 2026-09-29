@@ -675,8 +675,13 @@ between the simulation and the person. Its tier ladder is the build order.
   rung 2 DONE v0.1431.0: the figure's head is
   in their skin tone with a cap of hair in their hair colour, sized by their
   height, the body still teal; not yet seen in a capture, which needs two
-  clients at once); make a trade move items; a
-  `SystemRunner` host in the relay.
+  clients at once); make a trade move items (read 2026-09-29: a trade
+  completes only as a status in the relay DB, `storage/trading.rs`
+  `complete_trade`; its items are free-text JSON and nothing moves, because
+  inventories live in each client's own save. It needs a trade_completed
+  message both clients apply to their own inventories, item ids checked
+  against items.csv, and a rule for a client that no longer holds an item at
+  completion, likely cancel); a `SystemRunner` host in the relay.
 - **Tier E: NPCs**, which is arc D below.
 
 ### D. Populate the ship, and seat a dozen
