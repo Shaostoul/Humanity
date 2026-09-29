@@ -52,7 +52,7 @@ Anyone can look through it, no sign-up needed. It copies each new change from Gi
 
 I've never posted about HumanityOS here, so here's the short version of a project I've been building full time.
 
-HumanityOS is a free, open-source, public-domain project with one goal: to help people provide for themselves and each other, so that fewer people live in poverty. It's made by a small open project, not a company. There's nothing to buy, and no sign-up: no email, no phone number, no password.
+HumanityOS is a free, open-source, public-domain project with one goal: to help people provide for themselves and each other, so that fewer people live in poverty. It's made by a small open project, not a company. There's nothing to buy, and no sign-up: no email, no phone number, no password held by a company.
 
 What exists today:
 
