@@ -812,10 +812,14 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
             .get::<std::sync::Mutex<crate::systems::weather::WeatherControl>>("weather_control")
         {
             if let Ok(mut c) = m.lock() {
+                // {"weather_wind":"0"} beside it pins the weather's own wind,
+                // m/s (2026-09-29): a calm clear night is the case the body's
+                // "feels" figure is most different from the air.
+                let wind = grab("weather_wind").and_then(|x| x.parse::<f32>().ok()).map(|v| v.clamp(0.0, 60.0));
                 c.manual = Some(crate::systems::weather::ManualWeather {
                     condition: cond,
                     intensity,
-                    wind_speed: if intensity > 0.8 { 18.0 } else { 4.0 },
+                    wind_speed: wind.unwrap_or(if intensity > 0.8 { 18.0 } else { 4.0 }),
                 });
                 c.retrigger = true;
             }

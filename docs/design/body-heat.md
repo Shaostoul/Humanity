@@ -220,7 +220,10 @@ starts the body over.
   temperature (`operative_c`, ASHRAE 55), the air and the surroundings
   weighted by the body's convection and radiation coefficients, about 35 C
   standing still in the noon sun in 20 C air and about 27 C in a 3 m/s
-  breeze (v0.1419.0). By night it is a shelter's radiant warmth; on
+  breeze (v0.1419.0). Both are proven in rig captures of a player on foot
+  in the open (v0.1425.0): `planet-open-noon-walk` read "Clear 22C
+  wind 4 m/s from N feels 30C", and `planet-open-night-walk` (clear, calm,
+  midnight) "Clear 19C calm feels 15C". By night it is a shelter's radiant warmth; on
   the calm, clear 10 C night in the everyday outfit, after six hours the
   core is nearly the same either way (36.70 C under a roof, 36.67 C in the
   open), but the skin is about 1.9 C warmer under the roof (25.5 C against
