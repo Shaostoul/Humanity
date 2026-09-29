@@ -92,3 +92,6 @@ Each line is written the way a player would hear it; the release notes and
   outside on Earth used to show a yellow "Air" bar as if you were running
   out; it now shows only when the air around you cannot be breathed, or when
   you are actually short of breath.
+- **v0.1421.0: you can see who other players are.** In the shared
+  world, another player's name now floats over them, the way the crew's
+  names do.

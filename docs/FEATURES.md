@@ -2941,7 +2941,9 @@ step); HUD top-left shows "Shared world - <host>" + a live roster of other playe
 (entity-count, duplicate names NOT collapsed). The session survives menu round-trips
 (net_sync keeps applying updates; the relay treats a duplicate game_join as a RESYNC
 and re-sends the welcome + snapshot). Relay reaps ghost player entities on restart
-(persisting their progress) so counts stay honest and rejoins work.
+(persisting their progress) so counts stay honest and rejoins work. Each other player's name floats over
+their teal figure, the way the crew's do (v0.1421.0, `engine::net_route::nameplate_labels`: out to 40 m,
+hidden behind walls like the crew's; the relay always sent the name, nothing drew it).
 - Native: `src/lib.rs` (multiplayer block, roster mirror), `src/gui/pages/hud.rs`
 - Server: `src/relay/handlers/msg_handlers.rs` (`handle_game_join` resync + 48-char
   name clamp + name stamp), `src/relay/handlers/game_state.rs` (ghost reap in

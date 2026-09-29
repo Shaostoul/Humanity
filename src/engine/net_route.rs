@@ -200,6 +200,41 @@ pub(crate) fn route_game_message(state: &mut EngineState, payload: &str) {
 
 /// Send the local player's position to the relay (reused chat socket). Throttled by the caller.
 /// The relay validates (anti-teleport) and broadcasts `game_position_update` to other clients.
+/// The names that float over people in the world (2026-09-28): each crew
+/// member (`RemoteNpc`, with their chore under the name) and each other
+/// player (`RemotePlayer`, name only). The relay has always sent a player's
+/// name and the sync kept it, but only the crew were labelled, so another
+/// player was a teal figure with no name. Anchors sit just above each head:
+/// a crew position is standing height (floor + 1.0, head at +0.55), a
+/// player's is the head itself (the head sphere at +0.05, radius 0.17).
+/// `station_off` is the same offset the scene pass puts on home content.
+pub(crate) fn nameplate_labels(world: &hecs::World, station_off: glam::Vec3) -> Vec<crate::gui::CrewLabel> {
+    use crate::ecs::components::Transform;
+    use crate::net::sync::{RemoteNpc, RemotePlayer};
+    let mut labels = Vec::new();
+    for (_e, (t, npc)) in world.query::<(&Transform, &RemoteNpc)>().iter() {
+        labels.push(crate::gui::CrewLabel {
+            pos: t.position + glam::Vec3::new(0.0, 1.0, 0.0) + station_off,
+            name: npc.name.clone(),
+            activity: npc.activity.clone(),
+            working: npc.working,
+        });
+    }
+    for (_e, (t, player)) in world.query::<(&Transform, &RemotePlayer)>().iter() {
+        labels.push(crate::gui::CrewLabel {
+            pos: t.position + glam::Vec3::new(0.0, PLAYER_NAMEPLATE_OVER_HEAD_M, 0.0) + station_off,
+            name: player.name.clone(),
+            activity: String::new(),
+            working: false,
+        });
+    }
+    labels
+}
+
+/// How far over a remote player's head position their name floats, m: just
+/// clear of the head sphere drawn there (centre +0.05, radius 0.17).
+const PLAYER_NAMEPLATE_OVER_HEAD_M: f32 = 0.3;
+
 pub(crate) fn send_game_position(state: &EngineState) {
     let Some(ref ws) = state.gui_state.ws_client else { return; };
     let p = state.camera.position;
@@ -572,5 +607,60 @@ pub(crate) fn chat_history_pump(state: &mut EngineState) {
     // Reset history_fetched when not connected so a NEW connection re-fetches.
     if state.gui_state.ws_client.as_ref().map_or(true, |c| !c.is_connected()) {
         state.gui_state.history_fetched = false;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// ANOTHER PLAYER HAS A NAME OVER THEM (2026-09-28). A crew member and a
+    /// remote player both get a label: the crew member's with the chore, the
+    /// player's with the name alone, just above the head. Red check, run:
+    /// labelling only the crew (as before) fails the second assertion.
+    #[test]
+    fn other_players_get_a_nameplate_like_the_crew() {
+        use crate::ecs::components::Transform;
+        use crate::net::sync::{RemoteNpc, RemotePlayer};
+        use glam::{Quat, Vec3};
+        let mut world = hecs::World::new();
+        let at = |p: Vec3| Transform { position: p, ..Transform::default() };
+        world.spawn((
+            at(Vec3::new(1.0, 1.0, 0.0)),
+            RemoteNpc {
+                entity_id: 3,
+                name: "Ada".into(),
+                activity: "Watering the beds".into(),
+                working: true,
+                role: String::new(),
+                dialog: Vec::new(),
+                greetings: Vec::new(),
+                last_position: Vec3::ZERO,
+                target_position: Vec3::ZERO,
+                last_rotation: Quat::IDENTITY,
+                target_rotation: Quat::IDENTITY,
+                interpolation_t: 1.0,
+            },
+        ));
+        world.spawn((
+            at(Vec3::new(5.0, 1.7, 0.0)),
+            RemotePlayer {
+                player_id: 7,
+                name: "Test Pilot".into(),
+                last_position: Vec3::ZERO,
+                target_position: Vec3::ZERO,
+                last_rotation: Quat::IDENTITY,
+                target_rotation: Quat::IDENTITY,
+                velocity: Vec3::ZERO,
+                interpolation_t: 1.0,
+                last_update_time: 0.0,
+            },
+        ));
+        let labels = nameplate_labels(&world, Vec3::new(0.0, 0.0, 10.0));
+        let crew = labels.iter().find(|l| l.name == "Ada").expect("the crew member is labelled");
+        assert_eq!((crew.activity.as_str(), crew.pos), ("Watering the beds", Vec3::new(1.0, 2.0, 10.0)));
+        let player = labels.iter().find(|l| l.name == "Test Pilot").expect("the other player is labelled");
+        assert_eq!(player.activity, "", "a player has no chore line");
+        assert!((player.pos - Vec3::new(5.0, 2.0, 10.0)).length() < 1e-5, "just over the head: {:?}", player.pos);
     }
 }

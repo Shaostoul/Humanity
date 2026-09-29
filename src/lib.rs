@@ -9092,7 +9092,8 @@ mod native_app {
                     // ── Remote players (multiplayer co-presence, v0.472) ──
                     // Draw a simple humanoid marker (body + head, a distinct teal) at each remote
                     // player's interpolated position. The sent position is the eye/camera height, so
-                    // the head sits there and the body hangs below it. (Nameplates are a follow-up.)
+                    // the head sits there and the body hangs below it. The name floats over it
+                    // (engine::net_route::nameplate_labels, 2026-09-28).
                     if !showroom {
                         if state.remote_avatar.is_none() {
                             let body = state.renderer.add_mesh(
@@ -15318,23 +15319,12 @@ mod native_app {
                                 // scene pass applies to home content (v0.911: the
                                 // ghost-markers half of the vanishing-home bug).
                                 state.gui_state.station_off = state.station_off;
-                                state.gui_state.crew_labels.clear();
-                                for (_e, (t, npc)) in state
-                                    .game_world
-                                    .world
-                                    .query::<(
-                                        &crate::ecs::components::Transform,
-                                        &crate::net::sync::RemoteNpc,
-                                    )>()
-                                    .iter()
-                                {
-                                    state.gui_state.crew_labels.push(crate::gui::CrewLabel {
-                                        pos: t.position + Vec3::new(0.0, 1.0, 0.0) + state.station_off,
-                                        name: npc.name.clone(),
-                                        activity: npc.activity.clone(),
-                                        working: npc.working,
-                                    });
-                                }
+                                // The crew's and other players' names
+                                // (engine::net_route::nameplate_labels).
+                                state.gui_state.crew_labels = crate::engine::net_route::nameplate_labels(
+                                    &state.game_world.world,
+                                    state.station_off,
+                                );
 
                                 // Draw HUD when in-game. SKIP it during the showroom AND the
                                 // construction editor: the HUD allocates a full-screen Area

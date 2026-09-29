@@ -401,6 +401,11 @@
       "date": "2026-09-28",
       "decision": "Rig showcase key walk:'1' turns fly mode off after a stand; new vantage planet-open-noon-walk. HUD Air row keys on GuiVitals.breathing (env.oxygenated), not on sealed (BUG-105).",
       "why": "Every rig park sets fly mode, which suspends survival, so no capture could show the outdoor HUD lines; the first walking capture proved the feels note and exposed the Air bar warning on breathable Earth air."
+    },
+    {
+      "date": "2026-09-28",
+      "decision": "Tier D nameplates: engine::net_route::nameplate_labels builds gui_state.crew_labels from RemoteNpc (name + chore) AND RemotePlayer (name only, 0.3 m over the head position); lib.rs calls it. PRIORITIES Tier D now records why bridging game_time_sync is a design question, not three lines.",
+      "why": "The name was on the wire and on the component; only the draw list skipped players. game_time_sync is broadcast to every socket at 1x from relay start, so applying it would jump single-player time."
     }
   ],
   "active_scopes_to_avoid": [

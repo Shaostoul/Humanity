@@ -655,8 +655,15 @@ between the simulation and the person. Its tier ladder is the build order.
   compiles into the relay (DONE 2026-09-28, v0.1415.0: `PlacedItem`
   moved to `systems::inventory::placed`, `MachineLevels` to
   `systems::machine_levels`, and `persistence` and `storage` lost their native
-  gate); bridge
-  `game_time_sync`; nameplates and appearance sync; make a trade move items; a
+  gate); bridge `game_time_sync` (not three lines, read 2026-09-28: the
+  relay broadcasts it to every socket, chat-only ones included, and its
+  clock runs at 1x from 0 at relay start while the local clock is the
+  save's and can run faster, so applying it naively would jump
+  single-player time whenever chat connects; it needs a rule for whose
+  clock wins while JOINED, applied only after `game_welcome`, and what the
+  save keeps on leaving); nameplates (DONE 2026-09-28, v0.1421.0:
+  another player's name floats over them like the crew's) and appearance
+  sync; make a trade move items; a
   `SystemRunner` host in the relay.
 - **Tier E: NPCs**, which is arc D below.
 
