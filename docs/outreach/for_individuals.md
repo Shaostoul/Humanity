@@ -25,7 +25,7 @@ your first compost. The app helps you plan it and ask others when it
 wilts.
 
 **Talk to people, privately, with no signup.** The chat works the moment
-you open it. No email, no phone number, no account. Private messages are
+you open it. Nothing to sign up for: no email, no phone number. Private messages are
 encrypted on your device before they are sent, so nobody in the middle can
 read them, including us.
 
@@ -49,7 +49,7 @@ young, so listings grow as people join.
 Most free apps are not free. You pay with your attention, your data, or an
 account that can be suspended. HumanityOS is built the opposite way:
 
-- No account. Your identity is a key that lives on your own device, backed
+- No sign-up. Your account is a key that lives on your own device, backed
   up by a list of 24 ordinary words you write down and keep. No company
   holds it, so no company can take it away.
 - No ads, no tracking, nothing harvested. There is nothing to sell you and

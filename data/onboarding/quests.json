@@ -21,7 +21,7 @@
         },
         {
           "id": "backup",
-          "title": "Back up your seed phrase",
+          "title": "Back up your recovery phrase",
           "description": "In Settings, write down your 24-word recovery phrase. This is the only way to recover your identity if you lose your device. Store it somewhere safe, offline.",
           "link": "/settings"
         },

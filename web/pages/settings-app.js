@@ -709,7 +709,7 @@ savePref = function() { _origSavePref(); updateRangeLabels(); };
 // Version tag
 try {
   const vEl = document.getElementById('version-tag');
-  if (vEl) vEl.textContent = 'HumanityOS, v0.1422.6 · ' + new Date().getFullYear();
+  if (vEl) vEl.textContent = 'HumanityOS, v0.1423.0 · ' + new Date().getFullYear();
 } catch(e) {}
 
 // Inject hosIcon SVGs into action bar buttons
@@ -1496,9 +1496,9 @@ document.querySelectorAll('#sec-server-info .info-section h2').forEach(h2 => {
 
   const VAULT_TYPE_TEMPLATES = {
     seed_phrase: {
-      label: 'Seed Phrase', icon: '🌱',
+      label: 'Recovery Phrase', icon: '🌱',
       fields: [
-        { label: 'Seed Phrase (24 words)', key: 'phrase', placeholder: 'word1 word2 … word24', multiline: true, secret: true }
+        { label: 'Recovery Phrase (24 words)', key: 'phrase', placeholder: 'word1 word2 … word24', multiline: true, secret: true }
       ],
       note: 'These 24 words are your identity master key. Anyone who has them can use your account, guard them carefully.'
     },
@@ -1754,7 +1754,7 @@ document.querySelectorAll('#sec-server-info .info-section h2').forEach(h2 => {
   }
 
   function vault_typeLabel(type) {
-    return { seed_phrase: 'Seed Phrase', password: 'Password', note: 'Secure Note', login: 'Login', custom: 'Custom' }[type] || type;
+    return { seed_phrase: 'Recovery Phrase', password: 'Password', note: 'Secure Note', login: 'Login', custom: 'Custom' }[type] || type;
   }
 
   // ── Auto-lock inactivity timer ──
@@ -1996,7 +1996,7 @@ async function settingsOpenSeed() {
     return '<div style="background:#0f0f0f;border:1px solid #2a2a2a;border-radius:7px;padding:var(--space-md) var(--space-md);display:flex;align-items:baseline;gap:var(--space-sm)"><span style="font-size:.6rem;color:#444;min-width:16px;text-align:right">' + (i+1) + '.</span><span style="font-size:.86rem;color:var(--accent);font-weight:600">' + w + '</span></div>';
   }).join('');
   overlay.innerHTML = '<div style="background:#181818;border:1px solid #2a2a2a;border-radius:14px;padding:1.75rem;width:100%;max-width:600px;color:#e0e0e0;max-height:90vh;overflow-y:auto;">' +
-    '<h2 style="font-size:1rem;font-weight:700;color:var(--accent);margin:0 0 var(--space-sm)">🌱 Your 24-Word Seed Phrase</h2>' +
+    '<h2 style="font-size:1rem;font-weight:700;color:var(--accent);margin:0 0 var(--space-sm)">🌱 Your 24-Word Recovery Phrase</h2>' +
     '<p style="font-size:.78rem;color:#e55;line-height:1.5;margin:0 0 var(--space-md)"><strong>Never screenshot this. Never share it. Anyone who has these words IS you.</strong></p>' +
     '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:var(--space-md);margin-bottom:var(--space-xl)">' + grid + '</div>' +
     '<div style="display:flex;gap:var(--space-md);flex-wrap:wrap;margin-bottom:var(--space-xl);">' +
@@ -2018,20 +2018,20 @@ async function settingsOpenSeed() {
 
 /**
  * Show overlay explaining that the current key is non-extractable and offering
- * a "Rotate Key" action to generate a new extractable keypair with seed phrase.
+ * a "Rotate Key" action to generate a new extractable keypair with recovery phrase.
  */
 function settingsShowNonExtractableOverlay() {
   var overlay = document.createElement('div');
   overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:8000;display:flex;align-items:center;justify-content:center;padding:var(--space-xl);box-sizing:border-box;';
   overlay.innerHTML = '<div style="background:#181818;border:1px solid #2a2a2a;border-radius:14px;padding:1.75rem;width:100%;max-width:540px;color:#e0e0e0;max-height:90vh;overflow-y:auto;">' +
-    '<h2 style="font-size:1rem;font-weight:700;color:var(--accent);margin:0 0 var(--space-md)">Seed Phrase Unavailable</h2>' +
+    '<h2 style="font-size:1rem;font-weight:700;color:var(--accent);margin:0 0 var(--space-md)">Recovery Phrase Unavailable</h2>' +
     '<p style="font-size:.82rem;color:#ccc;line-height:1.6;margin:0 0 var(--space-xl)">' +
       'Your key was created before backup support was added. The private key stored in your browser ' +
-      'is marked as non-extractable, so a seed phrase cannot be generated from it.' +
+      'is marked as non-extractable, so a recovery phrase cannot be generated from it.' +
     '</p>' +
     '<div style="background:#0f1a0f;border:1px solid #1a3a1a;border-radius:8px;padding:var(--space-xl);margin-bottom:var(--space-xl);font-size:.8rem;color:#8cc88c;line-height:1.6">' +
       '<strong style="color:#4ec87a">Solution: Rotate your key.</strong><br>' +
-      'This generates a new extractable keypair with full seed phrase backup. ' +
+      'This generates a new extractable keypair with full recovery phrase backup. ' +
       'Your profile, messages, and reputation transfer automatically via a dual-signature certificate.' +
     '</div>' +
     '<div style="display:flex;gap:var(--space-md);justify-content:flex-end">' +
@@ -2085,7 +2085,7 @@ function settingsOpenRestoreSeed() {
   var overlay = document.createElement('div');
   overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:8000;display:flex;align-items:center;justify-content:center;padding:var(--space-xl);box-sizing:border-box;';
   overlay.innerHTML = '<div style="background:#181818;border:1px solid #2a2a2a;border-radius:14px;padding:1.75rem;width:100%;max-width:540px;color:#e0e0e0;max-height:90vh;overflow-y:auto;">' +
-    '<h2 style="font-size:1rem;font-weight:700;color:var(--accent);margin:0 0 var(--space-sm)">🌱 Restore from Seed Phrase</h2>' +
+    '<h2 style="font-size:1rem;font-weight:700;color:var(--accent);margin:0 0 var(--space-sm)">🌱 Restore from Recovery Phrase</h2>' +
     '<p style="font-size:.8rem;color:#e55;line-height:1.5;margin:0 0 var(--space-md)"><strong>This will permanently replace your current identity on this device.</strong></p>' +
     '<p style="font-size:.8rem;color:#888;line-height:1.5;margin:0 0 var(--space-xl)">Enter your 24 words separated by spaces:</p>' +
     '<textarea id="set-rseed-words" rows="4" placeholder="word1 word2 word3 ... word24" style="width:100%;background:#111;border:1px solid #2a2a2a;border-radius:6px;padding:var(--space-md) var(--space-lg);color:#e0e0e0;font-size:.85rem;outline:none;box-sizing:border-box;resize:vertical;font-family:monospace;"></textarea>' +
@@ -2115,7 +2115,7 @@ function settingsOpenRestoreSeed() {
         this.disabled = false; this.textContent = 'Restore Identity';
       }
     } catch(e) {
-      msg.innerHTML = '<span style="color:#e55">' + (e.message || 'Invalid seed phrase.') + '</span>';
+      msg.innerHTML = '<span style="color:#e55">' + (e.message || 'Invalid recovery phrase.') + '</span>';
       this.disabled = false; this.textContent = 'Restore Identity';
     }
   });

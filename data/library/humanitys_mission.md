@@ -93,7 +93,7 @@ water, grow food, and generate power by doing it in the simulation
 first, where a mistake costs nothing. The skills carry straight into
 real life, so a lack of know-how is never what keeps you poor.
 
-**Encrypted private messages, no account needed.** Find people already
+**Encrypted private messages, no sign-up needed.** Find people already
 doing it and learn from them directly. No signup, no gatekeeper, and
 nothing harvested, so no company can lock you out, sell your attention,
 or decide who is allowed to take part.
@@ -158,12 +158,12 @@ and your tools belong to you, not to a platform that can revoke them.
 The whole system is public domain, so it can never be bought, locked
 down, or rented back to you.
 
-**You can never be locked out.** There is no account to suspend and no
-password to lose. Your identity is a key on your own device,
-recoverable from the 24-word seed phrase you write down and keep. No
+**You can never be locked out.** There is no company account to suspend and
+no password for anyone else to reset. Your account is a key on your own device,
+recoverable from the 24-word recovery phrase you write down and keep. No
 company, and no fee, stands between you and your own name. (Recovery
 through trusted friends who each hold an encrypted piece is designed and
-partly built, but not finished; the seed phrase is what works today.)
+partly built, but not finished; the recovery phrase is what works today.)
 
 **Rules made by the people they bind.** The community sets its own
 rules through transparent voting, weighted by trust and capped so that
@@ -201,11 +201,11 @@ because it is yours, not an account on someone else's machine. Take one
 server down and the rest carry on.
 
 **When you lose your device.** Recover everything from your 24-word
-seed phrase. No email, no phone number, no recovery fee, and no company
+recovery phrase. No email, no phone number, no recovery fee, and no company
 that can refuse you. Recovery through trusted friends is coming and is
 not ready, so the phrase is the thing to protect.
 
-**When you have no money, papers, or bank.** No accounts, no
+**When you have no money, papers, or bank.** No sign-up, no
 subscriptions, no fees. Reputation you earn and credentials your
 neighbors sign stand in for credit scores and ID, so a refugee, a young
 person, or anyone starting over can build a real, verifiable history

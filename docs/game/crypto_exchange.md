@@ -636,7 +636,7 @@ As a non-custodial platform, KYC/AML obligations are minimal. However:
 | Failure | Impact | Mitigation |
 |---------|--------|------------|
 | RPC provider down | Cannot display balance or send tx | Fallback to secondary provider; cache last-known balance |
-| User loses seed phrase | Wallet funds lost forever | Existing backup/recovery system (encrypted vault, BIP39 mnemonic) |
+| User loses recovery phrase | Wallet funds lost forever | Existing backup/recovery system (encrypted vault, BIP39 mnemonic) |
 | Solana network congestion | Tx delayed or dropped | Retry with priority fee; show clear "pending" status |
 | Library supply chain attack | Malicious code steals keys | Vendor + pin versions; SRI hashes; manual review on update |
 | Phishing payment request | User sends funds to attacker | Address derivation verification; confirmation dialog with name + address |

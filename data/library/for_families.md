@@ -52,7 +52,7 @@ You should not have to trade your children's privacy for useful software.
 Here is where HumanityOS stands:
 
 - No ads. Nothing in it is trying to sell your kids anything.
-- No data harvesting. There are no accounts, no tracking, and nothing
+- No data harvesting. There is no sign-up, no tracking, and nothing
   collected to sell. Private messages are encrypted so that even the
   people running the server cannot read them.
 - Chat only connects when you open it. Nothing auto-connects your family
@@ -101,7 +101,7 @@ Pick one small thing and do it as a family this week.
 
 - Plant one thing, real or virtual, and put "water it" on a shared task
   list.
-- Try the app, free, no account needed:
+- Try the app, free, no sign-up needed:
   https://united-humanity.us/download
 - Ask us anything. We are reachable at
   https://united-humanity.us/chat and on Discord at

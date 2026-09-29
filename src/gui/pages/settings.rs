@@ -482,7 +482,7 @@ pub(crate) fn draw_account_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
     });
     ui.add_space(theme.spacing_md);
 
-    // ── Identity: who you are (name, key, seed phrase, device linking) ──
+    // ── Identity: who you are (name, key, recovery phrase, device linking) ──
     widgets::subsection_header(ui, theme, accent, "Identity", "");
     widgets::card(ui, theme, |ui| {
         widgets::form_row(ui, theme, "Display name", |ui| {
@@ -549,8 +549,8 @@ pub(crate) fn draw_account_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
         // phrase below — identical on every device, nothing to copy or
         // import. The old "ECDH public / Import JSON" panel was removed.
 
-        // Identity & seed phrase
-        ui.label(RichText::new("Identity & Seed Phrase").color(theme.text_secondary()).strong());
+        // Account & recovery phrase
+        ui.label(RichText::new("Account & Recovery Phrase").color(theme.text_secondary()).strong());
         ui.add_space(theme.spacing_xs);
 
         if state.private_key_bytes.is_none() {
@@ -576,7 +576,7 @@ pub(crate) fn draw_account_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
                 ui.label(RichText::new(&state.settings.seed_phrase_recovery_status).color(theme.success()).size(theme.font_size_small));
             }
         } else {
-            ui.label(RichText::new("Your 24-word seed phrase backs up your identity and wallet. Anyone with it controls your account, never share it.").color(theme.text_muted()).size(theme.font_size_small));
+            ui.label(RichText::new("Your 24-word recovery phrase backs up your account and wallet. Anyone who has it can use your account, so never share it.").color(theme.text_muted()).size(theme.font_size_small));
             ui.add_space(theme.spacing_xs);
 
             // Passphrase-gated reveal (v0.356). The seed is your account's master
@@ -590,11 +590,11 @@ pub(crate) fn draw_account_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
             let iters = state.key_iterations;
             let reveal = if !enc.is_empty() && !salt.is_empty() {
                 let lock = state.section_locks.entry("seed_phrase".to_string()).or_default();
-                widgets::lockable_gate(ui, theme, lock, "Reveal seed phrase", |pass| {
+                widgets::lockable_gate(ui, theme, lock, "Reveal recovery phrase", |pass| {
                     crate::config::decrypt_private_key(&enc, &salt, pass, iters).is_ok()
                 })
             } else {
-                if widgets::secondary_button(ui, theme, if state.settings.seed_phrase_visible { "Hide Seed Phrase" } else { "Show Seed Phrase" }) {
+                if widgets::secondary_button(ui, theme, if state.settings.seed_phrase_visible { "Hide Recovery Phrase" } else { "Show Recovery Phrase" }) {
                     state.settings.seed_phrase_visible = !state.settings.seed_phrase_visible;
                 }
                 state.settings.seed_phrase_visible
@@ -606,7 +606,7 @@ pub(crate) fn draw_account_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
                 let phrase = state.private_key_bytes.as_ref()
                     .and_then(|s| crate::net::identity::mnemonic_from_seed(s))
                     .unwrap_or_else(|| "(cannot render, key is not a 32-byte BIP39 seed)".to_string());
-                // Seed-phrase box: a warm wash of the warning token (it holds the
+                // Recovery-phrase box: a warm wash of the warning token (it holds the
                 // single most dangerous string in the app), derived from the token
                 // via alpha rather than a hardcoded brown.
                 let w = theme.warning();
@@ -737,20 +737,20 @@ pub(crate) fn draw_account_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
 
         ui.add_space(theme.spacing_lg);
 
-        // ── Recover from Seed Phrase ──
-        ui.label(RichText::new("Recover Identity from Seed Phrase").color(theme.text_secondary()).strong());
+        // ── Restore from Recovery Phrase ──
+        ui.label(RichText::new("Restore Your Account from Your Recovery Phrase").color(theme.text_secondary()).strong());
         ui.add_space(theme.spacing_xs);
-        ui.label(RichText::new("Paste your 24-word seed phrase to restore your identity from the website or another device.").color(theme.text_muted()).size(theme.font_size_small));
+        ui.label(RichText::new("Paste your 24-word recovery phrase to restore your account from the website or another device.").color(theme.text_muted()).size(theme.font_size_small));
         ui.add_space(theme.spacing_xs);
 
-        if widgets::secondary_button(ui, theme, if state.settings.seed_phrase_show_recover { "Cancel Recovery" } else { "Recover from Seed Phrase" }) {
+        if widgets::secondary_button(ui, theme, if state.settings.seed_phrase_show_recover { "Cancel Recovery" } else { "Restore from Recovery Phrase" }) {
             state.settings.seed_phrase_show_recover = !state.settings.seed_phrase_show_recover;
             state.settings.seed_phrase_recovery_status.clear();
         }
 
         if state.settings.seed_phrase_show_recover {
             ui.add_space(theme.spacing_sm);
-            ui.label(RichText::new("Enter your 24-word seed phrase:").color(theme.text_secondary()).size(theme.font_size_small));
+            ui.label(RichText::new("Enter your 24-word recovery phrase:").color(theme.text_secondary()).size(theme.font_size_small));
             ui.add_space(theme.spacing_xs);
 
             // TextEdit takes no RichText, so monospace is selected with

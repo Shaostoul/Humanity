@@ -695,11 +695,11 @@ function finishImport(identity) {
 // ── Restore your identity (login screen) ─────────────────────────────────────
 // ONE surface, two methods. This used to be two modals that asked for different
 // halves of the same question ("how do you want to prove this identity is
-// yours?"): a seed-phrase modal, and a passphrase modal that only appeared when
+// yours?"): a recovery-phrase modal, and a passphrase modal that only appeared when
 // an encrypted backup file happened to be picked (and was the last chat modal
 // still painted in hardcoded hex). They are one tabbed modal now:
 //
-//   Seed phrase  -> restoreIdentityFromMnemonic()  (the 24 BIP39 words)
+//   Recovery phrase  -> restoreIdentityFromMnemonic()  (the 24 BIP39 words)
 //   Backup file  -> importIdentityBackup()         (plain OR encrypted .json)
 //
 // NO KEY HANDLING LIVES HERE. Both tabs call the SAME crypto.js functions the
@@ -887,7 +887,7 @@ function openLoginRestoreModal(opts) {
 
       <div class="lr-tabs" role="tablist" aria-label="Restore method">
         <button type="button" class="lr-tab" id="lr-tab-seed" role="tab"
-          aria-selected="true" aria-controls="lr-panel-seed">🌱 Seed phrase</button>
+          aria-selected="true" aria-controls="lr-panel-seed">🔑 Recovery phrase</button>
         <button type="button" class="lr-tab" id="lr-tab-file" role="tab"
           aria-selected="false" aria-controls="lr-panel-file" tabindex="-1">💾 Backup file</button>
       </div>
@@ -975,7 +975,7 @@ function openLoginRestoreModal(opts) {
     showTab(tabs.seed.getAttribute('aria-selected') === 'true' ? 'file' : 'seed', true);
   });
 
-  // ── Method 1: 24-word seed phrase ──
+  // ── Method 1: 24-word recovery phrase ──
   const wordsEl = el('lr-words');
   const wordCountEl = el('lr-word-count');
   const seedBtn = el('lr-seed-submit');
@@ -1126,8 +1126,8 @@ function openLoginRestoreModal(opts) {
 }
 
 /**
- * The login screen's "Recover from Seed Phrase" button (index.html) calls this.
- * It is simply the seed-phrase door into the one restore modal above.
+ * The login screen's "Restore from recovery phrase" button (index.html) calls this.
+ * It is simply the recovery-phrase door into the one restore modal above.
  */
 function openLoginSeedRecovery() {
   openLoginRestoreModal({ tab: 'seed' });
@@ -1150,9 +1150,9 @@ sendMessage = async function() {
     return;
   }
   // Security & recovery, always available (mirrors the Account & Identity menu in
-  // the header). Reuses the existing modals in chat-profile.js; the /seed reveal
+  // the header). Reuses the existing modals in chat-profile.js; the /recovery reveal
   // goes through the same confirm guard as the menu button.
-  if (val === '/seed') {
+  if (val === '/recovery') {
     input.value = '';
     confirmRevealSeedPhrase();
     return;

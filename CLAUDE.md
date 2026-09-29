@@ -329,6 +329,23 @@ Session START already reloads `CLAUDE.md`, `MEMORY.md`, `orchestrator_state.json
 
 **Universal widgets.** New widgets go in `src/gui/widgets/` (native) AND get a matching CSS class / shared JS component (web). Both must consume theme tokens, not literals, so the Settings page theme can restyle them.
 
+## Account words: one concept, one word (operator, 2026-09-29)
+
+For people new to tech, the words about their account must never mean two
+things. **"Recovery phrase", never "seed phrase":** "seed" is reserved for
+plant seeds and world seeds (and no seedling emoji beside the recovery
+phrase; a key). **"No sign-up", never "no account":** people do have an
+account, theirs, a key on their own device; what they skip is signing up
+(no email, phone number or password held by a company), and "no account"
+hides that only the recovery phrase gets them back in. Where "no passwords"
+sat beside it, say "no passwords stored on any server": the desktop app does
+ask for a passphrase to unlock the key. Verb: "Restore from recovery phrase".
+`tests/terminology_lint.rs` (in `just lints`) fails on the retired words in
+anything people read; records (history, posted posts, sent applications,
+CHANGELOG, the announcements archive) stay as written. Code names, element
+ids and saved-file fields (`seed_phrase_visible`) are not words people read
+and were not renamed.
+
 ## Saying what we will not build, and why (operator, 2026-09-18)
 
 When the project declines to do something because of a LAW, a PATENT, or a
@@ -470,9 +487,9 @@ Binary modes:
 
 Identity (chat client): Ed25519 key = identity = Solana wallet address
 Identity (federation objects): ML-DSA-65 (Dilithium3, FIPS 204), separate keypair
-  ├ No home servers, no accounts, no passwords
+  ├ No home servers, no sign-up, no passwords stored on any server
   ├ Signed profiles replicate across all federated servers
-  ├ BIP39 24-word seed phrase backs up the Ed25519 key
+  ├ BIP39 24-word recovery phrase backs up the Ed25519 key
   └ Full crypto inventory in the "Cryptography" section below — read it before quoting algorithms
 ```
 

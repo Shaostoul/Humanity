@@ -441,6 +441,11 @@
       "date": "2026-09-29",
       "decision": "Mirror announced: site footer, download banner, home sameAs and README link git.united-humanity.us; posts incl. a first LinkedIn introduction in docs/outreach/posts/2026-09-29-git-mirror.md.",
       "why": "Operator asked for an official post; nothing linked the mirror yet, and the posts had to be fact-checked (releases vs tags, new guides checked, no account)."
+    },
+    {
+      "date": "2026-09-29",
+      "decision": "Terminology sweep: 'recovery phrase' replaces 'seed phrase' in everything people read (163 places; seedling icons -> key; /seed -> /recovery; glossary key 'recovery phrase'; help topic id 'recovery-phrase'), 'no sign-up' replaces 'no account(s)' (~40; 'no passwords stored on any server'). tests/terminology_lint.rs enforces; CLAUDE.md rule 'Account words'.",
+      "why": "Operator: people new to tech; 'seed' will mean plant and world seeds, and people do have an account (theirs). Records left as written; code names and saved-file fields untouched."
     }
   ],
   "active_scopes_to_avoid": [

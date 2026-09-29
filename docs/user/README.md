@@ -20,7 +20,7 @@ inventory, grow a garden in the simulation, and read the in-app Library.
 
 ## What makes it different
 
-- **No accounts, no passwords.** Your identity is a key that lives on your device. You
+- **No sign-up, no stored passwords.** Your account is a key that lives on your device. You
   back it up with a 24-word phrase. Nobody can lock you out, and nobody can read your
   private messages, not even the people running the server.
 - **You own your data.** No ads, no tracking, no selling you.

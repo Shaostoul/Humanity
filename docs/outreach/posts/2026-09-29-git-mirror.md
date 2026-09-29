@@ -17,7 +17,7 @@ hides the one thing a person must know, that only their 24 words get them back i
 
 HumanityOS now keeps its own copy of its code, on its own server: git.united-humanity.us
 
-Every commit and every version, public, no account needed. It copies each change from GitHub by itself, so the project doesn't depend on any one company.
+Every commit and every version, public, no sign-up needed. It copies each change from GitHub by itself, so the project doesn't depend on any one company.
 
 git.united-humanity.us/shaostoul/Humanity
 
@@ -28,7 +28,7 @@ git.united-humanity.us/shaostoul/Humanity
 HumanityOS now keeps a full copy of its source code on our own server, running Forgejo (free, open-source software).
 
 - Every commit and every version tag: nearly 4,800 commits and over 2,200 tags.
-- Public: browse it or clone it, no account needed.
+- Public: browse it or clone it, no sign-up needed.
 - It copies every change from GitHub by itself every few hours, so it can't quietly fall behind.
 
 Why: HumanityOS is public domain (CC0). It should never depend on one company staying friendly. If GitHub ever went away, the code, and the whole history of how it was built, is still here.
@@ -44,7 +44,7 @@ The code behind HumanityOS now has a second home 🪞
 
 HumanityOS is free, and it's public domain: anyone can use it, change it or share it, no permission needed. That only means something if the code can't be taken away. So we now keep a complete copy of it on our own server at git.united-humanity.us, with every change and every version since the start.
 
-Anyone can look through it, no account needed. It copies each new change from GitHub automatically, so if GitHub ever disappeared or closed our account, nothing would be lost.
+Anyone can look through it, no sign-up needed. It copies each new change from GitHub automatically, so if GitHub ever disappeared or closed our account, nothing would be lost.
 
 👉 https://git.united-humanity.us/shaostoul/Humanity
 

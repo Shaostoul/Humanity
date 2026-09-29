@@ -101,7 +101,7 @@ The letters you are reading right now, in the app and on this site.
   shape as ours: no tofu for any human language. Licence text ships at
   `data/fonts/OFL.txt`. https://notofonts.github.io
 - **Hack** - Christopher Simpkins and contributors, MIT plus the Bitstream Vera
-  licence. Every monospace surface: identity keys, seed phrases, invite
+  licence. Every monospace surface: identity keys, recovery phrases, invite
   tickets, the debug overlays, and the arrows and box-drawing characters the
   rest of the interface borrows from it.
 - **Ubuntu** - Canonical, Ubuntu Font Licence 1.0. Kept in the fallback chain

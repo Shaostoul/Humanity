@@ -407,11 +407,11 @@ Reply threads on messages.
 ## Identity and Security
 
 ### Dilithium3 / ML-DSA-65 Identity
-Post-quantum cryptographic keypair (Dilithium3 / ML-DSA-65, FIPS 204) IS your identity, derived deterministically from the BIP39 24-word seed. No accounts, no passwords. (Ed25519 survives only as the seed scalar and Solana wallet address, see the canonical crypto table in `CLAUDE.md`.)
+Post-quantum cryptographic keypair (Dilithium3 / ML-DSA-65, FIPS 204) IS your identity, derived deterministically from the BIP39 24-word seed. No sign-up, no passwords stored on any server. (Ed25519 survives only as the seed scalar and Solana wallet address, see the canonical crypto table in `CLAUDE.md`.)
 - Web: `web/chat/crypto.js` (key derivation), `web/shared/pq-identity.js` (Dilithium signing)
 - Server: `src/relay/relay.rs` (signature verification), `src/relay/core/pq_crypto.rs`
 
-### BIP39 Seed Phrase
+### BIP39 Recovery Phrase
 24-word backup phrase for identity recovery.
 - Web: `web/chat/crypto.js` (mnemonic generation/restoration)
 

@@ -86,7 +86,7 @@ The **Humanity Accord** is a living framework for how humans can cooperate at sc
 
 Communication comes first. If people can't talk to each other freely and privately, nothing else gets built.
 
-The **Humanity Network** is a federated communication protocol built on post-quantum Dilithium3 / ML-DSA-65 cryptographic identity (derived from a BIP39 24-word seed, which also serves as your Solana wallet). No accounts. No tracking. No IP logging. You own your keys, they live in your browser, never on our server.
+The **Humanity Network** is a federated communication protocol built on post-quantum Dilithium3 / ML-DSA-65 cryptographic identity (derived from a BIP39 24-word seed, which also serves as your Solana wallet). No sign-up. No tracking. No IP logging. You own your keys, they live in your browser, never on our server.
 
 Anyone can host a server. Servers are meeting places, not gatekeepers. Your identity is portable across all of them. A tiered trust system (verified + Accord adoption) helps users find reliable communities.
 

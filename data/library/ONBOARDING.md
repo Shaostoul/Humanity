@@ -18,7 +18,7 @@ current with the code (this document is not, by design, it is for users, not bui
 
 A communication and life-management system you actually own. Think Discord + Notion +
 life-OS, but:
-- No accounts, your identity is a cryptographic key that lives on your device
+- No sign-up: your account is a cryptographic key that lives on your device
 - No tracking, no ads, no central authority
 - Federated, anyone can host a server; users keep their identity across all servers
 - Public domain (CC0), no permission required to use, fork, or deploy
@@ -86,13 +86,13 @@ that is the single ranked source for "what's happening right now."
 Understanding this unlocks the whole platform.
 
 Every user's chat identity is a **Dilithium3 / ML-DSA-65 keypair** (FIPS 204,
-post-quantum), derived deterministically from a BIP39 24-word seed phrase generated on
+post-quantum), derived deterministically from a BIP39 24-word recovery phrase generated on
 first use:
 - **Private key**, never leaves your device
 - **Public key**, your identity; also your "user ID" (a Dilithium3 hex string; the app shows the shorter `did:hum:...` form for display)
 
 Every message is signed with the private key. The server verifies the signature before
-accepting the message. This means no passwords, no accounts, the server cannot
+accepting the message. This means no sign-up and no stored passwords, the server cannot
 impersonate you, and you own your identity completely.
 
 For encrypted DMs, a **Kyber768 / ML-KEM-768 keypair** (FIPS 203, post-quantum) handles

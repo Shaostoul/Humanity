@@ -17,7 +17,7 @@ HumanityOS is one free app. It has two halves that share the same
 skills.
 
 One half is practical tools for real life, live today: chat with
-end-to-end encrypted private messages and no account or signup, a task
+end-to-end encrypted private messages and no sign-up, a task
 planner, maps that zoom from the whole galaxy to your own street, a
 marketplace for trading directly with others, a library of the
 project's knowledge, and an identity that lives on your device as a

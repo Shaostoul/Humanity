@@ -1,7 +1,7 @@
 {
   "_purpose": "Core page shortcuts shown in the 'Where to go next' grid on the onboarding page. page_id maps to GuiPage variants. Add new entries here when new pages should be promoted.",
   "pages": [
-    { "page_id": "chat",     "label": "Chat",     "description": "Talk to people building the same things you are. Encrypted, no account needed." },
+    { "page_id": "chat",     "label": "Chat",     "description": "Talk to people building the same things you are. Encrypted, no sign-up needed." },
     { "page_id": "tasks",    "label": "Tasks",    "description": "Track your projects. Water system, garden, solar install, whatever you are working on." },
     { "page_id": "maps",     "label": "Maps",     "description": "Find community gardens, maker spaces, and resources near you." },
     { "page_id": "market",   "label": "Market",   "description": "Trade surplus food, share tools, find local help." },

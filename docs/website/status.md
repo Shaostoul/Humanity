@@ -54,7 +54,7 @@ The chat and hub are **operational and in daily use** at [united-humanity.us/cha
 
 ### Platform & Security
 *(Canonical, current crypto details live in the project's `CLAUDE.md`; the bullets below summarize the post-quantum state.)*
-- ✅ Cryptographic identity (Dilithium3 / ML-DSA-65, post-quantum, derived from a BIP39 seed), no accounts, no passwords
+- ✅ Cryptographic identity (Dilithium3 / ML-DSA-65, post-quantum, derived from a BIP39 seed), no sign-up, no stored passwords
 - ✅ Key backup/export/import
 - ✅ Encrypted user data sync, AES-256-GCM
 - ✅ PWA, installable on mobile

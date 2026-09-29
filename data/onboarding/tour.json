@@ -7,6 +7,6 @@
     { "target": "a[href=\"/market\"]", "title": "Marketplace", "text": "Buy, sell, and trade with other members. Zero middleman fees." },
     { "target": "a[href=\"/wallet\"]", "title": "Wallet", "text": "Your identity IS your wallet. Send, receive, and manage crypto." },
     { "target": "a[href=\"/settings\"]", "title": "Settings", "text": "Customize your experience, manage your identity, and configure notifications." },
-    { "target": null, "title": "You're all set!", "text": "Start by chatting in the Network tab, or explore at your own pace. Your identity is secured with post-quantum cryptography, back up your seed phrase in Settings!" }
+    { "target": null, "title": "You're all set!", "text": "Start by chatting in the Network tab, or explore at your own pace. Your identity is secured with post-quantum cryptography, back up your recovery phrase in Settings!" }
   ]
 }

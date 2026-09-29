@@ -2239,7 +2239,7 @@ pub struct GuiState {
     pub settings_dirty: bool,
     /// Request to quit the application.
     pub quit_requested: bool,
-    /// Set to true when identity has been recovered from seed phrase and WS needs reconnect.
+    /// Set to true when identity has been restored from the recovery phrase and WS needs reconnect.
     pub identity_recovered: bool,
     /// The Ed25519 private key bytes (32 bytes) for signing, if available.
     pub private_key_bytes: Option<Vec<u8>>,
@@ -4629,7 +4629,7 @@ pub struct SettingsState {
     pub privacy_tier: String,
     // Data
     pub seed_phrase_visible: bool,
-    // Seed phrase recovery
+    // Restoring from the recovery phrase
     pub seed_phrase_input: String,
     pub seed_phrase_recovery_status: String,
     pub seed_phrase_show_recover: bool,

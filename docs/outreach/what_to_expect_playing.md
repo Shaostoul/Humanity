@@ -95,8 +95,8 @@ Real and working now:
   mining and refining, building, skills, and quests all exist and run.
 - Chat, tasks, maps, marketplace listings, and the library are live
   today at https://united-humanity.us and inside the app.
-- Your identity: a key you own on your own device. No account, no
-  password, nothing a company can take away.
+- Your account: a key you own on your own device. No sign-up, no
+  password stored on any server, nothing a company can take away.
 
 Still being built:
 

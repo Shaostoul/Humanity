@@ -441,7 +441,7 @@ async function importIdentityFromJSON(jsonData) {
   };
 }
 
-// ── Seed Phrase Display (paper backup) ──
+// ── Recovery Phrase Display (paper backup) ──
 // Goal: let users write their identity key on paper in a readable format.
 // Displays the 32-byte Ed25519 seed as 8 groups of 4 hex chars (like a PIN
 // sheet), easy to write down, hard to misread. No word list required.
@@ -971,7 +971,7 @@ function getPeerKyberPublic(peerKey) { return getPeerEcdhPublic(peerKey); }
 // ══════════════════════════════════════════════════════════════════════════════
 
 // ══════════════════════════════════════════════════════════════════════════════
-// BIP39 Seed Phrase, 24-word paper backup for the Ed25519 identity key
+// BIP39 Recovery Phrase, 24-word paper backup for the Ed25519 identity key
 // ══════════════════════════════════════════════════════════════════════════════
 // Goal: let users write 24 words on paper and fully restore their identity
 // on a new device with no cloud, no server, no QR code required.
@@ -1155,14 +1155,14 @@ async function restoreIdentityFromMnemonic(mnemonic) {
     publicKeyHex = bufToHex(pubBytes);
     publicKey = await crypto.subtle.importKey('raw', pubBytes, 'Ed25519', true, ['verify']);
   } catch (e) {
-    throw new Error('Could not derive public key from seed. Your browser may not fully support Ed25519. Error: ' + e.message);
+    throw new Error('Could not derive your key from the recovery phrase. Your browser may not fully support Ed25519. Error: ' + e.message);
   }
 
   // Sanity-check: sign + verify a test message
   const test = new TextEncoder().encode('humanity-identity-verify');
   const sig = await crypto.subtle.sign('Ed25519', privateKey, test);
   const ok  = await crypto.subtle.verify('Ed25519', publicKey, sig, test);
-  if (!ok) throw new Error('Key self-verification failed, seed may be corrupted.');
+  if (!ok) throw new Error('Key self-verification failed: the recovery phrase may be wrong.');
 
   // Persist to IndexedDB and localStorage backup
   const db = await openKeyDB();
@@ -1177,7 +1177,7 @@ async function restoreIdentityFromMnemonic(mnemonic) {
  * Encrypt a BIP39 mnemonic with a user passphrase and return a small portable
  * JSON blob that can be saved anywhere (file, password manager note, cloud).
  * Uses PBKDF2-SHA256 (600k iterations) → AES-256-GCM, same as identity backup.
- * The output contains everything needed to decrypt, no server, no account.
+ * The output contains everything needed to decrypt, with no server involved.
  * @param {string} mnemonic  - 24-word space-separated BIP39 phrase.
  * @param {string} passphrase - User-chosen encryption passphrase.
  * @returns {Promise<object>} Blob: { v, enc, iv, salt } (all base64).

@@ -163,7 +163,7 @@ fn draw_step_welcome(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 
         ui.label(RichText::new(
             "Your identity is a post-quantum cryptographic key.\n\
-             No accounts, no passwords, no tracking. You own your data."
+             No sign-up, no passwords stored on any server, no tracking. You own your data."
         ).size(13.0).color(theme.text_muted()));
 
         ui.add_space(30.0);
@@ -404,7 +404,7 @@ mod server_check_tests {
 /// Step 2: Identity / display name
 /// A note indented 40 px like the rest of the identity step, WRAPPING inside
 /// the window with the same 40 px margin on the right. A plain label in a
-/// `ui.horizontal` does not wrap: the long seed-phrase warning stretched the
+/// `ui.horizontal` does not wrap: the long recovery-phrase warning stretched the
 /// 500 px window to about 975 px (2026-09-27 snapshot review).
 fn indented_note(ui: &mut egui::Ui, text: RichText) {
     ui.horizontal(|ui| {
@@ -423,8 +423,8 @@ fn draw_step_identity(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         ui.label(RichText::new("Your Identity").size(24.0).color(theme.accent()));
         ui.add_space(8.0);
         ui.label(RichText::new(
-            "Pick the name people will see. There is no account and no\n\
-             password: the app creates a secret key that stays on your device."
+            "Pick the name people will see. There is nothing to sign\n\
+             up for: the app creates a secret key that stays on your device."
         ).size(13.0).color(theme.text_secondary()));
         ui.add_space(16.0);
     });
@@ -536,11 +536,11 @@ fn draw_step_identity(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         }
     }
 
-    // ── Recover from Seed Phrase ──
+    // ── Restore from Recovery Phrase ──
     ui.horizontal(|ui| {
         ui.add_space(40.0);
         if ui.small_button(
-            if state.settings.seed_phrase_show_recover { "Cancel recovery" } else { "Recover existing identity from seed phrase" }
+            if state.settings.seed_phrase_show_recover { "Cancel recovery" } else { "Restore an existing account from its recovery phrase" }
         ).clicked() {
             state.settings.seed_phrase_show_recover = !state.settings.seed_phrase_show_recover;
             state.settings.seed_phrase_recovery_status.clear();
@@ -555,7 +555,7 @@ fn draw_step_identity(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 ui.add(egui::TextEdit::multiline(&mut state.settings.seed_phrase_input)
                     .desired_width(380.0)
                     .desired_rows(2)
-                    .hint_text("Enter your 24-word seed phrase"));
+                    .hint_text("Enter your 24-word recovery phrase"));
                 ui.add_space(4.0);
                 if widgets::primary_button(ui, theme, "Recover") {
                     let phrase = state.settings.seed_phrase_input.trim().to_string();

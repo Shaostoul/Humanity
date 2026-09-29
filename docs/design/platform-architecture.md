@@ -184,7 +184,7 @@ Identity = Dilithium3 / ML-DSA-65 keypair (derived from the BIP39 seed)
   └── Key rotation = dual-signature certificate (old key signs new, new key signs old)
 ```
 
-**No usernames at the protocol level.** Names are per-relay display preferences. Your key is your identity. If you lose your key, BIP39 24-word seed phrase recovery restores it (the seed deterministically re-derives the Dilithium identity and Kyber DM keys). If your key is compromised, key rotation with dual-signature certificates migrates your identity to a new keypair while maintaining verifiable continuity.
+**No usernames at the protocol level.** Names are per-relay display preferences. Your key is your identity. If you lose your key, the BIP39 24-word recovery phrase restores it (the seed deterministically re-derives the Dilithium identity and Kyber DM keys). If your key is compromised, key rotation with dual-signature certificates migrates your identity to a new keypair while maintaining verifiable continuity.
 
 ### Future: Mesh Networking
 
@@ -629,17 +629,17 @@ When internet connectivity is lost entirely:
 
 ### Backup and Recovery
 
-Every user's identity and data can be recovered from a 24-word BIP39 seed phrase:
+Every user's identity and data can be recovered from a 24-word BIP39 recovery phrase:
 
 ```
-Seed phrase (24 words, memorizable)
+Recovery phrase (24 words, memorizable)
   → seed scalar (Ed25519 seed source + Solana wallet)
   → Dilithium3 / ML-DSA-65 keypair (chat identity restored) + Kyber768 / ML-KEM-768 keypair (DM keys)
   → AES-256-GCM key (vault decrypted)
   → Full data recovery from any relay that has the encrypted vault
 ```
 
-Write the seed phrase on paper. Store it in a fireproof safe. Memorize it. The physical world is the ultimate backup.
+Write the recovery phrase on paper. Store it in a fireproof safe. Memorize it. The physical world is the ultimate backup.
 
 ### Geographic Distribution
 
@@ -847,7 +847,7 @@ CI/CD
 The web platform and desktop app are functional. Chat, tasks, profiles, DMs, voice/video, and basic federation are operational. The relay server handles thousands of connections.
 
 Remaining work:
-- Identity recovery (BIP39 seed phrase)
+- Identity recovery (BIP39 recovery phrase)
 - Multi-device key sync
 - Federation protocol (cross-relay messaging)
 - Push notifications (WebPush API)

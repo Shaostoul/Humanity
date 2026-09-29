@@ -193,7 +193,7 @@ Output: an updated `docs/threat-model.md` (or section in this file) capturing cu
 ### Adversaries we explicitly do NOT defend against (yet)
 
 - **Nation-state intercept with budget**: TLS + PQC are the best we have, but a sufficiently-resourced adversary breaks endpoints (compromised OS, supply-chain) before they break the wire.
-- **Endpoint compromise**: stolen unlocked device = attacker has seed. This is documented in BUS-FACTOR + the INCIDENT-PLAYBOOK "Stolen seed phrase" entry.
+- **Endpoint compromise**: stolen unlocked device = attacker has seed. This is documented in BUS-FACTOR + the INCIDENT-PLAYBOOK "Stolen recovery phrase" entry.
 - **Operator coercion**: legal demands from a jurisdiction. The DM E2EE design means operator can't comply with "show us their messages" for DMs; they CAN comply with "show us metadata" (who messaged whom, when). The architecture choice is to make E2E confidentiality non-circumventable even by the operator.
 
 ## Update log

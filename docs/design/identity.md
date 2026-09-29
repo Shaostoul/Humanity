@@ -31,7 +31,7 @@ Your Dilithium3 / ML-DSA-65 public key (hex) serves as:
 Your Ed25519 keypair (derived from the same BIP39 seed) serves one remaining role:
 - **Solana wallet**, base58-encoded, receives/sends crypto
 
-### Seed Phrase = Master Backup
+### Recovery Phrase = Master Backup
 
 BIP39 24-word mnemonic backs up everything:
 - Identity keypair
@@ -146,7 +146,7 @@ Works without any server:
 
 ## Related Files
 
-- `web/chat/crypto.js`, BIP39 seed phrase, Ed25519 seed scalar, Solana wallet derivation
+- `web/chat/crypto.js`, BIP39 recovery phrase, Ed25519 seed scalar, Solana wallet derivation
 - `web/shared/pq-identity.js`, Dilithium3 + Kyber768 client API (chat identity + DM keys)
 - `web/shared/wallet.js`, Solana address derivation from the Ed25519 seed scalar
 - `src/relay/relay.rs`, Profile handling, key rotation

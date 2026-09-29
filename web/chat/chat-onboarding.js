@@ -8,7 +8,7 @@ const ONBOARD_DONE_KEY = 'humanity_onboarding_done';
 
 /**
  * Show the multi-step onboarding wizard to a first-time visitor.
- * Steps guide them through: identity creation, seed phrase backup,
+ * Steps guide them through: identity creation, recovery phrase backup,
  * what Humanity is, how to meet people, and a "you're ready" launch pad.
  * @param {string} [mnemonic] - Pre-generated 24-word phrase (pass so we don't call generateMnemonic twice).
  */
@@ -116,7 +116,7 @@ function step0() {
     </p>
 
     <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-lg);padding:var(--space-xl) var(--space-2xl);margin-bottom:var(--space-xl)">
-      <p style="font-size:.85rem;color:var(--text-secondary);margin:0 0 var(--space-lg);font-weight:600">🤔 Wait, no account? No password?</p>
+      <p style="font-size:.85rem;color:var(--text-secondary);margin:0 0 var(--space-lg);font-weight:600">🤔 Wait, no sign-up? No password?</p>
       <p style="font-size:.82rem;color:var(--text-muted);line-height:1.6;margin:0">
         That's right. Instead of a username and password stored on a server somewhere, we generated a
         <strong style="color:var(--text)">secret key</strong> that lives right here in your browser.
@@ -150,7 +150,7 @@ function step0() {
   `;
 }
 
-// ── Step 1: Seed Phrase + Storage Options ────────────────────────────────────
+// ── Step 1: Recovery Phrase + Storage Options ────────────────────────────────────
 function step1(mnemonic) {
   const words = mnemonic ? mnemonic.trim().split(/\s+/) : [];
   const wordGrid = words.length === 24
@@ -164,11 +164,11 @@ function step1(mnemonic) {
       </div>`
     : `<div style="background:var(--bg-secondary);border:1px dashed var(--border);border-radius:var(--radius);padding:var(--space-xl);
                    font-size:.8rem;color:var(--text-muted);margin:var(--space-lg) 0;text-align:center">
-         Seed phrase unavailable in this browser. Use <strong>Encrypted Backup</strong> instead.
+         Recovery phrase unavailable in this browser. Use <strong>Encrypted Backup</strong> instead.
        </div>`;
 
   return `
-    <h2 style="font-size:1.15rem;font-weight:800;color:var(--accent);margin:0 0 var(--space-sm)">🌱 Your 24-Word Recovery Phrase</h2>
+    <h2 style="font-size:1.15rem;font-weight:800;color:var(--accent);margin:0 0 var(--space-sm)">🔑 Your 24-Word Recovery Phrase</h2>
     <p style="font-size:.8rem;line-height:1.5;color:var(--text-muted);margin:0 0 var(--space-md)">
       These 24 words <em>are</em> your identity, they can recreate your account on any device, forever.
       Think of them as a master key. <strong style="color:var(--text-secondary)">Anyone who has them is you.</strong>
@@ -218,7 +218,7 @@ function step1(mnemonic) {
       <p style="font-size:.76rem;color:var(--text-muted);line-height:1.5;margin:0 0 var(--space-md)">
         Open <a href="https://bitwarden.com" target="_blank" rel="noopener"
           style="color:var(--accent)">Bitwarden</a>, <strong style="color:var(--text-muted)">1Password</strong>, or any password manager.
-        Create a new <em>Secure Note</em> called "Humanity seed phrase" and paste the 24 words there.
+        Create a new <em>Secure Note</em> called "Humanity recovery phrase" and paste the 24 words there.
         Password managers are encrypted, sync across devices, and survive losing your phone or laptop.
         <br><strong style="color:var(--text-muted)">Bitwarden is free and open source.</strong>
       </p>
@@ -387,7 +387,7 @@ function step4() {
       <button onclick="openSeedPhraseModal()" id="ob-seed-btn"
         style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-lg);padding:var(--space-lg);
                color:var(--accent);font-size:.8rem;font-weight:600;cursor:pointer;text-align:left">
-        🌱 View Seed Phrase<br>
+        🔑 View Recovery Phrase<br>
         <span style="font-size:.7rem;color:var(--text-muted);font-weight:400">24-word paper backup</span>
       </button>
       <button onclick="openEncryptedBackupModal()" id="ob-bkp-btn"
@@ -412,7 +412,7 @@ function step4() {
 
     <p style="font-size:.75rem;color:var(--text-muted);line-height:1.5;margin:0">
       💡 You can reopen this guide anytime via <strong style="color:var(--text-muted)">Help → Getting Started</strong> in the sidebar.
-      Your seed phrase and encrypted backup stay available under the 👤 <strong style="color:var(--text-muted)">Account &amp; Identity</strong> menu in the top bar, in the <strong style="color:var(--text-muted)">Security &amp; Recovery</strong> section, or by typing <code>/seed</code> or <code>/backup</code>.
+      Your recovery phrase and encrypted backup stay available under the 👤 <strong style="color:var(--text-muted)">Account &amp; Identity</strong> menu in the top bar, in the <strong style="color:var(--text-muted)">Security &amp; Recovery</strong> section, or by typing <code>/seed</code> or <code>/backup</code>.
     </p>
   `;
 }

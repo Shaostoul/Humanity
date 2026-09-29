@@ -29,7 +29,7 @@
 - `IndexedDB` for larger blobs (image cache, message history)
 - Encrypted vault stored as opaque ciphertext on the relay's `vault_blobs`
   table, keys never leave the browser
-- All PQ private key material derived from the BIP39 seed phrase, kept
+- All PQ private key material derived from the BIP39 recovery phrase, kept
   client-side and re-derived on each session
 
 ### 3. Native client: `%APPDATA%/HumanityOS/`
@@ -72,7 +72,7 @@ validate the signature on insert, and auto-update derived projections.
 Latest-timestamp signed object wins for any (subject, schema) pair.
 
 **Identity isn't a server row.** It's the public key. Lose every server
-that's ever cached your data, and your seed phrase still rebuilds you.
+that's ever cached your data, and your recovery phrase still rebuilds you.
 
 ---
 
@@ -144,7 +144,7 @@ they've seen. The inputs are always exposed (Accord transparency), so you can
 always audit why a given server's score differs from another's.
 
 Lose every server you've ever used? Boot a fresh one, log in with your
-24-word seed phrase, your DID still works, and any VCs other servers cached
+24-word recovery phrase, your DID still works, and any VCs other servers cached
 for you propagate back when you start interacting.
 
 ---

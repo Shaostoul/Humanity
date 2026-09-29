@@ -4,15 +4,15 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Chat, HumanityOS</title>
-  <meta name="description" content="HumanityOS cooperative chat with cryptographic identity. No accounts, no tracking. Just people talking freely.">
+  <meta name="description" content="HumanityOS cooperative chat with cryptographic identity. No sign-up, no tracking. Just people talking freely.">
   <meta property="og:type" content="website">
   <meta property="og:title" content="Chat, HumanityOS">
-  <meta property="og:description" content="HumanityOS cooperative chat with cryptographic identity. No accounts, no tracking, no surveillance.">
+  <meta property="og:description" content="HumanityOS cooperative chat with cryptographic identity. No sign-up, no tracking, no surveillance.">
   <meta property="og:url" content="https://united-humanity.us/chat">
   <meta property="og:image" content="https://united-humanity.us/favicon.png">
   <meta name="twitter:card" content="summary">
   <meta name="twitter:title" content="Chat, HumanityOS">
-  <meta name="twitter:description" content="HumanityOS cooperative chat with Ed25519 identity. No accounts. No tracking.">
+  <meta name="twitter:description" content="HumanityOS cooperative chat with Ed25519 identity. No sign-up. No tracking.">
   <meta name="twitter:image" content="https://united-humanity.us/favicon.png">
   <meta name="theme-color" content="#ed8c24">
   <link rel="manifest" href="/shared/manifest.json">
@@ -94,7 +94,7 @@
   <!-- Login Screen -->
   <div id="login-screen">
     <h1><span class="pg-ico" data-icon="globe" data-size="24"></span> Chat</h1>
-    <p>A cooperative communication platform.<br>No accounts. No tracking. Just people.</p>
+    <p>A cooperative communication platform.<br>No sign-up. No tracking. Just people.</p>
     <input type="text" id="name-input" placeholder="Choose a name" autofocus>
     <input type="text" id="link-code-input" placeholder="Link code (optional)" style="margin-top:0.5rem; display:block;">
     <input type="text" id="invite-code-input" placeholder="Invite code (optional)" style="margin-top:0.5rem; display:block;">
@@ -106,7 +106,7 @@
     </div>
     <div style="display:flex;flex-direction:column;align-items:center;gap:0.4rem;">
       <button onclick="document.getElementById('import-file-input').click()" style="background:var(--bg-input);color:var(--text-muted);border:1px solid var(--border);padding:0.5rem 1.5rem;border-radius:6px;font-size:0.85rem;cursor:pointer;width:100%;max-width:280px;"><span class="pg-ico" data-icon="download" data-size="16"></span> Import Identity Backup</button>
-      <button onclick="openLoginSeedRecovery()" style="background:none;color:var(--text-muted);border:1px solid var(--border);padding:0.5rem 1.5rem;border-radius:6px;font-size:0.85rem;cursor:pointer;width:100%;max-width:280px;">🌱 Recover from Seed Phrase</button>
+      <button onclick="openLoginSeedRecovery()" style="background:none;color:var(--text-muted);border:1px solid var(--border);padding:0.5rem 1.5rem;border-radius:6px;font-size:0.85rem;cursor:pointer;width:100%;max-width:280px;">🔑 Restore from recovery phrase</button>
     </div>
     <input type="file" id="import-file-input" accept=".json" style="display:none;" onchange="handleImportFile(event)">
     <p class="subtitle" id="login-error" style="color:var(--danger,#e64033); display:none;"></p>
@@ -205,7 +205,7 @@
               data-tip-title="Sync Peers" data-tip-desc="Push data to all connected P2P contacts (E2E encrypted)."
               style="flex:1;background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.2rem 0.3rem;border-radius:4px;font-size:0.62rem;cursor:pointer;">🔄 Sync</button>
           </div>
-          <!-- Security & Recovery: the ONLY always-available entry points to the seed phrase and
+          <!-- Security & Recovery: the ONLY always-available entry points to the recovery phrase and
                the encrypted identity backup. Previously both were reachable only from onboarding
                step 4, a one-shot wizard, while onboarding promised they were permanently
                available. Both buttons reuse the existing modals in chat-profile.js; no key
@@ -215,8 +215,8 @@
             <div style="font-size:0.6rem;color:var(--text-muted);font-weight:600;letter-spacing:0.05em;margin-bottom:0.25rem;">SECURITY &amp; RECOVERY</div>
             <div style="display:flex;gap:0.2rem;">
               <button onclick="confirmRevealSeedPhrase()" id="seed-phrase-btn"
-                aria-label="Reveal your 24 word seed phrase"
-                data-tip-title="Seed Phrase" data-tip-desc="Reveal your 24-word recovery phrase. Anyone who reads it controls your identity."
+                aria-label="Reveal your 24 word recovery phrase"
+                data-tip-title="Recovery Phrase" data-tip-desc="Reveal your 24-word recovery phrase. Anyone who reads it controls your identity."
                 data-tip-detail="Asks you to confirm first, so a stray click cannot expose it mid-stream"
                 style="flex:1;background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.2rem 0.3rem;border-radius:var(--radius);font-size:0.62rem;cursor:pointer;">🌱 Seed</button>
               <button onclick="openEncryptedBackupModal()" id="encrypted-backup-btn"
@@ -469,7 +469,7 @@
       <div style="background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:.65rem 1rem;margin-bottom:1rem;display:flex;align-items:center;justify-content:space-between;gap:.75rem">
         <div>
           <p style="margin:0;font-size:.82rem;font-weight:600;color:var(--text)">🌱 New here?</p>
-          <p style="margin:.15rem 0 0;font-size:.74rem;color:var(--text-muted)">See the plain-English intro to identities, seed phrases, and how Humanity works.</p>
+          <p style="margin:.15rem 0 0;font-size:.74rem;color:var(--text-muted)">See the plain-English intro to identities, recovery phrases, and how Humanity works.</p>
         </div>
         <button onclick="reopenOnboardingWizard();toggleHelpModal();"
           style="flex-shrink:0;background:var(--accent);color:#000;border:none;border-radius:7px;padding:.4rem .9rem;font-size:.78rem;font-weight:700;cursor:pointer;white-space:nowrap">
@@ -485,7 +485,7 @@
       <div class="cmd"><code>/users</code>, List all registered users (online/offline)</div>
       <div class="cmd"><code>/report &lt;name&gt; [reason]</code>, Report a user</div>
       <div class="cmd"><code>/export</code>, Download your identity backup file</div>
-      <div class="cmd"><code>/seed</code>, Reveal your 24-word seed phrase (asks you to confirm first)</div>
+      <div class="cmd"><code>/recovery</code>, Reveal your 24-word recovery phrase (asks you to confirm first)</div>
       <div class="cmd"><code>/backup</code>, Download an encrypted backup of your identity</div>
       <div class="cmd"><code>/dm &lt;name&gt; &lt;message&gt;</code>, Send a direct message</div>
       <div class="cmd"><code>/dms</code>, List your DM conversations</div>
@@ -609,7 +609,7 @@
           style="font-size:0.8rem;padding:0.3rem 0.7rem;background:var(--bg-input);border:1px solid var(--border);border-radius:4px;color:var(--text-muted);cursor:pointer;">📱 Show my identity (link a device)</button>
         <button onclick="openLinkThisDeviceModal()"
           data-tip-title="Link this device"
-          data-tip-desc="Bring your existing identity TO this device: scan a QR, paste a code, or enter your seed phrase."
+          data-tip-desc="Bring your existing identity TO this device: scan a QR, paste a code, or enter your recovery phrase."
           data-tip-detail="Use this on the NEW device (e.g. your phone) to make it your real identity."
           style="font-size:0.8rem;padding:0.3rem 0.7rem;background:var(--bg-input);border:1px solid var(--border);border-radius:4px;color:var(--text-muted);cursor:pointer;">🔗 Link this device to me</button>
       </div>
@@ -708,7 +708,7 @@
   <script src="/chat/chat-privacy.js?v=1"></script>
   <!-- Game Admin: game-world bans (separate from chat moderation), admin-only -->
   <script src="/chat/chat-game-admin.js?v=1"></script>
-  <!-- Onboarding wizard: first-time user guide (ELI5 identity + seed phrase) -->
+  <!-- Onboarding wizard: first-time user guide (ELI5 identity + recovery phrase) -->
   <script src="/chat/chat-onboarding.js?v=1"></script>
   <!-- qrcode-generator (public domain, ~18 KB), used by chat-p2p.js for contact card QR codes -->
   <script src="/shared/qrcode.js?v=4" onerror="console.warn('qrcode.js not found, QR codes will be unavailable')"></script>

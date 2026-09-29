@@ -1460,7 +1460,7 @@ that outranks the whole font question.
 
 ## THE FINDING: the most dangerous string in the app is set in a proportional Light face
 
-`src/gui/pages/settings.rs:612` renders the 24-word BIP39 seed phrase as a bare
+`src/gui/pages/settings.rs:612` renders the 24-word BIP39 recovery phrase as a bare
 `ui.label(RichText::new(&phrase).color(theme.warning()).size(theme.font_size_small))`,
 with no `.monospace()`, inside a warning-framed box whose own comment calls it
 "the single most dangerous string in the app". Forty lines of onboarding away,
@@ -1471,7 +1471,7 @@ Eight call sites render a string a human must read character by character, and
 none of them selects a monospace face:
 
 - `settings.rs:531` public key
-- `settings.rs:612` the 24-word seed phrase
+- `settings.rs:612` the 24-word recovery phrase
 - `settings.rs:732` the recovery TextEdit, which needs
   `.font(FontId::monospace(..))` because TextEdit takes no RichText
 - `settings.rs:752` recovered-key confirmation
@@ -1589,7 +1589,7 @@ only when one was actually read.
 `FontFamily::Monospace`. Keep Hack as the monospace face, unchanged. Fix the
 `fonts.rs` install site. Raise `font_size_small` from 11.902083, which is
 currently the size used for the highest-stakes string in the app. Add
-`extra_letter_spacing` to the key and seed-phrase rows. Extend the existing
+`extra_letter_spacing` to the key and recovery-phrase rows. Extend the existing
 system-font probe in `fonts.rs` with CJK paths so Japanese and Chinese stop
 rendering as tofu, for zero redistributed bytes. None of this needs a typeface
 decision and all of it outranks one.

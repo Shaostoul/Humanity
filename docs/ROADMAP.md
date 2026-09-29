@@ -175,7 +175,7 @@ automating the real thing.
 
 ## Identity and privacy
 
-You own your identity and your data. No accounts, no passwords, no tracking. Even the
+You own your identity and your data. No sign-up, no passwords stored on any server, no tracking. Even the
 server operator cannot read your private messages.
 
 - `[done]` Post-quantum identity: a Dilithium3 / ML-DSA-65 key derived from a BIP39

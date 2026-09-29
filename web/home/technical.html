@@ -4,11 +4,11 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>HumanityOS: the technical introduction</title>
-  <meta name="description" content="HumanityOS is one open source Rust crate that builds a desktop app and a headless federated server. Post-quantum identity on your device, no accounts, no passwords, SQLite storage, data-driven content.">
+  <meta name="description" content="HumanityOS is one open source Rust crate that builds a desktop app and a headless federated server. Post-quantum identity on your device, no sign-up, no passwords stored on any server, SQLite storage, data-driven content.">
 
   <meta property="og:type" content="website">
   <meta property="og:title" content="HumanityOS: the technical introduction">
-  <meta property="og:description" content="One Rust crate builds both the desktop app and the headless relay. Federation of sovereign servers. Post-quantum identity derived from a seed phrase. No accounts, no passwords.">
+  <meta property="og:description" content="One Rust crate builds both the desktop app and the headless relay. Federation of sovereign servers. Post-quantum identity derived from a recovery phrase. No sign-up, no passwords stored on any server.">
   <meta property="og:url" content="https://public.guide">
   <meta property="og:image" content="https://public.guide/shared/social/og-banner.png">
   <meta property="og:image:width" content="1200">
@@ -16,7 +16,7 @@
   <meta property="og:image:alt" content="HumanityOS: open source cooperative platform.">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="HumanityOS: the technical introduction">
-  <meta name="twitter:description" content="One Rust crate builds both the desktop app and the headless relay. Federation of sovereign servers. Post-quantum identity derived from a seed phrase. No accounts, no passwords.">
+  <meta name="twitter:description" content="One Rust crate builds both the desktop app and the headless relay. Federation of sovereign servers. Post-quantum identity derived from a recovery phrase. No sign-up, no passwords stored on any server.">
   <meta name="twitter:image" content="https://public.guide/shared/social/og-banner.png">
 
   <link rel="canonical" href="https://public.guide/">
@@ -186,12 +186,12 @@
     <!-- ══ Hero ══ -->
     <header class="t-hero">
       <div class="t-kicker">Open source cooperative platform</div>
-      <h1>One Rust crate. A desktop app and a server. No accounts.</h1>
+      <h1>One Rust crate. A desktop app and a server. No sign-up.</h1>
       <p class="t-lede">
         HumanityOS is a single Rust crate that compiles into two things: a desktop application with
         a 3D engine and an offline-first tool suite, and a headless server that anyone can run.
         Servers federate pairwise, with no central authority and no home server for your account.
-        Your identity is a post-quantum keypair derived from a seed phrase and held on your device,
+        Your identity is a post-quantum keypair derived from a recovery phrase and held on your device,
         so there is nothing to sign up for and no password to steal.
       </p>
       <p class="t-lede">
@@ -278,8 +278,8 @@ HumanityOS --headless   <span class="t-note"># server only, no GPU, listens on :
     <section class="t-sec" id="identity">
       <h2>Identity and cryptography</h2>
       <p>
-        There are no accounts, no passwords, and no home server. An identity is a keypair derived
-        from a BIP39 seed phrase on your own machine. Servers store what you publish and verify
+        There is no sign-up, no password stored on any server, and no home server. An identity is a keypair derived
+        from a BIP39 recovery phrase on your own machine. Servers store what you publish and verify
         your signatures. They never hold a credential that could be used to become you.
       </p>
 
@@ -335,7 +335,7 @@ HumanityOS --headless   <span class="t-note"># server only, no GPU, listens on :
       <div class="t-callout">
         <b>What this does not do.</b> The platform holds no funds and moves no money. A wallet
         address is derived from your seed for your own use, and the market is a directory, not an
-        escrow. Losing your seed phrase means losing the identity, so the app also offers a split
+        escrow. Losing your recovery phrase means losing the identity, so the app also offers a split
         backup where friends each hold an encrypted share.
       </div>
     </section>

@@ -14,10 +14,10 @@
     "identity": {
       "title": "Your identity",
       "body": [
-        "Your identity on HumanityOS is a cryptographic keypair generated on your device the first time you open the chat. No username, no password, no account form.",
-        "The key is <strong>self-custody</strong>: only you have it. Losing it means losing access, so back it up with the 24-word seed phrase in Settings.",
+        "Your identity on HumanityOS is a cryptographic keypair generated on your device the first time you open the chat. No sign-up: no username, no password, no email.",
+        "The key is <strong>self-custody</strong>: only you have it. Losing it means losing access, so back it up with the 24-word recovery phrase in Settings.",
         "The same key is also your wallet address, so your identity and your money are one and the same.",
-        "You can move between servers, reinstall the app, or switch devices: enter your seed phrase and you are yourself again."
+        "You can move between servers, reinstall the app, or switch devices: enter your recovery phrase and you are yourself again."
       ]
     },
     "wallet": {
@@ -26,7 +26,7 @@
         "Your cryptographic key is also a Solana wallet address. You do not set one up separately.",
         "From the Wallet page you can check your balance, send and receive payments, stake, see token swaps, and view transaction history.",
         "Because the wallet is embedded in your identity, tipping or paying a user is as simple as knowing their name on the network.",
-        "You are responsible for your keys. Back up your seed phrase. Funds sent to a forgotten address are not recoverable."
+        "You are responsible for your keys. Back up your recovery phrase. Funds sent to a forgotten address are not recoverable."
       ]
     },
     "federation": {
@@ -57,13 +57,13 @@
         "You only see the sections your role grants. Roles are per-server: you may be an admin on one and a regular user on another."
       ]
     },
-    "seed-phrase": {
-      "title": "Seed phrase backup",
+    "recovery-phrase": {
+      "title": "Recovery phrase backup",
       "body": [
-        "Your seed phrase is 24 words generated from your private key using the BIP39 standard.",
+        "Your recovery phrase is 24 words generated from your private key using the BIP39 standard.",
         "Write it down on paper. Do not photograph it. Do not save it to cloud storage without encryption. Do not type it into a browser tab you did not open yourself.",
-        "Anyone with your seed phrase can act as you, spend your tokens, and read your DMs. Treat it with that much care.",
-        "If you lose access to this device, enter the seed phrase on a new install to recover your full identity, including message history backup if you had sync enabled."
+        "Anyone with your recovery phrase can act as you, spend your tokens, and read your DMs. Treat it with that much care.",
+        "If you lose access to this device, enter the recovery phrase on a new install to recover your full identity, including message history backup if you had sync enabled."
       ]
     },
     "onboarding": {
@@ -129,10 +129,10 @@
     ],
     "/identity": [
       "identity",
-      "seed-phrase"
+      "recovery-phrase"
     ],
     "/recovery": [
-      "seed-phrase",
+      "recovery-phrase",
       "identity"
     ],
     "/wallet": [
@@ -147,7 +147,7 @@
     ],
     "/onboarding": [
       "onboarding",
-      "seed-phrase"
+      "recovery-phrase"
     ],
     "/humanity": [
       "humanity-accord"

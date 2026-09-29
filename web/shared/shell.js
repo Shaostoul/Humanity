@@ -1081,7 +1081,7 @@
     '</div>' +
     '<div class="mobile-hub-group group-green"><h4>Community and trade</h4>' +
       // Live streams broadcast from the desktop app's Studio page, fanned out by our
-      // own relay. No third-party platform, and no account needed to watch. (v0.855)
+      // own relay. No third-party platform, and no sign-up needed to watch. (v0.855)
       mobileLink('/watch',   'Watch') +
       mobileLink('/wallet',    'Wallet') +
       mobileLink('/market',    'Market') +
@@ -1877,7 +1877,7 @@
   // WHY: Light up the download button with RGB when a new version is available
   // so the user knows at a glance. Checks GitHub releases once per session.
   (function updateChecker() {
-    var CURRENT_VERSION = '0.1422.6';
+    var CURRENT_VERSION = '0.1423.0';
     var CACHE_KEY = 'hos_latest_version';
     var CACHE_TS_KEY = 'hos_latest_version_ts';
     var CHECK_INTERVAL = 30 * 60 * 1000; // 30 min

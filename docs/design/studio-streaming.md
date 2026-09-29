@@ -11,7 +11,7 @@
 5. Below the studio area: the normal chat-page **Friends list**. Under each **streaming friend**: a **simplified viewer widget**, a paused video frame (last loaded frame from their stream).
 6. A **dedicated viewer modal** for focusing on one/multiple streams: video on top (where the studio widget is), chat on the bottom.
 7. **Persistent streaming.** Streaming must continue even when the operator leaves the Studio page, navigating to ANY HumanityOS page keeps the stream live. (Global session, not page-bound.)
-8. **Privacy guard.** While streaming, if the user navigates to a sensitive page and clicks a dangerous action (e.g. "view my seed phrase"), auto-hide/obscure the stream so secrets never go out live.
+8. **Privacy guard.** While streaming, if the user navigates to a sensitive page and clicks a dangerous action (e.g. "view my recovery phrase"), auto-hide/obscure the stream so secrets never go out live.
 
 ## Current state (the inverted maturity)
 

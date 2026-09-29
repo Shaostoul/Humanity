@@ -2734,7 +2734,7 @@ fn send_composed_content(state: &mut GuiState, content: &str) -> bool {
             }
             Err(reason) => {
                 let human = match reason {
-                    "no_own_key" => "Can't send: your identity isn't unlocked on this device. Recover from your seed phrase first.",
+                    "no_own_key" => "Can't send: your account isn't unlocked on this device. Restore it from your recovery phrase first.",
                     "missing_peer_key" => "Can't send yet: we don't have this person's encryption key. It arrives when they next come online; try again then.",
                     "bad_own_key" => "Can't send: your encryption key could not be derived. Try Identity → Recover.",
                     _ => "Can't send: encrypting the message failed.",

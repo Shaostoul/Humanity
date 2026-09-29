@@ -471,7 +471,7 @@
     },
     {
       "name": "Fresh-slate database wipe (pq-wipe)",
-      "what": "Destroys ALL accounts and message history back to a clean slate (backing up first and re-seeding #announcements); everyone re-onboards from their seed phrase. Refuses to run without an explicit yes.",
+      "what": "Destroys ALL accounts and message history back to a clean slate (backing up first and re-seeding #announcements); everyone re-onboards from their recovery phrase. Refuses to run without an explicit yes.",
       "where": "vps-shell",
       "audience": "owner",
       "how": "just pq-wipe yes, or on the VPS bash scripts/pq-wipe.sh --yes (Justfile:110-112; scripts/pq-wipe.sh:34-75 safety checks)."

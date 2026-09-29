@@ -16,7 +16,7 @@ Ed25519 Public Key (32 bytes)
 
 - Public key -> base58-encode -> Solana address
 - Private key -> sign Solana transactions
-- BIP39 24-word seed phrase backs up both identity AND wallet
+- BIP39 24-word recovery phrase backs up both identity AND wallet
 - Same PBKDF2-600k encryption protects wallet keys (they ARE the identity keys)
 
 ## Features (Phased)
@@ -78,7 +78,7 @@ Unique on-chain items (game items, land deeds, certificates, art).
 |                                                            |
 |  Identity (crypto.js)                                      |
 |  +-- Ed25519 keypair (Web Crypto API)                      |
-|  +-- BIP39 seed phrase (24 words)                          |
+|  +-- BIP39 recovery phrase (24 words)                          |
 |  +-- PKCS8/JWK storage (IndexedDB)                        |
 |           |                                                |
 |           v                                                |
@@ -147,7 +147,7 @@ function base58Decode(str) {
 - Transaction signing happens client-side only
 - No private key sent over network (ever)
 - Same PBKDF2-600k encryption protects wallet keys (they ARE the identity keys)
-- Seed phrase recovery restores wallet access (same 24 words)
+- The recovery phrase restores wallet access (same 24 words)
 
 ### Transaction Safety
 
@@ -164,7 +164,7 @@ function base58Decode(str) {
 HumanityOS is in active development (pre-v1.0).
 Your wallet keys are stored locally on your device.
 We cannot recover lost keys or reverse transactions.
-Back up your 24-word seed phrase -- it protects both your identity AND your wallet.
+Back up your 24-word recovery phrase -- it protects both your identity AND your wallet.
 Use at your own risk.
 ```
 
@@ -217,7 +217,7 @@ Use at your own risk.
 
 ## Relationship to Existing Systems
 
-- **Identity**, Wallet IS the identity. Same keys, same seed phrase, same recovery.
+- **Identity**, Wallet IS the identity. Same keys, same recovery phrase, same recovery.
 - **Donations**, Donation page shows the server owner's derived Solana address automatically.
 - **Marketplace**, Future: listings can accept SOL/USDC payment directly via wallet.
 - **Game Economy**, Future: in-game currency backed by SPL tokens.
@@ -229,4 +229,4 @@ HumanityOS is not a registered money services business (MSB). The wallet is a se
 
 Standard self-custody disclaimer (displayed on first wallet use + in settings):
 
-"HumanityOS provides self-custody wallet tools. You are solely responsible for your private keys and seed phrase. We cannot access, recover, or reverse any transactions. Lost keys mean permanently lost funds. This software is provided as-is with no warranty. Use at your own risk."
+"HumanityOS provides self-custody wallet tools. You are solely responsible for your private keys and recovery phrase. We cannot access, recover, or reverse any transactions. Lost keys mean permanently lost funds. This software is provided as-is with no warranty. Use at your own risk."

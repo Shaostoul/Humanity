@@ -55,7 +55,7 @@ One app, two sides of the same tools, switched with a **Real/Sim toggle**:
 Current platform includes:
 
 - Real-time chat, voice/video calls, and collaboration
-- Post-quantum cryptographic identity (no accounts, no password trap)
+- Post-quantum cryptographic identity (no sign-up, no password trap)
 - A 3D world with a true-scale Earth: live weather, oceans, atmosphere, day/night
 - Farming, crafting, construction, and skills gameplay
 - Tasks, inventory, marketplace, maps, and a knowledge library, in-app and on the web

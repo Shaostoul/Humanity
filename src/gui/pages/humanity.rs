@@ -296,8 +296,8 @@ fn draw_mission_dashboard(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState
         ui.add_space(theme.spacing_sm);
         scope_block(ui, theme, "Guided quests and a free-to-fail simulation",
             "Learn to collect water, grow food, and generate power by doing it in the simulation first, where a mistake costs nothing. The skills carry straight into real life, so a lack of know-how is never what keeps you poor.");
-        scope_block(ui, theme, "Encrypted chat, no account needed",
-            "Find people already doing it and learn from them directly. No signup, no gatekeeper, and nothing harvested, so no company can lock you out, sell your attention, or decide who is allowed to take part.");
+        scope_block(ui, theme, "Encrypted chat, no sign-up needed",
+            "Find people already doing it and learn from them directly. No sign-up, no gatekeeper, and nothing harvested, so no company can lock you out, sell your attention, or decide who is allowed to take part.");
         scope_block(ui, theme, "Tasks and a private notebook",
             "Turn a vague hope (get off the water bill) into a plan you actually finish, and keep a private record of what works, so your hard-won experience compounds instead of evaporating.");
         scope_block(ui, theme, "Maps of what is near you",
@@ -333,7 +333,7 @@ fn draw_mission_dashboard(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState
         scope_block(ui, theme, "What is yours stays yours",
             "Your identity, your keys, your words, and your tools belong to you, not to a platform that can revoke them. The whole system is public domain, so it can never be bought, locked down, or rented back to you.");
         scope_block(ui, theme, "You can never be locked out",
-            "There is no account to suspend and no password to lose. Your identity is a key on your own device, recoverable from your seed phrase or from trusted friends who each hold an encrypted piece of it. No company, and no fee, stands between you and your own name.");
+            "There is no company account to suspend and no password for anyone else to reset. Your account is a key on your own device, which you can restore from your 24-word recovery phrase or from trusted friends who each hold an encrypted piece of it. No company, and no fee, stands between you and your own name.");
         scope_block(ui, theme, "Rules made by the people they bind",
             "The community sets its own rules through transparent voting, weighted by trust and capped so that no single person, however trusted, can dominate. AI take part openly but do not vote, because consent belongs to the people whose lives the rules govern.");
         scope_block(ui, theme, "Bound by a constitution, not a promise",
@@ -363,9 +363,9 @@ fn draw_mission_dashboard(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState
         scope_block(ui, theme, "When the server goes down",
             "No one owns the network. Anyone can run their own in minutes, and your identity moves with you to any of them, because it is yours, not an account on someone else's machine. Take one server down and the rest carry on.");
         scope_block(ui, theme, "When you lose your device",
-            "Recover everything from your 24-word seed phrase, or from trusted friends who each hold an encrypted piece of it. No email, no phone number, no recovery fee, and no company that can refuse you.");
+            "Restore everything from your 24-word recovery phrase, or from trusted friends who each hold an encrypted piece of it. No email, no phone number, no recovery fee, and no company that can refuse you.");
         scope_block(ui, theme, "When you have no money, papers, or bank",
-            "No accounts, no subscriptions, no fees. Reputation you earn and credentials your neighbors sign stand in for credit scores and ID, so a refugee, a young person, or anyone starting over can build a real, verifiable history from zero.");
+            "No sign-up, no subscriptions, no fees. Reputation you earn and credentials your neighbors sign stand in for credit scores and ID, so a refugee, a young person, or anyone starting over can build a real, verifiable history from zero.");
         scope_block(ui, theme, "Whatever your language or ability",
             "It speaks several languages, with high-contrast, colorblind, and reduced-motion modes, keyboard-only navigation, and a plain-language glossary for every term. It runs on cheap, old, low-power hardware, not just new machines.");
         scope_block(ui, theme, "When disaster strikes",

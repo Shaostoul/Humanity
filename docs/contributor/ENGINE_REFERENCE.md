@@ -176,7 +176,7 @@ pub trait System: Send + Sync {
 | pages/civilization.rs | 230 | **Working** | Civilization dashboard |
 | pages/resources.rs | 228 | **Working** | Resources page |
 | pages/hud.rs | 179 | **Working** | In-game HUD overlay |
-| pages/passphrase_modal.rs | 280 | **Working** | Seed phrase modal |
+| pages/passphrase_modal.rs | 280 | **Working** | Recovery phrase modal |
 | pages/placeholder.rs | 32 | **Working** | Generic placeholder page |
 
 ### Game Systems (`systems/`, 4,662 LOC)

@@ -22,3 +22,8 @@ Each line is written the way a player would hear it; the release notes and
   scenes).** git.united-humanity.us holds the full history again and now
   copies every change from GitHub by itself every few hours, so it can't
   quietly fall behind.
+- **v0.1423.0: clearer words for your account.** The 24 words that back
+  up your account are now called your "recovery phrase" everywhere (not
+  the old crypto word, so it can't be mixed up with plant seeds), and the app
+  says "no sign-up": you do have an account, it's just yours, on your own
+  device.

@@ -197,13 +197,13 @@ Mostly **built and working**; the two voice-parity rows flagged ⚠️/❌ below
 |---------|--------|---------|
 | Dilithium3 chat identity | ✅ | ML-DSA-65 keypair derived from BIP39 seed = the chat identity (PQ cutover v0.262.x–v0.264.x). Sign/verify on chat messages + relay-auth endpoints. Ed25519 retained only as seed source + Solana wallet |
 | Key rotation | ⚠️ | Dual-signed-certificate design existed for Ed25519; the relay `key_rotation` route/handler was **removed** in the PQ trim (v0.265.0). Re-verify before claiming an end-to-end rotation flow |
-| BIP39 seed phrase | ✅ | 24-word backup & restore (single seed derives Ed25519 + Dilithium3 + Kyber768) |
+| BIP39 recovery phrase | ✅ | 24-word backup & restore (single seed derives Ed25519 + Dilithium3 + Kyber768) |
 | Encrypted backup (web) | ✅ | AES-256-GCM + PBKDF2-SHA256, 600k iterations |
 | Encrypted vault (native) | ✅ | AES-256-GCM + PBKDF2-SHA256, **600k iterations** (v0.277.0, was 100k); legacy vaults auto-re-encrypt on next unlock |
 | Auto-unlock (native) | ✅ | 3 modes: AlwaysPrompt / OS-keychain / KeychainPin (v0.278.0) |
 | Device management | ✅ | List, label, revoke devices; QR code linking |
 | Vault sync | ✅ | Encrypted cross-device sync, auto-lock, timestamp freshness |
-| Seed phrase recovery | ✅ | "Recover from Seed Phrase" button on login screen (v0.25.0) |
+| Restore from recovery phrase | ✅ | "Restore from recovery phrase" button on login screen (v0.25.0) |
 | Security hardening | ✅ | Error boundary, pagination guards, env validation, automated DB backups (v0.35.0) |
 
 ---

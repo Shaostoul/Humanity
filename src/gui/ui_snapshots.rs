@@ -809,7 +809,7 @@ fn web_view_requests_an_image_only_when_it_scrolls_into_view() {
 
 /// REAL interaction test: the "Link a Device" QR action on the Account settings
 /// panel is DISCOVERABLE (renders whenever an identity exists, not buried inside
-/// the seed-phrase reveal like v0.837 was) and actually BUILDS the QR when shown.
+/// the recovery-phrase reveal like v0.837 was) and actually BUILDS the QR when shown.
 /// This is the "shows != works" guard for the v0.838 discoverability fix -- the
 /// operator reported not seeing the button because it was nested behind the seed
 /// reveal. No GPU: pure egui layout + `ctx.load_texture` (CPU-side).

@@ -5,7 +5,7 @@
   "acronyms": {
     "API": "Application Programming Interface",
     "AU": "Astronomical Unit (distance from Earth to Sun, ~150M km)",
-    "BIP39": "Bitcoin Improvement Proposal 39 (seed phrase standard)",
+    "BIP39": "Bitcoin Improvement Proposal 39 (recovery phrase standard)",
     "BTU": "British Thermal Unit (energy measurement)",
     "CAD": "Computer-Aided Design",
     "CBOR": "Concise Binary Object Representation (data format)",

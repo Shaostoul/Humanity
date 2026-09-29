@@ -83,9 +83,12 @@ Tactical, per-iteration detail lives in `docs/PRIORITIES.md` and
    body temperature are on the HUD; crop speed is a setting; and built things work (a
    furnace smelts, a bed sleeps the night, a chest holds items). Alongside it, with the
    spaceship chosen first, the ship's life support became real closed loops and the
-   body keeps itself warm by a real heat balance. Remaining: a scripted first run, and a
-   roof overhead that shelters you; then the construction tool, because the four code
-   blockers stopping a second storey are the same four stopping the editor.
+   body keeps itself warm by a real heat balance. Building became real in September 2026:
+   a piece goes in your hands with a see-through ghost, on the ship or a planet's ground;
+   what you build is solid and can be taken down again; doors and windows set into walls;
+   walls on uneven ground meet the roof; and a roof on three walls keeps the wind off only
+   with its open side away from the wind. Remaining: a scripted first run; a second storey,
+   which needs standing on what you built; and a fire to keep warm by.
 4. `[planned]` **Populate the ship, and seat a dozen players.** Simple AI inhabitants who
    live their lives in a mothership sector (aggregate population, a derived roster, an
    embodied set only for what you can see, so cost scales with what is visible rather
@@ -172,7 +175,7 @@ automating the real thing.
 
 ## Identity and privacy
 
-You own your identity and your data. No accounts, no passwords, no tracking. Even the
+You own your identity and your data. No sign-up, no passwords stored on any server, no tracking. Even the
 server operator cannot read your private messages.
 
 - `[done]` Post-quantum identity: a Dilithium3 / ML-DSA-65 key derived from a BIP39

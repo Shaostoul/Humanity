@@ -13,7 +13,7 @@ This is an open project. It belongs to everyone. Here's how you can help.
 
 **The fastest way to get involved is to show up.**
 
-**[united-humanity.us/chat](https://united-humanity.us/chat)**, Our live chat. No account needed. No tracking. Post-quantum cryptographic identity (Dilithium3), encrypted by design. Just open the link and say hello.
+**[united-humanity.us/chat](https://united-humanity.us/chat)**, Our live chat. No sign-up needed. No tracking. Post-quantum cryptographic identity (Dilithium3), encrypted by design. Just open the link and say hello.
 
 **[Discord](https://discord.gg/9XxmmeQnWC)**, Longer-form discussion, community coordination, and voice chat.
 

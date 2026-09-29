@@ -1,4 +1,4 @@
-//! BIP39 seed phrase identity recovery.
+//! BIP39 recovery phrase identity recovery.
 //!
 //! Matches the web client's key derivation: the 24-word BIP39 mnemonic
 //! directly encodes the 32-byte Ed25519 seed as its entropy (not using

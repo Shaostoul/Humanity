@@ -495,7 +495,7 @@ function onIdentityConfirmed() {
   }
 
   // Launch onboarding wizard for first-time users, explains the identity
-  // system in plain language and walks them through the seed phrase backup.
+  // system in plain language and walks them through the recovery phrase backup.
   if (myIdentity && myIdentity.isNew) {
     myIdentity.isNew = false; // Only trigger once
     setTimeout(async () => {

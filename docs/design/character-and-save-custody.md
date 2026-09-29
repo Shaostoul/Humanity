@@ -7,7 +7,7 @@ and build on the existing `WorldSave.kind` axis. Operator direction, 2026-06-14.
 
 1. **Chat / network identity** -- WHO YOU ARE online. The Dilithium3 keypair derived from
    your BIP39 seed, plus the network profile (display name, bio, avatar URL). Self-custodial
-   by construction: it lives in your seed, no account, no server owns it. (See the
+   by construction: it lives in your recovery phrase; no server owns it. (See the
    Cryptography section in CLAUDE.md.)
 2. **Game character** -- WHO YOU PLAY. A `character_name` + `Appearance` + `Outfit`, stored in
    the `WorldSave`. As of v0.448 this is DECOUPLED from the chat profile: the character has

@@ -1057,16 +1057,16 @@
       "definition": "The secret half of a cryptographic key pair. Used to create signatures and decrypt messages. Must never be shared. Loss means permanent loss of access to the identity.",
       "link": "https://en.wikipedia.org/wiki/Public-key_cryptography"
     },
-    "seed phrase": {
-      "term": "Seed Phrase",
+    "recovery phrase": {
+      "term": "Recovery Phrase",
       "category": "crypto",
-      "definition": "A human-readable backup of a cryptographic key, typically 12 or 24 English words generated from a random number. Can regenerate the full key pair. Must be stored securely offline.",
+      "definition": "The 24 ordinary words that back up your HumanityOS account. They can rebuild your key on any device, and they are the only way back in if you lose it: nobody, us included, can reset it for you. Write them down on paper and keep them safe. Crypto wallets call this a seed phrase or mnemonic; in HumanityOS 'seed' means plant seeds and world seeds, never this.",
       "link": "https://en.wikipedia.org/wiki/Cryptocurrency_wallet#Seed_phrases"
     },
     "bip39": {
       "term": "BIP39",
       "category": "crypto",
-      "definition": "Bitcoin Improvement Proposal 39, a standard for generating mnemonic seed phrases from entropy. Uses a wordlist of 2,048 English words. Adopted widely beyond Bitcoin.",
+      "definition": "Bitcoin Improvement Proposal 39, a standard for generating mnemonic recovery phrases from entropy. Uses a wordlist of 2,048 English words. Adopted widely beyond Bitcoin.",
       "link": "https://en.wikipedia.org/wiki/Cryptocurrency_wallet#Seed_phrases"
     },
     "self-custody": {
@@ -1084,7 +1084,7 @@
     "noncustodial": {
       "term": "Non-Custodial",
       "category": "crypto",
-      "definition": "A wallet or service where only you hold the private keys. No third party can access, freeze, or move your funds. Requires safeguarding your own seed phrase or key file.",
+      "definition": "A wallet or service where only you hold the private keys. No third party can access, freeze, or move your funds. Requires safeguarding your own recovery phrase or key file.",
       "link": ""
     },
     "solana": {
@@ -1574,7 +1574,7 @@
     "qr_code": {
       "term": "QR Code",
       "category": "platform",
-      "definition": "A square pattern of dots a camera can read, holding a short piece of text. HumanityOS can show one to carry your identity to another device, so treat it exactly like your seed phrase: anyone who scans it becomes you."
+      "definition": "A square pattern of dots a camera can read, holding a short piece of text. HumanityOS can show one to carry your identity to another device, so treat it exactly like your recovery phrase: anyone who scans it becomes you."
     },
     "snapshot": {
       "term": "Snapshot (backup)",
@@ -2408,7 +2408,7 @@
     "kyber": {
       "term": "Kyber768 (ML-KEM-768)",
       "category": "crypto",
-      "definition": "The algorithm HumanityOS uses to agree a secret key with someone so a private message can be encrypted for them alone. It is a published post-quantum standard, and your key is derived from your seed phrase."
+      "definition": "The algorithm HumanityOS uses to agree a secret key with someone so a private message can be encrypted for them alone. It is a published post-quantum standard, and your key is derived from your recovery phrase."
     },
     "e2ee": {
       "term": "End-to-End Encryption (E2EE)",
@@ -2451,7 +2451,7 @@
     "passphrase": {
       "term": "Passphrase",
       "category": "crypto",
-      "definition": "A password, usually several words long, that encrypts your identity on this device. Nobody can reset it: if you forget it you restore your identity from your 24-word seed phrase instead."
+      "definition": "A password, usually several words long, that encrypts your identity on this device. Nobody can reset it: if you forget it you restore your identity from your 24-word recovery phrase instead."
     },
     "vault": {
       "term": "Vault",

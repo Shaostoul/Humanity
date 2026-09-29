@@ -104,7 +104,7 @@ pub(super) fn draw_left_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiS
                     }
                     ui.add_space(4.0);
                     ui.label(
-                        RichText::new("Don't have the passphrase? Open Settings → Identity & Seed Phrase → Recover from Seed Phrase, and enter your 24-word backup.")
+                        RichText::new("Don't have the passphrase? Open Settings → Account & Recovery Phrase → Restore from Recovery Phrase, and enter your 24-word backup.")
                             .size(theme.font_size_small)
                             .color(theme.text_muted()),
                     );

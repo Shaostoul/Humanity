@@ -2,7 +2,7 @@
 
 **Own your tools. Own your life. Own your future.**
 
-A free app where people chat, plan, trade, and build together. No accounts, no owner, no ads, public domain. The infrastructure for cooperation, made for everyone.
+A free app where people chat, plan, trade, and build together. No sign-up, no owner, no ads, public domain. The infrastructure for cooperation, made for everyone.
 
 🌐 **[united-humanity.us](https://united-humanity.us)** &nbsp; · &nbsp; 💬 **[Chat](https://united-humanity.us/chat)** &nbsp; · &nbsp; 📥 **[Download](https://united-humanity.us/download)** &nbsp; · &nbsp; 💜 **[Discord](https://discord.gg/9XxmmeQnWC)**
 
@@ -274,7 +274,7 @@ Anything less is a path toward pain, suffering, despair, and eventually extincti
 
 | | |
 |---|---|
-| 💬 **Show up** | [united-humanity.us/chat](https://united-humanity.us/chat) - no account needed |
+| 💬 **Show up** | [united-humanity.us/chat](https://united-humanity.us/chat) - no sign-up needed |
 | 💜 **Discord** | [discord.gg/9XxmmeQnWC](https://discord.gg/9XxmmeQnWC) |
 | 🐛 **Report bugs** | [united-humanity.us/bugs](https://united-humanity.us/bugs) or open a GitHub issue |
 | 📖 **Contributing** | [CONTRIBUTING.md](CONTRIBUTING.md) - start here if you want to write code |

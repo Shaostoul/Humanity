@@ -546,7 +546,7 @@ fn draw_pin_unlock(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     ui.add_space(theme.spacing_sm);
     ui.label(RichText::new(
         "Type your PIN to unlock. If you've forgotten it, switch to \
-         'Use passphrase instead' and unlock with your 24-word seed phrase.")
+         'Use passphrase instead' and unlock with your 24-word recovery phrase.")
         .size(theme.font_size_small)
         .color(theme.text_secondary()));
     ui.add_space(theme.spacing_md);

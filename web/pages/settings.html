@@ -929,14 +929,14 @@
     <!-- Wallet -->
     <section class="settings-section" id="sec-wallet">
       <h1>Wallet</h1>
-      <p class="section-desc">Optional Solana wallet, derived from the same BIP39 seed phrase as your post-quantum identity but via a separate KDF path. Decoupled from identity, using HumanityOS doesn't require any blockchain.</p>
+      <p class="section-desc">Optional Solana wallet, derived from the same BIP39 recovery phrase as your post-quantum identity but via a separate KDF path. Decoupled from identity, using HumanityOS doesn't require any blockchain.</p>
 
       <div class="settings-group">
         <div class="settings-group-title">Address</div>
         <div class="setting-row">
           <div class="setting-label">
             <strong>Solana Address</strong>
-            <span>The Ed25519 keypair derived straight from your BIP39 seed scalar, the same one the chat client uses (separate from your post-quantum identity)</span>
+            <span>The Ed25519 keypair derived straight from your recovery phrase, the same one the chat client uses (separate from your post-quantum identity)</span>
           </div>
           <div style="display:flex;align-items:center;gap:var(--space-md);">
             <span id="wallet-sol-address" style="font-family:monospace;font-size:0.82rem;color:var(--text);">-</span>
@@ -1486,7 +1486,7 @@
               <strong style="color:var(--text);">your identity is gone forever</strong>, no one can recover it for you.
             </p>
             <p style="color:var(--text-muted);font-size:0.82rem;line-height:1.6;margin:var(--space-md) 0 0;">
-              <strong style="color:var(--text);">Fix this now:</strong> Use any backup method below, seed phrase (paper), encrypted file (cloud), or password manager.
+              <strong style="color:var(--text);">Fix this now:</strong> Use any backup method below, recovery phrase (paper), encrypted file (cloud), or password manager.
               Two backups in different places is safest.
             </p>
           </div>
@@ -1558,14 +1558,14 @@
         </div>
         <div class="setting-row">
           <div class="setting-label">
-            <strong>View Seed Phrase</strong>
+            <strong>View Recovery Phrase</strong>
             <span>24-word recovery phrase, write it down, never share it, never screenshot it</span>
           </div>
           <button onclick="settingsOpenSeed()" style="background:#1a3a4a;border:1px solid #28f;color:#4af;padding:var(--space-sm) var(--space-lg);border-radius:6px;font-size:0.84rem;font-weight:600;cursor:pointer;">🌱 View Seed</button>
         </div>
         <div class="setting-row">
           <div class="setting-label">
-            <strong>Restore from Seed Phrase</strong>
+            <strong>Restore from Recovery Phrase</strong>
             <span>Rebuild your identity from the 24-word phrase (replaces current identity)</span>
           </div>
           <button onclick="settingsOpenRestoreSeed()" style="background:#1a3a4a;border:1px solid #28f;color:#4af;padding:var(--space-sm) var(--space-lg);border-radius:6px;font-size:0.84rem;font-weight:600;cursor:pointer;">🔤 Restore from Words</button>
@@ -1867,7 +1867,7 @@
     <!-- Vault (from vault.html) -->
     <section class="settings-section" id="sec-vault">
       <h1>Vault</h1>
-      <p class="section-desc">Your encrypted local-first secure storage for passwords, seed phrases, and private notes.</p>
+      <p class="section-desc">Your encrypted local-first secure storage for passwords, recovery phrases, and private notes.</p>
 
       <!-- Setup screen (first time) -->
       <div id="vault-sec-setup" class="vault-screen vault-lock-screen">
@@ -1959,7 +1959,7 @@
         </div>
 
         <div id="vault-sec-main">
-          <!-- Seed phrase nudge banner -->
+          <!-- Recovery phrase nudge banner -->
           <div id="vault-sec-seed-nudge-banner" style="display:none;align-items:flex-start;gap:var(--space-xl);
                background:#1a1000;border:1px solid #3a2800;border-radius:11px;
                padding:var(--space-xl) 1.1rem;margin-bottom:var(--space-2xl);max-width:640px">
@@ -1967,13 +1967,13 @@
             <div style="flex:1">
               <div style="font-size:.85rem;font-weight:700;color:var(--accent);margin-bottom:var(--space-sm)">Your Humanity identity isn't backed up here yet</div>
               <div style="font-size:.78rem;color:var(--text-muted);line-height:1.55;margin-bottom:var(--space-lg)">
-                Your chat identity has a 24-word seed phrase, like a master key written in plain English.
+                Your chat identity has a 24-word recovery phrase, like a master key written in plain English.
                 Save it here and you can always recover your account, even if your device is lost or your browser is wiped.
               </div>
               <div style="display:flex;gap:var(--space-lg);flex-wrap:wrap">
                 <a href="/chat" style="background:var(--accent);color:#000;border:none;border-radius:6px;
                    padding:var(--space-sm) var(--space-xl);font-size:.78rem;font-weight:700;cursor:pointer;text-decoration:none">
-                  Go to Chat → Get Seed Phrase
+                  Go to Chat → Get Recovery Phrase
                 </a>
                 <button onclick="vault_dismissSeedNudge()"
                   style="background:none;border:1px solid var(--bg-hover);color:var(--text-muted);border-radius:6px;
@@ -1988,14 +1988,14 @@
           <div id="vault-sec-welcome">
             <h2>Your vault is unlocked 🔓</h2>
             <p>
-              Add anything you want to keep private, seed phrases, passwords, secure notes.
+              Add anything you want to keep private, recovery phrases, passwords, secure notes.
               Everything is encrypted with your passphrase before it's saved.
               Nothing leaves your device.
             </p>
             <div class="quick-add-grid" id="vault-sec-quick-add-grid">
               <button class="quick-add-btn" onclick="vault_openNewEntryModal('seed_phrase')">
                 <span class="qa-icon">🌱</span>
-                <span class="qa-title">Seed Phrase</span>
+                <span class="qa-title">Recovery Phrase</span>
                 <span class="qa-desc">Your 24-word Humanity recovery phrase or any BIP39 phrase</span>
               </button>
               <button class="quick-add-btn" onclick="vault_openNewEntryModal('password')">
@@ -2027,7 +2027,7 @@
               </div>
               <div class="eli5-row">
                 <span class="eli5-icon">👁️</span>
-                <p><strong>Secret fields are hidden until you click them.</strong> Passwords and seed phrases show as blur by default, tap to reveal. This protects you from someone glancing at your screen.</p>
+                <p><strong>Secret fields are hidden until you click them.</strong> Passwords and recovery phrases show as blur by default, tap to reveal. This protects you from someone glancing at your screen.</p>
               </div>
               <div class="eli5-row">
                 <span class="eli5-icon">💾</span>
@@ -2035,7 +2035,7 @@
               </div>
               <div class="eli5-row">
                 <span class="eli5-icon">☁</span>
-                <p><strong>Cloud sync is still encrypted.</strong> The relay server never sees your passwords or seed phrases, only scrambled data that only you can unscramble with your vault passphrase. You need a Humanity chat identity to use cloud sync (it signs the request to prove it's really you).</p>
+                <p><strong>Cloud sync is still encrypted.</strong> The relay server never sees your passwords or recovery phrases, only scrambled data that only you can unscramble with your vault passphrase. You need a Humanity chat identity to use cloud sync (it signs the request to prove it's really you).</p>
               </div>
             </div>
           </div>
@@ -2111,7 +2111,7 @@
       <div style="font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin-bottom:var(--space-md)">Type</div>
       <div class="type-selector">
         <div class="type-chip selected" data-type="seed_phrase" onclick="vault_selectEntryType('seed_phrase')">
-          <span class="chip-icon">🌱</span> Seed Phrase
+          <span class="chip-icon">🔑</span> Recovery Phrase
         </div>
         <div class="type-chip" data-type="password" onclick="vault_selectEntryType('password')">
           <span class="chip-icon">🔑</span> Password
@@ -2129,7 +2129,7 @@
     </div>
     <div class="modal-field">
       <label>Title</label>
-      <input type="text" id="vault-sec-modal-entry-title" placeholder="e.g. My Humanity Seed Phrase…">
+      <input type="text" id="vault-sec-modal-entry-title" placeholder="e.g. My Humanity Recovery Phrase…">
     </div>
     <div id="vault-sec-modal-dynamic-fields"></div>
     <div id="vault-sec-modal-msg"></div>
