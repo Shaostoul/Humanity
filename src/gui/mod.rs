@@ -1272,7 +1272,7 @@ pub struct GuiState {
     /// Organize-layer inventory pool: every seeded item tagged with its container path,
     /// so the nested-container inventory can move items between containers. Seeded from
     /// `places` at startup via `flatten_placed_items`. The live backpack is separate.
-    pub placed_items: Vec<PlacedItem>,
+    pub placed_items: Vec<crate::systems::inventory::placed::PlacedItem>,
     /// Pending backpack <-> container transfers (item_id, qty, is_add). The inventory
     /// page pushes these when an item moves into/out of the live backpack; lib.rs drains
     /// them into the InventorySystem channel each frame. is_add => add to the backpack.
@@ -1281,8 +1281,8 @@ pub struct GuiState {
     /// backpack cannot hold goes back to that container instead of
     /// vanishing. Moved to `inflight_take_origins` when the ops are handed to
     /// the InventorySystem, and resolved after its tick.
-    pub pending_take_origins: Vec<crate::gui::PlacedItem>,
-    pub inflight_take_origins: Vec<crate::gui::PlacedItem>,
+    pub pending_take_origins: Vec<crate::systems::inventory::placed::PlacedItem>,
+    pub inflight_take_origins: Vec<crate::systems::inventory::placed::PlacedItem>,
     /// Per-tower shared-reservoir compatibility (parallel to `tower_configs`),
     /// computed once from the plant registry in the crop sync. The "make sure
     /// they grow together" check shown on the Home page.

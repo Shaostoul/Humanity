@@ -70,3 +70,7 @@ Each line is written the way a player would hear it; the release notes and
 - **v0.1414.0: the day's heat comes at your own afternoon.** On the Moon
   or Mars, the midday heat and the night's cold now follow the time where you
   stand, not the time at longitude 0.
+- **v0.1415.0: first step toward a shared world (behind the scenes).**
+  The server can now read and write the same save files the desktop game
+  does. Nothing changes on screen yet; it is the groundwork multiplayer
+  homes need.

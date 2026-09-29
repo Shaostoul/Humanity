@@ -569,7 +569,7 @@ fn draw_container(
     theme: &Theme,
     place: &crate::gui::Place,
     inv: &[Option<crate::gui::GuiItemSlot>],
-    placed: &[crate::gui::PlacedItem],
+    placed: &[crate::systems::inventory::placed::PlacedItem],
     path: &str,
     sel_slot: Option<usize>,
     sel_placed: Option<usize>,
@@ -1737,7 +1737,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             wear: it.wear,
                             quality: it.quality,
                         });
-                        state.placed_items.push(crate::gui::PlacedItem {
+                        state.placed_items.push(crate::systems::inventory::placed::PlacedItem {
                             key: it.item_id,
                             name: it.name,
                             qty: it.quantity,
@@ -1809,7 +1809,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                 wear: it.wear,
                                 quality: it.quality,
                             });
-                            state.placed_items.push(crate::gui::PlacedItem {
+                            state.placed_items.push(crate::systems::inventory::placed::PlacedItem {
                                 key: it.item_id.clone(),
                                 name: it.name.clone(),
                                 qty: it.quantity,

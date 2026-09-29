@@ -1509,7 +1509,7 @@ Save and load game world state (entities, terrain, player progress).
   id and carried across world entry, which respawns every machine. Before, each
   restart and each world entry reset banks and tanks to half and emptied every
   vessel, destroying what was stored in it. None of them moves on by the time
-  away. `src/engine/machine_levels.rs`, `WorldSave.machine_levels`. The home's
+  away. `src/systems/machine_levels.rs`, `WorldSave.machine_levels`. The home's
   air (oxygen, carbon dioxide, humidity) and each grow room's air were already
   saved in `SoilMemory` (`home_air`, `rooms`).
 - **Offline progression (2026-09-25):** crops, scaffolds under construction and
@@ -2879,7 +2879,7 @@ The one-panel inventory redesign's reusable primitives: a nested expandable row,
 a collapsible section disclosure, item swatch tiles, and the recursive nested-container renderer (person
 to shirt to pocket to wallet spatial inventory) with cross-container item transfer that persists across
 restart.
-- Native: `src/gui/widgets/mod.rs` (`expandable_row`, `row_cell`, `section_disclosure`), `src/gui/pages/inventory.rs` (`draw_container`, `item_tile`), `src/gui/mod.rs` (`Place`, `PlacedItem`)
+- Native: `src/gui/widgets/mod.rs` (`expandable_row`, `row_cell`, `section_disclosure`), `src/gui/pages/inventory.rs` (`draw_container`, `item_tile`), `src/gui/mod.rs` (`Place`), `src/systems/inventory/placed.rs` (`PlacedItem`)
 
 ---
 

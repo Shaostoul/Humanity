@@ -217,8 +217,8 @@ pub fn extract_world_save(world: &hecs::World) -> WorldSave {
         .map(|(_e, d)| d.clone());
     // What the home's machines hold (2026-09-27): each bank's charge, each
     // tank's litres, each vessel's contents, with any saved contents still
-    // held for world entry (engine::machine_levels).
-    save.machine_levels = crate::engine::machine_levels::levels(world);
+    // held for world entry (systems::machine_levels).
+    save.machine_levels = crate::systems::machine_levels::levels(world);
     save
 }
 
@@ -440,7 +440,7 @@ pub fn apply_save_to_world(world: &mut hecs::World, save: &WorldSave) {
     // instance id now, and a vessel's contents held until world entry spawns
     // the vessel (the menu-mode machines carry none). Not advanced by the
     // time away: a bank, a tank and a drum come back as saved.
-    crate::engine::machine_levels::restore(world, &save.machine_levels);
+    crate::systems::machine_levels::restore(world, &save.machine_levels);
 }
 
 /// A NEW player's starting kit: `starting_items` in data/world/player.ron
@@ -505,7 +505,7 @@ pub fn identity_only_save(existing: Option<WorldSave>, world: &hecs::World) -> W
 /// alongside the world-derived save so container contents + transfers survive a restart.
 pub fn save_active_home(
     world: &hecs::World,
-    placed: &[crate::gui::PlacedItem],
+    placed: &[crate::systems::inventory::placed::PlacedItem],
     data: &crate::hot_reload::data_store::DataStore,
     keep_progress: bool,
 ) {
@@ -556,7 +556,7 @@ pub fn save_active_home(
 /// (in-app quit, crash, kill) where the graceful close-save would not fire.
 pub fn maybe_periodic_save(
     world: &hecs::World,
-    placed: &[crate::gui::PlacedItem],
+    placed: &[crate::systems::inventory::placed::PlacedItem],
     data: &crate::hot_reload::data_store::DataStore,
     keep_progress: bool,
     interval_secs: u64,
@@ -1395,7 +1395,7 @@ mod tests {
     /// stashed after the empty save stayed beside the rewound backpack.
     #[test]
     fn a_pool_saved_empty_comes_back_empty() {
-        let plank = crate::gui::PlacedItem {
+        let plank = crate::systems::inventory::placed::PlacedItem {
             key: "wood_plank_0".into(),
             name: "Wood Plank".into(),
             qty: 5,
@@ -1423,7 +1423,7 @@ mod tests {
     fn placed_items_persist_and_old_saves_default_empty() {
         let mut save = WorldSave::new_offline("Test", "fibonacci");
         save.placed_items = Some(vec![
-            crate::gui::PlacedItem {
+            crate::systems::inventory::placed::PlacedItem {
                 key: "ice_axe_0".into(),
                 name: "Ice Axe".into(),
                 qty: 1,
@@ -1431,7 +1431,7 @@ mod tests {
                 wear: 0,
                 quality: 0,
             },
-            crate::gui::PlacedItem {
+            crate::systems::inventory::placed::PlacedItem {
                 key: "iron_ore_0".into(),
                 name: "Iron Ore".into(),
                 qty: 5,
@@ -1777,7 +1777,7 @@ mod tests {
         // under the chest's path), then the home is saved as on exit.
         let path = uses::built_stores(&world, Some(&reg))[0].0.clone();
         let mut save = extract_world_save(&world);
-        save.placed_items = Some(vec![crate::gui::PlacedItem {
+        save.placed_items = Some(vec![crate::systems::inventory::placed::PlacedItem {
             key: "wood_plank_0".into(),
             name: "Wood Plank".into(),
             qty: 5,
@@ -2172,7 +2172,7 @@ mod tests {
     #[test]
     fn a_vessels_contents_survive_a_save_and_wait_for_world_entry() {
         use crate::ecs::components::{HomeMachine, MachineInstanceId};
-        use crate::engine::machine_levels::{self, HeldMachineLevels};
+        use crate::systems::machine_levels::{self, HeldMachineLevels};
         use crate::systems::inventory::containers::Container;
         let (home, reg) = (shipped_home(), shipped_containers());
         let mut world = hecs::World::new();
@@ -2236,7 +2236,7 @@ mod tests {
         spawn_machines(&mut fresh, &home, None);
         apply_save_to_world(&mut fresh, &save);
         assert_eq!(bank_and_tank(&fresh), (0.5, 0.5), "the spawn levels");
-        assert_eq!(fresh.query::<&crate::engine::machine_levels::HeldMachineLevels>().iter().count(), 0);
+        assert_eq!(fresh.query::<&crate::systems::machine_levels::HeldMachineLevels>().iter().count(), 0);
     }
 
     #[test]

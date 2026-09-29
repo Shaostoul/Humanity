@@ -16,7 +16,7 @@
 
 use glam::{Quat, Vec3};
 
-use crate::gui::PlacedItem;
+use crate::systems::inventory::placed::PlacedItem;
 use crate::renderer::RenderObject;
 
 /// One storage crate: 0.6 x 0.4 x 0.4 m, 96 L (a common plastic tote size).

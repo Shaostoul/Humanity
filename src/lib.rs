@@ -101,14 +101,18 @@ pub(crate) fn data_dir() -> std::path::PathBuf {
 
 pub mod systems;
 
-#[cfg(feature = "native")]
+// The save format and where saves live compile into the relay too
+// (2026-09-28): a server that holds a shared world needs the same save
+// shape the desktop app writes. save_load (applying a save to the local
+// world) stays native below.
 pub mod persistence;
 
-#[cfg(feature = "native")]
 pub mod storage;
-// save_load consumes persistence (the offline-home save is the local player's,
-// not the relay's), so it carries the same native gate — an ungated save_load
-// broke every relay/CI build from v0.381 to v0.414 (E0432 on persistence).
+// save_load applies a save to the LOCAL player's world (the GUI's item pool,
+// the engine's spawned home), so it stays native even though persistence, the
+// save format it reads, no longer is (2026-09-28). While persistence was
+// native-only too, an ungated save_load broke every relay/CI build from v0.381
+// to v0.414 (E0432 on persistence).
 #[cfg(feature = "native")]
 pub mod save_load;
 

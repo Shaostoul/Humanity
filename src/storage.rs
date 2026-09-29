@@ -30,8 +30,6 @@
 //! `create_dir_all`s the root as a side effect, and an empty root must not
 //! flip a fresh machine to Installed.
 
-#![cfg(feature = "native")]
-
 use std::path::{Path, PathBuf};
 use std::sync::RwLock;
 

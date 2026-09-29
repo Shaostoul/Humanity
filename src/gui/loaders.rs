@@ -35,6 +35,7 @@
 //! studio types) arrive without a single one of them being widened.
 
 use super::*;
+use crate::systems::inventory::placed::PlacedItem;
 
 /// Load the external catalog from `data/external/catalog.json`: free software
 /// (`kind == "software"`) and real-world help services (`kind == "service"`), in
@@ -326,31 +327,6 @@ pub fn load_places(data_dir: &std::path::Path) -> Vec<Place> {
     read_data_json::<File>(data_dir, "places/seed.json")
         .map(|f| f.entities)
         .unwrap_or_default()
-}
-
-/// One item placed in a container, for the organize-layer inventory (operator
-/// 2026-06-22: "one item pool; each item records WHICH container it's in", and
-/// transfer = move it between containers). `container` is the container's PATH in the
-/// places tree (e.g. "1/0/0"), so a transfer is just changing this string. Seeded from
-/// the places spine at load; serializable so a save can persist transfers. The live
-/// backpack is NOT in this pool (its items come from the ECS) until the ECS-boundary
-/// transfer lands.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-pub struct PlacedItem {
-    /// Item id (resolves against items.csv) OR a descriptive label for seed items.
-    pub key: String,
-    /// Display name (item name if `key` is an id; else the label).
-    pub name: String,
-    pub qty: u32,
-    /// Container PATH in the places tree this item currently sits in.
-    pub container: String,
-    /// Uses worn off it (a tool, 2026-09-26): it keeps its wear in storage,
-    /// so putting a worn tool away and taking it back does not renew it.
-    #[serde(default)]
-    pub wear: u32,
-    /// Grade of a crafted durable good (0 = ungraded), kept through storage.
-    #[serde(default)]
-    pub quality: u8,
 }
 
 /// Flatten the places spine into the organize-layer item pool: every leaf `kind:"item"`

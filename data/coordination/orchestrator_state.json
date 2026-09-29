@@ -371,6 +371,11 @@
       "date": "2026-09-28",
       "decision": "The weather's day/night warmth reads weather::local_solar_hour: the player's longitude on a world (atan2(-z, x) of BodyEnvironment.up_dir), the home's longitude anywhere else.",
       "why": "BUG-090's last clock leftover: the Moon's afternoon heat arrived at longitude 0's afternoon wherever the player stood. The F11 hour slider already read the HUD's local hour."
+    },
+    {
+      "date": "2026-09-28",
+      "decision": "Tier D rung 1 done: persistence and storage compile into the relay. PlacedItem moved to systems::inventory::placed, MachineLevels to systems::machine_levels (paths updated outright, no re-exports); save_load stays native.",
+      "why": "The playable assessment's first multiplayer step: a server that holds a shared home needs the save shape the desktop writes. It had grown from one blocker (PlacedItem) to three since 2026-09-19."
     }
   ],
   "active_scopes_to_avoid": [

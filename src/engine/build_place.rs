@@ -238,7 +238,7 @@ const TAKE_DOWN_REACH_M: f32 = 8.0;
 /// Pure over the world and the placed items, so it is tested without a window.
 pub(crate) fn take_down_plan(
     world: &hecs::World,
-    placed: &[crate::gui::PlacedItem],
+    placed: &[crate::systems::inventory::placed::PlacedItem],
     registry: Option<&BlueprintRegistry>,
     eye: Vec3,
     forward: Vec3,
@@ -619,7 +619,7 @@ mod take_down_tests {
 
         let mut stores = hecs::World::new();
         let chest = place(&mut stores, &reg, "storage_chest", 0.0, 0.0, 0, 7);
-        let held = vec![crate::gui::PlacedItem {
+        let held = vec![crate::systems::inventory::placed::PlacedItem {
             key: "wood_plank_0".into(),
             name: "Wood Plank".into(),
             qty: 3,

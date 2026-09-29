@@ -5,6 +5,7 @@
 
 pub mod items;
 pub mod containers;
+pub mod placed;
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;

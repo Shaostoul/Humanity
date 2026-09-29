@@ -252,10 +252,10 @@ pub(crate) fn load_world(state: &mut EngineState) {
             state.gui_state.machine_labels.clear();
             // What the old machines hold (each bank's charge, tank's litres and
             // vessel's contents), plus a save's contents held since startup, to put
-            // back on the new ones below (2026-09-27, engine::machine_levels):
+            // back on the new ones below (2026-09-27, systems::machine_levels):
             // respawning used to reset every bank and tank to half and empty
             // every vessel, at each world entry.
-            let carried_levels = crate::engine::machine_levels::take_all(&mut state.game_world.world);
+            let carried_levels = crate::systems::machine_levels::take_all(&mut state.game_world.world);
             // Despawn any previously-spawned home machine entities so re-entering the
             // world never duplicates the live power entities (load_world can re-run).
             {
@@ -424,7 +424,7 @@ pub(crate) fn load_world(state: &mut EngineState) {
             // Their levels back, by instance id. What is left belongs to a machine
             // no longer in the layout, which takes its contents with it, as
             // removing one in the editor always has.
-            let orphaned = crate::engine::machine_levels::apply(&mut state.game_world.world, &carried_levels);
+            let orphaned = crate::systems::machine_levels::apply(&mut state.game_world.world, &carried_levels);
             if !orphaned.is_empty() {
                 log::warn!("Machines: {} saved machine levels had no machine to go to: {:?}", orphaned.len(), orphaned);
             }

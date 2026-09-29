@@ -650,8 +650,11 @@ between the simulation and the person. Its tier ladder is the build order.
 - **Tier C (make the world look right).** Un-gate hero plant models for towers;
   the conduit render pass; models for the machines a player stands in front of
   daily; read `mesh_kind` in `zone_filler.ron`.
-- **Tier D (multiplayer, in the only order that works).** Move `PlacedItem` out
-  of `src/gui` so `persistence` compiles into the relay; bridge
+- **Tier D (multiplayer, in the only order that works).** The save format
+  compiles into the relay (DONE 2026-09-28, v0.1415.0: `PlacedItem`
+  moved to `systems::inventory::placed`, `MachineLevels` to
+  `systems::machine_levels`, and `persistence` and `storage` lost their native
+  gate); bridge
   `game_time_sync`; nameplates and appearance sync; make a trade move items; a
   `SystemRunner` host in the relay.
 - **Tier E: NPCs**, which is arc D below.

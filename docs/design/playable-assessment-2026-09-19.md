@@ -587,7 +587,11 @@ Tier A is roughly one focused week and it converts a tech demo into a game.
 ### Tier D: multiplayer, in the only order that works
 
 14. **Move `PlacedItem` out of `src/gui`** so `persistence` compiles into the
-    relay. One type relocation; it unblocks everything below.
+    relay. One type relocation; it unblocks everything below. **DONE
+    2026-09-28 (v0.1415.0).** By then it took three moves, not one:
+    `PlacedItem` to `systems::inventory::placed`, the machine levels saved
+    since 2026-09-27 from `engine` to `systems::machine_levels`, and `storage`
+    (where saves live) out of its native gate beside `persistence`.
 15. **Bridge `game_time_sync`.** Three lines in `src/engine/net_route.rs`.
 16. **Player nameplates and appearance sync.** The name is already on the wire
     and thrown away.

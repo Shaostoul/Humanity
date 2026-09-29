@@ -8,6 +8,9 @@ pub mod farming;
 pub mod construction;
 pub mod door_anim;
 pub mod inventory;
+/// What the home's machines hold (battery charge, tank litres, vessel
+/// contents), kept across a restart and across world entry (2026-09-27).
+pub mod machine_levels;
 pub mod combat;
 pub mod quests;
 pub mod crafting;

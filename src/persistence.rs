@@ -68,7 +68,7 @@ pub struct WorldSave {
     /// stashing and pressing ESC > Play kept the live pool beside the rewound
     /// backpack and doubled the stashed goods).
     #[serde(default)]
-    pub placed_items: Option<Vec<crate::gui::PlacedItem>>,
+    pub placed_items: Option<Vec<crate::systems::inventory::placed::PlacedItem>>,
     /// Vehicles standing in the world (economy Phase 2 Stage 1, v0.677), deployed
     /// from kit items. serde-default so older saves load with none. NOTE: the
     /// separate `constructions` field above is dormant schema (never written or
@@ -132,9 +132,9 @@ pub struct WorldSave {
     /// bank's charge, a water tank's litres, a vessel's contents. Before it
     /// every launch reset each bank and tank to half and emptied every
     /// vessel. A machine missing from it (a save from before, or one placed
-    /// since) keeps its spawn level. See engine::machine_levels.
+    /// since) keeps its spawn level. See systems::machine_levels.
     #[serde(default)]
-    pub machine_levels: Vec<crate::engine::machine_levels::MachineLevels>,
+    pub machine_levels: Vec<crate::systems::machine_levels::MachineLevels>,
     /// What the home has drawn from and returned to the ship's supply
     /// (2026-09-27, systems::ship_power): the reactor's kWh, metered. Empty in
     /// a save from before it; the meter then starts at zero.

@@ -234,7 +234,7 @@ itself, so shaping the starting home keeps working. Revisit at launch.
   machine vessel's contents (the genset and refinery fuel drums, the grain
   silo, the pantry, the freezer, the furniture drawers, with their residue and
   toxic history) are saved by machine instance id
-  (`WorldSave.machine_levels`, `engine::machine_levels`). None of it was
+  (`WorldSave.machine_levels`, `systems::machine_levels`). None of it was
   before: every restart put each bank and tank back at half, which undid the
   night's discharge or the day's charge, and emptied every vessel, which
   destroyed whatever was stored in it; entering the world, which respawns

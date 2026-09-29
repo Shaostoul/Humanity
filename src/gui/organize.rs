@@ -3,7 +3,8 @@
 //! storage when a backpack cannot take them, and the Garden panel's groups
 //! for crops planted into a specific machine.
 
-use super::{GardenArea, Place, PlacedItem};
+use super::{GardenArea, Place};
+use crate::systems::inventory::placed::PlacedItem;
 
 /// The container path of a TOP-LEVEL place: its index in the list, or its
 /// `id` when it is `keyed` (a built chest, 2026-09-27). Everything that walks
