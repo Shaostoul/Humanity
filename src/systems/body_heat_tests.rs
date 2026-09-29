@@ -362,3 +362,23 @@ fn sweat_is_water() {
     assert!(calm_body.sweat_litres < 0.05, "an hour at rest at 22 C: {:.3} L", calm_body.sweat_litres);
 }
 const SWEAT_HOT_MIN_L: f64 = 0.15;
+
+/// SWEAT THAT DRIPS COSTS WATER TOO (review of 2026-09-29). An hour walking
+/// at 35 C in humid air (80%) against the same hour in dry air (20%): the
+/// humid air takes less of the sweat, so the body stays hotter and makes
+/// more, and the part that runs off costs water like the rest. Red check,
+/// run: counting only the sweat that evaporates makes humid heat cost LESS
+/// water than dry and fails the assertion.
+#[test]
+fn humid_heat_costs_at_least_as_much_water_as_dry() {
+    let hour = |rh: f32| {
+        let mut b = BodyHeat::new(CORE_NEUTRAL_C);
+        let ex = Exposure::outdoors(35.0, rh, 1.5, 0.0);
+        for _ in 0..60 {
+            b.step(&ex, BASE_OUTFIT_CLO, MET_WALKING, 60.0);
+        }
+        b.sweat_litres
+    };
+    let (humid, dry) = (hour(0.8), hour(0.2));
+    assert!(humid >= dry, "an hour walking at 35 C: {humid:.3} L humid, {dry:.3} L dry");
+}

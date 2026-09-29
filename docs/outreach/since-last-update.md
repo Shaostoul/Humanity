@@ -31,3 +31,6 @@ Each line is written the way a player would hear it; the release notes and
   join the shared world, your time of day and date follow the host's, so
   everyone sees the same sun. Your garden keeps growing exactly as it was,
   and you can't sleep through a shared night.
+- **v0.1428.0: humid heat is thirsty work.** Sweat that drips off
+  instead of drying now costs water too, so a hot, humid day dehydrates
+  you faster than a hot, dry one, as it really does.

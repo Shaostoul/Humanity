@@ -461,6 +461,11 @@
       "date": "2026-09-29",
       "decision": "Review fixes: onboarding /seed -> /recovery (+ lint rule); host calendar (HOST_HOURS_PER_DAY 24, HOST_DAYS_PER_YEAR default) applies while hosted; pc-disk-guard idle by .fingerprint unit files and rmSync errors logged, not thrown.",
       "why": "Critic review of v0.1414.0..v0.1426.0 confirmed two defects (a stale command tip; hour mismatch across players with different day lengths) and flagged two guard weaknesses; the rest checked clean."
+    },
+    {
+      "date": "2026-09-29",
+      "decision": "BodyHeat::sweat_litres counts all sweat made (sweat_made, before the wettedness cap), not only evaporated sweat.",
+      "why": "Review note: evaporated-only made humid heat cost less water than dry (0.14 vs 0.20 L/h at 35 C); now 0.38 vs 0.20."
     }
   ],
   "active_scopes_to_avoid": [

@@ -683,6 +683,10 @@ impl BodyHeat {
         // Sweat, and how much of it the air can take (the skin's wettedness,
         // capped at the most that can be wet: sweat past it drips).
         let mut sweat_heat = 0.68 * (SWEAT_GAIN * body_signal.max(0.0) * (skin_warm / 10.7).exp()).min(SWEAT_MAX);
+        // What the glands put out, before the air decides how much of it can
+        // evaporate: the water it costs is all of it, dripped or dried
+        // (review of 2026-09-29).
+        let sweat_made = sweat_heat;
         let r_evap_clothes = r_cl / (a.lewis * a.i_cl);
         let evap_max = (sat_vapour_mmhg(self.skin_c) - a.vapour_mmhg) / (r_evap_air + r_evap_clothes);
         let diffusion;
@@ -701,8 +705,11 @@ impl BodyHeat {
         }
         self.skin_evaporation = sweat_heat + diffusion;
         // The water that sweat was (diffusion through dry skin is the
-        // everyday insensible loss the hydration clock already counts).
-        self.sweat_litres += sweat_heat * BODY_AREA_M2 / LATENT_HEAT_J_KG * dt;
+        // everyday insensible loss the hydration clock already counts). All
+        // of what was made, not only what dried: in humid heat the sweat the
+        // air cannot take runs off, cooling nothing and costing the same
+        // water, which is why humid heat is the dehydrating kind.
+        self.sweat_litres += sweat_made * BODY_AREA_M2 / LATENT_HEAT_J_KG * dt;
 
         // Shivering: Gagge's drive, capped at what a person sustains, fading
         // out as the core passes 32 to 30 C, and scaled by what fatigue has left.

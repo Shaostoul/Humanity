@@ -253,8 +253,13 @@ starts the body over.
   in dry 35 C air in a light breeze sweats about 0.21 L (`sweat_is_water`);
   in the food system an hour walking costs 6.6 hydration points at 35 C
   against 3.2 at 20 C, the daily clock alone being 2.1 (`sweat_costs_water`).
-  Hard work in the heat sweats several times what walking does. Sweat that
-  drips rather than evaporates is not counted, so this is the low side.
+  Hard work in the heat sweats several times what walking does. All the
+  sweat the body makes is counted, dripped or dried (v0.1428.0, after the
+  review of 2026-09-29): counting only what evaporated made humid heat cost
+  LESS water than dry (0.14 against 0.20 L for the hour's walk at 35 C);
+  now humid costs more (0.38 against 0.20 L), because the body stays hotter
+  and sweats harder when the air cannot take it
+  (`humid_heat_costs_at_least_as_much_water_as_dry`).
 - Shivering and activity costing food energy.
 - Frostbite: in severe cold the model's mean skin goes below 0 C with no
   penalty; local cold injury is its own system.
