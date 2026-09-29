@@ -226,7 +226,7 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) -> bool {
             let mm = ((state.time_pick_hour - state.time_pick_hour.floor()) * 60.0) as u32;
             ui.label(
                 RichText::new(if has_local {
-                    format!("{:02}:{:02} local solar time at this site", hh, mm)
+                    format!("{:02}:{:02} local solar time where you are", hh, mm)
                 } else {
                     format!("{:02}:{:02}", hh, mm)
                 })

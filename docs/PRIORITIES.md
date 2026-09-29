@@ -681,7 +681,11 @@ between the simulation and the person. Its tier ladder is the build order.
   inventories live in each client's own save. It needs a trade_completed
   message both clients apply to their own inventories, item ids checked
   against items.csv, and a rule for a client that no longer holds an item at
-  completion, likely cancel); a `SystemRunner` host in the relay.
+  completion, likely cancel. The relay already tells both parties on
+  completion, `__trade_complete__:{trade_id}` in `msg_handlers.rs`, and the
+  native Trade page exists, `gui/pages/trade.rs`; what is missing is the
+  client applying the items to its own inventory); a `SystemRunner` host in
+  the relay.
 - **Tier E: NPCs**, which is arc D below.
 
 ### D. Populate the ship, and seat a dozen
