@@ -259,6 +259,44 @@ pub(crate) fn nameplate_labels(world: &hecs::World, station_off: glam::Vec3) -> 
     labels
 }
 
+/// A part of another player's figure (2026-09-29, appearance sync rung 2).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) enum FigurePart {
+    /// The teal body: it stays the marker that says "a player".
+    Body,
+    /// The head, in their skin tone when their look is known.
+    Head,
+    /// A cap of hair on the head, in their hair colour (only with a look).
+    Hair,
+}
+
+/// Where each part of another player's figure goes: (part, centre, scale).
+/// `eye` is the position their client sends (their eye), so the figure hangs
+/// from it, and every offset and size scales with their height (a look's
+/// `height`, 1.0 without one), because a taller person's eye is higher and
+/// everything below it is longer.
+pub(crate) fn remote_figure_parts(eye: glam::Vec3, look: Option<&crate::player_look::PlayerLook>) -> Vec<(FigurePart, glam::Vec3, glam::Vec3)> {
+    use glam::Vec3;
+    let h = look.map_or(1.0, |l| l.height);
+    let mut parts = vec![
+        (FigurePart::Body, eye - Vec3::new(0.0, 0.85 * h, 0.0), Vec3::splat(h)),
+        (FigurePart::Head, eye + Vec3::new(0.0, 0.05 * h, 0.0), Vec3::splat(h)),
+    ];
+    if look.is_some() {
+        // A flattened sphere over the top half of the head (radius 0.17).
+        parts.push((FigurePart::Hair, eye + Vec3::new(0.0, 0.12 * h, 0.0), Vec3::new(1.06 * h, 0.55 * h, 1.06 * h)));
+    }
+    parts
+}
+
+/// The material cache key for a look's colours: each channel in 64 steps, so
+/// players with the same look share materials and a cache never grows with
+/// every small difference.
+pub(crate) fn look_material_key(look: &crate::player_look::PlayerLook) -> [u8; 6] {
+    let q = |c: f32| (c.clamp(0.0, 1.0) * 63.0).round() as u8;
+    [q(look.skin[0]), q(look.skin[1]), q(look.skin[2]), q(look.hair[0]), q(look.hair[1]), q(look.hair[2])]
+}
+
 /// How far over a remote player's head position their name floats, m: just
 /// clear of the head sphere drawn there (centre +0.05, radius 0.17).
 const PLAYER_NAMEPLATE_OVER_HEAD_M: f32 = 0.3;
@@ -641,6 +679,28 @@ pub(crate) fn chat_history_pump(state: &mut EngineState) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// ANOTHER PLAYER'S FIGURE WEARS THEIR LOOK (2026-09-29, appearance sync
+    /// rung 2). Without a look: body and head at the old places, no hair. With
+    /// one: a hair cap above the head, and a taller player's figure scaled and
+    /// hung lower from the eye. Red check, run: ignoring the height fails the
+    /// second assertion.
+    #[test]
+    fn another_players_figure_wears_their_look() {
+        use glam::Vec3;
+        let eye = Vec3::new(0.0, 1.6, 0.0);
+        let plain = remote_figure_parts(eye, None);
+        assert_eq!(plain.iter().map(|p| p.0).collect::<Vec<_>>(), vec![FigurePart::Body, FigurePart::Head]);
+        let tall = crate::player_look::PlayerLook { skin: [0.6, 0.4, 0.3], hair: [0.1, 0.05, 0.02], height: 1.2 };
+        let parts = remote_figure_parts(eye, Some(&tall));
+        let body = parts.iter().find(|p| p.0 == FigurePart::Body).unwrap();
+        assert!((body.1.y - (1.6 - 0.85 * 1.2)).abs() < 1e-5 && (body.2.y - 1.2).abs() < 1e-5, "the body hangs lower and is longer: {body:?}");
+        let hair = parts.iter().find(|p| p.0 == FigurePart::Hair).expect("a hair cap");
+        let head = parts.iter().find(|p| p.0 == FigurePart::Head).unwrap();
+        assert!(hair.1.y > head.1.y, "the hair sits above the head's centre");
+        // Two players with the same colours share a cache key.
+        assert_eq!(look_material_key(&tall), look_material_key(&crate::player_look::PlayerLook { height: 0.9, ..tall }));
+    }
 
     /// THE HOST'S CLOCK COUNTS ONLY FOR A JOINED PLAYER (2026-09-29). The
     /// relay sends game_time_sync to every socket; a chat-only client must not

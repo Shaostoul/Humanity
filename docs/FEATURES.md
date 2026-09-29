@@ -2950,7 +2950,9 @@ hidden behind walls like the crew's; the relay always sent the name, nothing dre
 clock wins (v0.1424.0, operator decision): the relay's `game_time_sync` sets the game clock, its speed and its calendar
 (24-hour days, v0.1427.0) while the
 player is joined, crops keep their age across the jump (`time::REBASE_SLOT`), and the bed says the night can't be
-slept away there.
+slept away there. Each other player looks like themselves (v0.1430.0 and v0.1431.0, `src/player_look.rs`): their
+skin tone, hair colour and height travel in `game_join` (clamped by the relay and the client), and their figure's head
+and a cap of hair wear them, sized by their height (`net_route::remote_figure_parts`); the body stays teal.
 - Native: `src/lib.rs` (multiplayer block, roster mirror), `src/gui/pages/hud.rs`
 - Server: `src/relay/handlers/msg_handlers.rs` (`handle_game_join` resync + 48-char
   name clamp + name stamp), `src/relay/handlers/game_state.rs` (ghost reap in

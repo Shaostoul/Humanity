@@ -773,6 +773,9 @@ pub(crate) struct EngineState {
     pub(crate) game_pos_timer: f32,
     /// Cached (body_mesh, head_mesh, material) for the remote-player avatar marker, built once.
     pub(crate) remote_avatar: Option<(usize, usize, usize)>,
+    /// Other players' head and hair materials, by look colours
+    /// (`net_route::look_material_key`), made once each (2026-09-29).
+    pub(crate) remote_look_materials: std::collections::HashMap<[u8; 6], (usize, usize)>,
     /// Cached (body_mesh, head_mesh, material) for crew NPC markers (chore AI, v0.663), built once.
     pub(crate) remote_npc_avatar: Option<(usize, usize, usize)>,
     /// Solar system hologram bodies (mesh_idx, material_idx, local_position, name).

@@ -476,6 +476,11 @@
       "date": "2026-09-29",
       "decision": "Appearance sync rung 1: crate::player_look::PlayerLook (skin, hair, height; clamped) sent in game_join from gui_state.appearance, kept by the relay on the entity + game_player_joined, parsed by net_route into NetMessage::PlayerJoined.look (serde skip) and kept on RemotePlayer.look. Rung 2 = render per-player colours/height.",
       "why": "Tier D next item after nameplates; split in two so each rung lands whole near the usage cap."
+    },
+    {
+      "date": "2026-09-29",
+      "decision": "Appearance sync rung 2: net_route::remote_figure_parts (Body/Head/Hair, scaled by look.height, hung from the eye) + look_material_key (64 steps a channel); lib.rs draws head in skin tone and a hair cap, body teal; EngineState.remote_look_materials caches (skin, hair) materials.",
+      "why": "Finishes Tier D appearance sync; a capture needs two clients, so proof is the unit test (seen red) and a clean boot."
     }
   ],
   "active_scopes_to_avoid": [

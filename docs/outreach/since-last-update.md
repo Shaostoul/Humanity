@@ -34,3 +34,6 @@ Each line is written the way a player would hear it; the release notes and
 - **v0.1428.0: humid heat is thirsty work.** Sweat that drips off
   instead of drying now costs water too, so a hot, humid day dehydrates
   you faster than a hot, dry one, as it really does.
+- **v0.1431.0: other players look like themselves.** In a shared world,
+  another player's figure now has their skin tone, their hair colour and
+  their height, instead of every player looking the same.

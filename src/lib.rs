@@ -1985,6 +1985,7 @@ mod native_app {
                 game_joined: false,
                 game_pos_timer: 0.0,
                 remote_avatar: None,
+                remote_look_materials: std::collections::HashMap::new(),
                 remote_npc_avatar: None,
                 hologram_objects: Vec::new(),
                 hologram_orbits: Vec::new(),
@@ -9114,26 +9115,42 @@ mod native_app {
                             state.remote_avatar = Some((body, head, mat));
                         }
                         if let Some((body, head, mat)) = state.remote_avatar {
-                            for (_e, (t, _r)) in state
+                            // Each figure wears its player's look when their
+                            // client sent one (2026-09-29): head in their skin
+                            // tone, a cap of hair, sized by their height; the
+                            // body stays teal, the marker that says "a player".
+                            for (_e, (t, r)) in state
                                 .game_world
                                 .world
                                 .query::<(&crate::ecs::components::Transform, &crate::net::sync::RemotePlayer)>()
                                 .iter()
                             {
-                                all_objects.push(RenderObject { fade: 0.0,
-                                    position: t.position - Vec3::new(0.0, 0.85, 0.0),
-                                    rotation: t.rotation,
-                                    scale: Vec3::ONE,
-                                    mesh: body,
-                                    material: mat,
+                                let look_mats = r.look.map(|l| {
+                                    let key = crate::engine::net_route::look_material_key(&l);
+                                    *state.remote_look_materials.entry(key).or_insert_with(|| {
+                                        let skin = state.renderer.add_material_full(
+                                            [l.skin[0], l.skin[1], l.skin[2], 1.0], 0.0, 0.6, 1.0, 0.1);
+                                        let hair = state.renderer.add_material_full(
+                                            [l.hair[0], l.hair[1], l.hair[2], 1.0], 0.0, 0.8, 1.0, 0.0);
+                                        (skin, hair)
+                                    })
                                 });
-                                all_objects.push(RenderObject { fade: 0.0,
-                                    position: t.position + Vec3::new(0.0, 0.05, 0.0),
-                                    rotation: t.rotation,
-                                    scale: Vec3::ONE,
-                                    mesh: head,
-                                    material: mat,
-                                });
+                                for (part, at, scale) in crate::engine::net_route::remote_figure_parts(t.position, r.look.as_ref()) {
+                                    let (m, material) = match (part, look_mats) {
+                                        (crate::engine::net_route::FigurePart::Body, _) => (body, mat),
+                                        (crate::engine::net_route::FigurePart::Head, Some((skin, _))) => (head, skin),
+                                        (crate::engine::net_route::FigurePart::Head, None) => (head, mat),
+                                        (crate::engine::net_route::FigurePart::Hair, Some((_, hair))) => (head, hair),
+                                        (crate::engine::net_route::FigurePart::Hair, None) => continue,
+                                    };
+                                    all_objects.push(RenderObject { fade: 0.0,
+                                        position: at,
+                                        rotation: t.rotation,
+                                        scale,
+                                        mesh: m,
+                                        material,
+                                    });
+                                }
                             }
                         }
                         // ── Crew NPCs (relay chore AI, v0.663) ──

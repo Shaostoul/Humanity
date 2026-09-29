@@ -672,7 +672,10 @@ between the simulation and the person. Its tier ladder is the build order.
   sync (rung 1 DONE 2026-09-29, v0.1430.0: skin tone, hair colour and
   height travel in game_join, the relay clamps and keeps them on the entity
   and in game_player_joined, each client keeps them on RemotePlayer.look;
-  rung 2 is drawing the teal figure in them); make a trade move items; a
+  rung 2 DONE v0.1431.0: the figure's head is
+  in their skin tone with a cap of hair in their hair colour, sized by their
+  height, the body still teal; not yet seen in a capture, which needs two
+  clients at once); make a trade move items; a
   `SystemRunner` host in the relay.
 - **Tier E: NPCs**, which is arc D below.
 
