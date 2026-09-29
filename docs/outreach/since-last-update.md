@@ -81,3 +81,7 @@ Each line is written the way a player would hear it; the release notes and
 - **v0.1417.0: the sun warms you, and shade matters.** Standing in full
   sun now warms your body the way it really does, several degrees more than
   the air alone, and a roof gives you shade on a hot day.
+- **v0.1418.0: cloudy days mean less solar power.** A solar panel you
+  build on the ground now makes about a quarter of its power under a fully
+  overcast sky, as real panels do. The ship's panels, up above the weather,
+  are not affected.

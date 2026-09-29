@@ -31,6 +31,16 @@ pub fn site_longitude_deg(site: &crate::systems::construction::PlanetSite) -> f6
     (-site.origin.z).atan2(site.origin.x).to_degrees()
 }
 
+/// Share of the clear sky's sunlight that reaches the ground under `cloud`
+/// (0 clear to 1 overcast, `Weather::cloud_share`): Kasten and Czeplak
+/// (1980, Solar Energy 24, 177-189), `G / G_clear = 1 - 0.75 (N/8)^3.4` with
+/// N the cloud cover in eighths of the sky. A full overcast lets through a
+/// quarter; a half-covered sky still lets through about 93 percent, because
+/// the broken cloud mostly misses the sun.
+pub fn cloud_light_share(cloud: f32) -> f32 {
+    1.0 - 0.75 * cloud.clamp(0.0, 1.0).powf(3.4)
+}
+
 pub struct SolarSystem;
 
 impl SolarSystem {
@@ -53,13 +63,30 @@ impl System for SolarSystem {
         // panel built there (2026-09-28).
         let home_lon = crate::systems::time::home_longitude_deg(data);
         let clock = data.get::<std::sync::Mutex<GameTime>>("game_time").and_then(|m| m.lock().ok().map(|t| t.clone()));
+        // The weather's clouds (2026-09-28) cover the body the weather is
+        // simulating: the frame-locked one, when it has air. A panel on that
+        // body's ground sits under them. A panel aboard is above the weather,
+        // and one on another body has no weather simulated for it, so both
+        // keep a clear sky.
+        let clouded_body = data
+            .get::<crate::systems::body_environment::BodyEnvironment>("body_environment")
+            .filter(|e| e.locked && e.has_atmosphere)
+            .map(|e| e.body_id.clone());
+        let cloud = data
+            .get::<std::sync::Mutex<crate::systems::weather::Weather>>("weather")
+            .and_then(|m| m.lock().ok().map(|w| w.cloud_share()))
+            .unwrap_or(0.0);
         for (_e, (gen, panel, site)) in world
             .query::<(&mut PowerGenerator, &SolarPanel, Option<&crate::systems::construction::PlanetSite>)>()
             .iter()
         {
             let lon = site.map_or(home_lon, site_longitude_deg);
             let hour = clock.as_ref().map_or(12.0, |t| t.solar_hour_at(lon));
-            gen.output_watts = panel.peak_watts * sun_factor(hour);
+            let light = match site {
+                Some(s) if clouded_body.as_deref() == Some(s.body.as_str()) => cloud_light_share(cloud),
+                _ => 1.0,
+            };
+            gen.output_watts = panel.peak_watts * sun_factor(hour) * light;
         }
     }
 }
@@ -67,6 +94,41 @@ impl System for SolarSystem {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// CLOUDS DIM A PANEL ON THE GROUND (2026-09-28). At noon under an
+    /// overcast sky (rain) on Earth, a panel built on Earth makes a quarter
+    /// of its peak (Kasten and Czeplak), one built on the Moon, where no
+    /// weather is simulated, makes its peak, and one aboard the home is above
+    /// the weather. Red check, run: leaving the cloud share out fails the
+    /// first assertion.
+    #[test]
+    fn clouds_dim_a_panel_on_the_ground() {
+        use crate::ecs::components::{PowerGenerator, SolarPanel};
+        use crate::systems::body_environment::BodyEnvironment;
+        use crate::systems::construction::PlanetSite;
+        use crate::systems::weather::{Weather, WeatherCondition};
+        use glam::DVec3;
+        let mut data = DataStore::new();
+        let mut gt = GameTime::default();
+        gt.set_elapsed(12.0 * 3600.0);
+        data.insert("game_time", std::sync::Mutex::new(gt));
+        let mut env = BodyEnvironment::default();
+        env.locked = true;
+        data.insert("body_environment", env);
+        data.insert("weather", std::sync::Mutex::new(Weather { condition: WeatherCondition::Rain, ..Weather::default() }));
+        let mut world = hecs::World::new();
+        let panel = || (PowerGenerator { output_watts: 0.0, fuel_per_second: 0.0, active: true }, SolarPanel { peak_watts: 400.0 });
+        let on = |body: &str| PlanetSite { body: body.into(), origin: DVec3::new(6.371e6, 0.0, 0.0) };
+        let earth = world.spawn((panel().0, panel().1, on("earth")));
+        let moon = world.spawn((panel().0, panel().1, on("moon")));
+        let aboard = world.spawn(panel());
+        SolarSystem::new().tick(&mut world, 0.1, &data);
+        let w = |e| world.get::<&PowerGenerator>(e).unwrap().output_watts;
+        assert!((w(earth) - 100.0).abs() < 1e-3, "overcast noon on Earth: {}", w(earth));
+        assert!((w(moon) - 400.0).abs() < 1e-3, "no weather on the Moon: {}", w(moon));
+        assert!((w(aboard) - 400.0).abs() < 1e-3, "above the weather: {}", w(aboard));
+        assert!((cloud_light_share(0.5) - 0.929).abs() < 0.001, "half cover");
+    }
 
     /// A PANEL SEES ITS OWN SITE'S SUN (2026-09-28). At noon on longitude 0
     /// (game hour 12), a panel built at a site on longitude 0 makes its peak,

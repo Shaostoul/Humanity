@@ -2523,6 +2523,10 @@ Each tick: sum active generators, sum enabled consumers, shed load by priority o
 integrate the surplus/deficit into battery banks (charge/discharge with the day/night solar swing). As of
 v0.607 the flow is PER ISLAND (a generator only feeds loads on its own wired circuit). Publishes a live
 `PowerStatus` (generation, consumption, balance, battery Wh, autonomy hours) to the DataStore for the GUI.
+Solar panels follow the sun where they stand: the home's longitude aboard (BUG-090), a planet build site's own
+on the ground (v0.1413.0), and on the ground under the weather's clouds (v0.1418.0: Kasten and Czeplak's
+`1 - 0.75 (N/8)^3.4`, a quarter under a full overcast, `solar::cloud_light_share`). Panels aboard are above the
+weather.
 - Native: `src/systems/electrical.rs` (`ElectricalSystem`, `integrate_battery`, `PowerStatus`), `src/systems/solar.rs` (`SolarSystem`)
 - Data: `data/electrical.ron`
 - ECS: `PowerGenerator`, `PowerConsumer`, `Battery`, `PowerCircuit` (island) components

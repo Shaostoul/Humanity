@@ -386,6 +386,11 @@
       "date": "2026-09-28",
       "decision": "The sun in the body heat model: body_heat::sun_mrt_rise_c (ASHRAE 55 SolarCal with pythermalcomfort's constants, Fanger's rotation-averaged projected area, Meinel clear-sky beam with Kasten-Young air mass, cloud removing the beam, ground albedo 0.2) added to the open-sky long-wave MRT; night_sky_weight deleted. A roof is full shade.",
       "why": "v0.1416.0's night-only weighting was a stand-in because the sun was missing; with the sun modelled the sky's cold applies day and night, as physically it does. Sun height from the gameplay sun (solar::sun_factor) so body, crops and panels agree."
+    },
+    {
+      "date": "2026-09-28",
+      "decision": "SolarSystem dims a planet-site panel by solar::cloud_light_share(Weather::cloud_share()) (Kasten and Czeplak 1980: 1 - 0.75 (N/8)^3.4) when the site's body is the frame-locked body with air; panels aboard and on unsimulated bodies keep a clear sky.",
+      "why": "The cloud share added for the body heat sky was sitting unused by the panels: an overcast day on the ground made full clear-sky power."
     }
   ],
   "active_scopes_to_avoid": [
