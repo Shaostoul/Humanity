@@ -366,6 +366,11 @@
       "date": "2026-09-28",
       "decision": "SolarSystem reads each panel's own longitude: the home's aboard, a planet build site's own (solar::site_longitude_deg, atan2(-z, x) of the site origin in the body frame).",
       "why": "BUG-090's documented leftover: a panel built in the Sahara followed noon over the home at 122.3 W."
+    },
+    {
+      "date": "2026-09-28",
+      "decision": "The weather's day/night warmth reads weather::local_solar_hour: the player's longitude on a world (atan2(-z, x) of BodyEnvironment.up_dir), the home's longitude anywhere else.",
+      "why": "BUG-090's last clock leftover: the Moon's afternoon heat arrived at longitude 0's afternoon wherever the player stood. The F11 hour slider already read the HUD's local hour."
     }
   ],
   "active_scopes_to_avoid": [

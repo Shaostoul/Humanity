@@ -67,3 +67,6 @@ Each line is written the way a player would hear it; the release notes and
   instead of a small box.
 - **v0.1413.0: a solar panel sees the sun where it stands.** A panel built
   on a planet makes power by that place's noon, not by the ship's.
+- **v0.1414.0: the day's heat comes at your own afternoon.** On the Moon
+  or Mars, the midday heat and the night's cold now follow the time where you
+  stand, not the time at longitude 0.

@@ -1740,11 +1740,16 @@ four sun azimuths, three days and seven hours, that the home is over -122.3
 and that the deck (LVLH) has the sun above it exactly when the home's clock
 says the sun is up; seen red by propagating without the re-phase.
 
-Still open from the survey: the weather's day warmth and the Settings hour
-slider speak the game clock (a panel at a planet build site uses its own
-site's longitude since 2026-09-28, `solar::site_longitude_deg`), and the latitude question (the station is at
-0 degrees, the temperature reference at 45, the data at Silverdale's 47.6)
-waits for ground farming.
+Closed after the fix, same day: a panel at a planet build site uses its own
+site's longitude (`solar::site_longitude_deg`, v0.1413.0),
+the weather's day and night warmth follows the hour where the player is
+(`weather::local_solar_hour`: the player's longitude on a world, the home's
+elsewhere; test `the_day_warmth_follows_the_players_own_hour`, seen red by
+reading the game clock's hour, v0.1414.0), and the F11 panel's hour
+slider already reads the HUD's local hour, which the fix set aboard the home.
+Still open: the latitude question (the station is at 0 degrees, the
+temperature reference at 45, the data at Silverdale's 47.6) waits for ground
+farming.
 
 ## BUG-091: plot areas were never published on a fresh boot, so every plot counted one plant (FIXED v0.1369.0)
 

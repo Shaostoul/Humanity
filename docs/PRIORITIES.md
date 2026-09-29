@@ -582,8 +582,9 @@ live at the top of `docs/design/gameplay-gaps-2026-09-25.md` and in
 Open: containers as items (the gap doc's 3c) waits on the unified placement
 schema. Crop light from the ship's real sun (BUG-090) was FIXED 2026-09-28: the
 home hangs over its longitude on every date, and its panels, grow lights,
-crops and HUD clock follow the sun the deck sees (BUGS.md lists what is left:
-the weather's day warmth and the hour slider still speak the game clock).
+crops and HUD clock follow the sun the deck sees; a panel on a planet and the
+weather's day warmth follow the sun where they are (BUGS.md: only the latitude
+question is left, and it waits for ground farming).
 
 **Gameplay gap survey (2026-09-25):** `docs/design/gameplay-gaps-2026-09-25.md`
 lists seven defects (items lost when the backpack is full, the showcase garden

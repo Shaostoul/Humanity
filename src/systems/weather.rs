@@ -481,16 +481,15 @@ impl System for WeatherSystem {
         // airless bodies (increment 4).
         // The year fraction is Layer 1's seasonal clock (a smooth annual
         // cycle; `season` stays the four-step label the rolls use). Its
-        // fallback is the same moment: noon of day 0.
-        let (season, hour, year_fraction) = data
+        // fallback is the same moment: noon of day 0. The hour is read
+        // once the body is known, below: it is the hour where the player is.
+        let clock = data
             .get::<std::sync::Mutex<GameTime>>("game_time")
-            .and_then(|m| m.lock().ok())
-            .map(|gt| (gt.season, gt.solar_hour(), gt.year_fraction()))
-            .unwrap_or((
-                Season::Spring,
-                12.0,
-                0.5 / f64::from(crate::systems::time::DEFAULT_DAYS_PER_YEAR),
-            ));
+            .and_then(|m| m.lock().ok().map(|gt| gt.clone()));
+        let (season, year_fraction) = clock
+            .as_ref()
+            .map(|gt| (gt.season, gt.year_fraction()))
+            .unwrap_or((Season::Spring, 0.5 / f64::from(crate::systems::time::DEFAULT_DAYS_PER_YEAR)));
 
         // Which body's weather are we simulating? (increment 4) The main
         // loop publishes the frame-locked body's snapshot each frame;
@@ -504,6 +503,9 @@ impl System for WeatherSystem {
             || new_env.has_atmosphere != self.env.has_atmosphere
             || new_env.has_water != self.env.has_water;
         self.env = new_env;
+        let hour = clock.as_ref().map_or(12.0, |gt| {
+            local_solar_hour(gt, &self.env, crate::systems::time::home_longitude_deg(data))
+        });
         if body_changed {
             // Arriving at a different world retunes the sky immediately.
             // The normal roll cadence is 5 to 15 minutes, far too slow for
@@ -723,6 +725,19 @@ impl System for WeatherSystem {
             }
         }
     }
+}
+
+/// The hour the day and night warmth follows (2026-09-28): the solar hour
+/// where the player stands on a world, from their direction in the body's
+/// frame, in the longitude convention the planet spin uses (`atan2(-z, x)`,
+/// `planet_heightmap::dir_to_latlon_deg`); anywhere else (the home, open
+/// space), the solar hour at the home's longitude, the clock the deck's
+/// panels and crops follow (BUG-090). The game clock alone is longitude 0's
+/// time, so the Moon's afternoon heat used to arrive at longitude 0's
+/// afternoon wherever the player stood.
+pub fn local_solar_hour(gt: &GameTime, env: &BodyEnvironment, home_lon_deg: f64) -> f32 {
+    let lon = if env.locked { (-env.up_dir.z).atan2(env.up_dir.x).to_degrees() } else { home_lon_deg };
+    gt.solar_hour_at(lon)
 }
 
 /// Sea-level temperature, K, of the column used for a world with air but no
@@ -1195,6 +1210,40 @@ mod tests {
                 "roll {i} produced water weather {c:?} on a dry world"
             );
         }
+    }
+
+    /// THE DAY'S WARMTH FOLLOWS THE PLAYER'S OWN HOUR (2026-09-28). With the
+    /// game clock at 02:00 (longitude 0's time), a player on the Moon at
+    /// longitude 0 is in the small hours (the swing near its coldest, -120 C)
+    /// and one at longitude 180 is at 14:00, the afternoon peak (+120 C).
+    /// Red check, run: reading the game clock's hour for every place gives
+    /// both the same cold swing and fails the second assertion.
+    #[test]
+    fn the_day_warmth_follows_the_players_own_hour() {
+        use crate::systems::body_environment::BodyEnvironment;
+        use crate::systems::time::GameTime;
+        let swing_at = |up: glam::DVec3| {
+            let mut data = DataStore::new();
+            data.insert("weather", std::sync::Mutex::new(Weather::default()));
+            data.insert("game_time", std::sync::Mutex::new(GameTime { hour: 2.0, ..Default::default() }));
+            let mut env = BodyEnvironment::airless("moon", 220.0);
+            env.up_dir = up;
+            data.insert("body_environment", env);
+            let mut world = hecs::World::new();
+            let mut sys = WeatherSystem::new();
+            sys.tick(&mut world, 1.0, &data);
+            let exported = data.get::<std::sync::Mutex<Weather>>("weather").unwrap().lock().unwrap().temperature;
+            exported - sys.weather.temperature
+        };
+        let at_lon0 = swing_at(glam::DVec3::X);
+        let at_lon180 = swing_at(glam::DVec3::NEG_X);
+        assert!((at_lon0 + 120.0).abs() < 0.5, "02:00 at longitude 0: {at_lon0}");
+        assert!((at_lon180 - 120.0).abs() < 0.5, "14:00 at longitude 180: {at_lon180}");
+        // Aboard (not on a world) the home's longitude sets the hour.
+        let mut gt = GameTime { hour: 2.0, ..Default::default() };
+        gt.hours_per_day = 24;
+        let home = BodyEnvironment::default();
+        assert!((local_solar_hour(&gt, &home, 180.0) - 14.0).abs() < 1e-4);
     }
 
     /// Increment 4: hopping from the Earth home frame to the Moon retunes
