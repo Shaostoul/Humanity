@@ -239,7 +239,18 @@ starts the body over.
   which follows the gameplay sun (up at 6, down at 18, overhead at noon at
   every latitude) until the latitude question is settled.
 - Sweat soaking clothes (only rain wets them), and sweat costing water: a
-  litre an hour of hard work in heat should come out of hydration.
+  litre an hour of hard work in heat should come out of hydration. STARTED
+  2026-09-28 and set aside unshipped at the end of the session (nothing
+  committed): a running `BodyHeat::sweat_litres` added in `respond` as
+  `sweat_heat * BODY_AREA_M2 / LATENT_HEAT_J_KG * dt`, returned per frame
+  as `HeatOutcome::sweat_l`, and taken out of hydration in the food system
+  at 20 points a litre (the clock empties 100 points in two days at the
+  ~2.5 L a day a resting adult loses, Jequier and Constant 2010, so a point
+  is ~50 mL), scaled by the Vitals drain slider. Measured before it was set
+  aside: an hour walking (2 met) in dry 35 C air sweats about 0.21 L; in the
+  food system an hour walking costs 6.6 points at 35 C against 3.2 at 20 C
+  (the daily clock alone is 2.1). Set the test bounds from those numbers,
+  not from "a litre an hour", which is hard work, not walking.
 - Shivering and activity costing food energy.
 - Frostbite: in severe cold the model's mean skin goes below 0 C with no
   penalty; local cold injury is its own system.

@@ -406,6 +406,11 @@
       "date": "2026-09-28",
       "decision": "Tier D nameplates: engine::net_route::nameplate_labels builds gui_state.crew_labels from RemoteNpc (name + chore) AND RemotePlayer (name only, 0.3 m over the head position); lib.rs calls it. PRIORITIES Tier D now records why bridging game_time_sync is a design question, not three lines.",
       "why": "The name was on the wire and on the component; only the draw list skipped players. game_time_sync is broadcast to every socket at 1x from relay start, so applying it would jump single-player time."
+    },
+    {
+      "date": "2026-09-28",
+      "decision": "End of session: evening posts written (docs/outreach/posts/2026-09-28-evening-update.md), tracker reset. Sweat-costs-water set aside unshipped with its measured numbers in docs/design/body-heat.md; source reverted, tree clean.",
+      "why": "Operator heading to bed asked to wrap up and end with a post; the sweat change still needed its bounds set, red checks, verify and a boot, and its first numbers disagreed with the test comments."
     }
   ],
   "active_scopes_to_avoid": [
