@@ -411,6 +411,11 @@
       "date": "2026-09-28",
       "decision": "End of session: evening posts written (docs/outreach/posts/2026-09-28-evening-update.md), tracker reset. Sweat-costs-water set aside unshipped with its measured numbers in docs/design/body-heat.md; source reverted, tree clean.",
       "why": "Operator heading to bed asked to wrap up and end with a post; the sweat change still needed its bounds set, red checks, verify and a boot, and its first numbers disagreed with the test comments."
+    },
+    {
+      "date": "2026-09-29",
+      "decision": "Server health check on request: relay, nginx, backups (30-min .db.aes, 6-h .db.enc, Windows pull OK), disk 72%, memory fine; log noise only (federation peer public.guide unreachable, bot probes, TLS handshake failures). Forgejo found GONE from the VPS (last push 2026-08-03). just ship now warns on a failed forge push; just brief gains a MIRROR row; keep-or-retire is Blocked on the operator #10.",
+      "why": "The forge push was '-git push forge main' (errors ignored), so the self-hosted mirror silently stopped taking pushes for eight weeks."
     }
   ],
   "active_scopes_to_avoid": [

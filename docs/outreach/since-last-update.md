@@ -11,4 +11,7 @@ Each line is written the way a player would hear it; the release notes and
 
 ## Shipped
 
-(nothing yet)
+- **v0.1421.2: a server check found the self-hosted code mirror down (behind the scenes).**
+  The website, game server and backups are all healthy. The project's own
+  copy of the code at git.united-humanity.us had quietly stopped taking
+  updates in early August; the tools now say so instead of staying silent.

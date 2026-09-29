@@ -1,6 +1,17 @@
 # Forgejo Self-Host on the VPS
 
-> Status: live at [git.united-humanity.us](https://git.united-humanity.us) since v0.127.0 (2026-04-29).
+> **Status 2026-09-29: NOT RUNNING.** Checked over SSH: no Forgejo binary, no
+> `forgejo` user, no `/var/lib/forgejo`, no systemd unit and no nginx site on
+> the VPS; DNS still points git.united-humanity.us at it and HTTPS gets no
+> answer. The last push the mirror took was v0.1109.2 on 2026-08-03 (the
+> server's uptime starts mid-August, so it was likely lost when the box was
+> rebuilt or changed then). `just ship` pushed to it with errors ignored, so
+> nothing said so for eight weeks; it now prints a warning, and `just brief`
+> shows the mirror's age. To bring it back, follow this document from the top
+> (the admin account and the SSH key in the web UI are the operator's), then
+> `git push forge main --tags` to catch it up.
+>
+> Previously: live at [git.united-humanity.us](https://git.united-humanity.us) since v0.127.0 (2026-04-29).
 > Step 1 of the [distribution-mirrors](distribution-mirrors.md) plan.
 
 This is the sovereignty layer for HumanityOS source code. GitHub stays the

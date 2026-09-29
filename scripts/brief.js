@@ -111,6 +111,20 @@ L.push('VERSION:  ' + versionLine);
 // v0.1331' for five straight releases while he was launching v0.1326 and
 // reporting bugs that were already fixed. So print the binary too.
 L.push('DELIVERY: ' + (sh('node "' + path.join(root, 'scripts', 'check-delivery.js') + '" --quiet') || '(check unavailable)'));
+// The self-hosted mirror (git.united-humanity.us, remote `forge`). `just ship`
+// pushes to it with errors ignored, so when the server lost Forgejo in August
+// 2026 every push failed silently for eight weeks (found 2026-09-29). The local
+// `forge/main` ref only moves on a successful push, so its age is the age of
+// the last push that landed; no network needed.
+const forgeWhen = sh('git -C "' + root + '" log -1 --format=%ct forge/main');
+if (forgeWhen) {
+  const behind = sh('git -C "' + root + '" rev-list --count forge/main..HEAD') || '?';
+  const lastTag = sh('git -C "' + root + '" describe --tags --abbrev=0 forge/main') || '?';
+  const days = Math.floor((Date.now() / 1000 - Number(forgeWhen)) / 86400);
+  L.push('MIRROR:   ' + (days > 7 && behind !== '0'
+    ? `BEHIND: git.united-humanity.us last took a push ${days} days ago (${lastTag}), ${behind} commits behind -- is Forgejo running? (docs/admin/forgejo-setup.md)`
+    : `git.united-humanity.us current (last push ${days} days ago)`));
+}
 L.push('');
 L.push('CI DEPLOY (latest):');
 L.push(ci ? '  ' + ci.split('\n')[0] : '  (unavailable -- offline? check: just ci)');
