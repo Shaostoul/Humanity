@@ -241,6 +241,11 @@ pub fn insert_slots(data: &mut DataStore) {
     data.insert(CALENDAR_SLOT, std::sync::Mutex::new((DEFAULT_HOURS_PER_DAY, DEFAULT_DAYS_PER_YEAR)));
     data.insert(SPEED_SLOT, std::sync::Mutex::new(DEFAULT_TIME_SPEED));
     data.insert(HOLD_SLOT, std::sync::Mutex::new(None::<Option<f32>>));
+    // In a shared world the host's clock wins (2026-09-29): the host's clock
+    // as it arrives, the summed jumps, and whether it is in charge.
+    data.insert(HOST_CLOCK_SLOT, std::sync::Mutex::new(None::<f64>));
+    data.insert(REBASE_SLOT, std::sync::Mutex::new(0.0_f64));
+    data.insert(HOST_ACTIVE_SLOT, std::sync::Mutex::new(false));
 }
 
 /// Settings to the clock, every frame (lib.rs): hours in a day, days in a
@@ -298,10 +303,47 @@ impl GameTime {
     }
 }
 
+/// DataStore slot (`Mutex<Option<f64>>`): the shared world's clock, host game
+/// seconds, put there each time the host (the relay) sends it while this
+/// player is IN the shared world (`engine::net_route`, "game_time_sync").
+/// Operator decision 2026-09-29: in a shared world the host's clock wins.
+pub const HOST_CLOCK_SLOT: &str = "host_clock_sync";
+/// DataStore slot (`Mutex<f64>`): every jump the clock has taken to follow
+/// the host, summed, game seconds. A system that keeps ABSOLUTE game-time
+/// stamps (a crop's `planted_at`) shifts them by what changed since it last
+/// looked, so a crop's age never jumps with the clock: joining a world whose
+/// day is 90 days behind yours neither ripens your garden nor erases it.
+pub const REBASE_SLOT: &str = "clock_rebase_total";
+/// DataStore slot (`Mutex<bool>`): true while the host's clock is in charge.
+pub const HOST_ACTIVE_SLOT: &str = "host_clock_active";
+/// The host's clock runs one game second per real second (the relay's world
+/// tick), so while it is in charge that is everyone's speed.
+pub const HOST_TIME_SPEED: f32 = 1.0;
+/// Real seconds with no word from the host after which the clock is the
+/// player's own again (the relay sends it every 5 s, so this is three missed
+/// in a row: the player left the shared world or lost the connection). The
+/// clock does not jump back: the host's date simply becomes the player's.
+pub const HOST_RELEASE_S: f64 = 20.0;
+
+/// True while the host's clock is in charge (the player is in a shared world).
+pub fn host_clock_active(data: &DataStore) -> bool {
+    data.get::<std::sync::Mutex<bool>>(HOST_ACTIVE_SLOT).and_then(|m| m.lock().ok().map(|b| *b)).unwrap_or(false)
+}
+
+/// The summed clock jumps (see `REBASE_SLOT`); 0 before any.
+pub fn rebase_total(data: &DataStore) -> f64 {
+    data.get::<std::sync::Mutex<f64>>(REBASE_SLOT).and_then(|m| m.lock().ok().map(|v| *v)).unwrap_or(0.0)
+}
+
 /// Drives the day/night cycle and writes sun parameters to DataStore.
 pub struct TimeSystem {
     game_time: GameTime,
     initialized: bool,
+    /// Some(real seconds since the host last sent its clock) while the
+    /// host's clock is in charge; None when the clock is the player's own.
+    host_silence_s: Option<f64>,
+    /// Every jump taken to follow the host, summed (`REBASE_SLOT`).
+    rebase_total: f64,
 }
 
 impl TimeSystem {
@@ -309,6 +351,8 @@ impl TimeSystem {
         Self {
             game_time: GameTime::default(),
             initialized: false,
+            host_silence_s: None,
+            rebase_total: 0.0,
         }
     }
 
@@ -423,7 +467,31 @@ impl System for TimeSystem {
                 }
             }
         }
-        self.game_time.time_scale = self.game_time.speed_hold.unwrap_or(setting);
+        // The host's clock (HOST_CLOCK_SLOT): in a shared world it wins
+        // (operator, 2026-09-29). Each word from the host sets the clock to
+        // it, and the jump is added to the rebase total so absolute stamps
+        // follow; with no word for HOST_RELEASE_S the clock is the player's.
+        let host = data
+            .get::<std::sync::Mutex<Option<f64>>>(HOST_CLOCK_SLOT)
+            .and_then(|m| m.lock().ok().and_then(|mut r| r.take()));
+        if let Some(h) = host {
+            let jump = h - self.game_time.elapsed_seconds;
+            if jump != 0.0 {
+                self.game_time.set_elapsed(h);
+                self.rebase_total += jump;
+            }
+            self.host_silence_s = Some(0.0);
+        } else if let Some(s) = self.host_silence_s.as_mut() {
+            *s += f64::from(dt);
+            if *s > HOST_RELEASE_S {
+                self.host_silence_s = None;
+            }
+        }
+        self.game_time.time_scale = if self.host_silence_s.is_some() {
+            HOST_TIME_SPEED
+        } else {
+            self.game_time.speed_hold.unwrap_or(setting)
+        };
         // Absolute clock restore from a save (see request_restore_elapsed).
         // Same channel shape as the two above, f64 because it carries the
         // whole clock, not an hour.
@@ -455,6 +523,16 @@ impl System for TimeSystem {
         if let Some(slot) = data.get::<std::sync::Mutex<GameTime>>("game_time") {
             if let Ok(mut g) = slot.lock() {
                 *g = self.game_time.clone();
+            }
+        }
+        if let Some(slot) = data.get::<std::sync::Mutex<f64>>(REBASE_SLOT) {
+            if let Ok(mut v) = slot.lock() {
+                *v = self.rebase_total;
+            }
+        }
+        if let Some(slot) = data.get::<std::sync::Mutex<bool>>(HOST_ACTIVE_SLOT) {
+            if let Ok(mut v) = slot.lock() {
+                *v = self.host_silence_s.is_some();
             }
         }
     }
@@ -497,6 +575,43 @@ mod game_time_export_tests {
     use super::*;
     use crate::ecs::systems::System;
     use crate::hot_reload::data_store::DataStore;
+
+    /// THE HOST'S CLOCK WINS IN A SHARED WORLD (operator, 2026-09-29). A
+    /// player on day 100 at time speed 72 joins a world whose host is on day
+    /// 3: the clock goes to the host's, runs at the host's speed, and the jump
+    /// is recorded for absolute stamps to follow. After 20 s with no word from
+    /// the host the speed is the player's own again, and the date stays the
+    /// host's. Red check, run: ignoring HOST_CLOCK_SLOT fails the first
+    /// assertion.
+    #[test]
+    fn the_host_clock_wins_while_joined() {
+        let mut data = DataStore::new();
+        let mut gt = GameTime::default();
+        gt.set_elapsed(100.0 * EARTH_DAY_S);
+        data.insert("game_time", std::sync::Mutex::new(gt.clone()));
+        data.insert(SPEED_SLOT, std::sync::Mutex::new(72.0_f32));
+        data.insert(HOST_CLOCK_SLOT, std::sync::Mutex::new(None::<f64>));
+        data.insert(REBASE_SLOT, std::sync::Mutex::new(0.0_f64));
+        data.insert(HOST_ACTIVE_SLOT, std::sync::Mutex::new(false));
+        data.insert("time_restore_elapsed_request", std::sync::Mutex::new(Some(100.0 * EARTH_DAY_S)));
+        let mut sys = TimeSystem::new();
+        sys.tick(&mut hecs::World::new(), 0.0, &data); // take the saved clock first
+        *data.get::<std::sync::Mutex<Option<f64>>>(HOST_CLOCK_SLOT).unwrap().lock().unwrap() = Some(3.0 * EARTH_DAY_S);
+        let mut world = hecs::World::new();
+        sys.tick(&mut world, 1.0, &data);
+        let now = elapsed_now(&data);
+        assert!((now - (3.0 * EARTH_DAY_S + 1.0)).abs() < 1e-6, "the host's day 3, one host second on: {now}");
+        assert!((rebase_total(&data) - (-97.0 * EARTH_DAY_S)).abs() < 1e-6, "the jump is recorded");
+        assert!(host_clock_active(&data));
+        assert_eq!(data.get::<std::sync::Mutex<GameTime>>("game_time").unwrap().lock().unwrap().time_scale, HOST_TIME_SPEED);
+        for _ in 0..21 {
+            sys.tick(&mut world, 1.0, &data);
+        }
+        assert!(!host_clock_active(&data), "20 s of silence: the clock is the player's again");
+        let g = data.get::<std::sync::Mutex<GameTime>>("game_time").unwrap().lock().unwrap().clone();
+        assert_eq!(g.time_scale, 72.0, "their own speed back");
+        assert!(g.elapsed_seconds < 4.0 * EARTH_DAY_S, "the date stays the host's, no jump back");
+    }
 
     #[test]
     fn time_system_exports_advanced_game_time_to_datastore() {

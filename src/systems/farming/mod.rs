@@ -876,6 +876,9 @@ pub struct FarmingSystem {
     /// Not saved: a reload loses at most one part-used item of each kind per
     /// fed area.
     feed_open: HashMap<(String, String), f64>,
+    /// The clock jumps (`time::REBASE_SLOT`) already applied to the crops'
+    /// `planted_at`; None until the first tick adopts the current total.
+    clock_rebase_seen: Option<f64>,
     /// True once the player has been told the feeder has no fertilizer, so
     /// the notice is said once, not every tick; cleared when a bag is opened.
     feeder_dry_told: bool,
@@ -913,6 +916,7 @@ impl FarmingSystem {
             _initialized: false,
             nutrients: None,
             feed_open: HashMap::new(),
+            clock_rebase_seen: None,
             feeder_dry_told: false,
             short_told: std::collections::HashSet::new(),
             pests: None,
@@ -930,6 +934,18 @@ impl System for FarmingSystem {
     }
 
     fn tick(&mut self, world: &mut hecs::World, dt: f32, data: &DataStore) {
+        // A crop's age is the clock minus its planted_at, so when the clock
+        // jumps to follow a shared world's host (time::REBASE_SLOT, 2026-09-29)
+        // every planted_at moves by the same amount and no crop ripens or
+        // resets because the date changed.
+        let total = crate::systems::time::rebase_total(data);
+        let shift = total - self.clock_rebase_seen.unwrap_or(total);
+        if shift != 0.0 {
+            for (_e, crop) in world.query_mut::<&mut CropInstance>() {
+                crop.planted_at += shift;
+            }
+        }
+        self.clock_rebase_seen = Some(total);
         let plant_registry = data.get::<PlantRegistry>("plant_registry");
         // Sustained acceleration, if the flight model is loaded. Resolved once
         // per tick rather than per crop: it is a ship-wide scalar, exactly like
@@ -3843,6 +3859,37 @@ mod gardening_tests {
             let scale = crate::systems::time::scaled_dt(1.0, data);
             sys.tick(world, TICK_S as f32 / scale, data);
         }
+    }
+
+    /// A CROP KEEPS ITS AGE WHEN THE CLOCK FOLLOWS A SHARED WORLD'S HOST
+    /// (2026-09-29). Joining a world whose host is 90 days ahead moves the
+    /// clock 90 days, and every crop's planted_at with it, so the lettuce is
+    /// as old after the jump as before (plus the second that passed), not 90
+    /// days older and bolted. Red check, run: skipping the rebase shift at the
+    /// top of FarmingSystem::tick fails the assertion by 90 days.
+    #[test]
+    fn a_crop_keeps_its_age_when_the_clock_jumps_to_the_host() {
+        use crate::systems::time;
+        let mut data = make_store();
+        time::insert_slots(&mut data);
+        data.insert("time_set_hour_request", std::sync::Mutex::new(Some(12.0_f32)));
+        let mut clock = time::TimeSystem::new();
+        let mut sys = FarmingSystem::new();
+        let mut world = hecs::World::new();
+        world.spawn((crate::ecs::components::Irrigator,));
+        clock.tick(&mut world, 0.0, &data); // to noon
+        let e = world.spawn((fresh_crop(&data, "lettuce", Some("grain_field_1")),));
+        for _ in 0..5 {
+            clock.tick(&mut world, 1.0, &data);
+            sys.tick(&mut world, 1.0, &data);
+        }
+        let before = growth_age(&world, e, &data);
+        let host = time::elapsed_now(&data) + 90.0 * SECONDS_PER_DAY;
+        *data.get::<std::sync::Mutex<Option<f64>>>(time::HOST_CLOCK_SLOT).unwrap().lock().unwrap() = Some(host);
+        clock.tick(&mut world, 1.0, &data);
+        sys.tick(&mut world, 1.0, &data);
+        let after = growth_age(&world, e, &data);
+        assert!((after - before).abs() < 60.0, "age {before:.1} s before the jump, {after:.1} s after");
     }
 
     /// A crop's growth age right now: what its stage is read from.

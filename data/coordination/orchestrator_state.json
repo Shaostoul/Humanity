@@ -446,6 +446,11 @@
       "date": "2026-09-29",
       "decision": "Terminology sweep: 'recovery phrase' replaces 'seed phrase' in everything people read (163 places; seedling icons -> key; /seed -> /recovery; glossary key 'recovery phrase'; help topic id 'recovery-phrase'), 'no sign-up' replaces 'no account(s)' (~40; 'no passwords stored on any server'). tests/terminology_lint.rs enforces; CLAUDE.md rule 'Account words'.",
       "why": "Operator: people new to tech; 'seed' will mean plant and world seeds, and people do have an account (theirs). Records left as written; code names and saved-file fields untouched."
+    },
+    {
+      "date": "2026-09-29",
+      "decision": "Multiplayer clock: the host (relay) clock wins while joined (operator). net_route routes game_time_sync into time::HOST_CLOCK_SLOT only when copresence_active && !solo; TimeSystem follows it at HOST_TIME_SPEED 1.0, sums jumps into REBASE_SLOT; FarmingSystem shifts CropInstance.planted_at by rebase deltas; sleep refused while host_clock_active; 20 s silence releases the speed (date stays, no jump back).",
+      "why": "Operator: 'For multiplayer the host clock wins.' Farming keeps absolute planted_at stamps, so a bare clock jump would ripen or erase gardens on joining; the relay broadcasts to every socket so chat-only clients must not follow it; NetSyncSystem never clears local_player_id, so copresence_active is the joined truth."
     }
   ],
   "active_scopes_to_avoid": [

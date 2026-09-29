@@ -27,3 +27,7 @@ Each line is written the way a player would hear it; the release notes and
   the old crypto word, so it can't be mixed up with plant seeds), and the app
   says "no sign-up": you do have an account, it's just yours, on your own
   device.
+- **v0.1424.0: everyone in a shared world shares one clock.** When you
+  join the shared world, your time of day and date follow the host's, so
+  everyone sees the same sun. Your garden keeps growing exactly as it was,
+  and you can't sleep through a shared night.

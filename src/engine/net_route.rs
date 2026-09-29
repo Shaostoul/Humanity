@@ -22,6 +22,18 @@ pub(crate) fn route_game_message(state: &mut EngineState, payload: &str) {
         Some([a[0].as_f64()? as f32, a[1].as_f64()? as f32, a[2].as_f64()? as f32, a[3].as_f64()? as f32])
     };
     match v.get("type").and_then(|t| t.as_str()) {
+        // The host's clock (operator, 2026-09-29: in a shared world it wins).
+        // The relay sends this every 5 s to EVERY socket, chat-only ones
+        // included, so it counts only while this player is in the shared world.
+        Some("game_time_sync") => {
+            if let Some(t) = host_clock_from(&v, state.gui_state.copresence_active && !state.gui_state.copresence_solo) {
+                if let Some(slot) = state.data_store.get::<std::sync::Mutex<Option<f64>>>(crate::systems::time::HOST_CLOCK_SLOT) {
+                    if let Ok(mut s) = slot.lock() {
+                        *s = Some(t);
+                    }
+                }
+            }
+        }
         Some("game_welcome") => {
             if let Some(id) = v.get("player_id").and_then(|x| x.as_u64()) {
                 let own_id = id as u32;
@@ -200,6 +212,15 @@ pub(crate) fn route_game_message(state: &mut EngineState, payload: &str) {
 
 /// Send the local player's position to the relay (reused chat socket). Throttled by the caller.
 /// The relay validates (anti-teleport) and broadcasts `game_position_update` to other clients.
+/// The host's game clock from a `game_time_sync` message, when this player
+/// is in the shared world; None otherwise, or when the message has no clock.
+pub(crate) fn host_clock_from(v: &serde_json::Value, joined: bool) -> Option<f64> {
+    if !joined {
+        return None;
+    }
+    v.get("game_time").and_then(|x| x.as_f64()).filter(|t| t.is_finite() && *t >= 0.0)
+}
+
 /// The names that float over people in the world (2026-09-28): each crew
 /// member (`RemoteNpc`, with their chore under the name) and each other
 /// player (`RemotePlayer`, name only). The relay has always sent a player's
@@ -613,6 +634,17 @@ pub(crate) fn chat_history_pump(state: &mut EngineState) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// THE HOST'S CLOCK COUNTS ONLY FOR A JOINED PLAYER (2026-09-29). The
+    /// relay sends game_time_sync to every socket; a chat-only client must not
+    /// take it. Red check, run: ignoring `joined` fails the second assertion.
+    #[test]
+    fn the_host_clock_counts_only_when_joined() {
+        let v = serde_json::json!({"type": "game_time_sync", "game_time": 259200.0, "server_time": 1.0});
+        assert_eq!(host_clock_from(&v, true), Some(259200.0));
+        assert_eq!(host_clock_from(&v, false), None, "chat only: not in the shared world");
+        assert_eq!(host_clock_from(&serde_json::json!({"type": "game_time_sync"}), true), None);
+    }
 
     /// ANOTHER PLAYER HAS A NAME OVER THEM (2026-09-28). A crew member and a
     /// remote player both get a label: the crew member's with the chore, the

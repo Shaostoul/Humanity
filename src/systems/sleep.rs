@@ -161,6 +161,13 @@ pub fn tick(asleep: &mut Option<Asleep>, world: &mut hecs::World, data: &DataSto
         .unwrap_or((0.0, None, 8.0));
 
     if let Some(place) = requested {
+        // In a shared world the host's clock wins (2026-09-29): it runs at
+        // one second a second for everyone, so nobody can sleep the night
+        // away there.
+        if crate::systems::time::host_clock_active(data) {
+            notice(data, format!("In a shared world everyone keeps the host's time, so the night can't be slept away here. The {place} is still yours to rest in."));
+            return;
+        }
         if asleep.is_none() && living_player(world) {
             *asleep = Some(Asleep {
                 started_at: now,
@@ -240,6 +247,24 @@ mod tests {
     /// at x, Some(None) let go back to the time-speed setting.
     fn scale_asked(data: &DataStore) -> Option<Option<f32>> {
         data.get::<Mutex<Option<Option<f32>>>>(crate::systems::time::HOLD_SLOT).unwrap().lock().unwrap().take()
+    }
+
+    /// NO SLEEPING THE NIGHT AWAY IN A SHARED WORLD (2026-09-29). The host's
+    /// clock wins there and runs at one second a second for everyone, so the
+    /// bed is refused with a notice and the clock is not sped up. Red check,
+    /// run: dropping the host_clock_active check in tick lets the player fall
+    /// asleep and fails the first assertion.
+    #[test]
+    fn no_sleeping_the_night_away_in_a_shared_world() {
+        let data = store(10_000.0);
+        *data.get::<Mutex<bool>>(crate::systems::time::HOST_ACTIVE_SLOT).unwrap().lock().unwrap() = true;
+        let mut world = hecs::World::new();
+        tired_player(&mut world);
+        let mut asleep = None;
+        request(&data, "Bed");
+        tick(&mut asleep, &mut world, &data, 3600.0);
+        assert!(asleep.is_none(), "no sleep in a shared world");
+        assert_eq!(scale_asked(&data), None, "the clock was not sped up");
     }
 
     /// Lying down speeds the clock, the night runs, and the player wakes at

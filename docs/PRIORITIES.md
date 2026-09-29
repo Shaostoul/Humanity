@@ -659,13 +659,14 @@ between the simulation and the person. Its tier ladder is the build order.
   compiles into the relay (DONE 2026-09-28, v0.1415.0: `PlacedItem`
   moved to `systems::inventory::placed`, `MachineLevels` to
   `systems::machine_levels`, and `persistence` and `storage` lost their native
-  gate); bridge `game_time_sync` (not three lines, read 2026-09-28: the
-  relay broadcasts it to every socket, chat-only ones included, and its
-  clock runs at 1x from 0 at relay start while the local clock is the
-  save's and can run faster, so applying it naively would jump
-  single-player time whenever chat connects; it needs a rule for whose
-  clock wins while JOINED, applied only after `game_welcome`, and what the
-  save keeps on leaving); nameplates (DONE 2026-09-28, v0.1421.0:
+  gate); `game_time_sync` bridged (DONE 2026-09-29, v0.1424.0; operator:
+  the host clock wins): while the player is in the shared world
+  (`copresence_active`, not chat-only) the relay's clock sets the game
+  clock and its speed (one second a second), every jump is summed
+  (`time::REBASE_SLOT`) so each crop's `planted_at` moves with it and no
+  garden ripens or resets on joining, sleep is refused (nobody can skip the
+  host's night), and 20 s without a sync hands the speed back while the
+  host's date stays; nameplates (DONE 2026-09-28, v0.1421.0:
   another player's name floats over them like the crew's) and appearance
   sync; make a trade move items; a
   `SystemRunner` host in the relay.
