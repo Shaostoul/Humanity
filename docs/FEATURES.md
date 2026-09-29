@@ -1618,7 +1618,9 @@ One game clock (2026-09-27, decision-briefs.md Brief 6): an hour is 3,600 game s
 ### Weather System
 7 conditions (clear, cloudy, rain, storm, snow, fog, sandstorm). Seasonal transitions. **Registered, ticks live** (`WeatherSystem` is NOT in `tests/engine_wiring_lint.rs::DEFERRED_SYSTEMS` -- this "NOT registered" note was stale, corrected 2026-07-01 during the overnight loop's registration-status sweep).
 - **Rain or snow decided by the air (2026-09-27).** The condition says whether water falls and how hard; the air where it falls says rain or snow, by Jennings et al. 2018's rain-snow model (air temperature, humidity and pressure, a smooth band about 3 C wide centred near 1 C in wet air): a Rain roll at the winter pole snows, a Snow roll at the equator rains, a mountain climb crosses the snow line, and nothing falls where there is no air. The body heat input, clothing wetness, the HUD, the weather fog, the rain and snow particles, rain watering fields and the water bodies all read the one answer.
-- **The HUD weather line reads the air the player stands in (2026-09-27):** the condition as it falls there ("Rain and snow" inside the band), the temperature at the player, and the wind at the player (environment Layer 1's prevailing wind plus the weather's own) with the compass point it blows from. The F11 panel repeats it as "At the player".
+- **The HUD weather line reads the air the player stands in (2026-09-27):** the condition as it falls there ("Rain and snow" inside the band), the temperature at the player, and the wind at the player (environment Layer 1's prevailing wind plus the weather's own) with the compass point it blows from. The F11 panel repeats it as "At the player". Sealed indoors (the home aboard) the line
+is the home's air instead, "Indoors 20C, still air" (`hud_weather_text`, 2026-09-28): it used to show the planet's weather
+in a room at 20 C.
 - Native: `src/systems/weather.rs`, `src/systems/precipitation.rs` (phase), `src/gui/pages/hud.rs` (`weather_line`)
 - Design: `docs/design/environment-fields.md`, "Rain or snow, decided by the air"
 

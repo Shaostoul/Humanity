@@ -226,16 +226,19 @@ pub fn draw(
                     ((wall.fract()) * 60.0) as u32,
                     gt.season,
                 );
-                let day_icon = if gt.is_daytime { "☀" } else { "☾" };
                 let day_color = if gt.is_daytime { theme.warning() } else { theme.info() };
-                text_shadowed(
-                    painter,
-                    Pos2::new(screen.right() - 16.0, 32.0),
-                    Align2::RIGHT_TOP,
-                    &format!("{} {}", day_icon, time_str),
-                    11.0,
-                    day_color,
-                );
+                let clock_pos = Pos2::new(screen.right() - 16.0, 32.0);
+                if gt.is_daytime {
+                    text_shadowed(painter, clock_pos, Align2::RIGHT_TOP, &format!("☀ {time_str}"), 11.0, day_color);
+                } else {
+                    // The moon is painted, left of the text: its glyph
+                    // (U+263E) is in none of the UI fonts and drew as a box
+                    // (2026-09-28).
+                    text_shadowed(painter, clock_pos, Align2::RIGHT_TOP, &time_str, 11.0, day_color);
+                    let text_w = painter.layout_no_wrap(time_str.clone(), FontId::proportional(11.0), day_color).size().x;
+                    let icon = Rect::from_min_size(Pos2::new(clock_pos.x - text_w - 14.0, clock_pos.y + 1.0), egui::vec2(11.0, 11.0));
+                    crate::gui::widgets::icons::paint_moon(painter, icon, day_color);
+                }
             }
 
             // ── Weather indicator (below time) ──
@@ -245,7 +248,7 @@ pub fn draw(
                     painter,
                     Pos2::new(screen.right() - 16.0, 46.0),
                     Align2::RIGHT_TOP,
-                    &weather_line(w),
+                    &hud_weather_text(&state.vitals, w),
                     11.0,
                     theme.text_secondary(),
                 );
@@ -971,6 +974,19 @@ pub(crate) fn wind_from(east: f32, north: f32) -> &'static str {
 /// blows from. Pure, so it is tested without a window. No Settings choice
 /// governs it: Settings > Gameplay's HUD survival bars (`HudVitals`) choose
 /// the vitals rows, and the weather line was always shown.
+/// The line under the clock (2026-09-28): the air the player breathes. In a
+/// sealed space (the home aboard) that is the home's air, still and at its
+/// own temperature, not the planet's weather far below, which the line used
+/// to show aboard ("Clear 22C wind 4 m/s from W" in a room at 20 C); outside
+/// it is [`weather_line`].
+pub(crate) fn hud_weather_text(v: &crate::gui::GuiVitals, w: &crate::gui::GuiWeather) -> String {
+    if v.sealed {
+        format!("Indoors {:.0}C, still air", v.air_c)
+    } else {
+        weather_line(w)
+    }
+}
+
 pub(crate) fn weather_line(w: &crate::gui::GuiWeather) -> String {
     let icon = match w.condition.as_str() {
         "Clear" => "☀",
@@ -1703,6 +1719,20 @@ mod crew_label_tests {
         assert!(out.chars().count() <= CREW_ACTIVITY_MAX_CHARS);
     }
 
+    /// INDOORS THE LINE IS THE HOME'S AIR (2026-09-28). Sealed aboard, the
+    /// line says the room's own temperature and still air, whatever the
+    /// planet's weather is doing; outside, the weather line. Red check, run:
+    /// returning `weather_line(w)` in both cases fails the first assertion.
+    #[test]
+    fn indoors_the_line_is_the_home_air_not_the_weather() {
+        let w = sky("Clear", 22.0, (-4.0, 0.0), crate::systems::precipitation::Falling::NONE, "");
+        let mut v = vitals(90.0, 90.0, 90.0, 100.0, true, 36.8, 10.0);
+        v.air_c = 20.0;
+        assert_eq!(hud_weather_text(&v, &w), "Indoors 20C, still air");
+        v.sealed = false;
+        assert_eq!(hud_weather_text(&v, &w), weather_line(&w));
+    }
+
     fn vitals(food: f32, water: f32, energy: f32, air: f32, sealed: bool, temp: f32, waste: f32) -> crate::gui::GuiVitals {
         crate::gui::GuiVitals {
             satiation: food,
@@ -1717,6 +1747,7 @@ mod crew_label_tests {
             oxygen_max: 100.0,
             waste_max: 100.0,
             sealed,
+            air_c: 20.0,
             sheltered: false,
             shelter_note: String::new(),
             effects: Vec::new(),

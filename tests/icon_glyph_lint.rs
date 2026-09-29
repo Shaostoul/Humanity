@@ -46,6 +46,9 @@ const BROKEN_GLYPHS: &[(char, &str)] = &[
     // Geometric Shapes — mixed support:
     ('\u{25A4}', "▤ U+25A4 SQUARE WITH HORIZONTAL FILL — confirmed broken"),
     // Misc Symbols & Pictographs (emoji) — egui default font has no coverage:
+    // Misc Symbols block, measured one at a time: U+2600 (sun) renders, U+263E
+    // does not (the HUD clock at night, capture 2026-09-28).
+    ('\u{263E}', "☾ U+263E LAST QUARTER MOON: drew as a box in the HUD clock (use icons::paint_moon)"),
     ('\u{1F512}', "🔒 U+1F512 LOCK — emoji, tofus in egui (use the word 'encrypted' or paint_lock instead)"),
     // Arrows block: FIXED in v0.1299, entries removed. The 2026-07-06 reading
     // of this block was right about the symptom and wrong about the cause, and

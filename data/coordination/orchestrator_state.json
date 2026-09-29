@@ -351,6 +351,16 @@
       "date": "2026-09-28",
       "decision": "Built doors play the home doors' open and close sounds on the E toggle (built_uses, pending_sfx).",
       "why": "Small polish while keeping to one-release items so the operator's report prompt can land any time; built doors were silent where the home's doors are not."
+    },
+    {
+      "date": "2026-09-28",
+      "decision": "HUD weather line reads the home air when sealed (hud_weather_text; GuiVitals.air_c from EnvironmentContext.ambient_temp_c): \"Indoors 20C, still air\".",
+      "why": "Every capture aboard showed the planet weather (\"Clear 22C wind 4 m/s from W\") while the body heat model used the still 20 C room air; the line promised the air the player stands in."
+    },
+    {
+      "date": "2026-09-28",
+      "decision": "HUD clock night icon painted (icons::paint_moon); U+263E added to icon_glyph_lint BROKEN_GLYPHS with capture evidence.",
+      "why": "Seen as tofu in the v0.1412.0 check capture; the lint had no entry for it, so it had shipped unnoticed."
     }
   ],
   "active_scopes_to_avoid": [

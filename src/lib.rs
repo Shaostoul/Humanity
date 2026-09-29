@@ -12496,13 +12496,15 @@ mod native_app {
                             state.gui_state.vitals.oxygen_max = vitals.oxygen_max;
                             state.gui_state.vitals.waste = vitals.waste;
                             state.gui_state.vitals.waste_max = vitals.waste_max;
-                            state.gui_state.vitals.sealed = state
+                            let (sealed, air_c) = state
                                 .data_store
                                 .get::<crate::ecs::components::EnvironmentContext>(
                                     "environment_context",
                                 )
-                                .map(|e| e.sealed)
-                                .unwrap_or(true);
+                                .map(|e| (e.sealed, e.ambient_temp_c))
+                                .unwrap_or((true, 20.0));
+                            state.gui_state.vitals.sealed = sealed;
+                            state.gui_state.vitals.air_c = air_c;
                             state.gui_state.vitals.effects = effects
                                 .active
                                 .iter()

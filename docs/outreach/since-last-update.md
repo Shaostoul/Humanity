@@ -61,3 +61,7 @@ Each line is written the way a player would hear it; the release notes and
   says what came back by name ("6 Wood Plank") instead of an item code.
 - **v0.1411.0: doors you build make a sound.** Opening and shutting a built
   door plays the same sounds as the ship's own doors.
+- **v0.1412.0: the HUD says the air you are in.** Aboard the ship the
+  weather line now reads the room's air ("Indoors 20C, still air") instead of
+  the planet's weather far below, and the clock's night icon is a moon again
+  instead of a small box.

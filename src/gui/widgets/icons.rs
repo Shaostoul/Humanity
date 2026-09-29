@@ -6,6 +6,23 @@
 
 use egui::{Color32, Pos2, Rect, Stroke, Vec2};
 
+/// A crescent moon inside `rect` (2026-09-28): the HUD clock's night icon.
+/// The U+263E glyph it replaces is in none of the UI fonts and drew as a box.
+/// A thick arc open to the right: egui fills only convex shapes, and a
+/// crescent is not one, so it is stroked rather than filled.
+pub fn paint_moon(painter: &egui::Painter, rect: Rect, color: Color32) {
+    let c = rect.center();
+    let r = rect.width().min(rect.height()) * 0.5;
+    let n = 14;
+    let points: Vec<Pos2> = (0..=n)
+        .map(|i| {
+            let a = (70.0 + 220.0 * i as f32 / n as f32).to_radians();
+            c + Vec2::new(a.cos(), -a.sin()) * (r * 0.62)
+        })
+        .collect();
+    painter.add(egui::Shape::line(points, Stroke::new((r * 0.55).max(1.5), color)));
+}
+
 /// Draw a gear/cog icon inside `rect`.
 pub fn paint_cog(painter: &egui::Painter, rect: Rect, color: Color32) {
     let c = rect.center();

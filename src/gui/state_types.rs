@@ -779,6 +779,9 @@ pub struct GuiVitals {
     pub waste_max: f32,
     /// True if the player is in a sealed/oxygenated space (else exposed/vacuum).
     pub sealed: bool,
+    /// The air temperature where the player is, C (the survival context's
+    /// ambient): indoors the home's air, outside the weather's at the player.
+    pub air_c: f32,
     /// Outside, under a built roof with enough walls (2026-09-27,
     /// `construction::uses::shelter_at`): the wind and rain do not reach them.
     pub sheltered: bool,
