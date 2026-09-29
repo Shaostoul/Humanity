@@ -215,7 +215,12 @@ starts the body over.
   body. By day that is shade: at a clear, dry 30 C noon in a light breeze,
   after two hours standing the core is about a quarter of a degree warmer in
   the sun than under a roof and the skin about 1.5 C warmer
-  (`a_roof_is_shade_at_noon`). By night it is a shelter's radiant warmth; on
+  (`a_roof_is_shade_at_noon`). The HUD's weather line shows the result as
+  "feels" when it is 2 C or more from the air's temperature: the operative
+  temperature (`operative_c`, ASHRAE 55), the air and the surroundings
+  weighted by the body's convection and radiation coefficients, about 35 C
+  standing still in the noon sun in 20 C air and about 27 C in a 3 m/s
+  breeze (v0.1419.0). By night it is a shelter's radiant warmth; on
   the calm, clear 10 C night in the everyday outfit, after six hours the
   core is nearly the same either way (36.70 C under a roof, 36.67 C in the
   open), but the skin is about 1.9 C warmer under the roof (25.5 C against

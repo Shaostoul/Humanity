@@ -979,13 +979,26 @@ pub(crate) fn wind_from(east: f32, north: f32) -> &'static str {
 /// own temperature, not the planet's weather far below, which the line used
 /// to show aboard ("Clear 22C wind 4 m/s from W" in a room at 20 C); outside
 /// it is [`weather_line`].
+///
+/// Outside, when the sun or a clear night sky makes the air feel at least
+/// `FEELS_NOTE_C` warmer or colder than it is (2026-09-28, the body heat
+/// model's operative temperature), the line ends with what it feels like:
+/// "feels 35C" standing in the noon sun in 20 C air, so the player can see
+/// why the body warms in the open and why shade helps.
 pub(crate) fn hud_weather_text(v: &crate::gui::GuiVitals, w: &crate::gui::GuiWeather) -> String {
     if v.sealed {
         format!("Indoors {:.0}C, still air", v.air_c)
+    } else if (v.feels_c - v.air_c).abs() >= FEELS_NOTE_C {
+        format!("{}  feels {:.0}C", weather_line(w), v.feels_c)
     } else {
         weather_line(w)
     }
 }
+
+/// How far what the air feels like must be from its temperature before the
+/// weather line says so, C: smaller differences are within what a person can
+/// tell apart, and would make the line flicker.
+const FEELS_NOTE_C: f32 = 2.0;
 
 pub(crate) fn weather_line(w: &crate::gui::GuiWeather) -> String {
     let icon = match w.condition.as_str() {
@@ -1733,6 +1746,22 @@ mod crew_label_tests {
         assert_eq!(hud_weather_text(&v, &w), weather_line(&w));
     }
 
+    /// OUTSIDE, THE LINE SAYS WHAT THE AIR FEELS LIKE (2026-09-28) when the
+    /// sun or a clear night sky moves it 2 C or more from the air's
+    /// temperature. Red check, run: always returning `weather_line(w)`
+    /// outside fails the first assertion.
+    #[test]
+    fn outside_the_line_says_what_the_air_feels_like() {
+        let w = sky("Clear", 20.0, (0.0, 0.0), crate::systems::precipitation::Falling::NONE, "");
+        let mut v = vitals(90.0, 90.0, 90.0, 100.0, false, 36.8, 10.0);
+        v.feels_c = 35.0;
+        assert_eq!(hud_weather_text(&v, &w), format!("{}  feels 35C", weather_line(&w)));
+        v.feels_c = 21.0;
+        assert_eq!(hud_weather_text(&v, &w), weather_line(&w), "within 2 C, no note");
+        v.feels_c = 14.0;
+        assert!(hud_weather_text(&v, &w).ends_with("feels 14C"), "a clear night");
+    }
+
     fn vitals(food: f32, water: f32, energy: f32, air: f32, sealed: bool, temp: f32, waste: f32) -> crate::gui::GuiVitals {
         crate::gui::GuiVitals {
             satiation: food,
@@ -1748,6 +1777,7 @@ mod crew_label_tests {
             waste_max: 100.0,
             sealed,
             air_c: 20.0,
+            feels_c: 20.0,
             sheltered: false,
             shelter_note: String::new(),
             effects: Vec::new(),

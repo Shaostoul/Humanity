@@ -782,6 +782,10 @@ pub struct GuiVitals {
     /// The air temperature where the player is, C (the survival context's
     /// ambient): indoors the home's air, outside the weather's at the player.
     pub air_c: f32,
+    /// What that air feels like, C: the body heat model's operative
+    /// temperature (`body_heat::operative_c`), the air and the sun or the
+    /// cold sky together. Equal to `air_c` indoors and in the shade.
+    pub feels_c: f32,
     /// Outside, under a built roof with enough walls (2026-09-27,
     /// `construction::uses::shelter_at`): the wind and rain do not reach them.
     pub sheltered: bool,

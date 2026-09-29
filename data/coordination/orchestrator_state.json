@@ -391,6 +391,11 @@
       "date": "2026-09-28",
       "decision": "SolarSystem dims a planet-site panel by solar::cloud_light_share(Weather::cloud_share()) (Kasten and Czeplak 1980: 1 - 0.75 (N/8)^3.4) when the site's body is the frame-locked body with air; panels aboard and on unsimulated bodies keep a clear sky.",
       "why": "The cloud share added for the body heat sky was sitting unused by the panels: an overcast day on the ground made full clear-sky power."
+    },
+    {
+      "date": "2026-09-28",
+      "decision": "HUD weather line appends 'feels NC' outside when GuiVitals.feels_c (body_heat::operative_c: air and radiant temperatures weighted by h_c and a linearised h_r) differs from the air by >= 2 C.",
+      "why": "With the sun and the night sky in the body heat model, the player's body could warm or cool at an air temperature that did not explain it; the explanation belongs inline on the HUD, not in a manual."
     }
   ],
   "active_scopes_to_avoid": [

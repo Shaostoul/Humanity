@@ -12500,15 +12500,22 @@ mod native_app {
                             state.gui_state.vitals.oxygen_max = vitals.oxygen_max;
                             state.gui_state.vitals.waste = vitals.waste;
                             state.gui_state.vitals.waste_max = vitals.waste_max;
-                            let (sealed, air_c) = state
+                            // What the air feels like beside it: the body
+                            // heat model's operative temperature (the sun, the
+                            // clear night sky), 2026-09-28.
+                            let (sealed, air_c, feels_c) = state
                                 .data_store
                                 .get::<crate::ecs::components::EnvironmentContext>(
                                     "environment_context",
                                 )
-                                .map(|e| (e.sealed, e.ambient_temp_c))
-                                .unwrap_or((true, 20.0));
+                                .map(|e| {
+                                    let ex = crate::systems::body_heat::Exposure::from_context(e);
+                                    (e.sealed, e.ambient_temp_c, crate::systems::body_heat::operative_c(&ex, e.activity_met))
+                                })
+                                .unwrap_or((true, 20.0, 20.0));
                             state.gui_state.vitals.sealed = sealed;
                             state.gui_state.vitals.air_c = air_c;
+                            state.gui_state.vitals.feels_c = feels_c;
                             state.gui_state.vitals.effects = effects
                                 .active
                                 .iter()

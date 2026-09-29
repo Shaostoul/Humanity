@@ -1986,7 +1986,9 @@ and measured human trials (Helland et al. 2025; Thompson and Hayward 1996).
   air (Swinbank's clear-sky temperature, clouds bringing it back to the air's; about 0.5 C on a clear 10 C night),
   and by day the sun adds its warmth (ASHRAE 55 SolarCal: about 47 C mean radiant with a clear sun overhead in 20 C
   air). A roof overhead keeps both off: warmer to stand under on a clear night, shade on a hot day
-  (`body_heat::open_sky_radiant_c`, `sun_mrt_rise_c`, `Weather::cloud_share`).
+  (`body_heat::open_sky_radiant_c`, `sun_mrt_rise_c`, `Weather::cloud_share`). The HUD's weather line ends with
+  what the air feels like when that is 2 C or more from its temperature ("feels 35C" in the noon sun in 20 C air,
+  v0.1419.0): the model's operative temperature, `body_heat::operative_c`.
 - Native: `src/systems/body_heat.rs` (model, tests in `body_heat_tests.rs`), `src/systems/food.rs` (the vitals
   pass), `src/engine/survival_env.rs` (inputs), `src/gui/pages/settings.rs` (mode)
 - Data: `data/equipment.csv` (`clo`), `data/status_effects.csv` (the four conditions)

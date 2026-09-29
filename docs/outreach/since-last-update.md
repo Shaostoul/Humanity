@@ -85,3 +85,6 @@ Each line is written the way a player would hear it; the release notes and
   build on the ground now makes about a quarter of its power under a fully
   overcast sky, as real panels do. The ship's panels, up above the weather,
   are not affected.
+- **v0.1419.0: the weather line says what it feels like.** Outside, the
+  line under the clock now adds "feels 35C" when the sun (or a cold, clear
+  night sky) makes it feel noticeably different from the air temperature.

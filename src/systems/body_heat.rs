@@ -520,6 +520,22 @@ fn air(ex: &Exposure, clo: f64, met: f64) -> Air {
     }
 }
 
+/// The operative temperature, C (ASHRAE 55): the air's temperature and the
+/// surroundings' radiant temperature, each weighted by how much heat the body
+/// trades with it, convection with the air (`h_c`, the wind and the body's
+/// own movement at `met`) and radiation with the surroundings (`h_r`,
+/// linearised about their mean). What a person "feels" the air as: the
+/// HUD's "feels" figure. Equal to the air's temperature where the
+/// surroundings are at it (indoors, under a roof, overcast); well above it
+/// standing in the sun in still air (about 35 C in 20 C air under a clear
+/// noon sun), and below it under a clear night sky.
+pub fn operative_c(ex: &Exposure, met: f32) -> f32 {
+    let a = air(ex, 0.0, f64::from(met));
+    let (t_air, t_rad) = (f64::from(ex.air_c), f64::from(ex.radiant_c));
+    let h_r = 4.0 * EMISSIVITY * SIGMA * ((t_air + t_rad) / 2.0 + 273.15).powi(3) * RADIATING_SHARE;
+    ((h_r * t_rad + a.h_c * t_air) / (h_r + a.h_c)) as f32
+}
+
 // -- State ---------------------------------------------------------------------------
 
 /// One body's heat state. Held per person by the food system (it owns the

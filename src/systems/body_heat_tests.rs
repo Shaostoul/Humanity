@@ -324,3 +324,19 @@ fn the_open_sky_by_night_and_by_day() {
     assert!((projected_area_factor(45.0) - 0.223).abs() < 0.005);
     assert_eq!(sun_mrt_rise_c(-0.2, 0.0), 0.0, "no sun at night");
 }
+
+/// WHAT THE AIR FEELS LIKE (2026-09-28): the operative temperature. With the
+/// surroundings at the air's temperature it is the air's; standing still in
+/// a clear noon sun in 20 C air (the surroundings about 47 C) it is about
+/// 35 C, and a 3 m/s breeze carries it back toward the air (about 27 C). Red
+/// check, run: returning the air's temperature fails the second assertion.
+#[test]
+fn the_operative_temperature_is_what_the_air_feels_like() {
+    let base = calm(20.0);
+    assert!((operative_c(&base, MET_STANDING) - 20.0).abs() < 1e-4);
+    let sun = Exposure { radiant_c: 47.0, ..base };
+    let calm = operative_c(&sun, MET_STANDING);
+    assert!((calm - 35.0).abs() < 1.5, "calm, in the sun: {calm}");
+    let breezy = operative_c(&Exposure { wind_10m_m_s: 3.0 / 0.67, ..sun }, MET_STANDING);
+    assert!(breezy < calm - 4.0 && breezy > 20.0, "a breeze: {breezy}, calm {calm}");
+}
