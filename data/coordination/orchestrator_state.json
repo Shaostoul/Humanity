@@ -361,6 +361,11 @@
       "date": "2026-09-28",
       "decision": "HUD clock night icon painted (icons::paint_moon); U+263E added to icon_glyph_lint BROKEN_GLYPHS with capture evidence.",
       "why": "Seen as tofu in the v0.1412.0 check capture; the lint had no entry for it, so it had shipped unnoticed."
+    },
+    {
+      "date": "2026-09-28",
+      "decision": "SolarSystem reads each panel's own longitude: the home's aboard, a planet build site's own (solar::site_longitude_deg, atan2(-z, x) of the site origin in the body frame).",
+      "why": "BUG-090's documented leftover: a panel built in the Sahara followed noon over the home at 122.3 W."
     }
   ],
   "active_scopes_to_avoid": [

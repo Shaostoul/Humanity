@@ -1741,8 +1741,8 @@ and that the deck (LVLH) has the sun above it exactly when the home's clock
 says the sun is up; seen red by propagating without the re-phase.
 
 Still open from the survey: the weather's day warmth and the Settings hour
-slider speak the game clock, the planet build sites' panels use the home's
-longitude rather than their own, and the latitude question (the station is at
+slider speak the game clock (a panel at a planet build site uses its own
+site's longitude since 2026-09-28, `solar::site_longitude_deg`), and the latitude question (the station is at
 0 degrees, the temperature reference at 45, the data at Silverdale's 47.6)
 waits for ground farming.
 

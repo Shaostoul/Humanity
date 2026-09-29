@@ -65,3 +65,5 @@ Each line is written the way a player would hear it; the release notes and
   weather line now reads the room's air ("Indoors 20C, still air") instead of
   the planet's weather far below, and the clock's night icon is a moon again
   instead of a small box.
+- **v0.1413.0: a solar panel sees the sun where it stands.** A panel built
+  on a planet makes power by that place's noon, not by the ship's.
