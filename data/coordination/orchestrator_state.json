@@ -341,6 +341,11 @@
       "date": "2026-09-28",
       "decision": "The FFT sea spectrum wind reads the at-player wind too (weather::ocean_fft_wind_target), matching the sea state shading moved in v0.1408.0.",
       "why": "v0.1408.0 created a seam: shading on the at-player wind, wave shapes on the global wind, so a calm spot under a global storm drew storm waves with calm shading. Caught while reading the sea-state consumers, before anyone saw it."
+    },
+    {
+      "date": "2026-09-28",
+      "decision": "take_down split into apply_take_down (refund ops, despawn, the line) and tested; the line names items by the item registry instead of printing ids.",
+      "why": "The review's last untested path; reading it showed the player saw raw item ids (\"6 wood_plank_0 back\")."
     }
   ],
   "active_scopes_to_avoid": [

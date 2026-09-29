@@ -286,20 +286,46 @@ fn take_down(state: &mut EngineState) {
     match plan {
         Err(why) => set_placing_note(state, why),
         Ok((e, name, materials)) => {
-            if let Some(chan) =
-                state.data_store.get::<std::sync::Mutex<Vec<crate::systems::inventory::TransferOp>>>("inventory_transfer_ops")
-            {
-                if let Ok(mut c) = chan.lock() {
-                    for (id, qty) in &materials {
-                        c.push(crate::systems::inventory::TransferOp { item_id: id.clone(), qty: *qty, add: true, wear: 0, quality: 0 });
-                    }
-                }
-            }
-            let _ = state.game_world.world.despawn(e);
-            let got: Vec<String> = materials.iter().map(|(id, q)| format!("{q} {id}")).collect();
-            let msg = if got.is_empty() { format!("Took down the {name}") } else { format!("Took down the {name}: {} back", got.join(", ")) };
+            let msg = apply_take_down(&mut state.game_world.world, &state.data_store, e, &name, &materials);
             state.gui_state.pending_notices.push(msg);
         }
+    }
+}
+
+/// What a take-down does, once `take_down_plan` has chosen the piece: its
+/// materials go back through the "Take to backpack" channel (so what does
+/// not fit returns to storage, and the player is told), the piece is gone,
+/// and the returned line names what came back by the items' names. Split out
+/// of `take_down` so it is tested without a window (the review of
+/// 2026-09-28 found it untested; the line also printed item ids).
+pub(crate) fn apply_take_down(
+    world: &mut hecs::World,
+    data: &crate::hot_reload::data_store::DataStore,
+    e: hecs::Entity,
+    name: &str,
+    materials: &[(String, u32)],
+) -> String {
+    use crate::systems::inventory::{ItemRegistry, TransferOp};
+    if let Some(chan) = data.get::<std::sync::Mutex<Vec<TransferOp>>>("inventory_transfer_ops") {
+        if let Ok(mut c) = chan.lock() {
+            for (id, qty) in materials {
+                c.push(TransferOp { item_id: id.clone(), qty: *qty, add: true, wear: 0, quality: 0 });
+            }
+        }
+    }
+    let _ = world.despawn(e);
+    let items = data.get::<ItemRegistry>("item_registry");
+    let got: Vec<String> = materials
+        .iter()
+        .map(|(id, q)| {
+            let item = items.and_then(|r| r.items.get(id).map(|d| d.name.clone())).unwrap_or_else(|| id.clone());
+            format!("{q} {item}")
+        })
+        .collect();
+    if got.is_empty() {
+        format!("Took down the {name}")
+    } else {
+        format!("Took down the {name}: {} back", got.join(", "))
     }
 }
 
@@ -552,6 +578,26 @@ mod take_down_tests {
         let bp = reg.get(id).unwrap();
         let tf = placement::placement_pose(bp, Vec3::new(x, 0.0, z), turns, world, reg, None);
         world.spawn((tf, Structure { blueprint_id: id.into(), health: bp.health, max_health: bp.health, provides: bp.provides.clone(), uid }))
+    }
+
+    /// THE TAKE-DOWN ITSELF (2026-09-28): the piece is gone, every material
+    /// is queued back to the pack as an add, and the line says what came
+    /// back. Red check, run: leaving out the despawn fails the first
+    /// assertion.
+    #[test]
+    fn a_take_down_removes_the_piece_and_queues_its_materials() {
+        use crate::systems::inventory::TransferOp;
+        let reg = BlueprintRegistry::from_ron(include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/data/blueprints/basic.ron"))).unwrap();
+        let mut world = hecs::World::new();
+        let wall = place(&mut world, &reg, "wood_wall", 0.0, 0.0, 1, 1);
+        let mut data = crate::hot_reload::data_store::DataStore::new();
+        data.insert("inventory_transfer_ops", std::sync::Mutex::new(Vec::<TransferOp>::new()));
+        let materials = vec![("wood_plank_0".to_string(), 6)];
+        let line = apply_take_down(&mut world, &data, wall, "Wood Wall", &materials);
+        assert!(!world.contains(wall), "the wall is gone");
+        let ops = data.get::<std::sync::Mutex<Vec<TransferOp>>>("inventory_transfer_ops").unwrap().lock().unwrap().clone();
+        assert_eq!(ops, vec![TransferOp { item_id: "wood_plank_0".into(), qty: 6, add: true, wear: 0, quality: 0 }]);
+        assert_eq!(line, "Took down the Wood Wall: 6 wood_plank_0 back", "no item registry here: the id stands in for the name");
     }
 
     /// TAKE DOWN (2026-09-28). Looking at a wall within reach names it and

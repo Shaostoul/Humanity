@@ -57,3 +57,5 @@ Each line is written the way a player would hear it; the release notes and
   your spot, the same wind your body feels.
 - **v0.1409.0: the waves' shape follows too.** The wave shapes now follow the
   same local wind as the sea's colour and shine, so the two always agree.
+- **v0.1410.0: the take-down message reads right.** Taking a piece down now
+  says what came back by name ("6 Wood Plank") instead of an item code.
