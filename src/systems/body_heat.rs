@@ -364,6 +364,56 @@ impl Exposure {
 /// because inside the rain-snow band part of what falls is rain.
 pub const SNOW_WETTING_SHARE: f32 = 1.0 / 3.0;
 
+/// Swinbank's clear-sky constant (Swinbank 1963, Q. J. R. Meteorol. Soc. 89,
+/// 339-348): a clear sky radiates like a black body at `0.0552 * T_air^1.5`
+/// kelvin, about 20 K below the air on a mild night.
+pub const SWINBANK_CLEAR_SKY: f64 = 0.0552;
+
+/// Share of a standing person's view that is sky, in the open: about half,
+/// the other half the ground (the six-direction weighting of ISO 7726 puts
+/// the up and down directions on a standing body at a similar share of the
+/// sides; half is the plain round figure).
+pub const OPEN_SKY_VIEW: f64 = 0.5;
+
+/// Sine of the sun's height above which its warmth is taken to cancel the
+/// sky's cold (10 degrees): see `night_sky_weight`.
+const SKY_COLD_FADE_SIN: f32 = 0.173_648;
+
+/// The mean radiant temperature, C, a standing person in the open feels
+/// under a sky at `air_c`, with `cloud` (0 clear to 1 overcast) of it under
+/// cloud and `night` (`night_sky_weight`) of the night sky's cold let in.
+///
+/// Half the view is ground, taken at the air's temperature; half is sky, at
+/// Swinbank's clear-sky temperature where it is clear and at the air's where
+/// cloud covers it (a cloud base radiates at close to the air's temperature),
+/// mixed as fourth powers because radiation goes as T^4. On a clear 10 C
+/// night that is about 0.5 C, nearly 10 degrees below the air: the reason
+/// a clear night in the open feels so much colder than the thermometer, and
+/// the reason a roof overhead (which radiates at about the air's
+/// temperature) is warmer to sit under. Weighted by `night`, so by day this
+/// is the air's temperature, as it was before (the sun's warmth, which
+/// outweighs the sky's cold by day, is not modelled yet).
+pub fn open_sky_radiant_c(air_c: f32, cloud: f32, night: f32) -> f32 {
+    let t_air = f64::from(air_c) + 273.15;
+    let t_clear = SWINBANK_CLEAR_SKY * t_air.powf(1.5);
+    let c = f64::from(cloud.clamp(0.0, 1.0));
+    let sky4 = (1.0 - c) * t_clear.powi(4) + c * t_air.powi(4);
+    let open4 = OPEN_SKY_VIEW * sky4 + (1.0 - OPEN_SKY_VIEW) * t_air.powi(4);
+    let w = f64::from(night.clamp(0.0, 1.0));
+    ((w * open4 + (1.0 - w) * t_air.powi(4)).powf(0.25) - 273.15) as f32
+}
+
+/// How much of the night sky's cold reaches a person in the open at
+/// `hour` (a 24-hour dial of the local solar time: the gameplay sun rises at
+/// 6 and sets at 18, `solar::sun_factor`): all of it while the sun is
+/// down, fading out as the sun climbs to 10 degrees, where its warmth
+/// (not modelled yet) takes over. A low sun gives little heat, so the sky's
+/// cold still counts in the first and last hour of the day.
+pub fn night_sky_weight(hour: f32) -> f32 {
+    let sun_sin = (((hour - 6.0) / 12.0) * std::f32::consts::PI).sin();
+    (1.0 - sun_sin / SKY_COLD_FADE_SIN).clamp(0.0, 1.0)
+}
+
 /// How hard rain or snow lands on an unsheltered person, 0 to 1, from what the
 /// weather says falls there (`systems::precipitation`: the condition decides
 /// how hard, the air where it falls decides rain or snow). Rain at full

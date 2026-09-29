@@ -99,6 +99,24 @@ pub struct Weather {
 }
 
 impl Weather {
+    /// Share of the sky under cloud, 0 (clear) to 1 (overcast), from the
+    /// weather system's condition: a clear sky none, a cloudy one half to all
+    /// of it by the weather's intensity, and rain, a storm, snow, fog or a
+    /// sandstorm all of it. What the body heat model's night sky reads
+    /// (`body_heat::open_sky_radiant_c`): cloud radiates at close to the air's
+    /// temperature, a clear sky far below it.
+    pub fn cloud_share(&self) -> f32 {
+        match self.condition {
+            WeatherCondition::Clear => 0.0,
+            WeatherCondition::Cloudy => (0.5 + 0.5 * self.intensity).clamp(0.5, 1.0),
+            WeatherCondition::Rain
+            | WeatherCondition::Storm
+            | WeatherCondition::Snow
+            | WeatherCondition::Fog
+            | WeatherCondition::Sandstorm => 1.0,
+        }
+    }
+
     /// Wind speed at the player, m/s (the magnitude of the east and north
     /// components). What the body heat model is exposed to.
     pub fn wind_speed_at_player(&self) -> f32 {

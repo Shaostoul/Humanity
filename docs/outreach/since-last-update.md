@@ -74,3 +74,7 @@ Each line is written the way a player would hear it; the release notes and
   The server can now read and write the same save files the desktop game
   does. Nothing changes on screen yet; it is the groundwork multiplayer
   homes need.
+- **v0.1416.0: a clear night feels cold, and a roof helps.** Out in
+  the open on a clear night your body loses heat to the cold sky, the way it
+  really does, so a clear 10C night feels close to freezing. Standing under a
+  roof you have built keeps that off, even with no walls.

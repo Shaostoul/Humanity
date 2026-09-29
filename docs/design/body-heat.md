@@ -182,17 +182,38 @@ starts the body over.
   (`a_built_shelter_keeps_a_wet_windy_5c_day_off_the_body`). What it does not
   know yet: which way the wind blows (the weather has a direction, so an open
   side facing into the wind could count against it, and a wall on the lee
-  side matters less than one on the windward side), a shelter's own radiant
-  warmth (walls around a person are warmer than a clear night sky: the
-  `radiant_temp_c` input below), and rain driven sideways under the eaves.
-- `radiant_temp_c`: the surroundings' radiant temperature. None means the air
-  temperature, which is all that is known today.
+  side matters less than one on the windward side), and rain driven sideways
+  under the eaves. (The wind's side is in since 2026-09-28,
+  `ShelterCheck::wind_share`, and so is a roof's radiant warmth, below.)
+- `radiant_temp_c`: the surroundings' radiant temperature. None means the
+  air's. Since 2026-09-28 (v0.1416.0), in open air that can be
+  breathed and with no roof overhead, it is the clear night sky's
+  (`body_heat::open_sky_radiant_c`): half the view is ground at the air's
+  temperature and half is sky, at Swinbank's clear-sky temperature
+  (`0.0552 * T_air^1.5` K, Swinbank 1963) where it is clear and at the air's
+  where cloud covers it (`Weather::cloud_share`), mixed as fourth powers.
+  On a clear 10 C night that is about 0.5 C. It is weighted by
+  `night_sky_weight` of the local solar hour: all of it while the sun is
+  down, fading out as the sun climbs to 10 degrees, because by day the sun's
+  warmth (not modelled) outweighs the sky's cold, and "the air's" is the
+  better stand-in for both. Under a roof, walls or not, the surroundings are
+  the air's: the roof radiates at about the air's temperature and hides the
+  zenith, the sky's coldest part. That is a shelter's radiant warmth; on
+  the calm, clear 10 C night in the everyday outfit, after six hours the
+  core is nearly the same either way (36.70 C under a roof, 36.67 C in the
+  open), but the skin is about 1.9 C warmer under the roof (25.5 C against
+  23.6 C) and the body shivers about 40 percent less
+  (`a_roof_keeps_the_night_sky_off_the_body`).
 
 ## Not modelled yet
 
-- The sun's and a fire's radiant heat, and the cold night sky (the
-  `radiant_temp_c` input is there for them; the `campfire_warmth` effect is the
-  obvious first user).
+- The sun's and a fire's radiant heat (the `radiant_temp_c` input is there
+  for them, and the cold night sky already uses it; the `campfire_warmth`
+  effect is the obvious first user). The sun would be ASHRAE 55's SolarCal
+  (Appendix C): the direct and diffuse light a standing body intercepts,
+  turned into a rise of the mean radiant temperature, with a roof as shade.
+  Humidity's effect on the night sky (Brunt's and Idso's formulas use the
+  vapour pressure; Swinbank's does not) is not in either.
 - Sweat soaking clothes (only rain wets them), and sweat costing water: a
   litre an hour of hard work in heat should come out of hydration.
 - Shivering and activity costing food energy.

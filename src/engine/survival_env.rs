@@ -34,12 +34,18 @@ pub(crate) struct ExposedAir {
     /// axes (+X east, -Z north, `site::tangent_basis`), zero in calm air:
     /// what `uses::ShelterCheck::wind_share` asks.
     pub upwind: Vec3,
+    /// Share of the sky under cloud, 0 to 1 (`Weather::cloud_share`).
+    pub cloud: f32,
+    /// How much of the night sky's cold reaches the body, 0 by day to 1 at
+    /// night (`body_heat::night_sky_weight` of the hour where the player
+    /// is); set by `publish`, 0 until it is.
+    pub night: f32,
 }
 
 impl ExposedAir {
     /// No weather published yet: assume the worst (-40 C, no air).
     const UNKNOWN: ExposedAir =
-        ExposedAir { temp_c: -40.0, relative_humidity: 0.0, wind_m_s: 0.0, precipitation: 0.0, pressure_kpa: 0.0, upwind: Vec3::ZERO };
+        ExposedAir { temp_c: -40.0, relative_humidity: 0.0, wind_m_s: 0.0, precipitation: 0.0, pressure_kpa: 0.0, upwind: Vec3::ZERO, cloud: 1.0, night: 0.0 };
 
     /// The PLAYER-LOCAL fields of the weather, never the body-global
     /// `temperature` (review split): exposure is about where THIS body stands
@@ -56,6 +62,8 @@ impl ExposedAir {
             precipitation: body_heat::precipitation(w.falling_at_player()),
             pressure_kpa: w.pressure_kpa_at_player,
             upwind: upwind_from(w.wind_east_at_player, w.wind_north_at_player),
+            cloud: w.cloud_share(),
+            night: 0.0,
         }
     }
 }
@@ -96,7 +104,16 @@ pub(crate) fn outside_context(
         wind_m_s: air.wind_m_s * shelter.wind_share(air.upwind),
         precipitation: if shelter.roofed { 0.0 } else { air.precipitation },
         sheltered: shelter.out_of_the_wind(air.upwind),
-        radiant_temp_c: None,
+        // The cold night sky, where there is open air to see it through
+        // (2026-09-28): a roof overhead radiates at about the air's
+        // temperature and hides the sky's coldest part, the zenith, so under
+        // one the surroundings are the air's. That is a shelter's radiant
+        // warmth; walls alone leave the sky overhead.
+        radiant_temp_c: if breathable && !shelter.roofed {
+            Some(body_heat::open_sky_radiant_c(air.temp_c, air.cloud, air.night))
+        } else {
+            None
+        },
         pressure_kpa: air.pressure_kpa,
         activity_met,
         // The drive does not care which side of the hull you are on: a burn
@@ -208,6 +225,22 @@ pub(crate) fn publish(state: &mut EngineState) {
                         air.upwind = Vec3::ZERO;
                     }
                 }
+                // The night sky's share, from the hour where the player is:
+                // the clock the weather's day warmth reads
+                // (`weather::local_solar_hour`).
+                air.night = state
+                    .data_store
+                    .get::<std::sync::Mutex<crate::systems::time::GameTime>>("game_time")
+                    .and_then(|m| m.lock().ok().map(|gt| gt.clone()))
+                    .map_or(0.0, |gt| {
+                        let env = state
+                            .data_store
+                            .get::<crate::systems::body_environment::BodyEnvironment>("body_environment")
+                            .cloned()
+                            .unwrap_or_default();
+                        let home_lon = crate::systems::time::home_longitude_deg(&state.data_store);
+                        body_heat::night_sky_weight(crate::systems::weather::local_solar_hour(&gt, &env, home_lon))
+                    });
                 sheltered_air = air;
                 outside_context(air, outside_breathable, shelter, activity, felt_g_now)
             }
@@ -436,6 +469,8 @@ mod tests {
             pressure_kpa: SEA_LEVEL_KPA,
             // From the north: the shelter's walls stand north, west and east.
             upwind: Vec3::NEG_Z,
+            cloud: 1.0,
+            night: 0.0,
         };
         let six_hours = |check: uses::ShelterCheck| {
             let ex = Exposure::from_context(&outside_context(weather, true, check, MET_STANDING, 1.0));
@@ -470,6 +505,56 @@ mod tests {
     /// comes from the west (-X); blowing north, from the south (+Z, since -Z is
     /// north there). Red check, run: flipping the sign of east in upwind_from
     /// fails the first assertion.
+    /// A ROOF KEEPS THE NIGHT SKY OFF (2026-09-28). A clear, calm, dry 10 C
+    /// night, standing in the everyday outfit: in the open the body radiates
+    /// to a sky about 10 degrees colder than the air; under a roof (no walls
+    /// needed: there is no wind) the surroundings are the air's. The core
+    /// barely moves either way (36.70 C under the roof, 36.67 C in the open:
+    /// the body defends it), so the difference shows where it is paid for:
+    /// the skin ends about 1.9 C warmer under the roof (25.5 C against
+    /// 23.6 C) and the body shivers about 40 percent less (16 W/m2 against
+    /// 26). Red check, run: leaving
+    /// `radiant_temp_c` at None (the air everywhere, as before) fails the
+    /// first assertion.
+    #[test]
+    fn a_roof_keeps_the_night_sky_off_the_body() {
+        use crate::systems::body_heat::{BodyHeat, Exposure, BASE_OUTFIT_CLO, MET_STANDING};
+        let night = ExposedAir {
+            temp_c: 10.0,
+            relative_humidity: 0.7,
+            wind_m_s: 0.0,
+            precipitation: 0.0,
+            pressure_kpa: SEA_LEVEL_KPA,
+            upwind: Vec3::ZERO,
+            cloud: 0.0,
+            night: 1.0,
+        };
+        let six_hours = |check: uses::ShelterCheck| {
+            let ex = Exposure::from_context(&outside_context(night, true, check, MET_STANDING, 1.0));
+            let mut body = BodyHeat::new(37.0);
+            for _ in 0..360 {
+                body.step(&ex, BASE_OUTFIT_CLO, MET_STANDING, 60.0);
+            }
+            (ex, body)
+        };
+        let (ex_open, open) = six_hours(uses::ShelterCheck::default());
+        let (ex_roof, roofed) = six_hours(uses::ShelterCheck { roofed: true, walls: 0 });
+        assert!(ex_open.radiant_c < 1.0, "the open sees the clear sky: {} C", ex_open.radiant_c);
+        assert_eq!(ex_roof.radiant_c, 10.0, "under the roof, the air's");
+        assert!(
+            roofed.skin_c > open.skin_c + 1.5 && roofed.shiver_w_m2 < 0.75 * open.shiver_w_m2,
+            "after 6 h, roofed skin {:.2} C shiver {:.1} W/m2, open skin {:.2} C shiver {:.1}",
+            roofed.skin_c,
+            roofed.shiver_w_m2,
+            open.skin_c,
+            open.shiver_w_m2
+        );
+        assert!(roofed.core_c >= open.core_c, "and the core no colder");
+        // Airless or unbreathable (outside the hull, the Moon): no sky term.
+        let ex_space = Exposure::from_context(&outside_context(night, false, uses::ShelterCheck::default(), MET_STANDING, 1.0));
+        assert_eq!(ex_space.radiant_c, 10.0);
+    }
+
     #[test]
     fn upwind_is_where_the_wind_comes_from_in_a_sites_axes() {
         assert_eq!(upwind_from(3.0, 0.0), Vec3::NEG_X);

@@ -376,6 +376,11 @@
       "date": "2026-09-28",
       "decision": "Tier D rung 1 done: persistence and storage compile into the relay. PlacedItem moved to systems::inventory::placed, MachineLevels to systems::machine_levels (paths updated outright, no re-exports); save_load stays native.",
       "why": "The playable assessment's first multiplayer step: a server that holds a shared home needs the save shape the desktop writes. It had grown from one blocker (PlacedItem) to three since 2026-09-19."
+    },
+    {
+      "date": "2026-09-28",
+      "decision": "Outdoor mean radiant temperature at night: body_heat::open_sky_radiant_c (half sky at Swinbank 0.0552*T^1.5 mixed with cloud at the air's, half ground at the air's, as T^4), weighted by night_sky_weight of the local solar hour; a roof (walls or not) sets it back to the air's. Only in breathable open air.",
+      "why": "Tier A shelter leftover 'the walls' radiant warmth': with the surroundings always at the air's temperature a roof could give no radiant benefit. Night-only because the sun's warmth (SolarCal) is not modelled and by day 'the air's' is the better stand-in for sun plus sky."
     }
   ],
   "active_scopes_to_avoid": [
