@@ -1113,7 +1113,11 @@ const BODY_TEMP_DANGER: (f32, f32) =
 /// the choice is tested without a painter. Fill needs (food, water, energy)
 /// are low when they fall; waste is the other way round, a need when it
 /// fills. Air and body temperature show whenever they are out of range in
-/// both non-Off modes, because those kill fastest.
+/// both non-Off modes, because those kill fastest; Air also shows, even
+/// full, while the air around the player cannot be breathed (vacuum, an
+/// unbreathable world), because then it only goes down. Standing in
+/// breathable open air (Earth's ground) is not a warning (2026-09-28: it
+/// used to show a yellow Air bar there, keyed on being outside).
 pub(crate) fn vital_rows(v: &crate::gui::GuiVitals, mode: crate::config::HudVitals) -> Vec<VitalRow> {
     use crate::config::HudVitals;
     let mut rows = Vec::new();
@@ -1134,8 +1138,8 @@ pub(crate) fn vital_rows(v: &crate::gui::GuiVitals, mode: crate::config::HudVita
         }
     }
     let air = if v.oxygen_max > 0.0 { (v.oxygen / v.oxygen_max).clamp(0.0, 1.0) } else { 1.0 };
-    if always || !v.sealed || air < 0.999 {
-        rows.push(VitalRow { label: "Air", frac: Some(air), text: String::new(), severity: if v.sealed { sev(air) } else { sev(air).max(1) } });
+    if always || !v.breathing || air < 0.999 {
+        rows.push(VitalRow { label: "Air", frac: Some(air), text: String::new(), severity: if v.breathing { sev(air) } else { sev(air).max(1) } });
     }
     let t = v.body_temp_c;
     let t_out = t < BODY_TEMP_OK.0 || t > BODY_TEMP_OK.1;
@@ -1776,6 +1780,7 @@ mod crew_label_tests {
             oxygen_max: 100.0,
             waste_max: 100.0,
             sealed,
+            breathing: sealed,
             air_c: 20.0,
             feels_c: 20.0,
             sheltered: false,
@@ -1814,6 +1819,16 @@ mod crew_label_tests {
         assert_eq!(rows[1].severity, 2, "34.5 C is hypothermia");
         assert_eq!(rows[1].text, "34.5 °C");
         assert!(vital_rows(&exposed, HudVitals::Off).is_empty(), "Off is the simple mode: health only");
+
+        // Outside in air that can be breathed (Earth's ground, 2026-09-28):
+        // full air is not a warning. Red check, run: keying the Air row on
+        // `sealed` again shows a yellow Air bar here and fails this.
+        let mut on_earth = vitals(90.0, 90.0, 90.0, 100.0, false, 36.8, 10.0);
+        on_earth.breathing = true;
+        assert!(vital_rows(&on_earth, HudVitals::WhenLow).is_empty(), "breathable open air, full air: no bars");
+        on_earth.oxygen = 40.0;
+        let rows = vital_rows(&on_earth, HudVitals::WhenLow);
+        assert_eq!((labels(&rows), rows[0].severity), (vec!["Air"], 1), "short of breath still shows: 40% air is attention");
 
         let unsynced = crate::gui::GuiVitals::default();
         assert!(vital_rows(&unsynced, HudVitals::Always).is_empty(), "no vitals yet, no rows");

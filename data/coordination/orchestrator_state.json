@@ -396,6 +396,11 @@
       "date": "2026-09-28",
       "decision": "HUD weather line appends 'feels NC' outside when GuiVitals.feels_c (body_heat::operative_c: air and radiant temperatures weighted by h_c and a linearised h_r) differs from the air by >= 2 C.",
       "why": "With the sun and the night sky in the body heat model, the player's body could warm or cool at an air temperature that did not explain it; the explanation belongs inline on the HUD, not in a manual."
+    },
+    {
+      "date": "2026-09-28",
+      "decision": "Rig showcase key walk:'1' turns fly mode off after a stand; new vantage planet-open-noon-walk. HUD Air row keys on GuiVitals.breathing (env.oxygenated), not on sealed (BUG-105).",
+      "why": "Every rig park sets fly mode, which suspends survival, so no capture could show the outdoor HUD lines; the first walking capture proved the feels note and exposed the Air bar warning on breathable Earth air."
     }
   ],
   "active_scopes_to_avoid": [

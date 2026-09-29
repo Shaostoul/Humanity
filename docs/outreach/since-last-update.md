@@ -88,3 +88,7 @@ Each line is written the way a player would hear it; the release notes and
 - **v0.1419.0: the weather line says what it feels like.** Outside, the
   line under the clock now adds "feels 35C" when the sun (or a cold, clear
   night sky) makes it feel noticeably different from the air temperature.
+- **v0.1420.0: no false alarm about your air on Earth.** Standing
+  outside on Earth used to show a yellow "Air" bar as if you were running
+  out; it now shows only when the air around you cannot be breathed, or when
+  you are actually short of breath.

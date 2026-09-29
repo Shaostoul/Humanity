@@ -779,12 +779,14 @@ pub struct GuiVitals {
     pub waste_max: f32,
     /// True if the player is in a sealed/oxygenated space (else exposed/vacuum).
     pub sealed: bool,
+    /// The air here can be breathed (the survival context's `oxygenated`); the
+    /// HUD's Air row warns when it cannot, not for being outside (BUG-105).
+    pub breathing: bool,
     /// The air temperature where the player is, C (the survival context's
     /// ambient): indoors the home's air, outside the weather's at the player.
     pub air_c: f32,
-    /// What that air feels like, C: the body heat model's operative
-    /// temperature (`body_heat::operative_c`), the air and the sun or the
-    /// cold sky together. Equal to `air_c` indoors and in the shade.
+    /// What that air feels like, C (`body_heat::operative_c`: the air with the
+    /// sun or the cold sky); `air_c` indoors and in the shade.
     pub feels_c: f32,
     /// Outside, under a built roof with enough walls (2026-09-27,
     /// `construction::uses::shelter_at`): the wind and rain do not reach them.

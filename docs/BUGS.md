@@ -2305,3 +2305,22 @@ banding vantage (aurora-over-land-dark 7.1 to 2.3 pixels, night-horizon 4.8 to
 from 53 to 10 %, 70 to 27 % and 54 to 9 % there, and the means and the aurora
 comb held. GPU test `the_dither_breaks_every_band_of_a_dark_ramp_and_keeps_the_mean`
 guards the ramp; `scripts/band-census.js` is the measure.
+
+## BUG-105: the HUD's Air bar warned on breathable open air (FIXED v0.1420.0)
+
+**Symptom:** standing on Earth's ground, the HUD showed a yellow "Air" bar at
+full, as if the air were running out. Found by the first rig capture of a
+player on foot (`planet-open-noon-walk`, 2026-09-28): every earlier capture
+was taken in fly mode, which suspends survival and shows the indoor line.
+
+**Root cause:** `hud::vital_rows` showed the Air row, in warning colour,
+whenever the player was not sealed, a rule written when "outside" always
+meant vacuum. Since open air became breathable on a world with breathable
+air (artificial-planet increment 4), "outside" and "cannot breathe" are no
+longer the same thing, and the row kept the old meaning.
+
+**Fix:** `GuiVitals.breathing` carries the survival context's `oxygenated`,
+and the row keys on it: shown even at full only while the air cannot be
+breathed; in breathable open air only when the player is short of breath.
+Test `vital_rows_show_what_needs_attention` gained the breathable-ground
+case, seen red by keying the row on `sealed` again.

@@ -1942,7 +1942,9 @@ space, in a vehicle, while flying and on water. Dev (no dev gate, like every sho
 `planet-built-shelter` vantage uses it through `post_showcase`), and `{"stand":"dx,h,dz,heading,pitch",
 "stand_at":"lat,lon"}` puts the eye at a point of that site (the `planet-built-inside` vantage stands inside
 an open hut with a chest and a furnace in front of its north wall, through probe-sweep's new
-`final_showcase`, sent after the re-park).
+`final_showcase`, sent after the re-park). `{"walk":"1"}` (v0.1420.0) then turns fly mode off, so the
+survival rules and the HUD's outdoor lines run as for a player on foot; every park leaves fly mode on, so
+before it no capture could show them (`planet-open-noon-walk`).
 Still missing: a door or window set INTO a wall (they sit on the floor); a second storey (nothing stands on a
 roof yet); collision for built pieces (you walk through walls); the one canonical layout schema (built
 pieces, the home editor's `InteriorWall`s and the ship structure pieces are three different shapes); pieces

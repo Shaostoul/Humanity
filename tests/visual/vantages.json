@@ -13320,6 +13320,21 @@
       "final_showcase": {"stand":"0,1.7,1.2,0,0","stand_at":"23.5,13.06"},
       "settle_s": 10,
       "perf_floor_fps": 20
+    },
+    {
+      "id": "planet-open-noon-walk",
+      "desc": "On foot on open Sahara sand under a clear noon sun (2026-09-28): the dev stand verb puts the eye 1.7 m over the ground, looking north and down 5 degrees, and the walk switch turns fly mode off, so the survival rules run as for a player on foot. The only vantage that shows the HUD's OUTDOOR lines: every other park leaves fly mode on, which suspends survival and shows the fly-mode line. It is the capture proof for the weather line's 'feels' note (body_heat::operative_c, v0.1419.0): the sun lifts what the air feels like well above its temperature. 2 km east of planet-built-window, with nothing built.",
+      "expect": "Open sand to the horizon under a bright sky, the sun high. Top right, under the clock, the weather line reads Clear with the air temperature and ends with 'feels' and a figure several degrees above it; it does not read 'Indoors ... still air'. The top centre does not say FLY.",
+      "regressions": [
+        "the weather line is the outdoor one, not 'Indoors ... still air': the walk switch turned fly mode off",
+        "the weather line ends with 'feels' and a figure above the air temperature (the noon sun, body_heat::sun_mrt_rise_c)",
+        "panics=0"
+      ],
+      "camera": {"body":"earth","lat":23.5,"lon":13.08,"altitude_km":0.03,"look_offset_deg":60},
+      "showcase": {"time":"12.0","sea":"0.3","weather":"clear"},
+      "final_showcase": {"stand":"0,1.7,0,0,-5","stand_at":"23.5,13.08","walk":"1"},
+      "settle_s": 10,
+      "perf_floor_fps": 20
     }
   ],
   "ladder": {

@@ -336,6 +336,19 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
         let note = crate::engine::planet_build::dev_stand(state, &spec, grab("stand_at").as_deref());
         log::info!("Showcase: stand -> {note}");
     }
+    // {"walk":"1"} (2026-09-28): fly mode OFF, gravity on, the way a player
+    // on foot is. Every camera park sets fly mode, and fly mode suspends the
+    // survival rules, so until this a capture on a planet showed the HUD's
+    // fly-mode line ("Indoors 21C, still air") and never the outdoor
+    // weather line, the shelter note or what the air feels like. Send it in
+    // a vantage's final_showcase with a stand (probe-sweep.js), so the eye is
+    // already on the ground when gravity comes back.
+    if grab("walk").as_deref() == Some("1") {
+        state.gui_state.dev_fly_mode = false;
+        state.gui_state.dev_hover = false;
+        state.controller.fly_mode = false;
+        log::info!("Showcase: walk -> fly mode off, on foot");
+    }
     // Optional "time":"9.5" sets the game clock to that hour of the
     // current day (dev/screenshot control: dawn shots without waiting
     // out the night). Routed through the TimeSystem's request channel -

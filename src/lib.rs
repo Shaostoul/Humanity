@@ -12503,17 +12503,18 @@ mod native_app {
                             // What the air feels like beside it: the body
                             // heat model's operative temperature (the sun, the
                             // clear night sky), 2026-09-28.
-                            let (sealed, air_c, feels_c) = state
+                            let (sealed, breathing, air_c, feels_c) = state
                                 .data_store
                                 .get::<crate::ecs::components::EnvironmentContext>(
                                     "environment_context",
                                 )
                                 .map(|e| {
                                     let ex = crate::systems::body_heat::Exposure::from_context(e);
-                                    (e.sealed, e.ambient_temp_c, crate::systems::body_heat::operative_c(&ex, e.activity_met))
+                                    (e.sealed, e.oxygenated, e.ambient_temp_c, crate::systems::body_heat::operative_c(&ex, e.activity_met))
                                 })
-                                .unwrap_or((true, 20.0, 20.0));
+                                .unwrap_or((true, true, 20.0, 20.0));
                             state.gui_state.vitals.sealed = sealed;
+                            state.gui_state.vitals.breathing = breathing;
                             state.gui_state.vitals.air_c = air_c;
                             state.gui_state.vitals.feels_c = feels_c;
                             state.gui_state.vitals.effects = effects
