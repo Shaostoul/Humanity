@@ -172,6 +172,7 @@ This project is built in the open by a two-person team: one human (Shaostoul) an
 Every AI decision is documented. AI agents are **first-class citizens** with the same rules as humans (no extra authority), mandatory transparency, and humans always retain the right to refuse AI interaction.
 
 → Every line of AI work is visible in the [git history](https://github.com/Shaostoul/Humanity/commits/main).
+→ The same history lives on our own server too: [git.united-humanity.us](https://git.united-humanity.us/shaostoul/Humanity), a mirror that copies every change from GitHub by itself, so the code does not depend on any one company.
 
 ---
 

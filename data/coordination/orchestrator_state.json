@@ -436,6 +436,11 @@
       "date": "2026-09-29",
       "decision": "Forgejo reinstalled (v16.0.5) as a PULL mirror of GitHub (8 h, LFS on): private install (127.0.0.1 + nginx 503 hold) until the operator made the admin account via SSH tunnel, then live with TLS by webroot. just ship no longer pushes to forge; forge remote is HTTPS fetch-only; just brief MIRROR row reads /api/v1/repos/shaostoul/Humanity mirror_updated.",
       "why": "Operator chose to keep the mirror. A pull mirror cannot silently stop taking pushes the way the push mirror did for eight weeks."
+    },
+    {
+      "date": "2026-09-29",
+      "decision": "Mirror announced: site footer, download banner, home sameAs and README link git.united-humanity.us; posts incl. a first LinkedIn introduction in docs/outreach/posts/2026-09-29-git-mirror.md.",
+      "why": "Operator asked for an official post; nothing linked the mirror yet, and the posts had to be fact-checked (releases vs tags, new guides checked, no account)."
     }
   ],
   "active_scopes_to_avoid": [
