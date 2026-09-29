@@ -167,12 +167,13 @@ deploy msg="chore: update":
 # minute of committing a renderer mid-refactor that did not compile. Stage your own
 # files (`git add <paths>`), then ship. Use `just ship-all` if you genuinely want
 # everything in the tree.
-# Pushes to BOTH `origin` (GitHub — visibility, CI, releases API) and `forge`
-# (git.united-humanity.us — sovereignty mirror). A failed forge push does not
-# block a GitHub-driven ship, but it now prints a WARNING instead of being
-# silently ignored with `-` (the mirror was gone for eight weeks before anyone
-# noticed, found 2026-09-29; `just brief` shows its age too). Same for the tag push. Tags trigger the Build Desktop App workflow
-# on GitHub which produces the platform binaries linked from download.html.
+# Pushes to `origin` (GitHub: visibility, CI, releases API). The self-hosted
+# mirror at git.united-humanity.us is a PULL mirror since 2026-09-29: it fetches
+# from GitHub every 8 hours by itself and refuses pushes, so nothing here pushes
+# to it (the old push-with-errors-ignored let it sit dead for eight weeks;
+# `just brief`'s MIRROR row shows its last sync). Tags trigger the Build Desktop
+# App workflow on GitHub, which produces the platform binaries linked from
+# download.html.
 _commit msg:
     @if git diff --cached --quiet; then just _nothing-staged; exit 1; fi
     @node scripts/lanes.js --check-staged
@@ -180,8 +181,7 @@ _commit msg:
     git diff --cached --quiet || git commit -F .git/COMMIT_HUMANITY_MSG
     @rm -f .git/COMMIT_HUMANITY_MSG
     git push origin main
-    @git push forge main || echo "WARNING: the self-hosted mirror (forge, git.united-humanity.us) did not take this push. Check that Forgejo is running (docs/admin/forgejo-setup.md); it was found gone on 2026-09-29 after eight weeks of silent failures."
-    @node -e "const fs=require('fs'),{execSync}=require('child_process');const v=fs.readFileSync('Cargo.toml','utf8').match(/^version = \"(.+)\"/m)[1];const tag='v'+v;try{execSync('git rev-parse '+tag,{stdio:'ignore'});console.log('Tag '+tag+' already exists');}catch(e){try{execSync('git tag '+tag,{stdio:'inherit'});execSync('git push origin '+tag,{stdio:'inherit'});try{execSync('git push forge '+tag,{stdio:'inherit'});console.log('Tagged and pushed '+tag+' to origin + forge');}catch(fe){console.warn('Forge tag push failed: '+fe.message);}}catch(err){console.warn('Tag failed: '+err.message);}}"
+    @node -e "const fs=require('fs'),{execSync}=require('child_process');const v=fs.readFileSync('Cargo.toml','utf8').match(/^version = \"(.+)\"/m)[1];const tag='v'+v;try{execSync('git rev-parse '+tag,{stdio:'ignore'});console.log('Tag '+tag+' already exists');}catch(e){try{execSync('git tag '+tag,{stdio:'inherit'});execSync('git push origin '+tag,{stdio:'inherit'});console.log('Tagged and pushed '+tag+' to origin (the forge mirror pulls it)');}catch(err){console.warn('Tag failed: '+err.message);}}"
 
 # Full-PQ cutover: WIPE the live relay DB to a fresh schema (backs up
 # first; everyone re-onboards from seed). Guarded — must pass `yes`:

@@ -431,6 +431,11 @@
       "date": "2026-09-29",
       "decision": "Dev PC disk guard: scripts/pc-disk-guard.js hourly via Task Scheduler 'HumanityOS Dev Disk Guard' (S4U, Hidden): idle-48h worktree target/ always, main target debug/incremental at >=75% C:, whole main target at >=85%, skip while cargo/rustc/HumanityOS runs. Logs to %LOCALAPPDATA%/HumanityOS/disk-guard.log; just brief DISK row; just disk-guard / just install-disk-guard.",
       "why": "Operator: automate it so a full C: never needs a prompt again. Build output was the whole problem (1.13 TB main target, 102 GB worktree targets)."
+    },
+    {
+      "date": "2026-09-29",
+      "decision": "Forgejo reinstalled (v16.0.5) as a PULL mirror of GitHub (8 h, LFS on): private install (127.0.0.1 + nginx 503 hold) until the operator made the admin account via SSH tunnel, then live with TLS by webroot. just ship no longer pushes to forge; forge remote is HTTPS fetch-only; just brief MIRROR row reads /api/v1/repos/shaostoul/Humanity mirror_updated.",
+      "why": "Operator chose to keep the mirror. A pull mirror cannot silently stop taking pushes the way the push mirror did for eight weeks."
     }
   ],
   "active_scopes_to_avoid": [

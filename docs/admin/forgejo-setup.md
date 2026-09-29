@@ -1,36 +1,36 @@
 # Forgejo Self-Host on the VPS
 
-> **Status 2026-09-29: NOT RUNNING.** Checked over SSH: no Forgejo binary, no
-> `forgejo` user, no `/var/lib/forgejo`, no systemd unit and no nginx site on
-> the VPS; DNS still points git.united-humanity.us at it and HTTPS gets no
-> answer. The last push the mirror took was v0.1109.2 on 2026-08-03 (the
-> server's uptime starts mid-August, so it was likely lost when the box was
-> rebuilt or changed then). `just ship` pushed to it with errors ignored, so
-> nothing said so for eight weeks; it now prints a warning, and `just brief`
-> shows the mirror's age. To bring it back, follow this document from the top
-> (the admin account and the SSH key in the web UI are the operator's), then
-> `git push forge main --tags` to catch it up.
+> **Status 2026-09-29: LIVE again, as a PULL mirror of GitHub.** Forgejo
+> v16.0.5 fetches `github.com/Shaostoul/Humanity` every 8 hours by itself
+> (all branches and tags; LFS on, for when the repo uses it), so it never
+> depends on anyone's push. `just brief`'s MIRROR row reads its last sync from
+> its own API and flags it when it is late or unreachable.
 >
-> Previously: live at [git.united-humanity.us](https://git.united-humanity.us) since v0.127.0 (2026-04-29).
+> History: live from v0.127.0 (2026-04-29) as a push mirror. It was lost
+> when the VPS was rebuilt on Debian 12 in August 2026 (last push landed
+> 2026-08-03), and `just ship` pushed to it with errors ignored, so nothing
+> said so for eight weeks. Found and reinstalled on 2026-09-29; the push was
+> taken out of `just ship` in the same change.
 > Step 1 of the [distribution-mirrors](distribution-mirrors.md) plan.
 
 This is the sovereignty layer for HumanityOS source code. GitHub stays the
 discovery layer (download links, CI builds, the public face); Forgejo is the
-copy you control. `just ship` pushes to **both** so neither one is a single
-point of failure.
+copy you control, and it keeps itself current. If GitHub ever went away, turn
+the mirror into an ordinary repository (its Settings, "Convert to regular
+repository") and push to it directly.
 
 ## What's running
 
 | Component | Where | Notes |
 |-----------|-------|-------|
-| Forgejo binary | `/usr/local/bin/forgejo` | v15.0.0, single Go binary, statically linked, ~113 MB |
+| Forgejo binary | `/usr/local/bin/forgejo` | v16.0.5 (2026-09-29, checksum verified against Codeberg's .sha256), single Go binary |
 | Config | `/etc/forgejo/app.ini` | owned `forgejo:forgejo`, mode `640` |
 | Data | `/var/lib/forgejo/data/` | SQLite DB at `forgejo.db`, repos at `forgejo-repositories/`, LFS at `lfs/` |
 | Logs | `/var/lib/forgejo/log/` | one log per service component |
 | systemd unit | `/etc/systemd/system/forgejo.service` | `User=forgejo`, hardening flags |
 | nginx vhost | `/etc/nginx/sites-available/git.united-humanity.us` | reverse proxy `127.0.0.1:3000`, `client_max_body_size 1024m` for LFS |
-| TLS | `/etc/letsencrypt/live/git.united-humanity.us/` | Let's Encrypt, auto-renews via certbot timer |
-| Git | `/usr/local/bin/git` | 2.45.2 built from source, Debian 11's bundled 2.30.2 was too old for Forgejo (needs ≥2.34.1) |
+| TLS | `/etc/letsencrypt/live/git.united-humanity.us/` | Let's Encrypt by **webroot** (`/var/www/letsencrypt`, served by the port-80 block), so it renews with nginx running; the main site's certificate uses standalone |
+| Git | `/usr/bin/git` | Debian 12's 2.39.5, new enough (Forgejo needs 2.34.1 or later; Debian 11's 2.30.2 was not, which is why the first install built 2.45.2 from source) |
 
 ## What's the public surface
 
@@ -123,6 +123,17 @@ Token** and paste as the password on first push.
 | Upgrade Forgejo | replace `/usr/local/bin/forgejo` with new release binary, restart service. Read release notes for migrations. |
 
 ## Reproducing the install (for future operators)
+
+**The safe order (2026-09-29).** Forgejo's first-run page lets whoever reaches
+it first create the admin account, so keep it private until that is done:
+`HTTP_ADDR = 127.0.0.1` in app.ini, and the nginx site answering 503 for
+everything except the certificate challenge. The operator finishes the web
+installer through an SSH tunnel (`ssh -L 3000:127.0.0.1:3000 humanity-vps`,
+then http://localhost:3000); only then does nginx switch to the proxy block.
+After it, `/install` is gone and sign-up says registration is disabled. Then
+New Migration, GitHub, `https://github.com/Shaostoul/Humanity`, "This
+repository will be a mirror" (and LFS). The older sequence below built git
+from source and pushed; neither is needed on Debian 12 with a pull mirror.
 
 The exact sequence used for the original setup, ordered:
 

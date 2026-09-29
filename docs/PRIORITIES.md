@@ -468,13 +468,10 @@ them up.
 9. **Landing screen 2 hero shot:** click Play, frame something pretty, and tell
    the session to capture (`debug/screenshot_request.json`); it swaps the cosmos
    stand-in for the real 3D shot.
-10. **The self-hosted git mirror is gone (found 2026-09-29).** Forgejo is not
-   on the VPS any more (last push landed 2026-08-03; details at the top of
-   `docs/admin/forgejo-setup.md`). Keep it (reinstall per that document; the
-   admin account is yours to create) or retire it (drop the `forge` remote and
-   the push in `just ship`, and the DNS name). Everything else on the server
-   checked healthy the same day: relay up with no warnings, backups every 30
-   minutes and pulled to this PC, disk 72%.
+10. **ANSWERED 2026-09-29: keep the self-hosted git mirror.** Reinstalled
+   the same day as a pull mirror of GitHub (Forgejo v16.0.5, syncs every 8
+   hours by itself; `docs/admin/forgejo-setup.md`). The operator made the
+   admin account through an SSH tunnel and set up the mirror.
 
 ---
 
