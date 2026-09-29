@@ -544,16 +544,6 @@ impl TimeSystem {
         &self.game_time
     }
 
-    /// Get current sun direction.
-    pub fn current_sun_direction(&self) -> Vec3 {
-        Self::sun_direction(self.game_time.solar_hour())
-    }
-
-    /// Get current sun color.
-    pub fn current_sun_color(&self) -> [f32; 3] {
-        Self::sun_color(self.game_time.solar_hour())
-    }
-
     /// Jump to an hour of the current day, on the clock a person reads
     /// (0 to `hours_per_day`).
     pub fn set_hour(&mut self, hour: f32) {
@@ -563,11 +553,10 @@ impl TimeSystem {
         self.game_time.set_elapsed(current_day_start + clamped * SECONDS_PER_HOUR);
     }
 
-    /// Check if it's currently daytime: the sun is up in the middle half of
-    /// the day (6:00 to 18:00 of a 24-hour day).
-    pub fn is_daytime(&self) -> bool {
-        (6.0..=18.0).contains(&self.game_time.solar_hour())
-    }
+    // (2026-09-29) current_sun_direction, current_sun_color and is_daytime
+    // were removed unused: they read the game clock alone, longitude 0's
+    // time, where the day and night a player sees depend on where they are
+    // (`solar_hour_at`, `weather::local_solar_hour`).
 }
 
 #[cfg(test)]
