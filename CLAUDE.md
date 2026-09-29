@@ -264,8 +264,15 @@ Other things that follow from a shared checkout:
   node scripts/bump-version.js patch          # or minor
   V=$(node -p "require('fs').readFileSync('Cargo.toml','utf8').match(/^version\s*=\s*\"(.+?)\"/m)[1]")
   git commit -F msg.txt && git push origin main
+  [ -n "$V" ] || exit 1                       # an empty V tags a release named just "v"
   git tag "v$V" && git push origin "v$V"      # the number comes from the file, not from you
   ```
+  That guard line exists because it happened (2026-09-29): a `grep -c` with no
+  matches exits 1, which stopped an `&&` chain before the bump and the `V=`
+  line, while the tag and release steps after a newline still ran. The result
+  was a tag named just `v` and a release marked Latest (now a pre-release with
+  a warning; the build it triggered was cancelled). Never put a command that
+  can legitimately "fail" (grep, diff) in the middle of a release chain.
 - **`just clean-worktrees` stays operator-only** (see the START HERE note); it is even
   more dangerous with several sessions live.
 
