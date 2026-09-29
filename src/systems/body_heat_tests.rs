@@ -340,3 +340,25 @@ fn the_operative_temperature_is_what_the_air_feels_like() {
     let breezy = operative_c(&Exposure { wind_10m_m_s: 3.0 / 0.67, ..sun }, MET_STANDING);
     assert!(breezy < calm - 4.0 && breezy > 20.0, "a breeze: {breezy}, calm {calm}");
 }
+
+/// SWEAT IS WATER (2026-09-28). Walking for an hour in dry 35 C air in a
+/// light breeze sweats about 0.2 L (measured: 0.205; walking is light work,
+/// 2 met, and hard work in the heat sweats several times that), and an hour
+/// at rest at 22 C sweats next to none. Red
+/// check, run: not adding to `sweat_litres` in `respond` fails the first
+/// assertion.
+#[test]
+fn sweat_is_water() {
+    let mut hot = BodyHeat::new(CORE_NEUTRAL_C);
+    let ex = Exposure::outdoors(35.0, 0.3, 1.5, 0.0);
+    for _ in 0..60 {
+        hot.step(&ex, BASE_OUTFIT_CLO, MET_WALKING, 60.0);
+    }
+    assert!(hot.sweat_litres > SWEAT_HOT_MIN_L && hot.sweat_litres < 2.0, "an hour walking at 35 C: {:.3} L", hot.sweat_litres);
+    let mut calm_body = BodyHeat::new(CORE_NEUTRAL_C);
+    for _ in 0..60 {
+        calm_body.step(&calm(22.0), BASE_OUTFIT_CLO, MET_STANDING, 60.0);
+    }
+    assert!(calm_body.sweat_litres < 0.05, "an hour at rest at 22 C: {:.3} L", calm_body.sweat_litres);
+}
+const SWEAT_HOT_MIN_L: f64 = 0.15;

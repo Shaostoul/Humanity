@@ -1991,6 +1991,9 @@ and measured human trials (Helland et al. 2025; Thompson and Hayward 1996).
   (`body_heat::open_sky_radiant_c`, `sun_mrt_rise_c`, `Weather::cloud_share`). The HUD's weather line ends with
   what the air feels like when that is 2 C or more from its temperature ("feels 35C" in the noon sun in 20 C air,
   v0.1419.0): the model's operative temperature, `body_heat::operative_c`.
+- **Sweat costs water** (v0.1422.0): the sweat the model evaporates comes out of hydration, about 50 mL a
+  point (an hour walking in dry 35 C air, about 0.2 L; hard work in heat several times that), scaled by the
+  Vitals drain slider (`BodyHeat::sweat_litres`, `HeatOutcome::sweat_l`, `food::HYDRATION_PER_LITRE`).
 - Native: `src/systems/body_heat.rs` (model, tests in `body_heat_tests.rs`), `src/systems/food.rs` (the vitals
   pass), `src/engine/survival_env.rs` (inputs), `src/gui/pages/settings.rs` (mode)
 - Data: `data/equipment.csv` (`clo`), `data/status_effects.csv` (the four conditions)

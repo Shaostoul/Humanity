@@ -15,3 +15,6 @@ Each line is written the way a player would hear it; the release notes and
   The website, game server and backups are all healthy. The project's own
   copy of the code at git.united-humanity.us had quietly stopped taking
   updates in early August; the tools now say so instead of staying silent.
+- **v0.1422.0: sweating costs water.** Working or walking in the heat now
+  uses up your water faster, the way it really does: an hour's walk in
+  35C dry air sweats about a fifth of a litre.

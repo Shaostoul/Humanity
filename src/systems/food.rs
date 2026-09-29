@@ -153,6 +153,12 @@ const PRODUCE_HYDRATION: f32 = 10.0;
 const BASE_HYDRATION: f32 = 3.0;
 /// Hydration restored per drink consumed (water/juice/etc. via the Drink action).
 const DRINK_HYDRATION: f32 = 30.0;
+/// Hydration points a litre of water is worth (2026-09-28), read off the
+/// clock above: it empties 100 points in two days, at the roughly 2.5 L a day
+/// a resting adult loses (urine, breath and skin: Jequier and Constant 2010,
+/// "Water as an essential nutrient", Eur. J. Clin. Nutr. 64), so a point is
+/// about 50 mL. What sweat costs on top (`body_heat::HeatOutcome::sweat_l`).
+const HYDRATION_PER_LITRE: f32 = 20.0;
 /// Health drained per second while fully starved / dehydrated (real scale,
 /// v0.1005: an empty tank kills over ~2 weeks starved / ~1 day dehydrated,
 /// so dehydration stays the far deadlier clock, matching human biology).
@@ -728,6 +734,11 @@ impl System for FoodSystem {
                 dt,
                 CONDITION_LINGER,
             );
+            // Sweat costs water (2026-09-28): out of hydration on top of the
+            // daily clock (an hour walking in dry 35 C air is about 0.2 L,
+            // 4 points; hard work in the heat is several times that). The
+            // Vitals drain slider scales it like the other needs.
+            vitals.hydration = (vitals.hydration - heat.sweat_l * HYDRATION_PER_LITRE * drain_scale).max(0.0);
             if heat.harm > 0.0 {
                 health_drain += heat.harm;
                 if heat.harm > worst.1 {
@@ -991,9 +1002,13 @@ mod nutrition_tests {
     /// The body's daily needs follow the one game clock (2026-09-27): at time
     /// speed 72, ten real seconds cost 72 times the hunger, thirst, tiredness
     /// and waste they cost at 1; the moment-to-moment body does not scale
-    /// (breath comes back at the same real rate). Red check, run: the decay
-    /// on raw `dt` instead of `game_dt` makes the 72x drops equal the 1x
-    /// ones and the ratio assertions fail.
+    /// (breath comes back at the same real rate). Thirst is both since
+    /// 2026-09-29: the daily clock, which scales, plus sweat, which the body
+    /// heat model makes in real seconds like breath, so only the clock's share
+    /// of it is 72 times larger (the body here starts at 37 C, a little over
+    /// neutral, and sweats a little). Red check, run: the decay on raw `dt`
+    /// instead of `game_dt` makes the 72x drops equal the 1x ones and the
+    /// ratio assertions fail.
     #[test]
     fn the_time_speed_runs_the_bodys_daily_needs_and_not_its_breath() {
         let drops = |speed: f32| -> [f32; 5] {
@@ -1013,10 +1028,15 @@ mod nutrition_tests {
         };
         let slow = drops(1.0);
         let fast = drops(72.0);
-        for (i, name) in ["hunger", "thirst", "tiredness", "waste"].iter().enumerate() {
+        for (i, name) in [(0, "hunger"), (2, "tiredness"), (3, "waste")] {
             assert!(slow[i] > 0.0, "{name} moves at 1x");
             assert!((fast[i] / slow[i] / 72.0 - 1.0).abs() < 0.01, "{name}: {} vs {}", fast[i], slow[i]);
         }
+        // Thirst: the same real-second sweat at both speeds, so the difference
+        // is the daily clock's share, 71 times its 1x amount over 2 s.
+        let clock_extra = 71.0 * HYDRATION_DECAY_PER_SEC * 2.0;
+        assert!(slow[1] > 0.0, "thirst moves at 1x");
+        assert!(((fast[1] - slow[1]) / clock_extra - 1.0).abs() < 0.01, "thirst: {} vs {}", fast[1], slow[1]);
         assert_eq!(fast[4], slow[4], "breath recovers in real seconds at any time speed");
     }
 
@@ -1069,6 +1089,45 @@ mod nutrition_tests {
         // expires them inside itself; look after a frame-sized one.
         sys.tick(&mut world, 1.0, &data);
         assert!(world.get::<&StatusEffects>(bare).unwrap().has("shivering"), "the cold body shivers");
+    }
+
+    /// SWEAT COSTS WATER (2026-09-28). An hour walking in dry 35 C air
+    /// against the same hour at 20 C: the heat's sweat comes out of hydration
+    /// on top of the daily clock, which both pay alike. Red check, run: not
+    /// taking `sweat_l` out of hydration makes the two drops equal and fails
+    /// the first assertion.
+    #[test]
+    fn sweat_costs_water() {
+        use crate::ecs::components::EnvironmentContext;
+        let hour_walking_at = |air_c: f32| {
+            let mut sys = FoodSystem::new(data_dir());
+            let mut data = make_store();
+            data.insert(
+                "environment_context",
+                EnvironmentContext {
+                    sealed: false,
+                    oxygenated: true,
+                    ambient_temp_c: air_c,
+                    relative_humidity: 0.3,
+                    wind_m_s: 1.0,
+                    activity_met: crate::systems::body_heat::MET_WALKING,
+                    ..Default::default()
+                },
+            );
+            let mut world = hecs::World::new();
+            let e = world.spawn((Inventory::new(4), vitals(80.0, 80.0), StatusEffects::default(), Health::default()));
+            for _ in 0..60 {
+                sys.tick(&mut world, 60.0, &data);
+            }
+            let left = world.get::<&Vitals>(e).unwrap().hydration;
+            80.0 - left
+        };
+        let (hot, mild) = (hour_walking_at(35.0), hour_walking_at(20.0));
+        // Measured 2026-09-28: 6.63 points at 35 C against 3.20 at 20 C (the
+        // daily clock alone is 2.08 an hour): about 0.17 L more sweat.
+        const SWEAT_MARGIN_POINTS: f32 = 3.0;
+        assert!(hot > mild + SWEAT_MARGIN_POINTS, "an hour walking: {hot:.2} points at 35 C, {mild:.2} at 20 C");
+        assert!(mild - HYDRATION_DECAY_PER_SEC * 3600.0 < 1.5, "walking at 20 C sweats only a little: {mild:.2}");
     }
 
     /// v0.745 EFFECT TICK (loop-map rung 1): damage/healing-over-time rows in

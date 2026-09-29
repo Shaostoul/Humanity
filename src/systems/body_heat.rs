@@ -562,6 +562,10 @@ pub struct BodyHeat {
     pub shiver_w_m2: f64,
     /// Clothing wetness, 0 (dry) to 1 (soaked).
     pub clothing_wetness: f64,
+    /// Sweat evaporated since this body was made, litres (2026-09-28): the
+    /// water the heat the sweat carried away cost (its latent heat, 2.43 MJ
+    /// a kilogram). The food system takes it out of hydration.
+    pub sweat_litres: f64,
     /// Shivering done, in hours at the full peak (with the endurance exponent).
     shiver_load: f64,
     /// What is left of the shivering drive, 0 to 1.
@@ -579,6 +583,7 @@ impl BodyHeat {
             skin_evaporation: 0.0,
             shiver_w_m2: 0.0,
             clothing_wetness: 0.0,
+            sweat_litres: 0.0,
             shiver_load: 0.0,
             shiver_capacity: 1.0,
         }
@@ -695,6 +700,9 @@ impl BodyHeat {
             }
         }
         self.skin_evaporation = sweat_heat + diffusion;
+        // The water that sweat was (diffusion through dry skin is the
+        // everyday insensible loss the hydration clock already counts).
+        self.sweat_litres += sweat_heat * BODY_AREA_M2 / LATENT_HEAT_J_KG * dt;
 
         // Shivering: Gagge's drive, capped at what a person sustains, fading
         // out as the core passes 32 to 30 C, and scaled by what fatigue has left.
@@ -741,6 +749,8 @@ impl Tracked {
 pub struct HeatOutcome {
     pub harm: f32,
     pub cause: &'static str,
+    /// Sweat evaporated this frame, litres (2026-09-28).
+    pub sweat_l: f32,
 }
 
 /// One frame of body heat for one person (the food system calls it for every
@@ -764,7 +774,9 @@ pub fn vitals_tick(
     if (*core_c - tracked.shown_c).abs() > 0.5 {
         *tracked = Tracked::new(*core_c, mode);
     }
+    let sweat_before = tracked.body.sweat_litres;
     tracked.body.step(ex, clo, met, dt_s);
+    let sweat_l = (tracked.body.sweat_litres - sweat_before) as f32;
     let shown = mode.shown(tracked.body.core_c) as f32;
     *core_c = shown;
     tracked.shown_c = shown;
@@ -789,7 +801,7 @@ pub fn vitals_tick(
     } else {
         "heatstroke"
     };
-    HeatOutcome { harm, cause }
+    HeatOutcome { harm, cause, sweat_l }
 }
 
 #[cfg(test)]
