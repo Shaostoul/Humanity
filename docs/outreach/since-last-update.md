@@ -52,3 +52,6 @@ Each line is written the way a player would hear it; the release notes and
 - **v0.1407.0: walls meet the roof on uneven ground.** Walls built
   straight on bumpy ground now stretch or shrink a little so their tops line
   up, and the roof sits flush with no line of sky under it.
+- **v0.1408.0: the sea follows the wind where you are.** The waves used to
+  follow the weather's wind for the whole planet; now they follow the wind at
+  your spot, the same wind your body feels.

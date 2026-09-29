@@ -115,7 +115,8 @@ Remaining, in order:
    HUD prints the temperature, wind and phase at the player).
    Next consumers, in order: **cloud advection** (the first GPU caller:
    `env_l1_wind_body` once per ray, `EnvClimate` as a uniform); the sea state
-   reading the wind at the player; field crops and water bodies sampling the
+   reading the wind at the player (DONE 2026-09-28, `Weather::sea_state_target`);
+   field crops and water bodies sampling the
    climate at THEIR positions; weighting the weather's deviation by its
    region's influence at the player. Open data gaps: Mars by latitude and season, the
    Moon (a sunlight function of local solar time).

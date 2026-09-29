@@ -331,6 +331,11 @@
       "date": "2026-09-28",
       "decision": "placement::level_top: a piece resting on the ground that touches a finished piece of the same category and built height with a top within 0.3 m takes that top (scale.y adjusted, bottom on its own ground). The window vantage builds without a foundation again, as the proof.",
       "why": "The window vantage showed a sliver of sky over a wall standing 1-2 cm lower on the sand than the roof rest height. Stretching the wall to meet its neighbour keeps both the bottom on the ground and the top at the roof, which neither levelling bases nor lowering the roof does."
+    },
+    {
+      "date": "2026-09-28",
+      "decision": "Sea state reads the wind at the player (Weather::sea_state_target, the at-player wind from environment Layer 1 plus the weather deviation) instead of the weather's global wind; the v0.909 mapping (2 m/s glassy to 15 m/s storm) unchanged.",
+      "why": "PRIORITIES item 1 names it as one of Layer 1's next consumers; the sea the player sees is the sea where they are, and the body heat model already feels that wind. A one-function change with a test that can fail."
     }
   ],
   "active_scopes_to_avoid": [

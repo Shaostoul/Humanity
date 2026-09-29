@@ -13216,8 +13216,9 @@ mod native_app {
                                 state.renderer.foliage_wind,
                             );
                         }
-                        // Sea state from wind (v0.909): 2 m/s or less reads
-                        // glassy, ~15 m/s is a full storm sea. The showcase
+                        // Sea state from the wind AT THE PLAYER
+                        // (`Weather::sea_state_target`, v0.909's mapping, the
+                        // at-player wind since 2026-09-28). The showcase
                         // {"sea":x} override wins for dev shots. Smoothed
                         // (~30 s time constant) so weather regime flips roll
                         // the ocean over instead of snapping it.
@@ -13234,7 +13235,8 @@ mod native_app {
                                 // 0..1 wind domain before smoothing.
                                 state.renderer.sea_state -= 2.0;
                             }
-                            let target = ((w.wind_speed - 2.0) / 13.0).clamp(0.0, 1.0);
+                            // The wind where the player is (2026-09-28).
+                            let target = w.sea_state_target();
                             let k = (dt as f32 / 30.0).min(1.0);
                             state.renderer.sea_state +=
                                 (target - state.renderer.sea_state) * k;

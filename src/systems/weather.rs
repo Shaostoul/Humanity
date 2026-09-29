@@ -104,6 +104,16 @@ impl Weather {
     pub fn wind_speed_at_player(&self) -> f32 {
         self.wind_east_at_player.hypot(self.wind_north_at_player)
     }
+
+    /// The sea state the wind where the player is raises, 0 (glassy) to 1
+    /// (a full storm sea): 2 m/s or less reads glassy, about 15 m/s a storm
+    /// (v0.909's mapping). It reads the wind AT THE PLAYER, environment Layer
+    /// 1's prevailing wind with the weather's deviation on top, not the
+    /// weather's global wind (2026-09-28, PRIORITIES item 1): the sea the
+    /// player looks at is the sea where they are.
+    pub fn sea_state_target(&self) -> f32 {
+        ((self.wind_speed_at_player() - 2.0) / 13.0).clamp(0.0, 1.0)
+    }
 }
 
 impl Default for Weather {
@@ -782,6 +792,30 @@ pub fn air_at_player(i: &AtPlayerInputs) -> AtPlayer {
 /// Linear interpolation.
 fn lerp(a: f32, b: f32, t: f32) -> f32 {
     a + (b - a) * t
+}
+
+#[cfg(test)]
+mod sea_state_tests {
+    use super::*;
+
+    /// A storm in the global weather but calm air where the player stands
+    /// gives a calm sea, and the reverse a rough one. Red check, run: making
+    /// `sea_state_target` read `wind_speed` (what the frame loop did before)
+    /// fails the first assertion.
+    #[test]
+    fn the_sea_follows_the_wind_where_the_player_is() {
+        let mut w = Weather { wind_speed: 15.0, ..Weather::default() };
+        w.wind_east_at_player = 1.2;
+        w.wind_north_at_player = 0.9;
+        assert_eq!(w.sea_state_target(), 0.0, "1.5 m/s here: glassy, whatever the global wind");
+        w.wind_speed = 1.0;
+        w.wind_east_at_player = 12.0;
+        w.wind_north_at_player = 9.0;
+        assert_eq!(w.sea_state_target(), 1.0, "15 m/s here: a storm sea");
+        w.wind_east_at_player = 8.5;
+        w.wind_north_at_player = 0.0;
+        assert!((w.sea_state_target() - 0.5).abs() < 1e-6, "8.5 m/s: halfway");
+    }
 }
 
 #[cfg(test)]
