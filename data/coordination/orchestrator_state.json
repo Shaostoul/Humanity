@@ -466,6 +466,11 @@
       "date": "2026-09-29",
       "decision": "BodyHeat::sweat_litres counts all sweat made (sweat_made, before the wettedness cap), not only evaporated sweat.",
       "why": "Review note: evaporated-only made humid heat cost less water than dry (0.14 vs 0.20 L/h at 35 C); now 0.38 vs 0.20."
+    },
+    {
+      "date": "2026-09-29",
+      "decision": "time::HOST_RELEASE_SLOT + release_host_clock, called at both lib.rs leave sites (game_leave, disconnect): the host lock ends on the next tick and a same-frame host word is dropped.",
+      "why": "Review note: sleep refused and host speed kept for up to 20 s after leaving."
     }
   ],
   "active_scopes_to_avoid": [

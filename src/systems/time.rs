@@ -246,6 +246,7 @@ pub fn insert_slots(data: &mut DataStore) {
     data.insert(HOST_CLOCK_SLOT, std::sync::Mutex::new(None::<f64>));
     data.insert(REBASE_SLOT, std::sync::Mutex::new(0.0_f64));
     data.insert(HOST_ACTIVE_SLOT, std::sync::Mutex::new(false));
+    data.insert(HOST_RELEASE_SLOT, std::sync::Mutex::new(false));
 }
 
 /// Settings to the clock, every frame (lib.rs): hours in a day, days in a
@@ -324,6 +325,21 @@ pub const HOST_TIME_SPEED: f32 = 1.0;
 /// in a row: the player left the shared world or lost the connection). The
 /// clock does not jump back: the host's date simply becomes the player's.
 pub const HOST_RELEASE_S: f64 = 20.0;
+/// DataStore slot (`Mutex<bool>`): the player left the shared world (or lost
+/// the connection), so the clock is theirs again at once, not after
+/// HOST_RELEASE_S of silence (review of 2026-09-29: until then the bed said
+/// "in a shared world" for up to 20 s after leaving).
+pub const HOST_RELEASE_SLOT: &str = "host_clock_release_request";
+
+/// Hand the clock back now: the player has left the shared world.
+pub fn release_host_clock(data: &DataStore) {
+    if let Some(m) = data.get::<std::sync::Mutex<bool>>(HOST_RELEASE_SLOT) {
+        if let Ok(mut r) = m.lock() {
+            *r = true;
+        }
+    }
+}
+
 /// The host's calendar: the relay counts 86,400-second days
 /// (`relay/mod.rs`, `secs_per_day`), so a shared world has 24-hour days and
 /// the default year, whatever a player's own Settings say. Without it two
@@ -442,10 +458,21 @@ impl System for TimeSystem {
     }
 
     fn tick(&mut self, _world: &mut hecs::World, dt: f32, data: &DataStore) {
+        // Leaving the shared world hands the clock back at once
+        // (HOST_RELEASE_SLOT), and a host word that arrived in the same frame
+        // no longer counts.
+        let released = data
+            .get::<std::sync::Mutex<bool>>(HOST_RELEASE_SLOT)
+            .and_then(|m| m.lock().ok().map(|mut r| std::mem::replace(&mut *r, false)))
+            .unwrap_or(false);
+        if released {
+            self.host_silence_s = None;
+        }
         // The host's clock, if it spoke this tick (see HOST_CLOCK_SLOT below).
         let host = data
             .get::<std::sync::Mutex<Option<f64>>>(HOST_CLOCK_SLOT)
-            .and_then(|m| m.lock().ok().and_then(|mut r| r.take()));
+            .and_then(|m| m.lock().ok().and_then(|mut r| r.take()))
+            .filter(|_| !released);
         // The calendar: the host's in a shared world (HOST_HOURS_PER_DAY),
         // otherwise the player's from Settings (publish_settings), read every
         // tick. Absent (tests that never publish) = the defaults.
@@ -585,6 +612,29 @@ mod game_time_export_tests {
     /// the host the speed is the player's own again, and the date stays the
     /// host's. Red check, run: ignoring HOST_CLOCK_SLOT fails the first
     /// assertion.
+    /// LEAVING HANDS THE CLOCK BACK AT ONCE (review of 2026-09-29). Joined,
+    /// then the player leaves: on the next tick the host is no longer in
+    /// charge and the speed is the player's own, without waiting out the
+    /// 20 s of silence. Red check, run: ignoring HOST_RELEASE_SLOT fails the
+    /// first assertion.
+    #[test]
+    fn leaving_hands_the_clock_back_at_once() {
+        let mut data = DataStore::new();
+        insert_slots(&mut data);
+        data.insert("game_time", std::sync::Mutex::new(GameTime::default()));
+        data.insert("time_restore_elapsed_request", std::sync::Mutex::new(None::<f64>));
+        publish_settings(&data, 24, 365, 72.0);
+        *data.get::<std::sync::Mutex<Option<f64>>>(HOST_CLOCK_SLOT).unwrap().lock().unwrap() = Some(1000.0);
+        let mut sys = TimeSystem::new();
+        let mut world = hecs::World::new();
+        sys.tick(&mut world, 0.1, &data);
+        assert!(host_clock_active(&data), "joined");
+        release_host_clock(&data);
+        sys.tick(&mut world, 0.1, &data);
+        assert!(!host_clock_active(&data), "left: the clock is the player's again");
+        assert_eq!(data.get::<std::sync::Mutex<GameTime>>("game_time").unwrap().lock().unwrap().time_scale, 72.0);
+    }
+
     /// THE HOST'S CALENDAR COMES WITH ITS CLOCK (review of 2026-09-29). A
     /// player who set 30-hour days joins: while the host is in charge the day
     /// is the host's 24 hours, so 43,200 s is noon for everyone; after the

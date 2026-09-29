@@ -6791,6 +6791,8 @@ mod native_app {
                                 }
                                 state.game_joined = false;
                                 state.gui_state.copresence_active = false;
+                                // The host's clock no longer applies (2026-09-29).
+                                crate::systems::time::release_host_clock(&state.data_store);
                                 state.gui_state.copresence_names.clear();
                                 let remotes: Vec<hecs::Entity> = state
                                     .game_world
@@ -6884,6 +6886,7 @@ mod native_app {
                             // remote avatars (they are stale without a live feed).
                             state.game_joined = false;
                             state.gui_state.copresence_active = false;
+                            crate::systems::time::release_host_clock(&state.data_store);
                             state.gui_state.copresence_names.clear();
                             let remotes: Vec<hecs::Entity> = state
                                 .game_world
