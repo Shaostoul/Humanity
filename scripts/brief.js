@@ -125,6 +125,20 @@ if (forgeWhen) {
     ? `BEHIND: git.united-humanity.us last took a push ${days} days ago (${lastTag}), ${behind} commits behind -- is Forgejo running? (docs/admin/forgejo-setup.md)`
     : `git.united-humanity.us current (last push ${days} days ago)`));
 }
+// C: and the hourly build-output guard (scripts/pc-disk-guard.js, 2026-09-29).
+try {
+  const s = fs.statfsSync(path.parse(root).root);
+  const pct = Math.round((1 - s.bavail / s.blocks) * 100);
+  let guard = 'guard never ran here: just install-disk-guard';
+  const last = path.join(process.env.LOCALAPPDATA || '', 'HumanityOS', 'disk-guard-last.json');
+  if (fs.existsSync(last)) {
+    const g = JSON.parse(fs.readFileSync(last, 'utf8'));
+    const hours = Math.round((Date.now() - Date.parse(g.at)) / 3600000);
+    guard = `guard ran ${hours} h ago` + (g.skipped ? ` (${g.skipped})` : g.actions.length ? ` (${g.actions.length} cleared)` : ' (nothing to do)') +
+      (hours > 3 ? ' -- is the task installed? just install-disk-guard' : '');
+  }
+  L.push(`DISK:     C: ${pct}% used, ${Math.round(s.bavail * s.bsize / 1e9)} GB free; ${guard}`);
+} catch { /* statfs unavailable */ }
 L.push('');
 L.push('CI DEPLOY (latest):');
 L.push(ci ? '  ' + ci.split('\n')[0] : '  (unavailable -- offline? check: just ci)');

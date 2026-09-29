@@ -426,6 +426,11 @@
       "date": "2026-09-29",
       "decision": "Disk cleanup: removed 58 landed worktrees (git cherry shows nothing unmerged; branches kept), cargo clean on main and on every remaining worktree. Freed about 1.25 TB (C: from 173 GB free, 91% used, to 1.4 TB free, 24% used). CLAUDE.md gotcha extended: the main target/ grows without limit (1.13 TB).",
       "why": "Operator: C: at ~90%. The build cache was the cause, not logs or backups."
+    },
+    {
+      "date": "2026-09-29",
+      "decision": "Dev PC disk guard: scripts/pc-disk-guard.js hourly via Task Scheduler 'HumanityOS Dev Disk Guard' (S4U, Hidden): idle-48h worktree target/ always, main target debug/incremental at >=75% C:, whole main target at >=85%, skip while cargo/rustc/HumanityOS runs. Logs to %LOCALAPPDATA%/HumanityOS/disk-guard.log; just brief DISK row; just disk-guard / just install-disk-guard.",
+      "why": "Operator: automate it so a full C: never needs a prompt again. Build output was the whole problem (1.13 TB main target, 102 GB worktree targets)."
     }
   ],
   "active_scopes_to_avoid": [

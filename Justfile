@@ -269,6 +269,17 @@ status:
 brief:
     @node scripts/brief.js
 
+# Clear build output before it fills C: (2026-09-29; C: reached 91% with 1.13 TB
+# of cargo caches). Idle worktree targets always; the main target's incremental
+# cache at 75% full; the whole main target at 85%; never while cargo, rustc or
+# the game runs. The installed task runs this hourly; add --dry-run to only report.
+disk-guard *args:
+    @node scripts/pc-disk-guard.js {{args}}
+
+# Install (or replace) the hourly, silent "HumanityOS Dev Disk Guard" task. One UAC prompt.
+install-disk-guard:
+    powershell -NoProfile -Command "Start-Process powershell -Verb RunAs -ArgumentList '-NoProfile -ExecutionPolicy Bypass -File \"{{justfile_directory()}}\scripts\install-pc-disk-guard.ps1\"'"
+
 # Rotate the orchestrator journal: archive decisions older than the recent `keep` tail
 # into docs/history/journal-archive-<month>.md so the session-loaded JSON stays small.
 # Order is preserved (newest stays at the bottom). Run at session end when it has grown.
