@@ -375,43 +375,98 @@ pub const SWINBANK_CLEAR_SKY: f64 = 0.0552;
 /// sides; half is the plain round figure).
 pub const OPEN_SKY_VIEW: f64 = 0.5;
 
-/// Sine of the sun's height above which its warmth is taken to cancel the
-/// sky's cold (10 degrees): see `night_sky_weight`.
-const SKY_COLD_FADE_SIN: f32 = 0.173_648;
+/// SolarCal (ASHRAE 55-2020, Appendix C), with the constants
+/// pythermalcomfort's `solar_gain` uses: the radiative heat transfer
+/// coefficient, W/m2 K.
+const SOLARCAL_HR: f64 = 6.0;
+/// Share of a standing body's surface that exchanges radiation.
+const SOLARCAL_F_EFF: f64 = 0.725;
+/// Short-wave (sunlight) absorptivity of skin and everyday clothing.
+const SOLARCAL_ALPHA_SW: f64 = 0.7;
+/// Long-wave absorptivity.
+const SOLARCAL_ALPHA_LW: f64 = 0.95;
+/// Diffuse sky light as a share of the clear-sky beam (SolarCal's default).
+const DIFFUSE_SHARE: f64 = 0.2;
+/// Ground reflectance outdoors: grass and bare soil reflect about a fifth of
+/// the light (SolarCal's 0.6 is an indoor floor).
+const GROUND_ALBEDO: f64 = 0.2;
+/// The beam above the atmosphere in Meinel's clear-sky model, W/m2.
+const MEINEL_BEAM_W_M2: f64 = 1353.0;
+
+/// Direct-beam sunlight, W/m2 on a surface facing the sun, through a clear
+/// sky with the sun at `sun_sin` (the sine of its height): Meinel and
+/// Meinel (1976), `1353 * 0.7^(AM^0.678)`, with the air mass AM from Kasten
+/// and Young (1989). About 950 W/m2 overhead and 430 at 10 degrees. 0 with
+/// the sun down.
+pub fn clear_sky_beam_w_m2(sun_sin: f32) -> f64 {
+    let s = f64::from(sun_sin);
+    if s <= 0.0 {
+        return 0.0;
+    }
+    let elevation_deg = s.min(1.0).asin().to_degrees();
+    let air_mass = 1.0 / (s + 0.50572 * (elevation_deg + 6.07995).powf(-1.6364));
+    MEINEL_BEAM_W_M2 * 0.7_f64.powf(air_mass.powf(0.678))
+}
+
+/// The share of a standing body's radiating area the sun's beam falls on,
+/// with the sun `elevation_deg` above the horizon, averaged over which way
+/// the body faces (the player's facing is not tied to the sun):
+/// `0.308 cos(b (0.998 - b^2 / 50000))`, b in degrees (Fanger 1970, the form
+/// SOLWEIG uses). It is within 0.003 of pythermalcomfort's standing table
+/// averaged over the azimuths at 0, 45, 60 and 90 degrees: about 0.31 with the
+/// sun on the horizon and 0.08 with it overhead.
+pub fn projected_area_factor(elevation_deg: f64) -> f64 {
+    0.308 * (elevation_deg * (0.998 - elevation_deg * elevation_deg / 50_000.0)).to_radians().cos()
+}
+
+/// How far the sun raises a standing person's mean radiant temperature in
+/// the open, C: SolarCal's effective radiant field of the diffuse sky light,
+/// the direct beam and the light the ground reflects, turned into a rise of
+/// the mean radiant temperature. Cloud takes the direct beam away (the
+/// diffuse light is kept at the clear sky's, a simplification: an overcast
+/// sky's diffuse light is of the same order). About 35 C with a clear sun
+/// overhead, 23 C at 10 degrees and 14 C under an overcast noon.
+pub fn sun_mrt_rise_c(sun_sin: f32, cloud: f32) -> f64 {
+    let s = f64::from(sun_sin);
+    if s <= 0.0 {
+        return 0.0;
+    }
+    let clear_beam = clear_sky_beam_w_m2(sun_sin);
+    let beam = clear_beam * (1.0 - f64::from(cloud.clamp(0.0, 1.0)));
+    let diffuse = DIFFUSE_SHARE * clear_beam;
+    let fp = projected_area_factor(s.min(1.0).asin().to_degrees());
+    // In the open the whole sky vault is in view and the whole body in sun
+    // (SolarCal's f_svv and f_bes are both 1).
+    let e_diffuse = SOLARCAL_F_EFF * 0.5 * diffuse;
+    let e_direct = SOLARCAL_F_EFF * fp * beam;
+    let e_reflected = SOLARCAL_F_EFF * 0.5 * (beam * s + diffuse) * GROUND_ALBEDO;
+    let erf = (e_diffuse + e_direct + e_reflected) * (SOLARCAL_ALPHA_SW / SOLARCAL_ALPHA_LW);
+    erf / (SOLARCAL_HR * SOLARCAL_F_EFF)
+}
 
 /// The mean radiant temperature, C, a standing person in the open feels
-/// under a sky at `air_c`, with `cloud` (0 clear to 1 overcast) of it under
-/// cloud and `night` (`night_sky_weight`) of the night sky's cold let in.
+/// in air at `air_c`, with `cloud` (0 clear to 1 overcast) of the sky under
+/// cloud and the sun at `sun_sin` (the sine of its height; 0 or less while
+/// it is down).
 ///
-/// Half the view is ground, taken at the air's temperature; half is sky, at
-/// Swinbank's clear-sky temperature where it is clear and at the air's where
-/// cloud covers it (a cloud base radiates at close to the air's temperature),
-/// mixed as fourth powers because radiation goes as T^4. On a clear 10 C
-/// night that is about 0.5 C, nearly 10 degrees below the air: the reason
-/// a clear night in the open feels so much colder than the thermometer, and
-/// the reason a roof overhead (which radiates at about the air's
-/// temperature) is warmer to sit under. Weighted by `night`, so by day this
-/// is the air's temperature, as it was before (the sun's warmth, which
-/// outweighs the sky's cold by day, is not modelled yet).
-pub fn open_sky_radiant_c(air_c: f32, cloud: f32, night: f32) -> f32 {
+/// The long-wave part: half the view is ground, taken at the air's
+/// temperature; half is sky, at Swinbank's clear-sky temperature where it is
+/// clear and at the air's where cloud covers it (a cloud base radiates at
+/// close to the air's temperature), mixed as fourth powers because radiation
+/// goes as T^4. On a clear 10 C night that is about 0.5 C, nearly 10 degrees
+/// below the air: the reason a clear night in the open feels so much colder
+/// than the thermometer, and the reason a roof overhead (which radiates at
+/// about the air's temperature) is warmer to sit under. The sun's part is
+/// SolarCal's rise (`sun_mrt_rise_c`) on top, as ASHRAE 55 adds it: about
+/// 47 C in all with a clear sun overhead in 20 C air, which is why shade
+/// matters on a hot day.
+pub fn open_sky_radiant_c(air_c: f32, cloud: f32, sun_sin: f32) -> f32 {
     let t_air = f64::from(air_c) + 273.15;
     let t_clear = SWINBANK_CLEAR_SKY * t_air.powf(1.5);
     let c = f64::from(cloud.clamp(0.0, 1.0));
     let sky4 = (1.0 - c) * t_clear.powi(4) + c * t_air.powi(4);
     let open4 = OPEN_SKY_VIEW * sky4 + (1.0 - OPEN_SKY_VIEW) * t_air.powi(4);
-    let w = f64::from(night.clamp(0.0, 1.0));
-    ((w * open4 + (1.0 - w) * t_air.powi(4)).powf(0.25) - 273.15) as f32
-}
-
-/// How much of the night sky's cold reaches a person in the open at
-/// `hour` (a 24-hour dial of the local solar time: the gameplay sun rises at
-/// 6 and sets at 18, `solar::sun_factor`): all of it while the sun is
-/// down, fading out as the sun climbs to 10 degrees, where its warmth
-/// (not modelled yet) takes over. A low sun gives little heat, so the sky's
-/// cold still counts in the first and last hour of the day.
-pub fn night_sky_weight(hour: f32) -> f32 {
-    let sun_sin = (((hour - 6.0) / 12.0) * std::f32::consts::PI).sin();
-    (1.0 - sun_sin / SKY_COLD_FADE_SIN).clamp(0.0, 1.0)
+    (open4.powf(0.25) - 273.15 + sun_mrt_rise_c(sun_sin, cloud)) as f32
 }
 
 /// How hard rain or snow lands on an unsheltered person, 0 to 1, from what the

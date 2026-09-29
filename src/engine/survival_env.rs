@@ -36,16 +36,17 @@ pub(crate) struct ExposedAir {
     pub upwind: Vec3,
     /// Share of the sky under cloud, 0 to 1 (`Weather::cloud_share`).
     pub cloud: f32,
-    /// How much of the night sky's cold reaches the body, 0 by day to 1 at
-    /// night (`body_heat::night_sky_weight` of the hour where the player
-    /// is); set by `publish`, 0 until it is.
-    pub night: f32,
+    /// The sine of the sun's height where the player is (the gameplay sun,
+    /// `solar::sun_factor` of the local solar hour: 0 while it is down), set
+    /// by `publish`. None until it is, and the surroundings are then the
+    /// air's (`body_heat::open_sky_radiant_c` needs the sun).
+    pub sun_sin: Option<f32>,
 }
 
 impl ExposedAir {
     /// No weather published yet: assume the worst (-40 C, no air).
     const UNKNOWN: ExposedAir =
-        ExposedAir { temp_c: -40.0, relative_humidity: 0.0, wind_m_s: 0.0, precipitation: 0.0, pressure_kpa: 0.0, upwind: Vec3::ZERO, cloud: 1.0, night: 0.0 };
+        ExposedAir { temp_c: -40.0, relative_humidity: 0.0, wind_m_s: 0.0, precipitation: 0.0, pressure_kpa: 0.0, upwind: Vec3::ZERO, cloud: 1.0, sun_sin: None };
 
     /// The PLAYER-LOCAL fields of the weather, never the body-global
     /// `temperature` (review split): exposure is about where THIS body stands
@@ -63,7 +64,7 @@ impl ExposedAir {
             pressure_kpa: w.pressure_kpa_at_player,
             upwind: upwind_from(w.wind_east_at_player, w.wind_north_at_player),
             cloud: w.cloud_share(),
-            night: 0.0,
+            sun_sin: None,
         }
     }
 }
@@ -104,13 +105,14 @@ pub(crate) fn outside_context(
         wind_m_s: air.wind_m_s * shelter.wind_share(air.upwind),
         precipitation: if shelter.roofed { 0.0 } else { air.precipitation },
         sheltered: shelter.out_of_the_wind(air.upwind),
-        // The cold night sky, where there is open air to see it through
-        // (2026-09-28): a roof overhead radiates at about the air's
-        // temperature and hides the sky's coldest part, the zenith, so under
-        // one the surroundings are the air's. That is a shelter's radiant
-        // warmth; walls alone leave the sky overhead.
+        // The open sky, where there is open air to see it through
+        // (2026-09-28): the cold of a clear sky and the sun's warmth. A roof
+        // overhead radiates at about the air's temperature, hides the sky's
+        // coldest part (the zenith) and shades the body, so under one the
+        // surroundings are the air's: a shelter's radiant warmth by night and
+        // its shade by day. Walls alone leave the sky overhead.
         radiant_temp_c: if breathable && !shelter.roofed {
-            Some(body_heat::open_sky_radiant_c(air.temp_c, air.cloud, air.night))
+            air.sun_sin.map(|s| body_heat::open_sky_radiant_c(air.temp_c, air.cloud, s))
         } else {
             None
         },
@@ -225,21 +227,22 @@ pub(crate) fn publish(state: &mut EngineState) {
                         air.upwind = Vec3::ZERO;
                     }
                 }
-                // The night sky's share, from the hour where the player is:
+                // The sun's height where the player is, from the hour there:
                 // the clock the weather's day warmth reads
-                // (`weather::local_solar_hour`).
-                air.night = state
+                // (`weather::local_solar_hour`), on the gameplay sun's arc
+                // (`solar::sun_factor`), the one the crops and panels use.
+                air.sun_sin = state
                     .data_store
                     .get::<std::sync::Mutex<crate::systems::time::GameTime>>("game_time")
                     .and_then(|m| m.lock().ok().map(|gt| gt.clone()))
-                    .map_or(0.0, |gt| {
+                    .map(|gt| {
                         let env = state
                             .data_store
                             .get::<crate::systems::body_environment::BodyEnvironment>("body_environment")
                             .cloned()
                             .unwrap_or_default();
                         let home_lon = crate::systems::time::home_longitude_deg(&state.data_store);
-                        body_heat::night_sky_weight(crate::systems::weather::local_solar_hour(&gt, &env, home_lon))
+                        crate::systems::solar::sun_factor(crate::systems::weather::local_solar_hour(&gt, &env, home_lon))
                     });
                 sheltered_air = air;
                 outside_context(air, outside_breathable, shelter, activity, felt_g_now)
@@ -470,7 +473,7 @@ mod tests {
             // From the north: the shelter's walls stand north, west and east.
             upwind: Vec3::NEG_Z,
             cloud: 1.0,
-            night: 0.0,
+            sun_sin: None,
         };
         let six_hours = |check: uses::ShelterCheck| {
             let ex = Exposure::from_context(&outside_context(weather, true, check, MET_STANDING, 1.0));
@@ -527,7 +530,7 @@ mod tests {
             pressure_kpa: SEA_LEVEL_KPA,
             upwind: Vec3::ZERO,
             cloud: 0.0,
-            night: 1.0,
+            sun_sin: Some(0.0),
         };
         let six_hours = |check: uses::ShelterCheck| {
             let ex = Exposure::from_context(&outside_context(night, true, check, MET_STANDING, 1.0));
@@ -553,6 +556,53 @@ mod tests {
         // Airless or unbreathable (outside the hull, the Moon): no sky term.
         let ex_space = Exposure::from_context(&outside_context(night, false, uses::ShelterCheck::default(), MET_STANDING, 1.0));
         assert_eq!(ex_space.radiant_c, 10.0);
+    }
+
+    /// A ROOF IS SHADE AT NOON (2026-09-28). A clear, dry 30 C noon with a
+    /// light 1 m/s breeze, standing in the everyday outfit for two hours: in
+    /// the open the sun lifts the mean radiant temperature far above the air
+    /// (SolarCal); under a roof, walls or not, it is the air's. After two
+    /// hours the core is about a quarter of a degree warmer in the sun and
+    /// the skin about 1.5 C warmer. Red check,
+    /// run: leaving the sun out of `open_sky_radiant_c` fails the first
+    /// assertion.
+    #[test]
+    fn a_roof_is_shade_at_noon() {
+        use crate::systems::body_heat::{BodyHeat, Exposure, BASE_OUTFIT_CLO, MET_STANDING};
+        let noon = ExposedAir {
+            temp_c: 30.0,
+            relative_humidity: 0.4,
+            wind_m_s: 1.0,
+            precipitation: 0.0,
+            pressure_kpa: SEA_LEVEL_KPA,
+            upwind: Vec3::ZERO,
+            cloud: 0.0,
+            sun_sin: Some(1.0),
+        };
+        let two_hours = |check: uses::ShelterCheck| {
+            let ex = Exposure::from_context(&outside_context(noon, true, check, MET_STANDING, 1.0));
+            let mut body = BodyHeat::new(37.0);
+            for _ in 0..120 {
+                body.step(&ex, BASE_OUTFIT_CLO, MET_STANDING, 60.0);
+            }
+            (ex, body)
+        };
+        let (ex_sun, sun) = two_hours(uses::ShelterCheck::default());
+        let (ex_shade, shade) = two_hours(uses::ShelterCheck { roofed: true, walls: 0 });
+        // Measured 2026-09-28: core 37.19 C in the sun, 36.93 C in the shade;
+        // skin 36.23 C and 34.78 C.
+        const SHADE_CORE_MARGIN_C: f64 = 0.2;
+        const SHADE_SKIN_MARGIN_C: f64 = 1.2;
+        assert!(ex_sun.radiant_c > 50.0, "the noon sun in the open: {} C", ex_sun.radiant_c);
+        assert_eq!(ex_shade.radiant_c, 30.0, "in the shade, the air's");
+        assert!(
+            sun.core_c > shade.core_c + SHADE_CORE_MARGIN_C && sun.skin_c > shade.skin_c + SHADE_SKIN_MARGIN_C,
+            "after 2 h, sun core {:.3} C skin {:.2} C, shade core {:.3} C skin {:.2} C",
+            sun.core_c,
+            sun.skin_c,
+            shade.core_c,
+            shade.skin_c
+        );
     }
 
     #[test]

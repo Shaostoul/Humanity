@@ -1982,11 +1982,11 @@ and measured human trials (Helland et al. 2025; Thompson and Hayward 1996).
   by `engine::survival_env`. Outside, the air temperature, pressure and wind are the weather's at-player values:
   environment Layer 1 where the player stands plus the weather's deviation (2026-09-27), and what falls is rain
   or snow as the air there decides (`systems::precipitation`; snow wets clothing at a third of rain, a game choice).
-- **The cold night sky** (v0.1416.0): in the open at night the body radiates to a sky well below the air
-  (Swinbank's clear-sky temperature, clouds bringing it back to the air's; about 0.5 C on a clear 10 C night), and
-  a roof overhead keeps it off, so a roof is warmer to stand under on a clear night
-  (`body_heat::open_sky_radiant_c`, `night_sky_weight`, `Weather::cloud_share`). The sun's warmth by day is not
-  modelled yet.
+- **The open sky and the sun** (v0.1416.0, sun v0.1417.0): in the open the body radiates to a sky well below the
+  air (Swinbank's clear-sky temperature, clouds bringing it back to the air's; about 0.5 C on a clear 10 C night),
+  and by day the sun adds its warmth (ASHRAE 55 SolarCal: about 47 C mean radiant with a clear sun overhead in 20 C
+  air). A roof overhead keeps both off: warmer to stand under on a clear night, shade on a hot day
+  (`body_heat::open_sky_radiant_c`, `sun_mrt_rise_c`, `Weather::cloud_share`).
 - Native: `src/systems/body_heat.rs` (model, tests in `body_heat_tests.rs`), `src/systems/food.rs` (the vitals
   pass), `src/engine/survival_env.rs` (inputs), `src/gui/pages/settings.rs` (mode)
 - Data: `data/equipment.csv` (`clo`), `data/status_effects.csv` (the four conditions)

@@ -78,3 +78,6 @@ Each line is written the way a player would hear it; the release notes and
   the open on a clear night your body loses heat to the cold sky, the way it
   really does, so a clear 10C night feels close to freezing. Standing under a
   roof you have built keeps that off, even with no walls.
+- **v0.1417.0: the sun warms you, and shade matters.** Standing in full
+  sun now warms your body the way it really does, several degrees more than
+  the air alone, and a roof gives you shade on a hot day.

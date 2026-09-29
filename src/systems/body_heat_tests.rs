@@ -299,24 +299,28 @@ fn a_sealed_context_is_still_dry_air() {
     assert!(roofed.sheltered && roofed.precipitation == 0.0, "the shelter input blocks wind and rain");
 }
 
-/// THE CLEAR NIGHT SKY (2026-09-28). On a clear 10 C night the open-air mean
-/// radiant temperature is about 0.5 C (Swinbank's sky at 263 K, half the view
-/// sky and half ground at the air's 283 K, mixed as T^4). Overcast, the cloud
-/// base radiates at the air's temperature, and by day (the sun's warmth not
-/// modelled) the surroundings read the air, as before. Red check, run:
-/// ignoring the cloud share (a clear sky always) fails the overcast
-/// assertion.
+/// THE OPEN SKY, BY NIGHT AND BY DAY (2026-09-28). On a clear 10 C night the
+/// open-air mean radiant temperature is about 0.5 C (Swinbank's sky at
+/// 263 K, half the view sky and half ground at the air's 283 K, mixed as
+/// T^4); overcast, the cloud base radiates at the air's temperature. By day
+/// SolarCal adds the sun: in 20 C air a clear sun overhead gives about 47 C
+/// (the sky's 12.3 C plus a 34.7 C rise), an overcast noon about 34 C. Red
+/// checks, run: ignoring the cloud share fails the overcast-night assertion;
+/// leaving the sun out fails the clear-noon one.
 #[test]
-fn a_clear_night_sky_is_colder_than_the_air() {
-    let clear_night = open_sky_radiant_c(10.0, 0.0, 1.0);
+fn the_open_sky_by_night_and_by_day() {
+    let clear_night = open_sky_radiant_c(10.0, 0.0, 0.0);
     assert!((clear_night - 0.45).abs() < 0.3, "clear 10 C night: {clear_night}");
-    assert!((open_sky_radiant_c(10.0, 1.0, 1.0) - 10.0).abs() < 1e-3, "overcast night");
-    assert!((open_sky_radiant_c(10.0, 0.0, 0.0) - 10.0).abs() < 1e-3, "by day");
-    // The weight: all night, none at noon, fading in the first hour.
-    assert_eq!(night_sky_weight(0.0), 1.0);
-    assert_eq!(night_sky_weight(6.0), 1.0, "sunrise");
-    assert_eq!(night_sky_weight(12.0), 0.0, "noon");
-    assert_eq!(night_sky_weight(18.0), 1.0, "sunset");
-    let early = night_sky_weight(6.5);
-    assert!(early > 0.0 && early < 1.0, "half an hour after sunrise: {early}");
+    assert!((open_sky_radiant_c(10.0, 1.0, -0.5) - 10.0).abs() < 1e-3, "overcast night");
+    let clear_noon = open_sky_radiant_c(20.0, 0.0, 1.0);
+    assert!((clear_noon - 47.0).abs() < 1.0, "clear noon in 20 C air: {clear_noon}");
+    let overcast_noon = open_sky_radiant_c(20.0, 1.0, 1.0);
+    assert!((overcast_noon - 34.0).abs() < 1.0, "overcast noon in 20 C air: {overcast_noon}");
+    // The pieces against their sources: Meinel's beam overhead and at 10
+    // degrees, and the projected area against pythermalcomfort's table.
+    assert!((clear_sky_beam_w_m2(1.0) - 947.1).abs() < 1.0);
+    assert!((clear_sky_beam_w_m2(10.0_f32.to_radians().sin()) - 430.0).abs() < 5.0);
+    assert!((projected_area_factor(90.0) - 0.082).abs() < 0.005);
+    assert!((projected_area_factor(45.0) - 0.223).abs() < 0.005);
+    assert_eq!(sun_mrt_rise_c(-0.2, 0.0), 0.0, "no sun at night");
 }

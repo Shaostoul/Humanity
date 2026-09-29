@@ -620,10 +620,10 @@ between the simulation and the person. Its tier ladder is the build order.
   hall under several touching roof tiles shelters, and the review's other
   findings are closed. Remaining: a scripted first-run sequence in the world;
   the server clock for offline progression in multiplayer; for shelter, the
-  sun's warmth by day and a fire's (DONE 2026-09-28: the wind direction
-  against the open side, `ShelterCheck::wind_share`, so three walls shelter
-  only with their back to the wind; and a roof keeping the clear night sky's
-  cold off the body, `body_heat::open_sky_radiant_c`); and
+  warmth of a fire (DONE 2026-09-28: the wind direction against the open
+  side, `ShelterCheck::wind_share`, so three walls shelter only with their
+  back to the wind; a roof keeping the clear night sky's cold off the body;
+  and a roof as shade from the sun, `body_heat::open_sky_radiant_c`); and
   the gameplay sun rises at 6:00 and sets at 18:00 every day at every
   latitude, so day length never changes with season (a Brief 6 question).
 - **Tier B (make the construction tool good enough to build a city).** Pick one

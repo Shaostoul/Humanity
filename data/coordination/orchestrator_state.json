@@ -381,6 +381,11 @@
       "date": "2026-09-28",
       "decision": "Outdoor mean radiant temperature at night: body_heat::open_sky_radiant_c (half sky at Swinbank 0.0552*T^1.5 mixed with cloud at the air's, half ground at the air's, as T^4), weighted by night_sky_weight of the local solar hour; a roof (walls or not) sets it back to the air's. Only in breathable open air.",
       "why": "Tier A shelter leftover 'the walls' radiant warmth': with the surroundings always at the air's temperature a roof could give no radiant benefit. Night-only because the sun's warmth (SolarCal) is not modelled and by day 'the air's' is the better stand-in for sun plus sky."
+    },
+    {
+      "date": "2026-09-28",
+      "decision": "The sun in the body heat model: body_heat::sun_mrt_rise_c (ASHRAE 55 SolarCal with pythermalcomfort's constants, Fanger's rotation-averaged projected area, Meinel clear-sky beam with Kasten-Young air mass, cloud removing the beam, ground albedo 0.2) added to the open-sky long-wave MRT; night_sky_weight deleted. A roof is full shade.",
+      "why": "v0.1416.0's night-only weighting was a stand-in because the sun was missing; with the sun modelled the sky's cold applies day and night, as physically it does. Sun height from the gameplay sun (solar::sun_factor) so body, crops and panels agree."
     }
   ],
   "active_scopes_to_avoid": [

@@ -192,13 +192,30 @@ starts the body over.
   temperature and half is sky, at Swinbank's clear-sky temperature
   (`0.0552 * T_air^1.5` K, Swinbank 1963) where it is clear and at the air's
   where cloud covers it (`Weather::cloud_share`), mixed as fourth powers.
-  On a clear 10 C night that is about 0.5 C. It is weighted by
-  `night_sky_weight` of the local solar hour: all of it while the sun is
-  down, fading out as the sun climbs to 10 degrees, because by day the sun's
-  warmth (not modelled) outweighs the sky's cold, and "the air's" is the
-  better stand-in for both. Under a roof, walls or not, the surroundings are
-  the air's: the roof radiates at about the air's temperature and hides the
-  zenith, the sky's coldest part. That is a shelter's radiant warmth; on
+  On a clear 10 C night that is about 0.5 C. (v0.1416.0 let this in only
+  at night, as a stand-in until the sun was modelled; v0.1417.0 replaced
+  that with the sun itself.) By day the sun's rise is added on top
+  (`sun_mrt_rise_c`, ASHRAE 55-2020 Appendix C "SolarCal", with the
+  constants pythermalcomfort's `solar_gain` uses: h_r 6 W/m2 K, f_eff 0.725
+  standing, short-wave absorptivity 0.7, long-wave 0.95, diffuse light 0.2
+  of the beam): the diffuse sky light, the direct beam on the body's
+  projected area (`projected_area_factor`, Fanger's
+  `0.308 cos(b (0.998 - b^2/50000))`, within 0.003 of pythermalcomfort's
+  standing table averaged over the azimuths) and the light the ground
+  reflects (albedo 0.2 outdoors; SolarCal's 0.6 is an indoor floor). The
+  beam is Meinel's clear-sky model, `1353 * 0.7^(AM^0.678)` W/m2 with Kasten
+  and Young's air mass (about 950 W/m2 overhead, 430 at 10 degrees), cloud
+  taking it away and the diffuse light kept. The sun's height is the
+  gameplay sun's (`solar::sun_factor` of the local solar hour, the arc the
+  crops and panels use). In 20 C air a clear sun overhead makes about 47 C
+  (the sky's 12.3 C plus a 34.7 C rise) and an overcast noon about 34 C
+  (`the_open_sky_by_night_and_by_day`). Under a roof, walls or not, the
+  surroundings are the air's: the roof radiates at about the air's
+  temperature, hides the zenith, the sky's coldest part, and shades the
+  body. By day that is shade: at a clear, dry 30 C noon in a light breeze,
+  after two hours standing the core is about a quarter of a degree warmer in
+  the sun than under a roof and the skin about 1.5 C warmer
+  (`a_roof_is_shade_at_noon`). By night it is a shelter's radiant warmth; on
   the calm, clear 10 C night in the everyday outfit, after six hours the
   core is nearly the same either way (36.70 C under a roof, 36.67 C in the
   open), but the skin is about 1.9 C warmer under the roof (25.5 C against
@@ -207,13 +224,15 @@ starts the body over.
 
 ## Not modelled yet
 
-- The sun's and a fire's radiant heat (the `radiant_temp_c` input is there
-  for them, and the cold night sky already uses it; the `campfire_warmth`
-  effect is the obvious first user). The sun would be ASHRAE 55's SolarCal
-  (Appendix C): the direct and diffuse light a standing body intercepts,
-  turned into a rise of the mean radiant temperature, with a roof as shade.
-  Humidity's effect on the night sky (Brunt's and Idso's formulas use the
-  vapour pressure; Swinbank's does not) is not in either.
+- A fire's radiant heat (the `radiant_temp_c` input is there for it; the
+  `campfire_warmth` effect is the obvious first user).
+- For the sky and the sun: humidity's effect on the night sky (Brunt's and
+  Idso's formulas use the vapour pressure; Swinbank's does not); the sun
+  coming in under a roof's eaves through the open sides when it is low, and
+  the sky light that comes in the same way (a roof is taken as full shade);
+  the ground warmer than the air in the sun; and the sun's real height,
+  which follows the gameplay sun (up at 6, down at 18, overhead at noon at
+  every latitude) until the latitude question is settled.
 - Sweat soaking clothes (only rain wets them), and sweat costing water: a
   litre an hour of hard work in heat should come out of hydration.
 - Shivering and activity costing food energy.
