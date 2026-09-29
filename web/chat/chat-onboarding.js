@@ -412,7 +412,7 @@ function step4() {
 
     <p style="font-size:.75rem;color:var(--text-muted);line-height:1.5;margin:0">
       💡 You can reopen this guide anytime via <strong style="color:var(--text-muted)">Help → Getting Started</strong> in the sidebar.
-      Your recovery phrase and encrypted backup stay available under the 👤 <strong style="color:var(--text-muted)">Account &amp; Identity</strong> menu in the top bar, in the <strong style="color:var(--text-muted)">Security &amp; Recovery</strong> section, or by typing <code>/seed</code> or <code>/backup</code>.
+      Your recovery phrase and encrypted backup stay available under the 👤 <strong style="color:var(--text-muted)">Account &amp; Identity</strong> menu in the top bar, in the <strong style="color:var(--text-muted)">Security &amp; Recovery</strong> section, or by typing <code>/recovery</code> or <code>/backup</code>.
     </p>
   `;
 }

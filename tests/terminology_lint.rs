@@ -119,6 +119,12 @@ fn account_words_are_the_plain_ones() {
             if !alias && (lower.contains("seed phrase") || lower.contains("seed-phrase ")) {
                 bad.push(format!("{rel}:{}: \"seed phrase\" -> say \"recovery phrase\"", n + 1));
             }
+            // The chat command was renamed with the phrase (/seed -> /recovery);
+            // a tip that still names the old one sends people to "Unknown
+            // command" (review of 2026-09-29).
+            if lower.contains("<code>/seed</code>") || lower.contains("'/seed'") || lower.contains("\"/seed\"") {
+                bad.push(format!("{rel}:{}: the chat command is /recovery now, not /seed", n + 1));
+            }
             if says_no_account(&lower) {
                 bad.push(format!("{rel}:{}: \"no account\" -> say \"no sign-up\" (people do have an account; it is theirs)", n + 1));
             }

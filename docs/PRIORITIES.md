@@ -662,7 +662,8 @@ between the simulation and the person. Its tier ladder is the build order.
   gate); `game_time_sync` bridged (DONE 2026-09-29, v0.1424.0; operator:
   the host clock wins): while the player is in the shared world
   (`copresence_active`, not chat-only) the relay's clock sets the game
-  clock and its speed (one second a second), every jump is summed
+  clock, its speed (one second a second) and its calendar (24-hour days,
+  the relay's 86,400-second day, added after the review), every jump is summed
   (`time::REBASE_SLOT`) so each crop's `planted_at` moves with it and no
   garden ripens or resets on joining, sleep is refused (nobody can skip the
   host's night), and 20 s without a sync hands the speed back while the

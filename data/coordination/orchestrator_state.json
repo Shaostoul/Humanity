@@ -456,6 +456,11 @@
       "date": "2026-09-29",
       "decision": "Rig: showcase 'weather_wind' pins the manual weather's wind beside 'weather'; vantage planet-open-night-walk (clear, calm, midnight, on foot) captured 'Clear 19C calm feels 15C'.",
       "why": "The night half of the open-sky model was unit-tested only; the clear pin's fixed 4 m/s wind would have left the feels gap near the 2 C note threshold."
+    },
+    {
+      "date": "2026-09-29",
+      "decision": "Review fixes: onboarding /seed -> /recovery (+ lint rule); host calendar (HOST_HOURS_PER_DAY 24, HOST_DAYS_PER_YEAR default) applies while hosted; pc-disk-guard idle by .fingerprint unit files and rmSync errors logged, not thrown.",
+      "why": "Critic review of v0.1414.0..v0.1426.0 confirmed two defects (a stale command tip; hour mismatch across players with different day lengths) and flagged two guard weaknesses; the rest checked clean."
     }
   ],
   "active_scopes_to_avoid": [

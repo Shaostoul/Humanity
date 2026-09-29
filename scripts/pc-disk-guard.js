@@ -73,10 +73,26 @@ function busy() {
 
 function lastBuiltMs(target) {
   let newest = 0;
-  for (const rel of ['.rustc_info.json', 'debug/.cargo-lock', 'release/.cargo-lock', 'debug', 'release', '.']) {
+  const bump = (p) => {
     try {
-      newest = Math.max(newest, fs.statSync(path.join(target, rel)).mtimeMs);
+      newest = Math.max(newest, fs.statSync(p).mtimeMs);
     } catch { /* not there */ }
+  };
+  for (const rel of ['.rustc_info.json', 'debug', 'release', '.']) bump(path.join(target, rel));
+  // Cargo rewrites a unit's files under .fingerprint/<unit>/ each time it
+  // builds or checks that unit, so the newest of those is when anything was
+  // last built here. The lock files and folder dates are not: the lock file
+  // keeps its date, and a folder's changes only when an exe is relinked
+  // (review of 2026-09-29).
+  for (const profile of ['debug', 'release']) {
+    const fp = path.join(target, profile, '.fingerprint');
+    let units = [];
+    try { units = fs.readdirSync(fp); } catch { /* no builds in this profile */ }
+    for (const unit of units) {
+      let files = [];
+      try { files = fs.readdirSync(path.join(fp, unit)); } catch { /* not a folder */ }
+      for (const f of files) bump(path.join(fp, unit, f));
+    }
   }
   return newest;
 }
@@ -84,8 +100,20 @@ function lastBuiltMs(target) {
 const actions = [];
 function remove(dir, why) {
   if (!fs.existsSync(dir)) return;
-  actions.push((DRY ? 'would delete ' : 'deleted ') + path.relative(ROOT, dir) + ' (' + why + ')');
-  if (!DRY) fs.rmSync(dir, { recursive: true, force: true, maxRetries: 3 });
+  const rel = path.relative(ROOT, dir);
+  if (DRY) {
+    actions.push('would delete ' + rel + ' (' + why + ')');
+    return;
+  }
+  try {
+    fs.rmSync(dir, { recursive: true, force: true, maxRetries: 3 });
+    actions.push('deleted ' + rel + ' (' + why + ')');
+  } catch (e) {
+    // A file something still holds open (an editor's language server, an
+    // antivirus scan): log it and let the next run finish the job, rather
+    // than stop before the log is written (review of 2026-09-29).
+    actions.push('could not finish deleting ' + rel + ' (' + (e.code || e.message) + '); next run tries again');
+  }
 }
 
 const before = usage();

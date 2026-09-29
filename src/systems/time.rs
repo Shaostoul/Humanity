@@ -324,6 +324,14 @@ pub const HOST_TIME_SPEED: f32 = 1.0;
 /// in a row: the player left the shared world or lost the connection). The
 /// clock does not jump back: the host's date simply becomes the player's.
 pub const HOST_RELEASE_S: f64 = 20.0;
+/// The host's calendar: the relay counts 86,400-second days
+/// (`relay/mod.rs`, `secs_per_day`), so a shared world has 24-hour days and
+/// the default year, whatever a player's own Settings say. Without it two
+/// players on one host clock saw different hours (review of 2026-09-29: 43,200
+/// s is noon on a 24-hour day and 09:36 on a 30-hour one).
+pub const HOST_HOURS_PER_DAY: u32 = 24;
+/// The host's year, in days (the default).
+pub const HOST_DAYS_PER_YEAR: u32 = DEFAULT_DAYS_PER_YEAR;
 
 /// True while the host's clock is in charge (the player is in a shared world).
 pub fn host_clock_active(data: &DataStore) -> bool {
@@ -434,9 +442,17 @@ impl System for TimeSystem {
     }
 
     fn tick(&mut self, _world: &mut hecs::World, dt: f32, data: &DataStore) {
-        // The calendar and the time speed from Settings (publish_settings),
-        // read every tick. Absent (tests that never publish) = the defaults.
-        if let Some((h, d)) = data.get::<std::sync::Mutex<(u32, u32)>>(CALENDAR_SLOT).and_then(|m| m.lock().ok().map(|c| *c)) {
+        // The host's clock, if it spoke this tick (see HOST_CLOCK_SLOT below).
+        let host = data
+            .get::<std::sync::Mutex<Option<f64>>>(HOST_CLOCK_SLOT)
+            .and_then(|m| m.lock().ok().and_then(|mut r| r.take()));
+        // The calendar: the host's in a shared world (HOST_HOURS_PER_DAY),
+        // otherwise the player's from Settings (publish_settings), read every
+        // tick. Absent (tests that never publish) = the defaults.
+        if host.is_some() || self.host_silence_s.is_some() {
+            self.game_time.hours_per_day = HOST_HOURS_PER_DAY;
+            self.game_time.days_per_year = HOST_DAYS_PER_YEAR;
+        } else if let Some((h, d)) = data.get::<std::sync::Mutex<(u32, u32)>>(CALENDAR_SLOT).and_then(|m| m.lock().ok().map(|c| *c)) {
             self.game_time.hours_per_day = clamp_hours_per_day(h);
             self.game_time.days_per_year = clamp_days_per_year(d);
         }
@@ -471,9 +487,6 @@ impl System for TimeSystem {
         // (operator, 2026-09-29). Each word from the host sets the clock to
         // it, and the jump is added to the rebase total so absolute stamps
         // follow; with no word for HOST_RELEASE_S the clock is the player's.
-        let host = data
-            .get::<std::sync::Mutex<Option<f64>>>(HOST_CLOCK_SLOT)
-            .and_then(|m| m.lock().ok().and_then(|mut r| r.take()));
         if let Some(h) = host {
             let jump = h - self.game_time.elapsed_seconds;
             if jump != 0.0 {
@@ -572,6 +585,35 @@ mod game_time_export_tests {
     /// the host the speed is the player's own again, and the date stays the
     /// host's. Red check, run: ignoring HOST_CLOCK_SLOT fails the first
     /// assertion.
+    /// THE HOST'S CALENDAR COMES WITH ITS CLOCK (review of 2026-09-29). A
+    /// player who set 30-hour days joins: while the host is in charge the day
+    /// is the host's 24 hours, so 43,200 s is noon for everyone; after the
+    /// host falls silent the player's own calendar is back. Red check, run:
+    /// reading the Settings calendar while hosted fails the first assertion
+    /// (the hour reads 9.6).
+    #[test]
+    fn the_host_calendar_comes_with_the_host_clock() {
+        let mut data = DataStore::new();
+        insert_slots(&mut data);
+        data.insert("game_time", std::sync::Mutex::new(GameTime::default()));
+        data.insert("time_restore_elapsed_request", std::sync::Mutex::new(None::<f64>));
+        publish_settings(&data, 30, 365, 1.0);
+        *data.get::<std::sync::Mutex<Option<f64>>>(HOST_CLOCK_SLOT).unwrap().lock().unwrap() = Some(43_200.0);
+        let mut sys = TimeSystem::new();
+        let mut world = hecs::World::new();
+        sys.tick(&mut world, 0.0, &data);
+        let g = data.get::<std::sync::Mutex<GameTime>>("game_time").unwrap().lock().unwrap().clone();
+        assert_eq!(g.hours_per_day, HOST_HOURS_PER_DAY);
+        assert!((g.solar_hour() - 12.0).abs() < 1e-3, "noon on the host's clock: {}", g.solar_hour());
+        // 21 s of silence releases the host; the calendar is chosen at the
+        // start of a tick, so the player's own is back from the next one.
+        for _ in 0..22 {
+            sys.tick(&mut world, 1.0, &data);
+        }
+        let g = data.get::<std::sync::Mutex<GameTime>>("game_time").unwrap().lock().unwrap().clone();
+        assert_eq!(g.hours_per_day, 30, "the player's own calendar back after the host falls silent");
+    }
+
     #[test]
     fn the_host_clock_wins_while_joined() {
         let mut data = DataStore::new();

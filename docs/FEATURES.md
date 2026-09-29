@@ -2947,7 +2947,8 @@ and re-sends the welcome + snapshot). Relay reaps ghost player entities on resta
 (persisting their progress) so counts stay honest and rejoins work. Each other player's name floats over
 their teal figure, the way the crew's do (v0.1421.0, `engine::net_route::nameplate_labels`: out to 40 m,
 hidden behind walls like the crew's; the relay always sent the name, nothing drew it). In the shared world the host's
-clock wins (v0.1424.0, operator decision): the relay's `game_time_sync` sets the game clock and its speed while the
+clock wins (v0.1424.0, operator decision): the relay's `game_time_sync` sets the game clock, its speed and its calendar
+(24-hour days, v0.1427.0) while the
 player is joined, crops keep their age across the jump (`time::REBASE_SLOT`), and the bed says the night can't be
 slept away there.
 - Native: `src/lib.rs` (multiplayer block, roster mirror), `src/gui/pages/hud.rs`

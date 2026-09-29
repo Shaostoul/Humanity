@@ -709,7 +709,7 @@ savePref = function() { _origSavePref(); updateRangeLabels(); };
 // Version tag
 try {
   const vEl = document.getElementById('version-tag');
-  if (vEl) vEl.textContent = 'HumanityOS, v0.1426.0 · ' + new Date().getFullYear();
+  if (vEl) vEl.textContent = 'HumanityOS, v0.1427.0 · ' + new Date().getFullYear();
 } catch(e) {}
 
 // Inject hosIcon SVGs into action bar buttons
@@ -1885,12 +1885,12 @@ document.querySelectorAll('#sec-server-info .info-section h2').forEach(h2 => {
 })();
 
 // ══════════════════════════════════════════════════════════════════════════════
-// ── Settings-specific backup/seed modals ──
+// ── Settings-specific backup/recovery-phrase modals ──
 // These are standalone versions that do not depend on chat app functions.
 // Requires crypto.js to be loaded first.
 // ══════════════════════════════════════════════════════════════════════════════
 
-// ── Settings-specific backup/seed modals ──
+// ── Settings-specific backup/recovery-phrase modals ──
 // These are standalone versions that don't depend on chat app functions.
 
 function settingsAlert(msg) {
