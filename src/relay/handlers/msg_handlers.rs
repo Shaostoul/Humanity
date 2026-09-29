@@ -2998,9 +2998,15 @@ pub async fn handle_game_join(
     // game_player_joined broadcast already carries the name for the join-after
     // case; this closes the join-before (snapshot) case. Additive component,
     // backward-compatible with existing persisted snapshots.
+    // How they look (2026-09-29): clamped here too, then kept on the entity
+    // like the name, so a later joiner's snapshot shows them as they are.
+    let look = raw.get("appearance").and_then(crate::player_look::PlayerLook::from_json);
     if let Some(e) = world.entities.get_mut(&player_id) {
         if let Some(obj) = e.components.as_object_mut() {
             obj.insert("name".to_string(), serde_json::json!(player_name));
+            if let Some(l) = look {
+                obj.insert("appearance".to_string(), l.to_json());
+            }
         }
     }
     // Entity position for the joined broadcast below: the live spot on a
@@ -3079,6 +3085,7 @@ pub async fn handle_game_join(
             "player_id": player_id,
             "name": player_name,
             "position": entity_pos,
+            "appearance": look.map(|l| l.to_json()),
         });
         let _ = state.broadcast_tx.send(RelayMessage::System {
             message: format!("__game__:{}", joined),

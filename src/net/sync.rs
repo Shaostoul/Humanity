@@ -13,6 +13,8 @@ use super::protocol::NetMessage;
 pub struct RemotePlayer {
     pub player_id: u32,
     pub name: String,
+    /// How they look, when their client sent it (2026-09-29).
+    pub look: Option<crate::player_look::PlayerLook>,
     pub last_position: Vec3,
     pub target_position: Vec3,
     pub last_rotation: Quat,
@@ -170,7 +172,7 @@ impl System for NetSyncSystem {
                     }
                 }
 
-                NetMessage::PlayerJoined { player_id, name, position } => {
+                NetMessage::PlayerJoined { player_id, name, position, look } => {
                     // Never spawn a remote avatar for ourselves (the relay echoes our join).
                     if self.local_player_id == Some(player_id) {
                         continue;
@@ -190,6 +192,10 @@ impl System for NetSyncSystem {
                             if !name.is_empty() && r.name != name {
                                 r.name = name.clone();
                             }
+                            // Same for the look: a lazy-spawned figure has none.
+                            if look.is_some() {
+                                r.look = look;
+                            }
                             break;
                         }
                     }
@@ -207,6 +213,7 @@ impl System for NetSyncSystem {
                         RemotePlayer {
                             player_id,
                             name: name.clone(),
+                            look,
                             last_position: pos,
                             target_position: pos,
                             last_rotation: Quat::IDENTITY,
@@ -271,6 +278,7 @@ impl System for NetSyncSystem {
                             RemotePlayer {
                                 player_id,
                                 name: format!("Player {player_id}"),
+                                look: None,
                                 last_position: pos,
                                 target_position: pos,
                                 last_rotation: Quat::from_array(rotation),
@@ -484,10 +492,12 @@ mod tests {
             .collect();
         assert_eq!(placeholder, vec!["Player 42".to_string()], "lazy-spawn placeholder");
 
+        let look = crate::player_look::PlayerLook { skin: [0.7, 0.5, 0.4], hair: [0.1, 0.1, 0.1], height: 1.05 };
         sys.queue_messages(vec![NetMessage::PlayerJoined {
             player_id: 42,
             name: "Test Pilot A".to_string(),
             position: [1.0, 0.0, 2.0],
+            look: Some(look),
         }]);
         sys.tick(&mut world, 0.016, &data);
         let named: Vec<(String, u32)> = world
@@ -497,6 +507,20 @@ mod tests {
             .collect();
         assert_eq!(named.len(), 1, "no duplicate spawn from the late join");
         assert_eq!(named[0].0, "Test Pilot A", "the real name replaced the placeholder");
+        // And the look arrived with the join (2026-09-29).
+        let looks: Vec<Option<crate::player_look::PlayerLook>> =
+            world.query_mut::<&RemotePlayer>().into_iter().map(|(_, r)| r.look).collect();
+        assert_eq!(looks, vec![Some(look)], "the look replaced the placeholder's none");
+        // A fresh join (no earlier position update) spawns with its look.
+        sys.queue_messages(vec![NetMessage::PlayerJoined {
+            player_id: 43,
+            name: "Test Pilot B".to_string(),
+            position: [0.0, 0.0, 0.0],
+            look: Some(look),
+        }]);
+        sys.tick(&mut world, 0.016, &data);
+        let b = world.query_mut::<&RemotePlayer>().into_iter().find(|(_, r)| r.player_id == 43).map(|(_, r)| r.look);
+        assert_eq!(b, Some(Some(look)), "a fresh join spawns with its look");
     }
 
     // ── NPC walk-up talk helpers (v0.797) ──

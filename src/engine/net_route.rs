@@ -66,10 +66,15 @@ pub(crate) fn route_game_message(state: &mut EngineState, payload: &str) {
                                 .and_then(|n| n.as_str())
                                 .unwrap_or("Player")
                                 .to_string();
+                            let look = e
+                                .get("components")
+                                .and_then(|c| c.get("appearance"))
+                                .and_then(crate::player_look::PlayerLook::from_json);
                             msgs.push(NetMessage::PlayerJoined {
                                 player_id: eid as u32,
                                 name,
                                 position: pos,
+                                look,
                             });
                             continue;
                         }
@@ -129,10 +134,12 @@ pub(crate) fn route_game_message(state: &mut EngineState, payload: &str) {
                 v.get("position").and_then(&arr3),
             ) {
                 let name = v.get("name").and_then(|x| x.as_str()).unwrap_or("Player").to_string();
+                let look = v.get("appearance").and_then(crate::player_look::PlayerLook::from_json);
                 state.net_sync.queue_messages(vec![NetMessage::PlayerJoined {
                     player_id: id as u32,
                     name,
                     position: pos,
+                    look,
                 }]);
             }
         }
@@ -686,6 +693,7 @@ mod tests {
                 velocity: Vec3::ZERO,
                 interpolation_t: 1.0,
                 last_update_time: 0.0,
+                look: None,
             },
         ));
         let labels = nameplate_labels(&world, Vec3::new(0.0, 0.0, 10.0));

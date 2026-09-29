@@ -471,6 +471,11 @@
       "date": "2026-09-29",
       "decision": "time::HOST_RELEASE_SLOT + release_host_clock, called at both lib.rs leave sites (game_leave, disconnect): the host lock ends on the next tick and a same-frame host word is dropped.",
       "why": "Review note: sleep refused and host speed kept for up to 20 s after leaving."
+    },
+    {
+      "date": "2026-09-29",
+      "decision": "Appearance sync rung 1: crate::player_look::PlayerLook (skin, hair, height; clamped) sent in game_join from gui_state.appearance, kept by the relay on the entity + game_player_joined, parsed by net_route into NetMessage::PlayerJoined.look (serde skip) and kept on RemotePlayer.look. Rung 2 = render per-player colours/height.",
+      "why": "Tier D next item after nameplates; split in two so each rung lands whole near the usage cap."
     }
   ],
   "active_scopes_to_avoid": [

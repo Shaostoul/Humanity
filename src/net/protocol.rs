@@ -22,6 +22,9 @@ pub enum NetMessage {
         player_id: u32,
         name: String,
         position: [f32; 3],
+        /// How they look (2026-09-29); None from a client that never sent it.
+        #[serde(skip)]
+        look: Option<crate::player_look::PlayerLook>,
     },
     /// A player left the world.
     PlayerLeft {

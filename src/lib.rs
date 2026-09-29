@@ -31,6 +31,9 @@ pub mod cosmetics;
 /// so terrain / renderer / world placement read the same source of
 /// truth instead of drifting per-view. See `src/cosmos.rs`.
 pub mod cosmos;
+/// How another player looks in a shared world (2026-09-29): compiled into the
+/// app and the relay alike. See `src/player_look.rs`.
+pub mod player_look;
 
 /// Dev travel math (teleport viewpoints + camera aim for the Dev page's
 /// FTL/teleport tool). Pure glam, ungated like `cosmos` so its unit tests
@@ -6830,6 +6833,8 @@ mod native_app {
                                         "type": "game_join",
                                         "player_name": name,
                                         "character_mode": "local",
+                                        // How this player looks to the others (2026-09-29).
+                                        "appearance": crate::player_look::PlayerLook::from_appearance(&state.gui_state.appearance).to_json(),
                                     });
                                     ws.send(&join.to_string());
                                 }

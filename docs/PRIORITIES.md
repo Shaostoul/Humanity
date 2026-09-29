@@ -669,7 +669,10 @@ between the simulation and the person. Its tier ladder is the build order.
   host's night), and 20 s without a sync hands the speed back while the
   host's date stays; nameplates (DONE 2026-09-28, v0.1421.0:
   another player's name floats over them like the crew's) and appearance
-  sync; make a trade move items; a
+  sync (rung 1 DONE 2026-09-29, v0.1430.0: skin tone, hair colour and
+  height travel in game_join, the relay clamps and keeps them on the entity
+  and in game_player_joined, each client keeps them on RemotePlayer.look;
+  rung 2 is drawing the teal figure in them); make a trade move items; a
   `SystemRunner` host in the relay.
 - **Tier E: NPCs**, which is arc D below.
 
