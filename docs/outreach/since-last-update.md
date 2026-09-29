@@ -49,3 +49,6 @@ Each line is written the way a player would hear it; the release notes and
   solid slabs you could not open) are gone.
 - **v0.1406.0: no reaching through walls.** Aboard, E and F no longer reach a
   chest or a bed in the next room through the home's walls.
+- **v0.1407.0: walls meet the roof on uneven ground.** Walls built
+  straight on bumpy ground now stretch or shrink a little so their tops line
+  up, and the roof sits flush with no line of sky under it.

@@ -13306,16 +13306,17 @@
     },
     {
       "id": "planet-built-window",
-      "desc": "Standing inside a closed hut built on a planet's ground, facing a window (2026-09-28, windows in walls): four walls under a roof on a wood foundation, the north one a Wood Wall with Window (a 1 x 1 m pane 0.9 m up), stood up on the Sahara by the dev build verb (the foundation levels the floor: without it the north wall stood a centimetre or two lower on the sand than the roof's rest height and a sliver of sky showed along its top, seen 2026-09-28); the eye 1.7 m over the floor near the south wall, looking north and level, by the dev stand verb. The pane is drawn in the celestial transparent list AFTER the planet layer stack (celestial_order::list_key), so the sky and the sand outside are composited before the glass blends over them. 2 km east of planet-built-door.",
+      "desc": "Standing inside a closed hut built on a planet's ground, facing a window (2026-09-28, windows in walls): four walls under a roof straight on the sand, the north one a Wood Wall with Window (a 1 x 1 m pane 0.9 m up), stood up on the Sahara by the dev build verb. The sand here is uneven: before placement::level_top (2026-09-28) the north wall stood a centimetre or two lower than the roof's rest height and a sliver of sky showed along its top; the walls now meet at the top; the eye 1.7 m over the floor near the south wall, looking north and level, by the dev stand verb. The pane is drawn in the celestial transparent list AFTER the planet layer stack (celestial_order::list_key), so the sky and the sand outside are composited before the glass blends over them. 2 km east of planet-built-door.",
       "expect": "The inside of a closed wooden hut: the north wall across the frame with a square window in its middle, at chest to head height, through which the desert and the sky outside are seen with a faint blue tint; the wall under the sill and over the window whole.",
       "regressions": [
         "the view through the window shows the outside (sand, sky), faintly tinted: not an opaque pane, and not the bare sky with the sand missing",
+        "no line of sky along the top of any wall where it meets the roof (placement::level_top)",
         "no haze or sky colour painted over the pane itself (the glass sorts after the atmosphere)",
         "panics=0"
       ],
       "camera": {"body":"earth","lat":23.5,"lon":13.06,"altitude_km":0.03,"look_offset_deg":60},
       "showcase": {"time":"12.0","sea":"0.3"},
-      "post_showcase": {"build":"wood_foundation@0,0,0;wood_wall_window@0,-2,0;wood_wall@-2,0,1;wood_wall@2,0,1;wood_wall@0,2,0;roof@0,0,0","build_at":"23.5,13.06"},
+      "post_showcase": {"build":"wood_wall_window@0,-2,0;wood_wall@-2,0,1;wood_wall@2,0,1;wood_wall@0,2,0;roof@0,0,0","build_at":"23.5,13.06"},
       "final_showcase": {"stand":"0,1.7,1.2,0,0","stand_at":"23.5,13.06"},
       "settle_s": 10,
       "perf_floor_fps": 20

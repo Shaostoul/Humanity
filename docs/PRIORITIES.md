@@ -635,10 +635,10 @@ between the simulation and the person. Its tier ladder is the build order.
   at a time, no double builds), and share the rest of the list: nothing stands
   on a roof yet (no second storey), doors and windows set into walls are DONE
   (2026-09-28: the Wood Wall with Door and the Wood Wall with Window,
-  `construction::doorway`), walls built straight on uneven ground stand at
-  the ground under each (the roof then rests on the tallest and leaves a sliver
-  of sky over a lower one, seen 2026-09-28; a foundation levels it, and the
-  placement could level a room's walls itself), built pieces are now solid aboard and on a planet's ground (DONE
+  `construction::doorway`), walls built straight on uneven ground now meet
+  at the top (`placement::level_top`, 2026-09-28: each stands on its own
+  ground, taller or shorter by up to 0.3 m to reach its neighbour's top, so
+  the roof rests flush), built pieces are now solid aboard and on a planet's ground (DONE
   2026-09-28: `build_place::built_piece_segments`, and on the ground
   `planet_build::collide_on_site` resolves the walk's anchor step in the build
   site's frame) and can be TAKEN DOWN (F with a piece in hand, materials back),

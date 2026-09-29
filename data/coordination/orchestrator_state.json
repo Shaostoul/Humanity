@@ -326,6 +326,11 @@
       "date": "2026-09-28",
       "decision": "The look ray (E and F) stops at the home's own walls aboard: uses::ray_crosses_walls tests the ray's horizontal travel against wall_colliders (full-height segments, windows solid) before the piece it found.",
       "why": "The review's main leftover; with take-down on F it let a player remove a chest or bed in the next room through a wall."
+    },
+    {
+      "date": "2026-09-28",
+      "decision": "placement::level_top: a piece resting on the ground that touches a finished piece of the same category and built height with a top within 0.3 m takes that top (scale.y adjusted, bottom on its own ground). The window vantage builds without a foundation again, as the proof.",
+      "why": "The window vantage showed a sliver of sky over a wall standing 1-2 cm lower on the sand than the roof rest height. Stretching the wall to meet its neighbour keeps both the bottom on the ground and the top at the roof, which neither levelling bases nor lowering the roof does."
     }
   ],
   "active_scopes_to_avoid": [

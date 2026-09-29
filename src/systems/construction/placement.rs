@@ -61,6 +61,10 @@ const OVERLAP_EPS_M: f32 = 0.05;
 /// of the room it covers and a wall placed on the ground floor never lands
 /// on a foundation laid on the roof above.
 pub const STOREY_STEP_M: f32 = 1.0;
+/// How far apart the tops of two touching pieces of one category may be for
+/// the new one to be levelled to the other (2026-09-28, [`level_top`]): enough
+/// for the unevenness of the ground under a room, well under a storey.
+pub const LEVEL_TOLERANCE_M: f32 = 0.3;
 /// Two boxes closer than this at every face are the same footprint: a
 /// second build there would be a double spend ([`occupied`]).
 const SAME_BOX_M: f32 = 0.02;
@@ -215,7 +219,47 @@ pub fn placement_pose(
     let snapped = Vec3::new((at.x / GRID_M).round() * GRID_M, at.y, (at.z / GRID_M).round() * GRID_M);
     let mut tf = Transform { position: snapped, rotation: quarter_turn(quarter_turns), scale: Vec3::from_array(bp.size) };
     tf.position.y = rest_height(bp, &tf, at.y, world, registry, frame);
+    if tf.position.y == at.y {
+        level_top(bp, &mut tf, world, registry, frame);
+    }
     tf
+}
+
+/// A piece standing on the GROUND (nothing under it holds it up) that touches
+/// a finished piece of its own category and built height whose top is within
+/// [`LEVEL_TOLERANCE_M`] of its own is made that much taller or shorter, its
+/// bottom staying on the ground under it, so the two tops meet (2026-09-28).
+/// On uneven ground each wall of a room otherwise stood at the ground under
+/// it, and the roof, which rests on the tallest, left a sliver of sky over a
+/// lower one. The first piece sets the level; a foundation still levels a
+/// floor the old way. Several touching neighbours: the tallest top within
+/// reach.
+pub fn level_top(bp: &Blueprint, tf: &mut Transform, world: &hecs::World, registry: &BlueprintRegistry, frame: Option<&PlanetSite>) {
+    let mine = world_aabb(tf);
+    let my_top = mine.1.y;
+    let mut target: Option<f32> = None;
+    for (_e, (s, other, site)) in world.query::<(&Structure, &Transform, Option<&PlanetSite>)>().iter() {
+        if !in_frame(site, frame) {
+            continue;
+        }
+        // Only a piece of the same kind and the same built height: walls with
+        // walls (all 3 m), never a bed stretched to a chest's height.
+        let same_kind = registry
+            .get(&s.blueprint_id)
+            .is_some_and(|b| b.category == bp.category && (b.size[1] - bp.size[1]).abs() < 1.0e-3);
+        if !same_kind {
+            continue;
+        }
+        let theirs = world_aabb(other);
+        let d = theirs.1.y - my_top;
+        if d.abs() > LEVEL_TOLERANCE_M || d.abs() < 1.0e-4 || !footprints_overlap(&mine, &theirs) {
+            continue;
+        }
+        target = Some(target.map_or(theirs.1.y, |t: f32| t.max(theirs.1.y)));
+    }
+    if let Some(top) = target {
+        tf.scale.y = (top - tf.position.y).max(0.1);
+    }
 }
 
 /// Does a piece (finished, or a scaffold still going up) already stand in
@@ -266,6 +310,30 @@ mod tests {
         build(world, reg, "wood_wall", Vec3::new(0.0, floor, 2.0), 0);
         build(world, reg, "wood_wall", Vec3::new(-2.0, floor, 0.0), 1);
         build(world, reg, "wood_wall", Vec3::new(2.0, floor, 0.0), 1);
+    }
+
+    /// WALLS ON UNEVEN GROUND MEET AT THE TOP (2026-09-28). A wall on ground
+    /// 5 cm lower than the one it touches is made 5 cm taller, its bottom on
+    /// its own ground; one on higher ground shorter; a wall that does not
+    /// touch, or whose top is further off than the tolerance (the storey
+    /// above), keeps its size; and a roof over the room then rests at one
+    /// height. Red check, run: skipping `level_top` leaves the low wall's top
+    /// 5 cm short.
+    #[test]
+    fn walls_on_uneven_ground_meet_at_the_top() {
+        let reg = shipped();
+        let mut world = hecs::World::new();
+        build(&mut world, &reg, "wood_wall", Vec3::new(0.0, 0.0, -2.0), 0);
+        let low = build(&mut world, &reg, "wood_wall", Vec3::new(-2.0, -0.05, 0.0), 1);
+        let (lo, hi) = world_aabb(&low);
+        assert!((lo.y - -0.05).abs() < 1e-5 && (hi.y - 3.0).abs() < 1e-4, "bottom on its ground, top at the room's: {lo} {hi}");
+        let high = build(&mut world, &reg, "wood_wall", Vec3::new(2.0, 0.08, 0.0), 1);
+        let (lo, hi) = world_aabb(&high);
+        assert!((lo.y - 0.08).abs() < 1e-5 && (hi.y - 3.0).abs() < 1e-4, "shorter on higher ground: {lo} {hi}");
+        let apart = build(&mut world, &reg, "wood_wall", Vec3::new(20.0, -0.1, 20.0), 0);
+        assert!((apart.scale.y - 3.0).abs() < 1e-5, "a wall touching nothing keeps its size");
+        let far_off = build(&mut world, &reg, "wood_wall", Vec3::new(0.0, 1.0, 2.0), 0);
+        assert!((far_off.scale.y - 3.0).abs() < 1e-5, "a top a metre off is not the same level");
     }
 
     /// A turned wall runs north-south: one quarter turn swaps its 4 m length

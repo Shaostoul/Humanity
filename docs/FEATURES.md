@@ -1871,6 +1871,11 @@ in by data, no ids in code; the first structure the look ray meets wins, so a wa
   survival rows say "Sheltered", "Out of the rain and the wind", or "Out of the rain; 70% of the wind gets in",
   and the Inventory page's readout says Sealed / Sheltered / Outside.
 
+**Walls on uneven ground meet at the top (2026-09-28).** A piece standing on the ground that touches a finished piece
+of the same kind and built height whose top is within 0.3 m of its own is made that much taller or shorter, its
+bottom on its own ground, so the tops meet and a roof rests flush (`placement::level_top`). Before this the roof, which
+rests on the tallest wall, left a sliver of sky over a lower one on uneven sand.
+
 **Doors in walls (2026-09-28).** A blueprint can carry a `doorway` (width and height): the Wood Wall with Door
 (`data/blueprints/basic.ron`, 9 planks) is one piece to place, save and take down, drawn and walked into as its parts
 (`systems::construction::doorway::parts`: the wall either side of the gap, the lintel, and the door leaf, drawn in a
