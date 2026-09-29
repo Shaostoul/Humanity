@@ -421,6 +421,11 @@
       "date": "2026-09-29",
       "decision": "Sweat costs water: BodyHeat::sweat_litres (evaporated sweat, latent heat 2.43 MJ/kg), HeatOutcome::sweat_l per frame, hydration -= sweat_l * 20 points/L * drain_scale in the food system. Bounds from measurement (0.205 L for an hour walking at 35 C).",
       "why": "body-heat.md 'Not modelled yet'; parked the night before because the first numbers disagreed with the test comments."
+    },
+    {
+      "date": "2026-09-29",
+      "decision": "Disk cleanup: removed 58 landed worktrees (git cherry shows nothing unmerged; branches kept), cargo clean on main and on every remaining worktree. Freed about 1.25 TB (C: from 173 GB free, 91% used, to 1.4 TB free, 24% used). CLAUDE.md gotcha extended: the main target/ grows without limit (1.13 TB).",
+      "why": "Operator: C: at ~90%. The build cache was the cause, not logs or backups."
     }
   ],
   "active_scopes_to_avoid": [
