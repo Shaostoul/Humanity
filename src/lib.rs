@@ -13394,20 +13394,17 @@ mod native_app {
                         // but, what about calm glassy water or extremely
                         // stormy water?"). sea_state only modulated SHADING.
                         //
-                        // The target wind is the live weather's, or the
+                        // The target wind is the wind at the player, or the
                         // showcase/rig {"sea":x} pin mapped onto 0.5..25 m/s
                         // so a pinned sea state still means something here.
                         // Smoothed on the same ~30 s constant as sea_state, so
                         // a regime flip rolls the ocean over.
-                        let wind_target = match state.sea_state_override {
-                            Some(pin) => 0.5 + pin.clamp(0.0, 1.0) * 24.5,
-                            None => state
-                                .gui_state
-                                .weather
-                                .as_ref()
-                                .map(|w| w.wind_speed)
-                                .unwrap_or(8.0),
-                        };
+                        // The wind AT THE PLAYER, the same one the sea
+                        // state's shading reads (2026-09-28).
+                        let wind_target = crate::systems::weather::ocean_fft_wind_target(
+                            state.sea_state_override,
+                            state.gui_state.weather.as_ref().map(|w| w.wind_at_player),
+                        );
                         // 30 s of smoothing is right for weather that rolls
                         // in on its own, and far too slow for a hand on a
                         // slider - the operator would click "Hurricane" and

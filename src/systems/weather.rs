@@ -116,6 +116,21 @@ impl Weather {
     }
 }
 
+/// The wind the FFT sea's spectrum is built for, m/s: a showcase sea pin
+/// mapped onto 0.5 to 25 m/s, else the wind AT THE PLAYER (east and north
+/// components, as the GUI's weather mirror carries them), else 8 m/s before
+/// any weather exists. The wave shapes and the sea state's shading
+/// (`Weather::sea_state_target`) must read the same wind: a calm spot under
+/// a global storm drew storm waves with calm-sea shading when this read the
+/// global wind (2026-09-28).
+pub fn ocean_fft_wind_target(pin: Option<f32>, wind_at_player: Option<(f32, f32)>) -> f32 {
+    match (pin, wind_at_player) {
+        (Some(p), _) => 0.5 + p.clamp(0.0, 1.0) * 24.5,
+        (None, Some((east, north))) => east.hypot(north),
+        (None, None) => 8.0,
+    }
+}
+
 impl Default for Weather {
     fn default() -> Self {
         Self {
@@ -804,6 +819,10 @@ mod sea_state_tests {
     /// fails the first assertion.
     #[test]
     fn the_sea_follows_the_wind_where_the_player_is() {
+        // The spectrum's wind reads the same at-player wind.
+        assert_eq!(ocean_fft_wind_target(None, Some((1.2, 0.9))), 1.5);
+        assert_eq!(ocean_fft_wind_target(Some(1.0), Some((1.2, 0.9))), 25.0, "a pin wins");
+        assert_eq!(ocean_fft_wind_target(None, None), 8.0);
         let mut w = Weather { wind_speed: 15.0, ..Weather::default() };
         w.wind_east_at_player = 1.2;
         w.wind_north_at_player = 0.9;

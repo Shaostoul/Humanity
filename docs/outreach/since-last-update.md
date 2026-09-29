@@ -55,3 +55,5 @@ Each line is written the way a player would hear it; the release notes and
 - **v0.1408.0: the sea follows the wind where you are.** The waves used to
   follow the weather's wind for the whole planet; now they follow the wind at
   your spot, the same wind your body feels.
+- **v0.1409.0: the waves' shape follows too.** The wave shapes now follow the
+  same local wind as the sea's colour and shine, so the two always agree.

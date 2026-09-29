@@ -336,6 +336,11 @@
       "date": "2026-09-28",
       "decision": "Sea state reads the wind at the player (Weather::sea_state_target, the at-player wind from environment Layer 1 plus the weather deviation) instead of the weather's global wind; the v0.909 mapping (2 m/s glassy to 15 m/s storm) unchanged.",
       "why": "PRIORITIES item 1 names it as one of Layer 1's next consumers; the sea the player sees is the sea where they are, and the body heat model already feels that wind. A one-function change with a test that can fail."
+    },
+    {
+      "date": "2026-09-28",
+      "decision": "The FFT sea spectrum wind reads the at-player wind too (weather::ocean_fft_wind_target), matching the sea state shading moved in v0.1408.0.",
+      "why": "v0.1408.0 created a seam: shading on the at-player wind, wave shapes on the global wind, so a calm spot under a global storm drew storm waves with calm shading. Caught while reading the sea-state consumers, before anyone saw it."
     }
   ],
   "active_scopes_to_avoid": [
