@@ -59,3 +59,5 @@ Each line is written the way a player would hear it; the release notes and
   same local wind as the sea's colour and shine, so the two always agree.
 - **v0.1410.0: the take-down message reads right.** Taking a piece down now
   says what came back by name ("6 Wood Plank") instead of an item code.
+- **v0.1411.0: doors you build make a sound.** Opening and shutting a built
+  door plays the same sounds as the ship's own doors.

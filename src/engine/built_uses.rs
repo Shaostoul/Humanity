@@ -123,10 +123,14 @@ pub(crate) fn activate(state: &mut EngineState) -> bool {
         // (`doorway::parts`, `build_place::built_piece_segments`).
         uses::StructureUse::Door => {
             let world = &mut state.game_world.world;
+            // The same sounds the home's own doors make (home_meshes.rs); the
+            // player pressing E is at the door, so no earshot test is needed.
             if world.get::<&DoorOpen>(e).is_ok() {
                 let _ = world.remove_one::<DoorOpen>(e);
+                state.pending_sfx.push(("sfx.door_close", "audio/sfx/door_close.ogg"));
             } else {
                 let _ = world.insert_one(e, DoorOpen);
+                state.pending_sfx.push(("sfx.door_open", "audio/sfx/door_open.ogg"));
             }
         }
         uses::StructureUse::Sleep => crate::systems::sleep::request(&state.data_store, &name),

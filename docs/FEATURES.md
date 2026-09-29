@@ -1880,8 +1880,8 @@ rests on the tallest wall, left a sliver of sky over a lower one on uneven sand.
 (`data/blueprints/basic.ron`, 9 planks) is one piece to place, save and take down, drawn and walked into as its parts
 (`systems::construction::doorway::parts`: the wall either side of the gap, the lintel, and the door leaf, drawn in a
 darker wood so a shut door reads against its wall; vantage `planet-built-door`). Looking at it
-the crosshair says "[E] open or shut the door"; E toggles the `DoorOpen` marker, and an open door swings a quarter turn
-out of the gap and stops blocking. An open door stays open across a save (`ConstructionSave.open`).
+the crosshair says "[E] open or shut the door"; E toggles the `DoorOpen` marker (with the home's own door sounds), and an open door swings a
+quarter turn out of the gap and stops blocking. An open door stays open across a save (`ConstructionSave.open`).
 
 **Windows in walls (2026-09-28).** A blueprint can carry a `window` (width, height, sill): the Wood Wall with Window
 (7 planks and a glass pane) has a 1 x 1 m pane 0.9 m up (`doorway::window_parts`: the wall around the opening and the

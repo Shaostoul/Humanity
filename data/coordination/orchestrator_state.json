@@ -346,6 +346,11 @@
       "date": "2026-09-28",
       "decision": "take_down split into apply_take_down (refund ops, despawn, the line) and tested; the line names items by the item registry instead of printing ids.",
       "why": "The review's last untested path; reading it showed the player saw raw item ids (\"6 wood_plank_0 back\")."
+    },
+    {
+      "date": "2026-09-28",
+      "decision": "Built doors play the home doors' open and close sounds on the E toggle (built_uses, pending_sfx).",
+      "why": "Small polish while keeping to one-release items so the operator's report prompt can land any time; built doors were silent where the home's doors are not."
     }
   ],
   "active_scopes_to_avoid": [
