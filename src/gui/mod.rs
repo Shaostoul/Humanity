@@ -56,6 +56,9 @@ pub use organize::*;
 /// See `gui/state_types.rs`.
 mod state_types;
 pub use state_types::*;
+/// The P2P trade types (`gui/trade_types.rs`, 2026-09-29).
+mod trade_types;
+pub use trade_types::*;
 
 #[cfg(test)]
 mod ui_snapshots;

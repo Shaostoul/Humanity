@@ -486,6 +486,11 @@
       "date": "2026-09-29",
       "decision": "Next Tier D item scoped, not started: making a trade move items needs a trade_completed message applied by both clients to their own inventories (trades complete only as a relay DB status today; items are free-text JSON). Recorded in PRIORITIES Tier D.",
       "why": "Too large to start near the usage cap; a half-built trade would be worse than none."
+    },
+    {
+      "date": "2026-09-29",
+      "decision": "Trades move items: TradeItem gains optional wear/quality; native offer lines resolve against the backpack and carry reference_id; Confirm gated on offer_shortfall; __trade_complete__ calls trade::settle_completed (once per trade, TradePageState.settled) which queues TransferOps; unknown received ids skipped. Trade types moved to gui/trade_types.rs.",
+      "why": "Tier D; the completion line claimed an exchange that never happened. Escrow needs server-held inventories (with the relay SystemRunner host), so the confirm check is the guard until then."
     }
   ],
   "active_scopes_to_avoid": [

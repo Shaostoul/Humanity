@@ -296,69 +296,6 @@ impl GuiCivStats {
     }
 }
 
-/// One item on a side of a P2P trade, mirroring the relay's TradeItem (v0.756).
-#[cfg(feature = "native")]
-#[derive(Debug, Clone, Default)]
-pub struct GuiTradeItem {
-    pub item_type: String,
-    pub name: String,
-    pub quantity: u32,
-    pub description: String,
-}
-
-/// One P2P trade, mirroring the relay's TradeDataPayload (v0.756). Delivered
-/// through targeted `__trade_data__:` / `__trade_list__:` private wrappers.
-#[cfg(feature = "native")]
-#[derive(Debug, Clone, Default)]
-pub struct GuiTrade {
-    pub id: String,
-    pub initiator_key: String,
-    pub recipient_key: String,
-    /// pending | active | completed | cancelled | rejected (relay strings).
-    pub status: String,
-    pub initiator_items: Vec<GuiTradeItem>,
-    pub recipient_items: Vec<GuiTradeItem>,
-    pub initiator_confirmed: bool,
-    pub recipient_confirmed: bool,
-    pub created_at: i64,
-    pub message: String,
-}
-
-#[cfg(feature = "native")]
-impl GuiTrade {
-    /// Map one TradeDataPayload JSON object (the `trade` field of a
-    /// `__trade_data__:` wrapper, or a `trades` element of `__trade_list__:`).
-    pub fn from_relay_json(v: &serde_json::Value) -> Self {
-        let items = |k: &str| -> Vec<GuiTradeItem> {
-            v.get(k)
-                .and_then(|x| x.as_array())
-                .map(|a| {
-                    a.iter()
-                        .map(|i| GuiTradeItem {
-                            item_type: i.get("item_type").and_then(|x| x.as_str()).unwrap_or("item").to_string(),
-                            name: i.get("name").and_then(|x| x.as_str()).unwrap_or("").to_string(),
-                            quantity: i.get("quantity").and_then(|x| x.as_u64()).unwrap_or(1) as u32,
-                            description: i.get("description").and_then(|x| x.as_str()).unwrap_or("").to_string(),
-                        })
-                        .collect()
-                })
-                .unwrap_or_default()
-        };
-        Self {
-            id: v.get("id").and_then(|x| x.as_str()).unwrap_or("").to_string(),
-            initiator_key: v.get("initiator_key").and_then(|x| x.as_str()).unwrap_or("").to_string(),
-            recipient_key: v.get("recipient_key").and_then(|x| x.as_str()).unwrap_or("").to_string(),
-            status: v.get("status").and_then(|x| x.as_str()).unwrap_or("").to_string(),
-            initiator_items: items("initiator_items"),
-            recipient_items: items("recipient_items"),
-            initiator_confirmed: v.get("initiator_confirmed").and_then(|x| x.as_bool()).unwrap_or(false),
-            recipient_confirmed: v.get("recipient_confirmed").and_then(|x| x.as_bool()).unwrap_or(false),
-            created_at: v.get("created_at").and_then(|x| x.as_i64()).unwrap_or(0),
-            message: v.get("message").and_then(|x| x.as_str()).unwrap_or("").to_string(),
-        }
-    }
-}
-
 #[cfg(all(test, feature = "native"))]
 mod listing_mapping_tests {
     use super::GuiListing;
@@ -495,7 +432,9 @@ mod listing_mapping_tests {
                     name: "Iron Ingot".into(),
                     quantity: 10,
                     description: String::new(),
-                    reference_id: None,
+                    reference_id: Some("iron_ingot_0".into()),
+                    wear: Some(3),
+                    quality: Some(2),
                 }],
                 recipient_items: vec![],
                 initiator_confirmed: true,
@@ -517,6 +456,9 @@ mod listing_mapping_tests {
         assert_eq!(t.initiator_items.len(), 1);
         assert_eq!(t.initiator_items[0].name, "Iron Ingot");
         assert_eq!(t.initiator_items[0].quantity, 10);
+        // The id, wear and grade a finished trade moves survive the wire (2026-09-29).
+        let i = &t.initiator_items[0];
+        assert_eq!((i.reference_id.as_deref(), i.wear, i.quality), (Some("iron_ingot_0"), 3, 2));
         assert!(t.initiator_confirmed);
         assert!(!t.recipient_confirmed);
         assert_eq!(t.message, "swap for wheat?");

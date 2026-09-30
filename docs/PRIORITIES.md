@@ -675,17 +675,16 @@ between the simulation and the person. Its tier ladder is the build order.
   rung 2 DONE v0.1431.0: the figure's head is
   in their skin tone with a cap of hair in their hair colour, sized by their
   height, the body still teal; not yet seen in a capture, which needs two
-  clients at once); make a trade move items (read 2026-09-29: a trade
-  completes only as a status in the relay DB, `storage/trading.rs`
-  `complete_trade`; its items are free-text JSON and nothing moves, because
-  inventories live in each client's own save. It needs a trade_completed
-  message both clients apply to their own inventories, item ids checked
-  against items.csv, and a rule for a client that no longer holds an item at
-  completion, likely cancel. The relay already tells both parties on
-  completion, `__trade_complete__:{trade_id}` in `msg_handlers.rs`, and the
-  native Trade page exists, `gui/pages/trade.rs`; what is missing is the
-  client applying the items to its own inventory); a `SystemRunner` host in
-  the relay.
+  clients at once); make a trade move items (DONE v0.1433.0: an offer
+  line names an item you carry and carries its items.csv id, wear and grade
+  in the relay's TradeItem; Confirm waits until you carry the whole offer;
+  on `__trade_complete__` each client settles its own side once,
+  `trade::settle_completed`, and a received id this game does not know is
+  not added. Still open: the relay holds no inventories, so nothing keeps
+  the items in escrow between confirming and completing, and a player who
+  drops an offered item in that window still delivers the other side; the
+  real fix is server-held inventories, which comes with the relay
+  `SystemRunner` host); a `SystemRunner` host in the relay.
 - **Tier E: NPCs**, which is arc D below.
 
 ### D. Populate the ship, and seat a dozen
@@ -866,9 +865,9 @@ of work each.
 7. **Native voice tail.** The str0m arc shipped voice itself. Remaining:
    per-peer volume / mute / squelch UI, web transmit-mode UI, a two-str0m CI
    harness, graceful relay restart.
-8. **Native trade UI completion.** The Trade page exists in `src/gui/pages/` but
-   trade events (`trade_response`, `trade_confirm`) are not dispatched. Wire them
-   or remove the page until it is ready.
+8. **Native trade UI completion.** DONE: the page has sent `trade_response`
+   and `trade_confirm` since v0.756, and since v0.1433.0 a completed trade
+   moves the items (see Tier D above).
 9. **Library, the federated file and media catalog.** `docs/design/library.md`.
    The Files engine first (trust-tiered LRU cache, bounded disk by construction,
    identity by content hash), then the Files UI, pin and torrent, perceptual

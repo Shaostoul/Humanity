@@ -1196,8 +1196,12 @@ Guild management in native UI.
 - Native: `src/gui/pages/guilds.rs`
 
 ### Trade Page
-P2P trading interface.
-- Native: `src/gui/pages/trade.rs`
+P2P trading interface. Since v0.1433.0 a trade moves real items: an offer line
+names an item you carry (by name or id), Confirm waits until you carry the whole
+offer, and when the trade completes each player's game hands over its side, with
+the item's wear and grade (`trade::settle_completed`). The web page's offers are
+text and do not move.
+- Native: `src/gui/pages/trade.rs`, types in `src/gui/trade_types.rs`
 
 ### Studio Page
 Content creation / streaming rehearsal tools: scenes, sources, resolution/bitrate/FPS,

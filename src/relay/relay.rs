@@ -2158,9 +2158,17 @@ pub struct TradeItem {
     pub quantity: u32,
     #[serde(default)]
     pub description: String,
-    /// Optional ID for referencing specific items (listing IDs, etc.).
+    /// Optional ID for referencing specific items (listing IDs, etc.). The
+    /// native Trade page puts the items.csv id here, which is what a finished
+    /// trade moves between backpacks (2026-09-29).
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub reference_id: Option<String>,
+    /// Wear and grade of the offered stack, carried so a worn tool arrives
+    /// worn (2026-09-29). Absent from text-only offers.
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub wear: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub quality: Option<u8>,
 }
 
 /// Trade data sent to clients.

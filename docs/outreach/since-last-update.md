@@ -37,3 +37,7 @@ Each line is written the way a player would hear it; the release notes and
 - **v0.1431.0: other players look like themselves.** In a shared world,
   another player's figure now has their skin tone, their hair colour and
   their height, instead of every player looking the same.
+- **v0.1433.0: trades hand over real items.** Offer something from your
+  backpack, and when both of you confirm, it leaves your pack and what they
+  offered arrives in yours, worn tools still worn. Before this, a finished
+  trade said "items exchanged" and nothing moved.

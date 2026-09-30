@@ -1620,8 +1620,12 @@ pub(crate) fn poll_relay_messages(state: &mut EngineState) {
                                         {
                                             t.status = "completed".to_string();
                                         }
-                                        state.gui_state.trade_status =
-                                            "Trade completed - items exchanged.".to_string();
+                                        // Move the items (2026-09-29): my offer leaves
+                                        // the backpack, theirs arrives, once per trade.
+                                        let reg = state.data_store.get::<crate::systems::inventory::ItemRegistry>("item_registry");
+                                        let known = |id: &str| reg.map_or(true, |r| r.items.contains_key(id));
+                                        let msg = crate::gui::pages::trade::settle_completed(&mut state.gui_state, tid, known);
+                                        state.gui_state.trade_status = msg;
                                     }
                                 }
                                 continue;
