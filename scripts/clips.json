@@ -11,7 +11,7 @@
     {
       "id": "earth-turning",
       "title": "Earth turning, from orbit",
-      "caption": "The whole Earth, at real size, turning into night. Every continent is there to land on.",
+      "caption": "The whole Earth, at real size, turning. Every continent on it is there to land on.",
       "camera": {
         "body": "earth",
         "altitude_km": 9000
