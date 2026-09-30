@@ -491,6 +491,11 @@
       "date": "2026-09-29",
       "decision": "Trades move items: TradeItem gains optional wear/quality; native offer lines resolve against the backpack and carry reference_id; Confirm gated on offer_shortfall; __trade_complete__ calls trade::settle_completed (once per trade, TradePageState.settled) which queues TransferOps; unknown received ids skipped. Trade types moved to gui/trade_types.rs.",
       "why": "Tier D; the completion line claimed an exchange that never happened. Escrow needs server-held inventories (with the relay SystemRunner host), so the confirm check is the guard until then."
+    },
+    {
+      "date": "2026-09-29",
+      "decision": "Zone fillers: structure::filler_parts builds rack/stall/cradle/array; footprint_box winding flipped outward (was inward) with a facing-vs-normal test; home_structure::underside only for parts that neither touch the floor nor rest on another part top.",
+      "why": "Tier C mesh_kind item. The inward winding was invisible while fillers stood above eye height; the power-terrace close-up exposed it. home-racks-noon lands in open space on older builds too, spawned as a separate task."
     }
   ],
   "active_scopes_to_avoid": [

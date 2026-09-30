@@ -980,21 +980,17 @@ impl HomeStructure {
             g.1.extend(b.1.into_iter().map(|k| k + base));
         };
         for (cx, cz) in cells {
-            if filler.mesh_kind == "rack" {
-                // Open pallet shelving: six uprights (the corners and mid-depth) and a deck
-                // at every level, so the goods on it (engine::stock_piles) are visible.
-                use crate::ship::structure::{rack_deck_levels, RACK_DECK_M, RACK_POST_M};
-                let p = RACK_POST_M;
-                for px in [cx, cx + fw - p] {
-                    for pz in [cz, cz + (fd - p) * 0.5, cz + fd - p] {
-                        push(footprint_box(px, pz, p, p, oy, h));
-                    }
+            // Each kind's own shape (2026-09-29, `structure::filler_parts`): open racks
+            // (their goods come from engine::stock_piles), market stalls, ship cradles,
+            // machine arrays.
+            let parts = crate::ship::structure::filler_parts(&filler.mesh_kind, cx, cz, fw, fd, h);
+            for &[x, z, w, d, y, ph] in &parts {
+                push(footprint_box(x, z, w, d, oy + y, ph));
+                // A raised part shows its underside, unless it rests on another
+                // part's top (a machine on its plinth): two faces at one height fight.
+                if y > 0.01 && !parts.iter().any(|q| (q[4] + q[5] - y).abs() < 1e-3) {
+                    push(underside(x, z, w, d, oy + y));
                 }
-                for level in rack_deck_levels(h) {
-                    push(footprint_box(cx, cz, fw, fd, oy + level, RACK_DECK_M));
-                }
-            } else {
-                push(footprint_box(cx, cz, fw, fd, oy, h));
             }
         }
     }
@@ -1572,15 +1568,31 @@ fn footprint_box(x0: f32, z0: f32, w: f32, d: f32, y0: f32, h: f32) -> (Vec<Vert
         for p in [p0, p1, p2, p3] {
             verts.push(Vertex { position: p, normal: n, uv: planar_uv(p, n) });
         }
-        idx.extend([base, base + 1, base + 2, base, base + 2, base + 3]);
+        // Wound so each face points OUT (2026-09-29). It was inward, which
+        // nothing showed while every filler stood taller than an eye: from
+        // above, a machine's top and near side were missing.
+        idx.extend([base, base + 2, base + 1, base, base + 3, base + 2]);
     };
-    // Top + 4 sides (no bottom -- it sits on the floor, never seen).
+    // Top + 4 sides (no bottom -- it sits on the floor, never seen; a raised
+    // part adds one with `underside`).
     quad([x0, y1, z0], [x1, y1, z0], [x1, y1, z1], [x0, y1, z1], [0.0, 1.0, 0.0]);
     quad([x0, y0, z0], [x0, y1, z0], [x0, y1, z1], [x0, y0, z1], [-1.0, 0.0, 0.0]);
     quad([x1, y0, z1], [x1, y1, z1], [x1, y1, z0], [x1, y0, z0], [1.0, 0.0, 0.0]);
     quad([x0, y0, z1], [x0, y1, z1], [x1, y1, z1], [x1, y0, z1], [0.0, 0.0, 1.0]);
     quad([x1, y0, z0], [x1, y1, z0], [x0, y1, z0], [x0, y0, z0], [0.0, 0.0, -1.0]);
     (verts, idx)
+}
+
+/// The downward face of a raised box (2026-09-29): a stall's roof, a rack's deck, a duct.
+/// Only for parts off the floor: the zone meshes draw both sides of a face, so a bottom
+/// lying on the floor, or on another part's top, fights it and shows as a black patch (seen in
+/// the first two captures).
+fn underside(x0: f32, z0: f32, w: f32, d: f32, y0: f32) -> (Vec<Vertex>, Vec<u32>) {
+    let (x1, z1, n) = (x0 + w, z0 + d, [0.0, -1.0, 0.0]);
+    let verts = [[x0, y0, z1], [x1, y0, z1], [x1, y0, z0], [x0, y0, z0]]
+        .map(|p| Vertex { position: p, normal: n, uv: planar_uv(p, n) })
+        .to_vec();
+    (verts, vec![0, 2, 1, 0, 3, 2])
 }
 
 /// The clonable subset of a `HomeStructure` (v0.638): just its shell box + interior walls + placed
@@ -1955,6 +1967,24 @@ fn wall_with_openings(
 
 #[cfg(test)]
 mod tests {
+    /// THE FILLER BOX FACES OUT (2026-09-29). Every triangle's front (its
+    /// counter-clockwise side) agrees with the normal it is lit by, for the box
+    /// and for a raised part's underside. Red check, run: the old inward winding
+    /// fails on the first triangle.
+    #[test]
+    fn filler_box_faces_point_out() {
+        let check = |(v, i): (Vec<super::Vertex>, Vec<u32>)| {
+            for tri in i.chunks(3) {
+                let [a, b, c] = [0, 1, 2].map(|k| glam::Vec3::from(v[tri[k] as usize].position));
+                let facing = (b - a).cross(c - a);
+                let n = glam::Vec3::from(v[tri[0] as usize].normal);
+                assert!(facing.dot(n) > 0.0, "a face points in: facing {facing}, normal {n}");
+            }
+        };
+        check(super::footprint_box(1.0, 2.0, 3.0, 4.0, 0.5, 2.0));
+        check(super::underside(1.0, 2.0, 3.0, 4.0, 0.5));
+    }
+
     use super::*;
 
     fn box_only() -> HomeStructure {

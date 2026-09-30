@@ -654,7 +654,11 @@ between the simulation and the person. Its tier ladder is the build order.
   pieces.
 - **Tier C (make the world look right).** Un-gate hero plant models for towers;
   the conduit render pass; models for the machines a player stands in front of
-  daily; read `mesh_kind` in `zone_filler.ron`.
+  daily; read `mesh_kind` in `zone_filler.ron` (DONE v0.1434.0:
+  `structure::filler_parts` builds market stalls, ship cradles and machine
+  arrays beside the racks, and the filler box now faces out; it was wound
+  inside out, which nothing showed while every filler stood taller than an
+  eye).
 - **Tier D (multiplayer, in the only order that works).** The save format
   compiles into the relay (DONE 2026-09-28, v0.1415.0: `PlacedItem`
   moved to `systems::inventory::placed`, `MachineLevels` to

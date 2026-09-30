@@ -1819,6 +1819,12 @@ changes. Every water tank carries a level gauge (v0.1346.0).
 - Native: `src/engine/stock_piles.rs`, `src/ship/structure.rs` (`rack_deck_levels`, `ZoneFiller::cells`)
 - Data: `data/places/seed.json` (the seeded Barn store), `data/blueprints/zone_filler.ron`
 
+Every other district kind has its own shape too (v0.1434.0,
+`structure::filler_parts`): market stalls (counter, back shelf, posts, roof)
+in the mall, medical and arena zones; ship cradles (floor rails with chocks) in
+hangars and mech bays; machine arrays (plinth, machine, riser pipe, ceiling duct)
+in industrial, power and agriculture zones. A new kind is one match arm.
+
 ### Machine Walk-Up Cards (live)
 Distance-LOD machine labels (dot → name → stat card) with LIVE values
 (v0.724): a per-frame pass patches each label's stats from its entity via

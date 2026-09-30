@@ -143,9 +143,8 @@ pub fn zone_type(id: &str) -> Option<&'static ZoneType> {
 /// content. `home_structure::generate_zone_filler` tiles a repeated primitive box across a zone's
 /// footprint using these dimensions. `residential` deliberately has NO entry here: it uses its own
 /// home-cloning path instead (see `generate_zone_filler`'s residential branch). Infinite-of-X: add a
-/// district's filler by adding one entry to `zone_filler.ron`, no code. `mesh_kind` is a forward-looking
-/// tag (a future renderer stage can grow dedicated shapes per kind); today every kind renders as a
-/// solid box silhouette.
+/// district's filler by adding one entry to `zone_filler.ron`, no code. `mesh_kind` picks the shape
+/// (`filler_parts`: rack, stall, cradle, array; anything else is a solid box silhouette).
 #[derive(Debug, Clone, Deserialize)]
 pub struct ZoneFiller {
     /// -> zone_types.ron id.
@@ -158,9 +157,9 @@ pub struct ZoneFiller {
     pub spacing: f32,
     /// Metres kept clear from the zone's own walls on every side (a walkway margin).
     pub inset: f32,
-    /// Shape tag ("rack" / "stall" / "cradle" / "array" / ...). "rack" builds open pallet
-    /// shelving (posts and decks, see `rack_deck_levels`) whose decks hold the home's stored
-    /// goods as crates (`engine::stock_piles`, 2026-09-26); every other kind is still a solid box.
+    /// Shape tag ("rack" / "stall" / "cradle" / "array"), built by `filler_parts`. A rack's decks
+    /// hold the home's stored goods as crates (`engine::stock_piles`, 2026-09-26); an unknown
+    /// tag is a solid box.
     pub mesh_kind: String,
     /// If true, tint filler instances with the zone TYPE's own `color` (zone_types.ron) so each
     /// district reads as visually distinct. (No override field yet -- always true in the data; the
@@ -225,6 +224,74 @@ pub const RACK_DECK_M: f32 = 0.04;
 pub const RACK_PITCH_M: f32 = 0.7;
 /// Clear height a deck needs above it to be worth building (a crate plus a hand).
 const RACK_CLEAR_M: f32 = 0.5;
+
+/// The boxes one zone-filler instance is built from (2026-09-29), each
+/// `[x, z, width, depth, y above the floor, height]`, inside the instance's cell
+/// (min corner `(cx, cz)`, `fw` x `fd` metres) and under its height `h`:
+/// - "rack": open pallet shelving, six uprights and a deck at each level;
+/// - "stall": a market stall, a front counter, a back shelf, four corner posts
+///   and a roof;
+/// - "cradle": a ship cradle, two floor rails down its length with paired chocks
+///   standing on them at a fifth, a half and four fifths of the way along, where
+///   a hull rests;
+/// - "array": a machine on a plinth, a riser pipe at a back corner and a duct
+///   along the back under the ceiling;
+/// - anything else: one solid box, the silhouette every filler started as.
+pub fn filler_parts(kind: &str, cx: f32, cz: f32, fw: f32, fd: f32, h: f32) -> Vec<[f32; 6]> {
+    let mut v = Vec::new();
+    match kind {
+        "rack" => {
+            let p = RACK_POST_M;
+            for px in [cx, cx + fw - p] {
+                for pz in [cz, cz + (fd - p) * 0.5, cz + fd - p] {
+                    v.push([px, pz, p, p, 0.0, h]);
+                }
+            }
+            for level in rack_deck_levels(h) {
+                v.push([cx, cz, fw, fd, level, RACK_DECK_M]);
+            }
+        }
+        "stall" => {
+            let (post, roof) = (0.1, 0.08);
+            v.push([cx, cz, fw, (fd * 0.2).clamp(0.4, fd), 0.0, (h * 0.35).min(1.0)]); // counter
+            let shelf_d = (fd * 0.15).clamp(0.3, fd);
+            v.push([cx, cz + fd - shelf_d, fw, shelf_d, 0.0, h * 0.6]); // back shelf
+            for px in [cx, cx + fw - post] {
+                for pz in [cz, cz + fd - post] {
+                    v.push([px, pz, post, post, 0.0, h - roof]);
+                }
+            }
+            v.push([cx, cz, fw, fd, h - roof, roof]); // roof
+        }
+        "cradle" => {
+            let rail_w = (fw * 0.08).clamp(0.3, fw * 0.25);
+            let rail_h = (h * 0.1).max(0.2).min(h * 0.5);
+            let rails = [cx + fw * 0.25 - rail_w * 0.5, cx + fw * 0.75 - rail_w * 0.5];
+            for rx in rails {
+                v.push([rx, cz, rail_w, fd, 0.0, rail_h]);
+            }
+            let chock_h = (h * 0.35).min(h - rail_h);
+            for f in [0.2, 0.5, 0.8] {
+                let pz = cz + fd * f - rail_w * 0.5;
+                for rx in rails {
+                    v.push([rx, pz, rail_w, rail_w, rail_h, chock_h]);
+                }
+            }
+        }
+        "array" => {
+            let plinth = 0.15_f32.min(h * 0.1);
+            v.push([cx, cz, fw, fd, 0.0, plinth]);
+            let m = (fw.min(fd) * 0.12).max(0.2);
+            v.push([cx + m, cz + m, fw - 2.0 * m, fd - 2.0 * m, plinth, h * 0.55]); // the machine
+            let pipe = 0.25_f32.min(m);
+            let duct = 0.3_f32.min(h * 0.1);
+            v.push([cx + fw - pipe, cz + fd - pipe, pipe, pipe, 0.0, h - duct]); // riser
+            v.push([cx, cz + fd - pipe, fw - pipe, pipe, h - duct, duct]); // duct
+        }
+        _ => v.push([cx, cz, fw, fd, 0.0, h]),
+    }
+    v
+}
 
 /// The floor-relative BOTTOM of every deck in a rack `h` metres tall, lowest first: one just
 /// off the floor, then one every `RACK_PITCH_M` while a crate still fits under the top.
@@ -600,6 +667,29 @@ pub fn rotated_half_extents(ty: &StructureType, yaw_rad: f32) -> (f32, f32, f32)
 
 #[cfg(test)]
 mod tests {
+    /// EACH FILLER KIND HAS ITS OWN SHAPE (2026-09-29). Every kind the data names
+    /// builds more than one box, and every box stays inside its cell and under its
+    /// height, at the data's own sizes. Red check, run: a stall roof set 0.1 m
+    /// higher pokes out of its height and fails.
+    #[test]
+    fn every_filler_kind_builds_inside_its_cell() {
+        for f in super::zone_fillers() {
+            assert!(matches!(f.mesh_kind.as_str(), "rack" | "stall" | "cradle" | "array"), "{} has no shape", f.mesh_kind);
+            let (fw, fd) = f.footprint;
+            let h = f.built_height(6.0);
+            let (cx, cz) = (12.5, -40.0);
+            let parts = super::filler_parts(&f.mesh_kind, cx, cz, fw, fd, h);
+            assert!(parts.len() > 1, "{} is more than a silhouette", f.mesh_kind);
+            for [x, z, w, d, y, ph] in parts {
+                let e = 1e-4;
+                assert!(w > 0.0 && d > 0.0 && ph > 0.0, "{}: an empty box", f.mesh_kind);
+                assert!(x >= cx - e && x + w <= cx + fw + e && z >= cz - e && z + d <= cz + fd + e, "{}: outside its cell", f.mesh_kind);
+                assert!(y >= -e && y + ph <= h + e, "{}: {y} + {ph} is over {h}", f.mesh_kind);
+            }
+        }
+        assert_eq!(super::filler_parts("box", 0.0, 0.0, 2.0, 2.0, 3.0), vec![[0.0, 0.0, 2.0, 2.0, 0.0, 3.0]]);
+    }
+
     use super::*;
 
     #[test]

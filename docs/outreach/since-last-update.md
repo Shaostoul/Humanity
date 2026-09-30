@@ -41,3 +41,7 @@ Each line is written the way a player would hear it; the release notes and
   backpack, and when both of you confirm, it leaves your pack and what they
   offered arrives in yours, worn tools still worn. Before this, a finished
   trade said "items exchanged" and nothing moved.
+- **v0.1434.0: the ship's districts look like what they are.** The mall
+  has market stalls, the hangars have cradles for ships, and the power and
+  industrial decks have rows of machines with pipes and ducts, instead of
+  plain blocks.
