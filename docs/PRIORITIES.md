@@ -658,9 +658,13 @@ between the simulation and the person. Its tier ladder is the build order.
   species' spread, within `plot_vertex_budget` per tower, worked and
   tested, but the greenhouse capture showed two blockers: the Quaternius
   leaves are single-sided and their backs render BLACK on a vertical column,
-  where plots only ever show them from above, so plant models need
-  two-sided lighting (flip the normal on back faces in the plant fragment
-  path) first; and root crops (carrot, beet) carry their root below the
+  where plots only ever show them from above. The cure already exists: the
+  type-19 FOLIAGE TRANSMISSION term (v0.1101, `90-fragment-main.wgsl`, the
+  same "bimodal black" signature) lights sunless faces, but it is gated on
+  `params.w`, which is also the type-19 WIND CLASS (`00-bindings-vertex.wgsl`),
+  and `home_meshes::stage_model_material` passes 0. Passing 2 would light
+  them and also make indoor crops sway; give transmission its own switch
+  first (the operator's taste call if the sway is wanted); and root crops (carrot, beet) carry their root below the
   model origin, so a carrot dangles its whole root out of the cup; skip
   models reaching below the origin, or trim them. Tilting each plant
   outward like a real net cup would read better too);
