@@ -652,7 +652,18 @@ between the simulation and the person. Its tier ladder is the build order.
   and they are a
   third shape beside the home editor's `InteriorWall` and the ship structure
   pieces.
-- **Tier C (make the world look right).** Un-gate hero plant models for towers;
+- **Tier C (make the world look right).** Un-gate hero plant models for towers
+  (TRIED 2026-09-29 and reverted; start from this: the stage models baked
+  into net cups, scaled uniformly to the 0.6 m dwarf height and the
+  species' spread, within `plot_vertex_budget` per tower, worked and
+  tested, but the greenhouse capture showed two blockers: the Quaternius
+  leaves are single-sided and their backs render BLACK on a vertical column,
+  where plots only ever show them from above, so plant models need
+  two-sided lighting (flip the normal on back faces in the plant fragment
+  path) first; and root crops (carrot, beet) carry their root below the
+  model origin, so a carrot dangles its whole root out of the cup; skip
+  models reaching below the origin, or trim them. Tilting each plant
+  outward like a real net cup would read better too);
   the conduit render pass; models for the machines a player stands in front of
   daily; read `mesh_kind` in `zone_filler.ron` (DONE v0.1434.0:
   `structure::filler_parts` builds market stalls, ship cradles and machine

@@ -496,6 +496,11 @@
       "date": "2026-09-29",
       "decision": "Zone fillers: structure::filler_parts builds rack/stall/cradle/array; footprint_box winding flipped outward (was inward) with a facing-vs-normal test; home_structure::underside only for parts that neither touch the floor nor rest on another part top.",
       "why": "Tier C mesh_kind item. The inward winding was invisible while fillers stood above eye height; the power-terrace close-up exposed it. home-racks-noon lands in open space on older builds too, spawned as a separate task."
+    },
+    {
+      "date": "2026-09-29",
+      "decision": "Tried hero stage models in tower net cups (scaled to 0.6 m and species spread, per-tower vertex budget); REVERTED, findings in PRIORITIES Tier C.",
+      "why": "Greenhouse capture: single-sided leaf backs render black on a vertical column and root crops dangle their roots; needs two-sided plant lighting in the shared shader tail first. Shipping it would have made the showpiece look worse."
     }
   ],
   "active_scopes_to_avoid": [
