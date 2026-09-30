@@ -1,0 +1,232 @@
+{
+  "_readme": [
+    "The clip maker's shot list (scripts/make-clips.js, 2026-09-30). One entry per shot; adding a shot is an edit here.",
+    "camera: a camera_request, exactly as tests/visual/vantages.json writes one ({body, lat, lon, altitude_km, look_offset_deg, time} for a planet, {station:'home'} for the home).",
+    "showcase: sent before the park (weather, sea state, cloud_cover). during: sent just before the recording starts, so the sun does not move while the ground streams in. time_scale there is GAME SECONDS PER REAL SECOND (the normal game runs about 72, a 20-minute day): 600 turns a 12 s clip into two hours of light, 900 turns Earth an eighth of the way round.",
+    "record: the movie-mode request (src/engine/movie.rs): seconds, fps, warmup_s, anim_speed (cloud and water time-lapse), pan_yaw_deg / pan_pitch_deg, path [[t, x, y, z, yaw, pitch], ...] in the home frame, descend_half_life_s / descend_floor_m.",
+    "settle_s: seconds after the park for terrain and clouds to stream in before recording (the heavy forest vantages need over a minute).",
+    "caption: a suggested first line for the post. Every claim in it must be true of the game as it is."
+  ],
+  "clips": [
+    {
+      "id": "earth-turning",
+      "title": "Earth turning, from orbit",
+      "caption": "The whole Earth, at real size, turning into night. Every continent is there to land on.",
+      "camera": {
+        "body": "earth",
+        "altitude_km": 9000
+      },
+      "settle_s": 10,
+      "during": {
+        "time_scale": "900"
+      },
+      "record": {
+        "seconds": 12,
+        "warmup_s": 2,
+        "anim_speed": 60
+      },
+      "showcase": {
+        "cloud_cover": "0.35"
+      }
+    },
+    {
+      "id": "japan-from-orbit",
+      "title": "Japan from orbit, looking up to the stars",
+      "caption": "Japan and Korea from 1,500 km up, on a full-size Earth.",
+      "camera": {
+        "body": "earth",
+        "lat": 35.3,
+        "lon": 138.8,
+        "altitude_km": 1500,
+        "look_offset_deg": 15,
+        "time": 9.5
+      },
+      "showcase": {
+        "weather": "clear",
+        "sea": "0.3"
+      },
+      "settle_s": 20,
+      "record": {
+        "seconds": 14,
+        "warmup_s": 3,
+        "pan_pitch_deg": 45
+      }
+    },
+    {
+      "id": "orbit-drop-fuji",
+      "title": "Falling from 300 km toward Mt Fuji",
+      "caption": "From 300 km up to just over the slopes of Mt Fuji in one unbroken shot, on a full-size Earth.",
+      "camera": {
+        "body": "earth",
+        "lat": 35.3,
+        "lon": 138.8,
+        "altitude_km": 300,
+        "look_offset_deg": 20,
+        "time": 9.5
+      },
+      "showcase": {
+        "weather": "clear",
+        "sea": "0.3"
+      },
+      "settle_s": 20,
+      "record": {
+        "seconds": 15,
+        "warmup_s": 3,
+        "descend_half_life_s": 1.3,
+        "descend_floor_m": 600,
+        "pan_pitch_deg": 40
+      }
+    },
+    {
+      "id": "open-sea",
+      "title": "The open Mediterranean, six metres above the waves",
+      "caption": "Six metres above the Mediterranean. The waves follow the wind where you are.",
+      "camera": {
+        "body": "earth",
+        "lat": 31.5,
+        "lon": 17.5,
+        "altitude_km": 0.006,
+        "look_offset_deg": 85,
+        "time": 10.55
+      },
+      "showcase": {
+        "sea": "0.9"
+      },
+      "settle_s": 10,
+      "record": {
+        "seconds": 10,
+        "warmup_s": 3,
+        "pan_yaw_deg": 20
+      }
+    },
+    {
+      "id": "silverdale-from-above",
+      "title": "Silverdale, Washington, from 2.5 km",
+      "caption": "My own town, built from real map data, in a free game you can download today.",
+      "camera": {
+        "body": "earth",
+        "lat": 47.634,
+        "lon": -122.6925,
+        "altitude_km": 2.5,
+        "look_offset_deg": 25,
+        "time": 12.02
+      },
+      "showcase": {
+        "sea": "0.3",
+        "weather": "clear"
+      },
+      "settle_s": 20,
+      "record": {
+        "seconds": 12,
+        "warmup_s": 3,
+        "pan_yaw_deg": 35
+      }
+    },
+    {
+      "id": "sea-sunset",
+      "title": "Sunset over the Mediterranean, as a time-lapse",
+      "caption": "An hour of evening over the sea in twelve seconds.",
+      "camera": {
+        "body": "earth",
+        "lat": 31.5,
+        "lon": 17.5,
+        "altitude_km": 0.3,
+        "aim": "sun",
+        "time": 17.1
+      },
+      "showcase": {
+        "sea": "0.6",
+        "weather": "clear",
+        "cloud_cover": "0.35"
+      },
+      "settle_s": 10,
+      "during": {
+        "time_scale": "330"
+      },
+      "record": {
+        "seconds": 12,
+        "warmup_s": 2,
+        "anim_speed": 8,
+        "pan_pitch_deg": -10
+      }
+    },
+    {
+      "id": "home-flyover",
+      "title": "Over the whole acre, a home in orbit",
+      "caption": "A one-acre home in orbit: house, greenhouse, work wing and yard under a glass roof.",
+      "camera": {
+        "station": "home"
+      },
+      "settle_s": 6,
+      "record": {
+        "seconds": 14,
+        "warmup_s": 2,
+        "path": [
+          [
+            0,
+            27.5,
+            26,
+            98,
+            0,
+            -0.42
+          ],
+          [
+            7,
+            20,
+            20,
+            70,
+            -0.35,
+            -0.5
+          ],
+          [
+            14,
+            27.5,
+            24,
+            40,
+            0,
+            -0.6
+          ]
+        ]
+      }
+    },
+    {
+      "id": "greenhouse-walk",
+      "title": "Walking the greenhouse tower block",
+      "caption": "The greenhouse in a home in orbit: aeroponic towers, each plant a real crop with its real growing needs.",
+      "camera": {
+        "station": "home"
+      },
+      "settle_s": 6,
+      "record": {
+        "seconds": 12,
+        "warmup_s": 2,
+        "path": [
+          [
+            0,
+            22,
+            1.6,
+            72,
+            0,
+            -0.05
+          ],
+          [
+            6,
+            21,
+            1.6,
+            64,
+            -0.25,
+            -0.02
+          ],
+          [
+            12,
+            22,
+            1.6,
+            56,
+            0.1,
+            0
+          ]
+        ]
+      }
+    }
+  ]
+}

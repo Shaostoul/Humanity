@@ -814,6 +814,23 @@ bloom off.
   from chemistry data plus a creative any-colour toggle.
 - Ordering against arcs A to F is the operator's call.
 
+### H. Video for social media (the clip maker, v0.1435.0, operator 2026-09-30)
+
+The operator chose video as the lever after two days of logs showed about 19
+visitors from social links (update posts are changelogs for people who already
+care). `just clips` records every shot in `scripts/clips.json` frame-exact
+(`src/engine/movie.rs`) and cuts 16:9, 9:16 and a still. First batch: the sea
+sunset, Japan from orbit, the open sea and Silverdale are strong; Earth turning
+is small in frame and the Fuji drop's middle is blurry low-resolution land and
+haze. Next rungs, in order:
+- **Native portrait render:** the 9:16 cut is a centre crop of a landscape
+  frame (about 780 px wide, upscaled). Render the live view at 1080x1920.
+- **Better shots:** the drop needs the ground's texture detail at mid-altitude,
+  and Earth turning wants a closer, sunlit framing; add shots of whatever ships
+  next (a trade, building a wall with a door).
+- **Record button in the Studio page** (logged in `docs/design/in-app-ops.md`).
+- **Text overlays and music**, if posting shows captions burned in do better.
+
 ---
 
 ## TIER 1: hardening before invites scale beyond a known group

@@ -2058,6 +2058,7 @@ mod native_app {
                 lmb_held: false,
                 construction_history: ConstructionHistory::default(),
                 live_publisher: None,
+                movie: None,
                 stream_capture: crate::renderer::stream_capture::StreamCapture::new(),
             });
             // Interior (ship / homestead) gravity from data/game.csv, the
@@ -3294,7 +3295,7 @@ mod native_app {
                         } else {
                             s.fps_background
                         };
-                        if cap > 0 {
+                        if cap > 0 && state.movie.is_none() {
                             let target =
                                 std::time::Duration::from_secs_f64(1.0 / cap as f64);
                             let elapsed = state.last_frame.elapsed();
@@ -3321,6 +3322,8 @@ mod native_app {
                     // docs/design/vegetation-cards-every-species.md).
                     let raw_dt = (now - state.last_frame).as_secs_f32();
                     let dt = raw_dt.min(0.1);
+                    // Recording: exactly 1/fps, whatever the frame took (engine::movie).
+                    let dt = crate::engine::movie::frame_step(state, now).unwrap_or(dt);
                     state.last_frame = now;
                     // ONE spin for the whole frame (see the field docs).
                     state.current_spin = current_planet_spin(state);
@@ -14187,6 +14190,8 @@ mod native_app {
                     // autopilot poll) and not in the GUI-action section, which
                     // stops running once a world is loaded. Permanent dev tooling.
                     poll_camera_request(state);
+                    crate::engine::movie::poll_request(state);
+                    crate::engine::movie::steer(state);
                     crate::engine::ipc::poll_cloudmap_request(state);
                     crate::engine::ipc::poll_cloud_profile_dump_request(state);
                     // In-world screen dev IPC (debug/screen_request.json): parsed
@@ -16000,6 +16005,7 @@ mod native_app {
                                 );
                             }
                             poll_screenshot_request(state, &surface_texture.texture, &scene_lists);
+                            crate::engine::movie::capture(state, &surface_texture.texture);
                             poll_showcase_request(state);
 
                             // Live weather (v0.874): upload any freshly

@@ -200,6 +200,25 @@ impl Renderer {
         path: &std::path::Path,
     ) -> Result<(), String> {
         let (w, h) = (width, height);
+        let pixels = self.read_texture_rgba(texture, w, h)?;
+        let img = image::RgbaImage::from_raw(w, h, pixels)
+            .ok_or_else(|| "captured pixel buffer size mismatch".to_string())?;
+        self.write_verified_png(img, w, h, path)
+    }
+
+    /// The frame just rendered as packed RGBA rows, for the clip maker's movie
+    /// mode (`engine::movie`, 2026-09-30): `capture_current_frame`, unwritten.
+    pub fn capture_current_frame_rgba(&self, texture: &wgpu::Texture) -> Result<(Vec<u8>, u32, u32), String> {
+        if !self.supports_frame_capture {
+            return Err("swapchain surface has no COPY_SRC usage on this backend -- frame capture unavailable".to_string());
+        }
+        let (w, h) = (self.config.width, self.config.height);
+        self.read_texture_rgba(texture, w, h).map(|p| (p, w, h))
+    }
+
+    /// Read `texture` back as tightly packed RGBA rows, swizzled from BGRA
+    /// when the swapchain is BGRA. Blocks until the copy lands.
+    pub fn read_texture_rgba(&self, texture: &wgpu::Texture, w: u32, h: u32) -> Result<Vec<u8>, String> {
         if w == 0 || h == 0 {
             return Err("zero-sized texture -- nothing to capture".to_string());
         }
@@ -254,9 +273,11 @@ impl Renderer {
         }
         drop(data);
         buffer.unmap();
+        Ok(pixels)
+    }
 
-        let img = image::RgbaImage::from_raw(w, h, pixels)
-            .ok_or_else(|| "captured pixel buffer size mismatch".to_string())?;
+    /// Write `img`, then prove it landed at `w` x `h` (see the header check).
+    fn write_verified_png(&self, img: image::RgbaImage, w: u32, h: u32, path: &std::path::Path) -> Result<(), String> {
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
         }

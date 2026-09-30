@@ -1043,6 +1043,15 @@ snapshot-check:
 probe-sweep *ARGS:
     node scripts/probe-sweep.js {{ARGS}}
 
+# Film the game for social media: every shot in scripts/clips.json, recorded
+# frame-exact in the engine's movie mode (src/engine/movie.rs) and cut to
+# 1920x1080, 1080x1920 and a still, into Videos\HumanityOS clips\<date-time>
+# with a clips.md of suggested captions. Background and silent like every
+# rig, at the operator's graphics settings. Needs a release exe and ffmpeg.
+#   just clips --only orbit-drop-fuji,open-sea
+clips *ARGS:
+    node scripts/make-clips.js {{ARGS}}
+
 # Score cloud GRAIN on captures of one vantage, band by band across the
 # terminator, with a measure a blur cannot win: noise over real cloud detail at
 # ~15 px, credited only when the real detail is kept. First file = reference;

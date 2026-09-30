@@ -1220,6 +1220,20 @@ select_preview_scene` / `cut_to_program`, unit-tested; persists across page swit
 Headless snapshot: `just snapshot studio`.
 - Native: `src/gui/pages/studio.rs`
 
+### Clip Maker (movie mode)
+Films the game for social media (v0.1435.0). `just clips` boots the release build in
+the background rig, flies to each shot in `scripts/clips.json` (a planet vantage or a
+place aboard the home, with weather, sea state and hour), and records it in the engine's
+movie mode: every frame advances time by exactly 1/fps and goes straight into ffmpeg, so
+the video is smooth however slowly frames render, and the animation clock the water,
+clouds and wind read is slid to match. Camera motions: hold, an eased pan, a keyframed
+dolly through the home, and an exponential drop from orbit toward the ground. Each shot
+comes out as 1920x1080, 1080x1920 (a centre crop for now), a still and the full-size
+master, with a clips.md of suggested first lines, in Videos\HumanityOS clips.
+- Native: `src/engine/movie.rs` (`debug/record_request.json`), `src/renderer/capture.rs`
+  (`capture_current_frame_rgba`)
+- Script + shots: `scripts/make-clips.js`, `scripts/clips.json`
+
 ### Civilization Page
 Community stats dashboard.
 - Native: `src/gui/pages/civilization.rs`

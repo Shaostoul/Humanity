@@ -506,6 +506,11 @@
       "date": "2026-09-29",
       "decision": "Tower hero models parked on pushed branch wip-tower-hero-models (committed via a temp index, no branch switch in the shared checkout). Negative params.w on type 19 = foliage transmission + two-sided leaves, wind off.",
       "why": "A red positive control proved the black seedlings are black ALBEDO from their palette textures, not lighting; shipping would show black sprouts in the greenhouse. PRIORITIES Tier C carries the next step."
+    },
+    {
+      "date": "2026-09-30",
+      "decision": "Clip maker: engine movie mode (src/engine/movie.rs; fixed 1/fps dt, start_time slid to virtual time, camera hold/pan/path/descend, blocking RGBA readback piped to ffmpeg) + scripts/make-clips.js + scripts/clips.json + just clips.",
+      "why": "Operator: update posts underperform and people love videos; logs showed ~19 social clicks in 2 days. Deterministic capture (Source host_framerate / Unreal MRQ technique) gives smooth video at any render speed without a screen recorder over the operator's screen. Portrait is a centre crop until a native portrait render."
     }
   ],
   "active_scopes_to_avoid": [

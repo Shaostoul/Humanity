@@ -1062,6 +1062,8 @@ pub(crate) struct EngineState {
     /// stops the stream. Lives here rather than in GuiState because it needs the
     /// renderer's swapchain texture, which the GUI never sees.
     pub(crate) live_publisher: Option<crate::net::live::LivePublisher>,
+    /// A recording in progress (`engine::movie`, the clip maker, 2026-09-30).
+    pub(crate) movie: Option<crate::engine::movie::Recorder>,
     /// Reusable async readback slot for the broadcast. Cheap when idle (it holds no
     /// buffer until the first capture).
     pub(crate) stream_capture: crate::renderer::stream_capture::StreamCapture,
