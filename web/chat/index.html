@@ -673,7 +673,7 @@
   <!-- Load order: bip39-english (wordlist) → crypto → app (core) → feature modules (each patches globals from prior scripts) -->
   <!-- bip39-english.js must load before crypto.js so generateMnemonic() and restoreIdentityFromMnemonic() have the wordlist -->
   <script src="/chat/bip39-english.js?v=1"></script>
-  <script src="/chat/crypto.js?v=6"></script>
+  <script src="/chat/crypto.js?v=7"></script>
   <!-- pq.js: post-quantum (Dilithium3) identity, derived from the same
        BIP39 seed as the Ed25519 key. Must load before app.js calls
        attachPqIdentity(). Self-loads the vendored same-origin bundle. -->
@@ -687,7 +687,7 @@
        Load before app.js so its renderers can call them. -->
   <script src="/chat/view/timestampPill.js?v=1"></script>
   <script src="/chat/view/messageRow.js?v=1"></script>
-  <script src="/chat/app.js?v=8"></script>
+  <script src="/chat/app.js?v=9"></script>
   <script src="/chat/chat-messages.js?v=5"></script>
   <script src="/chat/chat-dms.js?v=6"></script>
   <script src="/chat/chat-social.js?v=8"></script>
@@ -712,7 +712,7 @@
   <script src="/chat/chat-onboarding.js?v=1"></script>
   <!-- qrcode-generator (public domain, ~18 KB), used by chat-p2p.js for contact card QR codes -->
   <script src="/shared/qrcode.js?v=4" onerror="console.warn('qrcode.js not found, QR codes will be unavailable')"></script>
-  <script src="/chat/chat-p2p.js?v=7"></script>
+  <script src="/chat/chat-p2p.js?v=8"></script>
 
   <!-- Populate pg-ico spans once icons.js is loaded (shell.js loads it dynamically) -->
   <script>

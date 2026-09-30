@@ -312,10 +312,12 @@ async function connect() {
 // ── User Data Sync ──
 // --- Encrypted Sync Data (AES-256-GCM) ---
 async function deriveSyncKey() {
-  if (!myIdentity || !myIdentity.privateKey) return null;
   try {
-    const pkcs8 = await crypto.subtle.exportKey('pkcs8', myIdentity.privateKey);
-    const hash = await crypto.subtle.digest('SHA-256', pkcs8);
+    // The seed as the PKCS8 it has always been hashed as, so a seed-only
+    // browser derives the same key (crypto.js, SEED-ONLY IDENTITY).
+    const seed = await identitySeed();
+    if (!seed) return null;
+    const hash = await crypto.subtle.digest('SHA-256', pkcs8FromSeed(seed));
     return await crypto.subtle.importKey('raw', hash, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
   } catch (e) {
     console.warn('Failed to derive sync encryption key:', e);

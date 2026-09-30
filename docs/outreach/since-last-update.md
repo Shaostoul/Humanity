@@ -46,6 +46,11 @@ Each line is written the way a player would hear it; the release notes and
   Fuji, the open sea, a sunset over the sea, Silverdale from above, the
   home from above, the greenhouse) into smooth, ready-to-post videos in
   both landscape and portrait.
+- **v0.1435.2: chat works on older phones.** The website chat refused
+  to connect on phones whose browser is not the newest (anything before
+  Chrome 137), which is most phones in much of the world. A user in
+  Nigeria reported it; it is fixed, and his identity will stay the same
+  when his browser updates.
 - **v0.1434.0: the ship's districts look like what they are.** The mall
   has market stalls, the hangars have cradles for ships, and the power and
   industrial decks have rows of machines with pipes and ducts, instead of

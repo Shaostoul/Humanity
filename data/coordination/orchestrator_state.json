@@ -511,6 +511,11 @@
       "date": "2026-09-30",
       "decision": "Clip maker: engine movie mode (src/engine/movie.rs; fixed 1/fps dt, start_time slid to virtual time, camera hold/pan/path/descend, blocking RGBA readback piped to ffmpeg) + scripts/make-clips.js + scripts/clips.json + just clips.",
       "why": "Operator: update posts underperform and people love videos; logs showed ~19 social clicks in 2 days. Deterministic capture (Source host_framerate / Unreal MRQ technique) gives smooth video at any render speed without a screen recorder over the operator's screen. Portrait is a centre crop until a native portrait render."
+    },
+    {
+      "date": "2026-09-30",
+      "decision": "Web chat seed-only identity (BUG-106): without WebCrypto Ed25519 the 32-byte seed is held directly (seedOnlyIdentity), saved as the standard PKCS8 backup with an empty public key; restoreKeyFromLocalStorage derives the key via JWK when absent; all seed reads go through identitySeed(). Import no longer requires a 64-char publicKey.",
+      "why": "A user in Nigeria could not connect: Ed25519 WebCrypto is default only from Chrome 137, so Chrome 85-136 (most phones in much of the world) got a keyless identity and attachPqIdentity refused. The same backup format keeps the identity when the browser later gains Ed25519. Verified in the browser pane with the support flag off."
     }
   ],
   "active_scopes_to_avoid": [

@@ -2324,3 +2324,34 @@ and the row keys on it: shown even at full only while the air cannot be
 breathed; in breathable open air only when the player is short of breath.
 Test `vital_rows_show_what_needs_attention` gained the breathable-ground
 case, seen red by keying the row on `sealed` again.
+
+## BUG-106: web chat refused to connect on phones without WebCrypto Ed25519 (FIXED v0.1435.2)
+
+**Symptom:** a user in Nigeria (2026-09-30), on an Android phone, got
+"Post-quantum identity could not be initialized. This client cannot connect
+without it" on united-humanity.us/chat, every time. Hardware was not the
+cause.
+
+**Root cause:** the chat identity is a 32-byte seed (Dilithium3 and Kyber768
+derive from it), but the seed was only ever kept inside a WebCrypto Ed25519
+key. WebCrypto Ed25519 is on by default only from Chrome 137 (2025), and
+many phones run an older Chrome or a Chromium browser built on one. There
+`getOrCreateIdentity` fell back to a key with no private half, and
+`attachPqIdentity` refused at its first check. The PQ library itself needs
+only Chrome 85 (it uses `||=`), so every Chrome from 85 to 136 was shut out
+by this alone.
+
+**Fix:** a SEED-ONLY identity (`web/chat/crypto.js`): where Ed25519 is
+missing the seed is held directly and saved in the same PKCS8 backup the
+Ed25519 path reads, and `restoreKeyFromLocalStorage` works out the public
+key when a backup has none, so a browser that later gains Ed25519 keeps the
+same identity. Every seed read goes through `identitySeed()`: the PQ
+derivation, recovery phrase, backups, passphrase wrap, sync key and contact
+card. Checked in the browser pane with Ed25519 switched off: connects with no
+alert; the same Dilithium key after "updating" to Ed25519; the same key
+restored from the recovery phrase and from a backup file on both kinds of
+browser. Also fixed on the way: importing any backup made since the PQ
+cutover failed (it demanded a 64-character public key; those carry the
+3,904-character Dilithium one), and the unused `ed25519PublicKeyHex` field
+could be overwritten with the Dilithium key when setup ran twice. Lost
+without Ed25519: the Solana wallet's public key only.

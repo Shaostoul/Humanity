@@ -74,7 +74,7 @@ const CONTACT_CARD_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
  * verify it hasn't been tampered with.
  */
 async function exportContactCard() {
-  if (!myIdentity || !myIdentity.privateKey) {
+  if (!myIdentity || !(myIdentity.privateKey || myIdentity.seed32)) {
     addSystemMessage('⚠️ Cannot export, identity not loaded.');
     return;
   }
