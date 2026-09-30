@@ -501,6 +501,11 @@
       "date": "2026-09-29",
       "decision": "Tried hero stage models in tower net cups (scaled to 0.6 m and species spread, per-tower vertex budget); REVERTED, findings in PRIORITIES Tier C.",
       "why": "Greenhouse capture: single-sided leaf backs render black on a vertical column and root crops dangle their roots; needs two-sided plant lighting in the shared shader tail first. Shipping it would have made the showpiece look worse."
+    },
+    {
+      "date": "2026-09-29",
+      "decision": "Tower hero models parked on pushed branch wip-tower-hero-models (committed via a temp index, no branch switch in the shared checkout). Negative params.w on type 19 = foliage transmission + two-sided leaves, wind off.",
+      "why": "A red positive control proved the black seedlings are black ALBEDO from their palette textures, not lighting; shipping would show black sprouts in the greenhouse. PRIORITIES Tier C carries the next step."
     }
   ],
   "active_scopes_to_avoid": [

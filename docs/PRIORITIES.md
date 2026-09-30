@@ -653,21 +653,21 @@ between the simulation and the person. Its tier ladder is the build order.
   third shape beside the home editor's `InteriorWall` and the ship structure
   pieces.
 - **Tier C (make the world look right).** Un-gate hero plant models for towers
-  (TRIED 2026-09-29 and reverted; start from this: the stage models baked
+  (TRIED 2026-09-29, NOT on main; the working code is on the pushed branch
+  `wip-tower-hero-models`, one commit over v0.1434.2: stage models baked
   into net cups, scaled uniformly to the 0.6 m dwarf height and the
-  species' spread, within `plot_vertex_budget` per tower, worked and
-  tested, but the greenhouse capture showed two blockers: the Quaternius
-  leaves are single-sided and their backs render BLACK on a vertical column,
-  where plots only ever show them from above. The cure already exists: the
-  type-19 FOLIAGE TRANSMISSION term (v0.1101, `90-fragment-main.wgsl`, the
-  same "bimodal black" signature) lights sunless faces, but it is gated on
-  `params.w`, which is also the type-19 WIND CLASS (`00-bindings-vertex.wgsl`),
-  and `home_meshes::stage_model_material` passes 0. Passing 2 would light
-  them and also make indoor crops sway; give transmission its own switch
-  first (the operator's taste call if the sway is wanted); and root crops (carrot, beet) carry their root below the
-  model origin, so a carrot dangles its whole root out of the cup; skip
-  models reaching below the origin, or trim them. Tilting each plant
-  outward like a real net cup would read better too);
+  species' spread, within `plot_vertex_budget` per tower, root crops left
+  procedural (a model reaching more than a tenth of its height under its
+  origin, so no carrot dangles its root), and the crop material flagged
+  with a NEGATIVE `params.w` that turns on the type-19 foliage transmission
+  and two-sided leaves while leaving the wind off (type 19's wind reads
+  `clamp(params.w, 0, 2)`). Tests pass. THE BLOCKER, found by a red positive
+  control on that flagged material: some stage models (the two-leaf seedling
+  shape among them) sample BLACK from their tiny palette texture, so
+  it is the albedo, not the lighting; with the albedo forced red they lit
+  fully. Find which sets, and fix their palette UVs or textures, then the
+  branch can land. Tilting each plant outward like a real net cup would
+  read better too);
   the conduit render pass; models for the machines a player stands in front of
   daily; read `mesh_kind` in `zone_filler.ron` (DONE v0.1434.0:
   `structure::filler_parts` builds market stalls, ship cradles and machine
