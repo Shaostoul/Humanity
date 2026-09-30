@@ -1730,11 +1730,16 @@ fn hitch_probe_pass(frame_ms: f32, pass_ms: f32, busy: bool, machines: usize, ve
 
 /// The material a hero crop stage model draws with (v0.992): its textured
 /// type-19 material, or a plain green one when the model carries no texture.
+/// `CROP_LEAF_LIGHT` in params.w (2026-09-29) turns on the type-19 foliage
+/// transmission, so a leaf seen from behind is lit through rather than black,
+/// and, being negative, leaves the wind off: crops indoors stand in still air.
 /// Made once per model, when the worker first sends it (2026-09-27; the
 /// model's geometry used to load right here, on the frame).
+const CROP_LEAF_LIGHT: f32 = -2.0;
+
 fn stage_model_material(state: &mut EngineState, texture: Option<(Vec<u8>, u32, u32)>) -> usize {
     match texture {
-        Some((rgba, w, h)) => state.renderer.add_textured_material([1.0, 1.0, 1.0, 1.0], 0.0, 0.9, 19.0, 0.0, &rgba, w, h),
+        Some((rgba, w, h)) => state.renderer.add_textured_material([1.0, 1.0, 1.0, 1.0], 0.0, 0.9, 19.0, CROP_LEAF_LIGHT, &rgba, w, h),
         None => state.renderer.add_material_full([0.35, 0.5, 0.3, 1.0], 0.0, 0.9, 0.0, 0.0),
     }
 }

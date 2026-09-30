@@ -974,6 +974,16 @@ fn fs_surface(in: VertexOutput) -> @location(0) vec4<f32> {
         albedo = albedo * mesh_tex.rgb;
         emissive_strength = 0.0;
 
+        // TWO-SIDED CROP LEAVES (2026-09-29). A crop stage model (NEGATIVE
+        // params.w, home_meshes::stage_model_material) is thin single-sided
+        // foliage: a face seen from behind is shaded as its other side, so
+        // the room lights reach it. Without this its leaf backs rendered
+        // black on a tower column at night, where the sun-driven
+        // transmission below has nothing to give.
+        if (material.params.w < -0.5 && dot(normal, view_dir) < 0.0) {
+            normal = -normal;
+        }
+
         // FOLIAGE TRANSMISSION (v0.1101). Without this, type 19 had NO
         // sunless-side light at all: the sun term is shadow-gated, the fill
         // is N.L-gated, and the ambient floor is 0.005 - so every face whose
@@ -986,12 +996,17 @@ fn fs_surface(in: VertexOutput) -> @location(0) vec4<f32> {
         // Gated on params.w because type 19 is SHARED with furniture,
         // machines and world decorations, which must not transmit light.
         // params.w is the wind class and is set to 1.0 only for near-tree
-        // foliage (src/lib.rs near-tree material registration).
+        // foliage (src/lib.rs near-tree material registration). A NEGATIVE
+        // params.w (2026-09-29, the crop stage models,
+        // home_meshes::stage_model_material) keeps this transmission and
+        // turns the wind off, because the vertex wind reads
+        // clamp(params.w, 0, 2): crops indoors stand in still air, and their
+        // single-sided leaf backs rendered black on a tower's column.
         //
         // Same lobe, coefficients and shadow gate as the type-20 leaf branch
         // below - see the BUG-060 note there for why the coefficients are
         // what they are and why NO sun-derived term may skip the shadow map.
-        if (material.params.w > 0.5) {
+        if (abs(material.params.w) > 0.5) {
             let t19_sun = normalize(camera.sun_direction.xyz);
             let t19_lt = normalize(t19_sun + normal * 0.4);
             let t19_trans = pow(max(dot(view_dir, -t19_lt), 0.0), 1.6);

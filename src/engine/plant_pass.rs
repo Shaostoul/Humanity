@@ -204,6 +204,57 @@ fn run_job(job: Job, tx: &mpsc::Sender<WorkerMsg>) {
     let _ = tx.send(WorkerMsg::Done { generation: job.generation, worker_ms: t0.elapsed().as_secs_f64() * 1000.0 });
 }
 
+/// Tallest a plant in a tower's net cup is drawn, metres: a tree there
+/// reads as a dwarf or espalier rather than an orchard tree (v0.862).
+const TOWER_PLANT_MAX_M: f32 = 0.6;
+
+/// The uniform scale a stage model takes in a tower's net cup (2026-09-29):
+/// no taller than `TOWER_PLANT_MAX_M` and no wider than the species' own
+/// spread, never enlarged. Uniform, so the model keeps its proportions.
+fn tower_model_scale(height: f32, width: f32, spread: f32) -> f32 {
+    let mut k = 1.0_f32;
+    if height > TOWER_PLANT_MAX_M {
+        k = k.min(TOWER_PLANT_MAX_M / height);
+    }
+    if spread > 0.0 && width > spread {
+        k = k.min(spread / width);
+    }
+    k
+}
+
+/// A model's (height, width, depth below its origin) as authored, metres:
+/// its Y extent, the larger of its X and Z extents, and how far it reaches
+/// under y = 0 (a root crop's root).
+fn model_dims(m: &GltfCpuMesh) -> (f32, f32, f32) {
+    let (mut lo, mut hi) = ([f32::INFINITY; 2], [f32::NEG_INFINITY; 2]);
+    for v in &m.vertices {
+        for (k, a) in [0usize, 2].into_iter().enumerate() {
+            lo[k] = lo[k].min(v.position[a]);
+            hi[k] = hi[k].max(v.position[a]);
+        }
+    }
+    let w = if lo[0].is_finite() { (hi[0] - lo[0]).max(hi[1] - lo[1]) } else { 0.0 };
+    let below = m.vertices.iter().map(|v| -v.position[1]).fold(0.0_f32, f32::max);
+    (m.authored_height(), w, below)
+}
+
+/// The stage model a living crop is drawn with, if its set has one (v0.992,
+/// the Quaternius growth stages): the species' set (its own lowercased id,
+/// or the `stage_models` entry in data/plants_visual.ron) at the growth
+/// quartile, "wheat_4" when ripe. Dead crops keep the procedural wilt.
+fn stage_model(
+    c: &CropDraw,
+    visuals: &PlantVisualRegistry,
+    model: &mut dyn FnMut(&str) -> Option<Arc<GltfCpuMesh>>,
+) -> Option<(String, Arc<GltfCpuMesh>)> {
+    if c.dead {
+        return None;
+    }
+    let q = ((c.t * 4.0).ceil() as u32).clamp(1, 4);
+    let name = format!("{}_{q}", visuals.stage_model_for(&c.def_id));
+    model(&name).map(|m| (name, m))
+}
+
 /// Build one machine's plants: the loop the frame used to run inline
 /// (v0.862 towers, v0.992 stage models, 2026-09-26 plots), unchanged.
 /// `model` looks a stage model up by name ("wheat_3"), None when the set
@@ -218,6 +269,10 @@ pub(crate) fn build_group(
     let mut rigid = PlantMeshBuilder::new();
     let mut hero: HashMap<String, PlantMeshBuilder> = HashMap::new();
     let (mut drawn, mut meant) = (0usize, 0u64);
+    // A tower's stage-model vertices so far (it is budgeted like one plot),
+    // and each model's authored size, measured once.
+    let mut tower_model_verts = 0usize;
+    let mut dims: HashMap<String, (f32, f32, f32)> = HashMap::new();
     for c in &job.crops {
         // A mushroom crop (2026-09-27) is its substrate and the fruit on it,
         // drawn by `fungus_mesh` into the rigid mesh; never a plant recipe
@@ -296,13 +351,36 @@ pub(crate) fn build_group(
                 // Tower plants render at reduced scale so a tree in a net cup
                 // reads as a dwarf/espalier rather than a full orchard tree.
                 let mut vis_scaled = vis.clone();
-                if vis_scaled.height_m > 0.6 {
-                    let k = 0.6 / vis_scaled.height_m;
+                if vis_scaled.height_m > TOWER_PLANT_MAX_M {
+                    let k = TOWER_PLANT_MAX_M / vis_scaled.height_m;
                     vis_scaled.height_m *= k;
                     vis_scaled.spread_m *= k;
                     vis_scaled.stem_radius *= k;
                 }
-                build_plant(&mut b, &vis_scaled, pos, out, c.t, c.wilt, seed);
+                // The real stage model in the net cup too (2026-09-29). The
+                // v0.992 gate kept towers procedural because a full-size
+                // pumpkin vine in a net cup would be silly; the model is now
+                // scaled uniformly to the same dwarf height and to the
+                // species' spread, set a little out from the column and
+                // turned to face out. A tower is budgeted like one plot
+                // (`plot_vertex_budget`): past it, the procedural plant. So is
+                // a model that reaches well under its origin: a root crop's
+                // root would hang out of the cup.
+                let budget = visuals.plot_vertex_budget as usize;
+                let hit = stage_model(c, visuals, model).filter(|(name, m)| {
+                    let (h, _, below) = *dims.entry(name.clone()).or_insert_with(|| model_dims(m));
+                    below <= 0.1 * h && (budget == 0 || tower_model_verts + m.vertices.len() <= budget)
+                });
+                if let Some((name, cpu)) = hit {
+                    let (h, w, _) = dims[&name];
+                    let k = tower_model_scale(h, w, vis_scaled.spread_m);
+                    let at = Vec3::from(pos) + Vec3::from(out) * (w * k * 0.35);
+                    let mesh = hero.entry(name).or_insert_with(PlantMeshBuilder::new);
+                    bake_copy(&mut mesh.vertices, &mut mesh.indices, &cpu.vertices, &cpu.indices, at, std::f32::consts::FRAC_PI_2 - ang, k, k);
+                    tower_model_verts += cpu.vertices.len();
+                } else {
+                    build_plant(&mut b, &vis_scaled, pos, out, c.t, c.wilt, seed);
+                }
                 drawn += 1;
                 meant += 1;
             }
@@ -314,20 +392,9 @@ pub(crate) fn build_group(
                 // shares a plot rather than standing outside the machine.
                 let rect = rects[c.slot as usize % rects.len()];
                 let turn = Quat::from_rotation_y(yaw_deg.to_radians());
-                // Hero crop models (v0.992, the Quaternius growth stages): a
-                // species with a converted stage model set uses the real 3D
-                // model at the stage quartile instead of the procedural
-                // recipe. The set is the species' own lowercased id by
-                // convention, or the one `stage_models` in
-                // data/plants_visual.ron names for it. Dead crops keep the
-                // procedural wilt.
-                let hit = if c.dead {
-                    None
-                } else {
-                    let q = ((c.t * 4.0).ceil() as u32).clamp(1, 4);
-                    let name = format!("{}_{q}", visuals.stage_model_for(&c.def_id));
-                    model(&name).map(|m| (name, m))
-                };
+                // Hero crop models (v0.992): the real 3D model at the stage
+                // quartile instead of the procedural recipe (`stage_model`).
+                let hit = stage_model(c, visuals, model);
                 // One plant's vertices at this stage, for the plot's vertex
                 // budget: the model's, or one procedural plant built to count.
                 let per_plant = match &hit {
@@ -460,6 +527,42 @@ mod tests {
         assert!(got.procedural.indices.iter().all(|&i| (i as usize) < got.procedural.vertices.len()));
     }
 
+    /// A TOWER'S NET CUPS HOLD THE REAL STAGE MODEL (2026-09-29), scaled
+    /// uniformly to the dwarf height (a 1 m model comes out 0.6 m) and set
+    /// out from the column; past the tower's vertex budget the rest are
+    /// procedural, every cup still drawn. Red check, run: skipping the scale
+    /// (k = 1) fails the height assertion.
+    #[test]
+    fn plant_pass_tower_cups_hold_scaled_stage_models_within_budget() {
+        let job = tower(12);
+        let got = build_group(&job, &visuals(), &mut |name| (name == "kale_2").then(tiny_model));
+        assert_eq!((got.drawn, got.meant), (12, 12));
+        assert_eq!(got.models.len(), 1);
+        let verts = &got.models[0].1.vertices;
+        assert_eq!(verts.len(), 12 * 3, "one baked copy per cup");
+        assert!(got.procedural.vertices.is_empty(), "no procedural plant while the budget holds");
+        for copy in verts.chunks(3) {
+            let (lo, hi) = copy.iter().fold((f32::MAX, f32::MIN), |(a, b), v| (a.min(v.position[1]), b.max(v.position[1])));
+            assert!(hi - lo <= TOWER_PLANT_MAX_M + 1e-4, "a copy is {} m tall", hi - lo);
+            let r = ((copy[0].position[0] - 1.0).powi(2) + (copy[0].position[2] - 2.0).powi(2)).sqrt();
+            assert!(r >= 0.15 - 1e-4, "the plant stands in its cup, not inside the column: r {r}");
+        }
+        // A budget of five copies: five models, seven procedural plants.
+        let small = PlantVisualRegistry { plot_vertex_budget: 15, ..visuals() };
+        let got = build_group(&job, &small, &mut |name| (name == "kale_2").then(tiny_model));
+        assert_eq!(got.models[0].1.vertices.len(), 5 * 3);
+        assert!(!got.procedural.vertices.is_empty());
+        assert_eq!(got.drawn, 12);
+        // Wider than the species' spread: narrowed to fit, never enlarged.
+        assert!((tower_model_scale(0.3, 2.0, 0.5) - 0.25).abs() < 1e-6);
+        assert_eq!(tower_model_scale(0.3, 0.2, 0.5), 1.0);
+        // A root crop's model, reaching half its height under the origin,
+        // stays procedural in a tower.
+        let root = Arc::new(GltfCpuMesh { vertices: tiny_model().vertices.iter().map(|v| Vertex { position: [v.position[0], v.position[1] - 0.5, v.position[2]], ..*v }).collect(), indices: vec![0, 1, 2] });
+        let got = build_group(&job, &visuals(), &mut |name| (name == "kale_2").then(|| root.clone()));
+        assert!(got.models.is_empty() && got.drawn == 12);
+    }
+
     /// A bed plot draws every plant it holds; a species with a stage model
     /// bakes that model once per plant into its own merged mesh, named for
     /// the model at the growth quartile ("wheat_4" when ripe), and a species
@@ -584,7 +687,8 @@ mod tests {
         assert_eq!(keys, vec!["ntower_0", "potato_bed_0"]);
         assert!(groups.iter().all(|g| g.checksum.is_some()));
         missing.sort();
-        assert_eq!(missing, vec!["potato_2".to_string(), "wheat_4".to_string()], "each asked for once");
+        // The tower asks for its crop's stage model too (2026-09-29).
+        assert_eq!(missing, vec!["kale_2".to_string(), "potato_2".to_string(), "wheat_4".to_string()], "each asked for once");
         assert!(groups[1].models.is_empty(), "no model on disk: every plant from its recipe");
 
         spawn(job(2, true), tx);
