@@ -315,7 +315,7 @@
         {
           "status": "done",
           "version": "v0.756",
-          "text": "Native trade UI: requests, offers, confirm and cancel (v0.756), offers naming items you carry and a finished trade moving them (v0.1433.0). Escrow waits on server-held inventories."
+          "text": "Native trade UI: requests, offers, confirm and cancel (v0.756), offers naming items you carry and a finished trade moving them (v0.1433.0, but the desktop app only received trade updates from v0.1437.0, BUG-113). Escrow waits on server-held inventories."
         },
         {
           "status": "building",

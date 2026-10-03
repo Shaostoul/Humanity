@@ -4,7 +4,9 @@
 //   - Gather objectives → checked against live inventory (mine ore with a drone,
 //     or use "Dev: stock materials").
 //   - Craft objectives  → satisfied by the quest-progress event CraftingSystem
-//     emits on completion ("craft_<recipe_id>"). All recipes used here are
+//     emits on completion ("craft_<recipe_id>"). Make objectives count units
+//     of an item made by ANY recipe ("make_<item_id>", one per unit), so the
+//     iron step below takes coal or graphite alike. All recipes used here are
 //     skill_level <= 1 (the free starter tier), so a fresh player can complete them.
 //
 // As of v0.746 Build objectives fire too (the Crafting page's Structures
@@ -25,8 +27,8 @@
                 objective: Gather(item_id: "iron_ore_0", quantity: 3),
             ),
             (
-                description: "Smelt an iron ingot at a smelter",
-                objective: Craft(recipe_id: "smelt_iron", quantity: 1),
+                description: "Smelt an iron ingot at a smelter (with coal or graphite)",
+                objective: Make(item_id: "iron_ingot_0", quantity: 1),
             ),
         ],
         rewards: [

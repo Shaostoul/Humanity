@@ -536,6 +536,11 @@
       "date": "2026-10-02",
       "decision": "Review fixes shipped (BUG-113..121): trade router for system frames + honest settling + per-save settled ids with re-settle after a save load; relay seat ownership per socket (game, voice) with client voice re-join on reconnect; current_name_for_key (member row only while still registered); make-clips Ctrl+C/cancel/BT.709; filler underside coverage rule; remote figure from the floor; a byte-slice crash in frame_ws_poll.",
       "why": "The owed review of v0.1428-v0.1436 confirmed 8 problems; reviewers sent 2 of 4 fix lanes back, and I fixed the last reviewer finding (revoked device name) myself with a red-checked test."
+    },
+    {
+      "date": "2026-10-02",
+      "decision": "Day 2 part 1: QuestObjective::Make (units of an item from any recipe; crafting credit_craft pushes make_<item> per unit) and gs_first_steps iron step uses it; homepage game panel plays the home-flyover clip (720p, 1.2 MB, IntersectionObserver, still for reduced motion/save-data); sw.js skips video/audio/range requests.",
+      "why": "Week plan Day 2. A Make objective generalizes instead of listing recipe alternatives per quest (infinite-of-X); Craft stays for steps that really mean one recipe. The clip is honest (captioned as the game today) and costs nothing until on screen."
     }
   ],
   "active_scopes_to_avoid": [

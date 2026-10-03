@@ -60,10 +60,13 @@ every load-bearing claim checked by an adversarial verifier
   settled trade ids live per save (replay into another home); the client's
   game-off refusal match copies the relay's wording (share one function);
   trade escrow needs server-held inventories.
-- **Day 2:** count `smelt_iron_graphite` for the first quest's iron step (the
-  quest is finishable, only the graphite route does not count); the homepage
-  game panel shows a real clip; fix the black-palette plant models so branch
-  `wip-tower-hero-models` can land.
+- **Day 2:** DONE v0.1438.0: the first quest's iron step counts graphite
+  smelting (a new `Make(item_id, quantity)` objective counts units of an item
+  from any recipe), and the homepage game panel plays a real clip (the home
+  flyover, 1.2 MB, on screen only, still for reduced motion or data saver).
+  STILL OPEN: the black plant models in tower net cups, so branch
+  `wip-tower-hero-models` can land (the palette files are clean, see Tier C:
+  it is the engine side, and it needs the rig).
 - **Day 3:** a scripted second player (nothing can drive one today:
   `scripts/ai-sample-client.js` never answers the identify challenge) and
   smooth remote movement (`src/net/sync.rs` eases each 50 ms step then holds;

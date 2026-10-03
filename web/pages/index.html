@@ -290,6 +290,16 @@
     .game-panel .gp-title { font-weight: 800; font-size: 1.05rem; margin-bottom: 4px; }
     .game-panel .gp-sub { color: var(--text-secondary); font-size: 0.9rem; line-height: 1.45; }
     @media (max-width: 480px) { .game-panel { flex-direction: column; text-align: center; } }
+    /* The panel with a real clip from the game (2026-10-02): the clip on top,
+       the words under it. Recorded by the game's own clip maker
+       (scripts/make-clips.js), so it shows the game as it is. */
+    .game-panel.has-clip { flex-direction: column; align-items: stretch; max-width: 720px; padding: 14px 14px 20px; }
+    .game-panel .gp-clip {
+      width: 100%; height: auto; aspect-ratio: 16 / 9; display: block;
+      border-radius: 10px; background: var(--bg);
+    }
+    .game-panel.has-clip .gp-text { padding: 0 8px; }
+    .game-panel .gp-cap { color: var(--text-muted); font-size: 0.8rem; margin-top: 8px; }
 
     /* ── Screen 4: it costs nothing ── */
     .free-list { list-style: none; margin: 20px 0 0; padding: 0; }
@@ -530,14 +540,24 @@
         <div class="card-sub">Rights and rules in plain language, traced from all of humanity down to a single county. So far that chain is worked out for one place only, Kitsap County in Washington, as a proof of the format. Every entry cites its source, most have not been checked by a person yet, and none of it is legal advice.</div>
       </div>
     </div>
-    <div class="game-panel">
-      <svg viewBox="0 0 48 48"><circle cx="24" cy="22" r="11"/><ellipse cx="24" cy="22" rx="21" ry="6.5" transform="rotate(-24 24 22)"/></svg>
-      <div>
+    <div class="game-panel has-clip">
+      <!-- A real clip, not a mock-up. It plays only while on screen, muted,
+           and never by itself for someone who asked for reduced motion or to
+           save data: they get the still and a play button. preload="none" so
+           the 1.2 MB file costs nothing until it is wanted. -->
+      <video class="gp-clip" id="game-clip" muted loop playsinline preload="none"
+             width="1280" height="720"
+             poster="/shared/landing/game-home-flyover.jpg"
+             aria-label="A flight over a one-acre home in orbit: house, greenhouse, work wing and yard, recorded in the game">
+        <source src="/shared/landing/game-home-flyover.mp4" type="video/mp4">
+      </video>
+      <div class="gp-text">
         <div class="gp-title">And a game built on the same rules.</div>
         <!-- Honest about the state. The game is not playable end to end yet,
              and a visitor who downloads on the strength of this and finds a
              tech demo is exactly how a bad review gets written. -->
         <div class="gp-sub">You live on a ship in space and keep it alive: grow the food, catch the water, make the power. It works the way these things work in life, not the way they usually work in games, so you can practise a system before you depend on it. Still being built, and the devlog shows what changed today.</div>
+        <div class="gp-cap">Recorded in the game as it is today: a one-acre home in orbit.</div>
       </div>
     </div>
     <div class="chev" aria-hidden="true">&#9660;</div>
@@ -605,7 +625,7 @@
     <div class="proof">
       <!-- proof-versions is stamped by scripts/bump-version.js on every release,
            proof-years is computed below, so neither can go stale by hand. -->
-      <a class="tile" href="/devlog" style="text-decoration:none;"><div class="n" id="proof-versions">1,437</div><div class="l">updates shipped &middot; devlog</div></a>
+      <a class="tile" href="/devlog" style="text-decoration:none;"><div class="n" id="proof-versions">1,438</div><div class="l">updates shipped &middot; devlog</div></a>
       <div class="tile"><div class="n">100%</div><div class="l">open source</div></div>
       <div class="tile"><div class="n" id="proof-years">7 years</div><div class="l">of work</div></div>
       <div class="tile"><div class="n">Donations</div><div class="l">not ads</div></div>
@@ -629,6 +649,24 @@
   </section>
 
   <script>
+  // The game clip plays while it is on screen and pauses when it is not, so it
+  // never runs (or downloads) unseen. Reduced motion or a data-saver setting
+  // leaves it still, with the browser's controls to play it by choice.
+  (function () {
+    var v = document.getElementById('game-clip');
+    if (!v) return;
+    var still = (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) ||
+      (navigator.connection && navigator.connection.saveData) ||
+      document.body.hasAttribute('data-reduced-motion');
+    if (still || !('IntersectionObserver' in window)) { v.controls = true; return; }
+    new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) {
+        if (e.isIntersecting) { var p = v.play(); if (p && p.catch) p.catch(function () { v.controls = true; }); }
+        else v.pause();
+      });
+    }, { threshold: 0.35 }).observe(v);
+  })();
+
   // Years of work, counted from the first commit in 2019 so it never goes stale.
   (function () {
     var el = document.getElementById('proof-years');

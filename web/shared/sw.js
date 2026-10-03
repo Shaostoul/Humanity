@@ -1,6 +1,6 @@
 // Bump version whenever cached assets change.
 // HTML pages are intentionally NEVER cached (they change every deploy).
-const CACHE_NAME = 'humanity-v2610';
+const CACHE_NAME = 'humanity-v2611';
 const SHELL_URLS = [
   '/shared/shell.js',
   '/shared/theme.css',
@@ -109,6 +109,13 @@ self.addEventListener('fetch', event => {
 
   // API calls, WebSocket upgrades, uploads
   if (url.includes('/ws') || url.includes('/api/') || url.includes('/uploads/')) return;
+
+  // Video and audio: the browser asks for byte ranges and needs 206 replies
+  // (Safari will not play without them). The cache-first path below would
+  // answer from a cached copy and try to cache partial replies, which the
+  // Cache API refuses. Straight to the network (2026-10-02, the homepage clip).
+  if (event.request.destination === 'video' || event.request.destination === 'audio' ||
+      event.request.headers.has('range')) return;
 
   // ── Network-first for the app shell (shell.js, theme.css, manifest) ───────
   // These change on web deploys, so serving them cache-first hid new nav/theme

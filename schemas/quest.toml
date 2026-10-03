@@ -191,7 +191,8 @@ Each variant maps to a game system that reports progress to the quest tracker.
 Currently implemented in src/systems/quests/objectives.rs:
   - Build(blueprint_id: 'id')       -- Place a structure from blueprints/*.ron
   - Gather(item_id: 'id', quantity: N) -- Have N of item in inventory
-  - Craft(recipe_id: 'id', quantity: N) -- Craft N items via recipes.csv
+  - Craft(recipe_id: 'id', quantity: N) -- Run one recipe N times
+  - Make(item_id: 'id', quantity: N)    -- Make N of an item by ANY recipe that outputs it
   - Harvest(crop_id: 'id', quantity: N) -- Harvest N crops from farming system
   - Travel(destination: 'id')       -- Reach a named location or region
   - Talk(npc_id: 'id')              -- Interact with a specific NPC

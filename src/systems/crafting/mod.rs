@@ -212,6 +212,38 @@ mod crafting_end_to_end_tests {
     use crate::hot_reload::data_store::DataStore;
     use crate::systems::inventory::{Inventory, ItemRegistry};
 
+    /// A FINISHED CRAFT REPORTS EVERY UNIT IT MADE (2026-10-02), for quest
+    /// Make objectives: smelting with graphite reports one iron ingot and one
+    /// slag as well as the recipe itself, and a batch of 30 arrows reports 30.
+    /// Red check, run: without the per-unit loop in `credit_craft` the event
+    /// list held only the craft_ key.
+    #[test]
+    fn a_finished_craft_reports_each_unit_it_made_for_quests() {
+        let recipes = RecipeRegistry::from_csv(include_bytes!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/data/recipes.csv"
+        )))
+        .expect("recipes.csv parses");
+        let mut data = DataStore::new();
+        data.insert("quest_events", std::sync::Mutex::new(Vec::<String>::new()));
+        let drain = |data: &DataStore| -> Vec<String> {
+            data.get::<std::sync::Mutex<Vec<String>>>("quest_events").unwrap().lock().unwrap().drain(..).collect()
+        };
+
+        CraftingSystem::credit_craft(&data, recipes.recipes.get("smelt_iron_graphite").expect("graphite smelt ships"));
+        assert_eq!(
+            drain(&data),
+            vec!["craft_smelt_iron_graphite", "make_iron_ingot_0", "make_slag_0"],
+            "the recipe, then one event per unit of each output"
+        );
+
+        let arrows = recipes.recipes.get("craft_arrows_batch").expect("arrow batch ships");
+        let per_batch = arrows.outputs.iter().find(|(id, _)| id == "arrow_0").map(|(_, q)| *q).expect("makes arrows");
+        CraftingSystem::credit_craft(&data, arrows);
+        let got = drain(&data);
+        assert_eq!(got.iter().filter(|k| k.as_str() == "make_arrow_0").count() as u32, per_batch);
+    }
+
     #[test]
     fn real_recipes_load_and_a_timed_craft_produces_output() {
         // Loads the SHIPPED data files (compile-time embedded -> hermetic + CI-safe)
@@ -705,6 +737,13 @@ impl CraftingSystem {
             crate::systems::skills::award_skill_xp(data, skill, 10 + recipe.skill_level * 5);
         }
         crate::systems::quests::push_quest_event(data, format!("craft_{}", recipe.id));
+        // One event per unit made, for Make objectives (2026-10-02): a quest
+        // asking for an iron ingot counts it from either smelting recipe.
+        for (item_id, qty) in &recipe.outputs {
+            for _ in 0..*qty {
+                crate::systems::quests::push_quest_event(data, crate::systems::quests::make_event_key(item_id));
+            }
+        }
     }
 
     /// Tech-unlock gate: does the crafter meet the recipe's `skill_level`?

@@ -258,7 +258,8 @@ constitution rather than a promise.
 - `[planned]` Group governance: proposals, ranked-choice voting, and quorum rules,
   with every vote signed and tamper-evident.
 - `[done]` Native trade UI: requests, offers, confirm and cancel (v0.756), offers
-  naming items you carry and a finished trade moving them (v0.1433.0). Escrow
+  naming items you carry and a finished trade moving them (v0.1433.0, but the
+  desktop app only received trade updates from v0.1437.0, BUG-113). Escrow
   waits on server-held inventories.
 - `[building]` Vehicle pipeline (economy Phase 2, staged): kits deploy into real
   vehicles (Stage 1, v0.677), the Vehicle Assembler machine rolls finished rovers

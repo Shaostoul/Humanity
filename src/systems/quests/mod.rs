@@ -175,6 +175,12 @@ pub fn npc_talk_key(name: &str) -> String {
 /// completion; [`QuestSystem`] drains it each tick and bumps matching progress
 /// counters so count-based objectives (Craft/Harvest/…) advance. No-ops cleanly if
 /// the channel is absent (e.g. a headless/test world that never registered it).
+/// The quest event one unit of `item_id` made by a recipe reports, read by
+/// `Make` objectives (2026-10-02).
+pub fn make_event_key(item_id: &str) -> String {
+    format!("make_{item_id}")
+}
+
 pub fn push_quest_event(data: &DataStore, key: String) {
     if let Some(lock) = data.get::<std::sync::Mutex<Vec<String>>>("quest_events") {
         if let Ok(mut events) = lock.lock() {
@@ -274,6 +280,10 @@ impl QuestSystem {
                 // Track via progress counter (crafting system increments this)
                 let key = format!("craft_{}", recipe_id);
                 progress.get(&key).copied().unwrap_or(0) >= *quantity
+            }
+            QuestObjective::Make { item_id, quantity } => {
+                // Units made by any recipe (crafting pushes one event per unit)
+                progress.get(&make_event_key(item_id)).copied().unwrap_or(0) >= *quantity
             }
             QuestObjective::Harvest { crop_id, quantity } => {
                 // Track via progress counter (farming system increments this)
@@ -595,6 +605,14 @@ mod quest_tests {
         };
         let items = csv_ids("data/items.csv");
         let recipes = csv_ids("data/recipes.csv");
+        // Every item some recipe outputs (column 5, "id:qty|id:qty").
+        let made: std::collections::HashSet<String> = std::fs::read_to_string(root.join("data/recipes.csv"))
+            .expect("recipes.csv readable")
+            .lines()
+            .filter(|l| !l.trim().is_empty() && !l.starts_with('#'))
+            .filter_map(|l| l.split(',').nth(4))
+            .flat_map(|outs| outs.split('|').filter_map(|o| o.split(':').next()).map(|s| s.trim().to_string()))
+            .collect();
         let plants = csv_ids("data/plants.csv");
         let blueprints = crate::systems::construction::BlueprintRegistry::from_ron(
             &std::fs::read(root.join("data/blueprints/basic.ron")).unwrap(),
@@ -622,6 +640,12 @@ mod quest_tests {
                         "quest {}: Craft names unknown recipe {recipe_id}",
                         q.id
                     ),
+                    // A Make item must exist AND some recipe must produce it,
+                    // or the step can never count a unit.
+                    QuestObjective::Make { item_id, .. } => {
+                        assert!(items.contains(item_id), "quest {}: Make names unknown item {item_id}", q.id);
+                        assert!(made.contains(item_id), "quest {}: no recipe makes {item_id}", q.id);
+                    }
                     QuestObjective::Harvest { crop_id, .. } => assert!(
                         plants.contains(crop_id),
                         "quest {}: Harvest names unknown crop {crop_id}",
@@ -719,6 +743,64 @@ mod quest_tests {
             world.get::<&Inventory>(player).unwrap().count_item("iron_ingot_0"),
             2,
             "completion granted the reward"
+        );
+    }
+
+    /// MAKE COUNTS EVERY ROUTE TO THE ITEM (2026-10-02). The first quest's
+    /// iron step named `smelt_iron` (coal), so a player who smelted with
+    /// graphite made the ingot and the quest did not move. A Make step counts
+    /// units of the item from any recipe. Red check, run: with the starter
+    /// quest's step as `Craft(smelt_iron)`, the graphite event below left it
+    /// incomplete.
+    #[test]
+    fn make_objective_counts_any_recipe_that_produces_the_item() {
+        let mut reg = QuestRegistry::default();
+        reg.quests.insert(
+            "q_make".into(),
+            quest("q_make", QuestObjective::Make { item_id: "iron_ingot_0".into(), quantity: 2 }, vec![], None),
+        );
+        let mut data = DataStore::new();
+        data.insert("quest_registry", reg);
+        data.insert("quest_events", std::sync::Mutex::new(Vec::<String>::new()));
+        let mut world = hecs::World::new();
+        let mut tracker = QuestTracker::default();
+        tracker.accept_quest("q_make");
+        let player = world.spawn((tracker, Inventory::new(16)));
+        let mut sys = QuestSystem::new();
+
+        // Slag is made alongside; it must not count toward iron.
+        push_quest_event(&data, make_event_key("slag_0"));
+        push_quest_event(&data, make_event_key("iron_ingot_0"));
+        sys.tick(&mut world, 0.0, &data);
+        assert!(!world.get::<&QuestTracker>(player).unwrap().is_completed("q_make"), "1 of 2 ingots");
+        push_quest_event(&data, make_event_key("iron_ingot_0"));
+        sys.tick(&mut world, 0.0, &data);
+        assert!(world.get::<&QuestTracker>(player).unwrap().is_completed("q_make"), "2 of 2 ingots");
+
+        // The shipped starter quest takes the graphite route.
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let shipped = QuestRegistry::from_ron_dir(&root.join("data/quests"));
+        let steps = shipped.get("gs_first_steps").expect("gs_first_steps ships").steps.len();
+        let mut data = DataStore::new();
+        data.insert("quest_registry", shipped);
+        data.insert("quest_events", std::sync::Mutex::new(Vec::<String>::new()));
+        let mut world = hecs::World::new();
+        let mut tracker = QuestTracker::default();
+        tracker.accept_quest("gs_first_steps");
+        let mut inv = Inventory::new(16);
+        inv.add_item("iron_ore_0", 3, 99);
+        let player = world.spawn((tracker, inv));
+        sys.tick(&mut world, 0.0, &data);
+        // What crafting reports for one smelt_iron_graphite batch.
+        push_quest_event(&data, "craft_smelt_iron_graphite".to_string());
+        push_quest_event(&data, make_event_key("iron_ingot_0"));
+        push_quest_event(&data, make_event_key("slag_0"));
+        for _ in 0..steps + 1 {
+            sys.tick(&mut world, 0.0, &data);
+        }
+        assert!(
+            world.get::<&QuestTracker>(player).unwrap().is_completed("gs_first_steps"),
+            "smelting with graphite finishes First Steps"
         );
     }
 
