@@ -739,31 +739,17 @@ between the simulation and the person. Its tier ladder is the build order.
   and they are a
   third shape beside the home editor's `InteriorWall` and the ship structure
   pieces.
-- **Tier C (make the world look right).** Un-gate hero plant models for towers
-  (TRIED 2026-09-29, NOT on main; the working code is on the pushed branch
-  `wip-tower-hero-models`, one commit over v0.1434.2: stage models baked
-  into net cups, scaled uniformly to the 0.6 m dwarf height and the
-  species' spread, within `plot_vertex_budget` per tower, root crops left
-  procedural (a model reaching more than a tenth of its height under its
-  origin, so no carrot dangles its root), and the crop material flagged
-  with a NEGATIVE `params.w` that turns on the type-19 foliage transmission
-  and two-sided leaves while leaving the wind off (type 19's wind reads
-  `clamp(params.w, 0, 2)`). Tests pass. THE BLOCKER, found by a red positive
-  control on that flagged material: some stage models (the two-leaf seedling
-  shape among them) sample BLACK from their tiny palette texture, so
-  it is the albedo, not the lighting; with the albedo forced red they lit
-  fully. Find which sets, and fix their palette UVs or textures, then the
-  branch can land. **Checked offline 2026-10-02, and it is NOT the palette
-  files:** all 102 palette models are one shape (POSITION, NORMAL,
-  TEXCOORD_0, one textured material, RGBA8 PNG, nearest and clamp), every
-  vertex's UV lands inside its palette, and no palette has a black or clear
-  texel except `apple_crop` (16 near-black, which its own UVs do not hit).
-  The white-key step in `assets::white_key_alpha_if_cutout` rewrites the
-  alpha of 12 of the 8x8 palettes (the stage-4 fruit sets), but no vertex
-  samples a keyed texel and no `_1` seedling palette is among them. So the
-  black albedo comes from the engine side: which texture the tower's draw
-  binds, or how it is sampled. Start there, on the rig. Tilting each plant outward like a real net cup would
-  read better too);
+- **Tier C (make the world look right).** Hero plant models in tower net cups: DONE v0.1443.0
+  (merged branch fix-tower-hero-models). The black sprouts were the crop
+  palettes' COLOUR SPACE: linear MTL colours written byte for byte and decoded
+  as sRGB, so lettuce reached the shader at 1.5% brightness and beet at 0.3%
+  (the 2026-10-02 offline check looked for black texels, found none, and
+  wrongly concluded "engine side": the bytes were never black, only in the
+  wrong space). Palettes re-encoded (--kd linear, stamped), 68 mis-wound
+  faces re-cut, the white key only for textures with no alpha channel, plants
+  tip 15 degrees out of their cups. Leftover: home-racks-noon and
+  home-racks-night still land in open space, so no rig vantage shows a tower;
+  the 15 degree tip is a taste call for the operator;
   the conduit render pass; models for the machines a player stands in front of
   daily; read `mesh_kind` in `zone_filler.ron` (DONE v0.1434.0:
   `structure::filler_parts` builds market stalls, ship cradles and machine

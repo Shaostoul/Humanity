@@ -2736,3 +2736,27 @@ time limit and fails with a message pointing at the "running for over 60
 seconds" lines, so a hang costs at most 40 minutes. The orchestrator's own
 lesson: give every long background step a time limit and check it, rather
 than waiting on a notification that may never come.
+
+## BUG-132: probe-sweep's station vantages park the camera in space (OPEN, found 2026-10-03)
+
+**Symptom:** `home-overview-noon` (and every vantage using the camera
+request's `{"station":"home","pose":...}`) captured empty space on
+v0.1441.0 and v0.1442.0 alike; the same vantage had captured the home at
+04:13 and 12:32 the same day.
+
+**What the log shows:** probe-sweep's warm-up flies the camera to Earth
+(lat 23, lon 13, 50 m) and sets the clock; the station request then sets
+`ship_world_pos = station_world_pos` and `station_ride = true` but computes
+`position = pose + state.station_off` from the PREVIOUS frame's offset,
+taken while the camera was still at Earth ("parked aboard the home station
+at pose Vec3(32629394.0, -2489632.5, -26913838.0)"). The request's own time
+jump also moves the station between frames (the second pass landed at
+(270, 26, -1230) m, not the pose). Whether a run lands is timing, which is
+why the earlier runs looked fine.
+
+**Fix to make:** in the station verb, compute the pose in the home frame
+with the offset of the frame it is riding from (zero once `station_ride` is
+set) and apply the clock jump before placing the camera; and make
+probe-sweep CHECK that `camera_done.position` equals the requested pose
+inside the home, failing the vantage when it does not (today the capture is
+"ok" whatever it shows).

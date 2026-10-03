@@ -11,6 +11,12 @@ Each line is written the way a player would hear it; the release notes and
 
 ## Shipped
 
+- **v0.1443.0: the greenhouse towers grow real plants.** The plants in the
+  vertical towers used to show as black sprouts; they now show their real
+  colours, lean out of their cups like real net-cup plants, and the beds and
+  fields got brighter too. The cause was the plant colours being stored the
+  wrong way, a mistake made when the models were converted.
+
 - **v0.1442.0: your save keeps backups.** The game now keeps the last ten
   versions of your home's save, and Settings > Data can put any of them back.
   Other players' faces show properly (their hair used to cover them), and the
