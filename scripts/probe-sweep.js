@@ -77,6 +77,10 @@ const G = require("./rig-graphics.js");
 const MG = require("./lib/machine-guard.js");
 // The one shared lookup for the DXC shader compiler dlls (see setupRig).
 const DXC = require("./lib/dxc-dlls.js");
+// Did a {"station":"home",...} park land where it asked, in the home's own
+// coordinates (BUG-132)? Before this check a station vantage was "ok"
+// whatever it captured, including empty space.
+const SP = require("./lib/station-park-check.js");
 
 const REPO = path.resolve(__dirname, "..");
 const args = process.argv.slice(2);
@@ -339,6 +343,23 @@ async function waitFile(name, timeoutMs, pollMs = 400) {
 }
 function req(name, body) {
   fs.writeFileSync(path.join(DEBUG, name), JSON.stringify(body));
+}
+
+// Judge a vantage's camera_done against its station request (BUG-132; the
+// judgement itself is scripts/lib/station-park-check.js). Records the miss
+// on the vantage record and in `misses`; the vantage loop FAILS the vantage
+// with those messages once its picture is saved (so a missed park can still
+// be looked at). A planet park is not judged here and costs nothing.
+function checkStationPark(v, done, rec, label, misses) {
+  const verdict = SP.judgeStationPark(v.camera, done);
+  if (!verdict.judged) {
+    if (v.camera && v.camera.station !== undefined) log(`  ${label}: not checked (${verdict.message})`);
+    return;
+  }
+  rec.station_park_error_m = rec.station_park_error_m || {};
+  rec.station_park_error_m[label] = verdict.error_m;
+  log(`  ${label}: ${verdict.message}`);
+  if (!verdict.ok) misses.push(`${label}: ${verdict.message}`);
 }
 
 async function waitBoot(timeoutMs) {
@@ -771,7 +792,11 @@ async function main() {
         }
         clearDone("camera_done.json");
         req("camera_request.json", v0.camera);
-        await waitFile("camera_done.json", 60000);
+        const d0 = await waitFile("camera_done.json", 60000);
+        // Logged, never fatal: nothing is captured on this pass, and the
+        // vantage's own parks below are judged (and fail it) on a miss.
+        const p0 = SP.judgeStationPark(v0.camera, d0);
+        if (p0.judged) log(`  discarded-pass park: ${p0.message}`);
         req("showcase_request.json", { time_scale: "0" });
         await sleep((v0.settle_s ?? 8) * 1000);
       } catch (e) {
@@ -794,6 +819,13 @@ async function main() {
         perf_floor_fps: v.perf_floor_fps ?? null,
         ok: false,
       };
+      // The re-park's camera_done, kept for the capture-time station check
+      // (it carries the engine's own `requested` position for a station park
+      // with no pose of its own).
+      let stationParkDone = null;
+      // Station park misses (park, re-park, capture time). Any one fails the
+      // vantage, after its picture is saved.
+      const stationMisses = [];
       try {
         if (v.showcase) {
           req("showcase_request.json", Object.assign({ map_diag: "0", cloud_top_bound: "0", cloud_uniform_step: "0", cloud_step_m: "0", wind: "auto", anim_clock: "auto", aurora: "1", room_gi: "1", present_dither: "1", sun_shadows: "auto", near_levels: "auto" },v.showcase)); // diag channels + the determinism pins are sticky across cells: reset unless the cell pins one
@@ -816,6 +848,11 @@ async function main() {
         req("camera_request.json", v.camera);
         const cam = await waitFile("camera_done.json", 60000);
         if (!cam || cam.ok !== true) throw new Error(`camera: ${JSON.stringify(cam)}`);
+        // STATION PARK CHECK (BUG-132): a station park must land on its
+        // requested home-frame pose. A miss here is the engine putting the
+        // camera somewhere else (once, tens of thousands of km out in space),
+        // and the capture used to be "ok" anyway, so it fails the vantage.
+        checkStationPark(v, cam, rec, "park", stationMisses);
         // CLOCK FREEZE (2026-09-05): the 20-minute day turns the planet 0.3
         // degrees per second under a world-fixed camera, so two captures of
         // one vantage came out rotated about the nadir. Hold the clock still
@@ -848,6 +885,8 @@ async function main() {
           req("camera_request.json", v.camera);
           const rehold = await waitFile("camera_done.json", 60000);
           if (!rehold || rehold.ok !== true) throw new Error(`re-park: ${JSON.stringify(rehold)}`);
+          checkStationPark(v, rehold, rec, "re-park", stationMisses);
+          stationParkDone = rehold;
           // 6 s for plain vantages: if the FIRST park was displaced (the
           // clock/park race), the re-park is a big jump and the temporal
           // cloud map needs a few seconds to re-converge before the shot.
@@ -874,6 +913,30 @@ async function main() {
         const destName = `${v.id}.png`;
         fs.copyFileSync(srcPng, path.join(OUT, destName));
         rec.screenshot = destName;
+        // CAPTURE-TIME STATION CHECK: the park checks above read the camera
+        // a frame or two after it was placed; this one reads it at the moment
+        // the picture was taken (screenshot_done's camera_home), so a camera
+        // that drifted or let go of the station during the settle fails too.
+        // The PNG is copied first so a failed vantage can still be looked at;
+        // this is also where the park misses recorded above fail it.
+        {
+          // A final_showcase may move the eye on purpose (the "stand" verb),
+          // so the capture-time camera is only judged without one.
+          const cap = v.final_showcase
+            ? { judged: false, ok: true, message: "final_showcase may move the camera on purpose" }
+            : SP.judgeStationCapture(v.camera, stationParkDone, shot);
+          if (cap.judged) {
+            rec.station_capture_error_m = cap.error_m;
+            log(`  capture: ${cap.message}`);
+            if (!cap.ok) stationMisses.push(`capture: ${cap.message}`);
+          } else if (v.camera && v.camera.station !== undefined) {
+            log(`  capture: not checked (${cap.message})`);
+          }
+          if (stationMisses.length) {
+            log(`  !! ${v.id}: STATION PARK MISSED; ${destName} is saved for inspection but is not the requested view.`);
+            throw new Error(stationMisses.join(" | "));
+          }
+        }
         // PAIRED capture (environment program increment 2): a vantage
         // with `captures: 2` shoots again after `pair_gap_s`, producing
         // <id>-b.png. Stills cannot prove a temporal property, but a

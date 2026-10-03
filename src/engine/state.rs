@@ -838,6 +838,13 @@ pub(crate) struct EngineState {
     /// the position freezes; gravity drift during the grace is
     /// centimetres, the drift the pin stops is metres per settle.
     pub(crate) probe_hold: Option<(glam::Vec3, std::time::Instant)>,
+    /// A `{"station":"home"}` camera park waiting to write its camera_done
+    /// (BUG-132, 2026-10-03). The verb places the camera at once; this holds
+    /// the report until the station block has ridden the camera through the
+    /// clock change the request asked for, then `engine::ipc::
+    /// advance_station_park` reads where the camera actually is and writes
+    /// that. A new camera request drops a pending one.
+    pub(crate) station_park: Option<crate::engine::ipc::StationPark>,
     /// Rig descent rate (m/s) applied to the probe hold's pinned position
     /// each frame, straight down the local radial (v0.1245). Reproduces
     /// SUSTAINED flight on a parked rig - the state that paints the map's

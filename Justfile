@@ -550,9 +550,13 @@ lints:
 # pass, and round one's stop-go drawing, a figure that never appears, a step
 # back, a snap, a drift off the line, a walk out of view and a figure covered
 # by a window in the screenshot each FAIL.
+# And the station park check (scripts/lib/station-park-check.js, BUG-132): a
+# {"station":"home"} park on its pose passes, and the two misses BUG-132
+# wrote (the pose plus the Earth-to-home offset, and a kilometre out), a camera
+# not riding the station and a wrong look each FAIL.
 # Add a file here whenever a rig script grows a judgement of its own.
 rig-tests:
-    node --test scripts/tests/machine-guard.test.js scripts/tests/perf-report.test.js scripts/tests/terminator-grain.test.js scripts/tests/make-clips.test.js scripts/tests/voice-rejoin.test.js scripts/tests/backup-rotate.test.js scripts/tests/second-player.test.js scripts/tests/copresence-judge.test.js scripts/tests/dxc-dlls.test.js
+    node --test scripts/tests/machine-guard.test.js scripts/tests/perf-report.test.js scripts/tests/terminator-grain.test.js scripts/tests/make-clips.test.js scripts/tests/voice-rejoin.test.js scripts/tests/backup-rotate.test.js scripts/tests/second-player.test.js scripts/tests/copresence-judge.test.js scripts/tests/dxc-dlls.test.js scripts/tests/station-park-check.test.js
 
 # The scripted second player (scripts/second-player.js) against a REAL relay.
 # NOT pure node, so NOT in rig-tests or `just verify` (rig-tests keeps the
