@@ -31,6 +31,9 @@
 //
 // Usage:
 //   node scripts/verify-live-screen.js [--exe PATH] [--port N] [--timeout-min N] [--keep-open]
+//        [--allow-other-build "<reason>"]   run a build that is NOT this tree, on
+//        purpose (a red check); passed to scripts/check-fresh-exe.js and recorded
+//        in the manifest as other_build
 //   node scripts/verify-live-screen.js --dry-verdict <manifest.json>
 // Exit 0 = every check passed. Exit 1 = refused to run. Exit 2 = failed.
 //
@@ -45,6 +48,9 @@ const png = require("./lib/png.js");
 const G = require("./rig-graphics.js");
 const MG = require("./lib/machine-guard.js");
 const DXC = require("./lib/dxc-dlls.js");
+// The freshness gate, run through its one runner so --allow-other-build reaches
+// it and comes back as the manifest's other_build record (BUG-133).
+const { runFreshGate, otherBuildNotice } = require("./lib/src-fingerprint.js");
 
 const REPO = path.resolve(__dirname, "..");
 const args = process.argv.slice(2);
@@ -227,6 +233,7 @@ function printVerdict(prefix, m, dir) {
   console.log("-".repeat(72));
   for (const c of checks) console.log(`${c.ok ? "PASS" : "FAIL"}  ${pad(c.id, 24)} ${c.detail}`);
   console.log("-".repeat(72));
+  if (m.other_build) console.log(otherBuildNotice(m.other_build));
   if (pass) {
     console.log(`${prefix}PASS  ${checks.length}/${checks.length} live-screen checks passed`);
   } else {
@@ -263,14 +270,14 @@ if (instances.length) {
   ]);
 }
 
-const fresh = spawnSync(process.execPath, [path.join(__dirname, "check-fresh-exe.js"), "--exe", EXE], {
-  cwd: REPO,
-  stdio: "inherit",
-});
+// This tree's build (or another, on purpose, with --allow-other-build
+// "<reason>", recorded in the manifest as other_build; BUG-133).
+const fresh = runFreshGate(EXE, args, { cwd: REPO });
 if (fresh.status !== 0) {
   console.error("verify-live-screen: REFUSED - see the freshness failure above. Nothing was booted.");
   process.exit(1);
 }
+const OTHER_BUILD = fresh.other_build;
 
 // ── Rig setup ────────────────────────────────────────────────────────────────
 function ensureJunction(link, target) {
@@ -434,6 +441,7 @@ async function main() {
     kind: "verify-live-screen",
     stamp,
     exe: EXE,
+    ...(OTHER_BUILD ? { other_build: OTHER_BUILD } : {}),
     rig: RIG,
     server: SERVER_URL,
     live_screen: LIVE_SCREEN,
