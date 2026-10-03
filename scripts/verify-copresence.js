@@ -552,18 +552,21 @@ async function main() {
     }
     step("autopilot", true, `entering the world as ${ap.character_name} on ${ap.server_url}`);
 
-    // ── 4. In the shared world?
+    // ── 4. In the shared world, with the welcome applied: on arriving, the
+    // welcome stands the player where the relay holds them (increment 1b,
+    // engine/home_plot.rs), so a pose set before it would be undone by it. A
+    // build from before 1b reports no `welcomed` and is read once joined.
     let pr = null;
     for (const t0 = Date.now(); Date.now() - t0 < 120000; ) {
       pr = await probe();
-      if (pr && pr.ok && pr.world_loaded && pr.game_joined && pr.copresence_active) break;
+      if (pr && pr.ok && pr.world_loaded && pr.game_joined && pr.copresence_active && pr.welcomed !== false) break;
       await sleep(1000);
     }
-    const joined = !!(pr && pr.ok && pr.world_loaded && pr.game_joined && pr.copresence_active);
+    const joined = !!(pr && pr.ok && pr.world_loaded && pr.game_joined && pr.copresence_active && pr.welcomed !== false);
     manifest.steps_ok.joined = {
       ok: joined,
       detail: pr
-        ? `world_loaded=${pr.world_loaded} ws_identified=${pr.ws_identified} game_joined=${pr.game_joined} copresence_active=${pr.copresence_active}`
+        ? `world_loaded=${pr.world_loaded} ws_identified=${pr.ws_identified} game_joined=${pr.game_joined} copresence_active=${pr.copresence_active} welcomed=${pr.welcomed}`
         : "the recorder never answered (is this build older than the recorder?)",
     };
     step("join", joined, manifest.steps_ok.joined.detail);
@@ -856,6 +859,7 @@ function plotsVerdict(m, dir) {
     gamePlot: m.game_plot,
     walkerPlot: m.walker_plot,
     camera: m.camera_after_join,
+    homeThings: m.home_things,
     frames,
     walker,
   });
@@ -931,6 +935,7 @@ async function runPlotsOnce(order, runStamp, cleanups) {
     game_plot: null,
     walker_plot: null,
     camera_after_join: null,
+    home_things: null,
     walker: null,
     line: null,
     samples: null,
@@ -1090,6 +1095,9 @@ async function runPlotsOnce(order, runStamp, cleanups) {
     const pj = await probe();
     manifest.game_plot = pj && pj.home_plot ? pj.home_plot.id : null;
     manifest.camera_after_join = pj && pj.camera_end ? pj.camera_end.pos : null;
+    // Where the home's own things stand (Respawn point, hologram, showroom
+    // stage, animals, plants): judged against the plot the game should hold.
+    manifest.home_things = pj && pj.home_things ? pj.home_things : null;
     if (pj && Array.isArray(pj.ship_plots) && pj.ship_plots.length) {
       manifest.plots = pj.ship_plots;
       manifest.plots_from = "the game's report";

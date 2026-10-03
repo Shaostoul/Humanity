@@ -3129,6 +3129,9 @@ pub(crate) fn poll_remote_players_request(state: &mut EngineState, clock_dt: f32
         "copresence_active": state.gui_state.copresence_active,
         "home_plot": home_plot,
         "ship_plots": ship_plots,
+        // Where the home's own things stand (Respawn point, hologram, showroom stage, animals,
+        // plants): the --plots judge checks each is on the game's plot (home_plot.rs).
+        "home_things": crate::engine::home_plot::home_things_json(state),
         "welcomed": state.game_welcomed,
         "copresence_refused": state.copresence_refused.is_some(),
         "camera_start": rec.camera_start,

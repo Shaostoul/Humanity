@@ -430,6 +430,21 @@ function readShipPlots(text) {
 function inPlot(p, plot, tol = 0.01) {
   return [0, 1, 2].every((k) => p[k] >= plot.origin[k] - tol && p[k] <= plot.origin[k] + plot.size[k] + tol);
 }
+/** How far point `p` is from a plot's footprint, across the floor (x and z),
+ *  metres: 0 inside it. */
+function footprintGap(p, plot) {
+  const dx = Math.max(plot.origin[0] - p[0], 0, p[0] - (plot.origin[0] + plot.size[0]));
+  const dz = Math.max(plot.origin[2] - p[2], 0, p[2] - (plot.origin[2] + plot.size[2]));
+  return Math.hypot(dx, dz);
+}
+
+/** The plot whose footprint is nearest point `p` (the first on a tie). */
+function nearestPlot(p, plots) {
+  let best = null;
+  for (const pl of plots) if (!best || footprintGap(p, pl) < footprintGap(p, best)) best = pl;
+  return best;
+}
+
 const boxText = (pl) =>
   `${pl.id} (x ${pl.origin[0]}..${pl.origin[0] + pl.size[0]}, y ${pl.origin[1]}..${pl.origin[1] + pl.size[1]}, z ${pl.origin[2]}..${pl.origin[2] + pl.size[2]})`;
 
@@ -440,13 +455,21 @@ const boxText = (pl) =>
  *   gamePlot    the plot id the game says its home stands on (null for none).
  *   walkerPlot  the plot id the relay gave the walker (null for none).
  *   camera      [x, y, z] of the game's camera after joining.
+ *   homeThings  where the game's home's own things stand after joining (the
+ *               recorder's `home_things`): { respawn, hologram, showroom,
+ *               animals: [[x,y,z]...], plants: [[x,y,z]...] }. Each must be
+ *               nearer the plot the game should hold than any other plot (the
+ *               hologram hangs half a metre outside the home's west wall, so
+ *               "inside" would be too strict). Things the world load placed
+ *               for the home and the rebuild does not redo used to stay on
+ *               the default plot when the home moved.
  *   frames, walker  the recorder's frames and who the walker is (as above).
  * The plots each SHOULD hold come from the join order alone: the first to
  * join holds the first plot and the second the second (the relay's rule), so
  * a build that hands out no plots fails here with where things really were.
  * Returns { pass, checks }.
  */
-function judgePlots({ order, plots, gamePlot, walkerPlot, camera, frames, walker }) {
+function judgePlots({ order, plots, gamePlot, walkerPlot, camera, homeThings, frames, walker }) {
   const checks = [];
   const add = (id, ok, detail) => checks.push({ id, ok: !!ok, detail });
   if (!Array.isArray(plots) || plots.length < 2) {
@@ -473,6 +496,34 @@ function judgePlots({ order, plots, gamePlot, walkerPlot, camera, frames, walker
     Array.isArray(camera)
       ? `after joining, the game's camera at (${camera.map((v) => Number(v).toFixed(2)).join(", ")}) is ${camOk ? "inside" : "OUTSIDE"} ${boxText(expGame)}, the plot the game should hold`
       : "the game never reported its camera after joining",
+  );
+  const h = homeThings || null;
+  const things = h
+    ? [
+        ["the Respawn point", h.respawn],
+        ["the hologram", h.hologram],
+        ["the showroom stage", h.showroom],
+        ...(h.animals || []).map((a, i) => [`animal ${i + 1}`, a]),
+        ...(h.plants || []).map((a, i) => [`plant ${i + 1}`, a]),
+      ]
+    : [];
+  const strays = things.filter(([, p]) => !Array.isArray(p) || nearestPlot(p.map(Number), plots) !== expGame);
+  const nA = h ? (h.animals || []).length : 0;
+  const nP = h ? (h.plants || []).length : 0;
+  add(
+    "home_things_on_its_plot",
+    h && nA > 0 && nP > 0 && strays.length === 0,
+    !h
+      ? "the game reported none of its home's things (a build from before the fix)"
+      : !nA || !nP
+        ? `the game reported ${nA} animals and ${nP} plants; the shipped home has both, so nothing would be checked`
+        : strays.length
+          ? `${strays.length} of ${things.length} of the home's things are not on ${expGame.id}: ` +
+            strays
+              .slice(0, 4)
+              .map(([n, p]) => `${n} at (${Array.isArray(p) ? p.map((v) => Number(v).toFixed(1)).join(", ") : "nowhere"}) by ${Array.isArray(p) ? nearestPlot(p.map(Number), plots).id : "?"}`)
+              .join("; ")
+          : `the Respawn point, hologram, showroom stage, ${nA} animals and ${nP} plants are all on ${expGame.id}`,
   );
   const drawn = [];
   for (const fr of frames || []) for (const p of fr.players || []) if (isWalker(p, walker)) drawn.push({ t: Number(fr.t), pos: p.pos.map(Number) });
@@ -552,5 +603,6 @@ module.exports = {
   forwardLegStart,
   readShipPlots,
   inPlot,
+  nearestPlot,
   judgePlots,
 };

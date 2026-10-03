@@ -1985,6 +1985,7 @@ mod native_app {
                 game_joined: false,
                 game_welcomed: false,
                 copresence_refused: None,
+                home_arrived_on: None,
                 game_pos_timer: 0.0,
                 remote_avatar: None,
                 remote_look_materials: std::collections::HashMap::new(),
@@ -6841,13 +6842,15 @@ mod native_app {
                                 if let Some(ref ws) = state.gui_state.ws_client {
                                     // character_mode is reserved for the open/closed-server model
                                     // (relay ignores extra fields today; envelope right from day one).
-                                    let join = serde_json::json!({
+                                    let mut join = serde_json::json!({
                                         "type": "game_join",
                                         "player_name": name,
                                         "character_mode": "local",
                                         // How this player looks to the others (2026-09-29).
                                         "appearance": crate::player_look::PlayerLook::from_appearance(&state.gui_state.appearance).to_json(),
                                     });
+                                    // Our ship and our own door, for the plot (increment 1b).
+                                    crate::engine::home_plot::add_join_fields(&mut join, state.gui_state.ship_structure.as_ref());
                                     ws.send(&join.to_string());
                                 }
                                 state.game_joined = true;
@@ -7730,7 +7733,7 @@ mod native_app {
                         push_grow_enclosures(state, &mut transparent_objects);
                         // Photoscanned decoration plants (v0.909): CC0 models
                         // scattered from data/entities/decorations.ron.
-                        for &(mesh_idx, mat_idx, pos, yaw, scl) in &state.decoration_objects {
+                        for &(mesh_idx, mat_idx, pos, yaw, scl, _anchor) in &state.decoration_objects {
                             all_objects.push(RenderObject { fade: 0.0,
                                 position: pos,
                                 rotation: Quat::from_rotation_y(yaw.to_radians()),

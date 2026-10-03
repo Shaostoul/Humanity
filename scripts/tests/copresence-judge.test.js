@@ -374,15 +374,26 @@ const P1_SPAWN = [53.5, 1.7, 40.5];
 const P2_SPAWN = [53.5, 1.7, 139.5];
 /** The walker walking its line in its own plot, from its spawn along +Z. */
 const walkInPlot = (spawn) => framesFrom(frameTimes(RECORD_S), (t) => (t < APPEAR_S ? null : [spawn[0], spawn[1], spawn[2] + Math.min(8, SPEED * (t - APPEAR_S))]));
+/** The home's own things as the recorder reports them, for a home on the
+ *  plot at z offset `dz`: the shipped home's numbers (the hologram hangs half
+ *  a metre outside the west wall; three animals by the grain field; plants by
+ *  the irrigation and the composter). */
+const thingsAt = (dz) => ({
+  respawn: [53.5, 1.7, 40.5 + dz],
+  hologram: [-0.5, 1, 2.5 + dz],
+  showroom: [20, 0, 30 + dz],
+  animals: [[9, 0, 78 + dz], [9, 0, 78 + dz], [15, 0, 78 + dz]],
+  plants: [[30, 0, 60 + dz], [12, 0, 20 + dz]],
+});
 const plotsRun = (extra = {}) =>
-  judgePlots({ order: "walker-first", plots: PLOTS, gamePlot: "p2", walkerPlot: "p1", camera: P2_SPAWN, frames: walkInPlot(P1_SPAWN), walker: WALKER, ...extra });
+  judgePlots({ order: "walker-first", plots: PLOTS, gamePlot: "p2", walkerPlot: "p1", camera: P2_SPAWN, homeThings: thingsAt(99), frames: walkInPlot(P1_SPAWN), walker: WALKER, ...extra });
 
 test("plots: each holds its own by the join order, the camera and the walker inside theirs, passes", () => {
   const r = plotsRun();
   assert.ok(r.pass, explain(r));
-  assert.deepEqual(r.checks.map((c) => c.id), ["plot_ids_differ", "plots_by_join_order", "camera_in_p2", "walker_drawn_in_its_plot"]);
+  assert.deepEqual(r.checks.map((c) => c.id), ["plot_ids_differ", "plots_by_join_order", "camera_in_p2", "home_things_on_its_plot", "walker_drawn_in_its_plot"]);
   // The other order swaps who should hold what.
-  const g = judgePlots({ order: "game-first", plots: PLOTS, gamePlot: "p1", walkerPlot: "p2", camera: P1_SPAWN, frames: walkInPlot(P2_SPAWN), walker: WALKER });
+  const g = judgePlots({ order: "game-first", plots: PLOTS, gamePlot: "p1", walkerPlot: "p2", camera: P1_SPAWN, homeThings: thingsAt(0), frames: walkInPlot(P2_SPAWN), walker: WALKER });
   assert.ok(g.pass, explain(g));
   assert.equal(g.checks[2].id, "camera_in_p1");
 });
@@ -395,6 +406,25 @@ test("plots: the 1a shape (no plots handed out, the game still at p1) FAILS came
   assert.ok(failed.includes("camera_in_p2"), explain(r));
   assert.ok(failed.includes("plot_ids_differ") && failed.includes("plots_by_join_order"), explain(r));
   assert.match(r.checks.find((c) => c.id === "camera_in_p2").detail, /OUTSIDE p2 \(x 0\.\.55, y 0\.\.3, z 99\.\.188\)/);
+});
+
+// The shape the first 1b build left (the critic's findings 1 and 3): the home
+// and the camera moved to p2, but the Respawn point, the farm animals, the
+// plants, the hologram and the showroom stage stayed on p1, somebody else's.
+// Seen red 2026-10-03: with the check made to pass anything, this test failed
+// "home_things_on_its_plot should fail".
+test("plots: the home's own things left on p1 while the home moved to p2 FAIL home_things_on_its_plot", () => {
+  const r = plotsRun({ homeThings: thingsAt(0) });
+  const c = r.checks.find((x) => x.id === "home_things_on_its_plot");
+  assert.equal(c.ok, false, "home_things_on_its_plot should fail");
+  assert.match(c.detail, /^8 of 8 of the home's things are not on p2: the Respawn point at \(53\.5, 1\.7, 40\.5\) by p1/);
+  // Only the Respawn point left behind is enough to fail.
+  const one = thingsAt(99);
+  one.respawn = P1_SPAWN;
+  assert.equal(plotsRun({ homeThings: one }).checks.find((x) => x.id === "home_things_on_its_plot").ok, false);
+  // A build that reports none, or reports no animals and no plants, checks nothing: no pass.
+  assert.equal(plotsRun({ homeThings: null }).pass, false);
+  assert.equal(plotsRun({ homeThings: { ...thingsAt(99), animals: [], plants: [] } }).pass, false);
 });
 
 test("plots: two players handed the same plot FAIL plot_ids_differ", () => {

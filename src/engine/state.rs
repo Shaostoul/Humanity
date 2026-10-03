@@ -372,9 +372,11 @@ pub(crate) struct EngineState {
     /// (v0.525, the live-edit preview that makes the build mode feel real.)
     pub(crate) machine_objects: Vec<(usize, usize, Vec3, f32)>,
     /// Photoscanned decoration plants (v0.909): (mesh, material, world
-    /// pos, yaw deg, uniform scale) scattered from
-    /// data/entities/decorations.ron at home build.
-    pub(crate) decoration_objects: Vec<(usize, usize, Vec3, f32, f32)>,
+    /// pos, yaw deg, uniform scale, anchor) scattered from
+    /// data/entities/decorations.ron at home build. The anchor is the world
+    /// position of the machine it was scattered around, so a home moved to
+    /// its plot carries its plants with it (engine/home_plot.rs).
+    pub(crate) decoration_objects: Vec<(usize, usize, Vec3, f32, f32, Vec3)>,
     /// Crop model names that failed to load once - skipped on later rebuilds
     /// so ~114 modelless species never re-attempt a parse per growth tick.
     pub(crate) hero_plant_missing: std::collections::HashSet<String>,
@@ -776,6 +778,11 @@ pub(crate) struct EngineState {
     /// The server we refused to join because its ship is not ours (engine/home_plot.rs); the
     /// join gate skips it until the world is loaded afresh (world_load clears it).
     pub(crate) copresence_refused: Option<String>,
+    /// The server whose welcome last put us where it holds us (engine/home_plot.rs). A welcome
+    /// from any other server, or the first one since the world loaded (world_load clears it),
+    /// is an ARRIVAL: the player stands where that relay holds them. A later welcome from the
+    /// same server is a reconnect: the player keeps walking where they are.
+    pub(crate) home_arrived_on: Option<String>,
     /// Throttle for outbound position updates (send ~15/sec).
     pub(crate) game_pos_timer: f32,
     /// Cached (body_mesh, head_mesh, material) for the remote-player avatar marker, built once.

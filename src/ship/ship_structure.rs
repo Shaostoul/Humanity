@@ -554,6 +554,21 @@ impl ShipPlots {
     }
 }
 
+impl PlotArrival {
+    /// Where the holder arrives when their game names its own home's door (`local`, plot-local
+    /// x and z metres, from `ShipStructure::home_arrival_local`): that point on this plot, kept
+    /// inside the plot's box, at eye height. A door that is not a pair of finite numbers, or
+    /// none at all (a scripted player draws no home), arrives at `spawn`, the default design's.
+    pub fn arrival(&self, local: Option<(f32, f32)>) -> Vec3 {
+        match local {
+            Some((x, z)) if x.is_finite() && z.is_finite() => {
+                spawn_at(self.origin, (x.clamp(0.0, self.size.0), z.clamp(0.0, self.size.2)))
+            }
+            _ => self.spawn,
+        }
+    }
+}
+
 /// FNV-1a, 64 bits: a small, fixed, platform-independent hash for "is this the same ship file?"
 /// (not a security check: a relay that lied about its ship only fools its own players).
 fn fnv1a64(bytes: &[u8]) -> u64 {
@@ -1193,6 +1208,17 @@ impl ShipStructure {
     pub fn plot_spawn(plot: &Plot, design: &HomeDesign) -> Vec3 {
         let local = design.body.spawn.unwrap_or((plot.size.0 * 0.5, plot.size.2 * 0.5));
         spawn_at(plot.origin, local)
+    }
+
+    /// Where this player's own home is entered, as plot-local x and z metres: what the game
+    /// sends in `game_join` (`home_spawn`) so the relay spawns them at their OWN door, not the
+    /// default design's (`PlotArrival::arrival`). Plot-local because the game does not know its
+    /// plot until the welcome, and the home design is the same on any plot. None for a ship
+    /// that was not assembled with a home.
+    pub fn home_arrival_local(&self) -> Option<(f32, f32)> {
+        let plot = self.home_plot()?;
+        let at = Self::plot_spawn(plot, &self.home_design()?);
+        Some((at.x - plot.origin.0, at.z - plot.origin.2))
     }
 
     /// Where a guest arrives when every plot is held (increment 1b): the Commons (the first
@@ -3132,6 +3158,36 @@ mod plot_handout_tests {
         let g = plots.guest_spawn.expect("the ship has a Commons");
         assert!((g - Vec3::new(82.0, 1.7, 47.5)).length() < 1e-4, "guest spawn {g:?}");
         assert_eq!(plots.ship_id, "mothership-1");
+    }
+
+    /// The player's own door, as the game sends it (`home_arrival_local`), arrives on any plot
+    /// exactly where the game's camera lands when its home is assembled there, and a door with
+    /// a moved spawn (the build-mode avatar) arrives at the moved point, not the default
+    /// design's. A door off the plot is kept on it; one that is not a number is ignored. Seen
+    /// red 2026-10-03 with `arrival` ignoring the door (the first 1b relay, which always used
+    /// the default design's spawn): "p1: relay Vec3(53.5, 1.7, 40.5), game Vec3(12.5, 1.7, 30.0)".
+    #[test]
+    fn the_players_own_door_arrives_where_their_home_is_entered() {
+        let plots = ShipPlots::load(&data_dir()).expect("the shipped plots load");
+        let mut ship = ShipStructure::load_and_assemble(&data_dir(), None).expect("assembles on p1");
+        let home = ship.home_zone_index();
+        ship.zones[home].body.spawn = Some((12.5, 30.0)); // the player moved their door
+        let door = ship.home_arrival_local().expect("an assembled home has a door");
+        assert_eq!(door, (12.5, 30.0));
+        for p in &plots.plots {
+            let mut there = ship.ship_file().assemble(ship.home_design().unwrap(), &p.id).expect("fits");
+            let cam = there.home_spawn_world().unwrap();
+            assert!((p.arrival(Some(door)) - cam).length() < 1e-4, "{}: relay {:?}, game {cam:?}", p.id, p.arrival(Some(door)));
+            assert_eq!(there.home_arrival_local(), Some(door), "plot-local, so the same on every plot");
+            // No authored door: the plot's middle (what `plot_spawn` gives the game).
+            there.zones[home].body.spawn = None;
+            assert_eq!(there.home_arrival_local(), Some((p.size.0 * 0.5, p.size.2 * 0.5)));
+        }
+        let p1 = plots.plot("p1").unwrap();
+        assert_eq!(p1.arrival(None), p1.spawn, "no door named: the default design's spawn");
+        assert_eq!(p1.arrival(Some((f32::NAN, 3.0))), p1.spawn, "not a number: ignored");
+        let edge = p1.arrival(Some((1000.0, -5.0)));
+        assert!((edge - Vec3::new(p1.origin.0 + p1.size.0, 1.7, p1.origin.2)).length() < 1e-4, "kept on the plot: {edge:?}");
     }
 
     /// A relay in a folder with no data (the rigs' throwaway relay) hands out the same plots

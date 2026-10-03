@@ -1444,8 +1444,20 @@ mod tests {
     /// Send `game_join` and return the relay's `game_welcome` (the JSON after
     /// "__game__:"). Fails the test with what did arrive when none comes.
     async fn welcome_after_join(sock: &mut TestSocket, name: &str) -> Value {
+        welcome_after_join_with(sock, name, serde_json::json!({})).await
+    }
+
+    /// `welcome_after_join` with more fields in the `game_join` (the game's
+    /// `ship_hash` and `home_spawn`, engine/home_plot.rs `add_join_fields`).
+    async fn welcome_after_join_with(sock: &mut TestSocket, name: &str, extra: Value) -> Value {
         use futures::StreamExt;
-        send_json(sock, serde_json::json!({ "type": "game_join", "player_name": name, "character_mode": "local" })).await;
+        let mut join = serde_json::json!({ "type": "game_join", "player_name": name, "character_mode": "local" });
+        if let (Some(j), Some(e)) = (join.as_object_mut(), extra.as_object()) {
+            for (k, v) in e {
+                j.insert(k.clone(), v.clone());
+            }
+        }
+        send_json(sock, join).await;
         let mut seen = Vec::new();
         let found = tokio::time::timeout(std::time::Duration::from_secs(10), async {
             while let Some(Ok(msg)) = sock.next().await {
@@ -1684,6 +1696,78 @@ mod tests {
         for mut s in socks {
             s.close(None).await.ok();
         }
+        server.abort();
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// A game whose ship is not this relay's takes NO plot. Its game will
+    /// refuse the welcome (the hashes differ) and leave, so a plot claimed for
+    /// it would be held for good by someone who never lives there. The next
+    /// players then get the plots in order, as if it had never come; a game
+    /// that names the right ship, and a scripted player that names none, are
+    /// both taken at their word.
+    ///
+    /// Seen red 2026-10-03 on the first 1b relay (it claimed before anyone
+    /// compared ships): "a game drawing another ship took a plot: Some(\"p1\")".
+    #[tokio::test]
+    async fn a_game_drawing_another_ship_takes_no_plot() {
+        let path = plots_db("other_ship");
+        let (state, port, server) = relay_on(&path).await;
+        let ids = ship_plot_ids();
+        let ours = crate::ship::ship_structure::ShipPlots::load(std::path::Path::new("data")).unwrap().ship_hash;
+        let (mut other, _) = bind_socket(&state, port, [91u8; 32], Some("PlotOtherShip"), 1).await;
+        let (mut right, _) = bind_socket(&state, port, [92u8; 32], Some("PlotRightShip"), 1).await;
+        let (mut script, _) = bind_socket(&state, port, [93u8; 32], Some("PlotScripted"), 1).await;
+
+        let w = welcome_after_join_with(&mut other, "PlotOtherShip", serde_json::json!({ "ship_hash": "0123456789abcdef" })).await;
+        assert_eq!(welcome_plot(&w), None, "a game drawing another ship took a plot: {:?}", welcome_plot(&w));
+        assert_eq!(w["ship"]["hash"], ours.as_str(), "the welcome still names the relay's ship, so the game can say why");
+        let w = welcome_after_join_with(&mut right, "PlotRightShip", serde_json::json!({ "ship_hash": ours })).await;
+        assert_eq!(welcome_plot(&w).as_deref(), Some(ids[0].as_str()), "the right ship gets the first plot, still free");
+        let w = welcome_after_join(&mut script, "PlotScripted").await;
+        assert_eq!(welcome_plot(&w).as_deref(), Some(ids[1].as_str()), "a join naming no ship (a scripted player) gets the next");
+
+        for mut s in [other, right, script] {
+            s.close(None).await.ok();
+        }
+        server.abort();
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// The player arrives at THEIR OWN home's front door: the game sends its
+    /// home design's spawn (plot-local metres) and the relay spawns them there
+    /// on the plot it hands out, kept inside that plot's box. The relay's own
+    /// copy of the default design only decides for a join that sends none. A
+    /// player who moved their door with the build-mode avatar otherwise
+    /// arrived up to 72 m from it on this ship.
+    ///
+    /// Seen red 2026-10-03 on the first 1b relay: "a join naming its door at
+    /// (12.5, 30) on p1 spawned at [53.5, 1.7, 40.5]".
+    #[tokio::test]
+    async fn a_join_that_names_its_door_arrives_there() {
+        let path = plots_db("own_door");
+        let (state, port, server) = relay_on(&path).await;
+        let ship = crate::ship::ship_structure::ShipStructure::load_ship_file(std::path::Path::new("data")).unwrap();
+        let (mut a, a_key) = bind_socket(&state, port, [94u8; 32], Some("PlotOwnDoor"), 1).await;
+        let (mut b, b_key) = bind_socket(&state, port, [95u8; 32], Some("PlotWildDoor"), 1).await;
+
+        let w = welcome_after_join_with(&mut a, "PlotOwnDoor", serde_json::json!({ "home_spawn": [12.5, 30.0] })).await;
+        let id = welcome_plot(&w).expect("a plot");
+        let p = ship.plots.iter().find(|p| p.id == id).unwrap();
+        let want = [p.origin.0 + 12.5, p.origin.1 + 1.7, p.origin.2 + 30.0];
+        let at = relay_position(&state, &a_key).await;
+        assert!(dist(at, want) < 1e-3, "a join naming its door at (12.5, 30) on {id} spawned at {at:?}, not {want:?}");
+
+        // A door outside the plot (or not a number) is kept on the plot's edge.
+        let w = welcome_after_join_with(&mut b, "PlotWildDoor", serde_json::json!({ "home_spawn": [1000.0, -5.0] })).await;
+        let id = welcome_plot(&w).expect("a plot");
+        let p = ship.plots.iter().find(|p| p.id == id).unwrap();
+        let want = [p.origin.0 + p.size.0, p.origin.1 + 1.7, p.origin.2];
+        let at = relay_position(&state, &b_key).await;
+        assert!(dist(at, want) < 1e-3, "a door at (1000, -5) on {id} spawned at {at:?}, not on the plot's edge {want:?}");
+
+        a.close(None).await.ok();
+        b.close(None).await.ok();
         server.abort();
         let _ = std::fs::remove_file(&path);
     }

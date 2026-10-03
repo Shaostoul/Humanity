@@ -2955,8 +2955,9 @@ pub async fn handle_game_join(
 
     let mut world = state.game_world.write().await;
     // Their home on the ship (increment 1b): the plot they hold, else the first free one,
-    // else a guest spot in the Commons. Asked on a rejoin too, so every welcome names it.
-    let home = world.assign_home(&state.db, my_key);
+    // else a guest spot in the Commons; at their own door, and nothing for a game drawing
+    // another ship (game_state.rs JoinHome). Asked on a rejoin too, so every welcome names it.
+    let home = world.assign_home(&state.db, my_key, &crate::relay::handlers::game_state::JoinHome::from_join(raw));
 
     // A join for an ALREADY-PRESENT player is a RESYNC, not an error (v0.779).
     // The native client re-sends game_join after a local menu round-trip (it
