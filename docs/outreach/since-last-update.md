@@ -46,6 +46,10 @@ Each line is written the way a player would hear it; the release notes and
   Fuji, the open sea, a sunset over the sea, Silverdale from above, the
   home from above, the greenhouse) into smooth, ready-to-post videos in
   both landscape and portrait.
+- **v0.1436.0: the Windows download is the whole game.** The main
+  download button now gives Windows players the full game with its models
+  and textures; before, it gave them the bare program, which looked like grey
+  boxes. Upvoting a bug and the Tasks board on the website work again too.
 - **v0.1435.2: chat works on older phones.** The website chat refused
   to connect on phones whose browser is not the newest (anything before
   Chrome 137), which is most phones in much of the world. A user in

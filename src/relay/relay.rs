@@ -201,6 +201,12 @@ pub struct RelayState {
     pub typing_timestamps: RwLock<HashMap<String, Instant>>,
     /// Upload token → public key mapping (M-4: per-session upload tokens).
     pub upload_tokens: RwLock<HashMap<String, String>>,
+    /// Every signed-in socket per identity (2026-10-02). One person can hold
+    /// several at once: the desktop app and a web tab, or Chat and the Tasks
+    /// board. `peers` keeps ONE registration per identity, owned by the newest
+    /// socket, so this set is what says whether the person is still here when
+    /// one of them closes (see the teardown).
+    pub live_conns: RwLock<HashMap<String, HashSet<u64>>>,
     /// Active voice rooms (room_id → VoiceRoom).
     pub voice_rooms: RwLock<HashMap<String, VoiceRoom>>,
     /// User status cache (name → (status, status_text)).
@@ -419,6 +425,7 @@ impl RelayState {
         let (broadcast_tx, _) = broadcast::channel(broadcast_capacity);
         Self {
             peers: RwLock::new(HashMap::new()),
+            live_conns: RwLock::new(HashMap::new()),
             broadcast_tx,
             history: RwLock::new(history),
             db,
@@ -2879,6 +2886,12 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                         tracing::error!("Failed to store Kyber public key: {e}");
                     }
                 }
+                // A socket that signs in without its DM key (a standalone page
+                // such as the Tasks board) is registered and announced with
+                // the key already on file: announcing "none" made every open
+                // Chat drop this person's key, so DMs to them failed until a
+                // reload (review of the Tasks sign-in fix, 2026-10-02).
+                let kyber_public = kyber_public.or_else(|| state.db.get_kyber_public(&public_key).ok().flatten());
 
                 let peer = Peer {
                     public_key_hex: public_key.clone(),
@@ -2887,6 +2900,10 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                     kyber_public: kyber_public.clone(),
                     conn_id: my_conn_id,
                 };
+
+                // A second socket for someone already here is the same person,
+                // not a new arrival (no "came online" below). BUG-112.
+                let already_here = crate::relay::handlers::live_conns::note_signed_in(&state, &public_key, my_conn_id).await;
 
                 // Register peer and upload token mapping.
                 state.peers.write().await.insert(public_key.clone(), peer);
@@ -3112,7 +3129,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                 // so DMs keep working; only the live "came online" signal
                 // is withheld.
                 let peer_role = state.db.get_role(&public_key).unwrap_or_default();
-                if !state.db.presence_hidden(&public_key) {
+                if !state.db.presence_hidden(&public_key) && !already_here {
                     let _ = state.broadcast_tx.send(RelayMessage::PeerJoined {
                         public_key,
                         display_name: final_name,
@@ -6233,6 +6250,18 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
     tokio::select! {
         _ = &mut send_task => recv_task.abort(),
         _ = &mut recv_task => send_task.abort(),
+    }
+
+    // ── Another socket for this identity is still open ──
+    // The person has not left: the desktop app and a web tab, or Chat and the
+    // Tasks board, can hold the same identity at once. Take this socket out of
+    // the live set; if others remain, hand the registration to one of them
+    // when it was ours, and tidy nothing else. (2026-10-02: closing the Tasks
+    // tab used to run the whole departure below, dropping the person from voice
+    // and their game connection while Chat stayed open.)
+    if let Some(other) = crate::relay::handlers::live_conns::release_closed(&state, &my_key, my_conn_id).await {
+        tracing::debug!("socket {my_conn_id} for {my_key} closed; socket {other} is still open");
+        return;
     }
 
     // ── Superseded-connection check (the zombie guard) ──

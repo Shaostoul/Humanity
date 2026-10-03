@@ -48,6 +48,30 @@ fixed v0.1384.0), 2a, 2a-ii and 2a-i (the grain measurements, condensed into
 page snapshots, done). A code comment or fixture that cites one of those
 numbers finds it there.
 
+### THIS WEEK (planned 2026-10-02): playable multiplayer, proven with two people
+
+Planned by a five-reader survey, three competing week plans and a judge, with
+every load-bearing claim checked by an adversarial verifier
+(`docs/history/2026-10-02.md`). Day 1's fixes shipped in v0.1436.0
+(BUG-107 to BUG-112). The rest, in order:
+- **Review** the releases v0.1428.0 to v0.1435.2 plus today's (none covers them).
+- **Day 2:** count `smelt_iron_graphite` for the first quest's iron step (the
+  quest is finishable, only the graphite route does not count); the homepage
+  game panel shows a real clip; fix the black-palette plant models so branch
+  `wip-tower-hero-models` can land.
+- **Day 3:** a scripted second player (nothing can drive one today:
+  `scripts/ai-sample-client.js` never answers the identify challenge) and
+  smooth remote movement (`src/net/sync.rs` eases each 50 ms step then holds;
+  velocity is always sent as zero).
+- **Day 4:** shared building over the relay (no build message exists yet).
+- **Day 5:** a real two-person session on the VPS, then fix what it finds and
+  reshoot the clips.
+**Waiting on the operator:** where two players meet; the shared-world clock
+speed (1x makes a lettuce take 45 days; 72x proposed as the server default);
+co-op trust or enforced rules; who and when for the Day 5 session; deleting
+the 15 plain pre-August backups on the VPS and the 60 stale local copies once
+the backup key is safe; whether multiplayer goes ahead of arc A.
+
 ### IN FLIGHT AT THE USAGE CAP (2026-09-27 evening): resume from these branches
 
 Weekly usage reached 89%, so every agent was told to commit (WIP if not
@@ -64,11 +88,10 @@ Drying and Fermenting guides, verified, with the jerky recipe loop fixed
 (jerky and dried meat now start from mutton), in v0.1396.1; the HDR scene
 target increments 3 and 4 in v0.1398.0):
 
-- `a2932acea7b338a59`: sun cascades. WIP e25375bb: increment 0 (fixtures,
-  the station camera pose, five clock-pinned home vantages, sun_shadows
-  pin) is done and safe to merge; increment 1 is drafted as text in
-  docs/design/sun-cascades-wip/ and never built. home-shadow-metrics.mjs
-  region boxes are placeholders.
+- None left. The last one, the sun cascades branch `a2932acea7b338a59`,
+  merged in v0.1397.0 (increment 0); increment 1 is drafted as text in
+  docs/design/sun-cascades-wip/ and never built, tracked under TIER 0 item
+  3c. (Removed 2026-10-02: the week-plan survey found this line still here.)
 
 ### 0. The ship and the playable game (arc C, ranked first 2026-09-27)
 

@@ -786,6 +786,97 @@ mod tests {
         .unwrap_or(None)
     }
 
+    /// Connect to `/ws` and complete the Dilithium identify handshake; returns
+    /// the open socket and the identity's key. Waits until the relay lists the
+    /// key as signed in, so the caller starts from a bound socket.
+    async fn bind_socket(
+        state: &std::sync::Arc<crate::relay::relay::RelayState>,
+        port: u16,
+        seed: [u8; 32],
+        name: &str,
+        expect_live: usize,
+    ) -> (
+        tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>,
+        String,
+    ) {
+        use base64::{engine::general_purpose::STANDARD as B64, Engine};
+        use futures::{SinkExt, StreamExt};
+        use tokio_tungstenite::tungstenite::Message as WsMsg;
+
+        let dil_seed = crate::relay::core::pq_crypto::derive_dilithium_seed(&seed);
+        let dil = crate::relay::core::pq_crypto::DilithiumKeypair::from_seed(&dil_seed);
+        let pubkey = hex::encode(dil.public_key());
+        let (mut sock, _) = tokio_tungstenite::connect_async(format!("ws://127.0.0.1:{port}/ws"))
+            .await
+            .expect("client connects to /ws");
+        sock.send(WsMsg::Text(
+            serde_json::json!({ "type": "identify", "public_key": pubkey, "display_name": name }).to_string().into(),
+        ))
+        .await
+        .unwrap();
+        let challenge: Value = serde_json::from_str(&sock.next().await.unwrap().unwrap().into_text().unwrap()).unwrap();
+        let nonce = challenge["nonce"].as_str().expect("an identify challenge").to_string();
+        let sig = B64.encode(dil.sign(format!("hum/identify/v1\n{nonce}\n{pubkey}").as_bytes()));
+        sock.send(WsMsg::Text(serde_json::json!({ "type": "identify_response", "sig_b64": sig }).to_string().into()))
+            .await
+            .unwrap();
+        let ok = wait_until(|| async { live_count(state, &pubkey).await == expect_live }).await;
+        assert!(ok, "the socket never signed in ({expect_live} live expected)");
+        (sock, pubkey)
+    }
+
+    async fn live_count(state: &std::sync::Arc<crate::relay::relay::RelayState>, key: &str) -> usize {
+        state.live_conns.read().await.get(key).map_or(0, |s| s.len())
+    }
+
+    /// Poll for up to 5 s (the relay tears a socket down on its own task).
+    async fn wait_until<F, Fut>(mut f: F) -> bool
+    where
+        F: FnMut() -> Fut,
+        Fut: std::future::Future<Output = bool>,
+    {
+        for _ in 0..100 {
+            if f().await {
+                return true;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        }
+        false
+    }
+
+    /// ONE PERSON, TWO SOCKETS (2026-10-02). Chat and the Tasks board, or the
+    /// desktop app and a web tab, sign in with the same identity. Closing the
+    /// NEWER one (which owns the registration) must leave the person signed in,
+    /// with the registration handed to the socket still open; only closing the
+    /// last socket takes them off. Red check, run: without the live set the
+    /// newer socket's close removed the registration while the older one stayed
+    /// open.
+    #[tokio::test]
+    async fn closing_one_of_two_sockets_keeps_the_person_signed_in() {
+        let (state, port, path) = spawn_relay("two_sockets", Features::all_enabled()).await;
+        let seed = [42u8; 32];
+        let (mut first, key) = bind_socket(&state, port, seed, "TwoTabs", 1).await;
+        let (mut second, _) = bind_socket(&state, port, seed, "TwoTabs", 2).await;
+
+        use futures::SinkExt;
+        second.close(None).await.ok();
+        assert!(wait_until(|| async { live_count(&state, &key).await == 1 }).await, "the closed socket left the live set");
+        {
+            let peers = state.peers.read().await;
+            let live = state.live_conns.read().await;
+            let p = peers.get(&key).expect("still signed in while one socket is open");
+            assert!(live[&key].contains(&p.conn_id), "the registration belongs to the socket still open");
+        }
+
+        first.close(None).await.ok();
+        assert!(
+            wait_until(|| async { !state.peers.read().await.contains_key(&key) }).await,
+            "closing the last socket signs the person out"
+        );
+        assert_eq!(live_count(&state, &key).await, 0);
+        let _ = std::fs::remove_file(&path);
+    }
+
     /// The OTHER door onto the server owner's disk, over the WebSocket.
     ///
     /// `/api/vault/sync` is not the only way to park data on someone else's

@@ -214,6 +214,12 @@
   <div id="bug-list"></div>
 </div>
 
+<!-- Dilithium identity bridge for the signed bug vote (POST /api/bugs/{id}/vote). -->
+<!-- `pq.js` installs window.pqDeriveIdentity + window.pqSignMessage; -->
+<!-- `pq-relay-auth.js` installs window.getPqSignedAuth, which reads the seed -->
+<!-- from the localStorage backup Chat writes (no WebCrypto Ed25519 needed). -->
+<script src="/chat/pq.js?v=1"></script>
+<script src="/shared/pq-relay-auth.js?v=1"></script>
 <script src="/pages/bugs-app.js"></script>
 </body>
 </html>

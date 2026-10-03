@@ -2355,3 +2355,109 @@ cutover failed (it demanded a 64-character public key; those carry the
 3,904-character Dilithium one), and the unused `ed25519PublicKeyHex` field
 could be overwritten with the Dilithium key when setup ran twice. Lost
 without Ed25519: the Solana wallet's public key only.
+
+## BUG-107: the off-box backup copied the same 24 August file for 39 days (FIXED v0.1436.0)
+
+**Symptom:** none visible: `backup-pull.log` said "pulled OK" every run.
+Found by the week-plan survey (2026-10-02) and confirmed: all 60 copies in
+%USERPROFILE%\HumanityBackups were byte-identical, the 24 August state.
+
+**Root cause:** since 2026-08-24 the VPS seals every 30-minute snapshot to
+`relay-<ts>.db.aes` and deletes the plain copy, but
+`scripts/backup-relay-from-vps.ps1` still listed only `relay-*.db`, so it
+kept finding the last plain file (the VPS keeps 15 plain ones forever because
+no new ones arrive to push them out). Its only check was a valid SQLite
+header, which the stale file passes: a check that could not fail.
+
+**Fix:** pull the newest stamped `.db.aes`, check the `Salted__` header,
+and FAIL loudly (non-zero exit, ERROR in the log) when the newest VPS snapshot
+is over 2 h old or stamped in the future (exit 7), when the copy's SHA-256
+differs from the VPS file's (a pull taken mid-seal, exit 8), or when it is
+byte-identical to the previous pull (exit 6). Each failure was produced on
+purpose before trusting it; a real run then pulled a current snapshot whose
+hash matches the VPS. Old plain copies are left for the operator to delete.
+**Still needed, operator only:** a copy of `/opt/Humanity/data/backup.key`
+off the VPS; without it no pulled backup can be opened.
+
+## BUG-108: a Settings button could replace a person's identity in one click (FIXED v0.1436.0)
+
+**Symptom:** web Settings > View Recovery Phrase, when it could not show the
+words, offered "Rotate Key", promising a "dual-signature certificate" would
+carry profile and messages over. One click made a brand-new identity,
+overwrote the stored one and reloaded; the old recovery phrase no longer
+matched and the relay refused the saved name.
+
+**Root cause:** the overlay was written for old non-extractable keys, the
+promise has been false since 2026-03-25 (the certificate step was removed)
+and the relay's rotation route since v0.265.0. It also appeared for HEALTHY
+identities whenever the BIP39 word list failed to load.
+
+**Fix:** the button and its handler are gone. The page now says why the
+phrase cannot be shown (the word list or the identity tools did not load:
+reload; or this browser holds no recovery phrase: use the restore actions)
+and changes nothing. Checked in the browser pane on all three paths. The
+recovery phrase also lost its seedling icons for a key (CLAUDE.md, account
+words).
+
+## BUG-109: the main Windows download had no models or textures (FIXED v0.1436.0)
+
+**Symptom:** a new Windows player got machines drawn as boxes and flat
+ground, with no warning.
+
+**Root cause:** `web/pages/download.html` picked `HumanityOS-windows-x64.exe`
+(75 MB, the program alone, which exists for the updater) instead of the zip
+(about 385 MB) that carries models, textures and data. Mac and Linux already
+picked their zip.
+
+**Fix:** the Windows button now prefers the zip (the exe only as a fallback
+for old releases), the Windows card says to Extract All and not to run the
+exe from inside the zip, and the sizes are current. Checked in the browser
+pane: the button resolves to the v0.1435.2 zip.
+
+## BUG-110: upvoting a bug on the website failed for everyone (FIXED v0.1436.0)
+
+**Symptom:** "You need to be logged in", signed in or not.
+
+**Root cause:** since 2026-09-06 the relay requires a Dilithium-signed vote
+(`voter_key`, `timestamp`, `sig` over `bug_vote\n<ts>`), but
+`web/pages/bugs-app.js` sent only `voter_key`, from a key the page never
+had.
+
+**Fix:** `bugs.html` loads `/chat/pq.js` and `/shared/pq-relay-auth.js`, and
+the vote is signed with `getPqSignedAuth('bug_vote')`, which reads the
+recovery-phrase backup without needing WebCrypto Ed25519 (so it also works on
+the BUG-106 phones). The shape was checked against the relay's own
+verification code.
+
+## BUG-111: the website's Tasks page never signed in on its live socket (FIXED v0.1436.0)
+
+**Symptom:** creating a task timed out; status, priority and assignee
+changes showed on screen but never reached the server.
+
+**Root cause:** `web/pages/tasks-app.js` identified with the old Ed25519 key
+and had no answer to the relay's Dilithium identify challenge, so the relay
+never bound the socket and dropped everything it sent.
+
+**Fix:** the page identifies with the Dilithium identity from the recovery-
+phrase backup and answers the challenge; its local-only test votes are
+labelled as local and no longer carry a decorative Ed25519 signature.
+
+## BUG-112: closing one of two tabs signed the person out everywhere (FIXED v0.1436.0)
+
+**Symptom:** with web Chat (or the desktop app) and another page signed in
+as the same person, closing the NEWER one ran the full departure: the person
+showed as left, was dropped from voice, and their game connection went to
+the link-dead grace period, while the other stayed open. Fixing BUG-111 would
+have made this happen every time someone closed the Tasks board.
+
+**Root cause:** the relay keeps one registration per identity, owned by the
+newest socket, and ran its departure cleanup whenever that socket closed.
+
+**Fix:** `RelayState::live_conns` counts every signed-in socket per
+identity. Closing one that is not the last hands the registration to a
+socket still open and tidies nothing else; a second socket for someone
+already here is not announced as a new arrival; and a socket that signs in
+without its DM key is announced with the key on file (web Chat also keeps a
+known key over an empty one), so no open Chat loses the ability to send them
+DMs. Test `closing_one_of_two_sockets_keeps_the_person_signed_in` runs the
+real relay and the real handshake; seen red without the fix.

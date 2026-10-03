@@ -257,8 +257,9 @@ constitution rather than a promise.
 - `[done]` Reputation: peer-endorsed skills signed with your identity key.
 - `[planned]` Group governance: proposals, ranked-choice voting, and quorum rules,
   with every vote signed and tamper-evident.
-- `[planned]` Native trade UI completion (the page exists; the trade events need
-  wiring).
+- `[done]` Native trade UI: requests, offers, confirm and cancel (v0.756), offers
+  naming items you carry and a finished trade moving them (v0.1433.0). Escrow
+  waits on server-held inventories.
 - `[building]` Vehicle pipeline (economy Phase 2, staged): kits deploy into real
   vehicles (Stage 1, v0.677), the Vehicle Assembler machine rolls finished rovers
   onto an occupancy-managed factory pad (Stage 2, v0.679), and a summoned vehicle

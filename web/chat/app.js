@@ -772,7 +772,10 @@ async function handleMessage(msg) {
     }
     case 'peer_joined':
       // Update peerData with new peer info, sidebar handles visibility.
-      peerData[msg.public_key] = { public_key: msg.public_key, display_name: msg.display_name, role: msg.role || '', kyber_public: msg.kyber_public || null };
+      // A join that carries no DM key keeps the one we already hold: a
+      // standalone page signing in without it must not cut off DMs to that
+      // person (2026-10-02).
+      peerData[msg.public_key] = { public_key: msg.public_key, display_name: msg.display_name, role: msg.role || '', kyber_public: msg.kyber_public || (peerData[msg.public_key] && peerData[msg.public_key].kyber_public) || null };
       updateStats();
       break;
     case 'peer_left':

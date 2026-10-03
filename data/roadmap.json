@@ -313,9 +313,9 @@
           "text": "Group governance: proposals, ranked-choice voting, and quorum rules, with every vote signed and tamper-evident."
         },
         {
-          "status": "planned",
-          "version": null,
-          "text": "Native trade UI completion (the page exists; the trade events need wiring)."
+          "status": "done",
+          "version": "v0.756",
+          "text": "Native trade UI: requests, offers, confirm and cancel (v0.756), offers naming items you carry and a finished trade moving them (v0.1433.0). Escrow waits on server-held inventories."
         },
         {
           "status": "building",
@@ -348,7 +348,7 @@
           "text": "AI agent governance: evolve Article 14 of the Accord from documented intent into enforced rules with appeals as more AI participants join."
         }
       ],
-      "done": 4,
+      "done": 5,
       "total": 12
     },
     {
@@ -969,7 +969,7 @@
     }
   ],
   "summary": {
-    "done": 49,
+    "done": 50,
     "total": 110
   }
 }

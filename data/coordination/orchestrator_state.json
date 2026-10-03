@@ -516,6 +516,11 @@
       "date": "2026-09-30",
       "decision": "Web chat seed-only identity (BUG-106): without WebCrypto Ed25519 the 32-byte seed is held directly (seedOnlyIdentity), saved as the standard PKCS8 backup with an empty public key; restoreKeyFromLocalStorage derives the key via JWK when absent; all seed reads go through identitySeed(). Import no longer requires a 64-char publicKey.",
       "why": "A user in Nigeria could not connect: Ed25519 WebCrypto is default only from Chrome 137, so Chrome 85-136 (most phones in much of the world) got a keyless identity and attachPqIdentity refused. The same backup format keeps the identity when the browser later gains Ed25519. Verified in the browser pane with the support flag off."
+    },
+    {
+      "date": "2026-10-02",
+      "decision": "Week plan (survey x5, plans x3, judge, then 7 adversarial verifiers) recorded in PRIORITIES TIER 0 \"THIS WEEK\": review, then playable multiplayer proven by two people (scripted second player, smooth movement, shared building, a real session). Day-1 fixes shipped: BUG-107 backup pull, BUG-108 Rotate Key removed, BUG-109 Windows zip download, BUG-110 web bug votes, BUG-111 Tasks sign-in, BUG-112 relay live_conns.",
+      "why": "Operator asked what to work on this week; near-term success is playable multiplayer on the VPS. The verifiers turned up a 39-day-stale off-box backup and an identity-replacing button, so those shipped first. BUG-112 came from the reviewer of the Tasks fix: making Tasks sign in would have signed people out of voice and the game whenever they closed it."
     }
   ],
   "active_scopes_to_avoid": [
@@ -545,7 +550,7 @@
     "Trees have no materialised identity, so they cannot be felled. The key (cell_x, cell_y, item_index) already exists structurally; a sparse delta store is the shape."
   ],
   "how_to_resume": "1. `just brief` (version/CI/signing). 2. docs/PRIORITIES.md \"Active focus\" - the top item is fully specified, start implementing rather than investigating. 3. This file for WHY. Note the ONE-GPU rule: `tasklist //FI \"IMAGENAME eq HumanityOS.exe\"` before booting any rig, and never boot beside the operator instance.",
-  "last_updated": "2026-09-28",
+  "last_updated": "2026-10-02",
   "focus": "v0.1111.1 shipped (the 2026-08-03/04 vegetation marathon, v0.1109.4-v0.1111.1). Landed: leaf tufts stopped being cubes (golden-angle azimuths + solved per-card tilts, measured 100% parallel pairs on conifers and 67% perpendicular on broadleaves before); distant cards stopped out-shining mesh trees (4-8x, three multiplying causes, then the residual 28% conifer excess traced to the odd component of the shading normals and cancelled at source - all species now 1.00 flat across the sky); standing still stopped depending on the frame rate (the frame-lock sampled terrain one frame of planetary spin behind the player, 33,360 m/s of ground slip, so altitude read as a function of fps and flipped stand height by 2.45 m); the card-hide radius stopped promising models that never drew (BUG-068); forest density stopped being a process-global read separately by two streams (BUG-069); and the card cutoff is now clamped to the terrain reach that actually exists. Foliage-card arrangement extracted to renderer/tree_cards.rs under the size ratchet, and the ratchet budget came DOWN.",
   "overnight_plan_2026_08_01": {
     "directive": "Operator (heading to bed, full trust granted): PERMANENT versions only, no half fixes. Full PBR textures (not just diffuse). Real full canopies of leaves and flowers. Photorealism is the goal - screenshots good enough to land donations/grants; money is tight. 8-10 hours unattended.",
