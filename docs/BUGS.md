@@ -2574,3 +2574,48 @@ character (an accented name, an emoji). Found by the trades fix agent.
 
 **Fix:** cut at a character boundary (`frame_ws_poll::clip`); test seen red
 with the old slicing.
+
+## BUG-122: the 30-minute VPS backup stopped pruning, so sealed copies piled up (FIXED v0.1439.0)
+
+**Symptom:** `humanity-backup-db.service` showed failed (status 2) every run
+from 2026-10-03 04:14Z, and `/opt/Humanity/backups` grew past its 15-copy cap
+(16, then 17, about 48 more a day). Each snapshot was still written and sealed.
+
+**Root cause:** the script runs under `set -euo pipefail` and pruned with
+`ls -1t relay-*.db | tail -n +16 | xargs rm`. When the last plain
+pre-encryption copy was deleted (2026-10-02, at the operator's word), that ls
+matched nothing, exited 2, and ended the script before the `.db.aes` line.
+Caused by our own cleanup: deleting the last file a glob matches broke a
+script that assumed one would always exist.
+
+**Fix:** rotation through a `rotate_keep` function using `find`, which never
+fails on no match; the count can be set with `HUMANITY_DB_BACKUP_ROTATE_KEEP`
+(default 15). `scripts/tests/backup-rotate.test.js` (in `just rig-tests`) runs
+the function under the script's shell options in a folder of sealed copies only,
+and runs the old line there as a control that must fail.
+
+## BUG-123: the relay's 6-hourly snapshot, and the mail expiry with it, restarted at every deploy (FIXED v0.1439.0)
+
+**Symptom:** on a server deployed more often than every 6 hours the relay
+took no snapshot of its own (`data/backups/*.db.enc`, the only copies its
+crash recovery reads) and never ran the expiry pass that shares the loop:
+sealed mail past its TTL and public messages past the retention window stayed.
+
+**Root cause:** the loop slept a flat 6 hours from every start.
+
+**Fix:** the first pass is due when the newest existing snapshot turns 6 hours
+old (at least 2 minutes after start; at once if there is none),
+`storage::backups::first_snapshot_wait`; test seen red.
+
+## BUG-124: the in-app backup status and list showed no backups, and "Back up now" left a readable copy (FIXED v0.1439.0)
+
+**Symptom:** after the old plain copies were deleted, the Relay Control "Last
+backup" row and the Backups panel showed nothing, though 16 sealed copies
+existed; `provision-vps.sh` would have failed its "a backup was written" check
+on a fresh server. The "Back up now" button wrote `manual-<ts>.db` in the clear,
+and nothing ever rotated it.
+
+**Fix:** `storage::backups::is_backup_file` counts `.db`, `.db.aes` and
+`.db.enc` for the panel and the status row; provision checks `relay-*.db*`; the
+button seals its snapshot to `manual-<ts>.db.enc` with the key beside the live
+database and removes the plain copy. Tests seen red.

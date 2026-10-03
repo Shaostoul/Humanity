@@ -541,6 +541,11 @@
       "date": "2026-10-02",
       "decision": "Day 2 part 1: QuestObjective::Make (units of an item from any recipe; crafting credit_craft pushes make_<item> per unit) and gs_first_steps iron step uses it; homepage game panel plays the home-flyover clip (720p, 1.2 MB, IntersectionObserver, still for reduced motion/save-data); sw.js skips video/audio/range requests.",
       "why": "Week plan Day 2. A Make objective generalizes instead of listing recipe alternatives per quest (infinite-of-X); Craft stays for steps that really mean one recipe. The clip is honest (captioned as the game today) and costs nothing until on screen."
+    },
+    {
+      "date": "2026-10-02",
+      "decision": "Backup inventory (workflow: code/VPS/PC sweeps + keeper check). Newest .db.aes and .db.enc restore (integrity ok, counts match). Fixed BUG-122 (script rotation via find; HUMANITY_DB_BACKUP_ROTATE_KEEP), BUG-123 (6h snapshot + expiry due by newest snapshot age), BUG-124 (status/panel count sealed; Back up now seals). The trim deletions handed to the operator as commands; retention counts await his call.",
+      "why": "Operator asked to delete old/stale/duplicate backups down to the latest. Deleting backup data is his to run; the inventory showed my earlier deletion of the plain copies had broken the 30-min script, which had to be fixed before any trim or the folder grows without limit."
     }
   ],
   "active_scopes_to_avoid": [

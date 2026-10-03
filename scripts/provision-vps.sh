@@ -387,7 +387,7 @@ sleep 3; systemctl is-active --quiet fail2ban || { echo "!! fail2ban is not runn
 # The backup timer must be ARMED and must have produced at least one real
 # backup - the rebuilt box looked healthy for days with neither (2026-08-12).
 systemctl is-active --quiet humanity-backup-db.timer || { echo "!! DB backup timer is not armed"; fail=1; }
-ls "$REPO"/backups/relay-*.db >/dev/null 2>&1 || { echo "!! no DB backup has ever been written"; fail=1; }
+compgen -G "$REPO/backups/relay-*.db*" >/dev/null || { echo "!! no DB backup has ever been written"; fail=1; }
 # Renewal must be able to free port 80, or the cert expires ~60 days out.
 [ -x /etc/letsencrypt/renewal-hooks/pre/stop-nginx.sh ] || { echo "!! cert renewal has no port-80 hook - it will fail silently"; fail=1; }
 [ $fail = 0 ] && say "PROVISION COMPLETE - all assertions pass" || { say "PROVISION FINISHED WITH FAILURES"; exit 1; }

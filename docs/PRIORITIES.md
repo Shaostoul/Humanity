@@ -74,7 +74,14 @@ every load-bearing claim checked by an adversarial verifier
 - **Day 4:** shared building over the relay (no build message exists yet).
 - **Day 5:** a real two-person session on the VPS, then fix what it finds and
   reshoot the clips.
-**Waiting on the operator:** where two players meet; the shared-world clock
+**Backups (2026-10-02):** an inventory found the newest snapshots restore
+cleanly (integrity check ok, row counts matching live) and that the backup
+key exists only on the VPS. Fixed in v0.1439.0: BUG-122 to BUG-124. Still
+open: game saves have no backups at all (one file rewritten in place); the
+in-app "Back up now" copies are never rotated.
+**Waiting on the operator:** how many backups to keep from now on (today 15
+half-hourly on the VPS, 5 six-hourly in the relay, 60 pulled to the PC);
+where two players meet; the shared-world clock
 speed (1x makes a lettuce take 45 days; 72x proposed as the server default);
 co-op trust or enforced rules; who and when for the Day 5 session; whether
 multiplayer goes ahead of arc A. (The old plain backups, 15 on the VPS and 60
