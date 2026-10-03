@@ -9,7 +9,19 @@
 // Hide the console window on Windows release builds (only for GUI mode)
 #![cfg_attr(all(not(debug_assertions), feature = "native"), windows_subsystem = "windows")]
 
+/// Which source tree this binary was compiled from (BUG-133). build.rs hashes
+/// every compiled-in source (the list is `FINGERPRINT_INPUTS` there) and writes
+/// the fingerprint plus a per-file manifest to OUT_DIR; this pulls that text
+/// into the binary, and `scripts/check-fresh-exe.js` reads it back out of the
+/// exe's bytes to refuse a build of a different tree before any rig boots it.
+/// Nothing reads it at runtime: `#[used]` and the one `black_box` in `main`
+/// exist only so no compiler or linker can drop it. If it ever were dropped,
+/// the gate finds no stamp and refuses, so a lost stamp cannot pass as a match.
+#[used]
+static SOURCE_STAMP: &str = include_str!(concat!(env!("OUT_DIR"), "/hos_src_stamp.txt"));
+
 fn main() {
+    std::hint::black_box(&SOURCE_STAMP);
     let args: Vec<String> = std::env::args().collect();
     let headless = args.iter().any(|a| a == "--headless");
 

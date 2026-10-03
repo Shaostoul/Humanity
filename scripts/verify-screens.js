@@ -49,6 +49,9 @@
 //
 // Usage:
 //   node scripts/verify-screens.js [--exe PATH] [--timeout-min N] [--keep-open]
+//        [--allow-other-build "<reason>"]   run a build that is NOT this tree, on
+//        purpose (a red check); passed to scripts/check-fresh-exe.js and recorded
+//        in the manifest as other_build
 //   node scripts/verify-screens.js --dry-verdict <manifest.json>
 //   node scripts/verify-screens.js --self-test
 // Exit 0 = every check passed. Exit 1 = refused to run (an instance already
@@ -77,6 +80,9 @@ const G = require("./rig-graphics.js");
 // but cannot change its verdict.
 const MG = require("./lib/machine-guard.js");
 const DXC = require("./lib/dxc-dlls.js");
+// The freshness gate, run through its one runner so --allow-other-build reaches
+// it and comes back as the manifest's other_build record (BUG-133).
+const { runFreshGate, otherBuildNotice } = require("./lib/src-fingerprint.js");
 
 const REPO = path.resolve(__dirname, "..");
 const args = process.argv.slice(2);
@@ -308,6 +314,7 @@ function printVerdict(verdictPrefix, m, dir) {
   console.log("-".repeat(72));
   for (const c of checks) console.log(`${c.ok ? "PASS" : "FAIL"}  ${pad(c.id, 20)} ${c.detail}`);
   console.log("-".repeat(72));
+  if (m.other_build) console.log(otherBuildNotice(m.other_build));
   if (pass) {
     console.log(`${verdictPrefix}PASS  ${checks.length}/${checks.length} screen checks passed`);
   } else {
@@ -406,12 +413,14 @@ if (instances.length) {
   ]);
 }
 
-// 2. The binary must be the current build.
-const fresh = spawnSync(process.execPath, [path.join(__dirname, "check-fresh-exe.js"), "--exe", EXE], { cwd: REPO, stdio: "inherit" });
+// 2. The binary must be this tree's build (or another, on purpose, with
+//    --allow-other-build "<reason>", recorded in the manifest as other_build).
+const fresh = runFreshGate(EXE, args, { cwd: REPO });
 if (fresh.status !== 0) {
   console.error("verify-screens: REFUSED - see the freshness failure above. Nothing was booted.");
   process.exit(1);
 }
+const OTHER_BUILD = fresh.other_build;
 
 // ── Rig setup (the probe-sweep recipe, in this rig's own folder) ─────────────
 function ensureJunction(link, target) {
@@ -554,6 +563,7 @@ async function main() {
     kind: "verify-screens",
     stamp,
     exe: EXE,
+    ...(OTHER_BUILD ? { other_build: OTHER_BUILD } : {}),
     rig: RIG,
     config: cfgPath,
     log: path.relative(OUT, LOG),

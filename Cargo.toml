@@ -236,6 +236,10 @@ serialport = { version = "4.9", optional = true }
 
 [build-dependencies]
 winres = "0.1"
+# build.rs hashes every compiled-in source into the binary (the source stamp
+# scripts/check-fresh-exe.js checks, BUG-133). Already in the dependency tree
+# as a normal dependency, so this adds no new crate to Cargo.lock.
+sha2 = "0.10"
 
 # rav1d (the AV1 decoder behind src/media/) is a large transpiled codec whose
 # unoptimised build decodes a 320x180 clip at a few frames per second, a

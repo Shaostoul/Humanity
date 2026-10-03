@@ -27,12 +27,15 @@
 //
 // WHICH BUILD
 // Before booting, scripts/check-fresh-exe.js is run on the exe and its verdict
-// printed. If the build is older than the source (somebody edited src/ after
-// it was built), the tests SKIP and say so, rather than passing or failing on
-// code that is not the code in the tree. SECOND_PLAYER_RELAY_EXE=<path> tests
-// another build instead, for example a relay-only debug build:
+// printed. If the build is not of this tree's sources (somebody edited src/
+// after it was built, or it was built in another checkout; BUG-133), the tests
+// SKIP and say so, rather than passing or failing on code that is not the code
+// in the tree. SECOND_PLAYER_RELAY_EXE=<path> tests another build of THIS tree
+// instead, for example a relay-only debug build (same sources, same stamp):
 //   cargo build --features relay --no-default-features --target-dir <somewhere>
 //   SECOND_PLAYER_RELAY_EXE=<somewhere>/debug/HumanityOS.exe just verify-second-player
+// SECOND_PLAYER_RELAY_ALLOW_OTHER_BUILD="<reason>" runs a build of ANOTHER tree
+// on purpose (a red check); the gate prints that loudly and so does this test.
 //
 // What this proves, in plain terms:
 //  1. The scripted player gets in the way a PERSON does: a real Dilithium3
@@ -62,7 +65,8 @@ const TR = require("../lib/throwaway-relay.js");
 
 const REPO = path.resolve(__dirname, "..", "..");
 const SCRIPT = path.join(REPO, "scripts", "second-player.js");
-const CHECK_FRESH = path.join(REPO, "scripts", "check-fresh-exe.js");
+// The freshness gate (scripts/check-fresh-exe.js), through its one runner.
+const { runFreshGate } = require("../lib/src-fingerprint.js");
 const SOURCE_EXE = process.env.SECOND_PLAYER_RELAY_EXE
   ? path.resolve(process.env.SECOND_PLAYER_RELAY_EXE)
   : path.join(REPO, "target", "release", TR.EXE_NAME);
@@ -77,12 +81,17 @@ function skipReason() {
   if (!fs.existsSync(SOURCE_EXE)) {
     return `no relay to test against: ${SOURCE_EXE} is missing (build it with cargo build --features native --release, or set SECOND_PLAYER_RELAY_EXE)`;
   }
-  const r = spawnSync(process.execPath, [CHECK_FRESH, "--exe", SOURCE_EXE], { encoding: "utf8" });
-  const verdict = `${r.stdout || ""}${r.stderr || ""}`.trim();
+  // SECOND_PLAYER_RELAY_ALLOW_OTHER_BUILD="<reason>" runs a build of another
+  // tree on purpose (a red check); the gate says so loudly and this test has no
+  // manifest, so the record is printed with the verdict instead.
+  const allow = process.env.SECOND_PLAYER_RELAY_ALLOW_OTHER_BUILD;
+  const r = runFreshGate(SOURCE_EXE, allow !== undefined ? ["--allow-other-build", allow] : [], { stdio: "pipe" });
+  const verdict = `${r.stdout}${r.stderr}`.trim();
   console.log(`second-player-relay.test: freshness of ${SOURCE_EXE} (scripts/check-fresh-exe.js):`);
   for (const line of verdict.split(/\r?\n/)) console.log(`  ${line}`);
+  if (r.other_build) console.log(`second-player-relay.test: other_build ${JSON.stringify(r.other_build)}`);
   if (r.status !== 0) {
-    return `${SOURCE_EXE} is not the current build (scripts/check-fresh-exe.js refused it, see above), so testing it would test old relay code. Rebuild it, or point SECOND_PLAYER_RELAY_EXE at a fresh relay build`;
+    return `${SOURCE_EXE} is not this tree's build (scripts/check-fresh-exe.js refused it, see above), so testing it would test other relay code. Rebuild it, or point SECOND_PLAYER_RELAY_EXE at a relay build of this tree`;
   }
   return false;
 }

@@ -453,11 +453,17 @@ verify-relay:
 #
 # Refuses before booting anything when:
 #   - target/release/HumanityOS.exe is missing
-#   - it is OLDER than the newest v*_HumanityOS.exe archive in the repo root
-#     (you would be verifying a build that predates your change - the mistake
-#     `just launch-bg` itself shipped on 2026-07-30)
-#   - src/, assets/shaders/, Cargo.toml or build.rs changed after that build
+#   - it was not built from THIS tree's sources: build.rs stamps a fingerprint
+#     of every compiled-in source into the exe and scripts/check-fresh-exe.js
+#     compares it with the tree (BUG-133: the old date-only check let a build of
+#     main pass a feature worktree's check). Edited-after-the-build and
+#     built-in-another-checkout both refuse, naming the files that differ.
 #   - another verify-runtime probe is already running
+#
+# A red check against an old or other build on purpose:
+#   just verify-runtime --exe v0.1444.0_HumanityOS.exe --allow-other-build "red check: <why>"
+# passes the gate loudly and records other_build in the sweep manifest. The
+# same flag works on verify-screens, verify-live-screen and verify-copresence.
 #
 # NOT in `just verify` and never will be: verify runs headless in CI with no
 # GPU. This needs the dev machine. Takes ~3 minutes. Run it before pushing
@@ -470,8 +476,9 @@ verify-relay:
 # prints WHICH settings it is a verdict about.
 #
 # Boot the real binary, enter the world, fail on any panic or missed capture.
+[positional-arguments]
 verify-runtime *ARGS:
-    node scripts/verify-runtime.js {{ARGS}}
+    node scripts/verify-runtime.js "$@"
 
 # The in-world SCREENS gate: boots target/release/HumanityOS.exe in its own
 # portable rig (.probe-rig/screens, readable_web written on before boot),
@@ -487,8 +494,9 @@ verify-runtime *ARGS:
 #   just verify-screens --dry-verdict <manifest.json>   re-judge without booting
 #   node scripts/verify-screens.js --self-test           the verdict on the fixtures (no GPU)
 # Boot the real binary, click the wall screens through the dev IPC, judge.
+[positional-arguments]
 verify-screens *ARGS:
-    node scripts/verify-screens.js {{ARGS}}
+    node scripts/verify-screens.js "$@"
 
 # The `watch:` wall screen, end to end, against a relay this rig starts itself.
 # There is no third-party stream this feature can watch (it watches our own
@@ -502,8 +510,9 @@ verify-screens *ARGS:
 # the exe is stale. Exit 0 pass / 1 refused / 2 failed; evidence under
 # .probe-rig/live-screen/runs/<stamp>/.
 #   just verify-live-screen --dry-verdict <manifest.json>   re-judge without booting
+[positional-arguments]
 verify-live-screen *ARGS:
-    node scripts/verify-live-screen.js {{ARGS}}
+    node scripts/verify-live-screen.js "$@"
 
 # Publish a test pattern to a LOCAL relay by hand, to watch a wall screen play
 # something while you work on it. Start a relay first, e.g.
@@ -555,9 +564,16 @@ lints:
 # {"station":"home"} park on its pose passes, and the two misses BUG-132
 # wrote (the pose plus the Earth-to-home offset, and a kilometre out), a camera
 # not riding the station and a wrong look each FAIL.
+# And the freshness gate every rig runs before it boots (scripts/check-fresh-exe.js,
+# BUG-133): a build of the same tree passes, one changed source byte, a build of
+# another tree (even a NEWER one), no stamp, two stamps and a garbled stamp each
+# REFUSE, line endings alone do not count, --allow-other-build passes loudly and
+# is recorded, and every rig reaches the gate through runFreshGate. Its node
+# fingerprint is pinned to the number build.rs produced on the same fixture, and
+# when a build script sits under target/ the test runs it on the fixture too.
 # Add a file here whenever a rig script grows a judgement of its own.
 rig-tests:
-    node --test scripts/tests/machine-guard.test.js scripts/tests/perf-report.test.js scripts/tests/terminator-grain.test.js scripts/tests/make-clips.test.js scripts/tests/voice-rejoin.test.js scripts/tests/backup-rotate.test.js scripts/tests/second-player.test.js scripts/tests/copresence-judge.test.js scripts/tests/dxc-dlls.test.js scripts/tests/station-park-check.test.js
+    node --test scripts/tests/machine-guard.test.js scripts/tests/perf-report.test.js scripts/tests/terminator-grain.test.js scripts/tests/make-clips.test.js scripts/tests/voice-rejoin.test.js scripts/tests/backup-rotate.test.js scripts/tests/second-player.test.js scripts/tests/copresence-judge.test.js scripts/tests/dxc-dlls.test.js scripts/tests/station-park-check.test.js scripts/tests/check-fresh-exe.test.js
 
 # The scripted second player (scripts/second-player.js) against a REAL relay.
 # NOT pure node, so NOT in rig-tests or `just verify` (rig-tests keeps the
@@ -587,8 +603,9 @@ verify-second-player:
 # GPU) or when the exe is older than the source; exit 2 = a check failed. About a
 # minute. Evidence in .probe-rig/copresence/runs/<stamp>/.
 #   just verify-copresence --dry-verdict <manifest.json>   re-judge without booting
+[positional-arguments]
 verify-copresence *ARGS:
-    node scripts/verify-copresence.js {{ARGS}}
+    node scripts/verify-copresence.js "$@"
 
 # Render all 63 native UI snapshots to PNGs in tests/snapshots/ for review.
 # NEEDS A GPU: without an adapter every page is SKIPPED with a printed note and the
