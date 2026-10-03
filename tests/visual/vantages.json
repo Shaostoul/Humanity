@@ -800,6 +800,27 @@
       "hold_altitude": true
     },
     {
+      "id": "home-overview-noon",
+      "desc": "The whole acre from beyond its south end (photograph-home 00 pose) at 12:00 station time.",
+      "expect": "The acre under its glass roof, walls casting short shadows into the rooms.",
+      "_why": "Sun cascades increment 0 (docs/design/sun-cascades.md): the home never cast into the sun shadow map, so a shelf under three shelves read 130 sRGB against the open floor's 133 at noon. These vantages hold a ROOM pose at a PINNED clock (the station verb's `pose`), which photograph-home.js cannot do: its `cam` pose is not re-glued to the station when the hour moves the orbit. Score with scripts/home-shadow-metrics.mjs.",
+      "_pair_note": "The racks vantages share one pose and differ only in `time` (the home-clock hours: 14.15 dawn, 20.15 noon, 8.15 night). Same-boot A/B: showcase `sun_shadows` 0/1 and `near_levels` 0/1 through scripts/probe-hot-ab.js with same_park.",
+      "regressions": [
+        "home casters must shadow the sun (sun cascades)"
+      ],
+      "camera": {
+        "station": "home",
+        "pose": "27.5,26,96,0,-0.42",
+        "time": 20.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear"
+      },
+      "settle_s": 10
+    },
+    {
       "id": "home-clock-dawn",
       "desc": "The homestead at 06:00 local. One of three frames that differ ONLY by the clock.",
       "expect": "Low sun grazing the deck, long shadows across the hull.",
@@ -944,27 +965,6 @@
       "settle_s": 10
     },
     {
-      "id": "home-overview-noon",
-      "desc": "The whole acre from beyond its south end (photograph-home 00 pose) at 12:00 station time.",
-      "expect": "The acre under its glass roof, walls casting short shadows into the rooms.",
-      "_why": "Sun cascades increment 0 (docs/design/sun-cascades.md): the home never cast into the sun shadow map, so a shelf under three shelves read 130 sRGB against the open floor's 133 at noon. These vantages hold a ROOM pose at a PINNED clock (the station verb's `pose`), which photograph-home.js cannot do: its `cam` pose is not re-glued to the station when the hour moves the orbit. Score with scripts/home-shadow-metrics.mjs.",
-      "_pair_note": "The racks vantages share one pose and differ only in `time` (the home-clock hours: 14.15 dawn, 20.15 noon, 8.15 night). Same-boot A/B: showcase `sun_shadows` 0/1 and `near_levels` 0/1 through scripts/probe-hot-ab.js with same_park.",
-      "regressions": [
-        "home casters must shadow the sun (sun cascades)"
-      ],
-      "camera": {
-        "station": "home",
-        "pose": "27.5,26,96,0,-0.42",
-        "time": 20.15
-      },
-      "showcase": {
-        "clouds": "1",
-        "cloud_cover": "0.35",
-        "weather": "clear"
-      },
-      "settle_s": 10
-    },
-    {
       "id": "console-face-6",
       "desc": "The console room, 2.2 m from the east wall, facing wall_screen_6 (the readable-web screen). The screens rig park.",
       "expect": "Two wall screens on the east wall (tasks above, web below), the north wall screens (watch, video) at the right edge, the glass ceiling lit by the deck sun; every visible screen shows a rendered page, never a black quad.",
@@ -1013,6 +1013,27 @@
       "perf_floor_fps": 10
     },
     {
+      "id": "ocean-700m",
+      "desc": "Open ocean from 700 m - the altitude band where the operator sees far-field plates.",
+      "expect": "Wave field to the horizon, no flat facets.",
+      "regressions": [
+        "water-shell far-field coverage"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 31.5,
+        "lon": 17.5,
+        "altitude_km": 0.7,
+        "look_offset_deg": 85
+      },
+      "showcase": {
+        "time": "10.7",
+        "sea": "0.3"
+      },
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
       "id": "console-face-3",
       "desc": "The console room, 2.2 m from the west wall, facing wall_screen_3 (the garden camera feed). The camera wall.",
       "expect": "The camera feed (a live 10 Hz re-render of the garden post) above the inventory screen on the west wall; the feed shows the garden, not a frozen frame or a black quad.",
@@ -1035,27 +1056,6 @@
       "settle_s": 10,
       "perf_floor_fps": 10,
       "_camera_note": "station+screen+distance_m is the camera_request form scripts/verify-screens.js uses to park; time pinned so the sun through the deck glass does not vary between captures."
-    },
-    {
-      "id": "ocean-700m",
-      "desc": "Open ocean from 700 m - the altitude band where the operator sees far-field plates.",
-      "expect": "Wave field to the horizon, no flat facets.",
-      "regressions": [
-        "water-shell far-field coverage"
-      ],
-      "camera": {
-        "body": "earth",
-        "lat": 31.5,
-        "lon": 17.5,
-        "altitude_km": 0.7,
-        "look_offset_deg": 85
-      },
-      "showcase": {
-        "time": "10.7",
-        "sea": "0.3"
-      },
-      "settle_s": 12,
-      "hold_altitude": true
     },
     {
       "id": "ocean-underwater",

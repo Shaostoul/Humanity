@@ -11,6 +11,12 @@ Each line is written the way a player would hear it; the release notes and
 
 ## Shipped
 
+- **v0.1444.0: the test camera lands where it is told (behind the scenes).**
+  The automatic picture-taking that checks the game after each change had been
+  photographing empty space instead of the home, depending on what it looked
+  at just before. It now lands on the spot it was asked for, and fails loudly
+  when it does not, so a broken picture can no longer pass as a good one.
+
 - **v0.1443.0: the greenhouse towers grow real plants.** The plants in the
   vertical towers used to show as black sprouts; they now show their real
   colours, lean out of their cups like real net-cup plants, and the beds and

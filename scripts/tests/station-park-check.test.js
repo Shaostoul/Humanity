@@ -117,3 +117,32 @@ test("capture time: an exe without camera_home is not judged", () => {
   const v = judgeStationCapture(RACKS, {}, { ok: true, path: "debug/screenshot_1.png" });
   assert.strictEqual(v.judged, false);
 });
+
+// A full sweep must re-test BUG-132 (review, 2026-10-03): the bug only shows
+// when a POSE or SCREEN station park comes straight after a planet park (the
+// camera away from the home). The no-pose park never had it, and a park made
+// while already riding the station adds a zero offset, so a vantage order
+// that puts every pose and screen park after another station park keeps a
+// full sweep green with the bug back. This pins the order.
+test("a full sweep parks a pose and a screen view straight after a planet view", () => {
+  const spec = JSON.parse(require("fs").readFileSync(require("path").join(__dirname, "..", "..", "tests", "visual", "vantages.json"), "utf8"));
+  const kind = (v) => (v.camera && v.camera.station !== undefined ? (v.camera.pose ? "pose" : v.camera.screen ? "screen" : "default") : "planet");
+  const vs = spec.vantages;
+  const firstAfterPlanet = (k) => vs.some((v, i) => i > 0 && kind(v) === k && kind(vs[i - 1]) === "planet");
+  assert.ok(firstAfterPlanet("pose"), "some pose station vantage must come straight after a planet vantage");
+  assert.ok(firstAfterPlanet("screen"), "some screen station vantage must come straight after a planet vantage");
+});
+
+test("a default or screen park facing the wrong way FAILS", () => {
+  const camera = { station: "home" };
+  const parkDone = { requested: [0, 34, 34], requested_yaw_pitch: [0, -0.33] };
+  const r = judgeStationPark(camera, { ...parkDone, ok: true, position: [0, 34, 34], yaw_pitch: [3.1, -0.33], station_ride: true });
+  assert.equal(r.ok, false, JSON.stringify(r));
+  assert.match(r.message, /look|yaw|facing|rad/i, "it fails on the look, not on something else");
+  // And the same park facing the way the engine chose passes.
+  const good = judgeStationPark(camera, { ...parkDone, ok: true, position: [0, 34, 34], yaw_pitch: [0, -0.33], station_ride: true });
+  assert.equal(good.ok, true, JSON.stringify(good));
+  // Red check, run 2026-10-03: with expectedStationPose returning yaw and
+  // pitch null for a park without a pose (the old code), the first assert
+  // failed: the park facing the wrong way passed.
+});

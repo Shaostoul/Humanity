@@ -5,7 +5,10 @@
 //
 //   inventory   collapse the sections above it (Status, Equipment) by
 //               clicking their titles until "Home" is drawn (a 1280 x 720
-//               wall shows the Status cards first), then
+//               wall shows the Status cards first), then scroll until the
+//               "Home" header sits in the upper half (the carried list can
+//               push it to the bottom edge, its open body below the fold),
+//               then
 //   inventory   find the "Home" container header on wall_screen_1 by its
 //               drawn text, HOVER it, find the child row "Garage" (drawn
 //               only while Home is open), snapshot, click the header, find
@@ -673,6 +676,31 @@ async function main() {
       }
       manifest.inventory.reveal.push(rec);
       log(`reveal: "${section}" ${sec.ok && sec.found ? `collapsed at uv ${JSON.stringify(sec.uv)}` : "not drawn"}`);
+    }
+    // (a0b) Collapsing is not always enough. Since the starter kit's backpack
+    // grew to 17 items (2026-10-02) the carried list pushes "Home" to the very
+    // bottom edge (the 2026-10-03 run found it at uv y 0.987), so its child
+    // row "Garage" sat below the fold on BOTH sides of the click and the
+    // toggle could not be seen. Scroll the page down (a negative wheel delta,
+    // egui's "content moves up") until the Home header sits in the upper half
+    // of the screen, leaving room for its open body below it. Stops when the
+    // header stops moving (the end of the page) or after a bounded number of
+    // steps, and records every step in the manifest.
+    for (let i = 0; i < 12; i++) {
+      const at = await screen({ screen: SCREENS.inventory, find: { text: INVENTORY_TARGET } });
+      if (!(at.ok && at.found && Array.isArray(at.uv))) {
+        // Not drawn at all yet: scroll and look again.
+      } else if (at.uv[1] <= 0.5) {
+        break;
+      }
+      const sc = await screen({ screen: SCREENS.inventory, action: "scroll", uv: [0.5, 0.5], dy: -3 });
+      await sleep(300);
+      const after = await screen({ screen: SCREENS.inventory, find: { text: INVENTORY_TARGET } });
+      const rec = { scroll: sc, before_uv: at.found ? at.uv : null, after_uv: after.found ? after.uv : null };
+      manifest.inventory.reveal.push(rec);
+      log(`reveal: scrolled, "${INVENTORY_TARGET}" ${JSON.stringify(rec.before_uv)} -> ${JSON.stringify(rec.after_uv)}`);
+      const moved = !(at.found && after.found && Math.abs(after.uv[1] - at.uv[1]) < 1e-4);
+      if (!moved) break;
     }
     const find = step("inv_find", await screen({ screen: SCREENS.inventory, find: { text: INVENTORY_TARGET } }));
     manifest.inventory.find = find;

@@ -2737,7 +2737,7 @@ seconds" lines, so a hang costs at most 40 minutes. The orchestrator's own
 lesson: give every long background step a time limit and check it, rather
 than waiting on a notification that may never come.
 
-## BUG-132: probe-sweep's station vantages park the camera in space (OPEN, found 2026-10-03)
+## BUG-132: probe-sweep's station vantages park the camera in space (FIXED v0.1444.0, found 2026-10-03)
 
 **Symptom:** `home-overview-noon` (and every vantage using the camera
 request's `{"station":"home","pose":...}`) captured empty space on
@@ -2760,3 +2760,16 @@ set) and apply the clock jump before placing the camera; and make
 probe-sweep CHECK that `camera_done.position` equals the requested pose
 inside the home, failing the vantage when it does not (today the capture is
 "ok" whatever it shows).
+
+**Fixed (v0.1444.0):** `src/engine/ipc.rs` places the camera with the
+offset of the station frame it now rides (`station_park_render_pos`), and
+`advance_station_park` writes `camera_done` a frame or two later, once the
+camera has ridden through the requested clock change, with the MEASURED
+home-frame position, `error_m`, `yaw_pitch`, `station_ride` and
+`clock_settled`. probe-sweep judges every station park
+(`scripts/lib/station-park-check.js`) and fails the vantage when the camera
+is not on its pose, not riding, or facing the wrong way; a park without a
+pose (the default view, or a screen) is judged against the look the engine
+reported choosing. `screenshot_done` carries `camera_home` too. The vantage
+order in `tests/visual/vantages.json` now puts a station view straight after
+a planet view, the order that exposed the bug, and a rig test pins that.

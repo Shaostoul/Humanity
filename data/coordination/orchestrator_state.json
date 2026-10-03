@@ -581,6 +581,11 @@
       "date": "2026-10-03",
       "decision": "Merged fix-tower-hero-models (v0.1443.0): crop palettes re-encoded linear-to-sRGB with a kd_space stamp, converter requires --kd, 68 faces re-cut, white key only for alpha-less textures, 15 degree net-cup tip, leaf-back normal flip removed.",
       "why": "The black tower sprouts were the palette colour space, not the engine; my 2026-10-02 offline conclusion (engine side) was wrong."
+    },
+    {
+      "date": "2026-10-03",
+      "decision": "Merged fix-station-vantage (v0.1444.0, BUG-132): the station camera verb places the camera with the offset of the frame it now rides, and camera_done is written a frame or two later with the MEASURED home-frame position, error, look, station_ride and clock_settled. probe-sweep judges every station park. Critic gaps closed on main: a park without a pose (default view, screen) is judged against the look the engine reported (requested_yaw_pitch), and vantages.json puts a station view straight after a planet view (the order that exposed it), pinned by a rig test.",
+      "why": "Station vantages had captured empty space since at least v0.1441.0 while probe-sweep reported ok. Both new tests were red-checked; the first draft of the look test could not fail (it fed the checker a field it does not read), caught by reverting the change and seeing it still pass."
     }
   ],
   "active_scopes_to_avoid": [

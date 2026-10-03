@@ -74,9 +74,11 @@ function expectedStationPose(camera, parkDone) {
   if (camera.pose !== undefined) return parsePose5(camera.pose);
   if (parkDone && isVec3(parkDone.requested)) {
     // No pose of its own: the engine chose the position (over the deck, or in
-    // front of a named screen). Its look is judged only through the pose
-    // form, where the script knows what it asked for.
-    return { pos: parkDone.requested, yaw: null, pitch: null };
+    // front of a named screen), and reports the look it chose with it
+    // (`requested_yaw_pitch`), so the look is checked too (review,
+    // 2026-10-03: it was not, so a park facing away passed).
+    const yp = Array.isArray(parkDone.requested_yaw_pitch) ? parkDone.requested_yaw_pitch : null;
+    return { pos: parkDone.requested, yaw: yp ? yp[0] : null, pitch: yp ? yp[1] : null };
   }
   return null;
 }

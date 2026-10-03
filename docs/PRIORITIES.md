@@ -131,8 +131,9 @@ half-hourly on the VPS, 5 six-hourly in the relay, 60 pulled to the PC, 10
 "Back up now" copies, 10 snapshots per game save);
 the shared-world clock
 speed (1x makes a lettuce take 45 days; 72x proposed as the server default);
-who and when for the Day 5 session; the names and contents of the start tiers (a proposal is in the design); whether
-multiplayer goes ahead of arc A. (The old plain backups, 15 on the VPS and 60
+who and when for the Day 5 session; whether multiplayer goes ahead of arc A.
+(The start tiers were answered 2026-10-03: the full list of home kinds,
+Homestead the default start.) (The old plain backups, 15 on the VPS and 60
 stale local copies, were deleted 2026-10-02 at the operator's word; the VPS
 ones were shredded.)
 
