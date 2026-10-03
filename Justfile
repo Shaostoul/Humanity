@@ -544,7 +544,20 @@ lints:
 # seconds (it blurs and re-scores six controls per run), not under one.
 # Add a file here whenever a rig script grows a judgement of its own.
 rig-tests:
-    node --test scripts/tests/machine-guard.test.js scripts/tests/perf-report.test.js scripts/tests/terminator-grain.test.js scripts/tests/make-clips.test.js scripts/tests/voice-rejoin.test.js scripts/tests/backup-rotate.test.js
+    node --test scripts/tests/machine-guard.test.js scripts/tests/perf-report.test.js scripts/tests/terminator-grain.test.js scripts/tests/make-clips.test.js scripts/tests/voice-rejoin.test.js scripts/tests/backup-rotate.test.js scripts/tests/second-player.test.js
+
+# The scripted second player (scripts/second-player.js) against a REAL relay.
+# NOT pure node, so NOT in rig-tests or `just verify` (rig-tests keeps the
+# script's no-relay checks: paths, facing, step cap, clock, names). It BOOTS a
+# throwaway relay: a COPY of target/release/HumanityOS.exe, run --headless
+# (no window, no GPU) from a temp folder on a free port with its own database,
+# killed by PID at the end, also on Ctrl+C. Why boot one: whether a scripted
+# player is seen walking, chatting and leaving can only be told by a relay.
+# Checks the exe with scripts/check-fresh-exe.js first and SKIPS, printing the
+# verdict, when the build is older than the source. SECOND_PLAYER_RELAY_EXE=
+# <path> tests another build (a relay-only debug build will do). About 20 s.
+verify-second-player:
+    node --test scripts/tests/second-player-relay.test.js
 
 # Render all 63 native UI snapshots to PNGs in tests/snapshots/ for review.
 # NEEDS A GPU: without an adapter every page is SKIPPED with a printed note and the

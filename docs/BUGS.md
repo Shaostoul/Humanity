@@ -2619,3 +2619,43 @@ and nothing ever rotated it.
 `.db.enc` for the panel and the status row; provision checks `relay-*.db*`; the
 button seals its snapshot to `manual-<ts>.db.enc` with the key beside the live
 database and removes the plain copy. Tests seen red.
+
+## BUG-125: other players moved in stop-go steps and froze on any late update (FIXED v0.1440.0)
+
+**Symptom:** another player's figure jerked forward in small steps instead of
+walking, and stood still whenever an update came late.
+
+**Root cause:** `src/net/sync.rs` eased each received position in and out over
+50 ms (`smooth_step`), so the figure stopped and started on every update, and
+the desktop always sent a velocity of zero, so there was nothing to carry the
+figure across a late one.
+
+**Fix:** snapshot interpolation, the way real-time games draw other players.
+Each update carries the sender's own steady clock in `timestamp` (seconds,
+real time; 0 means none) and its real velocity. The receiver keeps a short
+buffer per player, places updates on the sender's clock plus a learned offset,
+draws each player `INTERP_DELAY_S` in the past at constant speed between the
+two updates around that moment, walks on along the last velocity for at most
+0.25 s when the buffer runs dry, blends back without a jump, and snaps
+teleports. On leaving the world view (a menu) one standing-still update goes
+out, so the figure does not walk on and park. Two critics' reviews shaped it:
+the first build only held a steady speed at exactly 15 updates a second (the
+desktop really sends every 4 or 5 frames: 2.4 to 6.8 m/s); the second stamped
+the capped frame step, so a sender in a heavy scene (131 ms frames) stalled on
+everyone's screen. Both are tests now (12 Hz, 30 fps, the real 4-or-5-frame
+pattern, a 131 ms sender, a stall burst, a pre-join backlog, our own 300 ms
+frame), each seen red.
+
+## BUG-126: leaving the shared world on purpose, or being banned from it, left the figure standing for 90 s (FIXED v0.1440.0)
+
+**Symptom:** a player who stepped out of the shared world (solo mode) stayed
+frozen in it on everyone's screen for the reconnect grace; a banned player
+stayed too, and their movement kept reaching everyone for those 90 s.
+
+**Root cause:** `handle_game_leave` and `handle_game_ban` both used
+`handle_game_disconnect`, the dropped-connection path, which holds a player's
+place for the grace.
+
+**Fix:** both call `despawn_player_now`; the grace is for dropped sockets
+only. Real-relay tests for a leave against a drop, and for a ban, seen red.
+Found by the scripted second player.

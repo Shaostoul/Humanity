@@ -976,6 +976,141 @@ mod tests {
         let _ = std::fs::remove_file(&path);
     }
 
+    /// LEAVING ON PURPOSE IS NOT A DROPPED LINE (2026-10-02). The reconnect
+    /// grace holds a player's figure in the world for 90 s after their socket
+    /// DROPS, so someone whose internet blinked comes back to their own place.
+    /// A player who sends `game_leave` chose to go: everyone should see them
+    /// leave now. Until this date `handle_game_leave` ran the dropped-socket
+    /// path, so a deliberate leave stood frozen in the world for the full
+    /// grace (found by the scripted second player, scripts/second-player.js).
+    ///
+    /// The grace is pinned to 90 s here, because `RelayState::new` reads it
+    /// from this machine's data/server-config.json, which may turn it off.
+    ///
+    /// Seen red 2026-10-02:
+    ///  - `handle_game_leave` put back to calling `handle_game_disconnect` (the
+    ///    old code): FAILED at "a deliberate game_leave takes the player out of
+    ///    the world at once, not after the reconnect grace".
+    ///  - `handle_game_disconnect` made to despawn at once whatever the grace
+    ///    (the wrong fix): FAILED at "a dropped socket keeps its place in the
+    ///    world for the grace".
+    #[tokio::test]
+    async fn a_deliberate_leave_despawns_at_once_while_a_dropped_socket_keeps_its_place() {
+        use crate::relay::relay::RelayState;
+        use std::sync::Arc;
+
+        // spawn_relay, with the grace set before the state is shared.
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0);
+        let path = std::env::temp_dir()
+            .join(format!("hum_featws_leave_vs_drop_{}_{nanos}.db", std::process::id()));
+        let db = crate::relay::storage::Storage::open(&path).expect("open test db");
+        let mut st = RelayState::new(db);
+        st.features = Features::all_enabled();
+        st.reconnect_grace = std::time::Duration::from_secs(90);
+        let state = Arc::new(st);
+        let app = crate::relay::build_router(state.clone());
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        tokio::spawn(async move {
+            let _ = axum::serve(listener, app).await;
+        });
+
+        // 1. The leaver joins the world, then steps out on purpose. Its
+        //    socket stays open (chat goes on), only the world membership ends.
+        let (mut leaver, leaver_key) = bind_socket(&state, port, [45u8; 32], Some("Leaver"), 1).await;
+        let leaver_conn = only_conn(&state, &leaver_key).await;
+        join_game(&state, &mut leaver, &leaver_key, leaver_conn).await;
+        send_json(&mut leaver, serde_json::json!({ "type": "game_leave" })).await;
+        assert!(
+            wait_until(|| async { state.game_world.read().await.find_player_entity(&leaver_key).is_none() }).await,
+            "a deliberate game_leave takes the player out of the world at once, not after the reconnect grace"
+        );
+        assert!(!state.link_dead.read().await.contains_key(&leaver_key), "and does not hold them as link-dead");
+        assert!(state.live_conns.read().await.game_seat.get(&leaver_key).is_none(), "the game seat is given up");
+        assert_eq!(live_count(&state, &leaver_key).await, 1, "the leaver's socket is still open");
+
+        // 2. The dropper joins the world, then its socket simply closes, the
+        //    way a lost connection looks to the relay. No game_leave.
+        let (mut dropper, dropper_key) = bind_socket(&state, port, [46u8; 32], Some("Dropper"), 1).await;
+        let dropper_conn = only_conn(&state, &dropper_key).await;
+        join_game(&state, &mut dropper, &dropper_key, dropper_conn).await;
+        use futures::SinkExt;
+        dropper.close(None).await.ok();
+        // The teardown runs the seat departures before it leaves the live set,
+        // so once the count drops, whatever it was going to do is done.
+        assert!(
+            wait_until(|| async { live_count(&state, &dropper_key).await == 0 }).await,
+            "the relay noticed the dropped socket"
+        );
+        assert!(
+            state.game_world.read().await.find_player_entity(&dropper_key).is_some(),
+            "a dropped socket keeps its place in the world for the grace"
+        );
+        assert!(
+            state.link_dead.read().await.contains_key(&dropper_key),
+            "held as link-dead, so the sweep collects it if it never comes back"
+        );
+
+        leaver.close(None).await.ok();
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// A GAME BAN TAKES THE PLAYER OUT OF THE WORLD AT ONCE (2026-10-03,
+    /// found by the review of the deliberate-leave fix above). The ban
+    /// handler used the dropped-socket path, so with the reconnect grace on
+    /// (90 s by default) a banned player was only marked link-dead and kept
+    /// their seat: their figure stayed in the world, and their movement kept
+    /// reaching everyone, for the whole grace. Their chat socket stays open.
+    ///
+    /// Seen red 2026-10-03: `handle_game_ban` put back to calling
+    /// `handle_game_disconnect` FAILED at "a game ban takes the player out of the world at once, not after
+    /// the reconnect grace".
+    #[tokio::test]
+    async fn a_game_ban_takes_the_player_out_of_the_world_at_once() {
+        use crate::relay::relay::RelayState;
+        use std::sync::Arc;
+
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0);
+        let path = std::env::temp_dir().join(format!("hum_featws_ban_{}_{nanos}.db", std::process::id()));
+        let db = crate::relay::storage::Storage::open(&path).expect("open test db");
+        let mut st = RelayState::new(db);
+        st.features = Features::all_enabled();
+        st.reconnect_grace = std::time::Duration::from_secs(90);
+        let state = Arc::new(st);
+        let app = crate::relay::build_router(state.clone());
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        tokio::spawn(async move {
+            let _ = axum::serve(listener, app).await;
+        });
+
+        let (mut admin, admin_key) = bind_socket(&state, port, [47u8; 32], Some("BanAdmin"), 1).await;
+        state.db.set_role(&admin_key, "admin").expect("make admin");
+        let (mut target, target_key) = bind_socket(&state, port, [48u8; 32], Some("Banned"), 1).await;
+        let target_conn = only_conn(&state, &target_key).await;
+        join_game(&state, &mut target, &target_key, target_conn).await;
+
+        send_json(&mut admin, serde_json::json!({ "type": "game_ban", "target": target_key, "reason": "test" })).await;
+        assert!(
+            wait_until(|| async { state.game_world.read().await.find_player_entity(&target_key).is_none() }).await,
+            "a game ban takes the player out of the world at once, not after the reconnect grace"
+        );
+        assert!(!state.link_dead.read().await.contains_key(&target_key), "not held as link-dead");
+        assert!(state.live_conns.read().await.game_seat.get(&target_key).is_none(), "the game seat is given up");
+        assert_eq!(live_count(&state, &target_key).await, 1, "their chat socket stays open");
+
+        use futures::SinkExt;
+        admin.close(None).await.ok();
+        target.close(None).await.ok();
+        let _ = std::fs::remove_file(&path);
+    }
+
     /// Voice follows the same rule: the socket that joined a room holds the
     /// voice seat. A tab closing changes nothing; the voice socket closing
     /// takes the person out of the room though another socket stays open.

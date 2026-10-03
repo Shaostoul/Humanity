@@ -16,11 +16,6 @@ pub(crate) fn route_game_message(state: &mut EngineState, payload: &str) {
         if a.len() != 3 { return None; }
         Some([a[0].as_f64()? as f32, a[1].as_f64()? as f32, a[2].as_f64()? as f32])
     };
-    let arr4 = |val: &serde_json::Value| -> Option<[f32; 4]> {
-        let a = val.as_array()?;
-        if a.len() != 4 { return None; }
-        Some([a[0].as_f64()? as f32, a[1].as_f64()? as f32, a[2].as_f64()? as f32, a[3].as_f64()? as f32])
-    };
     match v.get("type").and_then(|t| t.as_str()) {
         // The host's clock (operator, 2026-09-29: in a shared world it wins).
         // The relay sends this every 5 s to EVERY socket, chat-only ones
@@ -144,20 +139,9 @@ pub(crate) fn route_game_message(state: &mut EngineState, payload: &str) {
             }
         }
         Some("game_position_update") => {
-            if let (Some(id), Some(pos)) = (
-                v.get("player_id").and_then(|x| x.as_u64()),
-                v.get("position").and_then(&arr3),
-            ) {
-                let rotation = v.get("rotation").and_then(&arr4).unwrap_or([0.0, 0.0, 0.0, 1.0]);
-                let velocity = v.get("velocity").and_then(&arr3).unwrap_or([0.0, 0.0, 0.0]);
-                let timestamp = v.get("timestamp").and_then(|x| x.as_f64()).unwrap_or(0.0);
-                state.net_sync.queue_messages(vec![NetMessage::PositionUpdate {
-                    player_id: id as u32,
-                    position: pos,
-                    rotation,
-                    velocity,
-                    timestamp,
-                }]);
+            // Only while joined (see `position_update_from`).
+            if let Some(update) = position_update_from(&v, state.game_joined) {
+                state.net_sync.queue_messages(vec![update]);
             }
         }
         Some("game_player_left") => {
@@ -217,8 +201,6 @@ pub(crate) fn route_game_message(state: &mut EngineState, payload: &str) {
     }
 }
 
-/// Send the local player's position to the relay (reused chat socket). Throttled by the caller.
-/// The relay validates (anti-teleport) and broadcasts `game_position_update` to other clients.
 /// The host's game clock from a `game_time_sync` message, when this player
 /// is in the shared world; None otherwise, or when the message has no clock.
 pub(crate) fn host_clock_from(v: &serde_json::Value, joined: bool) -> Option<f64> {
@@ -226,6 +208,45 @@ pub(crate) fn host_clock_from(v: &serde_json::Value, joined: bool) -> Option<f64
         return None;
     }
     v.get("game_time").and_then(|x| x.as_f64()).filter(|t| t.is_finite() && *t >= 0.0)
+}
+
+/// Another player's position from a `game_position_update` message, ready
+/// to queue for `net_sync`, when this player is in the shared world; None
+/// otherwise, or when the message has no player or position.
+///
+/// Only while joined (2026-10-02, round two): the relay sends every player's
+/// updates to every connected socket, chat-only ones included, and net_sync
+/// only ticks once we have joined. Before this, a client sitting on a menu
+/// with chat connected queued every update for as long as it sat there, and
+/// the first tick after joining took the whole backlog in at once, all
+/// stamped with the same arrival time, which broke the timing of everyone's
+/// figure for the rest of the session.
+///
+/// `timestamp` is passed through as sent: the sender's own steady clock in
+/// seconds, or 0 (also for a missing field) from an older client without one.
+pub(crate) fn position_update_from(v: &serde_json::Value, joined: bool) -> Option<crate::net::protocol::NetMessage> {
+    if !joined {
+        return None;
+    }
+    let floats = |key: &str, n: usize| -> Option<Vec<f32>> {
+        let a = v.get(key)?.as_array()?;
+        if a.len() != n {
+            return None;
+        }
+        a.iter().map(|x| x.as_f64().map(|f| f as f32)).collect()
+    };
+    let player_id = v.get("player_id").and_then(|x| x.as_u64())? as u32;
+    let p = floats("position", 3)?;
+    let rotation = floats("rotation", 4).map_or([0.0, 0.0, 0.0, 1.0], |r| [r[0], r[1], r[2], r[3]]);
+    let velocity = floats("velocity", 3).map_or([0.0, 0.0, 0.0], |u| [u[0], u[1], u[2]]);
+    let timestamp = v.get("timestamp").and_then(|x| x.as_f64()).unwrap_or(0.0);
+    Some(crate::net::protocol::NetMessage::PositionUpdate {
+        player_id,
+        position: [p[0], p[1], p[2]],
+        rotation,
+        velocity,
+        timestamp,
+    })
 }
 
 /// The names that float over people in the world (2026-09-28): each crew
@@ -344,20 +365,53 @@ pub(crate) fn look_material_key(look: &crate::player_look::PlayerLook) -> [u8; 6
 /// How far over the top of a remote player's figure their name floats, m.
 const PLAYER_NAMEPLATE_OVER_HEAD_M: f32 = 0.15;
 
-pub(crate) fn send_game_position(state: &EngineState) {
+/// Our own position for the other players, once a frame while joined to the
+/// shared world (lib.rs calls it with that frame's time step, the one our
+/// movement used). `net_sync`'s `PositionSender` decides what goes out: an
+/// update 15 times a second while we are in the world view, and one last
+/// standing-still update on the frame we leave it for a page or the
+/// showroom (2026-10-02, round two: before that, our figure walked on
+/// 1.25 m on everyone else's screen and stood there until we came back).
+pub(crate) fn drive_position_send(state: &mut EngineState, in_world: bool, dt: f32, real_dt: f32) {
+    let (position, yaw) = (state.camera.position, state.camera.yaw);
+    let out = state.net_sync.position_to_send(dt, real_dt, in_world, position, yaw, &mut state.game_pos_timer);
+    if let Some(out) = out {
+        send_game_position(state, &out);
+    }
+}
+
+/// Send one position update to the relay (reused chat socket). The relay
+/// validates (anti-teleport) and broadcasts it to the other clients.
+pub(crate) fn send_game_position(state: &EngineState, out: &crate::net::sync::OutgoingPosition) {
     let Some(ref ws) = state.gui_state.ws_client else { return; };
-    let p = state.camera.position;
+    ws.send(&position_update_json(out).to_string());
+}
+
+/// The `game_position_update` message for one of our updates.
+pub(crate) fn position_update_json(out: &crate::net::sync::OutgoingPosition) -> serde_json::Value {
+    let p = out.position;
     // Yaw-only facing quaternion (rotation about Y): enough for avatars to face their heading.
-    let half = state.camera.yaw * 0.5;
+    let half = out.yaw * 0.5;
     let (qy, qw) = (half.sin(), half.cos());
-    let msg = serde_json::json!({
+    // Our REAL velocity (2026-10-02; every update used to say zero): how far
+    // we moved since the previous update over the time since then, metres
+    // per second, zero after a pause or a teleport-sized jump and in the
+    // standing update on leaving the world view. The other players' screens
+    // keep our figure walking along it when one of these messages is late.
+    let v = out.velocity;
+    serde_json::json!({
         "type": "game_position_update",
         "position": [p.x, p.y, p.z],
         "rotation": [0.0, qy, 0.0, qw],
-        "velocity": [0.0, 0.0, 0.0],
-        "timestamp": 0.0,
-    });
-    ws.send(&msg.to_string());
+        "velocity": [v.x, v.y, v.z],
+        // Our own steady clock, seconds (2026-10-02, round two): it advances
+        // by the same time step our movement uses, so the receivers place
+        // each update at the moment it really held and draw our figure at
+        // our real speed however unevenly the updates go out or arrive. The
+        // relay forwards it untouched. 0 would mean "no clock" (an older
+        // client), so the clock never reads 0 (src/net/sync.rs PositionSender).
+        "timestamp": out.timestamp,
+    })
 }
 
 /// Lazy-load the 3D world: homestead, hologram, stars, planet, CSV data.
@@ -779,6 +833,58 @@ mod tests {
         assert_eq!(host_clock_from(&v, true), Some(259200.0));
         assert_eq!(host_clock_from(&v, false), None, "chat only: not in the shared world");
         assert_eq!(host_clock_from(&serde_json::json!({"type": "game_time_sync"}), true), None);
+    }
+
+    /// OUR POSITION UPDATE CARRIES OUR CLOCK, AND ANOTHER PLAYER'S IS TAKEN
+    /// ONLY ONCE JOINED (2026-10-02, round two). The message we send carries
+    /// our position, facing, velocity and our own steady clock as
+    /// `timestamp` (it used to say 0); reading it back gives exactly those.
+    /// While not joined (chat connected, sitting on a menu) another player's
+    /// update is dropped instead of queued: the relay sends them to every
+    /// socket, and a backlog drained in the first joined tick broke everyone's
+    /// figure timing. A missing timestamp reads as 0, "no clock".
+    ///
+    /// Red checks, run 2026-10-03: (1) queueing whether joined or not (no
+    /// `!joined` return) FAILS with "a chat-only client does not queue
+    /// another player's position"; (2) sending `"timestamp": 0.0` as before
+    /// FAILS with "assertion `left == right` failed: the sender's clock goes
+    /// out as the timestamp".
+    #[test]
+    fn our_position_update_carries_our_clock_and_others_are_taken_only_once_joined() {
+        use crate::net::protocol::NetMessage;
+        use crate::net::sync::OutgoingPosition;
+        use glam::Vec3;
+        let out = OutgoingPosition {
+            position: Vec3::new(1.0, 1.7, -2.0),
+            yaw: 0.5,
+            velocity: Vec3::new(5.0, 0.0, 0.0),
+            timestamp: 12.345,
+        };
+        let mut v = position_update_json(&out);
+        assert_eq!(v["type"], "game_position_update");
+        // The relay adds who sent it before passing it on.
+        v["player_id"] = serde_json::json!(42);
+        assert!(position_update_from(&v, false).is_none(), "a chat-only client does not queue another player's position");
+        match position_update_from(&v, true) {
+            Some(NetMessage::PositionUpdate { player_id, position, rotation, velocity, timestamp }) => {
+                assert_eq!(player_id, 42);
+                assert_eq!(timestamp, 12.345, "the sender's clock goes out as the timestamp");
+                assert_eq!(position, [1.0, 1.7, -2.0]);
+                assert_eq!(velocity, [5.0, 0.0, 0.0]);
+                let yaw = 2.0 * rotation[1].atan2(rotation[3]);
+                assert!((yaw - 0.5).abs() < 1e-5, "facing comes back: {rotation:?}");
+            }
+            other => panic!("a joined client reads it back as a position update, got {other:?}"),
+        }
+        // An older client's message without a timestamp: "no clock".
+        let old = serde_json::json!({"type": "game_position_update", "player_id": 7, "position": [0.0, 0.0, 0.0]});
+        match position_update_from(&old, true) {
+            Some(NetMessage::PositionUpdate { timestamp, rotation, velocity, .. }) => {
+                assert_eq!((timestamp, rotation, velocity), (0.0, [0.0, 0.0, 0.0, 1.0], [0.0, 0.0, 0.0]));
+            }
+            other => panic!("an older client's update is still read, got {other:?}"),
+        }
+        assert!(position_update_from(&serde_json::json!({"type": "game_position_update", "player_id": 7}), true).is_none(), "no position, no update");
     }
 
     /// ANOTHER PLAYER HAS A NAME OVER THEM (2026-09-28). A crew member and a

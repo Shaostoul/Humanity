@@ -67,10 +67,13 @@ every load-bearing claim checked by an adversarial verifier
   STILL OPEN: the black plant models in tower net cups, so branch
   `wip-tower-hero-models` can land (the palette files are clean, see Tier C:
   it is the engine side, and it needs the rig).
-- **Day 3:** a scripted second player (nothing can drive one today:
-  `scripts/ai-sample-client.js` never answers the identify challenge) and
-  smooth remote movement (`src/net/sync.rs` eases each 50 ms step then holds;
-  velocity is always sent as zero).
+- **Day 3:** DONE v0.1440.0. `scripts/second-player.js` signs in as a real
+  identity, joins the shared world and walks a path (`just verify-second-player`
+  runs it against a throwaway relay); other players move by snapshot
+  interpolation on the sender's clock (BUG-125); leaving or being banned
+  despawns at once (BUG-126). Next for it: a rig that boots ONE game against a
+  local relay with the scripted player walking around it, and photographs the
+  figure moving (the pattern is `scripts/verify-live-screen.js`).
 - **Day 4:** shared building over the relay (no build message exists yet).
 - **Day 5:** a real two-person session on the VPS, then fix what it finds and
   reshoot the clips.

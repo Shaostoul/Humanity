@@ -11,6 +11,11 @@ Each line is written the way a player would hear it; the release notes and
 
 ## Shipped
 
+- **v0.1440.0: other players walk smoothly.** Another player's figure now walks
+  at a steady pace instead of jerking forward in steps, keeps walking through a
+  late update, and disappears at once when they leave. A scripted second player
+  can now join to test with, so one person can see the shared world working.
+
 - **v0.1438.0: the first quest takes either fuel.** Smelting your first iron
   ingot with graphite now counts, the same as with coal. The homepage also
   shows a real flight over a home in orbit, recorded in the game.

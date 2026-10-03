@@ -3182,10 +3182,13 @@ pub async fn handle_game_ban(state: &Arc<RelayState>, my_key: &str, raw: &serde_
         return;
     }
     tracing::info!("Game-ban issued by {} against {} (reason: {})", my_key, target, reason);
-    // Evict from the live world only -- this despawns + broadcasts
-    // game_player_left; it must NOT close the chat socket. handle_game_disconnect
-    // is exactly that world-scoped eviction.
-    handle_game_disconnect(state, &target).await;
+    // Evict from the live world only: despawn now and broadcast
+    // game_player_left, and do NOT close the chat socket. Not
+    // handle_game_disconnect (2026-10-03): with a reconnect grace above zero
+    // (90 s by default) that only marks the player link-dead and keeps their
+    // seat, so a banned figure stood in the world, still moving, for the
+    // whole grace, and a socket closing in that window started it over.
+    despawn_player_now(state, &target).await;
     // Push the refreshed list back to the issuing admin.
     handle_game_banned_list(state, my_key).await;
 }
@@ -3439,12 +3442,21 @@ pub async fn handle_game_disconnect(
 }
 
 /// The client stepped out of the shared world on purpose (`game_leave`) and
-/// kept its socket: the world-scoped eviction the disconnect path runs, and
-/// the game seat goes too, so a later close of that socket does not start a
-/// second departure (2026-10-02).
+/// kept its socket. They are taken out of the world AT ONCE: everyone else
+/// gets `game_player_left` now, not when the reconnect grace runs out.
+///
+/// The grace (`reconnect_grace_secs`, 90 s by default) exists for a socket
+/// that DROPPED, so a player whose internet blinked comes back to their own
+/// figure. Someone who chose to leave is not coming back on that connection,
+/// and until 2026-10-02 this went through `handle_game_disconnect`, so their
+/// figure stood frozen in everybody's world for the full 90 s after they had
+/// gone (the scripted second player, scripts/second-player.js, made it
+/// visible). `despawn_player_now` also gives up the game seat, so a later
+/// close of this socket does not start a second departure, and it clears any
+/// link-dead mark. Real-relay test: features.rs
+/// `a_deliberate_leave_despawns_at_once_while_a_dropped_socket_keeps_its_place`.
 pub async fn handle_game_leave(state: &Arc<RelayState>, player_key: &str) {
-    crate::relay::handlers::live_conns::release_game_seat(state, player_key).await;
-    handle_game_disconnect(state, player_key).await;
+    despawn_player_now(state, player_key).await;
 }
 
 /// Despawn a player and persist their progression. The end of the road for a

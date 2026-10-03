@@ -3323,7 +3323,11 @@ mod native_app {
                     let raw_dt = (now - state.last_frame).as_secs_f32();
                     let dt = raw_dt.min(0.1);
                     // Recording: exactly 1/fps, whatever the frame took (engine::movie).
-                    let dt = crate::engine::movie::frame_step(state, now).unwrap_or(dt);
+                    let movie_dt = crate::engine::movie::frame_step(state, now);
+                    let dt = movie_dt.unwrap_or(dt);
+                    // Real time, uncapped (the movie's step while recording): the
+                    // shared-world clocks run on it (net::sync, 2026-10-03).
+                    let clock_dt = movie_dt.unwrap_or(raw_dt);
                     state.last_frame = now;
                     // ONE spin for the whole frame (see the field docs).
                     state.current_spin = current_planet_spin(state);
@@ -6790,8 +6794,9 @@ mod native_app {
                             // the shared WORLD deliberately: the relay despawns our
                             // entity + broadcasts game_player_left (others see us leave,
                             // honestly), the chat socket stays up. Rejoining is just the
-                            // normal join below once solo clears (relay treats it as a
-                            // RESYNC).
+                            // normal join below once solo clears: a fresh join, progress
+                            // restored from storage (since 2026-10-03 a leave despawns
+                            // at once; it used to be held as a reconnect).
                             if state.game_joined && state.gui_state.copresence_solo {
                                 if let Some(ref ws) = state.gui_state.ws_client {
                                     ws.send(&serde_json::json!({"type": "game_leave"}).to_string());
@@ -6855,13 +6860,11 @@ mod native_app {
                             // (avatars/names survive); only position SENDING is
                             // limited to actually being in the world.
                             if state.game_joined {
-                                if in_world {
-                                    state.game_pos_timer += dt;
-                                    if state.game_pos_timer >= 1.0 / 15.0 {
-                                        state.game_pos_timer = 0.0;
-                                        send_game_position(state);
-                                    }
-                                }
+                                // 15 updates a second in the world, stamped on real time
+                                // (clock_dt), plus one standing-still update the frame we
+                                // leave it (engine::net_route, net::sync, 2026-10-03).
+                                drive_position_send(state, in_world, dt, clock_dt);
+                                state.net_sync.set_clock_step(clock_dt);
                                 // `tick` is the System trait method; call it fully-qualified.
                                 crate::ecs::systems::System::tick(
                                     &mut state.net_sync,

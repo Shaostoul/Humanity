@@ -1506,6 +1506,13 @@ File watcher (notify) invalidates asset cache per frame.
 
 ### Multiplayer Networking
 WebSocket client (tungstenite), message protocol, ECS sync, position interpolation.
+Other players are drawn by snapshot interpolation (v0.1440.0, BUG-125): a short buffer
+per player, placed on the sender's own clock (`timestamp`, seconds, real time),
+drawn `INTERP_DELAY_S` behind at constant speed, brief extrapolation on the
+real velocity the sender now sends, teleports snapped (`SnapshotBuffer`,
+`PositionSender` in `src/net/sync.rs`). A scripted second player
+(`scripts/second-player.js`) signs in as a real identity and walks a path, for
+testing with one person (`just verify-second-player`).
 - Native: `src/net/protocol.rs`, `src/net/client.rs`, `src/net/sync.rs`
 
 ### Mod Support

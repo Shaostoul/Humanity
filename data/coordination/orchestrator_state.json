@@ -546,6 +546,11 @@
       "date": "2026-10-02",
       "decision": "Backup inventory (workflow: code/VPS/PC sweeps + keeper check). Newest .db.aes and .db.enc restore (integrity ok, counts match). Fixed BUG-122 (script rotation via find; HUMANITY_DB_BACKUP_ROTATE_KEEP), BUG-123 (6h snapshot + expiry due by newest snapshot age), BUG-124 (status/panel count sealed; Back up now seals). The trim deletions handed to the operator as commands; retention counts await his call.",
       "why": "Operator asked to delete old/stale/duplicate backups down to the latest. Deleting backup data is his to run; the inventory showed my earlier deletion of the plain copies had broken the 30-min script, which had to be fixed before any trim or the folder grows without limit."
+    },
+    {
+      "date": "2026-10-03",
+      "decision": "Day 3 shipped: scripts/second-player.js (real Dilithium identity, game_join, walks a path, just verify-second-player boots a throwaway relay copy); net::sync snapshot interpolation on the sender clock (timestamp = sender steady clock in seconds, REAL time; velocity on the movement step); leave and ban despawn at once (BUG-125, BUG-126).",
+      "why": "Week plan Day 3. Two build rounds with critics: the first smoothing locked to 15 Hz, the second stamped capped steps and stalled slow senders; I fixed the last two findings (real-time clocks, ban path) myself with red-checked tests."
     }
   ],
   "active_scopes_to_avoid": [
