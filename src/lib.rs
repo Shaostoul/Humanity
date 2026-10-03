@@ -2000,6 +2000,7 @@ mod native_app {
                 dev_travel_stepped_out: false,
                 frame_lock_body: None,
                 probe_hold: None,
+                station_park: None,
                 probe_descend_mps: 0.0,
                 cloud_ref_frame: None,
                 cloud_map_anchor: None,
@@ -3550,6 +3551,11 @@ mod native_app {
                             ));
                         }
                     }
+
+                    // A station camera park reports only now, after the block above
+                    // has ridden the camera through the clock change it asked for
+                    // (BUG-132): its camera_done is a reading, not an echo.
+                    crate::engine::ipc::advance_station_park(state);
 
                     // Hot-reload: poll the watcher and apply every data-file
                     // regeneration gate (planets, plants, hull, game.csv).

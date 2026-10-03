@@ -1173,6 +1173,20 @@ pub(crate) fn execute_screenshot_capture(
         };
         obj.insert("fps".to_string(), serde_json::json!(state.gui_state.fps));
         obj.insert("frame_ms_avg".to_string(), serde_json::json!(avg_ms));
+        // Where the camera was when THIS picture was taken, in the home's
+        // own coordinates, and whether it was riding the station (BUG-132).
+        // probe-sweep compares it with a station vantage's requested pose,
+        // so a camera that drifted or let go of the home during the settle
+        // fails the vantage instead of passing as "captured". Off the
+        // station the home-frame position is still well defined (the hull is
+        // never rotated in render space), just far from anything.
+        let home = camera_home_position(state.camera.position, state.station_off);
+        obj.insert("camera_home".to_string(), serde_json::json!([home.x, home.y, home.z]));
+        obj.insert(
+            "camera_yaw_pitch".to_string(),
+            serde_json::json!([state.camera.yaw, state.camera.pitch]),
+        );
+        obj.insert("station_ride".to_string(), serde_json::json!(state.station_ride));
     }
     let _ = std::fs::create_dir_all("debug");
     let _ = std::fs::write(DONE_PATH, done.to_string());
@@ -2308,9 +2322,145 @@ fn write_ui_done(done: serde_json::Value) {
     let _ = std::fs::write(DONE_PATH, done.to_string());
 }
 
+/// Where the camera request writes its answer. A station park writes it a
+/// frame or two late, from `advance_station_park`, hence shared.
+const CAMERA_DONE_PATH: &str = "debug/camera_done.json";
+
+/// A station park waiting to report (BUG-132, 2026-10-03).
+///
+/// The `{"station":"home",...}` camera request places the camera at once, but
+/// writes `debug/camera_done.json` only after the station block in lib.rs has
+/// ridden that camera through the clock change the same request asked for.
+/// The done file then says where the camera IS, in the home's own coordinates,
+/// read on a later frame: a measurement, not an echo of the request. That is
+/// what lets scripts/probe-sweep.js fail a vantage whose camera went somewhere
+/// else (scripts/lib/station-park-check.js). Before this, the done file
+/// repeated the verb's own arithmetic, so a park tens of thousands of km out
+/// in space reported success.
+pub(crate) struct StationPark {
+    /// The home-frame eye position the verb placed the camera at.
+    pub(crate) requested: Vec3,
+    /// The look the verb set, (yaw, pitch), in the home frame.
+    pub(crate) requested_yaw_pitch: (f32, f32),
+    /// camera_done.json as the verb built it; the measured fields are added
+    /// when the park reports.
+    pub(crate) done: serde_json::Value,
+    /// Station-block passes since the park (see `station_park_ready`).
+    pub(crate) frames: u32,
+}
+
+/// How many station-block passes a park waits for the TimeSystem to take its
+/// hour before reporting anyway (with `clock_settled: false`). The hour is
+/// taken by the very next frame's system tick, so a park normally reports on
+/// its second pass; this cap only matters if the clock never ticks at all.
+pub(crate) const STATION_PARK_MAX_FRAMES: u32 = 120;
+
+/// Is a pending station park ready to report, after `frames` station-block
+/// passes, with the hour request still waiting (`clock_pending`)? Returns
+/// `Some(clock_settled)` when ready and `None` to keep waiting.
+///
+/// The order inside one frame is what makes this right. The station block
+/// propagates the orbit BEFORE the system tick that takes the hour request,
+/// so the first pass after a park still rides the OLD clock. Only a pass that
+/// begins with the request already taken has carried the station to where the
+/// requested hour puts it (a jump of thousands of km for a few hours of a
+/// synchronous orbit), and only a reading taken after that pass proves the
+/// park survived the jump. A park that asked for no hour is ready after one
+/// pass.
+pub(crate) fn station_park_ready(frames: u32, clock_pending: bool) -> Option<bool> {
+    if !clock_pending {
+        Some(true)
+    } else if frames >= STATION_PARK_MAX_FRAMES {
+        Some(false)
+    } else {
+        None
+    }
+}
+
+/// Where a station park puts the camera, in render space, for a position in
+/// the home's own coordinates.
+///
+/// Render space is the ship frame, and the home is drawn at
+/// `station_world_pos - ship_world_pos` in it (`station_off`). The park has
+/// just set `ship_world_pos = station_world_pos`, so the offset of the frame
+/// the camera now rides is ZERO and the home frame IS render space.
+///
+/// BUG-132 was adding the PREVIOUS frame's `station_off` here instead. That
+/// value belonged to the frame the camera was leaving: after probe-sweep's
+/// warm-up it was the whole distance from Earth's surface to the home, so the
+/// camera landed tens of thousands of km out, the next frame read that as
+/// having left the station, let go of it, and the capture showed empty space.
+/// Computed from the two positions rather than written as a bare `home` so the
+/// rule stays true if a park ever rides some other frame.
+pub(crate) fn station_park_render_pos(
+    home: Vec3,
+    ship_world_pos: glam::DVec3,
+    station_world_pos: glam::DVec3,
+) -> Vec3 {
+    let off = station_world_pos - ship_world_pos;
+    home + Vec3::new(off.x as f32, off.y as f32, off.z as f32)
+}
+
+/// The camera's position in the home's own coordinates: its render position
+/// minus `station_off`. True aboard and off the station alike, because the
+/// hull is never rotated in render space: riding rotates the WORLD into the
+/// hull frame instead (`station::hull_frame_rot`), so the home is always
+/// drawn at home-local + `station_off`.
+pub(crate) fn camera_home_position(camera_pos: Vec3, station_off: Vec3) -> Vec3 {
+    camera_pos - station_off
+}
+
+/// Report a pending station park once the clock it asked for has moved the
+/// station (see `StationPark` and `station_park_ready`). Called by lib.rs once
+/// a frame, right after the station block. Reads the camera, never moves it:
+/// if the park did not hold, the done file must say so, not hide it.
+pub(crate) fn advance_station_park(state: &mut EngineState) {
+    let Some(park) = state.station_park.as_mut() else {
+        return;
+    };
+    park.frames += 1;
+    let clock_pending = state
+        .data_store
+        .get::<std::sync::Mutex<Option<f32>>>("time_set_hour_request")
+        .and_then(|m| m.lock().ok().map(|r| r.is_some()))
+        .unwrap_or(false);
+    let Some(clock_settled) = station_park_ready(park.frames, clock_pending) else {
+        return;
+    };
+    let Some(park) = state.station_park.take() else {
+        return;
+    };
+    let home = camera_home_position(state.camera.position, state.station_off);
+    let miss_m = (home - park.requested).length();
+    let mut done = park.done;
+    done["position"] = serde_json::json!([home.x, home.y, home.z]);
+    done["requested"] = serde_json::json!([park.requested.x, park.requested.y, park.requested.z]);
+    done["yaw_pitch"] = serde_json::json!([state.camera.yaw, state.camera.pitch]);
+    done["requested_yaw_pitch"] =
+        serde_json::json!([park.requested_yaw_pitch.0, park.requested_yaw_pitch.1]);
+    done["error_m"] = serde_json::json!(miss_m);
+    done["station_ride"] = serde_json::json!(state.station_ride);
+    done["clock_settled"] = serde_json::json!(clock_settled);
+    done["frames"] = serde_json::json!(park.frames);
+    if miss_m > 0.05 || !state.station_ride {
+        log::warn!(
+            "Camera request: station park MISSED: camera at home-frame {home:?}, asked for {:?} ({miss_m:.2} m off), riding {}",
+            park.requested,
+            state.station_ride
+        );
+    } else {
+        log::info!(
+            "Camera request: station park holds at home-frame {home:?} after {} frame(s) (clock settled: {clock_settled})",
+            park.frames
+        );
+    }
+    let _ = std::fs::create_dir_all("debug");
+    let _ = std::fs::write(CAMERA_DONE_PATH, done.to_string());
+}
+
 pub(crate) fn poll_camera_request(state: &mut EngineState) {
     const REQUEST_PATH: &str = "debug/camera_request.json";
-    const DONE_PATH: &str = "debug/camera_done.json";
+    const DONE_PATH: &str = CAMERA_DONE_PATH;
     if !std::path::Path::new(REQUEST_PATH).exists() {
         return;
     }
@@ -2319,6 +2469,15 @@ pub(crate) fn poll_camera_request(state: &mut EngineState) {
         .and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok());
     // Consumed either way (same rule as the other debug polls).
     let _ = std::fs::remove_file(REQUEST_PATH);
+    // A station park still waiting to report belongs to the request this one
+    // replaces. Drop it: reporting it later would overwrite THIS request's
+    // camera_done with a reading of a park nobody is waiting for.
+    if let Some(old) = state.station_park.take() {
+        log::warn!(
+            "Camera request: a new request replaced a station park still waiting to report ({} frame(s) in)",
+            old.frames
+        );
+    }
     let fail = |msg: String| {
         log::warn!("Camera request: {msg}");
         let _ = std::fs::create_dir_all("debug");
@@ -2398,6 +2557,14 @@ pub(crate) fn poll_camera_request(state: &mut EngineState) {
         state.aboard_station = true;
         state.frame_lock_body = None;
         state.frame_lock_anchor = glam::DVec3::ZERO;
+        // The home's offset in the frame the camera now rides, recomputed
+        // HERE rather than left at last frame's value (BUG-132). Last frame's
+        // station_off belonged to the frame the camera was leaving (on Earth,
+        // after probe-sweep's warm-up), so anything this frame that still
+        // reads it (lights, labels, room GI after this poll) would place the
+        // home in the wrong spot. Riding, it is zero: ship == station.
+        let off = state.station_world_pos - state.ship_world_pos;
+        state.station_off = Vec3::new(off.x as f32, off.y as f32, off.z as f32);
         if state.camera.mode != crate::renderer::camera::CameraMode::FirstPerson {
             state
                 .camera
@@ -2406,12 +2573,13 @@ pub(crate) fn poll_camera_request(state: &mut EngineState) {
         // A deliberately FIXED pose: over the deck by default (the whole
         // point is that several captures differ only by the clock, so the
         // camera must not vary by so much as a pixel between them), or in
-        // front of the named screen. Screen quads live in the home frame;
-        // the camera is in render space, hence `+ station_off` (zero while
-        // riding the station, kept for correctness).
+        // front of the named screen. Both are HOME-FRAME positions (screen
+        // quads live in the home frame); `station_park_render_pos` below turns
+        // the chosen one into render space with the offset of the frame the
+        // camera now rides.
         let hull_top = state.homestead_bounds.map(|(_, mx)| mx.y).unwrap_or(20.0);
-        let (position, look) = match screen_pose {
-            Some((p, look)) => (p + state.station_off, glam::DVec3::new(look.x as f64, look.y as f64, look.z as f64)),
+        let (home_pos, look) = match screen_pose {
+            Some((p, look)) => (p, glam::DVec3::new(look.x as f64, look.y as f64, look.z as f64)),
             None => (Vec3::new(0.0, hull_top + 14.0, 34.0), glam::DVec3::new(0.0, -0.34, -1.0).normalize()),
         };
         // Optional "pose" (2026-09-27, docs/design/sun-cascades.md increment
@@ -2430,10 +2598,22 @@ pub(crate) fn poll_camera_request(state: &mut EngineState) {
                 return;
             }
         };
-        let (position, yaw_pitch) = match pose {
-            Some(([x, y, z], yaw, pitch)) => (Vec3::new(x, y, z) + state.station_off, Some((yaw, pitch))),
-            None => (position, None),
+        let (home_pos, yaw_pitch) = match pose {
+            Some(([x, y, z], yaw, pitch)) => (Vec3::new(x, y, z), Some((yaw, pitch))),
+            None => (home_pos, None),
         };
+        // Into render space with the offset of the station frame the camera
+        // now rides (zero), never last frame's station_off (BUG-132).
+        //
+        // The clock jump this request may also ask for is safe from here on:
+        // the station block in lib.rs rides by ABSOLUTE pose
+        // (ship_world_pos = the station's new position, every frame), and its
+        // departure test measures the camera against where the station was
+        // when the frame last synced to it, which is exactly where this park
+        // put it. So however far the requested hour carries the orbit, the
+        // camera keeps its home-frame position; `advance_station_park` reads
+        // it back after that jump and reports what it finds.
+        let position = station_park_render_pos(home_pos, state.ship_world_pos, state.station_world_pos);
         state.camera.position = position;
         state.camera.clear_surface();
         let (yaw, pitch) = yaw_pitch.unwrap_or_else(|| crate::dev_travel::look_angles(look));
@@ -2464,21 +2644,28 @@ pub(crate) fn poll_camera_request(state: &mut EngineState) {
         state.surface_vr = 0.0;
         state.gui_state.dev_travel_away = false;
         state.probe_hold = Some((state.camera.position, std::time::Instant::now()));
-        let _ = std::fs::create_dir_all("debug");
+        // camera_done is NOT written here. `position`, `yaw_pitch`,
+        // `requested`, `station_ride` and `error_m` are filled in by
+        // `advance_station_park` from a reading of the camera taken after
+        // the station block has ridden it through the requested clock change
+        // (normally two frames from now), so the done file is evidence of
+        // where the camera went rather than a copy of where it was sent.
         let mut done = serde_json::json!({"ok": true, "station": "home"});
         if let Some(id) = v.get("screen").and_then(|s| s.as_str()) {
             done["screen"] = serde_json::json!(id);
-            done["position"] = serde_json::json!([position.x, position.y, position.z]);
             done["look"] = serde_json::json!([look.x, look.y, look.z]);
-            log::info!("Camera request: parked aboard the home station facing screen {id:?} at {position:?}");
+            log::info!("Camera request: parked aboard the home station facing screen {id:?} at home-frame {home_pos:?}");
         } else if let Some((yaw, pitch)) = yaw_pitch {
-            done["position"] = serde_json::json!([position.x, position.y, position.z]);
-            done["yaw_pitch"] = serde_json::json!([yaw, pitch]);
-            log::info!("Camera request: parked aboard the home station at pose {position:?} yaw {yaw} pitch {pitch}");
+            log::info!("Camera request: parked aboard the home station at home-frame pose {home_pos:?} yaw {yaw} pitch {pitch}");
         } else {
-            log::info!("Camera request: parked aboard the home station");
+            log::info!("Camera request: parked aboard the home station at home-frame {home_pos:?}");
         }
-        let _ = std::fs::write(DONE_PATH, done.to_string());
+        state.station_park = Some(StationPark {
+            requested: home_pos,
+            requested_yaw_pitch: (yaw, pitch),
+            done,
+            frames: 0,
+        });
         return;
     }
     // Bookmark restore (v0.890): {"bookmark":"bm-N"} places the camera at
@@ -3142,6 +3329,76 @@ fn write_done_atomically(path: &str, body: &serde_json::Value) {
     let tmp = format!("{path}.tmp");
     if std::fs::write(&tmp, body.to_string()).is_ok() {
         let _ = std::fs::rename(&tmp, path);
+    }
+}
+
+#[cfg(test)]
+mod station_park_tests {
+    //! BUG-132: a `{"station":"home","pose":...}` park must land on its pose
+    //! in the home's own coordinates, whatever frame the camera was in before.
+    use super::*;
+    use glam::DVec3;
+
+    /// Where the home station was on the BUG-132 run (the position run.log
+    /// printed, near enough), and a ship frame on Earth's surface where
+    /// probe-sweep's warm-up had left the camera (lat 23, lon 13, 50 m).
+    fn station() -> DVec3 {
+        DVec3::new(3.26e7, -2.49e6, -2.69e7)
+    }
+    fn earth_ship() -> DVec3 {
+        let r = 6.371e6 + 50.0;
+        let (lat, lon) = (23.0f64.to_radians(), 13.0f64.to_radians());
+        DVec3::new(r * lat.cos() * lon.cos(), r * lat.sin(), r * lat.cos() * lon.sin())
+    }
+    const POSE: Vec3 = Vec3::new(27.5, 26.0, 96.0); // home-overview-noon
+
+    #[test]
+    fn a_park_rides_the_station_so_its_pose_is_the_render_position() {
+        // The verb has just set ship_world_pos = station_world_pos.
+        let render = station_park_render_pos(POSE, station(), station());
+        assert_eq!(render, POSE);
+        // And reading it back in the home frame (station_off is zero while
+        // riding) gives the pose exactly, not approximately.
+        assert_eq!(camera_home_position(render, Vec3::ZERO), POSE);
+    }
+
+    #[test]
+    fn last_frames_offset_is_the_bug() {
+        // The old verb: the pose plus the station_off of the frame the camera
+        // was LEAVING (the ship frame on Earth), placed into the frame it now
+        // rides (station_off zero). That is the whole Earth-to-home distance
+        // added to the pose: the camera ends up in empty space.
+        let stale = station() - earth_ship();
+        let old = POSE + Vec3::new(stale.x as f32, stale.y as f32, stale.z as f32);
+        let miss = (camera_home_position(old, Vec3::ZERO) - POSE).length();
+        assert!(miss > 1.0e7, "the old placement misses by {miss} m");
+        // The new placement does not depend on where the camera came from.
+        let new = station_park_render_pos(POSE, station(), station());
+        assert_eq!(camera_home_position(new, Vec3::ZERO), POSE);
+    }
+
+    #[test]
+    fn the_home_frame_reading_undoes_station_off_off_the_station_too() {
+        // Off the station the home renders at home-local + station_off, so a
+        // camera 2 m east of a home 1 km away reads 2 m east in the home frame.
+        let off = Vec3::new(1000.0, -40.0, 250.0);
+        assert_eq!(camera_home_position(off + Vec3::new(2.0, 0.0, 0.0), off), Vec3::new(2.0, 0.0, 0.0));
+    }
+
+    #[test]
+    fn a_park_reports_only_after_the_clock_has_moved() {
+        // First station-block pass: the hour request is still waiting for
+        // the system tick that comes after the block, so the pass rode the
+        // OLD clock. Keep waiting.
+        assert_eq!(station_park_ready(1, true), None);
+        // Second pass: the tick took the hour, and this pass carried the
+        // station to where that hour puts it. Report.
+        assert_eq!(station_park_ready(2, false), Some(true));
+        // A park that asked for no hour reports after one pass.
+        assert_eq!(station_park_ready(1, false), Some(true));
+        // A clock that never ticks cannot hold the report forever.
+        assert_eq!(station_park_ready(STATION_PARK_MAX_FRAMES - 1, true), None);
+        assert_eq!(station_park_ready(STATION_PARK_MAX_FRAMES, true), Some(false));
     }
 }
 
