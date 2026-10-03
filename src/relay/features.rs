@@ -793,7 +793,7 @@ mod tests {
         state: &std::sync::Arc<crate::relay::relay::RelayState>,
         port: u16,
         seed: [u8; 32],
-        name: &str,
+        name: Option<&str>,
         expect_live: usize,
     ) -> (
         tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>,
@@ -826,7 +826,7 @@ mod tests {
     }
 
     async fn live_count(state: &std::sync::Arc<crate::relay::relay::RelayState>, key: &str) -> usize {
-        state.live_conns.read().await.get(key).map_or(0, |s| s.len())
+        state.live_conns.read().await.sockets.get(key).map_or(0, |s| s.len())
     }
 
     /// Poll for up to 5 s (the relay tears a socket down on its own task).
@@ -855,8 +855,8 @@ mod tests {
     async fn closing_one_of_two_sockets_keeps_the_person_signed_in() {
         let (state, port, path) = spawn_relay("two_sockets", Features::all_enabled()).await;
         let seed = [42u8; 32];
-        let (mut first, key) = bind_socket(&state, port, seed, "TwoTabs", 1).await;
-        let (mut second, _) = bind_socket(&state, port, seed, "TwoTabs", 2).await;
+        let (mut first, key) = bind_socket(&state, port, seed, Some("TwoTabs"), 1).await;
+        let (mut second, _) = bind_socket(&state, port, seed, Some("TwoTabs"), 2).await;
 
         use futures::SinkExt;
         second.close(None).await.ok();
@@ -865,7 +865,7 @@ mod tests {
             let peers = state.peers.read().await;
             let live = state.live_conns.read().await;
             let p = peers.get(&key).expect("still signed in while one socket is open");
-            assert!(live[&key].contains(&p.conn_id), "the registration belongs to the socket still open");
+            assert!(live.sockets[&key].contains(&p.conn_id), "the registration belongs to the socket still open");
         }
 
         first.close(None).await.ok();
@@ -874,6 +874,383 @@ mod tests {
             "closing the last socket signs the person out"
         );
         assert_eq!(live_count(&state, &key).await, 0);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    type TestSocket =
+        tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>;
+
+    /// The id of the identity's one live socket (call it while only one is open).
+    async fn only_conn(state: &std::sync::Arc<crate::relay::relay::RelayState>, key: &str) -> u64 {
+        let live = state.live_conns.read().await;
+        let set = &live.sockets[key];
+        assert_eq!(set.len(), 1, "expected exactly one live socket");
+        *set.iter().next().unwrap()
+    }
+
+    async fn send_json(sock: &mut TestSocket, v: Value) {
+        use futures::SinkExt;
+        sock.send(tokio_tungstenite::tungstenite::Message::Text(v.to_string().into())).await.unwrap();
+    }
+
+    /// Send `game_join` the way the desktop client does (`src/lib.rs`) and wait
+    /// until the player is in the world with the seat on `conn`.
+    async fn join_game(state: &std::sync::Arc<crate::relay::relay::RelayState>, sock: &mut TestSocket, key: &str, conn: u64) {
+        send_json(sock, serde_json::json!({ "type": "game_join", "player_name": "Seated", "character_mode": "local" })).await;
+        let seated = wait_until(|| async {
+            state.game_world.read().await.find_player_entity(key).is_some()
+                && state.live_conns.read().await.game_seat.get(key) == Some(&conn)
+        })
+        .await;
+        assert!(seated, "the join never put the player in the world on that socket");
+    }
+
+    /// The game departure has started: link-dead under the reconnect grace,
+    /// or already despawned when this machine's server config turns it off.
+    async fn game_departed(state: &std::sync::Arc<crate::relay::relay::RelayState>, key: &str) -> bool {
+        state.link_dead.read().await.contains_key(key)
+            || state.game_world.read().await.find_player_entity(key).is_none()
+    }
+
+    /// QUITTING THE GAME WITH A WEB TAB OPEN (2026-10-02). Socket A is the
+    /// desktop game (it joined the shared world), socket B a web tab for the
+    /// same person. Closing A must start the game departure even though B
+    /// stays open; before the seat existed the departure waited for the LAST
+    /// socket, so the avatar stood in the world for as long as the tab lived.
+    /// Seen red 2026-10-02 by deleting the `depart_owned_seats` call from the
+    /// teardown in relay.rs: "closing the game socket starts the game
+    /// departure" failed after the 5 s wait.
+    #[tokio::test]
+    async fn closing_the_game_socket_departs_the_game_while_a_tab_stays_open() {
+        let (state, port, path) = spawn_relay("game_seat_close", Features::all_enabled()).await;
+        let seed = [43u8; 32];
+        let (mut game, key) = bind_socket(&state, port, seed, Some("GameAndTab"), 1).await;
+        let game_conn = only_conn(&state, &key).await;
+        let (mut tab, _) = bind_socket(&state, port, seed, Some("GameAndTab"), 2).await;
+        join_game(&state, &mut game, &key, game_conn).await;
+
+        use futures::SinkExt;
+        game.close(None).await.ok();
+        assert!(
+            wait_until(|| async { game_departed(&state, &key).await }).await,
+            "closing the game socket starts the game departure"
+        );
+        assert_eq!(live_count(&state, &key).await, 1, "the tab is still signed in");
+        assert!(state.peers.read().await.contains_key(&key), "and so is the person");
+        assert!(
+            state.live_conns.read().await.game_seat.get(&key).is_none(),
+            "the seat went with its socket"
+        );
+
+        tab.close(None).await.ok();
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// The other half: closing a tab that never joined the game leaves the
+    /// game socket's place in the world alone. Seen red 2026-10-02 by making
+    /// `depart_owned_seats` depart the game for ANY closing socket (the
+    /// `ours` test forced true): the player went link-dead while the game
+    /// socket was still open.
+    #[tokio::test]
+    async fn closing_a_tab_that_never_joined_leaves_the_game_seat_alone() {
+        let (state, port, path) = spawn_relay("game_seat_keep", Features::all_enabled()).await;
+        let seed = [44u8; 32];
+        let (mut game, key) = bind_socket(&state, port, seed, Some("GameKeeps"), 1).await;
+        let game_conn = only_conn(&state, &key).await;
+        let (mut tab, _) = bind_socket(&state, port, seed, Some("GameKeeps"), 2).await;
+        join_game(&state, &mut game, &key, game_conn).await;
+
+        use futures::SinkExt;
+        tab.close(None).await.ok();
+        // The teardown runs the seat departures before it leaves the live set,
+        // so once the count drops, whatever it was going to do is done.
+        assert!(wait_until(|| async { live_count(&state, &key).await == 1 }).await, "the tab left");
+        assert!(
+            state.game_world.read().await.find_player_entity(&key).is_some(),
+            "the player is still in the world"
+        );
+        assert!(!state.link_dead.read().await.contains_key(&key), "and not link-dead");
+        assert_eq!(state.live_conns.read().await.game_seat.get(&key), Some(&game_conn), "the seat stays with the game");
+
+        game.close(None).await.ok();
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// Voice follows the same rule: the socket that joined a room holds the
+    /// voice seat. A tab closing changes nothing; the voice socket closing
+    /// takes the person out of the room though another socket stays open.
+    /// Seen red 2026-10-02 by deleting the `depart_owned_seats` call from the
+    /// teardown: "closing the socket in voice takes the person out of voice"
+    /// failed, the roster kept them.
+    #[tokio::test]
+    async fn closing_the_socket_in_voice_leaves_voice_while_another_stays_open() {
+        let (state, port, path) = spawn_relay("voice_seat", Features::all_enabled()).await;
+        state.db.create_channel("lounge", "Lounge", None, "test", false).expect("a voice-enabled channel");
+        let in_voice = |key: String| {
+            let state = state.clone();
+            async move {
+                state.voice_rooms.read().await.values().any(|r| r.participants.iter().any(|(k, _)| *k == key))
+            }
+        };
+        let seed = [46u8; 32];
+        let (mut caller, key) = bind_socket(&state, port, seed, Some("OnACall"), 1).await;
+        let caller_conn = only_conn(&state, &key).await;
+        let (mut tab, _) = bind_socket(&state, port, seed, Some("OnACall"), 2).await;
+        send_json(&mut caller, serde_json::json!({ "type": "voice_room", "action": "join", "room_id": "lounge" })).await;
+        assert!(
+            wait_until(|| async {
+                in_voice(key.clone()).await
+                    && state.live_conns.read().await.voice_seat.get(&key) == Some(&caller_conn)
+            })
+            .await,
+            "the join put the person in voice on the caller's socket"
+        );
+
+        use futures::SinkExt;
+        tab.close(None).await.ok();
+        assert!(wait_until(|| async { live_count(&state, &key).await == 1 }).await, "the tab left");
+        assert!(in_voice(key.clone()).await, "a tab closing does not end the call");
+
+        let (mut other, _) = bind_socket(&state, port, seed, Some("OnACall"), 2).await;
+        caller.close(None).await.ok();
+        assert!(
+            wait_until(|| async { !in_voice(key.clone()).await }).await,
+            "closing the socket in voice takes the person out of voice"
+        );
+        assert_eq!(live_count(&state, &key).await, 1, "the other socket is still signed in");
+
+        other.close(None).await.ok();
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// A NAMELESS SECOND SOCKET (2026-10-02). The web Tasks board signs in
+    /// without a name; its socket took over the registration with none, and
+    /// the hand-over on the named socket's close kept it, so other clients
+    /// showed the person as "Anonymous". The registration must keep the name.
+    /// Seen red 2026-10-02 by making `settle_name` return what was offered:
+    /// the first assertion failed with `None`.
+    #[tokio::test]
+    async fn a_nameless_second_socket_keeps_the_persons_name() {
+        let (state, port, path) = spawn_relay("nameless_tab", Features::all_enabled()).await;
+        let seed = [45u8; 32];
+        let name_of = |key: String| {
+            let state = state.clone();
+            async move { state.peers.read().await.get(&key).and_then(|p| p.display_name.clone()) }
+        };
+        let (mut chat, key) = bind_socket(&state, port, seed, Some("Named"), 1).await;
+        let (mut tasks, _) = bind_socket(&state, port, seed, None, 2).await;
+        assert_eq!(
+            name_of(key.clone()).await.as_deref(),
+            Some("Named"),
+            "the nameless socket now owns the registration, under the person's name"
+        );
+
+        use futures::SinkExt;
+        chat.close(None).await.ok();
+        assert!(wait_until(|| async { live_count(&state, &key).await == 1 }).await, "the named socket left");
+        assert_eq!(
+            name_of(key.clone()).await.as_deref(),
+            Some("Named"),
+            "the registration handed to the Tasks socket keeps the name"
+        );
+
+        tasks.close(None).await.ok();
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// A NAMELESS SIGN-IN AFTER A RENAME (review, 2026-10-02). The person
+    /// signed in as Aold, later as Znew; then a nameless socket (the Tasks
+    /// board) signs in. It must be registered as Znew, and the member row must
+    /// stay Znew: the fallback used to take the key's OLDEST registered name
+    /// and write it over the member row, undoing the rename. Also: closing the
+    /// Znew socket clears the status text saved under Znew.
+    /// Seen red 2026-10-02 twice: with `name_for_key` back in `settle_name`
+    /// the registration came back "Aold"; with it back in the teardown's
+    /// status clear, "the status text was cleared under the name in use"
+    /// failed (it cleared Aold's).
+    #[tokio::test]
+    async fn a_nameless_sign_in_after_a_rename_keeps_the_new_name() {
+        let (state, port, path) = spawn_relay("renamed", Features::all_enabled()).await;
+        let seed = [47u8; 32];
+        use futures::SinkExt;
+        let (mut old, key) = bind_socket(&state, port, seed, Some("Aold"), 1).await;
+        old.close(None).await.ok();
+        assert!(wait_until(|| async { live_count(&state, &key).await == 0 }).await, "Aold left");
+
+        let (mut renamed, _) = bind_socket(&state, port, seed, Some("Znew"), 1).await;
+        send_json(&mut renamed, serde_json::json!({ "type": "set_status", "status": "away", "text": "brb" })).await;
+        let status = |name: &'static str| {
+            let state = state.clone();
+            async move { state.db.load_user_status(name).ok().flatten() }
+        };
+        assert!(
+            wait_until(|| async { status("Znew").await == Some(("away".into(), "brb".into())) }).await,
+            "the status was saved under Znew"
+        );
+        renamed.close(None).await.ok();
+        assert!(wait_until(|| async { live_count(&state, &key).await == 0 }).await, "Znew left");
+        assert!(
+            wait_until(|| async { status("Znew").await == Some(("away".into(), String::new())) }).await,
+            "the status text was cleared under the name in use"
+        );
+
+        let (mut tasks, _) = bind_socket(&state, port, seed, None, 1).await;
+        let settled = wait_until(|| async {
+            let registered = state.peers.read().await.get(&key).and_then(|p| p.display_name.clone());
+            let member = state.db.get_member(&key).ok().flatten().and_then(|m| m.name);
+            registered.as_deref() == Some("Znew") && member.as_deref() == Some("Znew")
+        })
+        .await;
+        assert!(
+            settled,
+            "registration {:?}, member {:?}",
+            state.peers.read().await.get(&key).and_then(|p| p.display_name.clone()),
+            state.db.get_member(&key).ok().flatten().and_then(|m| m.name)
+        );
+
+        tasks.close(None).await.ok();
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// Every JSON frame that arrives until the socket has been quiet for `idle_ms`.
+    async fn frames_until_quiet(sock: &mut TestSocket, idle_ms: u64) -> Vec<Value> {
+        use futures::StreamExt;
+        let idle = std::time::Duration::from_millis(idle_ms);
+        let mut out = Vec::new();
+        while let Ok(Some(Ok(msg))) = tokio::time::timeout(idle, sock.next()).await {
+            if let Some(v) = msg.into_text().ok().and_then(|t| serde_json::from_str::<Value>(&t).ok()) {
+                out.push(v);
+            }
+        }
+        out
+    }
+
+    /// The real relay with a voice-enabled channel, "lounge".
+    async fn voice_relay(
+        tag: &str,
+    ) -> (std::sync::Arc<crate::relay::relay::RelayState>, u16, std::path::PathBuf) {
+        let (state, port, path) = spawn_relay(tag, Features::all_enabled()).await;
+        state.db.create_channel("lounge", "Lounge", None, "test", false).expect("a voice-enabled channel");
+        (state, port, path)
+    }
+
+    /// How many times `key` is listed in the lounge (more than once is a bug).
+    async fn times_listed(state: &std::sync::Arc<crate::relay::relay::RelayState>, key: &str) -> usize {
+        state
+            .voice_rooms
+            .read()
+            .await
+            .get("lounge")
+            .map_or(0, |r| r.participants.iter().filter(|(k, _)| k == key).count())
+    }
+
+    async fn voice_join(sock: &mut TestSocket) {
+        send_json(sock, serde_json::json!({ "type": "voice_room", "action": "join", "room_id": "lounge" })).await;
+    }
+
+    /// The socket that is not `not`, while exactly two are open.
+    async fn other_conn(state: &std::sync::Arc<crate::relay::relay::RelayState>, key: &str, not: u64) -> u64 {
+        let live = state.live_conns.read().await;
+        *live.sockets[key].iter().find(|c| **c != not).expect("a second socket")
+    }
+
+    /// VOICE THROUGH A NETWORK BLIP, part (a) (2026-10-02). Socket A is in
+    /// voice; its network blips and the client's new socket B signs in before
+    /// the relay notices A closed, then re-sends its voice join (both clients
+    /// do this once identify is accepted). The join must move the seat to B
+    /// without listing the person twice, and A's close must then leave them in
+    /// the room. Before the seat moved, A's close took them off every roster
+    /// while their call audio kept playing. Seen red 2026-10-02 by moving the
+    /// `take_voice_seat` call in the voice join (msg_handlers.rs) inside the
+    /// "not yet listed" branch, so a re-join kept the seat where it was: "the
+    /// re-sent join moves the seat to the new socket" failed.
+    #[tokio::test]
+    async fn a_voice_rejoin_on_a_new_socket_keeps_the_person_in_the_room() {
+        let (state, port, path) = voice_relay("voice_rejoin").await;
+        let seed = [48u8; 32];
+        let (mut a, key) = bind_socket(&state, port, seed, Some("Blip"), 1).await;
+        let a_conn = only_conn(&state, &key).await;
+        voice_join(&mut a).await;
+        assert!(
+            wait_until(|| async {
+                times_listed(&state, &key).await == 1 && state.live_conns.read().await.voice_seat.get(&key) == Some(&a_conn)
+            })
+            .await,
+            "A joined voice"
+        );
+
+        let (mut b, _) = bind_socket(&state, port, seed, Some("Blip"), 2).await;
+        let b_conn = other_conn(&state, &key, a_conn).await;
+        voice_join(&mut b).await;
+        assert!(
+            wait_until(|| async { state.live_conns.read().await.voice_seat.get(&key) == Some(&b_conn) }).await,
+            "the re-sent join moves the seat to the new socket"
+        );
+        assert_eq!(times_listed(&state, &key).await, 1, "listed once, not twice");
+
+        use futures::SinkExt;
+        a.close(None).await.ok();
+        assert!(wait_until(|| async { live_count(&state, &key).await == 1 }).await, "A's close was handled");
+        assert_eq!(times_listed(&state, &key).await, 1, "still in the room after A's close");
+        assert_eq!(state.live_conns.read().await.voice_seat.get(&key), Some(&b_conn), "on B's seat");
+
+        b.close(None).await.ok();
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// VOICE THROUGH A NETWORK BLIP, part (b): what the others in the room
+    /// see. A's teardown arrives after B's re-join, so it must leave B's seat
+    /// alone, and nobody else may be shown a roster without the person or be
+    /// told they are a new participant (that would make them dial again).
+    /// Seen red 2026-10-02 by making `give_up_seat` in live_conns.rs report
+    /// every seat as the closing socket's: the watcher got a roster without
+    /// the person.
+    #[tokio::test]
+    async fn the_old_sockets_close_after_a_voice_rejoin_changes_nothing_others_see() {
+        let (state, port, path) = voice_relay("voice_rejoin_seen").await;
+        let (mut watcher, watcher_key) = bind_socket(&state, port, [49u8; 32], Some("Watcher"), 1).await;
+        voice_join(&mut watcher).await;
+        assert!(wait_until(|| async { times_listed(&state, &watcher_key).await == 1 }).await, "the watcher is in the room");
+
+        let seed = [50u8; 32];
+        let (mut a, key) = bind_socket(&state, port, seed, Some("Blinker"), 1).await;
+        let a_conn = only_conn(&state, &key).await;
+        voice_join(&mut a).await;
+        assert!(wait_until(|| async { times_listed(&state, &key).await == 1 }).await, "A joined voice");
+        let (mut b, _) = bind_socket(&state, port, seed, Some("Blinker"), 2).await;
+        let b_conn = other_conn(&state, &key, a_conn).await;
+        // Everything the watcher was sent up to here is before the re-join.
+        frames_until_quiet(&mut watcher, 300).await;
+
+        voice_join(&mut b).await;
+        assert!(
+            wait_until(|| async { state.live_conns.read().await.voice_seat.get(&key) == Some(&b_conn) }).await,
+            "B holds the seat"
+        );
+        use futures::SinkExt;
+        a.close(None).await.ok();
+        assert!(wait_until(|| async { live_count(&state, &key).await == 1 }).await, "A's close was handled");
+
+        for frame in frames_until_quiet(&mut watcher, 300).await {
+            match frame["type"].as_str() {
+                Some("voice_channel_list") => {
+                    let lounge = frame["channels"].as_array().and_then(|c| c.iter().find(|c| c["id"] == "lounge"));
+                    let people = lounge.and_then(|l| l["participants"].as_array()).cloned().unwrap_or_default();
+                    let listed = people.iter().any(|p| p["public_key"].as_str() == Some(key.as_str()));
+                    let names: Vec<&str> = people.iter().filter_map(|p| p["display_name"].as_str()).collect();
+                    assert!(listed, "a roster without the person was broadcast: {names:?}");
+                }
+                Some("voice_room_signal") => {
+                    assert_ne!(frame["signal_type"], "new_participant", "the re-join was announced as new: {frame}");
+                }
+                _ => {}
+            }
+        }
+        assert_eq!(state.live_conns.read().await.voice_seat.get(&key), Some(&b_conn), "A left B's seat alone");
+        assert_eq!(times_listed(&state, &key).await, 1);
+
+        b.close(None).await.ok();
+        watcher.close(None).await.ok();
         let _ = std::fs::remove_file(&path);
     }
 

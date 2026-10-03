@@ -46,6 +46,11 @@ Each line is written the way a player would hear it; the release notes and
   Fuji, the open sea, a sunset over the sea, Silverdale from above, the
   home from above, the greenhouse) into smooth, ready-to-post videos in
   both landscape and portrait.
+- **v0.1437.0: trading works in the desktop app.** A finished trade now
+  really moves the items, even if you were away when the other player
+  confirmed; the Trade page lists your trades. Voice no longer drops you
+  from the room after a network blip, and other players' figures stand on
+  the floor with their head on their shoulders.
 - **v0.1436.0: the Windows download is the whole game.** The main
   download button now gives Windows players the full game with its models
   and textures; before, it gave them the bare program, which looked like grey

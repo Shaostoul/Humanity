@@ -521,6 +521,21 @@
       "date": "2026-10-02",
       "decision": "Week plan (survey x5, plans x3, judge, then 7 adversarial verifiers) recorded in PRIORITIES TIER 0 \"THIS WEEK\": review, then playable multiplayer proven by two people (scripted second player, smooth movement, shared building, a real session). Day-1 fixes shipped: BUG-107 backup pull, BUG-108 Rotate Key removed, BUG-109 Windows zip download, BUG-110 web bug votes, BUG-111 Tasks sign-in, BUG-112 relay live_conns.",
       "why": "Operator asked what to work on this week; near-term success is playable multiplayer on the VPS. The verifiers turned up a 39-day-stale off-box backup and an identity-replacing button, so those shipped first. BUG-112 came from the reviewer of the Tasks fix: making Tasks sign in would have signed people out of voice and the game whenever they closed it."
+    },
+    {
+      "date": "2026-10-02",
+      "decision": "Review of v0.1427.0..v0.1436.0 (4 finders, 9 skeptics): 8 confirmed, 1 refuted, 15 low unverified. HIGH: desktop trades never move items and the desktop Trade page never lists trades (relay sends Private as type system; the client handled trade wrappers only in its private arm; tests called settle_completed directly). MEDIUM: trade duplication after confirm; offline-at-completion never settles; quitting the game with a web tab open leaves avatar and voice seat forever (regression from live_conns); nameless Tasks socket shows the person as Anonymous; make-clips Ctrl+C leaves the game running; stall roofs/array ducts see-through from below; remote figure head inside the body box. Being fixed in workflow wf_31a99714-8ed (lanes: trades, relay, tooling, rendering), uncommitted until reviewed.",
+      "why": "The review owed after the v0.1428-v0.1436 batch (memory feedback_review_after_parallel_waves). The trade miss is the checks-that-cannot-fail class: a test must feed the real envelope the client receives."
+    },
+    {
+      "date": "2026-10-02",
+      "decision": "Deleted the 15 plain pre-encryption backups on the VPS (shred -u, /opt/Humanity/backups/relay-*.db from 2026-08-23/24) and the 60 stale identical local copies in %USERPROFILE%HumanityBackups. Kept the 15 current .db.aes on the VPS and the 3 pulled locally.",
+      "why": "Operator: \"Let's just delete them. They're not important to keep at this point.\" Read as the old backups flagged as decision 5; the current encrypted backups are the live safety net and were not in question."
+    },
+    {
+      "date": "2026-10-02",
+      "decision": "Review fixes shipped (BUG-113..121): trade router for system frames + honest settling + per-save settled ids with re-settle after a save load; relay seat ownership per socket (game, voice) with client voice re-join on reconnect; current_name_for_key (member row only while still registered); make-clips Ctrl+C/cancel/BT.709; filler underside coverage rule; remote figure from the floor; a byte-slice crash in frame_ws_poll.",
+      "why": "The owed review of v0.1428-v0.1436 confirmed 8 problems; reviewers sent 2 of 4 fix lanes back, and I fixed the last reviewer finding (revoked device name) myself with a red-checked test."
     }
   ],
   "active_scopes_to_avoid": [

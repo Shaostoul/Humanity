@@ -938,9 +938,13 @@ pub async fn handle_webrtc_signal(
     }
 }
 
+/// `conn_id` is the socket the request arrived on: a join gives it the
+/// identity's voice seat, so its close takes them out of voice even while
+/// another socket of theirs stays open (2026-10-02, `live_conns`).
 pub async fn handle_voice_room(
     state: &Arc<RelayState>,
     my_key: &str,
+    conn_id: u64,
     action: String,
     room_id: Option<String>,
     room_name: Option<String>,
@@ -993,6 +997,14 @@ pub async fn handle_voice_room(
                             .unwrap_or_else(|| "Voice".to_string());
                         VoiceRoom { name, participants: vec![] }
                     });
+                    // The joining socket holds the seat, also when the person
+                    // was already listed: a client that re-joins after a
+                    // reconnect takes the seat onto its new socket, and the
+                    // others are sent nothing (no roster, no new_participant).
+                    // Taken while `rooms` is locked: the old socket's close
+                    // decides under the same lock (`depart_voice_seat`), so
+                    // the two never interleave (2026-10-02).
+                    crate::relay::handlers::live_conns::take_voice_seat(state, my_key, conn_id).await;
                     if !room.participants.iter().any(|(k, _)| k == my_key) {
                         let existing: Vec<(String, String)> = room.participants.clone();
                         room.participants.push((my_key.to_string(), display.clone()));
@@ -1014,6 +1026,7 @@ pub async fn handle_voice_room(
             }
         }
         "leave" => {
+            crate::relay::handlers::live_conns::release_voice_seat(state, my_key).await;
             leave_voice_room(state, my_key).await;
         }
         "rename" => {
@@ -2885,9 +2898,14 @@ pub async fn handle_trade_list_request(
 /// Handle a client joining the game world.
 /// Creates a player entity in GameWorld, sends Welcome with world snapshot,
 /// and broadcasts PlayerJoined to all other clients.
+///
+/// `conn_id` is the socket the join arrived on: it takes the identity's game
+/// seat, so that socket's close starts the game departure even while another
+/// socket of theirs (a web tab) stays open (2026-10-02, `live_conns`).
 pub async fn handle_game_join(
     state: &Arc<RelayState>,
     my_key: &str,
+    conn_id: u64,
     raw: &serde_json::Value,
 ) {
     // Clamp the display name like every other relay name path (chat 48,
@@ -3016,6 +3034,11 @@ pub async fn handle_game_join(
         .get(&player_id)
         .map(|e| e.position)
         .unwrap_or([0.0, 1.0, 0.0]);
+
+    // This socket now holds the game seat (a rejoin from a fresh socket moves
+    // it). Taken while the world lock is held, so a despawn cannot slip in
+    // between the entity existing and the seat naming its socket.
+    crate::relay::handlers::live_conns::take_game_seat(state, my_key, conn_id).await;
 
     // Build world snapshot for the joiner.
     let snapshot = world.snapshot();
@@ -3415,6 +3438,15 @@ pub async fn handle_game_disconnect(
     despawn_player_now(state, player_key).await;
 }
 
+/// The client stepped out of the shared world on purpose (`game_leave`) and
+/// kept its socket: the world-scoped eviction the disconnect path runs, and
+/// the game seat goes too, so a later close of that socket does not start a
+/// second departure (2026-10-02).
+pub async fn handle_game_leave(state: &Arc<RelayState>, player_key: &str) {
+    crate::relay::handlers::live_conns::release_game_seat(state, player_key).await;
+    handle_game_disconnect(state, player_key).await;
+}
+
 /// Despawn a player and persist their progression. The end of the road for a
 /// player who left deliberately, or whose grace period ran out.
 pub async fn despawn_player_now(
@@ -3422,6 +3454,8 @@ pub async fn despawn_player_now(
     player_key: &str,
 ) {
     state.link_dead.write().await.remove(player_key);
+    // Out of the world means no socket holds a game seat for them any more.
+    crate::relay::handlers::live_conns::release_game_seat(state, player_key).await;
     let mut world = state.game_world.write().await;
     // Capture the player's progress BEFORE despawning (despawn removes the
     // entity, so we can't read it afterward). Find the entity, snapshot its

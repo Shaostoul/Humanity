@@ -544,7 +544,7 @@ lints:
 # seconds (it blurs and re-scores six controls per run), not under one.
 # Add a file here whenever a rig script grows a judgement of its own.
 rig-tests:
-    node --test scripts/tests/machine-guard.test.js scripts/tests/perf-report.test.js scripts/tests/terminator-grain.test.js
+    node --test scripts/tests/machine-guard.test.js scripts/tests/perf-report.test.js scripts/tests/terminator-grain.test.js scripts/tests/make-clips.test.js scripts/tests/voice-rejoin.test.js
 
 # Render all 63 native UI snapshots to PNGs in tests/snapshots/ for review.
 # NEEDS A GPU: without an adapter every page is SKIPPED with a printed note and the

@@ -413,10 +413,12 @@ mod listing_mapping_tests {
         );
     }
 
-    /// Wire pin for the v0.756 trade flow: the relay's REAL private-wrapped
-    /// `__trade_data__:` delivery (a serialized TradeData frame behind the
-    /// prefix) maps through the native routing path exactly as lib.rs's
-    /// private-message arm slices it.
+    /// Wire pin for the v0.756 trade flow: the relay's REAL `__trade_data__:`
+    /// wrapper (a serialized TradeData frame behind the prefix) parses into a
+    /// GuiTrade. The wrapper reaches the client inside a `system` frame (the
+    /// relay turns every targeted Private into one), and
+    /// `gui::pages::trade::route_trade_frame` takes it there (2026-10-02; this
+    /// used to say lib.rs's private-message arm, which never receives it).
     #[test]
     fn relay_trade_wrapper_round_trips_to_gui() {
         use super::GuiTrade;
@@ -444,10 +446,10 @@ mod listing_mapping_tests {
                 message: Some("swap for wheat?".into()),
             },
         };
-        // The relay wraps the serialized frame behind the private prefix.
+        // The relay wraps the serialized frame behind the prefix.
         let wire = format!("__trade_data__:{}", serde_json::to_string(&frame).unwrap());
 
-        // ... and the native private-message arm slices + parses it.
+        // ... and the trade bridge slices + parses it.
         let payload = wire.strip_prefix("__trade_data__:").unwrap();
         let val: serde_json::Value = serde_json::from_str(payload).unwrap();
         let t = GuiTrade::from_relay_json(val.get("trade").unwrap());

@@ -204,9 +204,9 @@ pub struct RelayState {
     /// Every signed-in socket per identity (2026-10-02). One person can hold
     /// several at once: the desktop app and a web tab, or Chat and the Tasks
     /// board. `peers` keeps ONE registration per identity, owned by the newest
-    /// socket, so this set is what says whether the person is still here when
-    /// one of them closes (see the teardown).
-    pub live_conns: RwLock<HashMap<String, HashSet<u64>>>,
+    /// socket, so this set says whether the person is still here when one of
+    /// them closes; it also names the socket holding each game and voice seat.
+    pub live_conns: RwLock<crate::relay::handlers::live_conns::LiveConns>,
     /// Active voice rooms (room_id → VoiceRoom).
     pub voice_rooms: RwLock<HashMap<String, VoiceRoom>>,
     /// User status cache (name → (status, status_text)).
@@ -425,7 +425,7 @@ impl RelayState {
         let (broadcast_tx, _) = broadcast::channel(broadcast_capacity);
         Self {
             peers: RwLock::new(HashMap::new()),
-            live_conns: RwLock::new(HashMap::new()),
+            live_conns: RwLock::new(Default::default()),
             broadcast_tx,
             history: RwLock::new(history),
             db,
@@ -2809,15 +2809,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                 // with "Anonymous" — the "anonymous flash" on a second device.
                 // (operator report, 2026-07-13). A real registered name is only
                 // created when the user deliberately sets one.
-                let is_placeholder_name = |name: &str| -> bool {
-                    let n = name.trim();
-                    n.is_empty()
-                        || n.eq_ignore_ascii_case("anonymous")
-                        || n.eq_ignore_ascii_case("player")
-                        || (n.len() > 12
-                            && n.starts_with("DesktopUser_")
-                            && n[12..].bytes().all(|b| b.is_ascii_digit()))
-                };
+                let is_placeholder_name = crate::relay::handlers::live_conns::is_placeholder_name;
 
                 // Check name registration (skip for bot keys + placeholders).
                 if !public_key.starts_with("bot_") {
@@ -2872,6 +2864,11 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                         }
                     }
                 }
+
+                // No usable name (the Tasks board sends none): keep the name this
+                // identity is already known by, so its registration never goes
+                // nameless. Checked names above are only the ones a client offered.
+                let final_name = crate::relay::handlers::live_conns::settle_name(&state, &public_key, final_name).await;
 
                 // M-4: Generate per-session upload token.
                 let upload_token = {
@@ -3540,7 +3537,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                             }
                             // ── Game state messages ──
                             Some("game_join") => {
-                                handle_game_join(&state_clone, &my_key_for_recv, &raw).await;
+                                handle_game_join(&state_clone, &my_key_for_recv, my_conn_id, &raw).await;
                                 continue;
                             }
                             Some("game_leave") => {
@@ -3549,8 +3546,8 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                 // and the Dev travel step-out both use it. Exactly the
                                 // world-scoped eviction the disconnect path runs
                                 // (despawn + game_player_left broadcast), never a
-                                // socket close.
-                                handle_game_disconnect(&state_clone, &my_key_for_recv).await;
+                                // socket close. It gives up the game seat too.
+                                handle_game_leave(&state_clone, &my_key_for_recv).await;
                                 continue;
                             }
                             Some("game_position_update") => {
@@ -6058,7 +6055,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                             // ── Voice Rooms (Persistent Channels) ──
                             // ── Voice Rooms (Persistent Channels) ──
                             RelayMessage::VoiceRoom { action, room_id, room_name } => {
-                                handle_voice_room(&state_clone, &my_key_for_recv, action, room_id, room_name).await;
+                                handle_voice_room(&state_clone, &my_key_for_recv, my_conn_id, action, room_id, room_name).await;
                             }
                             // ── Voice Room WebRTC Signaling ──
                             RelayMessage::VoiceRoomSignal { to, room_id, signal_type, data, .. } => {
@@ -6251,6 +6248,12 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
         _ = &mut send_task => recv_task.abort(),
         _ = &mut recv_task => send_task.abort(),
     }
+    // Wait for an aborted receive task to actually stop, so a seat it was
+    // mid-way through taking cannot land after this socket's seats are given
+    // up below. A task select! already finished must not be polled again.
+    if !recv_task.is_finished() {
+        let _ = recv_task.await;
+    }
 
     // ── Another socket for this identity is still open ──
     // The person has not left: the desktop app and a web tab, or Chat and the
@@ -6258,7 +6261,11 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
     // the live set; if others remain, hand the registration to one of them
     // when it was ours, and tidy nothing else. (2026-10-02: closing the Tasks
     // tab used to run the whole departure below, dropping the person from voice
-    // and their game connection while Chat stayed open.)
+    // and their game connection while Chat stayed open.) The game and voice
+    // seats are the exception: they belong to the socket that took them, so
+    // its close departs them even while another socket stays open (quitting
+    // the game with a web tab open left the avatar and the voice seat behind).
+    let seats_left = crate::relay::handlers::live_conns::depart_owned_seats(&state, &my_key, my_conn_id).await;
     if let Some(other) = crate::relay::handlers::live_conns::release_closed(&state, &my_key, my_conn_id).await {
         tracing::debug!("socket {my_conn_id} for {my_key} closed; socket {other} is still open");
         return;
@@ -6290,24 +6297,30 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
 
     // Clean up: remove peer, clear kicked status, remove upload token, and announce departure.
     let disconnected_role = state.db.get_role(&my_key).unwrap_or_default();
+    let mut departed_name: Option<String> = None;
     {
         let mut peers = state.peers.write().await;
         if let Some(peer) = peers.remove(&my_key) {
             if let Some(ref token) = peer.upload_token {
                 state.upload_tokens.write().await.remove(token);
             }
+            departed_name = peer.display_name;
         }
     }
     state.kicked_keys.write().await.remove(&my_key);
 
     // Give the player their grace period in the world rather than despawning
     // them outright; `sweep_link_dead` collects them if they never come back.
-    handle_game_disconnect(&state, &my_key).await;
+    // Skipped when this socket's own game seat already did (a second run
+    // would restart the grace clock), and likewise for voice.
+    if !seats_left.game { handle_game_disconnect(&state, &my_key).await; }
 
     // Remove from voice rooms and clear status text on disconnect.
-    leave_voice_room(&state, &my_key).await;
-    // Clear status text on disconnect (keep status preference).
-    if let Ok(Some(name)) = state.db.name_for_key(&my_key) {
+    if !seats_left.voice { leave_voice_room(&state, &my_key).await; }
+    // Clear status text on disconnect (keep status preference), under the name
+    // this session used: status is saved under the live registration's name,
+    // so no database guess is needed (review, 2026-10-02).
+    if let Some(name) = departed_name {
         let _ = state.db.clear_user_status_text(&name);
         if let Some(entry) = state.user_statuses.write().await.get_mut(&name.to_lowercase()) {
             entry.1 = String::new(); // clear status text

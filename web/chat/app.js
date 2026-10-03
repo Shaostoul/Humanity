@@ -865,6 +865,14 @@ async function handleMessage(msg) {
       if (!identityConfirmed) {
         onIdentityConfirmed();
       }
+      // The FIRST peer_list on each socket is the relay accepting THAT socket's
+      // identify (later ones are broadcasts). A reconnect opens a new socket, so
+      // this fires once per connection; modules holding a per-socket place on
+      // the relay take it again here (voice, chat-voice-rooms.js, 2026-10-02).
+      if (ws && !ws._identityAccepted) {
+        ws._identityAccepted = true;
+        if (window.hos && typeof hos.emit === 'function') hos.emit('socket-identified');
+      }
       // Always re-enable input and update status (handles reconnects too).
       setStatus('connected', 'Connected');
       document.getElementById('msg-input').disabled = false;

@@ -234,7 +234,9 @@ pub(crate) fn host_clock_from(v: &serde_json::Value, joined: bool) -> Option<f64
 /// name and the sync kept it, but only the crew were labelled, so another
 /// player was a teal figure with no name. Anchors sit just above each head:
 /// a crew position is standing height (floor + 1.0, head at +0.55), a
-/// player's is the head itself (the head sphere at +0.05, radius 0.17).
+/// player's is their eye, and their name goes just over the top of the
+/// figure `remote_figure_parts` draws (2026-10-02: it was a fixed 0.3 m over
+/// the eye, which a tall player's head now reaches past).
 /// `station_off` is the same offset the scene pass puts on home content.
 pub(crate) fn nameplate_labels(world: &hecs::World, station_off: glam::Vec3) -> Vec<crate::gui::CrewLabel> {
     use crate::ecs::components::Transform;
@@ -250,7 +252,11 @@ pub(crate) fn nameplate_labels(world: &hecs::World, station_off: glam::Vec3) -> 
     }
     for (_e, (t, player)) in world.query::<(&Transform, &RemotePlayer)>().iter() {
         labels.push(crate::gui::CrewLabel {
-            pos: t.position + glam::Vec3::new(0.0, PLAYER_NAMEPLATE_OVER_HEAD_M, 0.0) + station_off,
+            pos: glam::Vec3::new(
+                t.position.x,
+                remote_figure_top(t.position, player.look.as_ref()) + PLAYER_NAMEPLATE_OVER_HEAD_M,
+                t.position.z,
+            ) + station_off,
             name: player.name.clone(),
             activity: String::new(),
             working: false,
@@ -270,23 +276,61 @@ pub(crate) enum FigurePart {
     Hair,
 }
 
-/// Where each part of another player's figure goes: (part, centre, scale).
-/// `eye` is the position their client sends (their eye), so the figure hangs
-/// from it, and every offset and size scales with their height (a look's
-/// `height`, 1.0 without one), because a taller person's eye is higher and
-/// everything below it is longer.
+/// The meshes a remote figure is drawn with, metres: `lib.rs` builds the body
+/// box (base at its origin) and the head sphere (centred on it) FROM these, and
+/// `remote_figure_parts` places the parts by them, so the two cannot drift.
+pub(crate) const FIGURE_BODY_MESH_H_M: f32 = 1.4;
+pub(crate) const FIGURE_HEAD_MESH_R_M: f32 = 0.17;
+/// Shoulder height over the feet at look height 1.0, m: where the body box
+/// ends and the head starts. A person whose eye is 1.7 m up has shoulders near
+/// 1.47 m; the sphere head (0.34 m across) on top then holds that eye.
+const FIGURE_SHOULDER_M: f32 = 1.47;
+
+/// Where each part of another player's figure goes: (part, position, scale),
+/// the position being where the mesh's own origin lands (the body box's base,
+/// the head sphere's centre).
+///
+/// `eye` is the position their client sends, their camera, which stands
+/// `surface_walk::EYE_HEIGHT_M` (1.7 m, the camera's standing eye height
+/// too) over their feet whatever their look. So the feet are put there, on
+/// the floor, and the figure is built UP from them: the body from the feet to
+/// the shoulders, the head on top of the body, the hair over the top of the
+/// head, every size scaled by their height (a look's `height`, 1.0 without
+/// one).
+///
+/// Rebuilt 2026-10-02: the parts used to hang from the eye with offsets that
+/// ignored the meshes' real sizes, so the 1.4 m body box ran 0.55 m ABOVE the
+/// eye, the skin-tone head and the hair sat inside it, and the feet floated
+/// 0.85 m over the floor.
 pub(crate) fn remote_figure_parts(eye: glam::Vec3, look: Option<&crate::player_look::PlayerLook>) -> Vec<(FigurePart, glam::Vec3, glam::Vec3)> {
     use glam::Vec3;
     let h = look.map_or(1.0, |l| l.height);
+    let feet = eye - Vec3::new(0.0, crate::surface_walk::EYE_HEIGHT_M as f32, 0.0);
+    let shoulder = FIGURE_SHOULDER_M * h;
+    let head_r = FIGURE_HEAD_MESH_R_M * h;
+    let head = feet + Vec3::new(0.0, shoulder + head_r, 0.0);
     let mut parts = vec![
-        (FigurePart::Body, eye - Vec3::new(0.0, 0.85 * h, 0.0), Vec3::splat(h)),
-        (FigurePart::Head, eye + Vec3::new(0.0, 0.05 * h, 0.0), Vec3::splat(h)),
+        (FigurePart::Body, feet, Vec3::new(h, shoulder / FIGURE_BODY_MESH_H_M, h)),
+        (FigurePart::Head, head, Vec3::splat(h)),
     ];
     if look.is_some() {
-        // A flattened sphere over the top half of the head (radius 0.17).
-        parts.push((FigurePart::Hair, eye + Vec3::new(0.0, 0.12 * h, 0.0), Vec3::new(1.06 * h, 0.55 * h, 1.06 * h)));
+        // A flattened sphere over the crown: 6% wider than the head, 0.6 of its
+        // height, centred 0.45 of the radius up. Its top clears the head's by
+        // 0.05 of the radius, and it covers the head from the crown down to
+        // about a fifth of the radius above the head's centre, leaving the face.
+        parts.push((FigurePart::Hair, head + Vec3::new(0.0, 0.45 * head_r, 0.0), Vec3::new(1.06 * h, 0.6 * h, 1.06 * h)));
     }
     parts
+}
+
+/// The highest point of another player's drawn figure (the top of the hair
+/// cap, or of the head without a look), world Y. Their name floats over it.
+pub(crate) fn remote_figure_top(eye: glam::Vec3, look: Option<&crate::player_look::PlayerLook>) -> f32 {
+    remote_figure_parts(eye, look)
+        .iter()
+        .filter(|p| p.0 != FigurePart::Body)
+        .map(|p| p.1.y + FIGURE_HEAD_MESH_R_M * p.2.y)
+        .fold(f32::MIN, f32::max)
 }
 
 /// The material cache key for a look's colours: each channel in 64 steps, so
@@ -297,9 +341,8 @@ pub(crate) fn look_material_key(look: &crate::player_look::PlayerLook) -> [u8; 6
     [q(look.skin[0]), q(look.skin[1]), q(look.skin[2]), q(look.hair[0]), q(look.hair[1]), q(look.hair[2])]
 }
 
-/// How far over a remote player's head position their name floats, m: just
-/// clear of the head sphere drawn there (centre +0.05, radius 0.17).
-const PLAYER_NAMEPLATE_OVER_HEAD_M: f32 = 0.3;
+/// How far over the top of a remote player's figure their name floats, m.
+const PLAYER_NAMEPLATE_OVER_HEAD_M: f32 = 0.15;
 
 pub(crate) fn send_game_position(state: &EngineState) {
     let Some(ref ws) = state.gui_state.ws_client else { return; };
@@ -681,23 +724,48 @@ mod tests {
     use super::*;
 
     /// ANOTHER PLAYER'S FIGURE WEARS THEIR LOOK (2026-09-29, appearance sync
-    /// rung 2). Without a look: body and head at the old places, no hair. With
-    /// one: a hair cap above the head, and a taller player's figure scaled and
-    /// hung lower from the eye. Red check, run: ignoring the height fails the
-    /// second assertion.
+    /// rung 2). Without a look: body and head, no hair. With one: a hair cap
+    /// over the head, and a taller player's figure scaled up. Red check, run:
+    /// ignoring the height fails the body's length assertion.
+    ///
+    /// AND IT STANDS ON THE FLOOR, HEAD ON TOP (2026-10-02). The body box's
+    /// bottom is at the feet (the eye less the camera's standing eye height),
+    /// the head is wholly above the body box's top, and the hair cap's top is
+    /// over the head's. Red check, run against the old eye-hung offsets: the
+    /// feet assertion failed (the body's bottom 0.85 m over the floor); with
+    /// the feet and shoulder assertions skipped, the head-above-body one failed
+    /// (the head's bottom 0.67 m under the body's top); with the whole loop
+    /// skipped, the hair one failed (the old cap's top 8 mm under the head's).
     #[test]
     fn another_players_figure_wears_their_look() {
         use glam::Vec3;
-        let eye = Vec3::new(0.0, 1.6, 0.0);
+        // The figure's feet assume the camera rests this high over the floor.
+        let cam = crate::renderer::camera::CameraController::new(1.0, 1.0);
+        assert_eq!(cam.eye_height(), crate::surface_walk::EYE_HEIGHT_M as f32, "the camera's standing eye height");
+        let eye = Vec3::new(0.0, 1.7 + 3.0, 0.0); // a player standing on a floor at y = 3
+        let floor = 3.0;
         let plain = remote_figure_parts(eye, None);
         assert_eq!(plain.iter().map(|p| p.0).collect::<Vec<_>>(), vec![FigurePart::Body, FigurePart::Head]);
         let tall = crate::player_look::PlayerLook { skin: [0.6, 0.4, 0.3], hair: [0.1, 0.05, 0.02], height: 1.2 };
+        for (look, h) in [(None, 1.0), (Some(&tall), 1.2)] {
+            let parts = remote_figure_parts(eye, look);
+            let get = |part| *parts.iter().find(|p| p.0 == part).unwrap();
+            let body = get(FigurePart::Body);
+            let head = get(FigurePart::Head);
+            let body_top = body.1.y + FIGURE_BODY_MESH_H_M * body.2.y;
+            let head_r = FIGURE_HEAD_MESH_R_M * head.2.y;
+            assert!((body.1.y - floor).abs() < 1e-4, "height {h}: the body's bottom is at the feet: {body:?}");
+            assert!((body_top - floor - 1.47 * h).abs() < 1e-3, "height {h}: the body ends at the shoulders: {body_top}");
+            assert!(head.1.y - head_r >= body_top - 1e-4, "height {h}: the head is above the body: {head:?}, body top {body_top}");
+            assert!((head.2.x - h).abs() < 1e-5, "height {h}: the head is sized by the height");
+        }
         let parts = remote_figure_parts(eye, Some(&tall));
-        let body = parts.iter().find(|p| p.0 == FigurePart::Body).unwrap();
-        assert!((body.1.y - (1.6 - 0.85 * 1.2)).abs() < 1e-5 && (body.2.y - 1.2).abs() < 1e-5, "the body hangs lower and is longer: {body:?}");
         let hair = parts.iter().find(|p| p.0 == FigurePart::Hair).expect("a hair cap");
         let head = parts.iter().find(|p| p.0 == FigurePart::Head).unwrap();
-        assert!(hair.1.y > head.1.y, "the hair sits above the head's centre");
+        let (hair_top, head_top) = (hair.1.y + FIGURE_HEAD_MESH_R_M * hair.2.y, head.1.y + FIGURE_HEAD_MESH_R_M * head.2.y);
+        assert!(hair_top > head_top, "the hair covers the top of the head: {hair_top} over {head_top}");
+        assert!(FIGURE_HEAD_MESH_R_M * hair.2.x > FIGURE_HEAD_MESH_R_M * head.2.x, "and is wider than it");
+        assert!((remote_figure_top(eye, Some(&tall)) - hair_top).abs() < 1e-5, "the figure's top is the hair's");
         // Two players with the same colours share a cache key.
         assert_eq!(look_material_key(&tall), look_material_key(&crate::player_look::PlayerLook { height: 0.9, ..tall }));
     }
@@ -756,11 +824,35 @@ mod tests {
                 look: None,
             },
         ));
+        let tallest = crate::player_look::PlayerLook { skin: [0.6, 0.4, 0.3], hair: [0.1, 0.05, 0.02], height: crate::player_look::HEIGHT_MAX };
+        world.spawn((
+            at(Vec3::new(-5.0, 1.7, 0.0)),
+            RemotePlayer {
+                player_id: 8,
+                name: "Tall Pilot".into(),
+                last_position: Vec3::ZERO,
+                target_position: Vec3::ZERO,
+                last_rotation: Quat::IDENTITY,
+                target_rotation: Quat::IDENTITY,
+                velocity: Vec3::ZERO,
+                interpolation_t: 1.0,
+                last_update_time: 0.0,
+                look: Some(tallest),
+            },
+        ));
         let labels = nameplate_labels(&world, Vec3::new(0.0, 0.0, 10.0));
+        // The tallest look's name clears their hair (2026-10-02). Red check, run:
+        // the old fixed eye + 0.3 m put it 0.27 m down inside their head.
+        let tall = labels.iter().find(|l| l.name == "Tall Pilot").expect("the tall player is labelled");
+        let tall_top = remote_figure_top(Vec3::new(-5.0, 1.7, 0.0), Some(&tallest));
+        assert!(tall.pos.y > tall_top, "the name clears a tall player's head: {} under {tall_top}", tall.pos.y);
         let crew = labels.iter().find(|l| l.name == "Ada").expect("the crew member is labelled");
         assert_eq!((crew.activity.as_str(), crew.pos), ("Watering the beds", Vec3::new(1.0, 2.0, 10.0)));
         let player = labels.iter().find(|l| l.name == "Test Pilot").expect("the other player is labelled");
         assert_eq!(player.activity, "", "a player has no chore line");
-        assert!((player.pos - Vec3::new(5.0, 2.0, 10.0)).length() < 1e-5, "just over the head: {:?}", player.pos);
+        // Just over the drawn figure's top (2026-10-02: it was eye + 0.3).
+        let top = remote_figure_top(Vec3::new(5.0, 1.7, 0.0), None);
+        assert!(top > 1.7, "the head reaches over the eye");
+        assert!((player.pos - Vec3::new(5.0, top + PLAYER_NAMEPLATE_OVER_HEAD_M, 10.0)).length() < 1e-5, "just over the head: {:?}", player.pos);
     }
 }

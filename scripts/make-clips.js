@@ -27,12 +27,15 @@
 // is watched anyway.
 //
 // ONE GPU (CLAUDE.md): refuses to start while any HumanityOS.exe is running,
-// yours included.
+// yours included. The rig game cannot outlive this script: Ctrl+C, Ctrl+Break
+// or closing the console stops it and its ffmpeg (see launchGame).
 //
 // Usage:
 //   node scripts/make-clips.js [--only id,id] [--exe PATH] [--out DIR]
 //                              [--shots PATH] [--rig-defaults] [--keep-master-only]
 // Exit 0 = every clip made. 1 = refused. 2 = one or more clips failed.
+//      130 = stopped by Ctrl+C, Ctrl+Break or closing the console (the game
+//            and its recording are stopped with it, see launchGame).
 
 const fs = require("fs");
 const os = require("os");
@@ -54,8 +57,14 @@ const RIG_DEFAULTS = args.includes("--rig-defaults");
 const MASTER_ONLY = args.includes("--keep-master-only");
 
 const RIG = path.join(REPO, ".probe-rig", "clips");
-const DEBUG = path.join(RIG, "debug");
-const LOG = path.join(RIG, "logs", "run.log");
+// `let` so scripts/tests/make-clips.test.js can point the request files and the
+// log at a scratch folder (useRigDirs) and play the game's side of them.
+let DEBUG = path.join(RIG, "debug");
+let LOG = path.join(RIG, "logs", "run.log");
+function useRigDirs(dir) {
+  DEBUG = path.join(dir, "debug");
+  LOG = path.join(dir, "logs", "run.log");
+}
 const stamp = new Date().toISOString().replace(/[-:]/g, "").replace(/\..+/, "").replace("T", "-");
 const OUT = path.resolve(opt("--out", path.join(os.homedir(), "Videos", "HumanityOS clips", stamp)));
 
@@ -85,21 +94,27 @@ function findFfmpeg() {
 }
 
 // ── refusals ────────────────────────────────────────────────────────────────
-const running = MG.listInstances();
-if (running.length) {
-  refuse([
-    `REFUSED: HumanityOS.exe is already running (pid ${running.map((p) => p.pid).join(", ")}).`,
-    "One GPU, one instance (CLAUDE.md). Close it, then run again.",
-  ]);
-}
-if (!fs.existsSync(EXE)) refuse([`ERROR: exe not found: ${EXE}`, "  build one first: cargo build --features native --release"]);
-const FFMPEG = findFfmpeg();
-if (!FFMPEG) refuse(["ERROR: ffmpeg not found (PATH, Settings > Media, or C:\\Apps\\ffmpeg\\bin)."]);
-let clips = JSON.parse(fs.readFileSync(SHOTS, "utf8")).clips;
-if (ONLY) {
-  const want = new Set(ONLY.split(",").map((s) => s.trim()));
-  clips = clips.filter((c) => want.has(c.id));
-  if (!clips.length) refuse([`ERROR: --only ${ONLY} matched no shot in ${SHOTS}`]);
+// Run from main() rather than at load, so a test harness can require this file
+// for launchGame and cutArgs without the refusals firing.
+let FFMPEG = null;
+function preflight() {
+  const running = MG.listInstances();
+  if (running.length) {
+    refuse([
+      `REFUSED: HumanityOS.exe is already running (pid ${running.map((p) => p.pid).join(", ")}).`,
+      "One GPU, one instance (CLAUDE.md). Close it, then run again.",
+    ]);
+  }
+  if (!fs.existsSync(EXE)) refuse([`ERROR: exe not found: ${EXE}`, "  build one first: cargo build --features native --release"]);
+  FFMPEG = findFfmpeg();
+  if (!FFMPEG) refuse(["ERROR: ffmpeg not found (PATH, Settings > Media, or C:\\Apps\\ffmpeg\\bin)."]);
+  let clips = JSON.parse(fs.readFileSync(SHOTS, "utf8")).clips;
+  if (ONLY) {
+    const want = new Set(ONLY.split(",").map((s) => s.trim()));
+    clips = clips.filter((c) => want.has(c.id));
+    if (!clips.length) refuse([`ERROR: --only ${ONLY} matched no shot in ${SHOTS}`]);
+  }
+  return clips;
 }
 
 // ── rig (the same portable sandbox photograph-home.js builds) ───────────────
@@ -143,7 +158,7 @@ function setupRig() {
     else log(`WARNING: ${dll} not found; world entry will be very slow`);
   }
   for (const f of fs.readdirSync(DEBUG)) {
-    if (/\.(png|mp4)$/.test(f) || /_done\.json$/.test(f) || /_request\.json$/.test(f)) fs.unlinkSync(path.join(DEBUG, f));
+    if (/\.(png|mp4)$/.test(f) || /_(done|request|cancel|rejected)\.json$/.test(f)) fs.unlinkSync(path.join(DEBUG, f));
   }
   if (fs.existsSync(LOG)) fs.truncateSync(LOG, 0);
   if (!RIG_DEFAULTS) mirrorGraphics();
@@ -168,19 +183,35 @@ function req(name, body) {
   fs.writeFileSync(path.join(DEBUG, name), JSON.stringify(body));
 }
 function clearDone(name) {
-  const p = path.join(DEBUG, name);
-  if (fs.existsSync(p)) fs.unlinkSync(p);
+  try {
+    fs.unlinkSync(path.join(DEBUG, name));
+  } catch {} // already gone, or the game took it first
 }
-async function waitFile(name, timeoutMs, pollMs = 250) {
+// An error that ends the whole run, not just the shot: nothing after it can work.
+const fatal = (m) => Object.assign(new Error(m), { fatal: true });
+// The rig game (launchGame), so every wait can notice it has gone. Without this
+// a game that died mid-recording was waited on for the whole recording timeout,
+// 17 to 23 minutes on the long shots (2026-10-02 review).
+let game = null;
+function checkGame() {
+  if (panicCount()) throw fatal("the game panicked (see .probe-rig/clips/logs/run.log)");
+  if (game && game.exit) throw fatal(`the game ${game.exit} (see .probe-rig/clips/logs/run.log)`);
+}
+// Wait for `name` to appear and return its JSON; null on timeout. With
+// `refusedName`, that file appearing first is the answer instead (the engine's
+// "a recording is already running", which never goes in the done file).
+async function waitFile(name, timeoutMs, pollMs = 250, refusedName = null) {
   const p = path.join(DEBUG, name);
   const t0 = Date.now();
   while (Date.now() - t0 < timeoutMs) {
-    if (fs.existsSync(p)) {
-      try {
-        return JSON.parse(fs.readFileSync(p, "utf8"));
-      } catch {}
+    for (const f of refusedName ? [p, path.join(DEBUG, refusedName)] : [p]) {
+      if (fs.existsSync(f)) {
+        try {
+          return JSON.parse(fs.readFileSync(f, "utf8"));
+        } catch {} // half-written: read it on the next poll
+      }
     }
-    if (panicCount()) throw new Error("the game panicked (see .probe-rig/clips/logs/run.log)");
+    checkGame();
     await sleep(pollMs);
   }
   return null;
@@ -190,14 +221,119 @@ async function waitBoot(timeoutMs) {
   while (Date.now() - t0 < timeoutMs) {
     if (fs.existsSync(LOG)) {
       const txt = fs.readFileSync(LOG, "utf8");
-      if (/PANIC/.test(txt)) throw new Error("PANIC during boot (see run.log)");
+      if (/PANIC/.test(txt)) throw fatal("PANIC during boot (see run.log)");
       if (/Cloud noise volumes generated/.test(txt)) return true;
     }
+    checkGame();
     await sleep(1000);
   }
-  throw new Error("the exe did not finish booting in time");
+  throw fatal("the exe did not finish booting in time");
 }
 const panicCount = () => (fs.existsSync(LOG) ? (fs.readFileSync(LOG, "utf8").match(/PANIC/g) || []).length : 0);
+
+// What the game logs when it reads a cancel (src/engine/movie.rs,
+// poll_request and take_requests; scripts/tests/make-clips.test.js checks
+// these against the Rust source).
+const LOG_STOPPED = /\[Movie\] cancelled at frame \d+/;
+const LOG_NOTHING_TO_STOP = /\[Movie\] cancel requested with no recording running: nothing to stop/;
+// The run log written since byte `from`: the lines this cancel caused, not an
+// earlier shot's.
+function logSince(from) {
+  try {
+    const fd = fs.openSync(LOG, "r");
+    try {
+      const n = Math.max(0, fs.fstatSync(fd).size - from);
+      const buf = Buffer.alloc(n);
+      fs.readSync(fd, buf, 0, n, from);
+      return buf.toString("utf8");
+    } finally {
+      fs.closeSync(fd);
+    }
+  } catch {
+    return "";
+  }
+}
+const fileSize = (p) => {
+  try {
+    return fs.statSync(p).size;
+  } catch {
+    return 0;
+  }
+};
+
+// Give up on a recording without leaving it running into the next shot: take
+// back a request the game has not picked up, ask it to stop one it has (the
+// engine closes ffmpeg, so the part written is a valid file, and puts the HUD
+// back), and wait for its answer. Returns the done file, or null.
+//
+// After the game reads the cancel (2026-10-02 review, both were wrong):
+//   - A done file that arrives says what happened, ok:true included: the
+//     recording finished on its own as the timeout fired, and the caller keeps
+//     it (awaitRecording).
+//   - Stopping a recording blocks the game's frame while ffmpeg flushes the
+//     encoder and its +faststart rewrite copies the whole master to put the
+//     index first, seconds on a long one. This gave up 5 s after the cancel
+//     was read and reported "no reply" for a recording still closing its
+//     file, and the next shot then started against a game that could not
+//     answer. Now only the log's "nothing to stop" (no recording was running)
+//     ends the wait after `graceMs`; otherwise it waits up to `finalizeMs`.
+// A cancel the game never reads in `takeBackMs` is taken back, so it cannot
+// stop the NEXT shot's recording.
+async function cancelRecording({ takeBackMs = 60000, graceMs = 5000, finalizeMs = 300000 } = {}) {
+  const logFrom = fileSize(LOG);
+  clearDone("record_request.json");
+  req("record_cancel.json", {});
+  const cancelFile = path.join(DEBUG, "record_cancel.json");
+  const t0 = Date.now();
+  let consumedAt = null;
+  let noted = false;
+  for (;;) {
+    const d = await waitFile("record_done.json", 500, 250);
+    if (d) {
+      // Ended before the game read the cancel: take it back (a no-op once read).
+      clearDone("record_cancel.json");
+      return d;
+    }
+    if (consumedAt === null) {
+      if (fs.existsSync(cancelFile)) {
+        if (Date.now() - t0 > takeBackMs) {
+          clearDone("record_cancel.json");
+          return null;
+        }
+        continue;
+      }
+      consumedAt = Date.now();
+    }
+    const said = logSince(logFrom);
+    if (LOG_NOTHING_TO_STOP.test(said)) {
+      if (Date.now() - consumedAt > graceMs) return null;
+      continue;
+    }
+    if (!noted && LOG_STOPPED.test(said)) {
+      noted = true;
+      log("recording stopped; waiting for the game to close its file");
+    }
+    if (Date.now() - consumedAt > finalizeMs) return null;
+  }
+}
+
+// The shot's recording as the game reports it, giving up on one that has not
+// answered in `timeoutMs` (cancelRecording). A recording that finished just
+// as the wait ran out is the shot's result (2026-10-02 review: its ok:true
+// done file arrived during the cancel and the shot failed anyway, reported as
+// "cancel: undefined").
+async function awaitRecording(id, timeoutMs, cancelOpts) {
+  const done = await waitFile("record_done.json", timeoutMs, 500, "record_rejected.json");
+  if (done) return done;
+  const waited = `${Math.round(timeoutMs / 60000)} min`;
+  log(`${id}: no answer in ${waited}, cancelling the recording`);
+  const stopped = await cancelRecording(cancelOpts);
+  if (stopped && stopped.ok === true) {
+    log(`${id}: it finished as the wait ran out; keeping it`);
+    return stopped;
+  }
+  return { ok: false, error: `no answer in ${waited} (cancel: ${stopped ? stopped.error : "no reply"})` };
+}
 
 async function park(camera, what) {
   clearDone("camera_done.json");
@@ -211,44 +347,120 @@ async function park(camera, what) {
 // centre (never stretch), then scale with Lanczos. Even sides for yuv420p.
 const cropTo = (a, b) =>
   `crop='trunc(min(iw\\,ih*${a}/${b})/2)*2':'trunc(min(ih\\,iw*${b}/${a})/2)*2'`;
+// BT.709, in the numbers and in the tags, the same as the master
+// (src/engine/movie.rs, BT709_TAGS and ffmpeg_args). Untagged clips were left
+// to each player's guess, and players guess differently (2026-10-02 review).
+// The scale reads and writes BT.709 by name, so a resize never re-converts the
+// matrix whatever ffmpeg would infer, and setparams stamps the frames because
+// ffmpeg 7 takes primaries and transfer from them, not from the flags.
+const BT709_TAGS = ["-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709", "-color_range", "tv"];
+const BT709_STAMP = "setparams=color_primaries=bt709:color_trc=bt709:colorspace=bt709:range=tv";
+const scaleTo = (w, h) =>
+  `scale=${w}:${h}:flags=lanczos:in_color_matrix=bt709:out_color_matrix=bt709:in_range=tv:out_range=tv,format=yuv420p,${BT709_STAMP}`;
 function ff(argv, what) {
   const r = spawnSync(FFMPEG, ["-hide_banner", "-loglevel", "error", "-y", ...argv], { encoding: "utf8" });
   if (r.status !== 0) throw new Error(`${what}: ${(r.stderr || "").trim() || `ffmpeg exited ${r.status}`}`);
 }
+// The three cuts of one master, as ffmpeg argument lists (split out so they
+// can be checked without the game).
+function cutArgs(master, id, seconds, outDir) {
+  const enc = ["-c:v", "libx264", "-preset", "slow", "-crf", "20", "-pix_fmt", "yuv420p", ...BT709_TAGS, "-movflags", "+faststart", "-an"];
+  const wide = path.join(outDir, `${id}-16x9.mp4`);
+  return [
+    { what: `${id} 16x9`, argv: ["-i", master, "-vf", `${cropTo(16, 9)},${scaleTo(1920, 1080)}`, ...enc, wide] },
+    { what: `${id} 9x16`, argv: ["-i", master, "-vf", `${cropTo(9, 16)},${scaleTo(1080, 1920)}`, ...enc, path.join(outDir, `${id}-9x16.mp4`)] },
+    // A JPEG is BT.601 full range by definition, and ffmpeg's JPEG path does
+    // NOT convert from the wide cut's BT.709 on its own: it reread the numbers
+    // as 601 (measured 2026-10-02, ffmpeg 2025-01-22: a flat (200,120,60)
+    // came back (193,115,62), pure green (18,255,9)). Converted by name, they
+    // come back (199,118,56) and (0,254,0), JPEG's own rounding.
+    // Plain yuv420p with the full range said twice, in the scale and as
+    // -color_range for the encoder: yuvj420p is deprecated and drew a warning
+    // (2026-10-02, ffmpeg 2025-01-22: the same JPEG, byte for byte, without
+    // it). -update 1 says one image, not a numbered sequence, which drew the
+    // other warning.
+    { what: `${id} still`, argv: ["-ss", String(Math.max(0, seconds / 2)), "-i", wide, "-frames:v", "1",
+      "-vf", "scale=in_color_matrix=bt709:in_range=tv:out_color_matrix=bt601:out_range=pc,format=yuv420p",
+      "-color_range", "pc", "-q:v", "2", "-update", "1", path.join(outDir, `${id}.jpg`)] },
+  ];
+}
 function cut(master, id, seconds) {
-  const enc = ["-c:v", "libx264", "-preset", "slow", "-crf", "20", "-pix_fmt", "yuv420p", "-movflags", "+faststart", "-an"];
-  const wide = path.join(OUT, `${id}-16x9.mp4`);
-  ff(["-i", master, "-vf", `${cropTo(16, 9)},scale=1920:1080:flags=lanczos`, ...enc, wide], `${id} 16x9`);
-  ff(["-i", master, "-vf", `${cropTo(9, 16)},scale=1080:1920:flags=lanczos`, ...enc, path.join(OUT, `${id}-9x16.mp4`)], `${id} 9x16`);
-  ff(["-ss", String(Math.max(0, seconds / 2)), "-i", wide, "-frames:v", "1", "-q:v", "2", path.join(OUT, `${id}.jpg`)], `${id} still`);
+  for (const c of cutArgs(master, id, seconds, OUT)) ff(c.argv, c.what);
+}
+
+// ── the game ────────────────────────────────────────────────────────────────
+// Start the rig game so that it cannot outlive this script (2026-10-02 review:
+// Ctrl+C on make-clips left the hidden game, and its ffmpeg, running, and the
+// next run then refused to start because a HumanityOS instance existed). Two
+// layers, each enough on its own:
+//   1. NOT detached. Node puts every child it spawns without `detached` in a
+//      Windows job object that is killed when node ends, however it ends:
+//      Ctrl+C, a closed console, a hard kill. `detached: true` was what took
+//      the game out of that job. ffmpeg, the game's own child, is not in the
+//      job (node lets grandchildren break away), but it reads end-of-input
+//      when the game dies, finishes a playable file and exits.
+//   2. Ctrl+C (SIGINT), Ctrl+Break (SIGBREAK) and a closed console (SIGHUP)
+//      kill the game's whole tree and the rig's processes, then exit 130.
+//      The game is a windowed program, so a Ctrl+C in this console never
+//      reaches it; this handler is what passes it on.
+// Seen 2026-10-02 with real console events against a windowed stand-in for
+// the game (wscript.exe with a hidden child): Ctrl+C, Ctrl+Break and closing
+// the console each stopped the stand-in and its child, and exited 130; the old
+// wiring (detached, no handlers) left both running every time. On Ctrl+C the
+// handlers alone stopped both, and the job alone stopped the stand-in (its
+// child, a ping that reads no input, stayed, where ffmpeg exits). A hard kill
+// of node now takes the stand-in with it. ffmpeg given end-of-input by a
+// killed parent wrote a valid file of every frame it had been sent.
+// Background launch is unchanged: src/engine/launch_focus.rs decides it from
+// HUMANITY_NO_FOCUS and the rig's no_focus.txt before it looks at the parent
+// process, and the parent is node with or without `detached`. Do NOT add
+// windowsHide: it starts a windowed program hidden.
+function launchGame(exe, argv, { cwd, env }) {
+  const child = spawn(exe, argv, { cwd, stdio: "ignore", env });
+  const g = { pid: child.pid, exit: null };
+  child.on("exit", (code, signal) => {
+    g.exit = signal ? `was ended (${signal})` : `exited (code ${code})`;
+  });
+  child.on("error", (e) => {
+    g.exit = `could not run (${e.message})`;
+  });
+  let killed = false;
+  g.kill = () => {
+    if (killed) return;
+    killed = true;
+    // /T takes ffmpeg with it. Skipped once the game has exited: its pid may
+    // already belong to something else.
+    if (!g.exit && g.pid) {
+      try {
+        execSync(`taskkill /PID ${g.pid} /T /F`, { stdio: "ignore" });
+      } catch {}
+    }
+    killRigProcesses();
+  };
+  process.on("exit", g.kill);
+  for (const sig of ["SIGINT", "SIGBREAK", "SIGHUP"]) {
+    process.on(sig, () => {
+      log(`${sig}: stopping the game and its recording`);
+      g.kill();
+      process.exit(130);
+    });
+  }
+  return g;
 }
 
 // ── the run ─────────────────────────────────────────────────────────────────
 async function main() {
+  const clips = preflight();
   setupRig();
   fs.mkdirSync(OUT, { recursive: true });
   const manifest = { kind: "make-clips", stamp, exe: EXE, clips: [], panics: 0 };
   const save = () => fs.writeFileSync(path.join(OUT, "manifest.json"), JSON.stringify(manifest, null, 2));
 
   log(`launching ${path.basename(EXE)} in the background rig`);
-  const child = spawn(path.join(RIG, "HumanityOS.exe"), [], {
+  game = launchGame(path.join(RIG, "HumanityOS.exe"), [], {
     cwd: RIG,
-    detached: true,
-    stdio: "ignore",
     env: { ...process.env, HUMANITY_NO_FOCUS: "1" },
   });
-  const pid = child.pid;
-  child.unref();
-  let killed = false;
-  const kill = () => {
-    if (killed) return;
-    killed = true;
-    try {
-      execSync(`taskkill /PID ${pid} /T /F`, { stdio: "ignore" });
-    } catch {}
-    killRigProcesses();
-  };
-  process.on("exit", kill);
 
   let failed = 0;
   try {
@@ -289,12 +501,15 @@ async function main() {
         const rec = Object.assign({ fps: 30 }, c.record, { out: `debug/clip_${c.id}.mp4` });
         const frames = Math.round(((rec.warmup_s ?? 2) + (rec.seconds ?? 8)) * rec.fps);
         clearDone("record_done.json");
+        clearDone("record_rejected.json");
         req("record_request.json", rec);
         log(`recording ${c.id} (${rec.seconds ?? 8} s)...`);
         // Generous: a heavy frame at full size can take a second to draw.
-        const done = await waitFile("record_done.json", Math.max(180000, frames * 2500), 500);
+        const timeoutMs = Math.max(180000, frames * 2500);
+        const done = await awaitRecording(c.id, timeoutMs);
         req("showcase_request.json", { time_scale: "0" });
-        if (!done || done.ok !== true) throw new Error(`recording: ${done ? done.error : "no record_done.json"}`);
+        if (done.ok !== true) throw new Error(`recording: ${done.error}`);
+        if (done.ignored) log(`note: ${c.id} asked for ${done.ignored.join(", ")}, which a path overrides`);
 
         const master = path.join(OUT, `${c.id}-master.mp4`);
         fs.copyFileSync(path.join(RIG, done.path), master);
@@ -308,7 +523,7 @@ async function main() {
         failed++;
         manifest.clips.push({ id: c.id, title: c.title, ok: false, error: e.message });
         log(`FAIL ${c.id}: ${e.message}`);
-        if (/panicked/.test(e.message)) break;
+        if (e.fatal) break;
       }
       save();
     }
@@ -319,7 +534,7 @@ async function main() {
 
   manifest.panics = panicCount();
   save();
-  kill();
+  game.kill();
   // A plain index to post from: what each file is and a first line for it.
   const lines = [`# HumanityOS clips, ${stamp}`, ""];
   for (const c of manifest.clips) {
@@ -336,4 +551,5 @@ async function main() {
   process.exit(failed || manifest.panics ? 2 : 0);
 }
 
-main();
+if (require.main === module) main();
+else module.exports = { launchGame, cutArgs, BT709_TAGS, cancelRecording, awaitRecording, useRigDirs, findFfmpeg, LOG_STOPPED, LOG_NOTHING_TO_STOP };

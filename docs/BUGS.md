@@ -2375,7 +2375,9 @@ is over 2 h old or stamped in the future (exit 7), when the copy's SHA-256
 differs from the VPS file's (a pull taken mid-seal, exit 8), or when it is
 byte-identical to the previous pull (exit 6). Each failure was produced on
 purpose before trusting it; a real run then pulled a current snapshot whose
-hash matches the VPS. Old plain copies are left for the operator to delete.
+hash matches the VPS. The old plain copies (15 on the VPS from 23 and 24
+August, 60 stale local ones) were deleted on 2026-10-02 at the operator's word,
+the VPS ones with shred.
 **Still needed, operator only:** a copy of `/opt/Humanity/data/backup.key`
 off the VPS; without it no pulled backup can be opened.
 
@@ -2461,3 +2463,114 @@ without its DM key is announced with the key on file (web Chat also keeps a
 known key over an empty one), so no open Chat loses the ability to send them
 DMs. Test `closing_one_of_two_sockets_keeps_the_person_signed_in` runs the
 real relay and the real handshake; seen red without the fix.
+
+## BUG-113: desktop trades never moved items, and the Trade page never listed any (FIXED v0.1437.0)
+
+**Symptom:** a finished trade changed nothing in the desktop backpack; the
+desktop Trade page always said "No trades"; raw `__trade_data__:{...}` lines
+appeared in chat. Found by the review of v0.1428.0 to v0.1436.0.
+
+**Root cause:** the relay sends every private message as `type: "system"`
+(relay.rs, the send loop), but the desktop client handled the trade wrappers
+only in its `"private"` arm, which never runs. The v0.1433.0 tests called
+`settle_completed` directly, so they could not see it: a check that could
+not fail.
+
+**Fix:** one router, `trade::route_trade_frame`, called from both arms, and
+a test that feeds the frame the client really receives (a serialized
+`RelayMessage::System` around a real `TradeData`), seen red.
+
+## BUG-114: confirming a trade did not hold the offered items (FIXED v0.1437.0)
+
+**Symptom:** after confirming, a player could use or store the offered items;
+when the trade completed the partner still received them, and the giver was
+told they "left your backpack".
+
+**Fix (client side; true escrow needs server-held inventories):** every
+frame, with the page open or not, a confirmed offer the backpack no longer
+covers is re-sent, which makes the relay clear both confirmations, and the
+player is told why. Settling takes only what the backpack still holds and
+says so honestly; the inventory step reports a shortfall instead of
+ignoring it.
+
+## BUG-115: a player away when a trade completed never settled their side (FIXED v0.1437.0)
+
+**Symptom:** the completion notice is sent once; a player offline or
+reconnecting missed it, and nothing settled their side later.
+
+**Fix:** a trade settles whenever a completed record reaches the client (a
+trade update, the trade list, or the notice); settled ids are kept with the
+save (`TradeSettlements`, `WorldSave.settled_trades`); the list is requested
+once per connection, page open or not. A second review found that a trade
+settled at the main menu was lost when Play then loaded the save: every
+frame now settles any completed trade the loaded world does not know, sized
+against the loaded backpack, announced once. On a server with the game
+switched off, the automatic request's refusal is no longer printed in chat.
+Known gap: settled ids live per save, so a completed trade can replay into
+another home of the same identity.
+
+## BUG-116: quitting the game with a web tab open left the avatar and the voice seat behind (FIXED v0.1437.0)
+
+**Symptom:** a regression from BUG-112: the game and voice departures waited
+for the identity's LAST socket, so quitting the desktop game while web Chat
+stayed open left the avatar in the shared world and the person in voice.
+
+**Fix:** the relay records which socket holds the game seat and which holds
+the voice seat (`LiveConns`, `relay/handlers/live_conns.rs`) and gives those
+up when THAT socket closes. Because a reconnecting voice client's new socket
+signs in before the old one is noticed closed, both clients now re-send
+their voice join once the new socket is accepted, and the relay moves the
+seat to it without a leave and join; the departure is decided under the
+voice lock so a re-join cannot slip between. Real-relay tests for each case,
+seen red.
+
+## BUG-117: a socket that signed in without a name showed the person as "Anonymous", or under an old name (FIXED v0.1437.0)
+
+**Symptom:** the web Tasks tab signs in without a name; the person showed
+nameless to others. The first fix fell back to the oldest name a key ever
+registered (undoing renames), and the second trusted the member row even for
+a revoked device, which would have let a revoked laptop come back as its old
+owner's name.
+
+**Fix:** a nameless socket keeps the live registration's name, or the
+person's current name: the member row's name only while that name is still
+registered to the key, else the newest registered name (`Storage::
+current_name_for_key`). Status text is cleared on disconnect under the name
+the session used. Tests for a rename and a revoked device, seen red.
+
+## BUG-118: the clip maker left the game running after Ctrl+C (FIXED v0.1437.0)
+
+**Fix:** `scripts/make-clips.js` kills the game's process tree on Ctrl+C,
+Ctrl+Break or a closed console (exit 130), notices the game exiting
+mid-shot, and cancels a shot it gives up on (`debug/record_cancel.json`, which
+finishes the file cleanly). A second record request is refused without
+touching the running one's done file; ffmpeg's own error text is kept; clips
+are tagged and converted as BT.709. Tests in `scripts/tests/make-clips.test.js`
+(in `just rig-tests`).
+
+## BUG-119: stall roofs and machine ducts were see-through from below (FIXED v0.1437.0)
+
+**Root cause:** a raised part skipped its underside whenever ANY part ended at
+its height, so a roof on posts and a duct on its riser lost theirs.
+
+**Fix:** an underside is skipped only when the part beneath covers this one's
+whole footprint (a machine on its plinth). Also: a narrow stall or cradle
+footprint could panic (`f32::clamp` with min above max), and the
+faces-point-out test now checks each face points away from the box centre.
+
+## BUG-120: other players' heads sat inside their bodies, and the figure floated (FIXED v0.1437.0)
+
+**Fix:** `net_route::remote_figure_parts` builds the figure up from the floor
+under the eye: the body box from the feet to the shoulders, the head on top,
+the hair over the head, all scaled by the player's height. lib.rs builds the
+meshes from the same constants. (The crew figures still have the old fault:
+see PRIORITIES.)
+
+## BUG-121: a long server message could crash the desktop app (FIXED v0.1437.0)
+
+**Root cause:** a debug preview cut every system message at byte 300
+(`&raw[..300]`), which panics when byte 300 falls inside a multi-byte
+character (an accented name, an emoji). Found by the trades fix agent.
+
+**Fix:** cut at a character boundary (`frame_ws_poll::clip`); test seen red
+with the old slicing.

@@ -219,7 +219,61 @@ pub fn extract_world_save(world: &hecs::World) -> WorldSave {
     // tank's litres, each vessel's contents, with any saved contents still
     // held for world entry (systems::machine_levels).
     save.machine_levels = crate::systems::machine_levels::levels(world);
+    // The relay trades this backpack has settled (2026-10-02), in the same
+    // save as the backpack they changed.
+    save.settled_trades = settled_trades(world);
     save
+}
+
+/// The ids of the trades the player's backpack has settled, sorted
+/// (systems::inventory::TradeSettlements). Trades still queued to settle are
+/// left out on purpose: their items have not moved yet, so a save that listed
+/// them would lose them at a restart.
+///
+/// KNOWN GAP (2026-10-02): the ids live per SAVE, not per identity, so a
+/// completed trade replays into any other home of the same identity whose save
+/// does not list it (load that home, and the trade's items arrive there too).
+/// That stays until a per-identity trade ledger exists.
+fn settled_trades(world: &hecs::World) -> Vec<String> {
+    world
+        .query::<(&crate::systems::inventory::TradeSettlements, &Controllable)>()
+        .iter()
+        .next()
+        .map(|(_e, (ts, _))| ts.settled.iter().cloned().collect())
+        .unwrap_or_default()
+}
+
+/// Put a save's settled trades onto the player (2026-10-02). `rewound`: the
+/// backpack was just replaced by the save's, so the save's set REPLACES the
+/// live one (a trade settled after that save no longer has its items here and
+/// must settle again). Otherwise the backpack was left alone and the save's
+/// set is ADDED to the live one, and a trade still queued keeps its moves
+/// unless the save already counts it settled.
+///
+/// "Must settle again" is done by `gui::pages::trade::tick`, which settles
+/// every completed trade in hand that the backpack has not (2026-10-02, round
+/// 2). The relay connects at the main menu, so a trade could settle there and
+/// then be undone by Play loading the save; nothing settled it again, and the
+/// items were lost. For the same reason a rewind DROPS the queued moves: they
+/// were sized against the backpack before the load, and `tick` queues them
+/// afresh against the one just loaded.
+fn restore_settled_trades(world: &mut hecs::World, ids: &[String], rewound: bool) {
+    use crate::systems::inventory::TradeSettlements;
+    let Some(player) = world.query::<(&Inventory, &Controllable)>().iter().next().map(|(e, _)| e) else {
+        return;
+    };
+    if world.get::<&TradeSettlements>(player).is_err() {
+        let _ = world.insert_one(player, TradeSettlements::default());
+    }
+    if let Ok(mut ts) = world.get::<&mut TradeSettlements>(player) {
+        if rewound {
+            ts.settled.clear();
+            ts.pending.clear();
+        }
+        ts.settled.extend(ids.iter().cloned());
+        let done = ts.settled.clone();
+        ts.pending.retain(|(id, _)| !done.contains(id));
+    }
 }
 
 /// Apply a loaded WorldSave's inventory + skills + vehicles + crops onto the
@@ -283,6 +337,8 @@ pub fn apply_save_to_world(world: &mut hecs::World, save: &WorldSave) {
             break;
         }
     }
+    // Settled trades (2026-10-02) travel with the backpack just rebuilt.
+    restore_settled_trades(world, &save.settled_trades, true);
     // Quests (v0.748): a saved tracker replaces the fresh spawn default
     // (which auto-accepted gs_first_steps); None keeps the fresh start.
     if let Some(saved) = &save.quests {
@@ -481,12 +537,19 @@ pub fn apply_identity(world: &mut hecs::World, save: &WorldSave) {
         *outfit = save.outfit.clone();
         break;
     }
+    // Settled trades (2026-10-02) are kept even here. A fresh home discards
+    // what a trade brought along with the rest of the session, as the setting
+    // says; replaying every old trade into each fresh home instead would make
+    // traded goods the one thing that carried over.
+    restore_settled_trades(world, &save.settled_trades, false);
 }
 
 /// The save to write when progress is NOT being kept: the existing save
 /// with only the character replaced, so the progress on disk survives
 /// untouched for when the setting is turned off. With no save yet, a
-/// character-only save marked `progress_saved: false`.
+/// character-only save marked `progress_saved: false`. The settled trades
+/// are added too (2026-10-02): they are not progress but a record of what the
+/// relay already settled, kept so a fresh home never replays an old trade.
 pub fn identity_only_save(existing: Option<WorldSave>, world: &hecs::World) -> WorldSave {
     let current = extract_world_save(world);
     let mut save = existing.unwrap_or_else(|| {
@@ -497,6 +560,12 @@ pub fn identity_only_save(existing: Option<WorldSave>, world: &hecs::World) -> W
     save.character_name = current.character_name;
     save.appearance = current.appearance;
     save.outfit = current.outfit;
+    // And the settled trades, added to what the save had (see apply_identity).
+    let mut settled = std::mem::take(&mut save.settled_trades);
+    settled.extend(current.settled_trades);
+    settled.sort();
+    settled.dedup();
+    save.settled_trades = settled;
     save
 }
 
@@ -2257,5 +2326,83 @@ mod tests {
             away_notice(&all).unwrap(),
             "While you were away (10 min), 2 plants kept growing, 1 craft kept working, 3 animals were ready to collect from again and the drone brought home 1 haul."
         );
+    }
+
+    /// FINDING 3 (2026-10-02): the trades a backpack has settled are saved
+    /// with that backpack, so a restart can neither settle one twice nor lose
+    /// one. Seen red: with the `save.settled_trades = settled_trades(world)`
+    /// line removed from `extract_world_save`, the save carried no record of
+    /// t-1 (the first assert), so a restart would settle it again.
+    #[test]
+    fn settled_trades_ride_the_save_with_the_backpack() {
+        use crate::systems::inventory::{TradeSettlements, TransferOp};
+        let player = |world: &mut hecs::World| {
+            world.spawn((
+                Controllable,
+                Inventory::new(16),
+                PlayerSkills::new(),
+                crate::ecs::components::Name("Astra".to_string()),
+                crate::ecs::components::Appearance::default(),
+                crate::ecs::components::Outfit::default(),
+            ))
+        };
+        let settled = |world: &hecs::World, e| world.get::<&TradeSettlements>(e).map(|t| (*t).clone()).unwrap_or_default();
+        let mut world = hecs::World::new();
+        let p = player(&mut world);
+        let mut ts = TradeSettlements::default();
+        ts.settled.insert("t-1".into());
+        // Queued but not yet applied: its items have not moved, so it must
+        // not be saved as settled (it settles again after a restart).
+        ts.pending.push(("t-2".into(), vec![TransferOp { item_id: "rope_0".into(), qty: 1, add: true, ..Default::default() }]));
+        world.insert_one(p, ts).unwrap();
+
+        let save = extract_world_save(&world);
+        assert_eq!(save.settled_trades, vec!["t-1".to_string()]);
+        // Through the file format and back.
+        let text = serde_json::to_string(&save).unwrap();
+        let save: WorldSave = serde_json::from_str(&text).unwrap();
+
+        // A restart: a fresh player, the save applied.
+        let mut fresh = hecs::World::new();
+        let q = player(&mut fresh);
+        apply_save_to_world(&mut fresh, &save);
+        assert_eq!(settled(&fresh, q).settled.iter().collect::<Vec<_>>(), vec!["t-1"]);
+        // The relay's list brings t-1 back as completed: nothing moves again.
+        let mut gs = crate::gui::GuiState::default();
+        gs.profile_public_key = "bob".into();
+        gs.trades.push(crate::gui::GuiTrade {
+            id: "t-1".into(),
+            initiator_key: "alice".into(),
+            recipient_key: "bob".into(),
+            status: "completed".into(),
+            initiator_items: vec![crate::gui::GuiTradeItem {
+                name: "Hammer".into(),
+                quantity: 1,
+                reference_id: Some("hammer_0".into()),
+                ..Default::default()
+            }],
+            ..Default::default()
+        });
+        assert!(crate::gui::pages::trade::settle_completed(&mut gs, &mut fresh, "t-1", |_: &str| true).is_none());
+        assert!(settled(&fresh, q).pending.is_empty());
+
+        // A save from before the field loads with none settled.
+        let mut old: serde_json::Value = serde_json::from_str(&text).unwrap();
+        old.as_object_mut().unwrap().remove("settled_trades");
+        let old: WorldSave = serde_json::from_value(old).unwrap();
+        assert!(old.settled_trades.is_empty());
+
+        // A fresh home ("Start every session from the default home") keeps
+        // the record too, added to what this session settled, so an old trade
+        // is never replayed into a new default backpack.
+        let mut live = hecs::World::new();
+        let r = player(&mut live);
+        let mut ts = TradeSettlements::default();
+        ts.settled.insert("t-5".into());
+        live.insert_one(r, ts).unwrap();
+        apply_identity(&mut live, &save);
+        assert_eq!(settled(&live, r).settled.iter().collect::<Vec<_>>(), vec!["t-1", "t-5"]);
+        let kept = identity_only_save(Some(save.clone()), &live);
+        assert_eq!(kept.settled_trades, vec!["t-1".to_string(), "t-5".to_string()]);
     }
 }

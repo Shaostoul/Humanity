@@ -317,8 +317,11 @@ async function ensureTaskWs() {
   ws.addEventListener('open', () => {
     // A placeholder name is never sent: the relay registers any real-looking
     // name to the key, so a made-up default would claim a name for this person.
-    // No name at all binds the socket without registering anything.
-    const name = localStorage.getItem('humanity_name') || null;
+    // The name is the one Chat saved in this browser ('humanity_name', written
+    // by /chat/app.js and the profile editor). With none, the relay signs this
+    // socket in under the name already registered to the key (2026-10-02), so
+    // the board never shows the person to others as nameless.
+    const name = (localStorage.getItem('humanity_name') || '').trim() || null;
     ws.send(JSON.stringify({ type: 'identify', public_key: id.dilithiumPublicHex, display_name: name }));
   });
   ws.addEventListener('message', e => {

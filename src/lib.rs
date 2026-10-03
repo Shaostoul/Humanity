@@ -9103,15 +9103,20 @@ mod native_app {
 
                     // ── Remote players (multiplayer co-presence, v0.472) ──
                     // Draw a simple humanoid marker (body + head, a distinct teal) at each remote
-                    // player's interpolated position. The sent position is the eye/camera height, so
-                    // the head sits there and the body hangs below it. The name floats over it
-                    // (engine::net_route::nameplate_labels, 2026-09-28).
+                    // player's interpolated position. The sent position is their eye; the figure
+                    // stands on the floor 1.7 m below it and is built UP from the feet, body box
+                    // to the shoulders, head on top (engine::net_route::remote_figure_parts,
+                    // 2026-10-02). The name floats over it (net_route::nameplate_labels).
                     if !showroom {
                         if state.remote_avatar.is_none() {
+                            // Sized by the constants remote_figure_parts places the parts by
+                            // (2026-10-02): the box's base at its origin, the sphere centred on
+                            // it, so a change to either size moves the parts with it.
+                            use crate::engine::net_route::{FIGURE_BODY_MESH_H_M, FIGURE_HEAD_MESH_R_M};
                             let body = state.renderer.add_mesh(
-                                Mesh::box_xyz(&state.renderer.device, 0.42, 1.4, 0.26));
+                                Mesh::box_xyz(&state.renderer.device, 0.42, FIGURE_BODY_MESH_H_M, 0.26));
                             let head = state.renderer.add_mesh(
-                                Mesh::sphere(&state.renderer.device, 0.17, 12, 14));
+                                Mesh::sphere(&state.renderer.device, FIGURE_HEAD_MESH_R_M, 12, 14));
                             // Teal, slightly emissive so a remote player reads at a glance.
                             let mat = state.renderer.add_material_full(
                                 [0.15, 0.75, 0.85, 1.0], 0.0, 0.5, 1.0, 0.25);

@@ -62,10 +62,7 @@ pub(crate) fn poll_relay_messages(state: &mut EngineState) {
             // Network overlay (v0.482): count every received frame.
             state.gui_state.ws_msgs_in = state.gui_state.ws_msgs_in.saturating_add(1);
             // Log raw message to debug console (truncate long messages)
-            {
-                let preview = if raw.len() > 300 { format!("{}...", &raw[..300]) } else { raw.clone() };
-                crate::debug::push_debug(format!("WS <<< {}", preview));
-            }
+            crate::debug::push_debug(format!("WS <<< {}", clip(&raw, 300)));
             if let Ok(val) = serde_json::from_str::<serde_json::Value>(&raw) {
                 let msg_type = val.get("type").and_then(|t| t.as_str()).unwrap_or("unknown");
                 log::debug!("WS recv: type={}", msg_type);
@@ -220,7 +217,13 @@ pub(crate) fn poll_relay_messages(state: &mut EngineState) {
                         state.gui_state.server_connected = true;
                         // First post-bind message: the identify handshake is
                         // complete, game messages will now be routed (v0.794).
+                        // Every new socket resets the flag, so false here
+                        // means this is that socket's identify being accepted.
+                        let first_on_socket = !state.gui_state.ws_identified;
                         state.gui_state.ws_identified = true;
+                        if let Some(join) = voice_rejoin_frame(&mut state.gui_state, first_on_socket) {
+                            if let Some(ref c) = state.gui_state.ws_client { c.send(&join); }
+                        }
                         // Fetch this server's real donation info (GET /api/server-info's
                         // `funding` field) so the Donate page shows the connected server's
                         // actual addresses instead of relying on the user (or a self-hosting
@@ -337,17 +340,9 @@ pub(crate) fn poll_relay_messages(state: &mut EngineState) {
                     }
                     Some("channel_list") => {
                         if let Some(channels) = val.get("channels").and_then(|v| v.as_array()) {
-                            // Preserve unread marks across rebuilds — channel_list
-                            // re-arrives on any channel admin change and would
-                            // otherwise clear every dot. (v0.718)
-                            let unread_ids: std::collections::HashSet<String> = state
-                                .gui_state
-                                .chat_channels
-                                .iter()
-                                .filter(|c| c.unread)
-                                .map(|c| c.id.clone())
-                                .collect();
-                            state.gui_state.chat_channels.clear();
+                            // Rebuilt from scratch; the marks the client keeps
+                            // are carried over below (`carry_channel_marks`).
+                            let old_channels = std::mem::take(&mut state.gui_state.chat_channels);
                             for ch in channels {
                                 let id = ch.get("id")
                                     .or_else(|| ch.get("name"))
@@ -383,7 +378,6 @@ pub(crate) fn poll_relay_messages(state: &mut EngineState) {
                                 let local_only = ch.get("local_only")
                                     .and_then(|v| v.as_bool())
                                     .unwrap_or(false);
-                                let unread = unread_ids.contains(&id);
                                 state.gui_state.chat_channels.push(
                                     crate::gui::ChatChannel {
                                         id,
@@ -396,10 +390,11 @@ pub(crate) fn poll_relay_messages(state: &mut EngineState) {
                                         federated,
                                         local_only,
                                         voice_participants: Vec::new(),
-                                        unread,
+                                        unread: false,
                                     },
                                 );
                             }
+                            carry_channel_marks(&old_channels, &mut state.gui_state.chat_channels);
                         }
                         // Sealed-sender DMs: channel_list only arrives on a
                         // BOUND socket (post identify-challenge), so this is
@@ -535,8 +530,11 @@ pub(crate) fn poll_relay_messages(state: &mut EngineState) {
                     }
                     Some("system") => {
                         if let Some(msg) = val.get("message").and_then(|v| v.as_str()) {
-                            log::info!("Relay system message: {}", msg);
-                            crate::debug::push_debug(format!("System: {}", msg));
+                            // Clipped (2026-10-02): a trade list arrives here
+                            // on every connect and can run to many KB, all of
+                            // which used to land in run.log.
+                            log::info!("Relay system message: {}", clip(msg, 160));
+                            crate::debug::push_debug(format!("System: {}", clip(msg, 160)));
                             // Relay throttled this connection (per-IP identify rate
                             // limit). Mirror the web client: back the reconnect off
                             // PAST the 60s window. Without this the native looped every
@@ -561,6 +559,14 @@ pub(crate) fn poll_relay_messages(state: &mut EngineState) {
                             if let Some(payload) = msg.strip_prefix("__game__:") {
                                 let payload = payload.to_string();
                                 route_game_message(state, &payload);
+                                continue;
+                            }
+                            // P2P trades (2026-10-02): the relay sends every
+                            // targeted Private as a system frame, so the trade
+                            // wrappers arrive HERE; they only ever reached the
+                            // private arm below, which never runs, and so were
+                            // printed into chat. The Trade page takes them.
+                            if route_trade(state, &val) {
                                 continue;
                             }
                             if msg.starts_with("__sync_data__")
@@ -1577,57 +1583,8 @@ pub(crate) fn poll_relay_messages(state: &mut EngineState) {
                                 route_game_message(state, &payload);
                                 continue;
                             }
-                            // P2P trades (v0.756) ride targeted private
-                            // wrappers (same delivery web consumes) -
-                            // route them to the Trade page, never chat.
-                            if let Some(payload) = msg.strip_prefix("__trade_data__:") {
-                                if let Ok(v) = serde_json::from_str::<serde_json::Value>(payload) {
-                                    if let Some(t) = v.get("trade") {
-                                        let gt = crate::gui::GuiTrade::from_relay_json(t);
-                                        if let Some(slot) = state
-                                            .gui_state
-                                            .trades
-                                            .iter_mut()
-                                            .find(|x| x.id == gt.id)
-                                        {
-                                            *slot = gt;
-                                        } else {
-                                            state.gui_state.trades.insert(0, gt);
-                                        }
-                                    }
-                                }
-                                continue;
-                            }
-                            if let Some(payload) = msg.strip_prefix("__trade_list__:") {
-                                if let Ok(v) = serde_json::from_str::<serde_json::Value>(payload) {
-                                    if let Some(arr) = v.get("trades").and_then(|x| x.as_array()) {
-                                        state.gui_state.trades = arr
-                                            .iter()
-                                            .map(crate::gui::GuiTrade::from_relay_json)
-                                            .collect();
-                                    }
-                                }
-                                continue;
-                            }
-                            if let Some(payload) = msg.strip_prefix("__trade_complete__:") {
-                                if let Ok(v) = serde_json::from_str::<serde_json::Value>(payload) {
-                                    if let Some(tid) = v.get("trade_id").and_then(|x| x.as_str()) {
-                                        if let Some(t) = state
-                                            .gui_state
-                                            .trades
-                                            .iter_mut()
-                                            .find(|x| x.id == tid)
-                                        {
-                                            t.status = "completed".to_string();
-                                        }
-                                        // Move the items (2026-09-29): my offer leaves
-                                        // the backpack, theirs arrives, once per trade.
-                                        let reg = state.data_store.get::<crate::systems::inventory::ItemRegistry>("item_registry");
-                                        let known = |id: &str| reg.map_or(true, |r| r.items.contains_key(id));
-                                        let msg = crate::gui::pages::trade::settle_completed(&mut state.gui_state, tid, known);
-                                        state.gui_state.trade_status = msg;
-                                    }
-                                }
+                            // P2P trades: same bridge as the system arm.
+                            if route_trade(state, &val) {
                                 continue;
                             }
                             // Filter out profile validation noise (not relevant to chat)
@@ -1714,5 +1671,125 @@ pub(crate) fn poll_relay_messages(state: &mut EngineState) {
                 state.gui_state.ws_reconnect_timer = 0.5;
             }
         }
+    }
+
+    // Trades with the Trade page closed (2026-10-02): the list on every
+    // connect, confirmations the backpack no longer covers withdrawn, and a
+    // completed trade a save load undid settled again into the loaded home.
+    let reg = state.data_store.get::<crate::systems::inventory::ItemRegistry>("item_registry");
+    let known = |id: &str| reg.map_or(true, |r| r.items.contains_key(id));
+    crate::gui::pages::trade::tick(&mut state.gui_state, &mut state.game_world.world, known);
+}
+
+/// Hand a `system` or `private` frame to the Trade bridge; true when it
+/// was a trade wrapper. `known` says whether this game has an item, so a
+/// line naming one it does not know is not added to the backpack.
+fn route_trade(state: &mut EngineState, val: &serde_json::Value) -> bool {
+    let reg = state.data_store.get::<crate::systems::inventory::ItemRegistry>("item_registry");
+    let known = |id: &str| reg.map_or(true, |r| r.items.contains_key(id));
+    crate::gui::pages::trade::route_trade_frame(&mut state.gui_state, &mut state.game_world.world, known, val)
+}
+
+/// The marks this client keeps on a channel across a `channel_list` rebuild,
+/// which re-arrives on every reconnect and every channel admin change: the
+/// unread dot (v0.718), and the joined-voice flag (2026-10-02), which the
+/// rebuild used to clear while the call went on, so the next reconnect did not
+/// know to re-join (`voice_rejoin_frame`).
+fn carry_channel_marks(old: &[crate::gui::ChatChannel], new: &mut [crate::gui::ChatChannel]) {
+    for c in new.iter_mut() {
+        if let Some(o) = old.iter().find(|o| o.id == c.id) {
+            c.unread = o.unread;
+            c.voice_joined = o.voice_joined;
+        }
+    }
+}
+
+/// A new socket's identify was accepted (2026-10-02). If we were in a voice
+/// room on this server, say the join again: the relay records which socket
+/// holds each person's place in voice, and the old socket's close takes the
+/// place with it, dropping us from every roster mid-call. The join moves the
+/// place to this socket, or puts us back if the relay already saw the close.
+/// The WebRTC manager rode the dead socket and was torn down, so the
+/// incumbents are dialed again on the first roster that lists us. Only on the
+/// server we joined on: a server switch parks that channel list, joined flag
+/// and all. Returns the frame to send.
+fn voice_rejoin_frame(gs: &mut crate::gui::GuiState, first_on_socket: bool) -> Option<String> {
+    let room = gs.voice_active_room.clone().filter(|_| first_on_socket)?;
+    if !gs.chat_channels.iter().any(|c| c.id == room && c.voice_joined) {
+        return None;
+    }
+    gs.voice_incumbents_captured = false;
+    Some(serde_json::json!({ "type": "voice_room", "action": "join", "room_id": room }).to_string())
+}
+
+/// At most `max` bytes of `s` for a log line, cut back to a character
+/// boundary, with "..." when anything was cut (2026-10-02). The debug preview
+/// used to slice `&raw[..300]`, which panics, and so crashed the app, whenever
+/// byte 300 fell inside a multi-byte character (an accented name, an emoji).
+fn clip(s: &str, max: usize) -> std::borrow::Cow<'_, str> {
+    if s.len() <= max {
+        return s.into();
+    }
+    let mut end = max;
+    while !s.is_char_boundary(end) {
+        end -= 1;
+    }
+    format!("{}...", &s[..end]).into()
+}
+
+#[cfg(test)]
+mod clip_tests {
+    /// Seen red, 2026-10-02: with `clip`'s body put back to the old
+    /// `format!("{}...", &s[..max])`, this panicked ("byte index 300 is not a
+    /// char boundary") on the frame whose byte 300 sits inside the e-acute.
+    #[test]
+    fn clip_cuts_at_a_character_boundary_and_keeps_short_lines_whole() {
+        let frame = format!("{}\u{e9}{}", "a".repeat(299), "b".repeat(50));
+        assert_eq!(super::clip(&frame, 300), format!("{}...", "a".repeat(299)));
+        assert_eq!(super::clip("short", 300), "short");
+        let list = format!("__trade_list__:{}", "x".repeat(5000));
+        assert_eq!(super::clip(&list, 160).len(), 163, "a long trade list is clipped for run.log");
+    }
+}
+
+#[cfg(test)]
+mod voice_rejoin_tests {
+    use crate::gui::{ChatChannel, GuiState};
+
+    fn in_voice(room: &str) -> GuiState {
+        let mut gs = GuiState::default();
+        gs.voice_active_room = Some(room.to_string());
+        gs.voice_incumbents_captured = true;
+        gs.chat_channels.push(ChatChannel { id: room.into(), voice_joined: true, ..Default::default() });
+        gs
+    }
+
+    /// Seen red 2026-10-02 by making `voice_rejoin_frame` return None at once:
+    /// "a join" failed, as it did for every native reconnect before the fix.
+    #[test]
+    fn a_new_socket_in_a_call_rejoins_and_dials_again() {
+        let mut gs = in_voice("lounge");
+        let join: serde_json::Value = serde_json::from_str(&super::voice_rejoin_frame(&mut gs, true).expect("a join")).unwrap();
+        assert_eq!((join["type"].as_str(), join["action"].as_str(), join["room_id"].as_str()), (Some("voice_room"), Some("join"), Some("lounge")));
+        assert!(!gs.voice_incumbents_captured, "the incumbents are dialed again");
+        assert!(super::voice_rejoin_frame(&mut in_voice("lounge"), false).is_none(), "a later peer_list is a broadcast");
+        let mut elsewhere = in_voice("lounge");
+        elsewhere.chat_channels.clear(); // switched server: that list is parked
+        assert!(super::voice_rejoin_frame(&mut elsewhere, true).is_none(), "not on another server");
+    }
+
+    /// The joined flag must survive a channel_list rebuild, or the call's
+    /// second reconnect finds nothing to re-join. Seen red 2026-10-02 by
+    /// deleting the `voice_joined` line from `carry_channel_marks`.
+    #[test]
+    fn a_channel_list_rebuild_keeps_the_joined_flag_and_the_unread_dot() {
+        let old = vec![ChatChannel { id: "lounge".into(), voice_joined: true, unread: true, ..Default::default() }];
+        let mut new = vec![
+            ChatChannel { id: "lounge".into(), ..Default::default() },
+            ChatChannel { id: "news".into(), ..Default::default() },
+        ];
+        super::carry_channel_marks(&old, &mut new);
+        assert!(new[0].voice_joined && new[0].unread, "lounge keeps both marks");
+        assert!(!new[1].voice_joined && !new[1].unread, "a channel with no marks gains none");
     }
 }

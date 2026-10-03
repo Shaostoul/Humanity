@@ -54,7 +54,12 @@ Planned by a five-reader survey, three competing week plans and a judge, with
 every load-bearing claim checked by an adversarial verifier
 (`docs/history/2026-10-02.md`). Day 1's fixes shipped in v0.1436.0
 (BUG-107 to BUG-112). The rest, in order:
-- **Review** the releases v0.1428.0 to v0.1435.2 plus today's (none covers them).
+- **Review** of v0.1428.0 to v0.1436.0: DONE v0.1437.0 (8 confirmed, fixed as
+  BUG-113 to BUG-121 over two rounds, each reviewed). Follow-ups: the crew
+  figures in lib.rs have the head-inside-body fault BUG-120 fixed for players;
+  settled trade ids live per save (replay into another home); the client's
+  game-off refusal match copies the relay's wording (share one function);
+  trade escrow needs server-held inventories.
 - **Day 2:** count `smelt_iron_graphite` for the first quest's iron step (the
   quest is finishable, only the graphite route does not count); the homepage
   game panel shows a real clip; fix the black-palette plant models so branch
@@ -68,9 +73,10 @@ every load-bearing claim checked by an adversarial verifier
   reshoot the clips.
 **Waiting on the operator:** where two players meet; the shared-world clock
 speed (1x makes a lettuce take 45 days; 72x proposed as the server default);
-co-op trust or enforced rules; who and when for the Day 5 session; deleting
-the 15 plain pre-August backups on the VPS and the 60 stale local copies once
-the backup key is safe; whether multiplayer goes ahead of arc A.
+co-op trust or enforced rules; who and when for the Day 5 session; whether
+multiplayer goes ahead of arc A. (The old plain backups, 15 on the VPS and 60
+stale local copies, were deleted 2026-10-02 at the operator's word; the VPS
+ones were shredded.)
 
 ### IN FLIGHT AT THE USAGE CAP (2026-09-27 evening): resume from these branches
 
@@ -689,7 +695,16 @@ between the simulation and the person. Its tier ladder is the build order.
   shape among them) sample BLACK from their tiny palette texture, so
   it is the albedo, not the lighting; with the albedo forced red they lit
   fully. Find which sets, and fix their palette UVs or textures, then the
-  branch can land. Tilting each plant outward like a real net cup would
+  branch can land. **Checked offline 2026-10-02, and it is NOT the palette
+  files:** all 102 palette models are one shape (POSITION, NORMAL,
+  TEXCOORD_0, one textured material, RGBA8 PNG, nearest and clamp), every
+  vertex's UV lands inside its palette, and no palette has a black or clear
+  texel except `apple_crop` (16 near-black, which its own UVs do not hit).
+  The white-key step in `assets::white_key_alpha_if_cutout` rewrites the
+  alpha of 12 of the 8x8 palettes (the stage-4 fruit sets), but no vertex
+  samples a keyed texel and no `_1` seedling palette is among them. So the
+  black albedo comes from the engine side: which texture the tower's draw
+  binds, or how it is sampled. Start there, on the rig. Tilting each plant outward like a real net cup would
   read better too);
   the conduit render pass; models for the machines a player stands in front of
   daily; read `mesh_kind` in `zone_filler.ron` (DONE v0.1434.0:

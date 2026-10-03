@@ -49,6 +49,40 @@ pub struct TransferOp {
     pub quality: u8,
 }
 
+/// The player's record of finished P2P trades (2026-10-02), a component on
+/// the player entity beside its `Inventory`. A trade the relay completes is
+/// settled in each player's own game: what they offered leaves the backpack,
+/// what the other side offered arrives (`gui::pages::trade::settle_completed`
+/// queues it here, the InventorySystem applies it).
+///
+/// WHY a component and not a set in the Trade page: the settled set has to
+/// travel with the backpack it changed. It is saved in the same WorldSave as
+/// the inventory (`settled_trades`), so a restart can neither settle a trade
+/// twice (the save says it is done) nor lose one (a save from before the
+/// items moved does not list it either, and the relay's trade list settles it
+/// again). The old in-memory set lived only as long as the process.
+///
+/// KNOWN GAP (2026-10-02): settled ids live per SAVE, so a completed trade can
+/// replay into a different home of the same identity (one whose save does not
+/// list it); that stays until a per-identity trade ledger exists.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct TradeSettlements {
+    /// Trades whose items this game has moved, by the relay's trade id. Per
+    /// save, not per identity: see the known gap above.
+    pub settled: std::collections::BTreeSet<String>,
+    /// Trades queued to settle on the InventorySystem's next tick, with their
+    /// backpack moves. Deliberately NOT saved: a trade still waiting here has
+    /// not changed the backpack yet, so it must settle again after a restart.
+    pub pending: Vec<(String, Vec<TransferOp>)>,
+}
+
+impl TradeSettlements {
+    /// True once a trade is settled or queued to settle.
+    pub fn knows(&self, trade_id: &str) -> bool {
+        self.settled.contains(trade_id) || self.pending.iter().any(|(id, _)| id == trade_id)
+    }
+}
+
 impl ItemStack {
     pub fn new(item_id: String, quantity: u32, max_stack: u32) -> Self {
         Self {
@@ -1003,6 +1037,64 @@ mod transfer_tests {
         assert!(held < 5, "the backpack cannot hold all five 40 L barrels (held {held})");
         assert_eq!(returned, vec![("barrel_0".to_string(), 5 - held)], "every barrel is accounted for");
     }
+
+    /// A finished trade's queued moves (2026-10-02) apply on the tick, and the
+    /// trade is recorded settled in the same step; a removal the backpack can
+    /// no longer cover is said, where `remove_worn`'s deficit used to be
+    /// dropped without a word. Seen red: with the settlement pass taken out of
+    /// `tick`, the hammer never arrived and t-1 never reached `settled`; with
+    /// the notice push removed, the notice assert failed.
+    #[test]
+    fn queued_trade_moves_apply_and_settle_together() {
+        let mut data = DataStore::new();
+        data.insert("player_notices", std::sync::Mutex::new(Vec::<String>::new()));
+        let mut world = hecs::World::new();
+        let mut inv = Inventory::new(8);
+        inv.add_item("rope_0", 1, 99);
+        let mut ts = TradeSettlements::default();
+        ts.pending.push((
+            "t-1".into(),
+            vec![
+                TransferOp { item_id: "rope_0".into(), qty: 2, add: false, ..Default::default() },
+                TransferOp { item_id: "hammer_0".into(), qty: 1, add: true, wear: 40, quality: 0 },
+            ],
+        ));
+        let player = world.spawn((inv, Controllable, ts));
+        InventorySystem::new().tick(&mut world, 1.0, &data);
+        let inv = world.get::<&Inventory>(player).unwrap();
+        assert_eq!((inv.count_item("rope_0"), inv.count_item("hammer_0")), (0, 1));
+        let ts = world.get::<&TradeSettlements>(player).unwrap();
+        assert!(ts.pending.is_empty() && ts.settled.contains("t-1"), "{:?}", *ts);
+        let notices = data.get::<std::sync::Mutex<Vec<String>>>("player_notices").unwrap().lock().unwrap().clone();
+        assert_eq!(notices.len(), 1, "the rope that was not there is said: {notices:?}");
+        assert!(notices[0].contains("1 x rope_0"), "{notices:?}");
+    }
+}
+
+/// Apply one backpack move to `inv` (2026-10-02, shared by the storage
+/// transfers and trade settlements). An add is volume-gated, and what does not
+/// fit is pushed to `inventory_transfer_returns` (2026-09-25: the GUI has
+/// already taken it out of its container, so a dropped overflow was an item
+/// destroyed; the main loop puts it back where it came from and says so). A
+/// removal takes the stack worn and graded as asked first. Returns how many a
+/// removal could NOT take because the backpack did not hold them (0 for adds).
+fn apply_transfer(inv: &mut Inventory, op: &TransferOp, registry: Option<&ItemRegistry>, data: &DataStore) -> u32 {
+    if !op.add {
+        return inv.remove_worn(&op.item_id, op.qty, op.wear, op.quality);
+    }
+    let max_stack = registry.map(|r| r.max_stack_for(&op.item_id)).unwrap_or(DEFAULT_MAX_STACK);
+    // Volume-gated (Stage A slice 2): a full backpack refuses the transfer
+    // instead of over-filling.
+    let unit_vol = registry.map(|r| r.volume_for(&op.item_id)).unwrap_or(0.0);
+    let overflow = inv.add_item_worn(&op.item_id, op.qty, max_stack, unit_vol, op.wear, op.quality);
+    if overflow > 0 {
+        if let Some(ret) = data.get::<std::sync::Mutex<Vec<(String, u32)>>>("inventory_transfer_returns") {
+            if let Ok(mut r) = ret.lock() {
+                r.push((op.item_id.clone(), overflow));
+            }
+        }
+    }
+    0
 }
 
 /// Manages inventory components and processes queued operations.
@@ -1051,33 +1143,47 @@ impl System for InventorySystem {
                     .into_iter()
                     .next()
                 {
-                    for TransferOp { item_id, qty: quantity, add: is_add, wear, quality } in xfers {
-                        if is_add {
-                            let max_stack =
-                                registry.map(|r| r.max_stack_for(&item_id)).unwrap_or(DEFAULT_MAX_STACK);
-                            // Volume-gated (Stage A slice 2): a full backpack
-                            // refuses the transfer instead of over-filling.
-                            let unit_vol = registry.map(|r| r.volume_for(&item_id)).unwrap_or(0.0);
-                            let overflow = inv.add_item_worn(&item_id, quantity, max_stack, unit_vol, wear, quality);
-                            // What did not fit goes BACK (2026-09-25). The GUI has
-                            // already taken it out of its container, so a dropped
-                            // overflow was an item destroyed; the main loop puts
-                            // these back where they came from and says so.
-                            if overflow > 0 {
-                                if let Some(ret) = data.get::<std::sync::Mutex<Vec<(String, u32)>>>(
-                                    "inventory_transfer_returns",
-                                ) {
-                                    if let Ok(mut r) = ret.lock() {
-                                        r.push((item_id.clone(), overflow));
-                                    }
-                                }
-                            }
-                        } else {
-                            inv.remove_worn(&item_id, quantity, wear, quality);
+                    for op in xfers {
+                        let short = apply_transfer(inv, &op, registry, data);
+                        if short > 0 {
+                            // The GUI's backpack view was a frame behind the
+                            // backpack (2026-10-02: this used to be dropped
+                            // without a word).
+                            log::warn!("Backpack transfer: {short} x {} were not in the backpack", op.item_id);
                         }
                     }
                 }
             }
+        }
+
+        // Finished P2P trades queued by the relay bridge (2026-10-02): apply
+        // each trade's moves and record it settled IN THE SAME STEP, so a save
+        // never holds a trade marked settled whose items have not moved.
+        for (_e, (inv, _c, ts)) in
+            world.query_mut::<(&mut Inventory, &crate::ecs::components::Controllable, &mut TradeSettlements)>()
+        {
+            for (trade_id, moves) in std::mem::take(&mut ts.pending) {
+                for op in &moves {
+                    let short = apply_transfer(inv, op, registry, data);
+                    // The relay holds no inventories, so it cannot keep offered
+                    // items in escrow: the other player receives them whether or
+                    // not they were still here. Say so rather than pretend.
+                    if short > 0 {
+                        let name = registry
+                            .and_then(|r| r.items.get(&op.item_id))
+                            .map_or(op.item_id.as_str(), |d| d.name.as_str());
+                        if let Some(n) = data.get::<std::sync::Mutex<Vec<String>>>("player_notices") {
+                            if let Ok(mut n) = n.lock() {
+                                n.push(format!(
+                                    "Trade: {short} x {name} had already left your backpack, so it could not be taken; the other player still receives it."
+                                ));
+                            }
+                        }
+                    }
+                }
+                ts.settled.insert(trade_id);
+            }
+            break;
         }
 
         for (entity, op) in ops {

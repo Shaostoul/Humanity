@@ -78,6 +78,22 @@ function joinVoiceRoom(roomId) {
   }
 }
 
+// Keep our place in voice through a reconnect (2026-10-02). The WebRTC audio
+// is peer to peer and survives a WebSocket blip, but the relay records WHICH
+// socket holds each person's place in voice, and the dead socket's close takes
+// that place with it: we would vanish from every roster while still talking,
+// and people joining later would never connect to us. So once a new socket's
+// identity is accepted (app.js emits 'socket-identified'), say the join again.
+// The relay moves the place to this socket without telling the others
+// anything, or, if it already noticed the old close, puts us back.
+function resendVoiceJoin() {
+  if (!window._currentRoomId) return;
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'voice_room', action: 'join', room_id: String(window._currentRoomId) }));
+  }
+}
+if (window.hos && typeof hos.on === 'function') hos.on('socket-identified', resendVoiceJoin);
+
 function leaveVoiceRoom() {
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ type: 'voice_room', action: 'leave' }));
