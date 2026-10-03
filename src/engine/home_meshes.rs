@@ -1896,6 +1896,9 @@ pub(crate) fn rebuild_connection_objects(state: &mut EngineState) {
     // Moderate emissive (1.4) + some roughness so the little beads still READ AS SPHERES (a
     // gradient across the curve) instead of flat-bright discs -- the v0.622 markers were emissive
     // 3.0, which washed out the shading and looked inside-out ("inverted normals", operator).
+    // They also WERE inside out, then and until 2026-10-03: `Mesh::sphere` was wound so the
+    // opaque pipeline drew each bead's far inside (BUG-128). The emissive change stays (it is a
+    // brightness choice, not a flip); the winding is fixed in the mesh itself.
     if state.flow_rgb_mats.is_empty() {
         for k in 0..16u32 {
             let h = k as f32 / 16.0;

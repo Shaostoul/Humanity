@@ -9121,8 +9121,8 @@ mod native_app {
                             // Sized by the constants remote_figure_parts places the parts by
                             // (2026-10-02): the box's base at its origin, the sphere centred on
                             // it, so a change to either size moves the parts with it. The head
-                            // (and the hair, the same mesh stretched) is figure_head_mesh_data,
-                            // wound to face out: Mesh::sphere drew its inside (2026-10-03).
+                            // (and the hair, the same mesh stretched) is figure_head_mesh_data:
+                            // the engine's sphere at the finer 16 x 24 the hair needs.
                             use crate::engine::net_route::{FIGURE_BODY_MESH_H_M, FIGURE_HEAD_MESH_R_M};
                             let body = state.renderer.add_mesh(
                                 Mesh::box_xyz(&state.renderer.device, 0.42, FIGURE_BODY_MESH_H_M, 0.26));

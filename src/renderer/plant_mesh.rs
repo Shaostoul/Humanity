@@ -566,9 +566,14 @@ impl PlantMeshBuilder {
             let a1 = ((i + 1) as f32) / (n as f32) * std::f32::consts::TAU;
             let p0 = [top[0] + a0.cos() * r, top[1], top[2] + a0.sin() * r];
             let p1 = [top[0] + a1.cos() * r, top[1], top[2] + a1.sin() * r];
-            self.tri(p0, apex, p1, color);
+            // The rim runs p0 -> p1 clockwise seen from above, so the side
+            // goes p0, p1, apex and the cap p0, top, p1 to be counter-
+            // clockwise from outside (found with BUG-128, 2026-10-03: they
+            // were p0, apex, p1 and p0, p1, top, both facing in, and `tri`
+            // takes the normal from this order, so they were lit from inside).
+            self.tri(p0, p1, apex, color);
             // top cap
-            self.tri(p0, p1, top, color);
+            self.tri(p0, top, p1, color);
         }
         self.organ = Organ::Stem;
     }
@@ -642,10 +647,17 @@ fn octa_sub1() -> Vec<[f32; 3]> {
         let (ab, bc, ca) = (mid(a, b), mid(b, c), mid(c, a));
         out.extend_from_slice(&[a, ab, ca, ab, b, bc, ca, bc, c, ab, bc, ca]);
     };
+    // Each face counter-clockwise seen from outside, the side the opaque
+    // pipeline draws (and `tri` takes the normal from this order too). The
+    // equator runs +X -> +Z -> -X -> -Z, which turns clockwise seen from
+    // above, so an upper face goes top, e1, e0 and a lower one bot, e0, e1.
+    // (Found with BUG-128, 2026-10-03: these were the other way round, so
+    // every fruit sphere was inside out, culled from outside and lit from
+    // within. `emit` keeps a face's order in each of its four children.)
     for i in 0..4 {
         let (e0, e1) = (eq[i], eq[(i + 1) % 4]);
-        emit(top, e0, e1);
-        emit(bot, e1, e0);
+        emit(top, e1, e0);
+        emit(bot, e0, e1);
     }
     out
 }
@@ -981,6 +993,41 @@ mod tests {
             let max = *b.indices.iter().max().unwrap() as usize;
             assert!(max < b.vertices.len(), "t={t}: index out of bounds");
         }
+    }
+
+    /// FRUIT FACES OUT (found with BUG-128, 2026-10-03). The opaque pipeline
+    /// draws counter-clockwise triangles and culls the rest, and `tri` takes
+    /// each face's normal FROM its winding, so a primitive wound inside out
+    /// is both culled from outside and lit as if seen from inside; a check of
+    /// winding against the written normals cannot see that. So this checks
+    /// against the shape: both fruit primitives are convex, and every face
+    /// must point away from a point inside it.
+    ///
+    /// Red check, run 2026-10-03: with `octa_sub1` emitting `(top, e0, e1)`
+    /// and `(bot, e1, e0)`, and `fruit_cone` emitting `(p0, apex, p1)` and
+    /// the cap `(p0, p1, top)`, as they shipped, this FAILS with "fruit
+    /// sphere: face 0 faces in" (and the cone the same, alone).
+    #[test]
+    fn fruit_spheres_and_cones_face_out() {
+        use glam::Vec3;
+        let check = |name: &str, b: &PlantMeshBuilder, inside: Vec3| {
+            assert!(!b.indices.is_empty(), "{name}: no triangles");
+            for (k, t) in b.indices.chunks(3).enumerate() {
+                let p = |i: u32| Vec3::from(b.vertices[i as usize].position);
+                let (a, bb, c) = (p(t[0]), p(t[1]), p(t[2]));
+                let n = (bb - a).cross(c - a);
+                assert!(n.dot((a + bb + c) / 3.0 - inside) > 0.0, "{name}: face {k} faces in");
+            }
+        };
+        // A squashed (tall) fruit, as the vine crops draw them.
+        let mut s = PlantMeshBuilder::new();
+        s.fruit_sphere([0.3, 1.1, -0.2], 0.04, 1.35, [0.8, 0.1, 0.1]);
+        check("fruit sphere", &s, Vec3::new(0.3, 1.1, -0.2));
+        // A strawberry: rim at 0.5 m, apex 35 mm below; the axis a quarter
+        // of the way down is inside it.
+        let mut c = PlantMeshBuilder::new();
+        c.fruit_cone([0.0, 0.5, 0.0], 0.015, 0.035, 6, [0.8, 0.1, 0.1]);
+        check("fruit cone", &c, Vec3::new(0.0, 0.5 - 0.035 * 0.25, 0.0));
     }
 
     #[test]

@@ -488,54 +488,30 @@ pub fn generate_hologram_fallback() -> SolarSystemHologram {
 
 // ── Mesh generation ─────────────────────────────────────────
 
-/// Generate a UV sphere mesh with the given radius and resolution.
+/// Generate a UV sphere mesh with the given radius and resolution: the
+/// engine's own `Mesh::sphere`, wound to be seen from outside.
+///
+/// This used to be a second copy of that generator, with the same vertex
+/// layout and the same inside-out triangle order (BUG-128, 2026-10-03), so
+/// every orrery planet and the HOME blip were drawn by their far inside. One
+/// generator now, so the two cannot drift apart again.
 pub fn sphere_mesh(device: &wgpu::Device, radius: f32, stacks: u32, slices: u32) -> Mesh {
-    let mut vertices = Vec::with_capacity(((stacks + 1) * (slices + 1)) as usize);
-    let mut indices = Vec::new();
-
-    for stack in 0..=stacks {
-        let phi = PI * stack as f32 / stacks as f32;
-        let y = radius * phi.cos();
-        let ring_r = radius * phi.sin();
-        let v_coord = stack as f32 / stacks as f32;
-
-        for slice in 0..=slices {
-            let theta = 2.0 * PI * slice as f32 / slices as f32;
-            let x = ring_r * theta.cos();
-            let z = ring_r * theta.sin();
-            let u = slice as f32 / slices as f32;
-
-            let nx = phi.sin() * theta.cos();
-            let ny = phi.cos();
-            let nz = phi.sin() * theta.sin();
-
-            vertices.push(Vertex {
-                position: [x, y, z],
-                normal: [nx, ny, nz],
-                uv: [u, v_coord],
-            });
-        }
-    }
-
-    for stack in 0..stacks {
-        for slice in 0..slices {
-            let first = stack * (slices + 1) + slice;
-            let second = first + slices + 1;
-            indices.push(first);
-            indices.push(second);
-            indices.push(first + 1);
-            indices.push(second);
-            indices.push(second + 1);
-            indices.push(first + 1);
-        }
-    }
-
-    Mesh::from_vertices(device, &vertices, &indices)
+    Mesh::sphere(device, radius, stacks, slices)
 }
 
 /// Generate a pin marker mesh: sphere head on a cone stem.
 /// Origin at tip (bottom of pin), total height = stem_height + head_radius * 2.
 pub fn pin_marker_mesh(device: &wgpu::Device, head_radius: f32, stem_height: f32) -> Mesh {
+    let (vertices, indices) = pin_marker_data(head_radius, stem_height);
+    Mesh::from_vertices(device, &vertices, &indices)
+}
+
+/// The vertices and indices `pin_marker_mesh` uploads (CPU side, so the
+/// winding test below can check them). Both parts are wound counter-clockwise
+/// seen from outside, the side the opaque pipeline draws (BUG-128,
+/// 2026-10-03: the stem and the head were both wound the other way, so the
+/// pin showed its far inside).
+pub(crate) fn pin_marker_data(head_radius: f32, stem_height: f32) -> (Vec<Vertex>, Vec<u32>) {
     let stem_radius = head_radius * 0.15;
     let stem_segments: u32 = 8;
     let sphere_stacks: u32 = 6;
@@ -562,52 +538,37 @@ pub fn pin_marker_mesh(device: &wgpu::Device, head_radius: f32, stem_height: f32
         });
     }
 
+    // Tip, then this ring vertex, then the next one round: counter-clockwise
+    // seen from outside the cone (it was tip, next, this, facing in).
     for seg in 0..stem_segments {
         indices.push(0);
-        indices.push(1 + seg + 1);
         indices.push(1 + seg);
+        indices.push(1 + seg + 1);
     }
 
-    // Sphere head
+    // Sphere head: the engine's sphere (`Mesh::sphere_data`, outward-wound),
+    // lifted onto the top of the stem. It used to be its own copy of the
+    // sphere loop with the same inside-out order (BUG-128).
     let base_idx = vertices.len() as u32;
     let sphere_center_y = stem_height + head_radius;
+    let (head_v, head_i) = Mesh::sphere_data(head_radius, sphere_stacks, sphere_slices);
+    vertices.extend(head_v.into_iter().map(|mut v| {
+        v.position[1] += sphere_center_y;
+        v
+    }));
+    indices.extend(head_i.into_iter().map(|i| base_idx + i));
 
-    for stack in 0..=sphere_stacks {
-        let phi = PI * stack as f32 / sphere_stacks as f32;
-        let y = head_radius * phi.cos() + sphere_center_y;
-        let ring_r = head_radius * phi.sin();
-
-        for slice in 0..=sphere_slices {
-            let theta = 2.0 * PI * slice as f32 / sphere_slices as f32;
-            let x = ring_r * theta.cos();
-            let z = ring_r * theta.sin();
-
-            vertices.push(Vertex {
-                position: [x, y, z],
-                normal: [phi.sin() * theta.cos(), phi.cos(), phi.sin() * theta.sin()],
-                uv: [slice as f32 / sphere_slices as f32, stack as f32 / sphere_stacks as f32],
-            });
-        }
-    }
-
-    for stack in 0..sphere_stacks {
-        for slice in 0..sphere_slices {
-            let first = base_idx + stack * (sphere_slices + 1) + slice;
-            let second = first + sphere_slices + 1;
-            indices.push(first);
-            indices.push(second);
-            indices.push(first + 1);
-            indices.push(second);
-            indices.push(second + 1);
-            indices.push(first + 1);
-        }
-    }
-
-    Mesh::from_vertices(device, &vertices, &indices)
+    (vertices, indices)
 }
 
 /// Generate an orbit ring mesh as a tube torus in the XZ plane.
 pub fn orbit_ring_mesh(device: &wgpu::Device, radius: f32, segments: u32) -> Mesh {
+    let (vertices, indices) = orbit_ring_data(radius, segments);
+    Mesh::from_vertices(device, &vertices, &indices)
+}
+
+/// The vertices and indices `orbit_ring_mesh` uploads.
+pub(crate) fn orbit_ring_data(radius: f32, segments: u32) -> (Vec<Vertex>, Vec<u32>) {
     let tube_r = 0.004; // 4mm radius tube (thinner, cleaner)
     let tube_sides: u32 = 12; // Round cross-section (was 6 = hexagonal)
 
@@ -646,18 +607,24 @@ pub fn orbit_ring_mesh(device: &wgpu::Device, radius: f32, segments: u32) -> Mes
 
     for seg in 0..ring_verts {
         for side in 0..tube_sides {
+            // a on this cross-section, b the same point on the next one along
+            // the ring, a + 1 the next step round the tube. The tube's angle
+            // turns counter-clockwise about the direction of travel, so the
+            // step round comes first to face out (it was a, b, a + 1 and
+            // b, b + 1, a + 1, every triangle facing in; BUG-128 audit,
+            // 2026-10-03).
             let a = seg * (tube_sides + 1) + side;
             let b = a + tube_sides + 1;
             indices.push(a);
-            indices.push(b);
             indices.push(a + 1);
             indices.push(b);
+            indices.push(b);
+            indices.push(a + 1);
             indices.push(b + 1);
-            indices.push(a + 1);
         }
     }
 
-    Mesh::from_vertices(device, &vertices, &indices)
+    (vertices, indices)
 }
 
 /// Generate a tube mesh swept along an ARBITRARY closed polyline.
@@ -775,4 +742,44 @@ pub fn ring_disc_mesh(device: &wgpu::Device, inner_radius: f32, outer_radius: f3
     }
 
     Mesh::from_vertices(device, &vertices, &indices)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::renderer::mesh::triangles_facing_against_their_normals;
+
+    /// THE ORRERY'S PIN AND ORBIT RINGS FACE OUT (BUG-128, 2026-10-03). They
+    /// are drawn with the opaque pipeline (lib.rs pushes them to the opaque
+    /// list), which culls back faces, so a part wound inside out shows its
+    /// far inside. Same check as every generator in renderer/mesh.rs. The
+    /// planets themselves are `Mesh::sphere`, checked there.
+    ///
+    /// Red check, run 2026-10-03: with the orders these shipped with (the pin
+    /// stem `[0, 1 + seg + 1, 1 + seg]`, the pin head and the ring
+    /// `[a, b, a + 1, b, b + 1, a + 1]`) this FAILS on the pin with every
+    /// stem and head triangle listed, and on the ring with every one.
+    ///
+    /// Not here: `ring_disc_mesh` (Saturn's rings) is double-sided on purpose,
+    /// each quad in both orders, and `orbit_path_mesh` builds straight to the
+    /// GPU but is wound outward already (worked by hand 2026-10-03: it uses
+    /// the ring's index order, but its vertices go round the tube the other
+    /// way about the path, `side` to `up` with `side x up = -tangent`).
+    #[test]
+    fn orrery_pin_and_orbit_ring_face_out() {
+        for (name, (v, idx)) in [
+            ("home pin", pin_marker_data(0.07, 0.75)),
+            ("small pin", pin_marker_data(0.02, 0.1)),
+            ("orbit ring", orbit_ring_data(0.5, 128)),
+            ("inner orbit ring", orbit_ring_data(0.08, 64)),
+        ] {
+            let (checked, wrong) = triangles_facing_against_their_normals(&v, &idx);
+            assert!(checked > 0, "{name}: no triangle was checked");
+            assert!(
+                wrong.is_empty(),
+                "{name}: triangles {wrong:?} of {checked} face in, so the opaque pipeline \
+                 culls their outside and draws the far inside"
+            );
+        }
+    }
 }
