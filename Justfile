@@ -400,6 +400,7 @@ verify:
     just verify-relay-compiles
     just lints
     just rig-tests
+    node --test scripts/tests/obj-to-plant-gltf.test.js
     @echo "-- cross-language KATs: a browser and the relay must encode identically --"
     just vote-kat
     just mod-kat

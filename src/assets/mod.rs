@@ -914,6 +914,141 @@ mod gltf_texture_tests {
 }
 
 #[cfg(all(test, feature = "native"))]
+mod crop_palette_tests {
+    use super::*;
+
+    /// The darkest colour a crop model may show the shader, as linear
+    /// luminance. Living plant tissue is far brighter: a dark leaf is around
+    /// 0.05 and the darkest part of the crop pack (beetroot, read correctly)
+    /// is 0.035. Before 2026-10-03 the lettuce leaves reached the shader at
+    /// 0.015 and the beetroot at 0.003, which is what black looks like.
+    const DARKEST_CROP_LUMINANCE: f32 = 0.025;
+
+    /// What the GPU makes of one byte of an Rgba8UnormSrgb texture: the
+    /// sRGB decode to linear light.
+    fn srgb_to_linear(b: u8) -> f32 {
+        let c = b as f32 / 255.0;
+        if c <= 0.04045 {
+            c / 12.92
+        } else {
+            ((c + 0.055) / 1.055).powf(2.4)
+        }
+    }
+
+    /// The colour the shader reads at `uv`, the way the engine's albedo
+    /// sampler takes it (renderer/mod.rs "Albedo Texture Sampler": linear
+    /// filtering, U repeats, V clamps, filtered after the sRGB decode):
+    /// linear RGB and alpha.
+    fn sample(rgba: &[u8], w: u32, h: u32, uv: [f32; 2]) -> ([f32; 3], f32) {
+        let (fx, fy) = (uv[0] * w as f32 - 0.5, uv[1] * h as f32 - 0.5);
+        let (x0, y0) = (fx.floor(), fy.floor());
+        let (tx, ty) = (fx - x0, fy - y0);
+        let texel = |x: f32, y: f32| {
+            let x = (x as i64).rem_euclid(w as i64) as usize;
+            let y = (y as i64).clamp(0, h as i64 - 1) as usize;
+            let p = &rgba[(y * w as usize + x) * 4..][..4];
+            ([srgb_to_linear(p[0]), srgb_to_linear(p[1]), srgb_to_linear(p[2])], p[3] as f32 / 255.0)
+        };
+        let mut rgb = [0.0f32; 3];
+        let mut a = 0.0f32;
+        for (dx, dy, wgt) in [(0.0, 0.0, (1.0 - tx) * (1.0 - ty)), (1.0, 0.0, tx * (1.0 - ty)), (0.0, 1.0, (1.0 - tx) * ty), (1.0, 1.0, tx * ty)] {
+            let (c, al) = texel(x0 + dx, y0 + dy);
+            for k in 0..3 {
+                rgb[k] += c[k] * wgt;
+            }
+            a += al * wgt;
+        }
+        (rgb, a)
+    }
+
+    /// EVERY CROP STAGE MODEL SHOWS THE SHADER A PLANT'S COLOURS, NOT BLACK
+    /// (2026-10-03, the black sprouts in the greenhouse towers).
+    ///
+    /// The crop models carry their colours in a small palette texture, made
+    /// by scripts/obj-to-plant-gltf.js from the pack's MTL colours. The pack's
+    /// numbers are linear light, and the converter wrote them into the PNG
+    /// byte for byte; the engine decodes that PNG as sRGB, so every colour
+    /// came out far too dark: lettuce, beet, pumpkin and watermelon leaves
+    /// all but black. Towers showed it first because their crops are leafy
+    /// greens; the beds' wheat and tomatoes were merely dull.
+    ///
+    /// This loads each crop model through the engine's own loader, reads the
+    /// texture under every vertex exactly as the GPU sampler would, and
+    /// requires every colour a model shows to be brighter than any plant
+    /// tissue could be dark. It also checks no vertex lands on a texel the
+    /// white-key cutout made transparent (the shader discards below 0.35
+    /// alpha, so that face would vanish), and that every converted model
+    /// says which colour space its MTL was read in, so a palette made
+    /// before the fix cannot slip back in.
+    ///
+    /// Red checks, run 2026-10-03: against the palettes as they were, this
+    /// fails with 75 of the 102 crop models too dark (lettuce_1 at 0.0147,
+    /// beet_1 at 0.0032) and all 102 unstamped; with those same palettes
+    /// stamped `srgb` (the stamp present, the pixels unchanged) it still
+    /// fails on the same 75, so the luminance gate holds on its own.
+    #[test]
+    fn every_crop_palette_reaches_the_shader_as_plant_colour() {
+        let repo = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let manager = AssetManager::new(repo.join("data"));
+        let plants = repo.join("assets/models/plants");
+        let mut checked = 0usize;
+        let mut too_dark = Vec::new();
+        let mut problems = Vec::new();
+        let mut names: Vec<String> = std::fs::read_dir(&plants)
+            .expect("assets/models/plants is in the checkout")
+            .filter_map(|e| e.ok().map(|e| e.file_name().to_string_lossy().into_owned()))
+            .collect();
+        names.sort();
+        for name in names {
+            let rel = format!("assets/models/plants/{name}/{name}.gltf");
+            let Ok(text) = std::fs::read_to_string(repo.join(&rel)) else { continue };
+            let json: serde_json::Value = serde_json::from_str(&text).unwrap_or_else(|e| panic!("{rel}: {e}"));
+            // Only the converter's flat-colour models: the photoscans carry
+            // real photographs, where dark texels are shadowed bark.
+            if !json["asset"]["generator"].as_str().unwrap_or("").starts_with("obj-to-plant-gltf.js") {
+                continue;
+            }
+            if !json["asset"]["extras"]["kd_space"].is_string() {
+                problems.push(format!(
+                    "{name}: no asset.extras.kd_space, so it was converted before the converter knew the pack's \
+                     colour space (node scripts/obj-to-plant-gltf.js --kd linear --restamp {rel})"
+                ));
+            }
+            let (cpu, texture) = manager.parse_gltf_mesh_with_texture(&rel).unwrap_or_else(|e| panic!("{rel}: {e}"));
+            let (rgba, w, h) = texture.unwrap_or_else(|| panic!("{rel}: the palette texture did not load"));
+            let mut darkest = f32::MAX;
+            for v in &cpu.vertices {
+                let (c, a) = sample(&rgba, w, h, v.uv);
+                if a < 0.35 {
+                    problems.push(format!("{name}: a vertex at uv {:?} samples alpha {a:.2}, which the shader discards", v.uv));
+                    break;
+                }
+                darkest = darkest.min(0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]);
+            }
+            if darkest < DARKEST_CROP_LUMINANCE {
+                too_dark.push(format!("{name} {darkest:.4}"));
+            }
+            checked += 1;
+        }
+        // The pack is 102 models; far fewer means the walk found almost
+        // nothing and this gate would pass while proving nothing.
+        assert!(checked >= 100, "only {checked} converted crop models found under {}", plants.display());
+        // One report for both lists, so a stamped-but-wrong palette and an
+        // unstamped one each say what they are.
+        assert!(
+            too_dark.is_empty() && problems.is_empty(),
+            "\n{} of {checked} crop models show the shader a colour darker than {DARKEST_CROP_LUMINANCE} linear \
+             luminance (near black; each model's darkest): {}. Is the palette sRGB-encoded? See \
+             scripts/obj-to-plant-gltf.js --kd.\n{} other problem(s):\n{}\n",
+            too_dark.len(),
+            too_dark.join(", "),
+            problems.len(),
+            problems.join("\n")
+        );
+    }
+}
+
+#[cfg(all(test, feature = "native"))]
 mod model_scale_tests {
     use super::*;
     use crate::renderer::mesh::Vertex;

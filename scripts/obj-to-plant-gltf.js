@@ -9,11 +9,33 @@
 // scripts/repack-plant-gltf.js for the shape this mirrors).
 //
 // Usage:
-//   node scripts/obj-to-plant-gltf.js <file.obj> [<file.obj> ...]
-//   node scripts/obj-to-plant-gltf.js --outdir assets/models/plants <file.obj> ...
+//   node scripts/obj-to-plant-gltf.js --kd linear|srgb [--outdir DIR] <file.obj> ...
+//   node scripts/obj-to-plant-gltf.js --kd linear|srgb --restamp <model.gltf> ...
 //
 // Output per input: assets/models/plants/<slug>/<slug>.gltf + .bin +
 // <slug>_palette.png  (slug = lowercased file stem, e.g. Carrot_1 -> carrot_1).
+//
+// --kd says what the pack's MTL colours ARE, and there is no default because
+// guessing wrong is invisible until the model is in the game (2026-10-03):
+//   linear  the Kd numbers are linear light, as a Blender export writes them.
+//           The Quaternius crop pack (assets/models/plants/) is this.
+//   srgb    the Kd numbers are already display (sRGB) values.
+//           The Kenney furniture kit (assets/models/furniture/) is this.
+// The palette PNG is decoded by the GPU as sRGB (the engine uploads base
+// colour textures as Rgba8UnormSrgb, and glTF requires a base colour
+// texture's RGB to be sRGB-encoded), so a linear Kd has to be ENCODED to sRGB
+// on its way into the PNG. Until 2026-10-03 every pack went in byte for byte,
+// which left the crops nearly black: lettuce leaves (Kd 0.118, 0.133, 0.075)
+// reached the shader at 1.5% luminance, beetroot at 0.3%, and the greenhouse
+// towers grew black sprouts. Read as linear, the same numbers give beet red,
+// straw-gold ripe wheat, crimson berries and the teal flower the plant notes
+// in data/plants_visual.ron describe.
+//
+// --restamp fixes a model this converter made BEFORE --kd existed, from its
+// own palette (the source OBJs are not kept in the repo): every texel byte b
+// was round(Kd * 255), so Kd is b / 255 and the texel is rewritten the way
+// --kd would have written it. The file is stamped `asset.extras.kd_space`,
+// and a stamped file is refused, so a palette can never be encoded twice.
 //
 // Palette notes:
 // - Each material gets a 4x4-texel block in a square grid; UVs sit at block
@@ -21,23 +43,45 @@
 // - Near-white low-saturation colors are darkened just below the engine's
 //   white-key cutout threshold (assets/mod.rs white_key_alpha_if_cutout keys
 //   near-white texels transparent for photo cutouts; a white palette block
-//   would vanish). Clamp is invisible on these low-poly models.
+//   would vanish). Clamp is invisible on these low-poly models. The dodge is
+//   applied to the bytes the PNG actually holds, after the sRGB encode,
+//   because those are the bytes the engine's white key looks at.
 
 const fs = require('fs');
 const path = require('path');
 const zlib = require('zlib');
 
-// ── CLI ──────────────────────────────────────────────────────────────
-const args = process.argv.slice(2);
-let outRoot = 'assets/models/plants';
-const files = [];
-for (let i = 0; i < args.length; i++) {
-  if (args[i] === '--outdir') { outRoot = args[++i]; continue; }
-  files.push(args[i]);
+// What `asset.generator` says on every model this script writes. The pack
+// a model came from is credited in assets/models/LICENSE-cc0-model-packs.md;
+// this line used to name Quaternius on the Kenney furniture too.
+const GENERATOR = 'obj-to-plant-gltf.js (HumanityOS)';
+const KD_SPACES = ['linear', 'srgb'];
+
+// ── Colour: MTL Kd (0..1) to the palette's sRGB bytes ────────────────
+/** The sRGB transfer function: linear light 0..1 to an sRGB value 0..1. */
+function srgbEncode(x) {
+  const v = Math.min(1, Math.max(0, x));
+  return v <= 0.0031308 ? v * 12.92 : 1.055 * Math.pow(v, 1 / 2.4) - 0.055;
 }
-if (files.length === 0) {
-  console.error('usage: node scripts/obj-to-plant-gltf.js [--outdir DIR] <file.obj> ...');
-  process.exit(1);
+
+/** Keep a near-white low-saturation colour just under the engine's white
+ *  key (min channel >= 210 and spread < 28 keys out), so it is not cut
+ *  away as photo background. Bytes in, bytes out. */
+function dodgeWhiteKey([r, g, b]) {
+  const mx = Math.max(r, g, b), mn = Math.min(r, g, b);
+  if (mn >= 210 && mx - mn < 28) {
+    const s = 205 / mn;
+    return [Math.round(r * s), Math.round(g * s), Math.round(b * s)];
+  }
+  return [r, g, b];
+}
+
+/** One MTL Kd triple (0..1 each) as the three bytes its palette block
+ *  holds, for a pack whose Kd is in `space` ('linear' or 'srgb'). */
+function kdToBytes(kd, space) {
+  if (!KD_SPACES.includes(space)) throw new Error(`kd space must be one of ${KD_SPACES.join(', ')}, got ${space}`);
+  const enc = space === 'linear' ? srgbEncode : (v) => Math.min(1, Math.max(0, v));
+  return dodgeWhiteKey(kd.map((v) => Math.round(enc(v ?? 0) * 255)));
 }
 
 // ── Minimal PNG writer (RGBA8) ───────────────────────────────────────
@@ -75,8 +119,50 @@ function writePng(w, h, rgba) {
   return Buffer.concat([sig, pngChunk('IHDR', ihdr), pngChunk('IDAT', idat), pngChunk('IEND', Buffer.alloc(0))]);
 }
 
+// ── Minimal PNG reader (8-bit RGB/RGBA, non-interlaced) ──────────────
+// Only for --restamp, which reads palettes this script wrote. Undoes all five
+// row filters so a palette re-saved by another tool still reads.
+function readPng(buf) {
+  let o = 8, w = 0, h = 0, colorType = 0, depth = 0, interlace = 0;
+  const idat = [];
+  while (o < buf.length) {
+    const len = buf.readUInt32BE(o), type = buf.toString('ascii', o + 4, o + 8), d = buf.subarray(o + 8, o + 8 + len);
+    if (type === 'IHDR') { w = d.readUInt32BE(0); h = d.readUInt32BE(4); depth = d[8]; colorType = d[9]; interlace = d[12]; }
+    if (type === 'IDAT') idat.push(d);
+    o += 12 + len;
+  }
+  if (depth !== 8 || (colorType !== 6 && colorType !== 2) || interlace !== 0) {
+    throw new Error(`palette PNG must be 8-bit RGB or RGBA, non-interlaced (depth ${depth}, colour type ${colorType})`);
+  }
+  const bpp = colorType === 6 ? 4 : 3, stride = w * bpp;
+  const raw = zlib.inflateSync(Buffer.concat(idat));
+  const px = Buffer.alloc(h * stride);
+  for (let y = 0; y < h; y++) {
+    const filter = raw[y * (stride + 1)];
+    for (let x = 0; x < stride; x++) {
+      const a = x >= bpp ? px[y * stride + x - bpp] : 0;
+      const b = y > 0 ? px[(y - 1) * stride + x] : 0;
+      const c = x >= bpp && y > 0 ? px[(y - 1) * stride + x - bpp] : 0;
+      let v = raw[y * (stride + 1) + 1 + x];
+      if (filter === 1) v += a;
+      else if (filter === 2) v += b;
+      else if (filter === 3) v += (a + b) >> 1;
+      else if (filter === 4) {
+        const p = a + b - c, pa = Math.abs(p - a), pb = Math.abs(p - b), pc = Math.abs(p - c);
+        v += pa <= pb && pa <= pc ? a : pb <= pc ? b : c;
+      }
+      px[y * stride + x] = v & 255;
+    }
+  }
+  // Always hand back RGBA.
+  if (bpp === 4) return { w, h, rgba: px };
+  const rgba = Buffer.alloc(w * h * 4, 255);
+  for (let i = 0; i < w * h; i++) px.copy(rgba, i * 4, i * 3, i * 3 + 3);
+  return { w, h, rgba };
+}
+
 // ── MTL parser: name -> [r,g,b] 0..255 ───────────────────────────────
-function parseMtl(mtlPath) {
+function parseMtl(mtlPath, kdSpace) {
   const colors = {};
   if (!fs.existsSync(mtlPath)) return colors;
   let cur = null;
@@ -84,22 +170,49 @@ function parseMtl(mtlPath) {
     const t = line.trim();
     if (t.startsWith('newmtl ')) cur = t.slice(7).trim();
     else if (cur && t.startsWith('Kd ')) {
-      let [r, g, b] = t.slice(3).trim().split(/\s+/).map(Number).map(v => Math.round((v ?? 0) * 255));
-      // White-key dodge: keep near-white low-saturation colors below the
-      // engine cutout threshold (min channel >= 210 && spread < 28 keys out).
-      const mx = Math.max(r, g, b), mn = Math.min(r, g, b);
-      if (mn >= 210 && mx - mn < 28) { const s = 205 / mn; r = Math.round(r * s); g = Math.round(g * s); b = Math.round(b * s); }
-      colors[cur] = [r, g, b];
+      colors[cur] = kdToBytes(t.slice(3).trim().split(/\s+/).map(Number), kdSpace);
     }
   }
   return colors;
 }
 
+/** --restamp: rewrite the palette of a model converted before --kd existed
+ *  as if it had been converted with `kdSpace`, and stamp it. Returns a line
+ *  saying what changed. Throws on a model already stamped. */
+function restamp(gltfPath, kdSpace) {
+  if (!KD_SPACES.includes(kdSpace)) throw new Error(`kd space must be one of ${KD_SPACES.join(', ')}, got ${kdSpace}`);
+  const gltf = JSON.parse(fs.readFileSync(gltfPath, 'utf8'));
+  if (!/^obj-to-plant-gltf\.js/.test(gltf.asset?.generator || '')) throw new Error(`${gltfPath}: not made by this converter`);
+  const stamped = gltf.asset?.extras?.kd_space;
+  if (stamped) throw new Error(`${gltfPath}: already stamped kd_space ${stamped}; restamping would encode it twice`);
+  const pngPath = path.join(path.dirname(gltfPath), gltf.images[0].uri);
+  const { w, h, rgba } = readPng(fs.readFileSync(pngPath));
+  const seen = new Map();
+  let changed = false;
+  for (let i = 0; i < w * h; i++) {
+    const o = i * 4;
+    // Pure white is the converter's unused-block fill (Buffer.alloc(.., 255)),
+    // never a material colour: a white Kd was dodged to 205 on the way in.
+    if (rgba[o] === 255 && rgba[o + 1] === 255 && rgba[o + 2] === 255) continue;
+    const before = [rgba[o], rgba[o + 1], rgba[o + 2]];
+    const after = kdToBytes(before.map((b) => b / 255), kdSpace);
+    changed ||= after.some((b, k) => b !== before[k]);
+    rgba[o] = after[0]; rgba[o + 1] = after[1]; rgba[o + 2] = after[2];
+    seen.set(before.join(','), after.join(','));
+  }
+  // An sRGB pack's palette comes back byte for byte: leave its file alone.
+  if (changed) fs.writeFileSync(pngPath, writePng(w, h, rgba));
+  gltf.asset.generator = GENERATOR;
+  gltf.asset.extras = { ...(gltf.asset.extras || {}), kd_space: kdSpace };
+  fs.writeFileSync(gltfPath, JSON.stringify(gltf));
+  return `${path.basename(gltfPath)}: kd ${kdSpace}, ${[...seen].map(([a, b]) => `(${a}) -> (${b})`).join('  ')}`;
+}
+
 // ── OBJ -> single-primitive glTF ─────────────────────────────────────
-function convert(objPath) {
+function convert(objPath, kdSpace, outRoot) {
   const stem = path.basename(objPath).replace(/\.obj$/i, '');
   const slug = stem.toLowerCase();
-  const mtlColors = parseMtl(objPath.replace(/\.obj$/i, '.mtl'));
+  const mtlColors = parseMtl(objPath.replace(/\.obj$/i, '.mtl'), kdSpace);
   const matNames = Object.keys(mtlColors);
   if (matNames.length === 0) matNames.push('__default');
 
@@ -188,7 +301,7 @@ function convert(objPath) {
   fs.writeFileSync(path.join(outDir, `${slug}_palette.png`), writePng(pw, ph, px));
 
   const gltf = {
-    asset: { version: '2.0', generator: 'obj-to-plant-gltf.js (HumanityOS, Quaternius CC0 source)' },
+    asset: { version: '2.0', generator: GENERATOR, extras: { kd_space: kdSpace } },
     scene: 0,
     scenes: [{ nodes: [0] }],
     nodes: [{ mesh: 0, name: slug }],
@@ -215,4 +328,38 @@ function convert(objPath) {
   console.log(`${stem} -> ${outDir}/${slug}.gltf  (${vcount} verts, ${idxArr.length / 3} tris, ${matNames.length} colors)`);
 }
 
-for (const f of files) convert(f);
+// ── CLI ──────────────────────────────────────────────────────────────
+function main(argv) {
+  let outRoot = 'assets/models/plants';
+  let kdSpace = null;
+  let restampMode = false;
+  const files = [];
+  for (let i = 0; i < argv.length; i++) {
+    if (argv[i] === '--outdir') { outRoot = argv[++i]; continue; }
+    if (argv[i] === '--kd') { kdSpace = argv[++i]; continue; }
+    if (argv[i] === '--restamp') { restampMode = true; continue; }
+    files.push(argv[i]);
+  }
+  if (files.length === 0 || !KD_SPACES.includes(kdSpace)) {
+    console.error('usage: node scripts/obj-to-plant-gltf.js --kd linear|srgb [--outdir DIR] <file.obj> ...');
+    console.error('       node scripts/obj-to-plant-gltf.js --kd linear|srgb --restamp <model.gltf> ...');
+    console.error('--kd is required: linear for a Blender export (the Quaternius crops), srgb for');
+    console.error('display values (the Kenney furniture). See the header of this script.');
+    process.exit(1);
+  }
+  let failed = 0;
+  for (const f of files) {
+    if (!restampMode) { convert(f, kdSpace, outRoot); continue; }
+    try {
+      console.log(restamp(f, kdSpace));
+    } catch (e) {
+      console.error(e.message);
+      failed++;
+    }
+  }
+  if (failed) process.exit(2);
+}
+
+module.exports = { srgbEncode, dodgeWhiteKey, kdToBytes, readPng, writePng, restamp, GENERATOR };
+
+if (require.main === module) main(process.argv.slice(2));

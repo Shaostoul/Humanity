@@ -222,6 +222,25 @@ fn tower_model_scale(height: f32, width: f32, spread: f32) -> f32 {
     k
 }
 
+/// How far a plant in a tower's net cup leans out from the column, radians
+/// from upright (2026-10-03). The cups on a vertical aeroponic tower are set
+/// into its wall at an angle, mouth up and out, so what grows in them stands
+/// out from the column rather than straight up beside it. 30 degrees is a
+/// GAME CHOICE for how that reads at eye height: enough that the plant
+/// clearly grows out of the wall, not so much that a rigid model lies flat.
+const NET_CUP_TILT_RAD: f32 = 30.0 * std::f32::consts::PI / 180.0;
+
+/// The turn a stage model takes in the net cup at helix angle `ang`
+/// (2026-09-29 faced it out; 2026-10-03 tipped it): its front (+z) turned to
+/// face out from the column, then its up tipped `NET_CUP_TILT_RAD` toward
+/// that same outward direction, about the base, which sits in the cup.
+fn net_cup_turn(ang: f32) -> Quat {
+    let out = Vec3::new(ang.cos(), 0.0, ang.sin());
+    // Rotating +Y about (Y x out) moves it toward `out`.
+    let tip = Quat::from_axis_angle(Vec3::Y.cross(out).normalize(), NET_CUP_TILT_RAD);
+    tip * Quat::from_rotation_y(std::f32::consts::FRAC_PI_2 - ang)
+}
+
 /// A model's (height, width, depth below its origin) as authored, metres:
 /// its Y extent, the larger of its X and Z extents, and how far it reaches
 /// under y = 0 (a root crop's root).
@@ -361,8 +380,9 @@ pub(crate) fn build_group(
                 // v0.992 gate kept towers procedural because a full-size
                 // pumpkin vine in a net cup would be silly; the model is now
                 // scaled uniformly to the same dwarf height and to the
-                // species' spread, set a little out from the column and
-                // turned to face out. A tower is budgeted like one plot
+                // species' spread, set a little out from the column, turned
+                // to face out and tipped out the way its cup holds it
+                // (`net_cup_turn`). A tower is budgeted like one plot
                 // (`plot_vertex_budget`): past it, the procedural plant. So is
                 // a model that reaches well under its origin: a root crop's
                 // root would hang out of the cup.
@@ -376,7 +396,7 @@ pub(crate) fn build_group(
                     let k = tower_model_scale(h, w, vis_scaled.spread_m);
                     let at = Vec3::from(pos) + Vec3::from(out) * (w * k * 0.35);
                     let mesh = hero.entry(name).or_insert_with(PlantMeshBuilder::new);
-                    bake_copy(&mut mesh.vertices, &mut mesh.indices, &cpu.vertices, &cpu.indices, at, std::f32::consts::FRAC_PI_2 - ang, k, k);
+                    bake_copy(&mut mesh.vertices, &mut mesh.indices, &cpu.vertices, &cpu.indices, at, net_cup_turn(ang), k, k);
                     tower_model_verts += cpu.vertices.len();
                 } else {
                     build_plant(&mut b, &vis_scaled, pos, out, c.t, c.wilt, seed);
@@ -421,7 +441,7 @@ pub(crate) fn build_group(
                         let yaw = (plant_seed % 3600) as f32 * (std::f32::consts::TAU / 3600.0);
                         let tall = 0.93 + ((plant_seed >> 24) % 15) as f32 * 0.01;
                         let mesh = hero.entry(name.clone()).or_insert_with(PlantMeshBuilder::new);
-                        bake_copy(&mut mesh.vertices, &mut mesh.indices, &cpu.vertices, &cpu.indices, at, yaw, layout.widen, tall);
+                        bake_copy(&mut mesh.vertices, &mut mesh.indices, &cpu.vertices, &cpu.indices, at, Quat::from_rotation_y(yaw), layout.widen, tall);
                     } else {
                         build_plant(&mut b, &vis_clump, at.to_array(), [0.7, 0.0, 0.7], c.t, c.wilt, plant_seed);
                     }
@@ -528,10 +548,11 @@ mod tests {
     }
 
     /// A TOWER'S NET CUPS HOLD THE REAL STAGE MODEL (2026-09-29), scaled
-    /// uniformly to the dwarf height (a 1 m model comes out 0.6 m) and set
-    /// out from the column; past the tower's vertex budget the rest are
-    /// procedural, every cup still drawn. Red check, run: skipping the scale
-    /// (k = 1) fails the height assertion.
+    /// uniformly to the dwarf height (a 1 m model comes out 0.6 m), set
+    /// out from the column and tipped out like its cup (2026-10-03); past
+    /// the tower's vertex budget the rest are procedural, every cup still
+    /// drawn. Red checks, run: skipping the scale (k = 1) fails the height
+    /// assertion; passing the bare yaw (no tip) fails the lean assertion.
     #[test]
     fn plant_pass_tower_cups_hold_scaled_stage_models_within_budget() {
         let job = tower(12);
@@ -546,6 +567,15 @@ mod tests {
             assert!(hi - lo <= TOWER_PLANT_MAX_M + 1e-4, "a copy is {} m tall", hi - lo);
             let r = ((copy[0].position[0] - 1.0).powi(2) + (copy[0].position[2] - 2.0).powi(2)).sqrt();
             assert!(r >= 0.15 - 1e-4, "the plant stands in its cup, not inside the column: r {r}");
+            // Tipped out like a net cup (2026-10-03): the model's top (its
+            // third vertex, 1 m up as authored, 0.6 m once scaled) leans
+            // away from the column by the cup's tilt, about its base.
+            let base = Vec3::from(copy[0].position);
+            let out = Vec3::new(base.x - 1.0, 0.0, base.z - 2.0).normalize();
+            let rise = Vec3::from(copy[2].position) - base;
+            let (s, c) = NET_CUP_TILT_RAD.sin_cos();
+            assert!((rise.dot(out) - TOWER_PLANT_MAX_M * s).abs() < 1e-4, "the plant leans out {} m", rise.dot(out));
+            assert!((rise.y - TOWER_PLANT_MAX_M * c).abs() < 1e-4, "the plant rises {} m", rise.y);
         }
         // A budget of five copies: five models, seven procedural plants.
         let small = PlantVisualRegistry { plot_vertex_budget: 15, ..visuals() };
