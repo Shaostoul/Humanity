@@ -425,6 +425,7 @@ mod tests {
                 },
             ],
             corridors: Vec::new(),
+            ..Default::default()
         };
         let per_zone = wall_segments(&home());
         let all = ship_wall_segments(&ship);
@@ -497,6 +498,7 @@ mod tests {
                 door_height: 2.1,
                 glass_top: false,
             }],
+            ..Default::default()
         };
         let segs = ship_wall_segments(&ship);
         // The tube's two side rails (z = 3.5 and 6.5, x 10..20) block...
@@ -549,6 +551,7 @@ mod tests {
                 door_height: 2.1,
                 glass_top: false,
             }],
+            ..Default::default()
         };
         let segs = ship_wall_segments(&ship);
         // The same placement-to-segment conversion the engine's per-frame door path performs.

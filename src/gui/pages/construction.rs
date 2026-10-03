@@ -14,6 +14,11 @@ use crate::ship::fibonacci::WallKind;
 use crate::ship::home_structure::{Opening, OpeningKind};
 use crate::ship::ship_structure::{zone_body, zone_body_mut};
 
+// The ship-level tools at the top of the left panel (zone selector, corridors, plots and
+// districts), in pages/construction/ship_tools.rs.
+mod ship_tools;
+use ship_tools::{draw_corridor_section, draw_plots_and_districts, draw_ship_zone_selector};
+
 const WALL_LABELS: [&str; 4] = ["North", "South", "West", "East"];
 
 /// Door/window animation styles, loaded from `data/blueprints/opening_styles.ron` (v0.931,
@@ -644,9 +649,40 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) {
 /// to segment); the RIGHT panel edits the selected wall's corners, height, and openings (doors /
 /// windows, each with a data-driven animation STYLE). The footer palette still places machines.
 /// Edits set `construction_structure_dirty` so the engine rebuilds the mesh live; Save persists
-/// ship_structure.ron (the same file the AI edits -- one model, edited the same way by both; the
-/// v0.754 multi-zone ship, with a zone selector choosing which zone the tools operate on).
+/// the home design (data/homes/<kind>.ron) and, in the Dev mode, the ship file
+/// (data/blueprints/ship_structure.ron): the same files the AI edits -- one model, edited the same
+/// way by both; the v0.754 multi-zone ship, with a zone selector choosing which zone the tools
+/// operate on.
+/// Outside the Dev mode the ship's own machines (the Commons stalls, its garden) are read-only,
+/// because only a Dev save writes data/machines/ship.ron: an edit made in Normal or Creative
+/// would be dropped on the next load without a word (increment 1a, the critic's review). Set
+/// the lock from the play mode every frame the editor draws, and let go of any selection that
+/// just became read-only (the mode can change with the editor open).
+pub(crate) fn sync_ship_machine_lock(state: &mut GuiState) {
+    let ship_scope = state.settings.play_mode.allows(crate::config::Capability::ShipStructureEditing);
+    let Some(h) = state.home_machines.as_mut() else { return };
+    h.ship_part.locked = !ship_scope;
+    if ship_scope {
+        return;
+    }
+    let locked = h.locked_ids();
+    if state.construction_machine_selected.as_ref().is_some_and(|id| locked.contains(id)) {
+        state.construction_machine_selected = None;
+    }
+    if state
+        .construction_connection_selected
+        .as_ref()
+        .is_some_and(|(a, b)| locked.contains(a) || locked.contains(b))
+    {
+        state.construction_connection_selected = None;
+    }
+    state
+        .construction_multi
+        .retain(|k| !k.strip_prefix("Machine:").is_some_and(|id| locked.contains(id)));
+}
+
 fn draw_wall_editor(ctx: &Context, theme: &Theme, state: &mut GuiState) {
+    sync_ship_machine_lock(state);
     // Footer: the machine palette (places into the box's single "home" room for now).
     draw_palette(ctx, theme, state);
 
@@ -704,6 +740,9 @@ fn draw_wall_editor(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                 // its door mouths) -- they belong to no single zone, so they live here beside
                 // the zone selector.
                 draw_corridor_section(ui, theme, state);
+                // PLOTS and DISTRICTS (increment 1a): ship-file records with no zone of their
+                // own, so they live here too. Dev mode only, like the corridors.
+                draw_plots_and_districts(ui, theme, state);
                 if let Some(hs) = zone_body(&state.ship_structure, state.construction_zone) {
                     ui.label(RichText::new(format!("Fixed box  {:.0} x {:.0} x {:.0} m", hs.width, hs.depth, hs.height))
                         .size(theme.font_size_small).color(theme.text_muted()));
@@ -1631,388 +1670,6 @@ const CONSOLE_VERBS: &[ConsoleVerb] = &[
     ConsoleVerb { usage: "rm_road <n>", desc: "Remove road edge #n (1-based)." },
 ];
 
-/// SHIP ZONE selector (v0.754, ship-superstructure increment A), at the top of the Home structure
-/// panel: a combo of the ship's zones (which one the editor is EDITING -- every tool operates on
-/// it), an "Add zone" button (a modest default 10 x 10 x 3 m box placed clear of existing zones),
-/// per-zone label / purpose / origin fields, and a two-click confirmed Delete for non-home zones.
-/// Switching zones clears zone-scoped selections (their indices point into the new body) and moves
-/// the build avatar to the new zone's spawn.
-fn draw_ship_zone_selector(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
-    let Some(n_zones) = state.ship_structure.as_ref().map(|s| s.zones.len()) else {
-        return;
-    };
-    state.construction_zone = state.construction_zone.min(n_zones.saturating_sub(1));
-    // PLAY-MODE SCOPE (task #50): only the Dev play mode may touch the ship's
-    // superstructure. Outside Dev the editor is PINNED to the HOME zone -- no
-    // zone dropdown, no add/delete, no label/purpose/origin edits -- so the
-    // operator's multi-zone mothership is untouchable while every tool below
-    // (walls, openings, lights, machines) still works on your own homestead.
-    let ship_scope = state
-        .settings
-        .play_mode
-        .allows(crate::config::Capability::ShipStructureEditing);
-    // Owned display strings so the ship borrow ends before the mutations below.
-    let zone_names: Vec<String> = state
-        .ship_structure
-        .as_ref()
-        .map(|s| {
-            s.zones
-                .iter()
-                .map(|z| if z.label.trim().is_empty() { z.id.clone() } else { format!("{} ({})", z.label, z.id) })
-                .collect()
-        })
-        .unwrap_or_default();
-    let home_idx = state.ship_structure.as_ref().map_or(0, |s| s.home_zone_index());
-    let mut switch_to: Option<usize> = None;
-    if !ship_scope {
-        // Snap back to home if the mode changed mid-edit (or a stale selection
-        // survived from an earlier Dev session). Routed through the shared
-        // switch_to block below so zone-scoped selections are cleared the same
-        // way a legitimate zone switch clears them.
-        if state.construction_zone != home_idx {
-            switch_to = Some(home_idx);
-        }
-        state.construction_zone_delete_arm = false; // no armed delete outside Dev
-        ui.horizontal(|ui| {
-            ui.label(RichText::new("Ship zone").size(theme.font_size_small).color(theme.text_muted()));
-            ui.label(
-                RichText::new(zone_names.get(home_idx).cloned().unwrap_or_default())
-                    .size(theme.font_size_small)
-                    .color(theme.text_secondary()),
-            );
-        });
-        ui.label(
-            RichText::new(
-                "Editing is scoped to your homestead. The Dev play mode \
-                 (Settings > Gameplay) unlocks whole-ship editing.",
-            )
-            .size(theme.font_size_small)
-            .color(theme.text_muted()),
-        );
-    } else {
-    ui.horizontal(|ui| {
-        ui.label(RichText::new("Ship zone").size(theme.font_size_small).color(theme.text_muted()));
-        egui::ComboBox::from_id_salt("ship_zone_selector")
-            .selected_text(zone_names.get(state.construction_zone).cloned().unwrap_or_default())
-            .show_ui(ui, |ui| {
-                for (i, name) in zone_names.iter().enumerate() {
-                    if ui.selectable_label(i == state.construction_zone, name).clicked() {
-                        switch_to = Some(i);
-                    }
-                }
-            });
-        if ui.small_button("Add zone").clicked() {
-            if let Some(ship) = state.ship_structure.as_mut() {
-                let idx = ship.add_zone("New Zone", "commons");
-                switch_to = Some(idx);
-            }
-            state.construction_structure_dirty = true; // render + collide the new box immediately
-        }
-    });
-    // Per-zone metadata: label, purpose tag, world origin. Origin edits rebuild live (the whole
-    // zone box moves). Deferred flags keep the ship borrow local to each block.
-    let mut zone_edited = false;
-    if let Some(z) = state
-        .ship_structure
-        .as_mut()
-        .and_then(|s| s.zones.get_mut(state.construction_zone))
-    {
-        ui.horizontal(|ui| {
-            ui.label(RichText::new("Label").size(theme.font_size_small).color(theme.text_muted()));
-            ui.add(egui::TextEdit::singleline(&mut z.label).desired_width(120.0));
-            egui::ComboBox::from_id_salt("ship_zone_purpose")
-                .selected_text(z.purpose.clone())
-                .width(96.0)
-                .show_ui(ui, |ui| {
-                    for p in ["residence", "commons", "bay", "agriculture", "corridor"] {
-                        ui.selectable_value(&mut z.purpose, p.to_string(), p);
-                    }
-                });
-        });
-        ui.horizontal(|ui| {
-            ui.label(RichText::new("Origin").size(theme.font_size_small).color(theme.text_muted()));
-            let mut o = z.origin;
-            let rx = ui.add(egui::DragValue::new(&mut o.0).speed(0.5).suffix(" x"));
-            let ry = ui.add(egui::DragValue::new(&mut o.1).speed(0.5).suffix(" y"));
-            let rz = ui.add(egui::DragValue::new(&mut o.2).speed(0.5).suffix(" z"));
-            if rx.changed() || ry.changed() || rz.changed() {
-                z.origin = o;
-                zone_edited = true;
-            }
-        });
-    }
-    if zone_edited {
-        state.construction_structure_dirty = true;
-    }
-    // Delete the EDITED zone (never the home zone, never the last zone) with a 2-click confirm.
-    if state.construction_zone != home_idx && n_zones > 1 {
-        ui.horizontal(|ui| {
-            if state.construction_zone_delete_arm {
-                ui.label(RichText::new("Delete this zone?").size(theme.font_size_small).color(theme.warning()));
-                if ui.small_button(RichText::new("Confirm delete").color(theme.danger())).clicked() {
-                    let removed = state
-                        .ship_structure
-                        .as_mut()
-                        .map_or(false, |s| {
-                            let idx = state.construction_zone;
-                            s.remove_zone(idx)
-                        });
-                    state.construction_zone_delete_arm = false;
-                    if removed {
-                        switch_to = Some(home_idx.min(state.construction_zone));
-                        state.construction_structure_dirty = true;
-                    }
-                }
-                if ui.small_button("Cancel").clicked() {
-                    state.construction_zone_delete_arm = false;
-                }
-            } else if ui.small_button(RichText::new("Delete zone").color(theme.danger())).clicked() {
-                state.construction_zone_delete_arm = true;
-            }
-        });
-    }
-    } // end ship_scope (Dev-only zone tools)
-    if let Some(mut i) = switch_to {
-        // Runs unconditionally (even i == current): after a DELETE the indices shifted, so the
-        // old selections must clear regardless of whether the index number happens to match.
-        let count = state.ship_structure.as_ref().map_or(0, |s| s.zones.len());
-        i = i.min(count.saturating_sub(1));
-        state.construction_zone = i;
-        state.construction_zone_delete_arm = false;
-        // Zone-scoped selections index into the OLD body; clear them all.
-        state.construction_wall_selected = None;
-        state.construction_light_selected = None;
-        state.construction_structure_selected = None;
-        state.construction_road_node_selected = None;
-        state.construction_zone_selected = None;
-        state.construction_machine_selected = None;
-        state.construction_wall_start = None;
-        // Move the build avatar to the new zone's spawn (its box centre if none saved).
-        let spawn = zone_body(&state.ship_structure, i)
-            .map(|b| b.spawn.unwrap_or((b.width * 0.5, b.depth * 0.5)));
-        state.build_char_pos = spawn;
-        state.construction_structure_dirty = true; // refresh introspection + gizmo state
-    }
-    ui.add_space(theme.spacing_xs);
-}
-
-/// CORRIDORS section (ship-superstructure increment B), directly under the zone selector: lists the
-/// ship's corridors (each with a delete X and, when broken, the honest reason it cannot generate)
-/// and an "Add corridor" flow -- pick zone A and zone B, drag the world `lat` centreline (or hit
-/// Center to snap it to the middle of the zones' shared span), size the door mouth, set the tube
-/// width + glass top, Create. The corridor OWNS its door mouths since the rework (the old per-zone
-/// door dropdowns indexed authored doors by ordinal, which desynced on every door edit). Creation
-/// validates through `ShipStructure::corridor_geometry` (the same resolver mesh + collision use)
-/// and shows the error verbatim on failure. Creating/deleting flags
-/// `construction_structure_dirty`, the same live rebuild every zone edit takes.
-fn draw_corridor_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
-    use crate::ship::ship_structure::ShipCorridor;
-    // PLAY-MODE SCOPE (task #50): corridors are whole-ship superstructure --
-    // outside the Dev play mode they are read-only world geometry, not
-    // editable rows. The section vanishes entirely (rather than disabling
-    // piecemeal) so the homestead editor stays uncluttered for players; the
-    // zone selector above already explains how to unlock whole-ship editing.
-    if !state
-        .settings
-        .play_mode
-        .allows(crate::config::Capability::ShipStructureEditing)
-    {
-        return;
-    }
-    let Some(ship) = state.ship_structure.as_ref() else {
-        return;
-    };
-    if ship.zones.len() < 2 {
-        return; // nothing to connect until a second zone exists
-    }
-    ui.add_space(theme.spacing_xs);
-    ui.label(RichText::new("Corridors").size(theme.font_size_small).strong().color(theme.text_primary()));
-    // Existing rows: owned display data first, so the ship borrow ends before any mutation below.
-    let rows: Vec<(String, Option<String>)> = ship
-        .corridors
-        .iter()
-        .map(|c| {
-            let label = format!(
-                "{} -> {}  (lat {:.1} m, tube {:.1} m, door {:.1} x {:.1} m{})",
-                c.from_zone,
-                c.to_zone,
-                c.lat,
-                c.width,
-                c.door_width,
-                c.door_height,
-                if c.glass_top { ", glass" } else { "" }
-            );
-            (label, ship.corridor_geometry(c).err())
-        })
-        .collect();
-    let zone_names: Vec<String> = ship.zones.iter().map(|z| z.id.clone()).collect();
-    let n_zones = zone_names.len();
-    state.construction_corridor_from_zone = state.construction_corridor_from_zone.min(n_zones - 1);
-    state.construction_corridor_to_zone = state.construction_corridor_to_zone.min(n_zones - 1);
-    let (from_id, to_id) = (
-        zone_names[state.construction_corridor_from_zone].clone(),
-        zone_names[state.construction_corridor_to_zone].clone(),
-    );
-    // The Center suggestion: midpoint of the two SELECTED zones' overlapping span on the axis
-    // ACROSS the run. The run axis picks itself from the larger clear gap between the boxes,
-    // mirroring `corridor_geometry` exactly so the button never disagrees with the validator.
-    let center_lat = {
-        let zf = &ship.zones[state.construction_corridor_from_zone];
-        let zt = &ship.zones[state.construction_corridor_to_zone];
-        let (fo, to) = (zf.origin_vec(), zt.origin_vec());
-        let gap_x = (to.x - (fo.x + zf.body.width)).max(fo.x - (to.x + zt.body.width));
-        let gap_z = (to.z - (fo.z + zf.body.depth)).max(fo.z - (to.z + zt.body.depth));
-        if gap_x >= gap_z {
-            // X run: centre the tube on the shared z span.
-            (fo.z.max(to.z) + (fo.z + zf.body.depth).min(to.z + zt.body.depth)) * 0.5
-        } else {
-            // Z run: centre on the shared x span.
-            (fo.x.max(to.x) + (fo.x + zf.body.width).min(to.x + zt.body.width)) * 0.5
-        }
-    };
-    let mut delete: Option<usize> = None;
-    for (i, (label, err)) in rows.iter().enumerate() {
-        ui.horizontal(|ui| {
-            if ui.small_button("X").on_hover_text("Delete this corridor").clicked() {
-                delete = Some(i);
-            }
-            let color = if err.is_some() { theme.warning() } else { theme.text_primary() };
-            ui.label(RichText::new(label).size(theme.font_size_small).color(color));
-        });
-        if let Some(e) = err {
-            // The honest reason this row currently generates nothing (e.g. its door was deleted,
-            // or a zone was dragged out of alignment). Saving drops broken rows.
-            ui.label(RichText::new(e).size(theme.font_size_small).color(theme.warning()));
-        }
-    }
-    if rows.is_empty() {
-        ui.label(RichText::new("None yet. A corridor is a straight tube between two zones; it cuts its own door mouths.")
-            .size(theme.font_size_small).color(theme.text_muted()));
-    }
-    // Add flow: from zone, to zone, lat centreline (+ Center helper), door mouth, width, glass
-    // top, Create.
-    let mut clear_error = false;
-    ui.horizontal(|ui| {
-        ui.label(RichText::new("From").size(theme.font_size_small).color(theme.text_muted()));
-        egui::ComboBox::from_id_salt("corridor_from_zone")
-            .selected_text(from_id.clone())
-            .width(80.0)
-            .show_ui(ui, |ui| {
-                for (i, name) in zone_names.iter().enumerate() {
-                    if ui.selectable_label(i == state.construction_corridor_from_zone, name).clicked() {
-                        state.construction_corridor_from_zone = i;
-                        clear_error = true;
-                    }
-                }
-            });
-        ui.label(RichText::new("To").size(theme.font_size_small).color(theme.text_muted()));
-        egui::ComboBox::from_id_salt("corridor_to_zone")
-            .selected_text(to_id.clone())
-            .width(80.0)
-            .show_ui(ui, |ui| {
-                for (i, name) in zone_names.iter().enumerate() {
-                    if ui.selectable_label(i == state.construction_corridor_to_zone, name).clicked() {
-                        state.construction_corridor_to_zone = i;
-                        clear_error = true;
-                    }
-                }
-            });
-    });
-    ui.horizontal(|ui| {
-        // The centreline in WORLD metres (z for an X-run corridor, x for a Z-run) -- the corridor
-        // owns this position; no authored door is consulted.
-        ui.label(RichText::new("Lat").size(theme.font_size_small).color(theme.text_muted()));
-        if ui
-            .add(egui::DragValue::new(&mut state.construction_corridor_lat).speed(0.1).suffix(" m"))
-            .changed()
-        {
-            clear_error = true;
-        }
-        if ui
-            .small_button("Center")
-            .on_hover_text("Snap the centreline to the middle of the two zones' shared span")
-            .clicked()
-        {
-            state.construction_corridor_lat = center_lat;
-            clear_error = true;
-        }
-    });
-    ui.horizontal(|ui| {
-        ui.label(RichText::new("Door").size(theme.font_size_small).color(theme.text_muted()));
-        ui.add(
-            egui::DragValue::new(&mut state.construction_corridor_door_w)
-                .speed(0.1)
-                .range(0.8..=6.0)
-                .suffix(" m"),
-        );
-        ui.label(RichText::new("x").size(theme.font_size_small).color(theme.text_muted()));
-        ui.add(
-            egui::DragValue::new(&mut state.construction_corridor_door_h)
-                .speed(0.1)
-                .range(1.8..=4.0)
-                .suffix(" m"),
-        );
-    });
-    let mut create = false;
-    ui.horizontal(|ui| {
-        ui.label(RichText::new("Width").size(theme.font_size_small).color(theme.text_muted()));
-        ui.add(
-            egui::DragValue::new(&mut state.construction_corridor_width)
-                .speed(0.1)
-                .range(0.5..=20.0)
-                .suffix(" m"),
-        );
-        ui.checkbox(&mut state.construction_corridor_glass, RichText::new("Glass top").size(theme.font_size_small));
-        create = ui.small_button("Create").clicked();
-    });
-    if clear_error {
-        state.construction_corridor_error.clear();
-    }
-    if create {
-        let candidate = ShipCorridor {
-            from_zone: from_id,
-            to_zone: to_id,
-            lat: state.construction_corridor_lat,
-            width: state.construction_corridor_width,
-            door_width: state.construction_corridor_door_w,
-            door_height: state.construction_corridor_door_h,
-            glass_top: state.construction_corridor_glass,
-        };
-        // Validate through the SAME resolver generation uses; show the failure verbatim.
-        let verdict = state
-            .ship_structure
-            .as_ref()
-            .map(|s| s.corridor_geometry(&candidate).map(|_| ()))
-            .unwrap_or(Err("no ship loaded".to_string()));
-        match verdict {
-            Ok(()) => {
-                if let Some(s) = state.ship_structure.as_mut() {
-                    s.corridors.push(candidate);
-                }
-                state.construction_corridor_error.clear();
-                state.construction_structure_dirty = true; // render + collide the new tube now
-            }
-            Err(e) => state.construction_corridor_error = e,
-        }
-    }
-    if !state.construction_corridor_error.is_empty() {
-        ui.label(
-            RichText::new(&state.construction_corridor_error)
-                .size(theme.font_size_small)
-                .color(theme.warning()),
-        );
-    }
-    if let Some(i) = delete {
-        if let Some(s) = state.ship_structure.as_mut() {
-            if i < s.corridors.len() {
-                s.corridors.remove(i);
-                state.construction_structure_dirty = true;
-            }
-        }
-    }
-    ui.add_space(theme.spacing_xs);
-}
-
 /// Execute a construction console command against the LIVE home (v0.578) and return a result string.
 /// Mutates the ACTIVE ship zone's body (v0.754) and flags it dirty, so the SAME live rebuild the
 /// gizmos use redraws -- one edit path for an AI (typed verbs) and a human (the gizmos). Verbs are
@@ -2334,7 +1991,7 @@ fn draw_zones_editor(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         .id_salt("hs_zones")
         .default_open(false)
         .show(ui, |ui| {
-            ui.label(RichText::new("Macro districts: residential, industrial, hangar, the mall... (M1)")
+            ui.label(RichText::new("Rooms and areas inside this zone. The mothership's districts (hangar, the Concourse...) are edited under Districts, near the top, in the Dev mode.")
                 .size(theme.font_size_small).color(theme.text_muted()));
             if state.zone_add_type.is_empty() {
                 state.zone_add_type = types[0].id.clone();
@@ -3129,12 +2786,19 @@ fn draw_object_browser(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         /// for everything else. Clicking the NAME selects (the buggy "click name toggles" is gone now
         /// the light gets a dedicated checkbox, per the operator).
         on: Option<bool>,
+        /// Where a double-click flies the camera, in SHIP metres: `pos` is zone-local (the walls,
+        /// lights and so on of the zone being edited; a machine in its own zone since increment
+        /// 1a), so this adds that zone's origin. A conduit node is already in ship metres.
+        at: (f32, f32, f32),
     }
     let short = |s: &str| -> String {
         let p: Vec<&str> = s.split('_').collect();
         if p.len() >= 2 { format!("{}_{}", p[p.len() - 2], p[p.len() - 1]) } else { s.to_string() }
     };
     let mut rows: Vec<Row> = Vec::new();
+    // The edited zone's origin, for the rows below whose positions are local to it.
+    let zo = crate::ship::ship_structure::zone_origin(&state.ship_structure, state.construction_zone);
+    let world = |p: (f32, f32, f32), o: glam::Vec3| (p.0 + o.x, p.1 + o.y, p.2 + o.z);
     if let Some(hs) = zone_body(&state.ship_structure, state.construction_zone) {
         for (i, w) in hs.walls.iter().enumerate() {
             rows.push(Row {
@@ -3145,36 +2809,47 @@ fn draw_object_browser(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 selected: state.construction_wall_selected == Some(i),
                 removable: true,
                 on: None,
+                at: world(((w.a.0 + w.b.0) * 0.5, hs.height * 0.5, (w.a.1 + w.b.1) * 0.5), zo),
             });
         }
         for (i, ps) in hs.structures.iter().enumerate() {
             let name = crate::ship::structure::structure_type(&ps.type_id)
                 .map(|t| t.label.clone())
                 .unwrap_or_else(|| ps.type_id.clone());
-            rows.push(Row { tag: "Struct", key: Key::Structure(i), name, pos: ps.pos, selected: state.construction_structure_selected == Some(i), removable: true, on: None });
+            rows.push(Row { tag: "Struct", key: Key::Structure(i), name, pos: ps.pos, selected: state.construction_structure_selected == Some(i), removable: true, on: None, at: world(ps.pos, zo) });
         }
         for (i, l) in hs.lights.iter().enumerate() {
             let name = crate::renderer::light::light_type(&l.type_id)
                 .map(|t| t.name.clone())
                 .unwrap_or_else(|| l.type_id.clone());
-            rows.push(Row { tag: "Light", key: Key::Light(i), name, pos: l.pos, selected: state.construction_light_selected == Some(i), removable: true, on: Some(l.on) });
+            rows.push(Row { tag: "Light", key: Key::Light(i), name, pos: l.pos, selected: state.construction_light_selected == Some(i), removable: true, on: Some(l.on), at: world(l.pos, zo) });
         }
         for n in &hs.road_nodes {
-            rows.push(Row { tag: "Road", key: Key::RoadNode(n.id), name: format!("Node N{}", n.id), pos: (n.pos.0, 0.0, n.pos.1), selected: state.construction_road_node_selected == Some(n.id), removable: true, on: None });
+            rows.push(Row { tag: "Road", key: Key::RoadNode(n.id), name: format!("Node N{}", n.id), pos: (n.pos.0, 0.0, n.pos.1), selected: state.construction_road_node_selected == Some(n.id), removable: true, on: None, at: world((n.pos.0, 0.0, n.pos.1), zo) });
         }
     }
     if let Some(h) = state.home_machines.as_ref() {
         // DIRECT instances can be removed; ARRAY-derived ones (from all_instances() but not in
         // `instances`) are edited via their array, so they get no [x] (matches draw_machine_detail).
         let direct: std::collections::HashSet<String> = h.instances.iter().map(|m| m.id.clone()).collect();
+        // Outside the Dev mode the ship's machines are not listed: they are read-only there
+        // (`MachineHome::is_locked`; only a Dev save writes their file).
+        let locked = h.locked_ids();
         for inst in h.all_instances() {
+            if locked.contains(&inst.id) {
+                continue;
+            }
             let selected = state.construction_machine_selected.as_deref() == Some(inst.id.as_str());
             let removable = direct.contains(&inst.id);
-            rows.push(Row { tag: "Machine", key: Key::Machine(inst.id.clone()), name: short(&inst.machine), pos: inst.offset, selected, removable, on: None });
+            let mo = state.ship_structure.as_ref().map_or(glam::Vec3::ZERO, |s| s.machine_zone_origin(&inst.zone));
+            rows.push(Row { tag: "Machine", key: Key::Machine(inst.id.clone()), name: short(&inst.machine), pos: inst.offset, selected, removable, on: None, at: world(inst.offset, mo) });
         }
         for cn in &h.conduit_nodes {
+            if h.ship_part.locked && h.ship_part.conduit_nodes.contains(&cn.id) {
+                continue; // the ship's node, read-only outside the Dev mode
+            }
             let selected = state.construction_conduit_node_selected.as_deref() == Some(cn.id.as_str());
-            rows.push(Row { tag: "Pipe", key: Key::ConduitNode(cn.id.clone()), name: format!("Node {}", cn.id), pos: cn.pos, selected, removable: true, on: None });
+            rows.push(Row { tag: "Pipe", key: Key::ConduitNode(cn.id.clone()), name: format!("Node {}", cn.id), pos: cn.pos, selected, removable: true, on: None, at: cn.pos });
         }
     }
     let total = rows.len();
@@ -3316,7 +2991,7 @@ fn draw_object_browser(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                                         }
                                     }
                                     if resp.double_clicked() {
-                                        act = Some(Act::Focus((row.pos.0, row.pos.1 + 0.5, row.pos.2)));
+                                        act = Some(Act::Focus((row.at.0, row.at.1 + 0.5, row.at.2)));
                                     }
                                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                                         if row.removable && !is_locked {
@@ -3562,11 +3237,14 @@ fn draw_machines_and_connections(ui: &mut egui::Ui, theme: &Theme, state: &mut G
 
     ui.add_space(theme.spacing_sm);
 
-    // Snapshot the placed machines (id, type, room) for the list + the connection combos.
+    // Snapshot the placed machines (id, type, room) for the list + the connection combos. Outside
+    // the Dev mode the ship's machines are read-only (`MachineHome::is_locked`), so they are not
+    // offered as wire ends, and their wires show without a cable picker or a remove button.
+    let locked = state.home_machines.as_ref().map(|h| h.locked_ids()).unwrap_or_default();
     let machines: Vec<(String, String, String)> = state
         .home_machines
         .as_ref()
-        .map(|h| h.all_instances().into_iter().map(|i| (i.id, i.machine, i.room)).collect())
+        .map(|h| h.all_instances().into_iter().filter(|i| !locked.contains(&i.id)).map(|i| (i.id, i.machine, i.room)).collect())
         .unwrap_or_default();
 
     // Machines list REMOVED (v0.597): machines are in the unified Objects browser above now (click
@@ -3640,7 +3318,7 @@ fn draw_machines_and_connections(ui: &mut egui::Ui, theme: &Theme, state: &mut G
             // room-temperature superconductor in one click (near-zero loss, huge ampacity, so the
             // Conduits check goes all-green). "Reset to auto" reverts to cheapest-copper auto-sizing.
             // (A future quest gates earning it; the action itself is here now.)
-            let power_runs = conns.iter().filter(|(_, _, k, _)| k == "power").count();
+            let power_runs = conns.iter().filter(|(f, t, k, _)| k == "power" && !locked.contains(f) && !locked.contains(t)).count();
             let mut bulk_spec: Option<Option<String>> = None;
             if power_runs > 0 {
                 ui.horizontal(|ui| {
@@ -3653,7 +3331,7 @@ fn draw_machines_and_connections(ui: &mut egui::Ui, theme: &Theme, state: &mut G
                 });
                 if let Some(sp) = bulk_spec {
                     if let Some(h) = state.home_machines.as_mut() {
-                        for c in h.connections.iter_mut().filter(|c| c.kind == "power") {
+                        for c in h.connections.iter_mut().filter(|c| c.kind == "power" && !locked.contains(&c.from) && !locked.contains(&c.to)) {
                             c.spec = sp.clone();
                         }
                     }
@@ -3679,6 +3357,12 @@ fn draw_machines_and_connections(ui: &mut egui::Ui, theme: &Theme, state: &mut G
                         .show(ui, |ui| {
                             for (i, (from, to, kind, spec)) in conns.iter().enumerate() {
                                 if kind != k {
+                                    continue;
+                                }
+                                if locked.contains(from) || locked.contains(to) {
+                                    // The ship's wire: shown, not edited (only a Dev save writes it).
+                                    ui.label(RichText::new(format!("{} -> {}  (the ship's; edit in the Dev mode)", label(from), label(to)))
+                                        .size(theme.font_size_small).color(theme.text_muted()));
                                     continue;
                                 }
                                 ui.horizontal(|ui| {
@@ -4152,6 +3836,8 @@ mod multi_select_tests {
         catalog.insert("box".to_string(), box_def());
         let inst = |id: &str| MachineInstance { id: id.into(), machine: "box".into(), room: "g".into(), offset: (0.0, 0.0, 0.0), rotation: 0.0, zone: "home".into(), screen_source: None };
         MachineHome {
+            ship_machines: None,
+            ship_part: Default::default(),
             catalog,
             instances: vec![inst("a"), inst("b"), inst("c")],
             arrays: Vec::new(),

@@ -153,3 +153,13 @@ what we will say about it.
   unreliable), modern seedling-stage stimulation results, and how much nitrogen
   lightning actually fixes. Cut short by the session limit; unread sources
   listed. Options for the game set out, not chosen.
+- [`2026-10-03-food-land-and-transport-speeds.md`](2026-10-03-food-land-and-transport-speeds.md),
+  how much growing area one person needs for a year's food (biointensive
+  beds, conventional farming, lamp-lit chambers from NASA, Lunar Palace and
+  MELiSSA) and how fast goods and people really move (lifts, mine hoists,
+  conveyors, pneumatic tubes, mobile robots, rail, maglev), with handling
+  times. The project's 700 to 1,000 m2 per person has no source; about 232
+  to 372 m2 for sun-lit beds and 50 to 65 m2 under lamps do. Checks every
+  rail and logistics speed in `data/transportation.ron` (the posted road
+  limits were not researched): the space elevator climb and the
+  slurry pipe are above the sources; the AGV and tube rows are not.

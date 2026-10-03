@@ -2659,3 +2659,80 @@ place for the grace.
 **Fix:** both call `despawn_player_now`; the grace is for dropped sockets
 only. Real-relay tests for a leave against a drop, and for a ban, seen red.
 Found by the scripted second player.
+
+## BUG-127: another player's hair drew across their face, and the crew's heads sat inside their bodies (FIXED v0.1442.0)
+
+**Symptom:** in the co-presence rig's screenshots (2026-10-03) another
+player's hair cap showed as a dark band across the face; the amber crew
+figures still had the head-inside-body fault BUG-120 fixed for players.
+
+**Root cause:** the engine's sphere mesh (`Mesh::sphere`,
+`src/renderer/mesh.rs:436`) is wound inside out, `[a, b, a+1]`, so the
+opaque pipeline (counter-clockwise front faces, back faces culled) drew the
+FAR inside of the head and the hair, and the hair's near side vanished. The
+crew built their own fixed-offset body and head.
+
+**Fix:** figures use their own outward-wound head mesh
+(`net_route::figure_head_mesh_data`), the hair sits over the top and back of
+the head and turns with the player's facing, and the crew are built by
+`crew_figure_parts` from the same constants as players. Tests seen red; the
+rig's screenshots show the face and the crew standing on the floor.
+
+## BUG-128: the engine's sphere mesh is inside out (OPEN, found 2026-10-03)
+
+`Mesh::sphere` (`src/renderer/mesh.rs:436`) emits triangles as
+`[a, b, a+1]`, which face inward; the opaque pipeline culls back faces, so
+every sphere drawn with it shows its far inside instead of its outside. The
+figures work around it (BUG-127). Eight other callers still draw it inside
+out: `src/engine/home_meshes.rs:306` and `:1952`, `src/engine/world_load.rs:60`
+(your own avatar's head) and `:1215`, and `src/lib.rs` around 7826, 8132,
+8245 and 8978. The right fix is the one-line index swap in `Mesh::sphere`,
+then a look at each caller (some may have been tuned to the inside view),
+proven on the rig.
+
+## BUG-129: the player's game save had no backups, and a crash mid-save could destroy it (FIXED v0.1442.0)
+
+**Symptom:** none yet, which is the point: `saves/offline_home.json` (and
+the auto and named saves) was a single file rewritten in place with
+`std::fs::write`, which empties the file before writing, and CLAUDE.md
+promised a `backups/` folder that nothing wrote. Found 2026-10-02.
+
+**Fix:** every save is written to a temp file, flushed and renamed over the
+real one, so a crash leaves the previous save whole. Before a save is
+overwritten, its previous version is kept under `backups/saves/<slot>/`: the
+newest 10, at most one every 15 minutes, never a copy already held (so
+"Snapshot now" clicks and stepping back through restores cannot push history
+out), with the spacing measured from copies not stamped in the future (a
+clock set back cannot switch it off). Settings > Data lists the copies with
+Restore (two clicks), which first keeps what it replaces; saves are held
+until the restored home is loaded, and with "Start every session from the
+default home" on it says plainly that only the character is loaded. Tests for
+each case, seen red; reviewed twice.
+
+## BUG-130: "Back up now" copies were never pruned (FIXED v0.1442.0)
+
+**Fix:** the relay keeps the newest 10 manual copies by stamp
+(`MANUAL_BACKUPS_KEPT`), tells the admin in its reply which copy it removed,
+skips pruning on a press when a copy is stamped in the future (a clock that
+went back), and the retention document now lists manual copies (capped by
+count, not age). Removing a single copy in-app is logged in
+docs/design/in-app-ops.md.
+
+## BUG-131: a combined verify hung for hours on one library test (MITIGATED v0.1442.0)
+
+**Symptom:** the night of 2026-10-02 to 10-03, `just verify`'s library test
+run sat for hours with the test binary alive and no output; the night's
+release waited behind it until the operator asked in the morning. The same
+suite then passed 2665/2665 in 152 s.
+
+**Cause:** not proven. The one test the rerun reported running past 60 s
+was `renderer::billboard_bake::tests::cluster_sprites_carry_real_per_leaf_colour_variation`
+(it bakes sprites, slow but finished). During the hang, rigs booted the game
+on the same GPU, so a test that asks for a GPU device stalling behind them is
+the leading suspect, not a confirmed one.
+
+**Mitigation:** `just verify` runs the library tests under a 40-minute
+time limit and fails with a message pointing at the "running for over 60
+seconds" lines, so a hang costs at most 40 minutes. The orchestrator's own
+lesson: give every long background step a time limit and check it, rather
+than waiting on a notification that may never come.

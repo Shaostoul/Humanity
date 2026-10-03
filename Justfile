@@ -396,7 +396,11 @@ validate-data:
 verify:
     cargo check --features native
     cargo check --features relay --no-default-features
-    cargo test --features native --lib
+    # A time limit (2026-10-03): one library test hung during a combined
+    # verify overnight (the run normally takes about 3 minutes once built) and
+    # held the night's release for hours. 40 minutes covers a full rebuild;
+    # past it the verify FAILS, naming the stall, instead of waiting forever.
+    timeout 2400 cargo test --features native --lib || { echo "FAILED: the library tests failed or ran past 40 minutes (a hung test: rerun and look for 'has been running for over 60 seconds')"; exit 1; }
     just verify-relay-compiles
     just lints
     just rig-tests
@@ -548,7 +552,7 @@ lints:
 # by a window in the screenshot each FAIL.
 # Add a file here whenever a rig script grows a judgement of its own.
 rig-tests:
-    node --test scripts/tests/machine-guard.test.js scripts/tests/perf-report.test.js scripts/tests/terminator-grain.test.js scripts/tests/make-clips.test.js scripts/tests/voice-rejoin.test.js scripts/tests/backup-rotate.test.js scripts/tests/second-player.test.js scripts/tests/copresence-judge.test.js
+    node --test scripts/tests/machine-guard.test.js scripts/tests/perf-report.test.js scripts/tests/terminator-grain.test.js scripts/tests/make-clips.test.js scripts/tests/voice-rejoin.test.js scripts/tests/backup-rotate.test.js scripts/tests/second-player.test.js scripts/tests/copresence-judge.test.js scripts/tests/dxc-dlls.test.js
 
 # The scripted second player (scripts/second-player.js) against a REAL relay.
 # NOT pure node, so NOT in rig-tests or `just verify` (rig-tests keeps the

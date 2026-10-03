@@ -43,6 +43,8 @@ const fs = require("fs");
 const path = require("path");
 const { spawn, execSync } = require("child_process");
 const MG = require("./lib/machine-guard.js");
+// The one shared lookup for the DXC shader compiler dlls (see setupRig).
+const DXC = require("./lib/dxc-dlls.js");
 
 const REPO = path.resolve(__dirname, "..");
 const args = process.argv.slice(2);
@@ -119,19 +121,24 @@ function setupRig() {
   // DXC beside the exe: without it the DX12 backend falls back to FXC and
   // every shader compile takes four times as long, which looks exactly like a
   // regression. Copying it is not optional for a boot measurement.
-  let dxc = 0;
-  for (const dll of ["dxcompiler.dll", "dxil.dll"]) {
-    const s = path.join(path.dirname(EXE_SRC), dll);
-    if (fs.existsSync(s)) {
-      fs.copyFileSync(s, path.join(RIG, dll));
-      dxc++;
-    }
-  }
-  if (dxc < 2) {
+  //
+  // The pair comes from beside the exe or else the repo root, through the one
+  // shared lookup, scripts/lib/dxc-dlls.js, which logs which folder it used.
+  // This check used to look only beside the exe, and target/release (the
+  // default exe's folder) holds no dlls, so a default run stopped here with a
+  // message telling you to copy them "from target/release", which had none.
+  const dxc = DXC.copyDxcDlls({ exe: EXE_SRC, repo: REPO, dest: RIG, log });
+  if (!dxc.found) {
+    // Refused even when the rig folder still holds a pair from an earlier
+    // run (the line above says so when it does): a boot number is only worth
+    // comparing when this run copied the pair itself and knows where it came
+    // from.
     console.error(
-      "ERROR: dxcompiler.dll + dxil.dll are not beside the exe. The boot would fall back to\n" +
-        "  FXC and every number here would be four times too slow. Copy them from\n" +
-        "  C:/Humanity/target/release/ next to the exe and re-run."
+      "ERROR: no folder searched holds both dxcompiler.dll and dxil.dll (the line above\n" +
+        "  lists what each one holds). Without a pair this run copied itself, the boot\n" +
+        "  would use FXC (about four times slower) or a leftover pair of unknown origin,\n" +
+        "  so its numbers could not be compared. Put both dlls in the repo root (from the\n" +
+        "  Windows SDK bin folder or a DirectXShaderCompiler release) and re-run."
     );
     process.exit(1);
   }

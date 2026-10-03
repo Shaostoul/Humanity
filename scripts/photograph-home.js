@@ -18,7 +18,8 @@
 //       captures the viewport to debug/screenshot_N.png.
 //
 // Camera frame: x, y, z are metres in the home zone's own coordinates (the same
-// numbers data/blueprints/ship_structure.ron uses), y is EYE height so 1.7 is a
+// numbers data/homes/homestead.ron uses; on plot p1 the home sits at the ship's origin, so
+// they are ship metres too), y is EYE height so 1.7 is a
 // standing person. yaw 0 looks north (-Z), +PI/2 east (+X), PI south, -PI/2
 // west. pitch is radians, positive up.
 //
@@ -49,6 +50,8 @@ const fs = require("fs");
 const path = require("path");
 const { spawn, execSync } = require("child_process");
 const MG = require("./lib/machine-guard.js");
+// The one shared lookup for the DXC shader compiler dlls (see setupRig).
+const DXC = require("./lib/dxc-dlls.js");
 
 const REPO = path.resolve(__dirname, "..");
 const args = process.argv.slice(2);
@@ -133,13 +136,14 @@ function setupRig() {
   ensureJunction(path.join(RIG, "assets"), path.join(REPO, "assets"));
   killRigProcesses();
   fs.copyFileSync(EXE, path.join(RIG, "HumanityOS.exe"));
-  // The DXC dlls beside the exe take boot from ~25 s to ~5 s. Without them the
-  // fallback shader compiler is so slow that a rig looks broken while it is
-  // merely slow, which has been misread as a regression before.
-  for (const dll of ["dxcompiler.dll", "dxil.dll"]) {
-    const s = path.join(path.dirname(EXE), dll);
-    if (fs.existsSync(s)) fs.copyFileSync(s, path.join(RIG, dll));
-  }
+  // The DXC dlls take boot from ~25 s to ~5 s. Without them the fallback
+  // shader compiler is so slow that a rig looks broken while it is merely
+  // slow, which has been misread as a regression before. They come from
+  // beside the exe or else the repo root (target/release, the default exe's
+  // folder, holds none), through the one shared lookup,
+  // scripts/lib/dxc-dlls.js, which logs which folder it used or that it
+  // found neither.
+  DXC.copyDxcDlls({ exe: EXE, repo: REPO, dest: RIG, log });
   for (const f of fs.readdirSync(DEBUG)) {
     if (/\.png$/.test(f) || /_done\.json$/.test(f) || /_request\.json$/.test(f) || f === "frame_costs.json")
       fs.unlinkSync(path.join(DEBUG, f));

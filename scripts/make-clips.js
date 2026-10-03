@@ -42,6 +42,8 @@ const os = require("os");
 const path = require("path");
 const { spawn, spawnSync, execSync } = require("child_process");
 const MG = require("./lib/machine-guard.js");
+// The one shared lookup for the DXC shader compiler dlls (see setupRig).
+const DXC = require("./lib/dxc-dlls.js");
 const G = require("./rig-graphics.js");
 
 const REPO = path.resolve(__dirname, "..");
@@ -151,12 +153,11 @@ function setupRig() {
   // The DXC shader compiler: without it the fallback compiler is so slow that
   // world entry outlasts every timeout (first run, 2026-09-30: four minutes of
   // silence after boot). It sits beside the exe or, for target/release, in the
-  // repo root.
-  for (const dll of ["dxcompiler.dll", "dxil.dll"]) {
-    const s = [path.join(path.dirname(EXE), dll), path.join(REPO, dll)].find((p) => fs.existsSync(p));
-    if (s) fs.copyFileSync(s, path.join(RIG, dll));
-    else log(`WARNING: ${dll} not found; world entry will be very slow`);
-  }
+  // repo root. The one shared lookup, scripts/lib/dxc-dlls.js, takes both dlls
+  // from the first folder that holds both (this rig's own copy took each file
+  // from wherever it turned up first, so it could pair two different
+  // releases), and logs which folder it used or that it found neither.
+  DXC.copyDxcDlls({ exe: EXE, repo: REPO, dest: RIG, log });
   for (const f of fs.readdirSync(DEBUG)) {
     if (/\.(png|mp4)$/.test(f) || /_(done|request|cancel|rejected)\.json$/.test(f)) fs.unlinkSync(path.join(DEBUG, f));
   }

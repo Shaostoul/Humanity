@@ -730,7 +730,7 @@ OS-standard data dir (`%APPDATA%\HumanityOS\` on Windows) with:
 - `saves/` — named save slots (profile, inventory, farm, quests, skills, world)
 - `settings/` — preferences, sync config, display state
 - `cache/` — offline messages, avatars, manifests
-- `backups/` — NOT written by anything yet: game saves (`saves/offline_home.json`, auto and named saves) are single files rewritten in place, with no snapshots (found 2026-10-02; the line here used to promise "auto-rotate, keep last 5")
+- `backups/saves/<slot>/`: snapshots of each game save (2026-10-03, `src/persistence.rs`): before `save_world` overwrites a save it keeps the previous version as `<slot>_<UTC time>.json`, at most one every 15 min (`SNAPSHOT_SPACING_SECS`), newest 10 kept (`SNAPSHOTS_KEPT`); every save and snapshot is written to a `.tmp` and renamed, so a crash mid-write never tears one. See and restore them in Settings > Data > Save snapshots (a restore keeps what it replaced as a snapshot and reloads the home into the running game)
 
 ## Version SOP (MANDATORY before every push)
 

@@ -1,0 +1,143 @@
+// HumanityOS ship machine layout: the machines that belong to the SHIP's shared zones (the
+// Commons today), not to any one home. Same format as data/machines/home.ron.
+// docs/design/ship-homes-and-logistics.md (increment 1a) moved them out of home.ron.
+//
+// Positions are ZONE-LOCAL: offset x/z (and an array's origin) are metres from the min corner
+// of the zone the row names (`zone: "commons"`, whose box starts at ship (65, 0, 20)), and y is
+// up from that zone's deck. The engine adds the zone's origin and keeps the machine inside the
+// zone's box.
+//
+// How it is loaded: a home file that names this file (`ship_machines: Some("ship.ron")` in
+// data/machines/home.ron) gets these rows merged in when it loads, and the editor writes them
+// back here, not into the home file, and only in the Dev play mode. The family home names it
+// because its battery bank powers the Commons' tent humidifier, CO2 fan and fish tank and its
+// loops count the Commons garden: that is how the household was modelled before the split, and
+// moving those machines onto the ship's own supply (and off the household's meters) is a later
+// increment. home_solo.ron does not name it, so the one-person home loads without them, as before.
+//
+// The catalog is empty on purpose: these rows use the machine types of the home file they are
+// merged into (data/machines/home.ron), so each type is defined once.
+
+(
+    catalog: {},
+    instances: [
+        // The commons rack's tent humidifier (2026-09-26): each mushroom rack
+        // fruits in its own tent, held at 90% by a small humidifier on its
+        // bottom shelf (data/garden/humidity.ron, THE FRUITING TENT). The home's
+        // six racks have theirs in home.ron's "mushhum" array.
+        (
+            id: "mushhum_c1",
+            machine: "tent_humidifier",
+            room: "commons",
+            offset: (11.5, 0.0, 29.0),
+            rotation: 0.0,
+            zone: "commons",
+        ),
+        // Its tent's CO2 fan (2026-09-27), on top of the rack inside the tent;
+        // the home's six racks have theirs in home.ron's "mushfan" array.
+        (
+            id: "mushfan_c1",
+            machine: "tent_co2_fan",
+            room: "commons",
+            offset: (11.5, 1.6, 29.0),
+            rotation: 0.0,
+            zone: "commons",
+        ),
+        (
+            id: "aqua_c1",
+            machine: "aquaponic_tank",
+            room: "commons",
+            offset: (11.5, 0.0, 24.0),
+            rotation: 0.0,
+            zone: "commons",
+        ),
+        (
+            id: "composter_c1",
+            machine: "composter",
+            room: "commons",
+            offset: (11.5, 0.0, 26.5),
+            rotation: 0.0,
+            zone: "commons",
+        ),
+        (
+            id: "mush_c1",
+            machine: "mushroom_rack",
+            room: "commons",
+            offset: (11.5, 0.0, 29.0),
+            rotation: 0.0,
+            zone: "commons",
+        ),
+        (
+            id: "apoth_c1",
+            machine: "aeroponic_tower_apothecary",
+            room: "commons",
+            offset: (21.5, 0.0, 24.0),
+            rotation: 0.0,
+            zone: "commons",
+        ),
+        (
+            id: "apoth_c2",
+            machine: "aeroponic_tower_apothecary",
+            room: "commons",
+            offset: (21.5, 0.0, 32.0),
+            rotation: 0.0,
+            zone: "commons",
+        ),
+        (
+            id: "market_c1",
+            machine: "trading_post",
+            room: "commons",
+            offset: (32.0, 0.0, 12.0),
+            rotation: 0.0,
+            zone: "commons",
+        ),
+        (
+            id: "market_c2",
+            machine: "trading_post",
+            room: "commons",
+            offset: (32.0, 0.0, 26.0),
+            rotation: 0.0,
+            zone: "commons",
+        ),
+        (
+            id: "market_c3",
+            machine: "trading_post",
+            room: "commons",
+            offset: (32.0, 0.0, 40.0),
+            rotation: 0.0,
+            zone: "commons",
+        ),
+    ],
+    arrays: [
+        (
+            machine: "aeroponic_tower_nutrition",
+            room: "commons",
+            origin: (14.0, 0.0, 24.0),
+            rows: 3,
+            cols: 3,
+            spacing: (2.4, 2.4),
+            id_prefix: "ctower",
+            zone: "commons",
+        ),
+    ],
+    connections: [
+        (from: "battery_7", to: "mushhum_c1", kind: "power", spec: None),
+        (from: "battery_7", to: "mushfan_c1", kind: "power", spec: None),
+        (from: "battery_7", to: "aqua_c1", kind: "power", spec: None),
+        (
+            from: "aqua_c1",
+            to: "ctower_0",
+            kind: "water",
+            spec: None,
+        ),
+        (
+            from: "composter_c1",
+            to: "ctower_0",
+            kind: "nutrient",
+            spec: None,
+        ),
+    ],
+    loops: [],
+    conduit_nodes: [],
+    conduit_edges: [],
+)

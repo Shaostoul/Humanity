@@ -23,16 +23,37 @@
 //! Increment C (the Commons authoring) is pure data on top: a big glass-roofed zone + machines +
 //! corridor rows -- no schema change needed here.
 //!
-//! File: `data/blueprints/ship_structure.ron`. The old single-home file
-//! (`data/blueprints/home_structure.ron`) migrated outright into it (no-compat-debt, pre-launch);
-//! `load_or_adopt` still ADOPTS a legacy data dir once -- see its doc comment.
+//! Increment 1a of docs/design/ship-homes-and-logistics.md (2026-10-03): THE SHIP AND THE HOME
+//! COME APART. Two files now, one frame (ship metres, y up, the origin at plot p1's corner):
+//! - `data/blueprints/ship_structure.ron` (the SHIP FILE): the shared zones (the Commons, the
+//!   first street), the corridors between them, the `plots` homes go on, the `default_plot`
+//!   offline play uses, and the mothership's macro `districts`. No home is in it.
+//! - `data/homes/<kind>.ron` (a HOME DESIGN): one home's body plus the point on its shell where
+//!   a plot's corridor arrives. It carries no position.
+//!
+//! `ShipStructure::assemble` builds the runtime ship every other module already reads: the ship
+//! file, plus the player's home as zone id `home` at their plot's origin, plus that plot's door
+//! corridor. So `home` is a LOCAL ALIAS for the viewer's own home, and every caller that looks
+//! the home up by that id (the machines' default zone, `PLAYER_HOME`, the editor) keeps working.
+//! Saving splits it again (`save_assembled`): the home design is written in every play mode,
+//! the ship file only with ShipStructureEditing, and the home's origin never, because it comes
+//! from the plot. `validate` refuses overlapping plots, zones and corridor tubes.
 
 use crate::renderer::mesh::Vertex;
 use crate::ship::fibonacci::{floor_quad, wall_box, HomesteadMeshes, RoomInfo};
-use crate::ship::home_structure::{HomeStructure, ShellCut};
+use crate::ship::home_structure::{HomeStructure, ShellCut, Zone};
 use glam::Vec3;
 use serde::{Deserialize, Serialize};
-use std::path::Path;
+use std::path::{Path, PathBuf};
+
+/// The zone id the assembled home always carries: a local alias for "the viewer's own home".
+pub const HOME_ZONE_ID: &str = "home";
+/// The ship file, relative to the data dir (also its key in `embedded_data`).
+pub const SHIP_FILE: &str = "blueprints/ship_structure.ron";
+/// The folder home designs live in, relative to the data dir (`homes/<kind>.ron`).
+pub const HOME_DESIGNS_DIR: &str = "homes";
+/// How far two boxes may poke into each other and still count as touching, not overlapping.
+const OVERLAP_EPS: f32 = 1e-3;
 
 fn default_purpose() -> String {
     "residence".to_string()
@@ -194,15 +215,275 @@ impl ShipZone {
     }
 }
 
-/// The whole ship: a list of zones. Always at least one (validation enforces it).
+/// The door of a plot: the shared zone its corridor runs to, and that corridor's own lat and
+/// mouth (the same fields a `ShipCorridor` row carries; the plot's home is the other end).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct PlotDoor {
+    /// The shared zone (a street, the Commons) the plot's corridor runs to.
+    pub zone: String,
+    /// The corridor's centreline in SHIP metres across the run (z for an X run, x for a Z run).
+    /// It must meet the home design's door point (`HomeDesign::door_lat`), which assembly checks.
+    pub lat: f32,
+    #[serde(default = "default_corridor_width")]
+    pub width: f32,
+    #[serde(default = "default_corridor_door_width")]
+    pub door_width: f32,
+    #[serde(default = "default_corridor_door_height")]
+    pub door_height: f32,
+    #[serde(default)]
+    pub glass_top: bool,
+}
+
+impl PlotDoor {
+    /// The corridor row this door makes when the plot's home is the zone `from_zone`.
+    pub fn corridor_from(&self, from_zone: &str) -> ShipCorridor {
+        ShipCorridor {
+            from_zone: from_zone.to_string(),
+            to_zone: self.zone.clone(),
+            lat: self.lat,
+            width: self.width,
+            door_width: self.door_width,
+            door_height: self.door_height,
+            glass_top: self.glass_top,
+        }
+    }
+}
+
+/// A PLOT (docs/design/ship-homes-and-logistics.md section 2.3): where one household's home
+/// goes on the ship. Geometry lives here in data, never in the database; a relay only records
+/// who holds which plot (increment 1b).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Plot {
+    /// Stable id ("p1"), never a list index.
+    pub id: String,
+    /// The block plot this one sits inside (Cabins and Apartments, later); None for a Homestead.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub parent: Option<String>,
+    /// Which home designs fit: the design file `data/homes/<kind>.ron`.
+    pub kind: String,
+    /// The plot box's min corner in ship metres (y = deck height).
+    pub origin: (f32, f32, f32),
+    /// The plot box: (width X, height Y, depth Z) metres. The home's body must fit inside it.
+    pub size: (f32, f32, f32),
+    /// Where the plot's corridor goes.
+    pub door: PlotDoor,
+    /// Which neighbourhood it belongs to (none are defined yet; empty).
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub neighbourhood: String,
+}
+
+impl Plot {
+    /// The plot box (min, max) in ship metres.
+    pub fn aabb(&self) -> (Vec3, Vec3) {
+        let o = Vec3::new(self.origin.0, self.origin.1, self.origin.2);
+        (o, o + Vec3::new(self.size.0, self.size.1, self.size.2))
+    }
+
+    fn end_box(&self) -> EndBox {
+        EndBox {
+            origin: Vec3::new(self.origin.0, self.origin.1, self.origin.2),
+            w: self.size.0,
+            d: self.size.2,
+            h: self.size.1,
+        }
+    }
+}
+
+/// A HOME DESIGN file (`data/homes/<kind>.ron`): one home's body, and the point on its shell
+/// where a plot's door corridor arrives. No position: assembly puts it at a plot's origin.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HomeDesign {
+    /// Which plots it fits (a plot's `kind`); also its file name.
+    pub kind: String,
+    /// The door point (x, z) in home-local metres, on the shell (an east/west wall for a door
+    /// an X-run corridor meets, a north/south wall for a Z run).
+    pub door: (f32, f32),
+    /// The home itself, in home-local metres. Its `spawn` is where the player arrives.
+    pub body: HomeStructure,
+}
+
+impl HomeDesign {
+    /// The corridor lat (ship metres) a plot at `origin` needs to meet this design's door, or
+    /// why the door point is not on the shell.
+    pub fn door_lat(&self, origin: (f32, f32, f32)) -> Result<f32, String> {
+        let (x, z) = self.door;
+        let (w, d) = (self.body.width, self.body.depth);
+        let near = |a: f32, b: f32| (a - b).abs() < 1e-3;
+        if near(x, 0.0) || near(x, w) {
+            Ok(origin.2 + z) // an east or west wall: the corridor runs along X, lat is a z
+        } else if near(z, 0.0) || near(z, d) {
+            Ok(origin.0 + x) // a north or south wall: the corridor runs along Z, lat is an x
+        } else {
+            Err(format!(
+                "the {} design's door point ({x}, {z}) is not on its {w} x {d} m shell",
+                self.kind
+            ))
+        }
+    }
+
+    /// Load `data/homes/<kind>.ron`: disk first, else the copy built into the exe (a fresh
+    /// install or a throwaway relay). A file that does not parse is moved aside, never
+    /// overwritten, exactly like the ship file.
+    pub fn load(data_dir: &Path, kind: &str) -> Result<HomeDesign, String> {
+        if kind.is_empty() || !kind.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-') {
+            return Err(format!("'{kind}' is not a home kind (letters, digits, - and _ only)"));
+        }
+        let rel = format!("{HOME_DESIGNS_DIR}/{kind}.ron");
+        let path = data_dir.join(&rel);
+        let (text, on_disk) = match std::fs::read_to_string(&path) {
+            Ok(t) => (t, true),
+            Err(_) => match crate::embedded_data::get_embedded(&rel) {
+                Some(t) => (t.to_string(), false),
+                None => return Err(format!("no home design {} on disk or built in", path.display())),
+            },
+        };
+        match ron::from_str::<HomeDesign>(&text) {
+            Ok(d) if d.kind == kind => Ok(d),
+            Ok(d) => Err(format!("{} says kind '{}', not '{kind}'", path.display(), d.kind)),
+            Err(e) => {
+                if on_disk {
+                    quarantine(&path, &format!("failed to parse: {e}"));
+                }
+                Err(format!("{} failed to parse: {e}", path.display()))
+            }
+        }
+    }
+
+    /// Write back to RON, keeping an existing file's leading comment header (the same
+    /// discipline as `ShipStructure::save`). Creates `data/homes/` when it is missing.
+    pub fn save(&self, path: &Path) -> Result<(), String> {
+        if let Some(dir) = path.parent() {
+            std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+        }
+        let config = ron::ser::PrettyConfig::default().struct_names(false);
+        let body = ron::ser::to_string_pretty(self, config).map_err(|e| e.to_string())?;
+        let header = preserved_header(path).unwrap_or_else(|| {
+            "// HumanityOS home design: one home's body (home-local metres) plus the point on its\n\
+             // shell where a plot's door corridor arrives. The loader places it at the player's\n\
+             // plot (data/blueprints/ship_structure.ron). docs/design/ship-homes-and-logistics.md.\n\n"
+                .to_string()
+        });
+        std::fs::write(path, format!("{header}{body}")).map_err(|e| e.to_string())
+    }
+}
+
+/// Which plot and design the `home` zone was assembled from. Never saved: it is rebuilt on
+/// every load, and it is what `save_assembled` uses to split the ship back into its two files.
+#[derive(Debug, Clone, PartialEq)]
+pub struct HomeAssembly {
+    pub plot: String,
+    pub kind: String,
+    pub door: (f32, f32),
+}
+
+/// A box a corridor can end at: a zone, or a plot standing in for the home it will hold.
+#[derive(Debug, Clone, Copy)]
+struct EndBox {
+    origin: Vec3,
+    w: f32,
+    d: f32,
+    h: f32,
+}
+
+impl EndBox {
+    fn of_zone(z: &ShipZone) -> EndBox {
+        EndBox { origin: z.origin_vec(), w: z.body.width, d: z.body.depth, h: z.body.height }
+    }
+
+    fn aabb(&self) -> (Vec3, Vec3) {
+        (self.origin, self.origin + Vec3::new(self.w, self.h, self.d))
+    }
+}
+
+/// True when two boxes share volume (touching faces do not count).
+fn boxes_overlap(a: &(Vec3, Vec3), b: &(Vec3, Vec3)) -> bool {
+    (0..3).all(|k| a.0[k] < b.1[k] - OVERLAP_EPS && b.0[k] < a.1[k] - OVERLAP_EPS)
+}
+
+/// True when `inner` lies inside `outer` (faces may coincide).
+fn box_contains(outer: &(Vec3, Vec3), inner: &(Vec3, Vec3)) -> bool {
+    (0..3).all(|k| inner.0[k] >= outer.0[k] - OVERLAP_EPS && inner.1[k] <= outer.1[k] + OVERLAP_EPS)
+}
+
+/// The box a resolved corridor tube fills (floor to lid, wall to wall, mouth to mouth).
+fn tube_aabb(g: &CorridorGeom) -> (Vec3, Vec3) {
+    let hw = g.width * 0.5;
+    match g.axis {
+        CorridorAxis::X => (
+            Vec3::new(g.start, g.floor_y, g.lat - hw),
+            Vec3::new(g.end, g.floor_y + g.height, g.lat + hw),
+        ),
+        CorridorAxis::Z => (
+            Vec3::new(g.lat - hw, g.floor_y, g.start),
+            Vec3::new(g.lat + hw, g.floor_y + g.height, g.end),
+        ),
+    }
+}
+
+/// The leading comment block of an existing file, to keep across an editor save (the v0.526
+/// lesson: a save must never strip the authored design notes).
+fn preserved_header(path: &Path) -> Option<String> {
+    std::fs::read_to_string(path).ok().and_then(|existing| {
+        let header: String = existing
+            .lines()
+            .take_while(|l| l.trim_start().starts_with("//") || l.trim().is_empty())
+            .collect::<Vec<_>>()
+            .join("\n");
+        if header.contains("//") {
+            Some(format!("{}\n\n", header.trim_end()))
+        } else {
+            None
+        }
+    })
+}
+
+/// Move an unloadable file aside (`<name>.invalid-<unix>.ron`) so the fallback can never
+/// overwrite the player's data, and the file stays on disk for hand recovery. Best-effort: a
+/// failed rename leaves the file in place (still safe: saves only write what actually loaded).
+fn quarantine(path: &Path, why: &str) {
+    let stamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    let dest = path.with_extension(format!("invalid-{stamp}.ron"));
+    match std::fs::rename(path, &dest) {
+        Ok(()) => log::error!(
+            "{} {why}; QUARANTINED to {} (your build data is preserved there; the shipped default loads instead)",
+            path.display(),
+            dest.display()
+        ),
+        Err(re) => log::error!(
+            "{} {why}; quarantine rename also failed ({re}) -- file left in place",
+            path.display()
+        ),
+    }
+}
+
+/// The whole ship: a list of zones. Always at least one (validation enforces it).
+///
+/// Field order is the file's order on an editor save, so keep `zones` first.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ShipStructure {
     pub zones: Vec<ShipZone>,
     /// Generated corridors between zones (increment B; each row owns its door mouths -- see
-    /// `ShipCorridor`). Serde-defaulted so every pre-B ship_structure.ron (no `corridors` field)
-    /// keeps loading unchanged.
+    /// `ShipCorridor`). Serde-defaulted so a ship with no corridors needs no empty list.
     #[serde(default)]
     pub corridors: Vec<ShipCorridor>,
+    /// Where homes go (increment 1a). The ship file lists them; the assembled ship keeps them
+    /// so the editor and the build bound know whose box is whose.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub plots: Vec<Plot>,
+    /// The plot offline play uses (the first plot when unset).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub default_plot: Option<String>,
+    /// The mothership's macro districts (residential, hangar, the Concourse, ...) in SHIP metres:
+    /// labelled volumes drawn with their zone_filler.ron contents. Until increment 1a they were
+    /// sub-zones of the player's home body. Areas, not boxes: overlap rules do not apply.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub districts: Vec<Zone>,
+    /// Which plot and design the `home` zone came from (None for a ship file on its own).
+    #[serde(skip)]
+    pub home: Option<HomeAssembly>,
 }
 
 /// The active zone's body, by index -- a FREE function on the Option field (not a GuiState method)
@@ -266,7 +547,143 @@ impl ShipStructure {
             self.corridor_geometry(c)
                 .map_err(|e| format!("corridor {i} ({} -> {}): {e}", c.from_zone, c.to_zone))?;
         }
+        self.validate_plots()?;
+        self.validate_overlaps()
+    }
+
+    /// Plot records: ids non-empty and unique, a size, a parent that exists and contains its
+    /// child, a door corridor that resolves from the plot box to a shared zone, a default plot
+    /// that exists, and (when assembled) a home that fits inside the plot it was put on.
+    fn validate_plots(&self) -> Result<(), String> {
+        let mut seen: std::collections::HashSet<&str> = std::collections::HashSet::new();
+        for p in &self.plots {
+            if p.id.trim().is_empty() {
+                return Err("a plot has an empty id".to_string());
+            }
+            if !seen.insert(p.id.as_str()) {
+                return Err(format!("duplicate plot id '{}'", p.id));
+            }
+            if !(p.size.0 > 0.0 && p.size.1 > 0.0 && p.size.2 > 0.0) {
+                return Err(format!("plot '{}' has no size: {:?}", p.id, p.size));
+            }
+            if let Some(parent) = &p.parent {
+                let outer = self
+                    .plots
+                    .iter()
+                    .find(|q| &q.id == parent && q.id != p.id)
+                    .ok_or_else(|| format!("plot '{}' names parent '{parent}', which is not a plot", p.id))?;
+                if !box_contains(&outer.aabb(), &p.aabb()) {
+                    return Err(format!("plot '{}' is not inside its parent '{parent}'", p.id));
+                }
+            }
+            if p.door.zone == HOME_ZONE_ID {
+                return Err(format!("plot '{}' has its door on the home zone; a door goes to a shared zone", p.id));
+            }
+            self.plot_door_geometry(p).map_err(|e| format!("plot '{}' door: {e}", p.id))?;
+        }
+        if let Some(d) = &self.default_plot {
+            if !self.plots.iter().any(|p| &p.id == d) {
+                return Err(format!("default_plot '{d}' is not a plot"));
+            }
+        }
+        if let Some(a) = &self.home {
+            let plot = self
+                .plots
+                .iter()
+                .find(|p| p.id == a.plot)
+                .ok_or_else(|| format!("the home was assembled at plot '{}', which is not a plot", a.plot))?;
+            let home = self
+                .zones
+                .iter()
+                .find(|z| z.id == HOME_ZONE_ID)
+                .ok_or_else(|| "an assembled ship has no home zone".to_string())?;
+            if !box_contains(&plot.aabb(), &EndBox::of_zone(home).aabb()) {
+                return Err(format!("the home does not fit inside its plot '{}'", plot.id));
+            }
+        }
         Ok(())
+    }
+
+    /// No two of these share volume: plots, zones (the assembled home stands for its plot, so it
+    /// is not listed twice) and corridor tubes, including the tube every plot's door WOULD make
+    /// when its home is not the one assembled. Touching faces are fine (a tube's mouth sits on
+    /// a zone's wall). Exempt: a child plot inside its parent, and the assembled home's own
+    /// corridor against the home's own plot. Districts are areas and are not checked.
+    fn validate_overlaps(&self) -> Result<(), String> {
+        let assembled_plot = self.home.as_ref().map(|a| a.plot.as_str());
+        // (label, box, plot id it belongs to, is a tube from that plot's home)
+        let mut items: Vec<(String, (Vec3, Vec3), Option<&str>, bool)> = Vec::new();
+        for p in &self.plots {
+            items.push((format!("plot '{}'", p.id), p.aabb(), Some(p.id.as_str()), false));
+        }
+        for z in &self.zones {
+            if assembled_plot.is_some() && z.id == HOME_ZONE_ID {
+                continue;
+            }
+            items.push((format!("zone '{}'", z.id), EndBox::of_zone(z).aabb(), None, false));
+        }
+        for c in &self.corridors {
+            let Ok(g) = self.corridor_geometry(c) else { continue };
+            let home_end = c.from_zone == HOME_ZONE_ID || c.to_zone == HOME_ZONE_ID;
+            let owner = if home_end { assembled_plot } else { None };
+            items.push((format!("the corridor {} -> {}", c.from_zone, c.to_zone), tube_aabb(&g), owner, owner.is_some()));
+        }
+        for p in &self.plots {
+            if Some(p.id.as_str()) == assembled_plot {
+                continue; // its tube is the real home corridor above
+            }
+            if let Ok(g) = self.plot_door_geometry(p) {
+                items.push((format!("the corridor from plot '{}' to {}", p.id, p.door.zone), tube_aabb(&g), Some(p.id.as_str()), true));
+            }
+        }
+        for (i, a) in items.iter().enumerate() {
+            for b in items.iter().skip(i + 1) {
+                if !boxes_overlap(&a.1, &b.1) {
+                    continue;
+                }
+                // A plot's own door tube against that plot (the home's face is inside a larger
+                // plot), or against a block plot it sits in (a cabin's corridor runs through its
+                // block), is not an overlap.
+                let tube_in_own = |tube: &(String, (Vec3, Vec3), Option<&str>, bool), other: &(String, (Vec3, Vec3), Option<&str>, bool)| {
+                    tube.3 && !other.3 && matches!((tube.2, other.2), (Some(t), Some(o)) if self.is_self_or_ancestor(o, t))
+                };
+                let own_tube = tube_in_own(a, b) || tube_in_own(b, a);
+                // A child plot inside its parent.
+                let nested = match (a.2, b.2, a.3 || b.3) {
+                    (Some(x), Some(y), false) => self.plots.iter().any(|p| {
+                        (p.id == x && p.parent.as_deref() == Some(y)) || (p.id == y && p.parent.as_deref() == Some(x))
+                    }),
+                    _ => false,
+                };
+                if !own_tube && !nested {
+                    return Err(format!("{} overlaps {}", a.0, b.0));
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// True when plot `outer` is plot `inner` or one of its parents (a bounded walk, so a
+    /// parent loop in hand-edited data cannot hang it).
+    fn is_self_or_ancestor(&self, outer: &str, inner: &str) -> bool {
+        let mut cur = Some(inner);
+        for _ in 0..=self.plots.len() {
+            match cur {
+                Some(id) if id == outer => return true,
+                Some(id) => cur = self.plots.iter().find(|p| p.id == id).and_then(|p| p.parent.as_deref()),
+                None => return false,
+            }
+        }
+        false
+    }
+
+    /// The tube a plot's door corridor makes from the plot box to its door zone.
+    fn plot_door_geometry(&self, p: &Plot) -> Result<CorridorGeom, String> {
+        let to_idx = self
+            .zone_index(&p.door.zone)
+            .ok_or_else(|| format!("unknown zone '{}'", p.door.zone))?;
+        let row = p.door.corridor_from(&p.id);
+        tube_between(p.end_box(), EndBox::of_zone(&self.zones[to_idx]), &row, usize::MAX, to_idx)
     }
 
     /// Resolve a corridor row to world geometry, or the honest reason it cannot exist. This IS the
@@ -287,6 +704,27 @@ impl ShipStructure {
         if from_idx == to_idx {
             return Err(format!("connects zone '{}' to itself", c.from_zone));
         }
+        tube_between(
+            EndBox::of_zone(&self.zones[from_idx]),
+            EndBox::of_zone(&self.zones[to_idx]),
+            c,
+            from_idx,
+            to_idx,
+        )
+    }
+}
+
+/// The corridor resolve on two BOXES (zones, or a plot standing in for its home): the
+/// validator body of `ShipStructure::corridor_geometry`, shared with the plot-door check so a
+/// plot's would-be corridor obeys exactly the rules a real one does.
+fn tube_between(
+    from: EndBox,
+    to: EndBox,
+    c: &ShipCorridor,
+    from_idx: usize,
+    to_idx: usize,
+) -> Result<CorridorGeom, String> {
+    {
         if c.width < CORRIDOR_MIN_WIDTH {
             return Err(format!(
                 "width {:.2} m is below the {CORRIDOR_MIN_WIDTH} m minimum",
@@ -311,10 +749,8 @@ impl ShipStructure {
                 c.door_height
             ));
         }
-        let zf = &self.zones[from_idx];
-        let zt = &self.zones[to_idx];
-        let of = zf.origin_vec();
-        let ot = zt.origin_vec();
+        let of = from.origin;
+        let ot = to.origin;
         if (of.y - ot.y).abs() > 0.01 {
             return Err(format!(
                 "zones are at different deck heights ({:.2} vs {:.2} m); v1 corridors are level",
@@ -322,8 +758,8 @@ impl ShipStructure {
             ));
         }
         // World-XZ footprints (min, max) of both zone boxes -- the ONLY inputs to the run.
-        let (f_min, f_max) = ((of.x, of.z), (of.x + zf.body.width, of.z + zf.body.depth));
-        let (t_min, t_max) = ((ot.x, ot.z), (ot.x + zt.body.width, ot.z + zt.body.depth));
+        let (f_min, f_max) = ((of.x, of.z), (of.x + from.w, of.z + from.d));
+        let (t_min, t_max) = ((ot.x, ot.z), (ot.x + to.w, ot.z + to.d));
         // Clear gap per axis: positive when the boxes have open air between them on that axis
         // (whichever side the other zone is on), negative when their spans overlap.
         let gap_x = (t_min.0 - f_max.0).max(f_min.0 - t_max.0);
@@ -375,7 +811,7 @@ impl ShipStructure {
             ));
         }
         let floor_y = of.y;
-        let height = zf.body.height.min(zt.body.height).max(1.0);
+        let height = from.h.min(to.h).max(1.0);
         // Both mouths are the corridor's OWN door, clamped so the header never pokes above the lid.
         let door = (c.door_width, c.door_height.min(height));
         let (fa, ta) = if from_at_start { (start, end) } else { (end, start) };
@@ -406,7 +842,9 @@ impl ShipStructure {
             door_to: door,
         })
     }
+}
 
+impl ShipStructure {
     /// The valid `lat` range for a corridor row -- the centreline positions that keep the whole
     /// door mouth inside both zones' shared span across the run -- or None when the pair cannot
     /// host a corridor at all (unknown zone, no clear axis gap, shared span too narrow for the
@@ -653,6 +1091,43 @@ impl ShipStructure {
         self.zones.iter().position(|z| z.id == "home").unwrap_or(0)
     }
 
+    /// Where the player stands on world entry: the home zone's authored spawn point at eye
+    /// height (1.7 m), in ship metres. The authored point is home-local, so it rides the home's
+    /// origin, which is its plot's (before increment 1a it was used as a ship position as it
+    /// stood, which only worked because the one home sat at the origin). None when the home
+    /// declares no spawn.
+    pub fn home_spawn_world(&self) -> Option<Vec3> {
+        let home = self.zones.get(self.home_zone_index())?;
+        let (sx, sz) = home.body.spawn?;
+        let o = home.origin_vec();
+        Some(Vec3::new(o.x + sx, o.y + 1.7, o.z + sz))
+    }
+
+    /// The plot the home was assembled at (None for a ship file on its own).
+    pub fn home_plot(&self) -> Option<&Plot> {
+        let a = self.home.as_ref()?;
+        self.plots.iter().find(|p| p.id == a.plot)
+    }
+
+    /// The origin of the zone a machine row names, with the same fallback the placer uses
+    /// (`machines::resolve_zone_rect`: the named zone, else "home", else the first zone).
+    /// Machine offsets are zone-local since increment 1a, so the editor adds this to show a
+    /// machine and subtracts it when a drag writes one back.
+    pub fn machine_zone_origin(&self, zone_id: &str) -> Vec3 {
+        self.zones
+            .iter()
+            .find(|z| z.id == zone_id)
+            .or_else(|| self.zones.iter().find(|z| z.id == HOME_ZONE_ID))
+            .or_else(|| self.zones.first())
+            .map(|z| z.origin_vec())
+            .unwrap_or(Vec3::ZERO)
+    }
+
+    /// The plot offline play uses: `default_plot`, else the first plot.
+    pub fn default_plot_id(&self) -> Option<String> {
+        self.default_plot.clone().or_else(|| self.plots.first().map(|p| p.id.clone()))
+    }
+
     /// Index of a zone by id.
     pub fn zone_index(&self, id: &str) -> Option<usize> {
         self.zones.iter().position(|z| z.id == id)
@@ -682,10 +1157,12 @@ impl ShipStructure {
     /// with a walking gap, on the ground plane. Deliberately simple (a row of boxes) -- corridor
     /// generation (increment B) is what ties them together.
     pub fn next_free_origin(&self, gap: f32) -> (f32, f32, f32) {
+        // Plots count too: a new zone must not land on someone's home.
         let max_x = self
             .zones
             .iter()
             .map(|z| z.origin.0 + z.body.width)
+            .chain(self.plots.iter().map(|p| p.origin.0 + p.size.0))
             .fold(0.0_f32, f32::max);
         (max_x + gap.max(0.0), 0.0, 0.0)
     }
@@ -776,98 +1253,339 @@ impl ShipStructure {
                             Some(s)
                         }
                         Err(e2) => {
-                            Self::quarantine(path, &format!("invalid beyond corridor pruning: {e2}"));
+                            quarantine(path, &format!("invalid beyond corridor pruning: {e2}"));
                             None
                         }
                     }
                 }
             },
             Err(e) => {
-                Self::quarantine(path, &format!("failed to parse: {e}"));
+                quarantine(path, &format!("failed to parse: {e}"));
                 None
             }
         }
     }
 
-    /// Move an unloadable structure file aside (`ship_structure.invalid-<unix>.ron`) so the
-    /// fallback default can never overwrite the player's data, and the file stays on disk
-    /// for hand recovery. Best-effort: a failed rename leaves the file in place (still safe
-    /// -- Save only writes when a structure actually loaded).
-    fn quarantine(path: &Path, why: &str) {
-        let stamp = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_secs())
-            .unwrap_or(0);
-        let dest = path.with_extension(format!("invalid-{stamp}.ron"));
-        match std::fs::rename(path, &dest) {
-            Ok(()) => log::error!(
-                "ship_structure: {} {why}; QUARANTINED to {} (your build data is preserved there; the shipped default loads instead)",
-                path.display(),
-                dest.display()
-            ),
-            Err(re) => log::error!(
-                "ship_structure: {} {why}; quarantine rename also failed ({re}) -- file left in place",
-                path.display()
-            ),
+    /// The ship file from a data dir: disk first (`load`, which quarantines a file it cannot
+    /// use), else the copy built into the exe, so a fresh install or a throwaway relay has the
+    /// same ship. Err says why there is no ship.
+    pub fn load_ship_file(data_dir: &Path) -> Result<ShipStructure, String> {
+        let path = data_dir.join(SHIP_FILE);
+        if path.exists() {
+            return Self::load(&path).ok_or_else(|| {
+                format!(
+                    "{} did not load; it was moved aside as ship_structure.invalid-<time>.ron (see logs/run.log)",
+                    path.display()
+                )
+            });
         }
+        let text = crate::embedded_data::get_embedded(SHIP_FILE)
+            .ok_or_else(|| format!("no {} on disk and none built in", path.display()))?;
+        let ship: ShipStructure = ron::from_str(text).map_err(|e| format!("the built-in ship file does not parse: {e}"))?;
+        ship.validate().map_err(|e| format!("the built-in ship file is invalid: {e}"))?;
+        Ok(ship)
     }
 
-    /// Load the ship from a blueprints dir, ADOPTING a legacy single-home data dir once.
-    ///
-    /// - `ship_structure.ron` present -> load it (the normal path).
-    /// - absent but `home_structure.ron` present -> wrap the old file as zone "home" ONCE. The
-    ///   next in-editor Save writes `ship_structure.ron`, after which the old file is never read
-    ///   again (this branch stops being taken). This is a one-time in-code ADOPTION at load for
-    ///   data dirs written before increment A -- not a kept compatibility layer; delete it when
-    ///   no pre-A data dirs remain in the wild.
-    pub fn load_or_adopt(blueprints_dir: &Path) -> Option<Self> {
-        let ship_path = blueprints_dir.join("ship_structure.ron");
-        if ship_path.exists() {
-            return Self::load(&ship_path);
+    /// Put a home design on a plot of this ship file: the design's body becomes zone `home` at
+    /// the plot's origin (first in the zone list, as the home always was), the plot's door
+    /// becomes the home's corridor (first in the corridor list, so it keeps the id
+    /// `corridor_0`), and the result is validated. Refused, with the reason: a ship file that
+    /// already holds a home, an unknown plot, a design of another kind, a body bigger than the
+    /// plot, or a plot door that does not meet the design's door point.
+    pub fn assemble(mut self, design: HomeDesign, plot_id: &str) -> Result<ShipStructure, String> {
+        if self.zone_index(HOME_ZONE_ID).is_some() {
+            return Err(format!(
+                "the ship file has a zone named '{HOME_ZONE_ID}'; homes live in {HOME_DESIGNS_DIR}/ and go on plots (increment 1a)"
+            ));
         }
-        let body = HomeStructure::load(&blueprints_dir.join("home_structure.ron"))?;
-        log::info!(
-            "ship_structure: adopted legacy home_structure.ron as zone 'home' (one-time; the next save writes ship_structure.ron)"
-        );
-        Some(ShipStructure {
-            zones: vec![ShipZone {
-                id: "home".to_string(),
+        if self.corridors.iter().any(|c| c.from_zone == HOME_ZONE_ID || c.to_zone == HOME_ZONE_ID) {
+            return Err(format!("the ship file has a corridor to '{HOME_ZONE_ID}'; a plot's door makes that corridor"));
+        }
+        let plot = self
+            .plots
+            .iter()
+            .find(|p| p.id == plot_id)
+            .cloned()
+            .ok_or_else(|| format!("the ship has no plot '{plot_id}'"))?;
+        if plot.kind != design.kind {
+            return Err(format!("plot '{}' takes a {} home, not a {}", plot.id, plot.kind, design.kind));
+        }
+        let b = &design.body;
+        if b.width > plot.size.0 + OVERLAP_EPS || b.height > plot.size.1 + OVERLAP_EPS || b.depth > plot.size.2 + OVERLAP_EPS {
+            return Err(format!(
+                "the {} design ({} x {} x {} m) does not fit plot '{}' ({:?})",
+                design.kind, b.width, b.depth, b.height, plot.id, plot.size
+            ));
+        }
+        let lat = design.door_lat(plot.origin)?;
+        if (lat - plot.door.lat).abs() > OVERLAP_EPS {
+            return Err(format!(
+                "plot '{}' door lat {} does not meet the {} design's door at local {:?}, which needs lat {lat}",
+                plot.id, plot.door.lat, design.kind, design.door
+            ));
+        }
+        // The corridor must leave the home THROUGH the design's door, not through another wall
+        // that happens to share its lat: a plot east of its street, with the door in the home's
+        // east wall, gives the right lat but a corridor that cuts the west wall, into whatever
+        // room is there, while the real door opens onto nothing (the critic's review of 1a).
+        // So the tube's home-end mouth must be the door point itself, in ship metres.
+        if let Some(to_idx) = self.zone_index(&plot.door.zone) {
+            let home_box = EndBox {
+                origin: Vec3::new(plot.origin.0, plot.origin.1, plot.origin.2),
+                w: b.width,
+                d: b.depth,
+                h: b.height,
+            };
+            let row = plot.door.corridor_from(HOME_ZONE_ID);
+            if let Ok(g) = tube_between(home_box, EndBox::of_zone(&self.zones[to_idx]), &row, 0, to_idx) {
+                let door = (plot.origin.0 + design.door.0, plot.origin.2 + design.door.1);
+                if (g.end_from.x - door.0).abs() > OVERLAP_EPS || (g.end_from.z - door.1).abs() > OVERLAP_EPS {
+                    return Err(format!(
+                        "plot '{}' door corridor to '{}' leaves the home at ({:.1}, {:.1}), not through the {} design's door at ({:.1}, {:.1})",
+                        plot.id, plot.door.zone, g.end_from.x, g.end_from.z, design.kind, door.0, door.1
+                    ));
+                }
+            }
+        }
+        self.zones.insert(
+            0,
+            ShipZone {
+                id: HOME_ZONE_ID.to_string(),
                 label: "Player Home".to_string(),
                 purpose: "residence".to_string(),
-                origin: (0.0, 0.0, 0.0),
-                body,
-            }],
-            corridors: Vec::new(),
+                origin: plot.origin,
+                body: design.body,
+            },
+        );
+        self.corridors.insert(0, plot.door.corridor_from(HOME_ZONE_ID));
+        self.home = Some(HomeAssembly { plot: plot.id.clone(), kind: design.kind, door: design.door });
+        self.validate()?;
+        Ok(self)
+    }
+
+    /// The ship the game runs: the ship file plus the home design of `plot`'s kind on `plot`
+    /// (the ship's default plot when None, which is what offline play uses).
+    pub fn load_and_assemble(data_dir: &Path, plot: Option<&str>) -> Result<ShipStructure, String> {
+        let ship = Self::load_ship_file(data_dir)?;
+        let plot_id = match plot {
+            Some(p) => p.to_string(),
+            None => ship.default_plot_id().ok_or_else(|| "the ship file lists no plots".to_string())?,
+        };
+        let kind = ship
+            .plots
+            .iter()
+            .find(|p| p.id == plot_id)
+            .map(|p| p.kind.clone())
+            .ok_or_else(|| format!("the ship has no plot '{plot_id}'"))?;
+        let design = HomeDesign::load(data_dir, &kind)?;
+        ship.assemble(design, &plot_id)
+    }
+
+    /// The home design this assembled ship carries: the `home` zone's body with the kind and
+    /// door point it was assembled from. None for a ship that was not assembled.
+    pub fn home_design(&self) -> Option<HomeDesign> {
+        let a = self.home.as_ref()?;
+        let z = self.zones.iter().find(|z| z.id == HOME_ZONE_ID)?;
+        Some(HomeDesign { kind: a.kind.clone(), door: a.door, body: z.body.clone() })
+    }
+
+    /// True when corridor `c` is the assembled home's own corridor: the one its plot's door makes.
+    /// It is rebuilt from the plot on every load, so the editor offers no delete, no create and
+    /// no mouth handle for it; Dev changes it through the plot (`move_plot`, `set_plot_door_zone`).
+    pub fn is_plot_door(&self, c: &ShipCorridor) -> bool {
+        self.home.is_some() && (c.from_zone == HOME_ZONE_ID || c.to_zone == HOME_ZONE_ID)
+    }
+
+    /// After a Dev edit of the plot the home was assembled at, put the home back on it: the home
+    /// zone stands at the plot's origin and its corridor is the plot's door again, first in the
+    /// list as `assemble` puts it. A no-op on a ship that was not assembled.
+    pub fn sync_home_to_plot(&mut self) {
+        let Some(plot) = self.home_plot().cloned() else { return };
+        if let Some(z) = self.zones.iter_mut().find(|z| z.id == HOME_ZONE_ID) {
+            z.origin = plot.origin;
+        }
+        self.corridors.retain(|c| c.from_zone != HOME_ZONE_ID && c.to_zone != HOME_ZONE_ID);
+        self.corridors.insert(0, plot.door.corridor_from(HOME_ZONE_ID));
+    }
+
+    /// Move plot `id` to `origin` (the Dev Plots panel). Its door moves with it: the door point is
+    /// fixed in the home design, so the corridor's lat shifts by the move along the axis across
+    /// the run (z for a door in an east or west wall, x for a north or south one). Moving the plot
+    /// the home stands on moves the home, its corridor, its machines and its spawn
+    /// (`sync_home_to_plot`; machine offsets are zone-local). False for an unknown plot. The
+    /// result may not validate (an overlap, a door that no longer reaches its zone); the panel
+    /// shows why and the save refuses to write such a ship.
+    pub fn move_plot(&mut self, id: &str, origin: (f32, f32, f32)) -> bool {
+        let Some(i) = self.plots.iter().position(|p| p.id == id) else { return false };
+        let old = self.plots[i].origin;
+        // Which axis the lat lives on: from this ship's home design when the plot takes it (the
+        // door point says which wall), else from the corridor the plot's door makes now.
+        let lat_on_z = match &self.home {
+            Some(a) if a.kind == self.plots[i].kind => {
+                let w = self.zones.iter().find(|z| z.id == HOME_ZONE_ID).map_or(0.0, |z| z.body.width);
+                Some(a.door.0.abs() < 1e-3 || (a.door.0 - w).abs() < 1e-3)
+            }
+            _ => self.plot_door_geometry(&self.plots[i]).ok().map(|g| g.axis == CorridorAxis::X),
+        };
+        let p = &mut self.plots[i];
+        match lat_on_z {
+            Some(true) => p.door.lat += origin.2 - old.2,
+            Some(false) => p.door.lat += origin.0 - old.0,
+            None => {}
+        }
+        p.origin = origin;
+        if self.home.as_ref().is_some_and(|a| a.plot == id) {
+            self.sync_home_to_plot();
+        }
+        true
+    }
+
+    /// Point plot `id`'s door at another shared zone (the Dev Plots panel). The lat is kept, so
+    /// the new zone must span it; the panel shows why when it does not. Refuses the home zone and
+    /// an unknown zone or plot.
+    pub fn set_plot_door_zone(&mut self, id: &str, zone: &str) -> bool {
+        if zone == HOME_ZONE_ID || self.zone_index(zone).is_none() {
+            return false;
+        }
+        let Some(p) = self.plots.iter_mut().find(|p| p.id == id) else { return false };
+        p.door.zone = zone.to_string();
+        if self.home.as_ref().is_some_and(|a| a.plot == id) {
+            self.sync_home_to_plot();
+        }
+        true
+    }
+
+    /// Whether plot `id` would take this ship's home design on the next load, with the reason
+    /// when it would not: exactly the refusal `assemble` would give (a door that misses the
+    /// design's door, a body that does not fit, an overlap). Ok for a plot of another kind,
+    /// which this ship has no design to try. None for an unknown plot or a ship that was not
+    /// assembled. For the Plots panel and the save.
+    pub fn plot_check(&self, id: &str) -> Option<Result<(), String>> {
+        let design = self.home_design()?;
+        let plot = self.plots.iter().find(|p| p.id == id)?;
+        if plot.kind != design.kind {
+            return Some(Ok(()));
+        }
+        Some(self.ship_file().assemble(design, id).map(|_| ()))
+    }
+
+    /// A plot id not yet in use ("p1", "p2", ... the first free number).
+    pub fn unique_plot_id(&self) -> String {
+        (1..).map(|n| format!("p{n}")).find(|id| !self.plots.iter().any(|p| &p.id == id)).unwrap_or_default()
+    }
+
+    /// Add a plot (the Dev Plots panel): a copy of plot `like` with a fresh id, moved past it in
+    /// +z by its depth plus `gap` (the way p2 sits beyond p1), its door lat moving with it. The
+    /// copy may not validate where it lands (its street may end first); the panel says why.
+    /// Returns the new id, or None for an unknown `like`.
+    pub fn add_plot_like(&mut self, like: &str, gap: f32) -> Option<String> {
+        let mut p = self.plots.iter().find(|p| p.id == like)?.clone();
+        let id = self.unique_plot_id();
+        p.id = id.clone();
+        self.plots.push(p.clone());
+        let origin = (p.origin.0, p.origin.1, p.origin.2 + p.size.2 + gap.max(0.0));
+        self.move_plot(&id, origin);
+        Some(id)
+    }
+
+    /// Remove plot `id` (the Dev Plots panel). Refuses the plot the home stands on. Clears
+    /// `default_plot` when it named this plot (offline play then uses the first plot), and a
+    /// child plot's `parent` link to it. True when removed.
+    pub fn remove_plot(&mut self, id: &str) -> bool {
+        if self.home.as_ref().is_some_and(|a| a.plot == id) || !self.plots.iter().any(|p| p.id == id) {
+            return false;
+        }
+        self.plots.retain(|p| p.id != id);
+        if self.default_plot.as_deref() == Some(id) {
+            self.default_plot = None;
+        }
+        for p in &mut self.plots {
+            if p.parent.as_deref() == Some(id) {
+                p.parent = None;
+            }
+        }
+        true
+    }
+
+    /// Add a district of `type_id` (a zone_types.ron id) at `origin` (ship metres) with `size`;
+    /// returns its id, "<type>-<n>" with the first free number, like the shipped "res-1".
+    pub fn add_district(&mut self, type_id: &str, origin: (f32, f32, f32), size: (f32, f32, f32)) -> String {
+        let id = (1..)
+            .map(|n| format!("{type_id}-{n}"))
+            .find(|id| !self.districts.iter().any(|d| &d.id == id))
+            .unwrap_or_default();
+        self.districts.push(Zone { id: id.clone(), type_id: type_id.to_string(), origin, size, label: String::new(), room_type: None });
+        id
+    }
+
+    /// Remove the district with this id; true when one was removed.
+    pub fn remove_district(&mut self, id: &str) -> bool {
+        let before = self.districts.len();
+        self.districts.retain(|d| d.id != id);
+        self.districts.len() != before
+    }
+
+    /// The ship file inside this assembled ship: everything but the home zone and its door
+    /// corridor. The plot's door record is not rewritten from that corridor: it is the other way
+    /// round (`sync_home_to_plot`), and the editor never edits the home's corridor directly
+    /// (`is_plot_door`).
+    pub fn ship_file(&self) -> ShipStructure {
+        let mut s = self.clone();
+        if s.home.take().is_some() {
+            s.zones.retain(|z| z.id != HOME_ZONE_ID);
+            s.corridors.retain(|c| c.from_zone != HOME_ZONE_ID && c.to_zone != HOME_ZONE_ID);
+        }
+        s
+    }
+
+    /// Save an assembled ship back to its two files under `data_dir`: the home design always
+    /// (every play mode builds its own home), the ship file only when `ship_scope` (the Dev
+    /// mode's ShipStructureEditing), and the home's origin never, because it comes from the
+    /// plot. The ship file is written from a COPY with unresolvable corridors pruned and is
+    /// refused if it does not validate, so a written file always loads again; the live ship
+    /// keeps a broken row on screen (the Corridors panel says why). Ok is a one-line note for
+    /// the editor; Err says what was and was not written.
+    pub fn save_assembled(&self, data_dir: &Path, ship_scope: bool) -> Result<String, String> {
+        let design = self
+            .home_design()
+            .ok_or_else(|| "this ship was not assembled from a plot, so it has no home file to save".to_string())?;
+        let home_path: PathBuf = data_dir.join(HOME_DESIGNS_DIR).join(format!("{}.ron", design.kind));
+        design.save(&home_path).map_err(|e| format!("your home was not saved: {e}"))?;
+        if !ship_scope {
+            return Ok("Saved your home.".to_string());
+        }
+        let mut ship = self.ship_file();
+        let pruned = ship.prune_invalid_corridors();
+        if let Err(e) = ship.validate() {
+            return Err(format!("Saved your home; the ship was NOT saved: {e}"));
+        }
+        // Every plot that takes this home design must still take it, or the next load at that
+        // plot fails (a Dev move that turns a plot's door away from its street, say).
+        for p in ship.plots.iter().filter(|p| p.kind == design.kind) {
+            if let Err(e) = ship.clone().assemble(design.clone(), &p.id) {
+                return Err(format!("Saved your home; the ship was NOT saved: plot '{}' would not take the {} home: {e}", p.id, design.kind));
+            }
+        }
+        ship.save(&data_dir.join(SHIP_FILE)).map_err(|e| format!("Saved your home; the ship save failed: {e}"))?;
+        Ok(if pruned > 0 {
+            format!("Saved your home and the ship ({pruned} broken corridor(s) left out of the file).")
+        } else {
+            "Saved your home and the ship.".to_string()
         })
     }
 
-    /// Write back to RON, preserving an existing file's leading comment header (the v0.526 lesson,
-    /// same discipline as `HomeStructure::save`).
+    /// Write this struct to RON as it stands (the ship-file writer), keeping an existing file's
+    /// leading comment header (the v0.526 lesson). `save_assembled` is what the editor calls.
     pub fn save(&self, path: &Path) -> Result<(), String> {
         let config = ron::ser::PrettyConfig::default().struct_names(false);
         let body = ron::ser::to_string_pretty(self, config).map_err(|e| e.to_string())?;
-        let preserved = std::fs::read_to_string(path).ok().and_then(|existing| {
-            let header: String = existing
-                .lines()
-                .take_while(|l| l.trim_start().starts_with("//") || l.trim().is_empty())
-                .collect::<Vec<_>>()
-                .join("\n");
-            if header.contains("//") {
-                Some(format!("{}\n\n", header.trim_end()))
-            } else {
-                None
-            }
-        });
-        let header = preserved.unwrap_or_else(|| {
-            "// HumanityOS ship structure: MANY pressurized zones, each a fixed outer box + freely\n\
-             // placed interior walls (the proven home model, now plural). Each zone: id, label,\n\
-             // purpose (residence|commons|bay|agriculture|corridor), a world `origin` for its box\n\
-             // min corner, and the full home `body` in zone-local metres. `corridors` rows generate\n\
-             // straight tubes between two zones; each row owns its door mouths (lat = the tube\n\
-             // centreline's WORLD coordinate across the run; door_width/door_height = the aperture\n\
-             // cut through each zone's shell), e.g.\n\
-             // (from_zone: \"home\", to_zone: \"commons\", lat: 40.0, width: 3.0, door_width: 2.0, door_height: 2.2, glass_top: true).\n\
-             // Design doc: docs/design/ship-superstructure.md (increments A + B).\n\n"
+        let header = preserved_header(path).unwrap_or_else(|| {
+            "// HumanityOS ship structure: the mothership's shared zones (each a fixed outer box +\n\
+             // freely placed interior walls, in zone-local metres at a ship `origin`), the corridors\n\
+             // between them (each row owns its door mouths: lat = the tube centreline's ship\n\
+             // coordinate across the run), the `plots` homes go on, the `default_plot`, and the\n\
+             // macro `districts`. Homes are not here: they are data/homes/<kind>.ron designs the\n\
+             // loader places on plots. Design doc: docs/design/ship-homes-and-logistics.md.\n\n"
                 .to_string()
         });
         std::fs::write(path, format!("{header}{body}")).map_err(|e| e.to_string())
@@ -1025,6 +1743,11 @@ impl ShipStructure {
                 label: String::new(),
             });
         }
+        // THE DISTRICTS (ship level since increment 1a; they were sub-zones of the home body):
+        // each one's zone_filler.ron contents, in ship metres. Residential districts draw
+        // nothing: their home-clone tiling overlapped the Commons, and increment 2 draws one
+        // shell per real plot instead (`HomeStructure::district_fillers`).
+        out.material_walls.extend(HomeStructure::district_fillers(&self.districts));
         out
     }
 }
@@ -1072,6 +1795,7 @@ mod tests {
                 zone("commons", (70.0, 0.0, 0.0), 20.0, 30.0, 6.0),
             ],
             corridors: Vec::new(),
+            ..Default::default()
         }
     }
 
@@ -1117,6 +1841,7 @@ mod tests {
                 door_height: 2.1,
                 glass_top: false,
             }],
+            ..Default::default()
         }
     }
 
@@ -1150,39 +1875,6 @@ mod tests {
     }
 
     #[test]
-    fn adoption_wraps_a_legacy_home_structure_as_zone_home() {
-        let dir = temp_path("adopt");
-        std::fs::create_dir_all(&dir).unwrap();
-        // A legacy data dir: home_structure.ron only, no ship_structure.ron.
-        std::fs::write(
-            dir.join("home_structure.ron"),
-            "(width: 55.0, depth: 89.0, height: 3.0)",
-        )
-        .unwrap();
-        let ship = ShipStructure::load_or_adopt(&dir).expect("adopts the legacy file");
-        assert_eq!(ship.zones.len(), 1);
-        assert_eq!(ship.zones[0].id, "home");
-        assert_eq!(ship.zones[0].origin, (0.0, 0.0, 0.0));
-        assert_eq!(ship.zones[0].body.width, 55.0);
-        let _ = std::fs::remove_dir_all(&dir);
-    }
-
-    #[test]
-    fn a_present_ship_structure_wins_over_the_legacy_file() {
-        let dir = temp_path("prefer_new");
-        std::fs::create_dir_all(&dir).unwrap();
-        std::fs::write(
-            dir.join("home_structure.ron"),
-            "(width: 55.0, depth: 89.0, height: 3.0)",
-        )
-        .unwrap();
-        two_zone_ship().save(&dir.join("ship_structure.ron")).unwrap();
-        let ship = ShipStructure::load_or_adopt(&dir).expect("loads the new file");
-        assert_eq!(ship.zones.len(), 2, "the ship file wins; the legacy file is ignored");
-        let _ = std::fs::remove_dir_all(&dir);
-    }
-
-    #[test]
     fn duplicate_zone_ids_fail_validation() {
         let mut ship = two_zone_ship();
         ship.zones[1].id = "home".to_string();
@@ -1199,7 +1891,7 @@ mod tests {
 
     #[test]
     fn empty_and_blank_ids_fail_validation() {
-        let none = ShipStructure { zones: Vec::new(), corridors: Vec::new() };
+        let none = ShipStructure { zones: Vec::new(), corridors: Vec::new(), ..Default::default() };
         assert!(none.validate().is_err(), "no zones");
         let mut ship = two_zone_ship();
         ship.zones[1].id = "  ".to_string();
@@ -1279,13 +1971,17 @@ mod tests {
 
     #[test]
     fn parses_the_shipped_ship_structure() {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("data")
-            .join("blueprints")
-            .join("ship_structure.ron");
-        let ship = ShipStructure::load(&path).expect("ship_structure.ron parses + validates");
+        // The ship file, the homestead design, and the two assembled on the default plot. The
+        // built-in copies (a fresh install, a throwaway relay) assemble just the same.
+        let (file, _) = shipped_files();
+        assert!(file.zone_index("home").is_none(), "no home lives in the ship file");
+        let ship = shipped_ship();
         let home = &ship.zones[ship.home_zone_index()];
         assert_eq!(home.id, "home");
+        assert_eq!(ship.home_plot().map(|p| p.id.as_str()), Some("p1"));
+        let empty = temp_path("builtin");
+        let builtin = ShipStructure::load_and_assemble(&empty, None).expect("the built-in files assemble");
+        assert_eq!(ron_of(&builtin.ship_file()), ron_of(&ship.ship_file()), "the built-in ship is the shipped one");
         assert!(home.body.width > 0.0 && home.body.depth > 0.0 && home.body.height > 0.0);
         assert!(!home.body.walls.is_empty(), "the migrated home kept its interior walls");
     }
@@ -1599,21 +2295,32 @@ mod tests {
 
     // ── Shipped-data migration locks (the corridor rework, world coords from the old system) ──
 
+    fn data_dir() -> std::path::PathBuf {
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data")
+    }
+
+    /// The ship the game runs: the ship file plus the homestead on its default plot, p1.
     fn shipped_ship() -> ShipStructure {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("data")
-            .join("blueprints")
-            .join("ship_structure.ron");
-        ShipStructure::load(&path).expect("ship_structure.ron parses + validates")
+        ShipStructure::load_and_assemble(&data_dir(), None).expect("the shipped ship assembles at its default plot")
+    }
+
+    /// The ship file and the homestead design on their own, as written (no assembly).
+    fn shipped_files() -> (ShipStructure, HomeDesign) {
+        let ship = ShipStructure::load_ship_file(&data_dir()).expect("the ship file loads");
+        let design = HomeDesign::load(&data_dir(), "homestead").expect("the homestead design loads");
+        (ship, design)
     }
 
     #[test]
     fn the_shipped_corridor_resolves_where_the_old_door_pair_did() {
         // Migration lock: pre-rework, the shipped row resolved through home's authored door at
         // world (55, 0, 40) and commons' at (65, 0, 40). The new lat-owned row must produce the
-        // SAME tube, or the migration silently moved the hallway.
+        // SAME tube, or the migration silently moved the hallway. Since increment 1a that row
+        // is p1's door, put first by assembly; the Commons-to-street corridor follows it.
         let ship = shipped_ship();
-        assert_eq!(ship.corridors.len(), 1);
+        assert_eq!(ship.corridors.len(), 2);
+        assert_eq!((ship.corridors[0].from_zone.as_str(), ship.corridors[0].to_zone.as_str()), ("home", "commons"));
+        assert_eq!((ship.corridors[1].from_zone.as_str(), ship.corridors[1].to_zone.as_str()), ("commons", "street-1"));
         let g = ship.corridor_geometry(&ship.corridors[0]).expect("the shipped corridor resolves");
         assert_eq!(g.axis, CorridorAxis::X);
         assert!((g.start - 55.0).abs() < 1e-4, "got start {}", g.start);
@@ -1642,9 +2349,13 @@ mod tests {
         assert!((cuts[0].height - 2.2).abs() < 1e-4);
         let commons = ship.zone_index("commons").expect("commons zone exists");
         let cuts = ship.shell_cuts_for_zone(commons);
-        assert_eq!(cuts.len(), 1);
-        assert_eq!(cuts[0].edge, 3);
-        assert!((cuts[0].at - 34.0).abs() < 1e-4, "got {}", cuts[0].at);
+        assert_eq!(cuts.len(), 2, "the home's corridor and the street's");
+        let west = cuts.iter().find(|c| c.edge == 3).expect("the home corridor's mouth on the west face");
+        assert!((west.at - 34.0).abs() < 1e-4, "got {}", west.at);
+        // The street corridor leaves through the Commons' south face (z = 75, edge 2, which winds
+        // -x from x = w): at = w - (local lat + door/2) = 34 - (5 + 1) = 28.
+        let south = cuts.iter().find(|c| c.edge == 2).expect("the street corridor's mouth on the south face");
+        assert!((south.at - 28.0).abs() < 1e-4, "got {}", south.at);
     }
 
     /// v0.789 regression (operator: "there's still a wall in the corridor"):
@@ -1736,30 +2447,520 @@ mod tests {
         assert!(ship.corridor_mouths().is_empty());
     }
 
+    /// Everything that belongs to the home, in ship metres: its rooms (id, centre, size), its
+    /// collision segments, its machines (the home rows of data/machines/home.ron, placed the way
+    /// the engine places them) and the spawn point. The moved-plot test compares two of these.
+    struct HomeParts {
+        rooms: Vec<(String, Vec3, Vec3)>,
+        segments: Vec<((f32, f32), (f32, f32))>,
+        machines: Vec<(String, (f32, f32, f32))>,
+        spawn: Option<Vec3>,
+    }
+
+    fn home_parts(ship: &ShipStructure) -> HomeParts {
+        let hi = ship.home_zone_index();
+        let home = &ship.zones[hi];
+        let o = home.origin_vec();
+        // The home zone keeps its raw room ids; other zones prefix "<zone>:" and corridors are
+        // "corridor_<n>", so the home's rooms are the ones with neither.
+        let rooms = ship
+            .generate_meshes()
+            .room_info
+            .into_iter()
+            .filter(|r| !r.id.contains(':') && !r.id.starts_with("corridor_"))
+            .map(|r| (r.id, r.center, r.dimensions))
+            .collect();
+        let segments = crate::ship::wall_collision::wall_segments_with_shell_cuts(
+            &home.body,
+            &ship.shell_cuts_for_zone(hi),
+        )
+        .into_iter()
+        .map(|s| ((s.a.0 + o.x, s.a.1 + o.z), (s.b.0 + o.x, s.b.1 + o.z)))
+        .collect();
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let machines_file = crate::machines::MachineHome::load(&root.join("data").join("machines").join("home.ron"))
+            .expect("home.ron parses");
+        let home_ids: std::collections::HashSet<String> = machines_file
+            .all_instances()
+            .into_iter()
+            .filter(|i| i.zone == "home")
+            .map(|i| i.id)
+            .collect();
+        let machines = machines_file
+            .placements(&std::collections::HashMap::new(), Some(&ship.zone_rects()))
+            .into_iter()
+            .filter(|p| home_ids.contains(&p.id))
+            .map(|p| (p.id, p.pos))
+            .collect();
+        HomeParts { rooms, segments, machines, spawn: ship.home_spawn_world() }
+    }
+
+    /// Every way `after` fails to be `before` moved by (dx, 0, dz), as plain sentences (empty when
+    /// the whole home moved with its plot).
+    fn not_moved_by(before: &HomeParts, after: &HomeParts, dx: f32, dz: f32) -> Vec<String> {
+        let d = Vec3::new(dx, 0.0, dz);
+        let near = |a: Vec3, b: Vec3| (a - b).abs().max_element() < 1e-3;
+        let mut out = Vec::new();
+        if before.rooms.len() != after.rooms.len() {
+            out.push(format!("room count changed: {} -> {}", before.rooms.len(), after.rooms.len()));
+        }
+        let rooms_off = before
+            .rooms
+            .iter()
+            .filter(|(id, c, s)| !after.rooms.iter().any(|(i2, c2, s2)| i2 == id && near(*c + d, *c2) && near(*s, *s2)))
+            .count();
+        if rooms_off > 0 {
+            out.push(format!("{rooms_off} of {} rooms did not move with the plot", before.rooms.len()));
+        }
+        if before.segments.len() != after.segments.len() {
+            out.push(format!("segment count changed: {} -> {}", before.segments.len(), after.segments.len()));
+        }
+        let segs_off = before
+            .segments
+            .iter()
+            .zip(&after.segments)
+            .filter(|((a, b), (a2, b2))| {
+                (a.0 + dx - a2.0).abs() > 1e-3
+                    || (a.1 + dz - a2.1).abs() > 1e-3
+                    || (b.0 + dx - b2.0).abs() > 1e-3
+                    || (b.1 + dz - b2.1).abs() > 1e-3
+            })
+            .count();
+        if segs_off > 0 {
+            out.push(format!("{segs_off} of {} collision segments did not move with the plot", before.segments.len()));
+        }
+        let machines_off: Vec<&str> = before
+            .machines
+            .iter()
+            .filter(|(id, p)| {
+                !after.machines.iter().any(|(i2, p2)| {
+                    i2 == id && near(Vec3::new(p.0, p.1, p.2) + d, Vec3::new(p2.0, p2.1, p2.2))
+                })
+            })
+            .map(|(id, _)| id.as_str())
+            .collect();
+        if !machines_off.is_empty() {
+            out.push(format!(
+                "{} of {} home machines did not move with the plot (first: {:?})",
+                machines_off.len(),
+                before.machines.len(),
+                &machines_off[..machines_off.len().min(3)]
+            ));
+        }
+        match (before.spawn, after.spawn) {
+            (Some(a), Some(b)) if near(a + d, b) => {}
+            (a, b) => out.push(format!("the spawn did not move with the plot: {a:?} -> {b:?}")),
+        }
+        out
+    }
+
+    /// The shipped homestead assembled on a copy of p1 moved by (dx, 0, dz). The plot's door lat
+    /// moves with it: the door is in the east wall, so its corridor runs along X and the lat is
+    /// a z.
+    fn assembled_on_p1_moved_by(dx: f32, dz: f32) -> ShipStructure {
+        let (mut ship, design) = shipped_files();
+        let p1 = ship.plots.iter_mut().find(|p| p.id == "p1").expect("the ship has p1");
+        p1.origin.0 += dx;
+        p1.origin.2 += dz;
+        p1.door.lat += dz;
+        ship.assemble(design, "p1").expect("the moved plot assembles")
+    }
+
+    /// Moving a home's plot by (dx, 0, dz) moves every room, collision segment, machine and the
+    /// spawn by exactly that, and nothing of the home stays behind (increment 1a,
+    /// docs/design/ship-homes-and-logistics.md section 7). Two moves: the real second plot p2
+    /// (p1 moved 99 m south, its door on street-1 instead of the Commons), and p1 moved 100 m
+    /// west (its corridor to the Commons just grows longer).
+    ///
+    /// SEEN RED FIRST, on the code and data from before the split, with "move the plot" meaning
+    /// the home zone's origin plus its corridor's lat moved by (0, 0, 10):
+    ///   259 of 259 home machines did not move with the plot (first: ["shelf_1", "side_table_2", "rug_3"])
+    ///   the spawn did not move with the plot: Some(Vec3(53.5, 1.7, 40.5)) -> Some(Vec3(53.5, 1.7, 40.5))
+    /// (the 23 rooms and 69 collision segments already moved). Machine offsets were absolute
+    /// ship positions clamped into the zone, and the spawn ignored the zone's origin.
+    #[test]
+    fn moving_the_plot_moves_everything_in_the_home() {
+        let before = home_parts(&shipped_ship());
+        assert_eq!(before.machines.len(), 259, "every home machine is placed");
+        let p2 = ShipStructure::load_and_assemble(&data_dir(), Some("p2")).expect("the homestead assembles at p2");
+        let mut failures = not_moved_by(&before, &home_parts(&p2), 0.0, 99.0);
+        failures.extend(not_moved_by(&before, &home_parts(&assembled_on_p1_moved_by(-100.0, 0.0)), -100.0, 0.0));
+        assert!(failures.is_empty(), "moving the plot left things behind:\n  {}", failures.join("\n  "));
+    }
+
+    /// Today's ship, pinned from the shipped data BEFORE the split (2026-10-03): every room the
+    /// whole ship detected, as (id, centre, size). 23 are the home's, 10 the Commons', 1 the
+    /// home's corridor. The wall-segment counts are below.
+    const ROOMS_BEFORE_THE_SPLIT: &[(&str, [f32; 3], [f32; 3])] = &[
+        ("commons:room_10", [71.0, 4.0, 46.0], [3.0, 8.0, 5.0]),
+        ("commons:room_1", [82.0, 4.0, 47.5], [34.0, 8.0, 55.0]),
+        ("commons:room_2", [71.5, 4.0, 31.0], [4.0, 8.0, 3.0]),
+        ("commons:room_3", [71.5, 4.0, 36.0], [4.0, 8.0, 5.0]),
+        ("commons:room_4", [75.5, 4.0, 34.5], [2.0, 8.0, 2.0]),
+        ("commons:room_5", [79.0, 4.0, 36.0], [3.0, 8.0, 5.0]),
+        ("commons:room_6", [75.5, 4.0, 37.5], [2.0, 8.0, 2.0]),
+        ("commons:room_7", [75.0, 4.0, 40.0], [11.0, 8.0, 1.0]),
+        ("commons:room_8", [71.0, 4.0, 42.0], [3.0, 8.0, 1.0]),
+        ("commons:room_9", [77.0, 4.0, 45.0], [7.0, 8.0, 7.0]),
+        ("console-room", [53.75, 1.5, 47.0], [2.5, 3.0, 7.0]),
+        ("corridor_0", [60.0, 1.5, 40.0], [10.0, 3.0, 3.0]),
+        ("room-aquaponics", [4.75, 1.5, 67.0], [9.5, 3.0, 11.0]),
+        ("room-barn", [47.75, 1.5, 81.25], [14.5, 3.0, 15.5]),
+        ("room-bathroom", [47.5, 1.5, 32.0], [4.0, 3.0, 3.0]),
+        ("room-bedroom", [38.0, 1.5, 34.0], [7.0, 3.0, 7.0]),
+        ("room-common", [47.0, 1.5, 47.0], [9.0, 3.0, 7.0]),
+        ("room-court", [44.75, 1.5, 26.0], [20.5, 3.0, 7.0]),
+        ("room-dressing", [43.5, 1.5, 34.0], [2.0, 3.0, 7.0]),
+        ("room-entry", [53.75, 1.5, 40.5], [2.5, 3.0, 4.0]),
+        ("room-fields", [19.75, 1.5, 81.25], [39.5, 3.0, 15.5]),
+        ("room-forge", [16.0, 1.5, 40.5], [7.0, 3.0, 20.0]),
+        ("room-greenhouse", [32.75, 1.5, 62.0], [44.5, 3.0, 21.0]),
+        ("room-hall", [43.0, 1.5, 40.5], [17.0, 3.0, 4.0]),
+        ("room-kitchen", [38.0, 1.5, 48.5], [7.0, 3.0, 4.0]),
+        ("room-mushroom", [4.75, 1.5, 56.0], [9.5, 3.0, 9.0]),
+        ("room-pantry", [38.0, 1.5, 44.5], [7.0, 3.0, 2.0]),
+        ("room-plant", [5.75, 1.5, 40.5], [11.5, 3.0, 20.0]),
+        ("room-power", [9.75, 1.5, 10.75], [19.5, 3.0, 21.5]),
+        ("room-serviceway", [16.75, 1.5, 26.0], [33.5, 3.0, 7.0]),
+        ("room-study", [52.75, 1.5, 34.0], [4.5, 3.0, 7.0]),
+        ("room-vehicle", [37.75, 1.5, 10.75], [34.5, 3.0, 21.5]),
+        ("room-wetroom", [47.5, 1.5, 36.0], [4.0, 3.0, 3.0]),
+        ("room-workshop", [27.0, 1.5, 40.5], [13.0, 3.0, 20.0]),
+    ];
+    /// Whole-ship wall segments before the split (collision 122, sight 135), and the home's
+    /// own share (69).
+    const WALL_SEGMENTS_BEFORE: usize = 122;
+    const SIGHT_SEGMENTS_BEFORE: usize = 135;
+    const HOME_SEGMENTS_BEFORE: usize = 69;
+
+    /// Assembling at p1 reproduces today's ship. Everything that existed before the split (the
+    /// assembled ship without street-1 and its corridor, both new in 1a) has the same 34 rooms,
+    /// each with the same id, centre and size, and the same 122 collision and 135 sight
+    /// segments; the home alone keeps its 23 rooms and 69 segments. Then the whole assembled ship
+    /// is pinned too: street-1 adds one room (its open box) and its corridor a walkable bound
+    /// (36 rooms); its four walls, the cut its corridor makes in the street's north wall and in
+    /// the Commons' south wall, and the corridor's two side rails add 8 segments (130).
+    #[test]
+    fn assembling_at_p1_reproduces_todays_rooms_and_segments() {
+        use crate::ship::wall_collision::{ship_sight_segments, ship_wall_segments};
+        let ship = shipped_ship();
+        let home = home_parts(&ship);
+        assert_eq!(home.rooms.len(), 23, "the home's own rooms");
+        assert_eq!(home.segments.len(), HOME_SEGMENTS_BEFORE, "the home's own collision segments");
+
+        let mut before_shape = ship.clone();
+        before_shape.zones.retain(|z| z.id != "street-1");
+        before_shape.corridors.retain(|c| c.from_zone != "street-1" && c.to_zone != "street-1");
+        let rooms = before_shape.generate_meshes().room_info;
+        assert_eq!(rooms.len(), ROOMS_BEFORE_THE_SPLIT.len(), "today's room count");
+        for (id, c, s) in ROOMS_BEFORE_THE_SPLIT {
+            let r = rooms
+                .iter()
+                .find(|r| r.id == *id)
+                .unwrap_or_else(|| panic!("room '{id}' from before the split is gone"));
+            assert!(
+                (r.center - Vec3::from(*c)).abs().max_element() < 1e-3
+                    && (r.dimensions - Vec3::from(*s)).abs().max_element() < 1e-3,
+                "room '{id}' moved or changed size: {:?} {:?}",
+                r.center,
+                r.dimensions
+            );
+        }
+        assert_eq!(ship_wall_segments(&before_shape).len(), WALL_SEGMENTS_BEFORE, "today's collision segments");
+        assert_eq!(ship_sight_segments(&before_shape).len(), SIGHT_SEGMENTS_BEFORE, "today's sight segments");
+
+        let all = ship.generate_meshes().room_info;
+        assert_eq!(all.len(), 36, "the whole ship: + street-1's room + its corridor's");
+        assert_eq!(ship_wall_segments(&ship).len(), 130, "the whole ship: + street-1's walls, two cuts, two rails");
+        // The home's corridor keeps its id in the whole ship too: assembly puts it first.
+        let c0 = all.iter().find(|r| r.id == "corridor_0").expect("corridor_0");
+        assert!((c0.center - Vec3::new(60.0, 1.5, 40.0)).abs().max_element() < 1e-3, "corridor_0 is the home's corridor, got {:?}", c0.center);
+    }
+
+    /// A tiny ship for the overlap table: a 10 x 100 m Commons at x 20..30, and plots west of
+    /// it whose doors run east to it.
+    fn plot(id: &str, z: f32, depth: f32, lat: f32) -> Plot {
+        Plot {
+            id: id.to_string(),
+            parent: None,
+            kind: "test".to_string(),
+            origin: (0.0, 0.0, z),
+            size: (10.0, 3.0, depth),
+            door: PlotDoor {
+                zone: "commons".to_string(),
+                lat,
+                width: 3.0,
+                door_width: 2.0,
+                door_height: 2.2,
+                glass_top: true,
+            },
+            neighbourhood: String::new(),
+        }
+    }
+
+    fn overlap_fixture(plots: Vec<Plot>, extra_zones: Vec<ShipZone>) -> ShipStructure {
+        let mut zones = vec![zone("commons", (20.0, 0.0, 0.0), 10.0, 100.0, 4.0)];
+        zones.extend(extra_zones);
+        ShipStructure { zones, plots, ..Default::default() }
+    }
+
+    /// validate() refuses overlapping plots, zones and corridor tubes, and lets touching ones,
+    /// a child plot inside its parent, and districts through. Each row names what must be
+    /// refused (a fragment of the error) or None for a ship that must validate.
+    /// Red check, run: making `validate_overlaps` return Ok(()) fails every refusing row.
+    #[test]
+    fn overlapping_plots_zones_and_tubes_are_refused() {
+        let child = |id: &str, parent: &str, z: f32, depth: f32, lat: f32| Plot { parent: Some(parent.to_string()), ..plot(id, z, depth, lat) };
+        let mut district_ship = overlap_fixture(vec![plot("p1", 0.0, 10.0, 5.0)], vec![]);
+        district_ship.districts.push(Zone {
+            id: "res".into(),
+            type_id: "residential".into(),
+            origin: (-50.0, 0.0, -50.0),
+            size: (200.0, 4.0, 200.0),
+            label: String::new(),
+            room_type: None,
+        });
+        let cases: Vec<(&str, ShipStructure, Option<&str>)> = vec![
+            ("two plots that touch", overlap_fixture(vec![plot("p1", 0.0, 10.0, 5.0), plot("p2", 10.0, 10.0, 15.0)], vec![]), None),
+            ("two plots that overlap", overlap_fixture(vec![plot("p1", 0.0, 10.0, 5.0), plot("p2", 5.0, 10.0, 12.0)], vec![]), Some("plot 'p1' overlaps plot 'p2'")),
+            ("a plot on a zone", overlap_fixture(vec![plot("p1", 50.0, 10.0, 55.0)], vec![zone("bay", (0.0, 0.0, 45.0), 10.0, 10.0, 3.0)]), Some("plot 'p1' overlaps zone 'bay'")),
+            ("two zones that overlap", overlap_fixture(vec![], vec![zone("bay", (0.0, 0.0, 0.0), 22.0, 10.0, 3.0)]), Some("zone 'commons' overlaps zone 'bay'")),
+            ("two zones that touch", overlap_fixture(vec![], vec![zone("bay", (10.0, 0.0, 0.0), 10.0, 10.0, 3.0)]), None),
+            ("a zone across a plot's corridor", overlap_fixture(vec![plot("p1", 0.0, 10.0, 5.0)], vec![zone("kiosk", (12.0, 0.0, 4.0), 4.0, 2.0, 3.0)]), Some("zone 'kiosk' overlaps the corridor from plot 'p1' to commons")),
+            ("two corridors that overlap", overlap_fixture(vec![plot("p1", 0.0, 10.0, 9.0), plot("p2", 10.0, 10.0, 11.0)], vec![]), Some("the corridor from plot 'p1' to commons overlaps the corridor from plot 'p2' to commons")),
+            ("a child plot inside its parent", overlap_fixture(vec![plot("block", 30.0, 20.0, 40.0), child("c1", "block", 30.0, 5.0, 32.5)], vec![]), None),
+            ("a child plot sticking out of its parent", overlap_fixture(vec![plot("block", 30.0, 20.0, 40.0), child("c1", "block", 48.0, 5.0, 50.5)], vec![]), Some("plot 'c1' is not inside its parent 'block'")),
+            ("a district over everything", district_ship, None),
+        ];
+        let mut wrong = Vec::new();
+        for (name, ship, want) in &cases {
+            match (ship.validate(), want) {
+                (Ok(()), None) => {}
+                (Err(e), Some(frag)) if e.contains(frag) => {}
+                (got, want) => wrong.push(format!("{name}: wanted {want:?}, got {got:?}")),
+            }
+        }
+        assert!(wrong.is_empty(), "overlap table:\n  {}", wrong.join("\n  "));
+    }
+
+    /// Assembly refuses what does not fit, and splitting an assembled ship gives back exactly
+    /// the two files it came from (so a save writes nothing it did not read).
+    #[test]
+    fn assembly_refuses_what_does_not_fit_and_splits_back_into_its_files() {
+        let (ship, design) = shipped_files();
+        assert!(ship.zone_index(HOME_ZONE_ID).is_none(), "the ship file holds no home");
+        assert_eq!(ship.plots.len(), 2, "p1 and p2");
+        assert_eq!(ship.default_plot_id().as_deref(), Some("p1"));
+        let refuse = |s: ShipStructure, d: HomeDesign, plot: &str, frag: &str| {
+            let e = s.assemble(d, plot).expect_err(frag);
+            assert!(e.contains(frag), "wanted '{frag}', got: {e}");
+        };
+        refuse(ship.clone(), design.clone(), "p9", "no plot 'p9'");
+        let mut cabin = design.clone();
+        cabin.kind = "cabin".to_string();
+        refuse(ship.clone(), cabin, "p1", "takes a homestead home, not a cabin");
+        let mut moved_door = design.clone();
+        moved_door.door = (55.0, 30.0);
+        refuse(ship.clone(), moved_door, "p2", "does not meet");
+        let mut inner_door = design.clone();
+        inner_door.door = (20.0, 30.0);
+        refuse(ship.clone(), inner_door, "p1", "is not on its");
+        let mut big = design.clone();
+        big.body.width = 60.0;
+        refuse(ship.clone(), big, "p1", "does not fit plot 'p1'");
+        // The right lat through the wrong wall (the critic's case): a plot EAST of street-1 at
+        // (80, 0, 99), its door lat 139 on the street. The lat meets the design's door (local
+        // z 40), but the door is in the home's east wall and the corridor would cut the west
+        // one. Red check, run: without the door-face check this plot assembles (nothing
+        // overlaps there), and this refusal fails.
+        let mut east = ship.clone();
+        let mut p3 = east.plots.iter().find(|p| p.id == "p2").cloned().expect("p2");
+        p3.id = "p3".to_string();
+        p3.origin = (80.0, 0.0, 99.0);
+        east.plots.push(p3);
+        refuse(east, design.clone(), "p3", "not through the homestead design's door at (135.0, 139.0)");
+        let assembled = ship.clone().assemble(design.clone(), "p1").expect("assembles");
+        refuse(assembled.clone(), design.clone(), "p2", "zone named 'home'");
+
+        assert_eq!(ron_of(&assembled.ship_file()), ron_of(&ship), "the ship file comes back unchanged");
+        assert_eq!(ron_of(&assembled.home_design().expect("assembled")), ron_of(&design), "the home design comes back unchanged");
+        assert_eq!(assembled.home_plot().map(|p| p.id.as_str()), Some("p1"));
+        let home = &assembled.zones[assembled.home_zone_index()];
+        assert_eq!((home.id.as_str(), home.origin), ("home", (0.0, 0.0, 0.0)), "the home sits at p1's origin");
+    }
+
+    /// RON text of either file type, for the round-trip comparisons above.
+    fn ron_of<T: Serialize>(v: &T) -> String {
+        ron::ser::to_string(v).expect("serializes")
+    }
+
+    /// A copy of the shipped data files in a temp dir, for the save tests.
+    fn temp_data_dir(name: &str) -> std::path::PathBuf {
+        let dir = temp_path(name);
+        for rel in [SHIP_FILE, "homes/homestead.ron"] {
+            let to = dir.join(rel);
+            std::fs::create_dir_all(to.parent().unwrap()).unwrap();
+            std::fs::copy(data_dir().join(rel), &to).unwrap();
+        }
+        dir
+    }
+
+    /// Saving splits the ship again: the home design always, the ship file only with the Dev
+    /// mode's ShipStructureEditing, and the home's origin never (a home moved in the editor is
+    /// back on its plot after a reload). A ship that would not load again is not written.
+    /// Red check, run: writing the ship file regardless of `ship_scope` fails the second
+    /// assertion (the Normal-mode save changed the hangar district).
+    #[test]
+    fn saving_writes_the_home_always_and_the_ship_only_in_dev_mode() {
+        let dir = temp_data_dir("save_split");
+        let ship_path = dir.join(SHIP_FILE);
+        let ship_bytes = std::fs::read(&ship_path).unwrap();
+        let mut ship = ShipStructure::load_and_assemble(&dir, None).expect("assembles");
+        let hi = ship.home_zone_index();
+        ship.zones[hi].body.walls.push(ron::from_str("(a: (1.0, 1.0), b: (3.0, 1.0))").unwrap());
+        ship.zones[hi].origin = (500.0, 0.0, 500.0); // moved in the editor: never saved
+        ship.districts[1].origin.0 += 7.0; // the hangar moved (the Normal-mode defect)
+        let note = ship.save_assembled(&dir, false).expect("a Normal-mode save writes the home");
+        assert_eq!(note, "Saved your home.");
+        assert_eq!(std::fs::read(&ship_path).unwrap(), ship_bytes, "Normal mode never writes the ship file");
+        let back = ShipStructure::load_and_assemble(&dir, None).expect("reassembles");
+        let bh = &back.zones[back.home_zone_index()];
+        assert_eq!(bh.body.walls.len(), ship.zones[hi].body.walls.len(), "the new wall was saved");
+        assert_eq!(bh.origin, (0.0, 0.0, 0.0), "the home is back on its plot");
+
+        // Dev mode writes the ship too, and it loads again.
+        ship.zones[hi].origin = (0.0, 0.0, 0.0);
+        ship.save_assembled(&dir, true).expect("a Dev save writes both");
+        let back = ShipStructure::load_and_assemble(&dir, None).expect("reassembles");
+        assert_eq!(back.districts[1].origin.0, ship.districts[1].origin.0, "the district edit was saved");
+        assert!(back.zone_index("street-1").is_some() && back.plots.len() == 2);
+
+        // An overlapping ship is refused, and the file on disk stays as it was. (The street
+        // dragged into the Commons: its own corridor no longer resolves and is left out of the
+        // copy, and the two zones overlap.)
+        let before = std::fs::read(&ship_path).unwrap();
+        let si = ship.zone_index("street-1").unwrap();
+        ship.zones[si].origin = (65.0, 0.0, 70.0);
+        let e = ship.save_assembled(&dir, true).expect_err("an overlapping ship is not saved");
+        assert!(e.contains("the ship was NOT saved") && e.contains("overlaps"), "got: {e}");
+        assert_eq!(std::fs::read(&ship_path).unwrap(), before);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The Dev Plots and Districts panel edits the ship file through these, and what it does
+    /// survives a save and a reload (the critic's review of 1a: plots and districts had no
+    /// in-app control). Moving the home's own plot moves the home, its corridor (still first,
+    /// still the plot's door, its lat following the door point) and its spawn; saving writes the
+    /// moved plot; reloading puts the home there. A plot moved to where it would not take the
+    /// design (east of its street, door facing away) is refused by the save, and the file stays
+    /// as it was. The home's corridor is the plot's door (`is_plot_door`); a street corridor is
+    /// not. Districts add with fresh ids and remove. Red checks, run: dropping the
+    /// `sync_home_to_plot` call from `move_plot` fails "the home moved with its plot" (left
+    /// (0, 0, 0), right (0, 0, -10)); dropping the every-plot-still-assembles check from
+    /// `save_assembled` fails "a ship whose p2 would not load is not saved" (the save said "Saved
+    /// your home and the ship.").
+    #[test]
+    fn dev_plot_and_district_edits_move_the_home_and_save_through_the_ship_file() {
+        let dir = temp_data_dir("plot_edits");
+        let ship_path = dir.join(SHIP_FILE);
+        let mut ship = ShipStructure::load_and_assemble(&dir, None).expect("assembles at p1");
+        let spawn_before = ship.home_spawn_world().expect("a spawn");
+        assert!(ship.is_plot_door(&ship.corridors[0]), "corridor 0 is the home's door");
+        assert!(ship.corridors.iter().skip(1).all(|c| !ship.is_plot_door(c)), "the street's corridor is not");
+
+        assert!(ship.move_plot("p1", (0.0, 0.0, -10.0)));
+        let home = &ship.zones[ship.home_zone_index()];
+        assert_eq!(home.origin, (0.0, 0.0, -10.0), "the home moved with its plot");
+        assert!(ship.is_plot_door(&ship.corridors[0]) && (ship.corridors[0].lat - 30.0).abs() < 1e-4, "its corridor is first, lat 30: {:?}", ship.corridors[0]);
+        assert_eq!(ship.corridors.iter().filter(|c| ship.is_plot_door(c)).count(), 1, "one home corridor, not two");
+        assert!((ship.home_spawn_world().unwrap() - spawn_before - Vec3::new(0.0, 0.0, -10.0)).length() < 1e-4, "the spawn moved with it");
+        assert_eq!(ship.plot_check("p1"), Some(Ok(())));
+        assert_eq!(ship.validate(), Ok(()));
+        ship.save_assembled(&dir, true).expect("a Dev save writes the moved plot");
+        let back = ShipStructure::load_and_assemble(&dir, None).expect("reassembles");
+        assert_eq!(back.zones[back.home_zone_index()].origin, (0.0, 0.0, -10.0), "the home loads on its moved plot");
+
+        // Turned away from its street: the panel says why, and the save refuses it.
+        let before = std::fs::read(&ship_path).unwrap();
+        assert!(ship.move_plot("p2", (80.0, 0.0, 99.0)));
+        let why = ship.plot_check("p2").expect("p2 takes the homestead").expect_err("p2 faces away from its street");
+        assert!(why.contains("not through the homestead design's door"), "got: {why}");
+        let e = ship.save_assembled(&dir, true).expect_err("a ship whose p2 would not load is not saved");
+        assert!(e.contains("plot 'p2' would not take the homestead home"), "got: {e}");
+        assert_eq!(std::fs::read(&ship_path).unwrap(), before, "the file on disk is unchanged");
+        assert!(ship.move_plot("p2", (0.0, 0.0, 99.0)) && ship.plot_check("p2") == Some(Ok(())), "and back again");
+
+        // Plots add beyond their model and remove (never the home's own).
+        let p3 = ship.add_plot_like("p2", 10.0).expect("a copy of p2");
+        assert_eq!(p3, "p3");
+        let added = ship.plots.iter().find(|p| p.id == "p3").unwrap();
+        assert_eq!((added.origin, added.door.lat), ((0.0, 0.0, 198.0), 238.0), "past p2 by its depth and the gap, the lat with it");
+        assert!(!ship.remove_plot("p1"), "the home's own plot stays");
+        assert!(ship.remove_plot("p3") && ship.plots.len() == 2);
+
+        // Districts.
+        let id = ship.add_district("hangar", (200.0, 0.0, 0.0), (40.0, 10.0, 40.0));
+        assert!(id.starts_with("hangar-") && ship.districts.iter().any(|d| d.id == id));
+        assert_ne!(ship.add_district("hangar", (0.0, 0.0, 0.0), (1.0, 1.0, 1.0)), id, "a fresh id each time");
+        assert!(ship.remove_district(&id) && !ship.districts.iter().any(|d| d.id == id));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The districts draw at ship level: each non-residential district's filler, and nothing
+    /// for a residential one (its home-clone tiling overlapped the Commons; increment 2 draws one
+    /// shell per real plot). The clones only ever came from a residential zone inside the home
+    /// BODY, which tiles them (`generate_zone_filler`); at ship level nothing does, and
+    /// zone_filler.ron has no residential entry, so the skip in `district_fillers` is a second
+    /// guard. Red check, run: put a residential zone back into data/homes/homestead.ron's
+    /// body (where res-1 sat before the split) and the last assertion fails.
+    #[test]
+    fn districts_draw_their_fillers_but_residential_ones_draw_nothing() {
+        let ship = shipped_ship();
+        assert_eq!(ship.districts.len(), 13, "the 13 districts moved up to ship level");
+        assert!(!HomeStructure::district_fillers(&ship.districts).is_empty(), "the hangar, the Concourse... draw");
+        let residential: Vec<Zone> = ship.districts.iter().filter(|d| d.type_id == "residential").cloned().collect();
+        assert_eq!(residential.len(), 1);
+        assert!(HomeStructure::district_fillers(&residential).is_empty(), "no home clones over the Commons");
+        let home_body = &ship.zones[ship.home_zone_index()].body;
+        assert!(
+            home_body.zones.iter().all(|z| z.type_id != "residential"),
+            "a residential zone in the home body tiles home clones: {:?}",
+            home_body.zones.iter().filter(|z| z.type_id == "residential").map(|z| z.id.as_str()).collect::<Vec<_>>()
+        );
+    }
+
     #[test]
     fn the_shipped_ron_has_no_wall_coplanar_with_a_corridor_mouth() {
         // Guards the other half of the migration: the two authored door walls that used to sit ON
         // the perimeter at the corridor mouths (home (55,38)-(55,42), commons (0,18)-(0,22)) are
-        // gone. If someone re-authors a wall flush with a mouth, the z-fight comes back.
+        // gone. If someone re-authors a wall flush with a mouth, the z-fight comes back. Every
+        // corridor is checked (the street's runs along Z, so its mouth planes are z planes).
         let ship = shipped_ship();
-        let g = ship.corridor_geometry(&ship.corridors[0]).expect("resolves");
-        for zi in [g.from_zone_idx, g.to_zone_idx] {
-            let z = &ship.zones[zi];
-            let o = z.origin_vec();
-            for wall in &z.body.walls {
-                // A wall lying along the mouth plane (constant world x = the tube end) that spans
-                // the mouth's z range would be coplanar with the generated shell cut.
-                let (wx1, wx2) = (o.x + wall.a.0, o.x + wall.b.0);
-                for plane in [g.start, g.end] {
-                    let on_plane = (wx1 - plane).abs() < 1e-3 && (wx2 - plane).abs() < 1e-3;
-                    let (z1, z2) = (o.z + wall.a.1, o.z + wall.b.1);
-                    let overlaps_mouth = z1.min(z2) < g.lat + g.door_from.0 * 0.5
-                        && z1.max(z2) > g.lat - g.door_from.0 * 0.5;
-                    assert!(
-                        !(on_plane && overlaps_mouth),
-                        "zone '{}' has an authored wall coplanar with the corridor mouth at x = {plane}",
-                        z.id
-                    );
+        for c in &ship.corridors {
+            let g = ship.corridor_geometry(c).expect("resolves");
+            // (along the run, across the run) for a point (x, z).
+            let split = |x: f32, z: f32| match g.axis {
+                CorridorAxis::X => (x, z),
+                CorridorAxis::Z => (z, x),
+            };
+            for zi in [g.from_zone_idx, g.to_zone_idx] {
+                let z = &ship.zones[zi];
+                let o = z.origin_vec();
+                for wall in &z.body.walls {
+                    let (a_run, a_lat) = split(o.x + wall.a.0, o.z + wall.a.1);
+                    let (b_run, b_lat) = split(o.x + wall.b.0, o.z + wall.b.1);
+                    for plane in [g.start, g.end] {
+                        let on_plane = (a_run - plane).abs() < 1e-3 && (b_run - plane).abs() < 1e-3;
+                        let overlaps_mouth = a_lat.min(b_lat) < g.lat + g.door_from.0 * 0.5
+                            && a_lat.max(b_lat) > g.lat - g.door_from.0 * 0.5;
+                        assert!(
+                            !(on_plane && overlaps_mouth),
+                            "zone '{}' has an authored wall coplanar with the {} -> {} mouth at {plane}",
+                            z.id,
+                            c.from_zone,
+                            c.to_zone
+                        );
+                    }
                 }
             }
         }
@@ -1777,10 +2978,9 @@ mod lighting_watts_tests {
     /// here instead of in the HUD.
     #[test]
     fn shipped_lights_draw_real_watts() {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("data/blueprints/ship_structure.ron");
-        let text = std::fs::read_to_string(&path).expect("structure readable");
-        let s: ShipStructure = ron::from_str(&text).expect("structure parses");
+        // The ship the game runs (the ship file + the homestead on its default plot).
+        let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let s = ShipStructure::load_and_assemble(&data, None).expect("the shipped ship assembles");
         let watts = s.lighting_watts(|id| {
             crate::renderer::light::light_type(id).map(|t| t.watts).unwrap_or(0.0)
         });

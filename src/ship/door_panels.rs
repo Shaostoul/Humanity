@@ -414,6 +414,7 @@ mod tests {
                 door_height: 2.1,
                 glass_top: false,
             }],
+            ..Default::default()
         }
     }
 

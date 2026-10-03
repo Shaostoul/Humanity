@@ -139,6 +139,13 @@ pub(crate) fn frame(state: &mut EngineState) {
     // aboard, the build site they stand in on a planet (planet_build).
     let (name, turns) = (p.name.clone(), p.quarter_turns);
     let placed = planet_build::ghost(state, &p.blueprint_id, turns);
+    // Aboard, a piece goes only inside your own plot (increment 1a of
+    // docs/design/ship-homes-and-logistics.md); the Dev mode builds anywhere.
+    let off_plot = refused_off_plot(
+        state.gui_state.ship_structure.as_ref(),
+        state.gui_state.settings.play_mode.allows(crate::config::Capability::ShipStructureEditing),
+        &placed,
+    );
     // On a planet only the pack counts (the home's storage is in orbit).
     let short = match &placed {
         Ok(g) if g.site.is_some() => carried_short(state, &p.blueprint_id),
@@ -146,6 +153,7 @@ pub(crate) fn frame(state: &mut EngineState) {
     };
     let keys = &state.gui_state.keybinds;
     let hint = match (&placed, &short) {
+        _ if off_plot => off_plot_hint(&name),
         (Ok(_), Some((item, more))) => short_hint(&name, item, *more),
         (Ok(g), None) => placing_hint(
             &name,
@@ -162,18 +170,54 @@ pub(crate) fn frame(state: &mut EngineState) {
         p.hint = hint;
         p.short = short.is_some();
         match placed {
-            Ok(g) => {
+            Ok(g) if !off_plot => {
                 p.ghost = Some(g.pose);
                 p.site = g.site;
                 p.occupied = g.occupied;
             }
-            Err(_) => {
+            _ => {
                 p.ghost = None;
                 p.site = None;
                 p.occupied = false;
             }
         }
     }
+}
+
+/// Whether the ghost in hand is refused because it would stand outside the builder's own plot:
+/// aboard (a ghost with no planet site), outside the Dev mode (`ship_scope` false), and
+/// `outside_own_plot`. A planet build, a ghost that could not be placed at all, and the Dev mode
+/// are never refused here. The one decision `frame` uses, kept pure so it is tested whole.
+pub(crate) fn refused_off_plot(
+    ship: Option<&crate::ship::ship_structure::ShipStructure>,
+    ship_scope: bool,
+    placed: &Result<planet_build::Ghost, planet_build::CannotBuild>,
+) -> bool {
+    !ship_scope && matches!(placed, Ok(g) if g.site.is_none() && outside_own_plot(ship, &g.pose))
+}
+
+/// How far a built piece may overhang its plot's edge and still count as inside (metres): half
+/// the thickest wall piece (a 0.3 m stone wall), so a wall laid ON the plot line, the way the
+/// home's own shell sits on it, is allowed. The 1 m build grid puts a wall's centre on the line,
+/// which leaves half its thickness over it. Anything bigger, a foundation's metre say, is refused.
+const PLOT_EDGE_EPS_M: f32 = 0.15;
+
+/// True when a piece built aboard with `pose` (ship metres) would reach outside the builder's own
+/// plot: any part of its turned footprint (`placement::world_aabb`, x and z) lies past the plot
+/// box. Height is not bounded, the same 2D rule collision uses. Testing the centre alone let a
+/// 4 x 4 m foundation centred 2 m inside the edge cover the home's door and a metre of the
+/// shared corridor (the critic's review of 1a). False without an assembled ship, where there is
+/// no plot to bound against (the legacy layout). The Dev-mode exemption is `refused_off_plot`'s.
+pub(crate) fn outside_own_plot(ship: Option<&crate::ship::ship_structure::ShipStructure>, pose: &Transform) -> bool {
+    let Some(plot) = ship.and_then(|s| s.home_plot()) else { return false };
+    let (lo, hi) = plot.aabb();
+    let (a, b) = placement::world_aabb(pose);
+    a.x < lo.x - PLOT_EDGE_EPS_M || b.x > hi.x + PLOT_EDGE_EPS_M || a.z < lo.z - PLOT_EDGE_EPS_M || b.z > hi.z + PLOT_EDGE_EPS_M
+}
+
+/// The line under the crosshair when the piece in hand points outside your plot.
+pub(crate) fn off_plot_hint(name: &str) -> String {
+    format!("Placing {name}: you can build only inside your own plot (your home)   [Esc] done")
 }
 
 /// What the player's pack is short of for `blueprint_id`: the item's name
@@ -398,6 +442,54 @@ fn segment_of_box(lo: Vec3, hi: Vec3) -> WallSegment {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Increment 1a: aboard, a piece in hand is buildable only inside your own plot, ALL of it,
+    /// not just its centre. On the shipped ship assembled at p1 (0..55 x 0..89), with real
+    /// blueprints placed the way the ghost places them: a foundation in the yard and one flush
+    /// in the far corner are yours; a 4 x 4 m foundation centred at (54, 40) is refused, because
+    /// it spans x 52..56 across the home's door and into the corridor (the critic's case, which
+    /// the centre-only check let through); so is a 4 m wall centred on the east edge, running
+    /// north-south it fits and running east-west it reaches x 57; the Commons and p2 are
+    /// refused. Assembled at p2, the rule follows the plot. Without a ship there is no bound.
+    /// Then the whole decision `frame` uses (`refused_off_plot`): the Dev mode builds anywhere,
+    /// a planet ghost is never bounded by a plot, and a ghost that could not be placed is not
+    /// "off plot". Red checks, run: testing `pose.position` alone again fails the (54, 40)
+    /// foundation; dropping `!ship_scope` from `refused_off_plot` fails the Dev line.
+    #[test]
+    fn a_piece_goes_aboard_only_inside_your_own_plot() {
+        use crate::ship::ship_structure::ShipStructure;
+        let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let reg = BlueprintRegistry::from_ron(include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/data/blueprints/basic.ron"))).unwrap();
+        let world = hecs::World::new();
+        let pose = |id: &str, x: f32, z: f32, turns: u8| {
+            placement::placement_pose(reg.get(id).unwrap(), Vec3::new(x, 0.0, z), turns, &world, &reg, None)
+        };
+        let p1 = ShipStructure::load_and_assemble(&data, Some("p1")).expect("assembles at p1");
+        let out = |s: &ShipStructure, id: &str, x: f32, z: f32, turns: u8| outside_own_plot(Some(s), &pose(id, x, z, turns));
+        assert!(!out(&p1, "wood_foundation", 30.0, 20.0, 0), "a foundation in the yard is yours");
+        assert!(!out(&p1, "wood_foundation", 53.0, 87.0, 0), "flush in the far corner is still yours");
+        assert!(out(&p1, "wood_foundation", 54.0, 40.0, 0), "centred inside, but it covers the door and a metre of the corridor");
+        assert!(!out(&p1, "wood_wall", 55.0, 30.0, 1), "a wall on the east edge, running north-south, is on the line: it fits");
+        assert!(out(&p1, "wood_wall", 55.0, 40.0, 0), "running east-west from the edge it reaches x 57");
+        assert!(out(&p1, "wood_foundation", 80.0, 40.0, 0), "the Commons is not your plot");
+        assert!(out(&p1, "wood_foundation", 30.0, 140.0, 0), "p2 is someone else's plot");
+        let p2 = ShipStructure::load_and_assemble(&data, Some("p2")).expect("assembles at p2");
+        assert!(!out(&p2, "wood_foundation", 30.0, 140.0, 0), "assembled at p2, p2 is yours");
+        assert!(out(&p2, "wood_foundation", 30.0, 20.0, 0), "and p1 is not");
+        assert!(!outside_own_plot(None, &pose("wood_foundation", 1000.0, 1000.0, 0)), "no ship, no bound");
+        assert!(off_plot_hint("Wall").contains("only inside your own plot"));
+
+        // The whole decision.
+        let ghost = |x: f32, z: f32, site: Option<PlanetSite>| -> Result<planet_build::Ghost, planet_build::CannotBuild> {
+            Ok(planet_build::Ghost { pose: pose("wood_foundation", x, z, 0), site, above_floor: 0.0, occupied: false })
+        };
+        assert!(refused_off_plot(Some(&p1), false, &ghost(80.0, 40.0, None)), "Normal mode, the Commons: refused");
+        assert!(!refused_off_plot(Some(&p1), false, &ghost(30.0, 20.0, None)), "Normal mode, your yard: built");
+        assert!(!refused_off_plot(Some(&p1), true, &ghost(80.0, 40.0, None)), "the Dev mode builds anywhere");
+        let site = PlanetSite { body: "earth".into(), origin: glam::DVec3::new(6.371e6, 0.0, 0.0) };
+        assert!(!refused_off_plot(Some(&p1), false, &ghost(80.0, 40.0, Some(site))), "a planet site has no plot");
+        assert!(!refused_off_plot(Some(&p1), false, &Err(planet_build::CannotBuild::OpenSpace)), "no ghost, nothing to refuse");
+    }
 
     fn holding() -> GuiState {
         let mut g = GuiState::default();

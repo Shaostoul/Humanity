@@ -68,13 +68,23 @@ The honest residual (NOT removed by code):
   in-process snapshot (every 6h, keep 5), the VPS `.backup` (every 30 min, keep 15),
   and, if enabled, the Litestream replica (30-day retention). A message deleted at
   minute 5 survives in every snapshot taken before it until that snapshot rotates.
+- The in-app "Back up now" copies (`manual-<ts>.db.enc` in the same backups folder)
+  are capped by COUNT, not by age (since 2026-10-03): the server keeps the newest 10
+  (`MANUAL_BACKUPS_KEPT` in `src/relay/storage/backups.rs`) and removes the oldest
+  only when another press makes a new one. So a manual copy holds a deleted public
+  message until ten more presses come after it, which on a server whose admin seldom
+  presses the button can be months, or never. The chat confirmation for each press
+  names any copy it removed. An operator who wants a particular copy gone sooner
+  deletes it by hand. While a copy dated later than the current clock is in the
+  folder (the host clock went back), presses remove nothing at all and say so.
 - Rows deleted BEFORE `secure_delete` was enabled, and all existing backups, still
   hold their old bytes; an operator who wants to scrub historical slack from the live
   DB can run an offline `VACUUM` during maintenance.
 
 This is by design in a replicated system (consistent with the rest of this document):
 operators who need a tighter window can lower the Litestream retention and the
-backup-keep counts. This is operator-readable-by-design; note the old plaintext
+backup-keep counts (the manual-copy count of 10 is a fixed constant for now, not a
+setting). This is operator-readable-by-design; note the old plaintext
 `/dm` server command was removed in v0.279, so no server-mediated plaintext DM
 path exists anymore.
 

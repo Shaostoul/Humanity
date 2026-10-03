@@ -98,17 +98,17 @@ pub(crate) fn load_world(state: &mut EngineState) {
     // ── Homestead meshes ── (v0.455: load the LAYOUT, keep it for the construction
     // editor, then generate + upload meshes through the shared path.)
     // v0.534/v0.754: prefer the SHIP model (many zones, each a fixed outer box + freely-drawn
-    // interior walls) from ship_structure.ron -- with one-time ADOPTION of a legacy
-    // home_structure.ron data dir (wrapped as zone "home"; see ShipStructure::load_or_adopt).
-    // Fall back to the legacy AABB-room layout when neither file exists. All paths produce
-    // HomesteadMeshes, so the render path is identical.
-    let blueprints_dir = state.data_dir.join("blueprints");
-    let ship_file_existed = blueprints_dir.join("ship_structure.ron").exists();
-    // The home zone's authored spawn point (x, z), if it declares one. Used
-    // below to decide where the player stands on world entry.
-    let mut authored_spawn: Option<(f32, f32)> = None;
-    let (homestead, room_info) =
-        if let Some(ship) = ShipStructure::load_or_adopt(&blueprints_dir) {
+    // interior walls). Since increment 1a (docs/design/ship-homes-and-logistics.md) that is
+    // ASSEMBLED: the ship file (blueprints/ship_structure.ron), plus this player's home design
+    // (homes/<kind>.ron) as zone "home" at their plot's origin, plus the plot's door corridor.
+    // Offline play uses the ship's default plot (p1). Fall back to the legacy AABB-room layout
+    // when the ship cannot be assembled. All paths produce HomesteadMeshes, so the render path
+    // is identical.
+    // The home zone's authored spawn point in ship metres, if it declares one.
+    // Used below to decide where the player stands on world entry.
+    let mut authored_spawn: Option<Vec3> = None;
+    let (homestead, room_info) = match ShipStructure::load_and_assemble(&state.data_dir, None) {
+        Ok(ship) => {
             let meshes = ship.generate_meshes();
             let info = meshes.room_info.clone();
             // Start editing the HOME zone; restore its persisted build-mode spawn point (v0.582).
@@ -116,29 +116,26 @@ pub(crate) fn load_world(state: &mut EngineState) {
             state.gui_state.construction_zone = home_idx;
             if let Some(sp) = ship.zones[home_idx].body.spawn {
                 state.gui_state.build_char_pos = Some(sp);
-                authored_spawn = Some(sp);
             }
+            authored_spawn = ship.home_spawn_world();
             state.gui_state.ship_structure = Some(ship);
             (meshes, info)
-        } else {
+        }
+        Err(why) => {
             // TELL the player when this is a fallback, not a fresh start (v0.791):
-            // an unloadable ship_structure.ron is quarantined by load() and the
-            // default loads -- silently, this read as "all my saves are gone".
-            // (The file existing before load_or_adopt but not after = quarantined.)
-            if ship_file_existed {
-                state.gui_state.construction_save_note =
-                    "ship_structure.ron failed to load; it was preserved as ship_structure.invalid-<time>.ron next to it and the default home loaded instead. See logs/run.log."
-                        .to_string();
-                log::error!(
-                    "load_world: ship_structure.ron existed but did not load; the shipped default home is showing instead (the player's file was quarantined, not overwritten)"
-                );
-            }
+            // a file that cannot be used is quarantined (renamed, never overwritten)
+            // and the default loads -- silently, this read as "all my saves are gone".
+            state.gui_state.construction_save_note = format!(
+                "The ship did not load ({why}); the default home is showing instead. Your files were kept. See logs/run.log."
+            );
+            log::error!("load_world: the ship did not assemble ({why}); the legacy default home is showing instead");
             let layout = crate::ship::fibonacci::load_layout_or_fallback();
             let meshes = crate::ship::fibonacci::generate_from_layout(&layout);
             let info = meshes.room_info.clone();
             state.homestead_layout = Some(layout);
             (meshes, info)
-        };
+        }
+    };
     // Wall collision segments so the player can't walk through walls from the first frame
     // (v0.556; per-zone origin offsets v0.754).
     state.wall_colliders = match &state.gui_state.ship_structure {
@@ -196,8 +193,8 @@ pub(crate) fn load_world(state: &mut EngineState) {
     // would wake up among the beds instead of at their own front door. Facing
     // west (yaw -PI/2) because the door is in the east wall and the house is
     // inland of it.
-    if let Some((sx, sz)) = authored_spawn {
-        state.camera.position = Vec3::new(sx, 1.7, sz);
+    if let Some(at) = authored_spawn {
+        state.camera.position = at;
         state.camera.pitch = -0.05;
         state.camera.yaw = -std::f32::consts::FRAC_PI_2;
     } else if let Some(spawn) = spawn_room {
@@ -294,8 +291,8 @@ pub(crate) fn load_world(state: &mut EngineState) {
                 })
                 .collect();
             let mut placed = 0usize;
-            // v0.538: a box home positions machines by ABSOLUTE world coords (clamped into the
-            // footprint) and skips NO machine on a stale room id -- mirrors
+            // v0.538: a box home positions machines by coords in its zone (zone-local since
+            // increment 1a, kept inside the footprint) and skips NO machine on a stale room id -- mirrors
             // MachineHome::placements' zone branch; the two MUST stay in sync. Removing the
             // skip in box mode also restores each machine's live ECS power role below. The
             // legacy ship layout keeps room-center-relative + skip-if-missing. v0.754: the
@@ -315,14 +312,11 @@ pub(crate) fn load_world(state: &mut EngineState) {
                 // Position formula mirrored by the tested MachineHome::placements (the editor's
                 // live-refresh twin); keep the two in sync. (v0.525/v0.538/v0.754)
                 let pos = if let Some(zones) = zone_rects.as_deref() {
+                    // Zone-local offset at the zone's origin (increment 1a): the same
+                    // `zone_world_pos` placements() uses, so the two cannot drift.
                     let Some(zr) = crate::machines::resolve_zone_rect(zones, &inst.zone) else { continue };
-                    let (ox, oy, oz) = zr.origin;
-                    let (w, d, _h) = zr.size;
-                    Vec3::new(
-                        inst.offset.0.clamp(ox + 0.3, (ox + w - 0.3).max(ox + 0.3)),
-                        oy + inst.offset.1,
-                        inst.offset.2.clamp(oz + 0.3, (oz + d - 0.3).max(oz + 0.3)),
-                    )
+                    let (x, y, z) = crate::machines::zone_world_pos(zr, inst.offset);
+                    Vec3::new(x, y, z)
                 } else {
                     let Some(&(center, floor_y, _ceiling_y)) = rooms.get(inst.room.as_str()) else { continue };
                     Vec3::new(

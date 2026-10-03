@@ -188,6 +188,11 @@ pub(crate) fn construction_duplicate(state: &mut EngineState) {
     if let Some(id) = g.construction_machine_selected.clone() {
         let mut new_id = None;
         if let Some(h) = g.home_machines.as_mut() {
+            // A read-only ship machine (outside the Dev mode) is not copied: the copy would be a
+            // ship row too, and only a Dev save writes those (`MachineHome::is_locked`).
+            if h.is_locked(&id) {
+                return;
+            }
             if let Some(mut ni) = h.instances.iter().find(|m| m.id == id).cloned() {
                 let fresh = h.unique_instance_id(&ni.machine);
                 ni.id = fresh.clone();
@@ -260,11 +265,10 @@ pub(crate) fn autosave_ship_structure(state: &mut EngineState, force: bool) {
     }
     LAST_SECS.store(now, std::sync::atomic::Ordering::Relaxed);
     state.gui_state.construction_unsaved = false;
-    if let Some(ship) = &state.gui_state.ship_structure {
-        let path = state.data_dir.join("blueprints").join("ship_structure.ron");
-        match ship.save(&path) {
-            Ok(()) => log::info!("Autosave: ship structure written to ship_structure.ron"),
-            Err(e) => log::warn!("Autosave: ship structure save failed: {e}"),
+    if state.gui_state.ship_structure.is_some() {
+        match save_ship_and_home(state) {
+            Ok(note) => log::info!("Autosave: {note}"),
+            Err(e) => log::warn!("Autosave: {e}"),
         }
     }
     if let Some(home) = &state.gui_state.home_machines {
@@ -274,6 +278,38 @@ pub(crate) fn autosave_ship_structure(state: &mut EngineState, force: bool) {
             Err(e) => log::warn!("Autosave: machine save failed: {e}"),
         }
     }
+}
+
+/// Save the loaded ship the way increment 1a of docs/design/ship-homes-and-logistics.md
+/// splits it: the home design (data/homes/<kind>.ron) in every play mode; the ship file
+/// (blueprints/ship_structure.ron) and the ship's machines (machines/ship.ron) only with
+/// ShipStructureEditing, the Dev mode, so a Normal or Creative save can never move a hangar or
+/// a Commons machine. The home's origin is never written: it comes from the plot. The
+/// household's own machines are saved where they always were (`MachineHome::save`, which
+/// writes only the household's part). Ok is the note the editor shows; Err says what failed.
+pub(crate) fn save_ship_and_home(state: &EngineState) -> Result<String, String> {
+    let ship_scope = state
+        .gui_state
+        .settings
+        .play_mode
+        .allows(crate::config::Capability::ShipStructureEditing);
+    let ship = state
+        .gui_state
+        .ship_structure
+        .as_ref()
+        .ok_or_else(|| "no ship is loaded".to_string())?;
+    let note = ship.save_assembled(&state.data_dir, ship_scope)?;
+    if ship_scope {
+        if let Some(machines) = &state.gui_state.home_machines {
+            let home_path = crate::machines::home_ron_path(&state.data_dir);
+            match machines.save_ship_part(&home_path) {
+                Ok(Some(p)) => log::info!("Ship machines written to {}", p.display()),
+                Ok(None) => {}
+                Err(e) => return Err(format!("{note} The ship's machines were NOT saved: {e}")),
+            }
+        }
+    }
+    Ok(note)
 }
 
 /// The slide-gizmo handles for the currently-selected room, with each handle's owning
@@ -420,6 +456,16 @@ pub(crate) fn active_zone_origin(state: &EngineState) -> Vec3 {
     zone_origin(&state.gui_state.ship_structure, state.gui_state.construction_zone)
 }
 
+/// The world origin of the zone a machine row names (machine offsets are zone-local since
+/// increment 1a). ZERO without a ship, where machines are room-relative instead.
+pub(crate) fn machine_zone_origin(state: &EngineState, zone_id: &str) -> Vec3 {
+    state
+        .gui_state
+        .ship_structure
+        .as_ref()
+        .map_or(Vec3::ZERO, |s| s.machine_zone_origin(zone_id))
+}
+
 /// The active zone's id, for tagging newly placed machines (v0.754). "home" without a ship.
 pub(crate) fn active_zone_id(state: &EngineState) -> String {
     state
@@ -450,7 +496,10 @@ pub(crate) fn try_place_held_machine(state: &mut EngineState) {
     let box_mode = state.gui_state.ship_structure.is_some();
     let zone = active_zone_id(state);
     let offset = if box_mode {
-        (hx, 0.0, hz)
+        // Zone-local (increment 1a): metres from the active zone's corner, so the machine
+        // rides its home's plot.
+        let zo = active_zone_origin(state);
+        (hx - zo.x, 0.0, hz - zo.z)
     } else {
         let cx = (rb.min.x + rb.max.x) * 0.5;
         let cz = (rb.min.z + rb.max.z) * 0.5;
@@ -691,8 +740,15 @@ pub(crate) fn try_pick_machine(state: &mut EngineState) -> bool {
     let sz = state.window.inner_size();
     let (origin, dir) =
         state.camera.pick_ray(state.cursor_pos, (sz.width as f32, sz.height as f32));
+    // Outside the Dev mode the ship's machines (the Commons stalls...) are read-only, because
+    // only a Dev save writes their file (`MachineHome::is_locked`): they are not picked, so they
+    // cannot be selected, dragged, turned, duplicated or removed.
+    let locked = state.gui_state.home_machines.as_ref().map(|h| h.locked_ids()).unwrap_or_default();
     let mut best: Option<(String, f32)> = None;
     for (id, center, radius) in &state.machine_pick {
+        if locked.contains(id) {
+            continue;
+        }
         let t = (*center - origin).dot(dir);
         if t < 0.0 {
             continue; // behind the camera
@@ -768,9 +824,14 @@ pub(crate) fn try_pick_connection(state: &mut EngineState) -> bool {
     let (origin, dir) =
         state.camera.pick_ray(state.cursor_pos, (sz.width as f32, sz.height as f32));
     let mut best: Option<(f32, String, String)> = None; // (t, from, to)
+    // The ship's wires are read-only outside the Dev mode (`MachineHome::is_locked`).
+    let locked = state.gui_state.home_machines.as_ref().map(|h| h.locked_ids()).unwrap_or_default();
     for (path, from_id, to_id) in &state.connection_flow_paths {
         if from_id.starts_with("node:") || to_id.starts_with("node:") {
             continue; // machine-machine wires only (v0.626)
+        }
+        if locked.contains(from_id) || locked.contains(to_id) {
+            continue;
         }
         let mut hit_t = f32::INFINITY;
         for seg in path.windows(2) {
@@ -998,6 +1059,10 @@ pub(crate) fn try_pick_corridor_mouth(state: &mut EngineState) -> bool {
             s.corridors
                 .iter()
                 .enumerate()
+                // The home's own corridor comes from its plot's door and the home design's door
+                // point (increment 1a); sliding its mouth here would not be saved, so it has no
+                // handle. Dev moves it through the plot (Plots in the Construction panel).
+                .filter(|(_, c)| !s.is_plot_door(c))
                 .filter_map(|(ci, c)| s.corridor_geometry(c).ok().map(|g| (ci, g)))
                 .flat_map(|(ci, g)| {
                     let lift = Vec3::Y * CORRIDOR_MOUTH_HANDLE_LIFT;
@@ -1176,6 +1241,10 @@ pub(crate) fn try_pick_node(state: &mut EngineState) -> bool {
     }
     if let Some(h) = state.gui_state.home_machines.as_ref() {
         for cn in &h.conduit_nodes {
+            // The ship's own nodes are read-only outside the Dev mode (`ShipPart::locked`).
+            if h.ship_part.locked && h.ship_part.conduit_nodes.contains(&cn.id) {
+                continue;
+            }
             let p = Vec3::new(cn.pos.0, cn.pos.1, cn.pos.2);
             let t = (p - origin).dot(dir);
             if t < 0.0 {
@@ -1315,7 +1384,11 @@ pub(crate) fn gather_other_positions(state: &EngineState, grab: &ObjectGrab) -> 
     }
     if let Some(h) = state.gui_state.home_machines.as_ref() {
         for inst in h.all_instances() {
-            if !matches!(grab, ObjectGrab::Machine(g) if *g == inst.id) { out.push((inst.offset.0, inst.offset.2)); }
+            if !matches!(grab, ObjectGrab::Machine(g) if *g == inst.id) {
+                // Machine offsets are zone-local (increment 1a): back to the world by their zone.
+                let mo = machine_zone_origin(state, &inst.zone);
+                out.push((inst.offset.0 + mo.x, inst.offset.2 + mo.z));
+            }
         }
         for cn in &h.conduit_nodes {
             if !matches!(grab, ObjectGrab::ConduitNode(g) if *g == cn.id) { out.push((cn.pos.0, cn.pos.2)); }
@@ -1398,6 +1471,10 @@ pub(crate) fn apply_object_drag(state: &mut EngineState) {
             state.gui_state.construction_structure_dirty = true;
         }
         ObjectGrab::Machine(id) => {
+            // A ship machine that became read-only mid-drag (the mode changed) stays put.
+            if state.gui_state.home_machines.as_ref().map_or(false, |h| h.is_locked(&id)) {
+                return;
+            }
             if let Some(home) = state.gui_state.home_machines.as_mut() {
                 // If this is an ARRAY cell (no direct instance), explode its array into instances so
                 // it becomes individually movable -- the "I'm trying to move a grain tray but it
@@ -1408,8 +1485,14 @@ pub(crate) fn apply_object_drag(state: &mut EngineState) {
                     home.detach_array_member(&id);
                 }
                 if let Some(inst) = home.instances.iter_mut().find(|m| m.id == id) {
-                    inst.offset.0 = nx;
-                    inst.offset.2 = nz; // offset.1 (height) preserved; box-mode offset is absolute
+                    // Zone-local (increment 1a): the world hit minus the machine's zone origin.
+                    let mo = state
+                        .gui_state
+                        .ship_structure
+                        .as_ref()
+                        .map_or(Vec3::ZERO, |s| s.machine_zone_origin(&inst.zone));
+                    inst.offset.0 = nx - mo.x;
+                    inst.offset.2 = nz - mo.z; // offset.1 (height) preserved
                 }
             }
             state.gui_state.construction_machines_dirty = true;

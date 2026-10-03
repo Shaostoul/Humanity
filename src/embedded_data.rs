@@ -142,6 +142,12 @@ pub const FOOD_SYSTEM_RON: &str = include_str!("../data/food_system.ron");
 pub const FOOD_ITEM_PROFILES_RON: &str = include_str!("../data/food/item_profiles.ron");
 pub const MACHINES_HOME_RON: &str = include_str!("../data/machines/home.ron");
 pub const MACHINES_HOME_SOLO_RON: &str = include_str!("../data/machines/home_solo.ron");
+/// The ship's own machines (the Commons), merged into a home file that names them (increment 1a).
+pub const MACHINES_SHIP_RON: &str = include_str!("../data/machines/ship.ron");
+/// The ship file and the default home design (increment 1a of docs/design/ship-homes-and-logistics.md):
+/// built in so a fresh install or a throwaway relay still has a ship with plots, and a home to put on one.
+pub const SHIP_STRUCTURE_RON: &str = include_str!("../data/blueprints/ship_structure.ron");
+pub const HOME_HOMESTEAD_RON: &str = include_str!("../data/homes/homestead.ron");
 pub const GROW_MEDIA_RON: &str = include_str!("../data/garden/grow_media.ron");
 pub const VEHICLE_KITS_RON: &str = include_str!("../data/vehicles/kits.ron");
 pub const AEROPONIC_CONFIGS_RON: &str = include_str!("../data/towers/aeroponic_configs.ron");
@@ -297,6 +303,9 @@ pub fn get_embedded(path: &str) -> Option<&'static str> {
         "food/item_profiles.ron" => Some(FOOD_ITEM_PROFILES_RON),
         "machines/home.ron" => Some(MACHINES_HOME_RON),
         "machines/home_solo.ron" => Some(MACHINES_HOME_SOLO_RON),
+        "machines/ship.ron" => Some(MACHINES_SHIP_RON),
+        "blueprints/ship_structure.ron" => Some(SHIP_STRUCTURE_RON),
+        "homes/homestead.ron" => Some(HOME_HOMESTEAD_RON),
         "garden/grow_media.ron" => Some(GROW_MEDIA_RON),
         "vehicles/kits.ron" => Some(VEHICLE_KITS_RON),
         "towers/aeroponic_configs.ron" => Some(AEROPONIC_CONFIGS_RON),
@@ -420,6 +429,9 @@ pub const EMBEDDED_KEYS: &[&str] = &[
     "food/item_profiles.ron",
     "machines/home.ron",
     "machines/home_solo.ron",
+    "machines/ship.ron",
+    "blueprints/ship_structure.ron",
+    "homes/homestead.ron",
     "garden/grow_media.ron",
     "vehicles/kits.ron",
     "towers/aeroponic_configs.ron",

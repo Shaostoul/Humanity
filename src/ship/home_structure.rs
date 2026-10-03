@@ -6,9 +6,10 @@
 //! as the regions those interior walls (plus the box) enclose.
 //!
 //! AI + human friendly (the operator's north star): the whole structure is ONE small readable file.
-//! Add an interior wall by adding one `InteriorWall(a: (x, z), b: (x, z))` line to the zone body in
-//! data/blueprints/ship_structure.ron -- no code (v0.754: the home body lives inside the multi-zone
-//! ShipStructure as zone "home"; see ship_structure.rs). The construction editor places the SAME
+//! Add an interior wall by adding one `InteriorWall(a: (x, z), b: (x, z))` line to the body in
+//! data/homes/homestead.ron -- no code (since increment 1a of docs/design/ship-homes-and-logistics.md
+//! the home is a design file the loader places on the player's plot as ship zone "home"; the
+//! shared zones' bodies live in data/blueprints/ship_structure.ron). The construction editor places the SAME
 //! segments by dragging corner nodes. One model, edited the same way by an AI and a human. The
 //! model is intended for designing ANY structure, not just the player home -- and as of increment A
 //! of docs/design/ship-superstructure.md it IS the per-zone primitive for every enclosed space.
@@ -321,8 +322,8 @@ pub struct Zone {
     /// `type_id`: that picks the zone's colour + editor label (zone_types.ron), this picks the
     /// gameplay function (rooms.ron); the console room sets both to "console_room".
     ///
-    /// `skip_serializing_if`: the construction editor rewrites ship_structure.ron from this struct
-    /// on every save, so a zone with no function must serialize exactly as it was hand-authored
+    /// `skip_serializing_if`: the construction editor rewrites the home design and the ship file
+    /// (data/homes/<kind>.ron, data/blueprints/ship_structure.ron) from this struct on every save, so a zone with no function must serialize exactly as it was hand-authored
     /// (no `room_type: None` sprayed over every zone in every body). That keeps an editor save a
     /// small diff, which matters in a checkout several sessions share.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -954,7 +955,7 @@ impl HomeStructure {
         out: &mut std::collections::HashMap<[i32; 3], (Vec<Vertex>, Vec<u32>, [f32; 3])>,
     ) {
         let (ox, oy, oz) = z.origin;
-        let (zw, zh, zd) = z.size;
+        let (zw, _zh, zd) = z.size;
         if zw < 1.0 || zd < 1.0 {
             return; // degenerate zone, nothing fits
         }
@@ -962,6 +963,41 @@ impl HomeStructure {
             self.tile_home_clones(ox, oy, oz, zw, zd, out);
             return;
         }
+        box_filler_into(z, out);
+    }
+
+    /// The mothership's DISTRICTS, drawn at ship level (increment 1a of
+    /// docs/design/ship-homes-and-logistics.md moved them out of the home body): each
+    /// non-residential district's zone_filler.ron contents, grouped by colour exactly as a
+    /// body's room fillers are. RESIDENTIAL DISTRICTS DRAW NOTHING: tiling clones of the home
+    /// across res-1 put copies on top of the Commons, and increment 2 replaces the clones with
+    /// one default-design shell per real plot. (A residential zone inside a home BODY still
+    /// tiles clones through `generate_zone_filler`; none is authored.)
+    pub fn district_fillers(districts: &[Zone]) -> Vec<(Vec<Vertex>, Vec<u32>, [f32; 4])> {
+        let mut groups: std::collections::HashMap<[i32; 3], (Vec<Vertex>, Vec<u32>, [f32; 3])> =
+            std::collections::HashMap::new();
+        for z in districts {
+            if z.type_id == "residential" || z.size.0 < 1.0 || z.size.2 < 1.0 {
+                continue;
+            }
+            box_filler_into(z, &mut groups);
+        }
+        let mut list: Vec<_> = groups.into_iter().collect();
+        list.sort_by_key(|(k, _)| *k);
+        list.into_iter().map(|(_, (v, i, c))| (v, i, [c[0], c[1], c[2], 1.0])).collect()
+    }
+}
+
+/// One non-residential zone's generic filler (`zone_filler.ron`), tinted by its zone type's
+/// colour, merged into `out` by quantized colour. Shared by a body's room zones and the ship's
+/// districts, so a district looks the same at ship level as it did inside the home body.
+fn box_filler_into(
+    z: &Zone,
+    out: &mut std::collections::HashMap<[i32; 3], (Vec<Vertex>, Vec<u32>, [f32; 3])>,
+) {
+    {
+        let (ox, oy, oz) = z.origin;
+        let (zw, zh, zd) = z.size;
         let Some(filler) = crate::ship::structure::zone_filler(&z.type_id) else {
             return; // no filler authored for this type yet -- an empty interior, not a guessed default
         };
@@ -992,7 +1028,9 @@ impl HomeStructure {
             }
         }
     }
+}
 
+impl HomeStructure {
     /// Tile CLONES of the player's home shell (walls + structures ONLY -- never its zones/rail/road
     /// graphs, a clone-of-a-mothership would be nonsense) across a residential zone's footprint, as many
     /// copies as fit given the home's own width/depth. This is explicitly PLACEHOLDER population (the
@@ -2674,7 +2712,7 @@ mod tests {
 
     /// Data integrity for the shipped files (console-room increment): every zone_types.ron row
     /// parses with a unique id, a label, a purpose and a positive size; the console room is one of
-    /// them; every zone in ship_structure.ron names a real zone type; every `room_type` any zone
+    /// them; every zone in the assembled ship (the ship file plus data/homes/homestead.ron) names a real zone type; every `room_type` any zone
     /// sets is a data/rooms.ron key; and no two zones in the home body overlap in plan (touching
     /// edges are fine, shared interior is not), which is the reviewer's "overlapping rect" trap.
     #[test]
@@ -2692,8 +2730,17 @@ mod tests {
 
         let reg = crate::ship::room_types::RoomTypeRegistry::load(&std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data"));
         assert!(reg.types.contains_key("console_room"), "rooms.ron has the console_room entry");
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("blueprints").join("ship_structure.ron");
-        let ship = crate::ship::ship_structure::ShipStructure::load(&path).expect("ship_structure.ron parses");
+        // The assembled ship (ship file + the homestead on its default plot), and the districts
+        // that moved up to ship level in increment 1a.
+        let data_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let ship = crate::ship::ship_structure::ShipStructure::load_and_assemble(&data_dir, None)
+            .expect("the shipped ship assembles");
+        for d in &ship.districts {
+            assert!(
+                crate::ship::structure::zone_type(&d.type_id).is_some(),
+                "district '{}' names unknown zone type '{}'", d.id, d.type_id
+            );
+        }
         let mut room_typed = 0usize;
         for sz in &ship.zones {
             for z in &sz.body.zones {
@@ -2726,7 +2773,7 @@ mod tests {
     }
 
     /// The shipped home's walls really enclose the rooms its zones name, and the join lands:
-    /// `detect_rooms` on the real ship_structure.ron yields one room per authored room zone, each
+    /// `detect_rooms` on the real home (data/homes/homestead.ron) yields one room per authored room zone, each
     /// carrying that zone's id and room_type, each sitting inside the rect the zone declares.
     ///
     /// The console room and the kitchen are checked by name because other things point at them
@@ -2746,8 +2793,9 @@ mod tests {
         let rooms = h.detect_rooms();
         let ids: Vec<&str> = rooms.iter().map(|r| r.id.as_str()).collect();
 
-        // Only zones that sit INSIDE the acre are room zones; the mothership's macro districts
-        // (res-1, hangar-1, ...) live outside the 55 x 89 body and name no room.
+        // Only zones that sit INSIDE the acre are room zones. (The mothership's macro districts
+        // used to sit in this body outside the 55 x 89 box; since increment 1a they are at ship
+        // level, so this filter keeps every zone, and stays as the guard it always was.)
         let room_zones: Vec<&Zone> = h
             .zones
             .iter()
@@ -2822,15 +2870,12 @@ mod tests {
         assert!(!opaque.roof_is_glass());
     }
 
-    /// The shipped home body now lives INSIDE data/blueprints/ship_structure.ron as zone "home"
-    /// (increment A of docs/design/ship-superstructure.md migrated home_structure.ron outright).
+    /// The shipped home body: data/homes/homestead.ron, as the game sees it once assembled on the
+    /// ship's default plot (increment 1a of docs/design/ship-homes-and-logistics.md).
     fn shipped_home_body() -> HomeStructure {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("data")
-            .join("blueprints")
-            .join("ship_structure.ron");
-        let ship = crate::ship::ship_structure::ShipStructure::load(&path)
-            .expect("ship_structure.ron parses");
+        let data_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let ship = crate::ship::ship_structure::ShipStructure::load_and_assemble(&data_dir, None)
+            .expect("the shipped ship assembles");
         ship.zones[ship.home_zone_index()].body.clone()
     }
 

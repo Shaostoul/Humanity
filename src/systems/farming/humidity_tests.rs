@@ -805,8 +805,10 @@ fn the_shipped_homes_keep_every_racks_tent_in_range() {
     let settle = |file: &str, powered: bool| -> (Vec<f64>, f64, f64, f64, usize, bool) {
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
         let home = MachineHome::load(&root.join("data").join("machines").join(file)).expect("home parses");
-        let blueprint = std::fs::read_to_string(root.join("data").join("blueprints").join("ship_structure.ron")).unwrap();
-        let block = &blueprint[blueprint.find("id: \"room-mushroom\"").expect("the blueprint has the mushroom room")..];
+        // The home design (data/homes/homestead.ron since increment 1a): its rooms are home-local,
+        // the frame the home's machine offsets are in.
+        let blueprint = std::fs::read_to_string(root.join("data").join("homes").join("homestead.ron")).unwrap();
+        let block = &blueprint[blueprint.find("id: \"room-mushroom\"").expect("the home design has the mushroom room")..];
         let triple = |key: &str| -> [f32; 3] {
             let s = &block[block.find(key).unwrap() + key.len()..];
             let v: Vec<f32> = s[..s.find(')').unwrap()].split(',').map(|x| x.trim().parse().unwrap()).collect();

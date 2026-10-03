@@ -253,19 +253,20 @@ pub(crate) fn position_update_from(v: &serde_json::Value, joined: bool) -> Optio
 /// member (`RemoteNpc`, with their chore under the name) and each other
 /// player (`RemotePlayer`, name only). The relay has always sent a player's
 /// name and the sync kept it, but only the crew were labelled, so another
-/// player was a teal figure with no name. Anchors sit just above each head:
-/// a crew position is standing height (floor + 1.0, head at +0.55), a
-/// player's is their eye, and their name goes just over the top of the
-/// figure `remote_figure_parts` draws (2026-10-02: it was a fixed 0.3 m over
-/// the eye, which a tall player's head now reaches past).
+/// player was a teal figure with no name. Every name goes just over the top
+/// of the figure drawn for that person: `remote_figure_parts` for a player
+/// (2026-10-02: it was a fixed 0.3 m over the eye, which a tall player's head
+/// now reaches past), `crew_figure_parts` for a crew member (2026-10-03: it
+/// was a fixed 1.0 m over their position).
 /// `station_off` is the same offset the scene pass puts on home content.
 pub(crate) fn nameplate_labels(world: &hecs::World, station_off: glam::Vec3) -> Vec<crate::gui::CrewLabel> {
     use crate::ecs::components::Transform;
     use crate::net::sync::{RemoteNpc, RemotePlayer};
     let mut labels = Vec::new();
     for (_e, (t, npc)) in world.query::<(&Transform, &RemoteNpc)>().iter() {
+        let top = figure_top(&crew_figure_parts(t.position, t.rotation));
         labels.push(crate::gui::CrewLabel {
-            pos: t.position + glam::Vec3::new(0.0, 1.0, 0.0) + station_off,
+            pos: glam::Vec3::new(t.position.x, top + PLAYER_NAMEPLATE_OVER_HEAD_M, t.position.z) + station_off,
             name: npc.name.clone(),
             activity: npc.activity.clone(),
             working: npc.working,
@@ -286,72 +287,190 @@ pub(crate) fn nameplate_labels(world: &hecs::World, station_off: glam::Vec3) -> 
     labels
 }
 
-/// A part of another player's figure (2026-09-29, appearance sync rung 2).
+/// A part of another player's figure (2026-09-29, appearance sync rung 2),
+/// and of a crew member's (2026-10-03).
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) enum FigurePart {
-    /// The teal body: it stays the marker that says "a player".
+    /// The body: teal for a player (the marker that says "a player"), amber
+    /// for a crew member.
     Body,
     /// The head, in their skin tone when their look is known.
     Head,
-    /// A cap of hair on the head, in their hair colour (only with a look).
+    /// Hair over the top and back of the head, in their hair colour (only
+    /// with a look). Drawn with the head mesh, stretched and moved back.
     Hair,
 }
 
-/// The meshes a remote figure is drawn with, metres: `lib.rs` builds the body
-/// box (base at its origin) and the head sphere (centred on it) FROM these, and
-/// `remote_figure_parts` places the parts by them, so the two cannot drift.
+/// One drawn piece of a figure: which part, where the mesh's own origin goes
+/// (the body box's base, the head mesh's centre), which way the piece turns,
+/// and its scale. `lib.rs` hands these straight to the renderer, which builds
+/// the model matrix from scale, rotation and position in that order
+/// (renderer/scene_draw.rs), so the scale is along the figure's own axes:
+/// x across the shoulders, y up, z from the back of the head to the face.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) struct FigurePiece {
+    pub part: FigurePart,
+    pub at: glam::Vec3,
+    pub rotation: glam::Quat,
+    pub scale: glam::Vec3,
+}
+
+/// The meshes a figure is drawn with, metres: `lib.rs` builds the body box
+/// (base at its origin) and the head mesh (`figure_head_mesh_data`, centred
+/// on its origin) FROM these, and `figure_parts` places the parts by them, so
+/// the two cannot drift.
 pub(crate) const FIGURE_BODY_MESH_H_M: f32 = 1.4;
 pub(crate) const FIGURE_HEAD_MESH_R_M: f32 = 0.17;
 /// Shoulder height over the feet at look height 1.0, m: where the body box
 /// ends and the head starts. A person whose eye is 1.7 m up has shoulders near
 /// 1.47 m; the sphere head (0.34 m across) on top then holds that eye.
 const FIGURE_SHOULDER_M: f32 = 1.47;
+/// The hair is the head mesh stretched to these fractions of the head
+/// (across, up, back to front)...
+const HAIR_SCALE: [f32; 3] = [1.04, 1.06, 1.08];
+/// ...with its centre moved this many head radii up (y) and back (z, the face
+/// being +z). Together: hair from a fringe about 0.6 of the radius above the
+/// head's centre at the front, down the sides past the eye line's ends, and
+/// over the whole back of the head; the face in between, eye line included
+/// (the eye sits 0.35 of the radius above the centre), stays skin. Chosen by
+/// casting rays at the two shapes from the front, the back, the side and
+/// above; the test `another_players_hair_leaves_their_face_showing` casts
+/// them again at the real meshes.
+const HAIR_CENTRE_IN_HEAD_RADII: [f32; 3] = [0.0, 0.05, -0.12];
+/// A crew member's position is their standing height, this far over their
+/// feet: net/sync.rs grounds every crew member to `NPC_LOCAL_STANDING_Y`
+/// (1.0) over the home floor at y = 0, and the relay's chore sites are a
+/// room's floor + 1.0 too (relay/handlers/game_state.rs `chore_site`).
+const CREW_POSITION_OVER_FEET_M: f32 = 1.0;
 
-/// Where each part of another player's figure goes: (part, position, scale),
-/// the position being where the mesh's own origin lands (the body box's base,
-/// the head sphere's centre).
+/// Where each piece of a figure goes, built UP from its `feet`: the body from
+/// the feet to the shoulders, the head on top of the body, the hair over the
+/// top and back of the head, every size scaled by the height (a look's
+/// `height`, 1.0 without one). `face` turns the figure: it takes the figure's
+/// own +z (its face) to the way the person faces.
+pub(crate) fn figure_parts(feet: glam::Vec3, face: glam::Quat, look: Option<&crate::player_look::PlayerLook>) -> Vec<FigurePiece> {
+    use glam::Vec3;
+    let h = look.map_or(1.0, |l| l.height);
+    let shoulder = FIGURE_SHOULDER_M * h;
+    let head_r = FIGURE_HEAD_MESH_R_M * h;
+    let head = feet + Vec3::new(0.0, shoulder + head_r, 0.0);
+    let piece = |part, at, scale| FigurePiece { part, at, rotation: face, scale };
+    let mut parts = vec![
+        piece(FigurePart::Body, feet, Vec3::new(h, shoulder / FIGURE_BODY_MESH_H_M, h)),
+        piece(FigurePart::Head, head, Vec3::splat(h)),
+    ];
+    if look.is_some() {
+        // The hair's centre is moved in the figure's own frame, so "back"
+        // turns with the figure.
+        let offset = face * (Vec3::from(HAIR_CENTRE_IN_HEAD_RADII) * head_r);
+        parts.push(piece(FigurePart::Hair, head + offset, Vec3::from(HAIR_SCALE) * h));
+    }
+    parts
+}
+
+/// The way another player's figure faces, from the rotation their client
+/// sends. That rotation is not the turn that takes a figure's face to where
+/// they look: it is their camera's yaw written as a half angle,
+/// [0, sin(yaw/2), 0, cos(yaw/2)] (`position_update_json`), and a camera at
+/// that yaw looks along (sin yaw, 0, -cos yaw) (renderer/camera.rs
+/// `forward_xz`), which a plain turn by yaw about +y does not give for the
+/// face (+z) or the back (-z) at every yaw. Drawn as sent, a figure walking
+/// diagonally was turned 90 degrees off its path and, once it had a front
+/// and a back, faced backwards at yaw 0. So: read the yaw back, and turn the
+/// face onto the camera's forward.
+pub(crate) fn player_face(sent: glam::Quat) -> glam::Quat {
+    let yaw = 2.0 * sent.y.atan2(sent.w);
+    glam::Quat::from_rotation_y(std::f32::consts::PI - yaw)
+}
+
+/// Where each piece of another player's figure goes.
 ///
 /// `eye` is the position their client sends, their camera, which stands
 /// `surface_walk::EYE_HEIGHT_M` (1.7 m, the camera's standing eye height
 /// too) over their feet whatever their look. So the feet are put there, on
-/// the floor, and the figure is built UP from them: the body from the feet to
-/// the shoulders, the head on top of the body, the hair over the top of the
-/// head, every size scaled by their height (a look's `height`, 1.0 without
-/// one).
+/// the floor. `sent_rotation` is the rotation their client sends (see
+/// `player_face`).
 ///
 /// Rebuilt 2026-10-02: the parts used to hang from the eye with offsets that
 /// ignored the meshes' real sizes, so the 1.4 m body box ran 0.55 m ABOVE the
 /// eye, the skin-tone head and the hair sat inside it, and the feet floated
 /// 0.85 m over the floor.
-pub(crate) fn remote_figure_parts(eye: glam::Vec3, look: Option<&crate::player_look::PlayerLook>) -> Vec<(FigurePart, glam::Vec3, glam::Vec3)> {
-    use glam::Vec3;
-    let h = look.map_or(1.0, |l| l.height);
-    let feet = eye - Vec3::new(0.0, crate::surface_walk::EYE_HEIGHT_M as f32, 0.0);
-    let shoulder = FIGURE_SHOULDER_M * h;
-    let head_r = FIGURE_HEAD_MESH_R_M * h;
-    let head = feet + Vec3::new(0.0, shoulder + head_r, 0.0);
-    let mut parts = vec![
-        (FigurePart::Body, feet, Vec3::new(h, shoulder / FIGURE_BODY_MESH_H_M, h)),
-        (FigurePart::Head, head, Vec3::splat(h)),
-    ];
-    if look.is_some() {
-        // A flattened sphere over the crown: 6% wider than the head, 0.6 of its
-        // height, centred 0.45 of the radius up. Its top clears the head's by
-        // 0.05 of the radius, and it covers the head from the crown down to
-        // about a fifth of the radius above the head's centre, leaving the face.
-        parts.push((FigurePart::Hair, head + Vec3::new(0.0, 0.45 * head_r, 0.0), Vec3::new(1.06 * h, 0.6 * h, 1.06 * h)));
-    }
-    parts
+pub(crate) fn remote_figure_parts(eye: glam::Vec3, sent_rotation: glam::Quat, look: Option<&crate::player_look::PlayerLook>) -> Vec<FigurePiece> {
+    let feet = eye - glam::Vec3::new(0.0, crate::surface_walk::EYE_HEIGHT_M as f32, 0.0);
+    figure_parts(feet, player_face(sent_rotation), look)
 }
 
-/// The highest point of another player's drawn figure (the top of the hair
-/// cap, or of the head without a look), world Y. Their name floats over it.
-pub(crate) fn remote_figure_top(eye: glam::Vec3, look: Option<&crate::player_look::PlayerLook>) -> f32 {
-    remote_figure_parts(eye, look)
+/// Where each piece of a crew member's figure goes (2026-10-03): the same
+/// figure as a player's without a look, standing on the floor. `rotation` is
+/// their transform's, a true turn of +z onto their path (net/sync.rs faces
+/// them along it with `from_rotation_y(dx.atan2(dz))`).
+///
+/// Before this the crew were drawn with their own fixed offsets, the 1.4 m
+/// body box from 0.3 m under their position and the head 0.55 m over it: the
+/// body ran from 0.7 m to 2.1 m over the floor, so the feet floated and the
+/// head sat inside the body, the fault BUG-120 fixed for players.
+pub(crate) fn crew_figure_parts(position: glam::Vec3, rotation: glam::Quat) -> Vec<FigurePiece> {
+    figure_parts(position - glam::Vec3::new(0.0, CREW_POSITION_OVER_FEET_M, 0.0), rotation, None)
+}
+
+/// The highest point of a drawn figure (the top of the hair, or of the head
+/// without a look), world Y. Names float over it.
+fn figure_top(parts: &[FigurePiece]) -> f32 {
+    // Every turn here is about the vertical, so a piece's y scale stays
+    // vertical and its top is its centre plus the head radius scaled.
+    parts
         .iter()
-        .filter(|p| p.0 != FigurePart::Body)
-        .map(|p| p.1.y + FIGURE_HEAD_MESH_R_M * p.2.y)
+        .filter(|p| p.part != FigurePart::Body)
+        .map(|p| p.at.y + FIGURE_HEAD_MESH_R_M * p.scale.y)
         .fold(f32::MIN, f32::max)
+}
+
+/// The top of another player's figure, world Y.
+pub(crate) fn remote_figure_top(eye: glam::Vec3, look: Option<&crate::player_look::PlayerLook>) -> f32 {
+    figure_top(&remote_figure_parts(eye, glam::Quat::IDENTITY, look))
+}
+
+/// The head mesh every figure's head and hair are drawn with (2026-10-03): a
+/// UV sphere of `radius` centred on its origin, wound counter-clockwise seen
+/// from outside, which is the side the opaque pipeline draws
+/// (renderer/pipeline.rs: `FrontFace::Ccw`, back faces culled).
+///
+/// Why not `Mesh::sphere`: its triangles are wound the other way, all of them
+/// (0 of 308 at 12 x 14 face out), so the pipeline culls the near half and
+/// draws the far half from inside. A lone sphere still looks round that way,
+/// but put the hair over the head and, wherever the hair runs inside the
+/// head, its far inside is nearer than the head's: that was the dark band
+/// across another player's face (2026-10-03 co-presence screenshot), and the
+/// hair's crown, the part meant to show, was hidden behind the head's far
+/// inside. 16 x 24 so the hair (only 4 to 8% bigger) does not let the head's
+/// flat facets poke through it at the sides.
+pub(crate) fn figure_head_mesh_data(radius: f32) -> (Vec<crate::renderer::mesh::Vertex>, Vec<u32>) {
+    const STACKS: u32 = 16;
+    const SLICES: u32 = 24;
+    let mut v = Vec::new();
+    for i in 0..=STACKS {
+        let phi = std::f32::consts::PI * i as f32 / STACKS as f32;
+        for j in 0..=SLICES {
+            let theta = std::f32::consts::TAU * j as f32 / SLICES as f32;
+            let n = [phi.sin() * theta.cos(), phi.cos(), phi.sin() * theta.sin()];
+            v.push(crate::renderer::mesh::Vertex {
+                position: [radius * n[0], radius * n[1], radius * n[2]],
+                normal: n,
+                uv: [j as f32 / SLICES as f32, i as f32 / STACKS as f32],
+            });
+        }
+    }
+    let row = SLICES + 1;
+    let mut idx = Vec::new();
+    for i in 0..STACKS {
+        for j in 0..SLICES {
+            // a is this ring, b the ring below; a + 1 is the next step round.
+            let a = i * row + j;
+            let b = a + row;
+            idx.extend_from_slice(&[a, a + 1, b, a + 1, b + 1, b]);
+        }
+    }
+    (v, idx)
 }
 
 /// The material cache key for a look's colours: each channel in 64 steps, so
@@ -362,7 +481,8 @@ pub(crate) fn look_material_key(look: &crate::player_look::PlayerLook) -> [u8; 6
     [q(look.skin[0]), q(look.skin[1]), q(look.skin[2]), q(look.hair[0]), q(look.hair[1]), q(look.hair[2])]
 }
 
-/// How far over the top of a remote player's figure their name floats, m.
+/// How far over the top of a remote player's figure, or a crew member's,
+/// their name floats, m.
 const PLAYER_NAMEPLATE_OVER_HEAD_M: f32 = 0.15;
 
 /// Our own position for the other players, once a frame while joined to the
@@ -798,30 +918,242 @@ mod tests {
         assert_eq!(cam.eye_height(), crate::surface_walk::EYE_HEIGHT_M as f32, "the camera's standing eye height");
         let eye = Vec3::new(0.0, 1.7 + 3.0, 0.0); // a player standing on a floor at y = 3
         let floor = 3.0;
-        let plain = remote_figure_parts(eye, None);
-        assert_eq!(plain.iter().map(|p| p.0).collect::<Vec<_>>(), vec![FigurePart::Body, FigurePart::Head]);
+        let plain = remote_figure_parts(eye, glam::Quat::IDENTITY, None);
+        assert_eq!(plain.iter().map(|p| p.part).collect::<Vec<_>>(), vec![FigurePart::Body, FigurePart::Head]);
         let tall = crate::player_look::PlayerLook { skin: [0.6, 0.4, 0.3], hair: [0.1, 0.05, 0.02], height: 1.2 };
         for (look, h) in [(None, 1.0), (Some(&tall), 1.2)] {
-            let parts = remote_figure_parts(eye, look);
-            let get = |part| *parts.iter().find(|p| p.0 == part).unwrap();
+            let parts = remote_figure_parts(eye, glam::Quat::IDENTITY, look);
+            let get = |part| *parts.iter().find(|p| p.part == part).unwrap();
             let body = get(FigurePart::Body);
             let head = get(FigurePart::Head);
-            let body_top = body.1.y + FIGURE_BODY_MESH_H_M * body.2.y;
-            let head_r = FIGURE_HEAD_MESH_R_M * head.2.y;
-            assert!((body.1.y - floor).abs() < 1e-4, "height {h}: the body's bottom is at the feet: {body:?}");
+            let body_top = body.at.y + FIGURE_BODY_MESH_H_M * body.scale.y;
+            let head_r = FIGURE_HEAD_MESH_R_M * head.scale.y;
+            assert!((body.at.y - floor).abs() < 1e-4, "height {h}: the body's bottom is at the feet: {body:?}");
             assert!((body_top - floor - 1.47 * h).abs() < 1e-3, "height {h}: the body ends at the shoulders: {body_top}");
-            assert!(head.1.y - head_r >= body_top - 1e-4, "height {h}: the head is above the body: {head:?}, body top {body_top}");
-            assert!((head.2.x - h).abs() < 1e-5, "height {h}: the head is sized by the height");
+            assert!(head.at.y - head_r >= body_top - 1e-4, "height {h}: the head is above the body: {head:?}, body top {body_top}");
+            assert!((head.scale.x - h).abs() < 1e-5, "height {h}: the head is sized by the height");
         }
-        let parts = remote_figure_parts(eye, Some(&tall));
-        let hair = parts.iter().find(|p| p.0 == FigurePart::Hair).expect("a hair cap");
-        let head = parts.iter().find(|p| p.0 == FigurePart::Head).unwrap();
-        let (hair_top, head_top) = (hair.1.y + FIGURE_HEAD_MESH_R_M * hair.2.y, head.1.y + FIGURE_HEAD_MESH_R_M * head.2.y);
+        let parts = remote_figure_parts(eye, glam::Quat::IDENTITY, Some(&tall));
+        let hair = parts.iter().find(|p| p.part == FigurePart::Hair).expect("a hair cap");
+        let head = parts.iter().find(|p| p.part == FigurePart::Head).unwrap();
+        let (hair_top, head_top) = (hair.at.y + FIGURE_HEAD_MESH_R_M * hair.scale.y, head.at.y + FIGURE_HEAD_MESH_R_M * head.scale.y);
         assert!(hair_top > head_top, "the hair covers the top of the head: {hair_top} over {head_top}");
-        assert!(FIGURE_HEAD_MESH_R_M * hair.2.x > FIGURE_HEAD_MESH_R_M * head.2.x, "and is wider than it");
+        assert!(FIGURE_HEAD_MESH_R_M * hair.scale.x > FIGURE_HEAD_MESH_R_M * head.scale.x, "and is wider than it");
         assert!((remote_figure_top(eye, Some(&tall)) - hair_top).abs() < 1e-5, "the figure's top is the hair's");
         // Two players with the same colours share a cache key.
         assert_eq!(look_material_key(&tall), look_material_key(&crate::player_look::PlayerLook { height: 0.9, ..tall }));
+    }
+
+    /// What a ray sees first among a figure's head and hair, drawn the way the
+    /// renderer draws them: each piece's mesh (`figure_head_mesh_data`, the
+    /// mesh lib.rs builds) placed by the model matrix the renderer builds
+    /// (scale, rotation, translation: renderer/scene_draw.rs), keeping only
+    /// the triangles the opaque pipeline keeps, those wound counter-clockwise
+    /// toward the viewer (renderer/pipeline.rs: `FrontFace::Ccw`, back faces
+    /// culled). The body box is left out: these rays are all at head height.
+    fn first_seen(
+        pieces: &[FigurePiece],
+        mesh: &(Vec<crate::renderer::mesh::Vertex>, Vec<u32>),
+        from: glam::Vec3,
+        dir: glam::Vec3,
+    ) -> Option<FigurePart> {
+        let mut best: Option<(f32, FigurePart)> = None;
+        for p in pieces.iter().filter(|p| p.part != FigurePart::Body) {
+            let m = glam::Mat4::from_scale_rotation_translation(p.scale, p.rotation, p.at);
+            let world = |i: u32| m.transform_point3(glam::Vec3::from(mesh.0[i as usize].position));
+            for t in mesh.1.chunks(3) {
+                let (a, b, c) = (world(t[0]), world(t[1]), world(t[2]));
+                let (e1, e2) = (b - a, c - a);
+                // Counter-clockwise toward the viewer: the winding's normal
+                // points back up the ray. Others are culled (and the pole
+                // rows' zero-area triangles drop out here too).
+                if e1.cross(e2).dot(dir) >= 0.0 {
+                    continue;
+                }
+                // Moller-Trumbore ray / triangle.
+                let pv = dir.cross(e2);
+                let det = e1.dot(pv);
+                if det.abs() < 1e-12 {
+                    continue;
+                }
+                let tv = from - a;
+                let u = tv.dot(pv) / det;
+                let qv = tv.cross(e1);
+                let v = dir.dot(qv) / det;
+                if u < 0.0 || v < 0.0 || u + v > 1.0 {
+                    continue;
+                }
+                let dist = e2.dot(qv) / det;
+                if dist > 0.0 && best.map_or(true, |(d, _)| dist < d) {
+                    best = Some((dist, p.part));
+                }
+            }
+        }
+        best.map(|b| b.1)
+    }
+
+    /// ANOTHER PLAYER'S HAIR LEAVES THEIR FACE SHOWING (2026-10-03). The
+    /// co-presence screenshot of 2026-10-03 showed a dark band straight across
+    /// the face of the other player's head and the head's own skin where the
+    /// hair should be. Two causes: the head mesh (`Mesh::sphere`) was wound
+    /// inside out, so each sphere showed its far inside and the hair, wherever
+    /// it ran inside the head, came out in front of it; and the hair was a
+    /// flattened sphere centred over the crown, whose edge came down to 0.25 of
+    /// the radius over the head's centre, under the eye line (0.35), all round.
+    ///
+    /// So this looks at the figure the way the renderer draws it
+    /// (`first_seen`): from in front, across the face from 0.4 of the radius
+    /// under the head's centre to just over the eye line, every ray meets the
+    /// head (skin; the hair is 4% wider than the head, so its edge shows as a
+    /// thin outline down the sides of the face, about 1 px at 6 m); at the top of the
+    /// forehead a fringe of hair; from behind, from the nape up, all hair; from
+    /// above, hair. The facing comes the way it travels, our camera's yaw sent
+    /// and read back, so the figure's face has to turn to where that camera
+    /// looks; several yaws and two heights.
+    ///
+    /// Red checks, run 2026-10-03, each restored byte for byte after:
+    /// (1) the hair and the winding as they shipped (the centred flattened
+    /// cap, scale 1.06 x 0.6 x 1.06 at 0.45 of the radius up, and
+    /// `Mesh::sphere`'s index order) FAILS with "yaw 0, height 1: the face at
+    /// (-0.37, 0) radii shows skin, not hair" (left: Some(Hair), right:
+    /// Some(Head)): the band across the face. (2) The old cap with this mesh's
+    /// winding FAILS with "yaw 0, height 1: the face at (-0.37, 0.35) radii
+    /// shows skin": the cap over the eye line. (3) This hair with the
+    /// inside-out winding FAILS with "yaw 0, height 1: a fringe of hair over
+    /// the forehead" (left: Some(Head)): the crown hidden behind the head's
+    /// far inside. (4) Drawing the figure turned by the sent rotation as it
+    /// is (no `player_face`) FAILS with "yaw 0, height 1: the face at (-0.37,
+    /// -0.4) radii shows skin": the figure faced away, its back hair to us.
+    /// The last check (every triangle faces out) is not reached by (1) or
+    /// (3), which fail on what the renderer would show first.
+    #[test]
+    fn another_players_hair_leaves_their_face_showing() {
+        use crate::net::protocol::NetMessage;
+        use crate::net::sync::OutgoingPosition;
+        use glam::{Quat, Vec3};
+        let mesh = figure_head_mesh_data(FIGURE_HEAD_MESH_R_M);
+        for yaw in [0.0f32, 0.7, 2.0, -2.6] {
+            // Our camera's yaw, as it goes out and as the other client reads it.
+            let out = OutgoingPosition { position: Vec3::new(4.0, 1.7, -3.0), yaw, velocity: Vec3::ZERO, timestamp: 1.0 };
+            let mut v = position_update_json(&out);
+            v["player_id"] = serde_json::json!(9);
+            let Some(NetMessage::PositionUpdate { position, rotation, .. }) = position_update_from(&v, true) else {
+                panic!("the update reads back");
+            };
+            // Where that camera looks, and its right hand.
+            let mut cam = crate::renderer::camera::Camera::new();
+            cam.yaw = yaw;
+            let fwd = cam.forward_xz();
+            let right = fwd.cross(Vec3::Y);
+            for height in [1.0f32, 1.2] {
+                let look = crate::player_look::PlayerLook { skin: [0.72, 0.53, 0.42], hair: [0.12, 0.08, 0.05], height };
+                let pieces = remote_figure_parts(Vec3::from(position), Quat::from_array(rotation), Some(&look));
+                let head = pieces.iter().find(|p| p.part == FigurePart::Head).unwrap().at;
+                let r = FIGURE_HEAD_MESH_R_M * height;
+                // A point on the head's vertical plane, in head radii.
+                let at = |dx: f32, dy: f32| head + right * (dx * r) + Vec3::Y * (dy * r);
+                for dy in [-0.4f32, -0.2, 0.0, 0.17, 0.35, 0.45] {
+                    for dx in [-0.37f32, 0.03, 0.41] {
+                        assert_eq!(
+                            first_seen(&pieces, &mesh, at(dx, dy) + fwd * 2.0, -fwd),
+                            Some(FigurePart::Head),
+                            "yaw {yaw}, height {height}: the face at ({dx}, {dy}) radii shows skin, not hair"
+                        );
+                    }
+                }
+                assert_eq!(
+                    first_seen(&pieces, &mesh, at(0.03, 0.85) + fwd * 2.0, -fwd),
+                    Some(FigurePart::Hair),
+                    "yaw {yaw}, height {height}: a fringe of hair over the forehead"
+                );
+                for dy in [-0.3f32, 0.0, 0.35, 0.6] {
+                    for dx in [-0.37f32, 0.03, 0.41] {
+                        assert_eq!(
+                            first_seen(&pieces, &mesh, at(dx, dy) - fwd * 2.0, fwd),
+                            Some(FigurePart::Hair),
+                            "yaw {yaw}, height {height}: the back of the head at ({dx}, {dy}) radii is hair"
+                        );
+                    }
+                }
+                for (dx, dz) in [(0.03f32, 0.0f32), (0.2, -0.4), (-0.3, 0.3)] {
+                    let over = head + right * (dx * r) + fwd * (dz * r) + Vec3::Y * 2.0;
+                    assert_eq!(
+                        first_seen(&pieces, &mesh, over, -Vec3::Y),
+                        Some(FigurePart::Hair),
+                        "yaw {yaw}, height {height}: the crown at ({dx}, {dz}) radii is hair"
+                    );
+                }
+            }
+        }
+        // And the mesh itself: every triangle faces out, counter-clockwise
+        // seen from outside, the side the opaque pipeline draws. The pole
+        // rows' triangles have no area (two corners on the pole; f32's
+        // sin(PI) is -8.7e-8, not 0, so their sign is noise) and are skipped.
+        for t in mesh.1.chunks(3) {
+            let p = |i: u32| Vec3::from(mesh.0[i as usize].position);
+            let (a, b, c) = (p(t[0]), p(t[1]), p(t[2]));
+            let n = (b - a).cross(c - a);
+            if n.length() < 1e-8 {
+                continue;
+            }
+            assert!(n.dot(a + b + c) > 0.0, "every triangle of the head mesh faces out: {t:?}");
+        }
+    }
+
+    /// CREW STAND ON THE FLOOR WITH THEIR HEADS ON THEIR SHOULDERS
+    /// (2026-10-03). A crew member's position comes through the same sync the
+    /// game runs (net/sync.rs grounds it to standing height over the home
+    /// floor at y = 0), and their figure is built from it: the body's bottom on
+    /// the floor, the head wholly above the body's top, no hair, and the very
+    /// same pieces a player without a look standing on that floor gets.
+    ///
+    /// Red check, run 2026-10-03, restored byte for byte after:
+    /// `crew_figure_parts` returning the old crew offsets (the 1.4 m body box
+    /// from 0.3 m under the position, the head 0.55 m over it, both unscaled)
+    /// FAILS with "the crew's feet are on the floor: the body's bottom is
+    /// 0.7 m up".
+    #[test]
+    fn crew_figures_stand_on_the_floor_head_on_shoulders() {
+        use crate::ecs::components::Transform;
+        use crate::ecs::systems::System;
+        use crate::net::protocol::NetMessage;
+        use crate::net::sync::{NetSyncSystem, RemoteNpc};
+        use glam::Vec3;
+        let mut sys = NetSyncSystem::new();
+        let mut world = hecs::World::new();
+        sys.queue_messages(vec![NetMessage::NpcUpdate {
+            entity_id: 5,
+            name: "Ada".into(),
+            position: [3.0, 7.0, -2.0], // the relay's own deck height: replaced by the local one
+            activity: "Walking to hydroponics".into(),
+            working: false,
+        }]);
+        sys.tick(&mut world, 0.016, &crate::hot_reload::data_store::DataStore::new());
+        let (pos, rot) = world
+            .query_mut::<(&Transform, &RemoteNpc)>()
+            .into_iter()
+            .map(|(_, (t, _))| (t.position, t.rotation))
+            .next()
+            .expect("the crew member is in the world");
+        let floor = 0.0;
+        let crew = crew_figure_parts(pos, rot);
+        assert_eq!(crew.iter().map(|p| p.part).collect::<Vec<_>>(), vec![FigurePart::Body, FigurePart::Head], "body and head, no hair");
+        let body = crew[0];
+        let head = crew[1];
+        let body_top = body.at.y + FIGURE_BODY_MESH_H_M * body.scale.y;
+        let head_r = FIGURE_HEAD_MESH_R_M * head.scale.y;
+        assert!((body.at.y - floor).abs() < 1e-4, "the crew's feet are on the floor: the body's bottom is {} m up", body.at.y);
+        assert!(
+            head.at.y - head_r >= body_top - 1e-4,
+            "the head sits on the shoulders, not inside the body: its bottom is {} m, the body's top {body_top} m",
+            head.at.y - head_r
+        );
+        // The same figure a player without a look standing there gets.
+        let eye = Vec3::new(pos.x, floor + crate::surface_walk::EYE_HEIGHT_M as f32, pos.z);
+        let player = remote_figure_parts(eye, glam::Quat::IDENTITY, None);
+        for (c, p) in crew.iter().zip(&player) {
+            assert!((c.at - p.at).length() < 1e-4 && (c.scale - p.scale).length() < 1e-5, "the crew's {:?} is a player's: {c:?} vs {p:?}", c.part);
+        }
     }
 
     /// THE HOST'S CLOCK COUNTS ONLY FOR A JOINED PLAYER (2026-09-29). The
@@ -953,7 +1285,20 @@ mod tests {
         let tall_top = remote_figure_top(Vec3::new(-5.0, 1.7, 0.0), Some(&tallest));
         assert!(tall.pos.y > tall_top, "the name clears a tall player's head: {} under {tall_top}", tall.pos.y);
         let crew = labels.iter().find(|l| l.name == "Ada").expect("the crew member is labelled");
-        assert_eq!((crew.activity.as_str(), crew.pos), ("Watering the beds", Vec3::new(1.0, 2.0, 10.0)));
+        assert_eq!(crew.activity.as_str(), "Watering the beds");
+        // Just over the crew figure's top too (2026-10-03: it was position +
+        // 1.0, under which the old crew body box ran on to 2.1 m).
+        let crew_top = figure_top(&crew_figure_parts(Vec3::new(1.0, 1.0, 0.0), Quat::IDENTITY));
+        assert!((crew.pos - Vec3::new(1.0, crew_top + PLAYER_NAMEPLATE_OVER_HEAD_M, 10.0)).length() < 1e-5, "over the crew head: {:?}", crew.pos);
+        // And at a person's height, as a literal, so a wrong figure height
+        // cannot pass by being computed the same wrong way on both sides: the
+        // crew stand with their feet 1.0 m under their position (here the
+        // floor is y = 0), the top of a default figure is 1.47 + 2 x 0.17 =
+        // 1.81 m, and the name floats 0.15 m over it (review, 2026-10-03).
+        // Red check, run 2026-10-03: crew_figure_parts set 0.1 m lower FAILED
+        // with "the crew name floats at 1.96 m over the floor, not 1.8599999",
+        // while the computed check above still passed.
+        assert!((crew.pos.y - 1.96).abs() < 0.01, "the crew name floats at 1.96 m over the floor, not {}", crew.pos.y);
         let player = labels.iter().find(|l| l.name == "Test Pilot").expect("the other player is labelled");
         assert_eq!(player.activity, "", "a player has no chore line");
         // Just over the drawn figure's top (2026-10-02: it was eye + 0.3).

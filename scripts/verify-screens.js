@@ -73,6 +73,7 @@ const G = require("./rig-graphics.js");
 // timings, so it keeps refusing on the GAME only; a concurrent build slows it
 // but cannot change its verdict.
 const MG = require("./lib/machine-guard.js");
+const DXC = require("./lib/dxc-dlls.js");
 
 const REPO = path.resolve(__dirname, "..");
 const args = process.argv.slice(2);
@@ -452,11 +453,11 @@ function setupRig() {
     execSync("ping -n 3 127.0.0.1 >nul", { shell: "cmd.exe" });
     fs.copyFileSync(EXE, path.join(RIG, "HumanityOS.exe"));
   }
-  // DXC dlls beside the exe drop boot from ~25 s to ~5 s.
-  for (const dll of ["dxcompiler.dll", "dxil.dll"]) {
-    const s = path.join(path.dirname(EXE), dll);
-    if (fs.existsSync(s)) fs.copyFileSync(s, path.join(RIG, dll));
-  }
+  // The DXC shader compiler dlls, from beside the exe or else the repo root
+  // (target/release has none; the repo root does). One shared lookup,
+  // scripts/lib/dxc-dlls.js, which logs which folder it used or that it
+  // found neither (the game then falls back to the much slower FXC).
+  DXC.copyDxcDlls({ exe: EXE, repo: REPO, dest: RIG, log });
   for (const f of fs.readdirSync(DEBUG)) {
     if (/\.png$/.test(f) || /_done\.json$/.test(f) || /_request\.json$/.test(f)) fs.unlinkSync(path.join(DEBUG, f));
   }

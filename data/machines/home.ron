@@ -9,18 +9,27 @@
 // REARRANGED 2026-09-19 for the home redesign. Two things to know before editing:
 //
 //  1. `room` now carries the ZONE ID of the room the machine stands in, exactly as
-//     data/blueprints/ship_structure.ron spells it ("room-kitchen", not "kitchen"). In
-//     zone mode the renderer positions a machine from its ABSOLUTE world x/z and only
-//     clamps it into the zone, so `room` is a label; making it match the zone id is what
-//     lets a test check that every machine really is standing in the room it claims.
+//     data/homes/homestead.ron spells it ("room-kitchen", not "kitchen"). In zone mode the
+//     renderer positions a machine from its x/z (home-local, see 3) and only clamps it into
+//     the zone, so `room` is a label; making it match the zone id is what lets a test check
+//     that every machine really is standing in the room it claims.
 //  2. The machine SET is fixed by the `loops` block at the bottom, which states counts in
 //     prose ("8 solar panels", "26 towers", "2 aquaponic fish tanks"). Move machines
 //     freely; adding or removing one that carries a power / water / food / nutrient stat
 //     makes that text a lie. Furniture and displays have no stats and are free.
 //
+//  3. The Commons' machines (its garden rack, fish tank, composter, apothecary and nutrition
+//     towers, and the three market stalls) live in data/machines/ship.ron since the ship and
+//     the home came apart (2026-10-03, docs/design/ship-homes-and-logistics.md increment 1a).
+//     `ship_machines` below merges them in when this file loads, so this household still
+//     powers and counts them exactly as before; the editor saves them back to ship.ron.
+//     Every position in THIS file is home-local: metres from the home's own corner, which the
+//     loader puts at the player's plot (p1 is at the ship's origin, so nothing moved).
+//
 // Where each screen is and why: docs/design/player-home.md.
 
 (
+    ship_machines: Some("ship.ron"),
     catalog: {
         "aeroponic_tower_apothecary": (
             shape: "cylinder",
@@ -3881,28 +3890,6 @@
             rotation: 270.0,
             zone: "home",
         ),
-        // The commons rack's tent humidifier (2026-09-26): each mushroom rack
-        // fruits in its own tent, held at 90% by a small humidifier on its
-        // bottom shelf (data/garden/humidity.ron, THE FRUITING TENT). The home's
-        // six racks have theirs in the "mushhum" array below.
-        (
-            id: "mushhum_c1",
-            machine: "tent_humidifier",
-            room: "commons",
-            offset: (76.5, 0.0, 49.0),
-            rotation: 0.0,
-            zone: "commons",
-        ),
-        // Its tent's CO2 fan (2026-09-27), on top of the rack inside the tent;
-        // the home's six racks have theirs in the "mushfan" array below.
-        (
-            id: "mushfan_c1",
-            machine: "tent_co2_fan",
-            room: "commons",
-            offset: (76.5, 1.6, 49.0),
-            rotation: 0.0,
-            zone: "commons",
-        ),
         // The mushroom room's own CO2 fan (2026-09-27): high on its far wall,
         // clear of the racks' tents, exchanging the room's air with the home's
         // so the tents draw air their fans can hold (data/garden/humidity.ron,
@@ -4060,70 +4047,6 @@
             rotation: 90.0,
             zone: "home",
         ),
-        (
-            id: "aqua_c1",
-            machine: "aquaponic_tank",
-            room: "commons",
-            offset: (76.5, 0.0, 44.0),
-            rotation: 0.0,
-            zone: "commons",
-        ),
-        (
-            id: "composter_c1",
-            machine: "composter",
-            room: "commons",
-            offset: (76.5, 0.0, 46.5),
-            rotation: 0.0,
-            zone: "commons",
-        ),
-        (
-            id: "mush_c1",
-            machine: "mushroom_rack",
-            room: "commons",
-            offset: (76.5, 0.0, 49.0),
-            rotation: 0.0,
-            zone: "commons",
-        ),
-        (
-            id: "apoth_c1",
-            machine: "aeroponic_tower_apothecary",
-            room: "commons",
-            offset: (86.5, 0.0, 44.0),
-            rotation: 0.0,
-            zone: "commons",
-        ),
-        (
-            id: "apoth_c2",
-            machine: "aeroponic_tower_apothecary",
-            room: "commons",
-            offset: (86.5, 0.0, 52.0),
-            rotation: 0.0,
-            zone: "commons",
-        ),
-        (
-            id: "market_c1",
-            machine: "trading_post",
-            room: "commons",
-            offset: (97.0, 0.0, 32.0),
-            rotation: 0.0,
-            zone: "commons",
-        ),
-        (
-            id: "market_c2",
-            machine: "trading_post",
-            room: "commons",
-            offset: (97.0, 0.0, 46.0),
-            rotation: 0.0,
-            zone: "commons",
-        ),
-        (
-            id: "market_c3",
-            machine: "trading_post",
-            room: "commons",
-            offset: (97.0, 0.0, 60.0),
-            rotation: 0.0,
-            zone: "commons",
-        ),
     ],
     arrays: [
         (
@@ -4199,16 +4122,6 @@
             spacing: (2.6, 2.2),
             id_prefix: "mushfan",
             zone: "home",
-        ),
-        (
-            machine: "aeroponic_tower_nutrition",
-            room: "commons",
-            origin: (79.0, 0.0, 44.0),
-            rows: 3,
-            cols: 3,
-            spacing: (2.4, 2.4),
-            id_prefix: "ctower",
-            zone: "commons",
         ),
     ],
     connections: [
@@ -4356,19 +4269,16 @@
         (from: "battery_7", to: "mushhum_3", kind: "power", spec: None),
         (from: "battery_7", to: "mushhum_4", kind: "power", spec: None),
         (from: "battery_7", to: "mushhum_5", kind: "power", spec: None),
-        (from: "battery_7", to: "mushhum_c1", kind: "power", spec: None),
         (from: "battery_7", to: "mushfan_0", kind: "power", spec: None),
         (from: "battery_7", to: "mushfan_1", kind: "power", spec: None),
         (from: "battery_7", to: "mushfan_2", kind: "power", spec: None),
         (from: "battery_7", to: "mushfan_3", kind: "power", spec: None),
         (from: "battery_7", to: "mushfan_4", kind: "power", spec: None),
         (from: "battery_7", to: "mushfan_5", kind: "power", spec: None),
-        (from: "battery_7", to: "mushfan_c1", kind: "power", spec: None),
         (from: "battery_7", to: "mushroom_fan_1", kind: "power", spec: None),
         // The fish tanks' air pumps (2026-09-27), on the same bank.
         (from: "battery_7", to: "aqua_1", kind: "power", spec: None),
         (from: "battery_7", to: "aqua_2", kind: "power", spec: None),
-        (from: "battery_7", to: "aqua_c1", kind: "power", spec: None),
         (
             from: "battery_8",
             to: "turret_1",
@@ -4473,18 +4383,6 @@
             from: "aqua_1",
             to: "ntower_0",
             kind: "water",
-            spec: None,
-        ),
-        (
-            from: "aqua_c1",
-            to: "ctower_0",
-            kind: "water",
-            spec: None,
-        ),
-        (
-            from: "composter_c1",
-            to: "ctower_0",
-            kind: "nutrient",
             spec: None,
         ),
         (

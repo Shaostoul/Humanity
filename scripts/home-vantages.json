@@ -1,5 +1,5 @@
 {
-  "_note": "Where to stand to photograph the player's acre. Coordinates are metres in the home zone's own frame, the same numbers data/blueprints/ship_structure.ron uses. y is EYE height: 1.7 is a standing person, anything above 3 is outside the shell looking in through the glass roof. yaw 0 looks north (-Z), 1.5708 east (+X), 3.1416 south (+Z), -1.5708 west (-X); pitch is radians, positive up. Consumed by scripts/photograph-home.js. The plan these follow is docs/design/player-home.md.",
+  "_note": "Where to stand to photograph the player's acre. Coordinates are metres in the home zone's own frame, the same numbers data/homes/homestead.ron uses (on plot p1 the home sits at the ship's origin, so they are ship metres too). y is EYE height: 1.7 is a standing person, anything above 3 is outside the shell looking in through the glass roof. yaw 0 looks north (-Z), 1.5708 east (+X), 3.1416 south (+Z), -1.5708 west (-X); pitch is radians, positive up. Consumed by scripts/photograph-home.js. The plan these follow is docs/design/player-home.md.",
   "vantages": [
     {
       "id": "00-overview",

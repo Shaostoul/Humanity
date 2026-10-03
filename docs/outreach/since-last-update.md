@@ -11,6 +11,13 @@ Each line is written the way a player would hear it; the release notes and
 
 ## Shipped
 
+- **v0.1442.0: your save keeps backups.** The game now keeps the last ten
+  versions of your home's save, and Settings > Data can put any of them back.
+  Other players' faces show properly (their hair used to cover them), and the
+  crew stand on the floor with their heads on their shoulders. Under the hood,
+  your home and the ship are now separate, the first step to every player
+  having their own home on the mothership.
+
 - **v0.1440.0: other players walk smoothly.** Another player's figure now walks
   at a steady pace instead of jerking forward in steps, keeps walking through a
   late update, and disappears at once when they leave. A scripted second player

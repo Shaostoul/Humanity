@@ -551,8 +551,9 @@ pub struct MachineInstance {
     /// depends on it); for a legacy AABB-room ship layout it binds the instance to a room.
     pub room: String,
     /// Position (v0.538, meaning depends on the home model -- see `MachineHome::placements`):
-    /// - ShipStructure zone home (v0.754): x/z are ABSOLUTE world metres, clamped into the named
-    ///   `zone`'s footprint at that zone's origin on resolve; y is up from the ZONE's floor (its
+    /// - ShipStructure zone home: x/z are ZONE-LOCAL metres from the named `zone`'s min corner
+    ///   (since increment 1a; they were absolute world metres from v0.754), kept inside that
+    ///   zone's footprint on resolve (`zone_world_pos`); y is up from the ZONE's floor (its
     ///   origin y), so a machine on a raised deck sits on that deck.
     /// - legacy AABB-room ship layout: (x, y, z) RELATIVE to the room center, y up from the floor.
     pub offset: (f32, f32, f32),
@@ -584,9 +585,9 @@ pub struct MachineArray {
     pub machine: String,
     /// Room id to place the grid in (advisory in a HomeStructure box home; see MachineInstance.room).
     pub room: String,
-    /// First (row 0, col 0) cell position -- same dual meaning as `MachineInstance.offset`: ABSOLUTE
-    /// world x/z in a box home, room-center-relative in a legacy ship layout. `spacing` is a local
-    /// step in both. (v0.538)
+    /// First (row 0, col 0) cell position -- same dual meaning as `MachineInstance.offset`:
+    /// ZONE-LOCAL x/z in a ship zone (since increment 1a), room-center-relative in a legacy ship
+    /// layout. `spacing` is a local step in both. (v0.538)
     pub origin: (f32, f32, f32),
     /// Number of rows (stepped along +z) and columns (stepped along +x).
     pub rows: u32,
@@ -681,6 +682,16 @@ pub struct ConduitEdge {
 /// The whole home machine layout.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MachineHome {
+    /// The SHIP's machine file this household shares (increment 1a of
+    /// docs/design/ship-homes-and-logistics.md), named relative to this file's folder
+    /// (`Some("ship.ron")`). `load` merges that file's rows in, and `save` writes them back
+    /// there instead of into this file: a row belongs to the ship file when its `zone` is not
+    /// "home", and a connection when either end is such a row. data/machines/home.ron names it
+    /// because its battery bank powers the Commons' machines and its loops count them (how the
+    /// household was modelled before the split); home_solo.ron does not, so it loads without
+    /// them, as it always has. None (the default) = a self-contained file.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ship_machines: Option<String>,
     /// Machine types, keyed by id. BTreeMap (not HashMap) so `save()` emits the catalog in
     /// stable, sorted key order -- otherwise every save reshuffles all entries (HashMap
     /// iteration is randomized per process), producing a meaningless whole-file git diff and
@@ -707,6 +718,30 @@ pub struct MachineHome {
     /// `stats_for`, which makes it the food line of every card that shows the machine.
     #[serde(skip)]
     pub grown: BTreeMap<String, crate::systems::grow_machines::GrownFood>,
+    /// COMPUTED, never saved: what `load` merged in from the `ship_machines` file, and whether
+    /// those rows may be edited right now (see `ShipPart`).
+    #[serde(skip)]
+    pub ship_part: ShipPart,
+}
+
+/// The ship's share of a merged machine layout (increment 1a of
+/// docs/design/ship-homes-and-logistics.md). Rows and connections are told apart by zone (a
+/// row whose `zone` is not "home" is the ship's), but loops and conduit nodes carry no zone, so
+/// `load` records which ones came from the ship file and the save sends exactly those back.
+#[derive(Debug, Clone, Default)]
+pub struct ShipPart {
+    /// True outside the Dev play mode. Only a Dev save writes the ship's machine file, so an edit
+    /// to a ship row made in any other mode would be dropped on the next load without a word.
+    /// While this is set, the ship's rows and every connection or conduit edge touching them are
+    /// read-only (`is_locked`): the edit methods refuse them and the editor will not select them.
+    /// The construction editor sets it from the play mode every frame it draws
+    /// (`gui::pages::construction::sync_ship_machine_lock`), and every path that edits machines
+    /// runs with the editor open. False (editable) until then.
+    pub locked: bool,
+    /// Names of the loops that came from the ship file.
+    pub loops: std::collections::BTreeSet<String>,
+    /// Ids of the conduit nodes that came from the ship file.
+    pub conduit_nodes: std::collections::BTreeSet<String>,
 }
 
 /// Pass / warn / fail verdict for one buildability check. Ord follows declaration order
@@ -917,6 +952,20 @@ pub fn resolve_zone_rect<'a>(zones: &'a [ZoneRect], id: &str) -> Option<&'a Zone
         .or_else(|| zones.first())
 }
 
+/// Where a machine stands in SHIP metres: its ZONE-LOCAL offset (metres from the zone box's
+/// min corner; y up from the zone's deck) kept 0.3 m inside the zone's footprint, plus the
+/// zone's origin. Zone-local since increment 1a of docs/design/ship-homes-and-logistics.md, so
+/// a home's machines ride its plot wherever the plot is (they used to be absolute positions
+/// clamped into the zone, which piled every machine against the box edge once a home moved).
+/// The one formula `placements` and the world load both use.
+pub fn zone_world_pos(zr: &ZoneRect, offset: (f32, f32, f32)) -> (f32, f32, f32) {
+    let (ox, oy, oz) = zr.origin;
+    let (w, d, _h) = zr.size;
+    let x = offset.0.clamp(0.3, (w - 0.3).max(0.3));
+    let z = offset.2.clamp(0.3, (d - 0.3).max(0.3));
+    (ox + x, oy + offset.1, oz + z)
+}
+
 /// A placed machine resolved to its world draw position + appearance, ready for the renderer. The
 /// construction editor rebuilds these live on an edit so a move/add/remove shows instantly. (v0.525)
 #[derive(Debug, Clone)]
@@ -984,7 +1033,32 @@ impl MachineHome {
     /// file so the caller can fall back gracefully. When the disk file is absent,
     /// falls back to the EMBEDDED copy by filename (v0.744) — a zero-file fresh
     /// install still gets the full home machine layout.
+    ///
+    /// A file that names `ship_machines` comes back with that file's rows merged in (see the
+    /// field), so every caller sees the same set it saw before the ship's machines moved out.
     pub fn load(path: &Path) -> Option<Self> {
+        let mut h = Self::load_file(path)?;
+        if let Some(file) = h.ship_machines.clone() {
+            let ship_path = path.parent().map(|d| d.join(&file)).unwrap_or_else(|| file.clone().into());
+            match Self::load_file(&ship_path) {
+                Some(ship) => h.merge_ship_machines(ship),
+                None => log::warn!(
+                    "machines: {} names ship machines {}, which did not load; the ship's machines are missing",
+                    path.display(),
+                    ship_path.display()
+                ),
+            }
+        }
+        // The home file sits in <data>/machines/, so its data dir is two up.
+        if let Some(data_dir) = path.parent().and_then(|p| p.parent()) {
+            h.grown = crate::systems::grow_machines::grown_food(&h, data_dir);
+        }
+        Some(h)
+    }
+
+    /// One machine file exactly as written: disk first, else the embedded copy by file name,
+    /// no merge and no computed food.
+    pub fn load_file(path: &Path) -> Option<Self> {
         let text = match std::fs::read_to_string(path) {
             Ok(t) => t,
             Err(_) => {
@@ -1002,13 +1076,7 @@ impl MachineHome {
             }
         };
         match ron::from_str::<MachineHome>(&text) {
-            Ok(mut h) => {
-                // The home file sits in <data>/machines/, so its data dir is two up.
-                if let Some(data_dir) = path.parent().and_then(|p| p.parent()) {
-                    h.grown = crate::systems::grow_machines::grown_food(&h, data_dir);
-                }
-                Some(h)
-            }
+            Ok(h) => Some(h),
             Err(e) => {
                 log::warn!("machines: failed to parse {}: {e}", path.display());
                 None
@@ -1016,11 +1084,141 @@ impl MachineHome {
         }
     }
 
+    /// Append a ship machine file's rows, arrays, connections, loops and conduit graph, and any
+    /// catalog type it defines that this file does not (this file's definition wins on a clash).
+    /// The loops' names and the conduit nodes' ids are recorded in `ship_part`, because they
+    /// carry no zone and `split_for_save` must send exactly these back to the ship file.
+    fn merge_ship_machines(&mut self, ship: MachineHome) {
+        for (k, def) in ship.catalog {
+            self.catalog.entry(k).or_insert(def);
+        }
+        self.instances.extend(ship.instances);
+        self.arrays.extend(ship.arrays);
+        self.connections.extend(ship.connections);
+        self.ship_part.loops.extend(ship.loops.iter().map(|l| l.name.clone()));
+        self.loops.extend(ship.loops);
+        self.ship_part.conduit_nodes.extend(ship.conduit_nodes.iter().map(|n| n.id.clone()));
+        self.conduit_nodes.extend(ship.conduit_nodes);
+        self.conduit_edges.extend(ship.conduit_edges);
+    }
+
+    /// True when the machine row `id` belongs to the ship and the ship's rows are read-only right
+    /// now (`ShipPart::locked`, outside the Dev mode). The editor skips such a machine when
+    /// picking and listing, and the edit methods below refuse it.
+    pub fn is_locked(&self, id: &str) -> bool {
+        self.ship_part.locked && self.ship_machines.is_some() && self.ship_row_ids().contains(id)
+    }
+
+    /// Every machine id that is read-only right now (`is_locked`), computed once: empty when the
+    /// ship's rows may be edited. For callers that test many ids a frame.
+    pub fn locked_ids(&self) -> std::collections::HashSet<String> {
+        if self.ship_part.locked && self.ship_machines.is_some() {
+            self.ship_row_ids()
+        } else {
+            Default::default()
+        }
+    }
+
+    /// True when a connection touches a read-only ship row (`is_locked`).
+    pub fn connection_locked(&self, from: &str, to: &str) -> bool {
+        let locked = self.locked_ids();
+        locked.contains(from) || locked.contains(to)
+    }
+
+    /// True when a row in `zone` belongs to the ship's machine file rather than a home's.
+    pub fn is_ship_zone(zone: &str) -> bool {
+        zone != default_machine_zone()
+    }
+
+    /// Every machine id (instances and array cells) that belongs to the ship file.
+    fn ship_row_ids(&self) -> std::collections::HashSet<String> {
+        self.all_instances()
+            .into_iter()
+            .filter(|i| Self::is_ship_zone(&i.zone))
+            .map(|i| i.id)
+            .collect()
+    }
+
+    /// Split a merged layout: (the household file's part, the ship file's part). Without a
+    /// `ship_machines` link nothing is split off (the whole layout is the household's).
+    /// `ship_catalog` is the ship file's own catalog keys, which stay in the ship file.
+    fn split_for_save(&self, ship_catalog: &std::collections::BTreeSet<String>) -> (MachineHome, Option<MachineHome>) {
+        if self.ship_machines.is_none() {
+            return (self.clone(), None);
+        }
+        let ship_ids = self.ship_row_ids();
+        let touches_ship = |c: &MachineConnection| ship_ids.contains(&c.from) || ship_ids.contains(&c.to);
+        // Loops and conduit nodes carry no zone: the ones `load` merged in from the ship file go
+        // back there (`ship_part`); a conduit edge goes with the ship when either end is a ship
+        // row or a ship node, the same rule a connection follows. Everything else is the home's.
+        let ship_loop = |l: &HomeLoop| self.ship_part.loops.contains(&l.name);
+        let ship_node = |n: &ConduitNode| self.ship_part.conduit_nodes.contains(&n.id);
+        let ship_end = |e: &ConduitEnd| match e {
+            ConduitEnd::Machine(id) => ship_ids.contains(id),
+            ConduitEnd::Node(id) => self.ship_part.conduit_nodes.contains(id),
+        };
+        let ship_edge = |e: &ConduitEdge| ship_end(&e.from) || ship_end(&e.to);
+        let mut home = self.clone();
+        home.instances.retain(|i| !Self::is_ship_zone(&i.zone));
+        home.arrays.retain(|a| !Self::is_ship_zone(&a.zone));
+        home.connections.retain(|c| !touches_ship(c));
+        home.catalog.retain(|k, _| !ship_catalog.contains(k));
+        home.loops.retain(|l| !ship_loop(l));
+        home.conduit_nodes.retain(|n| !ship_node(n));
+        home.conduit_edges.retain(|e| !ship_edge(e));
+        let ship = MachineHome {
+            ship_machines: None,
+            ship_part: Default::default(),
+            catalog: self.catalog.iter().filter(|(k, _)| ship_catalog.contains(*k)).map(|(k, v)| (k.clone(), v.clone())).collect(),
+            instances: self.instances.iter().filter(|i| Self::is_ship_zone(&i.zone)).cloned().collect(),
+            arrays: self.arrays.iter().filter(|a| Self::is_ship_zone(&a.zone)).cloned().collect(),
+            connections: self.connections.iter().filter(|c| touches_ship(c)).cloned().collect(),
+            loops: self.loops.iter().filter(|l| ship_loop(l)).cloned().collect(),
+            conduit_nodes: self.conduit_nodes.iter().filter(|n| ship_node(n)).cloned().collect(),
+            conduit_edges: self.conduit_edges.iter().filter(|e| ship_edge(e)).cloned().collect(),
+            grown: Default::default(),
+        };
+        (home, Some(ship))
+    }
+
+    /// The catalog keys the linked ship file defines itself (empty when there is none).
+    fn ship_catalog_keys(&self, home_path: &Path) -> std::collections::BTreeSet<String> {
+        let Some(file) = &self.ship_machines else { return Default::default() };
+        home_path
+            .parent()
+            .map(|d| d.join(file))
+            .and_then(|p| Self::load_file(&p))
+            .map(|s| s.catalog.into_keys().collect())
+            .unwrap_or_default()
+    }
+
+    /// Write the ship's part of a merged layout back to the linked ship file next to
+    /// `home_path` (the editor calls this only with ShipStructureEditing). Ok(None) when this
+    /// layout links no ship file.
+    pub fn save_ship_part(&self, home_path: &Path) -> Result<Option<std::path::PathBuf>, String> {
+        let Some(file) = &self.ship_machines else { return Ok(None) };
+        let (_, ship) = self.split_for_save(&self.ship_catalog_keys(home_path));
+        let Some(ship) = ship else { return Ok(None) };
+        let path = home_path.parent().map(|d| d.join(file)).unwrap_or_else(|| file.clone().into());
+        ship.write_ron(&path)?;
+        Ok(Some(path))
+    }
+
     /// Write the layout back to a RON file -- the construction editor's machine save +
     /// the AI's edit target are the SAME file, so an AI-placed machine is player-editable
     /// and vice versa (the home-design parity principle). A header points at the docs;
     /// the body is anonymous-struct RON, matching the seed's style + always re-loadable.
+    ///
+    /// A layout that links a ship machine file (`ship_machines`) writes only the HOUSEHOLD'S
+    /// part here; the ship's rows stay in the ship file (`save_ship_part` writes them, from the
+    /// Dev mode only), so a save from any mode can never copy the Commons into a home.
     pub fn save(&self, path: &Path) -> Result<(), String> {
+        let (home, _) = self.split_for_save(&self.ship_catalog_keys(path));
+        home.write_ron(path)
+    }
+
+    /// Serialize this layout as it stands, keeping the target file's leading comment header.
+    fn write_ron(&self, path: &Path) -> Result<(), String> {
         let config = ron::ser::PrettyConfig::default().struct_names(false);
         let body = ron::ser::to_string_pretty(self, config).map_err(|e| e.to_string())?;
         // Preserve the existing file's LEADING comment block (the authored design header) so a
@@ -1091,7 +1289,13 @@ impl MachineHome {
     /// so the editor's "Remove" (and an AI edit) never leaves dangling connections pointing at
     /// a machine that no longer exists. Keeps home.ron internally consistent (the
     /// "every connection endpoint is a real instance" invariant the tests assert). (v0.522)
+    ///
+    /// A read-only ship row (`is_locked`) is left alone: removing it would only last until the
+    /// next load, because the save outside the Dev mode does not write the ship's file.
     pub fn remove_instance(&mut self, id: &str) {
+        if self.is_locked(id) {
+            return;
+        }
         self.instances.retain(|i| i.id != id);
         self.connections.retain(|c| c.from != id && c.to != id);
         // Also prune conduit edges referencing this machine (v0.581), so deleting a machine never
@@ -1170,7 +1374,11 @@ impl MachineHome {
     }
 
     /// Remove a conduit node AND prune every edge touching it. (v0.581)
+    /// A read-only ship node (`end_locked`) is kept.
     pub fn remove_conduit_node(&mut self, id: &str) {
+        if self.end_locked(&ConduitEnd::Node(id.to_string())) {
+            return;
+        }
         self.conduit_nodes.retain(|n| n.id != id);
         let end = ConduitEnd::Node(id.to_string());
         self.conduit_edges.retain(|e| e.from != end && e.to != end);
@@ -1190,6 +1398,10 @@ impl MachineHome {
         if from == to || !self.conduit_end_is_live(&from) || !self.conduit_end_is_live(&to) {
             return false;
         }
+        // Not to a read-only ship row or node (`end_locked`): the save outside Dev would drop it.
+        if self.end_locked(&from) || self.end_locked(&to) {
+            return false;
+        }
         if self.conduit_edges.iter().any(|e| e.from == from && e.to == to) {
             return false;
         }
@@ -1198,12 +1410,25 @@ impl MachineHome {
     }
 
     /// Remove a conduit edge by index; returns true if removed. (v0.581)
+    /// An edge touching a read-only ship row or node (`end_locked`) is kept.
     pub fn remove_conduit_edge(&mut self, idx: usize) -> bool {
-        if idx < self.conduit_edges.len() {
-            self.conduit_edges.remove(idx);
-            true
-        } else {
-            false
+        match self.conduit_edges.get(idx) {
+            Some(e) if !self.end_locked(&e.from) && !self.end_locked(&e.to) => {
+                self.conduit_edges.remove(idx);
+                true
+            }
+            _ => false,
+        }
+    }
+
+    /// True when a conduit end is a read-only ship row (`is_locked`), or a conduit node that came
+    /// from the ship file while the ship part is locked (`ShipPart::locked`).
+    fn end_locked(&self, end: &ConduitEnd) -> bool {
+        match end {
+            ConduitEnd::Machine(id) => self.is_locked(id),
+            ConduitEnd::Node(id) => {
+                self.ship_part.locked && self.ship_machines.is_some() && self.ship_part.conduit_nodes.contains(id)
+            }
         }
     }
 
@@ -1262,8 +1487,10 @@ impl MachineHome {
     /// empty/unknown endpoint, or an exact (from,to) duplicate, so the editor's connection UI
     /// (and an AI edit) can only ever produce valid, loadable wiring. Returns true if added.
     /// (v0.523)
+    /// Also refused: a wire to or from a read-only ship row (`is_locked`), which the save outside
+    /// the Dev mode would drop.
     pub fn add_connection(&mut self, from: &str, to: &str, kind: &str) -> bool {
-        if from == to || from.is_empty() || to.is_empty() {
+        if from == to || from.is_empty() || to.is_empty() || self.connection_locked(from, to) {
             return false;
         }
         let live: std::collections::HashSet<String> =
@@ -1285,19 +1512,24 @@ impl MachineHome {
 
     /// Remove the connection at `idx` (an index into `connections`). Returns true if removed.
     /// (v0.523)
+    /// A connection touching a read-only ship row (`is_locked`) is kept.
     pub fn remove_connection(&mut self, idx: usize) -> bool {
-        if idx < self.connections.len() {
-            self.connections.remove(idx);
-            true
-        } else {
-            false
+        match self.connections.get(idx) {
+            Some(c) if !self.connection_locked(&c.from, &c.to) => {
+                self.connections.remove(idx);
+                true
+            }
+            _ => false,
         }
     }
 
     /// Remove the connection between two machines, in EITHER direction (v0.626). Lets the viewport
     /// "click a pipe -> Remove" gizmo drop a wire by its endpoints without knowing its list index.
-    /// Returns true if a connection was removed.
+    /// Returns true if a connection was removed. One touching a read-only ship row is kept.
     pub fn remove_connection_between(&mut self, a: &str, b: &str) -> bool {
+        if self.connection_locked(a, b) {
+            return false;
+        }
         let before = self.connections.len();
         self.connections
             .retain(|c| !((c.from == a && c.to == b) || (c.from == b && c.to == a)));
@@ -1487,7 +1719,39 @@ impl MachineHome {
     /// balance counts only what the home makes on its own (`MachineDef::average_supply_watts`); a
     /// home that balances only by running its backstop genset every day WARNS, naming the hours and
     /// the fuel, and one that cannot balance even with the genset running all day FAILS.
+    ///
+    /// Run lengths (the Conduits and Data links checks) measure between the two machines' offsets
+    /// as written; on a ship, where offsets are zone-local, use `buildability_report_in` with the
+    /// ship's zones so a run between two zones measures in ship metres.
     pub fn buildability_report(&self, sun_hours: f32, basis: MeterBasis) -> BuildabilityReport {
+        self.buildability_report_in(sun_hours, basis, None)
+    }
+
+    /// Where a machine row stands for measuring a run to another machine: its ship position
+    /// (`zone_world_pos` in its zone) when the ship's zones are known, else its offset as written.
+    /// Since increment 1a offsets are zone-local, so subtracting two offsets in different zones
+    /// measured the home's battery to the Commons at 10 m instead of the real 75 m.
+    fn run_pos(inst: &MachineInstance, zones: Option<&[ZoneRect]>) -> (f32, f32, f32) {
+        match zones.and_then(|z| resolve_zone_rect(z, &inst.zone)) {
+            Some(zr) => zone_world_pos(zr, inst.offset),
+            None => inst.offset,
+        }
+    }
+
+    /// The length of a run between machines `from` and `to` (metres, straight line, at least
+    /// 1 m), measured the way the Conduits and Data links checks measure it. None when either
+    /// id is not a placed machine.
+    pub fn run_length(&self, from: &str, to: &str, zones: Option<&[ZoneRect]>) -> Option<f32> {
+        let all = self.all_instances();
+        let a = all.iter().find(|i| i.id == from)?;
+        let b = all.iter().find(|i| i.id == to)?;
+        let (p, q) = (Self::run_pos(a, zones), Self::run_pos(b, zones));
+        Some(((p.0 - q.0).powi(2) + (p.1 - q.1).powi(2) + (p.2 - q.2).powi(2)).sqrt().max(1.0))
+    }
+
+    /// `buildability_report` with the ship's zones (`ShipStructure::zone_rects`), so the run
+    /// lengths it sizes cables and data links by are measured in ship metres (`run_pos`).
+    pub fn buildability_report_in(&self, sun_hours: f32, basis: MeterBasis, zones: Option<&[ZoneRect]>) -> BuildabilityReport {
         let all = self.all_instances();
         // Sum the electrical roles across every placed machine (via its catalog def's power).
         let mut solar_peak = 0.0f32; // W at full sun
@@ -1642,8 +1906,9 @@ impl MachineHome {
         // 4. Conduits (v0.605): every POWER run needs a real copper cable that carries the load it
         //    serves over the run length, within ampacity + <=5% voltage drop. Auto-picks the cheapest
         //    copper that passes (the teaching moment: a lamp run takes thin 14 AWG; an industrial feeder
-        //    needs 6 AWG). Run length comes from the machines' world offsets (box-home coords are
-        //    absolute world metres). A connection may pin a cable via `spec`; otherwise it's auto-sized.
+        //    needs 6 AWG). Run length is the straight line between the two machines in ship metres
+        //    (`run_pos`, given the zones). A connection may pin a cable via `spec`; otherwise it's
+        //    auto-sized.
         let power_runs: Vec<&MachineConnection> =
             self.connections.iter().filter(|c| c.kind == "power").collect();
         if !power_runs.is_empty() {
@@ -1672,7 +1937,7 @@ impl MachineHome {
                 if load <= 0.0 {
                     continue; // no real electrical load on this run -- nothing to size
                 }
-                let len = dist(from.offset, to.offset).max(1.0);
+                let len = dist(Self::run_pos(from, zones), Self::run_pos(to, zones)).max(1.0);
                 match &c.spec {
                     // An explicitly pinned cable: validate it against the load.
                     Some(id) => match conduit_type(id) {
@@ -1729,8 +1994,8 @@ impl MachineHome {
         // 6. Data links (v0.621): every DATA run needs a medium (ethernet/fibre/WiFi) that carries the
         //    destination's bandwidth demand over the run length. Auto-pick the cheapest, or validate a
         //    pinned medium. A wireless medium is judged like a wired one, on bandwidth and range (its
-        //    RF-harms-a-grow caution was removed 2026-09-27 with the crop harm). Length from the
-        //    machines' world offsets (box-home coords).
+        //    RF-harms-a-grow caution was removed 2026-09-27 with the crop harm). Length as the
+        //    Conduits check measures it (`run_pos`).
         let data_runs: Vec<&MachineConnection> = self.connections.iter().filter(|c| c.kind == "data").collect();
         if !data_runs.is_empty() {
             let by_id: std::collections::HashMap<&str, &MachineInstance> =
@@ -1749,7 +2014,7 @@ impl MachineHome {
                 if demand <= 0.0 {
                     continue; // nothing demands data on this run
                 }
-                let len = dist(from.offset, to.offset).max(1.0);
+                let len = dist(Self::run_pos(from, zones), Self::run_pos(to, zones)).max(1.0);
                 let medium = match &c.spec {
                     Some(id) => data_medium(id),
                     None => cheapest_data_link_for(demand, len),
@@ -1951,10 +2216,10 @@ impl MachineHome {
     ///
     /// `zones` selects the coordinate model (v0.538 box mode, generalized per-zone v0.754):
     /// - **zones = Some(rects)** (a ShipStructure multi-zone home): each instance's
-    ///   `offset.0`/`offset.2` is an ABSOLUTE world x/z, CLAMPED into ITS zone's footprint at that
-    ///   zone's origin (`resolve_zone_rect` falls back "home" -> first zone for a stale zone id) so
-    ///   a machine authored with legacy room-relative (often negative) coords still lands visibly
-    ///   INSIDE its zone; the y base is the ZONE's floor (its origin y). No instance is skipped on
+    ///   `offset.0`/`offset.2` is a ZONE-LOCAL x/z (increment 1a), kept inside ITS zone's
+    ///   footprint and placed at that zone's origin (`zone_world_pos`; `resolve_zone_rect` falls
+    ///   back "home" -> first zone for a stale zone id) so a machine with an out-of-box offset
+    ///   still lands visibly INSIDE its zone; the y base is the ZONE's floor. No instance is skipped on
     ///   a stale room id -- position no longer depends on the churning flood-fill room ids, so a
     ///   machine survives wall edits and old data still renders.
     /// - **zones = None** (a legacy AABB-room ship layout): the offset is RELATIVE to the room
@@ -1969,13 +2234,12 @@ impl MachineHome {
         for inst in self.all_instances() {
             let Some(def) = self.catalog.get(&inst.machine) else { continue };
             let (x, y, z, floor_y, ceiling_y) = if let Some(zones) = zones {
-                // Absolute world x/z clamped into the machine's zone; y from that zone's floor.
+                // Zone-local x/z, kept inside the machine's zone, placed at that zone's origin;
+                // y from that zone's floor (`zone_world_pos`).
                 let Some(zr) = resolve_zone_rect(zones, &inst.zone) else { continue };
-                let (ox, oy, oz) = zr.origin;
-                let (w, d, h) = zr.size;
-                let x = inst.offset.0.clamp(ox + 0.3, (ox + w - 0.3).max(ox + 0.3));
-                let z = inst.offset.2.clamp(oz + 0.3, (oz + d - 0.3).max(oz + 0.3));
-                (x, oy + inst.offset.1, z, oy, oy + h)
+                let (x, y, z) = zone_world_pos(zr, inst.offset);
+                let (_, oy, _) = zr.origin;
+                (x, y, z, oy, oy + zr.size.2)
             } else {
                 let Some(g) = rooms.get(&inst.room) else { continue };
                 (
@@ -2148,13 +2412,12 @@ mod tests {
     #[test]
     fn every_placed_machine_stands_inside_the_room_it_names() {
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
-        let ship = crate::ship::ship_structure::ShipStructure::load(
-            &root.join("data").join("blueprints").join("ship_structure.ron"),
-        )
-        .expect("ship_structure.ron parses");
+        let ship = crate::ship::ship_structure::ShipStructure::load_and_assemble(&root.join("data"), None)
+            .expect("the shipped ship assembles");
         let home_zone = &ship.zones[ship.home_zone_index()];
-        // Only the sub-zones INSIDE the acre are rooms; the mothership's macro districts
-        // (res-1, hangar-1, ...) sit outside the 55 x 89 body and name no machine.
+        // Only the sub-zones INSIDE the acre are rooms (the mothership's macro districts moved
+        // to ship level in increment 1a; the filter stays as the guard). Machine offsets and room
+        // rects are both home-local, so they compare directly wherever the plot is.
         let rooms: std::collections::HashMap<&str, &crate::ship::home_structure::Zone> = home_zone
             .body
             .zones
@@ -2179,7 +2442,7 @@ mod tests {
                 }
                 let Some(z) = rooms.get(inst.room.as_str()) else {
                     panic!(
-                        "{file}: machine '{}' names room '{}', which is not a room zone in ship_structure.ron",
+                        "{file}: machine '{}' names room '{}', which is not a room zone in data/homes/homestead.ron",
                         inst.id, inst.room
                     );
                 };
@@ -2302,6 +2565,8 @@ mod tests {
         let mut catalog = BTreeMap::new();
         catalog.insert("solar_panel".to_string(), test_def("box"));
         let home = MachineHome {
+            ship_machines: None,
+            ship_part: Default::default(),
             catalog,
             instances: Vec::new(),
             arrays: vec![MachineArray {
@@ -2350,6 +2615,8 @@ mod tests {
             spec: None,
         };
         let mut home = MachineHome {
+            ship_machines: None,
+            ship_part: Default::default(),
             catalog,
             instances: vec![inst("a"), inst("b"), inst("c")],
             arrays: Vec::new(),
@@ -2382,6 +2649,8 @@ mod tests {
             screen_source: None,
         };
         let mut home = MachineHome {
+            ship_machines: None,
+            ship_part: Default::default(),
             catalog,
             instances: vec![inst("g1", "garden"), inst("g2", "garden"), inst("k1", "kitchen")],
             arrays: vec![MachineArray {
@@ -2432,6 +2701,8 @@ mod tests {
             screen_source: None,
         };
         let mut home = MachineHome {
+            ship_machines: None,
+            ship_part: Default::default(),
             catalog,
             instances: vec![inst("a"), inst("b")],
             arrays: Vec::new(),
@@ -2460,6 +2731,8 @@ mod tests {
         let mut catalog = BTreeMap::new();
         catalog.insert("box".to_string(), test_def("box"));
         let mut home = MachineHome {
+            ship_machines: None,
+            ship_part: Default::default(),
             catalog,
             instances: vec![MachineInstance { id: "solo".into(), machine: "box".into(), room: "garden".into(), offset: (1.0, 0.0, 2.0), rotation: 0.0, zone: "home".into(), screen_source: None }],
             arrays: vec![MachineArray {
@@ -2504,6 +2777,8 @@ mod tests {
         catalog.insert("box".to_string(), test_def("box"));
         let inst = |id: &str| MachineInstance { id: id.into(), machine: "box".into(), room: "g".into(), offset: (0.0, 0.0, 0.0), rotation: 0.0, zone: "home".into(), screen_source: None };
         let mut home = MachineHome {
+            ship_machines: None,
+            ship_part: Default::default(),
             catalog,
             instances: vec![inst("a"), inst("b"), inst("c")],
             arrays: Vec::new(),
@@ -2532,6 +2807,8 @@ mod tests {
         let mut catalog = BTreeMap::new();
         catalog.insert("box".to_string(), test_def("box"));
         let mut home = MachineHome {
+            ship_machines: None,
+            ship_part: Default::default(),
             catalog,
             instances: Vec::new(),
             arrays: Vec::new(),
@@ -2566,6 +2843,8 @@ mod tests {
         let mut catalog = BTreeMap::new();
         catalog.insert("box".to_string(), test_def("box"));
         let mut home = MachineHome {
+            ship_machines: None,
+            ship_part: Default::default(),
             catalog,
             instances: vec![MachineInstance { id: "m1".into(), machine: "box".into(), room: "g".into(), offset: (1.0, 0.0, 2.0), rotation: 90.0, zone: "home".into(), screen_source: None }],
             arrays: Vec::new(),
@@ -2600,6 +2879,8 @@ mod tests {
         let mut catalog = BTreeMap::new();
         catalog.insert("load".to_string(), def_with_power(Some(MachinePower::Consumer { watts: 100.0, priority: 1, idle_watts: None, average_watts: None })));
         let home = MachineHome {
+            ship_machines: None,
+            ship_part: Default::default(),
             catalog,
             instances: vec![MachineInstance { id: "l1".into(), machine: "load".into(), room: "garage".into(), offset: (0.0, 0.0, 0.0), rotation: 0.0, zone: "home".into(), screen_source: None }],
             arrays: Vec::new(),
@@ -2623,6 +2904,8 @@ mod tests {
         catalog.insert("load".to_string(), def_with_power(Some(MachinePower::Consumer { watts: 100.0, priority: 1, idle_watts: None, average_watts: None })));
         let inst = |id: &str, m: &str| MachineInstance { id: id.into(), machine: m.into(), room: "g".into(), offset: (0.0, 0.0, 0.0), rotation: 0.0, zone: "home".into(), screen_source: None };
         let home = MachineHome {
+            ship_machines: None,
+            ship_part: Default::default(),
             catalog,
             instances: vec![inst("p1", "panel"), inst("l1", "load")],
             arrays: Vec::new(),
@@ -2664,6 +2947,8 @@ mod tests {
         catalog.insert("load".to_string(), def_with_power(Some(MachinePower::Consumer { watts: 100.0, priority: 1, idle_watts: None, average_watts: None })));
         let inst = |id: &str, m: &str| MachineInstance { id: id.into(), machine: m.into(), room: "g".into(), offset: (0.0, 0.0, 0.0), rotation: 0.0, zone: "home".into(), screen_source: None };
         let home = MachineHome {
+            ship_machines: None,
+            ship_part: Default::default(),
             catalog,
             instances: vec![inst("p1", "panel"), inst("a1", "air_handler"), inst("s1", "stove"), inst("g1", "grow_light"), inst("l1", "load")],
             arrays: Vec::new(),
@@ -2962,6 +3247,8 @@ mod tests {
             let mut instances = vec![inst("p1", "panel"), inst("w1", "wind"), inst("g1", "genset"), inst("b1", "batt")];
             instances.extend(loads);
             MachineHome {
+                ship_machines: None,
+                ship_part: Default::default(),
                 catalog: catalog.clone(),
                 instances,
                 arrays: Vec::new(),
@@ -3052,6 +3339,8 @@ mod tests {
         catalog.insert("load".to_string(), def_with_power(Some(MachinePower::Consumer { watts: 100.0, priority: 1, idle_watts: None, average_watts: None })));
         let inst = |id: &str, m: &str| MachineInstance { id: id.into(), machine: m.into(), room: "g".into(), offset: (0.0, 0.0, 0.0), rotation: 0.0, zone: "home".into(), screen_source: None };
         let home = MachineHome {
+            ship_machines: None,
+            ship_part: Default::default(),
             catalog,
             instances: vec![inst("p1", "panel"), inst("b1", "batt"), inst("l1", "load")],
             arrays: Vec::new(),
@@ -3082,6 +3371,8 @@ mod tests {
         catalog.insert("grow_light".to_string(), def_with_power(Some(MachinePower::Consumer { watts: 100.0, priority: 5, idle_watts: None, average_watts: None })));
         let inst = |id: &str, m: &str| MachineInstance { id: id.into(), machine: m.into(), room: "g".into(), offset: (0.0, 0.0, 0.0), rotation: 0.0, zone: "home".into(), screen_source: None };
         let mut home = MachineHome {
+            ship_machines: None,
+            ship_part: Default::default(),
             catalog,
             instances: vec![inst("p1", "panel"), inst("l1", "load")],
             arrays: Vec::new(),
@@ -3345,6 +3636,8 @@ mod tests {
         catalog.insert("load".to_string(), def_with_power(Some(MachinePower::Consumer { watts: 100.0, priority: 1, idle_watts: None, average_watts: None })));
         let inst = |id: &str, m: &str| MachineInstance { id: id.into(), machine: m.into(), room: "garage".into(), offset: (0.0, 0.0, 0.0), rotation: 0.0, zone: "home".into(), screen_source: None };
         let home = MachineHome {
+            ship_machines: None,
+            ship_part: Default::default(),
             catalog,
             instances: vec![inst("p1", "panel"), inst("b1", "batt"), inst("l1", "load")],
             arrays: Vec::new(),
@@ -3373,6 +3666,8 @@ mod tests {
         catalog.insert("load".to_string(), def_with_power(Some(MachinePower::Consumer { watts: 100.0, priority: 1, idle_watts: None, average_watts: None })));
         let inst = |id: &str, m: &str| MachineInstance { id: id.into(), machine: m.into(), room: "garage".into(), offset: (0.0, 0.0, 0.0), rotation: 0.0, zone: "home".into(), screen_source: None };
         let home = MachineHome {
+            ship_machines: None,
+            ship_part: Default::default(),
             catalog,
             instances: vec![inst("p1", "panel"), inst("b1", "batt"), inst("l1", "load")],
             arrays: Vec::new(),
@@ -3396,6 +3691,8 @@ mod tests {
         let mut catalog = BTreeMap::new();
         catalog.insert("box".to_string(), test_def("box"));
         let home = MachineHome {
+            ship_machines: None,
+            ship_part: Default::default(),
             catalog,
             instances: vec![MachineInstance { id: "a".into(), machine: "box".into(), room: "garage".into(), offset: (0.0, 0.0, 0.0), rotation: 0.0, zone: "home".into(), screen_source: None }],
             arrays: Vec::new(),
@@ -3435,6 +3732,8 @@ mod tests {
         sphere_def.size = (0.5, 0.0, 0.0); // radius 0.5
         catalog.insert("ball".to_string(), sphere_def);
         MachineHome {
+            ship_machines: None,
+            ship_part: Default::default(),
             catalog,
             instances: vec![
                 MachineInstance { id: "b1".into(), machine: "box".into(), room: "garage".into(), offset: (1.0, 0.0, 2.0), rotation: 0.0, zone: "home".into(), screen_source: None },
@@ -3456,17 +3755,18 @@ mod tests {
         vec![ZoneRect { id: "home".into(), origin: (0.0, 0.0, 0.0), size: (w, d, h) }]
     }
 
-    /// v0.754 (ship-superstructure increment A): a machine whose `zone` names a second zone clamps
-    /// into THAT zone's footprint at that zone's origin -- not the home's -- and its y sits on that
-    /// zone's deck. A stale zone id falls back to "home" deterministically.
+    /// v0.754 (ship-superstructure increment A): a machine whose `zone` names a second zone stays
+    /// inside THAT zone's footprint at that zone's origin -- not the home's -- and its y sits on
+    /// that zone's deck. A stale zone id falls back to "home" deterministically. Since increment
+    /// 1a the offset is ZONE-LOCAL: (5, 0, 5) in a zone at (70, 2, 5) stands at (75, 2, 10).
     #[test]
     fn machine_clamps_into_its_zones_footprint_at_that_zones_origin() {
         let mut home = pos_test_home();
         home.instances = vec![
-            // In the commons zone but authored way outside it: must clamp into 70..90 x, 5..35 z.
+            // At the commons zone's very corner: kept 0.3 m inside, at 70.3 x, 5.3 z.
             MachineInstance { id: "shop".into(), machine: "box".into(), room: "g".into(), offset: (0.0, 0.0, 0.0), rotation: 0.0, zone: "commons".into(), screen_source: None },
-            // Inside the commons footprint: passes through unclamped, y on the commons deck (y=2).
-            MachineInstance { id: "stall".into(), machine: "box".into(), room: "g".into(), offset: (75.0, 0.0, 10.0), rotation: 0.0, zone: "commons".into(), screen_source: None },
+            // Inside the commons footprint: zone origin + offset, y on the commons deck (y=2).
+            MachineInstance { id: "stall".into(), machine: "box".into(), room: "g".into(), offset: (5.0, 0.0, 5.0), rotation: 0.0, zone: "commons".into(), screen_source: None },
             // A stale zone id: falls back to the "home" zone's footprint.
             MachineInstance { id: "lost".into(), machine: "box".into(), room: "g".into(), offset: (75.0, 0.0, 10.0), rotation: 0.0, zone: "deleted_zone".into(), screen_source: None },
         ];
@@ -3485,6 +3785,191 @@ mod tests {
         let lost = placed.iter().find(|p| p.id == "lost").unwrap();
         assert!(lost.pos.0 <= 55.0 - 0.3 + 1e-5 && lost.pos.2 <= 89.0 - 0.3 + 1e-5, "a stale zone id falls back to the home footprint");
         assert_eq!(lost.floor_y, 0.0);
+    }
+
+    /// Increment 1a (docs/design/ship-homes-and-logistics.md): the Commons' 11 rows live in
+    /// data/machines/ship.ron, Commons-local. home.ron links it, so loading home.ron gives the
+    /// same machines as before the split, and on the ship assembled at p1 every Commons machine
+    /// stands exactly where it stood (its old absolute position). home_solo.ron does not link it.
+    /// Saving writes the household's part to the home file and the ship's part only through
+    /// `save_ship_part`. Red check, run: dropping `merge_ship_machines` from `load` fails the
+    /// first assertion (the Commons machines are missing).
+    #[test]
+    fn the_commons_machines_live_in_the_ship_file_and_merge_back_in() {
+        let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let machines = data.join("machines");
+        let commons_ids = ["mushhum_c1", "mushfan_c1", "aqua_c1", "composter_c1", "mush_c1", "apoth_c1", "apoth_c2", "market_c1", "market_c2", "market_c3"];
+        let merged = MachineHome::load(&machines.join("home.ron")).expect("home.ron loads");
+        let ids: Vec<String> = merged.all_instances().into_iter().map(|i| i.id).collect();
+        for id in commons_ids.iter().chain(["ctower_0", "ctower_8"].iter()) {
+            assert!(ids.iter().any(|i| i == id), "{id} is merged in from ship.ron");
+        }
+        let home_only = MachineHome::load_file(&machines.join("home.ron")).expect("parses");
+        assert_eq!(home_only.ship_machines.as_deref(), Some("ship.ron"));
+        assert!(home_only.all_instances().iter().all(|i| i.zone == "home"), "home.ron holds only home rows");
+        let ship_only = MachineHome::load_file(&machines.join("ship.ron")).expect("parses");
+        assert_eq!(ship_only.instances.len() + ship_only.arrays.len(), 11, "the 11 Commons rows");
+        assert_eq!(ship_only.connections.len(), 5, "the 5 connections that touch them");
+        assert!(ship_only.all_instances().iter().all(|i| i.zone == "commons"));
+        let solo = MachineHome::load(&machines.join("home_solo.ron")).expect("home_solo.ron loads");
+        assert!(solo.ship_machines.is_none() && solo.all_instances().iter().all(|i| i.zone == "home"), "the solo home loads without them, as before");
+
+        // Every Commons machine stands where it stood before the split.
+        let ship = crate::ship::ship_structure::ShipStructure::load_and_assemble(&data, None).expect("assembles");
+        let placed = merged.placements(&std::collections::HashMap::new(), Some(&ship.zone_rects()));
+        for (id, was) in [("mush_c1", (76.5, 0.0, 49.0)), ("aqua_c1", (76.5, 0.0, 44.0)), ("market_c1", (97.0, 0.0, 32.0)), ("market_c3", (97.0, 0.0, 60.0)), ("ctower_0", (79.0, 0.0, 44.0)), ("apoth_c2", (86.5, 0.0, 52.0))] {
+            let p = placed.iter().find(|p| p.id == id).unwrap_or_else(|| panic!("{id} is placed"));
+            assert!(
+                (p.pos.0 - was.0).abs() < 1e-4 && (p.pos.1 - was.1).abs() < 1e-4 && (p.pos.2 - was.2).abs() < 1e-4,
+                "{id} stands at {:?}, it stood at {was:?}",
+                p.pos
+            );
+        }
+
+        // Saving splits: the household part to home.ron, the ship part only via save_ship_part.
+        let dir = std::env::temp_dir().join(format!(
+            "hos_ship_machines_{}",
+            std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()
+        ));
+        let mdir = dir.join("machines");
+        std::fs::create_dir_all(&mdir).unwrap();
+        for f in ["home.ron", "ship.ron"] {
+            std::fs::copy(machines.join(f), mdir.join(f)).unwrap();
+        }
+        let ship_bytes = std::fs::read(mdir.join("ship.ron")).unwrap();
+        let mut layout = MachineHome::load(&mdir.join("home.ron")).expect("loads");
+        layout.instances.iter_mut().find(|i| i.id == "market_c2").unwrap().offset.0 = 20.0;
+        layout.save(&mdir.join("home.ron")).expect("saves");
+        let written = MachineHome::load_file(&mdir.join("home.ron")).expect("parses");
+        assert!(written.all_instances().iter().all(|i| i.zone == "home"), "a save never copies the Commons into the home file");
+        assert_eq!(written.connections.len(), home_only.connections.len(), "only the household's connections");
+        assert_eq!(std::fs::read(mdir.join("ship.ron")).unwrap(), ship_bytes, "save() leaves the ship file alone");
+        layout.save_ship_part(&mdir.join("home.ron")).expect("writes the ship part");
+        let back = MachineHome::load(&mdir.join("home.ron")).expect("loads");
+        assert_eq!(back.instances.iter().find(|i| i.id == "market_c2").unwrap().offset.0, 20.0, "the ship part was written");
+        assert_eq!(back.all_instances().len(), merged.all_instances().len(), "nothing lost or doubled");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Outside the Dev mode the ship's machines are read-only (`ShipPart::locked`), because
+    /// only a Dev save writes data/machines/ship.ron: an edit to a Commons stall in Normal mode
+    /// would be dropped on the next load without a word (the critic's review of increment 1a).
+    /// Locked, the ship's rows (an array cell too) cannot be removed, wired, unwired or given a
+    /// conduit edge, while the household's own machines edit as before. Unlocked (the Dev mode)
+    /// they edit freely. A layout that links no ship file has nothing to lock.
+    /// Red check, run: deleting the `is_locked` guard in `remove_instance` fails the first
+    /// "still there" assertion.
+    #[test]
+    fn the_ships_machines_are_read_only_outside_the_dev_mode() {
+        let machines = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("machines");
+        let mut layout = MachineHome::load(&machines.join("home.ron")).expect("home.ron loads");
+        layout.ship_part.locked = true;
+        let has = |h: &MachineHome, id: &str| h.all_instances().iter().any(|i| i.id == id);
+        assert!(layout.is_locked("market_c2") && layout.is_locked("ctower_0"), "a Commons row and an array cell are the ship's");
+        assert!(!layout.is_locked("battery_7"), "the household's battery is not");
+        assert!(layout.locked_ids().contains("ctower_8") && !layout.locked_ids().contains("battery_7"));
+
+        layout.remove_instance("market_c2");
+        assert!(has(&layout, "market_c2"), "a locked ship row is still there after a remove");
+        assert!(!layout.add_connection("battery_7", "market_c1", "power"), "no new wire to a ship row");
+        let to_ship = layout.connections.iter().position(|c| c.from == "battery_7" && c.to == "mushhum_c1").expect("the battery feeds the Commons humidifier");
+        assert!(!layout.remove_connection(to_ship), "that wire is the ship's too");
+        assert!(!layout.remove_connection_between("mushhum_c1", "battery_7"), "in either direction");
+        assert!(!layout.add_conduit_edge(ConduitEnd::Machine("aqua_c1".into()), ConduitEnd::Machine("battery_7".into()), "power"));
+
+        // The household's own machines still edit.
+        let home_wire = layout.connections.iter().position(|c| !layout.connection_locked(&c.from, &c.to)).expect("a household wire");
+        assert!(layout.remove_connection(home_wire), "a household wire comes out");
+        assert!(layout.add_connection("battery_7", "battery_8", "power") || layout.connections.iter().any(|c| c.from == "battery_7" && c.to == "battery_8"));
+        layout.remove_instance("battery_8");
+        assert!(!has(&layout, "battery_8"), "a household machine is removed");
+
+        // Dev: unlocked, the ship's rows edit.
+        layout.ship_part.locked = false;
+        assert!(!layout.is_locked("market_c2") && layout.locked_ids().is_empty());
+        layout.remove_instance("market_c2");
+        assert!(!has(&layout, "market_c2"), "in the Dev mode a ship row can be removed");
+
+        // A self-contained file has no ship part to lock.
+        let mut solo = MachineHome::load(&machines.join("home_solo.ron")).expect("home_solo.ron loads");
+        solo.ship_part.locked = true;
+        let first = solo.instances[0].id.clone();
+        assert!(!solo.is_locked(&first) && solo.locked_ids().is_empty());
+    }
+
+    /// A run between two zones measures in SHIP metres. Machine offsets are zone-local since
+    /// increment 1a, so the home's battery (home-local 3, 34.2) and the Commons humidifier it
+    /// feeds (Commons-local 11.5, 29) are 75 m apart on the ship, not the 10 m their offsets
+    /// differ by. Then the report: a 1 kW load on pinned 12 AWG passes 2 m away in the same zone
+    /// and fails once the load's zone is 500 m off, which the report only sees when it is given
+    /// the zones. Red check, run: measuring `from.offset` to `to.offset` in the Conduits check
+    /// again (the 1a code) fails the "fails 500 m away" assertion.
+    #[test]
+    fn a_run_between_zones_measures_in_ship_metres() {
+        let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let layout = MachineHome::load(&data.join("machines").join("home.ron")).expect("home.ron loads");
+        let ship = crate::ship::ship_structure::ShipStructure::load_and_assemble(&data, Some("p1")).expect("assembles");
+        let zones = ship.zone_rects();
+        let real = layout.run_length("battery_7", "mushhum_c1", Some(&zones)).expect("both are placed");
+        let expect = (73.5f32 * 73.5 + 14.8 * 14.8).sqrt(); // (3, 34.2) to (65 + 11.5, 20 + 29)
+        assert!((real - expect).abs() < 0.01, "the run is {real} m, it is {expect} m on the ship");
+        let frames_mixed = layout.run_length("battery_7", "mushhum_c1", None).unwrap();
+        assert!(frames_mixed < 10.0, "without the zones the offsets alone say {frames_mixed} m");
+
+        let mut home = wired_pair(
+            def_with_power(Some(MachinePower::Generator { watts: 5000.0, fuel_lph: 0.0 })),
+            def_with_power(Some(MachinePower::Consumer { watts: 1000.0, priority: 1, idle_watts: None, average_watts: None })),
+            2.0,
+            Some("cu_awg12"),
+        );
+        let conduits = |r: BuildabilityReport| r.checks.into_iter().find(|c| c.name == "Conduits").expect("a Conduits check");
+        let near = vec![
+            ZoneRect { id: "home".into(), origin: (0.0, 0.0, 0.0), size: (10.0, 10.0, 3.0) },
+            ZoneRect { id: "far".into(), origin: (500.0, 0.0, 0.0), size: (10.0, 10.0, 3.0) },
+        ];
+        assert_eq!(conduits(home.buildability_report_in(4.5, MeterBasis::default(), Some(&near))).status, CheckStatus::Pass, "2 m apart in one zone");
+        home.instances[1].zone = "far".into();
+        let far = conduits(home.buildability_report_in(4.5, MeterBasis::default(), Some(&near)));
+        assert_eq!(far.status, CheckStatus::Fail, "500 m away a 12 AWG run drops too much: {}", far.detail);
+    }
+
+    /// Merge and split mirror each other for EVERY part of the ship's machine file: a loop, a
+    /// conduit node and a conduit edge authored in the ship file go back there on a save and stay
+    /// out of the home file, and the household's own node stays home. Before the fix the merge
+    /// brought the ship's nodes in and the split gave every node to the home file (and dropped the
+    /// ship's loops). Red check, run: returning `Vec::new()` for the ship part's conduit nodes
+    /// again fails "the ship's node went back to the ship file".
+    #[test]
+    fn the_ships_loops_and_conduit_graph_round_trip_to_the_ship_file() {
+        let src = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("machines");
+        let dir = std::env::temp_dir().join(format!(
+            "hos_ship_conduits_{}",
+            std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::copy(src.join("home.ron"), dir.join("home.ron")).unwrap();
+        let mut ship = MachineHome::load_file(&src.join("ship.ron")).expect("ship.ron parses");
+        ship.conduit_nodes.push(ConduitNode { id: "commons_main".into(), pos: (70.0, 0.0, 30.0), tier: 0, kind: "water".into(), grid_tie: true });
+        ship.conduit_edges.push(ConduitEdge { from: ConduitEnd::Node("commons_main".into()), to: ConduitEnd::Machine("aqua_c1".into()), kind: "water".into() });
+        ship.loops.push(HomeLoop { name: "Commons water".into(), demand: "d".into(), supply: "s".into(), closes: true, weakest: false, note: String::new(), food_demand_kcal: None });
+        ship.write_ron(&dir.join("ship.ron")).unwrap();
+
+        let mut layout = MachineHome::load(&dir.join("home.ron")).expect("loads merged");
+        assert!(layout.conduit_nodes.iter().any(|n| n.id == "commons_main") && layout.loops.iter().any(|l| l.name == "Commons water"), "merged in");
+        layout.conduit_nodes.push(ConduitNode { id: "home_main".into(), pos: (5.0, 0.0, 5.0), tier: 0, kind: "water".into(), grid_tie: false });
+        layout.save(&dir.join("home.ron")).expect("saves the household part");
+        layout.save_ship_part(&dir.join("home.ron")).expect("saves the ship part");
+
+        let ship_back = MachineHome::load_file(&dir.join("ship.ron")).expect("parses");
+        let home_back = MachineHome::load_file(&dir.join("home.ron")).expect("parses");
+        assert!(ship_back.conduit_nodes.iter().any(|n| n.id == "commons_main"), "the ship's node went back to the ship file");
+        assert!(!home_back.conduit_nodes.iter().any(|n| n.id == "commons_main"), "and not into the home file");
+        assert_eq!(ship_back.conduit_edges.len(), 1, "the ship's edge went back to the ship file");
+        assert!(ship_back.loops.iter().any(|l| l.name == "Commons water"), "the ship's loop went back to the ship file");
+        assert!(!home_back.loops.iter().any(|l| l.name == "Commons water"), "and not into the home file");
+        assert!(home_back.conduit_nodes.iter().any(|n| n.id == "home_main"), "the household's own node stays home");
+        assert!(!ship_back.conduit_nodes.iter().any(|n| n.id == "home_main"));
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// v0.525/v0.538: in SHIP mode (zones=None) placements() resolves room center + offset,
@@ -3691,6 +4176,8 @@ mod tests {
         catalog.insert("src".to_string(), src);
         catalog.insert("load".to_string(), load);
         MachineHome {
+            ship_machines: None,
+            ship_part: Default::default(),
             catalog,
             instances: vec![
                 MachineInstance { id: "s1".into(), machine: "src".into(), room: "g".into(), offset: (0.0, 0.0, 0.0), rotation: 0.0, zone: "home".into(), screen_source: None },
@@ -3786,6 +4273,8 @@ mod tests {
         catalog.insert("server".to_string(), server);
         let inst = |id: &str, m: &str| MachineInstance { id: id.into(), machine: m.into(), room: "g".into(), offset: (0.0, 0.0, 0.0), rotation: 0.0, zone: "home".into(), screen_source: None };
         let mut home = MachineHome {
+            ship_machines: None,
+            ship_part: Default::default(),
             catalog,
             instances: vec![inst("u", "uplink"), inst("s", "server")],
             arrays: Vec::new(),
@@ -3833,6 +4322,8 @@ mod tests {
         catalog.insert("load".to_string(), def_with_power(Some(MachinePower::Consumer { watts: 100.0, priority: 1, idle_watts: None, average_watts: None })));
         let inst = |id: &str, m: &str| MachineInstance { id: id.into(), machine: m.into(), room: "g".into(), offset: (0.0, 0.0, 0.0), rotation: 0.0, zone: "home".into(), screen_source: None };
         let mut home = MachineHome {
+            ship_machines: None,
+            ship_part: Default::default(),
             catalog,
             instances: vec![inst("b1", "batt"), inst("l1", "load")],
             arrays: Vec::new(),
@@ -3862,6 +4353,8 @@ mod tests {
         catalog.insert("load".to_string(), def_with_power(Some(MachinePower::Consumer { watts: 80.0, priority: 1, idle_watts: None, average_watts: None })));
         let inst = |id: &str, m: &str| MachineInstance { id: id.into(), machine: m.into(), room: "g".into(), offset: (0.0, 0.0, 0.0), rotation: 0.0, zone: "home".into(), screen_source: None };
         let mut home = MachineHome {
+            ship_machines: None,
+            ship_part: Default::default(),
             catalog,
             instances: vec![inst("p1", "panel"), inst("l1", "load")],
             arrays: Vec::new(),

@@ -67,6 +67,7 @@ const fs = require("fs");
 const path = require("path");
 const { spawn, spawnSync, execSync } = require("child_process");
 const MG = require("./lib/machine-guard.js");
+const DXC = require("./lib/dxc-dlls.js");
 const TR = require("./lib/throwaway-relay.js");
 const { judgeCopresence, LIMITS, figurePixels, FIGURE_MIN_PX } = require("./lib/copresence-judge.js");
 const png = require("./lib/png.js");
@@ -328,11 +329,9 @@ function setupRig() {
   // (target/release has none; the repo root does). Without them the game
   // falls back to FXC, and on 2026-10-03 this rig's first run sat in FXC's
   // pipeline compile for over three minutes, past the autopilot's wait.
-  for (const dll of ["dxcompiler.dll", "dxil.dll"]) {
-    const s = [path.join(path.dirname(EXE), dll), path.join(REPO, dll)].find((p) => fs.existsSync(p));
-    if (s) fs.copyFileSync(s, path.join(RIG, dll));
-    else log(`note: no ${dll} beside the exe or in the repo root; the game will compile shaders with FXC, which is much slower`);
-  }
+  // One shared lookup, scripts/lib/dxc-dlls.js, which logs which folder it
+  // used or that it found neither.
+  DXC.copyDxcDlls({ exe: EXE, repo: REPO, dest: RIG, log });
   for (const f of fs.readdirSync(DEBUG)) {
     if (/\.png$/.test(f) || /_done\.json(\.tmp)?$/.test(f) || /_request\.json$/.test(f)) fs.unlinkSync(path.join(DEBUG, f));
   }

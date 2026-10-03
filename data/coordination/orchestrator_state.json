@@ -571,6 +571,11 @@
       "date": "2026-10-03",
       "decision": "OPERATOR DECIDED: the full list of home types (Cabin, Apartment/cohousing, Townhouse, House, Smallholding, Homestead, Farm, plus group forms) as data, for a full spectrum of colony ship designs; homestead is the default start. Operator went to bed, leaving the session to develop overnight.",
       "why": "Verbatim: \"I like the full list as it adds variety and allows for a full spectrum of colony spaceship designs.\""
+    },
+    {
+      "date": "2026-10-03",
+      "decision": "Overnight combined release v0.1442.0: ship-homes increment 1a (ship_structure.ron + data/homes/homestead.ron + data/machines/ship.ron, assemble at plot, Dev Plots/Districts panel in construction/ship_tools.rs, E-key footprint bound, ship machines read-only outside Dev); save snapshots + Restore (BUG-129); Back up now keeps 10 (BUG-130); figures (BUG-127; BUG-128 inside-out Mesh::sphere open); shared DXC lookup scripts/lib/dxc-dlls.js.",
+      "why": "Operator asked for overnight development with more parallel lanes (usage reset). Each lane builder + critic, fix rounds; shipped together after one combined verify because 1a and the lanes shared lib.rs, photograph-home.js and in-app-ops.md."
     }
   ],
   "active_scopes_to_avoid": [

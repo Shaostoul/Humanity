@@ -75,6 +75,8 @@ const G = require("./rig-graphics.js");
 // (both 2026-09-18). Neither failure looked like a failure; both produced a
 // number.
 const MG = require("./lib/machine-guard.js");
+// The one shared lookup for the DXC shader compiler dlls (see setupRig).
+const DXC = require("./lib/dxc-dlls.js");
 
 const REPO = path.resolve(__dirname, "..");
 const args = process.argv.slice(2);
@@ -287,11 +289,14 @@ function setupRig() {
       execSync("ping -n 3 127.0.0.1 >nul", { shell: "cmd.exe" });
       fs.copyFileSync(EXE_SRC, path.join(RIG, "HumanityOS.exe"));
     }
-    // DXC dlls beside the exe drop boot from ~25 s (FXC) to ~5 s.
-    for (const dll of ["dxcompiler.dll", "dxil.dll"]) {
-      const s = path.join(path.dirname(EXE_SRC), dll);
-      if (fs.existsSync(s)) fs.copyFileSync(s, path.join(RIG, dll));
-    }
+    // The DXC shader compiler dlls drop boot from ~25 s (FXC) to ~5 s. They
+    // come from beside the exe or else the repo root (target/release, the
+    // default exe's folder, holds none), through the one shared lookup,
+    // scripts/lib/dxc-dlls.js, which logs which folder it used or that it
+    // found neither. This lookup used to check only beside the exe, so a
+    // sweep from target/release booted on FXC whenever the rig folder held
+    // no pair left from an earlier copy.
+    DXC.copyDxcDlls({ exe: EXE_SRC, repo: REPO, dest: RIG, log });
   }
 }
 

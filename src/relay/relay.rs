@@ -911,8 +911,8 @@ pub enum RelayMessage {
         target: Option<String>,
     },
 
-    /// Admin presses "Back up now": take a VACUUM INTO snapshot, then reply
-    /// with a confirmation Private + a fresh `backup_list`.
+    /// Admin presses "Back up now": VACUUM INTO snapshot, keep the newest manual copies, then
+    /// reply with a confirmation Private naming any copy removed + a fresh `backup_list`.
     #[serde(rename = "backup_run")]
     BackupRun {},
 
@@ -5545,9 +5545,9 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                     });
                                 } else {
                                     let reply = match state_clone.db.backup_now() {
-                                        Ok(e) => {
-                                            tracing::info!("Manual backup by {my_key_for_recv}: {} ({} bytes)", e.file, e.size_bytes);
-                                            format!("Backup complete: {} ({:.1} MB).", e.file, e.size_bytes as f64 / 1_048_576.0)
+                                        Ok(done) => {
+                                            tracing::info!("Manual backup by {my_key_for_recv}: {} ({} bytes)", done.entry.file, done.entry.size_bytes);
+                                            done.reply() // names any older copy the press removed (backups.rs)
                                         }
                                         Err(e) => {
                                             tracing::error!("Manual backup failed: {e}");

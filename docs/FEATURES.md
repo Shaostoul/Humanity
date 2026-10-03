@@ -1504,6 +1504,18 @@ System trait, SystemRunner, 20+ components, per-frame tick.
 File watcher (notify) invalidates asset cache per frame.
 - Native: `src/hot_reload/`, `src/assets/mod.rs`
 
+### Homes on the ship: plots (increment 1a of docs/design/ship-homes-and-logistics.md, v0.1442.0)
+The ship and the home are separate files: `data/blueprints/ship_structure.ron`
+holds the Commons, street-1, the corridors, 13 districts and a `plots` list (p1,
+p2, `default_plot`); `data/homes/homestead.ron` holds the home design (23 room
+zones, door, spawn); `data/machines/ship.ron` the Commons machines (zone-local).
+Loading assembles the ship with "my home" at my plot's origin
+(`ship_structure::load_and_assemble`); moving a plot moves the whole home, its
+machines and its spawn. Plots and zones may not overlap; the E key builds only
+inside your own plot (Dev exempt); outside Dev the ship's machines are
+read-only. Dev mode has a Plots and Districts panel in Construction
+(`src/gui/pages/construction/ship_tools.rs`). Next: the relay hands out plots (1b).
+
 ### Multiplayer Networking
 WebSocket client (tungstenite), message protocol, ECS sync, position interpolation.
 Other players are drawn by snapshot interpolation (v0.1440.0, BUG-125): a short buffer
@@ -1521,7 +1533,11 @@ Mod manifest format, directory scanning, load order, path override resolution.
 - Data: `data/mods/README.md`, `data/mods/example-mod/mod.json`
 
 ### World Persistence
-Save and load game world state (entities, terrain, player progress).
+Save and load game world state (entities, terrain, player progress). Every save
+is written to a temp file and renamed over the real one, and the previous
+version is kept as a snapshot under `backups/saves/<slot>/` (the newest 10, at
+most one per 15 minutes, never a duplicate); Settings > Data lists them with
+Restore and "Snapshot now" (v0.1442.0, BUG-129).
 - Native: `src/persistence.rs`, `src/save_load.rs` (the offline home: inventory,
   skills, wallet, quests, vehicles, crops, builds and scaffolds, craft batches in
   flight, the world clock; since 2026-09-27 also the asteroids as mined down,

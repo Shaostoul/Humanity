@@ -699,6 +699,7 @@ mod tests {
                 zone("commons", (65.0, 0.0, 20.0), 34.0, 55.0, 8.0),
             ],
             corridors: Vec::new(),
+            ..Default::default()
         }
     }
 
@@ -731,6 +732,7 @@ mod tests {
                 door_height: 2.1,
                 glass_top: true,
             }],
+            ..Default::default()
         }
     }
 
@@ -869,6 +871,7 @@ mod tests {
         let ship = ShipStructure {
             zones: vec![zone("home", (0.0, 0.0, 0.0), 20.0, 120.0, 3.0)],
             corridors: Vec::new(),
+            ..Default::default()
         };
         let geom = hull_geom(&ship, &test_profile()).expect("resolves");
         assert_eq!(geom.frame.axis, HullAxis::Z);
@@ -1034,25 +1037,30 @@ mod tests {
 
     #[test]
     fn shipped_hull_profile_wraps_the_shipped_ship() {
-        let ship_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("data")
-            .join("blueprints")
-            .join("ship_structure.ron");
-        let ship = ShipStructure::load(&ship_path).expect("shipped ship_structure.ron loads");
+        // The ship the game runs: the ship file plus the homestead on its default plot (p1).
+        let data_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let ship = ShipStructure::load_and_assemble(&data_dir, None).expect("the shipped ship assembles");
         let text = std::fs::read_to_string(shipped_profile_path()).expect("shipped profile exists");
         let profile = HullProfile::parse(&text).expect("shipped profile parses");
         let geom = hull_geom(&ship, &profile).expect("resolves around the shipped cluster");
-        // The shipped cluster is longer in X (home 55 wide + commons out to x = 99, vs 89 deep).
-        assert_eq!(geom.frame.axis, HullAxis::X);
-        // Both glass roofs + the glass corridor lid cut holes.
-        assert_eq!(geom.holes.len(), 3, "home roof + commons roof + corridor lid are open");
-        // Coverage: every zone stays margin-inside the hull at its own span.
+        // Since increment 1a the cluster is longer in Z: the home (z 0..89), the Commons, and
+        // street-1 running on to z = 195, against x 0..99.
+        assert_eq!(geom.frame.axis, HullAxis::Z);
+        // Every glass roof and glass corridor lid cuts a hole: the home, the Commons and the
+        // street roofs, the home's corridor and the Commons-to-street corridor.
+        assert_eq!(geom.holes.len(), 5, "home + commons + street roofs and both corridor lids are open");
+        // Coverage: every zone stays margin-inside the hull at its own span, sampled along the
+        // hull's long axis (Z now) with the half-width measured across it (X).
         let c = geom.frame.lat_center;
         for z in &ship.zones {
             let o = z.origin_vec();
-            let req_hw = (o.z - c).abs().max((o.z + z.body.depth - c).abs()) + profile.margin;
+            let (long0, long_len, lat0, lat_len) = match geom.frame.axis {
+                HullAxis::X => (o.x, z.body.width, o.z, z.body.depth),
+                HullAxis::Z => (o.z, z.body.depth, o.x, z.body.width),
+            };
+            let req_hw = (lat0 - c).abs().max((lat0 + lat_len - c).abs()) + profile.margin;
             let req_top = o.y + z.body.height + profile.deck_clearance;
-            for p in [o.x, o.x + z.body.width * 0.5, o.x + z.body.width] {
+            for p in [long0, long0 + long_len * 0.5, long0 + long_len] {
                 assert!(geom.hw_at(p) >= req_hw - 1e-3, "zone '{}' sliced at long {p}", z.id);
                 assert!(geom.top_at(p) >= req_top - 1e-3, "zone '{}' scalped at long {p}", z.id);
             }

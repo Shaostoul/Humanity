@@ -7263,11 +7263,10 @@ mod native_app {
                     }
                     if state.gui_state.construction_save {
                         state.gui_state.construction_save = false;
-                        // v0.534/v0.754: the home is a SHIP when present -> save the WHOLE ship
-                        // (every zone) to ship_structure.ron; else the legacy AABB layout. One
-                        // file per model; the AI + editor share it. Note this is also what
-                        // completes the one-time legacy adoption: after the first save the new
-                        // file exists and home_structure.ron is never read again.
+                        // v0.534/v0.754: the home is a SHIP when present -> save it split back
+                        // into its files (increment 1a: data/homes/<kind>.ron always, the ship
+                        // file only in the Dev mode); else the legacy AABB layout. The AI and
+                        // the editor share the same files.
                         if state.gui_state.ship_structure.is_some() {
                             // Persist the build-mode SPAWN point with the EDITED zone (v0.582) so
                             // the moved avatar survives the save (was lost -- spawn lived only in
@@ -7276,7 +7275,6 @@ mod native_app {
                             if let Some(hs) = zone_body_mut(&mut state.gui_state.ship_structure, state.gui_state.construction_zone) {
                                 hs.spawn = spawn;
                             }
-                            let path = state.data_dir.join("blueprints").join("ship_structure.ron");
                             let ship = state.gui_state.ship_structure.as_mut().unwrap();
                             // Drop corridor rows that no longer resolve (a referenced door/zone was
                             // edited away) BEFORE writing: validate() rejects a whole file over one
@@ -7287,14 +7285,16 @@ mod native_app {
                             if pruned > 0 {
                                 log::warn!("Construction: dropped {pruned} corridor(s) whose openings no longer exist or align");
                             }
-                            match ship.save(&path) {
-                                Ok(()) => {
-                                    log::info!("Construction: ship structure saved to ship_structure.ron");
-                                    state.gui_state.construction_save_note = "Saved ship structure.".to_string();
+                            // Increment 1a: the home design always, the ship file and the ship's
+                            // machines only in the Dev mode (engine::editor::save_ship_and_home).
+                            match crate::engine::editor::save_ship_and_home(state) {
+                                Ok(note) => {
+                                    log::info!("Construction: {note}");
+                                    state.gui_state.construction_save_note = note;
                                 }
                                 Err(e) => {
-                                    log::warn!("Construction: ship structure save failed: {e}");
-                                    state.gui_state.construction_save_note = format!("Structure save FAILED: {e}");
+                                    log::warn!("Construction: save failed: {e}");
+                                    state.gui_state.construction_save_note = format!("Save FAILED: {e}");
                                 }
                             }
                         } else if let Some(layout) = &state.homestead_layout {
@@ -9114,12 +9114,14 @@ mod native_app {
                         if state.remote_avatar.is_none() {
                             // Sized by the constants remote_figure_parts places the parts by
                             // (2026-10-02): the box's base at its origin, the sphere centred on
-                            // it, so a change to either size moves the parts with it.
+                            // it, so a change to either size moves the parts with it. The head
+                            // (and the hair, the same mesh stretched) is figure_head_mesh_data,
+                            // wound to face out: Mesh::sphere drew its inside (2026-10-03).
                             use crate::engine::net_route::{FIGURE_BODY_MESH_H_M, FIGURE_HEAD_MESH_R_M};
                             let body = state.renderer.add_mesh(
                                 Mesh::box_xyz(&state.renderer.device, 0.42, FIGURE_BODY_MESH_H_M, 0.26));
-                            let head = state.renderer.add_mesh(
-                                Mesh::sphere(&state.renderer.device, FIGURE_HEAD_MESH_R_M, 12, 14));
+                            let (hv, hi) = crate::engine::net_route::figure_head_mesh_data(FIGURE_HEAD_MESH_R_M);
+                            let head = state.renderer.add_mesh(Mesh::from_vertices(&state.renderer.device, &hv, &hi));
                             // Teal, slightly emissive so a remote player reads at a glance.
                             let mat = state.renderer.add_material_full(
                                 [0.15, 0.75, 0.85, 1.0], 0.0, 0.5, 1.0, 0.25);
@@ -9146,8 +9148,8 @@ mod native_app {
                                         (skin, hair)
                                     })
                                 });
-                                for (part, at, scale) in crate::engine::net_route::remote_figure_parts(t.position, r.look.as_ref()) {
-                                    let (m, material) = match (part, look_mats) {
+                                for p in crate::engine::net_route::remote_figure_parts(t.position, t.rotation, r.look.as_ref()) {
+                                    let (m, material) = match (p.part, look_mats) {
                                         (crate::engine::net_route::FigurePart::Body, _) => (body, mat),
                                         (crate::engine::net_route::FigurePart::Head, Some((skin, _))) => (head, skin),
                                         (crate::engine::net_route::FigurePart::Head, None) => (head, mat),
@@ -9155,9 +9157,9 @@ mod native_app {
                                         (crate::engine::net_route::FigurePart::Hair, None) => continue,
                                     };
                                     all_objects.push(RenderObject { fade: 0.0,
-                                        position: at,
-                                        rotation: t.rotation,
-                                        scale,
+                                        position: p.at,
+                                        rotation: p.rotation,
+                                        scale: p.scale,
                                         mesh: m,
                                         material,
                                     });
@@ -9165,23 +9167,19 @@ mod native_app {
                             }
                         }
                         // ── Crew NPCs (relay chore AI, v0.663) ──
-                        // Same humanoid marker, amber instead of teal, at each crew
-                        // member's interpolated position while they walk between chores
-                        // and dwell at chore sites. Relay positions are standing height
-                        // (floor + 1.0), so the body sits centered on that and the head
-                        // above. Their name + current chore label live on the RemoteNpc
-                        // component for the future nameplate pass (hud.rs machine-label
-                        // pattern).
+                        // The same figure as a player's, amber instead of teal, at each
+                        // crew member's interpolated position: standing on the floor, head
+                        // on the shoulders (net_route::crew_figure_parts, 2026-10-03; their
+                        // own fixed offsets floated the feet 0.7 m and sank the head into
+                        // the body). It reuses the player figure's meshes, built just above.
                         if state.remote_npc_avatar.is_none() {
-                            let body = state.renderer.add_mesh(
-                                Mesh::box_xyz(&state.renderer.device, 0.42, 1.4, 0.26));
-                            let head = state.renderer.add_mesh(
-                                Mesh::sphere(&state.renderer.device, 0.17, 12, 14));
-                            // Amber, slightly emissive, so crew read distinctly from
-                            // the teal remote players at a glance.
-                            let mat = state.renderer.add_material_full(
-                                [0.92, 0.62, 0.18, 1.0], 0.0, 0.55, 1.0, 0.22);
-                            state.remote_npc_avatar = Some((body, head, mat));
+                            if let Some((body, head, _)) = state.remote_avatar {
+                                // Amber, slightly emissive, so crew read distinctly from
+                                // the teal remote players at a glance.
+                                let mat = state.renderer.add_material_full(
+                                    [0.92, 0.62, 0.18, 1.0], 0.0, 0.55, 1.0, 0.22);
+                                state.remote_npc_avatar = Some((body, head, mat));
+                            }
                         }
                         if let Some((body, head, mat)) = state.remote_npc_avatar {
                             for (_e, (t, _n)) in state
@@ -9190,20 +9188,16 @@ mod native_app {
                                 .query::<(&crate::ecs::components::Transform, &crate::net::sync::RemoteNpc)>()
                                 .iter()
                             {
-                                all_objects.push(RenderObject { fade: 0.0,
-                                    position: t.position - Vec3::new(0.0, 0.3, 0.0),
-                                    rotation: t.rotation,
-                                    scale: Vec3::ONE,
-                                    mesh: body,
-                                    material: mat,
-                                });
-                                all_objects.push(RenderObject { fade: 0.0,
-                                    position: t.position + Vec3::new(0.0, 0.55, 0.0),
-                                    rotation: t.rotation,
-                                    scale: Vec3::ONE,
-                                    mesh: head,
-                                    material: mat,
-                                });
+                                for p in crate::engine::net_route::crew_figure_parts(t.position, t.rotation) {
+                                    let m = if p.part == crate::engine::net_route::FigurePart::Body { body } else { head };
+                                    all_objects.push(RenderObject { fade: 0.0,
+                                        position: p.at,
+                                        rotation: p.rotation,
+                                        scale: p.scale,
+                                        mesh: m,
+                                        material: mat,
+                                    });
+                                }
                             }
                         }
                     }

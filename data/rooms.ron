@@ -42,7 +42,7 @@
     ),
     // The household's fixed workstation (colloquially the "battlestation"; the mothership bridge
     // is the "command deck", a different room). Referenced by a Zone's `room_type` in
-    // data/blueprints/ship_structure.ron. The planned mounting point for the in-world screens
+    // data/homes/homestead.ron. The planned mounting point for the in-world screens
     // (wall_screen, desk_monitor): not built yet, listed under equipment so the room is ready.
     "console_room": (
         name: "Console room",
@@ -121,7 +121,7 @@
     ),
     // The three rooms the 2026-09-19 home redesign added. A room type only has
     // to describe what the room is FOR; the geometry lives in
-    // data/blueprints/ship_structure.ron and points here by `room_type`.
+    // data/homes/homestead.ron and points here by `room_type`.
     "dressing": (
         name: "Dressing Room",
         purpose: "Walk-through wardrobe between the bedroom and the wet cells: clothes, boots, kit",

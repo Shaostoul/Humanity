@@ -75,9 +75,11 @@ pub(crate) fn spawn_home_machine_entity(
     water_islands: &std::collections::HashMap<String, u32>,
     // The machine's RESOLVED world position where the caller has one
     // (load_world's placement pass); None falls back to the instance's raw
-    // offset, which IS absolute world coords in the HomeStructure box model
-    // (menu mode has no resolve pass; corrected on Enter World when machines
-    // despawn + respawn with resolved positions).
+    // offset. That offset is ZONE-LOCAL since increment 1a
+    // (docs/design/ship-homes-and-logistics.md), so it is the machine's ship
+    // position only for a home on plot p1, at the ship's origin. Menu mode has
+    // no resolve pass; Enter World despawns + respawns every machine with its
+    // resolved position, which corrects it.
     world_pos: Option<Vec3>,
     // Typed-container archetypes (v0.728). None in MENU mode (the DataStore
     // isn't threaded there and those entities are despawned + respawned by

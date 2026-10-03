@@ -78,10 +78,10 @@ every load-bearing claim checked by an adversarial verifier
   judge (`scripts/lib/copresence-judge.js`, 23 tests) checks seen, steady
   speed, never backwards, no jump, on the line, in view, on time by the
   computer's clock, and no other figure, plus the figure's colour in two
-  screenshots. Follow-ups it found: the other player's hair cap draws as a
-  dark band across the face; `verify-live-screen.js` and `verify-screens.js`
-  look for the DXC shader-compiler dlls only beside the exe, so from
-  target/release they boot on the slow compiler (minutes); the dev camera
+  screenshots. Follow-ups it found, both fixed v0.1442.0: the hair band
+  across the face (BUG-127; its cause, an inside-out sphere mesh, is open for
+  8 other callers as BUG-128) and rigs missing the DXC shader-compiler pair
+  (all seven rigs now share scripts/lib/dxc-dlls.js); the dev camera
   request turns on fly mode, which takes the player out of the shared world
   (so it hides every other player: use the showcase `cam` request instead);
   stopping, turning and leaving are not judged in the real game yet.
@@ -90,7 +90,13 @@ every load-bearing claim checked by an adversarial verifier
   ship frame), building limited to your own plot, and shared spaces to meet in.
   The design is docs/design/ship-homes-and-logistics.md (2026-10-03: the full
   list of home kinds as data, Homestead the default start, food physically real
-  for every home, 14 increments). THIS WEEK: increment 1a (the ship and the home
+  for every home, 14 increments). Increment 1a SHIPPED v0.1442.0 (the ship and
+  the home are separate files, the home assembled at its plot, a Dev Plots and
+  Districts panel). THIS WEEK, next: increment 1b. Follow-ups 1a found: put
+  the Commons machines on the ship's own power instead of the household
+  battery; `just verify-screens` fails 2 of 12 because the starter kit's
+  17-item backpack pushes the inventory's "Home" row off the screen (the rig
+  needs to scroll it into view; not 1a). Was: increment 1a (the ship and the home
   come apart: a plots list in the ship file, the home in its own design file,
   assembled at my plot) and 1b (the relay hands out plots, each player spawns at
   their own, proven by the co-presence rig in both join orders); then increment 2
@@ -116,11 +122,13 @@ every load-bearing claim checked by an adversarial verifier
   reshoot the clips.
 **Backups (2026-10-02):** an inventory found the newest snapshots restore
 cleanly (integrity check ok, row counts matching live) and that the backup
-key exists only on the VPS. Fixed in v0.1439.0: BUG-122 to BUG-124. Still
-open: game saves have no backups at all (one file rewritten in place); the
-in-app "Back up now" copies are never rotated.
+key exists only on the VPS (a copy is now on the operator's PC). Fixed in
+v0.1439.0: BUG-122 to BUG-124. v0.1442.0: game saves keep rotating snapshots
+with Restore in Settings > Data (BUG-129), and "Back up now" keeps the newest
+10 (BUG-130). Still open: a Restore has not been clicked in a running game.
 **Waiting on the operator:** how many backups to keep from now on (today 15
-half-hourly on the VPS, 5 six-hourly in the relay, 60 pulled to the PC);
+half-hourly on the VPS, 5 six-hourly in the relay, 60 pulled to the PC, 10
+"Back up now" copies, 10 snapshots per game save);
 the shared-world clock
 speed (1x makes a lettuce take 45 days; 72x proposed as the server default);
 who and when for the Day 5 session; the names and contents of the start tiers (a proposal is in the design); whether

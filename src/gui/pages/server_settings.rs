@@ -1521,12 +1521,20 @@ fn draw_banned_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 /// (documented in SELF-HOSTING); this panel is status + take-one.
 fn draw_backups_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     widgets::subsection_label(ui, theme, "Backups");
+    // The keep count comes from the relay's own constant, so this text and
+    // the pruning can never disagree. The relay half is compiled into the
+    // native build too (the list type above already comes from it).
+    let kept = crate::relay::storage::backups::MANUAL_BACKUPS_KEPT;
     widgets::body_hint(
         ui, theme,
-        "Snapshots of the server database in its backups folder. Back up now takes a \
-         consistent snapshot while the server keeps running. Restoring one is an \
-         attended step on the host (see the self-hosting guide), so treat these as \
-         your safety net, not an undo button.",
+        &format!(
+            "Snapshots of the server database in its backups folder. Back up now takes a \
+             consistent snapshot while the server keeps running. It keeps the newest {kept} \
+             of its own copies: one more removes the oldest, and the confirmation in chat \
+             names it. The scheduled snapshots rotate on their own. Restoring one is an \
+             attended step on the host (see the self-hosting guide), so treat these as \
+             your safety net, not an undo button."
+        ),
     );
     ui.add_space(theme.spacing_xs);
 
@@ -1535,10 +1543,14 @@ fn draw_backups_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         state.backup_list_requested = true;
     }
 
+    let run_tip = format!(
+        "Take a consistent snapshot of the live database into backups/. Keeps the newest \
+         {kept} Back up now copies: once there are {kept}, each press removes the oldest. The \
+         result appears in the list, and the confirmation in your chat names any copy removed."
+    );
     ui.horizontal(|ui| {
         if widgets::Button::primary("Back up now")
-            .tooltip("Take a consistent snapshot of the live database into backups/. \
-                      The result appears in the list and in your chat as a confirmation.")
+            .tooltip(&run_tip)
             .show(ui, theme)
         {
             if let Some(ref client) = state.ws_client {

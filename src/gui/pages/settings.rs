@@ -3988,6 +3988,189 @@ fn storage_path_row(ui: &mut egui::Ui, theme: &Theme, label: &str, path: &std::p
     });
 }
 
+/// The snapshot listing as cached in egui temp memory: (egui time it was read,
+/// every slot with its snapshots newest first).
+type SnapshotListing = (f64, Vec<(String, Vec<crate::persistence::SaveSnapshot>)>);
+
+/// "12 min ago" for a snapshot row. A snapshot stamped in the future (the
+/// clock was set back since) reads as "just now" rather than a negative age.
+fn snapshot_age(now_ms: u64, taken_ms: u64) -> String {
+    let secs = now_ms.saturating_sub(taken_ms) / 1000;
+    match secs {
+        0..=59 => "just now".to_string(),
+        60..=3_599 => format!("{} min ago", secs / 60),
+        3_600..=86_399 => format!("{} h ago", secs / 3_600),
+        _ => format!("{} days ago", secs / 86_400),
+    }
+}
+
+/// "545 KB" / "1.2 MB" for a snapshot row.
+fn snapshot_size(bytes: u64) -> String {
+    if bytes >= 1_048_576 {
+        format!("{:.1} MB", bytes as f64 / 1_048_576.0)
+    } else {
+        format!("{} KB", bytes.div_ceil(1024))
+    }
+}
+
+/// Settings > Data > "Save snapshots" (2026-10-03). Lists the copies that
+/// `persistence::save_world` keeps before it overwrites a save
+/// (`backups/saves/<slot>/`), takes one on request, and puts one back with a
+/// two-click confirm. Restoring the active home also loads it into the running
+/// game (`save_load::restore_snapshot_into_game`). Native only: game saves
+/// live on this device, and the website has no game save to mirror.
+fn draw_save_snapshots(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+    use crate::persistence;
+    let hint = state.settings.hint_display;
+    ui.label(RichText::new("Save snapshots").color(theme.text_secondary()).strong());
+    ui.add_space(theme.spacing_xs);
+    widgets::setting_hint(
+        ui,
+        theme,
+        hint,
+        &format!(
+            "Before the game saves over your home it keeps a copy of the previous save: the newest {} copies, at most one every {} minutes. \
+             Restore puts a copy back and keeps the save it replaces among the snapshots, so a restore can be undone. \
+             Snapshot now keeps a copy of your home as it was last saved (the game saves every 2 minutes and when you quit), \
+             unless your home has not changed since the last copy: pressing it twice keeps one copy, not two. \
+             With Offline progression on, the time since a copy was taken passes like time away.",
+            persistence::SNAPSHOTS_KEPT,
+            persistence::SNAPSHOT_SPACING_SECS / 60
+        ),
+    );
+    storage_path_row(ui, theme, "Backups", &persistence::backups_dir());
+
+    // The listing reads a folder per save slot plus each file's size, so it
+    // is re-read every 2 seconds (and right after any action here), not on
+    // every frame the page is open.
+    let cache_id = egui::Id::new("save_snapshots_listing");
+    let result_id = egui::Id::new("save_snapshots_result");
+    let confirm_id = egui::Id::new("save_snapshots_confirm");
+    let now_t = ui.input(|i| i.time);
+    let cached = ui.data_mut(|d| d.get_temp::<SnapshotListing>(cache_id));
+    let slots = match cached {
+        Some((at, slots)) if now_t - at < 2.0 => slots,
+        _ => {
+            let slots = persistence::list_snapshot_slots(&persistence::save_snapshots_root());
+            ui.data_mut(|d| d.insert_temp(cache_id, (now_t, slots.clone())));
+            slots
+        }
+    };
+
+    if crate::save_load::restored_save_waiting() {
+        ui.add_space(theme.spacing_xs);
+        ui.label(
+            RichText::new("A restored save is waiting: it loads when you enter the world, and the game does not save over it until then.")
+                .size(theme.font_size_small)
+                .color(theme.accent()),
+        );
+    }
+
+    ui.add_space(theme.spacing_xs);
+    if widgets::secondary_button(ui, theme, "Snapshot now") {
+        use crate::save_load::SnapshotNow;
+        let line = match crate::save_load::snapshot_active_home_now() {
+            Ok(SnapshotNow::Kept(_)) => "Kept a snapshot of your home as it was last saved.".to_string(),
+            // Not an error: the newest copy already holds this save, and a
+            // second identical copy would only push the oldest one out.
+            Ok(SnapshotNow::AlreadyKept) => {
+                "Already kept: your home has not changed since the last snapshot.".to_string()
+            }
+            Ok(SnapshotNow::NotSavedYet) => "Nothing to keep yet: your home has not been saved.".to_string(),
+            Err(e) => format!("Nothing was changed: could not keep a snapshot: {e}"),
+        };
+        ui.data_mut(|d| {
+            d.insert_temp(result_id, line);
+            d.remove::<SnapshotListing>(cache_id);
+        });
+    }
+
+    if slots.is_empty() {
+        ui.add_space(theme.spacing_xs);
+        ui.label(
+            RichText::new("No snapshots yet. The first is kept the next time the game saves over your home.")
+                .size(theme.font_size_small)
+                .color(theme.text_muted()),
+        );
+    }
+
+    let confirming: Option<std::path::PathBuf> = ui.data_mut(|d| d.get_temp(confirm_id));
+    let now_ms = persistence::now_ms();
+    let saves = persistence::saves_dir();
+    let active = crate::save_load::active_home_path();
+    // Deferred so the rows never mutate state while they are drawn.
+    let mut restore: Option<(std::path::PathBuf, std::path::PathBuf)> = None;
+    let mut cancel = false;
+    for (slot, snaps) in &slots {
+        let save_path = saves.join(format!("{slot}.json"));
+        let title = if save_path == active { format!("Your home ({slot})") } else { slot.clone() };
+        ui.add_space(theme.spacing_sm);
+        ui.label(
+            RichText::new(title)
+                .size(theme.font_size_small)
+                .strong()
+                .color(theme.text_primary()),
+        );
+        for snap in snaps {
+            let is_confirming = confirming.as_deref() == Some(snap.path.as_path());
+            ui.horizontal(|ui| {
+                ui.label(
+                    RichText::new(format!(
+                        "{} · {} · {}",
+                        super::chat::format_full_timestamp(snap.taken_ms),
+                        snapshot_age(now_ms, snap.taken_ms),
+                        snapshot_size(snap.bytes)
+                    ))
+                    .size(theme.font_size_small)
+                    .color(theme.text_secondary()),
+                );
+                if is_confirming {
+                    if widgets::compact_button(ui, theme, "Yes, restore", widgets::ButtonVariant::Primary) {
+                        restore = Some((snap.path.clone(), save_path.clone()));
+                    }
+                    if widgets::compact_button(ui, theme, "Cancel", widgets::ButtonVariant::Secondary) {
+                        cancel = true;
+                    }
+                } else if widgets::compact_button(ui, theme, "Restore", widgets::ButtonVariant::Secondary) {
+                    ui.data_mut(|d| d.insert_temp(confirm_id, snap.path.clone()));
+                }
+            });
+            if is_confirming {
+                ui.label(
+                    RichText::new("Your current save is kept as a snapshot first.")
+                        .size(theme.font_size_small)
+                        .color(theme.text_muted()),
+                );
+            }
+        }
+    }
+    if cancel {
+        ui.data_mut(|d| d.remove::<std::path::PathBuf>(confirm_id));
+    }
+    if let Some((snapshot, save_path)) = restore {
+        let line = match crate::save_load::restore_snapshot_into_game(state, &snapshot, &save_path) {
+            Ok(msg) => msg,
+            Err(e) => format!("Nothing was changed: {e}"),
+        };
+        ui.data_mut(|d| {
+            d.insert_temp(result_id, line);
+            d.remove::<std::path::PathBuf>(confirm_id);
+            d.remove::<SnapshotListing>(cache_id);
+        });
+    }
+    if let Some(line) = ui.data_mut(|d| d.get_temp::<String>(result_id)) {
+        if !line.is_empty() {
+            ui.add_space(theme.spacing_xs);
+            let failed = line.starts_with("Nothing was changed");
+            ui.label(
+                RichText::new(line)
+                    .size(theme.font_size_small)
+                    .color(if failed { theme.danger() } else { theme.success() }),
+            );
+        }
+    }
+}
+
 pub(crate) fn draw_data_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     let hint = state.settings.hint_display;
     widgets::card(ui, theme, |ui| {
@@ -4105,6 +4288,9 @@ pub(crate) fn draw_data_content(ui: &mut egui::Ui, theme: &Theme, state: &mut Gu
                 }
             }
         }
+
+        ui.add_space(theme.spacing_lg);
+        draw_save_snapshots(ui, theme, state);
 
         ui.add_space(theme.spacing_lg);
         // (Home Design moved to Settings > Gameplay in v0.791.)
