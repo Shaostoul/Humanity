@@ -143,7 +143,7 @@ examples lives in `schemas/quest.toml`.
 | `name` | The title players see. |
 | `description` | A sentence or two shown to the player explaining the quest. |
 | `steps` | The list of things to do, in order. Each step has a `description` and an `objective`. |
-| `objective` | What the game checks: `Gather(item_id, quantity)`, `Craft(recipe_id, quantity)`, `Harvest(...)`, or `Build(...)`. (`Travel` and `Talk` exist but do not work yet.) |
+| `objective` | What the game checks: `Gather(item_id, quantity)` (have that many), `Craft(recipe_id, quantity)` (run that one recipe that many times), `Make(item_id, quantity)` (make that many of the item by any recipe, so smelting iron with coal or with graphite both count), `Harvest(...)`, `Build(...)`, `Travel(destination)` or `Talk(npc_id)`. |
 | `rewards` | Items given when the quest is done, as `("item_id", how_many)` pairs. |
 | `xp_rewards` | Optional. Skill experience given when done, as `("skill_id", amount)` pairs. |
 | `prerequisite` | `Some("other_quest_id")` to require another quest first, or `None` for available immediately. |

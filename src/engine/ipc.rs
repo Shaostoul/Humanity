@@ -2944,6 +2944,265 @@ pub(crate) fn poll_autopilot_request(state: &mut EngineState) {
     );
 }
 
+// ── Remote-player recorder (2026-10-03, permanent dev tooling) ───────────────
+//
+// WHY: other players are drawn by net::sync's snapshot interpolation, and its
+// unit tests feed it made-up deliveries. Nothing measured what a REAL game
+// draws when a real second player walks past, so a figure that stop-goes,
+// slides backwards or never appears could pass every test. This records the
+// drawn result from inside the running game, so a rig can judge it
+// (scripts/verify-copresence.js, `just verify-copresence`).
+//
+// Drop `debug/remote_players_request.json` = `{"seconds": N}` while the game
+// runs. From that frame on, for N seconds of the frame clock, every frame
+// records each remote player's DRAWN position: the Transform net::sync wrote
+// on that frame, which is exactly what the render pass builds the figure from
+// (lib.rs, "Remote players"). Then `debug/remote_players_done.json` holds all
+// of it. `{"seconds": 0}` answers on the same frame with one frame: a cheap
+// "are we in the shared world yet" probe.
+//
+// THE FRAME CLOCK: each frame's `t` is the sum of the real frame steps
+// (`clock_dt`, uncapped) since the recording began. That is the same step
+// net::sync's own clock advances by (`set_clock_step(clock_dt)`), so
+// "distance drawn between two frames / their t difference" is the speed the
+// figure was really drawn at, whatever the frame rate did. A rig must use
+// these times, never an assumed 1/60.
+//
+// The request is consumed either way (the house rule for every debug poll);
+// a new request while one runs restarts the recording.
+
+/// Longest recording the request accepts, seconds of the frame clock.
+const REMOTE_RECORD_MAX_S: f64 = 120.0;
+/// Most frames one recording keeps (a bound for a pathological frame rate,
+/// not a limit anyone should meet: 120 s at 30 fps is 3,600).
+const REMOTE_RECORD_MAX_FRAMES: usize = 20_000;
+/// Most player rows one recording keeps across all its frames, so a busy
+/// world cannot grow it without bound (each frame holds every remote
+/// player): 3,600 frames of 50 players.
+const REMOTE_RECORD_MAX_ROWS: usize = 180_000;
+
+/// One recording in flight.
+struct RemoteRecording {
+    /// Seconds of frame clock asked for.
+    seconds: f64,
+    /// Frame clock since the recording began, seconds (sum of `clock_dt`).
+    clock: f64,
+    /// Wall clock at the start, for a cross-check against the frame clock.
+    started: std::time::Instant,
+    frames: Vec<serde_json::Value>,
+    /// Player rows kept so far, across all frames.
+    rows: usize,
+    camera_start: serde_json::Value,
+    truncated: bool,
+}
+
+/// The recording in flight, if any. A static rather than an EngineState field
+/// so this dev tool lives in this one file.
+static REMOTE_RECORDING: std::sync::Mutex<Option<RemoteRecording>> = std::sync::Mutex::new(None);
+
+/// Read the `seconds` out of a request body: a number from 0 to
+/// `REMOTE_RECORD_MAX_S`, or an error saying what was wrong.
+pub(crate) fn parse_remote_players_request(text: &str) -> Result<f64, String> {
+    let v: serde_json::Value = serde_json::from_str(text).map_err(|e| format!("invalid JSON: {e}"))?;
+    let s = v
+        .get("seconds")
+        .and_then(|s| s.as_f64())
+        .ok_or_else(|| "missing \"seconds\" (a number of seconds to record)".to_string())?;
+    if !s.is_finite() || s < 0.0 {
+        return Err(format!("\"seconds\" must be 0 or more, got {s}"));
+    }
+    Ok(s.min(REMOTE_RECORD_MAX_S))
+}
+
+/// Every remote player as drawn right now: id, name, the DRAWN position (the
+/// Transform, not the update it is walking toward), and what its jitter
+/// buffer was doing (Waiting / Interpolating / Extrapolating / Holding).
+pub(crate) fn remote_players_json(world: &hecs::World) -> Vec<serde_json::Value> {
+    let mut out: Vec<serde_json::Value> = world
+        .query::<(
+            &crate::ecs::components::Transform,
+            &crate::net::sync::RemotePlayer,
+            Option<&crate::net::sync::SnapshotBuffer>,
+        )>()
+        .iter()
+        .map(|(_e, (t, r, buf))| {
+            serde_json::json!({
+                "id": r.player_id,
+                "name": r.name,
+                "pos": [t.position.x, t.position.y, t.position.z],
+                "phase": buf.map(|b| format!("{:?}", b.phase)),
+            })
+        })
+        .collect();
+    // Stable order, so two frames list the same player in the same place.
+    out.sort_by_key(|p| p.get("id").and_then(|i| i.as_u64()).unwrap_or(0));
+    out
+}
+
+fn camera_json(state: &EngineState) -> serde_json::Value {
+    let c = &state.camera;
+    serde_json::json!({
+        "pos": [c.position.x, c.position.y, c.position.z],
+        "yaw": c.yaw,
+        "pitch": c.pitch,
+    })
+}
+
+/// Called once a frame (lib.rs, beside the other dev polls, AFTER the
+/// co-presence block has ticked net::sync for this frame). `clock_dt` is the
+/// frame's real, uncapped step.
+pub(crate) fn poll_remote_players_request(state: &mut EngineState, clock_dt: f32) {
+    const REQUEST_PATH: &str = "debug/remote_players_request.json";
+    const DONE_PATH: &str = "debug/remote_players_done.json";
+    let Ok(mut slot) = REMOTE_RECORDING.lock() else { return };
+    if std::path::Path::new(REQUEST_PATH).exists() {
+        let text = std::fs::read_to_string(REQUEST_PATH).unwrap_or_default();
+        let _ = std::fs::remove_file(REQUEST_PATH);
+        match parse_remote_players_request(&text) {
+            Ok(seconds) => {
+                if slot.is_some() {
+                    log::info!("Remote-player recorder: a new request replaced the recording in flight");
+                }
+                log::info!("Remote-player recorder: recording {seconds:.1} s of drawn remote players");
+                *slot = Some(RemoteRecording {
+                    seconds,
+                    clock: 0.0,
+                    started: std::time::Instant::now(),
+                    frames: Vec::new(),
+                    rows: 0,
+                    camera_start: camera_json(state),
+                    truncated: false,
+                });
+            }
+            Err(e) => {
+                log::warn!("Remote-player recorder: {e}");
+                write_done_atomically(DONE_PATH, &serde_json::json!({"ok": false, "error": e}));
+                *slot = None;
+                return;
+            }
+        }
+    } else if let Some(rec) = slot.as_mut() {
+        // Not the first frame: the frame clock moves on by this frame's step.
+        rec.clock += clock_dt.max(0.0) as f64;
+    }
+    let Some(rec) = slot.as_mut() else { return };
+    if rec.frames.len() < REMOTE_RECORD_MAX_FRAMES && rec.rows < REMOTE_RECORD_MAX_ROWS {
+        let c = &state.camera;
+        let players = remote_players_json(&state.game_world.world);
+        rec.rows += players.len();
+        // The computer's own clock, ms since 1970: a rig compares it with
+        // when its walker did things, independent of the frame clock above.
+        let epoch_ms = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs_f64() * 1000.0)
+            .unwrap_or(0.0);
+        rec.frames.push(serde_json::json!({
+            "t": rec.clock,
+            "dt": clock_dt,
+            "wall": rec.started.elapsed().as_secs_f64(),
+            "epoch_ms": epoch_ms,
+            "joined": state.game_joined,
+            "cam": [c.position.x, c.position.y, c.position.z, c.yaw, c.pitch],
+            "players": players,
+        }));
+    } else {
+        rec.truncated = true;
+    }
+    if rec.clock < rec.seconds {
+        return;
+    }
+    let Some(rec) = slot.take() else { return };
+    let done = serde_json::json!({
+        "ok": true,
+        "seconds": rec.seconds,
+        "recorded_s": rec.clock,
+        "wall_s": rec.started.elapsed().as_secs_f64(),
+        "frame_count": rec.frames.len(),
+        "truncated": rec.truncated,
+        "world_loaded": state.world_loaded,
+        "ws_identified": state.gui_state.ws_identified,
+        "game_joined": state.game_joined,
+        "copresence_active": state.gui_state.copresence_active,
+        "camera_start": rec.camera_start,
+        "camera_end": camera_json(state),
+        "frames": rec.frames,
+    });
+    write_done_atomically(DONE_PATH, &done);
+    log::info!(
+        "Remote-player recorder: wrote {} frames ({:.2} s) to {DONE_PATH}",
+        rec.frames.len(),
+        rec.clock
+    );
+}
+
+/// Write a done file whole: to a temporary name, then renamed over the real
+/// one, so a reader polling for it never parses half a file.
+fn write_done_atomically(path: &str, body: &serde_json::Value) {
+    let _ = std::fs::create_dir_all("debug");
+    let tmp = format!("{path}.tmp");
+    if std::fs::write(&tmp, body.to_string()).is_ok() {
+        let _ = std::fs::rename(&tmp, path);
+    }
+}
+
+#[cfg(test)]
+mod remote_player_recorder_tests {
+    use super::*;
+    use crate::ecs::components::Transform;
+    use crate::net::sync::{RemotePlayer, SnapshotBuffer};
+    use glam::Quat;
+
+    #[test]
+    fn the_request_reads_seconds_and_refuses_junk() {
+        assert_eq!(parse_remote_players_request(r#"{"seconds": 12.5}"#), Ok(12.5));
+        assert_eq!(parse_remote_players_request(r#"{"seconds": 0}"#), Ok(0.0));
+        // Capped, not refused: a long ask still records something useful.
+        assert_eq!(parse_remote_players_request(r#"{"seconds": 9999}"#), Ok(REMOTE_RECORD_MAX_S));
+        assert!(parse_remote_players_request(r#"{"seconds": -1}"#).is_err());
+        assert!(parse_remote_players_request(r#"{"secs": 3}"#).is_err());
+        assert!(parse_remote_players_request("not json").is_err());
+    }
+
+    /// The recorder reports where the figure is DRAWN (its Transform), not
+    /// the update it is walking toward (`target_position`). A recorder that
+    /// read the target would show every update as a clean step and could
+    /// never see the figure stop and go between them.
+    #[test]
+    fn it_reports_the_drawn_position_not_the_target() {
+        let mut world = hecs::World::new();
+        let drawn = Vec3::new(1.0, 1.7, -2.0);
+        let target = Vec3::new(9.0, 1.7, -2.0);
+        world.spawn((
+            Transform { position: drawn, rotation: Quat::IDENTITY, scale: Vec3::ONE },
+            RemotePlayer {
+                player_id: 7,
+                name: "TestBotWalker".to_string(),
+                look: None,
+                last_position: drawn,
+                target_position: target,
+                last_rotation: Quat::IDENTITY,
+                target_rotation: Quat::IDENTITY,
+                velocity: Vec3::ZERO,
+                interpolation_t: 0.5,
+                last_update_time: 0.0,
+            },
+            SnapshotBuffer::new(target, Quat::IDENTITY, Vec3::ZERO, 0.0, 1.0),
+        ));
+        let players = remote_players_json(&world);
+        assert_eq!(players.len(), 1);
+        let p = &players[0];
+        assert_eq!(p["id"], 7);
+        assert_eq!(p["name"], "TestBotWalker");
+        let pos: Vec<f64> = p["pos"].as_array().unwrap().iter().map(|v| v.as_f64().unwrap()).collect();
+        let want = [drawn.x as f64, drawn.y as f64, drawn.z as f64];
+        assert!(
+            pos.iter().zip(want).all(|(a, b)| (a - b).abs() < 1e-6),
+            "drawn position {pos:?}, want {want:?} (the target is {target:?})"
+        );
+        assert_eq!(p["phase"], "Waiting");
+    }
+}
+
 // ── Rig determinism pins: the tests ──────────────────────────────────────────
 //
 // These pin the two rules that are easy to get silently wrong and impossible to

@@ -811,9 +811,19 @@ pub async fn run_relay() {
                 .unwrap_or(std::path::Path::new("."))
                 .join("backups");
 
+            // Due when the newest snapshot turns 6 h old, not 6 h after this
+            // start (BUG-123, 2026-10-02): the wait used to restart with every
+            // relay restart, so a server deployed more often than every 6 h
+            // took no snapshot and never ran the expiry sweeps below.
+            let every = tokio::time::Duration::from_secs(6 * 60 * 60);
+            let mut wait = storage::backups::first_snapshot_wait(
+                storage::backups::newest_snapshot_age(&backup_dir),
+                every,
+                tokio::time::Duration::from_secs(120),
+            );
             loop {
-                // Wait 6 hours between backups.
-                tokio::time::sleep(tokio::time::Duration::from_secs(6 * 60 * 60)).await;
+                tokio::time::sleep(wait).await;
+                wait = every;
 
                 // DM mailbox TTL sweep (sealed-sender store-and-forward):
                 // expire envelopes past the configured window BEFORE the

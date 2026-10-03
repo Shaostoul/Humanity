@@ -2058,6 +2058,7 @@ mod native_app {
                 lmb_held: false,
                 construction_history: ConstructionHistory::default(),
                 live_publisher: None,
+                movie: None,
                 stream_capture: crate::renderer::stream_capture::StreamCapture::new(),
             });
             // Interior (ship / homestead) gravity from data/game.csv, the
@@ -3294,7 +3295,7 @@ mod native_app {
                         } else {
                             s.fps_background
                         };
-                        if cap > 0 {
+                        if cap > 0 && state.movie.is_none() {
                             let target =
                                 std::time::Duration::from_secs_f64(1.0 / cap as f64);
                             let elapsed = state.last_frame.elapsed();
@@ -3321,6 +3322,12 @@ mod native_app {
                     // docs/design/vegetation-cards-every-species.md).
                     let raw_dt = (now - state.last_frame).as_secs_f32();
                     let dt = raw_dt.min(0.1);
+                    // Recording: exactly 1/fps, whatever the frame took (engine::movie).
+                    let movie_dt = crate::engine::movie::frame_step(state, now);
+                    let dt = movie_dt.unwrap_or(dt);
+                    // Real time, uncapped (the movie's step while recording): the
+                    // shared-world clocks run on it (net::sync, 2026-10-03).
+                    let clock_dt = movie_dt.unwrap_or(raw_dt);
                     state.last_frame = now;
                     // ONE spin for the whole frame (see the field docs).
                     state.current_spin = current_planet_spin(state);
@@ -6787,8 +6794,9 @@ mod native_app {
                             // the shared WORLD deliberately: the relay despawns our
                             // entity + broadcasts game_player_left (others see us leave,
                             // honestly), the chat socket stays up. Rejoining is just the
-                            // normal join below once solo clears (relay treats it as a
-                            // RESYNC).
+                            // normal join below once solo clears: a fresh join, progress
+                            // restored from storage (since 2026-10-03 a leave despawns
+                            // at once; it used to be held as a reconnect).
                             if state.game_joined && state.gui_state.copresence_solo {
                                 if let Some(ref ws) = state.gui_state.ws_client {
                                     ws.send(&serde_json::json!({"type": "game_leave"}).to_string());
@@ -6852,13 +6860,11 @@ mod native_app {
                             // (avatars/names survive); only position SENDING is
                             // limited to actually being in the world.
                             if state.game_joined {
-                                if in_world {
-                                    state.game_pos_timer += dt;
-                                    if state.game_pos_timer >= 1.0 / 15.0 {
-                                        state.game_pos_timer = 0.0;
-                                        send_game_position(state);
-                                    }
-                                }
+                                // 15 updates a second in the world, stamped on real time
+                                // (clock_dt), plus one standing-still update the frame we
+                                // leave it (engine::net_route, net::sync, 2026-10-03).
+                                drive_position_send(state, in_world, dt, clock_dt);
+                                state.net_sync.set_clock_step(clock_dt);
                                 // `tick` is the System trait method; call it fully-qualified.
                                 crate::ecs::systems::System::tick(
                                     &mut state.net_sync,
@@ -9100,15 +9106,20 @@ mod native_app {
 
                     // ── Remote players (multiplayer co-presence, v0.472) ──
                     // Draw a simple humanoid marker (body + head, a distinct teal) at each remote
-                    // player's interpolated position. The sent position is the eye/camera height, so
-                    // the head sits there and the body hangs below it. The name floats over it
-                    // (engine::net_route::nameplate_labels, 2026-09-28).
+                    // player's interpolated position. The sent position is their eye; the figure
+                    // stands on the floor 1.7 m below it and is built UP from the feet, body box
+                    // to the shoulders, head on top (engine::net_route::remote_figure_parts,
+                    // 2026-10-02). The name floats over it (net_route::nameplate_labels).
                     if !showroom {
                         if state.remote_avatar.is_none() {
+                            // Sized by the constants remote_figure_parts places the parts by
+                            // (2026-10-02): the box's base at its origin, the sphere centred on
+                            // it, so a change to either size moves the parts with it.
+                            use crate::engine::net_route::{FIGURE_BODY_MESH_H_M, FIGURE_HEAD_MESH_R_M};
                             let body = state.renderer.add_mesh(
-                                Mesh::box_xyz(&state.renderer.device, 0.42, 1.4, 0.26));
+                                Mesh::box_xyz(&state.renderer.device, 0.42, FIGURE_BODY_MESH_H_M, 0.26));
                             let head = state.renderer.add_mesh(
-                                Mesh::sphere(&state.renderer.device, 0.17, 12, 14));
+                                Mesh::sphere(&state.renderer.device, FIGURE_HEAD_MESH_R_M, 12, 14));
                             // Teal, slightly emissive so a remote player reads at a glance.
                             let mat = state.renderer.add_material_full(
                                 [0.15, 0.75, 0.85, 1.0], 0.0, 0.5, 1.0, 0.25);
@@ -14187,6 +14198,9 @@ mod native_app {
                     // autopilot poll) and not in the GUI-action section, which
                     // stops running once a world is loaded. Permanent dev tooling.
                     poll_camera_request(state);
+                    crate::engine::ipc::poll_remote_players_request(state, clock_dt); // drawn remote players for verify-copresence
+                    crate::engine::movie::poll_request(state);
+                    crate::engine::movie::steer(state);
                     crate::engine::ipc::poll_cloudmap_request(state);
                     crate::engine::ipc::poll_cloud_profile_dump_request(state);
                     // In-world screen dev IPC (debug/screen_request.json): parsed
@@ -16000,6 +16014,7 @@ mod native_app {
                                 );
                             }
                             poll_screenshot_request(state, &surface_texture.texture, &scene_lists);
+                            crate::engine::movie::capture(state, &surface_texture.texture);
                             poll_showcase_request(state);
 
                             // Live weather (v0.874): upload any freshly

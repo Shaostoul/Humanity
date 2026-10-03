@@ -5,6 +5,7 @@ pub mod announce;
 pub mod broadcast;
 pub mod federation;
 pub mod game_state;
+pub mod live_conns;
 pub mod msg_handlers;
 pub mod utils;
 

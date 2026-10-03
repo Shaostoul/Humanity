@@ -22,6 +22,9 @@ pub mod ipc_parse;
 /// The Settings > Controls key-capture step (rebindable keybinds, 2026-08-12).
 pub mod keybind_capture;
 pub mod launch_focus;
+/// Movie mode: record the live view to video, frame-exact, for the clip
+/// maker (scripts/make-clips.js, 2026-09-30).
+pub mod movie;
 /// How a mushroom crop is drawn: its fruiting blocks or cased bed, and the
 /// mushrooms on them by stage (2026-09-27).
 pub mod fungus_mesh;

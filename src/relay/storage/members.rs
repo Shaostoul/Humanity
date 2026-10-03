@@ -291,6 +291,52 @@ impl Storage {
         })
     }
 
+    /// The name this key goes by NOW (2026-10-02). `name_for_key` returns any
+    /// one of the names the key ever registered, and `registered_names` keeps
+    /// them all, so after a rename it usually gave back the OLD one; the
+    /// sign-in path then wrote that old name over the member row and undid the
+    /// rename. The member row's name is rewritten on every sign-in that offers
+    /// a real name, so it is the current one. A key with no member row (a bot,
+    /// a test client, someone kicked) falls back to the name it registered
+    /// most recently.
+    ///
+    /// The member row's name counts ONLY while that name is still registered
+    /// to this key (review, 2026-10-02): the row outlives a revoked device
+    /// (`revoke_device` deletes the key's `registered_names` row only), a
+    /// released name and the inactive-name cleanup, so trusting it alone let a
+    /// revoked laptop sign in nameless and come back as its old owner's name.
+    pub fn current_name_for_key(&self, public_key: &str) -> Result<Option<String>, rusqlite::Error> {
+        self.with_read_conn(|conn| {
+            let member: Option<Option<String>> = conn
+                .query_row(
+                    "SELECT name FROM server_members WHERE public_key = ?1",
+                    params![public_key],
+                    |row| row.get(0),
+                )
+                .optional()?;
+            if let Some(name) = member.flatten().filter(|n| !n.trim().is_empty()) {
+                let still_ours: Option<i64> = conn
+                    .query_row(
+                        "SELECT 1 FROM registered_names WHERE public_key = ?1 AND name = ?2",
+                        params![public_key, name],
+                        |row| row.get(0),
+                    )
+                    .optional()?;
+                if still_ours.is_some() {
+                    return Ok(Some(name));
+                }
+            }
+            // rowid breaks a tie between two names registered in the same ms.
+            conn.query_row(
+                "SELECT name FROM registered_names WHERE public_key = ?1
+                 ORDER BY registered_at DESC, rowid DESC LIMIT 1",
+                params![public_key],
+                |row| row.get(0),
+            )
+            .optional()
+        })
+    }
+
     /// Update a member's name (when they change display name).
     pub fn update_member_name(&self, public_key: &str, name: &str) -> Result<(), rusqlite::Error> {
         self.with_conn(|conn| {

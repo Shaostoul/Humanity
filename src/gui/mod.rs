@@ -312,6 +312,9 @@ impl GuiState {
         self.chat_reply_to = None;
         self.chat_edit_target = None;
         self.chat_search_results.clear();
+        // Trades are per server (2026-10-02): a switch re-fetches its own.
+        self.trades.clear();
+        self.trades_synced = false;
         // Sealed-sender DMs: the local history store and fetch high-water
         // are per (identity, server) — drop them so the next server loads
         // its own store from disk and re-fetches its own mailbox.
@@ -1355,9 +1358,9 @@ pub struct GuiState {
     /// Review form drafts (detail view).
     pub review_rating_draft: i32,
     pub review_comment_draft: String,
-    /// P2P trades (v0.756), delivered via targeted private wrappers.
+    /// P2P trades (v0.756): wrappers that arrive as `system` frames (pages::trade::route_trade_frame).
     pub trades: Vec<GuiTrade>,
-    /// Set once trade_list_request has been sent this connection.
+    /// Set once trade_list_request has been sent this connection (by pages::trade::tick since 2026-10-02).
     pub trades_synced: bool,
     /// One-line trade feedback ("Trade completed", errors).
     pub trade_status: String,

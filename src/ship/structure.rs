@@ -238,6 +238,11 @@ const RACK_CLEAR_M: f32 = 0.5;
 ///   along the back under the ceiling;
 /// - anything else: one solid box, the silhouette every filler started as.
 pub fn filler_parts(kind: &str, cx: f32, cz: f32, fw: f32, fd: f32, h: f32) -> Vec<[f32; 6]> {
+    // `f32::clamp` panics when its floor is over its ceiling, which a narrow footprint
+    // makes happen (a 0.5 m cradle: a 0.3 m floor, a 0.125 m ceiling). `.max(lo).min(hi)`
+    // is the same clamp when lo <= hi and lets the ceiling win when not, keeping the part
+    // inside its cell instead of crashing the bake (2026-10-02).
+    let fit = |x: f32, lo: f32, hi: f32| x.max(lo).min(hi);
     let mut v = Vec::new();
     match kind {
         "rack" => {
@@ -253,8 +258,8 @@ pub fn filler_parts(kind: &str, cx: f32, cz: f32, fw: f32, fd: f32, h: f32) -> V
         }
         "stall" => {
             let (post, roof) = (0.1, 0.08);
-            v.push([cx, cz, fw, (fd * 0.2).clamp(0.4, fd), 0.0, (h * 0.35).min(1.0)]); // counter
-            let shelf_d = (fd * 0.15).clamp(0.3, fd);
+            v.push([cx, cz, fw, fit(fd * 0.2, 0.4, fd), 0.0, (h * 0.35).min(1.0)]); // counter
+            let shelf_d = fit(fd * 0.15, 0.3, fd);
             v.push([cx, cz + fd - shelf_d, fw, shelf_d, 0.0, h * 0.6]); // back shelf
             for px in [cx, cx + fw - post] {
                 for pz in [cz, cz + fd - post] {
@@ -264,24 +269,27 @@ pub fn filler_parts(kind: &str, cx: f32, cz: f32, fw: f32, fd: f32, h: f32) -> V
             v.push([cx, cz, fw, fd, h - roof, roof]); // roof
         }
         "cradle" => {
-            let rail_w = (fw * 0.08).clamp(0.3, fw * 0.25);
+            let rail_w = fit(fw * 0.08, 0.3, fw * 0.25);
             let rail_h = (h * 0.1).max(0.2).min(h * 0.5);
             let rails = [cx + fw * 0.25 - rail_w * 0.5, cx + fw * 0.75 - rail_w * 0.5];
             for rx in rails {
                 v.push([rx, cz, rail_w, fd, 0.0, rail_h]);
             }
             let chock_h = (h * 0.35).min(h - rail_h);
+            // A chock is as long as the rail is wide, but never more than 0.3 of the
+            // cradle, so the end ones stay inside a short cell (2026-10-02).
+            let chock_d = rail_w.min(fd * 0.3);
             for f in [0.2, 0.5, 0.8] {
-                let pz = cz + fd * f - rail_w * 0.5;
+                let pz = cz + fd * f - chock_d * 0.5;
                 for rx in rails {
-                    v.push([rx, pz, rail_w, rail_w, rail_h, chock_h]);
+                    v.push([rx, pz, rail_w, chock_d, rail_h, chock_h]);
                 }
             }
         }
         "array" => {
             let plinth = 0.15_f32.min(h * 0.1);
             v.push([cx, cz, fw, fd, 0.0, plinth]);
-            let m = (fw.min(fd) * 0.12).max(0.2);
+            let m = fit(fw.min(fd) * 0.12, 0.2, fw.min(fd) * 0.25); // under 0.8 m the 0.2 floor left no machine
             v.push([cx + m, cz + m, fw - 2.0 * m, fd - 2.0 * m, plinth, h * 0.55]); // the machine
             let pipe = 0.25_f32.min(m);
             let duct = 0.3_f32.min(h * 0.1);
@@ -688,6 +696,30 @@ mod tests {
             }
         }
         assert_eq!(super::filler_parts("box", 0.0, 0.0, 2.0, 2.0, 3.0), vec![[0.0, 0.0, 2.0, 2.0, 0.0, 3.0]]);
+    }
+
+    /// A NARROW FILLER CELL BUILDS, IT DOES NOT CRASH (2026-10-02). Every kind,
+    /// at 0.5 m and 0.3 m in either direction, still gives non-empty boxes inside
+    /// its cell and under its height. `f32::clamp` panics when its floor is over
+    /// its ceiling, and the cradle's rail (floor 0.3 m, ceiling a quarter of the
+    /// width) and the stall's counter (floor 0.4 m, ceiling the depth) did exactly
+    /// that. Red check, run: with the cradle's `clamp` put back the test panicked
+    /// ("min > max") at the first 0.5 m cradle.
+    #[test]
+    fn a_narrow_filler_cell_builds_without_panicking() {
+        let (cx, cz, h) = (3.0, -2.0, 2.5);
+        for kind in ["rack", "stall", "cradle", "array"] {
+            for (fw, fd) in [(0.5, 0.5), (0.5, 4.0), (4.0, 0.5), (0.3, 0.3), (0.3, 4.0), (4.0, 0.3)] {
+                let parts = super::filler_parts(kind, cx, cz, fw, fd, h);
+                assert!(!parts.is_empty(), "{kind} {fw}x{fd}: nothing built");
+                for [x, z, w, d, y, ph] in parts {
+                    let e = 1e-4;
+                    assert!(w > 0.0 && d > 0.0 && ph > 0.0, "{kind} {fw}x{fd}: an empty box");
+                    assert!(x >= cx - e && x + w <= cx + fw + e && z >= cz - e && z + d <= cz + fd + e, "{kind} {fw}x{fd}: outside its cell");
+                    assert!(y >= -e && y + ph <= h + e, "{kind} {fw}x{fd}: {y} + {ph} is over {h}");
+                }
+            }
+        }
     }
 
     use super::*;

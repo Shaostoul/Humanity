@@ -3093,14 +3093,14 @@ fn gather_system_health() -> serde_json::Value {
         .map(|s| s.trim().to_string())
         .unwrap_or_else(|_| "unknown".to_string());
 
-    // Newest DB backup (the humanity-backup-db timer writes backups/relay-*.db).
+    // Newest DB backup (the humanity-backup-db timer writes backups/relay-*.db.aes).
     let backup = (|| {
         let mut newest: Option<(std::time::SystemTime, std::path::PathBuf, u64)> = None;
         let mut count = 0u32;
         for e in std::fs::read_dir("backups").ok()?.flatten() {
             let p = e.path();
             let name = p.file_name().and_then(|n| n.to_str()).unwrap_or("");
-            if name.starts_with("relay-") && name.ends_with(".db") {
+            if name.starts_with("relay-") && crate::relay::storage::backups::is_backup_file(name) {
                 count += 1;
                 if let Ok(md) = e.metadata() {
                     let mt = md.modified().unwrap_or(std::time::UNIX_EPOCH);

@@ -2324,3 +2324,338 @@ and the row keys on it: shown even at full only while the air cannot be
 breathed; in breathable open air only when the player is short of breath.
 Test `vital_rows_show_what_needs_attention` gained the breathable-ground
 case, seen red by keying the row on `sealed` again.
+
+## BUG-106: web chat refused to connect on phones without WebCrypto Ed25519 (FIXED v0.1435.2)
+
+**Symptom:** a user in Nigeria (2026-09-30), on an Android phone, got
+"Post-quantum identity could not be initialized. This client cannot connect
+without it" on united-humanity.us/chat, every time. Hardware was not the
+cause.
+
+**Root cause:** the chat identity is a 32-byte seed (Dilithium3 and Kyber768
+derive from it), but the seed was only ever kept inside a WebCrypto Ed25519
+key. WebCrypto Ed25519 is on by default only from Chrome 137 (2025), and
+many phones run an older Chrome or a Chromium browser built on one. There
+`getOrCreateIdentity` fell back to a key with no private half, and
+`attachPqIdentity` refused at its first check. The PQ library itself needs
+only Chrome 85 (it uses `||=`), so every Chrome from 85 to 136 was shut out
+by this alone.
+
+**Fix:** a SEED-ONLY identity (`web/chat/crypto.js`): where Ed25519 is
+missing the seed is held directly and saved in the same PKCS8 backup the
+Ed25519 path reads, and `restoreKeyFromLocalStorage` works out the public
+key when a backup has none, so a browser that later gains Ed25519 keeps the
+same identity. Every seed read goes through `identitySeed()`: the PQ
+derivation, recovery phrase, backups, passphrase wrap, sync key and contact
+card. Checked in the browser pane with Ed25519 switched off: connects with no
+alert; the same Dilithium key after "updating" to Ed25519; the same key
+restored from the recovery phrase and from a backup file on both kinds of
+browser. Also fixed on the way: importing any backup made since the PQ
+cutover failed (it demanded a 64-character public key; those carry the
+3,904-character Dilithium one), and the unused `ed25519PublicKeyHex` field
+could be overwritten with the Dilithium key when setup ran twice. Lost
+without Ed25519: the Solana wallet's public key only.
+
+## BUG-107: the off-box backup copied the same 24 August file for 39 days (FIXED v0.1436.0)
+
+**Symptom:** none visible: `backup-pull.log` said "pulled OK" every run.
+Found by the week-plan survey (2026-10-02) and confirmed: all 60 copies in
+%USERPROFILE%\HumanityBackups were byte-identical, the 24 August state.
+
+**Root cause:** since 2026-08-24 the VPS seals every 30-minute snapshot to
+`relay-<ts>.db.aes` and deletes the plain copy, but
+`scripts/backup-relay-from-vps.ps1` still listed only `relay-*.db`, so it
+kept finding the last plain file (the VPS keeps 15 plain ones forever because
+no new ones arrive to push them out). Its only check was a valid SQLite
+header, which the stale file passes: a check that could not fail.
+
+**Fix:** pull the newest stamped `.db.aes`, check the `Salted__` header,
+and FAIL loudly (non-zero exit, ERROR in the log) when the newest VPS snapshot
+is over 2 h old or stamped in the future (exit 7), when the copy's SHA-256
+differs from the VPS file's (a pull taken mid-seal, exit 8), or when it is
+byte-identical to the previous pull (exit 6). Each failure was produced on
+purpose before trusting it; a real run then pulled a current snapshot whose
+hash matches the VPS. The old plain copies (15 on the VPS from 23 and 24
+August, 60 stale local ones) were deleted on 2026-10-02 at the operator's word,
+the VPS ones with shred.
+**Still needed, operator only:** a copy of `/opt/Humanity/data/backup.key`
+off the VPS; without it no pulled backup can be opened.
+
+## BUG-108: a Settings button could replace a person's identity in one click (FIXED v0.1436.0)
+
+**Symptom:** web Settings > View Recovery Phrase, when it could not show the
+words, offered "Rotate Key", promising a "dual-signature certificate" would
+carry profile and messages over. One click made a brand-new identity,
+overwrote the stored one and reloaded; the old recovery phrase no longer
+matched and the relay refused the saved name.
+
+**Root cause:** the overlay was written for old non-extractable keys, the
+promise has been false since 2026-03-25 (the certificate step was removed)
+and the relay's rotation route since v0.265.0. It also appeared for HEALTHY
+identities whenever the BIP39 word list failed to load.
+
+**Fix:** the button and its handler are gone. The page now says why the
+phrase cannot be shown (the word list or the identity tools did not load:
+reload; or this browser holds no recovery phrase: use the restore actions)
+and changes nothing. Checked in the browser pane on all three paths. The
+recovery phrase also lost its seedling icons for a key (CLAUDE.md, account
+words).
+
+## BUG-109: the main Windows download had no models or textures (FIXED v0.1436.0)
+
+**Symptom:** a new Windows player got machines drawn as boxes and flat
+ground, with no warning.
+
+**Root cause:** `web/pages/download.html` picked `HumanityOS-windows-x64.exe`
+(75 MB, the program alone, which exists for the updater) instead of the zip
+(about 385 MB) that carries models, textures and data. Mac and Linux already
+picked their zip.
+
+**Fix:** the Windows button now prefers the zip (the exe only as a fallback
+for old releases), the Windows card says to Extract All and not to run the
+exe from inside the zip, and the sizes are current. Checked in the browser
+pane: the button resolves to the v0.1435.2 zip.
+
+## BUG-110: upvoting a bug on the website failed for everyone (FIXED v0.1436.0)
+
+**Symptom:** "You need to be logged in", signed in or not.
+
+**Root cause:** since 2026-09-06 the relay requires a Dilithium-signed vote
+(`voter_key`, `timestamp`, `sig` over `bug_vote\n<ts>`), but
+`web/pages/bugs-app.js` sent only `voter_key`, from a key the page never
+had.
+
+**Fix:** `bugs.html` loads `/chat/pq.js` and `/shared/pq-relay-auth.js`, and
+the vote is signed with `getPqSignedAuth('bug_vote')`, which reads the
+recovery-phrase backup without needing WebCrypto Ed25519 (so it also works on
+the BUG-106 phones). The shape was checked against the relay's own
+verification code.
+
+## BUG-111: the website's Tasks page never signed in on its live socket (FIXED v0.1436.0)
+
+**Symptom:** creating a task timed out; status, priority and assignee
+changes showed on screen but never reached the server.
+
+**Root cause:** `web/pages/tasks-app.js` identified with the old Ed25519 key
+and had no answer to the relay's Dilithium identify challenge, so the relay
+never bound the socket and dropped everything it sent.
+
+**Fix:** the page identifies with the Dilithium identity from the recovery-
+phrase backup and answers the challenge; its local-only test votes are
+labelled as local and no longer carry a decorative Ed25519 signature.
+
+## BUG-112: closing one of two tabs signed the person out everywhere (FIXED v0.1436.0)
+
+**Symptom:** with web Chat (or the desktop app) and another page signed in
+as the same person, closing the NEWER one ran the full departure: the person
+showed as left, was dropped from voice, and their game connection went to
+the link-dead grace period, while the other stayed open. Fixing BUG-111 would
+have made this happen every time someone closed the Tasks board.
+
+**Root cause:** the relay keeps one registration per identity, owned by the
+newest socket, and ran its departure cleanup whenever that socket closed.
+
+**Fix:** `RelayState::live_conns` counts every signed-in socket per
+identity. Closing one that is not the last hands the registration to a
+socket still open and tidies nothing else; a second socket for someone
+already here is not announced as a new arrival; and a socket that signs in
+without its DM key is announced with the key on file (web Chat also keeps a
+known key over an empty one), so no open Chat loses the ability to send them
+DMs. Test `closing_one_of_two_sockets_keeps_the_person_signed_in` runs the
+real relay and the real handshake; seen red without the fix.
+
+## BUG-113: desktop trades never moved items, and the Trade page never listed any (FIXED v0.1437.0)
+
+**Symptom:** a finished trade changed nothing in the desktop backpack; the
+desktop Trade page always said "No trades"; raw `__trade_data__:{...}` lines
+appeared in chat. Found by the review of v0.1428.0 to v0.1436.0.
+
+**Root cause:** the relay sends every private message as `type: "system"`
+(relay.rs, the send loop), but the desktop client handled the trade wrappers
+only in its `"private"` arm, which never runs. The v0.1433.0 tests called
+`settle_completed` directly, so they could not see it: a check that could
+not fail.
+
+**Fix:** one router, `trade::route_trade_frame`, called from both arms, and
+a test that feeds the frame the client really receives (a serialized
+`RelayMessage::System` around a real `TradeData`), seen red.
+
+## BUG-114: confirming a trade did not hold the offered items (FIXED v0.1437.0)
+
+**Symptom:** after confirming, a player could use or store the offered items;
+when the trade completed the partner still received them, and the giver was
+told they "left your backpack".
+
+**Fix (client side; true escrow needs server-held inventories):** every
+frame, with the page open or not, a confirmed offer the backpack no longer
+covers is re-sent, which makes the relay clear both confirmations, and the
+player is told why. Settling takes only what the backpack still holds and
+says so honestly; the inventory step reports a shortfall instead of
+ignoring it.
+
+## BUG-115: a player away when a trade completed never settled their side (FIXED v0.1437.0)
+
+**Symptom:** the completion notice is sent once; a player offline or
+reconnecting missed it, and nothing settled their side later.
+
+**Fix:** a trade settles whenever a completed record reaches the client (a
+trade update, the trade list, or the notice); settled ids are kept with the
+save (`TradeSettlements`, `WorldSave.settled_trades`); the list is requested
+once per connection, page open or not. A second review found that a trade
+settled at the main menu was lost when Play then loaded the save: every
+frame now settles any completed trade the loaded world does not know, sized
+against the loaded backpack, announced once. On a server with the game
+switched off, the automatic request's refusal is no longer printed in chat.
+Known gap: settled ids live per save, so a completed trade can replay into
+another home of the same identity.
+
+## BUG-116: quitting the game with a web tab open left the avatar and the voice seat behind (FIXED v0.1437.0)
+
+**Symptom:** a regression from BUG-112: the game and voice departures waited
+for the identity's LAST socket, so quitting the desktop game while web Chat
+stayed open left the avatar in the shared world and the person in voice.
+
+**Fix:** the relay records which socket holds the game seat and which holds
+the voice seat (`LiveConns`, `relay/handlers/live_conns.rs`) and gives those
+up when THAT socket closes. Because a reconnecting voice client's new socket
+signs in before the old one is noticed closed, both clients now re-send
+their voice join once the new socket is accepted, and the relay moves the
+seat to it without a leave and join; the departure is decided under the
+voice lock so a re-join cannot slip between. Real-relay tests for each case,
+seen red.
+
+## BUG-117: a socket that signed in without a name showed the person as "Anonymous", or under an old name (FIXED v0.1437.0)
+
+**Symptom:** the web Tasks tab signs in without a name; the person showed
+nameless to others. The first fix fell back to the oldest name a key ever
+registered (undoing renames), and the second trusted the member row even for
+a revoked device, which would have let a revoked laptop come back as its old
+owner's name.
+
+**Fix:** a nameless socket keeps the live registration's name, or the
+person's current name: the member row's name only while that name is still
+registered to the key, else the newest registered name (`Storage::
+current_name_for_key`). Status text is cleared on disconnect under the name
+the session used. Tests for a rename and a revoked device, seen red.
+
+## BUG-118: the clip maker left the game running after Ctrl+C (FIXED v0.1437.0)
+
+**Fix:** `scripts/make-clips.js` kills the game's process tree on Ctrl+C,
+Ctrl+Break or a closed console (exit 130), notices the game exiting
+mid-shot, and cancels a shot it gives up on (`debug/record_cancel.json`, which
+finishes the file cleanly). A second record request is refused without
+touching the running one's done file; ffmpeg's own error text is kept; clips
+are tagged and converted as BT.709. Tests in `scripts/tests/make-clips.test.js`
+(in `just rig-tests`).
+
+## BUG-119: stall roofs and machine ducts were see-through from below (FIXED v0.1437.0)
+
+**Root cause:** a raised part skipped its underside whenever ANY part ended at
+its height, so a roof on posts and a duct on its riser lost theirs.
+
+**Fix:** an underside is skipped only when the part beneath covers this one's
+whole footprint (a machine on its plinth). Also: a narrow stall or cradle
+footprint could panic (`f32::clamp` with min above max), and the
+faces-point-out test now checks each face points away from the box centre.
+
+## BUG-120: other players' heads sat inside their bodies, and the figure floated (FIXED v0.1437.0)
+
+**Fix:** `net_route::remote_figure_parts` builds the figure up from the floor
+under the eye: the body box from the feet to the shoulders, the head on top,
+the hair over the head, all scaled by the player's height. lib.rs builds the
+meshes from the same constants. (The crew figures still have the old fault:
+see PRIORITIES.)
+
+## BUG-121: a long server message could crash the desktop app (FIXED v0.1437.0)
+
+**Root cause:** a debug preview cut every system message at byte 300
+(`&raw[..300]`), which panics when byte 300 falls inside a multi-byte
+character (an accented name, an emoji). Found by the trades fix agent.
+
+**Fix:** cut at a character boundary (`frame_ws_poll::clip`); test seen red
+with the old slicing.
+
+## BUG-122: the 30-minute VPS backup stopped pruning, so sealed copies piled up (FIXED v0.1439.0)
+
+**Symptom:** `humanity-backup-db.service` showed failed (status 2) every run
+from 2026-10-03 04:14Z, and `/opt/Humanity/backups` grew past its 15-copy cap
+(16, then 17, about 48 more a day). Each snapshot was still written and sealed.
+
+**Root cause:** the script runs under `set -euo pipefail` and pruned with
+`ls -1t relay-*.db | tail -n +16 | xargs rm`. When the last plain
+pre-encryption copy was deleted (2026-10-02, at the operator's word), that ls
+matched nothing, exited 2, and ended the script before the `.db.aes` line.
+Caused by our own cleanup: deleting the last file a glob matches broke a
+script that assumed one would always exist.
+
+**Fix:** rotation through a `rotate_keep` function using `find`, which never
+fails on no match; the count can be set with `HUMANITY_DB_BACKUP_ROTATE_KEEP`
+(default 15). `scripts/tests/backup-rotate.test.js` (in `just rig-tests`) runs
+the function under the script's shell options in a folder of sealed copies only,
+and runs the old line there as a control that must fail.
+
+## BUG-123: the relay's 6-hourly snapshot, and the mail expiry with it, restarted at every deploy (FIXED v0.1439.0)
+
+**Symptom:** on a server deployed more often than every 6 hours the relay
+took no snapshot of its own (`data/backups/*.db.enc`, the only copies its
+crash recovery reads) and never ran the expiry pass that shares the loop:
+sealed mail past its TTL and public messages past the retention window stayed.
+
+**Root cause:** the loop slept a flat 6 hours from every start.
+
+**Fix:** the first pass is due when the newest existing snapshot turns 6 hours
+old (at least 2 minutes after start; at once if there is none),
+`storage::backups::first_snapshot_wait`; test seen red.
+
+## BUG-124: the in-app backup status and list showed no backups, and "Back up now" left a readable copy (FIXED v0.1439.0)
+
+**Symptom:** after the old plain copies were deleted, the Relay Control "Last
+backup" row and the Backups panel showed nothing, though 16 sealed copies
+existed; `provision-vps.sh` would have failed its "a backup was written" check
+on a fresh server. The "Back up now" button wrote `manual-<ts>.db` in the clear,
+and nothing ever rotated it.
+
+**Fix:** `storage::backups::is_backup_file` counts `.db`, `.db.aes` and
+`.db.enc` for the panel and the status row; provision checks `relay-*.db*`; the
+button seals its snapshot to `manual-<ts>.db.enc` with the key beside the live
+database and removes the plain copy. Tests seen red.
+
+## BUG-125: other players moved in stop-go steps and froze on any late update (FIXED v0.1440.0)
+
+**Symptom:** another player's figure jerked forward in small steps instead of
+walking, and stood still whenever an update came late.
+
+**Root cause:** `src/net/sync.rs` eased each received position in and out over
+50 ms (`smooth_step`), so the figure stopped and started on every update, and
+the desktop always sent a velocity of zero, so there was nothing to carry the
+figure across a late one.
+
+**Fix:** snapshot interpolation, the way real-time games draw other players.
+Each update carries the sender's own steady clock in `timestamp` (seconds,
+real time; 0 means none) and its real velocity. The receiver keeps a short
+buffer per player, places updates on the sender's clock plus a learned offset,
+draws each player `INTERP_DELAY_S` in the past at constant speed between the
+two updates around that moment, walks on along the last velocity for at most
+0.25 s when the buffer runs dry, blends back without a jump, and snaps
+teleports. On leaving the world view (a menu) one standing-still update goes
+out, so the figure does not walk on and park. Two critics' reviews shaped it:
+the first build only held a steady speed at exactly 15 updates a second (the
+desktop really sends every 4 or 5 frames: 2.4 to 6.8 m/s); the second stamped
+the capped frame step, so a sender in a heavy scene (131 ms frames) stalled on
+everyone's screen. Both are tests now (12 Hz, 30 fps, the real 4-or-5-frame
+pattern, a 131 ms sender, a stall burst, a pre-join backlog, our own 300 ms
+frame), each seen red.
+
+## BUG-126: leaving the shared world on purpose, or being banned from it, left the figure standing for 90 s (FIXED v0.1440.0)
+
+**Symptom:** a player who stepped out of the shared world (solo mode) stayed
+frozen in it on everyone's screen for the reconnect grace; a banned player
+stayed too, and their movement kept reaching everyone for those 90 s.
+
+**Root cause:** `handle_game_leave` and `handle_game_ban` both used
+`handle_game_disconnect`, the dropped-connection path, which holds a player's
+place for the grace.
+
+**Fix:** both call `despawn_player_now`; the grace is for dropped sockets
+only. Real-relay tests for a leave against a drop, and for a ban, seen red.
+Found by the scripted second player.

@@ -984,11 +984,9 @@ impl HomeStructure {
             // (their goods come from engine::stock_piles), market stalls, ship cradles,
             // machine arrays.
             let parts = crate::ship::structure::filler_parts(&filler.mesh_kind, cx, cz, fw, fd, h);
-            for &[x, z, w, d, y, ph] in &parts {
+            for (i, &[x, z, w, d, y, ph]) in parts.iter().enumerate() {
                 push(footprint_box(x, z, w, d, oy + y, ph));
-                // A raised part shows its underside, unless it rests on another
-                // part's top (a machine on its plinth): two faces at one height fight.
-                if y > 0.01 && !parts.iter().any(|q| (q[4] + q[5] - y).abs() < 1e-3) {
+                if needs_underside(&parts, i) {
                     push(underside(x, z, w, d, oy + y));
                 }
             }
@@ -1584,15 +1582,39 @@ fn footprint_box(x0: f32, z0: f32, w: f32, d: f32, y0: f32, h: f32) -> (Vec<Vert
 }
 
 /// The downward face of a raised box (2026-09-29): a stall's roof, a rack's deck, a duct.
-/// Only for parts off the floor: the zone meshes draw both sides of a face, so a bottom
-/// lying on the floor, or on another part's top, fights it and shows as a black patch (seen in
-/// the first two captures).
+/// Only for parts off the floor (`needs_underside` decides). The zone meshes are opaque
+/// and drawn with back faces culled (corrected 2026-10-02: this used to say both sides
+/// are drawn, which stopped being true when `footprint_box` was rewound to face out), so
+/// this face shows only from below; one lying on the floor or on a part that covers it
+/// could never be seen and is left out rather than drawn for nothing.
 fn underside(x0: f32, z0: f32, w: f32, d: f32, y0: f32) -> (Vec<Vertex>, Vec<u32>) {
     let (x1, z1, n) = (x0 + w, z0 + d, [0.0, -1.0, 0.0]);
     let verts = [[x0, y0, z1], [x1, y0, z1], [x1, y0, z0], [x0, y0, z0]]
         .map(|p| Vertex { position: p, normal: n, uv: planar_uv(p, n) })
         .to_vec();
     (verts, vec![0, 2, 1, 0, 3, 2])
+}
+
+/// Whether filler part `i` (one `filler_parts` box, `[x, z, w, d, y, h]`) gets an
+/// `underside` (2026-10-02). A part off the floor does, unless another part's top is at its
+/// bottom AND that top COVERS its whole footprint (a machine on its plinth, a chock on its
+/// rail): then the underside is hidden. The rule used to skip on height alone, so a stall's
+/// roof (its posts end exactly at the roof's bottom) and an array's duct (its riser ends at
+/// the duct's bottom) never got one and were see-through from below.
+fn needs_underside(parts: &[[f32; 6]], i: usize) -> bool {
+    const E: f32 = 1e-3;
+    let [x, z, w, d, y, _] = parts[i];
+    if y <= 0.01 {
+        return false; // on the floor
+    }
+    !parts.iter().enumerate().any(|(j, q)| {
+        j != i
+            && (q[4] + q[5] - y).abs() < E
+            && q[0] <= x + E
+            && q[0] + q[2] >= x + w - E
+            && q[1] <= z + E
+            && q[1] + q[3] >= z + d - E
+    })
 }
 
 /// The clonable subset of a `HomeStructure` (v0.638): just its shell box + interior walls + placed
@@ -1971,18 +1993,69 @@ mod tests {
     /// counter-clockwise side) agrees with the normal it is lit by, for the box
     /// and for a raised part's underside. Red check, run: the old inward winding
     /// fails on the first triangle.
+    ///
+    /// And (2026-10-02) each face really points AWAY from the box's centre:
+    /// agreeing with a hand-written normal proves nothing when the normal is
+    /// wrong too. Red check, run: the box's -X face given a +X normal with its
+    /// corners reversed to match passed the old check and failed this one.
     #[test]
     fn filler_box_faces_point_out() {
-        let check = |(v, i): (Vec<super::Vertex>, Vec<u32>)| {
+        let check = |(v, i): (Vec<super::Vertex>, Vec<u32>), centre: glam::Vec3| {
             for tri in i.chunks(3) {
                 let [a, b, c] = [0, 1, 2].map(|k| glam::Vec3::from(v[tri[k] as usize].position));
                 let facing = (b - a).cross(c - a);
                 let n = glam::Vec3::from(v[tri[0] as usize].normal);
                 assert!(facing.dot(n) > 0.0, "a face points in: facing {facing}, normal {n}");
+                let out = (a + b + c) / 3.0 - centre;
+                assert!(facing.dot(out) > 0.0 && n.dot(out) > 0.0, "a face points at the centre: facing {facing}, normal {n}");
             }
         };
-        check(super::footprint_box(1.0, 2.0, 3.0, 4.0, 0.5, 2.0));
-        check(super::underside(1.0, 2.0, 3.0, 4.0, 0.5));
+        // The box (1..4, 0.5..2.5, 2..6) has its centre at (2.5, 1.5, 4); an
+        // underside at 0.5 belongs to a part above it.
+        check(super::footprint_box(1.0, 2.0, 3.0, 4.0, 0.5, 2.0), glam::Vec3::new(2.5, 1.5, 4.0));
+        check(super::underside(1.0, 2.0, 3.0, 4.0, 0.5), glam::Vec3::new(2.5, 1.5, 4.0));
+    }
+
+    /// A RAISED FILLER PART SHOWS ITS UNDERSIDE UNLESS SOMETHING COVERS IT
+    /// (2026-10-02). A stall's roof and an array's duct get a downward face in
+    /// the built zone mesh; a machine on its plinth and a chock on its rail do
+    /// not. The old rule skipped any part whose bottom met ANY part's top, and a
+    /// stall's posts end at the roof and an array's riser at the duct, so both
+    /// were see-through from below. Red check, run: putting the old height-only
+    /// rule back in `needs_underside` failed the roof assertion.
+    #[test]
+    fn raised_filler_parts_get_an_underside_unless_covered() {
+        use crate::ship::structure::{filler_parts, zone_filler};
+        let oy = 2.0;
+        // Downward vertices the real zone bake puts at a part's bottom, in its footprint.
+        let undersides = |type_id: &str, pick: fn(&[[f32; 6]]) -> usize| -> usize {
+            let mut hs = box_only();
+            hs.add_zone(type_id, (0.0, oy, 0.0), (30.0, 6.0, 30.0));
+            let mut out = std::collections::HashMap::new();
+            hs.generate_zone_filler(&hs.zones[0], &mut out);
+            let f = zone_filler(type_id).unwrap();
+            let (cx, cz) = f.cells(0.0, 0.0, 30.0, 30.0)[0];
+            let parts = filler_parts(&f.mesh_kind, cx, cz, f.footprint.0, f.footprint.1, f.built_height(6.0));
+            let [x, z, w, d, y, _] = parts[pick(&parts)];
+            let e = 1e-3;
+            out.values()
+                .flat_map(|(v, _, _)| v.iter())
+                .filter(|v| v.normal == [0.0, -1.0, 0.0] && (v.position[1] - (oy + y)).abs() < e)
+                .filter(|v| v.position[0] >= x - e && v.position[0] <= x + w + e)
+                .filter(|v| v.position[2] >= z - e && v.position[2] <= z + d + e)
+                .count()
+        };
+        let highest = |p: &[[f32; 6]]| (0..p.len()).max_by(|&a, &b| p[a][4].total_cmp(&p[b][4])).unwrap();
+        let lowest_raised = |p: &[[f32; 6]]| {
+            (0..p.len()).filter(|&k| p[k][4] > 0.01).min_by(|&a, &b| p[a][4].total_cmp(&p[b][4])).unwrap()
+        };
+        assert_eq!(zone_filler("civic_mall").unwrap().mesh_kind, "stall");
+        assert_eq!(zone_filler("industrial").unwrap().mesh_kind, "array");
+        assert_eq!(zone_filler("hangar").unwrap().mesh_kind, "cradle");
+        assert_eq!(undersides("civic_mall", highest), 4, "a stall's roof has an underside");
+        assert_eq!(undersides("industrial", highest), 4, "an array's duct has an underside");
+        assert_eq!(undersides("industrial", lowest_raised), 0, "a machine on its plinth has none");
+        assert_eq!(undersides("hangar", lowest_raised), 0, "a chock on its rail has none");
     }
 
     use super::*;

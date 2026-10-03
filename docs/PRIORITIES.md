@@ -48,6 +48,86 @@ fixed v0.1384.0), 2a, 2a-ii and 2a-i (the grain measurements, condensed into
 page snapshots, done). A code comment or fixture that cites one of those
 numbers finds it there.
 
+### THIS WEEK (planned 2026-10-02): playable multiplayer, proven with two people
+
+Planned by a five-reader survey, three competing week plans and a judge, with
+every load-bearing claim checked by an adversarial verifier
+(`docs/history/2026-10-02.md`). Day 1's fixes shipped in v0.1436.0
+(BUG-107 to BUG-112). The rest, in order:
+- **Review** of v0.1428.0 to v0.1436.0: DONE v0.1437.0 (8 confirmed, fixed as
+  BUG-113 to BUG-121 over two rounds, each reviewed). Follow-ups: the crew
+  figures in lib.rs have the head-inside-body fault BUG-120 fixed for players;
+  settled trade ids live per save (replay into another home); the client's
+  game-off refusal match copies the relay's wording (share one function);
+  trade escrow needs server-held inventories.
+- **Day 2:** DONE v0.1438.0: the first quest's iron step counts graphite
+  smelting (a new `Make(item_id, quantity)` objective counts units of an item
+  from any recipe), and the homepage game panel plays a real clip (the home
+  flyover, 1.2 MB, on screen only, still for reduced motion or data saver).
+  STILL OPEN: the black plant models in tower net cups, so branch
+  `wip-tower-hero-models` can land (the palette files are clean, see Tier C:
+  it is the engine side, and it needs the rig).
+- **Day 3:** DONE v0.1440.0. `scripts/second-player.js` signs in as a real
+  identity, joins the shared world and walks a path (`just verify-second-player`
+  runs it against a throwaway relay); other players move by snapshot
+  interpolation on the sender's clock (BUG-125); leaving or being banned
+  despawns at once (BUG-126). Proven in the real game in v0.1441.0:
+  `just verify-copresence` boots ONE game against a throwaway relay, the
+  scripted player crosses in front of the camera, and the game records where
+  it drew the figure every frame (`debug/remote_players_request.json`); the
+  judge (`scripts/lib/copresence-judge.js`, 23 tests) checks seen, steady
+  speed, never backwards, no jump, on the line, in view, on time by the
+  computer's clock, and no other figure, plus the figure's colour in two
+  screenshots. Follow-ups it found: the other player's hair cap draws as a
+  dark band across the face; `verify-live-screen.js` and `verify-screens.js`
+  look for the DXC shader-compiler dlls only beside the exe, so from
+  target/release they boot on the slow compiler (minutes); the dev camera
+  request turns on fly mode, which takes the player out of the shared world
+  (so it hides every other player: use the showcase `cam` request instead);
+  stopping, turning and leaving are not judged in the real game yet.
+- **Day 4, RE-SCOPED 2026-10-03 by the operator's decisions below:** before
+  shared building, homes need their own places on one mothership (plots in a
+  ship frame), building limited to your own plot, and shared spaces to meet in.
+  The design is docs/design/ship-homes-and-logistics.md (2026-10-03: the full
+  list of home kinds as data, Homestead the default start, food physically real
+  for every home, 14 increments). THIS WEEK: increment 1a (the ship and the home
+  come apart: a plots list in the ship file, the home in its own design file,
+  assembled at my plot) and 1b (the relay hands out plots, each player spawns at
+  their own, proven by the co-presence rig in both join orders); then increment 2
+  (walk from your home to the Commons and meet there), which is what Day 5 needs.
+  Its section 9 holds 18 open questions for the operator, each with a
+  recommendation.
+  **Multiplayer homes, decided by the operator 2026-10-03** (verbatim in the
+  journal): every player's home has its OWN location on the mothership; homes
+  never overlap; a player builds only inside their own home; there is no "main
+  player", all players are equal; players meet anywhere on the mothership (mess
+  hall, recreation room, crafting areas, the hangar where private ships are
+  kept), and some missions start by grouping at a transport ship in the hangar;
+  traded goods are physically transported (by the player, a robot or another
+  method), so distance and ship-to-ship travel cost time, which is what trains,
+  elevators and other fast travel are for; several STARTS of different scale
+  (a full homestead for dedicated players, an apartment in a complex with shared
+  group areas such as the mess hall, and a bare-minimum start for kids and
+  people short on time). It must make logistical sense; HumanityOS could serve
+  city planning. This SUPERSEDES the first shared-building design
+  (docs/design/shared-building.md: every home at the same coordinates, anyone
+  building anywhere), whose build was stopped at its first step.
+- **Day 5:** a real two-person session on the VPS, then fix what it finds and
+  reshoot the clips.
+**Backups (2026-10-02):** an inventory found the newest snapshots restore
+cleanly (integrity check ok, row counts matching live) and that the backup
+key exists only on the VPS. Fixed in v0.1439.0: BUG-122 to BUG-124. Still
+open: game saves have no backups at all (one file rewritten in place); the
+in-app "Back up now" copies are never rotated.
+**Waiting on the operator:** how many backups to keep from now on (today 15
+half-hourly on the VPS, 5 six-hourly in the relay, 60 pulled to the PC);
+the shared-world clock
+speed (1x makes a lettuce take 45 days; 72x proposed as the server default);
+who and when for the Day 5 session; the names and contents of the start tiers (a proposal is in the design); whether
+multiplayer goes ahead of arc A. (The old plain backups, 15 on the VPS and 60
+stale local copies, were deleted 2026-10-02 at the operator's word; the VPS
+ones were shredded.)
+
 ### IN FLIGHT AT THE USAGE CAP (2026-09-27 evening): resume from these branches
 
 Weekly usage reached 89%, so every agent was told to commit (WIP if not
@@ -64,11 +144,10 @@ Drying and Fermenting guides, verified, with the jerky recipe loop fixed
 (jerky and dried meat now start from mutton), in v0.1396.1; the HDR scene
 target increments 3 and 4 in v0.1398.0):
 
-- `a2932acea7b338a59`: sun cascades. WIP e25375bb: increment 0 (fixtures,
-  the station camera pose, five clock-pinned home vantages, sun_shadows
-  pin) is done and safe to merge; increment 1 is drafted as text in
-  docs/design/sun-cascades-wip/ and never built. home-shadow-metrics.mjs
-  region boxes are placeholders.
+- None left. The last one, the sun cascades branch `a2932acea7b338a59`,
+  merged in v0.1397.0 (increment 0); increment 1 is drafted as text in
+  docs/design/sun-cascades-wip/ and never built, tracked under TIER 0 item
+  3c. (Removed 2026-10-02: the week-plan survey found this line still here.)
 
 ### 0. The ship and the playable game (arc C, ranked first 2026-09-27)
 
@@ -653,21 +732,30 @@ between the simulation and the person. Its tier ladder is the build order.
   third shape beside the home editor's `InteriorWall` and the ship structure
   pieces.
 - **Tier C (make the world look right).** Un-gate hero plant models for towers
-  (TRIED 2026-09-29 and reverted; start from this: the stage models baked
+  (TRIED 2026-09-29, NOT on main; the working code is on the pushed branch
+  `wip-tower-hero-models`, one commit over v0.1434.2: stage models baked
   into net cups, scaled uniformly to the 0.6 m dwarf height and the
-  species' spread, within `plot_vertex_budget` per tower, worked and
-  tested, but the greenhouse capture showed two blockers: the Quaternius
-  leaves are single-sided and their backs render BLACK on a vertical column,
-  where plots only ever show them from above. The cure already exists: the
-  type-19 FOLIAGE TRANSMISSION term (v0.1101, `90-fragment-main.wgsl`, the
-  same "bimodal black" signature) lights sunless faces, but it is gated on
-  `params.w`, which is also the type-19 WIND CLASS (`00-bindings-vertex.wgsl`),
-  and `home_meshes::stage_model_material` passes 0. Passing 2 would light
-  them and also make indoor crops sway; give transmission its own switch
-  first (the operator's taste call if the sway is wanted); and root crops (carrot, beet) carry their root below the
-  model origin, so a carrot dangles its whole root out of the cup; skip
-  models reaching below the origin, or trim them. Tilting each plant
-  outward like a real net cup would read better too);
+  species' spread, within `plot_vertex_budget` per tower, root crops left
+  procedural (a model reaching more than a tenth of its height under its
+  origin, so no carrot dangles its root), and the crop material flagged
+  with a NEGATIVE `params.w` that turns on the type-19 foliage transmission
+  and two-sided leaves while leaving the wind off (type 19's wind reads
+  `clamp(params.w, 0, 2)`). Tests pass. THE BLOCKER, found by a red positive
+  control on that flagged material: some stage models (the two-leaf seedling
+  shape among them) sample BLACK from their tiny palette texture, so
+  it is the albedo, not the lighting; with the albedo forced red they lit
+  fully. Find which sets, and fix their palette UVs or textures, then the
+  branch can land. **Checked offline 2026-10-02, and it is NOT the palette
+  files:** all 102 palette models are one shape (POSITION, NORMAL,
+  TEXCOORD_0, one textured material, RGBA8 PNG, nearest and clamp), every
+  vertex's UV lands inside its palette, and no palette has a black or clear
+  texel except `apple_crop` (16 near-black, which its own UVs do not hit).
+  The white-key step in `assets::white_key_alpha_if_cutout` rewrites the
+  alpha of 12 of the 8x8 palettes (the stage-4 fruit sets), but no vertex
+  samples a keyed texel and no `_1` seedling palette is among them. So the
+  black albedo comes from the engine side: which texture the tower's draw
+  binds, or how it is sampled. Start there, on the rig. Tilting each plant outward like a real net cup would
+  read better too);
   the conduit render pass; models for the machines a player stands in front of
   daily; read `mesh_kind` in `zone_filler.ron` (DONE v0.1434.0:
   `structure::filler_parts` builds market stalls, ship cradles and machine
@@ -813,6 +901,23 @@ bloom off.
   a measured frame budget; fire trails drawn as the eye sees them; coloured fire
   from chemistry data plus a creative any-colour toggle.
 - Ordering against arcs A to F is the operator's call.
+
+### H. Video for social media (the clip maker, v0.1435.0, operator 2026-09-30)
+
+The operator chose video as the lever after two days of logs showed about 19
+visitors from social links (update posts are changelogs for people who already
+care). `just clips` records every shot in `scripts/clips.json` frame-exact
+(`src/engine/movie.rs`) and cuts 16:9, 9:16 and a still. First batch: the sea
+sunset, Japan from orbit, the open sea and Silverdale are strong; Earth turning
+is small in frame and the Fuji drop's middle is blurry low-resolution land and
+haze. Next rungs, in order:
+- **Native portrait render:** the 9:16 cut is a centre crop of a landscape
+  frame (about 780 px wide, upscaled). Render the live view at 1080x1920.
+- **Better shots:** the drop needs the ground's texture detail at mid-altitude,
+  and Earth turning wants a closer, sunlit framing; add shots of whatever ships
+  next (a trade, building a wall with a door).
+- **Record button in the Studio page** (logged in `docs/design/in-app-ops.md`).
+- **Text overlays and music**, if posting shows captions burned in do better.
 
 ---
 

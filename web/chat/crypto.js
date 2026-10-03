@@ -44,8 +44,12 @@ function hexToBuf(hex) {
   return bytes;
 }
 
+let _ed25519Support = null;
 async function supportsEd25519() {
-  try { await crypto.subtle.generateKey('Ed25519', true, ['sign', 'verify']); return true; } catch (e) { return false; }
+  if (_ed25519Support === null) {
+    try { await crypto.subtle.generateKey('Ed25519', true, ['sign', 'verify']); _ed25519Support = true; } catch (e) { _ed25519Support = false; }
+  }
+  return _ed25519Support;
 }
 
 async function generateKeypair() {
@@ -81,11 +85,18 @@ async function restoreKeyFromLocalStorage() {
   try {
     const raw = localStorage.getItem('humanity_key_backup');
     if (!raw) return null;
-    const { publicKeyHex, privateKeyPkcs8 } = JSON.parse(raw);
-    if (!publicKeyHex || !privateKeyPkcs8) return null;
+    const parsed = JSON.parse(raw);
+    const privateKeyPkcs8 = parsed.privateKeyPkcs8;
+    if (!privateKeyPkcs8) return null;
     const pkcs8Buf = Uint8Array.from(atob(privateKeyPkcs8), c => c.charCodeAt(0));
-    const privateKey = await crypto.subtle.importKey('pkcs8', pkcs8Buf, 'Ed25519', true, ['sign']);
-    const publicKey = await crypto.subtle.importKey('raw', hexToBuf(publicKeyHex), 'Ed25519', true, ['verify']);
+    // A backup the SEED-ONLY path wrote (a browser that had no Ed25519 then)
+    // carries no public key; derive it, so the identity survives the update.
+    const k = parsed.publicKeyHex
+      ? { privateKey: await crypto.subtle.importKey('pkcs8', pkcs8Buf, 'Ed25519', true, ['sign']),
+          publicKey: await crypto.subtle.importKey('raw', hexToBuf(parsed.publicKeyHex), 'Ed25519', true, ['verify']),
+          publicKeyHex: parsed.publicKeyHex }
+      : await ed25519FromSeed(pkcs8Buf.slice(16, 48));
+    const { publicKeyHex, privateKey, publicKey } = k;
     console.log('Restored identity from localStorage backup:', publicKeyHex.substring(0, 16) + '…');
     // Re-save to IndexedDB
     try {
@@ -100,10 +111,8 @@ async function restoreKeyFromLocalStorage() {
 async function getOrCreateIdentity() {
   const hasEd25519 = await supportsEd25519();
   if (!hasEd25519) {
-    console.warn('Ed25519 not supported, falling back to random key');
-    let key = localStorage.getItem('humanity_key');
-    if (!key) { const bytes = new Uint8Array(32); crypto.getRandomValues(bytes); key = bufToHex(bytes); localStorage.setItem('humanity_key', key); }
-    return { publicKeyHex: key, privateKey: null, publicKey: null, canSign: false };
+    console.warn('This browser has no Ed25519 in WebCrypto: holding the identity seed directly');
+    return seedOnlyFromStorage();
   }
   try {
     const db = await openKeyDB();
@@ -149,9 +158,8 @@ async function getOrCreateIdentity() {
     // Try localStorage backup as last resort
     const restored = await restoreKeyFromLocalStorage();
     if (restored) return restored;
-    let key = localStorage.getItem('humanity_key');
-    if (!key) { const bytes = new Uint8Array(32); crypto.getRandomValues(bytes); key = bufToHex(bytes); localStorage.setItem('humanity_key', key); }
-    return { publicKeyHex: key, privateKey: null, publicKey: null, canSign: false };
+    // IndexedDB and the Ed25519 restore both failed: the seed still works.
+    return seedOnlyFromStorage();
   }
 }
 
@@ -215,12 +223,98 @@ function extractSeedFromPkcs8(pkcs8Buf) {
   return bytes.slice(bytes.length - 32);
 }
 
+// ── SEED-ONLY IDENTITY (2026-09-30) ──
+// The identity IS the 32-byte seed: Dilithium3 and Kyber768 derive from it
+// (pq.js), and the Ed25519 key was only ever its container plus the Solana
+// wallet. WebCrypto Ed25519 is recent (on by default from Chrome 137, 2025),
+// so on the many phones running an older Chrome or a Chromium browser built on
+// one, the old fallback made a key with no private half and attachPqIdentity
+// refused to connect: "Post-quantum identity could not be initialized" (a
+// report from a user in Nigeria, 2026-09-30). There the seed is held directly.
+// It is saved in the SAME backup the Ed25519 path reads (humanity_key_backup,
+// PKCS8), so a browser that later gains Ed25519 restores the same seed and the
+// person keeps the same identity. Lost without Ed25519: the Solana wallet's
+// public key only (chat signing is Dilithium3 since the PQ cutover).
+const ED25519_PKCS8_PREFIX = new Uint8Array([
+  0x30, 0x2e, 0x02, 0x01, 0x00, 0x30, 0x05, 0x06,
+  0x03, 0x2b, 0x65, 0x70, 0x04, 0x22, 0x04, 0x20
+]);
+
+/** The standard 48-byte Ed25519 PKCS8 around a 32-byte seed (what WebCrypto exports). */
+function pkcs8FromSeed(seed) {
+  const p = new Uint8Array(48);
+  p.set(ED25519_PKCS8_PREFIX, 0);
+  p.set(seed, 16);
+  return p;
+}
+
+/** An identity that holds its seed rather than an Ed25519 CryptoKey. */
+function seedOnlyIdentity(seed, extra) {
+  return Object.assign({ publicKeyHex: '', privateKey: null, publicKey: null, seed32: seed,
+    canSign: true, seedOnly: true }, extra || {});
+}
+
+/** Save the seed as the standard localStorage backup (no public key: see restoreKeyFromLocalStorage). */
+function saveSeedBackup(seed) {
+  try {
+    const b64 = btoa(String.fromCharCode(...pkcs8FromSeed(seed)));
+    localStorage.setItem('humanity_key_backup', JSON.stringify({ publicKeyHex: '', privateKeyPkcs8: b64 }));
+  } catch (e) { console.warn('Seed backup to localStorage failed:', e); }
+}
+
+/** The seed in the localStorage backup, read without WebCrypto; null if none. */
+function loadSeedBackup() {
+  try {
+    const raw = localStorage.getItem('humanity_key_backup');
+    if (!raw) return null;
+    const b = JSON.parse(raw);
+    if (!b.privateKeyPkcs8) return null;
+    const bytes = Uint8Array.from(atob(b.privateKeyPkcs8), c => c.charCodeAt(0));
+    return bytes.length === 48 ? bytes.slice(16, 48) : null;
+  } catch (e) { return null; }
+}
+
+/** The seed-only identity from storage: the backup's seed, the passphrase-wrapped one, or a new one. */
+async function seedOnlyFromStorage() {
+  let seed = loadSeedBackup();
+  if (!seed && isKeyWrapped()) {
+    const pp = window.prompt('Your identity is passphrase-protected.\nEnter your passphrase to unlock it:');
+    if (pp) {
+      try { seed = await loadWrappedSeed(pp); } catch (e) { alert('Could not unlock identity: ' + e.message + '\nA new identity will be generated.'); }
+    }
+  }
+  const isNew = !seed;
+  if (!seed) {
+    seed = crypto.getRandomValues(new Uint8Array(32));
+    await requestPersistentStorage();
+  }
+  saveSeedBackup(seed);
+  return seedOnlyIdentity(seed, { isNew });
+}
+
+/** An Ed25519 keypair from a seed, with the public key worked out through JWK. */
+async function ed25519FromSeed(seed) {
+  const privateKey = await crypto.subtle.importKey('pkcs8', pkcs8FromSeed(seed), 'Ed25519', true, ['sign']);
+  const jwk = await crypto.subtle.exportKey('jwk', privateKey);
+  if (!jwk.x) throw new Error('JWK missing public key field');
+  const pubBytes = Uint8Array.from(atob(jwk.x.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0));
+  const publicKey = await crypto.subtle.importKey('raw', pubBytes, 'Ed25519', true, ['verify']);
+  return { privateKey, publicKey, publicKeyHex: bufToHex(pubBytes) };
+}
+
+/** The identity's 32-byte seed, from whichever it holds; null without one. */
+async function identitySeed() {
+  if (!myIdentity) return null;
+  if (myIdentity.seed32) return myIdentity.seed32;
+  if (!myIdentity.privateKey) return null;
+  return extractSeedFromPkcs8(await crypto.subtle.exportKey('pkcs8', myIdentity.privateKey));
+}
+
 /** Export the current identity as a JSON backup object. Returns null if non-extractable. */
 async function exportIdentityJSON(name) {
-  if (!myIdentity || !myIdentity.privateKey) return null;
   try {
-    const pkcs8 = await crypto.subtle.exportKey('pkcs8', myIdentity.privateKey);
-    const seed = extractSeedFromPkcs8(pkcs8);
+    const seed = await identitySeed();
+    if (!seed) return null;
     const exportData = {
       name: name || myName,
       publicKey: myIdentity.publicKeyHex,
@@ -388,15 +482,26 @@ async function downloadIdentityBackup(name) {
 /** Import an identity from a JSON backup file. Returns { publicKeyHex, privateKey, publicKey, name } or throws. */
 async function importIdentityFromJSON(jsonData) {
   // Validate required fields
-  if (!jsonData.publicKey || !jsonData.privateKey || !jsonData.name) {
-    throw new Error("Invalid backup file: missing required fields (name, publicKey, privateKey).");
+  if (!jsonData.privateKey || !jsonData.name) {
+    throw new Error("Invalid backup file: missing required fields (name, privateKey).");
   }
-  if (jsonData.publicKey.length !== 64 || jsonData.privateKey.length !== 64) {
-    throw new Error("Invalid backup file: keys must be 64-character hex strings.");
+  if (jsonData.privateKey.length !== 64) {
+    throw new Error("Invalid backup file: the private key must be a 64-character hex string.");
   }
 
   // Reconstruct the Ed25519 keypair from the seed
   const seedBytes = hexToBuf(jsonData.privateKey);
+  // No Ed25519 here, or a backup from a seed-only browser (no public key):
+  // the seed is the whole identity.
+  if (!(await supportsEd25519())) {
+    saveSeedBackup(seedBytes);
+    localStorage.setItem('humanity_name', jsonData.name);
+    return seedOnlyIdentity(seedBytes, { name: jsonData.name });
+  }
+  if (!jsonData.publicKey || jsonData.publicKey.length !== 64) {
+    const k = await ed25519FromSeed(seedBytes);
+    jsonData = Object.assign({}, jsonData, { publicKey: k.publicKeyHex });
+  }
 
   // Build PKCS8 wrapper around the 32-byte seed
   const pkcs8Prefix = new Uint8Array([
@@ -453,10 +558,9 @@ async function importIdentityFromJSON(jsonData) {
  * @returns {Promise<string|null>}
  */
 async function getSeedPhrase() {
-  if (!myIdentity || !myIdentity.privateKey) return null;
   try {
-    const pkcs8 = await crypto.subtle.exportKey('pkcs8', myIdentity.privateKey);
-    const seed = extractSeedFromPkcs8(pkcs8);
+    const seed = await identitySeed();
+    if (!seed) return null;
     const hex = bufToHex(seed);
     // Split into 8 groups of 4 hex chars
     return hex.match(/.{1,8}/g).map(g => g.match(/.{1,4}/g).join('-')).join('  ');
@@ -494,11 +598,10 @@ async function deriveKeyFromPassphrase(passphrase, salt) {
  * @param {string} passphrase - User-chosen passphrase to protect the backup.
  */
 async function exportEncryptedIdentityBackup(passphrase) {
-  if (!myIdentity || !myIdentity.privateKey) throw new Error('No identity loaded.');
+  const seed = await identitySeed();
+  if (!seed) throw new Error('No identity loaded.');
   if (!passphrase || passphrase.length < 8) throw new Error('Passphrase must be at least 8 characters.');
 
-  const pkcs8 = await crypto.subtle.exportKey('pkcs8', myIdentity.privateKey);
-  const seed = extractSeedFromPkcs8(pkcs8);
   const plain = JSON.stringify({ v: 1, name: myName, publicKey: myIdentity.publicKeyHex, privateKey: bufToHex(seed) });
 
   const salt = crypto.getRandomValues(new Uint8Array(16));
@@ -570,11 +673,12 @@ const WRAPPED_KEY_LS   = 'humanity_key_wrapped';
  * @param {string} passphrase - User-chosen passphrase (≥ 8 chars)
  */
 async function wrapAndStoreKey(passphrase) {
-  if (!myIdentity || !myIdentity.privateKey) throw new Error('No identity loaded.');
+  const seed = await identitySeed();
+  if (!seed) throw new Error('No identity loaded.');
   if (!passphrase || passphrase.length < 8)  throw new Error('Passphrase must be at least 8 characters.');
 
-  // Wrap Ed25519 key
-  const pkcs8    = await crypto.subtle.exportKey('pkcs8', myIdentity.privateKey);
+  // Wrap the seed, in the Ed25519 PKCS8 it has always been stored as
+  const pkcs8    = pkcs8FromSeed(seed);
   const salt     = crypto.getRandomValues(new Uint8Array(16));
   const iv       = crypto.getRandomValues(new Uint8Array(12));
   const wrapKey  = await deriveKeyFromPassphrase(passphrase, salt);
@@ -596,6 +700,20 @@ async function wrapAndStoreKey(passphrase) {
  * @param {string} passphrase
  * @returns {Promise<object|null>} Identity object or null if no wrapped key exists.
  */
+/** The seed inside the passphrase-wrapped key, without WebCrypto Ed25519. */
+async function loadWrappedSeed(passphrase) {
+  const raw = localStorage.getItem(WRAPPED_KEY_LS);
+  if (!raw) return null;
+  const b = JSON.parse(raw);
+  const wrapKey = await deriveKeyFromPassphrase(passphrase, hexToBuf(b.salt));
+  let pkcs8;
+  try {
+    pkcs8 = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: hexToBuf(b.iv) }, wrapKey,
+      Uint8Array.from(atob(b.ct), c => c.charCodeAt(0)));
+  } catch { throw new Error('Wrong passphrase.'); }
+  return extractSeedFromPkcs8(pkcs8);
+}
+
 async function loadWrappedKey(passphrase) {
   const raw = localStorage.getItem(WRAPPED_KEY_LS);
   if (!raw) return null;
@@ -681,14 +799,13 @@ window.getDmStoreKey = getDmStoreKey;
  */
 async function attachPqIdentity() {
   try {
-    if (!myIdentity || !myIdentity.privateKey) return false;
+    const seed = await identitySeed(); // 32-byte BIP39 master seed
+    if (!seed) { console.error('FULL-PQ: no identity seed'); return false; }
     if (typeof window.pqDeriveIdentity !== 'function'
         || typeof window.pqDeriveKyber !== 'function') {
       console.error('FULL-PQ: pq.js missing, cannot derive a PQ identity');
       return false;
     }
-    const pkcs8 = await crypto.subtle.exportKey('pkcs8', myIdentity.privateKey);
-    const seed = extractSeedFromPkcs8(pkcs8); // 32-byte BIP39 master seed
     const pq = await window.pqDeriveIdentity(seed);  // Dilithium3
     const kp = await window.pqDeriveKyber(seed);     // Kyber768
     if (!pq || !pq.dilithiumPublicHex || !kp || !kp.kyberPublicBytes) {
@@ -703,7 +820,9 @@ async function attachPqIdentity() {
     _dmStoreKeyPromise = null;   // re-derive if the identity changed
     // Promote Dilithium to THE chat identity. Stash the old Ed25519
     // hex (Solana-wallet use only); `publicKeyHex` is now Dilithium.
-    myIdentity.ed25519PublicKeyHex = myIdentity.publicKeyHex;
+    // Only before the first promotion: run twice on one identity, the second
+    // pass would file the Dilithium key here (seen 2026-09-30).
+    if (!myIdentity.dilithiumPublicHex) myIdentity.ed25519PublicKeyHex = myIdentity.publicKeyHex;
     myIdentity.publicKeyHex = myDilithiumPublicHex;
     myIdentity.dilithiumPublicHex = myDilithiumPublicHex;
     myIdentity.kyberPublicBase64 = myKyberPublicBase64;
@@ -1087,11 +1206,10 @@ function normalizeMnemonicInput(text) {
  * @returns {Promise<string|null>} Mnemonic string or null if unavailable.
  */
 async function generateMnemonic() {
-  // Try 1: export from in-memory CryptoKey
-  if (myIdentity && myIdentity.privateKey) {
+  // Try 1: the in-memory identity (its CryptoKey, or its seed on a seed-only browser)
+  if (myIdentity && (myIdentity.privateKey || myIdentity.seed32)) {
     try {
-      const pkcs8 = await crypto.subtle.exportKey('pkcs8', myIdentity.privateKey);
-      const seed = extractSeedFromPkcs8(pkcs8);
+      const seed = await identitySeed();
       return await mnemonicFromSeed(seed);
     } catch (e) { console.warn('generateMnemonic: in-memory export failed, trying localStorage backup'); }
   }
@@ -1140,6 +1258,13 @@ async function restoreIdentityFromMnemonic(mnemonic) {
   const pkcs8 = new Uint8Array(48);
   pkcs8.set(pkcs8Prefix, 0);
   pkcs8.set(seed, 16);
+
+  // No Ed25519 in this browser: the seed is the whole identity.
+  if (!(await supportsEd25519())) {
+    saveSeedBackup(seed);
+    console.log('Identity restored from mnemonic (seed-only browser)');
+    return seedOnlyIdentity(seed, { isNew: false, restored: true });
+  }
 
   // Import private key
   const privateKey = await crypto.subtle.importKey('pkcs8', pkcs8, 'Ed25519', true, ['sign']);

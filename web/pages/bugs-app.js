@@ -157,26 +157,62 @@
   }
 
   // ---- Voting ----
-  window.__voteBug = function (id, btn) {
-    var voterKey = getPublicKey();
-    if (!voterKey) {
-      alert('You need to be logged in (have an identity) to vote.');
-      return;
-    }
+  //
+  // POST /api/bugs/{id}/vote takes { voter_key, timestamp, sig } and checks
+  // them with verify_signed_actor (src/relay/api.rs): the timestamp must be
+  // under 5 minutes old, and sig must be a Dilithium3 signature by voter_key
+  // over the bytes "bug_vote\n<timestamp>". getPqSignedAuth('bug_vote')
+  // (web/shared/pq-relay-auth.js, loaded by bugs.html together with
+  // /chat/pq.js) builds exactly that preimage and returns { key, timestamp,
+  // sig }, with key the Dilithium public key hex the relay knows people by.
+  // It reads the seed from the backup Chat leaves in localStorage, so it
+  // works on browsers without WebCrypto Ed25519 too. It returns null when
+  // this device has no such backup.
+  var NO_IDENTITY_MSG = 'Open Chat once on this device to sign in, then vote.';
 
-    fetch(API_BASE + '/api/bugs/' + id + '/vote', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ voter_key: voterKey })
-    })
-      .then(function (res) { return res.json(); })
-      .then(function (data) {
-        if (data.voted) {
-          btn.classList.add('voted');
+  function signVote() {
+    if (typeof window.getPqSignedAuth !== 'function') {
+      console.warn('Bug vote: pq-relay-auth.js not loaded');
+      return Promise.resolve(null);
+    }
+    return window.getPqSignedAuth('bug_vote');
+  }
+
+  window.__voteBug = function (id, btn) {
+    if (btn.disabled) return;
+    btn.disabled = true;
+
+    signVote()
+      .then(function (auth) {
+        if (!auth) {
+          alert(NO_IDENTITY_MSG);
+          return null;
         }
+        return fetch(API_BASE + '/api/bugs/' + id + '/vote', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            voter_key: auth.key,
+            timestamp: auth.timestamp,
+            sig: auth.sig
+          })
+        }).then(function (res) {
+          // Errors come back as plain text, not JSON.
+          if (!res.ok) return res.text().then(function (t) { throw new Error(t || ('HTTP ' + res.status)); });
+          return res.json();
+        });
+      })
+      .then(function (data) {
+        if (!data) return;
+        // voted is false only when this key had already voted for the bug;
+        // either way this person's vote is counted, so show it as theirs.
+        btn.classList.add('voted');
         btn.innerHTML = '\u25B2 ' + data.votes;
       })
-      .catch(function () {});
+      .catch(function (err) {
+        alert('Vote failed: ' + (err && err.message ? err.message : 'network error'));
+      })
+      .then(function () { btn.disabled = false; });
   };
 
   // ---- Utilities ----

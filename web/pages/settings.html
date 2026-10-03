@@ -1561,7 +1561,7 @@
             <strong>View Recovery Phrase</strong>
             <span>24-word recovery phrase, write it down, never share it, never screenshot it</span>
           </div>
-          <button onclick="settingsOpenSeed()" style="background:#1a3a4a;border:1px solid #28f;color:#4af;padding:var(--space-sm) var(--space-lg);border-radius:6px;font-size:0.84rem;font-weight:600;cursor:pointer;">🌱 View Seed</button>
+          <button onclick="settingsOpenSeed()" style="background:#1a3a4a;border:1px solid #28f;color:#4af;padding:var(--space-sm) var(--space-lg);border-radius:6px;font-size:0.84rem;font-weight:600;cursor:pointer;">🔑 View Recovery Phrase</button>
         </div>
         <div class="setting-row">
           <div class="setting-label">
@@ -1963,7 +1963,7 @@
           <div id="vault-sec-seed-nudge-banner" style="display:none;align-items:flex-start;gap:var(--space-xl);
                background:#1a1000;border:1px solid #3a2800;border-radius:11px;
                padding:var(--space-xl) 1.1rem;margin-bottom:var(--space-2xl);max-width:640px">
-            <span style="font-size:1.4rem;flex-shrink:0">🌱</span>
+            <span style="font-size:1.4rem;flex-shrink:0">🔑</span>
             <div style="flex:1">
               <div style="font-size:.85rem;font-weight:700;color:var(--accent);margin-bottom:var(--space-sm)">Your Humanity identity isn't backed up here yet</div>
               <div style="font-size:.78rem;color:var(--text-muted);line-height:1.55;margin-bottom:var(--space-lg)">
@@ -1994,7 +1994,7 @@
             </p>
             <div class="quick-add-grid" id="vault-sec-quick-add-grid">
               <button class="quick-add-btn" onclick="vault_openNewEntryModal('seed_phrase')">
-                <span class="qa-icon">🌱</span>
+                <span class="qa-icon">🔑</span>
                 <span class="qa-title">Recovery Phrase</span>
                 <span class="qa-desc">Your 24-word Humanity recovery phrase or any BIP39 phrase</span>
               </button>
@@ -2146,7 +2146,7 @@
 </div>
 
 <script src="/chat/bip39-english.js?v=1"></script>
-<script src="/chat/crypto.js?v=5"></script>
+<script src="/chat/crypto.js?v=7"></script>
 <!-- Dilithium identity bridge for relay REST auth (Inc5c-tail, v0.277.2). -->
 <!-- `pq.js` installs window.pqDeriveIdentity + window.pqSignMessage; -->
 <!-- `pq-relay-auth.js` installs window.getPqSignedAuth used by vault sync. -->

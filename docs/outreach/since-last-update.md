@@ -11,6 +11,15 @@ Each line is written the way a player would hear it; the release notes and
 
 ## Shipped
 
+- **v0.1440.0: other players walk smoothly.** Another player's figure now walks
+  at a steady pace instead of jerking forward in steps, keeps walking through a
+  late update, and disappears at once when they leave. A scripted second player
+  can now join to test with, so one person can see the shared world working.
+
+- **v0.1438.0: the first quest takes either fuel.** Smelting your first iron
+  ingot with graphite now counts, the same as with coal. The homepage also
+  shows a real flight over a home in orbit, recorded in the game.
+
 - **v0.1421.2: a server check found the self-hosted code mirror down (behind the scenes).**
   The website, game server and backups are all healthy. The project's own
   copy of the code at git.united-humanity.us had quietly stopped taking
@@ -41,6 +50,25 @@ Each line is written the way a player would hear it; the release notes and
   backpack, and when both of you confirm, it leaves your pack and what they
   offered arrives in yours, worn tools still worn. Before this, a finished
   trade said "items exchanged" and nothing moved.
+- **v0.1435.0: the game can film itself.** A new recording mode turns
+  set shots (Earth turning, Japan from orbit, a drop from 300 km toward Mt
+  Fuji, the open sea, a sunset over the sea, Silverdale from above, the
+  home from above, the greenhouse) into smooth, ready-to-post videos in
+  both landscape and portrait.
+- **v0.1437.0: trading works in the desktop app.** A finished trade now
+  really moves the items, even if you were away when the other player
+  confirmed; the Trade page lists your trades. Voice no longer drops you
+  from the room after a network blip, and other players' figures stand on
+  the floor with their head on their shoulders.
+- **v0.1436.0: the Windows download is the whole game.** The main
+  download button now gives Windows players the full game with its models
+  and textures; before, it gave them the bare program, which looked like grey
+  boxes. Upvoting a bug and the Tasks board on the website work again too.
+- **v0.1435.2: chat works on older phones.** The website chat refused
+  to connect on phones whose browser is not the newest (anything before
+  Chrome 137), which is most phones in much of the world. A user in
+  Nigeria reported it; it is fixed, and his identity will stay the same
+  when his browser updates.
 - **v0.1434.0: the ship's districts look like what they are.** The mall
   has market stalls, the hangars have cradles for ships, and the power and
   industrial decks have rows of machines with pipes and ducts, instead of

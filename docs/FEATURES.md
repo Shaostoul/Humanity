@@ -1220,6 +1220,20 @@ select_preview_scene` / `cut_to_program`, unit-tested; persists across page swit
 Headless snapshot: `just snapshot studio`.
 - Native: `src/gui/pages/studio.rs`
 
+### Clip Maker (movie mode)
+Films the game for social media (v0.1435.0). `just clips` boots the release build in
+the background rig, flies to each shot in `scripts/clips.json` (a planet vantage or a
+place aboard the home, with weather, sea state and hour), and records it in the engine's
+movie mode: every frame advances time by exactly 1/fps and goes straight into ffmpeg, so
+the video is smooth however slowly frames render, and the animation clock the water,
+clouds and wind read is slid to match. Camera motions: hold, an eased pan, a keyframed
+dolly through the home, and an exponential drop from orbit toward the ground. Each shot
+comes out as 1920x1080, 1080x1920 (a centre crop for now), a still and the full-size
+master, with a clips.md of suggested first lines, in Videos\HumanityOS clips.
+- Native: `src/engine/movie.rs` (`debug/record_request.json`), `src/renderer/capture.rs`
+  (`capture_current_frame_rgba`)
+- Script + shots: `scripts/make-clips.js`, `scripts/clips.json`
+
 ### Civilization Page
 Community stats dashboard.
 - Native: `src/gui/pages/civilization.rs`
@@ -1492,6 +1506,13 @@ File watcher (notify) invalidates asset cache per frame.
 
 ### Multiplayer Networking
 WebSocket client (tungstenite), message protocol, ECS sync, position interpolation.
+Other players are drawn by snapshot interpolation (v0.1440.0, BUG-125): a short buffer
+per player, placed on the sender's own clock (`timestamp`, seconds, real time),
+drawn `INTERP_DELAY_S` behind at constant speed, brief extrapolation on the
+real velocity the sender now sends, teleports snapped (`SnapshotBuffer`,
+`PositionSender` in `src/net/sync.rs`). A scripted second player
+(`scripts/second-player.js`) signs in as a real identity and walks a path, for
+testing with one person (`just verify-second-player`).
 - Native: `src/net/protocol.rs`, `src/net/client.rs`, `src/net/sync.rs`
 
 ### Mod Support
@@ -2920,6 +2941,14 @@ Renders native egui pages to PNGs via an offscreen egui-wgpu + wgpu pipeline (no
 ### Build / Verify Recipes
 Convenience recipes for the pre-push gate. `just verify` runs both feature builds (native + relay) plus lib tests and lints; `just lints` runs the four `src/gui` file-scanner lints via standalone rustc (Windows-PDB-safe, dodges the LNK1318 limit); `just snapshots` renders the UI PNGs; `just preflight` checks untracked source + doc links then runs verify.
 - Recipes: `Justfile` (`verify`, `lints`, `snapshots`, `preflight`)
+- **Co-presence rig (v0.1441.0):** `just verify-copresence` boots one background game
+  against a throwaway relay (`scripts/lib/throwaway-relay.js`, shared with
+  `just verify-second-player`), has `scripts/second-player.js` cross in front of the
+  camera, and judges what the GAME drew, frame by frame, with `scripts/lib/copresence-judge.js`
+  (unit tests in `just rig-tests`). The recorder is a dev request,
+  `debug/remote_players_request.json` (`src/engine/ipc.rs`): each frame's drawn remote
+  players, the frame clock, the computer's clock and the camera. `--dry-verdict
+  <manifest.json>` re-judges a saved run.
 
 ### Crash-Safe Logging (v0.601)
 A file logger that tees every log line to disk (flushed per line) plus a panic hook, so a windowed exe

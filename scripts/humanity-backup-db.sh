@@ -102,13 +102,26 @@ fi
 chmod 640 "$OUT"
 chown humanity:humanity "$OUT" || true
 
-# Rotate: keep newest 15 of each form (plain from the pre-encryption
-# era age out naturally; sealed .db.aes thereafter). Independent of the
+# Rotate: keep the newest $KEEP of each form (plain, only made when the
+# key is missing; sealed .db.aes otherwise). Independent of the
 # disk-guard's HUMANITY_DB_BACKUP_KEEP (which is OFF by default and
 # would otherwise never rotate); we always cap here so backups/ doesn't
 # grow unbounded if the disk-guard is disabled.
-ls -1t "$BACKUP_DIR"/relay-*.db 2>/dev/null | tail -n +16 | xargs -r rm -f
-ls -1t "$BACKUP_DIR"/relay-*.db.aes 2>/dev/null | tail -n +16 | xargs -r rm -f
+#
+# find, never `ls glob | ...` (BUG-122, 2026-10-02): under set -euo
+# pipefail an ls whose glob matches nothing exits 2 and ENDS the script.
+# Once the last plain relay-*.db was deleted, every run failed on the
+# plain line after writing its snapshot, never reached the .db.aes line,
+# and the sealed copies piled up without limit (about 48 a day).
+# scripts/tests/backup-rotate.test.js runs this function under the same
+# shell options, and runs the old line too, to show it fails there.
+KEEP="${HUMANITY_DB_BACKUP_ROTATE_KEEP:-15}"
+rotate_keep() {
+  find "$BACKUP_DIR" -maxdepth 1 -type f -name "$1" -printf '%T@ %p\n' \
+    | sort -rn | tail -n +"$((KEEP + 1))" | cut -d' ' -f2- | xargs -r -d '\n' rm -f --
+}
+rotate_keep 'relay-*.db'
+rotate_keep 'relay-*.db.aes'
 
 # Emit a parseable line for journalctl. The .timer captures stdout, so
 # this becomes a discoverable per-run audit trail.

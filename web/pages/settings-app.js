@@ -7,7 +7,9 @@ let prefs = Object.assign({}, DEFAULTS);
 // Settings loads crypto.js but not app.js, so we initialize them here from stored keys.
 var myIdentity = null;
 var myName = localStorage.getItem('humanity_name') || 'identity';
-(async function initSettingsIdentity() {
+// Kept so settingsOpenSeed() can wait for the identity to finish loading: a
+// click right after the page opens would otherwise find myIdentity still null.
+var settingsIdentityReady = (async function initSettingsIdentity() {
   if (typeof getOrCreateIdentity === 'function') {
     try {
       myIdentity = await getOrCreateIdentity();
@@ -709,7 +711,7 @@ savePref = function() { _origSavePref(); updateRangeLabels(); };
 // Version tag
 try {
   const vEl = document.getElementById('version-tag');
-  if (vEl) vEl.textContent = 'HumanityOS, v0.1434.2 · ' + new Date().getFullYear();
+  if (vEl) vEl.textContent = 'HumanityOS, v0.1441.1 · ' + new Date().getFullYear();
 } catch(e) {}
 
 // Inject hosIcon SVGs into action bar buttons
@@ -1496,14 +1498,14 @@ document.querySelectorAll('#sec-server-info .info-section h2').forEach(h2 => {
 
   const VAULT_TYPE_TEMPLATES = {
     seed_phrase: {
-      label: 'Recovery Phrase', icon: '🌱',
+      label: 'Recovery Phrase', icon: '🔑',
       fields: [
         { label: 'Recovery Phrase (24 words)', key: 'phrase', placeholder: 'word1 word2 … word24', multiline: true, secret: true }
       ],
       note: 'These 24 words are your identity master key. Anyone who has them can use your account, guard them carefully.'
     },
     password: {
-      label: 'Password', icon: '🔑',
+      label: 'Password', icon: '🔒',
       fields: [
         { label: 'Username or Email', key: 'username', placeholder: 'you@example.com', secret: false },
         { label: 'Password',          key: 'password', placeholder: '••••••••',         secret: true },
@@ -1750,7 +1752,7 @@ document.querySelectorAll('#sec-server-info .info-section h2').forEach(h2 => {
   }
 
   function vault_entryIcon(type) {
-    return { seed_phrase: '🌱', password: '🔑', note: '📝', login: '🔗', custom: '🪙' }[type] || '📄';
+    return { seed_phrase: '🔑', password: '🔒', note: '📝', login: '🔗', custom: '🪙' }[type] || '📄';
   }
 
   function vault_typeLabel(type) {
@@ -1982,11 +1984,16 @@ function settingsOpenRestore() {
 }
 
 async function settingsOpenSeed() {
+  try { await settingsIdentityReady; } catch(e) {}
   var mnemonic;
   try { mnemonic = await generateMnemonic(); } catch(e) { mnemonic = null; }
   if (!mnemonic) {
-    // Key is non-extractable (created before backup support). Offer rotation.
-    settingsShowNonExtractableOverlay();
+    // Say why, and change nothing. (A "Rotate Key" button used to sit here: it
+    // replaced the identity with a fresh random key that no longer matched the
+    // person's recovery phrase, while claiming a certificate would carry their
+    // profile over. Nothing does: the relay's key-rotation route was deleted in
+    // v0.265.0. Removed 2026-10-02.)
+    settingsShowPhraseUnavailable();
     return;
   }
   var words = mnemonic.trim().split(/\s+/);
@@ -1996,7 +2003,7 @@ async function settingsOpenSeed() {
     return '<div style="background:#0f0f0f;border:1px solid #2a2a2a;border-radius:7px;padding:var(--space-md) var(--space-md);display:flex;align-items:baseline;gap:var(--space-sm)"><span style="font-size:.6rem;color:#444;min-width:16px;text-align:right">' + (i+1) + '.</span><span style="font-size:.86rem;color:var(--accent);font-weight:600">' + w + '</span></div>';
   }).join('');
   overlay.innerHTML = '<div style="background:#181818;border:1px solid #2a2a2a;border-radius:14px;padding:1.75rem;width:100%;max-width:600px;color:#e0e0e0;max-height:90vh;overflow-y:auto;">' +
-    '<h2 style="font-size:1rem;font-weight:700;color:var(--accent);margin:0 0 var(--space-sm)">🌱 Your 24-Word Recovery Phrase</h2>' +
+    '<h2 style="font-size:1rem;font-weight:700;color:var(--accent);margin:0 0 var(--space-sm)">🔑 Your 24-Word Recovery Phrase</h2>' +
     '<p style="font-size:.78rem;color:#e55;line-height:1.5;margin:0 0 var(--space-md)"><strong>Never screenshot this. Never share it. Anyone who has these words IS you.</strong></p>' +
     '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:var(--space-md);margin-bottom:var(--space-xl)">' + grid + '</div>' +
     '<div style="display:flex;gap:var(--space-md);flex-wrap:wrap;margin-bottom:var(--space-xl);">' +
@@ -2017,75 +2024,74 @@ async function settingsOpenSeed() {
 }
 
 /**
- * Show overlay explaining that the current key is non-extractable and offering
- * a "Rotate Key" action to generate a new extractable keypair with recovery phrase.
+ * Shown when View Recovery Phrase cannot produce the 24 words. It says why in
+ * plain words and changes nothing on this device. For an identity this browser
+ * holds no phrase for, it points to the page's two existing restore actions
+ * (settingsOpenRestoreSeed / settingsOpenRestore); it never offers to make a
+ * new identity, because a new key would not match the person's phrase.
  */
-function settingsShowNonExtractableOverlay() {
+function settingsShowPhraseUnavailable() {
+  // Same test crypto.js's bip39Words() applies before it will encode a phrase.
+  var wordListLoaded = Array.isArray(window.BIP39_ENGLISH) && window.BIP39_ENGLISH.length === 2048;
+  var toolsLoaded = typeof generateMnemonic === 'function';
+  var pageDidNotLoad = !toolsLoaded || !wordListLoaded;
+
+  var reason;
+  if (!toolsLoaded) {
+    reason = 'The identity tools for this page did not load. Reload the page and try again.';
+  } else if (!wordListLoaded) {
+    reason = 'The word list did not load. Reload the page and try again.';
+  } else {
+    reason = 'This browser does not hold a recovery phrase for this identity.';
+  }
+
+  var btnQuiet = 'background:none;border:1px solid #333;color:#888;border-radius:7px;padding:var(--space-md) var(--space-xl);font-size:.82rem;cursor:pointer';
+  var btnMain = 'background:var(--accent);color:#000;border:none;border-radius:7px;padding:var(--space-md) 1.4rem;font-size:.82rem;font-weight:700;cursor:pointer';
+  var btnRestore = 'background:#1a3a4a;border:1px solid #28f;color:#4af;border-radius:7px;padding:var(--space-md) var(--space-xl);font-size:.82rem;font-weight:600;cursor:pointer';
+
+  var body = '<p style="font-size:.85rem;color:#e0e0e0;line-height:1.6;margin:0 0 var(--space-md)">' + reason + '</p>' +
+    '<p style="font-size:.8rem;color:#888;line-height:1.6;margin:0 0 var(--space-xl)">Nothing on this device has been changed.</p>';
+  var buttons;
+  if (pageDidNotLoad) {
+    buttons = '<button id="pu-close" style="' + btnQuiet + '">Close</button>' +
+      '<button id="pu-reload" style="' + btnMain + '">Reload page</button>';
+  } else {
+    body += '<p style="font-size:.8rem;color:#ccc;line-height:1.6;margin:0 0 var(--space-md)">' +
+        'If you have your 24 words or an encrypted backup file, you can bring your identity back on this device with ' +
+        '<strong>Restore from Recovery Phrase</strong> or <strong>Restore from Backup File</strong>, ' +
+        'both in Backup &amp; Recovery on this page.' +
+      '</p>' +
+      '<p style="font-size:.8rem;color:#888;line-height:1.6;margin:0 0 var(--space-xl)">' +
+        'Each one replaces the identity on this device, so use the words or the file for the identity you want to keep.' +
+      '</p>';
+    buttons = '<button id="pu-close" style="' + btnQuiet + '">Close</button>' +
+      '<button id="pu-restore-file" style="' + btnRestore + '">Restore from Backup File</button>' +
+      '<button id="pu-restore-words" style="' + btnRestore + '">Restore from Recovery Phrase</button>';
+  }
+
   var overlay = document.createElement('div');
   overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:8000;display:flex;align-items:center;justify-content:center;padding:var(--space-xl);box-sizing:border-box;';
   overlay.innerHTML = '<div style="background:#181818;border:1px solid #2a2a2a;border-radius:14px;padding:1.75rem;width:100%;max-width:540px;color:#e0e0e0;max-height:90vh;overflow-y:auto;">' +
     '<h2 style="font-size:1rem;font-weight:700;color:var(--accent);margin:0 0 var(--space-md)">Recovery Phrase Unavailable</h2>' +
-    '<p style="font-size:.82rem;color:#ccc;line-height:1.6;margin:0 0 var(--space-xl)">' +
-      'Your key was created before backup support was added. The private key stored in your browser ' +
-      'is marked as non-extractable, so a recovery phrase cannot be generated from it.' +
-    '</p>' +
-    '<div style="background:#0f1a0f;border:1px solid #1a3a1a;border-radius:8px;padding:var(--space-xl);margin-bottom:var(--space-xl);font-size:.8rem;color:#8cc88c;line-height:1.6">' +
-      '<strong style="color:#4ec87a">Solution: Rotate your key.</strong><br>' +
-      'This generates a new extractable keypair with full recovery phrase backup. ' +
-      'Your profile, messages, and reputation transfer automatically via a dual-signature certificate.' +
-    '</div>' +
-    '<div style="display:flex;gap:var(--space-md);justify-content:flex-end">' +
-      '<button id="ne-cancel" style="background:none;border:1px solid #333;color:#888;border-radius:7px;padding:var(--space-md) var(--space-xl);font-size:.82rem;cursor:pointer">Cancel</button>' +
-      '<button id="ne-rotate" style="background:var(--accent);color:#000;border:none;border-radius:7px;padding:var(--space-md) 1.4rem;font-size:.82rem;font-weight:700;cursor:pointer">Rotate Key</button>' +
-    '</div>' +
+    body +
+    '<div style="display:flex;gap:var(--space-md);justify-content:flex-end;flex-wrap:wrap">' + buttons + '</div>' +
   '</div>';
   document.body.appendChild(overlay);
   overlay.addEventListener('click', function(e) { if (e.target === overlay) overlay.remove(); });
-  overlay.querySelector('#ne-cancel').addEventListener('click', function() { overlay.remove(); });
-  overlay.querySelector('#ne-rotate').addEventListener('click', async function() {
-    var btn = overlay.querySelector('#ne-rotate');
-    btn.disabled = true; btn.textContent = 'Generating...';
-    try {
-      // Generate new extractable keypair directly (no WebSocket needed)
-      var newKp = await crypto.subtle.generateKey('Ed25519', true, ['sign', 'verify']);
-      var rawPub = await crypto.subtle.exportKey('raw', newKp.publicKey);
-      var newKeyHex = bufToHex(rawPub);
-
-      // Store in IndexedDB
-      var db = await openKeyDB();
-      await storeKeypair(db, newKeyHex, { privateKey: newKp.privateKey, publicKey: newKp.publicKey });
-
-      // Backup to localStorage (must use PKCS8 format to match restoreKeyFromLocalStorage)
-      try {
-        var pkcs8 = await crypto.subtle.exportKey('pkcs8', newKp.privateKey);
-        var b64 = btoa(String.fromCharCode.apply(null, new Uint8Array(pkcs8)));
-        localStorage.setItem('humanity_key', newKeyHex);
-        localStorage.setItem('humanity_key_backup', JSON.stringify({
-          publicKeyHex: newKeyHex, privateKeyPkcs8: b64
-        }));
-      } catch(e2) { console.warn('localStorage backup failed:', e2); }
-
-      // Update in-memory identity so View Seed works without reload
-      myIdentity = {
-        publicKeyHex: newKeyHex,
-        privateKey: newKp.privateKey,
-        publicKey: newKp.publicKey,
-        canSign: true
-      };
-      btn.textContent = 'Done! Reloading...';
-      setTimeout(function() { location.reload(); }, 1500);
-    } catch(e) {
-      btn.disabled = false; btn.textContent = 'Rotate Key';
-      settingsAlert('Error: ' + e.message);
-    }
-  });
+  overlay.querySelector('#pu-close').addEventListener('click', function() { overlay.remove(); });
+  var reloadBtn = overlay.querySelector('#pu-reload');
+  if (reloadBtn) reloadBtn.addEventListener('click', function() { location.reload(); });
+  var wordsBtn = overlay.querySelector('#pu-restore-words');
+  if (wordsBtn) wordsBtn.addEventListener('click', function() { overlay.remove(); settingsOpenRestoreSeed(); });
+  var fileBtn = overlay.querySelector('#pu-restore-file');
+  if (fileBtn) fileBtn.addEventListener('click', function() { overlay.remove(); settingsOpenRestore(); });
 }
 
 function settingsOpenRestoreSeed() {
   var overlay = document.createElement('div');
   overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:8000;display:flex;align-items:center;justify-content:center;padding:var(--space-xl);box-sizing:border-box;';
   overlay.innerHTML = '<div style="background:#181818;border:1px solid #2a2a2a;border-radius:14px;padding:1.75rem;width:100%;max-width:540px;color:#e0e0e0;max-height:90vh;overflow-y:auto;">' +
-    '<h2 style="font-size:1rem;font-weight:700;color:var(--accent);margin:0 0 var(--space-sm)">🌱 Restore from Recovery Phrase</h2>' +
+    '<h2 style="font-size:1rem;font-weight:700;color:var(--accent);margin:0 0 var(--space-sm)">🔑 Restore from Recovery Phrase</h2>' +
     '<p style="font-size:.8rem;color:#e55;line-height:1.5;margin:0 0 var(--space-md)"><strong>This will permanently replace your current identity on this device.</strong></p>' +
     '<p style="font-size:.8rem;color:#888;line-height:1.5;margin:0 0 var(--space-xl)">Enter your 24 words separated by spaces:</p>' +
     '<textarea id="set-rseed-words" rows="4" placeholder="word1 word2 word3 ... word24" style="width:100%;background:#111;border:1px solid #2a2a2a;border-radius:6px;padding:var(--space-md) var(--space-lg);color:#e0e0e0;font-size:.85rem;outline:none;box-sizing:border-box;resize:vertical;font-family:monospace;"></textarea>' +

@@ -542,9 +542,44 @@ lints:
 # averaging independent noise is judged BETTER, and that each of the measure's
 # two locks goes red when the other is switched off. That one takes a few
 # seconds (it blurs and re-scores six controls per run), not under one.
+# And the co-presence judge (scripts/lib/copresence-judge.js): smooth samples
+# pass, and round one's stop-go drawing, a figure that never appears, a step
+# back, a snap, a drift off the line, a walk out of view and a figure covered
+# by a window in the screenshot each FAIL.
 # Add a file here whenever a rig script grows a judgement of its own.
 rig-tests:
-    node --test scripts/tests/machine-guard.test.js scripts/tests/perf-report.test.js scripts/tests/terminator-grain.test.js
+    node --test scripts/tests/machine-guard.test.js scripts/tests/perf-report.test.js scripts/tests/terminator-grain.test.js scripts/tests/make-clips.test.js scripts/tests/voice-rejoin.test.js scripts/tests/backup-rotate.test.js scripts/tests/second-player.test.js scripts/tests/copresence-judge.test.js
+
+# The scripted second player (scripts/second-player.js) against a REAL relay.
+# NOT pure node, so NOT in rig-tests or `just verify` (rig-tests keeps the
+# script's no-relay checks: paths, facing, step cap, clock, names). It BOOTS a
+# throwaway relay: a COPY of target/release/HumanityOS.exe, run --headless
+# (no window, no GPU) from a temp folder on a free port with its own database,
+# killed by PID at the end, also on Ctrl+C. Why boot one: whether a scripted
+# player is seen walking, chatting and leaving can only be told by a relay.
+# Checks the exe with scripts/check-fresh-exe.js first and SKIPS, printing the
+# verdict, when the build is older than the source. SECOND_PLAYER_RELAY_EXE=
+# <path> tests another build (a relay-only debug build will do). About 20 s.
+verify-second-player:
+    node --test scripts/tests/second-player-relay.test.js
+
+# Proves in the REAL game that a second player is drawn and walks smoothly.
+# BOOTS TWO THINGS: a throwaway relay (a COPY of target/release/HumanityOS.exe,
+# --headless, temp folder, free port, own database; scripts/lib/throwaway-relay.js)
+# and ONE game instance in its own portable probe-rig sandbox (.probe-rig/copresence,
+# background, never focused, silent) pointed at that relay by the autopilot. It
+# parks the camera at a known home pose, has scripts/second-player.js walk a
+# straight line across the view, records where the game DREW the figure on every
+# frame (debug/remote_players_request.json, src/engine/ipc.rs), takes two
+# screenshots, and judges it (scripts/lib/copresence-judge.js): seen, never
+# backwards, per-frame speed near the walker's by the recorded frame times, no
+# jump, on its line, in view, and VISIBLE in both screenshots (its teal body
+# counted under its nameplate). Refuses (exit 1) while ANY HumanityOS.exe runs (one
+# GPU) or when the exe is older than the source; exit 2 = a check failed. About a
+# minute. Evidence in .probe-rig/copresence/runs/<stamp>/.
+#   just verify-copresence --dry-verdict <manifest.json>   re-judge without booting
+verify-copresence *ARGS:
+    node scripts/verify-copresence.js {{ARGS}}
 
 # Render all 63 native UI snapshots to PNGs in tests/snapshots/ for review.
 # NEEDS A GPU: without an adapter every page is SKIPPED with a printed note and the
@@ -1042,6 +1077,15 @@ snapshot-check:
 # Tour every canonical 3D vantage and capture a screenshot + fps at each.
 probe-sweep *ARGS:
     node scripts/probe-sweep.js {{ARGS}}
+
+# Film the game for social media: every shot in scripts/clips.json, recorded
+# frame-exact in the engine's movie mode (src/engine/movie.rs) and cut to
+# 1920x1080, 1080x1920 and a still, into Videos\HumanityOS clips\<date-time>
+# with a clips.md of suggested captions. Background and silent like every
+# rig, at the operator's graphics settings. Needs a release exe and ffmpeg.
+#   just clips --only orbit-drop-fuji,open-sea
+clips *ARGS:
+    node scripts/make-clips.js {{ARGS}}
 
 # Score cloud GRAIN on captures of one vantage, band by band across the
 # terminator, with a measure a blur cannot win: noise over real cloud detail at

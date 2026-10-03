@@ -312,10 +312,12 @@ async function connect() {
 // ── User Data Sync ──
 // --- Encrypted Sync Data (AES-256-GCM) ---
 async function deriveSyncKey() {
-  if (!myIdentity || !myIdentity.privateKey) return null;
   try {
-    const pkcs8 = await crypto.subtle.exportKey('pkcs8', myIdentity.privateKey);
-    const hash = await crypto.subtle.digest('SHA-256', pkcs8);
+    // The seed as the PKCS8 it has always been hashed as, so a seed-only
+    // browser derives the same key (crypto.js, SEED-ONLY IDENTITY).
+    const seed = await identitySeed();
+    if (!seed) return null;
+    const hash = await crypto.subtle.digest('SHA-256', pkcs8FromSeed(seed));
     return await crypto.subtle.importKey('raw', hash, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
   } catch (e) {
     console.warn('Failed to derive sync encryption key:', e);
@@ -770,7 +772,10 @@ async function handleMessage(msg) {
     }
     case 'peer_joined':
       // Update peerData with new peer info, sidebar handles visibility.
-      peerData[msg.public_key] = { public_key: msg.public_key, display_name: msg.display_name, role: msg.role || '', kyber_public: msg.kyber_public || null };
+      // A join that carries no DM key keeps the one we already hold: a
+      // standalone page signing in without it must not cut off DMs to that
+      // person (2026-10-02).
+      peerData[msg.public_key] = { public_key: msg.public_key, display_name: msg.display_name, role: msg.role || '', kyber_public: msg.kyber_public || (peerData[msg.public_key] && peerData[msg.public_key].kyber_public) || null };
       updateStats();
       break;
     case 'peer_left':
@@ -859,6 +864,14 @@ async function handleMessage(msg) {
       // Server sent peer_list = identity accepted!
       if (!identityConfirmed) {
         onIdentityConfirmed();
+      }
+      // The FIRST peer_list on each socket is the relay accepting THAT socket's
+      // identify (later ones are broadcasts). A reconnect opens a new socket, so
+      // this fires once per connection; modules holding a per-socket place on
+      // the relay take it again here (voice, chat-voice-rooms.js, 2026-10-02).
+      if (ws && !ws._identityAccepted) {
+        ws._identityAccepted = true;
+        if (window.hos && typeof hos.emit === 'function') hos.emit('socket-identified');
       }
       // Always re-enable input and update status (handles reconnects too).
       setStatus('connected', 'Connected');

@@ -140,6 +140,14 @@ pub struct WorldSave {
     /// a save from before it; the meter then starts at zero.
     #[serde(default)]
     pub ship_supply: crate::systems::ship_power::ShipSupplyLedger,
+    /// The relay trades whose items this backpack has already moved
+    /// (2026-10-02, systems::inventory::TradeSettlements), by trade id. Saved
+    /// with the inventory it changed, so a restart can neither settle a trade
+    /// twice nor lose one. Empty in a save from before it: a completed trade
+    /// then settles once more at the next connect, which is right, because
+    /// until this the desktop app never moved a traded item at all.
+    #[serde(default)]
+    pub settled_trades: Vec<String>,
 }
 
 fn default_credits() -> i64 {
@@ -206,6 +214,7 @@ impl WorldSave {
             mining_order: None,
             machine_levels: Vec::new(),
             ship_supply: Default::default(),
+            settled_trades: Vec::new(),
         }
     }
 }
@@ -439,6 +448,7 @@ mod tests {
             mining_order: None,
             machine_levels: Vec::new(),
             ship_supply: Default::default(),
+            settled_trades: Vec::new(),
         }
     }
 

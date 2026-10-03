@@ -18,6 +18,12 @@ pub enum QuestObjective {
     Gather { item_id: String, quantity: u32 },
     /// Craft items — tracked via progress counter from crafting system.
     Craft { recipe_id: String, quantity: u32 },
+    /// Make items by ANY recipe that produces them (2026-10-02): counts the
+    /// units made, whichever way. Smelting iron with coal and with graphite
+    /// are two recipes; "make an iron ingot" is one goal, and a `Craft` step
+    /// naming one recipe left the other route uncounted. The crafting system
+    /// reports each unit it produces as a `make_<item_id>` event.
+    Make { item_id: String, quantity: u32 },
     /// Harvest crops — tracked via progress counter from farming system.
     Harvest { crop_id: String, quantity: u32 },
     /// Build a structure — tracked via progress counter from construction system.

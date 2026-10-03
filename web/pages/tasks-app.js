@@ -182,9 +182,9 @@ function renderCard(task) {
     const passes = (tv.community||[]).filter(v=>v.result==='pass').length + (tv.owner==='pass'?1:0);
     const fails  = (tv.community||[]).filter(v=>v.result==='fail').length + (tv.owner==='fail'?1:0);
     if (passes || fails) {
-      testTally = `<span class="test-tally">${passes?'✅'+passes:''}${fails?'❌'+fails:''}</span>`;
+      testTally = `<span class="test-tally" title="Test votes saved in this browser only">${passes?'✅'+passes:''}${fails?'❌'+fails:''}</span>`;
     } else if (task.status === 'testing') {
-      testTally = `<span class="test-tally" style="color:#555">🧪</span>`;
+      testTally = `<span class="test-tally" style="color:#555" title="Waiting for testing">🧪</span>`;
     }
   }
   return `<div class="card priority-${task.priority}" onclick="openDetail(${task.id})">
@@ -214,32 +214,144 @@ function closeModal() {
   document.getElementById('modal-overlay').classList.remove('open');
 }
 
-// WebSocket connection for task creation by authenticated relay users.
+/* ── Relay socket: live board updates + task edits ──
+ * The relay binds a socket to a person only after proof of the key. The page
+ * sends `identify` with the person's Dilithium3 public key, the relay replies
+ * `identify_challenge {nonce}`, and the page signs
+ *   "hum/identify/v1\n" + nonce + "\n" + public_key_hex
+ * and returns `identify_response {sig_b64}` (src/relay/relay.rs, Inc3b). Until
+ * that check passes the relay drops every task message on the socket without
+ * a reply, and closes the socket after 30 seconds.
+ * The key comes from the identity Chat keeps in this browser
+ * (getPqIdentity in /shared/pq-relay-auth.js, derived by /chat/pq.js): the
+ * same key Chat signs in with, and no WebCrypto Ed25519 is needed, so it also
+ * works on older phone browsers. */
 let taskWs = null;
-let taskWsReady = false;
-let taskWsPending = null; // resolve fn waiting for task_created confirmation
+let taskWsBound = false;     // true once the relay accepted the proof (its peer_list arrived)
+let taskWsPending = null;    // resolve fn waiting for task_created confirmation
+let taskWsWaiters = [];      // callbacks waiting for the socket to bind (true) or fail (false)
+let taskWsRefusal = '';      // the relay's reason when it refused this page's sign-in
+let taskWsRetryMs = 5000;    // reconnect delay, doubles up to a minute while the link keeps dropping
+let taskWsRetryTimer = null;
+let taskIdentity = null;     // { dilithiumPublicHex, dilithiumSecret } once derived
 
-function ensureTaskWs() {
-  if (taskWs && taskWs.readyState === WebSocket.OPEN) return;
-  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-  const raw = localStorage.getItem('humanity_key_backup');
-  if (!raw) return;
-  let pub;
-  try { pub = JSON.parse(raw).publicKeyHex; } catch { return; }
-  if (!pub) return;
-  const name = localStorage.getItem('humanity_name') || 'Task_User';
-  taskWs = new WebSocket(`${proto}//${location.host}/ws`);
-  taskWs.addEventListener('open', () => {
-    taskWs.send(JSON.stringify({ type: 'identify', public_key: pub, display_name: name }));
-    // Request project list after identifying
-    setTimeout(requestProjectList, 300);
+/** The exact bytes the relay verifies: format!("hum/identify/v1\n{}\n{}", nonce, public_key). */
+function taskIdentifyPreimage(nonce, publicKeyHex) {
+  return new TextEncoder().encode('hum/identify/v1\n' + nonce + '\n' + publicKeyHex);
+}
+
+/** Standard base64 (what the relay's B64.decode expects), without spreading 3309 bytes into one call. */
+function taskBytesToB64(bytes) {
+  let s = '';
+  for (let i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
+  return btoa(s);
+}
+
+/** The identify_response message answering the relay's challenge, or null if signing failed. */
+async function taskIdentifyResponse(identity, nonce) {
+  if (!identity || !identity.dilithiumSecret || !identity.dilithiumPublicHex || !nonce) return null;
+  if (typeof window.pqSignMessage !== 'function') return null;
+  const sig = await window.pqSignMessage(identity.dilithiumSecret, taskIdentifyPreimage(nonce, identity.dilithiumPublicHex));
+  if (!sig) return null;
+  return { type: 'identify_response', sig_b64: taskBytesToB64(sig) };
+}
+
+/** This browser's Dilithium3 identity, or null when Chat has not set one up here. */
+async function loadTaskIdentity() {
+  if (taskIdentity) return taskIdentity;
+  if (typeof window.getPqIdentity !== 'function') return null;
+  try { taskIdentity = await window.getPqIdentity(); } catch { taskIdentity = null; }
+  return taskIdentity;
+}
+
+function settleTaskWsWaiters(ok) {
+  const waiters = taskWsWaiters;
+  taskWsWaiters = [];
+  waiters.forEach(fn => fn(ok));
+}
+
+/** The relay said no: remember why, stop retrying, and close (it would hold the socket open 30s). */
+function refuseTaskWs(ws, reason) {
+  taskWsRefusal = reason || 'The server refused the sign-in.';
+  console.warn('[tasks] sign-in refused:', taskWsRefusal);
+  settleTaskWsWaiters(false);
+  try { ws.close(); } catch {}
+}
+
+/** What to tell the person when an edit needs the signed-in socket and it is not there. */
+function taskSignInHelp() {
+  if (taskWsRefusal) return 'The server did not accept this page\'s sign-in: ' + taskWsRefusal;
+  if (!localStorage.getItem('humanity_key_backup')) {
+    return 'Not signed in on this page. Open Chat in this browser first (it keeps your identity here), or enter the Admin API Key. A passphrase-protected identity cannot be read by this page yet.';
+  }
+  return 'Could not sign in to the server from this page. Check the connection and try again.';
+}
+
+/** Resolves true once the socket is signed in, false if it cannot be (no identity, refused, timeout). */
+function whenTaskWsBound(timeoutMs) {
+  if (taskWs && taskWsBound && taskWs.readyState === WebSocket.OPEN) return Promise.resolve(true);
+  return new Promise(resolve => {
+    let done = false;
+    const timer = setTimeout(() => finish(false), timeoutMs || 8000);
+    function finish(ok) { if (done) return; done = true; clearTimeout(timer); resolve(ok); }
+    taskWsWaiters.push(finish);
+    if (!taskWs) {
+      // A click is a fresh request, so an earlier refusal gets one more try.
+      taskWsRefusal = '';
+      clearTimeout(taskWsRetryTimer);
+      ensureTaskWs().then(started => { if (!started) settleTaskWsWaiters(false); });
+    }
   });
-  taskWs.addEventListener('message', e => {
+}
+
+/** Open the socket and sign in. Resolves true if a socket is open or on its way, false if there is no identity. */
+async function ensureTaskWs() {
+  if (taskWs) return true;
+  const id = await loadTaskIdentity();
+  if (!id) return false;
+  if (taskWs) return true; // another call opened it while the key was being derived
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const ws = new WebSocket(`${proto}//${location.host}/ws`);
+  taskWs = ws;
+  taskWsBound = false;
+  ws.addEventListener('open', () => {
+    // A placeholder name is never sent: the relay registers any real-looking
+    // name to the key, so a made-up default would claim a name for this person.
+    // The name is the one Chat saved in this browser ('humanity_name', written
+    // by /chat/app.js and the profile editor). With none, the relay signs this
+    // socket in under the name already registered to the key (2026-10-02), so
+    // the board never shows the person to others as nameless.
+    const name = (localStorage.getItem('humanity_name') || '').trim() || null;
+    ws.send(JSON.stringify({ type: 'identify', public_key: id.dilithiumPublicHex, display_name: name }));
+  });
+  ws.addEventListener('message', e => {
     try {
       const m = JSON.parse(e.data);
+      // ── Sign-in phase: nothing else counts until the relay accepts the proof ──
+      if (!taskWsBound) {
+        if (m.type === 'identify_challenge') {
+          taskIdentifyResponse(id, m.nonce).then(resp => {
+            if (!resp) { refuseTaskWs(ws, 'this page could not sign the server\'s sign-in check with your identity.'); return; }
+            if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(resp));
+          });
+        } else if (m.type === 'peer_list') {
+          // The relay sends peer_list first thing after it binds the socket.
+          taskWsBound = true;
+          taskWsRefusal = '';
+          taskWsRetryMs = 5000;
+          settleTaskWsWaiters(true);
+          requestProjectList();
+        } else if (m.type === 'name_taken' || m.type === 'system') {
+          const text = String(m.message || '');
+          // The per-connection throttle: the relay closes the socket, and the close handler backs off.
+          if (m.type === 'system' && text.startsWith('Too many connection attempts')) return;
+          refuseTaskWs(ws, text);
+        }
+        return;
+      }
       // Resolve pending create promise
       if (m.type === 'task_created' && taskWsPending) { taskWsPending(m.task); taskWsPending = null; }
-      if (m.type === 'system' && m.message && taskWsPending) { taskWsPending(null, m.message); taskWsPending = null; }
+      if (m.type === 'system' && m.message && taskWsPending && !m.message.startsWith('__')) { taskWsPending(null, m.message); taskWsPending = null; }
       // Real-time board updates, add/update tasks without full reload
       if (m.type === 'task_created') {
         if (!allTasks.find(t => t.id === m.task.id)) { allTasks.push(m.task); renderBoard(); }
@@ -259,8 +371,8 @@ function ensureTaskWs() {
         renderBoard();
         if (openDetailId === m.id) closeDetail();
       }
-      // Project real-time updates
-      if (m.type === 'project_list') {
+      // Project real-time updates (the relay answers project_list with project_list_response)
+      if (m.type === 'project_list_response') {
         projects = m.projects || [];
         renderProjectDropdown();
         renderProjectSelectorBtn();
@@ -297,11 +409,19 @@ function ensureTaskWs() {
       }
     } catch {}
   });
-  // Reconnect on close
-  taskWs.addEventListener('close', () => {
+  ws.addEventListener('close', () => {
+    if (taskWs !== ws) return;
     taskWs = null;
-    setTimeout(ensureTaskWs, 5000);
+    taskWsBound = false;
+    settleTaskWsWaiters(false);
+    // After a refusal, retrying would only repeat it (and spend the relay's
+    // per-connection allowance); the next click tries again instead.
+    if (taskWsRefusal) return;
+    clearTimeout(taskWsRetryTimer);
+    taskWsRetryTimer = setTimeout(ensureTaskWs, taskWsRetryMs);
+    taskWsRetryMs = Math.min(taskWsRetryMs * 2, 60000);
   });
+  return true;
 }
 
 async function submitTask() {
@@ -349,14 +469,10 @@ async function submitTask() {
       btn.textContent = 'Create Task';
     }
   } else {
-    // Relay WebSocket path, requires humanity_key_backup in localStorage.
-    ensureTaskWs();
-    if (!taskWs || taskWs.readyState !== WebSocket.OPEN) {
-      // Give it 1.5s to connect
-      await new Promise(r => setTimeout(r, 1500));
-    }
-    if (!taskWs || taskWs.readyState !== WebSocket.OPEN) {
-      msg.innerHTML = '<div class="msg-error">Not signed in. Enter Admin API Key or sign in at /chat first.</div>';
+    // Relay WebSocket path: the socket must be signed in (see ensureTaskWs),
+    // or the relay drops task_create without a word.
+    if (!await whenTaskWsBound()) {
+      msg.innerHTML = `<div class="msg-error">${esc(taskSignInHelp())}</div>`;
       btn.disabled = false;
       btn.textContent = 'Create Task';
       return;
@@ -485,7 +601,7 @@ async function submitComment(taskId) {
   const content = (input && input.value || '').trim();
   if (!content) return;
   input.disabled = true;
-  if (taskWs && taskWs.readyState === WebSocket.OPEN) {
+  if (await whenTaskWsBound()) {
     taskWs.send(JSON.stringify({ type: 'task_comment', task_id: taskId, content }));
     input.value = '';
     // Update comment count optimistically
@@ -494,7 +610,7 @@ async function submitComment(taskId) {
     await new Promise(r => setTimeout(r, 500));
     await loadTaskComments(taskId);
   } else {
-    alert('Sign in at /chat to post comments.');
+    alert(taskSignInHelp());
   }
   input.disabled = false;
   input.focus();
@@ -504,111 +620,50 @@ function closeDetail() {
   document.getElementById('detail-overlay').classList.remove('open');
 }
 
-/* ── Test vote storage ── */
+/* ── Test votes ──
+ * Kept in this browser's localStorage and nowhere else: they are never sent
+ * to the server, so nobody else sees them. They used to carry an Ed25519
+ * signature that nothing ever checked, and that failed silently on browsers
+ * without WebCrypto Ed25519. A signature implies someone verifies it, so it is
+ * gone, and the panel says plainly where the votes live. */
 const VOTES_KEY = 'hos_task_votes';
 function loadVotes() { try { return JSON.parse(localStorage.getItem(VOTES_KEY)) || {}; } catch { return {}; } }
 function saveVotes(v) { localStorage.setItem(VOTES_KEY, JSON.stringify(v)); }
 
-/* ── Lightweight identity reader (uses chat page's localStorage backup) ── */
-let _voteId = null, _voteIdTried = false;
-async function getVoteIdentity() {
-  if (_voteIdTried) return _voteId;
-  _voteIdTried = true;
-  try {
-    const raw = localStorage.getItem('humanity_key_backup');
-    if (!raw) return null;
-    const { publicKeyHex, privateKeyPkcs8 } = JSON.parse(raw);
-    if (!publicKeyHex || !privateKeyPkcs8) return null;
-    const buf = Uint8Array.from(atob(privateKeyPkcs8), c => c.charCodeAt(0));
-    const pk  = await crypto.subtle.importKey('pkcs8', buf, 'Ed25519', false, ['sign']);
-    _voteId = { publicKeyHex, privateKey: pk };
-  } catch(e) { /* unsigned votes still work */ }
-  return _voteId;
-}
-async function signVote(taskId, result) {
-  const id = await getVoteIdentity();
-  if (!id) return null;
-  try {
-    const ts  = Date.now();
-    const msg = `vote:${taskId}:${result}:${ts}`;
-    const sig = await crypto.subtle.sign('Ed25519', id.privateKey, new TextEncoder().encode(msg));
-    return { sig: [...new Uint8Array(sig)].map(b=>b.toString(16).padStart(2,'0')).join(''), pub: id.publicKeyHex, ts };
-  } catch { return null; }
-}
-
 /**
- * Cast the owner/determining test vote on a task. Signs with Ed25519 if
- * the chat identity is available in localStorage. Toggling the same result clears it.
+ * Cast the owner/determining test vote on a task (this browser only).
+ * Toggling the same result clears it.
  */
-async function castOwnerVote(taskId, result) {
+function castOwnerVote(taskId, result) {
   const v = loadVotes();
   if (!v[taskId]) v[taskId] = { owner: null, community: [] };
-  if (v[taskId].owner === result) {
-    v[taskId].owner = null;
-    delete v[taskId].ownerSig;
-    delete v[taskId].ownerPub;
-  } else {
-    v[taskId].owner = result;
-    const proof = await signVote(taskId, result);
-    if (proof) { v[taskId].ownerSig = proof.sig; v[taskId].ownerPub = proof.pub; v[taskId].ownerTs = proof.ts; }
-  }
+  v[taskId].owner = v[taskId].owner === result ? null : result;
   saveVotes(v);
   openDetail(taskId);
   renderBoard();
 }
 
 /**
- * Cast a community test vote (non-determining, but visible to the owner).
- * Re-voting replaces the previous community vote from this browser.
+ * Cast a tester vote (advisory, this browser only). Re-voting replaces the
+ * previous one; voting the same result again clears it.
  */
-async function castCommunityVote(taskId, result) {
+function castCommunityVote(taskId, result) {
   const v = loadVotes();
   if (!v[taskId]) v[taskId] = { owner: null, community: [] };
-  const already = v[taskId].community.find(x => x.device === '_local');
-  if (already) {
-    if (already.result === result) {
-      v[taskId].community = v[taskId].community.filter(x => x.device !== '_local');
-    } else {
-      already.result = result;
-      already.time = Date.now();
-    }
+  if (!Array.isArray(v[taskId].community)) v[taskId].community = [];
+  const mine = v[taskId].community.find(x => x.device === '_local');
+  if (mine && mine.result === result) {
+    v[taskId].community = v[taskId].community.filter(x => x.device !== '_local');
+  } else if (mine) {
+    mine.result = result;
+    mine.time = Date.now();
   } else {
-    const id = await getVoteIdentity();
-    v[taskId].community.push({
-      device: '_local',
-      name: id ? id.publicKeyHex.slice(0,12) + '…' : 'Anonymous',
-      pub: id ? id.publicKeyHex : null,
-      result,
-      time: Date.now(),
-    });
+    v[taskId].community.push({ device: '_local', result, time: Date.now() });
   }
   saveVotes(v);
   openDetail(taskId);
   renderBoard();
 }
-castCommunityVote = async function(taskId, result) {
-  const v = loadVotes();
-  if (!v[taskId]) v[taskId] = { owner: null, community: [] };
-  const already = v[taskId].community.find(x => x.device === '_local');
-  if (already) {
-    if (already.result === result) {
-      v[taskId].community = v[taskId].community.filter(x => x.device !== '_local');
-    } else {
-      already.result = result;
-      already.time = Date.now();
-    }
-    saveVotes(v); openDetail(taskId); renderBoard();
-  } else {
-    const id = await getVoteIdentity();
-    v[taskId].community.push({
-      device: '_local',
-      name: id ? id.publicKeyHex.slice(0,12) + '…' : 'Anonymous',
-      pub: id ? id.publicKeyHex : null,
-      result, time: Date.now(),
-    });
-    saveVotes(v); openDetail(taskId); renderBoard();
-  }
-};
 
 /**
  * Build the test-voting panel HTML for the task detail drawer.
@@ -628,21 +683,22 @@ function renderTestPanel(task) {
     ? community.map(v => `
         <div class="test-vote-item">
           <span class="test-vote-result">${v.result==='pass'?'✅':'❌'}</span>
-          <span class="test-vote-name">${esc(v.name||'Anonymous')}</span>
+          <span class="test-vote-name">${v.device === '_local' ? 'You (this browser)' : esc(v.name||'Anonymous')}</span>
           <span class="test-vote-time">${v.time ? timeAgo(v.time)+' ago' : ''}</span>
         </div>`).join('')
-    : `<div style="font-size:0.72rem;color:#555;padding:var(--space-xs) 0">No community votes yet.</div>`;
+    : `<div style="font-size:0.72rem;color:#555;padding:var(--space-xs) 0">No tester votes yet.</div>`;
 
   return `
     <div class="test-panel">
       <div class="test-panel-title">🧪 Test Results</div>
+      <div style="font-size:0.68rem;color:var(--text-muted);margin-bottom:var(--space-sm)">Saved in this browser only. These votes are not sent to the server, so nobody else sees them.</div>
       ${totalPass || totalFail
         ? `<div class="test-summary">
              <span class="test-summary-pass">✅ ${totalPass} pass</span>
              <span class="test-summary-fail">❌ ${totalFail} fail</span>
            </div>`
         : ''}
-      <div class="test-owner-label">Your vote (determining)${tv.ownerPub ? ` · <code style="font-size:.6rem;color:#555">${tv.ownerPub.slice(0,16)}…</code> ✍️` : ' · unsigned'}:</div>
+      <div class="test-owner-label">Your vote (determining):</div>
       <div class="test-vote-row">
         <button class="btn-test-vote${ownerPass?' vote-pass':''}" onclick="castOwnerVote(${task.id},'pass')">
           ✅ Pass${ownerPass?' ← your vote':''}
@@ -653,7 +709,7 @@ function renderTestPanel(task) {
       </div>
       <div class="test-community">
         <div class="test-community-header">
-          <span style="font-size:0.68rem;color:#666;font-weight:700;text-transform:uppercase;letter-spacing:.05em">Community votes</span>
+          <span style="font-size:0.68rem;color:#666;font-weight:700;text-transform:uppercase;letter-spacing:.05em">Tester votes</span>
           <span>${cPass} pass · ${cFail} fail</span>
         </div>
         ${communityRows}
@@ -671,12 +727,12 @@ function renderTestPanel(task) {
 
 /**
  * Move a task to a new status via relay WebSocket (task_update message).
- * Falls back to a page alert if the user's WS is not connected.
+ * Tells the person why if the page cannot sign in, instead of showing a
+ * change the server never received.
  */
-function changeTaskStatus(taskId, newStatus) {
-  ensureTaskWs();
-  if (!taskWs || taskWs.readyState !== WebSocket.OPEN) {
-    alert('Sign in at /chat to update tasks.');
+async function changeTaskStatus(taskId, newStatus) {
+  if (!await whenTaskWsBound()) {
+    alert(taskSignInHelp());
     return;
   }
   taskWs.send(JSON.stringify({ type: 'task_update', task_id: taskId, status: newStatus }));
@@ -692,10 +748,9 @@ function changeTaskStatus(taskId, newStatus) {
 /**
  * Change the priority of a task via relay WebSocket.
  */
-function changeTaskPriority(taskId, newPriority) {
-  ensureTaskWs();
-  if (!taskWs || taskWs.readyState !== WebSocket.OPEN) {
-    alert('Sign in at /chat to update tasks.');
+async function changeTaskPriority(taskId, newPriority) {
+  if (!await whenTaskWsBound()) {
+    alert(taskSignInHelp());
     return;
   }
   taskWs.send(JSON.stringify({ type: 'task_update', task_id: taskId, priority: newPriority }));
@@ -710,13 +765,12 @@ function changeTaskPriority(taskId, newPriority) {
 /**
  * Save the assignee field for a task via relay WebSocket.
  */
-function changeTaskAssignee(taskId) {
+async function changeTaskAssignee(taskId) {
   const input = document.getElementById('detail-assignee-input');
   if (!input) return;
   const assignee = input.value.trim();
-  ensureTaskWs();
-  if (!taskWs || taskWs.readyState !== WebSocket.OPEN) {
-    alert('Sign in at /chat to update tasks.');
+  if (!await whenTaskWsBound()) {
+    alert(taskSignInHelp());
     return;
   }
   taskWs.send(JSON.stringify({ type: 'task_update', task_id: taskId, assignee: assignee || '' }));
@@ -742,9 +796,9 @@ async function loadProjects() {
   }
 }
 
-/** Also request project_list via WS on connect */
+/** Also request project_list via WS once the socket is signed in */
 function requestProjectList() {
-  if (taskWs && taskWs.readyState === WebSocket.OPEN) {
+  if (taskWs && taskWsBound && taskWs.readyState === WebSocket.OPEN) {
     taskWs.send(JSON.stringify({ type: 'project_list' }));
   }
 }
@@ -1022,8 +1076,8 @@ async function submitProject() {
       if (idx >= 0) projects[idx] = { ...projects[idx], ...body, ...updated };
       msg.innerHTML = '<div class="msg-success">Project updated.</div>';
     } else {
-      // Create via WS if available, else REST
-      if (taskWs && taskWs.readyState === WebSocket.OPEN) {
+      // Create via WS if signed in, else REST
+      if (taskWs && taskWsBound && taskWs.readyState === WebSocket.OPEN) {
         taskWs.send(JSON.stringify({ type: 'project_create', ...body }));
         msg.innerHTML = '<div class="msg-success">Project created.</div>';
       } else {
