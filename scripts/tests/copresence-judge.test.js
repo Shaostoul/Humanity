@@ -356,3 +356,118 @@ test("without the walker's timing, on_time fails rather than passing unchecked",
   const old = framesFrom(frameTimes(RECORD_S), smooth).map(({ epoch_ms, ...fr }) => fr);
   assert.equal(check(judge(old), "on_time").ok, false);
 });
+
+// ── Homes on plots (increment 1b, `verify-copresence --plots`) ─────────────
+//
+// The plot checks judge where things are, not how they move: the two players
+// hold different plots by the order they joined, the game's camera is inside
+// the plot the game should hold, and every position the game drew for the
+// walker is inside the walker's plot. The shapes below are the shipped
+// layout (docs/design/ship-homes-and-logistics.md section 2.4).
+
+const { judgePlots, forwardLegStart, readShipPlots, inPlot } = require("../lib/copresence-judge.js");
+const PLOTS = [
+  { id: "p1", kind: "homestead", origin: [0, 0, 0], size: [55, 3, 89] },
+  { id: "p2", kind: "homestead", origin: [0, 0, 99], size: [55, 3, 89] },
+];
+const P1_SPAWN = [53.5, 1.7, 40.5];
+const P2_SPAWN = [53.5, 1.7, 139.5];
+/** The walker walking its line in its own plot, from its spawn along +Z. */
+const walkInPlot = (spawn) => framesFrom(frameTimes(RECORD_S), (t) => (t < APPEAR_S ? null : [spawn[0], spawn[1], spawn[2] + Math.min(8, SPEED * (t - APPEAR_S))]));
+const plotsRun = (extra = {}) =>
+  judgePlots({ order: "walker-first", plots: PLOTS, gamePlot: "p2", walkerPlot: "p1", camera: P2_SPAWN, frames: walkInPlot(P1_SPAWN), walker: WALKER, ...extra });
+
+test("plots: each holds its own by the join order, the camera and the walker inside theirs, passes", () => {
+  const r = plotsRun();
+  assert.ok(r.pass, explain(r));
+  assert.deepEqual(r.checks.map((c) => c.id), ["plot_ids_differ", "plots_by_join_order", "camera_in_p2", "walker_drawn_in_its_plot"]);
+  // The other order swaps who should hold what.
+  const g = judgePlots({ order: "game-first", plots: PLOTS, gamePlot: "p1", walkerPlot: "p2", camera: P1_SPAWN, frames: walkInPlot(P2_SPAWN), walker: WALKER });
+  assert.ok(g.pass, explain(g));
+  assert.equal(g.checks[2].id, "camera_in_p1");
+});
+
+// The red run the design asks for: a build without 1b hands out no plots, so
+// the game's home and camera stay on p1 while it should be on p2.
+test("plots: the 1a shape (no plots handed out, the game still at p1) FAILS camera_in_p2", () => {
+  const r = plotsRun({ gamePlot: "p1", walkerPlot: null, camera: P1_SPAWN });
+  const failed = r.checks.filter((c) => !c.ok).map((c) => c.id);
+  assert.ok(failed.includes("camera_in_p2"), explain(r));
+  assert.ok(failed.includes("plot_ids_differ") && failed.includes("plots_by_join_order"), explain(r));
+  assert.match(r.checks.find((c) => c.id === "camera_in_p2").detail, /OUTSIDE p2 \(x 0\.\.55, y 0\.\.3, z 99\.\.188\)/);
+});
+
+test("plots: two players handed the same plot FAIL plot_ids_differ", () => {
+  const r = plotsRun({ gamePlot: "p1", walkerPlot: "p1" });
+  assert.equal(r.checks.find((c) => c.id === "plot_ids_differ").ok, false, explain(r));
+});
+
+test("plots: the walker drawn outside its plot, even for one frame, FAILS", () => {
+  const frames = walkInPlot(P1_SPAWN);
+  frames[Math.floor(frames.length / 2)].players = [{ ...WALKER, pos: [53.5, 1.7, 95], phase: "Extrapolating" }];
+  const r = plotsRun({ frames });
+  const c = r.checks.find((x) => x.id === "walker_drawn_in_its_plot");
+  assert.equal(c.ok, false, explain(r));
+  assert.match(c.detail, /^1 of \d+ drawn positions OUTSIDE p1/);
+  // ...and a walker never drawn at all is no pass either.
+  assert.equal(plotsRun({ frames: walkInPlot(P1_SPAWN).map((fr) => ({ ...fr, players: [] })) }).pass, false);
+});
+
+test("plots: unknown plots fail rather than pass unchecked", () => {
+  assert.equal(plotsRun({ plots: [] }).pass, false);
+});
+
+test("plots: the ship file's plots read the way the game has them", () => {
+  const fs = require("fs");
+  const path = require("path");
+  const text = fs.readFileSync(path.join(__dirname, "..", "..", "data", "blueprints", "ship_structure.ron"), "utf8");
+  assert.deepEqual(readShipPlots(text), PLOTS);
+  assert.ok(inPlot(P2_SPAWN, PLOTS[1]) && !inPlot(P2_SPAWN, PLOTS[0]));
+});
+
+// A walk that goes back and forth: the judged pass is one FORWARD leg,
+// picked by the clock. Without `fromEpochMs` the end of a leg walking back is
+// taken for the pass and fails never_backwards; with it, the next forward leg
+// passes. (The --plots rig records a walker that has been walking since
+// before the game joined.)
+test("a back-and-forth walk is judged on one forward leg, picked by the clock", () => {
+  const r = L / 2; // second-player.js --radius: the line is 2r long
+  // It reached the line 6 s before the recording began, so the recording opens
+  // on it walking back (a cycle is 4r / speed = 8.57 s, the forward half 4.29 s).
+  const onLine = EPOCH0 - 6000;
+  const at = (tau) => {
+    const s = SPEED * tau;
+    const w = ((s % (2 * L)) + 2 * L) % (2 * L);
+    const u = w <= L ? w : 2 * L - w;
+    return [A[0] + u, A[1], A[2]];
+  };
+  // Drawn 150 ms behind the real walker, from the first frame.
+  const frames = framesFrom(frameTimes(RECORD_S), (t) => at((EPOCH0 + t * 1000 - onLine) / 1000 - DELAY_S));
+  const leg = forwardLegStart(onLine, SPEED, r, EPOCH0 + 500);
+  assert.ok(leg > EPOCH0, "the next forward leg starts inside the recording");
+  assert.equal(Math.round(leg - onLine), Math.round(((4 * r) / SPEED) * 1000), "one full cycle after it reached the line");
+  const blind = judge(frames, { onLineEpochMs: onLine });
+  assert.equal(check(blind, "never_backwards").ok, false, explain(blind));
+  const picked = judge(frames, { onLineEpochMs: leg, fromEpochMs: leg });
+  assert.ok(picked.pass, explain(picked));
+});
+
+test("checkView false drops the in-view check and nothing else", () => {
+  const away = [30, 1.7, 20, Math.PI, -0.05]; // facing away from the walk
+  const r = judge(framesFrom(frameTimes(RECORD_S), smooth, { cam: away }), { checkView: false });
+  assert.ok(r.pass, explain(r));
+  assert.equal(r.checks.find((c) => c.id === "in_view"), undefined);
+  assert.equal(check(judge(framesFrom(frameTimes(RECORD_S), smooth, { cam: away })), "in_view").ok, false);
+});
+
+// Since increment 1b the walker joins on its own plot, p2 when the game holds
+// p1, and walks from there to the line in front of the camera. Its straight
+// approach must never pass for the walk: the rig checks the real path.
+test("an approach that crosses to the line is clear; one running back along it is not", () => {
+  const { approachClear } = require("../lib/copresence-judge.js");
+  const line = { start: A, end: B };
+  assert.equal(approachClear([53.5, 1.7, 139.5], line), true, "from p2 spawn, across to the start");
+  assert.equal(approachClear(SPAWN, line), true, "from behind the start");
+  assert.equal(approachClear([40, 1.7, 14], line), false, "from beyond the end, back along the line");
+  assert.equal(approachClear([30, 1.7, 14.2], line), false, "from the middle of the line, 0.2 m off it");
+});

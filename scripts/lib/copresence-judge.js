@@ -67,8 +67,8 @@ const LIMITS = {
   END_MARGIN_M: 0.5,
   /// How near the line a frame must be to START the pass, metres. Loose on
   /// purpose: only an approach frame within a few degrees of the line's own
-  /// direction could meet it, and the rig places the line so the approach
-  /// comes from behind its start.
+  /// direction could meet it, and the rig checks the walker's approach never
+  /// runs along the line (`approachClear`).
   WINDOW_TOL_M: 0.3,
   /// How far off the line any judged frame may be, metres. A figure walking a
   /// straight line between updates on a straight line never leaves it; this
@@ -148,9 +148,18 @@ function viewAngle(cam, p) {
  *           computer's clock (ms since 1970), as the rig read it off the
  *           walker's "on the path" line. Each frame's `epoch_ms` is the same
  *           clock, so the two give where the walker really was on that frame.
+ *           For a later forward leg of a walk that goes back and forth, the
+ *           start of THAT leg (`forwardLegStart`).
+ *   fromEpochMs  (optional) judge only frames from this moment on, by the
+ *           same clock: the start of the forward leg being judged, so the end
+ *           of the leg before it (walking back) is never mistaken for it.
+ *   checkView  (default true) whether to check the figure was in the
+ *           camera's view. The --plots run turns it off: the two players
+ *           stand in their own homes and cannot see each other until
+ *           increment 2.
  * Returns { pass, checks: [{ id, ok, detail }], stats }.
  */
-function judgeCopresence({ frames, walker, line, speed, onLineEpochMs }, limits = LIMITS) {
+function judgeCopresence({ frames, walker, line, speed, onLineEpochMs, fromEpochMs = null, checkView = true }, limits = LIMITS) {
   const L0 = { ...LIMITS, ...limits };
   const checks = [];
   const add = (id, ok, detail) => checks.push({ id, ok: !!ok, detail });
@@ -162,6 +171,7 @@ function judgeCopresence({ frames, walker, line, speed, onLineEpochMs }, limits 
   const track = [];
   const others = new Set();
   (frames || []).forEach((fr, i) => {
+    if (Number.isFinite(fromEpochMs) && Number(fr.epoch_ms) < fromEpochMs) return;
     for (const p of fr.players || []) {
       if (isWalker(p, walker))
         track.push({ i, t: Number(fr.t), epoch: fr.epoch_ms === undefined ? null : Number(fr.epoch_ms), pos: p.pos.map(Number), phase: p.phase || null, cam: fr.cam || null });
@@ -347,7 +357,7 @@ function judgeCopresence({ frames, walker, line, speed, onLineEpochMs }, limits 
         : "no time for when the walker reached the line, so where it really was cannot be told",
     );
   }
-  if (pass.some((s) => s.cam)) {
+  if (checkView && pass.some((s) => s.cam)) {
     stats.max_view_angle_deg = maxAngle;
     add(
       "in_view",
@@ -358,6 +368,125 @@ function judgeCopresence({ frames, walker, line, speed, onLineEpochMs }, limits 
     );
   }
   return done();
+}
+
+// ── Homes on plots (increment 1b, `verify-copresence --plots`) ──────────────
+//
+// The relay hands each player a plot of the ship; the game moves its home to
+// its own plot and its camera to that plot's spawn. The rig runs the two join
+// orders and these checks judge each run: the two players hold different
+// plots, by the order they joined; the game's camera is inside the plot the
+// game should hold; and every position the game DREW for the walker is inside
+// the walker's plot (the recorder records figures off screen too). Whether
+// they can see each other waits for increment 2.
+
+/** True when the walker's straight approach from `from` to the line's start
+ *  can never pass for the walk: no point of it is within WINDOW_TOL of the
+ *  line at least START_MARGIN along it, which is what opens the judged pass.
+ *  An approach from behind the start always is; since increment 1b the
+ *  walker joins on its own plot and may come at the line from anywhere, so
+ *  the rig checks the real path (second-player.js makeWalk walks it straight).
+ *  `line` is { start, end }. Pure. */
+function approachClear(from, line, limits = LIMITS) {
+  const A = line.start.map(Number);
+  const B = line.end.map(Number);
+  const L = len(sub(B, A));
+  const d = sub(B, A).map((x) => x / L);
+  for (let i = 0; i <= 2000; i++) {
+    const p = from.map((v, k) => v + ((A[k] - v) * i) / 2000);
+    const { u, perp } = lineCoords(p, A, d);
+    if (perp <= limits.WINDOW_TOL_M && u >= limits.START_MARGIN_M) return false;
+  }
+  return true;
+}
+
+/** The start, by the computer's clock (ms), of the walker's first FORWARD leg
+ *  at or after `atMs`. second-player.js walks a line back and forth for as
+ *  long as it runs: start to end in 2r/speed seconds and back in as many, so
+ *  a forward leg begins every 4r/speed seconds from when it reached the line. */
+function forwardLegStart(onLineEpochMs, speed, radius, atMs) {
+  const cycle = ((4 * radius) / speed) * 1000;
+  const k = Math.max(0, Math.ceil((atMs - onLineEpochMs) / cycle));
+  return onLineEpochMs + k * cycle;
+}
+
+/** The plots of the ship file's text (data/blueprints/ship_structure.ron), in
+ *  order: [{ id, kind, origin: [x,y,z], size: [w,h,d] }]. For a game too old
+ *  to report its plots (the 1a build the red run uses); a game that reports
+ *  them is believed instead. */
+function readShipPlots(text) {
+  const i = text.indexOf("plots: [");
+  if (i < 0) return [];
+  const j = text.indexOf("default_plot", i);
+  const block = text.slice(i, j > 0 ? j : undefined);
+  const nums = (s) => s.split(",").map((v) => Number(v.trim()));
+  const out = [];
+  const re = /id:\s*"([^"]+)",[\s\S]*?kind:\s*"([^"]+)",\s*origin:\s*\(([^)]*)\),\s*size:\s*\(([^)]*)\)/g;
+  for (let m; (m = re.exec(block)); ) out.push({ id: m[1], kind: m[2], origin: nums(m[3]), size: nums(m[4]) });
+  return out;
+}
+
+/** Is point `p` inside a plot's box (a centimetre of slack for rounding)? */
+function inPlot(p, plot, tol = 0.01) {
+  return [0, 1, 2].every((k) => p[k] >= plot.origin[k] - tol && p[k] <= plot.origin[k] + plot.size[k] + tol);
+}
+const boxText = (pl) =>
+  `${pl.id} (x ${pl.origin[0]}..${pl.origin[0] + pl.size[0]}, y ${pl.origin[1]}..${pl.origin[1] + pl.size[1]}, z ${pl.origin[2]}..${pl.origin[2] + pl.size[2]})`;
+
+/**
+ * Judge one --plots run.
+ *   order       "walker-first" or "game-first": who claimed a plot first.
+ *   plots       the ship's plots in order (the game's report, else the file).
+ *   gamePlot    the plot id the game says its home stands on (null for none).
+ *   walkerPlot  the plot id the relay gave the walker (null for none).
+ *   camera      [x, y, z] of the game's camera after joining.
+ *   frames, walker  the recorder's frames and who the walker is (as above).
+ * The plots each SHOULD hold come from the join order alone: the first to
+ * join holds the first plot and the second the second (the relay's rule), so
+ * a build that hands out no plots fails here with where things really were.
+ * Returns { pass, checks }.
+ */
+function judgePlots({ order, plots, gamePlot, walkerPlot, camera, frames, walker }) {
+  const checks = [];
+  const add = (id, ok, detail) => checks.push({ id, ok: !!ok, detail });
+  if (!Array.isArray(plots) || plots.length < 2) {
+    add("plots_known", false, `the ship's plots are unknown (${JSON.stringify(plots)}); two are needed`);
+    return { pass: false, checks };
+  }
+  const gameFirst = order === "game-first";
+  const expGame = gameFirst ? plots[0] : plots[1];
+  const expWalker = gameFirst ? plots[1] : plots[0];
+  add(
+    "plot_ids_differ",
+    gamePlot && walkerPlot && gamePlot !== walkerPlot,
+    `the game holds ${gamePlot || "no plot"}, the walker ${walkerPlot || "no plot"}`,
+  );
+  add(
+    "plots_by_join_order",
+    gamePlot === expGame.id && walkerPlot === expWalker.id,
+    `${order}: the game should hold ${expGame.id} and holds ${gamePlot || "none"}; the walker should hold ${expWalker.id} and holds ${walkerPlot || "none"}`,
+  );
+  const camOk = Array.isArray(camera) && inPlot(camera, expGame);
+  add(
+    `camera_in_${expGame.id}`,
+    camOk,
+    Array.isArray(camera)
+      ? `after joining, the game's camera at (${camera.map((v) => Number(v).toFixed(2)).join(", ")}) is ${camOk ? "inside" : "OUTSIDE"} ${boxText(expGame)}, the plot the game should hold`
+      : "the game never reported its camera after joining",
+  );
+  const drawn = [];
+  for (const fr of frames || []) for (const p of fr.players || []) if (isWalker(p, walker)) drawn.push({ t: Number(fr.t), pos: p.pos.map(Number) });
+  const outside = drawn.filter((d) => !inPlot(d.pos, expWalker));
+  add(
+    "walker_drawn_in_its_plot",
+    drawn.length > 0 && outside.length === 0,
+    !drawn.length
+      ? `${walker.name || "the walker"} was never drawn`
+      : outside.length
+        ? `${outside.length} of ${drawn.length} drawn positions OUTSIDE ${boxText(expWalker)}; first at t ${f(outside[0].t)} s: (${outside[0].pos.map((v) => v.toFixed(2)).join(", ")})`
+        : `all ${drawn.length} drawn positions inside ${boxText(expWalker)}`,
+  );
+  return { pass: checks.every((c) => c.ok), checks };
 }
 
 // ── Is the figure VISIBLE in a screenshot? ──────────────────────────────────
@@ -411,4 +540,17 @@ function figurePixels(img, nameplate = null) {
   return { count, box, centroid: count ? [sx / count, sy / count] : null };
 }
 
-module.exports = { LIMITS, judgeCopresence, lineCoords, viewAngle, isFigureTeal, figurePixels, FIGURE_MIN_PX };
+module.exports = {
+  LIMITS,
+  judgeCopresence,
+  lineCoords,
+  viewAngle,
+  isFigureTeal,
+  figurePixels,
+  FIGURE_MIN_PX,
+  approachClear,
+  forwardLegStart,
+  readShipPlots,
+  inPlot,
+  judgePlots,
+};

@@ -308,6 +308,44 @@ pub struct GameWorld {
     pub chores: Vec<ChoreDef>,
     /// Accumulator throttling traveling-NPC position broadcasts (not persisted).
     npc_broadcast_accum: f64,
+    /// The mothership's plots (increment 1b of docs/design/ship-homes-and-logistics.md):
+    /// what `assign_home` hands out, from the same ship file and home designs the game
+    /// assembles from. Empty when they cannot be loaded (logged at startup); every joiner
+    /// then gets the old Pioneer spawn and no plot.
+    pub ship_plots: crate::ship::ship_structure::ShipPlots,
+}
+
+/// Where a joining player lives and arrives (increment 1b): their plot (None for a guest,
+/// when every plot is held) and the spawn point, in ship metres at eye height.
+#[derive(Debug, Clone, PartialEq)]
+pub struct HomeAssignment {
+    pub plot: Option<crate::ship::ship_structure::PlotArrival>,
+    pub spawn: [f32; 3],
+}
+
+impl HomeAssignment {
+    /// The welcome's `home_plot`: {id, kind, origin, size}, or null for a guest.
+    pub fn home_plot_json(&self) -> serde_json::Value {
+        match &self.plot {
+            Some(p) => serde_json::json!({
+                "id": p.id,
+                "kind": p.kind,
+                "origin": [p.origin.0, p.origin.1, p.origin.2],
+                "size": [p.size.0, p.size.1, p.size.2],
+            }),
+            None => serde_json::Value::Null,
+        }
+    }
+}
+
+/// The id a plot is held under: the player's `did:hum:` from their Dilithium key (hex),
+/// so a plot follows the person. A key that is not hex (a server bot's `bot_` key) is
+/// used as it stands, marked so it can never collide with a DID.
+pub fn plot_owner_id(key: &str) -> String {
+    match hex::decode(key) {
+        Ok(bytes) if !bytes.is_empty() => crate::relay::core::did::did_for_pubkey(&bytes),
+        _ => format!("key:{key}"),
+    }
 }
 
 impl GameWorld {
@@ -322,7 +360,9 @@ impl GameWorld {
             ship_name: String::new(),
             chores: Vec::new(),
             npc_broadcast_accum: 0.0,
+            ship_plots: Default::default(),
         };
+        world.load_ship_plots();
         world.load_starter_ship();
         world.load_chores();
         world.populate_ship_entities();
@@ -889,6 +929,50 @@ impl GameWorld {
             xp_total,
             reputation_total,
         })
+    }
+
+    /// Load the mothership's plots from data/ (the copies built into the exe when the relay
+    /// runs in a folder with none, like the throwaway relay of the rigs). A failure is logged
+    /// and leaves no plots: joiners then spawn as before 1b, which the welcome shows (no plot).
+    fn load_ship_plots(&mut self) {
+        match crate::ship::ship_structure::ShipPlots::load(std::path::Path::new("data")) {
+            Ok(p) => {
+                tracing::info!("Game: ship {} ({}) has {} plot(s)", p.ship_id, p.ship_hash, p.plots.len());
+                self.ship_plots = p;
+            }
+            Err(e) => tracing::error!("Game: the ship's plots did not load ({e}); nobody gets a plot"),
+        }
+    }
+
+    /// Where a joining player lives and arrives (increment 1b): the plot they hold on this
+    /// ship, else the first free one, claimed now (`Storage::claim_plot`, one plot per
+    /// player and one player per plot, enforced by the table), spawning at that plot's
+    /// spawn. With every plot held they are a guest in the Commons. A storage error makes
+    /// them a guest too (logged): a join is never refused over a plot.
+    pub fn assign_home(&self, db: &crate::relay::storage::Storage, owner_key: &str) -> HomeAssignment {
+        let sp = &self.ship_plots;
+        let ids: Vec<&str> = sp.plots.iter().map(|p| p.id.as_str()).collect();
+        let held = if ids.is_empty() {
+            None
+        } else {
+            match db.claim_plot(&sp.ship_id, &plot_owner_id(owner_key), &ids) {
+                Ok(id) => id,
+                Err(e) => {
+                    tracing::warn!("Game: could not claim a plot for {owner_key}: {e}; joining as a guest");
+                    None
+                }
+            }
+        };
+        let plot = held.and_then(|id| sp.plot(&id).cloned());
+        let spawn = match (&plot, sp.guest_spawn) {
+            (Some(p), _) => p.spawn,
+            (None, Some(g)) => g,
+            (None, None) => {
+                let d = self.default_spawn_position();
+                glam::Vec3::new(d[0], d[1], d[2])
+            }
+        };
+        HomeAssignment { plot, spawn: [spawn.x, spawn.y, spawn.z] }
     }
 
     /// Default spawn position: center of Crew Quarters, 1m above floor.

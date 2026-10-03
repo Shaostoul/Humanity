@@ -769,6 +769,13 @@ pub(crate) struct EngineState {
     pub(crate) net_sync: crate::net::sync::NetSyncSystem,
     /// True once we have sent `game_join` for this world session (cleared on leave/disconnect).
     pub(crate) game_joined: bool,
+    /// True once this join's `game_welcome` has been applied (engine/home_plot.rs): our home
+    /// stands on the plot the relay gave us. Positions are only sent after it, so nobody sees us
+    /// at the default plot's door for the moment before the welcome arrives (increment 1b).
+    pub(crate) game_welcomed: bool,
+    /// The server we refused to join because its ship is not ours (engine/home_plot.rs); the
+    /// join gate skips it until the world is loaded afresh (world_load clears it).
+    pub(crate) copresence_refused: Option<String>,
     /// Throttle for outbound position updates (send ~15/sec).
     pub(crate) game_pos_timer: f32,
     /// Cached (body_mesh, head_mesh, material) for the remote-player avatar marker, built once.

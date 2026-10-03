@@ -30,6 +30,11 @@ pub(crate) fn route_game_message(state: &mut EngineState, payload: &str) {
             }
         }
         Some("game_welcome") => {
+            // Increment 1b: our home goes to the plot the relay gave us (or we refuse a ship
+            // that is not ours, and the welcome goes no further). engine/home_plot.rs.
+            if !crate::engine::home_plot::apply_welcome_home(state, &v) {
+                return;
+            }
             if let Some(id) = v.get("player_id").and_then(|x| x.as_u64()) {
                 let own_id = id as u32;
                 // Welcome first (sets our local_player_id so the self-filter +
@@ -493,6 +498,11 @@ const PLAYER_NAMEPLATE_OVER_HEAD_M: f32 = 0.15;
 /// showroom (2026-10-02, round two: before that, our figure walked on
 /// 1.25 m on everyone else's screen and stood there until we came back).
 pub(crate) fn drive_position_send(state: &mut EngineState, in_world: bool, dt: f32, real_dt: f32) {
+    // Nothing goes out before the welcome has put our home on our plot (increment 1b): until
+    // then our camera stands at the default plot, which may be someone else's home.
+    if !state.game_welcomed {
+        return;
+    }
     let (position, yaw) = (state.camera.position, state.camera.yaw);
     let out = state.net_sync.position_to_send(dt, real_dt, in_world, position, yaw, &mut state.game_pos_timer);
     if let Some(out) = out {

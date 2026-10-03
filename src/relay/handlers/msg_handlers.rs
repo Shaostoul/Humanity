@@ -2954,6 +2954,9 @@ pub async fn handle_game_join(
     }
 
     let mut world = state.game_world.write().await;
+    // Their home on the ship (increment 1b): the plot they hold, else the first free one,
+    // else a guest spot in the Commons. Asked on a rejoin too, so every welcome names it.
+    let home = world.assign_home(&state.db, my_key);
 
     // A join for an ALREADY-PRESENT player is a RESYNC, not an error (v0.779).
     // The native client re-sends game_join after a local menu round-trip (it
@@ -2978,9 +2981,9 @@ pub async fn handle_game_join(
             (id, true)
         }
         None => {
-            // Spawn player at default position. spawn_player always grants the
+            // Spawn on their plot (increment 1b). spawn_player always grants the
             // explore_ship starter quest with zeroed stats.
-            (world.spawn_player(my_key, [0.0_f32, 1.0, 0.0]), false)
+            (world.spawn_player(my_key, home.spawn), false)
         }
     };
 
@@ -3043,6 +3046,7 @@ pub async fn handle_game_join(
     // Build world snapshot for the joiner.
     let snapshot = world.snapshot();
     let game_time = world.game_time;
+    let ship = serde_json::json!({ "id": world.ship_plots.ship_id, "hash": world.ship_plots.ship_hash });
     // Surface the starter quest in the welcome payload so AI agents
     // (and humans) know what to do without parsing world_snapshot.
     let current_quest = world
@@ -3088,6 +3092,10 @@ pub async fn handle_game_join(
         "world_snapshot": snapshot_json,
         "game_time": game_time,
         "rooms": rooms_summary,
+        // Increment 1b: where their home is ({id, kind, origin, size}, null for a guest)
+        // and which ship (the client refuses to join a ship that is not its own).
+        "home_plot": home.home_plot_json(),
+        "ship": ship,
     });
     if let Some(q) = current_quest {
         welcome["current_quest"] = q;

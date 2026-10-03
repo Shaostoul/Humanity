@@ -150,8 +150,12 @@ second-player: a scripted second player that walks around the shared world.
                     forth through the centre.
   --axis x|z        which way the line runs (default x).
   --center X,Y,Z    the middle of the path, in world metres. "auto" (the
-                    default) centres on the first other player already in the
-                    world, or on our own spawn point when nobody is there.
+                    default): when the relay gave us a plot of our own (it
+                    hands every player one since increment 1b), the path
+                    STARTS at our spawn on it, so we walk in our own home;
+                    as a guest (the ship is full) it centres on the first
+                    other player already in the world, or on our own spawn
+                    point when nobody is there.
                     Y is eye height, like the desktop app sends.
   --radius M        circle radius, or half the line's length (default ${DEFAULT_RADIUS}).
   --speed M/S       walking speed (default ${DEFAULT_SPEED}).
@@ -511,13 +515,25 @@ function facingQuat(vx, vz) {
   return [0, Math.sin(yaw / 2), 0, Math.cos(yaw / 2)];
 }
 
-/** Where to centre the path: the --center given, or (auto) the first other
- *  player already in the world, or our own spawn point. */
+/** Where to centre the path: the --center given; or (auto) with a plot of our
+ *  own, the centre that makes the path START at our spawn on it (a line runs
+ *  on from there along its axis, a circle starts at centre + (radius, 0, 0));
+ *  or, as a guest, the first other player already in the world, or our own
+ *  spawn point. Starting at the spawn means no approach walk at all, and a
+ *  walk that stays in our own home: another player's spot is inside THEIR
+ *  home since increment 1b. */
 function chooseCenter(opts, welcome) {
   const snap = Array.isArray(welcome.world_snapshot) ? welcome.world_snapshot : [];
   const me = snap.find((e) => e.entity_id === welcome.player_id);
   const start = me && Array.isArray(me.position) ? me.position.slice(0, 3) : [0, 1, 0];
   if (opts.center !== "auto") return { center: opts.center, start, why: "as asked" };
+  if (welcome.home_plot) {
+    const r = opts.radius ?? DEFAULT_RADIUS;
+    let center;
+    if (opts.path === "line") center = opts.axis === "z" ? [start[0], start[1], start[2] + r] : [start[0] + r, start[1], start[2]];
+    else center = [start[0] - r, start[1], start[2]];
+    return { center, start, why: `starting at our own spawn on plot ${welcome.home_plot.id}` };
+  }
   const other = snap.find((e) => e.entity_type === "player" && e.entity_id !== welcome.player_id && Array.isArray(e.position));
   if (other) {
     const who = (other.components && other.components.name) || `player ${other.entity_id}`;
@@ -527,6 +543,17 @@ function chooseCenter(opts, welcome) {
 }
 
 const fmt = (p) => `(${p.map((v) => v.toFixed(2)).join(", ")})`;
+
+/** The plot the relay gave us, as the one line the log carries (and
+ *  scripts/verify-copresence.js reads): "home_plot {json}" with the welcome's
+ *  {id, kind, origin, size}, or "home_plot null" for a guest (the ship is
+ *  full), or "home_plot missing" when the welcome has no such field (a relay
+ *  from before increment 1b). */
+function homePlotLine(welcome) {
+  if (!welcome || !("home_plot" in welcome)) return "home_plot missing (this relay hands out no plots)";
+  if (welcome.home_plot === null) return "home_plot null (the ship is full: a guest in the Commons)";
+  return `home_plot ${JSON.stringify(welcome.home_plot)}`;
+}
 
 /** The sender's own steady clock, in seconds (THE TIMESTAMP RULE, top of
  *  this file). performance.now() counts from this process's start and never
@@ -735,6 +762,7 @@ async function main() {
   }
   const { center, start, why } = chooseCenter(opts, welcome);
   log(`in the world as entity ${welcome.player_id}, starting at ${fmt(start)}`);
+  log(homePlotLine(welcome));
   const shape = opts.path === "line"
     ? `back and forth along a ${2 * opts.radius} m line (${opts.axis} axis)`
     : `a circle of radius ${opts.radius} m`;
@@ -802,6 +830,7 @@ module.exports = {
   pathPoint,
   facingQuat,
   chooseCenter,
+  homePlotLine,
 };
 
 if (require.main === module) main();

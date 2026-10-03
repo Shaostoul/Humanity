@@ -187,3 +187,39 @@ test("names: TestBot by default, and a random identity gets a name of its own", 
   assert.equal(long.length, 24, `trimmed to 24 characters (${long})`);
   assert.ok(sp.NAME_RULE.test(long) && long.endsWith("-3fa9c1"));
 });
+
+// Increment 1b (docs/design/ship-homes-and-logistics.md): the relay hands
+// every player a plot, so another player's spot is inside THEIR home. With a
+// plot of its own the walker starts its path at its own spawn on it (no
+// approach walk, and the walk stays at home); as a guest the old rule holds.
+// Seen red 2026-10-03 with the home_plot branch of chooseCenter removed (the
+// Day 3 rule): "a line along x starts at our own spawn" failed, the path
+// starting 99.08 m away, around the other player.
+test("with a plot of its own the walk starts at its own spawn; a guest walks round the others", () => {
+  const welcome = (homePlot) => ({
+    type: "game_welcome",
+    player_id: 9,
+    home_plot: homePlot,
+    world_snapshot: [
+      { entity_id: 4, entity_type: "player", position: [53.5, 1.7, 40.5], components: { name: "Other" } },
+      { entity_id: 9, entity_type: "player", position: [53.5, 1.7, 139.5], components: { name: "Me" } },
+    ],
+  });
+  const p2 = { id: "p2", kind: "homestead", origin: [0, 0, 99], size: [55, 3, 89] };
+  for (const [path, axis] of [["line", "x"], ["line", "z"], ["circle", "x"]]) {
+    const opts = { center: "auto", path, axis, radius: 4 };
+    const { center, start } = sp.chooseCenter(opts, welcome(p2));
+    const first = sp.pathPoint({ path, axis, center, radius: 4 }, 0);
+    assert.ok(dist(first, start) < 1e-9, `a ${path} along ${axis} starts at our own spawn (${dist(first, start).toFixed(2)} m away)`);
+  }
+  // A guest (the ship is full): round the other player, as before.
+  const guest = sp.chooseCenter({ center: "auto", path: "line", axis: "z", radius: 4 }, welcome(null));
+  assert.deepEqual(guest.center, [53.5, 1.7, 40.5]);
+  // --center given: as asked.
+  assert.deepEqual(sp.chooseCenter({ center: [1, 2, 3], path: "line", axis: "x", radius: 4 }, welcome(p2)).center, [1, 2, 3]);
+
+  // The one log line the rig reads.
+  assert.equal(sp.homePlotLine(welcome(p2)), `home_plot ${JSON.stringify(p2)}`);
+  assert.match(sp.homePlotLine(welcome(null)), /^home_plot null /);
+  assert.match(sp.homePlotLine({ type: "game_welcome" }), /^home_plot missing /);
+});

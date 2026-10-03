@@ -3112,6 +3112,10 @@ pub(crate) fn poll_remote_players_request(state: &mut EngineState, clock_dt: f32
         return;
     }
     let Some(rec) = slot.take() else { return };
+    // Increment 1b: the plot the home stands on (null for none) and every plot of the ship,
+    // so a rig can check the camera and the other players against the plots
+    // (scripts/verify-copresence.js --plots).
+    let (home_plot, ship_plots) = crate::engine::home_plot::probe_json(state.gui_state.ship_structure.as_ref());
     let done = serde_json::json!({
         "ok": true,
         "seconds": rec.seconds,
@@ -3123,6 +3127,10 @@ pub(crate) fn poll_remote_players_request(state: &mut EngineState, clock_dt: f32
         "ws_identified": state.gui_state.ws_identified,
         "game_joined": state.game_joined,
         "copresence_active": state.gui_state.copresence_active,
+        "home_plot": home_plot,
+        "ship_plots": ship_plots,
+        "welcomed": state.game_welcomed,
+        "copresence_refused": state.copresence_refused.is_some(),
         "camera_start": rec.camera_start,
         "camera_end": camera_json(state),
         "frames": rec.frames,

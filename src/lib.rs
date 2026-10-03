@@ -1983,6 +1983,8 @@ mod native_app {
                 construction_hilite: None,
                 net_sync: crate::net::sync::NetSyncSystem::new(),
                 game_joined: false,
+                game_welcomed: false,
+                copresence_refused: None,
                 game_pos_timer: 0.0,
                 remote_avatar: None,
                 remote_look_materials: std::collections::HashMap::new(),
@@ -6829,6 +6831,7 @@ mod native_app {
                                 && !state.game_joined
                                 && state.gui_state.ws_identified
                                 && !state.gui_state.copresence_solo
+                                && state.copresence_refused.as_deref() != Some(state.gui_state.server_url.as_str())
                             {
                                 let name = if state.gui_state.character_name.trim().is_empty() {
                                     "Wanderer".to_string()
@@ -6848,6 +6851,7 @@ mod native_app {
                                     ws.send(&join.to_string());
                                 }
                                 state.game_joined = true;
+                                state.game_welcomed = false; // our plot is not known yet (1b)
                                 state.game_pos_timer = 0.0;
                             }
                             // While joined, KEEP the session alive across menu

@@ -55,9 +55,23 @@
 // variable of this shell is left out of its environment, so no focus opt-in
 // can leak in from the shell either.
 //
+// HOMES ON PLOTS (--plots, increment 1b of docs/design/ship-homes-and-logistics.md):
+// the relay hands each player a plot of the ship, and the game moves its home
+// to its own plot. --plots runs the rig twice, once per join order (walker
+// first, then game first; --order picks one), each with its own relay and
+// boot, and judges where things are rather than whether they can be seen
+// (they stand in two homes and cannot see each other until increment 2): the
+// two plot ids differ, by the join order; after joining, the game's camera is
+// inside the plot the game should hold; and every position the game DREW for
+// the walker (the recorder records figures off screen too) is inside the
+// walker's plot, with the smoothness checks on one forward leg of its walk.
+// No camera pose, no screenshots. Evidence in runs/<stamp>-plots-<order>/.
+//
 // Usage:
 //   node scripts/verify-copresence.js [--exe PATH] [--pose x,y,z,yaw,pitch]
 //        [--distance M] [--radius M] [--speed M/S] [--timeout-min N] [--keep-open]
+//   node scripts/verify-copresence.js --plots [--order walker-first|game-first|both]
+//        [--exe PATH] [--radius M] [--speed M/S] [--timeout-min N]
 //   node scripts/verify-copresence.js --dry-verdict <manifest.json>
 // Exit 0 = every check passed. Exit 1 = refused to run. Exit 2 = failed.
 
@@ -69,7 +83,7 @@ const { spawn, spawnSync, execSync } = require("child_process");
 const MG = require("./lib/machine-guard.js");
 const DXC = require("./lib/dxc-dlls.js");
 const TR = require("./lib/throwaway-relay.js");
-const { judgeCopresence, LIMITS, figurePixels, FIGURE_MIN_PX } = require("./lib/copresence-judge.js");
+const { judgeCopresence, LIMITS, figurePixels, FIGURE_MIN_PX, approachClear, judgePlots, forwardLegStart, readShipPlots } = require("./lib/copresence-judge.js");
 const png = require("./lib/png.js");
 
 const REPO = path.resolve(__dirname, "..");
@@ -83,6 +97,8 @@ const KEEP_OPEN = flag("--keep-open");
 const EXE = path.resolve(opt("--exe", path.join(REPO, "target", "release", "HumanityOS.exe")));
 const TIMEOUT_MS = Number(opt("--timeout-min", "10")) * 60 * 1000;
 const DRY = opt("--dry-verdict", null);
+const PLOTS = flag("--plots");
+const ORDERS = { both: ["walker-first", "game-first"], "walker-first": ["walker-first"], "game-first": ["game-first"] }[opt("--order", "both")];
 
 // THE STAGE. The vehicle bay of the player's home (scripts/home-vantages.json
 // "21-vehicle-bay"), standing at eye height (1.7 m; the floor is y 0), facing
@@ -102,12 +118,15 @@ const DISTANCE = Number(opt("--distance", "6"));
 const RADIUS = Number(opt("--radius", "4"));
 // second-player.js's own walking pace.
 const SPEED = Number(opt("--speed", "1.4"));
-// Where the relay puts a brand-new player (src/relay/handlers/msg_handlers.rs
-// handle_game_join, spawn_player at [0, 1, 0]). The walker approaches the line
-// from there; the rig checks the line is placed so it comes from BEHIND the
-// line's start (see the judge's WINDOW note), and re-checks it against the
-// start the walker actually reports.
-const SPAWN = [0, 1, 0];
+// Where the relay puts the walker. Since increment 1b every player gets a plot
+// of the ship (src/relay/handlers/game_state.rs assign_home) and spawns at its
+// spawn; the game joins first, so the walker holds the second plot, p2, and
+// arrives at p2's spawn (data/blueprints/ship_structure.ron + the homestead
+// design's spawn: (53.5, 1.7, 139.5), design section 2.4). It walks from there
+// to the line in front of the camera; the rig checks that straight approach
+// can never pass for the walk (the judge's approachClear), here before booting
+// and again on the start the walker actually reports.
+const SPAWN = [53.5, 1.7, 139.5];
 // second-player.js reaches the start of its path within 4 s however far it is
 // (APPROACH_SECONDS), so a walk of this long covers the approach, one full
 // pass and a margin.
@@ -160,9 +179,9 @@ function planLine(cam, yaw, distance, radius) {
   const end = center.map((v, i) => v + dir[i] * radius);
   return { center, axis, dir, start, end };
 }
-/** True when `from` lies behind the line's start (the approach can then never
- *  pass for the line in the judge). */
-const behindStart = (from, plan) => (from[0] - plan.start[0]) * plan.dir[0] + (from[2] - plan.start[2]) * plan.dir[2] < 0;
+/** True when the walker's straight approach from `from` can never pass for
+ *  the line in the judge (the judge's approachClear). */
+const clearApproach = (from, plan) => approachClear(from, { start: plan.start, end: plan.end });
 
 // ── The verdict: rig steps plus the judge, over a manifest ──────────────────
 function verdict(m, dir) {
@@ -173,7 +192,7 @@ function verdict(m, dir) {
   add("game_in_world", s.joined && s.joined.ok, s.joined ? s.joined.detail : "never joined");
   add("camera_parked", s.camera && s.camera.ok, s.camera ? s.camera.detail : "never parked");
   add("walker_ran", s.walker && s.walker.ok, s.walker ? s.walker.detail : "never ran");
-  add("approach_from_behind", s.approach && s.approach.ok, s.approach ? s.approach.detail : "the walker's start was never reported");
+  add("approach_clear", s.approach && s.approach.ok, s.approach ? s.approach.detail : "the walker's start was never reported");
   add("view_clear", s.view && s.view.ok, s.view ? s.view.detail : "never checked");
   add("screenshots", s.screenshots && s.screenshots.ok, s.screenshots ? s.screenshots.detail : "none taken");
   add("on_screen", s.on_screen && s.on_screen.ok, s.on_screen ? s.on_screen.detail : "the nameplate was never looked for");
@@ -242,7 +261,8 @@ if (DRY) {
   if (!fs.existsSync(manifest)) refuse([`--dry-verdict: no such manifest: ${manifest}`]);
   const m = JSON.parse(fs.readFileSync(manifest, "utf8"));
   console.log(`[dry] verdict only, nothing booted: ${rel(manifest)}`);
-  const pass = printVerdict("DRY VERDICT (nothing was booted): ", m, path.dirname(manifest));
+  const printer = m.kind === "verify-copresence-plots" ? printPlotsVerdict : printVerdict;
+  const pass = printer("DRY VERDICT (nothing was booted): ", m, path.dirname(manifest));
   process.exit(pass ? 0 : 2);
 }
 
@@ -254,15 +274,15 @@ console.log("");
 const poseNums = POSE.split(",").map(Number);
 if (poseNums.length !== 5 || !poseNums.every(Number.isFinite)) refuse([`--pose must be five numbers x,y,z,yaw,pitch, got "${POSE}"`]);
 if (!(DISTANCE > 0 && RADIUS > 0 && SPEED > 0)) refuse(["--distance, --radius and --speed must be above 0"]);
+if (PLOTS && !ORDERS) refuse(["--order must be walker-first, game-first or both"]);
 // Refuse a stage the judge could not read before booting anything.
-{
+if (!PLOTS) {
   const p = planLine(poseNums.slice(0, 3), poseNums[3], DISTANCE, RADIUS);
   if (p.error) refuse([`REFUSED: ${p.error}.`]);
-  if (!behindStart(SPAWN, p)) {
+  if (!clearApproach(SPAWN, p)) {
     refuse([
-      `REFUSED: the line ${fmt(p.start)} -> ${fmt(p.end)} would be approached from its far side: the relay`,
-      `spawns players at ${fmt(SPAWN)}, which is not behind the line's start. The approach would then run`,
-      "back along the line and could be judged as the walk. Pick a pose whose line runs away from the spawn.",
+      `REFUSED: the walker's approach from ${fmt(SPAWN)} (where the relay spawns it) to the line ${fmt(p.start)} -> ${fmt(p.end)}`,
+      "would run along the line itself, so it could be judged as the walk. Pick a pose whose line lies across the approach.",
     ]);
   }
   if (2 * RADIUS <= LIMITS.START_MARGIN_M + LIMITS.END_MARGIN_M + 1) refuse([`--radius ${RADIUS} leaves too short a pass to judge`]);
@@ -663,14 +683,14 @@ async function main() {
     if (!inWorld) throw new Error(`the walker never got into the world: ${walkerOut.map((o) => o.line).join(" | ")}`);
     manifest.walker.id = Number(inWorld.m[1]);
     manifest.walker.start = [Number(inWorld.m[2]), Number(inWorld.m[3]), Number(inWorld.m[4])];
-    // The judge's window is sound only if the approach comes from behind the
-    // line's start; checked on the start the relay really gave it.
-    const fromBehind = behindStart(manifest.walker.start, plan);
+    // The judge's window is sound only if the approach never runs along the
+    // line; checked on the start the relay really gave it.
+    const clear = clearApproach(manifest.walker.start, plan);
     manifest.steps_ok.approach = {
-      ok: fromBehind,
-      detail: fromBehind
-        ? `the walker started at ${fmt(manifest.walker.start)}, behind the line's start ${fmt(plan.start)}`
-        : `the walker started at ${fmt(manifest.walker.start)}, NOT behind the line's start ${fmt(plan.start)}: its approach could be judged as the walk; pick another --pose`,
+      ok: clear,
+      detail: clear
+        ? `the walker started at ${fmt(manifest.walker.start)}; its straight approach to the line's start ${fmt(plan.start)} never runs along the line`
+        : `the walker started at ${fmt(manifest.walker.start)}: its approach to ${fmt(plan.start)} runs along the line and could be judged as the walk; pick another --pose`,
     };
     step("walker", true, `${WALKER_NAME} in the world as entity ${manifest.walker.id}, starting at ${fmt(manifest.walker.start)}`);
 
@@ -792,7 +812,360 @@ async function main() {
   process.exit(pass ? 0 : 2);
 }
 
-main().catch((e) => {
+// ── --plots: homes on plots, in both join orders (increment 1b) ──────────────
+//
+// One run per join order, each with its own relay (so the plots start free)
+// and its own boot of the game (one GPU: the runs never overlap):
+//   walker-first  the walker joins before the game boots, so it claims the
+//                 first plot (p1) and the game the second (p2): the game must
+//                 move its home off the default plot it built at boot.
+//   game-first    the game joins first and keeps the default plot (p1); the
+//                 walker arrives second, on p2.
+// In both, the walker walks a line from its own spawn along +Z, back and forth
+// for as long as it runs (--center auto starts the path at its spawn when it
+// holds a plot), and the game records every frame where it drew it.
+
+const PLOTS_WALKER_NAME = "TestBotPlots"; // the TestBot prefix keeps it off the member list
+const PLOTS_WALKER_SEED = "verify-copresence-plots-walker";
+const SHIP_FILE = path.join(REPO, "data", "blueprints", "ship_structure.ron");
+/** One back-and-forth of the walker's line, seconds (second-player.js walks
+ *  2r out and 2r back). */
+const CYCLE_S = (4 * RADIUS) / SPEED;
+/** Long enough to hold one whole forward leg (2r / speed) wherever in the
+ *  cycle the recording happens to start, plus the drawing delay and margins. */
+const PLOTS_RECORD_S = Math.ceil(CYCLE_S + (2 * RADIUS) / SPEED + 4);
+
+/** The --plots verdict: rig steps, the plot checks, and the smoothness checks
+ *  on one forward leg of the walk (no view, no screenshots: the two players
+ *  cannot see each other until increment 2). Re-runs from the manifest. */
+function plotsVerdict(m, dir) {
+  const checks = [];
+  const add = (id, ok, detail) => checks.push({ id, ok: !!ok, detail });
+  const s = m.steps_ok || {};
+  add("relay_up", s.relay && s.relay.ok, s.relay ? s.relay.detail : "never started");
+  add("game_in_world", s.joined && s.joined.ok, s.joined ? s.joined.detail : "never joined");
+  add("walker_in_world", s.walker && s.walker.ok, s.walker ? s.walker.detail : "never ran");
+  const samplesPath = m.samples ? path.join(dir, m.samples) : null;
+  const frames = samplesPath && fs.existsSync(samplesPath) ? JSON.parse(fs.readFileSync(samplesPath, "utf8")).frames || [] : [];
+  if (!frames.length) add("recorded", false, samplesPath ? `no frames in ${rel(samplesPath)}` : "nothing was recorded");
+  // (Not PLOTS_WALKER_NAME: --dry-verdict runs this before that constant is set.)
+  const walker = { id: m.walker ? m.walker.id : null, name: (m.walker && m.walker.name) || "TestBotPlots" };
+  const plots = judgePlots({
+    order: m.order,
+    plots: m.plots,
+    gamePlot: m.game_plot,
+    walkerPlot: m.walker_plot,
+    camera: m.camera_after_join,
+    frames,
+    walker,
+  });
+  for (const c of plots.checks) checks.push(c);
+  let stats = null;
+  const onLine = m.walker ? m.walker.on_line_epoch_ms : null;
+  const epochs = frames.map((f) => Number(f.epoch_ms)).filter(Number.isFinite);
+  if (m.line && Number.isFinite(onLine) && epochs.length) {
+    const first = epochs[0];
+    const last = epochs[epochs.length - 1];
+    const legMs = ((2 * m.radius) / m.speed) * 1000;
+    const leg = forwardLegStart(onLine, m.speed, m.radius, first + 500);
+    const whole = leg + legMs + 500 <= last;
+    add(
+      "forward_leg_recorded",
+      whole,
+      `the recording ran ${((last - first) / 1000).toFixed(1)} s; the judged forward leg starts ${((leg - first) / 1000).toFixed(2)} s in and lasts ${(legMs / 1000).toFixed(2)} s` +
+        (whole ? "" : ": NOT all of it inside the recording"),
+    );
+    if (whole) {
+      const j = judgeCopresence({ frames, walker, line: m.line, speed: m.speed, onLineEpochMs: leg, fromEpochMs: leg, checkView: false });
+      for (const c of j.checks) checks.push(c);
+      stats = j.stats;
+    }
+  } else {
+    add("forward_leg_recorded", false, "no line, no time the walker reached it, or no frame times: the walk cannot be judged");
+  }
+  const panics = Number(m.panics || 0);
+  add("no_panics", panics === 0, `${panics} PANIC line(s) in run.log`);
+  return { checks, pass: checks.every((c) => c.ok), stats };
+}
+
+function printPlotsVerdict(prefix, m, dir) {
+  const { checks, pass, stats } = plotsVerdict(m, dir);
+  console.log("");
+  console.log("-".repeat(72));
+  console.log(`--plots, ${m.order}`);
+  for (const c of checks) console.log(`${c.ok ? "PASS" : "FAIL"}  ${pad(c.id, 25)} ${c.detail}`);
+  console.log("-".repeat(72));
+  if (stats && stats.speed) {
+    console.log(
+      `measured: ${stats.pairs} frame pairs judged; drawn speed ${stats.speed.min.toFixed(3)} to ${stats.speed.max.toFixed(3)} m/s ` +
+        `(median ${stats.speed.median.toFixed(3)}) for a ${stats.speed.walker} m/s walk`,
+    );
+  }
+  if (pass) console.log(`${prefix}PASS  ${checks.length}/${checks.length} plot checks passed (${m.order})`);
+  else {
+    const failed = checks.filter((c) => !c.ok).map((c) => c.id);
+    console.log(`${prefix}FAIL  ${checks.length - failed.length}/${checks.length} passed (${m.order}); failed: ${failed.join(", ")}`);
+  }
+  console.log(`        evidence ${rel(dir)}`);
+  console.log("-".repeat(72));
+  console.log("");
+  return pass;
+}
+
+/** One --plots run in one join order. Returns true when every check passed. */
+async function runPlotsOnce(order, runStamp, cleanups) {
+  setupRig();
+  const out = path.join(RIG, "runs", `${runStamp}-plots-${order}`);
+  fs.mkdirSync(out, { recursive: true });
+  const manifest = {
+    kind: "verify-copresence-plots",
+    order,
+    stamp: runStamp,
+    exe: EXE,
+    rig: RIG,
+    speed: SPEED,
+    radius: RADIUS,
+    relay: null,
+    plots: null,
+    plots_from: null,
+    game_plot: null,
+    walker_plot: null,
+    camera_after_join: null,
+    walker: null,
+    line: null,
+    samples: null,
+    steps: [],
+    steps_ok: {},
+    panics: 0,
+  };
+  const save = () => fs.writeFileSync(path.join(out, "manifest.json"), JSON.stringify(manifest, null, 2));
+  const step = (id, ok, detail) => {
+    manifest.steps.push({ id, ok, detail });
+    save();
+    log(`${ok ? "ok  " : "FAIL"} ${pad(id, 10)} ${detail}`);
+    return ok;
+  };
+  let relay = null;
+  let gamePid = null;
+  let walker = null;
+  let killed = false;
+  const killAll = () => {
+    if (killed) return;
+    killed = true;
+    if (walker && walker.exitCode === null) {
+      try {
+        execSync(`taskkill /PID ${walker.pid} /T /F`, { stdio: "ignore" });
+      } catch {}
+    }
+    if (gamePid) {
+      try {
+        execSync(`taskkill /PID ${gamePid} /T /F`, { stdio: "ignore" });
+      } catch {}
+    }
+    killRigProcesses();
+    if (relay) {
+      relay.kill();
+      relay.removeDir();
+    }
+  };
+  cleanups.push(killAll);
+  const watchdog = setTimeout(() => {
+    log(`TIMEOUT after ${TIMEOUT_MS / 60000} min; killing everything`);
+    manifest.steps.push({ id: "timeout", ok: false, detail: `run exceeded ${TIMEOUT_MS / 60000} min` });
+    manifest.panics = panicCount();
+    save();
+    killAll();
+    printPlotsVerdict("RESULT: ", manifest, out);
+    process.exit(2);
+  }, TIMEOUT_MS);
+
+  const walkerOut = [];
+  let walkerStarted = 0;
+  let walkerExit = null;
+  const waitLine = async (re, timeoutMs) => {
+    let ended = false;
+    if (walkerExit) walkerExit.then(() => (ended = true));
+    for (const t0 = Date.now(); Date.now() - t0 < timeoutMs; ) {
+      const hit = walkerOut.find((o) => re.test(o.line));
+      if (hit) return { hit, m: hit.line.match(re) };
+      if (ended) return null;
+      await sleep(50);
+    }
+    return null;
+  };
+  /** Start the walker and wait until it is walking: its entity, the plot the
+   *  relay gave it, its line, and when it reached the line. */
+  const startWalker = async () => {
+    const args = [
+      path.join(__dirname, "second-player.js"),
+      "--server", relay.url,
+      "--name", PLOTS_WALKER_NAME,
+      "--seed", PLOTS_WALKER_SEED,
+      "--path", "line",
+      "--axis", "z",
+      "--radius", String(RADIUS),
+      "--speed", String(SPEED),
+      "--seconds", "0", // until this rig stops it
+    ];
+    walkerStarted = Date.now();
+    walker = spawn(process.execPath, args, { cwd: REPO, stdio: ["ignore", "pipe", "pipe"] });
+    const take = (b) => {
+      for (const line of String(b).split(/\r?\n/).filter(Boolean)) walkerOut.push({ at_s: (Date.now() - walkerStarted) / 1000, line });
+    };
+    walker.stdout.on("data", take);
+    walker.stderr.on("data", take);
+    walkerExit = new Promise((r) => walker.on("exit", (code) => r(code)));
+    manifest.walker = { name: PLOTS_WALKER_NAME, seed: PLOTS_WALKER_SEED, args: args.slice(1), id: null, start: null };
+    const inWorld = await waitLine(/in the world as entity (\d+), starting at \(([-\d.]+), ([-\d.]+), ([-\d.]+)\)/, 40000);
+    const plotLine = await waitLine(/home_plot (null|missing|\{.*\})/, 5000);
+    const centred = await waitLine(/centred on \(([-\d.]+), ([-\d.]+), ([-\d.]+)\)/, 5000);
+    const onPath = await waitLine(/on the path at/, 15000);
+    if (!inWorld || !centred || !onPath) {
+      manifest.steps_ok.walker = { ok: false, detail: `the walker never got walking: ${walkerOut.map((o) => o.line).join(" | ")}` };
+      step("walker", false, manifest.steps_ok.walker.detail);
+      throw new Error("the walker never got walking");
+    }
+    manifest.walker.id = Number(inWorld.m[1]);
+    manifest.walker.start = [Number(inWorld.m[2]), Number(inWorld.m[3]), Number(inWorld.m[4])];
+    manifest.walker.home_plot_line = plotLine ? plotLine.hit.line : null;
+    const hp = plotLine && plotLine.m[1].startsWith("{") ? JSON.parse(plotLine.m[1]) : null;
+    manifest.walker_plot = hp ? hp.id : null;
+    manifest.walker.on_line_epoch_ms = walkerStarted + onPath.hit.at_s * 1000;
+    const c = [Number(centred.m[1]), Number(centred.m[2]), Number(centred.m[3])];
+    manifest.line = { start: [c[0], c[1], c[2] - RADIUS], end: [c[0], c[1], c[2] + RADIUS], axis: "z", radius: RADIUS };
+    // Walking; the end of the run says whether it still was when the recording ended.
+    manifest.steps_ok.walker = { ok: true, detail: `${PLOTS_WALKER_NAME} (entity ${manifest.walker.id}) joined and is walking` };
+    step(
+      "walker",
+      true,
+      `${PLOTS_WALKER_NAME} in the world as entity ${manifest.walker.id} at ${fmt(manifest.walker.start)}, ${plotLine ? plotLine.m[0] : "home_plot never logged"}; walking ${fmt(manifest.line.start)} -> ${fmt(manifest.line.end)} and back`,
+    );
+  };
+
+  try {
+    relay = await TR.startRelay({ sourceExe: EXE, prefix: "verify-copresence-relay-", config: { server_name: "verify-copresence plots relay" } });
+    manifest.relay = { url: relay.httpUrl, pid: relay.pid, dir: relay.dir, health: relay.health };
+    manifest.steps_ok.relay = relay.health
+      ? { ok: true, detail: `${relay.httpUrl} answered /health (pid ${relay.pid})` }
+      : { ok: false, detail: `${relay.httpUrl} never answered /health: ${relay.logText().slice(-400)}` };
+    step("relay", manifest.steps_ok.relay.ok, manifest.steps_ok.relay.detail);
+    if (!relay.health) throw new Error("the throwaway relay did not come up");
+
+    if (order === "walker-first") await startWalker();
+
+    const child = spawn(RIG_EXE, [], { cwd: RIG, detached: true, stdio: "ignore", env: gameEnv() });
+    gamePid = child.pid;
+    fs.writeFileSync(path.join(RIG, "probe_pid.txt"), String(gamePid));
+    child.unref();
+    step("launch", true, `game pid ${gamePid} from ${rel(RIG_EXE)} (background, no focus)`);
+    await waitBoot(180000);
+    step("boot", true, "booted (run.log: cloud noise volumes generated, no PANIC)");
+    clearDone("autopilot_done.json");
+    req("autopilot_request.json", { server_url: relay.httpUrl, user_name: "CopresencePlots", character_name: "CopresencePlots" });
+    const ap = await waitFile("autopilot_done.json", 300000);
+    if (!ap || ap.ok !== true) throw new Error(`the autopilot did not run: ${ap ? ap.error || JSON.stringify(ap) : "no answer in 300 s"}`);
+    step("autopilot", true, `entering the world on ${ap.server_url}`);
+
+    // In the shared world, with the welcome applied (a build from before 1b
+    // reports no `welcomed`, and is read as soon as it has joined).
+    let pr = null;
+    for (const t0 = Date.now(); Date.now() - t0 < 120000; ) {
+      pr = await probe();
+      if (pr && pr.ok && pr.world_loaded && pr.game_joined && pr.copresence_active && pr.welcomed !== false) break;
+      if (pr && pr.copresence_refused) break;
+      await sleep(1000);
+    }
+    const joined = !!(pr && pr.ok && pr.game_joined && pr.copresence_active && pr.welcomed !== false);
+    manifest.steps_ok.joined = {
+      ok: joined,
+      detail: pr
+        ? `world_loaded=${pr.world_loaded} game_joined=${pr.game_joined} copresence_active=${pr.copresence_active} welcomed=${pr.welcomed} refused=${pr.copresence_refused}`
+        : "the recorder never answered",
+    };
+    step("join", joined, manifest.steps_ok.joined.detail);
+    if (!joined) throw new Error("the game never joined the shared world");
+    // Let the move settle (the rebuild runs on the welcome's frame), then read
+    // where the game put its home and its camera.
+    await sleep(2000);
+    const pj = await probe();
+    manifest.game_plot = pj && pj.home_plot ? pj.home_plot.id : null;
+    manifest.camera_after_join = pj && pj.camera_end ? pj.camera_end.pos : null;
+    if (pj && Array.isArray(pj.ship_plots) && pj.ship_plots.length) {
+      manifest.plots = pj.ship_plots;
+      manifest.plots_from = "the game's report";
+    } else {
+      manifest.plots = readShipPlots(fs.readFileSync(SHIP_FILE, "utf8"));
+      manifest.plots_from = "the ship file (the game reported none)";
+    }
+    step(
+      "home",
+      true,
+      `the game's home stands on ${manifest.game_plot || "(no plot reported)"}; its camera at ${manifest.camera_after_join ? fmt(manifest.camera_after_join) : "(none)"}; plots from ${manifest.plots_from}`,
+    );
+
+    if (order === "game-first") await startWalker();
+
+    clearDone("remote_players_done.json");
+    req("remote_players_request.json", { seconds: PLOTS_RECORD_S });
+    step("record", true, `recording every frame for ${PLOTS_RECORD_S} s of the game's frame clock (one walk cycle is ${CYCLE_S.toFixed(2)} s)`);
+    const rec = await waitFile("remote_players_done.json", (PLOTS_RECORD_S + 60) * 1000);
+    if (!rec || rec.ok !== true) {
+      step("samples", false, `no recording came back: ${JSON.stringify(rec && rec.error)}`);
+    } else {
+      fs.copyFileSync(path.join(DEBUG, "remote_players_done.json"), path.join(out, "samples.json"));
+      manifest.samples = "samples.json";
+      step("samples", true, `${rec.frame_count} frames over ${rec.recorded_s.toFixed(2)} s of frame clock`);
+    }
+    const stillWalking = walker && walker.exitCode === null;
+    manifest.steps_ok.walker = {
+      ok: stillWalking,
+      detail: stillWalking
+        ? `${PLOTS_WALKER_NAME} (entity ${manifest.walker.id}) was still walking when the recording ended`
+        : `${PLOTS_WALKER_NAME} had stopped (exit ${walker ? walker.exitCode : "none"}) before the recording ended`,
+    };
+    step("walked", stillWalking, manifest.steps_ok.walker.detail);
+  } catch (e) {
+    manifest.steps.push({ id: "abort", ok: false, detail: String(e.message || e) });
+    log(`ABORT ${e.message || e}`);
+  }
+  clearTimeout(watchdog);
+  manifest.panics = panicCount();
+  fs.writeFileSync(path.join(out, "walker.log"), walkerOut.map((o) => `${o.at_s.toFixed(2)}s ${o.line}`).join("\n") + "\n");
+  try {
+    fs.copyFileSync(LOG, path.join(out, "run.log"));
+  } catch {}
+  if (relay) {
+    try {
+      fs.copyFileSync(relay.logPath, path.join(out, "relay.log"));
+    } catch {}
+  }
+  save();
+  killAll();
+  // The relay helper removes the folder; give the game a moment to be gone
+  // before the next run copies the exe over its file.
+  await sleep(2000);
+  return printPlotsVerdict("RESULT: ", manifest, out);
+}
+
+async function mainPlots() {
+  const cleanups = [];
+  process.on("exit", () => {
+    for (const k of cleanups) k();
+  });
+  for (const [sig, code] of [["SIGINT", 130], ["SIGTERM", 143], ["SIGBREAK", 149], ["SIGHUP", 129]]) {
+    process.on(sig, () => process.exit(code));
+  }
+  const results = [];
+  for (const order of ORDERS) {
+    log(`── --plots, ${order} ──`);
+    results.push([order, await runPlotsOnce(order, stamp, cleanups)]);
+  }
+  console.log("");
+  for (const [order, ok] of results) console.log(`${ok ? "PASS" : "FAIL"}  --plots ${order}`);
+  process.exit(results.every(([, ok]) => ok) ? 0 : 2);
+}
+
+(PLOTS ? mainPlots() : main()).catch((e) => {
   console.error(e);
   process.exit(2);
 });

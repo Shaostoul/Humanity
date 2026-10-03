@@ -21,6 +21,8 @@
 //              labelled volumes in ship metres drawn with their zone_filler.ron contents.
 //              Residential districts draw nothing until increment 2 draws one shell per real
 //              plot (the old home-clone tiling overlapped the Commons).
+//   id         the ship's name for a relay: the world its plots are held on (increment 1b,
+//              src/relay/storage/plots.rs). Changing it starts every plot afresh on a relay.
 //
 // validate() refuses overlapping plots, zones and corridor tubes (touching is fine).
 // Districts are areas, not boxes, and are not checked.
@@ -1099,4 +1101,5 @@
             label: "Agricultural Bay",
         ),
     ],
+    id: "mothership-1",
 )

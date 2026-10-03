@@ -94,6 +94,8 @@ pub(crate) fn build_star_sky(state: &mut EngineState) {
 pub(crate) fn load_world(state: &mut EngineState) {
     log::info!("Loading 3D world...");
     let load_start = Instant::now();
+    // A ship loaded afresh may be the server's ship again: try joining it (engine/home_plot.rs).
+    state.copresence_refused = None;
 
     // ── Homestead meshes ── (v0.455: load the LAYOUT, keep it for the construction
     // editor, then generate + upload meshes through the shared path.)

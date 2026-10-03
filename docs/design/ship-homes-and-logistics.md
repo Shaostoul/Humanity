@@ -740,6 +740,17 @@ Proof:
   - The in-view and screenshot checks wait for increment 2, because the two players cannot see each other yet.
   - With 1b reverted, "camera inside p2" fails in the walker-first run.
 
+**1b as built (2026-10-03), where it differs from the plan above:**
+- **The ship got an id.** The ship file had none, so `id: "mothership-1"` was added; it is the `world_id` of `game_plots`. The hash is 16 hex digits of FNV-1a over the PARSED ship file (`ShipStructure::ship_hash`), so comments and number formatting do not change it, and an assembled ship hashes the same as its file.
+- **One spawn function.** The relay's spawn and the game's camera both come from `ShipStructure::plot_spawn` (and `guest_spawn` for the Commons), so they cannot drift; a test pins it to the game's own `assemble` then `home_spawn_world`.
+- **The rebuild is called directly, not through the dirty flag.** The dirty path arms the autosave and checkpoints the undo history; a plot assignment is not an edit (src/engine/home_plot.rs).
+- **Nothing is sent before the welcome is applied** (not in the plan). p1's spawn is 99.0 m from p2's, under the 100 m rule, so an update sent from the default plot before the welcome arrived would be ACCEPTED and show the player inside p1, someone else's home, for a moment. `game_welcomed` gates the sending.
+- **`src/net/protocol.rs` is untouched.** The welcome is read as JSON in `net_route.rs`; no NetMessage field was needed.
+- **A non-hex key** (a server bot's `bot_` key) holds its plot under `key:<key>`, which can never collide with a `did:hum:`.
+- **The rig's walker walks back and forth for the whole run** (in walker-first order it joins before the game even boots), so the judge picks ONE forward leg by the clock (`forwardLegStart`, `fromEpochMs`) and the in-view check is switched off (`checkView: false`). The plot each side should hold comes from the join order alone, so a build that hands out no plots fails "camera inside p2" with where the camera really was.
+- **The default rig mode changed one check.** Its walker now joins on p2 and walks to the line in front of the camera from there, so "approach from behind the line's start" became "the straight approach never runs along the line" (`approachClear`).
+- **Left for later:** a guest keeps drawing its own home on the default plot (someone else's), and a relay restart spawns a returning player at their plot's spawn wherever their client stands (the correction message of increment 4).
+
 ### Increment 2: meet in the Commons
 
 What changes:

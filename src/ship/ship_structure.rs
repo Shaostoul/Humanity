@@ -481,9 +481,88 @@ pub struct ShipStructure {
     /// sub-zones of the player's home body. Areas, not boxes: overlap rules do not apply.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub districts: Vec<Zone>,
+    /// The ship's name for a relay (increment 1b): the world its plots belong to, so a relay
+    /// records "who holds p2 on this ship", and a later fleet keeps one record per ship.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub id: String,
     /// Which plot and design the `home` zone came from (None for a ship file on its own).
     #[serde(skip)]
     pub home: Option<HomeAssembly>,
+}
+
+/// Eye height over the floor, metres: where a player's camera stands, and so where a spawn
+/// point puts it (the same 1.7 m the walking camera and `surface_walk::EYE_HEIGHT_M` use).
+pub const SPAWN_EYE_HEIGHT_M: f32 = 1.7;
+
+/// A local (x, z) spawn point in a box whose min corner is `origin`, as a ship position at eye
+/// height. The one formula for "where a person arrives", so the relay's spawn and the game's
+/// camera cannot drift (increment 1b).
+fn spawn_at(origin: (f32, f32, f32), local: (f32, f32)) -> Vec3 {
+    Vec3::new(origin.0 + local.0, origin.1 + SPAWN_EYE_HEIGHT_M, origin.2 + local.1)
+}
+
+/// One plot as a relay hands it out (increment 1b): the record's id, kind and box, plus where
+/// its holder arrives (the home design's spawn on that plot).
+#[derive(Debug, Clone, PartialEq)]
+pub struct PlotArrival {
+    pub id: String,
+    pub kind: String,
+    pub origin: (f32, f32, f32),
+    pub size: (f32, f32, f32),
+    pub spawn: Vec3,
+}
+
+/// What a relay needs to hand out plots (increment 1b of docs/design/ship-homes-and-logistics.md):
+/// the ship's id and hash, every plot in the ship file's order with its arrival point, and where
+/// a guest arrives when every plot is held. Loaded from the same files the game assembles from
+/// (disk first, else the copies built into the exe, so a throwaway relay with no data folder
+/// hands out the same plots).
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct ShipPlots {
+    pub ship_id: String,
+    pub ship_hash: String,
+    pub plots: Vec<PlotArrival>,
+    pub guest_spawn: Option<Vec3>,
+}
+
+impl ShipPlots {
+    /// The ship's plots from `data_dir`. Err says why there are none to hand out (no ship file,
+    /// or a plot kind with no home design).
+    pub fn load(data_dir: &Path) -> Result<ShipPlots, String> {
+        let ship = ShipStructure::load_ship_file(data_dir)?;
+        let mut designs: Vec<HomeDesign> = Vec::new();
+        let mut plots = Vec::new();
+        for p in &ship.plots {
+            if !designs.iter().any(|d| d.kind == p.kind) {
+                designs.push(HomeDesign::load(data_dir, &p.kind)?);
+            }
+            let design = designs.iter().find(|d| d.kind == p.kind).expect("loaded just above");
+            plots.push(PlotArrival {
+                id: p.id.clone(),
+                kind: p.kind.clone(),
+                origin: p.origin,
+                size: p.size,
+                spawn: ShipStructure::plot_spawn(p, design),
+            });
+        }
+        Ok(ShipPlots { ship_id: ship.id.clone(), ship_hash: ship.ship_hash(), plots, guest_spawn: ship.guest_spawn() })
+    }
+
+    /// A plot by id.
+    pub fn plot(&self, id: &str) -> Option<&PlotArrival> {
+        self.plots.iter().find(|p| p.id == id)
+    }
+}
+
+/// FNV-1a, 64 bits: a small, fixed, platform-independent hash for "is this the same ship file?"
+/// (not a security check: a relay that lied about its ship only fools its own players).
+fn fnv1a64(bytes: &[u8]) -> u64 {
+    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
+    for b in bytes {
+        h ^= *b as u64;
+        h = h.wrapping_mul(0x0000_0100_0000_01b3);
+    }
+    h
 }
 
 /// The active zone's body, by index -- a FREE function on the Option field (not a GuiState method)
@@ -1098,15 +1177,40 @@ impl ShipStructure {
     /// declares no spawn.
     pub fn home_spawn_world(&self) -> Option<Vec3> {
         let home = self.zones.get(self.home_zone_index())?;
-        let (sx, sz) = home.body.spawn?;
-        let o = home.origin_vec();
-        Some(Vec3::new(o.x + sx, o.y + 1.7, o.z + sz))
+        Some(spawn_at(home.origin, home.body.spawn?))
     }
 
     /// The plot the home was assembled at (None for a ship file on its own).
     pub fn home_plot(&self) -> Option<&Plot> {
         let a = self.home.as_ref()?;
         self.plots.iter().find(|p| p.id == a.plot)
+    }
+
+    /// Where the holder of `plot` arrives with `design` on it (increment 1b): the design's spawn
+    /// at the plot's origin, exactly what `home_spawn_world` gives once that design is assembled
+    /// there; the middle of the plot at eye height when the design declares no spawn. The relay
+    /// spawns the player here and the game puts its camera here, from this one function.
+    pub fn plot_spawn(plot: &Plot, design: &HomeDesign) -> Vec3 {
+        let local = design.body.spawn.unwrap_or((plot.size.0 * 0.5, plot.size.2 * 0.5));
+        spawn_at(plot.origin, local)
+    }
+
+    /// Where a guest arrives when every plot is held (increment 1b): the Commons (the first
+    /// zone whose purpose is "commons"), at its spawn or its middle, at eye height. None for a
+    /// ship with no Commons.
+    pub fn guest_spawn(&self) -> Option<Vec3> {
+        let c = self.zones.iter().find(|z| z.purpose == "commons")?;
+        Some(spawn_at(c.origin, c.body.spawn.unwrap_or((c.body.width * 0.5, c.body.depth * 0.5))))
+    }
+
+    /// A short fingerprint of the ship FILE (the shared ship, never anyone's home): 16 hex digits
+    /// of FNV-1a over its compact RON. The relay sends it in `game_welcome` and the game compares
+    /// its own, because positions only agree when everyone has the same ship (increment 1b). It
+    /// is taken from the parsed file, so comments and number formatting do not change it, and
+    /// from `ship_file()`, so an assembled ship and the file it came from give the same value.
+    pub fn ship_hash(&self) -> String {
+        let text = ron::ser::to_string(&self.ship_file()).unwrap_or_default();
+        format!("{:016x}", fnv1a64(text.as_bytes()))
     }
 
     /// The origin of the zone a machine row names, with the same fallback the placer uses
@@ -2993,5 +3097,85 @@ mod lighting_watts_tests {
         for t in crate::renderer::light::light_types() {
             assert!(t.watts > 0.0, "light type {} has no wattage", t.id);
         }
+    }
+}
+
+/// Increment 1b of docs/design/ship-homes-and-logistics.md: what a relay hands out (plots, their
+/// arrival points, the Commons for guests) and the ship fingerprint both sides compare.
+#[cfg(test)]
+mod plot_handout_tests {
+    use super::*;
+
+    fn data_dir() -> std::path::PathBuf {
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data")
+    }
+
+    /// The relay's arrival point for every plot is exactly where the game's camera lands once
+    /// the home is assembled there: the two sides compute it from one function, and this pins
+    /// that the game's own path (`assemble` then `home_spawn_world`) agrees with it.
+    #[test]
+    fn every_plot_spawn_is_where_the_game_stands_on_it() {
+        let plots = ShipPlots::load(&data_dir()).expect("the shipped plots load");
+        assert!(plots.plots.len() >= 2, "two plots at least: {:?}", plots.plots);
+        for p in &plots.plots {
+            let ship = ShipStructure::load_and_assemble(&data_dir(), Some(&p.id)).expect("assembles");
+            let cam = ship.home_spawn_world().expect("the design has a spawn");
+            assert!((cam - p.spawn).length() < 1e-4, "{}: relay {:?}, game {:?}", p.id, p.spawn, cam);
+            // And it is inside the plot's own box.
+            let (lo, hi) = ship.plots.iter().find(|q| q.id == p.id).unwrap().aabb();
+            assert!(cam.cmpge(lo).all() && cam.cmple(hi).all(), "{}'s spawn {cam:?} is outside its box", p.id);
+        }
+        // The design doc's worked numbers (section 2.4): p2's spawn is (53.5, 1.7, 139.5).
+        let p2 = plots.plot("p2").expect("p2");
+        assert!((p2.spawn - Vec3::new(53.5, 1.7, 139.5)).length() < 1e-4, "p2 spawn {:?}", p2.spawn);
+        // A guest arrives in the Commons: the middle of its 34 x 55 m box at (65, 0, 20).
+        let g = plots.guest_spawn.expect("the ship has a Commons");
+        assert!((g - Vec3::new(82.0, 1.7, 47.5)).length() < 1e-4, "guest spawn {g:?}");
+        assert_eq!(plots.ship_id, "mothership-1");
+    }
+
+    /// A relay in a folder with no data (the rigs' throwaway relay) hands out the same plots
+    /// and names the same ship, from the copies built into the exe.
+    #[test]
+    fn a_relay_with_no_data_folder_hands_out_the_same_plots() {
+        let empty = std::env::temp_dir().join(format!("hum_no_data_{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&empty);
+        let built_in = ShipPlots::load(&empty).expect("the built-in copies load");
+        let on_disk = ShipPlots::load(&data_dir()).expect("the data folder loads");
+        assert_eq!(built_in, on_disk, "the exe's copy is the data folder's ship");
+        let _ = std::fs::remove_dir_all(&empty);
+    }
+
+    /// The fingerprint: the same for the ship file and any ship assembled from it (whichever
+    /// plot the home stands on), unchanged by comments, number formatting or the rebuild's corner
+    /// normalisation, and changed by a moved plot.
+    #[test]
+    fn the_ship_hash_names_the_ship_file_and_nothing_else() {
+        let file = ShipStructure::load_ship_file(&data_dir()).unwrap();
+        let h = file.ship_hash();
+        assert_eq!(h.len(), 16);
+        for plot in ["p1", "p2"] {
+            let ship = ShipStructure::load_and_assemble(&data_dir(), Some(plot)).unwrap();
+            assert_eq!(ship.ship_hash(), h, "assembled on {plot}, the ship is the same ship");
+        }
+        // Reformatting the text (comments gone, pretty printing) is the same ship.
+        let reprinted = ron::ser::to_string_pretty(&file, ron::ser::PrettyConfig::default()).unwrap();
+        let reparsed: ShipStructure = ron::from_str(&reprinted).unwrap();
+        assert_eq!(reparsed.ship_hash(), h);
+        // The game's rebuild normalises every corner (engine/home_meshes.rs rebuild_homestead),
+        // and a rejoin's welcome is checked against the ship after that: the shipped corners are
+        // already on the grid, so the hash survives it.
+        let mut rebuilt = ShipStructure::load_and_assemble(&data_dir(), Some("p2")).unwrap();
+        for z in rebuilt.zones.iter_mut() {
+            for w in z.body.walls.iter_mut() {
+                w.a = crate::ship::home_structure::quantize_corner(w.a);
+                w.b = crate::ship::home_structure::quantize_corner(w.b);
+            }
+        }
+        assert_eq!(rebuilt.ship_hash(), h, "the rebuild's corner normalisation changed the ship");
+        // A moved plot is a different ship: positions would no longer agree.
+        let mut moved = file.clone();
+        moved.plots[1].origin.2 += 1.0;
+        assert_ne!(moved.ship_hash(), h);
     }
 }
