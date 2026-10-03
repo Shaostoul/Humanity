@@ -1,0 +1,414 @@
+// THE CO-PRESENCE JUDGE: did a real game draw a second player walking past
+// smoothly? Pure: it reads samples and returns checks, so it can be tested
+// with made-up samples (scripts/tests/copresence-judge.test.js, in `just
+// rig-tests`) and re-run on a saved run without booting anything
+// (`node scripts/verify-copresence.js --dry-verdict <manifest.json>`).
+//
+// THE SAMPLES are what the game's remote-player recorder writes
+// (debug/remote_players_request.json, src/engine/ipc.rs): one entry per
+// rendered frame, { t, players: [{ id, name, pos: [x,y,z], phase }], cam },
+// where `t` is the game's own frame clock (the sum of its real frame steps,
+// the same step its other-player drawing runs on) and `pos` is where the
+// figure was DRAWN that frame. `cam` is [x, y, z, yaw, pitch] of the local
+// camera that frame.
+//
+// THE WALK being judged is the straight line the scripted player
+// (scripts/second-player.js --path line) walked: from `line.start` to
+// `line.end` at `speed` metres per second. It first walks from wherever the
+// relay put it to `line.start` (the approach), and after `line.end` it turns
+// back. Neither of those is judged: the PASS is from the first frame the
+// figure is on the line at least START_MARGIN along it, to the first frame it
+// is within END_MARGIN of the end. Those margins are geometry, not behaviour,
+// so nothing the figure does can move a bad frame out of the judged pass.
+//
+// WHAT A PASS MUST SHOW, every frame of it:
+//   - drawn at all, and on every frame (a figure that never appears FAILS);
+//   - never further back along the line than the frame before;
+//   - moving at the walker's real speed, within SPEED_BAND, measured as the
+//     distance drawn between two frames over THEIR recorded frame times
+//     (never an assumed 1/60: the rig's own frame times vary);
+//   - no single-frame jump;
+//   - on the line it walked;
+//   - (when the camera was recorded) inside the camera's view;
+//   - on time: where it was drawn against where the walker really was, by
+//     the computer's own clock (not the game's frame clock, which is the
+//     code under test);
+//   - and no other figure drawn at all (the rig's relay holds only the game
+//     and the walker, so any other is a ghost or the game drawing itself).
+
+"use strict";
+
+/// The limits, each with its reason.
+const LIMITS = {
+  /// How far a frame's speed may stray from the walker's, as a share: 10%.
+  /// What src/net/sync.rs promises: its steady-speed tests hold every frame
+  /// within 4% (STEADY_BAND; measured 0.7%) for a receiver at 60 frames a
+  /// second. The only thing that changes the drawn speed there is the drawing
+  /// easing toward the learned clock difference, at (how late the first
+  /// update was - a 10 ms deadband) per second: 28 ms of jitter plus one
+  /// 17 ms receiver frame gives 3.5%. What a real run adds: the rig's game
+  /// runs in the background, where it is capped at 30 frames a second
+  /// (fps_background), so an update can wait a whole 33 ms frame (or a
+  /// slower one, under load, 50 ms) to be read off the socket instead of
+  /// 17 ms. That grows the same easing term to (1 + 50 - 10) / 1000, about
+  /// 4%. Doubled for margin, so one slow frame of a busy machine is not a
+  /// failure: 10%. Measured on the real rig 2026-10-03 (8 m walk, 50 frame
+  /// pairs): 1.357 to 1.475 m/s for 1.4. The 5.4% fast frames all came right
+  /// after the screenshot capture's own 346 ms frame, when the buffer had
+  /// briefly run dry and sync.rs blended the gap back over a tenth of a
+  /// second (its BLEND_BACK_S); every other frame was within 3%. Round one's
+  /// stop-go reads 0 m/s on its holding frames and about 1.5 times the
+  /// walking speed on its easing frames, far outside the band.
+  SPEED_BAND: 0.10,
+  /// The judged pass starts this far along the line, metres: past the corner
+  /// where the approach turns onto the line, whose frame mixes the two.
+  START_MARGIN_M: 1.0,
+  /// And ends this far before the end, metres: before the turn back.
+  END_MARGIN_M: 0.5,
+  /// How near the line a frame must be to START the pass, metres. Loose on
+  /// purpose: only an approach frame within a few degrees of the line's own
+  /// direction could meet it, and the rig places the line so the approach
+  /// comes from behind its start.
+  WINDOW_TOL_M: 0.3,
+  /// How far off the line any judged frame may be, metres. A figure walking a
+  /// straight line between updates on a straight line never leaves it; this
+  /// only allows for float rounding.
+  LINE_TOL_M: 0.1,
+  /// A backward step smaller than this is float rounding, not a step, metres.
+  BACK_TOL_M: 0.001,
+  /// A frame moving more than this many times its own walking distance (plus
+  /// 1 cm) is a jump: a snap, not a fast frame.
+  JUMP_FACTOR: 2.0,
+  /// Fewest frame pairs a pass must hold to say anything: 30 is a second at
+  /// 30 frames a second, or two at the 15 a busy background game manages.
+  MIN_PAIRS: 30,
+  /// Half-angle, degrees, from the camera's heading within which the figure
+  /// counts as in view. The camera's vertical field of view is 90 degrees
+  /// (renderer/camera.rs), so a wide window's horizontal half-angle is over
+  /// 50; 40 keeps the figure well inside the picture.
+  VIEW_HALF_ANGLE_DEG: 40,
+  /// Latest a figure may be drawn behind where the walker really was,
+  /// seconds of its walk (2026-10-03, the critic's "drawn a second late
+  /// passes"). What it should be: sync.rs draws INTERP_DELAY_S (150 ms)
+  /// behind the newest update, which is itself up to one send interval
+  /// (67 ms at 15 Hz) behind the walker, and a background game at 9 to 15
+  /// fps reads it up to one frame (about 110 ms) late; about 0.33 s in all.
+  /// The walker's "on the path" line, which the expected position counts
+  /// from, is read a few ms after it was written. 0.6 s leaves margin, and a
+  /// regressed one-second delay (1.4 m at a walk) fails.
+  MAX_LAG_S: 0.6,
+  /// How far AHEAD of the walker a drawn figure may seem, metres: only
+  /// measurement slack (the walker logs "on the path" on the tick that
+  /// reached it, up to one 90 ms step past the start). Drawing ahead of
+  /// the real walker would mean extrapolating past it.
+  EARLY_TOL_M: 0.25,
+};
+
+const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+const len = (a) => Math.sqrt(dot(a, a));
+const f = (x, n = 2) => (Number.isFinite(x) ? x.toFixed(n) : String(x));
+
+/** Is this recorded player the walker? By id when the id is known, else by
+ *  name. */
+function isWalker(p, walker) {
+  if (walker.id !== null && walker.id !== undefined) return Number(p.id) === Number(walker.id);
+  return p.name === walker.name;
+}
+
+/** Where along the line (u, metres from the start) and how far off it (perp,
+ *  metres) a point is. */
+function lineCoords(p, A, d) {
+  const ap = sub(p, A);
+  const u = dot(ap, d);
+  const off = [ap[0] - u * d[0], ap[1] - u * d[1], ap[2] - u * d[2]];
+  return { u, perp: len(off) };
+}
+
+/** Horizontal angle, degrees, between the camera's heading and the direction
+ *  to `p`, and whether `p` is in front. The camera looks along
+ *  (sin yaw, 0, -cos yaw) (renderer/camera.rs forward_xz). */
+function viewAngle(cam, p) {
+  const fx = Math.sin(cam[3]);
+  const fz = -Math.cos(cam[3]);
+  const tx = p[0] - cam[0];
+  const tz = p[2] - cam[2];
+  const ahead = fx * tx + fz * tz;
+  const side = fx * tz - fz * tx;
+  return { deg: (Math.abs(Math.atan2(side, ahead)) * 180) / Math.PI, ahead };
+}
+
+/**
+ * Judge one recording.
+ *   frames  the recorder's frames (see the top of this file).
+ *   walker  { id, name }: who to look for (id wins when given).
+ *   line    { start: [x,y,z], end: [x,y,z] }: the line it walked.
+ *   speed   the speed it walked at, m/s.
+ *   onLineEpochMs  when the walker reached the start of the line, by the
+ *           computer's clock (ms since 1970), as the rig read it off the
+ *           walker's "on the path" line. Each frame's `epoch_ms` is the same
+ *           clock, so the two give where the walker really was on that frame.
+ * Returns { pass, checks: [{ id, ok, detail }], stats }.
+ */
+function judgeCopresence({ frames, walker, line, speed, onLineEpochMs }, limits = LIMITS) {
+  const L0 = { ...LIMITS, ...limits };
+  const checks = [];
+  const add = (id, ok, detail) => checks.push({ id, ok: !!ok, detail });
+  const stats = { frames_total: Array.isArray(frames) ? frames.length : 0 };
+  const who = `${walker.name || "the walker"}${walker.id !== null && walker.id !== undefined ? ` (id ${walker.id})` : ""}`;
+  const done = () => ({ pass: checks.length > 0 && checks.every((c) => c.ok), checks, stats });
+
+  // 1. SEEN: the walker is drawn on some frame.
+  const track = [];
+  const others = new Set();
+  (frames || []).forEach((fr, i) => {
+    for (const p of fr.players || []) {
+      if (isWalker(p, walker))
+        track.push({ i, t: Number(fr.t), epoch: fr.epoch_ms === undefined ? null : Number(fr.epoch_ms), pos: p.pos.map(Number), phase: p.phase || null, cam: fr.cam || null });
+      else others.add(`${p.name} (id ${p.id})`);
+    }
+  });
+  stats.frames_seen = track.length;
+  add(
+    "seen",
+    track.length > 0,
+    track.length
+      ? `${who} drawn on ${track.length} of ${stats.frames_total} frames`
+      : `${who} never drawn on any of ${stats.frames_total} frames (other players drawn: ${others.size ? [...others].join(", ") : "none"})`,
+  );
+  // No other figure at all. The rig's own relay holds exactly two players,
+  // the game and the walker, and the game never draws itself; another figure
+  // is a ghost (a player the relay failed to remove) or the game drawing
+  // itself as a remote player (sync.rs's self-echo filter regressing).
+  add(
+    "only_the_walker",
+    others.size === 0,
+    others.size
+      ? `another figure was drawn: ${[...others].join(", ")}; this relay holds only the game and ${walker.name || "the walker"}`
+      : "no other figure was drawn",
+  );
+  if (!track.length) return done();
+
+  // 2. THE PASS: from START_MARGIN along the line to END_MARGIN before its end.
+  const A = line.start.map(Number);
+  const B = line.end.map(Number);
+  const L = len(sub(B, A));
+  const d = sub(B, A).map((x) => x / L);
+  for (const s of track) Object.assign(s, lineCoords(s.pos, A, d));
+  const k0 = track.findIndex((s) => s.perp <= L0.WINDOW_TOL_M && s.u >= L0.START_MARGIN_M);
+  const k1 = k0 < 0 ? -1 : track.findIndex((s, k) => k > k0 && s.u >= L - L0.END_MARGIN_M);
+  if (k0 < 0 || k1 < 0) {
+    const far = track.reduce((m, s) => (s.perp <= L0.WINDOW_TOL_M && s.u > m ? s.u : m), -Infinity);
+    const near = Math.min(...track.map((s) => s.perp));
+    add(
+      "walked_the_line",
+      false,
+      k0 < 0
+        ? `never drawn ${f(L0.START_MARGIN_M, 1)} m along the ${f(L)} m line (nearest it came to the line: ${f(near, 3)} m)`
+        : `started the line but never got within ${f(L0.END_MARGIN_M, 1)} m of its end (farthest: ${f(far)} of ${f(L)} m)`,
+    );
+    return done();
+  }
+  const pass = track.slice(k0, k1 + 1);
+  stats.pass = { t0: pass[0].t, t1: pass[pass.length - 1].t, u0: pass[0].u, u1: pass[pass.length - 1].u, line_m: L };
+  add(
+    "walked_the_line",
+    true,
+    `judged the pass from ${f(pass[0].u)} m (t ${f(pass[0].t)} s) to ${f(pass[pass.length - 1].u)} m (t ${f(pass[pass.length - 1].t)} s) along the ${f(L)} m line`,
+  );
+
+  // 3. Drawn on every frame of the pass (frame numbers contiguous).
+  const missing = pass[pass.length - 1].i - pass[0].i + 1 - pass.length;
+  add("seen_every_frame", missing === 0, missing === 0 ? `drawn on all ${pass.length} frames of the pass` : `missing on ${missing} frame(s) inside the pass`);
+
+  // 4. Frame by frame.
+  const speeds = [];
+  const back = [];
+  const slow = [];
+  const jumps = [];
+  const offLine = [];
+  const outOfView = [];
+  let badClock = 0;
+  let maxBack = 0;
+  let maxMove = 0;
+  let maxPerp = 0;
+  let maxAngle = 0;
+  const lo = speed * (1 - L0.SPEED_BAND);
+  const hi = speed * (1 + L0.SPEED_BAND);
+  for (let k = 1; k < pass.length; k++) {
+    const a = pass[k - 1];
+    const b = pass[k];
+    const dt = b.t - a.t;
+    if (!(dt > 0)) {
+      badClock++;
+      continue;
+    }
+    const moved = len(sub(b.pos, a.pos));
+    const du = b.u - a.u;
+    const v = moved / dt;
+    speeds.push(v);
+    maxMove = Math.max(maxMove, moved);
+    if (du < -L0.BACK_TOL_M) back.push({ t: b.t, du, phase: b.phase });
+    maxBack = Math.max(maxBack, -du);
+    if (v < lo || v > hi) slow.push({ t: b.t, v, dt, phase: b.phase });
+    if (moved > L0.JUMP_FACTOR * speed * dt + 0.01) jumps.push({ t: b.t, moved, dt, phase: b.phase });
+  }
+  for (const s of pass) {
+    maxPerp = Math.max(maxPerp, s.perp);
+    if (s.perp > L0.LINE_TOL_M) offLine.push(s);
+    if (s.cam) {
+      const va = viewAngle(s.cam, s.pos);
+      maxAngle = Math.max(maxAngle, va.deg);
+      if (va.ahead <= 0 || va.deg > L0.VIEW_HALF_ANGLE_DEG) outOfView.push({ t: s.t, deg: va.deg, ahead: va.ahead });
+    }
+  }
+  const sorted = [...speeds].sort((x, y) => x - y);
+  stats.pairs = speeds.length;
+  stats.speed = sorted.length
+    ? { min: sorted[0], max: sorted[sorted.length - 1], median: sorted[Math.floor(sorted.length / 2)], walker: speed, band: L0.SPEED_BAND }
+    : null;
+  stats.max_backward_m = maxBack;
+  stats.max_frame_move_m = maxMove;
+  stats.max_off_line_m = maxPerp;
+  const dts = pass.slice(1).map((s, k) => s.t - pass[k].t).filter((x) => x > 0).sort((x, y) => x - y);
+  stats.frame_dt = dts.length ? { min: dts[0], max: dts[dts.length - 1], median: dts[Math.floor(dts.length / 2)] } : null;
+
+  add(
+    "enough_frames",
+    speeds.length >= L0.MIN_PAIRS && badClock === 0,
+    `${speeds.length} frame pairs judged (at least ${L0.MIN_PAIRS})` + (badClock ? `; ${badClock} pair(s) whose frame clock did not move forward` : ""),
+  );
+  add(
+    "never_backwards",
+    back.length === 0,
+    back.length
+      ? `${back.length} frame(s) drawn further back along the line than the frame before; worst ${f(Math.min(...back.map((x) => x.du)) * 1000, 1)} mm at t ${f(back[0].t)} s (${back[0].phase})`
+      : `no frame moved back along the line (largest backward step ${f(maxBack * 1000, 2)} mm, rounding allowance ${f(L0.BACK_TOL_M * 1000, 0)} mm)`,
+  );
+  const worstSlow = slow.slice().sort((x, y) => Math.abs(y.v - speed) - Math.abs(x.v - speed));
+  add(
+    "steady_speed",
+    speeds.length > 0 && slow.length === 0,
+    stats.speed
+      ? `per-frame speed ${f(stats.speed.min, 3)} to ${f(stats.speed.max, 3)} m/s (median ${f(stats.speed.median, 3)}), walker ${f(speed, 3)} m/s, allowed ${f(lo, 3)} to ${f(hi, 3)}` +
+          (slow.length
+            ? `; ${slow.length} of ${speeds.length} frames outside, worst ${worstSlow
+                .slice(0, 3)
+                .map((x) => `${f(x.v, 3)} m/s at t ${f(x.t)} s over ${f(x.dt * 1000, 1)} ms (${x.phase})`)
+                .join("; ")}`
+            : "")
+      : "no frame pairs to measure",
+  );
+  add(
+    "no_jump",
+    jumps.length === 0,
+    jumps.length
+      ? `${jumps.length} single-frame jump(s); worst ${f(Math.max(...jumps.map((x) => x.moved)), 3)} m in one frame at t ${f(jumps[0].t)} s (${jumps[0].phase})`
+      : `largest move in one frame ${f(maxMove, 3)} m (a jump is over ${f(L0.JUMP_FACTOR, 0)}x that frame's walking distance + 1 cm)`,
+  );
+  add(
+    "on_the_line",
+    offLine.length === 0,
+    offLine.length
+      ? `${offLine.length} frame(s) more than ${f(L0.LINE_TOL_M)} m off the line it walked; worst ${f(maxPerp, 3)} m`
+      : `stayed within ${f(maxPerp, 4)} m of the line it walked (allowed ${f(L0.LINE_TOL_M)} m)`,
+  );
+  // ON TIME, by the computer's clock. Each frame's epoch_ms against when the
+  // walker reached the line gives where it really was; the figure must be
+  // drawn no more than MAX_LAG_S of walking behind that and never ahead. This
+  // is the one check that does not lean on the game's own frame clock, so it
+  // also catches that clock running wrong.
+  if (Number.isFinite(onLineEpochMs) && pass.every((s) => Number.isFinite(s.epoch))) {
+    const lags = [];
+    for (const s of pass) {
+      const expected = (speed * (s.epoch - onLineEpochMs)) / 1000;
+      if (expected >= 0 && expected <= L) lags.push({ t: s.t, lag: expected - s.u });
+    }
+    const lateM = speed * L0.MAX_LAG_S;
+    const bad = lags.filter((x) => x.lag > lateM || x.lag < -L0.EARLY_TOL_M);
+    const ls = lags.map((x) => x.lag);
+    stats.lag_m = lags.length ? { min: Math.min(...ls), max: Math.max(...ls) } : null;
+    add(
+      "on_time",
+      lags.length >= L0.MIN_PAIRS && bad.length === 0,
+      !lags.length
+        ? "no frame of the pass fell inside the walk's own timing"
+        : `drawn ${f(stats.lag_m.min, 3)} to ${f(stats.lag_m.max, 3)} m behind where the walker really was on ${lags.length} frames ` +
+            `(allowed ${f(-L0.EARLY_TOL_M, 2)} to ${f(lateM, 2)} m, ${L0.MAX_LAG_S} s of walking)` +
+            (bad.length ? `; ${bad.length} outside, first at t ${f(bad[0].t)} s: ${f(bad[0].lag, 3)} m` : "") +
+            (lags.length < L0.MIN_PAIRS ? `; too few frames (at least ${L0.MIN_PAIRS})` : ""),
+    );
+  } else {
+    add(
+      "on_time",
+      false,
+      Number.isFinite(onLineEpochMs)
+        ? "the samples carry no epoch_ms (a recorder older than v0.1441), so where the walker really was cannot be told"
+        : "no time for when the walker reached the line, so where it really was cannot be told",
+    );
+  }
+  if (pass.some((s) => s.cam)) {
+    stats.max_view_angle_deg = maxAngle;
+    add(
+      "in_view",
+      outOfView.length === 0,
+      outOfView.length
+        ? `${outOfView.length} frame(s) of the pass outside ${L0.VIEW_HALF_ANGLE_DEG} degrees of the camera's heading (or behind it); first at t ${f(outOfView[0].t)} s, ${f(outOfView[0].deg, 1)} degrees`
+        : `within ${f(maxAngle, 1)} degrees of the camera's heading on every frame of the pass (allowed ${L0.VIEW_HALF_ANGLE_DEG})`,
+    );
+  }
+  return done();
+}
+
+// ── Is the figure VISIBLE in a screenshot? ──────────────────────────────────
+//
+// The samples prove where the game drew the figure; a screenshot can still
+// show nothing, because something is drawn over it. That happened on the
+// rig's third run (2026-10-03): a first-run "Choose your privacy" window sat
+// over the middle of the view, both screenshots showed the window, the HUD
+// said "1 here: TestBotCrosser", and every sample check passed. Only a person
+// looking at the pictures could tell. This counts the figure's own colour in
+// the picture instead.
+
+/// Another player's body is teal (lib.rs "Remote players": base colour
+/// [0.15, 0.75, 0.85], slightly emissive). Measured lit in the vehicle bay on
+/// 2026-10-03: (80, 193, 204); the floor there reads (181, 186, 192) and the
+/// wall (61, 72, 87), neither of which passes. Relative, not absolute, so a
+/// dimmer light still reads as teal.
+function isFigureTeal(r, g, b) {
+  return g > 80 && g - r > 50 && b - r > 50 && Math.abs(g - b) < 60;
+}
+
+/// Fewest teal pixels that count as the figure being seen. At the rig's 6 m
+/// the body is about 42 x 175 pixels in a 2560 x 1387 picture (6,771 counted
+/// on 2026-10-03), so this is about a fifth of it: a figure partly behind
+/// something still passes, a covered or absent one reads near zero.
+const FIGURE_MIN_PX = 1500;
+
+/// Count figure-teal pixels in `img` ({ width, height, rgba }, scripts/lib/
+/// png.js decode). With `nameplate` ([x, y], window pixels, where the game
+/// drew the walker's name), only a box under it is counted: 150 px either
+/// side (the figure moves a little between asking and capturing) and 450 px
+/// down from the name. Without it, the whole picture. Returns { count, box,
+/// centroid } (centroid null when nothing counted).
+function figurePixels(img, nameplate = null) {
+  const box = nameplate
+    ? [Math.max(0, Math.round(nameplate[0] - 150)), Math.max(0, Math.round(nameplate[1])), Math.min(img.width, Math.round(nameplate[0] + 150)), Math.min(img.height, Math.round(nameplate[1] + 450))]
+    : [0, 0, img.width, img.height];
+  let count = 0;
+  let sx = 0;
+  let sy = 0;
+  for (let y = box[1]; y < box[3]; y++) {
+    for (let x = box[0]; x < box[2]; x++) {
+      const i = (y * img.width + x) * 4;
+      if (isFigureTeal(img.rgba[i], img.rgba[i + 1], img.rgba[i + 2])) {
+        count++;
+        sx += x;
+        sy += y;
+      }
+    }
+  }
+  return { count, box, centroid: count ? [sx / count, sy / count] : null };
+}
+
+module.exports = { LIMITS, judgeCopresence, lineCoords, viewAngle, isFigureTeal, figurePixels, FIGURE_MIN_PX };

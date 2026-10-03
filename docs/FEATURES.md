@@ -2941,6 +2941,14 @@ Renders native egui pages to PNGs via an offscreen egui-wgpu + wgpu pipeline (no
 ### Build / Verify Recipes
 Convenience recipes for the pre-push gate. `just verify` runs both feature builds (native + relay) plus lib tests and lints; `just lints` runs the four `src/gui` file-scanner lints via standalone rustc (Windows-PDB-safe, dodges the LNK1318 limit); `just snapshots` renders the UI PNGs; `just preflight` checks untracked source + doc links then runs verify.
 - Recipes: `Justfile` (`verify`, `lints`, `snapshots`, `preflight`)
+- **Co-presence rig (v0.1441.0):** `just verify-copresence` boots one background game
+  against a throwaway relay (`scripts/lib/throwaway-relay.js`, shared with
+  `just verify-second-player`), has `scripts/second-player.js` cross in front of the
+  camera, and judges what the GAME drew, frame by frame, with `scripts/lib/copresence-judge.js`
+  (unit tests in `just rig-tests`). The recorder is a dev request,
+  `debug/remote_players_request.json` (`src/engine/ipc.rs`): each frame's drawn remote
+  players, the frame clock, the computer's clock and the camera. `--dry-verdict
+  <manifest.json>` re-judges a saved run.
 
 ### Crash-Safe Logging (v0.601)
 A file logger that tees every log line to disk (flushed per line) plus a panic hook, so a windowed exe

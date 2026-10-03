@@ -551,6 +551,11 @@
       "date": "2026-10-03",
       "decision": "Day 3 shipped: scripts/second-player.js (real Dilithium identity, game_join, walks a path, just verify-second-player boots a throwaway relay copy); net::sync snapshot interpolation on the sender clock (timestamp = sender steady clock in seconds, REAL time; velocity on the movement step); leave and ban despawn at once (BUG-125, BUG-126).",
       "why": "Week plan Day 3. Two build rounds with critics: the first smoothing locked to 15 Hz, the second stamped capped steps and stalled slow senders; I fixed the last two findings (real-time clocks, ban path) myself with red-checked tests."
+    },
+    {
+      "date": "2026-10-03",
+      "decision": "Co-presence rig: scripts/verify-copresence.js + just verify-copresence (one GPU boot, throwaway relay helper scripts/lib/throwaway-relay.js, judge scripts/lib/copresence-judge.js with 23 red-checked tests, recorder debug/remote_players_request.json in engine/ipc.rs with epoch_ms and a row cap). Critic fixes: only_the_walker, on_time by epoch, tests for seen_every_frame/enough_frames/bad clock, --keep-open message.",
+      "why": "Verify Day 3 on the state a player reaches: unit and relay tests feed the drawing made-up deliveries; nothing looked at what the real game draws."
     }
   ],
   "active_scopes_to_avoid": [

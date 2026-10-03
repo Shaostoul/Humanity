@@ -18,20 +18,12 @@
 // so these tests have their own recipe; the parts of the script that need no
 // relay are tested in scripts/tests/second-player.test.js, in `just rig-tests`.
 //
-// The relay is killed BY PID (and its temp folder removed) when the tests
-// finish, when this process exits for any other reason, and on Ctrl+C,
-// Ctrl+Break or a closed console. The release exe is a Windows GUI program
-// with no console, so it never receives a Ctrl+C itself.
-// On Windows there is a second net under this one: Node puts every child it
-// starts (unless `detached`) in a Windows job that is killed when Node exits,
-// however Node exits. Seen 2026-10-03: with the "exit" handler below deleted
-// and this process made to exit mid-test (node -e "setTimeout(() =>
-// process.exit(1), 9000); require('./scripts/tests/second-player-relay.test.js')"),
-// the relay was gone anyway, but its temp folder, holding the 37 MB exe copy,
-// was left behind. So on Windows the handlers are what tidy up; on Linux and
-// macOS, which have no such job, they are also what stop the relay. Checked
-// the same way with the handlers in place: the relay gone, the folder gone,
-// and with process.emit("SIGINT") in place of the exit, exit code 130.
+// The relay is started by scripts/lib/throwaway-relay.js (shared with
+// scripts/verify-copresence.js since 2026-10-03), which kills it BY PID and
+// removes its temp folder when the tests finish, when this process exits for
+// any other reason, and on Ctrl+C, Ctrl+Break or a closed console. How that
+// was proven, and why the handlers matter even on Windows, is written at the
+// top of that file.
 //
 // WHICH BUILD
 // Before booting, scripts/check-fresh-exe.js is run on the exe and its verdict
@@ -61,22 +53,19 @@
 
 const { describe, test, before, after } = require("node:test");
 const assert = require("node:assert");
-const { spawn, spawnSync, execSync } = require("node:child_process");
+const { spawn, spawnSync } = require("node:child_process");
 const fs = require("node:fs");
-const os = require("node:os");
-const net = require("node:net");
-const http = require("node:http");
 const path = require("node:path");
 
 const sp = require("../second-player.js");
+const TR = require("../lib/throwaway-relay.js");
 
 const REPO = path.resolve(__dirname, "..", "..");
 const SCRIPT = path.join(REPO, "scripts", "second-player.js");
 const CHECK_FRESH = path.join(REPO, "scripts", "check-fresh-exe.js");
-const EXE_NAME = process.platform === "win32" ? "HumanityOS.exe" : "HumanityOS";
 const SOURCE_EXE = process.env.SECOND_PLAYER_RELAY_EXE
   ? path.resolve(process.env.SECOND_PLAYER_RELAY_EXE)
-  : path.join(REPO, "target", "release", EXE_NAME);
+  : path.join(REPO, "target", "release", TR.EXE_NAME);
 // The reconnect grace the throwaway relay runs with. Above zero on purpose:
 // with zero, a dropped connection also despawns at once, and the test could
 // not tell a deliberate leave from a socket that simply closed.
@@ -105,81 +94,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // plain 30 s timer left over from a race held the whole run open for 30 s).
 const deadline = (ms, value) => new Promise((r) => setTimeout(() => r(value), ms).unref());
 
-// ── The throwaway relay, and making sure it never outlives us ───────────────
-
-let relay = null; // the relay's ChildProcess while it may be running
-let relayExited = false;
-let tmp = null;
-
-/** Kill the relay by its PID (the house pattern, scripts/verify-live-screen.js
- *  killAll). Synchronous, so it also works inside an "exit" handler, where
- *  nothing asynchronous runs any more. Never called on a relay already known
- *  to have exited, so a reused PID is never hit. */
-function killRelay() {
-  if (!relay || relayExited) return;
-  try {
-    if (process.platform === "win32") execSync(`taskkill /PID ${relay.pid} /T /F`, { stdio: "ignore" });
-    else process.kill(relay.pid, "SIGKILL");
-  } catch {}
-  relayExited = true;
-}
-
-/** Remove the temp folder (best effort: a just-killed exe can hold its file
- *  for a moment, hence the retries). */
-function removeTmp() {
-  if (!tmp) return;
-  try {
-    fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
-  } catch {}
-  tmp = null;
-}
-
-process.on("exit", () => {
-  killRelay();
-  removeTmp();
-});
-// Ctrl+C, Ctrl+Break, a closed console, a polite kill: kill the relay, tidy
-// up, and exit the way an interrupted program does.
-for (const [sig, code] of [["SIGINT", 130], ["SIGTERM", 143], ["SIGBREAK", 149], ["SIGHUP", 129]]) {
-  process.on(sig, () => {
-    killRelay();
-    removeTmp();
-    process.exit(code);
-  });
-}
-
-/** A port nobody is listening on right now. */
-function freePort() {
-  return new Promise((resolve, reject) => {
-    const srv = net.createServer();
-    srv.once("error", reject);
-    srv.listen(0, "127.0.0.1", () => {
-      const { port } = srv.address();
-      srv.close(() => resolve(port));
-    });
-  });
-}
-
-function getJson(url) {
-  return new Promise((resolve) => {
-    const req = http.get(url, { timeout: 2000 }, (res) => {
-      let body = "";
-      res.on("data", (c) => (body += c));
-      res.on("end", () => {
-        try {
-          resolve(JSON.parse(body));
-        } catch {
-          resolve(null);
-        }
-      });
-    });
-    req.on("error", () => resolve(null));
-    req.on("timeout", () => {
-      req.destroy();
-      resolve(null);
-    });
-  });
-}
+// The throwaway relay (scripts/lib/throwaway-relay.js) while the tests run.
+let relay = null;
 
 async function waitFor(check, timeoutMs, stepMs = 100) {
   const t0 = Date.now();
@@ -222,50 +138,20 @@ describe("a scripted second player on a throwaway relay", { skip: SKIP }, () => 
   const sockets = [];
 
   before(async () => {
-    tmp = fs.mkdtempSync(path.join(os.tmpdir(), "second-player-relay-test-"));
-    fs.mkdirSync(path.join(tmp, "data"));
-    // The relay reads data/server-config.json from its working folder.
-    fs.writeFileSync(
-      path.join(tmp, "data", "server-config.json"),
-      JSON.stringify({ server_name: "second-player test relay", reconnect_grace_secs: GRACE_SECS }),
-    );
-    dbPath = path.join(tmp, "data", "relay.db");
-    // Run a COPY (see the top of this file): the build's own file stays
-    // unlocked for anyone rebuilding it meanwhile.
-    const exe = path.join(tmp, EXE_NAME);
-    fs.copyFileSync(SOURCE_EXE, exe);
-
-    const port = await freePort();
-    url = `ws://127.0.0.1:${port}/ws`;
-    // This shell's environment, minus anything that would make the throwaway
-    // relay act as a real one: every HUMANITY_* setting (focus, owner keys,
-    // data folders), the bot password, admins, an outside webhook, and the
-    // port and database it is about to be given.
-    const env = {};
-    const drop = new Set(["API_SECRET", "ADMIN_KEYS", "WEBHOOK_URL", "WEBHOOK_TOKEN", "PORT", "DATABASE_PATH", "RUST_LOG"]);
-    for (const [k, v] of Object.entries(process.env)) {
-      const K = k.toUpperCase();
-      if (K.startsWith("HUMANITY_") || drop.has(K)) continue;
-      env[k] = v;
-    }
-    Object.assign(env, { PORT: String(port), DATABASE_PATH: dbPath, HUMANITY_NO_FOCUS: "1", RUST_LOG: "info" });
-
-    relayLog = path.join(tmp, "relay.log");
-    const log = fs.openSync(relayLog, "w");
-    relay = spawn(exe, ["--headless"], { cwd: tmp, env, stdio: ["ignore", log, log], windowsHide: true });
-    relayExited = false;
-    relay.once("exit", () => (relayExited = true));
-    fs.closeSync(log);
-    console.log(`second-player-relay.test: relay pid ${relay.pid}, running ${exe}`);
-
-    let health = null;
-    for (let t0 = Date.now(); Date.now() - t0 < 60000 && !relayExited; ) {
-      health = await getJson(`http://127.0.0.1:${port}/health`);
-      if (health && health.status === "ok") break;
-      await sleep(300);
-    }
+    // A copy of the build, --headless, in a new temp folder, on a free port,
+    // with its own database (see scripts/lib/throwaway-relay.js). The relay
+    // reads data/server-config.json from its working folder.
+    relay = await TR.startRelay({
+      sourceExe: SOURCE_EXE,
+      prefix: "second-player-relay-test-",
+      config: { server_name: "second-player test relay", reconnect_grace_secs: GRACE_SECS },
+    });
+    url = relay.url;
+    dbPath = relay.dbPath;
+    relayLog = relay.logPath;
+    console.log(`second-player-relay.test: relay pid ${relay.pid}, running ${relay.exe}`);
     const logText = () => fs.readFileSync(relayLog, "utf8");
-    assert.ok(health && health.status === "ok", `the throwaway relay never answered /health; its log:\n${logText().slice(-2000)}`);
+    assert.ok(relay.health && relay.health.status === "ok", `the throwaway relay never answered /health; its log:\n${logText().slice(-2000)}`);
     // The relay prints its limits at start; make sure the grace really is on,
     // or the leave test below proves nothing.
     assert.match(logText(), new RegExp(`reconnect_grace_secs=${GRACE_SECS}\\b`), `the relay runs with a ${GRACE_SECS} s reconnect grace (its log should say so)`);
@@ -274,11 +160,7 @@ describe("a scripted second player on a throwaway relay", { skip: SKIP }, () => 
   after(async () => {
     for (const s of sockets) s.close();
     for (const p of players) if (p.proc.exitCode === null) p.proc.kill();
-    if (relay && !relayExited) {
-      killRelay();
-      await Promise.race([new Promise((r) => (relay.exitCode !== null ? r() : relay.once("exit", r))), deadline(5000)]);
-    }
-    removeTmp();
+    if (relay) await relay.stop();
   });
 
   // Red checks run 2026-10-02/03 against a fresh relay-only debug build of

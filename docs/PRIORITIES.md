@@ -71,9 +71,20 @@ every load-bearing claim checked by an adversarial verifier
   identity, joins the shared world and walks a path (`just verify-second-player`
   runs it against a throwaway relay); other players move by snapshot
   interpolation on the sender's clock (BUG-125); leaving or being banned
-  despawns at once (BUG-126). Next for it: a rig that boots ONE game against a
-  local relay with the scripted player walking around it, and photographs the
-  figure moving (the pattern is `scripts/verify-live-screen.js`).
+  despawns at once (BUG-126). Proven in the real game in v0.1441.0:
+  `just verify-copresence` boots ONE game against a throwaway relay, the
+  scripted player crosses in front of the camera, and the game records where
+  it drew the figure every frame (`debug/remote_players_request.json`); the
+  judge (`scripts/lib/copresence-judge.js`, 23 tests) checks seen, steady
+  speed, never backwards, no jump, on the line, in view, on time by the
+  computer's clock, and no other figure, plus the figure's colour in two
+  screenshots. Follow-ups it found: the other player's hair cap draws as a
+  dark band across the face; `verify-live-screen.js` and `verify-screens.js`
+  look for the DXC shader-compiler dlls only beside the exe, so from
+  target/release they boot on the slow compiler (minutes); the dev camera
+  request turns on fly mode, which takes the player out of the shared world
+  (so it hides every other player: use the showcase `cam` request instead);
+  stopping, turning and leaving are not judged in the real game yet.
 - **Day 4:** shared building over the relay (no build message exists yet).
 - **Day 5:** a real two-person session on the VPS, then fix what it finds and
   reshoot the clips.

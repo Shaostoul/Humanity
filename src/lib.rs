@@ -14198,6 +14198,7 @@ mod native_app {
                     // autopilot poll) and not in the GUI-action section, which
                     // stops running once a world is loaded. Permanent dev tooling.
                     poll_camera_request(state);
+                    crate::engine::ipc::poll_remote_players_request(state, clock_dt); // drawn remote players for verify-copresence
                     crate::engine::movie::poll_request(state);
                     crate::engine::movie::steer(state);
                     crate::engine::ipc::poll_cloudmap_request(state);
