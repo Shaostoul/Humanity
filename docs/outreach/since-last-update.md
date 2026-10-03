@@ -11,6 +11,12 @@ Each line is written the way a player would hear it; the release notes and
 
 ## Shipped
 
+- **v0.1445.0: round things are the right way out.** Every ball the game drew
+  (light bulbs, the build-mode pipe beads, the planets in the hologram room,
+  your avatar's head on its stand) was built inside out, so you saw its far
+  inside instead of its outside. Fruit on plants was also lit from the inside.
+  All fixed, with a test for every shape the game builds.
+
 - **v0.1444.0: the test camera lands where it is told (behind the scenes).**
   The automatic picture-taking that checks the game after each change had been
   photographing empty space instead of the home, depending on what it looked
