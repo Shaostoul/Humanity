@@ -85,7 +85,33 @@ every load-bearing claim checked by an adversarial verifier
   request turns on fly mode, which takes the player out of the shared world
   (so it hides every other player: use the showcase `cam` request instead);
   stopping, turning and leaving are not judged in the real game yet.
-- **Day 4:** shared building over the relay (no build message exists yet).
+- **Day 4, RE-SCOPED 2026-10-03 by the operator's decisions below:** before
+  shared building, homes need their own places on one mothership (plots in a
+  ship frame), building limited to your own plot, and shared spaces to meet in.
+  The design is docs/design/ship-homes-and-logistics.md (2026-10-03: the full
+  list of home kinds as data, Homestead the default start, food physically real
+  for every home, 14 increments). THIS WEEK: increment 1a (the ship and the home
+  come apart: a plots list in the ship file, the home in its own design file,
+  assembled at my plot) and 1b (the relay hands out plots, each player spawns at
+  their own, proven by the co-presence rig in both join orders); then increment 2
+  (walk from your home to the Commons and meet there), which is what Day 5 needs.
+  Its section 9 holds 18 open questions for the operator, each with a
+  recommendation.
+  **Multiplayer homes, decided by the operator 2026-10-03** (verbatim in the
+  journal): every player's home has its OWN location on the mothership; homes
+  never overlap; a player builds only inside their own home; there is no "main
+  player", all players are equal; players meet anywhere on the mothership (mess
+  hall, recreation room, crafting areas, the hangar where private ships are
+  kept), and some missions start by grouping at a transport ship in the hangar;
+  traded goods are physically transported (by the player, a robot or another
+  method), so distance and ship-to-ship travel cost time, which is what trains,
+  elevators and other fast travel are for; several STARTS of different scale
+  (a full homestead for dedicated players, an apartment in a complex with shared
+  group areas such as the mess hall, and a bare-minimum start for kids and
+  people short on time). It must make logistical sense; HumanityOS could serve
+  city planning. This SUPERSEDES the first shared-building design
+  (docs/design/shared-building.md: every home at the same coordinates, anyone
+  building anywhere), whose build was stopped at its first step.
 - **Day 5:** a real two-person session on the VPS, then fix what it finds and
   reshoot the clips.
 **Backups (2026-10-02):** an inventory found the newest snapshots restore
@@ -95,9 +121,9 @@ open: game saves have no backups at all (one file rewritten in place); the
 in-app "Back up now" copies are never rotated.
 **Waiting on the operator:** how many backups to keep from now on (today 15
 half-hourly on the VPS, 5 six-hourly in the relay, 60 pulled to the PC);
-where two players meet; the shared-world clock
+the shared-world clock
 speed (1x makes a lettuce take 45 days; 72x proposed as the server default);
-co-op trust or enforced rules; who and when for the Day 5 session; whether
+who and when for the Day 5 session; the names and contents of the start tiers (a proposal is in the design); whether
 multiplayer goes ahead of arc A. (The old plain backups, 15 on the VPS and 60
 stale local copies, were deleted 2026-10-02 at the operator's word; the VPS
 ones were shredded.)

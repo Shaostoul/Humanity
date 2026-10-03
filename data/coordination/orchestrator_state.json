@@ -556,6 +556,21 @@
       "date": "2026-10-03",
       "decision": "Co-presence rig: scripts/verify-copresence.js + just verify-copresence (one GPU boot, throwaway relay helper scripts/lib/throwaway-relay.js, judge scripts/lib/copresence-judge.js with 23 red-checked tests, recorder debug/remote_players_request.json in engine/ipc.rs with epoch_ms and a row cap). Critic fixes: only_the_walker, on_time by epoch, tests for seen_every_frame/enough_frames/bad clock, --keep-open message.",
       "why": "Verify Day 3 on the state a player reaches: unit and relay tests feed the drawing made-up deliveries; nothing looked at what the real game draws."
+    },
+    {
+      "date": "2026-10-03",
+      "decision": "OPERATOR DECISIONS on multiplayer homes: own location per home, no overlap, build only in your own home, all players equal (no main player), meet anywhere on the mothership (mess hall, rec room, crafting areas, hangar; missions group at a transport ship), goods physically transported with travel time (trains, elevators, fast travel), tiered starts (full homestead / apartment in a complex with shared areas / bare minimum for kids and the time-poor). Shared-building build stopped at its contract step; design re-scoped to ship-frame plots.",
+      "why": "Operator, verbatim: \"I would actually like the player homes in multiplayer to actually have their own locations... I don't like the idea of homes overlapping. Players could meet anywhere on the mothership ideally... We really want it to logistically make sense. Theoretically HumanityOS could be used for city planning.\" The first shared-building design put every home at the same coordinates with anyone building anywhere."
+    },
+    {
+      "date": "2026-10-03",
+      "decision": "Operator follow-up: cabin/apartment food is physically accounted for (communal gardens, ship farms), like real life where most homes are not homesteads; suburban house limited by its lawn. Names Cabin/Apartment/Homestead: \"fairly happy\". Proposed: four starts Cabin, Apartment, House, Homestead; home types as data (Townhouse, Smallholding, Farm later); one ship-wide food loop with simplified mode.",
+      "why": "Operator asked for other home styles and whether communal food can be physical; recorded so the design synthesis and later sessions use it."
+    },
+    {
+      "date": "2026-10-03",
+      "decision": "OPERATOR DECIDED: the full list of home types (Cabin, Apartment/cohousing, Townhouse, House, Smallholding, Homestead, Farm, plus group forms) as data, for a full spectrum of colony ship designs; homestead is the default start. Operator went to bed, leaving the session to develop overnight.",
+      "why": "Verbatim: \"I like the full list as it adds variety and allows for a full spectrum of colony spaceship designs.\""
     }
   ],
   "active_scopes_to_avoid": [
