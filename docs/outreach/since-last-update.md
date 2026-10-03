@@ -11,6 +11,11 @@ Each line is written the way a player would hear it; the release notes and
 
 ## Shipped
 
+- **v0.1446.0: the test tools know exactly which build they are testing
+  (behind the scenes).** Every build now carries a fingerprint of the code it
+  was made from, and the automatic checks refuse to test a build whose
+  fingerprint does not match, so an old build can never pass for a new one.
+
 - **v0.1445.0: round things are the right way out.** Every ball the game drew
   (light bulbs, the build-mode pipe beads, the planets in the hologram room,
   your avatar's head on its stand) was built inside out, so you saw its far

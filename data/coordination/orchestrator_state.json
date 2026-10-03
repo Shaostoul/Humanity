@@ -596,6 +596,11 @@
       "date": "2026-10-03",
       "decision": "Increment 1b red check done by pointing the 1b rig at the v0.1444.0 (1a) archive instead of reverting source (the builder was refused a revert): five plot checks failed, camera_in_p2 at (53.50, 1.70, 40.50) as predicted; the other 15 passed. Logged BUG-133 (check-fresh-exe judges by dates, so a build from another tree passes) and dispatched a fingerprint fix to a worktree.",
       "why": "The 1b proof needed its red; using an older build is non-destructive. The same path showed the freshness gate cannot tell which tree a binary came from."
+    },
+    {
+      "date": "2026-10-03",
+      "decision": "Merged BUG-133 (v0.1446.0): the rigs freshness gate compares a SHA-256 fingerprint of the compiled-in sources, stamped into the exe by build.rs, with the tree; dates no longer decide. --allow-other-build \"<reason>\" for deliberate red runs, recorded in rig manifests. Every exe built before this is unstamped and refused by the rigs and launch-bg (not by the operator's just launch).",
+      "why": "A 1a build passed the 1b worktree's gate as \"the current build\" because it was newer by date. Residuals logged in BUGS: probe-sweep has no gate, rigs copy after checking, ~30 compiled-in data files are not fingerprinted."
     }
   ],
   "active_scopes_to_avoid": [

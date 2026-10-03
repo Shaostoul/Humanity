@@ -2790,7 +2790,7 @@ reported choosing. `screenshot_done` carries `camera_home` too. The vantage
 order in `tests/visual/vantages.json` now puts a station view straight after
 a planet view, the order that exposed the bug, and a rig test pins that.
 
-## BUG-133: the freshness gate passes a binary built from a different tree (OPEN, found 2026-10-03)
+## BUG-133: the freshness gate passes a binary built from a different tree (FIXED v0.1446.0, found 2026-10-03)
 
 **Symptom:** `scripts/check-fresh-exe.js`, which every rig runs before it
 boots ("is this binary actually the build I am about to make claims about?"),
@@ -2808,3 +2808,17 @@ newer.
 build time and have the gate compare it with the tree it is run from, refusing
 on a mismatch; keep an explicit flag for a deliberate other-build run (a red
 check), recorded in the rig's manifest.
+
+**Fixed (v0.1446.0):** build.rs hashes every compiled-in source
+(FINGERPRINT_INPUTS: src, assets/shaders, Cargo.toml, Cargo.lock, build.rs;
+CRLF folded to LF, so line endings do not matter) into a stamp the exe
+carries (src/main.rs, include_str! from OUT_DIR); check-fresh-exe.js rehashes
+the tree and refuses on no stamp or any mismatch, naming the differing files.
+File dates no longer decide anything. --allow-other-build "<reason>" runs a
+deliberate other build and the rigs record it as other_build in their
+manifests. 24 gate tests, red on the old gate (the BUG-133 case itself:
+"PASS: the binary under test is the current build" for another tree's exe).
+Side effect: build.rs now declares rerun-if-changed, so a docs or web edit no
+longer recompiles the whole crate. Still open: probe-sweep has no gate; the
+rigs copy the exe after checking it; about 30 data files are compiled in but
+not fingerprinted (embedded fallbacks).

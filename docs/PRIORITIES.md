@@ -64,9 +64,8 @@ every load-bearing claim checked by an adversarial verifier
   smelting (a new `Make(item_id, quantity)` objective counts units of an item
   from any recipe), and the homepage game panel plays a real clip (the home
   flyover, 1.2 MB, on screen only, still for reduced motion or data saver).
-  STILL OPEN: the black plant models in tower net cups, so branch
-  `wip-tower-hero-models` can land (the palette files are clean, see Tier C:
-  it is the engine side, and it needs the rig).
+  The black plant models in the tower net cups: FIXED v0.1443.0 (the crop
+  palettes' colour space, not the engine).
 - **Day 3:** DONE v0.1440.0. `scripts/second-player.js` signs in as a real
   identity, joins the shared world and walks a path (`just verify-second-player`
   runs it against a throwaway relay); other players move by snapshot
@@ -92,7 +91,14 @@ every load-bearing claim checked by an adversarial verifier
   list of home kinds as data, Homestead the default start, food physically real
   for every home, 14 increments). Increment 1a SHIPPED v0.1442.0 (the ship and
   the home are separate files, the home assembled at its plot, a Dev Plots and
-  Districts panel). THIS WEEK, next: increment 1b. Follow-ups 1a found: put
+  Districts panel). Increment 1b is BUILT on branch `ship-homes-1b`
+  (worktree `.claude/worktrees/wf_fa54eb42-811-1`), not merged: two review
+  rounds found 5 then 7 real problems (the second round: a step-out of the
+  shared world, a long outage or a relay restart can still freeze a player
+  under the 100 m rule; built pieces and vehicles are not carried to the new
+  plot; plots are never given back); a second fix round is in progress. Its
+  red check is done (the 1b rig against the 1a build: `camera_in_p2` fails
+  at (53.50, 1.70, 40.50)). Then increment 2. Follow-ups 1a found: put
   the Commons machines on the ship's own power instead of the household
   battery; `just verify-screens` fails 2 of 12 because the starter kit's
   17-item backpack pushes the inventory's "Home" row off the screen (the rig
