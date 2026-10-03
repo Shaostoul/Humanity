@@ -437,8 +437,11 @@
     // assets/models/LICENSE-cc0-model-packs.md). A species not listed here
     // uses the set named after its own id, so tomato, carrot, wheat, lettuce,
     // corn, rice, pumpkin, beet, apple, orange, watermelon and bamboo need no
-    // line. A model set wins over the procedural recipe above in beds and
-    // fields; towers and dead crops stay procedural.
+    // line. A model set wins over the procedural recipe above in beds,
+    // fields and (since 2026-10-03) tower net cups, where it is scaled to the
+    // 0.6 m dwarf height and tipped out of the cup; dead crops, root crops in
+    // a tower and a tower past its vertex budget stay procedural
+    // (src/engine/plant_pass.rs).
     //
     // Only map a species the model is a fair likeness of, in shape, colour
     // AND size (the models draw at their own scale). Left out on purpose:

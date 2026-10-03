@@ -193,20 +193,21 @@ fn unit_noise(state: &mut u64) -> f32 {
 
 /// Append one copy of a model (`src_vertices`, `src_indices`, in the model's
 /// own metres with its base at the origin) to a merged mesh, standing at
-/// `at`, turned `yaw` radians about +Y and scaled `widen` across and `tall`
-/// up. Normals follow the inverse-transpose of that scale, so a widened
-/// clump still lights like its model.
+/// `at`, scaled `widen` across and `tall` up, then turned by `rot` about its
+/// base: a plot passes a yaw about +Y, a tower's net cup also tips the plant
+/// out from the column (2026-10-03). Normals follow the inverse-transpose of
+/// that scale, so a widened clump still lights like its model; UVs are
+/// copied as they are, so the copy samples the same palette texels.
 pub(crate) fn bake_copy(
     vertices: &mut Vec<Vertex>,
     indices: &mut Vec<u32>,
     src_vertices: &[Vertex],
     src_indices: &[u32],
     at: Vec3,
-    yaw: f32,
+    rot: Quat,
     widen: f32,
     tall: f32,
 ) {
-    let rot = Quat::from_rotation_y(yaw);
     let base = vertices.len() as u32;
     let (sx, sy) = (widen.max(1e-6), tall.max(1e-6));
     vertices.extend(src_vertices.iter().map(|v| {
@@ -493,7 +494,7 @@ mod tests {
         let v = |p: [f32; 3]| Vertex { position: p, normal: [1.0, 0.0, 0.0], uv: [0.0, 0.0] };
         let src = [v([0.1, 0.0, 0.0]), v([0.0, 1.0, 0.0]), v([0.0, 0.0, 0.1])];
         let (mut verts, mut idx) = (vec![v([9.0, 9.0, 9.0])], vec![0u32]);
-        bake_copy(&mut verts, &mut idx, &src, &[0, 1, 2], Vec3::new(5.0, 2.0, -3.0), 0.0, 2.0, 1.0);
+        bake_copy(&mut verts, &mut idx, &src, &[0, 1, 2], Vec3::new(5.0, 2.0, -3.0), Quat::IDENTITY, 2.0, 1.0);
         assert_eq!(idx, vec![0, 1, 2, 3], "the copy's indices follow the existing vertex");
         let near = |a: [f32; 3], b: [f32; 3]| (Vec3::from(a) - Vec3::from(b)).length() < 1e-5;
         assert!(near(verts[1].position, [5.2, 2.0, -3.0]), "x doubled, then placed");
