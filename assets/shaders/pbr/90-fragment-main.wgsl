@@ -974,16 +974,6 @@ fn fs_surface(in: VertexOutput) -> @location(0) vec4<f32> {
         albedo = albedo * mesh_tex.rgb;
         emissive_strength = 0.0;
 
-        // TWO-SIDED CROP LEAVES (2026-09-29). A crop stage model (NEGATIVE
-        // params.w, home_meshes::stage_model_material) is thin single-sided
-        // foliage: a face seen from behind is shaded as its other side, so
-        // the room lights reach it. Without this its leaf backs rendered
-        // black on a tower column at night, where the sun-driven
-        // transmission below has nothing to give.
-        if (material.params.w < -0.5 && dot(normal, view_dir) < 0.0) {
-            normal = -normal;
-        }
-
         // FOLIAGE TRANSMISSION (v0.1101). Without this, type 19 had NO
         // sunless-side light at all: the sun term is shadow-gated, the fill
         // is N.L-gated, and the ambient floor is 0.005 - so every face whose
@@ -1000,8 +990,16 @@ fn fs_surface(in: VertexOutput) -> @location(0) vec4<f32> {
         // params.w (2026-09-29, the crop stage models,
         // home_meshes::stage_model_material) keeps this transmission and
         // turns the wind off, because the vertex wind reads
-        // clamp(params.w, 0, 2): crops indoors stand in still air, and their
-        // single-sided leaf backs rendered black on a tower's column.
+        // clamp(params.w, 0, 2): crops indoors stand in still air, but a
+        // leaf with the sun behind it still glows through like any other.
+        //
+        // (A normal flip for crop "leaf backs" sat above this from
+        // 2026-09-29 to 2026-10-03 and is gone. Opaque pipelines cull back
+        // faces, so a leaf back is never shaded at all; the black sprouts
+        // were the palettes' colour space, fixed in the models. The only
+        // faces the flip could reach were 68 pumpkin and watermelon
+        // triangles wound against their own normals, and those were
+        // re-triangulated in the model files instead.)
         //
         // Same lobe, coefficients and shadow gate as the type-20 leaf branch
         // below - see the BUG-060 note there for why the coefficients are

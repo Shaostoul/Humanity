@@ -225,10 +225,20 @@ fn tower_model_scale(height: f32, width: f32, spread: f32) -> f32 {
 /// How far a plant in a tower's net cup leans out from the column, radians
 /// from upright (2026-10-03). The cups on a vertical aeroponic tower are set
 /// into its wall at an angle, mouth up and out, so what grows in them stands
-/// out from the column rather than straight up beside it. 30 degrees is a
-/// GAME CHOICE for how that reads at eye height: enough that the plant
-/// clearly grows out of the wall, not so much that a rigid model lies flat.
-const NET_CUP_TILT_RAD: f32 = 30.0 * std::f32::consts::PI / 180.0;
+/// out from the column rather than straight up beside it. The angle is a
+/// GAME CHOICE for how it reads at eye height, not a sourced figure.
+///
+/// 15 degrees, down from a first 30 (2026-10-03, measured on the rig). A
+/// living plant only leaves its cup at the cup's angle and then bends
+/// upward toward the light, but a stage model is rigid, so the whole plant
+/// takes the tip. At 30 the beet sprouts read as falling out of the
+/// column and the low seedlings' leaves turned down, away from the ceiling
+/// lights, into dark shapes: near-black pixels in the two tower close-ups
+/// went from 1,224 and 772 upright to 1,575 and 1,542. At 15 the lean
+/// still shows and the seedlings read as two leaves again. The pixel count
+/// barely moves (1,609 and 1,842: most of it is the beet sprouts' deep red
+/// stems in shade, which tip either way), so the call was made by eye.
+const NET_CUP_TILT_RAD: f32 = 15.0 * std::f32::consts::PI / 180.0;
 
 /// The turn a stage model takes in the net cup at helix angle `ang`
 /// (2026-09-29 faced it out; 2026-10-03 tipped it): its front (+z) turned to

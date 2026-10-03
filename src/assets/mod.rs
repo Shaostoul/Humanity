@@ -309,8 +309,9 @@ impl AssetManager {
     ///   `gltf::import` (jpg/png via the `image` crate);
     /// - anything larger than 1024x1024 is downscaled (Triangle filter,
     ///   aspect preserved) to keep per-plant VRAM sane;
-    /// - the alpha channel is preserved as decoded (jpg sources decode with
-    ///   alpha = 255; leaf silhouettes on these photoscans are real geometry).
+    /// - the alpha channel is preserved as decoded; a source with NO alpha
+    ///   channel (a jpg) that looks like a leaf card on white gets alpha from
+    ///   `white_key_alpha_if_cutout`, and is otherwise opaque.
     ///
     /// The caller uploads the pair via
     /// `Mesh::from_vertices(device, &mesh.vertices, &mesh.indices)` +
@@ -385,7 +386,7 @@ impl AssetManager {
             );
             None
         })?;
-        let rgba = white_key_alpha_if_cutout(rgba, relative_path);
+        let rgba = white_key_alpha_if_cutout(rgba, format_has_alpha(data.format), relative_path);
         downscale_rgba_if_needed(rgba, data.width, data.height, relative_path)
     }
 
@@ -760,28 +761,46 @@ fn downscale_rgba_if_needed(
     Some((resized.into_raw(), new_w, new_h))
 }
 
-/// White-key alpha recovery for cutout foliage (v0.911). Photoscan twig and
-/// leaf-card textures ship as JPEG (no alpha channel), so the white
-/// background around each twig cluster rendered as SOLID white slabs - a
-/// probe capture showed every conifer wrapped in pale boxes. When a texture
-/// has no real alpha variation AND a significant near-white fraction (the
-/// tell of a cutout sheet on white), derive alpha from brightness: white
-/// background fades to transparent, dark foliage stays opaque. Textures
-/// that are genuinely bright all over (sand, pot ceramic) are left alone by
-/// the fraction test; textures with real alpha are never touched.
+/// Whether a decoded glTF image came from a source with an alpha channel
+/// (2026-10-03). `gltf::import` decodes an RGBA PNG to `R8G8B8A8` and a JPEG
+/// (which cannot hold alpha) to `R8G8B8`, so the format says what the file
+/// itself could express. The two-channel formats are luminance plus alpha.
 #[cfg(feature = "native")]
-fn white_key_alpha_if_cutout(mut rgba: Vec<u8>, relative_path: &str) -> Vec<u8> {
+fn format_has_alpha(format: gltf::image::Format) -> bool {
+    use gltf::image::Format;
+    matches!(
+        format,
+        Format::R8G8 | Format::R8G8B8A8 | Format::R16G16 | Format::R16G16B16A16 | Format::R32G32B32A32FLOAT
+    )
+}
+
+/// White-key alpha recovery for cutout foliage (v0.911). Photoscan twig and
+/// leaf-card textures shipped as JPEG, which has no alpha channel, so the
+/// white background around each twig cluster rendered as SOLID white slabs:
+/// a probe capture showed every conifer wrapped in pale boxes. When such a
+/// texture has a significant near-white fraction (the tell of a cutout
+/// sheet on white), alpha is derived from brightness: the white background
+/// fades to transparent, dark foliage stays opaque. Textures that are
+/// genuinely bright all over (sand, pot ceramic) are left alone by the
+/// fraction test.
+///
+/// ONLY a source with no alpha channel is keyed (`source_has_alpha`, from
+/// `format_has_alpha`; 2026-10-03). A texture that carries an alpha channel
+/// has already said what is transparent, even when the answer is "nothing".
+/// Until then the test was "no texel below 250 alpha", which an opaque RGBA
+/// texture passes too: the OBJ converter's flat-colour palettes, whose
+/// unused blocks are white fill, were keyed, and the bed-side cabinet's
+/// pale grey faded to alpha 0.30 and never drew (crop_palette_tests). The
+/// conifers that first needed this ship alpha-carrying PNGs since v0.913,
+/// so today it is kept for any JPEG leaf card that arrives, not for them.
+#[cfg(feature = "native")]
+fn white_key_alpha_if_cutout(mut rgba: Vec<u8>, source_has_alpha: bool, relative_path: &str) -> Vec<u8> {
     let n = rgba.len() / 4;
-    if n == 0 {
+    if n == 0 || source_has_alpha {
         return rgba;
     }
-    let mut has_alpha = false;
     let mut near_white = 0usize;
     for px in rgba.chunks_exact(4) {
-        if px[3] < 250 {
-            has_alpha = true;
-            break;
-        }
         // Near-white AND low-saturation: background, not bright foliage.
         let mx = px[0].max(px[1]).max(px[2]);
         let mn = px[0].min(px[1]).min(px[2]);
@@ -789,7 +808,7 @@ fn white_key_alpha_if_cutout(mut rgba: Vec<u8>, relative_path: &str) -> Vec<u8> 
             near_white += 1;
         }
     }
-    if has_alpha || near_white * 100 < n * 12 {
+    if near_white * 100 < n * 12 {
         return rgba;
     }
     for px in rgba.chunks_exact_mut(4) {
@@ -1044,6 +1063,252 @@ mod crop_palette_tests {
             too_dark.join(", "),
             problems.len(),
             problems.join("\n")
+        );
+    }
+
+    /// Every model scripts/obj-to-plant-gltf.js made, crops and furniture,
+    /// as repo-relative .gltf paths (the converter's flat-colour palette
+    /// models; its generator line says so).
+    fn converted_models(repo: &std::path::Path) -> Vec<String> {
+        let mut out = Vec::new();
+        for dir in ["assets/models/plants", "assets/models/furniture"] {
+            let mut names: Vec<String> = std::fs::read_dir(repo.join(dir))
+                .unwrap_or_else(|e| panic!("{dir} is in the checkout: {e}"))
+                .filter_map(|e| e.ok().map(|e| e.file_name().to_string_lossy().into_owned()))
+                .collect();
+            names.sort();
+            for name in names {
+                let rel = format!("{dir}/{name}/{name}.gltf");
+                let Ok(text) = std::fs::read_to_string(repo.join(&rel)) else { continue };
+                let json: serde_json::Value = serde_json::from_str(&text).unwrap_or_else(|e| panic!("{rel}: {e}"));
+                if json["asset"]["generator"].as_str().unwrap_or("").starts_with("obj-to-plant-gltf.js") {
+                    out.push(rel);
+                }
+            }
+        }
+        out
+    }
+
+    /// NO CONVERTED MODEL LOSES A FACE TO THE WHITE KEY (2026-10-03).
+    ///
+    /// The white key (`white_key_alpha_if_cutout`) makes near-white texels
+    /// transparent, for photographed leaf cards on a white background, and
+    /// the shader discards anything under 0.35 alpha. It used to fire on ANY
+    /// fully opaque texture with enough near-white in it, and the
+    /// converter's palettes qualify: a palette's unused blocks are white
+    /// fill, a quarter of the texels in 15 of the 117. The bed-side
+    /// cabinet's pale grey (205, 205, 205) then faded to alpha 0.30, and
+    /// the six vertices on it (data/machines/home.ron, the bedroom) never
+    /// drew. The key now only touches a texture whose source has no alpha
+    /// channel, and these palettes are RGBA.
+    ///
+    /// This loads every converted model through the engine's loader and
+    /// samples the texture under every vertex the way the GPU does.
+    ///
+    /// Red check, run 2026-10-03 before the fix: fails on
+    /// cabinetbeddrawertable, 6 vertices.
+    #[test]
+    fn no_converted_model_has_a_vertex_on_a_cut_out_texel() {
+        let repo = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let manager = AssetManager::new(repo.join("data"));
+        let models = converted_models(&repo);
+        // 102 crop models and 15 furniture models; far fewer means the walk
+        // found almost nothing and this would pass while proving nothing.
+        assert!(models.len() >= 115, "only {} converted models found", models.len());
+        let mut cut = Vec::new();
+        for rel in &models {
+            let (cpu, texture) = manager.parse_gltf_mesh_with_texture(rel).unwrap_or_else(|e| panic!("{rel}: {e}"));
+            let (rgba, w, h) = texture.unwrap_or_else(|| panic!("{rel}: the palette texture did not load"));
+            let lost = cpu.vertices.iter().filter(|v| sample(&rgba, w, h, v.uv).1 < 0.35).count();
+            if lost > 0 {
+                cut.push(format!("{rel}: {lost} of {} vertices", cpu.vertices.len()));
+            }
+        }
+        assert!(
+            cut.is_empty(),
+            "\nthese models have vertices on texels the white key made transparent, so the shader discards \
+             their faces:\n{}\n",
+            cut.join("\n")
+        );
+    }
+
+    /// A PHOTOGRAPHED LEAF CARD WITH NO ALPHA CHANNEL IS STILL CUT OUT, AND
+    /// THE SAME PICTURE WITH ONE IS LEFT ALONE (2026-10-03).
+    ///
+    /// The white key exists for leaf and twig photographs shipped as JPEG
+    /// (v0.911: the photoscan conifers stood in pale boxes). A JPEG cannot
+    /// carry alpha, so brightness is all there is to go on. A PNG with an
+    /// alpha channel has said what is transparent, even when its answer is
+    /// "nothing". So this builds one picture, a dark leaf on a white ground,
+    /// writes it both ways, loads each through the engine's real glTF path
+    /// (gltf::import decodes the JPEG to RGB and the PNG to RGBA, which is
+    /// the format the rule reads), and checks the JPEG comes back with its
+    /// ground cut away and the PNG comes back untouched.
+    ///
+    /// The conifers that motivated the key now ship alpha-carrying PNGs
+    /// (v0.913, *_diff_a_1k.png), so the last check is that one of them
+    /// still arrives with its real cut-out intact.
+    #[test]
+    fn a_jpeg_leaf_card_on_white_is_cut_out_and_its_rgba_twin_is_not() {
+        let dir = std::env::temp_dir().join(format!("white_key_test_{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        // One triangle: three positions (36 bytes) then three u32 indices.
+        let mut bin = Vec::new();
+        for p in [[0.0f32, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]] {
+            for c in p {
+                bin.extend_from_slice(&c.to_le_bytes());
+            }
+        }
+        for i in [0u32, 1, 2] {
+            bin.extend_from_slice(&i.to_le_bytes());
+        }
+        std::fs::write(dir.join("leaf.bin"), &bin).unwrap();
+        let gltf = |image: &str| {
+            format!(
+                r#"{{"asset":{{"version":"2.0"}},"scene":0,"scenes":[{{"nodes":[0]}}],"nodes":[{{"mesh":0}}],
+                "meshes":[{{"primitives":[{{"attributes":{{"POSITION":0}},"indices":1,"material":0}}]}}],
+                "materials":[{{"pbrMetallicRoughness":{{"baseColorTexture":{{"index":0}}}}}}],
+                "textures":[{{"source":0}}],"images":[{{"uri":"{image}"}}],
+                "buffers":[{{"uri":"leaf.bin","byteLength":48}}],
+                "bufferViews":[{{"buffer":0,"byteOffset":0,"byteLength":36}},{{"buffer":0,"byteOffset":36,"byteLength":12}}],
+                "accessors":[{{"bufferView":0,"componentType":5126,"count":3,"type":"VEC3","min":[0,0,0],"max":[1,1,0]}},
+                {{"bufferView":1,"componentType":5125,"count":3,"type":"SCALAR"}}]}}"#
+            )
+        };
+        // The picture: a dark green leaf, an ellipse in the middle, on a
+        // white ground with a little texture to it, the way a photographed
+        // backdrop is never one flat value. About three quarters is ground.
+        const S: u32 = 64;
+        let leaf = |x: u32, y: u32| {
+            let (dx, dy) = (x as f32 - 31.5, y as f32 - 31.5);
+            (dx / 20.0).powi(2) + (dy / 14.0).powi(2) <= 1.0
+        };
+        let rgb = |x: u32, y: u32| -> [u8; 3] {
+            if leaf(x, y) {
+                [38, 88, 30]
+            } else {
+                let g = 246 + ((x * 7 + y * 13) % 9) as u8;
+                [g, g, g.saturating_sub(2)]
+            }
+        };
+        image::RgbImage::from_fn(S, S, |x, y| image::Rgb(rgb(x, y)))
+            .save_with_format(dir.join("leaf.jpg"), image::ImageFormat::Jpeg)
+            .unwrap();
+        image::RgbaImage::from_fn(S, S, |x, y| {
+            let [r, g, b] = rgb(x, y);
+            image::Rgba([r, g, b, 255])
+        })
+        .save_with_format(dir.join("leaf.png"), image::ImageFormat::Png)
+        .unwrap();
+        std::fs::write(dir.join("leaf_jpg.gltf"), gltf("leaf.jpg")).unwrap();
+        std::fs::write(dir.join("leaf_png.gltf"), gltf("leaf.png")).unwrap();
+
+        let manager = AssetManager::new(dir.clone());
+        let alpha = |rgba: &[u8], x: u32, y: u32| rgba[((y * S + x) * 4 + 3) as usize];
+
+        let (_, jpg) = manager.parse_gltf_mesh_with_texture("leaf_jpg.gltf").expect("the JPEG model loads");
+        let (jpg, w, h) = jpg.expect("the JPEG texture decodes");
+        assert_eq!((w, h), (S, S));
+        assert!(alpha(&jpg, 31, 31) > 240, "the leaf itself must stay opaque: alpha {}", alpha(&jpg, 31, 31));
+        for (x, y) in [(2, 2), (61, 3), (4, 60), (60, 60)] {
+            assert!(
+                (alpha(&jpg, x, y) as f32) < 0.35 * 255.0,
+                "the white ground at ({x}, {y}) must be cut out of a JPEG leaf card: alpha {}",
+                alpha(&jpg, x, y)
+            );
+        }
+
+        let (_, png) = manager.parse_gltf_mesh_with_texture("leaf_png.gltf").expect("the PNG model loads");
+        let (png, _, _) = png.expect("the PNG texture decodes");
+        let touched = png.chunks_exact(4).filter(|p| p[3] != 255).count();
+        assert_eq!(touched, 0, "an RGBA texture's alpha is its own: {touched} texels were keyed");
+
+        std::fs::remove_dir_all(&dir).ok();
+
+        // A real conifer leaf card: its transparency comes from its own
+        // alpha channel and arrives as authored.
+        let repo = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let manager = AssetManager::new(repo.join("data"));
+        let (_, fir) = manager
+            .parse_gltf_mesh_with_texture("assets/models/plants/fir_sapling/fir_sapling_v1.gltf")
+            .expect("the fir sapling loads");
+        let (fir, _, _) = fir.expect("the fir sapling's twig card decodes");
+        let authored = image::open(repo.join("assets/models/plants/fir_sapling/textures/fir_sapling_twigs_diff_a_1k.png"))
+            .expect("the fir twig card is in the checkout")
+            .to_rgba8();
+        assert_eq!(fir.len(), authored.as_raw().len(), "the twig card arrived at another size");
+        let changed = fir.chunks_exact(4).zip(authored.as_raw().chunks_exact(4)).filter(|(a, b)| a[3] != b[3]).count();
+        assert_eq!(changed, 0, "the fir twig card's alpha must arrive exactly as authored: {changed} texels differ");
+        // And it is a cut-out at all: sparse twigs (about 7% of the card)
+        // on clear ground.
+        let n = fir.len() / 4;
+        let clear = fir.chunks_exact(4).filter(|p| (p[3] as f32) < 0.35 * 255.0).count();
+        assert!(clear > n / 2 && n - clear > n / 50, "the fir twig card: {clear} of {n} texels clear");
+    }
+
+    /// NO CONVERTED MODEL HAS A TRIANGLE WOUND AGAINST ITS OWN NORMAL
+    /// (2026-10-03).
+    ///
+    /// The GPU decides which side of a triangle is its front by the order
+    /// its corners come in, culls the back, and lights the front with the
+    /// normals stored on its corners. The converter used to cut every OBJ
+    /// face into a fan from its first corner, and on a concave face one
+    /// fan triangle comes out with its corners the other way round: culled
+    /// from the side its normals face, a small hole, and lit as though
+    /// facing away when seen from the other side. 68 such quads sat on the
+    /// pumpkin and watermelon vines; they were re-cut, and the converter
+    /// ear-clips a concave face now (`triangulate` in the script).
+    ///
+    /// A triangle is wound against its normal when the angle between its
+    /// corner-order normal and its stored normal is past about 105 degrees
+    /// (cosine below -0.25). Not past 90: one twisted strip on
+    /// bushberries_3, whose two halves face about 120 degrees apart under
+    /// one averaged normal, sits at 93 degrees, and no cut of its four
+    /// corners does better. The 68 sat between 111 and 180 degrees.
+    ///
+    /// Red check, run 2026-10-03 against the models before the re-cut:
+    /// fails with 68 triangles in the 8 pumpkin and watermelon models.
+    #[test]
+    fn no_converted_model_has_a_triangle_wound_against_its_normal() {
+        let repo = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let manager = AssetManager::new(repo.join("data"));
+        let models = converted_models(&repo);
+        assert!(models.len() >= 115, "only {} converted models found", models.len());
+        let mut backwards = Vec::new();
+        let mut triangles = 0usize;
+        for rel in &models {
+            let cpu = manager.parse_gltf_mesh_with_texture(rel).unwrap_or_else(|e| panic!("{rel}: {e}")).0;
+            let mut bad = 0usize;
+            for tri in cpu.indices.chunks_exact(3) {
+                let v = |k: usize| &cpu.vertices[tri[k] as usize];
+                let p = |k: usize| glam::Vec3::from(v(k).position);
+                let wound = (p(1) - p(0)).cross(p(2) - p(0));
+                let stored = glam::Vec3::from(v(0).normal) + glam::Vec3::from(v(1).normal) + glam::Vec3::from(v(2).normal);
+                // A flat triangle (three corners in a line, which the fan
+                // writes for an edge with a corner in its middle) faces
+                // nowhere and draws nothing; in f32 its cross product is
+                // rounding noise pointing anywhere. Skip it by the sine of
+                // its corner angle rather than an absolute size, since the
+                // models' triangles span millimetres to metres.
+                let edges = (p(1) - p(0)).length() * (p(2) - p(0)).length();
+                if wound.length() <= 1e-4 * edges || stored.length() < 1e-6 {
+                    continue;
+                }
+                triangles += 1;
+                if wound.normalize().dot(stored.normalize()) < -0.25 {
+                    bad += 1;
+                }
+            }
+            if bad > 0 {
+                backwards.push(format!("{rel}: {bad}"));
+            }
+        }
+        assert!(triangles > 60_000, "only {triangles} triangles walked");
+        assert!(
+            backwards.is_empty(),
+            "\ntriangles wound against their own normals (culled from the side they face; re-cut the face, see \
+             triangulate in scripts/obj-to-plant-gltf.js):\n{}\n",
+            backwards.join("\n")
         );
     }
 }
