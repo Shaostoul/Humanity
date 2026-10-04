@@ -285,9 +285,21 @@ pub fn built_station_types(
     registry: &BlueprintRegistry,
     frame: Option<&PlanetSite>,
 ) -> std::collections::HashSet<String> {
+    built_station_types_where(world, registry, frame, |_| true)
+}
+
+/// `built_station_types` over the pieces `keep` accepts by where they stand
+/// (their pose; a piece with none is kept): aboard, a guest's put-away home
+/// is in the home frame but not on the ship (engine::built_uses).
+pub fn built_station_types_where(
+    world: &hecs::World,
+    registry: &BlueprintRegistry,
+    frame: Option<&PlanetSite>,
+    keep: impl Fn(Option<&Transform>) -> bool,
+) -> std::collections::HashSet<String> {
     let mut out = std::collections::HashSet::new();
-    for (_e, (s, site)) in world.query::<(&Structure, Option<&PlanetSite>)>().iter() {
-        if !site::in_frame(site, frame) {
+    for (_e, (s, site, pose)) in world.query::<(&Structure, Option<&PlanetSite>, Option<&Transform>)>().iter() {
+        if !site::in_frame(site, frame) || !keep(pose) {
             continue;
         }
         if let Some(bp) = registry.get(&s.blueprint_id) {
@@ -450,14 +462,23 @@ impl System for ConstructionSystem {
             // On a planet only the pack counts: the home's storage is in
             // orbit (review of the planet build, 2026-09-27).
             let on_planet = req.site.is_some();
+            // Aboard, the home's storage counts where a hand craft's does
+            // (crafting::home_store): not for a guest, whose home is put away
+            // off this ship. The Crafting page's structures list counts the
+            // same way, so the list and the build agree (the review of
+            // BUG-147).
+            let away = if on_planet { None } else { crate::systems::crafting::home_store::HomeStore::here(data).not_here };
+            let storage_counts = !on_planet && away.is_none();
             let missing: Option<String> = {
                 let inv = world
                     .get::<&crate::systems::inventory::Inventory>(player)
                     .expect("player inventory queried above");
-                let stores: Option<&dyn Fn(&str) -> u32> = if on_planet { None } else { Some(&home_count) };
+                let stores: Option<&dyn Fn(&str) -> u32> = if storage_counts { Some(&home_count) } else { None };
                 materials_short(&bp, |id| inv.count_item(id), stores).map(|(id, more)| {
                     if on_planet {
                         format!("need {more}x {id} more in your pack to build {} here: on a planet you build from what you carry", bp.name)
+                    } else if let Some(why) = away {
+                        format!("need {more}x {id} more in your pack to build {} here: {why}", bp.name)
                     } else {
                         format!("need {more}x {id} to build {}", bp.name)
                     }
@@ -474,7 +495,7 @@ impl System for ConstructionSystem {
                         inv.remove_item(id, from_pack);
                     }
                     let remainder = qty - from_pack;
-                    if remainder > 0 && !on_planet {
+                    if remainder > 0 && storage_counts {
                         if let Some(m) = home_stock.as_ref() {
                             if let Ok(mut s) = m.lock() {
                                 if let Some(c) = s.get_mut(id) {
@@ -756,6 +777,44 @@ mod tests {
         assert_eq!(world.query::<(&Construction, &PlanetSite)>().iter().count(), 1, "built from the pack");
         assert_eq!(world.get::<&Inventory>(player).unwrap().count_item(&plank), 0);
         assert_eq!(stored(&data), per_wall * 9, "nothing more from orbit");
+    }
+
+    /// A GUEST BUILDS FROM WHAT THEY CARRY, as a guest crafts (the review of
+    /// BUG-147). A guest's home is put away, off this ship, so its storage is
+    /// not in reach for a build aboard either: the Crafting page's structures
+    /// list already counts it that way (`home_storage_here`), and the build
+    /// must agree with the list. Refused with the reason, storage untouched;
+    /// with the home back on this ship the same wall comes out of storage.
+    /// Seen red before the fix: "a guest: nothing built from the put-away
+    /// home's storage" (left: 1, right: 0).
+    #[test]
+    fn a_guest_builds_from_what_they_carry() {
+        use crate::ecs::components::Controllable;
+        use crate::systems::crafting::home_store::HOME_STORAGE_HERE;
+        use crate::systems::inventory::Inventory;
+        let reg = shipped_registry();
+        let wall = reg.get("wood_wall").unwrap().clone();
+        let (plank, per_wall) = wall.materials[0].clone();
+        let pose = placement::placement_pose(&wall, Vec3::new(0.0, 0.0, 2.0), 0, &hecs::World::new(), &reg, None);
+        let mut data = build_store(reg, vec![BuildRequest::new("wood_wall", pose.clone())]);
+        let stock: HashMap<String, u32> = [(plank.clone(), per_wall * 10)].into_iter().collect();
+        data.insert("home_stock", std::sync::Mutex::new(stock));
+        data.insert(HOME_STORAGE_HERE, std::sync::Mutex::new(false));
+        let mut world = hecs::World::new();
+        world.spawn((Inventory::new(16), Controllable));
+        let mut sys = ConstructionSystem::new();
+        sys.tick(&mut world, 0.05, &data);
+        assert_eq!(world.query::<&Construction>().iter().count(), 0, "a guest: nothing built from the put-away home's storage");
+        let status = data.get::<std::sync::Mutex<String>>("build_status").unwrap().lock().unwrap().clone();
+        assert!(status.contains("in your pack") && status.contains("not on this ship"), "{status}");
+        let stored = |d: &DataStore| d.get::<std::sync::Mutex<HashMap<String, u32>>>("home_stock").unwrap().lock().unwrap()[&plank];
+        assert_eq!(stored(&data), per_wall * 10, "the put-away home's storage untouched");
+        // The home back on this ship: the wall comes out of its storage.
+        *data.get::<std::sync::Mutex<bool>>(HOME_STORAGE_HERE).unwrap().lock().unwrap() = true;
+        data.get::<std::sync::Mutex<Vec<BuildRequest>>>("build_request").unwrap().lock().unwrap().push(BuildRequest::new("wood_wall", pose));
+        sys.tick(&mut world, 0.05, &data);
+        assert_eq!(world.query::<&Construction>().iter().count(), 1, "at home it builds from the storage");
+        assert_eq!(stored(&data), per_wall * 9);
     }
 
     #[test]

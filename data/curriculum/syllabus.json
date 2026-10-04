@@ -831,15 +831,36 @@
       "subject": "food_animals",
       "title": "Keeping animals",
       "summary": "House, feed and water animals so they stay healthy.",
-      "status": "absent",
+      "status": "sourced",
+      "reading": [
+        "keeping-animals"
+      ],
       "skills": [
         "farming"
       ],
-      "locale_dependent": true,
-      "hazard": "caution",
       "data": [
-        "data/creatures.csv"
-      ]
+        "data/creatures.csv",
+        "data/entities/livestock.ron",
+        "data/food_system.ron"
+      ],
+      "sources": [
+        "usda-nrcs",
+        "usda-aphis",
+        "usda-ars",
+        "cdc",
+        "fda",
+        "ecfr",
+        "osha",
+        "epa",
+        "fema",
+        "okstate-extension",
+        "ndsu-extension",
+        "nebraska-extension",
+        "niosh",
+        "umn-extension"
+      ],
+      "locale_dependent": true,
+      "hazard": "caution"
     },
     {
       "id": "animals_chickens",
@@ -881,20 +902,31 @@
       "subject": "food_animals",
       "title": "Animal health and disease",
       "summary": "Spot illness early and know what is transmissible to people.",
-      "status": "absent",
+      "status": "sourced",
+      "reading": [
+        "animal-health-and-disease"
+      ],
       "skills": [
         "farming",
         "medicine"
       ],
+      "data": [
+        "data/creatures.csv",
+        "data/food_system.ron"
+      ],
       "sources": [
         "usda-aphis",
-        "cdc"
+        "cdc",
+        "fda",
+        "ecfr",
+        "osha",
+        "usda-nrcs",
+        "vt-extension",
+        "nebraska-extension",
+        "umn-extension"
       ],
       "locale_dependent": false,
-      "hazard": "serious",
-      "data": [
-        "data/creatures.csv"
-      ]
+      "hazard": "serious"
     },
     {
       "id": "fishing",
@@ -1864,10 +1896,27 @@
       "subject": "materials",
       "title": "Pottery and firing",
       "summary": "Turn clay into vessels that hold water and survive heat.",
-      "status": "absent",
+      "status": "sourced",
+      "reading": [
+        "pottery-and-firing"
+      ],
       "skills": [
         "alchemy",
         "fire_making"
+      ],
+      "data": [
+        "data/recipes.csv",
+        "data/items.csv",
+        "data/containers/materials.csv",
+        "data/machines/home.ron"
+      ],
+      "sources": [
+        "cpsc",
+        "fda",
+        "epa",
+        "osha",
+        "ecfr",
+        "nps"
       ],
       "locale_dependent": true,
       "hazard": "serious"
@@ -2526,15 +2575,36 @@
       "subject": "chemistry",
       "title": "Soap, lye and cleaning",
       "summary": "Make and use cleaning agents, including the ones that burn skin.",
-      "status": "absent",
+      "status": "sourced",
+      "reading": [
+        "soap-lye-and-cleaning"
+      ],
       "skills": [
         "alchemy"
       ],
-      "locale_dependent": false,
-      "hazard": "serious",
       "data": [
-        "data/chemistry/compounds.csv"
-      ]
+        "data/chemistry/compounds.csv",
+        "data/recipes.csv",
+        "data/items.csv",
+        "data/containers/content_classes.ron"
+      ],
+      "sources": [
+        "fda",
+        "cdc",
+        "niosh-pocket-guide",
+        "cameo-chemicals",
+        "cpsc",
+        "ecfr",
+        "osha",
+        "hrsa",
+        "epa",
+        "usfa",
+        "fao",
+        "iowa-state-extension",
+        "medlineplus"
+      ],
+      "locale_dependent": false,
+      "hazard": "serious"
     },
     {
       "id": "chem_preservation",
@@ -2662,13 +2732,28 @@
       "subject": "biology",
       "title": "How animals work",
       "summary": "Understand the basics of animal physiology and behaviour.",
-      "status": "absent",
+      "status": "sourced",
+      "reading": [
+        "how-animals-work"
+      ],
       "skills": [
         "farming",
         "foraging"
       ],
       "data": [
-        "data/creatures.csv"
+        "data/creatures.csv",
+        "data/entities/livestock.ron"
+      ],
+      "sources": [
+        "usda-nrcs",
+        "ecfr",
+        "usda-ars",
+        "cdc",
+        "nps",
+        "okstate-extension",
+        "vt-extension",
+        "nebraska-extension",
+        "uf-ifas-extension"
       ],
       "locale_dependent": false,
       "hazard": "caution"
@@ -3280,10 +3365,26 @@
       "subject": "tools",
       "title": "Making a tool",
       "summary": "Make or improvise a tool you do not have.",
-      "status": "absent",
+      "status": "sourced",
+      "reading": [
+        "making-a-tool"
+      ],
       "skills": [
         "metalworking",
         "woodworking"
+      ],
+      "data": [
+        "data/crafting/tools.ron",
+        "data/recipes.csv",
+        "data/items.csv",
+        "data/manufacturing.ron"
+      ],
+      "sources": [
+        "osha",
+        "ecfr",
+        "dod-technical-manuals",
+        "usfs",
+        "cpsc"
       ],
       "locale_dependent": false,
       "hazard": "serious"

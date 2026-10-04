@@ -481,6 +481,37 @@
             "health",
             "safety"
           ]
+        },
+        {
+          "title": "How Animals Work",
+          "file": "how_animals_work.md",
+          "tags": [
+            "guide",
+            "real",
+            "food",
+            "safety"
+          ]
+        },
+        {
+          "title": "Keeping Animals",
+          "file": "keeping_animals.md",
+          "tags": [
+            "guide",
+            "real",
+            "food",
+            "safety"
+          ]
+        },
+        {
+          "title": "Animal Health and Disease",
+          "file": "animal_health_and_disease.md",
+          "tags": [
+            "guide",
+            "real",
+            "food",
+            "health",
+            "safety"
+          ]
         }
       ],
       "section": "Learn"
@@ -975,6 +1006,18 @@
           ]
         },
         {
+          "title": "Pottery and Firing",
+          "file": "pottery_and_firing.md",
+          "tags": [
+            "guide",
+            "real",
+            "making",
+            "materials",
+            "food",
+            "safety"
+          ]
+        },
+        {
           "title": "Fibre, Cord and Textiles",
           "file": "fibre_cord_and_textiles.md",
           "tags": [
@@ -1019,8 +1062,30 @@
           ]
         },
         {
+          "title": "Soap, Lye and Cleaning",
+          "file": "soap_lye_and_cleaning.md",
+          "tags": [
+            "guide",
+            "real",
+            "making",
+            "health",
+            "safety"
+          ]
+        },
+        {
           "title": "Salvage and Reuse",
           "file": "salvage_and_reuse.md",
+          "tags": [
+            "guide",
+            "real",
+            "making",
+            "materials",
+            "safety"
+          ]
+        },
+        {
+          "title": "Making a Tool",
+          "file": "making_a_tool.md",
           "tags": [
             "guide",
             "real",

@@ -5,6 +5,7 @@ use egui::{Color32, Frame, RichText, Rounding, ScrollArea, Stroke};
 use crate::gui::{GuiState, GuiRecipe};
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
+use crate::systems::crafting::home_store::Draw;
 use std::cell::RefCell;
 
 // Crafting categories are loaded from `data/crafting/categories.json` into
@@ -16,7 +17,7 @@ fn category_matches(filter: &str, recipe_cat: &str) -> bool {
 }
 
 /// Prettify a raw item/station id like "iron_ore_0" into "Iron Ore" for display.
-fn pretty_id(id: &str) -> String {
+pub(crate) fn pretty_id(id: &str) -> String {
     id.trim_end_matches(|c: char| c == '_' || c.is_ascii_digit())
         .split('_')
         .filter(|s| !s.is_empty())
@@ -313,8 +314,8 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             }
 
             // ── Structures (v0.746, ladder rung 2): the blueprint-building
-            // branch. Each blueprint lists its material cost (backpack have/
-            // need; home storage also counts at build time) and a Build button
+            // branch. Each blueprint lists its material cost (have/need, the
+            // backpack and, at the home, its storage) and a Build button
             // that puts the piece in hand for placing in the world (2026-09-27,
             // engine/build_place.rs). ConstructionSystem's status line shows above.
             if filter_cat.as_deref() == Some(STRUCTURES_CATEGORY) {
@@ -452,7 +453,9 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 h(ui, CRAFT_TIME_W, "Time");
                 h(ui, CRAFT_STATION_W, "Station");
                 h(ui, CRAFT_SKILL_W, "Skill");
-                ui.label(RichText::new("Materials (have / need) and output").size(theme.font_size_small).color(theme.text_muted()).strong());
+                // What "have" counts (BUG-147): home storage too, at home.
+                let have = if storage_not_here(state).is_none() { "backpack + home storage" } else { "backpack" };
+                ui.label(RichText::new(format!("Materials (have in {have} / need) and output")).size(theme.font_size_small).color(theme.text_muted()).strong());
             });
             ui.separator();
 
@@ -596,29 +599,40 @@ fn draw_recipe_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, re
 
     ui.add_space(theme.spacing_md);
 
-    // Ingredients
+    // Ingredients: per input, how many come from the backpack and how many
+    // from home storage (BUG-147: a craft draws on both, backpack first), and
+    // what is still missing. The split is the craft's own (`draw_for`).
+    let not_here = storage_not_here(state);
+    let draws: Vec<(String, u32, Draw)> =
+        recipe.inputs.iter().map(|(id, qty)| (id.clone(), *qty, draw_for(state, id, *qty))).collect();
     widgets::card_with_header(ui, theme, "Ingredients", |ui| {
-        for (item_id, qty) in &recipe.inputs {
-            let have = count_in_inventory(state, item_id);
-            let enough = have >= *qty;
-            let have_color = if enough { theme.success() } else { theme.danger() };
+        let small = |t: String, c| RichText::new(t).size(theme.font_size_small).color(c);
+        for (item_id, qty, d) in &draws {
+            let ok = d.short == 0;
             ui.horizontal(|ui| {
-                ui.label(
-                    RichText::new(item_id)
-                        .size(theme.font_size_body)
-                        .color(theme.text_primary()),
-                );
-                ui.label(
-                    RichText::new(format!("{}", have))
-                        .size(theme.font_size_body)
-                        .color(have_color),
-                );
-                ui.label(
-                    RichText::new(format!("/ {}", qty))
-                        .size(theme.font_size_body)
-                        .color(theme.text_muted()),
-                );
+                ui.label(RichText::new(pretty_id(item_id)).size(theme.font_size_body).color(theme.text_primary()));
+                ui.label(small(format!("{} in backpack", in_backpack(state, item_id)), theme.text_secondary()));
+                if not_here.is_none() {
+                    ui.label(small(format!("+ {} in home storage", in_home_storage(state, item_id)), theme.text_secondary()));
+                }
+                if d.tap > 0 {
+                    ui.label(small(format!("+ {} from the tanks", d.tap), theme.text_secondary()));
+                }
+                ui.label(small(format!("/ needs {qty}"), if ok { theme.success() } else { theme.danger() }));
+                if !ok {
+                    ui.label(small(format!("{} short", d.short), theme.danger()));
+                }
             });
+        }
+        let short: Vec<String> =
+            draws.iter().filter(|(_, _, d)| d.short > 0).map(|(id, _, d)| format!("{} more {}", d.short, pretty_id(id))).collect();
+        if !short.is_empty() {
+            ui.add_space(theme.spacing_xs);
+            let held = if not_here.is_none() { "your backpack and home storage hold together" } else { "your backpack holds" };
+            ui.label(small(format!("Not enough: this needs {} than {held}.", short.join(", ")), theme.danger()));
+        }
+        if let Some(why) = not_here {
+            ui.label(small(format!("Home storage does not count here: {why}."), theme.text_muted()));
         }
     });
 
@@ -627,9 +641,9 @@ fn draw_recipe_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, re
         ui.add_space(theme.spacing_sm);
         widgets::card_with_header(ui, theme, "Tools (not used up)", |ui| {
             for tool in &recipe.tools {
-                let have = count_in_inventory(state, tool) > 0;
+                let have = in_backpack(state, tool) > 0;
                 ui.horizontal(|ui| {
-                    ui.label(RichText::new(tool).size(theme.font_size_body).color(theme.text_primary()));
+                    ui.label(RichText::new(pretty_id(tool)).size(theme.font_size_body).color(theme.text_primary()));
                     ui.label(
                         RichText::new(if have { "in your backpack" } else { "not in your backpack" })
                             .size(theme.font_size_small)
@@ -642,26 +656,42 @@ fn draw_recipe_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, re
 
     ui.add_space(theme.spacing_sm);
 
-    // Outputs
+    // Where the result goes (BUG-147): into the backpack when it fits; what
+    // does not goes to home storage, which is there only at the home; a
+    // vehicle the game drives rolls out in front of you.
+    let free_l = (state.carry.input.volume_capacity_l - state.carry.input.volume_l).max(0.0);
+    let too_big = !recipe.rolls_out && recipe.output_volume_l > free_l && state.carry.input.volume_capacity_l > 0.0;
+    let destination = if recipe.rolls_out {
+        "Rolls out in front of you when it is done.".to_string()
+    } else if too_big && not_here.is_none() {
+        format!("Too big for your backpack ({:.0} L, {:.0} L free): it goes to home storage.", recipe.output_volume_l, free_l)
+    } else if too_big {
+        format!("Too big for your backpack ({:.0} L, {:.0} L free), and home storage is not here.", recipe.output_volume_l, free_l)
+    } else {
+        "Goes into your backpack.".to_string()
+    };
+    let no_room = too_big && not_here.is_some();
     widgets::card_with_header(ui, theme, "Produces", |ui| {
         for (item_id, qty) in &recipe.outputs {
             ui.horizontal(|ui| {
                 ui.label(
-                    RichText::new(format!("{} x{}", item_id, qty))
+                    RichText::new(format!("{} x{}", pretty_id(item_id), qty))
                         .size(theme.font_size_body)
                         .color(theme.text_primary()),
                 );
             });
         }
+        ui.label(
+            RichText::new(destination)
+                .size(theme.font_size_small)
+                .color(if no_room { theme.danger() } else { theme.text_secondary() }),
+        );
     });
 
     ui.add_space(theme.spacing_md);
 
     // Craft button — gated by ingredients AND (#8b tech-unlock) the recipe's skill.
-    let has_ingredients = recipe
-        .inputs
-        .iter()
-        .all(|(item_id, qty)| count_in_inventory(state, item_id) >= *qty);
+    let has_ingredients = draws.iter().all(|(_, _, d)| d.short == 0);
     // skill_level 0/1 = free starter tier (see CraftingSystem::meets_skill_requirement);
     // only level 2+ gates, so a fresh player can bootstrap each skill.
     let skill_ok = match &recipe.skill_required {
@@ -684,14 +714,14 @@ fn draw_recipe_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, re
             .unwrap_or(&recipe.station_required);
         state.home_machines.is_none() || state.stations_here.contains(machine_type)
     };
-    let missing_tool = recipe.tools.iter().find(|t| count_in_inventory(state, t) == 0).cloned();
+    let missing_tool = recipe.tools.iter().find(|t| in_backpack(state, t) == 0).cloned();
     // Power (2026-09-26): lib.rs publishes the electric station types that
     // have no powered machine, mirroring CraftingSystem::station_unpowered.
     let unpowered = recipe
         .station_required
         .strip_suffix("_0")
         .map_or(false, |t| state.unpowered_station_types.contains(t));
-    let can_craft = has_ingredients && missing_tool.is_none() && skill_ok && station_ok && !unpowered;
+    let can_craft = has_ingredients && missing_tool.is_none() && skill_ok && station_ok && !unpowered && !no_room;
 
     // Skill requirement line (shown in danger colour when the player is under-level).
     // Only for gated recipes (level 2+); level-1 recipes are the free starter tier.
@@ -755,9 +785,12 @@ fn draw_recipe_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, re
     if !can_craft {
         ui.add_space(theme.spacing_xs);
         let msg = if !has_ingredients {
-            "Missing ingredients".to_string()
+            // The Ingredients card above names what is short and from where.
+            "Not enough ingredients: see what is short above".to_string()
+        } else if no_room {
+            format!("No room for the result here: {}", not_here.unwrap_or("make room in your backpack"))
         } else if let Some(t) = &missing_tool {
-            format!("Needs a {t} in your backpack")
+            format!("Needs a {} in your backpack", pretty_id(t))
         } else if unpowered {
             let station = recipe.station_required.trim_end_matches("_0").replace('_', " ");
             match &state.stations_where {
@@ -823,22 +856,53 @@ fn skill_display_name(state: &GuiState, skill_id: &str) -> String {
     }
 }
 
-/// Count how many of an item_id the player has in their inventory.
-/// What the backpack holds, plus, for a measure of tap water, what the home
-/// tanks can supply (2026-09-26): mirrors CraftingSystem::can_craft, which
-/// draws the water the pack lacks from the tanks.
-fn count_in_inventory(state: &GuiState, item_id: &str) -> u32 {
-    let pack: u32 = state
+/// How many of an item the backpack holds.
+fn in_backpack(state: &GuiState, item_id: &str) -> u32 {
+    state
         .inventory_items
         .iter()
         .filter_map(|slot| slot.as_ref())
         .filter(|item| item.item_id == item_id)
         .map(|item| item.quantity)
-        .sum();
-    let tap = state
+        .sum()
+}
+
+/// How many home storage holds, where a craft here can reach it (BUG-147):
+/// aboard, with the home on this ship.
+fn in_home_storage(state: &GuiState, item_id: &str) -> u32 {
+    if state.home_storage_here {
+        state.home_stock.get(item_id).copied().unwrap_or(0)
+    } else {
+        0
+    }
+}
+
+/// For a measure of tap water, what the home's tanks can supply
+/// (2026-09-26); they count where the home's storage does.
+fn from_tanks(state: &GuiState, item_id: &str) -> u32 {
+    if !state.home_storage_here {
+        return 0;
+    }
+    state
         .tap_litres
         .get(item_id)
         .filter(|l| **l > 0.0)
-        .map_or(0, |l| (state.water_stored_l.max(0.0) / l + 1e-4).floor() as u32);
-    pack + tap
+        .map_or(0, |l| (state.water_stored_l.max(0.0) / l + 1e-4).floor() as u32)
+}
+
+/// Where `need` of an input would come from: the same split the craft makes
+/// (CraftingSystem::plan_inputs, crafting::home_store::Draw).
+fn draw_for(state: &GuiState, item_id: &str, need: u32) -> Draw {
+    Draw::of(need, in_backpack(state, item_id), in_home_storage(state, item_id), from_tanks(state, item_id))
+}
+
+/// Everything a craft here can use of an item: backpack, home storage and
+/// tanks together.
+fn count_in_inventory(state: &GuiState, item_id: &str) -> u32 {
+    in_backpack(state, item_id) + in_home_storage(state, item_id) + from_tanks(state, item_id)
+}
+
+/// Why home storage does not count where the player is, or None.
+fn storage_not_here(state: &GuiState) -> Option<&'static str> {
+    crate::systems::crafting::home_store::not_here_reason(&state.stations_where, state.home_storage_here)
 }

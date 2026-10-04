@@ -1248,6 +1248,11 @@ pub struct GuiState {
     /// at a planet site that site's; the same set CraftingSystem gates on.
     pub stations_here: std::collections::HashSet<String>,
     pub stations_where: crate::systems::construction::StationsWhere,
+    /// The home's storage by item (engine/stock_piles.rs publish_home_stock)
+    /// and whether a hand craft here can draw on it (BUG-147, built_uses.rs):
+    /// the Crafting page splits each input between backpack and storage.
+    pub home_stock: std::collections::HashMap<String, u32>,
+    pub home_storage_here: bool,
 
     // ── Wallet state ──
     pub wallet_balance: f64,
@@ -3421,6 +3426,8 @@ impl Default for GuiState {
             pending_notices: Vec::new(),
             stations_here: std::collections::HashSet::new(),
             stations_where: Default::default(),
+            home_stock: std::collections::HashMap::new(),
+            home_storage_here: true,
             surface_altitude_m: None,
             surface_gravity_now: None,
             carry: Default::default(),

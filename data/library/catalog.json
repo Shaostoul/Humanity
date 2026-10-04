@@ -366,6 +366,37 @@
             "health",
             "safety"
           ]
+        },
+        {
+          "title": "How Animals Work",
+          "src": "docs/user/skills/how_animals_work.md",
+          "tags": [
+            "guide",
+            "real",
+            "food",
+            "safety"
+          ]
+        },
+        {
+          "title": "Keeping Animals",
+          "src": "docs/user/skills/keeping_animals.md",
+          "tags": [
+            "guide",
+            "real",
+            "food",
+            "safety"
+          ]
+        },
+        {
+          "title": "Animal Health and Disease",
+          "src": "docs/user/skills/animal_health_and_disease.md",
+          "tags": [
+            "guide",
+            "real",
+            "food",
+            "health",
+            "safety"
+          ]
         }
       ]
     },
@@ -859,6 +890,18 @@
           ]
         },
         {
+          "title": "Pottery and Firing",
+          "src": "docs/user/skills/pottery_and_firing.md",
+          "tags": [
+            "guide",
+            "real",
+            "making",
+            "materials",
+            "food",
+            "safety"
+          ]
+        },
+        {
           "title": "Fibre, Cord and Textiles",
           "src": "docs/user/skills/fibre_cord_and_textiles.md",
           "tags": [
@@ -903,8 +946,30 @@
           ]
         },
         {
+          "title": "Soap, Lye and Cleaning",
+          "src": "docs/user/skills/soap_lye_and_cleaning.md",
+          "tags": [
+            "guide",
+            "real",
+            "making",
+            "health",
+            "safety"
+          ]
+        },
+        {
           "title": "Salvage and Reuse",
           "src": "docs/user/skills/salvage_and_reuse.md",
+          "tags": [
+            "guide",
+            "real",
+            "making",
+            "materials",
+            "safety"
+          ]
+        },
+        {
+          "title": "Making a Tool",
+          "src": "docs/user/skills/making_a_tool.md",
           "tags": [
             "guide",
             "real",

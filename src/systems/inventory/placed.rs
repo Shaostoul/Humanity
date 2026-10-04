@@ -30,3 +30,84 @@ pub struct PlacedItem {
     #[serde(default)]
     pub quality: u8,
 }
+
+/// The container at `path`, or a container inside it ("built:3" holds
+/// "built:3" and "built:3/0", never "built:30").
+fn under(container: &str, path: &str) -> bool {
+    container == path || container.strip_prefix(path).is_some_and(|rest| rest.starts_with('/'))
+}
+
+/// The home's storage as item -> count: every placed item except those in
+/// the containers under `elsewhere`, which are the player's but not in the
+/// home (a chest built on a planet holds what is on that planet, BUG-147).
+/// The automated machines, the build menu and hand crafts all count this.
+pub fn stock_counts(pool: &[PlacedItem], elsewhere: &[String]) -> std::collections::HashMap<String, u32> {
+    let mut stock = std::collections::HashMap::new();
+    for p in pool.iter().filter(|p| !elsewhere.iter().any(|e| under(&p.container, e))) {
+        *stock.entry(p.key.clone()).or_insert(0) += p.qty;
+    }
+    stock
+}
+
+/// Take out of the pool what the systems used from home storage in a tick:
+/// for each item, the drop from `before` to `after`, from its placed stacks
+/// in pool order, never from a container under `elsewhere` (those were not
+/// counted, so nothing was used from them). Emptied stacks go. Returns true
+/// when anything was taken.
+pub fn take_consumed(
+    pool: &mut Vec<PlacedItem>,
+    before: &std::collections::HashMap<String, u32>,
+    after: &std::collections::HashMap<String, u32>,
+    elsewhere: &[String],
+) -> bool {
+    let mut changed = false;
+    for (id, before_qty) in before {
+        let mut deficit = before_qty.saturating_sub(after.get(id).copied().unwrap_or(0));
+        for p in pool.iter_mut() {
+            if deficit == 0 {
+                break;
+            }
+            if p.key == *id && !elsewhere.iter().any(|e| under(&p.container, e)) {
+                let take = p.qty.min(deficit);
+                p.qty -= take;
+                deficit -= take;
+                changed = true;
+            }
+        }
+    }
+    if changed {
+        pool.retain(|p| p.qty > 0);
+    }
+    changed
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn item(key: &str, qty: u32, container: &str) -> PlacedItem {
+        PlacedItem { key: key.into(), name: key.into(), qty, container: container.into(), wear: 0, quality: 0 }
+    }
+
+    /// A chest built on a planet is the player's, but it is not in the home:
+    /// its iron is not home storage, and what the home's crafts and machines
+    /// use never comes out of it. Seen red against `stock_counts` and
+    /// `take_consumed` ignoring `elsewhere`: "left: Some(17), right: Some(5)".
+    #[test]
+    fn a_chest_built_on_a_planet_is_not_home_storage() {
+        let away = vec!["built:3".to_string()];
+        let mut pool = vec![
+            item("iron_0", 10, "built:3"),
+            item("iron_0", 2, "built:3/0"),
+            item("iron_0", 4, "1/0"),
+            item("iron_0", 1, "built:30"),
+        ];
+        let before = stock_counts(&pool, &away);
+        assert_eq!(before.get("iron_0").copied(), Some(5), "the barn's 4 and the home chest's 1");
+        let mut after = before.clone();
+        after.insert("iron_0".into(), 0);
+        assert!(take_consumed(&mut pool, &before, &after, &away));
+        let left: Vec<(String, u32)> = pool.iter().map(|p| (p.container.clone(), p.qty)).collect();
+        assert_eq!(left, vec![("built:3".into(), 10), ("built:3/0".into(), 2)], "only the home's iron was used");
+    }
+}

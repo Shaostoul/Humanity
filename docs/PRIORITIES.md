@@ -109,8 +109,9 @@ every load-bearing claim checked by an adversarial verifier
   as players on one game clock, the explore quest ends with "find your home",
   a stored Pioneer world upgrades with progress kept. 16 review findings fixed;
   on main, all rigs green (67/67 per --plots order, the crew judged where they
-  are drawn). Open for the operator: how much NPC homesteads contribute
-  (`npc_homestead_fleet_meals_per_day`, 0.0 for now). NEXT: increment 4,
+  are drawn). NPC homesteads ANSWERED 2026-10-04: their contribution stays 0, and during
+  early development the fleet is UNLIMITED with a per-player ledger of what
+  each player used and contributed, in the red or the black (building now). NEXT: increment 4,
   getting around at ship scale (the relay's speed check with a correction
   instead of a freeze, transit links with stable ids, "aboard" as inside the
   ship's bounds, game delivery by zone, an air volume per home). Left for later (design doc section 7): a Dev move of the plot
@@ -206,10 +207,10 @@ Rendering items below still run beside it on files that do not overlap.
 **Economy and crafting follow-ups (2026-10-04, from BUG-143/145):** the
 trading post now sells only real items (v0.1453.0), no recipe resells for more
 than its inputs cost at standard grade, and vehicles carry real bills of
-materials (v0.1455.0). Two open, both in `docs/BUGS.md`: BUG-147, the big
-vehicles cannot be hand-crafted from the backpack (needs a build station that
-draws parts from home storage, the right station per vehicle class, and the
-`assemble_*` kit recipes given real bills of materials too); BUG-146, a
+materials (v0.1455.0), and a hand craft draws on the home's storage
+(BUG-147, v0.1457.0). Still to do from that: the right station per vehicle
+class (everything is built at `workbench_0`), and the `assemble_*` kit
+recipes given real bills of materials too. Open in `docs/BUGS.md`: BUG-146, a
 better craft grade still loops at the vendor (the fix is a vendor price that
 responds to how much of a good it already holds, not lower prices). Smaller:
 `craft_optical_fiber` makes copper wire (no optical fibre item), sterile

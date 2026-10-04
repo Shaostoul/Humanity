@@ -3414,7 +3414,7 @@ vendor values grade and quantity (a price that responds to how much of a
 good it already holds, or grade paid on labour rather than on the whole
 price), not in lowering every price below 0.4x its parts.
 
-## BUG-147: the big vehicles cannot be hand-crafted from the backpack (OPEN, found 2026-10-04)
+## BUG-147: the big vehicles cannot be hand-crafted from the backpack (FIXED v0.1457.0, found 2026-10-04)
 
 **Seen:** after the vehicle bills of materials (BUG-145) became realistic. A
 manual craft draws only on the backpack (36 slots, about 65 L). Only the
@@ -3426,8 +3426,39 @@ included, is built at `workbench_0`.
 **Not affected:** the default Dev play mode, where crafting takes no inputs;
 the automation path, which already counts home storage.
 
-**Fix (not started):** big builds need a station that draws parts from home
-storage (a shipyard or assembly bay) and the right station per vehicle class,
-which is also what a real build of a boat or an aircraft looks like. The
-`assemble_*` kit recipes have the same toy bills of materials (a 1497 kg car
-from 81 kg of parts) and are not yet covered by the weight test.
+**Fix:** a hand craft draws on the home's storage too, the way the machines
+and the build menu already did (`src/systems/crafting/home_store.rs`): the
+backpack first, then home storage, then the tanks for tap water, spending
+exactly what the recipe needs. What the backpack cannot take of the result
+goes to home storage with the crafter's grade (a new channel beside the
+machines', `home_stock_hand_made`, filed by `receive_machine_outputs`); the
+three kit vehicles still roll out in front of the crafter. It counts only the
+player's own home and only where they are: aboard with the home on this ship.
+On a planet, in open space and as a guest on a shared ship (home put away),
+only the backpack counts, and a craft whose result would not fit is refused
+before anything is spent, as before. A short craft now says what is short and
+where it looked. The Crafting page shows each input's split between backpack
+and storage, what is missing, and where the result will go. Found on the
+way: the `home_stock` mirror counted chests built on a planet, so the home's
+machines and the build menu could draw on what was on Earth; they are left
+out now (`inventory::placed::stock_counts`, `uses::planet_store_paths`).
+Tests in `src/systems/crafting/home_store_tests.rs`, each seen red.
+
+**Review fixes (same day):** a result bigger than the whole backpack (a pod)
+that finishes, or is asked for, where home storage does not count no longer
+says "make room": it says home storage takes it once the player is back at
+their home, and why it does not count here. A guest's put-away home now
+serves as no crafting station (its machines and the pieces built in it,
+`engine::built_uses::station_types_here`), matching its storage and tanks. A
+guest's build aboard counts only the pack, as the structures list already
+did (`ConstructionSystem`). The Tools card and the greyed-button line name
+tools readably ("Wrench Adjustable"), as the Ingredients card names parts.
+
+**Left:** the right station per vehicle class (a shipyard for the
+spacecraft, a boatyard for the boats, rather than every vehicle at
+`workbench_0`); a vehicle filed in home storage is an item in the Barn, not
+yet something to launch or drive (only the three kit vehicles are); a
+confirmed trade offer is still not reserved from crafting (backpack-first
+can spend offered items, which withdraws the confirmation, BUG-114's guard).
+The `assemble_*` kit recipes have the same toy bills of materials (a 1497 kg
+car from 81 kg of parts) and are not yet covered by the weight test.
