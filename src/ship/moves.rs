@@ -183,13 +183,25 @@ mod tests {
         SharedWorldRules::parse(include_str!("../../data/ship/shared_world.ron")).expect("the shipped rules parse")
     }
 
-    /// The shipped file parses, validates, and the disk read finds it (the relay and the game
-    /// load it with `load("data")` from the repo root in tests).
+    /// The rules are read from DISK first: a data folder whose file says something else is what
+    /// loads (an admin's edit takes effect without a rebuild), and a data folder without the file,
+    /// or with one that does not parse, gets the copy built into the exe. Seen red 2026-10-04 with
+    /// `load` always taking the built-in copy: "the disk copy is read first: 250".
     #[test]
-    fn the_shipped_rules_load() {
+    fn the_rules_are_read_from_disk_first() {
         let r = shipped();
         assert!(r.delivery.out_of_view_m > r.delivery.in_view_m);
-        assert_eq!(SharedWorldRules::load(std::path::Path::new("data")), r, "the disk copy is the shipped one");
+        let nanos = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0);
+        let dir = std::env::temp_dir().join(format!("hum_moves_rules_{}_{nanos}", std::process::id()));
+        std::fs::create_dir_all(dir.join("ship")).expect("a temp data folder");
+        let edited = include_str!("../../data/ship/shared_world.ron").replace("in_view_m: 250.0", "in_view_m: 123.0");
+        std::fs::write(dir.join("ship").join("shared_world.ron"), edited).expect("write it");
+        let got = SharedWorldRules::load(&dir).delivery.in_view_m;
+        assert_eq!(got, 123.0, "the disk copy is read first: {got}");
+        std::fs::write(dir.join("ship").join("shared_world.ron"), "( moving: nonsense )").expect("write it");
+        assert_eq!(SharedWorldRules::load(&dir), r, "a file that does not parse: the built-in copy");
+        let _ = std::fs::remove_dir_all(&dir);
+        assert_eq!(SharedWorldRules::load(&dir), r, "no file: the built-in copy");
     }
 
     /// Nonsense is refused, never half-used: a negative speed, NaN, and radii the wrong way
