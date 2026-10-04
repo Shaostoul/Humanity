@@ -11,6 +11,13 @@ Each line is written the way a player would hear it; the release notes and
 
 ## Shipped
 
+- **v0.1446.4: three more Library guides.** Nails, Screws and Bolts (which
+  fastener for which job, and using a nail gun safely), Reading a Map
+  (contours, scale and what to do the moment you think you are lost), and
+  Reading Numbers Honestly (averages, ranges, and why one good year proves
+  little). Each was checked against its sources first; the Library now has
+  50 sourced guides.
+
 - **v0.1446.3: three more Library guides.** Keeping Things Working (looking
   after tools, machines and a house, and making them safe before you start),
   Square, Level and Plumb (laying out a shed or a path, and calling 811 before
