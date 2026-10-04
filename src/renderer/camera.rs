@@ -685,6 +685,11 @@ pub struct CameraController {
     /// (1.0 = normal). Set each frame by the main loop from the player's
     /// StatusEffects + the status-effect registry. Look/rotation is unaffected.
     pub speed_multiplier: f32,
+    /// The jump's launch speed as a share of an unloaded one (BUG-136): 1.0
+    /// normally, below 1 for a load in the Realistic carrying mode (more mass
+    /// to launch), 0.0 when overloaded under gravity (no jump). Set each frame
+    /// by `engine::carry_load` from `systems::encumbrance`.
+    pub jump_scale: f32,
     pub mouse_sensitivity: f32,
     /// Invert vertical mouse look (v0.909 - wired from Settings > Controls).
     pub invert_y: bool,
@@ -757,6 +762,7 @@ impl CameraController {
         Self {
             speed,
             speed_multiplier: 1.0,
+            jump_scale: 1.0,
             mouse_sensitivity: sensitivity,
             invert_y: false,
             forward: false,
@@ -1005,6 +1011,12 @@ impl CameraController {
         }
     }
 
+    /// The gravity this controller's walk applies, m/s^2 (the carry limit
+    /// follows it: `engine::carry_load`, BUG-136).
+    pub fn interior_gravity(&self) -> f32 {
+        self.interior_gravity
+    }
+
     /// Eye height (camera Y above the feet). The footing sampler uses it to get the player's ACTUAL
     /// feet height (`camera.y - eye_height`) -- which, unlike `ground_floor()`, tracks the live
     /// climbed height, so a deck at a ladder top is reachable. (v0.589)
@@ -1212,9 +1224,11 @@ impl CameraController {
         }
 
         // ── Gravity + jump (grounded on the room floor) ──
-        // Space launches a jump only when grounded.
-        if self.ascend && self.is_grounded {
-            self.vertical_velocity = self.jump_speed;
+        // Space launches a jump only when grounded, at the carried load's
+        // share of the launch speed (BUG-136): none at all when overloaded in
+        // the Realistic carrying mode, so the player stays on the floor.
+        if self.ascend && self.is_grounded && self.jump_scale > 0.0 {
+            self.vertical_velocity = self.jump_speed * self.jump_scale.min(1.0);
             self.is_grounded = false;
         }
         // Apply gravity and integrate height.
@@ -1423,6 +1437,38 @@ mod liftoff_tests {
             (cam.position - start).length() > 0.01,
             "unowned blend-band flight must move"
         );
+    }
+
+    /// BUG-136, the homestead walk: the jump launches at `jump_scale` of its
+    /// speed, and not at all at 0 (overloaded in the Realistic carrying mode).
+    /// Holds Space from standing for a second and measures the peak above the
+    /// floor. Seen red with the jump as it was (ignoring the scale): "an
+    /// overloaded walker stays on the floor (rose 1.253 m)".
+    #[test]
+    fn the_carried_load_scales_the_jump_and_an_overload_stops_it() {
+        let peak = |scale: f32| {
+            let mut cam = Camera::new();
+            cam.mode = CameraMode::FirstPerson;
+            let mut ctl = CameraController::new(5.0, 1.0);
+            ctl.set_ground_floor(0.0);
+            cam.position = Vec3::new(0.0, ctl.ground_floor() + ctl.eye_height(), 0.0);
+            let rest = cam.position.y;
+            ctl.jump_scale = scale;
+            ctl.ascend = true;
+            let mut top = rest;
+            for _ in 0..120 {
+                ctl.update_camera(&mut cam, 1.0 / 120.0);
+                top = top.max(cam.position.y);
+            }
+            top - rest
+        };
+        let full = peak(1.0);
+        assert!(full > 1.0, "an unloaded jump rises about 1.27 m (rose {full:.3} m)");
+        let none = peak(0.0);
+        assert!(none == 0.0, "an overloaded walker stays on the floor (rose {none:.3} m)");
+        // Launch speed scales the peak by its square (h = v^2 / 2g).
+        let half = peak(0.5);
+        assert!((half / full - 0.25).abs() < 0.03, "half the launch speed, a quarter the height: {half:.3} of {full:.3}");
     }
 }
 

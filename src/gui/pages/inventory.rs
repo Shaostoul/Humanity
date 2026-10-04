@@ -17,16 +17,11 @@ const COLS: usize = 8;
 struct InventoryPageState {
     /// Equipped items (slot_name -> item name or empty).
     equipped: Vec<(String, Option<String>)>,
-    /// Current carry weight.
-    carry_weight: f32,
-    /// Max carry weight.
-    max_carry_weight: f32,
-    /// Current carried storage volume in liters (v0.726, Stage A).
-    carry_volume_l: f32,
-    /// Max backpack volume in liters (matches Inventory::volume_capacity_l).
-    max_carry_volume_l: f32,
-    /// Whether we have initialized sample data.
-    initialized: bool,
+    // The carried weight and volume are NOT page state (BUG-136): this page
+    // kept its own, a fixed 50 kg limit and sums made once on the first draw,
+    // so a backpack never raised the limit and nothing picked up later moved
+    // the tiles. Both now read `GuiState::carry`, the inventory system's own
+    // numbers published each frame by `engine::carry_load`.
 }
 
 impl Default for InventoryPageState {
@@ -34,11 +29,6 @@ impl Default for InventoryPageState {
         Self {
             // Populated from gui_state.equipment_slots on first draw.
             equipped: Vec::new(),
-            carry_weight: 0.0,
-            max_carry_weight: 50.0,
-            carry_volume_l: 0.0,
-            max_carry_volume_l: 65.0,
-            initialized: false,
         }
     }
 }
@@ -1288,29 +1278,14 @@ fn draw_mining_map(ui: &mut egui::Ui, theme: &Theme, asteroids: &[GuiAsteroid], 
 }
 
 pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
-    // Calculate carry weight from inventory items + populate equipped slots from
-    // the loaded `data/inventory/equipment_slots.json` (lazily — guards against
-    // the GUI rendering before lib.rs has wired the loaded data into GuiState).
+    // Populate equipped slots from the loaded
+    // `data/inventory/equipment_slots.json` (lazily: guards against the GUI
+    // rendering before lib.rs has wired the loaded data into GuiState).
     with_state(|ps| {
         if ps.equipped.is_empty() && !state.equipment_slots.is_empty() {
             ps.equipped = state.equipment_slots.iter()
                 .map(|(id, _)| (id.clone(), None))
                 .collect();
-        }
-        if !ps.initialized {
-            let mut weight = 0.0f32;
-            let mut volume = 0.0f32;
-            for slot in &state.inventory_items {
-                if let Some(item) = slot {
-                    if let Some(details) = lookup_item_details(&item.item_id) {
-                        weight += details.weight_kg * item.quantity as f32;
-                        volume += details.volume_l * item.quantity as f32;
-                    }
-                }
-            }
-            ps.carry_weight = weight;
-            ps.carry_volume_l = volume;
-            ps.initialized = true;
         }
     });
 
@@ -1426,10 +1401,11 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             // colour-by-level bar) instead of thin text rows — using the width and
             // reading at a glance. Weight is always shown; the survival vitals when
             // the ECS has synced them (satiation_max > 0).
-            let (carry_weight, max_weight) = with_state(|ps| (ps.carry_weight, ps.max_carry_weight));
-            let weight_frac =
-                if max_weight > 0.0 { (carry_weight / max_weight).clamp(0.0, 1.0) } else { 0.0 };
-            let weight_color = if weight_frac > 0.9 {
+            // The inventory system's own numbers (BUG-136): the limit is the
+            // pack's plus what is worn, scaled by the gravity where you stand.
+            let carry = state.carry;
+            let weight_frac = carry.fraction();
+            let weight_color = if carry.overloaded || weight_frac > 0.9 {
                 theme.danger()
             } else if weight_frac > 0.7 {
                 theme.warning()
@@ -1450,14 +1426,14 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             let mut tiles: Vec<(&str, String, f32, Color32)> = Vec::new();
             tiles.push((
                 "Weight",
-                format!("{:.1} / {:.1} kg", carry_weight, max_weight),
+                carry.tile_value(),
                 weight_frac,
                 weight_color,
             ));
             // Volume tile (v0.726, material-storage Stage A): "the real limit
             // of a container is its volume" — shown beside weight. Same
             // fills-up-is-bad colouring as weight.
-            let (carry_vol, max_vol) = with_state(|ps| (ps.carry_volume_l, ps.max_carry_volume_l));
+            let (carry_vol, max_vol) = (carry.input.volume_l, carry.input.volume_capacity_l);
             let vol_frac = if max_vol > 0.0 { (carry_vol / max_vol).clamp(0.0, 1.0) } else { 0.0 };
             let vol_color = if vol_frac > 0.9 {
                 theme.danger()
@@ -1512,6 +1488,13 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                     c.add_space(theme.spacing_sm);
                 }
             });
+            // Where the Weight tile's limit comes from and, when it matters,
+            // why the player is slow or cannot jump (BUG-136).
+            ui.label(
+                RichText::new(carry.tile_note())
+                    .size(theme.font_size_small)
+                    .color(if carry.overloaded { theme.warning() } else { theme.text_muted() }),
+            );
 
             if has_vitals {
                 // Body temperature + seal status as a readout line under the grid.
@@ -2772,7 +2755,6 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             if idx < state.inventory_items.len() {
                 state.inventory_items[idx] = None;
                 state.selected_slot = None;
-                with_state(|ps| ps.initialized = false); // recalc weight
             }
         }
     }

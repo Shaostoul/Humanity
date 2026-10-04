@@ -135,6 +135,12 @@ pub fn draw(
             for row in vital_rows(&state.vitals, state.settings.hud_vitals) {
                 y = draw_vital_row(painter, theme, y, &row);
             }
+            // Overloaded (BUG-136): what is wrong and what it does, so a slow
+            // walk or a jump that never leaves the floor is never a mystery.
+            if let Some(line) = state.carry.hud_line() {
+                text_shadowed(painter, Pos2::new(16.0, y), Align2::LEFT_TOP, &line, 11.0, theme.warning());
+                y += 15.0;
+            }
             if let Some(q) = state.quests.iter().find(|q| !q.completed) {
                 y += 4.0;
                 text_shadowed(painter, Pos2::new(16.0, y), Align2::LEFT_TOP, &truncate_chars(&q.name, 48), 12.0, theme.accent());

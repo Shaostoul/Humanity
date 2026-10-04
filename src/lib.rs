@@ -3537,6 +3537,8 @@ mod native_app {
                             })
                             .unwrap_or(1.0);
                         state.controller.speed_multiplier = mult * gear_mult;
+                        // The carried load (BUG-136): walking speed + jump.
+                        crate::engine::carry_load::apply(state);
                     }
 
                     // Dev travel sync (v0.791.x): mirror the Dev page's fly/FTL
@@ -4755,6 +4757,9 @@ mod native_app {
                             // look. See surface_move::split_wish.
                             let (tangential, radial_wish) =
                                 crate::surface_move::split_wish(wish_unrot, dir0, move_mode);
+                            // A carried load scales (an overload stops) the Space jump, BUG-136.
+                            let radial_wish = crate::surface_move::carry_gated_radial(
+                                radial_wish, move_mode, in_walk_band, submerged, state.controller.jump_scale);
                             // ── Unified flight speed (v0.880, operator stuck
                             // at the 100 km boundary + "speed resets") ──
                             // WALK band: the wheel stays bounded (~10 km/s) so

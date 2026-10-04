@@ -3452,6 +3452,30 @@ pub(crate) fn draw_gameplay_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
              your temperature swings half as far from normal and cold or heat harm \
              you half as fast.",
         );
+        // Carrying weight (BUG-136, systems::encumbrance; the dual-mode house rule).
+        ui.add_space(theme.spacing_sm);
+        ui.label(RichText::new("Carrying weight").color(theme.text_secondary()));
+        ui.horizontal(|ui| {
+            for (realistic, label) in [(false, "Forgiving"), (true, "Realistic")] {
+                let selected = state.settings.carry_realistic == realistic;
+                if ui.radio(selected, RichText::new(label).color(theme.text_primary())).clicked() && !selected {
+                    state.settings.carry_realistic = realistic;
+                    state.settings_dirty = true;
+                }
+            }
+        });
+        widgets::setting_hint(
+            ui,
+            theme,
+            hint,
+            "You carry 50 kg comfortably at 1 g, more with a backpack. In lower \
+             gravity the same load weighs less, so you can carry more: about 2.6 \
+             times as much on Mars and 6 times on the Moon, with no limit when \
+             weightless. Realistic: over the limit you walk slower the more you \
+             are over and cannot jump, and any load is extra mass to launch, so \
+             your jumps are lower. Forgiving shows the same limit and warns you, \
+             and changes nothing about how you move.",
+        );
         // Survival bars on the HUD (2026-09-25): the simple and full modes of
         // the same readout, plus the default that shows a need when it matters.
         ui.add_space(theme.spacing_sm);

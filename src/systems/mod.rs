@@ -8,6 +8,9 @@ pub mod farming;
 pub mod construction;
 pub mod door_anim;
 pub mod inventory;
+/// Carrying weight: the limit where the player stands (it follows gravity)
+/// and what an overload does in each mode (BUG-136, 2026-10-04).
+pub mod encumbrance;
 /// What the home's machines hold (battery charge, tank litres, vessel
 /// contents), kept across a restart and across world entry (2026-09-27).
 pub mod machine_levels;

@@ -743,6 +743,13 @@ pub struct AppConfig {
     /// `settings.body_heat_realistic`.
     #[serde(default)]
     pub body_heat_realistic: bool,
+    /// Carrying weight (BUG-136, systems::encumbrance): false is Forgiving
+    /// (the limit and a warning only), true is Realistic (an overload slows
+    /// walking and stops jumps under gravity, and a load's mass weighs on
+    /// every jump). Forgiving by default, the house rule for deep systems.
+    /// Held in GuiState as `settings.carry_realistic`.
+    #[serde(default)]
+    pub carry_realistic: bool,
     /// Play mode (task #50): Normal | Creative | Dev -- the ladder every
     /// cheat/scope gate hangs off (see the `PlayMode` docs above). Absent in
     /// old configs => Dev via `#[serde(default)]` (the pre-launch default;
@@ -1416,6 +1423,7 @@ impl AppConfig {
             hostile_wildlife: state.settings.hostile_wildlife,
             vitals_drain: state.settings.vitals_drain,
             body_heat_realistic: state.settings.body_heat_realistic,
+            carry_realistic: state.settings.carry_realistic,
             play_mode: state.settings.play_mode,
             hud_vitals: state.settings.hud_vitals,
             // v0.488 voice input prefs (top-level GuiState, not SettingsState).
@@ -1690,6 +1698,7 @@ impl AppConfig {
         state.settings.hostile_wildlife = self.hostile_wildlife;
         state.settings.vitals_drain = self.vitals_drain.clamp(0.0, 5.0);
         state.settings.body_heat_realistic = self.body_heat_realistic;
+        state.settings.carry_realistic = self.carry_realistic;
         // Play mode (task #50): restore the persisted mode, then PRESET the
         // creative (free resources) flag from it -- GuiState defaults that
         // flag to true (early-dev posture), so a Normal-mode player must get
@@ -2190,6 +2199,8 @@ mod pbkdf2_migration_tests {
         assert_eq!(c.vitals_drain, 1.0);
         // Body heat starts Forgiving (the simplified mode is the default).
         assert!(!c.body_heat_realistic);
+        // Carrying weight starts Forgiving too (BUG-136).
+        assert!(!c.carry_realistic);
         assert_eq!(c.planet_max_subdiv, 6.0);
         // Fresh installs see the concept tour exactly once: the serde
         // default is true (pre-v0.198 configs skip it) but the no-config

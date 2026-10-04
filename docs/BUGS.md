@@ -2987,7 +2987,7 @@ next connection, because the relay keeps no record of an erase. Closing that
 needs a marker kept on the relay after the erase, which trades against "an
 erase leaves nothing on the server".
 
-## BUG-136: the carry limit is shown as a fixed 50 kg, and being overloaded does nothing (OPEN, found 2026-10-04)
+## BUG-136: the carry limit is shown as a fixed 50 kg, and being overloaded does nothing (FIXED 2026-10-04, found 2026-10-04)
 
 **Found by** the Library writer checking the "Force, Levers and Mechanical
 Advantage" guide's game tie-in against the code. The inventory system computes
@@ -3005,3 +3005,26 @@ outfit bonus). What being overloaded DOES is a gameplay decision for the
 design (the dual-modes rule: a realistic mode and a softened one): slower
 walking is the usual answer. Until then, say on the tile that the limit is
 advisory.
+
+**Decided (operator, 2026-10-04):** "slower walking in realistic mode and no
+jumping in nonzero G based on weight/mass. We can obviously carry heavier in
+low-g to zero-g but, mass still applies."
+
+**Fixed (2026-10-04):** the rules live in `src/systems/encumbrance.rs` and
+`src/engine/carry_load.rs` applies them each frame.
+- The Weight tile reads the inventory system's own numbers (`GuiState::carry`):
+  the pack's 50 kg plus the worn gear's `carry_capacity` (the system now records
+  it as `Inventory::carry_bonus_kg`), scaled by the gravity the walk applies
+  (9.81 / g: about 2.6 times on Mars, no limit when weightless). A line under
+  the tiles says where the limit comes from and why the player is slow. The
+  page's own fixed 50 kg, and its weight and volume sums made once on the first
+  draw, are gone. `encumbered` uses the same gravity-aware limit.
+- Settings > Gameplay > Carrying weight. **Forgiving** (default): a warning on
+  the tile and the HUD, no change to movement. **Realistic**: over the limit,
+  walking slows by how far over (10% over walks at 90%, never below a 15%
+  crawl) and Space does not leave the ground (`CameraController::jump_scale`
+  for the homestead, `surface_move::carry_gated_radial` on a planet); and any
+  load weighs on the jump's launch speed, sqrt(70 / (70 + load)).
+- Left: starting and stopping are instant in both walks (no horizontal
+  inertia), and there is no zero-g pushing model, so the jump is the only place
+  carried mass acts. Ladders climb at the same rate whatever is carried.

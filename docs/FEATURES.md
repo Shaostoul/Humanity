@@ -2046,6 +2046,30 @@ and measured human trials (Helland et al. 2025; Thompson and Hayward 1996).
 - Data: `data/equipment.csv` (`clo`), `data/status_effects.csv` (the four conditions)
 - Design: `docs/design/body-heat.md`
 
+### Carrying weight (2026-10-04, BUG-136)
+What the player carries has a limit and, in the Realistic mode, consequences. The limit is the inventory's own 50 kg
+plus what worn gear adds (`carry_capacity` in `data/equipment.csv`: a large backpack adds 25 kg), comfortable at 1 g
+(9.81 m/s^2, the homestead's gravity and Earth's), and it FOLLOWS GRAVITY: the legs hold up weight, mass times local
+gravity, so the same legs carry 9.81 / g times the mass (about 2.6 times on Mars, 6 times on the Moon, no limit when
+weightless). The gravity is the one the walk applies: the planet's at the player's altitude while a surface is engaged,
+otherwise the homestead's `gravity_m_s2`. Operator decision 2026-10-04: "slower walking in realistic mode and no
+jumping in nonzero G based on weight/mass. We can obviously carry heavier in low-g to zero-g but, mass still applies."
+- **Two modes** (Settings > Gameplay > Carrying weight): **Forgiving** (the default: the same limit, a warning only,
+  movement unchanged) and **Realistic**: over the limit, walking slows by how far over (10% over walks at 90%, half
+  again over at half speed, never below a 15% crawl) and there is no jumping; and any load is extra mass to launch,
+  so a jump leaves the ground at sqrt(70 / (70 + load)) of its speed (30 kg: 84%; a 150 kg load on the Moon, well
+  under the limit there, still 56%).
+- Shown: the Inventory page's Weight tile (the real limit where you stand, and a line saying where it comes from and
+  why you are slow or cannot jump) and a HUD line under the survival bars while overloaded.
+- Not modelled, because the movement model has no momentum there: starting and stopping are instant in both walks
+  (no horizontal inertia), and there is no zero-g pushing (the homestead always has its gravity; dev flight is a
+  noclip camera). The jump is the one place carried mass acts. Ladders climb at the same rate whatever is carried.
+- Native: `src/systems/encumbrance.rs` (the rules, standalone tests), `src/engine/carry_load.rs` (applies them each
+  frame), `src/renderer/camera.rs` (`jump_scale`, the homestead jump), `src/surface_move.rs` (`carry_gated_radial`,
+  the planet jump), `src/systems/inventory/mod.rs` (`carry_bonus_kg`, the gravity-aware `encumbered` flag),
+  `src/gui/pages/inventory.rs` (tile), `src/gui/pages/hud.rs` (HUD line), `src/gui/pages/settings.rs` (mode).
+  Web: none; movement and the in-game Status tiles exist only in the desktop app.
+
 ### Skills/Progression
 20 skills across 5 categories, XP curves, level-up notifications. **Registered, ticks live** (`SkillSystem` is NOT in `DEFERRED_SYSTEMS` -- this "NOT registered" note was stale, corrected 2026-07-01). Note: `src/systems/skills/learning.rs`'s `Skill`/`add_practice` is a SEPARATE, unused struct with its own unresolved TODO (learning-curve level thresholds) -- it has zero callers anywhere in the tree and is not what the live, registered `SkillSystem` actually uses; treat it as dead/superseded code, not a gap in the live skill system.
 - Native: `src/systems/skills/mod.rs`

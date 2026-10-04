@@ -74,6 +74,9 @@ pub mod planet_build;
 /// The survival environment context (the home's air or the weather) and the
 /// body heat mode, published once a frame (moved out of lib.rs 2026-09-27).
 pub mod survival_env;
+/// The player's carried load: the walking speed and jump it allows, and the
+/// Weight tile and HUD line it publishes (BUG-136, 2026-10-04).
+pub mod carry_load;
 pub mod net_route;
 pub mod registries;
 /// In-world screens: native pages on flat displays placed in the 3D world
