@@ -11,6 +11,12 @@ Each line is written the way a player would hear it; the release notes and
 
 ## Shipped
 
+- **v0.1447.2: three more Library guides.** Sound and Hearing (how loud is
+  too loud, and protecting your ears), What Not to Compost, Burn or Pour Away
+  (batteries, medicines, paint, ashes, a broken thermometer), and Ratios and
+  Mixing (formula, canning, concrete and mortar, and making water safe to
+  drink with bleach). The Library now has 56 sourced guides.
+
 - **v0.1447.1: three more Library guides.** Knowing Which Way Is North
   (compasses, declination, the shadow-stick and the stars, and what to do if
   lost), Coordinates (reading latitude, longitude and grid references, and how
