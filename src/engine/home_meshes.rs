@@ -1985,18 +1985,13 @@ pub(crate) fn rebuild_connection_objects(state: &mut EngineState) {
         // rubber hose, a cord's or a data cable's jacket. No marking standard colours the wall
         // material (findings F28); what the run carries is said by its marker bands below. Until
         // then (v0.623) the whole run was painted, faintly glowing, in its utility colour.
-        let body = crate::ship::pipe_materials::pipe_materials().for_kind(kind);
-        let pkey = format!("pipebody:{}", body.map_or("unknown", |m| m.id.as_str()));
-        let pipe_mat = match state.connection_mats.get(&pkey) {
+        // `body_look` is the one place that choice is made, so its test checks what is drawn.
+        let body = crate::ship::pipe_materials::pipe_materials().body_look(kind_str);
+        let pipe_mat = match state.connection_mats.get(&body.key) {
             Some(&m) => m,
             None => {
-                let (colour, met, rough) = match body {
-                    Some(m) => (m.linear_rgba(), m.metallic, m.roughness),
-                    // A kind with no material row (the registry test forbids it): neutral grey.
-                    None => ([0.3, 0.3, 0.3, 1.0], 0.0, 0.6),
-                };
-                let m = state.renderer.add_material_full(colour, met, rough, 0.0, 0.0);
-                state.connection_mats.insert(pkey.clone(), m);
+                let m = state.renderer.add_material_full(body.linear, body.metallic, body.roughness, 0.0, 0.0);
+                state.connection_mats.insert(body.key.clone(), m);
                 m
             }
         };

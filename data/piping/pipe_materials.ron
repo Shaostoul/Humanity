@@ -16,8 +16,12 @@
 //                 kind carries a given content is decided there, not here, and that
 //                 includes the potable-water rule recorded in that file.
 //   materials[]
-//     srgb        OUR rendition of the material's colour (sRGB, 0-255); the renderer
-//                 converts it to linear light
+//     srgb        sRGB, 0-255; the renderer converts it to linear light. For a
+//                 dielectric, OUR rendition of its colour. For a bare metal it IS the
+//                 metal's reflectance (the shader takes a metal's F0 straight from it
+//                 and gives it no diffuse), so it must be the MEASURED value, never a
+//                 swatch: every channel at least 0.04 linear, the brightest at least 0.5
+//                 (the test a_metal_reflects_what_measured_metals_reflect)
 //     metallic    0 for a dielectric (rubber, PVC), 1 for a bare metal
 //     roughness   perceptual roughness, 0 mirror to 1 chalk
 //
@@ -34,10 +38,10 @@
         (
             id: "copper",
             name: "Copper tube",
-            srgb: (184, 115, 51),
+            srgb: (250, 209, 194),
             metallic: 1.0,
-            roughness: 0.38,
-            note: "Lightly tarnished copper, as installed tube looks after a few months. The colour is the one ConduitKind::color() held for rigid copper since v0.535, which nothing drew until now.",
+            roughness: 0.4,
+            note: "Measured copper: a metal's colour here is its reflectance, F0 (0.955, 0.638, 0.538) in linear light, sRGB (250, 209, 194) (Real-Time Rendering, 4th ed., Table 9.2). Until 2026-10-04 this row held #B87333, the web 'copper' swatch ConduitKind::color() carried, which as a metal reflected 3% of blue light, less than any non-metal. Installed tube dulls over months as an oxide film grows: that is a darker, rougher FINISH over the metal (the finish layer the findings describe), not a lower reflectance, and it is not drawn yet. The roughness is a lightly worn tube's. Ours.",
         ),
         (
             id: "hose_rubber",

@@ -6,7 +6,8 @@
 //! (findings F28, `docs/reference/findings/2026-10-04-pipe-marking-standards.md`).
 //! Before this, every pipe was painted wholly in a utility colour
 //! (`MachineHome::connection_color`), and the material colours
-//! `ConduitKind::color()` held had no caller; they moved here.
+//! `ConduitKind::color()` held had no caller; they moved here (copper's then
+//! corrected from a web swatch to measured copper's reflectance).
 //!
 //! The registry is `data/piping/pipe_materials.ron`, read from disk first (so it can
 //! be modded) and from the copy built into the exe when the file is missing or does
@@ -20,7 +21,8 @@ use serde::Deserialize;
 pub struct PipeMaterial {
     pub id: String,
     pub name: String,
-    /// Our sRGB rendition, 0-255.
+    /// sRGB, 0-255: our rendition of a dielectric's colour, or a bare metal's MEASURED
+    /// reflectance (the shader takes a metal's F0 straight from its base colour).
     pub srgb: (u8, u8, u8),
     pub metallic: f32,
     pub roughness: f32,
@@ -35,6 +37,17 @@ impl PipeMaterial {
         let (r, g, b) = self.srgb;
         [srgb_to_linear(r), srgb_to_linear(g), srgb_to_linear(b), 1.0]
     }
+}
+
+/// How a run's body is drawn (`PipeMaterials::body_look`).
+#[derive(Debug, Clone, PartialEq)]
+pub struct BodyLook {
+    /// The engine's material cache key: one material per body material, shared by every run.
+    pub key: String,
+    /// Base colour in LINEAR light, alpha 1.
+    pub linear: [f32; 4],
+    pub metallic: f32,
+    pub roughness: f32,
 }
 
 /// Which material a conduit kind's body is drawn in.
@@ -71,6 +84,23 @@ impl PipeMaterials {
     /// it, then that kind's material. The content's own colour never paints the body.
     pub fn for_content(&self, content: &str) -> Option<&PipeMaterial> {
         self.for_kind(ConduitKind::for_resource(content))
+    }
+
+    /// How the BODY of a run whose connection kind is `line_kind` is drawn: the material
+    /// cache key and its linear colour, metal and roughness. `engine::home_meshes` draws every
+    /// pipe body with exactly this, so a test of it is a test of what is drawn (2026-10-04
+    /// review: the old test checked a helper of its own).
+    pub fn body_look(&self, line_kind: &str) -> BodyLook {
+        match self.for_content(line_kind) {
+            Some(m) => BodyLook {
+                key: format!("pipebody:{}", m.id),
+                linear: m.linear_rgba(),
+                metallic: m.metallic,
+                roughness: m.roughness,
+            },
+            // A kind with no material row (the registry test forbids it): neutral grey.
+            None => BodyLook { key: "pipebody:unknown".to_string(), linear: [0.3, 0.3, 0.3, 1.0], metallic: 0.0, roughness: 0.6 },
+        }
     }
 
     /// Everything wrong with the registry, as sentences (empty = sound): every
@@ -163,44 +193,69 @@ mod tests {
     }
 
     /// The pipe body is drawn in its MATERIAL, not in the colour of what it
-    /// carries: a potable water run is copper, a power run a black cord, and
-    /// neither takes the marking scheme's content colour.
+    /// carries: a water run is copper, a power run a black cord, and none takes
+    /// the marking scheme's content colour. This checks `body_look`, the very
+    /// call `engine::home_meshes` draws every pipe body with (2026-10-04
+    /// review: the first version checked a helper of the test's own, which
+    /// would have stayed green had the pipes gone back to their utility paint).
     ///
-    /// Seen red with `pipe_body_srgb` returning the old whole-run paint
-    /// (`MachineHome::connection_color`, the v0.623 legend): "a water pipe's
-    /// body is copper, not the colour of its content: [0.2, 0.45, 0.85]".
+    /// Seen red with `body_look` painting the run in its legend colour
+    /// (`MachineHome::connection_color`, the pipes before this change): "a
+    /// water pipe's body is copper, not the colour of its content".
     #[test]
     fn pipe_body_colour_comes_from_its_material_not_its_content() {
         let reg = shipped();
         let copper = reg.material("copper").expect("copper");
-        let water = pipe_body_srgb(&reg, "water");
-        assert_eq!(
-            water,
-            srgb01(copper.srgb),
-            "a water pipe's body is copper, not the colour of its content: {water:?}"
-        );
+        let water = reg.body_look("water");
+        assert_eq!(water.linear, copper.linear_rgba(), "a water pipe's body is copper, not the colour of its content: {water:?}");
+        assert_eq!((water.metallic, water.roughness), (copper.metallic, copper.roughness), "and has copper's finish");
+        assert_eq!(water.key, "pipebody:copper", "one cached material per body material");
         let cord = reg.material("power_cord").expect("power_cord");
-        assert_eq!(pipe_body_srgb(&reg, "power"), srgb01(cord.srgb), "a power run is its cord");
+        assert_eq!(reg.body_look("power").linear, cord.linear_rgba(), "a power run is its cord");
         // And never the content's own colour, in any routed content.
         let scheme = crate::ship::pipe_marking::marking().default_scheme().expect("the ship's scheme");
-        for content in ["water", "hot_water", "power", "data", "fuel", "nutrient"] {
-            let main = scheme.content(content).and_then(|c| scheme.colour(&c.main)).expect(content);
+        for row in &scheme.contents {
+            let Some(main) = scheme.colour(&row.main) else { continue };
             assert_ne!(
-                pipe_body_srgb(&reg, content),
-                srgb01(main.srgb),
-                "`{content}`'s body must not be painted its marker colour"
+                reg.body_look(&row.content).linear,
+                main.linear_rgba(),
+                "`{}`'s body must not be painted its marker colour",
+                row.content
             );
         }
     }
 
-    /// The body colour a run carrying `content` is drawn in, as sRGB 0..1: what
-    /// `engine::home_meshes` hands the renderer (after linearising).
-    fn pipe_body_srgb(reg: &PipeMaterials, content: &str) -> [f32; 3] {
-        srgb01(reg.for_content(content).expect("every content has a body material").srgb)
-    }
-
-    fn srgb01(c: (u8, u8, u8)) -> [f32; 3] {
-        [c.0 as f32 / 255.0, c.1 as f32 / 255.0, c.2 as f32 / 255.0]
+    /// A bare metal's colour is its reflectance (the shader takes a metal's F0 straight from its
+    /// base colour, `mix(0.04, albedo, metallic)`, and gives it no diffuse), so a metal row must
+    /// reflect at least the 4% any non-metal does in every channel, and, like every metal in
+    /// Real-Time Rendering's measured table (4th ed., Table 9.2; titanium is the lowest at 0.542),
+    /// at least half the light in its brightest one (2026-10-04 review).
+    ///
+    /// Seen red with the copper row at the old #B87333 web swatch: "`copper` reflects
+    /// [0.47932, 0.17144, 0.03310] in linear light: under the 4% any non-metal reflects".
+    #[test]
+    fn a_metal_reflects_what_measured_metals_reflect() {
+        let reg = shipped();
+        let mut metals = 0;
+        for m in reg.materials.iter().filter(|m| m.metallic >= 0.5) {
+            metals += 1;
+            let l = m.linear_rgba();
+            assert!(
+                l[..3].iter().all(|c| *c >= 0.04),
+                "`{}` reflects [{:.5}, {:.5}, {:.5}] in linear light: under the 4% any non-metal reflects",
+                m.id,
+                l[0],
+                l[1],
+                l[2]
+            );
+            assert!(l[..3].iter().cloned().fold(0.0, f32::max) >= 0.5, "`{}` reflects under half the light in every channel: {l:?}", m.id);
+        }
+        assert!(metals >= 1, "the registry carries a metal (copper)");
+        // Copper is measured copper: F0 (0.955, 0.638, 0.538) linear, Table 9.2.
+        let cu = reg.material("copper").expect("copper").linear_rgba();
+        for (got, want) in cu[..3].iter().zip([0.955, 0.638, 0.538]) {
+            assert!((got - want).abs() < 0.01, "copper's reflectance is the measured one: {cu:?}");
+        }
     }
 
     #[test]
