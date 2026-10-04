@@ -281,7 +281,7 @@ The server responds with `game_perception` (this one at the guest spot, trimmed 
 ```json
 {
   "type": "game_perception",
-  "position": [82.0, 1.7, 47.5],
+  "position": [87.5, 1.7, 67.5],
   "location": {
     "id": "commons",
     "name": "The Commons",
@@ -295,9 +295,9 @@ The server responds with `game_perception` (this one at the guest spot, trimmed 
     ]
   },
   "nearby_entities": [
-    {"entity_id": 1, "entity_type": "notice_board", "distance": 10.2, "position": [92.2, 1.0, 47.5], "interactable": true},
-    {"entity_id": 5, "entity_type": "harvest_bin", "distance": 10.2, "position": [85.2, 1.0, 37.8], "interactable": true},
-    {"entity_id": 17, "entity_type": "botanist", "distance": 10.6, "position": [91.0, 1.0, 53.0], "interactable": true}
+    {"entity_id": 2, "entity_type": "bench_seating", "distance": 10.6, "position": [85.2, 1.0, 57.2], "interactable": true},
+    {"entity_id": 17, "entity_type": "botanist", "distance": 14.9, "position": [91.0, 1.0, 53.0], "interactable": true},
+    {"entity_id": 3, "entity_type": "vending_unit", "distance": 19.6, "position": [73.7, 1.0, 53.5], "interactable": true}
   ],
   "environment": {
     "game_time": 129600.0,

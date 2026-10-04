@@ -1386,7 +1386,8 @@ mod tests {
 
     const P1_DOOR: Vec3 = Vec3::new(53.5, 1.7, 40.5);
     const P2_DOOR: Vec3 = Vec3::new(53.5, 1.7, 139.5);
-    const COMMONS: Vec3 = Vec3::new(82.0, 1.7, 47.5);
+    // Where a guest arrives: the Commons' spawn (data/blueprints/ship_structure.ron, increment 4).
+    const COMMONS: Vec3 = Vec3::new(87.5, 1.7, 67.5);
 
     /// THE CASE 1b EXISTS FOR: the relay says p2. The home moves to p2 (every room and the
     /// spawn by exactly p2's offset, through 1a's assembly), Respawn becomes p2's door, and the

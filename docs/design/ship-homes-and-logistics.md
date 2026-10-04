@@ -910,7 +910,7 @@ The rig (scripts/verify-copresence.js --plots, scripts/lib/copresence-judge.js `
 - data/ships/starter_fleet.ron stays in the tree and in the embedded data list (with bridge.ron, reactor.ron and layout_medium.ron, the `ship::layout` samples); no relay reads it now;
 - scripts/ai-sample-client.js already cannot sign in (second-player-relay.test.js says so), and its room tour assumed the 30 m Pioneer: on this ship it would need hops under 100 m and a walk home;
 - the guest order (`--order guest`) does not run the crew look; its recordings are not judged for the crew;
-- the ship's guest spot (`ShipStructure::guest_spawn`, (82, 1.7, 47.5)) stands inside the Commons' room block (ship x 69..85, z 29..49), where an agent joining with no ship arrives; it predates this increment and is not moved here.
+- the ship's guest spot (`ShipStructure::guest_spawn`, (82, 1.7, 47.5)) stands inside the Commons' room block (ship x 69..85, z 29..49), where an agent joining with no ship arrives; it predates this increment and is not moved here. *Moved in increment 4: the Commons' `spawn`, (87.5, 1.7, 67.5) on the ship, at least 7 m from every wall.*
 
 ### Increment 4: getting around at ship scale
 
