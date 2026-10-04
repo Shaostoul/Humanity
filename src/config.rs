@@ -2022,6 +2022,27 @@ mod play_mode_tests {
         assert!(fresh.settings.readable_web, "apply_to_gui_state must carry the opt-in");
     }
 
+    /// The two realism switches (BUG-136 carrying weight, and body heat,
+    /// which had the same gap) start Forgiving and a chosen Realistic
+    /// survives a save and a load: through the GUI state, the JSON and back.
+    /// Seen red with `from_gui_state` writing `carry_realistic: false`:
+    /// "the carrying switch is written" (the JSON held
+    /// `"carry_realistic":false`).
+    #[test]
+    fn the_realism_switches_survive_a_save_and_a_load() {
+        let mut state = crate::gui::GuiState::default();
+        assert!(!state.settings.carry_realistic && !state.settings.body_heat_realistic, "both start Forgiving");
+        state.settings.carry_realistic = true;
+        state.settings.body_heat_realistic = true;
+        let json = serde_json::to_string(&AppConfig::from_gui_state(&state)).unwrap();
+        assert!(json.contains("\"carry_realistic\":true"), "the carrying switch is written");
+        let back: AppConfig = serde_json::from_str(&json).unwrap();
+        let mut fresh = crate::gui::GuiState::default();
+        back.apply_to_gui_state(&mut fresh);
+        assert!(fresh.settings.carry_realistic, "Realistic carrying stays chosen after a restart");
+        assert!(fresh.settings.body_heat_realistic, "Realistic body heat stays chosen after a restart");
+    }
+
     /// The per-screen video choice and the ffmpeg path survive a save and a
     /// load, through JSON and through both GuiState legs; a config without
     /// them (every config before 2026-09-18) reads as "no choices, auto".

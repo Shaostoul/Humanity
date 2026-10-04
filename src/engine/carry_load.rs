@@ -5,8 +5,11 @@
 //! load's mass weighs on every jump; the Forgiving mode warns only). This file
 //! is the wiring: it reads what the inventory system measured, the gravity the
 //! walk is applying, and the Settings switch, then
-//!   * multiplies the controller's speed multiplier by the walking factor
-//!     (the homestead walk and the planet surface walk both read it),
+//!   * sets the controller's carry speed factor, which WALKING alone reads
+//!     (the homestead walk in camera.rs, and the planet walk through
+//!     `surface_move::carry_walk_factor`, which passes dev flight, the
+//!     flight band and swimming through at full speed), leaving the
+//!     status-effect and gear `speed_multiplier` alone,
 //!   * sets the controller's jump scale (the homestead jump reads it, and
 //!     lib.rs gates the planet surface's Space through
 //!     `surface_move::carry_gated_radial`),
@@ -19,6 +22,7 @@
 
 use crate::ecs::components::Controllable;
 use crate::engine::state::EngineState;
+use crate::renderer::camera::CameraController;
 use crate::systems::encumbrance::{self as enc, CarryInput, CarryMode, CarryState};
 use crate::systems::inventory::Inventory;
 
@@ -47,8 +51,17 @@ pub(crate) fn player_carry_input(world: &hecs::World) -> Option<CarryInput> {
         })
 }
 
+/// What the load does to the controller: the walking factor and the jump.
+/// The status-effect and gear `speed_multiplier` is not touched, so a load
+/// never slows the movement that is not walking (that multiplier also
+/// reaches dev flight, the flight band and swimming on a planet).
+pub(crate) fn steer(controller: &mut CameraController, carry: &CarryState) {
+    controller.carry_speed_factor = carry.speed_factor;
+    controller.jump_scale = carry.jump_scale;
+}
+
 /// Once a frame, right after the status-effect and gear speed multipliers
-/// are set (it multiplies onto them).
+/// are set.
 pub(crate) fn apply(state: &mut EngineState) {
     let g = walk_gravity(state.gui_state.surface_gravity_now, state.controller.interior_gravity());
     state.data_store.insert(enc::LOCAL_G_KEY, g);
@@ -57,8 +70,7 @@ pub(crate) fn apply(state: &mut EngineState) {
         Some(input) => enc::evaluate(input, g, mode),
         None => CarryState::default(),
     };
-    state.controller.speed_multiplier *= carry.speed_factor;
-    state.controller.jump_scale = carry.jump_scale;
+    steer(&mut state.controller, &carry);
     state.gui_state.carry = carry;
 }
 
@@ -93,5 +105,42 @@ mod tests {
         let input = player_carry_input(&world).expect("the player's load is read");
         assert_eq!((input.carried_kg, input.capacity_kg, input.bonus_kg), (62.0, 50.0, 25.0));
         assert_eq!(input.volume_capacity_l, 65.0);
+    }
+
+    /// The wiring the page tests cannot see: a Realistic overload sets the
+    /// controller's WALKING factor and its jump, each from its own field, and
+    /// leaves the status-effect and gear multiplier exactly as it was (a load
+    /// must not reach dev flight, the flight band or swimming, which read
+    /// that multiplier). Swapping the two assignments, or multiplying the
+    /// load into `speed_multiplier` as the first version did, fails here.
+    /// Seen red against the do-nothing stub: "assertion `left == right`
+    /// failed: the walk slows to 80%; left: 1.0, right: 0.8" (the factor
+    /// never left 1.0). The check is now to within 1e-5, because the real
+    /// factor is 2 - 1.2 in f32, 0.79999995.
+    #[test]
+    fn steer_sets_the_walk_and_the_jump_and_leaves_the_effects_alone() {
+        let mut ctl = CameraController::new(5.0, 1.0);
+        ctl.speed_multiplier = 1.05; // hiking boots, say
+        let over = enc::evaluate(
+            CarryInput { carried_kg: 60.0, capacity_kg: 50.0, ..CarryInput::default() },
+            enc::ONE_G_M_S2,
+            CarryMode::Realistic,
+        );
+        steer(&mut ctl, &over);
+        assert!((ctl.carry_speed_factor - 0.8).abs() < 1e-5, "the walk slows to 80%: {}", ctl.carry_speed_factor);
+        assert_eq!(ctl.jump_scale, 0.0, "an overload does not jump");
+        assert_eq!(ctl.speed_multiplier, 1.05, "the effects and gear multiplier is not the load's");
+        // A loaded but not overloaded walker: full walk, a slower jump.
+        let loaded = enc::evaluate(
+            CarryInput { carried_kg: 30.0, capacity_kg: 50.0, ..CarryInput::default() },
+            enc::ONE_G_M_S2,
+            CarryMode::Realistic,
+        );
+        steer(&mut ctl, &loaded);
+        assert_eq!(ctl.carry_speed_factor, 1.0, "under the limit walks at full speed");
+        assert!((ctl.jump_scale - 0.7f32.sqrt()).abs() < 1e-6, "{}", ctl.jump_scale);
+        // Dropping the load hands everything back, every frame afresh.
+        steer(&mut ctl, &CarryState::default());
+        assert_eq!((ctl.carry_speed_factor, ctl.jump_scale, ctl.speed_multiplier), (1.0, 1.0, 1.05));
     }
 }

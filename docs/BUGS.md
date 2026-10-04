@@ -3025,6 +3025,17 @@ low-g to zero-g but, mass still applies."
   crawl) and Space does not leave the ground (`CameraController::jump_scale`
   for the homestead, `surface_move::carry_gated_radial` on a planet); and any
   load weighs on the jump's launch speed, sqrt(70 / (70 + load)).
+- The slowdown is WALKING only (`CameraController::carry_speed_factor`, and
+  `surface_move::carry_walk_factor` on a planet). The first version multiplied
+  it into the controller-wide `speed_multiplier`, which on a planet also drives
+  dev flight, the flight band and swimming, so an overloaded player in dev
+  flight crawled while the HUD said "walking" (caught in review, same day).
+- Tests besides the rules: the Weight tile and its note are drawn from
+  `GuiState::carry` (`screen_surface` tests), the HUD draws the overload line,
+  `carry_load::steer` sets the walk and the jump without touching the effects
+  multiplier, and the setting survives a save and a load.
 - Left: starting and stopping are instant in both walks (no horizontal
   inertia), and there is no zero-g pushing model, so the jump is the only place
-  carried mass acts. Ladders climb at the same rate whatever is carried.
+  carried mass acts. Ladders climb at the same rate whatever is carried. The
+  mode is each player's own choice, also in the shared world; a server-side
+  rule is tracked in `docs/design/in-app-ops.md`.

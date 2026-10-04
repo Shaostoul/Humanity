@@ -32,10 +32,14 @@
 //!    about movement changes.
 //!
 //! WHAT THE MOVEMENT MODEL DOES WITH THIS (engine::carry_load applies it each
-//! frame): the walking speed factor multiplies the controller's speed
-//! multiplier, which both the homestead walk and the planet surface walk
-//! read; the jump scale multiplies the homestead jump's launch speed and the
-//! planet surface's Space thrust. Starting and stopping are instant in both
+//! frame): the walking speed factor is the controller's own
+//! `carry_speed_factor`, read by WALKING only (the homestead walk, and the
+//! planet surface walk through `surface_move::carry_walk_factor`); dev
+//! flight, the planet's flight band (10-100 km), swimming and ladders move at
+//! their usual speed whatever is carried, and the status-effect and gear
+//! multiplier is left alone. The jump scale multiplies the homestead jump's
+//! launch speed and the planet surface's Space thrust (a held climb there, so
+//! it gates climbing in mid-air too). Starting and stopping are instant in both
 //! walking models today (no horizontal inertia), and there is no zero-g
 //! pushing model (the homestead always has its game.csv gravity, dev flight
 //! is a noclip camera), so the jump is the one place the movement model has

@@ -2058,15 +2058,20 @@ jumping in nonzero G based on weight/mass. We can obviously carry heavier in low
   movement unchanged) and **Realistic**: over the limit, walking slows by how far over (10% over walks at 90%, half
   again over at half speed, never below a 15% crawl) and there is no jumping; and any load is extra mass to launch,
   so a jump leaves the ground at sqrt(70 / (70 + load)) of its speed (30 kg: 84%; a 150 kg load on the Moon, well
-  under the limit there, still 56%).
+  under the limit there, still 56%). The slowdown is WALKING only, kept in its own controller field
+  (`carry_speed_factor`) apart from the status-effect and gear multiplier: dev flight, the planet's flight band
+  (10-100 km), swimming and ladders move at their usual speed whatever is carried. On a planet Space is a held climb
+  at walking speed rather than a one-shot jump, so the jump scale gates climbing in mid-air too.
 - Shown: the Inventory page's Weight tile (the real limit where you stand, and a line saying where it comes from and
   why you are slow or cannot jump) and a HUD line under the survival bars while overloaded.
 - Not modelled, because the movement model has no momentum there: starting and stopping are instant in both walks
   (no horizontal inertia), and there is no zero-g pushing (the homestead always has its gravity; dev flight is a
   noclip camera). The jump is the one place carried mass acts. Ladders climb at the same rate whatever is carried.
+- The mode is each player's own setting, also in the shared world: a server cannot yet require Realistic carrying
+  (tracked in `docs/design/in-app-ops.md`).
 - Native: `src/systems/encumbrance.rs` (the rules, standalone tests), `src/engine/carry_load.rs` (applies them each
-  frame), `src/renderer/camera.rs` (`jump_scale`, the homestead jump), `src/surface_move.rs` (`carry_gated_radial`,
-  the planet jump), `src/systems/inventory/mod.rs` (`carry_bonus_kg`, the gravity-aware `encumbered` flag),
+  frame), `src/renderer/camera.rs` (`carry_speed_factor` and `jump_scale`, the homestead walk and jump),
+  `src/surface_move.rs` (`carry_walk_factor` and `carry_gated_radial`, the planet walk and jump), `src/systems/inventory/mod.rs` (`carry_bonus_kg`, the gravity-aware `encumbered` flag),
   `src/gui/pages/inventory.rs` (tile), `src/gui/pages/hud.rs` (HUD line), `src/gui/pages/settings.rs` (mode).
   Web: none; movement and the in-game Status tiles exist only in the desktop app.
 

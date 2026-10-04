@@ -4795,7 +4795,10 @@ mod native_app {
                             let walk_speed = (state.controller.speed
                                 * state.controller.speed_multiplier)
                                 .max(0.0) as f64
-                                * surface_mult;
+                                * surface_mult
+                                // A carried load slows WALKING only (BUG-136).
+                                * crate::surface_move::carry_walk_factor(state.controller.carry_speed_factor,
+                                    move_mode, state.controller.fly_mode, in_walk_band, submerged);
                             let step_cap = if in_walk_band && !state.controller.fly_mode {
                                 // Walking: the 50x gear clamp above already
                                 // bounds speed; no per-frame cap needed.

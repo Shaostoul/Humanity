@@ -690,6 +690,15 @@ pub struct CameraController {
     /// to launch), 0.0 when overloaded under gravity (no jump). Set each frame
     /// by `engine::carry_load` from `systems::encumbrance`.
     pub jump_scale: f32,
+    /// WALKING speed as a share of normal for the carried load (BUG-136):
+    /// 1.0 normally, below 1 when overloaded in the Realistic carrying mode.
+    /// Kept apart from `speed_multiplier` on purpose: that one is the
+    /// status-effect and gear fold and reaches every way of moving on a
+    /// planet, while a load slows WALKING only (this walk, and the planet
+    /// walk through `surface_move::carry_walk_factor`). Dev flight, the
+    /// flight band, swimming and ladders never read it. Set each frame by
+    /// `engine::carry_load`.
+    pub carry_speed_factor: f32,
     pub mouse_sensitivity: f32,
     /// Invert vertical mouse look (v0.909 - wired from Settings > Controls).
     pub invert_y: bool,
@@ -763,6 +772,7 @@ impl CameraController {
             speed,
             speed_multiplier: 1.0,
             jump_scale: 1.0,
+            carry_speed_factor: 1.0,
             mouse_sensitivity: sensitivity,
             invert_y: false,
             forward: false,
@@ -1186,9 +1196,10 @@ impl CameraController {
         if self.left { velocity -= right; }
 
         // Shift = SPRINT (hold to move faster). `speed_multiplier` carries status-effect
-        // modifiers (well_nourished speeds up, thirsty/flu slow down).
+        // modifiers (well_nourished speeds up, thirsty/flu slow down), and
+        // `carry_speed_factor` the carried load's (BUG-136, walking only).
         let sprint = if self.descend { 1.9 } else { 1.0 };
-        let move_speed = self.speed * sprint * self.speed_multiplier;
+        let move_speed = self.speed * sprint * self.speed_multiplier * self.carry_speed_factor;
 
         if velocity.length_squared() > 0.0 {
             velocity = velocity.normalize() * move_speed * dt;
@@ -1469,6 +1480,45 @@ mod liftoff_tests {
         // Launch speed scales the peak by its square (h = v^2 / 2g).
         let half = peak(0.5);
         assert!((half / full - 0.25).abs() < 0.03, "half the launch speed, a quarter the height: {half:.3} of {full:.3}");
+    }
+
+    /// BUG-136, the homestead walk: the carried load's factor slows WALKING
+    /// and nothing else. Dev flight moves exactly as far whatever is carried
+    /// (the critic's case: an overloaded player in fly mode crawled), and
+    /// the status-effect `speed_multiplier` still stacks with the load.
+    /// Seen red with the field set but the walk not reading it: "an
+    /// overloaded walk at 50% covers half the ground (5.000 m of 5.000 m)".
+    #[test]
+    fn the_carry_factor_slows_walking_but_not_dev_flight() {
+        let travel = |factor: f32, fly: bool, mult: f32| {
+            let mut cam = Camera::new();
+            cam.mode = CameraMode::FirstPerson;
+            let mut ctl = CameraController::new(5.0, 1.0);
+            ctl.set_ground_floor(0.0);
+            cam.position = Vec3::new(0.0, ctl.ground_floor() + ctl.eye_height(), 0.0);
+            let start = cam.position;
+            ctl.carry_speed_factor = factor;
+            ctl.speed_multiplier = mult;
+            ctl.fly_mode = fly;
+            ctl.forward = true;
+            for _ in 0..100 {
+                ctl.update_camera(&mut cam, 0.01);
+            }
+            let d = cam.position - start;
+            glam::Vec2::new(d.x, d.z).length()
+        };
+        let full = travel(1.0, false, 1.0);
+        assert!((full - 5.0).abs() < 0.01, "a second's walk at 5 m/s covers 5 m ({full:.3} m)");
+        let slowed = travel(0.5, false, 1.0);
+        assert!(
+            (slowed / full - 0.5).abs() < 0.01,
+            "an overloaded walk at 50% covers half the ground ({slowed:.3} m of {full:.3} m)"
+        );
+        let stacked = travel(0.5, false, 1.2);
+        assert!((stacked / full - 0.6).abs() < 0.01, "a status effect stacks with the load ({stacked:.3} m)");
+        let (fly_free, fly_loaded) = (travel(1.0, true, 1.0), travel(0.15, true, 1.0));
+        assert!(fly_free > 1.0, "dev flight moves ({fly_free:.3} m)");
+        assert_eq!(fly_loaded, fly_free, "dev flight ignores the load");
     }
 }
 
