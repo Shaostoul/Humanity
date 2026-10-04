@@ -967,9 +967,9 @@
     {
       "id": "home-pipes-simplified",
       "desc": "The plant room's pipes and cables from inside the room, looking north at the water machines and the battery bank, SIMPLIFIED pipe markings.",
-      "expect": "Copper water risers and ceiling runs, black power cords and rubber hoses, each carrying single coloured bands (blue on water, orange on power) beside the machines, past the bends and along the runs. No run painted wholly in one utility colour.",
+      "expect": "Copper water risers and ceiling runs (bright salmon-pink metal, measured copper), black power cords and rubber hoses, each carrying single coloured bands (blue on water, orange on power) beside the machines, past the bends and along the runs. No run painted wholly in one utility colour.",
       "_why": "Pipe marking increment 1 (2026-10-04, docs/reference/findings/2026-10-04-pipe-marking-standards.md): pipe bodies draw their material and the ship's scheme, ISO 14726, marks their contents with bands. Before it, every run was painted wholly in a utility colour that clashed with every scheme.",
-      "_pair_note": "home-pipes-full shares this pose and clock and differs only by the showcase `pipe_marking` pin: one band per marker here, the scheme's whole marker there (blue-green-blue on potable water, brown and orange stripes on power). The pin is sticky until `auto`, so each vantage pins its own mode.",
+      "_pair_note": "home-pipes-full shares this pose and clock and differs only by the showcase `pipe_marking` pin: one band per marker here, the scheme's whole marker there (blue-green-blue on potable water, brown and orange stripes on power). The pin is sticky until `auto`; each of these two pins its own mode, and the rigs release it before every other vantage (scripts/lib/showcase-pins.js).",
       "regressions": [
         "pipe bodies draw their material, not their content colour",
         "markers sit beside the machines, past each bend and along the runs"
@@ -990,7 +990,7 @@
     {
       "id": "home-pipes-full",
       "desc": "The plant room's pipes, as home-pipes-simplified, FULL pipe markings.",
-      "expect": "The same runs, each marker now the scheme's whole marker: blue, green, blue on potable water, brown and orange stripes on power cords; fuel and air still single bands (their group colour is the code).",
+      "expect": "The same runs, each marker now the scheme's whole marker: blue, green, blue only on the lines leaving the purifier (drinking water), blue, yellow, blue on the air handlers' condensate lines, plain blue on the cistern's untreated water, brown and orange stripes on power cords; fuel and air still single bands (their group colour is the code).",
       "_why": "Pipe marking increment 1 (2026-10-04): the full-realism mode of the same markers.",
       "_pair_note": "See home-pipes-simplified.",
       "regressions": [

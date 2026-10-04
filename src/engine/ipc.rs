@@ -597,7 +597,8 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
     // "simplified" as one band of the main colour, "auto" hands the choice back to Settings >
     // Gameplay > Pipe markings (2026-10-04, engine::pipe_markers). A PIN over the setting, never
     // a write to it, so a rig capture of each mode leaves the player's config alone. Sticky until
-    // "auto": a vantage that cares pins its own mode. The pipes rebuild on the next frame.
+    // "auto": a vantage that cares pins its own mode, and the rigs send "auto" before every other
+    // vantage (scripts/lib/showcase-pins.js). The pipes rebuild on the next frame.
     if let Some(t) = grab("pipe_marking") {
         use crate::ship::pipe_marking::MarkingMode;
         state.pipe_markers.pin = match t.as_str() {
