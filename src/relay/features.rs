@@ -1944,6 +1944,88 @@ mod tests {
         let _ = std::fs::remove_file(&path);
     }
 
+    /// The third review of 1b, two findings on the admin's release:
+    ///  - the holder's key pasted in UPPER case got past "refused while they are in the
+    ///    world" (the check compared keys as text, the release decoded them as hex), and
+    ///    their plot was handed on while their home stood on it;
+    ///  - a plot whose holder's key nobody has any more (their account was erased) could not
+    ///    be freed from the app at all. The admin now names a plot by its id, refused the same
+    ///    way while its holder is in the world.
+    ///
+    /// Seen red 2026-10-03 with the a504c5cd9 release (the presence check by the key's text,
+    /// no release by plot id): "an upper-case key gets past the in-world refusal:
+    /// {\"message\":\"Released plot p1, held by D7B592A5E68559CC.... The next player to join
+    /// without a plot gets it.\",\"type\":\"game_admin_notice\"}".
+    #[tokio::test]
+    async fn an_admin_releases_by_plot_id_and_no_spelling_of_a_key_gets_past_the_holder_in_the_world() {
+        let path = plots_db("release_by_id");
+        let (state, port, server) = relay_on(&path).await;
+        let ids = ship_plot_ids();
+        let (mut admin, admin_key) = bind_socket(&state, port, [107u8; 32], Some("PlotIdAdmin"), 1).await;
+        state.db.set_role(&admin_key, "admin").expect("make admin");
+        let (mut holder, holder_key) = bind_socket(&state, port, [108u8; 32], Some("PlotIdHolder"), 1).await;
+        let (mut next, _) = bind_socket(&state, port, [109u8; 32], Some("PlotIdNext"), 1).await;
+        assert_eq!(welcome_plot(&welcome_after_join(&mut holder, "PlotIdHolder").await).as_deref(), Some(ids[0].as_str()));
+        let answer = |r: Option<Value>| r.expect("an answer");
+
+        // The holder is in the world: refused, however their key is written, or by the plot.
+        for target in [holder_key.to_uppercase(), ids[0].clone()] {
+            send_json(&mut admin, serde_json::json!({ "type": "game_release_plot", "target": target })).await;
+            let r = answer(next_game_of(&mut admin, &["game_admin_error", "game_admin_notice"]).await);
+            assert_eq!(r["type"], "game_admin_error", "an upper-case key gets past the in-world refusal: {r}");
+            assert!(r["message"].as_str().unwrap_or("").contains("in the world"), "{r}");
+        }
+
+        // Out of the world: released by the plot's id alone, and the next player gets it.
+        send_json(&mut holder, serde_json::json!({ "type": "game_leave" })).await;
+        assert!(wait_until(|| async { state.game_world.read().await.find_player_entity(&holder_key).is_none() }).await);
+        send_json(&mut admin, serde_json::json!({ "type": "game_release_plot", "target": ids[0] })).await;
+        let r = answer(next_game_of(&mut admin, &["game_admin_error", "game_admin_notice"]).await);
+        assert_eq!(r["type"], "game_admin_notice", "{r}");
+        assert!(r["message"].as_str().unwrap_or("").contains(&format!("Released plot {}", ids[0])), "{r}");
+        let got = welcome_plot(&welcome_after_join(&mut next, "PlotIdNext").await);
+        assert_eq!(got.as_deref(), Some(ids[0].as_str()), "the next player gets the plot released by its id");
+        // A plot nobody holds says so.
+        send_json(&mut admin, serde_json::json!({ "type": "game_release_plot", "target": ids[1] })).await;
+        let r = answer(next_game_of(&mut admin, &["game_admin_error", "game_admin_notice"]).await);
+        assert!(r["message"].as_str().unwrap_or("").contains(&format!("Nobody holds plot {}", ids[1])), "{r}");
+
+        for mut s in [admin, holder, next] {
+            s.close(None).await.ok();
+        }
+        server.abort();
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// A relay that has no ship (its ship file and the built-in copy both failed to load)
+    /// refuses a game's join with its own reason, "no_ship", and the sentence that says so,
+    /// not "a different ship from yours" (the third review of 1b). Nothing is spawned. A join
+    /// naming no ship (a scripted player) still joins, as a guest with no plot.
+    ///
+    /// Seen red 2026-10-03 on the a504c5cd9 relay: "a relay with no ship says why:
+    /// String(\"other_ship\")".
+    #[tokio::test]
+    async fn a_relay_with_no_ship_says_so_when_a_game_joins() {
+        let path = plots_db("no_ship");
+        let (state, port, server) = relay_on(&path).await;
+        state.game_world.write().await.ship_plots = Default::default();
+        let (mut game, game_key) = bind_socket(&state, port, [110u8; 32], Some("PlotNoShipGame"), 1).await;
+        let (mut script, _) = bind_socket(&state, port, [111u8; 32], Some("PlotNoShipScript"), 1).await;
+        let (denied, seen) = game_reply_after_join(&mut game, "PlotNoShipGame", serde_json::json!({}), "game_join_denied").await;
+        let denied = denied.unwrap_or_else(|| panic!("no game_join_denied for a game on a relay with no ship; game messages seen: {seen:?}"));
+        assert_eq!(denied["reason"], "no_ship", "a relay with no ship says why: {:?}", denied["reason"]);
+        assert_eq!(denied["message"], crate::ship::ship_structure::NO_SHIP_SENTENCE);
+        assert!(state.game_world.read().await.find_player_entity(&game_key).is_none(), "nothing was spawned for it");
+        let w = welcome_after_join_with(&mut script, "PlotNoShipScript", serde_json::json!({ "ship_hash": null, "home_spawn": null })).await;
+        assert_eq!(welcome_plot(&w), None, "a scripted player is a guest");
+
+        for mut s in [game, script] {
+            s.close(None).await.ok();
+        }
+        server.abort();
+        let _ = std::fs::remove_file(&path);
+    }
+
     /// A game whose home cannot stand on the plot it was given leaves with
     /// `give_up_plot` (engine/home_plot.rs, "does not fit"), and that plot goes
     /// back for the next player; a plain leave keeps the plot.

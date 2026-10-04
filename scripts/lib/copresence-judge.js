@@ -568,38 +568,62 @@ const REJOIN_NUDGE_TOL_M = 0.3;
  * Checks: the experiment means something (far is past the 100 m rule from the
  * spawn); the game stands where the relay holds it; and its next move reached
  * the others (the relay accepted it, so the player is not frozen).
+ *
+ * The Respawn leg (the third review of 1b) is judged the same way, with
+ * `{ prefix: "respawn", when: "it pressed Respawn" }`: `far` is then where the
+ * relay held the game when it pressed Respawn (walked there in steps the relay
+ * accepted), `relaySpawn` where the relay spawned it after the button stepped
+ * it out and back in.
  * Returns { pass, checks }.
  */
-function judgeRejoin({ far, relaySpawn, camera, nudged, seen }) {
+function judgeRejoin({ far, relaySpawn, camera, nudged, seen }, { prefix = "rejoin", when = "it stepped back in" } = {}) {
   const checks = [];
-  const add = (id, ok, detail) => checks.push({ id, ok: !!ok, detail });
+  const add = (id, ok, detail) => checks.push({ id: `${prefix}_${id}`, ok: !!ok, detail });
   const d = (a, b) => (Array.isArray(a) && Array.isArray(b) ? Math.hypot(...[0, 1, 2].map((k) => Number(a[k]) - Number(b[k]))) : Infinity);
   const fmt3 = (p) => (Array.isArray(p) ? `(${p.map((v) => Number(v).toFixed(2)).join(", ")})` : "(never)");
   const gap = d(far, relaySpawn);
   add(
-    "rejoin_far_from_spawn",
+    "far_from_spawn",
     Number.isFinite(gap) && gap > REJOIN_FAR_M,
     relaySpawn
-      ? `the game stood at ${fmt3(far)} when it stepped back in, ${gap.toFixed(1)} m from where the relay spawned it ${fmt3(relaySpawn)}` +
+      ? `the game stood at ${fmt3(far)} when ${when}, ${gap.toFixed(1)} m from where the relay spawned it ${fmt3(relaySpawn)}` +
           (gap > REJOIN_FAR_M ? "" : ` (needs more than ${REJOIN_FAR_M} m to mean anything)`)
       : "the walker never saw the game join again, so where the relay spawned it is unknown",
   );
   const off = d(camera, relaySpawn);
   add(
-    "rejoin_stands_where_held",
+    "stands_where_held",
     off <= REJOIN_STAND_TOL_M,
     `after rejoining, the game's camera at ${fmt3(camera)} is ${Number.isFinite(off) ? off.toFixed(2) : "?"} m from where the relay holds it ${fmt3(relaySpawn)}` +
       (off <= REJOIN_STAND_TOL_M ? "" : ` (at most ${REJOIN_STAND_TOL_M} m; a game left there is frozen for everyone else)`),
   );
   const hit = (seen || []).find((p) => d(p, nudged) <= REJOIN_NUDGE_TOL_M);
   add(
-    "rejoin_moves_reach_others",
+    "moves_reach_others",
     !!hit,
     hit
       ? `its next move to ${fmt3(nudged)} reached the walker through the relay, at ${fmt3(hit)}`
       : `its next move to ${fmt3(nudged)} never reached the walker (${(seen || []).length} update(s) seen after it): the relay refused it`,
   );
   return { pass: checks.every((c) => c.ok), checks };
+}
+
+/** The walk from a home's door to `to` (one of FAR_POINTS) along the ship's
+ *  floor, in steps of at most `maxStep` metres, each one the relay accepts
+ *  under its 100 m rule: out through the door's corridor (into the Commons for
+ *  a door at z 20..75, else onto street-1 at x 70), through the junction
+ *  between the Commons and street-1 at (70, 80), to the target. Ship metres at
+ *  eye height (data/blueprints/ship_structure.ron). Pure. */
+function respawnRoute(from, to, maxStep = 40) {
+  const out = [from[2] >= 20 && from[2] <= 75 ? 66 : 70, 1.7, from[2]];
+  const legs = [from, out, [70, 1.7, 80], to];
+  const pts = [];
+  for (let i = 1; i < legs.length; i++) {
+    const [a, b] = [legs[i - 1], legs[i]];
+    const n = Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[2] - a[2]) / maxStep));
+    for (let k = 1; k <= n; k++) pts.push([0, 1, 2].map((j) => a[j] + ((b[j] - a[j]) * k) / n));
+  }
+  return pts;
 }
 
 // ── Is the figure VISIBLE in a screenshot? ──────────────────────────────────
@@ -668,5 +692,6 @@ module.exports = {
   nearestPlot,
   judgePlots,
   judgeRejoin,
+  respawnRoute,
   REJOIN_FAR_M,
 };

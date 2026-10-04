@@ -2342,6 +2342,7 @@ mod reputation;
 mod game_persistence;
 mod game_bans;
 mod plots;
+pub use plots::plot_owner_id;
 pub mod docs_accord;
 
 pub use civilization::CivilizationStats;

@@ -93,12 +93,7 @@ pub(crate) fn construction_history_tick(state: &mut EngineState, edited: bool) {
     if active && !prev_active {
         // Editor opened: the current state is the baseline; clear the stacks.
         let base = editor_snapshot(state);
-        let h = &mut state.construction_history;
-        h.undo.clear();
-        h.redo.clear();
-        h.baseline = base;
-        h.edited_during_hold = false;
-        h.prev_held = false;
+        history_start_from(&mut state.construction_history, base);
         return;
     }
     if !active {
@@ -118,14 +113,39 @@ pub(crate) fn construction_history_tick(state: &mut EngineState, edited: bool) {
     if released_with_edit || edited {
         let cur = editor_snapshot(state);
         let depth = state.gui_state.construction_undo_depth.clamp(1, 4096);
-        let h = &mut state.construction_history;
-        h.undo.push_back(std::mem::replace(&mut h.baseline, cur));
-        while h.undo.len() > depth {
-            h.undo.pop_front();
-        }
-        h.redo.clear();
-        h.edited_during_hold = false;
+        history_checkpoint(&mut state.construction_history, cur, depth);
     }
+}
+
+/// Start the undo history again from `base`, with nothing to undo or redo: when the editor
+/// opens, and when a relay's welcome moved the home to another plot underneath it
+/// (engine/home_plot.rs `history_after_move`). Pure on the history.
+pub(crate) fn history_start_from(h: &mut ConstructionHistory, base: EditorSnapshot) {
+    h.undo.clear();
+    h.redo.clear();
+    h.baseline = base;
+    h.edited_during_hold = false;
+    h.prev_held = false;
+}
+
+/// Checkpoint an edit: the baseline (the state before it) goes onto the undo stack, at most
+/// `depth` deep, `cur` becomes the baseline, and redo is gone. Pure on the history.
+pub(crate) fn history_checkpoint(h: &mut ConstructionHistory, cur: EditorSnapshot, depth: usize) {
+    h.undo.push_back(std::mem::replace(&mut h.baseline, cur));
+    while h.undo.len() > depth {
+        h.undo.pop_front();
+    }
+    h.redo.clear();
+    h.edited_during_hold = false;
+}
+
+/// Take one step back: the snapshot to restore (None when there is nothing to undo), with
+/// `cur` kept for redo. Pure on the history; `construction_undo` restores what it returns.
+pub(crate) fn history_undo(h: &mut ConstructionHistory, cur: EditorSnapshot) -> Option<EditorSnapshot> {
+    let prev = h.undo.pop_back()?;
+    h.redo.push(cur);
+    h.baseline = prev.clone();
+    Some(prev)
 }
 
 /// DUPLICATE the selected object (v0.600, Ctrl+D): clone it offset +1 m in X/Z and select the
@@ -211,10 +231,11 @@ pub(crate) fn construction_duplicate(state: &mut EngineState) {
 
 /// Undo the last construction edit (v0.575): restore the most recent pre-edit snapshot.
 pub(crate) fn construction_undo(state: &mut EngineState) {
-    if let Some(prev) = state.construction_history.undo.pop_back() {
-        let cur = editor_snapshot(state);
-        state.construction_history.redo.push(cur);
-        state.construction_history.baseline = prev.clone();
+    if state.construction_history.undo.is_empty() {
+        return;
+    }
+    let cur = editor_snapshot(state);
+    if let Some(prev) = history_undo(&mut state.construction_history, cur) {
         editor_restore(state, prev);
     }
 }

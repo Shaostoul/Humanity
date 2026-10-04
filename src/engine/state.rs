@@ -775,14 +775,19 @@ pub(crate) struct EngineState {
     /// stands on the plot the relay gave us. Positions are only sent after it, so nobody sees us
     /// at the default plot's door for the moment before the welcome arrives (increment 1b).
     pub(crate) game_welcomed: bool,
-    /// The server we refused to join because its ship is not ours (engine/home_plot.rs); the
-    /// join gate skips it until the world is loaded afresh (world_load clears it).
+    /// The server (`home_plot::active_server_key`) we refused to join: its ship is not ours, it
+    /// has none, or our home does not fit the plot it gave us (engine/home_plot.rs). The join
+    /// gate skips it until a fresh connection to it, a switch to another server and back, or a
+    /// fresh world load (`home_plot::follow_server`, world_load).
     pub(crate) copresence_refused: Option<String>,
     /// The server whose welcome last put us where it holds us (engine/home_plot.rs). A welcome
     /// from any other server, or the first one since the world loaded (world_load clears it),
     /// is an ARRIVAL: the player stands where that relay holds them. A later welcome from the
     /// same server is a reconnect: the player keeps walking where they are.
     pub(crate) home_arrived_on: Option<String>,
+    /// The server the co-presence block talked to last frame (`home_plot::follow_server`): a
+    /// change while joined is a switch, and the game leaves the shared world on the old one.
+    pub(crate) copresence_server: String,
     /// Throttle for outbound position updates (send ~15/sec).
     pub(crate) game_pos_timer: f32,
     /// Cached (body_mesh, head_mesh, material) for the remote-player avatar marker, built once.

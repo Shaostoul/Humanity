@@ -188,12 +188,13 @@ pub(crate) fn route_game_message(state: &mut EngineState, payload: &str) {
         // NOT touch chat (it stays connected by design).
         Some("game_join_denied") => {
             let reason = v.get("reason").and_then(|x| x.as_str()).unwrap_or("");
-            // The relay's ship is not ours (increment 1b): it refused the join before spawning
-            // anything, so there is nothing to leave. One plain sentence, and no retry on this
-            // server until the world loads afresh (engine/home_plot.rs).
-            if reason == "other_ship" {
-                let sentence = crate::engine::home_plot::SHIP_MISMATCH.to_string();
-                crate::engine::home_plot::refuse_shared_world(state, sentence, None);
+            // The relay's ship is not ours, or it has none (increment 1b): it refused the join
+            // before spawning anything, so there is nothing to leave. One plain sentence, kept
+            // under the HUD, and no retry on this server until a fresh connection to it, a
+            // switch away and back, or a fresh world load (engine/home_plot.rs).
+            if reason == "other_ship" || reason == "no_ship" {
+                let sentence = if reason == "no_ship" { crate::engine::home_plot::NO_SHIP } else { crate::engine::home_plot::SHIP_MISMATCH };
+                crate::engine::home_plot::refuse_shared_world(state, sentence.to_string(), None);
                 return;
             }
             let msg = v.get("message").and_then(|x| x.as_str())

@@ -71,6 +71,10 @@
 // 100 m from its door while out: the relay spawns it afresh at its door, and
 // the judge checks the game then stands where the relay holds it and that its
 // next move reaches the walker (the second review of 1b found it frozen there).
+// Last, the game walks, in steps the relay accepts, to the same far place and
+// presses Respawn (the showcase `respawn` verb, the death screen's button): the
+// relay must stand it at its door too, judged the same way under respawn_* ids
+// (the third review found Respawn left it frozen at the far end for everyone).
 // Evidence in runs/<stamp>-plots-<order>/.
 //
 // Usage:
@@ -89,7 +93,7 @@ const { spawn, spawnSync, execSync } = require("child_process");
 const MG = require("./lib/machine-guard.js");
 const DXC = require("./lib/dxc-dlls.js");
 const TR = require("./lib/throwaway-relay.js");
-const { judgeCopresence, LIMITS, figurePixels, FIGURE_MIN_PX, approachClear, judgePlots, forwardLegStart, readShipPlots, judgeRejoin } = require("./lib/copresence-judge.js");
+const { judgeCopresence, LIMITS, figurePixels, FIGURE_MIN_PX, approachClear, judgePlots, forwardLegStart, readShipPlots, judgeRejoin, respawnRoute } = require("./lib/copresence-judge.js");
 const png = require("./lib/png.js");
 
 const REPO = path.resolve(__dirname, "..");
@@ -900,6 +904,12 @@ function plotsVerdict(m, dir) {
   } else {
     add("rejoin_ran", false, (s.rejoin && s.rejoin.detail) || "the step out of the shared world and back never ran");
   }
+  // Respawn far from the door (the third review of 1b).
+  if (m.respawn) {
+    for (const c of judgeRejoin(m.respawn, { prefix: "respawn", when: "it pressed Respawn" }).checks) checks.push(c);
+  } else {
+    add("respawn_ran", false, (s.respawn && s.respawn.detail) || "the walk away and Respawn never ran");
+  }
   const panics = Number(m.panics || 0);
   add("no_panics", panics === 0, `${panics} PANIC line(s) in run.log`);
   return { checks, pass: checks.every((c) => c.ok), stats };
@@ -918,6 +928,7 @@ const FAR_POINTS = [
   [70, 1.7, 86],
   [70, 1.7, 194],
 ];
+
 
 function printPlotsVerdict(prefix, m, dir) {
   const { checks, pass, stats } = plotsVerdict(m, dir);
@@ -1230,6 +1241,61 @@ async function runPlotsOnce(order, runStamp, cleanups) {
     manifest.rejoin = { far, relaySpawn, camera, nudged, seen, entity, door, far_target: farTarget };
     manifest.steps_ok.rejoin = { ok: true, detail: `rejoined as entity ${entity}, the relay spawned it at ${relaySpawn ? fmt(relaySpawn) : "(never seen)"}` };
     step("rejoin", true, `${manifest.steps_ok.rejoin.detail}; its camera at ${camera ? fmt(camera) : "(none)"}; ${seen.length} relayed move(s) seen after the nudge to ${nudged ? fmt(nudged) : "(none)"}`);
+
+    // ── Respawn far from the door (the third review of 1b). In the world this
+    // time, the game walks to the same far place in steps the relay accepts, so
+    // the relay holds it there (the walker sees it arrive), and presses Respawn
+    // (the showcase `respawn` verb). Respawn puts the game at its door, more than
+    // 100 m from where the relay holds it: unless the relay stands it there too,
+    // every update is refused and the others see it frozen at the far end.
+    const seenSince = (from) =>
+      walkerOut
+        .slice(from)
+        .map((o) => o.line.match(sawRe))
+        .filter((x) => x && Number(x[1]) === entity)
+        .map((x) => [Number(x[2]), Number(x[3]), Number(x[4])]);
+    const route = respawnRoute(nudged || door || farTarget, farTarget);
+    const markWalk = walkerOut.length;
+    for (const p of route) {
+      await showcase({ cam: `${p.join(",")},${yaw},${pitch}` });
+      await sleep(1500);
+    }
+    const walked = seenSince(markWalk);
+    const heldFar = walked.length ? walked[walked.length - 1] : null;
+    const atFarEnd = !!heldFar && Math.hypot(heldFar[0] - farTarget[0], heldFar[2] - farTarget[2]) < 3;
+    step(
+      "walk_away",
+      atFarEnd,
+      `walked ${route.length} steps to ${fmt(farTarget)}; the relay last passed on the game at ${heldFar ? fmt(heldFar) : "(never)"} (${walked.length} relayed move(s))`,
+    );
+    const markRespawn = walkerOut.length;
+    await showcase({ respawn: "1" });
+    let respawnLine = null;
+    for (const t0 = Date.now(); Date.now() - t0 < 15000 && !respawnLine; ) {
+      respawnLine = walkerOut.slice(markRespawn).map((o) => o.line.match(nameRe)).find(Boolean) || null;
+      if (!respawnLine) await sleep(200);
+    }
+    const respawnEntity = respawnLine ? Number(respawnLine[1]) : entity;
+    const relayRespawn = respawnLine ? [Number(respawnLine[2]), Number(respawnLine[3]), Number(respawnLine[4])] : null;
+    await until((p) => p.game_joined && p.welcomed, 20000);
+    await sleep(1500);
+    const afterRespawn = await probe();
+    const camera2 = afterRespawn && afterRespawn.camera_end ? afterRespawn.camera_end.pos : null;
+    const nudged2 = camera2 ? [camera2[0], camera2[1], camera2[2] + 1] : null;
+    const markNudge2 = walkerOut.length;
+    if (nudged2) await showcase({ cam: `${nudged2.join(",")},${yaw},${pitch}` });
+    await sleep(2500);
+    const seen2 = walkerOut
+      .slice(markNudge2)
+      .map((o) => o.line.match(sawRe))
+      .filter((x) => x && Number(x[1]) === respawnEntity)
+      .map((x) => [Number(x[2]), Number(x[3]), Number(x[4])]);
+    manifest.respawn = { far: heldFar, relaySpawn: relayRespawn, camera: camera2, nudged: nudged2, seen: seen2, entity: respawnEntity, route };
+    manifest.steps_ok.respawn = {
+      ok: true,
+      detail: relayRespawn ? `respawned as entity ${respawnEntity}, the relay spawned it at ${fmt(relayRespawn)}` : "the walker never saw the game join again after Respawn",
+    };
+    step("respawn", true, `${manifest.steps_ok.respawn.detail}; its camera at ${camera2 ? fmt(camera2) : "(none)"}; ${seen2.length} relayed move(s) seen after the nudge`);
   } catch (e) {
     manifest.steps.push({ id: "abort", ok: false, detail: String(e.message || e) });
     log(`ABORT ${e.message || e}`);

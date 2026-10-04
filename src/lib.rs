@@ -1688,6 +1688,11 @@ mod native_app {
                     );
                 } else {
                     crate::save_load::apply_save_to_world(&mut game_world.world, save);
+                    // Where its home stood: the world load carries its pieces to the plot the
+                    // home is built on (engine/home_plot.rs `carry_loaded_save_home`).
+                    if let Some(b) = save.home_plot_box {
+                        data_store.insert(crate::save_load::LOADED_HOME_BOX_KEY, crate::save_load::LoadedHomeBox(b));
+                    }
                     log::info!(
                         "Loaded offline home: {} item stacks, {} skills",
                         save.inventory.len(),
@@ -1986,6 +1991,7 @@ mod native_app {
                 game_welcomed: false,
                 copresence_refused: None,
                 home_arrived_on: None,
+                copresence_server: String::new(),
                 game_pos_timer: 0.0,
                 remote_avatar: None,
                 remote_look_materials: std::collections::HashMap::new(),
@@ -6791,6 +6797,10 @@ mod native_app {
                             .ws_client
                             .as_ref()
                             .map_or(false, |w| w.is_connected());
+                        // A switch to another server while joined leaves the one we joined
+                        // on, and a fresh connection tries a server that refused us again
+                        // (ship homes 1b, engine/home_plot.rs `follow_server`).
+                        crate::engine::home_plot::follow_server(state);
                         if connected {
                             // SOLO step-out (v0.801): joined but the player switched to
                             // solo (offline home entry, or Dev travel engaging) -- leave
@@ -6799,26 +6809,13 @@ mod native_app {
                             // honestly), the chat socket stays up. Rejoining is just the
                             // normal join below once solo clears: a fresh join, progress
                             // restored from storage (since 2026-10-03 a leave despawns
-                            // at once; it used to be held as a reconnect).
+                            // at once; it used to be held as a reconnect). The host's
+                            // clock and the other players go with it (forget_shared_world).
                             if state.game_joined && state.gui_state.copresence_solo {
                                 if let Some(ref ws) = state.gui_state.ws_client {
                                     ws.send(&serde_json::json!({"type": "game_leave"}).to_string());
                                 }
-                                state.game_joined = false;
-                                state.gui_state.copresence_active = false;
-                                // The host's clock no longer applies (2026-09-29).
-                                crate::systems::time::release_host_clock(&state.data_store);
-                                state.gui_state.copresence_names.clear();
-                                let remotes: Vec<hecs::Entity> = state
-                                    .game_world
-                                    .world
-                                    .query::<&crate::net::sync::RemotePlayer>()
-                                    .iter()
-                                    .map(|(e, _)| e)
-                                    .collect();
-                                for e in remotes {
-                                    let _ = state.game_world.world.despawn(e);
-                                }
+                                crate::engine::home_plot::forget_shared_world(state);
                                 log::info!("Co-presence: stepped out of the shared world (solo)");
                             }
                             // Join once, on first entering the world while connected --
@@ -6827,12 +6824,17 @@ mod native_app {
                             // every non-identify message, so a game_join racing the
                             // Dilithium challenge simply vanished (client showed
                             // "Shared world", server counted nobody -- caught by the
-                            // v0.793 autopilot two-instance test).
+                            // v0.793 autopilot two-instance test). Only ABOARD (ship homes
+                            // 1b): from a planet or a Dev trip the camera is not in ship
+                            // metres, and a welcome there moved the player by ship
+                            // coordinates in the planet's frame (home_plot.rs `aboard`).
                             if in_world
                                 && !state.game_joined
                                 && state.gui_state.ws_identified
                                 && !state.gui_state.copresence_solo
-                                && state.copresence_refused.as_deref() != Some(state.gui_state.server_url.as_str())
+                                && crate::engine::home_plot::aboard(state)
+                                && state.copresence_refused.as_deref()
+                                    != Some(crate::engine::home_plot::active_server_key(&state.gui_state).as_str())
                             {
                                 let name = if state.gui_state.character_name.trim().is_empty() {
                                     "Wanderer".to_string()
@@ -6902,33 +6904,9 @@ mod native_app {
                             }
                         } else if state.game_joined {
                             // DISCONNECTED: allow a fresh join on reconnect + clear
-                            // remote avatars (they are stale without a live feed).
-                            state.game_joined = false;
-                            state.gui_state.copresence_active = false;
-                            crate::systems::time::release_host_clock(&state.data_store);
-                            state.gui_state.copresence_names.clear();
-                            let remotes: Vec<hecs::Entity> = state
-                                .game_world
-                                .world
-                                .query::<&crate::net::sync::RemotePlayer>()
-                                .iter()
-                                .map(|(e, _)| e)
-                                .collect();
-                            for e in remotes {
-                                let _ = state.game_world.world.despawn(e);
-                            }
-                            // Crew NPCs are relay-driven too; clear them alongside
-                            // remote players so a rejoin starts from fresh updates.
-                            let crew: Vec<hecs::Entity> = state
-                                .game_world
-                                .world
-                                .query::<&crate::net::sync::RemoteNpc>()
-                                .iter()
-                                .map(|(e, _)| e)
-                                .collect();
-                            for e in crew {
-                                let _ = state.game_world.world.despawn(e);
-                            }
+                            // remote avatars and the relay's crew (they are stale
+                            // without a live feed; a rejoin starts from fresh updates).
+                            crate::engine::home_plot::forget_shared_world(state);
                         }
                     }
 
@@ -12491,6 +12469,10 @@ mod native_app {
                         state.camera.position = state.fps_spawn;
                         state.driving_vehicle = None;
                         log::info!("[Vitals] player respawned at the spawn room");
+                        // In the shared world the relay still holds them where they died, up
+                        // to 154 m away: step out and join again, so it stands them at their
+                        // door too (ship homes 1b, engine/home_plot.rs).
+                        crate::engine::home_plot::respawn_through_relay(state);
                     }
                     // Bridge inventory from the player entity
                     let item_registry = state.data_store.get::<ItemRegistry>("item_registry");
@@ -14648,8 +14630,8 @@ mod native_app {
                                                     &mut state.game_world.world,
                                                     &save,
                                                 );
-                                                // Saved as if the home stood on the default plot: to its plot now (1b).
-                                                crate::engine::home_plot::carry_saved_pieces_home(state);
+                                                // From the plot its home stood on to the one it stands on now (1b).
+                                                crate::engine::home_plot::carry_saved_pieces_home(state, save.home_plot_box);
                                                 // The clock rewinds with the save, and
                                                 // the garden is caught up from its stamp.
                                                 let resumed = crate::save_load::resume_home(

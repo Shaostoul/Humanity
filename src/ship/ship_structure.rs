@@ -513,9 +513,18 @@ fn plot_middle(size: (f32, f32, f32)) -> (f32, f32) {
 
 /// The one sentence a player reads when a server's ship is not theirs (the design: "one plain
 /// sentence: positions only agree when everyone has the same ship"). The relay refuses such a
-/// join with it (`game_join_denied`, reason "other_ship") and the game shows it.
+/// join with it (`game_join_denied`, reason "other_ship") and the game shows it, and keeps
+/// showing it under the HUD while it holds (the third review of 1b: a 12 s notice that named
+/// no remedy). It says what to do about it.
 pub const OTHER_SHIP_SENTENCE: &str =
-    "Not joining the shared world: this server has a different ship from yours, and positions only agree when everyone has the same ship.";
+    "Not joining the shared world: this server has a different ship from yours, and positions only agree when everyone has the same ship, so update whichever of the app and the server is older and reconnect.";
+
+/// The sentence a player reads when the server they joined has no ship at all: its ship file
+/// did not load and neither did the copy built into it (`game_join_denied`, reason
+/// "no_ship"). The third review of 1b found such a server told every game "a different ship
+/// from yours", which sent the player after an update that could not help.
+pub const NO_SHIP_SENTENCE: &str =
+    "Not joining the shared world: this server's ship did not load, so there is nowhere aboard to stand; its operator can see why in the server's log, and reconnecting after a fix joins it.";
 
 /// One plot as a relay hands it out (increment 1b): the record's id, kind and box. Where its
 /// holder arrives depends on their own home's door, which their game names in `game_join`
@@ -542,9 +551,21 @@ pub struct ShipPlots {
 }
 
 impl ShipPlots {
-    /// The ship's plots from `data_dir`. Err says why there are none to hand out (no ship file).
+    /// The ship's plots from `data_dir`: the ship file on disk, else the copy built into the
+    /// exe. A file on disk that does not load (moved aside by `ShipStructure::load`, which
+    /// logs "the shipped default loads instead") gives way to the built-in copy here too, so
+    /// a relay keeps the ship the same version of the game draws (the third review of 1b: it
+    /// used to keep NO ship, and every game's join was then refused as "a different ship").
+    /// Err only when neither loads.
     pub fn load(data_dir: &Path) -> Result<ShipPlots, String> {
-        Ok(Self::of_ship(&ShipStructure::load_ship_file(data_dir)?))
+        match ShipStructure::load_ship_file(data_dir) {
+            Ok(ship) => Ok(Self::of_ship(&ship)),
+            Err(e) => {
+                let ship = ShipStructure::built_in_ship_file().map_err(|b| format!("{e}; {b}"))?;
+                log::error!("ship plots: {e}; using the ship built into the exe ({})", ship.id);
+                Ok(Self::of_ship(&ship))
+            }
+        }
     }
 
     /// The plots of a ship file already loaded (what `load` reads; a test builds one by hand).
@@ -1424,8 +1445,12 @@ impl ShipStructure {
                 )
             });
         }
-        let text = crate::embedded_data::get_embedded(SHIP_FILE)
-            .ok_or_else(|| format!("no {} on disk and none built in", path.display()))?;
+        Self::built_in_ship_file().map_err(|e| format!("no {} on disk, and {e}", path.display()))
+    }
+
+    /// The ship file built into the exe (data/blueprints/ship_structure.ron as shipped).
+    pub fn built_in_ship_file() -> Result<ShipStructure, String> {
+        let text = crate::embedded_data::get_embedded(SHIP_FILE).ok_or("no ship file is built in")?;
         let ship: ShipStructure = ron::from_str(text).map_err(|e| format!("the built-in ship file does not parse: {e}"))?;
         ship.validate().map_err(|e| format!("the built-in ship file is invalid: {e}"))?;
         Ok(ship)
@@ -3247,6 +3272,29 @@ mod plot_handout_tests {
         let on_disk = ShipPlots::load(&data_dir()).expect("the data folder loads");
         assert_eq!(built_in, on_disk, "the exe's copy is the data folder's ship");
         let _ = std::fs::remove_dir_all(&empty);
+    }
+
+    /// A relay whose ship file on disk does not load (a bad hand edit on the server) keeps the
+    /// ship built into it, the one the same version of the game draws, instead of no ship at
+    /// all: the third review of 1b found every game's join then refused as "a different ship
+    /// from yours". The broken file is moved aside, not overwritten.
+    ///
+    /// Seen red 2026-10-03 on the a504c5cd9 `ShipPlots::load` (no fallback): "a relay with a
+    /// broken ship file keeps the built-in ship: Err(\"...ship_structure.ron did not load; it
+    /// was moved aside as ship_structure.invalid-<time>.ron (see logs/run.log)\")".
+    #[test]
+    fn a_relay_whose_ship_file_does_not_load_keeps_the_built_in_ship() {
+        let dir = std::env::temp_dir().join(format!("hum_bad_ship_{}_{}", std::process::id(), line!()));
+        let file = dir.join(SHIP_FILE);
+        std::fs::create_dir_all(file.parent().unwrap()).unwrap();
+        std::fs::write(&file, "( this is not a ship").unwrap();
+        let got = ShipPlots::load(&dir);
+        let built_in = ShipPlots::of_ship(&ShipStructure::built_in_ship_file().unwrap());
+        assert!(got.as_ref().is_ok_and(|p| *p == built_in), "a relay with a broken ship file keeps the built-in ship: {got:?}");
+        assert!(!file.exists(), "the broken file was moved aside");
+        let kept = std::fs::read_dir(file.parent().unwrap()).unwrap().filter_map(|e| e.ok()).any(|e| e.file_name().to_string_lossy().contains("invalid-"));
+        assert!(kept, "and kept for recovery by hand");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// The fingerprint: the same for the ship file and any ship assembled from it (whichever

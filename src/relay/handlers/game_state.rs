@@ -310,8 +310,11 @@ pub struct GameWorld {
     npc_broadcast_accum: f64,
     /// The mothership's plots (increment 1b of docs/design/ship-homes-and-logistics.md):
     /// what `assign_home` hands out, from the same ship file and home designs the game
-    /// assembles from. Empty when they cannot be loaded (logged at startup); every joiner
-    /// then gets the old Pioneer spawn and no plot.
+    /// assembles from (a ship file on disk that does not load falls back to the copy built
+    /// into the exe, `ShipPlots::load`). Empty only when neither loads (logged at startup):
+    /// a game, which names its ship, is then refused at the join with its own reason
+    /// ("no_ship", home_plots.rs `refused_join`), and a join naming no ship (a scripted
+    /// player) gets the old Pioneer spawn and no plot.
     pub ship_plots: crate::ship::ship_structure::ShipPlots,
 }
 
@@ -343,7 +346,7 @@ impl HomeAssignment {
 ///   `ship_hash`  the ship the joiner draws. Only a join naming THIS relay's ship claims a
 ///                plot: a plot is where a home stands, and only a game drawing this ship
 ///                has a home here. One naming another ship is refused at the join, before
-///                anything is spawned (home_plots.rs `refused_other_ship`). One naming none
+///                anything is spawned (home_plots.rs `refused_join`). One naming none
 ///                (a scripted player or an AI agent that has not asked /api/server-info)
 ///                is a guest in the Commons (the second review of 1b: such a join used to
 ///                claim a plot for good, so two quick test bots filled the ship).
@@ -356,10 +359,28 @@ pub struct JoinHome {
     pub door: Option<(f32, f32)>,
 }
 
+/// Why a `game_join` is refused before anything is spawned (home_plots.rs `refused_join`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum JoinRefusal {
+    /// It names a ship that is not this relay's: its positions could never agree with ours.
+    OtherShip,
+    /// It names a ship, and this relay has none (its ship file and the built-in copy both
+    /// failed to load): the third review of 1b found such a relay told every game "a
+    /// different ship from yours", which was not true and sent players looking for an update.
+    NoShip,
+}
+
 impl crate::ship::ship_structure::ShipPlots {
-    /// True when a join names a ship that is not this one: refused at the join.
-    pub fn is_other_ship(&self, join: &JoinHome) -> bool {
-        join.ship_hash.as_deref().is_some_and(|h| h != self.ship_hash)
+    /// Why a join is refused at the join, None when it is not: one naming a ship this relay
+    /// does not have (`OtherShip`), or one naming a ship when this relay has none (`NoShip`).
+    /// A join naming no ship at all (a scripted player) is never refused here.
+    pub fn join_refusal(&self, join: &JoinHome) -> Option<JoinRefusal> {
+        let theirs = join.ship_hash.as_deref()?;
+        if self.ship_hash.is_empty() {
+            (!theirs.is_empty()).then_some(JoinRefusal::NoShip)
+        } else {
+            (theirs != self.ship_hash).then_some(JoinRefusal::OtherShip)
+        }
     }
 
     /// True when a join names this very ship: only such a join holds a plot.
@@ -381,15 +402,9 @@ impl JoinHome {
     }
 }
 
-/// The id a plot is held under: the player's `did:hum:` from their Dilithium key (hex),
-/// so a plot follows the person. A key that is not hex (a server bot's `bot_` key) is
-/// used as it stands, marked so it can never collide with a DID.
-pub fn plot_owner_id(key: &str) -> String {
-    match hex::decode(key) {
-        Ok(bytes) if !bytes.is_empty() => crate::relay::core::did::did_for_pubkey(&bytes),
-        _ => format!("key:{key}"),
-    }
-}
+/// The id a plot is held under (the player's `did:hum:`), defined beside the table
+/// (storage/plots.rs) because an account's erasure and export find its rows by it too.
+pub use crate::relay::storage::plot_owner_id;
 
 impl GameWorld {
     /// Initialize game world and load the starter ship layout.
@@ -975,8 +990,10 @@ impl GameWorld {
     }
 
     /// Load the mothership's plots from data/ (the copies built into the exe when the relay
-    /// runs in a folder with none, like the throwaway relay of the rigs). A failure is logged
-    /// and leaves no plots: joiners then spawn as before 1b, which the welcome shows (no plot).
+    /// runs in a folder with none, like the throwaway relay of the rigs, or when the file on
+    /// disk does not load). A failure of both is logged and leaves no plots: a game's join is
+    /// then refused with reason "no_ship" (home_plots.rs `refused_join`), and a join naming
+    /// no ship spawns as before 1b, with no plot.
     fn load_ship_plots(&mut self) {
         match crate::ship::ship_structure::ShipPlots::load(std::path::Path::new("data")) {
             Ok(p) => {
@@ -1027,9 +1044,18 @@ impl GameWorld {
     /// geometry is in the ship file). Some(plot id) when they held one, None when they held
     /// none. Two callers: a game that cannot stand its home on the plot it was given gives it
     /// back as it leaves (`game_leave` with `give_up_plot`), and an admin releases a plot from
-    /// Server Settings (`game_release_plot`, msg_handlers.rs).
+    /// Server Settings (`game_release_plot`, home_plots.rs `handle_game_release_plot`).
     pub fn release_home(&self, db: &crate::relay::storage::Storage, owner_key: &str) -> Result<Option<String>, rusqlite::Error> {
         db.release_plot(&self.ship_plots.ship_id, &plot_owner_id(owner_key))
+    }
+
+    /// True when the player whose plot is held under `owner` (`plot_owner_id`) is in the
+    /// world now, whatever the case or spelling of the key that named them: the check the
+    /// admin's release makes, by the same id the release deletes by (the third review: the
+    /// check compared keys as text, the release decoded them as hex, so a key pasted in upper
+    /// case got past "refused while they are in the world").
+    pub fn plot_holder_in_world(&self, owner: &str) -> bool {
+        self.entities.values().any(|e| e.entity_type == "player" && e.owner.as_deref().is_some_and(|k| plot_owner_id(k) == owner))
     }
 
     /// Default spawn position: center of Crew Quarters, 1m above floor.

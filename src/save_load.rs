@@ -35,46 +35,42 @@ fn now_secs() -> u64 {
         .unwrap_or(0)
 }
 
-/// Where the player's home stands now and where it stands on the ship's default plot: each a
-/// plot box (min, max) in ship metres (increment 1b of docs/design/ship-homes-and-logistics.md).
-/// The engine puts it in the DataStore under `HOME_FRAME_KEY` whenever it places the home
-/// (engine/home_plot.rs `publish_home_frame`: the world load, and a welcome that moves the home
-/// to the plot a relay gave it).
+/// Where the player's home stands: the box (min, max) of the plot it stands on, in ship metres
+/// (increment 1b of docs/design/ship-homes-and-logistics.md). The engine keeps it in the
+/// DataStore under `HOME_FRAME_KEY`, current with the live ship (engine/home_plot.rs: the world
+/// load publishes it, and every rebuild of the home republishes it when the home's plot
+/// changed, carrying what the home holds along, `follow_home_box`), and every save records it
+/// beside the pieces and vehicles, which are saved where they stand (`record_home_frame`).
+///
+/// Why the save records it (the third review of 1b): the save used to write the home's pieces
+/// as if the home stood on the default plot, which only held while every world entry built the
+/// home there first and the default plot never changed. A Dev who made another plot the
+/// default stranded every piece 99 m from the home on the next launch, and increment 2, which
+/// builds the home on the player's remembered plot, would have stranded them all. A save that
+/// says where its home stood can be carried to wherever the home stands when it loads.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct HomeFrame {
     pub home: (glam::Vec3, glam::Vec3),
-    pub default: (glam::Vec3, glam::Vec3),
-}
-
-impl HomeFrame {
-    /// How far the home stands from where it would on the default plot.
-    pub fn offset(&self) -> glam::Vec3 {
-        self.home.0 - self.default.0
-    }
 }
 
 /// The DataStore key of the home's `HomeFrame`.
 pub const HOME_FRAME_KEY: &str = "home_frame";
 
-/// Write the pieces built aboard and the parked vehicles that stand in the home as if the home
-/// stood on the default plot: the frame every save is in. Every world entry builds the home on
-/// the default plot first, and a relay's welcome then moves it (and them) to its plot, so a
-/// chest saved at a p2 position would otherwise stand 99 m outside the home on the next entry
-/// (followed through from the second review of 1b). Pieces outside the home (the ship's own
-/// spaces) and pieces built on a planet (their poses are site-local) are written where they
-/// stand. Nothing changes while the home stands on the default plot.
-pub fn into_default_frame(save: &mut WorldSave, frame: &HomeFrame) {
-    let d = frame.offset();
-    if d == glam::Vec3::ZERO {
-        return;
-    }
-    let in_home = |p: [f32; 3]| crate::engine::home_plot::over_plot(glam::Vec3::from_array(p), frame.home);
-    for c in save.constructions.iter_mut().filter(|c| c.site.is_none() && in_home(c.position)) {
-        c.position = (glam::Vec3::from_array(c.position) - d).to_array();
-    }
-    for v in save.deployed_vehicles.iter_mut().filter(|v| in_home(v.position)) {
-        v.position = (glam::Vec3::from_array(v.position) - d).to_array();
-    }
+/// The DataStore key under which the save applied at startup leaves the box its home stood on
+/// (`LoadedHomeBox`), for the world load to carry its pieces to the plot the home is built on
+/// (engine/world_load.rs; the save is applied before the ship is assembled).
+pub const LOADED_HOME_BOX_KEY: &str = "loaded_home_box";
+
+/// The plot box a save's home stood on (`WorldSave::home_plot_box`), waiting in the DataStore
+/// under `LOADED_HOME_BOX_KEY` for the world load.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct LoadedHomeBox(pub [[f32; 3]; 2]);
+
+/// Write where the home stands into a save (`WorldSave::home_plot_box`), from the frame the
+/// engine keeps (`HomeFrame`); no frame (the legacy layout) records none. The pieces and
+/// vehicles stay where they stand.
+pub fn record_home_frame(save: &mut WorldSave, frame: Option<&HomeFrame>) {
+    save.home_plot_box = frame.map(|f| [f.home.0.to_array(), f.home.1.to_array()]);
 }
 
 /// The active offline home's save file. Progressive disclosure: one home for now
@@ -664,10 +660,8 @@ fn save_home_at(
         return;
     }
     let mut save = extract_world_save(world);
-    // The home's pieces and vehicles, as if it stood on the default plot (`into_default_frame`).
-    if let Some(frame) = data.get::<HomeFrame>(HOME_FRAME_KEY) {
-        into_default_frame(&mut save, frame);
-    }
+    // Where the home stood, beside its pieces and vehicles where they stand (`HomeFrame`).
+    record_home_frame(&mut save, data.get::<HomeFrame>(HOME_FRAME_KEY));
     save.placed_items = Some(placed.to_vec());
     // The world clock, from the TimeSystem's DataStore export. Crop
     // planted_at values are only meaningful against it.

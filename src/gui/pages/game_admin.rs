@@ -205,51 +205,64 @@ fn draw_ban_list(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 }
 
 /// Homes on the ship (ship homes increment 1b, docs/design/ship-homes-and-logistics.md): give
-/// back the plot a player holds, so the next player who joins without one gets it. The in-app
-/// control for the relay's `release_plot` (GUI-first: nobody should need a shell for it). The
-/// relay refuses while that player is in the world (their home stands on the plot) and says
-/// whether they held one; its reply lands in the status line below. Nothing releases an idle
-/// plot by itself: when one should go back is the operator's call (the design's open questions).
+/// back a plot, so the next player who joins without one gets it. The in-app control for the
+/// relay's plot table (GUI-first: nobody should need a shell for it). The admin names the
+/// plot's id ("p1") or the public key of the player who holds it: a plot id still works when
+/// the holder's key is gone from every list (an erased account; erasing an account gives its
+/// plot back by itself now, but an id is the one name an admin always has). The relay refuses
+/// while the holder is in the world (their home stands on the plot) and says whether anyone
+/// held it; its reply lands in the status line below. Nothing releases an idle plot by itself:
+/// when one should go back is the operator's call (the design's open questions).
 fn draw_plot_release(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     widgets::section_header(ui, theme, "Homes on the ship");
     widgets::body_hint(
         ui, theme,
         "Each player who joins holds one plot of the ship for their home, and keeps it when they \
-         leave. To give a plot back (someone left for good, and the ship is full), enter that \
-         player's public key. It works only while they are out of the world; their own home and \
-         saves are untouched, and they get a free plot, or a guest place, when they come back.",
+         leave. To give a plot back (someone left for good, and the ship is full), enter the \
+         plot's id (p1, p2, ...) or the public key of the player who holds it. It works only \
+         while they are out of the world; their own home and saves are untouched, and they get a \
+         free plot, or a guest place, when they come back.",
     );
     ui.add_space(theme.spacing_sm);
-    widgets::form_row(ui, theme, "Public key", |ui| {
+    widgets::form_row(ui, theme, "Plot or key", |ui| {
         ui.add(
             egui::TextEdit::singleline(&mut state.game_admin_plot_key)
                 .desired_width(360.0)
-                .hint_text("player public key (hex)"),
+                .hint_text("plot id (p1) or player public key (hex)"),
         );
     });
     ui.add_space(theme.spacing_sm);
     let target_valid = !state.game_admin_plot_key.trim().is_empty();
     ui.add_enabled_ui(target_valid, |ui| {
         if widgets::Button::secondary("Release plot")
-            .tooltip("Give this player's plot back for the next player who joins without one.")
+            .tooltip("Give this plot back for the next player who joins without one.")
             .show(ui, theme)
         {
             let target = state.game_admin_plot_key.trim().to_string();
-            send_release_plot(state, &target);
-            state.game_admin_status = "Asked the server to release that player's plot.".into();
-            state.game_admin_plot_key.clear();
+            // Only a message that went out is reported as asked, and only then is the field
+            // cleared (the third review: with the link down this said "Asked the server" and
+            // threw the key away, while the web window said "Not connected").
+            if send_release_plot(state, &target) {
+                state.game_admin_status = "Asked the server to release that plot.".into();
+                state.game_admin_plot_key.clear();
+            } else {
+                state.game_admin_status = "Not connected to the server.".into();
+            }
         }
     });
 }
 
 /// Send a `game_release_plot` (admin-gated server-side; the relay replies privately with a
-/// `game_admin_notice` or a `game_admin_error`).
-fn send_release_plot(state: &GuiState, target: &str) {
-    if let Some(ref client) = state.ws_client {
-        if client.is_connected() {
+/// `game_admin_notice` or a `game_admin_error`). False when there is no open connection to
+/// send it on, so the caller says so instead of claiming it asked.
+fn send_release_plot(state: &GuiState, target: &str) -> bool {
+    match state.ws_client.as_ref() {
+        Some(client) if client.is_connected() => {
             let msg = serde_json::json!({ "type": "game_release_plot", "target": target });
             client.send(&msg.to_string());
+            true
         }
+        _ => false,
     }
 }
 
@@ -304,4 +317,48 @@ fn format_ban_date(ms: i64) -> String {
     let m = if mp < 10 { mp + 3 } else { mp - 9 };
     let year = if m <= 2 { y + 1 } else { y };
     format!("{year:04}-{m:02}-{d:02} {hh:02}:{mm:02}")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::gui::screen_surface::find_text_in_shapes;
+
+    /// One headless frame of the plot-release form in a plain panel, with `events`.
+    fn frame(ctx: &egui::Context, theme: &Theme, state: &mut GuiState, events: Vec<egui::Event>) -> egui::FullOutput {
+        let input = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(900.0, 600.0))),
+            events,
+            ..Default::default()
+        };
+        ctx.run(input, |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| draw_plot_release(ui, theme, state));
+        })
+    }
+
+    /// Release plot with the server link down, clicked the way an admin clicks it: the status
+    /// says the server was NOT asked and the plot id stays in the field, as the web Game Admin
+    /// window does (the third review of ship homes 1b: the native form said "Asked the server
+    /// to release that player's plot." and emptied the field, while nothing was sent).
+    ///
+    /// Seen red 2026-10-03 with the status set whether or not anything was sent (the a504c5cd9
+    /// form's way): "with no connection the form says: Asked the server to release that plot.".
+    #[test]
+    fn release_plot_with_no_connection_says_so_and_keeps_what_was_typed() {
+        let ctx = egui::Context::default();
+        crate::gui::fonts::install_font_fallbacks(&ctx);
+        let theme = crate::gui::theme::load_theme();
+        theme.apply_to_egui(&ctx);
+        let mut state = GuiState::default();
+        assert!(state.ws_client.is_none());
+        state.game_admin_plot_key = "p1".into();
+        let out = frame(&ctx, &theme, &mut state, Vec::new());
+        let pos = find_text_in_shapes(&out.shapes, "Release plot").expect("the button is drawn").rect.center();
+        let m = egui::Modifiers::default();
+        frame(&ctx, &theme, &mut state, vec![egui::Event::PointerMoved(pos)]);
+        frame(&ctx, &theme, &mut state, vec![egui::Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed: true, modifiers: m }]);
+        frame(&ctx, &theme, &mut state, vec![egui::Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed: false, modifiers: m }]);
+        assert_eq!(state.game_admin_status, "Not connected to the server.", "with no connection the form says: {}", state.game_admin_status);
+        assert_eq!(state.game_admin_plot_key, "p1", "and keeps what was typed");
+    }
 }

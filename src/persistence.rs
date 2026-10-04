@@ -148,6 +148,14 @@ pub struct WorldSave {
     /// until this the desktop app never moved a traded item at all.
     #[serde(default)]
     pub settled_trades: Vec<String>,
+    /// The box of the plot the player's home stood on when this was saved, [min, max] in
+    /// ship metres (ship homes increment 1b, docs/design/ship-homes-and-logistics.md). The
+    /// pieces built aboard and the parked vehicles are saved where they stood; a load carries
+    /// the ones inside this box to the plot the home stands on then, wherever that is
+    /// (engine/home_plot.rs `carry_saved_pieces`). None in a save of the legacy layout, or
+    /// from before 1b: nothing is carried.
+    #[serde(default)]
+    pub home_plot_box: Option<[[f32; 3]; 2]>,
 }
 
 fn default_credits() -> i64 {
@@ -215,6 +223,7 @@ impl WorldSave {
             machine_levels: Vec::new(),
             ship_supply: Default::default(),
             settled_trades: Vec::new(),
+            home_plot_box: None,
         }
     }
 }
@@ -882,6 +891,7 @@ mod tests {
             machine_levels: Vec::new(),
             ship_supply: Default::default(),
             settled_trades: Vec::new(),
+            home_plot_box: None,
         }
     }
 

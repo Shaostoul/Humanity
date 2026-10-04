@@ -366,6 +366,15 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
         }
         _ => {}
     }
+    // {"respawn":"1"} (2026-10-03, ship homes 1b, the third review): press the death screen's
+    // Respawn button (`pending_respawn`): the player goes to their Respawn point, and in the
+    // shared world steps out and joins again so the relay stands them there too
+    // (engine/home_plot.rs `respawn_through_relay`). verify-copresence --plots walks the game
+    // more than 100 m from its door first, then judges it stands where the relay respawned it.
+    if grab("respawn").as_deref() == Some("1") {
+        state.gui_state.pending_respawn = true;
+        log::info!("Showcase: respawn -> the Respawn button");
+    }
     // Optional "time":"9.5" sets the game clock to that hour of the
     // current day (dev/screenshot control: dawn shots without waiting
     // out the night). Routed through the TimeSystem's request channel -

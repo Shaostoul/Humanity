@@ -27,6 +27,18 @@
 use super::{now_millis, Storage};
 use rusqlite::{params, OptionalExtension};
 
+/// The id a plot is held under: the player's `did:hum:` from their Dilithium key (hex),
+/// so a plot follows the person. Hex in either case reads as the same key (a key pasted in
+/// upper case is the same person). A key that is not hex (a server bot's `bot_` key) is
+/// used as it stands, marked so it can never collide with a DID. Here, beside the table,
+/// because an account's erasure and export (storage/account.rs) find its rows by it too.
+pub fn plot_owner_id(key: &str) -> String {
+    match hex::decode(key) {
+        Ok(bytes) if !bytes.is_empty() => crate::relay::core::did::did_for_pubkey(&bytes),
+        _ => format!("key:{key}"),
+    }
+}
+
 impl Storage {
     /// The plot `owner` holds on `world`, or else the first of `plots` (in the
     /// ship file's order) that nobody holds, claimed for them now. None when
@@ -97,6 +109,36 @@ impl Storage {
             )?;
             tx.commit()?;
             Ok(held)
+        })
+    }
+
+    /// Who holds plot `plot` on `world` (their owner id, `plot_owner_id`), None when nobody
+    /// does. For the admin's release by plot id: the relay checks that holder is not in the
+    /// world before giving the plot back. Never sent anywhere: no endpoint lists who lives
+    /// where (design section 5.10).
+    pub fn plot_holder(&self, world: &str, plot: &str) -> Result<Option<String>, rusqlite::Error> {
+        self.with_conn(|conn| {
+            conn.query_row(
+                "SELECT owner_did FROM game_plots WHERE world_id = ?1 AND plot_id = ?2",
+                params![world, plot],
+                |r| r.get(0),
+            )
+            .optional()
+        })
+    }
+
+    /// Give back plot `plot` on `world`, whoever holds it: true when someone did. The
+    /// admin's release by plot id (Server Settings, `game_release_plot` naming a plot), for
+    /// a plot whose holder's key nobody has any more: after their account was erased the
+    /// key is gone from every list, and a plot id is all an admin can name (the third review
+    /// of 1b).
+    pub fn release_plot_by_id(&self, world: &str, plot: &str) -> Result<bool, rusqlite::Error> {
+        self.with_conn(|conn| {
+            let n = conn.execute(
+                "DELETE FROM game_plots WHERE world_id = ?1 AND plot_id = ?2",
+                params![world, plot],
+            )?;
+            Ok(n > 0)
         })
     }
 }

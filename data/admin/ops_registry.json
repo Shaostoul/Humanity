@@ -47,10 +47,10 @@
     },
     {
       "name": "Release a player's plot on the ship",
-      "what": "Gives back the plot (home site) a player holds on the mothership, so the next player who joins without one gets it; refused while that player is in the world. Nothing releases a plot on its own yet.",
+      "what": "Gives back the plot (home site) a player holds on the mothership, so the next player who joins without one gets it; named by the player's public key or by the plot's id (p1), which works even after their account was erased; refused while that player is in the world. Erasing an account gives its plot back by itself. Nothing else releases a plot on its own yet.",
       "where": "native-app",
       "audience": "any-admin",
-      "how": "Server Settings > ADMIN > Homes on the ship: enter the player's public key, Release plot (src/gui/pages/game_admin.rs draw_plot_release; game_release_plot WS message, src/relay/handlers/msg_handlers.rs handle_game_release_plot).",
+      "how": "Server Settings > ADMIN > Homes on the ship: enter the plot's id or the player's public key, Release plot (src/gui/pages/game_admin.rs draw_plot_release; game_release_plot WS message, src/relay/handlers/home_plots.rs handle_game_release_plot).",
       "also_available": [
         "web-page: the chat's Game Admin window (command palette), Homes on the ship"
       ]

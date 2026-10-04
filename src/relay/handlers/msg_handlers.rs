@@ -2953,9 +2953,10 @@ pub async fn handle_game_join(
         }
     }
 
-    // A join naming ANOTHER ship is refused before anything is spawned (home_plots.rs).
+    // A join naming ANOTHER ship, or naming one when this relay has none, is refused before
+    // anything is spawned (home_plots.rs).
     let join_home = crate::relay::handlers::game_state::JoinHome::from_join(raw);
-    if crate::relay::handlers::home_plots::refused_other_ship(state, my_key, &join_home).await {
+    if crate::relay::handlers::home_plots::refused_join(state, my_key, &join_home).await {
         return;
     }
     let mut world = state.game_world.write().await;

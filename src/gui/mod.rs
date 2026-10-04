@@ -789,15 +789,14 @@ pub struct GuiState {
     /// Max height (px) of the in-world chat panel's message list. Adjustable
     /// from the Options tab (slider); persisted in AppConfig.
     pub ingame_chat_panel_height: f32,
-    /// Shared-world co-presence status (v0.774), mirrored from the ECS each
-    /// frame by the multiplayer block in lib.rs so the paint-only HUD can show
-    /// it. `copresence_active` = we've joined the relay's shared game world
-    /// (in-world + connected). `copresence_names` = the OTHER players currently
-    /// present (RemotePlayer entities). Makes the mission-critical co-presence
-    /// visible: without this you can't tell you're in a shared world, or see
-    /// when someone else joins.
+    /// Shared-world co-presence for the paint-only HUD (v0.774), mirrored by lib.rs's multiplayer
+    /// block: `copresence_active` = joined the relay's shared world; `copresence_names` = the
+    /// OTHER players present (RemotePlayer entities); `copresence_refused_note` = why we are NOT
+    /// joining this server, the refusal's one sentence, shown while it holds (ship homes 1b,
+    /// engine/home_plot.rs `refuse_shared_world` / `clear_refusal`; it used to be a 12 s notice).
     pub copresence_active: bool,
     pub copresence_names: Vec<String>,
+    pub copresence_refused_note: Option<String>,
     /// Dev spawn tool (v0.777, Platform > Dev): when Some(def_id), lib.rs spawns
     /// that creature/NPC in front of the player next frame and clears it. The
     /// generic "spawn any creature/NPC" the operator asked for; species come
@@ -3339,6 +3338,7 @@ impl Default for GuiState {
             ingame_chat_panel_height: 160.0,
             copresence_active: false,
             copresence_names: Vec::new(),
+            copresence_refused_note: None,
             pending_dev_spawn: None,
             pending_dev_despawn_creatures: false,
             dev_spawn_filter: String::new(),

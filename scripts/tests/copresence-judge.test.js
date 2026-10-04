@@ -553,3 +553,70 @@ test("rejoin: an experiment that never left the 100 m rule's reach proves nothin
   assert.equal(r.checks[0].ok, false, explain(r));
   assert.equal(judgeRejoin({ ...REJOIN_OK, relaySpawn: null }).pass, false, "never seen joining again: unknown, not a pass");
 });
+
+// The third review's finding 16: the tolerances and the "it is the nudge" rule
+// were never pinned, so a judge loosened to 5 m, or one taking any relayed
+// update as the nudge, passed all 37 tests. Seen red 2026-10-03, each against
+// its own loosened judge (scratch copies of copresence-judge.js):
+//  - REJOIN_STAND_TOL_M 0.5 -> 5: "a camera 1 m from where the relay holds it
+//    passed rejoin_stands_where_held";
+//  - REJOIN_NUDGE_TOL_M 0.3 -> 5, and (separately) `hit = seen[0]`: "an update
+//    at [[53.5,1.7,40.5]], short of or past the nudge to [53.5,1.7,41.5], passed
+//    rejoin_moves_reach_others".
+test("rejoin: a camera a few metres off where the relay holds it FAILS", () => {
+  for (const off of [1, 2, 4]) {
+    const r = judgeRejoin({ ...REJOIN_OK, camera: [53.5 + off, 1.7, 40.5] });
+    assert.equal(r.checks.find((c) => c.id === "rejoin_stands_where_held").ok, false, `a camera ${off} m from where the relay holds it passed rejoin_stands_where_held`);
+  }
+});
+
+test("rejoin: only an update at the nudge itself counts, not one at the standing point before it", () => {
+  for (const seen of [[[53.5, 1.7, 40.5]], [[53.5, 1.7, 40.5], [53.5, 1.7, 40.9]], [[53.5, 1.7, 42.2]]]) {
+    const r = judgeRejoin({ ...REJOIN_OK, seen });
+    assert.equal(
+      r.checks.find((c) => c.id === "rejoin_moves_reach_others").ok,
+      false,
+      `an update at ${JSON.stringify(seen)}, short of or past the nudge to ${JSON.stringify(REJOIN_OK.nudged)}, passed rejoin_moves_reach_others`,
+    );
+  }
+  // The nudge among other updates still counts.
+  assert.ok(judgeRejoin({ ...REJOIN_OK, seen: [[53.5, 1.7, 40.5], [53.5, 1.7, 41.5]] }).pass);
+});
+
+// The Respawn leg (the third review's finding 10): the same three checks under
+// their own ids. Seen red 2026-10-03 on a judge without the prefix option
+// (every id read "rejoin_..."): "the respawn leg's checks are its own".
+test("respawn: judged like a rejoin, under its own check ids", () => {
+  const r = judgeRejoin({ ...REJOIN_OK, far: [70, 1.7, 194] }, { prefix: "respawn", when: "it pressed Respawn" });
+  assert.ok(r.pass, explain(r));
+  assert.deepEqual(r.checks.map((c) => c.id), ["respawn_far_from_spawn", "respawn_stands_where_held", "respawn_moves_reach_others"], "the respawn leg's checks are its own");
+  assert.match(r.checks[0].detail, /when it pressed Respawn/);
+  // The pre-fix game: Respawn put the camera at its door, but the relay still held it at
+  // the far end of street-1, so nothing new joined and every update was refused.
+  const frozen = judgeRejoin({ far: [70, 1.7, 194], relaySpawn: null, camera: P1_SPAWN, nudged: [53.5, 1.7, 41.5], seen: [] }, { prefix: "respawn" });
+  assert.equal(frozen.pass, false);
+});
+
+// The walk the respawn leg takes (verify-copresence --plots): from each plot's
+// door to the far place, in steps the relay accepts (under 100 m each; 40 m
+// here), ending at the target, and every step on the ship's floor outside the
+// homes (the Commons, the junction, street-1, or the door's own corridor).
+// Seen red 2026-10-03 with the route drawn straight from the door to the far
+// place (`legs = [from, to]`): "57.625,1.7,79.625 is not on the shared floor".
+const { respawnRoute } = require("../lib/copresence-judge.js");
+test("respawn: the walk to the far place keeps every step short and on the shared floor", () => {
+  const onFloor = (p) =>
+    (p[0] >= 65 && p[0] <= 99 && p[2] >= 20 && p[2] <= 75) || // the Commons
+    (p[0] >= 65 && p[0] <= 75 && p[2] >= 75 && p[2] <= 195) || // the junction and street-1
+    (p[0] >= 53 && p[0] <= 70 && [40.5, 41.5, 139.5, 140.5].some((z) => Math.abs(p[2] - z) < 1e-6)); // a door's corridor
+  for (const [door, far] of [[[53.5, 1.7, 41.5], [70, 1.7, 194]], [[53.5, 1.7, 140.5], [98, 1.7, 21]]]) {
+    const route = respawnRoute(door, far);
+    assert.deepEqual(route[route.length - 1], far, "it ends at the far place");
+    let at = door;
+    for (const p of route) {
+      assert.ok(Math.hypot(p[0] - at[0], p[2] - at[2]) <= 40 + 1e-9, `a step from ${at} to ${p} is longer than 40 m`);
+      assert.ok(onFloor(p), `${p} is not on the shared floor`);
+      at = p;
+    }
+  }
+});

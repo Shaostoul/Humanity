@@ -30,6 +30,9 @@ impl Storage {
         out.insert("exported_at_unix_ms".into(), serde_json::json!(super::now_millis()));
         out.insert("public_key".into(), serde_json::json!(key));
         out.insert("name".into(), serde_json::json!(name));
+        // The plot their home stands on, on each ship of this server: held under their DID,
+        // not their key (storage/plots.rs `plot_owner_id`).
+        let plot_owner = super::plot_owner_id(key);
 
         self.with_read_conn(|conn| {
             let mut grab = |label: &str, sql: &str, binds: &[&dyn rusqlite::types::ToSql]| {
@@ -88,6 +91,9 @@ impl Storage {
             // Sealed mail queued for them (counts only; contents are sealed
             // envelopes their own client decrypts via dm_fetch).
             grab("dm_mailbox_queued", "SELECT COUNT(*) AS envelopes FROM dm_mailbox WHERE to_key = ?1", &[&key]);
+            // The plot their home stands on (ship homes 1b; the third review: it was neither
+            // exported nor erased).
+            grab("ship_plots", "SELECT world_id, plot_id, assigned_at FROM game_plots WHERE owner_did = ?1", &[&plot_owner]);
 
             // ── Things erase deletes but export never offered ──
             // These six were in delete_account() with no matching grab here.
@@ -171,6 +177,7 @@ impl Storage {
 
         let mut receipt: Vec<(String, usize)> = Vec::new();
         receipt.push(("upload_files_removed".to_string(), files_removed));
+        let plot_owner = super::plot_owner_id(key);
         self.with_conn(|conn| {
             let mut del = |label: &str, sql: &str, binds: &[&dyn rusqlite::types::ToSql]| {
                 match conn.execute(sql, binds) {
@@ -208,6 +215,10 @@ impl Storage {
             del("roles", "DELETE FROM user_roles WHERE public_key = ?1", &[&key]);
             del("membership", "DELETE FROM server_members WHERE public_key = ?1", &[&key]);
             del("registered_name", "DELETE FROM registered_names WHERE public_key = ?1", &[&key]);
+            // Their plot on the ship goes back for the next player (ship homes 1b, the third
+            // review: an erased account held its plot for good, and nothing in the app could
+            // free it, because the key an admin would name was erased with everything else).
+            del("ship_plots", "DELETE FROM game_plots WHERE owner_did = ?1", &[&plot_owner]);
             // Fold the secure_delete-zeroed pages out of the WAL.
             let _ = conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE);");
         });
@@ -218,6 +229,7 @@ impl Storage {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::relay::storage::plot_owner_id;
 
     fn test_storage() -> Storage {
         let pid = std::process::id();
@@ -357,5 +369,36 @@ mod tests {
         // Bob is untouched.
         assert!(db.is_member("bob_key"));
         assert_eq!(db.mailbox_fetch("bob_key", 0, 10).unwrap().len(), 1);
+    }
+
+    /// Ship homes 1b, the third review: erasing an account gives back the plot its home stood
+    /// on (held under the DID from the key, `plot_owner_id`, which no key- or name-keyed DELETE
+    /// could match), so two erased accounts can no longer fill the shipped two-plot ship for
+    /// good; and the export lists the plot first. Another player's plot is untouched.
+    ///
+    /// Seen red 2026-10-03 with neither the grab nor the DELETE for `game_plots` (the a504c5cd9
+    /// account.rs): "the export lists the plot their home stands on: []".
+    #[test]
+    fn erasing_an_account_gives_back_its_plot_and_the_export_lists_it() {
+        let db = test_storage();
+        let (cara, dev) = ("c0ffee01", "c0ffee02"); // hex keys, held under their DIDs
+        db.register_name("Cara", cara).unwrap();
+        let plots = ["p1", "p2"];
+        assert_eq!(db.claim_plot("mothership-1", &plot_owner_id(cara), &plots).unwrap().as_deref(), Some("p1"));
+        assert_eq!(db.claim_plot("mothership-1", &plot_owner_id(dev), &plots).unwrap().as_deref(), Some("p2"));
+
+        let export = db.export_account(cara, "Cara");
+        let listed = export["ship_plots"].as_array().cloned().unwrap_or_default();
+        assert!(
+            listed.len() == 1 && listed[0]["plot_id"] == "p1" && listed[0]["world_id"] == "mothership-1",
+            "the export lists the plot their home stands on: {listed:?}"
+        );
+
+        let receipt = db.delete_account(cara, "Cara");
+        assert!(receipt.iter().any(|(l, n)| l == "ship_plots" && *n == 1), "the erase gives the plot back: {receipt:?}");
+        assert_eq!(db.plot_holder("mothership-1", "p1").unwrap(), None, "p1 is free");
+        assert_eq!(db.plot_holder("mothership-1", "p2").unwrap(), Some(plot_owner_id(dev)), "the other player keeps theirs");
+        // The next player gets the freed plot.
+        assert_eq!(db.claim_plot("mothership-1", &plot_owner_id("c0ffee03"), &plots).unwrap().as_deref(), Some("p1"));
     }
 }

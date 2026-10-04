@@ -110,4 +110,41 @@ mod tests {
             );
         }
     }
+
+    /// Where an action's "how" points at code by a source file and a function name
+    /// (`src/gui/pages/game_admin.rs draw_plot_release`), that file defines that function.
+    /// A file that merely exists is not enough: the third review of ship homes 1b found the
+    /// plot-release entry naming msg_handlers.rs for a handler that lives in home_plots.rs,
+    /// which sends an admin or an AI to a file that has never held it. A name counts as a
+    /// function when it follows the path after a space and is snake_case with an underscore
+    /// (plain words after a path, "src/relay/relay.rs defaults", and a name in brackets, "src/
+    /// lib.rs:562 (env_logger)", are prose).
+    ///
+    /// Seen red 2026-10-03 on the a504c5cd9 registry: "Release a player's plot on the ship:
+    /// src/relay/handlers/msg_handlers.rs has no fn handle_game_release_plot".
+    #[test]
+    fn every_code_pointer_names_a_function_that_file_defines() {
+        let r: OpsRegistry = serde_json::from_str(include_str!("../../data/admin/ops_registry.json")).expect("the registry parses");
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let mut bad = Vec::new();
+        let mut checked = 0;
+        for a in &r.actions {
+            let words: Vec<&str> = a.how.split_whitespace().collect();
+            for pair in words.windows(2) {
+                let file = pair[0].trim_start_matches('(').split(':').next().unwrap_or("");
+                let name = pair[1].trim_end_matches(|c: char| !(c.is_ascii_alphanumeric() || c == '_'));
+                let is_fn = name.contains('_') && name.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_');
+                if !(file.starts_with("src/") && file.ends_with(".rs") && is_fn) {
+                    continue;
+                }
+                checked += 1;
+                let text = std::fs::read_to_string(root.join(file)).unwrap_or_default();
+                if !text.contains(&format!("fn {name}")) {
+                    bad.push(format!("{}: {file} has no fn {name}", a.name));
+                }
+            }
+        }
+        assert!(checked > 0, "no code pointer was found to check");
+        assert!(bad.is_empty(), "{}", bad.join("\n"));
+    }
 }
