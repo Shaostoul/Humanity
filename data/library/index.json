@@ -643,6 +643,17 @@
           ]
         },
         {
+          "title": "Roofs and Keeping Water Out",
+          "file": "roofs_and_keeping_water_out.md",
+          "tags": [
+            "guide",
+            "real",
+            "shelter",
+            "water",
+            "safety"
+          ]
+        },
+        {
           "title": "Your First Solar Power",
           "file": "first_solar_power.md",
           "tags": [
@@ -680,6 +691,17 @@
             "real",
             "shelter",
             "health"
+          ]
+        },
+        {
+          "title": "Repairing a Building",
+          "file": "repairing_a_building.md",
+          "tags": [
+            "guide",
+            "real",
+            "shelter",
+            "making",
+            "safety"
           ]
         },
         {
@@ -957,6 +979,17 @@
         {
           "title": "Glue and Joints",
           "file": "glue_and_joints.md",
+          "tags": [
+            "guide",
+            "real",
+            "making",
+            "materials",
+            "safety"
+          ]
+        },
+        {
+          "title": "Salvage and Reuse",
+          "file": "salvage_and_reuse.md",
           "tags": [
             "guide",
             "real",
