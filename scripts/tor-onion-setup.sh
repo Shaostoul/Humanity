@@ -7,11 +7,15 @@
 # https:// endpoint is untouched. Full rationale + limits:
 # docs/admin/tor-onion-service.md
 #
-# Usage: sudo scripts/tor-onion-setup.sh [local_port]   (default 8080)
+# Usage: sudo scripts/tor-onion-setup.sh [local_port]   (default 3210)
+#
+# local_port is the relay's PORT (default 3210). This said 8080 until
+# 2026-10-03, a port nothing listens on. Tor reaches the relay over loopback,
+# so this works with BIND_ADDRESS=127.0.0.1 as well as the default.
 
 set -euo pipefail
 
-PORT="${1:-8080}"
+PORT="${1:-3210}"
 HS_DIR="/var/lib/tor/humanity"
 TORRC="/etc/tor/torrc"
 

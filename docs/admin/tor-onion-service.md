@@ -32,14 +32,22 @@ Add to `/etc/tor/torrc`:
 
 ```
 HiddenServiceDir /var/lib/tor/humanity/
-HiddenServicePort 80 127.0.0.1:8080
+HiddenServicePort 80 127.0.0.1:3210
 HiddenServiceVersion 3
 ```
 
-(Port 8080 is the relay's local listener. If you terminate TLS at nginx,
-point the onion service at nginx's plain-HTTP upstream instead; onion
-services are already end-to-end encrypted by Tor, so a second TLS layer is
-optional.)
+(Port 3210 is the relay's local listener: its `PORT`, default 3210. This
+page said 8080 until 2026-10-03, and so did the helper script's default,
+which would have pointed the onion at a port nothing listens on. If you
+terminate TLS at nginx, point the onion service at nginx's plain-HTTP upstream
+instead; onion services are already end-to-end encrypted by Tor, so a second
+TLS layer is optional.)
+
+Tor reaches the relay over loopback, so the onion service works whether the
+relay listens on every interface (the default) or on this machine only
+(`BIND_ADDRESS=127.0.0.1` in its `.env`). The second is the tighter setup
+when the onion address and nginx are the only ways in; see "Who can connect"
+in `SELF-HOSTING.md`.
 
 ```bash
 sudo systemctl restart tor

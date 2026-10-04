@@ -406,6 +406,12 @@ pub struct AppConfig {
     pub host_node_db: String,
     #[serde(default)]
     pub host_node_name: String,
+    /// The node accepts connections from this computer only (it listens on
+    /// 127.0.0.1 instead of every interface). Off by default: hosting is
+    /// usually for other people on the same network. On, nothing else can
+    /// reach it and Windows never asks about the firewall.
+    #[serde(default)]
+    pub host_node_local_only: bool,
     /// Server sections the user collapsed in the chat sidebar (normalized
     /// URLs). Order itself persists via saved_servers.
     #[serde(default)]
@@ -1333,6 +1339,7 @@ impl AppConfig {
             host_node_port: state.host_node_port.clone(),
             host_node_db: state.host_node_db.clone(),
             host_node_name: state.host_node_name.clone(),
+            host_node_local_only: state.host_node_local_only,
             collapsed_servers: state.chat_server_sections_collapsed.iter().cloned().collect(),
             render_distance: state.settings.render_distance,
             water_detail_depth: state.settings.water_detail_depth,
@@ -1512,6 +1519,7 @@ impl AppConfig {
         state.host_node_port = self.host_node_port.clone();
         state.host_node_db = self.host_node_db.clone();
         state.host_node_name = self.host_node_name.clone();
+        state.host_node_local_only = self.host_node_local_only;
         state.chat_server_sections_collapsed = self.collapsed_servers.iter().cloned().collect();
         state.settings.render_distance = self.render_distance.clamp(50.0, 2000.0);
         state.settings.water_detail_depth = self.water_detail_depth.clamp(14.0, 20.0);

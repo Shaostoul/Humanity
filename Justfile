@@ -516,8 +516,9 @@ verify-live-screen *ARGS:
 
 # Publish a test pattern to a LOCAL relay by hand, to watch a wall screen play
 # something while you work on it. Start a relay first, e.g.
-#   PORT=3399 DATABASE_PATH=.probe-rig/live-screen/relay/relay.db \
+#   BIND_ADDRESS=127.0.0.1 PORT=3399 DATABASE_PATH=.probe-rig/live-screen/relay/relay.db \
 #       target/release/HumanityOS.exe --headless
+# (BIND_ADDRESS=127.0.0.1 keeps Windows from raising a firewall prompt for it.)
 # then point the app at http://127.0.0.1:3399 and run this. It refuses any
 # server that is not loopback unless given --allow-remote.
 live-publish *ARGS:
@@ -571,9 +572,15 @@ lints:
 # is recorded, and every rig reaches the gate through runFreshGate. Its node
 # fingerprint is pinned to the number build.rs produced on the same fixture, and
 # when a build script sits under target/ the test runs it on the fixture too.
+# And the throwaway relay's loopback-only check (scripts/lib/throwaway-relay.js,
+# 2026-10-03): its env sets BIND_ADDRESS=127.0.0.1 whatever the shell says,
+# netstat/ss/lsof output is read for the right PID only, every wildcard
+# spelling and an empty listing are REFUSED, and a real 127.0.0.1 listener is
+# read from the OS and passed. A dev relay on 0.0.0.0 raises a Windows Firewall
+# prompt for every new temp path; see docs/INCIDENT-PLAYBOOK.md.
 # Add a file here whenever a rig script grows a judgement of its own.
 rig-tests:
-    node --test scripts/tests/machine-guard.test.js scripts/tests/perf-report.test.js scripts/tests/terminator-grain.test.js scripts/tests/make-clips.test.js scripts/tests/voice-rejoin.test.js scripts/tests/backup-rotate.test.js scripts/tests/second-player.test.js scripts/tests/copresence-judge.test.js scripts/tests/dxc-dlls.test.js scripts/tests/station-park-check.test.js scripts/tests/check-fresh-exe.test.js scripts/tests/check-delivery.test.js
+    node --test scripts/tests/machine-guard.test.js scripts/tests/perf-report.test.js scripts/tests/terminator-grain.test.js scripts/tests/make-clips.test.js scripts/tests/voice-rejoin.test.js scripts/tests/backup-rotate.test.js scripts/tests/second-player.test.js scripts/tests/copresence-judge.test.js scripts/tests/dxc-dlls.test.js scripts/tests/station-park-check.test.js scripts/tests/check-fresh-exe.test.js scripts/tests/check-delivery.test.js scripts/tests/throwaway-relay.test.js
 
 # The scripted second player (scripts/second-player.js) against a REAL relay.
 # NOT pure node, so NOT in rig-tests or `just verify` (rig-tests keeps the
@@ -745,9 +752,12 @@ curriculum *args:
 build-relay:
     cargo build --release --features relay --no-default-features
 
-# Run relay locally for development
+# Run relay locally for development, on THIS computer only (BIND_ADDRESS=127.0.0.1):
+# a dev relay listening on every interface raises a Windows Firewall prompt for
+# each new exe path (docs/INCIDENT-PLAYBOOK.md, 2026-10-03). To try it from a
+# phone on your Wi-Fi, run the cargo line by hand with BIND_ADDRESS=0.0.0.0.
 run-relay:
-    cargo run --features relay --no-default-features -- --headless
+    BIND_ADDRESS=127.0.0.1 cargo run --features relay --no-default-features -- --headless
 
 # cargo fmt is BANNED in this repo (Incident v0.390): it reformats ~240 files and
 # moves inline `// theme-exempt` markers onto their own line, silently breaking

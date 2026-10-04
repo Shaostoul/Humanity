@@ -162,6 +162,21 @@ Compound lesson: while diagnosing, I attempted to recover by copying the pre-bui
 
 **Lesson**: when a feature has two code paths reaching the same outcome (here: key-targeted vs name-targeted moderation), audit BOTH paths against every invariant. Trust assumptions like "only admins use the UI" are not controls.
 
+### 2026-10-03: dev relays and tests kept stopping the operator with Windows Firewall prompts
+**What happened**: many times a day, while agents worked, Windows showed "Windows Defender Firewall has blocked some features of this app" for HumanityOS, at paths like `%TEMP%\verify-copresence-relay-imczal\humanityos.exe`, interrupting whatever the operator was doing until he clicked Cancel. Windows asks once per exe PATH when a program listens on a non-loopback address. Two things listened on `0.0.0.0` from paths that are new all the time:
+- **The relay itself.** `run_relay()` bound `0.0.0.0:{PORT}` with no way to change it, and `scripts/lib/throwaway-relay.js` runs a copy from a new `mkdtemp` folder every run (verify-copresence, the second-player relay test). 54 firewall rules were for those copies.
+- **Two Host-a-node unit tests** in `src/gui/pages/host_node.rs`: one held `0.0.0.0` itself, the other made the node's port pre-check test-bind it. The lib test binary is `target/<profile>/deps/humanity_engine-<hash>.exe`, a new path after every version bump and in every worktree: 209 of the 274 HumanityOS paths in the rule list.
+
+None of it needed the network: every client of a dev relay is on `127.0.0.1`.
+
+**Fix**: the relay reads a new `BIND_ADDRESS` setting (`src/relay/mod.rs` `parse_bind_address`). The DEFAULT stays `0.0.0.0`, because the documented LAN node, a router port forward and a direct Tailscale address need it (`docs/admin/SELF-HOSTING.md`); a value that is not an IP address stops the relay rather than widening to every interface. Every dev launcher sets `BIND_ADDRESS=127.0.0.1`: `throwaway-relay.js`, `verify-live-screen.js`, `just run-relay`. `throwaway-relay.js` then asks the OS (netstat / ss / lsof) what the relay's PID listens on and kills it and throws unless it is loopback only, so a revert, or an exe built before the setting existed, fails loudly instead of prompting (`scripts/tests/throwaway-relay.test.js` in `just rig-tests`). Host a node gained "Who can connect" (`Only this computer` = `127.0.0.1`), and the tests use it: no test listens on `0.0.0.0` any more. The network case of the pre-check is pinned by checking WHICH addresses it would bind, without binding them.
+
+**Do not revert this to "simplify".** If a dev relay must be reachable from another device for a real reason, set `BIND_ADDRESS=0.0.0.0` for that one run by hand, and expect the prompt. The ~550 firewall rules already created are the operator's to remove (a firewall settings change, not ours).
+
+**Still able to prompt, by design or untested**: the WebRTC UDP socket (`src/net/webrtc.rs`, `0.0.0.0:0`, opened once a client with an identity connects; no prompt was ever recorded for it, and the firewall research found no source saying UDP-only binds prompt), Host a node on "Devices on my network" (the user asked for the network; one prompt is correct there), and `node scripts/preview-server.js` (listens on every interface, through the one fixed `node.exe` path, so at most one prompt ever).
+
+**Lesson**: a dev tool that listens should listen on loopback, and should CHECK that it does, from the OS's point of view rather than from the env it passed. Anything that runs from a fresh path (temp copies, per-hash test binaries, per-worktree builds) multiplies a one-time annoyance into a daily one.
+
 ## Section 3: Anticipated failures (haven't happened yet but probably will)
 
 ### nginx maps to wrong upstream after a restart
@@ -189,6 +204,7 @@ A user logs in from web + native simultaneously, edits profile from both, clocks
 
 ## Update log
 - 2026-05-20, initial creation; populated with the four real incidents from the last 30 days + the anticipated failure list seeded from the audit work.
+- 2026-10-03, added the dev-relay Windows Firewall prompts (BIND_ADDRESS, loopback-only dev launchers and tests).
 
 ## The TURN relay abuse and the 12-hour invisible outage (2026-08-07)
 
