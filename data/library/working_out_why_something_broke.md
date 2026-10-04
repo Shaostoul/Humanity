@@ -50,37 +50,83 @@ still the right logic for any repair at home:
   when it is unplugged and the plug stays under the exclusive control of
   the person working on it. In practice: in your hand, or in sight and
   out of anyone else's reach.
-- **Lock or label the isolator.** At home this can be as simple as a
-  piece of tape over the breaker and a note saying who is working on
-  what. That is general practice, the household version of the lock or
-  tag OSHA requires at work.
+- **Lock the isolator, and label it.** A piece of tape and a note on
+  the breaker saying who is working on what is better than nothing, but
+  anyone can peel tape off. A breaker lock-off, a small clip that fits
+  over the breaker handle and takes a padlock, does the job properly,
+  with the key in your pocket. That is general practice, the household
+  version of the lock or tag OSHA requires at work.
 - **Release the energy that stays behind after you switch off.** OSHA
   requires that all potentially hazardous stored or residual energy be
-  relieved, disconnected, restrained, or otherwise rendered safe. Stored
+  relieved, disconnected, restrained, and otherwise rendered safe. Stored
   energy is the part people forget: a pressure tank still full of water
   under pressure, a spring under tension, a raised part held up only by
   hydraulics, a hot engine. The Navy's handbook adds the electrical one:
-  capacitors retain an electrical charge, and it says to discharge all
-  capacitors and circuits containing them before working on them.
+  capacitors retain an electrical charge, and it tells its technicians to
+  discharge them before working on them. At home, read that as a reason
+  to stop, not as an instruction; see "Know where your diagnosis stops"
+  below.
 - **Check that it is actually dead before you start.** OSHA requires the
   person to verify that isolation and de-energisation have been achieved
   before starting work. Its sample procedure does it this way: first make
   sure nobody is exposed, then operate the machine's normal controls to
   make certain it will not run, then return the controls to off.
 
+**For wiring, trying the switch is not enough.** OSHA's lockout rule
+leaves electrical work to a separate standard, and that one, 29 CFR
+1910.333, requires both steps before a circuit can be treated as dead:
+operating the equipment's controls (or otherwise verifying it cannot be
+restarted), and then using test equipment to test the parts you will be
+exposed to and verify that they are de-energised. The test is also meant
+to catch voltage that is present even though the circuit was switched
+off, from a feed nobody expected. At home that looks like this: the
+breaker is mislabelled, or a second circuit runs through the same box,
+so the light stays off when you flip the switch while a wire in the box
+is still live.
+
+So, before you touch any wire, terminal or fitting:
+
+1. **Treat a wall switch as a control, not an isolator.** It turns the
+   light off. It does not make the box behind it, or the fitting it
+   feeds, safe to touch. Turn off the breaker, and lock it.
+2. **Prove it dead with a voltage tester, at the point you will touch.**
+   Check the tester on a circuit you know is live, test the wires you are
+   about to touch, then check the tester on the known live circuit again.
+   A tester that has failed reads exactly like a dead circuit, which is
+   why you check it before and after. OSHA requires that before-and-after
+   check of the tester only above 600 volts; doing it at household
+   voltage too is general practice, and it costs seconds.
+3. **No tester, or not sure how to use one: stop here.** That is the end
+   of the diagnosis and the start of a call to an electrician.
+
 The Navy's handbook opens with a list of habits for anyone working on
 electrical equipment, and several translate directly to home repair:
 never work alone; do not work on energised equipment unless absolutely
 necessary; never attempt to repair energised circuits except in an
 emergency; use only one hand when operating circuit breakers or
-switches; and never bypass an interlock without authority.
+switches; and never bypass an interlock without authority. Its
+exceptions are written for trained technicians on a ship. At home, read
+"unless absolutely necessary" and "except in an emergency" as never:
+nothing in a house is worth working on live.
 
 **Know where your diagnosis stops.** The CPSC's advice on ground-fault
 outlets is a good model: test them yourself, but if one fails its test
-or you are in doubt about wiring, contact a qualified electrician. Fuel
-gas, the inside of an electrical panel, and anything whose failure could
-hurt somebody other than you are places where your diagnosis can end at
-"it is in there somewhere, and I am calling someone".
+or you are in doubt about wiring, contact a qualified electrician. The
+CPSC's home electrical checklist adds a rule worth knowing by heart: if
+you have had even a slight shock from an appliance (other than static),
+do not touch it again until an electrician has checked it, and turn its
+power off at the breaker, because a shock means a hazardous wiring
+condition. Other places where your diagnosis can end at "it is in there
+somewhere, and I am calling someone":
+
+- **Anything with a large capacitor.** A microwave oven, an old
+  tube (CRT) television or monitor, power supplies and inverters can stay
+  dangerous after they are unplugged, because their capacitors hold a
+  charge. The Navy's handbook warns that a cathode-ray tube's anode
+  contact may hold a residual charge. Opening these is not a beginner
+  repair; the list beyond the CRT is general practice.
+- **Fuel gas, and the inside of an electrical panel.**
+- **Anything whose failure could hurt somebody other than you.**
 
 ## The six steps
 
@@ -197,6 +243,22 @@ circuit can be ruined by it, and a new fuse put into a circuit with a
 fault will blow again. A fuse exists to blow when too much current
 flows, so a fuse that blows again after replacement is evidence rather
 than the fault: whatever drew the current is somewhere else.
+
+Two rules for fuses and breakers, because getting them wrong starts
+fires:
+
+- **Replace a fuse only with one of the same rating.** Never a bigger
+  one, and never a bypass such as a wire or foil. The CPSC's home
+  electrical checklist says to use the correct size, to have an
+  electrician identify and label it if you do not know it, and explains
+  why: the wrong size of fuse can let too much current flow and overheat
+  the wiring, creating a fire hazard. A bigger fuse does not fix the
+  fault; it removes the protection that was telling you about it.
+- **Reset a tripped breaker once.** If it trips again straight away,
+  stop: something on that circuit is faulty or the circuit is
+  overloaded, and resetting it again and again is not a test. Unplug
+  what is on the circuit, or call an electrician. This one is general
+  practice rather than a published rule.
 
 ### Change one thing at a time
 
@@ -320,13 +382,19 @@ A bathroom outlet has stopped working.
    the room work? Other outlets in the room? Elsewhere in the house? A
    whole house dead points one way, one room another, one outlet a third.
 2. **Check the breakers.** If a whole circuit is dead, look first for
-   a breaker that has tripped.
-3. **Look for a ground-fault outlet upstream.** The CPSC explains that a
+   a breaker that has tripped. Reset it once; if it trips again straight
+   away, stop, as described under "Two rules for fuses and breakers"
+   above.
+3. **Look for a ground-fault device upstream.** The CPSC explains that a
    ground-fault circuit interrupter (GFCI) outlet protects whatever is
    plugged into it and also other outlets further downstream on the same
    circuit. So a dead bathroom outlet can be the result of a GFCI that
    tripped somewhere else, in another bathroom, a garage, a kitchen or
-   outdoors. Find it and press its reset button.
+   outdoors. Find it and press its reset button. The GFCI may also be a
+   circuit breaker in the panel: the CPSC describes a GFCI breaker as
+   protecting the wiring and every outlet, light fitting or appliance on
+   the circuit it supplies. Its home electrical checklist resets one by
+   moving the handle to off and then on.
 4. **If it trips again at once, believe it.** The CPSC describes a GFCI
    as cutting the power when the current flowing into a circuit differs
    from the current returning by as little as 0.006 amperes: some of the
@@ -334,9 +402,9 @@ A bathroom outlet has stopped working.
    ground faults most often happen when equipment is damaged or
    defective. The general-practice next step is a form of the
    one-thing-at-a-time rule above: unplug everything on that circuit
-   and reset again. If it now holds, plug things back in one at a time; the one
-   that trips it is the suspect, and it stays unplugged until it has
-   been checked or replaced. If it trips with nothing plugged in, the
+   and reset again. If it now holds, plug things back in one at a time;
+   the one that trips it is the suspect, and it stays unplugged until it
+   has been checked or replaced. If it trips with nothing plugged in, the
    fault is in the wiring or the device, and that is a job for a
    qualified electrician.
 
@@ -360,22 +428,41 @@ source beyond itself.
   the old batteries were the fault. If not, the batteries are ruled out
   and you have halved the problem.
 - Look: green or white crust on the contacts is corrosion, and a gentle
-  clean may be the whole repair.
+  clean may be the whole repair. Crust from a leaked battery is caustic:
+  wear gloves, keep it off your skin and out of your eyes, and wash your
+  hands afterwards. (General practice.)
 - Then ask why. Batteries left in a torch in a drawer for years, or a
   torch left switched on, are root causes in the household sense used
   above: habits, not parts.
 
 ### An engine that will not start
 
-The general practice for a small petrol engine that will not start is
-to split by the four things it needs to run: fuel, air, a spark, and
-compression. Each can be checked separately, so the first split is
-cheap. Start with the easiest: is there fuel, and is it fresh; is the
-air filter clean; is the fuel valve open and the choke set. The
-manufacturer's manual for your engine gives its own test sequence and
-safety steps; use it rather than a general list. Fuel and sparks
-together are a fire, so do any spark check away from spilled or open
-fuel, with the engine cool.
+Two safety rules come before any diagnosis:
+
+- **Isolate it first: pull the spark-plug lead off before you touch the
+  blade or turn the engine over by hand.** On many mowers the blade is
+  fixed to the engine's shaft, so turning the blade turns the engine,
+  and an engine turned by hand can start. The CPSC's
+  walk-behind mower fact sheet gives the same move for disabling a mower
+  so no one can use it (remove the ignition wire from the spark plug, or
+  remove the plug), and says to shut the engine off and let the blade
+  stop completely before clearing a jammed chute.
+- **Run it to test only outdoors.** The CPSC lists lawn mowers among the
+  engines that produce carbon monoxide, and says never to run a portable
+  generator or any other gasoline engine-powered tool in or near an
+  enclosed space such as a garage, house or other building. It describes
+  carbon monoxide as a deadly gas with no colour and no smell, so nothing
+  warns you while it builds up in a shed or a garage.
+
+Then the diagnosis. The general practice for a small petrol engine that
+will not start is to split by the four things it needs to run: fuel,
+air, a spark, and compression. Each can be checked separately, so the
+first split is cheap. Start with the easiest: is there fuel, and is it
+fresh; is the air filter clean; is the fuel valve open and the choke
+set. The manufacturer's manual for your engine gives its own test
+sequence and safety steps; use it rather than a general list. Fuel and
+sparks together are a fire, so do any spark check away from spilled or
+open fuel, with the engine cool.
 
 ### A plant that is failing
 
@@ -412,13 +499,16 @@ things that are worth recognising from this guide.
   for the load ("Power source"), whether a day's generation covers a
   day's use ("Energy balance"), whether every connection points at a
   machine that exists ("Wiring"), whether each power cable is big enough
-  for its load and length ("Conduits", sized for at most 5 percent
-  voltage drop at 120 volts), whether data links carry their traffic
-  ("Data links"), and whether every load traces back through the wiring
-  to a generator ("Power circuit"). That last check is the walk you
-  would make along a real circuit with a meter, from the load back
-  towards the supply. Most failing checks name the cable run or the
-  machines involved, which is steps 3 to 5 done in one line.
+  for its load and length ("Conduits", which checks the cable can carry
+  the current and loses at most 5 percent of its voltage at 120 volts),
+  whether data links carry their traffic ("Data links"), and whether
+  every load traces back through the wiring to a generator ("Power
+  circuit"). That last check is the walk you would make along a real
+  circuit with a meter, from the load back towards the supply. When the
+  three wiring checks (Conduits, Data links and Power circuit) fail,
+  they name the cable run or the machines involved, which is steps 3 to
+  5 done in one line; Power source, Energy balance and Wiring give a
+  total or a count instead.
 - **A machine that stops may not be broken.** In the Realistic ship
   life support mode, where your home runs only on what it makes and
   stores, the electrical simulation sheds loads in priority order when
@@ -428,8 +518,9 @@ things that are worth recognising from this guide.
   down. That is the "what still works?" question from step 2, in the
   game. (In the default Station-supplied mode aboard the ship, the
   ship's reactor makes up any shortfall, so nothing is shed.)
-- **Tools wear out by use.** Each craft by hand wears every tool it
-  needs by one use, and a tool breaks when its uses reach its
+- **Tools wear out by use.** Each craft you make yourself at a workbench
+  or other station (not one an automated machine makes) wears every tool
+  it needs by one use, and a tool breaks when its uses reach its
   durability (a hammer's base durability is 200 uses, adjusted by the
   grade it was made to). The tool rules are in
   `data/crafting/tools.ron` and the durabilities in `data/items.csv`.
@@ -445,8 +536,13 @@ fault.
 ## You own this when
 
 - You make a machine safe before you touch it: every energy source
-  isolated at a real isolator, stored energy released, the plug in your
-  control, and a check that it is dead.
+  isolated at a real isolator and locked off, stored energy released,
+  the plug in your control, and a check that it is dead.
+- Before you touch wiring, you prove it dead with a voltage tester that
+  you have checked on a live circuit before and after, and without a
+  tester you stop.
+- You replace a fuse only with one of the same rating, and you reset a
+  tripped breaker once, not again and again.
 - You describe a fault in detail before you pick up a tool, including
   what still works and what changed.
 - You draw the system as a chain and can say which links could and
@@ -479,17 +575,29 @@ Regulations on 3 October 2026; the eCFR is updated in place.
   never working alone, not working on energised equipment unless
   absolutely necessary, using one hand on breakers and switches, tag-out,
   and not bypassing interlocks; capacitors retain a charge and are
-  discharged before work). Copy hosted in the Internet Archive's
+  discharged before work; a cathode-ray tube's anode contact may hold a
+  residual charge). Copy hosted in the Internet Archive's
   NEETSModules collection. https://archive.org/details/NEETSModules
 - Occupational Safety and Health Administration. 29 CFR 1910.147, The
   control of hazardous energy (lockout/tagout) (scope, including the
   exclusion of agriculture employment and the cord-and-plug exception;
   the definitions of energy source and energy isolating device, and
   that push buttons and selector switches are not isolating devices;
-  relieving stored or residual energy; verifying isolation before work;
-  Appendix A's sample procedure, which verifies isolation by operating
-  the normal controls and then returning them to off).
+  stored or residual energy relieved, disconnected, restrained, and
+  otherwise rendered safe; verifying isolation before work; Appendix A's
+  sample procedure, which verifies isolation by operating the normal
+  controls and then returning them to off; the exclusion of electrical
+  hazards, which subpart S covers).
   https://www.ecfr.gov/current/title-29/subtitle-B/chapter-XVII/part-1910/subpart-J/section-1910.147
+- Occupational Safety and Health Administration. 29 CFR 1910.333,
+  Selection and use of work practices, paragraph (b)(2)(iv),
+  Verification of deenergized condition (operate the equipment controls
+  or otherwise verify it cannot be restarted; then use test equipment to
+  test the parts to which the worker will be exposed and verify they are
+  de-energised, including voltage from induction or unrelated backfeed;
+  above 600 volts, check the test equipment immediately before and after
+  the test).
+  https://www.ecfr.gov/current/title-29/subtitle-B/chapter-XVII/part-1910/subpart-S/section-1910.333
 - National Aeronautics and Space Administration. *NASA Procedural
   Requirements for Mishap and Close Call Reporting, Investigating, and
   Recordkeeping*, NPR 8621.1D, effective 6 July 2020, updated with
@@ -497,13 +605,37 @@ Regulations on 3 October 2026; the eCFR is updated in place.
   root cause, contributing factor, root cause analysis).
   https://nodis3.gsfc.nasa.gov/displayDir.cfm?Internal_ID=N_PR_8621_001D_&page_name=AppendixA
 - US Consumer Product Safety Commission. *What Is a GFCI?*, CPSC Fact
-  Sheet, undated (it lists requirements up to 2005) (how a GFCI works and
+  Sheet, Publication 099, printed with the code 092010 (most likely
+  September 2010) (how a GFCI works and
   the 0.006 ampere figure; ground faults most often from damaged or
   defective equipment; a receptacle GFCI protects outlets downstream on
-  the branch circuit; test after installation, at least once a month
-  and after a power failure; the lamp test and what to do if it fails;
-  when to call a qualified electrician).
+  the branch circuit, and a GFCI circuit breaker protects the wiring and
+  every outlet, light fitting or appliance on the circuit it supplies;
+  test after installation, at least once a month and after a power
+  failure; the lamp test and what to do if it fails; when to call a
+  qualified electrician).
   https://www.cpsc.gov/s3fs-public/099_0.pdf
+- US Consumer Product Safety Commission. *Home Electrical Safety
+  Checklist*, Publication 513, July 2008 (use the correct size of fuse,
+  have an electrician identify and label it if unknown, because the
+  wrong size can let too much current flow and overheat the wiring; a
+  GFCI breaker is reset by moving the handle to off and then on; after
+  even a slight shock from an appliance, do not touch it until an
+  electrician has checked it, and turn it off at the breaker).
+  https://www.cpsc.gov/s3fs-public/513.pdf
+- US Consumer Product Safety Commission. *Walk-Behind Power Mower Fact
+  Sheet*, Publication 5126, printed with the code 052016 (shut the
+  engine off and let the blade stop completely before clearing a jam;
+  remove the ignition wire from the spark plug, or the plug, to disable
+  the mower).
+  https://www.cpsc.gov/s3fs-public/5126WalkBehindPowerMowerFactSheet.pdf
+- US Consumer Product Safety Commission. Carbon Monoxide Questions and
+  Answers, undated, read 3 October 2026 (carbon monoxide as a deadly,
+  colourless, odourless gas; lawn mowers among the engines that produce
+  it; never operate a portable generator or any other gasoline
+  engine-powered tool in or near an enclosed space such as a garage,
+  house or other building).
+  https://www.cpsc.gov/Safety-Education/Safety-Education-Centers/Carbon-Monoxide-Information-Center/Carbon-Monoxide-Questions-and-Answers
 - US Environmental Protection Agency, WaterSense. Fix a Leak Week, last
   updated 13 March 2026 (the two-hour meter test; the toilet dye test
   and flushing afterwards; the common household leaks; checking gaskets,
@@ -532,8 +664,13 @@ Regulations on 3 October 2026; the eCFR is updated in place.
   that produced the fault are general practice.
 - Splitting in the middle is described from its arithmetic (each test
   halves the suspects), not from a published procedure.
-- Taping and labelling a breaker at home is the household version of
-  OSHA's lock or tag, not a requirement.
+- Taping and labelling a breaker, or fitting a breaker lock-off, at home
+  is the household version of OSHA's lock or tag, not a requirement.
+- Treating a wall switch as a control rather than an isolator, checking
+  a voltage tester before and after at household voltages, resetting a
+  tripped breaker only once, reading the Navy's exceptions as never at
+  home, the list of capacitor-holding equipment beyond the CRT, and
+  handling leaked battery crust with gloves are general practice.
 - Reading NASA's "organizational factors" as household habits and
   schedules is our translation.
 - Closing plumbing sections and repeating the meter test is our

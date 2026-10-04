@@ -215,10 +215,12 @@ A label is a record that travels with the thing it describes.
 ## A maintenance log for every machine
 
 Aviation has a federal rule for maintenance records, and it is short.
-Federal aviation regulation 14 CFR 43.9 requires
-each maintenance entry to contain a description of the work performed,
-the date it was completed, the name of the person who did it, and the
-signature of the person approving it.
+Federal aviation regulation 14 CFR 43.9, "Content, form, and disposition
+of maintenance, preventive maintenance, rebuilding, and alteration
+records", requires each maintenance entry to contain a description of
+the work, the date it was completed, the name of whoever did it (if not
+the approver), and the approver's signature with their certificate number
+and kind of certificate.
 
 That is the right shape for a homestead log too, kept for each pump,
 generator, mower, chainsaw, vehicle and stove:
@@ -304,9 +306,11 @@ Garden notebooks, maintenance logs and weather records have no legal
 minimum, and they cost almost nothing to keep. Keep them for good. Their
 value grows with every year you add, because the slow changes only
 show up over many years. The Weather Service makes the point about its
-own volunteers: because the cooperative network has run for many decades
-with stable methods, it is recognised as the most definitive source on
-United States climate trends in temperature and precipitation. Its page
+own volunteers: partly because the cooperative network has run for many
+decades with relatively stable methods (it also names its high station
+density and its high share of rural locations), it is recognised as the
+most definitive source on United States climate trends in temperature
+and precipitation. Its page
 on the programme also records that Thomas Jefferson kept an almost
 unbroken record of the weather from 1776 to 1816. Nobody keeping a
 weather notebook in 1776 knew what it would be used for, which is the
@@ -385,12 +389,13 @@ The game keeps two records of its own, and both are worth looking at
 for what they teach.
 
 - **A meter, not a diary.** In the default ship life support mode,
-  Station-supplied, the Live power card on the Homes page shows how much electricity your home
-  has drawn from the ship's reactor and returned to it, under "Metered
-  from the ship", in kilowatt hours. It is a running total, kept to the
-  watt hour and saved with your home. Like a real meter, it only becomes
-  information when you write down a reading, come back later, and
-  subtract.
+  Station-supplied, the Live power card on the Homes page shows how much
+  electricity your home has drawn from the ship's reactor and returned
+  to it, under "Metered from the ship". It is a running total. The game
+  keeps it internally to the watt hour, but the card shows it in
+  kilowatt hours to two decimal places, so what you read moves in steps
+  of 10 watt hours. Like a real meter, it only becomes information when
+  you write down a reading, come back later, and subtract.
 - **Several dated copies, not one.** Settings > Data > Save snapshots
   lists earlier copies of your home. The game saves every 2 minutes and
   when you quit, and before it saves over your home it keeps the
@@ -401,6 +406,15 @@ for what they teach.
   spaced out in time, rather than one copy or ten made minutes apart, is
   the reason given above: a save spoiled by a mistake could otherwise
   push every good copy out before anyone noticed.
+
+**One setting changes both.** While Settings > Gameplay > "Start every
+session from the default home" is on, which is the default during
+development, only your character carries between launches. The ship
+meter starts over each time the game starts, and the home save, and so
+the snapshots taken of it, keeps your character on top of the last home
+saved while the setting was off, rather than your home as you left it
+this session. Turn the setting off if you want the meter and your home
+to carry over.
 
 What the game does not do: it keeps no garden diary, harvest log or
 maintenance log for you. Those are yours to keep, in the game as in
@@ -452,9 +466,11 @@ the current text if it matters to you.
   readily understood and audited; maintained not less than 5 years).
   https://www.ecfr.gov/current/title-7/subtitle-B/chapter-I/subchapter-M/part-205/subpart-B/section-205.103
 - Federal Aviation Administration. 14 CFR 43.9, Content, form, and
-  disposition of maintenance records (description of work, date of
-  completion, name of the person performing it, signature of the
-  person approving it).
+  disposition of maintenance, preventive maintenance, rebuilding, and
+  alteration records (a description of the work, the date of
+  completion, the name of the person performing it if other than the
+  approver, and the approver's signature, certificate number and kind of
+  certificate).
   https://www.ecfr.gov/current/title-14/chapter-I/subchapter-C/part-43/section-43.9
 - National Institutes of Health, Office of the Director. *Guidelines
   and Policies for the Conduct of Research in the Intramural Research
@@ -468,14 +484,16 @@ the current text if it matters to you.
 - National Weather Service, Shreveport office. *Co-op Weather
   Observation Quick Reference Guide* (record at your designated time each
   day; precipitation to the hundredth of an inch; 0.00 for none, T for
-  trace, M for missing; multi-day totals with a remark). Undated; the
+  trace, M for missing; multi-day totals with a remark). Undated on the
+  page; the PDF's internal creation date is 22 September 2011, and the
   file on the server was last modified in July 2017. Read 3 October
   2026.
   https://www.weather.gov/media/shv/coop/CooperativeWeatherObservationQuickReferenceGuide.pdf
 - National Weather Service, Chicago office. Cooperative Observer Program
   (formally created in 1890; observations seven days a week, 365 days a
   year, at the same time each day for consistency; the network's many
-  decades of stable operation making it the most definitive source on
+  decades of relatively stable operation, high station density and high
+  proportion of rural locations making it the most definitive source on
   US climate trends; Thomas Jefferson's almost unbroken record from 1776
   to 1816). Undated, read 3 October 2026.
   https://www.weather.gov/lot/coop
@@ -520,6 +538,9 @@ the current text if it matters to you.
   the ship supply ledger it reads (`src/systems/ship_power.rs`).
 - Settings > Data > Save snapshots (`src/gui/pages/settings.rs`) and the
   snapshot rules in `src/persistence.rs`.
+- Settings > Gameplay > "Start every session from the default home"
+  (`src/gui/pages/settings.rs`), and what it keeps and drops when the
+  home is saved and loaded (`src/save_load.rs`).
 - [Estimating](estimating.md), [Units and Converting
   Them](units_and_converting_them.md), [Working Out Why Something
   Broke](working_out_why_something_broke.md), [Saving Your Own

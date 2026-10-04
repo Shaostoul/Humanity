@@ -2758,7 +2758,7 @@
       "licence": "public-domain-us-gov",
       "use": "verbatim",
       "bundle": true,
-      "note": "Federal regulation text, quotable. 10 CFR 430.32(d) sets the minimum uniform energy factor for residential water heaters, with a stricter table for heaters made on or after 6 May 2029. Cite the section and the date it was read, because the eCFR is updated in place."
+      "note": "Federal regulation text, quotable. 10 CFR 430.32(d) sets the minimum uniform energy factor for residential water heaters, with a stricter table for heaters made on or after 6 May 2029. Also cited (read 2026-10-03): 29 CFR 1910.147 and 1910.333(b)(2)(iv), lockout and verifying that a circuit is de-energised with test equipment; 21 CFR 112.161-112.165, what a farm record must contain and how long it is kept; 14 CFR 43.9, maintenance record entries; 7 CFR 205.103, organic recordkeeping. Cite the section and the date it was read, because the eCFR is updated in place."
     },
     {
       "id": "doe-building-science-education",

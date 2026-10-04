@@ -81,8 +81,12 @@ once, and write the numbers down somewhere you will not lose them.
 
 ### Your pace
 
-The US Army's Map Reading and Land Navigation manual (FM 3-25.26)
-teaches distance by pace count, and its method is worth copying exactly:
+The US Army's Map Reading and Land Navigation manual (FM 3-25.26, 2001
+edition) teaches distance by pace count, and its method is worth copying
+exactly. That edition has since been superseded, most recently by TC
+3-25.26 (November 2013), which carries the same pace count, range
+estimation and Table 5-1 text; this guide cites the 2001 edition because
+it is approved for public release and the 2013 one is not.
 
 1. **Count paces, where a pace is one natural step.** The manual puts
    a pace at about 30 inches. You do not need that number; you need your
@@ -106,8 +110,8 @@ reason it works is simple: a miscount of one pace matters less over a
 long walk than a short one.
 
 **Do not keep the count in your head.** The manual is firm about this:
-use a pebble moved from one pocket to the other every hundred metres,
-knots in a string, or marks in a notebook, and never try to remember
+put a pebble in your pocket every time you have walked 100 metres, tie
+knots in a string, or put marks in a notebook, and never try to remember
 the count. A count kept in your head is lost the moment your attention
 goes to something else, and a long walk gives it plenty of chances.
 
@@ -155,7 +159,9 @@ known.
 
 NIST, the US national measurement institute, separates measurement
 error into two parts, and the distinction is the most useful idea in
-this guide.
+this guide. The definitions below are from its Technical Note 1297,
+which reproduces them from the international vocabulary of metrology
+(the VIM).
 
 - **Random error** is the scatter. Pace the same field three times and
   get 184, 189 and 186: that spread is random error. NIST defines it as
@@ -169,9 +175,11 @@ this guide.
 The two behave completely differently:
 
 - **Averaging shrinks random error and does nothing for systematic
-  error.** Pace the field ten times and the average settles down. If
-  your pace count was calibrated on flat ground and the field is a hill,
-  the average settles down on the wrong number.
+  error.** TN 1297 does not say this in so many words; it follows from
+  its definitions, and it is our reading. Pace the field ten times and
+  the average settles down. If your pace count was calibrated on flat
+  ground and the field is a hill, the average settles down on the wrong
+  number.
 - **Systematic error can be corrected, but only once you have measured
   it.** NIST calls this a correction: a value added to compensate for
   systematic error, equal to the negative of the error you estimated.
@@ -222,7 +230,8 @@ closer than they are) when:**
 - you are looking over a uniform surface such as water, snow, desert or
   a grain field;
 - the light is bright or the sun is behind you;
-- the object stands out sharply against its background.
+- the object stands out sharply against its background;
+- you are looking through the clear air of high altitudes.
 
 **You will tend to overestimate the distance (think things are further
 than they are) when:**
@@ -233,12 +242,15 @@ than they are) when:**
 - your view is hemmed in, as along a street, a gully or a forest trail;
 - you are looking up from low ground toward high ground;
 - the light is poor, at dawn or dusk, or in rain, snow or fog;
-- the sun is in your eyes.
+- the sun is in your eyes;
+- the object blends into the background or the terrain.
 
 How big can the error get? The manual, describing desert conditions
-with clear air and strong light, says errors of 200 or 300 percent in
-range are not uncommon. That is not ten percent. It is the reason to
-check by pacing whenever you can.
+with clear air and strong light, says they often lead to gross
+underestimates of range, and that errors of up to 200 or 300 percent are
+not uncommon. The error runs one way there: things look much closer than
+they are. That is not ten percent. It is the reason to check by pacing
+whenever you can.
 
 ### How to get better at it
 
@@ -270,8 +282,12 @@ counted.
 
 The Weather Service adds the part that matters: count from somewhere
 safe, and if you can hear thunder at all, you are probably within
-striking distance of the storm. The flash-to-bang count tells you how
-far away the last strike was. It does not tell you that you are safe.
+striking distance of the storm. It says thunder can be heard only about
+10 miles from the strike, and that the sound of thunder is a warning to
+anyone outside to get to a safe place immediately. So the count is not a
+reason to stay out and watch. Go in first, then count if you want to.
+The flash-to-bang count tells you how far away the last strike was. It
+does not tell you that you are safe.
 
 ## Height, with a stick or a shadow
 
@@ -459,6 +475,23 @@ descriptions:
 | 7 | 32 to 38 | Whole trees in motion; inconvenient to walk against the wind |
 | 8 | 39 to 46 | Twigs broken off trees; progress generally impeded |
 
+The same Weather Service table describes the sea at each force, for
+anyone estimating wind from a boat or a shore. The metres-per-second
+column is our conversion of its mph figures (1 mph is exactly 0.44704
+metres a second, so 1 metre a second is about 2.24 mph):
+
+| Force | Speed (m/s) | What you see at sea |
+|---|---|---|
+| 0 | 0 to 0.4 | Sea like a mirror |
+| 1 | 0.4 to 1.3 | Ripples like scales, but no foam crests |
+| 2 | 1.8 to 3.1 | Small wavelets; crests look glassy and do not break |
+| 3 | 3.6 to 5.4 | Large wavelets; crests begin to break; perhaps scattered white horses |
+| 4 | 5.8 to 8.0 | Small waves, becoming larger; fairly frequent white horses |
+| 5 | 8.5 to 10.7 | Moderate waves, longer in form; many white horses |
+| 6 | 11.2 to 13.9 | Large waves begin to form; white foam crests more extensive everywhere |
+| 7 | 14.3 to 17.0 | Sea heaps up; foam from breaking waves blown in streaks along the wind |
+| 8 | 17.4 to 20.6 | Moderately high, longer waves; crest edges break into spindrift; foam in well-marked streaks |
+
 The scale teaches a habit worth copying everywhere: **the answer is a
 range, not a number.** "Force 4, somewhere between 13 and 18 mph" is an
 honest estimate. "15 mph" from looking at a tree is a guess pretending
@@ -536,12 +569,14 @@ front of you, and doing it yourself beside it is good practice.
   you.** The "Energy balance" check sets what the home makes in a day
   against what it uses, which is the comparison you would make on paper
   with your own estimates.
-- **The sea is built from the wind.** The live weather panel sets a wind
-  speed, and the game builds its ocean waves from that speed, so the sea
-  column of the Beaufort scale is something you can look for there. How
-  closely its waves match a real sea at each force is not something this
-  guide has checked, so treat it as practice in looking, not as a
-  reference.
+- **The sea is built from the wind.** The live weather panel (F11) sets
+  a wind speed, shown in metres per second, and the game builds its
+  ocean waves from that speed. So the sea table in the Beaufort section
+  above, which is given in metres per second for this reason, is
+  something you can look for there: set a speed without looking at the
+  number, judge the force from the waves, then check. How closely its
+  waves match a real sea at each force is not something this guide has
+  checked, so treat it as practice in looking, not as a reference.
 
 What the game does not model: pacing, distance by eye, or the
 optical effects that fool the eye in real terrain. Those you have to
@@ -578,22 +613,32 @@ public domain.
   distribution unlimited (section on determining distance: the pace as
   one natural step of about 30 inches; pace courses of 100 to 600
   metres and dividing the total by the number of hundreds; calibrating
-  on similar terrain; pebbles, knots or notebook marks rather than
-  memory; slopes, wind, surfaces, falling weather, clothing and
+  on similar terrain; a pebble in the pocket every 100 metres, knots or
+  notebook marks rather than memory; slopes, wind, surfaces, falling weather, clothing and
   visibility, including the 120 to 130 paces example; the 100 metre
   unit-of-measure method and halving beyond 500 metres; the
   flash-to-bang method at 330 metres a second and the steady count;
   the remark that the mil-relation estimate is not accurate enough for
   survey purposes; the training advice to pace the range after
   estimating it; Table 5-1 on factors causing under- and
-  overestimation of range; desert range errors of 200 or 300 percent;
-  the night pace count; the personal pace table).
+  overestimation of range, including clear high-altitude air and an
+  object that blends into its background; desert conditions causing gross
+  underestimation of range, with errors of up to 200 or 300 percent; the
+  night pace count; the personal pace table).
   https://archive.org/download/MManuals/Fm3-25.26MapReadingAndLandNavigation.pdf
+  This edition was superseded by FM 3-25.26 of 18 January 2005 and then by
+  TC 3-25.26, *Map Reading and Land Navigation*, 15 November 2013, which
+  states that it supersedes the 2005 FM and carries the same text in
+  paragraphs 5-20 to 5-22 and 5-27 to 5-30, Table 5-1 and paragraph 12-6.
+  The 2013 TC is marked for distribution to US government agencies and
+  their contractors only, which is why the public-release 2001 edition is
+  the one cited.
 - National Institute of Standards and Technology. Taylor, B.N. and
   Kuyatt, C.E. *Guidelines for Evaluating and Expressing the Uncertainty
   of NIST Measurement Results*, NIST Technical Note 1297, 1994 edition,
   Appendix D (definitions of error, random error, systematic error and
-  correction; the notes that systematic error cannot be completely known
+  correction, reproduced from the international vocabulary of metrology,
+  the VIM; the notes that systematic error cannot be completely known
   and that the compensation can therefore not be complete; testing a
   device against a known reference to determine its error).
   https://nvlpubs.nist.gov/nistpubs/Legacy/TN/nbstechnicalnote1297.pdf
@@ -606,7 +651,9 @@ public domain.
 - National Weather Service. Understanding Lightning: Thunder (about 5
   seconds for thunder to travel a mile; divide the count by 5 for miles;
   count from a safe place; if you can hear thunder you are probably
-  within striking distance). Undated, read 3 October 2026.
+  within striking distance; thunder is heard only about 10 miles from
+  the strike, and anyone outside who hears it needs to get to a safe
+  place immediately). Undated, read 3 October 2026.
   https://www.weather.gov/safety/lightning-science-thunder
 - National Weather Service, Miami-South Florida office. Beaufort Wind
   Scale (forces 0 to 12 with speeds in mph and knots and descriptions
@@ -651,8 +698,12 @@ public domain.
 - The stick and shadow methods for height are geometry (similar
   triangles), explained in the text, not a published figure.
 - The 8.3 pounds per gallon, the drum, tank and bucket weights, the
-  drip arithmetic, the chained-error and area and volume figures are
-  arithmetic on the published numbers above.
+  drip arithmetic, the chained-error and area and volume figures, and the
+  metres-per-second column of the Beaufort sea table are arithmetic on
+  the published numbers above.
+- That averaging shrinks random error but not systematic error is our
+  reading of NIST's definitions; TN 1297 does not state it in those
+  words.
 - Walking a shorter course several times when 100 metres is not
   available, the seed, plant and flock sampling methods, the advice to
   give estimates as ranges and to estimate two ways, and the estimate
