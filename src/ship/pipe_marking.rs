@@ -219,6 +219,60 @@ impl MarkingSchemes {
         s.colour(&s.content(content)?.main).map(SchemeColour::srgb01)
     }
 
+    /// The Settings > Gameplay > Pipe markings explanation, BUILT from this registry: the
+    /// default scheme's name, the marker interval, and the rows' colours and names, so it says
+    /// what the data does and follows any edit to it (2026-10-04 review: a hand-written copy
+    /// already disagreed with the interval and called blue "drinking water"). Simplified names
+    /// each main colour's group by the first row that uses it; Full gives the whole marker of
+    /// the first three rows whose marker is more than their main colour, in file order.
+    pub fn settings_hint(&self) -> String {
+        let mut out = format!(
+            "Pipes, hoses and cables show what they are made of, and coloured bands say what flows \
+             inside them: beside each machine, just past each bend and never more than {:.1} m apart \
+             along a run",
+            self.placement.interval_m
+        );
+        let Some(s) = self.default_scheme() else {
+            out.push('.');
+            return out;
+        };
+        out.push_str(&format!(", the way {} marks a ship's piping.", s.name));
+        let colour = |id: &str| s.colour(id).map(|c| c.name.to_lowercase()).unwrap_or_else(|| id.to_string());
+        let what = |r: &ContentMarking| {
+            let mut c = r.name.chars();
+            c.next().map(|f| f.to_lowercase().chain(c).collect::<String>()).unwrap_or_default()
+        };
+        // "a, b and c"; with sep ";" (items that hold commas themselves) "a; b; and c".
+        let and_list = |items: &[String], sep: &str| match items {
+            [] => String::new(),
+            [one] => one.clone(),
+            [rest @ .., last] if sep == ";" => format!("{}; and {last}", rest.join("; ")),
+            [rest @ .., last] => format!("{} and {last}", rest.join(", ")),
+        };
+        let marked = || s.contents.iter().filter(|r| !r.unmarked);
+        let mut seen = std::collections::HashSet::new();
+        let groups: Vec<String> =
+            marked().filter(|r| seen.insert(r.main.as_str())).map(|r| format!("{} for {}", colour(&r.main), what(r))).collect();
+        if !groups.is_empty() {
+            out.push_str(&format!(" Simplified shows one band of the main colour, which names a group: {}.", and_list(&groups, ",")));
+        }
+        let full: Vec<String> = marked()
+            .filter_map(|r| {
+                let ids = r.band_ids(MarkingMode::Full);
+                (ids != [r.main.as_str()]).then(|| format!("{} for {}", ids.iter().map(|i| colour(i)).collect::<Vec<_>>().join(", "), what(r)))
+            })
+            .take(3)
+            .collect();
+        if !full.is_empty() {
+            out.push_str(&format!(" Full shows the whole marker, which names the medium, such as {}.", and_list(&full, ";")));
+        }
+        let unmarked: Vec<String> = s.contents.iter().filter(|r| r.unmarked).map(what).collect();
+        if !unmarked.is_empty() {
+            out.push_str(&format!(" The scheme has no colour for {}, so those lines carry no marker.", and_list(&unmarked, ",")));
+        }
+        out
+    }
+
     /// Everything wrong with the registry, as sentences (empty = sound).
     pub fn problems(&self) -> Vec<String> {
         let mut out = Vec::new();
@@ -313,6 +367,12 @@ const SHIPPED_MARKING_SCHEMES: &str = include_str!("../../data/piping/marking_sc
 pub fn marking() -> &'static MarkingSchemes {
     static REG: std::sync::OnceLock<MarkingSchemes> = std::sync::OnceLock::new();
     REG.get_or_init(load_marking)
+}
+
+/// The Settings > Gameplay > Pipe markings explanation for the loaded registry, built once.
+pub fn settings_hint_text() -> &'static str {
+    static HINT: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    HINT.get_or_init(|| marking().settings_hint())
 }
 
 fn load_marking() -> MarkingSchemes {
@@ -802,6 +862,35 @@ mod tests {
             assert!((w[0].start + w[0].dir * w[0].len - w[1].start).length() < 1e-5, "the bands touch end to end");
         }
         assert!(three.iter().all(|b| b.radius > 0.012), "a band sits proud of the pipe");
+    }
+
+    /// The Settings hint for Pipe markings is built from this registry, so it says what the data
+    /// does and follows an edit to it (2026-10-04 review: the hand-written hint said "at least
+    /// every 6 m" while markers sat up to 6.1 m apart, and "Drinking water is blue" where blue
+    /// alone is ISO 14726's fresh-water group and drinking water is the blue, green, blue triple;
+    /// it also said sewage was black while the sewage line was then drawn blue).
+    ///
+    /// Seen red with the hand-written hint: "the hint states the data's interval, 6.1 m".
+    #[test]
+    fn the_settings_hint_is_built_from_the_scheme() {
+        let reg = shipped();
+        let hint = reg.settings_hint();
+        assert!(hint.contains("6.1 m"), "the hint states the data's interval, 6.1 m: {hint}");
+        assert!(hint.contains("ISO 14726"), "and names the ship's scheme: {hint}");
+        assert!(!hint.to_lowercase().contains("drinking water is blue"), "blue alone is fresh water: {hint}");
+        assert!(hint.contains("blue for fresh water"), "the group colour, from the `water` row: {hint}");
+        assert!(hint.contains("blue, green, blue for potable water"), "Full mode's drinking-water marker: {hint}");
+        assert!(hint.contains("black for waste"), "sewage, from the `waste` row: {hint}");
+        assert!(hint.contains("harvested grain and produce"), "and what is left unmarked: {hint}");
+        // Edit the data and the hint follows it.
+        let mut edited = shipped();
+        edited.placement.interval_m = 7.5;
+        let i = edited.schemes.iter().position(|s| s.id == edited.default_scheme).unwrap();
+        edited.schemes[i].name = "A test scheme".to_string();
+        edited.schemes[i].contents.retain(|r| r.content != "potable_water");
+        let h2 = edited.settings_hint();
+        assert!(h2.contains("7.5 m") && h2.contains("A test scheme"), "{h2}");
+        assert!(!h2.contains("potable water"), "a removed row leaves the hint: {h2}");
     }
 
     /// Grain on its way from the fields to the silo carries no marker in either mode

@@ -3695,18 +3695,9 @@ pub(crate) fn draw_gameplay_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
         ui.add_space(theme.spacing_lg);
         ui.label(RichText::new("Pipe markings").color(theme.text_secondary()).strong());
         ui.add_space(theme.spacing_xs);
-        widgets::setting_hint(
-            ui,
-            theme,
-            hint,
-            "Pipes, hoses and cables show what they are made of, and coloured bands say what \
-             flows inside them: beside each machine, just past each bend and at least every 6 m \
-             along a run, the way ships mark their piping (ISO 14726). Drinking water is blue, \
-             fuel brown, ventilation air white and sewage black. Simplified shows one band of \
-             the main colour (orange on electrical cables); Full shows the whole marker, such \
-             as blue, green, blue for drinking water and a brown and an orange stripe on \
-             electrical cables.",
-        );
+        // The explanation is built from the scheme's data (its name, the marker interval, the
+        // colours), so it cannot drift from what the pipes show (2026-10-04 review).
+        widgets::setting_hint(ui, theme, hint, crate::ship::pipe_marking::settings_hint_text());
         ui.horizontal(|ui| {
             for (full, label) in [(false, "Simplified"), (true, "Full")] {
                 let selected = state.settings.pipe_marking_full == full;
