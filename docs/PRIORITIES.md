@@ -562,7 +562,20 @@ them up.
    Tier A item 3 is unblocked. Offline progression was answered on 2026-09-21 as well, and is broader than crops (a toggle on all three modes, applied to crafting too); rung 1 (crops, builds and craft batches, single player) was BUILT on 2026-09-25 and rung 2 (automated machines, the drone, livestock) on 2026-09-27 (v0.1387.0), see `docs/design/offline-progression.md`. Still
    open: what the first ten minutes are. (Pipes ANSWERED 2026-10-04: the real
    material, including paint, made identifiable with colour, labels and stripes;
-   research the existing marking standards first.) A third, lower: does multiplayer enforce
+   research the existing marking standards first. Research DONE
+   (`docs/reference/findings/2026-10-04-pipe-marking-standards.md`) and
+   increment 1 SHIPPED v0.1454.0: material bodies from
+   `data/piping/pipe_materials.ron`, ISO 14726 marker bands from
+   `data/piping/marking_schemes.ron`, Simplified/Full in Settings, content taken
+   from the machine a line leaves. Next increments: on-pipe text labels and flow
+   arrows (ISO 20560-1), GHS pictograms, paint and insulation as a player
+   finish, plastics and steels in `ConductorMaterial`, markers at valves,
+   branches and wall crossings, separate service heights so different runs do
+   not sit inside each other, and checking our own middle bands against the
+   printed ISO 14726 Table 3. The data row `pex_half` in
+   `data/utilities/conduits.ron` is a potable PEX line recorded as copper, which
+   contradicts the copper-only-for-drinking-water rule in `src/ship/conduits.rs`
+   (2026-06-25); it goes with the plastics increment.) A third, lower: does multiplayer enforce
    anything, or is it co-operative trust until launch. NOTE that the report's
    question 2 ("do the 3D models ship with the release") is ANSWERED: they do,
    since v0.1322.0.

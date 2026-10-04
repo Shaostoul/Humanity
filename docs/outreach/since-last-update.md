@@ -11,6 +11,15 @@ Each line is written the way a player would hear it; the release notes and
 
 ## Shipped
 
+- **v0.1454.0: pipes show what they are made of, and what they carry.**
+  Every pipe used to be painted end to end in a made-up colour. Now copper
+  looks like copper and hoses like rubber, and what a pipe carries is shown by
+  marker bands that follow ISO 14726, the international standard for ships:
+  at each end, past every bend, never more than 6 m apart. Settings has a
+  Simplified mode (one band) and a Full mode (the standard's whole marker:
+  drinking water blue, green, blue). Only water that has been through the
+  purifier is marked as drinking water.
+
 - **v0.1453.0: the trading post sells what it lists.** 140 of the trading
   post's 300 goods could never be bought or sold, because they were named
   differently from the real items (clay, cotton, flax, hemp, planks, bricks,
