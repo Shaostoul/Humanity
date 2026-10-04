@@ -975,6 +975,17 @@ pub fn zone_world_pos(zr: &ZoneRect, offset: (f32, f32, f32)) -> (f32, f32, f32)
     (ox + x, oy + offset.1, oz + z)
 }
 
+/// The colours the build editor's 3D port gizmos draw a connection kind in, LINEAR light
+/// (`MachineHome::gizmo_colours`).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct GizmoColours {
+    /// The port's node sphere: the pipes' band colour.
+    pub fill: [f32; 4],
+    /// The port's direction arrows and the drag-to-connect line: the band colour, or a light
+    /// outline when the band colour is too dark to see against a dark room.
+    pub outline: [f32; 4],
+}
+
 /// A placed machine resolved to its world draw position + appearance, ready for the renderer. The
 /// construction editor rebuilds these live on an edit so a move/add/remove shows instantly. (v0.525)
 #[derive(Debug, Clone)]
@@ -2347,9 +2358,29 @@ impl MachineHome {
     /// the pipes' marker bands say. The v0.622 legend it replaces was a hand-picked set (amber
     /// power, violet data, red hot water) that clashed with every published scheme
     /// (docs/reference/findings/2026-10-04-pipe-marking-standards.md). An unmarked kind is neutral
-    /// grey.
+    /// grey. These are sRGB values, and several (ISO 14726's black, brown, maroon) are too dark to
+    /// read on a dark background: the 3D port gizmos take them linearised and outlined
+    /// (`gizmo_colours`), and the editor panels show them as an outlined swatch beside theme text,
+    /// never as a text colour (2026-10-04 review).
     pub fn connection_color(kind: &str) -> [f32; 4] {
         crate::ship::pipe_marking::marking().main_colour_srgb01(kind).unwrap_or([0.6, 0.6, 0.6, 1.0])
+    }
+
+    /// The build editor's 3D port gizmo colours for a connection kind, in LINEAR light, which is
+    /// what the renderer's material base colours and line colours are (2026-10-04 review: the
+    /// gizmos took `connection_color`'s sRGB as if it were linear, so they were paler than the
+    /// bands they stand for). `fill`, the node sphere, is the pipes' band colour. `outline`, the
+    /// port's arrows and the drag line, is that colour too when it stands out against black, the
+    /// darkest a room gets, at WCAG's 3:1 for graphics, else `light_outline` (a theme token,
+    /// linear), so ISO 14726's black for waste or brown for fuel still shows.
+    pub fn gizmo_colours(kind: &str, light_outline: [f32; 4]) -> GizmoColours {
+        use crate::ship::pipe_marking::contrast_ratio;
+        use crate::ship::pipe_materials::srgb_to_linear;
+        let c = Self::connection_color(kind);
+        let lin = |v: f32| srgb_to_linear((v * 255.0).round().clamp(0.0, 255.0) as u8);
+        let fill = [lin(c[0]), lin(c[1]), lin(c[2]), 1.0];
+        let outline = if contrast_ratio(fill, [0.0, 0.0, 0.0, 1.0]) >= 3.0 { fill } else { light_outline };
+        GizmoColours { fill, outline }
     }
 
     /// Every placed machine's id -> its machine type (arrays expanded), for `line_content`.
@@ -2392,6 +2423,41 @@ mod tests {
         }
         assert_eq!(MachineHome::connection_color("no_such_utility"), [0.6, 0.6, 0.6, 1.0], "unknown stays neutral grey");
         assert_eq!(MachineHome::connection_color("food"), [0.6, 0.6, 0.6, 1.0], "an unmarked content is neutral grey");
+    }
+
+    /// The 3D port gizmos draw the pipes' band colour in LINEAR light, as the bands do (the
+    /// renderer's material and line colours are linear), and their arrows stay visible however
+    /// dark that colour is: at least WCAG's 3:1 for graphics against black, the darkest a room
+    /// gets (2026-10-04 review: ISO 14726's black for waste, compost and grey water went in as
+    /// sRGB and drew a near-black node with near-black arrows).
+    ///
+    /// Seen red with the gizmos taking `connection_color` as it is: "`water`'s port node is its
+    /// band colour in linear light: [0.09411765, 0.34509805, 0.72156864, 1.0], the band is
+    /// [0.009134057, 0.09758736, 0.47932023, 1.0]".
+    #[test]
+    fn port_gizmos_draw_the_band_colour_in_linear_light_and_stay_visible() {
+        use crate::ship::pipe_marking::{contrast_ratio, marking};
+        let ship = marking().default_scheme().expect("the ship's scheme");
+        let light = [0.45, 0.45, 0.49, 1.0]; // the theme's secondary text, linearised
+        let black = [0.0, 0.0, 0.0, 1.0];
+        let mut dark = 0;
+        for row in ship.contents.iter().filter(|r| !r.unmarked) {
+            let g = MachineHome::gizmo_colours(&row.content, light);
+            let band = ship.colour(&row.main).expect("its main colour").linear_rgba();
+            assert_eq!(g.fill, band, "`{}`'s port node is its band colour in linear light: {:?}, the band is {:?}", row.content, g.fill, band);
+            let c = contrast_ratio(g.outline, black);
+            assert!(c >= 3.0, "`{}`'s port arrows show against a dark room: {c:.2}:1 ({:?})", row.content, g.outline);
+            if contrast_ratio(band, black) < 3.0 {
+                dark += 1;
+                assert_eq!(g.outline, light, "`{}`'s band is too dark to outline itself: the light outline", row.content);
+            } else {
+                assert_eq!(g.outline, band, "`{}` outlines in its own band colour", row.content);
+            }
+        }
+        assert!(dark >= 3, "sanity: ISO 14726's black and brown rows need the outline ({dark})");
+        // An unmarked or unknown content is neutral grey, linearised, and visible.
+        let food = MachineHome::gizmo_colours("food", light);
+        assert!(contrast_ratio(food.outline, black) >= 3.0 && food.fill == food.outline, "{food:?}");
     }
 
     #[test]

@@ -294,6 +294,17 @@ impl MarkingSchemes {
     }
 }
 
+/// Relative luminance of a LINEAR colour (WCAG 2's definition, the Rec. 709 weights).
+pub fn relative_luminance(linear: [f32; 4]) -> f32 {
+    0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2]
+}
+
+/// WCAG 2's contrast ratio between two LINEAR colours, 1 (none) to 21 (black on white).
+pub fn contrast_ratio(a: [f32; 4], b: [f32; 4]) -> f32 {
+    let (la, lb) = (relative_luminance(a), relative_luminance(b));
+    (la.max(lb) + 0.05) / (la.min(lb) + 0.05)
+}
+
 /// The shipped file, the fallback when the data folder's copy is missing or does not parse.
 const SHIPPED_MARKING_SCHEMES: &str = include_str!("../../data/piping/marking_schemes.ron");
 

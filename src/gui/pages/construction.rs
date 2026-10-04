@@ -583,7 +583,7 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                 // meters charge the air handlers and the scrubber to the home or
                 // to the station (2026-09-27).
                 let basis = crate::machines::MeterBasis { life_support_on_grid: state.garden_pests.life_support_realistic };
-                draw_buildability(ui, theme, home, basis);
+                draw_buildability(ui, theme, home, basis, legend_mode(state));
             }
 
             ui.add_space(theme.spacing_md);
@@ -1404,7 +1404,7 @@ fn draw_light_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 
 /// Right-panel info for the building (machine) currently HELD for placement (v0.602): name, category,
 /// size, electrical role, stat readouts, and its CONNECTION POINTS -- the utility kinds it ties into
-/// (power / water / nutrient / fuel / air / waste), coloured to match the pipes. Derived from the
+/// (power / water / nutrient / fuel / air / waste), each with a swatch of the pipes' marker. Derived from the
 /// machine def's stats + power role (no schema change). Read-only; shown while you hold it to place.
 fn draw_building_info(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     let Some(tid) = state.construction_place_type.clone() else { return };
@@ -1440,7 +1440,7 @@ fn draw_building_info(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         }
     }
     // Connection points (v0.605): the machine's real declared PORTS -- which utility, which way it
-    // flows (in/out/both), and the load (W) or flow (L/min), coloured to match the pipes. Falls back
+    // flows (in/out/both), and the load (W) or flow (L/min), beside a swatch of the pipes' marker. Falls back
     // to derive_ports() so a machine that only declares an electrical `power` role still shows a port.
     ui.add_space(theme.spacing_sm);
     ui.label(RichText::new("Connection points").strong().size(theme.font_size_small).color(theme.text_primary()));
@@ -1448,8 +1448,9 @@ fn draw_building_info(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     if ports.is_empty() {
         ui.label(RichText::new("  (standalone -- no utility hookups)").size(theme.font_size_small).color(theme.text_muted()));
     } else {
+        let mode = legend_mode(state);
         for p in &ports {
-            ui.label(RichText::new(format!("  {}", port_line(p))).size(theme.font_size_small).color(port_color(p)));
+            legend_label(ui, theme, p.utility.id(), mode, RichText::new(port_line(p)).size(theme.font_size_small));
         }
     }
     ui.add_space(theme.spacing_sm);
@@ -1478,10 +1479,63 @@ fn port_line(p: &crate::utilities::Port) -> String {
     format!("{arrow} {}{detail}{label}", p.utility.id())
 }
 
-/// A port's utility colour: the ship's marking scheme, matching the pipes' marker bands.
-fn port_color(p: &crate::utilities::Port) -> egui::Color32 {
-    let c = crate::machines::MachineHome::connection_color(p.utility.id());
-    egui::Color32::from_rgb((c[0] * 255.0) as u8, (c[1] * 255.0) as u8, (c[2] * 255.0) as u8) // theme-exempt: utility-kind colour matching the pipes
+/// What the build editor's utility legend shows for a connection kind (2026-10-04 review).
+#[derive(Debug, Clone, PartialEq)]
+struct LegendLook {
+    /// The swatch: the colours of the marker the pipes carry, in order along the pipe (sRGB).
+    /// Empty for a content the scheme leaves unmarked.
+    bands: Vec<egui::Color32>,
+    /// The swatch's outline.
+    outline: egui::Color32,
+    /// The label's text colour.
+    text: egui::Color32,
+}
+
+/// The legend for `kind` in pipe-marking `mode`: a swatch of the very bands the pipes carry
+/// (the ship's marking scheme, data/piping/marking_schemes.ron), outlined in a theme token, beside
+/// text in a theme text colour. Until this review the TEXT itself was coloured in the band
+/// colour, and ISO 14726's black for waste, compost and grey water (and blue, at 3.1:1) did not
+/// read on the editor's black panels; Full mode's swatch also tells apart the contents Simplified
+/// groups under one main colour.
+fn legend_look(theme: &Theme, kind: &str, mode: crate::ship::pipe_marking::MarkingMode) -> LegendLook {
+    let scheme = crate::ship::pipe_marking::marking().default_scheme();
+    let bands = scheme
+        .and_then(|s| s.marker_colours(kind, mode))
+        .unwrap_or_default()
+        .into_iter()
+        .map(|c| egui::Color32::from_rgb(c.srgb.0, c.srgb.1, c.srgb.2)) // theme-exempt: the marking scheme's band colours (data/piping/marking_schemes.ron)
+        .collect();
+    LegendLook { bands, outline: theme.text_muted(), text: theme.text_secondary() }
+}
+
+/// The pipe-marking mode the legend follows: the Settings choice, the one the pipes are drawn in.
+fn legend_mode(state: &GuiState) -> crate::ship::pipe_marking::MarkingMode {
+    crate::ship::pipe_marking::MarkingMode::from_full(state.settings.pipe_marking_full)
+}
+
+/// One legend row: the marker swatch for `kind`, then `text` in the legend's text colour.
+fn legend_label(ui: &mut egui::Ui, theme: &Theme, kind: &str, mode: crate::ship::pipe_marking::MarkingMode, text: RichText) {
+    let look = legend_look(theme, kind, mode);
+    ui.horizontal(|ui| {
+        legend_swatch(ui, theme, &look);
+        ui.label(text.color(look.text));
+    });
+}
+
+/// The marker swatch: the bands side by side in their order along the pipe, outlined so a black
+/// band still shows on a black panel. An unmarked content is an empty outlined box.
+fn legend_swatch(ui: &mut egui::Ui, theme: &Theme, look: &LegendLook) {
+    let h = theme.font_size_small;
+    let (rect, _) = ui.allocate_exact_size(egui::vec2(h * 1.8, h * 0.75), egui::Sense::hover());
+    let painter = ui.painter();
+    if !look.bands.is_empty() {
+        let w = rect.width() / look.bands.len() as f32;
+        for (i, c) in look.bands.iter().enumerate() {
+            let r = egui::Rect::from_min_size(rect.min + egui::vec2(w * i as f32, 0.0), egui::vec2(w, rect.height()));
+            painter.rect_filled(r, 0.0, *c);
+        }
+    }
+    painter.rect_stroke(rect, 0.0, egui::Stroke::new(1.0, look.outline), egui::StrokeKind::Outside);
 }
 
 /// Right-panel info for the STRUCTURE piece currently held for placement (v0.602): label, category,
@@ -1592,13 +1646,14 @@ fn draw_machine_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 ui.label(RichText::new(format!("{}  {}", s.kind, s.value)).size(theme.font_size_small).color(theme.text_muted()));
             }
         }
-        // Ports (v0.605): the physical hookups this machine needs/provides, coloured to the pipes.
+        // Ports (v0.605): the physical hookups this machine needs/provides, each with the pipes' marker swatch.
         let ports = d.derive_ports();
         if !ports.is_empty() {
             ui.add_space(theme.spacing_xs);
             ui.label(RichText::new("Ports").strong().color(theme.text_primary()));
+            let mode = legend_mode(state);
             for p in &ports {
-                ui.label(RichText::new(port_line(p)).size(theme.font_size_small).color(port_color(p)));
+                legend_label(ui, theme, p.utility.id(), mode, RichText::new(port_line(p)).size(theme.font_size_small));
             }
             // v0.625: the ports also show as coloured handles above this machine in the 3D view --
             // DRAG one onto another machine to wire them (no dropdowns needed).
@@ -2735,11 +2790,9 @@ fn draw_connection_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState
         state.construction_connection_selected = None;
         return;
     }
-    let c = crate::machines::MachineHome::connection_color(&kind);
-    let col = egui::Color32::from_rgb((c[0] * 255.0) as u8, (c[1] * 255.0) as u8, (c[2] * 255.0) as u8);
     ui.label(RichText::new("Wire / pipe").strong().size(theme.font_size_body).color(theme.text_primary()));
     ui.add_space(theme.spacing_xs);
-    ui.label(RichText::new(kind.to_uppercase()).strong().color(col));
+    legend_label(ui, theme, &kind, legend_mode(state), RichText::new(kind.to_uppercase()).strong());
     ui.label(RichText::new(format!("{from}  ->  {to}")).size(theme.font_size_small).color(theme.text_secondary()));
     ui.add_space(theme.spacing_sm);
     ui.horizontal(|ui| {
@@ -3613,7 +3666,13 @@ fn draw_palette(ctx: &Context, theme: &Theme, state: &mut GuiState) {
 /// the load, energy balances over a representative day with the battery carrying the solar-off
 /// window, and the wiring is intact. Read-only; the same MachineHome::buildability_report an AI
 /// can call before committing a design. 4.5 = the self-sufficiency model's representative sun-hours.
-fn draw_buildability(ui: &mut egui::Ui, theme: &Theme, home: &crate::machines::MachineHome, basis: crate::machines::MeterBasis) {
+fn draw_buildability(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    home: &crate::machines::MachineHome,
+    basis: crate::machines::MeterBasis,
+    mode: crate::ship::pipe_marking::MarkingMode,
+) {
     use crate::machines::CheckStatus;
     ui.add_space(theme.spacing_md);
     ui.separator();
@@ -3658,10 +3717,10 @@ fn draw_buildability(ui: &mut egui::Ui, theme: &Theme, home: &crate::machines::M
             .color(theme.text_muted()),
         );
         for m in &meters {
-            let c = crate::machines::MachineHome::connection_color(&m.utility);
-            let col = egui::Color32::from_rgb((c[0] * 255.0) as u8, (c[1] * 255.0) as u8, (c[2] * 255.0) as u8);
+            let look = legend_look(theme, &m.utility, mode);
             ui.horizontal_wrapped(|ui| {
-                ui.label(RichText::new(format!("{}:", m.utility)).size(theme.font_size_small).strong().color(col));
+                legend_swatch(ui, theme, &look);
+                ui.label(RichText::new(format!("{}:", m.utility)).size(theme.font_size_small).strong().color(look.text));
                 ui.label(RichText::new(&m.summary).size(theme.font_size_small).color(theme.text_muted()));
             });
         }
@@ -3792,6 +3851,57 @@ fn draw_floorplan_canvas(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState)
         p[2] = snap(p[2] + dwz);
         r.position = Some(p);
         state.construction_dirty = true;
+    }
+}
+
+#[cfg(test)]
+mod legend_tests {
+    use super::*;
+    use crate::ship::pipe_marking::{contrast_ratio, marking, MarkingMode};
+
+    fn linear(c: egui::Color32) -> [f32; 4] {
+        use crate::ship::pipe_materials::srgb_to_linear;
+        [srgb_to_linear(c.r()), srgb_to_linear(c.g()), srgb_to_linear(c.b()), 1.0]
+    }
+
+    /// The build editor's legend (the port lists, the connection inspector's header, the meters)
+    /// stays readable on the editor's black panels for every content, in both marking modes:
+    /// its text at WCAG's 4.5:1, its swatch's outline at the 3:1 for graphics, and the swatch
+    /// shows the very bands the pipes carry (2026-10-04 review: the text was coloured in the band
+    /// colour, and ISO 14726's black for waste, compost, grey water and the first food row was
+    /// 1.2:1 on the panel, effectively invisible).
+    ///
+    /// Seen red with the text in the band colour: "the `water` legend's text reads on the panel
+    /// (Simplified): 3.13:1" (blue was the first content checked; black waste is about 1.2:1).
+    #[test]
+    fn the_utility_legend_reads_on_the_editor_panels() {
+        let theme = crate::gui::theme::load_theme();
+        let ship = marking().default_scheme().expect("the ship's scheme");
+        let backgrounds = [theme.bg_panel(), theme.bg_primary(), theme.bg_card()];
+        let mut kinds: Vec<&str> = ship.contents.iter().map(|r| r.content.as_str()).collect();
+        kinds.push("no_such_utility");
+        for kind in kinds {
+            for mode in [MarkingMode::Simplified, MarkingMode::Full] {
+                let l = legend_look(&theme, kind, mode);
+                for bg in backgrounds {
+                    let t = contrast_ratio(linear(l.text), linear(bg));
+                    assert!(t >= 4.5, "the `{kind}` legend's text reads on the panel ({mode:?}): {t:.2}:1");
+                    let o = contrast_ratio(linear(l.outline), linear(bg));
+                    assert!(o >= 3.0, "the `{kind}` legend's swatch outline shows on the panel ({mode:?}): {o:.2}:1");
+                }
+                let want: Vec<egui::Color32> = ship
+                    .marker_colours(kind, mode)
+                    .unwrap_or_default()
+                    .iter()
+                    .map(|c| egui::Color32::from_rgb(c.srgb.0, c.srgb.1, c.srgb.2)) // theme-exempt: the scheme's band colours
+                    .collect();
+                assert_eq!(l.bands, want, "the `{kind}` swatch is the pipes' marker ({mode:?})");
+            }
+        }
+        // Full mode tells apart the contents Simplified groups under one main colour.
+        let full = |k: &str| legend_look(&theme, k, MarkingMode::Full).bands;
+        assert_ne!(full("waste"), full("greywater"));
+        assert_ne!(full("waste"), full("nutrient"));
     }
 }
 

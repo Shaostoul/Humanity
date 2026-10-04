@@ -2278,7 +2278,9 @@ MIL-STD-1247D's brown and orange stripes). Copper is drawn with measured copper'
 The build editor's utility legend reads the same scheme. Dev pin: showcase `{"pipe_marking":"full"}`.
 - Native: `src/ship/pipe_marking.rs` (registry, placement, bands), `src/ship/pipe_materials.rs`,
   `src/engine/pipe_markers.rs` (merged band meshes, mode switch), `src/engine/home_meshes.rs`
-  (`rebuild_connection_objects`), `src/machines.rs` (`connection_color` = the scheme's main colour)
+  (`rebuild_connection_objects`), `src/machines.rs` (`connection_color` = the scheme's main colour, `line_content`,
+  `gizmo_colours`: the 3D port gizmos in linear light, dark band colours outlined), `src/gui/pages/construction.rs`
+  (`legend_look`: the editor legend is an outlined swatch of the pipes' marker beside theme text)
 
 ### Conduit Flow Visualization (v0.622, refined v0.623)
 Makes connections legible in a dark room. Every pipe was drawn as a STATIC line in its utility colour
