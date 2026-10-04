@@ -17,13 +17,15 @@ use crate::systems::time;
 
 /// How long a day of `hours` takes in real time at `speed`, in words.
 pub fn day_in_real_time(hours: u32, speed: f32) -> String {
+    // `.round()` takes a half up, as the web's Math.round does; `{:.0}` would
+    // take it to the even number (576x: 2.5 minutes said "2", the web "3").
     let secs = f64::from(hours) * time::SECONDS_PER_HOUR / f64::from(speed.max(0.001));
     if secs >= 2.0 * 3600.0 {
-        format!("{:.0} hours", secs / 3600.0)
+        format!("{} hours", (secs / 3600.0).round())
     } else if secs >= 90.0 {
-        format!("{:.0} minutes", secs / 60.0)
+        format!("{} minutes", (secs / 60.0).round())
     } else {
-        format!("{:.0} seconds", secs)
+        format!("{} seconds", secs.round())
     }
 }
 

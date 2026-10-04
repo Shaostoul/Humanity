@@ -193,3 +193,42 @@ pub async fn handle(state: &Arc<RelayState>, my_key: &str, upd: RelayMessage) {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::relay::relay::RelayState;
+    use crate::relay::storage::Storage;
+
+    /// A RESTART KEEPS THE ADMIN'S SPEED (review of 2026-10-04, finding 1).
+    /// An admin sets the shared world to 24x, the relay restarts, and the
+    /// world must come back at 24x, not at the 72x a new world starts with.
+    /// The other tests could not catch this: every test database is new, so
+    /// it already says 72, the same as `GameWorld::new()`.
+    ///
+    /// Seen red 2026-10-04 with the line in `RelayState::new` that reads the
+    /// saved speed removed: "after a restart the world runs at the saved 24x,
+    /// left: 72.0, right: 24.0".
+    #[test]
+    fn a_restart_brings_the_shared_world_back_at_the_saved_speed() {
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0);
+        let path = std::env::temp_dir()
+            .join(format!("hum_world_clock_restart_{}_{nanos}.db", std::process::id()));
+        {
+            // The relay before the restart: the admin's Apply saved 24x.
+            let db = Storage::open(&path).expect("open test db");
+            let mut s = db.get_server_settings().expect("settings row");
+            assert_eq!(s.world_time_scale, 72.0, "a new server starts at 72x");
+            s.world_time_scale = 24.0;
+            assert!(db.set_server_settings(&s, "test_admin").expect("save"), "the row was updated");
+        }
+        // The relay after the restart: the same file, a new RelayState.
+        let state = RelayState::new(Storage::open(&path).expect("reopen test db"));
+        let scale = state.game_world.try_read().expect("nothing else holds the world").time_scale;
+        assert_eq!(scale, 24.0, "after a restart the world runs at the saved 24x");
+        drop(state);
+        let _ = std::fs::remove_file(&path);
+    }
+}

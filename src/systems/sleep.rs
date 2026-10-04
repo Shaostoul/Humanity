@@ -250,8 +250,9 @@ mod tests {
     }
 
     /// NO SLEEPING THE NIGHT AWAY IN A SHARED WORLD (2026-09-29). The host's
-    /// clock wins there and runs at one second a second for everyone, so the
-    /// bed is refused with a notice and the clock is not sped up. Red check,
+    /// clock wins there and runs at the server's speed for everyone (72x
+    /// unless its admin set another, 2026-10-04), so the bed is refused with
+    /// a notice and the clock is not sped up. Red check,
     /// run: dropping the host_clock_active check in tick lets the player fall
     /// asleep and fails the first assertion.
     #[test]

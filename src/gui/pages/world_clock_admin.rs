@@ -149,10 +149,12 @@ fn speed_text(speed: f32) -> String {
 }
 
 fn number_text(v: f64) -> String {
+    // Rounded first, a half up, as the web's `toFixed(1)` does; `{:.1}` alone
+    // would take 2.25 to 2.2 where the web says 2.3.
     if (v - v.round()).abs() < 0.05 {
-        format!("{:.0}", v)
+        format!("{}", v.round())
     } else {
-        format!("{:.1}", v)
+        format!("{:.1}", (v * 10.0).round() / 10.0)
     }
 }
 
@@ -280,6 +282,28 @@ mod tests {
             let entry = format!("[{}, '{name}']", speed_text(speed));
             assert!(js.contains(&entry), "the web window offers {name} ({}x) too: {entry} in CLOCK_PRESETS", speed_text(speed));
         }
+    }
+
+    /// NATIVE AND WEB SAY THE SAME NUMBERS (review of 2026-10-04, finding 3).
+    /// The web window rounds with `Math.round` and `toFixed(1)`, a half up;
+    /// Rust's `{:.0}` and `{:.1}` round a half to the even number, so at 576x
+    /// (a day in 2.5 minutes) this section said 2 minutes and the web window
+    /// 3. Both round a half up now. The ties: 576x is 2.5 minutes, 64x 22.5
+    /// minutes, 320x 4.5 minutes, and a 30-hour day at 12x 2.5 hours.
+    ///
+    /// Seen red 2026-10-04 before the fix: "576x is 2.5 minutes, left:
+    /// \"2 minutes\", right: \"3 minutes\"".
+    #[test]
+    fn a_half_rounds_up_as_the_web_window_rounds_it() {
+        use super::super::settings_time::day_in_real_time;
+        assert_eq!(day_in_real_time(24, 576.0), "3 minutes", "576x is 2.5 minutes");
+        assert_eq!(day_in_real_time(24, 64.0), "23 minutes", "64x is 22.5 minutes");
+        assert_eq!(day_in_real_time(24, 320.0), "5 minutes", "320x is 4.5 minutes");
+        assert_eq!(day_in_real_time(30, 12.0), "3 hours", "a 30-hour day at 12x is 2.5 hours");
+        assert_eq!(number_text(2.25), "2.3", "toFixed(1) rounds 2.25 up");
+        assert_eq!(number_text(72.0), "72");
+        assert_eq!(number_text(2.5), "2.5");
+        assert!(explainer(576.0, Some(45.0)).starts_with("at 576x a day passes in 3 minutes,"));
     }
 
     /// One headless frame of the clock section in a plain panel, with `events`.
