@@ -140,6 +140,9 @@ pub(crate) fn load_world(state: &mut EngineState) {
             (meshes, info)
         }
     };
+    // Where the home stands, for the save's frame (engine/home_plot.rs `publish_home_frame`):
+    // on the default plot here, until a relay's welcome moves it.
+    crate::engine::home_plot::publish_home_frame(state);
     // Wall collision segments so the player can't walk through walls from the first frame
     // (v0.556; per-zone origin offsets v0.754).
     state.wall_colliders = match &state.gui_state.ship_structure {

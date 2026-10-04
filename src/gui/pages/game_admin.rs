@@ -32,6 +32,8 @@ pub fn draw_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     draw_ban_form(ui, theme, state);
     ui.add_space(theme.spacing_md);
     draw_ban_list(ui, theme, state);
+    ui.add_space(theme.spacing_md);
+    draw_plot_release(ui, theme, state);
     if !state.game_admin_status.is_empty() {
         ui.add_space(theme.spacing_sm);
         ui.label(
@@ -199,6 +201,55 @@ fn draw_ban_list(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     if let Some(key) = unban_key {
         send_game_unban(state, &key);
         state.game_admin_status = "Sent a game unban; the list will refresh.".into();
+    }
+}
+
+/// Homes on the ship (ship homes increment 1b, docs/design/ship-homes-and-logistics.md): give
+/// back the plot a player holds, so the next player who joins without one gets it. The in-app
+/// control for the relay's `release_plot` (GUI-first: nobody should need a shell for it). The
+/// relay refuses while that player is in the world (their home stands on the plot) and says
+/// whether they held one; its reply lands in the status line below. Nothing releases an idle
+/// plot by itself: when one should go back is the operator's call (the design's open questions).
+fn draw_plot_release(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+    widgets::section_header(ui, theme, "Homes on the ship");
+    widgets::body_hint(
+        ui, theme,
+        "Each player who joins holds one plot of the ship for their home, and keeps it when they \
+         leave. To give a plot back (someone left for good, and the ship is full), enter that \
+         player's public key. It works only while they are out of the world; their own home and \
+         saves are untouched, and they get a free plot, or a guest place, when they come back.",
+    );
+    ui.add_space(theme.spacing_sm);
+    widgets::form_row(ui, theme, "Public key", |ui| {
+        ui.add(
+            egui::TextEdit::singleline(&mut state.game_admin_plot_key)
+                .desired_width(360.0)
+                .hint_text("player public key (hex)"),
+        );
+    });
+    ui.add_space(theme.spacing_sm);
+    let target_valid = !state.game_admin_plot_key.trim().is_empty();
+    ui.add_enabled_ui(target_valid, |ui| {
+        if widgets::Button::secondary("Release plot")
+            .tooltip("Give this player's plot back for the next player who joins without one.")
+            .show(ui, theme)
+        {
+            let target = state.game_admin_plot_key.trim().to_string();
+            send_release_plot(state, &target);
+            state.game_admin_status = "Asked the server to release that player's plot.".into();
+            state.game_admin_plot_key.clear();
+        }
+    });
+}
+
+/// Send a `game_release_plot` (admin-gated server-side; the relay replies privately with a
+/// `game_admin_notice` or a `game_admin_error`).
+fn send_release_plot(state: &GuiState, target: &str) {
+    if let Some(ref client) = state.ws_client {
+        if client.is_connected() {
+            let msg = serde_json::json!({ "type": "game_release_plot", "target": target });
+            client.send(&msg.to_string());
+        }
     }
 }
 

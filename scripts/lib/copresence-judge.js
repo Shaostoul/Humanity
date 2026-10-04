@@ -505,6 +505,10 @@ function judgePlots({ order, plots, gamePlot, walkerPlot, camera, homeThings, fr
         ["the showroom stage", h.showroom],
         ...(h.animals || []).map((a, i) => [`animal ${i + 1}`, a]),
         ...(h.plants || []).map((a, i) => [`plant ${i + 1}`, a]),
+        // What the player built aboard and parked (the second review of 1b): none in a
+        // fresh rig sandbox, so not required, but each one reported must be on the plot.
+        ...(h.structures || []).map((a, i) => [`built piece ${i + 1}`, a]),
+        ...(h.vehicles || []).map((a, i) => [`vehicle ${i + 1}`, a]),
       ]
     : [];
   const strays = things.filter(([, p]) => !Array.isArray(p) || nearestPlot(p.map(Number), plots) !== expGame);
@@ -523,7 +527,8 @@ function judgePlots({ order, plots, gamePlot, walkerPlot, camera, homeThings, fr
               .slice(0, 4)
               .map(([n, p]) => `${n} at (${Array.isArray(p) ? p.map((v) => Number(v).toFixed(1)).join(", ") : "nowhere"}) by ${Array.isArray(p) ? nearestPlot(p.map(Number), plots).id : "?"}`)
               .join("; ")
-          : `the Respawn point, hologram, showroom stage, ${nA} animals and ${nP} plants are all on ${expGame.id}`,
+          : `the Respawn point, hologram, showroom stage, ${nA} animals, ${nP} plants, ` +
+            `${(h.structures || []).length} built pieces and ${(h.vehicles || []).length} vehicles are all on ${expGame.id}`,
   );
   const drawn = [];
   for (const fr of frames || []) for (const p of fr.players || []) if (isWalker(p, walker)) drawn.push({ t: Number(fr.t), pos: p.pos.map(Number) });
@@ -536,6 +541,63 @@ function judgePlots({ order, plots, gamePlot, walkerPlot, camera, homeThings, fr
       : outside.length
         ? `${outside.length} of ${drawn.length} drawn positions OUTSIDE ${boxText(expWalker)}; first at t ${f(outside[0].t)} s: (${outside[0].pos.map((v) => v.toFixed(2)).join(", ")})`
         : `all ${drawn.length} drawn positions inside ${boxText(expWalker)}`,
+  );
+  return { pass: checks.every((c) => c.ok), checks };
+}
+
+/** How far the game must have stood from where the relay spawns it for the
+ *  step-out-and-back check to mean anything: past the relay's 100 m rule, so a
+ *  game that stayed where it stood would have every update refused. */
+const REJOIN_FAR_M = 100;
+/** How near where the relay holds it the game must stand after rejoining. */
+const REJOIN_STAND_TOL_M = 0.5;
+/** How near the nudged point the relayed update must be. */
+const REJOIN_NUDGE_TOL_M = 0.3;
+
+/**
+ * Judge the step out of the shared world and back (verify-copresence --plots,
+ * the second review of 1b): the game stepped out, its camera was moved far
+ * away, it stepped back in, and the relay spawned it afresh at its door.
+ *   far          [x,y,z] where the game stood when it stepped back in.
+ *   relaySpawn   [x,y,z] where the relay spawned it (the walker's log line
+ *                "player joined: ... at (x, y, z)"), or null when never seen.
+ *   camera       [x,y,z] the game's camera after the welcome, or null.
+ *   nudged       [x,y,z] where the rig then moved the camera, or null.
+ *   seen         the positions the walker saw the relay pass on for the game's
+ *                new entity after the nudge ([[x,y,z]...]).
+ * Checks: the experiment means something (far is past the 100 m rule from the
+ * spawn); the game stands where the relay holds it; and its next move reached
+ * the others (the relay accepted it, so the player is not frozen).
+ * Returns { pass, checks }.
+ */
+function judgeRejoin({ far, relaySpawn, camera, nudged, seen }) {
+  const checks = [];
+  const add = (id, ok, detail) => checks.push({ id, ok: !!ok, detail });
+  const d = (a, b) => (Array.isArray(a) && Array.isArray(b) ? Math.hypot(...[0, 1, 2].map((k) => Number(a[k]) - Number(b[k]))) : Infinity);
+  const fmt3 = (p) => (Array.isArray(p) ? `(${p.map((v) => Number(v).toFixed(2)).join(", ")})` : "(never)");
+  const gap = d(far, relaySpawn);
+  add(
+    "rejoin_far_from_spawn",
+    Number.isFinite(gap) && gap > REJOIN_FAR_M,
+    relaySpawn
+      ? `the game stood at ${fmt3(far)} when it stepped back in, ${gap.toFixed(1)} m from where the relay spawned it ${fmt3(relaySpawn)}` +
+          (gap > REJOIN_FAR_M ? "" : ` (needs more than ${REJOIN_FAR_M} m to mean anything)`)
+      : "the walker never saw the game join again, so where the relay spawned it is unknown",
+  );
+  const off = d(camera, relaySpawn);
+  add(
+    "rejoin_stands_where_held",
+    off <= REJOIN_STAND_TOL_M,
+    `after rejoining, the game's camera at ${fmt3(camera)} is ${Number.isFinite(off) ? off.toFixed(2) : "?"} m from where the relay holds it ${fmt3(relaySpawn)}` +
+      (off <= REJOIN_STAND_TOL_M ? "" : ` (at most ${REJOIN_STAND_TOL_M} m; a game left there is frozen for everyone else)`),
+  );
+  const hit = (seen || []).find((p) => d(p, nudged) <= REJOIN_NUDGE_TOL_M);
+  add(
+    "rejoin_moves_reach_others",
+    !!hit,
+    hit
+      ? `its next move to ${fmt3(nudged)} reached the walker through the relay, at ${fmt3(hit)}`
+      : `its next move to ${fmt3(nudged)} never reached the walker (${(seen || []).length} update(s) seen after it): the relay refused it`,
   );
   return { pass: checks.every((c) => c.ok), checks };
 }
@@ -605,4 +667,6 @@ module.exports = {
   inPlot,
   nearestPlot,
   judgePlots,
+  judgeRejoin,
+  REJOIN_FAR_M,
 };

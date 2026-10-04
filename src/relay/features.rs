@@ -1441,20 +1441,50 @@ mod tests {
         std::env::temp_dir().join(format!("hum_plots_{tag}_{}_{nanos}.db", std::process::id()))
     }
 
-    /// Send `game_join` and return the relay's `game_welcome` (the JSON after
-    /// "__game__:"). Fails the test with what did arrive when none comes.
+    /// The ship hash this relay and the game both compute from data/.
+    fn our_ship_hash() -> String {
+        crate::ship::ship_structure::ShipPlots::load(std::path::Path::new("data")).expect("the ship loads").ship_hash
+    }
+
+    /// The two plot fields a real game puts in its `game_join`
+    /// (engine/home_plot.rs `add_join_fields`): this ship's hash, and the
+    /// shipped home design's door, plot-local.
+    fn game_join_fields() -> Value {
+        let ship = crate::ship::ship_structure::ShipStructure::load_and_assemble(std::path::Path::new("data"), None)
+            .expect("the ship assembles");
+        let (x, z) = ship.home_arrival_local().expect("the shipped home names its door");
+        serde_json::json!({ "ship_hash": ship.ship_hash(), "home_spawn": [x, z] })
+    }
+
+    /// Send `game_join` as the game sends it (`game_join_fields`) and return
+    /// the relay's `game_welcome` (the JSON after "__game__:"). Fails the test
+    /// with what did arrive when none comes.
     async fn welcome_after_join(sock: &mut TestSocket, name: &str) -> Value {
         welcome_after_join_with(sock, name, serde_json::json!({})).await
     }
 
-    /// `welcome_after_join` with more fields in the `game_join` (the game's
-    /// `ship_hash` and `home_spawn`, engine/home_plot.rs `add_join_fields`).
+    /// `welcome_after_join` with fields of `extra` added to or replacing the
+    /// game's; a field set to null in `extra` is left out of the join.
     async fn welcome_after_join_with(sock: &mut TestSocket, name: &str, extra: Value) -> Value {
+        let (g, seen) = game_reply_after_join(sock, name, extra, "game_welcome").await;
+        g.unwrap_or_else(|| panic!("no game_welcome for {name}; game messages seen: {seen:?}"))
+    }
+
+    /// Send a `game_join` (the game's fields, then `extra`'s: null removes
+    /// one) and wait up to 10 s for the first game message of type `want`.
+    /// Returns it, or None, with the types of every other game message seen.
+    async fn game_reply_after_join(sock: &mut TestSocket, name: &str, extra: Value, want: &str) -> (Option<Value>, Vec<String>) {
         use futures::StreamExt;
         let mut join = serde_json::json!({ "type": "game_join", "player_name": name, "character_mode": "local" });
-        if let (Some(j), Some(e)) = (join.as_object_mut(), extra.as_object()) {
-            for (k, v) in e {
-                j.insert(k.clone(), v.clone());
+        for fields in [game_join_fields(), extra] {
+            if let (Some(j), Some(e)) = (join.as_object_mut(), fields.as_object()) {
+                for (k, v) in e {
+                    if v.is_null() {
+                        j.remove(k);
+                    } else {
+                        j.insert(k.clone(), v.clone());
+                    }
+                }
             }
         }
         send_json(sock, join).await;
@@ -1468,7 +1498,7 @@ mod tests {
                     .and_then(|m| m.strip_prefix("__game__:"))
                     .and_then(|g| serde_json::from_str::<Value>(g).ok());
                 if let Some(g) = game {
-                    if g["type"] == "game_welcome" {
+                    if g["type"] == want {
                         return Some(g);
                     }
                     seen.push(g["type"].as_str().unwrap_or("?").to_string());
@@ -1479,7 +1509,7 @@ mod tests {
         .await
         .ok()
         .flatten();
-        found.unwrap_or_else(|| panic!("no game_welcome for {name}; game messages seen: {seen:?}"))
+        (found, seen)
     }
 
     /// The plot id a welcome gave, or None for a guest (home_plot null).
@@ -1700,34 +1730,249 @@ mod tests {
         let _ = std::fs::remove_file(&path);
     }
 
-    /// A game whose ship is not this relay's takes NO plot. Its game will
-    /// refuse the welcome (the hashes differ) and leave, so a plot claimed for
-    /// it would be held for good by someone who never lives there. The next
-    /// players then get the plots in order, as if it had never come; a game
-    /// that names the right ship, and a scripted player that names none, are
-    /// both taken at their word.
+    /// Wait up to 5 s for the next game message (the JSON after "__game__:")
+    /// whose type is one of `types`. None when none came.
+    async fn next_game_of(sock: &mut TestSocket, types: &[&str]) -> Option<Value> {
+        use futures::StreamExt;
+        tokio::time::timeout(std::time::Duration::from_secs(5), async {
+            while let Some(Ok(msg)) = sock.next().await {
+                let Some(v) = msg.into_text().ok().and_then(|t| serde_json::from_str::<Value>(&t).ok()) else { continue };
+                let game = v
+                    .get("message")
+                    .and_then(|m| m.as_str())
+                    .and_then(|m| m.strip_prefix("__game__:"))
+                    .and_then(|g| serde_json::from_str::<Value>(g).ok());
+                if let Some(g) = game.filter(|g| types.iter().any(|t| g["type"] == *t)) {
+                    return Some(g);
+                }
+            }
+            None
+        })
+        .await
+        .ok()
+        .flatten()
+    }
+
+    /// Every game message a socket receives in the next `ms` milliseconds.
+    async fn game_messages_for(sock: &mut TestSocket, ms: u64) -> Vec<Value> {
+        use futures::StreamExt;
+        let mut out = Vec::new();
+        let _ = tokio::time::timeout(std::time::Duration::from_millis(ms), async {
+            while let Some(Ok(msg)) = sock.next().await {
+                let Some(v) = msg.into_text().ok().and_then(|t| serde_json::from_str::<Value>(&t).ok()) else { continue };
+                if let Some(g) = v
+                    .get("message")
+                    .and_then(|m| m.as_str())
+                    .and_then(|m| m.strip_prefix("__game__:"))
+                    .and_then(|g| serde_json::from_str::<Value>(g).ok())
+                {
+                    out.push(g);
+                }
+            }
+        })
+        .await;
+        out
+    }
+
+    /// A join naming ANOTHER ship is refused at the join (the second review
+    /// of 1b): `game_join_denied`, reason "other_ship", the one plain sentence
+    /// and this relay's ship, and NOTHING spawned or broadcast (it used to be
+    /// spawned, welcomed, and seen by everyone to join and leave at once).
+    /// Only a join naming THIS ship holds a plot: one naming none (a scripted
+    /// player that did not ask /api/server-info, which names the ship too) is
+    /// a guest in the Commons, so test bots no longer fill the ship for good.
     ///
-    /// Seen red 2026-10-03 on the first 1b relay (it claimed before anyone
-    /// compared ships): "a game drawing another ship took a plot: Some(\"p1\")".
+    /// Seen red 2026-10-03:
+    ///  - with the refusal at the join taken out (the 65b3e2c0c relay):
+    ///    "no game_join_denied for PlotOtherShip; game messages seen:
+    ///    [\"game_player_joined\", \"game_welcome\", \"game_player_joined\"]";
+    ///  - with a join naming no ship claiming a plot (the 65b3e2c0c rule):
+    ///    "a join naming no ship holds a plot: Some(\"p2\")".
     #[tokio::test]
-    async fn a_game_drawing_another_ship_takes_no_plot() {
+    async fn a_join_naming_another_ship_is_refused_and_only_this_ship_holds_a_plot() {
         let path = plots_db("other_ship");
         let (state, port, server) = relay_on(&path).await;
         let ids = ship_plot_ids();
-        let ours = crate::ship::ship_structure::ShipPlots::load(std::path::Path::new("data")).unwrap().ship_hash;
-        let (mut other, _) = bind_socket(&state, port, [91u8; 32], Some("PlotOtherShip"), 1).await;
-        let (mut right, _) = bind_socket(&state, port, [92u8; 32], Some("PlotRightShip"), 1).await;
-        let (mut script, _) = bind_socket(&state, port, [93u8; 32], Some("PlotScripted"), 1).await;
+        let ours = our_ship_hash();
+        let (mut watcher, _) = bind_socket(&state, port, [91u8; 32], Some("PlotWatcher"), 1).await;
+        let (mut other, other_key) = bind_socket(&state, port, [92u8; 32], Some("PlotOtherShip"), 1).await;
+        let (mut script, script_key) = bind_socket(&state, port, [93u8; 32], Some("PlotScripted"), 1).await;
+        let (mut right, _) = bind_socket(&state, port, [96u8; 32], Some("PlotRightShip"), 1).await;
+        let w = welcome_after_join(&mut watcher, "PlotWatcher").await;
+        assert_eq!(welcome_plot(&w).as_deref(), Some(ids[0].as_str()), "the watcher's game holds the first plot");
 
-        let w = welcome_after_join_with(&mut other, "PlotOtherShip", serde_json::json!({ "ship_hash": "0123456789abcdef" })).await;
-        assert_eq!(welcome_plot(&w), None, "a game drawing another ship took a plot: {:?}", welcome_plot(&w));
-        assert_eq!(w["ship"]["hash"], ours.as_str(), "the welcome still names the relay's ship, so the game can say why");
-        let w = welcome_after_join_with(&mut right, "PlotRightShip", serde_json::json!({ "ship_hash": ours })).await;
-        assert_eq!(welcome_plot(&w).as_deref(), Some(ids[0].as_str()), "the right ship gets the first plot, still free");
-        let w = welcome_after_join(&mut script, "PlotScripted").await;
-        assert_eq!(welcome_plot(&w).as_deref(), Some(ids[1].as_str()), "a join naming no ship (a scripted player) gets the next");
+        let (denied, seen) =
+            game_reply_after_join(&mut other, "PlotOtherShip", serde_json::json!({ "ship_hash": "0123456789abcdef" }), "game_join_denied").await;
+        let denied = denied.unwrap_or_else(|| panic!("no game_join_denied for PlotOtherShip; game messages seen: {seen:?}"));
+        assert_eq!(denied["reason"], "other_ship");
+        assert_eq!(denied["message"], crate::ship::ship_structure::OTHER_SHIP_SENTENCE);
+        assert_eq!(denied["ship"]["hash"], ours.as_str(), "it names this relay's ship, so the game can say why");
+        assert!(state.game_world.read().await.find_player_entity(&other_key).is_none(), "nothing was spawned for it");
+        // (The watcher also hears its OWN join, broadcast to everyone just after its
+        // welcome: only a join under the refused player's name, or anyone leaving,
+        // would be the phantom.)
+        let heard = game_messages_for(&mut watcher, 800).await;
+        let phantom: Vec<&Value> = heard
+            .iter()
+            .filter(|g| (g["type"] == "game_player_joined" && g["name"] == "PlotOtherShip") || g["type"] == "game_player_left")
+            .collect();
+        assert!(phantom.is_empty(), "the others heard of a join that was refused: {phantom:?}");
 
-        for mut s in [other, right, script] {
+        // No ship named: a guest in the Commons, no plot claimed.
+        let w = welcome_after_join_with(&mut script, "PlotScripted", serde_json::json!({ "ship_hash": null, "home_spawn": null })).await;
+        assert_eq!(welcome_plot(&w), None, "a join naming no ship holds a plot: {:?}", welcome_plot(&w));
+        let g = crate::ship::ship_structure::ShipPlots::load(std::path::Path::new("data")).unwrap().guest_spawn.unwrap();
+        let at = relay_position(&state, &script_key).await;
+        assert!(dist(at, [g.x, g.y, g.z]) < 1e-3, "in the Commons, at {at:?}");
+        // So the next plot is still free for a game naming this ship.
+        let w = welcome_after_join(&mut right, "PlotRightShip").await;
+        assert_eq!(welcome_plot(&w).as_deref(), Some(ids[1].as_str()), "the right ship gets the next plot, still free");
+
+        // /api/server-info names the same ship, for clients that draw none.
+        let info = crate::relay::api::get_server_info(axum::extract::State(state.clone())).await.0;
+        assert_eq!(info.ship, w["ship"], "server-info names the ship every welcome names");
+
+        for mut s in [watcher, other, script, right] {
+            s.close(None).await.ok();
+        }
+        server.abort();
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// Every welcome says whether the relay found the player still in the
+    /// world (`rejoin`), so the game knows when to stand where the relay
+    /// holds it (engine/home_plot.rs `stand_where_held`). A first join, and
+    /// a join after a deliberate `game_leave` (solo play, Dev travel), are
+    /// fresh spawns; a join inside the reconnect grace after the socket
+    /// dropped is a rejoin of the same entity.
+    ///
+    /// Seen red 2026-10-03 with the `rejoin` field taken out of the welcome
+    /// (the 65b3e2c0c relay): "a first join is a fresh spawn: left: Null, right:
+    /// Bool(false)".
+    #[tokio::test]
+    async fn a_welcome_says_whether_the_relay_kept_the_player() {
+        use crate::relay::relay::RelayState;
+        let path = plots_db("rejoin_flag");
+        let db = crate::relay::storage::Storage::open(&path).expect("open test db");
+        let mut st = RelayState::new(db);
+        st.features = Features::all_enabled();
+        st.reconnect_grace = std::time::Duration::from_secs(90);
+        let state = std::sync::Arc::new(st);
+        let app = crate::relay::build_router(state.clone());
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let server = tokio::spawn(async move {
+            let _ = axum::serve(listener, app).await;
+        });
+
+        let (mut a, key) = bind_socket(&state, port, [97u8; 32], Some("PlotRejoin"), 1).await;
+        let w = welcome_after_join(&mut a, "PlotRejoin").await;
+        assert_eq!(w["rejoin"], serde_json::json!(false), "a first join is a fresh spawn");
+        let first = w["player_id"].clone();
+
+        // Stepping out on purpose and back in: a fresh spawn, a new entity.
+        send_json(&mut a, serde_json::json!({ "type": "game_leave" })).await;
+        assert!(wait_until(|| async { state.game_world.read().await.find_player_entity(&key).is_none() }).await, "the leave took them out");
+        let w = welcome_after_join(&mut a, "PlotRejoin").await;
+        assert_eq!(w["rejoin"], serde_json::json!(false), "a join after a game_leave is a fresh spawn");
+        assert_ne!(w["player_id"], first, "a new entity");
+        let second = w["player_id"].clone();
+
+        // The socket drops; a new one joins inside the grace: the same entity.
+        use futures::SinkExt;
+        a.close(None).await.ok();
+        assert!(wait_until(|| async { live_count(&state, &key).await == 0 }).await, "the socket closed");
+        assert!(state.game_world.read().await.find_player_entity(&key).is_some(), "held for the grace");
+        let (mut b, _) = bind_socket(&state, port, [97u8; 32], Some("PlotRejoin"), 1).await;
+        let w = welcome_after_join(&mut b, "PlotRejoin").await;
+        assert_eq!(w["rejoin"], serde_json::json!(true), "a join inside the grace is a rejoin");
+        assert_eq!(w["player_id"], second, "of the same entity");
+
+        b.close(None).await.ok();
+        server.abort();
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// An admin gives a player's plot back from Server Settings
+    /// (`game_release_plot`, the in-app control the second review asked for):
+    /// refused for a non-admin, refused while the holder is in the world (two
+    /// homes would stand on one plot), and once they have left the plot goes
+    /// to the next player who joins without one.
+    ///
+    /// Seen red 2026-10-03 with the `game_release_plot` dispatch taken out
+    /// (nothing answered it, the 65b3e2c0c relay): "a non-admin's release is refused with a reason: None".
+    #[tokio::test]
+    async fn an_admin_releases_a_plot_for_the_next_player() {
+        let path = plots_db("release");
+        let (state, port, server) = relay_on(&path).await;
+        let ids = ship_plot_ids();
+        let (mut admin, admin_key) = bind_socket(&state, port, [98u8; 32], Some("PlotAdmin"), 1).await;
+        state.db.set_role(&admin_key, "admin").expect("make admin");
+        let (mut holder, holder_key) = bind_socket(&state, port, [99u8; 32], Some("PlotHolder"), 1).await;
+        let (mut nobody, _) = bind_socket(&state, port, [100u8; 32], Some("PlotNobody"), 1).await;
+        let (mut next, _) = bind_socket(&state, port, [101u8; 32], Some("PlotNext"), 1).await;
+        assert_eq!(welcome_plot(&welcome_after_join(&mut holder, "PlotHolder").await).as_deref(), Some(ids[0].as_str()));
+        let release = serde_json::json!({ "type": "game_release_plot", "target": holder_key });
+
+        send_json(&mut nobody, release.clone()).await;
+        let r = next_game_of(&mut nobody, &["game_admin_error", "game_admin_notice"]).await;
+        assert!(r.as_ref().is_some_and(|r| r["type"] == "game_admin_error"), "a non-admin's release is refused with a reason: {r:?}");
+
+        send_json(&mut admin, release.clone()).await;
+        let r = next_game_of(&mut admin, &["game_admin_error", "game_admin_notice"]).await.expect("an answer");
+        assert_eq!(r["type"], "game_admin_error", "refused while the holder is in the world: {r}");
+        assert!(r["message"].as_str().unwrap_or("").contains("in the world"), "{r}");
+
+        send_json(&mut holder, serde_json::json!({ "type": "game_leave" })).await;
+        assert!(wait_until(|| async { state.game_world.read().await.find_player_entity(&holder_key).is_none() }).await);
+        send_json(&mut admin, release.clone()).await;
+        let r = next_game_of(&mut admin, &["game_admin_error", "game_admin_notice"]).await.expect("an answer");
+        assert_eq!(r["type"], "game_admin_notice", "{r}");
+        assert!(r["message"].as_str().unwrap_or("").contains(&format!("Released plot {}", ids[0])), "{r}");
+        // The freed plot goes to the next player, not the second plot.
+        let got = welcome_plot(&welcome_after_join(&mut next, "PlotNext").await);
+        assert_eq!(got.as_deref(), Some(ids[0].as_str()), "the next player gets the released plot");
+        // Releasing someone who holds none says so.
+        send_json(&mut admin, release).await;
+        let r = next_game_of(&mut admin, &["game_admin_error", "game_admin_notice"]).await.expect("an answer");
+        assert!(r["message"].as_str().unwrap_or("").contains("holds no plot"), "{r}");
+
+        for mut s in [admin, holder, nobody, next] {
+            s.close(None).await.ok();
+        }
+        server.abort();
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// A game whose home cannot stand on the plot it was given leaves with
+    /// `give_up_plot` (engine/home_plot.rs, "does not fit"), and that plot goes
+    /// back for the next player; a plain leave keeps the plot.
+    ///
+    /// Seen red 2026-10-03 with `handle_game_leave` ignoring `give_up_plot`
+    /// (the 65b3e2c0c relay): "after giving up p1 the next player got
+    /// Some(\"p2\")".
+    #[tokio::test]
+    async fn a_game_whose_home_does_not_fit_gives_its_plot_back() {
+        let path = plots_db("give_up");
+        let (state, port, server) = relay_on(&path).await;
+        let ids = ship_plot_ids();
+        let (mut misfit, misfit_key) = bind_socket(&state, port, [102u8; 32], Some("PlotMisfit"), 1).await;
+        let (mut next, _) = bind_socket(&state, port, [103u8; 32], Some("PlotAfter"), 1).await;
+        let (mut keeper, keeper_key) = bind_socket(&state, port, [104u8; 32], Some("PlotKeeper"), 1).await;
+        let (mut last, _) = bind_socket(&state, port, [105u8; 32], Some("PlotLast"), 1).await;
+        assert_eq!(welcome_plot(&welcome_after_join(&mut misfit, "PlotMisfit").await).as_deref(), Some(ids[0].as_str()));
+        send_json(&mut misfit, serde_json::json!({ "type": "game_leave", "give_up_plot": true })).await;
+        assert!(wait_until(|| async { state.game_world.read().await.find_player_entity(&misfit_key).is_none() }).await);
+        let got = welcome_plot(&welcome_after_join(&mut next, "PlotAfter").await);
+        assert_eq!(got.as_deref(), Some(ids[0].as_str()), "after giving up {} the next player got {got:?}", ids[0]);
+
+        // A plain leave keeps the plot: the ship is then full for the last one.
+        assert_eq!(welcome_plot(&welcome_after_join(&mut keeper, "PlotKeeper").await).as_deref(), Some(ids[1].as_str()));
+        send_json(&mut keeper, serde_json::json!({ "type": "game_leave" })).await;
+        assert!(wait_until(|| async { state.game_world.read().await.find_player_entity(&keeper_key).is_none() }).await);
+        assert_eq!(welcome_plot(&welcome_after_join(&mut last, "PlotLast").await), None, "a plain leave keeps the plot");
+
+        for mut s in [misfit, next, keeper, last] {
             s.close(None).await.ok();
         }
         server.abort();
@@ -1736,13 +1981,17 @@ mod tests {
 
     /// The player arrives at THEIR OWN home's front door: the game sends its
     /// home design's spawn (plot-local metres) and the relay spawns them there
-    /// on the plot it hands out, kept inside that plot's box. The relay's own
-    /// copy of the default design only decides for a join that sends none. A
-    /// player who moved their door with the build-mode avatar otherwise
-    /// arrived up to 72 m from it on this ship.
+    /// on the plot it hands out, kept inside that plot's box. A join that
+    /// names no door (a home with no authored door) arrives in the middle of
+    /// the plot handed out, where the game's own `plot_spawn` puts such a home
+    /// on it. A player who moved their door with the build-mode avatar
+    /// otherwise arrived up to 72 m from it on this ship.
     ///
     /// Seen red 2026-10-03 on the first 1b relay: "a join naming its door at
-    /// (12.5, 30) on p1 spawned at [53.5, 1.7, 40.5]".
+    /// (12.5, 30) on p1 spawned at [53.5, 1.7, 40.5]". The no-door case seen
+    /// red 2026-10-03 on 65b3e2c0c (the default design's door for a join
+    /// naming none): "a join naming no door
+    /// on p1 spawned at [53.5, 1.7, 40.5], not the plot's middle [27.5, 1.7, 44.5]".
     #[tokio::test]
     async fn a_join_that_names_its_door_arrives_there() {
         let path = plots_db("own_door");
@@ -1766,8 +2015,22 @@ mod tests {
         let at = relay_position(&state, &b_key).await;
         assert!(dist(at, want) < 1e-3, "a door at (1000, -5) on {id} spawned at {at:?}, not on the plot's edge {want:?}");
 
+        // No door named: the middle of the plot handed out.
+        let (mut c, c_key) = bind_socket(&state, port, [106u8; 32], Some("PlotNoDoor"), 1).await;
+        // Both plots are taken: the first player leaves and their plot is given back, so
+        // this join gets a plot, not a guest place.
+        send_json(&mut a, serde_json::json!({ "type": "game_leave", "give_up_plot": true })).await;
+        assert!(wait_until(|| async { state.game_world.read().await.find_player_entity(&a_key).is_none() }).await);
+        let w = welcome_after_join_with(&mut c, "PlotNoDoor", serde_json::json!({ "home_spawn": null })).await;
+        let id = welcome_plot(&w).expect("a plot");
+        let p = ship.plots.iter().find(|p| p.id == id).unwrap();
+        let want = [p.origin.0 + p.size.0 * 0.5, p.origin.1 + 1.7, p.origin.2 + p.size.2 * 0.5];
+        let at = relay_position(&state, &c_key).await;
+        assert!(dist(at, want) < 1e-3, "a join naming no door on {id} spawned at {at:?}, not the plot's middle {want:?}");
+
         a.close(None).await.ok();
         b.close(None).await.ok();
+        c.close(None).await.ok();
         server.abort();
         let _ = std::fs::remove_file(&path);
     }

@@ -247,6 +247,27 @@ function normaliseServer(s) {
   return u.toString();
 }
 
+/** The web address of a relay given by its socket address: ws://host:port/ws
+ *  becomes http://host:port (wss becomes https). Pure. */
+function httpBase(serverUrl) {
+  const u = new URL(serverUrl);
+  u.protocol = u.protocol === "wss:" ? "https:" : "http:";
+  return u.origin;
+}
+
+/** The ship the relay holds plots on, { id, hash }, from its public
+ *  /api/server-info (ship homes increment 1b). A join naming this ship holds a
+ *  plot of it, as the desktop app's does; one naming none is a guest in the
+ *  Commons. Null when the relay names no ship (its ship did not load, or it is
+ *  older than 1b). Rejects when the relay cannot be asked. */
+async function fetchShip(serverUrl, { timeoutMs = 5000 } = {}) {
+  const res = await fetch(`${httpBase(serverUrl)}/api/server-info`, { signal: AbortSignal.timeout(timeoutMs) });
+  if (!res.ok) throw new Error(`/api/server-info answered ${res.status}`);
+  const info = await res.json();
+  const ship = info && info.ship;
+  return ship && typeof ship.hash === "string" && ship.hash ? { id: String(ship.id || ""), hash: ship.hash } : null;
+}
+
 /** True for this computer: localhost, 127.x.x.x and ::1. */
 function isLoopback(serverUrl) {
   const h = new URL(serverUrl).hostname.replace(/^\[|\]$/g, "").toLowerCase();
@@ -461,9 +482,20 @@ function signIn(serverUrl, identity, name, { timeoutMs = 20000 } = {}) {
   });
 }
 
+/** The `game_join` this script sends: the desktop app's (src/lib.rs,
+ *  "game_join"), naming the relay's ship when `ship` is given so the join holds
+ *  a plot (engine/home_plot.rs `add_join_fields`; a scripted player draws no
+ *  home, so it names no door and arrives in the middle of its plot). Pure. */
+function joinMessage(name, look, ship) {
+  const msg = { type: "game_join", player_name: name, character_mode: "local", appearance: look };
+  if (ship && ship.hash) msg.ship_hash = ship.hash;
+  return msg;
+}
+
 /** Step into the shared world. Resolves with the relay's `game_welcome`
- *  (our entity id, and everyone already there). */
-function joinWorld(client, name, { look = LOOK, timeoutMs = 15000 } = {}) {
+ *  (our entity id, and everyone already there). `ship`: the relay's ship
+ *  (`fetchShip`), named in the join so it holds a plot. */
+function joinWorld(client, name, { look = LOOK, timeoutMs = 15000, ship = null } = {}) {
   return new Promise((resolve, reject) => {
     let off = () => {};
     const timer = setTimeout(() => {
@@ -481,8 +513,37 @@ function joinWorld(client, name, { look = LOOK, timeoutMs = 15000 } = {}) {
       else if (game && game.type === "game_join_denied") done(new Error(`the relay refused to let us into the world: ${game.message || game.reason}`));
       else if (msg.type === "system" && /has 'game' disabled/.test(msg.message || "")) done(new Error(msg.message));
     });
-    // The same message the desktop app sends (src/lib.rs, "game_join").
-    client.send({ type: "game_join", player_name: name, character_mode: "local", appearance: look });
+    client.send(joinMessage(name, look, ship));
+  });
+}
+
+/** Log the OTHER players the relay tells us about, for a rig to read
+ *  (scripts/verify-copresence.js --plots, the step-out-and-back check):
+ *    player joined: entity N "name" at (x, y, z)   where the relay spawned them
+ *    player left: entity N
+ *    saw entity N at (x, y, z)                     an update the relay passed on
+ *  An update is logged when it is the first since that player joined, when it
+ *  is a quarter metre or more from the last one logged, or two seconds after
+ *  it: enough to see every move, never 15 lines a second. `me` is our own
+ *  entity id (never logged). Returns the function that stops it. */
+function logOthers(client, me, log, { minMoveM = 0.25, everyS = 2 } = {}) {
+  const last = new Map(); // entity id -> { pos, at }
+  return client.onGame((g) => {
+    if (g.type === "game_player_joined" && g.player_id !== me) {
+      last.delete(g.player_id);
+      log(`player joined: entity ${g.player_id} "${g.name || ""}" at ${fmt(g.position || [0, 0, 0])}`);
+    } else if (g.type === "game_player_left" && g.player_id !== me) {
+      last.delete(g.player_id);
+      log(`player left: entity ${g.player_id}`);
+    } else if (g.type === "game_position_update" && g.player_id !== me && Array.isArray(g.position)) {
+      const prev = last.get(g.player_id);
+      const now = Date.now();
+      const moved = prev ? Math.hypot(...g.position.map((v, i) => v - prev.pos[i])) : Infinity;
+      if (!prev || moved >= minMoveM || now - prev.at >= everyS * 1000) {
+        last.set(g.player_id, { pos: g.position.slice(0, 3), at: now });
+        log(`saw entity ${g.player_id} at ${fmt(g.position)}`);
+      }
+    }
   });
 }
 
@@ -753,9 +814,19 @@ async function main() {
   }
   log("signed in: the relay accepted our proof of key");
 
+  // The relay's ship, named in the join so we hold a plot of it like a desktop
+  // player (since ship homes 1b a join naming no ship is a guest in the Commons).
+  let ship = null;
+  try {
+    ship = await fetchShip(opts.server);
+    log(ship ? `the relay's ship is ${ship.id} (${ship.hash})` : "the relay names no ship: joining as a guest");
+  } catch (e) {
+    log(`could not ask the relay which ship it has (${e.message}): joining as a guest`);
+  }
+
   let welcome;
   try {
-    welcome = await joinWorld(client, opts.name);
+    welcome = await joinWorld(client, opts.name, { ship });
   } catch (e) {
     client.close();
     return fail(2, e.message);
@@ -763,6 +834,7 @@ async function main() {
   const { center, start, why } = chooseCenter(opts, welcome);
   log(`in the world as entity ${welcome.player_id}, starting at ${fmt(start)}`);
   log(homePlotLine(welcome));
+  const stopLogging = logOthers(client, welcome.player_id, log);
   const shape = opts.path === "line"
     ? `back and forth along a ${2 * opts.radius} m line (${opts.axis} axis)`
     : `a circle of radius ${opts.radius} m`;
@@ -779,6 +851,7 @@ async function main() {
     stopping = true;
     clearTimeout(limitTimer);
     stopChat();
+    stopLogging();
     walker.stop();
     // Step out of the world on purpose (the desktop app sends the same),
     // then give the socket a moment to deliver both before closing it.
@@ -818,6 +891,10 @@ module.exports = {
   makeWalk,
   senderClockS,
   normaliseServer,
+  httpBase,
+  fetchShip,
+  joinMessage,
+  logOthers,
   isLoopback,
   loadNoble,
   masterSeedFrom,

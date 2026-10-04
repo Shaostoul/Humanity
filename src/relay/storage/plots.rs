@@ -74,17 +74,29 @@ impl Storage {
         })
     }
 
-    /// Give a plot back (nothing calls this in increment 1b: plots are kept
-    /// for good until the moving and inactivity rules of later increments).
-    /// Used by the tests to prove a freed plot is claimed again.
-    #[allow(dead_code)]
-    pub fn release_plot(&self, world: &str, owner: &str) -> Result<bool, rusqlite::Error> {
-        self.with_conn(|conn| {
-            let n = conn.execute(
+    /// Give back the plot `owner` holds on `world`: Some(its id) when they
+    /// held one, None when they held none. The next player without a plot
+    /// claims it. Called when an admin releases a plot (Server Settings,
+    /// `game_release_plot`) and when a game gives up a plot its home cannot
+    /// stand on (`game_leave` with `give_up_plot`). Nothing releases a plot
+    /// on its own: when an idle plot should go back is an open question for
+    /// the operator (docs/design/ship-homes-and-logistics.md section 9).
+    pub fn release_plot(&self, world: &str, owner: &str) -> Result<Option<String>, rusqlite::Error> {
+        self.with_conn_mut(|conn| {
+            let tx = conn.transaction()?;
+            let held: Option<String> = tx
+                .query_row(
+                    "SELECT plot_id FROM game_plots WHERE world_id = ?1 AND owner_did = ?2",
+                    params![world, owner],
+                    |r| r.get(0),
+                )
+                .optional()?;
+            tx.execute(
                 "DELETE FROM game_plots WHERE world_id = ?1 AND owner_did = ?2",
                 params![world, owner],
             )?;
-            Ok(n > 0)
+            tx.commit()?;
+            Ok(held)
         })
     }
 }
@@ -114,8 +126,10 @@ mod tests {
         assert_eq!(db.claim_plot("ship", "did:hum:a", &PLOTS).unwrap().as_deref(), Some("p1"));
         // A third player: the ship is full.
         assert_eq!(db.claim_plot("ship", "did:hum:c", &PLOTS).unwrap(), None);
-        // A freed plot goes to the next who asks.
-        assert!(db.release_plot("ship", "did:hum:a").unwrap());
+        // A freed plot goes to the next who asks; releasing names what was freed,
+        // and releasing again frees nothing.
+        assert_eq!(db.release_plot("ship", "did:hum:a").unwrap().as_deref(), Some("p1"));
+        assert_eq!(db.release_plot("ship", "did:hum:a").unwrap(), None);
         assert_eq!(db.claim_plot("ship", "did:hum:c", &PLOTS).unwrap().as_deref(), Some("p1"));
         // Another ship is another row set.
         assert_eq!(db.claim_plot("other", "did:hum:a", &PLOTS).unwrap().as_deref(), Some("p1"));

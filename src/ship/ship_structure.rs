@@ -501,22 +501,38 @@ fn spawn_at(origin: (f32, f32, f32), local: (f32, f32)) -> Vec3 {
     Vec3::new(origin.0 + local.0, origin.1 + SPAWN_EYE_HEIGHT_M, origin.2 + local.1)
 }
 
-/// One plot as a relay hands it out (increment 1b): the record's id, kind and box, plus where
-/// its holder arrives (the home design's spawn on that plot).
+/// The middle of a plot of `size` (width, height, depth), as plot-local x and z metres: where
+/// someone arrives on a plot when no door is named. ONE formula for the relay
+/// (`PlotArrival::arrival` with no door) and the game (`ShipStructure::plot_spawn` for a home
+/// design with no authored spawn), each applied to the plot actually handed out, so the two
+/// agree on plots of any size (the second review of 1b: the game used to send the middle of the
+/// plot it was built on, which the relay then applied to another plot).
+fn plot_middle(size: (f32, f32, f32)) -> (f32, f32) {
+    (size.0 * 0.5, size.2 * 0.5)
+}
+
+/// The one sentence a player reads when a server's ship is not theirs (the design: "one plain
+/// sentence: positions only agree when everyone has the same ship"). The relay refuses such a
+/// join with it (`game_join_denied`, reason "other_ship") and the game shows it.
+pub const OTHER_SHIP_SENTENCE: &str =
+    "Not joining the shared world: this server has a different ship from yours, and positions only agree when everyone has the same ship.";
+
+/// One plot as a relay hands it out (increment 1b): the record's id, kind and box. Where its
+/// holder arrives depends on their own home's door, which their game names in `game_join`
+/// (`arrival`).
 #[derive(Debug, Clone, PartialEq)]
 pub struct PlotArrival {
     pub id: String,
     pub kind: String,
     pub origin: (f32, f32, f32),
     pub size: (f32, f32, f32),
-    pub spawn: Vec3,
 }
 
 /// What a relay needs to hand out plots (increment 1b of docs/design/ship-homes-and-logistics.md):
-/// the ship's id and hash, every plot in the ship file's order with its arrival point, and where
-/// a guest arrives when every plot is held. Loaded from the same files the game assembles from
-/// (disk first, else the copies built into the exe, so a throwaway relay with no data folder
-/// hands out the same plots).
+/// the ship's id and hash, every plot in the ship file's order, and where a guest arrives when
+/// every plot is held. Loaded from the same ship file the game assembles from (disk first, else
+/// the copy built into the exe, so a throwaway relay with no data folder hands out the same
+/// plots).
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct ShipPlots {
     pub ship_id: String,
@@ -526,26 +542,19 @@ pub struct ShipPlots {
 }
 
 impl ShipPlots {
-    /// The ship's plots from `data_dir`. Err says why there are none to hand out (no ship file,
-    /// or a plot kind with no home design).
+    /// The ship's plots from `data_dir`. Err says why there are none to hand out (no ship file).
     pub fn load(data_dir: &Path) -> Result<ShipPlots, String> {
-        let ship = ShipStructure::load_ship_file(data_dir)?;
-        let mut designs: Vec<HomeDesign> = Vec::new();
-        let mut plots = Vec::new();
-        for p in &ship.plots {
-            if !designs.iter().any(|d| d.kind == p.kind) {
-                designs.push(HomeDesign::load(data_dir, &p.kind)?);
-            }
-            let design = designs.iter().find(|d| d.kind == p.kind).expect("loaded just above");
-            plots.push(PlotArrival {
-                id: p.id.clone(),
-                kind: p.kind.clone(),
-                origin: p.origin,
-                size: p.size,
-                spawn: ShipStructure::plot_spawn(p, design),
-            });
-        }
-        Ok(ShipPlots { ship_id: ship.id.clone(), ship_hash: ship.ship_hash(), plots, guest_spawn: ship.guest_spawn() })
+        Ok(Self::of_ship(&ShipStructure::load_ship_file(data_dir)?))
+    }
+
+    /// The plots of a ship file already loaded (what `load` reads; a test builds one by hand).
+    pub fn of_ship(ship: &ShipStructure) -> ShipPlots {
+        let plots = ship
+            .plots
+            .iter()
+            .map(|p| PlotArrival { id: p.id.clone(), kind: p.kind.clone(), origin: p.origin, size: p.size })
+            .collect();
+        ShipPlots { ship_id: ship.id.clone(), ship_hash: ship.ship_hash(), plots, guest_spawn: ship.guest_spawn() }
     }
 
     /// A plot by id.
@@ -555,16 +564,18 @@ impl ShipPlots {
 }
 
 impl PlotArrival {
-    /// Where the holder arrives when their game names its own home's door (`local`, plot-local
-    /// x and z metres, from `ShipStructure::home_arrival_local`): that point on this plot, kept
-    /// inside the plot's box, at eye height. A door that is not a pair of finite numbers, or
-    /// none at all (a scripted player draws no home), arrives at `spawn`, the default design's.
+    /// Where the holder arrives, at eye height. `local` is their own home's door as their game
+    /// names it in `game_join` (plot-local x and z metres, `ShipStructure::home_arrival_local`):
+    /// that point on this plot, kept inside the plot's box. No door named (a home with no
+    /// authored door, or a scripted player that draws no home), or one that is not a pair of
+    /// finite numbers: the middle of THIS plot, which is where the game's own `plot_spawn` puts
+    /// a home with no door on it.
     pub fn arrival(&self, local: Option<(f32, f32)>) -> Vec3 {
         match local {
             Some((x, z)) if x.is_finite() && z.is_finite() => {
                 spawn_at(self.origin, (x.clamp(0.0, self.size.0), z.clamp(0.0, self.size.2)))
             }
-            _ => self.spawn,
+            _ => spawn_at(self.origin, plot_middle(self.size)),
         }
     }
 }
@@ -1206,19 +1217,23 @@ impl ShipStructure {
     /// there; the middle of the plot at eye height when the design declares no spawn. The relay
     /// spawns the player here and the game puts its camera here, from this one function.
     pub fn plot_spawn(plot: &Plot, design: &HomeDesign) -> Vec3 {
-        let local = design.body.spawn.unwrap_or((plot.size.0 * 0.5, plot.size.2 * 0.5));
+        let local = design.body.spawn.unwrap_or_else(|| plot_middle(plot.size));
         spawn_at(plot.origin, local)
     }
 
     /// Where this player's own home is entered, as plot-local x and z metres: what the game
-    /// sends in `game_join` (`home_spawn`) so the relay spawns them at their OWN door, not the
-    /// default design's (`PlotArrival::arrival`). Plot-local because the game does not know its
-    /// plot until the welcome, and the home design is the same on any plot. None for a ship
-    /// that was not assembled with a home.
+    /// sends in `game_join` (`home_spawn`) so the relay spawns them at their OWN door
+    /// (`PlotArrival::arrival`). Plot-local because the game does not know its plot until the
+    /// welcome, and the home design is the same on any plot. None for a ship that was not
+    /// assembled with a home, AND for a home with no authored door: then no door is named and
+    /// each side takes the middle of the plot actually handed out (the second review of 1b:
+    /// this used to send the middle of the plot the home was built on, which agreed with the
+    /// relay only while every plot was the same size).
     pub fn home_arrival_local(&self) -> Option<(f32, f32)> {
-        let plot = self.home_plot()?;
-        let at = Self::plot_spawn(plot, &self.home_design()?);
-        Some((at.x - plot.origin.0, at.z - plot.origin.2))
+        // The home zone stands at its plot's origin (`assemble`), so its body's spawn, which is
+        // home-local, is plot-local too.
+        self.home_plot()?;
+        self.zones.get(self.home_zone_index())?.body.spawn
     }
 
     /// Where a guest arrives when every plot is held (increment 1b): the Commons (the first
@@ -1226,7 +1241,7 @@ impl ShipStructure {
     /// ship with no Commons.
     pub fn guest_spawn(&self) -> Option<Vec3> {
         let c = self.zones.iter().find(|z| z.purpose == "commons")?;
-        Some(spawn_at(c.origin, c.body.spawn.unwrap_or((c.body.width * 0.5, c.body.depth * 0.5))))
+        Some(spawn_at(c.origin, c.body.spawn.unwrap_or_else(|| plot_middle((c.body.width, 0.0, c.body.depth)))))
     }
 
     /// A short fingerprint of the ship FILE (the shared ship, never anyone's home): 16 hex digits
@@ -3136,24 +3151,27 @@ mod plot_handout_tests {
         std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data")
     }
 
-    /// The relay's arrival point for every plot is exactly where the game's camera lands once
-    /// the home is assembled there: the two sides compute it from one function, and this pins
-    /// that the game's own path (`assemble` then `home_spawn_world`) agrees with it.
+    /// The shipped home design names its door, and the relay's arrival for that door on every
+    /// plot is exactly where the game's camera lands once the home is assembled there (the game's
+    /// own path, `assemble` then `home_spawn_world`), inside that plot's box.
     #[test]
     fn every_plot_spawn_is_where_the_game_stands_on_it() {
         let plots = ShipPlots::load(&data_dir()).expect("the shipped plots load");
         assert!(plots.plots.len() >= 2, "two plots at least: {:?}", plots.plots);
+        let door = ShipStructure::load_and_assemble(&data_dir(), None).unwrap().home_arrival_local();
+        assert!(door.is_some(), "the shipped home design names its door");
         for p in &plots.plots {
             let ship = ShipStructure::load_and_assemble(&data_dir(), Some(&p.id)).expect("assembles");
             let cam = ship.home_spawn_world().expect("the design has a spawn");
-            assert!((cam - p.spawn).length() < 1e-4, "{}: relay {:?}, game {:?}", p.id, p.spawn, cam);
+            let relay = p.arrival(door);
+            assert!((cam - relay).length() < 1e-4, "{}: relay {relay:?}, game {cam:?}", p.id);
             // And it is inside the plot's own box.
             let (lo, hi) = ship.plots.iter().find(|q| q.id == p.id).unwrap().aabb();
             assert!(cam.cmpge(lo).all() && cam.cmple(hi).all(), "{}'s spawn {cam:?} is outside its box", p.id);
         }
         // The design doc's worked numbers (section 2.4): p2's spawn is (53.5, 1.7, 139.5).
-        let p2 = plots.plot("p2").expect("p2");
-        assert!((p2.spawn - Vec3::new(53.5, 1.7, 139.5)).length() < 1e-4, "p2 spawn {:?}", p2.spawn);
+        let p2 = plots.plot("p2").expect("p2").arrival(door);
+        assert!((p2 - Vec3::new(53.5, 1.7, 139.5)).length() < 1e-4, "p2 spawn {p2:?}");
         // A guest arrives in the Commons: the middle of its 34 x 55 m box at (65, 0, 20).
         let g = plots.guest_spawn.expect("the ship has a Commons");
         assert!((g - Vec3::new(82.0, 1.7, 47.5)).length() < 1e-4, "guest spawn {g:?}");
@@ -3166,6 +3184,8 @@ mod plot_handout_tests {
     /// design's. A door off the plot is kept on it; one that is not a number is ignored. Seen
     /// red 2026-10-03 with `arrival` ignoring the door (the first 1b relay, which always used
     /// the default design's spawn): "p1: relay Vec3(53.5, 1.7, 40.5), game Vec3(12.5, 1.7, 30.0)".
+    /// No door named now arrives in the middle of the plot (the second review); with `arrival`
+    /// put back to the default design's door for that: "no door named: the middle of the plot".
     #[test]
     fn the_players_own_door_arrives_where_their_home_is_entered() {
         let plots = ShipPlots::load(&data_dir()).expect("the shipped plots load");
@@ -3175,19 +3195,46 @@ mod plot_handout_tests {
         let door = ship.home_arrival_local().expect("an assembled home has a door");
         assert_eq!(door, (12.5, 30.0));
         for p in &plots.plots {
-            let mut there = ship.ship_file().assemble(ship.home_design().unwrap(), &p.id).expect("fits");
+            let there = ship.ship_file().assemble(ship.home_design().unwrap(), &p.id).expect("fits");
             let cam = there.home_spawn_world().unwrap();
             assert!((p.arrival(Some(door)) - cam).length() < 1e-4, "{}: relay {:?}, game {cam:?}", p.id, p.arrival(Some(door)));
             assert_eq!(there.home_arrival_local(), Some(door), "plot-local, so the same on every plot");
-            // No authored door: the plot's middle (what `plot_spawn` gives the game).
-            there.zones[home].body.spawn = None;
-            assert_eq!(there.home_arrival_local(), Some((p.size.0 * 0.5, p.size.2 * 0.5)));
         }
         let p1 = plots.plot("p1").unwrap();
-        assert_eq!(p1.arrival(None), p1.spawn, "no door named: the default design's spawn");
-        assert_eq!(p1.arrival(Some((f32::NAN, 3.0))), p1.spawn, "not a number: ignored");
+        let middle = Vec3::new(p1.origin.0 + p1.size.0 * 0.5, 1.7, p1.origin.2 + p1.size.2 * 0.5);
+        assert!((p1.arrival(None) - middle).length() < 1e-4, "no door named: the middle of the plot");
+        assert!((p1.arrival(Some((f32::NAN, 3.0))) - middle).length() < 1e-4, "not a number: ignored");
         let edge = p1.arrival(Some((1000.0, -5.0)));
         assert!((edge - Vec3::new(p1.origin.0 + p1.size.0, 1.7, p1.origin.2)).length() < 1e-4, "kept on the plot: {edge:?}");
+    }
+
+    /// A home with NO authored door names none in its join, and the relay and the game then both
+    /// take the middle of the plot actually handed out, on plots of any size. Here the second
+    /// plot is made larger than the first (planned apartment plots will differ in size), the
+    /// home is built on the first, and the relay hands out the second.
+    ///
+    /// Seen red 2026-10-03 with `home_arrival_local` put back to sending the middle of the plot
+    /// the home was built on (the 65b3e2c0c game): "a doorless home on the larger p2: the relay
+    /// spawns at Vec3(27.5, 1.7, 143.5), the game stands at Vec3(31.5, 1.7, 159.0)".
+    #[test]
+    fn a_home_with_no_door_arrives_in_the_middle_of_the_plot_it_is_given() {
+        let mut file = ShipStructure::load_ship_file(&data_dir()).unwrap();
+        let p2 = file.plots.iter().position(|p| p.id == "p2").expect("p2");
+        // Wider up to the street (x 65) and deeper: 63 x 120 m against p1's 55 x 89.
+        file.plots[p2].size.0 += 8.0;
+        file.plots[p2].size.2 += 31.0;
+        let mut design = ShipStructure::load_and_assemble(&data_dir(), None).unwrap().home_design().unwrap();
+        design.body.spawn = None;
+        let ship = file.clone().assemble(design.clone(), "p1").expect("the doorless home stands on p1");
+        // The relay's side: what it spawns at on the plot it hands out, from what the join says.
+        let relay = ShipPlots::of_ship(&file).plot("p2").unwrap().arrival(ship.home_arrival_local());
+        // The game's side: where its home's arrival point stands on that plot.
+        let game = ShipStructure::plot_spawn(&file.plots[p2], &design);
+        assert!(
+            (relay - game).length() < 1e-4,
+            "a doorless home on the larger p2: the relay spawns at {relay:?}, the game stands at {game:?}"
+        );
+        assert_eq!(ship.home_arrival_local(), None, "a home with no door names none");
     }
 
     /// A relay in a folder with no data (the rigs' throwaway relay) hands out the same plots

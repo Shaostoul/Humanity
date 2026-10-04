@@ -501,3 +501,55 @@ test("an approach that crosses to the line is clear; one running back along it i
   assert.equal(approachClear([40, 1.7, 14], line), false, "from beyond the end, back along the line");
   assert.equal(approachClear([30, 1.7, 14.2], line), false, "from the middle of the line, 0.2 m off it");
 });
+
+// The second review of 1b, finding 3: the pieces the player built aboard and
+// their parked vehicles go with the home too. A fresh rig sandbox has none, so
+// they are not required, but every one reported must be on the plot. Seen red
+// 2026-10-03 with judgePlots ignoring them (the 65b3e2c0c judge): a chest left
+// on p1 while the home moved to p2 passed, "a chest left on p1 should fail".
+test("plots: a built piece or a vehicle left on p1 while the home moved to p2 FAILS home_things_on_its_plot", () => {
+  const chest = { ...thingsAt(99), structures: [[20, 0, 30]], vehicles: [] };
+  const c = plotsRun({ homeThings: chest }).checks.find((x) => x.id === "home_things_on_its_plot");
+  assert.equal(c.ok, false, "a chest left on p1 should fail");
+  assert.match(c.detail, /built piece 1 at \(20\.0, 0\.0, 30\.0\) by p1/);
+  const truck = { ...thingsAt(99), structures: [], vehicles: [[40, 0, 70]] };
+  assert.equal(plotsRun({ homeThings: truck }).checks.find((x) => x.id === "home_things_on_its_plot").ok, false, "a truck left on p1 fails too");
+  const moved = { ...thingsAt(99), structures: [[20, 0, 129]], vehicles: [[40, 0, 169]] };
+  const ok = plotsRun({ homeThings: moved }).checks.find((x) => x.id === "home_things_on_its_plot");
+  assert.ok(ok.ok, ok.detail);
+  assert.match(ok.detail, /1 built pieces and 1 vehicles are all on p2/);
+});
+
+// Stepping out of the shared world and back (the second review's finding 1):
+// the relay spawns the returning game afresh at its door, wherever the game
+// stands; the game must stand there, and its next move must reach the others.
+const { judgeRejoin } = require("../lib/copresence-judge.js");
+const REJOIN_OK = {
+  far: [70, 1.7, 190], // the end of street-1, 150 m from p1's door
+  relaySpawn: P1_SPAWN,
+  camera: [53.5, 1.7, 40.5],
+  nudged: [53.5, 1.7, 41.5],
+  seen: [[53.5, 1.7, 41.5]],
+};
+
+test("rejoin: standing where the relay holds it, with the next move relayed, passes", () => {
+  const r = judgeRejoin(REJOIN_OK);
+  assert.ok(r.pass, explain(r));
+  assert.deepEqual(r.checks.map((c) => c.id), ["rejoin_far_from_spawn", "rejoin_stands_where_held", "rejoin_moves_reach_others"]);
+});
+
+// The 65b3e2c0c shape: the game kept standing where it was (150 m away) and
+// every update it sent was refused. Seen red 2026-10-03 with judgeRejoin
+// passing anything: "a game left 150 m from where the relay holds it should fail".
+test("rejoin: a game left where it stood, its moves refused, FAILS", () => {
+  const r = judgeRejoin({ ...REJOIN_OK, camera: [70, 1.7, 190], nudged: [70, 1.7, 191], seen: [] });
+  const failed = r.checks.filter((c) => !c.ok).map((c) => c.id);
+  assert.deepEqual(failed, ["rejoin_stands_where_held", "rejoin_moves_reach_others"], "a game left 150 m from where the relay holds it should fail");
+  assert.match(r.checks[1].detail, /150\.\d+ m from where the relay holds it/);
+});
+
+test("rejoin: an experiment that never left the 100 m rule's reach proves nothing, and FAILS", () => {
+  const r = judgeRejoin({ ...REJOIN_OK, far: [53.5, 1.7, 100] });
+  assert.equal(r.checks[0].ok, false, explain(r));
+  assert.equal(judgeRejoin({ ...REJOIN_OK, relaySpawn: null }).pass, false, "never seen joining again: unknown, not a pass");
+});

@@ -3547,7 +3547,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                 // despawns at once with game_player_left; the reconnect
                                 // grace is only for a DROPPED socket. Never a socket
                                 // close. It gives up the game seat too.
-                                handle_game_leave(&state_clone, &my_key_for_recv).await;
+                                handle_game_leave(&state_clone, &my_key_for_recv, &raw).await;
                                 continue;
                             }
                             Some("game_position_update") => {
@@ -3571,18 +3571,11 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                 continue;
                             }
                             // Game admin (v0.474): game-world bans, SEPARATE from
-                            // chat moderation. Admin-gated inside each handler via
-                            // get_role; replies go privately to the requester.
-                            Some("game_ban") => {
-                                handle_game_ban(&state_clone, &my_key_for_recv, &raw).await;
-                                continue;
-                            }
-                            Some("game_unban") => {
-                                handle_game_unban(&state_clone, &my_key_for_recv, &raw).await;
-                                continue;
-                            }
-                            Some("game_banned_list_request") => {
-                                handle_game_banned_list(&state_clone, &my_key_for_recv).await;
+                            // chat moderation, and releasing a player's plot (1b).
+                            // Admin-gated inside each handler via get_role; replies
+                            // go privately to the requester (msg_handlers.rs).
+                            Some(kind @ ("game_ban" | "game_unban" | "game_banned_list_request" | "game_release_plot")) => {
+                                handle_game_admin(&state_clone, &my_key_for_recv, kind, &raw).await;
                                 continue;
                             }
                             _ => {} // Fall through to normal RelayMessage handling

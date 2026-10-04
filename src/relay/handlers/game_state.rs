@@ -340,16 +340,32 @@ impl HomeAssignment {
 
 /// What a `game_join` says about the joiner's own home (increment 1b), both from the game
 /// (engine/home_plot.rs `add_join_fields`):
-///   `ship_hash`  the ship the game draws. One that is not this relay's claims no plot: that
-///                game refuses the welcome and leaves, and a plot claimed for it would be
-///                held for good by someone who never lives there. Absent (a scripted player,
-///                an AI agent, anything that draws no ship) is taken at its word.
+///   `ship_hash`  the ship the joiner draws. Only a join naming THIS relay's ship claims a
+///                plot: a plot is where a home stands, and only a game drawing this ship
+///                has a home here. One naming another ship is refused at the join, before
+///                anything is spawned (home_plots.rs `refused_other_ship`). One naming none
+///                (a scripted player or an AI agent that has not asked /api/server-info)
+///                is a guest in the Commons (the second review of 1b: such a join used to
+///                claim a plot for good, so two quick test bots filled the ship).
 ///   `home_spawn` [x, z], the player's own home's door, plot-local metres: they arrive there
-///                on whichever plot they get, kept inside it (`PlotArrival::arrival`).
+///                on whichever plot they get, kept inside it (`PlotArrival::arrival`). None:
+///                the middle of the plot.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct JoinHome {
     pub ship_hash: Option<String>,
     pub door: Option<(f32, f32)>,
+}
+
+impl crate::ship::ship_structure::ShipPlots {
+    /// True when a join names a ship that is not this one: refused at the join.
+    pub fn is_other_ship(&self, join: &JoinHome) -> bool {
+        join.ship_hash.as_deref().is_some_and(|h| h != self.ship_hash)
+    }
+
+    /// True when a join names this very ship: only such a join holds a plot.
+    pub fn is_this_ship(&self, join: &JoinHome) -> bool {
+        join.ship_hash.as_deref() == Some(self.ship_hash.as_str())
+    }
 }
 
 impl JoinHome {
@@ -971,21 +987,20 @@ impl GameWorld {
         }
     }
 
-    /// Where a joining player lives and arrives (increment 1b): the plot they hold on this
-    /// ship, else the first free one, claimed now (`Storage::claim_plot`, one plot per
-    /// player and one player per plot, enforced by the table), arriving at their own home's
-    /// door on it (`JoinHome`), else at the plot's default spawn. With every plot held they
-    /// are a guest in the Commons. A game drawing another ship claims nothing and is placed
-    /// as a guest (it will refuse the welcome and leave). A storage error makes them a guest
+    /// Where a joining player lives and arrives (increment 1b): for a join naming this ship
+    /// (`JoinHome`), the plot they hold on it, else the first free one, claimed now
+    /// (`Storage::claim_plot`, one plot per player and one player per plot, enforced by the
+    /// table), arriving at their own home's door on it, else in its middle. With every plot
+    /// held, or for a join naming no ship, they are a guest in the Commons. A join naming
+    /// ANOTHER ship never gets here (refused at the join). A storage error makes them a guest
     /// too (logged): a join is never refused over a plot.
     pub fn assign_home(&self, db: &crate::relay::storage::Storage, owner_key: &str, join: &JoinHome) -> HomeAssignment {
         let sp = &self.ship_plots;
         let ids: Vec<&str> = sp.plots.iter().map(|p| p.id.as_str()).collect();
-        let other_ship = join.ship_hash.as_deref().is_some_and(|h| h != sp.ship_hash);
         let held = if ids.is_empty() {
             None
-        } else if other_ship {
-            tracing::info!("Game: {owner_key} draws another ship ({:?}, ours {}); no plot claimed", join.ship_hash, sp.ship_hash);
+        } else if !sp.is_this_ship(join) {
+            tracing::info!("Game: {owner_key} names no ship (or not ours, {}); a guest, no plot claimed", sp.ship_hash);
             None
         } else {
             match db.claim_plot(&sp.ship_id, &plot_owner_id(owner_key), &ids) {
@@ -1006,6 +1021,15 @@ impl GameWorld {
             }
         };
         HomeAssignment { plot, spawn: [spawn.x, spawn.y, spawn.z] }
+    }
+
+    /// Give back the plot the player with `owner_key` holds on this ship (the record only;
+    /// geometry is in the ship file). Some(plot id) when they held one, None when they held
+    /// none. Two callers: a game that cannot stand its home on the plot it was given gives it
+    /// back as it leaves (`game_leave` with `give_up_plot`), and an admin releases a plot from
+    /// Server Settings (`game_release_plot`, msg_handlers.rs).
+    pub fn release_home(&self, db: &crate::relay::storage::Storage, owner_key: &str) -> Result<Option<String>, rusqlite::Error> {
+        db.release_plot(&self.ship_plots.ship_id, &plot_owner_id(owner_key))
     }
 
     /// Default spawn position: center of Crew Quarters, 1m above floor.

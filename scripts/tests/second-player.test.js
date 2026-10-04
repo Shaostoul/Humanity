@@ -223,3 +223,68 @@ test("with a plot of its own the walk starts at its own spawn; a guest walks rou
   assert.match(sp.homePlotLine(welcome(null)), /^home_plot null /);
   assert.match(sp.homePlotLine({ type: "game_welcome" }), /^home_plot missing /);
 });
+
+// Ship homes 1b, the second review: only a join naming the relay's ship holds a
+// plot (one naming none is a guest in the Commons), so the walker asks the
+// relay's public /api/server-info which ship it has and names it in its join,
+// like the desktop app. Seen red 2026-10-03 with joinMessage ignoring the ship
+// (the 65b3e2c0c walker): "the join names the relay's ship:
+// undefined".
+test("the join names the relay's ship, read from /api/server-info", async () => {
+  const ship = { id: "mothership-1", hash: "0123456789abcdef" };
+  const join = sp.joinMessage("TestBotWalker", { body: "x" }, ship);
+  assert.equal(join.ship_hash, ship.hash, `the join names the relay's ship: ${join.ship_hash}`);
+  assert.equal(join.type, "game_join");
+  assert.equal(join.home_spawn, undefined, "a scripted player draws no home, so it names no door");
+  assert.equal(sp.joinMessage("TestBotWalker", {}, null).ship_hash, undefined, "no ship known: a guest");
+
+  assert.equal(sp.httpBase("ws://127.0.0.1:3210/ws"), "http://127.0.0.1:3210");
+  assert.equal(sp.httpBase("wss://example.org/ws"), "https://example.org");
+
+  // A relay's server-info, served from this process (no relay booted).
+  const http = require("node:http");
+  let answer = { name: "x", ship };
+  const server = http.createServer((req, res) => {
+    res.setHeader("content-type", "application/json");
+    res.end(req.url === "/api/server-info" ? JSON.stringify(answer) : "{}");
+  });
+  await new Promise((r) => server.listen(0, "127.0.0.1", r));
+  try {
+    const url = `ws://127.0.0.1:${server.address().port}/ws`;
+    assert.deepEqual(await sp.fetchShip(url), ship, "the relay's ship from /api/server-info");
+    answer = { name: "x", ship: { id: "", hash: "" } };
+    assert.equal(await sp.fetchShip(url), null, "a relay whose ship did not load names none");
+    answer = { name: "x" };
+    assert.equal(await sp.fetchShip(url), null, "a relay from before 1b names none");
+  } finally {
+    server.close();
+  }
+});
+
+// The rig reads where the relay spawned the OTHER players and which of their
+// updates it passed on (verify-copresence.js --plots, stepping out and back).
+// Seen red 2026-10-03 with logOthers logging every update (no quarter-metre
+// rule): the 0.1 m step "saw entity 4 at
+// (53.60, 1.70, 40.50)" was logged and the deep-equal failed.
+test("other players' joins and moves are logged for the rig, never our own, never 15 a second", () => {
+  const listeners = [];
+  const client = { onGame: (fn) => (listeners.push(fn), () => listeners.splice(listeners.indexOf(fn), 1)) };
+  const lines = [];
+  const stop = sp.logOthers(client, 9, (s) => lines.push(s));
+  const emit = (g) => listeners.forEach((fn) => fn(g));
+  emit({ type: "game_player_joined", player_id: 4, name: "Rig", position: [53.5, 1.7, 40.5] });
+  emit({ type: "game_position_update", player_id: 4, position: [53.5, 1.7, 40.5] });
+  emit({ type: "game_position_update", player_id: 4, position: [53.6, 1.7, 40.5] }); // 0.1 m: not logged
+  emit({ type: "game_position_update", player_id: 4, position: [53.5, 1.7, 41.5] }); // 1 m: logged
+  emit({ type: "game_position_update", player_id: 9, position: [1, 2, 3] }); // our own: never
+  emit({ type: "game_player_joined", player_id: 9, name: "Me", position: [1, 2, 3] });
+  emit({ type: "game_player_left", player_id: 4 });
+  stop();
+  emit({ type: "game_player_left", player_id: 5 });
+  assert.deepEqual(lines, [
+    'player joined: entity 4 "Rig" at (53.50, 1.70, 40.50)',
+    "saw entity 4 at (53.50, 1.70, 40.50)",
+    "saw entity 4 at (53.50, 1.70, 41.50)",
+    "player left: entity 4",
+  ]);
+});

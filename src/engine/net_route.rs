@@ -188,6 +188,14 @@ pub(crate) fn route_game_message(state: &mut EngineState, payload: &str) {
         // NOT touch chat (it stays connected by design).
         Some("game_join_denied") => {
             let reason = v.get("reason").and_then(|x| x.as_str()).unwrap_or("");
+            // The relay's ship is not ours (increment 1b): it refused the join before spawning
+            // anything, so there is nothing to leave. One plain sentence, and no retry on this
+            // server until the world loads afresh (engine/home_plot.rs).
+            if reason == "other_ship" {
+                let sentence = crate::engine::home_plot::SHIP_MISMATCH.to_string();
+                crate::engine::home_plot::refuse_shared_world(state, sentence, None);
+                return;
+            }
             let msg = v.get("message").and_then(|x| x.as_str())
                 .unwrap_or("You are banned from the game world. Chat is unaffected.");
             state.gui_state.game_admin_status = if reason.is_empty() {
@@ -197,7 +205,9 @@ pub(crate) fn route_game_message(state: &mut EngineState, payload: &str) {
             };
             log::warn!("Game-join denied: {msg} (reason: {reason})");
         }
-        Some("game_admin_error") => {
+        // A refusal, or (game_admin_notice) a done-and-said, from a game-admin action such as
+        // releasing a player's plot: both are shown under the admin controls.
+        Some("game_admin_error") | Some("game_admin_notice") => {
             if let Some(m) = v.get("message").and_then(|x| x.as_str()) {
                 state.gui_state.game_admin_status = m.to_string();
             }

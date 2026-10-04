@@ -349,6 +349,23 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
         state.controller.fly_mode = false;
         log::info!("Showcase: walk -> fly mode off, on foot");
     }
+    // {"solo":"1"} / {"solo":"0"} (2026-10-03, ship homes 1b): step out of the shared world
+    // and back in, the switch the launcher's offline-home pick and Dev travel flip
+    // (`copresence_solo`; lib.rs sends game_leave, then joins again once it clears). The
+    // relay spawns the returning player afresh, at their door, wherever the game stands:
+    // verify-copresence --plots uses it to check the game then stands where the relay holds
+    // it (engine/home_plot.rs `stand_where_held`, the second review's freeze).
+    match grab("solo").as_deref() {
+        Some("1") => {
+            state.gui_state.copresence_solo = true;
+            log::info!("Showcase: solo -> stepping out of the shared world");
+        }
+        Some("0") => {
+            state.gui_state.copresence_solo = false;
+            log::info!("Showcase: solo off -> joining the shared world again");
+        }
+        _ => {}
+    }
     // Optional "time":"9.5" sets the game clock to that hour of the
     // current day (dev/screenshot control: dawn shots without waiting
     // out the night). Routed through the TimeSystem's request channel -

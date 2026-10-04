@@ -57,6 +57,13 @@
       '    <span class="gameadmin-count" id="gameadmin-count"></span>' +
       '  </div>' +
       '  <div id="gameadmin-list"></div>' +
+      '  <h3 class="gameadmin-section">Homes on the ship</h3>' +
+      '  <p class="gameadmin-hint">Each player who joins holds one plot of the ship for their home, and ' +
+      '     keeps it when they leave. To give a plot back (someone left for good, and the ship is full), ' +
+      '     enter that player\'s public key. It works only while they are out of the world; their own ' +
+      '     home and saves are untouched, and they get a free plot, or a guest place, when they come back.</p>' +
+      '  <input type="text" id="gameadmin-plot-key" placeholder="player public key (hex)" autocomplete="off" spellcheck="false">' +
+      '  <button class="gameadmin-refresh-btn" id="gameadmin-release-btn">Release plot</button>' +
       '  <div class="gameadmin-status" id="gameadmin-status"></div>' +
       '</div>';
     document.body.appendChild(overlay);
@@ -71,7 +78,22 @@
       setStatus('Requested the latest game-ban list.');
     });
     overlay.querySelector('#gameadmin-ban-btn').addEventListener('click', submitBan);
+    overlay.querySelector('#gameadmin-release-btn').addEventListener('click', submitRelease);
     return overlay;
+  }
+
+  // Give back the plot a player holds on the ship (ship homes increment 1b; the native
+  // original is draw_plot_release in src/gui/pages/game_admin.rs). The relay is the
+  // authoritative admin gate, refuses while that player is in the world, and answers with
+  // a game_admin_notice or game_admin_error shown in the status line.
+  function submitRelease() {
+    var keyEl = document.getElementById('gameadmin-plot-key');
+    var key = (keyEl.value || '').trim();
+    if (!key) { setStatus('Enter the public key of the player whose plot to release.'); return; }
+    if (typeof ws === 'undefined' || !ws || ws.readyState !== WebSocket.OPEN) { setStatus('Not connected to the server.'); return; }
+    ws.send(JSON.stringify({ type: 'game_release_plot', target: key }));
+    keyEl.value = '';
+    setStatus('Asked the server to release the plot of ' + shortKey(key) + '.');
   }
 
   function submitBan() {

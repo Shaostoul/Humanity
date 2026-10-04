@@ -65,7 +65,13 @@
 // inside the plot the game should hold; and every position the game DREW for
 // the walker (the recorder records figures off screen too) is inside the
 // walker's plot, with the smoothness checks on one forward leg of its walk.
-// No camera pose, no screenshots. Evidence in runs/<stamp>-plots-<order>/.
+// No camera pose, no screenshots. Then, in each order, the game STEPS OUT of
+// the shared world and back (the showcase `solo` verb, the switch the
+// launcher's offline home and Dev travel flip), having been moved more than
+// 100 m from its door while out: the relay spawns it afresh at its door, and
+// the judge checks the game then stands where the relay holds it and that its
+// next move reaches the walker (the second review of 1b found it frozen there).
+// Evidence in runs/<stamp>-plots-<order>/.
 //
 // Usage:
 //   node scripts/verify-copresence.js [--exe PATH] [--pose x,y,z,yaw,pitch]
@@ -83,7 +89,7 @@ const { spawn, spawnSync, execSync } = require("child_process");
 const MG = require("./lib/machine-guard.js");
 const DXC = require("./lib/dxc-dlls.js");
 const TR = require("./lib/throwaway-relay.js");
-const { judgeCopresence, LIMITS, figurePixels, FIGURE_MIN_PX, approachClear, judgePlots, forwardLegStart, readShipPlots } = require("./lib/copresence-judge.js");
+const { judgeCopresence, LIMITS, figurePixels, FIGURE_MIN_PX, approachClear, judgePlots, forwardLegStart, readShipPlots, judgeRejoin } = require("./lib/copresence-judge.js");
 const png = require("./lib/png.js");
 
 const REPO = path.resolve(__dirname, "..");
@@ -118,15 +124,16 @@ const DISTANCE = Number(opt("--distance", "6"));
 const RADIUS = Number(opt("--radius", "4"));
 // second-player.js's own walking pace.
 const SPEED = Number(opt("--speed", "1.4"));
-// Where the relay puts the walker. Since increment 1b every player gets a plot
-// of the ship (src/relay/handlers/game_state.rs assign_home) and spawns at its
-// spawn; the game joins first, so the walker holds the second plot, p2, and
-// arrives at p2's spawn (data/blueprints/ship_structure.ron + the homestead
-// design's spawn: (53.5, 1.7, 139.5), design section 2.4). It walks from there
-// to the line in front of the camera; the rig checks that straight approach
-// can never pass for the walk (the judge's approachClear), here before booting
-// and again on the start the walker actually reports.
-const SPAWN = [53.5, 1.7, 139.5];
+// Where the relay puts the walker. Since increment 1b every player whose join
+// names the relay's ship gets a plot of it (src/relay/handlers/game_state.rs
+// assign_home); the walker asks /api/server-info for the ship and names it. The
+// game joins first, so the walker holds the second plot, p2, and, drawing no
+// home and so naming no door, arrives in its middle (origin (0, 0, 99), 55 x 89
+// m: (27.5, 1.7, 143.5)). It walks from there to the line in front of the
+// camera; the rig checks that straight approach can never pass for the walk
+// (the judge's approachClear), here before booting and again on the start the
+// walker actually reports.
+const SPAWN = [27.5, 1.7, 143.5];
 // second-player.js reaches the start of its path within 4 s however far it is
 // (APPROACH_SECONDS), so a walk of this long covers the approach, one full
 // pass and a margin.
@@ -887,10 +894,30 @@ function plotsVerdict(m, dir) {
   } else {
     add("forward_leg_recorded", false, "no line, no time the walker reached it, or no frame times: the walk cannot be judged");
   }
+  // Stepping out of the shared world and back (the second review of 1b).
+  if (m.rejoin) {
+    for (const c of judgeRejoin(m.rejoin).checks) checks.push(c);
+  } else {
+    add("rejoin_ran", false, (s.rejoin && s.rejoin.detail) || "the step out of the shared world and back never ran");
+  }
   const panics = Number(m.panics || 0);
   add("no_panics", panics === 0, `${panics} PANIC line(s) in run.log`);
   return { checks, pass: checks.every((c) => c.ok), stats };
 }
+
+/** Places on the ship's floor outside every home, in ship metres at eye height
+ *  (data/blueprints/ship_structure.ron): the Commons' four corners, a metre in
+ *  (x 65..99, z 20..75), and both ends of street-1 (x 65..75, z 85..195). The
+ *  step-out check moves the game to the one farthest from its door, more than
+ *  100 m from it for either plot (154 m for p1's, 127 m for p2's). */
+const FAR_POINTS = [
+  [66, 1.7, 21],
+  [98, 1.7, 21],
+  [66, 1.7, 74],
+  [98, 1.7, 74],
+  [70, 1.7, 86],
+  [70, 1.7, 194],
+];
 
 function printPlotsVerdict(prefix, m, dir) {
   const { checks, pass, stats } = plotsVerdict(m, dir);
@@ -1132,6 +1159,77 @@ async function runPlotsOnce(order, runStamp, cleanups) {
         : `${PLOTS_WALKER_NAME} had stopped (exit ${walker ? walker.exitCode : "none"}) before the recording ended`,
     };
     step("walked", stillWalking, manifest.steps_ok.walker.detail);
+
+    // ── Step out of the shared world and back (the second review of 1b). The
+    // relay takes the game out at its game_leave and, when it joins again,
+    // spawns it AFRESH at its door, wherever the game stands. Out of the world,
+    // the game is moved to the place on the ship farthest from its door (more
+    // than 100 m), so a game that stayed where it stood would have every update
+    // refused by the relay's 100 m rule. The walker (still walking) logs where
+    // the relay spawned it and every move the relay passes on.
+    const before = await probe();
+    const door = before && before.home_things ? before.home_things.respawn : null;
+    const yaw = before && before.camera_end ? before.camera_end.yaw : 0;
+    const pitch = before && before.camera_end ? before.camera_end.pitch : 0;
+    const farTarget = door ? FAR_POINTS.reduce((a, b) => (Math.hypot(b[0] - door[0], b[2] - door[2]) > Math.hypot(a[0] - door[0], a[2] - door[2]) ? b : a)) : FAR_POINTS[0];
+    const mark = walkerOut.length;
+    const showcase = async (body) => {
+      req("showcase_request.json", body);
+      // The game deletes the request when it takes it (engine/ipc.rs poll_showcase_request).
+      for (const t0 = Date.now(); Date.now() - t0 < 10000 && fs.existsSync(path.join(DEBUG, "showcase_request.json")); ) await sleep(100);
+    };
+    const until = async (ok, ms) => {
+      let p = null;
+      for (const t0 = Date.now(); Date.now() - t0 < ms; ) {
+        p = await probe();
+        if (p && ok(p)) return p;
+        await sleep(500);
+      }
+      return p;
+    };
+    await showcase({ solo: "1" });
+    const outside = await until((p) => p.game_joined === false, 20000);
+    const stepped = !!(outside && outside.game_joined === false);
+    step("step_out", stepped, stepped ? "the game stepped out of the shared world (solo)" : `the game did not step out: game_joined=${outside && outside.game_joined}`);
+    if (!stepped) throw new Error("the game never stepped out of the shared world");
+    await showcase({ cam: `${farTarget.join(",")},${yaw},${pitch}` });
+    await sleep(2500);
+    const atFar = await probe();
+    const far = atFar && atFar.camera_end ? atFar.camera_end.pos : null;
+    step("far", !!far, `out of the world, moved to ${far ? fmt(far) : "(unknown)"} (asked ${fmt(farTarget)}), ${door && far ? Math.hypot(far[0] - door[0], far[2] - door[2]).toFixed(1) : "?"} m from the door at ${door ? fmt(door) : "?"}`);
+    await showcase({ solo: "0" });
+    const back = await until((p) => p.game_joined && p.welcomed, 30000);
+    const rejoined = !!(back && back.game_joined && back.welcomed);
+    step("step_back", rejoined, rejoined ? "the game joined the shared world again and its welcome was applied" : `no rejoin: game_joined=${back && back.game_joined} welcomed=${back && back.welcomed}`);
+    if (!rejoined) throw new Error("the game never rejoined the shared world");
+    // The game is the only other player, and the walker never logs itself; its name is the
+    // relay's (the game may join as "Player"), so it is not matched.
+    const nameRe = /player joined: entity (\d+) "[^"]*" at \(([-\d.]+), ([-\d.]+), ([-\d.]+)\)/;
+    let joinedLine = null;
+    for (const t0 = Date.now(); Date.now() - t0 < 10000 && !joinedLine; ) {
+      joinedLine = walkerOut.slice(mark).map((o) => o.line.match(nameRe)).find(Boolean) || null;
+      if (!joinedLine) await sleep(200);
+    }
+    const entity = joinedLine ? Number(joinedLine[1]) : null;
+    const relaySpawn = joinedLine ? [Number(joinedLine[2]), Number(joinedLine[3]), Number(joinedLine[4])] : null;
+    await sleep(1500);
+    const settled = await probe();
+    const camera = settled && settled.camera_end ? settled.camera_end.pos : null;
+    // One small step, by the same verb a person's walk amounts to: the move the
+    // relay must pass on.
+    const nudged = camera ? [camera[0], camera[1], camera[2] + 1] : null;
+    const markNudge = walkerOut.length;
+    if (nudged) await showcase({ cam: `${nudged.join(",")},${yaw},${pitch}` });
+    await sleep(2500);
+    const sawRe = /saw entity (\d+) at \(([-\d.]+), ([-\d.]+), ([-\d.]+)\)/;
+    const seen = walkerOut
+      .slice(markNudge)
+      .map((o) => o.line.match(sawRe))
+      .filter((m) => m && Number(m[1]) === entity)
+      .map((m) => [Number(m[2]), Number(m[3]), Number(m[4])]);
+    manifest.rejoin = { far, relaySpawn, camera, nudged, seen, entity, door, far_target: farTarget };
+    manifest.steps_ok.rejoin = { ok: true, detail: `rejoined as entity ${entity}, the relay spawned it at ${relaySpawn ? fmt(relaySpawn) : "(never seen)"}` };
+    step("rejoin", true, `${manifest.steps_ok.rejoin.detail}; its camera at ${camera ? fmt(camera) : "(none)"}; ${seen.length} relayed move(s) seen after the nudge to ${nudged ? fmt(nudged) : "(none)"}`);
   } catch (e) {
     manifest.steps.push({ id: "abort", ok: false, detail: String(e.message || e) });
     log(`ABORT ${e.message || e}`);

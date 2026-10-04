@@ -2953,11 +2953,16 @@ pub async fn handle_game_join(
         }
     }
 
+    // A join naming ANOTHER ship is refused before anything is spawned (home_plots.rs).
+    let join_home = crate::relay::handlers::game_state::JoinHome::from_join(raw);
+    if crate::relay::handlers::home_plots::refused_other_ship(state, my_key, &join_home).await {
+        return;
+    }
     let mut world = state.game_world.write().await;
-    // Their home on the ship (increment 1b): the plot they hold, else the first free one,
-    // else a guest spot in the Commons; at their own door, and nothing for a game drawing
-    // another ship (game_state.rs JoinHome). Asked on a rejoin too, so every welcome names it.
-    let home = world.assign_home(&state.db, my_key, &crate::relay::handlers::game_state::JoinHome::from_join(raw));
+    // Their home on the ship (increment 1b): for a join naming this ship, the plot they hold,
+    // else the first free one; else a guest spot in the Commons; at their own door
+    // (game_state.rs JoinHome). Asked on a rejoin too, so every welcome names it.
+    let home = world.assign_home(&state.db, my_key, &join_home);
 
     // A join for an ALREADY-PRESENT player is a RESYNC, not an error (v0.779).
     // The native client re-sends game_join after a local menu round-trip (it
@@ -3097,6 +3102,9 @@ pub async fn handle_game_join(
         // and which ship (the client refuses to join a ship that is not its own).
         "home_plot": home.home_plot_json(),
         "ship": ship,
+        // False when spawned afresh (first join, after a game_leave, the grace or a relay
+        // restart): the game then stands where this welcome holds it (home_plot.rs).
+        "rejoin": is_rejoin,
     });
     if let Some(q) = current_quest {
         welcome["current_quest"] = q;
@@ -3139,7 +3147,7 @@ pub async fn handle_game_join(
 
 /// True if this key is an admin or owner (the game-admin gate). Defaults to
 /// false (deny) on any DB error -- consistent with refusing the action.
-fn is_game_admin(state: &Arc<RelayState>, my_key: &str) -> bool {
+pub(crate) fn is_game_admin(state: &Arc<RelayState>, my_key: &str) -> bool {
     let r = state.db.get_role(my_key).unwrap_or_default();
     r == "admin" || r == "owner"
 }
@@ -3464,7 +3472,9 @@ pub async fn handle_game_disconnect(
 /// close of this socket does not start a second departure, and it clears any
 /// link-dead mark. Real-relay test: features.rs
 /// `a_deliberate_leave_despawns_at_once_while_a_dropped_socket_keeps_its_place`.
-pub async fn handle_game_leave(state: &Arc<RelayState>, player_key: &str) {
+/// `"give_up_plot": true` gives their plot back first (home_plots.rs, increment 1b).
+pub async fn handle_game_leave(state: &Arc<RelayState>, player_key: &str, raw: &serde_json::Value) {
+    crate::relay::handlers::home_plots::give_up_plot_if_asked(state, player_key, raw).await;
     despawn_player_now(state, player_key).await;
 }
 
@@ -3969,7 +3979,7 @@ pub async fn handle_game_query_entity(
 }
 
 /// Send a game message privately to one player.
-async fn send_game_private(state: &Arc<RelayState>, to_key: &str, msg: &serde_json::Value) {
+pub(crate) async fn send_game_private(state: &Arc<RelayState>, to_key: &str, msg: &serde_json::Value) {
     let private = RelayMessage::Private {
         to: to_key.to_string(),
         message: format!("__game__:{}", msg),

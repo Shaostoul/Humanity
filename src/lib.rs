@@ -14648,6 +14648,8 @@ mod native_app {
                                                     &mut state.game_world.world,
                                                     &save,
                                                 );
+                                                // Saved as if the home stood on the default plot: to its plot now (1b).
+                                                crate::engine::home_plot::carry_saved_pieces_home(state);
                                                 // The clock rewinds with the save, and
                                                 // the garden is caught up from its stamp.
                                                 let resumed = crate::save_load::resume_home(

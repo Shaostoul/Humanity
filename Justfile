@@ -590,7 +590,10 @@ verify-second-player:
 #     joining, every position the game drew for the walker is inside the
 #     walker's plot, and one forward leg of the walk is smooth. No view or
 #     screenshot checks (two homes cannot see each other until increment 2).
-#     --order walker-first|game-first runs one. About 5 minutes.
+#     Then the game steps out of the shared world and back, moved over 100 m
+#     from its door while out: it must stand where the relay respawns it, and
+#     its next move must reach the walker. --order walker-first|game-first runs
+#     one. About 6 minutes.
 #   just verify-copresence --dry-verdict <manifest.json>   re-judge without booting
 verify-copresence *ARGS:
     node scripts/verify-copresence.js {{ARGS}}
