@@ -44,7 +44,8 @@ use crate::gui::GuiPage;
 /// panels, and starting the reconnect countdown. The countdown itself still
 /// ticks in the frame loop (it needs `dt`).
 pub(crate) fn poll_relay_messages(state: &mut EngineState) {
-    // The server's settings, asked for once the sign-in has completed (gui/connections.rs).
+    // The server's settings, asked for once on every socket whose sign-in has completed
+    // (gui/connections.rs `socket_signed_in`, `ask_server_settings_once`).
     state.gui_state.ask_server_settings_once();
     // ── Poll WebSocket messages from relay server ──
     let mut ws_dropped = false;
@@ -220,9 +221,9 @@ pub(crate) fn poll_relay_messages(state: &mut EngineState) {
                         // First post-bind message: the identify handshake is
                         // complete, game messages will now be routed (v0.794).
                         // Every new socket resets the flag, so false here
-                        // means this is that socket's identify being accepted.
-                        let first_on_socket = !state.gui_state.ws_identified;
-                        state.gui_state.ws_identified = true;
+                        // means this is that socket's identify being accepted;
+                        // the socket then asks for the server's settings anew.
+                        let first_on_socket = state.gui_state.socket_signed_in();
                         if let Some(join) = voice_rejoin_frame(&mut state.gui_state, first_on_socket) {
                             if let Some(ref c) = state.gui_state.ws_client { c.send(&join); }
                         }

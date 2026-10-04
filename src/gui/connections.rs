@@ -195,6 +195,7 @@ impl GuiState {
         self.server_settings_requested = false;
         self.erase_memory_days = None;
         self.server_settings_draft = None;
+        self.server_settings_changed_underneath = false;
         self.chat_typing_users.clear();
         self.history_rx = None;
         self.chat_reply_to = None;
@@ -224,6 +225,9 @@ impl GuiState {
         self.ws_status = "Disconnected".to_string();
         self.ws_manually_disconnected = true;
         self.chat_users.clear();
+        // The self-dropped-socket path that clears this (engine/frame_ws_poll.rs) never runs once
+        // `ws_client` is None, so an unanswered request would otherwise stay marked as made.
+        self.server_settings_requested = false;
     }
 
     /// The ACTIVE server confirmed it erased our account (relay `account_erased`; BUG-135):
@@ -325,6 +329,12 @@ impl GuiState {
                     settings.max_chars_mod, settings.max_chars_admin
                 );
                 let before = self.server_settings.take();
+                self.server_settings_changed_underneath = changed_under_edits(
+                    self.server_settings_draft.as_ref(),
+                    before.as_ref(),
+                    &settings,
+                    self.server_settings_changed_underneath,
+                );
                 self.server_settings_draft = draft_after_settings_arrive(self.server_settings_draft.take(), before.as_ref(), &settings);
                 self.server_settings = Some(settings);
             }
@@ -332,19 +342,69 @@ impl GuiState {
         }
     }
 
-    /// Ask the active server for its settings once this connection has signed in, while they
-    /// are not known (engine/frame_ws_poll.rs calls it every frame). Asking at connect, before
-    /// the identify handshake finished, never worked: the relay drops every message other than
-    /// the identify until it has bound the socket (review finding 14), so Settings > Account
-    /// and the Server Settings page went without the settings for the whole session.
+    /// Ask the active server for its settings once on every socket that has signed in, whether
+    /// or not they are known (engine/frame_ws_poll.rs calls it every frame). Asking at connect,
+    /// before the identify handshake finished, never worked: the relay drops every message other
+    /// than the identify until it has bound the socket (review finding 14). Asking only while
+    /// they were unknown (final review of 085441749, findings 1 and 2) left the page waiting for
+    /// the whole session when one answer was lost or did not parse, and after a reconnect never
+    /// saw a change another admin saved meanwhile, which a Save of the stale copy then reverted.
+    /// The answer goes only to the asker (relay.rs), so asking per sign-in is cheap.
     pub fn ask_server_settings_once(&mut self) {
-        if !should_ask_server_settings(self.ws_identified, self.server_settings.is_some(), self.server_settings_requested) {
+        if !self.server_settings_wanted() {
             return;
         }
         if let Some(ref client) = self.ws_client {
             client.send(&serde_json::json!({ "type": "server_settings_request" }).to_string());
             self.server_settings_requested = true;
         }
+    }
+
+    /// The relay accepted this socket's sign-in (its first `peer_list`, engine/frame_ws_poll.rs).
+    /// Returns true the first time on a socket: every new socket starts unidentified. A newly
+    /// signed-in socket has not asked for the server's settings yet, whatever an earlier socket
+    /// did, so `ask_server_settings_once` asks on it: every new socket (Connect, the reconnect
+    /// timer, the name-collision reconnect) signs in through here. A parked link brought back
+    /// is already signed in; `reset_per_server_transients` clears the mark for it.
+    pub fn socket_signed_in(&mut self) -> bool {
+        let first_on_socket = !self.ws_identified;
+        self.ws_identified = true;
+        if first_on_socket {
+            self.server_settings_requested = false;
+        }
+        first_on_socket
+    }
+
+    /// Whether `ask_server_settings_once` sends the request this frame.
+    pub(crate) fn server_settings_wanted(&self) -> bool {
+        should_ask_server_settings(self.ws_identified, self.server_settings_requested)
+    }
+
+    /// The Server Settings page's Save and Revert drop the working copy, and with it the note
+    /// that the server's settings changed under its edits: the next copy is made from them.
+    pub fn discard_server_settings_draft(&mut self) {
+        self.server_settings_draft = None;
+        self.server_settings_changed_underneath = false;
+    }
+}
+
+/// Whether the Server Settings page says the server's settings changed under the admin's
+/// unsaved edits, once a `server_settings_state` has arrived (`on_server_settings_state`).
+/// True when the copy holds edits (it differs from `before`, the settings it was made from,
+/// so `draft_after_settings_arrive` keeps it) and the settings that arrived are not those
+/// (another admin saved, or they changed while this app was offline); still true while those
+/// edits are kept, once said (`already`). Save sends the whole copy, so without the note it
+/// would quietly put the old values back over the other change. False for a copy with no
+/// edits, which follows the new settings, and for none. Pure.
+pub(crate) fn changed_under_edits(
+    draft: Option<&crate::relay::storage::ServerSettings>,
+    before: Option<&crate::relay::storage::ServerSettings>,
+    now: &crate::relay::storage::ServerSettings,
+    already: bool,
+) -> bool {
+    match (draft, before) {
+        (Some(d), Some(b)) if d != b => already || b != now,
+        _ => false,
     }
 }
 
@@ -381,10 +441,11 @@ pub(crate) fn draft_after_settings_arrive(
     }
 }
 
-/// `ask_server_settings_once`'s decision: only on a signed-in connection, only while the
-/// settings are unknown, and once. Pure.
-pub(crate) fn should_ask_server_settings(identified: bool, known: bool, asked: bool) -> bool {
-    identified && !known && !asked
+/// `ask_server_settings_once`'s decision: only on a signed-in connection, and once per signed-in
+/// socket (`asked` is cleared when a socket signs in, drops, is disconnected or the server
+/// changes), whether or not the settings are already known. Pure.
+pub(crate) fn should_ask_server_settings(identified: bool, asked: bool) -> bool {
+    identified && !asked
 }
 
 #[cfg(all(test, feature = "native"))]
@@ -744,5 +805,77 @@ mod settings_draft_tests {
         state.server_settings_draft = Some(older.clone());
         state.on_server_settings_state(&serde_json::json!({ "type": "server_settings_state", "settings": real() }));
         assert_eq!(state.server_settings_draft, Some(real()), "after the settings arrived the page still showed the old ones as unsaved changes");
+    }
+
+    /// Final review of 085441749, findings 1 and 2: the settings were asked for only while
+    /// unknown and not yet asked, and the "asked" mark was cleared only when the socket dropped
+    /// by itself or the server changed. Disconnect and Connect cleared nothing, so an answer that
+    /// was lost (a slow link) or did not parse left the page waiting for the whole session; and
+    /// after any reconnect the settings were "known", so a change another admin saved while this
+    /// app was offline was never seen, and Save, which sends the whole copy, put the old values
+    /// back. Now every newly signed-in socket asks, known or not, and Disconnect clears the mark.
+    ///
+    /// Seen red 2026-10-04 with the old rules: "a newly signed-in socket did not ask for the
+    /// settings because an earlier socket had them".
+    #[test]
+    fn every_new_sign_in_asks_for_the_settings_known_or_not() {
+        // Known from an earlier socket, asked there; a new socket signs in.
+        let mut state = GuiState::default();
+        state.server_settings = Some(real());
+        state.server_settings_requested = true;
+        state.ws_identified = false;
+        assert!(state.socket_signed_in(), "the first sign-in on a socket was not reported as first");
+        assert!(state.server_settings_wanted(), "a newly signed-in socket did not ask for the settings because an earlier socket had them");
+        // Once asked on this socket, not again every frame; a later peer_list is not a new sign-in.
+        state.server_settings_requested = true;
+        assert!(!state.socket_signed_in());
+        assert!(!state.server_settings_wanted(), "asked twice on one socket");
+    }
+
+    /// The same review, finding 1: Disconnect (`disconnect_active`) sets `ws_client` to None, so
+    /// the self-dropped-socket path that cleared the "asked" mark never ran. Cleared here too.
+    ///
+    /// Seen red 2026-10-04: "Disconnect left the request marked as made, so the page could wait
+    /// for the whole session".
+    #[test]
+    fn disconnect_clears_the_settings_request_mark() {
+        // Asked, the answer lost, then Disconnect: Connect's socket asks again.
+        let mut state = GuiState::default();
+        state.ws_identified = true;
+        state.server_settings_requested = true;
+        state.disconnect_active();
+        assert!(!state.server_settings_requested, "Disconnect left the request marked as made, so the page could wait for the whole session");
+    }
+
+    /// Final review of 085441749, finding 2, second half: when the server's settings arrive and
+    /// the page's copy holds unsaved edits, the copy is kept (the edits are the admin's), and the
+    /// page says the settings changed under it, because Save sends the whole copy and would put
+    /// the old values back over the other change. Not said when the settings that arrive are the
+    /// ones the copy was made from (a reconnect's answer), and gone with the copy.
+    ///
+    /// Seen red 2026-10-04 with nothing saying so: "the page did not say the server's settings
+    /// changed under unsaved edits".
+    #[test]
+    fn the_page_says_when_the_servers_settings_change_under_unsaved_edits() {
+        use super::changed_under_edits as said;
+        let older = ServerSettings::default();
+        let mut edited = older.clone();
+        edited.server_name = "Mine".into();
+        assert!(said(Some(&edited), Some(&older), &real(), false), "the page did not say the server's settings changed under unsaved edits");
+        assert!(!said(Some(&edited), Some(&older), &older, false), "said for settings that did not change (a reconnect's answer)");
+        assert!(said(Some(&edited), Some(&older), &older, true), "the note went away while the edits it is about are still there");
+        assert!(!said(Some(&older), Some(&older), &real(), false), "said for a copy with no edits, which follows the settings");
+        assert!(!said(None, Some(&older), &real(), true), "said with no copy");
+        assert!(!said(Some(&edited), None, &real(), false), "said with no settings under the copy");
+
+        // Through the state: the edits kept, the note shown, and dropped with the copy.
+        let mut state = GuiState::default();
+        state.server_settings = Some(older.clone());
+        state.server_settings_draft = Some(edited.clone());
+        state.on_server_settings_state(&serde_json::json!({ "type": "server_settings_state", "settings": real() }));
+        assert_eq!(state.server_settings_draft, Some(edited), "unsaved edits were overwritten");
+        assert!(state.server_settings_changed_underneath, "the page did not say the server's settings changed under unsaved edits");
+        state.discard_server_settings_draft();
+        assert!(!state.server_settings_changed_underneath, "the note outlived the copy it was about");
     }
 }

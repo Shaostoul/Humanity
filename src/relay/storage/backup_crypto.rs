@@ -134,16 +134,6 @@ fn install_key_no_clobber(path: &Path, k: &[u8; 32]) -> std::io::Result<bool> {
     let mut tmp = path.as_os_str().to_owned();
     tmp.push(format!(".{:016x}.tmp", rand::random::<u64>()));
     let tmp = PathBuf::from(tmp);
-    let private_new_file = || {
-        let mut opts = std::fs::OpenOptions::new();
-        opts.write(true).create_new(true);
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::OpenOptionsExt;
-            opts.mode(0o600);
-        }
-        opts
-    };
     let installed = (|| {
         let mut f = private_new_file().open(&tmp)?;
         f.write_all(k)?;
@@ -157,19 +147,56 @@ fn install_key_no_clobber(path: &Path, k: &[u8; 32]) -> std::io::Result<bool> {
                 // another (create_new). Not atomic: a crash in these few bytes leaves a short
                 // file, which every start then reports and leaves for the operator.
                 tracing::warn!("no hard links for {} ({e}); writing the key file in place", path.display());
-                let mut f = match private_new_file().open(path) {
-                    Ok(f) => f,
-                    Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => return Ok(false),
-                    Err(e) => return Err(e),
-                };
-                f.write_all(k)?;
-                f.sync_all()?;
-                Ok(true)
+                write_key_in_place(path, k, write_and_sync)
             }
         }
     })();
     let _ = std::fs::remove_file(&tmp);
     installed
+}
+
+/// A new file opened for writing only if there is none at its path, private from the start on
+/// unix (0600), so a key is never readable by others even before it is written.
+fn private_new_file() -> std::fs::OpenOptions {
+    let mut opts = std::fs::OpenOptions::new();
+    opts.write(true).create_new(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        opts.mode(0o600);
+    }
+    opts
+}
+
+/// The whole key written to `f` and flushed to the disk.
+fn write_and_sync(f: &mut std::fs::File, k: &[u8; 32]) -> std::io::Result<()> {
+    use std::io::Write;
+    f.write_all(k)?;
+    f.sync_all()
+}
+
+/// `install_key_no_clobber`'s fallback on a filesystem without hard links: the key file made in
+/// place by `write`, never over another (create_new; Ok(false) when one is there first). When
+/// the write or the flush fails (a full disk), the file is removed again: create_new proves it
+/// is this call's own, and a short one left there would be read as Unusable by every later
+/// start (final review of 085441749, finding 3), where none lets the next start make the key.
+/// Only a crash in the middle of these few bytes can still leave a short file.
+fn write_key_in_place(
+    path: &Path,
+    k: &[u8; 32],
+    write: impl FnOnce(&mut std::fs::File, &[u8; 32]) -> std::io::Result<()>,
+) -> std::io::Result<bool> {
+    let mut f = match private_new_file().open(path) {
+        Ok(f) => f,
+        Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => return Ok(false),
+        Err(e) => return Err(e),
+    };
+    if let Err(e) = write(&mut f, k) {
+        drop(f);
+        let _ = std::fs::remove_file(path);
+        return Err(e);
+    }
+    Ok(true)
 }
 
 /// Encrypt `plain_path` into `enc_path` (nonce ‖ ciphertext).
@@ -319,6 +346,38 @@ mod tests {
             let tmp_left: Vec<_> = std::fs::read_dir(&dir).unwrap().filter_map(|e| e.ok()).map(|e| e.file_name()).filter(|n| n.to_string_lossy().ends_with(".tmp")).collect();
             assert!(tmp_left.is_empty(), "round {round}: temporary files left behind: {tmp_left:?}");
         }
+    }
+
+    /// Final review of 085441749, finding 3: on a filesystem without hard links the key file is
+    /// made in place, and a write or flush that failed after the file was created (a full disk)
+    /// returned the error but left the short file, which every later start then read as
+    /// Unusable: the erase memory ran "this run only", and for backup.key `load_or_create_key`
+    /// returned None, meaning unencrypted backups. The file is ours (create_new made it), so it
+    /// is removed and the next start makes the key whole. One that was there first is never
+    /// touched.
+    ///
+    /// Seen red 2026-10-04 with the fallback returning through `?` as before: "a short key file
+    /// was left behind: every later start would read it as Unusable".
+    #[test]
+    fn the_in_place_fallback_leaves_no_short_key_file_when_writing_fails() {
+        let dir = tmp_dir("inplacefail");
+        let path = dir.join("backup.key");
+        let k = [7u8; 32];
+        let failed = write_key_in_place(&path, &k, |f, k| {
+            use std::io::Write;
+            f.write_all(&k[..5])?;
+            Err(std::io::Error::other("no space left on the disk"))
+        });
+        assert!(failed.is_err(), "a failed write was reported as a key made");
+        assert!(!path.exists(), "a short key file was left behind: every later start would read it as Unusable");
+        let (made, state) = load_named_key(&dir, "backup.key");
+        assert_eq!(state, KeyFile::Created, "the next start did not make the key");
+        // A key file that was there first is left exactly as it is.
+        let first = std::fs::read(&path).unwrap();
+        let again = write_key_in_place(&path, &k, |_, _| Err(std::io::Error::other("never reached")));
+        assert_eq!(again.unwrap(), false, "a key already there was not reported as there");
+        assert_eq!(std::fs::read(&path).unwrap(), first, "a key already there was touched");
+        assert_eq!(made.map(|m| m.to_vec()), Some(first));
     }
 
     #[test]

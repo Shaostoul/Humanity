@@ -2253,6 +2253,7 @@ fn draw_server_policy_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSta
         } else {
             widgets::body_hint(ui, theme, "No unsaved changes. Edit any field above; it applies on Save.");
         }
+        draw_changed_underneath_note(ui, theme, state, dirty);
         ui.add_space(theme.spacing_xs);
         let mut save_clicked = false;
         let mut cancel_clicked = false;
@@ -2281,13 +2282,26 @@ fn draw_server_policy_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSta
             // (the 4 master sharing/voice/streaming switches live there
             // now). ONE builder so the two entry points can never drift.
             send_server_settings_update(state, &draft);
-            state.server_settings_draft = None;
+            state.discard_server_settings_draft();
             let now = ui.ctx().input(|i| i.time);
             state.toast("Server settings sent to the relay", crate::gui::ToastKind::Success, now);
         }
         if cancel_clicked {
-            state.server_settings_draft = None;
+            state.discard_server_settings_draft();
         }
+    }
+}
+
+/// What the page says while its working copy holds unsaved edits and the server's settings
+/// changed under them (another admin saved, or they changed while this app was offline;
+/// gui/connections.rs `changed_under_edits`). One line, because Save sends the whole copy.
+const CHANGED_UNDERNEATH_NOTE: &str = "This server's settings changed while you were editing. \
+    Saving sends your whole copy and would undo that change; Revert to server state shows the new settings.";
+
+/// `CHANGED_UNDERNEATH_NOTE` above a section's Save button, while it has unsaved edits.
+fn draw_changed_underneath_note(ui: &mut egui::Ui, theme: &Theme, state: &GuiState, dirty: bool) {
+    if dirty && state.server_settings_changed_underneath {
+        ui.label(RichText::new(CHANGED_UNDERNEATH_NOTE).size(theme.font_size_small).color(theme.warning()));
     }
 }
 
@@ -2559,7 +2573,7 @@ fn draw_roles_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         // Same payload + behavior as the Server-policy "Save Changes"
         // button (clear the draft so it re-seeds from the relay's echo).
         send_server_settings_update(state, &ss);
-        state.server_settings_draft = None;
+        state.discard_server_settings_draft();
     }
     if let Some(id) = pending_delete {
         if let Some(ref client) = state.ws_client {
@@ -2714,6 +2728,7 @@ fn draw_services_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 
     ui.add_space(theme.spacing_sm);
     let dirty = draft.is_some() && draft != cached;
+    draw_changed_underneath_note(ui, theme, state, dirty);
     ui.horizontal(|ui| {
         ui.add_enabled_ui(dirty, |ui| {
             if widgets::Button::primary("Save feature toggles")
@@ -2724,7 +2739,7 @@ fn draw_services_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 if let Some(ref draft) = draft {
                     send_server_settings_update(state, draft);
                 }
-                state.server_settings_draft = None;
+                state.discard_server_settings_draft();
                 let now = ui.ctx().input(|i| i.time);
                 state.toast("Feature toggles sent to the relay", crate::gui::ToastKind::Success, now);
             }

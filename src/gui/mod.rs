@@ -2450,9 +2450,11 @@ pub struct GuiState {
     /// haven't received the state yet (during initial connect, before
     /// any modify happens). UI uses defaults until populated.
     pub server_settings: Option<crate::relay::storage::ServerSettings>,
-    /// True once this connection asked the server for its settings (gui/connections.rs
+    /// True once this socket asked the server for its settings (gui/connections.rs
     /// `ask_server_settings_once`, after the sign-in completes), so it asks once, not every
-    /// frame. Reset with `server_settings` on a server switch, and when the socket drops.
+    /// frame. Cleared when a socket signs in (`socket_signed_in`), so every new socket asks even
+    /// when the settings are known, and when the socket drops, is disconnected or the server
+    /// changes.
     pub server_settings_requested: bool,
     /// How many days the active server remembers an erased account (BUG-135), exactly as the
     /// server sent it in `server_settings_state`; None when it has not, which includes a relay
@@ -2569,6 +2571,11 @@ pub struct GuiState {
     /// opens the editor. Save button sends a ServerSettingsUpdate WS
     /// message and clears the draft.
     pub server_settings_draft: Option<crate::relay::storage::ServerSettings>,
+    /// True while `server_settings_draft` holds unsaved edits and the server's settings changed
+    /// under them (another admin saved, or they were changed while this app was offline): the
+    /// Server Settings page says so, because Save sends the whole copy and would put the old
+    /// values back (gui/connections.rs `changed_under_edits`). Cleared with the copy.
+    pub server_settings_changed_underneath: bool,
 
     // ── Channel edit modal ──
     pub show_channel_edit_modal: bool,
@@ -3910,6 +3917,7 @@ impl Default for GuiState {
             chat_muted_users: Vec::new(),
             chat_muted_requested: false,
             server_settings_draft: None,
+            server_settings_changed_underneath: false,
             cosmos_view: crate::gui::pages::cosmos::CosmosView::System,
             cosmos_pan: egui::Vec2::ZERO,
             cosmos_zoom: 1.0,

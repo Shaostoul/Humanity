@@ -399,17 +399,20 @@ mod erase_memory_note_tests {
     }
 
     /// Review finding 14: the request for the settings goes out once the sign-in has completed,
-    /// never before (the relay drops it then), once, and only while they are unknown.
+    /// never before (the relay drops it then), and once per signed-in socket, whether or not
+    /// they are already known (final review of 085441749, findings 1 and 2: asking only while
+    /// unknown left a lost answer unasked for the session, and missed changes made while this
+    /// app was offline; the `known` argument is gone).
     ///
     /// Seen red 2026-10-04 with the sign-in condition taken out: "asked before the sign-in
-    /// completed: the relay drops it".
+    /// completed: the relay drops it"; and with the old "only while unknown" rule: "a new
+    /// sign-in did not ask because the settings were known".
     #[test]
     fn the_settings_are_asked_for_after_the_sign_in_and_once() {
         use crate::gui::connections::should_ask_server_settings as ask;
-        assert!(!ask(false, false, false), "asked before the sign-in completed: the relay drops it");
-        assert!(ask(true, false, false));
-        assert!(!ask(true, true, false), "asked although they are known");
-        assert!(!ask(true, false, true), "asked twice");
+        assert!(!ask(false, false), "asked before the sign-in completed: the relay drops it");
+        assert!(ask(true, false), "a new sign-in did not ask");
+        assert!(!ask(true, true), "asked twice");
     }
 }
 

@@ -3081,3 +3081,41 @@ outfit bonus). What being overloaded DOES is a gameplay decision for the
 design (the dual-modes rule: a realistic mode and a softened one): slower
 walking is the usual answer. Until then, say on the tile that the limit is
 advisory.
+
+## BUG-137: the desktop Server Settings page can show defaults, and Save writes them over the real settings (FIXED, found 2026-10-04)
+
+**Found by** the review of the erase-marker fix round, read from the code. The
+desktop app asks for the server's settings in the same moment it identifies
+(src/net/ws_client.rs ~222), but the relay ignores everything a socket sends
+before it is signed in, so the request is dropped and the app's cached settings
+stay empty unless an admin's save happens to broadcast them. The Server Settings
+page then seeds its editable copy from DEFAULTS (src/gui/pages/server_settings.rs
+~2098-2107: `server_settings.clone().unwrap_or_default()`), shows them as the
+server's values, and Save (or the #local checkbox, which sends the whole copy)
+writes every default over the real settings: the server name and description,
+limits, and windows such as how long DMs are kept, which the expiry pass then
+applies.
+
+**Until fixed:** do not press Save in the desktop app's Server Settings.
+
+**Fix in flight (the erase-marker branch's second fix round):** ask for the
+settings after sign-in, seed the editable copy only from the real settings and
+refresh it when they arrive, keep Save disabled until they have, and answer the
+request to the asking client only.
+
+**Fixed** on the erase-marker branch (BUG-135 option 2, its second and final
+review rounds). The desktop app asks for the server's settings only once the
+sign-in has completed, and again on EVERY newly signed-in socket, whether or
+not it already has them (src/gui/connections.rs `socket_signed_in`,
+`ask_server_settings_once`); Disconnect, a dropped socket and a server switch
+also clear the "asked" mark, so a lost or unreadable answer never leaves the
+page waiting for the whole session, and a change another admin saved while
+this app was offline is seen after the reconnect. The page waits for the real
+settings before it shows a form: until they arrive it says so, and Save, the
+Server master row and the feature switches are not there to press
+(`page_draft`). When settings arrive, a working copy with no unsaved edits is
+refreshed from them (`draft_after_settings_arrive`); one with edits is kept,
+and the page says in one line that the server's settings changed while you
+were editing, because Save sends the whole copy (`changed_under_edits`). The
+relay sends its answer to `server_settings_request` only to the one who asked
+(the connections of that key); an admin's saved change still goes to everyone.
