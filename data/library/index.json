@@ -188,6 +188,15 @@
           ]
         },
         {
+          "title": "Reading the Weather",
+          "file": "reading_the_weather.md",
+          "tags": [
+            "guide",
+            "real",
+            "safety"
+          ]
+        },
+        {
           "title": "Knowing Which Way Is North",
           "file": "knowing_which_way_is_north.md",
           "tags": [
@@ -428,6 +437,17 @@
             "guide",
             "real",
             "food"
+          ]
+        },
+        {
+          "title": "Chickens and Eggs",
+          "file": "chickens_and_eggs.md",
+          "tags": [
+            "guide",
+            "real",
+            "food",
+            "health",
+            "safety"
           ]
         }
       ],
@@ -866,6 +886,17 @@
             "real",
             "making",
             "shelter",
+            "safety"
+          ]
+        },
+        {
+          "title": "Glue and Joints",
+          "file": "glue_and_joints.md",
+          "tags": [
+            "guide",
+            "real",
+            "making",
+            "materials",
             "safety"
           ]
         },
