@@ -268,6 +268,8 @@ After identifying via WebSocket, send:
 
 The server responds with `game_welcome` containing your player ID and a full world snapshot (all entities, positions, components).
 
+The world is the mothership (`data/blueprints/ship_structure.ron`): its shared places are **The Commons**, the **Mess hall** at its north end, and **First Street** to its south. Each player's home stands on a plot of its own; a game names its ship and door when it joins and arrives at its own door. A join that names no ship, the usual case for an agent, has no plot and arrives at the ship's guest spot in The Commons.
+
 ### Perceiving Your Surroundings
 
 Send a perception query to "see" the world as structured data:
@@ -275,35 +277,38 @@ Send a perception query to "see" the world as structured data:
 {"type": "game_perceive", "radius": 20}
 ```
 
-The server responds with `game_perception`:
+The server responds with `game_perception` (this one at the guest spot, trimmed to three of the nearby entities):
 ```json
 {
   "type": "game_perception",
-  "position": [4.0, 5.0, 10.0],
+  "position": [82.0, 1.7, 47.5],
   "location": {
-    "id": "quarters",
-    "name": "Crew Quarters",
-    "room_type": "quarters",
-    "deck": "Upper Deck",
-    "ship": "Pioneer",
+    "id": "commons",
+    "name": "The Commons",
+    "room_type": "commons",
+    "deck": "Main deck",
+    "ship": "mothership-1",
     "exits": [
-      {"direction": "north", "connects_to": "bridge", "room_name": "Bridge"},
-      {"direction": "east", "connects_to": "medbay", "room_name": "Medical Bay"},
-      {"direction": "down", "connects_to": "cargo", "room_name": "Cargo Bay"}
+      {"direction": "south", "connects_to": "street-1", "room_name": "First Street"},
+      {"direction": "west", "connects_to": "plot:p1", "room_name": "plot:p1"},
+      {"direction": "north", "connects_to": "mess-hall", "room_name": "Mess hall"}
     ]
   },
   "nearby_entities": [
-    {"entity_id": 5, "entity_type": "locker", "distance": 1.5, "interactable": true},
-    {"entity_id": 8, "entity_type": "window", "distance": 2.3, "interactable": true}
+    {"entity_id": 1, "entity_type": "notice_board", "distance": 10.2, "position": [92.2, 1.0, 47.5], "interactable": true},
+    {"entity_id": 5, "entity_type": "harvest_bin", "distance": 10.2, "position": [85.2, 1.0, 37.8], "interactable": true},
+    {"entity_id": 17, "entity_type": "botanist", "distance": 10.6, "position": [91.0, 1.0, 53.0], "interactable": true}
   ],
   "environment": {
-    "game_time": 4523.7,
-    "ship": "Pioneer",
-    "orbit": "Earth LEO, 400km altitude"
+    "game_time": 129600.0,
+    "time_scale": 72.0,
+    "ship": "mothership-1"
   },
-  "player": {"entity_id": 1, "health": 100.0, "stamina": 100.0}
+  "player": {"entity_id": 21, "health": 100.0, "stamina": 100.0}
 }
 ```
+
+`game_time` is the shared world's clock in game seconds, running `time_scale` game seconds per real second (72 unless the server's admin set another). Positions are ship metres; an exit named `plot:<id>` is the corridor to someone's home.
 
 ### Interacting with Objects
 
@@ -312,7 +317,13 @@ Interact with nearby entities (must be within 5m):
 {"type": "game_interact", "entity_id": 8, "action": "inspect"}
 ```
 
-Response includes the entity's full component data (contents, description, view data for windows, etc.).
+Response includes the entity's full component data (description, and for a crew member a `dialog_line` and `speaker`).
+
+The ship's crew (`data/npc/crew.ron`) work in The Commons and its mess hall, and eat from the mess hall's food store (`data/food/ship_stores.ron`), the same store players eat from. Standing within 5 m of it, take a meal with:
+```json
+{"type": "game_interact", "entity_id": 12, "action": "take_meal"}
+```
+The reply's `meals_left` is the store's stock. One meal a meal time per person (8 game hours, 400 real seconds at 72x); a second one sooner is refused with `"error": "not_yet"` and `next_meal_in_s`, and an empty store with `"error": "empty"`.
 
 ### Other Game Queries
 
@@ -332,12 +343,15 @@ Response includes the entity's full component data (contents, description, view 
 3. Send: {"type":"game_join","player_name":"ClaudeBot"}
 4. Receive: game_welcome with world snapshot
 5. Send: {"type":"game_perceive","radius":20}
-6. Receive: game_perception (you're in Crew Quarters aboard the Pioneer)
-7. Send: {"type":"game_interact","entity_id":8,"action":"inspect"}
-8. Receive: game_interact_result (window showing Earth at 400km)
-9. Send: {"type":"game_position_update","position":[0,5,3],"rotation":[0,0,0,1],"velocity":[0,0,-1],"timestamp":0}
-10. Send: {"type":"game_perceive","radius":20}
-11. Receive: game_perception (now near the Bridge entrance)
+6. Receive: game_perception (you're in The Commons aboard mothership-1)
+7. Send: {"type":"game_interact","entity_id":1,"action":"inspect"}
+8. Receive: game_interact_result (the notice board's components)
+9. Walk north up the Commons' east aisle to the mess hall, in steps (the server refuses a move of more than 100 m from where it holds you):
+   {"type":"game_position_update","position":[90,1.7,40],"rotation":[0,0,0,1],"velocity":[0,0,-1],"timestamp":0}
+   {"type":"game_position_update","position":[90,1.7,24],"rotation":[0,0,0,1],"velocity":[0,0,-1],"timestamp":0}
+10. Receive: game_quest_progress (the Mess hall visited)
+11. Send: {"type":"game_perceive","radius":30}
+12. Receive: game_perception (in the Mess hall, the food store and the crew eating nearby)
 ```
 
 ### Design Constraints

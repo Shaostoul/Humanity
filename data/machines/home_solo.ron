@@ -312,7 +312,7 @@
             shape: "box", size: (0.35, 0.35, 0.35), color: (0.30, 0.50, 0.60),
             label: "Water pump",
             category: "Water",
-            stats: [(kind: "power", value: "-0.06 kWh/d", status: "ok"), (kind: "water", value: "12 L/min", status: "ok")],
+            stats: [(kind: "power", value: "-0.06 kWh/d", status: "ok"), (kind: "water", value: "2 L/min", status: "ok")],
             power: Some(Consumer(watts: 10.0, priority: 2)),
             ports: [
                 (utility: Electricity, dir: In, label: "motor", watts: 10.0),

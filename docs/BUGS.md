@@ -3281,3 +3281,59 @@ when it had to wait and how long, and on giving up names the folder that
 stayed locked. Any other error is thrown at once. Tests:
 `scripts/tests/rig-exe-copy.test.js` (in `just rig-tests`), including a lock
 that lasts 4 s, which the old single retry after 2 s could not survive.
+
+## BUG-143: 140 of the vendor's 300 trade goods are not items, so the shop silently never offers them (OPEN, found 2026-10-04)
+
+**Seen:** the fact check of the Stone, Clay and Earth guide noticed `clay_0` in
+`data/trade_goods.ron` with no such item in `data/items.csv` (which calls it
+`clay_raw_0`). A count over both files: 140 of the 300 trade-good ids are not
+items, among them dirt, bamboo, sulfur, cotton, flax, hemp, lumber, brick, tin
+ingots, cotton cloth, nails and steel pipe.
+
+**Effect:** nothing breaks, which is why it went unseen. The vendor's catalog
+(`GuiState::vendor_goods`, built in `lib.rs`) keeps only goods present in BOTH
+files, so the 140 are dropped without a word, and a player can never buy or
+sell clay, fibre, lumber or brick at a trading post.
+
+**Fix in progress:** each missing id is renamed to the item it means, added
+to items.csv as a real material, or removed if nothing in the game uses it,
+and a test fails on any trade good that is not an item.
+
+Also found by the same checks, smaller: the water pump's card said 12 L/min
+while its own water port and the self-sufficiency data say 2 L/min (fixed
+2026-10-04 in `home.ron` and `home_solo.ron`; `home_outline.json` had listed
+it as a contradiction to fix since September).
+
+## BUG-144: the Library quotation gate blamed quotes on the wrong source, and read prose between quotes as a quote (FIXED v0.1452.2, found 2026-10-04)
+
+**Seen:** `scripts/check-library-quotes.js` reported 6 problems after two
+Library batches merged, which made `just preflight` fail. None was a real
+restate-only quotation:
+
+- Two were public-domain quotations ("The CDC's wording: ...", "the USDA
+  guide adds: ...") blamed on NCHFP and Penn State, named a sentence or two
+  earlier.
+- Two were the prose BETWEEN two short quotes, e.g. Gildan's "Heavy Cotton"
+  T-shirt ... its "safety" colours, and the cell text after "vegan
+  leather" in a table.
+- Two named a claim in order to correct it or to say which claim a source
+  is cited for.
+
+**Why:** the pairing was a regex, `/"([^"]{20,})"/g`, which after failing
+on a short quote restarts one character later and takes the closing mark as
+an opening one. The attribution took the first restate-only source named
+ANYWHERE in the 220-character lookback (longest name first) and did not know
+the quotable sources at all, although its own comment said "the nearest
+recognisable source name".
+
+**Fix:** marks are paired in order within a paragraph; the source is the
+NEAREST name before the quotation among every registry source, with short
+deliberate aliases for the quotable publishers (CDC, USDA, EPA, OSHA, NIOSH,
+FEMA, USGS) matched as whole words; only a nearest `use: facts` source is
+flagged. The logic is exported and `scripts/tests/check-library-quotes.test.js`
+(8 tests, in `just preflight` and `just check-library-quotes`) holds the
+cases; three of them were seen failing against a copy carrying the old
+pairing and attribution. With the fix the real Library had 2 reports, one
+new (a guide quoting its own former wording, hidden before by the
+desynchronised pairing); those two and the 95-percent source-list line got
+`quote-ok` markers with their reasons. 0 problems.

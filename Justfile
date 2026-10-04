@@ -687,6 +687,7 @@ preflight:
     node scripts/check-library-counts.js
     node scripts/check-schema-paths.js
     node scripts/check-library-quotes.js
+    node --test scripts/tests/check-library-quotes.test.js
     node scripts/check-web-sites.js
     node scripts/verify-screens.js --self-test
     just verify
@@ -744,6 +745,7 @@ check-schema-paths:
 # legitimate, such as reproducing a copyright notice in order to attribute it.
 check-library-quotes:
     node scripts/check-library-quotes.js --verbose
+    node --test scripts/tests/check-library-quotes.test.js
 # Refuse a websites database (data/web/sites.json) that claims an embed
 # decision without recording who made it, when and on what clause, or an
 # affiliate tag without its disclosure. Also shape-checks readability.json.
