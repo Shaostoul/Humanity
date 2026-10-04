@@ -135,6 +135,12 @@ pub fn draw(
             for row in vital_rows(&state.vitals, state.settings.hud_vitals) {
                 y = draw_vital_row(painter, theme, y, &row);
             }
+            // Overloaded (BUG-136): what is wrong and what it does, so a slow
+            // walk or a jump that never leaves the floor is never a mystery.
+            if let Some(line) = state.carry.hud_line() {
+                text_shadowed(painter, Pos2::new(16.0, y), Align2::LEFT_TOP, &line, 11.0, theme.warning());
+                y += 15.0;
+            }
             if let Some(q) = state.quests.iter().find(|q| !q.completed) {
                 y += 4.0;
                 text_shadowed(painter, Pos2::new(16.0, y), Align2::LEFT_TOP, &truncate_chars(&q.name, 48), 12.0, theme.accent());
@@ -1925,5 +1931,59 @@ mod crew_label_tests {
     #[test]
     fn short_activity_is_untouched() {
         assert_eq!(truncate_chars("Watering the crops", 48), "Watering the crops");
+    }
+}
+
+/// BUG-136: the HUD's overload line is DRAWN, not only composed. The text
+/// itself is pinned in `systems::encumbrance`; this pins that the HUD paints
+/// it, which a pure-function test cannot see.
+#[cfg(test)]
+mod carry_line_tests {
+    use crate::gui::screen_surface::find_text_in_shapes;
+    use crate::gui::GuiState;
+    use crate::systems::encumbrance::{evaluate, CarryInput, CarryMode, ONE_G_M_S2};
+
+    /// Two settle frames of the HUD alone, returning the second's shapes.
+    fn hud_shapes(state: &GuiState) -> Vec<egui::epaint::ClippedShape> {
+        let ctx = egui::Context::default();
+        crate::gui::fonts::install_font_fallbacks(&ctx);
+        let theme = crate::gui::theme::load_theme();
+        theme.apply_to_egui(&ctx);
+        let mut shapes = Vec::new();
+        for _ in 0..2 {
+            let input = egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(1280.0, 900.0))),
+                ..Default::default()
+            };
+            let out = ctx.run(input, |ctx| {
+                super::draw(ctx, &theme, state, 0.0, glam::Mat4::IDENTITY, glam::Vec3::ZERO);
+            });
+            shapes = out.shapes;
+        }
+        shapes
+    }
+
+    /// Overloaded in the Realistic mode, the HUD says so and says why the
+    /// walk is slow; under the limit it says nothing. Seen red with the
+    /// HUD's draw block removed: "assertion `left == right` failed: the HUD
+    /// draws the overload line; left: None, right: Some(\"Overloaded 60 / 50
+    /// kg: walking at 80%, no jumping\")".
+    #[test]
+    fn the_hud_draws_the_overload_line_only_when_overloaded() {
+        let mut state = GuiState::default();
+        state.carry = evaluate(
+            CarryInput { carried_kg: 60.0, capacity_kg: 50.0, ..CarryInput::default() },
+            ONE_G_M_S2,
+            CarryMode::Realistic,
+        );
+        let line = "Overloaded 60 / 50 kg: walking at 80%, no jumping";
+        let found = find_text_in_shapes(&hud_shapes(&state), line);
+        assert_eq!(found.map(|f| f.text).as_deref(), Some(line), "the HUD draws the overload line");
+        state.carry = evaluate(
+            CarryInput { carried_kg: 40.0, capacity_kg: 50.0, ..CarryInput::default() },
+            ONE_G_M_S2,
+            CarryMode::Realistic,
+        );
+        assert!(find_text_in_shapes(&hud_shapes(&state), "Overloaded").is_none(), "under the limit, no line");
     }
 }

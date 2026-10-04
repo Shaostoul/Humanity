@@ -172,6 +172,60 @@ pub fn split_wish(wish: DVec3, up: DVec3, mode: MoveMode) -> (DVec3, f64) {
     (tangential, radial)
 }
 
+/// WHAT A CARRIED LOAD LETS SPACE DO WHILE WALKING (BUG-136, 2026-10-04).
+///
+/// `jump_scale` is `systems::encumbrance`'s share of the jump's launch speed:
+/// 1.0 normally, below 1 for a load in the Realistic carrying mode (more mass
+/// to launch), 0.0 when overloaded (no jumping under gravity, the operator's
+/// rule). It scales an UPWARD walk command anywhere in the walk band, in the
+/// air as well as on the ground: on a planet Space is not a one-shot jump but
+/// a held climb at walking speed (`radial_step`'s walking branch), so there
+/// is no separate launch to gate, and an overloaded walker who has stepped
+/// off a ledge cannot climb back up either. Shift's powered descent, the
+/// flight band, swimming and dev flight are not walking and pass through
+/// untouched. Applied after `split_wish`, so a walk command is exactly +1
+/// times the scale; at 0 it is a true 0.0 and `radial_step` sees no thrust.
+pub fn carry_gated_radial(
+    radial_wish: f64,
+    mode: MoveMode,
+    in_walk_band: bool,
+    submerged: bool,
+    jump_scale: f32,
+) -> f64 {
+    if mode == MoveMode::Walk && in_walk_band && !submerged && radial_wish > 0.0 {
+        radial_wish * jump_scale.clamp(0.0, 1.0) as f64
+    } else {
+        radial_wish
+    }
+}
+
+/// THE CARRIED LOAD'S SHARE OF WALKING SPEED ON A PLANET (BUG-136).
+///
+/// `carry_speed_factor` is `CameraController::carry_speed_factor` (1.0
+/// normally, below 1 when overloaded in the Realistic carrying mode). The
+/// operator's rule is "slower walking", so it applies to WALKING only: the
+/// walk band, on foot (`MoveMode::Walk`), out of the water. Dev flight, the
+/// flight band (10-100 km) and swimming get 1.0. Dev flight has two flags on
+/// a planet: `mode` is the F9 hover (`GuiState::dev_hover`), and `fly_mode`
+/// is the controller's fly flag, which dev travel sets on its own when it
+/// drops the player at a planet; either one means not walking. The first
+/// version folded the load into the controller-wide speed multiplier, which
+/// every planet mode reads, so an overloaded player in dev flight crawled at
+/// 15% while the HUD said "walking".
+pub fn carry_walk_factor(
+    carry_speed_factor: f32,
+    mode: MoveMode,
+    fly_mode: bool,
+    in_walk_band: bool,
+    submerged: bool,
+) -> f64 {
+    if !fly_mode && mode.uses_tangent_wish(in_walk_band, submerged) {
+        carry_speed_factor.clamp(0.0, 1.0) as f64
+    } else {
+        1.0
+    }
+}
+
 /// Result of one frame of radial motion.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct RadialStep {
@@ -875,6 +929,68 @@ mod tests {
             v = s.v_r;
         }
         assert!(r > rest + 1.0, "Space no longer jumps (only {:.2} m up)", r - rest);
+    }
+
+    /// BUG-136 on a planet: an overloaded walker's Space does not leave the
+    /// ground, a loaded one rises slower, and nothing that is not a jump is
+    /// touched (Shift, the flight band, swimming, dev flight). Seen red with
+    /// `carry_gated_radial` passing the wish through unchanged: "an
+    /// overloaded walker stays on the ground (rose 4.62 m)".
+    #[test]
+    fn an_overload_keeps_a_walker_on_the_ground() {
+        let rest = 6.371e6 + 1.75;
+        let rise = |scale: f32| {
+            let wish = carry_gated_radial(1.0, MoveMode::Walk, true, false, scale);
+            let (mut r, mut v) = (rest, 0.0);
+            for _ in 0..60 {
+                let s = radial_step(MoveMode::Walk, true, false, r, v, rest, G, SETTLE, DT, wish, 5.0 * DT);
+                r = s.r;
+                v = s.v_r;
+            }
+            r - rest
+        };
+        let none = rise(0.0);
+        assert!(none == 0.0, "an overloaded walker stays on the ground (rose {none:.2} m)");
+        let (full, loaded) = (rise(1.0), rise(0.84));
+        assert!(loaded > 0.5 && loaded < full, "a loaded jump rises less: {loaded:.2} of {full:.2} m");
+        // Not jumps: passed through whatever the load.
+        assert_eq!(carry_gated_radial(-1.0, MoveMode::Walk, true, false, 0.0), -1.0, "Shift still descends");
+        assert_eq!(carry_gated_radial(1.0, MoveMode::Walk, false, false, 0.0), 1.0, "flight band");
+        assert_eq!(carry_gated_radial(1.0, MoveMode::Walk, true, true, 0.0), 1.0, "swimming");
+        assert_eq!(carry_gated_radial(0.4, MoveMode::DevFlight, true, false, 0.0), 0.4, "dev flight");
+        // A held climb in mid-air is gated too: the walking branch has no
+        // separate launch, so an overloaded walker who stepped off a ledge
+        // gets no thrust while falling, where an unloaded one brakes.
+        let falling = |scale: f32| {
+            let wish = carry_gated_radial(1.0, MoveMode::Walk, true, false, scale);
+            radial_step(MoveMode::Walk, true, false, rest + 5.0, -2.0, rest, G, SETTLE, DT, wish, 5.0 * DT).v_r
+        };
+        assert!(falling(1.0) > -2.0, "an unloaded climb brakes the fall ({:.3} m/s)", falling(1.0));
+        assert!(falling(0.0) < -2.0, "an overloaded faller keeps falling ({:.3} m/s)", falling(0.0));
+    }
+
+    /// BUG-136: the load slows WALKING on a planet and nothing else. Seen red
+    /// against a stub applying the factor in every mode (the first version,
+    /// which folded it into the controller-wide multiplier): "assertion
+    /// `left == right` failed: dev flight ignores the load; left:
+    /// 0.15000000596046448, right: 1.0".
+    #[test]
+    fn the_carried_load_slows_walking_only() {
+        assert_eq!(carry_walk_factor(0.8, MoveMode::Walk, false, true, false), 0.8f32 as f64, "walking slows");
+        assert_eq!(carry_walk_factor(1.0, MoveMode::Walk, false, true, false), 1.0);
+        assert_eq!(carry_walk_factor(0.15, MoveMode::DevFlight, false, true, false), 1.0, "dev flight ignores the load");
+        assert_eq!(carry_walk_factor(0.15, MoveMode::Walk, false, false, false), 1.0, "the flight band ignores it");
+        assert_eq!(carry_walk_factor(0.15, MoveMode::Walk, false, true, true), 1.0, "swimming ignores it");
+        // Dev travel drops the player at a planet with the controller's fly
+        // flag on and the F9 hover off: still flight, not walking. Seen red
+        // with the flag ignored: "assertion `left == right` failed: dev
+        // travel's fly flag ignores the load; left: 0.15000000596046448,
+        // right: 1.0".
+        assert_eq!(
+            carry_walk_factor(0.15, MoveMode::Walk, true, true, false),
+            1.0,
+            "dev travel's fly flag ignores the load"
+        );
     }
 
     /// DEV FLIGHT HOLDS ITS ALTITUDE. Not "approximately", not "settles to":

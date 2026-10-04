@@ -766,6 +766,13 @@ pub struct AppConfig {
     /// `settings.body_heat_realistic`.
     #[serde(default)]
     pub body_heat_realistic: bool,
+    /// Carrying weight (BUG-136, systems::encumbrance): false is Forgiving
+    /// (the limit and a warning only), true is Realistic (an overload slows
+    /// walking and stops jumps under gravity, and a load's mass weighs on
+    /// every jump). Forgiving by default, the house rule for deep systems.
+    /// Held in GuiState as `settings.carry_realistic`.
+    #[serde(default)]
+    pub carry_realistic: bool,
     /// Play mode (task #50): Normal | Creative | Dev -- the ladder every
     /// cheat/scope gate hangs off (see the `PlayMode` docs above). Absent in
     /// old configs => Dev via `#[serde(default)]` (the pre-launch default;
@@ -1440,6 +1447,7 @@ impl AppConfig {
             hostile_wildlife: state.settings.hostile_wildlife,
             vitals_drain: state.settings.vitals_drain,
             body_heat_realistic: state.settings.body_heat_realistic,
+            carry_realistic: state.settings.carry_realistic,
             play_mode: state.settings.play_mode,
             hud_vitals: state.settings.hud_vitals,
             // v0.488 voice input prefs (top-level GuiState, not SettingsState).
@@ -1716,6 +1724,7 @@ impl AppConfig {
         state.settings.hostile_wildlife = self.hostile_wildlife;
         state.settings.vitals_drain = self.vitals_drain.clamp(0.0, 5.0);
         state.settings.body_heat_realistic = self.body_heat_realistic;
+        state.settings.carry_realistic = self.carry_realistic;
         // Play mode (task #50): restore the persisted mode, then PRESET the
         // creative (free resources) flag from it -- GuiState defaults that
         // flag to true (early-dev posture), so a Normal-mode player must get
@@ -2039,6 +2048,27 @@ mod play_mode_tests {
         assert!(fresh.settings.readable_web, "apply_to_gui_state must carry the opt-in");
     }
 
+    /// The two realism switches (BUG-136 carrying weight, and body heat,
+    /// which had the same gap) start Forgiving and a chosen Realistic
+    /// survives a save and a load: through the GUI state, the JSON and back.
+    /// Seen red with `from_gui_state` writing `carry_realistic: false`:
+    /// "the carrying switch is written" (the JSON held
+    /// `"carry_realistic":false`).
+    #[test]
+    fn the_realism_switches_survive_a_save_and_a_load() {
+        let mut state = crate::gui::GuiState::default();
+        assert!(!state.settings.carry_realistic && !state.settings.body_heat_realistic, "both start Forgiving");
+        state.settings.carry_realistic = true;
+        state.settings.body_heat_realistic = true;
+        let json = serde_json::to_string(&AppConfig::from_gui_state(&state)).unwrap();
+        assert!(json.contains("\"carry_realistic\":true"), "the carrying switch is written");
+        let back: AppConfig = serde_json::from_str(&json).unwrap();
+        let mut fresh = crate::gui::GuiState::default();
+        back.apply_to_gui_state(&mut fresh);
+        assert!(fresh.settings.carry_realistic, "Realistic carrying stays chosen after a restart");
+        assert!(fresh.settings.body_heat_realistic, "Realistic body heat stays chosen after a restart");
+    }
+
     /// The per-screen video choice and the ffmpeg path survive a save and a
     /// load, through JSON and through both GuiState legs; a config without
     /// them (every config before 2026-09-18) reads as "no choices, auto".
@@ -2216,6 +2246,8 @@ mod pbkdf2_migration_tests {
         assert_eq!(c.vitals_drain, 1.0);
         // Body heat starts Forgiving (the simplified mode is the default).
         assert!(!c.body_heat_realistic);
+        // Carrying weight starts Forgiving too (BUG-136).
+        assert!(!c.carry_realistic);
         assert_eq!(c.planet_max_subdiv, 6.0);
         // Fresh installs see the concept tour exactly once: the serde
         // default is true (pre-v0.198 configs skip it) but the no-config

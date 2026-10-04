@@ -149,6 +149,24 @@ fn demo_state() -> GuiState {
         }));
     }
     s.inventory_items = items;
+    // The Weight and Volume tiles read the inventory system's numbers
+    // (`GuiState::carry`, BUG-136), which the game publishes each frame; the
+    // fixture publishes what the items above add up to in data/items.csv's
+    // weight_kg and volume_l columns (30.7 kg, 11.85 L; the bell pepper
+    // seeds have no row there, so they count as nothing) against the 50 kg,
+    // 65 L pack at 1 g. Without it the snapshot read "0.0 / 50.0 kg" beside
+    // a full list.
+    s.carry = crate::systems::encumbrance::evaluate(
+        crate::systems::encumbrance::CarryInput {
+            carried_kg: 30.7,
+            capacity_kg: 50.0,
+            bonus_kg: 0.0,
+            volume_l: 11.85,
+            volume_capacity_l: 65.0,
+        },
+        crate::systems::encumbrance::ONE_G_M_S2,
+        crate::systems::encumbrance::CarryMode::Forgiving,
+    );
 
     // ── Garden: planted crops in towers ──
     s.crops = vec![

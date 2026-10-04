@@ -3063,7 +3063,7 @@ those builds yet, and the project adds no compatibility code before launch (the
 no-backwards-compatibility rule in CLAUDE.md), so this is written down instead of
 handled: if it is ever seen, the fix is to update the app.
 
-## BUG-136: the carry limit is shown as a fixed 50 kg, and being overloaded does nothing (OPEN, found 2026-10-04)
+## BUG-136: the carry limit is shown as a fixed 50 kg, and being overloaded does nothing (FIXED 2026-10-04, found 2026-10-04)
 
 **Found by** the Library writer checking the "Force, Levers and Mechanical
 Advantage" guide's game tie-in against the code. The inventory system computes
@@ -3081,6 +3081,40 @@ outfit bonus). What being overloaded DOES is a gameplay decision for the
 design (the dual-modes rule: a realistic mode and a softened one): slower
 walking is the usual answer. Until then, say on the tile that the limit is
 advisory.
+
+**Decided (operator, 2026-10-04):** "slower walking in realistic mode and no
+jumping in nonzero G based on weight/mass. We can obviously carry heavier in
+low-g to zero-g but, mass still applies."
+
+**Fixed (2026-10-04):** the rules live in `src/systems/encumbrance.rs` and
+`src/engine/carry_load.rs` applies them each frame.
+- The Weight tile reads the inventory system's own numbers (`GuiState::carry`):
+  the pack's 50 kg plus the worn gear's `carry_capacity` (the system now records
+  it as `Inventory::carry_bonus_kg`), scaled by the gravity the walk applies
+  (9.81 / g: about 2.6 times on Mars, no limit when weightless). A line under
+  the tiles says where the limit comes from and why the player is slow. The
+  page's own fixed 50 kg, and its weight and volume sums made once on the first
+  draw, are gone. `encumbered` uses the same gravity-aware limit.
+- Settings > Gameplay > Carrying weight. **Forgiving** (default): a warning on
+  the tile and the HUD, no change to movement. **Realistic**: over the limit,
+  walking slows by how far over (10% over walks at 90%, never below a 15%
+  crawl) and Space does not leave the ground (`CameraController::jump_scale`
+  for the homestead, `surface_move::carry_gated_radial` on a planet); and any
+  load weighs on the jump's launch speed, sqrt(70 / (70 + load)).
+- The slowdown is WALKING only (`CameraController::carry_speed_factor`, and
+  `surface_move::carry_walk_factor` on a planet). The first version multiplied
+  it into the controller-wide `speed_multiplier`, which on a planet also drives
+  dev flight, the flight band and swimming, so an overloaded player in dev
+  flight crawled while the HUD said "walking" (caught in review, same day).
+- Tests besides the rules: the Weight tile and its note are drawn from
+  `GuiState::carry` (`screen_surface` tests), the HUD draws the overload line,
+  `carry_load::steer` sets the walk and the jump without touching the effects
+  multiplier, and the setting survives a save and a load.
+- Left: starting and stopping are instant in both walks (no horizontal
+  inertia), and there is no zero-g pushing model, so the jump is the only place
+  carried mass acts. Ladders climb at the same rate whatever is carried. The
+  mode is each player's own choice, also in the shared world; a server-side
+  rule is tracked in `docs/design/in-app-ops.md`.
 
 ## BUG-137: the desktop Server Settings page can show defaults, and Save writes them over the real settings (FIXED, found 2026-10-04)
 

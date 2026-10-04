@@ -545,18 +545,25 @@ The game models gravity and mass, and not much else in this guide.
   surface gravity in metres per second per second and in g, and the F2
   performance overlay shows the gravity acting on you while you are on a
   surface.
-- **The game counts mass, not weight.** Every item has a mass in
-  kilograms (the `weight_kg` column of `data/items.csv`), and the
-  Inventory page's Weight tile adds them up against 50 kg. That is
-  weight in NIST's everyday sense, which is mass. The game's carrying
-  limit is 50 kg. Wearing a small or large backpack raises that limit
-  inside the game by 10 or 25 kg (`data/equipment.csv`), but the Weight
-  tile does not know about it: it still shows your load out of 50 kg
-  with a backpack on. The limit is the same on every world: on the
-  Moon you can carry 50 kg, as on Earth, though in reality that load
-  would press on your shoulders with about a sixth of the force. Going
-  over the limit, with or without a backpack, does not slow you down
-  or do anything else yet.
+- **The game counts mass, and the carrying limit follows gravity.**
+  Every item has a mass in kilograms (the `weight_kg` column of
+  `data/items.csv`), and the Inventory page's Weight tile adds them up
+  against your carrying limit. That is weight in NIST's everyday sense,
+  which is mass. The limit is 50 kg at 1 g, Earth's gravity and the
+  homestead's, and a small or large backpack raises it by 10 or 25 kg
+  (`data/equipment.csv`). What your legs hold up is the load's weight in
+  the physics sense, its mass times gravity, so the game scales the limit
+  by gravity: the same 50 kg limit is about 132 kg on Mars and about 303
+  kg on the Moon, and with no gravity there is no limit at all. A line
+  under the tiles says where your limit comes from. Mass does not go away
+  with gravity, though. In the Realistic carrying mode (Settings >
+  Gameplay > Carrying weight), anything you carry makes your jumps leave
+  the ground more slowly, because the same push has more mass to launch,
+  and that is as true on the Moon as on Earth. Going over the limit in
+  Realistic mode slows your walking by how far over you are (10% over
+  walks at 90% of normal speed, never slower than a crawl) and stops you
+  jumping, and the HUD says so. In Forgiving mode, the default, being
+  over the limit shows a warning and changes nothing else.
 - **Levers and wheels are items, not machines.** You can forge a crowbar
   ("Leverage prying bar") and build a wheelbarrow, but nothing in the
   game uses either to multiply a force, and there are no pulleys, ramps
@@ -705,12 +712,14 @@ pages and documents were read on 3 and 4 October 2026.
 - Mass and the carrying limit: the `weight_kg` column of
   `data/items.csv`; the 50 kg `weight_capacity` and the backpack
   `carry_capacity` bonus in `src/systems/inventory/mod.rs` and
-  `data/equipment.csv`, which only set an `encumbered` flag that nothing
-  reads yet; the Weight tile, `src/gui/pages/inventory.rs`, whose
-  `max_carry_weight` is a fixed 50.0 that the backpack bonus never
-  changes. Movement speed comes from status effects and worn gear only
-  (the speed multiplier in `src/lib.rs`), so being over the limit does
-  not slow you.
+  `data/equipment.csv`; the rules (the limit scaled by 9.81 divided by
+  the local gravity, the Realistic slowdown and the jump's share of its
+  launch speed, the square root of 70 over 70 plus the load) in
+  `src/systems/encumbrance.rs`; applied to walking and jumping each frame
+  in `src/engine/carry_load.rs`; the Weight tile,
+  `src/gui/pages/inventory.rs`, and the HUD's overload line,
+  `src/gui/pages/hud.rs`. The slowdown reaches walking only, never
+  flying, swimming or climbing a ladder.
 - The crowbar and wheelbarrow: `data/items.csv` and `data/recipes.csv`.
 - The unconnected structural prototype: `src/systems/construction/solver.rs`
   and `src/systems/construction/structural.rs`.

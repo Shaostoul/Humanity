@@ -127,7 +127,16 @@ pub struct Inventory {
     /// Stage A slice 2 turns it into a hard add/craft gate.
     #[serde(default = "default_volume_capacity")]
     pub volume_capacity_l: f32,
-    /// True when weight_current exceeds weight_capacity (movement penalty).
+    /// What worn gear adds to `weight_capacity`, kg at 1 g (the equipped
+    /// outfit's `carry_capacity`, e.g. a large backpack's 25), recalculated
+    /// each tick beside the weight. serde(default): an older save loads as 0
+    /// and the next tick fills it.
+    #[serde(default)]
+    pub carry_bonus_kg: f32,
+    /// True when weight_current is over the limit where the player stands:
+    /// `weight_capacity + carry_bonus_kg` at 1 g, scaled by the local gravity
+    /// (`systems::encumbrance`, BUG-136). What that does to movement is
+    /// `engine::carry_load`'s; this flag is the inventory's own record of it.
     pub encumbered: bool,
 }
 
@@ -146,6 +155,7 @@ impl Inventory {
             weight_capacity: 50.0,
             volume_current_l: 0.0,
             volume_capacity_l: default_volume_capacity(),
+            carry_bonus_kg: 0.0,
             encumbered: false,
         }
     }
@@ -1069,6 +1079,45 @@ mod transfer_tests {
         assert_eq!(notices.len(), 1, "the rope that was not there is said: {notices:?}");
         assert!(notices[0].contains("1 x rope_0"), "{notices:?}");
     }
+
+    /// BUG-136: the tick records the worn gear's carry bonus (the Inventory
+    /// page and the movement read it from here) and the `encumbered` flag
+    /// follows the local gravity the engine publishes. 31 ore at 2.5 kg is
+    /// 77.5 kg against 50 + 25 (a large backpack): over at 1 g, well under on
+    /// Mars. Seen red with the tick as it was (bonus never stored, flag
+    /// against the 1 g sum regardless of gravity): "assertion `left == right`
+    /// failed: the backpack's 25 kg is recorded; left: 0.0, right: 25.0".
+    #[test]
+    fn the_carry_bonus_is_recorded_and_the_limit_follows_gravity() {
+        use crate::systems::encumbrance as enc;
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data/equipment.csv");
+        let equipment =
+            crate::systems::economy::EquipmentRegistry::from_csv(&std::fs::read(path).unwrap()).unwrap();
+        let mut data = DataStore::new();
+        data.insert("equipment_registry", equipment);
+        data.insert(
+            "item_registry",
+            ItemRegistry::from_csv(b"id,name,weight_kg,stack_size\niron_ore_0,Iron Ore,2.5,50\n").unwrap(),
+        );
+        let mut world = hecs::World::new();
+        let mut inv = Inventory::new(8);
+        inv.add_item("iron_ore_0", 31, 50);
+        let mut outfit = crate::ecs::components::Outfit::default();
+        outfit.equipped.insert("back".into(), "backpack_large_0".into());
+        let player = world.spawn((inv, outfit, Controllable));
+        let mut sys = InventorySystem::new();
+
+        sys.tick(&mut world, 1.0, &data);
+        {
+            let inv = world.get::<&Inventory>(player).unwrap();
+            assert_eq!(inv.carry_bonus_kg, 25.0, "the backpack's 25 kg is recorded");
+            assert!((inv.weight_current - 77.5).abs() < 1e-3);
+            assert!(inv.encumbered, "77.5 kg is over 75 kg at 1 g (no gravity published = 1 g)");
+        }
+        data.insert(enc::LOCAL_G_KEY, 3.72_f32);
+        sys.tick(&mut world, 1.0, &data);
+        assert!(!world.get::<&Inventory>(player).unwrap().encumbered, "on Mars the limit is 198 kg");
+    }
 }
 
 /// Apply one backpack move to `inv` (2026-10-02, shared by the storage
@@ -1227,6 +1276,10 @@ impl System for InventorySystem {
         // backpack's carry_capacity:25:add means 25 more comfortable kg.
         let equipment = data
             .get::<crate::systems::economy::EquipmentRegistry>("equipment_registry");
+        // The limit follows gravity (BUG-136): the engine publishes the
+        // player's local gravity each frame; absent (headless, the relay) is 1 g.
+        use crate::systems::encumbrance as enc;
+        let local_g = data.get::<f32>(enc::LOCAL_G_KEY).copied().unwrap_or(enc::ONE_G_M_S2);
         for (_entity, (inventory, outfit)) in world
             .query_mut::<(&mut Inventory, Option<&crate::ecs::components::Outfit>)>()
         {
@@ -1254,21 +1307,23 @@ impl System for InventorySystem {
                     .max(0.0),
                 _ => 0.0,
             };
+            inventory.carry_bonus_kg = carry_bonus;
             let was_encumbered = inventory.encumbered;
-            inventory.encumbered = total_weight > inventory.weight_capacity + carry_bonus;
+            let limit_here = enc::limit_here_kg(inventory.weight_capacity + carry_bonus, local_g);
+            inventory.encumbered = enc::overload_ratio(total_weight, limit_here) > 1.0;
 
             // Log encumbrance state transitions
             if inventory.encumbered && !was_encumbered {
                 log::debug!(
                     "Encumbered! {:.1}/{:.1} kg",
                     total_weight,
-                    inventory.weight_capacity
+                    limit_here.unwrap_or(0.0)
                 );
             } else if !inventory.encumbered && was_encumbered {
                 log::debug!(
                     "No longer encumbered: {:.1}/{:.1} kg",
                     total_weight,
-                    inventory.weight_capacity
+                    limit_here.unwrap_or(0.0)
                 );
             }
         }

@@ -1200,6 +1200,10 @@ pub struct GuiState {
     /// at the walk-band integrator; None away from any surface band. Shown
     /// on the F2 overlay so gravity_curve tuning is visible live.
     pub surface_gravity_now: Option<f32>,
+    /// The player's carried load, its limit where they stand and what it does
+    /// to them (BUG-136): the Inventory page's Weight tile and the HUD's
+    /// overload line. Published each frame by `engine::carry_load`.
+    pub carry: crate::systems::encumbrance::CarryState,
     /// Current mouse-wheel speed gear shown next to the altitude.
     pub surface_speed_mult: f32,
 
@@ -3416,6 +3420,7 @@ impl Default for GuiState {
             stations_where: Default::default(),
             surface_altitude_m: None,
             surface_gravity_now: None,
+            carry: Default::default(),
             surface_speed_mult: 1.0,
             civ_stats: None,
             civ_stats_loaded: false,
@@ -4424,6 +4429,11 @@ pub struct SettingsState {
     /// comes at half the rate), true is Realistic. Saved as
     /// AppConfig::body_heat_realistic; published by engine::survival_env.
     pub body_heat_realistic: bool,
+    /// Carrying weight mode (BUG-136, systems::encumbrance): false is
+    /// Forgiving (the default: the same limit, a warning only), true is
+    /// Realistic (an overload slows walking and stops jumps, and a load's
+    /// mass weighs on every jump). Saved as AppConfig::carry_realistic.
+    pub carry_realistic: bool,
     /// Which survival bars the HUD draws (2026-09-25). See HudVitals.
     pub hud_vitals: crate::config::HudVitals,
     /// Play mode (task #50): Normal | Creative | Dev -- one ladder for every
@@ -4536,6 +4546,7 @@ impl Default for SettingsState {
             hostile_wildlife: false,
             vitals_drain: 1.0,
             body_heat_realistic: false,
+            carry_realistic: false,
             hud_vitals: crate::config::HudVitals::default(),
             play_mode: crate::config::PlayMode::default(),
             profile_visible: true,
