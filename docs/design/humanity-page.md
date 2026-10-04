@@ -51,7 +51,7 @@ they choose to, ideally compensated in resources for it.
 
 ## Local (your community)
 
-Voluntary help, **compensated in resources**, the Sponsor-A-Can model (the
+Voluntary help, **compensated in resources**, the Sponsor-a-Can model (the
 operator is VP of sponsor-a-can.org; ~$600 of his ~$620/mo income comes from that
 nonprofit work). The honest economics that *ground* the mission rather than
 hand-wave it:

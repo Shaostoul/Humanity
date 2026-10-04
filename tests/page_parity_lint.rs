@@ -71,6 +71,41 @@ const PARITY_PAIRS: &[ParityPair] = &[
         web: &["web/pages/web.html"],
         data_file: "web/sites.json",
     },
+    // Donate: four data files, and both pages must read all four, because this
+    // page routes money and a drift here tells people the wrong thing about
+    // where their gift goes or whether it is tax-deductible. Until 2026-10-04
+    // the web page carried its own hardcoded FAQ (four entries) while native
+    // read data/donate/faq.json (five different entries, two of them saying
+    // things that were no longer true). Seen red first, 2026-10-04, before
+    // the routes file existed and before either page read it:
+    //   "Donate (giving routes): no native source mentions `donate/routes.json`"
+    //   "Donate (giving routes): no web source mentions `donate/routes.json`"
+    //   "Donate (FAQ): no web source mentions `donate/faq.json`"
+    //   "Donate (giving routes): data/donate/routes.json does not exist"
+    ParityPair {
+        page: "Donate (giving routes)",
+        native: &["src/gui/loaders.rs", "src/gui/mod.rs", "src/gui/pages/donate.rs"],
+        web: &["web/pages/donate-app.js"],
+        data_file: "donate/routes.json",
+    },
+    ParityPair {
+        page: "Donate (direct links)",
+        native: &["src/gui/loaders.rs", "src/gui/mod.rs", "src/gui/pages/donate.rs"],
+        web: &["web/pages/donate-app.js"],
+        data_file: "donate/methods.json",
+    },
+    ParityPair {
+        page: "Donate (charities)",
+        native: &["src/gui/loaders.rs", "src/gui/mod.rs", "src/gui/pages/donate.rs"],
+        web: &["web/pages/donate-app.js"],
+        data_file: "donate/charities.json",
+    },
+    ParityPair {
+        page: "Donate (FAQ)",
+        native: &["src/gui/loaders.rs", "src/gui/mod.rs", "src/gui/pages/donate.rs"],
+        web: &["web/pages/donate-app.js"],
+        data_file: "donate/faq.json",
+    },
 ];
 
 fn read(rel: &str) -> String {

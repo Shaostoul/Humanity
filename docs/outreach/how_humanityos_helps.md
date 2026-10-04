@@ -95,10 +95,14 @@ Four things, in order of value to us:
    https://discord.gg/9XxmmeQnWC, or on GitHub at
    https://github.com/Shaostoul/Humanity.
 4. Give if you can, at https://united-humanity.us/donate. To be plain
-   about what that is: there is no organization to donate to. Support is
-   a personal gift to the maintainer who builds this full time, and it
-   is not tax-deductible. It keeps the work going. If you cannot give,
-   the first three items matter just as much.
+   about what that is: HumanityOS itself has no organization to donate
+   to. A gift to the maintainer who builds this full time, on Patreon at
+   https://www.patreon.com/Shaostoul, goes to him personally and is not
+   tax-deductible. It keeps the work going. If you want a tax-deductible
+   donation, give to the nonprofit Sponsor-a-Can, a 501(c)(3), at
+   https://www.sponsor-a-can.org/donate/; that money goes to
+   Sponsor-a-Can. If you cannot give, the first three items matter just
+   as much.
 
 ## Where the project is today
 

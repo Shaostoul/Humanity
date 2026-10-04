@@ -163,3 +163,9 @@ what we will say about it.
   rail and logistics speed in `data/transportation.ron` (the posted road
   limits were not researched): the space elevator climb and the
   slurry pipe are above the sources; the AGV and tube rows are not.
+- [`2026-10-04-sponsor-a-can-tax-status.md`](2026-10-04-sponsor-a-can-tax-status.md),
+  whether the Donate page can say a donation to Sponsor-a-Can is tax-deductible:
+  the IRS exempt-organization extract lists EIN 93-1624890 as a 501(c)(3) with
+  "Contributions are deductible" (ruling April 2026), matching its own site;
+  deducting still depends on the donor (Publication 526). A gift to the
+  maintainer directly is not deductible.

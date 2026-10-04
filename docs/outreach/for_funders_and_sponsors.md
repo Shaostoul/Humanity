@@ -111,9 +111,19 @@ support is the question we are inviting you to ask.
 
 ## The mechanics, stated plainly
 
-Support today is a personal gift to the maintainer. It is not a donation
-to a charity, and it is not tax-deductible. There is no 501(c)(3), no
-foundation, and no fiscal sponsor at this time.
+There are two ways to give, and they are not the same thing.
+
+- To the maintainer directly, on Patreon at
+  https://www.patreon.com/Shaostoul (the donate page lists a few more
+  direct links). He receives it personally. It is a personal gift, not a
+  donation to a charity, and it is not tax-deductible.
+- To the nonprofit Sponsor-a-Can, at https://www.sponsor-a-can.org/donate/.
+  Sponsor-a-Can is a 501(c)(3), so a donation to it is tax-deductible as
+  the law allows. The money goes to Sponsor-a-Can, not to the maintainer,
+  who serves as its Vice President.
+
+HumanityOS itself has no 501(c)(3), no foundation, and no fiscal sponsor
+at this time.
 
 If deductibility or formal grant structure matters for your situation,
 talk to your advisor before giving anything. We would rather lose a gift

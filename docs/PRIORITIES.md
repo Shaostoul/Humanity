@@ -563,9 +563,18 @@ them up.
    `/library#fire-performance-clothing`) are at `sourced` for the same reason.
 7. **GitHub branch and tag protection on `main`.** Deploy auto-pushes to the
    live relay with no approval gate. GitHub settings, not code.
-8. **Donations copy** needs the exact earmarked Sponsor-A-Can URL for HumanityOS
-   and confirmation of whether those donations are tax-deductible and earmarked,
-   before the CTA and FAQ wording can be finalized.
+8. **ANSWERED 2026-10-04: donations copy.** The operator: a tax-deductible
+   donation goes to the nonprofit at https://www.sponsor-a-can.org/donate/ ; a
+   gift to him directly (he receives it, not tax-deductible) goes to
+   https://www.patreon.com/Shaostoul "for the time being". Done the same day:
+   both are the two "ways to give" cards at the top of the Donate page on both
+   clients (`data/donate/routes.json`), each with one sentence saying where the
+   money goes and whether it is tax-deductible, and in the FAQ, README, website
+   docs and outreach guides. Sponsor-a-Can's 501(c)(3) status checked against
+   IRS data: `docs/reference/findings/2026-10-04-sponsor-a-can-tax-status.md`.
+   Still the operator's call: whether the PayPal, Cash App and GitHub Sponsors
+   links he added on 2026-07-13 stay listed as "more ways to give directly" now
+   that he named Patreon as the direct link.
 9. **Landing screen 2 hero shot:** click Play, frame something pretty, and tell
    the session to capture (`debug/screenshot_request.json`); it swaps the cosmos
    stand-in for the real 3D shot.

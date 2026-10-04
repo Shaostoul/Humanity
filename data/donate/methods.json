@@ -1,5 +1,5 @@
 {
-  "_comment": "Direct-support donation links for the maintainer (NOT the Sponsor-A-Can 501c3, NOT tax-deductible). Read by BOTH the web donate page (fetch /data/donate/methods.json, merged + de-duped by network into the source grid) AND native donate.rs (load_donate_methods -> build_donation_sources). Add a method = add an object here; no code change (infinite-of-X). Crypto addresses are handled separately (they need balance display), not listed here.",
+  "_comment": "More ways to give to the maintainer directly. Like the Patreon route in data/donate/routes.json, money sent through any of these goes to the maintainer personally (not to the nonprofit Sponsor-a-Can) and is NOT tax-deductible; the Donate page says so above the list. Patreon moved to routes.json on 2026-10-04, when the operator named it as THE direct link 'for the time being'; these three are the handles he added on 2026-07-13, each checked with a plain HTTP request on 2026-10-04 (all 200). Read by BOTH the web donate page (fetch /data/donate/methods.json, merged + de-duped into the grid) AND native donate.rs (load_donate_methods -> build_donation_sources). Add a method = add an object here; no code change (infinite-of-X). Crypto addresses are handled separately (the server's funding config), not listed here.",
   "methods": [
     {
       "network": "GitHub Sponsors",
@@ -8,14 +8,6 @@
       "label": "Recurring or one-time sponsorship via GitHub.",
       "abbrev": "GH",
       "color": "#6e5494"
-    },
-    {
-      "network": "Patreon",
-      "type": "url",
-      "value": "https://www.patreon.com/c/Shaostoul",
-      "label": "Monthly membership support.",
-      "abbrev": "PAT",
-      "color": "#f96854"
     },
     {
       "network": "PayPal",

@@ -171,7 +171,9 @@ That's what I'm here to do.
 - 🕹️ **itch.io:** [shaostoul.itch.io](https://shaostoul.itch.io)
 
 ### Support the Mission
-- ❤️ **GitHub Sponsors:** [github.com/sponsors/Shaostoul](https://github.com/sponsors/Shaostoul)
+- **To the nonprofit, tax-deductible:** [Sponsor-a-Can](https://www.sponsor-a-can.org/donate/). Your donation goes to Sponsor-a-Can, a 501(c)(3) nonprofit, so it is tax-deductible as the law allows.
+- **To the maintainer directly, not tax-deductible:** [Patreon](https://www.patreon.com/Shaostoul). Your gift goes to Shaostoul, who receives it personally, so it is not tax-deductible.
+- More ways to give to him directly (GitHub Sponsors, PayPal, Cash App): [united-humanity.us/donate](https://united-humanity.us/donate)
 
 ---
 
