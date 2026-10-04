@@ -1876,6 +1876,12 @@ pub(crate) fn apply_gizmo_drag(state: &mut EngineState) {
 /// or where they stood, home_plot.rs `editor_close_spot`). Moved here from the B handler
 /// (round 5 of the ship homes 1b review) so a rig opens it the way a player does.
 pub(crate) fn toggle_build_editor(state: &mut EngineState) {
+    // A guest's home is put away, off the ship (ship homes increment 2, engine/home_plot.rs): there
+    // is no home of theirs aboard to edit, so the editor does not open, and says why.
+    if !state.gui_state.construction_active && state.gui_state.ship_structure.as_ref().is_some_and(|s| s.home_is_away()) {
+        state.gui_state.pending_notices.push(crate::engine::home_plot::GUEST_NO_EDITOR.to_string());
+        return;
+    }
     state.gui_state.construction_active = !state.gui_state.construction_active;
     // Clear any held placement item on entering/leaving build mode, so a
     // stale held type can't make the next viewport click drop a machine in

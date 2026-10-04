@@ -577,17 +577,10 @@ pub async fn run_relay() {
         let _ = storage::backup_crypto::load_or_create_key(&key_dir);
     }
 
-    // Boot-time DM mailbox expiry (sealed-sender store-and-forward): drop
-    // envelopes older than the configured TTL so a relay that was down for
-    // a while doesn't wait 6 hours for the periodic sweep.
-    {
-        let ttl = db.get_server_settings().map(|s| s.dm_mailbox_ttl_days).unwrap_or(30);
-        match db.mailbox_expire(ttl) {
-            Ok(0) => {}
-            Ok(n) => tracing::info!("DM mailbox: expired {n} envelope(s) past the {ttl}-day TTL"),
-            Err(e) => tracing::error!("DM mailbox boot expiry failed: {e}"),
-        }
-    }
+    // Boot-time expiry (storage/expiry.rs: the DM mailbox, public messages past the
+    // retention window, erased accounts past their window or over the cap), so a relay
+    // that was down for a while doesn't wait 6 hours for the periodic pass.
+    db.run_expiry_sweeps();
 
     // Owner-is-admin (v0.1134): a self-hosted node grants its OWNER the
     // admin role at startup. The in-app Host Node page sets this env var to
@@ -1001,24 +994,10 @@ pub async fn run_relay() {
                 tokio::time::sleep(wait).await;
                 wait = every;
 
-                // DM mailbox TTL sweep (sealed-sender store-and-forward):
-                // expire envelopes past the configured window BEFORE the
-                // backup runs, so expired mail doesn't ride into backups.
-                // Same pass expires public messages past the retention
-                // window (0 = keep forever; pins always kept).
-                {
-                    let settings = sweep_state.db.get_server_settings().unwrap_or_default();
-                    match sweep_state.db.mailbox_expire(settings.dm_mailbox_ttl_days) {
-                        Ok(0) => {}
-                        Ok(n) => tracing::info!("DM mailbox: expired {n} envelope(s) past the {}-day TTL", settings.dm_mailbox_ttl_days),
-                        Err(e) => tracing::error!("DM mailbox TTL sweep failed: {e}"),
-                    }
-                    match sweep_state.db.expire_messages(settings.message_retention_days) {
-                        Ok(0) => {}
-                        Ok(n) => tracing::info!("Messages: expired {n} past the {}-day retention", settings.message_retention_days),
-                        Err(e) => tracing::error!("Message retention sweep failed: {e}"),
-                    }
-                }
+                // The expiry pass (storage/expiry.rs: the DM mailbox, public
+                // messages past the retention window, erased accounts) BEFORE
+                // the backup runs, so nothing expired rides into the backup.
+                sweep_state.db.run_expiry_sweeps();
 
                 // Ensure backup directory exists.
                 if let Err(e) = std::fs::create_dir_all(&backup_dir) {
@@ -1397,6 +1376,11 @@ async fn health(
         "uptime_seconds": uptime,
         "total_messages": msg_count,
         "connected_peers": peers,
+        // Whether this relay keeps what it remembers about erased accounts across a restart
+        // (storage/erased_accounts.rs): "this_run_only" when its secret file is damaged or
+        // cannot be written, so every restart forgets every remembered erase. `just brief`
+        // reads it. Says nothing about any account.
+        "erase_memory": if state.db.erase_memory_kept() { "kept" } else { "this_run_only" },
     }))
 }
 

@@ -2412,7 +2412,7 @@ mod tests {
     #[test]
     fn every_placed_machine_stands_inside_the_room_it_names() {
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
-        let ship = crate::ship::ship_structure::ShipStructure::load_and_assemble(&root.join("data"), None)
+        let ship = crate::ship::ship_structure::ShipStructure::load_and_assemble_shipped(&root.join("data"), None)
             .expect("the shipped ship assembles");
         let home_zone = &ship.zones[ship.home_zone_index()];
         // Only the sub-zones INSIDE the acre are rooms (the mothership's macro districts moved
@@ -2442,7 +2442,7 @@ mod tests {
                 }
                 let Some(z) = rooms.get(inst.room.as_str()) else {
                     panic!(
-                        "{file}: machine '{}' names room '{}', which is not a room zone in data/homes/homestead.ron",
+                        "{file}: machine '{}' names room '{}', which is not a room zone in data/homes/shipped/homestead.ron",
                         inst.id, inst.room
                     );
                 };
@@ -3815,7 +3815,7 @@ mod tests {
         assert!(solo.ship_machines.is_none() && solo.all_instances().iter().all(|i| i.zone == "home"), "the solo home loads without them, as before");
 
         // Every Commons machine stands where it stood before the split.
-        let ship = crate::ship::ship_structure::ShipStructure::load_and_assemble(&data, None).expect("assembles");
+        let ship = crate::ship::ship_structure::ShipStructure::load_and_assemble_shipped(&data, None).expect("assembles");
         let placed = merged.placements(&std::collections::HashMap::new(), Some(&ship.zone_rects()));
         for (id, was) in [("mush_c1", (76.5, 0.0, 49.0)), ("aqua_c1", (76.5, 0.0, 44.0)), ("market_c1", (97.0, 0.0, 32.0)), ("market_c3", (97.0, 0.0, 60.0)), ("ctower_0", (79.0, 0.0, 44.0)), ("apoth_c2", (86.5, 0.0, 52.0))] {
             let p = placed.iter().find(|p| p.id == id).unwrap_or_else(|| panic!("{id} is placed"));
@@ -3908,7 +3908,7 @@ mod tests {
     fn a_run_between_zones_measures_in_ship_metres() {
         let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
         let layout = MachineHome::load(&data.join("machines").join("home.ron")).expect("home.ron loads");
-        let ship = crate::ship::ship_structure::ShipStructure::load_and_assemble(&data, Some("p1")).expect("assembles");
+        let ship = crate::ship::ship_structure::ShipStructure::load_and_assemble_shipped(&data, Some("p1")).expect("assembles");
         let zones = ship.zone_rects();
         let real = layout.run_length("battery_7", "mushhum_c1", Some(&zones)).expect("both are placed");
         let expect = (73.5f32 * 73.5 + 14.8 * 14.8).sqrt(); // (3, 34.2) to (65 + 11.5, 20 + 29)

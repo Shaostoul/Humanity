@@ -2117,12 +2117,15 @@ pub(crate) fn home_lights(
     gi_on: bool,
 ) -> Vec<crate::renderer::light::RoomLight> {
     use crate::renderer::light::{LightKind, RoomLight};
-    // v0.754: EVERY zone's placed lights, each offset by its zone's world origin.
+    // v0.754: EVERY zone's placed lights, each offset by its zone's world origin; none of a home
+    // put away (ship homes increment 2, `ShipStructure::put_home_away`): it lights nothing aboard.
     let placed: Vec<RoomLight> = ship
         .map(|s| {
             s.zones
                 .iter()
-                .flat_map(|z| {
+                .enumerate()
+                .filter(|(zi, _)| !s.is_away_home(*zi))
+                .flat_map(|(_, z)| {
                     let o = z.origin_vec();
                     z.body.lights.iter().filter(|l| l.on).filter_map(move |l| {
                         let t = crate::renderer::light::light_type(&l.type_id)?;
@@ -2289,27 +2292,23 @@ pub(crate) fn render_door_panels(
     // as a door actor and kept passing the earshot gate below. The camera
     // is only a door actor, and door sounds only reach the ears, while
     // actually aboard (the same gate the wall-collision system uses).
-    let mut actors: Vec<Vec3> = if state.aboard_station {
-        vec![state.camera.position]
-    } else {
-        Vec::new()
-    };
-    for (_e, (t, _)) in state
+    // Kept apart by kind (ship homes increment 2 review, finding 8): a neighbour's corridor door
+    // opens for the other players only (`door_panels::door_actor_distance`).
+    let camera_actor = state.aboard_station.then_some(state.camera.position);
+    let others: Vec<Vec3> = state
         .game_world
         .world
         .query::<(&crate::ecs::components::Transform, &crate::net::sync::RemotePlayer)>()
         .iter()
-    {
-        actors.push(t.position);
-    }
-    for (_e, (t, _)) in state
+        .map(|(_e, (t, _))| t.position)
+        .collect();
+    let animals: Vec<Vec3> = state
         .game_world
         .world
         .query::<(&crate::ecs::components::Transform, &crate::ecs::components::Creature)>()
         .iter()
-    {
-        actors.push(t.position);
-    }
+        .map(|(_e, (t, _))| t.position)
+        .collect();
     // v0.547: per-door open distance. The interaction ring shows it in build mode / dev overlay.
     // The ring is a constant-width LINE circle now (v0.568), so there is no polygon-ring mesh.
     let show_widgets = state.gui_state.construction_active || state.gui_state.construction_dev_overlay;
@@ -2374,14 +2373,7 @@ pub(crate) fn render_door_panels(
         }
         // Nearest actor's HORIZONTAL distance -- eye/body height must not count, or a tall
         // camera would never trigger a short door.
-        let dist = actors
-            .iter()
-            .map(|a| {
-                let dx = a.x - p.center.x;
-                let dz = a.z - p.center.z;
-                (dx * dx + dz * dz).sqrt()
-            })
-            .fold(f32::MAX, f32::min);
+        let dist = crate::ship::door_panels::door_actor_distance(p, camera_actor, &others, &animals);
         let target = if !operable || locked_now {
             // A fixed pane or a LOCKED door never opens (v0.570: lock-list aware).
             0.0

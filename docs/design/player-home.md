@@ -467,20 +467,20 @@ position is decided before the code exists.
 
 ## Reusing this as the NPC home
 
-**It is already a one-line reference, and that line already exists.**
-`HomeStructure::tile_home_clones` in `src/ship/home_structure.rs` fills the
-residential district by baking the player's own shell and stamping it into every
-slot, choosing a design per slot from `home_design_roster()`, which today returns
-exactly one design: `self`. So improving the player's home improved every
-neighbour's house in the same commit, with no copy and no second file.
+**Changed by ship homes increment 2 (2026-10-04).** This section described
+`HomeStructure::tile_home_clones`, which stamped the player's OWN shell into every
+slot of the residential district; it is gone, with `home_design_roster()`. Every
+plot of the ship that is not the player's own is now drawn as its kind's SHIPPED
+design, `data/homes/shipped/<kind>.ron` (`src/ship/neighbours.rs`, the shell
+baked by `HomeStructure::bake_shell_groups`), so editing your own home no longer
+changes how your neighbours' look; changing the default every newcomer gets is an
+edit of that shipped file. Drawing each player's own published design on their
+plot is a later step (homes are not shared yet).
 
-That is the right answer for the SHELL, and it should stay a reference rather
-than a copy, because a copy would fork the moment either was edited.
-
-What it does not carry is everything inside. `tile_home_clones` copies walls and
-structures and deliberately not zones, lights or machines, so a neighbour's
-quarters is a correct floor plan with nothing in it. Two things would close that,
-in order of value:
+What the neighbour drawing does not carry is everything inside: it draws walls,
+structures, floors, the ceiling and trim, and deliberately not rooms, lights or
+machines, so a neighbour's quarters is a correct, dark floor plan with nothing in
+it. Two things would close that, in order of value:
 
 1. **Carry the lights.** They are already per-zone data with world positions, and
    a translated copy is the same arithmetic the walls get. A lit empty house
@@ -493,8 +493,9 @@ in order of value:
    Production and Displays do not.
 
 Neither is in this pass. The brief asked what makes the home reusable as the
-template, and the answer is that the mechanism is already a reference; what is
-missing is that the reference carries only the bones.
+template; since ship homes increment 2 the answer is the shipped default design
+each neighbour's plot is drawn as, and what is missing is that the drawing
+carries only the bones.
 
 ## Files this touches
 

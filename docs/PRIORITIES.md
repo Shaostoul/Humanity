@@ -137,18 +137,25 @@ key exists only on the VPS (a copy is now on the operator's PC). Fixed in
 v0.1439.0: BUG-122 to BUG-124. v0.1442.0: game saves keep rotating snapshots
 with Restore in Settings > Data (BUG-129), and "Back up now" keeps the newest
 10 (BUG-130). Still open: a Restore has not been clicked in a running game.
-**Waiting on the operator:** how many backups to keep from now on (today 15
-half-hourly on the VPS, 5 six-hourly in the relay, 60 pulled to the PC, 10
-"Back up now" copies, 10 snapshots per game save);
-the shared-world clock
-speed (1x makes a lettuce take 45 days; 72x proposed as the server default);
-who and when for the Day 5 session; whether multiplayer goes ahead of arc A;
-(Answered 2026-10-04: the relay keeps an EXPIRING marker after an account
-erase, default 30 days plus a cap, an in-app setting; being built.)
-(The start tiers were answered 2026-10-03: the full list of home kinds,
-Homestead the default start.) (The old plain backups, 15 on the VPS and 60
-stale local copies, were deleted 2026-10-02 at the operator's word; the VPS
-ones were shredded.)
+**Waiting on the operator (2026-10-04, after his answers):** who and when for
+the Day 5 session (he will post on his Discord or ask a brother when it is
+ready); how to balance what NPC homesteads give the fleet against what human
+players give (his open question). ANSWERED 2026-10-04 (journal, verbatim):
+backups stay as they are; no GitHub branch protection for now (immediate deploys
+suit the dev cycle); the shared-world clock is 72x by default with an in-app
+admin control; multiplayer stays ahead of arc A ("not as important as getting
+the game playable"); the net-cup lean stays; server worlds start every player
+FRESH (only appearance crosses; the mothership gateway arrives players stripped
+of upgrades); joint homes wanted later; NPCs eat from the same stores; BUG-136
+overloaded = slower walking and no jumping under gravity in realistic mode, mass
+still applies in low g; pipes show their real material, made identifiable with
+colour, labels and stripes (research the standards first); donations: nonprofit
+https://www.sponsor-a-can.org/donate/ (tax-deductible), him directly
+https://www.patreon.com/Shaostoul (not); the life-safety guides stay "sourced"
+until a qualified person is officially involved; the landing hero shot becomes a
+night-to-sunrise shot from Silverdale toward Mount Rainier. Earlier: the start
+tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
+(2026-10-04: being built), the old plain backups deleted (2026-10-02).
 
 ### IN FLIGHT AT THE USAGE CAP (2026-09-27 evening): resume from these branches
 
@@ -548,8 +555,9 @@ them up.
    is ANSWERED (2026-09-20)**: a growth multiplier separate from the world clock,
    1x / 10x / 100x plus a custom value, shipping at 10x, implemented and tested;
    Tier A item 3 is unblocked. Offline progression was answered on 2026-09-21 as well, and is broader than crops (a toggle on all three modes, applied to crafting too); rung 1 (crops, builds and craft batches, single player) was BUILT on 2026-09-25 and rung 2 (automated machines, the drone, livestock) on 2026-09-27 (v0.1387.0), see `docs/design/offline-progression.md`. Still
-   open: what the first ten minutes are, and whether a pipe reads as its real
-   material or its utility colour. A third, lower: does multiplayer enforce
+   open: what the first ten minutes are. (Pipes ANSWERED 2026-10-04: the real
+   material, including paint, made identifiable with colour, labels and stripes;
+   research the existing marking standards first.) A third, lower: does multiplayer enforce
    anything, or is it co-operative trust until launch. NOTE that the report's
    question 2 ("do the 3D models ship with the release") is ANSWERED: they do,
    since v0.1322.0.
@@ -561,8 +569,8 @@ them up.
    `materials_fire_staff` (`/library#fire-staff-materials`, updated, plus the
    new `/library#staff-tubes`, `/library#fire-performance-fuels` and
    `/library#fire-performance-clothing`) are at `sourced` for the same reason.
-7. **GitHub branch and tag protection on `main`.** Deploy auto-pushes to the
-   live relay with no approval gate. GitHub settings, not code.
+7. **GitHub branch and tag protection on `main`: NOT for now (operator,
+   2026-10-04):** immediate deploys to the live relay suit the dev cycle.
 8. **ANSWERED 2026-10-04: donations copy.** The operator: a tax-deductible
    donation goes to the nonprofit at https://www.sponsor-a-can.org/donate/ ; a
    gift to him directly (he receives it, not tax-deductible) goes to
@@ -587,9 +595,9 @@ them up.
    gap, not Donate's own: the desktop updater swaps only the exe, so an
    auto-updated install keeps its old `data/` (old FAQ, no route cards) and
    only a fresh download gets new data files.
-9. **Landing screen 2 hero shot:** click Play, frame something pretty, and tell
-   the session to capture (`debug/screenshot_request.json`); it swaps the cosmos
-   stand-in for the real 3D shot.
+9. **Landing screen 2 hero shot: direction ANSWERED 2026-10-04.** No ship worth
+   showing yet, so: start dark on the Milky Way, then a sunrise over a scenic
+   place, e.g. from Silverdale, WA toward Mount Rainier. The rig can frame it.
 10. **ANSWERED 2026-09-29: keep the self-hosted git mirror.** Reinstalled
    the same day as a pull mirror of GitHub (Forgejo v16.0.5, syncs every 8
    hours by itself; `docs/admin/forgejo-setup.md`). The operator made the
@@ -598,6 +606,8 @@ them up.
 ---
 
 ## Fenced arcs
+
+**Multiplayer comes before arc A (operator, 2026-10-04):** "Let's keep working on multiplayer. The screens are essentially functional but, not fully. They're not as important as getting the game playable at the moment."
 
 **Arc A (in-world screens) is the one the operator picked, 2026-09-20**, when
 asked which should come up next after the cloud work. Take arc A work ahead of

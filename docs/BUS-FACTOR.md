@@ -35,6 +35,7 @@
 - **Key paths**:
   - `/opt/Humanity/`, repo working tree (CI git-resets here on every deploy)
   - `/opt/Humanity/data/relay.db`, SQLite (the live state)
+  - `/opt/Humanity/data/backup.key` and `/opt/Humanity/data/erased-accounts.key`, machine-local secrets kept beside it and OUTSIDE `backups/` (the first opens every encrypted backup; the second is what erased accounts are remembered under). Carry both with `relay.db` when moving the server.
   - `/opt/Humanity/data/uploads/`, user-uploaded images/files
   - `/opt/Humanity/backups/`, automated DB snapshots (pq-wipe.sh writes here)
   - `/opt/Humanity/.env`, env vars (API_SECRET, WEBHOOK_SECRET, VAPID, etc.)

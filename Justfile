@@ -586,9 +586,12 @@ lints:
 # spelling and an empty listing are REFUSED, and a real 127.0.0.1 listener is
 # read from the OS and passed. A dev relay on 0.0.0.0 raises a Windows Firewall
 # prompt for every new temp path; see docs/INCIDENT-PLAYBOOK.md.
+# And the web chat's erase choice (scripts/tests/erase-sign-up-again.test.js, BUG-135,
+# 2026-10-04): only the person's Enter under the erase note says sign_up_again, on that one
+# socket, never a reload's auto-connect or an automatic reconnect.
 # Add a file here whenever a rig script grows a judgement of its own.
 rig-tests:
-    node --test scripts/tests/machine-guard.test.js scripts/tests/perf-report.test.js scripts/tests/terminator-grain.test.js scripts/tests/make-clips.test.js scripts/tests/voice-rejoin.test.js scripts/tests/backup-rotate.test.js scripts/tests/second-player.test.js scripts/tests/copresence-judge.test.js scripts/tests/dxc-dlls.test.js scripts/tests/station-park-check.test.js scripts/tests/check-fresh-exe.test.js scripts/tests/check-delivery.test.js scripts/tests/throwaway-relay.test.js scripts/tests/rig-boot.test.js scripts/tests/compiled-in.test.js scripts/tests/game-launch.test.js
+    node --test scripts/tests/machine-guard.test.js scripts/tests/perf-report.test.js scripts/tests/terminator-grain.test.js scripts/tests/make-clips.test.js scripts/tests/voice-rejoin.test.js scripts/tests/erase-sign-up-again.test.js scripts/tests/backup-rotate.test.js scripts/tests/second-player.test.js scripts/tests/copresence-judge.test.js scripts/tests/dxc-dlls.test.js scripts/tests/station-park-check.test.js scripts/tests/check-fresh-exe.test.js scripts/tests/check-delivery.test.js scripts/tests/throwaway-relay.test.js scripts/tests/rig-boot.test.js scripts/tests/compiled-in.test.js scripts/tests/game-launch.test.js
 
 # The scripted second player (scripts/second-player.js) against a REAL relay.
 # NOT pure node, so NOT in rig-tests or `just verify` (rig-tests keeps the
@@ -617,21 +620,33 @@ verify-second-player:
 # counted under its nameplate). Refuses (exit 1) while ANY HumanityOS.exe runs (one
 # GPU) or when the exe is older than the source; exit 2 = a check failed. About a
 # minute. Evidence in .probe-rig/copresence/runs/<stamp>/.
-#   just verify-copresence --plots    homes on plots (increment 1b of
-#     docs/design/ship-homes-and-logistics.md): two runs, walker first then game
-#     first, each with its own relay and boot. Judges the two plot ids differ by
+#   just verify-copresence --plots    homes on plots (increments 1b and 2 of
+#     docs/design/ship-homes-and-logistics.md): runs, walker first then game
+#     first, each with its own relay and boot. At home: the two plot ids differ by
 #     the join order, the game's camera is inside the plot it should hold after
 #     joining, every position the game drew for the walker is inside the
-#     walker's plot, and one forward leg of the walk is smooth. No view or
-#     screenshot checks (two homes cannot see each other until increment 2).
-#     Then the game steps out of the shared world and back, moved over 100 m
-#     from its door while out: it must stand where the relay respawns it, and
-#     its next move must reach the walker. --order walker-first|game-first runs
-#     one. game-first comes into the world the way a returning player does:
-#     connected and identified on the main menu first, then the menu's Enter
-#     World pressed (the join gate then runs before the world has loaded);
-#     walker-first by the autopilot. --entry menu|autopilot picks one for both.
-#     About 6 minutes.
+#     walker's plot, and one forward leg of the walk is smooth. Then the two MEET
+#     IN THE COMMONS (meet_* checks): the game reports its door points, is moved
+#     from its door into the Commons in 40 m steps, and the walker walks out of
+#     its home through its own corridor into the Commons and across the game's
+#     view; the view, the smoothness and both screenshots (its teal body counted)
+#     are judged there. Then the game steps out of the shared world and back,
+#     moved over 100 m from its door while out: it must stand where the relay
+#     respawns it, and its next move must reach the walker; Respawn and the build
+#     editor the same way. Last the game boots a SECOND time against the same
+#     relay: it must build its home on the plot it held before joining (reboot_*).
+#     A third run, the GUEST (guest_*): two scripted players take both plots and the
+#     game comes in third; its home is put away with none of its things on a plot,
+#     it stands and respawns in the Commons, B opens no editor and says why,
+#     stepping out brings the home back on the default plot, and a dropped
+#     connection that comes back inside the relay's grace stands it off the plot
+#     its home came back on. --order walker-first|game-first|guest runs one, both
+#     the first two, all (the default) all three. game-first comes into the world
+#     the way a returning player does: connected and identified on the main menu
+#     first, then the menu's Enter World pressed (the join gate then runs before
+#     the world has loaded); walker-first by the autopilot. --entry
+#     menu|autopilot picks one for every order. About 3 minutes per order on a
+#     quiet machine, the guest about 1 (2026-10-04).
 #   just verify-copresence --dry-verdict <manifest.json>   re-judge without booting
 [positional-arguments]
 verify-copresence *ARGS:

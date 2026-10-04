@@ -188,6 +188,15 @@
           ]
         },
         {
+          "title": "Reading the Weather",
+          "file": "reading_the_weather.md",
+          "tags": [
+            "guide",
+            "real",
+            "safety"
+          ]
+        },
+        {
           "title": "Knowing Which Way Is North",
           "file": "knowing_which_way_is_north.md",
           "tags": [
@@ -428,6 +437,17 @@
             "guide",
             "real",
             "food"
+          ]
+        },
+        {
+          "title": "Chickens and Eggs",
+          "file": "chickens_and_eggs.md",
+          "tags": [
+            "guide",
+            "real",
+            "food",
+            "health",
+            "safety"
           ]
         }
       ],
@@ -870,6 +890,17 @@
           ]
         },
         {
+          "title": "Glue and Joints",
+          "file": "glue_and_joints.md",
+          "tags": [
+            "guide",
+            "real",
+            "making",
+            "materials",
+            "safety"
+          ]
+        },
+        {
           "title": "Building a Fire Staff",
           "file": "fire_staff_materials.md",
           "tags": [
@@ -919,6 +950,36 @@
             "guide",
             "real",
             "beginner"
+          ]
+        },
+        {
+          "title": "Making an Agreement That Holds",
+          "file": "making_an_agreement_that_holds.md",
+          "tags": [
+            "guide",
+            "real",
+            "governance",
+            "beginner"
+          ]
+        },
+        {
+          "title": "Organising Shared Work",
+          "file": "organising_shared_work.md",
+          "tags": [
+            "guide",
+            "real",
+            "governance",
+            "safety"
+          ]
+        },
+        {
+          "title": "Teaching What You Know",
+          "file": "teaching_what_you_know.md",
+          "tags": [
+            "guide",
+            "real",
+            "beginner",
+            "safety"
           ]
         }
       ],

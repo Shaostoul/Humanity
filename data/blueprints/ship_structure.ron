@@ -19,8 +19,8 @@
 //   default_plot  the plot offline play uses.
 //   districts  the mothership's macro districts (residential, hangar, the Concourse, ...),
 //              labelled volumes in ship metres drawn with their zone_filler.ron contents.
-//              Residential districts draw nothing until increment 2 draws one shell per real
-//              plot (the old home-clone tiling overlapped the Commons).
+//              Residential districts draw nothing: their homes are the plots, each drawn as
+//              its holder's own home or, since increment 2, a neighbour's default design.
 //   id         the ship's name for a relay: the world its plots are held on (increment 1b,
 //              src/relay/storage/plots.rs). Changing it starts every plot afresh on a relay.
 //

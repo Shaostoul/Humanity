@@ -9,11 +9,12 @@
 // Infinite-of-X: add a district's filler by adding one entry here, no code. A future session swaps
 // `mesh_kind` box fillers for real per-type sub-structures (shop stalls, factory machine arrays, ship
 // cradles, ...) without touching the Zone/HomeStructure struct shape again -- this registry is the
-// seam. `residential` is NOT listed here: it has its own special-cased path (tiling clones of the
-// player's home shell, see generate_zone_filler's residential branch) because the operator specifically
-// asked for home clones there ("clone the home we're building to all the other home slots"); every
-// OTHER type_id uses this generic filler. An unlisted non-residential type_id renders with NO filler
-// (empty interior) until someone adds an entry -- a safe, obvious gap rather than a guessed default.
+// seam. `residential` is NOT listed here: a residential zone draws NOTHING, because its homes are the
+// ship's plots (ship homes increment 2, 2026-10-04): every plot but the player's own is drawn as its
+// kind's shipped home design by src/ship/neighbours.rs, and the v0.638 tiling of clones of the
+// player's home that used to fill it is gone. Every OTHER type_id uses this generic filler. An
+// unlisted non-residential type_id renders with NO filler (empty interior) until someone adds an
+// entry -- a safe, obvious gap rather than a guessed default.
 //
 // Fields:
 //   type_id       -> zone_types.ron id.

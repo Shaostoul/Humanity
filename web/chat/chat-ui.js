@@ -53,7 +53,9 @@ window.openDmSettings = function() {
 
 // ── Key Bindings ──
 document.getElementById('name-input').addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') connect();
+  // 'enter': the person's own Enter, the one that may sign up again after an erase (app.js
+  // signUpAgainChoice, BUG-135).
+  if (e.key === 'Enter') connect('enter');
 });
 
 // Enter to send is handled on #msg-input directly (see below).

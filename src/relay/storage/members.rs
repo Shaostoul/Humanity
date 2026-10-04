@@ -38,20 +38,7 @@ impl Storage {
     /// Members from before the column existed keep their visible
     /// behavior (the ALTER default is 0 for existing rows).
     pub fn join_server(&self, public_key: &str, name: &str) -> Result<bool, rusqlite::Error> {
-        self.with_conn(|conn| {
-            // did_fp is written here so a DID resolves the moment someone
-            // joins, without waiting for them to publish a signed object. It is
-            // hex of BLAKE3(pubkey)[..16], exactly what did:hum: encodes.
-            let fp_hex = hex::decode(public_key)
-                .ok()
-                .map(|pk| crate::relay::core::did::fingerprint_to_hex(&crate::relay::core::did::fingerprint_of(&pk)));
-            let changed = conn.execute(
-                "INSERT OR IGNORE INTO server_members (public_key, name, role, joined_at, last_seen, hide_presence, did_fp)
-                 VALUES (?1, ?2, 'member', datetime('now'), NULL, 1, ?3)",
-                params![public_key, name, fp_hex],
-            )?;
-            Ok(changed > 0)
-        })
+        self.with_conn(|conn| join_server_on(conn, public_key, name))
     }
 
     /// Set presence visibility for a member. Turning hiding ON also
@@ -389,6 +376,24 @@ impl Storage {
             rows.collect()
         })
     }
+}
+
+/// The write behind `join_server`, on a connection the caller already holds, so
+/// storage/erased_accounts.rs `join_server_unless_erased` can check and write in one step.
+/// True when a member row was made (false: already a member).
+pub(super) fn join_server_on(conn: &rusqlite::Connection, public_key: &str, name: &str) -> Result<bool, rusqlite::Error> {
+    // did_fp is written here so a DID resolves the moment someone
+    // joins, without waiting for them to publish a signed object. It is
+    // hex of BLAKE3(pubkey)[..16], exactly what did:hum: encodes.
+    let fp_hex = hex::decode(public_key)
+        .ok()
+        .map(|pk| crate::relay::core::did::fingerprint_to_hex(&crate::relay::core::did::fingerprint_of(&pk)));
+    let changed = conn.execute(
+        "INSERT OR IGNORE INTO server_members (public_key, name, role, joined_at, last_seen, hide_presence, did_fp)
+         VALUES (?1, ?2, 'member', datetime('now'), NULL, 1, ?3)",
+        params![public_key, name, fp_hex],
+    )?;
+    Ok(changed > 0)
 }
 
 #[cfg(test)]
