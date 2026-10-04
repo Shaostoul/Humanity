@@ -266,6 +266,8 @@ mod tests {
     /// ON THE SHIPPED SHIP EVERYONE ABOARD SEES EVERYONE: with the shipped 250 m view, players at
     /// the farthest two corners of the ship's places (p2's far corner and the Commons' far one,
     /// about 195 m apart) are in each other's view, so nothing anyone sees changes on this ship.
+    /// Seen red 2026-10-04 with the shipped file's view at 150 m: "assertion failed:
+    /// world.viewer_keys(b).contains(\"e11e00dd\") && world.viewer_keys(a).contains(\"e11e00ee\")".
     #[test]
     fn on_the_shipped_ship_everyone_aboard_sees_everyone() {
         let mut world = GameWorld::new();

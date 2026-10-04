@@ -387,7 +387,8 @@ mod tests {
     /// player can bank) is answered with a correction; the updates already on their way from
     /// there are dropped quietly; the correction is sent again when the game has still not
     /// applied it 2 s later; and once the game says it stands where it was corrected to, its
-    /// next step is taken.
+    /// next step is taken. Seen red 2026-10-04 with `correct` answering `Drop` (the old rule's
+    /// silent refusal): "an oversized jump was answered with Drop".
     #[test]
     fn an_oversized_jump_is_corrected_never_frozen() {
         let r = rules();
@@ -420,7 +421,8 @@ mod tests {
     /// relay's own ship, by its ids, from its entry pad, lands however far the pads are apart; a
     /// link the ship does not have, or a jump from nowhere near the pad, is corrected. In the
     /// player's own home (which the relay has no copy of), both ends must stand on their own
-    /// plot.
+    /// plot. Seen red 2026-10-04 with every declared move judged as walking: "a 44.6 m jump
+    /// through the Commons' teleporter was corrected: Correct { reason: \"too_fast\" }".
     #[test]
     fn a_teleporter_is_taken_by_its_ids() {
         let r = rules();
@@ -457,7 +459,8 @@ mod tests {
     }
 
     /// SHUTTING THE BUILD EDITOR LANDS ONLY ON YOUR OWN PLOT, at most 90 m from where the relay
-    /// holds you, however little allowance is left.
+    /// holds you, however little allowance is left. Seen red 2026-10-04 with every declared move
+    /// judged as walking: "shutting the editor 25.0 m from the corridor was corrected".
     #[test]
     fn shutting_the_editor_lands_only_on_your_own_plot() {
         let r = rules();
@@ -571,7 +574,9 @@ mod tests {
     /// corrected. tests/fixtures/relay/ship_world_v10.json is EXACTLY what the previous code
     /// wrote, unedited: produced 2026-10-04 on 67a47bc65 (v0.1456.0) by `GameWorld::new()`, a
     /// player "e11e0002" spawned at p2's door with p2 set as their plot and moved to
-    /// (70, 1.7, 120), 30 s of ticks, then `save_to_db`, and the stored blob copied out.
+    /// (70, 1.7, 120), 30 s of ticks, then `save_to_db`, and the stored blob copied out. Seen red
+    /// 2026-10-04 with `restore_from_db` wanting a field the old world never stored (the speed
+    /// check's books, as if they had been added to the snapshot): "the stored world restores".
     #[test]
     fn an_old_stored_world_loads_under_the_speed_check() {
         let nanos = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0);

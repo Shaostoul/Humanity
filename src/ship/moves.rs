@@ -203,7 +203,9 @@ mod tests {
         assert!(SharedWorldRules::parse(&text.replace("out_of_view_m: 300.0", "out_of_view_m: 100.0")).is_err());
     }
 
-    /// The declarations survive the wire both ways, and anything else reads as walking.
+    /// The declarations survive the wire both ways, and anything else reads as walking. Seen red
+    /// 2026-10-04 with "editor" not read: "assertion `left == right` failed (left: None, right:
+    /// Some(Editor))".
     #[test]
     fn a_declared_move_survives_the_wire() {
         let all = [
