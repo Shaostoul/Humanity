@@ -210,12 +210,17 @@ impl ProposalTypeRegistry {
     }
 
     pub fn load() -> Option<Self> {
-        let text = std::fs::read_to_string("data/governance/proposal_types.ron")
-            .ok()
-            .or_else(|| {
-                crate::embedded_data::get_embedded("governance/proposal_types.ron")
-                    .map(|s| s.to_string())
-            })?;
+        let text = match std::fs::read_to_string("data/governance/proposal_types.ron") {
+            Ok(t) => t,
+            Err(e) => {
+                let built_in = crate::embedded_data::get_embedded("governance/proposal_types.ron")?;
+                crate::embedded_data::note_builtin_copy(
+                    "governance/proposal_types.ron",
+                    format_args!("data/governance/proposal_types.ron could not be read ({e})"),
+                );
+                built_in.to_string()
+            }
+        };
         Self::from_ron(&text).ok()
     }
 

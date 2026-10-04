@@ -332,8 +332,11 @@ impl HomeDesign {
         let path = data_dir.join(&rel);
         let (text, on_disk) = match std::fs::read_to_string(&path) {
             Ok(t) => (t, true),
-            Err(_) => match crate::embedded_data::get_embedded(&rel) {
-                Some(t) => (t.to_string(), false),
+            Err(e) => match crate::embedded_data::get_embedded(&rel) {
+                Some(t) => {
+                    crate::embedded_data::note_builtin_copy(&rel, format_args!("{} could not be read ({e})", path.display()));
+                    (t.to_string(), false)
+                }
                 None => return Err(format!("no home design {} on disk or built in", path.display())),
             },
         };
@@ -1281,6 +1284,7 @@ impl ShipStructure {
         }
         let text = crate::embedded_data::get_embedded(SHIP_FILE)
             .ok_or_else(|| format!("no {} on disk and none built in", path.display()))?;
+        crate::embedded_data::note_builtin_copy(SHIP_FILE, format_args!("{} is absent", path.display()));
         let ship: ShipStructure = ron::from_str(text).map_err(|e| format!("the built-in ship file does not parse: {e}"))?;
         ship.validate().map_err(|e| format!("the built-in ship file is invalid: {e}"))?;
         Ok(ship)

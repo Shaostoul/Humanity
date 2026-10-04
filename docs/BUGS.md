@@ -2861,3 +2861,62 @@ same fingerprint, still ignoring the live PBR shaders and the version files.
    catalogs or harvest_windows.ron still needs no rebuild: the inventory's
    item details, its Eat and Drink buttons, the Maps page's stars, and the
    self-sufficiency figure had each been ignoring the data folder.
+
+**What a review of that follow-up found, and fixed (2026-10-03):**
+1. *A vendored crate was compiled in but not fingerprinted.* Cargo.toml's
+   `[patch.crates-io] rav1d = { path = "vendor/rav1d" }` (the BUG-093 decoder)
+   compiles 73 files from vendor/, and Cargo.lock holds no hash for a path
+   dependency, so an edit there left the stamp saying "current". `vendor` is
+   now in FINGERPRINT_INPUTS, and compiled-in.js reads Cargo.toml: every
+   `path = ".."` / `build = ".."` there, and every `#[path]` module in src/,
+   must sit under an input.
+2. *A data file that fails to parse was masked by the old built-in copy.*
+   Disk-first loaders fall back to the copy built into the exe when the disk
+   file is missing or does not parse (ground/materials.ron, the garden tables,
+   the AssetManager helpers...). The gate passed (data/ is not stamped), the
+   rig was green, and the next build would embed the broken file and behave
+   differently (materials.ron panics at its expect). Every fallback now logs
+   one marker line, `embedded_data::note_builtin_copy` ("[built-in data
+   copy]"), and compiled-in.js only counts a read as disk-first when its fn
+   reads the disk BEFORE it and calls the note naming that same file, so a new
+   silent fallback fails the test (that also closes the review's third point:
+   an unrelated `.exists()` in the same fn no longer counts, and a grouped,
+   aliased or glob import of a const, or a qualified read through an inline
+   module, is followed; a `pub use` re-export is refused). Every rig fails a
+   run whose run.log (and relay log) holds the marker: BUILT-IN DATA
+   (scripts/lib/game-launch.js builtinDataLines; the marker is pinned to the
+   Rust const by a test). Seen on a real boot: with a line of junk appended
+   to materials.ron, the gate still passed and the sweep captured 1/1 with no
+   panic, and it now exits 2 with "BUILT-IN DATA ... data/ground/materials.ron:
+   it does not parse (186:1: Non-whitespace trailing characters)"; with the
+   file intact the same exe captures 1/1 with built-in data=0.
+3. *Throwaway relays never saw the tree's data/.* The relay reads data/
+   relative to its working folder, and the throwaway's folder held only
+   server-config.json, so crew.ron and room_equipment.ron came from the
+   built-in copies and chores.ron and market/categories.json (no built-in
+   copy) were simply absent. `mirrorData` now puts the tree's data/ in the
+   relay's folder (files up to 1 MiB copied, larger ones hard-linked, never
+   the relay's own names or the tree's server-config.json); verify-live-screen's
+   relay folder gets the same.
+4. *An older build could still hand off.* Only builds with this fix honour
+   HUMANITY_NO_HANDOFF, and only probe-sweep noticed an early exit. Every rig
+   now starts the game through `spawnGame` (scripts/lib/game-launch.js), which
+   checks the copy against the judged bytes immediately before it spawns, sets
+   HUMANITY_NO_HANDOFF, and, on an exit the rig did not ask for, finds any
+   HumanityOS process the game started (by parent process id, which Windows
+   keeps after the parent exits), stops it and names it in the failure.
+5. *probe-sweep gated, then waited for the machine, then copied:* a sweep that
+   waited for a cargo build of the same exe always ended in "BOOT COPY
+   CHANGED". After a real wait it now gates again.
+6. *A relay with no judged hash skipped the copy check silently;*
+   startRelay now requires expectSha256.
+7. *The documented manual boot skipped the gate and the hand-off switch:*
+   CLAUDE.md and the runtime-verifier agent now say `just launch-bg`.
+8. *Weak test:* rig-boot.test.js only checked that the right words appeared in
+   each rig. The order now lives in spawnGame (tested by running it), each rig
+   may start the game only through it, and every rig is run on an unstamped
+   file to show it refuses on the gate before it copies anything.
+Not changed, on purpose: an installed copy reads its extracted data/, which is
+never refreshed after an update; the seven reads made disk-first above now
+agree with the rest of their files' readers, which already did that. Nobody
+has an installed copy yet; refreshing extracted data is its own job.

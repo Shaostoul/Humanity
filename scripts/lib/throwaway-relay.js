@@ -17,6 +17,24 @@
 // inside its temp folder, never in %APPDATA%\HumanityOS or the repository's
 // data/.
 //
+// WHY THAT FOLDER HOLDS THE TREE'S data/ (critic review, 2026-10-03). The relay
+// READS data/ relative to where it runs too (npc/crew.ron, npc/chores.ron,
+// ships/room_equipment.ron, market/categories.json, governance/...), as the
+// VPS relay does from /opt/Humanity. A folder holding only server-config.json
+// made every one of those reads miss: the relay served the copies built into
+// the exe, or nothing at all for a file with no built-in copy (no crew chores,
+// no market categories), while the freshness gate called the binary current.
+// So mirrorData() puts the tree's data/ in the folder first: files up to 1 MiB
+// are COPIED (a write by the relay stays in its copy), bigger ones (planet
+// tiles, star catalogues, images: none of which the relay writes) are HARD
+// LINKED, so a start does not copy 200 MB. Folders are real folders, never
+// links, so a file the relay creates lands in its own folder. What the relay
+// owns (its database, uploads/, backups/, keys, the claim code) and
+// server-config.json (the caller's, or none) are never mirrored. The one way a
+// relay could still write into the tree: an admin edit, through the Files API,
+// of a mirrored file over 1 MiB (a hard link writes through). No rig or test
+// makes one.
+//
 // HOW IT IS NEVER LEFT RUNNING: every relay started here is killed BY PID (and
 // its temp folder removed) by stop(), when this process exits for any other
 // reason, and on Ctrl+C, Ctrl+Break, a closed console or a polite kill. The
@@ -290,17 +308,96 @@ function assertLoopbackOnly(pid, port, platform = process.platform) {
   return rows;
 }
 
+// ── The tree's data/, for a relay's own folder ────────────────────────────
+const REPO_DATA = path.resolve(__dirname, "..", "..", "data");
+// Top-level names under data/ that the relay writes or that a throwaway relay
+// must own: never mirrored (a hard link would let a write reach the tree).
+const RELAY_OWNED = /^(relay\.db.*|server-config\.json|uploads|backups|backup\.key|vapid_private\.key|owner-claim-code\.txt)$/i;
+// Files above this are hard-linked instead of copied.
+const LINK_OVER = 1 << 20;
+
+/** Remove `p` without ever following a link: a junction or symlink is removed
+ *  as a link, a folder is emptied entry by entry. (A tree of copies and hard
+ *  links is what mirrorData makes; this never reaches into the tree's data/.) */
+function removeNoFollow(p) {
+  let st;
+  try {
+    st = fs.lstatSync(p);
+  } catch {
+    return;
+  }
+  if (st.isSymbolicLink()) {
+    try {
+      fs.unlinkSync(p);
+    } catch {
+      fs.rmdirSync(p); // a directory junction on Windows
+    }
+  } else if (st.isDirectory()) {
+    for (const e of fs.readdirSync(p)) removeNoFollow(path.join(p, e));
+    fs.rmdirSync(p);
+  } else {
+    fs.unlinkSync(p);
+  }
+}
+
+/**
+ * Put the tree's data/ into a relay's own folder (see "WHY THAT FOLDER HOLDS THE
+ * TREE'S data/" at the top). `destData` is emptied first (without following a
+ * link). Junctions and symlinks in the source are skipped, never followed.
+ * Returns { files, copied, linked, skipped: [top-level names left out] }.
+ */
+function mirrorData(srcData, destData) {
+  removeNoFollow(destData);
+  fs.mkdirSync(destData, { recursive: true });
+  const out = { files: 0, copied: 0, linked: 0, skipped: [] };
+  const walk = (src, dest, top) => {
+    for (const e of fs.readdirSync(src, { withFileTypes: true })) {
+      if (top && RELAY_OWNED.test(e.name)) {
+        out.skipped.push(e.name);
+        continue;
+      }
+      const s = path.join(src, e.name);
+      const d = path.join(dest, e.name);
+      if (e.isSymbolicLink()) continue; // never follow a link out of the tree
+      if (e.isDirectory()) {
+        fs.mkdirSync(d);
+        walk(s, d, false);
+      } else if (e.isFile()) {
+        out.files++;
+        if (fs.statSync(s).size > LINK_OVER) {
+          try {
+            fs.linkSync(s, d);
+            out.linked++;
+            continue;
+          } catch {
+            /* another volume, or not allowed: copy */
+          }
+        }
+        fs.copyFileSync(s, d);
+        out.copied++;
+      }
+    }
+  };
+  walk(srcData, destData, true);
+  return out;
+}
+
 /**
  * Start a throwaway relay and wait (bounded) for it to answer /health.
  *
  *   sourceExe  the build to copy and run (required).
+ *   expectSha256  the SHA-256 of the exe the caller's freshness gate judged
+ *                 (runFreshGate's result.exe_sha256), REQUIRED: the copy must be
+ *                 those very bytes or startRelay rejects before starting it. A
+ *                 build finishing between the gate and this copy would otherwise
+ *                 run a relay nobody checked (BUG-133), and a caller whose gate
+ *                 recorded no hash cannot pass one by accident (2026-10-03: a
+ *                 null used to skip the check without a word).
  *   prefix     the temp folder's name prefix, e.g. "second-player-relay-test-".
  *   config     written as data/server-config.json in its folder (optional).
- *   expectSha256  the SHA-256 of the exe the caller's freshness gate judged
- *                 (runFreshGate's result.exe_sha256). When given, the copy must
- *                 be those very bytes or startRelay rejects before starting it:
- *                 a build finishing between the gate and this copy would
- *                 otherwise run a relay nobody checked (BUG-133).
+ *   dataFrom   the data/ folder to mirror into it (default: this tree's data/;
+ *              see mirrorData). null: none (the relay then reads built-in
+ *              copies only, which is not what a deployed relay does).
  *   healthTimeoutMs  how long to wait for /health (default 60 s).
  *   checkListening   (pid, port) => rows, throwing to refuse the relay.
  *                    Default assertLoopbackOnly; a test passes its own to
@@ -318,19 +415,28 @@ function assertLoopbackOnly(pid, port, platform = process.platform) {
  *
  * The handle: { dir, exe, port, url (ws://.../ws), httpUrl, dbPath, logPath,
  * pid, proc, health, listening, exited(), logText(), kill(), removeDir(),
- * stop() }. `listening` is what the OS showed the relay listening on (rows
- * { host, port, line }), so a caller can print the evidence.
+ * stop(), data }. `listening` is what the OS showed the relay listening on (rows
+ * { host, port, line }), so a caller can print the evidence; `data` is what
+ * mirrorData put in its folder ({ files, copied, linked, skipped }), or null.
  */
 async function startRelay({
   sourceExe,
   prefix = "throwaway-relay-",
   config = null,
   expectSha256 = null,
+  dataFrom = REPO_DATA,
   healthTimeoutMs = 60000,
   checkListening = assertLoopbackOnly,
   spawnProcess = spawn,
 } = {}) {
   if (!sourceExe || !fs.existsSync(sourceExe)) throw new Error(`no relay exe to copy: ${sourceExe}`);
+  if (typeof expectSha256 !== "string" || !/^[0-9a-f]{64}$/.test(expectSha256)) {
+    throw new Error(
+      `startRelay needs expectSha256, the SHA-256 the freshness gate recorded for the exe it judged ` +
+        `(runFreshGate(...).result.exe_sha256); got ${JSON.stringify(expectSha256)}. Without it the relay copy ` +
+        "could be a binary nobody checked (BUG-133). Nothing was started.",
+    );
+  }
   hookProcessExit();
   let dir = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
   let proc = null;
@@ -347,6 +453,7 @@ async function startRelay({
     proc: null,
     health: null,
     listening: [],
+    data: null,
     exited: () => exited,
     logText() {
       try {
@@ -387,18 +494,19 @@ async function startRelay({
   };
   live.add(h);
 
-  fs.mkdirSync(path.join(dir, "data"));
+  // The tree's data/ first (the relay reads it from its working folder), then
+  // the caller's config, which mirrorData never copies from the tree.
+  if (dataFrom) h.data = mirrorData(dataFrom, path.join(dir, "data"));
+  else fs.mkdirSync(path.join(dir, "data"));
   if (config) fs.writeFileSync(path.join(dir, "data", "server-config.json"), JSON.stringify(config));
   fs.copyFileSync(sourceExe, h.exe);
-  if (expectSha256) {
-    const got = crypto.createHash("sha256").update(fs.readFileSync(h.exe)).digest("hex");
-    if (got !== expectSha256) {
-      await h.stop();
-      throw new Error(
-        `the relay copy is not the exe the freshness gate judged: the copy of ${sourceExe} hashes ${got}, ` +
-          `the judged exe ${expectSha256} (it changed in between, most likely a build finishing). Nothing was started.`,
-      );
-    }
+  const got = crypto.createHash("sha256").update(fs.readFileSync(h.exe)).digest("hex");
+  if (got !== expectSha256) {
+    await h.stop();
+    throw new Error(
+      `the relay copy is not the exe the freshness gate judged: the copy of ${sourceExe} hashes ${got}, ` +
+        `the judged exe ${expectSha256} (it changed in between, most likely a build finishing). Nothing was started.`,
+    );
   }
 
   h.port = await freePort();
@@ -438,6 +546,8 @@ async function startRelay({
 module.exports = {
   EXE_NAME,
   LOOPBACK_BIND,
+  REPO_DATA,
+  mirrorData,
   startRelay,
   freePort,
   getJson,

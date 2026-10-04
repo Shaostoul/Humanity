@@ -138,6 +138,8 @@ test("assertLoopbackOnly passes a real loopback listener, read from the OS", asy
 
 const fs = require("node:fs");
 const { spawn } = require("node:child_process");
+// startRelay needs the judged exe's hash (BUG-133); "the exe" here is this file.
+const THIS_SHA = require("node:crypto").createHash("sha256").update(fs.readFileSync(__filename)).digest("hex");
 
 const STAND_IN_RELAY = `
 const http = require("node:http");
@@ -177,6 +179,7 @@ test("startRelay asks the OS what the relay listens on, and keeps the evidence",
   const seen = {};
   const h = await TR.startRelay({
     sourceExe: __filename,
+    expectSha256: THIS_SHA,
     prefix: "throwaway-relay-selftest-",
     healthTimeoutMs: 20000,
     spawnProcess: standIn(seen),
@@ -209,6 +212,7 @@ test("a relay the check refuses is stopped, its folder removed, and the error go
   try {
     h = await TR.startRelay({
       sourceExe: __filename,
+      expectSha256: THIS_SHA,
       prefix: "throwaway-relay-selftest-",
       healthTimeoutMs: 20000,
       spawnProcess: standIn(seen),
@@ -287,5 +291,121 @@ test("a relay copy that is not the exe the gate judged is refused before anythin
     assert.ok(ok.health, "the judged copy starts");
   } finally {
     await ok.stop();
+  }
+});
+
+// ── expectSha256 is required (critic review, 2026-10-03) ──
+// Red first, 2026-10-03, against the startRelay() of c15a4be8b, where a null
+// expectSha256 skipped the copy check without a word:
+//   AssertionError [ERR_ASSERTION]: a relay with no judged hash must be refused
+//   (it resolved instead)
+test("startRelay refuses to start without the hash of the judged exe", async () => {
+  for (const missing of [undefined, null, ""]) {
+    const seen = {};
+    let h = null;
+    let err = null;
+    try {
+      h = await TR.startRelay({
+        sourceExe: __filename,
+        expectSha256: missing,
+        prefix: "throwaway-relay-selftest-",
+        healthTimeoutMs: 20000,
+        spawnProcess: standIn(seen),
+      });
+    } catch (e) {
+      err = e;
+    }
+    if (h) await h.stop();
+    if (seen.child) {
+      seen.child.kill();
+      await exitedOrGone(seen.child);
+    }
+    assert.ok(err, `a relay with no judged hash must be refused (it resolved instead), expectSha256=${JSON.stringify(missing)}`);
+    assert.match(err.message, /needs expectSha256/);
+    assert.ok(!seen.child, "nothing was started");
+  }
+});
+
+// ── The relay reads THIS tree's data/ (critic review, 2026-10-03) ──
+// The relay reads data/ relative to its working folder. A folder holding only
+// server-config.json made every read miss, so the relay ran the copies built
+// into the exe (crew.ron, room_equipment.ron, proposal_types.ron) or nothing
+// (chores.ron, market/categories.json), while the gate called it current.
+// Red first, 2026-10-03, against the startRelay() of c15a4be8b:
+//   Error: ENOENT: no such file or directory, open
+//   '...\Temp\throwaway-relay-selftest-TDz8nF\data\npc\crew.ron'
+test("the relay's folder holds this tree's data/, and the tree's data/ is never written", async () => {
+  const path = require("node:path");
+  const os = require("node:os");
+  const src = fs.mkdtempSync(path.join(os.tmpdir(), "throwaway-relay-data-src-"));
+  const outside = fs.mkdtempSync(path.join(os.tmpdir(), "throwaway-relay-outside-"));
+  try {
+    // A small data tree: a small file, a big one (hard-linked), names the relay
+    // owns (never mirrored), and a junction (never followed).
+    fs.mkdirSync(path.join(src, "npc"));
+    fs.writeFileSync(path.join(src, "npc", "crew.ron"), "(crew)");
+    fs.writeFileSync(path.join(src, "big.bin"), Buffer.alloc((1 << 20) + 1, 7));
+    fs.writeFileSync(path.join(src, "server-config.json"), '{"from":"the tree"}');
+    fs.writeFileSync(path.join(src, "relay.db"), "the operator's own relay database");
+    fs.mkdirSync(path.join(src, "uploads"));
+    fs.writeFileSync(path.join(outside, "secret.txt"), "outside the tree");
+    fs.symlinkSync(outside, path.join(src, "elsewhere"), "junction");
+
+    const seen = {};
+    const h = await TR.startRelay({
+      sourceExe: __filename,
+      expectSha256: THIS_SHA,
+      prefix: "throwaway-relay-selftest-",
+      config: { server_name: "mirror test" },
+      dataFrom: src,
+      healthTimeoutMs: 20000,
+      spawnProcess: standIn(seen),
+    });
+    const data = path.join(h.dir, "data");
+    try {
+      assert.strictEqual(fs.readFileSync(path.join(data, "npc", "crew.ron"), "utf8"), "(crew)");
+      assert.deepStrictEqual(JSON.parse(fs.readFileSync(path.join(data, "server-config.json"), "utf8")), { server_name: "mirror test" }, "the caller's config, not the tree's");
+      assert.ok(!fs.existsSync(path.join(data, "relay.db")), "the relay's own names are never mirrored");
+      assert.ok(!fs.existsSync(path.join(data, "uploads")));
+      assert.ok(!fs.existsSync(path.join(data, "elsewhere")), "a junction is not followed");
+      assert.deepStrictEqual([...h.data.skipped].sort(), ["relay.db", "server-config.json", "uploads"]);
+      assert.strictEqual(h.data.files, 2);
+      assert.strictEqual(h.data.copied, 1);
+      assert.strictEqual(h.data.linked, 1, "the file over 1 MiB is hard-linked, not copied");
+      assert.strictEqual(fs.statSync(path.join(data, "big.bin")).ino, fs.statSync(path.join(src, "big.bin")).ino);
+      // A write by the relay to a small mirrored file stays in its copy.
+      fs.writeFileSync(path.join(data, "npc", "crew.ron"), "(changed by the relay)");
+      assert.strictEqual(fs.readFileSync(path.join(src, "npc", "crew.ron"), "utf8"), "(crew)");
+    } finally {
+      await h.stop();
+    }
+    assert.ok(!fs.existsSync(data), "stop() removed its folder");
+    assert.strictEqual(fs.readFileSync(path.join(src, "big.bin")).length, (1 << 20) + 1, "removing the folder left the tree's big file alone");
+    assert.strictEqual(fs.readFileSync(path.join(outside, "secret.txt"), "utf8"), "outside the tree");
+
+    // And by default it is this tree's own data/.
+    const d = await TR.startRelay({
+      sourceExe: __filename,
+      expectSha256: THIS_SHA,
+      prefix: "throwaway-relay-selftest-",
+      healthTimeoutMs: 20000,
+      spawnProcess: standIn({}),
+    });
+    try {
+      const held = fs.readdirSync(path.join(d.dir, "data"));
+      const mine = path.join(d.dir, "data", "npc", "crew.ron");
+      assert.ok(fs.existsSync(mine), `the relay's folder holds this tree's data/npc/crew.ron (it held: ${JSON.stringify(held.slice(0, 12))})`);
+      assert.strictEqual(fs.readFileSync(mine, "utf8"), fs.readFileSync(path.join(TR.REPO_DATA, "npc", "crew.ron"), "utf8"));
+      assert.ok(!held.includes("relay.db"), "never a relay.db from the tree");
+      assert.ok(d.data && d.data.files > 100, `the whole data/ tree was mirrored (${JSON.stringify(d.data)})`);
+    } finally {
+      await d.stop();
+    }
+  } finally {
+    try {
+      fs.rmdirSync(path.join(src, "elsewhere"));
+    } catch {}
+    fs.rmSync(src, { recursive: true, force: true });
+    fs.rmSync(outside, { recursive: true, force: true });
   }
 });

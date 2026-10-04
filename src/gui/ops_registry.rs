@@ -73,8 +73,13 @@ pub fn ops_registry() -> &'static OpsRegistry {
     static REG: std::sync::OnceLock<OpsRegistry> = std::sync::OnceLock::new();
     REG.get_or_init(|| {
         let disk = crate::data_dir().join("admin/ops_registry.json");
-        let text = std::fs::read_to_string(&disk)
-            .unwrap_or_else(|_| include_str!("../../data/admin/ops_registry.json").to_string());
+        let text = std::fs::read_to_string(&disk).unwrap_or_else(|e| {
+            crate::embedded_data::note_builtin_copy(
+                "admin/ops_registry.json",
+                format_args!("{} could not be read ({e})", disk.display()),
+            );
+            include_str!("../../data/admin/ops_registry.json").to_string()
+        });
         match serde_json::from_str::<OpsRegistry>(&text) {
             Ok(r) => r,
             Err(e) => {

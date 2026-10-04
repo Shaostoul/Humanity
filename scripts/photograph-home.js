@@ -44,14 +44,18 @@
 // Usage:
 //   node scripts/photograph-home.js [--exe PATH] [--only id,id] [--width N] [--height N] [--ab KEY]
 //                                   [--vantages PATH] [--allow-other-build "<reason>"]
-// Exit 0 = every vantage captured. 1 = refused. 2 = one or more captures failed.
+// Exit 0 = every vantage captured. 1 = refused. 2 = one or more captures failed, a panic,
+// or the run served a data file from the copy built into the exe (BUILT-IN DATA).
 //
 // THE BINARY (BUG-133): the exe must be this tree's build (the freshness gate,
 // scripts/check-fresh-exe.js, by the source stamp compiled into it), or another
 // build on purpose with --allow-other-build "<why>", recorded in the manifest as
 // other_build. The copy in the rig must be byte-identical to what the gate
-// judged, and the game starts with HUMANITY_NO_HANDOFF=1 so it runs that copy and
-// never hands itself to a newer v*_HumanityOS.exe.
+// judged, and the game starts through lib/game-launch.js spawnGame, which checks
+// that copy again right before it spawns, sets HUMANITY_NO_HANDOFF=1 so it runs
+// that copy and never hands itself to a newer v*_HumanityOS.exe, and reports (and
+// stops) a hand-off an older build makes anyway. A run whose run.log says a data
+// file was served from the copy built into the exe is refused (BUILT-IN DATA).
 
 const fs = require("fs");
 const path = require("path");
@@ -61,6 +65,8 @@ const MG = require("./lib/machine-guard.js");
 const DXC = require("./lib/dxc-dlls.js");
 // The freshness gate and the boot-copy check (BUG-133).
 const { runFreshGate, requireBootCopy, bootRecord, otherBuildNotice } = require("./lib/src-fingerprint.js");
+// Starting the game, and what a run.log must not say (BUG-133).
+const GL = require("./lib/game-launch.js");
 
 const REPO = path.resolve(__dirname, "..");
 const args = process.argv.slice(2);
@@ -188,7 +194,7 @@ async function waitFile(name, timeoutMs, pollMs = 250) {
   }
   return null;
 }
-async function waitBoot(timeoutMs) {
+async function waitBoot(timeoutMs, game = null) {
   const t0 = Date.now();
   while (Date.now() - t0 < timeoutMs) {
     if (fs.existsSync(LOG)) {
@@ -196,6 +202,8 @@ async function waitBoot(timeoutMs) {
       if (/PANIC/.test(txt)) throw new Error("PANIC during boot (see run.log)");
       if (/Cloud noise volumes generated/.test(txt)) return true;
     }
+    // An exit before boot finishes, said as one (naming a hand-off if the game made one).
+    if (game && game.exited()) throw new Error(`before it finished booting, ${game.describe()}`);
     await sleep(1000);
   }
   throw new Error("the exe did not finish booting in time");
@@ -239,19 +247,26 @@ async function main() {
   const save = () => fs.writeFileSync(path.join(OUT, "manifest.json"), JSON.stringify(manifest, null, 2));
 
   log(`launching ${path.basename(EXE)} in ${path.relative(REPO, RIG)}`);
-  const child = spawn(path.join(RIG, "HumanityOS.exe"), [], {
+  // spawnGame: the copy is checked against the judged bytes right before the
+  // spawn, HUMANITY_NO_HANDOFF=1 (run this copy, never a newer
+  // v*_HumanityOS.exe), and an exit we did not ask for is watched for.
+  const game = GL.spawnGame(path.join(RIG, "HumanityOS.exe"), [], {
+    fresh: FRESH,
+    rigName: "photograph-home",
+    log,
     cwd: RIG,
     detached: true,
     stdio: "ignore",
-    // HUMANITY_NO_HANDOFF: run this copy, never a newer v*_HumanityOS.exe.
-    env: { ...process.env, HUMANITY_NO_FOCUS: "1", HUMANITY_NO_HANDOFF: "1" },
+    env: { ...process.env, HUMANITY_NO_FOCUS: "1" },
   });
+  const child = game.child;
   const pid = child.pid;
   child.unref();
   let killed = false;
   const kill = () => {
     if (killed) return;
     killed = true;
+    game.expectExit(); // our own stop: not a hand-off to look for
     try {
       execSync(`taskkill /PID ${pid} /T /F`, { stdio: "ignore" });
     } catch {}
@@ -264,7 +279,7 @@ async function main() {
   let failed = 0;
   try {
     log("waiting for boot...");
-    await waitBoot(240000);
+    await waitBoot(240000, game);
     log("entering world (autopilot)...");
     clearDone("autopilot_done.json");
     req("autopilot_request.json", { server_url: "" });
@@ -376,6 +391,9 @@ async function main() {
   }
 
   manifest.panics = panicCount();
+  // BUILT-IN DATA (BUG-133): a loader served the exe's own copy of a data file
+  // instead of the tree's (missing, or it does not parse): not this tree's run.
+  manifest.builtin_data = GL.builtinDataLines(fs.existsSync(LOG) ? fs.readFileSync(LOG, "utf8") : "");
   save();
   // --keep-open leaves the game running for a look around (2026-09-26: this
   // kill() used to run regardless, so the flag did nothing).
@@ -383,8 +401,9 @@ async function main() {
   else kill();
   log(`${manifest.shots.filter((s) => s.ok).length}/${vantages.length} captured, ${manifest.panics} panic(s)`);
   if (OTHER_BUILD) log(otherBuildNotice(OTHER_BUILD));
+  if (manifest.builtin_data.length) log(GL.builtinDataRefusal(manifest.builtin_data));
   log(`evidence: ${path.relative(REPO, OUT)}`);
-  process.exit(failed || manifest.panics ? 2 : 0);
+  process.exit(failed || manifest.panics || manifest.builtin_data.length ? 2 : 0);
 }
 
 main();

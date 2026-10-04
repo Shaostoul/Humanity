@@ -97,6 +97,8 @@ function skipReason() {
   return false;
 }
 // The hash of the exe the gate judged; the relay copy must match it (BUG-133).
+// startRelay REQUIRES it: a gate that recorded none makes the relay tests fail
+// loudly, where a null used to skip the copy check without a word.
 let JUDGED_SHA256 = null;
 const SKIP = skipReason();
 if (SKIP) console.log(`second-player-relay.test: SKIPPING the relay tests: ${SKIP}`);

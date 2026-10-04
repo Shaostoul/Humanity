@@ -30,7 +30,13 @@ use std::path::Path;
 /// include_str!/include_bytes! in src/ is classified by
 /// scripts/lib/compiled-in.js, and scripts/tests/compiled-in.test.js fails on
 /// one that is neither listed here, disk-first data, test-only, nor allowlisted
-/// with a reason. As of 2026-10-03:
+/// with a reason. The same check reads Cargo.toml: every `path = ".."` there
+/// (a path dependency, a [patch] entry) is Rust source compiled into the
+/// binary and must sit under an entry here. As of 2026-10-03:
+///   vendor               rav1d, the AV1 decoder, patched for BUG-093 and
+///                        compiled in through [patch.crates-io]; Cargo.lock
+///                        carries no hash for a path dependency, so without
+///                        this an edit to vendor/rav1d left the stamp current
 ///   assets/icon.ico      the exe's own icon (winres, below)
 ///   assets/icon.png      the window icon (lib.rs)
 ///   data/blueprints/*    the ship-structure registries (structure, zone, zone
@@ -50,6 +56,7 @@ const FINGERPRINT_INPUTS: &[&str] = &[
     "Cargo.toml",
     "Cargo.lock",
     "build.rs",
+    "vendor",
     "assets/icon.ico",
     "assets/icon.png",
     "data/blueprints/corridor_types.ron",

@@ -327,8 +327,40 @@ pub fn get_embedded(path: &str) -> Option<&'static str> {
 pub fn read_data_or_embedded(data_dir: &std::path::Path, rel: &str) -> Option<String> {
     match std::fs::read_to_string(data_dir.join(rel)) {
         Ok(s) => Some(s),
-        Err(_) => get_embedded(rel).map(|s| s.to_string()),
+        Err(e) => {
+            let built_in = get_embedded(rel)?;
+            note_builtin_copy(rel, format_args!("{} could not be read ({e})", data_dir.join(rel).display()));
+            Some(built_in.to_string())
+        }
     }
+}
+
+/// What every loader writes to the log when it serves the copy of a data file
+/// built into this exe INSTEAD of the file on disk (BUG-133).
+///
+/// Why it exists: the game reads data/ from disk first and keeps a built-in copy
+/// for an exe shipped without data/. The rigs run the game against the tree's
+/// own data/ (a junction) and judge it current by its source stamp, which does
+/// not cover data/ (a data edit needs no rebuild). So when a data file on disk
+/// is missing or fails to parse, the loader quietly serves the copy from the
+/// last build, the rig reports green, and the next build, which embeds the
+/// broken file, behaves differently (`ground/materials.ron` would panic at its
+/// `expect`). This line is how that run is caught: every rig refuses a run
+/// whose run.log carries it (`scripts/lib/game-launch.js` builtinDataLines,
+/// which matches BUILTIN_COPY_MARKER; a test pins the two together).
+///
+/// `scripts/lib/compiled-in.js` only counts a fallback as "disk first" when its
+/// fn calls this with the file's path (relative to data/, as a literal), so a
+/// new loader cannot serve a built-in copy silently without failing
+/// `scripts/tests/compiled-in.test.js`.
+pub const BUILTIN_COPY_MARKER: &str = "[built-in data copy]";
+
+/// Log that `rel` (a path under data/) was served from the copy built into
+/// this exe, and why. See BUILTIN_COPY_MARKER.
+pub fn note_builtin_copy(rel: &str, why: impl std::fmt::Display) {
+    log::warn!(
+        "{BUILTIN_COPY_MARKER} data/{rel}: {why}; this run uses the copy compiled into the exe, not the file on disk"
+    );
 }
 
 /// Every embedded key, for ENUMERATION (first-run data extraction in

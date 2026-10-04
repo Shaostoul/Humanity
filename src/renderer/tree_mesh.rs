@@ -277,13 +277,18 @@ static REGISTRY: std::sync::OnceLock<TreeRegistry> = std::sync::OnceLock::new();
 /// exactly or a tree changes species as you walk toward it.
 pub fn registry() -> &'static TreeRegistry {
     REGISTRY.get_or_init(|| {
-        let disk = std::fs::read_to_string("data/vegetation/trees.ron")
-            .ok()
-            .and_then(|t| TreeRegistry::from_ron(&t).ok());
-        match disk {
-            Some(r) if !r.is_empty() => r,
-            _ => TreeRegistry::from_ron(EMBEDDED_TREES).unwrap_or_default(),
-        }
+        // Disk first; the built-in copy says so in the log (a rig refuses a run
+        // that served one, BUG-133).
+        let why = match std::fs::read_to_string("data/vegetation/trees.ron") {
+            Ok(t) => match TreeRegistry::from_ron(&t) {
+                Ok(r) if !r.is_empty() => return r,
+                Ok(_) => "data/vegetation/trees.ron lists no trees".to_string(),
+                Err(e) => format!("data/vegetation/trees.ron does not parse ({e})"),
+            },
+            Err(e) => format!("data/vegetation/trees.ron could not be read ({e})"),
+        };
+        crate::embedded_data::note_builtin_copy("vegetation/trees.ron", why);
+        TreeRegistry::from_ron(EMBEDDED_TREES).unwrap_or_default()
     })
 }
 

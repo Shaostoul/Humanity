@@ -158,7 +158,15 @@ impl HarvestWindows {
     /// readers' when nothing registered the data (tests).
     pub fn shipped() -> &'static Self {
         static SHIPPED: OnceLock<HarvestWindows> = OnceLock::new();
-        SHIPPED.get_or_init(|| Self::parse(HARVEST_WINDOWS_RON).expect("the shipped data/garden/harvest_windows.ron parses"))
+        SHIPPED.get_or_init(|| {
+            // Whoever asks gets the copy compiled into the exe: say so, once
+            // (BUG-133; a rig refuses a run that served a built-in copy).
+            crate::embedded_data::note_builtin_copy(
+                "garden/harvest_windows.ron",
+                "HarvestWindows::shipped served the built-in table",
+            );
+            Self::parse(HARVEST_WINDOWS_RON).expect("the shipped data/garden/harvest_windows.ron parses")
+        })
     }
 
     /// `load` (the data folder's copy first), done once, for the pure models

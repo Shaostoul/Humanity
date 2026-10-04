@@ -85,9 +85,14 @@ pub fn get_embedded(path: &str) -> Option<&'static str> {
 pub fn read_data_or_embedded(data_dir: &std::path::Path, rel: &str) -> Option<String> {
     match std::fs::read_to_string(data_dir.join(rel)) {
         Ok(s) => Some(s),
-        Err(_) => get_embedded(rel).map(|s| s.to_string()),
+        Err(e) => {
+            let s = get_embedded(rel)?;
+            note_builtin_copy(rel, e);
+            Some(s.to_string())
+        }
     }
 }
+pub fn note_builtin_copy(rel: &str, why: impl std::fmt::Display) { let _ = (rel, why.to_string()); }
 `;
 const LIB = `
 mod embedded_data;
@@ -100,16 +105,27 @@ static STAMP: &str = include_str!(concat!(env!("OUT_DIR"), "/hos_src_stamp.txt")
 pub fn load_c() -> String {
     match std::fs::read_to_string("data/c.ron") {
         Ok(s) => s,
-        Err(_) => include_str!("../data/c.ron").to_string(),
+        Err(e) => {
+            crate::embedded_data::note_builtin_copy("c.ron", e);
+            include_str!("../data/c.ron").to_string()
+        }
     }
 }
 /// A module-level const read only by a disk-first loader.
 const D_RON: &str = include_str!("../data/d.ron");
-pub fn load_d() -> String { std::fs::read_to_string("data/d.ron").unwrap_or_else(|_| D_RON.to_string()) }
+pub fn load_d() -> String {
+    std::fs::read_to_string("data/d.ron").unwrap_or_else(|e| {
+        crate::embedded_data::note_builtin_copy("data/d.ron", e);
+        D_RON.to_string()
+    })
+}
 /// Compiled-in only: nothing here ever looks at the disk.
 pub fn table_e() -> &'static str { include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/data/e.ron")) }
 /// The embedded table's own const, read directly with no disk read.
-pub fn b_now() -> &'static str { crate::embedded_data::B_RON }
+pub fn b_now() -> &'static str {
+    crate::embedded_data::note_builtin_copy("b.ron", "always");
+    crate::embedded_data::B_RON
+}
 
 #[cfg(test)]
 #[path = "fixture_tests.rs"]
@@ -175,7 +191,10 @@ test("RULES: an include whose path cannot be worked out is a problem, never skip
 });
 
 test("RULES: a get_embedded(variable) with no disk read in its fn is a problem until reviewed", () => {
-  const extra = { "src/helper.rs": "pub fn any(p: &str) -> Option<&'static str> { crate::embedded_data::get_embedded(p) }\n" };
+  const extra = {
+    "src/helper.rs":
+      'pub fn any(p: &str) -> Option<&\'static str> { crate::embedded_data::note_builtin_copy(p, "fallback"); crate::embedded_data::get_embedded(p) }\n',
+  };
   const a = analyse(extra);
   assert.ok(a.problems.some((p) => /src\/helper\.rs:1 \(fn any\): get_embedded\(p\)/.test(p)), a.problems.join("\n"));
   const b = analyse(extra, { fallbackSites: { "src/helper.rs::any": "fixture: only called after a disk miss", "src/lib.rs::b_now": "x" } });
@@ -187,7 +206,7 @@ test("RULES: read_data_or_embedded that consults the table BEFORE the disk voids
     /match std::fs::read_to_string[\s\S]*?\n    }\n/,
     "get_embedded(rel).map(|s| s.to_string()).or_else(|| std::fs::read_to_string(data_dir.join(rel)).ok())\n"
   );
-  assert.notStrictEqual(backwards, EMBEDDED);
+  assert.ok(backwards.includes("or_else(|| std::fs"), "the fixture rewrite took");
   const a = analyse({ "src/embedded_data.rs": backwards });
   assert.ok(a.problems.some((p) => /read_data_or_embedded does not read the disk before/.test(p)), a.problems.join("\n"));
   assert.strictEqual(cls(a, "data/a.csv"), "UNCLASSIFIED");
@@ -196,6 +215,199 @@ test("RULES: read_data_or_embedded that consults the table BEFORE the disk voids
 test("RULES: a test cfg shape the check does not know is reported, not guessed", () => {
   const a = analyse({ "src/odd_cfg.rs": '#[cfg(any(test, doc))]\nconst X: &str = include_str!("../data/x.ron");\n' });
   assert.ok(a.problems.some((p) => /odd_cfg\.rs:1: a test cfg this check does not understand/.test(p)), a.problems.join("\n"));
+});
+
+// ── Critic review 2 (2026-10-03): shapes the first version could not see ──────
+//
+// RED FIRST (2026-10-03, these tests against the compiled-in.js of c15a4be8b):
+//   ✖ RULES: a const read through a GROUPED import is a read
+//       data/g1.ron: 'data-disk-first' !== 'UNCLASSIFIED'
+//   ✖ RULES: a const read through a GLOB import is a read
+//       data/g2.ron: 'test-only' !== 'UNCLASSIFIED'
+//   ✖ RULES: an aliased import and a re-export are followed or refused, never missed
+//   ✖ RULES: an unrelated disk read (Path::exists on another file) is not "disk first"
+//       data/g3.ron: 'data-disk-first' !== 'UNCLASSIFIED'
+//   ✖ RULES: a disk read AFTER the built-in read is not "disk first"
+//   ✖ RULES: a fallback that never says so at run time is not "disk first"
+//   ✖ RULES: the note must name the file it serves
+//   ✖ RULES: read_data_or_embedded that never says it served the built-in copy is a problem
+//   ✖ RULES: a reviewed fallback that never says so at run time is a problem
+//   ✖ RULES: a Cargo path dependency outside FINGERPRINT_INPUTS is UNCLASSIFIED
+//       vendor/foo: 'ABSENT' !== 'UNCLASSIFIED' (Cargo.toml was never read)
+//   ✖ RULES: a #[path] module outside the fingerprinted tree is UNCLASSIFIED
+// and the real-tree test, with the new rules and before the Rust side caught up
+// (compiled-in files: 187, UNCLASSIFIED 20, and 14 PROBLEMS), for example:
+//   UNCLASSIFIED     vendor/rav1d
+//                    compiled into the binary as Rust source (Cargo.toml line 260, a path in
+//                    Cargo.toml (a target, a path dependency or a [patch] entry)) but not under
+//                    FINGERPRINT_INPUTS ...
+//   UNCLASSIFIED     data/ground/materials.ron
+//                    ... fn material_table never calls note_builtin_copy("ground/materials.ron", ..)
+//                    to say so at run time ...   (the loader the critic broke on purpose)
+//   PROBLEMS: src/ship/hull.rs:167 (fn load): get_embedded(HULL_PROFILE_REL) reads an embedded
+//   copy chosen at run time, and its fn does not both read the disk before it and call
+//   note_builtin_copy(HULL_PROFILE_REL, ..) ...; FALLBACK_SITES: src/assets/mod.rs::parse_embedded_csv
+//   serves the built-in copy but never calls note_builtin_copy ...
+const DEFS = `
+pub const G1_RON: &str = include_str!("../data/g1.ron");
+pub const G2_RON: &str = include_str!("../data/g2.ron");
+pub struct Other;
+/// The disk-first loader of g1: a perfectly good one.
+pub fn load_g1() -> String {
+    std::fs::read_to_string("data/g1.ron").unwrap_or_else(|e| {
+        crate::embedded_data::note_builtin_copy("g1.ron", e);
+        G1_RON.to_string()
+    })
+}
+`;
+const reasonOf = (a, t) => (a.targets.find((x) => x.target === t) || { reason: "" }).reason;
+
+test("RULES: a const read through a GROUPED import is a read", () => {
+  const a = analyse({
+    "src/defs.rs": DEFS,
+    "src/user.rs": "use crate::defs::{Other, G1_RON};\npub fn now() -> &'static str { let _ = Other; G1_RON }\n",
+  });
+  assert.strictEqual(cls(a, "data/g1.ron"), "UNCLASSIFIED", "data/g1.ron");
+  assert.match(reasonOf(a, "data/g1.ron"), /src\/user\.rs:2 fn now/);
+});
+
+test("RULES: a const read through a GLOB import is a read", () => {
+  const a = analyse({ "src/defs.rs": DEFS, "src/user.rs": "use crate::defs::*;\npub fn now() -> &'static str { G2_RON }\n" });
+  assert.strictEqual(cls(a, "data/g2.ron"), "UNCLASSIFIED", "data/g2.ron");
+  assert.match(reasonOf(a, "data/g2.ron"), /src\/user\.rs:2 fn now/);
+});
+
+test("RULES: an aliased import and a re-export are followed or refused, never missed", () => {
+  const aliased = analyse({ "src/defs.rs": DEFS, "src/user.rs": "use crate::defs::G1_RON as TABLE;\npub fn now() -> &'static str { TABLE }\n" });
+  assert.strictEqual(cls(aliased, "data/g1.ron"), "UNCLASSIFIED", "a read through an alias");
+  const reexport = analyse({ "src/defs.rs": DEFS, "src/user.rs": "pub use crate::defs::G1_RON;\n" });
+  assert.ok(reexport.problems.some((p) => /src\/user\.rs:1: .*re-export/.test(p)), reexport.problems.join("\n"));
+});
+
+test("RULES: a same-named const of another module is not ours", () => {
+  // user.rs defines its own G1_RON: its bare G1_RON is that one, not defs.rs's.
+  const a = analyse({ "src/defs.rs": DEFS, "src/user.rs": "const G1_RON: &str = \"local\";\npub fn now() -> &'static str { G1_RON }\n" });
+  assert.strictEqual(cls(a, "data/g1.ron"), "data-disk-first");
+});
+
+// Red first (2026-10-03), against the first version of the qualifier check
+// (the file's module name only): 'data-disk-first' !== 'UNCLASSIFIED'. The
+// real case: billboard_bake.rs reads `super::leaf_shape::EMBEDDED_TREES`, a
+// const of its own inline `mod leaf_shape`, while tree_mesh.rs defines an
+// EMBEDDED_TREES too.
+test("RULES: a qualified read through an inline module of the defining file is a read", () => {
+  const a = analyse({
+    "src/inl.rs": `pub mod shapes {
+    pub(super) const IN_RON: &str = include_str!("../data/in.ron");
+    pub fn load() -> String {
+        std::fs::read_to_string("data/in.ron").unwrap_or_else(|e| {
+            crate::embedded_data::note_builtin_copy("in.ron", e);
+            IN_RON.to_string()
+        })
+    }
+}
+pub fn now() -> &'static str { self::shapes::IN_RON }
+`,
+    "src/other_in.rs": 'const IN_RON: &str = "a same-named const elsewhere";\npub fn x() -> &\'static str { IN_RON }\n',
+  });
+  assert.strictEqual(cls(a, "data/in.ron"), "UNCLASSIFIED", "data/in.ron");
+  assert.match(reasonOf(a, "data/in.ron"), /src\/inl\.rs:\d+ fn now/);
+});
+
+test('RULES: an unrelated disk read (Path::exists on another file) is not "disk first"', () => {
+  const a = analyse({
+    "src/g3.rs": `pub fn table() -> &'static str {
+    if std::path::Path::new("portable.txt").exists() { let _ = 1; }
+    include_str!("../data/g3.ron")
+}
+`,
+  });
+  assert.strictEqual(cls(a, "data/g3.ron"), "UNCLASSIFIED", "data/g3.ron");
+});
+
+test('RULES: a disk read AFTER the built-in read is not "disk first"', () => {
+  const a = analyse({
+    "src/g4.rs": `pub fn table() -> String {
+    let built_in = include_str!("../data/g4.ron");
+    crate::embedded_data::note_builtin_copy("g4.ron", "always");
+    let _later = std::fs::read_to_string("data/g4.ron");
+    built_in.to_string()
+}
+`,
+  });
+  assert.strictEqual(cls(a, "data/g4.ron"), "UNCLASSIFIED");
+  assert.match(reasonOf(a, "data/g4.ron"), /no disk read before it/);
+});
+
+test('RULES: a fallback that never says so at run time is not "disk first"', () => {
+  // The shape of every masked edit: the disk copy fails to parse, the built-in
+  // copy is served, and nothing in run.log that a rig could catch says so.
+  const a = analyse({
+    "src/g5.rs": `pub fn table() -> String {
+    match std::fs::read_to_string("data/g5.ron") {
+        Ok(s) => s,
+        Err(_) => include_str!("../data/g5.ron").to_string(),
+    }
+}
+`,
+  });
+  assert.strictEqual(cls(a, "data/g5.ron"), "UNCLASSIFIED");
+  assert.match(reasonOf(a, "data/g5.ron"), /note_builtin_copy\("g5\.ron"/);
+});
+
+test("RULES: the note must name the file it serves", () => {
+  const a = analyse({
+    "src/g6.rs": `pub fn table() -> String {
+    match std::fs::read_to_string("data/g6.ron") {
+        Ok(s) => s,
+        Err(e) => { crate::embedded_data::note_builtin_copy("something_else.ron", e); include_str!("../data/g6.ron").to_string() }
+    }
+}
+`,
+  });
+  assert.strictEqual(cls(a, "data/g6.ron"), "UNCLASSIFIED");
+});
+
+test("RULES: read_data_or_embedded that never says it served the built-in copy is a problem", () => {
+  const silent = EMBEDDED.replace(
+    /let s = get_embedded\(rel\)\?;\n\s*note_builtin_copy\(rel, e\);\n\s*Some\(s\.to_string\(\)\)/,
+    "get_embedded(rel).map(|s| { let _ = e; s.to_string() })"
+  );
+  assert.ok(silent.includes("let _ = e;"), "the fixture rewrite took");
+  const a = analyse({ "src/embedded_data.rs": silent });
+  assert.ok(a.problems.some((p) => /read_data_or_embedded never calls note_builtin_copy/.test(p)), a.problems.join("\n"));
+  assert.strictEqual(cls(a, "data/a.csv"), "UNCLASSIFIED");
+});
+
+test("RULES: a reviewed fallback that never says so at run time is a problem", () => {
+  const extra = { "src/helper.rs": "pub fn any(p: &str) -> Option<&'static str> { crate::embedded_data::get_embedded(p) }\n" };
+  const a = analyse(extra, { fallbackSites: { "src/helper.rs::any": "fixture", "src/lib.rs::b_now": "x" } });
+  assert.ok(a.problems.some((p) => /src\/helper\.rs::any .*note_builtin_copy/.test(p)), a.problems.join("\n"));
+});
+
+test("RULES: a Cargo path dependency outside FINGERPRINT_INPUTS is UNCLASSIFIED", () => {
+  const cargo =
+    '[package]\nname = "x"\n[[bin]]\nname = "x"\npath = "src/main.rs" # under src\n# path = "commented/out"\n' +
+    '[patch.crates-io]\nfoo = { path = "vendor/foo" }\n';
+  const a = analyse({ "Cargo.toml": cargo, "vendor/foo/src/lib.rs": "pub fn f() {}\n" });
+  assert.strictEqual(cls(a, "vendor/foo"), "UNCLASSIFIED", "vendor/foo");
+  assert.match(reasonOf(a, "vendor/foo"), /Cargo\.toml/);
+  assert.strictEqual(cls(a, "commented/out"), "ABSENT", "a commented-out line is not a dependency");
+  assert.strictEqual(cls(a, "src/main.rs"), "fingerprinted");
+  const covered = analyse({
+    "Cargo.toml": cargo,
+    "vendor/foo/src/lib.rs": "pub fn f() {}\n",
+    "build.rs": BUILD_RS.replace('"assets/icon.png"', '"assets/icon.png", "vendor"'),
+  });
+  assert.strictEqual(cls(covered, "vendor/foo"), "fingerprinted");
+});
+
+test("RULES: a #[path] module outside the fingerprinted tree is UNCLASSIFIED", () => {
+  const a = analyse({
+    "src/odd_path.rs": '#[path = "../tests/shared_helpers.rs"]\nmod helpers;\n',
+    "tests/shared_helpers.rs": "pub fn h() {}\n",
+  });
+  assert.strictEqual(cls(a, "tests/shared_helpers.rs"), "UNCLASSIFIED");
 });
 
 test("the lexer keeps offsets and blanks comments and string contents only", () => {

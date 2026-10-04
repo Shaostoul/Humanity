@@ -26,21 +26,39 @@
 // is found, by following the bytes from the include to their readers:
 //   - an include inside a fn is read by that fn;
 //   - an include that defines a module-level const (`const X: &str = include_str!`)
-//     is read wherever X is named outside test code;
+//     is read wherever X is named outside test code: in its own file, qualified
+//     (`m::X`) anywhere, and bare in any other file that does not define an X of
+//     its own (a `use m::{.., X}`, a `use m::*` and a `use m::X as Y` all reach a
+//     bare name; a `pub use` re-export is refused as a problem, not followed);
 //   - an embedded_data.rs const is also read through get_embedded("<its path>"),
 //     both by the get_embedded table (which read_data_or_embedded consults only
 //     AFTER the disk read fails: checked on that fn's body, in order) and by any
 //     direct get_embedded("<path>") call.
-// A read counts as disk-first when the fn it sits in also reads the disk
-// (fs::read, fs::read_to_string, File::open, read_data_or_embedded, .exists()):
-// the shape of every loader here, "disk copy, else the embedded one". A read in a
-// fn with no disk read is an EMBEDDED-ONLY read: on that path the game runs the
-// compiled-in bytes whatever the disk says. A data/ file is data-disk-first only
+// A read counts as disk-first when the fn it sits in
+//   (a) reads the disk BEFORE it (fs::read, fs::read_to_string, File::open,
+//       read_data_or_embedded, .exists()): the shape of every loader here, "disk
+//       copy, else the embedded one"; and
+//   (b) calls embedded_data::note_builtin_copy("<that file>", ..), the one log line
+//       that says at run time "this run served the copy built into the exe". It
+//       names the file, which is how the analysis knows the disk read is about THAT
+//       file and not some other one (a `Path::new("portable.txt").exists()` in the
+//       same fn is not a disk read of the data file), and it is what the rigs look
+//       for in run.log (scripts/lib/game-launch.js builtinDataLines): a disk copy
+//       that fails to parse makes the loader serve the old built-in copy, which a
+//       rebuild would not have, so a run that logs the line is refused.
+// A read that is not disk-first is an EMBEDDED-ONLY read: on that path the game runs
+// the compiled-in bytes whatever the disk says. A data/ file is data-disk-first only
 // when it has at least one disk-first read and NO embedded-only read, except reads
 // a human reviewed and listed on FALLBACK_SITES (a helper only ever reached after a
-// disk miss). Anything else is compiled-in-only on some path and must go into
-// FINGERPRINT_INPUTS (build.rs), onto ALLOWLIST with a reason, or be made to read
-// the disk first.
+// disk miss; it must still call note_builtin_copy). Anything else is compiled-in-only
+// on some path and must go into FINGERPRINT_INPUTS (build.rs), onto ALLOWLIST with a
+// reason, or be made to read the disk first.
+//
+// RUST SOURCE OUTSIDE src/. Cargo compiles more than src/: a path dependency or a
+// [patch] entry in Cargo.toml (`path = "vendor/rav1d"`, BUG-093's patched decoder),
+// a `build = ".."` script, and any `#[path = ".."]` module that points out of the
+// tree. Each is a target too: fingerprinted when under FINGERPRINT_INPUTS, else
+// UNCLASSIFIED (there is no "disk first" for code).
 //
 // Run: node scripts/lib/compiled-in.js          (the table)
 //      node scripts/lib/compiled-in.js --json   (machine-readable)
@@ -63,8 +81,13 @@ const ALLOWLIST = {};
 // that a human reviewed: each is only reached after a disk miss (or only writes the
 // embedded copy out to disk where none exists). Keyed "file::fn". Reviewed
 // 2026-10-03 by reading every caller; a new caller of one of these is NOT re-checked
-// automatically, so a fn that gains a disk-less caller belongs off this list.
+// automatically, so a fn that gains a disk-less caller belongs off this list. That
+// gap is closed at run time instead: every fn here must call note_builtin_copy (the
+// analysis refuses one that does not), so whichever caller reaches it, the run's log
+// says the built-in copy was served and a rig refuses the run.
 const FALLBACK_SITES = {
+  "src/storage.rs::extract_data_if_needed":
+    "first-run extraction: writes every built-in copy out to a data dir that does not exist yet, then notes it once; a rig's data dir always exists (a junction to the tree's data/), so a rig never reaches it",
   "src/assets/mod.rs::parse_embedded_csv":
     "private; called only by AssetManager::load_csv_or_embedded, after the disk file is absent, unreadable or does not parse",
   "src/assets/mod.rs::parse_embedded_toml":
@@ -236,6 +259,13 @@ const ANY_TEST_CFG = /#\[\s*cfg\s*\((?![^\]]*\bnot\s*\()[^\]]*\btest\b[^\]]*\]/g
 
 // A disk read in a fn body: the shape of every "disk copy, else embedded" loader.
 const DISK_READ = /\b(?:std::)?fs::read(?:_to_string)?\s*\(|\bread_data_or_embedded\s*\(|\bFile::open\s*\(|\.exists\s*\(\s*\)/;
+// The run-time line a fallback writes (src/embedded_data.rs note_builtin_copy).
+const NOTE_FN = "note_builtin_copy";
+const NOTE_CALL = /\bnote_builtin_copy\s*\(/g;
+
+/** A data/ target's path as a note names it ("ground/materials.ron"); a note may
+ *  also spell it with the data/ prefix. */
+const dataRel = (p) => String(p).replace(/^data\//, "");
 
 /** Parse one .rs file into what the analysis needs. */
 function parseFile(root, rel) {
@@ -275,10 +305,52 @@ function parseFile(root, rel) {
       if (mm) testChildren.push(childFiles(mm[1], item));
     }
   }
-  // Every `mod x;` (for propagating test-only through a test file's own children).
+  // Every `mod x;` (for propagating test-only through a test file's own children),
+  // and where each `#[path = ".."]` one points (it may point out of src/).
   const children = [];
+  const pathMods = [];
   for (const m of codeOnly.matchAll(/\bmod\s+([A-Za-z_][A-Za-z0-9_]*)\s*;/g)) {
-    children.push(childFiles(m[1], noComments.slice(itemStart(m.index), m.index)));
+    const attrs = noComments.slice(itemStart(m.index), m.index);
+    children.push(childFiles(m[1], attrs));
+    if (/#\[\s*path\s*=/.test(attrs)) pathMods.push({ line: lineOf(m.index), target: childFiles(m[1], attrs)[0], offset: m.index });
+  }
+
+  // Every note_builtin_copy(..) call: where, and the file it names (null when its
+  // first argument is not a string literal, e.g. a helper passing its own path).
+  const notes = [];
+  for (const m of codeOnly.matchAll(NOTE_CALL)) {
+    const open = m.index + m[0].length - 1;
+    const close = matchBracket(codeOnly, open);
+    const arg = noComments.slice(open + 1, close < 0 ? open + 1 : close);
+    const lit = arg.match(/^\s*"((?:[^"\\]|\\.)*)"\s*,/);
+    // The first argument as written (to match a get_embedded(<same expr>) call).
+    let depth = 0;
+    let cut = arg.length;
+    for (let i = 0; i < arg.length; i++) {
+      const ch = codeOnly[open + 1 + i];
+      if ("([{".includes(ch)) depth++;
+      else if (")]}".includes(ch)) depth--;
+      else if (ch === "," && depth === 0) {
+        cut = i;
+        break;
+      }
+    }
+    notes.push({ offset: m.index, rel: lit ? dataRel(lit[1]) : null, first: arg.slice(0, cut).trim() });
+  }
+
+  // `use ..;` declarations (their names are imports, not reads), and the consts and
+  // statics this file defines itself (a bare name it defines is its own).
+  const uses = [];
+  for (const m of codeOnly.matchAll(/\b(pub(?:\s*\([^)]*\))?\s+)?use\s+[^;]*;/g)) {
+    uses.push({ start: m.index, end: m.index + m[0].length, text: noComments.slice(m.index, m.index + m[0].length), pub: !!m[1] });
+  }
+  const defines = new Set();
+  for (const m of codeOnly.matchAll(/\b(?:const|static)\s+(?:mut\s+)?([A-Z_][A-Z0-9_]*)\s*:/g)) defines.add(m[1]);
+  // Inline modules (`mod x { .. }`): an item inside one is reached as `x::ITEM`.
+  const inlineMods = [];
+  for (const m of codeOnly.matchAll(/\bmod\s+([A-Za-z_][A-Za-z0-9_]*)\s*\{/g)) {
+    const open = m.index + m[0].length - 1;
+    inlineMods.push({ name: m[1], open, close: matchBracket(codeOnly, open) });
   }
 
   // Every fn with a body.
@@ -294,7 +366,48 @@ function parseFile(root, rel) {
     const close = matchBracket(codeOnly, open);
     includes.push({ kind: m[1], offset: m.index, line: lineOf(m.index), arg: noComments.slice(open + 1, close).trim() });
   }
-  return { rel, src, noComments, codeOnly, lineOf, testRanges, testChildren, children, oddCfg, fns, includes };
+  return { rel, src, noComments, codeOnly, lineOf, testRanges, testChildren, children, pathMods, notes, uses, defines, inlineMods, oddCfg, fns, includes };
+}
+
+/** The module a file IS, as a path segment names it: src/a/b.rs -> "b",
+ *  src/a/mod.rs -> "a", lib.rs/main.rs -> "crate". */
+function moduleName(rel) {
+  const base = path.posix.basename(rel, ".rs");
+  if (base === "lib" || base === "main") return "crate";
+  if (base === "mod") return path.posix.basename(path.posix.dirname(rel));
+  return base;
+}
+
+/**
+ * The Rust source cargo compiles from Cargo.toml, outside src/: every `path = ".."`
+ * (a [[bin]]/[lib] target, a path dependency, a [patch] entry) and `build = ".."`.
+ * Comments (`#` to the end of the line, outside a string) are skipped.
+ * Returns [{ target, line, how }].
+ */
+function cargoSources(root) {
+  let text;
+  try {
+    text = fs.readFileSync(path.join(root, "Cargo.toml"), "utf8");
+  } catch {
+    return [];
+  }
+  const out = [];
+  text.split(/\r?\n/).forEach((raw, i) => {
+    // Cut a comment: the first `#` outside a basic string.
+    let line = "";
+    let inStr = false;
+    for (let j = 0; j < raw.length; j++) {
+      const c = raw[j];
+      if (c === '"' && raw[j - 1] !== "\\") inStr = !inStr;
+      if (c === "#" && !inStr) break;
+      line += c;
+    }
+    for (const m of line.matchAll(/\b(path|build)\s*=\s*"([^"]+)"/g)) {
+      const target = path.posix.normalize(m[2].replace(/\\/g, "/")).replace(/\/+$/, "");
+      out.push({ target, line: i + 1, how: m[1] === "build" ? "a build script" : "a path in Cargo.toml (a target, a path dependency or a [patch] entry)" });
+    }
+  });
+  return out;
 }
 
 /** The innermost fn whose body holds `offset`, or null. */
@@ -340,7 +453,8 @@ const ED = "src/embedded_data.rs";
  * The whole analysis. Returns {
  *   inputs, targets: [{ target, class, reason, reads, test_sites }],
  *   problems: [string]   (unresolvable includes, unknown test cfgs, stale list entries,
- *                         unreviewed run-time-chosen embedded reads: each a failure)
+ *                         re-exports, unreviewed run-time-chosen embedded reads, reviewed
+ *                         fallbacks that never say so at run time: each a failure)
  * }.
  */
 function analyse(root = REPO, opts = {}) {
@@ -371,17 +485,53 @@ function analyse(root = REPO, opts = {}) {
   }
   const isTest = (f, offset) => testFiles.has(f.rel) || f.testRanges.some(([s, e]) => s <= offset && offset <= e);
 
-  // A read of embedded bytes at (file, offset): which fn, and does it read the disk?
-  const readAt = (f, offset, via) => {
+  // Which files define each const/static name: a bare name a file defines itself is
+  // its own, and a name defined in several files needs its qualifier checked.
+  const definers = new Map();
+  for (const f of files.values()) {
+    for (const n of f.defines) {
+      if (!definers.has(n)) definers.set(n, new Set());
+      definers.get(n).add(f.rel);
+    }
+  }
+
+  // The note_builtin_copy calls that belong to fn `fn` itself (not to a fn nested in it).
+  const notesIn = (f, fn) => f.notes.filter((n) => n.offset > fn.open && n.offset < fn.close && enclosingFn(f, n.offset) === fn);
+
+  // FALLBACK_SITES entries some read actually relied on (the rest are stale).
+  const reviewUsed = new Set();
+
+  // A read of embedded bytes at (file, offset), of `target` (null: chosen at run time).
+  // Disk first = a disk read BEFORE it in the same fn, and a note naming the file.
+  const readAt = (f, offset, via, target) => {
     const fn = enclosingFn(f, offset);
     let disk = null;
+    let noted = false;
+    const want = target && target.startsWith("data/") ? dataRel(target) : null;
     if (fn) {
-      const body = f.codeOnly.slice(fn.open, fn.close);
-      const at = body.search(DISK_READ);
+      const at = f.codeOnly.slice(fn.open, offset).search(DISK_READ);
       if (at >= 0) disk = f.lineOf(fn.open + at);
+      noted = !!want && notesIn(f, fn).some((n) => n.rel === want);
     }
     const key = `${f.rel}::${fn ? fn.name : "(module level)"}`;
-    return { file: f.rel, line: f.lineOf(offset), fn: fn ? fn.name : null, via, disk_read_line: disk, reviewed: fallbackSites[key] || null, key };
+    const why = [];
+    if (!fn) why.push("module-level code reads it, so nothing reads the disk first");
+    else {
+      if (!disk) why.push(`fn ${fn.name} has no disk read before it`);
+      if (want && !noted) why.push(`fn ${fn.name} never calls ${NOTE_FN}("${want}", ..) to say so at run time`);
+    }
+    return {
+      file: f.rel,
+      line: f.lineOf(offset),
+      fn: fn ? fn.name : null,
+      via,
+      disk_read_line: disk,
+      noted,
+      disk_first: !!disk && noted,
+      reviewed: fallbackSites[key] || null,
+      key,
+      why: why.join("; "),
+    };
   };
 
   // ── Includes: resolve, and find who reads each one ─────────────────────────
@@ -408,7 +558,7 @@ function analyse(root = REPO, opts = {}) {
       const before = f.noComments.slice(Math.max(0, inc.offset - 240), inc.offset);
       const cm = before.match(/\b(?:const|static)\s+([A-Z_][A-Z0-9_]*)\s*:[^;={}]*=\s*$/);
       if (!fn && cm) constDefs.push({ name: cm[1], file: f.rel, target: r.target, offset: inc.offset });
-      else e.reads.push(readAt(f, inc.offset, `include_${inc.kind}! in ${fn ? `fn ${fn.name}` : "module-level code"}`));
+      else e.reads.push(readAt(f, inc.offset, `include_${inc.kind}! in ${fn ? `fn ${fn.name}` : "module-level code"}`, r.target));
     }
   }
 
@@ -424,10 +574,18 @@ function analyse(root = REPO, opts = {}) {
       const body = ed.codeOnly.slice(rd.open, rd.close);
       const disk = body.search(DISK_READ);
       const emb = body.search(/\bget_embedded\s*\(/);
-      diskFirstTable = disk >= 0 && emb > disk;
-    }
-    if (!diskFirstTable) {
-      problems.push(`${ED}: read_data_or_embedded does not read the disk before calling get_embedded, so the embedded table cannot count as a disk-first fallback`);
+      const ordered = disk >= 0 && emb > disk;
+      const noted = notesIn(ed, rd).length > 0;
+      diskFirstTable = ordered && noted;
+      if (!ordered) {
+        problems.push(`${ED}: read_data_or_embedded does not read the disk before calling get_embedded, so the embedded table cannot count as a disk-first fallback`);
+      }
+      if (!noted) {
+        problems.push(
+          `${ED}: read_data_or_embedded never calls ${NOTE_FN} when it serves the built-in copy, so a run that used one ` +
+            "cannot be caught (the rigs refuse a run whose log has the note)"
+        );
+      }
     }
   }
 
@@ -442,24 +600,61 @@ function analyse(root = REPO, opts = {}) {
         line: def.lineOf(c.offset),
         fn: "read_data_or_embedded",
         via: diskFirstTable
-          ? `embedded_data::${c.name}, served by get_embedded("${rel}") after a disk miss`
-          : `embedded_data::${c.name} through get_embedded("${rel}"), whose reader does not try the disk first`,
+          ? `embedded_data::${c.name}, served by get_embedded("${rel}") after a disk miss (read_data_or_embedded notes it)`
+          : `embedded_data::${c.name} through get_embedded("${rel}"), whose reader does not try the disk first and say so`,
         disk_read_line: diskFirstTable ? true : null,
+        noted: diskFirstTable,
+        disk_first: diskFirstTable,
         reviewed: null,
         key: `${ED}::get_embedded`,
+        why: diskFirstTable ? "" : "read_data_or_embedded is not disk-first with a note (see PROBLEMS)",
       });
     }
-    const re = new RegExp(`\\b${c.name}\\b`, "g");
+    // The module names the const is reached through: its file's, and any inline
+    // `mod x { .. }` around the definition (billboard_bake.rs's leaf_shape).
+    const modNames = new Set([
+      moduleName(c.file),
+      ...def.inlineMods.filter((m) => m.open < c.offset && c.offset < m.close).map((m) => m.name),
+    ]);
+    const multi = (definers.get(c.name) || new Set()).size > 1;
+    // A qualified `q::NAME` is ours unless another file defines a NAME too and q
+    // names some other module (self/super/crate are taken as ours: fail closed).
+    const qualOk = (q) => !multi || modNames.has(q) || q === "self" || q === "super" || q === "crate";
     for (const f of files.values()) {
-      for (const m of f.codeOnly.matchAll(re)) {
-        if (f.rel === c.file && m.index <= c.offset && m.index >= c.offset - 240) continue; // the definition
-        if (f.rel !== c.file && !/::\s*$/.test(f.codeOnly.slice(Math.max(0, m.index - 4), m.index))) continue; // another file's same-named item
-        if (f.rel === ED && enclosingFn(f, m.index) && enclosingFn(f, m.index).name === "get_embedded") continue; // the table, handled above
-        if (isTest(f, m.index)) continue;
-        e.reads.push(readAt(f, m.index, `${f.rel === c.file ? "" : "::"}${c.name}`));
+      const names = new Set([c.name]);
+      if (f.rel !== c.file) {
+        for (const u of f.uses) {
+          if (isTest(f, u.start)) continue;
+          const named = new RegExp(`\\b${c.name}\\b(?!\\s*::)`).test(u.text);
+          if (!named) continue;
+          const alias = u.text.match(new RegExp(`\\b${c.name}\\s+as\\s+([A-Za-z_][A-Za-z0-9_]*)`));
+          if (alias) names.add(alias[1]);
+          if (u.pub) {
+            problems.push(
+              `${f.rel}:${f.lineOf(u.start)}: \`${u.text.replace(/\s+/g, " ")}\` is a re-export of ${c.name} (${c.target}). ` +
+                "The analysis does not follow a re-export to its readers: read the const where it is defined, or teach scripts/lib/compiled-in.js"
+            );
+          }
+        }
+      }
+      for (const name of names) {
+        for (const m of f.codeOnly.matchAll(new RegExp(`\\b${name}\\b`, "g"))) {
+          if (f.rel === c.file && m.index <= c.offset && m.index >= c.offset - 240) continue; // the definition
+          if (f.uses.some((u) => u.start <= m.index && m.index < u.end)) continue; // an import, not a read
+          const q = f.codeOnly.slice(Math.max(0, m.index - 80), m.index).match(/([A-Za-z_][A-Za-z0-9_]*)\s*::\s*$/);
+          if (q) {
+            if (!qualOk(q[1])) continue; // another module's same-named item
+          } else if (f.rel !== c.file && f.defines.has(name)) {
+            continue; // this file's own item of that name
+          }
+          if (f.rel === ED && enclosingFn(f, m.index) && enclosingFn(f, m.index).name === "get_embedded") continue; // the table, handled above
+          if (isTest(f, m.index)) continue;
+          e.reads.push(readAt(f, m.index, `${q ? `${q[1]}::` : ""}${name}${name !== c.name ? ` (an alias of ${c.name})` : ""}`, c.target));
+        }
       }
     }
   }
+
   // Direct get_embedded("...") calls, and the run-time-chosen ones.
   const nameTarget = new Map(constDefs.filter((c) => c.file === ED).map((c) => [c.name, c.target]));
   for (const f of files.values()) {
@@ -469,16 +664,24 @@ function analyse(root = REPO, opts = {}) {
       const open = m.index + m[0].length - 1;
       const arg = f.noComments.slice(open + 1, matchBracket(f.codeOnly, open)).trim();
       const lit = arg.match(/^"([^"]+)"$/);
-      const r = readAt(f, m.index, `get_embedded(${arg})`);
       if (lit) {
         const t = nameTarget.get(tableKey.get(lit[1]));
-        if (t) entry(t).reads.push(r);
-      } else if (!r.disk_read_line && !r.reviewed) {
-        problems.push(
-          `${f.rel}:${r.line} (fn ${r.fn}): get_embedded(${arg}) reads an embedded copy chosen at run time, with no disk ` +
-            `read in the same fn. Make it read the disk first, or review it and add "${r.key}" to FALLBACK_SITES with the reason.`
-        );
+        if (t) entry(t).reads.push(readAt(f, m.index, `get_embedded(${arg})`, t));
+        continue;
       }
+      const r = readAt(f, m.index, `get_embedded(${arg})`, null);
+      const fn = enclosingFn(f, m.index);
+      const sameNote = !!fn && notesIn(f, fn).some((n) => n.first === arg);
+      if (r.disk_read_line && sameNote) continue; // disk first, and says so with the same path
+      if (r.reviewed) {
+        reviewUsed.add(r.key);
+        continue;
+      }
+      problems.push(
+        `${f.rel}:${r.line} (fn ${r.fn}): get_embedded(${arg}) reads an embedded copy chosen at run time, and its fn does not ` +
+          `both read the disk before it and call ${NOTE_FN}(${arg}, ..). Make it do both, or review it and add "${r.key}" to ` +
+          "FALLBACK_SITES with the reason."
+      );
     }
   }
 
@@ -489,12 +692,13 @@ function analyse(root = REPO, opts = {}) {
     // One read per place (a same-named const in two files can reach one site twice).
     const seen = new Set();
     e.reads = e.reads.filter((r) => {
-      const k = `${r.file}:${r.line}`;
+      const k = `${r.file}:${r.line}:${r.via}`;
       return seen.has(k) ? false : seen.add(k);
     });
     let cls;
     let reason;
-    const embeddedOnly = e.reads.filter((r) => !r.disk_read_line && !r.reviewed);
+    const embeddedOnly = e.reads.filter((r) => !r.disk_first && !r.reviewed);
+    for (const r of e.reads) if (r.reviewed && !r.disk_first) reviewUsed.add(r.key);
     if (target.startsWith("OUT_DIR/")) {
       cls = target === "OUT_DIR/hos_src_stamp.txt" ? "stamp" : "UNCLASSIFIED";
       reason = cls === "stamp" ? "the source stamp itself, written by build.rs from the fingerprinted inputs" : "an OUT_DIR file that is not the stamp";
@@ -515,23 +719,52 @@ function analyse(root = REPO, opts = {}) {
       cls = "data-disk-first";
       reason = e.reads
         .map((r) =>
-          r.reviewed
+          r.reviewed && !r.disk_first
             ? `${r.file}:${r.line} fn ${r.fn} (reviewed fallback: ${r.reviewed})`
             : r.disk_read_line === true
               ? r.via
-              : `${r.file}:${r.line} fn ${r.fn} reads the disk first (line ${r.disk_read_line})`
+              : `${r.file}:${r.line} fn ${r.fn} reads the disk first (line ${r.disk_read_line}) and notes the fallback`
         )
         .join("; ");
     } else {
       cls = "UNCLASSIFIED";
       reason =
         (embeddedOnly.length
-          ? `embedded-only read${embeddedOnly.length > 1 ? "s" : ""}: ${embeddedOnly.map((r) => `${r.file}:${r.line}${r.fn ? ` fn ${r.fn}` : ""} (${r.via})`).join("; ")}`
+          ? `embedded-only read${embeddedOnly.length > 1 ? "s" : ""}: ${embeddedOnly
+              .map((r) => `${r.file}:${r.line}${r.fn ? ` fn ${r.fn}` : ""} (${r.via}${r.why ? `: ${r.why}` : ""})`)
+              .join("; ")}`
           : "no read of it tries the disk first") +
-        `. Add it to FINGERPRINT_INPUTS in build.rs, make ${embeddedOnly.length > 1 ? "those reads" : "the read"} disk-first, or put it on ALLOWLIST in scripts/lib/compiled-in.js with the reason.`;
+        `. Add it to FINGERPRINT_INPUTS in build.rs, make ${embeddedOnly.length > 1 ? "those reads" : "the read"} disk-first ` +
+        `(a disk read first, and embedded_data::${NOTE_FN}("<the file>", why) where the built-in copy is served), ` +
+        "or put it on ALLOWLIST in scripts/lib/compiled-in.js with the reason.";
     }
     out.push({ target, class: cls, reason, reads: e.reads, test_sites: e.test_sites });
   }
+
+  // ── Rust source outside src/: Cargo.toml paths and #[path] modules ─────────
+  const have = new Set(out.map((t) => t.target));
+  const addSource = (target, test, where) => {
+    if (have.has(target)) return;
+    have.add(target);
+    const under = underInputs(target);
+    out.push({
+      target,
+      class: under ? "fingerprinted" : test ? "test-only" : "UNCLASSIFIED",
+      reason: under
+        ? `under ${under}`
+        : test
+          ? `Rust source compiled only into tests (${where})`
+          : `compiled into the binary as Rust source (${where}) but not under FINGERPRINT_INPUTS, so editing it after a build ` +
+            "leaves the stamp saying current. Add it to FINGERPRINT_INPUTS in build.rs.",
+      reads: [],
+      test_sites: [],
+    });
+  };
+  for (const s of cargoSources(root)) addSource(s.target, false, `Cargo.toml line ${s.line}, ${s.how}`);
+  for (const f of files.values()) {
+    for (const pm of f.pathMods) addSource(pm.target, isTest(f, pm.offset), `#[path] module at ${f.rel}:${pm.line}`);
+  }
+  out.sort((a, b) => (a.target < b.target ? -1 : a.target > b.target ? 1 : 0));
 
   // Stale list entries are failures too: a list nobody prunes stops meaning anything.
   for (const k of Object.keys(allow)) {
@@ -539,26 +772,24 @@ function analyse(root = REPO, opts = {}) {
     if (!t) problems.push(`ALLOWLIST names ${k}, which nothing in src/ includes any more: remove it`);
     else if (t.class !== "allowlisted") problems.push(`ALLOWLIST names ${k}, which is ${t.class} without it: remove it`);
   }
-  const reviewedKeys = new Set(out.flatMap((t) => t.reads.filter((r) => r.reviewed && !r.disk_read_line).map((r) => r.key)));
   for (const k of Object.keys(fallbackSites)) {
-    if (!reviewedKeys.has(k) && !generalReviewedUse(files, k, isTest)) {
-      problems.push(`FALLBACK_SITES names ${k}, which no longer reads an embedded copy without a disk read: remove it`);
+    if (!reviewUsed.has(k)) {
+      problems.push(`FALLBACK_SITES names ${k}, which no read relies on any more (gone, or disk-first on its own): remove it`);
+      continue;
+    }
+    // A reviewed fallback serves the built-in copy: it must say so at run time,
+    // or a rig that ran on it could not tell.
+    const [file, fnName] = k.split("::");
+    const f = files.get(file);
+    const fns = f ? f.fns.filter((x) => x.name === fnName) : [];
+    if (!fns.some((fn) => notesIn(f, fn).length)) {
+      problems.push(
+        `FALLBACK_SITES: ${k} serves the built-in copy but never calls ${NOTE_FN}, so a run that used it cannot be caught. ` +
+          `Call embedded_data::${NOTE_FN}(<the file>, why) in it.`
+      );
     }
   }
   return { inputs, targets: out, problems, test_files: [...testFiles].sort() };
-}
-
-/** Does `file::fn` still hold a run-time-chosen get_embedded call (reviewed via FALLBACK_SITES)? */
-function generalReviewedUse(files, key, isTest) {
-  const [file, fnName] = key.split("::");
-  const f = files.get(file);
-  if (!f) return false;
-  for (const m of f.codeOnly.matchAll(/\bget_embedded\s*\(|\bembedded_data::[A-Z0-9_]+\b/g)) {
-    if (isTest(f, m.index)) continue;
-    const fn = enclosingFn(f, m.index);
-    if (fn && fn.name === fnName && !DISK_READ.test(f.codeOnly.slice(fn.open, fn.close))) return true;
-  }
-  return false;
 }
 
 /** The table, as lines. */
@@ -581,7 +812,7 @@ function report(a) {
   return lines;
 }
 
-module.exports = { ALLOWLIST, FALLBACK_SITES, DISK_READ, lexRust, parseFile, resolveTarget, analyse, report };
+module.exports = { ALLOWLIST, FALLBACK_SITES, DISK_READ, NOTE_FN, lexRust, parseFile, resolveTarget, cargoSources, moduleName, analyse, report };
 
 if (require.main === module) {
   const a = analyse(REPO);

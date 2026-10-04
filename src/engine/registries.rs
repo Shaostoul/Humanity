@@ -39,7 +39,7 @@ pub(crate) fn load_data_registries(store: &mut DataStore, data_dir: &std::path::
                     })
                     .unwrap_or_default();
                 crate::embedded_data::get_embedded(&rel).map(|s| {
-                    log::info!("{key}: disk file absent, using embedded {rel}");
+                    crate::embedded_data::note_builtin_copy(&rel, format_args!("{key}: {} is absent", path.display()));
                     s.as_bytes().to_vec()
                 })
             }

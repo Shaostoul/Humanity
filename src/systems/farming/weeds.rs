@@ -217,6 +217,9 @@ impl WeedData {
     }
 
     pub fn shipped() -> Self {
+        // Whoever asks gets the copy compiled into the exe: say so (BUG-133; a rig
+        // refuses a run that served a built-in copy). load() logs why it fell back.
+        crate::embedded_data::note_builtin_copy("garden/weeds.ron", "WeedData::shipped served the built-in table");
         Self::parse(WEEDS_RON).expect("the shipped data/garden/weeds.ron parses")
     }
 

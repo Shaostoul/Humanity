@@ -177,7 +177,10 @@ const describe = (p) => `${p.name || "HumanityOS.exe"} pid ${p.pid}${p.exe ? ` (
 function waitForFree(opt = {}) {
   const own = opt.own || {};
   const timeoutMs = opt.timeoutMs != null ? opt.timeoutMs : 40 * 60 * 1000; // machine rule: up to 40 min
-  const pollMs = opt.pollMs != null ? opt.pollMs : 30 * 1000;
+  // HUMANITY_MACHINE_GUARD_POLL_MS: a test's shorter poll (with
+  // HUMANITY_MACHINE_GUARD_FAKE, so a wait can be exercised in a second).
+  const envPoll = Number(process.env.HUMANITY_MACHINE_GUARD_POLL_MS);
+  const pollMs = opt.pollMs != null ? opt.pollMs : envPoll > 0 ? envPoll : 30 * 1000;
   const log = opt.log || ((m) => console.log(m));
   const label = opt.label || "boot";
   const t0 = Date.now();
