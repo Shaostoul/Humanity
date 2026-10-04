@@ -1706,7 +1706,9 @@
         "niosh-pocket-guide",
         "fema",
         "usgs",
-        "phmsa"
+        "phmsa",
+        "cpsc",
+        "cdc"
       ],
       "locale_dependent": true,
       "hazard": "caution"

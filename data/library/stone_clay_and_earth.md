@@ -15,9 +15,11 @@ It takes its building methods from the Army's field manual on concrete
 and masonry (FM 5-428) and the National Park Service's guides to
 preserving historic adobe and masonry buildings, its safety rules from
 the Occupational Safety and Health Administration (OSHA), the National
-Institute for Occupational Safety and Health (NIOSH) and the armed
-services' hand tool manual, and its warnings about earthquakes from the
-Federal Emergency Management Agency (FEMA). All are United States
+Institute for Occupational Safety and Health (NIOSH), the armed
+services' hand tool manual, the Consumer Product Safety Commission
+(CPSC) and the Centers for Disease Control and Prevention (CDC), and its
+warnings about earthquakes from the Federal Emergency Management Agency
+(FEMA). All are United States
 government publications, in the public domain. Where something is
 general practice rather than a published rule, the text says so.
 
@@ -90,26 +92,84 @@ that can lead to disability and death", and of lung cancer, chronic
 obstructive pulmonary disease and kidney disease. OSHA's construction
 rule (29 CFR 1926.1153) lists, for power saws cutting masonry, a saw
 "equipped with integrated water delivery system that continuously feeds
-water to the blade." At home: cut wet, cut outdoors, keep other people
-away, and wear a respirator rated for dust, not a paper nuisance mask;
-never dry-cut stone or concrete indoors (general practice following
-OSHA's rule). Sweeping up dry dust raises it again; wet it first
-(general practice).
+water to the blade."
+
+At home, following that rule (general practice, because the rule is
+written for workplaces):
+
+- **Cut wet, with a saw built for it.** Use a saw made to feed water to
+  the blade. Never pour water onto a saw or grinder made for dry
+  cutting.
+- **Keep the electricity safe around the water.** Plug a wet saw into an
+  outlet protected by a ground fault circuit interrupter (GFCI), or
+  through a portable GFCI. The CPSC's fact sheet on GFCIs names places
+  "where electrical equipment is near water" as particularly
+  vulnerable, and says to consider portable GFCI protection with
+  electric tools, saws among them, for work in and around the house.
+- **Cut outdoors**, keep other people away, and never dry-cut stone or
+  concrete indoors.
+- **Wear a respirator: a NIOSH-approved N95 or better, not a nuisance
+  dust mask.** Water does not make it optional. OSHA's Table 1 calls
+  for a respirator with an assigned protection factor of 10 for a
+  handheld saw "When used indoors or in an enclosed area" even with
+  water feeding the blade, and outdoors once the cutting passes 4 hours
+  in a shift. OSHA's respirator rule (29 CFR 1910.134) gives half-mask
+  respirators that factor of 10, a category it says includes filtering
+  facepieces, which is what an N95 is.
+
+Cleaning up is in the rule too. 29 CFR 1926.1153(f) does not allow dry
+sweeping or dry brushing where it could raise silica dust, unless wet
+sweeping, a vacuum with a HEPA filter or another low-dust method is not
+feasible, and it limits using compressed air to clean clothing or
+surfaces. So wet dust before you sweep it, or vacuum it with a HEPA
+filter, and never blow it off with compressed air.
 
 ### Lime and cement
 
 Quicklime, the burnt lime used to make lime mortar and plaster, reacts
 with water. NIOSH's Pocket Guide lists water among its incompatibilities
-and notes that it "liberates heat", and lists irritation of the eyes,
-skin and breathing passages among its effects; its first aid for the
-eyes is "Irrigate immediately" and for the skin "Water flush
-immediately". Wet portland cement can cause caustic burns which, OSHA
+and notes that it "liberates heat". The effects it lists go beyond
+irritation of the eyes, skin and breathing passages: "ulcer, perforation
+nasal septum; pneumonitis; dermatitis", which means sores that can wear
+a hole through the wall between the nostrils, inflamed lungs, and
+inflamed skin. Its protective advice is "Prevent skin contact" and
+"Prevent eye contact", and its first aid for the eyes is "Irrigate
+immediately" and for the skin "Water flush immediately".
+
+So at home, buy hydrated lime or ready-made lime putty rather than
+slaking quicklime yourself (general practice). If you do slake it, wear
+goggles, gloves, long sleeves and an N95 respirator; add the quicklime a
+little at a time to plenty of water, never water onto a heap of lime;
+and stand back, because the mix can boil and spit (general practice).
+
+Wet portland cement can cause caustic burns which, OSHA
 says, may not hurt at first, can keep getting worse after the cement is
 off the skin, and are a reason to see a health care professional
 immediately. The full advice on
 gloves, boots, eye protection and first aid for cement and lime is in
 [Ratios and Mixing](/library#ratios-and-mixing); read it before you mix
 either.
+
+### Fire, ovens and hot stone
+
+An earth oven or a fire pit is a fire, with a fire's rules (general
+practice): build it and use it outdoors only, well clear of buildings,
+fences, overhanging branches and anything else that burns; follow your
+local burn rules and any burn ban; and never fire one, or carry its
+coals, into a garage, a shed or any other enclosed space. Burning fuel
+makes carbon monoxide, a gas you cannot see or smell. The CDC says it is
+in the fumes produced "any time you burn fuel", in grills, stoves and
+fireplaces among other things, and tells people: "Never burn charcoal
+indoors." [Firewood](/library#firewood) covers burn bans and carbon monoxide
+in full, and [Ventilation, Damp and
+Mould](/library#ventilation-damp-and-mould) covers why it kills.
+
+Stone can break in a fire. Stones from a creek bed, and porous or
+layered stones, can hold water, and when they are heated they can crack
+or burst and throw hot pieces (general practice). Keep them away from
+the flame: line a fire pit, or the floor of an oven, with fire brick
+made for the purpose, and keep field and creek stones for the outside
+of the ring (general practice).
 
 ## What is under your feet depends on where you are
 
@@ -163,7 +223,8 @@ whether you use mortar or not:
    sits on, should be horizontal for stability; the joints between
    stones side by side can run any way.
 4. **Tie the wall through.** In every layer, include bonding stones
-   that reach right through the wall to tie its two faces together.
+   that reach right through the wall to tie its two faces together: the
+   manual says one for every 6 to 10 square feet of wall.
 5. **Big at the bottom.** If appearance matters, lay the larger stones
    in the lower courses, and smaller ones as you go up.
 6. **Pack tight.** Fit neighbouring stones as close as you can, and fill
@@ -180,16 +241,20 @@ to the strength and life of a rubble wall.
 
 A low wall along the edge of a raised bed, or around a fire pit, is a
 good first project, because if it goes wrong little is at stake (our
-example, using the manual's rules).
+example, using the manual's rules). Around a fire pit, keep the field
+and creek stones on the outside and line the inside with fire brick, as
+the section on fire above explains.
 
 1. Mark the line, and dig a shallow trench down to firm subsoil, wider
    than the wall. Keep the spoil back from the edge.
 2. Set the biggest, flattest stones in the trench as the footing, broad
    face down, packed tight.
 3. Build up in layers, each stone resting on two below it where you can,
-   the way bricks overlap, so no joint runs straight up the wall
-   (general practice). Every so often, lay a long stone across the full
-   width as a bonding stone.
+   the way bricks overlap, so no joint runs straight up the wall: the
+   manual says to offset each head joint, the joint between stones side
+   by side, from the head joints above and below it "as much as
+   possible". In every layer, lay a long stone across the full width as
+   a bonding stone.
 4. Keep checking with a level and a string line, as in [Square, Level
    and Plumb](/library#square-level-and-plumb). Many builders lean each face
    slightly inward as it rises, so the wall is wider at the bottom
@@ -242,8 +307,11 @@ hand, formed in wooden moulds, and dried by the sun. Its other points:
 
 **Worked example: finding your mix** (general practice). Make four or
 five test bricks from your clay, each with a different share of sand
-added, and mark which is which. Let them dry in the shade for a week or
-two. Throw out any that cracked badly or crumble when you rub them.
+added, and mark which is which. Dry and cure them the way the adobe
+guide describes, flat for several days and then standing on end, out of
+the rain, and wait the full 4 weeks or longer of curing before you judge
+them; a brick tested half-cured tells you nothing about the finished
+one. Throw out any that cracked badly or crumble when you rub them.
 Drop each of the rest from waist height onto grass: the ones that stay
 in one piece tell you the mix to use. Write the result down, as in
 [Keeping Records](/library#keeping-records).
@@ -269,16 +337,27 @@ garden wall or an earth oven as much as to a house (our reading):
   better to cover adobe with mud plaster even though it must be renewed
   more often.
 
-### Never seal earth in cement
+### Never seal earth in cement, or mortar it with lime
 
 It seems sensible to protect a mud wall with cement. The Park Service
 says it does the opposite. Cement stucco does not bond to unfired adobe;
 its thermal expansion is 3 to 10 times greater than adobe's, so it
 cracks; the cracks let water in, and the stucco stops the wall drying
 out, so the damage goes on unseen. Cement mortar between adobe bricks
-is stronger than the bricks, so the bricks crumble first. Its rule for
-repairing mud mortar: never replace it with lime mortar or portland
-cement mortar.
+is stronger than the bricks, so the bricks crumble first.
+
+Lime is no better here. The guide's rule for repairing mud mortar is to
+"never replace adobe mud mortar with lime mortar or portland cement
+mortar", because neither moves with the adobe as it warms and cools,
+and so, it says, they make the bricks, the weaker material, crack,
+crumble and eventually fall apart. Earth walls get mud mortar and mud
+plaster.
+
+That is the rule for traditional, unstabilized adobe. The guide notes
+that cement and lime mortars are commonly used with stabilized adobe
+bricks, the kind made with cement, lime or asphalt mixed in, but that
+cement mortars are incompatible with unstabilized adobe. Mud bricks you make
+yourself from clay, sand and straw are unstabilized.
 
 ## Mortar, lime and cement
 
@@ -295,11 +374,13 @@ be repaired. Moisture should leave a wall through its joints, not
 through its bricks. The guide calls mortar joints "intended to be
 sacrificial".
 
-In practice: for soft old brick, soft stone and earth, use a soft,
-high-lime mortar (or, for adobe, mud); keep strong portland cement mortars
-for hard stone and modern concrete block (general practice following
-the guide). The guide adds that more lime makes a softer, more workable
-mortar, and more portland cement a harder one.
+In practice: for soft old brick and soft stone, a soft, high-lime
+mortar; for adobe and other earth walls, mud mortar only, never lime or
+cement (the adobe guide's rule, above); and strong portland cement
+mortars only for hard stone and modern concrete block (general practice
+following the two guides). The repointing guide adds that more lime
+makes a softer, more workable mortar, and more portland cement a harder
+one.
 
 ### Lime
 
@@ -349,16 +430,24 @@ practice; the jar test in [What Soil Is](/library#what-soil-is) is the same
 idea).
 
 Gravel also helps keep earth walls and foundations dry. The adobe
-guide describes footing drains around a building: a trench, lined, with
-a pipe in the bottom and filled with gravel to within 6 inches of the
-surface. It warns that in weak soil the sides of such a trench may need
-sloping to prevent a cave-in.
+guide describes footing drains around a building: a trench about 2 to
+2 1/2 feet wide and several feet deep, dug at the base of the walls,
+lined, with a pipe in the bottom and filled with gravel to within 6
+inches of the surface. It warns that in weak soil the sides of such a
+trench may need sloping to prevent a cave-in.
+
+A trench several feet deep beside a wall is exactly what the digging
+rules at the top of this guide are about: OSHA's protection rule
+applies to it, and the wall's own weight bears on the trench side next
+to it (our reading). Dig it only with the protection those rules
+require, or have it dug by someone equipped to.
 
 ## Know where your own work stops
 
 Low garden walls, edging, paths, steps of a stone or two, mud bricks and
-mud plaster, small earth ovens and repointing a few joints are yours to
-do. These are not:
+mud plaster, small earth ovens built and fired outdoors (see the fire
+section above) and repointing a few joints are yours to do. These are
+not:
 
 - **Anything that holds back earth.** A retaining wall carries the
   weight of the ground behind it, and when one fails it can fall on
@@ -393,7 +482,12 @@ do. These are not:
   bar and rollers.
 - **Dry-cutting a paver indoors.** The dust you cannot see is the
   dangerous part.
-- **Cement on mud.** It traps water and breaks the wall from inside.
+- **Blowing the dust off with an air line.** It puts it back in the air
+  you breathe.
+- **Creek stones in the fire.** Wet stone can burst.
+- **Slaking quicklime by pouring water on it.** It boils and spits.
+- **Cement stucco on mud, or lime or cement mortar between mud bricks.**
+  Both break the wall from inside.
 - **Mortar stronger than the brick.** The brick loses.
 - **Topsoil in a wall.** It rots and shrinks.
 - **Letting concrete dry out in its first days.** It stops getting
@@ -457,16 +551,23 @@ where the injuries come from.
   stand in a trench whose walls could fall on you.
 - You lift heavy stones with two people or with a bar, keep the load
   close, and wear boots, gloves and eye protection.
-- You cut stone and concrete wet, outdoors, with a respirator, and never
-  dry-cut indoors.
+- You cut stone and concrete wet, with a saw built for it on a GFCI,
+  outdoors, in an N95 or better, never dry-cut indoors, and clean up wet
+  or with a HEPA vacuum, never with compressed air.
+- You fire earth ovens and fire pits outdoors only, with fire brick
+  next to the flame, never in a garage or any enclosed space.
+- You buy hydrated lime or lime putty rather than slaking quicklime, or
+  slake it with goggles and gloves, lime into water.
 - You know where to look up the soil and rock under your own ground, and
   you have permission before you take stone.
 - You can lay a low rubble wall on a footing of big stones, broad faces
   down, bed joints level, with bonding stones through it.
-- You can find clay, make test bricks, and choose a mix from them.
+- You can find clay, make test bricks, cure them fully, and choose a mix
+  from them.
 - You keep earth walls capped, drained and plastered with mud, and never
   seal them in cement.
-- You choose a mortar softer than the stone or brick it joins.
+- You choose a mortar softer than the stone or brick it joins, and mud
+  for earth walls.
 - You keep new concrete moist while it cures.
 - You know that walls holding back earth, building foundations, and
   masonry in earthquake country belong to a professional.
@@ -490,9 +591,11 @@ is updated in place. Web pages and documents were read on 4 October
   at 80 F or above and 3 1/2 hours below, never frozen; rubble stone
   masonry with or without mortar, suitable stones, no stone larger than
   two persons can handle easily, footings of the largest stones,
-  bonding stones, horizontal bed joints, broadest face down, larger
-  stones lower, moistening porous stones, packing, lifting clear to
-  reset). Copy read for this guide:
+  bonding stones in each layer, one for every 6 to 10 square feet, head
+  joints offset from those above and below as much as possible,
+  horizontal bed joints, broadest face down, larger stones lower,
+  moistening porous stones, packing, lifting clear to reset). Copy read
+  for this guide:
   https://vulcanhammer.net/wp-content/uploads/2017/01/fm5_428.pdf (the
   copy Ratios and Mixing read is at
   https://archive.org/details/FM_5_428_C_M_1998)
@@ -503,10 +606,13 @@ is updated in place. Web pages and documents were read on 4 October
   strength; the clay-to-sand ratio; drying and 4 weeks or more of
   air-curing; shrinking and swelling with water content and losing
   strength when wet; moisture as the main cause of decay; roofs,
-  drainage, regrading, coving, plants and footing drains; mud plaster;
-  cement stucco not bonding, expanding 3 to 10 times more than adobe and
+  drainage, regrading, coving, plants and footing drains in trenches
+  about 2 to 2 1/2 feet wide and several feet deep; mud plaster; cement
+  stucco not bonding, expanding 3 to 10 times more than adobe and
   trapping moisture; never replacing mud mortar with lime or cement
-  mortar; professional help for structural problems).
+  mortar, which make the weaker bricks crack and crumble; cement and
+  lime mortars used with stabilized adobe, cement mortars incompatible
+  with unstabilized adobe; professional help for structural problems).
   https://www.nps.gov/orgs/1739/upload/preservation-brief-05-adobe.pdf
 - US Department of the Interior, National Park Service. Preservation
   Brief 2, *Repointing Mortar Joints in Historic Masonry Buildings*, by
@@ -537,8 +643,19 @@ is updated in place. Web pages and documents were read on 4 October
   https://www.osha.gov/silica-crystalline
 - Occupational Safety and Health Administration. 29 CFR 1926.1153, Table
   1 (handheld and stationary masonry saws with an integrated water
-  delivery system feeding water to the blade).
+  delivery system feeding water to the blade; for handheld saws, a
+  respirator of assigned protection factor 10 indoors or in an enclosed
+  area, and outdoors beyond 4 hours a shift) and paragraph (f),
+  housekeeping (no dry sweeping or brushing unless wet sweeping, HEPA
+  vacuuming or other low-dust methods are not feasible; compressed air
+  for cleaning clothing or surfaces only with a ventilation system that
+  captures the dust, or where no alternative is feasible).
   https://www.ecfr.gov/current/title-29/subtitle-B/chapter-XVII/part-1926/subpart-Z/section-1926.1153
+- Occupational Safety and Health Administration. 29 CFR 1910.134,
+  Respiratory protection, Table 1 (assigned protection factor 10 for
+  air-purifying half masks, a category that includes filtering
+  facepieces).
+  https://www.ecfr.gov/current/title-29/subtitle-B/chapter-XVII/part-1910/subpart-I/section-1910.134
 - Occupational Safety and Health Administration. Solutions for
   Electrical Contractors eTool, Materials Handling: Heavy Lifting,
   undated (loads heavier than about 50 pounds increase the risk; two or
@@ -555,8 +672,24 @@ is updated in place. Web pages and documents were read on 4 October
   to Chemical Hazards, Calcium oxide, page last reviewed 30 October 2019,
   read through a page summary because cdc.gov refuses scripted downloads
   (quicklime; reacts with water, liberating heat; irritation of the eyes,
-  skin and upper respiratory tract; first aid: irrigate eyes, flush skin
-  with water immediately). https://www.cdc.gov/niosh/npg/npgd0093.html
+  skin and upper respiratory tract, ulcer and perforation of the nasal
+  septum, pneumonitis and dermatitis; prevent skin contact and eye
+  contact; first aid: irrigate eyes, flush skin with water
+  immediately). https://www.cdc.gov/niosh/npg/npgd0093.html
+- US Consumer Product Safety Commission. *What Is a GFCI?*, CPSC Fact
+  Sheet, Publication 099, printed with the code 092010 (GFCI protection
+  for areas where electrical equipment is near water; portable GFCIs
+  where installed ones are not practical, and with electric tools such
+  as saws for work in and around the house).
+  https://www.cpsc.gov/s3fs-public/099_0.pdf
+- Centers for Disease Control and Prevention. About Carbon Monoxide
+  Poisoning, page dated 12 January 2026, read through a page summary
+  because cdc.gov refuses scripted downloads, with the quoted sentences
+  checked word for word against a copy archived in January 2025 by
+  RestoredCDC.org (carbon monoxide in the
+  fumes any time fuel is burned, grills, stoves and fireplaces among
+  the sources; never burn charcoal indoors).
+  https://www.cdc.gov/carbon-monoxide/about/index.html
 - Departments of the Army, Navy, Air Force and Marine Corps. *Use and
   Care of Hand Tools and Measuring Tools*, TM 9-243, 12 December 1983,
   read as the Navy's June 1992 reissue (NAVEDTRA 12085) on archive.org;
@@ -603,8 +736,9 @@ is updated in place. Web pages and documents were read on 4 October
   Plumb](/library#square-level-and-plumb), [Choosing Where to
   Build](/library#choosing-where-to-build), [Force, Levers and Mechanical
   Advantage](/library#force-levers-and-mechanical-advantage), [Keeping
-  Records](/library#keeping-records) and [The Hazards Where You
-  Live](/library#the-hazards-where-you-live).
+  Records](/library#keeping-records), [The Hazards Where You
+  Live](/library#the-hazards-where-you-live), [Firewood](/library#firewood) and
+  [Ventilation, Damp and Mould](/library#ventilation-damp-and-mould).
 
 ### Labelled in the text as general practice, arithmetic or our reading, not sourced
 
@@ -612,22 +746,39 @@ is updated in place. Web pages and documents were read on 4 October
   rule.
 - Boots and gloves against crushed toes and pinched fingers, and keeping
   hands and feet from under a levered stone, are general practice.
-- Cutting wet and outdoors, a dust respirator, keeping people away and
-  wetting dust before sweeping are general practice following OSHA's
-  silica rule, which is written for workplaces.
+- Cutting wet with a saw built for it, never adding water to a dry-cut
+  tool, a GFCI on a wet saw, cutting outdoors, keeping people away, and
+  an N95 or better for home cutting are general practice following
+  OSHA's silica rule, which is written for workplaces, and the CPSC's
+  GFCI sheet; that an N95 is a filtering facepiece is general
+  knowledge. Wet sweeping, HEPA vacuuming and not cleaning with
+  compressed air are the rule's own housekeeping paragraph.
+- Buying hydrated lime or putty rather than slaking quicklime, and how
+  to slake it if you do (protective gear, lime into plenty of water,
+  boiling and spitting), are general practice beside NIOSH's entry; the
+  plain-words meaning of NIOSH's symptom list is general knowledge.
+- Building and firing earth ovens and fire pits outdoors only, clear of
+  anything that burns, under local burn rules, and never in an enclosed
+  space, are general practice beside the CDC's carbon monoxide advice;
+  wet or porous stones cracking or bursting in a fire, and lining a pit
+  with fire brick, are general practice.
 - Asking permission on private land, and asking the agency on other
   public lands, are general practice; treating stone and clay in a
   national park as not yours to take is our reading of 36 CFR 2.1.
 - What "unreinforced" means is general knowledge; FEMA's catalogue
   entry does not define it.
-- Testing stone by scraping and watching for frost flaking, overlapping
-  joints, leaning the faces inward and the knee-high garden wall example
-  are general practice and our example.
+- Testing stone by scraping and watching for frost flaking, each stone
+  resting on two below, leaning the faces inward and the knee-high
+  garden wall example are general practice and our example.
 - Avoiding topsoil, where to look for clay, the effect of too much clay
-  or too much sand, and the test-brick method are general practice.
-- Choosing soft lime mortar for soft brick, stone and earth, and strong
+  or too much sand, and the test-brick method are general practice; the
+  curing time before testing is the adobe guide's.
+- Choosing soft lime mortar for soft brick and soft stone, and strong
   cement mortar for hard stone and block, is general practice following
-  the Park Service's repointing guide.
+  the Park Service's repointing guide; mud only for earth walls is the
+  adobe guide's own rule.
+- That the wall's weight bears on a footing-drain trench beside it is
+  our reading.
 - How lime is made and slaked is general knowledge; that portland
   cement is not something to make at home is our reading of the kiln
   temperatures.

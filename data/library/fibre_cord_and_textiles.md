@@ -93,7 +93,8 @@ Processing raw fibre makes dust, and dust from cotton is a recognised
 lung hazard. OSHA has a whole standard for cotton dust (29 CFR
 1910.1043) covering yarn manufacturing and weaving, and it requires
 regular medical checks of exposed workers, graded by a classification
-of byssinosis, a lung disease of cotton workers (general knowledge).
+of byssinosis, the lung damage named on the warning sign the same
+standard requires: "COTTON DUST CAUSES DAMAGE TO LUNGS (BYSSINOSIS)".
 Home spinning makes far less dust than a mill (our reading), but card,
 comb and break fibres outdoors or in a well-ventilated space, and wear a dust mask for
 dusty work (general practice).
@@ -102,9 +103,20 @@ dusty work (general practice).
 
 Nettles sting, and vines you strip for fibre can be poison ivy. Wear
 gloves, and learn to recognise poison ivy and its relatives before you
-gather (general practice). [Identifying Wild
-Plants](/library#identifying-wild-plants) explains how to be certain what a
-plant is before you handle it.
+gather (general practice). Wash your hands after handling milkweed, and
+keep its milky sap away from your eyes (general practice). [Identifying
+Wild Plants](/library#identifying-wild-plants) explains how to be certain what
+a plant is before you handle it.
+
+Gathering is not always yours to do, either. On private land you need
+the landowner's permission (general practice). In national parks, the
+federal rule (36 CFR 2.1(a)(1)(ii)) prohibits possessing, removing,
+digging or disturbing "Plants or the parts or products thereof". The
+same rule lets a park's superintendent allow hand gathering of certain
+fruits, berries, nuts and seashells, a list that does not include
+stems, leaves or bark, so treat nettles, milkweed, yucca and bark in a
+park as not yours to take (our reading). Other public lands have their
+own rules, so ask the agency before you gather (general practice).
 
 ## What fibres are
 
@@ -261,7 +273,8 @@ The rigging manual says the overhand knot "reduces the strength of a
 straight rope by 55 percent." Every knot puts sharp bends in the rope,
 which is part of why the factor of safety exists (the manual names knots
 and sharp bends among the stresses it covers). OSHA's rule for lifting
-slings goes further: slings "shall not be shortened with knots", and in
+slings goes further: slings "shall not be shortened with knots or bolts
+or other makeshift devices", and in
 a fibre rope sling "Knots shall not be used in lieu of splices." For
 anything that lifts, use a properly made sling, not a knotted rope
 (our reading of the rule, which is written for workplaces).
@@ -371,17 +384,22 @@ fibre lesson there is (our example).
 - **Synthetics** dry fast, but many melt when they burn; see [Clothing
   for Fire Performance](/library#fire-performance-clothing) before
   wearing them near a stove, a fire or a forge.
-- **Wool** is the fibre moths eat (below).
+- **Wool**, like fur and other animal fibres, is what clothes moths
+  mainly eat, and one kind eats hemp too (below).
 
 That list is general practice except where a source is named.
 
-### Keeping moths out of wool
+### Keeping moths out of wool and hemp
 
-Penn State Extension describes the two common clothes moths. Their
-larvae feed on animal products such as wool, fur, feathers and hair,
-often hidden under collars and cuffs. The webbing clothes moth leaves
-cotton and synthetics alone unless they are stained with food or body
-oils, which is the reason to wash wool before you store it. Its advice:
+Penn State Extension describes the two common clothes moths. Both live
+mainly on animal products such as wool, fur, feathers and hair, and
+their larvae often feed out of sight under collars and cuffs. The
+casemaking clothes moth goes further: it also eats some materials that
+come from plants, hemp among them, along with stored dried herbs and
+seeds, so hemp cloth and hemp cord need the same care as wool. The
+webbing clothes moth leaves cotton and synthetics alone unless they are
+stained with food or body oils, which is the reason to wash clothes
+before you store them (our reading). Its advice:
 launder or dry-clean infested clothing and store it in an airtight
 container or bag; vacuum thoroughly, because larvae can live on shed pet
 hair under baseboards and in air return vents; and never apply
@@ -426,7 +444,8 @@ machines.
   cannot see.
 - **Dangling sleeves at the stove.** Roll them up or wear close-fitting
   ones.
-- **Putting wool away dirty.** That is what the moths eat first.
+- **Putting clothes away dirty.** Food and body oils draw moths even to
+  cotton and synthetics, and wool and hemp are food to them already.
 
 ## How the game models it
 
@@ -501,8 +520,10 @@ harm comes from.
   first sign of damage.
 - You can test a plant fibre, and twist it into a two-ply cord.
 - You can read a fibre content label and a care label.
-- You store wool clean, in sealed containers, and never spray pesticide
-  on clothes.
+- You store wool and hemp clean, in sealed containers, and never spray
+  pesticide on clothes.
+- You have permission before you gather plants, and you leave them be
+  in a national park.
 
 ## Sources
 
@@ -533,11 +554,12 @@ is updated in place. Web pages and documents were read on 4 October
   two-strand twisting method; sinew; inner bark of linden, elm, hickory,
   white oak, mulberry, chestnut and red and white cedar; braiding for
   strength) and the uses of plants (nettles, milkweeds, yucca and linden
-  inner bark for cordage). The scan shows no date in its text; 5 June
-  1992 is from the publication record.
+  inner bark for cordage). The date is printed on the scan's
+  authentication page, which its text layer reads as "5 JUNE *992".
   https://archive.org/download/MManuals/UsMarineCorps-Survival-Mcrp3-02f.pdf
 - Occupational Safety and Health Administration. 29 CFR 1910.184,
-  Slings ((c)(2) slings not shortened with knots; (c)(9) employees kept
+  Slings ((c)(2) slings not shortened with knots or bolts or other
+  makeshift devices; (c)(9) employees kept
   clear of loads about to be lifted and suspended loads; (h)(3)(v) knots
   not used in lieu of splices; (h)(5) the removal-from-service list for
   natural and synthetic fibre rope slings).
@@ -545,7 +567,13 @@ is updated in place. Web pages and documents were read on 4 October
 - Occupational Safety and Health Administration. 29 CFR 1910.1043,
   Cotton dust (scope: yarn manufacturing, slashing and weaving, and
   waste houses; medical surveillance graded by byssinosis
-  classification). https://www.ecfr.gov/current/title-29/subtitle-B/chapter-XVII/part-1910/subpart-Z/section-1910.1043
+  classification; (j)(1), the required warning sign naming byssinosis
+  as lung damage from cotton dust). https://www.ecfr.gov/current/title-29/subtitle-B/chapter-XVII/part-1910/subpart-Z/section-1910.1043
+- National Park Service. 36 CFR 2.1(a)(1)(ii) and (c), preservation of
+  natural resources (removing or disturbing plants or their parts
+  prohibited in park areas; a superintendent may designate certain
+  fruits, berries, nuts or unoccupied seashells for hand gathering).
+  https://www.ecfr.gov/current/title-36/chapter-I/part-2/section-2.1
 - USDA Economic Research Service. *Industrial Hemp in the United States:
   Status and Market Potential*, AGES-001E, 20 January 2000, section
   "Harvesting, Retting, and Fiber Separation" (retting as a microbial
@@ -569,11 +597,12 @@ is updated in place. Web pages and documents were read on 4 October
   water, like cotton and jeans).
   https://www.nps.gov/romo/planyourvisit/hypothermia.htm
 - Federal Trade Commission. Threading Your Way Through the Labeling
-  Requirements Under the Textile and Wool Acts, undated (fibre names and
-  percentages by weight in descending order of predominance).
+  Requirements Under the Textile and Wool Acts, July 2014, with notes
+  saying it was edited in October 2020 and January 2025 (fibre names
+  and percentages by weight in descending order of predominance).
   https://www.ftc.gov/business-guidance/resources/threading-your-way-through-labeling-requirements-under-textile-wool-acts
 - Federal Trade Commission. Clothes Captioning: Complying with the Care
-  Labeling Rule, undated (care instructions required on clothing; no
+  Labeling Rule, May 2014 (care instructions required on clothing; no
   substantial harm if followed; warnings about procedures that would
   harm the garment).
   https://www.ftc.gov/business-guidance/resources/clothes-captioning-complying-care-labeling-rule
@@ -583,7 +612,9 @@ is updated in place. Web pages and documents were read on 4 October
 - Penn State Extension. Clothes Moth, by Steve Jacobs, revised January
   2013, page updated 12 May 2026 (webbing and casemaking clothes moths;
   larvae feeding on wool, fur, feathers and hair, often under collars and
-  cuffs; webbing clothes moth leaving cotton and synthetics alone unless
+  cuffs; the casemaking clothes moth also attacking plant-derived
+  materials, hemp, dried herbs and seeds among them; webbing clothes
+  moth leaving cotton and synthetics alone unless
   stained with food or body oils; laundering or dry-cleaning and
   airtight storage; vacuuming; no pesticides on clothing or bedding).
   https://extension.psu.edu/clothes-moth
@@ -633,12 +664,17 @@ is updated in place. Web pages and documents were read on 4 October
   rated gear and trained people, are general practice.
 - That running fans burning clothes is general knowledge beside the
   CPSC's stop, drop and roll.
-- That byssinosis is a lung disease of cotton workers is general
-  knowledge; OSHA's standard names it without defining it here.
 - That home spinning makes far less dust than a mill is our reading;
   working outdoors and a dust mask are general practice.
-- Gloves against nettles and learning poison ivy before gathering are
-  general practice.
+- Gloves against nettles, learning poison ivy before gathering, and
+  washing off milkweed sap and keeping it from the eyes are general
+  practice.
+- Asking the landowner's permission, and asking the agency on other
+  public lands, are general practice; treating fibre plants and bark in
+  a national park as not yours to take is our reading of 36 CFR 2.1.
+- That clean storage keeps moths off cotton and synthetics, and that
+  hemp cloth and cord need the same care as wool, are our reading of
+  Penn State Extension.
 - That hemp and flax fibres grow in the stem around a woody core, and
   cotton as seed hairs, is general knowledge, as is the absence of a
   licence for flax and nettles.
@@ -654,7 +690,7 @@ is updated in place. Web pages and documents were read on 4 October
 - Applying OSHA's sling rules to home lifting is our reading.
 - The choice of knots to learn is ours; their descriptions are the
   rigging manual's.
-- The label example, the notes on cotton, synthetics and wool, and the
+- The label example, the notes on cotton and synthetics, and the
   mending advice are general practice or our example.
 - Leaving tree felling with ropes and certified flame-resistant
   clothing to trained people and tested products is general practice.

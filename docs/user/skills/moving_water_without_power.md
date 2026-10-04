@@ -18,9 +18,11 @@ Conservation Service (NRCS), and its safety rules from the National
 Institute for Occupational Safety and Health (NIOSH), the Occupational
 Safety and Health Administration (OSHA), the Consumer Product Safety
 Commission (CPSC) and the Centers for Disease Control and Prevention
-(CDC). All are United States government publications, in the public
-domain. Where something is general practice rather than a published
-rule, the text says so.
+(CDC). All but one are United States government publications, in the
+public domain. The exception is Poison Control, the National Capital
+Poison Center, which is not; its facts are restated in our own words.
+Where something is general practice rather than a published rule, the
+text says so.
 
 It sits beside the other water guides. [Where Water Comes
 From](where_water_comes_from.md) is about the source, and whether you
@@ -46,8 +48,11 @@ deaths often happen because the air is short of oxygen or toxic, and
 that "More than 60% of confined space fatalities occur among would-be
 rescuers." If someone collapses inside a tank or a well, do not go in
 after them. Call emergency services, and keep everyone else out. The
-rules are written for workplaces; applying them to a farm cistern or a
-dug well is our reading, and the safe one.
+CDC says the same of the pit around a well head, in its advice on wells
+after an emergency: "Do not enter the well pit. Gases and vapors can
+build up in well pits, creating a hazardous environment." The OSHA and
+NIOSH rules are written for workplaces; applying them to a farm cistern
+or a dug well is our reading, and the safe one.
 
 **Keep small children away from any container of water.** The CPSC
 warns that 5-gallon buckets pose a serious threat to toddlers: the tall,
@@ -56,8 +61,18 @@ a top-heavy infant to get out after toppling in headfirst. It lists
 pails, coolers, fish tanks and landscape ponds among the other
 containers children have drowned in, and its advice is direct: "Be sure
 all containers with liquids are emptied immediately after use." A
-bucket brigade, a trough or an open tank is exactly this hazard. Cover
-it, fence it, or empty it.
+bucket brigade, a trough or an open tank is exactly this hazard. Empty
+it, fence it, or cover it with a rigid lid that is fastened down and
+that a child cannot lift or slide aside (general practice).
+
+A loose or floating cover is not a barrier. The same CPSC sheet warns,
+of spas and hot tubs: "A solar cover can allow children to slip into the
+water while the cover appears to stay in place, hiding the child." It
+tells owners to "Always secure the safety cover on your spa or hot
+tub." A tarp stretched over a tank or a pit is the same trap
+(our reading). The opening of a well or a cistern needs the same kind
+of lid: rigid, fastened, and too heavy or too well locked for a child
+to move (general practice).
 
 **Never start a siphon with your mouth on fuel, chemicals or dirty
 water.** Poison Control warns that siphoning petrol by mouth can let it
@@ -162,6 +177,23 @@ The simplest system there is: get the water up high once, by rain off a
 roof, a spring above the house, or a hand pump, and let gravity deliver
 it after that.
 
+### A tank up high is a heavy thing up high
+
+Water is heavy, and a raised tank holds a lot of it. At about a kilogram
+a litre, a 200-litre barrel holds over 200 kg of water and a 1,000-litre
+tank over a tonne, before the tank itself is counted (arithmetic). A
+stand that tips or gives way drops all of that at once. So (general
+practice):
+
+- Build or buy a stand rated for the full weight of the tank when it is
+  full, not when it is empty.
+- Set it on firm, level ground that will stay firm when it is soaked,
+  and check it after heavy rain and after a frost.
+- Keep children off it, and off the tank.
+- Anything taller than a few courses of blocks, or for a large tank, is
+  a designer's job, not a home project (see where your own work stops,
+  below).
+
 ### The air in the pipe
 
 A home-made gravity line can stop for no visible reason, and the
@@ -170,13 +202,16 @@ reason is often air (general practice).
 The NRCS standard explains what a designer has to do: provide for air
 to get into and out of the pipeline, "as needed to prevent air locking",
 and "Design the pipeline to remain below the hydraulic grade line
-during operation." The hydraulic grade line is easiest to picture as a
-straight line from the water surface in the tank down to the open end
-of the pipe (a little lower while water is flowing, because friction
-uses up some of the head). Any part of the pipe that rises above that
-line is in trouble: the pressure there falls below the air's, air can
-collect at the high point, and the flow slows or stops (our
-explanation). The standard says that where
+during operation." The hydraulic grade line is easiest to picture like
+this. With the outlet shut and nothing flowing, it is level with the
+water surface in the tank. While water runs out of an open end, it falls
+roughly in a straight line from the tank's water surface down to that
+open end, because friction uses up the head along the way. The flowing
+line is the lower of the two, so it is the one a pipe has to stay under.
+Any part of the pipe that rises above it is in trouble: the pressure
+there falls below the air's, air can collect at the high point, and the
+flow slows or stops (all of this is our explanation of the standard's
+rule). The standard says that where
 parts of a pipeline sit above the grade line, an air pump may be needed
 from time to time.
 
@@ -212,9 +247,12 @@ Two rules from the EPA's cross-connection manual apply to every tank:
   with open air between them. "In general, the air gap must be twice
   the supply pipe diameter but never less than one inch." A 3/4 inch
   pipe needs at least 1 1/2 inches of air (arithmetic). The NRCS
-  standard uses the same rule for pipelines, and requires a backflow
-  prevention device or an air gap wherever backflow could contaminate a
-  water supply.
+  standard uses the same rule for pipelines in two parts: a backflow
+  prevention device or an air gap between a pump's outlet and the
+  pipeline wherever harmful backflow may occur, the gap at least twice
+  the supply pipe's inside diameter or 1 inch, whichever is greater; and
+  "approved backflow prevention devices on all pipelines where back flow
+  may contaminate the source water supply or ground water."
 - **A vacuum breaker on hose taps.** The EPA describes hose bibb vacuum
   breakers: small devices screwed onto an outside tap, which let air in
   and stop backsiphonage when the supply is turned off. They are cheap
@@ -273,6 +311,12 @@ A hand squeeze-bulb or a pump-type siphon starter does the same job
 for liquids you must not touch. Use a separate one for fuel, and never
 use a fuel hose for water (general practice).
 
+If you must move fuel at all, treat it as fuel first and a siphon
+second (general practice): do it outdoors, never in a garage or a shed;
+with every engine involved switched off and cold; with nothing nearby
+that could flame or spark, and no smoking; and into an approved fuel
+can standing on the ground.
+
 The siphon is also the reason for the cross-connection rule above. A
 hose dangling in a barrel, still attached to a tap, *is* a siphon, just
 waiting for a pressure drop to start it backwards.
@@ -297,9 +341,20 @@ water further than that, and in practice far less.
 The Army's well-drilling manual (TM 5-297, 1943) gives the working
 figure for shallow wells raised by suction pumps: "the depth to water
 must not exceed 20 to 25 feet." It describes the common pitcher pump
-supplied for driven wells as being of the suction type. Atmospheric
-pressure is lower at altitude, so the limit is lower too in the
-mountains (general knowledge).
+supplied for driven wells as being of the suction type. Its section on
+pitcher pumps explains the margin: a well-made pump in good condition
+may lift 28 feet or more, but "allowance must be made for elevation
+above sea level, friction, presence of air in the water, and eventual
+wear", and once the suction lift plus friction passes 22 feet for a
+plunger pump, reduced capacity and more frequent failure may be
+expected. The air presses less at altitude, which is why the limit
+falls in the mountains (general knowledge).
+
+The same section gives a warning worth knowing before you work a pump
+whose lift is too great, or whose suction pipe is too small: "the
+handle is likely to fly up when released during the downstroke." Keep
+your face and head out of the handle's path, and do not let go of it
+partway through a stroke (general practice).
 
 Measure the depth to the water in the dry season, when it is lowest,
 before you buy a suction pump (general practice). The depth that
@@ -310,9 +365,10 @@ pumping, which can be lower than the resting level (general practice).
 
 For water deeper than a suction pump can reach, the pumping part has to
 go down the well, near the water, so it pushes water up rather than
-sucking it. The same Army manual says that in a deeper well it is
-possible to lift water from a greater depth "by installing a Eureka
-cylinder or similar type pump near the water level." Modern deep-well
+sucking it. The same Army manual says that where 2-inch or larger pipes
+are used, it is possible to lift water from a greater depth "by
+installing a Eureka cylinder or similar type pump near the water
+level." Modern deep-well
 hand pumps work the same way: a cylinder down in the water, worked by a
 rod from the handle at the top (general knowledge). They lift from much
 deeper, at the cost of a long rod and harder pumping.
@@ -322,10 +378,26 @@ deeper, at the cost of a long rod and harder pumping.
 A pitcher pump usually has to be primed: water poured into the top to
 wet the leather or rubber seal so it can grip. Prime with clean water,
 the same water you would drink, because priming water runs down into
-the well (general practice). The Army manual recommends a foot valve, a
-one-way valve at the bottom of the suction pipe, so that a pump does not
-need priming each time it stops. A pump that loses its prime overnight
-usually has a leaking foot valve or check valve (general practice).
+the well (general practice).
+
+A **foot valve** is a one-way valve at the bottom of the suction pipe.
+It holds the water in the pipe, so a pump does not need priming each
+time it stops; the Army manual recommends one for the pump that keeps a
+dug well dry while it is being dug. But a pump that holds its water can
+freeze. Most pitcher pumps, the manual says, have a tilting check valve
+that makes them easy to drain: lifting the handle to its highest point
+pushes the plunger down onto that valve, opens it, and lets the water in
+the pump and the suction pipe run back down, after which the pump is
+simple to prime again. On a pump like that, the manual says, a foot
+valve "prevents convenient drainage. Foot valves, therefore, are not
+installed where either the pump or the suction line is exposed to
+freezing temperatures." If your pump or its pipe can freeze, leave the
+foot valve out and drain the pump before a frost by lifting the handle
+high (general practice following the manual).
+
+A pump that has lost its prime overnight may have a leaking foot valve
+or check valve, or someone may have lifted the handle high and drained
+it (general practice).
 
 A pump is part of the well. [Where Water Comes
 From](where_water_comes_from.md) covers why a well's top has to stay
@@ -385,10 +457,21 @@ Plenty of water moving is yours to do. Some is not.
   large tank is for people trained in confined-space entry, who test the
   air before going in, monitor it the whole time and have a rescue plan
   ready (NIOSH; OSHA).
-- **Well work beyond the pump handle**: pulling a deep-well cylinder,
-  deepening or drilling a well, or opening the well cap on a drilled
-  well, belongs to a licensed well contractor in most places (general
-  practice; your state sets the rules).
+- **Well work beyond the pump handle.** Pulling a deep-well cylinder,
+  and deepening or drilling a well, belong to a licensed well contractor
+  in most places (general practice; your state sets the rules). Even
+  disinfecting a well, which means opening its vent cap, is a
+  contractor's job in the CDC's advice on wells after an emergency:
+  "Wells should be disinfected by a well or pump contractor, due to
+  safety concerns." Where a well has an electric pump, the CDC's first
+  precaution is to "Turn off all electricity to the well area". It
+  adds: "Do not attempt to repair the water system unless you are
+  experienced with this type of work; electrical shock can occur." If
+  you are not experienced, it says to contact a qualified electrician,
+  well contractor or pump contractor.
+- **A tall tank stand, or any stand for a large tank.** A stand that
+  fails drops the whole weight of the water at once. Have it designed,
+  or buy one rated for the full tank (general practice).
 - **Anything that connects to a public water supply or to your house
   plumbing.** The EPA's manual gives a whole chapter to testing backflow
   preventers, and its sample local ordinance has them tested by
@@ -406,9 +489,10 @@ Plenty of water moving is yours to do. Some is not.
   practice).
 - **Any digging for a pipe.** Call 811 first, and know when a trench
   needs protection: see [Square, Level and
-  Plumb](square_level_and_plumb.md). The NRCS standard makes the
-  landowner responsible for locating buried utilities and addressing
-  trench safety.
+  Plumb](square_level_and_plumb.md). The NRCS standard says "The
+  landowner and/or contractor is responsible for locating all buried
+  utilities", and lists addressing trench safety among the ways to
+  ensure safe conditions.
 
 ## Traps
 
@@ -422,6 +506,9 @@ Plenty of water moving is yours to do. Some is not.
   in April can lose its water in September.
 - **An open bucket in a yard with toddlers.** Empty it the moment you
   are done.
+- **A tarp or a floating cover on a tank.** It looks closed and is not.
+- **A foot valve on a pump that can freeze.** The water it holds splits
+  the pump. Drain it instead.
 - **Forgetting the pressure goes up as the pipe goes down.** The
   fitting at the bottom of a long drop carries all the head above it.
 
@@ -471,8 +558,11 @@ default home.
 
 - You never enter a tank, cistern or well, and you would not go in after
   someone who had collapsed there.
-- You empty or cover every bucket and container of water where small
-  children could reach it, and cover stored water against mosquitoes.
+- You empty every bucket and container of water where small children
+  could reach it, or close it with a rigid, fastened lid a child cannot
+  move, and you cover stored water against mosquitoes.
+- You set a raised tank on a stand rated for its full weight, on firm
+  ground.
 - You never start a siphon by mouth on anything you would not drink.
 - You never leave a hose connected to a tap with its end in a tank,
   trough, sprayer, pond or bucket, and you fill tanks through an air gap.
@@ -485,6 +575,8 @@ default home.
   meet.
 - You know a suction pump will not lift water from more than about 20 to
   25 feet down, and what to use when the water is deeper.
+- You drain a pitcher pump before a frost, and leave out the foot valve
+  where the pump or its pipe can freeze.
 - You carry water in loads you can lift close to your body, and use a
   cart for the rest.
 - You check the water rights before you take water from a stream.
@@ -511,20 +603,32 @@ is updated in place. Web pages and documents were read on 4 October
   preventers). https://19january2021snapshot.epa.gov/sites/static/files/2015-09/documents/epa816r03002_0.pdf
 - Department of the Army (War Department). *Well Drilling*, TM 5-297,
   29 November 1943, as digitised by the Government Publishing Office
-  (wells raised by suction pumps: depth to water not more than 20 to 25
-  feet; pitcher pumps of the suction type; a Eureka cylinder or similar
-  pump near the water level for greater depth; a foot valve in the
-  suction pipe so a pump need not be primed each time it is shut off).
+  (paragraph 3, wells raised by suction pumps: depth to water not more
+  than 20 to 25 feet; the dug-well pump with a foot valve in the suction
+  pipe so it need not be primed each time it is shut off; with 2-inch or
+  larger pipes, a Eureka cylinder or similar pump near the water level
+  for greater depth; pitcher pumps of the suction type; paragraph 130,
+  pitcher pumps: the tilting check valve that drains the pump when the
+  handle is raised high, a foot valve preventing convenient drainage and
+  not installed where the pump or suction line can freeze, a lift of 28
+  feet or more from a good pump with allowance for elevation, friction,
+  air and wear, reduced capacity past 22 feet for plunger pumps, and the
+  handle flying up when the lift is too great). Text version:
   https://www.govinfo.gov/content/pkg/GOVPUB-W-3317fdebba68d1dec72e414a9a999a8f/html/GOVPUB-W-3317fdebba68d1dec72e414a9a999a8f.htm
+  and the scanned book:
+  https://www.govinfo.gov/content/pkg/GOVPUB-W-3317fdebba68d1dec72e414a9a999a8f/pdf/GOVPUB-W-3317fdebba68d1dec72e414a9a999a8f.pdf
 - USDA Natural Resources Conservation Service, Vermont. Conservation
   Practice Standard, Livestock Pipeline, Code 516, January 2021 (friction
-  and minor losses; 72 percent of the pipe's pressure rating; backflow
-  prevention or an air gap at least twice the inside diameter or 1 inch;
-  air release and vacuum relief to prevent air locking; the pipeline
-  below the hydraulic grade line; slow filling; a flushing valve at the
-  distant end or low point; draining when freezing is a hazard; buried
-  utilities, trench safety and protection from water blowing from
-  valves; permissions from regulatory agencies).
+  and minor losses; 72 percent of the pipe's pressure rating; a backflow
+  prevention device or an air gap, at least twice the inside diameter or
+  1 inch, between pump discharge and pipeline, and approved backflow
+  prevention devices where backflow may contaminate the source water or
+  ground water; air release and vacuum relief to prevent air locking;
+  the pipeline below the hydraulic grade line; slow filling; a flushing
+  valve at the distant end or low point; draining when freezing is a
+  hazard; the landowner and/or contractor locating buried utilities;
+  trench safety and protection from water blowing from valves among the
+  safety measures; permissions from regulatory agencies).
   https://efotg.sc.egov.usda.gov/api/CPSFile/29283/516_VT_CPS_Livestock_Pipeline_2021_pdf
 - USDA Natural Resources Conservation Service, North Carolina. Practice
   533, Pumping Plant, cost scenario #2, Water Ram, FY2015, compiled 7
@@ -554,13 +658,27 @@ is updated in place. Web pages and documents were read on 4 October
   Drowning Deaths*, Publication 5013, printed with the code 032012
   (5-gallon buckets a serious threat to toddlers; pails, coolers, sinks,
   fish tanks and landscape ponds; empty containers immediately after
-  use). https://www.cpsc.gov/s3fs-public/PreventChildInHomeDrowningDeaths.pdf
+  use; a solar cover on a spa letting a child slip under while it
+  appears to stay in place; always secure the safety cover on a spa or
+  hot tub). https://www.cpsc.gov/s3fs-public/PreventChildInHomeDrowningDeaths.pdf
 - Centers for Disease Control and Prevention. Mosquito Control at Home,
   page dated 16 April 2024, read through a page summary because cdc.gov
   refuses scripted downloads (once a week empty, scrub, turn over, cover
   or throw out items that hold water; tightly cover water storage
   containers).
   https://www.cdc.gov/mosquitoes/mosquito-control/mosquito-control-at-home.html
+- Centers for Disease Control and Prevention. How to Disinfect Wells
+  After an Emergency, page dated 29 May 2025, read through a page
+  summary because cdc.gov refuses scripted downloads, with the quoted
+  sentences checked word for word against a copy archived in January
+  2025 by RestoredCDC.org (do not
+  enter the well pit, where gases and vapors can build up; turn off all
+  electricity to the well area; do not repair the water system unless
+  experienced, because electrical shock can occur; a qualified
+  electrician, well contractor or pump contractor; wells should be
+  disinfected by a well or pump contractor; remove the vent cap to
+  disinfect).
+  https://www.cdc.gov/water-emergency/about/how-to-disinfect-wells-after-an-emergency.html
 
 ### Cited as the authority, restated in our own words (not public domain)
 
@@ -594,7 +712,16 @@ is updated in place. Web pages and documents were read on 4 October
 ### Labelled in the text as general practice, arithmetic or our reading, not sourced
 
 - Applying OSHA's and NIOSH's workplace confined-space rules to farm
-  cisterns, tanks and dug wells is our reading.
+  cisterns, tanks and dug wells is our reading; the CDC's warning covers
+  well pits only.
+- A rigid, fastened, child-proof lid on buckets, tanks, wells and
+  cisterns is general practice; that a tarp over a tank is the same trap
+  as a spa's solar cover is our reading of the CPSC's warning.
+- The weight of a raised tank is arithmetic; a stand rated for the full
+  tank, firm ground, keeping children off, and a designer for tall or
+  large stands are general practice.
+- The rules for moving fuel (outdoors, engines off and cold, no flame or
+  spark, an approved can on the ground) are general practice.
 - A litre of water weighing about a kilogram, and a US gallon about 8.3
   pounds, are general knowledge; the EPA's 62.4 pounds per cubic foot is
   the sourced figure.
@@ -613,18 +740,22 @@ is updated in place. Web pages and documents were read on 4 October
 - The safe way to start a siphon, keeping the crest low, air leaks
   stopping a siphon, and keeping fuel and water siphons separate are
   general practice.
-- Lower suction lift at altitude, and modern deep-well hand pumps
-  working with a cylinder and rod, are general knowledge; measuring the
+- Why the suction limit falls at altitude, and modern deep-well hand
+  pumps working with a cylinder and rod, are general knowledge (the
+  allowance for altitude itself is the Army manual's); measuring the
   depth to water in the dry season, pumping drawing the level down,
-  priming with drinking water and a leaking foot or check valve losing
-  the prime are general practice.
-- Why air collects above the hydraulic grade line is our explanation of
-  the NRCS rule; that a home-made line often stops because of air, and
+  priming with drinking water, keeping clear of a handle that can fly
+  up, draining a pump before frost, and a leaking valve or a raised
+  handle losing the prime are general practice.
+- How the hydraulic grade line lies with the outlet shut and with water
+  flowing, and why air collects above it, are our explanation of the
+  NRCS rule; that a home-made line often stops because of air, and
   opening a tap at the top when draining, are general practice.
 - That one mouth-siphon is enough to breathe fuel in is our reading of
   Poison Control's warning.
 - That mouth-siphoning chemicals or dirty water is as bad as fuel is
   general practice beside Poison Control's warning about petrol.
-- Well work belonging to licensed contractors, and permits and dam
-  risks for streams and ponds, are general practice; the rules are set
-  by each state.
+- Pulling cylinders and deepening or drilling wells belonging to
+  licensed contractors, and permits and dam risks for streams and ponds,
+  are general practice; the rules are set by each state. Disinfecting a
+  well, and the electricity warning, are the CDC's.
