@@ -11,6 +11,14 @@ Each line is written the way a player would hear it; the release notes and
 
 ## Shipped
 
+- **v0.1450.0: an erased account stays erased on every device, and server
+  settings save safely.** After you erase your account on a server, the server
+  now remembers for up to 30 days (a setting its admin can change) that it was
+  erased, as a one-way fingerprint that is not your name or your data, so a
+  second device that was switched off at the time cannot sign you up again by
+  itself; pressing Connect is the only way back. The desktop Server Settings
+  page no longer risks writing default values over a server's real settings.
+
 - **v0.1449.2: three more Library guides.** Making an Agreement That Holds
   (putting a deal in writing, cosigning, sharing a well), Organising Shared
   Work (a work day with neighbours, lifting together, heat, and a review

@@ -636,6 +636,11 @@
       "date": "2026-10-04",
       "decision": "OPERATOR ANSWERS (2026-10-04): BUG-136 overloaded = slower walking in realistic mode, and no jumping under gravity based on weight/mass; in low or zero g you can carry more but mass still applies. Pipes show their REAL material (including paint), made identifiable with colour coding, labels and stripes; he asked whether international standard markings exist. Landing hero shot: no spaceship worth showing yet; idea: start dark on the Milky Way, then a sunrise over a scenic place, e.g. from Silverdale, WA toward Mount Rainier.",
       "why": "Routes the BUG-136 fix (realistic and simplified modes per the dual-modes rule), a dated standards findings doc before any pipe marking work, and a hero-shot lane on the rig."
+    },
+    {
+      "date": "2026-10-04",
+      "decision": "Released v0.1450.0: the erase marker (the operator's option 2: keyed fingerprint plus day, 30 days and 100000 entries by default, in-app settings, explicit Connect/Enter to sign up again) and BUG-137 (desktop Server Settings could write defaults over the live settings). Three review rounds (17, 11, 3 findings). Increment 2 (meet in the Commons) is ready on ship-homes-2 and merges next.",
+      "why": "Closes BUG-135's known limit the way the operator chose, and a live-server data risk found by its review."
     }
   ],
   "active_scopes_to_avoid": [
