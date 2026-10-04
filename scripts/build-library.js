@@ -23,6 +23,44 @@ const LIB = 'data/library';
 const CATALOG = path.join(LIB, 'catalog.json');
 const TAGS = path.join(LIB, 'tags.json');
 
+// A RUN THAT DIES PART-WAY LEAVES data/library/ HALF-WRITTEN (2026-10-03).
+// This script rewrites some 140 files in passes (copy every doc, then rewrite
+// its links, then the indexes), so an error in the middle leaves a mix of new
+// copies and old ones. Twice in one evening a first run after a merge died
+// that way (most likely Windows briefly holding a file it was writing, which
+// throws EBUSY/EPERM), and git then showed 72 shipped guides changed by 703
+// lines; a second run was clean. Committing after the first would have
+// shipped the mix. The cause, caught on a loop of runs: "UNKNOWN: unknown
+// error, open 'data\library\search-index.json'" on about 1 run in 4 (a
+// sharing violation while something held the file just written). So: every
+// write retries a short Windows lock, and a run that still fails says plainly
+// that the folder is not to be committed.
+process.on('uncaughtException', (err) => {
+  console.error(err && err.stack ? err.stack : String(err));
+  console.error('');
+  console.error('library: FAILED PART-WAY. data/library/ may now be half-written (some copies new, some old).');
+  console.error('library: do NOT commit it. Run `node scripts/build-library.js` again until it finishes.');
+  process.exit(1);
+});
+
+// Retry a write that Windows refuses for a moment (another process, an
+// indexer or an antivirus scan holding the file). Up to 8 tries, 150 ms apart.
+function writeRetrying(what, fn) {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return fn();
+    } catch (err) {
+      // UNKNOWN is how Node reports some Windows sharing violations: caught
+      // 2026-10-03 as "UNKNOWN: unknown error, open '...search-index.json'"
+      // on 1 run in 4, right after a previous run wrote that 4 MB file.
+      const transient = err && ['EBUSY', 'EPERM', 'EACCES', 'UNKNOWN'].includes(err.code);
+      if (!transient || attempt >= 8) throw err;
+      console.error('library: ' + what + ' was locked (' + err.code + '), retrying');
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 150);
+    }
+  }
+}
+
 function readJson(file) {
   try {
     return JSON.parse(fs.readFileSync(file, 'utf8'));
@@ -114,7 +152,7 @@ for (const cat of categories) {
     // implements). A link to something NOT shipped becomes a GitHub URL, which
     // at least resolves. Both are computed in pass 2 below, once every
     // catalogue entry's flat filename is known.
-    fs.copyFileSync(d.src, path.join(LIB, file));
+    writeRetrying(file, () => fs.copyFileSync(d.src, path.join(LIB, file)));
     rewrites.push({ file, src: d.src });
     const doc = { title: d.title, file };
     if (d.tags && d.tags.length) doc.tags = d.tags;
@@ -154,7 +192,7 @@ for (const r of rewrites) {
     return '](' + GITHUB + abs + (frag || '') + ')';
   });
 
-  if (after !== before) fs.writeFileSync(p, after);
+  if (after !== before) writeRetrying(r.file, () => fs.writeFileSync(p, after));
 }
 console.log('library: rewrote ' + linksRewritten + ' cross-doc links to /library#slug, ' + linksToGithub + ' to GitHub');
 // ── Pass 3: the search index ──
@@ -205,7 +243,7 @@ for (const cat of manifest.categories) {
     });
   }
 }
-fs.writeFileSync(
+writeRetrying('search-index.json', () => fs.writeFileSync(
   path.join(LIB, 'search-index.json'),
   JSON.stringify({
     _comment:
@@ -215,11 +253,11 @@ fs.writeFileSync(
       'instead and does not read this.',
     docs: searchDocs,
   }) + '\n'
-);
+));
 const idxKb = Math.round(fs.statSync(path.join(LIB, 'search-index.json')).size / 1024);
 console.log('library: search index ' + searchDocs.length + ' docs, ' + idxKb + ' KB (lazy-loaded)');
 
-fs.writeFileSync(path.join(LIB, 'index.json'), JSON.stringify(manifest, null, 2) + '\n');
+writeRetrying('index.json', () => fs.writeFileSync(path.join(LIB, 'index.json'), JSON.stringify(manifest, null, 2) + '\n'));
 console.log(
   'library: copied ' + copied + ' docs into ' + LIB + '/ across ' +
   manifest.categories.length + ' categories, ' + knownTags.size + ' tags defined'
