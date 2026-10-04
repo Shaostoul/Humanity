@@ -1293,9 +1293,26 @@
       "subject": "shelter",
       "title": "Roofing and keeping water out",
       "summary": "Shed water reliably, which is most of what a building does.",
-      "status": "absent",
+      "status": "sourced",
+      "reading": [
+        "roofs-and-keeping-water-out"
+      ],
       "skills": [
         "shelter_building"
+      ],
+      "data": [
+        "data/blueprints/basic.ron"
+      ],
+      "sources": [
+        "osha",
+        "ecfr",
+        "epa",
+        "dod-technical-manuals",
+        "fpl-wood-handbook",
+        "building-america",
+        "fema",
+        "hud",
+        "hud-rrig"
       ],
       "locale_dependent": true,
       "hazard": "serious"
@@ -1374,10 +1391,24 @@
       "subject": "shelter",
       "title": "Repairing a building",
       "summary": "Diagnose and fix the common failures before they compound.",
-      "status": "absent",
+      "status": "sourced",
+      "reading": [
+        "repairing-a-building"
+      ],
       "skills": [
         "shelter_building",
         "woodworking"
+      ],
+      "data": [
+        "data/blueprints/basic.ron"
+      ],
+      "sources": [
+        "fema",
+        "osha",
+        "ecfr",
+        "epa",
+        "fpl-wood-handbook",
+        "hud-rrig"
       ],
       "locale_dependent": false,
       "hazard": "caution"
@@ -1846,9 +1877,27 @@
       "subject": "materials",
       "title": "Salvage and reuse",
       "summary": "See discarded things as stock, and know which are safe to reuse.",
-      "status": "absent",
+      "status": "sourced",
+      "reading": [
+        "salvage-and-reuse"
+      ],
       "skills": [
         "engineering"
+      ],
+      "data": [
+        "data/recipes.csv",
+        "data/items.csv"
+      ],
+      "sources": [
+        "epa",
+        "ecfr",
+        "osha",
+        "cpsc",
+        "cbp",
+        "niosh-pocket-guide",
+        "usda-canning-guide",
+        "usfs",
+        "fpl-wood-handbook"
       ],
       "locale_dependent": false,
       "hazard": "caution"
