@@ -502,6 +502,9 @@ pub(crate) struct EngineState {
     pub(crate) connection_objects: Vec<(usize, usize, Vec3, Quat, Vec3)>,
     pub(crate) connection_cyl: Option<usize>,
     pub(crate) connection_mats: std::collections::HashMap<String, usize>,
+    /// The pipes' marker bands (2026-10-04): the merged band meshes, the mode they were built
+    /// in, and the showcase pin. See engine::pipe_markers.
+    pub(crate) pipe_markers: crate::engine::pipe_markers::PipeMarkerState,
     /// Conduit FLOW paths (v0.622, declutter v0.623): the routed polyline + the from/to machine ids
     /// for every connection. Only the connection(s) touching the SELECTED machine animate (RGB flow
     /// markers); the rest are just their static pipe -- so a busy home is not a sphere-soup. Rebuilt

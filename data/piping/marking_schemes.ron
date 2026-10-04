@@ -1,0 +1,388 @@
+// Pipe marking schemes (2026-10-04): which coloured bands a pipe carries to say
+// WHAT FLOWS INSIDE IT, scheme by scheme. Read by src/ship/pipe_marking.rs (disk
+// first, the copy built into the exe if this file is missing or does not parse).
+//
+// The research behind every row is docs/reference/findings/2026-10-04-pipe-marking-standards.md.
+// Each mapping cites the finding it comes from (F4, F11, F22, ...). A row marked
+// `game_choice: true` is OURS: no scheme we read covers that content, or the scheme
+// names a group colour and we picked the additional colour. Its note says which part
+// is ours and why. Nothing here claims a standard says something the findings did not
+// read.
+//
+// WHAT THE STANDARDS MARK, AND WHAT THEY DO NOT (F28). Every scheme marks the
+// CONTENT (water, fuel, air), never the pipe's material. So the pipe body draws its
+// real material (data/piping/pipe_materials.ron) and these colours live only in the
+// marker bands, which every scheme whose text on this we read allows (F5, F8, F17, F29).
+//
+// COLOURS. Standards name a colour ("blue") and some give chromaticity limits (ISO
+// 14726 Table 1, F10) that we did not copy. Every `srgb` below is OUR rendition of
+// the named colour, picked to read clearly in the game; ISO 14726 itself allows
+// "colours of a similar shade and tone" (F10). BS 1710's BS 4800 codes are recorded
+// in the notes, not converted.
+//
+// FIELD REFERENCE
+//   default_scheme   the scheme aboard the ship (ISO 14726, the standard for ships)
+//   placement        where markers go along a run, and how a band is drawn
+//   schemes[].contents[]
+//     content        the game's connection kind ("water", "power", ...), the same
+//                    string a machine connection carries in data/machines/*.ron
+//     name           the content as the scheme words it (restated, not quoted)
+//     main           colour id: the band SIMPLIFIED mode shows, and the outer bands
+//                    of the full-realism triple
+//     additional     colour id of the middle band (ISO 14726's "additional colour",
+//                    F10), where the scheme has one; full mode draws main,
+//                    additional, main
+//     bands          an explicit full-mode sequence for any other layout (the
+//                    two-stripe tape of MIL-STD-1247D, BS 1710's five-band water
+//                    markers); empty = the rule above
+//     cite           the finding numbers the mapping comes from
+//     game_choice    true when any part of the mapping is ours (the note says which)
+//
+// A content with no row in a scheme gets no markers under that scheme. The default
+// scheme must cover every content the game routes: the test
+// `shipped_marking_registry_covers_every_routed_content` fails otherwise.
+(
+    default_scheme: "iso_14726",
+    placement: (
+        // Bands and legends "not less than 20 feet apart on straight pipe runs inside
+        // buildings" (GSFC-STD-8006 4.2.2, F4; the intent reads as a maximum spacing).
+        // 20 ft is 6.1 m. Every gap between two markers on a run is at most this, so at
+        // least one marker is in view along any run (MIL-STD-1247D 5.7.2's aim, F22).
+        interval_m: 6.1,
+        // How far in from where the pipe meets its machine the end marker sits, and how
+        // far past a bend the bend marker starts, so neither lands on the fitting. Ours.
+        end_clearance_m: 0.3,
+        bend_clearance_m: 0.15,
+        // Length of one colour band along the pipe. Ours: ISO 14726's clause 5 (band
+        // widths and order) was not read (findings open question 2).
+        band_m: 0.06,
+        // A band is a sleeve a little proud of the pipe, like tape or a painted ring:
+        // radius = pipe radius x band_radius_scale + band_radius_add_m. Ours.
+        band_radius_scale: 1.15,
+        band_radius_add_m: 0.002,
+        // A painted or taped band: no metal, a satin finish. Ours.
+        band_metallic: 0.0,
+        band_roughness: 0.5,
+    ),
+    schemes: [
+        (
+            id: "iso_14726",
+            name: "ISO 14726",
+            title: "Ships and marine technology - Identification colours for the content of piping systems",
+            edition: "ISO 14726:2008, confirmed current in 2024 (F9)",
+            cite: "F9, F10, F11, F12, F13",
+            note: "The ship's scheme. Twelve main colours each mark a group of similar media; a specific medium adds an additional colour between two bands of the main colour (F10, F13). The additional-colour codes in F12 came from a text extraction checked two ways; confirm them against the printed standard (findings open question 9). Whether ISO 14726 also asks for the content's name in words is unknown (its clause 5 was not read, F13).",
+            colours: [
+                (id: "black", name: "Black", srgb: (28, 28, 28), note: "Our rendition."),
+                (id: "blue", name: "Blue", srgb: (24, 88, 184), note: "Our rendition."),
+                (id: "brown", name: "Brown", srgb: (115, 70, 38), note: "Our rendition."),
+                (id: "green", name: "Green", srgb: (36, 140, 64), note: "Our rendition."),
+                (id: "grey", name: "Grey", srgb: (132, 134, 136), note: "Our rendition."),
+                (id: "maroon", name: "Maroon", srgb: (112, 28, 44), note: "Our rendition."),
+                (id: "orange", name: "Orange", srgb: (232, 112, 24), note: "Our rendition."),
+                (id: "silver", name: "Silver", srgb: (196, 198, 202), note: "Our rendition."),
+                (id: "red", name: "Red", srgb: (200, 32, 36), note: "Our rendition."),
+                (id: "violet", name: "Violet", srgb: (112, 52, 150), note: "Our rendition."),
+                (id: "white", name: "White", srgb: (236, 236, 232), note: "Our rendition."),
+                (id: "yellow", name: "Yellow", srgb: (240, 196, 24), note: "Our rendition."),
+            ],
+            contents: [
+                (
+                    content: "water",
+                    name: "Potable water",
+                    main: "blue",
+                    additional: Some("green"),
+                    cite: "F11 (blue: fresh water), F12 and F13 (potable water: blue-green-blue)",
+                    note: "DIN's own summary of the standard gives this exact triple (F13).",
+                ),
+                (
+                    content: "hot_water",
+                    name: "Hot fresh water",
+                    main: "blue",
+                    additional: Some("red"),
+                    cite: "F11 (blue: fresh water)",
+                    game_choice: true,
+                    note: "The main colour is ISO 14726's fresh-water group. The red middle band is ours: no hot-water code was read (F12 lists examples only), and blue-red-blue was not checked against the full Table 3 for a clash (findings open question 9). Red only ever sits in the middle, never as the main colour, so it cannot read as a fire-fighting line.",
+                ),
+                (
+                    content: "air",
+                    name: "Air in ventilation systems",
+                    main: "white",
+                    cite: "F11 (white: air in ventilation systems)",
+                    note: "The home's air lines move cabin air, which is what this group covers. Breathing air supplied from cylinders is a different medium, grey-white-grey (F12).",
+                ),
+                (
+                    content: "gas",
+                    name: "Flammable gas",
+                    main: "yellow",
+                    cite: "F11 (yellow: flammable gases)",
+                ),
+                (
+                    content: "fuel",
+                    name: "Fuel",
+                    main: "brown",
+                    cite: "F11 (brown: fuel)",
+                ),
+                (
+                    content: "waste",
+                    name: "Waste (black water)",
+                    main: "black",
+                    cite: "F11 (black: waste media, whose examples include black water)",
+                ),
+                (
+                    content: "greywater",
+                    name: "Grey water",
+                    main: "black",
+                    additional: Some("blue"),
+                    cite: "F11 (black: waste media, whose examples include grey water)",
+                    game_choice: true,
+                    note: "The main colour is ISO 14726's waste group, which names grey water as an example. The blue middle band is ours, to tell grey water (used fresh water, reusable) from black water in full mode; in ISO 14726 an additional colour often matches the main colour of a related medium (F12's air and sounding pipes), and blue is fresh water. Not checked against Table 3 (open question 9).",
+                ),
+                (
+                    content: "nutrient",
+                    name: "Compost and nutrients",
+                    main: "black",
+                    additional: Some("green"),
+                    cite: "F11 (black: waste media), F15 (ISO 20560-1: black for fixed materials)",
+                    game_choice: true,
+                    note: "Ours. No ship scheme covers compost lines (ISO 14726 excludes cargo, F10). Compost is made from the home's organic waste, which is ISO 14726's black group, and ISO 20560-1 also puts powders and granulates in black (F15). The green middle band says it goes to the growing beds. In simplified mode it shows plain black, like the waste it was made from.",
+                ),
+                (
+                    content: "food",
+                    name: "Harvested grain and produce",
+                    main: "black",
+                    additional: Some("white"),
+                    cite: "F15 (ISO 20560-1: black for fixed materials, powder and granulates)",
+                    game_choice: true,
+                    note: "Ours. No ship scheme covers food conveyed from field to silo (ISO 14726 excludes cargo, F10). ISO 20560-1 marks powders and granulates black (F15), the one solids colour both ISO schemes share; aboard, black alone also means waste (F11), so full mode adds a white middle band to tell food from waste. Simplified mode cannot tell them apart.",
+                ),
+                (
+                    content: "power",
+                    name: "Electrical conduit (power)",
+                    main: "orange",
+                    bands: ["brown", "orange"],
+                    cite: "F22 (MIL-STD-1247D: electrical conduit, a brown and an orange stripe)",
+                    game_choice: true,
+                    note: "ISO 14726 has no colour for electrical lines (F11) and A13.1 does not apply to them (F1). The findings suggest MIL-STD-1247D's brown and orange stripe pair (F22), whose two-stripe form at least differs from ISO 14726's three-band markers. The stripes are F22's; showing orange alone in simplified mode is ours, because brown alone means fuel aboard (F11). Orange alone means oils other than fuels in ISO 14726 (F11), which the game routes none of; the words and the voltage should carry the identification (the label follow-up).",
+                ),
+                (
+                    content: "data",
+                    name: "Data cable (communications)",
+                    main: "green",
+                    bands: ["brown", "green"],
+                    cite: "F22 (MIL-STD-1247D files communications under electrical conduit)",
+                    game_choice: true,
+                    note: "Ours. No scheme read has a colour for data cabling: ISO 14726 has none (F11) and MIL-STD-1247D files communications under its electrical-conduit code, told apart only by the usage word (F22). Until text labels exist, the brown first stripe keeps F22's electrical family and the green second stripe (green alone in simplified mode) tells data from power. Green alone is ISO 14726's sea and outside water group (F11), which the game does not route yet; when it does, data must move.",
+                ),
+            ],
+        ),
+        (
+            id: "iso_20560_1",
+            name: "ISO 20560-1",
+            title: "Safety information for the content of piping systems and tanks - Part 1: Piping systems",
+            edition: "ISO 20560-1:2020 (free sample read); the 2024 edition is current and its changes were not read (F14)",
+            cite: "F14, F15",
+            note: "The international general scheme, which can also be used on ships (F14). Do NOT mix its colours with ISO 14726 aboard: its blue and green mean air and water, the opposite of ISO 14726's on those two (findings, Judgement calls). It also asks for the content name, a flow arrow and GHS pictograms where they apply (F15); those are the label follow-up.",
+            colours: [
+                (id: "green", name: "Green", srgb: (36, 140, 64), note: "Our rendition. Water (F15)."),
+                (id: "blue", name: "Blue", srgb: (40, 110, 200), note: "Our rendition. Air (F15)."),
+                (id: "grey", name: "Grey", srgb: (132, 134, 136), note: "Our rendition. Gases (F15)."),
+                (id: "black", name: "Black", srgb: (28, 28, 28), note: "Our rendition. Liquids and fixed materials (F15)."),
+                (id: "orange", name: "Orange", srgb: (232, 112, 24), note: "Our rendition. Acids (F15)."),
+                (id: "violet", name: "Violet", srgb: (112, 52, 150), note: "Our rendition. Alkalis (F15)."),
+                (id: "red", name: "Red", srgb: (200, 32, 36), note: "Our rendition. Firefighting medium; a safety colour from ISO 3864-4 (F15)."),
+                (id: "yellow", name: "Yellow", srgb: (240, 196, 24), note: "Our rendition. The safety colour for hazardous substances (F15)."),
+            ],
+            contents: [
+                (content: "water", name: "Water", main: "green", cite: "F15"),
+                (content: "hot_water", name: "Water", main: "green", cite: "F15"),
+                (content: "greywater", name: "Water", main: "green", cite: "F15"),
+                (content: "air", name: "Air", main: "blue", cite: "F15"),
+                (
+                    content: "gas",
+                    name: "Flammable gas (hazardous)",
+                    main: "yellow",
+                    cite: "F15 (yellow alone where hazardous substances need no further differentiation)",
+                    note: "Grey is the gases colour; how grey and yellow combine on one marker was not read, so this uses the rule that yellow may stand alone.",
+                ),
+                (
+                    content: "fuel",
+                    name: "Fuel (hazardous)",
+                    main: "yellow",
+                    cite: "F15 (yellow alone where hazardous substances need no further differentiation)",
+                ),
+                (content: "waste", name: "Liquids", main: "black", cite: "F15"),
+                (content: "nutrient", name: "Fixed materials", main: "black", cite: "F15 (powder, granulates)"),
+                (content: "food", name: "Fixed materials", main: "black", cite: "F15 (powder, granulates)"),
+            ],
+        ),
+        (
+            id: "asme_a13_1",
+            name: "ASME A13.1",
+            title: "Scheme for the Identification of Piping Systems",
+            edition: "Colours as restated by GSFC-STD-8006 (2017), which adopts A13.1 (F4). A13.1 revised its colour table in 2023 and a 2026 edition is listed; neither was read (F1, F3)",
+            cite: "F1, F3, F4, F5",
+            note: "The United States scheme. It does not apply to electrical conduits (F1, F3), so power and data have no row. Four colour slots are defined by the user (F5) and were not read, so waste, compost and food have no row either. A13.1 asks for a legend (the content's name) with the colour (F5).",
+            colours: [
+                (id: "safety_green", name: "Safety green", srgb: (0, 128, 80), note: "Our rendition. Water; white legend (F4)."),
+                (id: "safety_blue", name: "Safety blue", srgb: (0, 82, 156), note: "Our rendition. Compressed air; white legend (F4)."),
+                (id: "safety_yellow", name: "Safety yellow", srgb: (247, 196, 0), note: "Our rendition. Flammable and oxidizing; black legend (F4)."),
+                (id: "safety_brown", name: "Safety brown", srgb: (110, 70, 40), note: "Our rendition. Combustible; white legend (F4)."),
+                (id: "safety_red", name: "Safety red", srgb: (192, 32, 38), note: "Our rendition. Fire quenching; white legend (F4)."),
+                (id: "safety_orange", name: "Safety orange", srgb: (240, 100, 20), note: "Our rendition. Toxic and corrosive; black legend (F4)."),
+            ],
+            contents: [
+                (content: "water", name: "Potable water", main: "safety_green", cite: "F4"),
+                (content: "hot_water", name: "Other water", main: "safety_green", cite: "F4 (potable, cooling, boiler feed and other water)"),
+                (content: "greywater", name: "Other water", main: "safety_green", cite: "F4 (potable, cooling, boiler feed and other water)"),
+                (
+                    content: "air",
+                    name: "Compressed air",
+                    main: "safety_blue",
+                    cite: "F4",
+                    note: "Our reading: the home's air lines carry low-pressure cabin air, and compressed air is A13.1's nearest class.",
+                ),
+                (content: "gas", name: "Flammable fluid", main: "safety_yellow", cite: "F4"),
+                (
+                    content: "fuel",
+                    name: "Combustible fluid",
+                    main: "safety_brown",
+                    cite: "F4",
+                    note: "Our reading. A13.1 puts a fuel in its combustible (brown) or flammable (yellow) class by its flash point (F4 restates the classes, not the definitions). The game does not model which fuel the generator burns; a diesel-like fuel is taken here as combustible.",
+                ),
+            ],
+        ),
+        (
+            id: "bs_1710",
+            name: "BS 1710",
+            title: "Specification for identification of pipelines and services",
+            edition: "BS 1710:2014, current (F16)",
+            cite: "F16, F17, F18",
+            note: "The United Kingdom scheme; it does not cover ships (F16). The water rows come from an extract BSI permitted (F17). The other basic colours come from two vendor pages that disagree on steam, other liquids and electrical (F18, secondary): read BS 1710:2014 before relying on those rows (findings open question 4). BS 4800 codes are in the colour notes.",
+            colours: [
+                (id: "green", name: "Green (BS 4800 12 D 45)", srgb: (60, 120, 70), note: "Our rendition. Water (F17)."),
+                (id: "auxiliary_blue", name: "Auxiliary blue (BS 4800 18 E 53)", srgb: (30, 100, 180), note: "Our rendition. Water from a public supply (F17)."),
+                (id: "flint_grey", name: "Flint grey (BS 4800 00 A 09)", srgb: (150, 150, 146), note: "Our rendition. Water from any other source (F17)."),
+                (id: "red", name: "Red (BS 4800 04 E 53)", srgb: (196, 40, 36), note: "Our rendition. Fire (F17)."),
+                (id: "light_blue", name: "Light blue (BS 4800 20 E 51)", srgb: (130, 180, 220), note: "Our rendition. Air (F18, secondary)."),
+                (id: "brown", name: "Brown (BS 4800 06 C 39)", srgb: (120, 80, 50), note: "Our rendition. Oils (F18, secondary)."),
+                (id: "yellow_ochre", name: "Yellow ochre (BS 4800 08 C 35)", srgb: (200, 150, 50), note: "Our rendition. Gases except air (F18, secondary)."),
+                (id: "black", name: "Black (BS 4800 00 E 53)", srgb: (28, 28, 28), note: "Our rendition. Other liquids (F18, disputed between two vendor pages)."),
+                (id: "orange", name: "Orange, apricot (BS 4800 06 E 51)", srgb: (236, 140, 70), note: "Our rendition. Electrical conduits and ducts (F18, disputed between two vendor pages)."),
+            ],
+            contents: [
+                (
+                    content: "water",
+                    name: "Potable water from the public supply",
+                    main: "green",
+                    additional: Some("auxiliary_blue"),
+                    cite: "F17 (green, auxiliary blue, green)",
+                ),
+                (
+                    content: "hot_water",
+                    name: "Water",
+                    main: "green",
+                    cite: "F17 (green: water)",
+                    note: "The code colours for hot water were not read; this is the basic colour alone, which BS 1710's first method allows (F16).",
+                ),
+                (
+                    content: "greywater",
+                    name: "Water from a source other than the public supply",
+                    main: "green",
+                    additional: Some("flint_grey"),
+                    cite: "F17 (flint grey: water from any other source; the basic, code, basic marker)",
+                    note: "The leaflet's non-potable examples add black bands for the public supply (F17); the form for non-potable water from other sources was not read.",
+                ),
+                (content: "air", name: "Air", main: "light_blue", cite: "F18 (secondary)"),
+                (content: "gas", name: "Gases (except air)", main: "yellow_ochre", cite: "F18 (secondary)"),
+                (content: "fuel", name: "Oils", main: "brown", cite: "F18 (secondary)"),
+                (content: "waste", name: "Other liquids", main: "black", cite: "F18 (disputed)"),
+                (content: "power", name: "Electrical services", main: "orange", cite: "F18 (disputed)"),
+            ],
+        ),
+        (
+            id: "din_2403",
+            name: "DIN 2403",
+            title: "Kennzeichnung von Rohrleitungen nach dem Durchflussstoff (identification of pipelines by the fluid conveyed)",
+            edition: "Groups and colours as TRGS 201 Annex 3 restates them from DIN 2403:2014-06 (F20); DIN 2403:2025-12 is current and was not read (F19)",
+            cite: "F19, F20",
+            note: "The German scheme; it does not cover ships (F19). TRGS 201 gives a group colour and an additional colour per group and asks for the fluid's name and the flow direction as well (F20). How the two colours are laid out on the pipe was not read; full mode draws them main, additional, main.",
+            colours: [
+                (id: "green", name: "Green", srgb: (36, 140, 64), note: "Our rendition. Water, group 1 (F20)."),
+                (id: "red", name: "Red", srgb: (200, 32, 36), note: "Our rendition. Steam, group 2; the additional colour for flammable groups (F20)."),
+                (id: "grey", name: "Grey", srgb: (132, 134, 136), note: "Our rendition. Air, group 3 (F20)."),
+                (id: "yellow", name: "Yellow", srgb: (240, 196, 24), note: "Our rendition. Gases, groups 4 and 5 (F20)."),
+                (id: "orange", name: "Orange", srgb: (232, 112, 24), note: "Our rendition. Acids, group 6 (F20)."),
+                (id: "violet", name: "Violet", srgb: (112, 52, 150), note: "Our rendition. Alkalis, group 7 (F20)."),
+                (id: "brown", name: "Brown", srgb: (115, 70, 38), note: "Our rendition. Liquids and solids, groups 8 and 9 (F20)."),
+                (id: "blue", name: "Blue", srgb: (24, 88, 184), note: "Our rendition. Oxygen, group 0 (F20)."),
+                (id: "black", name: "Black", srgb: (28, 28, 28), note: "Our rendition. The additional colour for non-flammable groups (F20)."),
+            ],
+            contents: [
+                (content: "water", name: "Water (group 1)", main: "green", cite: "F20"),
+                (content: "hot_water", name: "Water (group 1)", main: "green", cite: "F20"),
+                (content: "greywater", name: "Water (group 1)", main: "green", cite: "F20"),
+                (content: "air", name: "Air (group 3)", main: "grey", cite: "F20"),
+                (content: "gas", name: "Flammable gases (group 4)", main: "yellow", additional: Some("red"), cite: "F20"),
+                (content: "fuel", name: "Flammable liquids (group 8)", main: "brown", additional: Some("red"), cite: "F20"),
+                (
+                    content: "waste",
+                    name: "Non-flammable liquids (group 9)",
+                    main: "brown",
+                    additional: Some("black"),
+                    cite: "F20",
+                    note: "Our reading that sewage belongs in group 9.",
+                ),
+                (
+                    content: "nutrient",
+                    name: "Non-flammable solids (group 9)",
+                    main: "brown",
+                    additional: Some("black"),
+                    cite: "F20",
+                    note: "Our reading that compost belongs in group 9.",
+                ),
+                (
+                    content: "food",
+                    name: "Non-flammable solids (group 9)",
+                    main: "brown",
+                    additional: Some("black"),
+                    cite: "F20",
+                    note: "Our reading that grain belongs in group 9 (grain dust can burn, which may put it elsewhere).",
+                ),
+            ],
+        ),
+        (
+            id: "mil_std_1247d",
+            name: "MIL-STD-1247D",
+            title: "Markings, Functions and Hazard Designations of Hose, Pipe, and Tube Lines for Aircraft, Missile, and Space Systems",
+            edition: "MIL-STD-1247D, 29 January 2009, Notice 1 July 2014; inactive for new design (F22)",
+            cite: "F22",
+            note: "The aerospace scheme, coded by function on a tape of colour stripes with the function in words beside them (F22). Words are always required; colour may be dropped (F22, 4.1.1). Public US government work, quoted freely in the findings.",
+            colours: [
+                (id: "red", name: "Red", srgb: (200, 32, 36), note: "Our rendition. Fuel (F22)."),
+                (id: "brown", name: "Brown", srgb: (115, 70, 38), note: "Our rendition. With orange: electrical conduit (F22)."),
+                (id: "orange", name: "Orange", srgb: (232, 112, 24), note: "Our rendition. With brown: electrical conduit (F22)."),
+                (id: "white", name: "White", srgb: (236, 236, 232), note: "Our rendition. Drinking water lines are painted white (F22, 4.1 a)."),
+            ],
+            contents: [
+                (content: "fuel", name: "Fuel", main: "red", cite: "F22"),
+                (content: "power", name: "Electrical conduit (power)", main: "brown", bands: ["brown", "orange"], cite: "F22"),
+                (
+                    content: "data",
+                    name: "Electrical conduit (communications)",
+                    main: "brown",
+                    bands: ["brown", "orange"],
+                    cite: "F22 (usage: power, control, communications)",
+                    note: "The same stripes as power; only the usage word tells them apart (F22).",
+                ),
+                (
+                    content: "water",
+                    name: "Drinking water",
+                    main: "white",
+                    cite: "F22 (4.1 a: painted white or as the procuring activity directs)",
+                    note: "The standard paints the whole line white; drawn here as white bands, like every other marker.",
+                ),
+            ],
+        ),
+    ],
+)

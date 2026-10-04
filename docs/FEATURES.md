@@ -2261,16 +2261,32 @@ axis, applied after grid-snap), and a faint amber guide line spans the box along
 see what you are lining up with. Walls contribute both corners; the dragged object is excluded.
 - Native: `src/lib.rs` (`snap_to_alignment` pure helper + `gather_other_positions`, wired into `apply_object_drag`; the guide line drawn into the construction overlay's `ring_lines`)
 
+### Pipe materials and marker bands (2026-10-04)
+Pipes, hoses and cables draw their real MATERIAL (copper tube, rubber hose, a power cord's or a data
+cable's jacket, from `data/piping/pipe_materials.ron`), and coloured MARKER BANDS say what flows inside,
+from the ship's marking scheme, ISO 14726 (`data/piping/marking_schemes.ron`, every row citing
+`docs/reference/findings/2026-10-04-pipe-marking-standards.md`). Markers sit beside each machine, just past
+each bend and at least every 6.1 m (GSFC's 20 ft) along a run, generated from the connection's own kind,
+never typed (honest by construction). Two modes, Settings > Gameplay > Pipe markings: Simplified (one band
+of the main colour) and Full (the scheme's whole marker: potable water blue-green-blue, electrical lines
+MIL-STD-1247D's brown and orange stripes). The registry also carries ISO 20560-1, ASME A13.1, BS 1710, DIN
+2403 and MIL-STD-1247D for the Real side. All bands of one colour are one merged mesh (one draw per colour).
+The build editor's utility legend reads the same scheme. Dev pin: showcase `{"pipe_marking":"full"}`.
+- Native: `src/ship/pipe_marking.rs` (registry, placement, bands), `src/ship/pipe_materials.rs`,
+  `src/engine/pipe_markers.rs` (merged band meshes, mode switch), `src/engine/home_meshes.rs`
+  (`rebuild_connection_objects`), `src/machines.rs` (`connection_color` = the scheme's main colour)
+
 ### Conduit Flow Visualization (v0.622, refined v0.623)
-Makes connections legible in a dark room. Every pipe is drawn as a STATIC line in its utility colour
-(the `connection_color` legend: yellow=power, blue=water, red=hot water, cyan=air, violet=data, olive=fuel,
-brown=nutrient, ...), faintly emissive so the run reads even in the dark. The SELECTED machine's
+Makes connections legible in a dark room. Every pipe was drawn as a STATIC line in its utility colour
+(the `connection_color` legend), faintly emissive; since 2026-10-04 a pipe draws its material and its
+marker bands instead (see "Pipe materials and marker bands" above), and the legend is the ship's marking
+scheme. The SELECTED machine's
 connections additionally get animated rainbow marker spheres travelling along their routed path in the
 flow direction, so it's obvious which runs go to/from the thing you're inspecting (v0.623: selected-only,
 where v0.622 animated every pipe -- the change both declutters the view and keeps the render loop cheap
 no matter how many conduits the home has). Build-mode only, gated on the "Helper gizmos" toggle; the
 markers are small (0.10 m) beads with moderate emissive so they read as spheres, not flat discs.
-- Native: `src/lib.rs` (`connection_flow_paths` carries `(path, from_id, to_id)` from `rebuild_connection_objects`; the render loop animates only `from_id`/`to_id == construction_machine_selected` via the `flow_rgb_mats` rainbow), `src/machines.rs` (`connection_color` legend -- now also the pipe material so each run is its own utility colour)
+- Native: `src/lib.rs` (`connection_flow_paths` carries `(path, from_id, to_id)` from `rebuild_connection_objects`; the render loop animates only `from_id`/`to_id == construction_machine_selected` via the `flow_rgb_mats` rainbow), `src/machines.rs` (`connection_color` legend, read from the ship's marking scheme since 2026-10-04)
 
 ### Rail cars -- the rail line comes alive (M2b, v0.637)
 A small car now animates along each rail edge in build mode, so the rail graph (v0.635) reads as a living

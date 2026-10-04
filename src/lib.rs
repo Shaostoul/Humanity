@@ -1913,6 +1913,7 @@ mod native_app {
                 flow_rgb_mats: Vec::new(),
                 connection_cyl: None,
                 connection_mats: std::collections::HashMap::new(),
+                pipe_markers: Default::default(),
                 door_panels: Vec::new(),
                 door_manual_open: Vec::new(),
                 door_locks: Vec::new(),
@@ -7221,6 +7222,8 @@ mod native_app {
                         state.gui_state.construction_machines_dirty = false;
                         rebuild_machine_objects(state);
                     }
+                    // Pipe markings (2026-10-04): Settings or a showcase pin changed the mode.
+                    crate::engine::pipe_markers::rebuild_if_mode_changed(state);
                     // Interior-wall edit (v0.534): the editor mutated gui_state.home_structure
                     // (added/removed a wall, moved a corner, changed an opening). Rebuild the home
                     // mesh live so the change shows immediately; persistence waits for Save.

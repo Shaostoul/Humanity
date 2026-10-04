@@ -32,6 +32,18 @@ pub enum Utility {
 }
 
 impl Utility {
+    /// Every utility, for registries that must cover them all (the pipe marking scheme, 2026-10-04).
+    pub const ALL: [Utility; 8] = [
+        Utility::Electricity,
+        Utility::Water,
+        Utility::HotWater,
+        Utility::Air,
+        Utility::Data,
+        Utility::Fuel,
+        Utility::Nutrient,
+        Utility::Waste,
+    ];
+
     /// Lowercase id used in data + matched against the legacy `MachineConnection.kind` strings.
     pub fn id(&self) -> &'static str {
         match self {

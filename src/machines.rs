@@ -607,7 +607,8 @@ pub struct MachineArray {
 pub struct MachineConnection {
     pub from: String,
     pub to: String,
-    /// "power" | "water" | "nutrient" | "fuel" (colors the tube).
+    /// "power" | "water" | "nutrient" | "fuel": what the line carries, which picks its conduit
+    /// (ship::conduits) and its marker bands (ship::pipe_marking).
     pub kind: String,
     /// The chosen conduit/cable type id (v0.605, e.g. "cu_awg12"), or None to auto-pick the cheapest
     /// copper that carries the load. `#[serde(default)]` so every existing connection parses unchanged.
@@ -2330,31 +2331,38 @@ impl MachineHome {
         by_cat.into_iter().collect()
     }
 
-    /// Color (rgba) for a connection kind.
-    /// The utility-colour LEGEND (v0.622): one distinct hue per conduit kind, chosen so they read apart
-    /// in the build editor's flow markers + pipes. Picked around real conventions (electricity = yellow,
-    /// water = blue, hot = red). There are many possible chemicals/utilities, so keep new kinds visually
-    /// distinct from these; a fully data-driven utility-colour registry is a future refinement.
+    /// Colour (sRGB 0..1, rgba) for a connection kind: the utility-colour LEGEND of the build
+    /// editor (port gizmos, the connection inspector, the meters).
+    ///
+    /// Since 2026-10-04 this is the ship's marking scheme (ISO 14726, data/piping/marking_schemes.ron):
+    /// the content's MAIN colour, the band Simplified pipe markings draw, so the legend says what
+    /// the pipes' marker bands say. The v0.622 legend it replaces was a hand-picked set (amber
+    /// power, violet data, red hot water) that clashed with every published scheme
+    /// (docs/reference/findings/2026-10-04-pipe-marking-standards.md). An unmarked kind is neutral
+    /// grey.
     pub fn connection_color(kind: &str) -> [f32; 4] {
-        match kind {
-            "power" => [0.95, 0.75, 0.15, 1.0],      // amber/yellow (electricity)
-            "water" => [0.20, 0.45, 0.85, 1.0],      // blue (potable)
-            "hot_water" => [0.90, 0.35, 0.25, 1.0],  // warm red (hot)
-            "air" => [0.35, 0.80, 0.90, 1.0],        // cyan (compressed air / ventilation)
-            "gas" => [0.70, 0.85, 0.25, 1.0],        // yellow-green (gaseous fuel)
-            "fuel" => [0.55, 0.50, 0.18, 1.0],       // olive (liquid fuel / oil)
-            "data" => [0.70, 0.35, 0.95, 1.0],       // violet (telecom / internet)
-            "nutrient" => [0.55, 0.35, 0.18, 1.0],   // brown (compost / nutrients)
-            "waste" => [0.35, 0.40, 0.32, 1.0],      // dark grey-green (sewage / drain)
-            "greywater" => [0.55, 0.52, 0.40, 1.0],  // muddy tan (recycled greywater)
-            _ => [0.6, 0.6, 0.6, 1.0],               // unknown -> neutral grey
-        }
+        crate::ship::pipe_marking::marking().main_colour_srgb01(kind).unwrap_or([0.6, 0.6, 0.6, 1.0])
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The build editor's utility legend (`connection_color`: the port gizmos, the connection
+    /// inspector, the meters) is the ship's marking scheme, so it says what the pipes' marker
+    /// bands say (2026-10-04). Seen red with the v0.622 legend still in place: "power's legend is
+    /// the scheme's simplified band: [0.95, 0.75, 0.15, 1.0]".
+    #[test]
+    fn connection_colour_is_the_ship_schemes_main_colour() {
+        let reg = crate::ship::pipe_marking::marking();
+        let power = MachineHome::connection_color("power");
+        assert_eq!(power, reg.main_colour_srgb01("power").unwrap(), "power's legend is the scheme's simplified band: {power:?}");
+        for kind in ["water", "hot_water", "air", "gas", "fuel", "data", "nutrient", "waste", "greywater", "food"] {
+            assert_eq!(MachineHome::connection_color(kind), reg.main_colour_srgb01(kind).unwrap(), "{kind}");
+        }
+        assert_eq!(MachineHome::connection_color("no_such_utility"), [0.6, 0.6, 0.6, 1.0], "unknown stays neutral grey");
+    }
 
     #[test]
     fn parses_the_shipped_home_layout() {

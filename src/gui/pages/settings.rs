@@ -3690,6 +3690,31 @@ pub(crate) fn draw_gameplay_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
             state.settings.home_variant = "home_solo".to_string();
             state.settings_dirty = true;
         }
+        // Pipe markings (2026-10-04, engine::pipe_markers; the dual-mode house rule). The
+        // colours are the ship's scheme, ISO 14726 (data/piping/marking_schemes.ron).
+        ui.add_space(theme.spacing_lg);
+        ui.label(RichText::new("Pipe markings").color(theme.text_secondary()).strong());
+        ui.add_space(theme.spacing_xs);
+        widgets::setting_hint(
+            ui,
+            theme,
+            hint,
+            "Pipes, hoses and cables show what they are made of, and coloured bands say what \
+             flows inside them: beside each machine, just past each bend and at least every 6 m \
+             along a run, the way ships mark their piping (ISO 14726). Drinking water is blue, \
+             fuel brown, ventilation air white and sewage black, and electrical cables carry a \
+             brown and an orange stripe. Simplified shows one band of the main colour; Full \
+             shows the whole marker, such as blue, green, blue for drinking water.",
+        );
+        ui.horizontal(|ui| {
+            for (full, label) in [(false, "Simplified"), (true, "Full")] {
+                let selected = state.settings.pipe_marking_full == full;
+                if ui.radio(selected, RichText::new(label).color(theme.text_primary())).clicked() && !selected {
+                    state.settings.pipe_marking_full = full;
+                    state.settings_dirty = true;
+                }
+            }
+        });
     });
 }
 

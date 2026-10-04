@@ -9,8 +9,14 @@
 //! rod" tell), support brackets at code spacing along the horizontal runs, and a shutoff
 //! valve on fluid lines at the destination inlet (IPC 606 requires one per fixture).
 //!
-//! Grounded in ASME A13.1 (pipe color), IPC 308.5 / NEC 358.30 (support spacing), and
-//! NEC 300.4 (electrical-above-water separation). See docs/design (routing spec).
+//! Grounded in IPC 308.5 / NEC 358.30 (support spacing) and NEC 300.4
+//! (electrical-above-water separation). See docs/design (routing spec).
+//!
+//! Pipe COLOUR is not decided here. Until 2026-10-04 this header claimed the routing was
+//! grounded in "ASME A13.1 (pipe color)", which nothing here or in the renderer followed. A
+//! pipe's body now draws its material (`ship::pipe_materials`) and its contents are marked by
+//! bands from the ship's scheme, ISO 14726 (`ship::pipe_marking`); the reasons are in
+//! docs/reference/findings/2026-10-04-pipe-marking-standards.md.
 //!
 //! Pure geometry (glam only) so it compiles under every feature set; the renderer turns
 //! the `PipePart` plan into meshes in `lib.rs::load_world` (native).

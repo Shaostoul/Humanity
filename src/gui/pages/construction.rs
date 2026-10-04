@@ -1478,7 +1478,7 @@ fn port_line(p: &crate::utilities::Port) -> String {
     format!("{arrow} {}{detail}{label}", p.utility.id())
 }
 
-/// Pipe colour for a port's utility, matching the in-world connection tubes.
+/// A port's utility colour: the ship's marking scheme, matching the pipes' marker bands.
 fn port_color(p: &crate::utilities::Port) -> egui::Color32 {
     let c = crate::machines::MachineHome::connection_color(p.utility.id());
     egui::Color32::from_rgb((c[0] * 255.0) as u8, (c[1] * 255.0) as u8, (c[2] * 255.0) as u8) // theme-exempt: utility-kind colour matching the pipes

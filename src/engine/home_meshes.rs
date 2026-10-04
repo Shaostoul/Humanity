@@ -1805,13 +1805,22 @@ pub(crate) fn push_grow_enclosures(state: &mut EngineState, transparent: &mut Ve
 }
 
 /// Rebuild the home connection cylinders from the live machine layout (gui_state.home_machines
-/// + room_bounds): one colored cylinder per connection, between the two machines' low pipe
-/// anchors. Uses a cached unit cylinder + a material cached per kind, so a per-frame rebuild
-/// never leaks. Replaces the old static routed pipes -- connections now follow rooms. (v0.530)
+/// + room_bounds): one routed run per connection, between the two machines' pipe anchors. Uses
+/// a cached unit cylinder + a material cached per material, so a per-frame rebuild never leaks.
+/// Replaces the old static routed pipes -- connections now follow rooms. (v0.530)
+///
+/// Since 2026-10-04 a run's BODY is drawn in its real material (copper, rubber hose, a cord's
+/// jacket; data/piping/pipe_materials.ron) and what it carries is said by MARKER BANDS from the
+/// ship's marking scheme (ISO 14726; data/piping/marking_schemes.ron), at each end, past each
+/// bend and every 6 m (engine::pipe_markers). The utility colour no longer paints the run.
 pub(crate) fn rebuild_connection_objects(state: &mut EngineState) {
     use std::collections::HashMap;
     state.connection_objects.clear();
     state.connection_flow_paths.clear();
+    // Record the marking mode this build uses FIRST, before any early return, so a home with no
+    // pipes is not rebuilt every frame by `pipe_markers::rebuild_if_mode_changed`.
+    let marking_mode = crate::engine::pipe_markers::wanted_mode(state);
+    state.pipe_markers.built_mode = Some(marking_mode);
     let rooms: HashMap<String, crate::machines::RoomGeom> = state
         .gui_state
         .room_bounds
@@ -1957,6 +1966,8 @@ pub(crate) fn rebuild_connection_objects(state: &mut EngineState) {
     // invisible overlap that still costs polygons (the operator's "brackets overlap, more polys than
     // we should"). Key by rounded position so one bracket serves all pipes passing that point.
     let mut placed_fittings: HashMap<(i32, i32, i32), ()> = HashMap::new();
+    // The marker bands of every run, gathered per colour and uploaded once after the loop.
+    let mut bands = crate::engine::pipe_markers::BandBatch::default();
     for (a, b, kind_str, from_id, to_id) in &routes {
         let (a, b) = (*a, *b);
         let kind = crate::ship::conduits::ConduitKind::for_resource(kind_str);
@@ -1970,22 +1981,27 @@ pub(crate) fn rebuild_connection_objects(state: &mut EngineState) {
             }
             state.connection_flow_paths.push((route.points.clone(), from_id.clone(), to_id.clone()));
         }
-        // Pipe material: a slightly-emissive UTILITY COLOUR (the connection_color legend) so each
-        // run reads as its own utility (yellow=power, blue=water, ...) instead of all-grey pipes
-        // (v0.623, the operator's "varied pipes"); rigid vs flexible still varies metal/roughness.
-        let pkey = format!("conduit:{kind_str}");
+        // Pipe BODY: its real material (2026-10-04, data/piping/pipe_materials.ron): copper tube,
+        // rubber hose, a cord's or a data cable's jacket. No marking standard colours the wall
+        // material (findings F28); what the run carries is said by its marker bands below. Until
+        // then (v0.623) the whole run was painted, faintly glowing, in its utility colour.
+        let body = crate::ship::pipe_materials::pipe_materials().for_kind(kind);
+        let pkey = format!("pipebody:{}", body.map_or("unknown", |m| m.id.as_str()));
         let pipe_mat = match state.connection_mats.get(&pkey) {
             Some(&m) => m,
             None => {
-                let (met, rough) = if kind.is_rigid() { (0.6, 0.3) } else { (0.0, 0.7) };
-                let c = crate::machines::MachineHome::connection_color(kind_str);
-                // A touch of emissive (0.5) so the pipe is faintly visible in the dark, but far less
-                // than the selected line's flow markers (so the selection still stands out).
-                let m = state.renderer.add_material_full([c[0], c[1], c[2], 1.0], met, rough, 0.0, 0.5);
+                let (colour, met, rough) = match body {
+                    Some(m) => (m.linear_rgba(), m.metallic, m.roughness),
+                    // A kind with no material row (the registry test forbids it): neutral grey.
+                    None => ([0.3, 0.3, 0.3, 1.0], 0.0, 0.6),
+                };
+                let m = state.renderer.add_material_full(colour, met, rough, 0.0, 0.0);
                 state.connection_mats.insert(pkey.clone(), m);
                 m
             }
         };
+        // The run's marker bands: generated from its own connection kind, never typed by anyone.
+        bands.add_run(&route.points, kind_str, kind.radius(), marking_mode);
         let rscale = kind.radius() / CYL_R;
         // The routed pipe: one cylinder per leg (up, across, across, down).
         for seg in route.points.windows(2) {
@@ -2053,6 +2069,8 @@ pub(crate) fn rebuild_connection_objects(state: &mut EngineState) {
             }
         }
     }
+    // One merged mesh per band colour, each in its own slot (replaced in place next time).
+    bands.flush(state);
 }
 
 /// Recompute the door/window panel placements from the live HomeStructure (v0.537). Called after

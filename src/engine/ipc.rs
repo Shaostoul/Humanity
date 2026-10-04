@@ -593,6 +593,20 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
             state.renderer.room_gi.probe_count()
         );
     }
+    // {"pipe_marking":"full"} draws the pipes' marker bands as the scheme's whole marker,
+    // "simplified" as one band of the main colour, "auto" hands the choice back to Settings >
+    // Gameplay > Pipe markings (2026-10-04, engine::pipe_markers). A PIN over the setting, never
+    // a write to it, so a rig capture of each mode leaves the player's config alone. Sticky until
+    // "auto": a vantage that cares pins its own mode. The pipes rebuild on the next frame.
+    if let Some(t) = grab("pipe_marking") {
+        use crate::ship::pipe_marking::MarkingMode;
+        state.pipe_markers.pin = match t.as_str() {
+            "full" => Some(MarkingMode::Full),
+            "simplified" => Some(MarkingMode::Simplified),
+            _ => None,
+        };
+        log::info!("Showcase: pipe_marking -> {:?} (None = Settings > Gameplay)", state.pipe_markers.pin);
+    }
     // {"sun_shadows":"0"} switches the sun's shadow maps off, "1" on and
     // "auto" hands them back to Settings > Planets (2026-09-27,
     // docs/design/sun-cascades.md increment 0). A PIN over the setting, not a
