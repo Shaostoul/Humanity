@@ -85,6 +85,17 @@ and the gate that lets water in, fences around the powerhouse and the
 intake, a fire extinguisher rated for electrical fires, and a clearly
 labelled emergency shutdown switch at the generator.
 
+A water turbine can also run away. The handbook explains that when a
+generator loses its load while the turbine still has its full flow and
+head, the turbine and generator can speed up to two or three times
+their normal speed, and that this is most serious at a high-head site.
+That is why, when a turbine is started with its generator not yet
+carrying a load, the handbook says never to open the inlet valve fully,
+under any circumstances: the turbine would quickly reach runaway speed.
+Open the inlet valve a little at a time, and keep everyone clear of the
+machine while it comes up to speed (general practice, following the
+handbook).
+
 For wind, the DOE's Small Wind Guidebook notes: "Most turbines have
 automatic overspeed-governing systems to keep the rotor from spinning
 out of control in extremely high winds." That is a safety device, not
@@ -98,9 +109,10 @@ Broke](working_out_why_something_broke.md)).
 The DOE's guidebook says that, in general, the higher the tower, the
 more power a wind system can produce. A tall tower means work at height
 and a heavy object that can fall. OSHA's construction rule
-requires protection from falling for anyone working on a surface with an
-unprotected edge 6 feet or more above a lower level (29 CFR
-1926.501(b)(1)). The DOE's guidebook lists the questions to ask before
+requires protection from falling for each employee working on a surface
+with an unprotected edge 6 feet or more above a lower level (29 CFR
+1926.501(b)(1)). The rule binds employers; a fall from a tower is the
+same for a homeowner (our reading). The DOE's guidebook lists the questions to ask before
 installing a turbine yourself, among them: "Can I pour a proper cement
 foundation?" and "Do I have access to a lift or a way to safely erect
 the tower?" Its answer for anyone who says no to any of them: "you
@@ -113,17 +125,34 @@ weather. A guyed tower's wires reach out one-half to three-quarters of
 the tower's height, which is the space it needs. And: "Aluminum towers
 are prone to cracking and should be avoided."
 
-While a tower is going up or coming down, keep everyone out of a circle
-at least as wide as the tower is tall, and raise it nowhere near
-overhead power lines (general practice; [Keeping Things
-Working](keeping_things_working.md) has the ladder version of the
-power line rule).
+While a tower is going up or coming down, keep everyone out of the
+ground it could hit if it fell: a circle around its base whose radius
+is at least the tower's full height plus the length of one blade, with
+a margin beyond that. A falling tower reaches that far from its base,
+so a circle only as wide as the tower is tall covers half the distance.
+And raise it nowhere near overhead power lines (general practice;
+[Keeping Things Working](keeping_things_working.md) has the ladder
+version of the power line rule).
 
 ### Electricity that does not switch off
 
 A generator driven by a stream or the wind makes voltage whenever it
 turns, so its wiring is never dead just because you have stopped using
-the power (our reading). The 1983 handbook says the National Electrical
+the power (our reading).
+
+Two more things to know (general practice). A battery bank is a
+second source of power: stopping the turbine does not make the
+batteries or their wiring safe, and [Batteries and
+Storage](batteries_and_storage.md) describes their own hazards. And a
+small battery-charging turbine is generally meant to stay connected to
+its batteries or controller whenever it turns, because the load is
+part of what holds its speed and voltage down; disconnected while it
+spins, it can overspeed and its voltage can rise. Do not disconnect its
+batteries or controller while it turns unless its manual says you may:
+stop it first the way the manual describes, and treat the maker's
+manual for your turbine as the authority.
+
+The 1983 handbook says the National Electrical
 Code should govern everything from the generator's terminals to where
 the power is used, that you should always get an electrical permit and
 have the system inspected, that any electrician you hire should be
@@ -162,9 +191,15 @@ physics of falling water, weight times height per second.)
 No machine gets all of that. The 1983 handbook puts the efficiency of a
 microhydropower system at 40 to 75 percent, depending on the site, the
 equipment and the installation, and suggests 60 percent for a first
-estimate, to be refined as you learn more about the site. Friction in
-the penstock is part of the loss; the handbook suggests planning for 5
-to 10 percent of the head to be lost in the pipe as a starting point.
+estimate, to be refined as you learn more about the site. Apply that 60
+percent to the full drop, from the water surface where the water is
+taken off to the water surface below the turbine (the handbook calls
+this the pool-to-pool head): the handbook says the figure already
+allows for the head a typical site loses at its intake and in its pipe,
+so do not take the pipe loss off a second time. Friction in the penstock is part
+of that loss; when you come to design the pipe itself, the handbook
+suggests planning for 5 to 10 percent of the head to be lost in it as a
+starting point.
 
 Two consequences are worth seeing in numbers (arithmetic from the
 formula):
@@ -243,12 +278,17 @@ levelling.
 ### Design for the worst month
 
 The 1983 handbook divides people building small hydro into two kinds:
-those who want to sell as much power as possible, and those who want to
-supply their own needs. For the second kind, it says, the system is
-designed around the lowest flow of the year, so that it keeps working
-when the stream is at its smallest. For a household, that is the number
-that matters. A stream's average flow tells you very little about
-August.
+those who want the most energy from the stream for the money, and those
+who want to supply their own needs, with power for as much of the year
+as possible. For the second kind, it says, the system is designed for
+the minimum stream flow of the year, the low flow of late summer, so
+that it keeps working when the stream is at its smallest. Where a flow
+duration curve has been worked out for the stream (a graph of how often
+each flow is equalled or exceeded), the handbook suggests taking the
+flow that is equalled or exceeded 95 percent of the time as that
+minimum, measured at your site rather than at the gauge. For a
+household, that is the number that matters. A stream's average flow
+tells you very little about August.
 
 ### Worked example: a spring on a hillside
 
@@ -261,8 +301,8 @@ litres a second. Your hose readings up the slope add up to 40 psi: 40 /
 - Theoretical power: 9.81 x 1.9 x 28 is about 520 watts (or, in the
   Reclamation formula, 30 gallons a minute is 0.067 cfs, and 0.067 x 92 /
   8.8 x 746 is about 520 watts).
-- At the handbook's first-guess 60 percent: about 310 watts, steadily,
-  day and night.
+- At the handbook's first-guess 60 percent, applied to the full 92 feet:
+  about 310 watts, steadily, day and night.
 - Over a day: about 7.5 kWh. The DOE's guidebook puts a typical home's
   use at about 10,649 kWh a year, about 29 kWh a day, so this spring
   would cover about a quarter of an average home, every day of the year,
@@ -279,9 +319,10 @@ about 34 watts.
 The streams around Silverdale, Washington, the project's canonical
 place (see [Silverdale, Washington](../locale/silverdale_wa.md)), show
 why the worst month decides everything. The USGS gauged Chico Creek,
-which drains 15.3 square miles near Bremerton, every day from July 1947
-to October 1974. Averaged over that record (our calculation from the
-USGS daily values), its flow was about 92 cfs in January and about 2.0
+which drains 15.3 square miles near Bremerton, daily from July 1947 to
+September 1950 and again from April 1961 to October 1974, 6,119 days in
+all. Averaged over that record (our calculation from the USGS daily
+values), its flow was about 92 cfs in January and about 2.0
 cfs in August, roughly a forty-sixth as much, and its lowest daily
 reading on record was zero. A turbine sized for the winter creek would
 sit idle all summer; one sized for August would use a sliver of the
@@ -445,7 +486,11 @@ National Electrical Code, which has sections for small wind systems.
 - **A pipe with no surge plan.** Closing a valve fast on a long drop can
   burst the pipe.
 - **A dead line that is not dead.** A turning generator is live, and so
-  is anything it feeds.
+  is anything it feeds, and so is the battery bank after the turbine
+  stops.
+- **A turbine with no load.** A water turbine with its valve wide open
+  and nothing to drive runs away; a small wind turbine cut off from its
+  batteries can overspeed.
 
 ## How the game models it
 
@@ -489,10 +534,14 @@ session as they are in the default home.
 - You measure streams only in low water, never wade fast water, and keep
   away from the downstream face of dams and weirs.
 - You close valves on a long pipe slowly, and you know why.
-- You treat a turning generator and everything it feeds as live, and you
-  would never connect anything to the utility's lines.
+- You treat a turning generator, everything it feeds and its battery
+  bank as live, you would not disconnect a turning turbine from its
+  batteries or controller, and you would never connect anything to the
+  utility's lines.
+- You open a water turbine's inlet valve a little at a time and never
+  fully with no load on the generator.
 - You would not climb a tower without fall protection, or raise one near
-  power lines or with people inside its fall circle.
+  power lines or with anyone closer than its height plus a blade.
 - You can measure head with a hose and a gauge and flow with a bucket or
   a float, and turn them into watts.
 - You can explain why wind power goes with the cube of the speed, and
@@ -541,15 +590,15 @@ data were read on 4 October 2026.
   https://damfailures.org/sites/default/files/wp-pdf/10-Reclamation-Scoping-Report.pdf
 - US Geological Survey. Daily mean discharge, Chico Creek near Bremerton,
   Washington, gauge 12072000 (drainage area 15.3 square miles; 6,119
-  daily values from 1 July 1947 to 1 October 1974), read through the
-  USGS Water Data API; the monthly averages and the minimum are our
-  calculation. https://waterdata.usgs.gov/monitoring-location/USGS-12072000/
+  daily values, 1 July 1947 to 29 September 1950 and 1 April 1961 to 1
+  October 1974, with no record between), read through the USGS Water
+  Data API; the monthly averages and the minimum are our calculation. https://waterdata.usgs.gov/monitoring-location/USGS-12072000/
 - National Weather Service. Turn Around Don't Drown, undated (6 inches of
   fast-moving flood water can knock over an adult).
   https://www.weather.gov/safety/flood-turn-around-dont-drown
 - Occupational Safety and Health Administration. 29 CFR 1926.501(b)(1)
-  (protection from falling at an unprotected edge 6 feet or more above a
-  lower level).
+  (each employee at an unprotected edge 6 feet or more above a lower
+  level protected from falling; it binds employers).
   https://www.ecfr.gov/current/title-29/subtitle-B/chapter-XVII/part-1926/subpart-M/section-1926.501
 - US Consumer Product Safety Commission. Portable Generator Hazards, CPSC
   Safety Alert, Publication 5123, printed with the code 102021 (the
@@ -569,8 +618,15 @@ data were read on 4 October 2026.
   Handbook, Volume 1, IDO-10107 (DE83006697), EG&G Idaho for the US
   Department of Energy, Idaho Operations Office, published January 1983
   (the power equation and efficiencies of 40 to 75 percent, 60 percent
-  for a first estimate; penstock losses of 5 to 10 percent of the head;
-  designing around the year's lowest flow for a home supply; the
+  for a first estimate, used with the pool-to-pool head because it
+  already contains a typical site's head losses; penstock losses of 5 to
+  10 percent of the head; the two kinds of developer, and designing for
+  the year's minimum stream flow, the low flow of late summer, for a
+  home supply, with the 95 percent exceedance site flow as the minimum
+  on a flow duration curve; overspeed of an unloaded generator to two to
+  three times normal speed, and never opening the inlet valve fully at
+  start-up with the generator unloaded, or the turbine reaches runaway
+  speed; the
   container, float and hose-and-gauge methods, the 0.8 and 0.6 float
   corrections and the gauge range; measuring on several days; surge
   pressure and the butterfly valve; powerhouse safety; the electrical
@@ -623,10 +679,17 @@ data were read on 4 October 2026.
 
 - How to measure a stream safely (low water only, shallow slow water, a
   person on the bank, out before you are chilled), closing valves slowly,
-  stopping a turbine by its manual before work, keeping clear of a tower
-  being raised and of power lines, needing an engineer for a dam, and
+  opening a water turbine's inlet valve a little at a time and keeping
+  clear while it comes up to speed, stopping a turbine by its manual
+  before work, keeping everyone out of a circle of the tower's height
+  plus a blade while it is raised or lowered and keeping it away from
+  power lines, treating the battery bank as live, keeping a small wind
+  turbine connected to its batteries or controller while it turns
+  unless its manual says otherwise, needing an engineer for a dam, and
   sizing a big penstock with an engineer or the turbine's maker are
   general practice.
+- That OSHA's fall rule, which binds employers, describes the same
+  danger to a homeowner is our reading.
 - That a smooth drop below a dam looks harmless is general knowledge.
 - That a turning generator makes voltage, so its wiring is never dead
   just because nothing is switched on, that a water turbine connects to a

@@ -1,12 +1,16 @@
 # Wells and Groundwater
 
-Most of the fresh water a household can reach is not in a river or a
-lake. It is in the ground, filling the spaces between grains of sand
-and gravel and the cracks in rock, and a well is how you reach it.
-For about half the people in the United States, and nearly everyone
-in the countryside, that is where drinking water comes from: the US
-Geological Survey (USGS) puts groundwater as the source of drinking
-water for about half the total population and nearly all of the rural
+Leave aside the water frozen in ice caps and glaciers, and nearly all
+of the world's fresh water is not in rivers or lakes. It is in the
+ground, filling the spaces between grains of sand and gravel and the
+cracks in rock, and a well is how you reach it. The US Geological
+Survey (USGS) puts over 68 percent of Earth's fresh water in ice and
+glaciers, and then: "Another 30 percent of freshwater is in the
+ground." Rivers and lakes hold only about 1/150th of one percent of all
+the water on Earth. For about half the people in the United States, and
+nearly everyone in the countryside, the ground is where drinking water
+comes from: the USGS puts groundwater as the source of drinking water
+for about half the total population and nearly all of the rural
 population.
 
 This guide is about that water: where it sits, why a well works or
@@ -55,8 +59,10 @@ occur among would-be rescuers".
 OSHA's rule for excavations at work says the same thing in regulation
 form: where air with less than 19.5 percent oxygen, or another
 hazardous atmosphere, could reasonably be expected, the air in an
-excavation deeper than 4 feet must be tested before anyone goes in (29
-CFR 1926.651(g)).
+excavation deeper than 4 feet must be tested before workers go in (29
+CFR 1926.651(g)). OSHA's rules bind employers and protect their
+workers, so they are not a household's legal duty; the air in a hole is
+the same whoever goes into it (our reading).
 
 So:
 
@@ -110,7 +116,15 @@ electrical shock and damage to your well or pump if they have been
 flooded." Once the water has gone down and the pump and wiring have
 dried, the EPA says not to switch the equipment on until the wiring has
 been checked by a qualified electrician, well contractor or pump
-contractor.
+contractor, and to get a well or pump contractor's help turning the
+pump back on. A dry pump is not yet a safe pump: silt and sand have to
+be cleaned out of it, and the EPA warns that "If pumps are not cleaned
+and properly lubricated they can burn out." Its current advice puts the
+contractor first: "Get assistance from a well or pump contractor to
+clean and disinfect your well before turning on the pump." And it warns
+that "Rubber boots and gloves are not adequate protection from electric
+shock." The rubber gloves in the steps below are for the bleach, not
+for the electricity.
 
 ### A generator to run the pump goes in through a transfer switch
 
@@ -138,13 +152,15 @@ water while the chlorine is in the pipes.
 ### Digging by hand is digging a trench straight down
 
 A hand-dug well is a deep, narrow excavation, and soil walls collapse.
-OSHA's rule for work in excavations requires protection from cave-ins
-for anyone in an excavation 5 feet deep or more, unless it is cut
-entirely in stable rock (29 CFR 1926.652(a)(1)); at less than 5 feet it
-still requires a competent person to check the ground for any sign of a
-cave-in. A household digging a well has no shoring, no gas tester and
-no rescue plan, which is the main reason this guide does not teach
-digging one (our reading).
+OSHA's rule for work in excavations requires every worker in an
+excavation to be protected from cave-ins, with two exceptions: an
+excavation cut entirely in stable rock, and one less than 5 feet deep
+where a competent person has examined the ground and found no sign of a
+possible cave-in (29 CFR 1926.652(a)(1)). The rule is written for
+employers, but soil falls the same way on anyone (our reading). A
+household digging a well has no shoring, no gas tester and no rescue
+plan, which is the main reason this guide does not teach digging one
+(our reading).
 
 ## What groundwater is
 
@@ -216,7 +232,13 @@ version, as the worked example, restated from the statutes (read
   permit before groundwater is withdrawn, except for small uses: stock
   watering, a lawn or noncommercial garden of half an acre or less, and
   domestic use of up to 5,000 gallons a day (RCW 90.44.050). It is still
-  a water right, and still comes behind older rights.
+  a water right: the same statute says that such a withdrawal, as far as
+  it is regularly put to use, carries a right equal to one granted by a
+  permit. Washington's groundwater law extends its surface water law to
+  groundwater (RCW 90.44.020), and that law ranks rights by age, the
+  earlier before the later (RCW 90.03.010). So an exempt well ranks by
+  its date like any other right, behind older ones (our reading of the
+  three together).
 - **Some watersheds have tighter limits.** In eight named watersheds,
   Kitsap among them, a new permit-exempt domestic well pays a $500 fee,
   may take an annual average of no more than 950 gallons a day per
@@ -329,10 +351,14 @@ specific steps. Its emergency procedure for a flooded well, in short:
 
 1. Check the well first. If there is exposed or damaged wiring, call a
    professional before going any further. The steps below run the pump,
-   so after a flood they wait until the wiring has been checked, as
-   above.
+   so after a flood they wait until the wiring has been checked and the
+   pump cleaned, with a well or pump contractor's help to turn it back
+   on, as above. The EPA's current advice is to have that contractor
+   help clean and disinfect a flooded well before the pump runs at all;
+   these steps are what that work involves.
 2. If the water is muddy, run an outside hose until it runs clear.
-3. Wearing rubber gloves and eye protection, pour one gallon of
+3. Wearing rubber gloves and eye protection against the bleach (they are
+   no protection from electric shock), pour one gallon of
    unscented household liquid bleach into the well casing, through the
    vent or plug of a sealed well or under the lifted cover of a dug or
    bored well. While a dug well's cover is off it is an open hole: keep
@@ -416,8 +442,9 @@ inland is about exactly this kind of place.
   or pump contractor (general practice). It is heavy, it is deep, and it
   puts people at the top of an open hole.
 - **The pump's wiring and controls** are electrical work, and after a
-  flood the EPA wants them checked by an electrician or well contractor
-  before the pump runs.
+  flood the EPA wants them checked by an electrician or well contractor,
+  and a well or pump contractor's help cleaning the pump and turning it
+  back on, before the pump runs.
 - **Disinfecting a drilled, driven or bored well** is, in the EPA's
   words, best done by a well or pump contractor.
 - **Entering a well, pit or cistern:** never.
@@ -439,8 +466,9 @@ records, and knowing whom to call.
 - **Going in after someone.** The rescuer is the most common victim.
 - **A well used as a drain.** Anything poured down it goes into the
   aquifer.
-- **A burned-out pump after a flood.** Running it before it is dry and
-  checked can destroy it and electrocute someone.
+- **A burned-out pump after a flood.** Running it before it is dry,
+  cleaned and checked can destroy it and electrocute someone, and rubber
+  boots and gloves do not protect you from the shock.
 
 ## How the game models it
 
@@ -479,7 +507,9 @@ default home.
 - Every well on your land is capped, and any you do not use is marked
   and on its way to being properly closed.
 - You switch off, lock or label, and test before touching the pump's
-  wiring, and you leave a flooded pump off until it has been checked.
+  wiring, and you leave a flooded pump off until its wiring has been
+  checked and a well or pump contractor has helped clean it and turn it
+  back on.
 - You would run a generator to the pump only through a transfer switch.
 - You can explain the water table, an aquifer, and why pumping one well
   can lower another.
@@ -499,6 +529,12 @@ October 2026; regulations and statutes were read on the same day.
 
 ### United States government (public domain)
 
+- US Geological Survey, Water Science School. Where is Earth's Water?,
+  dated 6 June 2018 (over 68 percent of fresh water in ice and glaciers;
+  "Another 30 percent of freshwater is in the ground."; rivers and lakes
+  about 1/150th of one percent of all water). Read on 4 October 2026
+  through a page reader, because the site refused a direct download.
+  https://www.usgs.gov/special-topics/water-science-school/science/where-earths-water
 - US Geological Survey, Water Science School. Aquifers and Groundwater,
   dated 17 September 2026 (the beach hole; the saturated zone and the
   water table; aquifers; recharge rates differ; "pumping your well too
@@ -525,7 +561,9 @@ October 2026; regulations and statutes were read on the same day.
 - US Geological Survey, National Water Information System, groundwater
   site inventory for Kitsap County, Washington (the well depths: 3,856
   wells with a recorded depth; median 109 feet, quartiles 47 and 228
-  feet, counted by us). https://waterservices.usgs.gov/nwis/site/?format=rdb&countyCd=53035&siteType=GW&siteOutput=expanded
+  feet, counted by us). A recount the same day through the newer USGS
+  Water Data API found 3,844 wells, with the same median and quartiles.
+  https://waterservices.usgs.gov/nwis/site/?format=rdb&countyCd=53035&siteType=GW&siteOutput=expanded
 - Centers for Disease Control and Prevention. Well Water Safety, 4 June
   2024 (private wells not regulated, treated or monitored; the setback
   distances; a well checkup and test every year; retiring a well, and
@@ -540,7 +578,9 @@ October 2026; regulations and statutes were read on the same day.
 - US Environmental Protection Agency. Protect Your Home's Water, last
   updated 26 February 2026 (the annual tests and when to test at once;
   disinfection as one way to control high bacteria, with the health
-  department's steps; a certified driller for new wells, changes and
+  department's steps; after a flood, "Get assistance from a well or pump
+  contractor to clean and disinfect your well before turning on the
+  pump."; a certified driller for new wells, changes and
   closing; sloping the
   ground away; chemicals away from the well; no wastes in dry or
   abandoned wells; never cutting the casing off below ground; what to
@@ -549,7 +589,10 @@ October 2026; regulations and statutes were read on the same day.
 - US Environmental Protection Agency. What to Do After the Flood,
   publication 816-F-05-021, listed as updated October 2024 on the page
   What to Do With Your Private Well After a Flood (last updated 18 June
-  2026) (do not turn on the pump; wiring checked before restarting;
+  2026) (do not turn on the pump; wiring checked before restarting, and
+  a well or pump contractor's help turning the pump on; pumps not cleaned
+  and lubricated can burn out; rubber boots and gloves no protection from
+  electric shock;
   wells over 10 years old or under 50 feet deep likely contaminated; the
   emergency disinfection procedure and its materials; contractor
   disinfection for drilled, driven and bored wells; testing 7 to 10 days
@@ -569,10 +612,12 @@ October 2026; regulations and statutes were read on the same day.
   be judged; an unplanned rescue easily becoming a double fatality).
   https://stacks.cdc.gov/view/cdc/5830
 - Occupational Safety and Health Administration. 29 CFR 1926.651(g)(1)(i)
-  (air in an excavation over 4 feet deep tested where less than 19.5
-  percent oxygen or another hazardous atmosphere could be expected) and
-  1926.652(a)(1) (cave-in protection in excavations, except in stable
-  rock or under 5 feet deep with no sign of a cave-in).
+  (air tested before employees enter an excavation over 4 feet deep
+  where less than 19.5 percent oxygen or another hazardous atmosphere
+  could be expected) and 1926.652(a)(1) (each employee in an excavation
+  protected from cave-ins, except in stable rock or under 5 feet deep
+  where a competent person finds no sign of a possible cave-in). Both
+  bind employers.
   https://www.ecfr.gov/current/title-29/subtitle-B/chapter-XVII/part-1926/subpart-P
 - US Consumer Product Safety Commission. Portable Generator Hazards, CPSC
   Safety Alert, Publication 5123, printed with the code 102021 (never
@@ -587,8 +632,14 @@ facts are used here and the wording is not.
 
 - Revised Code of Washington 90.44.050 (the permit exemption for stock
   watering, a lawn or noncommercial garden of half an acre or less, and
-  domestic use up to 5,000 gallons a day).
+  domestic use up to 5,000 gallons a day; an exempt withdrawal, as far as
+  it is regularly used, carries a right equal to one from a permit).
   https://app.leg.wa.gov/RCW/default.aspx?cite=90.44.050
+- Revised Code of Washington 90.44.020 (the groundwater chapter
+  supplements the surface water code and extends it to groundwater) and
+  90.03.010 (between appropriations, the earlier comes first).
+  https://app.leg.wa.gov/RCW/default.aspx?cite=90.44.020 and
+  https://app.leg.wa.gov/RCW/default.aspx?cite=90.03.010
 - Revised Code of Washington 90.94.030 (Kitsap, WRIA 15, among the named
   watersheds; for a new permit-exempt domestic well, a $500 fee, a
   950 gallon a day annual average per connection, and curtailment to 350
@@ -633,9 +684,15 @@ facts are used here and the wording is not.
 
 - That a dug well, well pit, cistern or spring box is a confined space
   in NIOSH's sense, that a contractor with gas testing and rescue
-  equipment, not a household, does any work inside a well, and that a
-  household digging a well has none of the protection OSHA requires, are
-  our reading of the NIOSH and OSHA material.
+  equipment, not a household, does any work inside a well, that a
+  household digging a well has none of the protection OSHA requires, and
+  that the air and the soil are as dangerous to a household as to the
+  workers OSHA's rules protect, are our reading of the NIOSH and OSHA
+  material.
+- That an exempt Washington well ranks by its date behind older rights
+  is our reading of RCW 90.44.050, 90.44.020 and 90.03.010 together.
+- That nearly all fresh water outside ice and glaciers is in the ground
+  is our arithmetic from the USGS's figures.
 - How to make an old well safe until it is closed (keep people away, a
   cover that cannot slide or rot through and will carry a person, a mark,
   a call to the state program) is general practice.

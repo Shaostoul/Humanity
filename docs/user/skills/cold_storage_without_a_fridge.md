@@ -105,7 +105,9 @@ half-full one about 24, and a refrigerator keeps food safe for up to 4
 hours. For dry ice, it gives a caution in brackets: "Do not touch dry
 ice with bare hands or place it in direct contact with food." Dry ice
 turns into carbon dioxide gas as it warms, so keep it out of small
-closed rooms and cars where people breathe (general knowledge).
+closed rooms and cars where people breathe, and never seal it in an
+airtight container: the gas has nowhere to go, and the pressure can
+burst the container (general knowledge).
 
 ### Never taste to decide
 
@@ -118,10 +120,12 @@ A root cellar or storage pit is a hole in the ground with a roof on it,
 and both parts have their hazards.
 
 - **The hole.** Soil walls collapse. OSHA's rule for work in
-  excavations requires protection from cave-ins for anyone in an
-  excavation 5 feet deep or more unless it is in stable rock, and at less
-  than 5 feet only where a competent person finds no sign of a cave-in
-  (29 CFR 1926.652(a)(1)). [Square, Level and
+  excavations requires each worker in an excavation to be protected from
+  cave-ins, except where it is cut entirely in stable rock, or is less
+  than 5 feet deep and a competent person has examined the ground and
+  found no sign of a possible cave-in (29 CFR 1926.652(a)(1)). The rule
+  binds employers; the soil falls the same way on a household (our
+  reading). [Square, Level and
   Plumb](square_level_and_plumb.md) has more on digging safely, and on
   calling to have buried utilities marked first.
 - **The roof.** The 1960 bulletin says it plainly: "The structure of an
@@ -160,7 +164,7 @@ written for warehouses, but the biology is the same in a cellar.
 |---|---|---|
 | Carrots (topped) | 32 to 34 F (0 to 1 C), very damp (98 to 100 percent humidity) | 7 to 9 months at best; not harmed by cold; turn bitter near ethylene gas |
 | Beets (topped) | 33 to 36 F (1 to 2 C), very damp (98 percent) | 4 to 6 months in ventilated storage; trim tops, sort out damaged roots |
-| Potatoes for eating | 45 to 50 F (7 to 10 C), after curing | colder storage turns starch to sugar; dark storage is essential |
+| Potatoes for eating | 45 to 50 F (7 to 10 C), after curing | colder storage turns starch to sugar; sprouting speeds up above 40 F; dark storage is essential |
 | Onions (dry) | 32 F (0 C), fairly dry (65 to 75 percent) | damp makes roots grow; warmth makes them sprout |
 | Pumpkins and winter squash | 50 to 55 F (10 to 13 C), dry (50 to 70 percent) | chilling injury below 50 F; keep the surface dry |
 | Apples | 30 to 39 F (-1 to 4 C), damp (90 to 95 percent), by variety | give off ethylene, a ripening gas |
@@ -172,7 +176,10 @@ Four lessons follow (our reading of the table):
   You Grew](keeping_what_you_grew.md) calls these the three climates. Its
   figure for potatoes, from Iowa State University, is 40 F; the USDA
   handbook's warmer range is for potatoes you want to eat without them
-  turning sweet. The 1960 bulletin noted the same sweetening, and that a
+  turning sweet. It is a trade, not a better keeping temperature: the
+  same handbook says sprouting speeds up above 40 F, which is why seed
+  potatoes are kept at about 40 F, so potatoes kept at 45 to 50 F will
+  sprout sooner. The 1960 bulletin noted the sweetening, and that a
   week or two in a warm room usually corrects it.
 - **Keep fruit and vegetables apart.** The handbook explains ethylene:
   apples make it, and carrots exposed to it turn bitter. The 1960
@@ -183,7 +190,11 @@ Four lessons follow (our reading of the table):
 - **Keep potatoes in the dark.** The handbook says light, even a week or
   two of dim light, turns potatoes green and builds bitter, toxic
   glycoalkaloids such as solanine, which cooking does little to remove.
-  The cure is prevention: darkness, from the day they are dug.
+  The green itself is chlorophyll; it is the warning sign that the same
+  light has been at work. The handbook adds that solanine also forms
+  where tubers are bruised or cut, and as they sprout. The cure is
+  prevention: darkness from the day they are dug, gentle handling, and
+  storage cool enough to hold off sprouting.
 - **Store only sound produce.** The 1960 bulletin's first rules: discard
   anything with decay or serious injury before storing, handle it gently,
   and remove rotting produce as soon as you find it.
@@ -210,7 +221,8 @@ The NRCS's Soil Taxonomy explains that the daily and yearly swings fade
 with depth, that a single reading 6 metres down is within 1 C of the
 soil's yearly average, and that the yearly average soil temperature in
 much of the United States is commonly estimated as the yearly average
-air temperature plus 1 C (2 to 3 C more in some places).
+air temperature plus 1 C, though for some areas it says the estimate
+should add 2 or even 3 C instead of 1.
 
 That is both the strength and the limit of a cellar. Deep ground stays
 close to the year's average temperature: cool in summer, but no colder
@@ -280,8 +292,12 @@ A springhouse lets cold spring water run past sealed containers. Spring
 water comes from the ground, and water from any depth tends toward the
 ground's yearly average temperature (our reading of Soil Taxonomy's
 account of soil temperature). In a place whose yearly average is above
-40 F, spring water cannot hold perishable food at FSIS's 40 F (our
-reading). It can keep vegetables cool and drinks cold.
+40 F, spring water usually cannot hold perishable food at FSIS's 40 F
+(our reading). Some springs run colder than the local ground, fed by
+snowmelt or by water from higher, colder country, so measure yours with
+a thermometer through the seasons before trusting it with anything
+perishable (our reading). Either way, it can keep vegetables cool and
+drinks cold.
 
 ## Worked example: cold storage at Silverdale, Washington
 
@@ -292,22 +308,26 @@ mild, and that changes what cold storage can do there.
 **The climate.** NOAA's 1991 to 2020 normals for Bremerton, the nearest
 full weather station, give an average temperature of 41.1 F in January
 and 40.3 F in December, and 41.2 F for December to February as a whole,
-with average winter nights at 35.3 F and average January afternoons at
-46.6 F. The year's average is 52.3 F.
+with average winter nights at 35.3 F and average winter afternoons at
+47.2 F (46.6 F in January). The year's average is 52.3 F.
 
 **What that means for a cellar.** The 1960 bulletin said that elaborate
 storage buildings are not practical unless winter temperatures outside
 average 30 F or lower, and that home storage is not practical for most
 fruit and vegetables unless the storage can be kept below 40 F.
-Silverdale's winter averages 41 F. By the bulletin's rule, a cellar here
-cannot be kept at 32 F, and holding it under 40 F would take working the
-vents to catch the colder nights (our reading). The deep ground is no
-help with that: Soil Taxonomy's rule of thumb puts the soil's yearly
-average about 1 C above the air's, around 54 F here (our arithmetic).
+Silverdale's winter averages 41 F. Our reading of those two rules: an
+elaborate storage building is not practical here, a cellar is unlikely
+to be held near 32 F, and holding one under 40 F would take working the
+vents to catch the colder nights. The deep ground is no help with that:
+Soil Taxonomy's rule of thumb puts the soil's yearly average about 1 C
+above the air's, around 54 F here, or a few degrees more if this is one
+of the areas where it should be 2 or 3 C (our arithmetic).
 
-**What still works.** Read the table again: potatoes for eating keep
-best at 45 to 50 F and squash at 50 to 55 F, which Silverdale's mild
-winter and cool ground suit well (our reading). Onions and squash want
+**What still works.** Read the table again: potatoes for eating are
+stored at 45 to 50 F to keep them from turning sweet, and squash at 50
+to 55 F, which Silverdale's mild winter and cool ground suit well (our
+reading). Potatoes kept that warm will sprout sooner than at 40 F (the
+handbook), so check them often and use them first (general practice). Onions and squash want
 it dry: the 1960 bulletin sends onions to a dry, well-ventilated attic
 or unheated room, not a cellar, and says damp places such as root
 cellars should not be used for pumpkins and squash. Carrots and apples,
@@ -317,17 +337,20 @@ that when storage cannot be kept near 32 F, storage life is shorter.
 **What the ground does in winter.** The soil survey for the common
 Alderwood soil around Silverdale records a seasonal perched water table
 as shallow as about 65 cm (26 inches), above dense glacial till, and
-rates it limited for dwellings with basements because of it (USDA NRCS
-soil data, as gathered in the project's locale file). A dug cellar or
+rates it very limited for dwellings with basements because of perched
+ground water 75 to 180 cm down, and slope on its steeper ground (USDA
+NRCS soil data, as gathered in the project's locale file). A dug cellar or
 pit on such ground can fill with water in the wet season, exactly when
 it is full of food (our reading). Look up your own parcel in the NRCS's
 Web Soil Survey before digging.
 
 **What does not work here.** Snow, for anything: Bremerton's normals
 record about 3 inches of snow a year. A porch as a refrigerator: with
-average winter afternoons around 46 F, it is above 40 F much of most
+average winter afternoons around 47 F, it is above 40 F much of most
 days (our reading of the normals). And a springhouse for milk or meat:
-groundwater here sits near the ground's mid-50s F (our reading).
+groundwater here is likely to sit near the ground's mid-50s F, so
+measure a spring before trusting it with anything perishable (our
+reading).
 
 ## An old bulletin, read carefully
 
@@ -362,13 +385,15 @@ perishable food on ice or not at all.
 
 ## Traps
 
-- **"It feels cold in here."** Measure it. A cellar at 45 F is good for
-  potatoes and wrong for milk.
+- **"It feels cold in here."** Measure it. A cellar at 45 F suits eating
+  potatoes and is wrong for milk.
 - **Food in the snow.** Changing temperatures, dirt and animals. Make
   ice instead.
 - **A clay pot cooler for meat.** It cools by degrees, not to 40 F.
 - **Apples beside the carrots.** Bitter carrots and tainted apples.
-- **Potatoes in the light.** Green potatoes are a toxin, not a colour.
+- **Potatoes in the light.** Green is the warning: the light that greens
+  a potato also builds bitter, toxic glycoalkaloids.
+- **Dry ice in a sealed box.** The gas can burst it.
 - **A cellar dug into a winter water table.** It floods when it is full.
 - **An old guide, followed whole.** Check its chemicals and its numbers.
 - **Tasting to decide.** Never.
@@ -420,7 +445,7 @@ they are in the default home.
 - You put a thermometer in every place you store food, and believe it
   over your hand.
 - You make ice in a winter power cut instead of putting food in the
-  snow.
+  snow, and you never seal dry ice in an airtight container.
 - You can give the best temperature and dampness for carrots, potatoes,
   onions, squash and apples, and keep fruit away from vegetables.
 - You can run a cellar's vents to catch the cold nights, and you keep
@@ -465,7 +490,10 @@ read on 4 October 2026.
   February 2016 (the commodity summaries for carrots, beets, potatoes,
   onions, pumpkins and winter squash, and apples: storage temperature,
   humidity and life; chilling injury; ethylene and bitter carrots;
-  greening and glycoalkaloids in potatoes; respiration rates given as
+  sprouting in potatoes speeding up above 40 F, so seed potatoes are
+  kept at about 40 F and eating potatoes warmer to limit sweetening;
+  greening as chlorophyll, with the glycoalkaloids that light, bruising,
+  cutting and sprouting build; respiration rates given as
   carbon dioxide produced). Its chapters were written by
   many authors, some outside the federal government, so its facts are
   restated here rather than quoted.
@@ -485,20 +513,22 @@ read on 4 October 2026.
   Natural Resources Conservation Service, Agriculture Handbook 436
   (fluctuations of soil temperature fading with depth; a reading at 6 m
   within 1 C of the yearly mean; the yearly mean soil temperature
-  commonly estimated as the yearly mean air temperature plus 1 C, more in
-  some areas). https://www.nrcs.usda.gov/sites/default/files/2022-06/Soil%20Taxonomy.pdf
+  commonly estimated as the yearly mean air temperature plus 1 C, and
+  for some areas plus 2 or even 3 C instead). https://www.nrcs.usda.gov/sites/default/files/2022-06/Soil%20Taxonomy.pdf
 - NOAA National Centers for Environmental Information. 1991-2020 Climate
   Normals, Bremerton, WA (GHCN USC00450872), monthly and annual/seasonal
   files (January 41.1 F, December 40.3 F, December to February 41.2 F
-  with mean minimum 35.3 F, January mean maximum 46.6 F, annual 52.3 F,
-  annual snowfall 3.0 inches).
+  with mean minimum 35.3 F and mean maximum 47.2 F, January mean maximum
+  46.6 F, annual 52.3 F, annual snowfall 3.0 inches).
   https://www.ncei.noaa.gov/data/normals-monthly/1991-2020/access/USC00450872.csv
   and https://www.ncei.noaa.gov/data/normals-annualseasonal/1991-2020/access/USC00450872.csv
 - Occupational Safety and Health Administration. 29 CFR 1926.652(a)(1)
-  (cave-in protection in excavations).
+  (each employee in an excavation protected from cave-ins, except in
+  stable rock or under 5 feet deep where a competent person finds no
+  sign of a possible cave-in; it binds employers).
   https://www.ecfr.gov/current/title-29/subtitle-B/chapter-XVII/part-1926/subpart-P/section-1926.652
 - Agency for Toxic Substances and Disease Registry. ToxFAQs for Carbon
-  Tetrachloride, undated in its page text (its former uses, including as
+  Tetrachloride, page last reviewed 25 October 2011 (its former uses, including as
   a pesticide and a cleaning fluid, now banned because of its harmful
   effects).
   https://wwwn.cdc.gov/TSP/ToxFAQs/ToxFAQsDetails.aspx?faqid=195&toxid=35
@@ -551,14 +581,19 @@ read on 4 October 2026.
 - That ice is the only method here that holds perishable food at 40 F
   in warm weather is our summary of the methods on this page.
 - That dry ice becomes carbon dioxide gas and belongs out of small
-  closed spaces is general knowledge.
-- That a closed cellar of living produce can hold bad air, the four
-  lessons drawn from the storage table, the limits of a clay pot cooler,
-  that spring water tends toward the ground's yearly average and so
-  cannot hold food at 40 F where the yearly average is above 40 F, and
-  what the Silverdale example concludes from the normals and the soil
-  record (no 32 F cellar, vents to catch cold nights, what suits the mild
-  winter, a flooding cellar, a porch above 40 F, spring water in the 50s
-  F) are our reading.
+  closed spaces, and that sealed in an airtight container it can burst
+  it, are general knowledge.
+- That OSHA's cave-in rule, which binds employers, describes the same
+  danger to a household; that a closed cellar of living produce can hold
+  bad air; the four lessons drawn from the storage table, including
+  that potatoes at 45 to 50 F will sprout sooner; the limits of a clay
+  pot cooler; that spring water tends toward the ground's yearly average
+  and so usually cannot hold food at 40 F where the yearly average is
+  above 40 F, while some springs run colder and should be measured; and
+  what the Silverdale example concludes from the bulletin's rules, the
+  normals and the soil record (an elaborate store not practical and a
+  32 F cellar unlikely, vents to catch cold nights, what suits the mild
+  winter, a flooding cellar, a porch above 40 F, spring water likely in
+  the 50s F) are our reading.
 - The soil temperature near 54 F at Silverdale is our arithmetic from
   the normals and Soil Taxonomy's rule of thumb.
