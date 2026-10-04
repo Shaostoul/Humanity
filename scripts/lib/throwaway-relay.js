@@ -50,8 +50,14 @@
 // (netstat on Windows, ss on Linux, lsof on macOS) and refuses, killing the
 // relay, unless every one is loopback. That is what stops a quiet revert: an
 // exe built before BIND_ADDRESS existed, or a relayEnv() that lost the line,
-// fails loudly here instead of prompting the operator. Do not "fix" that
-// failure by removing the check; see docs/INCIDENT-PLAYBOOK.md.
+// fails loudly here. Not BEFORE any prompt, though: the check can only look
+// once the relay is listening, and Windows asks the moment a program listens
+// on the wildcard, so a revert still costs ONE prompt (for that run's temp
+// path) and then stops the run, and every run after it, until it is fixed.
+// The prevention is the BIND_ADDRESS line; this check is what makes a revert
+// cost one prompt instead of one per run, forever, unnoticed. Do not "fix"
+// that failure by removing the check; see docs/INCIDENT-PLAYBOOK.md.
+// scripts/tests/throwaway-relay.test.js proves startRelay() runs it.
 
 "use strict";
 
@@ -290,6 +296,13 @@ function assertLoopbackOnly(pid, port, platform = process.platform) {
  *   prefix     the temp folder's name prefix, e.g. "second-player-relay-test-".
  *   config     written as data/server-config.json in its folder (optional).
  *   healthTimeoutMs  how long to wait for /health (default 60 s).
+ *   checkListening   (pid, port) => rows, throwing to refuse the relay.
+ *                    Default assertLoopbackOnly; a test passes its own to
+ *                    prove startRelay() calls it and stops a refused relay.
+ *   spawnProcess     (exe, args, options) => ChildProcess. Default
+ *                    child_process.spawn; a test passes one that runs a tiny
+ *                    stand-in relay in node, so the check above can be seen
+ *                    working without a release build.
  *
  * Resolves with a handle whether or not /health answered: `health` is the
  * parsed /health body, or null, and the caller decides what that means
@@ -302,7 +315,14 @@ function assertLoopbackOnly(pid, port, platform = process.platform) {
  * stop() }. `listening` is what the OS showed the relay listening on (rows
  * { host, port, line }), so a caller can print the evidence.
  */
-async function startRelay({ sourceExe, prefix = "throwaway-relay-", config = null, healthTimeoutMs = 60000 } = {}) {
+async function startRelay({
+  sourceExe,
+  prefix = "throwaway-relay-",
+  config = null,
+  healthTimeoutMs = 60000,
+  checkListening = assertLoopbackOnly,
+  spawnProcess = spawn,
+} = {}) {
   if (!sourceExe || !fs.existsSync(sourceExe)) throw new Error(`no relay exe to copy: ${sourceExe}`);
   hookProcessExit();
   let dir = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
@@ -368,7 +388,7 @@ async function startRelay({ sourceExe, prefix = "throwaway-relay-", config = nul
   h.url = `ws://127.0.0.1:${h.port}/ws`;
   h.httpUrl = `http://127.0.0.1:${h.port}`;
   const log = fs.openSync(h.logPath, "w");
-  proc = spawn(h.exe, ["--headless"], { cwd: dir, env: relayEnv(h.port, h.dbPath), stdio: ["ignore", log, log], windowsHide: true });
+  proc = spawnProcess(h.exe, ["--headless"], { cwd: dir, env: relayEnv(h.port, h.dbPath), stdio: ["ignore", log, log], windowsHide: true });
   fs.closeSync(log);
   h.proc = proc;
   h.pid = proc.pid;
@@ -389,7 +409,7 @@ async function startRelay({ sourceExe, prefix = "throwaway-relay-", config = nul
   // (A relay that never answered /health is the caller's to judge, as before.)
   if (h.health) {
     try {
-      h.listening = assertLoopbackOnly(h.pid, h.port);
+      h.listening = checkListening(h.pid, h.port);
     } catch (e) {
       await h.stop();
       throw e;

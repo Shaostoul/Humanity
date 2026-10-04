@@ -1708,6 +1708,8 @@ mod native_app {
             // Bring the self-hosted relay node back up if it was running at
             // last exit (host_node_autostart, armed by Start / disarmed by
             // Stop). Must run after the config lands so port/db/name match.
+            // A script-launched instance holds it back until the first click
+            // (no firewall prompt from an agent's boot; see host_node::autostart).
             crate::gui::pages::host_node::autostart_if_configured(&gui_state);
             // Push the LOADED settings into the engine on the first frame. Without this the
             // camera boots at CameraController::new's hardcoded sensitivity (and the camera
@@ -3026,6 +3028,8 @@ mod native_app {
                     if pressed && state.background_no_cursor {
                         state.background_no_cursor = false;
                         crate::engine::launch_focus::open_audio_on_click(&mut state.audio);
+                        // ...and the saved relay node a script launch held back.
+                        crate::gui::pages::host_node::autostart_on_first_click(&state.gui_state);
                     }
                     // In-world modal panels own clicks (v0.773 chat, v0.778 creature
                     // editor). egui still receives the click (on_window_event, above)

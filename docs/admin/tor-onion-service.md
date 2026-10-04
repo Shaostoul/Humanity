@@ -60,10 +60,25 @@ Publish that `.onion` address alongside the clearnet URL. The
 ## What the user does
 
 Open the relay's `.onion` address in Tor Browser (or any Tor-enabled client).
-Identity, keys, DMs, and everything else work identically; the only difference
-is the relay cannot see where they are. A user can keep the same identity across
-the clearnet and onion doors, because identity is a key, not an account tied to
-an address.
+A user can keep the same identity across the clearnet and onion doors, because
+identity is a key, not an account tied to an address, and the relay cannot see
+where an onion visitor is.
+
+**Known gap: the website does not load over this setup yet (checked
+2026-10-03).** With the onion pointed at port 3210 as above, it reaches the
+relay itself, which answers `/health`, the API (`/api/...`) and the
+WebSocket (`/ws`), but not the website. The site's pages are served by nginx
+from `/var/www/humanity`, and the relay's own fallback serves a `client/`
+folder beside its working directory (`/opt/Humanity/client`), which does not
+exist on the VPS, so Tor Browser gets a 404 at `/`. Until the onion points at
+an nginx server block that serves the site and passes `/api` and `/ws` to
+3210, or the relay is given a `client/` copy of `web/` (what
+`CONTRIBUTING.md` describes for local use; not yet tried over Tor), the onion
+door is for programs that talk to the API, not for a person in Tor Browser.
+Tor is not installed on the VPS today, so nothing live is broken; this note
+exists so it is not switched on in the belief that the page works. (Changing
+the port from 8080 to 3210 on 2026-10-03 made the onion reach the relay at
+all; it did not close this gap.)
 
 ## Honest limits
 

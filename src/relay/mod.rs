@@ -379,6 +379,43 @@ mod bind_address_tests {
     // anything it could not parse: "a typo must be an error, not
     // Some(0.0.0.0): \"127.0.0.l\"". That fall back is exactly the failure
     // this prevents.
+    // run_relay must LISTEN on the address validate_environment built from
+    // BIND_ADDRESS. The tests above check that address; none of them reaches
+    // the line that binds it, and booting run_relay in a unit test would open
+    // a real database and install a Ctrl+C handler. So this reads run_relay's
+    // own source: it listens in exactly one place, on `listen_addr`, which
+    // comes from validate_environment(). A revert to the old "0.0.0.0:{port}"
+    // fails here, before anything listens (the critic review of 2026-10-03
+    // found the whole battery passed with that revert).
+    //
+    // Red first, 2026-10-03, with the bind reverted to
+    // tokio::net::TcpListener::bind(format!("0.0.0.0:{port}")): "run_relay
+    // must listen on the BIND_ADDRESS address (listen_addr), got: let listener
+    // = tokio::net::TcpListener::bind(format!(\"0.0.0.0:{port}\")).await.
+    // unwrap_or_else(|e| {". Reads text, nothing is bound.
+    #[test]
+    fn run_relay_listens_on_the_bind_address_setting() {
+        let src = include_str!("mod.rs").replace("\r\n", "\n");
+        // The newline in front keeps this from matching the string below,
+        // where the "\n" is two characters, not a line break.
+        let start = src.find("\npub async fn run_relay() {\n").expect("run_relay is in mod.rs");
+        let body = &src[start..];
+        // The function ends at the first closing brace in column 0.
+        let body = &body[..body.find("\n}\n").expect("the end of run_relay")];
+        assert!(
+            body.contains("let (db_path, listen_addr) = validate_environment();"),
+            "run_relay must take its listen address from validate_environment()"
+        );
+        let binds: Vec<&str> =
+            body.lines().map(str::trim).filter(|l| l.contains("TcpListener::bind(")).collect();
+        assert_eq!(binds.len(), 1, "run_relay listens in exactly one place, got: {binds:?}");
+        assert!(
+            binds[0].starts_with("let listener = tokio::net::TcpListener::bind(listen_addr)"),
+            "run_relay must listen on the BIND_ADDRESS address (listen_addr), got: {}",
+            binds[0]
+        );
+    }
+
     #[test]
     fn a_value_that_is_not_an_ip_address_is_an_error_not_the_wildcard() {
         for bad in ["127.0.0.l", "lan", "127.0.0.1:3210", "http://127.0.0.1"] {

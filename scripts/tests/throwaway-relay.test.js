@@ -11,11 +11,12 @@
 // and refuses anything else. These tests pin both halves: the setting, and a
 // check that can actually fail.
 //
-// Pure node apart from one live check, which lists THIS process's own
-// listener (a node server on 127.0.0.1, which never prompts) through the real
-// netstat / ss / lsof, so the parser is proven on real output too, not only
-// on the samples below. Starts no relay. Run: node --test
-// scripts/tests/throwaway-relay.test.js (in `just rig-tests`).
+// Pure node. One live check lists THIS process's own listener (a node server
+// on 127.0.0.1, which never prompts) through the real netstat / ss / lsof, so
+// the parser is proven on real output too, not only on the samples below. The
+// last two run startRelay() on a stand-in relay in node, also on 127.0.0.1,
+// so they need no release build. No real relay is started. Run:
+// node --test scripts/tests/throwaway-relay.test.js (in `just rig-tests`).
 
 const test = require("node:test");
 const assert = require("node:assert");
@@ -120,4 +121,124 @@ test("assertLoopbackOnly passes a real loopback listener, read from the OS", asy
   } finally {
     await new Promise((r) => srv.close(r));
   }
+});
+
+// ── startRelay() itself runs the check (critic review, 2026-10-03) ──
+//
+// The tests above prove the check works; these prove startRelay() CALLS it,
+// and stops a relay it refuses. Without them, deleting the one line in
+// startRelay() that runs the check left every test here green.
+//
+// They need no release build: startRelay() takes the program to start as an
+// option, and these pass one that starts a tiny stand-in relay in node, which
+// answers /health and listens where the relay would, on the BIND_ADDRESS that
+// relayEnv() hands it (127.0.0.1, so it never raises a firewall prompt).
+// startRelay() still makes its temp folder and copies "the exe" into it (this
+// test file stands in for it), so the folder's removal can be checked.
+
+const fs = require("node:fs");
+const { spawn } = require("node:child_process");
+
+const STAND_IN_RELAY = `
+const http = require("node:http");
+http
+  .createServer((req, res) => {
+    res.setHeader("content-type", "application/json");
+    res.end(JSON.stringify({ status: "ok" }));
+  })
+  .listen(Number(process.env.PORT), process.env.BIND_ADDRESS);
+`;
+
+/** A spawnProcess for startRelay(): runs the stand-in relay with the options
+ *  (folder, environment, log) startRelay() chose, and remembers the child. */
+function standIn(seen) {
+  return (_exe, _args, options) => {
+    seen.options = options;
+    seen.child = spawn(process.execPath, ["-e", STAND_IN_RELAY], options);
+    return seen.child;
+  };
+}
+
+const exitedOrGone = (child) =>
+  new Promise((resolve) => {
+    if (child.exitCode !== null || child.signalCode !== null) return resolve(true);
+    const t = setTimeout(() => resolve(false), 5000);
+    child.once("exit", () => {
+      clearTimeout(t);
+      resolve(true);
+    });
+  });
+
+// Red first, 2026-10-03, with the `h.listening = checkListening(...)` line
+// deleted from startRelay():
+//   AssertionError: startRelay() must ask the OS what the relay listens on
+//   and keep what it saw; listening was []
+test("startRelay asks the OS what the relay listens on, and keeps the evidence", async () => {
+  const seen = {};
+  const h = await TR.startRelay({
+    sourceExe: __filename,
+    prefix: "throwaway-relay-selftest-",
+    healthTimeoutMs: 20000,
+    spawnProcess: standIn(seen),
+  });
+  try {
+    assert.ok(h.health, `the stand-in relay answered /health (log: ${h.logText()})`);
+    assert.ok(
+      h.listening.some((r) => r.port === h.port && r.host === "127.0.0.1"),
+      `startRelay() must ask the OS what the relay listens on and keep what it saw; listening was ${JSON.stringify(h.listening)}`,
+    );
+    assert.strictEqual(seen.options.env.BIND_ADDRESS, "127.0.0.1", "it was started with the loopback setting");
+  } finally {
+    await h.stop();
+  }
+  assert.ok(!fs.existsSync(seen.options.cwd), "stop() removed its folder");
+});
+
+// Red first, 2026-10-03, with the same line deleted:
+//   AssertionError [ERR_ASSERTION]: startRelay() must refuse a relay its
+//   check refuses (it resolved instead)
+// And with the `await h.stop()` before the rethrow deleted:
+//   AssertionError [ERR_ASSERTION]: a refused relay is stopped before the
+//   error goes up
+// (Both red runs finish in about a second, with no stand-in left running.)
+test("a relay the check refuses is stopped, its folder removed, and the error goes up", async () => {
+  const seen = {};
+  const asked = [];
+  let h = null;
+  let err = null;
+  try {
+    h = await TR.startRelay({
+      sourceExe: __filename,
+      prefix: "throwaway-relay-selftest-",
+      healthTimeoutMs: 20000,
+      spawnProcess: standIn(seen),
+      checkListening: (pid, port) => {
+        asked.push([pid, port]);
+        throw new Error("refused by this test");
+      },
+    });
+  } catch (e) {
+    err = e;
+  }
+  // Note what startRelay() left behind BEFORE tidying up, then tidy up
+  // whatever the outcome. A regression must FAIL here, not leave the
+  // stand-in running: a live child keeps this test file from ever exiting
+  // (the first red runs of this test hung until their timeout, 2026-10-03).
+  const exited = (c) => c.exitCode !== null || c.signalCode !== null;
+  const stoppedFirst = !!seen.child && exited(seen.child);
+  const dirGoneFirst = !!seen.options && !fs.existsSync(seen.options.cwd);
+  if (h) await h.stop();
+  if (seen.child && !exited(seen.child)) {
+    seen.child.kill();
+    await exitedOrGone(seen.child);
+  }
+  if (seen.options) fs.rmSync(seen.options.cwd, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+
+  assert.ok(err, "startRelay() must refuse a relay its check refuses (it resolved instead)");
+  assert.match(err.message, /refused by this test/);
+  assert.strictEqual(asked.length, 1, "the check ran once");
+  assert.strictEqual(asked[0][0], seen.child.pid, "on the relay's own PID");
+  assert.strictEqual(String(asked[0][1]), seen.options.env.PORT, "and its port");
+  assert.ok(stoppedFirst, "a refused relay is stopped before the error goes up");
+  assert.ok(dirGoneFirst, "and its folder is removed");
 });

@@ -96,15 +96,39 @@ HumanityOS --headless
 ```
 
 That starts the relay (chat, and whatever else you enable) with no window and
-no GPU. Two knobs, both optional:
+no GPU. Three knobs, all optional:
 
 ```
 PORT=3210                      # which port to listen on (default 3210)
 DATABASE_PATH=data/relay.db    # where to keep the data (default data/relay.db)
+BIND_ADDRESS=0.0.0.0           # who can connect (default 0.0.0.0, see below)
 ```
 
 For example, on Windows: `set PORT=4000 && HumanityOS --headless`. On macOS or
 Linux: `PORT=4000 HumanityOS --headless`.
+
+**Who can connect (`BIND_ADDRESS`).** The default, `0.0.0.0`, listens on every
+network interface, so other devices on your network can reach the node: that
+is what the LAN case below, a router port forward, and friends connecting
+straight to a Tailscale address all need. `127.0.0.1` (or `localhost`) listens
+on this computer only: nothing else can reach it, which is right for trying a
+node out by yourself, and for a server where nginx or a tunnel on the same
+machine (Cloudflare Tunnel, `tailscale serve`, a Tor onion service) passes
+people through to it. Any one of the machine's own addresses works too. The
+value is an address only; the port stays in `PORT`. Something that is not an
+address stops the relay with a message, rather than quietly listening
+everywhere.
+
+On Windows, the first time a node listens on the network, Windows Defender
+Firewall asks whether to allow HumanityOS. Allow it on private networks, or
+other devices cannot get in. With `BIND_ADDRESS=127.0.0.1` Windows never asks,
+because nothing from the network can reach it anyway. Every development tool
+in this repository starts its relays that way (`docs/INCIDENT-PLAYBOOK.md`
+says why).
+
+In the app, the same choice is **Who can connect** under **Servers > Host a
+node on this PC**: "Devices on my network" is `0.0.0.0`, "Only this computer" is
+`127.0.0.1`.
 
 It is featherweight. Measured on the live server, the relay uses about **20 MB
 of memory and half a percent of one CPU core** - it will not slow your machine
@@ -116,7 +140,9 @@ If everyone who connects is on the SAME network as you - a home, a school, a
 shared building - you need nothing else. No domain, no port forwarding, no
 certificate. Start it, find your machine's local address (something like
 `192.168.1.42`), and other people on your Wi-Fi connect to
-`http://192.168.1.42:3210`. This works today and is the right first step.
+`http://192.168.1.42:3210`. This works today and is the right first step. It
+needs the default `BIND_ADDRESS` (every interface); a node started with
+`127.0.0.1` answers this computer only.
 
 ### Reaching the wider internet (the honest version)
 
@@ -305,6 +331,12 @@ API_SECRET=generate_a_random_64_char_hex  # For bot API authentication
 # it, browsers on your domain get 403 and only the desktop app can connect.
 # The desktop app and the node's own localhost web client are always allowed.
 ALLOWED_ORIGINS=https://your-domain.example,https://chat.your-domain.example
+
+# Where it listens (both optional; "Run your own node" above explains them)
+PORT=3210                                  # Port (default 3210)
+BIND_ADDRESS=0.0.0.0                       # Address (default 0.0.0.0, every interface;
+                                           # 127.0.0.1 = this computer only, enough when
+                                           # nginx on the same box is the way in)
 
 # Optional
 WEBHOOK_URL=https://your-webhook-endpoint # Notified on new messages
@@ -544,6 +576,14 @@ sudo ufw enable
 ```
 
 Do NOT expose port 3210, nginx handles all public traffic.
+
+Optionally, add `BIND_ADDRESS=127.0.0.1` to `/opt/Humanity/.env` (then
+`sudo systemctl restart humanity-relay`). nginx reaches the relay over
+loopback, so nothing changes for users, and the relay then does not listen on
+the network at all, so 3210 stays closed even if the firewall is ever changed
+by mistake. It also matters for one detail: the relay takes a client's address
+for rate limiting from the `X-Forwarded-For` header nginx sets, which is only
+trustworthy when nginx is the only thing that can reach it.
 
 ---
 
