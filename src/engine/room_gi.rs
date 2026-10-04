@@ -218,8 +218,9 @@ mod tests {
         let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
         let text = std::fs::read_to_string(data.join("blueprints/ship_structure.ron")).expect("the shipped ship file");
         let ship_file: ShipStructure = ron::from_str(&text).expect("it parses");
-        let home_text = std::fs::read_to_string(data.join("homes/homestead.ron")).expect("the shipped home design");
-        let design: crate::ship::ship_structure::HomeDesign = ron::from_str(&home_text).expect("it parses");
+        // The SHIPPED design (data/homes/shipped/), never the checkout's data/homes/homestead.ron,
+        // which is the developer's own home and an editor Save rewrites.
+        let design = crate::ship::ship_structure::HomeDesign::built_in("homestead").expect("the shipped home design");
         let ship = ship_file.assemble(design, "p1").expect("it assembles at p1");
         let meshes = ship.generate_meshes();
         let boxes = room_boxes(Some(&ship), &meshes.room_info);

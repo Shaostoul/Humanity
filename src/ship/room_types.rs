@@ -280,7 +280,7 @@ mod tests {
     fn the_shipped_home_has_one_appearance_room_and_one_wardrobe_room() {
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
         let reg = RoomTypeRegistry::load(&root.join("data"));
-        let ship = crate::ship::ship_structure::ShipStructure::load_and_assemble(&root.join("data"), None)
+        let ship = crate::ship::ship_structure::ShipStructure::load_and_assemble_shipped(&root.join("data"), None)
             .expect("the shipped ship assembles");
         let rooms = ship.zones[ship.home_zone_index()].body.detect_rooms();
         let opening = |page: &str| -> Vec<&str> {

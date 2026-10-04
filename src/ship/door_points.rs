@@ -146,7 +146,7 @@ mod tests {
 
     fn on(plot: &str) -> ShipStructure {
         let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
-        ShipStructure::load_and_assemble(&data, Some(plot)).expect("the shipped ship assembles")
+        ShipStructure::load_and_assemble_shipped(&data, Some(plot)).expect("the shipped ship assembles")
     }
 
     fn place<'a>(d: &'a DoorPoints, id: &str) -> &'a RoutePlace {

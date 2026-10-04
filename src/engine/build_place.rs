@@ -471,7 +471,7 @@ mod tests {
         let pose = |id: &str, x: f32, z: f32, turns: u8| {
             placement::placement_pose(reg.get(id).unwrap(), Vec3::new(x, 0.0, z), turns, &world, &reg, None)
         };
-        let p1 = ShipStructure::load_and_assemble(&data, Some("p1")).expect("assembles at p1");
+        let p1 = ShipStructure::load_and_assemble_shipped(&data, Some("p1")).expect("assembles at p1");
         let out = |s: &ShipStructure, id: &str, x: f32, z: f32, turns: u8| outside_own_plot(Some(s), &pose(id, x, z, turns));
         assert!(!out(&p1, "wood_foundation", 30.0, 20.0, 0), "a foundation in the yard is yours");
         assert!(!out(&p1, "wood_foundation", 53.0, 87.0, 0), "flush in the far corner is still yours");
@@ -480,7 +480,7 @@ mod tests {
         assert!(out(&p1, "wood_wall", 55.0, 40.0, 0), "running east-west from the edge it reaches x 57");
         assert!(out(&p1, "wood_foundation", 80.0, 40.0, 0), "the Commons is not your plot");
         assert!(out(&p1, "wood_foundation", 30.0, 140.0, 0), "p2 is someone else's plot");
-        let p2 = ShipStructure::load_and_assemble(&data, Some("p2")).expect("assembles at p2");
+        let p2 = ShipStructure::load_and_assemble_shipped(&data, Some("p2")).expect("assembles at p2");
         assert!(!out(&p2, "wood_foundation", 30.0, 140.0, 0), "assembled at p2, p2 is yours");
         assert!(out(&p2, "wood_foundation", 30.0, 20.0, 0), "and p1 is not");
         assert!(!outside_own_plot(None, &pose("wood_foundation", 1000.0, 1000.0, 0)), "no ship, no bound");

@@ -1075,7 +1075,7 @@ mod tests {
     fn shipped_hull_profile_wraps_the_shipped_ship() {
         // The ship the game runs: the ship file plus the homestead on its default plot (p1).
         let data_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
-        let ship = ShipStructure::load_and_assemble(&data_dir, None).expect("the shipped ship assembles");
+        let ship = ShipStructure::load_and_assemble_shipped(&data_dir, None).expect("the shipped ship assembles");
         let text = std::fs::read_to_string(shipped_profile_path()).expect("shipped profile exists");
         let profile = HullProfile::parse(&text).expect("shipped profile parses");
         let geom = hull_geom(&ship, &profile).expect("resolves around the shipped cluster");

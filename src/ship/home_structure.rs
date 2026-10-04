@@ -2479,7 +2479,7 @@ mod tests {
 
     /// Data integrity for the shipped files (console-room increment): every zone_types.ron row
     /// parses with a unique id, a label, a purpose and a positive size; the console room is one of
-    /// them; every zone in the assembled ship (the ship file plus data/homes/homestead.ron) names a real zone type; every `room_type` any zone
+    /// them; every zone in the assembled ship (the ship file plus data/homes/shipped/homestead.ron) names a real zone type; every `room_type` any zone
     /// sets is a data/rooms.ron key; and no two zones in the home body overlap in plan (touching
     /// edges are fine, shared interior is not), which is the reviewer's "overlapping rect" trap.
     #[test]
@@ -2500,7 +2500,7 @@ mod tests {
         // The assembled ship (ship file + the homestead on its default plot), and the districts
         // that moved up to ship level in increment 1a.
         let data_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
-        let ship = crate::ship::ship_structure::ShipStructure::load_and_assemble(&data_dir, None)
+        let ship = crate::ship::ship_structure::ShipStructure::load_and_assemble_shipped(&data_dir, None)
             .expect("the shipped ship assembles");
         for d in &ship.districts {
             assert!(
@@ -2540,7 +2540,7 @@ mod tests {
     }
 
     /// The shipped home's walls really enclose the rooms its zones name, and the join lands:
-    /// `detect_rooms` on the real home (data/homes/homestead.ron) yields one room per authored room zone, each
+    /// `detect_rooms` on the real home (data/homes/shipped/homestead.ron) yields one room per authored room zone, each
     /// carrying that zone's id and room_type, each sitting inside the rect the zone declares.
     ///
     /// The console room and the kitchen are checked by name because other things point at them
@@ -2637,11 +2637,12 @@ mod tests {
         assert!(!opaque.roof_is_glass());
     }
 
-    /// The shipped home body: data/homes/homestead.ron, as the game sees it once assembled on the
+    /// The shipped home body: the SHIPPED homestead (data/homes/shipped/, never the checkout's
+    /// data/homes/homestead.ron, the developer's own home), as the game sees it once assembled on the
     /// ship's default plot (increment 1a of docs/design/ship-homes-and-logistics.md).
     fn shipped_home_body() -> HomeStructure {
         let data_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
-        let ship = crate::ship::ship_structure::ShipStructure::load_and_assemble(&data_dir, None)
+        let ship = crate::ship::ship_structure::ShipStructure::load_and_assemble_shipped(&data_dir, None)
             .expect("the shipped ship assembles");
         ship.zones[ship.home_zone_index()].body.clone()
     }

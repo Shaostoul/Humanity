@@ -2,9 +2,12 @@
 // into the exe (src/embedded_data.rs `shipped_home_design`) and never written by the game: a
 // neighbour's plot is drawn as it (src/ship/neighbours.rs), and a game with no
 // data/homes/homestead.ron of its own starts its home from it. YOUR home is
-// data/homes/homestead.ron, which every editor Save rewrites; it starts as a copy of this file.
-// To change the default every newcomer gets, edit this file (or copy a saved home over it) and
-// rebuild: it is in build.rs FINGERPRINT_INPUTS, so a rig refuses an exe built before the edit.
+// data/homes/homestead.ron, which every editor Save rewrites; it starts as a copy of this file
+// WITHOUT this paragraph (src/embedded_data.rs `own_home_text` drops everything from the first
+// line down to the bare // below, so a player's own home never says it is the default).
+// To change the default every newcomer gets, edit this file (or copy a saved home over it,
+// keeping this paragraph on top) and rebuild: it is in build.rs FINGERPRINT_INPUTS, so a rig
+// refuses an exe built before the edit.
 //
 // HumanityOS home design: the HOMESTEAD (55 x 89 m, 1.21 acres), the default start.
 // A home design is a body (the same model every ship zone uses: a fixed outer box plus

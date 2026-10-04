@@ -1696,11 +1696,26 @@ impl ShipStructure {
     }
 
     /// The ship file plus the home design of `plot`'s kind on `plot` (the ship's default plot
-    /// when None). The world load does not call this: it builds on the plot remembered for the
-    /// server, offline play included (engine/home_plot.rs `assemble_for_boot`, which calls
-    /// `assemble_from`); tests and tools that want the shipped ship as a newcomer boots it do.
+    /// when None), the home read from `data_dir` disk first: this player's OWN home. The world
+    /// load does not call this: it builds on the plot remembered for the server, offline play
+    /// included (engine/home_plot.rs `assemble_for_boot`, which calls `assemble_from`). A test
+    /// that means the SHIPPED ship calls `load_and_assemble_shipped`: in a repo checkout
+    /// data/homes/<kind>.ron is the developer's own home, which an editor Save rewrites.
     pub fn load_and_assemble(data_dir: &Path, plot: Option<&str>) -> Result<ShipStructure, String> {
         Self::assemble_from(Self::load_ship_file(data_dir)?, data_dir, plot)
+    }
+
+    /// TESTS ONLY: the ship file from `data_dir` with the SHIPPED design of `plot`'s kind on
+    /// `plot` (`HomeDesign::built_in`, data/homes/shipped/), the ship as a newcomer boots it.
+    /// Never data/homes/<kind>.ron, which in a repo checkout is the developer's own home: tests
+    /// that read it as the default turned red after an editor Save there (the final review of
+    /// ship homes increment 2).
+    #[cfg(test)]
+    pub fn load_and_assemble_shipped(data_dir: &Path, plot: Option<&str>) -> Result<ShipStructure, String> {
+        let ship = Self::load_ship_file(data_dir)?;
+        let (plot_id, kind) = ship.plot_and_kind(plot)?;
+        let design = HomeDesign::built_in(&kind).ok_or_else(|| format!("no {kind} home design is built in"))?;
+        ship.assemble(design, &plot_id)
     }
 
     /// `load_and_assemble` on a ship file already loaded: the home design of `plot`'s kind (from
@@ -1708,18 +1723,24 @@ impl ShipStructure {
     /// build the home on the plot this player remembered for the server (increment 2,
     /// engine/home_plot.rs `boot_plot`), which it chooses from the ship file first.
     pub fn assemble_from(ship: ShipStructure, data_dir: &Path, plot: Option<&str>) -> Result<ShipStructure, String> {
+        let (plot_id, kind) = ship.plot_and_kind(plot)?;
+        let design = HomeDesign::load(data_dir, &kind)?;
+        ship.assemble(design, &plot_id)
+    }
+
+    /// `plot` (the default plot when None) and the kind of home it takes.
+    fn plot_and_kind(&self, plot: Option<&str>) -> Result<(String, String), String> {
         let plot_id = match plot {
             Some(p) => p.to_string(),
-            None => ship.default_plot_id().ok_or_else(|| "the ship file lists no plots".to_string())?,
+            None => self.default_plot_id().ok_or_else(|| "the ship file lists no plots".to_string())?,
         };
-        let kind = ship
+        let kind = self
             .plots
             .iter()
             .find(|p| p.id == plot_id)
             .map(|p| p.kind.clone())
             .ok_or_else(|| format!("the ship has no plot '{plot_id}'"))?;
-        let design = HomeDesign::load(data_dir, &kind)?;
-        ship.assemble(design, &plot_id)
+        Ok((plot_id, kind))
     }
 
     /// The home design this assembled ship carries: the `home` zone's body with the kind and
@@ -2330,6 +2351,7 @@ mod tests {
         let empty = temp_path("builtin");
         let builtin = ShipStructure::load_and_assemble(&empty, None).expect("the built-in files assemble");
         assert_eq!(ron_of(&builtin.ship_file()), ron_of(&ship.ship_file()), "the built-in ship is the shipped one");
+        assert_eq!(ron_of(&builtin.home_design()), ron_of(&ship.home_design()), "a fresh install's own home is the shipped design");
         assert!(home.body.width > 0.0 && home.body.depth > 0.0 && home.body.height > 0.0);
         assert!(!home.body.walls.is_empty(), "the migrated home kept its interior walls");
     }
@@ -2647,15 +2669,16 @@ mod tests {
         std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data")
     }
 
-    /// The ship the game runs: the ship file plus the homestead on its default plot, p1.
+    /// The ship the game runs: the ship file plus the SHIPPED homestead on its default plot, p1
+    /// (never data/homes/homestead.ron, the developer's own home in a checkout).
     fn shipped_ship() -> ShipStructure {
-        ShipStructure::load_and_assemble(&data_dir(), None).expect("the shipped ship assembles at its default plot")
+        ShipStructure::load_and_assemble_shipped(&data_dir(), None).expect("the shipped ship assembles at its default plot")
     }
 
-    /// The ship file and the homestead design on their own, as written (no assembly).
+    /// The ship file and the shipped homestead design on their own, as written (no assembly).
     fn shipped_files() -> (ShipStructure, HomeDesign) {
         let ship = ShipStructure::load_ship_file(&data_dir()).expect("the ship file loads");
-        let design = HomeDesign::load(&data_dir(), "homestead").expect("the homestead design loads");
+        let design = HomeDesign::built_in("homestead").expect("the homestead design is built in");
         (ship, design)
     }
 
@@ -2930,7 +2953,7 @@ mod tests {
     fn moving_the_plot_moves_everything_in_the_home() {
         let before = home_parts(&shipped_ship());
         assert_eq!(before.machines.len(), 259, "every home machine is placed");
-        let p2 = ShipStructure::load_and_assemble(&data_dir(), Some("p2")).expect("the homestead assembles at p2");
+        let p2 = ShipStructure::load_and_assemble_shipped(&data_dir(), Some("p2")).expect("the homestead assembles at p2");
         let mut failures = not_moved_by(&before, &home_parts(&p2), 0.0, 99.0);
         failures.extend(not_moved_by(&before, &home_parts(&assembled_on_p1_moved_by(-100.0, 0.0)), -100.0, 0.0));
         assert!(failures.is_empty(), "moving the plot left things behind:\n  {}", failures.join("\n  "));
@@ -3015,10 +3038,26 @@ mod tests {
             );
         }
         assert_eq!(ship_wall_segments(&before_shape).len(), WALL_SEGMENTS_BEFORE, "today's collision segments");
-        // Since the increment 2 review (finding 8) the sight lines also see the neighbours' homes
-        // (p2's here, drawn without its corridor: street-1, its door zone, is not in this shape).
-        let neighbours_sight = crate::ship::neighbours::neighbour_view(&before_shape).segments(true).len();
-        assert_eq!(ship_sight_segments(&before_shape).len(), SIGHT_SEGMENTS_BEFORE + neighbours_sight, "today's sight segments, and the neighbour's");
+        // Since the increment 2 review (finding 8) the sight lines also see the neighbours' homes:
+        // here p2's, drawn without its corridor (street-1, its door zone, is not in this shape), so
+        // its share is one shipped homestead's own sight segments with no door cut. Counted from
+        // the plots and the shipped design, NOT from the neighbour view under test, which would
+        // pass with no neighbour segments at all (the final review of increment 2). Seen red
+        // 2026-10-04 with `NeighbourView::segments` returning nothing: "today's sight segments,
+        // and one bare homestead shell per neighbour plot (1 x 74): left 135, right 209".
+        let neighbour_plots = before_shape.plots.iter().filter(|p| Some(p.id.as_str()) != before_shape.home_plot().map(|h| h.id.as_str())).count();
+        assert_eq!(neighbour_plots, 1, "p2 is the one neighbour");
+        let bare_shell = crate::ship::wall_collision::sight_segments_with_shell_cuts(
+            &HomeDesign::built_in("homestead").expect("the homestead is built in").body,
+            &[],
+        )
+        .len();
+        assert!(bare_shell > 4, "a homestead's sight segments: its shell and its rooms' walls ({bare_shell})");
+        assert_eq!(
+            ship_sight_segments(&before_shape).len(),
+            SIGHT_SEGMENTS_BEFORE + neighbour_plots * bare_shell,
+            "today's sight segments, and one bare homestead shell per neighbour plot ({neighbour_plots} x {bare_shell})"
+        );
 
         let all = ship.generate_meshes().room_info;
         assert_eq!(all.len(), 36, "the whole ship: + street-1's room + its corridor's");
@@ -3169,14 +3208,19 @@ mod tests {
         ron::ser::to_string(v).expect("serializes")
     }
 
-    /// A copy of the shipped data files in a temp dir, for the save tests.
+    /// A copy of the shipped data files in a temp dir, for the save tests: the ship file, and the
+    /// player's own home as a fresh install starts it (the shipped design under the own-home
+    /// header, `get_embedded`), never the checkout's data/homes/homestead.ron, the developer's
+    /// own home (with one wall added there by an editor Save, `save_assembled_never_writes_the_
+    /// shipped_home_default` failed "the player's own home has the new wall: left 29, right 28").
     fn temp_data_dir(name: &str) -> std::path::PathBuf {
         let dir = temp_path(name);
-        for rel in [SHIP_FILE, "homes/homestead.ron"] {
-            let to = dir.join(rel);
-            std::fs::create_dir_all(to.parent().unwrap()).unwrap();
-            std::fs::copy(data_dir().join(rel), &to).unwrap();
-        }
+        let ship = dir.join(SHIP_FILE);
+        std::fs::create_dir_all(ship.parent().unwrap()).unwrap();
+        std::fs::copy(data_dir().join(SHIP_FILE), &ship).unwrap();
+        let own = dir.join(HOME_DESIGNS_DIR).join("homestead.ron");
+        std::fs::create_dir_all(own.parent().unwrap()).unwrap();
+        std::fs::write(&own, crate::embedded_data::get_embedded("homes/homestead.ron").expect("the own home is built in")).unwrap();
         dir
     }
 
@@ -3387,7 +3431,7 @@ mod lighting_watts_tests {
     fn shipped_lights_draw_real_watts() {
         // The ship the game runs (the ship file + the homestead on its default plot).
         let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
-        let s = ShipStructure::load_and_assemble(&data, None).expect("the shipped ship assembles");
+        let s = ShipStructure::load_and_assemble_shipped(&data, None).expect("the shipped ship assembles");
         let watts = s.lighting_watts(|id| {
             crate::renderer::light::light_type(id).map(|t| t.watts).unwrap_or(0.0)
         });
@@ -3420,10 +3464,10 @@ mod plot_handout_tests {
     fn every_plot_spawn_is_where_the_game_stands_on_it() {
         let plots = ShipPlots::load(&data_dir()).expect("the shipped plots load");
         assert!(plots.plots.len() >= 2, "two plots at least: {:?}", plots.plots);
-        let door = ShipStructure::load_and_assemble(&data_dir(), None).unwrap().home_arrival_local();
+        let door = ShipStructure::load_and_assemble_shipped(&data_dir(), None).unwrap().home_arrival_local();
         assert!(door.is_some(), "the shipped home design names its door");
         for p in &plots.plots {
-            let ship = ShipStructure::load_and_assemble(&data_dir(), Some(&p.id)).expect("assembles");
+            let ship = ShipStructure::load_and_assemble_shipped(&data_dir(), Some(&p.id)).expect("assembles");
             let cam = ship.home_spawn_world().expect("the design has a spawn");
             let relay = p.arrival(door);
             assert!((cam - relay).length() < 1e-4, "{}: relay {relay:?}, game {cam:?}", p.id);
@@ -3451,7 +3495,7 @@ mod plot_handout_tests {
     #[test]
     fn the_players_own_door_arrives_where_their_home_is_entered() {
         let plots = ShipPlots::load(&data_dir()).expect("the shipped plots load");
-        let mut ship = ShipStructure::load_and_assemble(&data_dir(), None).expect("assembles on p1");
+        let mut ship = ShipStructure::load_and_assemble_shipped(&data_dir(), None).expect("assembles on p1");
         let home = ship.home_zone_index();
         ship.zones[home].body.spawn = Some((12.5, 30.0)); // the player moved their door
         let door = ship.home_arrival_local().expect("an assembled home has a door");
@@ -3485,7 +3529,7 @@ mod plot_handout_tests {
         // Wider up to the street (x 65) and deeper: 63 x 120 m against p1's 55 x 89.
         file.plots[p2].size.0 += 8.0;
         file.plots[p2].size.2 += 31.0;
-        let mut design = ShipStructure::load_and_assemble(&data_dir(), None).unwrap().home_design().unwrap();
+        let mut design = ShipStructure::load_and_assemble_shipped(&data_dir(), None).unwrap().home_design().unwrap();
         design.body.spawn = None;
         let ship = file.clone().assemble(design.clone(), "p1").expect("the doorless home stands on p1");
         // The relay's side: what it spawns at on the plot it hands out, from what the join says.
@@ -3543,7 +3587,7 @@ mod plot_handout_tests {
         let h = file.ship_hash();
         assert_eq!(h.len(), 16);
         for plot in ["p1", "p2"] {
-            let ship = ShipStructure::load_and_assemble(&data_dir(), Some(plot)).unwrap();
+            let ship = ShipStructure::load_and_assemble_shipped(&data_dir(), Some(plot)).unwrap();
             assert_eq!(ship.ship_hash(), h, "assembled on {plot}, the ship is the same ship");
         }
         // Reformatting the text (comments gone, pretty printing) is the same ship.
@@ -3553,7 +3597,7 @@ mod plot_handout_tests {
         // The game's rebuild normalises every corner (engine/home_meshes.rs rebuild_homestead),
         // and a rejoin's welcome is checked against the ship after that: the shipped corners are
         // already on the grid, so the hash survives it.
-        let mut rebuilt = ShipStructure::load_and_assemble(&data_dir(), Some("p2")).unwrap();
+        let mut rebuilt = ShipStructure::load_and_assemble_shipped(&data_dir(), Some("p2")).unwrap();
         for z in rebuilt.zones.iter_mut() {
             for w in z.body.walls.iter_mut() {
                 w.a = crate::ship::home_structure::quantize_corner(w.a);

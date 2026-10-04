@@ -69,6 +69,21 @@ pub(crate) fn showcase_value(text: &str, key: &str) -> Option<String> {
     Some(rest[q0..q1].to_string())
 }
 
+/// The longest reconnect hold the `drop_link` showcase verb takes, in seconds.
+/// A longer ask is held at this. Two minutes is already past the relay's 90 s
+/// reconnect grace, so nothing a rig needs is lost, and a stray digit can no
+/// longer leave a dev game cut off for hours with nothing on screen saying so
+/// (the final review of ship homes increment 2).
+pub(crate) const DROP_LINK_MAX_HOLD_SECS: f32 = 120.0;
+
+/// The reconnect hold a `drop_link` showcase value asks for, in seconds: never
+/// below the backoff's first rung and never above DROP_LINK_MAX_HOLD_SECS. None
+/// for a value that is not a finite number (the verb then does nothing).
+pub(crate) fn drop_link_hold(raw: &str) -> Option<f32> {
+    let hold = raw.trim().parse::<f32>().ok().filter(|s| s.is_finite())?;
+    Some(hold.clamp(crate::net::ws_client::RECONNECT_DELAY_INITIAL_SECS, DROP_LINK_MAX_HOLD_SECS))
+}
+
 /// Parse one pin value. `None` for anything unparseable, so a typo leaves the
 /// existing state alone instead of silently resetting it to a default.
 pub(crate) fn parse_showcase_pin(raw: &str) -> Option<ShowcasePin> {
@@ -368,16 +383,17 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
     }
     // {"drop_link":"12"} (2026-10-04, ship homes 2 review, finding 2): drop the active server
     // connection the way a network outage does, with no game_leave, and hold the reconnect for
-    // that many seconds (the backoff's own timer). The game leaves the shared world on its side at
+    // that many seconds (the backoff's own timer), at most DROP_LINK_MAX_HOLD_SECS (120 s; a
+    // longer ask is held at that, `drop_link_hold`). The game leaves the shared world on its side at
     // once (a guest's home comes back onto the ship, `home_plot::forget_shared_world`), the relay
     // keeps the figure for its 90 s grace, and the reconnect's welcome says `rejoin`.
     // verify-copresence's guest leg walks the game into the home that came back, then judges the
     // welcome stands it off the plot again. Permanent dev tooling.
-    if let Some(hold) = grab("drop_link").and_then(|s| s.parse::<f32>().ok()).filter(|s| s.is_finite()) {
+    if let Some(hold) = grab("drop_link").as_deref().and_then(drop_link_hold) {
         if let Some(ws) = state.gui_state.ws_client.as_mut() {
             ws.disconnect();
         }
-        state.gui_state.ws_reconnect_delay = hold.max(crate::net::ws_client::RECONNECT_DELAY_INITIAL_SECS);
+        state.gui_state.ws_reconnect_delay = hold;
         log::info!("Showcase: drop_link -> the connection dropped (no game_leave); reconnecting in {hold} s");
     }
     // {"respawn":"1"} (2026-10-03, ship homes 1b, the third review): press the death screen's
@@ -3751,5 +3767,29 @@ mod showcase_pin_tests {
         // And the pin DOES remove the wind-driven part, which is why it is
         // still worth having: at 4 m/s the amplitude is measurably larger.
         assert!(amp(4.0) > amp(pinned));
+    }
+}
+
+#[cfg(test)]
+mod drop_link_tests {
+    use super::*;
+
+    /// The `drop_link` verb's reconnect hold is capped at DROP_LINK_MAX_HOLD_SECS (the final
+    /// review of ship homes increment 2): a typo of an extra digit or two used to hold the
+    /// connection down for hours, past the relay's 90 s grace, with the game showing nothing
+    /// wrong. Below the backoff's first rung it takes the first rung, and a value that is not a
+    /// finite number does nothing. Seen red 2026-10-04 with no cap (the verb as increment 2's
+    /// review left it): "a hold past the cap is held at the cap: Some(1000000000.0)".
+    #[test]
+    fn a_drop_link_hold_is_capped_and_never_below_the_first_rung() {
+        assert_eq!(drop_link_hold("12"), Some(12.0));
+        assert_eq!(drop_link_hold(" 12 "), Some(12.0));
+        assert_eq!(drop_link_hold("1e9"), Some(DROP_LINK_MAX_HOLD_SECS), "a hold past the cap is held at the cap: {:?}", drop_link_hold("1e9"));
+        assert_eq!(drop_link_hold("120"), Some(120.0));
+        assert_eq!(drop_link_hold("0"), Some(crate::net::ws_client::RECONNECT_DELAY_INITIAL_SECS));
+        assert_eq!(drop_link_hold("-5"), Some(crate::net::ws_client::RECONNECT_DELAY_INITIAL_SECS));
+        for junk in ["", "soon", "inf", "NaN"] {
+            assert_eq!(drop_link_hold(junk), None, "'{junk}' is not a hold");
+        }
     }
 }

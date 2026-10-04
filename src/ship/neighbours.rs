@@ -282,9 +282,10 @@ mod tests {
         std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data")
     }
 
-    /// The game's ship with its home on `plot`.
+    /// The game's ship with its home on `plot`: the shipped homestead, never the checkout's
+    /// data/homes/homestead.ron (the developer's own home).
     fn on(plot: &str) -> ShipStructure {
-        ShipStructure::load_and_assemble(&data_dir(), Some(plot)).expect("the shipped ship assembles")
+        ShipStructure::load_and_assemble_shipped(&data_dir(), Some(plot)).expect("the shipped ship assembles")
     }
 
     /// Every vertex position of every opaque material-wall group, as a flat list.
@@ -354,17 +355,43 @@ mod tests {
         );
     }
 
-    /// A neighbour is drawn as the SHIPPED design, never this player's own edited home: a home
-    /// file on disk with an extra wall changes the player's own home and no neighbour. (The
-    /// built-in copy is what `HomeDesign::built_in` reads.)
+    /// A neighbour is drawn as the SHIPPED design, never this player's own edited home: an own
+    /// home with an extra wall, saved the way the editor saves it, changes the player's own home
+    /// and no neighbour. The built-in copy (`HomeDesign::built_in`) is the shipped file,
+    /// data/homes/shipped/homestead.ron.
+    ///
+    /// Until the final review of increment 2 this test compared the built-in design with the
+    /// checkout's data/homes/homestead.ron, which is the developer's OWN home, so an editor Save
+    /// in the repo turned it red: with one wall added there it failed "the shipped file is the
+    /// built-in copy: left 27, right 28". It now makes its own edited home in a temp dir. Seen red
+    /// 2026-10-04 with `make_view` drawing the player's own home in place of the built-in design:
+    /// "the neighbour on p2 is drawn with my wall: left 28, right 27".
     #[test]
     fn a_neighbour_is_the_shipped_design_not_my_own_edits() {
         let built_in = HomeDesign::built_in("homestead").expect("the homestead design is built in");
-        let on_disk = HomeDesign::load(&data_dir(), "homestead").expect("the homestead design loads");
-        assert_eq!(built_in.body.walls.len(), on_disk.body.walls.len(), "the shipped file is the built-in copy");
-        let view = neighbour_view(&on("p1"));
-        assert_eq!(view.neighbours[0].design.body.walls.len(), built_in.body.walls.len());
+        let shipped_rel = format!("{}/homestead.ron", crate::embedded_data::SHIPPED_HOMES_DIR);
+        let shipped_text = std::fs::read_to_string(data_dir().join(&shipped_rel)).expect("the shipped file");
+        let shipped: HomeDesign = ron::from_str(&shipped_text).expect("the shipped file parses");
+        let ron_of = |d: &HomeDesign| ron::ser::to_string(d).unwrap();
+        assert_eq!(ron_of(&built_in), ron_of(&shipped), "the built-in copy is data/{shipped_rel}");
+
+        // My own home, edited: one wall more, saved to a data folder of my own.
+        let dir = std::env::temp_dir().join(format!("hum_neighbour_own_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let ship_file = dir.join(crate::ship::ship_structure::SHIP_FILE);
+        std::fs::create_dir_all(ship_file.parent().unwrap()).unwrap();
+        std::fs::copy(data_dir().join(crate::ship::ship_structure::SHIP_FILE), &ship_file).unwrap();
+        let mut mine = built_in.clone();
+        mine.body.walls.push(ron::from_str("(a: (1.0, 1.0), b: (3.0, 1.0))").unwrap());
+        mine.save(&dir.join(crate::ship::ship_structure::HOME_DESIGNS_DIR).join("homestead.ron")).expect("my home saves");
+        let ship = ShipStructure::load_and_assemble(&dir, Some("p1")).expect("my ship assembles");
+        let walls = built_in.body.walls.len();
+        assert_eq!(ship.zones[ship.home_zone_index()].body.walls.len(), walls + 1, "my own home has my wall");
+        let view = neighbour_view(&ship);
+        assert_eq!(view.neighbours[0].plot.id, "p2");
+        assert_eq!(view.neighbours[0].design.body.walls.len(), walls, "the neighbour on p2 is drawn with my wall");
         assert!(HomeDesign::built_in("no_such_kind").is_none());
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// While the home is put away (a guest), EVERY plot is a neighbour's, and nothing of the home

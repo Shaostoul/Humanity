@@ -970,6 +970,14 @@ test("guest: each broken guest run FAILS its own check", () => {
     ["the camera left in p1 after the reconnect (finding 1)", w({ reconnect: { ...GUEST_OK.reconnect, after: { ...GUEST_OK.reconnect.after, camera: P1_SPAWN } } }), "guest_reconnect_off_plot"],
     ["the camera left in p1's corridor after the reconnect", w({ reconnect: { ...GUEST_OK.reconnect, after: { ...GUEST_OK.reconnect.after, camera: [60, 1.7, 40] } } }), "guest_reconnect_off_plot"],
     ["the reconnect's home left on p1", w({ reconnect: { ...GUEST_OK.reconnect, after: { ...GUEST_OK.reconnect.after, homeAway: false } } }), "guest_reconnect_off_plot"],
+    // guest_reconnect_off_plot asks two things, and each case below breaks ONE of them (the
+    // two above break both, so deleting either half of the check left this test green). Seen
+    // red 2026-10-04 with `!onPlot(af.camera)` deleted from the check: "the relay holding the
+    // guest ON p1, the camera standing there should fail guest_reconnect_off_plot; failed:
+    // nothing"; with `gap <= REJOIN_STAND_TOL_M` deleted: "the camera off every plot but 1 m
+    // from where the relay holds the guest should fail guest_reconnect_off_plot; failed: nothing".
+    ["the relay holding the guest ON p1, the camera standing there", w({ reconnect: { ...GUEST_OK.reconnect, held: P1_SPAWN, after: { ...GUEST_OK.reconnect.after, camera: P1_SPAWN } } }), "guest_reconnect_off_plot"],
+    ["the camera off every plot but 1 m from where the relay holds the guest", w({ reconnect: { ...GUEST_OK.reconnect, after: { ...GUEST_OK.reconnect.after, camera: GUEST_ARRIVAL } } }), "guest_reconnect_off_plot"],
     ["a reconnect after the grace ran out (a fresh spawn)", w({ reconnect: { ...GUEST_OK.reconnect, after: { ...GUEST_OK.reconnect.after, rejoin: false } } }), "guest_reconnect_setup"],
     ["the home never came back when the connection dropped", w({ reconnect: { ...GUEST_OK.reconnect, during: { ...GUEST_OK.reconnect.during, homeAway: true } } }), "guest_reconnect_setup"],
     ["the camera never walked into the home", w({ reconnect: { ...GUEST_OK.reconnect, before: GUEST_ARRIVAL } }), "guest_reconnect_setup"],

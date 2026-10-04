@@ -1318,7 +1318,7 @@ mod tests {
 
     /// The game as it boots: the home on the default plot, p1.
     fn booted() -> ShipStructure {
-        ShipStructure::load_and_assemble(&data_dir(), None).expect("the shipped ship assembles")
+        ShipStructure::load_and_assemble_shipped(&data_dir(), None).expect("the shipped ship assembles")
     }
 
     /// A welcome as the relay sends it (relay/handlers/msg_handlers.rs handle_game_join), with
@@ -1764,7 +1764,7 @@ mod tests {
     fn what_was_anchored_to_a_home_machine_goes_with_it() {
         let home = crate::machines::MachineHome::load(&crate::machines::home_ron_path(&data_dir())).expect("the machines load");
         let place = |plot: &str| {
-            let ship = ShipStructure::load_and_assemble(&data_dir(), Some(plot)).unwrap();
+            let ship = ShipStructure::load_and_assemble_shipped(&data_dir(), Some(plot)).unwrap();
             home.placements(&std::collections::HashMap::new(), Some(&ship.zone_rects()))
         };
         let (on_p1, on_p2) = (place("p1"), place("p2"));
@@ -1879,7 +1879,7 @@ mod tests {
     #[test]
     fn the_save_records_where_its_home_stood_and_loads_into_the_home_on_any_plot() {
         use crate::systems::construction::Structure;
-        let on_p2 = ShipStructure::load_and_assemble(&data_dir(), Some("p2")).unwrap();
+        let on_p2 = ShipStructure::load_and_assemble_shipped(&data_dir(), Some("p2")).unwrap();
         let (p1, p2) = (home_box(&booted()).unwrap(), home_box(&on_p2).unwrap());
         let tf = |x: f32, z: f32| Transform { position: Vec3::new(x, 0.0, z), rotation: glam::Quat::IDENTITY, scale: Vec3::ONE };
         let truck = || crate::ecs::components::Vehicle { item_id: "truck_pickup_0".into() };
@@ -2004,7 +2004,7 @@ mod tests {
         use crate::engine::editor::{history_checkpoint, history_start_from, history_undo};
         let snap = |s: &ShipStructure| EditorSnapshot { structure: Some(s.clone()), machines: None };
         let on_p1 = booted();
-        let on_p2 = ShipStructure::load_and_assemble(&data_dir(), Some("p2")).unwrap();
+        let on_p2 = ShipStructure::load_and_assemble_shipped(&data_dir(), Some("p2")).unwrap();
         let mut h = ConstructionHistory::default();
         history_start_from(&mut h, snap(&on_p1)); // the editor opens, the home on p1
         history_after_move(&mut h, snap(&on_p2)); // the welcome moves it to p2
@@ -2036,7 +2036,7 @@ mod tests {
     #[test]
     fn a_guest_puts_its_home_away_and_draws_none_of_its_own() {
         for own in ["p1", "p2"] {
-            let ship = ShipStructure::load_and_assemble(&data_dir(), Some(own)).unwrap();
+            let ship = ShipStructure::load_and_assemble_shipped(&data_dir(), Some(own)).unwrap();
             let w = welcome_full(None, &ship.ship_hash(), Some(COMMONS.into()), false);
             match plan_welcome(Some(&ship), &w, &again(P1_DOOR)) {
                 WelcomeHome::Guest { door, stand_at, away, join_afresh: false } => {
@@ -2431,7 +2431,7 @@ mod tests {
     /// 129.0), outside the home on p1".
     #[test]
     fn a_save_before_the_world_loads_is_carried_into_the_home_at_the_next_launch() {
-        let on_p2 = ShipStructure::load_and_assemble(&data_dir(), Some("p2")).unwrap();
+        let on_p2 = ShipStructure::load_and_assemble_shipped(&data_dir(), Some("p2")).unwrap();
         let (p1, p2) = (home_box(&booted()).unwrap(), home_box(&on_p2).unwrap());
         let mut data = crate::hot_reload::data_store::DataStore::new();
         data.insert(crate::save_load::LOADED_HOME_BOX_KEY, crate::save_load::LoadedHomeBox(box_of(p2)));
@@ -2455,7 +2455,7 @@ mod tests {
     /// stand in".
     #[test]
     fn a_session_on_the_legacy_layout_keeps_the_saved_box() {
-        let on_p2 = ShipStructure::load_and_assemble(&data_dir(), Some("p2")).unwrap();
+        let on_p2 = ShipStructure::load_and_assemble_shipped(&data_dir(), Some("p2")).unwrap();
         let (p1, p2) = (home_box(&booted()).unwrap(), home_box(&on_p2).unwrap());
         let mut data = crate::hot_reload::data_store::DataStore::new();
         data.insert(crate::save_load::LOADED_HOME_BOX_KEY, crate::save_load::LoadedHomeBox(box_of(p2)));
@@ -2483,7 +2483,7 @@ mod tests {
     /// p2 leaves the chest at Vec3(20.0, 0.0, 30.0), outside the home".
     #[test]
     fn a_pre_1b_save_loaded_while_the_home_stands_on_p2_lands_in_the_home() {
-        let on_p2 = ShipStructure::load_and_assemble(&data_dir(), Some("p2")).unwrap();
+        let on_p2 = ShipStructure::load_and_assemble_shipped(&data_dir(), Some("p2")).unwrap();
         let p2 = home_box(&on_p2).unwrap();
         let save = crate::save_load::extract_world_save(&chest_world(Vec3::new(20.0, 0.0, 30.0)));
         assert_eq!(save.home_plot_box, None, "a save of that time records no box");
@@ -2510,7 +2510,7 @@ mod tests {
     /// 50.0), Vec3(14.0, 0.0, 184.0)]".
     #[test]
     fn a_truck_left_behind_stays_behind_through_a_save_before_the_welcome() {
-        let on_p2 = ShipStructure::load_and_assemble(&data_dir(), Some("p2")).unwrap();
+        let on_p2 = ShipStructure::load_and_assemble_shipped(&data_dir(), Some("p2")).unwrap();
         let (p1, p2) = (home_box(&booted()).unwrap(), home_box(&on_p2).unwrap());
         let tf = |x: f32, z: f32| Transform { position: Vec3::new(x, 0.0, z), rotation: glam::Quat::IDENTITY, scale: Vec3::ONE };
         let mut live = built_world();
@@ -2646,7 +2646,7 @@ mod tests {
     /// left behind by the next move: [Vec3(14.0, 0.0, 85.0)]".
     #[test]
     fn a_welcome_that_keeps_the_home_where_it_is_settles_what_stands_in_it() {
-        let on_p2 = ShipStructure::load_and_assemble(&data_dir(), Some("p2")).unwrap();
+        let on_p2 = ShipStructure::load_and_assemble_shipped(&data_dir(), Some("p2")).unwrap();
         let (p1, p2) = (home_box(&booted()).unwrap(), home_box(&on_p2).unwrap());
         let tf = |x: f32, z: f32| Transform { position: Vec3::new(x, 0.0, z), rotation: glam::Quat::IDENTITY, scale: Vec3::ONE };
         // Server X: the home on p2, a truck parked on p1, outside it.
@@ -2690,7 +2690,7 @@ mod tests {
     /// while the restored pieces stand in p1's".
     #[test]
     fn a_snapshot_restored_on_the_legacy_layout_is_the_box_later_saves_record() {
-        let on_p2 = ShipStructure::load_and_assemble(&data_dir(), Some("p2")).unwrap();
+        let on_p2 = ShipStructure::load_and_assemble_shipped(&data_dir(), Some("p2")).unwrap();
         let (p1, p2) = (home_box(&booted()).unwrap(), home_box(&on_p2).unwrap());
         let mut data = crate::hot_reload::data_store::DataStore::new();
         data.insert(crate::save_load::LOADED_HOME_BOX_KEY, crate::save_load::LoadedHomeBox(box_of(p2)));
