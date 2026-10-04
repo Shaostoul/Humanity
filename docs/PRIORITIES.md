@@ -100,8 +100,11 @@ every load-bearing claim checked by an adversarial verifier
   (a three-lens review with two skeptics per finding), including an admin
   "release plot" action, Respawn through the relay, the save recording its
   plot box, and current main merged in: `--plots` 26/26 both orders, default
-  rig 21/21. A focused fourth review (the save format change, respawn and
-  server switching, aboard gating) is running before the merge. Its red
+  rig 21/21. A focused fourth review confirmed 11 more (one HIGH: a player
+  whose chat is already connected joins before the ship loads, is refused as
+  "a different ship" and stays out until a reconnect; the rigs could not see
+  it because the autopilot identifies after entering). Round 5 (fix with the
+  rig able to fail first, review, fix, merge main, all rigs) is running. Its red
   check is done (the 1b rig against the 1a build: `camera_in_p2` fails at
   (53.50, 1.70, 40.50)). Then increment 2. Follow-ups 1a found: put
   the Commons machines on the ship's own power instead of the household

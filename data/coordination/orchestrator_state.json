@@ -601,6 +601,16 @@
       "date": "2026-10-03",
       "decision": "Merged BUG-133 (v0.1446.0): the rigs freshness gate compares a SHA-256 fingerprint of the compiled-in sources, stamped into the exe by build.rs, with the tree; dates no longer decide. --allow-other-build \"<reason>\" for deliberate red runs, recorded in rig manifests. Every exe built before this is unstamped and refused by the rigs and launch-bg (not by the operator's just launch).",
       "why": "A 1a build passed the 1b worktree's gate as \"the current build\" because it was newer by date. Residuals logged in BUGS: probe-sweep has no gate, rigs copy after checking, ~30 compiled-in data files are not fingerprinted."
+    },
+    {
+      "date": "2026-10-03",
+      "decision": "Merged the firewall-prompt fix (v0.1447.0): BIND_ADDRESS for the relay (default stays 0.0.0.0: the LAN node, port forwarding and Tailscale-direct setups need it; the VPS is reached only through nginx on loopback either way), every dev launcher and test on 127.0.0.1 with a loopback self-check in throwaway-relay.js, Host a node \"Who can connect\", and the saved node no longer autostarts on a script-launched boot. CLAUDE.md: a rule next to one-GPU (hand-run relays need BIND_ADDRESS=127.0.0.1), and the Tor row corrected (the onion does not serve the website; Tor is not installed on the VPS).",
+      "why": "The operator was interrupted by Windows Firewall prompts many times a day: 274 HumanityOS rules on his PC, about 209 from two Host a node unit tests whose binary path changes every build, about 54 from throwaway relay copies in random temp folders. The review also found his saved node autostarting on agent boots and opening his real relay.db."
+    },
+    {
+      "date": "2026-10-03",
+      "decision": "Increment 1b NOT merged after round 4: a focused review confirmed 11 findings, one HIGH (a returning player whose chat is already connected joins before the ship loads, gets a false \"different ship\" refusal, and stays out until a reconnect; the rigs could not catch it because the autopilot identifies after entering). Round 5 runs as a workflow: fix all 11 with the rig made able to fail first, review the new diff, fix again, merge main, rerun every rig.",
+      "why": "Each review round of 1b has found real problems, so it merges only when a round comes back clean."
     }
   ],
   "active_scopes_to_avoid": [

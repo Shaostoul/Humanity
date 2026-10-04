@@ -11,6 +11,12 @@ Each line is written the way a player would hear it; the release notes and
 
 ## Shipped
 
+- **v0.1447.0: no more firewall pop-ups from development, and a choice of
+  who can reach your node.** The test tools used to make Windows ask about the
+  firewall many times a day; they now stay on the computer itself and never
+  ask. "Host a node on this PC" gains a "Who can connect" choice: devices on
+  your network (as before), or only this computer.
+
 - **v0.1446.4: three more Library guides.** Nails, Screws and Bolts (which
   fastener for which job, and using a nail gun safely), Reading a Map
   (contours, scale and what to do the moment you think you are lost), and

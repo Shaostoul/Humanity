@@ -207,6 +207,18 @@ than booting beside it. Orchestrators: do not dispatch multiple rig-booting
 agents in parallel -- stagger them so their sweeps serialize. Read-only/code
 work parallelizes fine; GPU boots do not.
 
+**No Windows Firewall prompts from dev work either (operator, 2026-10-03).** A
+program that listens on every network address (0.0.0.0) gets a "Windows Defender
+Firewall has blocked some features" prompt once per exe PATH, and dev work makes
+new paths constantly (temp relay copies, worktree builds, test binaries): 274
+HumanityOS rules piled up on his PC, each one an interruption. So every relay or
+listener started for development binds loopback: the rigs' throwaway relays set
+`BIND_ADDRESS=127.0.0.1` and refuse a relay that listens anywhere else, and **a
+relay you run by hand (`HumanityOS --headless` from a scratch or temp folder)
+needs `BIND_ADDRESS=127.0.0.1` in its environment**. Tests bind 127.0.0.1. The
+relay's default stays 0.0.0.0 for the LAN-node and self-hosting setups. Never
+"fix" a prompt by changing firewall settings: that is his machine's policy.
+
 The engine honours background in two places, and both are needed (v0.1069): the
 window is created with `with_active(false)` AND created already-visible, because
 the normal path's later `set_visible(true)` goes through `ShowWindow(SW_SHOW)` on
@@ -507,7 +519,7 @@ Identity (federation objects): ML-DSA-65 (Dilithium3, FIPS 204), separate keypai
 | Friendship certificates | Dilithium3 over `hum/friend/v1\n{issuer}\n{grantee}` (issuer authorizes grantee to DM them + see friends-only profile fields); verified STATELESSLY at dm_put — the relay stores NO friends/follows table | `src/relay/core/pq_crypto.rs` (`verify_friend_cert`, `friend_cert_preimage`), `src/net/dm_pq.rs` (`build_friend_cert`), web `crypto.js` (`pqBuildFriendCert`) | **Shipped 2026-08-24 (follows-graph removal).** Following = sealed control DMs (`[[hum:follow]]` etc.); friendship = client-held certs; both live in the local encrypted DM store, never on the server. Certless DMs to strangers are "knocks" (20/sender/day). Preimage KAT-pinned in the pq_crypto tests; web MUST match. |
 | DM size padding | Sealed plaintext rounded to buckets `[256,1024,4096,16384]` so ciphertext length doesn't leak message length | `src/net/dm_pq.rs` (`DM_PAD_BUCKETS`), web `crypto.js` | **Shipped 2026-08-24.** Buckets must match web. |
 | Encrypted DM attachments | Fresh AES-256-GCM key per file, client-side; ciphertext uploaded via `?encrypted=1` (inert `.enc` blob), key+nonce+meta ride in the sealed envelope as a `[[hum:file:v1]]` marker | `src/net/dm_pq.rs` (`encrypt_attachment`/`decrypt_attachment`/`build_file_marker`), `api.rs` upload `encrypted` mode, web `crypto.js` (`pqEncryptFile`/`FILE_MARKER`) + `chat-dms.js` (inline decrypt), native `chat.rs` (`prepare_attachment_send`) | **Shipped 2026-08-24.** A DM photo no longer sits readable at a public URL. Web renders inline; native shows a labeled card on receive (inline native decrypt = follow-up). Group attachments NOT yet encrypted (follow-up). Marker + buckets must match across clients. |
-| Transport IP privacy | Optional Tor v3 onion service (operator-run); over `.onion` the relay never learns the user's IP | `scripts/tor-onion-setup.sh`, `docs/admin/tor-onion-service.md` | **Shipped 2026-08-24 (opt-in, additive).** The application-layer answer to "connection metadata is physics." |
+| Transport IP privacy | Optional Tor v3 onion service (operator-run); over `.onion` the relay never learns the user's IP | `scripts/tor-onion-setup.sh`, `docs/admin/tor-onion-service.md` | **Shipped 2026-08-24 (opt-in, additive), partly:** the onion reaches the API, the WebSocket and /health, but NOT the website (the relay's fallback serves a `client/` folder that does not exist), and Tor is not installed on the VPS today (checked 2026-10-03). The setup script pointed at port 8080 until 2026-10-03; the relay listens on 3210. The application-layer answer to "connection metadata is physics." |
 | Server identity (federation) | **Dilithium3 / ML-DSA-65**, 32-byte seed stored, keypair re-derived; `did:hum:` exposed at `/api/server-info` | `src/relay/storage/misc.rs` `get_or_create_server_keypair`/`server_did`, `handlers/federation.rs` `sign_with_server_key`, verify in `handlers/msg_handlers.rs` | **2026-09-06** - was Ed25519, the last identity in the system still signing with a quantum-forgeable scheme. Signs the federation hello, federated chat and server announcements. BREAKING: a peer pinned before this must be re-pinned. |
 | Federation object signing | ML-DSA-65 / Dilithium3 | `src/relay/core/pq_crypto.rs` | Active (unchanged by this cutover) |
 | Profile gossip signing | **Dilithium3 / ML-DSA-65** over `profile_v1\n...` preimage | `src/relay/handlers/federation.rs` `verify_profile_signature` | **v0.276.0** — switched from Ed25519. The signing key referenced `public_key` (which has been Dilithium hex since Inc3), so the old Ed25519 verify would silently reject every signed gossip; this restores the path end-to-end. |
