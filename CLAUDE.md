@@ -205,7 +205,11 @@ full GPU renderer even in the background. Before booting any rig, check
 (another agent's rig or the operator's own game), WAIT for it to exit rather
 than booting beside it. Orchestrators: do not dispatch multiple rig-booting
 agents in parallel -- stagger them so their sweeps serialize. Read-only/code
-work parallelizes fine; GPU boots do not.
+work parallelizes fine; GPU boots do not. **That exact-name filter misses the
+operator's own game when he starts it with `just launch` or `just play`:**
+those boot the newest ARCHIVE, named `v<version>_HumanityOS.exe` (found
+2026-10-04). Check with `tasklist | grep -i humanityos` instead, which matches
+both.
 
 **No Windows Firewall prompts from dev work either (operator, 2026-10-03).** A
 program that listens on every network address (0.0.0.0) gets a "Windows Defender

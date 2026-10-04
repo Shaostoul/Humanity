@@ -91,22 +91,19 @@ every load-bearing claim checked by an adversarial verifier
   list of home kinds as data, Homestead the default start, food physically real
   for every home, 14 increments). Increment 1a SHIPPED v0.1442.0 (the ship and
   the home are separate files, the home assembled at its plot, a Dev Plots and
-  Districts panel). Increment 1b is BUILT on branch `ship-homes-1b`
-  (worktree `.claude/worktrees/wf_fa54eb42-811-1`), not merged: two review
-  rounds found 5 then 7 real problems (the second round: a step-out of the
-  shared world, a long outage or a relay restart can still freeze a player
-  under the 100 m rule; built pieces and vehicles are not carried to the new
-  plot; plots are never given back). Rounds 2 and 3 fixed those and 16 more
-  (a three-lens review with two skeptics per finding), including an admin
-  "release plot" action, Respawn through the relay, the save recording its
-  plot box, and current main merged in: `--plots` 26/26 both orders, default
-  rig 21/21. A focused fourth review confirmed 11 more (one HIGH: a player
-  whose chat is already connected joins before the ship loads, is refused as
-  "a different ship" and stays out until a reconnect; the rigs could not see
-  it because the autopilot identifies after entering). Round 5 (fix with the
-  rig able to fail first, review, fix, merge main, all rigs) is running. Its red
-  check is done (the 1b rig against the 1a build: `camera_in_p2` fails at
-  (53.50, 1.70, 40.50)). Then increment 2. Follow-ups 1a found: put
+  Districts panel). Increment 1b MERGED 2026-10-03 (v0.1448.0): the relay
+  hands out plots and each player's home stands on its own. Five review
+  rounds found and fixed 5, 7, 16, 11 and 6 problems (the worst: a returning
+  player whose chat was already connected joined before the ship loaded and
+  was refused as "a different ship"; the rigs could not see it until a
+  connect-first menu entry was added). Rigs on the merged tree: `--plots`
+  30/30 in both join orders and with the menu entry, default 21/21. NEXT:
+  increment 2 (meet in the Commons: door points, walk from your door to the
+  Commons, neighbours drawn as shells, the client remembers its plot per
+  server). Left for later (design doc section 7): a Dev move of the plot
+  does not carry animals and decoration plants; idle plots are never given
+  back automatically (open question 19); a vehicle-driving rig leg needs an
+  IPC verb. A rig follow-up (make after increment 2 merges, it edits the same file): verify-copresence.js gives the previous order's game a fixed 2 s to exit before copying the exe again, and a killed game that is slow to release its GPU resources made the next order fail in setupRig and left the game running (2026-10-04, --plots --entry menu game-first; reruns passed): wait for the rig's own game to exit instead. Follow-ups 1a found: put
   the Commons machines on the ship's own power instead of the household
   battery; `just verify-screens` fails 2 of 12 because the starter kit's
   17-item backpack pushes the inventory's "Home" row off the screen (the rig

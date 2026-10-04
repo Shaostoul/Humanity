@@ -2846,3 +2846,28 @@ tries, 150 ms apart), and a run that still fails prints the error and says
 plainly that data/library/ may be half-written and must not be committed until
 a rerun finishes. Checked with a simulated two-time lock (recovers) and a
 permanent one (fails loudly, exit 1); then 30 real runs, 0 failures.
+
+## BUG-135: after erasing your account, the app reconnects and recreates it without being asked (OPEN, found 2026-10-03)
+
+**Symptom (found by the final review of ship-homes increment 1b, read from the
+code, not yet seen in a running game):** erasing your account (Settings, the
+relay's account_delete) removes your name, plot, game progress and the rest, but
+the app stays connected to that server. Three paths then recreate data the
+person just asked to erase, without them choosing to come back:
+- an automatic reconnect (a relay restart, which every deploy causes, or a
+  network drop) identifies again, which registers the name again
+  (src/relay/relay.rs ~2844), clears the game's refusal on the fresh connection
+  (src/engine/home_plot.rs ~445), and the join gate joins and claims a new plot;
+- an erase made BEFORE entering the world (chat connects on the main menu) sends
+  no refusal, so pressing Enter World joins and claims a plot under the erased
+  key (src/relay/handlers/home_plots.rs ~97-107 only tells a game that was in
+  the world);
+- the game's sentence says "reconnect", but no control in the app is called
+  that (the way back is Chat > the server's menu > Disconnect, then Connect).
+
+**Fix to make:** when the relay confirms an erase, the app disconnects from that
+server and marks it manually disconnected (no auto-reconnect), and the Chat page
+shows the plain way back (a Connect button with a sentence saying it signs you
+up again). Consider also refusing a game join on the relay for a non-bot key
+with no registered name, after confirming no other path leaves an identified key
+without one. Web mirror: the same after an erase in the browser.

@@ -611,6 +611,11 @@
       "date": "2026-10-03",
       "decision": "Increment 1b NOT merged after round 4: a focused review confirmed 11 findings, one HIGH (a returning player whose chat is already connected joins before the ship loads, gets a false \"different ship\" refusal, and stays out until a reconnect; the rigs could not catch it because the autopilot identifies after entering). Round 5 runs as a workflow: fix all 11 with the rig made able to fail first, review the new diff, fix again, merge main, rerun every rig.",
       "why": "Each review round of 1b has found real problems, so it merges only when a round comes back clean."
+    },
+    {
+      "date": "2026-10-03",
+      "decision": "Merged ship-homes increment 1b into main (1c41de3b9, release v0.1448.0) after five review rounds (5, 7, 16, 11, 6 confirmed findings, all fixed and red-checked). The last round fell to one medium and five lows; a single critic reads the final fix commit in parallel with the release checks. Next: increment 2 (meet in the Commons), which Day 5 needs.",
+      "why": "The findings converged (a HIGH in round 4, a medium in round 5), every rig passes on the merged tree including the connect-first entry that exposed the HIGH, and holding it longer would only delay increment 2."
     }
   ],
   "active_scopes_to_avoid": [
