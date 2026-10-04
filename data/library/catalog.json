@@ -80,6 +80,15 @@
             "real",
             "technical"
           ]
+        },
+        {
+          "title": "Reading a Map",
+          "src": "docs/user/skills/reading_a_map.md",
+          "tags": [
+            "guide",
+            "real",
+            "safety"
+          ]
         }
       ]
     },
@@ -575,6 +584,15 @@
           ]
         },
         {
+          "title": "Reading Numbers Honestly",
+          "src": "docs/user/skills/reading_numbers_honestly.md",
+          "tags": [
+            "guide",
+            "real",
+            "beginner"
+          ]
+        },
+        {
           "title": "Sharpening",
           "src": "docs/user/making/sharpening.md",
           "tags": [
@@ -630,6 +648,17 @@
             "real",
             "making",
             "materials"
+          ]
+        },
+        {
+          "title": "Nails, Screws and Bolts",
+          "src": "docs/user/skills/nails_screws_and_bolts.md",
+          "tags": [
+            "guide",
+            "real",
+            "making",
+            "shelter",
+            "safety"
           ]
         },
         {
