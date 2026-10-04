@@ -232,7 +232,7 @@ mod tests {
     /// times every speed modifier of data/equipment.csv above 1. A new buff or a faster walk that
     /// passes the limit would have the relay correct honest players, so it fails here first.
     /// Seen red 2026-10-04 with the limit at 9.5 (the plain sprint): "the fastest legitimate walk
-    /// is 24.14 m/s, over the on-foot limit of 9.50".
+    /// is 24.11 m/s, over the on-foot limit of 9.50".
     #[cfg(feature = "native")]
     #[test]
     fn the_on_foot_limit_covers_the_fastest_legitimate_walk() {

@@ -232,7 +232,9 @@ mod tests {
         assert_eq!(driving, Some(MoveDecl::Vehicle { vehicle: "rover_0".into() }.to_json()));
     }
 
-    /// A correction reads, and nonsense does not.
+    /// A correction reads, and nonsense does not. Seen red 2026-10-04 with a missing third number
+    /// read as 0: "assertion failed: read_correction(&serde_json::json!({\"seq\": 2, \"position\":
+    /// [1.0, 2.0]})).is_none()".
     #[test]
     fn a_correction_reads() {
         let c = serde_json::json!({"type": "game_position_correction", "seq": 2, "position": [76.0, 1.7, 64.0], "reason": "too_fast", "message": "back"});
@@ -242,7 +244,8 @@ mod tests {
         assert!(read_correction(&serde_json::json!({"position": [1.0, 2.0, 3.0]})).is_none());
     }
 
-    /// The rig's walk verb: six numbers, a speed above zero.
+    /// The rig's walk verb: six numbers, a speed above zero. Seen red 2026-10-04 with the speed
+    /// check taken out: "a walk that never arrives".
     #[test]
     fn the_walk_verb_reads_six_numbers() {
         assert_eq!(parse_walk("76,1.7,64,0.5,0,6"), Some(ScriptedWalk { to: Vec3::new(76.0, 1.7, 64.0), yaw: 0.5, pitch: 0.0, speed: 6.0 }));

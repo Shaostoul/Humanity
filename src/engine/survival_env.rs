@@ -355,9 +355,9 @@ mod tests {
 
     /// INCREMENT 4: on the shipped ship the player breathes their own home's air only in their
     /// own home; the Commons is the ship's air (sealed and breathable whatever the home's air
-    /// does), and over the roof is outside. Seen red 2026-10-04 with `whereabouts` fed the box
-    /// around every room as the home, as before increment 4: "the Commons is the ship's air, not
-    /// InsideHome".
+    /// does), and over the roof is outside. Seen red 2026-10-04 with every pressurized space
+    /// counted as the home's (`AirSpaces::at`), as the box around every room was before
+    /// increment 4: "the Commons is the ship's air, not InsideHome".
     #[test]
     fn the_commons_breathes_the_ships_air_not_the_homes() {
         use glam::Vec3;
