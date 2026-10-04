@@ -515,17 +515,18 @@ impl GameWorld {
 
     /// `load_chores` from a given file (the tests point it at a missing one and a broken one).
     pub(crate) fn load_chores_at(&mut self, file: &std::path::Path) {
-        const BUILT_IN: &str = include_str!("../../../data/npc/chores.ron");
+        // The built-in copy is named only AFTER the disk read, in both fallbacks: the rigs'
+        // compiled-in check (scripts/lib/compiled-in.js) counts a read as disk-first by that.
         let path = file.display().to_string();
         let contents = std::fs::read_to_string(file).unwrap_or_else(|e| {
             crate::embedded_data::note_builtin_copy("npc/chores.ron", format_args!("{path} could not be read ({e})"));
-            BUILT_IN.to_string()
+            include_str!("../../../data/npc/chores.ron").to_string()
         });
         let chores: Vec<ChoreDef> = match ron::from_str(&contents) {
             Ok(v) => v,
             Err(e) => {
                 crate::embedded_data::note_builtin_copy("npc/chores.ron", format_args!("{path} does not parse ({e})"));
-                ron::from_str(BUILT_IN).unwrap_or_else(|e| {
+                ron::from_str(include_str!("../../../data/npc/chores.ron")).unwrap_or_else(|e| {
                     tracing::error!("The built-in chores do not parse either ({e}); the crew will wander instead of doing chores");
                     Vec::new()
                 })
