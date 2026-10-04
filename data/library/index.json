@@ -975,6 +975,18 @@
           ]
         },
         {
+          "title": "Pottery and Firing",
+          "file": "pottery_and_firing.md",
+          "tags": [
+            "guide",
+            "real",
+            "making",
+            "materials",
+            "food",
+            "safety"
+          ]
+        },
+        {
           "title": "Fibre, Cord and Textiles",
           "file": "fibre_cord_and_textiles.md",
           "tags": [
@@ -1019,8 +1031,30 @@
           ]
         },
         {
+          "title": "Soap, Lye and Cleaning",
+          "file": "soap_lye_and_cleaning.md",
+          "tags": [
+            "guide",
+            "real",
+            "making",
+            "health",
+            "safety"
+          ]
+        },
+        {
           "title": "Salvage and Reuse",
           "file": "salvage_and_reuse.md",
+          "tags": [
+            "guide",
+            "real",
+            "making",
+            "materials",
+            "safety"
+          ]
+        },
+        {
+          "title": "Making a Tool",
+          "file": "making_a_tool.md",
           "tags": [
             "guide",
             "real",
