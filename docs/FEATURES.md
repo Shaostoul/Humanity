@@ -1206,8 +1206,16 @@ floats/negatives/bools; encoder untouched, byte-lock proven by
 - Web: `web/pages/market-app.js`, `web/pages/market.html`, `web/shared/canonical-cbor.js`
 
 ### Crafting Page
-Recipe browsing and crafting UI.
-- Native: `src/gui/pages/crafting.rs`
+Recipe browsing and crafting UI. A hand craft takes its inputs from the
+backpack first, then home storage, then the tanks for tap water, wherever the
+player is aboard with their own home on the ship (BUG-147, 2026-10-04): the
+Ingredients card shows each input's split ("3 in backpack + 40 in home
+storage / needs 45") and says plainly what is short. What the backpack cannot
+take of the result goes to home storage with its grade; the rover, truck and
+Nova still roll out as vehicles. On a planet, in open space and as a guest on
+a shared ship, only the backpack counts, and the page says why.
+- Native: `src/gui/pages/crafting.rs`, `src/systems/crafting/home_store.rs`
+  (`HomeStore`, `Draw`), `src/engine/built_uses.rs` (`home_storage_here`)
 
 ### Guilds Page
 Guild management in native UI.
@@ -1798,11 +1806,15 @@ volume-legal add GROWS the slot grid (v0.735 — volume is the real pack limit,
 raw `add_item` stays slot-bound for bandolier-likes). Transfer UX (v0.736):
 right-click an item tile for a Stash/Move/Take context menu at the cursor,
 or DRAG a tile onto any container header (accent highlight + floating label).
-Auto machines draw recipe inputs from HOME STORAGE backpack-first (v0.737):
-lib.rs mirrors the organize-layer placed items into a `home_stock` map
-pre-tick; crafting counts + consumes; the diff drains back post-tick.
+Auto machines draw recipe inputs from HOME STORAGE backpack-first (v0.737),
+the build menu too, and hand crafts since BUG-147: the main loop mirrors the
+organize-layer placed items into a `home_stock` map pre-tick (leaving out
+chests built on a planet, whose contents are not in the home); the systems
+count + consume; the diff drains back post-tick.
 - Native: `src/systems/inventory/mod.rs`, `src/gui/pages/inventory.rs`,
-  `src/systems/crafting/mod.rs` (home_stock), `src/lib.rs` (bridge)
+  `src/systems/crafting/mod.rs` (home_stock), `src/engine/stock_piles.rs`
+  (`publish_home_stock`, `take_consumed_home_stock`),
+  `src/systems/inventory/placed.rs` (`stock_counts`, `take_consumed`)
 - Data: `data/items.csv` (volume_l), `data/materials.csv` (densities)
 
 ### Typed Containers (volume-capped vessels)
@@ -1922,7 +1934,7 @@ in by data, no ids in code; the first structure the look ray meets wins, so a wa
 - `provides: "storage"` (the Storage Chest): every finished one is a container in the Inventory page's "You &
   your places" tree (a keyed node, `gui/organize.rs` `sync_built_stores`), so drag onto its header, right-click
   Stash to / Take to backpack / Move to all work on it, and its contents count as home storage for crafting and
-  building. Its items are placed items filed under `built:<uid>`; `Structure.uid` is saved with the structure,
+  building (a chest built in the home; one built on a planet holds what is on that planet). Its items are placed items filed under `built:<uid>`; `Structure.uid` is saved with the structure,
   so the chest comes back at the same address and its contents with it. E on the chest opens the Inventory
   page. No volume limit yet: no places container has one.
 - `provides: "shelter"` (walls, roof) **shelters (2026-09-27).** Standing outside under a finished shelter

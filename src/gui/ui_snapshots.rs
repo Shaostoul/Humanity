@@ -1809,6 +1809,70 @@ fn snapshot_market_publish() {
 }
 page_snapshot!(snapshot_profile, "profile", profile, 1280, 900);
 page_snapshot!(snapshot_crafting, "crafting", crafting, 1280, 900);
+
+/// The Crafting page with a spacecraft pod selected (BUG-147): each part
+/// split between the backpack and home storage, the last part 2 short in
+/// both together, and the pod (far bigger than the backpack) bound for home
+/// storage. The plain page snapshot selects no recipe, so it shows none of it.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
+fn snapshot_crafting_home_storage() {
+    // Tall enough to show the Produces card (where the pod will go) below
+    // the pod's 27 parts.
+    render_page_png("crafting_home_storage", 1280, 1500, |ctx, theme, state| {
+        if state.craft_selected.is_none() {
+            let idx = state.craft_recipes.iter().position(|r| r.id == "build_spacecraft_pod").expect("the pod recipe ships");
+            state.craft_selected = Some(idx);
+            let parts = state.craft_recipes[idx].inputs.clone();
+            let last = parts.len() - 1;
+            for (i, (id, need)) in parts.into_iter().enumerate() {
+                let slot = GuiItemSlot { item_id: id.clone(), name: id.clone(), quantity: need / 3, wear: 0, quality: 0 };
+                state.inventory_items.push(Some(slot));
+                state.home_stock.insert(id, if i == last { need - need / 3 - 2 } else { need });
+            }
+        }
+        crate::gui::pages::crafting::draw(ctx, theme, state);
+    });
+}
+
+/// The Tools card and the line under a greyed Craft button name a tool the
+/// way the Ingredients and Produces cards name a part ("Wrench Adjustable"),
+/// never by its item id. Headless (no GPU): the drawn text is read back from
+/// the frame's shapes. Every part is in home storage and no tool is carried,
+/// so the button is greyed for the tool alone. Seen red before the fix: "the
+/// Tools card names wrench_adjustable_0 by its item id".
+#[test]
+fn crafting_names_tools_like_parts() {
+    let mut state = demo_state();
+    let idx = state.craft_recipes.iter().position(|r| r.id == "build_spacecraft_pod").expect("the pod recipe ships");
+    let recipe = state.craft_recipes[idx].clone();
+    assert!(!recipe.tools.is_empty(), "the pod needs hand tools");
+    state.craft_selected = Some(idx);
+    state.home_storage_here = true;
+    state.stations_where = crate::systems::construction::StationsWhere::Home;
+    for (id, need) in &recipe.inputs {
+        state.home_stock.insert(id.clone(), *need);
+    }
+    let ctx = snapshot_ctx();
+    let theme = load_theme();
+    theme.apply_to_egui(&ctx);
+    let mut out = None;
+    for _ in 0..3 {
+        let input = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(1280.0, 4000.0))),
+            ..Default::default()
+        };
+        out = Some(ctx.run(input, |ctx| crate::gui::pages::crafting::draw(ctx, &theme, &mut state)));
+    }
+    let shapes = out.expect("frames ran").shapes;
+    let drawn = |t: &str| crate::gui::screen_surface::find_text_in_shapes(&shapes, t).is_some();
+    for tool in &recipe.tools {
+        assert!(!drawn(tool), "the Tools card names {tool} by its item id");
+        assert!(drawn(&crate::gui::pages::crafting::pretty_id(tool)), "{tool} is named as a part is");
+    }
+    let first = crate::gui::pages::crafting::pretty_id(&recipe.tools[0]);
+    assert!(drawn(&format!("Needs a {first} in your backpack")), "the greyed button says which tool, by name");
+}
 page_snapshot!(snapshot_library, "library", library, 1280, 900);
 
 /// A SHORT Library document that has siblings, so the ladder footer at the foot of the

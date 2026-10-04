@@ -244,6 +244,18 @@ pub fn storage_path(uid: u32) -> String {
     format!("built:{uid}")
 }
 
+/// The container paths of the stores built on a planet (BUG-147): the
+/// player's own, but not in the home, so what they hold is not home storage
+/// (`inventory::placed::stock_counts`).
+pub fn planet_store_paths(world: &hecs::World) -> Vec<String> {
+    world
+        .query::<(&Structure, &PlanetSite)>()
+        .iter()
+        .filter(|(_e, (s, _))| s.uid != 0 && use_of(s) == Some(StructureUse::Store))
+        .map(|(_e, (s, _))| storage_path(s.uid))
+        .collect()
+}
+
 /// Every finished storage structure as (container path, display name), in
 /// uid order. Repeats of a name are numbered so two chests read apart.
 pub fn built_stores(world: &hecs::World, registry: Option<&BlueprintRegistry>) -> Vec<(String, String)> {
