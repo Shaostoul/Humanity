@@ -25,7 +25,7 @@
         research_cost: [("wood_log_0", 5), ("stone_raw_0", 3)],
         unlocks_recipes: ["make_charcoal"],
         unlocks_structures: ["campfire_0"],
-        unlocks_items: ["torch_0"],
+        unlocks_items: ["torch_handheld_0"],
         description: "Control of fire for warmth, cooking, and protection from predators",
     ),
 
@@ -507,7 +507,7 @@
         research_cost: [("copper_ingot_0", 20), ("glass_pane_0", 10), ("wire_0", 20)],
         unlocks_recipes: [],
         unlocks_structures: ["computer_terminal_0"],
-        unlocks_items: ["circuit_board_0", "processor_0"],
+        unlocks_items: ["circuit_board_0", "cpu_0"],
         description: "Programmable electronic machines for calculation, data storage, and automation",
     ),
 

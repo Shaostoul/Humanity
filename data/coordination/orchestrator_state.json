@@ -651,6 +651,11 @@
       "date": "2026-10-04",
       "decision": "Released v0.1452.0: the five lanes from the operator's 2026-10-04 answers (72x shared clock with an in-app admin control; BUG-136 carry limit by gravity, Realistic slowdown and no jump; BUG-138/139 the real night sky and a dawn fade, plus the Silverdale sunrise hero clip; the two donation routes; pipe marking findings). Also BUG-142: the rigs' exe copy now waits out the lock a stopped game leaves (scripts/lib/rig-exe-copy.js, shared by probe-sweep, verify-copresence, verify-screens, verify-live-screen). Increment 3 (the relay's world becomes this ship) is building in its own workflow.",
       "why": "Full check chain green on the merged main. --plots lost its game-first order to EBUSY on the first run; the same failure had been seen once earlier the same day and dismissed as timing, so it was fixed at the root (a fixed 2 s retry in four rigs) instead of rerun."
+    },
+    {
+      "date": "2026-10-04",
+      "decision": "Released v0.1452.1 and v0.1452.2: six Library guides (water without power, stone/clay/earth, fibre/cord, life in soil, soil chemistry, the ground under you; 71 sourced), the water pump card fixed to 2 L/min, BUG-143 filed (140 of 300 trade goods are not items, so the vendor never offers them; a worktree agent is reconciling with a test), BUG-144 fixed (the Library quotation gate's regex pairing and first-source attribution produced 6 false reports and failed just preflight; now positional pairing, nearest source among all registry sources, 8 tests, 3 seen red against the old logic). Two more Library batches launched (shelter structure/foundation/framing; roof/repair/recycling). In flight: increment 3, pipe markers, BUG-143.",
+      "why": "The fact checks keep finding real game-data defects beside the prose (the pump card, the trade goods), so each batch's 'game data oddities' list is read and acted on, not just the guide. The quote gate was fixed at the root rather than silenced with markers: four of its six reports were checker bugs, and the fix surfaced one quotation the broken pairing had hidden."
     }
   ],
   "active_scopes_to_avoid": [

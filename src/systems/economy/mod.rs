@@ -6,7 +6,7 @@
 //! paid into the player's Wallet component; was a TODO log line).
 //!
 //! Data: data/economy.ron (formula, earning rates, trade fees)
-//!       data/trade_goods.ron (255 item base values -> TradeGoodsRegistry)
+//!       data/trade_goods.ron (250 item base values -> TradeGoodsRegistry; every id is an item, see the test every_shipped_trade_good_is_an_item)
 
 pub mod fleet;
 

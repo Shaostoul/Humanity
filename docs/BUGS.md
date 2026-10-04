@@ -3282,7 +3282,7 @@ stayed locked. Any other error is thrown at once. Tests:
 `scripts/tests/rig-exe-copy.test.js` (in `just rig-tests`), including a lock
 that lasts 4 s, which the old single retry after 2 s could not survive.
 
-## BUG-143: 140 of the vendor's 300 trade goods are not items, so the shop silently never offers them (OPEN, found 2026-10-04)
+## BUG-143: 140 of the vendor's 300 trade goods are not items, so the shop silently never offers them (FIXED v0.1453.0, found 2026-10-04)
 
 **Seen:** the fact check of the Stone, Clay and Earth guide noticed `clay_0` in
 `data/trade_goods.ron` with no such item in `data/items.csv` (which calls it
@@ -3295,9 +3295,25 @@ ingots, cotton cloth, nails and steel pipe.
 files, so the 140 are dropped without a word, and a player can never buy or
 sell clay, fibre, lumber or brick at a trading post.
 
-**Fix in progress:** each missing id is renamed to the item it means, added
-to items.csv as a real material, or removed if nothing in the game uses it,
-and a test fails on any trade good that is not an item.
+**Fix:** all 140 resolved. 64 renamed to the item they mean (clay_0 to
+clay_raw_0, lumber_0 to wood_plank_0, brick_0 to stone_brick_0 ...); 26
+added to items.csv as real materials (sulfur, saltpeter, tin, lead and zinc
+ores, gems, resin, plywood, tin and bronze ingots, linen and silk cloth,
+steel and ceramic plate, and four that other data already named: poultice_0
+and med_kit_advanced_0 from medical.ron, lockpick_0, sextant_0); 50 removed
+(fantasy goods, armour and weapons with no item or equipment stats, building
+pieces the construction editor makes from planks and bricks, foods with no
+nutrition profile, and a generic key that would open every metal-key lock).
+Three renamed goods were repriced so they create no new buy-craft-sell loop
+(wood_plank_0 3, carbon_fiber_sheet_0 20, boat_sailboat_0 300). The vendor
+now has 250 goods, every one an item. Test
+`systems::economy::tests::every_shipped_trade_good_is_an_item` reads both
+shipped files through the game's own loader and fails on a missing or
+duplicated id; seen red on the original files ("140 trade goods ... are not
+items"). Old ids still named elsewhere were renamed too: processor_0 to
+cpu_0 in medical.ron and tech_tree.ron, torch_0 to torch_handheld_0 in
+tech_tree.ron. Left for the food work: herbal_tea_0 (named by medical.ron and
+tech_tree.ron, no item yet), and lock_types.ron's brass_key_0 (no item yet).
 
 Also found by the same checks, smaller: the water pump's card said 12 L/min
 while its own water port and the self-sufficiency data say 2 L/min (fixed
@@ -3337,3 +3353,25 @@ pairing and attribution. With the fix the real Library had 2 reports, one
 new (a guide quoting its own former wording, hidden before by the
 desynchronised pairing); those two and the 95-percent source-list line got
 `quote-ok` markers with their reasons. 0 problems.
+
+## BUG-145: six recipes turn vendor-bought inputs into goods that sell back for more (OPEN, found 2026-10-04)
+
+**Seen:** while fixing BUG-143, a check over every recipe whose inputs the
+vendor sells found six where buying the inputs (at 1.25x base) and selling
+the result (at 0.5x base) makes money, before BUG-143 and after it:
+
+| Recipe | Inputs cost | Sells for |
+|---|---|---|
+| craft_stim_pack | 13 | 85 |
+| craft_antibiotics | 13 | 50 |
+| craft_painkillers | 11 | 40 |
+| build_spacecraft_pod | 876 | 2500 |
+| build_motorcycle_full | 364 | 400 |
+| make_wire | 13 | 15 |
+
+**Why it matters:** an endless money loop at any trading post. In a shared
+world it inflates everyone's prices.
+
+**Fix (not started):** reprice the outputs in `data/trade_goods.ron` from what
+their inputs and labour cost, or change the recipes, and add a test that no
+recipe whose inputs the vendor sells can be resold for more than they cost.

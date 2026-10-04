@@ -11,6 +11,13 @@ Each line is written the way a player would hear it; the release notes and
 
 ## Shipped
 
+- **v0.1453.0: the trading post sells what it lists.** 140 of the trading
+  post's 300 goods could never be bought or sold, because they were named
+  differently from the real items (clay, cotton, flax, hemp, planks, bricks,
+  nails, steel pipe and more). They now match, 26 real materials were added
+  (ores, gems, ingots, cloth, plywood), and goods nothing in the game could use
+  were taken off the list. A test now stops this from happening again.
+
 - **v0.1452.2: three more Library guides about the ground.** Life in Soil
   (earthworms and what counting them tells you, tetanus and when a wound
   needs a doctor, manure and how long before harvest), Soil Chemistry (pH,
