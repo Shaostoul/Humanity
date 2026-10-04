@@ -11,6 +11,14 @@ Each line is written the way a player would hear it; the release notes and
 
 ## Shipped
 
+- **v0.1451.0: walk out of your home and meet other players in the Commons.**
+  In a shared world you can now walk from your own front door, down your
+  corridor, into the ship's Commons, and see the other players there. Your
+  neighbours' homes are drawn along the street with their own doors, which open
+  for them. The game remembers your plot on each server, so your home is built
+  in the right place before you even join. A guest on a full ship waits in the
+  Commons. This is what a first two-person play session needs.
+
 - **v0.1450.0: an erased account stays erased on every device, and server
   settings save safely.** After you erase your account on a server, the server
   now remembers for up to 30 days (a setting its admin can change) that it was
