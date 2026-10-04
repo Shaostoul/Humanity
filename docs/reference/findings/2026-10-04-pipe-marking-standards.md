@@ -39,20 +39,29 @@ US plumbing code.
   water on a ship (ISO 14726), compressed air in US plants (ASME A13.1) and in
   ISO 20560-1, oxygen in Germany (DIN 2403), and coolant on aerospace lines
   (MIL-STD-1247). Red is fire fighting nearly everywhere, but steam in DIN 2403
-  and fuel on aircraft. That is why **every scheme also requires a written
-  name**, and why NASA's current spacecraft standard (2026) requires "an
-  additional cue" whenever colour carries critical meaning (F26).
+  and fuel on aircraft. That is why **most schemes also ask for the content's
+  name in words**: A13.1, ISO 20560-1, DIN 2403 (per TRGS 201) and
+  MIL-STD-1247D on every marked line, MIL-STD-101C and GSFC-STD-8006 on
+  hazardous and fire lines. **Not all of them do:** BS 1710 also allows
+  "basic identification colours only" (F16), and ISO 14726's layout clause was
+  not read, so whether it asks for a name is unknown (F13). NASA's current
+  crew standard (2026) requires "an additional cue" whenever colour conveys
+  meaning for critical information; that rule is written for displays, and
+  applying it to pipe markers is our extension (F26).
 - **The "full spectrum" is covered by text, not by more colours.** Each scheme
-  has a handful of colour groups (six to twelve) and then writes the content's
-  name on the pipe. ISO 14726 adds a second level: a band of an "additional colour"
-  between two bands of the main colour (potable water is blue-green-blue,
+  has a handful of colour groups (six to twelve), and most then write the
+  content's name on the pipe. ISO 14726 adds a second level: a band of an
+  "additional colour" between two bands of the main colour (potable water is blue-green-blue,
   condensate blue-yellow-blue), which gives well over a hundred distinct
   codes.
-- **All of them let the real pipe show between the markers.** Colour may be
-  applied as bands or labels at intervals instead of over the whole length
-  (ASME A13.1, BS 1710, MIL-STD-101C, which even calls bands "preferred").
+- **Every scheme whose text on this we read lets the real pipe show between
+  the markers.** Colour may be applied as bands or labels at intervals
+  instead of over the whole length (ASME A13.1, BS 1710, GSFC-STD-8006,
+  MIL-STD-1247D, and MIL-STD-101C, which even calls bands "preferred").
   Pipes that need no warning colour "may be painted to match surroundings ...
-  aluminum, black, or remain unpainted" (MIL-STD-101C, F8).
+  aluminum, black, or remain unpainted" (GSFC-STD-8006, F4; MIL-STD-101C
+  says the same in nearly the same words, F8). ISO 14726's and ISO
+  20560-1's layout clauses were not read.
 - **Spacecraft practice adds two rules the plant standards do not stress:**
   lines are labelled "to allow for positive identification", and connectors
   for different contents have different shapes so they cannot be cross-mated
@@ -61,17 +70,19 @@ US plumbing code.
   **ISO 14726 colours** (main colour bands, plus additional-colour triples for
   specific media); use **ISO 20560-1's non-colour elements** for the label
   (content name, flow arrow, GHS hazard pictograms); place markers by the
-  common rule all schemes share (at valves, branches, bends and wall
-  penetrations, and at intervals); key connectors per content as NASA does.
+  rule common to every scheme whose placement clause we could read (at
+  valves, branches, bends and wall penetrations, and at intervals); key
+  connectors per content as NASA does.
   Render the pipe's **real material and paint everywhere between the
   markers**. The game's current pipe colours conflict with most schemes on
   red, yellow and violet, and the code comment that cites ASME A13.1 does not
   match it (see "What it means for this project").
-- **Every standard text is copyrighted except the US government ones.** We
+- **Every standards body's text is copyrighted (ASME, ISO, BSI, DIN).** We
   restate facts (which colour means what) in our own words and data, quote at
-  most short phrases, and never copy tables or figures wholesale. MIL-STD,
-  NASA and the German TRGS rule are public documents and can be quoted more
-  freely.
+  most short phrases, and never copy tables or figures wholesale. The
+  MIL-STD and NASA documents are cleared for unlimited public release, and
+  the German TRGS rule is published free by its ministry, so those can be
+  quoted more freely (section H).
 
 ---
 
@@ -162,6 +173,13 @@ UNLIMITED."
   safety green, white legend; compressed air, safety blue, white legend.
   GSFC also assigns anesthetic and harmful fluids to safety purple and
   physically dangerous fluids (cryogens, nitrogen, steam) to safety gray.
+- On words (4.1 and 4.2): the colours are "a visual aid and supplement to
+  written identification", and "Exact identification of materials in any
+  piping system for flammable, oxidizing, combustible, toxic, corrosive,
+  physically dangerous, anesthetic, harmful, and fire quenching fluids is
+  required and shall be made only by means of legends". So the legend is
+  stated as mandatory for the hazardous and fire classes; for water and
+  compressed air the text is less explicit.
 - On paint and bare pipe (4.2.1): "Piping systems that do not require warning
   colors may be painted to match surroundings, if not in conflict with other
   color designations in this standard, or such systems may be painted
@@ -221,9 +239,15 @@ STATEMENT A. Approved for public release; distribution is unlimited."
   gray physically dangerous, red fire protection. Applied as a "primary color
   warning" band and a "secondary color warning" arrow showing flow direction
   (5.1.3, 5.1.4).
-- Drinking water: "Water-piping systems containing water suitable for human
+- Black and white carry no hazard meaning, and drinking water may be white
+  OR match its surroundings (4.3 (a)): "These colors are assigned, without
+  significant meaning, for general use where specified in this standard
+  except as follows: Water-piping systems containing water suitable for human
   consumption and installed for this purpose shall be painted White, No.
-  17875 throughout" (4.3).
+  17875 throughout or shall be painted to match surroundings when not in
+  conflict with other color designations in this standard". White is
+  therefore one of two allowed finishes for drinking water, not a
+  requirement.
 - Pointer (1.2): "The identification of pipe lines for aircraft, missiles,
   and space vehicles is covered in MIL-STD-1247."
 
@@ -236,8 +260,11 @@ MIL-STD-101C, 5.1.2 and 5.1.3.1:
 - Whole-system painting is allowed, "However, the use of color bands is
   preferred because they will indicate dangerous systems to color-blind
   personnel."
-- Exact identification is "mandatory and shall be made only by means of
-  titles lettered in black or white" (5.1.1).
+- Titles (written names) are required, but only for hazardous and fire
+  lines (5.1.1): "Exact identification of materials in any piping system for
+  hazardous materials and the use classification for fire protection is
+  mandatory and shall be made only by means of titles lettered in black or
+  white." A pipe outside those classes may carry no title at all.
 
 ---
 
@@ -343,6 +370,9 @@ This is the superseded edition; the 2024 changes were not read.
   3864-4."
 - Its origin in national schemes: "Many different countries' national pipe
   marking standards were reviewed during the development of this document."
+- One system per organisation (clause 4): "To avoid confusion, the same
+  safety information system elements shall be consistently used and
+  installed throughout an organization's piping system".
 - It carries "Annex E (informative) Maritime piping systems", which is not in
   the sample. How it reconciles blue-for-air here with blue-for-fresh-water in
   ISO 14726 is unknown.
@@ -363,6 +393,8 @@ standard's opening clauses:
   used for carrying electrical services."
 - Two methods: "basic identification colours only; and" "basic
   identification colours and code indications and/or code colours."
+- So method (a) identifies a pipe by colour alone, with no written name.
+  BS 1710 is the one scheme read here whose own text allows that outright.
 - "This British Standard does not include identification of fluid services on
   ships." NOTE 3 points to BS ISO 14726.
 - "This British Standard supersedes BS 1710:1984, which is withdrawn."
@@ -377,8 +409,21 @@ Standards Limited (BSI)."
 - Restated: water is green (BS 4800 colour 12 D 45); the code and safety
   colours are red for fire (04 E 53), auxiliary blue for water from a public
   supply (18 E 53), flint grey for water from any other source (00 A 09), and
-  yellow for warning (08 E 51). A marker is basic colour, code colour, basic
-  colour.
+  yellow for warning (08 E 51).
+- Marker layout, restated. The simplest marker is basic colour, centre code
+  or safety colour, basic colour (the leaflet's Figure 1). Its Table 2,
+  "based on table F.2 in BS 1710:2014", stacks code and safety colours into
+  five- and seven-band markers, with black used as a code colour. Examples:
+  potable water from the public supply is green, auxiliary blue, green;
+  non-potable water from the public supply is green, auxiliary blue, black,
+  auxiliary blue, green; a non-potable fire safety system from the public
+  supply is green, auxiliary blue, black, red, black, auxiliary blue, green.
+  The leaflet adds "Colours in these examples are for illustration only."
+- On words, for water services: "In addition to identifying the contents
+  additional information about the type of service e.g. details about the
+  source of water, direction of flow or operational parameters, should be
+  provided." That is a "should", beside the standard's colour-only method
+  (F16).
 - "Basic identification colours can be applied over the whole length of a
   service or as bands."
 - "Decorative or protective coverings shall be of a contrasting colour to the
@@ -450,7 +495,9 @@ black; oxygen (0) **blue**.
 - The annex cites "DIN 2403:2014-06", so this is the 2014 grouping.
 - Section 4.5.3 (3): "Auf die Verwendung des Piktogramms GHS04 "Gasflasche"
   sollte verzichtet werden." (The gas-cylinder pictogram should not be used on
-  pipelines.) GSFC-STD-8006 says the same in English (F4).
+  pipelines.) GSFC-STD-8006 is softer: "The gas cylinder pictogram is not
+  required to be used" (its 4.2.3), which leaves it optional rather than
+  advising against it.
 
 **F21. A trade magazine on the German practice (secondary).**
 "Kennzeichnungen an Rohrleitungen", *SBZ Monteur* 2009/10, pp. 32-33,
@@ -491,6 +538,11 @@ stamp; the document itself is a public US government standard.)
 - Drinking water (4.1 a): "Water piping systems containing water for human
   consumption shall be painted white or identified as directed by the
   procuring activity."
+- Words always (4.1.1): "Function shall be identified by the use of words,
+  colors, and symbols as shown in figure 2, except that symbols need not be
+  used where identification is accomplished with paints, and neither colors
+  nor symbols are required on tags or bands." So colour may be dropped, the
+  words may not.
 - Hazards are words, black on white or metallic, e.g. "FLAM", "TOXIC" (4.1.3,
   Table II). Flow: "A two-headed arrow will be used to indicate reversible
   flow." (4.1.4)
@@ -558,7 +610,18 @@ listed "ACTIVE" at [standards.nasa.gov/node/237](https://standards.nasa.gov/node
   issued [sic] to convey meaning for critical information or for a critical
   task." Rationale: "Redundant coding is required to accommodate the
   variability in people's capability to see color under different lighting
-  conditions".
+  conditions and to increase the saliency of identification markings.
+  Redundant cues can include labels, icons, and speech messages."
+- **Where it sits:** under 10.4 "Displays and Controls", 10.4.2 "Displays",
+  as 10.4.2.2 "Color Coding Redundancy". It is a rule for crew displays, not
+  one written for fluid lines. Applying it to pipe markers is our extension;
+  the rationale's mention of "identification markings" is what makes the
+  extension reasonable, not a statement that NASA applies it to pipes.
+- The next section, 10.4.3 "Labels", has the general rule that does cover
+  physical items: [V2 10060] "The system shall provide labels for the crew to
+  identify items, interpret and follow nominal and contingency procedures,
+  and avoid hazards." and [V2 10063] labels "positioned on or directly
+  adjacent to the item they are labeling."
 
 **F27. The same document on lines and connectors.**
 
@@ -646,19 +709,21 @@ tolerates ("colours of a similar shade and tone may also be used", F10).
 | Blue | fresh water | air | compressed air | light blue: air; auxiliary blue: public-supply water | oxygen | coolant | anesthetic, harmful |
 | Red | fire fighting | firefighting | fire quenching | fire (safety colour) | **steam** | **fuel** | fire protection |
 | Yellow | flammable gases | hazardous (safety colour) | flammable, oxidizing | warning (safety colour); ochre: gases | gases | lubrication | flammable |
-| Orange | oils other than fuel | acids | toxic, corrosive | electrical | acids | compressed gas | (cylinders only) |
+| Orange | oils other than fuel | acids | toxic, corrosive | electrical (F18, disputed) | acids | compressed gas | (cylinders only) |
 | Brown | fuel | (not used) | combustible | oils | liquids, solids | fire protection | toxic, poisonous |
-| Grey | non-flammable gases | gases | GSFC: physically dangerous | silver-grey: steam | air | de-icing | physically dangerous |
-| Violet / purple | acids, alkalis | alkalis | GSFC: anesthetic, harmful | acids, alkalis | alkalis | (not used) | (not used) |
-| Black | waste media | liquids, solids | GSFC: no meaning | other liquids | additional colour: non-flammable | (lettering) | no meaning |
-| White | ventilation air | (label background) | GSFC: no meaning | (not read) | (lettering) | (label background) | drinking water |
+| Grey | non-flammable gases | gases | GSFC: physically dangerous | silver-grey: steam (F18, disputed); flint grey: water from other sources (F17) | air | de-icing | physically dangerous |
+| Violet / purple | acids, alkalis | alkalis | GSFC: anesthetic, harmful | acids, alkalis (F18) | alkalis | (not used) | (not used) |
+| Black | waste media | liquids, solids | GSFC: no meaning | other liquids (F18, disputed); a code colour in water markers (F17) | additional colour: non-flammable | (lettering) | no meaning |
+| White | ventilation air | (label background) | GSFC: no meaning | (not read) | (lettering) | (label background) | no meaning; one of two allowed finishes for drinking water (4.3) |
 
 The A13.1 column's grey, purple, black and white rows are GSFC's assignments;
 A13.1 itself leaves four colour slots "Defined by the User" (F5), whose colours
 we did not read from a primary source.
 
 Only red-for-fire and green-for-water come close to universal, and even those
-break. A colour without a word is not a safe message in any of these schemes.
+break. So a colour without a word cannot be read safely by someone who does
+not know which scheme is in use, even where one scheme allows colour alone
+(BS 1710, F16).
 
 ---
 
@@ -669,14 +734,17 @@ break. A colour without a word is not a safe message in any of these schemes.
    read neither. Settle by buying ASME A13.1-2026 (USD 50, PDF, F1).
 2. **ISO 14726 clause 5 "Design" and Annex B.** Band widths, the order on the
    pipe, legends, arrows, and the RAL or other equivalents of each colour are
-   not in the free pages. Settle by buying ISO 14726:2008 (13 pages) or reading
-   it at a library holding ISO standards.
+   not in the free pages, so neither is whether ISO 14726 asks for the
+   content's name in words or where markers go. Settle by buying ISO
+   14726:2008 (13 pages) or reading it at a library holding ISO standards.
 3. **ISO 20560-1:2024's changes and its Annex E "Maritime piping systems".**
    In particular, how it reconciles its blue (air) and green (water) with ISO
-   14726's blue (fresh water) and green (sea water). Settle by buying ISO
-   20560-1:2024 (25 pages).
+   14726's blue (fresh water) and green (sea water). Its clause 7 "Layout
+   requirements" (where markers go) is not in the 2020 sample either. Settle
+   by buying ISO 20560-1:2024 (25 pages).
 4. **BS 1710's full basic colour table.** Two vendor pages disagree on steam,
-   other liquids and electrical (F18). Settle by reading BS 1710:2014.
+   other liquids and electrical (F18), so the orange for electrical conduit
+   is not settled. Settle by reading BS 1710:2014.
 5. **Whether DIN 2403:2025-12 changed the colour groups** that TRGS 201 gives
    from the 2014 edition. Settle by reading DIN 2403:2025-12 (EUR 90.50 per
    DIN Media) or a later TRGS 201 amendment.
@@ -737,8 +805,14 @@ break. A colour without a word is not a safe message in any of these schemes.
   marine structures and ships"). We do not need to invent a scheme.
 - **No scheme marks the wall material.** Copper, steel and plastic show
   themselves; makers print their own grade markings (F31).
-- **Colour must be backed by words** in every scheme, and by an "additional
-  cue" in NASA's current spacecraft standard (F26).
+- **Most schemes ask for the content's name in words, not all.** A13.1
+  (F5), ISO 20560-1 (F15), DIN 2403 per TRGS 201 (F20) and MIL-STD-1247D
+  (F22) put words on every marked line; MIL-STD-101C (F8) and GSFC-STD-8006
+  (F4) make them mandatory for hazardous and fire lines; BS 1710 also allows
+  colour alone (F16), though its water-service guidance says supplementary
+  information "should be provided" (F17). Whether ISO 14726 asks for a name
+  is unknown, because its clause 5 was not read (F13). NASA's colour
+  redundancy rule is a display rule (F26).
 - **Markers may be bands or labels at intervals**, with the real or painted
   pipe between them (F5, F8, F17, F29).
 - **Our code cites a standard it does not follow.**
@@ -747,17 +821,36 @@ break. A colour without a word is not a safe message in any of these schemes.
   line 12 say the routing is "Grounded in ... ASME A13.1 (pipe color)". The
   colours actually come from `MachineHome::connection_color`
   ([`src/machines.rs`](../../../src/machines.rs) line 2338), where water is
-  blue (A13.1 says green), hot water is red (red is fire fighting in ISO
-  14726, ISO 20560-1, A13.1, BS 1710 and MIL-STD-101C), power is amber yellow
-  (yellow is flammable or a hazard in those same five; electrical conduits
-  are outside A13.1 and ISO 14726, and BS 1710 makes them orange), data is
-  violet (acids and alkalis in ISO 14726, ISO 20560-1, BS 1710 and DIN 2403),
-  nutrient is brown (fuel in ISO 14726), and waste is grey-green (black in ISO
-  14726).
+  blue (A13.1 says green, per GSFC and the vendor quote, F4, F5), hot water
+  is red (red is fire fighting in ISO 14726, ISO 20560-1, A13.1 per GSFC,
+  BS 1710 and MIL-STD-101C), power is amber yellow (yellow is flammable or a
+  hazard in those same five; A13.1 does not apply to electrical conduits,
+  and ISO 14726's twelve main colours include none for them), data is
+  violet (acids and alkalis in ISO 14726, alkalis in ISO 20560-1 and DIN
+  2403, and acids and alkalis in BS 1710 per a secondary source, F18),
+  nutrient is brown (fuel in ISO 14726), and waste is grey-green (black in
+  ISO 14726).
 - **Our pipes hide their material.** [`src/engine/home_meshes.rs`](../../../src/engine/home_meshes.rs)
   lines 1973 to 1984 paint the whole pipe in that utility colour with a
   little emissive glow, varying only metal and roughness between rigid and
   flexible kinds.
+- **The code already holds material colours that nothing draws.**
+  `ConduitKind::color()` ([`src/ship/conduits.rs`](../../../src/ship/conduits.rs)
+  line 59) returns copper for rigid copper, "dark rubber" for a hose and
+  "black cord" for a power cord. It has no callers: `home_meshes.rs` line
+  1981 uses `connection_color` instead.
+- **The conduit registry cannot record plastic or steel pipe.**
+  `ConductorMaterial` ([`src/utilities.rs`](../../../src/utilities.rs) line
+  118) offers Copper, Aluminum, Superconductor, Glass and Radio, and
+  [`data/utilities/conduits.ron`](../../../data/utilities/conduits.ron) line
+  40 records `pex_half` (`label: "PEX 1/2\" water"`) as `material: Copper`.
+- **An earlier rule in the code limits potable water to copper.**
+  `src/ship/conduits.rs` lines 21 to 22 (v0.535.0, 2026-06-25) say rigid
+  copper is "MANDATORY for all potable water" and quote the operator: "no PVC
+  or other synthetics that leach toxins". That code comment is the only
+  record of the rule found, and the registry's PEX potable line already
+  conflicts with it. Whether the rule stands is the operator's call; this
+  document does not research whether plastic pipe leaches anything.
 
 ### Judgement calls (ours; a reader may weigh them differently)
 
@@ -774,18 +867,34 @@ break. A colour without a word is not a safe message in any of these schemes.
 - **The label: ISO 20560-1's non-colour elements.** Content name (sans serif,
   mixed case, contrast colour or black on white), a single or double-headed
   flow arrow, and GHS hazard pictograms for hazardous contents, without the
-  gas-cylinder pictogram (TRGS 201 and GSFC both say to drop it). Do NOT use
-  ISO 20560-1's colours aboard, because its blue and green mean air and water,
-  the opposite of ISO 14726's on those two.
-- **Placement: the rule every scheme shares.** At every valve and operating
-  accessory, at branches, changes of direction and wall or deck
-  penetrations, and at intervals so that at least one marker is visible from
-  anywhere along the run (MIL-STD-1247D's wording, F22). GSFC's 20 ft
-  (about 6 m) interval indoors is a good default for data.
-- **Electrical conduit: orange band plus voltage.** Neither A13.1 nor ISO
-  14726 covers conduit; BS 1710 uses orange (F18) and MIL-STD-1247D wants the
-  usage and voltage written on the conduit (its 5.6.1). Amber yellow should
-  go, because yellow means flammable.
+  gas-cylinder pictogram (TRGS 201 advises against it on pipelines and GSFC
+  makes it optional, F20). Do NOT use ISO 20560-1's colours aboard, because
+  its blue and green mean air and water, the opposite of ISO 14726's on
+  those two.
+- **Placement: the rule shared by every scheme whose placement text we
+  read** (GSFC-STD-8006 building on A13.1, F4; BS 1710 through the permitted
+  extract, F17; MIL-STD-1247D, F22; DIN 2403 practice through a trade
+  magazine, F21). ISO 14726's clause 5 and ISO 20560-1's clause 7 "Layout
+  requirements" were not read, so whether they say the same is unknown. The
+  shared rule: at every valve and operating accessory, at branches, changes
+  of direction and wall or deck penetrations, and at intervals so that at
+  least one marker is visible from anywhere along the run (MIL-STD-1247D's
+  wording, F22). GSFC's 20 ft (about 6 m) interval indoors is a good default
+  for data.
+- **Electrical conduit: the words and the voltage carry it, the colour is
+  secondary.** A13.1 does not apply to electrical conduits (F1) and ISO
+  14726 has no colour for them (F11). The one primary-sourced conduit code is
+  MIL-STD-1247D's: a brown and an orange stripe, the words "ELECTRICAL
+  CONDUIT", the usage (power, control, communications) and the maximum
+  voltage (its 5.1.1.1 and 5.6.1, F22). BS 1710 may use orange for conduit,
+  but only one of two vendor pages says so (F18, disputed; open question 4).
+  Any single colour collides with an ISO 14726 meaning aboard (orange is
+  oils other than fuels there, F11), which is why the legend and voltage
+  should carry the identification. Our suggestion: MIL-STD-1247D's
+  brown-orange stripe pair with its legend; its two-stripe form at least
+  differs from ISO 14726's three-band markers, though whether players would
+  confuse them is untested. Amber yellow should go either way, because
+  yellow means flammable gases in ISO 14726.
 - **Spacecraft rules on top:** connectors of a different shape or key per
   content, so a fuel line cannot be plugged into a water inlet (F24, F25,
   F27), and both halves of a connection carry a matching code.
@@ -815,6 +924,12 @@ break. A colour without a word is not a safe message in any of these schemes.
   markers. The content colour lives only in the markers, as the schemes allow
   (F5, F8, F17). Painting the whole run in the content colour, as the game
   does now, should become an optional finish, not the default.
+- The smallest first step in our code: draw the pipe body with the material
+  colours `ConduitKind::color()` already holds (copper, dark rubber, black
+  cord; it has no callers today) and move `connection_color` into the
+  markers. The material list then needs plastics and steels, which
+  `ConductorMaterial` cannot express yet, and `pex_half` needs a material
+  other than Copper (see "Certain").
 - Paint follows the real rules where they exist: a bare carbon steel pipe
   needs a protective finish (MIL-STD-1247D's wording, F22); a finish should
   contrast with the marker colour (BS 1710, F17); a purple pipe means
@@ -831,11 +946,16 @@ break. A colour without a word is not a safe message in any of these schemes.
   ship. When a line is repurposed, its old markers show as out of date until
   replaced.
 - **One scheme per shared space:** the mothership's common systems use one
-  server-wide scheme, so every player reads the same code; inside a player's
-  own home the owner may choose another scheme, or leave markers off, at
-  their own risk.
-- **Free choice of material and paint** within what the material allows,
-  since none of the standards constrain it.
+  server-wide scheme, so every player reads the same code, as ISO 20560-1
+  asks of one organisation's piping (F15); inside a player's own home the
+  owner may choose another scheme, or leave markers off, at their own risk.
+- **Free choice of paint, and of material within the game's own rules.**
+  None of the marking standards constrains the material, but the game may:
+  the copper-only rule for potable water recorded in `src/ship/conduits.rs`
+  (see "Certain") would limit which materials a potable line can use, and a
+  server could enforce it the same way it enforces keyed connectors. Whether
+  that rule stands, and so whether PEX or other plastics may carry drinking
+  water, is the operator's call.
 - **Keyed connectors enforced everywhere:** a fitting for one content cannot
   physically join a line of another. This is cheap to check and is what
   spacecraft do.

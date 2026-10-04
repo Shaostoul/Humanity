@@ -169,5 +169,7 @@ what we will say about it.
   ISO 20560-1, BS 1710, DIN 2403, MIL-STD-101C and MIL-STD-1247D, and NASA
   and ISS practice. They exist; all of them mark the content, none the pipe's
   material; the same colour means different things in different schemes, so
-  every one requires a written name. Recommends ISO 14726 colours aboard the
-  ship with ISO 20560-1 labels, and real material shown between the markers.
+  most of them also ask for the content's name in words (BS 1710 allows
+  colour alone; ISO 14726's layout clause was not read). Recommends ISO 14726
+  colours aboard the ship with ISO 20560-1's labels, and real material shown
+  between the markers.
