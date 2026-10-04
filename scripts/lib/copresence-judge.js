@@ -1139,7 +1139,11 @@ function judgeGuest(guest) {
   const b = g.back || {};
   const def = (g.plots || []).find((p) => p.id === g.defaultPlot);
   const backThings = homeThingsOf(b.homeThings);
-  const onDefault = (p) => !!def && onPlotGround(p, [def], []);
+  // Nearer the default plot than any other, as judgePlots judges a home's things, and within a
+  // metre of its box: the hologram hangs half a metre outside the home's west wall (the first
+  // guest run, 20261004-120512, failed on it with "inside"), and a thing left where the home was
+  // kept is a kilometre away.
+  const onDefault = (p) => !!def && Array.isArray(p) && nearestPlot(p.map(Number), g.plots) === def && footprintGap(p.map(Number), def) <= 1;
   const strays = [...backThings, ["its Respawn point", b.homeThings && b.homeThings.respawn]].filter(([, p]) => !onDefault(p));
   add(
     "home_back",

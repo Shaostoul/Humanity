@@ -903,7 +903,8 @@ const PLOTS2 = [
 const GUEST_ARRIVAL = [82, 1.7, 47.5];
 const AWAY = [-1000, -200, 0];
 const THINGS_AWAY = { respawn: GUEST_ARRIVAL, hologram: [-990, -199, 10], showroom: [-980, -199, 20], animals: [[-970, -200, 30]], plants: [[-960, -199, 40]], structures: [], vehicles: [[-950, -200, 50]] };
-const THINGS_BACK = { respawn: P1_SPAWN, hologram: [10, 1, 10], showroom: [20, 1, 20], animals: [[30, 0, 30]], plants: [[40, 1, 40]], structures: [], vehicles: [[50, 0, 50]] };
+// The hologram hangs half a metre outside the home's west wall, as the game reports it.
+const THINGS_BACK = { respawn: P1_SPAWN, hologram: [-0.5, 1, 2.5], showroom: [20, 1, 20], animals: [[30, 0, 30]], plants: [[40, 1, 40]], structures: [], vehicles: [[50, 0, 50]] };
 const GUEST_OK = {
   plots: PLOTS2,
   doors: DOORS.doors,
