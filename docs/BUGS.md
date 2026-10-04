@@ -3444,6 +3444,16 @@ machines and the build menu could draw on what was on Earth; they are left
 out now (`inventory::placed::stock_counts`, `uses::planet_store_paths`).
 Tests in `src/systems/crafting/home_store_tests.rs`, each seen red.
 
+**Review fixes (same day):** a result bigger than the whole backpack (a pod)
+that finishes, or is asked for, where home storage does not count no longer
+says "make room": it says home storage takes it once the player is back at
+their home, and why it does not count here. A guest's put-away home now
+serves as no crafting station (its machines and the pieces built in it,
+`engine::built_uses::station_types_here`), matching its storage and tanks. A
+guest's build aboard counts only the pack, as the structures list already
+did (`ConstructionSystem`). The Tools card and the greyed-button line name
+tools readably ("Wrench Adjustable"), as the Ingredients card names parts.
+
 **Left:** the right station per vehicle class (a shipyard for the
 spacecraft, a boatyard for the boats, rather than every vehicle at
 `workbench_0`); a vehicle filed in home storage is an item in the Barn, not
