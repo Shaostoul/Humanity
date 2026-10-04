@@ -12,6 +12,8 @@
 // game_ban / game_unban / game_banned_list_request (the global helpers in
 // app.js); receives game_banned_list / game_admin_error (decoded in app.js's
 // system/__game__ block, which calls renderGameAdminList / showGameAdminError).
+// The Shared world clock section sends server_settings_update with world_time_scale and
+// shows the speed app.js last heard (server_settings_state, game_time_sync).
 // The relay is the authoritative admin gate; the client checks below only hide
 // the UI. See src/gui/pages/game_admin.rs for the native original.
 
@@ -65,6 +67,19 @@
       '     plot, or a guest place, when they come back.</p>' +
       '  <input type="text" id="gameadmin-plot-key" placeholder="plot id (p1) or player public key (hex)" autocomplete="off" spellcheck="false">' +
       '  <button class="gameadmin-refresh-btn" id="gameadmin-release-btn">Release plot</button>' +
+      '  <h3 class="gameadmin-section">Shared world clock</h3>' +
+      '  <p class="gameadmin-hint">How fast time passes in this server\'s shared world, for everyone in it: the sun, ' +
+      '     crops, water tanks, batteries, the weather, and each player\'s hunger and thirst all follow this one ' +
+      '     clock. A player\'s own Time setting applies only when they play alone. A change reaches every connected ' +
+      '     game at once; the server does not restart, and the world keeps its date.</p>' +
+      '  <p class="gameadmin-hint" id="gameadmin-clock-now"></p>' +
+      '  <div class="gameadmin-toolbar gameadmin-clock-presets" id="gameadmin-clock-presets"></div>' +
+      '  <div class="gameadmin-toolbar">' +
+      '    <label for="gameadmin-clock-speed" class="gameadmin-hint">Custom speed</label>' +
+      '    <input type="number" id="gameadmin-clock-speed" min="1" max="1000" step="1">' +
+      '  </div>' +
+      '  <p class="gameadmin-clock-if" id="gameadmin-clock-if"></p>' +
+      '  <button class="gameadmin-refresh-btn" id="gameadmin-clock-apply">Apply to the shared world</button>' +
       '  <div class="gameadmin-status" id="gameadmin-status"></div>' +
       '</div>';
     document.body.appendChild(overlay);
@@ -80,7 +95,108 @@
     });
     overlay.querySelector('#gameadmin-ban-btn').addEventListener('click', submitBan);
     overlay.querySelector('#gameadmin-release-btn').addEventListener('click', submitRelease);
+    buildClockControls(overlay);
     return overlay;
+  }
+
+  // ── Shared world clock (2026-10-04; the native original is src/gui/pages/world_clock_admin.rs).
+  // The operator: "let's do 72x but, make sure there's admin tools for me to adjust it from inside
+  // the app." The relay runs the shared world's clock at the server setting world_time_scale (72 on a
+  // new server); an admin changes it here with server_settings_update, and the relay tells every
+  // connected game at once. The speed shown comes from server_settings_state and game_time_sync
+  // (app.js keeps the latest in window.worldClockSpeed).
+  //
+  // The speeds offered, as the native's systems::time::TIME_SPEED_PRESETS (a Rust test,
+  // world_clock_admin.rs, checks the two lists agree).
+  var CLOCK_PRESETS = [[1, 'Realistic'], [24, 'A day an hour'], [72, 'Simplified'], [720, 'Garden testing']];
+  // A lettuce's growing time in days, data/plants.csv growth_days: the website serves only the JSON
+  // under data/, so the number is here, and the same Rust test fails if it ever differs from the CSV.
+  var LETTUCE_GROWTH_DAYS = 45;
+  var CLOCK_MIN = 1, CLOCK_MAX = 1000, SHARED_DAY_HOURS = 24;
+  var clockDraft = null; // the admin's unapplied pick; null follows the server's speed
+
+  function clampClock(v) {
+    v = Number(v);
+    if (!isFinite(v)) return 72;
+    return Math.min(CLOCK_MAX, Math.max(CLOCK_MIN, v));
+  }
+  function numberText(v) { return Math.abs(v - Math.round(v)) < 0.05 ? String(Math.round(v)) : v.toFixed(1); }
+  // How long a day of `hours` takes in real time at `speed` (native settings_time::day_in_real_time).
+  function dayInRealTime(hours, speed) {
+    var secs = hours * 3600 / Math.max(speed, 0.001);
+    if (secs >= 2 * 3600) return Math.round(secs / 3600) + ' hours';
+    if (secs >= 90) return Math.round(secs / 60) + ' minutes';
+    return Math.round(secs) + ' seconds';
+  }
+  // A real stretch of time in the largest unit worth saying (native real_duration).
+  function realDuration(secs) {
+    if (secs >= 2 * 86400) return Math.round(secs / 86400) + ' days';
+    if (secs >= 2 * 3600) return Math.round(secs / 3600) + ' hours';
+    if (secs >= 90) return Math.round(secs / 60) + ' minutes';
+    return Math.round(secs) + ' seconds';
+  }
+  // What a speed means, in words (native world_clock_admin::explainer, same sentences).
+  function clockExplainer(speed) {
+    speed = clampClock(speed);
+    var crop = numberText(LETTUCE_GROWTH_DAYS) + ' days';
+    if (Math.abs(speed - 1) < 1e-3) {
+      return 'at 1x the world keeps real time: a day takes a real day, and a lettuce its real ' + crop + '.';
+    }
+    return 'at ' + numberText(speed) + 'x a day passes in ' + dayInRealTime(SHARED_DAY_HOURS, speed) +
+      ', and a lettuce grows in about ' + realDuration(LETTUCE_GROWTH_DAYS * 86400 / speed) + ' instead of ' + crop + '.';
+  }
+  function currentClockSpeed() {
+    return typeof window.worldClockSpeed === 'number' ? window.worldClockSpeed : null;
+  }
+
+  function buildClockControls(overlay) {
+    var box = overlay.querySelector('#gameadmin-clock-presets');
+    CLOCK_PRESETS.forEach(function (p) {
+      var b = document.createElement('button');
+      b.className = 'gameadmin-refresh-btn';
+      b.textContent = p[1] + ' (' + numberText(p[0]) + 'x)';
+      b.setAttribute('data-speed', String(p[0]));
+      b.addEventListener('click', function () { clockDraft = p[0]; renderGameAdminClock(); });
+      box.appendChild(b);
+    });
+    var input = overlay.querySelector('#gameadmin-clock-speed');
+    input.addEventListener('input', function () {
+      if (input.value === '') return;
+      clockDraft = clampClock(Math.round(Number(input.value)));
+      renderGameAdminClock();
+    });
+    overlay.querySelector('#gameadmin-clock-apply').addEventListener('click', submitClock);
+  }
+
+  // Paint the clock section: the server's speed now, the admin's pick, what the pick would mean.
+  function renderGameAdminClock() {
+    var now = document.getElementById('gameadmin-clock-now');
+    if (!now) return; // window not built yet
+    var cur = currentClockSpeed();
+    // An applied pick is done once the server says it back.
+    if (clockDraft !== null && cur !== null && Math.abs(clockDraft - cur) < 1e-3) clockDraft = null;
+    now.textContent = cur === null ? 'Connect to a server to see how fast its world runs.' : 'Now: ' + clockExplainer(cur);
+    var chosen = clockDraft !== null ? clockDraft : (cur !== null ? cur : 72);
+    Array.prototype.forEach.call(document.querySelectorAll('#gameadmin-clock-presets button'), function (b) {
+      b.classList.toggle('active', Math.abs(Number(b.getAttribute('data-speed')) - chosen) < 1e-3);
+    });
+    var input = document.getElementById('gameadmin-clock-speed');
+    if (document.activeElement !== input) input.value = numberText(chosen);
+    var differs = cur === null || Math.abs(cur - chosen) >= 1e-3;
+    document.getElementById('gameadmin-clock-if').textContent = differs ? 'If applied: ' + clockExplainer(chosen) : '';
+    document.getElementById('gameadmin-clock-apply').disabled = !differs;
+  }
+
+  // Ask the relay to run the shared world at the chosen speed. It checks the sender is an admin,
+  // saves it, changes the running world and tells every game; only a message that went out is
+  // reported as asked.
+  function submitClock() {
+    var cur = currentClockSpeed();
+    var chosen = clockDraft !== null ? clockDraft : cur;
+    if (chosen === null) { setStatus('Pick a speed first.'); return; }
+    if (typeof ws === 'undefined' || !ws || ws.readyState !== WebSocket.OPEN) { setStatus('Not connected to the server.'); return; }
+    ws.send(JSON.stringify({ type: 'server_settings_update', world_time_scale: chosen }));
+    setStatus('Asked the server to run the shared world at ' + numberText(chosen) + 'x.');
   }
 
   // Give back a plot on the ship (ship homes increment 1b; the native original is
@@ -194,7 +310,12 @@
     overlay.classList.add('open');
     setStatus('');
     renderGameAdminList();          // paint whatever we already have
+    renderGameAdminClock();
     sendGameBannedListRequest();    // then refresh from the relay
+    // The server's settings, for the clock's speed (the relay answers with server_settings_state).
+    if (typeof ws !== 'undefined' && ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'server_settings_request' }));
+    }
   }
 
   function closeGameAdminModal() {
@@ -206,5 +327,6 @@
   window.openGameAdminModal = openGameAdminModal;
   window.closeGameAdminModal = closeGameAdminModal;
   window.renderGameAdminList = renderGameAdminList;
+  window.renderGameAdminClock = renderGameAdminClock;
   window.showGameAdminError = showGameAdminError;
 })();

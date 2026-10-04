@@ -2131,6 +2131,10 @@ fn draw_server_policy_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSta
         // sends the WS update, Revert resets the draft from cache.
         let _ = effective; // draft is now the single source for the inputs
         let mut draft = state.server_settings_draft.clone().unwrap_or_else(|| cached.clone());
+        // The world clock's speed has its own control and Apply (Shared world
+        // clock, world_clock_admin.rs), and this Save does not send it: follow
+        // the server's, so a clock change never reads as an unsaved edit here.
+        draft.world_time_scale = cached.world_time_scale;
         // v0.262.4: the obsolete "Per-role limits" header + the dead
         // pointer hint were trimmed (operator: "trimmed of obsolete
         // options now"). Per-role chars/upload-MB/uploads-kept moved to

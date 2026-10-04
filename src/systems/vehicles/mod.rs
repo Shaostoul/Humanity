@@ -356,19 +356,23 @@ impl VehicleSystem {
         log::info!("Vehicle {veh} summoned to {dest}");
     }
 
-    /// Advance every vehicle in transit on GAME time: straight-line travel
-    /// toward dest, yawing to face the direction of motion (the render body's
-    /// long axis is +X, and Quat::from_rotation_y maps +X to (cos, 0, -sin)).
-    /// Arrival (within arrive_radius) removes the route -- the vehicle parks.
-    fn tick_routes(world: &mut hecs::World, dt: f32, data: &DataStore) {
-        let sdt = crate::systems::time::scaled_dt(dt, data);
+    /// Advance every vehicle in transit on REAL seconds (`dt`): straight-line
+    /// travel toward dest, yawing to face the direction of motion (the render
+    /// body's long axis is +X, and Quat::from_rotation_y maps +X to (cos, 0,
+    /// -sin)). Arrival (within arrive_radius) removes the route -- the vehicle
+    /// parks. Until 2026-10-04 this ran on the game clock, so at 72x a rover
+    /// crossed the field in a blur; a drive you watch is motion, and motion
+    /// stays on real time (decision-briefs.md Brief 6). The mining drone's
+    /// trip stays on the game clock: it is an errand off the map, counted in
+    /// game seconds while you are away too (`mining::advance_away`).
+    fn tick_routes(world: &mut hecs::World, dt: f32, _data: &DataStore) {
         let mut arrived: Vec<hecs::Entity> = Vec::new();
         for (e, (tf, route)) in world
             .query_mut::<(&mut Transform, &crate::ecs::components::VehicleRoute)>()
         {
             let to = route.dest - tf.position;
             let dist = to.length();
-            let step = route.speed_mps * sdt;
+            let step = route.speed_mps * dt;
             if dist <= route.arrive_radius.max(step) {
                 arrived.push(e);
                 continue;
@@ -829,6 +833,47 @@ mod transit_tests {
         assert!(
             world.get::<&VehicleRoute>(rover).is_err(),
             "route removed on arrival -- the rover is parked again"
+        );
+    }
+
+    /// A SUMMONED VEHICLE DRIVES AT ITS REAL SPEED, WHATEVER THE CLOCK'S SPEED
+    /// (review of 2026-10-04, finding 2). Its drive was timed on the game
+    /// clock, so at 72x (the Simplified speed, and every shared world's
+    /// speed unless its admin sets another) a 6 m/s rover covered 432 m in a
+    /// real second. A vehicle you watch drive is motion, and motion stays on
+    /// real seconds like the player's own walking (decision-briefs.md Brief 6:
+    /// "the player moves and acts in real seconds"); only the clock speeds up.
+    ///
+    /// Seen red 2026-10-04 with the drive still on `scaled_dt`: "at 72x a 6
+    /// m/s rover still moves 6 m in a real second, got [50.4, 0, 0]" (it
+    /// jumped 7.2 m a frame and parked short of the player in 7 frames).
+    #[test]
+    fn a_summoned_vehicle_drives_at_its_real_speed_whatever_the_clock_speed() {
+        let mut world = hecs::World::new();
+        let mut data = make_store();
+        let mut clock = crate::systems::time::GameTime::default();
+        clock.time_scale = 72.0;
+        data.insert("game_time", std::sync::Mutex::new(clock));
+        world.spawn((Controllable, Inventory::new(4), Transform::default()));
+        let rover = parked_rover(&mut world, Vec3::ZERO);
+        *data
+            .get::<std::sync::Mutex<Option<u64>>>("summon_vehicle")
+            .unwrap()
+            .lock()
+            .unwrap() = Some(rover.to_bits().into());
+
+        let mut sys = VehicleSystem::new();
+        for _ in 0..60 {
+            sys.tick(&mut world, 1.0 / 60.0, &data); // one real second at 60 fps
+        }
+        let after_1s = world.get::<&Transform>(rover).unwrap().position;
+        assert!(
+            (after_1s.x - 6.0).abs() < 1e-3,
+            "at 72x a 6 m/s rover still moves 6 m in a real second, got {after_1s}"
+        );
+        assert!(
+            world.get::<&VehicleRoute>(rover).is_ok(),
+            "and it is still on its way to the player, 50 m off"
         );
     }
 

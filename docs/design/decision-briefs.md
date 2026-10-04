@@ -200,7 +200,10 @@ a 36-hour day is 18:00), the station's orbit (`orbit::sim_seconds`), the HUD
 clock and Day N, seasons and environment Layer 1's year. What stays on real
 seconds, deliberately: breath, body heat, a burn's g-load and timed status
 effects, because the player moves and acts in real seconds (at 72x a held
-breath would last half a real second); and the planets' orbital positions
+breath would last half a real second); a summoned vehicle's drive to the
+player (2026-10-04: it had run on the game clock, so at 72x a rover crossed
+the field in a blur; the mining drone's trip, an errand off the map, stays
+on the game clock); and the planets' orbital positions
 (`renderer/celestial.rs` still reads the wall clock, months-scale; the next
 step if the sky should also run at the time speed). Sleep runs the clock at
 7,200x, so a night of 8 hours passes in 4 real seconds at any setting, and

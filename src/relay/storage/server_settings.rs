@@ -141,6 +141,14 @@ pub struct ServerSettings {
     /// flood of erases cannot grow the table without bound. Default 100,000.
     #[serde(default = "default_erased_accounts_cap")]
     pub erased_accounts_cap: i64,
+    /// How fast the shared world's clock runs, game seconds per real second
+    /// (operator, 2026-10-04: "let's do 72x but, make sure there's admin
+    /// tools for me to adjust it from inside the app"). 72 by default, the
+    /// Simplified speed: a day in 20 real minutes. Every game in the shared
+    /// world follows it (`game_time_sync` carries it); an admin changes it
+    /// from Server Settings > ADMIN > Shared world clock, live, no restart.
+    #[serde(default = "default_world_time_scale")]
+    pub world_time_scale: f64,
     /// Last update unix-millis. 0 = never updated since creation.
     pub updated_at: i64,
     /// Public key of the admin who last touched it. Empty = never.
@@ -171,6 +179,23 @@ fn default_erased_accounts_cap() -> i64 { 100_000 }
 /// a year, the mailbox's ceiling, and a million entries (about 100 MB of fingerprints).
 pub const ERASED_ACCOUNTS_TTL_DAYS_RANGE: (i64, i64) = (1, 365);
 pub const ERASED_ACCOUNTS_CAP_RANGE: (i64, i64) = (1, 1_000_000);
+
+/// The shared world's clock speed on a new server: the game's Simplified
+/// speed (`systems::time::SIMPLIFIED_TIME_SPEED`, 72), one number for both.
+/// The schema's `DEFAULT 72` (storage/mod.rs) is checked against it by
+/// `world_time_scale_defaults_to_simplified_and_round_trips`.
+pub fn default_world_time_scale() -> f64 {
+    f64::from(crate::systems::time::SIMPLIFIED_TIME_SPEED)
+}
+
+/// A world clock speed from an admin, inside the range a player's own Time
+/// setting has (`systems::time::MIN_TIME_SPEED..=MAX_TIME_SPEED`, 1 to
+/// 1,000). None for a value that is not a number at all, so a bad message
+/// leaves the clock as it was rather than stopping or racing it.
+pub fn clamp_world_time_scale(v: f64) -> Option<f64> {
+    use crate::systems::time::{MAX_TIME_SPEED, MIN_TIME_SPEED};
+    v.is_finite().then(|| v.clamp(f64::from(MIN_TIME_SPEED), f64::from(MAX_TIME_SPEED)))
+}
 
 impl Default for ServerSettings {
     fn default() -> Self {
@@ -204,6 +229,7 @@ impl Default for ServerSettings {
             message_retention_days: 0,
             erased_accounts_ttl_days: default_erased_accounts_ttl_days(),
             erased_accounts_cap: default_erased_accounts_cap(),
+            world_time_scale: default_world_time_scale(),
             updated_at: 0,
             updated_by: String::new(),
         }
@@ -267,7 +293,8 @@ impl Storage {
                         COALESCE(dm_mailbox_ttl_days, 30),
                         COALESCE(message_retention_days, 0),
                         COALESCE(erased_accounts_ttl_days, 30),
-                        COALESCE(erased_accounts_cap, 100000)
+                        COALESCE(erased_accounts_cap, 100000),
+                        world_time_scale
                  FROM server_settings WHERE id = 1",
                 [],
                 |row| {
@@ -310,6 +337,8 @@ impl Storage {
                         message_retention_days: row.get::<_, i64>(28)?.max(0),
                         erased_accounts_ttl_days: row.get::<_, i64>(29)?.max(1),
                         erased_accounts_cap: row.get::<_, i64>(30)?.max(1),
+                        world_time_scale: clamp_world_time_scale(row.get::<_, f64>(31)?)
+                            .unwrap_or_else(default_world_time_scale),
                     })
                 },
             ) {
@@ -366,6 +395,7 @@ impl Storage {
                     message_retention_days          = ?29,
                     erased_accounts_ttl_days        = ?30,
                     erased_accounts_cap             = ?31,
+                    world_time_scale                = ?32,
                     updated_at               = ?15,
                     updated_by               = ?16
                  WHERE id = 1",
@@ -403,6 +433,7 @@ impl Storage {
                     s.message_retention_days.max(0),
                     s.erased_accounts_ttl_days.max(1),
                     s.erased_accounts_cap.max(1),
+                    clamp_world_time_scale(s.world_time_scale).unwrap_or_else(default_world_time_scale),
                 ],
             )?;
             Ok(rows > 0)
@@ -504,6 +535,78 @@ mod tests {
         assert!(got.p2p_distribution_enabled, "no positional-index bleed");
         assert_eq!(got.max_total_upload_mb, 777, "no positional-index bleed");
         assert_eq!(got.updated_by, "admin_key");
+    }
+
+    /// THE SHARED WORLD'S CLOCK SPEED (operator, 2026-10-04: 72x, adjustable
+    /// in the app). A new server runs the shared world at the Simplified 72x
+    /// (the schema's DEFAULT and the code's default are one number), an
+    /// admin's value round-trips through the positional set/get SQL without
+    /// bleeding into its neighbour, and a value outside the player setting's
+    /// 1..=1000 is held to it; a value that is not a number is refused.
+    ///
+    /// Seen red 2026-10-04 with the get reading column 28 (the neighbour)
+    /// for the speed: "assertion `left == right` failed: a new server runs
+    /// the shared world at 72x, left: 1.0, right: 72.0" (retention's 0, held
+    /// to the floor of 1).
+    #[test]
+    fn world_time_scale_defaults_to_simplified_and_round_trips() {
+        let db = fresh_db();
+        let s = db.get_server_settings().expect("get");
+        assert_eq!(s.world_time_scale, 72.0, "a new server runs the shared world at 72x");
+        assert_eq!(s.world_time_scale, default_world_time_scale(), "the schema DEFAULT is the Simplified speed");
+        assert_eq!(ServerSettings::default().world_time_scale, 72.0);
+
+        let mut updated = s.clone();
+        updated.world_time_scale = 24.0;
+        updated.message_retention_days = 90; // a neighbouring column
+        updated.erased_accounts_cap = 4_321; // the column just before it (merged 2026-10-04)
+        assert!(db.set_server_settings(&updated, "admin_key").expect("set"));
+        let got = db.get_server_settings().expect("get2");
+        assert_eq!(got.world_time_scale, 24.0, "the admin's speed persists");
+        assert_eq!(got.message_retention_days, 90, "no positional-index bleed");
+        assert_eq!(got.erased_accounts_cap, 4_321, "no positional-index bleed");
+
+        updated.world_time_scale = 5000.0;
+        assert!(db.set_server_settings(&updated, "admin_key").expect("set3"));
+        assert_eq!(db.get_server_settings().expect("get3").world_time_scale, 1000.0, "held to the range");
+        assert_eq!(clamp_world_time_scale(0.0), Some(1.0), "never slower than real time");
+        assert_eq!(clamp_world_time_scale(f64::NAN), None, "not a number: refused");
+    }
+
+    /// A server whose database predates the clock setting upgrades to 72x and
+    /// keeps everything its owner had set (the BUG-046 shape: the live table
+    /// already exists without the column).
+    ///
+    /// Seen red 2026-10-04 with the guarded ALTER switched off: "get_server_settings
+    /// after the upgrade: SqlInputError { error: Error { code: Unknown,
+    /// extended_code: 1 }, msg: \"no such column: world_time_scale\", ...".
+    #[test]
+    fn a_server_from_before_the_world_clock_upgrades_to_72x() {
+        let pid = std::process::id();
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0);
+        let path = std::env::temp_dir().join(format!("hum_srvset_clock_{pid}_{nanos}.db"));
+        {
+            let db = Storage::open(&path).expect("open");
+            let mut s = db.get_server_settings().expect("get");
+            s.message_retention_days = 7;
+            s.dm_mailbox_ttl_days = 10;
+            assert!(db.set_server_settings(&s, "op_key").expect("set"));
+        }
+        {
+            let conn = rusqlite::Connection::open(&path).expect("raw open");
+            conn.execute_batch("ALTER TABLE server_settings DROP COLUMN world_time_scale;")
+                .expect("drop column (SQLite >= 3.35)");
+        }
+        let db = Storage::open(&path).expect("reopen must not fail");
+        let got = db.get_server_settings().expect("get_server_settings after the upgrade");
+        assert_eq!(got.world_time_scale, 72.0, "the upgrade starts the clock at 72x");
+        assert_eq!(got.message_retention_days, 7, "the owner's settings are kept");
+        assert_eq!(got.dm_mailbox_ttl_days, 10);
+        drop(db);
+        let _ = std::fs::remove_file(&path);
     }
 
     /// The two erased-accounts settings (BUG-135, 2026-10-04) default to 30 days and 100,000

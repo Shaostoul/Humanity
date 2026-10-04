@@ -243,7 +243,7 @@ pub fn insert_slots(data: &mut DataStore) {
     data.insert(HOLD_SLOT, std::sync::Mutex::new(None::<Option<f32>>));
     // In a shared world the host's clock wins (2026-09-29): the host's clock
     // as it arrives, the summed jumps, and whether it is in charge.
-    data.insert(HOST_CLOCK_SLOT, std::sync::Mutex::new(None::<f64>));
+    data.insert(HOST_CLOCK_SLOT, std::sync::Mutex::new(None::<HostClock>));
     data.insert(REBASE_SLOT, std::sync::Mutex::new(0.0_f64));
     data.insert(HOST_ACTIVE_SLOT, std::sync::Mutex::new(false));
     data.insert(HOST_RELEASE_SLOT, std::sync::Mutex::new(false));
@@ -304,11 +304,22 @@ impl GameTime {
     }
 }
 
-/// DataStore slot (`Mutex<Option<f64>>`): the shared world's clock, host game
-/// seconds, put there each time the host (the relay) sends it while this
+/// DataStore slot (`Mutex<Option<HostClock>>`): the shared world's clock and
+/// its speed, put there each time the host (the relay) sends them while this
 /// player is IN the shared world (`engine::net_route`, "game_time_sync").
 /// Operator decision 2026-09-29: in a shared world the host's clock wins.
 pub const HOST_CLOCK_SLOT: &str = "host_clock_sync";
+
+/// One word from the host about its clock (`game_time_sync`).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct HostClock {
+    /// The shared world's clock, host game seconds.
+    pub game_time: f64,
+    /// How fast it runs, game seconds per real second: the server's
+    /// "Shared world clock" setting (72 by default, 2026-10-04), which a
+    /// joined game runs at between two words.
+    pub time_scale: f32,
+}
 /// DataStore slot (`Mutex<f64>`): every jump the clock has taken to follow
 /// the host, summed, game seconds. A system that keeps ABSOLUTE game-time
 /// stamps (a crop's `planted_at`) shifts them by what changed since it last
@@ -317,8 +328,9 @@ pub const HOST_CLOCK_SLOT: &str = "host_clock_sync";
 pub const REBASE_SLOT: &str = "clock_rebase_total";
 /// DataStore slot (`Mutex<bool>`): true while the host's clock is in charge.
 pub const HOST_ACTIVE_SLOT: &str = "host_clock_active";
-/// The host's clock runs one game second per real second (the relay's world
-/// tick), so while it is in charge that is everyone's speed.
+/// The host's speed when its word does not say one: one game second per real
+/// second, how a relay from before the clock setting (2026-10-04) runs. A
+/// relay that says (`HostClock::time_scale`) is followed at its own speed.
 pub const HOST_TIME_SPEED: f32 = 1.0;
 /// Real seconds with no word from the host after which the clock is the
 /// player's own again (the relay sends it every 5 s, so this is three missed
@@ -330,6 +342,16 @@ pub const HOST_RELEASE_S: f64 = 20.0;
 /// HOST_RELEASE_S of silence (review of 2026-09-29: until then the bed said
 /// "in a shared world" for up to 20 s after leaving).
 pub const HOST_RELEASE_SLOT: &str = "host_clock_release_request";
+
+/// The host spoke (`game_time_sync`, `engine::net_route`): the TimeSystem sets
+/// the clock by it on its next tick.
+pub fn hear_host_clock(data: &DataStore, word: HostClock) {
+    if let Some(m) = data.get::<std::sync::Mutex<Option<HostClock>>>(HOST_CLOCK_SLOT) {
+        if let Ok(mut s) = m.lock() {
+            *s = Some(word);
+        }
+    }
+}
 
 /// Hand the clock back now: the player has left the shared world.
 pub fn release_host_clock(data: &DataStore) {
@@ -366,6 +388,9 @@ pub struct TimeSystem {
     /// Some(real seconds since the host last sent its clock) while the
     /// host's clock is in charge; None when the clock is the player's own.
     host_silence_s: Option<f64>,
+    /// The host's speed from its last word (`HostClock::time_scale`): the
+    /// clock's speed while the host is in charge.
+    host_speed: f32,
     /// Every jump taken to follow the host, summed (`REBASE_SLOT`).
     rebase_total: f64,
 }
@@ -376,6 +401,7 @@ impl TimeSystem {
             game_time: GameTime::default(),
             initialized: false,
             host_silence_s: None,
+            host_speed: HOST_TIME_SPEED,
             rebase_total: 0.0,
         }
     }
@@ -470,7 +496,7 @@ impl System for TimeSystem {
         }
         // The host's clock, if it spoke this tick (see HOST_CLOCK_SLOT below).
         let host = data
-            .get::<std::sync::Mutex<Option<f64>>>(HOST_CLOCK_SLOT)
+            .get::<std::sync::Mutex<Option<HostClock>>>(HOST_CLOCK_SLOT)
             .and_then(|m| m.lock().ok().and_then(|mut r| r.take()))
             .filter(|_| !released);
         // The calendar: the host's in a shared world (HOST_HOURS_PER_DAY),
@@ -514,12 +540,16 @@ impl System for TimeSystem {
         // (operator, 2026-09-29). Each word from the host sets the clock to
         // it, and the jump is added to the rebase total so absolute stamps
         // follow; with no word for HOST_RELEASE_S the clock is the player's.
+        // Between words the clock runs at the host's speed (the server's
+        // Shared world clock, 2026-10-04), so a word finds it where the host
+        // is and the jump is only the trip's delay.
         if let Some(h) = host {
-            let jump = h - self.game_time.elapsed_seconds;
+            let jump = h.game_time - self.game_time.elapsed_seconds;
             if jump != 0.0 {
-                self.game_time.set_elapsed(h);
+                self.game_time.set_elapsed(h.game_time);
                 self.rebase_total += jump;
             }
+            self.host_speed = clamp_time_speed(h.time_scale);
             self.host_silence_s = Some(0.0);
         } else if let Some(s) = self.host_silence_s.as_mut() {
             *s += f64::from(dt);
@@ -528,7 +558,7 @@ impl System for TimeSystem {
             }
         }
         self.game_time.time_scale = if self.host_silence_s.is_some() {
-            HOST_TIME_SPEED
+            self.host_speed
         } else {
             self.game_time.speed_hold.unwrap_or(setting)
         };
@@ -624,7 +654,7 @@ mod game_time_export_tests {
         data.insert("game_time", std::sync::Mutex::new(GameTime::default()));
         data.insert("time_restore_elapsed_request", std::sync::Mutex::new(None::<f64>));
         publish_settings(&data, 24, 365, 72.0);
-        *data.get::<std::sync::Mutex<Option<f64>>>(HOST_CLOCK_SLOT).unwrap().lock().unwrap() = Some(1000.0);
+        hear_host_clock(&data, HostClock { game_time: 1000.0, time_scale: HOST_TIME_SPEED });
         let mut sys = TimeSystem::new();
         let mut world = hecs::World::new();
         sys.tick(&mut world, 0.1, &data);
@@ -648,7 +678,7 @@ mod game_time_export_tests {
         data.insert("game_time", std::sync::Mutex::new(GameTime::default()));
         data.insert("time_restore_elapsed_request", std::sync::Mutex::new(None::<f64>));
         publish_settings(&data, 30, 365, 1.0);
-        *data.get::<std::sync::Mutex<Option<f64>>>(HOST_CLOCK_SLOT).unwrap().lock().unwrap() = Some(43_200.0);
+        hear_host_clock(&data, HostClock { game_time: 43_200.0, time_scale: HOST_TIME_SPEED });
         let mut sys = TimeSystem::new();
         let mut world = hecs::World::new();
         sys.tick(&mut world, 0.0, &data);
@@ -671,13 +701,13 @@ mod game_time_export_tests {
         gt.set_elapsed(100.0 * EARTH_DAY_S);
         data.insert("game_time", std::sync::Mutex::new(gt.clone()));
         data.insert(SPEED_SLOT, std::sync::Mutex::new(72.0_f32));
-        data.insert(HOST_CLOCK_SLOT, std::sync::Mutex::new(None::<f64>));
+        data.insert(HOST_CLOCK_SLOT, std::sync::Mutex::new(None::<HostClock>));
         data.insert(REBASE_SLOT, std::sync::Mutex::new(0.0_f64));
         data.insert(HOST_ACTIVE_SLOT, std::sync::Mutex::new(false));
         data.insert("time_restore_elapsed_request", std::sync::Mutex::new(Some(100.0 * EARTH_DAY_S)));
         let mut sys = TimeSystem::new();
         sys.tick(&mut hecs::World::new(), 0.0, &data); // take the saved clock first
-        *data.get::<std::sync::Mutex<Option<f64>>>(HOST_CLOCK_SLOT).unwrap().lock().unwrap() = Some(3.0 * EARTH_DAY_S);
+        hear_host_clock(&data, HostClock { game_time: 3.0 * EARTH_DAY_S, time_scale: HOST_TIME_SPEED });
         let mut world = hecs::World::new();
         sys.tick(&mut world, 1.0, &data);
         let now = elapsed_now(&data);
@@ -692,6 +722,44 @@ mod game_time_export_tests {
         let g = data.get::<std::sync::Mutex<GameTime>>("game_time").unwrap().lock().unwrap().clone();
         assert_eq!(g.time_scale, 72.0, "their own speed back");
         assert!(g.elapsed_seconds < 4.0 * EARTH_DAY_S, "the date stays the host's, no jump back");
+    }
+
+    /// THE HOST'S SPEED COMES WITH ITS CLOCK (operator, 2026-10-04: the
+    /// shared world runs at 72x, set from the server's admin tools). A player
+    /// whose own setting is Realistic (1x) joins a world whose host says 72x:
+    /// between two words their clock runs 72 game seconds a real second, so
+    /// the next word (5 s later, 360 game seconds on) finds it already there
+    /// and the jump is only the trip's delay. When the admin changes the
+    /// speed to 24x, the next word changes it here too.
+    ///
+    /// Seen red 2026-10-04 with the hosted speed back at HOST_TIME_SPEED:
+    /// "between two words the clock keeps the host's pace: 5 real s moved
+    /// 5 game s".
+    #[test]
+    fn the_host_speed_comes_with_the_host_clock() {
+        let mut data = DataStore::new();
+        insert_slots(&mut data);
+        data.insert("game_time", std::sync::Mutex::new(GameTime::default()));
+        data.insert("time_restore_elapsed_request", std::sync::Mutex::new(None::<f64>));
+        publish_settings(&data, 24, 365, REALISTIC_TIME_SPEED);
+        let mut sys = TimeSystem::new();
+        let mut world = hecs::World::new();
+        hear_host_clock(&data, HostClock { game_time: 10_000.0, time_scale: 72.0 });
+        sys.tick(&mut world, 0.0, &data);
+        for _ in 0..5 {
+            sys.tick(&mut world, 1.0, &data);
+        }
+        let moved = elapsed_now(&data) - 10_000.0;
+        assert!((moved - 360.0).abs() < 1e-6, "between two words the clock keeps the host's pace: 5 real s moved {moved} game s");
+        // The next word, sent at the host's 10,360: no jump at all.
+        let rebased = rebase_total(&data);
+        hear_host_clock(&data, HostClock { game_time: 10_360.0, time_scale: 24.0 });
+        sys.tick(&mut world, 0.0, &data);
+        assert!((rebase_total(&data) - rebased).abs() < 1e-6, "in step with the host, nothing to jump");
+        sys.tick(&mut world, 1.0, &data);
+        let g = data.get::<std::sync::Mutex<GameTime>>("game_time").unwrap().lock().unwrap().clone();
+        assert_eq!(g.time_scale, 24.0, "the admin's new speed reaches the game with the next word");
+        assert!((g.elapsed_seconds - 10_384.0).abs() < 1e-6, "{}", g.elapsed_seconds);
     }
 
     #[test]

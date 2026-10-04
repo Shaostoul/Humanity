@@ -55,6 +55,8 @@ pub mod relay_control;
 // (rendered as a section of relay_control). GUI-first rule, CLAUDE.md.
 pub mod host_node;
 pub mod game_admin;
+// Server Settings > ADMIN > Shared world clock (2026-10-04), drawn by game_admin.
+pub mod world_clock_admin;
 pub mod identity;
 pub mod governance;
 pub mod laws;

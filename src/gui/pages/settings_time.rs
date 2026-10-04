@@ -17,13 +17,15 @@ use crate::systems::time;
 
 /// How long a day of `hours` takes in real time at `speed`, in words.
 pub fn day_in_real_time(hours: u32, speed: f32) -> String {
+    // `.round()` takes a half up, as the web's Math.round does; `{:.0}` would
+    // take it to the even number (576x: 2.5 minutes said "2", the web "3").
     let secs = f64::from(hours) * time::SECONDS_PER_HOUR / f64::from(speed.max(0.001));
     if secs >= 2.0 * 3600.0 {
-        format!("{:.0} hours", secs / 3600.0)
+        format!("{} hours", (secs / 3600.0).round())
     } else if secs >= 90.0 {
-        format!("{:.0} minutes", secs / 60.0)
+        format!("{} minutes", (secs / 60.0).round())
     } else {
-        format!("{:.0} seconds", secs)
+        format!("{} seconds", secs.round())
     }
 }
 
@@ -39,7 +41,9 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, hint: HintDi
          night take a real day, and a lettuce takes its real 45 days. Everything follows \
          the one clock together: the sun, crops, water tanks, batteries, weather, and your \
          hunger and thirst. Simplified (72x) puts a day in 20 minutes, a lettuce in 15 \
-         hours of play. Sleeping in a bed passes the night in a few seconds either way.",
+         hours of play. Sleeping in a bed passes the night in a few seconds either way. \
+         In a server's shared world its clock applies instead, at the speed the server's \
+         admin set (72x unless they changed it).",
     );
     ui.horizontal_wrapped(|ui| {
         for (speed, name) in time::TIME_SPEED_PRESETS {

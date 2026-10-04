@@ -3885,7 +3885,7 @@ mod gardening_tests {
         }
         let before = growth_age(&world, e, &data);
         let host = time::elapsed_now(&data) + 90.0 * SECONDS_PER_DAY;
-        *data.get::<std::sync::Mutex<Option<f64>>>(time::HOST_CLOCK_SLOT).unwrap().lock().unwrap() = Some(host);
+        time::hear_host_clock(&data, time::HostClock { game_time: host, time_scale: time::HOST_TIME_SPEED });
         clock.tick(&mut world, 1.0, &data);
         sys.tick(&mut world, 1.0, &data);
         let after = growth_age(&world, e, &data);

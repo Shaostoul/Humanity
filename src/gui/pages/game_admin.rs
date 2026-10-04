@@ -34,6 +34,9 @@ pub fn draw_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     draw_ban_list(ui, theme, state);
     ui.add_space(theme.spacing_md);
     draw_plot_release(ui, theme, state);
+    ui.add_space(theme.spacing_md);
+    // How fast the shared world's clock runs (2026-10-04, 72x by default).
+    super::world_clock_admin::draw(ui, theme, state);
     if !state.game_admin_status.is_empty() {
         ui.add_space(theme.spacing_sm);
         ui.label(

@@ -937,19 +937,11 @@ pub async fn run_relay() {
                 interval.tick().await;
                 let world = game_state.game_world.read().await;
                 let player_count = world.player_count();
-                let game_time = world.game_time;
+                // The clock and its speed (GameWorld::time_sync_json).
+                let sync_msg = world.time_sync_json();
                 drop(world);
 
                 if player_count > 0 {
-                    let server_time = std::time::SystemTime::now()
-                        .duration_since(std::time::UNIX_EPOCH)
-                        .unwrap_or_default()
-                        .as_secs_f64();
-                    let sync_msg = serde_json::json!({
-                        "type": "game_time_sync",
-                        "game_time": game_time,
-                        "server_time": server_time,
-                    });
                     let _ = game_state.broadcast_tx.send(relay::RelayMessage::System {
                         message: format!("__game__:{}", sync_msg),
                     });

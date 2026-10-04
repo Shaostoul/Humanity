@@ -1181,6 +1181,12 @@ async function handleMessage(msg) {
               window.gameBans = Array.isArray(game.users) ? game.users : [];
               if (typeof renderGameAdminList === 'function') renderGameAdminList();
               break;
+            case 'game_time_sync':
+              // The shared world's clock and how fast it runs (2026-10-04): the Game Admin
+              // window's Shared world clock shows the speed.
+              if (typeof game.time_scale === 'number') window.worldClockSpeed = game.time_scale;
+              if (typeof renderGameAdminClock === 'function') renderGameAdminClock();
+              break;
             case 'game_admin_error':
             // A done-and-said from a game-admin action (releasing a plot): the same status line.
             case 'game_admin_notice':
@@ -1257,6 +1263,14 @@ async function handleMessage(msg) {
       setStatus('disconnected', 'Choose a different name');
       break;
     }
+    case 'server_settings_state':
+      // Server-wide settings (v0.200.0). The web keeps what it shows: the shared world
+      // clock's speed, for the Game Admin window (2026-10-04).
+      if (msg.settings && typeof msg.settings.world_time_scale === 'number') {
+        window.worldClockSpeed = msg.settings.world_time_scale;
+        if (typeof renderGameAdminClock === 'function') renderGameAdminClock();
+      }
+      break;
     case 'account_erased': {
       // BUG-135: this server erased our account (the receipt just before this said what
       // went). Leave it and never come back by ourselves: no reconnect timer, and no saved

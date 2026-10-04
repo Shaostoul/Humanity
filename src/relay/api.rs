@@ -2816,6 +2816,7 @@ async fn admin_stats_inner(
     let game_players = game_world.player_count();
     let game_entities = game_world.entity_count();
     let game_time = game_world.game_time;
+    let game_time_scale = game_world.time_scale;
     drop(game_world);
 
     // v0.286.x in-app-ops: system/health fields the operator otherwise
@@ -2838,6 +2839,7 @@ async fn admin_stats_inner(
         "game_players": game_players,
         "game_entities": game_entities,
         "game_time": game_time,
+        "game_time_scale": game_time_scale,
         "system": system,
     })))
 }

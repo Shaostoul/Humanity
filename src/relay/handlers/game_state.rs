@@ -306,7 +306,14 @@ fn room_equipment(room_type: &str) -> Vec<String> {
 pub struct GameWorld {
     pub entities: HashMap<u64, GameEntity>,
     pub next_entity_id: u64,
+    /// The shared world's clock, game seconds since the world began. It runs
+    /// `time_scale` game seconds per real second; every game in the world
+    /// follows it (`game_time_sync`, `engine::net_route`).
     pub game_time: f64,
+    /// Game seconds per real second (the server setting `world_time_scale`,
+    /// 72 unless an admin set another). Only the clock runs at it: the crew
+    /// walk and do their chores in real seconds, so a figure never sprints.
+    pub time_scale: f64,
     pub tick_rate: f32,
     pub rooms: Vec<ShipRoom>,
     pub ship_name: String,
@@ -432,6 +439,7 @@ impl GameWorld {
             entities: HashMap::new(),
             next_entity_id: 1,
             game_time: 0.0,
+            time_scale: crate::relay::storage::default_world_time_scale(),
             tick_rate: 20.0,
             rooms: Vec::new(),
             ship_name: String::new(),
@@ -1136,7 +1144,9 @@ impl GameWorld {
         }).collect()
     }
 
-    /// Advance the game simulation by dt seconds.
+    /// Advance the game simulation by dt REAL seconds. The world's clock
+    /// moves `dt * time_scale` game seconds; everything else here (the crew
+    /// walking, their chores' dwell, the wander drift) moves in real seconds.
     ///
     /// Crew NPCs (`chore_agent` entities) run a real task loop when the chore
     /// catalog is loaded: pick the next chore in their role's deterministic
@@ -1149,7 +1159,7 @@ impl GameWorld {
     /// Entities with only a `wander` block (or when no chores loaded) keep
     /// the legacy Brownian drift within bounds.
     pub fn tick(&mut self, dt: f64) -> Vec<NpcChoreEvent> {
-        self.game_time += dt;
+        self.game_time += dt * self.time_scale;
         let mut events: Vec<NpcChoreEvent> = Vec::new();
 
         // Throttle traveling-position broadcasts to NPC_POSITION_BROADCAST_INTERVAL.
@@ -1350,6 +1360,24 @@ impl GameWorld {
                 }
             }
         }
+    }
+
+    /// The `game_time_sync` every game in the shared world sets its clock by
+    /// (`engine::net_route`): the world's clock and how fast it runs, so a
+    /// game keeps the host's pace between two of them (they come every 5 s,
+    /// six game minutes apart at 72x). `server_time` is the relay's wall
+    /// clock, Unix seconds.
+    pub fn time_sync_json(&self) -> serde_json::Value {
+        let server_time = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs_f64();
+        serde_json::json!({
+            "type": "game_time_sync",
+            "game_time": self.game_time,
+            "time_scale": self.time_scale,
+            "server_time": server_time,
+        })
     }
 
     /// Get the number of player entities currently in the world.
@@ -2066,21 +2094,24 @@ mod tests {
     }
 
     /// The dwell at a chore site matches the chore's declared duration_secs
-    /// (within one tick of quantization).
+    /// (within one tick of quantization), in REAL seconds: the world's clock
+    /// runs at its time scale (72x by default), the crew's work does not.
     #[test]
     fn working_dwell_matches_chore_duration() {
         let mut world = GameWorld::new();
         assert!(!world.chores.is_empty());
         let mut working_at: Option<(u64, String, f64)> = None;
         let mut completed_at: Option<f64> = None;
+        let mut real_s = 0.0_f64;
         'sim: for _ in 0..20_000 { // up to 1000 simulated seconds
+            real_s += 0.05;
             for ev in world.tick(0.05) {
                 match (&working_at, ev.chore_state.as_str()) {
                     (None, "working") => {
-                        working_at = Some((ev.entity_id, ev.chore_id.clone(), world.game_time));
+                        working_at = Some((ev.entity_id, ev.chore_id.clone(), real_s));
                     }
                     (Some((id, _, _)), "completed") if ev.entity_id == *id => {
-                        completed_at = Some(world.game_time);
+                        completed_at = Some(real_s);
                         break 'sim;
                     }
                     _ => {}
@@ -2098,6 +2129,41 @@ mod tests {
             dwell >= duration - 1e-6 && dwell <= duration + 0.15,
             "dwell {dwell:.2}s should match duration {duration:.2}s within one tick"
         );
+    }
+
+    /// THE SHARED WORLD'S CLOCK RUNS AT ITS TIME SCALE (operator, 2026-10-04:
+    /// 72x). A new world's clock moves 72 game seconds for each real second
+    /// of ticks, so a 24-hour day passes in 20 real minutes; set to 24x it
+    /// moves 24, from where it was (the date never jumps); and the sync every
+    /// game sets its clock by carries both the clock and its speed.
+    ///
+    /// Seen red 2026-10-04 with `tick` back to `game_time += dt`: "one real
+    /// second at 72x is 72 game seconds, got 1.0000000000000002".
+    #[test]
+    fn the_shared_world_clock_runs_at_its_time_scale() {
+        let mut world = GameWorld::new();
+        assert_eq!(world.time_scale, 72.0, "a new world runs at the Simplified 72x");
+        let start = world.game_time;
+        for _ in 0..20 {
+            world.tick(0.05); // the relay's 20 Hz tick: one real second
+        }
+        let moved = world.game_time - start;
+        assert!((moved - 72.0).abs() < 1e-6, "one real second at 72x is 72 game seconds, got {moved}");
+        // A day of 86,400 game seconds in 20 real minutes.
+        assert!((86_400.0 / world.time_scale / 60.0 - 20.0).abs() < 1e-9);
+
+        world.time_scale = 24.0;
+        let before = world.game_time;
+        for _ in 0..20 {
+            world.tick(0.05);
+        }
+        let moved = world.game_time - before;
+        assert!((moved - 24.0).abs() < 1e-6, "at 24x a real second is 24 game seconds, got {moved}");
+
+        let sync = world.time_sync_json();
+        assert_eq!(sync["type"], "game_time_sync");
+        assert_eq!(sync["time_scale"].as_f64(), Some(24.0), "the sync says how fast the clock runs");
+        assert_eq!(sync["game_time"].as_f64(), Some(world.game_time));
     }
 
     /// End-to-end via SQLite: a player's progress saved to player_progress and
