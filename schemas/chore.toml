@@ -7,8 +7,11 @@
 # File format: RON (data/npc/chores.ron, a single top-level list)
 # Hot-reloadable: No (loaded once at relay startup)
 # Referenced by: src/relay/handlers/game_state.rs (load_chores, tick)
-# References: ship room ids from data/ships/starter_fleet.ron, NPC roles
-#             assigned in game_state.rs::populate_ship_entities
+# References: room ids of the relay's world (since increment 3 of
+#             docs/design/ship-homes-and-logistics.md: every zone of
+#             data/blueprints/ship_structure.ron and every labelled volume in one,
+#             src/relay/handlers/ship_world.rs), crew roles from data/npc/crew.ron,
+#             and the ship's food stores (data/food/ship_stores.ron) for meals
 
 # ---------------------------------------------------------------------------
 # FIELD DEFINITIONS
@@ -19,7 +22,7 @@ type = "string"
 required = true
 description = "Unique identifier for this chore, used in sync payloads and logs."
 constraints = "snake_case, unique across all chores"
-examples = ["rack_inspection", "reactor_readings", "cargo_manifest"]
+examples = ["tend_towers", "air_handler_readings", "restock_stores"]
 
 [fields.label]
 type = "string"
@@ -28,16 +31,28 @@ description = """
 Human-readable, present-tense activity line shown to players and AI agents
 while the NPC performs the chore (nameplates, perception responses)."""
 constraints = "Under 60 characters, present tense, no trailing punctuation"
-examples = ["Inspecting the hydroponic racks", "Taking reactor readings"]
+examples = ["Tending the apothecary towers", "Taking the air handlers' readings"]
 
-[fields.room_id]
+[fields.place]
 type = "string"
 required = true
 description = """
-The ship room where the chore happens. The NPC walks (straight line, no
-pathfinding yet) to this room's center and dwells there while working."""
-constraints = "Must match a room id in the loaded ship layout (data/ships/*.ron)"
-examples = ["bridge", "hydroponics", "engineering"]
+The room the chore happens in: a room id of the relay's world (a ship zone
+such as "commons", or a labelled volume inside one such as "mess-hall")."""
+constraints = "Must be a room id of the relay's world (src/relay/handlers/ship_world.rs shared_rooms)"
+examples = ["commons", "mess-hall", "street-1"]
+
+[fields.spot]
+type = "(float, float)"
+required = true
+description = """
+Where in the room the crew member stands, as (x, z) metres from the room's
+min corner. The NPC walks there in a straight line (no pathfinding yet), so
+every walk between two sites of one crew member must cross no wall (a relay
+test checks it), and no site may stand on a plot (a home): one that does is
+dropped at load."""
+constraints = "Inside the room; not on a plot; wall-clear to the role's other sites"
+examples = ["(25.0, 13.0)", "(3.0, 4.0)"]
 
 [fields.duration_secs]
 type = "float"
@@ -56,3 +71,13 @@ may do it. Roles come from the NPC spawn table in game_state.rs
 off_duty)."""
 constraints = "Each entry should match at least one spawned crew role"
 examples = [["botanist"], ["maintenance", "chief_engineer"], []]
+
+[fields.meal]
+type = "bool"
+required = false
+description = """
+A meal (default false): never in the rotation. A crew member who eats does
+it when its meal is due and, when it is done, takes one meal from the ship's
+food stores in that place: the same stock players take theirs from
+(data/food/ship_stores.ron, src/relay/handlers/ship_stores.rs)."""
+examples = [true]

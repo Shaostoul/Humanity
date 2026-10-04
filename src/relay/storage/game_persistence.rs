@@ -171,6 +171,17 @@ impl Storage {
         }
     }
 
+    /// Delete the stored world `world_id`. Used once a world of an older version has been
+    /// upgraded (increment 3 of docs/design/ship-homes-and-logistics.md: the Pioneer's,
+    /// handlers/ship_world.rs `upgrade_previous_world`), so the upgrade runs once. Deleting a
+    /// world that is not stored is not an error.
+    pub fn delete_game_world(&self, world_id: &str) -> Result<(), rusqlite::Error> {
+        self.with_conn(|conn| {
+            conn.execute("DELETE FROM game_world_snapshots WHERE world_id = ?1", params![world_id])?;
+            Ok(())
+        })
+    }
+
     // ── Player progress ──────────────────────────────────────────────
 
     /// Persist (insert-or-replace) a player's progression.

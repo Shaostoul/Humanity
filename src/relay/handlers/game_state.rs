@@ -79,18 +79,39 @@ pub struct DoorDef {
 
 // ── Crew roster (loaded from data/npc/crew.ron) ──
 
-/// One starter-ship crew member, keyed by room_type (v0.937 infinite-of-x:
-/// was a hardcoded match in spawn). Who they ARE; data/npc/chores.ron drives
-/// what they DO. Disk-first, embedded fallback.
+/// One member of the ship's crew (v0.937 infinite-of-x: was a hardcoded match in spawn; since
+/// increment 3 of docs/design/ship-homes-and-logistics.md each names its POST, a room of the
+/// ship, instead of a Pioneer room type). Who they ARE; data/npc/chores.ron drives what they
+/// DO. Disk-first, embedded fallback.
 #[derive(Debug, Clone, Deserialize)]
 pub struct CrewDef {
-    pub room_type: String,
+    /// The room they belong to (a room id of the relay's world, ship_world.rs): a player's
+    /// first visit there earns this crew member's greeting.
+    pub post: String,
     pub npc_type: String,
     pub name: String,
     pub role: String,
     pub description: String,
+    /// Whether they eat (a maintenance bot does not): an eater comes to the mess hall for its
+    /// meals and takes them from the ship's stores, the same stock players take theirs from
+    /// (ship_stores.rs).
+    #[serde(default = "default_eats")]
+    pub eats: bool,
+    /// Where their meals come from: "crew" (the ship's company: every meal from the ship's
+    /// stores) or "homestead" (an NPC household on a homestead: mostly from its own land,
+    /// `npc_homestead_self_provided` in data/food/ship_stores.ron).
+    #[serde(default = "default_household")]
+    pub household: String,
     pub dialog: Vec<String>,
     pub greetings: Vec<String>,
+}
+
+fn default_eats() -> bool {
+    true
+}
+
+fn default_household() -> String {
+    "crew".to_string()
 }
 
 fn crew_defs() -> &'static [CrewDef] {
@@ -103,7 +124,7 @@ fn crew_defs() -> &'static [CrewDef] {
         match ron::from_str(&text) {
             Ok(v) => v,
             Err(e) => {
-                tracing::error!("crew.ron parse error ({e}); the starter ship spawns no crew");
+                tracing::error!("crew.ron parse error ({e}); the ship spawns no crew");
                 Vec::new()
             }
         }
@@ -112,17 +133,27 @@ fn crew_defs() -> &'static [CrewDef] {
 
 // ── Crew chores (loaded from data/npc/chores.ron) ──
 
-/// One chore an ambient crew NPC can perform: walk to `room_id`, dwell there
-/// "working" for `duration_secs`, then rotate to the next allowed chore.
+/// One chore an ambient crew NPC can perform: walk to its site (`spot` in `place`), dwell
+/// there "working" for `duration_secs`, then rotate to the next allowed chore.
 /// Data-driven per the infinite-of-X rule; see schemas/chore.toml.
 #[derive(Debug, Clone, Deserialize)]
 pub struct ChoreDef {
     pub id: String,
     pub label: String,
-    pub room_id: String,
+    /// The room it happens in (a room id of the relay's world, ship_world.rs).
+    pub place: String,
+    /// Where in that room: room-local (x, z) metres from its min corner. Increment 3: the
+    /// Pioneer's chores stood at their room's centre, and the Commons' centre is inside its
+    /// room block, behind walls.
+    pub spot: (f32, f32),
     pub duration_secs: f32,
     /// Roles allowed to do this chore; empty = any crew NPC.
     pub roles: Vec<String>,
+    /// A meal (increment 3): never in the rotation; a crew member who eats does it when its
+    /// meal is due, and takes one meal from the ship's stores in this place when it is done
+    /// (ship_stores.rs).
+    #[serde(default)]
+    pub meal: bool,
 }
 
 /// Event emitted by `GameWorld::tick` when a crew NPC's chore state changes
@@ -177,13 +208,14 @@ pub fn step_toward(pos: [f32; 3], target: [f32; 3], speed: f32, dt: f32) -> ([f3
     }
 }
 
-/// Indices into `chores` that a crew member with `role` may perform
-/// (a chore with an empty roles list is open to everyone).
+/// Indices into `chores` that a crew member with `role` may perform in its rotation
+/// (a chore with an empty roles list is open to everyone; a meal is never in the rotation,
+/// it comes when the meal is due, `GameWorld::meal_due`).
 pub fn allowed_chore_indices(chores: &[ChoreDef], role: &str) -> Vec<usize> {
     chores
         .iter()
         .enumerate()
-        .filter(|(_, c)| c.roles.is_empty() || c.roles.iter().any(|r| r == role))
+        .filter(|(_, c)| !c.meal && (c.roles.is_empty() || c.roles.iter().any(|r| r == role)))
         .map(|(i, _)| i)
         .collect()
 }
@@ -308,11 +340,16 @@ pub struct GameWorld {
     pub next_entity_id: u64,
     pub game_time: f64,
     pub tick_rate: f32,
+    /// The ship's rooms: its shared zones and the labelled volumes in them, from the ship file
+    /// (ship_world.rs `shared_rooms`; increment 3, until which these were the Pioneer's).
     pub rooms: Vec<ShipRoom>,
+    /// The ship file's id ("mothership-1").
     pub ship_name: String,
     /// Crew chore catalog from data/npc/chores.ron. Empty when the file is
     /// missing/unparseable -- crew then fall back to the old wander drift.
     pub chores: Vec<ChoreDef>,
+    /// The ship's food stores and who eats from them (data/food/ship_stores.ron, ship_stores.rs).
+    pub provisions: super::ship_stores::Provisions,
     /// Accumulator throttling traveling-NPC position broadcasts (not persisted).
     npc_broadcast_accum: f64,
     /// The mothership's plots (increment 1b of docs/design/ship-homes-and-logistics.md):
@@ -321,7 +358,7 @@ pub struct GameWorld {
     /// into the exe, `ShipPlots::load`). Empty only when neither loads (logged at startup):
     /// a game, which names its ship, is then refused at the join with its own reason
     /// ("no_ship", home_plots.rs `refused_join`), and a join naming no ship (a scripted
-    /// player) gets the old Pioneer spawn and no plot.
+    /// player) spawns where `default_spawn_position` says, with no plot.
     pub ship_plots: crate::ship::ship_structure::ShipPlots,
 }
 
@@ -426,7 +463,9 @@ impl JoinHome {
 pub use crate::relay::storage::plot_owner_id;
 
 impl GameWorld {
-    /// Initialize game world and load the starter ship layout.
+    /// Initialize the game world from the ship (increment 3 of
+    /// docs/design/ship-homes-and-logistics.md): its plots and rooms from the ship file, then
+    /// the crew's chores, the ship's stores, and the crew, furniture and stores in the rooms.
     pub fn new() -> Self {
         let mut world = Self {
             entities: HashMap::new(),
@@ -436,21 +475,21 @@ impl GameWorld {
             rooms: Vec::new(),
             ship_name: String::new(),
             chores: Vec::new(),
+            provisions: super::ship_stores::Provisions::load(),
             npc_broadcast_accum: 0.0,
             ship_plots: Default::default(),
         };
-        world.load_ship_plots();
-        world.load_starter_ship();
+        world.load_ship();
         world.load_chores();
         world.populate_ship_entities();
         world
     }
 
-    /// Load the crew chore catalog from data/npc/chores.ron. Chores whose
-    /// room_id doesn't resolve against the loaded ship layout are dropped
-    /// with a warning (a typo'd room must not strand an NPC walking forever
-    /// toward nowhere). Missing/unparseable file -> empty catalog -> crew
-    /// keep the legacy wander behavior.
+    /// Load the crew chore catalog from data/npc/chores.ron. A chore whose place is not a room
+    /// of the ship, whose spot lies outside that room, or whose site stands on a plot (someone's
+    /// home) is dropped with a warning: a typo must not strand an NPC walking forever toward
+    /// nowhere, nor walk the crew into a home. Missing/unparseable file -> empty catalog ->
+    /// crew keep the legacy wander behavior.
     fn load_chores(&mut self) {
         let path = "data/npc/chores.ron";
         let contents = match std::fs::read_to_string(path) {
@@ -467,84 +506,55 @@ impl GameWorld {
                 return;
             }
         };
-        let (valid, dropped): (Vec<ChoreDef>, Vec<ChoreDef>) = chores
-            .into_iter()
-            .partition(|c| self.rooms.iter().any(|r| r.id == c.room_id));
+        let (valid, dropped): (Vec<ChoreDef>, Vec<ChoreDef>) = chores.into_iter().partition(|c| self.chore_site_of(c).is_some());
         for c in &dropped {
-            tracing::warn!("Chore '{}' references unknown room '{}' -- dropped", c.id, c.room_id);
+            tracing::warn!("Chore '{}' at '{}' {:?} is not a place of the ship, is outside it, or stands on a plot -- dropped", c.id, c.place, c.spot);
         }
         tracing::info!("Loaded {} crew chores from {}", valid.len(), path);
         self.chores = valid;
     }
 
-    /// Load the Pioneer frigate layout from data/ships/starter_fleet.ron.
-    /// Uses typed deserialization via the existing `ship::layout` schema.
-    fn load_starter_ship(&mut self) {
-        use crate::ship::layout::ShipDef;
-
-        let path = "data/ships/starter_fleet.ron";
-        let contents = match std::fs::read_to_string(path) {
-            Ok(c) => c,
-            Err(e) => {
-                tracing::warn!("Could not load {}: {} — game world has no ship layout", path, e);
-                return;
+    /// The ship's plots and rooms, from one load of the ship file (`ShipStructure::ship_for_relay`:
+    /// the file on disk, else the copy built into the exe), so the two cannot disagree. A
+    /// failure of both is logged and leaves no plots and no rooms: a game's join is then
+    /// refused with reason "no_ship" (home_plots.rs `refused_join`), and a join naming no ship
+    /// spawns with no plot.
+    fn load_ship(&mut self) {
+        match crate::ship::ship_structure::ShipStructure::ship_for_relay(std::path::Path::new("data")) {
+            Ok(ship) => {
+                let p = crate::ship::ship_structure::ShipPlots::of_ship(&ship);
+                tracing::info!("Game: ship {} ({}) has {} plot(s)", p.ship_id, p.ship_hash, p.plots.len());
+                self.ship_plots = p;
+                self.load_ship_rooms(&ship);
             }
-        };
-
-        let ship: ShipDef = match ron::from_str(&contents) {
-            Ok(v) => v,
-            Err(e) => {
-                tracing::warn!("Failed to parse {}: {} — game world has no ship layout", path, e);
-                return;
-            }
-        };
-
-        self.ship_name = ship.name.clone();
-
-        for deck in &ship.decks {
-            for room in &deck.rooms {
-                let room_type = room_type_to_str(&room.room_type);
-                let equipment = room_equipment(room_type);
-
-                let doors = room.doors.iter().map(|d| DoorDef {
-                    connects_to: d.connects_to.clone(),
-                    direction: direction_to_str(&d.direction).to_string(),
-                }).collect();
-
-                self.rooms.push(ShipRoom {
-                    id: room.id.clone(),
-                    name: room.name.clone(),
-                    room_type: room_type.to_string(),
-                    position: [room.position.x, room.position.y, room.position.z],
-                    size: [room.size.x, room.size.y, room.size.z],
-                    doors,
-                    deck_name: deck.name.clone(),
-                    ship_name: ship.name.clone(),
-                    equipment,
-                });
-            }
+            Err(e) => tracing::error!("Game: the ship did not load ({e}); nobody gets a plot, and the world has no rooms"),
         }
-
-        tracing::info!(
-            "Loaded ship '{}' with {} rooms",
-            self.ship_name,
-            self.rooms.len()
-        );
     }
 
-    /// Spawn static entities for each room's equipment (furniture, terminals, windows).
+    /// Where a chore happens: its spot in its place, at standing height. None when the place
+    /// is not a room, the spot lies outside the room, or the site stands on a plot.
+    pub fn chore_site_of(&self, c: &ChoreDef) -> Option<[f32; 3]> {
+        let room = self.rooms.iter().find(|r| r.id == c.place)?;
+        let (x, z) = c.spot;
+        if !(x >= 0.0 && z >= 0.0 && x <= room.size[0] && z <= room.size[2]) {
+            return None;
+        }
+        let site = super::ship_world::room_point(room, Some(c.spot));
+        super::ship_world::plot_at(&self.ship_plots.plots, site).is_none().then_some(site)
+    }
+
+    /// Furnish each room (data/ships/room_equipment.ron, by room type), stand the ship's food
+    /// stores (ship_stores.rs), and put each crew member (data/npc/crew.ron) at work.
     fn populate_ship_entities(&mut self) {
         let rooms: Vec<ShipRoom> = self.rooms.clone();
         for room in &rooms {
-            let room_center = [
-                room.position[0] + room.size[0] / 2.0,
-                room.position[1] + 1.0,
-                room.position[2] + room.size[2] / 2.0,
-            ];
-
-            // Spread equipment around the room.
-            for (i, equip) in room.equipment.iter().enumerate() {
-                let angle = (i as f32) * std::f32::consts::TAU / room.equipment.len().max(1) as f32;
+            let room_center = super::ship_world::room_point(room, None);
+            // Spread the room's furniture (data/ships/room_equipment.ron, by room type) on a
+            // ring around its middle. The relay's furniture is for AI agents' perception and the
+            // survey_storage quest; the game does not draw it.
+            let equipment = room_equipment(&room.room_type);
+            for (i, equip) in equipment.iter().enumerate() {
+                let angle = (i as f32) * std::f32::consts::TAU / equipment.len().max(1) as f32;
                 let spread = room.size[0].min(room.size[2]) * 0.3;
                 let pos = [
                     room_center[0] + angle.cos() * spread,
@@ -570,101 +580,79 @@ impl GameWorld {
                     last_update: 0.0,
                 });
             }
-
-            // Add a window entity to rooms that would have external views.
-            let has_window = matches!(
-                room.room_type.as_str(),
-                "bridge" | "quarters" | "medbay"
-            );
-            if has_window {
-                let window_pos = [
-                    room.position[0] + room.size[0] - 0.2,
-                    room.position[1] + 1.5,
-                    room.position[2] + room.size[2] / 2.0,
-                ];
-                let id = self.next_entity_id;
-                self.next_entity_id += 1;
-                self.entities.insert(id, GameEntity {
-                    entity_type: "window".to_string(),
-                    position: window_pos,
-                    rotation: [0.0, 0.0, 0.0, 1.0],
-                    owner: None,
-                    components: serde_json::json!({
-                        "interactable": true,
-                        "room_id": room.id,
-                        "description": format!("Viewport in {} — look outside", room.name),
-                        "view": {
-                            "celestial_body": "Earth",
-                            "distance_km": 400,
-                            "orbit": "LEO",
-                        },
-                    }),
-                    last_update: 0.0,
-                });
-            }
         }
 
-        // Spawn role-specific ambient NPCs per room type. Each has a wander
-        // block so they drift around their assigned room, plus a 'role' field
-        // that AI agents see in perception responses, plus a 'dialog' array
-        // returned by handle_game_interact so AI agents (and humans) get a
-        // bit of personality back when they interact. Makes the ship feel
-        // crewed even when no humans are connected.
+        // The ship's food stores (ship_stores.rs): the crew and the players eat from them.
+        self.spawn_stores();
+
+        // The crew (data/npc/crew.ron, v0.937; posts since increment 3). Each has a wander
+        // block so they drift around their post, plus a 'role' field that AI agents see in
+        // perception responses, plus a 'dialog' array returned by handle_game_interact so AI
+        // agents (and humans) get a bit of personality back when they interact. Makes the
+        // ship feel crewed even when no humans are connected.
         //
         // Chore AI (data-driven, see data/npc/chores.ron): each crew NPC is
         // also a `chore_agent` with a stable `npc_seq`. When the chore catalog
         // is loaded, tick() replaces the wander drift with a real task loop
         // (walk to a chore site, dwell "working", rotate to the next chore);
         // the wander block remains only as a fallback for an empty catalog.
+        //
+        // Each starts AT WORK, on the site of the first chore of its rotation: the Pioneer's
+        // crew started in the middle of their room, and the Commons' middle is inside its
+        // room block, behind walls. A crew member whose post is not a room of the ship is
+        // left out with a warning.
+        let interval = self.provisions.meal_interval_s();
+        let eaters = crew_defs().iter().filter(|c| c.eats).count().max(1) as f64;
         let mut npc_seq: u64 = 0;
-        for room in &rooms {
-            // Crew roster is data (data/npc/crew.ron, v0.937): one crew member
-            // per matching room type. Rooms with no crew entry spawn none.
-            let Some(crew) = crew_defs().iter().find(|c| c.room_type == room.room_type) else {
+        let mut eater_seq = 0.0_f64;
+        for crew in crew_defs() {
+            let Some(room) = rooms.iter().find(|r| r.id == crew.post) else {
+                tracing::warn!("Crew member {} names unknown post '{}'; left out", crew.name, crew.post);
                 continue;
             };
-            let (npc_type, npc_name, role, description, dialog, greetings) = (
-                crew.npc_type.as_str(),
-                crew.name.as_str(),
-                crew.role.as_str(),
-                crew.description.as_str(),
-                crew.dialog.clone(),
-                crew.greetings.clone(),
-            );
-            let center_x = room.position[0] + room.size[0] / 2.0;
-            let center_y = room.position[1] + 1.0;
-            let center_z = room.position[2] + room.size[2] / 2.0;
+            let allowed = allowed_chore_indices(&self.chores, &crew.role);
+            let start = next_chore_index(npc_seq as usize, 0, allowed.len())
+                .and_then(|slot| self.chore_site_of(&self.chores[allowed[slot]]))
+                .unwrap_or_else(|| super::ship_world::room_point(room, None));
             let id = self.next_entity_id;
             self.next_entity_id += 1;
+            let mut components = serde_json::json!({
+                "interactable": true,
+                "room_id": room.id,
+                "name": crew.name,
+                "role": crew.role,
+                "description": crew.description,
+                "dialog": crew.dialog,
+                "greetings": crew.greetings,
+                // Chore AI wiring: stable per-crew rotation offset + the
+                // live activity label clients show ("Tending the apothecary
+                // towers"). `chores_done` advances the rotation.
+                "chore_agent": true,
+                "npc_seq": npc_seq,
+                "chores_done": 0,
+                "activity": crew.description,
+                // Meals (ship_stores.rs): whether they eat, and where their meals come from.
+                "eats": crew.eats,
+                "household": crew.household,
+                "wander": {
+                    "min_x": room.position[0] + 1.0,
+                    "max_x": room.position[0] + room.size[0] - 1.0,
+                    "min_z": room.position[2] + 1.0,
+                    "max_z": room.position[2] + room.size[2] - 1.0,
+                    "speed": 0.4,
+                    "y": start[1],
+                },
+            });
+            if crew.eats {
+                eater_seq += 1.0;
+                Self::start_meal_clock(&mut components, self.game_time, interval, eater_seq / (eaters + 1.0));
+            }
             self.entities.insert(id, GameEntity {
-                entity_type: npc_type.to_string(),
-                position: [center_x, center_y, center_z],
+                entity_type: crew.npc_type.clone(),
+                position: start,
                 rotation: [0.0, 0.0, 0.0, 1.0],
                 owner: None,
-                components: serde_json::json!({
-                    "interactable": true,
-                    "room_id": room.id,
-                    "name": npc_name,
-                    "role": role,
-                    "description": description,
-                    "dialog": dialog,
-                    "greetings": greetings,
-                    // Chore AI wiring: stable per-crew rotation offset + the
-                    // live activity label clients show ("Taking reactor
-                    // readings"). `chores_done` advances the rotation.
-                    "chore_agent": true,
-                    "npc_seq": npc_seq,
-                    "chores_done": 0,
-                    "activity": description,
-                    "wander": {
-                        "min_x": room.position[0] + 1.0,
-                        "max_x": room.position[0] + room.size[0] - 1.0,
-                        "min_z": room.position[2] + 1.0,
-                        "max_z": room.position[2] + room.size[2] - 1.0,
-                        "speed": 0.4,
-                        "y": center_y,
-                    },
-                }),
+                components,
                 last_update: 0.0,
             });
             npc_seq += 1;
@@ -692,9 +680,11 @@ impl GameWorld {
         id
     }
 
-    /// Spawn a player entity owned by the given public key.
-    /// Spawns in Crew Quarters by default. Grants the explore_ship starter
-    /// quest, pre-marking the spawn room as visited.
+    /// Spawn a player entity owned by the given public key, at `position` ([0, 1, 0] means
+    /// "nowhere named": `default_spawn_position`, the Commons). Grants the explore_ship starter
+    /// quest (ship_world.rs `explore_quest`), the room they spawn in, if any, already visited.
+    /// A player who spawns on their own plot is in no room: increment 3 dropped the old
+    /// fallback that counted every such spawn as the Pioneer's "quarters".
     pub fn spawn_player(&mut self, owner_key: &str, position: [f32; 3]) -> u64 {
         let id = self.next_entity_id;
         self.next_entity_id += 1;
@@ -705,10 +695,8 @@ impl GameWorld {
             position
         };
 
-        let spawn_room_id = self.room_for_position(spawn_pos)
-            .map(|r| r.id)
-            .unwrap_or_else(|| "quarters".to_string());
-        let total_rooms = self.rooms.len();
+        let spawn_room_id = self.room_for_position(spawn_pos).map(|r| r.id);
+        let quest = self.explore_quest(spawn_room_id.as_deref());
 
         let entity = GameEntity {
             entity_type: "player".to_string(),
@@ -723,19 +711,9 @@ impl GameWorld {
                 "xp": 0,
                 "reputation": 0,
                 "completed_quests": [],
-                "current_quest": {
-                    "id": "explore_ship",
-                    "title": "Find your bearings",
-                    "description": "Visit each room aboard the Pioneer to learn the ship's layout.",
-                    "visited": [spawn_room_id],
-                    "total_rooms": total_rooms,
-                    "complete": false,
-                    "reward": {
-                        "xp": 100,
-                        "reputation": 5,
-                        "message": "You're getting your bearings. The crew nods as you pass.",
-                    },
-                },
+                "current_quest": quest,
+                // The plot the relay holds for them (set_home_plot, on every join).
+                "home_plot": null,
             }),
             last_update: self.game_time,
         };
@@ -1008,21 +986,6 @@ impl GameWorld {
         })
     }
 
-    /// Load the mothership's plots from data/ (the copies built into the exe when the relay
-    /// runs in a folder with none, like the throwaway relay of the rigs, or when the file on
-    /// disk does not load). A failure of both is logged and leaves no plots: a game's join is
-    /// then refused with reason "no_ship" (home_plots.rs `refused_join`), and a join naming
-    /// no ship spawns as before 1b, with no plot.
-    fn load_ship_plots(&mut self) {
-        match crate::ship::ship_structure::ShipPlots::load(std::path::Path::new("data")) {
-            Ok(p) => {
-                tracing::info!("Game: ship {} ({}) has {} plot(s)", p.ship_id, p.ship_hash, p.plots.len());
-                self.ship_plots = p;
-            }
-            Err(e) => tracing::error!("Game: the ship's plots did not load ({e}); nobody gets a plot"),
-        }
-    }
-
     /// Where a joining player lives and arrives (increment 1b): for a join naming this ship
     /// (`JoinHome`), the plot they hold on it, else the first free one, claimed now
     /// (`Storage::claim_plot`, one plot per player and one player per plot, enforced by the
@@ -1075,18 +1038,6 @@ impl GameWorld {
     /// case got past "refused while they are in the world").
     pub fn plot_holder_in_world(&self, owner: &str) -> bool {
         self.entities.values().any(|e| e.entity_type == "player" && e.owner.as_deref().is_some_and(|k| plot_owner_id(k) == owner))
-    }
-
-    /// Default spawn position: center of Crew Quarters, 1m above floor.
-    fn default_spawn_position(&self) -> [f32; 3] {
-        self.rooms.iter()
-            .find(|r| r.id == "quarters")
-            .map(|r| [
-                r.position[0] + r.size[0] / 2.0,
-                r.position[1] + 1.0,
-                r.position[2] + r.size[2] / 2.0,
-            ])
-            .unwrap_or([0.0, 1.0, 0.0])
     }
 
     /// Remove an entity from the world. Returns true if it existed.
@@ -1151,6 +1102,8 @@ impl GameWorld {
     pub fn tick(&mut self, dt: f64) -> Vec<NpcChoreEvent> {
         self.game_time += dt;
         let mut events: Vec<NpcChoreEvent> = Vec::new();
+        // What the ship's farms (and any NPC homestead) put into the food stores this tick.
+        self.stock_stores(dt);
 
         // Throttle traveling-position broadcasts to NPC_POSITION_BROADCAST_INTERVAL.
         self.npc_broadcast_accum += dt;
@@ -1202,15 +1155,6 @@ impl GameWorld {
         events
     }
 
-    /// The chore-site position for a room: its center at standing height.
-    fn chore_site(&self, room_id: &str) -> Option<[f32; 3]> {
-        self.rooms.iter().find(|r| r.id == room_id).map(|r| [
-            r.position[0] + r.size[0] / 2.0,
-            r.position[1] + 1.0,
-            r.position[2] + r.size[2] / 2.0,
-        ])
-    }
-
     /// One simulation step for a single chore-driven crew NPC. State machine:
     ///
     ///   (no chore) --assign--> traveling --arrive--> working --timer--> done
@@ -1240,14 +1184,20 @@ impl GameWorld {
         };
 
         match chore_block {
-            // ── No current chore: assign the next one in this crew's rotation ──
+            // ── No current chore: a meal if one is due (ship_stores.rs), else the next one in
+            //    this crew's rotation ──
             None => {
-                let allowed = allowed_chore_indices(&self.chores, &role);
-                let Some(slot) = next_chore_index(npc_seq, chores_done, allowed.len()) else {
-                    return; // role has no allowed chores -> stays idle (wander won't run; acceptable)
+                let def = match self.meal_due(id, &role) {
+                    Some(meal) => self.chores[meal].clone(),
+                    None => {
+                        let allowed = allowed_chore_indices(&self.chores, &role);
+                        let Some(slot) = next_chore_index(npc_seq, chores_done, allowed.len()) else {
+                            return; // role has no allowed chores -> stays idle (wander won't run; acceptable)
+                        };
+                        self.chores[allowed[slot]].clone()
+                    }
                 };
-                let def = self.chores[allowed[slot]].clone();
-                let Some(target) = self.chore_site(&def.room_id) else {
+                let Some(target) = self.chore_site_of(&def) else {
                     // load_chores validates room ids, so this is unreachable in
                     // practice; skip the entry defensively rather than loop on it.
                     if let Some(e) = self.entities.get_mut(&id) {
@@ -1260,10 +1210,11 @@ impl GameWorld {
                 e.components["chore"] = serde_json::json!({
                     "id": def.id,
                     "label": def.label,
-                    "room_id": def.room_id,
+                    "room_id": def.place,
                     "state": "traveling",
                     "target": target,
                     "remaining": def.duration_secs,
+                    "meal": def.meal,
                 });
                 e.components["activity"] = serde_json::json!(def.label);
                 e.last_update = game_time;
@@ -1274,7 +1225,7 @@ impl GameWorld {
                     chore_id: def.id,
                     chore_label: def.label,
                     chore_state: "traveling".to_string(),
-                    room_id: def.room_id,
+                    room_id: def.place,
                 });
             }
             // ── Has a chore: travel to it, then dwell "working" ──
@@ -1324,8 +1275,12 @@ impl GameWorld {
                         });
                     }
                 } else {
-                    // "working": count the dwell timer down; complete at zero.
+                    // "working": count the dwell timer down; complete at zero. A finished meal
+                    // takes its meal from the ship's stores there (ship_stores.rs).
                     let remaining = c.get("remaining").and_then(|v| v.as_f64()).unwrap_or(0.0) as f32 - dt;
+                    if remaining <= 0.0 && c.get("meal").and_then(|v| v.as_bool()).unwrap_or(false) {
+                        self.finish_meal(id, &room_id);
+                    }
                     let Some(e) = self.entities.get_mut(&id) else { return };
                     if remaining <= 0.0 {
                         e.components["chores_done"] = serde_json::json!(chores_done + 1);
@@ -1399,27 +1354,9 @@ impl GameWorld {
         results
     }
 
-    /// Determine which room a position falls within (AABB containment).
-    pub fn room_for_position(&self, position: [f32; 3]) -> Option<RoomInfo> {
-        for room in &self.rooms {
-            let min = room.position;
-            let max = [
-                room.position[0] + room.size[0],
-                room.position[1] + room.size[1],
-                room.position[2] + room.size[2],
-            ];
-            if position[0] >= min[0] && position[0] <= max[0]
-                && position[1] >= min[1] && position[1] <= max[1]
-                && position[2] >= min[2] && position[2] <= max[2]
-            {
-                return Some(self.room_info(room));
-            }
-        }
-        None
-    }
-
-    /// Build RoomInfo with resolved door target names.
-    fn room_info(&self, room: &ShipRoom) -> RoomInfo {
+    /// Build RoomInfo with resolved door target names. (Which room a position is in:
+    /// ship_world.rs `room_for_position`.)
+    pub(crate) fn room_info(&self, room: &ShipRoom) -> RoomInfo {
         let exits = room.doors.iter().map(|d| {
             let target_name = self.rooms.iter()
                 .find(|r| r.id == d.connects_to)
@@ -1457,7 +1394,7 @@ impl GameWorld {
     //   * game_world_snapshots — the whole entity set + game_time + next id.
     //   * player_progress       — per-player quest/XP/reputation.
     // Static-ship fields (rooms, ship_name) are NEVER persisted; they reload
-    // from data/ships/*.ron on every boot so layout edits always propagate.
+    // from the ship file on every boot so layout edits always propagate.
 
     /// `world_id` used for the single persisted world snapshot row.
     ///
@@ -1468,7 +1405,16 @@ impl GameWorld {
     /// shadow the newly-added entities. Player *progress* is keyed separately
     /// (by pubkey) and is NOT discarded by a world version bump — returning
     /// players keep their XP/quests even when the shared world is rebuilt.
-    pub const PERSIST_KEY: &'static str = "game_world_snapshot_v9";
+    ///
+    /// v10 (increment 3 of docs/design/ship-homes-and-logistics.md): the world is the ship,
+    /// not the Pioneer. The v9 world is not just abandoned: `restore_from_db` hands it to
+    /// `upgrade_previous_world` (ship_world.rs), which keeps its players' progress, clock and
+    /// id mark and deletes it.
+    pub const PERSIST_KEY: &'static str = "game_world_snapshot_v10";
+
+    /// The `world_id` the previous code stored its world under (the Pioneer's), upgraded once
+    /// at startup (ship_world.rs `upgrade_previous_world`).
+    pub const PREVIOUS_PERSIST_KEY: &'static str = "game_world_snapshot_v9";
 
     /// Save the world to the `game_world_snapshots` table as a JSON blob.
     /// Called periodically from the relay tick loop (and on graceful shutdown).
@@ -1509,7 +1455,9 @@ impl GameWorld {
         }
         let snapshot = match db.load_game_world(Self::PERSIST_KEY) {
             Ok(Some(s)) => s,
-            Ok(None) => return false, // fresh relay / world version bumped → rebuild from RON
+            // None of this version: the previous version's (the Pioneer's), if any, upgrades
+            // (increment 3); else a fresh relay builds the world from the ship file.
+            Ok(None) => return self.upgrade_previous_world(db),
             Err(e) => {
                 tracing::warn!("Could not read game_world_snapshot: {e}");
                 return false;
@@ -1683,34 +1631,6 @@ impl GameWorld {
     }
 }
 
-/// Convert a RoomType enum into the snake_case string used by room_equipment().
-fn room_type_to_str(rt: &crate::ship::layout::RoomType) -> &'static str {
-    use crate::ship::layout::RoomType::*;
-    match rt {
-        Bridge => "bridge",
-        Quarters => "quarters",
-        Cargo => "cargo",
-        Engineering => "engineering",
-        Medbay => "medbay",
-        Hydroponics => "hydroponics",
-        Armory => "armory",
-        Hangar => "hangar",
-    }
-}
-
-/// Convert a Direction enum into the snake_case string used in perception responses.
-fn direction_to_str(d: &crate::ship::layout::Direction) -> &'static str {
-    use crate::ship::layout::Direction::*;
-    match d {
-        North => "north",
-        South => "south",
-        East => "east",
-        West => "west",
-        Up => "up",
-        Down => "down",
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1733,25 +1653,15 @@ mod tests {
         }
     }
 
-    /// GameWorld::new() should load data/ships/starter_fleet.ron and produce
-    /// the Pioneer's 6 rooms. If RON parsing silently fails, rooms is empty.
-    #[test]
-    fn loads_starter_ship_with_six_rooms() {
-        let world = GameWorld::new();
-        assert_eq!(world.ship_name, "Pioneer", "ship name should parse from RON");
-        assert_eq!(world.rooms.len(), 6, "Pioneer has 6 rooms (bridge, quarters, medbay, cargo, engineering, hydroponics)");
+    // Since increment 3 the world is the ship (ship_world.rs, whose tests check it is built
+    // from the ship file, rooms and all): the Pioneer's tests that stood here are gone with it.
 
-        let room_ids: Vec<&str> = world.rooms.iter().map(|r| r.id.as_str()).collect();
-        for expected in ["bridge", "quarters", "medbay", "cargo", "engineering", "hydroponics"] {
-            assert!(room_ids.contains(&expected), "missing room: {}", expected);
-        }
-    }
-
-    /// Each room should have a non-zero size — a sanity check that position/size
-    /// tuples parsed from RON correctly.
+    /// Each room should have a non-zero size: a sanity check that the ship file's boxes came
+    /// through.
     #[test]
     fn rooms_have_non_zero_size() {
         let world = GameWorld::new();
+        assert!(!world.rooms.is_empty(), "the ship's rooms loaded");
         for room in &world.rooms {
             assert!(room.size[0] > 0.0, "{} has zero width", room.id);
             assert!(room.size[1] > 0.0, "{} has zero height", room.id);
@@ -1759,32 +1669,14 @@ mod tests {
         }
     }
 
-    /// The ship should be populated with interactable entities (equipment + windows).
-    /// 6 rooms × ~5 equipment + 3 windows ≈ 33 entities.
+    /// The ship is furnished (room_equipment.ron, by room type), crewed, and holds its stores.
     #[test]
     fn populates_ship_entities() {
         let world = GameWorld::new();
-        assert!(world.entities.len() >= 20,
-            "expected at least 20 ship entities, got {}", world.entities.len());
-
-        // At least one window entity (for looking out at Earth).
-        let windows = world.entities.values().filter(|e| e.entity_type == "window").count();
-        assert!(windows >= 1, "expected at least 1 window entity");
-    }
-
-    /// room_for_position should resolve a point inside the Crew Quarters
-    /// to the correct RoomInfo.
-    #[test]
-    fn room_for_position_resolves_quarters() {
-        let world = GameWorld::new();
-        // Default spawn is Crew Quarters center.
-        let spawn = world.default_spawn_position();
-        let room = world.room_for_position(spawn);
-        assert!(room.is_some(), "spawn position must be inside a room");
-        let room = room.unwrap();
-        assert_eq!(room.id, "quarters");
-        assert_eq!(room.name, "Crew Quarters");
-        assert!(!room.exits.is_empty(), "Crew Quarters has 3 exits");
+        assert!(world.entities.len() >= 15, "expected at least 15 ship entities, got {}", world.entities.len());
+        let crew = world.entities.values().filter(|e| e.components.get("chore_agent").is_some()).count();
+        assert_eq!(crew, crew_defs().len(), "every crew member stands in the world");
+        assert!(world.entities.values().any(|e| e.entity_type == "food_store"), "the ship's food stores stand in the world");
     }
 
     /// entities_near should return only entities within radius, sorted by distance.
@@ -1792,7 +1684,7 @@ mod tests {
     fn entities_near_filters_and_sorts() {
         let world = GameWorld::new();
         let spawn = world.default_spawn_position();
-        let nearby = world.entities_near(spawn, 5.0);
+        let nearby = world.entities_near(spawn, 15.0);
 
         assert!(!nearby.is_empty(), "expected entities near spawn point");
 
@@ -1803,20 +1695,8 @@ mod tests {
 
         // Verify all within radius.
         for e in &nearby {
-            assert!(e.distance <= 5.0, "entity {} outside radius", e.entity_id);
+            assert!(e.distance <= 15.0, "entity {} outside radius", e.entity_id);
         }
-    }
-
-    /// Spawning a player should put them in Crew Quarters when given the sentinel.
-    #[test]
-    fn spawn_player_uses_crew_quarters() {
-        let mut world = GameWorld::new();
-        let id = world.spawn_player("test_pubkey", [0.0, 1.0, 0.0]);
-        let player = &world.entities[&id];
-
-        let room = world.room_for_position(player.position);
-        assert!(room.is_some(), "player not in any room");
-        assert_eq!(room.unwrap().id, "quarters");
     }
 
     // ── Persistence integration (save → restore through SQLite) ──
@@ -1978,7 +1858,7 @@ mod tests {
     }
 
     /// data/npc/chores.ron parses, ids are unique, labels/durations are sane,
-    /// and every referenced room resolves against the loaded ship layout.
+    /// and every chore's place is a room of the ship (ship_world.rs has its spots on no plot).
     #[test]
     fn chores_file_parses_and_room_ids_resolve() {
         let world = GameWorld::new();
@@ -1990,17 +1870,19 @@ mod tests {
             assert!(!c.label.contains('\u{2014}'), "chore {} label contains an em dash", c.id);
             assert!(c.duration_secs > 0.0, "chore {} needs a positive duration", c.id);
             assert!(
-                world.rooms.iter().any(|r| r.id == c.room_id),
-                "chore {} references unknown room {}", c.id, c.room_id
+                world.rooms.iter().any(|r| r.id == c.place),
+                "chore {} references unknown place {}", c.id, c.place
             );
         }
     }
 
     /// Every spawned crew NPC's role has at least one allowed chore (so nobody
-    /// idles forever), and every role's chores span at least two rooms (so
-    /// crew visibly walk across the ship between tasks -- the design goal).
+    /// idles forever), and every role's chores stand at sites at least 5 m apart
+    /// (so crew visibly walk between tasks -- the design goal). Increment 3: the
+    /// Pioneer's rule was "two rooms", and the ship's rooms are big (the Commons
+    /// is 34 x 55 m), so the walk between sites is what shows.
     #[test]
-    fn every_crew_role_has_chores_spanning_rooms() {
+    fn every_crew_role_walks_between_its_chores() {
         let world = GameWorld::new();
         let agents: Vec<&GameEntity> = world.entities.values()
             .filter(|e| e.components.get("chore_agent").and_then(|v| v.as_bool()).unwrap_or(false))
@@ -2010,10 +1892,9 @@ mod tests {
             let role = e.components.get("role").and_then(|v| v.as_str()).unwrap_or("");
             let allowed = allowed_chore_indices(&world.chores, role);
             assert!(!allowed.is_empty(), "role {role} has no allowed chores");
-            let rooms: std::collections::HashSet<&str> = allowed.iter()
-                .map(|&i| world.chores[i].room_id.as_str())
-                .collect();
-            assert!(rooms.len() >= 2, "role {role} chores span only {rooms:?} -- crew should travel between rooms");
+            let sites: Vec<[f32; 3]> = allowed.iter().filter_map(|&i| world.chore_site_of(&world.chores[i])).collect();
+            let far = sites.iter().any(|a| sites.iter().any(|b| ((a[0] - b[0]).powi(2) + (a[2] - b[2]).powi(2)).sqrt() >= 5.0));
+            assert!(far, "role {role} chores stand within 5 m of each other ({sites:?}) -- crew should walk between tasks");
         }
     }
 
@@ -2135,28 +2016,37 @@ mod tests {
     }
 
     /// The embedded crew + equipment registries (v0.937 infinite-of-x
-    /// migration) must parse and keep covering the six starter-ship room
-    /// types, so the ship never silently spawns empty because of a data typo.
+    /// migration) must parse and cover the ship (increment 3): every crew member's post is a
+    /// room of the ship and they have dialog, greetings and a name; every room type of the
+    /// ship is furnished; the stores of data/food/ship_stores.ron are not the only storage
+    /// (the survey_storage quest has lockers and bins to find); and every crew household is
+    /// one the stores know ("crew" or "homestead"). So the ship never silently spawns empty
+    /// because of a data typo.
     #[test]
-    fn crew_and_equipment_registries_parse_and_cover_the_starter_rooms() {
+    fn crew_and_equipment_registries_parse_and_cover_the_ship() {
         let crew: Vec<CrewDef> =
             ron::from_str(include_str!("../../../data/npc/crew.ron")).expect("crew.ron parses");
         let equip: Vec<RoomEquipmentDef> =
             ron::from_str(include_str!("../../../data/ships/room_equipment.ron"))
                 .expect("room_equipment.ron parses");
-        for rt in ["bridge", "medbay", "engineering", "cargo", "hydroponics", "quarters"] {
-            let c = crew.iter().find(|c| c.room_type == rt);
-            assert!(c.is_some(), "no crew member for room type {rt}");
-            let c = c.unwrap();
+        let world = GameWorld::new();
+        assert!(crew.len() >= 5, "the ship has its crew: {}", crew.len());
+        for c in &crew {
+            assert!(world.rooms.iter().any(|r| r.id == c.post), "{}'s post {} is not a room of the ship", c.name, c.post);
             assert!(
                 !c.dialog.is_empty() && !c.greetings.is_empty() && !c.name.is_empty(),
-                "crew for {rt} is missing dialog/greetings/name"
+                "crew {} is missing dialog/greetings/name", c.name
             );
-            let e = equip.iter().find(|e| e.room_type == rt);
-            assert!(
-                e.is_some() && !e.unwrap().items.is_empty(),
-                "no equipment for room type {rt}"
-            );
+            assert!(c.household == "crew" || c.household == "homestead", "{}'s household {} is unknown", c.name, c.household);
+            for line in c.dialog.iter().chain(&c.greetings) {
+                assert!(!line.contains('—'), "{}'s line has an em dash: {line}", c.name);
+            }
         }
+        for r in &world.rooms {
+            let e = equip.iter().find(|e| e.room_type == r.room_type);
+            assert!(e.is_some_and(|e| !e.items.is_empty()), "no equipment for room type {} ({})", r.room_type, r.id);
+        }
+        let storage = world.entities.values().filter(|e| e.components.get("storage").and_then(|v| v.as_bool()) == Some(true) && e.entity_type != "food_store").count();
+        assert!(storage >= 2, "the survey_storage quest has lockers and bins to find: {storage}");
     }
 }

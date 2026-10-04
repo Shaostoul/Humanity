@@ -4,138 +4,191 @@
 // (src/relay/handlers/game_state.rs::load_chores).
 //
 // Each crew NPC works through the chores its role is allowed to do, in a
-// deterministic rotation: walk to the chore's room (straight line -- the
+// deterministic rotation: walk to the chore's site (straight line -- the
 // engine has no pathfinding yet, an accepted first-step limitation), stand
 // there "working" for duration_secs, then pick the next chore. The current
 // chore label is synced to clients via the `game_npc_update` message and the
-// NPC's `activity` component so UIs can show "Botanist Yara: Inspecting the
-// hydroponic racks".
+// NPC's `activity` component so UIs can show "Botanist Yara: Tending the
+// apothecary towers".
+//
+// Since increment 3 of docs/design/ship-homes-and-logistics.md the crew work
+// the mothership's shared places (the relay's world is the ship file,
+// src/relay/handlers/ship_world.rs), not the retired Pioneer's rooms.
 //
 // Fields:
 //   id            unique snake_case slug
 //   label         human-readable present-tense activity, shown to players
-//   room_id       ship room the chore happens in; MUST resolve against
-//                 data/ships/starter_fleet.ron room ids
-//                 (bridge, quarters, medbay, cargo, engineering, hydroponics)
+//   place         the room the chore happens in: a room id of the relay's
+//                 world, which is every zone of data/blueprints/ship_structure.ron
+//                 ("commons", "street-1") and every labelled volume in one
+//                 ("mess-hall", in the Commons)
+//   spot          (x, z) metres from that room's min corner: where the crew
+//                 member stands. The Commons' box starts at ship (65, 20), and
+//                 the mess hall is its north strip, (65..95, 20..28) in ship
+//                 metres, so both rooms' spots are counted from (65, 20)
 //   duration_secs how long the NPC dwells at the site "doing" the chore
 //   roles         which crew roles may do this chore; empty list = anyone.
 //                 Current crew roles: navigator, medical_officer,
 //                 chief_engineer, maintenance, botanist, off_duty
+//   meal          (default false) a MEAL, never in the rotation: a crew
+//                 member who eats does it when its meal is due and takes one
+//                 meal from the ship's food stores in that place when it is
+//                 done (data/food/ship_stores.ron, the same stock players take
+//                 theirs from)
 //
-// Design note: every role's allowed set spans MORE than one room on purpose,
-// so crew visibly walk across the ship between tasks instead of pacing one
-// room forever.
+// Rules the relay tests hold these to (src/relay/handlers/game_state.rs):
+//   - no site stands on a plot (someone's home); load_chores drops one that
+//     does, with a warning;
+//   - every walk one crew member makes between two of its sites (its role's
+//     chores and its meal) crosses no wall, because the walk is a straight
+//     line. The Commons' room block (ship x 69..85, z 29..49) sits between the
+//     mess hall's west end and the east aisle, so a role either stays in the
+//     mess hall or uses its east end (ship x 89..94) and the east aisle
+//     (ship x 88..92, z 33..61);
+//   - every role's sites are at least two places 5 m apart, so the crew
+//     visibly walk between tasks instead of pacing on one spot.
 
 [
-    // ── Navigator (Helm Officer Vex) ──
+    // ── Navigator (Helm Officer Vex): off the helm on a long cruise, keeps the notices ──
     (
-        id: "helm_diagnostics",
-        label: "Running helm diagnostics",
-        room_id: "bridge",
-        duration_secs: 30.0,
+        id: "notice_board",
+        label: "Updating the notices on the board",
+        place: "commons",
+        spot: (25.0, 13.0),
+        duration_secs: 25.0,
         roles: ["navigator"],
     ),
     (
-        id: "nav_sensor_calibration",
-        label: "Calibrating the nav sensors",
-        room_id: "engineering",
+        id: "duty_rota",
+        label: "Planning tomorrow's duty rota",
+        place: "mess-hall",
+        spot: (24.0, 3.0),
         duration_secs: 25.0,
         roles: ["navigator"],
     ),
 
     // ── Medical officer (Dr. Kel) ──
     (
-        id: "medbay_inventory",
-        label: "Counting medical supplies",
-        room_id: "medbay",
-        duration_secs: 25.0,
+        id: "clinic_hour",
+        label: "Holding the walk-in clinic hour",
+        place: "commons",
+        spot: (25.0, 23.0),
+        duration_secs: 30.0,
         roles: ["medical_officer"],
     ),
     (
-        id: "crew_checkups",
-        label: "Doing crew health checks",
-        room_id: "quarters",
+        id: "first_aid_check",
+        label: "Checking the mess hall's first-aid kit",
+        place: "mess-hall",
+        spot: (27.0, 3.0),
         duration_secs: 20.0,
         roles: ["medical_officer"],
     ),
 
     // ── Chief engineer (Chief Tan) ──
     (
-        id: "reactor_readings",
-        label: "Taking reactor readings",
-        room_id: "engineering",
+        id: "air_handler_readings",
+        label: "Taking the air handlers' readings",
+        place: "commons",
+        spot: (25.0, 41.0),
         duration_secs: 30.0,
         roles: ["chief_engineer"],
     ),
     (
-        id: "bridge_console_service",
-        label: "Servicing the bridge consoles",
-        room_id: "bridge",
+        id: "garden_pump_check",
+        label: "Testing the garden's water pumps",
+        place: "commons",
+        spot: (25.0, 13.0),
+        duration_secs: 20.0,
+        roles: ["chief_engineer"],
+    ),
+    (
+        id: "kitchen_vent_service",
+        label: "Servicing the kitchen vents",
+        place: "mess-hall",
+        spot: (24.0, 6.0),
         duration_secs: 20.0,
         roles: ["chief_engineer"],
     ),
 
-    // ── Maintenance (CB-7) ──
+    // ── Maintenance (CB-7): keeps the mess hall stocked and clean ──
     (
-        id: "cargo_manifest",
-        label: "Reconciling the cargo manifest",
-        room_id: "cargo",
+        id: "restock_stores",
+        label: "Restocking the mess hall's stores",
+        place: "mess-hall",
+        spot: (3.0, 4.0),
         duration_secs: 25.0,
         roles: ["maintenance"],
     ),
     (
-        id: "spore_filter_cleaning",
-        label: "Cleaning the spore filter",
-        room_id: "hydroponics",
+        id: "wipe_tables",
+        label: "Wiping down the tables",
+        place: "mess-hall",
+        spot: (11.0, 4.0),
         duration_secs: 15.0,
-        roles: ["maintenance", "chief_engineer"],
+        roles: ["maintenance"],
+    ),
+    (
+        id: "sweep_floor",
+        label: "Sweeping the mess hall floor",
+        place: "mess-hall",
+        spot: (19.0, 4.0),
+        duration_secs: 15.0,
+        roles: ["maintenance"],
     ),
 
-    // ── Botanist (Botanist Yara) ──
+    // ── Botanist (Botanist Yara): the Commons garden ──
     (
-        id: "rack_inspection",
-        label: "Inspecting the hydroponic racks",
-        room_id: "hydroponics",
+        id: "tend_towers",
+        label: "Tending the apothecary towers",
+        place: "commons",
+        spot: (23.0, 25.0),
         duration_secs: 25.0,
         roles: ["botanist"],
     ),
     (
-        id: "water_samples",
-        label: "Collecting water samples",
-        room_id: "engineering",
+        id: "harvest_greens",
+        label: "Harvesting greens for the mess hall",
+        place: "commons",
+        spot: (26.0, 33.0),
         duration_secs: 20.0,
         roles: ["botanist"],
     ),
     (
-        id: "produce_delivery",
-        label: "Delivering fresh produce",
-        room_id: "quarters",
+        id: "deliver_greens",
+        label: "Bringing fresh greens to the mess hall",
+        place: "mess-hall",
+        spot: (27.0, 6.0),
         duration_secs: 15.0,
         roles: ["botanist"],
     ),
 
     // ── Off duty (Crewmate Nia) ──
     (
-        id: "meal_from_stores",
-        label: "Grabbing a meal from stores",
-        room_id: "cargo",
-        duration_secs: 15.0,
-        roles: ["off_duty"],
-    ),
-    (
-        id: "earth_watching",
-        label: "Watching Earth from the bridge",
-        room_id: "bridge",
+        id: "market_browse",
+        label: "Browsing the market stalls",
+        place: "commons",
+        spot: (27.0, 36.0),
         duration_secs: 25.0,
         roles: ["off_duty"],
     ),
-
-    // ── Anyone ──
     (
-        id: "tidy_common_areas",
-        label: "Tidying the common areas",
-        room_id: "quarters",
-        duration_secs: 15.0,
+        id: "tea_break",
+        label: "Having a cup of tea",
+        place: "mess-hall",
+        spot: (25.5, 4.5),
+        duration_secs: 20.0,
+        roles: ["off_duty"],
+    ),
+
+    // ── Meals: everyone who eats, from the ship's stores ──
+    (
+        id: "crew_meal",
+        label: "Eating a meal in the mess hall",
+        place: "mess-hall",
+        spot: (29.0, 4.5),
+        duration_secs: 40.0,
         roles: [],
+        meal: true,
     ),
 ]

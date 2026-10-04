@@ -209,4 +209,15 @@
         purpose: "Sit, talk, read, watch; the room a household gathers in when nothing needs doing.",
         default_size: (5.0, 3.0, 5.0),
     ),
+    // Shared-place zones (docs/design/ship-homes-and-logistics.md section 2.8). The mess hall
+    // came first, in increment 3: the crew eat there and the ship's food stores stand there
+    // (data/food/ship_stores.ron). No zone_filler.ron entry, so it draws only its editor
+    // wireframe; its tables and serving line are increment 6's.
+    (
+        id: "mess_hall",
+        label: "Mess hall",
+        color: (0.95, 0.62, 0.40),
+        purpose: "Where the ship eats together: crew meals at meal times, from the ship's food stores.",
+        default_size: (30.0, 3.0, 8.0),
+    ),
 ]

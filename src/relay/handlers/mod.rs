@@ -8,6 +8,8 @@ pub mod game_state;
 pub mod home_plots;
 pub mod live_conns;
 pub mod msg_handlers;
+pub mod ship_stores;
+pub mod ship_world;
 pub mod sign_ups;
 pub mod utils;
 

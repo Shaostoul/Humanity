@@ -3041,6 +3041,8 @@ pub async fn handle_game_join(
             Err(e) => tracing::warn!("Could not load player progress for {}: {e}", my_key),
         }
     }
+    // The plot their quest's "find your home" step reads (increment 3, ship_world.rs).
+    world.set_home_plot(player_id, home.plot.as_ref());
 
     // Stamp the display name onto the player entity (v0.774) so the world
     // snapshot a LATER joiner receives carries real names for people already
@@ -3336,21 +3338,10 @@ pub async fn handle_game_position_update(
 
     world.update_position(player_id, position, rotation);
 
-    // Quest progress: record room entry on the player's explore_ship quest.
-    // record_room_visit returns Some(progress) only when the room is new for
-    // this player, so we only fire the broadcast when something actually changed.
-    // Also pick a greeting from the resident NPC for a flavorful first entry.
-    let (quest_progress, greeting) = if let Some(room) = world.room_for_position(position) {
-        let progress = world.record_room_visit(player_id, &room.id);
-        let greeting = if progress.is_some() {
-            world.pick_room_greeting(&room.id)
-        } else {
-            None
-        };
-        (progress, greeting)
-    } else {
-        (None, None)
-    };
+    // Quest progress on the explore_ship quest: a first visit to a room of the ship (with its
+    // crew member's greeting), or, once every room is visited, stepping onto their own plot
+    // ("find your home", increment 3). Some(progress) only when something actually changed.
+    let (quest_progress, greeting) = world.quest_step_at(player_id, position);
 
     drop(world);
 
@@ -3692,6 +3683,8 @@ pub async fn handle_game_interact(
         .and_then(|v| v.as_str())
         .unwrap_or("inspect")
         .to_string();
+    // A meal from the ship's food stores (increment 3, ship_stores.rs): the crew's stock too.
+    if action == "take_meal" { return super::ship_stores::handle_take_meal(state, my_key, entity_id).await; }
 
     let world = state.game_world.read().await;
 
