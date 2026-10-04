@@ -20,8 +20,10 @@ and the small number of soil organisms that can make a person ill.
 It takes its facts from the US Department of Agriculture: the Natural
 Resources Conservation Service (NRCS), its Soil Quality Institute and
 the Agricultural Research Service, and the Forest Service; its health
-advice from the Centers for Disease Control and Prevention (CDC); and
-one rule from the federal organic regulations. All are United States
+advice from the Centers for Disease Control and Prevention (CDC); its
+call-before-you-dig advice from the Pipeline and Hazardous Materials
+Safety Administration (PHMSA); and one rule from the federal organic
+regulations. All are United States
 government publications, in the public domain. Where something is
 general practice or our own reasoning rather than a published finding,
 the text says so.
@@ -51,9 +53,10 @@ what they eat in their own cells.
 
 **Grazers and predators.** Protozoa and nematodes (microscopic worms)
 graze on bacteria and fungi, which keeps both in check, and they
-release plant-available nutrients as they eat. Larger predators,
-including centipedes, spiders, some mites, ants and beetles, keep the
-smaller animals in check in turn.
+release plant-available nutrients as they eat. NRCS's rangeland sheet
+names the larger predators, "centipedes, spiders, mites, some ants,
+insects, and beetles", and says they control the population of the
+soil biota in turn.
 
 **Litter transformers.** Insects, spiders, mites, springtails,
 centipedes and millipedes shred and eat dead leaves and other organic
@@ -368,20 +371,28 @@ general guide.
 
 ### Count the earthworms
 
-The Soil Quality Test Kit Guide's earthworm test, as written:
+Adapted from the Soil Quality Test Kit Guide's earthworm test (the
+first step and the last are ours, not the guide's):
 
-1. Do it in spring or autumn, when earthworms are most active.
-2. Mark out a square one foot on each side and dig it out 12 inches
+1. **Call 811 first.** The hole is a foot deep, and PHMSA says every
+   digging project needs a call to the one-call centre first, "even
+   small projects like planting trees or shrubs". Wait for the lines to
+   be marked, and choose a spot well away from the marks. [The Ground Under You](the_ground_under_you.md)
+   has the details.
+2. Do it in spring or autumn; the guide gives those as the best times
+   to look, when earthworms are most active.
+3. Mark out a square one foot on each side and dig it out 12 inches
    deep. Dig the hole first and sort afterwards, and cut as few times as
    you can so as not to injure the worms.
-3. Sort the soil on a pale sheet or tarp so the worms show up, and
+4. Sort the soil on a pale sheet or tarp so the worms show up, and
    count them.
-4. Optionally, to bring up the deep-burrowing kinds, level the bottom
+5. Optionally, to bring up the deep-burrowing kinds, level the bottom
    of the hole and pour in a mustard solution: 2 tablespoons of mustard
    powder in 2 litres of tap water. Deep burrowers should come up within
    five minutes. The guide says the solution should not harm the worms,
    and to rinse them in water before returning them to the soil.
-5. Put the soil and the worms back.
+6. Put the soil and the worms back (our step; the guide says only to
+   return the rinsed worms).
 
 How to read it: the guide says about 10 earthworms per square foot (100
 per square metre) is generally considered a good population in
@@ -520,11 +531,12 @@ What to do:
 - **Look after small wounds.** CDC's advice is to give first aid even
   to minor wounds and wash your hands with soap and water. [Bleeding
   and Wounds](bleeding_and_wounds.md) covers cleaning a wound.
-- **Get a puncture or a dirty wound seen.** CDC says to consult a
-  healthcare provider if a wound is a puncture or is deep (stepping on
-  a nail is its example), or contains dirt, soil, feces or saliva.
-  Medicine and a vaccination may be needed after some wounds to prevent
-  infection.
+- **Get a puncture, a dirty wound or a wound with dead tissue seen.**
+  CDC says to consult a healthcare provider if a wound is a puncture or
+  is deep (stepping on a nail is its example), contains dirt, soil,
+  feces or saliva, or contains dead tissue, including from burns,
+  fractures, crush injuries or frostbite. Medicine and a vaccination
+  may be needed after some wounds to prevent infection.
 - **Wear gloves, cover cuts, and wash your hands after working soil**
   (general practice).
 
@@ -568,9 +580,12 @@ are breathed in with dust.
   includes avoiding activities involving contact with soil, such as
   gardening, and using air filtration indoors.
 
-Damping down dusty soil before you dig it, and wearing a well-fitted
-mask when you cannot avoid dust, are general practice. CDC also says
-both infections are often mistaken for ordinary pneumonia: if you
+Damping down dusty soil before you dig it is general practice. Where
+you cannot avoid dust in country where these fungi live, wear what
+CDC's Valley fever advice names, a fitted N95 respirator; a loose cloth
+or paper face mask is not the same thing (that last point is ours).
+CDC also says both infections are often mistaken for ordinary
+pneumonia: if you
 develop a cough and fever after a dusty job in an area where these
 fungi live, tell your doctor what you were doing.
 
@@ -608,8 +623,8 @@ choices are general practice.
   Soil](testing_and_correcting_soil.md) explains how to choose a lab).
 - **Large accumulations of bird or bat droppings,** in a barn, attic or
   under a roost: professional cleanup (CDC).
-- **A deep, dirty or puncture wound, or any sign of tetanus:** a
-  healthcare provider, at once (CDC).
+- **A deep, dirty or puncture wound, one with dead tissue, or any sign
+  of tetanus:** a healthcare provider, at once (CDC).
 - **Soil fumigants and pesticides you are unsure about:** the product
   label and your extension service before use.
 
@@ -645,18 +660,22 @@ what they do, as numbers in the garden's soil.
   nitrogen in its roots and stems behind for the next crop, scaled to
   how much of its season it actually grew (`data/garden/nutrients.ron`).
 - **Compost's nitrogen comes back slowly, the way decomposition
-  releases it.** Seven percent of a bag of compost's nitrogen is
-  available in its first season. The rest is banked in that bed as
+  releases it.** The game's compost is the bag the Composter makes,
+  which the game calls "Fertilizer" (`fertilizer_0` in
+  `data/items.csv`). Seven percent of that bag's nitrogen is available
+  in its first season. The rest is banked in that bed as
   organic nitrogen and released at 3.5 percent of what remains in its
   second year and 2 percent a year after that, and only while a crop is
   growing there, so a bed composted year after year builds up
   (`data/garden/nutrients.ron`).
 - **Woody mulch borrows nitrogen.** Sawdust and bark mulches each take
-  20 grams of nitrogen from the bed under them for every kilogram of
-  mulch, spread over the mulch's life (150 garden days for sawdust,
-  1,095 for bark), and bank it to come back as the mulch rots, on
-  compost's schedule (`data/garden/weeds.ron`). That is the
-  immobilisation this guide describes. It runs while Settings >
+  20 grams of nitrogen for every kilogram of mulch from the soil of each
+  planted unit under them, only while a crop is growing there, spread
+  over the mulch's life (150 garden days for sawdust, 1,095 for bark),
+  and bank it to come back as the mulch rots, on compost's schedule
+  (`data/garden/weeds.ron`; `crop_tick` in
+  `src/systems/farming/weeds.rs`). Under mulch on an empty bed, nothing
+  is taken. That is the immobilisation this guide describes. It runs while Settings >
   Gameplay > "Garden pests, diseases and weeds" is not Off; its default
   is Gentle.
 - **One soil bacterium is a tool.** The pest controls include Bt, which
@@ -675,9 +694,10 @@ tetanus.
 
 - **Play mode.** During development the game starts in the Dev play
   mode (Settings > Gameplay > Play mode), and in Dev, as in Creative,
-  materials are free: compost, fertilizer, lime, sulfur and mulch cost
-  nothing from your pack. Switch Play mode to Normal to garden with
-  what you actually have.
+  materials are free: the Fertilizer bag (the Composter's compost),
+  Stored Urine, Garden Lime, Garden Sulfur, Wood Ash and the sawdust
+  and bark mulches cost nothing from your pack. Switch Play mode to
+  Normal to garden with what you actually have.
 - **Starting from the default home.** While Settings > Gameplay >
   "Start every session from the default home" is on, which is also the
   default during development, only your character (name, look and
@@ -718,8 +738,9 @@ the same day, and the eCFR is updated in place.
 
 - USDA Natural Resources Conservation Service. *Rangeland Soil
   Quality: Soil Biota*, information sheet, printed 2017 (what soil biota
-  are and where they concentrate; the soil food web; shredders,
-  predators and grazers; bacteria and fungi as the bulk of the biota;
+  are and where they concentrate; the soil food web; shredders and
+  grazers; the predators, "centipedes, spiders, mites, some ants,
+  insects, and beetles"; bacteria and fungi as the bulk of the biota;
   decomposition, immobilisation and mineralisation; nitrogen-fixing
   bacteria and nodules; mycorrhizal fungi as an extended root system
   that can connect plants and pass nitrogen and phosphorus; bacteria
@@ -730,7 +751,8 @@ the same day, and the eCFR is updated in place.
   https://www.nrcs.usda.gov/sites/default/files/2022-12/Rangeland_Soil_Quality_Soil_Biota.pdf
 - USDA Natural Resources Conservation Service, Illinois. *Soil Tech
   Notes 11A: Biological Underground Community*, undated (decomposers,
-  grazers and predators, litter transformers and mutualists; a single
+  protozoa and nematodes as grazers, litter transformers and
+  mutualists; a single
   tillage event killing as many as 25 percent of earthworms, recovery
   of the population, and the long-term effect on structure and residue;
   bacterial activity highest at 68 to 104 F, pH 6 to 8 and 50 to 60
@@ -738,7 +760,8 @@ the same day, and the eCFR is updated in place.
   https://www.nrcs.usda.gov/sites/default/files/2022-09/SoilTechNote11A.pdf
 - USDA Agricultural Research Service and Natural Resources Conservation
   Service, Soil Quality Institute. *Soil Quality Test Kit Guide*, July
-  2001 (the earthworm test and its interpretation: about 10 per square
+  2001 (the earthworm test, spring and autumn as the best times to
+  observe, and its interpretation: about 10 per square
   foot good in farmland, rarely more than 20 in cultivated ground, up to
   about 50 in grassland, patchy counts, some soils without earthworms;
   tillage killing about 25 percent and recovery within a few years;
@@ -822,7 +845,10 @@ the same day, and the eCFR is updated in place.
   September 2026 (a serious disease requiring immediate hospital
   treatment; 1 in 10 United States cases fatal; jaw spasms as the first
   sign; the 10-year booster; first aid for minor wounds; when to consult
-  a healthcare provider), and Tetanus: Causes and How It Spreads, 10
+  a healthcare provider: puncture or deep wounds, wounds containing
+  dirt, soil, feces or saliva, and wounds containing dead tissue,
+  including from burns, fractures, crush injuries or frostbite), and
+  Tetanus: Causes and How It Spreads, 10
   September 2026 ("Spores of Clostridium tetani are common in the
   environment, including soil, dust, and manure."; entry through broken
   skin, puncture wounds and contaminated wounds).
@@ -850,6 +876,11 @@ the same day, and the eCFR is updated in place.
   water with pathogenic organisms; raw manure incorporated at least 120
   or 90 days before harvest, or composted).
   https://www.ecfr.gov/current/title-7/subtitle-B/chapter-I/subchapter-M/part-205/subpart-C/section-205.203
+- Pipeline and Hazardous Materials Safety Administration. Call Before
+  You Dig!, undated web page (a call to the one-call centre before
+  every digging project, "even small projects like planting trees or
+  shrubs"; dial 811; wait for the lines to be marked).
+  https://primis.phmsa.dot.gov/stakeholder-comms/cbyd/
 
 ### Inside this project
 
@@ -860,9 +891,11 @@ the same day, and the eCFR is updated in place.
   `src/systems/farming/mod.rs`.
 - Compost's slow nitrogen: `fertilizers` and `organic_n_release` in
   `data/garden/nutrients.ron`; `release_organic` in
-  `src/systems/farming/soil.rs`.
+  `src/systems/farming/soil.rs`; the Composter's compost is the
+  `fertilizer_0` item, shown as "Fertilizer", in `data/items.csv`.
 - Mulch nitrogen tie-up: `n_tie_g_per_kg` in `data/garden/weeds.ron`
-  and `src/systems/farming/weeds.rs`.
+  (whose header says it comes "from the soil of each planted unit
+  under it") and `crop_tick` in `src/systems/farming/weeds.rs`.
 - Bt: the `bt_spray` control in `data/garden/pests.ron`.
 - The Play mode setting and which modes make materials free
   (`PlayMode` and `play_mode_allows` in `src/config.rs`), and the
@@ -896,8 +929,14 @@ the same day, and the eCFR is updated in place.
   practice; the Test Kit Guide discusses crusts reducing soil function.
 - The household steps for not spreading jumping worms are our
   application of the Forest Service's advice.
-- Gloves, covering cuts, washing hands after soil work, damping dusty
-  soil and wearing a mask are general practice.
+- Gloves, covering cuts, washing hands after soil work and damping
+  dusty soil are general practice. The fitted N95 respirator is CDC's
+  advice for Valley fever country; that a loose cloth or paper mask is
+  not the same thing is our note.
+- Putting a call to 811 at the start of the earthworm count, and
+  putting the soil back at the end, are our additions to the Test Kit
+  Guide's procedure; the 811 call itself is PHMSA's rule for every
+  digging project.
 - Using the organic rule's 120 and 90 day manure intervals as a home
   benchmark is our suggestion; the rule binds only certified organic
   producers.

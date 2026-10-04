@@ -2466,7 +2466,8 @@
         "usfs",
         "nisic",
         "cdc",
-        "ecfr"
+        "ecfr",
+        "phmsa"
       ],
       "locale_dependent": false,
       "hazard": "none"
@@ -2822,7 +2823,8 @@
         "ecfr",
         "phmsa",
         "dod-technical-manuals",
-        "usda-nrcs"
+        "usda-nrcs",
+        "cpsc"
       ],
       "locale_dependent": true,
       "hazard": "caution"

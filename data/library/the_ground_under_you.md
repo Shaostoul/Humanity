@@ -20,8 +20,9 @@ Its facts come from the United States Geological Survey (USGS), the
 Environmental Protection Agency (EPA), the Mine Safety and Health
 Administration (MSHA), the Occupational Safety and Health Administration
 (OSHA), the Pipeline and Hazardous Materials Safety Administration
-(PHMSA), the Department of Agriculture, the armed services' hand tool
-manual and federal regulations. All are United States government
+(PHMSA), the Consumer Product Safety Commission (CPSC), the Department
+of Agriculture, the armed services' hand tool manual and federal
+regulations. All are United States government
 publications, in the public domain. Where something is general practice
 or our own reading, the text says so.
 
@@ -40,6 +41,20 @@ steep parts of it, and breathing what comes off it.
   flags or paint; and that the call and the marking cost you nothing.
   Then, in PHMSA's words, "wait the required time for facilities to be
   located and marked, respect the marks and dig with care".
+- **The marks show only the operators' own lines.** PHMSA says the call
+  lets the affected operators "locate and mark their underground
+  facilities". Lines that belong to you or an earlier owner, such as
+  power to a garage or shed, a feed to a well pump, a pipe to a propane
+  tank or a sprinkler line, are not theirs, so expect them to be
+  unmarked, and find them from your own records or with a private
+  locating service before you dig (our reading of PHMSA's description,
+  and general practice). Where a gas company does not look after a
+  customer's own buried gas piping, the federal pipeline rule (49 CFR
+  192.16) has it tell the customer so in writing, and tell them: "When
+  excavating near buried gas piping, the piping should be located in
+  advance, and the excavation done by hand." Dig by hand near any mark
+  and any line you know of (general practice;
+  [Square, Level and Plumb](/library#square-level-and-plumb) says the same).
 - **Never get into a trench whose walls could fall on you.** OSHA's rule
   for workplaces (29 CFR 1926.652(a)(1)) requires every worker in an
   excavation to be protected from cave-ins by a designed protective
@@ -87,7 +102,12 @@ Build](/library#choosing-where-to-build) and [The Hazards Where You
 Live](/library#the-hazards-where-you-live) cover slope hazards for a home. For
 looking at rock: study a bluff, cliff or road cut from a safe distance,
 do not climb or dig into its face, and stay off the bottom of it after
-heavy rain (general practice).
+heavy rain (general practice). Keep well back from the top edge too,
+whether you are looking at the view or at the rock (general practice):
+the same USGS report found that, in the north of the county, many of
+the smaller landslide deposits are mostly debris topples and falls
+"that initiate at the tops of coastal bluffs", and that their
+escarpments often run from the bluff top to the high-tide mark.
 
 ### Breaking and cutting rock
 
@@ -111,6 +131,19 @@ heavy rain (general practice).
   stone and concrete wet, outdoors if you can, with a respirator, and
   clean up wet (general practice following the rule, which is written
   for workplaces).
+- **Water and a corded saw need a GFCI.** Wet cutting puts water next
+  to mains electricity. Use a saw made to cut wet, the rule's
+  "integrated water delivery system", rather than a dry saw with a hose
+  turned on it (general practice), and plug it into a ground-fault
+  circuit interrupter (GFCI): an outlet, breaker or portable plug-in
+  unit that cuts the power before a shock can kill. The Consumer
+  Product Safety Commission (CPSC) says GFCIs matter most "where
+  electrical equipment is near water", that portable ones give
+  protection "even if a GFCI is not installed on the circuit", and
+  advises them "With electric tools (drills, saws, sanders, etc.) for
+  do-it-yourself work in and around the house". Test the GFCI before
+  you start (our advice; CPSC says to test every GFCI at least once a
+  month and according to the manufacturer's instructions).
 
 ### Collecting rocks: whose ground is it?
 
@@ -204,9 +237,11 @@ most:
 
 So a map unit whose symbol starts with Q dates from the ice ages or
 since, and one that starts with T is older (our reading of the
-symbols). The USGS's Kitsap report, for example, maps landslide
-deposits as the unit "Qls" (Quaternary, landslide, in our reading of
-the letters).
+symbols). For example, the USGS's Kitsap landslide report describes an
+earlier USGS map of the area's surficial deposits (Yount and others,
+1993) that "shows composite historic and prehistoric landslide
+deposits as a distinct map unit (Qls)" (Quaternary, landslide, in our
+reading of the letters).
 
 ## How to find out what is under you
 
@@ -365,8 +400,13 @@ says, is directly underlain by Vashon till, a dense, gravelly and
 bouldery deposit left by the ice. Beneath the till lies advance
 outwash, the sand and gravel washed out in front of the
 advancing glacier, exposed mainly in the sides of drainages and along
-coastal slopes; and beneath that, in places, a laminated silt and clay
-called the Lawton Clay, laid down in lakes ponded in front of the ice.
+coastal slopes; and beneath that, in many areas, a fine-grained unit.
+Around Seattle, the layer that commonly lies under the advance outwash
+is the Lawton Clay, which the report describes as a laminated silt- to
+clay-rich deposit laid down in lakes in front of the advancing glacier. For Kitsap it is
+more careful: more recent mapping in parts of the county, it says,
+suggests that the fine-grained unit there "may be, or may correlate
+with, the Lawton Clay Member of the Seattle area".
 Older Pleistocene deposits and Tertiary bedrock show only along the
 lower parts of the coastal bluffs, in some deep valleys, and in the
 Gold Mountain and Green Mountain hills in the southwest of the county,
@@ -438,6 +478,9 @@ slope debris have been added.
 - **Taking rocks home from a national park.** It is prohibited.
 - **Dry-cutting stone or concrete indoors.** Silica dust is the reason
   the rule calls for water and a respirator.
+- **"811 marked everything."** It marked the operators' lines. The
+  cable to your shed and the pipe to your propane tank are yours to
+  find.
 
 ## How the game models it
 
@@ -473,12 +516,15 @@ the setting off to keep them.
 
 ## You own this when
 
-- You call 811 before every hole, and you never stand in a trench whose
-  walls could fall on you.
+- You call 811 before every hole, find your own private lines, dig by
+  hand near the marks, and never stand in a trench whose walls could
+  fall on you.
 - You and your children know to stay out of mines, shafts and quarry
   water.
-- You wear eye protection to break rock and cut stone wet with a
-  respirator.
+- You wear eye protection to break rock, and cut stone wet, with a
+  respirator, on a saw made for water and plugged into a tested GFCI.
+- You look at bluffs from well back from the top edge and stay off
+  their base after heavy rain.
 - You can name the three rock families and say how each forms.
 - You can read "Q", "T", "ka" and "Ma" on a geologic map, and you have
   looked up your own ground in a soil survey and on a geologic map.
@@ -505,13 +551,19 @@ the same day, and the eCFR is updated in place.
   the number as 2007-1292; the cover and the address use 2008-1292)
   (glacially sculpted landforms; the Puget lobe of the Cordilleran ice
   sheet and the youngest advance and retreat about 18 to 16 ka; most of
-  the county underlain by Vashon till, with advance outwash and locally
-  the Lawton Clay beneath; older deposits and Tertiary bedrock exposed
-  in the lower coastal bluffs and the basaltic Gold Mountain and Green
-  Mountain hills at about 500 m; post-glacial deposits; the map unit
-  Qls; about 77 percent of mapped landslides involving advance outwash;
-  the perched-water explanation and the later emphasis on erosion at
-  the base of slopes).
+  the county underlain by Vashon till, with advance outwash beneath
+  and, in many areas, a fine-grained unit under that; the Lawton Clay
+  as a laminated silt- to clay-rich lake deposit under the advance
+  outwash around Seattle, and recent mapping suggesting the Kitsap
+  fine-grained unit "may be, or may correlate with" it; older deposits
+  and Tertiary bedrock exposed in the lower coastal bluffs and the
+  basaltic Gold Mountain and Green Mountain hills at about 500 m;
+  post-glacial deposits; its account of the earlier 1:100,000 map by
+  Yount, Minard and Dembroff, USGS Open-File Report 93-233, 1993,
+  which shows landslide deposits as the map unit Qls; about 77 percent
+  of mapped landslides involving advance outwash; debris topples and
+  falls that initiate at the tops of coastal bluffs; the perched-water
+  explanation and the later emphasis on erosion at the base of slopes).
   https://pubs.usgs.gov/of/2008/1292/downloads/OF08-1292.pdf
 - US Geological Survey. What are igneous rocks?, What are sedimentary
   rocks? and What are metamorphic rocks?, undated FAQ pages (how each
@@ -560,8 +612,11 @@ the same day, and the eCFR is updated in place.
   January 2010).
   https://www.usgs.gov/special-topics/water-science-school/science/sinkholes
 - US Environmental Protection Agency. *A Citizen's Guide to Radon*, EPA
-  402/K-12/002, listed by EPA as December 2016, the current file
-  corrected for links and contact details ("a cancer-causing,
+  402/K-12/002, listed by EPA as December 2016. The current file is
+  corrected for links and contact details, and its dates disagree: the
+  front cover prints "EPA402/K-12/002 | 2025", the back cover "May
+  2012", and the file's own properties say it was created in December
+  2016 and last modified in 2025 ("a cancer-causing,
   radioactive gas"; cannot be seen, smelled or tasted; the Surgeon
   General's warning; about 21,000 deaths a year, from EPA's 2003
   assessment; nearly 1 in 15 homes with elevated radon; "Any home may
@@ -593,13 +648,29 @@ the same day, and the eCFR is updated in place.
   https://www.osha.gov/silica-crystalline
 - Pipeline and Hazardous Materials Safety Administration. Call Before
   You Dig!, undated web page (811 before every digging project, even
-  planting; 48 to 72 hours; lines marked with flags or paint; no
-  cost; wait, respect the marks and dig with care).
+  planting; 48 to 72 hours; the call lets affected operators "locate
+  and mark their underground facilities"; lines marked with flags or
+  paint; no cost; wait, respect the marks and dig with care).
   https://primis.phmsa.dot.gov/stakeholder-comms/cbyd/
+- US Consumer Product Safety Commission. *What Is a GFCI?*, CPSC Fact
+  Sheet, Publication 099, printed with the code 092010 (most likely
+  September 2010) (what a GFCI does; ground fault protection
+  "especially for circuit outlets in particularly vulnerable areas such
+  as where electrical equipment is near water"; portable GFCIs "even if
+  a GFCI is not installed on the circuit"; portable GFCI protection
+  "With electric tools (drills, saws, sanders, etc.) for
+  do-it-yourself work in and around the house"; testing at least once
+  a month and according to the manufacturer's instructions).
+  https://www.cpsc.gov/s3fs-public/099_0.pdf
 - Departments of the Army, Navy, Air Force and Marine Corps. *Use and
   Care of Hand Tools and Measuring Tools*, TM 9-243, dated 12 December
-  1983; the copy read is the Navy's June 1992 reissue, NAVEDTRA 12085,
-  with Change 1 (eye protection against flying objects including
+  1983 (the title page of the scan reads "Washington, DC, 12 December"
+  with the year not legible; the year comes from the DA Form 2028
+  printed at the back of the manual, whose publication date line reads
+  "12 Dec 83"; archive.org's catalogue entry says 12 December 1984, from
+  its uploader's note, and the manual's own form is followed here); the
+  copy read is the Navy's June 1992 reissue,
+  NAVEDTRA 12085, with Change 1 (eye protection against flying objects including
   chipped concrete, "absolutely necessary" during eye-hazard
   operations).
   https://archive.org/details/use-and-care-of-hand-tools-and-measuring-tools-1983
@@ -615,11 +686,16 @@ the same day, and the eCFR is updated in place.
   vacuuming would work); 43 CFR 8365.1-5, property and resources on
   public lands (reasonable amounts of rocks and mineral specimens for
   noncommercial use; no explosives or mechanical devices; permits to
-  sell); 36 CFR 2.1(a)(1)(iv), mineral resources in national parks.
+  sell); 36 CFR 2.1(a)(1)(iv), mineral resources in national parks;
+  49 CFR 192.16, customer notification (where an operator does not
+  maintain a customer's buried gas piping, the customer is told so in
+  writing and told "When excavating near buried gas piping, the piping
+  should be located in advance, and the excavation done by hand.").
   https://www.ecfr.gov/current/title-29/subtitle-B/chapter-XVII/part-1926/subpart-P/section-1926.652
   https://www.ecfr.gov/current/title-29/subtitle-B/chapter-XVII/part-1926/subpart-Z/section-1926.1153
   https://www.ecfr.gov/current/title-43/subtitle-B/chapter-II/subchapter-H/part-8360/subpart-8365/section-8365.1-5
   https://www.ecfr.gov/current/title-36/chapter-I/part-2/section-2.1
+  https://www.ecfr.gov/current/title-49/subtitle-B/chapter-I/subchapter-D/part-192/subpart-A/section-192.16
 
 ### Inside this project
 
@@ -654,15 +730,26 @@ the same day, and the eCFR is updated in place.
 ### Labelled in the text as general practice or our reading, not sourced
 
 - Teaching children the mine rule first is our suggestion.
-- Looking at bluffs and cuts from a safe distance and staying off their
-  base after heavy rain is general practice.
+- Looking at bluffs and cuts from a safe distance, keeping well back
+  from the top edge, and staying off their base after heavy rain are
+  general practice; the USGS report supplies the reason for the top
+  edge.
+- That the 811 marks leave out lines the household owns is our reading
+  of PHMSA's description; finding those lines from records or with a
+  private locating service, and digging by hand near any mark or known
+  line, are general practice (49 CFR 192.16 says the hand digging for
+  customer-owned gas piping).
 - Breaking rock as an eye-hazard operation is our application of TM
   9-243; cutting stone wet, outdoors, with a respirator, and cleaning up
   wet, are general practice following OSHA's workplace rule.
+- Using a saw made for wet cutting rather than adding water to a dry
+  saw is general practice; testing the GFCI before each job is our
+  advice, beside CPSC's monthly test.
 - Asking the managing office or owner before collecting on other land
   is general practice.
 - Reading "Qls" as Quaternary landslide deposit is our reading of the
-  map-symbol convention.
+  map-symbol convention; the unit itself is on the 1993 map by Yount
+  and others, as the Kitsap report describes it.
 - Reading a geologic map's legend, state geological surveys' local
   maps, and asking well drillers and the state well-records agency are
   general practice.

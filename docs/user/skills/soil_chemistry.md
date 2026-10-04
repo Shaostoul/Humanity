@@ -69,10 +69,16 @@ So:
 - **If lime gets in your eyes,** NIOSH's first aid for all three is to
   irrigate immediately: wash the eyes with large amounts of water,
   lifting the upper and lower lids now and then, and get medical
-  attention immediately. For skin contact with hydrated lime or
-  quicklime it says to flush the skin at once (with soap and water for
-  hydrated lime, with water for quicklime) and to take off any clothing
-  the chemical has soaked through.
+  attention immediately.
+- **If quicklime gets on your skin,** NIOSH says to flush the skin with
+  water at once, take off any clothing the chemical has soaked through
+  and flush the skin under it, and "Get medical attention promptly."
+- **If hydrated lime gets on your skin,** NIOSH says to flush the skin
+  at once with soap and water, take off any soaked clothing and flush
+  the skin under it, and "If irritation persists after washing, get
+  medical attention."
+- **If someone swallows either,** NIOSH's first aid is medical
+  attention immediately.
 
 Wood ash, which also raises pH, is caustic too; the precautions for it
 are in [Testing and Correcting Soil](testing_and_correcting_soil.md).
@@ -93,10 +99,12 @@ chemicals (general practice following CAMEO's reactivity profile).
 
 ### Fertilizers, weed-and-feed, and the label
 
-EPA's consumer brochure on garden and household chemicals (Read the
-Label First: Protect Your Household) makes points that apply to every
-fertilizer and to the many lawn products that combine fertilizer with a
-weedkiller:
+EPA's consumer brochure Read the Label First: Protect Your Household is
+written for "household products such as cleaners and pesticides". That
+covers the many lawn products that combine fertilizer with a
+weedkiller, since a weedkiller is a pesticide. Applying the same points
+to plain fertilizer is our application of the brochure, not something
+it says:
 
 - The label tells you how to use and store the product safely, gives
   first aid instructions, and gives a number to call for help.
@@ -105,6 +113,10 @@ weedkiller:
   because children think something in a familiar bottle is safe.
 - Use the right amount. Using more, the brochure says, can waste the
   product and money and can harm people, pets and the environment.
+- Keep children and pets off the treated ground for as long as the
+  label says. In EPA's words, "Keep pets and children away from treated
+  areas as directed on the label." When a weed-and-feed is spread over
+  a lawn, the treated area is the whole lawn (our note).
 - Do not apply a product where it can run into ponds, creeks or other
   water supplies, and never pour lawn and garden products down the
   drain.
@@ -133,6 +145,14 @@ nitrate, especially if a baby will drink it or it will be used for
 formula; [Testing Water](testing_water.md) explains how. And keep
 fertilizer, manure and compost heaps well away from the wellhead
 (general practice).
+
+**Do not try to boil nitrate out.** Boiling kills germs, so it is the
+natural thing to reach for, and here it does the opposite of what you
+want. EPA: "Boiling water will NOT reduce nitrate levels. In fact, it
+will make the level of nitrate worse because some of the water will
+evaporate but the nitrate will not." Until a test shows the well is
+below the limit, make a baby's formula with water you know is safe,
+such as bottled water (general practice).
 
 ## Plants take up ions dissolved in water
 
@@ -371,14 +391,19 @@ both ends. "Raise the pH" is not a universal good. It depends on the
 crop.
 
 **Buffering.** The sheet says some soils resist a change of pH more
-than others, so the amount of lime needed to raise an acid soil "must
-be determined specifically for each field". The reserve of acidity held
-on the clay and humus (the same exchange sites as above) has to be
-neutralised before the pH in the soil water moves. That is why a clay
-or a soil rich in organic matter takes more lime than a sand for the
-same change; [Testing and Correcting
-Soil](testing_and_correcting_soil.md) explains the "buffer pH" line on
-a test report that measures it.
+than others (their buffering capacity), so the amount of lime needed to
+raise an acid soil "must be determined specifically for each field". It
+says clay and organic matter act as buffers, that adding organic matter
+increases buffering capacity, and that coarse-textured soils may
+acidify easily compared with clay soils, because they have little
+organic matter, a low buffering capacity and a low cation exchange
+capacity. Why that should be so is
+our explanation, not the sheet's: the reserve of acidity held on the
+clay and humus (the same exchange sites as above) has to be neutralised
+before the pH in the soil water moves. Either way, a clay or a soil
+rich in organic matter takes more lime than a sand for the same change;
+[Testing and Correcting Soil](testing_and_correcting_soil.md) explains
+the "buffer pH" line on a test report that measures it.
 
 ## Salt and sodium
 
@@ -497,6 +522,8 @@ them.
   do blueberries, which want acid soil.
 - **Storing sulfur next to pool chlorine.** Keep oxidisers and fuels
   apart.
+- **Boiling well water to make it safe for a baby.** Boiling kills
+  germs but concentrates nitrate (EPA). Test the well.
 
 ## How the game models it
 
@@ -538,9 +565,10 @@ safe to handle.
   freezes every bed's pH and hides it.
 - **Play mode.** During development the game starts in the Dev play
   mode (Settings > Gameplay > Play mode), and in Dev, as in Creative,
-  materials are free: lime, sulfur, wood ash, compost and fertilizer
-  cost nothing from your pack. Switch Play mode to Normal to manage a
-  garden with what you actually have.
+  materials are free: Garden Lime, Garden Sulfur, Wood Ash, Stored
+  Urine and the Fertilizer bag (the game's name for the Composter's
+  compost) cost nothing from your pack. Switch Play mode to Normal to
+  manage a garden with what you actually have.
 - **Starting from the default home.** While Settings > Gameplay >
   "Start every session from the default home" is on, which is also the
   default during development, only your character (name, look and
@@ -552,7 +580,8 @@ safe to handle.
 ## You own this when
 
 - You can tell ground limestone from hydrated lime and quicklime by the
-  chemical name, and you know the first aid for lime in the eyes.
+  chemical name, and you know the first aid for lime in the eyes and on
+  the skin, and when it needs a doctor.
 - You store sulfur dry and apart from pool chlorine and other
   oxidisers, and keep fertilizers in their original, labelled
   containers away from children.
@@ -564,7 +593,8 @@ safe to handle.
 - You can read the NRCS yield table and say why "raise the pH" depends
   on the crop.
 - You can convert P2O5 and K2O on a bag into phosphorus and potassium.
-- If you drink well water, you have had it tested for nitrate.
+- If you drink well water, you have had it tested for nitrate, and you
+  know that boiling makes nitrate worse.
 
 ## Sources
 
@@ -614,7 +644,9 @@ public domain. Documents and web pages were read on 4 October 2026.
   material; the nutrients deficient in acid and in very alkaline soils;
   many crops best at pH 6 to 7.5; bacteria declining at low pH;
   nitrification and nitrogen fixation inhibited by low pH; buffering
-  and the field-specific lime requirement; the table of relative yields
+  capacity and the field-specific lime requirement; clay and organic
+  matter acting as buffers, organic matter increasing buffering
+  capacity, and coarse soils acidifying easily; the table of relative yields
   of alfalfa, barley, corn, wheat, oats, soybean and timothy at pH 4.7
   to 7.5, adapted from Smith and Doran 1996).
   https://www.nrcs.usda.gov/sites/default/files/2022-10/soil_ph.pdf
@@ -629,9 +661,12 @@ public domain. Documents and web pages were read on 4 October 2026.
   Guide to Chemical Hazards*: Calcium carbonate, Calcium hydroxide and
   Calcium oxide, each page last reviewed 30 October 2019 (synonyms,
   including "Lime" for calcium oxide; symptoms; calcium oxide reacting
-  with water and giving off heat; first aid), and First Aid Procedures,
-  last reviewed 17 October 2018 (what "Irrigate immediately", "Soap
-  flush immediately" and "Water flush immediately" mean).
+  with water and giving off heat; first aid, including medical
+  attention immediately if swallowed), and First Aid Procedures, last
+  reviewed 17 October 2018 (what "Irrigate immediately", "Soap flush
+  immediately" and "Water flush immediately" mean, including "Get
+  medical attention promptly." after a water flush and "If irritation
+  persists after washing, get medical attention." after a soap flush).
   https://www.cdc.gov/niosh/npg/npgd0090.html
   https://www.cdc.gov/niosh/npg/npgd0092.html
   https://www.cdc.gov/niosh/npg/npgd0093.html
@@ -644,11 +679,21 @@ public domain. Documents and web pages were read on 4 October 2026.
   https://cameochemicals.noaa.gov/chemical/4562
 - US Environmental Protection Agency. *Read the Label First: Protect
   Your Household*, brochure 740-F-15-006, undated; its web page last
-  updated 5 November 2025 (what a label tells you; original containers
+  updated 5 November 2025 (written for "household products such as
+  cleaners and pesticides"; what a label tells you; original containers
   and "It is very dangerous to put products in food and beverage
-  containers"; the right amount; keeping products out of water and
-  drains; poison control and the label).
+  containers"; the right amount; "Keep pets and children away from
+  treated areas as directed on the label."; keeping products out of
+  water and drains; poison control and the label).
   https://www.epa.gov/sites/default/files/2016-02/documents/household.pdf
+- US Environmental Protection Agency, EPA in Minnesota. Will boiling my
+  water help?, one of its frequently asked questions on nitrate in
+  southeast Minnesota ground water, last updated 11 June 2026
+  ("Boiling water will NOT reduce nitrate levels. In fact, it will make
+  the level of nitrate worse because some of the water will evaporate
+  but the nitrate will not."). The page was written for one region; the
+  chemistry it describes is the same everywhere.
+  https://www.epa.gov/mn/will-boiling-my-water-help
 - US Environmental Protection Agency. National Primary Drinking Water
   Regulations, web page last updated 31 August 2026 (nitrate measured
   as nitrogen, 10 mg/L; the risk to infants below six months; runoff
@@ -669,6 +714,9 @@ public domain. Documents and web pages were read on 4 October 2026.
   `fresh_world_each_launch` in `src/config.rs`; the Gameplay settings
   page in `src/gui/pages/settings.rs`; `apply_identity` in
   `src/save_load.rs`.
+- The item names: `garden_lime_0`, `garden_sulfur_0`, `wood_ash_0`,
+  `urine_stored_0` and `fertilizer_0` (the Composter's compost, shown
+  as "Fertilizer") in `data/items.csv`.
 - The Silverdale soils: `data/locales/silverdale_wa/soil.json`, from
   the USDA soil survey.
 - [What Soil Is](what_soil_is.md), [How Plants
@@ -686,7 +734,15 @@ public domain. Documents and web pages were read on 4 October 2026.
   of reach, are general practice following the sources' warnings.
 - The poison control number is general knowledge.
 - Keeping fertilizer and manure away from a wellhead is general
-  practice.
+  practice, and so is making a baby's formula with water known to be
+  safe, such as bottled water, until a well test comes back.
+- Applying the EPA label brochure's points to plain fertilizer is our
+  application; the brochure is written for cleaners and pesticides,
+  which include the weedkiller in a weed-and-feed. That the treated
+  area of a weed-and-feed is the whole lawn is our note.
+- The mechanism of buffering, acidity held on the exchange sites that
+  has to be neutralised first, is our explanation; the pH sheet gives
+  the effect and says clay and organic matter act as buffers.
 - That organic and mineral fertilizers differ in speed, what comes with
   them and how easily they are overdone is our reading of the handbook.
 - What a small or large exchange capacity means for feeding, the
