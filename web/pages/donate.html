@@ -32,7 +32,7 @@
     .route-action{display:flex;align-items:center;gap:var(--space-md);flex-wrap:wrap}
     .route-url{font-family:monospace;font-size:0.72rem;color:var(--info);word-break:break-all}
     /* Filled pill, as native's widgets::badge_sm: success colour when tax-deductible, muted when not */
-    .tax-badge{align-self:flex-start;font-size:0.7rem;font-weight:600;border-radius:var(--badge-radius);padding:1px var(--space-sm);background:var(--text-muted);color:#fff}
+    .tax-badge{align-self:flex-start;font-size:0.7rem;font-weight:600;border-radius:var(--badge-radius);padding:1px var(--space-sm);background:var(--text-muted);color:var(--text-strong)}
     .tax-badge.yes{background:var(--success)}
 
     /* Source cards (more direct links, crypto, charities) */
@@ -83,10 +83,10 @@
 <script src="/shared/settings.js"></script>
 <script src="/shared/eli5.js"></script>
 <div class="eli5-block">
-  <div class="eli5-simple">Two ways to give: to the nonprofit Sponsor-a-Can, which is tax-deductible, or straight to the maintainer, which is not.</div>
+  <div class="eli5-simple">Two ways to give: straight to the maintainer, which is not tax-deductible, or to the nonprofit Sponsor-a-Can, which is.</div>
   <div class="eli5-expert">Donation page. Reads the giving routes from /data/donate/routes.json, the other direct links from /data/donate/methods.json, endorsed charities from /data/donate/charities.json and the FAQ from /data/donate/faq.json (the same four files the desktop app's Donate page reads), plus the connected server's funding block from /api/server-info.</div>
 </div>
-<p class="page-hint">Give to the nonprofit Sponsor-a-Can (tax-deductible), or to the maintainer directly (not tax-deductible).</p>
+<p class="page-hint">Give to the maintainer directly (not tax-deductible), or to the nonprofit Sponsor-a-Can (tax-deductible).</p>
 
 <div id="page-app">
   <!-- Hero -->
@@ -96,7 +96,7 @@
     <p>HumanityOS is free and public-domain (CC0), with no company or nonprofit behind it. It is built in the open by one person, so supporting the maintainer directly is what keeps the work going.</p>
   </div>
 
-  <!-- Ways to give: data/donate/routes.json (the nonprofit, and the maintainer on Patreon) -->
+  <!-- Ways to give: data/donate/routes.json (the maintainer on Patreon, then the nonprofit) -->
   <div class="donate-section" id="routes-section" style="display:none;">
     <h2 class="section-heading">Ways to give</h2>
     <div class="route-grid" id="routes-grid">

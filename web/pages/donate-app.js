@@ -3,10 +3,11 @@
  * (src/gui/pages/donate.rs) and reads the same data files, which
  * tests/page_parity_lint.rs checks on both sides:
  *
- *   /data/donate/routes.json     the ways to give, shown first: the nonprofit
- *                                Sponsor-a-Can (tax-deductible) and the
- *                                maintainer on Patreon (not), each with one
- *                                plain sentence saying where the money goes
+ *   /data/donate/routes.json     the ways to give, shown first, in file order:
+ *                                the maintainer on Patreon (not tax-deductible)
+ *                                and the nonprofit Sponsor-a-Can (tax-deductible),
+ *                                each with one plain sentence saying where the
+ *                                money goes
  *   /data/donate/methods.json    more direct links to the maintainer
  *   /data/donate/charities.json  charities the maintainer endorses
  *   /data/donate/faq.json        the FAQ
@@ -137,7 +138,7 @@
     var grid = document.getElementById('routes-grid');
     grid.innerHTML = '';
     routes.forEach(function (r) {
-      if (!r || !r.name || !r.url) return;
+      if (!r || !String(r.name || '').trim() || !String(r.url || '').trim()) return;
       var card = document.createElement('div');
       card.className = 'route-card';
       var abbrev = r.abbrev || networkAbbrev(r.name);
@@ -251,10 +252,10 @@
     var section = document.getElementById('faq-section');
     var list = document.getElementById('faq-list');
     list.innerHTML = '';
-    entries.forEach(function (e, i) {
+    entries.forEach(function (e) {
       if (!e || !e.question) return;
       var item = document.createElement('div');
-      item.className = 'faq-item' + (i === 0 ? ' open' : '');
+      item.className = 'faq-item';
       item.innerHTML =
         '<div class="faq-q">' + escHtml(e.question) + '</div>' +
         '<div class="faq-a">' + escHtml(e.answer || '') + '</div>';
@@ -284,7 +285,7 @@
     var entries = [];
     var seenNetwork = {};
     function add(e) {
-      if (!e || !e.network || !e.value) return;
+      if (!e || !e.network || !String(e.value || '').trim()) return;
       if (seenNetwork[e.network.toLowerCase()]) return;
       if (routes.some(function (r) { return sameLink(r.url, e.value); })) return;
       if (entries.some(function (x) { return sameLink(x.value, e.value); })) return;

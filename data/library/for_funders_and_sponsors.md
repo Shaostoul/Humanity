@@ -119,8 +119,8 @@ There are two ways to give, and they are not the same thing.
   donation to a charity, and it is not tax-deductible.
 - To the nonprofit Sponsor-a-Can, at https://www.sponsor-a-can.org/donate/.
   Sponsor-a-Can is a 501(c)(3), so a donation to it is tax-deductible as
-  the law allows. The money goes to Sponsor-a-Can, not to the maintainer,
-  who serves as its Vice President.
+  the law allows. The money goes to Sponsor-a-Can, a nonprofit of its own,
+  where the maintainer serves as Vice President.
 
 HumanityOS itself has no 501(c)(3), no foundation, and no fiscal sponsor
 at this time.

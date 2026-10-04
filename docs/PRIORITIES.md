@@ -572,9 +572,21 @@ them up.
    money goes and whether it is tax-deductible, and in the FAQ, README, website
    docs and outreach guides. Sponsor-a-Can's 501(c)(3) status checked against
    IRS data: `docs/reference/findings/2026-10-04-sponsor-a-can-tax-status.md`.
-   Still the operator's call: whether the PayPal, Cash App and GitHub Sponsors
-   links he added on 2026-07-13 stay listed as "more ways to give directly" now
-   that he named Patreon as the direct link.
+   Patreon is the first card, because the page is "Support HumanityOS" and the
+   "Fund the work" buttons open it. Still the operator's calls: (a) whether the
+   PayPal, Cash App and GitHub Sponsors links he added on 2026-07-13 stay listed
+   as "more ways to give directly" now that he named Patreon as the direct link;
+   (b) the server's funding goal, "$100,000, Full-time development for 1 year"
+   in `data/server-config.json`, which both clients show under the direct-gifts
+   heading: it dates from v0.25.0 (2026-03-21) and nothing in the repo shows he
+   set or confirmed it (keep, change, or `goal_usd: 0` to hide it; there is no
+   in-app editor yet, see "Boot-default config editor" in
+   `data/admin/ops_registry.json` planned); (c) the funders guide names his Vice
+   President role at Sponsor-a-Can but lists that income in its books only as
+   "side-job", so whether to say the side-job is Sponsor-a-Can is his. Known
+   gap, not Donate's own: the desktop updater swaps only the exe, so an
+   auto-updated install keeps its old `data/` (old FAQ, no route cards) and
+   only a fresh download gets new data files.
 9. **Landing screen 2 hero shot:** click Play, frame something pretty, and tell
    the session to capture (`debug/screenshot_request.json`); it swaps the cosmos
    stand-in for the real 3D shot.

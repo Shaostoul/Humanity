@@ -1,8 +1,9 @@
 //! Donations page: the hero, then the ways to give (data/donate/routes.json: the
-//! nonprofit Sponsor-a-Can, tax-deductible, and the maintainer on Patreon, not),
-//! then more direct links with the server's funding goal, endorsed charities, and
-//! the collapsible FAQ. The web page (web/pages/donate-app.js) reads the same four
-//! data files; tests/page_parity_lint.rs checks both sides.
+//! maintainer on Patreon, not tax-deductible, then the nonprofit Sponsor-a-Can,
+//! tax-deductible), then more direct links with the server's funding goal,
+//! endorsed charities, and the collapsible FAQ. The web page
+//! (web/pages/donate-app.js) reads the same four data files;
+//! tests/page_parity_lint.rs checks that both sides call the reads.
 //!
 //! Supports dynamic donation addresses from server config (funding.addresses array)
 //! with fallback to local config for offline mode.
@@ -216,6 +217,12 @@ fn paint_icon(ui: &mut egui::Ui, abbrev: &str, color: Color32) {
     );
 }
 
+/// A route is a card only when it has a name and a link to give through; one
+/// without is skipped, as `renderRoutes` in web/pages/donate-app.js skips it.
+fn route_is_shown(route: &crate::gui::DonateRoute) -> bool {
+    !route.name.trim().is_empty() && !route.url.trim().is_empty()
+}
+
 /// One way to give (data/donate/routes.json). Laid out top to bottom so the
 /// sentence wraps to the card's width: name, kind, the tax badge, who they are,
 /// THE sentence (where the money goes, and whether it is tax-deductible), the
@@ -296,21 +303,24 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 });
                 ui.add_space(theme.spacing_lg);
 
-                // The ways to give (data/donate/routes.json), as the operator set
-                // them on 2026-10-04: the nonprofit Sponsor-a-Can (tax-deductible,
-                // the money goes to Sponsor-a-Can) and the maintainer on Patreon
-                // (he receives it, not tax-deductible). Each card says so in one
-                // sentence, with a badge. HumanityOS itself still has no company
-                // or nonprofit behind it (the hero says so); Sponsor-a-Can is its
-                // own organization, which the FAQ spells out.
-                if !state.donate_routes.is_empty() {
+                // The ways to give (data/donate/routes.json, in file order), as
+                // the operator set them on 2026-10-04: the maintainer on Patreon
+                // (he receives it, not tax-deductible) and the nonprofit
+                // Sponsor-a-Can (tax-deductible, the money goes to Sponsor-a-Can).
+                // Patreon is first because this page is "Support HumanityOS" and
+                // the Humanity page's "Fund the work" buttons open it. Each card
+                // says where the money goes in one sentence, with a badge.
+                // HumanityOS itself still has no company or nonprofit behind it
+                // (the hero says so); Sponsor-a-Can is its own organization,
+                // which the FAQ spells out.
+                if state.donate_routes.iter().any(route_is_shown) {
                     ui.label(
                         RichText::new("Ways to give")
                             .size(theme.font_size_heading)
                             .color(theme.text_primary()),
                     );
                     ui.add_space(theme.spacing_sm);
-                    for route in &state.donate_routes {
+                    for route in state.donate_routes.iter().filter(|r| route_is_shown(r)) {
                         draw_route_card(ui, theme, route);
                         ui.add_space(theme.spacing_sm);
                     }
@@ -492,13 +502,16 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                     ui.add_space(theme.spacing_lg);
                 }
 
-                // FAQ section
-                ui.label(
-                    RichText::new("Frequently Asked Questions")
-                        .size(theme.font_size_heading)
-                        .color(theme.text_primary()),
-                );
-                ui.add_space(theme.spacing_sm);
+                // FAQ section (data/donate/faq.json). Like the web page, no
+                // heading over an empty FAQ, and every answer starts closed.
+                if !state.donate_faq.is_empty() {
+                    ui.label(
+                        RichText::new("Frequently Asked Questions")
+                            .size(theme.font_size_heading)
+                            .color(theme.text_primary()),
+                    );
+                    ui.add_space(theme.spacing_sm);
+                }
 
                 for (i, entry) in state.donate_faq.iter().enumerate() {
                     let len = state.donate_faq.len();
@@ -552,7 +565,8 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
 #[cfg(test)]
 mod tests {
     use super::build_donation_sources;
-    use crate::gui::{DonateMethod, DonateRoute, GuiState};
+    use crate::gui::{DonateFaqEntry, DonateMethod, DonateRoute, GuiState};
+    use crate::gui::screen_surface::find_text_in_shapes;
 
     fn route(url: &str, tax_deductible: bool) -> DonateRoute {
         DonateRoute {
@@ -606,6 +620,50 @@ mod tests {
         let patreon = state.donate_routes.len() + listed.iter().filter(|s| s.value.contains("patreon.com")).count();
         assert_eq!(patreon, 1);
         assert_eq!(listed.len(), 1, "PayPal stays");
+    }
+
+    /// Draw the whole page headlessly (no GPU) and say whether `text` appears.
+    /// The screen is tall so nothing the page draws is scrolled out of view.
+    fn page_shows(state: &mut GuiState, text: &str) -> bool {
+        let ctx = egui::Context::default();
+        crate::gui::fonts::install_font_fallbacks(&ctx);
+        let theme = crate::gui::theme::load_theme();
+        theme.apply_to_egui(&ctx);
+        let mut out = None;
+        for _ in 0..2 {
+            let input = egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(1000.0, 4000.0))),
+                ..Default::default()
+            };
+            out = Some(ctx.run(input, |ctx| super::draw(ctx, &theme, state)));
+        }
+        find_text_in_shapes(&out.expect("two frames ran").shapes, text).is_some()
+    }
+
+    /// Native draws what the web page draws (web/pages/donate-app.js): a route
+    /// with no link is not a card, and the FAQ heading is not drawn over an
+    /// empty FAQ. The filled state is checked too, so a page that drew nothing
+    /// at all could not pass. Seen red 2026-10-04 before either check was in
+    /// draw(): "the FAQ heading is drawn with no FAQ entries"; then, with only
+    /// the FAQ check in: "a route with no link is drawn as a card".
+    #[test]
+    fn empty_faq_and_a_route_with_no_link_are_not_drawn() {
+        let mut state = GuiState::default();
+        let mut nowhere = route("  ", false);
+        nowhere.name = "Nowhere Fund".into();
+        state.donate_routes = vec![nowhere];
+        assert!(!page_shows(&mut state, "Frequently Asked Questions"), "the FAQ heading is drawn with no FAQ entries");
+        assert!(!page_shows(&mut state, "Nowhere Fund"), "a route with no link is drawn as a card");
+        assert!(!page_shows(&mut state, "Ways to give"), "the Ways to give heading is drawn over no cards");
+
+        let mut somewhere = route("https://example.org/give", false);
+        somewhere.name = "Somewhere Fund".into();
+        state.donate_routes.push(somewhere);
+        state.donate_faq = vec![DonateFaqEntry { question: "Where does it go?".into(), answer: "There.".into() }];
+        assert!(page_shows(&mut state, "Somewhere Fund"), "a route with a link is drawn");
+        assert!(page_shows(&mut state, "Ways to give"), "the Ways to give heading is drawn over a card");
+        assert!(page_shows(&mut state, "Frequently Asked Questions"), "the FAQ heading is drawn over an entry");
+        assert!(!page_shows(&mut state, "Nowhere Fund"), "the route with no link is still not drawn");
     }
 
     /// Nothing configured means nothing listed: no "Not configured" cards, and

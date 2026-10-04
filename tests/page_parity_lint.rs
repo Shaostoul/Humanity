@@ -42,6 +42,20 @@ struct ParityPair {
     web: &'static [&'static str],
     /// The shared data path, written as it appears in source (forward slashes).
     data_file: &'static str,
+    /// The READS themselves: `(file, call)` pairs, every one of which must
+    /// appear in its file on a line that is not a whole-line comment. Empty
+    /// for the older pairs, which only check that the path is mentioned.
+    ///
+    /// Why it exists: a bare mention cannot fail once a comment names the file.
+    /// The Donate pairs were first written with mentions only (2026-10-04), and
+    /// a review the same day deleted all four `loadList` calls from the web
+    /// page and all four `read_data_json` calls from native while the lint
+    /// still passed 5 of 5: header comments, the doc comments on the GuiState
+    /// fields, a theme-exempt note and a test's assert message all name the
+    /// files. A call is what reading the file means, so a call is what is
+    /// matched: the loader's read, the startup line that puts its result in
+    /// the app state, and the web page's fetch.
+    reads: &'static [(&'static str, &'static str)],
 }
 
 const PARITY_PAIRS: &[ParityPair] = &[
@@ -52,6 +66,7 @@ const PARITY_PAIRS: &[ParityPair] = &[
         native: &["src/gui/loaders.rs", "src/gui/mod.rs", "src/gui/pages/tools.rs"],
         web: &["web/pages/tools-app.js"],
         data_file: "external/catalog.json",
+        reads: &[],
     },
     // Library: the documents. Both sides read the same manifest; the web page
     // fetches the markdown the manifest lists from the same directory.
@@ -60,6 +75,7 @@ const PARITY_PAIRS: &[ParityPair] = &[
         native: &["src/gui/loaders.rs", "src/gui/mod.rs", "src/gui/pages/library.rs"],
         web: &["web/pages/library-app.js"],
         data_file: "library/index.json",
+        reads: &[],
     },
     // Browser: the websites database. Until 2026-09-16 native read
     // data/browser/bookmarks.json and web.html carried its own DEFAULT_SITES
@@ -70,6 +86,7 @@ const PARITY_PAIRS: &[ParityPair] = &[
         native: &["src/gui/loaders.rs", "src/gui/mod.rs", "src/gui/pages/browser.rs"],
         web: &["web/pages/web.html"],
         data_file: "web/sites.json",
+        reads: &[],
     },
     // Donate: four data files, and both pages must read all four, because this
     // page routes money and a drift here tells people the wrong thing about
@@ -82,34 +99,81 @@ const PARITY_PAIRS: &[ParityPair] = &[
     //   "Donate (giving routes): no web source mentions `donate/routes.json`"
     //   "Donate (FAQ): no web source mentions `donate/faq.json`"
     //   "Donate (giving routes): data/donate/routes.json does not exist"
+    // Those mention checks could not fail once comments named the files (see
+    // `reads` on ParityPair), so each pair also names its three read calls.
+    // Seen red 2026-10-04 in a scratch copy with all four `loadList` calls
+    // taken out of donate-app.js and all four `read_data_json` calls out of
+    // loaders.rs, the change the review made (the mention checks stayed green):
+    //   "Donate (giving routes): src/gui/loaders.rs no longer reads
+    //    `donate/routes.json` (expected a line with `(data_dir, "donate/routes.json")`)"
+    //   "Donate (giving routes): web/pages/donate-app.js no longer reads
+    //    `donate/routes.json` (expected a line with
+    //    `loadList('/data/donate/routes.json', 'routes')`)"
+    //   ... and the same pair of lines for methods, charities and faq.
+    // And with only the startup line for the FAQ taken out of lib.rs:
+    //   "Donate (FAQ): src/lib.rs no longer reads `donate/faq.json` (expected a
+    //    line with `crate::gui::load_donate_faq(&data_dir)`)"
     ParityPair {
         page: "Donate (giving routes)",
         native: &["src/gui/loaders.rs", "src/gui/mod.rs", "src/gui/pages/donate.rs"],
         web: &["web/pages/donate-app.js"],
         data_file: "donate/routes.json",
+        reads: &[
+            ("src/gui/loaders.rs", "(data_dir, \"donate/routes.json\")"),
+            ("src/lib.rs", "crate::gui::load_donate_routes(&data_dir)"),
+            ("web/pages/donate-app.js", "loadList('/data/donate/routes.json', 'routes')"),
+        ],
     },
     ParityPair {
         page: "Donate (direct links)",
         native: &["src/gui/loaders.rs", "src/gui/mod.rs", "src/gui/pages/donate.rs"],
         web: &["web/pages/donate-app.js"],
         data_file: "donate/methods.json",
+        reads: &[
+            ("src/gui/loaders.rs", "(data_dir, \"donate/methods.json\")"),
+            ("src/lib.rs", "crate::gui::load_donate_methods(&data_dir)"),
+            ("web/pages/donate-app.js", "loadList('/data/donate/methods.json', 'methods')"),
+        ],
     },
     ParityPair {
         page: "Donate (charities)",
         native: &["src/gui/loaders.rs", "src/gui/mod.rs", "src/gui/pages/donate.rs"],
         web: &["web/pages/donate-app.js"],
         data_file: "donate/charities.json",
+        reads: &[
+            ("src/gui/loaders.rs", "(data_dir, \"donate/charities.json\")"),
+            ("src/lib.rs", "crate::gui::load_donate_charities(&data_dir)"),
+            ("web/pages/donate-app.js", "loadList('/data/donate/charities.json', 'charities')"),
+        ],
     },
     ParityPair {
         page: "Donate (FAQ)",
         native: &["src/gui/loaders.rs", "src/gui/mod.rs", "src/gui/pages/donate.rs"],
         web: &["web/pages/donate-app.js"],
         data_file: "donate/faq.json",
+        reads: &[
+            ("src/gui/loaders.rs", "(data_dir, \"donate/faq.json\")"),
+            ("src/lib.rs", "crate::gui::load_donate_faq(&data_dir)"),
+            ("web/pages/donate-app.js", "loadList('/data/donate/faq.json', 'entries')"),
+        ],
     },
 ];
 
 fn read(rel: &str) -> String {
     fs::read_to_string(repo().join(rel)).unwrap_or_else(|e| panic!("read {rel}: {e}"))
+}
+
+/// A line that is only a comment, in Rust, JS or HTML: `//`, `///`, `//!`,
+/// a `/*` opener, a ` * ` continuation, or `<!--`. A code line with a comment
+/// after the code is NOT one, so a call followed by a note still counts.
+fn is_comment_line(line: &str) -> bool {
+    let t = line.trim_start();
+    t.starts_with("//") || t.starts_with("/*") || t.starts_with('*') || t.starts_with("<!--")
+}
+
+/// Does `needle` appear in `file` on a line that is not only a comment?
+fn has_call(file: &str, needle: &str) -> bool {
+    read(file).lines().any(|l| !is_comment_line(l) && l.contains(needle))
 }
 
 /// Every parity page must reference its shared data file on BOTH sides.
@@ -136,6 +200,14 @@ fn both_uis_read_the_same_data_file() {
                 pair.data_file,
                 pair.web.join(", ")
             ));
+        }
+        for (file, call) in pair.reads {
+            if !has_call(file, call) {
+                failures.push(format!(
+                    "{}: {} no longer reads `{}` (expected a line with `{}`)",
+                    pair.page, file, pair.data_file, call
+                ));
+            }
         }
     }
 
