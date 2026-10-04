@@ -544,6 +544,26 @@
           ]
         },
         {
+          "title": "Estimating",
+          "src": "docs/user/skills/estimating.md",
+          "tags": [
+            "guide",
+            "real",
+            "making",
+            "beginner"
+          ]
+        },
+        {
+          "title": "Keeping Records",
+          "src": "docs/user/skills/keeping_records.md",
+          "tags": [
+            "guide",
+            "real",
+            "food",
+            "beginner"
+          ]
+        },
+        {
           "title": "Sharpening",
           "src": "docs/user/making/sharpening.md",
           "tags": [
@@ -560,6 +580,16 @@
             "guide",
             "real",
             "technical"
+          ]
+        },
+        {
+          "title": "Working Out Why Something Broke",
+          "src": "docs/user/skills/working_out_why_something_broke.md",
+          "tags": [
+            "guide",
+            "real",
+            "making",
+            "safety"
           ]
         },
         {

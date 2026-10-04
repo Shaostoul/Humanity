@@ -2912,6 +2912,39 @@
       "use": "facts",
       "bundle": false,
       "note": "What Causes the Seasons? (article last updated 29 July 2025). NASA-branded, but its pages carry NASA/JPL-Caltech credits and JPL is run by Caltech, so its licence is not assumed to be public domain: restate, do not quote, until checked. For numbers prefer nasa-nssdca."
+    },
+    {
+      "id": "nasa-nodis",
+      "name": "NASA Online Directives Information System",
+      "publisher": "National Aeronautics and Space Administration",
+      "url": "https://nodis3.gsfc.nasa.gov/",
+      "kind": "authority",
+      "licence": "public-domain-us-gov",
+      "use": "verbatim",
+      "bundle": true,
+      "note": "NASA's own procedural requirements, written by NASA staff. NPR 8621.1D, Mishap and Close Call Reporting, Investigating, and Recordkeeping (effective 6 July 2020, updated with Change 4, read 2026-10-03), Appendix A defines proximate cause, intermediate cause, root cause and contributing factor, and says root cause analysis continues until organizational factors are found or the data are exhausted."
+    },
+    {
+      "id": "irs",
+      "name": "Internal Revenue Service",
+      "publisher": "US Department of the Treasury",
+      "url": "https://www.irs.gov/",
+      "kind": "authority",
+      "licence": "public-domain-us-gov",
+      "use": "verbatim",
+      "bundle": true,
+      "note": "How long should I keep records? (last reviewed or updated 30 June 2026, read 2026-10-03): records supporting a return are kept until the period of limitations runs out, generally 3 years, with 4, 6 and 7 year cases and indefinitely if no return was filed. US federal tax law only; other countries differ."
+    },
+    {
+      "id": "usda-ams",
+      "name": "USDA Agricultural Marketing Service",
+      "publisher": "United States Department of Agriculture",
+      "url": "https://www.ams.usda.gov/",
+      "kind": "authority",
+      "licence": "public-domain-us-gov",
+      "use": "verbatim",
+      "bundle": true,
+      "note": "Runs the National Organic Program. Its recordkeeping rule, 7 CFR 205.103 (read in the eCFR 2026-10-03), asks that records be adapted to the particular business, disclose all activities and transactions in enough detail to be readily understood and audited, and be kept not less than 5 years. Cite the regulation text through ecfr as well."
     }
   ]
 }
