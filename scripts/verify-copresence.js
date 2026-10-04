@@ -1176,7 +1176,13 @@ async function runPlotsOnce(order, runStamp, cleanups) {
   };
 
   try {
-    relay = await TR.startRelay({ sourceExe: EXE, prefix: "verify-copresence-relay-", config: { server_name: "verify-copresence plots relay" } });
+    relay = await TR.startRelay({
+      sourceExe: EXE,
+      // Its copy must be the bytes the gate judged, like the rig's (BUG-133).
+      expectSha256: fresh.result && fresh.result.exe_sha256,
+      prefix: "verify-copresence-relay-",
+      config: { server_name: "verify-copresence plots relay" },
+    });
     manifest.relay = { url: relay.httpUrl, pid: relay.pid, dir: relay.dir, health: relay.health, listening: relay.listening.map((x) => x.line) };
     manifest.steps_ok.relay = relay.health
       ? { ok: true, detail: `${relay.httpUrl} answered /health (pid ${relay.pid}); ${loopbackNote(relay)}` }
@@ -1186,12 +1192,17 @@ async function runPlotsOnce(order, runStamp, cleanups) {
 
     if (order === "walker-first") await startWalker();
 
-    const child = spawn(RIG_EXE, [], { cwd: RIG, detached: true, stdio: "ignore", env: gameEnv() });
+    // Through spawnGame, like every rig (BUG-133 follow-up): it checks the copy
+    // against the judged bytes just before starting it and switches off the
+    // hand-off to another exe. The --plots path came from increment 1b, merged
+    // after that rule; rig-boot.test.js caught its raw spawn.
+    const plotsGame = GL.spawnGame(RIG_EXE, [], { fresh, rigName: "verify-copresence", log, cwd: RIG, detached: true, stdio: "ignore", env: gameEnv() });
+    const child = plotsGame.child;
     gamePid = child.pid;
     fs.writeFileSync(path.join(RIG, "probe_pid.txt"), String(gamePid));
     child.unref();
     step("launch", true, `game pid ${gamePid} from ${rel(RIG_EXE)} (background, no focus)`);
-    await waitBoot(180000);
+    await waitBoot(180000, plotsGame);
     step("boot", true, "booted (run.log: cloud noise volumes generated, no PANIC)");
     const fromMenu = manifest.entry.kind === "menu";
     clearDone("autopilot_done.json");

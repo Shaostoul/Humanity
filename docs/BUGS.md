@@ -2967,3 +2967,22 @@ shows the plain way back (a Connect button with a sentence saying it signs you
 up again). Consider also refusing a game join on the relay for a non-bot key
 with no registered name, after confirming no other path leaves an identified key
 without one. Web mirror: the same after an erase in the browser.
+
+## BUG-136: the carry limit is shown as a fixed 50 kg, and being overloaded does nothing (OPEN, found 2026-10-04)
+
+**Found by** the Library writer checking the "Force, Levers and Mechanical
+Advantage" guide's game tie-in against the code. The inventory system computes
+the real limit and an encumbered flag (src/systems/inventory/mod.rs ~1251-1258:
+`weight_capacity + carry_bonus`, where the bonus is the equipped outfit's
+`carry_capacity`, e.g. a backpack), but:
+- the Inventory page's Weight tile reads its own `max_carry_weight`, a fixed
+  50.0 (src/gui/pages/inventory.rs ~38, shown at ~1453), so a backpack never
+  shows on it;
+- nothing reads `inventory.encumbered` (it is only written and logged), so
+  carrying more than the limit has no effect on the player at all.
+
+**Fix to make:** the tile shows the inventory's real limit (capacity plus the
+outfit bonus). What being overloaded DOES is a gameplay decision for the
+design (the dual-modes rule: a realistic mode and a softened one): slower
+walking is the usual answer. Until then, say on the tile that the limit is
+advisory.
