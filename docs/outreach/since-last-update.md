@@ -11,6 +11,14 @@ Each line is written the way a player would hear it; the release notes and
 
 ## Shipped
 
+- **v0.1449.0: erasing your account sticks, and three more Library guides.**
+  After you erase your account on a server, the app now disconnects from it and
+  stays disconnected, instead of quietly signing you up again the next time it
+  reconnects; the Chat page shows how to come back if you want to. New guides:
+  Force, Levers and Mechanical Advantage; Heat and How It Moves; Rust, Rot and
+  Decay (59 sourced guides). Behind the scenes, every test tool now checks it is
+  testing exactly the current build, and none can start next to your own game.
+
 - **v0.1448.0: every player's home has its own place on the mothership.**
   When you join a shared world, the server gives your home its own plot and
   you arrive at your own front door; a second player's home stands on the

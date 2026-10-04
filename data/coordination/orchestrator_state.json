@@ -616,6 +616,11 @@
       "date": "2026-10-03",
       "decision": "Merged ship-homes increment 1b into main (1c41de3b9, release v0.1448.0) after five review rounds (5, 7, 16, 11, 6 confirmed findings, all fixed and red-checked). The last round fell to one medium and five lows; a single critic reads the final fix commit in parallel with the release checks. Next: increment 2 (meet in the Commons), which Day 5 needs.",
       "why": "The findings converged (a HIGH in round 4, a medium in round 5), every rig passes on the merged tree including the connect-first entry that exposed the HIGH, and holding it longer would only delay increment 2."
+    },
+    {
+      "date": "2026-10-04",
+      "decision": "OPERATOR DECISION (BUG-135 limit): the relay keeps an EXPIRING marker after an account erase (option 2 of 3), so a second device that was offline during the erase cannot sign the person up again by itself. Verbatim: \"Let's go with option 2 that way we have a way to cull the list over a period of time. That way we don't end up with a massive log of all the accounts that erased themselves after many years or a malicious attack.\" Built as: a keyed one-way fingerprint of the key (a server-local secret, so only that server can check it), day-granularity date, expiry default 30 days as an in-app server setting, plus a hard cap on entries (oldest dropped) against mass erases; an explicit Connect signs up again and clears it.",
+      "why": "The erase fix shipped in v0.1449.0 only reaches devices online at the erase; the relay kept no record. The operator chose a bounded record over none (option 1) or a permanent one (option 3), and named both the long-term growth and a malicious flood as reasons for culling."
     }
   ],
   "active_scopes_to_avoid": [

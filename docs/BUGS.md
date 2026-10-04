@@ -2943,7 +2943,7 @@ plainly that data/library/ may be half-written and must not be committed until
 a rerun finishes. Checked with a simulated two-time lock (recovers) and a
 permanent one (fails loudly, exit 1); then 30 real runs, 0 failures.
 
-## BUG-135: after erasing your account, the app reconnects and recreates it without being asked (OPEN, found 2026-10-03)
+## BUG-135: after erasing your account, the app reconnects and recreates it without being asked (FIXED v0.1449.0, found 2026-10-03)
 
 **Symptom (found by the final review of ship-homes increment 1b, read from the
 code, not yet seen in a running game):** erasing your account (Settings, the
@@ -2967,6 +2967,25 @@ shows the plain way back (a Connect button with a sentence saying it signs you
 up again). Consider also refusing a game join on the relay for a non-bot key
 with no registered name, after confirming no other path leaves an identified key
 without one. Web mirror: the same after an erase in the browser.
+
+**Fixed (v0.1449.0):** the relay sends the erasing account's own clients
+`account_erased` (with `partial` when any part of the erase failed). The
+native app disconnects that server through the shared Disconnect path and
+records the erase per identity and server in its config (`account_erased_on`),
+so neither the backoff, the boot or unlock auto-connect nor the background links
+dial it again; the Chat page's Connect box says connecting signs you up again (an
+unfinished erase says to erase again instead); the game's sentence names Chat
+and Connect. Web: it stops reconnecting, ends a call in progress, forgets the
+saved name (never the key) and shows the note. Not added: refusing a game join
+for a key with no registered name, because placeholder names (DesktopUser_NNNN)
+are never registered and real players would be refused.
+
+**Known limit (the operator's call):** only clients online at the moment of the
+erase find out. A second device with the app closed, a web tab mid-reconnect, or
+a socket that drops between the erase and its receipt will sign up again on its
+next connection, because the relay keeps no record of an erase. Closing that
+needs a marker kept on the relay after the erase, which trades against "an
+erase leaves nothing on the server".
 
 ## BUG-136: the carry limit is shown as a fixed 50 kg, and being overloaded does nothing (OPEN, found 2026-10-04)
 
