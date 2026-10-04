@@ -362,7 +362,9 @@ mod tests {
 
     /// EVERY HONEST WALK IS TAKEN: a sprint at 15 updates a second for 20 s, the fastest walk the
     /// data allows (24.1 m/s) for 10 s, a second of updates held up by the network and then
-    /// delivered all at once, a ladder climbed at 3 m/s and a fall from 8 m.
+    /// delivered all at once, a ladder climbed at 3 m/s and a fall from 8 m. Seen red 2026-10-04
+    /// with the allowance kept for no time at all (`caps` times 0, so each update had only the
+    /// slack): "the fastest legitimate walk was corrected".
     #[test]
     fn every_honest_walk_is_taken() {
         let r = rules();
@@ -476,7 +478,8 @@ mod tests {
 
     /// A VEHICLE GOES AT ITS OWN SPEED when that is faster than on foot (a 40 m/s one here; no
     /// shipped vehicle is), only while declared, and only a vehicle the relay knows. Ten seconds:
-    /// on foot the banked allowance covers 40 m/s for about five.
+    /// on foot the banked allowance covers 40 m/s for about five. Seen red 2026-10-04 with the
+    /// declared vehicle's speed ignored: "ten seconds at the car's 40 m/s".
     #[test]
     fn a_vehicle_goes_at_its_own_speed() {
         let r = rules();
@@ -501,7 +504,8 @@ mod tests {
     }
 
     /// A RECONNECT MAY MOVE AS FAR AS THE TIME AWAY ALLOWS (at most 90 m), once; and it forgives a
-    /// correction the game never got.
+    /// correction the game never got. Seen red 2026-10-04 with `rejoin` granting nothing: "after
+    /// 5 s away, an 80 m first move was corrected".
     #[test]
     fn a_reconnect_may_move_as_far_as_the_time_away_allows() {
         let r = rules();
@@ -521,7 +525,9 @@ mod tests {
     }
 
     /// THE RELAY'S HALF ON A WORLD: a player spawned at their door is held there; a 60 m jump is
-    /// answered with a correction to the door; the update that says it applied it is taken.
+    /// answered with a correction to the door; the update that says it applied it is taken. Seen
+    /// red 2026-10-04 with `judge_move` sending no message for a correction: "a correction
+    /// message".
     #[test]
     fn a_world_answers_a_jump_with_where_it_holds_the_player() {
         let mut world = GameWorld::new();
@@ -541,7 +547,9 @@ mod tests {
 
     /// THE RELAY'S SHIP HAS ITS LINKS BY ID: today's ship has no teleporter aboard, so no jump in
     /// a shared zone is a link; a ship file with a teleporter pair in the Commons, named by ids,
-    /// gives the relay both ways through it.
+    /// gives the relay both ways through it. Seen red 2026-10-04 with `transit_link` matching the
+    /// zone and the entry pad only: "assertion failed: ship.transit_link(\"commons\",
+    /// \"tp-west\", \"tp-north\").is_none()".
     #[test]
     fn the_relays_links_resolve_by_id() {
         assert!(GameWorld::new().transit.is_empty(), "the shipped ship has no teleporter in a shared zone");

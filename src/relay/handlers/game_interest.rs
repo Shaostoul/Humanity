@@ -243,7 +243,8 @@ mod tests {
     /// THE CREW ARE IN VIEW ONLY NEAR THEM: with a 50 m view, a player at p2's door is sent no
     /// crew member in their welcome (every one works the Commons, more than 60 m off) but is sent
     /// themselves and every thing that does not move; walking into the Commons brings the crew
-    /// into view, each sent whole with the lines it says.
+    /// into view, each sent whole with the lines it says. Seen red 2026-10-04 with `snapshot_for`
+    /// listing everything: "no crew member in the far player's welcome" (left: 6).
     #[test]
     fn the_crew_are_in_view_only_near_them() {
         let mut world = GameWorld::new();

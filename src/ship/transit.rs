@@ -141,10 +141,9 @@ mod tests {
     /// 67a47bc65, v0.1456.0) reads with every piece given the id the editor would give it, the
     /// west teleporter's pair to the LADDER dropped, and the west teleporter paired with the east
     /// one, which named it: the same pieces and pairs as the shipped file now carries.
-    /// Seen red 2026-10-04 with the pair field still `Option<usize>` after the shipped file was
-    /// rewritten with ids: the shipped file no longer parsed ("invalid type: string
-    /// \"teleporter-2\", expected usize"); and, with the pair read as an id only, the fixture did
-    /// not ("invalid type: integer `5`, expected a string").
+    /// Seen red 2026-10-04 with step 2 of `settle_structures` (an index becomes the id of the piece
+    /// there) taken out: "the old home settles to the shipped pieces and pairs" (every pair of the
+    /// old home came out None).
     #[test]
     fn a_home_saved_with_index_pairs_loads() {
         let old: HomeStructure = ron::from_str::<crate::ship::ship_structure::HomeDesign>(include_str!("../../tests/fixtures/homes/homestead_pairs_by_index.ron"))
@@ -162,7 +161,8 @@ mod tests {
 
     /// Ids are stable: removing a piece leaves every other pair as it was (with list indexes, a
     /// removal shifted every pair after it, and four removers each had to fix that up), and the
-    /// id a new piece gets is never one in use.
+    /// id a new piece gets is never one in use. Seen red 2026-10-04 with `remove_structure` keeping
+    /// the pairs that named the piece it took out: "the east pad is left unpaired".
     #[test]
     fn removing_a_piece_leaves_the_other_pairs_alone() {
         let mut h = shipped_home();
