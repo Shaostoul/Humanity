@@ -423,6 +423,9 @@ impl RelayState {
         }
 
         let (broadcast_tx, _) = broadcast::channel(broadcast_capacity);
+        // The shared world's clock runs at the speed an admin set (server_settings).
+        let mut game_world = GameWorld::new();
+        game_world.time_scale = db.get_server_settings().map_or(game_world.time_scale, |s| s.world_time_scale);
         Self {
             peers: RwLock::new(HashMap::new()),
             live_conns: RwLock::new(Default::default()),
@@ -457,7 +460,7 @@ impl RelayState {
             vapid_key: None,
             server_config,
             features,
-            game_world: RwLock::new(GameWorld::new()),
+            game_world: RwLock::new(game_world),
             live: crate::relay::live::LiveRegistry::new(),
             max_connections,
             max_history,
@@ -1066,6 +1069,9 @@ pub enum RelayMessage {
         /// maximization, 2026-08-24.
         #[serde(default)]
         message_retention_days: Option<i64>,
+        /// The shared world's clock speed, game seconds per real second (2026-10-04).
+        #[serde(default)]
+        world_time_scale: Option<f64>,
     },
 
     /// Typing indicator — broadcast to show who is composing a message.

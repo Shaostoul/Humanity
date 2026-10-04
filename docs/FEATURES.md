@@ -3005,7 +3005,14 @@ hidden behind walls like the crew's; the relay always sent the name, nothing dre
 clock wins (v0.1424.0, operator decision): the relay's `game_time_sync` sets the game clock, its speed and its calendar
 (24-hour days, v0.1427.0) while the
 player is joined, crops keep their age across the jump (`time::REBASE_SLOT`), and the bed says the night can't be
-slept away there. Each other player looks like themselves (v0.1430.0 and v0.1431.0, `src/player_look.rs`): their
+slept away there. The shared world's clock runs at 72x by default (2026-10-04, operator: "let's do 72x but, make sure
+there's admin tools for me to adjust it from inside the app"): the server setting `world_time_scale`
+(`server_settings`, 1 to 1,000), changed in Server Settings > ADMIN > Shared world clock (native
+`src/gui/pages/world_clock_admin.rs`, web: the chat's Game Admin window), which says in words what the picked speed
+means from the data (a day in 20 minutes, a lettuce in about 15 hours). The relay applies it to the running world at
+once and sends a `game_time_sync` carrying `time_scale` to every game (`handlers/server_settings_update.rs`
+`set_world_clock`); a game runs at the host's speed between words (`time::HostClock`). Only the clock is scaled: the
+crew walk and do their chores in real seconds. Each other player looks like themselves (v0.1430.0 and v0.1431.0, `src/player_look.rs`): their
 skin tone, hair colour and height travel in `game_join` (clamped by the relay and the client), and their figure's head
 and a cap of hair wear them, sized by their height (`net_route::remote_figure_parts`); the body stays teal.
 - Native: `src/lib.rs` (multiplayer block, roster mirror), `src/gui/pages/hud.rs`

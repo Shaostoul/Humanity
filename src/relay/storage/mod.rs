@@ -1094,6 +1094,7 @@ impl Storage {
                 server_name               TEXT    NOT NULL DEFAULT '',
                 dm_mailbox_ttl_days       INTEGER NOT NULL DEFAULT 30,
                 message_retention_days    INTEGER NOT NULL DEFAULT 0,
+                world_time_scale          REAL    NOT NULL DEFAULT 72,
                 updated_at                INTEGER NOT NULL DEFAULT 0,
                 updated_by                TEXT
             );
@@ -1180,6 +1181,15 @@ impl Storage {
                 "ALTER TABLE server_settings ADD COLUMN message_retention_days INTEGER NOT NULL DEFAULT 0;"
             )?;
             info!("Migration: added message_retention_days (server_settings)");
+        }
+
+        // Guarded ALTER (the shared world's clock speed, 2026-10-04): 72x,
+        // the Simplified speed, until an admin sets another in Server Settings.
+        if conn.prepare("SELECT world_time_scale FROM server_settings LIMIT 0").is_err() {
+            conn.execute_batch(
+                "ALTER TABLE server_settings ADD COLUMN world_time_scale REAL NOT NULL DEFAULT 72;"
+            )?;
+            info!("Migration: added world_time_scale (server_settings)");
         }
 
 
@@ -2315,7 +2325,7 @@ mod uploads;
 mod reviews;
 mod members;
 mod server_settings;
-pub use server_settings::ServerSettings;
+pub use server_settings::{clamp_world_time_scale, default_world_time_scale, ServerSettings};
 mod roles;
 pub use roles::RoleDef;
 pub use channels::BannedUser;

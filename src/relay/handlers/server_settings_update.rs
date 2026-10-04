@@ -1,11 +1,33 @@
 //! Server settings, the admin update (v0.200.0): `server_settings_update` from Server
 //! Settings > ADMIN. Each field is optional; a missing field keeps its current value.
 //! Admin-only; on success the new `server_settings_state` goes to every client.
+//! The shared world's clock speed (`world_time_scale`) also reaches the running
+//! world and every connected game from here, with no restart (`set_world_clock`).
 //!
 //! Its own file because relay.rs is held to a line budget (tests/file_size_ratchet.rs).
 
 use crate::relay::relay::{RelayMessage, RelayState};
 use std::sync::Arc;
+
+/// Run the shared world's clock at `scale` game seconds per real second from
+/// now on, and tell every connected game at once with a `game_time_sync`, so
+/// nobody keeps the old pace until the next 5-second word (relay/mod.rs).
+/// The clock keeps its date; only how fast it runs changes. Nothing is sent
+/// when the speed is unchanged, or on a server with the game switched off.
+pub async fn set_world_clock(state: &Arc<RelayState>, scale: f64) {
+    let sync = {
+        let mut world = state.game_world.write().await;
+        if world.time_scale == scale {
+            return;
+        }
+        world.time_scale = scale;
+        world.time_sync_json()
+    };
+    tracing::info!("Shared world clock now runs at {scale}x");
+    if state.features.enabled(crate::relay::features::Feature::Game) {
+        let _ = state.broadcast_tx.send(RelayMessage::System { message: format!("__game__:{sync}") });
+    }
+}
 
 /// Apply one `server_settings_update` from `my_key` (the relay checks the role here).
 pub async fn handle(state: &Arc<RelayState>, my_key: &str, upd: RelayMessage) {
@@ -27,6 +49,7 @@ pub async fn handle(state: &Arc<RelayState>, my_key: &str, upd: RelayMessage) {
         local_channel_enabled,
         dm_mailbox_ttl_days,
         message_retention_days,
+        world_time_scale,
     } = upd else { return };
     let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
     if role != "admin" && role != "owner" {
@@ -134,8 +157,15 @@ pub async fn handle(state: &Arc<RelayState>, my_key: &str, upd: RelayMessage) {
         if let Some(v) = message_retention_days {
             current.message_retention_days = if v <= 0 { 0 } else { v.min(3650) };
         }
+        // The shared world's clock speed (2026-10-04), held to the player
+        // Time setting's 1..=1000; a value that is not a number changes nothing.
+        if let Some(v) = world_time_scale.and_then(crate::relay::storage::clamp_world_time_scale) {
+            current.world_time_scale = v;
+        }
         match state_clone.db.set_server_settings(&current, &my_key_for_recv) {
             Ok(true) => {
+                // Saved first, then the running world: a restart keeps it.
+                set_world_clock(state, current.world_time_scale).await;
                 // Broadcast new state to everyone.
                 let _ = state_clone.broadcast_tx.send(
                     RelayMessage::ServerSettingsState { settings: current }

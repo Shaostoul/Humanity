@@ -2502,6 +2502,9 @@ pub struct GuiState {
     pub game_admin_plot_key: String,
     /// Last status / error line shown on the Game Admin page.
     pub game_admin_status: String,
+    /// The speed an admin has picked in "Shared world clock" and not yet
+    /// applied (pages/world_clock_admin.rs); None follows the server's.
+    pub game_admin_clock_draft: Option<f32>,
 
     // ── The Play picker (docs/design/play-characters.md). The screen composes
     //    ONE pairing: a WHO (character) entering a WHERE (a local home world or
@@ -3882,6 +3885,7 @@ impl Default for GuiState {
             game_admin_ban_reason: String::new(),
             game_admin_plot_key: String::new(),
             game_admin_status: String::new(),
+            game_admin_clock_draft: None,
             // The Play picker (WHO/WHERE pairing)
             launcher_homes: Vec::new(),
             launcher_homes_loaded: false,

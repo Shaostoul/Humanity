@@ -1112,6 +1112,78 @@ mod tests {
         let _ = std::fs::remove_file(&path);
     }
 
+    /// The next frame on `sock`, within 10 s, that `pick` turns into a value.
+    async fn next_frame_with(sock: &mut TestSocket, pick: impl Fn(&Value) -> Option<Value>) -> Option<Value> {
+        use futures::StreamExt;
+        tokio::time::timeout(std::time::Duration::from_secs(10), async {
+            while let Some(Ok(msg)) = sock.next().await {
+                let Ok(text) = msg.into_text() else { continue };
+                let Ok(v) = serde_json::from_str::<Value>(&text) else { continue };
+                if let Some(hit) = pick(&v) {
+                    return Some(hit);
+                }
+            }
+            None
+        })
+        .await
+        .unwrap_or(None)
+    }
+
+    /// The game message a `system` frame carries (`__game__:{...}`), if it is one.
+    fn game_payload(v: &Value) -> Option<Value> {
+        let m = v.get("message")?.as_str()?.strip_prefix("__game__:")?;
+        serde_json::from_str(m).ok()
+    }
+
+    /// THE SHARED WORLD'S CLOCK, CHANGED FROM INSIDE THE APP (operator,
+    /// 2026-10-04: "let's do 72x but, make sure there's admin tools for me to
+    /// adjust it from inside the app"). A new server runs the world at 72x.
+    /// An admin's `server_settings_update` with `world_time_scale` (Server
+    /// Settings > ADMIN > Shared world clock sends exactly this) changes the
+    /// running world's clock at once and saves it, and a game in the world
+    /// hears a `game_time_sync` with the new speed straight away, not at the
+    /// next 5-second word, with the clock's date carried on. A player who is
+    /// not an admin is refused and changes nothing.
+    ///
+    /// Seen red 2026-10-04 with `set_world_clock` left out of the update
+    /// handler: "the player's game hears the new speed at once" failed after
+    /// the 10 s wait (the setting was saved, the world and the games never
+    /// heard).
+    #[tokio::test]
+    async fn a_world_clock_change_reaches_every_connected_game() {
+        let (state, port, path) = spawn_relay("world_clock", Features::all_enabled()).await;
+        assert_eq!(state.game_world.read().await.time_scale, 72.0, "a new server runs the shared world at 72x");
+        state.game_world.write().await.game_time = 5_000.0;
+
+        let (mut admin, admin_key) = bind_socket(&state, port, [61u8; 32], Some("ClockAdmin"), 1).await;
+        state.db.set_role(&admin_key, "admin").expect("make admin");
+        let (mut player, player_key) = bind_socket(&state, port, [62u8; 32], Some("ClockPlayer"), 1).await;
+        let conn = only_conn(&state, &player_key).await;
+        join_game(&state, &mut player, &player_key, conn).await;
+
+        send_json(&mut admin, serde_json::json!({ "type": "server_settings_update", "world_time_scale": 24.0 })).await;
+        let sync = next_frame_with(&mut player, |v| game_payload(v).filter(|g| g["type"] == "game_time_sync")).await;
+        let sync = sync.expect("the player's game hears the new speed at once");
+        assert_eq!(sync["time_scale"].as_f64(), Some(24.0), "the sync carries the new speed: {sync}");
+        assert!(sync["game_time"].as_f64().unwrap_or(0.0) >= 5_000.0, "the clock keeps its date: {sync}");
+        assert_eq!(state.game_world.read().await.time_scale, 24.0, "the running world's clock changed");
+        assert_eq!(state.db.get_server_settings().unwrap().world_time_scale, 24.0, "and is saved for the next start");
+
+        send_json(&mut player, serde_json::json!({ "type": "server_settings_update", "world_time_scale": 500.0 })).await;
+        let refused = next_frame_with(&mut player, |v| {
+            v.to_string().contains("Only admins can update server settings").then(|| v.clone())
+        })
+        .await;
+        assert!(refused.is_some(), "a player who is not an admin is told no");
+        assert_eq!(state.game_world.read().await.time_scale, 24.0, "and the clock is unchanged");
+        assert_eq!(state.db.get_server_settings().unwrap().world_time_scale, 24.0);
+
+        use futures::SinkExt;
+        admin.close(None).await.ok();
+        player.close(None).await.ok();
+        let _ = std::fs::remove_file(&path);
+    }
+
     /// Voice follows the same rule: the socket that joined a room holds the
     /// voice seat. A tab closing changes nothing; the voice socket closing
     /// takes the person out of the room though another socket stays open.

@@ -138,7 +138,8 @@
     // Game world
     document.getElementById('stat-game').textContent = data.game_players + ' players';
     document.getElementById('stat-game-detail').textContent =
-      data.game_entities + ' entities, t=' + (data.game_time || 0).toFixed(0) + 's';
+      data.game_entities + ' entities, t=' + (data.game_time || 0).toFixed(0) + 's' +
+      (data.game_time_scale ? ', clock at ' + data.game_time_scale + 'x' : '');
 
     // Activity chart (24 bars, one per hour)
     renderActivityChart(data.hourly_messages || []);

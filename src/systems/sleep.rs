@@ -162,8 +162,8 @@ pub fn tick(asleep: &mut Option<Asleep>, world: &mut hecs::World, data: &DataSto
 
     if let Some(place) = requested {
         // In a shared world the host's clock wins (2026-09-29): it runs at
-        // one second a second for everyone, so nobody can sleep the night
-        // away there.
+        // the server's speed for everyone (72x unless its admin set another,
+        // 2026-10-04), so nobody can sleep the night away there.
         if crate::systems::time::host_clock_active(data) {
             notice(data, format!("In a shared world everyone keeps the host's time, so the night can't be slept away here. The {place} is still yours to rest in."));
             return;
