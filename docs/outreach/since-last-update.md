@@ -11,6 +11,14 @@ Each line is written the way a player would hear it; the release notes and
 
 ## Shipped
 
+- **v0.1446.2: three new Library guides.** Estimating (pacing out a
+  distance, counting seconds to thunder, how much a drum of water weighs),
+  Keeping Records (what a useful garden, rain, maintenance or money record
+  holds, and how long to keep it), and Working Out Why Something Broke (a
+  step-by-step way to find a fault, and where to stop and call someone). Each
+  claim is backed by a public source such as the NWS, NIST, OSHA or the EPA,
+  and an independent check read every source before they shipped.
+
 - **v0.1446.0: the test tools know exactly which build they are testing
   (behind the scenes).** Every build now carries a fingerprint of the code it
   was made from, and the automatic checks refuse to test a build whose
