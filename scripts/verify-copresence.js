@@ -945,13 +945,17 @@ async function takeShots(name, onLineAt, passS, out, prefix = "") {
     const np = await ui({ action: "find", text: name });
     const requested = (Date.now() - onLineAt) / 1000;
     const s = await screenshot(`${prefix}${label}`);
+    // When the capture was done, by the computer's clock: the capture's own long frame (400+ ms
+    // on a busy machine) is the rig disturbing the drawing, so the meeting judges its walk on a
+    // forward leg after the last of them (meetChecks).
+    const taken = Date.now();
     const nameplate = np && np.found && np.text === name ? { pos_px: np.pos_px, rect_px: np.rect_px } : null;
     const npNote = np ? (np.found ? `found "${np.text}"` : "not drawn") : "no answer";
     if (s.ok) {
       fs.copyFileSync(s.src, path.join(out, `${prefix}${label}.png`));
-      shots.push({ file: `${prefix}${label}.png`, s_after_reaching_line: Number(requested.toFixed(2)), expected_along_m: Number((SPEED * requested).toFixed(2)), nameplate, nameplate_find: npNote });
+      shots.push({ file: `${prefix}${label}.png`, s_after_reaching_line: Number(requested.toFixed(2)), expected_along_m: Number((SPEED * requested).toFixed(2)), nameplate, nameplate_find: npNote, taken_epoch_ms: taken });
     } else {
-      shots.push({ file: null, error: s.error, nameplate, nameplate_find: npNote });
+      shots.push({ file: null, error: s.error, nameplate, nameplate_find: npNote, taken_epoch_ms: taken });
     }
   }
   return shots;
@@ -1014,8 +1018,30 @@ function meetChecks(m, dir) {
   for (const fr of frames) for (const p of fr.players || []) if (walker.id !== null && Number(p.id) === Number(walker.id)) walkerDrawn.push(p.pos.map(Number));
   for (const c of judgeMeet({ ...meet, walkerDrawn }).checks) checks.push(c);
   if (frames.length && meet.line) {
-    const j = judgeCopresence({ frames, walker, line: meet.line, speed: m.speed, onLineEpochMs: meet.walker ? meet.walker.on_line_epoch_ms : null, checkView: true });
-    for (const c of j.checks) checks.push({ ...c, id: `meet_${c.id}` });
+    // The walk is judged on the first forward leg AFTER the pictures (the walker walks the line
+    // back and forth): each capture holds the game for one long frame (465 ms on a busy machine,
+    // 2026-10-04), its figure buffer runs dry, and the frames after it ease back at up to 1.86 m/s
+    // for a 1.4 m/s walk. That is the rig disturbing the drawing, not the drawing; the at-home
+    // walk is judged on a forward leg the same way. A manifest with no capture times (written
+    // before this) is judged on the first pass, as it was.
+    const onLine = meet.walker ? meet.walker.on_line_epoch_ms : null;
+    const shotTimes = (meet.screenshots || []).map((s) => Number(s.taken_epoch_ms)).filter(Number.isFinite);
+    const legMs = ((2 * meet.line.radius) / m.speed) * 1000;
+    const leg = Number.isFinite(onLine) && shotTimes.length ? forwardLegStart(onLine, m.speed, meet.line.radius, Math.max(...shotTimes) + 500) : onLine;
+    const epochs = frames.map((f) => Number(f.epoch_ms)).filter(Number.isFinite);
+    const whole = Number.isFinite(leg) && epochs.length && leg + legMs + 500 <= epochs[epochs.length - 1];
+    add(
+      "leg_recorded",
+      whole,
+      Number.isFinite(leg) && epochs.length
+        ? `the judged forward leg starts ${((leg - (onLine || leg)) / 1000).toFixed(2)} s after the walker reached the line (${leg === onLine ? "the first pass: this run recorded no capture times" : "the first after the pictures"}) and lasts ${(legMs / 1000).toFixed(2)} s; the recording ran to ${((epochs[epochs.length - 1] - leg) / 1000).toFixed(2)} s past its start` +
+            (whole ? "" : ": NOT all of it inside the recording")
+        : "no time the walker reached the line, or no frame times",
+    );
+    if (whole) {
+      const j = judgeCopresence({ frames, walker, line: meet.line, speed: m.speed, onLineEpochMs: leg, fromEpochMs: leg === onLine ? null : leg, checkView: true });
+      for (const c of j.checks) checks.push({ ...c, id: `meet_${c.id}` });
+    }
   } else {
     add("recorded", false, samplesPath ? `no frames in ${rel(samplesPath)}` : "nothing was recorded at the meeting");
   }
@@ -1564,7 +1590,9 @@ async function runPlotsOnce(order, runStamp, cleanups) {
     const routeArg = wRoute.waypoints.slice(0, -1); // the line's start is where the path begins
     const routeClearOk = routeClear([wPlace.door, ...wRoute.waypoints], { start: plan.start, end: plan.end });
     const routeLen = [wPlace.door, ...wRoute.waypoints].slice(1).reduce((a, p, i, all) => a + Math.hypot(...p.map((v, k) => v - (i ? all[i - 1] : wPlace.door)[k])), 0);
-    const meetRecordS = Math.min(110, Math.ceil(10 + routeLen / MEET_ROUTE_SPEED + (2 * RADIUS) / SPEED + 8));
+    // Sign-in, the route, the first pass (the pictures), back, and the forward leg after it
+    // that the walk is judged on (meetChecks), with margins.
+    const meetRecordS = Math.min(115, Math.ceil(10 + routeLen / MEET_ROUTE_SPEED + CYCLE_S + (2 * RADIUS) / SPEED + 8));
     clearDone("remote_players_done.json");
     req("remote_players_request.json", { seconds: meetRecordS });
     step("meet_record", true, `recording ${meetRecordS} s: the walker's ${routeLen.toFixed(1)} m route through ${wRoute.doors.join(", ")} at ${MEET_ROUTE_SPEED} m/s, then the line`);
@@ -1643,6 +1671,23 @@ async function runPlotsOnce(order, runStamp, cleanups) {
     const stepped = !!(outside && outside.game_joined === false);
     step("step_out", stepped, stepped ? "the game stepped out of the shared world (solo)" : `the game did not step out: game_joined=${outside && outside.game_joined}`);
     if (!stepped) throw new Error("the game never stepped out of the shared world");
+    // EVIDENCE, not judged: out of the world (no move is sent), a picture of the neighbour's
+    // plot from the shared zone its corridor runs to, 2 m in from its mouth, looking back down
+    // the corridor at its door: the hole in the zone's wall, the corridor, and the neighbour's
+    // home drawn as the default design (increment 2, src/ship/neighbours.rs).
+    const nbr = dp.doors.find((d) => d.from.startsWith("plot:") && !(dp.places.find((p) => p.id === d.from) || {}).own);
+    if (nbr) {
+      const dir = [0, 1, 2].map((k) => nbr.mouths[1][k] - nbr.mouths[0][k]);
+      const dl = Math.hypot(dir[0], dir[2]) || 1;
+      const eye = [nbr.mouths[1][0] + (dir[0] / dl) * 2, nbr.mouths[1][1] + 1.7, nbr.mouths[1][2] + (dir[2] / dl) * 2];
+      const lookYaw = Math.atan2(-dir[0] / dl, dir[2] / dl);
+      await showcase({ cam: `${eye.join(",")},${lookYaw},0` });
+      await sleep(2500);
+      const shot = await screenshot("neighbour");
+      if (shot.ok) fs.copyFileSync(shot.src, path.join(out, "neighbour.png"));
+      manifest.neighbour_view = { door: `${nbr.from}->${nbr.to}`, eye, yaw: lookYaw, file: shot.ok ? "neighbour.png" : null, error: shot.ok ? null : shot.error };
+      step("neighbour", true, `evidence: ${shot.ok ? "neighbour.png" : `no picture (${shot.error})`}, from ${fmt(eye)} looking down ${nbr.from}'s corridor`);
+    }
     await showcase({ cam: `${farTarget.join(",")},${yaw},${pitch}` });
     await sleep(2500);
     const atFar = await probe();
