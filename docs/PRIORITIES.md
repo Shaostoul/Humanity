@@ -224,7 +224,12 @@ are never saved; `data/medical.ron` is never applied (its system is not
 registered with the game); `data/species.json` and `data/geology.ron` are not
 read by anything; farm animals have no illness, feed or water needs and do not
 breed; nothing in the game makes Scrap Metal unless the Dev page spawns its
-robots; the water pump card said 12 L/min (fixed v0.1452.1).
+robots; the water pump card said 12 L/min (fixed v0.1452.1). Also: the
+groundwater model in `hydrology.rs` is not running, so the well pump has no
+aquifer behind it; the wind turbine makes a constant 4.4 W with no wind
+model, and there is no water power; only food carried in an inventory
+spoils (the Freezer and pantry do not age food, the food data's temperature
+zones are unused, and the spoilage clock is not saved between launches).
 
 ### 1. Environment regions: the rest of the arc BUG-080 opened
 

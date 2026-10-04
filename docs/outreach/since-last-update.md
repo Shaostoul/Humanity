@@ -11,6 +11,14 @@ Each line is written the way a player would hear it; the release notes and
 
 ## Shipped
 
+- **v0.1457.3: three Library guides on water, power and keeping food
+  cold.** Wells and Groundwater (never going down a well, what to do with a
+  well after a flood, setbacks from a septic system), Water and Wind Power
+  (how much power a stream or the wind can really give, why to design for the
+  driest month, and keeping a grid-tied system from feeding the line in an
+  outage), and Cold Storage Without a Fridge (the 40 F rule, root cellars, and
+  why food never goes out in the snow). The Library now has 89 sourced guides.
+
 - **v0.1457.2: three Library guides on your body and on pests.** How Your
   Body Works (vital signs, and the emergencies where minutes count: heart
   attack, cardiac arrest, stroke, sepsis, heatstroke, carbon monoxide),
