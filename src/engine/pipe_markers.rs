@@ -1,8 +1,8 @@
 //! The pipes' marker bands in the 3D home (2026-10-04).
 //!
 //! `ship::pipe_marking` decides WHERE markers go along a routed run and WHICH colours each one
-//! carries (from the ship's scheme, ISO 14726, and the run's own connection kind: honest by
-//! construction). This file turns those bands into geometry: every band of one colour, across
+//! carries (from the ship's scheme, ISO 14726, and what the run carries, derived from the machine
+//! it leaves and its connection kind: honest by construction). This file turns those bands into geometry: every band of one colour, across
 //! every run in the home, is baked into ONE merged mesh, so the whole home's markers cost one
 //! draw per colour in use (about a dozen) however many pipes there are. Each mesh keeps its
 //! renderer slot and is replaced in place on a rebuild (a machine drag rebuilds every frame), so
@@ -66,8 +66,9 @@ pub(crate) struct BandBatch {
 
 impl BandBatch {
     /// Add the markers of one routed run (`points`, machine to machine) that carries `content`
-    /// (its connection kind) in a pipe of `pipe_radius`. A content the ship's scheme does not
-    /// mark gets none (the registry test keeps every routed content covered).
+    /// (`MachineHome::line_content`: what the machine it leaves puts out, else its connection
+    /// kind) in a pipe of `pipe_radius`. A content the ship's scheme does not mark, or marks as
+    /// deliberately unmarked, gets none (the registry test keeps every routed content covered).
     pub(crate) fn add_run(&mut self, points: &[Vec3], content: &str, pipe_radius: f32, mode: MarkingMode) {
         let reg = pipe_marking::marking();
         let Some(scheme) = reg.default_scheme() else { return };

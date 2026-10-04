@@ -11,13 +11,16 @@
 #
 # File format: RON
 # Hot-reloadable: No (read once at first use; restart to apply an edit)
-# Referenced by: the connection kinds in data/machines/*.ron (a marking row's `content`)
+# Referenced by: the connection kinds in data/machines/*.ron and the media a machine type's
+#   `outlet_media` names there (a marking row's `content`)
 # References: the conduit kinds in src/ship/conduits.rs (a material row's `kind`)
 #
 # THE RULE THESE FILES ENCODE: every published marking scheme marks the CONTENT (water, fuel,
 # air), never the pipe's material (finding F28). So a pipe's body is drawn in its material, and
-# the content's colours appear only in its marker bands. A marker is generated from the
-# connection's own kind, never typed by a player.
+# the content's colours appear only in its marker bands. A marker is generated from what the line
+# carries, never typed by a player: its connection kind, made specific only by the machine it
+# leaves (a machine type's `outlet_media`: water leaving the purifier is potable_water). A line
+# is never marked more specifically than that, so untreated water is never marked drinkable.
 
 # ---------------------------------------------------------------------------
 # marking_schemes.ron: top level
@@ -67,8 +70,8 @@ description = "The scheme's named colours: id, name, srgb (our 0-255 rendition o
 [fields.content]
 type = "string"
 required = true
-description = "The game's connection kind, the same string a connection carries in data/machines/*.ron."
-examples = ["water", "hot_water", "power", "data", "fuel"]
+description = "What the line carries: the game's connection kind (the same string a connection carries in data/machines/*.ron), or a more specific medium a machine type's `outlet_media` names for the lines leaving it."
+examples = ["water", "potable_water", "condensate", "hot_water", "power", "data", "fuel"]
 
 [fields.name]
 type = "string"
@@ -77,8 +80,13 @@ description = "The content as the scheme words it, restated (never a copied tabl
 
 [fields.main]
 type = "string"
-required = true
-description = "Colour id. Simplified mode draws this one band; full mode uses it for the outer bands."
+required = false
+description = "Colour id. Simplified mode draws this one band; full mode uses it for the outer bands. Required unless the row is `unmarked`."
+
+[fields.unmarked]
+type = "bool"
+required = false
+description = "True when the scheme deliberately leaves the content unmarked in both modes because no colour it has fits without meaning something else. The row then names no colours and its note says why (ISO 14726's food row: the standard does not cover cargo, F10)."
 
 [fields.additional]
 type = "optional string"
@@ -113,4 +121,4 @@ examples = ["(kind: \"rigid_copper\", material: \"copper\")"]
 [fields.materials]
 type = "list"
 required = true
-description = "id, name, srgb (our 0-255 rendition; converted to linear light for the renderer), metallic (0..1), roughness (0..1), note."
+description = "id, name, srgb (0-255, converted to linear light for the renderer: our rendition of a dielectric's colour, or a bare metal's MEASURED reflectance, since the shader takes a metal's F0 straight from it), metallic (0..1), roughness (0..1), note."

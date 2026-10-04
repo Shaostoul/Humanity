@@ -1923,6 +1923,16 @@ pub(crate) fn rebuild_connection_objects(state: &mut EngineState) {
     if routes.is_empty() {
         return;
     }
+    // What each route CARRIES, for its marker bands (2026-10-04 review): what the machine it
+    // leaves puts out (water leaving the purifier is potable water, leaving an air handler
+    // condensate), else its connection kind, whose marker names only the group (fresh water).
+    let contents: Vec<String> = match state.gui_state.home_machines.as_ref() {
+        Some(h) => {
+            let types = h.instance_types();
+            routes.iter().map(|(_, _, kind, from, _)| h.line_content(&types, from, kind).to_string()).collect()
+        }
+        None => routes.iter().map(|r| r.2.clone()).collect(),
+    };
     // Cached unit cylinder mesh (+Y, base at origin, radius 0.05, height 1) -- reused for every
     // conduit segment + fitting, scaled/rotated, so a rebuild never leaks.
     let cyl = match state.connection_cyl {
@@ -1968,7 +1978,7 @@ pub(crate) fn rebuild_connection_objects(state: &mut EngineState) {
     let mut placed_fittings: HashMap<(i32, i32, i32), ()> = HashMap::new();
     // The marker bands of every run, gathered per colour and uploaded once after the loop.
     let mut bands = crate::engine::pipe_markers::BandBatch::default();
-    for (a, b, kind_str, from_id, to_id) in &routes {
+    for ((a, b, kind_str, from_id, to_id), content) in routes.iter().zip(&contents) {
         let (a, b) = (*a, *b);
         let kind = crate::ship::conduits::ConduitKind::for_resource(kind_str);
         let route = crate::ship::conduits::route_conduit(a, b, kind, service_y, shell_mat, &walls);
@@ -1995,8 +2005,8 @@ pub(crate) fn rebuild_connection_objects(state: &mut EngineState) {
                 m
             }
         };
-        // The run's marker bands: generated from its own connection kind, never typed by anyone.
-        bands.add_run(&route.points, kind_str, kind.radius(), marking_mode);
+        // The run's marker bands: generated from what it carries, never typed by anyone.
+        bands.add_run(&route.points, content, kind.radius(), marking_mode);
         let rscale = kind.radius() / CYL_R;
         // The routed pipe: one cylinder per leg (up, across, across, down).
         for seg in route.points.windows(2) {

@@ -48,11 +48,12 @@ impl ConduitKind {
     }
 
     /// Map a machine-connection resource to the correct conduit. Potable water is ALWAYS rigid
-    /// copper; power is a flexible cord; data a data cable; everything fluid-ish defaults to a
-    /// flexible hose.
+    /// copper, and that includes the home's hot water (drinking water heated: the water heater
+    /// is fed from the purifier); power is a flexible cord; data a data cable; everything
+    /// fluid-ish defaults to a flexible hose.
     pub fn for_resource(resource: &str) -> ConduitKind {
         let r = resource.to_ascii_lowercase();
-        if r.contains("potable") || r == "water" || r.contains("drink") {
+        if r.contains("potable") || r == "water" || r == "hot_water" || r.contains("drink") {
             ConduitKind::RigidCopper
         } else if r.contains("power") || r.contains("electric") || r.contains("volt") {
             ConduitKind::PowerCord
@@ -205,6 +206,9 @@ mod tests {
         assert_eq!(ConduitKind::for_resource("potable_water"), ConduitKind::RigidCopper);
         assert_eq!(ConduitKind::for_resource("water"), ConduitKind::RigidCopper);
         assert_eq!(ConduitKind::for_resource("drinking water"), ConduitKind::RigidCopper);
+        // The home's hot water is drinking water heated (the heater is fed from the purifier),
+        // so the copper rule covers it once its lines carry their own kind (2026-10-04 review).
+        assert_eq!(ConduitKind::for_resource("hot_water"), ConduitKind::RigidCopper);
         assert!(ConduitKind::RigidCopper.is_rigid());
     }
 

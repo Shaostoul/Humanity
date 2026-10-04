@@ -3812,6 +3812,7 @@ mod multi_select_tests {
             power: None,
             ports: Vec::new(),
             storage: Vec::new(),
+            outlet_media: BTreeMap::new(),
             auto_recipe: None,
             irrigates: false,
             auto_keep: None,

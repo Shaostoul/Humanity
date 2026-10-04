@@ -188,6 +188,8 @@
                 ),
             ],
             storage: [],
+            // Water leaving the coil is condensate, not drinking water: its line to the cistern carries ISO 14726's condensate marker (2026-10-04).
+            outlet_media: {"water": "condensate"},
             auto_recipe: None,
             container_type: None,
             model: None,
@@ -2393,6 +2395,8 @@
             )),
             ports: [],
             storage: [],
+            // Water leaving the purifier is drinking water: its lines carry ISO 14726's potable-water marker (2026-10-04, data/piping/marking_schemes.ron).
+            outlet_media: {"water": "potable_water"},
             auto_recipe: None,
             container_type: None,
             model: None,
@@ -4472,26 +4476,26 @@
         (
             from: "water_heater_1",
             to: "kitchen_sink_1",
-            kind: "water",
+            kind: "hot_water",
             spec: Some("pex_half"),
         ),
         (
             from: "water_heater_1",
             to: "bath_sink_1",
-            kind: "water",
+            kind: "hot_water",
             spec: Some("pex_half"),
         ),
         (
             from: "water_heater_1",
             to: "shower_1",
-            kind: "water",
+            kind: "hot_water",
             spec: Some("pex_half"),
         ),
         // The washer's hot hose (2026-09-27; it had only the cold feed).
         (
             from: "water_heater_1",
             to: "washer_1",
-            kind: "water",
+            kind: "hot_water",
             spec: Some("pex_half"),
         ),
         (
@@ -4509,8 +4513,8 @@
         (
             from: "toilet_1",
             to: "septic_tank_1",
-            kind: "water",
-            spec: Some("pex_half"),
+            kind: "waste",
+            spec: None,
         ),
         // SHIP LIFE SUPPORT (2026-09-26) wiring: each air handler's fan to a
         // battery bank, its condensate line to the cistern.

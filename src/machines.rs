@@ -125,6 +125,14 @@ pub struct MachineDef {
     /// (a cistern's level is a draining number, not a static "33 days" string).
     #[serde(default)]
     pub storage: Vec<MachineStorage>,
+    /// What a line LEAVING this machine carries, by connection kind, where that is more specific
+    /// than the kind's own group (2026-10-04, pipe marking review): water leaving the purifier is
+    /// `potable_water`, water leaving an air handler's coil `condensate`. Each value is a content
+    /// id the marking schemes mark (data/piping/marking_schemes.ron). A kind with no entry carries
+    /// its group alone (a `water` line is marked fresh water), so a line is never marked more
+    /// specifically than the machine it leaves says it is (`MachineHome::line_content`).
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub outlet_media: BTreeMap<String, String>,
     /// Economy automation (v0.663): a recipe id from `data/recipes.csv` this machine runs
     /// CONTINUOUSLY against the home inventory whenever the inputs are in stock (the smelter
     /// auto-runs `smelt_iron`, the workbench `craft_hammer`). Spawns an `AutoRefine` ECS
@@ -2343,6 +2351,27 @@ impl MachineHome {
     pub fn connection_color(kind: &str) -> [f32; 4] {
         crate::ship::pipe_marking::marking().main_colour_srgb01(kind).unwrap_or([0.6, 0.6, 0.6, 1.0])
     }
+
+    /// Every placed machine's id -> its machine type (arrays expanded), for `line_content`.
+    pub fn instance_types(&self) -> std::collections::HashMap<String, String> {
+        self.all_instances().into_iter().map(|i| (i.id, i.machine)).collect()
+    }
+
+    /// What a line of connection `kind` leaving the machine `from_id` CARRIES: the content its
+    /// marker bands name (2026-10-04, pipe marking review). The source machine type's
+    /// `outlet_media` entry for `kind` when it has one (water leaving the purifier is
+    /// `potable_water`, water leaving an air handler `condensate`), else `kind` itself, whose
+    /// scheme row marks only its group. `types` is `instance_types()`; a conduit-node end
+    /// ("node:...") or an unknown id carries its kind. Derived from the machine the line leaves,
+    /// never from anything typed on the line, so the markers stay honest by construction.
+    pub fn line_content<'a>(&'a self, types: &std::collections::HashMap<String, String>, from_id: &str, kind: &'a str) -> &'a str {
+        types
+            .get(from_id)
+            .and_then(|t| self.catalog.get(t))
+            .and_then(|d| d.outlet_media.get(kind))
+            .map(String::as_str)
+            .unwrap_or(kind)
+    }
 }
 
 #[cfg(test)]
@@ -2358,10 +2387,11 @@ mod tests {
         let reg = crate::ship::pipe_marking::marking();
         let power = MachineHome::connection_color("power");
         assert_eq!(power, reg.main_colour_srgb01("power").unwrap(), "power's legend is the scheme's simplified band: {power:?}");
-        for kind in ["water", "hot_water", "air", "gas", "fuel", "data", "nutrient", "waste", "greywater", "food"] {
+        for kind in ["water", "potable_water", "condensate", "hot_water", "air", "gas", "fuel", "data", "nutrient", "waste", "greywater"] {
             assert_eq!(MachineHome::connection_color(kind), reg.main_colour_srgb01(kind).unwrap(), "{kind}");
         }
         assert_eq!(MachineHome::connection_color("no_such_utility"), [0.6, 0.6, 0.6, 1.0], "unknown stays neutral grey");
+        assert_eq!(MachineHome::connection_color("food"), [0.6, 0.6, 0.6, 1.0], "an unmarked content is neutral grey");
     }
 
     #[test]
@@ -2546,6 +2576,7 @@ mod tests {
             power: None,
             ports: Vec::new(),
             storage: Vec::new(),
+            outlet_media: BTreeMap::new(),
             auto_recipe: None,
             irrigates: false,
             auto_keep: None,
@@ -3331,7 +3362,7 @@ mod tests {
                 .sum();
             println!("{file}: household {household:.1} L a day, {fixtures_hot:.1} of it hot ({:.0}%)", fixtures_hot / household * 100.0);
             assert!((household - PER_PERSON_L_DAY * people as f32).abs() < 0.5, "{file}: the household draws {household:.1} L a day, {people} x {PER_PERSON_L_DAY}");
-            let hose = home.connections.iter().any(|c| c.kind == "water" && all.iter().any(|i| i.id == c.from && i.machine == "water_heater") && all.iter().any(|i| i.id == c.to && i.machine == "washer"));
+            let hose = home.connections.iter().any(|c| c.kind == "hot_water" && all.iter().any(|i| i.id == c.from && i.machine == "water_heater") && all.iter().any(|i| i.id == c.to && i.machine == "washer"));
             assert!(hose, "{file}: a hot hose runs from the water heater to the washer");
         }
     }

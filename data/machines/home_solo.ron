@@ -325,6 +325,8 @@
             category: "Water",
             stats: [(kind: "water", value: "+240 L/d potable", status: "ok"), (kind: "power", value: "-0.08 kWh/d", status: "ok")],
             power: Some(Consumer(watts: 13.0, priority: 2)),
+            // Water leaving the purifier is drinking water: its lines carry ISO 14726's potable-water marker (2026-10-04, data/piping/marking_schemes.ron).
+            outlet_media: {"water": "potable_water"},
         ),
         "home_water_use": (
             shape: "box", size: (0.3, 0.3, 0.3), color: (0.40, 0.60, 0.78),
@@ -827,6 +829,8 @@
                 (utility: Electricity, dir: In, label: "fan", watts: 325.0),
                 (utility: Water, dir: Out, label: "condensate"),
             ],
+            // Water leaving the coil is condensate, not drinking water: its line to the cistern carries ISO 14726's condensate marker (2026-10-04).
+            outlet_media: {"water": "condensate"},
         ),
         "air_recycler": (
             shape: "box", size: (0.8, 1.2, 0.4), color: (0.55, 0.78, 0.82),
@@ -1728,12 +1732,12 @@
         (from: "purifier_1", to: "toilet_1", kind: "water", spec: Some("pex_half")),
         (from: "purifier_1", to: "washer_1", kind: "water", spec: Some("pex_half")),
         // Hot water: the heater's first-ever HotWater consumers.
-        (from: "water_heater_1", to: "kitchen_sink_1", kind: "water", spec: Some("pex_half")),
-        (from: "water_heater_1", to: "bath_sink_1", kind: "water", spec: Some("pex_half")),
-        (from: "water_heater_1", to: "shower_1", kind: "water", spec: Some("pex_half")),
-        (from: "water_heater_1", to: "washer_1", kind: "water", spec: Some("pex_half")), // its hot hose (2026-09-27)
+        (from: "water_heater_1", to: "kitchen_sink_1", kind: "hot_water", spec: Some("pex_half")),
+        (from: "water_heater_1", to: "bath_sink_1", kind: "hot_water", spec: Some("pex_half")),
+        (from: "water_heater_1", to: "shower_1", kind: "hot_water", spec: Some("pex_half")),
+        (from: "water_heater_1", to: "washer_1", kind: "hot_water", spec: Some("pex_half")), // its hot hose (2026-09-27)
         // Black water: toilet -> septic (honest dead end for now).
-        (from: "toilet_1", to: "septic_1", kind: "water", spec: Some("copper_threequarter")),
+        (from: "toilet_1", to: "septic_1", kind: "waste", spec: None),
         // Power: washer + heater on the utility circuit.
         (from: "battery_2", to: "washer_1", kind: "power", spec: Some("cu_awg12")),
         (from: "battery_2", to: "water_heater_1", kind: "power", spec: Some("cu_awg10")),

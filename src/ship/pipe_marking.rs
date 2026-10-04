@@ -13,9 +13,13 @@
 //!   schemes (ISO 20560-1, ASME A13.1, BS 1710, DIN 2403, MIL-STD-1247D) are carried in the same
 //!   registry for the Real side, each row citing its finding.
 //!
-//! HONEST BY CONSTRUCTION: a marker's colours come from the connection's own kind (what the
-//! simulation routes through it), never from anything a player types, so nobody can label a
-//! fuel line "potable water" (findings, "What multiplayer could enforce").
+//! HONEST BY CONSTRUCTION: a marker's colours come from what the line carries, never from
+//! anything a player types, so nobody can label a fuel line "potable water" (findings, "What
+//! multiplayer could enforce"). What it carries is its connection kind, made specific only by the
+//! machine it leaves (`MachineHome::line_content`: water leaving the purifier is potable water,
+//! leaving an air handler condensate). A plain `water` line whose medium nobody knows (the
+//! cistern's untreated rain and well water) is marked with fresh water's group colour alone, so
+//! no line claims to be drinking water unless it is (2026-10-04 review).
 //!
 //! TWO MODES (the house rule for deep systems): Simplified draws one band of the main colour per
 //! marker; Full draws the scheme's whole marker, main, additional, main where the scheme has an
@@ -105,11 +109,14 @@ impl SchemeColour {
 /// How one scheme marks one content.
 #[derive(Debug, Clone, Deserialize)]
 pub struct ContentMarking {
-    /// The game's connection kind ("water", "power", ...).
+    /// What the line carries: a connection kind ("water", "power", ...) or a more specific
+    /// medium a machine's `outlet_media` names ("potable_water", "condensate").
     pub content: String,
     /// The content as the scheme words it (restated).
     pub name: String,
     /// The main colour: Simplified mode's one band, and the outer bands of the full triple.
+    /// Empty only on an `unmarked` row.
+    #[serde(default)]
     pub main: String,
     /// The additional colour (the middle band of the full triple), where the scheme has one.
     #[serde(default)]
@@ -122,13 +129,20 @@ pub struct ContentMarking {
     /// True when any part of the mapping is ours; `note` says which.
     #[serde(default)]
     pub game_choice: bool,
+    /// True when the scheme deliberately leaves this content unmarked in both modes (no colour
+    /// it has fits without meaning something else; `note` says why). It names no colours.
+    #[serde(default)]
+    pub unmarked: bool,
     #[serde(default)]
     pub note: String,
 }
 
 impl ContentMarking {
-    /// The colour ids of one marker, in order along the pipe.
+    /// The colour ids of one marker, in order along the pipe (none on an `unmarked` row).
     pub fn band_ids(&self, mode: MarkingMode) -> Vec<&str> {
+        if self.unmarked {
+            return Vec::new();
+        }
         match mode {
             MarkingMode::Simplified => vec![self.main.as_str()],
             MarkingMode::Full => {
@@ -251,6 +265,18 @@ impl MarkingSchemes {
                 }
                 if row.game_choice && row.note.trim().is_empty() {
                     out.push(format!("{}: `{}` is a game choice and must say which part is ours", s.id, row.content));
+                }
+                if row.unmarked {
+                    if !row.main.is_empty() || row.additional.is_some() || !row.bands.is_empty() {
+                        out.push(format!("{}: `{}` is unmarked and must name no colours", s.id, row.content));
+                    }
+                    if row.note.trim().is_empty() {
+                        out.push(format!("{}: `{}` is unmarked and must say why", s.id, row.content));
+                    }
+                    continue;
+                }
+                if row.main.is_empty() {
+                    out.push(format!("{}: `{}` names no main colour (an unmarked row says `unmarked: true`)", s.id, row.content));
                 }
                 for mode in [MarkingMode::Simplified, MarkingMode::Full] {
                     for id in row.band_ids(mode) {
@@ -494,29 +520,67 @@ mod tests {
         MarkingSchemes::parse(SHIPPED_MARKING_SCHEMES).expect("the shipped marking_schemes.ron parses")
     }
 
+    /// One routed line of a shipped layout: (file, from id, from machine type, to id, kind, what
+    /// it carries), the content the renderer marks it by (`MachineHome::line_content`, the call
+    /// `engine::home_meshes` makes).
+    struct RoutedLine {
+        file: &'static str,
+        from: String,
+        from_type: String,
+        to: String,
+        kind: String,
+        content: String,
+    }
+
+    fn routed_lines() -> Vec<RoutedLine> {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("machines");
+        let mut out = Vec::new();
+        for file in ["home.ron", "home_solo.ron", "ship.ron"] {
+            let home = crate::machines::MachineHome::load(&dir.join(file)).unwrap_or_else(|| panic!("data/machines/{file} loads"));
+            let types = home.instance_types();
+            let mut push = |from: String, to: String, kind: &str| {
+                let content = home.line_content(&types, &from, kind).to_string();
+                let from_type = types.get(&from).cloned().unwrap_or_default();
+                out.push(RoutedLine { file, from, from_type, to, kind: kind.to_string(), content });
+            };
+            for c in &home.connections {
+                push(c.from.clone(), c.to.clone(), &c.kind);
+            }
+            let end = |e: &crate::machines::ConduitEnd| match e {
+                crate::machines::ConduitEnd::Machine(id) => id.clone(),
+                crate::machines::ConduitEnd::Node(id) => format!("node:{id}"),
+            };
+            for e in &home.conduit_edges {
+                push(end(&e.from), end(&e.to), &e.kind);
+            }
+        }
+        out
+    }
+
     /// Every content the game routes through a pipe or cable: the utilities machines declare
-    /// ports for, every connection and conduit-edge kind in the shipped machine layouts, and the
-    /// kinds the build editor's legend has always coloured.
+    /// ports for, what every line in the shipped machine layouts carries, and the kinds the
+    /// build editor's legend has always coloured.
     fn routed_contents() -> std::collections::BTreeSet<String> {
         let mut out: std::collections::BTreeSet<String> =
             crate::utilities::Utility::ALL.iter().map(|u| u.id().to_string()).collect();
         for legend in ["water", "hot_water", "air", "gas", "fuel", "nutrient", "waste", "greywater", "power", "data"] {
             out.insert(legend.to_string());
         }
-        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("machines");
-        for file in ["home.ron", "home_solo.ron", "ship.ron"] {
-            let home = crate::machines::MachineHome::load(&dir.join(file)).unwrap_or_else(|| panic!("data/machines/{file} loads"));
-            out.extend(home.connections.iter().map(|c| c.kind.clone()));
-            out.extend(home.conduit_edges.iter().map(|e| e.kind.clone()));
-        }
+        out.extend(routed_lines().into_iter().map(|l| l.content));
         out
     }
 
     /// The registry loads, is internally sound, and the ship's scheme marks every content the
-    /// code routes, so no pipe goes unmarked.
+    /// code routes, so no pipe goes unmarked by accident. And no line is marked as something it
+    /// does not carry (2026-10-04 review): drinking water's blue, green, blue goes only on lines
+    /// leaving the purifier, never on the toilet's sewage, an air handler's condensate or the
+    /// cistern's untreated rain and well water.
     ///
     /// Seen red with the `food` row taken out of ISO 14726 (the grain the fields send to the
-    /// silo): "content `food` is routed but iso_14726 does not mark it".
+    /// silo): "content `food` is routed but iso_14726 does not mark it". The potable check was
+    /// seen red before every water line stopped being marked drinking water: "home.ron:
+    /// cistern_1 -> pump_1 (water) is marked drinking water, blue, green, blue, but leaves a
+    /// `water_tank`, not the purifier".
     #[test]
     fn shipped_marking_registry_covers_every_routed_content() {
         let reg = shipped();
@@ -530,6 +594,47 @@ mod tests {
             for mode in [MarkingMode::Simplified, MarkingMode::Full] {
                 assert!(ship.marker_colours(content, mode).is_some(), "`{content}` resolves its colours in {mode:?}");
             }
+        }
+        // ISO 14726's specific media (F12, F13): drinking water and condensate are blue with a
+        // green or a yellow middle band.
+        const POTABLE: [&str; 3] = ["blue", "green", "blue"];
+        const CONDENSATE: [&str; 3] = ["blue", "yellow", "blue"];
+        let full = |content: &str| ship.content(content).map(|r| r.band_ids(MarkingMode::Full).join(", ")).unwrap_or_default();
+        let lines = routed_lines();
+        let mut seen = std::collections::BTreeMap::<&str, usize>::new();
+        for l in &lines {
+            let bands = full(&l.content);
+            let what = format!("{}: {} -> {} ({})", l.file, l.from, l.to, l.kind);
+            if bands == POTABLE.join(", ") {
+                assert_eq!(l.from_type, "water_purifier", "{what} is marked drinking water, {bands}, but leaves a `{}`, not the purifier", l.from_type);
+            }
+            match l.from_type.as_str() {
+                "water_purifier" if l.kind == "water" => {
+                    *seen.entry("potable").or_default() += 1;
+                    assert_eq!(bands, POTABLE.join(", "), "{what} leaves the purifier: drinking water");
+                }
+                "air_handler" if l.kind == "water" => {
+                    *seen.entry("condensate").or_default() += 1;
+                    assert_eq!(bands, CONDENSATE.join(", "), "{what} is an air handler's condensate (F12, F13)");
+                }
+                "toilet" => {
+                    *seen.entry("sewage").or_default() += 1;
+                    assert_eq!(l.content, "waste", "{what} carries the toilet's black water");
+                    assert_eq!(bands, "black", "{what}: black, ISO 14726's waste group (F11)");
+                }
+                "water_heater" => {
+                    *seen.entry("hot").or_default() += 1;
+                    assert_eq!(l.content, "hot_water", "{what} carries the heater's hot water");
+                }
+                "water_tank" | "water_pump" | "aquaponic_tank" | "composter" | "irrigation_system" if l.kind == "water" => {
+                    *seen.entry("fresh").or_default() += 1;
+                    assert_eq!(bands, "blue", "{what} is untreated or used water: fresh water's group colour alone (F11)");
+                }
+                _ => {}
+            }
+        }
+        for (what, at_least) in [("potable", 2), ("condensate", 7), ("sewage", 2), ("hot", 8), ("fresh", 6)] {
+            assert!(seen.get(what).copied().unwrap_or(0) >= at_least, "sanity: the layouts route {what} lines: {seen:?}");
         }
         // Every row says where it comes from, and a game choice says so plainly.
         for s in &reg.schemes {
@@ -654,7 +759,7 @@ mod tests {
         let reg = shipped();
         let r = &reg.placement;
         let ship = reg.default_scheme().unwrap();
-        let water = ship.content("water").unwrap();
+        let water = ship.content("potable_water").expect("ISO 14726 marks drinking water");
         assert_eq!(water.band_ids(MarkingMode::Simplified), vec!["blue"], "simplified: the main colour alone");
         assert_eq!(
             water.band_ids(MarkingMode::Full),
@@ -664,22 +769,48 @@ mod tests {
         );
         assert_eq!(ship.content("power").unwrap().band_ids(MarkingMode::Full).len(), 2, "the electrical stripe pair");
         assert_eq!(ship.content("fuel").unwrap().band_ids(MarkingMode::Full), vec!["brown"], "a group colour alone");
-        // Every content: simplified is exactly one band, its main colour.
-        for row in &ship.contents {
+        assert_eq!(
+            ship.content("water").unwrap().band_ids(MarkingMode::Full),
+            vec!["blue"],
+            "water whose medium is not known carries fresh water's group colour alone, in either mode"
+        );
+        // Every marked content: simplified is exactly one band, its main colour.
+        for row in ship.contents.iter().filter(|r| !r.unmarked) {
             assert_eq!(row.band_ids(MarkingMode::Simplified), vec![row.main.as_str()], "{}", row.content);
         }
 
         // The geometry: one band, or three contiguous bands centred on the marker.
         let site = MarkerSite { s: 5.0, centre: Vec3::new(5.0, 2.7, 0.0), dir: Vec3::X, leg: 0, reason: MarkerReason::Interval };
-        let one = marker_bands(&site, &ship.marker_colours("water", MarkingMode::Simplified).unwrap(), r, 0.012);
+        let one = marker_bands(&site, &ship.marker_colours("potable_water", MarkingMode::Simplified).unwrap(), r, 0.012);
         assert_eq!(one.len(), 1);
         assert!((one[0].start.x - (5.0 - r.band_m * 0.5)).abs() < 1e-5, "a single band is centred on the marker");
-        let three = marker_bands(&site, &ship.marker_colours("water", MarkingMode::Full).unwrap(), r, 0.012);
+        let three = marker_bands(&site, &ship.marker_colours("potable_water", MarkingMode::Full).unwrap(), r, 0.012);
         assert_eq!(three.iter().map(|b| b.colour.id.as_str()).collect::<Vec<_>>(), vec!["blue", "green", "blue"]);
         assert!((three[0].start.x - (5.0 - 1.5 * r.band_m)).abs() < 1e-5, "the triple is centred on the marker");
         for w in three.windows(2) {
             assert!((w[0].start + w[0].dir * w[0].len - w[1].start).length() < 1e-5, "the bands touch end to end");
         }
         assert!(three.iter().all(|b| b.radius > 0.012), "a band sits proud of the pipe");
+    }
+
+    /// Grain on its way from the fields to the silo carries no marker in either mode
+    /// (2026-10-04 review). ISO 14726 does not cover cargo (F10) and each of its twelve main
+    /// colours already means something aboard (F11). The first version used black, borrowed from
+    /// ISO 20560-1's granulates (F15, a scheme the findings say not to mix in aboard), and black
+    /// is ISO 14726's waste, so in Simplified mode a grain line looked exactly like the sewage
+    /// line. The row stays, so leaving it unmarked is a recorded choice and not an omission.
+    ///
+    /// Seen red with the first version's row: "grain to the silo is unmarked in Simplified mode:
+    /// [\"black\"]".
+    #[test]
+    fn food_lines_are_unmarked_rather_than_marked_as_waste() {
+        let reg = shipped();
+        let ship = reg.default_scheme().unwrap();
+        let food = ship.content("food").expect("the food row exists, so leaving it unmarked is a recorded choice");
+        for mode in [MarkingMode::Simplified, MarkingMode::Full] {
+            assert_eq!(food.band_ids(mode), Vec::<&str>::new(), "grain to the silo is unmarked in {mode:?} mode: {:?}", food.band_ids(mode));
+        }
+        assert!(food.unmarked && food.game_choice && !food.note.trim().is_empty(), "the choice is recorded as ours, with its reason");
+        assert_eq!(reg.main_colour_srgb01("food"), None, "and the legend has no band colour for it");
     }
 }

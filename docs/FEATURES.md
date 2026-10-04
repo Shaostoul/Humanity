@@ -2266,10 +2266,14 @@ Pipes, hoses and cables draw their real MATERIAL (copper tube, rubber hose, a po
 cable's jacket, from `data/piping/pipe_materials.ron`), and coloured MARKER BANDS say what flows inside,
 from the ship's marking scheme, ISO 14726 (`data/piping/marking_schemes.ron`, every row citing
 `docs/reference/findings/2026-10-04-pipe-marking-standards.md`). Markers sit beside each machine, just past
-each bend and at least every 6.1 m (GSFC's 20 ft) along a run, generated from the connection's own kind,
-never typed (honest by construction). Two modes, Settings > Gameplay > Pipe markings: Simplified (one band
-of the main colour) and Full (the scheme's whole marker: potable water blue-green-blue, electrical lines
-MIL-STD-1247D's brown and orange stripes). The registry also carries ISO 20560-1, ASME A13.1, BS 1710, DIN
+each bend and never more than 6.1 m apart (GSFC's 20 ft) along a run, generated from what the line
+carries, never typed (honest by construction): its connection kind, made specific only by the machine it
+leaves (a machine type's `outlet_media`, `MachineHome::line_content`), so water leaving the purifier is
+marked drinking water, an air handler's line condensate, the toilet's line waste, and the cistern's untreated
+water fresh water's group colour alone. Grain conveyed to the silo is deliberately unmarked (ISO 14726 does not
+cover cargo). Two modes, Settings > Gameplay > Pipe markings: Simplified (one band of the main colour) and Full
+(the scheme's whole marker: potable water blue-green-blue, condensate blue-yellow-blue, electrical lines
+MIL-STD-1247D's brown and orange stripes). Copper is drawn with measured copper's reflectance. The registry also carries ISO 20560-1, ASME A13.1, BS 1710, DIN
 2403 and MIL-STD-1247D for the Real side. All bands of one colour are one merged mesh (one draw per colour).
 The build editor's utility legend reads the same scheme. Dev pin: showcase `{"pipe_marking":"full"}`.
 - Native: `src/ship/pipe_marking.rs` (registry, placement, bands), `src/ship/pipe_materials.rs`,

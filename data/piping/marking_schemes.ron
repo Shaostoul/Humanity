@@ -24,11 +24,17 @@
 //   default_scheme   the scheme aboard the ship (ISO 14726, the standard for ships)
 //   placement        where markers go along a run, and how a band is drawn
 //   schemes[].contents[]
-//     content        the game's connection kind ("water", "power", ...), the same
-//                    string a machine connection carries in data/machines/*.ron
+//     content        what the line carries: the game's connection kind ("water",
+//                    "power", ...), the same string a machine connection carries in
+//                    data/machines/*.ron, or a more specific medium a machine type's
+//                    `outlet_media` names for the lines that leave it ("potable_water"
+//                    from the purifier, "condensate" from an air handler). A line is
+//                    never marked more specifically than the machine it leaves says.
 //     name           the content as the scheme words it (restated, not quoted)
 //     main           colour id: the band SIMPLIFIED mode shows, and the outer bands
 //                    of the full-realism triple
+//     unmarked       true when the scheme deliberately leaves the content unmarked in
+//                    both modes (no main or other colours; the note says why)
 //     additional     colour id of the middle band (ISO 14726's "additional colour",
 //                    F10), where the scheme has one; full mode draws main,
 //                    additional, main
@@ -39,8 +45,10 @@
 //     game_choice    true when any part of the mapping is ours (the note says which)
 //
 // A content with no row in a scheme gets no markers under that scheme. The default
-// scheme must cover every content the game routes: the test
-// `shipped_marking_registry_covers_every_routed_content` fails otherwise.
+// scheme must cover every content the game routes, if only with an `unmarked` row
+// that records why: the test `shipped_marking_registry_covers_every_routed_content`
+// fails otherwise, and also fails if a line is marked drinking water without
+// leaving the purifier.
 (
     default_scheme: "iso_14726",
     placement: (
@@ -89,11 +97,26 @@
             contents: [
                 (
                     content: "water",
+                    name: "Fresh water",
+                    main: "blue",
+                    cite: "F11 (blue: fresh water)",
+                    note: "The group colour alone, in both modes. A water line whose specific medium the game does not know carries only this: the cistern's untreated rain and well water, the fish tanks' water, irrigation water. ISO 14726 adds an additional colour to name a specific medium (F10, F13), and marking water nobody has treated as drinking water would be a false label (findings, 'What multiplayer could enforce'; F21 notes the German rule that non-drinking lines be marked where both kinds are installed).",
+                ),
+                (
+                    content: "potable_water",
                     name: "Potable water",
                     main: "blue",
                     additional: Some("green"),
                     cite: "F11 (blue: fresh water), F12 and F13 (potable water: blue-green-blue)",
-                    note: "DIN's own summary of the standard gives this exact triple (F13).",
+                    note: "DIN's own summary of the standard gives this exact triple (F13). Carried by the water lines that leave the purifier (its outlet_media in data/machines/*.ron).",
+                ),
+                (
+                    content: "condensate",
+                    name: "Condensate",
+                    main: "blue",
+                    additional: Some("yellow"),
+                    cite: "F11 (blue: fresh water), F12 and F13 (condensate: blue-yellow-blue)",
+                    note: "DIN's summary gives this triple as its example beside potable water (F13). Carried by the water lines that leave an air handler's condensing coil (its outlet_media).",
                 ),
                 (
                     content: "hot_water",
@@ -102,7 +125,7 @@
                     additional: Some("red"),
                     cite: "F11 (blue: fresh water)",
                     game_choice: true,
-                    note: "The main colour is ISO 14726's fresh-water group. The red middle band is ours: no hot-water code was read (F12 lists examples only), and blue-red-blue was not checked against the full Table 3 for a clash (findings open question 9). Red only ever sits in the middle, never as the main colour, so it cannot read as a fire-fighting line.",
+                    note: "The main colour is ISO 14726's fresh-water group. The red middle band is ours: no hot-water code was read (F12 lists examples only), and blue-red-blue was not checked against the full Table 3 for a clash (findings open question 9). Red only ever sits in the middle, never as the main colour, so it cannot read as a fire-fighting line. Carried by the lines that leave the water heater.",
                 ),
                 (
                     content: "air",
@@ -150,11 +173,10 @@
                 (
                     content: "food",
                     name: "Harvested grain and produce",
-                    main: "black",
-                    additional: Some("white"),
-                    cite: "F15 (ISO 20560-1: black for fixed materials, powder and granulates)",
+                    unmarked: true,
+                    cite: "F10 (ISO 14726 does not apply to cargo), F11 (every main colour already has a meaning aboard)",
                     game_choice: true,
-                    note: "Ours. No ship scheme covers food conveyed from field to silo (ISO 14726 excludes cargo, F10). ISO 20560-1 marks powders and granulates black (F15), the one solids colour both ISO schemes share; aboard, black alone also means waste (F11), so full mode adds a white middle band to tell food from waste. Simplified mode cannot tell them apart.",
+                    note: "Ours: left unmarked in both modes. ISO 14726 does not cover cargo (F10), and grain conveyed from field to silo is cargo-like solids, not one of a ship's piping media; each of its twelve main colours already means something aboard (F11). The first version borrowed black from ISO 20560-1's powders and granulates (F15), but the findings say not to mix ISO 20560-1's colours in aboard, and black is ISO 14726's waste, so in Simplified mode a grain line looked exactly like the sewage line. A grain line carries no colour until the label follow-up names it in words.",
                 ),
                 (
                     content: "power",
@@ -195,6 +217,8 @@
             ],
             contents: [
                 (content: "water", name: "Water", main: "green", cite: "F15"),
+                (content: "potable_water", name: "Water", main: "green", cite: "F15"),
+                (content: "condensate", name: "Water", main: "green", cite: "F15"),
                 (content: "hot_water", name: "Water", main: "green", cite: "F15"),
                 (content: "greywater", name: "Water", main: "green", cite: "F15"),
                 (content: "air", name: "Air", main: "blue", cite: "F15"),
@@ -232,7 +256,9 @@
                 (id: "safety_orange", name: "Safety orange", srgb: (240, 100, 20), note: "Our rendition. Toxic and corrosive; black legend (F4)."),
             ],
             contents: [
-                (content: "water", name: "Potable water", main: "safety_green", cite: "F4"),
+                (content: "water", name: "Other water", main: "safety_green", cite: "F4 (potable, cooling, boiler feed and other water)"),
+                (content: "potable_water", name: "Potable water", main: "safety_green", cite: "F4"),
+                (content: "condensate", name: "Other water", main: "safety_green", cite: "F4 (potable, cooling, boiler feed and other water)"),
                 (content: "hot_water", name: "Other water", main: "safety_green", cite: "F4 (potable, cooling, boiler feed and other water)"),
                 (content: "greywater", name: "Other water", main: "safety_green", cite: "F4 (potable, cooling, boiler feed and other water)"),
                 (
@@ -273,10 +299,25 @@
             contents: [
                 (
                     content: "water",
+                    name: "Water",
+                    main: "green",
+                    cite: "F17 (green: water)",
+                    note: "The basic colour alone, which BS 1710's first method allows (F16): which supply the water comes from is not known for a generic water line.",
+                ),
+                (
+                    content: "potable_water",
                     name: "Potable water from the public supply",
                     main: "green",
                     additional: Some("auxiliary_blue"),
                     cite: "F17 (green, auxiliary blue, green)",
+                    note: "The Real side's usual case, a home's drinking water from the mains. Drinking water from a private source was not read.",
+                ),
+                (
+                    content: "condensate",
+                    name: "Water",
+                    main: "green",
+                    cite: "F17 (green: water)",
+                    note: "The basic colour alone (F16); a code colour for condensate was not read.",
                 ),
                 (
                     content: "hot_water",
@@ -320,6 +361,8 @@
             ],
             contents: [
                 (content: "water", name: "Water (group 1)", main: "green", cite: "F20"),
+                (content: "potable_water", name: "Water (group 1)", main: "green", cite: "F20"),
+                (content: "condensate", name: "Water (group 1)", main: "green", cite: "F20"),
                 (content: "hot_water", name: "Water (group 1)", main: "green", cite: "F20"),
                 (content: "greywater", name: "Water (group 1)", main: "green", cite: "F20"),
                 (content: "air", name: "Air (group 3)", main: "grey", cite: "F20"),
@@ -376,7 +419,7 @@
                     note: "The same stripes as power; only the usage word tells them apart (F22).",
                 ),
                 (
-                    content: "water",
+                    content: "potable_water",
                     name: "Drinking water",
                     main: "white",
                     cite: "F22 (4.1 a: painted white or as the procuring activity directs)",
