@@ -15,13 +15,61 @@ use std::path::Path;
 /// file shows up as a difference rather than hiding one), a file is a file, and
 /// a missing entry is skipped on both sides.
 ///
-/// data/ is deliberately absent: the game reads data/ from disk first (the
-/// embedded copies in src/embedded_data.rs are only a fallback for a bare exe)
-/// and the probe rig junctions data/ live, so a data edit needs no rebuild.
-/// Shaders are here because the first pipeline compile uses the include_str!
-/// copies. Cargo.lock is here because a dependency bump changes the binary as
-/// surely as a source edit does.
-const FINGERPRINT_INPUTS: &[&str] = &["src", "assets/shaders", "Cargo.toml", "Cargo.lock", "build.rs"];
+/// data/ as a whole is deliberately absent: the game reads data/ from disk
+/// first (the embedded copies in src/embedded_data.rs and the loaders' own
+/// include_str! fallbacks only serve a bare exe) and the probe rig junctions
+/// data/ live, so a data edit needs no rebuild. Shaders are here because the
+/// first pipeline compile uses the include_str! copies. Cargo.lock is here
+/// because a dependency bump changes the binary as surely as a source edit
+/// does.
+///
+/// After those five, the files compiled in with NO disk read on any path, so
+/// that the binary's behaviour changes only with a rebuild (BUG-133, the third
+/// gap: before they were listed, editing one left the stamp, and so the gate,
+/// saying "current" for a binary that still carried the old file). Every
+/// include_str!/include_bytes! in src/ is classified by
+/// scripts/lib/compiled-in.js, and scripts/tests/compiled-in.test.js fails on
+/// one that is neither listed here, disk-first data, test-only, nor allowlisted
+/// with a reason. As of 2026-10-03:
+///   assets/icon.ico      the exe's own icon (winres, below)
+///   assets/icon.png      the window icon (lib.rs)
+///   data/blueprints/*    the ship-structure registries (structure, zone, zone
+///                        filler, extrusion, road, corridor and lock types, wall
+///                        materials, opening styles): parsed from the embedded
+///                        copy only, and they shape the ship every rig photographs
+///   data/lighting/light_types.ron, data/lod/categories.ron,
+///   data/utilities/conduits.ron, data/reactions.json,
+///   data/performance/budget_systems.ron   the same: embedded-only registries
+///   data/fonts/NotoSans-Regular.ttf       the UI font
+///   data/release/signing_pubkeys.json     the keys updates and local hand-offs
+///                                         are verified against
+///   docs/accord/humanity_accord.md        the Accord the Humanity page shows
+const FINGERPRINT_INPUTS: &[&str] = &[
+    "src",
+    "assets/shaders",
+    "Cargo.toml",
+    "Cargo.lock",
+    "build.rs",
+    "assets/icon.ico",
+    "assets/icon.png",
+    "data/blueprints/corridor_types.ron",
+    "data/blueprints/extrusion_profiles.ron",
+    "data/blueprints/lock_types.ron",
+    "data/blueprints/opening_styles.ron",
+    "data/blueprints/road_types.ron",
+    "data/blueprints/structure_types.ron",
+    "data/blueprints/wall_materials.ron",
+    "data/blueprints/zone_filler.ron",
+    "data/blueprints/zone_types.ron",
+    "data/lighting/light_types.ron",
+    "data/lod/categories.ron",
+    "data/utilities/conduits.ron",
+    "data/reactions.json",
+    "data/performance/budget_systems.ron",
+    "data/fonts/NotoSans-Regular.ttf",
+    "data/release/signing_pubkeys.json",
+    "docs/accord/humanity_accord.md",
+];
 
 fn main() {
     // Set BUILD_VERSION for the relay module (git hash + timestamp). Display
@@ -98,9 +146,8 @@ fn write_source_stamp() {
             println!("cargo:rerun-if-changed={}", input);
         }
     }
-    // winres compiles the icon into the exe; once any rerun-if-changed line is
-    // printed cargo stops re-running this script on unlisted files, so list it.
-    println!("cargo:rerun-if-changed=assets/icon.ico");
+    // assets/icon.ico (which winres compiles into the exe) is in the list, so the
+    // loop above already asks cargo to re-run this script when it changes.
     files.sort();
     files.dedup();
 

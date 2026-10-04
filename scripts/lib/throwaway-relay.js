@@ -63,6 +63,7 @@
 
 const { spawn, execSync } = require("node:child_process");
 const fs = require("node:fs");
+const crypto = require("node:crypto");
 const os = require("node:os");
 const net = require("node:net");
 const http = require("node:http");
@@ -295,6 +296,11 @@ function assertLoopbackOnly(pid, port, platform = process.platform) {
  *   sourceExe  the build to copy and run (required).
  *   prefix     the temp folder's name prefix, e.g. "second-player-relay-test-".
  *   config     written as data/server-config.json in its folder (optional).
+ *   expectSha256  the SHA-256 of the exe the caller's freshness gate judged
+ *                 (runFreshGate's result.exe_sha256). When given, the copy must
+ *                 be those very bytes or startRelay rejects before starting it:
+ *                 a build finishing between the gate and this copy would
+ *                 otherwise run a relay nobody checked (BUG-133).
  *   healthTimeoutMs  how long to wait for /health (default 60 s).
  *   checkListening   (pid, port) => rows, throwing to refuse the relay.
  *                    Default assertLoopbackOnly; a test passes its own to
@@ -319,6 +325,7 @@ async function startRelay({
   sourceExe,
   prefix = "throwaway-relay-",
   config = null,
+  expectSha256 = null,
   healthTimeoutMs = 60000,
   checkListening = assertLoopbackOnly,
   spawnProcess = spawn,
@@ -383,6 +390,16 @@ async function startRelay({
   fs.mkdirSync(path.join(dir, "data"));
   if (config) fs.writeFileSync(path.join(dir, "data", "server-config.json"), JSON.stringify(config));
   fs.copyFileSync(sourceExe, h.exe);
+  if (expectSha256) {
+    const got = crypto.createHash("sha256").update(fs.readFileSync(h.exe)).digest("hex");
+    if (got !== expectSha256) {
+      await h.stop();
+      throw new Error(
+        `the relay copy is not the exe the freshness gate judged: the copy of ${sourceExe} hashes ${got}, ` +
+          `the judged exe ${expectSha256} (it changed in between, most likely a build finishing). Nothing was started.`,
+      );
+    }
+  }
 
   h.port = await freePort();
   h.url = `ws://127.0.0.1:${h.port}/ws`;

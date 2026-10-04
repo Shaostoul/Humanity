@@ -33,6 +33,12 @@
 // Usage:
 //   node scripts/make-clips.js [--only id,id] [--exe PATH] [--out DIR]
 //                              [--shots PATH] [--rig-defaults] [--keep-master-only]
+//                              [--allow-other-build "<reason>"]
+// THE BINARY (BUG-133): the exe must be this tree's build (the freshness gate,
+// scripts/check-fresh-exe.js), or another build on purpose with
+// --allow-other-build "<why>", recorded in the manifest as other_build; the rig
+// copy must be byte-identical to what the gate judged, and the game starts with
+// HUMANITY_NO_HANDOFF=1 so it never hands itself to a newer v*_HumanityOS.exe.
 // Exit 0 = every clip made. 1 = refused. 2 = one or more clips failed.
 //      130 = stopped by Ctrl+C, Ctrl+Break or closing the console (the game
 //            and its recording are stopped with it, see launchGame).
@@ -45,6 +51,8 @@ const MG = require("./lib/machine-guard.js");
 // The one shared lookup for the DXC shader compiler dlls (see setupRig).
 const DXC = require("./lib/dxc-dlls.js");
 const G = require("./rig-graphics.js");
+// The freshness gate and the boot-copy check (BUG-133).
+const { runFreshGate, requireBootCopy, bootRecord, otherBuildNotice } = require("./lib/src-fingerprint.js");
 
 const REPO = path.resolve(__dirname, "..");
 const args = process.argv.slice(2);
@@ -99,6 +107,9 @@ function findFfmpeg() {
 // Run from main() rather than at load, so a test harness can require this file
 // for launchGame and cutArgs without the refusals firing.
 let FFMPEG = null;
+// The freshness gate's result, and the record of a deliberate other-build run.
+let FRESH = null;
+let OTHER_BUILD = null;
 function preflight() {
   const running = MG.listInstances();
   if (running.length) {
@@ -108,6 +119,11 @@ function preflight() {
     ]);
   }
   if (!fs.existsSync(EXE)) refuse([`ERROR: exe not found: ${EXE}`, "  build one first: cargo build --features native --release"]);
+  // This tree's build, or another on purpose (--allow-other-build "<why>").
+  // Before the rig is touched, so a refusal changes nothing.
+  FRESH = runFreshGate(EXE, args, { cwd: REPO });
+  if (FRESH.status !== 0) refuse(["make-clips: REFUSED - see the freshness failure above. Nothing was booted."]);
+  OTHER_BUILD = FRESH.other_build;
   FFMPEG = findFfmpeg();
   if (!FFMPEG) refuse(["ERROR: ffmpeg not found (PATH, Settings > Media, or C:\\Apps\\ffmpeg\\bin)."]);
   let clips = JSON.parse(fs.readFileSync(SHOTS, "utf8")).clips;
@@ -150,6 +166,8 @@ function setupRig() {
   ensureJunction(path.join(RIG, "assets"), path.join(REPO, "assets"));
   killRigProcesses();
   fs.copyFileSync(EXE, path.join(RIG, "HumanityOS.exe"));
+  // What boots is the copy, so the copy must be what the gate judged.
+  requireBootCopy(path.join(RIG, "HumanityOS.exe"), FRESH, "make-clips");
   // The DXC shader compiler: without it the fallback compiler is so slow that
   // world entry outlasts every timeout (first run, 2026-09-30: four minutes of
   // silence after boot). It sits beside the exe or, for target/release, in the
@@ -454,13 +472,24 @@ async function main() {
   const clips = preflight();
   setupRig();
   fs.mkdirSync(OUT, { recursive: true });
-  const manifest = { kind: "make-clips", stamp, exe: EXE, clips: [], panics: 0 };
+  const manifest = {
+    kind: "make-clips",
+    stamp,
+    exe: EXE,
+    // Which binary these clips are of (BUG-133), and the record of a
+    // deliberate other-build run.
+    binary: bootRecord(FRESH, path.join(RIG, "HumanityOS.exe")),
+    ...(OTHER_BUILD ? { other_build: OTHER_BUILD } : {}),
+    clips: [],
+    panics: 0,
+  };
   const save = () => fs.writeFileSync(path.join(OUT, "manifest.json"), JSON.stringify(manifest, null, 2));
 
   log(`launching ${path.basename(EXE)} in the background rig`);
   game = launchGame(path.join(RIG, "HumanityOS.exe"), [], {
     cwd: RIG,
-    env: { ...process.env, HUMANITY_NO_FOCUS: "1" },
+    // HUMANITY_NO_HANDOFF: run this copy, never a newer v*_HumanityOS.exe.
+    env: { ...process.env, HUMANITY_NO_FOCUS: "1", HUMANITY_NO_HANDOFF: "1" },
   });
 
   let failed = 0;
@@ -549,6 +578,7 @@ async function main() {
   fs.writeFileSync(path.join(OUT, "clips.md"), lines.join("\n"));
   log(`${manifest.clips.filter((c) => c.ok).length}/${clips.length} clips made, ${manifest.panics} panic(s)`);
   log(`folder: ${OUT}`);
+  if (OTHER_BUILD) log(otherBuildNotice(OTHER_BUILD));
   process.exit(failed || manifest.panics ? 2 : 0);
 }
 

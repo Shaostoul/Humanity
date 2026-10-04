@@ -46,7 +46,7 @@ const { spawn, spawnSync, execSync } = require("child_process");
 const MG = require("./lib/machine-guard.js");
 // The freshness gate, run through its one runner so --allow-other-build reaches
 // it and comes back as the other_build record for the manifest (BUG-133).
-const { runFreshGate, otherBuildNotice } = require("./lib/src-fingerprint.js");
+const { runFreshGate, otherBuildNotice, allowOtherFrom } = require("./lib/src-fingerprint.js");
 
 const REPO = path.resolve(__dirname, "..");
 const args = process.argv.slice(2);
@@ -188,6 +188,11 @@ const sweepArgs = [
   "--only", RUNTIME_VANTAGES.join(","),
 ];
 if (KEEP_OPEN) sweepArgs.push("--keep-open");
+// probe-sweep runs the freshness gate itself (BUG-133: every script that
+// boots the game does), so a build this gate let through ON PURPOSE must
+// reach it with the same reason, or the sweep would refuse what was allowed.
+const allowOther = allowOtherFrom(args);
+if (allowOther !== undefined) sweepArgs.push("--allow-other-build", allowOther);
 // Forwarded so this gate can run at the settings the operator actually plays
 // at, which are heavier than the rig defaults on every axis (render_distance
 // 2000 vs 500, tree_model_distance 300 vs 120) and therefore likelier to trip a

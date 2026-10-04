@@ -86,6 +86,7 @@ function skipReason() {
   // manifest, so the record is printed with the verdict instead.
   const allow = process.env.SECOND_PLAYER_RELAY_ALLOW_OTHER_BUILD;
   const r = runFreshGate(SOURCE_EXE, allow !== undefined ? ["--allow-other-build", allow] : [], { stdio: "pipe" });
+  JUDGED_SHA256 = r.result ? r.result.exe_sha256 : null;
   const verdict = `${r.stdout}${r.stderr}`.trim();
   console.log(`second-player-relay.test: freshness of ${SOURCE_EXE} (scripts/check-fresh-exe.js):`);
   for (const line of verdict.split(/\r?\n/)) console.log(`  ${line}`);
@@ -95,6 +96,8 @@ function skipReason() {
   }
   return false;
 }
+// The hash of the exe the gate judged; the relay copy must match it (BUG-133).
+let JUDGED_SHA256 = null;
 const SKIP = skipReason();
 if (SKIP) console.log(`second-player-relay.test: SKIPPING the relay tests: ${SKIP}`);
 
@@ -152,6 +155,7 @@ describe("a scripted second player on a throwaway relay", { skip: SKIP }, () => 
     // reads data/server-config.json from its working folder.
     relay = await TR.startRelay({
       sourceExe: SOURCE_EXE,
+      expectSha256: JUDGED_SHA256,
       prefix: "second-player-relay-test-",
       config: { server_name: "second-player test relay", reconnect_grace_secs: GRACE_SECS },
     });

@@ -43,8 +43,15 @@
 //
 // Usage:
 //   node scripts/photograph-home.js [--exe PATH] [--only id,id] [--width N] [--height N] [--ab KEY]
-//                                   [--vantages PATH]
+//                                   [--vantages PATH] [--allow-other-build "<reason>"]
 // Exit 0 = every vantage captured. 1 = refused. 2 = one or more captures failed.
+//
+// THE BINARY (BUG-133): the exe must be this tree's build (the freshness gate,
+// scripts/check-fresh-exe.js, by the source stamp compiled into it), or another
+// build on purpose with --allow-other-build "<why>", recorded in the manifest as
+// other_build. The copy in the rig must be byte-identical to what the gate
+// judged, and the game starts with HUMANITY_NO_HANDOFF=1 so it runs that copy and
+// never hands itself to a newer v*_HumanityOS.exe.
 
 const fs = require("fs");
 const path = require("path");
@@ -52,6 +59,8 @@ const { spawn, execSync } = require("child_process");
 const MG = require("./lib/machine-guard.js");
 // The one shared lookup for the DXC shader compiler dlls (see setupRig).
 const DXC = require("./lib/dxc-dlls.js");
+// The freshness gate and the boot-copy check (BUG-133).
+const { runFreshGate, requireBootCopy, bootRecord, otherBuildNotice } = require("./lib/src-fingerprint.js");
 
 const REPO = path.resolve(__dirname, "..");
 const args = process.argv.slice(2);
@@ -102,6 +111,12 @@ if (ONLY) {
   if (!vantages.length) refuse([`ERROR: --only ${ONLY} matched no vantage`]);
 }
 
+// This tree's build, or another on purpose (--allow-other-build "<why>"). Before
+// the rig is touched, so a refusal changes nothing.
+const FRESH = runFreshGate(EXE, args, { cwd: REPO });
+if (FRESH.status !== 0) refuse(["photograph-home: REFUSED - see the freshness failure above. Nothing was booted."]);
+const OTHER_BUILD = FRESH.other_build;
+
 // ── rig ─────────────────────────────────────────────────────────────────────
 function ensureJunction(link, target) {
   try {
@@ -136,6 +151,8 @@ function setupRig() {
   ensureJunction(path.join(RIG, "assets"), path.join(REPO, "assets"));
   killRigProcesses();
   fs.copyFileSync(EXE, path.join(RIG, "HumanityOS.exe"));
+  // What boots is the copy, so the copy must be what the gate judged.
+  requireBootCopy(path.join(RIG, "HumanityOS.exe"), FRESH, "photograph-home");
   // The DXC dlls take boot from ~25 s to ~5 s. Without them the fallback
   // shader compiler is so slow that a rig looks broken while it is merely
   // slow, which has been misread as a regression before. They come from
@@ -207,7 +224,18 @@ const OUT = path.join(RIG, "runs", stamp);
 async function main() {
   setupRig();
   fs.mkdirSync(OUT, { recursive: true });
-  const manifest = { kind: "photograph-home", stamp, exe: EXE, size: [WIDTH, HEIGHT], shots: [], panics: 0 };
+  const manifest = {
+    kind: "photograph-home",
+    stamp,
+    exe: EXE,
+    // Which binary these pictures are of (BUG-133), and the record of a
+    // deliberate other-build run.
+    binary: bootRecord(FRESH, path.join(RIG, "HumanityOS.exe")),
+    ...(OTHER_BUILD ? { other_build: OTHER_BUILD } : {}),
+    size: [WIDTH, HEIGHT],
+    shots: [],
+    panics: 0,
+  };
   const save = () => fs.writeFileSync(path.join(OUT, "manifest.json"), JSON.stringify(manifest, null, 2));
 
   log(`launching ${path.basename(EXE)} in ${path.relative(REPO, RIG)}`);
@@ -215,7 +243,8 @@ async function main() {
     cwd: RIG,
     detached: true,
     stdio: "ignore",
-    env: { ...process.env, HUMANITY_NO_FOCUS: "1" },
+    // HUMANITY_NO_HANDOFF: run this copy, never a newer v*_HumanityOS.exe.
+    env: { ...process.env, HUMANITY_NO_FOCUS: "1", HUMANITY_NO_HANDOFF: "1" },
   });
   const pid = child.pid;
   child.unref();
@@ -353,6 +382,7 @@ async function main() {
   if (KEEP_OPEN) log(`left running (--keep-open): taskkill /PID ${pid} /T /F to close it`);
   else kill();
   log(`${manifest.shots.filter((s) => s.ok).length}/${vantages.length} captured, ${manifest.panics} panic(s)`);
+  if (OTHER_BUILD) log(otherBuildNotice(OTHER_BUILD));
   log(`evidence: ${path.relative(REPO, OUT)}`);
   process.exit(failed || manifest.panics ? 2 : 0);
 }

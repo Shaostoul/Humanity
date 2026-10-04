@@ -2819,8 +2819,45 @@ deliberate other build and the rigs record it as other_build in their
 manifests. 24 gate tests, red on the old gate (the BUG-133 case itself:
 "PASS: the binary under test is the current build" for another tree's exe).
 Side effect: build.rs now declares rerun-if-changed, so a docs or web edit no
-longer recompiles the whole crate. Still open: probe-sweep has no gate; the
-rigs copy the exe after checking it; about 30 data files are compiled in but
-not fingerprinted (embedded fallbacks). v0.1446.1: `just check-delivery` (and the DELIVERY row of
+longer recompiles the whole crate. v0.1446.1: `just check-delivery` (and the DELIVERY row of
 `just brief`) answers "does the taskbar exe hold this tree's code" from the
 same fingerprint, still ignoring the live PBR shaders and the version files.
+
+**The three gaps left open, closed (2026-10-03, follow-up):**
+1. *Every script that boots the game gates it.* probe-sweep (and so
+   verify-runtime's sweep, which now forwards --allow-other-build), photograph-home,
+   make-clips and boot-timing run runFreshGate before they touch their rig, and
+   record `binary` (and `other_build` for a deliberate other-build run) in
+   their manifests, like the verify-* rigs. An archive or another worktree's
+   exe needs --allow-other-build "<why>". `just probe-sweep` and `just clips`
+   pass their arguments with positional-arguments so a quoted reason arrives
+   whole. `just launch`/`just play` (scripts/archive-build.js) stay ungated on
+   purpose: they boot an archive for the operator to play and verify nothing.
+2. *The binary that boots is the one checked.* The gate records the SHA-256 of
+   the bytes it judged; after copying the exe into its rig every rig calls
+   requireBootCopy, which refuses (nothing booted) unless the copy is
+   byte-identical, and the throwaway relay does the same with expectSha256.
+   find_newer_exe had no switch; it now returns at once when
+   HUMANITY_NO_HANDOFF is set (every rig and `just launch-bg` set it) or a
+   portable.txt sits beside the exe (every rig writes one, and a portable
+   instance handed to an exe elsewhere would also leave its own storage):
+   release_update::handoff_block_reason, unit-tested. probe-sweep also reports
+   a game that exits before boot finishes as such (code 0 that early is a
+   hand-off by a build from before the switch) instead of a 3-minute timeout.
+3. *Compiled-in files.* scripts/lib/compiled-in.js finds every
+   include_str!/include_bytes! in src/, follows the bytes to every reader, and
+   classifies each target: fingerprinted, the stamp, test-only, data read
+   disk-first (every read sits in a fn that reads the disk first, or is a
+   reviewed fallback on FALLBACK_SITES), or allowlisted with a reason;
+   scripts/tests/compiled-in.test.js fails on anything else (red first on 26
+   files). The 18 compiled-in-only files that change behaviour (the nine
+   ship-structure registries in data/blueprints, light types, LOD categories,
+   conduits, reactions, the performance budget, the UI font, the release
+   signing keys, the Accord text, the window icon) and assets/icon.ico went
+   into FINGERPRINT_INPUTS: 580 files, 19.0 MB, build script about 0.95 s
+   before; 599 files after (the timing is in the commit). Seven embedded-only
+   reads of data that is otherwise disk-first were made disk-first instead,
+   so editing items.csv, item_profiles.ron, food_system.ron, the star
+   catalogs or harvest_windows.ron still needs no rebuild: the inventory's
+   item details, its Eat and Drink buttons, the Maps page's stars, and the
+   self-sufficiency figure had each been ignoring the data folder.

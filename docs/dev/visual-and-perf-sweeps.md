@@ -63,10 +63,13 @@ and list the `regressions` the vantage guards against.
 regressions vary per scene. Windows throttles occluded/unfocused windows, and
 a busy compositor (browser pane, OBS) can halve presentation. Discriminate in
 one command: sweep the previous archived exe
-(`just probe-sweep --exe vX.Y.Z_HumanityOS.exe --only blue-marble-12000km`) -
+(`just probe-sweep --exe vX.Y.Z_HumanityOS.exe --only blue-marble-12000km
+--allow-other-build "env control: does the old build read the same cap?"`) -
 if it reads the same capped number, the environment is the cause and the new
 build is exonerated (proven 2026-07-24: v0.931.1 and v0.932.1 both read
-exactly 30 with the browser pane open, vs 74-120 on a free desktop).
+exactly 30 with the browser pane open, vs 74-120 on a free desktop). The
+flag is required since BUG-133: probe-sweep runs the freshness gate first, and
+an archive is another tree's build; the manifest records it as `other_build`.
 
 ## Gotcha (rig)
 

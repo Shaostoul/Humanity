@@ -125,6 +125,14 @@ const VERSION: &str = env!("CARGO_PKG_VERSION");
 /// Returns the path if a newer version is found.
 #[cfg(feature = "native")]
 fn find_newer_exe() -> Option<std::path::PathBuf> {
+    // A boot that is verifying THIS binary (every rig, `just launch-bg`: the
+    // HUMANITY_NO_HANDOFF env var) or a portable instance (portable.txt beside
+    // the exe) never hands off: the binary that runs must be the one that was
+    // checked (BUG-133). See release_update::handoff_block_reason.
+    if let Some(why) = humanity_engine::release_update::handoff_blocked_now() {
+        eprintln!("Not looking for a newer local build: {why}");
+        return None;
+    }
     let bin_dir = binaries_dir()?;
     let current = parse_version(VERSION)?;
     let current_exe = std::env::current_exe().ok()?;

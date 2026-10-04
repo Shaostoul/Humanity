@@ -86,7 +86,7 @@ function writeJson(obj) {
   fs.writeFileSync(JSON_OUT, JSON.stringify({ exe: EXE, tree_root: TREE, ...obj }, null, 2));
 }
 function refuse(lines, extra = {}) {
-  writeJson({ ok: false, verdict: "refused", exe_fingerprint: null, tree_fingerprint: null, other_build: null, ...extra });
+  writeJson({ ok: false, verdict: "refused", exe_fingerprint: null, tree_fingerprint: null, other_build: null, exe_sha256: null, ...extra });
   console.error("");
   for (const l of lines) console.error(l);
   console.error("");
@@ -156,6 +156,11 @@ const record = {
   exe_fingerprint: v.exe_fingerprint,
   tree_fingerprint: v.tree_fingerprint,
   other_build: v.other_build,
+  // The hash of the exact bytes judged. A rig copies the exe into its own
+  // folder AFTER this check; it compares the copy with this before booting it
+  // (src-fingerprint.js checkBootCopy), so a build finishing in between cannot
+  // put an unjudged binary in the rig.
+  exe_sha256: exeInfo.sha256,
 };
 
 if (v.verdict === "refused") {

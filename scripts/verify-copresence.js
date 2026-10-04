@@ -76,7 +76,7 @@ const { judgeCopresence, LIMITS, figurePixels, FIGURE_MIN_PX } = require("./lib/
 const png = require("./lib/png.js");
 // The freshness gate, run through its one runner so --allow-other-build reaches
 // it and comes back as the manifest's other_build record (BUG-133).
-const { runFreshGate, otherBuildNotice } = require("./lib/src-fingerprint.js");
+const { runFreshGate, otherBuildNotice, requireBootCopy, bootRecord } = require("./lib/src-fingerprint.js");
 
 const REPO = path.resolve(__dirname, "..");
 const args = process.argv.slice(2);
@@ -335,6 +335,8 @@ function setupRig() {
     execSync("ping -n 3 127.0.0.1 >nul", { shell: "cmd.exe" });
     fs.copyFileSync(EXE, RIG_EXE);
   }
+  // What boots is the copy, so the copy must be what the gate judged (BUG-133).
+  requireBootCopy(RIG_EXE, fresh, "verify-copresence");
   // The DXC shader compiler dlls, from beside the exe or else the repo root
   // (target/release has none; the repo root does). Without them the game
   // falls back to FXC, and on 2026-10-03 this rig's first run sat in FXC's
@@ -420,6 +422,8 @@ function gameEnv() {
   const env = {};
   for (const [k, v] of Object.entries(process.env)) if (!k.toUpperCase().startsWith("HUMANITY_")) env[k] = v;
   env.HUMANITY_NO_FOCUS = "1";
+  // Run this copy, never a newer v*_HumanityOS.exe it could hand off to (BUG-133).
+  env.HUMANITY_NO_HANDOFF = "1";
   return env;
 }
 
@@ -434,6 +438,7 @@ async function main() {
     kind: "verify-copresence",
     stamp,
     exe: EXE,
+    binary: bootRecord(fresh, RIG_EXE),
     ...(OTHER_BUILD ? { other_build: OTHER_BUILD } : {}),
     rig: RIG,
     pose: POSE,
@@ -511,6 +516,8 @@ async function main() {
     // ── 2. The throwaway relay.
     relay = await TR.startRelay({
       sourceExe: EXE,
+      // Its copy must be the bytes the gate judged, like the rig's (BUG-133).
+      expectSha256: fresh.result && fresh.result.exe_sha256,
       prefix: "verify-copresence-relay-",
       config: { server_name: "verify-copresence relay" },
     });

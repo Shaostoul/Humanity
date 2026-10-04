@@ -391,9 +391,18 @@ fn garden_medium_editor(
     });
 }
 
-/// Parse item data from embedded CSV to get details for a given item_id.
+/// data/items.csv, read once: the data folder's copy first, the copy built
+/// into the exe when there is none. (2026-10-03: this read the built-in copy
+/// only, so an items.csv edit changed nothing here until a rebuild, and the
+/// source stamp, BUG-133, could not see that the binary was behind.)
+fn items_csv() -> &'static str {
+    static TEXT: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    TEXT.get_or_init(|| crate::embedded_data::read_data_or_embedded(&crate::data_dir(), "items.csv").unwrap_or_default())
+}
+
+/// Parse item data from items.csv to get details for a given item_id.
 fn lookup_item_details(item_id: &str) -> Option<ItemDetails> {
-    let csv = crate::embedded_data::ITEMS_CSV;
+    let csv = items_csv();
     for line in csv.lines() {
         if line.starts_with('#') || line.starts_with("id,") || line.is_empty() {
             continue;

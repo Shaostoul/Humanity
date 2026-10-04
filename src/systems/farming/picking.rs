@@ -154,11 +154,20 @@ impl HarvestWindows {
         Self::shipped().clone()
     }
 
-    /// The shipped copy, parsed once (for the pure models, such as
-    /// self_sufficiency's food supply, that have no DataStore).
+    /// The shipped copy, parsed once: `load`'s fallback, and the DataStore
+    /// readers' when nothing registered the data (tests).
     pub fn shipped() -> &'static Self {
         static SHIPPED: OnceLock<HarvestWindows> = OnceLock::new();
         SHIPPED.get_or_init(|| Self::parse(HARVEST_WINDOWS_RON).expect("the shipped data/garden/harvest_windows.ron parses"))
+    }
+
+    /// `load` (the data folder's copy first), done once, for the pure models
+    /// with no DataStore, such as self_sufficiency's food supply. 2026-10-03:
+    /// that model read `shipped` and so ignored an edited file until a
+    /// rebuild, which the source stamp (BUG-133) could not see.
+    pub fn current() -> &'static Self {
+        static CURRENT: OnceLock<HarvestWindows> = OnceLock::new();
+        CURRENT.get_or_init(Self::load)
     }
 
     /// How this plant is harvested; a plant not listed is harvested once.

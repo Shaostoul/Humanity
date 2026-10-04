@@ -242,3 +242,50 @@ test("a relay the check refuses is stopped, its folder removed, and the error go
   assert.ok(stoppedFirst, "a refused relay is stopped before the error goes up");
   assert.ok(dirGoneFirst, "and its folder is removed");
 });
+
+// ── The copy is the judged exe (BUG-133) ──
+// A rig gates the exe, then startRelay() copies it: a build finishing in
+// between would run a relay nobody checked. With expectSha256 (the hash the
+// gate recorded) the copy must be those bytes.
+// Red first, 2026-10-03, against the startRelay() before expectSha256:
+//   AssertionError [ERR_ASSERTION]: a copy that is not the judged exe must be
+//   refused (it resolved instead)
+test("a relay copy that is not the exe the gate judged is refused before anything starts", async () => {
+  const seen = {};
+  let h = null;
+  let err = null;
+  try {
+    h = await TR.startRelay({
+      sourceExe: __filename,
+      prefix: "throwaway-relay-selftest-",
+      healthTimeoutMs: 20000,
+      expectSha256: "0".repeat(64),
+      spawnProcess: standIn(seen),
+    });
+  } catch (e) {
+    err = e;
+  }
+  if (h) await h.stop();
+  if (seen.child) {
+    seen.child.kill();
+    await exitedOrGone(seen.child);
+  }
+  assert.ok(err, "a copy that is not the judged exe must be refused (it resolved instead)");
+  assert.match(err.message, /not the exe the freshness gate judged/);
+  assert.ok(!seen.child, "nothing was started");
+
+  // The judged bytes pass.
+  const crypto = require("node:crypto");
+  const ok = await TR.startRelay({
+    sourceExe: __filename,
+    prefix: "throwaway-relay-selftest-",
+    healthTimeoutMs: 20000,
+    expectSha256: crypto.createHash("sha256").update(fs.readFileSync(__filename)).digest("hex"),
+    spawnProcess: standIn({}),
+  });
+  try {
+    assert.ok(ok.health, "the judged copy starts");
+  } finally {
+    await ok.stop();
+  }
+});

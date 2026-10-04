@@ -82,7 +82,7 @@ const MG = require("./lib/machine-guard.js");
 const DXC = require("./lib/dxc-dlls.js");
 // The freshness gate, run through its one runner so --allow-other-build reaches
 // it and comes back as the manifest's other_build record (BUG-133).
-const { runFreshGate, otherBuildNotice } = require("./lib/src-fingerprint.js");
+const { runFreshGate, otherBuildNotice, requireBootCopy, bootRecord } = require("./lib/src-fingerprint.js");
 
 const REPO = path.resolve(__dirname, "..");
 const args = process.argv.slice(2);
@@ -465,6 +465,8 @@ function setupRig() {
     execSync("ping -n 3 127.0.0.1 >nul", { shell: "cmd.exe" });
     fs.copyFileSync(EXE, path.join(RIG, "HumanityOS.exe"));
   }
+  // What boots is the copy, so the copy must be what the gate judged (BUG-133).
+  requireBootCopy(path.join(RIG, "HumanityOS.exe"), fresh, "verify-screens");
   // The DXC shader compiler dlls, from beside the exe or else the repo root
   // (target/release has none; the repo root does). One shared lookup,
   // scripts/lib/dxc-dlls.js, which logs which folder it used or that it
@@ -563,6 +565,7 @@ async function main() {
     kind: "verify-screens",
     stamp,
     exe: EXE,
+    binary: bootRecord(fresh, path.join(RIG, "HumanityOS.exe")),
     ...(OTHER_BUILD ? { other_build: OTHER_BUILD } : {}),
     rig: RIG,
     config: cfgPath,
@@ -600,8 +603,9 @@ async function main() {
     stdio: "ignore",
     // Background boot, never the operator's focus. The take-focus env var is
     // the operator's own opt-in (src/engine/launch_focus.rs) and is never set
-    // by a script.
-    env: { ...process.env, HUMANITY_NO_FOCUS: "1" },
+    // by a script. HUMANITY_NO_HANDOFF: run this copy, never a newer
+    // v*_HumanityOS.exe (BUG-133).
+    env: { ...process.env, HUMANITY_NO_FOCUS: "1", HUMANITY_NO_HANDOFF: "1" },
   });
   const pid = child.pid;
   fs.writeFileSync(path.join(RIG, "probe_pid.txt"), String(pid));

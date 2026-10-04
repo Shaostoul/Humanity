@@ -16,6 +16,18 @@
 //                               [--only id1,id2] [--keep-open] [--no-refresh]
 //                               [--width PX] [--shipped-assets] [--game-only]
 //                               [--operator-config [--operator-config-path F]]
+//                               [--allow-other-build "<reason>"]
+//
+// THE BINARY (BUG-133): before anything else, the exe goes through the
+//   freshness gate (scripts/check-fresh-exe.js, via runFreshGate): it must be
+//   this tree's build, by the source stamp compiled into it. An archive
+//   (v*_HumanityOS.exe) or another worktree's exe is refused unless
+//   --allow-other-build "<why>" says the run is about that other build on
+//   purpose (an A/B, a red check, an environment control); the gate says so
+//   loudly and the manifest records it as other_build. After the exe is copied
+//   into the rig, the copy must be byte-identical to what the gate judged
+//   (requireBootCopy), and the game is started with HUMANITY_NO_HANDOFF=1 so
+//   it cannot hand itself to a newer v*_HumanityOS.exe (src/main.rs).
 //
 // --game-only: before booting, wait only for other HumanityOS instances (the
 //   one-GPU rule), not for builds. For a boot check whose only question is
@@ -81,6 +93,9 @@ const DXC = require("./lib/dxc-dlls.js");
 // coordinates (BUG-132)? Before this check a station vantage was "ok"
 // whatever it captured, including empty space.
 const SP = require("./lib/station-park-check.js");
+// The freshness gate and the boot-copy check (BUG-133), through their one
+// runner so --allow-other-build reaches the gate and comes back as a record.
+const { runFreshGate, requireBootCopy, bootRecord, otherBuildNotice } = require("./lib/src-fingerprint.js");
 
 const REPO = path.resolve(__dirname, "..");
 const args = process.argv.slice(2);
@@ -162,6 +177,10 @@ const OUT = path.resolve(opt("--out", path.join(RIG, "sweeps", stamp)));
 const DEBUG = path.join(RIG, "debug");
 const LOG = path.join(RIG, "logs", "run.log");
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+// The freshness gate's result (set first thing in main(), before the rig is
+// touched) and, when --allow-other-build let another build through, its record.
+let FRESH = null;
+let OTHER_BUILD = null;
 
 function log(msg) {
   console.log(`[sweep] ${msg}`);
@@ -301,7 +320,13 @@ function setupRig() {
     // sweep from target/release booted on FXC whenever the rig folder held
     // no pair left from an earlier copy.
     DXC.copyDxcDlls({ exe: EXE_SRC, repo: REPO, dest: RIG, log });
+  } else {
+    log("--no-refresh: booting the rig's existing exe, which must still be the exact file the gate judged");
   }
+  // The copy is what boots, so the copy is what must match (BUG-133): the gate
+  // judged EXE_SRC moments ago, and a build finishing since would have put
+  // different bytes here.
+  requireBootCopy(path.join(RIG, "HumanityOS.exe"), FRESH, "probe-sweep");
 }
 
 // Kill every process whose executable IS the rig's exe copy. Safe by
@@ -362,13 +387,23 @@ function checkStationPark(v, done, rec, label, misses) {
   if (!verdict.ok) misses.push(`${label}: ${verdict.message}`);
 }
 
-async function waitBoot(timeoutMs) {
+async function waitBoot(timeoutMs, exited = () => null) {
   const t0 = Date.now();
   while (Date.now() - t0 < timeoutMs) {
     if (fs.existsSync(LOG)) {
       const txt = fs.readFileSync(LOG, "utf8");
       if (/PANIC/.test(txt)) throw new Error("probe PANIC during boot (see run.log)");
       if (/Cloud noise volumes generated/.test(txt)) return true;
+    }
+    const gone = exited();
+    if (gone) {
+      throw new Error(
+        `the game ${gone} before it finished booting` +
+          (/code 0$/.test(gone)
+            ? ": a clean exit this early is what a hand-off to a newer v*_HumanityOS.exe looks like" +
+              " (src/main.rs find_newer_exe), so the build that ran was not the one checked"
+            : " (see run.log)")
+      );
     }
     await sleep(1000);
   }
@@ -543,6 +578,19 @@ async function main() {
     process.exit(1);
   }
 
+  // ── THE BINARY, BEFORE ANYTHING IS TOUCHED (BUG-133) ──────────────────────
+  // This tree's build, by its source stamp; or another build ON PURPOSE with
+  // --allow-other-build "<why>" (an archive for an A/B or a red check, another
+  // worktree's exe), which the gate prints loudly and the manifest records as
+  // other_build. Before the machine wait and before the rig: a refusal costs
+  // nothing and changes nothing.
+  FRESH = runFreshGate(EXE_SRC, args, { cwd: REPO });
+  if (FRESH.status !== 0) {
+    console.error("probe-sweep: REFUSED - see the freshness failure above. Nothing was booted.");
+    process.exit(1);
+  }
+  OTHER_BUILD = FRESH.other_build;
+
   // ── ONE MACHINE, BEFORE THE BOOT ──────────────────────────────────────────
   // Bounded wait for anyone else's renderer OR build to leave. The rig exe is
   // declared "ours" so a leftover of our own (which setupRig kills a moment
@@ -597,7 +645,21 @@ async function main() {
     // app RUNS, and a sweep boots-captures-exits, so without this every sweep
     // renders the shader as it was at the last cargo build - which silently
     // invalidated a full day of cloud measurements before a control caught it.
-    env: { ...process.env, HUMANITY_NO_FOCUS: "1", HUMANITY_SHADERS_FROM_DISK: "1" },
+    // HUMANITY_NO_HANDOFF: run THIS exe, the one the gate and the copy check
+    // judged, never a newer v*_HumanityOS.exe it would otherwise hand off to
+    // (src/main.rs find_newer_exe; the rig's portable.txt blocks it too).
+    env: { ...process.env, HUMANITY_NO_FOCUS: "1", HUMANITY_SHADERS_FROM_DISK: "1", HUMANITY_NO_HANDOFF: "1" },
+  });
+  // An exit before boot finishes is reported as one, rather than as a three-
+  // minute "did not finish booting" (and a spawn error no longer crashes node).
+  // Code 0 straight after launch is the shape of a hand-off to another exe,
+  // which only a build from before HUMANITY_NO_HANDOFF can still do.
+  let earlyExit = null;
+  child.on("exit", (code, signal) => {
+    earlyExit = signal ? `was ended by ${signal}` : `exited with code ${code}`;
+  });
+  child.on("error", (e) => {
+    earlyExit = `could not be started (${e.message})`;
   });
   const pid = child.pid;
   // Ownership, handed to the guard around every capture: our spawned pid PLUS
@@ -635,7 +697,7 @@ async function main() {
   const results = [];
   try {
     log("waiting for boot...");
-    await waitBoot(180000);
+    await waitBoot(180000, () => earlyExit);
     log("entering world (autopilot)...");
     clearDone("autopilot_done.json");
     req("autopilot_request.json", { server_url: "" });
@@ -1095,6 +1157,11 @@ async function main() {
     stamp,
     exe: EXE_SRC,
     rig: RIG,
+    // WHICH BINARY (BUG-133): what the freshness gate judged, the copy that
+    // booted (byte-identical, checked), and, for a deliberate other-build run,
+    // the --allow-other-build record. verify-runtime reads other_build from here.
+    binary: bootRecord(FRESH, path.join(RIG, "HumanityOS.exe")),
+    ...(OTHER_BUILD ? { other_build: OTHER_BUILD } : {}),
     shipped_assets: SHIPPED_ASSETS,
     shipped_ok,
     expect_w: EXPECT_W || null,
@@ -1124,6 +1191,7 @@ async function main() {
   fs.writeFileSync(path.join(OUT, "manifest.json"), JSON.stringify(manifest, null, 2));
   log(`manifest -> ${path.join(OUT, "manifest.json")}`);
   log(`captured ${manifest.captured}/${manifest.total}, panics=${panics}`);
+  if (OTHER_BUILD) log(otherBuildNotice(OTHER_BUILD));
   // Loud at the END too: the tail of the log is what an agent or a tired
   // operator actually reads before writing a number down.
   if (manifest.contaminated) {
