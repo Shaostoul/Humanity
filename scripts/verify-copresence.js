@@ -707,28 +707,8 @@ async function main() {
     // button by its text, click it (the default, Private, is already
     // selected), then make sure the window is gone. A rig sandbox that
     // already answered it in an earlier run simply finds nothing to click.
-    const cleared = [];
-    let viewOk = true;
-    for (const label of FIRST_RUN_BUTTONS) {
-      const f = await ui({ action: "find", text: label });
-      if (!f || f.ok !== true) {
-        viewOk = false;
-        cleared.push(`could not ask about "${label}": ${JSON.stringify(f)}`);
-        continue;
-      }
-      if (!f.found || f.text !== label) {
-        cleared.push(`"${label}" not on screen`);
-        continue;
-      }
-      await ui({ action: "click", pos: f.pos_px });
-      await sleep(800);
-      const again = await ui({ action: "find", text: label });
-      const gone = !!(again && again.ok === true && !(again.found && again.text === label));
-      viewOk = viewOk && gone;
-      cleared.push(gone ? `clicked "${label}" at ${fmt(f.pos_px)} px; its window is gone` : `clicked "${label}" but it is STILL drawn`);
-    }
-    manifest.steps_ok.view = { ok: viewOk, detail: cleared.join("; ") };
-    step("view", viewOk, manifest.steps_ok.view.detail);
+    manifest.steps_ok.view = await clearFirstRunWindows();
+    step("view", manifest.steps_ok.view.ok, manifest.steps_ok.view.detail);
 
     // ── 6 + 7. Start recording, then start the walker.
     clearDone("remote_players_done.json");
@@ -913,6 +893,37 @@ const MEET_STEP_M = 40;
  *  a brisk walk, so the route does not take a minute of the run. */
 const MEET_ROUTE_SPEED = 3;
 
+/** A clear view: answer every first-run window drawn over the middle of the
+ *  screen (FIRST_RUN_BUTTONS) the way a person would, by finding its button by
+ *  its text and clicking it, then check it is gone. A sandbox that answered it in
+ *  an earlier run finds nothing to click. Returns { ok, detail }. (Shared by the
+ *  default rig's step 5b and the meeting in the Commons: on the first --plots run
+ *  of increment 2 the autopilot's walker-first game had never been asked, and both
+ *  pictures of the meeting showed the privacy window and 0 teal pixels.) */
+async function clearFirstRunWindows() {
+  const cleared = [];
+  let ok = true;
+  for (const label of FIRST_RUN_BUTTONS) {
+    const f = await ui({ action: "find", text: label });
+    if (!f || f.ok !== true) {
+      ok = false;
+      cleared.push(`could not ask about "${label}": ${JSON.stringify(f)}`);
+      continue;
+    }
+    if (!f.found || f.text !== label) {
+      cleared.push(`"${label}" not on screen`);
+      continue;
+    }
+    await ui({ action: "click", pos: f.pos_px });
+    await sleep(800);
+    const again = await ui({ action: "find", text: label });
+    const gone = !!(again && again.ok === true && !(again.found && again.text === label));
+    ok = ok && gone;
+    cleared.push(gone ? `clicked "${label}" at ${fmt(f.pos_px)} px; its window is gone` : `clicked "${label}" but it is STILL drawn`);
+  }
+  return { ok, detail: cleared.join("; ") };
+}
+
 /** The game's door points (debug/door_points_request.json, src/ship/door_points.rs). */
 async function doorPointsOf() {
   clearDone("door_points_done.json");
@@ -993,6 +1004,8 @@ function meetChecks(m, dir) {
     return checks;
   }
   add("camera_parked", s.meet_camera && s.meet_camera.ok, s.meet_camera ? s.meet_camera.detail : "never parked");
+  // (A manifest from before the view was cleared at the meeting has no record: judged by the pictures alone.)
+  if (s.meet_view) add("view_clear", s.meet_view.ok, s.meet_view.detail);
   add("route_clear", meet.route_clear, `the walker's route ${(meet.walker_route || []).map((p) => `(${p.map((v) => Number(v).toFixed(1)).join(", ")})`).join(" -> ")} ${meet.route_clear ? "never runs along the line" : "RUNS ALONG THE LINE and could pass for the walk"}`);
   const samplesPath = meet.samples ? path.join(dir, meet.samples) : null;
   const frames = samplesPath && fs.existsSync(samplesPath) ? JSON.parse(fs.readFileSync(samplesPath, "utf8")).frames || [] : [];
@@ -1529,6 +1542,9 @@ async function runPlotsOnce(order, runStamp, cleanups) {
         : "the game never reported its camera",
     };
     step("meet_cam", parked, manifest.steps_ok.meet_camera.detail);
+    // A clear view of the line before the walker comes (the first-run privacy window).
+    manifest.steps_ok.meet_view = await clearFirstRunWindows();
+    step("meet_view", manifest.steps_ok.meet_view.ok, manifest.steps_ok.meet_view.detail);
     // Where the relay held the game when it got there: the last of its moves the
     // walker at home saw (any entity but the walker's own).
     const gameSeen = seenSince(markGame, null, manifest.walker.id);
