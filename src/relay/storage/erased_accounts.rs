@@ -122,6 +122,17 @@ pub fn erase_memory_sentence(days: i64) -> String {
     )
 }
 
+/// What `redeem_link_code_unless_erased` did.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum LinkRedeemed {
+    /// The key is now registered under this name (and has the code creator's role).
+    Linked(String),
+    /// No such code, or it expired: nothing written.
+    NoSuchCode,
+    /// This relay remembers the key erasing its account here: nothing written, the code kept.
+    ErasedHere,
+}
+
 impl Storage {
     /// The fingerprint `key` is remembered under on this relay.
     pub fn erased_account_fingerprint(&self, key: &str) -> String {
@@ -207,6 +218,24 @@ impl Storage {
                 return Ok(false);
             }
             super::members::join_server_on(conn, key, name)
+        })
+    }
+
+    /// `redeem_link_code`, unless this relay remembers `key` erasing its account here, in one
+    /// step the same way (review of BUG-135 option 2, second round, finding 8): a link code
+    /// registers the key under the code's name and gives it the creator's role, so on the
+    /// identify path it is a sign-up like the name and the member row. Refused: nothing is
+    /// written and the code is not used up.
+    pub fn redeem_link_code_unless_erased(&self, code: &str, key: &str) -> Result<LinkRedeemed, rusqlite::Error> {
+        let (fp, window, today) = (self.erased_account_fingerprint(key), self.erase_window_now(), super::dms::unix_day_now());
+        self.with_conn(|conn| {
+            if !key.starts_with("bot_") && remembered_on(conn, &fp, window, today)? {
+                return Ok(LinkRedeemed::ErasedHere);
+            }
+            Ok(match super::messages::redeem_link_code_on(conn, code, key)? {
+                Some(name) => LinkRedeemed::Linked(name),
+                None => LinkRedeemed::NoSuchCode,
+            })
         })
     }
 
@@ -541,6 +570,30 @@ mod tests {
         // A bot is never affected, even with an entry put in by hand.
         db.remember_erased_account("bot_x").unwrap();
         assert!(db.register_name_unless_erased("BotX", "bot_x").unwrap(), "a bot was refused");
+    }
+
+    /// Review of BUG-135 option 2, second round, finding 8: a link code (which registers the
+    /// key under the code's name and gives it the creator's role) checks the erase in the same
+    /// step as it writes, like the name and the membership above. Remembered: nothing written
+    /// and the code not used up; once the person chose to come back, it links as usual.
+    ///
+    /// Seen red 2026-10-04 with the step redeeming without the check (the plain
+    /// `redeem_link_code` relay.rs called): "assertion `left == right` failed: a key erased here
+    /// was linked to a name / left: Linked(\"Owner\") / right: ErasedHere".
+    #[test]
+    fn a_link_code_writes_nothing_for_a_key_erased_here() {
+        let (db, _) = fresh_db("link_code");
+        db.register_name("Owner", "0a0a").unwrap();
+        db.set_role("0a0a", "verified").unwrap();
+        let code = db.create_link_code("Owner", "0a0a").unwrap();
+        db.remember_erased_account("e3e3").unwrap();
+        assert_eq!(db.redeem_link_code_unless_erased(&code, "e3e3").unwrap(), LinkRedeemed::ErasedHere, "a key erased here was linked to a name");
+        assert_eq!(db.name_for_key("e3e3").unwrap(), None, "the name was registered to a key erased here");
+        assert_eq!(db.get_role("e3e3").unwrap(), "", "the creator's role was given to a key erased here");
+        db.forget_erased_account("e3e3").unwrap();
+        assert_eq!(db.redeem_link_code_unless_erased(&code, "e3e3").unwrap(), LinkRedeemed::Linked("Owner".into()), "the refused code was used up");
+        assert_eq!(db.get_role("e3e3").unwrap(), "verified");
+        assert_eq!(db.redeem_link_code_unless_erased("NOPE-NOPE", "f4f4").unwrap(), LinkRedeemed::NoSuchCode);
     }
 
     /// BUG-046 discipline: a relay whose database was made by the previous schema (no

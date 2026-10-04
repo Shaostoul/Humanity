@@ -451,6 +451,14 @@ pub(crate) fn server_follow(prev: &str, now: &str, joined: bool, identified: boo
     ServerFollow { leave_on: (switched && joined).then(|| prev.to_string()), clear_refusal: switched || (!identified && !erased_here) }
 }
 
+/// Whether this identity's account was erased on the server the game talks to: the CONNECTED
+/// address (`active_server_key`, as `follow_server`'s `now` is), never the Chat page's server
+/// field, which the person may be editing (review of BUG-135 option 2, second round,
+/// finding 9: the follow read the field while its `now` came from the connection).
+pub(crate) fn erased_on_followed_server(gui: &crate::gui::GuiState) -> bool {
+    gui.account_erased_here(&active_server_key(gui))
+}
+
 /// Every frame, before the co-presence block (lib.rs): follow the server the game talks to.
 /// On a switch while joined, `game_leave` goes on the parked connection to the server we
 /// joined (it stays open in the background, so its relay would otherwise hold our figure
@@ -458,7 +466,7 @@ pub(crate) fn server_follow(prev: &str, now: &str, joined: bool, identified: boo
 /// server and its welcome is an arrival.
 pub(crate) fn follow_server(state: &mut EngineState) {
     let now = active_server_key(&state.gui_state);
-    let erased_here = state.gui_state.account_erased_here(&state.gui_state.server_url);
+    let erased_here = erased_on_followed_server(&state.gui_state);
     let f = server_follow(&state.copresence_server, &now, state.game_joined, state.gui_state.ws_identified, erased_here);
     if let Some(old) = &f.leave_on {
         let parked = state.gui_state.connections.iter().find(|c| &c.url == old).and_then(|c| c.ws.as_ref());
@@ -1157,6 +1165,30 @@ mod tests {
     /// player stands where the relay holds them, which on a fresh join is that door. Seen red
     /// 2026-10-03 with the Move arm of `plan_welcome` replaced by `Stay` (the 1a client, which
     /// never moved its home): "the relay said p2 and the home did not move: Stay".
+    /// Review of BUG-135 option 2, second round, finding 9: the follow reads the erase on the
+    /// server the game talks to (the connected address, as `now` is), never the Chat page's
+    /// server field, which the person may be editing.
+    ///
+    /// Seen red 2026-10-04 with the follow reading `server_url` (as on 8695b08d4): "an erase on
+    /// the connected server was missed while another address was typed".
+    #[test]
+    fn the_follow_reads_the_erase_on_the_connected_server_not_the_typed_one() {
+        let mut gui = crate::gui::GuiState::default();
+        gui.profile_public_key = "ab12cd34".into();
+        gui.server_url = "https://erased.example".into();
+        gui.connected_server_url = "https://erased.example".into();
+        gui.account_erased_on_active(crate::gui::EraseOutcome::Erased);
+        gui.server_url = "https://being-typed.example".into();
+        assert!(erased_on_followed_server(&gui), "an erase on the connected server was missed while another address was typed");
+        let mut gui = crate::gui::GuiState::default();
+        gui.profile_public_key = "ab12cd34".into();
+        gui.server_url = "https://erased.example".into();
+        gui.connected_server_url = "https://erased.example".into();
+        gui.account_erased_on_active(crate::gui::EraseOutcome::Erased);
+        gui.connected_server_url = "https://fine.example".into();
+        assert!(!erased_on_followed_server(&gui), "a server the game does not talk to was taken for the one it does");
+    }
+
     #[test]
     fn a_welcome_naming_another_plot_moves_the_home_there() {
         let ship = booted();

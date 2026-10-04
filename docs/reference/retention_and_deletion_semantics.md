@@ -102,7 +102,9 @@ zeroing the freed pages and a WAL truncate folding them out of the log.
 Retention:
 - Mailbox envelopes expire after `dm_mailbox_ttl_days` (server setting, default
   30, editable in Server Settings). The mailbox is a delivery window, not an
-  archive.
+  archive. Saving a LOWER number deletes every envelope older than it at the
+  moment of saving (the expiry pass runs after every saved settings change,
+  storage/expiry.rs), and the Server Settings hint says so.
 - A user can scrub their own queue immediately ("Delete my server mailbox" in
   both clients sends `dm_purge`).
 - Long-term DM history lives ONLY on the users' own devices (native: encrypted
@@ -231,9 +233,10 @@ The stored-data classes removed or bounded after the sealed-sender cutover:
     `account_erased` (with `partial` read from what the erase left: if it did
     not finish, the device is told to erase again, as the erasing device was)
     and the relay closes that connection; nothing is signed in (no name
-    registered, no member row, no presence). The name registration and the
-    member row on that path check the erase again in the same step as they
-    write, and a game join checks it again while it holds the game world's
+    registered, no member row, no presence). The name registration, a link
+    code and the member row on that path check the erase again in the same
+    step as they write (a refusal there is told and closed before anything is
+    bound), and a game join checks it again while it holds the game world's
     lock, so an erase that lands in the middle of either still wins. A game
     join from a device still connected from before the erase is refused.
     Pressing Connect (native) or Enter (web) under the erase note says
@@ -254,11 +257,14 @@ The stored-data classes removed or bounded after the sealed-sender cutover:
       none holds the fingerprint secret, so a backup on its own cannot be
       checked against a list of known keys.
     - **Server logs.** The relay logs that an erase happened (with the count
-      of what went), that an erased account reconnected, that one chose to sign
-      up again, and that a game join from one was refused, each with the time
-      and with NO key or part of one (until 2026-10-04 these lines carried the
-      first 12 hex characters of the key, enough to pick it out of a list of
-      known keys). journald on the VPS, or run.log on a Host Node, keeps them
+      of what went), that the account's figure left the shared world, that its
+      socket closed (named "an erased account"), that an erased account
+      reconnected, that one chose to sign up again, and that a game join from
+      one was refused, each with the time and with NO key or part of one (until
+      2026-10-04 these lines carried the first 12 hex characters of the key,
+      enough to pick it out of a list of known keys, and the figure's and the
+      socket's lines carried the whole key until the second review the same
+      day). journald on the VPS, or run.log on a Host Node, keeps them
       on its own schedule, which has nothing to do with the window.
     - **The secret file.** If `data/erased-accounts.key` is lost (a server
       moved without it), the old fingerprints simply never match again and are
@@ -312,7 +318,10 @@ The remaining server-held data classes and length/transport leaks, closed:
 - **Message retention (server setting).** `message_retention_days` (default 0
   = keep forever) auto-expires public channel messages past the window;
   pinned messages are always kept. Bounds how long even public history
-  lingers, on the same maintenance sweep as the DM-mailbox TTL.
+  lingers, on the same maintenance sweep as the DM-mailbox TTL, which also
+  runs at relay start and after every saved settings change: saving a lower
+  number (or a number in place of 0) deletes older messages at once and for
+  good, as the Server Settings hint says.
 - **Federation gossip respects unlisted.** A user who opts out of the public
   directory (Private/Balanced tiers) no longer has their profile replicated
   across federated servers — the gossip + signed-profile cache are gated on

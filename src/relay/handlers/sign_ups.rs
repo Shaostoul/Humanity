@@ -1,9 +1,12 @@
-//! Who becomes a new account here: the two identify-time decisions about signing someone up.
+//! Who becomes a new account here: the identify-time decisions about signing someone up.
 //!
 //!   - The per-IP cap on NEW identities (v0.280.0 anti-spam; `new_identity_capped`). Moved
 //!     here verbatim from relay.rs's identify path on 2026-10-04, to make room there (relay.rs
 //!     is held to a line budget, tests/file_size_ratchet.rs) and because it is the same
 //!     question as the one below: does this identify create an account?
+//!   - The member row of a key signing in (`join_as_member`), moved here from relay.rs on
+//!     2026-10-04 for the same reasons; it refuses a key erased here, in the same step as it
+//!     writes.
 //!   - Accounts erased here, remembered for a limited time (BUG-135, the operator's decision
 //!     of 2026-10-04; the table and its culling are storage/erased_accounts.rs). A key this
 //!     relay remembers erasing is NOT signed up again by itself: its identify is answered with
@@ -66,6 +69,63 @@ pub fn new_identity_capped(state: &RelayState, client_ip: &str, public_key: &str
     blocked
 }
 
+// Placed before the erase paths below on purpose: its "Auto-joined member" line names the
+// key of a NEW member, which by then is not an erased account (the log test,
+// `sign_up_logs_never_name_the_key`, reads from `erased_at_identify` on).
+
+/// The member row for a key signing in (moved here verbatim from relay.rs's identify path on
+/// 2026-10-04, apart from the refusal, to keep relay.rs inside its line budget): an existing
+/// member's last-seen time and name are updated; a new one joins (open server model) and
+/// everyone is told. Not for bots (`bot_` keys), anonymous viewers (`viewer_`), the sample
+/// and test clients (scripts/ai-sample-client.js makes RANDOM hex keys, so only their names
+/// tell; operator 2026-05-12: "I successfully kicked the bots on the first try. However, once
+/// I rebooted they were back") or a placeholder name.
+///
+/// False when this relay remembers the key erasing its account here: the join checks that in
+/// the same step as it writes (`join_server_unless_erased`), so an erase that landed after the
+/// identify's own check still wins. Nothing is written, and relay.rs then tells and closes
+/// (`tell_erased_and_close`) before it binds anything (review of BUG-135 option 2, second
+/// round, finding 8: the refusal used to come after the bind, silent, leaving the erased key
+/// signed in without a member row).
+pub fn join_as_member(state: &RelayState, public_key: &str, final_name: &Option<String>) -> bool {
+    let nm = final_name.as_deref().unwrap_or("");
+    let is_test_bot_name = nm.starts_with("AISampleBot") || nm.starts_with("TestBot") || nm.starts_with("SampleBot");
+    if public_key.starts_with("bot_")
+        || public_key.starts_with("viewer_")
+        || is_test_bot_name
+        || crate::relay::handlers::live_conns::is_placeholder_name(nm)
+    {
+        if is_test_bot_name {
+            tracing::info!("Test-bot connection accepted (name='{nm}') — not auto-joining server_members.");
+        }
+        return true;
+    }
+    let member_name = nm; // non-placeholder means non-empty: a real chosen name
+    if state.db.is_member(public_key) {
+        // Already a member — update last_seen and name.
+        let _ = state.db.update_last_seen(public_key);
+        let _ = state.db.update_member_name(public_key, member_name);
+        return true;
+    }
+    match state.db.join_server_unless_erased(public_key, member_name) {
+        Ok(true) => {
+            tracing::info!("Auto-joined member: {public_key} as '{member_name}'");
+            let _ = state.broadcast_tx.send(RelayMessage::MemberJoined {
+                public_key: public_key.to_string(),
+                name: final_name.clone(),
+                role: "member".to_string(),
+            });
+            true
+        }
+        // Nothing written: erased here, or already a member (another socket joined first).
+        Ok(false) => !state.db.erased_account_remembered(public_key),
+        Err(e) => {
+            tracing::error!("Failed to auto-join a member: {e}");
+            true
+        }
+    }
+}
+
 /// The identify-time decision for a key whose possession was just proven (the Dilithium
 /// challenge verified). True: this relay remembers the key erasing its account here, and the
 /// identify did not ask to sign up again, so the caller answers with `tell_erased_and_close`
@@ -90,6 +150,19 @@ pub fn erased_at_identify(state: &RelayState, public_key: &str, sign_up_again: b
     }
     tracing::info!("An erased account reconnected: told, not signed up");
     true
+}
+
+/// How the socket teardown in relay.rs names whoever left in its log lines: the key, except
+/// a key whose erase this relay remembers, which is named only as "an erased account"
+/// (review of BUG-135 option 2, second round, finding 2). The erasing client closes its
+/// socket a moment after the erase, and its "Peer disconnected: <key>" line put the key back
+/// beside the erase's own line, which names none.
+pub fn log_name_for(state: &RelayState, key: &str) -> String {
+    if !key.starts_with("bot_") && state.db.erased_account_remembered(key) {
+        "an erased account".to_string()
+    } else {
+        key.to_string()
+    }
 }
 
 /// The answer to an identify from a key erased here earlier: the same `account_erased` the
@@ -236,27 +309,65 @@ mod tests {
 
     /// Review finding 2: the log lines about erased accounts name no key, not even its first
     /// characters (a 48-bit prefix picks a key out of any list of known keys, and the log
-    /// outlives the window the person was promised). Read from the source: every tracing call
-    /// in this file's erase paths, and the erase's own line in msg_handlers.rs.
+    /// outlives the window the person was promised). Read from the source: every log call in
+    /// this file's erase paths, the erase itself (msg_handlers.rs `handle_account_delete`), what
+    /// it calls to take the account out of the world (home_plots.rs `leave_world_for_erase`),
+    /// and the teardown that runs when the erasing client closes its socket a moment later
+    /// (relay.rs, from "Another socket for this identity is still open" to the departure),
+    /// which names whoever left through `log_name_for` so an erased key is not named there.
+    /// Both `tracing::info!(...)` and the bare `info!(...)` relay.rs uses are read, and a call
+    /// names the key when any name in it (outside a string, or captured inside one as
+    /// `{name}`) is `key` or ends in `_key`, or it calls `short(`.
     ///
     /// Seen red 2026-10-04 with four characters of the key put back into the reconnect line:
     /// "a log line about an erased account names the key: [\"tracing::info!(\\\"An erased
     /// account {} reconnected: told, not signed up\\\", &public_key[..4.min(public_key.len())])\"]".
+    /// And seen red 2026-10-04 on 8695b08d4 once the scan read the erase's callees and the
+    /// teardown: "a log line about an erased account names the key: [\"leave_world_for_erase:
+    /// info!(\\\"Game: player {} left (entity {}): their account is being erased\\\", key,
+    /// entity_id)\", \"teardown: debug!(\\\"socket {my_conn_id} for {my_key} closed; ...\\\")\",
+    /// ..., \"teardown: info!(\\\"Peer disconnected: {my_key}\\\")\"]".
     #[test]
     fn sign_up_logs_never_name_the_key() {
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
-        let own = std::fs::read_to_string(root.join("src/relay/handlers/sign_ups.rs")).unwrap().replace("\r\n", "\n");
+        let read = |p: &str| std::fs::read_to_string(root.join(p)).unwrap().replace("\r\n", "\n");
+        let own = read("src/relay/handlers/sign_ups.rs");
         let own = &own[..own.find("#[cfg(test)]").unwrap()];
         // The erase paths: everything after the per-IP cap (whose own warning, about a NEW
         // identity being refused, is not about an erased account).
         let erase_paths = &own[own.find("pub fn erased_at_identify").unwrap()..];
-        let handlers = std::fs::read_to_string(root.join("src/relay/handlers/msg_handlers.rs")).unwrap().replace("\r\n", "\n");
-        let erase = &handlers[handlers.find("pub async fn handle_account_delete").unwrap()..];
-        let erase = &erase[..erase.find("\n}\n").unwrap()];
+        let body = |src: &'static str, start: &str| -> String {
+            let text = read(src);
+            let from = &text[text.find(start).unwrap_or_else(|| panic!("{start} not in {src}"))..];
+            from[..from.find("\n}\n").unwrap()].to_string()
+        };
+        let erase = body("src/relay/handlers/msg_handlers.rs", "pub async fn handle_account_delete");
+        let leave = body("src/relay/handlers/home_plots.rs", "pub async fn leave_world_for_erase");
+        let relay = read("src/relay/relay.rs");
+        let teardown = &relay[relay.find("// ── Another socket for this identity is still open ──").unwrap()..];
+        let teardown = &teardown[..teardown.find("// Broadcast updated full user list to all clients.").unwrap()];
         let mut calls = Vec::new();
-        for src in [erase_paths, erase] {
+        for (region, src) in [("sign_ups", erase_paths), ("erase", &erase[..]), ("leave_world_for_erase", &leave[..]), ("teardown", teardown)] {
+            let mut found = 0;
             let mut rest = src;
-            while let Some(at) = rest.find("tracing::") {
+            loop {
+                // The next log macro: `info!(` and its kin, with or without `tracing::`.
+                let next = ["info!(", "warn!(", "error!(", "debug!(", "trace!("]
+                    .iter()
+                    .filter_map(|m| {
+                        let mut from = 0;
+                        while let Some(i) = rest[from..].find(m) {
+                            let at = from + i;
+                            let prev = rest[..at].chars().last();
+                            if !prev.is_some_and(|c| c.is_alphanumeric() || c == '_') {
+                                return Some(at);
+                            }
+                            from = at + m.len();
+                        }
+                        None
+                    })
+                    .min();
+                let Some(at) = next else { break };
                 let call = &rest[at..];
                 // To the parenthesis that closes the macro's own, skipping string contents
                 // (a call can end in "),", as a match arm does, or hold ", " in its text).
@@ -277,16 +388,99 @@ mod tests {
                     }
                     prev = c;
                 }
-                calls.push(call[..end].to_string());
+                calls.push(format!("{region}: {}", &call[..end]));
+                found += 1;
                 rest = &call[end..];
             }
+            assert!(found >= 1, "the scan found no log call in {region}");
         }
-        assert!(calls.len() >= 5, "the scan found only {} log calls: {calls:?}", calls.len());
+        assert!(calls.len() >= 9, "the scan found only {} log calls: {calls:?}", calls.len());
+        // The names a call uses: identifiers outside strings, and `{name}` captures inside them.
+        let names = |call: &str| -> Vec<String> {
+            let (mut out, mut in_str, mut word, mut prev) = (Vec::new(), false, String::new(), ' ');
+            let mut capture = false;
+            for c in call.chars() {
+                if c == '"' && prev != '\\' {
+                    in_str = !in_str;
+                } else if in_str && c == '{' {
+                    capture = true;
+                    word.clear();
+                } else if c.is_alphanumeric() || c == '_' {
+                    if !in_str || capture {
+                        word.push(c);
+                    }
+                } else {
+                    if !word.is_empty() && (!in_str || capture) {
+                        out.push(std::mem::take(&mut word));
+                    }
+                    word.clear();
+                    capture = false;
+                }
+                prev = c;
+            }
+            if !word.is_empty() {
+                out.push(word);
+            }
+            out
+        };
         let naming: Vec<&String> = calls
             .iter()
-            .filter(|c| ["short(", "public_key", "my_key", "key)"].iter().any(|k| c.contains(k)))
+            .filter(|c| c.contains("short(") || names(c).iter().any(|n| n == "key" || n.ends_with("_key")))
             .collect();
         assert!(naming.is_empty(), "a log line about an erased account names the key: {naming:?}");
+    }
+
+    /// The teardown's name for whoever left: the key, except for a key whose erase this relay
+    /// remembers, which is named only as an erased account (review of BUG-135 option 2, second
+    /// round, finding 2: the erasing client closes its socket right after the erase, and its
+    /// "Peer disconnected: <key>" line sat next to the erase's own key-free line).
+    ///
+    /// Seen red 2026-10-04 with `log_name_for` giving the key always (as the teardown named
+    /// it): "assertion `left == right` failed: an erased key was named in the teardown's log /
+    /// left: \"c3c3\" / right: \"an erased account\"".
+    #[test]
+    fn the_teardown_names_an_erased_key_only_as_an_erased_account() {
+        let state = fresh_state("logname");
+        assert_eq!(log_name_for(&state, "c3c3"), "c3c3", "an ordinary key is named as before");
+        remember_erase(&state, "c3c3");
+        assert_eq!(log_name_for(&state, "c3c3"), "an erased account", "an erased key was named in the teardown's log");
+    }
+
+    /// Review of BUG-135 option 2, second round, finding 8: every write the identify path makes
+    /// for a key checks the erase in the same step, and a refusal tells and closes before the
+    /// socket is bound, like the identify gate. The link code (which registers the key under a
+    /// name and copies the creator's role) goes through `redeem_link_code_unless_erased`; the
+    /// member row goes through `join_server_unless_erased` BEFORE the peer is inserted, so a
+    /// refusal there has nothing bound to take back.
+    ///
+    /// Seen red 2026-10-04 on 8695b08d4: "relay.rs redeems a link code without checking the
+    /// erase in the same step".
+    #[test]
+    fn every_identify_write_checks_the_erase_and_a_refusal_closes_before_binding() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let src = std::fs::read_to_string(root.join("src/relay/relay.rs")).unwrap().replace("\r\n", "\n");
+        assert!(!src.contains("state.db.redeem_link_code(code"), "relay.rs redeems a link code without checking the erase in the same step");
+        // The refusal: from the call to the arm (or block) that answers it, to its closing brace.
+        let refusal = |call: &str, answer: &str| -> (usize, String) {
+            let at = src.find(call).unwrap_or_else(|| panic!("relay.rs does not call {call}"));
+            let arm = &src[at..];
+            let arm = &arm[arm.find(answer).unwrap_or_else(|| panic!("no {answer} after {call}"))..];
+            (at, arm[..arm.find('}').unwrap()].to_string())
+        };
+        let bind = src.find("state.peers.write().await.insert(public_key.clone(), peer);").expect("the bind");
+        for (call, answer) in [
+            ("redeem_link_code_unless_erased(code, &public_key)", "LinkRedeemed::ErasedHere"),
+            ("sign_ups::join_as_member(&state, &public_key, &final_name)", "{"),
+        ] {
+            let (at, arm) = refusal(call, answer);
+            assert!(arm.contains("tell_erased_and_close(") && arm.contains("return;"), "a refusal from {call} does not tell and close: {arm}");
+            assert!(at < bind, "{call} runs after the socket is bound, so a refusal there leaves it bound");
+        }
+        // And the member row itself is written only through the checked step.
+        let own = std::fs::read_to_string(root.join("src/relay/handlers/sign_ups.rs")).unwrap().replace("\r\n", "\n");
+        let join = &own[own.find("pub fn join_as_member").unwrap()..];
+        let join = &join[..join.find("\n}\n").unwrap()];
+        assert!(join.contains("join_server_unless_erased(public_key, member_name)") && !join.contains("db.join_server("), "join_as_member writes the member row without checking the erase");
     }
 
     /// Review finding 11: a game join checks the erase again while it holds the game world's
@@ -329,7 +523,9 @@ mod tests {
         assert!(!src.contains("state.db.register_name(name, &public_key)"), "relay.rs registers a name without checking the erase in the same step");
         assert!(!src.contains("state.db.join_server(&public_key"), "relay.rs makes a member row without checking the erase in the same step");
         assert!(src.contains("register_name_unless_erased(name, &public_key)"));
-        assert!(src.contains("join_server_unless_erased(&public_key, member_name)"));
+        // The member row: sign_ups.rs `join_as_member` (moved there 2026-10-04), checked by
+        // `every_identify_write_checks_the_erase_and_a_refusal_closes_before_binding`.
+        assert!(src.contains("sign_ups::join_as_member(&state, &public_key, &final_name)"));
         let gate = &src[src.find("sign_ups::erased_at_identify(").unwrap()..];
         let gate = &gate[..gate.find('}').unwrap()];
         assert!(gate.contains("tell_erased_and_close(") && gate.contains("return;"), "the identify gate leaves the refused socket open: {gate}");

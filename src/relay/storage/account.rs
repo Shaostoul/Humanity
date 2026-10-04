@@ -159,8 +159,11 @@ impl Storage {
 
     /// Erase this account: every row keyed by `key`/`name`, plus uploaded
     /// files on disk. Returns (table_label, rows_deleted) for the receipt
-    /// shown to the user. The caller broadcasts roster updates + closes
-    /// the socket afterwards.
+    /// shown to the user, a failed or deliberately kept table as
+    /// `<label>_FAILED`. The registration is kept when a delete by name
+    /// fails, and the listings when their images fail, so nothing the erase
+    /// leaves is cut off from the key (`erase_left_rows`). The caller
+    /// broadcasts roster updates + closes the socket afterwards.
     pub fn delete_account(&self, key: &str, name: &str) -> Vec<(String, usize)> {
         // Upload files first (need the rows to find the paths).
         let upload_files: Vec<String> = self
@@ -195,9 +198,13 @@ impl Storage {
         receipt.push(("upload_files_removed".to_string(), files_removed));
         let plot_owner = super::plot_owner_id(key);
         self.with_conn(|conn| {
-            let mut del = |label: &str, sql: &str, binds: &[&dyn rusqlite::types::ToSql]| {
+            // True when the statement ran (whatever it deleted), false when it failed.
+            let mut del = |label: &str, sql: &str, binds: &[&dyn rusqlite::types::ToSql]| -> bool {
                 match conn.execute(sql, binds) {
-                    Ok(n) => receipt.push((label.to_string(), n)),
+                    Ok(n) => {
+                        receipt.push((label.to_string(), n));
+                        true
+                    }
                     Err(e) => {
                         // A failed statement stays non-fatal (one broken table
                         // must not abandon the rest of an erasure), but it no
@@ -210,6 +217,7 @@ impl Storage {
                         // exist survived in here unnoticed.
                         tracing::error!("account erase FAILED for {label}: {e}");
                         receipt.push((format!("{label}_FAILED"), 1));
+                        false
                     }
                 }
             };
@@ -221,16 +229,26 @@ impl Storage {
             del("dm_mailbox", "DELETE FROM dm_mailbox WHERE to_key = ?1", &[&key]);
             del("push_subscriptions", "DELETE FROM push_subscriptions WHERE public_key = ?1", &[&key]);
             del("signed_profiles", "DELETE FROM signed_profiles WHERE public_key = ?1", &[&key]);
-            del("profile", "DELETE FROM profiles WHERE name = ?1 COLLATE NOCASE", &[&name]);
-            del("statuses", "DELETE FROM user_status WHERE name = ?1 COLLATE NOCASE", &[&name]);
+            // Rows keyed by the NAME, and the listing images (reached through the listings):
+            // once the registration and the listings are gone, nothing keyed by the key points
+            // at them. So when one of them fails to delete, the erase keeps the registration
+            // (or the listings) as well: what was left then stays tied to this key, where
+            // `erase_left_rows` sees it and the next erase finds it (review of BUG-135 option 2,
+            // second round, finding 6). Both of these run either way (`&`, not `&&`).
+            let name_rows_went = del("profile", "DELETE FROM profiles WHERE name = ?1 COLLATE NOCASE", &[&name])
+                & del("statuses", "DELETE FROM user_status WHERE name = ?1 COLLATE NOCASE", &[&name]);
             del("friend_codes", "DELETE FROM friend_codes WHERE public_key = ?1", &[&key]);
             del("listing_reviews", "DELETE FROM listing_reviews WHERE reviewer_key = ?1", &[&key]);
-            del("listing_images", "DELETE FROM listing_images WHERE listing_id IN (SELECT id FROM marketplace_listings WHERE seller_key = ?1)", &[&key]);
-            del("listings", "DELETE FROM marketplace_listings WHERE seller_key = ?1", &[&key]);
+            let images_went = del("listing_images", "DELETE FROM listing_images WHERE listing_id IN (SELECT id FROM marketplace_listings WHERE seller_key = ?1)", &[&key]);
+            if images_went {
+                del("listings", "DELETE FROM marketplace_listings WHERE seller_key = ?1", &[&key]);
+            }
             del("tasks", "DELETE FROM project_tasks WHERE created_by = ?1", &[&key]);
             del("roles", "DELETE FROM user_roles WHERE public_key = ?1", &[&key]);
             del("membership", "DELETE FROM server_members WHERE public_key = ?1", &[&key]);
-            del("registered_name", "DELETE FROM registered_names WHERE public_key = ?1", &[&key]);
+            if name_rows_went {
+                del("registered_name", "DELETE FROM registered_names WHERE public_key = ?1", &[&key]);
+            }
             // Their plot on the ship goes back for the next player (ship homes 1b, the third
             // review: an erased account held its plot for good, and nothing in the app could
             // free it, because the key an admin would name was erased with everything else).
@@ -239,22 +257,36 @@ impl Storage {
             del("game_progress", "DELETE FROM player_progress WHERE public_key = ?1", &[&key]);
             // Fold the secure_delete-zeroed pages out of the WAL.
             let _ = conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE);");
+            // What was kept on purpose above is said in the receipt as not erased, the way a
+            // failed delete is, so the erase reports `partial` and the person erases again.
+            for (kept, went) in [("listings", images_went), ("registered_name", name_rows_went)] {
+                if !went {
+                    tracing::error!("account erase: kept {kept}, because a delete that depends on it failed");
+                    receipt.push((format!("{kept}_FAILED"), 1));
+                }
+            }
         });
         receipt
     }
 
-    /// Whether rows that `delete_account` erases by `key` are still here: true after an erase
-    /// that did not finish (a `<table>_FAILED` in its receipt), or when anything wrote for the
-    /// key since. A device of the account that was offline during the erase is told what it
-    /// would have been told then (handlers/sign_ups.rs `erased_here_frame`, review of BUG-135
-    /// option 2, finding 16): finished, so Connect signs up afresh, or not, so erase again;
-    /// the erased-accounts entry keeps only the day, so this is read from what is left.
+    /// Whether anything of the account that `delete_account` answers for is still here: true
+    /// after an erase that did not finish (a `<table>_FAILED` in its receipt), or when this
+    /// key wrote again since (a device still signed in from before the erase). A device of the
+    /// account that was offline during the erase is told what it would have been told then
+    /// (handlers/sign_ups.rs `erased_here_frame`, review of BUG-135 option 2, finding 16):
+    /// finished, so Connect signs up afresh, or not, so erase again; the erased-accounts entry
+    /// keeps only the day, so this is read from what is left.
     ///
-    /// Every table `delete_account` erases BY KEY, each once (pinned by
-    /// `the_left_rows_check_covers_every_table_the_erase_deletes_by_key`), except
-    /// `dm_mailbox`: sealed mail from other people keeps arriving for a key after its erase,
-    /// and is no part of the account left behind. The tables erased by NAME are not read: the
-    /// name is gone with the registration, and the registration is read here.
+    /// Read: every table `delete_account` erases by the key (or by the plot owner made from it),
+    /// with the same column, pinned to `delete_account` by
+    /// `the_left_rows_check_reads_every_table_the_erase_answers_for`. Not read, because rows
+    /// there come back without the erase having left anything (the second round of the review,
+    /// finding 6): `dm_mailbox` (sealed mail other people send keeps arriving for the key) and
+    /// `signed_profiles` (profile gossip from another server, where the key may still have an
+    /// account, writes the cached copy back). The tables erased by NAME (profiles, statuses)
+    /// and the listing images (reached through the listings) cannot be found from the key once
+    /// the registration and the listings are gone, so `delete_account` keeps those two whenever
+    /// a delete that hangs off them fails, and reading those two here covers the rest.
     pub fn erase_left_rows(&self, key: &str) -> bool {
         let plot_owner = super::plot_owner_id(key);
         let q = "SELECT EXISTS(SELECT 1 FROM messages WHERE from_key = ?1)
@@ -263,7 +295,6 @@ impl Storage {
             OR EXISTS(SELECT 1 FROM notification_prefs WHERE public_key = ?1)
             OR EXISTS(SELECT 1 FROM vault_blobs WHERE public_key = ?1)
             OR EXISTS(SELECT 1 FROM push_subscriptions WHERE public_key = ?1)
-            OR EXISTS(SELECT 1 FROM signed_profiles WHERE public_key = ?1)
             OR EXISTS(SELECT 1 FROM friend_codes WHERE public_key = ?1)
             OR EXISTS(SELECT 1 FROM listing_reviews WHERE reviewer_key = ?1)
             OR EXISTS(SELECT 1 FROM marketplace_listings WHERE seller_key = ?1)
@@ -538,39 +569,134 @@ mod tests {
         assert!(db.erase_left_rows("9111"), "a row the erase left was not seen");
     }
 
-    /// `erase_left_rows` reads every table `delete_account` erases by key, with the same
-    /// column, except the mailbox (mail keeps arriving after an erase). Read from the source,
-    /// so a table added to the erase and not to the check fails here.
+    /// Review of BUG-135 option 2 (second round), finding 6: `erase_left_rows` reads only what
+    /// the erase itself answers for. A delete that fails on a table keyed by the NAME (profiles,
+    /// statuses) or on the listing images (found through the listings) leaves rows that nothing
+    /// keyed by the key points at once the registration and the listings are gone, so the erase
+    /// keeps those two whenever what hangs off them failed, and the check sees them. Failures
+    /// forced with a trigger that refuses the delete (the rows stay, as after a real failure).
     ///
-    /// Seen red 2026-10-04 with the `player_progress` line taken out of `erase_left_rows`:
-    /// "erase_left_rows does not read what delete_account erases: [\"FROM player_progress
-    /// WHERE public_key = ?1\"]".
+    /// Seen red 2026-10-04 on 8695b08d4 (the erase deleted the registration and the listings
+    /// whatever failed before them): "profiles: an erase that left rows of the account was read
+    /// as finished: [... (\"profile_FAILED\", 1), ... (\"registered_name\", 1), ...]".
     #[test]
-    fn the_left_rows_check_covers_every_table_the_erase_deletes_by_key() {
+    fn an_erase_that_fails_on_a_name_or_image_row_is_read_as_unfinished() {
+        for table in ["profiles", "user_status", "listing_images"] {
+            let db = test_storage();
+            db.register_name("Hal", "4a11").unwrap();
+            db.join_server("4a11", "Hal").unwrap();
+            db.save_profile("Hal", "bio", "{}").unwrap();
+            db.save_user_status("Hal", "online", "here").unwrap();
+            db.create_listing("l1", "4a11", "Hal", "Pump", "", "tools", "used", "5", "", "").unwrap();
+            db.add_listing_image("l1", "/uploads/pump.png", 0).unwrap();
+            db.with_conn(|c| c.execute_batch(&format!("CREATE TRIGGER held BEFORE DELETE ON {table} BEGIN SELECT RAISE(ABORT, 'held'); END;")))
+                .unwrap();
+            let receipt = db.delete_account("4a11", "Hal");
+            assert!(receipt.iter().any(|(l, _)| l.ends_with("_FAILED")), "{table}: the forced failure did not happen: {receipt:?}");
+            assert!(db.erase_left_rows("4a11"), "{table}: an erase that left rows of the account was read as finished: {receipt:?}");
+        }
+    }
+
+    /// Finding 6, the other way: profile gossip from another server writes `signed_profiles`
+    /// for a key that still has an account THERE. It is no part of what this server's erase
+    /// left, so a finished erase stays finished.
+    ///
+    /// Seen red 2026-10-04 on 8695b08d4 (the check read `signed_profiles`): "a profile another
+    /// server gossiped back made a finished erase read as unfinished".
+    #[test]
+    fn a_profile_gossiped_after_a_finished_erase_does_not_make_it_unfinished() {
+        let db = test_storage();
+        db.register_name("Ivy", "5b22").unwrap();
+        let receipt = db.delete_account("5b22", "Ivy");
+        assert!(!receipt.iter().any(|(l, _)| l.ends_with("_FAILED")), "{receipt:?}");
+        let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as u64;
+        db.store_signed_profile("5b22", "Ivy", "from a peer server", "", "", "{}", "", "", "", now, "sig").unwrap();
+        assert!(!db.erase_left_rows("5b22"), "a profile another server gossiped back made a finished erase read as unfinished");
+    }
+
+    /// Finding 7: the pin between `erase_left_rows` and `delete_account` is read from the
+    /// source however a `del(` call is laid out (one line or several, any bind), and every
+    /// DELETE in `delete_account` must sit in a `del(` call the scan understood. A table the
+    /// erase deletes by key (or by the plot owner) is read by the check with the same column,
+    /// unless it is listed below with its reason; a table reached by name or through another
+    /// table is anchored (the erase keeps the registration or the listings when it fails, which
+    /// `an_erase_that_fails_on_a_name_or_image_row_is_read_as_unfinished` proves).
+    ///
+    /// Seen red 2026-10-04 with a `del(` call laid out over four lines added to `delete_account`
+    /// (`task_comments` by `author_key`), which the one-line scan this replaces passed:
+    /// "erase_left_rows does not read what delete_account erases: [\"FROM task_comments WHERE
+    /// author_key = ?1\"]". That scan's "\r\n" escape had also been turned into raw line breaks,
+    /// so it normalised nothing and, on a CRLF checkout (the operator's), panicked at its find of
+    /// the closing brace: "called `Option::unwrap()` on a `None` value" (run 2026-10-04 on a CRLF
+    /// copy of this file); this test passes on a CRLF copy.
+    #[test]
+    fn the_left_rows_check_reads_every_table_the_erase_answers_for() {
+        // Not read, with the reason: mail other people send keeps arriving after an erase; a
+        // gossiped profile is written back by other servers where the key still has an account.
+        const NOT_READ: [&str; 2] = ["dm_mailbox", "signed_profiles"];
         let src = std::fs::read_to_string(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/relay/storage/account.rs")).unwrap();
-        let src = src.replace("
-", "
-"); // a Windows checkout
-        let del_start = src.find("pub fn delete_account").unwrap();
-        let check_start = src.find("pub fn erase_left_rows").unwrap();
-        let erase = &src[del_start..check_start];
-        let check = &src[check_start..src[check_start..].find("\n    }\n").map(|i| check_start + i).unwrap()];
-        let mut wanted = Vec::new();
-        for line in erase.lines().filter(|l| l.trim_start().starts_with("del(")) {
-            let Some(at) = line.find("\"DELETE FROM ") else { continue };
-            let stmt = &line[at + "\"DELETE FROM ".len()..];
-            let stmt = &stmt[..stmt.find('"').unwrap()];
-            // By key (?1 bound to &key) or by the plot owner (bound to &plot_owner, ?2 in the
-            // check); not by name, not through a subquery.
-            let by_key = line.contains("&[&key]") && !stmt.contains("SELECT");
-            let by_owner = line.contains("&[&plot_owner]");
-            if (by_key || by_owner) && !stmt.starts_with("dm_mailbox ") {
-                let expect = if by_owner { stmt.replace("?1", "?2") } else { stmt.to_string() };
-                wanted.push(format!("FROM {expect}"));
+        let src = src.replace("\r\n", "\n"); // a Windows checkout
+        let erase = &src[src.find("pub fn delete_account").unwrap()..src.find("pub fn erase_left_rows").unwrap()];
+        let check = &src[src.find("pub fn erase_left_rows").unwrap()..];
+        let check = &check[..check.find("\n    }\n").unwrap()];
+        // Every del( call, to its closing parenthesis, skipping string contents.
+        let mut calls = Vec::new();
+        let mut rest = erase;
+        while let Some(at) = rest.find("del(") {
+            let before = rest[..at].chars().last();
+            let call = &rest[at..];
+            if before.is_some_and(|c| c.is_alphanumeric() || c == '_') {
+                rest = &call[4..];
+                continue;
+            }
+            let (mut depth, mut in_str, mut prev, mut end) = (0i32, false, ' ', call.len());
+            for (i, c) in call.char_indices() {
+                match c {
+                    '"' if prev != '\\' => in_str = !in_str,
+                    '(' if !in_str => depth += 1,
+                    ')' if !in_str => {
+                        depth -= 1;
+                        if depth == 0 {
+                            end = i + 1;
+                            break;
+                        }
+                    }
+                    _ => {}
+                }
+                prev = c;
+            }
+            calls.push(call[..end].to_string());
+            rest = &call[end..];
+        }
+        let deletes = erase.matches("\"DELETE FROM ").count();
+        let parsed: Vec<&String> = calls.iter().filter(|c| c.contains("\"DELETE FROM ")).collect();
+        assert_eq!(parsed.len(), deletes, "a DELETE in delete_account is not in a del( call the scan reads: {calls:?}");
+        assert!(deletes >= 18, "the scan found only {deletes} deletes");
+        let mut missing = Vec::new();
+        for call in &parsed {
+            let sql = &call[call.find("\"DELETE FROM ").unwrap() + 1..];
+            let sql = &sql[..sql.find('"').unwrap()];
+            let mut words = sql.split_whitespace();
+            let (table, col) = (words.nth(2).unwrap(), words.nth(1).unwrap());
+            let binds = &call[call.find(sql).unwrap() + sql.len()..];
+            let anchored = binds.contains("&name") || sql.contains("SELECT");
+            if anchored || NOT_READ.contains(&table) {
+                continue;
+            }
+            let n = if binds.contains("&plot_owner") { 2 } else { 1 };
+            let want = format!("FROM {table} WHERE {col} = ?{n}");
+            if !check.contains(&want) {
+                missing.push(want);
             }
         }
-        assert!(wanted.len() >= 15, "the scan found only {} statements: {wanted:?}", wanted.len());
-        let missing: Vec<&String> = wanted.iter().filter(|w| !check.contains(w.as_str())).collect();
         assert!(missing.is_empty(), "erase_left_rows does not read what delete_account erases: {missing:?}");
+        for t in NOT_READ {
+            assert!(!check.contains(&format!("FROM {t} ")), "erase_left_rows reads {t}, which is not the erase's to answer for");
+        }
+        // The anchors the name-keyed and image rows rely on.
+        assert!(
+            check.contains("FROM registered_names WHERE public_key = ?1") && check.contains("FROM marketplace_listings WHERE seller_key = ?1"),
+            "erase_left_rows no longer reads the registration and the listings the name and image rows are anchored to"
+        );
     }
 }

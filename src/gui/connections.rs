@@ -324,6 +324,8 @@ impl GuiState {
                     settings.max_chars_unverified, settings.max_chars_verified,
                     settings.max_chars_mod, settings.max_chars_admin
                 );
+                let before = self.server_settings.take();
+                self.server_settings_draft = draft_after_settings_arrive(self.server_settings_draft.take(), before.as_ref(), &settings);
                 self.server_settings = Some(settings);
             }
             Err(e) => log::warn!("Failed to parse server_settings_state: {e}"),
@@ -343,6 +345,39 @@ impl GuiState {
             client.send(&serde_json::json!({ "type": "server_settings_request" }).to_string());
             self.server_settings_requested = true;
         }
+    }
+}
+
+/// The Server Settings page's working copy this frame (`server_settings_draft`): the copy it
+/// holds, or a fresh one made from the server's settings. None while those have not arrived,
+/// so the page shows no form and nothing can be saved (review of BUG-135 option 2, second
+/// round, finding 3: the copy was made from DEFAULTS the first frame the admin section drew,
+/// before the answer to `ask_server_settings_once` came, and Save, or the #local checkbox,
+/// which sends the whole copy, wrote every default back; the relay's expiry pass then applied
+/// a lowered DM-mailbox or retention window at once). Pure.
+pub(crate) fn page_draft(
+    draft: Option<&crate::relay::storage::ServerSettings>,
+    cached: Option<&crate::relay::storage::ServerSettings>,
+) -> Option<crate::relay::storage::ServerSettings> {
+    let cached = cached?;
+    Some(draft.cloned().unwrap_or_else(|| cached.clone()))
+}
+
+/// The page's working copy when a `server_settings_state` arrives (`on_server_settings_state`):
+/// replaced by the new settings while it holds no unsaved edits (it still equals `before`, the
+/// settings it was made from), so a Save's own echo or another admin's change shows at once
+/// instead of the old values reading as unsaved changes; kept when it holds edits; replaced
+/// when there were no settings under it. None stays None: the page makes it when it draws.
+/// Pure.
+pub(crate) fn draft_after_settings_arrive(
+    draft: Option<crate::relay::storage::ServerSettings>,
+    before: Option<&crate::relay::storage::ServerSettings>,
+    now: &crate::relay::storage::ServerSettings,
+) -> Option<crate::relay::storage::ServerSettings> {
+    match draft {
+        None => None,
+        Some(d) if before.map_or(true, |b| *b == d) => Some(now.clone()),
+        Some(d) => Some(d),
     }
 }
 
@@ -647,5 +682,67 @@ mod erased_account_tests {
         // A locked identity never dials, erased or not.
         state.private_key_bytes = None;
         assert!(!state.may_auto_connect());
+    }
+}
+
+/// Review of BUG-135 option 2, second round, finding 3: the Server Settings page's working copy
+/// is made only from the server's real settings, and follows them when they arrive.
+#[cfg(all(test, feature = "native"))]
+mod settings_draft_tests {
+    use super::{draft_after_settings_arrive, page_draft};
+    use crate::gui::GuiState;
+    use crate::relay::storage::ServerSettings;
+
+    fn real() -> ServerSettings {
+        let mut s = ServerSettings::default();
+        s.dm_mailbox_ttl_days = 365;
+        s.message_retention_days = 90;
+        s
+    }
+
+    /// Before the server's answer there is no working copy, so the page shows no form and
+    /// nothing can be saved: Save (or the #local checkbox, which sends the whole copy) wrote
+    /// every default back, and the relay's expiry pass then applied a lowered mailbox or
+    /// retention window at once. Once the settings arrive the copy is made from them.
+    ///
+    /// Seen red 2026-10-04 with the page's old seeding (from the settings, or from defaults
+    /// before they came): "assertion `left == right` failed: the page made its working copy from
+    /// defaults before the server's settings arrived / left: Some(ServerSettings { ...,
+    /// dm_mailbox_ttl_days: 30, message_retention_days: 0, ... }) / right: None".
+    #[test]
+    fn the_page_never_edits_defaults_as_if_they_were_the_servers_settings() {
+        assert_eq!(page_draft(None, None), None, "the page made its working copy from defaults before the server's settings arrived");
+        assert_eq!(page_draft(Some(&ServerSettings::default()), None), None, "a working copy with no settings under it was shown");
+        assert_eq!(page_draft(None, Some(&real())), Some(real()), "the working copy was not made from the server's settings");
+        let mut edited = real();
+        edited.server_name = "Mine".into();
+        assert_eq!(page_draft(Some(&edited), Some(&real())), Some(edited), "unsaved edits were dropped");
+    }
+
+    /// When the settings arrive: a working copy with no unsaved edits (it equals the settings
+    /// it was made from) follows them, one with edits is kept, one with nothing real under it
+    /// is replaced, and none stays none (the page makes it when it draws).
+    ///
+    /// Seen red 2026-10-04 with nothing touching the copy when settings arrive (as on
+    /// 8695b08d4): "assertion `left == right` failed: a working copy with no unsaved edits kept
+    /// the old settings / left: Some(ServerSettings { ..., dm_mailbox_ttl_days: 30, ... }) /
+    /// right: Some(ServerSettings { ..., dm_mailbox_ttl_days: 365, ... })".
+    #[test]
+    fn the_working_copy_follows_the_servers_settings_unless_it_holds_edits() {
+        let older = ServerSettings::default();
+        assert_eq!(draft_after_settings_arrive(Some(older.clone()), Some(&older), &real()), Some(real()), "a working copy with no unsaved edits kept the old settings");
+        let mut edited = older.clone();
+        edited.server_name = "Mine".into();
+        assert_eq!(draft_after_settings_arrive(Some(edited.clone()), Some(&older), &real()), Some(edited), "unsaved edits were overwritten");
+        assert_eq!(draft_after_settings_arrive(Some(older.clone()), None, &real()), Some(real()), "a working copy with nothing real under it was kept");
+        assert_eq!(draft_after_settings_arrive(None, Some(&older), &real()), None);
+
+        // Through the state, as the frame does it: a copy made before a Save, the relay's
+        // broadcast of the saved settings, and the page then shows them, not the old ones.
+        let mut state = GuiState::default();
+        state.server_settings = Some(older.clone());
+        state.server_settings_draft = Some(older.clone());
+        state.on_server_settings_state(&serde_json::json!({ "type": "server_settings_state", "settings": real() }));
+        assert_eq!(state.server_settings_draft, Some(real()), "after the settings arrived the page still showed the old ones as unsaved changes");
     }
 }

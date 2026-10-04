@@ -2202,6 +2202,43 @@ mod tests {
         let _ = std::fs::remove_file(&path);
     }
 
+    /// Review of BUG-135 option 2, second round, finding 10: every native sign-in now asks for
+    /// the server's settings, so the answer goes to the client that asked, not to everyone (a
+    /// reconnect wave after a deploy grew with the square of the clients). An admin's saved
+    /// change still reaches every client, which is how the others learn of it.
+    ///
+    /// Seen red 2026-10-04 on 8695b08d4 (the answer was broadcast): "a client that did not ask
+    /// was sent the answer: [String(\"server_settings_state\"), String(\"role_list\")]".
+    #[tokio::test]
+    async fn a_settings_request_is_answered_to_the_asker_and_a_save_to_everyone() {
+        let (state, port, path) = spawn_relay("settings_unicast", Features::all_enabled()).await;
+        let (mut asker, _) = bind_socket(&state, port, [152u8; 32], Some("SettingsAsker"), 1).await;
+        let (mut other, other_key) = bind_socket(&state, port, [153u8; 32], Some("SettingsBystander"), 1).await;
+        frames_until_quiet(&mut asker, 300).await;
+        frames_until_quiet(&mut other, 300).await;
+        send_json(&mut asker, serde_json::json!({ "type": "server_settings_request" })).await;
+        let heard = frames_until_quiet(&mut asker, 800).await;
+        assert!(heard.iter().any(|f| f["type"] == "server_settings_state"), "the asker got no settings: {heard:?}");
+        assert!(heard.iter().any(|f| f["type"] == "role_list"), "the asker got no role list: {heard:?}");
+        let overheard: Vec<Value> = frames_until_quiet(&mut other, 500).await;
+        let types: Vec<&Value> = overheard.iter().map(|f| &f["type"]).collect();
+        assert!(
+            overheard.iter().all(|f| f["type"] != "server_settings_state" && f["type"] != "role_list"),
+            "a client that did not ask was sent the answer: {types:?}"
+        );
+        // An admin's save still reaches everyone.
+        state.db.set_role(&other_key, "admin").unwrap();
+        send_json(&mut other, serde_json::json!({ "type": "server_settings_update", "dm_mailbox_ttl_days": 40 })).await;
+        let after = frames_until_quiet(&mut asker, 800).await;
+        assert!(
+            after.iter().any(|f| f["type"] == "server_settings_state" && f["settings"]["dm_mailbox_ttl_days"] == 40),
+            "an admin's saved change did not reach another client: {after:?}"
+        );
+        asker.close(None).await.ok();
+        other.close(None).await.ok();
+        let _ = std::fs::remove_file(&path);
+    }
+
     /// Connect to `/ws` and complete the Dilithium identify handshake with `extra` merged into
     /// the identify (`{"sign_up_again": true}`, the field only the person's Connect or Enter
     /// sets). Returns at once, without waiting to be signed in: a key whose erase this relay
@@ -2609,12 +2646,11 @@ mod tests {
 
         assert!(
             unclassified.is_empty(),
-            "these inbound WS message types belong to no feature and are not in              WS_ALWAYS_ON, so they FAIL OPEN - they stay fully usable even when              the owner switches their feature off:
-  {}
-
-Classify each in              ws_message_feature, or add it to WS_ALWAYS_ON with a reason.",
-            unclassified.join("
-  ")
+            "these inbound WS message types belong to no feature and are not in \
+             WS_ALWAYS_ON, so they FAIL OPEN - they stay fully usable even when \
+             the owner switches their feature off:\n  {}\n\nClassify each in \
+             ws_message_feature, or add it to WS_ALWAYS_ON with a reason.",
+            unclassified.join("\n  ")
         );
     }
 

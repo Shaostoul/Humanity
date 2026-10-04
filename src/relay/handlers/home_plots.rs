@@ -105,7 +105,9 @@ pub async fn leave_world_for_erase(state: &Arc<RelayState>, key: &str) -> bool {
     if let Some(entity_id) = left {
         let gone = serde_json::json!({ "type": "game_player_left", "player_id": entity_id });
         let _ = state.broadcast_tx.send(crate::relay::relay::RelayMessage::System { message: format!("__game__:{gone}") });
-        tracing::info!("Game: player {} left (entity {}): their account is being erased", key, entity_id);
+        // No key (sign_ups.rs `sign_up_logs_never_name_the_key`): the log outlives the window
+        // the person was promised.
+        tracing::info!("Game: a player left (entity {entity_id}): their account is being erased");
         let told = serde_json::json!({
             "type": "game_join_denied",
             "reason": "account_erased",

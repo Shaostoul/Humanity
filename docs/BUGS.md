@@ -3031,6 +3031,38 @@ app can come back from it only after the window (the web is served by the relay
 and always matches it). Ship the relay and the desktop app in the same release,
 and say this in its notes.
 
+**Second review of option 2 (2026-10-04, eleven findings).** Fixed: the source
+test that pins `erase_left_rows` to `delete_account` had its "\r\n" escape
+turned into raw line breaks, so on a CRLF checkout (the operator's) it panicked
+and `cargo test --lib` went red there while Linux CI stayed green; it now reads
+every `del(` call however it is laid out (one also in features.rs, a failure
+message only, had the same raw breaks). No log line about an erase names the key
+any more, including the game's "left" line and the socket teardown that runs when
+the erasing client closes (it names an erased key "an erased account"); the test
+now reads those too. The native Server Settings page no longer makes its working
+copy from defaults before the server's settings arrive (Save wrote every default
+back, and a lowered mailbox or retention window then deleted at once): no form
+until they arrive, and a copy with no unsaved edits follows new settings. The
+mailbox and retention hints say that saving a lower number deletes older items
+at once, for good. Two relays (or tests) creating a key file at once now end with
+the same key. `erase_left_rows` reads only what the erase answers for: not a
+profile another server gossips back, while a failed delete by name or of listing
+images keeps the registration or the listings, so it shows. A link code and the
+member row check the erase in the same step, and a refusal on either tells and
+closes before anything is bound. The in-world follow reads the erase on the
+connected server. The answer to `server_settings_request` (and its role list) goes
+to the client that asked, not to everyone; an admin's saved change still goes to
+all.
+
+**Not fixed, on purpose: desktop apps from before v0.1449.0.** They do not know
+`account_erased`. To such an app, the relay's answer to an erased key is an
+unknown message followed by a closed socket; each socket it opens resets its
+reconnect backoff (src/lib.rs ~14372) before being closed, so it redials at once,
+over and over, until the per-IP identify limit (30 a minute) holds it. Nobody runs
+those builds yet, and the project adds no compatibility code before launch (the
+no-backwards-compatibility rule in CLAUDE.md), so this is written down instead of
+handled: if it is ever seen, the fix is to update the app.
+
 ## BUG-136: the carry limit is shown as a fixed 50 kg, and being overloaded does nothing (OPEN, found 2026-10-04)
 
 **Found by** the Library writer checking the "Force, Levers and Mechanical

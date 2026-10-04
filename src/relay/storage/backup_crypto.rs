@@ -61,32 +61,17 @@ pub enum KeyFile {
 }
 
 /// Load the key in `dir/file`, or create it when there is none. Created atomically (review
-/// of BUG-135 option 2, 2026-10-04): written whole to `<file>.tmp`, flushed, then renamed into
-/// place, so a crash or a full disk mid-write leaves no key file at all (the next start makes
-/// one) rather than a short one that every later start refuses.
+/// of BUG-135 option 2, 2026-10-04): the key is written whole to a temporary file, flushed,
+/// and only then made to exist under its name, so a crash or a full disk mid-write leaves no
+/// key file at all (the next start makes one) rather than a short one that every later start
+/// refuses. And never over another (the second round, finding 5): every creator writes its
+/// own temporary file and installs it only where there is none, then reads back whatever is
+/// there, so creators racing (two relays on one folder, or the test suite, whose databases
+/// share the temp folder) all end with the one key on disk.
 pub fn load_named_key(dir: &Path, file: &str) -> (Option<[u8; 32]>, KeyFile) {
     let path = dir.join(file);
-    match std::fs::read(&path) {
-        Ok(bytes) if bytes.len() == 32 => {
-            let mut k = [0u8; 32];
-            k.copy_from_slice(&bytes);
-            return (Some(k), KeyFile::Loaded);
-        }
-        Ok(bytes) => {
-            tracing::error!(
-                "{file} at {} has wrong length ({}); refusing to overwrite it: fix or remove it manually",
-                path.display(),
-                bytes.len()
-            );
-            return (None, KeyFile::Unusable);
-        }
-        // Only a file that is not there is made. Any other read error (a permission, a lock)
-        // must not lead to a new key written over a good one.
-        Err(e) if e.kind() != std::io::ErrorKind::NotFound => {
-            tracing::error!("could not read {file} at {}: {e}; leaving it as it is", path.display());
-            return (None, KeyFile::Unusable);
-        }
-        Err(_) => {}
+    if let Some(found) = read_key_file(&path, file) {
+        return found;
     }
     // Generate. AeadCore::generate_nonce is the vetted entropy path this
     // crate already links; two nonces + a bit of key stretching would be
@@ -97,40 +82,94 @@ pub fn load_named_key(dir: &Path, file: &str) -> (Option<[u8; 32]>, KeyFile) {
     if let Some(parent) = path.parent() {
         let _ = std::fs::create_dir_all(parent);
     }
-    if let Err(e) = write_key_atomically(&path, &k) {
-        tracing::error!("could not write {file} at {}: {e}", path.display());
-        return (None, KeyFile::Unusable);
+    match install_key_no_clobber(&path, &k) {
+        Ok(true) => {
+            tracing::info!("{file} created at {}", path.display());
+            (Some(k), KeyFile::Created)
+        }
+        // Another creator installed one first: that one is the key.
+        Ok(false) => read_key_file(&path, file).unwrap_or((None, KeyFile::Unusable)),
+        Err(e) => {
+            tracing::error!("could not write {file} at {}: {e}", path.display());
+            (None, KeyFile::Unusable)
+        }
     }
-    tracing::info!("{file} created at {}", path.display());
-    (Some(k), KeyFile::Created)
 }
 
-/// Write `k` to `<path>.tmp` (private from the start on unix), flush it to the disk, and
-/// rename it to `path`. The rename is the only step that makes the key file exist, so it is
-/// either all 32 bytes or not there.
-fn write_key_atomically(path: &Path, k: &[u8; 32]) -> std::io::Result<()> {
+/// What the key file at `path` holds: None when there is no such file (the caller makes one),
+/// otherwise the key (Loaded) or Unusable.
+fn read_key_file(path: &Path, file: &str) -> Option<(Option<[u8; 32]>, KeyFile)> {
+    match std::fs::read(path) {
+        Ok(bytes) if bytes.len() == 32 => {
+            let mut k = [0u8; 32];
+            k.copy_from_slice(&bytes);
+            Some((Some(k), KeyFile::Loaded))
+        }
+        Ok(bytes) => {
+            tracing::error!(
+                "{file} at {} has wrong length ({}); refusing to overwrite it: fix or remove it manually",
+                path.display(),
+                bytes.len()
+            );
+            Some((None, KeyFile::Unusable))
+        }
+        // Only a file that is not there is made. Any other read error (a permission, a lock)
+        // must not lead to a new key written over a good one.
+        Err(e) if e.kind() != std::io::ErrorKind::NotFound => {
+            tracing::error!("could not read {file} at {}: {e}; leaving it as it is", path.display());
+            Some((None, KeyFile::Unusable))
+        }
+        Err(_) => None,
+    }
+}
+
+/// Write `k` to a temporary file of this writer's own (`<file>.<random>.tmp`, private from the
+/// start on unix), flush it to the disk, and install it as `path` only if there is none: a
+/// hard link, which fails when `path` exists, so it is all 32 bytes or not there, and never
+/// replaces a key another creator installed first (a shared `<file>.tmp` and `rename`, which
+/// replaces, let racing creators end with different keys). The temporary file is removed
+/// either way. Ok(true): installed; Ok(false): one was there first.
+fn install_key_no_clobber(path: &Path, k: &[u8; 32]) -> std::io::Result<bool> {
     use std::io::Write;
     let mut tmp = path.as_os_str().to_owned();
-    tmp.push(".tmp");
+    tmp.push(format!(".{:016x}.tmp", rand::random::<u64>()));
     let tmp = PathBuf::from(tmp);
-    let mut opts = std::fs::OpenOptions::new();
-    opts.write(true).create(true).truncate(true);
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::OpenOptionsExt;
-        opts.mode(0o600);
-    }
-    let mut f = opts.open(&tmp)?;
-    f.write_all(k)?;
-    f.sync_all()?;
-    drop(f);
-    std::fs::rename(&tmp, path)?;
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        let _ = std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600));
-    }
-    Ok(())
+    let private_new_file = || {
+        let mut opts = std::fs::OpenOptions::new();
+        opts.write(true).create_new(true);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::OpenOptionsExt;
+            opts.mode(0o600);
+        }
+        opts
+    };
+    let installed = (|| {
+        let mut f = private_new_file().open(&tmp)?;
+        f.write_all(k)?;
+        f.sync_all()?;
+        drop(f);
+        match std::fs::hard_link(&tmp, path) {
+            Ok(()) => Ok(true),
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => Ok(false),
+            Err(e) => {
+                // A filesystem without hard links: make the key file itself, still never over
+                // another (create_new). Not atomic: a crash in these few bytes leaves a short
+                // file, which every start then reports and leaves for the operator.
+                tracing::warn!("no hard links for {} ({e}); writing the key file in place", path.display());
+                let mut f = match private_new_file().open(path) {
+                    Ok(f) => f,
+                    Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => return Ok(false),
+                    Err(e) => return Err(e),
+                };
+                f.write_all(k)?;
+                f.sync_all()?;
+                Ok(true)
+            }
+        }
+    })();
+    let _ = std::fs::remove_file(&tmp);
+    installed
 }
 
 /// Encrypt `plain_path` into `enc_path` (nonce ‖ ciphertext).
@@ -234,7 +273,8 @@ mod tests {
         let (made, state) = load_named_key(&fresh, "erased-accounts.key");
         assert_eq!(state, KeyFile::Created);
         assert_eq!(std::fs::read(fresh.join("erased-accounts.key")).unwrap().len(), 32);
-        assert!(!fresh.join("erased-accounts.key.tmp").exists(), "the temporary file was left behind");
+        let tmp_left = std::fs::read_dir(&fresh).unwrap().filter_map(|e| e.ok()).any(|e| e.file_name().to_string_lossy().ends_with(".tmp"));
+        assert!(!tmp_left, "the temporary file was left behind");
         let (again, state) = load_named_key(&fresh, "erased-accounts.key");
         assert_eq!((again, state), (made, KeyFile::Loaded), "the key was not kept");
         // A temporary file left by a crash mid-write does not stop the next start.
@@ -242,6 +282,43 @@ mod tests {
         std::fs::write(crashed.join("erased-accounts.key.tmp"), b"half").unwrap();
         let (k, state) = load_named_key(&crashed, "erased-accounts.key");
         assert!(k.is_some() && state == KeyFile::Created, "a leftover .tmp blocked creating the key");
+    }
+
+    /// Review of BUG-135 option 2, second round, finding 5: several starts creating the same
+    /// key file at once (two relays sharing a folder, or the test suite, whose databases share
+    /// the temp folder) all end with the ONE key that is on disk, and each reports it as kept.
+    /// Every creator writes its own temporary file and installs it only where there is none;
+    /// whoever finds one already there reads and uses it.
+    ///
+    /// Seen red 2026-10-04 on 8695b08d4 (one shared `<file>.tmp`, then `rename`, which
+    /// replaces): "assertion `left == right` failed: round 0: a creator uses a key that is not
+    /// the one on disk / left: Some([181, 17, 213, ...]) / right: Some([35, 169, 122, ...])".
+    #[test]
+    fn creators_racing_end_with_the_one_key_on_disk() {
+        const CREATORS: usize = 4;
+        for round in 0..40 {
+            let dir = tmp_dir(&format!("race{round}"));
+            let gate = std::sync::Arc::new(std::sync::Barrier::new(CREATORS));
+            let threads: Vec<_> = (0..CREATORS)
+                .map(|_| {
+                    let (dir, gate) = (dir.clone(), gate.clone());
+                    std::thread::spawn(move || {
+                        gate.wait();
+                        load_named_key(&dir, "erased-accounts.key")
+                    })
+                })
+                .collect();
+            let results: Vec<_> = threads.into_iter().map(|t| t.join().unwrap()).collect();
+            let on_disk = std::fs::read(dir.join("erased-accounts.key")).unwrap();
+            for (k, state) in &results {
+                assert_ne!(*state, KeyFile::Unusable, "round {round}: a creator was left without a kept key: {results:?}");
+                assert_eq!(k.map(|k| k.to_vec()), Some(on_disk.clone()), "round {round}: a creator uses a key that is not the one on disk");
+            }
+            let created = results.iter().filter(|(_, s)| *s == KeyFile::Created).count();
+            assert_eq!(created, 1, "round {round}: {created} creators said they made the key");
+            let tmp_left: Vec<_> = std::fs::read_dir(&dir).unwrap().filter_map(|e| e.ok()).map(|e| e.file_name()).filter(|n| n.to_string_lossy().ends_with(".tmp")).collect();
+            assert!(tmp_left.is_empty(), "round {round}: temporary files left behind: {tmp_left:?}");
+        }
     }
 
     #[test]
