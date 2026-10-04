@@ -770,6 +770,26 @@
           ]
         },
         {
+          "title": "Force, Levers and Mechanical Advantage",
+          "file": "force_levers_and_mechanical_advantage.md",
+          "tags": [
+            "guide",
+            "real",
+            "making",
+            "safety"
+          ]
+        },
+        {
+          "title": "Heat and How It Moves",
+          "file": "heat_and_how_it_moves.md",
+          "tags": [
+            "guide",
+            "real",
+            "health",
+            "safety"
+          ]
+        },
+        {
           "title": "Sharpening",
           "file": "sharpening.md",
           "tags": [
@@ -825,6 +845,17 @@
             "real",
             "making",
             "materials"
+          ]
+        },
+        {
+          "title": "Rust, Rot and Decay",
+          "file": "rust_rot_and_decay.md",
+          "tags": [
+            "guide",
+            "real",
+            "making",
+            "materials",
+            "safety"
           ]
         },
         {
