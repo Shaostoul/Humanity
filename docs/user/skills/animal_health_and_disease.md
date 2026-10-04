@@ -1,12 +1,16 @@
 # Animal Health and Disease
 
-Animals cannot tell you they feel ill, and many show little until they
-are quite sick, so by the time a sick goat looks sick to a stranger it
-may have been ill for days (general practice). The keeper's main tool is
-not a medicine chest but an eye trained on what normal looks like for
-each animal: how it stands, eats, chews, moves, breathes and behaves.
-Notice the change early, and a vet can often fix what would otherwise
-kill.
+Animals cannot tell you they feel ill, and some illnesses show nothing
+at first. The US Department of Agriculture's animal health service
+says scrapie can take 2 to 5 years to show signs, and the University of
+Minnesota Extension's livestock vet and educator note that sheep and
+goats carrying worms sometimes show no visible signs at all.
+So the keeper's main tool is not a medicine chest but an eye trained on
+what normal looks like for each animal: how it stands, eats, chews,
+moves, breathes and behaves. The CDC's advice is to contact your vet if
+you notice any signs of illness, and the Virginia Cooperative Extension
+says watching vital signs helps you spot a problem early so you can call
+the vet.
 
 This guide is about that early noticing, about the few measurements any
 keeper can learn, about the diseases that pass from animals to people,
@@ -22,10 +26,11 @@ Health Inspection Service (APHIS), the Food and Drug Administration
 federal regulations; its pasture and parasite figures from the
 Department of Agriculture's Natural Resources Conservation Service
 (NRCS). Those are United States government works, in the public domain.
-Its vital sign figures and bloat advice come from the extension services
-of Virginia and Nebraska; those are copyrighted, so their facts are
-restated here in our own words, never quoted. Where something is
-general practice or our own reading, the text says so.
+Its vital sign figures, its bloat advice and some of its worm advice come
+from the extension services of Virginia, Nebraska and Minnesota; those
+are copyrighted, so their facts are restated here in our own words,
+never quoted. Where something is general practice or our own reading,
+the text says so.
 
 Three other guides sit beside this one. [How Animals Work](how_animals_work.md)
 explains the bodies whose failures this guide is about. [Keeping
@@ -244,13 +249,23 @@ the CDC's warnings).
 
 **Rabies.** The CDC says any mammal can get rabies, and that vaccines
 for livestock exist, rabies among them; ask your vet whether yours need
-it. An animal that suddenly behaves strangely, drools, or cannot swallow
-should not be handled bare-handed or examined in the mouth until a vet
-has seen it (general practice). If a wild or unfamiliar animal, or one
-of your own that is acting strangely, bites or scratches you, the CDC's
-rabies advice is to wash the wound at once with soap and water for 15
-minutes and to talk to a healthcare or public health professional
-urgently; [How Animals Work](how_animals_work.md) and [Bleeding and
+it. Rabies does reach farms. A CDC report published in December 2025
+describes five of 35 steers on a Minnesota dairy farm developing signs
+of rabies in May 2024, most likely after exposure to a rabid skunk, with
+drooling, poor coordination, bellowing and head thrashing among their
+signs. Five people were given treatment to prevent rabies after being
+exposed: a vet, two children, and the farm's two owners, who had close
+contact with all the sick steers, possibly including their saliva. The report says
+preventive vaccination of cattle should be considered where rabies is
+common among wild land animals and the cattle are valuable.
+
+If one of your animals suddenly behaves strangely, drools, or cannot
+swallow, do not handle it at all, gloved or not: keep people and other
+animals away from it and call your vet at once (general practice). If a
+wild or unfamiliar animal, or one of your own that is acting strangely,
+bites or scratches you, the CDC's rabies advice is to wash the wound
+at once with soap and water for 15 minutes and to talk to a healthcare
+or public health professional urgently; [How Animals Work](how_animals_work.md) and [Bleeding and
 Wounds](bleeding_and_wounds.md) have more.
 
 ### Habits that protect you
@@ -269,8 +284,9 @@ The CDC's rules for people who work with farm animals:
   helping an animal give birth.
 - **Cover open wounds and cuts** before working with animals.
 - **Keep a pair of shoes and gloves for the animals,** stored outside the
-  house; scrub your shoes and change clothes before and after visiting
-  another farm's animals.
+  house. If you visit another farm, scrub your shoes and change your
+  clothes before you touch its animals, and again before you go back to
+  your own.
 - **Do not eat or drink in animal areas,** and do not take babies' things
   (toys, dummies, bottles, pushchairs) into them.
 - **Supervise children,** keep their hands from their mouths, and keep
@@ -290,11 +306,21 @@ working at birthing exhibits; the same risk is there at lambing and
 kidding at home (our reading). For those who do the work, it lists
 disposable gloves, plastic arm-length sleeves, goggles, boots and
 respiratory protection (an N95 respirator recommended) when helping with
-births, cleaning birthing areas and disposing of birth products; it adds
-that the wearer should be trained to use a respirator, and should ask a
-doctor first whether wearing one is safe for them. It says to remove
-placentas, bedding and anything soaked with birth fluids promptly, and
-to work with your vet to find the cause of any abortion or stillbirth.
+births, cleaning birthing areas and disposing of birth products. It
+says to remove placentas, bedding and anything soaked with birth fluids
+promptly, and to work with your vet to find the cause of any abortion or
+stillbirth.
+
+On the respirator, the fact sheet says: "Be trained and certified to
+wear a respirator." It also says to talk to your doctor first about
+whether wearing one is safe for you. A respirator protects only if it
+fits the face it is on (our reading). OSHA's respirator rule for
+workplaces (29 CFR 1910.134) defines a fit test as a check of how well a
+respirator fits a particular person, and requires a worker to pass one,
+with the same make, model, style and size, before being required to wear
+a tight-fitting respirator. Before birthing season, ask your doctor or
+health department where you can be fit-tested for an N95 (general
+practice built on that rule).
 
 APHIS's scrapie advice adds: confine ewes and does that are giving birth
 so they have little contact with other animals; remove placentas, fluids
@@ -335,22 +361,40 @@ rules:
 - **Don't borrow disease from your neighbour.** Do not share equipment
   without cleaning and disinfecting it first.
 
-For sheep and goats, APHIS's scrapie page recommends a closed herd:
-buying as few outside animals as you can, from other closed herds, and
-mixing as little as possible with animals at markets, fairs and shows.
+For sheep and goats, APHIS's scrapie page recommends a closed herd, with
+no outside contact with other sheep or goats: buying as few outside
+animals as you can, choosing replacements from another closed herd that
+guards against scrapie or animals that are genetically resistant to it,
+and mixing as little as possible with animals at markets, fairs and
+shows.
 The CDC adds routine veterinary visits and vaccination, planned with your
 vet, and care for the farm's dogs and cats too.
 
 ### Worms
 
 The NRCS handbook says effective control of the parasites that live in
-and on livestock is needed for efficient livestock production, and it
-treats the pasture as the first defence against worms: rest
-pastures for at least 20 days and graze no closer than 4 inches (10 cm)
-from the ground to break stomach-worm life cycles, with longer rests for
-sheep and goats; give goats 30 to 45 days of rest and a 4-inch stubble
-against the barber pole worm, which lives near the soil surface. Clean
-water helps too.
+and on livestock is needed for efficient livestock production, and its
+first tools are grazing ones: rest pastures for at least 20 days and
+graze no closer than 4 inches (10 cm) from the ground to break
+stomach-worm life cycles, with longer rests for sheep and goats; give
+goats 30 to 45 days of rest and a 4-inch stubble against the barber pole
+worm, which lives near the soil surface. Clean water is on its list too.
+
+Those rests are not a guarantee. The University of Minnesota
+Extension's livestock vet and educator say internal parasites are a
+leading cause of death for sheep and goats in the United States. They
+explain that barber pole worm larvae can live on grass for up to 2
+months in warm weather and 6 months or more in cool weather, and advise
+at least 2 months of rest for a pasture grazed in a Minnesota summer.
+Worms have become resistant to every class of chemical dewormer, they
+say, so getting rid of them entirely is no longer realistic, and
+deworming a whole flock at once leaves only the resistant worms to
+breed. Their answer is pasture management, breeding from animals that
+resist worms, and treating only the animals that need it, all together.
+How long a rest works on your land depends on your climate (our
+reading), so plan worm control with your vet before the grazing season
+(general practice). [Keeping Animals](keeping_animals.md) has more on
+resting pastures.
 
 The barber pole worm causes anaemia (too little blood), and the handbook
 describes the check keepers use for it in goats: the colour of the
@@ -452,6 +496,8 @@ rules; ask your state animal health official or extension office
 - **Blisters in the mouth or on the feet, nervous signs in sheep or
   goats, sudden deaths or many sick animals:** your vet and the state
   animal health official, or the APHIS hotline.
+- **An animal acting strangely, drooling or unable to swallow:** your vet
+  at once, and nobody handles it in the meantime.
 - **Your own health:** a doctor for bites, needlesticks and any illness
   after animal contact; your health department for a possible rabies
   exposure.
@@ -462,8 +508,9 @@ rules; ask your state animal health official or extension office
 
 - **"It looks healthy, so it is safe."** The CDC says healthy animals can
   carry diseases. Wash your hands every time.
-- **Waiting to see.** Many animals show little until they are quite
-  sick. A change is the signal; act on it.
+- **Waiting to see.** Some illnesses show little at first, and the CDC
+  says to contact your vet if you notice any signs of illness. A change
+  is the signal; act on it.
 - **Standing behind an animal to take its temperature.** Stand to the side,
   with the animal held.
 - **No baseline.** A temperature means little if you never took one when
@@ -568,7 +615,9 @@ documents were read on 4 October 2026.
   equipment, fences and buckets; sanitiser with at least 60 percent
   alcohol; protective equipment for body fluids, stalls and births;
   covering wounds; dedicated shoes and gloves kept outside the home;
-  cleaning shoes and changing clothes between farms; not standing behind
+  scrubbing shoes and changing clothes before touching another farm's
+  animals and before coming back to your own; contacting your vet at any
+  sign of illness; not standing behind
   animals; children, babies' things and no eating or drinking in animal
   areas; children under 5 and poultry; bites, scratches and kicks, the
   signs of a serious wound and the 5-year tetanus rule; livestock
@@ -586,7 +635,8 @@ documents were read on 4 October 2026.
   fact sheet CS261725, undated (miscarriage in pregnant women; pregnant
   women, people with weakened immune systems and people with heart
   problems to avoid birthing work; gloves, sleeves, goggles, boots and an
-  N95 respirator; respirator training and a doctor's advice; exposure
+  N95 respirator; "Be trained and certified to wear a respirator." and
+  a doctor's advice first; exposure
   through placenta, birth fluids and newborn animals; prompt removal of
   placentas and bedding; a vet to find the cause of abortions and
   stillbirths).
@@ -607,6 +657,16 @@ documents were read on 4 October 2026.
   unfamiliar animals, wash wounds with soap and water for 15 minutes and
   talk to a healthcare or public health professional urgently).
   https://www.cdc.gov/rabies/prevention/index.html
+- Centers for Disease Control and Prevention. Klumb, C., Ireland, M.,
+  Miller, B. and others. Rabies Cluster Among Steers on a Dairy Farm,
+  Minnesota, 2024. *Morbidity and Mortality Weekly Report* 74(40),
+  622 to 625, 11 December 2025 (five of 35 steers in May 2024, most likely
+  from a rabid skunk; drooling, poor coordination, bellowing and head
+  thrashing; five people given postexposure prophylaxis, among them a vet,
+  two farm owners with extensive contact including possible saliva
+  contact, and two children; preventive vaccination of cattle to be
+  considered where rabies is prevalent and the animals are valuable).
+  https://www.cdc.gov/mmwr/volumes/74/wr/mm7440a3.htm
 - USDA Animal and Plant Health Inspection Service. Foot-and-Mouth
   Disease, last modified 30 July 2025 (cloven-hoofed animals; not a human
   health or food safety threat; the signs; confusion with other blistering
@@ -616,7 +676,9 @@ documents were read on 4 October 2026.
 - USDA Animal and Plant Health Inspection Service. Scrapie, last modified
   29 June 2026 (a transmissible spongiform encephalopathy; 2 to 5 years
   to show signs; spread by healthy-looking animals; the signs; no
-  treatment; a closed herd; birthing hygiene and not feeding milk or
+  treatment; a closed herd with no outside contact, few outside purchases,
+  and replacements from another closed herd or genetically resistant
+  animals; reduced commingling; birthing hygiene and not feeding milk or
   colostrum from possibly exposed animals; owners contact their vet;
   free testing of up to 30 animals per flock a year).
   https://www.aphis.usda.gov/livestock-poultry-disease/sheep-goat/scrapie
@@ -635,8 +697,9 @@ documents were read on 4 October 2026.
 - USDA Natural Resources Conservation Service. *National Range and
   Pasture Handbook*, Title 190, Part 645, Subpart H, Livestock
   Nutrition, Husbandry, and Behavior (190-645-H, June 2022) (effective
-  parasite control needed for efficient production; resting
-  pastures at least 20 days and grazing no closer than 4 inches, longer
+  parasite control needed for efficient production; grazing systems
+  that disrupt the parasite cycle; resting pastures at least 20 days
+  and grazing no closer than 4 inches, longer
   for sheep and goats; 30 to 45 days and 4-inch stubble against the
   barber pole worm; clean water; the FAMACHA eyelid score and the
   five-point check; faecal egg counts; changing the active ingredient;
@@ -675,13 +738,20 @@ documents were read on 4 October 2026.
   sharps container, never uncapping by mouth, avoiding recapping,
   gloves).
   https://www.osha.gov/agricultural-operations/hazards
+- Occupational Safety and Health Administration. 29 CFR 1910.134,
+  Respiratory protection ((b) fit test and tight-fitting facepiece
+  defined; (f) fit testing with the same make, model, style and size
+  before an employee may be required to use a tight-fitting respirator).
+  https://www.ecfr.gov/current/title-29/subtitle-B/chapter-XVII/part-1910/subpart-I/section-1910.134
 
 ### University extension (cited as the authority; facts restated)
 
 - Virginia Cooperative Extension. Gregg, C., Clarke, T. and Greiner,
   S. P. *Monitoring Livestock Vital Signs*, APSC-169NP, publication date
-  29 May 2025 (what to observe; the vet may ask for vital signs; taking a
-  temperature with a string-tied thermometer for 2 to 3 minutes; normal
+  29 May 2025 (what to observe; monitoring vital signs to identify
+  problems early and call the vet; the vet may ask for vital signs;
+  taking a temperature with a string-tied thermometer for 2 to 3
+  minutes; normal
   temperature, pulse and resting breathing ranges; fever as one degree
   outside the normal range; activity and heat; where to feel a pulse and
   not with the thumb; counting breaths; the skin pinch test and moist
@@ -692,6 +762,17 @@ documents were read on 4 October 2026.
   signs of bloat; acute bloat treated promptly; planning with the vet
   before the season; never drench a bloated animal).
   https://extensionpubs.unl.edu/publication/g2018/pdf/view
+- University of Minnesota Extension. Varnum, A. and Florentino, S.
+  *Managing barberpole worms in sheep and goats*, reviewed 2026 (internal
+  parasites a leading cause of death for sheep and goats in the United
+  States; larvae surviving on grass up to 2 months in warm weather and 6
+  months or more in cool weather; at least 2 months of rest for pastures
+  grazed in Minnesota summers; resistance to every class of chemical
+  dewormer, so eradication is no longer realistic; deworming a whole
+  flock leaves resistant worms to breed; combining pasture management,
+  breeding for resistance and targeted treatment; sometimes no visible
+  signs).
+  https://extension.umn.edu/small-farms/managing-barberpole-worms-sheep-and-goats
 
 ### Inside this project
 
@@ -716,7 +797,6 @@ documents were read on 4 October 2026.
 
 ### Labelled in the text as general practice or our reading, not sourced
 
-- That many animals show little until quite sick.
 - The daily checks at feeding time, and writing them down; a ruminant
   that stops chewing the cud as a concern.
 - Reading the extension's one degree of fever as Fahrenheit, about half a
@@ -733,9 +813,14 @@ documents were read on 4 October 2026.
 - Writing the vet's number and the hotline in the barn.
 - Asking the extension office for a tested way to pasteurise milk, and
   never giving raw milk to people at higher risk.
-- Not handling a strangely behaving, drooling animal's mouth until a vet
-  has seen it, and treating a bite from your own animal that is acting
-  strangely the way the CDC treats one from an unfamiliar animal.
+- Not handling a strangely behaving, drooling animal at all, keeping
+  people and animals away and calling the vet, and treating a bite from
+  your own animal that is acting strangely the way the CDC treats one
+  from an unfamiliar animal.
+- That a respirator protects only if it fits, and getting fit-tested
+  for an N95 before birthing season, built on OSHA's workplace rule.
+- That the length of pasture rest that works depends on climate, and
+  planning worm control with the vet.
 - That a recapped needle is an easy way to stick yourself.
 - Learning the eyelid check from a trained person and leaving the
   dewormer to the vet.

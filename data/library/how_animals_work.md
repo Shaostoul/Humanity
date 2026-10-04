@@ -137,20 +137,29 @@ narrowing the blood vessels near the skin and by a little sweating.
 Below it, the animal shivers to make heat. Above it, the animal pants,
 breathes faster and sweats.
 
-The handbook gives the zone for some species:
+The handbook gives the zone for some species, the first four from its
+table of typical zones and the rest from its sections on each animal:
 
 | Animal | Comfortable range |
 |---|---|
+| Cattle | 41 to 68 F (5 to 20 C) |
+| Calves | 50 to 68 F (10 to 20 C) |
+| Sheep | 70 to 88 F (21 to 31 C) |
+| Goats | 50 to 68 F (10 to 20 C) |
 | Horse | about 41 to 77 F (5 to 25 C) |
 | Foal | about 60 to 72 F (16 to 22 C) |
 | Pig | 50 to 75 F (10 to 24 C) |
 | Most poultry | 60 to 75 F (16 to 24 C) |
 
-It gives the body temperature of a market pig as about 102 F (39 C),
-and of chickens and turkeys as 105 to 107 F (41 to 42 C). The Celsius
-figures are our conversions. The handbook also notes that
-heavier horse breeds, with more body mass and fat, stand cold better
-than light ones, and light breeds stand heat better.
+The sheep's range stands out. The handbook says it is almost 20 degrees
+higher than for most other farm animals, probably because of the wool,
+which insulates the sheep against both heat and cold, and that without
+wool a sheep's energy needs would be higher. It gives the body
+temperature of a market pig as about 102 F (39 C), and of chickens and
+turkeys as 105 to 107 F (41 to 42 C). The Celsius figures are our
+conversions. The handbook also notes that heavier horse breeds, with
+more body mass and fat, stand cold better than light ones, and light
+breeds stand heat better.
 
 ### Cold
 
@@ -159,9 +168,11 @@ grazing, so they eat less, while dry cold tends to make them eat more.
 Cold is exactly when an animal below its comfortable range needs more
 energy to stay warm (our reading). The handbook's advice for winter
 includes giving warm drinking water in cold areas, so the animal does
-not have to spend body energy warming icy water. Because wet and wind strip away insulation,
-a windbreak and a dry place to lie down do more for most livestock in
-winter than a closed, heated barn (our reading).
+not have to spend body energy warming icy water. For sheep it adds that
+windbreaks, shade and dry ground help them cope with the weather.
+Because wet and wind strip away insulation, a windbreak and a dry place
+to lie down do more for most livestock in winter than a closed, heated
+barn (our reading).
 
 ### Heat
 
@@ -331,15 +342,16 @@ noticing (our reading).
 
 Breeding is driven by a cycle in the female. For part of each cycle she
 is in heat (oestrus): receptive to the male and able to conceive. The
-handbook gives these figures:
+handbook gives these figures, including the length of the whole cycle,
+from the start of one heat to the start of the next:
 
-| Animal | Length of heat | Pregnancy |
-|---|---|---|
-| Horse | 6 to 7 days | 336 to 340 days in its table; 320 to 380 days in its text on horses, shorter in small breeds |
-| Cow | 12 to 18 hours | 283 days |
-| Ewe (sheep) | 29 to 36 hours | 142 to 150 days |
-| Doe (goat) | 24 to 26 hours | 151 days; about 150 days, roughly 5 months, in its text on goats |
-| Sow (pig) | | about 115 days |
+| Animal | Length of heat | Cycle | Pregnancy |
+|---|---|---|---|
+| Horse | 6 to 7 days | 22 days | 336 to 340 days in its table; 320 to 380 days in its text on horses, shorter in small breeds |
+| Cow | 12 to 18 hours | 19.5 days | 283 days |
+| Ewe (sheep) | 29 to 36 hours | 17 days | 142 to 150 days |
+| Doe (goat) | 24 to 26 hours | 20 to 22 days | 151 days; about 150 days, roughly 5 months, in its text on goats |
+| Sow (pig) | | | about 115 days |
 
 It gives the age of puberty in the United States as the second spring
 (as a yearling) for horses, 5 to 13 months for cattle depending on breed
@@ -397,10 +409,11 @@ killed, and that animals carry diseases that can pass to people.
 
 **Strange behaviour is a warning.** The CDC says: "Any mammal can get
 rabies, but some are at higher risk." In the United States more than 90
-percent of reported rabies cases in animals are in wildlife, most often
-bats, raccoons, skunks and foxes. Its advice: "Never approach animals
-who appear to be injured, sick, or dead, especially if you see animals
-during the day who are usually active at night (bats, raccoons, etc.)"
+percent of reported rabies cases in animals are in wildlife, and the
+wild species that carry it include bats, raccoons, skunks and foxes. Its
+advice: "Never approach animals who appear to be injured, sick, or dead,
+especially if you see animals during the day who are usually active at
+night (bats, raccoons, etc.)"
 Call animal control instead. If a wild or unfamiliar animal bites or
 scratches you, the CDC says to wash the wound at once with soap and
 water for 15 minutes and to talk to a healthcare or public health
@@ -517,17 +530,20 @@ documents were read on 4 October 2026.
   sources of water, water in forage and hay, metabolic water from fat and
   carbohydrate, milk 80 to 88 percent water; the routes of heat loss and
   insulation reduced by wind and wet; the thermoneutral zone, shivering,
-  sweating and panting; zones for horses, foals, pigs and poultry and
-  their body temperatures; the effect of rain, snow, mud and dry cold;
-  warm drinking water in winter; evaporation as the only cooling when the
-  air is hotter than the body, and the fall in intake in heat; pigs' and
+  sweating and panting; Table H-2's typical zones for cattle, calves,
+  sheep and goats, the sheep's zone almost 20 degrees higher and put down
+  to its wool, and a shorn sheep's higher energy needs; zones for horses,
+  foals, pigs and poultry and their body temperatures; the effect of
+  rain, snow, mud and dry cold; windbreaks, shade and dry ground for
+  sheep; warm drinking water in winter; evaporation as the only cooling
+  when the air is hotter than the body, and the fall in intake in heat; pigs' and
   poultry's responses to heat; rumen microbes needing protein; forage
   digestibility and maturity; sheep and cattle digestion compared; swine
   and poultry taking 5 to 20 percent of needs from forage; horses as
   non-ruminants living mainly on forage; diet selection and preferences;
   grazing, rumination and elimination habits; instinct, habituation,
   trial and error, reasoning, imprinting and the two kinds of
-  conditioning; heat periods and
+  conditioning; Table H-19's heat periods, heat cycle lengths and
   gestation, ages of puberty, sow maturity, goat lactation length and
   horse lifespan).
   https://directives.nrcs.usda.gov/sites/default/files2/1712930386/33922.pdf
@@ -547,7 +563,8 @@ documents were read on 4 October 2026.
   https://www.cdc.gov/healthy-pets/about/farm-animals.html
 - Centers for Disease Control and Prevention. About Rabies, updated 27
   January 2026 (more than 90 percent of reported animal cases in
-  wildlife; bats, raccoons, skunks and foxes), and Rabies Prevention,
+  wildlife; bats, raccoons, skunks and foxes among the wild species that
+  carry it), and Rabies Prevention,
   updated 1 July 2025 (any mammal can get rabies; never approach injured,
   sick or dead animals, especially night animals seen by day; call animal
   control; after contact with wildlife or unfamiliar animals, wash wounds

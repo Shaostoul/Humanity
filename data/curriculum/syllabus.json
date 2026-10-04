@@ -855,7 +855,9 @@
         "fema",
         "okstate-extension",
         "ndsu-extension",
-        "nebraska-extension"
+        "nebraska-extension",
+        "niosh",
+        "umn-extension"
       ],
       "locale_dependent": true,
       "hazard": "caution"
@@ -920,7 +922,8 @@
         "osha",
         "usda-nrcs",
         "vt-extension",
-        "nebraska-extension"
+        "nebraska-extension",
+        "umn-extension"
       ],
       "locale_dependent": false,
       "hazard": "serious"
