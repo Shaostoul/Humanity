@@ -97,10 +97,15 @@ every load-bearing claim checked by an adversarial verifier
   player whose chat was already connected joined before the ship loaded and
   was refused as "a different ship"; the rigs could not see it until a
   connect-first menu entry was added). Rigs on the merged tree: `--plots`
-  30/30 in both join orders and with the menu entry, default 21/21. NEXT:
-  increment 2 (meet in the Commons: door points, walk from your door to the
-  Commons, neighbours drawn as shells, the client remembers its plot per
-  server). Left for later (design doc section 7): a Dev move of the plot
+  30/30 in both join orders and with the menu entry, default 21/21.
+  Increment 2 MERGED 2026-10-04 (v0.1451.0): players walk from their own door
+  into the Commons and see each other there; neighbours are drawn as shells
+  with doors that open for others; the plot is remembered per identity and
+  server; a guest's home is put away and a guest never stands on a plot. Two
+  review rounds. DAY 5 IS UNBLOCKED in code: the operator finds a partner
+  (Discord or a brother) when ready. NEXT: increment 3 (the relay's world
+  becomes this ship: rooms from the shared zones, crew chores in the Commons
+  and mess hall). Left for later (design doc section 7): a Dev move of the plot
   does not carry animals and decoration plants; idle plots are never given
   back automatically (open question 19); a vehicle-driving rig leg needs an
   IPC verb. A rig follow-up (make after increment 2 merges, it edits the same file): verify-copresence.js gives the previous order's game a fixed 2 s to exit before copying the exe again, and a killed game that is slow to release its GPU resources made the next order fail in setupRig and left the game running (2026-10-04, --plots --entry menu game-first; reruns passed): wait for the rig's own game to exit instead. Follow-ups 1a found: put
