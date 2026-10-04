@@ -42,7 +42,7 @@
 // vehicle recipes put 38 to 203 kg of parts into vehicles that weigh 180 kg
 // to 50 t in items.csv, which is why their prices fell so far: give a
 // vehicle a full bill of materials in data/recipes.csv and its price can
-// rise with it.
+// rise with it. Done the same day: see the VEHICLES section below.
 //
 // Value rationale:
 //   1 CR ~ 1 minute of unskilled labor
@@ -226,25 +226,39 @@
 
     // =========================================================================
     // VEHICLES, Conveyances for land, sea, air, and space
+    //
+    // Priced from their bills of materials (2026-10-04, after BUG-145). A vehicle that a
+    // recipe builds costs between what its parts cost at the cheapest and twice that, so
+    // building one is never dearer than buying it and the vendor never pays more for it
+    // than its parts cost (no_vehicle_sells_for_less_than_its_parts and
+    // no_recipe_resells_for_more_than_its_inputs_cost). Most sit near 1.6 times their
+    // parts: motorcycle parts 1561, spacecraft pod 44425, light mech 74961, shuttle
+    // 122111, fighter 136161, heavy mech 176540, freighter 406708. The rowboat (parts 57)
+    // and the sailboat (270) keep their old 80 and 300: wood is cheap. No recipe makes the
+    // sedan, cargo truck, motorboat, small airplane, helicopter or submarine, so they are
+    // priced against bills of materials estimated the same way (parts about 9000, 29000,
+    // 4000, 12300, 22700 and 30000): 1.6 times those, except the small airplane and the
+    // helicopter at about 1.95 times and the cargo truck at about 1.4, so the helicopter
+    // still costs more than the truck. Weights follow items.csv.
     // =========================================================================
 
-    (id: "bicycle_0",         name: "Bicycle",            category: "vehicle",         base_value: 50,    weight_kg: 12.0,  description: "Human-powered two-wheel transport"),
-    (id: "cart_hand_0",       name: "Hand Cart",          category: "vehicle",         base_value: 30,    weight_kg: 15.0,  description: "Wheeled cargo hauler, pulled by hand"),
-    (id: "motorcycle_0",      name: "Motorcycle",         category: "vehicle",         base_value: 620,   weight_kg: 180.0, description: "Two-wheel motorized transport"),
-    (id: "car_sedan_0",       name: "Sedan",              category: "vehicle",         base_value: 2000,  weight_kg: 1400.0,description: "Four-wheel enclosed motor vehicle"),
-    (id: "truck_cargo_0",     name: "Cargo Truck",        category: "vehicle",         base_value: 3000,  weight_kg: 5000.0,description: "Heavy cargo hauling vehicle"),
-    (id: "boat_rowboat_0",    name: "Rowboat",            category: "vehicle",         base_value: 70,    weight_kg: 50.0,  description: "Small oar-powered watercraft"),
-    (id: "boat_sailboat_0",   name: "Sailboat",           category: "vehicle",         base_value: 140,   weight_kg: 200.0, description: "Wind-powered sailing vessel"),
-    (id: "boat_motorboat_0",  name: "Motorboat",          category: "vehicle",         base_value: 1500,  weight_kg: 400.0, description: "Engine-powered speedboat"),
-    (id: "helicopter_0",      name: "Helicopter",         category: "vehicle",         base_value: 8000,  weight_kg: 2000.0,description: "Rotary-wing aircraft for vertical flight"),
-    (id: "airplane_small_0",  name: "Small Airplane",     category: "vehicle",         base_value: 6000,  weight_kg: 800.0, description: "Single-engine propeller aircraft"),
-    (id: "spacecraft_pod_0",  name: "Spacecraft Pod",     category: "vehicle",         base_value: 1550,  weight_kg: 800.0, description: "Minimal orbital shuttle for short trips"),
-    (id: "spacecraft_fighter_0",name: "Fighter Ship",       category: "vehicle",         base_value: 3350,  weight_kg: 5000.0,description: "Armed combat spacecraft"),
-    (id: "spacecraft_shuttle_0",name: "Shuttle",            category: "vehicle",         base_value: 2250,  weight_kg: 8000.0,description: "Medium transport spacecraft for crew and cargo"),
-    (id: "spacecraft_freighter_0",name: "Freighter",          category: "vehicle",         base_value: 5200,  weight_kg: 50000.0,description: "Large cargo hauler for interplanetary trade"),
-    (id: "mech_light_0",      name: "Light Mech",         category: "vehicle",         base_value: 2500,  weight_kg: 5000.0,description: "Bipedal walker, fast scout class"),
-    (id: "mech_heavy_0",      name: "Heavy Mech",         category: "vehicle",         base_value: 4500,  weight_kg: 15000.0,description: "Armored bipedal war machine"),
-    (id: "submarine_0",       name: "Submarine",          category: "vehicle",         base_value: 12000, weight_kg: 8000.0,description: "Underwater vessel for deep-sea exploration"),
+    (id: "bicycle_0",         name: "Bicycle",            category: "vehicle",         base_value: 150,   weight_kg: 12.0,  description: "Human-powered two-wheel transport"),
+    (id: "cart_hand_0",       name: "Hand Cart",          category: "vehicle",         base_value: 100,   weight_kg: 15.0,  description: "Wheeled cargo hauler, pulled by hand"),
+    (id: "motorcycle_0",      name: "Motorcycle",         category: "vehicle",         base_value: 2500,  weight_kg: 180.0, description: "Two-wheel motorized transport"),
+    (id: "car_sedan_0",       name: "Sedan",              category: "vehicle",         base_value: 14500, weight_kg: 1400.0,description: "Four-wheel enclosed motor vehicle"),
+    (id: "truck_cargo_0",     name: "Cargo Truck",        category: "vehicle",         base_value: 40000, weight_kg: 5000.0,description: "Heavy cargo hauling vehicle"),
+    (id: "boat_rowboat_0",    name: "Rowboat",            category: "vehicle",         base_value: 80,    weight_kg: 40.0,  description: "Small oar-powered watercraft"),
+    (id: "boat_sailboat_0",   name: "Sailboat",           category: "vehicle",         base_value: 300,   weight_kg: 200.0, description: "Wind-powered sailing vessel"),
+    (id: "boat_motorboat_0",  name: "Motorboat",          category: "vehicle",         base_value: 6400,  weight_kg: 400.0, description: "Engine-powered speedboat"),
+    (id: "helicopter_0",      name: "Helicopter",         category: "vehicle",         base_value: 44000, weight_kg: 1500.0,description: "Rotary-wing aircraft for vertical flight"),
+    (id: "airplane_small_0",  name: "Small Airplane",     category: "vehicle",         base_value: 24000, weight_kg: 800.0, description: "Single-engine propeller aircraft"),
+    (id: "spacecraft_pod_0",  name: "Spacecraft Pod",     category: "vehicle",         base_value: 70000, weight_kg: 2000.0,description: "Minimal orbital shuttle for short trips"),
+    (id: "spacecraft_fighter_0",name: "Fighter Ship",       category: "vehicle",         base_value: 215000, weight_kg: 5000.0,description: "Armed combat spacecraft"),
+    (id: "spacecraft_shuttle_0",name: "Shuttle",            category: "vehicle",         base_value: 195000, weight_kg: 8000.0,description: "Medium transport spacecraft for crew and cargo"),
+    (id: "spacecraft_freighter_0",name: "Freighter",          category: "vehicle",         base_value: 650000, weight_kg: 50000.0,description: "Large cargo hauler for interplanetary trade"),
+    (id: "mech_light_0",      name: "Light Mech",         category: "vehicle",         base_value: 120000, weight_kg: 3000.0,description: "Bipedal walker, fast scout class"),
+    (id: "mech_heavy_0",      name: "Heavy Mech",         category: "vehicle",         base_value: 280000, weight_kg: 8000.0, description: "Armored bipedal war machine"),
+    (id: "submarine_0",       name: "Submarine",          category: "vehicle",         base_value: 48000, weight_kg: 5000.0,description: "Underwater vessel for deep-sea exploration"),
 
     // =========================================================================
     // MEDICAL, Health restoration and treatment
