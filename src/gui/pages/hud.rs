@@ -1715,7 +1715,9 @@ mod crosshair_tests {
     ///
     /// Red check, run 2026-10-04 with the dot drawn on the world view
     /// whatever the HUD switch said (the lib.rs condition before this):
-    /// "no crosshair while the HUD is hidden" failed.
+    /// "no crosshair while the HUD is hidden" failed. This checks the rule;
+    /// that lib.rs draws the dot under it is checked by
+    /// tests/engine_wiring_lint.rs (sky_and_lens_call_sites_use_their_shared_rules).
     #[test]
     fn the_crosshair_hides_with_the_hud() {
         let mut s = GuiState::default();

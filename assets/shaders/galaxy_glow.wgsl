@@ -91,5 +91,8 @@ fn fs_main(input: GlowOutput) -> @location(0) vec4<f32> {
     // slider becomes perceptually honest.
     let lin = pow(c, vec3<f32>(2.2, 2.2, 2.2));
     // Additive blend (ONE, ONE): output = glow + whatever is behind (black).
-    return vec4<f32>(lin * glow_params.x, 1.0);
+    // camera.sun_color.w is what twilight leaves of the Milky Way
+    // (sky_frame::twilight_fades: it needs a fully dark sky, so it is the
+    // first sky layer to go at dawn; 1 at night and in space).
+    return vec4<f32>(lin * glow_params.x * camera.sun_color.w, 1.0);
 }

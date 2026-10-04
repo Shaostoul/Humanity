@@ -1444,15 +1444,62 @@ pub(crate) fn sky_daylight(state: &EngineState) -> bool {
 /// (`state.current_spin`, the same one the frame lock rides);
 /// `to_sun_world` points from the camera to the sun in the WORLD frame.
 pub(crate) fn daylight_over_anchor(anchor_local: glam::DVec3, spin: f64, radius: f64, to_sun_world: glam::DVec3) -> bool {
+    let (sun_up, alt) = sun_over_anchor(anchor_local, spin, radius, to_sun_world);
+    alt < 120_000.0 && sun_up > 0.10
+}
+
+/// The sine of the sun's elevation over the frame lock's ground point, and the
+/// camera's height over the body's sphere: the numbers both the daylight gate
+/// and the twilight fades read.
+pub(crate) fn sun_over_anchor(anchor_local: glam::DVec3, spin: f64, radius: f64, to_sun_world: glam::DVec3) -> (f64, f64) {
     let alt = anchor_local.length() - radius;
     // The ground's up in the WORLD frame, where the sun is: the anchor turned
     // by the spin, exactly as frame_lock_ship_pos places the camera. Using
     // the unturned anchor judged the sun over another longitude, the same
     // one at every hour, so at Silverdale on 2026-10-04 the star pass was
-    // skipped all night (daylight_gate_tests).
+    // skipped all night (BUG-138, daylight_gate_tests).
     let up = (glam::DQuat::from_rotation_y(spin) * anchor_local).normalize_or_zero();
-    let sun_up = up.dot(to_sun_world.normalize_or_zero());
-    alt < 120_000.0 && sun_up > 0.10
+    (up.dot(to_sun_world.normalize_or_zero()), alt)
+}
+
+/// What twilight leaves of each sky layer for the camera this frame
+/// (`renderer::sky_frame::twilight_fades`): everything at night and away
+/// from any body, the Milky Way first and the brightest stars last as the
+/// sun comes up. Read from the same state as [`sky_daylight`], so the fades
+/// and the gate always agree about the sun.
+pub(crate) fn star_fades(state: &EngineState) -> crate::renderer::sky_frame::SkyFades {
+    state
+        .frame_lock_body
+        .as_deref()
+        .and_then(|b| state.planet_defs.get(b))
+        .map(|d| {
+            let (sun_up, alt) = sun_over_anchor(
+                state.frame_lock_anchor,
+                state.current_spin,
+                d.radius,
+                state.sun_world_pos - state.ship_world_pos,
+            );
+            crate::renderer::sky_frame::twilight_fades(sun_up.clamp(-1.0, 1.0).asin().to_degrees(), alt)
+        })
+        .unwrap_or(crate::renderer::sky_frame::SkyFades::FULL)
+}
+
+/// The star camera's turn (`StarRenderer::update_camera`'s `sky_rot`): render
+/// frame to world (the hull frame aboard the homestead,
+/// `station::render_to_world_rot`), then world to the star catalogue's
+/// equatorial axes for today's date (`sky_frame::equatorial_to_world`, which
+/// sets the world sun on the real sun's right ascension, BUG-139). The one
+/// rule for the live frame and every off-screen view, so a camera screen and
+/// the player can never see two different skies.
+pub(crate) fn sky_rotation(state: &EngineState) -> glam::Quat {
+    let days_since_j2000 = (std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs_f64())
+        .unwrap_or(0.0)
+        - 946_728_000.0)
+        / 86_400.0;
+    let to_catalogue = crate::renderer::sky_frame::equatorial_to_world(state.sun_world_pos, days_since_j2000).inverse();
+    (to_catalogue * crate::station::render_to_world_rot(state.station_ride, state.station_world_rot)).as_quat()
 }
 
 /// Render ONE view of the world from `camera` into `target` at `size`
@@ -1528,11 +1575,7 @@ pub(crate) fn render_view_onto(
         let (sky_gpu, sky_cpu) = who.sky_ids();
         let _cost = crate::renderer::frame_costs::stage(sky_cpu);
         if let Some(ref star_r) = state.star_renderer {
-            star_r.update_camera(
-                &state.renderer.queue,
-                camera,
-                crate::station::render_to_world_rot(state.station_ride, state.station_world_rot).as_quat(),
-            );
+            star_r.update_camera(&state.renderer.queue, camera, sky_rotation(state), star_fades(state));
         }
         let mut encoder = state.renderer.device.create_command_encoder(
             &wgpu::CommandEncoderDescriptor { label: Some("View Star Encoder") },
@@ -3622,9 +3665,13 @@ mod showcase_pin_tests {
     /// Red checks, run 2026-10-04: with the lens computed from the Settings
     /// value whatever the pin said, "a 40 degree lens is 40 degrees" failed
     /// (left 90, right 40); with `effective_fov` ignoring the pin (what
-    /// lib.rs's Settings apply did), it failed again (left 90, right 40),
-    /// which is the take that came out at 90 degrees when a config save
-    /// landed one frame after the pin.
+    /// lib.rs's Settings apply did), it failed again (left 90, right 40).
+    /// That second check covers the rule, not the call: lib.rs's Settings
+    /// apply could still skip `effective_fov` (the take that came out at 90
+    /// degrees when a config save landed one frame after the pin) with this
+    /// test green. The call site is held by tests/engine_wiring_lint.rs
+    /// (sky_and_lens_call_sites_use_their_shared_rules), red-checked against
+    /// exactly that revert.
     #[test]
     fn the_fov_pin_sets_the_lens_and_auto_gives_it_back() {
         let lens = |body: &str, settings: f32| {
@@ -3789,7 +3836,7 @@ mod daylight_gate_tests {
         DVec3::new(-1.5e11, 0.0, 0.0)
     }
 
-    /// THE STARLESS NIGHT AT SILVERDALE (2026-10-04, the landing hero shot).
+    /// THE STARLESS NIGHT AT SILVERDALE (BUG-138, 2026-10-04, the landing hero shot).
     /// The frame lock keeps its anchor in the body's UNROTATED frame and puts
     /// the camera at `Ry(spin) * anchor` in the world, so the ground's real
     /// "up" is the anchor turned by the spin. The gate compared the unturned
@@ -3801,7 +3848,9 @@ mod daylight_gate_tests {
     ///
     /// Red check, run 2026-10-04 with the spin left out of `up` (the old
     /// gate): "a point turned to face the sun is in daylight, whatever its
-    /// unturned direction says" failed.
+    /// unturned direction says" failed. That `sky_daylight` and `star_fades`
+    /// pass the live spin into this arithmetic is checked by
+    /// tests/engine_wiring_lint.rs (sky_and_lens_call_sites_use_their_shared_rules).
     #[test]
     fn the_gate_reads_the_sun_over_the_turned_ground() {
         // On the equator, facing world +X before the turn.
