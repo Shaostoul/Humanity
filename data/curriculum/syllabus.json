@@ -1896,10 +1896,27 @@
       "subject": "materials",
       "title": "Pottery and firing",
       "summary": "Turn clay into vessels that hold water and survive heat.",
-      "status": "absent",
+      "status": "sourced",
+      "reading": [
+        "pottery-and-firing"
+      ],
       "skills": [
         "alchemy",
         "fire_making"
+      ],
+      "data": [
+        "data/recipes.csv",
+        "data/items.csv",
+        "data/containers/materials.csv",
+        "data/machines/home.ron"
+      ],
+      "sources": [
+        "cpsc",
+        "fda",
+        "epa",
+        "osha",
+        "ecfr",
+        "nps"
       ],
       "locale_dependent": true,
       "hazard": "serious"
@@ -2558,15 +2575,36 @@
       "subject": "chemistry",
       "title": "Soap, lye and cleaning",
       "summary": "Make and use cleaning agents, including the ones that burn skin.",
-      "status": "absent",
+      "status": "sourced",
+      "reading": [
+        "soap-lye-and-cleaning"
+      ],
       "skills": [
         "alchemy"
       ],
-      "locale_dependent": false,
-      "hazard": "serious",
       "data": [
-        "data/chemistry/compounds.csv"
-      ]
+        "data/chemistry/compounds.csv",
+        "data/recipes.csv",
+        "data/items.csv",
+        "data/containers/content_classes.ron"
+      ],
+      "sources": [
+        "fda",
+        "cdc",
+        "niosh-pocket-guide",
+        "cameo-chemicals",
+        "cpsc",
+        "ecfr",
+        "osha",
+        "hrsa",
+        "epa",
+        "usfa",
+        "fao",
+        "iowa-state-extension",
+        "medlineplus"
+      ],
+      "locale_dependent": false,
+      "hazard": "serious"
     },
     {
       "id": "chem_preservation",
@@ -3327,10 +3365,26 @@
       "subject": "tools",
       "title": "Making a tool",
       "summary": "Make or improvise a tool you do not have.",
-      "status": "absent",
+      "status": "sourced",
+      "reading": [
+        "making-a-tool"
+      ],
       "skills": [
         "metalworking",
         "woodworking"
+      ],
+      "data": [
+        "data/crafting/tools.ron",
+        "data/recipes.csv",
+        "data/items.csv",
+        "data/manufacturing.ron"
+      ],
+      "sources": [
+        "osha",
+        "ecfr",
+        "dod-technical-manuals",
+        "usfs",
+        "cpsc"
       ],
       "locale_dependent": false,
       "hazard": "serious"
