@@ -92,8 +92,8 @@ the moment it releases fibres.
 Two old wood preservatives turn up in salvage again and again, and the
 EPA has pages on both.
 
-- **CCA (chromated copper arsenate),** the green-tinged pressure-treated
-  wood. The EPA says it was used in homes for decks and play sets before
+- **CCA (chromated copper arsenate),** a pressure-treated wood that is
+  green-tinged when new. The EPA says it was used in homes for decks and play sets before
   2004, and that its makers stopped making it for homeowner uses in
   December 2003. The EPA's pesticide rules do not regulate reusing it,
   but the EPA says: it should not be reused as mulch; never burn it, or
@@ -105,10 +105,17 @@ EPA has pages on both.
   sleepers and utility poles. The EPA says creosoted sleepers are
   sometimes reused as landscape timbers, that reusing them is not
   regulated under pesticide law, and that the EPA did not find health
-  risks of concern for the general public. Its warning is the same as
-  for CCA: do not burn creosote-treated wood at home.
+  risks of concern for the general public. That is not an all-clear for
+  every use. Its warning is the same as for CCA: do not burn
+  creosote-treated wood at home. Beyond that, wear gloves when you
+  handle it and wash afterwards, and do not use creosoted sleepers for
+  vegetable beds, indoors, or where children play (general practice, in
+  line with the EPA's handling advice for CCA).
 
-Where you cannot tell whether a board was treated, treat it as treated:
+Colour is a poor guide. Newer copper-based treatments are green too,
+and old CCA weathers to grey, so a grey board from an old deck, fence or
+play set may still be CCA (general knowledge). Where you cannot tell
+whether a board was treated, treat it as treated:
 do not burn it, do not mulch it, wear a dust mask and wash afterwards
 (general practice). How to read treated wood and its tags is in [Rust,
 Rot and Decay](/library#rust-rot-and-decay).
@@ -388,8 +395,9 @@ wood.
 2. **Look at the roof and walls before anyone breaks anything.** Old
    roofing and siding shingles may contain asbestos (EPA); leave those
    to a professional and take nothing from them.
-3. **Sort as it comes down:** painted (assume lead), green-tinged or
-   tagged (assume treated), plain.
+3. **Sort as it comes down:** painted (assume lead); green-tinged,
+   tagged, or from anything that touched the ground, such as sills and
+   posts (assume treated, whatever its colour); plain.
 4. **De-nail as you go,** gloves and boots on, nails into a bucket.
 5. **Plain boards:** shelves, a bench, a compost bin. Check each for
    rot with an awl.
@@ -461,7 +469,8 @@ The game has a little of this, mostly in what crafting leaves behind.
 - **Taking a piece down gives everything back.** While holding a piece
   to place from the Crafting page, the Swing tool key (F by default)
   takes down the finished piece you are looking at and returns every
-  material to your pack. The code says plainly that this is a game
+  material to your pack, and what does not fit there to storage, with a
+  message saying so. The code says plainly that this is a game
   choice, because nothing models what dismantling breaks; in real life,
   an earlier study cited by the FPL paper above found that taking
   buildings apart cost their lumber about a grade
@@ -474,11 +483,13 @@ The game has a little of this, mostly in what crafting leaves behind.
   half the gravel in Slag Concrete, and many fires leave Wood Ash, which
   raises the pH of garden soil (`data/recipes.csv`, `data/items.csv`,
   `data/garden/weeds.ron`, `data/garden/soil_ph.ron`).
-- **Salvage items with no use yet.** The item list includes Scrap Metal
-  and a few other salvage items. No recipe uses them, and the creatures
-  whose loot includes them (robots, in `data/creatures.csv`) never
-  appear in the world by themselves; only the Dev page's spawn tool can
-  place one.
+- **Scrap Metal has no use yet.** The item list has a salvage category
+  (Scrap Metal, Lens, Crude Weapon and others). Some have a use: a Lens,
+  for instance, goes into the prosthetic and cybernetic eyes in
+  `data/medical.ron`, eye surgery needs one, and vendors sell it. But
+  no recipe uses Scrap Metal, and the creatures whose loot includes it
+  (the robots, and the goblin, in `data/creatures.csv`) never appear in
+  the world by themselves; only the Dev page's spawn tool can place one.
 - **No breaking down.** There is no way to take a crafted item apart
   into its materials, or to melt down scrap. A vendor refuses to buy
   defective goods, and its message suggests scrapping or recycling
@@ -490,7 +501,9 @@ The game has a little of this, mostly in what crafting leaves behind.
   Gameplay > Play mode). In Dev, unless you turn off the Creative switch
   on the Inventory page, crafting does not use up what goes into it, so
   byproducts only matter as stock in Normal mode. Building a piece from
-  the Crafting page takes its materials from your pack in every mode.
+  the Crafting page uses up its materials in every mode: from your pack
+  first, then the home's storage, on board the ship, and from your pack
+  alone on a planet.
 - **Starting from the default home.** While Settings > Gameplay > "Start
   every session from the default home" is on, which is the default
   during development, only your character (name, look and outfit)
@@ -508,8 +521,10 @@ the part the game cannot teach yet.
 - You assume old paint is lead paint, and you never sand, scrape, burn
   or torch it without lead-safe precautions.
 - You leave anything that might contain asbestos where it is.
-- You can recognise CCA and creosote-treated wood, and you never burn
-  treated wood or chip it for mulch.
+- You treat any board that might be CCA or creosote-treated as treated,
+  whatever its colour, and you never burn treated wood or chip it for
+  mulch; you keep creosoted sleepers out of vegetable beds, the house
+  and play areas.
 - You never reuse a pesticide container, and you use only food-grade
   containers for water and food.
 - You never cut, grind, drill or weld a drum or tank that held fuel,
@@ -659,14 +674,18 @@ is updated in place. Other pages and documents were read on 4 October
 
 ### Inside this project
 
-- Taking a piece down and the game-choice note on dismantling:
-  `src/engine/build_place.rs`. Byproducts and their recipes:
+- Taking a piece down, where its materials go back to, and the
+  game-choice note on dismantling: `src/engine/build_place.rs`. Where
+  building takes its materials from: `src/systems/construction/mod.rs`. Byproducts and their recipes:
   `data/recipes.csv` (Saw Planks, Saw Planks by Hand, Make Charcoal
   from Slabs, Tan Leather, Compost Fertilizer, Compost Sawdust and Bran,
   Pour Slag Concrete) and `data/items.csv` (the byproduct and salvage
   items); mulches in `data/garden/weeds.ron`; wood ash in
-  `data/garden/soil_ph.ron`. The vendor's refusal of defective goods:
-  `src/systems/economy/mod.rs`.
+  `data/garden/soil_ph.ron`. The salvage items and the creatures that
+  drop them: `data/items.csv`, `data/creatures.csv`; what spawns by
+  itself: `data/entities/wild_spawns.ron`; the Lens in
+  `data/medical.ron` and `data/npcs.ron`. The vendor's refusal of
+  defective goods: `src/systems/economy/mod.rs`.
 - Play mode and free materials: `PlayMode` and `play_mode_allows` in
   `src/config.rs`, and the creative checks in
   `src/systems/crafting/mod.rs`. The "Start every session from the
@@ -686,8 +705,14 @@ is updated in place. Other pages and documents were read on 4 October
   the EPA's advice for homes of unknown age and of 40 CFR 745.85.
 - Keeping painted salvage away from children's things; not salvaging
   materials on the EPA's asbestos list; treating unknown wood as treated.
-- How CCA wood (green-tinged) and creosoted wood (black, oily and
-  tar-smelling) look is general knowledge, not from the EPA pages.
+- How CCA wood (green-tinged when new) and creosoted wood (black, oily
+  and tar-smelling) look, that newer copper treatments are green too and
+  that old CCA weathers to grey, is general knowledge, not from the EPA
+  pages.
+- Gloves and washing when handling creosoted wood, and keeping creosoted
+  sleepers out of vegetable beds, the house and play areas, are general
+  practice beside the EPA's creosote page, which found no health risks
+  of concern for the general public and warns only against burning.
 - That building codes generally require graded lumber for structural use
   is general knowledge; ask the local building department what it
   accepts.

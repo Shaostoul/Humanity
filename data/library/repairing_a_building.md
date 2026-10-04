@@ -6,8 +6,8 @@ the floor goes soft, the ceiling stains, or a door stops closing, and
 the repair is far bigger than it would have been. FEMA's guide to
 snow on roofs says it in one sentence: "Small disrepairs can propagate
 into much larger issues." The EPA's moisture guidance says the same of
-roofs and ceilings: failing to correct their problems quickly causes
-more damage, inside and out.
+roofs and ceilings: failing to correct their problems quickly can cause
+additional damage, inside and out.
 
 This guide is about catching those small failures, working out what
 caused them, and fixing them in the right order, so that the repair
@@ -78,9 +78,14 @@ can meet something you cannot see. OSHA's construction rule (29 CFR
 1926.416(a)(3)) requires that before work begins, it is found out by
 asking, by looking, or by instruments whether any energised circuit,
 "exposed or concealed", is where the work could touch it. At home that
-means switching off and testing the circuit before cutting into a wall
-near outlets and switches, and finding out where the pipes run before
-drilling near a sink, toilet or radiator. The detail, and the tools
+means, before cutting or drilling into any wall, floor or ceiling:
+finding the cables and pipes behind it, gas pipes included, with a
+detector and by working out where they must run from the outlets,
+switches and fixtures nearby, and switching off and testing the
+circuits in that area. Not only near outlets and switches: cables run between outlets, switches
+and fittings anywhere in a wall or ceiling, and one box can be fed by
+more than one circuit, so test every wire you might touch, not just the
+one you switched off (general practice). The detail, and the tools
 for finding what is behind a surface, are in [Nails, Screws and
 Bolts](/library#nails-screws-and-bolts); proving a circuit dead is in
 [Working Out Why Something Broke](/library#working-out-why-something-broke).
@@ -224,8 +229,8 @@ inspection guide gives the distinctions, restated here:
   framing bending or warping, or the small seasonal movements that come
   with changes in temperature and humidity.
 - **Seasonal cracks open and close** through the year. They can be
-  filled with a flexible, paintable sealant, but not truly repaired; a
-  hard filler just cracks again. In masonry, filling a cyclical crack
+  filled with a flexible, paintable sealant, but HUD's guide says they
+  cannot be repaired effectively. In masonry, filling a cyclical crack
   with mortar holds it open and causes cracking somewhere else, so it
   takes a flexible sealant instead.
 - **Settlement cracks** can be repaired once the movement has stopped,
@@ -452,8 +457,8 @@ cause additional damage". Knowing where to stop is part of the skill.
   too, unless the water stops or the new wood is chosen to resist it.
 - **Sanding an old windowsill on a sunny afternoon.** In a pre-1978
   house that is lead dust, in the air and on the floor.
-- **Mortar in a moving crack.** Hard filler in a crack that opens and
-  closes just cracks somewhere else.
+- **Mortar in a moving crack.** In masonry, mortar in a crack that opens
+  and closes holds it open, and the wall cracks somewhere else (HUD).
 - **"It has always done that."** A drip, a stain or a sticking door that
   has gone on for years is still telling you something.
 
@@ -461,7 +466,7 @@ cause additional damage". Knowing where to stop is part of the skill.
 
 The game models almost none of this.
 
-- **Nothing in a built home breaks.** Built pieces have a strength
+- **Nothing in a built home breaks.** Built pieces have a health
   figure in their data (a Wood Wall 150, a Stone Wall 350), but nothing
   in the current build lowers it: no weather, decay, leak, fire or
   disaster damages a wall, roof or floor, so there is nothing to repair.
@@ -470,8 +475,9 @@ The game models almost none of this.
 - **The only fix is to rebuild.** While holding a piece to place from
   the Crafting page, the Swing tool key (F by default) takes down the
   finished piece you are looking at, within 8 m, and returns all of its
-  materials; a chest has to be emptied first. You can then build it
-  again (`src/engine/build_place.rs`).
+  materials to your pack, and what does not fit there to storage, with
+  a message saying so; a chest has to be emptied first. You can then
+  build it again (`src/engine/build_place.rs`).
 - **Building trains you.** Finishing a piece gives experience in the
   Shelter Building skill (`src/systems/construction/mod.rs`).
 - **The rest of the home does not wear either,** as [Keeping Things
@@ -499,7 +505,9 @@ yet.
   tagged the water main, and you know what to do when you smell gas.
 - You never touch electrical equipment that is wet or while standing
   in water.
-- You find out what is behind a wall before you cut into it.
+- You find the cables and pipes behind a wall, floor or ceiling, and
+  switch off and test the circuits there, before you cut or drill into
+  it.
 - You know your house's age, and in a pre-1978 house you treat old paint
   as lead paint and work lead-safe, or hire a lead-safe certified
   contractor.
@@ -585,7 +593,7 @@ is updated in place. Other pages and documents were read on 4 October
 - US Environmental Protection Agency. *Moisture Control Guidance for
   Building Design, Construction and Maintenance*, EPA 402-F-13053,
   December 2013 (failing to correct roof and ceiling problems quickly
-  causes additional damage; rain the largest source of water in most
+  can cause additional damage; rain the largest source of water in most
   climates; water running along the undersides of joists).
   https://www.epa.gov/sites/default/files/2014-08/documents/moisture-control.pdf
 - US Environmental Protection Agency, WaterSense. Fix a Leak Week, last
@@ -625,7 +633,7 @@ is updated in place. Other pages and documents were read on 4 October
 
 ### Inside this project
 
-- Built pieces, their materials and their strength figures:
+- Built pieces, their materials and their health figures:
   `data/blueprints/basic.ron`. Building and its experience:
   `src/systems/construction/mod.rs`. Taking a piece down:
   `src/engine/build_place.rs`. The "Start every session from the default
@@ -644,9 +652,11 @@ is updated in place. Other pages and documents were read on 4 October
   or the fire service instead.
 - Leaving without flipping switches or using anything electrical when
   you smell gas, as our reading of Ready.gov's warning about sparks.
-- Switching off and testing before cutting near outlets, and finding the
-  pipes before drilling near fixtures, as the household form of OSHA's
-  rule.
+- Finding cables and pipes (gas pipes included) with a detector, and
+  switching off and testing the circuits in the area, before cutting or
+  drilling into any wall, floor or ceiling, as the household form of
+  OSHA's rule; cables running anywhere between outlets, switches and
+  fittings, and a box fed by more than one circuit.
 - Avoiding the contractor-prohibited lead practices at home is our
   reading of 40 CFR 745.85.
 - Asking whether a material could be on the EPA's asbestos list before

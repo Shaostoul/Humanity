@@ -15,15 +15,17 @@ and falls are the leading cause of death in construction.
 
 It takes its safety rules from the Occupational Safety and Health
 Administration (OSHA), its building knowledge from the Army's carpentry
-manual, the EPA's moisture guidance, the Forest Service's Wood Handbook
-and the Department of Energy's Building America Solution Center, and its
-snow, ice and wind advice from the Federal Emergency Management Agency
-(FEMA). Those are United States government publications, in the public
-domain. It also draws facts, restated in our own words, from an
+manual, the EPA's moisture guidance and the Forest Service's Wood
+Handbook, and its snow, ice and wind advice from the Federal Emergency
+Management Agency (FEMA). Those are United States government
+publications, in the public domain. It also draws facts, restated in our
+own words, from two works written for the government by contractors: an
 inspection guide written for the Department of Housing and Urban
-Development (HUD) by a private institute in 2000. Where something is
-general practice or our own reasoning rather than a published rule, the
-text says so.
+Development (HUD) by a private institute in 2000, and a do-it-yourself
+flashing guide from the Department of Energy's Building America Solution
+Center, which the national laboratory that runs it publishes under a
+contract notice. Where something is general practice or our own
+reasoning rather than a published rule, the text says so.
 
 Other guides cover the neighbouring ground. [Choosing Where to
 Build](/library#choosing-where-to-build) decides where the water comes from
@@ -69,7 +71,10 @@ What you can do safely, mostly from below:
   yard, and from an upstairs window, finds most missing shingles,
   slipped flashing and clogged gutters (general practice).
 - **Look from inside.** The underside of the roof, seen from the attic
-  with a torch, shows where water has been (see "Finding a leak" below).
+  with a torch, shows where water has been (see the worked example
+  below). Check what the attic insulation is first: if it might be
+  vermiculite, look from the hatch only (see "Asbestos in old roofing and
+  attic insulation" below).
 - **Use a ladder properly.** The full ladder checklist is in [Keeping
   Things Working](/library#keeping-things-working). Two points belong here.
   The EPA's moisture guide says: do not rest ladders against gutters.
@@ -91,7 +96,8 @@ place a person can fall straight through. OSHA's rule (29 CFR
 skylights included, more than 6 feet above a lower level. When a cover
 is used, its companion rule (1926.502(i)) says it must support at least
 twice the weight that may be put on it, be fixed so the wind or a foot
-cannot shift it, and be marked "HOLE" or "COVER". At home: never step
+cannot shift it, and be colour-coded or marked "HOLE" or "COVER". At
+home: never step
 on a skylight, and never lean on one (general practice). FEMA's snow
 guide warns that skylights buried under snow are a high risk to anyone
 on the roof, because they cannot be seen.
@@ -105,10 +111,14 @@ who are not trained electrical workers (29 CFR 1910.333(c)(3)) keeps
 the person **and the longest conductive object they could touch** at
 least 10 feet (305 cm) from an energised overhead line of 50,000 volts
 or less to ground. That object is the ladder, the metal gutter section,
-the length of flashing or the snow rake in your hands. Look up before
-you lift anything long, and if a job brings you near the line to the
-house, call the utility rather than working around it (general
-practice).
+the length of flashing or the snow rake in your hands. What it is made
+of does not let you off: OSHA's note to the rule says that at the
+voltages of overhead power lines, "objects which do not have an
+insulating rating for the voltage involved are considered to be
+conductive." A wooden ladder or a plastic snow rake has no such rating,
+so it counts. Look up before you lift anything long, and if a job brings
+you near the line to the house, call the utility rather than working
+around it (general practice).
 
 ### The structure under you
 
@@ -130,7 +140,7 @@ prevention as water, rest and shade. On a roof, add the obvious: a
 person who feels faint should come down before they fall down (general
 practice).
 
-### Old roofing that may contain asbestos
+### Asbestos in old roofing and attic insulation
 
 The EPA lists roofing and siding shingles among the building materials
 that may contain asbestos, and the Army's 1995 carpentry manual still
@@ -142,6 +152,18 @@ repair and removal to a trained and accredited professional. More is in
 [What Not to Compost, Burn or Pour
 Away](/library#what-not-to-compost-burn-or-pour-away) and [Repairing a
 Building](/library#repairing-a-building).
+
+**Check the attic insulation before you climb in.** This guide sends
+you into the attic to look at the underside of the roof, and the same
+EPA list includes attic and wall insulation containing vermiculite. The
+EPA describes vermiculite insulation as a pebble-like, pour-in product,
+usually grey-brown or silver-gold. If your attic has it, the EPA says to
+leave it undisturbed, not to store boxes or other things in that attic,
+not to let children play there, and not to try to remove it yourself;
+renovation that would disturb it is for a professional asbestos
+contractor. In such an attic, look from the hatch with a torch and do
+not climb in, walk through the insulation or move it (our application
+of the EPA's advice).
 
 ## How a roof keeps water out
 
@@ -170,16 +192,21 @@ piece overlaps the one below it, so water running down always lands on
 top of the next piece and never on a joint. The Army's carpentry manual
 (FM 5-426) gives the numbers for a common 1-foot by 3-foot asphalt strip
 shingle: laid 5 inches "to the weather", meaning 7 inches of each course
-is covered by the course above. The felt underlay beneath the shingles
-is laid with a 2-inch top lap and a 4-inch side lap. The nails go about
-6 1/2 inches up from the bottom edge, so that the next course covers
-every nail head. The manual adds that no roofing should go on unless
-the sheathing boards are absolutely dry, and in its section on
-reroofing it says to nail through the thick part of the shingle, just
-above the cutouts, because practically all the trouble the Army had
-with asphalt shingles came from nailing them too high. Shingles sold
-today usually mark their own nailing line; follow the maker's
-instructions (general practice).
+is covered by the course above, and the nails go in that covered part,
+so the next course hides every nail head. The felt underlay beneath the shingles is laid with a 2-inch top
+lap and a 4-inch side lap. The manual adds that no roofing should go on
+unless the sheathing boards are absolutely dry.
+
+On where the nails go, the manual gives two figures that do not agree:
+about 6 1/2 inches up from the bottom edge in its section on laying
+shingles, and, in its section on reroofing, about 3/4 inch above the
+cutouts, through the thick part of the shingle, because practically all
+the trouble the Army had with asphalt shingles came from nailing them
+too high. On a common modern three-tab shingle the first figure lands
+higher than the second, above the line most makers print (general
+knowledge). So do not nail by the manual's numbers: shingles sold today
+mark their own nailing line, and that line and the maker's instructions
+are what govern (general practice).
 
 Flashing works the same way. The Building America Solution Center's
 do-it-yourself guide to flashing says the flashing around a pipe or a
@@ -259,7 +286,7 @@ points where roofs interface with walls." HUD's guide adds simply that
 leaking skylights are common.
 
 The Building America flashing guide gives a homeowner's checklist of
-what should be there, all of it visible from the ground or a ladder:
+what should be there, most of it visible from the ground or a ladder:
 
 - **Drip edge** along the roof's edges: an L-shaped metal strip between
   the roofing and the fascia board that keeps water out of the crevice
@@ -277,7 +304,11 @@ what should be there, all of it visible from the ground or a ladder:
   small for the water.
 - **Boots or collars** around every pipe and vent through the roof,
   worked into the shingles.
-- **Valley flashing** where two roof slopes meet.
+- **Valley flashing** where two roof slopes meet. Only part of it can be
+  seen. An open metal valley, a wide, flattened W of metal down the
+  valley, shows from below; the guide also calls for a self-adhering
+  membrane in the valley under the underlayment and roofing, and that
+  cannot be checked without lifting the roofing.
 
 The guide's advice is the right one for a beginner: if any of these
 are missing or need attention, hire a contractor.
@@ -296,7 +327,7 @@ Rainwater](/library#collecting-rainwater) works it through: a 1,200 square
 foot roof sheds about 750 gallons in a one-inch rain. In a wet place
 that adds up fast. The [Silverdale locale page](/library#silverdale-wa)
 gives about 1,446 mm (57 inches) of rain a year there, which on that
-same roof is roughly 42,000 gallons a year (arithmetic), every gallon
+same roof is about 42,600 gallons a year (arithmetic), every gallon
 of it to be put somewhere other than against the house.
 
 **Gutters.** From HUD's guide: gutters should slope evenly to the
@@ -335,8 +366,8 @@ backs up under the shingles and into the building. FEMA notes a second
 problem: the ice keeps snow from sliding off and piles weight at the
 eaves. HUD's guide says ice dams form in climates with long freezes,
 especially where the average January temperature is 30 F (-1 C) or
-below, and that electric de-icing cables in the gutters are often a
-sign a house has had them.
+below, and that electric de-icing cables in the gutters may be a sign
+a house has had them.
 
 The cure is not on the roof but under it: keeping the attic cold, so
 the snow does not melt in the first place, by stopping heat escaping
@@ -372,9 +403,11 @@ roof snow can slide at any moment; to have someone keep people away
 from where snow and ice will fall; to leave at least 2 inches of snow
 on the roof rather than scraping it bare, which can damage the
 covering and cause leaks; and never to use picks or other sharp tools.
-FEMA says metal rakes can damage roofing; a metal rake near the service
-line is also a conductor, which is the 10-foot rule above (our
-addition).
+FEMA says metal rakes can damage roofing. A non-metallic rake is not
+safe near the service line either: any rake without an insulating
+rating counts as conductive under OSHA's rule above, the non-metallic
+one FEMA recommends included, so keep the whole rake, handle and all,
+10 feet from the line (our application of the two sources).
 
 ### Wind
 
@@ -403,14 +436,21 @@ edition.
 - **From the ground and from inside.** Binoculars outside (HUD); a
   torch in the attic, looking at the underside of the roof deck (HUD's
   guide, for ice dams, names the deck above the outside walls), and at
-  ceilings and walls for stains (EPA).
+  ceilings and walls for stains (EPA). In an attic with vermiculite
+  insulation, from the hatch only (EPA, above).
 - **The gutters.** Clean, sloping to the downspouts, hangers tight,
   downspout extensions in place (HUD, Building America).
-- **Moss.** The EPA's guide says moss and lichen keep shingles damp, and
-  that they can be removed with a hose, sprayed down the slope, never up
-  under the shingles. Do it from a ladder at the eave or from the
-  ground; a wet roof is exactly the slippery surface OSHA warns about
-  (general practice).
+- **Moss.** In its advice for asphalt shingle roofs, the EPA's guide
+  says moss and lichen keep the roofing damp, and that they can be
+  removed with a water hose and nozzle, sprayed down the slope, never up
+  under the shingles. That advice is for asphalt shingles only. Use a
+  garden hose, not a pressure washer, which can strip the granules and
+  force water under the shingles (general practice). Do it from a ladder
+  at the eave or from the ground; a wet roof is exactly the slippery
+  surface OSHA warns about (general practice). On any other covering,
+  and above all on asbestos cement, which you must not scrape (EPA) and
+  which is too brittle to walk on (HUD), leave moss to a roofer (general
+  practice).
 - **Caulked joints.** Look at sealant around vents and flashing every
   two years or so (Building America).
 - **Write it down.** The EPA recommends a roof logbook and a simple map
@@ -433,7 +473,10 @@ bedroom ceiling.
 2. **Catch the water** with a bucket, and move what can be moved.
 3. **Look in the attic, during or soon after rain,** with a good torch,
    stepping only on the framing, never between it (general practice).
-   Remember the EPA's third rule: water runs along the underside of a
+   First look at the insulation from the hatch: if it is loose, pebbly
+   and grey-brown or silver-gold, it may be vermiculite, and the EPA
+   says to leave it undisturbed, so stay at the hatch and call a
+   professional if the trail needs following further. Remember the EPA's third rule: water runs along the underside of a
    rafter or truss for feet before it drips, so the drip above the
    stain is the end of the trail, not the start. Follow the wet wood
    uphill.
@@ -466,7 +509,9 @@ line in several places:
 - **Slate, clay tile and asbestos cement roofs:** repaired or replaced
   by a qualified roofer (HUD).
 - **Missing or failed flashing:** a contractor (Building America).
-- **Possible asbestos:** a trained and accredited professional (EPA).
+- **Possible asbestos:** a trained and accredited professional (EPA);
+  for vermiculite attic insulation that work would disturb, a
+  professional asbestos contractor (EPA).
 - **Signs the structure is overloaded or failing:** leave the building
   and call an engineer (FEMA).
 - **Work near the service line:** the electric utility (general
@@ -482,8 +527,9 @@ line in several places:
   disconnected downspout can still flood the basement.
 - **Going up "just for a minute".** Most of what a roof needs can be
   seen from the ground or the eaves.
-- **A metal tool near the house line.** The ladder, the rake and the
-  gutter section all count toward OSHA's 10 feet.
+- **A long tool near the house line.** The ladder, the rake and the
+  gutter section all count toward OSHA's 10 feet, whether they are made
+  of metal, wood or plastic.
 
 ## How the game models it
 
@@ -493,8 +539,9 @@ for the person under it.
 - **The Wood Roof.** From the Crafting page you can build a Wood Roof:
   a flat panel 4 m by 4 m and 0.2 m thick, made from 10 Wood Planks,
   which rests on top of walls (`data/blueprints/basic.ron`). Building a
-  piece takes its materials from your pack in every play mode, Dev
-  included; on a planet only what you carry counts, because the home's
+  piece uses up its materials in every play mode, Dev included. On board
+  the ship it takes them from your pack first, then from the home's
+  storage; on a planet only what you carry counts, because the home's
   storage is in orbit. Finishing a piece gives experience in the
   Shelter Building skill.
 - **A roof keeps the rain and snow off you.** On a planet with weather,
@@ -511,7 +558,9 @@ for the person under it.
   in, "Out of the rain and the wind", or "Sheltered".
 - **Taking a piece down.** While holding a piece to place, the Swing
   tool key (F by default) takes down the finished piece you are looking
-  at, within 8 m, and every material goes back into your pack.
+  at, within 8 m, and every material comes back: into your pack, and
+  what does not fit there goes back to storage, with a message saying
+  so.
 
 **One setting changes what you keep.** While Settings > Gameplay >
 "Start every session from the default home" is on, which is the default
@@ -538,8 +587,10 @@ The shelter test is in `src/systems/construction/uses.rs`
 - You do roof checks from the ground, from a ladder at the eaves and from
   the attic, and you leave walking on the roof to people trained and
   equipped for it.
-- You keep yourself and anything long you hold at least 10 feet from
-  the power line to the house.
+- You keep yourself and anything long you hold, whatever it is made of,
+  at least 10 feet from the power line to the house.
+- You know whether your attic insulation could be vermiculite, and if it
+  could, you leave it undisturbed and look from the hatch.
 - You never step on a skylight, and you stay off wet, icy or windy
   roofs.
 - You can explain why every piece of a roof laps over the one below,
@@ -575,11 +626,13 @@ is updated in place. Other pages and documents were read on 4 October
   https://www.ecfr.gov/current/title-29/subtitle-B/chapter-XVII/part-1926/subpart-M/section-1926.501
 - Occupational Safety and Health Administration. 29 CFR 1926.502(i),
   Covers (at least twice the weight imposed; secured against
-  displacement; marked "HOLE" or "COVER").
+  displacement; colour-coded or marked "HOLE" or "COVER").
   https://www.ecfr.gov/current/title-29/subtitle-B/chapter-XVII/part-1926/subpart-M/section-1926.502
 - Occupational Safety and Health Administration. 29 CFR 1910.333(c)(3),
   Overhead lines (unqualified persons, and the longest conductive object
-  they may contact, kept 10 feet from lines of 50 kV or less to ground).
+  they may contact, kept 10 feet from lines of 50 kV or less to ground;
+  the note that objects without an insulating rating for the voltage
+  involved are considered conductive).
   https://www.ecfr.gov/current/title-29/subtitle-B/chapter-XVII/part-1910/subpart-S/section-1910.333
 - Occupational Safety and Health Administration. Fall Prevention
   Campaign, undated (falls the leading cause of death in construction;
@@ -602,16 +655,26 @@ is updated in place. Other pages and documents were read on 4 October
   breaks at edges; downspouts to sloped leaders at least 10 feet from
   the foundation at 5 percent; roof inspection semi-annually and after
   heavy winds or rains; do not rest ladders against gutters; granules in
-  gutters; moss and lichen removed with a hose sprayed down the slope;
-  do not chip ice from a blocked drain; a logbook and roof map).
+  gutters; on asphalt shingle roofs, moss and lichen removed with a water
+  hose and nozzle sprayed down the slope; do not chip ice from a blocked
+  drain; a logbook and roof map).
   https://www.epa.gov/sites/default/files/2014-08/documents/moisture-control.pdf
 - US Environmental Protection Agency. Learn About Asbestos, last updated
-  13 July 2026 (roofing and siding shingles among materials that may
-  contain asbestos), and Protect Your Family from Exposures to Asbestos,
-  last updated 25 June 2026 (cannot tell by looking; leave it alone; do
-  not saw, sand, scrape or drill; trained and accredited professionals).
+  13 July 2026 (roofing and siding shingles, and attic and wall
+  insulation containing vermiculite, among materials that may contain
+  asbestos), and Protect Your Family from Exposures to Asbestos, last
+  updated 25 June 2026 (cannot tell by looking; leave it alone; do not
+  saw, sand, scrape or drill; trained and accredited professionals).
   https://www.epa.gov/asbestos/learn-about-asbestos
   https://www.epa.gov/asbestos/protect-your-family-exposures-asbestos
+- US Environmental Protection Agency. Protect Your Family from
+  Asbestos-Contaminated Vermiculite Insulation, last updated 17 April
+  2026 (a pebble-like, pour-in product, usually grey-brown or
+  silver-gold; leave it undisturbed; do not store boxes or other items
+  in an attic that has it; do not let children play there; do not try
+  to remove it yourself; a professional asbestos contractor for
+  renovation that would disturb it).
+  https://www.epa.gov/asbestos/protect-your-family-asbestos-contaminated-vermiculite-insulation
 - US Environmental Protection Agency. A Brief Guide to Mold, Moisture
   and Your Home, last updated 18 February 2026 (dry within 24 to 48
   hours). https://www.epa.gov/mold/brief-guide-mold-moisture-and-your-home
@@ -620,25 +683,18 @@ is updated in place. Other pages and documents were read on 4 October
   Systems and Coverings (asphalt and asbestos-cement coverings on
   pitched roofs, built-up roofing on flat or nearly flat roofs; strip
   shingles 5 inches to the weather with 7 inches overlapped; felt with a
-  2-inch top lap and 4-inch side lap; nails about 6 1/2 inches from the
-  butt, covered by the next course; sheathing absolutely dry; the places
-  most subject to leakage; ridges and hips moderately, valleys more;
-  difficulties from nailing too high). Copy at the Internet Archive.
+  2-inch top lap and 4-inch side lap; nails covered by the next course,
+  placed about 6 1/2 inches from the butt in the shingle-laying section
+  and about 3/4 inch above the cutouts in the reroofing section;
+  sheathing absolutely dry; the places most subject to leakage; ridges
+  and hips moderately, valleys more; difficulties from nailing too
+  high). Copy at the Internet Archive.
   https://archive.org/download/MManuals/UsArmyEngineerCarpentry1995.pdf
 - USDA Forest Service, Forest Products Laboratory. *Wood Handbook*,
   FPL-GTR-282, March 2021, Chapter 14, Biodeterioration of Wood (roof
   edges and roof-wall points critical; an overhang of about 0.6 m (2 ft)
   with gutters and downspouts kept free of debris).
   https://research.fs.usda.gov/download/treesearch/62262.pdf
-- US Department of Energy, Building America Solution Center (Pacific
-  Northwest National Laboratory). Look for Missing Roof and Wall
-  Flashing, a do-it-yourself guide, undated (drip edge into the gutter;
-  step flashing upper over lower and under the siding; kick-out flashing
-  and the damage without it; boots worked into the shingles; caulked
-  vents checked every two years; gutters cleaned twice a year near trees;
-  downspout extensions left disconnected; hire a contractor for missing
-  flashing).
-  https://basc.pnnl.gov/diy-guides/look-missing-roof-and-wall-flashing
 - Federal Emergency Management Agency. *Snow Load Safety Guide*, FEMA
   P-957, January 2013 (homeowners among its intended users; fresh snow
   3 to 21 pounds per square foot per foot of depth, ice about 5 per inch
@@ -676,14 +732,31 @@ is updated in place. Other pages and documents were read on 4 October
   asbestos cement brittle and not walked on; low-slope leaks hard to
   trace; skylights commonly leak; gutter slope, hangers and one
   downspout per 40 feet; downspout discharge; ice dams and January
-  temperatures; de-icing cables as a sign; plumbing stacks and exhaust
-  ducts not ending in the attic; load path checks in high-wind regions.
+  temperatures; de-icing cables as possible evidence of ice dams;
+  plumbing stacks and exhaust ducts not ending in the attic; load path
+  checks in high-wind regions.
   https://www.huduser.gov/publications/pdf/rehabinspect.pdf
+- US Department of Energy, Building America Solution Center, published
+  by Pacific Northwest National Laboratory. Look for Missing Roof and
+  Wall Flashing, a do-it-yourself guide, last updated 11 September 2025.
+  A notice on the page says it was created with Department of Energy
+  funding under the contract for operating the laboratory, so it is
+  treated as a contractor's work, like the HUD guide above, and its
+  wording is not reproduced here. Used for: drip edge into the gutter;
+  step flashing upper over lower and under the siding; kick-out
+  flashing and the damage without it; boots worked into the shingles;
+  valley flashing, an open metal valley over a self-adhering membrane
+  that lies under the underlayment and roofing; caulked vents checked
+  every two years; gutters cleaned twice a year near trees; downspout
+  extensions left disconnected; hire a contractor for missing flashing.
+  https://basc.pnnl.gov/diy-guides/look-missing-roof-and-wall-flashing
 
 ### Inside this project
 
-- The Wood Roof and its materials: `data/blueprints/basic.ron`. Building
-  and its experience: `src/systems/construction/mod.rs`. The shelter
+- The Wood Roof and its materials: `data/blueprints/basic.ron`. Building,
+  where its materials come from (pack first, then home storage aboard;
+  the pack only on a planet) and its experience:
+  `src/systems/construction/mod.rs`. The shelter
   test and the Shelter line's wording:
   `src/systems/construction/uses.rs`. Rain and
   wind on the body: `src/engine/survival_env.rs` and
@@ -713,19 +786,28 @@ is updated in place. Other pages and documents were read on 4 October
   the nailing line printed on modern shingles and following the
   maker's instructions; laps having to be wide because of capillary
   action (our reasoning).
+- That the manual's 6 1/2-inch figure lands above the printed nail line
+  on a common modern three-tab shingle is general knowledge, not from a
+  cited source.
 - Never stepping on or leaning on a skylight; calling the utility about
   work near the service line; coming down at the first sign of heat
   illness; turning off a circuit from a dry floor; staying out from
   under a sagging wet ceiling; stepping only on the framing in an attic.
 - "Upper over lower, everywhere" is our summary of the Army manual's
   shingle laps and the Building America flashing guide.
-- That a metal snow rake is also an electrical conductor, and so falls
-  under the 10-foot rule, is our addition to FEMA's advice.
+- That a snow rake of any material, FEMA's non-metallic one included,
+  falls under the 10-foot rule is our application of OSHA's note on
+  conductive objects to FEMA's advice.
+- Looking from the hatch only, and not climbing into an attic that may
+  have vermiculite insulation, is our application of the EPA's advice to
+  leave it undisturbed.
 - Applying HUD's manufactured-home drainage slope to any house is our
   reading.
 - Spring and autumn as the two inspection times, and doing moss removal
   from a ladder or the ground, are our suggestions beside the EPA's
-  semi-annual inspection and hose method.
+  semi-annual inspection and hose method. Not using a pressure washer,
+  and leaving moss on other coverings, asbestos cement above all, to a
+  roofer, are general practice.
 - The gallons per inch of rain, the yearly volume on a 1,200 square foot
   roof at Silverdale's rainfall, and the weight of wet snow on a 1,000
   square foot roof are arithmetic.
