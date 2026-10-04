@@ -2980,12 +2980,88 @@ saved name (never the key) and shows the note. Not added: refusing a game join
 for a key with no registered name, because placeholder names (DesktopUser_NNNN)
 are never registered and real players would be refused.
 
-**Known limit (the operator's call):** only clients online at the moment of the
-erase find out. A second device with the app closed, a web tab mid-reconnect, or
-a socket that drops between the erase and its receipt will sign up again on its
-next connection, because the relay keeps no record of an erase. Closing that
-needs a marker kept on the relay after the erase, which trades against "an
-erase leaves nothing on the server".
+**Known limit, closed by the operator's option 2 (2026-10-04):** only clients
+online at the moment of the erase found out, so a second device with the app
+closed, a web tab mid-reconnect, or a socket that dropped between the erase and
+its receipt signed up again on its next connection. The operator chose, verbatim:
+"Let's go with option 2 that way we have a way to cull the list over a period of
+time. That way we don't end up with a massive log of all the accounts that erased
+themselves after many years or a malicious attack." Now the relay remembers an
+erase for a limited time (storage/erased_accounts.rs: a one-way keyed fingerprint
+of the key and the day only, kept for `erased_accounts_ttl_days`, default 30, and
+never more than `erased_accounts_cap` rows, default 100,000, oldest first; both
+editable in Server Settings > ADMIN > Server policy > Erased accounts). A key with
+an entry that connects is answered with `account_erased` (`earlier: true`) and is
+not signed in at all; a game join from a device still connected from before the
+erase is refused with reason `account_erased`; only the person's Connect (native)
+or Enter (web) under the erase note sends `sign_up_again`, which forgets the entry
+and signs them up again (handlers/sign_ups.rs). The person reads the real number
+of days before erasing.
+
+**Review of option 2 (2026-10-04, seventeen findings, two skeptics each).**
+Fixed: each entry keeps the window in force when it was made, so raising the
+setting later never stretches what a person was told, while lowering it shortens
+every entry at once; "for N days" became "for up to N days" and the match is
+strict, so N is never exceeded; a row dated in the future (a clock jump) is culled;
+the sentence says the backups keep a copy until each is deleted, and the log lines
+about erased accounts (including the erase's own) name no key; one expiry pass
+(`run_expiry_sweeps`, storage/expiry.rs) runs at start, every six hours and after
+every saved settings change; the relay closes a refused identify at once, and the
+Tasks page takes `account_erased` as a refusal instead of retrying; a game join
+checks the erase again under the world lock, and the name and member row are
+written only through a check made in the same step, so an erase landing between
+the identify and those writes still wins; a device that was offline is told
+whether the erase finished, read from what it left (`erase_left_rows`); the
+native in-world sentence for an earlier erase no longer clears itself a frame
+later; native asks the server for its settings once the sign-in completes (the
+request sent at connect had always been dropped), and says the sentence only when
+the server sent its number of days; the fingerprint secret is written atomically,
+and a damaged one is reported by `/health` (`erase_memory`) and `just brief`.
+
+What remains: a device that stays offline for longer than the window signs up
+again when it next connects, as before (that is the cull the operator chose); the
+entry rides into backups until each is deleted, and a "Back up now" copy has no
+age limit; if the relay's `data/erased-accounts.key` is lost, old entries stop
+matching (and are culled on schedule); a device still connected from before the
+erase that ignores `account_erased` can still write chat-side data (a message, a
+profile) under the erased key until it disconnects: only its sign-up and its game
+join are refused; and desktop apps from v0.1449.0 and older never send
+`sign_up_again`, so on a relay with this change an account erased from such an
+app can come back from it only after the window (the web is served by the relay
+and always matches it). Ship the relay and the desktop app in the same release,
+and say this in its notes.
+
+**Second review of option 2 (2026-10-04, eleven findings).** Fixed: the source
+test that pins `erase_left_rows` to `delete_account` had its "\r\n" escape
+turned into raw line breaks, so on a CRLF checkout (the operator's) it panicked
+and `cargo test --lib` went red there while Linux CI stayed green; it now reads
+every `del(` call however it is laid out (one also in features.rs, a failure
+message only, had the same raw breaks). No log line about an erase names the key
+any more, including the game's "left" line and the socket teardown that runs when
+the erasing client closes (it names an erased key "an erased account"); the test
+now reads those too. The native Server Settings page no longer makes its working
+copy from defaults before the server's settings arrive (Save wrote every default
+back, and a lowered mailbox or retention window then deleted at once): no form
+until they arrive, and a copy with no unsaved edits follows new settings. The
+mailbox and retention hints say that saving a lower number deletes older items
+at once, for good. Two relays (or tests) creating a key file at once now end with
+the same key. `erase_left_rows` reads only what the erase answers for: not a
+profile another server gossips back, while a failed delete by name or of listing
+images keeps the registration or the listings, so it shows. A link code and the
+member row check the erase in the same step, and a refusal on either tells and
+closes before anything is bound. The in-world follow reads the erase on the
+connected server. The answer to `server_settings_request` (and its role list) goes
+to the client that asked, not to everyone; an admin's saved change still goes to
+all.
+
+**Not fixed, on purpose: desktop apps from before v0.1449.0.** They do not know
+`account_erased`. To such an app, the relay's answer to an erased key is an
+unknown message followed by a closed socket; each socket it opens resets its
+reconnect backoff (src/lib.rs ~14372) before being closed, so it redials at once,
+over and over, until the per-IP identify limit (30 a minute) holds it. Nobody runs
+those builds yet, and the project adds no compatibility code before launch (the
+no-backwards-compatibility rule in CLAUDE.md), so this is written down instead of
+handled: if it is ever seen, the fix is to update the app.
 
 ## BUG-136: the carry limit is shown as a fixed 50 kg, and being overloaded does nothing (FIXED 2026-10-04, found 2026-10-04)
 
@@ -3039,3 +3115,41 @@ low-g to zero-g but, mass still applies."
   carried mass acts. Ladders climb at the same rate whatever is carried. The
   mode is each player's own choice, also in the shared world; a server-side
   rule is tracked in `docs/design/in-app-ops.md`.
+
+## BUG-137: the desktop Server Settings page can show defaults, and Save writes them over the real settings (FIXED, found 2026-10-04)
+
+**Found by** the review of the erase-marker fix round, read from the code. The
+desktop app asks for the server's settings in the same moment it identifies
+(src/net/ws_client.rs ~222), but the relay ignores everything a socket sends
+before it is signed in, so the request is dropped and the app's cached settings
+stay empty unless an admin's save happens to broadcast them. The Server Settings
+page then seeds its editable copy from DEFAULTS (src/gui/pages/server_settings.rs
+~2098-2107: `server_settings.clone().unwrap_or_default()`), shows them as the
+server's values, and Save (or the #local checkbox, which sends the whole copy)
+writes every default over the real settings: the server name and description,
+limits, and windows such as how long DMs are kept, which the expiry pass then
+applies.
+
+**Until fixed:** do not press Save in the desktop app's Server Settings.
+
+**Fix in flight (the erase-marker branch's second fix round):** ask for the
+settings after sign-in, seed the editable copy only from the real settings and
+refresh it when they arrive, keep Save disabled until they have, and answer the
+request to the asking client only.
+
+**Fixed** on the erase-marker branch (BUG-135 option 2, its second and final
+review rounds). The desktop app asks for the server's settings only once the
+sign-in has completed, and again on EVERY newly signed-in socket, whether or
+not it already has them (src/gui/connections.rs `socket_signed_in`,
+`ask_server_settings_once`); Disconnect, a dropped socket and a server switch
+also clear the "asked" mark, so a lost or unreadable answer never leaves the
+page waiting for the whole session, and a change another admin saved while
+this app was offline is seen after the reconnect. The page waits for the real
+settings before it shows a form: until they arrive it says so, and Save, the
+Server master row and the feature switches are not there to press
+(`page_draft`). When settings arrive, a working copy with no unsaved edits is
+refreshed from them (`draft_after_settings_arrive`); one with edits is kept,
+and the page says in one line that the server's settings changed while you
+were editing, because Save sends the whole copy (`changed_under_edits`). The
+relay sends its answer to `server_settings_request` only to the one who asked
+(the connections of that key); an admin's saved change still goes to everyone.

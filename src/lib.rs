@@ -1994,6 +1994,9 @@ mod native_app {
                 copresence_refused: None,
                 home_arrived_on: None,
                 copresence_server: String::new(),
+                boot_plot: None,
+                last_welcome: None,
+                last_welcome_rejoin: None,
                 game_pos_timer: 0.0,
                 remote_avatar: None,
                 remote_look_materials: std::collections::HashMap::new(),
@@ -7029,6 +7032,7 @@ mod native_app {
                             chosen,
                             state.construction_return_pos,
                             state.game_joined,
+                            state.gui_state.ship_structure.as_ref().is_some_and(|s| s.home_is_away()),
                         );
                         state.camera.position = close.at;
                         if close.held_back {
@@ -14164,6 +14168,7 @@ mod native_app {
                     // stops running once a world is loaded. Permanent dev tooling.
                     poll_camera_request(state);
                     crate::engine::ipc::poll_remote_players_request(state, clock_dt); // drawn remote players for verify-copresence
+                    crate::engine::ipc::poll_door_points_request(state); // the ship's door points, for verify-copresence (increment 2)
                     crate::engine::movie::poll_request(state);
                     crate::engine::movie::steer(state);
                     crate::engine::ipc::poll_cloudmap_request(state);

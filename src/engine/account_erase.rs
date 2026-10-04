@@ -25,7 +25,13 @@ pub(crate) fn on_active_server(state: &mut EngineState, frame: &serde_json::Valu
     if let Some(sentence) = erase_refusal(outcome, state.gui_state.copresence_refused_note.as_deref()) {
         home_plot::refuse_shared_world(state, sentence.to_string(), None);
     }
-    log::warn!("Account erase on {server} ({outcome:?}): disconnected; it is dialed again only by the Chat page's Connect");
+    // `earlier`: the server remembered an erase made before (from another device) and signed
+    // nothing up on this connect (relay handlers/sign_ups.rs); handled the same way. This
+    // socket is never signed in, so `ws_identified` stays false, and the shared-world follow
+    // keeps the sentence because this server is now erased here (home_plot.rs
+    // `server_follow`, review finding 13), instead of taking it for a fresh connection.
+    let when = if frame.get("earlier").and_then(|v| v.as_bool()) == Some(true) { "earlier" } else { "now" };
+    log::warn!("Account erase on {server} ({outcome:?}, {when}): disconnected; it is dialed again only by the Chat page's Connect");
 }
 
 /// The receipt came on a PARKED connection (engine/bg_connections.rs): the person switched

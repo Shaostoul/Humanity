@@ -206,6 +206,14 @@ pub struct Storage {
     /// Pool of read-only connections for concurrent reads. See [`pool`] and
     /// [`Storage::with_read_conn`].
     pub(crate) read_pool: pool::ReadPool,
+    /// The secret erased accounts are remembered under (a keyed one-way fingerprint of the
+    /// key, never the key), read from or created beside this database at open. See
+    /// [`erased_accounts`] (BUG-135, 2026-10-04).
+    pub(crate) erase_secret: [u8; 32],
+    /// False when that secret could not be read or kept (a damaged or unwritable
+    /// `erased-accounts.key`): this run uses a secret of its own, so the erases remembered now
+    /// are forgotten at the next start. Reported by /health (`erase_memory`) and `just brief`.
+    pub(crate) erase_secret_kept: bool,
 }
 
 /// Shared timestamp helper used by multiple submodules.
@@ -1094,6 +1102,8 @@ impl Storage {
                 server_name               TEXT    NOT NULL DEFAULT '',
                 dm_mailbox_ttl_days       INTEGER NOT NULL DEFAULT 30,
                 message_retention_days    INTEGER NOT NULL DEFAULT 0,
+                erased_accounts_ttl_days  INTEGER NOT NULL DEFAULT 30,
+                erased_accounts_cap       INTEGER NOT NULL DEFAULT 100000,
                 updated_at                INTEGER NOT NULL DEFAULT 0,
                 updated_by                TEXT
             );
@@ -1181,6 +1191,39 @@ impl Storage {
             )?;
             info!("Migration: added message_retention_days (server_settings)");
         }
+
+        // Guarded ALTERs (erased accounts remembered for a while, 2026-10-04, BUG-135): how
+        // many days this relay remembers that an account was erased here, and the most such
+        // entries it keeps at once (storage/erased_accounts.rs).
+        if conn.prepare("SELECT erased_accounts_ttl_days FROM server_settings LIMIT 0").is_err() {
+            conn.execute_batch(
+                "ALTER TABLE server_settings ADD COLUMN erased_accounts_ttl_days INTEGER NOT NULL DEFAULT 30;"
+            )?;
+            info!("Migration: added erased_accounts_ttl_days (server_settings)");
+        }
+        if conn.prepare("SELECT erased_accounts_cap FROM server_settings LIMIT 0").is_err() {
+            conn.execute_batch(
+                "ALTER TABLE server_settings ADD COLUMN erased_accounts_cap INTEGER NOT NULL DEFAULT 100000;"
+            )?;
+            info!("Migration: added erased_accounts_cap (server_settings)");
+        }
+
+        // ── Erased accounts, remembered for a while (2026-10-04, BUG-135) ──
+        // Its own batch with every column in the CREATE (the BUG-046 rule: nothing here
+        // depends on an ALTER-added column). One row per key that erased its account here:
+        // a one-way keyed fingerprint of the key, the DAY of the erase, and the window in days
+        // in force then (the number the person read before deciding: a longer window set
+        // later never extends it). Nothing else. WITHOUT ROWID, so not even the order of
+        // erases within one day is kept. Culled by age and by a cap
+        // (storage/erased_accounts.rs).
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS erased_accounts (
+                fingerprint TEXT PRIMARY KEY,
+                erased_day  INTEGER NOT NULL,
+                ttl_days    INTEGER NOT NULL
+            ) WITHOUT ROWID;
+            CREATE INDEX IF NOT EXISTS idx_erased_accounts_day ON erased_accounts(erased_day);"
+        )?;
 
 
         // ── v0.1132 — guaranteed local-only room toggle. Default ON: every
@@ -2278,7 +2321,8 @@ impl Storage {
         let read_pool = pool::build_read_pool(path)?;
 
         info!("Database opened: {}", path.display());
-        Ok(Self { conn: Mutex::new(conn), read_pool })
+        let (erase_secret, erase_secret_kept) = erased_accounts::load_secret(path);
+        Ok(Self { conn: Mutex::new(conn), read_pool, erase_secret, erase_secret_kept })
     }
 }
 
@@ -2292,6 +2336,8 @@ mod assets;
 pub mod account;
 pub mod backup_crypto;
 pub mod backups;
+pub mod erased_accounts;
+mod expiry;
 mod board;
 mod channels;
 mod dms;
@@ -2315,7 +2361,7 @@ mod uploads;
 mod reviews;
 mod members;
 mod server_settings;
-pub use server_settings::ServerSettings;
+pub use server_settings::{ServerSettings, ERASED_ACCOUNTS_CAP_RANGE, ERASED_ACCOUNTS_TTL_DAYS_RANGE};
 mod roles;
 pub use roles::RoleDef;
 pub use channels::BannedUser;

@@ -11,6 +11,26 @@ Each line is written the way a player would hear it; the release notes and
 
 ## Shipped
 
+- **v0.1450.0: an erased account stays erased on every device, and server
+  settings save safely.** After you erase your account on a server, the server
+  now remembers for up to 30 days (a setting its admin can change) that it was
+  erased, as a one-way fingerprint that is not your name or your data, so a
+  second device that was switched off at the time cannot sign you up again by
+  itself; pressing Connect is the only way back. The desktop Server Settings
+  page no longer risks writing default values over a server's real settings.
+
+- **v0.1449.2: three more Library guides.** Making an Agreement That Holds
+  (putting a deal in writing, cosigning, sharing a well), Organising Shared
+  Work (a work day with neighbours, lifting together, heat, and a review
+  afterwards), and Teaching What You Know (showing someone a skill step by
+  step, safely). The Library now has 65 sourced guides.
+
+- **v0.1449.1: three more Library guides.** Chickens and Eggs (keeping a
+  small flock, collecting and washing eggs safely, coop heat lamps), Glue and
+  Joints (which glue for which job, and joints that hold), and Reading the
+  Weather (clouds, pressure, watches and warnings, lightning, floods and
+  tornadoes). The Library now has 62 sourced guides.
+
 - **v0.1449.0: erasing your account sticks, and three more Library guides.**
   After you erase your account on a server, the app now disconnects from it and
   stays disconnected, instead of quietly signing you up again the next time it

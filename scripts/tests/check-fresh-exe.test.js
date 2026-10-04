@@ -203,6 +203,25 @@ test("GATE: a build of a different tree refuses even when it is NEWER than every
   assert.match(r.out, /src\/new_feature\.rs/);
 });
 
+// Ship homes increment 2 review, finding 5: data/homes/homestead.ron is the player's OWN home,
+// which every editor Save rewrites, and it sat in the stamp (build.rs listed all of data/homes),
+// so moving a wall and pressing Save in a repo checkout made every rig refuse the exe as stale.
+// Only the shipped defaults (data/homes/shipped/, never written by the game) are stamped now.
+// This runs on the REAL build.rs list. Seen red 2026-10-04 with build.rs listing "data/homes":
+// "the gate refused an exe because the player saved their own home (status 1)".
+test("GATE: a Save of the player's own home leaves the exe fresh; an edit of the shipped default does not", () => {
+  const realBuildRs = fs.readFileSync(path.join(REPO, "build.rs"), "utf8");
+  const inputs = lib().readInputs(REPO);
+  const home = "// a home design\n(kind: \"homestead\")\n";
+  const tree0 = { ...FIXTURE, "build.rs": realBuildRs, "data/homes/homestead.ron": home, "data/homes/shipped/homestead.ron": home };
+  const exe = fakeExe([specStamp(tree0, { inputs })]);
+  const saved = gate(["--tree", writeTree({ ...tree0, "data/homes/homestead.ron": home + "// moved a wall\n" }), "--exe", exe]);
+  assert.strictEqual(saved.status, 0, `the gate refused an exe because the player saved their own home (status ${saved.status}): ${saved.out}`);
+  const shipped = gate(["--tree", writeTree({ ...tree0, "data/homes/shipped/homestead.ron": home + "// a new default\n" }), "--exe", exe]);
+  assert.strictEqual(shipped.status, 1, `an edit of the shipped default left the exe fresh: ${shipped.out}`);
+  assert.match(shipped.out, /data\/homes\/shipped\/homestead\.ron/);
+});
+
 test("GATE: a CRLF-only difference between the build's tree and this one passes", () => {
   const tree = writeTree(withChange("src/main.rs", 'fn main() {\n    println!("hi");\n}\n'));
   const r = gate(["--tree", tree, "--exe", fakeExe([specStamp(FIXTURE)])]);

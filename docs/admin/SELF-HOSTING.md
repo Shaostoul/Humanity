@@ -213,6 +213,17 @@ systemctl start humanity-relay
 
 Copy the backup elsewhere first if you want to keep the pre-restore state.
 
+**Moving the server to another machine** (or restoring onto a fresh one): carry
+three files from `data/` together, not just the database: `relay.db`,
+`backup.key` (without it, every encrypted backup is unreadable) and
+`erased-accounts.key` (the secret the server remembers erased accounts under;
+without it, the accounts erased in the last few weeks stop being recognised, so
+a person's other devices can sign them up again by themselves). The two keys
+are deliberately kept out of `backups/`, so copying the backups alone does not
+carry them. `GET /health` answers `"erase_memory": "this_run_only"` when
+`erased-accounts.key` is there but damaged (the relay never overwrites it); fix
+or remove it and restart.
+
 ## What can I do from the app vs the shell?
 
 Almost all day-to-day administration happens INSIDE the app: open **Server
