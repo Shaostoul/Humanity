@@ -642,8 +642,8 @@ verify-second-player:
 #     the way a returning player does: connected and identified on the main menu
 #     first, then the menu's Enter World pressed (the join gate then runs before
 #     the world has loaded); walker-first by the autopilot. --entry
-#     menu|autopilot picks one for every order. About 10 minutes per order (the
-#     guest about 4).
+#     menu|autopilot picks one for every order. About 3 minutes per order on a
+#     quiet machine, the guest about 1 (2026-10-04).
 #   just verify-copresence --dry-verdict <manifest.json>   re-judge without booting
 [positional-arguments]
 verify-copresence *ARGS:
