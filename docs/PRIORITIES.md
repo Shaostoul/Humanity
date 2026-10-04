@@ -109,8 +109,9 @@ every load-bearing claim checked by an adversarial verifier
   as players on one game clock, the explore quest ends with "find your home",
   a stored Pioneer world upgrades with progress kept. 16 review findings fixed;
   on main, all rigs green (67/67 per --plots order, the crew judged where they
-  are drawn). Open for the operator: how much NPC homesteads contribute
-  (`npc_homestead_fleet_meals_per_day`, 0.0 for now). NEXT: increment 4,
+  are drawn). NPC homesteads ANSWERED 2026-10-04: their contribution stays 0, and during
+  early development the fleet is UNLIMITED with a per-player ledger of what
+  each player used and contributed, in the red or the black (building now). NEXT: increment 4,
   getting around at ship scale (the relay's speed check with a correction
   instead of a freeze, transit links with stable ids, "aboard" as inside the
   ship's bounds, game delivery by zone, an air volume per home). Left for later (design doc section 7): a Dev move of the plot
