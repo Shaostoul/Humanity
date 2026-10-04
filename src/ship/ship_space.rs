@@ -175,7 +175,8 @@ mod tests {
     /// person can stand is aboard (the far end of First Street, the Factory District 190 m west),
     /// and so is a point on a 2 km drum 1 km along its length, which the sphere let go of; a point
     /// 60 m past the last district is not. Seen red 2026-10-04 with `is_aboard` measuring the
-    /// old sphere (`p.length() < 400.0`): "1 km along the drum is aboard".
+    /// old sphere (`p.length() < 400.0`): "past the box is not aboard" (310 m from the origin, 10 m
+    /// past the ship's box, was still inside the sphere).
     #[test]
     fn aboard_is_inside_the_ships_bounds() {
         let ship = shipped("p1");

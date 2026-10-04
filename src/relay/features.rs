@@ -1944,9 +1944,9 @@ mod tests {
     /// jumper at their step; their next update, which says it applied the correction, is passed
     /// on: corrected, never frozen.
     ///
-    /// Seen red 2026-10-04 on the increment 3 relay (the 100 m rule): "no correction for a 60.0 m
-    /// jump; game messages the jumper saw: []" (the rule let the 60 m through, and the other
-    /// player saw it).
+    /// Seen red 2026-10-04 with the relay's judging put back to the increment 3 rule (refuse past
+    /// 100 m without a word, take anything else): "no correction for a 60.0 m jump; the relay holds
+    /// them at [53.5, 1.7, 101.0]" (the rule took the 60 m jump).
     #[tokio::test]
     async fn an_oversized_jump_is_corrected_and_the_next_move_reaches_the_others() {
         let path = plots_db("speed_check");
@@ -1999,8 +1999,9 @@ mod tests {
     /// is the shipped 250 m, the next step brings the mover into the other's view (sent whole,
     /// `game_in_view`) and its moves follow, while the chatting socket still gets none.
     ///
-    /// Seen red 2026-10-04 on the increment 3 relay (every game message to every socket): "a
-    /// player 99 m away, out of view, was sent the step".
+    /// Seen red 2026-10-04 with delivery put back to the increment 3 way (every game message to
+    /// every socket): "a player 99 m away, out of view, was sent the step: [Object {\"player_id\":
+    /// Number(20), ...}]".
     #[tokio::test]
     async fn game_moves_go_only_to_the_players_who_have_them_in_view() {
         let path = plots_db("in_view");

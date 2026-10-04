@@ -113,8 +113,9 @@ mod tests {
     /// THE WEST TELEPORTER JUMPS TO THE EAST ONE, NEVER TO THE LADDER: in the shipped homestead,
     /// stepping into either teleporter lands on the other, and the ladder is no one's partner.
     /// Seen red 2026-10-04 on the shipped file with its pairs put back to list indexes and step 3
-    /// of `settle_structures` (drop a pair of the wrong type) taken out: "teleporter-1 jumps to
-    /// ladder-1".
+    /// of `settle_structures` (drop a pair of the wrong type) taken out: "one link each way:
+    /// [TransitLink { zone: \"home\", from: \"teleporter-2\", to: \"teleporter-1\", ... }]" (the west
+    /// teleporter's pair was the ladder, so it had no way through at all).
     #[test]
     fn the_west_teleporter_jumps_to_the_east_one() {
         let ship = ShipStructure::load_and_assemble_shipped(&data(), None).expect("the shipped ship assembles");
