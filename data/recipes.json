@@ -7641,17 +7641,32 @@
         {
           "id": "wood_plank_0",
           "label": "Wood Plank",
-          "qty": 12
+          "qty": 26
         },
         {
           "id": "steel_ingot_0",
           "label": "Steel Ingot",
-          "qty": 4
+          "qty": 5
+        },
+        {
+          "id": "bolt_box_0",
+          "label": "Bolt Box",
+          "qty": 2
+        },
+        {
+          "id": "nail_box_0",
+          "label": "Nail Box",
+          "qty": 2
         },
         {
           "id": "rope_0",
           "label": "Rope",
           "qty": 3
+        },
+        {
+          "id": "paint_0",
+          "label": "Paint",
+          "qty": 1
         }
       ],
       "outputs": [
@@ -7685,7 +7700,12 @@
         {
           "id": "wood_plank_0",
           "label": "Wood Plank",
-          "qty": 4
+          "qty": 2
+        },
+        {
+          "id": "nail_box_0",
+          "label": "Nail Box",
+          "qty": 1
         },
         {
           "id": "rope_0",
@@ -7754,7 +7774,12 @@
         {
           "id": "wood_plank_0",
           "label": "Wood Plank",
-          "qty": 8
+          "qty": 10
+        },
+        {
+          "id": "glue_0",
+          "label": "Glue",
+          "qty": 3
         },
         {
           "id": "rope_0",
@@ -7762,8 +7787,8 @@
           "qty": 2
         },
         {
-          "id": "rubber_sheet_0",
-          "label": "Rubber Sheet",
+          "id": "paint_0",
+          "label": "Paint",
           "qty": 1
         }
       ],
@@ -7798,16 +7823,31 @@
         {
           "id": "wood_plank_0",
           "label": "Wood Plank",
-          "qty": 10
+          "qty": 16
         },
         {
           "id": "nail_box_0",
           "label": "Nail Box",
-          "qty": 3
+          "qty": 2
         },
         {
-          "id": "rubber_sheet_0",
-          "label": "Rubber Sheet",
+          "id": "glue_0",
+          "label": "Glue",
+          "qty": 2
+        },
+        {
+          "id": "bolt_box_0",
+          "label": "Bolt Box",
+          "qty": 1
+        },
+        {
+          "id": "rope_0",
+          "label": "Rope",
+          "qty": 1
+        },
+        {
+          "id": "paint_0",
+          "label": "Paint",
           "qty": 2
         }
       ],
@@ -7842,22 +7882,42 @@
         {
           "id": "wood_plank_0",
           "label": "Wood Plank",
-          "qty": 20
+          "qty": 72
         },
         {
           "id": "cloth_bolt_0",
           "label": "Cloth Bolt",
-          "qty": 6
+          "qty": 8
         },
         {
           "id": "rope_0",
           "label": "Rope",
-          "qty": 5
+          "qty": 12
+        },
+        {
+          "id": "steel_ingot_0",
+          "label": "Steel Ingot",
+          "qty": 2
+        },
+        {
+          "id": "bolt_box_0",
+          "label": "Bolt Box",
+          "qty": 3
         },
         {
           "id": "nail_box_0",
           "label": "Nail Box",
-          "qty": 5
+          "qty": 4
+        },
+        {
+          "id": "glue_0",
+          "label": "Glue",
+          "qty": 3
+        },
+        {
+          "id": "paint_0",
+          "label": "Paint",
+          "qty": 4
         }
       ],
       "outputs": [
@@ -10695,34 +10755,99 @@
       "category": "assembly",
       "inputs": [
         {
-          "id": "steel_ingot_0",
-          "label": "Steel Ingot",
-          "qty": 15
-        },
-        {
           "id": "aluminum_ingot_0",
           "label": "Aluminum Ingot",
-          "qty": 8
+          "qty": 400
+        },
+        {
+          "id": "steel_plate_0",
+          "label": "Steel Plate",
+          "qty": 100
+        },
+        {
+          "id": "steel_ingot_0",
+          "label": "Steel Ingot",
+          "qty": 30
+        },
+        {
+          "id": "iron_ingot_0",
+          "label": "Iron Ingot",
+          "qty": 6
+        },
+        {
+          "id": "copper_ingot_0",
+          "label": "Copper Ingot",
+          "qty": 15
         },
         {
           "id": "wire_0",
           "label": "Wire",
-          "qty": 10
-        },
-        {
-          "id": "rubber_sheet_0",
-          "label": "Rubber Sheet",
-          "qty": 6
+          "qty": 100
         },
         {
           "id": "battery_large_0",
           "label": "Battery Large",
-          "qty": 4
+          "qty": 90
+        },
+        {
+          "id": "plastic_sheet_0",
+          "label": "Plastic Sheet",
+          "qty": 300
+        },
+        {
+          "id": "rubber_sheet_0",
+          "label": "Rubber Sheet",
+          "qty": 50
+        },
+        {
+          "id": "glass_pane_0",
+          "label": "Glass Pane",
+          "qty": 18
+        },
+        {
+          "id": "cloth_bolt_0",
+          "label": "Cloth Bolt",
+          "qty": 20
+        },
+        {
+          "id": "leather_0",
+          "label": "Leather",
+          "qty": 10
         },
         {
           "id": "circuit_board_0",
           "label": "Circuit Board",
-          "qty": 2
+          "qty": 30
+        },
+        {
+          "id": "computer_terminal_0",
+          "label": "Computer Terminal",
+          "qty": 1
+        },
+        {
+          "id": "sensor_module_0",
+          "label": "Sensor Module",
+          "qty": 20
+        },
+        {
+          "id": "camera_0",
+          "label": "Camera",
+          "qty": 8
+        },
+        {
+          "id": "paint_0",
+          "label": "Paint",
+          "qty": 6
+        },
+        {
+          "id": "bolt_box_0",
+          "label": "Bolt Box",
+          "qty": 15
+        },
+        {
+          "id": "glue_0",
+          "label": "Glue",
+          "qty": 10
         }
       ],
       "outputs": [
@@ -10754,34 +10879,99 @@
       "category": "assembly",
       "inputs": [
         {
+          "id": "steel_plate_0",
+          "label": "Steel Plate",
+          "qty": 310
+        },
+        {
           "id": "steel_ingot_0",
           "label": "Steel Ingot",
-          "qty": 25
+          "qty": 90
         },
         {
           "id": "aluminum_ingot_0",
           "label": "Aluminum Ingot",
-          "qty": 10
+          "qty": 300
+        },
+        {
+          "id": "iron_ingot_0",
+          "label": "Iron Ingot",
+          "qty": 13
+        },
+        {
+          "id": "copper_ingot_0",
+          "label": "Copper Ingot",
+          "qty": 22
         },
         {
           "id": "wire_0",
           "label": "Wire",
-          "qty": 12
-        },
-        {
-          "id": "rubber_sheet_0",
-          "label": "Rubber Sheet",
-          "qty": 8
+          "qty": 130
         },
         {
           "id": "battery_large_0",
           "label": "Battery Large",
-          "qty": 6
+          "qty": 160
+        },
+        {
+          "id": "plastic_sheet_0",
+          "label": "Plastic Sheet",
+          "qty": 400
+        },
+        {
+          "id": "rubber_sheet_0",
+          "label": "Rubber Sheet",
+          "qty": 120
+        },
+        {
+          "id": "glass_pane_0",
+          "label": "Glass Pane",
+          "qty": 20
+        },
+        {
+          "id": "cloth_bolt_0",
+          "label": "Cloth Bolt",
+          "qty": 20
+        },
+        {
+          "id": "leather_0",
+          "label": "Leather",
+          "qty": 10
         },
         {
           "id": "circuit_board_0",
           "label": "Circuit Board",
-          "qty": 2
+          "qty": 30
+        },
+        {
+          "id": "computer_terminal_0",
+          "label": "Computer Terminal",
+          "qty": 1
+        },
+        {
+          "id": "sensor_module_0",
+          "label": "Sensor Module",
+          "qty": 20
+        },
+        {
+          "id": "camera_0",
+          "label": "Camera",
+          "qty": 8
+        },
+        {
+          "id": "paint_0",
+          "label": "Paint",
+          "qty": 10
+        },
+        {
+          "id": "bolt_box_0",
+          "label": "Bolt Box",
+          "qty": 40
+        },
+        {
+          "id": "glue_0",
+          "label": "Glue",
+          "qty": 10
         }
       ],
       "outputs": [
@@ -10815,22 +11005,42 @@
         {
           "id": "aluminum_ingot_0",
           "label": "Aluminum Ingot",
-          "qty": 3
-        },
-        {
-          "id": "wire_0",
-          "label": "Wire",
-          "qty": 3
-        },
-        {
-          "id": "rubber_sheet_0",
-          "label": "Rubber Sheet",
-          "qty": 2
+          "qty": 5
         },
         {
           "id": "battery_small_0",
           "label": "Battery Small",
-          "qty": 4
+          "qty": 10
+        },
+        {
+          "id": "copper_ingot_0",
+          "label": "Copper Ingot",
+          "qty": 1
+        },
+        {
+          "id": "steel_ingot_0",
+          "label": "Steel Ingot",
+          "qty": 1
+        },
+        {
+          "id": "rubber_sheet_0",
+          "label": "Rubber Sheet",
+          "qty": 1
+        },
+        {
+          "id": "wire_0",
+          "label": "Wire",
+          "qty": 2
+        },
+        {
+          "id": "circuit_board_0",
+          "label": "Circuit Board",
+          "qty": 1
+        },
+        {
+          "id": "plastic_sheet_0",
+          "label": "Plastic Sheet",
+          "qty": 2
         }
       ],
       "outputs": [
@@ -10862,29 +11072,119 @@
       "category": "assembly",
       "inputs": [
         {
+          "id": "steel_plate_0",
+          "label": "Steel Plate",
+          "qty": 9200
+        },
+        {
           "id": "steel_ingot_0",
           "label": "Steel Ingot",
-          "qty": 40
+          "qty": 3500
+        },
+        {
+          "id": "iron_ingot_0",
+          "label": "Iron Ingot",
+          "qty": 5400
+        },
+        {
+          "id": "pipe_metal_0",
+          "label": "Pipe Metal",
+          "qty": 300
+        },
+        {
+          "id": "aluminum_ingot_0",
+          "label": "Aluminum Ingot",
+          "qty": 600
         },
         {
           "id": "copper_ingot_0",
           "label": "Copper Ingot",
-          "qty": 10
+          "qty": 650
         },
         {
           "id": "wire_0",
           "label": "Wire",
-          "qty": 15
-        },
-        {
-          "id": "rubber_sheet_0",
-          "label": "Rubber Sheet",
-          "qty": 4
+          "qty": 2000
         },
         {
           "id": "battery_large_0",
           "label": "Battery Large",
-          "qty": 8
+          "qty": 200
+        },
+        {
+          "id": "circuit_board_0",
+          "label": "Circuit Board",
+          "qty": 300
+        },
+        {
+          "id": "computer_terminal_0",
+          "label": "Computer Terminal",
+          "qty": 2
+        },
+        {
+          "id": "sensor_module_0",
+          "label": "Sensor Module",
+          "qty": 50
+        },
+        {
+          "id": "radio_0",
+          "label": "Radio",
+          "qty": 2
+        },
+        {
+          "id": "antenna_0",
+          "label": "Antenna",
+          "qty": 2
+        },
+        {
+          "id": "glass_pane_0",
+          "label": "Glass Pane",
+          "qty": 120
+        },
+        {
+          "id": "rubber_sheet_0",
+          "label": "Rubber Sheet",
+          "qty": 300
+        },
+        {
+          "id": "fiberglass_sheet_0",
+          "label": "Fiberglass Sheet",
+          "qty": 220
+        },
+        {
+          "id": "plastic_sheet_0",
+          "label": "Plastic Sheet",
+          "qty": 400
+        },
+        {
+          "id": "cloth_bolt_0",
+          "label": "Cloth Bolt",
+          "qty": 30
+        },
+        {
+          "id": "heater_0",
+          "label": "Heater",
+          "qty": 2
+        },
+        {
+          "id": "cooler_0",
+          "label": "Cooler",
+          "qty": 2
+        },
+        {
+          "id": "fire_extinguisher_0",
+          "label": "Fire Extinguisher",
+          "qty": 4
+        },
+        {
+          "id": "paint_0",
+          "label": "Paint",
+          "qty": 200
+        },
+        {
+          "id": "bolt_box_0",
+          "label": "Bolt Box",
+          "qty": 1000
         }
       ],
       "outputs": [
@@ -10967,26 +11267,76 @@
         {
           "id": "steel_ingot_0",
           "label": "Steel Ingot",
-          "qty": 8
+          "qty": 20
+        },
+        {
+          "id": "pipe_metal_0",
+          "label": "Pipe Metal",
+          "qty": 6
+        },
+        {
+          "id": "steel_plate_0",
+          "label": "Steel Plate",
+          "qty": 4
+        },
+        {
+          "id": "iron_ingot_0",
+          "label": "Iron Ingot",
+          "qty": 2
         },
         {
           "id": "aluminum_ingot_0",
           "label": "Aluminum Ingot",
-          "qty": 4
+          "qty": 30
         },
         {
-          "id": "rubber_sheet_0",
-          "label": "Rubber Sheet",
-          "qty": 3
+          "id": "copper_ingot_0",
+          "label": "Copper Ingot",
+          "qty": 1
         },
         {
           "id": "wire_0",
           "label": "Wire",
-          "qty": 4
+          "qty": 8
         },
         {
-          "id": "fuel_refined_0",
-          "label": "Fuel Refined",
+          "id": "rubber_sheet_0",
+          "label": "Rubber Sheet",
+          "qty": 12
+        },
+        {
+          "id": "plastic_sheet_0",
+          "label": "Plastic Sheet",
+          "qty": 16
+        },
+        {
+          "id": "leather_0",
+          "label": "Leather",
+          "qty": 2
+        },
+        {
+          "id": "glass_pane_0",
+          "label": "Glass Pane",
+          "qty": 1
+        },
+        {
+          "id": "battery_large_0",
+          "label": "Battery Large",
+          "qty": 1
+        },
+        {
+          "id": "circuit_board_0",
+          "label": "Circuit Board",
+          "qty": 2
+        },
+        {
+          "id": "bolt_box_0",
+          "label": "Bolt Box",
+          "qty": 3
+        },
+        {
+          "id": "paint_0",
+          "label": "Paint",
           "qty": 2
         }
       ],
@@ -11019,29 +11369,79 @@
       "category": "assembly",
       "inputs": [
         {
+          "id": "fiberglass_sheet_0",
+          "label": "Fiberglass Sheet",
+          "qty": 150
+        },
+        {
+          "id": "resin_0",
+          "label": "Resin",
+          "qty": 40
+        },
+        {
           "id": "aluminum_ingot_0",
           "label": "Aluminum Ingot",
+          "qty": 60
+        },
+        {
+          "id": "steel_ingot_0",
+          "label": "Steel Ingot",
           "qty": 8
         },
         {
-          "id": "rubber_sheet_0",
-          "label": "Rubber Sheet",
-          "qty": 6
-        },
-        {
-          "id": "wire_0",
-          "label": "Wire",
-          "qty": 5
-        },
-        {
-          "id": "plastic_sheet_0",
-          "label": "Plastic Sheet",
-          "qty": 4
+          "id": "copper_ingot_0",
+          "label": "Copper Ingot",
+          "qty": 7
         },
         {
           "id": "battery_large_0",
           "label": "Battery Large",
-          "qty": 2
+          "qty": 24
+        },
+        {
+          "id": "wire_0",
+          "label": "Wire",
+          "qty": 40
+        },
+        {
+          "id": "circuit_board_0",
+          "label": "Circuit Board",
+          "qty": 4
+        },
+        {
+          "id": "rubber_sheet_0",
+          "label": "Rubber Sheet",
+          "qty": 40
+        },
+        {
+          "id": "cloth_bolt_0",
+          "label": "Cloth Bolt",
+          "qty": 10
+        },
+        {
+          "id": "carbon_fiber_sheet_0",
+          "label": "Carbon Fiber Sheet",
+          "qty": 30
+        },
+        {
+          "id": "plastic_sheet_0",
+          "label": "Plastic Sheet",
+          "qty": 60
+        },
+        {
+          "id": "glass_pane_0",
+          "label": "Glass Pane",
+          "qty": 3
+        },
+        {
+          "id": "bolt_box_0",
+          "label": "Bolt Box",
+          "qty": 6
+        },
+        {
+          "id": "paint_0",
+          "label": "Paint",
+          "qty": 3
         }
       ],
       "outputs": [
@@ -11075,37 +11475,97 @@
         {
           "id": "aluminum_ingot_0",
           "label": "Aluminum Ingot",
-          "qty": 6
+          "qty": 200
         },
         {
           "id": "steel_ingot_0",
           "label": "Steel Ingot",
-          "qty": 4
+          "qty": 17
         },
         {
-          "id": "wire_0",
-          "label": "Wire",
-          "qty": 6
-        },
-        {
-          "id": "rubber_sheet_0",
-          "label": "Rubber Sheet",
-          "qty": 4
+          "id": "titanium_ingot_0",
+          "label": "Titanium Ingot",
+          "qty": 5
         },
         {
           "id": "battery_large_0",
           "label": "Battery Large",
-          "qty": 2
+          "qty": 20
+        },
+        {
+          "id": "copper_ingot_0",
+          "label": "Copper Ingot",
+          "qty": 7
+        },
+        {
+          "id": "wire_0",
+          "label": "Wire",
+          "qty": 40
         },
         {
           "id": "circuit_board_0",
           "label": "Circuit Board",
-          "qty": 2
+          "qty": 6
         },
         {
           "id": "sensor_module_0",
           "label": "Sensor Module",
+          "qty": 10
+        },
+        {
+          "id": "computer_terminal_0",
+          "label": "Computer Terminal",
+          "qty": 1
+        },
+        {
+          "id": "camera_0",
+          "label": "Camera",
+          "qty": 4
+        },
+        {
+          "id": "radio_0",
+          "label": "Radio",
+          "qty": 1
+        },
+        {
+          "id": "antenna_0",
+          "label": "Antenna",
           "qty": 2
+        },
+        {
+          "id": "solar_panel_0",
+          "label": "Solar Panel",
+          "qty": 2
+        },
+        {
+          "id": "rubber_sheet_0",
+          "label": "Rubber Sheet",
+          "qty": 40
+        },
+        {
+          "id": "plastic_sheet_0",
+          "label": "Plastic Sheet",
+          "qty": 40
+        },
+        {
+          "id": "carbon_fiber_sheet_0",
+          "label": "Carbon Fiber Sheet",
+          "qty": 20
+        },
+        {
+          "id": "glass_pane_0",
+          "label": "Glass Pane",
+          "qty": 2
+        },
+        {
+          "id": "bolt_box_0",
+          "label": "Bolt Box",
+          "qty": 10
+        },
+        {
+          "id": "servo_motor_0",
+          "label": "Servo Motor",
+          "qty": 8
         }
       ],
       "outputs": [
@@ -11139,37 +11599,117 @@
         {
           "id": "titanium_ingot_0",
           "label": "Titanium Ingot",
-          "qty": 8
+          "qty": 450
         },
         {
           "id": "aluminum_ingot_0",
           "label": "Aluminum Ingot",
-          "qty": 6
+          "qty": 450
         },
         {
-          "id": "wire_0",
-          "label": "Wire",
-          "qty": 10
+          "id": "steel_ingot_0",
+          "label": "Steel Ingot",
+          "qty": 130
         },
         {
           "id": "servo_motor_0",
           "label": "Servo Motor",
-          "qty": 8
+          "qty": 300
         },
         {
-          "id": "circuit_board_0",
-          "label": "Circuit Board",
-          "qty": 2
+          "id": "copper_ingot_0",
+          "label": "Copper Ingot",
+          "qty": 35
         },
         {
           "id": "battery_large_0",
           "label": "Battery Large",
-          "qty": 4
+          "qty": 80
+        },
+        {
+          "id": "wire_0",
+          "label": "Wire",
+          "qty": 330
+        },
+        {
+          "id": "circuit_board_0",
+          "label": "Circuit Board",
+          "qty": 100
         },
         {
           "id": "sensor_module_0",
           "label": "Sensor Module",
+          "qty": 80
+        },
+        {
+          "id": "computer_terminal_0",
+          "label": "Computer Terminal",
           "qty": 2
+        },
+        {
+          "id": "camera_0",
+          "label": "Camera",
+          "qty": 6
+        },
+        {
+          "id": "radio_0",
+          "label": "Radio",
+          "qty": 1
+        },
+        {
+          "id": "antenna_0",
+          "label": "Antenna",
+          "qty": 2
+        },
+        {
+          "id": "carbon_fiber_sheet_0",
+          "label": "Carbon Fiber Sheet",
+          "qty": 300
+        },
+        {
+          "id": "ceramic_plate_0",
+          "label": "Ceramic Plate",
+          "qty": 100
+        },
+        {
+          "id": "glass_pane_0",
+          "label": "Glass Pane",
+          "qty": 6
+        },
+        {
+          "id": "rubber_sheet_0",
+          "label": "Rubber Sheet",
+          "qty": 60
+        },
+        {
+          "id": "plastic_sheet_0",
+          "label": "Plastic Sheet",
+          "qty": 100
+        },
+        {
+          "id": "pipe_metal_0",
+          "label": "Pipe Metal",
+          "qty": 30
+        },
+        {
+          "id": "cooler_0",
+          "label": "Cooler",
+          "qty": 2
+        },
+        {
+          "id": "fire_extinguisher_0",
+          "label": "Fire Extinguisher",
+          "qty": 1
+        },
+        {
+          "id": "bolt_box_0",
+          "label": "Bolt Box",
+          "qty": 60
+        },
+        {
+          "id": "paint_0",
+          "label": "Paint",
+          "qty": 10
         }
       ],
       "outputs": [
@@ -11203,37 +11743,122 @@
         {
           "id": "titanium_ingot_0",
           "label": "Titanium Ingot",
-          "qty": 15
+          "qty": 1200
+        },
+        {
+          "id": "steel_plate_0",
+          "label": "Steel Plate",
+          "qty": 400
+        },
+        {
+          "id": "aluminum_ingot_0",
+          "label": "Aluminum Ingot",
+          "qty": 400
         },
         {
           "id": "steel_ingot_0",
           "label": "Steel Ingot",
-          "qty": 10
-        },
-        {
-          "id": "wire_0",
-          "label": "Wire",
-          "qty": 15
+          "qty": 220
         },
         {
           "id": "servo_motor_0",
           "label": "Servo Motor",
-          "qty": 12
+          "qty": 600
         },
         {
-          "id": "circuit_board_0",
-          "label": "Circuit Board",
-          "qty": 4
+          "id": "copper_ingot_0",
+          "label": "Copper Ingot",
+          "qty": 90
         },
         {
           "id": "battery_large_0",
           "label": "Battery Large",
-          "qty": 6
+          "qty": 160
+        },
+        {
+          "id": "wire_0",
+          "label": "Wire",
+          "qty": 830
+        },
+        {
+          "id": "circuit_board_0",
+          "label": "Circuit Board",
+          "qty": 200
         },
         {
           "id": "sensor_module_0",
           "label": "Sensor Module",
+          "qty": 150
+        },
+        {
+          "id": "computer_terminal_0",
+          "label": "Computer Terminal",
+          "qty": 3
+        },
+        {
+          "id": "camera_0",
+          "label": "Camera",
+          "qty": 10
+        },
+        {
+          "id": "radio_0",
+          "label": "Radio",
+          "qty": 2
+        },
+        {
+          "id": "antenna_0",
+          "label": "Antenna",
           "qty": 4
+        },
+        {
+          "id": "ceramic_plate_0",
+          "label": "Ceramic Plate",
+          "qty": 270
+        },
+        {
+          "id": "carbon_fiber_sheet_0",
+          "label": "Carbon Fiber Sheet",
+          "qty": 330
+        },
+        {
+          "id": "glass_pane_0",
+          "label": "Glass Pane",
+          "qty": 12
+        },
+        {
+          "id": "rubber_sheet_0",
+          "label": "Rubber Sheet",
+          "qty": 150
+        },
+        {
+          "id": "plastic_sheet_0",
+          "label": "Plastic Sheet",
+          "qty": 200
+        },
+        {
+          "id": "pipe_metal_0",
+          "label": "Pipe Metal",
+          "qty": 50
+        },
+        {
+          "id": "cooler_0",
+          "label": "Cooler",
+          "qty": 4
+        },
+        {
+          "id": "fire_extinguisher_0",
+          "label": "Fire Extinguisher",
+          "qty": 2
+        },
+        {
+          "id": "bolt_box_0",
+          "label": "Bolt Box",
+          "qty": 190
+        },
+        {
+          "id": "paint_0",
+          "label": "Paint",
+          "qty": 20
         }
       ],
       "outputs": [
@@ -11265,34 +11890,114 @@
       "category": "assembly",
       "inputs": [
         {
+          "id": "steel_plate_0",
+          "label": "Steel Plate",
+          "qty": 440
+        },
+        {
           "id": "steel_ingot_0",
           "label": "Steel Ingot",
-          "qty": 15
+          "qty": 400
         },
         {
           "id": "titanium_ingot_0",
           "label": "Titanium Ingot",
-          "qty": 5
+          "qty": 100
         },
         {
-          "id": "wire_0",
-          "label": "Wire",
-          "qty": 12
+          "id": "aluminum_ingot_0",
+          "label": "Aluminum Ingot",
+          "qty": 300
+        },
+        {
+          "id": "pipe_metal_0",
+          "label": "Pipe Metal",
+          "qty": 100
         },
         {
           "id": "servo_motor_0",
           "label": "Servo Motor",
-          "qty": 10
+          "qty": 400
         },
         {
-          "id": "circuit_board_0",
-          "label": "Circuit Board",
-          "qty": 3
+          "id": "copper_ingot_0",
+          "label": "Copper Ingot",
+          "qty": 43
         },
         {
           "id": "battery_large_0",
           "label": "Battery Large",
-          "qty": 4
+          "qty": 160
+        },
+        {
+          "id": "wire_0",
+          "label": "Wire",
+          "qty": 400
+        },
+        {
+          "id": "circuit_board_0",
+          "label": "Circuit Board",
+          "qty": 60
+        },
+        {
+          "id": "sensor_module_0",
+          "label": "Sensor Module",
+          "qty": 60
+        },
+        {
+          "id": "computer_terminal_0",
+          "label": "Computer Terminal",
+          "qty": 2
+        },
+        {
+          "id": "camera_0",
+          "label": "Camera",
+          "qty": 8
+        },
+        {
+          "id": "radio_0",
+          "label": "Radio",
+          "qty": 1
+        },
+        {
+          "id": "antenna_0",
+          "label": "Antenna",
+          "qty": 2
+        },
+        {
+          "id": "glass_pane_0",
+          "label": "Glass Pane",
+          "qty": 16
+        },
+        {
+          "id": "rubber_sheet_0",
+          "label": "Rubber Sheet",
+          "qty": 200
+        },
+        {
+          "id": "plastic_sheet_0",
+          "label": "Plastic Sheet",
+          "qty": 120
+        },
+        {
+          "id": "cooler_0",
+          "label": "Cooler",
+          "qty": 2
+        },
+        {
+          "id": "fire_extinguisher_0",
+          "label": "Fire Extinguisher",
+          "qty": 2
+        },
+        {
+          "id": "bolt_box_0",
+          "label": "Bolt Box",
+          "qty": 190
+        },
+        {
+          "id": "paint_0",
+          "label": "Paint",
+          "qty": 30
         }
       ],
       "outputs": [
@@ -11324,34 +12029,119 @@
       "category": "assembly",
       "inputs": [
         {
+          "id": "steel_plate_0",
+          "label": "Steel Plate",
+          "qty": 520
+        },
+        {
           "id": "steel_ingot_0",
           "label": "Steel Ingot",
-          "qty": 18
+          "qty": 515
         },
         {
           "id": "titanium_ingot_0",
           "label": "Titanium Ingot",
-          "qty": 4
+          "qty": 80
         },
         {
-          "id": "wire_0",
-          "label": "Wire",
-          "qty": 10
+          "id": "ceramic_plate_0",
+          "label": "Ceramic Plate",
+          "qty": 60
+        },
+        {
+          "id": "aluminum_ingot_0",
+          "label": "Aluminum Ingot",
+          "qty": 200
+        },
+        {
+          "id": "pipe_metal_0",
+          "label": "Pipe Metal",
+          "qty": 100
         },
         {
           "id": "servo_motor_0",
           "label": "Servo Motor",
-          "qty": 8
+          "qty": 300
         },
         {
-          "id": "circuit_board_0",
-          "label": "Circuit Board",
-          "qty": 3
+          "id": "copper_ingot_0",
+          "label": "Copper Ingot",
+          "qty": 50
         },
         {
           "id": "battery_large_0",
           "label": "Battery Large",
-          "qty": 5
+          "qty": 200
+        },
+        {
+          "id": "wire_0",
+          "label": "Wire",
+          "qty": 400
+        },
+        {
+          "id": "circuit_board_0",
+          "label": "Circuit Board",
+          "qty": 60
+        },
+        {
+          "id": "sensor_module_0",
+          "label": "Sensor Module",
+          "qty": 60
+        },
+        {
+          "id": "computer_terminal_0",
+          "label": "Computer Terminal",
+          "qty": 2
+        },
+        {
+          "id": "camera_0",
+          "label": "Camera",
+          "qty": 8
+        },
+        {
+          "id": "radio_0",
+          "label": "Radio",
+          "qty": 1
+        },
+        {
+          "id": "antenna_0",
+          "label": "Antenna",
+          "qty": 2
+        },
+        {
+          "id": "glass_pane_0",
+          "label": "Glass Pane",
+          "qty": 12
+        },
+        {
+          "id": "rubber_sheet_0",
+          "label": "Rubber Sheet",
+          "qty": 200
+        },
+        {
+          "id": "plastic_sheet_0",
+          "label": "Plastic Sheet",
+          "qty": 100
+        },
+        {
+          "id": "cooler_0",
+          "label": "Cooler",
+          "qty": 3
+        },
+        {
+          "id": "fire_extinguisher_0",
+          "label": "Fire Extinguisher",
+          "qty": 2
+        },
+        {
+          "id": "bolt_box_0",
+          "label": "Bolt Box",
+          "qty": 200
+        },
+        {
+          "id": "paint_0",
+          "label": "Paint",
+          "qty": 30
         }
       ],
       "outputs": [
@@ -11385,37 +12175,112 @@
         {
           "id": "aluminum_ingot_0",
           "label": "Aluminum Ingot",
-          "qty": 8
+          "qty": 750
         },
         {
           "id": "titanium_ingot_0",
           "label": "Titanium Ingot",
-          "qty": 4
+          "qty": 80
         },
         {
-          "id": "wire_0",
-          "label": "Wire",
-          "qty": 8
+          "id": "steel_ingot_0",
+          "label": "Steel Ingot",
+          "qty": 69
         },
         {
           "id": "servo_motor_0",
           "label": "Servo Motor",
-          "qty": 6
+          "qty": 200
         },
         {
-          "id": "circuit_board_0",
-          "label": "Circuit Board",
-          "qty": 3
+          "id": "copper_ingot_0",
+          "label": "Copper Ingot",
+          "qty": 21
         },
         {
           "id": "battery_large_0",
           "label": "Battery Large",
-          "qty": 3
+          "qty": 60
+        },
+        {
+          "id": "wire_0",
+          "label": "Wire",
+          "qty": 230
+        },
+        {
+          "id": "circuit_board_0",
+          "label": "Circuit Board",
+          "qty": 80
         },
         {
           "id": "sensor_module_0",
           "label": "Sensor Module",
+          "qty": 120
+        },
+        {
+          "id": "computer_terminal_0",
+          "label": "Computer Terminal",
+          "qty": 2
+        },
+        {
+          "id": "camera_0",
+          "label": "Camera",
+          "qty": 12
+        },
+        {
+          "id": "radio_0",
+          "label": "Radio",
+          "qty": 2
+        },
+        {
+          "id": "antenna_0",
+          "label": "Antenna",
+          "qty": 6
+        },
+        {
+          "id": "carbon_fiber_sheet_0",
+          "label": "Carbon Fiber Sheet",
+          "qty": 200
+        },
+        {
+          "id": "ceramic_plate_0",
+          "label": "Ceramic Plate",
+          "qty": 40
+        },
+        {
+          "id": "glass_pane_0",
+          "label": "Glass Pane",
           "qty": 4
+        },
+        {
+          "id": "rubber_sheet_0",
+          "label": "Rubber Sheet",
+          "qty": 40
+        },
+        {
+          "id": "plastic_sheet_0",
+          "label": "Plastic Sheet",
+          "qty": 120
+        },
+        {
+          "id": "pipe_metal_0",
+          "label": "Pipe Metal",
+          "qty": 15
+        },
+        {
+          "id": "cooler_0",
+          "label": "Cooler",
+          "qty": 1
+        },
+        {
+          "id": "bolt_box_0",
+          "label": "Bolt Box",
+          "qty": 40
+        },
+        {
+          "id": "paint_0",
+          "label": "Paint",
+          "qty": 6
         }
       ],
       "outputs": [
@@ -11449,42 +12314,132 @@
         {
           "id": "titanium_ingot_0",
           "label": "Titanium Ingot",
-          "qty": 12
+          "qty": 880
         },
         {
           "id": "aluminum_ingot_0",
           "label": "Aluminum Ingot",
+          "qty": 1000
+        },
+        {
+          "id": "carbon_fiber_sheet_0",
+          "label": "Carbon Fiber Sheet",
+          "qty": 1600
+        },
+        {
+          "id": "steel_ingot_0",
+          "label": "Steel Ingot",
+          "qty": 110
+        },
+        {
+          "id": "pipe_metal_0",
+          "label": "Pipe Metal",
+          "qty": 40
+        },
+        {
+          "id": "ceramic_plate_0",
+          "label": "Ceramic Plate",
+          "qty": 200
+        },
+        {
+          "id": "battery_large_0",
+          "label": "Battery Large",
+          "qty": 60
+        },
+        {
+          "id": "computer_terminal_0",
+          "label": "Computer Terminal",
+          "qty": 3
+        },
+        {
+          "id": "circuit_board_0",
+          "label": "Circuit Board",
+          "qty": 200
+        },
+        {
+          "id": "sensor_module_0",
+          "label": "Sensor Module",
+          "qty": 150
+        },
+        {
+          "id": "radio_0",
+          "label": "Radio",
+          "qty": 3
+        },
+        {
+          "id": "antenna_0",
+          "label": "Antenna",
+          "qty": 10
+        },
+        {
+          "id": "camera_0",
+          "label": "Camera",
           "qty": 8
         },
         {
           "id": "wire_0",
           "label": "Wire",
-          "qty": 15
+          "qty": 700
         },
         {
-          "id": "circuit_board_0",
-          "label": "Circuit Board",
-          "qty": 4
+          "id": "air_filter_unit_0",
+          "label": "Air Filter Unit",
+          "qty": 2
         },
         {
-          "id": "battery_large_0",
-          "label": "Battery Large",
-          "qty": 6
+          "id": "water_tank_0",
+          "label": "Water Tank",
+          "qty": 1
         },
         {
-          "id": "servo_motor_0",
-          "label": "Servo Motor",
-          "qty": 4
+          "id": "heater_0",
+          "label": "Heater",
+          "qty": 1
         },
         {
-          "id": "sensor_module_0",
-          "label": "Sensor Module",
+          "id": "cooler_0",
+          "label": "Cooler",
+          "qty": 2
+        },
+        {
+          "id": "fire_extinguisher_0",
+          "label": "Fire Extinguisher",
           "qty": 2
         },
         {
           "id": "glass_pane_0",
           "label": "Glass Pane",
-          "qty": 4
+          "qty": 16
+        },
+        {
+          "id": "servo_motor_0",
+          "label": "Servo Motor",
+          "qty": 100
+        },
+        {
+          "id": "rubber_sheet_0",
+          "label": "Rubber Sheet",
+          "qty": 50
+        },
+        {
+          "id": "fiberglass_sheet_0",
+          "label": "Fiberglass Sheet",
+          "qty": 80
+        },
+        {
+          "id": "plastic_sheet_0",
+          "label": "Plastic Sheet",
+          "qty": 200
+        },
+        {
+          "id": "bolt_box_0",
+          "label": "Bolt Box",
+          "qty": 120
+        },
+        {
+          "id": "glue_0",
+          "label": "Glue",
+          "qty": 40
         }
       ],
       "outputs": [
@@ -11516,39 +12471,144 @@
       "category": "assembly",
       "inputs": [
         {
-          "id": "steel_ingot_0",
-          "label": "Steel Ingot",
-          "qty": 30
+          "id": "steel_plate_0",
+          "label": "Steel Plate",
+          "qty": 6000
         },
         {
-          "id": "titanium_ingot_0",
-          "label": "Titanium Ingot",
-          "qty": 10
+          "id": "steel_ingot_0",
+          "label": "Steel Ingot",
+          "qty": 1400
+        },
+        {
+          "id": "pipe_metal_0",
+          "label": "Pipe Metal",
+          "qty": 400
         },
         {
           "id": "aluminum_ingot_0",
           "label": "Aluminum Ingot",
-          "qty": 15
+          "qty": 5000
         },
         {
-          "id": "wire_0",
-          "label": "Wire",
-          "qty": 20
+          "id": "titanium_ingot_0",
+          "label": "Titanium Ingot",
+          "qty": 500
         },
         {
-          "id": "circuit_board_0",
-          "label": "Circuit Board",
-          "qty": 6
+          "id": "ceramic_plate_0",
+          "label": "Ceramic Plate",
+          "qty": 340
+        },
+        {
+          "id": "solar_panel_0",
+          "label": "Solar Panel",
+          "qty": 80
         },
         {
           "id": "battery_large_0",
           "label": "Battery Large",
+          "qty": 400
+        },
+        {
+          "id": "computer_terminal_0",
+          "label": "Computer Terminal",
+          "qty": 8
+        },
+        {
+          "id": "circuit_board_0",
+          "label": "Circuit Board",
+          "qty": 400
+        },
+        {
+          "id": "sensor_module_0",
+          "label": "Sensor Module",
+          "qty": 150
+        },
+        {
+          "id": "radio_0",
+          "label": "Radio",
+          "qty": 6
+        },
+        {
+          "id": "antenna_0",
+          "label": "Antenna",
+          "qty": 12
+        },
+        {
+          "id": "wire_0",
+          "label": "Wire",
+          "qty": 5000
+        },
+        {
+          "id": "air_filter_unit_0",
+          "label": "Air Filter Unit",
+          "qty": 8
+        },
+        {
+          "id": "water_purifier_0",
+          "label": "Water Purifier",
+          "qty": 2
+        },
+        {
+          "id": "water_tank_0",
+          "label": "Water Tank",
+          "qty": 20
+        },
+        {
+          "id": "heater_0",
+          "label": "Heater",
+          "qty": 8
+        },
+        {
+          "id": "cooler_0",
+          "label": "Cooler",
+          "qty": 8
+        },
+        {
+          "id": "fire_extinguisher_0",
+          "label": "Fire Extinguisher",
           "qty": 10
+        },
+        {
+          "id": "glass_pane_0",
+          "label": "Glass Pane",
+          "qty": 30
         },
         {
           "id": "servo_motor_0",
           "label": "Servo Motor",
-          "qty": 8
+          "qty": 500
+        },
+        {
+          "id": "rubber_sheet_0",
+          "label": "Rubber Sheet",
+          "qty": 300
+        },
+        {
+          "id": "fiberglass_sheet_0",
+          "label": "Fiberglass Sheet",
+          "qty": 1000
+        },
+        {
+          "id": "plastic_sheet_0",
+          "label": "Plastic Sheet",
+          "qty": 1000
+        },
+        {
+          "id": "bolt_box_0",
+          "label": "Bolt Box",
+          "qty": 1000
+        },
+        {
+          "id": "paint_0",
+          "label": "Paint",
+          "qty": 150
+        },
+        {
+          "id": "glue_0",
+          "label": "Glue",
+          "qty": 100
         }
       ],
       "outputs": [
@@ -11582,37 +12642,147 @@
         {
           "id": "aluminum_ingot_0",
           "label": "Aluminum Ingot",
-          "qty": 12
+          "qty": 3600
         },
         {
           "id": "titanium_ingot_0",
           "label": "Titanium Ingot",
-          "qty": 6
+          "qty": 200
         },
         {
-          "id": "wire_0",
-          "label": "Wire",
+          "id": "ceramic_plate_0",
+          "label": "Ceramic Plate",
+          "qty": 450
+        },
+        {
+          "id": "steel_ingot_0",
+          "label": "Steel Ingot",
+          "qty": 160
+        },
+        {
+          "id": "pipe_metal_0",
+          "label": "Pipe Metal",
+          "qty": 80
+        },
+        {
+          "id": "solar_panel_0",
+          "label": "Solar Panel",
           "qty": 12
-        },
-        {
-          "id": "circuit_board_0",
-          "label": "Circuit Board",
-          "qty": 3
         },
         {
           "id": "battery_large_0",
           "label": "Battery Large",
-          "qty": 5
+          "qty": 100
         },
         {
-          "id": "servo_motor_0",
-          "label": "Servo Motor",
+          "id": "computer_terminal_0",
+          "label": "Computer Terminal",
+          "qty": 4
+        },
+        {
+          "id": "circuit_board_0",
+          "label": "Circuit Board",
+          "qty": 120
+        },
+        {
+          "id": "sensor_module_0",
+          "label": "Sensor Module",
+          "qty": 60
+        },
+        {
+          "id": "radio_0",
+          "label": "Radio",
+          "qty": 4
+        },
+        {
+          "id": "antenna_0",
+          "label": "Antenna",
+          "qty": 8
+        },
+        {
+          "id": "wire_0",
+          "label": "Wire",
+          "qty": 1000
+        },
+        {
+          "id": "air_filter_unit_0",
+          "label": "Air Filter Unit",
+          "qty": 8
+        },
+        {
+          "id": "water_purifier_0",
+          "label": "Water Purifier",
+          "qty": 2
+        },
+        {
+          "id": "water_tank_0",
+          "label": "Water Tank",
+          "qty": 10
+        },
+        {
+          "id": "heater_0",
+          "label": "Heater",
+          "qty": 4
+        },
+        {
+          "id": "cooler_0",
+          "label": "Cooler",
+          "qty": 4
+        },
+        {
+          "id": "fire_extinguisher_0",
+          "label": "Fire Extinguisher",
           "qty": 4
         },
         {
           "id": "glass_pane_0",
           "label": "Glass Pane",
-          "qty": 6
+          "qty": 24
+        },
+        {
+          "id": "fiberglass_sheet_0",
+          "label": "Fiberglass Sheet",
+          "qty": 250
+        },
+        {
+          "id": "plastic_sheet_0",
+          "label": "Plastic Sheet",
+          "qty": 700
+        },
+        {
+          "id": "cloth_bolt_0",
+          "label": "Cloth Bolt",
+          "qty": 120
+        },
+        {
+          "id": "rope_0",
+          "label": "Rope",
+          "qty": 120
+        },
+        {
+          "id": "carbon_fiber_sheet_0",
+          "label": "Carbon Fiber Sheet",
+          "qty": 200
+        },
+        {
+          "id": "rubber_sheet_0",
+          "label": "Rubber Sheet",
+          "qty": 150
+        },
+        {
+          "id": "servo_motor_0",
+          "label": "Servo Motor",
+          "qty": 60
+        },
+        {
+          "id": "bolt_box_0",
+          "label": "Bolt Box",
+          "qty": 200
+        },
+        {
+          "id": "glue_0",
+          "label": "Glue",
+          "qty": 50
         }
       ],
       "outputs": [
@@ -11646,42 +12816,147 @@
         {
           "id": "titanium_ingot_0",
           "label": "Titanium Ingot",
-          "qty": 15
-        },
-        {
-          "id": "steel_ingot_0",
-          "label": "Steel Ingot",
-          "qty": 10
+          "qty": 2625
         },
         {
           "id": "aluminum_ingot_0",
           "label": "Aluminum Ingot",
-          "qty": 8
+          "qty": 2600
         },
         {
-          "id": "wire_0",
-          "label": "Wire",
-          "qty": 18
+          "id": "steel_ingot_0",
+          "label": "Steel Ingot",
+          "qty": 400
         },
         {
-          "id": "circuit_board_0",
-          "label": "Circuit Board",
-          "qty": 5
+          "id": "pipe_metal_0",
+          "label": "Pipe Metal",
+          "qty": 150
+        },
+        {
+          "id": "ceramic_plate_0",
+          "label": "Ceramic Plate",
+          "qty": 667
+        },
+        {
+          "id": "carbon_fiber_sheet_0",
+          "label": "Carbon Fiber Sheet",
+          "qty": 2000
         },
         {
           "id": "battery_large_0",
           "label": "Battery Large",
-          "qty": 8
+          "qty": 240
         },
         {
-          "id": "servo_motor_0",
-          "label": "Servo Motor",
-          "qty": 6
+          "id": "solar_panel_0",
+          "label": "Solar Panel",
+          "qty": 30
+        },
+        {
+          "id": "wire_0",
+          "label": "Wire",
+          "qty": 2333
+        },
+        {
+          "id": "circuit_board_0",
+          "label": "Circuit Board",
+          "qty": 600
         },
         {
           "id": "sensor_module_0",
           "label": "Sensor Module",
+          "qty": 400
+        },
+        {
+          "id": "computer_terminal_0",
+          "label": "Computer Terminal",
+          "qty": 6
+        },
+        {
+          "id": "camera_0",
+          "label": "Camera",
+          "qty": 20
+        },
+        {
+          "id": "radio_0",
+          "label": "Radio",
           "qty": 4
+        },
+        {
+          "id": "antenna_0",
+          "label": "Antenna",
+          "qty": 12
+        },
+        {
+          "id": "air_filter_unit_0",
+          "label": "Air Filter Unit",
+          "qty": 6
+        },
+        {
+          "id": "water_purifier_0",
+          "label": "Water Purifier",
+          "qty": 2
+        },
+        {
+          "id": "water_tank_0",
+          "label": "Water Tank",
+          "qty": 10
+        },
+        {
+          "id": "heater_0",
+          "label": "Heater",
+          "qty": 4
+        },
+        {
+          "id": "cooler_0",
+          "label": "Cooler",
+          "qty": 6
+        },
+        {
+          "id": "fire_extinguisher_0",
+          "label": "Fire Extinguisher",
+          "qty": 8
+        },
+        {
+          "id": "glass_pane_0",
+          "label": "Glass Pane",
+          "qty": 30
+        },
+        {
+          "id": "servo_motor_0",
+          "label": "Servo Motor",
+          "qty": 300
+        },
+        {
+          "id": "rubber_sheet_0",
+          "label": "Rubber Sheet",
+          "qty": 200
+        },
+        {
+          "id": "fiberglass_sheet_0",
+          "label": "Fiberglass Sheet",
+          "qty": 300
+        },
+        {
+          "id": "plastic_sheet_0",
+          "label": "Plastic Sheet",
+          "qty": 800
+        },
+        {
+          "id": "cloth_bolt_0",
+          "label": "Cloth Bolt",
+          "qty": 40
+        },
+        {
+          "id": "bolt_box_0",
+          "label": "Bolt Box",
+          "qty": 400
+        },
+        {
+          "id": "glue_0",
+          "label": "Glue",
+          "qty": 60
         }
       ],
       "outputs": [
@@ -11713,39 +12988,149 @@
       "category": "assembly",
       "inputs": [
         {
+          "id": "steel_plate_0",
+          "label": "Steel Plate",
+          "qty": 2400
+        },
+        {
           "id": "steel_ingot_0",
           "label": "Steel Ingot",
-          "qty": 20
+          "qty": 1000
         },
         {
           "id": "titanium_ingot_0",
           "label": "Titanium Ingot",
-          "qty": 8
+          "qty": 300
         },
         {
-          "id": "wire_0",
-          "label": "Wire",
-          "qty": 15
+          "id": "aluminum_ingot_0",
+          "label": "Aluminum Ingot",
+          "qty": 2000
         },
         {
-          "id": "circuit_board_0",
-          "label": "Circuit Board",
-          "qty": 4
+          "id": "pipe_metal_0",
+          "label": "Pipe Metal",
+          "qty": 300
         },
         {
-          "id": "battery_large_0",
-          "label": "Battery Large",
-          "qty": 8
+          "id": "ceramic_plate_0",
+          "label": "Ceramic Plate",
+          "qty": 300
         },
         {
           "id": "servo_motor_0",
           "label": "Servo Motor",
-          "qty": 6
+          "qty": 600
+        },
+        {
+          "id": "copper_ingot_0",
+          "label": "Copper Ingot",
+          "qty": 215
+        },
+        {
+          "id": "battery_large_0",
+          "label": "Battery Large",
+          "qty": 300
+        },
+        {
+          "id": "solar_panel_0",
+          "label": "Solar Panel",
+          "qty": 50
+        },
+        {
+          "id": "wire_0",
+          "label": "Wire",
+          "qty": 3333
+        },
+        {
+          "id": "circuit_board_0",
+          "label": "Circuit Board",
+          "qty": 300
         },
         {
           "id": "sensor_module_0",
           "label": "Sensor Module",
-          "qty": 3
+          "qty": 200
+        },
+        {
+          "id": "computer_terminal_0",
+          "label": "Computer Terminal",
+          "qty": 6
+        },
+        {
+          "id": "camera_0",
+          "label": "Camera",
+          "qty": 12
+        },
+        {
+          "id": "radio_0",
+          "label": "Radio",
+          "qty": 4
+        },
+        {
+          "id": "antenna_0",
+          "label": "Antenna",
+          "qty": 8
+        },
+        {
+          "id": "air_filter_unit_0",
+          "label": "Air Filter Unit",
+          "qty": 4
+        },
+        {
+          "id": "water_purifier_0",
+          "label": "Water Purifier",
+          "qty": 2
+        },
+        {
+          "id": "water_tank_0",
+          "label": "Water Tank",
+          "qty": 10
+        },
+        {
+          "id": "heater_0",
+          "label": "Heater",
+          "qty": 4
+        },
+        {
+          "id": "cooler_0",
+          "label": "Cooler",
+          "qty": 6
+        },
+        {
+          "id": "fire_extinguisher_0",
+          "label": "Fire Extinguisher",
+          "qty": 8
+        },
+        {
+          "id": "glass_pane_0",
+          "label": "Glass Pane",
+          "qty": 20
+        },
+        {
+          "id": "rubber_sheet_0",
+          "label": "Rubber Sheet",
+          "qty": 200
+        },
+        {
+          "id": "fiberglass_sheet_0",
+          "label": "Fiberglass Sheet",
+          "qty": 500
+        },
+        {
+          "id": "plastic_sheet_0",
+          "label": "Plastic Sheet",
+          "qty": 600
+        },
+        {
+          "id": "bolt_box_0",
+          "label": "Bolt Box",
+          "qty": 600
+        },
+        {
+          "id": "paint_0",
+          "label": "Paint",
+          "qty": 100
         }
       ],
       "outputs": [
@@ -11779,37 +13164,147 @@
         {
           "id": "titanium_ingot_0",
           "label": "Titanium Ingot",
-          "qty": 10
+          "qty": 1800
         },
         {
           "id": "aluminum_ingot_0",
           "label": "Aluminum Ingot",
-          "qty": 10
+          "qty": 2400
         },
         {
-          "id": "wire_0",
-          "label": "Wire",
-          "qty": 15
+          "id": "steel_ingot_0",
+          "label": "Steel Ingot",
+          "qty": 200
         },
         {
-          "id": "circuit_board_0",
-          "label": "Circuit Board",
-          "qty": 5
+          "id": "pipe_metal_0",
+          "label": "Pipe Metal",
+          "qty": 100
+        },
+        {
+          "id": "ceramic_plate_0",
+          "label": "Ceramic Plate",
+          "qty": 400
+        },
+        {
+          "id": "carbon_fiber_sheet_0",
+          "label": "Carbon Fiber Sheet",
+          "qty": 1500
+        },
+        {
+          "id": "solar_panel_0",
+          "label": "Solar Panel",
+          "qty": 100
         },
         {
           "id": "battery_large_0",
           "label": "Battery Large",
-          "qty": 6
+          "qty": 160
+        },
+        {
+          "id": "wire_0",
+          "label": "Wire",
+          "qty": 2000
+        },
+        {
+          "id": "circuit_board_0",
+          "label": "Circuit Board",
+          "qty": 500
         },
         {
           "id": "sensor_module_0",
           "label": "Sensor Module",
+          "qty": 600
+        },
+        {
+          "id": "camera_0",
+          "label": "Camera",
+          "qty": 40
+        },
+        {
+          "id": "computer_terminal_0",
+          "label": "Computer Terminal",
+          "qty": 8
+        },
+        {
+          "id": "radio_0",
+          "label": "Radio",
+          "qty": 6
+        },
+        {
+          "id": "antenna_0",
+          "label": "Antenna",
+          "qty": 20
+        },
+        {
+          "id": "air_filter_unit_0",
+          "label": "Air Filter Unit",
+          "qty": 6
+        },
+        {
+          "id": "water_purifier_0",
+          "label": "Water Purifier",
+          "qty": 4
+        },
+        {
+          "id": "water_tank_0",
+          "label": "Water Tank",
+          "qty": 20
+        },
+        {
+          "id": "heater_0",
+          "label": "Heater",
+          "qty": 4
+        },
+        {
+          "id": "cooler_0",
+          "label": "Cooler",
+          "qty": 6
+        },
+        {
+          "id": "fire_extinguisher_0",
+          "label": "Fire Extinguisher",
           "qty": 6
         },
         {
           "id": "glass_pane_0",
           "label": "Glass Pane",
-          "qty": 6
+          "qty": 40
+        },
+        {
+          "id": "servo_motor_0",
+          "label": "Servo Motor",
+          "qty": 200
+        },
+        {
+          "id": "rubber_sheet_0",
+          "label": "Rubber Sheet",
+          "qty": 150
+        },
+        {
+          "id": "fiberglass_sheet_0",
+          "label": "Fiberglass Sheet",
+          "qty": 300
+        },
+        {
+          "id": "plastic_sheet_0",
+          "label": "Plastic Sheet",
+          "qty": 600
+        },
+        {
+          "id": "cloth_bolt_0",
+          "label": "Cloth Bolt",
+          "qty": 50
+        },
+        {
+          "id": "bolt_box_0",
+          "label": "Bolt Box",
+          "qty": 300
+        },
+        {
+          "id": "glue_0",
+          "label": "Glue",
+          "qty": 50
         }
       ],
       "outputs": [
@@ -11841,39 +13336,144 @@
       "category": "assembly",
       "inputs": [
         {
-          "id": "steel_ingot_0",
-          "label": "Steel Ingot",
-          "qty": 25
+          "id": "steel_plate_0",
+          "label": "Steel Plate",
+          "qty": 1900
         },
         {
-          "id": "titanium_ingot_0",
-          "label": "Titanium Ingot",
-          "qty": 12
+          "id": "steel_ingot_0",
+          "label": "Steel Ingot",
+          "qty": 300
         },
         {
           "id": "aluminum_ingot_0",
           "label": "Aluminum Ingot",
-          "qty": 10
+          "qty": 2500
         },
         {
-          "id": "wire_0",
-          "label": "Wire",
+          "id": "titanium_ingot_0",
+          "label": "Titanium Ingot",
+          "qty": 200
+        },
+        {
+          "id": "pipe_metal_0",
+          "label": "Pipe Metal",
+          "qty": 300
+        },
+        {
+          "id": "cloth_bolt_0",
+          "label": "Cloth Bolt",
+          "qty": 300
+        },
+        {
+          "id": "plastic_sheet_0",
+          "label": "Plastic Sheet",
+          "qty": 800
+        },
+        {
+          "id": "fiberglass_sheet_0",
+          "label": "Fiberglass Sheet",
+          "qty": 400
+        },
+        {
+          "id": "air_filter_unit_0",
+          "label": "Air Filter Unit",
           "qty": 20
         },
         {
-          "id": "circuit_board_0",
-          "label": "Circuit Board",
-          "qty": 6
+          "id": "water_purifier_0",
+          "label": "Water Purifier",
+          "qty": 8
+        },
+        {
+          "id": "water_tank_0",
+          "label": "Water Tank",
+          "qty": 40
+        },
+        {
+          "id": "heater_0",
+          "label": "Heater",
+          "qty": 10
+        },
+        {
+          "id": "cooler_0",
+          "label": "Cooler",
+          "qty": 12
+        },
+        {
+          "id": "fire_extinguisher_0",
+          "label": "Fire Extinguisher",
+          "qty": 12
+        },
+        {
+          "id": "solar_panel_0",
+          "label": "Solar Panel",
+          "qty": 100
         },
         {
           "id": "battery_large_0",
           "label": "Battery Large",
+          "qty": 200
+        },
+        {
+          "id": "wire_0",
+          "label": "Wire",
+          "qty": 4000
+        },
+        {
+          "id": "circuit_board_0",
+          "label": "Circuit Board",
+          "qty": 400
+        },
+        {
+          "id": "computer_terminal_0",
+          "label": "Computer Terminal",
+          "qty": 10
+        },
+        {
+          "id": "sensor_module_0",
+          "label": "Sensor Module",
+          "qty": 200
+        },
+        {
+          "id": "radio_0",
+          "label": "Radio",
+          "qty": 4
+        },
+        {
+          "id": "antenna_0",
+          "label": "Antenna",
+          "qty": 8
+        },
+        {
+          "id": "camera_0",
+          "label": "Camera",
           "qty": 10
         },
         {
           "id": "glass_pane_0",
           "label": "Glass Pane",
-          "qty": 8
+          "qty": 40
+        },
+        {
+          "id": "servo_motor_0",
+          "label": "Servo Motor",
+          "qty": 100
+        },
+        {
+          "id": "rubber_sheet_0",
+          "label": "Rubber Sheet",
+          "qty": 300
+        },
+        {
+          "id": "bolt_box_0",
+          "label": "Bolt Box",
+          "qty": 600
+        },
+        {
+          "id": "glue_0",
+          "label": "Glue",
+          "qty": 100
         }
       ],
       "outputs": [
@@ -11907,32 +13507,137 @@
         {
           "id": "titanium_ingot_0",
           "label": "Titanium Ingot",
-          "qty": 6
+          "qty": 290
         },
         {
           "id": "aluminum_ingot_0",
           "label": "Aluminum Ingot",
+          "qty": 400
+        },
+        {
+          "id": "ceramic_plate_0",
+          "label": "Ceramic Plate",
+          "qty": 200
+        },
+        {
+          "id": "steel_ingot_0",
+          "label": "Steel Ingot",
+          "qty": 45
+        },
+        {
+          "id": "pipe_metal_0",
+          "label": "Pipe Metal",
+          "qty": 15
+        },
+        {
+          "id": "battery_large_0",
+          "label": "Battery Large",
+          "qty": 36
+        },
+        {
+          "id": "computer_terminal_0",
+          "label": "Computer Terminal",
+          "qty": 2
+        },
+        {
+          "id": "circuit_board_0",
+          "label": "Circuit Board",
+          "qty": 40
+        },
+        {
+          "id": "sensor_module_0",
+          "label": "Sensor Module",
+          "qty": 24
+        },
+        {
+          "id": "radio_0",
+          "label": "Radio",
+          "qty": 2
+        },
+        {
+          "id": "antenna_0",
+          "label": "Antenna",
           "qty": 4
         },
         {
           "id": "wire_0",
           "label": "Wire",
-          "qty": 8
+          "qty": 200
         },
         {
-          "id": "circuit_board_0",
-          "label": "Circuit Board",
+          "id": "air_filter_unit_0",
+          "label": "Air Filter Unit",
           "qty": 2
         },
         {
-          "id": "battery_large_0",
-          "label": "Battery Large",
-          "qty": 3
+          "id": "water_tank_0",
+          "label": "Water Tank",
+          "qty": 2
+        },
+        {
+          "id": "heater_0",
+          "label": "Heater",
+          "qty": 1
+        },
+        {
+          "id": "cooler_0",
+          "label": "Cooler",
+          "qty": 1
+        },
+        {
+          "id": "fire_extinguisher_0",
+          "label": "Fire Extinguisher",
+          "qty": 1
         },
         {
           "id": "glass_pane_0",
           "label": "Glass Pane",
-          "qty": 2
+          "qty": 6
+        },
+        {
+          "id": "fiberglass_sheet_0",
+          "label": "Fiberglass Sheet",
+          "qty": 40
+        },
+        {
+          "id": "plastic_sheet_0",
+          "label": "Plastic Sheet",
+          "qty": 60
+        },
+        {
+          "id": "cloth_bolt_0",
+          "label": "Cloth Bolt",
+          "qty": 30
+        },
+        {
+          "id": "rope_0",
+          "label": "Rope",
+          "qty": 40
+        },
+        {
+          "id": "carbon_fiber_sheet_0",
+          "label": "Carbon Fiber Sheet",
+          "qty": 30
+        },
+        {
+          "id": "rubber_sheet_0",
+          "label": "Rubber Sheet",
+          "qty": 20
+        },
+        {
+          "id": "servo_motor_0",
+          "label": "Servo Motor",
+          "qty": 16
+        },
+        {
+          "id": "bolt_box_0",
+          "label": "Bolt Box",
+          "qty": 30
+        },
+        {
+          "id": "glue_0",
+          "label": "Glue",
+          "qty": 10
         }
       ],
       "outputs": [

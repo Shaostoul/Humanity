@@ -399,6 +399,95 @@ mod tests {
         TradeGoodsRegistry::from_ron(&std::fs::read(path).unwrap()).unwrap()
     }
 
+    /// data/items.csv through ItemRegistry, the runtime's own loader.
+    fn shipped_items() -> crate::systems::inventory::ItemRegistry {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data/items.csv");
+        crate::systems::inventory::ItemRegistry::from_csv(&std::fs::read(path).unwrap()).unwrap()
+    }
+
+    /// data/recipes.csv through RecipeRegistry::from_csv, the runtime's own loader.
+    fn shipped_recipes() -> crate::systems::crafting::RecipeRegistry {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data/recipes.csv");
+        crate::systems::crafting::RecipeRegistry::from_csv(&std::fs::read(path).unwrap()).unwrap()
+    }
+
+    /// What the vendor charges for an item it stocks: a trade good that is
+    /// also an items.csv item (the src/lib.rs catalog filter). None when it
+    /// does not stock it.
+    fn vendor_charge(
+        items: &crate::systems::inventory::ItemRegistry,
+        goods: &TradeGoodsRegistry,
+        id: &str,
+    ) -> Option<f64> {
+        if items.items.contains_key(id) {
+            goods.vendor_sell_price(id).map(|p| p as f64)
+        } else {
+            None
+        }
+    }
+
+    /// What the vendor pays for a trade good (nothing for anything else).
+    fn vendor_pays(goods: &TradeGoodsRegistry, id: &str) -> f64 {
+        goods.vendor_buy_price(id).unwrap_or(0) as f64
+    }
+
+    /// What a recipe's inputs cost at `cheapest`; None when one has no price.
+    fn inputs_cost(r: &crate::systems::crafting::Recipe, cheapest: &HashMap<String, f64>) -> Option<f64> {
+        r.inputs.iter().map(|(id, q)| cheapest.get(id).map(|c| c * *q as f64)).sum()
+    }
+
+    /// The cheapest credits-to-item cost of every item a player can get for
+    /// credits (BUG-145): buy it from the vendor, or craft it from cheaper
+    /// inputs, selling the byproducts. Returns the recipes that have inputs
+    /// (a recipe with none is gathering, not buying), sorted by id so a walk
+    /// and its messages are the same on every run, and the costs. Settles in
+    /// a few rounds; a cost that keeps falling means a cycle of recipes makes
+    /// goods from nothing, itself a loop.
+    fn cheapest_costs<'a>(
+        items: &crate::systems::inventory::ItemRegistry,
+        goods: &TradeGoodsRegistry,
+        recipes: &'a crate::systems::crafting::RecipeRegistry,
+    ) -> (Vec<&'a crate::systems::crafting::Recipe>, HashMap<String, f64>) {
+        let mut book: Vec<&crate::systems::crafting::Recipe> =
+            recipes.recipes.values().filter(|r| !r.inputs.is_empty()).collect();
+        book.sort_by(|a, b| a.id.cmp(&b.id));
+        let mut cheapest: HashMap<String, f64> = goods
+            .goods
+            .keys()
+            .filter_map(|id| vendor_charge(items, goods, id).map(|c| (id.clone(), c)))
+            .collect();
+        let mut rounds = 0;
+        loop {
+            let mut changed = false;
+            for r in &book {
+                let Some(cost) = inputs_cost(r, &cheapest) else { continue };
+                for (i, (out, q)) in r.outputs.iter().enumerate() {
+                    if *q == 0 {
+                        continue;
+                    }
+                    let byproducts: f64 = r
+                        .outputs
+                        .iter()
+                        .enumerate()
+                        .filter(|(j, _)| *j != i)
+                        .map(|(_, (id, qq))| vendor_pays(goods, id) * *qq as f64)
+                        .sum();
+                    let unit = (cost - byproducts) / *q as f64;
+                    if cheapest.get(out).map_or(true, |c| unit < c - 1e-9) {
+                        cheapest.insert(out.clone(), unit);
+                        changed = true;
+                    }
+                }
+            }
+            if !changed {
+                break;
+            }
+            rounds += 1;
+            assert!(rounds < 100, "item costs never settle: a cycle of recipes makes goods from nothing");
+        }
+        (book, cheapest)
+    }
+
     /// v0.747 (ladder rung 3): the shipped trade_goods.ron parses and the price
     /// formulas match the file's own documentation (sell 1.25x up, buy 0.5x down).
     #[test]
@@ -452,6 +541,193 @@ mod tests {
             "{} trade goods in data/trade_goods.ron are not items in data/items.csv, so the vendor \
              never offers them: {missing:?}",
             missing.len()
+        );
+    }
+
+    /// BUG-145 (2026-10-04): no recipe turns goods the vendor sells into goods
+    /// it buys back for more, which would be an endless money loop at any
+    /// trading post. The vendor charges `vendor_sell_price` (1.25x base,
+    /// rounded up) and pays `vendor_buy_price` (0.5x base, rounded down), the
+    /// same two functions `vendor_buy` and `vendor_sell` settle with, and it
+    /// stocks the goods src/lib.rs puts in its catalog: trade goods that are
+    /// also items.csv items. Recipes are read by RecipeRegistry::from_csv,
+    /// the runtime's own loader.
+    ///
+    /// An input counts as obtainable when the vendor sells it OR a recipe
+    /// makes it from obtainable inputs, at the cheaper of the two: a loop
+    /// does not need the vendor to sell every input, since buying logs,
+    /// sawing planks and building a bow from the planks loops just as well
+    /// as buying the planks. A crafting step that also yields byproducts is
+    /// credited with what the vendor pays for them. A recipe with no inputs
+    /// is gathering, not buying, and is left out. Prices are for ungraded and
+    /// standard goods; a better grade earns more (QualityLevels), which is
+    /// a separate question.
+    ///
+    /// Seen red on the data before the fix, 24 recipes, 18 of them looping
+    /// through a crafted input ("n/a": an input the vendor does not sell):
+    ///   24 recipes make goods the vendor buys back for more than their inputs
+    ///   cost, an endless money loop (BUG-145):
+    ///   assemble_computer: inputs cost 50.88 at the cheapest (buying them all: 100), the outputs sell for 100
+    ///   build_mech_heavy: inputs cost 2365.83 at the cheapest (buying them all: n/a), the outputs sell for 10000
+    ///   build_spacecraft_pod: inputs cost 814.58 at the cheapest (buying them all: 876), the outputs sell for 2500
+    ///   craft_bow_recurve: inputs cost 7.50 at the cheapest (buying them all: 19), the outputs sell for 12
+    ///   craft_stim_pack: inputs cost 13.00 at the cheapest (buying them all: 13), the outputs sell for 85
+    ///   make_wire: inputs cost 12.25 at the cheapest (buying them all: 13), the outputs sell for 15
+    ///   ... (and 18 more)
+    #[test]
+    fn no_recipe_resells_for_more_than_its_inputs_cost() {
+        let items = shipped_items();
+        let goods = shipped_goods();
+        let recipes = shipped_recipes();
+        assert!(recipes.recipes.len() >= 300, "expected the full recipe book, got {}", recipes.recipes.len());
+        let (book, cheapest) = cheapest_costs(&items, &goods, &recipes);
+
+        let mut checked = 0;
+        let mut loops = Vec::new();
+        for r in &book {
+            let Some(cost) = inputs_cost(r, &cheapest) else { continue };
+            checked += 1;
+            let sells: f64 = r.outputs.iter().map(|(id, q)| vendor_pays(&goods, id) * *q as f64).sum();
+            if sells > cost + 1e-9 {
+                let bought: Option<f64> =
+                    r.inputs.iter().map(|(id, q)| vendor_charge(&items, &goods, id).map(|c| c * *q as f64)).sum();
+                let bought = bought.map_or("n/a".to_string(), |b| format!("{b}"));
+                loops.push(format!(
+                    "{}: inputs cost {cost:.2} at the cheapest (buying them all: {bought}), the outputs sell for {sells}",
+                    r.id
+                ));
+            }
+        }
+        // Proof the walk reached the recipe book, so a green run is not an
+        // empty one (a renamed column would leave nothing to check).
+        assert!(checked >= 300, "only {checked} recipes have inputs the vendor sells or can be crafted from them");
+        assert!(
+            loops.is_empty(),
+            "{} recipes make goods the vendor buys back for more than their inputs cost, an endless \
+             money loop (BUG-145):\n  {}",
+            loops.len(),
+            loops.join("\n  ")
+        );
+    }
+
+    /// The items.csv ids whose category is "vehicle".
+    fn shipped_vehicle_ids() -> std::collections::HashSet<String> {
+        #[derive(serde::Deserialize)]
+        struct Row {
+            id: String,
+            #[serde(default)]
+            category: String,
+        }
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data/items.csv");
+        let rows: Vec<Row> = crate::assets::loader::parse_csv(&std::fs::read(path).unwrap()).unwrap();
+        rows.into_iter().filter(|r| r.category == "vehicle").map(|r| r.id).collect()
+    }
+
+    /// Vehicle bills of materials (2026-10-04, after BUG-145): a recipe that
+    /// builds a vehicle puts about the vehicle's own weight of parts into it,
+    /// up to a quarter more for offcuts, never less. The vehicle recipes used
+    /// to put 38 to 203 kg of parts into vehicles of 180 kg to 50 t, so BUG-145
+    /// could only stop them reselling for more than their parts by pricing a
+    /// spacecraft pod under a sedan. Weights are items.csv weight_kg through
+    /// ItemRegistry; a vehicle is an items.csv row of category "vehicle".
+    ///
+    /// Only `build_` recipes are held to it. The vehicle assembler's
+    /// `assemble_` recipes belong to the vehicle-kit system
+    /// (data/vehicles/kits.ron) and are not real bills yet. build_raft is
+    /// exempt: items.csv lists the raft as 20 kg of bamboo, but no bamboo-pole
+    /// item exists, and its six 8 kg pine logs are already a light raft for
+    /// one person; that is a question for the raft's item row.
+    ///
+    /// Seen red on the bills before the fix, 25 of the 28 recipes it checks
+    /// (the two bicycles and the hand cart passed), among them:
+    ///   build_spacecraft_freighter: 203.0 kg of parts for a 50000.0 kg vehicle (x0.00)
+    ///   build_spacecraft_pod: 38.6 kg of parts for a 2000.0 kg vehicle (x0.02)
+    ///   build_sled: 10.5 kg of parts for a 5.0 kg vehicle (x2.10)
+    #[test]
+    fn vehicle_recipes_weigh_what_the_vehicle_weighs() {
+        const EXEMPT: &[&str] = &["build_raft"];
+        let vehicles = shipped_vehicle_ids();
+        let items = shipped_items();
+        let recipes = shipped_recipes();
+        let mut ids: Vec<&String> = recipes.recipes.keys().collect();
+        ids.sort();
+        let mut checked = 0;
+        let mut off = Vec::new();
+        for id in ids {
+            let r = &recipes.recipes[id];
+            if !r.id.starts_with("build_") || EXEMPT.contains(&r.id.as_str()) {
+                continue;
+            }
+            let Some((out, q)) = r.outputs.iter().find(|(o, _)| vehicles.contains(o)) else { continue };
+            checked += 1;
+            let made = items.mass_for(out) as f64 * *q as f64;
+            let parts: f64 = r.inputs.iter().map(|(i, n)| items.mass_for(i) as f64 * *n as f64).sum();
+            let ratio = parts / made;
+            if !(1.0..=1.25).contains(&ratio) {
+                off.push(format!("{}: {parts:.1} kg of parts for a {made:.1} kg vehicle (x{ratio:.2})", r.id));
+            }
+        }
+        // The vehicle recipes are reached: 29 build_ recipes make a vehicle,
+        // 28 once the raft is set aside.
+        assert!(checked >= 28, "only {checked} build_ recipes make an items.csv vehicle");
+        assert!(
+            off.is_empty(),
+            "{} vehicle recipes put more than a quarter over, or less than, the vehicle's own weight of \
+             parts into it (items.csv weight_kg):\n  {}",
+            off.len(),
+            off.join("\n  ")
+        );
+    }
+
+    /// The other side of BUG-145 for vehicles (2026-10-04): a vehicle the
+    /// vendor stocks is priced at least at what its parts cost at the
+    /// cheapest, so the finished machine is never sold for less than the
+    /// goods it is built from (BUG-145 had to price the light mech at 2500
+    /// while its parts cost 1317, and with the full bill of materials they
+    /// cost 74960). With no_recipe_resells_for_more_than_its_inputs_cost this
+    /// holds every recipe-built vehicle's base value between its inputs' cost
+    /// and twice it. Costs come from the same cheapest walk.
+    ///
+    /// Seen red on the BUG-145 prices with the full bills, 11 of the 12
+    /// recipes (the rowboat's 70 covered its 57), among them:
+    ///   build_bicycle: base value 50, but its parts cost 91.08 at the cheapest
+    ///   build_spacecraft_pod: base value 1550, but its parts cost 44424.67 at the cheapest
+    ///   build_spacecraft_freighter: base value 5200, but its parts cost 406708.09 at the cheapest
+    #[test]
+    fn no_vehicle_sells_for_less_than_its_parts() {
+        let items = shipped_items();
+        let goods = shipped_goods();
+        let recipes = shipped_recipes();
+        let (book, cheapest) = cheapest_costs(&items, &goods, &recipes);
+        let mut checked = 0;
+        let mut under = Vec::new();
+        for r in &book {
+            let Some(cost) = inputs_cost(r, &cheapest) else { continue };
+            for (out, q) in &r.outputs {
+                let Some(g) = goods.get(out) else { continue };
+                if g.category != "vehicle" || vendor_charge(&items, &goods, out).is_none() {
+                    continue;
+                }
+                checked += 1;
+                let worth = g.base_value as f64 * *q as f64;
+                if worth < cost - 1e-9 {
+                    under.push(format!(
+                        "{}: base value {worth}, but its parts cost {cost:.2} at the cheapest",
+                        r.id
+                    ));
+                }
+            }
+        }
+        // Proof the walk reached the vehicles: 12 recipes build a vehicle the
+        // vendor stocks (two bicycles, the hand cart, the motorcycle, two
+        // boats, four spacecraft and two mechs).
+        assert!(checked >= 12, "only {checked} recipes build a vehicle the vendor stocks");
+        assert!(
+            under.is_empty(),
+            "{} vehicles are priced under what their parts cost, so building one costs more than \
+             buying it:\n  {}",
+            under.len(),
+            under.join("\n  ")
         );
     }
 
