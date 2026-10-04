@@ -4,8 +4,9 @@ Clay is one of the few materials a person can dig out of the ground and
 turn into something permanent with nothing more than hands, water and
 fire. Wet, it takes any shape. Dried, it holds that shape but falls
 apart again in the rain. Fired hot enough for long enough, it changes
-into a different material altogether: a pot that holds water, a tile
-that sheds it, a brick that outlasts the person who made it.
+into a different material altogether: a pot that keeps its shape in
+water, a tile that sheds it, a brick that outlasts the person who made
+it.
 
 On a homestead that means flowerpots, storage jars, bowls, crocks,
 tiles, oven parts and bricks. It also means a kiln or a fire hot enough
@@ -40,9 +41,9 @@ all change from place to place. This guide says where to ask.
 
 ## First: how pottery hurts people
 
-Five things hurt potters: dust, lead and other metals in glazes, the
-heat and fumes of the kiln, open fires, and pots that burst. This
-section takes them in turn, with the habit that prevents each.
+This section takes the main hazards of pottery in turn, with the habit
+that prevents each: dust, lead and other metals in glazes, the heat and
+fumes of the kiln, open fires, pots that burst, and machines.
 
 ### Dust from dry clay and glaze powder
 
@@ -123,6 +124,10 @@ The rules that follow:
 - **Do not mix glazes.** "Do not mix different glazes together because
   this disrupts the balance of ingredients and could make a 'food safe'
   glaze into an unsafe product."
+- **Spray glazes only in a booth.** The CPSC: "When spraying glazes use
+  a spray booth equipped with a fan that exhausts to the outside."
+  Spraying puts raw glaze into the air you breathe, which is the hazard
+  above (our explanation).
 - **Label anything that is not for food.** The CPSC suggests marking
   lead- or cadmium-containing pieces "Contains Lead, Not for Food Use"
   or "Contains Lead, For Decoration Only", and even putting holes in
@@ -361,9 +366,8 @@ Roll a ball of clay about the size of an orange. Push your thumb into
 the middle to about a finger's width from the bottom, then turn the ball
 in one hand while you pinch the wall between thumb and fingers, working
 from the bottom up and round and round, until the wall is an even
-thickness of about a finger (general practice). Even thickness matters
-more than any other single thing: thick spots dry slower and are the
-places that crack or burst.
+thickness of about a finger (general practice). Keep the thickness
+even: thick spots dry slower and are the places that crack or burst.
 
 ### Worked example: a coil pot
 
@@ -404,6 +408,12 @@ practice). Roll out a slab and cut six tiles. On each, while wet, press
 a line exactly 10 cm long. Dry them, then fire them, if you have a kiln,
 at a spread of temperatures.
 
+A clay you dug may melt in the hotter firings, and melted clay sticks
+to whatever it stands on. So fire test tiles on a waste slab of fired
+clay or on a shelf coated with kiln wash, and if the kiln belongs to a
+studio or a school, ask before you fire clay you dug in it (general
+practice).
+
 Afterwards, measure the line. If it now reads 9 cm, the clay shrank by
 10 percent from wet to fired (arithmetic), and a pot that must come out
 20 cm across has to be made about 22 cm across. Drop each fired tile
@@ -424,7 +434,8 @@ There are two ways most people start (general practice):
   schedule is the part that keeps pots from bursting. A community
   pottery studio, a school or a ceramics supplier that fires other
   people's work is a good way to learn on a kiln that someone else
-  installed and maintains.
+  installed and maintains; ask before you bring them clay you dug
+  yourself, as the test tile section says.
 - **In an open pit or bonfire,** outdoors, with all the precautions
   above. Pre-warm dry pots near the fire for an hour or more, turning
   them, then build the fire up around them gradually and keep it
@@ -432,12 +443,14 @@ There are two ways most people start (general practice):
   the pots out. An open firing usually does not get hot enough to
   vitrify clay, so the result is porous earthenware: good for
   flowerpots, dry storage and decoration, not for holding water unless
-  it is glazed or sealed.
+  it is glazed or sealed, and never for food or drink unless the glaze
+  is food-safe and tested, as below. A sealant painted onto a pot is not
+  a food-safe glaze (general practice).
 
 ## Pottery that touches food
 
-Most of the serious harm from pottery reaches people through their
-food, so this is worth its own list.
+Pottery can harm people who never made it, through their food, so this
+is worth its own list.
 
 - **Unglazed earthenware is porous.** The FDA says earthenware must be
   glazed to hold food or liquid. A porous pot soaks up what you put in
@@ -455,9 +468,10 @@ food, so this is worth its own list.
   it or establish where it came from, the FDA says, consider not using
   it for cooking, serving or storing food or drinks.
 - **A warning stamp means it.** The FDA says pottery made only for
-  decoration may have a warning stamped on the bottom, such as "Not for
-  Food Use", and that items with such a warning should not be used for
-  food or drink.
+  decoration may have a warning stamped into the clay on the bottom,
+  saying it is not for food use and may poison food, and that items with
+  such a warning should not be used for cooking, serving or storing food
+  or drink.
 - **If a child has been eating or drinking from a problem piece,** the
   FDA says to stop using it and to talk to your healthcare professional
   about testing your child's blood for lead: "It's a simple test."
@@ -517,7 +531,8 @@ The game has clay, a kiln, and a handful of things fired in it.
   build one: Build Kiln takes 12 Stone Bricks and 4 Raw Clay and needs
   Shelter Building level 3 (`data/recipes.csv`).
 - **What the kiln makes** (`data/recipes.csv`): Fire Brick turns 8 Raw
-  Clay and 1 charcoal into 4 Stone Bricks, leaving wood ash, and trains
+  Clay and 1 Coal (an item whose material is charcoal,
+  `data/items.csv`) into 4 Stone Bricks, leaving wood ash, and trains
   Metalworking; Shape Planter turns 4 Raw Clay and 1 Paint into 2
   Planters ("Fire and glaze ornamental plant pots"); Cast Sink takes 5
   Raw Clay, and Cast Toilet 8 Raw Clay and 1 Purified Water, both
@@ -525,8 +540,8 @@ The game has clay, a kiln, and a handful of things fired in it.
   and gives 6 Stone Bricks; and Fire Ceramic Composite makes Concrete
   Blocks from clay, sand and carbon fibre. The kiln also makes charcoal.
   One recipe is worth knowing about so it does not mislead you: Fire
-  Porcelain, from 2 Raw Clay, 1 Sand and 1 charcoal, produces a Glass
-  Pane, not a piece of porcelain.
+  Porcelain, from 2 Raw Clay, 1 Sand and 1 Coal, produces a Glass Pane,
+  not a piece of porcelain.
 - **Food and glaze.** The game's container data counts glazed ceramic as
   food-grade and non-absorbent, with the note "Crocks for fermenting and
   storage while the glaze is lead-free and intact", and its Fermenting
@@ -545,8 +560,12 @@ The game has clay, a kiln, and a handful of things fired in it.
   uses up no materials. The Crafting page still asks for the materials
   to be in your backpack and for a kiln to be where you are before it
   lets you press Craft, and a recipe that needs a skill level still
-  needs it. To make clay something you spend, switch Play mode to
-  Normal.
+  needs it. In Dev, while the "Enable dev cheats" switch is on
+  (Settings > Animations, also on by default during development), the
+  Crafting page also shows a "Dev: stock all materials" button that
+  puts a stack of every recipe input in your backpack, clay included,
+  and the Profile page a "Dev: max skills" button. To make clay
+  something you spend, switch Play mode to Normal.
 - **Starting from the default home.** While Settings > Gameplay > "Start
   every session from the default home" is on, which is also the default
   during development, only your character's name, appearance and
@@ -598,11 +617,12 @@ place. Web pages and documents were read on 4 October 2026.
 - US Consumer Product Safety Commission, in partnership with The Art &
   Creative Materials Institute, Arts, Crafts & Theater Safety, Inc., and
   The National Art Education Association. *Art and Craft Safety Guide*,
-  Publication 5015, undated (its references run to 2004). Section III,
+  Publication 5015, undated (its references run to 2006). Section III,
   Ceramics and Clay (what clay and glazes can contain and their health
   effects; premixed clays; finishing green ware damp; no sweeping, wet
   mop or HEPA vacuum; NIOSH-approved respirators; "food safe" is not
-  lead-free; do not mix glazes; labelling lead pieces; testing ware even
+  lead-free; do not mix glazes; a spray booth that exhausts to the
+  outside for spraying glazes; labelling lead pieces; testing ware even
   when given to family and friends; pug mills, slab rollers, extruders
   and wheels; kilns: local or state authorities, mechanical ventilation
   to the outdoors, emissions, burns, infrared radiation and infrared
@@ -615,7 +635,8 @@ place. Web pages and documents were read on 4 October 2026.
   27 October 2017 (how lead in a glaze reaches food; earthenware porous
   and glazed to hold food or liquid; old kilns contaminating lead-free
   pottery; effects on children; the problem types; testing kits; warning
-  stamps; no amount of washing or boiling removes lead; blood testing).
+  stamps saying a piece is not for food use and may poison food; no
+  amount of washing or boiling removes lead; blood testing).
   https://www.fda.gov/food/environmental-contaminants-food/questions-and-answers-lead-glazed-traditional-pottery
 - US Environmental Protection Agency. AP-42, *Compilation of Air
   Emissions Factors*, Section 11.25, Clay Processing, January 1995 (the
@@ -670,7 +691,12 @@ place. Web pages and documents were read on 4 October 2026.
   `play_mode_allows` in `src/config.rs`); the crafting checks that
   skip materials, station and tools in Creative and Dev
   (`src/systems/crafting/mod.rs`); the Crafting page's own checks on
-  materials, tools, station and skill (`src/gui/pages/crafting.rs`).
+  materials, tools, station and skill, and its "Dev: stock all
+  materials" button (`src/gui/pages/crafting.rs`); the "Dev: max skills"
+  button (`src/gui/pages/profile.rs`); the "Enable dev cheats" switch
+  (`cheats_enabled` in `data/gui/theme.ron`, `src/gui/pages/settings.rs`).
+- Coal as the kiln's fuel item, with charcoal as its material:
+  `data/items.csv` (`coal_0`).
 - The "Start every session from the default home" setting
   (`src/config.rs`, `src/save_load.rs`, where `apply_identity` keeps the
   name, appearance and outfit).
@@ -698,9 +724,13 @@ place. Web pages and documents were read on 4 October 2026.
   slake, sieve and knead it; adding sand or grog as temper.
 - The pinch pot and coil pot details, and drying under plastic.
 - Test tiles and the shrinkage and absorption tests; the shrinkage
-  figures are arithmetic.
+  figures are arithmetic; firing them on a waste slab or a kiln-washed
+  shelf, and asking a studio before firing dug clay in its kiln.
 - The firing schedules in outline, pre-warming for open firing, and that
-  an open firing usually gives porous earthenware.
+  an open firing usually gives porous earthenware; that a painted-on
+  sealant is not a food-safe glaze.
+- That spraying puts raw glaze into the air (our explanation of the
+  CPSC's spray booth rule).
 - That a porous pot soaks up food and is hard to clean; thermal shock
   in cookware and never heating an empty pot.
 - That a glaze maturing far from the clay's range runs, blisters or

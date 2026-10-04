@@ -71,9 +71,10 @@ tempting when you are short of the right tool:
   in any way to increase the leverage on a wrench. Increased leverage
   may damage the wrench or the work." Nor strike a wrench with a hammer.
 
-The pattern is the same each time: a hard, brittle tool asked to bend,
-or a tool asked to carry a force it was not shaped for, breaks
-suddenly, and the pieces go towards the person holding it.
+In each case the tool fails without warning, and the person holding it,
+or someone beside them, is in the way of what happens next: a tip or a
+fragment flies, a head comes off, a wrench slips (our summary of the
+examples above).
 
 ### What you must never make or improvise
 
@@ -144,18 +145,23 @@ your tool to answer for (our reading).
   protection where objects can fly. Tool making produces several of
   those at once.
 - **Wood dust.** The CPSC's Art and Craft Safety Guide says wood dust
-  can irritate the lungs and that some hardwood dusts are sensitisers,
-  and advises a respirator approved by the National Institute for
-  Occupational Safety and Health (NIOSH) or good ventilation. More is
-  in [Working With Wood](../making/working_with_wood.md).
+  can irritate the lungs, that some hardwood dusts are sensitisers, and
+  that occupational exposures to some hardwood dusts, in furniture and
+  cabinet making for example, "have been associated with cancer of the
+  nasal cavities and sinuses". It advises a respirator approved by the
+  National Institute for Occupational Safety and Health (NIOSH) or good
+  ventilation. More is in
+  [Working With Wood](../making/working_with_wood.md).
 - **A forge.** The CPSC's guide says forging furnaces "may release
   metal fumes and toxic gases (e.g., carbon monoxide) and infrared
   radiation." Its advice: be aware of fire and heat hazards, keep
   combustibles away and have a fire extinguisher, ventilate, "Install
   carbon monoxide alarms", and wear protective clothing, gloves,
   earplugs, and infrared goggles or a face shield. Run a forge outdoors
-  or in an open-sided shelter, never in a closed garage (general
-  practice; [Firewood](firewood.md) covers carbon monoxide).
+  or in an open-sided shelter where you can. Indoors, run one only with
+  real ventilation and a carbon monoxide alarm, and never in a closed
+  space such as a shut garage (general practice for where to put it;
+  [Firewood](firewood.md) covers carbon monoxide).
 - **Galvanised and painted metal.** The Army's welding manual (TM
   9-237) says the fumes of burning paint, and of brazing, welding or
   cutting brass, lead, zinc and galvanised or cadmium-plated parts, "are
@@ -165,13 +171,25 @@ your tool to answer for (our reading).
 - **Grinders.** Before you mount an abrasive wheel, inspect it and
   ring-test it: OSHA's booklet says to tap it gently with a light,
   non-metallic instrument, and that a wheel that sounds cracked or dead
-  "could fly apart in operation." Stand out of the plane of the wheel
-  while it starts, because "An abrasive wheel may disintegrate or
-  explode during start-up." On a bench grinder, OSHA's rule (29 CFR
-  1910.215) keeps the work rest within one-eighth of an inch of the
-  wheel, so the work cannot be jammed between them, and the guard's
-  adjustable tongue within one-quarter of an inch. Always use eye or
-  face protection, and never clamp a hand-held grinder in a vice.
+  "could fly apart in operation." Check the wheel's speed rating against
+  the machine: "Take care to ensure that the spindle speed of the
+  machine will not exceed the maximum operating speed marked on the
+  wheel." OSHA's rule (29 CFR 1910.215(d)(1)) requires the same check
+  before mounting. Stand out of the plane of the wheel while it starts,
+  because "An abrasive wheel may disintegrate or explode during
+  start-up."
+- **Keep the guards on.** OSHA's booklet: "Portable grinding tools need
+  to be equipped with safety guards to protect workers not only from
+  the moving wheel surface, but also from flying fragments in case of
+  wheel breakage." Never take the guard off a hand-held grinder to fit
+  a bigger wheel or reach an awkward spot (general practice, following
+  that rule).
+- **The bench grinder's rest.** OSHA's rule (29 CFR 1910.215(a)(4))
+  keeps the work rest within one-eighth of an inch of the wheel, so the
+  work cannot be jammed between them, and says "The adjustment shall
+  not be made with the wheel in motion." The guard's adjustable tongue
+  stays within one-quarter of an inch (1910.215(b)(9)). Always use eye
+  or face protection, and never clamp a hand-held grinder in a vice.
   [Sharpening](../making/sharpening.md) covers grinding without ruining
   the steel.
 
@@ -229,11 +247,13 @@ Its steps, in short:
    bench to check the angle: the edge should touch about at its middle
    or a little toward the heel, with the knob also touching. Adjust by
    removing wood from the side inside the eye.
-5. **Wedge it.** Use a wooden wedge "about 3 inches long", reaching into
-   the handle's kerf (the slot in its top) about one-half to
-   three-quarters of the depth of the head; deepen the kerf with a saw
-   if it is too shallow. Do not put linseed oil on the wedge, the manual
-   says, because it can act as a lubricant and let the wedge slip out.
+5. **Wedge it.** Use a wooden wedge "about 3 inches long, depending on
+   the depth of the ax eye" (so shorter for the smaller eye of a
+   hatchet, our reading), reaching into the handle's kerf (the slot in
+   its top) about one-half to three-quarters of the depth of the head;
+   deepen the kerf with a saw if it is too shallow. Do not put linseed
+   oil on the wedge, the manual says, because it can act as a lubricant
+   and let the wedge slip out.
    Drive it firmly and evenly, saw off the excess, and leave a little
    handle standing above the head rather than cutting it flush.
 6. **Pin it, if it is a working tool.** The manual says competition
@@ -242,7 +262,11 @@ Its steps, in short:
    bottom of the head, below the wedge, which "prevents the head from
    flying off, even if it is loose."
 7. **Oil the handle,** not the wedge: several thin coats of boiled or
-   raw linseed oil.
+   raw linseed oil. If you oil a new handle before you hang it, keep the
+   part that goes inside the head dry: the manual says to leave it free
+   of oil or make sure it is completely dry before it goes in, because
+   "Oil is a lubricant and can cause the ax head to slip on the
+   handle."
 
 The manual does not use the small metal crosstie wedges sold with many
 axes: driven straight into the wood, they "crush the wood fibers" and
@@ -250,12 +274,24 @@ can split the handle. In the field, if one must be used, it goes along
 each side of the wooden wedge, not across it.
 
 The same method fits a hammer, a hatchet or a maul (general practice).
-A loose head can be tightened for the day by soaking, as [Hand
-Tools](../making/hand_tools.md) explains, but the repair is a new wedge
-or a new handle. Rags with linseed oil on them can heat up and catch
-fire by themselves: dry them flat outdoors or keep them in a closed
-metal can of water, as [Keeping Things
-Working](keeping_things_working.md) explains.
+
+**If the head works loose, do not soak it.** The ax manual: "If the
+head becomes loose, you may be tempted to soak the ax in water to make
+the handle swell. This temporary fix is ill advised." The swelling wood
+is crushed inside the eye, and once it dries the head is looser than
+before. Its fix is to drive the wooden wedge farther down with a few
+taps of a mallet, or to replace it with a thicker wooden wedge, and to
+pin the head. A handle that is cracked or splintered is replaced: OSHA
+(29 CFR 1926.301(d)) requires wooden handles to be kept free of
+splinters or cracks and kept tight in the tool. The Forest Service's
+older *Handtools for Trail Work* (2005), cited in [Hand
+Tools](../making/hand_tools.md), describes soaking as a field fix for
+the day; this guide follows the 2020 ax manual, which is the newer
+advice and explains the damage.
+
+Rags with linseed oil on them can heat up and catch fire by themselves:
+dry them flat outdoors or keep them in a closed metal can of water, as
+[Keeping Things Working](keeping_things_working.md) explains.
 
 ### Worked example: a handle for a file
 
@@ -297,11 +333,14 @@ other common wooden tools (general practice):
 
 ### Which steel will make a tool
 
-Only steel with enough carbon can be hardened into a tool that holds an
-edge. TM 9-237 gives the rule: alloy steels and
-plain carbon steels "with a carbon content of 0.35 percent or higher"
-can be hardened, while "Low carbon steel, wrought iron, and steel
-castings cannot be hardened." It sorts plain steels by carbon:
+To be hardened through into a tool that holds an edge, steel needs
+enough carbon. TM 9-237 gives the rule: alloy steels and plain carbon
+steels "with a carbon content of 0.35 percent or higher" can be
+hardened, while "Low carbon steel, wrought iron, and steel castings
+cannot be hardened." (The same manual describes case hardening, which
+adds carbon to the surface of a low carbon steel to give it a hard
+skin; that is a separate process, not covered here.) It sorts plain
+steels by carbon:
 
 | Steel | Carbon | What TM 9-237 says it is for |
 |---|---|---|
@@ -419,8 +458,10 @@ Every home-made tool is untested until you test it (general practice):
 - **Heat treating a part whose failure hurts someone,** such as a
   spring, a hook or a vehicle part. A blacksmith or machine shop with
   the right steel and a controlled furnace (general practice).
-- **A forge indoors.** Not without real ventilation and a carbon
-  monoxide alarm, as the CPSC says; outdoors is better.
+- **A forge indoors.** Only with real ventilation and a carbon monoxide
+  alarm, as the CPSC says, and never in a closed space such as a shut
+  garage; outdoors or an open-sided shelter is better (general
+  practice).
 - **Working near electricity.** TM 9-243 says not to use a screwdriver
   near a live wire or to test whether a circuit is live; [Working Out
   Why Something Broke](working_out_why_something_broke.md) covers
@@ -441,6 +482,12 @@ Every home-made tool is untested until you test it (general practice):
   grain.
 - **A metal hammer on an axe head.** Seat the handle with a wooden or
   rubber mallet on its heel.
+- **Soaking a loose axe head.** The swelling crushes the wood and the
+  head ends up looser. Reset or replace the wooden wedge.
+- **A grinder without its guard.** Nothing is left between a burst
+  wheel and you.
+- **A wheel rated slower than the machine runs.** OSHA's booklet lists
+  the speed check among the ways to keep a wheel from cracking.
 - **Forging galvanised steel.** Zinc fumes. Do not.
 
 ## How the game models it
@@ -470,15 +517,18 @@ In the game, tools are something you make, use up and make again.
   (from steel, Metalworking 2), the axe and pickaxe (2 Iron Ingots and a
   plank, Metalworking 2), the hatchet, shovel, hoe, rake, trowel and
   utility knife (Metalworking 1), the crowbar (2 Steel Ingots,
-  Metalworking 2), the scythe and the Vise (Metalworking 3), and the
-  anvil, from 10 Steel Ingots at Metalworking 4. The default family home
+  Metalworking 2), the Metal File (1 Steel Ingot, Metalworking 2), the
+  pipe wrench and pruning shears (Metalworking 2), the scythe, the Vise
+  and the bolt cutter (Metalworking 3), and the anvil, from 10 Steel
+  Ingots at Metalworking 4. The default family home
   has workbenches in its workshop and a forge and an anvil station in
   its forge room (`data/machines/home.ron`).
 - **How long they last.** A tool breaks when its uses reach its
-  durability: 200 uses for a hammer, an axe or an adjustable wrench, 180
-  for pliers, a hatchet or a shovel, 150 for a hand saw, a hoe, a chisel
-  or a screwdriver, 120 for a utility knife or a rake, 300 for a crowbar
-  or the Vise, before any adjustment for how well it was made
+  durability: 200 uses for a hammer, an axe, an adjustable wrench or a
+  pipe wrench, 180 for pliers, a hatchet or a shovel, 150 for a hand
+  saw, a hoe, a chisel or a screwdriver, 120 for a utility knife, a
+  rake, a Metal File or pruning shears, 250 for a bolt cutter, 300 for a
+  crowbar or the Vise, before any adjustment for how well it was made
   (`data/items.csv`).
 - **How well it was made.** A tool you make by hand is graded by your
   level in the recipe's skill, here Metalworking: half the uses for a
@@ -498,8 +548,12 @@ In the game, tools are something you make, use up and make again.
   for the materials and the tools to be in your backpack, and for the
   workbench or forge to be where you are, before it lets you press
   Craft; a recipe that needs a skill level still needs it, and the grade
-  still depends on your skill. To see tools wear out, switch Play mode to
-  Normal.
+  still depends on your skill. In Dev, while the "Enable dev cheats"
+  switch is on (Settings > Animations, also on by default during
+  development), the Crafting page also shows a "Dev: stock all
+  materials" button that puts a stack of every recipe input in your
+  backpack, ingots and planks included, and the Profile page a "Dev: max
+  skills" button. To see tools wear out, switch Play mode to Normal.
 - **Starting from the default home.** While Settings > Gameplay > "Start
   every session from the default home" is on, which is also the default
   during development, only your character's name, appearance and
@@ -509,9 +563,12 @@ In the game, tools are something you make, use up and make again.
 
 What the game simplifies, so you do not learn it from the game: a tool
 is made in one step from ingots and planks, with no forging, hardening,
-tempering, handle or wedge; the hammer, axe and hoe are made from Iron
-Ingots, which in real life could not be hardened at all (TM 9-237 says
-wrought iron cannot be); there is no improvising, so no tool is ever
+tempering, handle or wedge; the hammer, both screwdrivers, the axe,
+hatchet, pickaxe, shovel, hoe, rake and trowel are made from Iron
+Ingots, which the game describes only as a smelted iron bar
+(`data/items.csv`), and if that were wrought iron or another low carbon
+iron, TM 9-237 says it could not be hardened; there is no improvising,
+so no tool is ever
 used for the wrong job; no tool can be repaired; and nothing at the
 forge, grinder or quench tank can hurt you.
 
@@ -524,15 +581,16 @@ forge, grinder or quench tank can hurt you.
   is climbed, holds pressure, protects a circuit or protects a person.
 - You wear eye protection for all tool making, and you run a forge only
   with ventilation and a carbon monoxide alarm, preferably outdoors.
-- You ring-test a grinding wheel, stand out of its plane at start-up,
-  and keep the work rest close.
+- You ring-test a grinding wheel, check its speed rating against the
+  machine, keep the guards on, stand out of its plane at start-up, and
+  keep the work rest close, adjusting it only with the wheel stopped.
 - You choose straight-grained hickory, ash or oak for a handle, and can
   hang an axe head so it is tight, aligned and wedged, without hitting
   the head with a metal hammer.
 - You can make a handle for a file, and use no file without one.
-- You know that only steel with enough carbon can be hardened, can sort
-  a bar with a spark test, and anneal salvaged tool steel before shaping
-  it.
+- You know that steel needs enough carbon, 0.35 percent or more, to be
+  hardened by quenching, can sort a bar with a spark test, and anneal
+  salvaged tool steel before shaping it.
 - You always temper what you harden, and know what the tempering colour
   is telling you and why a pyrometer is better.
 - You test a home-made tool gently before you trust it, mark it, and
@@ -553,8 +611,10 @@ were read on 4 October 2026.
   improper maintenance; the chisel used as a screwdriver, the loose
   handle, the sprung wrench and mushroomed heads; the employer's
   responsibility for tools; portable abrasive wheels: inspection, the
-  ring test, standing out of the plane of rotation at start-up, eye or
-  face protection, never clamping a hand-held grinder in a vice).
+  ring test, the spindle speed never above the maximum operating speed
+  marked on the wheel, standing out of the plane of rotation at
+  start-up, safety guards on portable grinding tools, eye or face
+  protection, never clamping a hand-held grinder in a vice).
   https://www.osha.gov/sites/default/files/publications/osha3080.pdf
 - Occupational Safety and Health Administration. 29 CFR 1910.133(a),
   Eye and face protection ((1) flying particles, molten metal, liquid
@@ -567,8 +627,10 @@ were read on 4 October 2026.
   https://www.ecfr.gov/current/title-29/subtitle-B/chapter-XVII/part-1910/subpart-N/section-1910.184
 - Occupational Safety and Health Administration. 29 CFR 1910.215,
   Abrasive wheel machinery ((a)(4) work rests within one-eighth of an
-  inch; (b)(9) the adjustable tongue within one-quarter of an inch; (d)(1)
-  inspection and the ring test before mounting).
+  inch, never adjusted with the wheel in motion; (b)(9) the adjustable
+  tongue within one-quarter of an inch; (d)(1) inspection and the ring
+  test before mounting, and the spindle speed checked against the
+  wheel's maximum operating speed).
   https://www.ecfr.gov/current/title-29/subtitle-B/chapter-XVII/part-1910/subpart-O/section-1910.215
 - Occupational Safety and Health Administration. 29 CFR 1910.242(a),
   Hand and portable powered tools and equipment, general (the employer
@@ -613,18 +675,24 @@ were read on 4 October 2026.
   of equal strength per Forest Products Laboratory research; chapter 10,
   hanging an ax: the three criteria, trial fitting, rasping only inside
   the eye, seating with a wooden or rubber mallet, never a metal hammer
-  on the head, alignment checks, a wooden wedge about 3 inches long into
-  one-half to three-quarters of the head's depth, no linseed oil on the
-  wedge, no metal crosstie wedges, pinning, oiling the handle).
+  on the head, alignment checks, a wooden wedge about 3 inches long
+  depending on the depth of the eye, into one-half to three-quarters of
+  the head's depth, no linseed oil on the wedge, no metal crosstie
+  wedges, pinning, oiling the handle; chapter 9, the top of the handle
+  left free of oil or completely dry before it goes into the head;
+  chapter 12, soaking a loose head in water is ill advised, and the fix
+  is to drive the wooden wedge farther or fit a thicker one).
   https://www.fs.usda.gov/t-d/pubs/pdfpubs/pdf18232812P/1823-2812P_AxManual_508_10-21-20c_150dpi.pdf
 - US Consumer Product Safety Commission, in partnership with The Art &
   Creative Materials Institute, Arts, Crafts & Theater Safety, Inc., and
   The National Art Education Association. *Art and Craft Safety Guide*,
-  Publication 5015, undated (its references run to 2004) (forging:
+  Publication 5015, undated (its references run to 2006) (forging:
   metal fumes, carbon monoxide and infrared radiation, fire prevention,
   ventilation, carbon monoxide alarms, protective clothing, gloves,
   earplugs and infrared goggles or a face shield; woodworking: wood dust,
-  sensitising hardwoods, NIOSH-approved respirators or ventilation).
+  sensitising hardwoods, some hardwood dusts associated with cancer of
+  the nasal cavities and sinuses, NIOSH-approved respirators or
+  ventilation).
   https://www.cpsc.gov/s3fs-public/5015.pdf
 - US Consumer Product Safety Commission. *Home Electrical Safety
   Checklist*, Publication 513, July 2008 (the correct size of fuse; an
@@ -644,12 +712,20 @@ were read on 4 October 2026.
 - The default home's workbenches, forge and anvil station:
   `data/machines/home.ron`.
 - The Play mode setting and what it frees (`PlayMode` and
-  `play_mode_allows` in `src/config.rs`); tool checks and wear in
-  `src/systems/crafting/mod.rs`; the Crafting page's own checks in
-  `src/gui/pages/crafting.rs`.
+  `play_mode_allows` in `src/config.rs`); tool checks, wear and the
+  stocking of every recipe input in `src/systems/crafting/mod.rs`; the
+  Crafting page's own checks and its "Dev: stock all materials" button
+  in `src/gui/pages/crafting.rs`; the "Dev: max skills" button in
+  `src/gui/pages/profile.rs`; the "Enable dev cheats" switch
+  (`cheats_enabled` in `data/gui/theme.ron`, `src/gui/pages/settings.rs`).
+- The Iron Ingot's description, "Smelted iron bar": `data/items.csv`
+  (`iron_ingot_0`).
 - The "Start every session from the default home" setting
   (`src/config.rs`, `src/save_load.rs`).
-- [Hand Tools](../making/hand_tools.md),
+- [Hand Tools](../making/hand_tools.md), which cites the Forest
+  Service's *Handtools for Trail Work*, 2005 Edition, for soaking a
+  loose head as a temporary field fix (named here only to say why this
+  guide departs from it),
   [Sharpening](../making/sharpening.md), [Metals and
   Alloys](../making/metals_and_alloys.md), [Working With
   Wood](../making/working_with_wood.md), [Force, Levers and Mechanical
@@ -666,9 +742,16 @@ were read on 4 October 2026.
   tool you lend is still yours to answer for.
 - Never holding a vehicle on bricks, blocks or wood of unknown strength;
   buying a rated ladder; the coin, wire or bigger fuse as examples.
-- The three kinds of making and the examples of safe improvising.
-- Running a forge outdoors or in an open-sided shelter; that forging
-  galvanised steel is the same hazard as welding it.
+- The three kinds of making and the examples of safe improvising; the
+  summary of OSHA's four examples (each tool fails without warning, with
+  the person in the way).
+- Running a forge outdoors or in an open-sided shelter where possible,
+  and never in a closed space; that forging galvanised steel is the same
+  hazard as welding it.
+- Never taking the guard off a hand-held grinder, following OSHA's rule
+  that portable grinding tools have guards.
+- That the ax manual's "depending on the depth of the ax eye" means a
+  shorter wedge for a hatchet.
 - Hickory, oak and ash for other handles that take a shock; any dense,
   dry hardwood for mallets and wedges; straight grain along the force
   for blanks other than ax handles; that the axe method fits a

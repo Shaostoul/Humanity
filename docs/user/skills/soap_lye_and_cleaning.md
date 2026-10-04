@@ -85,9 +85,11 @@ drench. At home (general practice, built on those rules):
 - **Gloves and long sleeves.** Chemical-resistant gloves, such as
   rubber or nitrile, long sleeves and closed shoes, and an apron if you
   have one.
-- **Water within reach before you start.** A running tap, or a large
-  jug of clean water, close enough to reach with your eyes shut. That is
-  your eyewash.
+- **Running water within reach before you start.** Work within a few
+  steps of a running tap or a shower, close enough to reach with your
+  eyes shut. The first aid below is 15 to 20 minutes of running water,
+  which no jug can supply; a jug of clean water is only for the first
+  seconds while you get to the tap.
 - **Nobody else in the room.** Children and pets out, and nobody to
   bump you.
 - **Air.** Work outdoors, or by an open window with a fan blowing out.
@@ -172,8 +174,11 @@ person's age, weight and condition, the name of the product, and when
 and how much was swallowed.
 
 **Call 911 at once** if the person has trouble breathing, collapses,
-has a seizure, or will not wake (general practice: Poison Help gives
-advice by telephone, and does not send an ambulance).
+has a seizure, or will not wake. MedlinePlus says that after an
+exposure you can call either the local emergency number, such as 911,
+or Poison Help; the signs that make it 911 are general practice, and so
+is the reason: Poison Help gives advice by telephone and does not send
+an ambulance.
 
 **Do not put vinegar on a lye burn.** [Treating
 Burns](treating_burns.md) explains why not to try to neutralise a
@@ -228,7 +233,7 @@ explanation).
 very few true soaps on the market: "Most body cleansers, both liquid and
 solid, are synthetic detergent products," popular "because they make
 suds easily in water and don't form gummy deposits." That last point
-is soap's one weakness: in hard water, soap forms the grey scum you see
+is a weakness of soap: in hard water, soap forms the grey scum you see
 on a bath (general knowledge), which detergents avoid.
 
 ### Hard soap and soft soap
@@ -313,7 +318,7 @@ the whole thing, the safety sections included, before you start.
    calculator or a tested recipe. Set out the mould, lined with baking
    paper, and every tool, before the lye is open.
 2. **Dress for it.** Goggles, gloves, long sleeves. Children and pets
-   out. Window open or outdoors. Water within reach.
+   out. Window open or outdoors. A running tap within a few steps.
 3. **Make the lye solution.** Lye into cold water, slowly, never the
    other way round, in a stainless steel or heat-resistant plastic
    container, without leaning over it. Set it somewhere safe to cool,
@@ -346,7 +351,10 @@ stronger products have narrower jobs, and they are the ones that can
 hurt you.
 
 - **Clean first, then disinfect.** The EPA's six steps for using a
-  disinfectant start with reading the directions and then: "Make sure to
+  disinfectant, a sheet written in April 2020 during the COVID-19
+  pandemic, start with checking that the product carries an EPA
+  registration number and is on the EPA's list of approved
+  disinfectants, then reading the directions, and then: "Make sure to
   wash the surface with soap and water if the directions mention
   pre-cleaning or if the surface is visibly dirty." Dirt left on a
   surface shields what is under it (our explanation).
@@ -441,8 +449,10 @@ The game has soap, lye, animal fat, and a recipe that joins them.
   leaves a few percent of the fat unsaponified to keep the bar mild.
   That is within the arithmetic above.
 - **Where the parts come from.** Render Tallow, at a stove, turns 3 Raw
-  Mutton into 1 Animal Fat (`data/recipes.csv`). Lye cannot be made in
-  the game; it comes only by trade (`data/trade_goods.ron`). The default
+  Mutton into 1 Animal Fat (`data/recipes.csv`). No recipe makes lye; it
+  comes by trade (`data/trade_goods.ron`), or, in the Dev play mode with
+  dev cheats on, from the Crafting page's "Dev: stock all materials"
+  button, described under the settings below. The default
   family home has a Chemistry Set in its workshop and a stove in its
   kitchen (`data/machines/home.ron`).
 - **Lye is handled as a corrosive.** Its container class is corrosive
@@ -468,8 +478,13 @@ The game has soap, lye, animal fat, and a recipe that joins them.
   uses up no materials. The Crafting page still asks for the fat, lye
   and water to be in your backpack (or the water in the home's tanks)
   and for a Chemistry Set to be where you are, and the recipe still
-  needs Alchemy level 2. Washing a container wears the soap bar in every
-  mode. To make soap something you spend, switch Play mode to Normal.
+  needs Alchemy level 2. In Dev, while the "Enable dev cheats" switch is
+  on (Settings > Animations, also on by default during development), the
+  Crafting page also shows a "Dev: stock all materials" button that puts
+  a stack of every recipe input in your backpack, lye included, and the
+  Profile page a "Dev: max skills" button. Washing a container wears the
+  soap bar in every mode. To make soap something you spend, switch Play
+  mode to Normal.
 - **Starting from the default home.** While Settings > Gameplay > "Start
   every session from the default home" is on, which is also the default
   during development, only your character's name, appearance and
@@ -551,9 +566,10 @@ read through a page reader that returns the page's own text.
 - National Oceanic and Atmospheric Administration. CAMEO Chemicals,
   datasheet *Sodium Hydroxide, Solid*, undated (used in cleaning
   compounds and drain cleaners; dissolution can release enough heat to
-  steam, spatter and ignite combustible material, credited there to the
-  Coast Guard's 1966 hazardous chemical data; absorbs moisture from the
-  air and attacks aluminium and zinc with flammable hydrogen; reacts
+  steam, spatter and ignite combustible material, credited there to
+  "Haz. Chem. Data 1966", a reference the page does not expand; absorbs
+  moisture from the air and attacks aluminium and zinc with flammable
+  hydrogen; reacts
   rapidly and exothermically with acids; strong corrosive action on
   tissue and severe eye damage, credited to the Coast Guard, 1999;
   NIOSH's full first aid, including lifting the lids while irrigating
@@ -584,7 +600,9 @@ read through a page reader that returns the page's own text.
   https://poisonhelp.hrsa.gov/faq/first-steps-poisoning-emergency
   https://poisonhelp.hrsa.gov/faq/household-chemical-products
 - US Environmental Protection Agency. *6 Steps for Safe & Effective
-  Disinfectant Use*, one-page sheet, April 2020 (read the directions;
+  Disinfectant Use*, one-page sheet, April 2020, written during the
+  COVID-19 pandemic (check the EPA registration number against the
+  EPA's list of approved disinfectants; read the directions;
   pre-clean with soap and water; contact time with the surface kept wet;
   gloves and handwashing; lids closed and out of reach of children).
   https://www.epa.gov/sites/production/files/2020-04/documents/disinfectants-onepager.pdf
@@ -608,8 +626,9 @@ read through a page reader that returns the page's own text.
   https://yardandgarden.extension.iastate.edu/how-to/using-wood-ashes-home-garden
 - MedlinePlus Medical Encyclopedia (A.D.A.M.). *Sodium hydroxide
   poisoning*, reviewed 8 April 2025 (household products containing it;
-  no vomiting unless told by poison control or a provider; water or
-  milk unless swallowing is hard; what to have ready when you call).
+  call the local emergency number, such as 911, or Poison Help; no
+  vomiting unless told by poison control or a provider; water or milk
+  unless swallowing is hard; what to have ready when you call).
   Copyrighted; restated only.
   https://medlineplus.gov/ency/article/002487.htm
 
@@ -627,9 +646,12 @@ read through a page reader that returns the page's own text.
 - The default home's Chemistry Set and stove:
   `data/machines/home.ron`.
 - The Play mode setting and what it frees (`PlayMode` and
-  `play_mode_allows` in `src/config.rs`); the crafting checks
-  (`src/systems/crafting/mod.rs`) and the Crafting page's own checks
-  (`src/gui/pages/crafting.rs`).
+  `play_mode_allows` in `src/config.rs`); the crafting checks and the
+  stocking of every recipe input (`src/systems/crafting/mod.rs`); the
+  Crafting page's own checks and its "Dev: stock all materials" button
+  (`src/gui/pages/crafting.rs`); the "Dev: max skills" button
+  (`src/gui/pages/profile.rs`); the "Enable dev cheats" switch
+  (`cheats_enabled` in `data/gui/theme.ron`, `src/gui/pages/settings.rs`).
 - The "Start every session from the default home" setting
   (`src/config.rs`, `src/save_load.rs`).
 - [Handwashing and Hygiene](handwashing_and_hygiene.md), [Treating
@@ -643,14 +665,16 @@ read through a page reader that returns the page's own text.
 - That lye looks like salt or sugar; that some drain openers are strong
   acids rather than lye.
 - That a lye burn may not hurt at first; the protective kit (sealed
-  goggles, rubber or nitrile gloves, long sleeves, water within reach,
+  goggles, rubber or nitrile gloves, long sleeves, a running tap or
+  shower within a few steps and a jug only for the first seconds,
   nobody else in the room, outdoors or an open window).
 - Closing the lid every time; the procedure for dissolving lye (cold
   water first, lye in slowly, never water onto lye, not leaning over it,
   labelled while it cools); stainless steel or heat-resistant plastic;
   keeping soap tools for soap.
-- That the first seconds matter most; calling 911 for breathing
-  trouble, collapse, seizure or unresponsiveness.
+- That the first seconds matter most; the signs that make it a 911 call
+  (breathing trouble, collapse, seizure or unresponsiveness), and that
+  Poison Help does not send an ambulance.
 - Applying HRSA's never-mix rule to drain cleaners in sequence, bleach
   after toilet cleaner and vinegar in bleach; telling a plumber what is
   in the pipe.
