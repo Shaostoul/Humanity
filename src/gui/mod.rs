@@ -2857,6 +2857,7 @@ pub struct GuiState {
     pub host_node_port: String,
     pub host_node_db: String,
     pub host_node_name: String,
+    pub host_node_local_only: bool,
     /// Whether the danger-zone confirm-delete prompt is showing.
     pub server_settings_confirm_action: Option<String>,
 
@@ -4191,6 +4192,7 @@ impl Default for GuiState {
             host_node_port: String::new(),
             host_node_db: String::new(),
             host_node_name: String::new(),
+            host_node_local_only: false,
             server_settings_confirm_action: None,
             show_help_modal: false,
             debug_console_visible: false,

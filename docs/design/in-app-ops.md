@@ -56,6 +56,7 @@ Most of this is the TIER 0/1 ops work (built fast under incident pressure, all V
 | **Secrets rotation**: API_SECRET, WEBHOOK_SECRET, VAPID | edit `.env` over SSH + restart | Server Settings → Security | sensitive; "rotate" buttons that generate + write + restart. Destructive-confirm. WEBHOOK_SECRET also needs the GitHub-side update (can't fully automate). |
 | **Admin roster**: who's admin (ADMIN_KEYS) | edit `.env` + restart, or `set_role` | Server Settings → Roles (partly exists) | the roles editor exists; surface ADMIN_KEYS sync there. |
 | **Disk-guard / retention knobs** | env vars on the systemd unit | Server Settings → System | thresholds (warn/crit %, keep-counts) as editable settings. |
+| **Where a headless relay listens** (`PORT`, and `BIND_ADDRESS` since 2026-10-03: every interface by default, `127.0.0.1` for this machine only) | edit `.env` + restart | Servers page → Config | **The in-app node already has it:** Servers → Host a node on this PC → "Who can connect" ("Devices on my network" = `0.0.0.0`, "Only this computer" = `127.0.0.1`), saved with the node and restored by autostart. A headless relay (the VPS, a LAN box) still needs the `.env` edit, and the edit needs a restart, so this rides on the same sudo-gated restart bridge as Relay control. Listed in the in-app Admin map (`data/admin/ops_registry.json`, "Choose who can connect"). |
 | **Deploy / version** | `git`/CI/`just` | Ops page (web has one) | mostly informational in-app; actual deploy stays CI (a "deploy" button would need careful auth). |
 | **Homepage flavor** (per-node front door, v0.1141) | `cp /var/www/humanity/home/<flavor>.html /var/www/humanity-site/index.html` over SSH | Server Settings → Website | a relay endpoint (admin-Dilithium-authed) that lists `web/home/` flavors + current state and writes/removes the override file; UI = flavor picker with preview links. The nginx seam is already data-shaped (presence of one file), so the endpoint is a thin file write. |
 | **nginx log retention** (privacy sweep 2026-08-23: rotate 14 → 2 + history purge) | `sed` on `/etc/logrotate.d/nginx` over SSH | Server Settings → System | a retention-days setting the relay applies via the sudo-gated system bridge (same seam as fail2ban control). Until then any change is a documented SSH edit. |
@@ -127,15 +128,18 @@ above applied to them.
 page. There is only one binary and the `native` feature already includes
 `relay`, so the desktop app links the whole server and starting one is just
 `crate::relay::run_relay()` on its own thread with its own tokio runtime,
-configured through the same `PORT` / `DATABASE_PATH` / `SERVER_NAME` env knobs
-the systemd unit sets. Stop resolves a oneshot that wins a `select!` against
+configured through the same `PORT` / `DATABASE_PATH` / `SERVER_NAME` /
+`BIND_ADDRESS` env knobs the systemd unit reads. Stop resolves a oneshot that wins a `select!` against
 the serve future, which drops the listener and frees the port.
 
-What the surface shows: running or not, the port, the database file, the
-loopback and LAN addresses to hand to a friend, uptime, and a Start / Stop
-pair. State is honest rather than optimistic: the port is test-bound (on the
-wildcard address AND loopback, because Windows lets a 0.0.0.0 bind succeed past
-a 127.0.0.1 squatter) and the database folder created before the thread exists,
+What the surface shows: running or not, the port, who can connect ("Devices
+on my network" or "Only this computer", the relay's `BIND_ADDRESS`), the
+database file, the loopback and LAN addresses to hand to a friend, uptime, and
+a Start / Stop pair. State is honest rather than optimistic: the port is
+test-bound (a network node on the wildcard address AND loopback, because
+Windows lets a 0.0.0.0 bind succeed past a 127.0.0.1 squatter; a node for this
+computer only on loopback alone, so it never raises the Windows firewall
+prompt) and the database folder created before the thread exists,
 the thread body is wrapped in `catch_unwind`, and the node is only reported as
 Running once `GET /health` actually answers.
 

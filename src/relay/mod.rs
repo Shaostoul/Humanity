@@ -257,9 +257,179 @@ fn epoch_days_to_ymd(days: i64) -> (i64, u32, u32) {
     (y, m, d)
 }
 
+/// The environment variable that says which address the relay listens on.
+/// Read next to `PORT`, like every other relay setting.
+pub const BIND_ADDRESS_ENV: &str = "BIND_ADDRESS";
+
+/// What the relay listens on when `BIND_ADDRESS` is not set: every network
+/// interface. It is the default because the documented self-hosting setups
+/// need it: a node other people on the same Wi-Fi connect to, and a home
+/// server behind a router port forward (docs/admin/SELF-HOSTING.md). The VPS
+/// does not need it (nginx reaches the relay over loopback and the firewall
+/// drops 3210 anyway), but it is not the only setup.
+pub const DEFAULT_BIND_ADDRESS: std::net::IpAddr =
+    std::net::IpAddr::V4(std::net::Ipv4Addr::UNSPECIFIED);
+
+/// Read the `BIND_ADDRESS` setting: the IP address the relay listens on.
+///
+/// - unset or blank: `0.0.0.0`, every interface (see `DEFAULT_BIND_ADDRESS`).
+/// - `127.0.0.1`, `::1` or `localhost`: only programs on this same computer
+///   can connect. Every development launcher sets this (2026-10-03): on
+///   Windows, a program that listens on 0.0.0.0 makes Windows Defender
+///   Firewall stop the person at the keyboard with an "allow this app?"
+///   prompt, once for every new exe path, and the rigs run the relay from a
+///   new temp folder each time, so the operator was being interrupted many
+///   times a day. A loopback-only listener never prompts.
+/// - any other IP address (v4 or v6): that interface only.
+///
+/// Anything else is an ERROR, not a quiet fall back to the default: a typo
+/// in a setting meant to keep the relay private must never open it to the
+/// whole network instead. The port is NOT part of this value; it is `PORT`.
+pub fn parse_bind_address(value: Option<&str>) -> Result<std::net::IpAddr, String> {
+    let v = match value.map(str::trim) {
+        None | Some("") => return Ok(DEFAULT_BIND_ADDRESS),
+        Some(v) => v,
+    };
+    if v.eq_ignore_ascii_case("localhost") {
+        return Ok(std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST));
+    }
+    // "[::1]" is how an IPv6 address is written in a URL; accept it too.
+    let bare = v.strip_prefix('[').and_then(|s| s.strip_suffix(']')).unwrap_or(v);
+    bare.parse::<std::net::IpAddr>().map_err(|_| {
+        format!(
+            "{BIND_ADDRESS_ENV}={v:?} is not an IP address. Use 127.0.0.1 for this computer \
+             only, 0.0.0.0 for every network interface, or one of this computer's own \
+             addresses. The port goes in PORT, not here."
+        )
+    })
+}
+
+/// The socket address the relay listens on: the `BIND_ADDRESS` setting (see
+/// `parse_bind_address`) and the port. `validate_environment` builds the
+/// address `run_relay` binds with this, so a test of this function is a test
+/// of what the real server binds.
+pub fn relay_listen_addr(
+    bind_address: Option<&str>,
+    port: u16,
+) -> Result<std::net::SocketAddr, String> {
+    Ok(std::net::SocketAddr::new(parse_bind_address(bind_address)?, port))
+}
+
+#[cfg(test)]
+mod bind_address_tests {
+    use super::{parse_bind_address, relay_listen_addr, DEFAULT_BIND_ADDRESS};
+    use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
+
+    // Red first, 2026-10-03: with relay_listen_addr made to ignore its
+    // setting the way run_relay always had (it bound "0.0.0.0:{port}"
+    // whatever the environment said), this test failed with
+    //   "BIND_ADDRESS=127.0.0.1 must give a loopback listener, got 0.0.0.0:0"
+    // and it fails BEFORE binding, so the red run itself never listened on
+    // the wildcard address (which would have raised the very firewall prompt
+    // this setting exists to stop).
+    #[test]
+    fn the_listen_address_honours_a_loopback_setting() {
+        let addr = relay_listen_addr(Some("127.0.0.1"), 0).expect("a valid setting");
+        assert!(
+            addr.ip().is_loopback(),
+            "BIND_ADDRESS=127.0.0.1 must give a loopback listener, got {addr}"
+        );
+        // And the address really is bindable as given: the listener the OS
+        // hands back is on loopback, not widened to every interface.
+        let l = std::net::TcpListener::bind(addr).expect("bind the loopback address");
+        assert_eq!(l.local_addr().unwrap().ip(), IpAddr::V4(Ipv4Addr::LOCALHOST));
+    }
+
+    // Red first, 2026-10-03, against a stub that returned the default for
+    // every value: "assertion `left == right` failed: 127.0.0.1 / left:
+    // 0.0.0.0 / right: 127.0.0.1". Pure parsing, nothing is bound.
+    #[test]
+    fn loopback_spellings_all_mean_this_computer_only() {
+        for (v, want) in [
+            ("127.0.0.1", IpAddr::V4(Ipv4Addr::LOCALHOST)),
+            (" 127.0.0.1 ", IpAddr::V4(Ipv4Addr::LOCALHOST)),
+            ("localhost", IpAddr::V4(Ipv4Addr::LOCALHOST)),
+            ("LocalHost", IpAddr::V4(Ipv4Addr::LOCALHOST)),
+            ("::1", IpAddr::V6(Ipv6Addr::LOCALHOST)),
+            ("[::1]", IpAddr::V6(Ipv6Addr::LOCALHOST)),
+        ] {
+            assert_eq!(parse_bind_address(Some(v)).unwrap(), want, "{v}");
+        }
+    }
+
+    // Red first, 2026-10-03, with the default flipped to 127.0.0.1 (which
+    // would quietly break every LAN node): "assertion `left == right` failed
+    // / left: 127.0.0.1 / right: 0.0.0.0". With the setting ignored the way
+    // run_relay used to, it failed on the last case instead: "left: 0.0.0.0
+    // / right: 192.168.1.42". Pure parsing, nothing is bound.
+    #[test]
+    fn unset_or_blank_keeps_every_interface_so_self_hosting_still_works() {
+        // The documented LAN node and port-forward setups depend on this.
+        assert_eq!(DEFAULT_BIND_ADDRESS, IpAddr::V4(Ipv4Addr::UNSPECIFIED));
+        assert_eq!(parse_bind_address(None).unwrap(), DEFAULT_BIND_ADDRESS);
+        assert_eq!(parse_bind_address(Some("   ")).unwrap(), DEFAULT_BIND_ADDRESS);
+        assert_eq!(parse_bind_address(Some("0.0.0.0")).unwrap(), DEFAULT_BIND_ADDRESS);
+        assert_eq!(
+            parse_bind_address(Some("192.168.1.42")).unwrap(),
+            "192.168.1.42".parse::<IpAddr>().unwrap()
+        );
+    }
+
+    // Red first, 2026-10-03, against a stub that fell back to the default on
+    // anything it could not parse: "a typo must be an error, not
+    // Some(0.0.0.0): \"127.0.0.l\"". That fall back is exactly the failure
+    // this prevents.
+    // run_relay must LISTEN on the address validate_environment built from
+    // BIND_ADDRESS. The tests above check that address; none of them reaches
+    // the line that binds it, and booting run_relay in a unit test would open
+    // a real database and install a Ctrl+C handler. So this reads run_relay's
+    // own source: it listens in exactly one place, on `listen_addr`, which
+    // comes from validate_environment(). A revert to the old "0.0.0.0:{port}"
+    // fails here, before anything listens (the critic review of 2026-10-03
+    // found the whole battery passed with that revert).
+    //
+    // Red first, 2026-10-03, with the bind reverted to
+    // tokio::net::TcpListener::bind(format!("0.0.0.0:{port}")): "run_relay
+    // must listen on the BIND_ADDRESS address (listen_addr), got: let listener
+    // = tokio::net::TcpListener::bind(format!(\"0.0.0.0:{port}\")).await.
+    // unwrap_or_else(|e| {". Reads text, nothing is bound.
+    #[test]
+    fn run_relay_listens_on_the_bind_address_setting() {
+        let src = include_str!("mod.rs").replace("\r\n", "\n");
+        // The newline in front keeps this from matching the string below,
+        // where the "\n" is two characters, not a line break.
+        let start = src.find("\npub async fn run_relay() {\n").expect("run_relay is in mod.rs");
+        let body = &src[start..];
+        // The function ends at the first closing brace in column 0.
+        let body = &body[..body.find("\n}\n").expect("the end of run_relay")];
+        assert!(
+            body.contains("let (db_path, listen_addr) = validate_environment();"),
+            "run_relay must take its listen address from validate_environment()"
+        );
+        let binds: Vec<&str> =
+            body.lines().map(str::trim).filter(|l| l.contains("TcpListener::bind(")).collect();
+        assert_eq!(binds.len(), 1, "run_relay listens in exactly one place, got: {binds:?}");
+        assert!(
+            binds[0].starts_with("let listener = tokio::net::TcpListener::bind(listen_addr)"),
+            "run_relay must listen on the BIND_ADDRESS address (listen_addr), got: {}",
+            binds[0]
+        );
+    }
+
+    #[test]
+    fn a_value_that_is_not_an_ip_address_is_an_error_not_the_wildcard() {
+        for bad in ["127.0.0.l", "lan", "127.0.0.1:3210", "http://127.0.0.1"] {
+            let r = parse_bind_address(Some(bad));
+            assert!(r.is_err(), "a typo must be an error, not {:?}: {bad:?}", r.ok());
+            assert!(r.unwrap_err().contains("BIND_ADDRESS"), "the message names the setting");
+        }
+    }
+}
+
 /// Validate environment variables and configuration at startup.
 /// Fails fast with helpful messages if critical config is invalid.
-pub fn validate_environment() -> (String, u16) {
+/// Returns the database path and the address to listen on.
+pub fn validate_environment() -> (String, std::net::SocketAddr) {
     let db_path = std::env::var("DATABASE_PATH")
         .or_else(|_| std::env::var("DB_PATH"))
         .unwrap_or_else(|_| {
@@ -317,8 +487,13 @@ pub fn validate_environment() -> (String, u16) {
         tracing::warn!("WEBHOOK_SECRET not set -- GitHub webhook endpoint will reject requests");
     }
 
-    tracing::info!("Configuration validated: db={db_path}, port={port}");
-    (db_path, port)
+    // Which interface to listen on (BIND_ADDRESS; see parse_bind_address). A
+    // bad value stops the start rather than widening to every interface.
+    let listen_addr = relay_listen_addr(std::env::var(BIND_ADDRESS_ENV).ok().as_deref(), port)
+        .unwrap_or_else(|e| panic!("{e}"));
+
+    tracing::info!("Configuration validated: db={db_path}, listen={listen_addr}");
+    (db_path, listen_addr)
 }
 
 /// Run the relay server. Contains all startup logic from main().
@@ -363,7 +538,8 @@ pub async fn run_relay() {
     }
 
     // Validate environment and get config.
-    let (db_path, port) = validate_environment();
+    let (db_path, listen_addr) = validate_environment();
+    let port = listen_addr.port();
 
     // Initialize persistent storage.
     let db_dir = std::path::Path::new(&db_path).parent().unwrap_or(std::path::Path::new("."));
@@ -946,13 +1122,27 @@ pub async fn run_relay() {
 
     let app = build_router(state.clone());
 
-    let addr = format!("0.0.0.0:{port}");
-    tracing::info!("Humanity relay listening on {addr}");
-    tracing::info!("Web client: http://localhost:{port}");
-    tracing::info!("WebSocket:  ws://localhost:{port}/ws");
-    tracing::info!("Bot API:    http://localhost:{port}/api/");
+    // The address comes from BIND_ADDRESS (default 0.0.0.0, every interface).
+    // It used to be "0.0.0.0:{port}" with no way to change it, so every dev
+    // rig's throwaway relay raised a Windows Firewall prompt (2026-10-03).
+    tracing::info!("Humanity relay listening on {listen_addr}");
+    // A URL that reaches it from this computer: the wildcard is reachable as
+    // localhost; a specific address only as itself.
+    let here = match listen_addr.ip() {
+        ip if ip.is_unspecified() => "localhost".to_string(),
+        std::net::IpAddr::V6(v6) => format!("[{v6}]"),
+        ip => ip.to_string(),
+    };
+    tracing::info!("Web client: http://{here}:{port}");
+    tracing::info!("WebSocket:  ws://{here}:{port}/ws");
+    tracing::info!("Bot API:    http://{here}:{port}/api/");
 
-    let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
+    let listener = tokio::net::TcpListener::bind(listen_addr).await.unwrap_or_else(|e| {
+        panic!(
+            "Cannot listen on {listen_addr}: {e}. Another program may already be using port \
+             {port}, or {BIND_ADDRESS_ENV} names an address this computer does not have."
+        )
+    });
     // Serve with graceful shutdown so we get one last chance to persist the
     // game world on Ctrl-C / SIGTERM (the deploy pipeline restarts the relay
     // with SIGTERM). Without this, anything since the last 30s periodic save

@@ -17,10 +17,10 @@
 //! not a different server.
 //!
 //! So "start a node" means: set the config env vars the relay reads (`PORT`,
-//! `DATABASE_PATH`, `SERVER_NAME`), then run `run_relay()` on its own thread
-//! with its own tokio runtime so the UI never blocks. "Stop" resolves a oneshot
-//! that wins a `select!` against the serve future, which drops the listener and
-//! frees the port.
+//! `DATABASE_PATH`, `SERVER_NAME`, `BIND_ADDRESS`), then run `run_relay()` on
+//! its own thread with its own tokio runtime so the UI never blocks. "Stop"
+//! resolves a oneshot that wins a `select!` against the serve future, which
+//! drops the listener and frees the port.
 //!
 //! ## Honest state, not optimistic state
 //!
@@ -97,12 +97,21 @@ struct LocalNode {
     port_input: String,
     db_input: String,
     name_input: String,
+    /// "Only this computer": listen on 127.0.0.1 instead of every interface
+    /// (the relay setting BIND_ADDRESS). Off by default, because hosting is
+    /// usually for other people on the same network.
+    local_only: bool,
+    /// The saved node was due to start at launch but was held back, because a
+    /// script launched this copy of the app (see autostart). The first click
+    /// into the window starts it; so does the Start button.
+    autostart_waiting: bool,
 
     // Frozen at start, so the running node is described by what it ACTUALLY
     // uses rather than by whatever the form says right now.
     running_port: u16,
     running_db: String,
     running_name: String,
+    running_local_only: bool,
     started_at: Option<Instant>,
     /// This machine's address on the local network, resolved once per start.
     lan_ip: Option<String>,
@@ -125,9 +134,12 @@ impl LocalNode {
             port_input: "3210".to_string(),
             db_input: default_db_path(),
             name_input: default_server_name(),
+            local_only: false,
+            autostart_waiting: false,
             running_port: 0,
             running_db: String::new(),
             running_name: String::new(),
+            running_local_only: false,
             started_at: None,
             lan_ip: None,
             server_pubkey: String::new(),
@@ -172,10 +184,38 @@ fn node() -> &'static Mutex<LocalNode> {
 /// every app restart" (the node simply was not running).
 pub fn autostart_if_configured(state: &crate::gui::GuiState) {
     note_owner_key(&state.profile_public_key);
+    let Ok(mut n) = node().lock() else { return };
+    autostart(&mut n, state, crate::engine::launch_focus::launch_in_background());
+}
+
+/// The first click into a window a script opened (the same moment that
+/// window gets its sound, launch_focus::open_audio_on_click): a person is
+/// using this copy of the app after all, so start the saved node autostart
+/// held back. Does nothing when nothing was held back.
+pub fn autostart_on_first_click(state: &crate::gui::GuiState) {
+    note_owner_key(&state.profile_public_key);
+    let Ok(mut n) = node().lock() else { return };
+    resume_held_autostart(&mut n, state);
+}
+
+/// What autostart does with the saved node, given how this copy of the app
+/// was launched (`background` is launch_focus::launch_in_background()).
+///
+/// A copy a SCRIPT launched does not start it, it waits (2026-10-03). Agents
+/// boot the app all day (probe rigs, boot checks, `just launch-bg` from a
+/// worktree, a fresh versioned archive), each from an exe path Windows has
+/// never seen, and they use the operator's real profile. His saved node is a
+/// network node (0.0.0.0:3210), so every one of those boots listened on every
+/// interface from a new path, and Windows Defender Firewall stopped him with
+/// an "allow this app?" prompt for each. It also opened his real node
+/// database from an agent's build. Those launches already get no focus and no
+/// sound for the same reason: he is using the one computer. A person who
+/// opens the app through a script of their own (a launcher, a .bat) gets the
+/// node the moment they click into the window, or with Start.
+fn autostart(n: &mut LocalNode, state: &GuiState, background: bool) {
     if !state.host_node_autostart {
         return;
     }
-    let Ok(mut n) = node().lock() else { return };
     if matches!(n.status, NodeStatus::Running | NodeStatus::Starting) {
         return;
     }
@@ -188,11 +228,34 @@ pub fn autostart_if_configured(state: &crate::gui::GuiState) {
     if !state.host_node_name.trim().is_empty() {
         n.name_input = state.host_node_name.clone();
     }
+    n.local_only = state.host_node_local_only;
+    if background {
+        n.autostart_waiting = true;
+        n.message = "Your saved node has not started yet: a program opened this copy of \
+                     HumanityOS, not you. It starts when you click into the window, or \
+                     press Start node."
+            .to_string();
+        log::info!(
+            "Host node autostart: held back (this instance was launched in the background by \
+             a script); the first click into the window starts it on port {}",
+            n.port_input
+        );
+        return;
+    }
     log::info!(
         "Host node autostart: starting the local relay on port {}",
         n.port_input
     );
-    start(&mut n);
+    start(n);
+}
+
+/// Start the node autostart held back, once. See autostart.
+fn resume_held_autostart(n: &mut LocalNode, state: &GuiState) {
+    if !std::mem::take(&mut n.autostart_waiting) {
+        return;
+    }
+    n.message.clear();
+    autostart(n, state, false);
 }
 
 /// The loopback URL of the node this app hosts, when it is up.
@@ -272,6 +335,55 @@ fn lan_address() -> Option<String> {
     }
 }
 
+/// The address the node listens on: loopback for "Only this computer",
+/// otherwise every interface (what other devices on the network need). Passed
+/// to the relay as its BIND_ADDRESS setting.
+fn node_bind_ip(local_only: bool) -> std::net::IpAddr {
+    if local_only {
+        std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST)
+    } else {
+        crate::relay::DEFAULT_BIND_ADDRESS
+    }
+}
+
+/// The addresses Start test-binds before it starts anything: the address the
+/// relay will listen on, and loopback as well when that is not already it.
+///
+/// Loopback is checked for a network node because on Windows a program
+/// holding only 127.0.0.1:PORT does NOT block a 0.0.0.0:PORT bind: checking
+/// the wildcard alone would let the node start and then quietly lose every
+/// local connection to the squatter, because the more specific bind wins.
+///
+/// A node for this computer only is checked on loopback ONLY. Test-binding
+/// 0.0.0.0 is itself a listen on every interface, which on Windows raises the
+/// firewall prompt; a node that never needs the network must not cause one.
+///
+/// Loopback comes FIRST. first_busy stops at the first address it cannot
+/// bind, so a port a squatter holds on loopback is reported before the
+/// wildcard is ever test-bound: the common failure costs no firewall prompt
+/// even for a network node.
+fn preflight_addrs(bind_ip: std::net::IpAddr, port: u16) -> Vec<std::net::SocketAddr> {
+    let loopback = std::net::SocketAddr::from(([127, 0, 0, 1], port));
+    let own = std::net::SocketAddr::new(bind_ip, port);
+    if own == loopback {
+        vec![loopback]
+    } else {
+        vec![loopback, own]
+    }
+}
+
+/// Test-bind each address in turn and release it at once. The first one that
+/// cannot be bound, with the reason; None when every one is free.
+fn first_busy(addrs: &[std::net::SocketAddr]) -> Option<(std::net::SocketAddr, std::io::Error)> {
+    for &addr in addrs {
+        match std::net::TcpListener::bind(addr) {
+            Ok(l) => drop(l),
+            Err(e) => return Some((addr, e)),
+        }
+    }
+    None
+}
+
 /// Best-effort text of a caught panic payload.
 fn panic_text(payload: &Box<dyn std::any::Any + Send>) -> String {
     if let Some(s) = payload.downcast_ref::<&str>() {
@@ -300,58 +412,118 @@ fn fmt_uptime(d: Duration) -> String {
 
 // ───────────────────────────── lifecycle ─────────────────────────────
 
+/// Everything a start needs, worked out from the form before anything is
+/// touched. Pure (it binds nothing and sets nothing), so the tests can check
+/// exactly what a node for each "Who can connect" choice would be told and
+/// would test-bind, without starting one.
+struct NodePlan {
+    port: u16,
+    db: String,
+    name: String,
+    /// The address the relay listens on (its BIND_ADDRESS).
+    bind_ip: std::net::IpAddr,
+    /// The addresses test-bound before starting (preflight_addrs).
+    preflight: Vec<std::net::SocketAddr>,
+    /// The relay settings to set (Some) or clear (None), in order. The relay
+    /// reads its configuration from the environment, the same knobs the VPS
+    /// systemd unit sets, which is what makes the in-app node and the
+    /// headless one the same server with the same behaviour.
+    env: Vec<(&'static str, Option<String>)>,
+}
+
+/// Check the form and work out the plan, or say what is wrong with it.
+fn plan_start(n: &LocalNode) -> Result<NodePlan, String> {
+    let port: u16 = match n.port_input.trim().parse::<u32>() {
+        Ok(p) if (1..=65535).contains(&p) => p as u16,
+        _ => {
+            return Err(
+                "Port must be a whole number between 1 and 65535. 3210 is the usual one."
+                    .to_string(),
+            )
+        }
+    };
+
+    let db = n.db_input.trim().to_string();
+    if db.is_empty() {
+        return Err(
+            "Pick a file for the database, for example a relay.db inside a folder you own."
+                .to_string(),
+        );
+    }
+
+    let name = n.name_input.trim().to_string();
+    let bind_ip = node_bind_ip(n.local_only);
+    let mut env = vec![
+        ("PORT", Some(port.to_string())),
+        ("DATABASE_PATH", Some(db.clone())),
+        // Always set, never inherited: the choice on this page decides who can
+        // connect, not whatever BIND_ADDRESS the app happened to be launched
+        // with. Without this line a node set to "Only this computer" would
+        // listen on every interface (the relay's default); the tests pin it.
+        (crate::relay::BIND_ADDRESS_ENV, Some(bind_ip.to_string())),
+        // The person hosting the node owns it: their identity gets the admin
+        // role in the node's database at startup (operator field test 3: the
+        // self-relay's Server Settings showed only the USER section, because
+        // nothing had ever granted the owner admin). None clears it.
+        ("HUMANITY_OWNER_ADMIN_KEY", owner_key_for_admin()),
+    ];
+    if !name.is_empty() {
+        env.push(("SERVER_NAME", Some(name.clone())));
+    }
+    Ok(NodePlan {
+        port,
+        db,
+        name,
+        bind_ip,
+        preflight: preflight_addrs(bind_ip, port),
+        env,
+    })
+}
+
 /// Validate the form, then bring the node up on its own thread.
 ///
 /// Everything that can be checked cheaply is checked BEFORE the thread exists,
 /// because a failure inside `run_relay()` is a panic on a detached thread, and
 /// "nothing happened" is the worst possible feedback.
 fn start(n: &mut LocalNode) {
-    let port: u16 = match n.port_input.trim().parse::<u32>() {
-        Ok(p) if (1..=65535).contains(&p) => p as u16,
-        _ => {
+    start_with(n, first_busy)
+}
+
+/// `start`, with the port check passed in. The app always uses first_busy;
+/// a test passes a check that records which addresses it was asked about and
+/// answers "busy", so it can prove which addresses start() tests without
+/// binding any of them (some are the wildcard, see the note in the tests).
+fn start_with(
+    n: &mut LocalNode,
+    port_check: impl Fn(&[std::net::SocketAddr]) -> Option<(std::net::SocketAddr, std::io::Error)>,
+) {
+    // Any start, by hand or by autostart, settles a held-back autostart.
+    n.autostart_waiting = false;
+    let plan = match plan_start(n) {
+        Ok(p) => p,
+        Err(why) => {
             n.status = NodeStatus::Failed;
-            n.message = "Port must be a whole number between 1 and 65535. 3210 is the usual one."
-                .to_string();
+            n.message = why;
             return;
         }
     };
-
-    let db = n.db_input.trim().to_string();
-    if db.is_empty() {
-        n.status = NodeStatus::Failed;
-        n.message = "Pick a file for the database, for example a relay.db inside a folder you own."
-            .to_string();
-        return;
-    }
+    let NodePlan { port, db, name, bind_ip, preflight, env } = plan;
 
     // The common failure by far: something already holds the port. Test-bind and
-    // release it here so the message names the real problem.
-    //
-    // BOTH the wildcard address (what the relay itself binds) and loopback are
-    // checked. On Windows a program holding only 127.0.0.1:PORT does NOT block a
-    // 0.0.0.0:PORT bind, so checking the wildcard alone would let the node start
-    // and then quietly lose every local connection to the squatter, because the
-    // more specific bind wins. A unit test holds a loopback port and asserts this
-    // is reported.
+    // release it here so the message names the real problem. Which addresses,
+    // and why loopback is among them even for a network node: preflight_addrs.
+    // Unit tests hold a loopback port and assert it is reported.
     //
     // There is a small window between this check and the relay's own bind in
     // which another program could take the port; catch_unwind below is the net
     // for that rarer case.
-    for addr in [
-        std::net::SocketAddr::from(([0, 0, 0, 0], port)),
-        std::net::SocketAddr::from(([127, 0, 0, 1], port)),
-    ] {
-        match std::net::TcpListener::bind(addr) {
-            Ok(l) => drop(l),
-            Err(e) => {
-                n.status = NodeStatus::Failed;
-                n.message = format!(
-                    "Port {port} is not available ({e}). Another program is already using it, \
-                     possibly a node you started earlier. Try a different port."
-                );
-                return;
-            }
-        }
+    if let Some((_, e)) = port_check(&preflight) {
+        n.status = NodeStatus::Failed;
+        n.message = format!(
+            "Port {port} is not available ({e}). Another program is already using it, \
+             possibly a node you started earlier. Try a different port."
+        );
+        return;
     }
 
     // Only once everything cheap has passed do we touch the disk. The relay
@@ -372,22 +544,12 @@ fn start(n: &mut LocalNode) {
         }
     }
 
-    // The relay reads its configuration from the environment, the same knobs
-    // the VPS systemd unit sets. Setting them here is what makes the in-app
-    // node and the headless one the same server with the same behaviour.
-    let name = n.name_input.trim().to_string();
-    std::env::set_var("PORT", port.to_string());
-    std::env::set_var("DATABASE_PATH", &db);
-    // The person hosting the node owns it: their identity gets the admin
-    // role in the node's database at startup (operator field test 3: the
-    // self-relay's Server Settings showed only the USER section, because
-    // nothing had ever granted the owner admin).
-    match owner_key_for_admin() {
-        Some(k) => std::env::set_var("HUMANITY_OWNER_ADMIN_KEY", k),
-        None => std::env::remove_var("HUMANITY_OWNER_ADMIN_KEY"),
-    }
-    if !name.is_empty() {
-        std::env::set_var("SERVER_NAME", &name);
+    // Hand the relay its settings (what each one is for: plan_start).
+    for (key, value) in &env {
+        match value {
+            Some(v) => std::env::set_var(key, v),
+            None => std::env::remove_var(key),
+        }
     }
 
     let (ev_tx, ev_rx): (Sender<NodeEvent>, Receiver<NodeEvent>) = std::sync::mpsc::channel();
@@ -491,8 +653,11 @@ fn start(n: &mut LocalNode) {
     n.running_port = port;
     n.running_db = db;
     n.running_name = name;
+    n.running_local_only = bind_ip.is_loopback();
     n.started_at = None;
-    n.lan_ip = lan_address();
+    // A node for this computer only has no network address to hand out (and
+    // the LAN probe's UDP socket is not worth opening for it).
+    n.lan_ip = if bind_ip.is_loopback() { None } else { lan_address() };
     n.stop_tx = Some(stop_tx);
     n.events = Some(ev_rx);
 }
@@ -715,6 +880,30 @@ fn draw_setup(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, n: &mut Lo
                 &mut n.port_input,
                 "3210",
             );
+            // Who can connect: the relay's BIND_ADDRESS setting, in plain
+            // words. The network choice is the default and what hosting for
+            // friends needs; "this computer" listens on 127.0.0.1 only.
+            widgets::form_row(ui, theme, "Who can connect", |ui| {
+                ui.vertical(|ui| {
+                    ui.set_max_width(field_w);
+                    ui.add_enabled_ui(!starting, |ui| {
+                        ui.radio_value(&mut n.local_only, false, "Devices on my network");
+                        ui.radio_value(&mut n.local_only, true, "Only this computer");
+                    });
+                    ui.label(
+                        RichText::new(if n.local_only {
+                            "Nothing else can reach this node, so Windows will not ask about \
+                             the firewall. Good for trying a node out on your own."
+                        } else {
+                            "Anyone on the same network can connect. The first time, Windows \
+                             may ask whether to let HumanityOS through its firewall: allow it \
+                             on private networks, or other devices will not get in."
+                        })
+                        .size(theme.font_size_small)
+                        .color(theme.text_muted()),
+                    );
+                });
+            });
             field(
                 ui,
                 "Database file",
@@ -761,7 +950,7 @@ fn draw_setup(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, n: &mut Lo
             if ui
                 .checkbox(&mut auto, "Start this node automatically when the app opens")
                 .on_hover_text(
-                    "Reproduces this exact node (port, database, name) at every launch, \
+                    "Reproduces this exact node (port, database, name, who can connect) at every launch, \
                      so your self-hosted server is reachable again without visiting this page.",
                 )
                 .changed()
@@ -784,6 +973,7 @@ fn draw_setup(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, n: &mut Lo
                         state.host_node_port = n.port_input.clone();
                         state.host_node_db = n.db_input.clone();
                         state.host_node_name = n.name_input.clone();
+                        state.host_node_local_only = n.local_only;
                         crate::config::AppConfig::from_gui_state(state).save();
                     }
                 }
@@ -794,6 +984,7 @@ fn draw_setup(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, n: &mut Lo
                     n.port_input = "3210".to_string();
                     n.db_input = default_db_path();
                     n.name_input = default_server_name();
+                    n.local_only = false;
                     n.message.clear();
                     n.status = NodeStatus::Stopped;
                 }
@@ -858,6 +1049,12 @@ fn draw_running(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, n: &mut 
             }
             row(ui, "On this computer", &local_url, true);
             match &lan_url {
+                _ if n.running_local_only => row(
+                    ui,
+                    "On your network",
+                    "not shared: this node accepts this computer only",
+                    false,
+                ),
                 Some(u) => row(ui, "On your network", u, true),
                 None => row(
                     ui,
@@ -893,16 +1090,22 @@ fn draw_running(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, n: &mut 
         });
 
     ui.add_space(theme.spacing_sm);
+    // Who can reach it depends on how it was started ("Who can connect").
+    let reach = if n.running_local_only {
+        "This node was started for this computer only, so no other device can reach it. \
+         To share it, stop it, choose \"Devices on my network\", and start it again."
+    } else {
+        "Anyone on the same network (same house, same wifi) can connect using the network \
+         address. Reaching it from outside your home also needs a port forward on your \
+         router, which no app can set up for you."
+    };
     ui.label(
-        RichText::new(
-            "Anyone on the same network (same house, same wifi) can connect using the network \
-             address. Reaching it from outside your home also needs a port forward on your \
-             router, which no app can set up for you. FEDERATING is different: to pair this \
-             node with another server, no port forward is needed at all. Copy the Federation \
-             key above, and on the other server run: /server-add-key <key> <name>, then \
-             /server-trust <key> 2. This node then connects OUT to that server and the \
-             partnership rides that connection.",
-        )
+        RichText::new(format!(
+            "{reach} FEDERATING is different: to pair this node with another server, no \
+             port forward is needed at all. Copy the Federation key above, and on the other \
+             server run: /server-add-key <key> <name>, then /server-trust <key> 2. This node \
+             then connects OUT to that server and the partnership rides that connection."
+        ))
         .size(theme.font_size_small)
         .color(theme.text_muted()),
     );
@@ -1045,15 +1248,41 @@ mod tests {
         assert!(n.events.is_none());
     }
 
-    /// A node pointed at a port someone else holds must fail loudly and spawn
-    /// nothing. `bind_at` is the address the squatter holds.
-    fn assert_busy_port_is_reported(bind_at: [u8; 4]) {
-        let held = std::net::TcpListener::bind(std::net::SocketAddr::from((bind_at, 0)))
-            .expect("bind a scratch port");
+    // NO TEST IN THIS FILE LISTENS ON 0.0.0.0, and none may (2026-10-03).
+    //
+    // The lib test binary lives at target/<profile>/deps/humanity_engine-<hash>.exe,
+    // a NEW path after every version bump and in every worktree, and on Windows
+    // a program that listens on the wildcard address makes Windows Defender
+    // Firewall stop the person at the keyboard with an "allow this app?" prompt,
+    // once per path. Two busy-port tests here used to do exactly that (one held
+    // 0.0.0.0 itself, the other made start() test-bind it), and their binaries
+    // were 209 of the 274 HumanityOS paths in the operator's firewall rule list.
+    // So the end-to-end busy-port test runs a node for "Only this computer",
+    // which test-binds loopback only, and the network case is pinned by
+    // checking WHICH addresses are tested without binding them: preflight_addrs
+    // directly, and start() through a port check that records its question
+    // and answers "busy" (start_with). The autostart tests use a saved node
+    // for this computer only on a held loopback port, so even a regression
+    // that starts it never listens.
+
+    /// A node for this computer only, pointed at a loopback port someone else
+    /// holds, must fail loudly and spawn nothing.
+    //
+    // Red first, 2026-10-03, with the port check made to check nothing:
+    // start() went ahead and this failed with "assertion `left == right`
+    // failed: a held port was not detected / left: Starting / right: Failed".
+    // That red run spawned a relay thread, on 127.0.0.1 because start() hands
+    // the relay BIND_ADDRESS, so even a regression here never listens on the
+    // wildcard address; its bind of the held port then failed.
+    #[test]
+    fn a_port_held_on_loopback_is_reported_not_silently_swallowed() {
+        let held = std::net::TcpListener::bind(std::net::SocketAddr::from(([127, 0, 0, 1], 0)))
+            .expect("bind a scratch loopback port");
         let port = held.local_addr().unwrap().port();
 
         let mut n = LocalNode::new();
         n.port_input = port.to_string();
+        n.local_only = true;
         // A scratch path, so a regression that gets past the port check cannot
         // write a database into the real profile directory during tests.
         n.db_input = std::env::temp_dir()
@@ -1063,7 +1292,7 @@ mod tests {
             .to_string();
         start(&mut n);
 
-        assert_eq!(n.status, NodeStatus::Failed, "squatter on {bind_at:?} was not detected");
+        assert_eq!(n.status, NodeStatus::Failed, "a held port was not detected");
         assert!(
             n.message.contains(&port.to_string()),
             "the message must name the port, got: {}",
@@ -1074,19 +1303,266 @@ mod tests {
         drop(held);
     }
 
+    // Red first, 2026-10-03, with preflight_addrs testing the wildcard alone
+    // whatever the mode: "a node for this computer only must never test-bind
+    // the wildcard address (it raises the Windows firewall prompt), got
+    // [0.0.0.0:3210]". (The list before this change, [0.0.0.0:PORT,
+    // 127.0.0.1:PORT] for every node, holds the wildcard too, so it cannot
+    // pass either.) Pure: nothing is bound.
     #[test]
-    fn a_port_held_on_all_interfaces_is_reported_not_silently_swallowed() {
-        assert_busy_port_is_reported([0, 0, 0, 0]);
+    fn preflight_for_this_computer_only_never_touches_the_wildcard_address() {
+        let ip = node_bind_ip(true);
+        assert!(ip.is_loopback(), "\"Only this computer\" listens on loopback, got {ip}");
+        let addrs = preflight_addrs(ip, 3210);
+        assert!(
+            addrs.iter().all(|a| a.ip().is_loopback()),
+            "a node for this computer only must never test-bind the wildcard address \
+             (it raises the Windows firewall prompt), got {addrs:?}"
+        );
+        assert_eq!(addrs, vec![std::net::SocketAddr::from(([127, 0, 0, 1], 3210))]);
     }
 
+    // The Windows case the old loopback-squatter test caught: a 0.0.0.0 bind
+    // succeeds while another program holds 127.0.0.1 on the same port, so a
+    // network node must test loopback as well as its own wildcard address, or
+    // it starts and quietly loses every local connection to the squatter.
+    // Pinned without binding the wildcard (see the note above).
+    //
+    // Red first, 2026-10-03, with preflight_addrs testing the wildcard alone:
+    // "a network node must also test loopback (the Windows squatter case), got
+    // [0.0.0.0:3210]". And again after the critic review, against the order
+    // the first version used ([0.0.0.0:PORT, 127.0.0.1:PORT]): "loopback is
+    // tested FIRST, so a loopback squatter is found before the wildcard is
+    // test-bound / left: 0.0.0.0:3210 / right: 127.0.0.1:3210". Pure: nothing
+    // is bound.
     #[test]
-    fn a_port_held_only_on_loopback_is_reported_too() {
-        // Windows lets a 0.0.0.0 bind succeed while another program holds
-        // 127.0.0.1 on the same port. Checking only the wildcard address would
-        // start a node that quietly loses every local connection to the
-        // squatter, because the more specific bind wins. This is the test that
-        // caught exactly that, so it must keep failing if the check regresses.
-        assert_busy_port_is_reported([127, 0, 0, 1]);
+    fn preflight_for_the_network_tests_loopback_first_then_its_own_address() {
+        let ip = node_bind_ip(false);
+        assert!(ip.is_unspecified(), "\"Devices on my network\" listens everywhere, got {ip}");
+        assert_eq!(ip, crate::relay::DEFAULT_BIND_ADDRESS, "the same default as a headless relay");
+        let addrs = preflight_addrs(ip, 3210);
+        assert!(
+            addrs.contains(&std::net::SocketAddr::new(ip, 3210)),
+            "a network node must test the address it will listen on, got {addrs:?}"
+        );
+        assert!(
+            addrs.contains(&std::net::SocketAddr::from(([127, 0, 0, 1], 3210))),
+            "a network node must also test loopback (the Windows squatter case), got {addrs:?}"
+        );
+        assert_eq!(
+            addrs[0],
+            std::net::SocketAddr::from(([127, 0, 0, 1], 3210)),
+            "loopback is tested FIRST, so a loopback squatter is found before the wildcard is \
+             test-bound"
+        );
+    }
+
+    /// A database path under the temp folder, so a regression that gets past
+    /// the port check cannot write into the real profile directory.
+    fn scratch_db() -> String {
+        std::env::temp_dir()
+            .join("humanity-host-node-test")
+            .join("relay.db")
+            .display()
+            .to_string()
+    }
+
+    // What start() hands the relay. Without the BIND_ADDRESS pair a node set
+    // to "Only this computer" would listen on every interface (the relay's
+    // default), and every other test here would still pass: the end-to-end
+    // one stops at the port check, before any setting is handed over.
+    //
+    // Red first, 2026-10-03 (critic review), with the BIND_ADDRESS pair
+    // deleted from plan_start: "assertion `left == right` failed: \"Only this
+    // computer\" must tell the relay to listen on loopback / left: None /
+    // right: Some(\"127.0.0.1\")". Pure: nothing is bound or set.
+    #[test]
+    fn the_plan_tells_the_relay_who_can_connect() {
+        let plan_for = |local_only: bool| {
+            let mut n = LocalNode::new();
+            n.local_only = local_only;
+            n.port_input = "3210".to_string();
+            n.db_input = scratch_db();
+            plan_start(&n).expect("a valid form")
+        };
+        let setting = |plan: &NodePlan, key: &str| {
+            plan.env.iter().find(|(k, _)| *k == key).and_then(|(_, v)| v.clone())
+        };
+
+        let local = plan_for(true);
+        assert_eq!(
+            setting(&local, crate::relay::BIND_ADDRESS_ENV).as_deref(),
+            Some("127.0.0.1"),
+            "\"Only this computer\" must tell the relay to listen on loopback"
+        );
+        assert!(local.bind_ip.is_loopback());
+
+        let network = plan_for(false);
+        assert_eq!(
+            setting(&network, crate::relay::BIND_ADDRESS_ENV).as_deref(),
+            Some("0.0.0.0"),
+            "\"Devices on my network\" must tell the relay to listen on every interface"
+        );
+        for plan in [&local, &network] {
+            assert_eq!(setting(plan, "PORT").as_deref(), Some("3210"));
+            assert_eq!(setting(plan, "DATABASE_PATH"), Some(scratch_db()));
+        }
+    }
+
+    // start() must test the addresses the plan lists, loopback first, and not
+    // some shorter list of its own. Dropping loopback for a network node is
+    // the Windows squatter regression, and no other test sees it: the
+    // end-to-end test runs "Only this computer", whose list is loopback alone.
+    // The check passed in records what it is asked and answers "busy", so this
+    // binds NOTHING, in the green run and in the red one. (An end-to-end
+    // version with a real squatter cannot be seen red without listening on
+    // 0.0.0.0: every way to make it fail test-binds the wildcard and then
+    // starts a relay there, which is the firewall prompt this file avoids.)
+    //
+    // Red first, 2026-10-03 (critic review), with start_with checking only
+    // [SocketAddr::new(bind_ip, port)]: "assertion `left == right` failed:
+    // start() must test loopback first (local_only = false) / left:
+    // Some(0.0.0.0:3210) / right: Some(127.0.0.1:3210)".
+    #[test]
+    fn start_tests_the_planned_addresses_loopback_first() {
+        let loopback = std::net::SocketAddr::from(([127, 0, 0, 1], 3210));
+        let wildcard = std::net::SocketAddr::from(([0, 0, 0, 0], 3210));
+        for local_only in [true, false] {
+            let mut n = LocalNode::new();
+            n.port_input = "3210".to_string();
+            n.local_only = local_only;
+            n.db_input = scratch_db();
+            let asked = std::cell::RefCell::new(Vec::new());
+            start_with(&mut n, |addrs| {
+                asked.borrow_mut().extend_from_slice(addrs);
+                Some((
+                    addrs[0],
+                    std::io::Error::new(std::io::ErrorKind::AddrInUse, "held by this test"),
+                ))
+            });
+            let asked = asked.into_inner();
+            assert_eq!(
+                asked.first(),
+                Some(&loopback),
+                "start() must test loopback first (local_only = {local_only})"
+            );
+            if local_only {
+                assert_eq!(asked, vec![loopback], "a node for this computer only tests loopback alone");
+            } else {
+                assert!(asked.contains(&wildcard), "a network node tests its own address too: {asked:?}");
+            }
+            assert_eq!(n.status, NodeStatus::Failed, "a busy answer stops the start");
+            assert!(n.message.contains("3210"), "the message names the port: {}", n.message);
+            assert!(n.events.is_none(), "nothing should have been spawned");
+        }
+    }
+
+    /// The saved node of a person who hosts for this computer only, on a port
+    /// this test holds on loopback: if autostart starts it at all, the port
+    /// check reports the held port (status Failed), so "did it try?" is
+    /// visible, and nothing ever listens, let alone on the wildcard.
+    fn saved_node_on(port: u16) -> GuiState {
+        let mut s = GuiState::default();
+        s.host_node_autostart = true;
+        s.host_node_port = port.to_string();
+        s.host_node_db = scratch_db();
+        s.host_node_name = "Test node".to_string();
+        s.host_node_local_only = true;
+        s
+    }
+
+    fn held_loopback_port() -> (std::net::TcpListener, u16) {
+        let held = std::net::TcpListener::bind(std::net::SocketAddr::from(([127, 0, 0, 1], 0)))
+            .expect("bind a scratch loopback port");
+        let port = held.local_addr().unwrap().port();
+        (held, port)
+    }
+
+    // A copy of the app a SCRIPT launched (an agent's rig, a boot check, a
+    // worktree build) must not start the operator's saved node: his is a
+    // network node, and starting it from a new exe path is a Windows Firewall
+    // prompt in front of him (critic review, 2026-10-03: his config has
+    // host_node_autostart on, port 3210, network mode).
+    //
+    // Red first, 2026-10-03, with autostart ignoring `background`:
+    // "assertion `left == right` failed: a script-launched copy started the
+    // saved node / left: Failed / right: Stopped" (it tried, and the held
+    // port stopped it).
+    #[test]
+    fn a_script_launch_holds_the_saved_node_back() {
+        let (held, port) = held_loopback_port();
+        let state = saved_node_on(port);
+        let mut n = LocalNode::new();
+        autostart(&mut n, &state, true);
+        assert_eq!(n.status, NodeStatus::Stopped, "a script-launched copy started the saved node");
+        assert!(n.events.is_none());
+        assert!(n.autostart_waiting, "it waits for a person instead");
+        assert!(n.message.contains("click into the window"), "and says so: {}", n.message);
+        assert_eq!(n.port_input, port.to_string(), "the saved node is loaded into the form");
+        drop(held);
+    }
+
+    // The person's half of the bargain: their first click into the window
+    // starts the node that was held back, once.
+    //
+    // Red first, 2026-10-03, with resume_held_autostart doing nothing:
+    // "assertion `left == right` failed: the first click must start the
+    // held-back node / left: Stopped / right: Failed".
+    #[test]
+    fn the_first_click_starts_a_held_back_node_once() {
+        let (held, port) = held_loopback_port();
+        let state = saved_node_on(port);
+        let mut n = LocalNode::new();
+        autostart(&mut n, &state, true);
+        resume_held_autostart(&mut n, &state);
+        assert_eq!(n.status, NodeStatus::Failed, "the first click must start the held-back node");
+        assert!(n.message.contains(&port.to_string()), "it tried the saved port: {}", n.message);
+        assert!(!n.autostart_waiting, "and is no longer waiting");
+
+        // A later click does nothing: the status and message stay as they are.
+        n.message = "untouched".to_string();
+        resume_held_autostart(&mut n, &state);
+        assert_eq!(n.message, "untouched");
+        drop(held);
+    }
+
+    // A launch by a person (a double-click, `just launch`) still brings the
+    // saved node back at once, the field-test fix autostart exists for.
+    //
+    // Red first, 2026-10-03, with autostart holding back every launch:
+    // "assertion `left == right` failed: a person's launch must start the
+    // saved node / left: Stopped / right: Failed".
+    #[test]
+    fn a_person_launch_still_starts_the_saved_node() {
+        let (held, port) = held_loopback_port();
+        let state = saved_node_on(port);
+        let mut n = LocalNode::new();
+        autostart(&mut n, &state, false);
+        assert_eq!(n.status, NodeStatus::Failed, "a person's launch must start the saved node");
+        assert!(n.message.contains(&port.to_string()), "it tried the saved port: {}", n.message);
+        assert!(!n.autostart_waiting);
+        drop(held);
+    }
+
+    // Red first, 2026-10-03, with first_busy made to test nothing: "assertion
+    // `left == right` failed: the second address was never tested, so a
+    // squatter there would be missed / left: None / right:
+    // Some(127.0.0.1:49477)". Binds loopback only: port 0
+    // (always free) and then the held port.
+    #[test]
+    fn preflight_tests_every_address_not_only_the_first() {
+        let held = std::net::TcpListener::bind(std::net::SocketAddr::from(([127, 0, 0, 1], 0)))
+            .expect("bind a scratch loopback port");
+        let busy = held.local_addr().unwrap();
+        let free = std::net::SocketAddr::from(([127, 0, 0, 1], 0));
+        let found = first_busy(&[free, busy]).map(|(a, _)| a);
+        assert_eq!(
+            found,
+            Some(busy),
+            "the second address was never tested, so a squatter there would be missed"
+        );
+        assert!(first_busy(&[free]).is_none(), "a free address is not reported busy");
+        drop(held);
     }
 
     #[test]

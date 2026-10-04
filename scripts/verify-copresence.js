@@ -514,7 +514,9 @@ async function main() {
       prefix: "verify-copresence-relay-",
       config: { server_name: "verify-copresence relay" },
     });
-    manifest.relay = { url: relay.httpUrl, pid: relay.pid, dir: relay.dir, health: relay.health };
+    // listening: what the OS showed it listening on (startRelay refuses
+    // anything but loopback, so this rig never raises a firewall prompt).
+    manifest.relay = { url: relay.httpUrl, pid: relay.pid, dir: relay.dir, health: relay.health, listening: relay.listening.map((r) => r.line) };
     manifest.steps_ok.relay = relay.health
       ? { ok: true, detail: `${relay.httpUrl} answered /health (pid ${relay.pid}, a copy in ${relay.dir})` }
       : { ok: false, detail: `${relay.httpUrl} never answered /health: ${relay.logText().slice(-400)}` };

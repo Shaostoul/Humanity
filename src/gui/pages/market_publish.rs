@@ -925,7 +925,9 @@ mod tests {
 
     /// END-TO-END against a real relay, driving the EXACT path the Publish
     /// buttons drive (sign_and_submit). Ignored in CI; run manually:
-    ///   PORT=3213 DATABASE_PATH=<scratch>/relay.db target/release/HumanityOS.exe --headless
+    ///   BIND_ADDRESS=127.0.0.1 PORT=3213 DATABASE_PATH=<scratch>/relay.db target/release/HumanityOS.exe --headless
+    /// (BIND_ADDRESS=127.0.0.1: loopback only, so Windows raises no firewall
+    /// prompt for the build; the test only talks to 127.0.0.1.)
     ///   cargo test --features native --lib market_publish -- --ignored
     /// Proves: provider accepted, offering accepted against the returned
     /// root, and a DIFFERENT identity's offering into the same shop rejected
